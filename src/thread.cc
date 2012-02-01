@@ -1297,6 +1297,7 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
     if (exception.get() != NULL) {
       ScopedJniThreadState ts(env);
       Throwable* t = reinterpret_cast<Throwable*>(ts.Self()->DecodeJObject(exception.get()));
+      t->SetDetailMessage(String::AllocFromModifiedUtf8(msg));
       ts.Self()->SetException(t);
     } else {
       LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI AllocObject failed: "
