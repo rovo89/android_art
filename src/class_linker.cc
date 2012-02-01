@@ -749,7 +749,6 @@ const OatFile* ClassLinker::FindOatFileForDexFile(const DexFile& dex_file) {
     if (oat_file.get() != NULL) {
       const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
       if (dex_file.GetHeader().checksum_ == oat_dex_file->GetDexFileChecksum()) {
-        RegisterOatFileLocked(*oat_file.get());
         return oat_file.release();
       }
       LOG(WARNING) << ".oat file " << oat_file->GetLocation()
@@ -817,7 +816,13 @@ const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& 
 }
 
 const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_location) {
-  const OatFile* oat_file = OatFile::Open(oat_location, "", NULL);
+  MutexLock mu(dex_lock_);
+  const OatFile* oat_file = FindOpenedOatFileFromOatLocation(oat_location);
+  if (oat_file != NULL) {
+    return oat_file;
+  }
+
+  oat_file = OatFile::Open(oat_location, "", NULL);
   if (oat_file == NULL) {
     if (oat_location.empty() || oat_location[0] != '/') {
       LOG(ERROR) << "Failed to open oat file from " << oat_location;
@@ -838,7 +843,28 @@ const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_lo
   }
 
   CHECK(oat_file != NULL) << oat_location;
+  RegisterOatFileLocked(*oat_file);
   return oat_file;
+}
+
+const DexFile* ClassLinker::FindDexFileFromDexLocation(const std::string& location) {
+  std::string oat_location(OatFile::DexFilenameToOatFilename(location));
+  const OatFile* oat_file = FindOatFileFromOatLocation(oat_location);
+  if (oat_file == NULL) {
+    return NULL;
+  }
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(location);
+  if (oat_dex_file == NULL) {
+    return NULL;
+  }
+  const DexFile* dex_file = oat_dex_file->OpenDexFile();
+  if (dex_file == NULL) {
+    return NULL;
+  }
+  if (oat_dex_file->GetDexFileChecksum() != dex_file->GetHeader().checksum_) {
+    return NULL;
+  }
+  return dex_file;
 }
 
 void ClassLinker::InitFromImage() {

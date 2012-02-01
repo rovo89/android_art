@@ -134,7 +134,11 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
     return NULL;
   }
   close(fd);
-  return OpenMemory(location, map.release());
+  const DexFile* dex_file = OpenMemory(location, map.release());
+  if (dex_file != NULL) {
+    DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size());
+  }
+  return dex_file;
 }
 
 const char* DexFile::kClassesDex = "classes.dex";
@@ -178,15 +182,19 @@ const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& l
     return NULL;
   }
 
-  return OpenMemory(location, map.release());
+  const DexFile* dex_file = OpenMemory(location, map.release());
+  if (dex_file != NULL) {
+    DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size());
+  }
+  return dex_file;
 }
 
 const DexFile* DexFile::OpenMemory(const byte* base,
-                                   size_t length,
+                                   size_t size,
                                    const std::string& location,
                                    MemMap* mem_map) {
   CHECK_ALIGNED(base, 4); // various dex file structures must be word aligned
-  UniquePtr<DexFile> dex_file(new DexFile(base, length, location, mem_map));
+  UniquePtr<DexFile> dex_file(new DexFile(base, size, location, mem_map));
   if (!dex_file->Init()) {
     return NULL;
   } else {
@@ -208,7 +216,7 @@ jobject DexFile::GetDexObject(JNIEnv* env) const {
   }
 
   void* address = const_cast<void*>(reinterpret_cast<const void*>(begin_));
-  jobject byte_buffer = env->NewDirectByteBuffer(address, length_);
+  jobject byte_buffer = env->NewDirectByteBuffer(address, size_);
   if (byte_buffer == NULL) {
     return NULL;
   }
@@ -240,9 +248,6 @@ bool DexFile::Init() {
     return false;
   }
   InitIndex();
-  if (!DexFileVerifier::Verify(this, begin_, length_)) {
-    return false;
-  }
   return true;
 }
 
@@ -256,7 +261,7 @@ void DexFile::InitMembers() {
   method_ids_ = reinterpret_cast<const MethodId*>(b + h->method_ids_off_);
   proto_ids_ = reinterpret_cast<const ProtoId*>(b + h->proto_ids_off_);
   class_defs_ = reinterpret_cast<const ClassDef*>(b + h->class_defs_off_);
-  DCHECK_EQ(length_, header_->file_size_);
+  DCHECK_EQ(size_, header_->file_size_);
 }
 
 bool DexFile::CheckMagicAndVersion() const {

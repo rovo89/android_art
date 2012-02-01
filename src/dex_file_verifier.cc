@@ -99,8 +99,8 @@ static bool CheckShortyDescriptorMatch(char shorty_char, const char* descriptor,
   return true;
 }
 
-bool DexFileVerifier::Verify(DexFile* dex_file, const byte* begin, size_t length) {
-  UniquePtr<DexFileVerifier> verifier(new DexFileVerifier(dex_file, begin, length));
+bool DexFileVerifier::Verify(const DexFile* dex_file, const byte* begin, size_t size) {
+  UniquePtr<DexFileVerifier> verifier(new DexFileVerifier(dex_file, begin, size));
   return verifier->Verify();
 }
 
@@ -108,7 +108,7 @@ bool DexFileVerifier::CheckPointerRange(const void* start, const void* end, cons
   uint32_t range_start = reinterpret_cast<uint32_t>(start);
   uint32_t range_end = reinterpret_cast<uint32_t>(end);
   uint32_t file_start = reinterpret_cast<uint32_t>(begin_);
-  uint32_t file_end = file_start + length_;
+  uint32_t file_end = file_start + size_;
   if ((range_start < file_start) || (range_start > file_end) ||
       (range_end < file_start) || (range_end > file_end)) {
     LOG(ERROR) << StringPrintf("Bad range for %s: %x to %x", label,
@@ -133,10 +133,10 @@ bool DexFileVerifier::CheckIndex(uint32_t field, uint32_t limit, const char* lab
 }
 
 bool DexFileVerifier::CheckHeader() const {
-  // Check file length from the header.
-  uint32_t expected_length = header_->file_size_;
-  if (length_ != expected_length) {
-    LOG(ERROR) << "Bad file length (" << length_ << ", expected " << expected_length << ")";
+  // Check file size from the header.
+  uint32_t expected_size = header_->file_size_;
+  if (size_ != expected_size) {
+    LOG(ERROR) << "Bad file size (" << size_ << ", expected " << expected_size << ")";
     return false;
   }
 
@@ -144,7 +144,7 @@ bool DexFileVerifier::CheckHeader() const {
   uint32_t adler_checksum = adler32(0L, Z_NULL, 0);
   const uint32_t non_sum = sizeof(header_->magic_) + sizeof(header_->checksum_);
   const byte* non_sum_ptr = reinterpret_cast<const byte*>(header_) + non_sum;
-  adler_checksum = adler32(adler_checksum, non_sum_ptr, expected_length - non_sum);
+  adler_checksum = adler32(adler_checksum, non_sum_ptr, expected_size - non_sum);
   if (adler_checksum != header_->checksum_) {
     LOG(ERROR) << StringPrintf("Bad checksum (%08x, expected %08x)", adler_checksum, header_->checksum_);
     return false;
@@ -157,7 +157,7 @@ bool DexFileVerifier::CheckHeader() const {
   }
 
   if (header_->header_size_ != sizeof(DexFile::Header)) {
-    LOG(ERROR) << "Bad header length: " << header_->header_size_;
+    LOG(ERROR) << "Bad header size: " << header_->header_size_;
     return false;
   }
 
@@ -685,7 +685,7 @@ bool DexFileVerifier::CheckIntraCodeItem() {
 
 bool DexFileVerifier::CheckIntraStringDataItem() {
   uint32_t size = DecodeUnsignedLeb128(&ptr_);
-  const byte* file_end = begin_ + length_;
+  const byte* file_end = begin_ + size_;
 
   for (uint32_t i = 0; i < size; i++) {
     if (ptr_ >= file_end) {
@@ -1121,7 +1121,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(uint32_t offset, uint32_t count, 
     }
 
     aligned_offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
-    if (aligned_offset > length_) {
+    if (aligned_offset > size_) {
       LOG(ERROR) << StringPrintf("Item %d at ends out of bounds", i);
       return false;
     }

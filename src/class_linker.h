@@ -251,6 +251,9 @@ class ClassLinker {
   const OatFile* FindOatFileForDexFile(const DexFile& dex_file);
   const OatFile* FindOatFileFromOatLocation(const std::string& location);
 
+  // Find a DexFile within an OatFile given a DexFile location
+  const DexFile* FindDexFileFromDexLocation(const std::string& location);
+
   // TODO: replace this with multiple methods that allocate the correct managed type.
   template <class T>
   ObjectArray<T>* AllocObjectArray(size_t length) {
