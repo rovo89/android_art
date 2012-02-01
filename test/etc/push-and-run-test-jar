@@ -90,11 +90,13 @@ fi
 msg "------------------------------"
 
 if [ "$QUIET" = "n" ]; then
+  adb mkdir /data/art-test
   adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar /system/framework
   adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.oat /system/framework
   adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.jar /data/art-test
   adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.oat /data/art-test
 else
+  adb mkdir /data/art-test >/dev/null 2>&1
   adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar /data/art-test >/dev/null 2>&1
   adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.oat /data/art-test >/dev/null 2>&1
   adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.jar /data/art-test >/dev/null 2>&1
