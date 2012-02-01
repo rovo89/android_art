@@ -1347,20 +1347,25 @@ bool Throwable::IsCheckedException() const {
 }
 
 std::string Throwable::Dump() const {
-  Object* stack_state = GetStackState();
-  if (stack_state == NULL || !stack_state->IsObjectArray()) {
-    // missing or corrupt stack state
-    return "";
+  std::string result(PrettyTypeOf(this));
+  result += ": ";
+  String* msg = GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), false);
+  if (msg != NULL) {
+    result += msg->ToModifiedUtf8();
   }
-  // Decode the internal stack trace into the depth and method trace
-  ObjectArray<Object>* method_trace = down_cast<ObjectArray<Object>*>(stack_state);
-  int32_t depth = method_trace->GetLength() - 1;
-  std::string result;
-  for (int32_t i = 0; i < depth; ++i) {
-    Method* method = down_cast<Method*>(method_trace->Get(i));
-    result += "  at ";
-    result += PrettyMethod(method, true);
-    result += "\n";
+  result += "\n";
+  Object* stack_state = GetStackState();
+  // check stack state isn't missing or corrupt
+  if (stack_state != NULL && stack_state->IsObjectArray()) {
+    // Decode the internal stack trace into the depth and method trace
+    ObjectArray<Object>* method_trace = down_cast<ObjectArray<Object>*>(stack_state);
+    int32_t depth = method_trace->GetLength() - 1;
+    for (int32_t i = 0; i < depth; ++i) {
+      Method* method = down_cast<Method*>(method_trace->Get(i));
+      result += "  at ";
+      result += PrettyMethod(method, true);
+      result += "\n";
+    }
   }
   return result;
 }

@@ -1898,9 +1898,10 @@ void ClassLinker::VerifyClass(Class* klass) {
     // Sanity check that a verified class has GC maps on all methods
     CheckMethodsHaveGcMaps(klass);
   } else {
-    LOG(ERROR) << "Verification failed on class " << PrettyClass(klass);
+    LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(klass)
+        << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
     Thread* self = Thread::Current();
-    CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException()) << PrettyClass(klass);
+    CHECK(!self->IsExceptionPending()) << self->GetException()->Dump();
     self->ThrowNewExceptionF("Ljava/lang/VerifyError;", "Verification of %s failed",
         PrettyDescriptor(klass).c_str());
     CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying) << PrettyClass(klass);
