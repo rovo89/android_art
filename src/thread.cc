@@ -99,10 +99,12 @@ void Thread::InitFunctionPointers() {
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
   pAllocArrayFromCode = art_alloc_array_from_code;
+  pAllocArrayFromCodeWithAccessCheck = art_alloc_array_from_code_with_access_check;
   pAllocObjectFromCode = art_alloc_object_from_code;
   pAllocObjectFromCodeWithAccessCheck = art_alloc_object_from_code_with_access_check;
   pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
   pCheckAndAllocArrayFromCode = art_check_and_alloc_array_from_code;
+  pCheckAndAllocArrayFromCodeWithAccessCheck = art_check_and_alloc_array_from_code_with_access_check;
   pCheckCastFromCode = art_check_cast_from_code;
   pFindInstanceFieldFromCode = art_find_instance_field_from_code;
   pGet32Static = art_get32_static_from_code;

@@ -124,8 +124,10 @@ class PACKED Thread {
   void* (*pAllocObjectFromCode)(uint32_t, void*);
   void* (*pAllocObjectFromCodeWithAccessCheck)(uint32_t, void*);
   void* (*pAllocArrayFromCode)(uint32_t, void*, int32_t);
+  void* (*pAllocArrayFromCodeWithAccessCheck)(uint32_t, void*, int32_t);
   void (*pCanPutArrayElementFromCode)(void*, void*);
   void* (*pCheckAndAllocArrayFromCode)(uint32_t, void*, int32_t);
+  void* (*pCheckAndAllocArrayFromCodeWithAccessCheck)(uint32_t, void*, int32_t);
   void (*pCheckCastFromCode)(void*, void*);
   Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
   void (*pDeliverException)(void*);
