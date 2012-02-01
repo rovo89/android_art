@@ -259,14 +259,10 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   const char* boot_class_path = getenv("BOOTCLASSPATH");
   if (boot_class_path != NULL) {
     parsed->boot_class_path_ = boot_class_path;
-  } else {
-    parsed->boot_class_path_ = ".";
   }
   const char* class_path = getenv("CLASSPATH");
   if (class_path != NULL) {
     parsed->class_path_ = class_path;
-  } else {
-    parsed->class_path_ = ".";
   }
 #ifdef NDEBUG
   // -Xcheck:jni is off by default for regular builds...

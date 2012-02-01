@@ -98,12 +98,21 @@ jobjectArray VMRuntime_properties(JNIEnv* env, jobject) {
   return toStringArray(env, Runtime::Current()->GetProperties());
 }
 
+// This is for backward compatibility with dalvik which returned the
+// meaningless "." when no boot classpath or classpath was
+// specified. Unfortunately, some tests were using java.class.path to
+// lookup relative file locations, so they are counting on this to be
+// ".", presumably some applications or libraries could have as well.
+const char* DefaultToDot(const std::string& class_path) {
+  return class_path.empty() ? "." : class_path.c_str();
+}
+
 jstring VMRuntime_bootClassPath(JNIEnv* env, jobject) {
-  return env->NewStringUTF(Runtime::Current()->GetBootClassPath().c_str());
+  return env->NewStringUTF(DefaultToDot(Runtime::Current()->GetBootClassPath()));
 }
 
 jstring VMRuntime_classPath(JNIEnv* env, jobject) {
-  return env->NewStringUTF(Runtime::Current()->GetClassPath().c_str());
+  return env->NewStringUTF(DefaultToDot(Runtime::Current()->GetClassPath()));
 }
 
 jstring VMRuntime_vmVersion(JNIEnv* env, jobject) {
