@@ -195,7 +195,7 @@ class Instruction {
 
   int GetVerifyTypeArgumentC() const {
     return (kInstructionVerifyFlags[Opcode()] & (kVerifyRegC | kVerifyRegCField |
-             kVerifyRegCNewArray | kVerifyRegBType | kVerifyRegBWide));
+             kVerifyRegCNewArray | kVerifyRegCType | kVerifyRegCWide));
   }
 
   int GetVerifyExtraFlags() const {
