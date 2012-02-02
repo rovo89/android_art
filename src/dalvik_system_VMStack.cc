@@ -60,7 +60,7 @@ jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBoots
   for (Frame frame = self->GetTopOfStack(); frame.HasNext(); frame.Next()) {
     Class* c = frame.GetMethod()->GetDeclaringClass();
     Object* cl = c->GetClassLoader();
-    if (cl != bootstrap && cl != system) {
+    if (cl != NULL && cl != bootstrap && cl != system) {
       return AddLocalReference<jobject>(env, cl);
     }
   }
