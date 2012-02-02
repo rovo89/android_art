@@ -3274,13 +3274,13 @@ void DexVerifier::VerifyAGet(const Instruction::DecodedInstruction& dec_insn,
         // Category 2
         work_line_->SetRegisterType(dec_insn.vA_, reg_types_.ConstLo());
       }
+    } else if (!array_type.IsArrayTypes()) {
+      Fail(VERIFY_ERROR_GENERIC) << "not array type " << array_type << " with aget";
     } else {
       /* verify the class */
       const RegType& component_type = reg_types_.GetComponentType(array_type,
                                                     method_->GetDeclaringClass()->GetClassLoader());
-      if (!array_type.IsArrayTypes()) {
-        Fail(VERIFY_ERROR_GENERIC) << "not array type " << array_type << " with aget";
-      } else if (!component_type.IsReferenceTypes() && !is_primitive) {
+      if (!component_type.IsReferenceTypes() && !is_primitive) {
         Fail(VERIFY_ERROR_GENERIC) << "primitive array type " << array_type
             << " source for aget-object";
       } else if (component_type.IsNonZeroReferenceTypes() && is_primitive) {
@@ -3311,13 +3311,13 @@ void DexVerifier::VerifyAPut(const Instruction::DecodedInstruction& dec_insn,
     if (array_type.IsZero()) {
       // Null array type; this code path will fail at runtime. Infer a merge-able type from the
       // instruction type.
+    } else if (!array_type.IsArrayTypes()) {
+      Fail(VERIFY_ERROR_GENERIC) << "not array type " << array_type << " with aput";
     } else {
       /* verify the class */
       const RegType& component_type = reg_types_.GetComponentType(array_type,
                                                     method_->GetDeclaringClass()->GetClassLoader());
-      if (!array_type.IsArrayTypes()) {
-        Fail(VERIFY_ERROR_GENERIC) << "not array type " << array_type << " with aput";
-      } else if (!component_type.IsReferenceTypes() && !is_primitive) {
+      if (!component_type.IsReferenceTypes() && !is_primitive) {
         Fail(VERIFY_ERROR_GENERIC) << "primitive array type " << array_type
             << " source for aput-object";
       } else if (component_type.IsNonZeroReferenceTypes() && is_primitive) {
