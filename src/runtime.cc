@@ -109,6 +109,10 @@ struct AbortState {
     }
     gAborting = true;
     os << "Runtime aborting...\n";
+    if (Runtime::Current() == NULL) {
+      os << "(Runtime does not yet exist!)\n";
+      return;
+    }
     Thread* self = Thread::Current();
     if (self == NULL) {
       os << "(Aborting thread was not attached to runtime!)\n";
