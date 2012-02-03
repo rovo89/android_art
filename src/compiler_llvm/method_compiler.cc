@@ -2295,6 +2295,35 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
 }
 
 
+Method* MethodCompiler::ResolveMethod(uint32_t method_idx) {
+  Thread* thread = Thread::Current();
+
+  // Save the exception state
+  Throwable* old_exception = NULL;
+  if (thread->IsExceptionPending()) {
+    old_exception = thread->GetException();
+    thread->ClearException();
+  }
+
+  // Resolve the method through the class linker
+  Method* method = class_linker_->ResolveMethod(*dex_file_, method_idx,
+                                                dex_cache_, class_loader_,
+                                                /* is_direct= */ false);
+
+  if (method == NULL) {
+    // Ignore the exception raised during the method resolution
+    thread->ClearException();
+  }
+
+  // Restore the exception state
+  if (old_exception != NULL) {
+    thread->SetException(old_exception);
+  }
+
+  return method;
+}
+
+
 Field* MethodCompiler::ResolveField(uint32_t field_idx) {
   Thread* thread = Thread::Current();
 

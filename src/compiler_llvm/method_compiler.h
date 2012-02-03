@@ -342,6 +342,8 @@ class MethodCompiler {
 
   RegCategory GetInferredRegCategory(uint32_t dex_pc, uint16_t reg);
 
+  Method* ResolveMethod(uint32_t method_idx);
+
   Field* ResolveField(uint32_t field_idx);
 
   Field* FindFieldAndDeclaringTypeIdx(uint32_t field_idx,
