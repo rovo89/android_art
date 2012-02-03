@@ -21,7 +21,6 @@
 #include "object_utils.h"
 #include "space.h"
 #include "thread.h"
-#include "thread_list.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 #include "toStringArray.h"
@@ -134,7 +133,7 @@ void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) 
 }
 
 void VMRuntime_trimHeap(JNIEnv* env, jobject) {
-  ScopedThreadListLock thread_list_lock;
+  ScopedHeapLock heap_lock;
   uint64_t start_ns = NanoTime();
   Heap::GetAllocSpace()->Trim();
   VLOG(gc) << "VMRuntime_trimHeap took " << PrettyDuration(NanoTime() - start_ns);
