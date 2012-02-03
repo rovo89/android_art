@@ -730,6 +730,10 @@ void Heap::RequestHeapTrim() {
     // (This percentage was picked arbitrarily.)
     return;
   }
+  if (!Runtime::Current()->IsStarted()) {
+    // Heap trimming isn't supported without a Java runtime (such as at dex2oat time)
+    return;
+  }
   JNIEnv* env = Thread::Current()->GetJniEnv();
   static jclass Daemons_class = CacheClass(env, "java/lang/Daemons");
   static jmethodID Daemons_requestHeapTrim = env->GetStaticMethodID(Daemons_class, "requestHeapTrim", "()V");
