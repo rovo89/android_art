@@ -650,6 +650,8 @@ void Runtime::InitNativeMethods() {
 
 void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
 #define REGISTER(FN) extern void FN(JNIEnv*); FN(env)
+  // Register Throwable first so that registration of other native methods can throw exceptions
+  REGISTER(register_java_lang_Throwable);
   REGISTER(register_dalvik_system_DexFile);
   REGISTER(register_dalvik_system_VMDebug);
   REGISTER(register_dalvik_system_VMRuntime);
@@ -661,7 +663,6 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
   REGISTER(register_java_lang_String);
   REGISTER(register_java_lang_System);
   REGISTER(register_java_lang_Thread);
-  REGISTER(register_java_lang_Throwable);
   REGISTER(register_java_lang_VMClassLoader);
   REGISTER(register_java_lang_reflect_Array);
   REGISTER(register_java_lang_reflect_Constructor);

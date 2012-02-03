@@ -2278,6 +2278,15 @@ class MANAGED Throwable : public Object {
   // in cases like the verifier where the checks cannot fail and initCause isn't overridden.
   void SetCause(Throwable* cause);
   bool IsCheckedException() const;
+
+  static Class* GetJavaLangThrowable() {
+    DCHECK(java_lang_Throwable_ != NULL);
+    return java_lang_Throwable_;
+  }
+
+  static void SetClass(Class* java_lang_Throwable);
+  static void ResetClass();
+
  private:
   Object* GetStackState() const {
     return GetFieldObject<Object*>(OFFSET_OF_OBJECT_MEMBER(Throwable, stack_state_), true);
@@ -2289,6 +2298,8 @@ class MANAGED Throwable : public Object {
   Object* stack_state_; // Note this is Java volatile:
   Object* stack_trace_;
   Object* suppressed_exceptions_;
+
+  static Class* java_lang_Throwable_;
 
   friend struct ThrowableOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(Throwable);
