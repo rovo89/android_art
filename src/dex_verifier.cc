@@ -637,6 +637,14 @@ bool RegisterLine::VerifyRegisterType(uint32_t vsrc, const RegType& check_type) 
                                           << " but expected " << check_type;
     return false;
   }
+  if (check_type.IsLowHalf()) {
+    const RegType& src_type_h = GetRegisterType(vsrc + 1);
+    if (!src_type.CheckWidePair(src_type_h)) {
+      verifier_->Fail(VERIFY_ERROR_GENERIC) << "wide register v" << vsrc << " has type "
+                                            << src_type << "/" << src_type_h;
+      return false;
+    }
+  }
   // The register at vsrc has a defined type, we know the lower-upper-bound, but this is less
   // precise than the subtype in vsrc so leave it for reference types. For primitive types
   // if they are a defined type then they are as precise as we can get, however, for constant
@@ -1485,9 +1493,9 @@ bool DexVerifier::CheckVarArgRegs(uint32_t vA, uint32_t arg[]) {
   }
   uint16_t registers_size = code_item_->registers_size_;
   for (uint32_t idx = 0; idx < vA; idx++) {
-    if (arg[idx] > registers_size) {
+    if (arg[idx] >= registers_size) {
       Fail(VERIFY_ERROR_GENERIC) << "invalid reg index (" << arg[idx]
-                                 << ") in non-range invoke (> " << registers_size << ")";
+                                 << ") in non-range invoke (>= " << registers_size << ")";
       return false;
     }
   }
@@ -2157,19 +2165,31 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
     case Instruction::CMPL_FLOAT:
     case Instruction::CMPG_FLOAT:
-      work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Float());
-      work_line_->VerifyRegisterType(dec_insn.vC_, reg_types_.Float());
+      if (!work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Float())) {
+        break;
+      }
+      if (!work_line_->VerifyRegisterType(dec_insn.vC_, reg_types_.Float())) {
+        break;
+      }
       work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Integer());
       break;
     case Instruction::CMPL_DOUBLE:
     case Instruction::CMPG_DOUBLE:
-      work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Double());
-      work_line_->VerifyRegisterType(dec_insn.vC_, reg_types_.Double());
+      if (!work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Double())) {
+        break;
+      }
+      if (!work_line_->VerifyRegisterType(dec_insn.vC_, reg_types_.Double())) {
+        break;
+      }
       work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Integer());
       break;
     case Instruction::CMP_LONG:
-      work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Long());
-      work_line_->VerifyRegisterType(dec_insn.vC_, reg_types_.Long());
+      if (!work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Long())) {
+        break;
+      }
+      if (!work_line_->VerifyRegisterType(dec_insn.vC_, reg_types_.Long())) {
+        break;
+      }
       work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Integer());
       break;
     case Instruction::THROW: {
@@ -2196,24 +2216,29 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       const RegType& array_type = work_line_->GetRegisterType(dec_insn.vA_);
       /* array_type can be null if the reg type is Zero */
       if (!array_type.IsZero()) {
-        const RegType& component_type = reg_types_.GetComponentType(array_type,
-                                                    method_->GetDeclaringClass()->GetClassLoader());
-        DCHECK(!component_type.IsUnknown());
-        if (!array_type.IsArrayTypes() || component_type.IsNonZeroReferenceTypes()) {
-          Fail(VERIFY_ERROR_GENERIC) << "invalid fill-array-data on " << array_type;
+        if (!array_type.IsArrayTypes()) {
+          Fail(VERIFY_ERROR_GENERIC) << "invalid fill-array-data with array type " << array_type;
         } else {
-          // Now verify if the element width in the table matches the element width declared in
-          // the array
-          const uint16_t* array_data = insns + (insns[1] | (((int32_t) insns[2]) << 16));
-          if (array_data[0] != Instruction::kArrayDataSignature) {
-            Fail(VERIFY_ERROR_GENERIC) << "invalid magic for array-data";
+          const RegType& component_type = reg_types_.GetComponentType(array_type,
+                                                    method_->GetDeclaringClass()->GetClassLoader());
+          DCHECK(!component_type.IsUnknown());
+          if (component_type.IsNonZeroReferenceTypes()) {
+            Fail(VERIFY_ERROR_GENERIC) << "invalid fill-array-data with component type "
+                                       << component_type;
           } else {
-            size_t elem_width = Primitive::ComponentSize(component_type.GetPrimitiveType());
-            // Since we don't compress the data in Dex, expect to see equal width of data stored
-            // in the table and expected from the array class.
-            if (array_data[1] != elem_width) {
-              Fail(VERIFY_ERROR_GENERIC) << "array-data size mismatch (" << array_data[1]
-                                         << " vs " << elem_width << ")";
+            // Now verify if the element width in the table matches the element width declared in
+            // the array
+            const uint16_t* array_data = insns + (insns[1] | (((int32_t) insns[2]) << 16));
+            if (array_data[0] != Instruction::kArrayDataSignature) {
+              Fail(VERIFY_ERROR_GENERIC) << "invalid magic for array-data";
+            } else {
+              size_t elem_width = Primitive::ComponentSize(component_type.GetPrimitiveType());
+              // Since we don't compress the data in Dex, expect to see equal width of data stored
+              // in the table and expected from the array class.
+              if (array_data[1] != elem_width) {
+                Fail(VERIFY_ERROR_GENERIC) << "array-data size mismatch (" << array_data[1]
+                                           << " vs " << elem_width << ")";
+              }
             }
           }
         }
@@ -3587,8 +3612,6 @@ void DexVerifier::VerifyFilledNewArrayRegs(const Instruction::DecodedInstruction
       get_reg = dec_insn.arg_[ui];
 
     if (!work_line_->VerifyRegisterType(get_reg, expected_type)) {
-      Fail(VERIFY_ERROR_GENERIC) << "filled-new-array arg " << ui << "(" << get_reg
-                                 << ") not valid";
       return;
     }
   }
