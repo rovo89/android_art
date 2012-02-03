@@ -218,6 +218,8 @@ class Heap {
   // Pushes a list of cleared references out to the managed heap.
   static void EnqueueClearedReferences(Object** cleared_references);
 
+  static void RequestHeapTrim();
+
   static void RecordAllocationLocked(AllocSpace* space, const Object* object);
   static void RecordImageAllocations(Space* space);
 

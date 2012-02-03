@@ -25,7 +25,7 @@ class Runtime;
 class Thread;
 
 /*
- * A thread that catches signals and does something useful. For
+ * A daemon thread that catches signals and does something useful. For
  * example, when a SIGQUIT (Ctrl-\) arrives, we suspend and dump the
  * status of all threads.
  */
