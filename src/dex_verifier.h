@@ -1121,6 +1121,10 @@ class DexVerifier {
    */
   bool CodeFlowVerifyInstruction(uint32_t* start_guess);
 
+  // Perform verification of a new array instruction
+  void VerifyNewArray(const Instruction::DecodedInstruction& dec_insn, bool is_filled,
+                      bool is_range);
+
   // Perform verification of an aget instruction. The destination register's type will be set to
   // be that of component type of the array unless the array type is unknown, in which case a
   // bottom type inferred from the type of instruction is used. is_primitive is false for an
@@ -1145,10 +1149,6 @@ class DexVerifier {
   // Perform verification of an iput or sput instruction.
   void VerifyISPut(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
                    bool is_primitive, bool is_static);
-
-  // Verify that the arguments in a filled-new-array instruction are valid.
-  void VerifyFilledNewArrayRegs(const Instruction::DecodedInstruction& dec_insn,
-                                const RegType& res_type, bool is_range);
 
   // Resolves a class based on an index and performs access checks to ensure the referrer can
   // access the resolved class.
