@@ -89,6 +89,10 @@ pid_t ThreadList::GetLockOwner() {
 
 void ThreadList::Dump(std::ostream& os) {
   ScopedThreadListLock thread_list_lock;
+  DumpLocked(os);
+}
+
+void ThreadList::DumpLocked(std::ostream& os) {
   os << "DALVIK THREADS (" << list_.size() << "):\n";
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->Dump(os);

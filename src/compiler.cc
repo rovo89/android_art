@@ -306,6 +306,8 @@ class Workers {
   }
 
   ~Workers() {
+    // Switch to kVmWait while we're blocked waiting for the other threads to finish.
+    ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
     STLDeleteElements(&threads_);
   }
 
@@ -402,8 +404,8 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
     for (size_t string_idx = 0; string_idx < dex_cache->NumStrings(); string_idx++) {
       class_linker->ResolveString(dex_file, string_idx, dex_cache);
     }
+    timings.AddSplit("Resolve " + dex_file.GetLocation() + " Strings");
   }
-  timings.AddSplit("Resolve.Strings");
 
   Context context;
   context.class_linker = class_linker;
@@ -414,12 +416,12 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
   {
     Workers workers(&context, 0, dex_cache->NumResolvedTypes(), ResolveType);
   }
-  timings.AddSplit("Resolve.Types");
+  timings.AddSplit("Resolve " + dex_file.GetLocation() + " Types");
 
   {
     Workers workers(&context, 0, dex_file.NumClassDefs(), ResolveClassFieldsAndMethods);
   }
-  timings.AddSplit("Resolve.MethodsAndFields");
+  timings.AddSplit("Resolve " + dex_file.GetLocation() + " MethodsAndFields");
 }
 
 void Compiler::Verify(const ClassLoader* class_loader,

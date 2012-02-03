@@ -659,6 +659,16 @@ bool Thread::IsSuspended() {
   return ANNOTATE_UNPROTECTED_READ(suspend_count_) != 0 && GetState() != Thread::kRunnable;
 }
 
+static void ReportThreadSuspendTimeout(Thread* waiting_thread) {
+  Runtime* runtime = Runtime::Current();
+  std::ostringstream ss;
+  ss << "Thread suspend timeout; waiting thread=" << *waiting_thread << "\n";
+  runtime->DumpLockHolders(ss);
+  ss << "\n";
+  runtime->GetThreadList()->DumpLocked(ss);
+  LOG(FATAL) << ss.str();
+}
+
 void Thread::WaitUntilSuspended() {
   static const useconds_t kTimeoutUs = 30 * 1000000; // 30s.
 
@@ -666,7 +676,7 @@ void Thread::WaitUntilSuspended() {
   useconds_t delay = 0;
   while (GetState() == Thread::kRunnable) {
     if (total_delay >= kTimeoutUs) {
-      Runtime::Current()->DumpLockHolders(LOG(FATAL) << "Thread suspend timeout: " << *this << "\n");
+      ReportThreadSuspendTimeout(this);
     }
     useconds_t new_delay = delay * 2;
     CHECK_GE(new_delay, delay);
