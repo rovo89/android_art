@@ -2839,7 +2839,49 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_InvokeInterface(uint32_t dex_pc,
                                               Instruction const* insn,
                                               bool is_range) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  uint32_t callee_method_idx = dec_insn.vB_;
+
+  // Resolve callee method
+  Method* callee_method = ResolveMethod(callee_method_idx);
+
+  // Test: Is "this" pointer equal to null?
+  llvm::Value* this_addr = EmitLoadCalleeThis(dec_insn, is_range);
+  EmitGuard_NullPointerException(dex_pc, this_addr);
+
+  // Resolve the callee method object address at runtime
+  llvm::Value* runtime_func = irb_.GetRuntime(FindInterfaceMethod);
+
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* callee_method_idx_value = irb_.getInt32(callee_method_idx);
+
+  llvm::Value* callee_method_object_addr =
+    irb_.CreateCall2(runtime_func, callee_method_idx_value, method_object_addr);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  llvm::Value* code_addr =
+    EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, false);
+
+  // Load the actual parameter
+  std::vector<llvm::Value*> args;
+  args.push_back(callee_method_object_addr);
+  args.push_back(this_addr);
+  EmitLoadActualParameters(args, callee_method_idx, dec_insn, is_range, false);
+
+  // Emit the code to invoke callee
+  llvm::Value* retval = irb_.CreateCall(code_addr, args);
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  MethodHelper method_helper(callee_method);
+  char ret_shorty = method_helper.GetShorty()[0];
+  if (ret_shorty != 'V') {
+    EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
+  }
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
