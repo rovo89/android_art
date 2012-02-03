@@ -1243,9 +1243,33 @@ void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
 }
 
 
+llvm::Value* MethodCompiler::EmitLoadArrayLength(llvm::Value* array) {
+  // Load array length field address
+  llvm::Constant* array_len_field_offset =
+    irb_.getPtrEquivInt(Array::LengthOffset().Int32Value());
+
+  llvm::Value* array_len_field_addr =
+    irb_.CreatePtrDisp(array, array_len_field_offset,
+                       irb_.getJIntTy()->getPointerTo());
+
+  // Load array length
+  return irb_.CreateLoad(array_len_field_addr);
+}
+
+
 void MethodCompiler::EmitInsn_ArrayLength(uint32_t dex_pc,
                                           Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  // Get the array object address
+  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vB_, kObject, kAccurate);
+  EmitGuard_NullPointerException(dex_pc, array_addr);
+
+  // Get the array length and store it to the register
+  llvm::Value* array_len = EmitLoadArrayLength(array_addr);
+  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, array_len);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
@@ -2036,6 +2060,26 @@ void MethodCompiler::EmitGuard_DivZeroException(uint32_t dex_pc,
 
   irb_.SetInsertPoint(block_exception);
   irb_.CreateCall(irb_.GetRuntime(ThrowDivZeroException));
+  EmitBranchExceptionLandingPad(dex_pc);
+
+  irb_.SetInsertPoint(block_continue);
+}
+
+
+void MethodCompiler::EmitGuard_NullPointerException(uint32_t dex_pc,
+                                                    llvm::Value* object) {
+  llvm::Value* equal_null = irb_.CreateICmpEQ(object, irb_.getJNull());
+
+  llvm::BasicBlock* block_exception =
+    CreateBasicBlockWithDexPC(dex_pc, "nullp");
+
+  llvm::BasicBlock* block_continue =
+    CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+  irb_.CreateCondBr(equal_null, block_exception, block_continue);
+
+  irb_.SetInsertPoint(block_exception);
+  irb_.CreateCall(irb_.GetRuntime(ThrowNullPointerException));
   EmitBranchExceptionLandingPad(dex_pc);
 
   irb_.SetInsertPoint(block_continue);

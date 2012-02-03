@@ -294,9 +294,14 @@ class MethodCompiler {
                                              llvm::Value* rhs,
                                              FPArithmKind arithm);
 
+  llvm::Value* EmitLoadArrayLength(llvm::Value* array);
+
   void EmitGuard_DivZeroException(uint32_t dex_pc,
                                   llvm::Value* denominator,
                                   JType op_jty);
+
+  void EmitGuard_NullPointerException(uint32_t dex_pc,
+                                      llvm::Value* object);
 
   RegCategory GetInferredRegCategory(uint32_t dex_pc, uint16_t reg);
 
