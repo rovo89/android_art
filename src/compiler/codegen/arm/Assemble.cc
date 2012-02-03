@@ -1337,6 +1337,14 @@ STATIC AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                     (addPCInst->generic.offset + 4)) >> 16) & 0xffff;
             }
         }
+        /*
+         * If one of the pc-relative instructions expanded we'll have
+         * to make another pass.  Don't bother to fully assemble the
+         * instruction.
+         */
+        if (res != kSuccess) {
+            continue;
+        }
         ArmEncodingMap *encoder = &EncodingMap[lir->opcode];
         u4 bits = encoder->skeleton;
         int i;
