@@ -2159,43 +2159,17 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       }
       break;
     }
-    case Instruction::NEW_ARRAY: {
-      const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vC_);
-      if (res_type.IsUnknown()) {
-        CHECK_NE(failure_, VERIFY_ERROR_NONE);
-      } else {
-        // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
-        if (!res_type.IsArrayTypes()) {
-          Fail(VERIFY_ERROR_GENERIC) << "new-array on non-array class " << res_type;
-        } else {
-          /* make sure "size" register is valid type */
-          work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Integer());
-          /* set register type to array class */
-          work_line_->SetRegisterType(dec_insn.vA_, res_type);
-        }
-      }
+    case Instruction::NEW_ARRAY:
+      VerifyNewArray(dec_insn, false, false);
       break;
-    }
     case Instruction::FILLED_NEW_ARRAY:
-    case Instruction::FILLED_NEW_ARRAY_RANGE: {
-      const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB_);
-      if (res_type.IsUnknown()) {
-        CHECK_NE(failure_, VERIFY_ERROR_NONE);
-      } else {
-        // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
-        if (!res_type.IsArrayTypes()) {
-          Fail(VERIFY_ERROR_GENERIC) << "filled-new-array on non-array class";
-        } else {
-          bool is_range = (dec_insn.opcode_ == Instruction::FILLED_NEW_ARRAY_RANGE);
-          /* check the arguments to the instruction */
-          VerifyFilledNewArrayRegs(dec_insn, res_type, is_range);
-          /* filled-array result goes into "result" register */
-          work_line_->SetResultRegisterType(res_type);
-          just_set_result = true;
-        }
-      }
+      VerifyNewArray(dec_insn, true, false);
+      just_set_result = true;  // Filled new array sets result register
       break;
-    }
+    case Instruction::FILLED_NEW_ARRAY_RANGE:
+      VerifyNewArray(dec_insn, true, true);
+      just_set_result = true;  // Filled new array range sets result register
+      break;
     case Instruction::CMPL_FLOAT:
     case Instruction::CMPG_FLOAT:
       if (!work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Float())) {
@@ -3315,6 +3289,39 @@ const RegType& DexVerifier::GetMethodReturnType() {
                                    MethodHelper(method_).GetReturnTypeDescriptor());
 }
 
+void DexVerifier::VerifyNewArray(const Instruction::DecodedInstruction& dec_insn, bool is_filled,
+                                 bool is_range) {
+  const RegType& res_type = ResolveClassAndCheckAccess(is_filled ? dec_insn.vB_ : dec_insn.vC_);
+  if (res_type.IsUnknown()) {
+    CHECK_NE(failure_, VERIFY_ERROR_NONE);
+  } else {
+    // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
+    if (!res_type.IsArrayTypes()) {
+      Fail(VERIFY_ERROR_GENERIC) << "new-array on non-array class " << res_type;
+    } else if (!is_filled) {
+      /* make sure "size" register is valid type */
+      work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Integer());
+      /* set register type to array class */
+      work_line_->SetRegisterType(dec_insn.vA_, res_type);
+    } else {
+      // Verify each register. If "arg_count" is bad, VerifyRegisterType() will run off the end of
+      // the list and fail. It's legal, if silly, for arg_count to be zero.
+      const RegType& expected_type = reg_types_.GetComponentType(res_type,
+                                                    method_->GetDeclaringClass()->GetClassLoader());
+      uint32_t arg_count = dec_insn.vA_;
+      for (size_t ui = 0; ui < arg_count; ui++) {
+        uint32_t get_reg = is_range ? dec_insn.vC_ + ui : dec_insn.arg_[ui];
+        if (!work_line_->VerifyRegisterType(get_reg, expected_type)) {
+          work_line_->SetResultRegisterType(reg_types_.Unknown());
+          return;
+        }
+      }
+      // filled-array result goes into "result" register
+      work_line_->SetResultRegisterType(res_type);
+    }
+  }
+}
+
 void DexVerifier::VerifyAGet(const Instruction::DecodedInstruction& dec_insn,
                              const RegType& insn_type, bool is_primitive) {
   const RegType& index_type = work_line_->GetRegisterType(dec_insn.vC_);
@@ -3624,30 +3631,6 @@ bool DexVerifier::CheckMoveException(const uint16_t* insns, int insn_idx) {
     return false;
   }
   return true;
-}
-
-void DexVerifier::VerifyFilledNewArrayRegs(const Instruction::DecodedInstruction& dec_insn,
-                                           const RegType& res_type, bool is_range) {
-  DCHECK(res_type.IsArrayTypes()) << res_type;  // Checked before calling.
-  /*
-   * Verify each register. If "arg_count" is bad, VerifyRegisterType() will run off the end of the
-   * list and fail. It's legal, if silly, for arg_count to be zero.
-   */
-  const RegType& expected_type = reg_types_.GetComponentType(res_type,
-                                                   method_->GetDeclaringClass()->GetClassLoader());
-  uint32_t arg_count = dec_insn.vA_;
-  for (size_t ui = 0; ui < arg_count; ui++) {
-    uint32_t get_reg;
-
-    if (is_range)
-      get_reg = dec_insn.vC_ + ui;
-    else
-      get_reg = dec_insn.arg_[ui];
-
-    if (!work_line_->VerifyRegisterType(get_reg, expected_type)) {
-      return;
-    }
-  }
 }
 
 void DexVerifier::ReplaceFailingInstruction() {
