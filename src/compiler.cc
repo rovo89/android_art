@@ -59,14 +59,10 @@ Compiler::Compiler(InstructionSet instruction_set,
                    const std::set<std::string>* image_classes)
     : instruction_set_(instruction_set),
       jni_compiler_(instruction_set),
+      compiled_classes_lock_("compiled classes lock"),
+      compiled_methods_lock_("compiled method lock"),
+      compiled_invoke_stubs_lock_("compiled invoke stubs lock"),
       image_(image),
-      dex_file_count_(0),
-      class_count_(0),
-      abstract_method_count_(0),
-      native_method_count_(0),
-      regular_method_count_(0),
-      instruction_count_(0),
-      start_ns_(NanoTime()),
       image_classes_(image_classes) {
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
@@ -75,32 +71,17 @@ Compiler::Compiler(InstructionSet instruction_set,
 }
 
 Compiler::~Compiler() {
-  STLDeleteValues(&compiled_classes_);
-  STLDeleteValues(&compiled_methods_);
-  STLDeleteValues(&compiled_invoke_stubs_);
-  if (dex_file_count_ > 0) {
-    uint64_t duration_ns = NanoTime() - start_ns_;
-    std::string stats(StringPrintf("Compiled files:%zd"
-                                   " classes:%zd"
-                                   " methods:(abstract:%zd"
-                                   " native:%zd"
-                                   " regular:%zd)"
-                                   " instructions:%zd",
-                                   dex_file_count_,
-                                   class_count_,
-                                   abstract_method_count_,
-                                   native_method_count_,
-                                   regular_method_count_,
-                                   instruction_count_));
-    stats += " (took ",
-    stats += PrettyDuration(duration_ns);
-    if (instruction_count_ != 0) {
-        stats += ", ";
-        stats += PrettyDuration(duration_ns / instruction_count_);
-        stats += "/instruction";
-    }
-    stats += ")";
-    LOG(INFO) << stats;
+  {
+    MutexLock mu(compiled_classes_lock_);
+    STLDeleteValues(&compiled_classes_);
+  }
+  {
+    MutexLock mu(compiled_methods_lock_);
+    STLDeleteValues(&compiled_methods_);
+  }
+  {
+    MutexLock mu(compiled_invoke_stubs_lock_);
+    STLDeleteValues(&compiled_invoke_stubs_);
   }
 }
 
@@ -251,6 +232,7 @@ static bool SkipClass(const ClassLoader* class_loader,
 struct Context {
   ClassLinker* class_linker;
   const ClassLoader* class_loader;
+  Compiler* compiler;
   DexCache* dex_cache;
   const DexFile* dex_file;
 };
@@ -287,7 +269,6 @@ class WorkerThread {
   }
 
   pthread_t pthread_;
-  Thread* thread_;
 
   Context* context_;
   size_t begin_;
@@ -490,6 +471,7 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
       // record the final class status if necessary
       Class::Status status = klass->GetStatus();
       ClassReference ref(&dex_file, class_def_index);
+      MutexLock mu(compiled_classes_lock_);
       CompiledClass* compiled_class = GetCompiledClass(ref);
       if (compiled_class == NULL) {
         compiled_class = new CompiledClass(status);
@@ -522,20 +504,13 @@ void Compiler::Compile(const ClassLoader* class_loader,
   }
 }
 
-void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
-  ++dex_file_count_;
-  for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs(); class_def_index++) {
-    const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-    CompileClass(class_def, class_loader, dex_file);
-  }
-}
-
-void Compiler::CompileClass(const DexFile::ClassDef& class_def, const ClassLoader* class_loader,
-                            const DexFile& dex_file) {
+void Compiler::CompileClass(Context* context, size_t class_def_index) {
+  const ClassLoader* class_loader = context->class_loader;
+  const DexFile& dex_file = *context->dex_file;
+  const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
   if (SkipClass(class_loader, dex_file, class_def)) {
     return;
   }
-  ++class_count_;
   const byte* class_data = dex_file.GetClassData(class_def);
   if (class_data == NULL) {
     // empty class, probably a marker interface
@@ -551,17 +526,27 @@ void Compiler::CompileClass(const DexFile::ClassDef& class_def, const ClassLoade
   }
   // Compile direct methods
   while (it.HasNextDirectMethod()) {
-    CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(), it.GetMemberIndex(),
-                  class_loader, dex_file);
+    context->compiler->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
+                                     it.GetMemberIndex(), class_loader, dex_file);
     it.Next();
   }
   // Compile virtual methods
   while (it.HasNextVirtualMethod()) {
-    CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(), it.GetMemberIndex(),
-                  class_loader, dex_file);
+    context->compiler->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
+                                     it.GetMemberIndex(), class_loader, dex_file);
     it.Next();
   }
   DCHECK(!it.HasNext());
+}
+
+void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
+  Context context;
+  context.class_loader = class_loader;
+  context.compiler = this;
+  context.dex_file = &dex_file;
+  {
+    Workers workers(&context, 0, dex_file.NumClassDefs(), Compiler::CompileClass);
+  }
 }
 
 void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
@@ -570,14 +555,10 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
   CompiledMethod* compiled_method = NULL;
   uint64_t start_ns = NanoTime();
   if ((access_flags & kAccNative) != 0) {
-    ++native_method_count_;
     compiled_method = jni_compiler_.Compile(access_flags, method_idx, class_loader, dex_file);
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
-    ++abstract_method_count_;
   } else {
-    ++regular_method_count_;
-    instruction_count_ += code_item->insns_size_in_code_units_;
     compiled_method = oatCompileMethod(*this, code_item, access_flags, method_idx, class_loader,
                                        dex_file, kThumb2);
     CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
@@ -591,6 +572,7 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
   if (compiled_method != NULL) {
     MethodReference ref(&dex_file, method_idx);
     CHECK(GetCompiledMethod(ref) == NULL) << PrettyMethod(method_idx, dex_file);
+    MutexLock mu(compiled_methods_lock_);
     compiled_methods_[ref] = compiled_method;
     DCHECK(GetCompiledMethod(ref) != NULL) << PrettyMethod(method_idx, dex_file);
   }
@@ -621,6 +603,7 @@ static std::string MakeInvokeStubKey(bool is_static, const char* shorty) {
 }
 
 const CompiledInvokeStub* Compiler::FindInvokeStub(bool is_static, const char* shorty) const {
+  MutexLock mu(compiled_invoke_stubs_lock_);
   const std::string key(MakeInvokeStubKey(is_static, shorty));
   InvokeStubTable::const_iterator it = compiled_invoke_stubs_.find(key);
   if (it == compiled_invoke_stubs_.end()) {
@@ -633,11 +616,13 @@ const CompiledInvokeStub* Compiler::FindInvokeStub(bool is_static, const char* s
 
 void Compiler::InsertInvokeStub(bool is_static, const char* shorty,
                                 const CompiledInvokeStub* compiled_invoke_stub) {
+  MutexLock mu(compiled_invoke_stubs_lock_);
   std::string key(MakeInvokeStubKey(is_static, shorty));
   compiled_invoke_stubs_[key] = compiled_invoke_stub;
 }
 
 CompiledClass* Compiler::GetCompiledClass(ClassReference ref) const {
+  MutexLock mu(compiled_classes_lock_);
   ClassTable::const_iterator it = compiled_classes_.find(ref);
   if (it == compiled_classes_.end()) {
     return NULL;
@@ -647,6 +632,7 @@ CompiledClass* Compiler::GetCompiledClass(ClassReference ref) const {
 }
 
 CompiledMethod* Compiler::GetCompiledMethod(MethodReference ref) const {
+  MutexLock mu(compiled_methods_lock_);
   MethodTable::const_iterator it = compiled_methods_.find(ref);
   if (it == compiled_methods_.end()) {
     return NULL;
