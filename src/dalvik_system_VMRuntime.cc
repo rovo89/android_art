@@ -19,7 +19,9 @@
 #include "jni_internal.h"
 #include "object.h"
 #include "object_utils.h"
+#include "space.h"
 #include "thread.h"
+#include "thread_list.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 #include "toStringArray.h"
@@ -131,6 +133,13 @@ void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) 
   }
 }
 
+void VMRuntime_trimHeap(JNIEnv* env, jobject) {
+  ScopedThreadListLock thread_list_lock;
+  uint64_t start_ns = NanoTime();
+  Heap::GetAllocSpace()->Trim();
+  VLOG(gc) << "VMRuntime_trimHeap took " << PrettyDuration(NanoTime() - start_ns);
+}
+
 JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, addressOf, "(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
@@ -144,6 +153,7 @@ JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, properties, "()[Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, setTargetSdkVersion, "(I)V"),
   NATIVE_METHOD(VMRuntime, startJitCompilation, "()V"),
+  NATIVE_METHOD(VMRuntime, trimHeap, "()V"),
   NATIVE_METHOD(VMRuntime, vmVersion, "()Ljava/lang/String;"),
 };
 

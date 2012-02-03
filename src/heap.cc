@@ -522,9 +522,10 @@ void Heap::CollectGarbageInternal(bool clear_soft_references) {
   thread_list->ResumeAll();
 
   EnqueueClearedReferences(&cleared_references);
+  RequestHeapTrim();
 
   uint64_t duration_ns = t1 - t0;
-  bool gc_was_particularly_slow = duration_ns > MsToNs(100); // TODO: crank this down for concurrent.
+  bool gc_was_particularly_slow = duration_ns > MsToNs(50); // TODO: crank this down for concurrent.
   if (VLOG_IS_ON(gc) || gc_was_particularly_slow) {
     // TODO: somehow make the specific GC implementation (here MarkSweep) responsible for logging.
     size_t bytes_freed = initial_size - num_bytes_allocated_;
@@ -714,6 +715,26 @@ void Heap::EnqueueClearedReferences(Object** cleared) {
     ReferenceQueue_add->Invoke(self, NULL, reinterpret_cast<byte*>(&args), NULL);
     *cleared = NULL;
   }
+}
+
+void Heap::RequestHeapTrim() {
+  // We don't have a good measure of how worthwhile a trim might be. We can't use the live bitmap
+  // because that only marks object heads, so a large array looks like lots of empty space. We
+  // don't just call dlmalloc all the time, because the cost of an _attempted_ trim is proportional
+  // to utilization (which is probably inversely proportional to how much benefit we can expect).
+  // We could try mincore(2) but that's only a measure of how many pages we haven't given away,
+  // not how much use we're making of those pages.
+  float utilization = static_cast<float>(num_bytes_allocated_) / alloc_space_->Size();
+  if (utilization > 0.75f) {
+    // Don't bother trimming the heap if it's more than 75% utilized.
+    // (This percentage was picked arbitrarily.)
+    return;
+  }
+  JNIEnv* env = Thread::Current()->GetJniEnv();
+  static jclass Daemons_class = CacheClass(env, "java/lang/Daemons");
+  static jmethodID Daemons_requestHeapTrim = env->GetStaticMethodID(Daemons_class, "requestHeapTrim", "()V");
+  env->CallStaticVoidMethod(Daemons_class, Daemons_requestHeapTrim);
+  CHECK(!env->ExceptionCheck());
 }
 
 }  // namespace art

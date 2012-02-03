@@ -553,6 +553,7 @@ void Runtime::StartDaemonThreads() {
   jmethodID mid = env->GetStaticMethodID(c.get(), "start", "()V");
   CHECK(mid != NULL);
   env->CallStaticVoidMethod(c.get(), mid);
+  CHECK(!env->ExceptionCheck());
 
   VLOG(startup) << "Runtime::StartDaemonThreads exiting";
 }
