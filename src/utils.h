@@ -256,7 +256,6 @@ static inline uint64_t MsToNs(uint64_t ns) {
   return ns * 1000 * 1000;
 }
 
-
 // Splits a string using the given delimiter character into a vector of
 // strings. Empty strings will be omitted.
 void Split(const std::string& s, char delim, std::vector<std::string>& result);

@@ -33,6 +33,8 @@
 
 namespace art {
 
+class TimingLogger;
+
 class Compiler {
  public:
   // Create a compiler targeting the requested "instruction_set".
@@ -109,7 +111,7 @@ class Compiler {
   // Checks if class specified by type_idx is one of the image_classes_
   bool IsImageClass(const std::string& descriptor) const;
 
-  void PreCompile(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
+  void PreCompile(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files, TimingLogger& timing);
   void PostCompile(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
 
   // Attempt to resolve all type, methods, fields, and strings

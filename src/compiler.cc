@@ -29,6 +29,7 @@
 #include "object_utils.h"
 #include "runtime.h"
 #include "stl_util.h"
+#include "timing_logger.h"
 
 namespace art {
 
@@ -138,9 +139,19 @@ void Compiler::CompileAll(const ClassLoader* class_loader,
                           const std::vector<const DexFile*>& dex_files) {
   DCHECK(!Runtime::Current()->IsStarted());
 
-  PreCompile(class_loader, dex_files);
+  TimingLogger timings("compiler");
+
+  PreCompile(class_loader, dex_files, timings);
+
   Compile(class_loader, dex_files);
+  timings.AddSplit("Compile");
+
   PostCompile(class_loader, dex_files);
+  timings.AddSplit("PostCompile");
+
+  if (timings.GetTotalNs() > MsToNs(1000)) {
+    timings.Dump();
+  }
 }
 
 void Compiler::CompileOne(const Method* method) {
@@ -154,7 +165,8 @@ void Compiler::CompileOne(const Method* method) {
   std::vector<const DexFile*> dex_files;
   dex_files.push_back(&dex_file);
 
-  PreCompile(class_loader, dex_files);
+  TimingLogger timings("CompileOne");
+  PreCompile(class_loader, dex_files, timings);
 
   uint32_t method_idx = method->GetDexMethodIndex();
   const DexFile::CodeItem* code_item = dex_file.GetCodeItem(method->GetCodeItemOffset());
@@ -173,10 +185,15 @@ void Compiler::Resolve(const ClassLoader* class_loader,
 }
 
 void Compiler::PreCompile(const ClassLoader* class_loader,
-                          const std::vector<const DexFile*>& dex_files) {
+                          const std::vector<const DexFile*>& dex_files, TimingLogger& timings) {
   Resolve(class_loader, dex_files);
+  timings.AddSplit("PreCompile.Resolve");
+
   Verify(class_loader, dex_files);
+  timings.AddSplit("PreCompile.Verify");
+
   InitializeClassesWithoutClinit(class_loader, dex_files);
+  timings.AddSplit("PreCompile.InitializeClassesWithoutClinit");
 }
 
 void Compiler::PostCompile(const ClassLoader* class_loader,
