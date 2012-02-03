@@ -1382,6 +1382,20 @@ std::string Throwable::Dump() const {
   return result;
 }
 
+
+Class* Throwable::java_lang_Throwable_ = NULL;
+
+void Throwable::SetClass(Class* java_lang_Throwable) {
+  CHECK(java_lang_Throwable_ == NULL);
+  CHECK(java_lang_Throwable != NULL);
+  java_lang_Throwable_ = java_lang_Throwable;
+}
+
+void Throwable::ResetClass() {
+  CHECK(java_lang_Throwable_ != NULL);
+  java_lang_Throwable_ = NULL;
+}
+
 Class* StackTraceElement::java_lang_StackTraceElement_ = NULL;
 
 void StackTraceElement::SetClass(Class* java_lang_StackTraceElement) {

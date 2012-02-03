@@ -186,6 +186,7 @@ const char* ClassLinker::class_roots_descriptors_[] = {
   "Ljava/lang/ClassLoader;",
   "Ldalvik/system/BaseDexClassLoader;",
   "Ldalvik/system/PathClassLoader;",
+  "Ljava/lang/Throwable;",
   "Ljava/lang/StackTraceElement;",
   "Z",
   "B",
@@ -470,7 +471,9 @@ void ClassLinker::Init(const std::string& boot_class_path) {
   SetClassRoot(kDalvikSystemPathClassLoader, dalvik_system_PathClassLoader);
   PathClassLoader::SetClass(dalvik_system_PathClassLoader);
 
-  // Set up java.lang.StackTraceElement as a convenience
+  // Set up java.lang.Throwable and java.lang.StackTraceElement as a convenience
+  SetClassRoot(kJavaLangThrowable, FindSystemClass("Ljava/lang/Throwable;"));
+  Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
   SetClassRoot(kJavaLangStackTraceElement, FindSystemClass("Ljava/lang/StackTraceElement;"));
   SetClassRoot(kJavaLangStackTraceElementArrayClass, FindSystemClass("[Ljava/lang/StackTraceElement;"));
   StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
@@ -933,6 +936,7 @@ void ClassLinker::InitFromImage() {
   LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
   ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
   PathClassLoader::SetClass(GetClassRoot(kDalvikSystemPathClassLoader));
+  Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
   StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
   FinishInit();
@@ -1009,6 +1013,7 @@ ClassLinker::~ClassLinker() {
   LongArray::ResetArrayClass();
   ShortArray::ResetArrayClass();
   PathClassLoader::ResetClass();
+  Throwable::ResetClass();
   StackTraceElement::ResetClass();
   STLDeleteElements(&boot_class_path_);
   STLDeleteElements(&oat_files_);

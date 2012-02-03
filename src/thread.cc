@@ -54,7 +54,6 @@ namespace art {
 pthread_key_t Thread::pthread_key_self_;
 
 static Class* gThreadLock = NULL;
-static Class* gThrowable = NULL;
 static Field* gThread_daemon = NULL;
 static Field* gThread_group = NULL;
 static Field* gThread_lock = NULL;
@@ -739,7 +738,6 @@ void Thread::FinishStartup() {
   Class* ThreadGroup_class = FindClassOrDie(class_linker, "Ljava/lang/ThreadGroup;");
   Class* UncaughtExceptionHandler_class = FindClassOrDie(class_linker, "Ljava/lang/Thread$UncaughtExceptionHandler;");
   gThreadLock = FindClassOrDie(class_linker, "Ljava/lang/ThreadLock;");
-  gThrowable = FindClassOrDie(class_linker, "Ljava/lang/Throwable;");
 
   gThread_daemon = FindFieldOrDie(Thread_class, "daemon", "Z");
   gThread_group = FindFieldOrDie(Thread_class, "group", "Ljava/lang/ThreadGroup;");
@@ -1001,8 +999,8 @@ class CountStackDepthVisitor : public Thread::StackVisitor {
     // We want to skip frames up to and including the exception's constructor.
     // Note we also skip the frame if it doesn't have a method (namely the callee
     // save frame)
-    DCHECK(gThrowable != NULL);
-    if (skipping_ && frame.HasMethod() && !gThrowable->IsAssignableFrom(frame.GetMethod()->GetDeclaringClass())) {
+    if (skipping_ && frame.HasMethod() &&
+        !Throwable::GetJavaLangThrowable()->IsAssignableFrom(frame.GetMethod()->GetDeclaringClass())) {
       skipping_ = false;
     }
     if (!skipping_) {
