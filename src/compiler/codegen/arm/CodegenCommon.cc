@@ -124,6 +124,10 @@ STATIC void setupResourceMasks(ArmLIR* lir)
 
     flags = EncodingMap[lir->opcode].flags;
 
+    if (flags & NEEDS_FIXUP) {
+        lir->flags.pcRelFixup = true;
+    }
+
     /* Set up the mask for resources that are updated */
     if (flags & (IS_LOAD | IS_STORE)) {
         /* Default to heap - will catch specialized classes later */
@@ -241,7 +245,7 @@ STATIC void setupResourceMasks(ArmLIR* lir)
  */
 STATIC ArmLIR* newLIR0(CompilationUnit* cUnit, ArmOpcode opcode)
 {
-    ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
+    ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true, kAllocLIR);
     DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & NO_OPERAND));
     insn->opcode = opcode;
     setupResourceMasks(insn);
@@ -253,7 +257,7 @@ STATIC ArmLIR* newLIR0(CompilationUnit* cUnit, ArmOpcode opcode)
 STATIC ArmLIR* newLIR1(CompilationUnit* cUnit, ArmOpcode opcode,
                            int dest)
 {
-    ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
+    ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true, kAllocLIR);
     DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & IS_UNARY_OP));
     insn->opcode = opcode;
     insn->operands[0] = dest;
@@ -266,7 +270,7 @@ STATIC ArmLIR* newLIR1(CompilationUnit* cUnit, ArmOpcode opcode,
 STATIC ArmLIR* newLIR2(CompilationUnit* cUnit, ArmOpcode opcode,
                            int dest, int src1)
 {
-    ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
+    ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true, kAllocLIR);
     DCHECK(isPseudoOpcode(opcode) ||
            (EncodingMap[opcode].flags & IS_BINARY_OP));
     insn->opcode = opcode;
@@ -281,7 +285,7 @@ STATIC ArmLIR* newLIR2(CompilationUnit* cUnit, ArmOpcode opcode,
 STATIC ArmLIR* newLIR3(CompilationUnit* cUnit, ArmOpcode opcode,
                            int dest, int src1, int src2)
 {
-    ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
+    ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true, kAllocLIR);
     DCHECK(isPseudoOpcode(opcode) ||
            (EncodingMap[opcode].flags & IS_TERTIARY_OP))
             << (int)opcode << " "
@@ -301,7 +305,7 @@ STATIC ArmLIR* newLIR3(CompilationUnit* cUnit, ArmOpcode opcode,
 STATIC ArmLIR* newLIR4(CompilationUnit* cUnit, ArmOpcode opcode,
                            int dest, int src1, int src2, int info)
 {
-    ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
+    ArmLIR* insn = (ArmLIR* ) oatNew(sizeof(ArmLIR), true, kAllocLIR);
     DCHECK(isPseudoOpcode(opcode) ||
            (EncodingMap[opcode].flags & IS_QUAD_OP));
     insn->opcode = opcode;
@@ -361,7 +365,7 @@ STATIC ArmLIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP,
 {
     /* Add the constant to the literal pool */
     if (constantListP) {
-        ArmLIR* newValue = (ArmLIR* ) oatNew(sizeof(ArmLIR), true);
+        ArmLIR* newValue = (ArmLIR* ) oatNew(sizeof(ArmLIR), true, kAllocData);
         newValue->operands[0] = value;
         newValue->generic.next = *constantListP;
         *constantListP = (LIR*) newValue;

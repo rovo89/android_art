@@ -41,6 +41,62 @@ enum optControlVector {
     kSkipLargeMethodOptimization,
 };
 
+/* Type of allocation for memory tuning */
+enum oatAllocKind {
+    kAllocMisc,
+    kAllocBB,
+    kAllocLIR,
+    kAllocMIR,
+    kAllocDFInfo,
+    kAllocGrowableList,
+    kAllocGrowableBitMap,
+    kAllocDalvikToSSAMap,
+    kAllocDebugInfo,
+    kAllocSuccessor,
+    kAllocRegAlloc,
+    kAllocData,
+    kAllocPredecessors,
+    kNumAllocKinds
+};
+
+/* Type of growable list for memory tuning */
+enum oatListKind {
+    kListMisc = 0,
+    kListBlockList,
+    kListSSAtoDalvikMap,
+    kListDfsOrder,
+    kListDfsPostOrder,
+    kListDomPostOrderTraversal,
+    kListThrowLaunchPads,
+    kListSuspendLaunchPads,
+    kListSwitchTables,
+    kListFillArrayData,
+    kListSuccessorBlocks,
+    kListPredecessors,
+    kNumListKinds
+};
+
+/* Type of growable bitmap for memory tuning */
+enum oatBitMapKind {
+    kBitMapMisc = 0,
+    kBitMapUse,
+    kBitMapDef,
+    kBitMapLiveIn,
+    kBitMapBMatrix,
+    kBitMapDominators,
+    kBitMapIDominated,
+    kBitMapDomFrontier,
+    kBitMapPhi,
+    kBitMapTmpBlocks,
+    kBitMapInputBlocks,
+    kBitMapRegisterV,
+    kBitMapTempSSARegisterV,
+    kBitMapNullCheck,
+    kBitMapTmpBlockV,
+    kBitMapPredecessors,
+    kNumBitMapKinds
+};
+
 extern uint32_t compilerOptimizerDisableFlags;
 
 /* Force code generation paths for testing */
@@ -56,6 +112,7 @@ enum debugControlVector {
     kDebugSlowestStringPath,
     kDebugExerciseResolveMethod,
     kDebugVerifyDataflow,
+    kDebugShowMemoryUsage,
 };
 
 extern uint32_t compilerDebugFlags;

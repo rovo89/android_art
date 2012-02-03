@@ -22,6 +22,67 @@ namespace art {
 static ArenaMemBlock *arenaHead, *currentArena;
 static int numArenaBlocks;
 
+#ifdef WITH_MEMSTATS
+static u4 allocStats[kNumAllocKinds];
+static int listSizes[kNumListKinds];
+static int listWasted[kNumListKinds];
+static int listGrows[kNumListKinds];
+static int listMaxElems[kNumListKinds];
+static int bitMapSizes[kNumBitMapKinds];
+static int bitMapWasted[kNumBitMapKinds];
+static int bitMapGrows[kNumBitMapKinds];
+
+const char* allocNames[kNumAllocKinds] = {
+    "Misc       ",
+    "BasicBlock ",
+    "LIR        ",
+    "MIR        ",
+    "DataFlow   ",
+    "GrowList   ",
+    "GrowBitMap ",
+    "Dalvik2SSA ",
+    "DebugInfo  ",
+    "Successor  ",
+    "RegAlloc   ",
+    "Data       ",
+    "Preds      ",
+};
+
+const char* listNames[kNumListKinds] = {
+    "Misc                  ",
+    "blockList             ",
+    "SSAtoDalvik           ",
+    "dfsOrder              ",
+    "dfsPostOrder          ",
+    "domPostOrderTraversal ",
+    "throwLaunchPads       ",
+    "suspendLaunchPads     ",
+    "switchTables          ",
+    "fillArrayData         ",
+    "SuccessorBlocks       ",
+    "Predecessors          ",
+};
+
+const char* bitMapNames[kNumBitMapKinds] = {
+    "Misc                  ",
+    "Use                   ",
+    "Def                   ",
+    "LiveIn                ",
+    "BlockMatrix           ",
+    "Dominators            ",
+    "IDominated            ",
+    "DomFrontier           ",
+    "Phi                   ",
+    "TmpBlocks             ",
+    "InputBlocks           ",
+    "RegisterV             ",
+    "TempSSARegisterV      ",
+    "Null Check            ",
+    "TmpBlockV             ",
+    "Predecessors          ",
+};
+#endif
+
 #define kArenaBitVectorGrowth    4   /* increase by 4 u4s when limit hit */
 
 /* Allocate the initial memory block for arena-based allocation */
@@ -38,14 +99,16 @@ bool oatHeapInit(void)
     currentArena->bytesAllocated = 0;
     currentArena->next = NULL;
     numArenaBlocks = 1;
-
     return true;
 }
 
 /* Arena-based malloc for compilation tasks */
-void* oatNew(size_t size, bool zero)
+void* oatNew(size_t size, bool zero, oatAllocKind kind)
 {
     size = (size + 3) & ~3;
+#ifdef WITH_MEMSTATS
+    allocStats[kind] += size;
+#endif
 retry:
     /* Normal case - space is available in the current page */
     if (size + currentArena->bytesAllocated <= currentArena->blockSize) {
@@ -91,6 +154,16 @@ retry:
 /* Reclaim all the arena blocks allocated so far */
 void oatArenaReset(void)
 {
+#ifdef WITH_MEMSTATS
+    memset(&allocStats[0], 0, sizeof(allocStats));
+    memset(&listSizes[0], 0, sizeof(listSizes));
+    memset(&listWasted[0], 0, sizeof(listWasted));
+    memset(&listGrows[0], 0, sizeof(listGrows));
+    memset(&listMaxElems[0], 0, sizeof(listMaxElems));
+    memset(&bitMapSizes[0], 0, sizeof(bitMapSizes));
+    memset(&bitMapWasted[0], 0, sizeof(bitMapWasted));
+    memset(&bitMapGrows[0], 0, sizeof(bitMapGrows));
+#endif
     currentArena = arenaHead;
     if (currentArena) {
         currentArena->bytesAllocated = 0;
@@ -98,12 +171,20 @@ void oatArenaReset(void)
 }
 
 /* Growable List initialization */
-void oatInitGrowableList(GrowableList* gList, size_t initLength)
+void oatInitGrowableList(GrowableList* gList, size_t initLength,
+                         oatListKind kind)
 {
     gList->numAllocated = initLength;
     gList->numUsed = 0;
     gList->elemList = (intptr_t *) oatNew(sizeof(intptr_t) * initLength,
-                                                  true);
+                                                  true, kAllocGrowableList);
+#ifdef WITH_MEMSTATS
+    listSizes[kind] += sizeof(intptr_t) * initLength;
+    gList->kind = kind;
+    if ((int)initLength > listMaxElems[kind]) {
+        listMaxElems[kind] = initLength;
+    }
+#endif
 }
 
 /* Expand the capacity of a growable list */
@@ -116,8 +197,17 @@ STATIC void expandGrowableList(GrowableList* gList)
         newLength += 128;
     }
     intptr_t *newArray =
-        (intptr_t *) oatNew(sizeof(intptr_t) * newLength, true);
+        (intptr_t *) oatNew(sizeof(intptr_t) * newLength, true,
+                            kAllocGrowableList);
     memcpy(newArray, gList->elemList, sizeof(intptr_t) * gList->numAllocated);
+#ifdef WITH_MEMSTATS
+    listSizes[gList->kind] += sizeof(intptr_t) * newLength;
+    listWasted[gList->kind] += sizeof(intptr_t) * gList->numAllocated;
+    listGrows[gList->kind]++;
+    if (newLength > listMaxElems[gList->kind]) {
+        listMaxElems[gList->kind] = newLength;
+    }
+#endif
     gList->numAllocated = newLength;
     gList->elemList = newArray;
 }
@@ -130,6 +220,22 @@ void oatInsertGrowableList(GrowableList* gList, intptr_t elem)
         expandGrowableList(gList);
     }
     gList->elemList[gList->numUsed++] = elem;
+}
+
+/* Delete an element from a growable list. Element must be present */
+void oatDeleteGrowableList(GrowableList* gList, intptr_t elem)
+{
+    bool found = false;
+    for (unsigned int i = 0; i < gList->numUsed; i++) {
+        if (!found && gList->elemList[i] == elem) {
+            found = true;
+        }
+        if (found) {
+            gList->elemList[i] = gList->elemList[i+1];
+        }
+    }
+    DCHECK_EQ(found, true);
+    gList->numUsed--;
 }
 
 void oatGrowableListIteratorInit(GrowableList* gList,
@@ -152,6 +258,44 @@ intptr_t oatGrowableListGetElement(const GrowableList* gList, size_t idx)
     DCHECK_LT(idx, gList->numUsed);
     return gList->elemList[idx];
 }
+
+#ifdef WITH_MEMSTATS
+/* Dump memory usage stats */
+void oatDumpMemStats(CompilationUnit* cUnit)
+{
+    u4 total = 0;
+    for (int i = 0; i < kNumAllocKinds; i++) {
+        total += allocStats[i];
+    }
+    if (total > (10 * 1024 * 1024)) {
+        LOG(INFO) << "MEMUSAGE: " << total << " : "
+            << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+        LOG(INFO) << "insnsSize: " << cUnit->insnsSize;
+        if (cUnit->disableDataflow) {
+            LOG(INFO) << " ** Dataflow disabled ** ";
+        }
+        LOG(INFO) << "===== Overall allocations";
+        for (int i = 0; i < kNumAllocKinds; i++) {
+            LOG(INFO) << allocNames[i] << std::setw(10) <<allocStats[i];
+        }
+        LOG(INFO) << "===== GrowableList allocations";
+        for (int i = 0; i < kNumListKinds; i++) {
+            LOG(INFO) << listNames[i]
+                << " S:" << listSizes[i]
+                << ", W:" << listWasted[i]
+                << ", G:" << listGrows[i]
+                << ", E:" << listMaxElems[i];
+        }
+        LOG(INFO) << "===== GrowableBitMap allocations";
+        for (int i = 0; i < kNumBitMapKinds; i++) {
+            LOG(INFO) << bitMapNames[i]
+                << " S:" << bitMapSizes[i]
+                << ", W:" << bitMapWasted[i]
+                << ", G:" << bitMapGrows[i];
+        }
+    }
+}
+#endif
 
 /* Debug Utility - dump a compilation unit */
 void oatDumpCompilationUnit(CompilationUnit* cUnit)
@@ -217,22 +361,26 @@ static uint32_t checkMasks[32] = {
  *
  * NOTE: memory is allocated from the compiler arena.
  */
-ArenaBitVector* oatAllocBitVector(unsigned int startBits, bool expandable)
+ArenaBitVector* oatAllocBitVector(unsigned int startBits, bool expandable,
+                                  oatBitMapKind kind)
 {
     ArenaBitVector* bv;
     unsigned int count;
 
     DCHECK_EQ(sizeof(bv->storage[0]), 4U);        /* assuming 32-bit units */
 
-    bv = (ArenaBitVector*) oatNew(sizeof(ArenaBitVector), false);
+    bv = (ArenaBitVector*) oatNew(sizeof(ArenaBitVector), false,
+                                  kAllocGrowableBitMap);
 
     count = (startBits + 31) >> 5;
 
     bv->storageSize = count;
     bv->expandable = expandable;
-    bv->storage = (u4*) oatNew(count * sizeof(u4), true);
-    bv->firstDirty = true;
-    bv->lastDirty = true;
+    bv->storage = (u4*) oatNew(count * sizeof(u4), true, kAllocGrowableBitMap);
+#ifdef WITH_MEMSTATS
+    bv->kind = kind;
+    bitMapSizes[kind] += count * sizeof(u4);
+#endif
     return bv;
 }
 
@@ -254,8 +402,6 @@ void oatClearAllBits(ArenaBitVector* pBits)
 {
     unsigned int count = pBits->storageSize;
     memset(pBits->storage, 0, count * sizeof(u4));
-    pBits->firstDirty = true;
-    pBits->lastDirty = true;
 }
 
 /*
@@ -276,21 +422,21 @@ bool oatSetBit(ArenaBitVector* pBits, unsigned int num)
         /* Round up to word boundaries for "num+1" bits */
         unsigned int newSize = (num + 1 + 31) >> 5;
         DCHECK_GT(newSize, pBits->storageSize);
-        u4 *newStorage = (u4*)oatNew(newSize * sizeof(u4), false);
+        u4 *newStorage = (u4*)oatNew(newSize * sizeof(u4), false,
+                                     kAllocGrowableBitMap);
         memcpy(newStorage, pBits->storage, pBits->storageSize * sizeof(u4));
         memset(&newStorage[pBits->storageSize], 0,
                (newSize - pBits->storageSize) * sizeof(u4));
+#ifdef WITH_MEMSTATS
+        bitMapWasted[pBits->kind] += pBits->storageSize * sizeof(u4);
+        bitMapSizes[pBits->kind] += newSize * sizeof(u4);
+        bitMapGrows[pBits->kind]++;
+#endif
         pBits->storage = newStorage;
         pBits->storageSize = newSize;
     }
 
     pBits->storage[num >> 5] |= checkMasks[num & 0x1f];
-    if (!pBits->firstDirty && ((int)num < pBits->firstBitSet)) {
-        pBits->firstBitSet = num;
-    }
-    if (!pBits->lastDirty && ((int)num > pBits->lastBitSet)) {
-        pBits->lastBitSet = num;
-    }
     return true;
 }
 
@@ -309,8 +455,6 @@ bool oatClearBit(ArenaBitVector* pBits, unsigned int num)
     }
 
     pBits->storage[num >> 5] &= ~checkMasks[num & 0x1f];
-    pBits->firstDirty = true;
-    pBits->lastDirty = true;
     return true;
 }
 
@@ -321,8 +465,6 @@ void oatMarkAllBits(ArenaBitVector* pBits, bool set)
 {
     int value = set ? -1 : 0;
     memset(pBits->storage, value, pBits->storageSize * (int)sizeof(u4));
-    pBits->firstDirty = true;
-    pBits->lastDirty = true;
 }
 
 void oatDebugBitVector(char* msg, const ArenaBitVector* bv, int length)
@@ -388,10 +530,6 @@ void oatCopyBitVector(ArenaBitVector* dest, const ArenaBitVector* src)
     checkSizes(dest, src);
 
     memcpy(dest->storage, src->storage, sizeof(u4) * dest->storageSize);
-    dest->firstDirty = src->firstDirty;
-    dest->firstBitSet = src->firstBitSet;
-    dest->lastDirty = src->lastDirty;
-    dest->lastBitSet = src->lastBitSet;
 }
 
 /*
@@ -413,8 +551,6 @@ bool oatIntersectBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
     for (idx = 0; idx < dest->storageSize; idx++) {
         dest->storage[idx] = src1->storage[idx] & src2->storage[idx];
     }
-    dest->firstDirty = true;
-    dest->lastDirty = true;
     return true;
 }
 
@@ -436,8 +572,6 @@ bool oatUnifyBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
     for (idx = 0; idx < dest->storageSize; idx++) {
         dest->storage[idx] = src1->storage[idx] | src2->storage[idx];
     }
-    dest->firstDirty = true;
-    dest->lastDirty = true;
     return true;
 }
 
@@ -490,52 +624,37 @@ int oatBitVectorIteratorNext(ArenaBitVectorIterator* iterator)
 {
     ArenaBitVector* pBits = iterator->pBits;
     u4 bitIndex = iterator->idx;
+    u4 bitSize = iterator->bitSize;
 
-    DCHECK_EQ(iterator->bitSize, pBits->storageSize * sizeof(u4) * 8);
-    if (bitIndex >= iterator->bitSize) return -1;
+    DCHECK_EQ(bitSize, pBits->storageSize * sizeof(u4) * 8);
 
-    /* If we know, skip past leading zeros */
-    if (!pBits->firstDirty && ((int)bitIndex < pBits->firstBitSet)) {
-        iterator->idx = pBits->firstBitSet + 1;
-        return pBits->firstBitSet;
-    }
+    if (bitIndex >= bitSize) return -1;
 
-    /* If we know, skip past trailing zeroes */
-    if (!pBits->lastDirty && ((int)bitIndex > pBits->lastBitSet)) {
-        iterator->idx = iterator->bitSize;
-        return -1;
-    }
+    u4 wordIndex = bitIndex >> 5;
+    u4 endWordIndex = bitSize >> 5;
+    u4* storage = pBits->storage;
+    u4 word = storage[wordIndex++];
 
-    bool firstPass = (bitIndex == 0);
-    u4 startIndex = bitIndex;
-    for (; bitIndex < iterator->bitSize;) {
-        unsigned int wordIndex = bitIndex >> 5;
-        unsigned int bitPos = bitIndex & 0x1f;
-        unsigned int word = pBits->storage[wordIndex];
-        if (word & checkMasks[bitPos]) {
-            iterator->idx = bitIndex+1;
-            if (firstPass && pBits->firstDirty) {
-                pBits->firstBitSet = bitIndex;
-                pBits->firstDirty = false;
-            }
-            return bitIndex;
-        }
+    // Mask out any bits in the first word we've already considered
+    word &= ~((1 << (bitIndex & 0x1f))-1);
+
+    for (; wordIndex <= endWordIndex;) {
+        u4 bitPos = bitIndex & 0x1f;
         if (word == 0) {
-            // Helps if this is a sparse vector
             bitIndex += (32 - bitPos);
-        } else {
+            word = storage[wordIndex++];
+            continue;
+        }
+        for (; bitPos < 32; bitPos++) {
+            if (word & (1 << bitPos)) {
+                iterator->idx = bitIndex + 1;
+                return bitIndex;
+            }
             bitIndex++;
         }
+        word = storage[wordIndex++];
     }
-    /* No more set bits */
-    if (firstPass) {
-        // Empty
-        pBits->firstBitSet = -1;
-        pBits->firstDirty = false;
-    } else {
-        pBits->lastBitSet = startIndex - 1;
-        pBits->lastDirty = false;
-    }
+    iterator->idx = iterator->bitSize;
     return -1;
 }
 
@@ -555,8 +674,6 @@ void oatSetInitialBits(ArenaBitVector* pBits, unsigned int numBits)
     if (remNumBits) {
         pBits->storage[idx] = (1 << remNumBits) - 1;
     }
-    pBits->firstDirty = true;
-    pBits->lastDirty = true;
 }
 
 void oatGetBlockName(BasicBlock* bb, char* name)

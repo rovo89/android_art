@@ -739,6 +739,7 @@ typedef enum ArmOpFeatureFlags {
     kUsesCCodes,
     kMemLoad,
     kMemStore,
+    kPCRelFixup,
 } ArmOpFeatureFlags;
 
 #define IS_LOAD         (1 << kMemLoad)
@@ -770,6 +771,7 @@ typedef enum ArmOpFeatureFlags {
 #define IS_IT           (1 << kIsIT)
 #define SETS_CCODES     (1 << kSetsCCodes)
 #define USES_CCODES     (1 << kUsesCCodes)
+#define NEEDS_FIXUP     (1 << kPCRelFixup)
 
 /* Common combo register usage patterns */
 #define REG_USE01       (REG_USE0 | REG_USE1)
@@ -844,9 +846,10 @@ typedef struct ArmLIR {
         bool isNop:1;           // LIR is optimized away
         bool insertWrapper:1;   // insert branch to emulate memory accesses
         bool squashed:1;        // Eliminated def
+        bool pcRelFixup:1;      // May need pc-relative fixup
         unsigned int age:4;     // default is 0, set lazily by the optimizer
         unsigned int size:3;    // bytes (2 for thumb, 2/4 for thumb2)
-        unsigned int unused:22;
+        unsigned int unused:21;
     } flags;
     int aliasInfo;              // For Dalvik register & litpool disambiguation
     u8 useMask;                 // Resource mask for use

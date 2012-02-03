@@ -20,13 +20,15 @@
 namespace art {
 
 /* Allocate a new basic block */
-BasicBlock* oatNewBB(BBType blockType, int blockId)
+BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId)
 {
-    BasicBlock* bb = (BasicBlock* )oatNew(sizeof(BasicBlock), true);
+    BasicBlock* bb = (BasicBlock* )oatNew(sizeof(BasicBlock), true, kAllocBB);
     bb->blockType = blockType;
     bb->id = blockId;
-    bb->predecessors = oatAllocBitVector(blockId > 32 ? blockId : 32,
-                                                 true /* expandable */);
+    bb->predecessors = (GrowableList*) oatNew(sizeof(GrowableList), false,
+                                              kAllocPredecessors);
+    oatInitGrowableList(bb->predecessors, (blockType == kExitBlock) ? 2048 : 2,
+                        kListPredecessors);
     return bb;
 }
 
