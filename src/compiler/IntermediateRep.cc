@@ -22,12 +22,14 @@ namespace art {
 /* Allocate a new basic block */
 BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId)
 {
-    BasicBlock* bb = (BasicBlock* )oatNew(sizeof(BasicBlock), true, kAllocBB);
+    BasicBlock* bb = (BasicBlock* )oatNew(cUnit, sizeof(BasicBlock), true,
+                                          kAllocBB);
     bb->blockType = blockType;
     bb->id = blockId;
-    bb->predecessors = (GrowableList*) oatNew(sizeof(GrowableList), false,
-                                              kAllocPredecessors);
-    oatInitGrowableList(bb->predecessors, (blockType == kExitBlock) ? 2048 : 2,
+    bb->predecessors = (GrowableList*) oatNew(cUnit, sizeof(GrowableList),
+                                              false, kAllocPredecessors);
+    oatInitGrowableList(cUnit, bb->predecessors,
+                        (blockType == kExitBlock) ? 2048 : 2,
                         kListPredecessors);
     return bb;
 }

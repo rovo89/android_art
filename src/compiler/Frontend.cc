@@ -49,10 +49,6 @@ uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
      //(1 << kDebugShowMemoryUsage) |
      0;
 
-std::string compilerMethodMatch;      // Method name match to apply above flags
-
-bool compilerFlipMatch = false;       // Reverses sense of method name match
-
 STATIC inline bool contentIsInsn(const u2* codePtr) {
     u2 instr = *codePtr;
     Opcode opcode = (Opcode)(instr & 0xff);
@@ -67,8 +63,8 @@ STATIC inline bool contentIsInsn(const u2* codePtr) {
 /*
  * Parse an instruction, return the length of the instruction
  */
-STATIC inline int parseInsn(const u2* codePtr, DecodedInstruction* decInsn,
-                            bool printMe)
+STATIC inline int parseInsn(CompilationUnit* cUnit, const u2* codePtr,
+                            DecodedInstruction* decInsn, bool printMe)
 {
     // Don't parse instruction data
     if (!contentIsInsn(codePtr)) {
@@ -80,7 +76,7 @@ STATIC inline int parseInsn(const u2* codePtr, DecodedInstruction* decInsn,
 
     dexDecodeInstruction(codePtr, decInsn);
     if (printMe) {
-        char* decodedString = oatGetDalvikDisassembly(decInsn, NULL);
+        char* decodedString = oatGetDalvikDisassembly(cUnit, decInsn, NULL);
         LOG(INFO) << codePtr << ": 0x" << std::hex << (int)opcode <<
         " " << decodedString;
     }
@@ -133,7 +129,7 @@ STATIC BasicBlock *splitBlock(CompilationUnit* cUnit,
     }
     BasicBlock *bottomBlock = oatNewBB(cUnit, kDalvikByteCode,
                                        cUnit->numBlocks++);
-    oatInsertGrowableList(&cUnit->blockList, (intptr_t) bottomBlock);
+    oatInsertGrowableList(cUnit, &cUnit->blockList, (intptr_t) bottomBlock);
 
     bottomBlock->startOffset = codeOffset;
     bottomBlock->firstMIRInsn = insn;
@@ -149,7 +145,7 @@ STATIC BasicBlock *splitBlock(CompilationUnit* cUnit,
         origBlock->taken = NULL;
         oatDeleteGrowableList(bottomBlock->taken->predecessors,
                               (intptr_t)origBlock);
-        oatInsertGrowableList(bottomBlock->taken->predecessors,
+        oatInsertGrowableList(cUnit, bottomBlock->taken->predecessors,
                               (intptr_t)bottomBlock);
     }
 
@@ -158,11 +154,12 @@ STATIC BasicBlock *splitBlock(CompilationUnit* cUnit,
     bottomBlock->fallThrough = origBlock->fallThrough;
     origBlock->fallThrough = bottomBlock;
     origBlock->needFallThroughBranch = true;
-    oatInsertGrowableList(bottomBlock->predecessors, (intptr_t)origBlock);
+    oatInsertGrowableList(cUnit, bottomBlock->predecessors,
+                          (intptr_t)origBlock);
     if (bottomBlock->fallThrough) {
         oatDeleteGrowableList(bottomBlock->fallThrough->predecessors,
                               (intptr_t)origBlock);
-        oatInsertGrowableList(bottomBlock->fallThrough->predecessors,
+        oatInsertGrowableList(cUnit, bottomBlock->fallThrough->predecessors,
                               (intptr_t)bottomBlock);
     }
 
@@ -180,7 +177,8 @@ STATIC BasicBlock *splitBlock(CompilationUnit* cUnit,
             if (successorBlockInfo == NULL) break;
             BasicBlock *bb = successorBlockInfo->block;
             oatDeleteGrowableList(bb->predecessors, (intptr_t)origBlock);
-            oatInsertGrowableList(bb->predecessors, (intptr_t)bottomBlock);
+            oatInsertGrowableList(cUnit, bb->predecessors,
+                                  (intptr_t)bottomBlock);
         }
     }
 
@@ -241,7 +239,7 @@ STATIC BasicBlock *findBlock(CompilationUnit* cUnit,
 
     /* Create a new one */
     bb = oatNewBB(cUnit, kDalvikByteCode, cUnit->numBlocks++);
-    oatInsertGrowableList(&cUnit->blockList, (intptr_t) bb);
+    oatInsertGrowableList(cUnit, &cUnit->blockList, (intptr_t) bb);
     bb->startOffset = codeOffset;
     cUnit->blockMap.insert(std::make_pair(bb->startOffset, bb));
     return bb;
@@ -254,7 +252,7 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
     std::string name(PrettyMethod(cUnit->method_idx, *cUnit->dex_file));
     char startOffset[80];
     sprintf(startOffset, "_%x", cUnit->entryBlock->fallThrough->startOffset);
-    char* fileName = (char*) oatNew(
+    char* fileName = (char*) oatNew(cUnit,
                         strlen(dirPrefix) +
                         name.length() +
                         strlen(".dot") + 1, true, kAllocDebugInfo);
@@ -466,7 +464,7 @@ STATIC void processTryCatchBlocks(CompilationUnit* cUnit)
         int startOffset = pTry->start_addr_;
         int endOffset = startOffset + pTry->insn_count_;
         for (offset = startOffset; offset < endOffset; offset++) {
-            oatSetBit(tryBlockAddr, offset);
+            oatSetBit(cUnit, tryBlockAddr, offset);
         }
     }
 
@@ -526,7 +524,7 @@ STATIC BasicBlock* processCanBranch(CompilationUnit* cUnit,
                                        /* immedPredBlockP */
                                        &curBlock);
     curBlock->taken = takenBlock;
-    oatInsertGrowableList(takenBlock->predecessors, (intptr_t)curBlock);
+    oatInsertGrowableList(cUnit, takenBlock->predecessors, (intptr_t)curBlock);
 
     /* Always terminate the current block for conditional branches */
     if (flags & kInstrCanContinue) {
@@ -550,7 +548,7 @@ STATIC BasicBlock* processCanBranch(CompilationUnit* cUnit,
                                                  /* immedPredBlockP */
                                                  &curBlock);
         curBlock->fallThrough = fallthroughBlock;
-        oatInsertGrowableList(fallthroughBlock->predecessors,
+        oatInsertGrowableList(cUnit, fallthroughBlock->predecessors,
                               (intptr_t)curBlock);
     } else if (codePtr < codeEnd) {
         /* Create a fallthrough block for real instructions (incl. OP_NOP) */
@@ -618,7 +616,7 @@ STATIC void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
     curBlock->successorBlockList.blockListType =
         (insn->dalvikInsn.opcode == OP_PACKED_SWITCH) ?
         kPackedSwitch : kSparseSwitch;
-    oatInitGrowableList(&curBlock->successorBlockList.blocks, size,
+    oatInitGrowableList(cUnit, &curBlock->successorBlockList.blocks, size,
                         kListSuccessorBlocks);
 
     for (i = 0; i < size; i++) {
@@ -630,14 +628,15 @@ STATIC void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
                                           /* immedPredBlockP */
                                           &curBlock);
         SuccessorBlockInfo *successorBlockInfo =
-            (SuccessorBlockInfo *) oatNew(sizeof(SuccessorBlockInfo),
-                                                  false, kAllocSuccessor);
+            (SuccessorBlockInfo *) oatNew(cUnit, sizeof(SuccessorBlockInfo),
+                                          false, kAllocSuccessor);
         successorBlockInfo->block = caseBlock;
         successorBlockInfo->key = (insn->dalvikInsn.opcode == OP_PACKED_SWITCH)?
                                   firstKey + i : keyTable[i];
-        oatInsertGrowableList(&curBlock->successorBlockList.blocks,
+        oatInsertGrowableList(cUnit, &curBlock->successorBlockList.blocks,
                               (intptr_t) successorBlockInfo);
-        oatInsertGrowableList(caseBlock->predecessors, (intptr_t)curBlock);
+        oatInsertGrowableList(cUnit, caseBlock->predecessors,
+                              (intptr_t)curBlock);
     }
 
     /* Fall-through case */
@@ -650,7 +649,8 @@ STATIC void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
                                              /* immedPredBlockP */
                                              NULL);
     curBlock->fallThrough = fallthroughBlock;
-    oatInsertGrowableList(fallthroughBlock->predecessors, (intptr_t)curBlock);
+    oatInsertGrowableList(cUnit, fallthroughBlock->predecessors,
+                          (intptr_t)curBlock);
 }
 
 /* Process instructions with the kInstrCanThrow flag */
@@ -671,7 +671,7 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
         }
 
         curBlock->successorBlockList.blockListType = kCatch;
-        oatInitGrowableList(&curBlock->successorBlockList.blocks, 2,
+        oatInitGrowableList(cUnit, &curBlock->successorBlockList.blocks, 2,
                             kListSuccessorBlocks);
 
         for (;iterator.HasNext(); iterator.Next()) {
@@ -680,22 +680,23 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
                                                false /* creat */,
                                                NULL  /* immedPredBlockP */);
             catchBlock->catchEntry = true;
-            SuccessorBlockInfo *successorBlockInfo =
-                  (SuccessorBlockInfo *) oatNew(sizeof(SuccessorBlockInfo),
-                                                false, kAllocSuccessor);
+            SuccessorBlockInfo *successorBlockInfo = (SuccessorBlockInfo *)
+                  oatNew(cUnit, sizeof(SuccessorBlockInfo), false,
+                  kAllocSuccessor);
             successorBlockInfo->block = catchBlock;
             successorBlockInfo->key = iterator.GetHandlerTypeIndex();
-            oatInsertGrowableList(&curBlock->successorBlockList.blocks,
+            oatInsertGrowableList(cUnit, &curBlock->successorBlockList.blocks,
                                   (intptr_t) successorBlockInfo);
-            oatInsertGrowableList(catchBlock->predecessors, (intptr_t)curBlock);
+            oatInsertGrowableList(cUnit, catchBlock->predecessors,
+                                  (intptr_t)curBlock);
         }
     } else {
         BasicBlock *ehBlock = oatNewBB(cUnit, kExceptionHandling,
                                        cUnit->numBlocks++);
         curBlock->taken = ehBlock;
-        oatInsertGrowableList(&cUnit->blockList, (intptr_t) ehBlock);
+        oatInsertGrowableList(cUnit, &cUnit->blockList, (intptr_t) ehBlock);
         ehBlock->startOffset = curOffset;
-        oatInsertGrowableList(ehBlock->predecessors, (intptr_t)curBlock);
+        oatInsertGrowableList(cUnit, ehBlock->predecessors, (intptr_t)curBlock);
     }
 
     /*
@@ -724,7 +725,7 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
              */
             if (insn->dalvikInsn.opcode != OP_THROW) {
                 curBlock->fallThrough = fallthroughBlock;
-                oatInsertGrowableList(fallthroughBlock->predecessors,
+                oatInsertGrowableList(cUnit, fallthroughBlock->predecessors,
                                       (intptr_t)curBlock);
             }
         }
@@ -740,18 +741,17 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
                                  const DexFile& dex_file, InstructionSet insnSet)
 {
     VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
-    oatArenaReset();
 
     const u2* codePtr = code_item->insns_;
     const u2* codeEnd = code_item->insns_ + code_item->insns_size_in_code_units_;
     int numBlocks = 0;
     unsigned int curOffset = 0;
 
-    oatInit(compiler);
-
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     UniquePtr<CompilationUnit> cUnit(new CompilationUnit);
     memset(cUnit.get(), 0, sizeof(*cUnit));
+
+    oatInit(cUnit.get(), compiler);
     cUnit->compiler = &compiler;
     cUnit->class_linker = class_linker;
     cUnit->dex_file = &dex_file;
@@ -772,9 +772,13 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
     cUnit->blockMap.clear();
     cUnit->boundaryMap = std::map<unsigned int, LIR*>();
     cUnit->boundaryMap.clear();
-    bool useMatch = compilerMethodMatch.length() != 0;
-    bool match = useMatch && (compilerFlipMatch ^
-        (PrettyMethod(method_idx, dex_file).find(compilerMethodMatch) != std::string::npos));
+    // TODO: set these from command line
+    cUnit->compilerMethodMatch = new std::string("");
+    cUnit->compilerFlipMatch = false;
+    bool useMatch = cUnit->compilerMethodMatch->length() != 0;
+    bool match = useMatch && (cUnit->compilerFlipMatch ^
+        (PrettyMethod(method_idx, dex_file).find(*cUnit->compilerMethodMatch)
+        != std::string::npos));
     if (!useMatch || match) {
         cUnit->disableOpt = compilerOptimizerDisableFlags;
         cUnit->enableDebug = compilerDebugFlags;
@@ -785,24 +789,28 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
     cUnit->attrs = (METHOD_IS_LEAF | METHOD_IS_THROW_FREE);
 
     /* Initialize the block list, estimate size based on insnsSize */
-    oatInitGrowableList(&cUnit->blockList, cUnit->insnsSize, kListBlockList);
+    oatInitGrowableList(cUnit.get(), &cUnit->blockList, cUnit->insnsSize,
+                        kListBlockList);
 
     /* Initialize the switchTables list */
-    oatInitGrowableList(&cUnit->switchTables, 4, kListSwitchTables);
+    oatInitGrowableList(cUnit.get(), &cUnit->switchTables, 4,
+                        kListSwitchTables);
 
     /* Intialize the fillArrayData list */
-    oatInitGrowableList(&cUnit->fillArrayData, 4, kListFillArrayData);
+    oatInitGrowableList(cUnit.get(), &cUnit->fillArrayData, 4,
+                        kListFillArrayData);
 
     /* Intialize the throwLaunchpads list, estimate size based on insnsSize */
-    oatInitGrowableList(&cUnit->throwLaunchpads, cUnit->insnsSize,
+    oatInitGrowableList(cUnit.get(), &cUnit->throwLaunchpads, cUnit->insnsSize,
                         kListThrowLaunchPads);
 
     /* Intialize the suspendLaunchpads list */
-    oatInitGrowableList(&cUnit->suspendLaunchpads, 2048,
+    oatInitGrowableList(cUnit.get(), &cUnit->suspendLaunchpads, 2048,
                         kListSuspendLaunchPads);
 
     /* Allocate the bit-vector to track the beginning of basic blocks */
-    ArenaBitVector *tryBlockAddr = oatAllocBitVector(cUnit->insnsSize,
+    ArenaBitVector *tryBlockAddr = oatAllocBitVector(cUnit.get(),
+                                                     cUnit->insnsSize,
                                                      true /* expandable */);
     cUnit->tryBlockAddr = tryBlockAddr;
 
@@ -813,17 +821,18 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
     cUnit->entryBlock = entryBlock;
     cUnit->exitBlock = exitBlock;
 
-    oatInsertGrowableList(&cUnit->blockList, (intptr_t) entryBlock);
-    oatInsertGrowableList(&cUnit->blockList, (intptr_t) exitBlock);
+    oatInsertGrowableList(cUnit.get(), &cUnit->blockList, (intptr_t) entryBlock);
+    oatInsertGrowableList(cUnit.get(), &cUnit->blockList, (intptr_t) exitBlock);
 
     /* Current block to record parsed instructions */
     BasicBlock *curBlock = oatNewBB(cUnit.get(), kDalvikByteCode, numBlocks++);
     curBlock->startOffset = 0;
-    oatInsertGrowableList(&cUnit->blockList, (intptr_t) curBlock);
+    oatInsertGrowableList(cUnit.get(), &cUnit->blockList, (intptr_t) curBlock);
     /* Add first block to the fast lookup cache */
     cUnit->blockMap.insert(std::make_pair(curBlock->startOffset, curBlock));
     entryBlock->fallThrough = curBlock;
-    oatInsertGrowableList(curBlock->predecessors, (intptr_t)entryBlock);
+    oatInsertGrowableList(cUnit.get(), curBlock->predecessors,
+                          (intptr_t)entryBlock);
 
     /*
      * Store back the number of blocks since new blocks may be created of
@@ -836,9 +845,9 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
 
     /* Parse all instructions and put them into containing basic blocks */
     while (codePtr < codeEnd) {
-        MIR *insn = (MIR *) oatNew(sizeof(MIR), true, kAllocMIR);
+        MIR *insn = (MIR *) oatNew(cUnit.get(), sizeof(MIR), true, kAllocMIR);
         insn->offset = curOffset;
-        int width = parseInsn(codePtr, &insn->dalvikInsn, false);
+        int width = parseInsn(cUnit.get(), codePtr, &insn->dalvikInsn, false);
         insn->width = width;
 
         /* Terminate when the data section is seen */
@@ -861,7 +870,8 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
                                         width, flags, codePtr, codeEnd);
         } else if (flags & kInstrCanReturn) {
             curBlock->fallThrough = exitBlock;
-            oatInsertGrowableList(exitBlock->predecessors, (intptr_t)curBlock);
+            oatInsertGrowableList(cUnit.get(), exitBlock->predecessors,
+                                  (intptr_t)curBlock);
             /*
              * Terminate the current block if there are instructions
              * afterwards.
@@ -909,7 +919,7 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
             if ((curBlock->fallThrough == NULL) &&
                 (flags & kInstrCanContinue)) {
                 curBlock->fallThrough = nextBlock;
-                oatInsertGrowableList(nextBlock->predecessors,
+                oatInsertGrowableList(cUnit.get(), nextBlock->predecessors,
                                       (intptr_t)curBlock);
             }
             curBlock = nextBlock;
@@ -1007,20 +1017,17 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
     }
 #endif
 
+    oatArenaReset(cUnit.get());
+
     return result;
 }
 
-void oatInit(const Compiler& compiler)
+void oatInit(CompilationUnit* cUnit, const Compiler& compiler)
 {
-    static bool initialized = false;
-    if (initialized)
-        return;
-    initialized = true;
-    VLOG(compiler) << "Initializing compiler";
     if (!oatArchInit()) {
         LOG(FATAL) << "Failed to initialize oat";
     }
-    if (!oatHeapInit()) {
+    if (!oatHeapInit(cUnit)) {
         LOG(FATAL) << "Failed to initialize oat heap";
     }
 }

@@ -196,6 +196,8 @@ typedef struct SuccessorBlockInfo {
 
 struct LoopAnalysis;
 struct RegisterPool;
+struct ArenaMemBlock;
+struct Memstats;
 
 typedef enum AssemblerStatus {
     kSuccess,
@@ -330,6 +332,12 @@ typedef struct CompilationUnit {
      std::map<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
      std::map<unsigned int, LIR*> boundaryMap; // boundary lookup cache
      int defCount;         // Used to estimate number of SSA names
+     std::string* compilerMethodMatch;
+     bool compilerFlipMatch;
+     struct ArenaMemBlock* arenaHead;
+     struct ArenaMemBlock* currentArena;
+     int numArenaBlocks;
+     struct Memstats* mstats;
 } CompilationUnit;
 
 BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId);

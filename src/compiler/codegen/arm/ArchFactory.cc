@@ -56,20 +56,20 @@ STATIC int loadCurrMethod(CompilationUnit *cUnit)
 STATIC ArmLIR* genCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
                         MIR* mir, ArmThrowKind kind)
 {
-    ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+    ArmLIR* tgt = (ArmLIR*)oatNew(cUnit, sizeof(ArmLIR), true, kAllocLIR);
     tgt->opcode = kArmPseudoThrowTarget;
     tgt->operands[0] = kind;
     tgt->operands[1] = mir ? mir->offset : 0;
     ArmLIR* branch = genConditionalBranch(cUnit, cCode, tgt);
     // Remember branch target - will process later
-    oatInsertGrowableList(&cUnit->throwLaunchpads, (intptr_t)tgt);
+    oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
     return branch;
 }
 
 STATIC ArmLIR* genImmedCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
                              int reg, int immVal, MIR* mir, ArmThrowKind kind)
 {
-    ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+    ArmLIR* tgt = (ArmLIR*)oatNew(cUnit, sizeof(ArmLIR), true, kAllocLIR);
     tgt->opcode = kArmPseudoThrowTarget;
     tgt->operands[0] = kind;
     tgt->operands[1] = mir->offset;
@@ -81,7 +81,7 @@ STATIC ArmLIR* genImmedCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
         branch->generic.target = (LIR*)tgt;
     }
     // Remember branch target - will process later
-    oatInsertGrowableList(&cUnit->throwLaunchpads, (intptr_t)tgt);
+    oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
     return branch;
 }
 
@@ -100,7 +100,7 @@ STATIC ArmLIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg,
 STATIC TGT_LIR* genRegRegCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
                                int reg1, int reg2, MIR* mir, ArmThrowKind kind)
 {
-    ArmLIR* tgt = (ArmLIR*)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+    ArmLIR* tgt = (ArmLIR*)oatNew(cUnit, sizeof(ArmLIR), true, kAllocLIR);
     tgt->opcode = kArmPseudoThrowTarget;
     tgt->operands[0] = kind;
     tgt->operands[1] = mir ? mir->offset : 0;
@@ -109,7 +109,7 @@ STATIC TGT_LIR* genRegRegCheck(CompilationUnit* cUnit, ArmConditionCode cCode,
     opRegReg(cUnit, kOpCmp, reg1, reg2);
     ArmLIR* branch = genConditionalBranch(cUnit, cCode, tgt);
     // Remember branch target - will process later
-    oatInsertGrowableList(&cUnit->throwLaunchpads, (intptr_t)tgt);
+    oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
     return branch;
 }
 

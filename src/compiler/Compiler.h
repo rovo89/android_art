@@ -159,7 +159,7 @@ struct SSARepresentation;
 struct GrowableList;
 struct MIR;
 
-void oatInit(const Compiler& compiler);
+void oatInit(CompilationUnit* cUnit, const Compiler& compiler);
 bool oatArchInit(void);
 void oatArchDump(void);
 bool oatStartup(void);
@@ -182,10 +182,11 @@ bool oatFindInductionVariables(struct CompilationUnit* cUnit,
 /* Clear the visited flag for each BB */
 bool oatClearVisitedFlag(struct CompilationUnit* cUnit,
                                  struct BasicBlock* bb);
-char* oatGetDalvikDisassembly(const DecodedInstruction* insn,
-                                      const char* note);
-char* oatFullDisassembler(const struct CompilationUnit* cUnit,
-                                  const struct MIR* mir);
+char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
+                              const DecodedInstruction* insn,
+                              const char* note);
+char* oatFullDisassembler(struct CompilationUnit* cUnit,
+                          const struct MIR* mir);
 char* oatGetSSAString(struct CompilationUnit* cUnit,
                               struct SSARepresentation* ssaRep);
 void oatDataFlowAnalysisDispatcher(struct CompilationUnit* cUnit,

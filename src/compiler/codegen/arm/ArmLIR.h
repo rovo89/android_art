@@ -822,7 +822,7 @@ typedef enum ArmTargetOptHints {
     kMaxHoistDistance,
 } ArmTargetOptHints;
 
-extern ArmEncodingMap EncodingMap[kArmLast];
+extern const ArmEncodingMap EncodingMap[kArmLast];
 
 /*
  * Each instance of this struct holds a pseudo or real LIR instruction:

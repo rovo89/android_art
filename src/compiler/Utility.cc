@@ -19,18 +19,17 @@
 
 namespace art {
 
-static ArenaMemBlock *arenaHead, *currentArena;
-static int numArenaBlocks;
-
 #ifdef WITH_MEMSTATS
-static u4 allocStats[kNumAllocKinds];
-static int listSizes[kNumListKinds];
-static int listWasted[kNumListKinds];
-static int listGrows[kNumListKinds];
-static int listMaxElems[kNumListKinds];
-static int bitMapSizes[kNumBitMapKinds];
-static int bitMapWasted[kNumBitMapKinds];
-static int bitMapGrows[kNumBitMapKinds];
+typedef struct Memstats {
+    u4 allocStats[kNumAllocKinds];
+    int listSizes[kNumListKinds];
+    int listWasted[kNumListKinds];
+    int listGrows[kNumListKinds];
+    int listMaxElems[kNumListKinds];
+    int bitMapSizes[kNumBitMapKinds];
+    int bitMapWasted[kNumBitMapKinds];
+    int bitMapGrows[kNumBitMapKinds];
+} memstats;
 
 const char* allocNames[kNumAllocKinds] = {
     "Misc       ",
@@ -86,35 +85,42 @@ const char* bitMapNames[kNumBitMapKinds] = {
 #define kArenaBitVectorGrowth    4   /* increase by 4 u4s when limit hit */
 
 /* Allocate the initial memory block for arena-based allocation */
-bool oatHeapInit(void)
+bool oatHeapInit(CompilationUnit* cUnit)
 {
-    DCHECK(arenaHead == NULL);
-    arenaHead =
+    DCHECK(cUnit->arenaHead == NULL);
+    cUnit->arenaHead =
         (ArenaMemBlock *) malloc(sizeof(ArenaMemBlock) + ARENA_DEFAULT_SIZE);
-    if (arenaHead == NULL) {
+    if (cUnit->arenaHead == NULL) {
         LOG(FATAL) << "No memory left to create compiler heap memory";
     }
-    arenaHead->blockSize = ARENA_DEFAULT_SIZE;
-    currentArena = arenaHead;
-    currentArena->bytesAllocated = 0;
-    currentArena->next = NULL;
-    numArenaBlocks = 1;
+    cUnit->arenaHead->blockSize = ARENA_DEFAULT_SIZE;
+    cUnit->currentArena = cUnit->arenaHead;
+    cUnit->currentArena->bytesAllocated = 0;
+    cUnit->currentArena->next = NULL;
+    cUnit->numArenaBlocks = 1;
+#ifdef WITH_MEMSTATS
+    cUnit->mstats = (Memstats*) oatNew(cUnit, sizeof(Memstats), true,
+                     kAllocDebugInfo);
+#endif
     return true;
 }
 
 /* Arena-based malloc for compilation tasks */
-void* oatNew(size_t size, bool zero, oatAllocKind kind)
+void* oatNew(CompilationUnit* cUnit, size_t size, bool zero, oatAllocKind kind)
 {
     size = (size + 3) & ~3;
 #ifdef WITH_MEMSTATS
-    allocStats[kind] += size;
+    if (cUnit->mstats != NULL) {
+        cUnit->mstats->allocStats[kind] += size;
+    }
 #endif
 retry:
     /* Normal case - space is available in the current page */
-    if (size + currentArena->bytesAllocated <= currentArena->blockSize) {
+    if (size + cUnit->currentArena->bytesAllocated <=
+        cUnit->currentArena->blockSize) {
         void *ptr;
-        ptr = &currentArena->ptr[currentArena->bytesAllocated];
-        currentArena->bytesAllocated += size;
+        ptr = &cUnit->currentArena->ptr[cUnit->currentArena->bytesAllocated];
+        cUnit->currentArena->bytesAllocated += size;
         if (zero) {
             memset(ptr, 0, size);
         }
@@ -124,9 +130,9 @@ retry:
          * See if there are previously allocated arena blocks before the last
          * reset
          */
-        if (currentArena->next) {
-            currentArena = currentArena->next;
-            currentArena->bytesAllocated = 0;
+        if (cUnit->currentArena->next) {
+            cUnit->currentArena = cUnit->currentArena->next;
+            cUnit->currentArena->bytesAllocated = 0;
             goto retry;
         }
 
@@ -141,54 +147,48 @@ retry:
         newArena->blockSize = blockSize;
         newArena->bytesAllocated = 0;
         newArena->next = NULL;
-        currentArena->next = newArena;
-        currentArena = newArena;
-        numArenaBlocks++;
-        if (numArenaBlocks > 20000) {
-            LOG(INFO) << "Total arena pages: " << numArenaBlocks;
+        cUnit->currentArena->next = newArena;
+        cUnit->currentArena = newArena;
+        cUnit->numArenaBlocks++;
+        if (cUnit->numArenaBlocks > 20000) {
+            LOG(INFO) << "Total arena pages: " << cUnit->numArenaBlocks;
         }
         goto retry;
     }
 }
 
 /* Reclaim all the arena blocks allocated so far */
-void oatArenaReset(void)
+void oatArenaReset(CompilationUnit* cUnit)
 {
-#ifdef WITH_MEMSTATS
-    memset(&allocStats[0], 0, sizeof(allocStats));
-    memset(&listSizes[0], 0, sizeof(listSizes));
-    memset(&listWasted[0], 0, sizeof(listWasted));
-    memset(&listGrows[0], 0, sizeof(listGrows));
-    memset(&listMaxElems[0], 0, sizeof(listMaxElems));
-    memset(&bitMapSizes[0], 0, sizeof(bitMapSizes));
-    memset(&bitMapWasted[0], 0, sizeof(bitMapWasted));
-    memset(&bitMapGrows[0], 0, sizeof(bitMapGrows));
-#endif
-    currentArena = arenaHead;
-    if (currentArena) {
-        currentArena->bytesAllocated = 0;
+    ArenaMemBlock* head = cUnit->arenaHead;
+    while (head != NULL) {
+        ArenaMemBlock* p = head;
+        head = head->next;
+        free(p);
     }
+    cUnit->arenaHead = NULL;
+    cUnit->currentArena = NULL;
 }
 
 /* Growable List initialization */
-void oatInitGrowableList(GrowableList* gList, size_t initLength,
-                         oatListKind kind)
+void oatInitGrowableList(CompilationUnit* cUnit, GrowableList* gList,
+                         size_t initLength, oatListKind kind)
 {
     gList->numAllocated = initLength;
     gList->numUsed = 0;
-    gList->elemList = (intptr_t *) oatNew(sizeof(intptr_t) * initLength,
-                                                  true, kAllocGrowableList);
+    gList->elemList = (intptr_t *) oatNew(cUnit, sizeof(intptr_t) * initLength,
+                                          true, kAllocGrowableList);
 #ifdef WITH_MEMSTATS
-    listSizes[kind] += sizeof(intptr_t) * initLength;
+    cUnit->mstats->listSizes[kind] += sizeof(intptr_t) * initLength;
     gList->kind = kind;
-    if ((int)initLength > listMaxElems[kind]) {
-        listMaxElems[kind] = initLength;
+    if ((int)initLength > cUnit->mstats->listMaxElems[kind]) {
+        cUnit->mstats->listMaxElems[kind] = initLength;
     }
 #endif
 }
 
 /* Expand the capacity of a growable list */
-STATIC void expandGrowableList(GrowableList* gList)
+STATIC void expandGrowableList(CompilationUnit* cUnit, GrowableList* gList)
 {
     int newLength = gList->numAllocated;
     if (newLength < 128) {
@@ -197,15 +197,16 @@ STATIC void expandGrowableList(GrowableList* gList)
         newLength += 128;
     }
     intptr_t *newArray =
-        (intptr_t *) oatNew(sizeof(intptr_t) * newLength, true,
+        (intptr_t *) oatNew(cUnit, sizeof(intptr_t) * newLength, true,
                             kAllocGrowableList);
     memcpy(newArray, gList->elemList, sizeof(intptr_t) * gList->numAllocated);
 #ifdef WITH_MEMSTATS
-    listSizes[gList->kind] += sizeof(intptr_t) * newLength;
-    listWasted[gList->kind] += sizeof(intptr_t) * gList->numAllocated;
-    listGrows[gList->kind]++;
-    if (newLength > listMaxElems[gList->kind]) {
-        listMaxElems[gList->kind] = newLength;
+    cUnit->mstats->listSizes[gList->kind] += sizeof(intptr_t) * newLength;
+    cUnit->mstats->listWasted[gList->kind] +=
+        sizeof(intptr_t) * gList->numAllocated;
+    cUnit->mstats->listGrows[gList->kind]++;
+    if (newLength > cUnit->mstats->listMaxElems[gList->kind]) {
+        cUnit->mstats->listMaxElems[gList->kind] = newLength;
     }
 #endif
     gList->numAllocated = newLength;
@@ -213,11 +214,12 @@ STATIC void expandGrowableList(GrowableList* gList)
 }
 
 /* Insert a new element into the growable list */
-void oatInsertGrowableList(GrowableList* gList, intptr_t elem)
+void oatInsertGrowableList(CompilationUnit* cUnit, GrowableList* gList,
+                           intptr_t elem)
 {
     DCHECK_NE(gList->numAllocated, 0U);
     if (gList->numUsed == gList->numAllocated) {
-        expandGrowableList(gList);
+        expandGrowableList(cUnit, gList);
     }
     gList->elemList[gList->numUsed++] = elem;
 }
@@ -265,7 +267,7 @@ void oatDumpMemStats(CompilationUnit* cUnit)
 {
     u4 total = 0;
     for (int i = 0; i < kNumAllocKinds; i++) {
-        total += allocStats[i];
+        total += cUnit->mstats->allocStats[i];
     }
     if (total > (10 * 1024 * 1024)) {
         LOG(INFO) << "MEMUSAGE: " << total << " : "
@@ -276,22 +278,23 @@ void oatDumpMemStats(CompilationUnit* cUnit)
         }
         LOG(INFO) << "===== Overall allocations";
         for (int i = 0; i < kNumAllocKinds; i++) {
-            LOG(INFO) << allocNames[i] << std::setw(10) <<allocStats[i];
+            LOG(INFO) << allocNames[i] << std::setw(10) <<
+            cUnit->mstats->allocStats[i];
         }
         LOG(INFO) << "===== GrowableList allocations";
         for (int i = 0; i < kNumListKinds; i++) {
             LOG(INFO) << listNames[i]
-                << " S:" << listSizes[i]
-                << ", W:" << listWasted[i]
-                << ", G:" << listGrows[i]
-                << ", E:" << listMaxElems[i];
+                << " S:" << cUnit->mstats->listSizes[i]
+                << ", W:" << cUnit->mstats->listWasted[i]
+                << ", G:" << cUnit->mstats->listGrows[i]
+                << ", E:" << cUnit->mstats->listMaxElems[i];
         }
         LOG(INFO) << "===== GrowableBitMap allocations";
         for (int i = 0; i < kNumBitMapKinds; i++) {
             LOG(INFO) << bitMapNames[i]
-                << " S:" << bitMapSizes[i]
-                << ", W:" << bitMapWasted[i]
-                << ", G:" << bitMapGrows[i];
+                << " S:" << cUnit->mstats->bitMapSizes[i]
+                << ", W:" << cUnit->mstats->bitMapWasted[i]
+                << ", G:" << cUnit->mstats->bitMapGrows[i];
         }
     }
 }
@@ -361,7 +364,8 @@ static uint32_t checkMasks[32] = {
  *
  * NOTE: memory is allocated from the compiler arena.
  */
-ArenaBitVector* oatAllocBitVector(unsigned int startBits, bool expandable,
+ArenaBitVector* oatAllocBitVector(CompilationUnit* cUnit,
+                                  unsigned int startBits, bool expandable,
                                   oatBitMapKind kind)
 {
     ArenaBitVector* bv;
@@ -369,17 +373,18 @@ ArenaBitVector* oatAllocBitVector(unsigned int startBits, bool expandable,
 
     DCHECK_EQ(sizeof(bv->storage[0]), 4U);        /* assuming 32-bit units */
 
-    bv = (ArenaBitVector*) oatNew(sizeof(ArenaBitVector), false,
+    bv = (ArenaBitVector*) oatNew(cUnit, sizeof(ArenaBitVector), false,
                                   kAllocGrowableBitMap);
 
     count = (startBits + 31) >> 5;
 
     bv->storageSize = count;
     bv->expandable = expandable;
-    bv->storage = (u4*) oatNew(count * sizeof(u4), true, kAllocGrowableBitMap);
+    bv->storage = (u4*) oatNew(cUnit, count * sizeof(u4), true,
+                               kAllocGrowableBitMap);
 #ifdef WITH_MEMSTATS
     bv->kind = kind;
-    bitMapSizes[kind] += count * sizeof(u4);
+    cUnit->mstats->bitMapSizes[kind] += count * sizeof(u4);
 #endif
     return bv;
 }
@@ -412,7 +417,7 @@ void oatClearAllBits(ArenaBitVector* pBits)
  *
  * NOTE: memory is allocated from the compiler arena.
  */
-bool oatSetBit(ArenaBitVector* pBits, unsigned int num)
+bool oatSetBit(CompilationUnit* cUnit, ArenaBitVector* pBits, unsigned int num)
 {
     if (num >= pBits->storageSize * sizeof(u4) * 8) {
         if (!pBits->expandable) {
@@ -422,15 +427,16 @@ bool oatSetBit(ArenaBitVector* pBits, unsigned int num)
         /* Round up to word boundaries for "num+1" bits */
         unsigned int newSize = (num + 1 + 31) >> 5;
         DCHECK_GT(newSize, pBits->storageSize);
-        u4 *newStorage = (u4*)oatNew(newSize * sizeof(u4), false,
+        u4 *newStorage = (u4*)oatNew(cUnit, newSize * sizeof(u4), false,
                                      kAllocGrowableBitMap);
         memcpy(newStorage, pBits->storage, pBits->storageSize * sizeof(u4));
         memset(&newStorage[pBits->storageSize], 0,
                (newSize - pBits->storageSize) * sizeof(u4));
 #ifdef WITH_MEMSTATS
-        bitMapWasted[pBits->kind] += pBits->storageSize * sizeof(u4);
-        bitMapSizes[pBits->kind] += newSize * sizeof(u4);
-        bitMapGrows[pBits->kind]++;
+        cUnit->mstats->bitMapWasted[pBits->kind] +=
+            pBits->storageSize * sizeof(u4);
+        cUnit->mstats->bitMapSizes[pBits->kind] += newSize * sizeof(u4);
+        cUnit->mstats->bitMapGrows[pBits->kind]++;
 #endif
         pBits->storage = newStorage;
         pBits->storageSize = newSize;
