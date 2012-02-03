@@ -216,7 +216,7 @@ class RegType {
   bool IsArrayTypes() const {
     if (IsUnresolvedTypes()) {
       return GetDescriptor()->CharAt(0) == '[';
-    } else if (!IsConstant()) {
+    } else if (IsReference()) {
       return GetClass()->IsArrayClass();
     } else {
       return false;
@@ -228,7 +228,7 @@ class RegType {
       // Primitive arrays will always resolve
       DCHECK(GetDescriptor()->CharAt(1) == 'L' || GetDescriptor()->CharAt(1) == '[');
       return GetDescriptor()->CharAt(0) == '[';
-    } else if (!IsConstant()) {
+    } else if (IsReference()) {
       Class* type = GetClass();
       return type->IsArrayClass() && !type->GetComponentType()->IsPrimitive();
     } else {

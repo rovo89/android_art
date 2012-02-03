@@ -1032,13 +1032,18 @@ bool DexVerifier::Verify() {
 
 std::ostream& DexVerifier::Fail(VerifyError error) {
   CHECK_EQ(failure_, VERIFY_ERROR_NONE);
-  // If we're optimistically running verification at compile time, turn NO_xxx errors into generic
-  // errors so that we reverify at runtime
+  // If we're optimistically running verification at compile time, turn NO_xxx and ACCESS_xxx
+  // errors into generic errors so that we re-verify at runtime. We may fail to find or to agree
+  // on access because of not yet available class loaders, or class loaders that will differ at
+  // runtime.
   if (Runtime::Current()->IsCompiler()) {
     switch(error) {
       case VERIFY_ERROR_NO_CLASS:
       case VERIFY_ERROR_NO_FIELD:
       case VERIFY_ERROR_NO_METHOD:
+      case VERIFY_ERROR_ACCESS_CLASS:
+      case VERIFY_ERROR_ACCESS_FIELD:
+      case VERIFY_ERROR_ACCESS_METHOD:
         error = VERIFY_ERROR_GENERIC;
         break;
       default:
@@ -2156,30 +2161,38 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
     case Instruction::NEW_ARRAY: {
       const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vC_);
-      // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
-      if (!res_type.IsArrayTypes()) {
-        Fail(VERIFY_ERROR_GENERIC) << "new-array on non-array class " << res_type;
+      if (res_type.IsUnknown()) {
+        CHECK_NE(failure_, VERIFY_ERROR_NONE);
       } else {
-        /* make sure "size" register is valid type */
-        work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Integer());
-        /* set register type to array class */
-        work_line_->SetRegisterType(dec_insn.vA_, res_type);
+        // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
+        if (!res_type.IsArrayTypes()) {
+          Fail(VERIFY_ERROR_GENERIC) << "new-array on non-array class " << res_type;
+        } else {
+          /* make sure "size" register is valid type */
+          work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Integer());
+          /* set register type to array class */
+          work_line_->SetRegisterType(dec_insn.vA_, res_type);
+        }
       }
       break;
     }
     case Instruction::FILLED_NEW_ARRAY:
     case Instruction::FILLED_NEW_ARRAY_RANGE: {
       const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB_);
-      // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
-      if (!res_type.IsArrayTypes()) {
-        Fail(VERIFY_ERROR_GENERIC) << "filled-new-array on non-array class";
+      if (res_type.IsUnknown()) {
+        CHECK_NE(failure_, VERIFY_ERROR_NONE);
       } else {
-        bool is_range = (dec_insn.opcode_ == Instruction::FILLED_NEW_ARRAY_RANGE);
-        /* check the arguments to the instruction */
-        VerifyFilledNewArrayRegs(dec_insn, res_type, is_range);
-        /* filled-array result goes into "result" register */
-        work_line_->SetResultRegisterType(res_type);
-        just_set_result = true;
+        // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
+        if (!res_type.IsArrayTypes()) {
+          Fail(VERIFY_ERROR_GENERIC) << "filled-new-array on non-array class";
+        } else {
+          bool is_range = (dec_insn.opcode_ == Instruction::FILLED_NEW_ARRAY_RANGE);
+          /* check the arguments to the instruction */
+          VerifyFilledNewArrayRegs(dec_insn, res_type, is_range);
+          /* filled-array result goes into "result" register */
+          work_line_->SetResultRegisterType(res_type);
+          just_set_result = true;
+        }
       }
       break;
     }

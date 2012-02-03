@@ -94,16 +94,17 @@ class Compiler {
   bool CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexCache* dex_cache,
                                   const DexFile& dex_file, uint32_t type_idx) const {
     Class* resolved_class = dex_cache->GetResolvedType(type_idx);
-    // We should never ask whether a type needs access checks to raise a verification error,
-    // all other cases where this following test could fail should have been rewritten by the
-    // verifier to verification errors. Also need to handle a lack of knowledge at compile time.
-#ifndef NDEBUG
+    if (resolved_class == NULL) {
+      return false;  // Unknown class needs access checks.
+    }
     const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
     Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
-    DCHECK(resolved_class == NULL || referrer_class == NULL ||
-           referrer_class->CanAccess(resolved_class));
-#endif
-    return resolved_class != NULL;
+    if (referrer_class == NULL) {
+      return false;  // Incomplete referrer knowledge needs access check.
+    }
+    // Perform access check, will return true if access is ok or false if we're going to have to
+    // check this at runtime (for example for class loaders).
+    return referrer_class->CanAccess(resolved_class);
   }
 
  private:
