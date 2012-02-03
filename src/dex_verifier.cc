@@ -1030,6 +1030,26 @@ bool DexVerifier::Verify() {
   return result;
 }
 
+std::ostream& DexVerifier::Fail(VerifyError error) {
+  CHECK_EQ(failure_, VERIFY_ERROR_NONE);
+  // If we're optimistically running verification at compile time, turn NO_xxx errors into generic
+  // errors so that we reverify at runtime
+  if (Runtime::Current()->IsCompiler()) {
+    switch(error) {
+      case VERIFY_ERROR_NO_CLASS:
+      case VERIFY_ERROR_NO_FIELD:
+      case VERIFY_ERROR_NO_METHOD:
+        error = VERIFY_ERROR_GENERIC;
+        break;
+      default:
+        break;
+    }
+  }
+  failure_ = error;
+  return fail_messages_ << "VFY: " << PrettyMethod(method_)
+                        << '[' << reinterpret_cast<void*>(work_insn_idx_) << "] : ";
+}
+
 bool DexVerifier::ComputeWidthsAndCountOps() {
   const uint16_t* insns = code_item_->insns_;
   size_t insns_size = code_item_->insns_size_in_code_units_;

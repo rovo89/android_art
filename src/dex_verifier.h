@@ -903,12 +903,7 @@ class DexVerifier {
   }
 
   // Verification failed
-  std::ostream& Fail(VerifyError error) {
-    CHECK_EQ(failure_, VERIFY_ERROR_NONE);
-    failure_ = error;
-    return fail_messages_ << "VFY: " << PrettyMethod(method_)
-                          << '[' << reinterpret_cast<void*>(work_insn_idx_) << "] : ";
-  }
+  std::ostream& Fail(VerifyError error);
 
   // Log for verification information
   std::ostream& LogVerifyInfo() {
