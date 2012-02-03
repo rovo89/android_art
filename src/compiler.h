@@ -33,6 +33,7 @@
 
 namespace art {
 
+class Context;
 class TimingLogger;
 
 class Compiler {
@@ -135,6 +136,8 @@ class Compiler {
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags, uint32_t method_idx,
                      const ClassLoader* class_loader, const DexFile& dex_file);
 
+  static void CompileClass(Context* context, size_t class_def_index);
+
   void SetGcMaps(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
   void SetGcMapsDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
   void SetGcMapsMethod(const DexFile& dex_file, Method* method);
@@ -152,24 +155,21 @@ class Compiler {
 
   typedef std::map<const ClassReference, CompiledClass*> ClassTable;
   // All class references that this compiler has compiled
+  mutable Mutex compiled_classes_lock_;
   ClassTable compiled_classes_;
 
   typedef std::map<const MethodReference, CompiledMethod*> MethodTable;
   // All method references that this compiler has compiled
+  mutable Mutex compiled_methods_lock_;
   MethodTable compiled_methods_;
 
   typedef std::map<std::string, const CompiledInvokeStub*> InvokeStubTable;
   // Invocation stubs created to allow invocation of the compiled methods
+  mutable Mutex compiled_invoke_stubs_lock_;
   InvokeStubTable compiled_invoke_stubs_;
 
   bool image_;
 
-  size_t dex_file_count_;
-  size_t class_count_;
-  size_t abstract_method_count_;
-  size_t native_method_count_;
-  size_t regular_method_count_;
-  size_t instruction_count_;
   uint64_t start_ns_;
 
   const std::set<std::string>* image_classes_;
