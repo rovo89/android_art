@@ -1245,6 +1245,7 @@ class DexVerifier {
 
   typedef std::map<const Compiler::MethodReference, const std::vector<uint8_t>*> GcMapTable;
   // All the GC maps that the verifier has created
+  static Mutex gc_maps_lock_;
   static GcMapTable gc_maps_;
   static void SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map);
 

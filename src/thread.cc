@@ -282,7 +282,9 @@ Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon)
 
   // If we're the main thread, ClassLinker won't be created until after we're attached,
   // so that thread needs a two-stage attach. Regular threads don't need this hack.
-  if (self->thin_lock_id_ != ThreadList::kMainId) {
+  // In the compiler, all threads need this hack, because no-one's going to be getting
+  // a native peer!
+  if (self->thin_lock_id_ != ThreadList::kMainId && !Runtime::Current()->IsCompiler()) {
     self->CreatePeer(name, as_daemon);
   }
 

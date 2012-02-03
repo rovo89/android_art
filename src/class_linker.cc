@@ -1881,6 +1881,8 @@ static void CheckMethodsHaveGcMaps(Class* klass) {
 #endif
 
 void ClassLinker::VerifyClass(Class* klass) {
+  ObjectLock lock(klass);
+
   // TODO: assert that the monitor on the Class is held
   if (klass->IsVerified()) {
     return;

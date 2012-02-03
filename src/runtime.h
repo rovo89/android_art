@@ -66,6 +66,7 @@ class Runtime {
     std::vector<std::string> images_;
     bool check_jni_;
     std::string jni_trace_;
+    bool is_compiler_;
     bool is_zygote_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
@@ -86,6 +87,10 @@ class Runtime {
 
   // Creates and initializes a new runtime.
   static Runtime* Create(const Options& options, bool ignore_unrecognized);
+
+  bool IsCompiler() const {
+    return is_compiler_;
+  }
 
   bool IsZygote() const {
     return is_zygote_;
@@ -238,6 +243,7 @@ class Runtime {
   void StartDaemonThreads();
   void StartSignalCatcher();
 
+  bool is_compiler_;
   bool is_zygote_;
 
   // The host prefix is used during cross compilation. It is removed

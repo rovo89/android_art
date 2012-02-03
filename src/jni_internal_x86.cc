@@ -29,7 +29,7 @@ namespace x86 {
 // Immediately after the call, the environment looks like this:
 //
 // [SP+0 ] = Return address
-// [SP+4 ]= method pointer
+// [SP+4 ] = method pointer
 // [SP+8 ] = receiver pointer or NULL for static methods
 // [SP+12] = (managed) thread pointer
 // [SP+16] = argument array or NULL for no argument methods

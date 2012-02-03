@@ -50,7 +50,8 @@ Runtime* Runtime::instance_ = NULL;
 Mutex Runtime::abort_lock_("abort lock");
 
 Runtime::Runtime()
-    : is_zygote_(false),
+    : is_compiler_(false),
+      is_zygote_(false),
       default_stack_size_(Thread::kDefaultStackSize),
       monitor_list_(NULL),
       thread_list_(NULL),
@@ -259,7 +260,6 @@ void LoadJniLibrary(JavaVMExt* vm, const char* name) {
 
 Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
   UniquePtr<ParsedOptions> parsed(new ParsedOptions());
-  bool compiler = false;
   const char* boot_class_path = getenv("BOOTCLASSPATH");
   if (boot_class_path != NULL) {
     parsed->boot_class_path_ = boot_class_path;
@@ -281,6 +281,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->heap_growth_limit_ = 0;  // 0 means no growth limit
   parsed->stack_size_ = Thread::kDefaultStackSize;
 
+  parsed->is_compiler_ = false;
   parsed->is_zygote_ = false;
 
   parsed->jni_globals_max_ = 0;
@@ -368,7 +369,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (option.starts_with("-Xjnitrace:")) {
       parsed->jni_trace_ = option.substr(strlen("-Xjnitrace:")).data();
     } else if (option == "compiler") {
-      compiler = true;
+      parsed->is_compiler_ = true;
     } else if (option == "-Xzygote") {
       parsed->is_zygote_ = true;
     } else if (option.starts_with("-verbose:")) {
@@ -430,7 +431,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     }
   }
 
-  if (!compiler && parsed->images_.empty()) {
+  if (!parsed->is_compiler_ && parsed->images_.empty()) {
     parsed->images_.push_back("/system/framework/boot.art");
   }
   if (parsed->heap_growth_limit_ == 0) {
@@ -584,6 +585,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   class_path_ = options->class_path_;
   properties_ = options->properties_;
 
+  is_compiler_ = options->is_compiler_;
   is_zygote_ = options->is_zygote_;
 
   vfprintf_ = options->hook_vfprintf_;

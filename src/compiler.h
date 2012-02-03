@@ -111,14 +111,14 @@ class Compiler {
   // Checks if class specified by type_idx is one of the image_classes_
   bool IsImageClass(const std::string& descriptor) const;
 
-  void PreCompile(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files, TimingLogger& timing);
+  void PreCompile(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files, TimingLogger& timings);
   void PostCompile(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
 
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
   // ordering semantics.
-  void Resolve(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
-  void ResolveDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
+  void Resolve(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files, TimingLogger& timings);
+  void ResolveDexFile(const ClassLoader* class_loader, const DexFile& dex_file, TimingLogger& timings);
 
   void Verify(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
   void VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex_file);

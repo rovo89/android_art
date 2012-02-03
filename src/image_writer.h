@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include <cstddef>
+#include <map>
 #include <set>
 #include <string>
 
@@ -50,36 +51,29 @@ class ImageWriter {
 
   bool AllocMemory();
 
+  static std::map<const Object*, size_t> offsets_;
+
   // we use the lock word to store the offset of the object in the image
   void AssignImageOffset(Object* object) {
     DCHECK(object != NULL);
-    DCHECK_EQ(object->monitor_, 0U);  // should be no lock
     SetImageOffset(object, image_end_);
     image_end_ += RoundUp(object->SizeOf(), 8);  // 64-bit alignment
     DCHECK_LT(image_end_, image_->Size());
   }
   static void SetImageOffset(Object* object, size_t offset) {
     DCHECK(object != NULL);
-    // should be no lock (but it might be forward referenced interned string)
-    DCHECK(object->monitor_ == 0 || object->GetClass()->IsStringClass());
-    DCHECK_NE(0U, offset);
-    object->monitor_ = offset;
+    DCHECK_NE(offset, 0U);
+    DCHECK(!IsImageOffsetAssigned(object));
+    offsets_[object] = offset;
   }
   static size_t IsImageOffsetAssigned(const Object* object) {
     DCHECK(object != NULL);
-    size_t offset = object->monitor_;
-    return offset != 0U;
+    return offsets_.find(object) != offsets_.end();
   }
   static size_t GetImageOffset(const Object* object) {
     DCHECK(object != NULL);
-    size_t offset = object->monitor_;
-    DCHECK_NE(0U, offset);
-    return offset;
-  }
-  static void ResetImageOffset(Object* object) {
-    DCHECK(object != NULL);
-    DCHECK_NE(object->monitor_, 0U);  // should be an offset
-    object->monitor_ = 0;
+    DCHECK(IsImageOffsetAssigned(object));
+    return offsets_[object];
   }
 
   bool InSourceSpace(const Object* object) const {

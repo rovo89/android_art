@@ -39,6 +39,8 @@
 
 namespace art {
 
+std::map<const Object*, size_t> ImageWriter::offsets_;
+
 bool ImageWriter::Write(const char* image_filename,
                         uintptr_t image_begin,
                         const std::string& oat_filename,
@@ -347,7 +349,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {
   DCHECK_LT(offset + n, image_writer->image_->Size());
   memcpy(dst, src, n);
   Object* copy = reinterpret_cast<Object*>(dst);
-  ResetImageOffset(copy);
+  copy->monitor_ = 0; // We may have inflated the lock during compilation.
   image_writer->FixupObject(obj, copy);
 }
 

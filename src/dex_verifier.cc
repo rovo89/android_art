@@ -3855,9 +3855,11 @@ const uint8_t* PcToReferenceMap::FindBitMap(uint16_t dex_pc, bool error_if_not_p
   return NULL;
 }
 
+Mutex DexVerifier::gc_maps_lock_("verifier gc maps lock");
 DexVerifier::GcMapTable DexVerifier::gc_maps_;
 
 void DexVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
+  MutexLock mu(gc_maps_lock_);
   const std::vector<uint8_t>* existing_gc_map = GetGcMap(ref);
   if (existing_gc_map != NULL) {
     CHECK(*existing_gc_map == gc_map);
@@ -3868,6 +3870,7 @@ void DexVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint
 }
 
 const std::vector<uint8_t>* DexVerifier::GetGcMap(Compiler::MethodReference ref) {
+  MutexLock mu(gc_maps_lock_);
   GcMapTable::const_iterator it = gc_maps_.find(ref);
   if (it == gc_maps_.end()) {
     return NULL;
@@ -3877,6 +3880,7 @@ const std::vector<uint8_t>* DexVerifier::GetGcMap(Compiler::MethodReference ref)
 }
 
 void DexVerifier::DeleteGcMaps() {
+  MutexLock mu(gc_maps_lock_);
   STLDeleteValues(&gc_maps_);
 }
 
