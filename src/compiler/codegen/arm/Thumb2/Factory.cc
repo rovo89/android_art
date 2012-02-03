@@ -69,7 +69,8 @@ STATIC ArmLIR* loadFPConstantValue(CompilationUnit* cUnit, int rDest,
     if (dataTarget == NULL) {
         dataTarget = addWordData(cUnit, &cUnit->literalList, value);
     }
-    ArmLIR* loadPcRel = (ArmLIR* ) oatNew(sizeof(ArmLIR), true, kAllocLIR);
+    ArmLIR* loadPcRel = (ArmLIR* ) oatNew(cUnit, sizeof(ArmLIR), true,
+                                          kAllocLIR);
     loadPcRel->generic.dalvikOffset = cUnit->currentDalvikOffset;
     loadPcRel->opcode = kThumb2Vldrs;
     loadPcRel->generic.target = (LIR* ) dataTarget;
@@ -178,7 +179,8 @@ STATIC ArmLIR* loadConstantNoClobber(CompilationUnit* cUnit, int rDest,
     if (dataTarget == NULL) {
         dataTarget = addWordData(cUnit, &cUnit->literalList, value);
     }
-    ArmLIR* loadPcRel = (ArmLIR* ) oatNew(sizeof(ArmLIR), true, kAllocLIR);
+    ArmLIR* loadPcRel = (ArmLIR* ) oatNew(cUnit, sizeof(ArmLIR), true,
+                                          kAllocLIR);
     loadPcRel->opcode = kThumb2LdrPcRel12;
     loadPcRel->generic.target = (LIR* ) dataTarget;
     loadPcRel->generic.dalvikOffset = cUnit->currentDalvikOffset;
@@ -655,7 +657,7 @@ STATIC ArmLIR* loadConstantValueWide(CompilationUnit* cUnit, int rDestLo,
                 dataTarget = addWideData(cUnit, &cUnit->literalList, valLo,
                                          valHi);
             }
-            ArmLIR* loadPcRel = (ArmLIR* ) oatNew(sizeof(ArmLIR), true,
+            ArmLIR* loadPcRel = (ArmLIR* ) oatNew(cUnit, sizeof(ArmLIR), true,
                                                   kAllocLIR);
             loadPcRel->generic.dalvikOffset = cUnit->currentDalvikOffset;
             loadPcRel->opcode = kThumb2Vldrd;
@@ -1072,7 +1074,7 @@ STATIC ArmLIR* genCmpImmBranch(CompilationUnit* cUnit,
 
 STATIC ArmLIR* fpRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
 {
-    ArmLIR* res = (ArmLIR* ) oatNew(sizeof(ArmLIR), true, kAllocLIR);
+    ArmLIR* res = (ArmLIR* ) oatNew(cUnit, sizeof(ArmLIR), true, kAllocLIR);
     res->generic.dalvikOffset = cUnit->currentDalvikOffset;
     res->operands[0] = rDest;
     res->operands[1] = rSrc;
@@ -1103,7 +1105,7 @@ STATIC ArmLIR* genRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
     ArmOpcode opcode;
     if (FPREG(rDest) || FPREG(rSrc))
         return fpRegCopy(cUnit, rDest, rSrc);
-    res = (ArmLIR* ) oatNew(sizeof(ArmLIR), true, kAllocLIR);
+    res = (ArmLIR* ) oatNew(cUnit, sizeof(ArmLIR), true, kAllocLIR);
     res->generic.dalvikOffset = cUnit->currentDalvikOffset;
     if (LOWREG(rDest) && LOWREG(rSrc))
         opcode = kThumbMovRR;

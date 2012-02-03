@@ -27,7 +27,7 @@ STATIC void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
     block->visited = true;
 
     /* Enqueue the preOrder block id */
-    oatInsertGrowableList(&cUnit->dfsOrder, block->id);
+    oatInsertGrowableList(cUnit, &cUnit->dfsOrder, block->id);
 
     if (block->fallThrough) recordDFSOrders(cUnit, block->fallThrough);
     if (block->taken) recordDFSOrders(cUnit, block->taken);
@@ -46,7 +46,7 @@ STATIC void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
 
     /* Record postorder in basic block and enqueue normal id in dfsPostOrder */
     block->dfsId = cUnit->dfsPostOrder.numUsed;
-    oatInsertGrowableList(&cUnit->dfsPostOrder, block->id);
+    oatInsertGrowableList(cUnit, &cUnit->dfsPostOrder, block->id);
     return;
 }
 
@@ -55,7 +55,8 @@ STATIC void computeDFSOrders(CompilationUnit* cUnit)
 {
     /* Initialize or reset the DFS preOrder list */
     if (cUnit->dfsOrder.elemList == NULL) {
-        oatInitGrowableList(&cUnit->dfsOrder, cUnit->numBlocks, kListDfsOrder);
+        oatInitGrowableList(cUnit, &cUnit->dfsOrder, cUnit->numBlocks,
+                            kListDfsOrder);
     } else {
         /* Just reset the used length on the counter */
         cUnit->dfsOrder.numUsed = 0;
@@ -63,7 +64,7 @@ STATIC void computeDFSOrders(CompilationUnit* cUnit)
 
     /* Initialize or reset the DFS postOrder list */
     if (cUnit->dfsPostOrder.elemList == NULL) {
-        oatInitGrowableList(&cUnit->dfsPostOrder, cUnit->numBlocks,
+        oatInitGrowableList(cUnit, &cUnit->dfsPostOrder, cUnit->numBlocks,
                             kListDfsPostOrder);
     } else {
         /* Just reset the used length on the counter */
@@ -93,7 +94,7 @@ STATIC bool fillDefBlockMatrix(CompilationUnit* cUnit, BasicBlock* bb)
         int idx = oatBitVectorIteratorNext(&iterator);
         if (idx == -1) break;
         /* Block bb defines register idx */
-        oatSetBit(cUnit->defBlockMatrix[idx], bb->id);
+        oatSetBit(cUnit, cUnit->defBlockMatrix[idx], bb->id);
     }
     return true;
 }
@@ -103,14 +104,14 @@ STATIC void computeDefBlockMatrix(CompilationUnit* cUnit)
     int numRegisters = cUnit->numDalvikRegisters;
     /* Allocate numDalvikRegisters bit vector pointers */
     cUnit->defBlockMatrix = (ArenaBitVector **)
-        oatNew(sizeof(ArenaBitVector *) * numRegisters, true,
+        oatNew(cUnit, sizeof(ArenaBitVector *) * numRegisters, true,
                kAllocDFInfo);
     int i;
 
     /* Initialize numRegister vectors with numBlocks bits each */
     for (i = 0; i < numRegisters; i++) {
-        cUnit->defBlockMatrix[i] = oatAllocBitVector(cUnit->numBlocks, false,
-                                                     kBitMapBMatrix);
+        cUnit->defBlockMatrix[i] = oatAllocBitVector(cUnit, cUnit->numBlocks,
+                                                     false, kBitMapBMatrix);
     }
     oatDataFlowAnalysisDispatcher(cUnit, oatFindLocalLiveIn,
                                           kAllNodes,
@@ -126,7 +127,7 @@ STATIC void computeDefBlockMatrix(CompilationUnit* cUnit)
     int numRegs = cUnit->numDalvikRegisters;
     int inReg = numRegs - cUnit->numIns;
     for (; inReg < numRegs; inReg++) {
-        oatSetBit(cUnit->defBlockMatrix[inReg], cUnit->entryBlock->id);
+        oatSetBit(cUnit, cUnit->defBlockMatrix[inReg], cUnit->entryBlock->id);
     }
 }
 
@@ -148,7 +149,7 @@ STATIC void computeDomPostOrderTraversal(CompilationUnit* cUnit, BasicBlock* bb)
     }
 
     /* Enter the current block id */
-    oatInsertGrowableList(&cUnit->domPostOrderTraversal, bb->id);
+    oatInsertGrowableList(cUnit, &cUnit->domPostOrderTraversal, bb->id);
 
     /* hacky loop detection */
     if (bb->taken && oatIsBitSet(bb->dominators, bb->taken->id)) {
@@ -156,7 +157,7 @@ STATIC void computeDomPostOrderTraversal(CompilationUnit* cUnit, BasicBlock* bb)
     }
 }
 
-STATIC void checkForDominanceFrontier(BasicBlock* domBB,
+STATIC void checkForDominanceFrontier(CompilationUnit* cUnit, BasicBlock* domBB,
                                       const BasicBlock* succBB)
 {
     /*
@@ -166,7 +167,7 @@ STATIC void checkForDominanceFrontier(BasicBlock* domBB,
     if (succBB->iDom != domBB &&
         succBB->blockType == kDalvikByteCode &&
         succBB->hidden == false) {
-        oatSetBit(domBB->domFrontier, succBB->id);
+        oatSetBit(cUnit, domBB->domFrontier, succBB->id);
     }
 }
 
@@ -177,10 +178,10 @@ STATIC bool computeDominanceFrontier(CompilationUnit* cUnit, BasicBlock* bb)
 
     /* Calculate DF_local */
     if (bb->taken) {
-        checkForDominanceFrontier(bb, bb->taken);
+        checkForDominanceFrontier(cUnit, bb, bb->taken);
     }
     if (bb->fallThrough) {
-        checkForDominanceFrontier(bb, bb->fallThrough);
+        checkForDominanceFrontier(cUnit, bb, bb->fallThrough);
     }
     if (bb->successorBlockList.blockListType != kNotUsed) {
         GrowableListIterator iterator;
@@ -191,7 +192,7 @@ STATIC bool computeDominanceFrontier(CompilationUnit* cUnit, BasicBlock* bb)
                 (SuccessorBlockInfo *) oatGrowableListIteratorNext(&iterator);
             if (successorBlockInfo == NULL) break;
             BasicBlock* succBB = successorBlockInfo->block;
-            checkForDominanceFrontier(bb, succBB);
+            checkForDominanceFrontier(cUnit, bb, succBB);
         }
     }
 
@@ -212,7 +213,7 @@ STATIC bool computeDominanceFrontier(CompilationUnit* cUnit, BasicBlock* bb)
             if (dfUpIdx == -1) break;
             BasicBlock* dfUpBlock = (BasicBlock* )
                 oatGrowableListGetElement(blockList, dfUpIdx);
-            checkForDominanceFrontier(bb, dfUpBlock);
+            checkForDominanceFrontier(cUnit, bb, dfUpBlock);
         }
     }
 
@@ -225,13 +226,13 @@ STATIC bool initializeDominationInfo(CompilationUnit* cUnit, BasicBlock* bb)
     int numTotalBlocks = cUnit->blockList.numUsed;
 
     if (bb->dominators == NULL ) {
-        bb->dominators = oatAllocBitVector(numTotalBlocks,
+        bb->dominators = oatAllocBitVector(cUnit, numTotalBlocks,
                                            false /* expandable */,
                                            kBitMapDominators);
-        bb->iDominated = oatAllocBitVector(numTotalBlocks,
+        bb->iDominated = oatAllocBitVector(cUnit, numTotalBlocks,
                                            false /* expandable */,
                                            kBitMapIDominated);
-        bb->domFrontier = oatAllocBitVector(numTotalBlocks,
+        bb->domFrontier = oatAllocBitVector(cUnit, numTotalBlocks,
                                             false /* expandable */,
                                             kBitMapDomFrontier);
     } else {
@@ -275,7 +276,7 @@ STATIC bool slowComputeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
             oatIntersectBitVectors(tempBlockV, tempBlockV, predBB->dominators);
         }
     }
-    oatSetBit(tempBlockV, bb->id);
+    oatSetBit(cUnit, tempBlockV, bb->id);
     if (oatCompareBitVectors(tempBlockV, bb->dominators)) {
         oatCopyBitVector(bb->dominators, tempBlockV);
         return true;
@@ -326,7 +327,7 @@ STATIC bool slowComputeBlockIDom(CompilationUnit* cUnit, BasicBlock* bb)
         bb->iDom = iDom;
     }
     /* Add bb to the iDominated set of the immediate dominator block */
-    oatSetBit(iDom->iDominated, bb->id);
+    oatSetBit(cUnit, iDom->iDominated, bb->id);
     return true;
 }
 
@@ -403,7 +404,7 @@ STATIC bool computeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
     } else {
         oatCopyBitVector(bb->dominators, bb->iDom->dominators);
     }
-    oatSetBit(bb->dominators, bb->id);
+    oatSetBit(cUnit, bb->dominators, bb->id);
     return false;
 }
 
@@ -420,7 +421,7 @@ STATIC bool setDominators(CompilationUnit* cUnit, BasicBlock* bb)
         }
         bb->iDom = iDom;
         /* Add bb to the iDominated set of the immediate dominator block */
-        oatSetBit(iDom->iDominated, bb->id);
+        oatSetBit(cUnit, iDom->iDominated, bb->id);
     }
     return false;
 }
@@ -438,8 +439,8 @@ STATIC void computeDominators(CompilationUnit* cUnit)
 
     /* Initalize & Clear iDomList */
     if (cUnit->iDomList == NULL) {
-        cUnit->iDomList = (int*)oatNew(sizeof(int) * numReachableBlocks, false,
-                                       kAllocDFInfo);
+        cUnit->iDomList = (int*)oatNew(cUnit, sizeof(int) * numReachableBlocks,
+                                       false, kAllocDFInfo);
     }
     for (int i = 0; i < numReachableBlocks; i++) {
         cUnit->iDomList[i] = NOTVISITED;
@@ -456,10 +457,10 @@ STATIC void computeDominators(CompilationUnit* cUnit)
 
     /* Set the dominator for the root node */
     oatClearAllBits(cUnit->entryBlock->dominators);
-    oatSetBit(cUnit->entryBlock->dominators, cUnit->entryBlock->id);
+    oatSetBit(cUnit, cUnit->entryBlock->dominators, cUnit->entryBlock->id);
 
     if (cUnit->tempBlockV == NULL) {
-        cUnit->tempBlockV = oatAllocBitVector(numTotalBlocks,
+        cUnit->tempBlockV = oatAllocBitVector(cUnit, numTotalBlocks,
                                               false /* expandable */,
                                               kBitMapTmpBlockV);
     } else {
@@ -492,8 +493,8 @@ STATIC void computeDominators(CompilationUnit* cUnit)
      * iDominated sets.
      */
     if (cUnit->domPostOrderTraversal.elemList == NULL) {
-        oatInitGrowableList(&cUnit->domPostOrderTraversal, numReachableBlocks,
-                            kListDomPostOrderTraversal);
+        oatInitGrowableList(cUnit, &cUnit->domPostOrderTraversal,
+                            numReachableBlocks, kListDomPostOrderTraversal);
     } else {
         cUnit->domPostOrderTraversal.numUsed = 0;
     }
@@ -576,14 +577,14 @@ STATIC void insertPhiNodes(CompilationUnit* cUnit)
     int dalvikReg;
     const GrowableList* blockList = &cUnit->blockList;
     ArenaBitVector* phiBlocks =
-        oatAllocBitVector(cUnit->numBlocks, false, kBitMapPhi);
+        oatAllocBitVector(cUnit, cUnit->numBlocks, false, kBitMapPhi);
     ArenaBitVector* tmpBlocks =
-        oatAllocBitVector(cUnit->numBlocks, false, kBitMapTmpBlocks);
+        oatAllocBitVector(cUnit, cUnit->numBlocks, false, kBitMapTmpBlocks);
     ArenaBitVector* inputBlocks =
-        oatAllocBitVector(cUnit->numBlocks, false, kBitMapInputBlocks);
+        oatAllocBitVector(cUnit, cUnit->numBlocks, false, kBitMapInputBlocks);
 
     cUnit->tempDalvikRegisterV =
-        oatAllocBitVector(cUnit->numDalvikRegisters, false,
+        oatAllocBitVector(cUnit, cUnit->numDalvikRegisters, false,
                           kBitMapRegisterV);
 
     oatDataFlowAnalysisDispatcher(cUnit, computeBlockLiveIns,
@@ -642,7 +643,7 @@ STATIC void insertPhiNodes(CompilationUnit* cUnit)
                 (BasicBlock* ) oatGrowableListGetElement(blockList, idx);
             /* Variable will be clobbered before being used - no need for phi */
             if (!oatIsBitSet(phiBB->dataFlowInfo->liveInV, dalvikReg)) continue;
-            MIR *phi = (MIR *) oatNew(sizeof(MIR), true, kAllocDFInfo);
+            MIR *phi = (MIR *) oatNew(cUnit, sizeof(MIR), true, kAllocDFInfo);
             phi->dalvikInsn.opcode = (Opcode)kMirOpPhi;
             phi->dalvikInsn.vA = dalvikReg;
             phi->offset = phiBB->startOffset;
@@ -683,16 +684,16 @@ STATIC bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
             int encodedSSAValue =
                 predBB->dataFlowInfo->dalvikToSSAMap[dalvikReg];
             int ssaReg = DECODE_REG(encodedSSAValue);
-            oatSetBit(ssaRegV, ssaReg);
+            oatSetBit(cUnit, ssaRegV, ssaReg);
         }
 
         /* Count the number of SSA registers for a Dalvik register */
         int numUses = oatCountSetBits(ssaRegV);
         mir->ssaRep->numUses = numUses;
         mir->ssaRep->uses =
-            (int *) oatNew(sizeof(int) * numUses, false, kAllocDFInfo);
+            (int *) oatNew(cUnit, sizeof(int) * numUses, false, kAllocDFInfo);
         mir->ssaRep->fpUse =
-            (bool *) oatNew(sizeof(bool) * numUses, true, kAllocDFInfo);
+            (bool *) oatNew(cUnit, sizeof(bool) * numUses, true, kAllocDFInfo);
 
         ArenaBitVectorIterator phiIterator;
 
@@ -721,7 +722,8 @@ STATIC void doDFSPreOrderSSARename(CompilationUnit* cUnit, BasicBlock* block)
     int mapSize = sizeof(int) * cUnit->numDalvikRegisters;
 
     /* Save SSA map snapshot */
-    int* savedSSAMap = (int*)oatNew(mapSize, false, kAllocDalvikToSSAMap);
+    int* savedSSAMap = (int*)oatNew(cUnit, mapSize, false,
+                                    kAllocDalvikToSSAMap);
     memcpy(savedSSAMap, cUnit->dalvikToSSAMap, mapSize);
 
     if (block->fallThrough) {
@@ -785,8 +787,8 @@ void oatMethodSSATransformation(CompilationUnit* cUnit)
          * Shared temp bit vector used by each block to count the number of defs
          * from all the predecessor blocks.
          */
-        cUnit->tempSSARegisterV = oatAllocBitVector(cUnit->numSSARegs, false,
-                                                    kBitMapTempSSARegisterV);
+        cUnit->tempSSARegisterV = oatAllocBitVector(cUnit, cUnit->numSSARegs,
+             false, kBitMapTempSSARegisterV);
 
         /* Insert phi-operands with latest SSA names from predecessor blocks */
         oatDataFlowAnalysisDispatcher(cUnit, insertPhiNodeOperands,

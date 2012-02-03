@@ -22,10 +22,10 @@
 namespace art {
 
 /* Each arena page has some overhead, so take a few bytes off */
-#define ARENA_DEFAULT_SIZE ((256 * 1024) - 256)
+#define ARENA_DEFAULT_SIZE ((2 * 1024 * 1024) - 256)
 
 /* Allocate the initial memory block for arena-based allocation */
-bool oatHeapInit(void);
+bool oatHeapInit(CompilationUnit* cUnit);
 
 /* Collect memory usage statstics */
 //#define WITH_MEMSTATS
@@ -37,9 +37,10 @@ typedef struct ArenaMemBlock {
     char ptr[0];
 } ArenaMemBlock;
 
-void* oatNew(size_t size, bool zero, oatAllocKind kind = kAllocMisc);
+void* oatNew(CompilationUnit* cUnit, size_t size, bool zero,
+             oatAllocKind kind = kAllocMisc);
 
-void oatArenaReset(void);
+void oatArenaReset(CompilationUnit *cUnit);
 
 typedef struct GrowableList {
     size_t numAllocated;
@@ -87,21 +88,23 @@ struct LIR;
 struct BasicBlock;
 struct CompilationUnit;
 
-void oatInitGrowableList(GrowableList* gList, size_t initLength,
-                         oatListKind kind = kListMisc);
-void oatInsertGrowableList(GrowableList* gList, intptr_t elem);
+void oatInitGrowableList(CompilationUnit* cUnit,GrowableList* gList,
+                         size_t initLength, oatListKind kind = kListMisc);
+void oatInsertGrowableList(CompilationUnit* cUnit, GrowableList* gList,
+                           intptr_t elem);
 void oatDeleteGrowableList(GrowableList* gList, intptr_t elem);
 void oatGrowableListIteratorInit(GrowableList* gList,
                                  GrowableListIterator* iterator);
 intptr_t oatGrowableListIteratorNext(GrowableListIterator* iterator);
 intptr_t oatGrowableListGetElement(const GrowableList* gList, size_t idx);
 
-ArenaBitVector* oatAllocBitVector(unsigned int startBits, bool expandable,
+ArenaBitVector* oatAllocBitVector(CompilationUnit* cUnit,
+                                  unsigned int startBits, bool expandable,
                                   oatBitMapKind = kBitMapMisc);
 void oatBitVectorIteratorInit(ArenaBitVector* pBits,
                               ArenaBitVectorIterator* iterator);
 int oatBitVectorIteratorNext(ArenaBitVectorIterator* iterator);
-bool oatSetBit(ArenaBitVector* pBits, unsigned int num);
+bool oatSetBit(CompilationUnit *cUnit, ArenaBitVector* pBits, unsigned int num);
 bool oatClearBit(ArenaBitVector* pBits, unsigned int num);
 void oatMarkAllBits(ArenaBitVector* pBits, bool set);
 void oatDebugBitVector(char* msg, const ArenaBitVector* bv, int length);

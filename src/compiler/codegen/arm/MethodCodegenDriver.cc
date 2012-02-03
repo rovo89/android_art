@@ -1861,8 +1861,8 @@ STATIC void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
     int opOffset = mir->dalvikInsn.opcode - kMirOpFirst;
     char* msg = NULL;
     if (cUnit->printMe) {
-        msg = (char*)oatNew(strlen(extendedMIROpNames[opOffset]) + 1, false,
-                            kAllocDebugInfo);
+        msg = (char*)oatNew(cUnit, strlen(extendedMIROpNames[opOffset]) + 1,
+                            false, kAllocDebugInfo);
         strcpy(msg, extendedMIROpNames[opOffset]);
     }
     ArmLIR* op = newLIR1(cUnit, kArmPseudoExtended, (int) msg);
@@ -2051,7 +2051,7 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 
         /* Mark the beginning of a Dalvik instruction for line tracking */
         char* instStr = cUnit->printMe ?
-           oatGetDalvikDisassembly(&mir->dalvikInsn, "") : NULL;
+           oatGetDalvikDisassembly(cUnit, &mir->dalvikInsn, "") : NULL;
         boundaryLIR = newLIR1(cUnit, kArmPseudoDalvikByteCodeBoundary,
                               (intptr_t) instStr);
         cUnit->boundaryMap.insert(std::make_pair(mir->offset,
@@ -2235,7 +2235,8 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
 {
     /* Used to hold the labels of each block */
     cUnit->blockLabelList =
-        (void *) oatNew(sizeof(ArmLIR) * cUnit->numBlocks, true, kAllocLIR);
+        (void *) oatNew(cUnit, sizeof(ArmLIR) * cUnit->numBlocks, true,
+                        kAllocLIR);
 
     oatDataFlowAnalysisDispatcher(cUnit, methodBlockCodeGen,
                                   kPreOrderDFSTraversal, false /* Iterative */);

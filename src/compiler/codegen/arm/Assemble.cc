@@ -80,7 +80,7 @@ namespace art {
  *  [!] escape.  To insert "!", use "!!"
  */
 /* NOTE: must be kept in sync with enum ArmOpcode from ArmLIR.h */
-ArmEncodingMap EncodingMap[kArmLast] = {
+const ArmEncodingMap EncodingMap[kArmLast] = {
     ENCODING_MAP(kArm16BitData,    0x0000,
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP, "data", "0x!0h(!0d)", 1),
@@ -1131,8 +1131,8 @@ STATIC AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                         lir->operands[0] : rLR;
 
                     // Add new Adr to generate the address
-                    ArmLIR *newAdr =
-                        (ArmLIR *)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+                    ArmLIR *newAdr = (ArmLIR *)oatNew(cUnit, sizeof(ArmLIR),
+                        true, kAllocLIR);
                     newAdr->generic.dalvikOffset = lir->generic.dalvikOffset;
                     newAdr->generic.target = lir->generic.target;
                     newAdr->opcode = kThumb2Adr;
@@ -1165,8 +1165,8 @@ STATIC AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                 int delta = target - pc;
                 if (delta > 126 || delta < 0) {
                     /* Convert to cmp rx,#0 / b[eq/ne] tgt pair */
-                    ArmLIR *newInst =
-                        (ArmLIR *)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+                    ArmLIR *newInst = (ArmLIR *)oatNew(cUnit, sizeof(ArmLIR),
+                        true, kAllocLIR);
                     /* Make new branch instruction and insert after */
                     newInst->generic.dalvikOffset = lir->generic.dalvikOffset;
                     newInst->opcode = kThumbBCond;
@@ -1290,7 +1290,8 @@ STATIC AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                 } else {
                     // convert to ldimm16l, ldimm16h, add tgt, pc, operands[0]
                     ArmLIR *newMov16L =
-                        (ArmLIR *)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+                        (ArmLIR *)oatNew(cUnit, sizeof(ArmLIR), true,
+                        kAllocLIR);
                     newMov16L->generic.dalvikOffset = lir->generic.dalvikOffset;
                     newMov16L->generic.target = lir->generic.target;
                     newMov16L->opcode = kThumb2MovImm16LST;
@@ -1300,7 +1301,8 @@ STATIC AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
                     oatSetupResourceMasks(newMov16L);
                     oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16L);
                     ArmLIR *newMov16H =
-                        (ArmLIR *)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+                        (ArmLIR *)oatNew(cUnit, sizeof(ArmLIR), true,
+                        kAllocLIR);
                     newMov16H->generic.dalvikOffset = lir->generic.dalvikOffset;
                     newMov16H->generic.target = lir->generic.target;
                     newMov16H->opcode = kThumb2MovImm16HST;
@@ -1345,7 +1347,7 @@ STATIC AssemblerStatus assembleInstructions(CompilationUnit* cUnit,
         if (res != kSuccess) {
             continue;
         }
-        ArmEncodingMap *encoder = &EncodingMap[lir->opcode];
+        const ArmEncodingMap *encoder = &EncodingMap[lir->opcode];
         u4 bits = encoder->skeleton;
         int i;
         for (i = 0; i < 4; i++) {

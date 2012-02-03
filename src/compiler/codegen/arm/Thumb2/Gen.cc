@@ -134,7 +134,7 @@ STATIC ArmLIR* insertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
     if (it == cUnit->boundaryMap.end()) {
         LOG(FATAL) << "Error: didn't find vaddr 0x" << std::hex << vaddr;
     }
-    ArmLIR* newLabel = (ArmLIR*)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+    ArmLIR* newLabel = (ArmLIR*)oatNew(cUnit, sizeof(ArmLIR), true, kAllocLIR);
     newLabel->generic.dalvikOffset = vaddr;
     newLabel->opcode = kArmPseudoCaseLabel;
     newLabel->operands[0] = keyVal;
@@ -259,14 +259,14 @@ STATIC void genSparseSwitch(CompilationUnit* cUnit, MIR* mir,
         dumpSparseSwitchTable(table);
     }
     // Add the table to the list - we'll process it later
-    SwitchTable *tabRec = (SwitchTable *)oatNew(sizeof(SwitchTable),
+    SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
                          true, kAllocData);
     tabRec->table = table;
     tabRec->vaddr = mir->offset;
     int size = table[1];
-    tabRec->targets = (ArmLIR* *)oatNew(size * sizeof(ArmLIR*), true,
+    tabRec->targets = (ArmLIR* *)oatNew(cUnit, size * sizeof(ArmLIR*), true,
                                         kAllocLIR);
-    oatInsertGrowableList(&cUnit->switchTables, (intptr_t)tabRec);
+    oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
 
     // Get the switch value
     rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
@@ -310,14 +310,14 @@ STATIC void genPackedSwitch(CompilationUnit* cUnit, MIR* mir,
         dumpPackedSwitchTable(table);
     }
     // Add the table to the list - we'll process it later
-    SwitchTable *tabRec = (SwitchTable *)oatNew(sizeof(SwitchTable),
+    SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
                                                 true, kAllocData);
     tabRec->table = table;
     tabRec->vaddr = mir->offset;
     int size = table[1];
-    tabRec->targets = (ArmLIR* *)oatNew(size * sizeof(ArmLIR*), true,
+    tabRec->targets = (ArmLIR* *)oatNew(cUnit, size * sizeof(ArmLIR*), true,
                                         kAllocLIR);
-    oatInsertGrowableList(&cUnit->switchTables, (intptr_t)tabRec);
+    oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
 
     // Get the switch value
     rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
@@ -367,14 +367,14 @@ STATIC void genFillArrayData(CompilationUnit* cUnit, MIR* mir,
     const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
     // Add the table to the list - we'll process it later
     FillArrayData *tabRec = (FillArrayData *)
-         oatNew(sizeof(FillArrayData), true, kAllocData);
+         oatNew(cUnit, sizeof(FillArrayData), true, kAllocData);
     tabRec->table = table;
     tabRec->vaddr = mir->offset;
     u2 width = tabRec->table[1];
     u4 size = tabRec->table[2] | (((u4)tabRec->table[3]) << 16);
     tabRec->size = (size * width) + 8;
 
-    oatInsertGrowableList(&cUnit->fillArrayData, (intptr_t)tabRec);
+    oatInsertGrowableList(cUnit, &cUnit->fillArrayData, (intptr_t)tabRec);
 
     // Making a call - use explicit registers
     oatFlushAllRegs(cUnit);   /* Everything to home location */
@@ -934,17 +934,17 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
     int numTemps = sizeof(coreTemps)/sizeof(*coreTemps);
     int numFPRegs = sizeof(fpRegs)/sizeof(*fpRegs);
     int numFPTemps = sizeof(fpTemps)/sizeof(*fpTemps);
-    RegisterPool *pool = (RegisterPool *)oatNew(sizeof(*pool), true,
+    RegisterPool *pool = (RegisterPool *)oatNew(cUnit, sizeof(*pool), true,
                                                 kAllocRegAlloc);
     cUnit->regPool = pool;
     pool->numCoreRegs = numRegs;
     pool->coreRegs = (RegisterInfo *)
-            oatNew(numRegs * sizeof(*cUnit->regPool->coreRegs), true,
-                   kAllocRegAlloc);
+            oatNew(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs),
+                   true, kAllocRegAlloc);
     pool->numFPRegs = numFPRegs;
     pool->FPRegs = (RegisterInfo *)
-            oatNew(numFPRegs * sizeof(*cUnit->regPool->FPRegs), true,
-                                      kAllocRegAlloc);
+            oatNew(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs), true,
+                   kAllocRegAlloc);
     oatInitPool(pool->coreRegs, coreRegs, pool->numCoreRegs);
     oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
     // Keep special registers from being allocated
@@ -963,7 +963,7 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
         oatMarkTemp(cUnit, fpTemps[i]);
     }
     // Construct the alias map.
-    cUnit->phiAliasMap = (int*)oatNew(cUnit->numSSARegs *
+    cUnit->phiAliasMap = (int*)oatNew(cUnit, cUnit->numSSARegs *
                                       sizeof(cUnit->phiAliasMap[0]), false,
                                       kAllocDFInfo);
     for (int i = 0; i < cUnit->numSSARegs; i++) {
@@ -1816,13 +1816,13 @@ STATIC void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
     ArmLIR* branch = opCondBranch(cUnit, kArmCondEq);
     ArmLIR* retLab = newLIR0(cUnit, kArmPseudoTargetLabel);
     retLab->defMask = ENCODE_ALL;
-    ArmLIR* target = (ArmLIR*)oatNew(sizeof(ArmLIR), true, kAllocLIR);
+    ArmLIR* target = (ArmLIR*)oatNew(cUnit, sizeof(ArmLIR), true, kAllocLIR);
     target->generic.dalvikOffset = cUnit->currentDalvikOffset;
     target->opcode = kArmPseudoSuspendTarget;
     target->operands[0] = (intptr_t)retLab;
     target->operands[1] = mir->offset;
     branch->generic.target = (LIR*)target;
-    oatInsertGrowableList(&cUnit->suspendLaunchpads, (intptr_t)target);
+    oatInsertGrowableList(cUnit, &cUnit->suspendLaunchpads, (intptr_t)target);
 }
 
 /*
