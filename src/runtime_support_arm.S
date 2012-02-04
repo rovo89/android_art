@@ -311,21 +311,6 @@ art_initialize_type_and_verify_access_from_code:
     bxne   lr                                  @ return on success
     DELIVER_PENDING_EXCEPTION
 
-    .global art_find_instance_field_from_code
-    .extern artFindInstanceFieldFromCode
-    /*
-     * Called by managed code to resolve a field of an object
-     */
-art_find_instance_field_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    mov    r2, r9                        @ pass Thread::Current
-    mov    r3, sp                        @ pass SP
-    bl     artFindInstanceFieldFromCode  @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    cmp    r0, #0                        @ success if result is non-null
-    bxne   lr                            @ return on success
-    DELIVER_PENDING_EXCEPTION
-
     .global art_get32_static_from_code
     .extern artGet32StaticFromCode
     /*
@@ -333,6 +318,7 @@ art_find_instance_field_from_code:
      */
 art_get32_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r1, [sp, #32]                 @ pass referrer
     mov    r2, r9                        @ pass Thread::Current
     mov    r3, sp                        @ pass SP
     bl     artGet32StaticFromCode        @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
@@ -349,6 +335,7 @@ art_get32_static_from_code:
      */
 art_get64_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r1, [sp, #32]                 @ pass referrer
     mov    r2, r9                        @ pass Thread::Current
     mov    r3, sp                        @ pass SP
     bl     artGet64StaticFromCode        @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
@@ -365,9 +352,61 @@ art_get64_static_from_code:
      */
 art_get_obj_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r1, [sp, #32]                 @ pass referrer
     mov    r2, r9                        @ pass Thread::Current
     mov    r3, sp                        @ pass SP
     bl     artGetObjStaticFromCode       @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
+    ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r12, #0                       @ success if no exception is pending
+    bxeq   lr                            @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_get32_instance_from_code
+    .extern artGet32InstanceFromCode
+    /*
+     * Called by managed code to resolve an instance field and load a 32-bit primitive value
+     */
+art_get32_instance_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r2, [sp, #32]                 @ pass referrer
+    mov    r3, r9                        @ pass Thread::Current
+    str    sp, [sp, #0]                  @ pass SP
+    bl     artGet32InstanceFromCode      @ (field_idx, Object*, referrer, Thread*, SP)
+    ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r12, #0                       @ success if no exception is pending
+    bxeq   lr                            @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_get64_instance_from_code
+    .extern artGet64InstanceFromCode
+    /*
+     * Called by managed code to resolve an instance field and load a 64-bit primitive value
+     */
+art_get64_instance_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r2, [sp, #32]                 @ pass referrer
+    mov    r3, r9                        @ pass Thread::Current
+    str    sp, [sp, #0]                  @ pass SP
+    bl     artGet64InstanceFromCode      @ (field_idx, Object*, referrer, Thread*, SP)
+    ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r12, #0                       @ success if no exception is pending
+    bxeq    lr                           @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_get_obj_instance_from_code
+    .extern artGetObjInstanceFromCode
+    /*
+     * Called by managed code to resolve an instance field and load an object reference
+     */
+art_get_obj_instance_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r2, [sp, #32]                 @ pass referrer
+    mov    r3, r9                        @ pass Thread::Current
+    str    sp, [sp, #0]                  @ pass SP
+    bl     artGetObjInstanceFromCode     @ (field_idx, Object*, referrer, Thread*, SP)
     ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r12, #0                       @ success if no exception is pending
@@ -381,9 +420,10 @@ art_get_obj_static_from_code:
      */
 art_set32_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
     str    sp, [sp, #0]                  @ pass SP
-    bl     artSet32StaticFromCode        @ (field_idx, referrer, new_val, Thread*, SP)
+    bl     artSet32StaticFromCode        @ (field_idx, new_val, referrer, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                        @ success if result is 0
     bxeq   lr                            @ return on success
@@ -396,6 +436,7 @@ art_set32_static_from_code:
      */
 art_set64_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r1, [sp, #32]                 @ pass referrer
     mov    r12, sp                       @ save SP
     sub    sp, #8                        @ grow frame for alignment with stack args
     push   {r9, r12}                     @ pass Thread::Current and SP
@@ -413,10 +454,64 @@ art_set64_static_from_code:
      */
 art_set_obj_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
     str    sp, [sp, #0]                  @ pass SP
-    bl     artSetObjStaticFromCode       @ (field_idx, referrer, new_val, Thread*, SP)
+    bl     artSetObjStaticFromCode       @ (field_idx, new_val, referrer, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
+    cmp    r0, #0                        @ success if result is 0
+    bxeq   lr                            @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_set32_instance_from_code
+    .extern artSet32InstanceFromCode
+    /*
+     * Called by managed code to resolve an instance field and store a 32-bit primitive value
+     */
+art_set32_instance_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r3, [sp, #32]                 @ pass referrer
+    mov    r12, sp                       @ save SP
+    sub    sp, #8                        @ grow frame for alignment with stack args
+    push   {r9, r12}                     @ pass Thread::Current and SP
+    bl     artSet32InstanceFromCode      @ (field_idx, Object*, new_val, referrer, Thread*, SP)
+    add    sp, #16                       @ release out args
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
+    cmp    r0, #0                        @ success if result is 0
+    bxeq   lr                            @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_set64_instance_from_code
+    .extern artSet32InstanceFromCode
+    /*
+     * Called by managed code to resolve an instance field and store a 64-bit primitive value
+     */
+art_set64_instance_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    mov    r12, sp                       @ save SP
+    sub    sp, #8                        @ grow frame for alignment with stack args
+    push   {r9, r12}                     @ pass Thread::Current and SP
+    bl     artSet64InstanceFromCode      @ (field_idx, Object*, new_val, Thread*, SP)
+    add    sp, #16                       @ release out args
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
+    cmp    r0, #0                        @ success if result is 0
+    bxeq   lr                            @ return on success
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_set_obj_instance_from_code
+    .extern artSetObjInstanceFromCode
+    /*
+     * Called by managed code to resolve an instance field and store an object reference
+     */
+art_set_obj_instance_from_code:
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    ldr    r3, [sp, #32]                 @ pass referrer
+    mov    r12, sp                       @ save SP
+    sub    sp, #8                        @ grow frame for alignment with stack args
+    push   {r9, r12}                     @ pass Thread::Current and SP
+    bl     artSetObjInstanceFromCode     @ (field_idx, Object*, new_val, referrer, Thread*, SP)
+    add    sp, #16                       @ release out args
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME   @ TODO: we can clearly save an add here
     cmp    r0, #0                        @ success if result is 0
     bxeq   lr                            @ return on success
     DELIVER_PENDING_EXCEPTION

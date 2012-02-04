@@ -105,7 +105,9 @@ void Thread::InitFunctionPointers() {
   pCheckAndAllocArrayFromCode = art_check_and_alloc_array_from_code;
   pCheckAndAllocArrayFromCodeWithAccessCheck = art_check_and_alloc_array_from_code_with_access_check;
   pCheckCastFromCode = art_check_cast_from_code;
-  pFindInstanceFieldFromCode = art_find_instance_field_from_code;
+  pGet32Instance = art_get32_instance_from_code;
+  pGet64Instance = art_get64_instance_from_code;
+  pGetObjInstance = art_get_obj_instance_from_code;
   pGet32Static = art_get32_static_from_code;
   pGet64Static = art_get64_static_from_code;
   pGetObjStatic = art_get_obj_static_from_code;
@@ -117,6 +119,9 @@ void Thread::InitFunctionPointers() {
   pLockObjectFromCode = art_lock_object_from_code;
   pObjectInit = art_object_init_from_code;
   pResolveStringFromCode = art_resolve_string_from_code;
+  pSet32Instance = art_set32_instance_from_code;
+  pSet64Instance = art_set64_instance_from_code;
+  pSetObjInstance = art_set_obj_instance_from_code;
   pSet32Static = art_set32_static_from_code;
   pSet64Static = art_set64_static_from_code;
   pSetObjStatic = art_set_obj_static_from_code;

@@ -131,12 +131,14 @@ class PACKED Thread {
   void (*pCheckCastFromCode)(void*, void*);
   Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
   void (*pDeliverException)(void*);
-  void* (*pFindInstanceFieldFromCode)(uint32_t, void*);
   Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
   void* (*pFindNativeMethod)(Thread* thread);
-  int32_t (*pGet32Static)(uint32_t, void*);
-  int64_t (*pGet64Static)(uint32_t, void*);
-  void* (*pGetObjStatic)(uint32_t, void*);
+  int32_t (*pGet32Instance)(uint32_t, void*);
+  int64_t (*pGet64Instance)(uint32_t, void*);
+  void* (*pGetObjInstance)(uint32_t, void*);
+  int32_t (*pGet32Static)(uint32_t);
+  int64_t (*pGet64Static)(uint32_t);
+  void* (*pGetObjStatic)(uint32_t);
   void (*pHandleFillArrayDataFromCode)(void*, void*);
   void* (*pInitializeStaticStorage)(uint32_t, void*);
   uint32_t (*pInstanceofNonTrivialFromCode)(const Class*, const Class*);
@@ -147,9 +149,12 @@ class PACKED Thread {
   void (*pObjectInit)(void*);
   void* (*pResolveMethodFromCode)(void*, uint32_t, bool);
   void* (*pResolveStringFromCode)(void*, uint32_t);
-  int (*pSet32Static)(uint32_t, void*, int32_t);
-  int (*pSet64Static)(uint32_t, void*, int64_t);
-  int (*pSetObjStatic)(uint32_t, void*, void*);
+  int (*pSet32Instance)(uint32_t, void*, int32_t);  // field_idx, obj, src
+  int (*pSet64Instance)(uint32_t, void*, int64_t);
+  int (*pSetObjInstance)(uint32_t, void*, void*);
+  int (*pSet32Static)(uint32_t, int32_t);
+  int (*pSet64Static)(uint32_t, int64_t);
+  int (*pSetObjStatic)(uint32_t, void*);
   void (*pThrowStackOverflowFromCode)(void*);
   void (*pThrowNullPointerFromCode)();
   void (*pThrowArrayBoundsFromCode)(int32_t, int32_t);

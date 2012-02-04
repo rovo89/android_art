@@ -88,7 +88,7 @@ public class Main {
 
         try {
             int x = mutant.inaccessibleField;
-            System.err.println("ERROR: bad access succeeded\n");
+            System.err.println("ERROR: bad access succeeded (ifield)");
         } catch (IllegalAccessError iae) {
             System.out.println("Got expected IllegalAccessError (ifield)");
             if (VERBOSE) System.out.println("--- " + iae);
@@ -96,7 +96,7 @@ public class Main {
 
         try {
             int y = Mutant.inaccessibleStaticField;
-            System.err.println("ERROR: bad access succeeded\n");
+            System.err.println("ERROR: bad access succeeded (sfield)");
         } catch (IllegalAccessError iae) {
             System.out.println("Got expected IllegalAccessError (sfield)");
             if (VERBOSE) System.out.println("--- " + iae);
@@ -104,7 +104,7 @@ public class Main {
 
         try {
             mutant.inaccessibleMethod();
-            System.err.println("ERROR: bad access succeeded\n");
+            System.err.println("ERROR: bad access succeeded (method)");
         } catch (IllegalAccessError iae) {
             System.out.println("Got expected IllegalAccessError (method)");
             if (VERBOSE) System.out.println("--- " + iae);
@@ -112,7 +112,7 @@ public class Main {
 
         try {
             Mutant.inaccessibleStaticMethod();
-            System.err.println("ERROR: bad access succeeded\n");
+            System.err.println("ERROR: bad access succeeded (smethod)");
         } catch (IllegalAccessError iae) {
             System.out.println("Got expected IllegalAccessError (smethod)");
             if (VERBOSE) System.out.println("--- " + iae);
@@ -121,7 +121,7 @@ public class Main {
         try {
             /* accessible static method in an inaccessible class */
             InaccessibleClass.test();
-            System.err.println("ERROR: bad meth-class access succeeded\n");
+            System.err.println("ERROR: bad meth-class access succeeded (meth-class)");
         } catch (IllegalAccessError iae) {
             System.out.println("Got expected IllegalAccessError (meth-class)");
             if (VERBOSE) System.out.println("--- " + iae);
@@ -130,7 +130,7 @@ public class Main {
         try {
             /* accessible static field in an inaccessible class */
             int blah = InaccessibleClass.blah;
-            System.err.println("ERROR: bad field-class access succeeded\n");
+            System.err.println("ERROR: bad field-class access succeeded (field-class)");
         } catch (IllegalAccessError iae) {
             System.out.println("Got expected IllegalAccessError (field-class)");
             if (VERBOSE) System.out.println("--- " + iae);
@@ -139,7 +139,7 @@ public class Main {
         try {
             /* inaccessible static method in an accessible class */
             InaccessibleMethod.test();
-            System.err.println("ERROR: bad access succeeded\n");
+            System.err.println("ERROR: bad access succeeded (meth-meth)");
         } catch (IllegalAccessError iae) {
             System.out.println("Got expected IllegalAccessError (meth-meth)");
             if (VERBOSE) System.out.println("--- " + iae);

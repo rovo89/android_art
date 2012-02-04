@@ -24,13 +24,13 @@
 #define rSELF r9
 #define rLR r14
 // Offset of field Thread::suspend_count_ verified in InitCpu
-#define THREAD_SUSPEND_COUNT_OFFSET 400
+#define THREAD_SUSPEND_COUNT_OFFSET 420
 // Offset of field Thread::exception_ verified in InitCpu
-#define THREAD_EXCEPTION_OFFSET 396
+#define THREAD_EXCEPTION_OFFSET 416
 
 #elif defined(__i386__)
 // Offset of field Thread::self_ verified in InitCpu
-#define THREAD_SELF_OFFSET 388
+#define THREAD_SELF_OFFSET 408
 #endif
 
 #endif  // ART_SRC_ASM_SUPPORT_H_

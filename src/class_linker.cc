@@ -2237,9 +2237,9 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     clinit = klass->FindDeclaredDirectMethod("<clinit>", "()V");
     if (clinit != NULL && !can_run_clinit) {
       // if the class has a <clinit> but we can't run it during compilation,
-      // don't bother going to kStatusInitializing. We return true to maintain
-      // the invariant that a false result implies there is a pending exception.
-      return true;
+      // don't bother going to kStatusInitializing. We return false so that
+      // sub-classes don't believe this class is initialized.
+      return false;
     }
 
     // If the class is kStatusInitializing, either this thread is
@@ -2271,7 +2271,14 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
   uint64_t t0 = NanoTime();
 
   if (!InitializeSuperClass(klass, can_run_clinit)) {
-    CHECK(klass->IsErroneous());
+    // Super class initialization failed, this can be because we can't run
+    // super-class class initializers in which case we'll be verified.
+    // Otherwise this class is erroneous.
+    if (!can_run_clinit) {
+      CHECK(klass->IsVerified());
+    } else {
+      CHECK(klass->IsErroneous());
+    }
     return false;
   }
 
@@ -2471,7 +2478,7 @@ bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit) {
   ScopedThreadStateChange tsc(self, Thread::kRunnable);
   bool success = InitializeClass(c, can_run_clinit);
   if (!success) {
-    CHECK(self->IsExceptionPending()) << PrettyClass(c);
+    CHECK(self->IsExceptionPending() || !can_run_clinit) << PrettyClass(c);
   }
   return success;
 }

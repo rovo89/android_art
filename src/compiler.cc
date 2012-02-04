@@ -24,8 +24,8 @@
 #include "assembler.h"
 #include "class_linker.h"
 #include "class_loader.h"
+#include "compiler/CompilerIR.h"
 #include "dex_cache.h"
-#include "dex_verifier.h"
 #include "jni_compiler.h"
 #include "jni_internal.h"
 #include "oat_file.h"
@@ -197,11 +197,150 @@ bool Compiler::CanAssumeTypeIsPresentInDexCache(const DexCache* dex_cache,
   if (!IsImage()) {
     return false;
   }
-  Class* resolved_class = dex_cache->GetResolvedTypes()->Get(type_idx);
+  Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == NULL) {
     return false;
   }
   return IsImageClass(ClassHelper(resolved_class).GetDescriptor());
+}
+
+bool Compiler::CanAssumeStringIsPresentInDexCache(const DexCache* dex_cache,
+                                                  uint32_t string_idx) const {
+  // TODO: Add support for loading strings referenced by image_classes_
+  // See also Compiler::ResolveDexFile
+
+  // The following is a test saying that if we're building the image without a restricted set of
+  // image classes then we can assume the string is present in the dex cache if it is there now
+  return IsImage() && image_classes_ == NULL && dex_cache->GetResolvedString(string_idx) != NULL;
+}
+
+bool Compiler::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexCache* dex_cache,
+                                          const DexFile& dex_file, uint32_t type_idx) const {
+  // Get type from dex cache assuming it was populated by the verifier
+  Class* resolved_class = dex_cache->GetResolvedType(type_idx);
+  if (resolved_class == NULL) {
+    return false;  // Unknown class needs access checks.
+  }
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
+  Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
+  if (referrer_class == NULL) {
+    return false;  // Incomplete referrer knowledge needs access check.
+  }
+  // Perform access check, will return true if access is ok or false if we're going to have to
+  // check this at runtime (for example for class loaders).
+  return referrer_class->CanAccess(resolved_class);
+}
+
+bool Compiler::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
+                                                      const DexCache* dex_cache,
+                                                      const DexFile& dex_file,
+                                                      uint32_t type_idx) const {
+  // Get type from dex cache assuming it was populated by the verifier.
+  Class* resolved_class = dex_cache->GetResolvedType(type_idx);
+  if (resolved_class == NULL) {
+    return false;  // Unknown class needs access checks.
+  }
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
+  Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
+  if (referrer_class == NULL) {
+    return false;  // Incomplete referrer knowledge needs access check.
+  }
+  // Perform access and instantiable checks, will return true if access is ok or false if we're
+  // going to have to check this at runtime (for example for class loaders).
+  return referrer_class->CanAccess(resolved_class) && resolved_class->IsInstantiable();
+}
+
+bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
+                                        int& field_offset, bool& is_volatile) const {
+  // Conservative defaults
+  field_offset = -1;
+  is_volatile = true;
+  // Try to resolve field
+  Field* resolved_field =
+      cUnit->class_linker->ResolveField(*cUnit->dex_file, field_idx, cUnit->dex_cache,
+                                        cUnit->class_loader, false);
+  if (resolved_field != NULL) {
+    const DexFile::MethodId& referrer_method_id = cUnit->dex_file->GetMethodId(cUnit->method_idx);
+    Class* referrer_class =
+        cUnit->class_linker->ResolveType(*cUnit->dex_file, referrer_method_id.class_idx_,
+                                         cUnit->dex_cache, cUnit->class_loader);
+    // Try to resolve referring class then access check, failure to pass the
+    Class* fields_class = resolved_field->GetDeclaringClass();
+    if (referrer_class != NULL &&
+        referrer_class->CanAccess(fields_class) &&
+        referrer_class->CanAccessMember(fields_class,
+                                        resolved_field->GetAccessFlags())) {
+      field_offset = resolved_field->GetOffset().Int32Value();
+      is_volatile = resolved_field->IsVolatile();
+      return true;  // Fast path.
+    }
+  }
+  // Clean up any exception left by field/type resolution
+  Thread* thread = Thread::Current();
+  if (thread->IsExceptionPending()) {
+      thread->ClearException();
+  }
+  return false;  // Incomplete knowledge needs slow path.
+}
+
+bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
+                                      int& field_offset, int& ssb_index,
+                                      bool& is_referrers_class, bool& is_volatile) const {
+  // Conservative defaults
+  field_offset = -1;
+  ssb_index = -1;
+  is_referrers_class = false;
+  is_volatile = true;
+  // Try to resolve field
+  Field* resolved_field =
+      cUnit->class_linker->ResolveField(*cUnit->dex_file, field_idx, cUnit->dex_cache,
+                                        cUnit->class_loader, true);
+  if (resolved_field != NULL) {
+    const DexFile::MethodId& referrer_method_id = cUnit->dex_file->GetMethodId(cUnit->method_idx);
+    Class* referrer_class =
+        cUnit->class_linker->ResolveType(*cUnit->dex_file, referrer_method_id.class_idx_,
+                                         cUnit->dex_cache, cUnit->class_loader);
+    if (referrer_class != NULL) {
+      if (resolved_field->GetDeclaringClass() == referrer_class) {
+        is_referrers_class = true;  // implies no worrying about class initialization
+        field_offset = resolved_field->GetOffset().Int32Value();
+        is_volatile = resolved_field->IsVolatile();
+        return true;  // fast path
+      } else {
+        Class* fields_class = resolved_field->GetDeclaringClass();
+        if (referrer_class->CanAccess(fields_class) &&
+            referrer_class->CanAccessMember(fields_class,
+                                            resolved_field->GetAccessFlags())) {
+          // We have the resolved field, we must make it into a ssbIndex for the referrer
+          // in its static storage base (which may fail if it doesn't have a slot for it)
+          // TODO: if we know the field and referrer are in the same dex file then we can use
+          // resolved_field->GetDeclaringClass()->GetDexTypeIndex()
+          std::string descriptor(FieldHelper(resolved_field).GetDeclaringClassDescriptor());
+          const DexFile::StringId* string_id =
+          cUnit->dex_file->FindStringId(descriptor);
+          if (string_id != NULL) {
+            const DexFile::TypeId* type_id =
+               cUnit->dex_file->FindTypeId(cUnit->dex_file->GetIndexForStringId(*string_id));
+            if(type_id != NULL) {
+              // medium path, needs check of static storage base being initialized
+              // TODO: for images we can elide the static storage base null check
+              // if we know there's a no null entry in the image
+              ssb_index = cUnit->dex_file->GetIndexForTypeId(*type_id);
+              field_offset = resolved_field->GetOffset().Int32Value();
+              is_volatile = resolved_field->IsVolatile();
+              return true;
+            }
+          }
+        }
+      }
+    }
+  }
+  // Clean up any exception left by field/type resolution
+  Thread* thread = Thread::Current();
+  if (thread->IsExceptionPending()) {
+      thread->ClearException();
+  }
+  return false;  // Incomplete knowledge needs slow path.
 }
 
 // Return true if the class should be skipped during compilation. We
@@ -672,6 +811,13 @@ void Compiler::SetGcMapsDexFile(const ClassLoader* class_loader, const DexFile& 
       it.Next();
     }
   }
+}
+
+namespace verifier {
+  class DexVerifier {
+   public:
+    static const std::vector<uint8_t>* GetGcMap(Compiler::MethodReference ref);
+  };
 }
 
 void Compiler::SetGcMapsMethod(const DexFile& dex_file, Method* method) {

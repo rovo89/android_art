@@ -166,265 +166,188 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     }
 }
 
-Field* FindFieldWithResolvedStaticStorage(CompilationUnit* cUnit,
-                                          const uint32_t fieldIdx,
-                                          uint32_t& resolvedTypeIdx) {
-    Field* field = cUnit->class_linker->ResolveField(*cUnit->dex_file,
-                                                     fieldIdx,
-                                                     cUnit->dex_cache,
-                                                     cUnit->class_loader,
-                                                     true);
-    if (field == NULL) {
-        Thread* thread = Thread::Current();
-        if (thread->IsExceptionPending()) {  // clear any exception left by resolve field
-            thread->ClearException();
-        }
-        return NULL;
-    }
-    const DexFile::FieldId& field_id = cUnit->dex_file->GetFieldId(fieldIdx);
-    int type_idx = field_id.class_idx_;
-    Class* klass = cUnit->dex_cache->GetResolvedTypes()->Get(type_idx);
-    // Check if storage class is the same as class referred to by type idx.
-    // They may not be if the FieldId refers a subclass, but storage is in super
-    if (field->GetDeclaringClass() == klass) {
-        resolvedTypeIdx = type_idx;
-        return field;
-    }
-    // See if we can find a dex reference for the storage class.
-    // we may not if the dex file never references the super class,
-    // but usually it will.
-    std::string descriptor(FieldHelper(field).GetDeclaringClassDescriptor());
-    const DexFile::StringId* string_id =
-        cUnit->dex_file->FindStringId(descriptor);
-    if (string_id == NULL) {
-        return NULL;  // descriptor not found, resort to slow path
-    }
-    const DexFile::TypeId* type_id =
-        cUnit->dex_file->FindTypeId(cUnit->dex_file->GetIndexForStringId(*string_id));
-    if (type_id == NULL) {
-        return NULL;  // type id not found, resort to slow path
-    }
-    resolvedTypeIdx = cUnit->dex_file->GetIndexForTypeId(*type_id);
-    return field;
-}
-
-STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
+                    bool isLongOrDouble, bool isObject)
 {
-    bool isObject = ((mir->dalvikInsn.opcode == OP_SPUT_OBJECT) ||
-                     (mir->dalvikInsn.opcode == OP_SPUT_OBJECT_VOLATILE));
-    int fieldIdx = mir->dalvikInsn.vB;
-    uint32_t typeIdx;
-    Field* field = FindFieldWithResolvedStaticStorage(cUnit, fieldIdx, typeIdx);
-    oatFlushAllRegs(cUnit);
-    if (SLOW_FIELD_PATH || field == NULL) {
-        // Slow path
-        warnIfUnresolved(cUnit, fieldIdx, field);
-        int funcOffset = isObject ? OFFSETOF_MEMBER(Thread, pSetObjStatic)
-                                  : OFFSETOF_MEMBER(Thread, pSet32Static);
-        loadWordDisp(cUnit, rSELF, funcOffset, rLR);
-        loadConstant(cUnit, r0, mir->dalvikInsn.vB);
-        loadCurrMethodDirect(cUnit, r1);
-        loadValueDirect(cUnit, rlSrc, r2);
-        callRuntimeHelper(cUnit, rLR);
-    } else {
-        // fast path
-        int fieldOffset = field->GetOffset().Int32Value();
-        // Using fixed register to sync with slow path
-        int rMethod = r1;
-        oatLockTemp(cUnit, rMethod);
-        loadCurrMethodDirect(cUnit, rMethod);
-        int rBase = r0;
-        oatLockTemp(cUnit, rBase);
-        loadWordDisp(cUnit, rMethod,
-            Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
-            rBase);
-        loadWordDisp(cUnit, rBase, Array::DataOffset().Int32Value() +
-                      sizeof(int32_t*)* typeIdx, rBase);
-        // TUNING: fast path should fall through
-        // TUNING: Try a conditional skip here, might be faster
-        ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
-        loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
-        loadConstant(cUnit, r0, typeIdx);
-        callRuntimeHelper(cUnit, rLR);
-        ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
-        skipTarget->defMask = ENCODE_ALL;
-        branchOver->generic.target = (LIR*)skipTarget;
-        rlSrc = oatGetSrc(cUnit, mir, 0);
-        rlSrc = loadValue(cUnit, rlSrc, kAnyReg);
-#if ANDROID_SMP != 0
-        if (field->IsVolatile()) {
+    int fieldOffset;
+    int ssbIndex;
+    bool isVolatile;
+    bool isReferrersClass;
+    uint32_t fieldIdx = mir->dalvikInsn.vB;
+    bool fastPath =
+        cUnit->compiler->ComputeStaticFieldInfo(fieldIdx, cUnit,
+                                                fieldOffset, ssbIndex,
+                                                isReferrersClass, isVolatile);
+    if (fastPath && !SLOW_FIELD_PATH) {
+        DCHECK_GE(fieldOffset, 0);
+        int rBase;
+        int rMethod;
+        if (isReferrersClass) {
+            // Fast path, static storage base is this method's class
+            rMethod  = loadCurrMethod(cUnit);
+            rBase = oatAllocTemp(cUnit);
+            loadWordDisp(cUnit, rMethod,
+                         Method::DeclaringClassOffset().Int32Value(), rBase);
+        } else {
+            // Medium path, static storage base in a different class which
+            // requires checks that the other class is initialized.
+            DCHECK_GE(ssbIndex, 0);
+            // May do runtime call so everything to home locations.
+            oatFlushAllRegs(cUnit);
+            // Using fixed register to sync with possible call to runtime
+            // support.
+            rMethod = r1;
+            oatLockTemp(cUnit, rMethod);
+            loadCurrMethodDirect(cUnit, rMethod);
+            rBase = r0;
+            oatLockTemp(cUnit, rBase);
+            loadWordDisp(cUnit, rMethod,
+                Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
+                rBase);
+            loadWordDisp(cUnit, rBase,
+                         Array::DataOffset().Int32Value() + sizeof(int32_t*) * ssbIndex,
+                         rBase);
+            // rBase now points at appropriate static storage base (Class*)
+            // or NULL if not initialized. Check for NULL and call helper if NULL.
+            // TUNING: fast path should fall through
+            ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
+            loadWordDisp(cUnit, rSELF,
+                         OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
+            loadConstant(cUnit, r0, ssbIndex);
+            callRuntimeHelper(cUnit, rLR);
+            ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
+            skipTarget->defMask = ENCODE_ALL;
+            branchOver->generic.target = (LIR*)skipTarget;
+        }
+        // rBase now holds static storage base
+        oatFreeTemp(cUnit, rMethod);
+        if (isLongOrDouble) {
+            rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+            rlSrc = loadValueWide(cUnit, rlSrc, kAnyReg);
+        } else {
+            rlSrc = oatGetSrc(cUnit, mir, 0);
+            rlSrc = loadValue(cUnit, rlSrc, kAnyReg);
+        }
+        if (isVolatile) {
             oatGenMemBarrier(cUnit, kST);
         }
-#endif
-        storeWordDisp(cUnit, rBase, fieldOffset, rlSrc.lowReg);
-#if ANDROID_SMP != 0
-        if (field->IsVolatile()) {
+        if (isLongOrDouble) {
+            storeBaseDispWide(cUnit, rBase, fieldOffset, rlSrc.lowReg,
+                              rlSrc.highReg);
+        } else {
+            storeWordDisp(cUnit, rBase, fieldOffset, rlSrc.lowReg);
+        }
+        if (isVolatile) {
             oatGenMemBarrier(cUnit, kSY);
         }
-#endif
         if (isObject) {
             markGCCard(cUnit, rlSrc.lowReg, rBase);
         }
         oatFreeTemp(cUnit, rBase);
+    } else {
+        oatFlushAllRegs(cUnit);  // Everything to home locations
+        int setterOffset = isLongOrDouble ? OFFSETOF_MEMBER(Thread, pSet64Static) :
+                           (isObject ? OFFSETOF_MEMBER(Thread, pSetObjStatic)
+                                     : OFFSETOF_MEMBER(Thread, pSet32Static));
+        loadWordDisp(cUnit, rSELF, setterOffset, rLR);
+        loadConstant(cUnit, r0, fieldIdx);
+        if (isLongOrDouble) {
+            loadValueDirectWideFixed(cUnit, rlSrc, r2, r3);
+        } else {
+            loadValueDirect(cUnit, rlSrc, r1);
+        }
+        callRuntimeHelper(cUnit, rLR);
     }
 }
 
-STATIC void genSputWide(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+STATIC void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                    bool isLongOrDouble, bool isObject)
 {
-    int fieldIdx = mir->dalvikInsn.vB;
-    uint32_t typeIdx;
-    Field* field = FindFieldWithResolvedStaticStorage(cUnit, fieldIdx, typeIdx);
-    oatFlushAllRegs(cUnit);
-#if ANDROID_SMP != 0
-    bool isVolatile = (field == NULL) || field->IsVolatile();
-#else
-    bool isVolatile = false;
-#endif
-    if (SLOW_FIELD_PATH || field == NULL || isVolatile) {
-        warnIfUnresolved(cUnit, fieldIdx, field);
-        loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pSet64Static), rLR);
-        loadConstant(cUnit, r0, mir->dalvikInsn.vB);
-        loadCurrMethodDirect(cUnit, r1);
-        loadValueDirectWideFixed(cUnit, rlSrc, r2, r3);
-        callRuntimeHelper(cUnit, rLR);
-    } else {
-        // fast path
-        int fieldOffset = field->GetOffset().Int32Value();
-        // Using fixed register to sync with slow path
-        int rMethod = r1;
-        oatLockTemp(cUnit, rMethod);
-        loadCurrMethodDirect(cUnit, r1);
-        int rBase = r0;
-        oatLockTemp(cUnit, rBase);
-        loadWordDisp(cUnit, rMethod,
-            Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
-            rBase);
-        loadWordDisp(cUnit, rBase, Array::DataOffset().Int32Value() +
-                      sizeof(int32_t*)* typeIdx, rBase);
-        // TUNING: fast path should fall through
-        ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
-        loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
-        loadConstant(cUnit, r0, typeIdx);
-        callRuntimeHelper(cUnit, rLR);
-        ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
-        skipTarget->defMask = ENCODE_ALL;
-        branchOver->generic.target = (LIR*)skipTarget;
-        rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
-        rlSrc = loadValueWide(cUnit, rlSrc, kAnyReg);
-        storeBaseDispWide(cUnit, rBase, fieldOffset, rlSrc.lowReg,
-                          rlSrc.highReg);
-        oatFreeTemp(cUnit, rBase);
-    }
-}
-
-
-STATIC void genSgetWide(CompilationUnit* cUnit, MIR* mir,
-                 RegLocation rlResult, RegLocation rlDest)
-{
-    int fieldIdx = mir->dalvikInsn.vB;
-    uint32_t typeIdx;
-    Field* field = FindFieldWithResolvedStaticStorage(cUnit, fieldIdx, typeIdx);
-#if ANDROID_SMP != 0
-    bool isVolatile = (field == NULL) || field->IsVolatile();
-#else
-    bool isVolatile = false;
-#endif
-    oatFlushAllRegs(cUnit);
-    if (SLOW_FIELD_PATH || field == NULL || isVolatile) {
-        warnIfUnresolved(cUnit, fieldIdx, field);
-        loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pGet64Static), rLR);
-        loadConstant(cUnit, r0, mir->dalvikInsn.vB);
-        loadCurrMethodDirect(cUnit, r1);
-        callRuntimeHelper(cUnit, rLR);
-        RegLocation rlResult = oatGetReturnWide(cUnit);
-        storeValueWide(cUnit, rlDest, rlResult);
-    } else {
-        // Fast path
-        int fieldOffset = field->GetOffset().Int32Value();
-        // Using fixed register to sync with slow path
-        int rMethod = r1;
-        oatLockTemp(cUnit, rMethod);
-        loadCurrMethodDirect(cUnit, rMethod);
-        int rBase = r0;
-        oatLockTemp(cUnit, rBase);
-        loadWordDisp(cUnit, rMethod,
-            Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
-            rBase);
-        loadWordDisp(cUnit, rBase, Array::DataOffset().Int32Value() +
-                      sizeof(int32_t*)* typeIdx, rBase);
-        // TUNING: fast path should fall through
-        ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
-        loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
-        loadConstant(cUnit, r0, typeIdx);
-        callRuntimeHelper(cUnit, rLR);
-        ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
-        skipTarget->defMask = ENCODE_ALL;
-        branchOver->generic.target = (LIR*)skipTarget;
-        rlDest = oatGetDestWide(cUnit, mir, 0, 1);
+    int fieldOffset;
+    int ssbIndex;
+    bool isVolatile;
+    bool isReferrersClass;
+    uint32_t fieldIdx = mir->dalvikInsn.vB;
+    bool fastPath =
+        cUnit->compiler->ComputeStaticFieldInfo(fieldIdx, cUnit,
+                                                fieldOffset, ssbIndex,
+                                                isReferrersClass, isVolatile);
+    if (fastPath && !SLOW_FIELD_PATH) {
+        DCHECK_GE(fieldOffset, 0);
+        int rBase;
+        int rMethod;
+        if (isReferrersClass) {
+            // Fast path, static storage base is this method's class
+            rMethod  = loadCurrMethod(cUnit);
+            rBase = oatAllocTemp(cUnit);
+            loadWordDisp(cUnit, rMethod,
+                         Method::DeclaringClassOffset().Int32Value(), rBase);
+        } else {
+            // Medium path, static storage base in a different class which
+            // requires checks that the other class is initialized
+            DCHECK_GE(ssbIndex, 0);
+            // May do runtime call so everything to home locations.
+            oatFlushAllRegs(cUnit);
+            // Using fixed register to sync with possible call to runtime
+            // support
+            rMethod = r1;
+            oatLockTemp(cUnit, rMethod);
+            loadCurrMethodDirect(cUnit, rMethod);
+            rBase = r0;
+            oatLockTemp(cUnit, rBase);
+            loadWordDisp(cUnit, rMethod,
+                Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
+                rBase);
+            loadWordDisp(cUnit, rBase,
+                         Array::DataOffset().Int32Value() + sizeof(int32_t*) * ssbIndex,
+                         rBase);
+            // rBase now points at appropriate static storage base (Class*)
+            // or NULL if not initialized. Check for NULL and call helper if NULL.
+            // TUNING: fast path should fall through
+            ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
+            loadWordDisp(cUnit, rSELF,
+                         OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
+            loadConstant(cUnit, r0, ssbIndex);
+            callRuntimeHelper(cUnit, rLR);
+            ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
+            skipTarget->defMask = ENCODE_ALL;
+            branchOver->generic.target = (LIR*)skipTarget;
+        }
+        // rBase now holds static storage base
+        oatFreeTemp(cUnit, rMethod);
+        rlDest = isLongOrDouble ? oatGetDestWide(cUnit, mir, 0, 1)
+                                : oatGetDest(cUnit, mir, 0);
         RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-        loadBaseDispWide(cUnit, NULL, rBase, fieldOffset, rlResult.lowReg,
-                         rlResult.highReg, INVALID_SREG);
-        oatFreeTemp(cUnit, rBase);
-        storeValueWide(cUnit, rlDest, rlResult);
-    }
-}
-
-STATIC void genSget(CompilationUnit* cUnit, MIR* mir,
-             RegLocation rlResult, RegLocation rlDest)
-{
-    int fieldIdx = mir->dalvikInsn.vB;
-    uint32_t typeIdx;
-    Field* field = FindFieldWithResolvedStaticStorage(cUnit, fieldIdx, typeIdx);
-    bool isObject = ((mir->dalvikInsn.opcode == OP_SGET_OBJECT) ||
-                     (mir->dalvikInsn.opcode == OP_SGET_OBJECT_VOLATILE));
-    oatFlushAllRegs(cUnit);
-    if (SLOW_FIELD_PATH || field == NULL) {
-        // Slow path
-        warnIfUnresolved(cUnit, fieldIdx, field);
-        int funcOffset = isObject ? OFFSETOF_MEMBER(Thread, pGetObjStatic)
-                                  : OFFSETOF_MEMBER(Thread, pGet32Static);
-        loadWordDisp(cUnit, rSELF, funcOffset, rLR);
-        loadConstant(cUnit, r0, mir->dalvikInsn.vB);
-        loadCurrMethodDirect(cUnit, r1);
-        callRuntimeHelper(cUnit, rLR);
-        RegLocation rlResult = oatGetReturn(cUnit);
-        storeValue(cUnit, rlDest, rlResult);
-    } else {
-        // Fast path
-        int fieldOffset = field->GetOffset().Int32Value();
-        // Using fixed register to sync with slow path
-        int rMethod = r1;
-        oatLockTemp(cUnit, rMethod);
-        loadCurrMethodDirect(cUnit, rMethod);
-        int rBase = r0;
-        oatLockTemp(cUnit, rBase);
-        loadWordDisp(cUnit, rMethod,
-            Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
-            rBase);
-        loadWordDisp(cUnit, rBase, Array::DataOffset().Int32Value() +
-                      sizeof(int32_t*)* typeIdx, rBase);
-        // TUNING: fast path should fall through
-        ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
-        loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
-        loadConstant(cUnit, r0, typeIdx);
-        callRuntimeHelper(cUnit, rLR);
-        ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
-        skipTarget->defMask = ENCODE_ALL;
-        branchOver->generic.target = (LIR*)skipTarget;
-        rlDest = oatGetDest(cUnit, mir, 0);
-        rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-#if ANDROID_SMP != 0
-        if (field->IsVolatile()) {
+        if (isVolatile) {
             oatGenMemBarrier(cUnit, kSY);
         }
-#endif
-        loadWordDisp(cUnit, rBase, fieldOffset, rlResult.lowReg);
+        if (isLongOrDouble) {
+            loadBaseDispWide(cUnit, NULL, rBase, fieldOffset, rlResult.lowReg,
+                             rlResult.highReg, INVALID_SREG);
+        } else {
+            loadWordDisp(cUnit, rBase, fieldOffset, rlResult.lowReg);
+        }
         oatFreeTemp(cUnit, rBase);
-        storeValue(cUnit, rlDest, rlResult);
+        if (isLongOrDouble) {
+            storeValueWide(cUnit, rlDest, rlResult);
+        } else {
+            storeValue(cUnit, rlDest, rlResult);
+        }
+    } else {
+        oatFlushAllRegs(cUnit);  // Everything to home locations
+        int getterOffset = isLongOrDouble ? OFFSETOF_MEMBER(Thread, pGet64Static) :
+                           (isObject ? OFFSETOF_MEMBER(Thread, pGetObjStatic)
+                                     : OFFSETOF_MEMBER(Thread, pGet32Static));
+        loadWordDisp(cUnit, rSELF, getterOffset, rLR);
+        loadConstant(cUnit, r0, fieldIdx);
+        callRuntimeHelper(cUnit, rLR);
+        if (isLongOrDouble) {
+            RegLocation rlResult = oatGetReturnWide(cUnit);
+            storeValueWide(cUnit, rlDest, rlResult);
+        } else {
+            RegLocation rlResult = oatGetReturn(cUnit);
+            storeValue(cUnit, rlDest, rlResult);
+        }
     }
 }
 
@@ -1557,83 +1480,91 @@ STATIC bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
                         rlSrc[0], 0);
             break;
 
+        case OP_IGET_OBJECT:
+        case OP_IGET_OBJECT_VOLATILE:
+            genIGet(cUnit, mir, kWord, rlDest, rlSrc[0], false, true);
+            break;
+
         case OP_IGET_WIDE:
         case OP_IGET_WIDE_VOLATILE:
-            genIGetWide(cUnit, mir, rlDest, rlSrc[0]);
+            genIGet(cUnit, mir, kLong, rlDest, rlSrc[0], true, false);
             break;
 
         case OP_IGET:
         case OP_IGET_VOLATILE:
-        case OP_IGET_OBJECT:
-        case OP_IGET_OBJECT_VOLATILE:
-            genIGet(cUnit, mir, kWord, rlDest, rlSrc[0]);
+            genIGet(cUnit, mir, kWord, rlDest, rlSrc[0], false, false);
+            break;
+
+        case OP_IGET_CHAR:
+            genIGet(cUnit, mir, kUnsignedHalf, rlDest, rlSrc[0], false, false);
+            break;
+
+        case OP_IGET_SHORT:
+            genIGet(cUnit, mir, kSignedHalf, rlDest, rlSrc[0], false, false);
             break;
 
         case OP_IGET_BOOLEAN:
         case OP_IGET_BYTE:
-            genIGet(cUnit, mir, kUnsignedByte, rlDest, rlSrc[0]);
-            break;
-
-        case OP_IGET_CHAR:
-            genIGet(cUnit, mir, kUnsignedHalf, rlDest, rlSrc[0]);
-            break;
-
-        case OP_IGET_SHORT:
-            genIGet(cUnit, mir, kSignedHalf, rlDest, rlSrc[0]);
+            genIGet(cUnit, mir, kUnsignedByte, rlDest, rlSrc[0], false, false);
             break;
 
         case OP_IPUT_WIDE:
         case OP_IPUT_WIDE_VOLATILE:
-            genIPutWide(cUnit, mir, rlSrc[0], rlSrc[1]);
+            genIPut(cUnit, mir, kLong, rlSrc[0], rlSrc[1], true, false);
             break;
 
         case OP_IPUT_OBJECT:
         case OP_IPUT_OBJECT_VOLATILE:
-            genIPut(cUnit, mir, kWord, rlSrc[0], rlSrc[1], true);
+            genIPut(cUnit, mir, kWord, rlSrc[0], rlSrc[1], false, true);
             break;
 
         case OP_IPUT:
         case OP_IPUT_VOLATILE:
-            genIPut(cUnit, mir, kWord, rlSrc[0], rlSrc[1], false);
+            genIPut(cUnit, mir, kWord, rlSrc[0], rlSrc[1], false, false);
             break;
 
         case OP_IPUT_BOOLEAN:
         case OP_IPUT_BYTE:
-            genIPut(cUnit, mir, kUnsignedByte, rlSrc[0], rlSrc[1], false);
+            genIPut(cUnit, mir, kUnsignedByte, rlSrc[0], rlSrc[1], false, false);
             break;
 
         case OP_IPUT_CHAR:
-            genIPut(cUnit, mir, kUnsignedHalf, rlSrc[0], rlSrc[1], false);
+            genIPut(cUnit, mir, kUnsignedHalf, rlSrc[0], rlSrc[1], false, false);
             break;
 
         case OP_IPUT_SHORT:
-            genIPut(cUnit, mir, kSignedHalf, rlSrc[0], rlSrc[1], false);
+            genIPut(cUnit, mir, kSignedHalf, rlSrc[0], rlSrc[1], false, false);
             break;
 
-        case OP_SGET:
         case OP_SGET_OBJECT:
+          genSget(cUnit, mir, rlDest, false, true);
+          break;
+        case OP_SGET:
         case OP_SGET_BOOLEAN:
         case OP_SGET_BYTE:
         case OP_SGET_CHAR:
         case OP_SGET_SHORT:
-            genSget(cUnit, mir, rlResult, rlDest);
+            genSget(cUnit, mir, rlDest, false, false);
             break;
 
         case OP_SGET_WIDE:
-            genSgetWide(cUnit, mir, rlResult, rlDest);
+            genSget(cUnit, mir, rlDest, true, false);
             break;
 
-        case OP_SPUT:
         case OP_SPUT_OBJECT:
+          genSput(cUnit, mir, rlSrc[0], false, true);
+          break;
+
+        case OP_SPUT:
         case OP_SPUT_BOOLEAN:
         case OP_SPUT_BYTE:
         case OP_SPUT_CHAR:
         case OP_SPUT_SHORT:
-            genSput(cUnit, mir, rlSrc[0]);
+            genSput(cUnit, mir, rlSrc[0], false, false);
             break;
 
         case OP_SPUT_WIDE:
-            genSputWide(cUnit, mir, rlSrc[0]);
+            genSput(cUnit, mir, rlSrc[0], true, false);
             break;
 
         case OP_INVOKE_STATIC_RANGE:

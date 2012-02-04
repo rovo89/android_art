@@ -445,175 +445,215 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
 }
 
 // Fast path field resolution that can't throw exceptions
-static Field* FindFieldFast(uint32_t field_idx, const Method* referrer) {
+static Field* FindFieldFast(uint32_t field_idx, const Method* referrer, bool is_primitive,
+                            size_t expected_size) {
   Field* resolved_field = referrer->GetDexCacheResolvedFields()->Get(field_idx);
   if (UNLIKELY(resolved_field == NULL)) {
     return NULL;
   }
   Class* fields_class = resolved_field->GetDeclaringClass();
-  // Check class is initilaized or initializing
+  // Check class is initiliazed or initializing
   if (UNLIKELY(!fields_class->IsInitializing())) {
+    return NULL;
+  }
+  Class* referring_class = referrer->GetDeclaringClass();
+  if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
+               !referring_class->CanAccessMember(fields_class,
+                                                 resolved_field->GetAccessFlags()))) {
+    // illegal access
+    return NULL;
+  }
+  FieldHelper fh(resolved_field);
+  if (UNLIKELY(fh.IsPrimitiveType() != is_primitive ||
+               fh.FieldSize() != expected_size)) {
     return NULL;
   }
   return resolved_field;
 }
 
 // Slow path field resolution and declaring class initialization
-Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, bool is_static) {
+Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* self,
+                         bool is_static, bool is_primitive, size_t expected_size) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Field* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
   if (LIKELY(resolved_field != NULL)) {
     Class* fields_class = resolved_field->GetDeclaringClass();
-    // If the class is already initializing, we must be inside <clinit>, or
-    // we'd still be waiting for the lock.
-    if (fields_class->IsInitializing()) {
-      return resolved_field;
+    Class* referring_class = referrer->GetDeclaringClass();
+    if (UNLIKELY(!referring_class->CanAccess(fields_class))) {
+      self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;","%s tried to access class %s",
+                               PrettyMethod(referrer).c_str(),
+                               PrettyDescriptor(fields_class).c_str());
+    } else if (UNLIKELY(!referring_class->CanAccessMember(fields_class,
+                                                          resolved_field->GetAccessFlags()))) {
+      self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;","%s tried to access field %s",
+                               PrettyMethod(referrer).c_str(),
+                               PrettyField(resolved_field, false).c_str());
+      return NULL;  // failure
     }
-    if (Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true)) {
+    FieldHelper fh(resolved_field);
+    if (UNLIKELY(fh.IsPrimitiveType() != is_primitive ||
+                 fh.FieldSize() != expected_size)) {
+      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
+                               "Attempted read of %d-bit %s on field '%s'",
+                               expected_size * (32 / sizeof(int32_t)),
+                               is_primitive ? "primitive" : "non-primitive",
+                               PrettyField(resolved_field, true).c_str());
+    }
+    if (!is_static) {
+      // instance fields must be being accessed on an initialized class
       return resolved_field;
+    } else {
+      // If the class is already initializing, we must be inside <clinit>, or
+      // we'd still be waiting for the lock.
+      if (fields_class->IsInitializing()) {
+        return resolved_field;
+      } else if (Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true)) {
+        return resolved_field;
+      }
     }
   }
-  DCHECK(Thread::Current()->IsExceptionPending()); // Throw exception and unwind
+  DCHECK(self->IsExceptionPending());  // Throw exception and unwind
   return NULL;
 }
 
-extern "C" Field* artFindInstanceFieldFromCode(uint32_t field_idx, const Method* referrer,
-                                               Thread* self, Method** sp) {
-  Field* resolved_field = FindFieldFast(field_idx, referrer);
-  if (UNLIKELY(resolved_field == NULL)) {
-    FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-    resolved_field = FindFieldFromCode(field_idx, referrer, false);
-  }
-  return resolved_field;
+static void ThrowNullPointerExceptionForFieldAccess(Thread* self, Field* field, bool is_read) {
+  self->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
+                           "Attempt to %s field '%s' of a null object",
+                           is_read ? "read from" : "write to",
+                           PrettyField(field, true).c_str());
 }
 
 extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* referrer,
                                            Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer);
+  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
-    FieldHelper fh(field);
-    if (LIKELY(fh.IsPrimitiveType() && fh.FieldSize() == sizeof(int32_t))) {
-      return field->Get32(NULL);
-    }
+    return field->Get32(NULL);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, true);
-  if (field != NULL) {
-    FieldHelper fh(field);
-    if (!fh.IsPrimitiveType() || fh.FieldSize() != sizeof(int32_t)) {
-      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
-                               "Attempted read of 32-bit primitive on field '%s'",
-                               PrettyField(field, true).c_str());
-    } else {
-      return field->Get32(NULL);
-    }
+  field = FindFieldFromCode(field_idx, referrer, self, true, true, sizeof(int32_t));
+  if (LIKELY(field != NULL)) {
+    return field->Get32(NULL);
   }
   return 0;  // Will throw exception by checking with Thread::Current
 }
 
 extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const Method* referrer,
                                            Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer);
+  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
-    FieldHelper fh(field);
-    if (LIKELY(fh.IsPrimitiveType() && fh.FieldSize() == sizeof(int64_t))) {
-      return field->Get64(NULL);
-    }
+    return field->Get64(NULL);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, true);
-  if (field != NULL) {
-    FieldHelper fh(field);
-    if (!fh.IsPrimitiveType() || fh.FieldSize() != sizeof(int64_t)) {
-      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
-                               "Attempted read of 64-bit primitive on field '%s'",
-                               PrettyField(field, true).c_str());
-    } else {
-      return field->Get64(NULL);
-    }
+  field = FindFieldFromCode(field_idx, referrer, self, true, true, sizeof(int64_t));
+  if (LIKELY(field != NULL)) {
+    return field->Get64(NULL);
   }
   return 0;  // Will throw exception by checking with Thread::Current
 }
 
 extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const Method* referrer,
                                            Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer);
+  Field* field = FindFieldFast(field_idx, referrer, false, sizeof(Object*));
   if (LIKELY(field != NULL)) {
-    FieldHelper fh(field);
-    if (LIKELY(!fh.IsPrimitiveType())) {
-      return field->GetObj(NULL);
-    }
+    return field->GetObj(NULL);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, true);
-  if (field != NULL) {
-    FieldHelper fh(field);
-    if (fh.IsPrimitiveType()) {
-      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
-                               "Attempted read of reference on primitive field '%s'",
-                               PrettyField(field, true).c_str());
+  field = FindFieldFromCode(field_idx, referrer, self, true, false, sizeof(Object*));
+  if (LIKELY(field != NULL)) {
+    return field->GetObj(NULL);
+  }
+  return NULL;  // Will throw exception by checking with Thread::Current
+}
+
+extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, Object* obj,
+                                             const Method* referrer, Thread* self, Method** sp) {
+  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int32_t));
+  if (LIKELY(field != NULL && obj != NULL)) {
+    return field->Get32(obj);
+  }
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  field = FindFieldFromCode(field_idx, referrer, self, false, true, sizeof(int32_t));
+  if (LIKELY(field != NULL)) {
+    if (UNLIKELY(obj == NULL)) {
+      ThrowNullPointerExceptionForFieldAccess(self, field, true);
     } else {
-      return field->GetObj(NULL);
+      return field->Get32(obj);
+    }
+  }
+  return 0;  // Will throw exception by checking with Thread::Current
+}
+
+extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, Object* obj,
+                                             const Method* referrer, Thread* self, Method** sp) {
+  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int64_t));
+  if (LIKELY(field != NULL && obj != NULL)) {
+    return field->Get64(obj);
+  }
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  field = FindFieldFromCode(field_idx, referrer, self, false, true, sizeof(int64_t));
+  if (LIKELY(field != NULL)) {
+    if (UNLIKELY(obj == NULL)) {
+      ThrowNullPointerExceptionForFieldAccess(self, field, true);
+    } else {
+      return field->Get64(obj);
+    }
+  }
+  return 0;  // Will throw exception by checking with Thread::Current
+}
+
+extern "C" Object* artGetObjInstanceFromCode(uint32_t field_idx, Object* obj,
+                                              const Method* referrer, Thread* self, Method** sp) {
+  Field* field = FindFieldFast(field_idx, referrer, false, sizeof(Object*));
+  if (LIKELY(field != NULL && obj != NULL)) {
+    return field->GetObj(obj);
+  }
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  field = FindFieldFromCode(field_idx, referrer, self, false, false, sizeof(Object*));
+  if (LIKELY(field != NULL)) {
+    if (UNLIKELY(obj == NULL)) {
+      ThrowNullPointerExceptionForFieldAccess(self, field, true);
+    } else {
+      return field->GetObj(obj);
     }
   }
   return NULL;  // Will throw exception by checking with Thread::Current
 }
 
-extern "C" int artSet32StaticFromCode(uint32_t field_idx, const Method* referrer,
-                                       uint32_t new_value, Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer);
+extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
+                                      const Method* referrer, Thread* self, Method** sp) {
+  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
-    FieldHelper fh(field);
-    if (LIKELY(fh.IsPrimitiveType() && fh.FieldSize() == sizeof(int32_t))) {
-      field->Set32(NULL, new_value);
-      return 0;  // success
-    }
+    field->Set32(NULL, new_value);
+    return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, true);
-  if (field != NULL) {
-    FieldHelper fh(field);
-    if (!fh.IsPrimitiveType() || fh.FieldSize() != sizeof(int32_t)) {
-      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
-                               "Attempted write of 32-bit primitive to field '%s'",
-                               PrettyField(field, true).c_str());
-    } else {
-      field->Set32(NULL, new_value);
-      return 0;  // success
-    }
+  field = FindFieldFromCode(field_idx, referrer, self, true, true, sizeof(int32_t));
+  if (LIKELY(field != NULL)) {
+    field->Set32(NULL, new_value);
+    return 0;  // success
   }
   return -1;  // failure
 }
 
 extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer,
                                       uint64_t new_value, Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer);
+  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
-    FieldHelper fh(field);
-    if (LIKELY(fh.IsPrimitiveType() && fh.FieldSize() == sizeof(int64_t))) {
-      field->Set64(NULL, new_value);
-      return 0;  // success
-    }
+    field->Set64(NULL, new_value);
+    return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, true);
+  field = FindFieldFromCode(field_idx, referrer, self, true, true, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
-    FieldHelper fh(field);
-    if (UNLIKELY(!fh.IsPrimitiveType() || fh.FieldSize() != sizeof(int64_t))) {
-      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
-                               "Attempted write of 64-bit primitive to field '%s'",
-                               PrettyField(field, true).c_str());
-    } else {
-      field->Set64(NULL, new_value);
-      return 0;  // success
-    }
+    field->Set64(NULL, new_value);
+    return 0;  // success
   }
   return -1;  // failure
 }
 
-extern "C" int artSetObjStaticFromCode(uint32_t field_idx, const Method* referrer,
-                                       Object* new_value, Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer);
+extern "C" int artSetObjStaticFromCode(uint32_t field_idx, Object* new_value,
+                                       const Method* referrer, Thread* self, Method** sp) {
+  Field* field = FindFieldFast(field_idx, referrer, false, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     if (LIKELY(!FieldHelper(field).IsPrimitiveType())) {
       field->SetObj(NULL, new_value);
@@ -621,14 +661,71 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, const Method* referre
     }
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, true);
-  if (field != NULL) {
-    if (FieldHelper(field).IsPrimitiveType()) {
-      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
-                               "Attempted write of reference to primitive field '%s'",
-                               PrettyField(field, true).c_str());
+  field = FindFieldFromCode(field_idx, referrer, self, true, false, sizeof(Object*));
+  if (LIKELY(field != NULL)) {
+    field->SetObj(NULL, new_value);
+    return 0;  // success
+  }
+  return -1;  // failure
+}
+
+extern "C" int artSet32InstanceFromCode(uint32_t field_idx, Object* obj, uint32_t new_value,
+                                        const Method* referrer, Thread* self, Method** sp) {
+  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int32_t));
+  if (LIKELY(field != NULL && obj != NULL)) {
+    field->Set32(obj, new_value);
+    return 0;  // success
+  }
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  field = FindFieldFromCode(field_idx, referrer, self, false, true, sizeof(int32_t));
+  if (LIKELY(field != NULL)) {
+    if (UNLIKELY(obj == NULL)) {
+      ThrowNullPointerExceptionForFieldAccess(self, field, false);
     } else {
-      field->SetObj(NULL, new_value);
+      field->Set32(obj, new_value);
+      return 0;  // success
+    }
+  }
+  return -1;  // failure
+}
+
+extern "C" int artSet64InstanceFromCode(uint32_t field_idx, Object* obj, uint64_t new_value,
+                                        Thread* self, Method** sp) {
+  Method* callee_save = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsOnly);
+  Method* referrer = sp[callee_save->GetFrameSizeInBytes() / sizeof(Method*)];
+  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int64_t));
+  if (LIKELY(field != NULL  && obj != NULL)) {
+    field->Set64(obj, new_value);
+    return 0;  // success
+  }
+  *sp = callee_save;
+  self->SetTopOfStack(sp, 0);
+  field = FindFieldFromCode(field_idx, referrer, self, false, true, sizeof(int64_t));
+  if (LIKELY(field != NULL)) {
+    if (UNLIKELY(obj == NULL)) {
+      ThrowNullPointerExceptionForFieldAccess(self, field, false);
+    } else {
+      field->Set64(obj, new_value);
+      return 0;  // success
+    }
+  }
+  return -1;  // failure
+}
+
+extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, Object* obj, Object* new_value,
+                                         const Method* referrer, Thread* self, Method** sp) {
+  Field* field = FindFieldFast(field_idx, referrer, false, sizeof(Object*));
+  if (LIKELY(field != NULL && obj != NULL)) {
+    field->SetObj(obj, new_value);
+    return 0;  // success
+  }
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  field = FindFieldFromCode(field_idx, referrer, self, false, false, sizeof(Object*));
+  if (LIKELY(field != NULL)) {
+    if (UNLIKELY(obj == NULL)) {
+      ThrowNullPointerExceptionForFieldAccess(self, field, false);
+    } else {
+      field->SetObj(obj, new_value);
       return 0;  // success
     }
   }

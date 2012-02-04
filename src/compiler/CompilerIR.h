@@ -18,6 +18,7 @@
 #define ART_SRC_COMPILER_COMPILER_IR_H_
 
 #include "codegen/Optimizer.h"
+#include "CompilerUtility.h"
 #include <vector>
 
 namespace art {

@@ -35,6 +35,7 @@ namespace art {
 
 class Context;
 class TimingLogger;
+typedef struct CompilationUnit CompilationUnit;
 
 class Compiler {
  public:
@@ -85,43 +86,29 @@ class Compiler {
   const CompiledInvokeStub* FindInvokeStub(bool is_static, const char* shorty) const;
 
   // Callbacks from OAT/ART compiler to see what runtime checks must be generated
-  bool CanAssumeTypeIsPresentInDexCache(const DexCache* dex_cache, uint32_t type_idx) const;
-  bool CanAssumeStringIsPresentInDexCache(const DexCache* dex_cache, uint32_t string_idx) const {
-    // TODO: Add support for loading strings referenced by image_classes_
-    // See also Compiler::ResolveDexFile
-    return IsImage() && image_classes_ == NULL && dex_cache->GetResolvedString(string_idx) != NULL;
-  }
-  bool CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexCache* dex_cache,
-                                  const DexFile& dex_file, uint32_t type_idx) const {
-    Class* resolved_class = dex_cache->GetResolvedType(type_idx);
-    if (resolved_class == NULL) {
-      return false;  // Unknown class needs access checks.
-    }
-    const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
-    Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
-    if (referrer_class == NULL) {
-      return false;  // Incomplete referrer knowledge needs access check.
-    }
-    // Perform access check, will return true if access is ok or false if we're going to have to
-    // check this at runtime (for example for class loaders).
-    return referrer_class->CanAccess(resolved_class);
-  }
 
+  bool CanAssumeTypeIsPresentInDexCache(const DexCache* dex_cache, uint32_t type_idx) const;
+
+  bool CanAssumeStringIsPresentInDexCache(const DexCache* dex_cache, uint32_t string_idx) const;
+
+  // Are runtime access checks necessary in the compiled code?
+  bool CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexCache* dex_cache,
+                                  const DexFile& dex_file, uint32_t type_idx) const;
+
+  // Are runtime access and instantiable checks necessary in the code?
   bool CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx, const DexCache* dex_cache,
-                                              const DexFile& dex_file, uint32_t type_idx) const {
-    Class* resolved_class = dex_cache->GetResolvedType(type_idx);
-    if (resolved_class == NULL) {
-      return false;  // Unknown class needs access checks.
-    }
-    const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
-    Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
-    if (referrer_class == NULL) {
-      return false;  // Incomplete referrer knowledge needs access check.
-    }
-    // Perform access check, will return true if access is ok or false if we're going to have to
-    // check this at runtime (for example for class loaders).
-    return referrer_class->CanAccess(resolved_class) && resolved_class->IsInstantiable();
-  }
+                                              const DexFile& dex_file, uint32_t type_idx) const;
+
+  // Can we fast path instance field access? Computes field's offset and volatility
+  bool ComputeInstanceFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
+                                int& field_offset, bool& is_volatile) const;
+
+  // Can we fastpath static field access? Computes field's offset, volatility and whether the
+  // field is within the referrer (which can avoid checking class initialization)
+  bool ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
+                              int& field_offset, int& ssb_index,
+                              bool& is_referrers_class, bool& is_volatile) const;
+
  private:
 
   // Checks if class specified by type_idx is one of the image_classes_
