@@ -282,6 +282,7 @@ jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass jklass, jobject jname) 
 }
 
 jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Class* c = Decode<Class*>(env, javaThis);
   return AddLocalReference<jstring>(env, c->ComputeName());
 }
