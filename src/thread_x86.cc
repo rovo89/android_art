@@ -36,8 +36,8 @@ void Thread::InitCpu() {
 #if defined(__APPLE__)
   UNIMPLEMENTED(WARNING);
 #else
-  // TODO: create specific lock for LDT modification
-  ScopedThreadListLock mutex;  // Avoid concurrent modification of the LDT
+  static Mutex modify_ldt_lock("modify_ldt lock");
+  MutexLock mu(modify_ldt_lock);
 
   // Read LDT
   CHECK_EQ((size_t)LDT_ENTRY_SIZE, sizeof(uint64_t));
