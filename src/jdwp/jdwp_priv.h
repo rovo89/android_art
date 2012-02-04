@@ -19,8 +19,6 @@
 #ifndef ART_JDWP_JDWPPRIV_H_
 #define ART_JDWP_JDWPPRIV_H_
 
-#define LOG_TAG "jdwp"
-
 #include "debugger.h"
 #include "jdwp/jdwp.h"
 #include "jdwp/jdwp_event.h"

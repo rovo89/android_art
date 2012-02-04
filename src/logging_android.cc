@@ -15,6 +15,7 @@
  */
 
 #include "logging.h"
+#include "stringprintf.h"
 
 #include <iostream>
 #include <unistd.h>
@@ -30,13 +31,11 @@ static const int kLogSeverityToAndroidLogPriority[] = {
 
 LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int error)
     : data_(new LogMessageData(line, severity, error)) {
-  const char* last_slash = strrchr(file, '/');
-  data_->file = (last_slash == NULL) ? file : last_slash + 1;
 }
 
 void LogMessage::LogLine(const char* line) {
   int priority = kLogSeverityToAndroidLogPriority[data_->severity];
-  LOG_PRI(priority, LOG_TAG, "%s:%d] %s", data_->file, data_->line_number, line);
+  LOG_PRI(priority, "art", "%s", line);
 }
 
 }  // namespace art
