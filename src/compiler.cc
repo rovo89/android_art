@@ -277,24 +277,18 @@ class WorkerThread {
   size_t stripe_;
 };
 
-class Workers {
- public:
-  Workers(Context* context, size_t begin, size_t end, Callback callback) {
-    const size_t thread_count = static_cast<size_t>(sysconf(_SC_NPROCESSORS_ONLN));
-    for (size_t i = 0; i < thread_count; ++i) {
-      threads_.push_back(new WorkerThread(context, begin + i, end, callback, thread_count));
-    }
+void ForAll(Context* context, size_t begin, size_t end, Callback callback) {
+  std::vector<WorkerThread*> threads;
+
+  const size_t thread_count = static_cast<size_t>(sysconf(_SC_NPROCESSORS_ONLN));
+  for (size_t i = 0; i < thread_count; ++i) {
+    threads.push_back(new WorkerThread(context, begin + i, end, callback, thread_count));
   }
 
-  ~Workers() {
-    // Switch to kVmWait while we're blocked waiting for the other threads to finish.
-    ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
-    STLDeleteElements(&threads_);
-  }
-
- private:
-  std::vector<WorkerThread*> threads_;
-};
+  // Switch to kVmWait while we're blocked waiting for the other threads to finish.
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+  STLDeleteElements(&threads);
+}
 
 static void ResolveClassFieldsAndMethods(Context* context, size_t class_def_index) {
   const DexFile& dex_file = *context->dex_file;
@@ -394,14 +388,10 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
   context.dex_cache = dex_cache;
   context.dex_file = &dex_file;
 
-  {
-    Workers workers(&context, 0, dex_cache->NumResolvedTypes(), ResolveType);
-  }
+  ForAll(&context, 0, dex_cache->NumResolvedTypes(), ResolveType);
   timings.AddSplit("Resolve " + dex_file.GetLocation() + " Types");
 
-  {
-    Workers workers(&context, 0, dex_file.NumClassDefs(), ResolveClassFieldsAndMethods);
-  }
+  ForAll(&context, 0, dex_file.NumClassDefs(), ResolveClassFieldsAndMethods);
   timings.AddSplit("Resolve " + dex_file.GetLocation() + " MethodsAndFields");
 }
 
@@ -446,9 +436,7 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
   context.class_linker = Runtime::Current()->GetClassLinker();
   context.class_loader = class_loader;
   context.dex_file = &dex_file;
-  {
-    Workers workers(&context, 0, dex_file.NumClassDefs(), VerifyClass);
-  }
+  ForAll(&context, 0, dex_file.NumClassDefs(), VerifyClass);
 
   dex_file.ChangePermissions(PROT_READ);
 }
@@ -546,9 +534,7 @@ void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& de
   context.class_loader = class_loader;
   context.compiler = this;
   context.dex_file = &dex_file;
-  {
-    Workers workers(&context, 0, dex_file.NumClassDefs(), Compiler::CompileClass);
-  }
+  ForAll(&context, 0, dex_file.NumClassDefs(), Compiler::CompileClass);
 }
 
 void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
