@@ -80,7 +80,7 @@ void Runtime::PlatformAbort(const char* file, int line) {
       text.erase(index, 1);
     }
     std::string log_line(StringPrintf("\t#%02zd ", i) + function_name + text);
-    LogMessage(filename.c_str(), -1, ERROR, -1).stream() << log_line;
+    LogMessage(filename.c_str(), -1, INTERNAL_FATAL, -1).stream() << log_line;
   }
 
   free(symbols);

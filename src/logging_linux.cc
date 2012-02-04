@@ -34,7 +34,7 @@ LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int err
 }
 
 void LogMessage::LogLine(const char* line) {
-  std::cerr << "VDIWEF"[data_->severity] << ' '
+  std::cerr << "VDIWEFF"[data_->severity] << ' '
             << StringPrintf("%5d %5d", getpid(), ::art::GetTid()) << ' '
             << data_->file << ':' << data_->line_number << "] " << line << std::endl;
 }

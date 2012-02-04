@@ -138,7 +138,7 @@ void Runtime::Abort(const char* file, int line) {
   // Many people have difficulty distinguish aborts from crashes,
   // so be explicit.
   AbortState state;
-  LOG(ERROR) << Dumpable<AbortState>(state);
+  LOG(INTERNAL_FATAL) << Dumpable<AbortState>(state);
 
   // Perform any platform-specific pre-abort actions.
   PlatformAbort(file, line);
