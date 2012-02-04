@@ -1178,7 +1178,7 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
 
   } else {
     std::string class_name_string(DescriptorToDot(descriptor));
-    ScopedThreadStateChange(self, Thread::kNative);
+    ScopedThreadStateChange tsc(self, Thread::kNative);
     JNIEnv* env = self->GetJniEnv();
     ScopedLocalRef<jclass> c(env, AddLocalReference<jclass>(env, GetClassRoot(kJavaLangClassLoader)));
     CHECK(c.get() != NULL);
