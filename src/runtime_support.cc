@@ -34,6 +34,17 @@ static void  FinishCalleeSaveFrameSetup(Thread* self, Method** sp, Runtime::Call
   self->SetTopOfStack(sp, 0);
 }
 
+/*
+ * Report location to debugger.  Note: dalvikPC is the current offset within
+ * the method.  However, because the offset alone cannot distinguish between
+ * method entry and offset 0 within the method, we'll use an offset of -1
+ * to denote method entry.
+ */
+extern "C" void artUpdateDebuggerFromCode(int32_t dalvikPC, Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp,  Runtime::kRefsAndArgs);
+    // TODO: fill this out similar to old "updateDebugger"
+}
+
 // Temporary debugging hook for compiler.
 extern void DebugMe(Method* method, uint32_t info) {
   LOG(INFO) << "DebugMe";

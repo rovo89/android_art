@@ -574,6 +574,29 @@ STATIC void genConstClass(CompilationUnit* cUnit, MIR* mir,
     }
 }
 
+/*
+ * Generate callout to updateDebugger. Note: genIT will automatically
+ * create a scheduling barrier, which we need to prevent code motion that
+ * might confuse the debugger.  Note: Return registers r0/r1 are
+ * handled specially during code generation following function calls.
+ * Typically, temp registers are not live between opcodes, but we keep
+ * r0/r1 live following invokes, where they are consumed by the immediately
+ * following op_move_result_xxx.  Thus, we must preserve and restore r0/r1
+ * when making a call to update the debugger.  This is handled by the stub.
+ */
+STATIC void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset)
+{
+    // Following DCHECK verifies that dPC is in range of single load immediate
+    DCHECK((offset == DEBUGGER_METHOD_ENTRY) ||
+           (offset == DEBUGGER_METHOD_EXIT) || ((offset & 0xffff) == offset));
+    oatClobberCalleeSave(cUnit);
+    opRegImm(cUnit, kOpCmp, rSUSPEND, 0);
+    genIT(cUnit, kArmCondNe, "T");
+    loadConstant(cUnit, r2, offset);     // arg2 <- Entry code
+    opReg(cUnit, kOpBlx, rSUSPEND);
+    oatFreeTemp(cUnit, r2);
+}
+
 STATIC void genConstString(CompilationUnit* cUnit, MIR* mir,
                            RegLocation rlDest, RegLocation rlSrc)
 {
@@ -875,7 +898,8 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
     oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
     // Keep special registers from being allocated
     for (int i = 0; i < numReserved; i++) {
-        if (NO_SUSPEND && (reservedRegs[i] == rSUSPEND)) {
+        if (NO_SUSPEND && !cUnit->genDebugger &&
+            (reservedRegs[i] == rSUSPEND)) {
             //To measure cost of suspend check
             continue;
         }
@@ -1738,8 +1762,15 @@ STATIC void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
         return;
     }
     oatFlushAllRegs(cUnit);
-    newLIR2(cUnit, kThumbSubRI8, rSUSPEND, 1);
-    ArmLIR* branch = opCondBranch(cUnit, kArmCondEq);
+    ArmLIR* branch;
+    if (cUnit->genDebugger) {
+        // If generating code for the debugger, always check for suspension
+        branch = genUnconditionalBranch(cUnit, NULL);
+    } else {
+        // In non-debug case, only check periodically
+        newLIR2(cUnit, kThumbSubRI8, rSUSPEND, 1);
+        branch = opCondBranch(cUnit, kArmCondEq);
+    }
     ArmLIR* retLab = newLIR0(cUnit, kArmPseudoTargetLabel);
     retLab->defMask = ENCODE_ALL;
     ArmLIR* target = (ArmLIR*)oatNew(cUnit, sizeof(ArmLIR), true, kAllocLIR);

@@ -1933,12 +1933,24 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
         }
         storeBaseDisp(cUnit, rSP, 0, r0, kWord);
         flushIns(cUnit);
+
+        if (cUnit->genDebugger) {
+            // Refresh update debugger callout
+            loadWordDisp(cUnit, rSELF,
+                         OFFSETOF_MEMBER(Thread, pUpdateDebuggerFromCode), rSUSPEND);
+            genDebuggerUpdate(cUnit, DEBUGGER_METHOD_ENTRY);
+        }
+
         oatFreeTemp(cUnit, r0);
         oatFreeTemp(cUnit, r1);
         oatFreeTemp(cUnit, r2);
         oatFreeTemp(cUnit, r3);
     } else if (bb->blockType == kExitBlock) {
         newLIR0(cUnit, kArmPseudoMethodExit);
+        /* If we're compiling for the debugger, generate an update callout */
+        if (cUnit->genDebugger) {
+            genDebuggerUpdate(cUnit, DEBUGGER_METHOD_EXIT);
+        }
         opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize - (spillCount * 4));
         /* Need to restore any FP callee saves? */
         if (cUnit->numFPSpills) {
@@ -1992,6 +2004,11 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
             headLIR = boundaryLIR;
             /* Set the first boundaryLIR as a scheduling barrier */
             headLIR->defMask = ENCODE_ALL;
+        }
+
+        /* If we're compiling for the debugger, generate an update callout */
+        if (cUnit->genDebugger) {
+            genDebuggerUpdate(cUnit, mir->offset);
         }
 
         /* Don't generate the SSA annotation unless verbose mode is on */
@@ -2087,9 +2104,17 @@ STATIC void handleSuspendLaunchpads(CompilationUnit *cUnit)
         oatAppendLIR(cUnit, (LIR *)lab);
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pTestSuspendFromCode), rLR);
-        loadWordDisp(cUnit, rSELF,
-            Thread::SuspendCountOffset().Int32Value(), rSUSPEND);
+        if (!cUnit->genDebugger) {
+            // use rSUSPEND for suspend count
+            loadWordDisp(cUnit, rSELF,
+                         Thread::SuspendCountOffset().Int32Value(), rSUSPEND);
+        }
         opReg(cUnit, kOpBlx, rLR);
+        if ( cUnit->genDebugger) {
+            // use rSUSPEND for update debugger
+            loadWordDisp(cUnit, rSELF,
+                         OFFSETOF_MEMBER(Thread, pUpdateDebuggerFromCode), rSUSPEND);
+        }
         genUnconditionalBranch(cUnit, resumeLab);
     }
 }

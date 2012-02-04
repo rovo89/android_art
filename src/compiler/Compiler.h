@@ -24,6 +24,14 @@ namespace art {
 #define COMPILER_TRACED(X)
 #define COMPILER_TRACEE(X)
 
+/*
+ * Special offsets to denote method entry/exit for debugger update.
+ * NOTE: bit pattern must be loadable using 1 instruction and must
+ * not be a valid Dalvik offset.
+ */
+#define DEBUGGER_METHOD_ENTRY -1
+#define DEBUGGER_METHOD_EXIT -2
+
 typedef enum OatInstructionSetType {
     DALVIK_OAT_NONE = 0,
     DALVIK_OAT_ARM,
@@ -39,6 +47,7 @@ enum optControlVector {
     kPromoteRegs,
     kTrackLiveTemps,
     kSkipLargeMethodOptimization,
+    kGenCodeForDebugger,
 };
 
 /* Type of allocation for memory tuning */

@@ -28,6 +28,7 @@ extern void CheckSuspendFromCode(Thread* thread);
 extern Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
                                          Thread* self, bool access_check);
 extern void DebugMe(Method* method, uint32_t info);
+extern void UpdateDebuggerFromCode(Method* method, Thread* thread , int32_t dalvikPC, Method** sp);
 extern Object* DecodeJObjectInThread(Thread* thread, jobject obj);
 extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* self,
                                 bool is_static, bool is_primitive, size_t expected_size);
@@ -93,6 +94,7 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" void art_trace_exit_from_code();
   extern "C" void* art_resolve_string_from_code(void*, uint32_t);
   extern "C" void* art_resolve_method_from_code(void* referrer, uint32_t method_idx, bool is_direct);
+  extern "C" void art_update_debugger(void*, void*, int32_t, void*);
 
   /* Conversions */
   extern "C" float __aeabi_i2f(int op1);             // OP_INT_TO_FLOAT

@@ -33,7 +33,7 @@ namespace art {
  *        pointer in r0 as a hidden arg0. Otherwise used as codegen scratch
  *        registers.
  * r0-r1: As in C/C++ r0 is 32-bit return register and r0/r1 is 64-bit
- * r4   : (rSUSPEND) is reserved (suspend check assist)
+ * r4   : (rSUSPEND) is reserved (suspend check/debugger assist)
  * r5   : Callee save (promotion target)
  * r6   : Callee save (promotion target)
  * r7   : Callee save (promotion target)

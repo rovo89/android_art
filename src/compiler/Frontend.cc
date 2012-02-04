@@ -33,6 +33,7 @@ uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
      //(1 << kPromoteRegs) |
      //(1 << kTrackLiveTemps) |
      //(1 << kSkipLargeMethodOptimization) |
+     //(1 << kGenCodeForDebugger) |
      0;
 
 uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
@@ -783,6 +784,18 @@ CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeIt
         cUnit->disableOpt = compilerOptimizerDisableFlags;
         cUnit->enableDebug = compilerDebugFlags;
         cUnit->printMe = VLOG_IS_ON(compiler) || (cUnit->enableDebug & (1 << kDebugVerbose));
+    }
+
+    /* Are we generating code for the debugger? */
+    if (cUnit->disableOpt & (1 << kGenCodeForDebugger)) {
+        cUnit->genDebugger = true;
+        // Yes, disable most optimizations
+        cUnit->disableOpt |= (
+            (1 << kLoadStoreElimination) |
+            (1 << kLoadHoisting) |
+            (1 << kSuppressLoads) |
+            (1 << kPromoteRegs) |
+            (1 << kTrackLiveTemps));
     }
 
     /* Assume non-throwing leaf */

@@ -64,6 +64,22 @@
     b      artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
 .endm
 
+    .global art_update_debugger
+    .extern artUpdateDebuggerFromCode
+    /*
+     * On entry, r0 and r1 must be preserved, r2 is DalvikPC
+     */
+art_update_debugger:
+    mov    r3, r0         @ stash away r0 so that it's saved as if it were an argument
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    mov    r0, r2         @ arg0 is DalvikPC
+    mov    r1, rSELF      @ arg1 is Thread*
+    mov    r2, sp         @ arg2 is sp
+    bl     artUpdateDebuggerFromCode      @ artUpdateDebuggerFromCode(Method*, Thread*, dPC, sp)
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    mov    r0, r3         @ restore original r0
+    bx     lr
+
     .global art_do_long_jump
     /*
      * On entry r0 is uint32_t* gprs_ and r1 is uint32_t* fprs_

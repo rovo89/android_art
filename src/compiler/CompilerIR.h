@@ -238,6 +238,7 @@ typedef struct CompilationUnit {
     std::vector<uint32_t> mappingTable;
     std::vector<uint16_t> coreVmapTable;
     std::vector<uint16_t> fpVmapTable;
+    bool genDebugger;                   // Generate code for debugger
     bool printMe;
     bool hasClassLiterals;              // Contains class ptrs used as literals
     bool hasLoop;                       // Contains a loop

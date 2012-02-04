@@ -166,6 +166,7 @@ class PACKED Thread {
   void (*pUnlockObjectFromCode)(void*);
   void* (*pUnresolvedDirectMethodTrampolineFromCode)(int32_t, Method**, Thread*,
                                                      Runtime::TrampolineType);
+  void (*pUpdateDebuggerFromCode)(void*, void*, int32_t, void*);
 
   class StackVisitor {
    public:
