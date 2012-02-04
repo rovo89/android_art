@@ -107,6 +107,21 @@ class Compiler {
     return referrer_class->CanAccess(resolved_class);
   }
 
+  bool CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx, const DexCache* dex_cache,
+                                              const DexFile& dex_file, uint32_t type_idx) const {
+    Class* resolved_class = dex_cache->GetResolvedType(type_idx);
+    if (resolved_class == NULL) {
+      return false;  // Unknown class needs access checks.
+    }
+    const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
+    Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
+    if (referrer_class == NULL) {
+      return false;  // Incomplete referrer knowledge needs access check.
+    }
+    // Perform access check, will return true if access is ok or false if we're going to have to
+    // check this at runtime (for example for class loaders).
+    return referrer_class->CanAccess(resolved_class) && resolved_class->IsInstantiable();
+  }
  private:
 
   // Checks if class specified by type_idx is one of the image_classes_

@@ -696,10 +696,10 @@ STATIC void genNewInstance(CompilationUnit* cUnit, MIR* mir,
     uint32_t type_idx = mir->dalvikInsn.vB;
     // alloc will always check for resolution, do we also need to verify access because the
     // verifier was unable to?
-    if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
-                                                    cUnit->dex_cache,
-                                                    *cUnit->dex_file,
-                                                    type_idx)) {
+    if (cUnit->compiler->CanAccessInstantiableTypeWithoutChecks(cUnit->method_idx,
+                                                                cUnit->dex_cache,
+                                                                *cUnit->dex_file,
+                                                                type_idx)) {
         loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pAllocObjectFromCode), rLR);
     } else {
         loadWordDisp(cUnit, rSELF,

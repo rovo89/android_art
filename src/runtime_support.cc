@@ -651,6 +651,11 @@ static Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thread* se
     }
   }
   if (access_check) {
+    if (UNLIKELY(!klass->IsInstantiable())) {
+      self->ThrowNewException("Ljava/lang/InstantiationError;",
+                              PrettyDescriptor(klass).c_str());
+      return NULL;  // Failure
+    }
     Class* referrer = method->GetDeclaringClass();
     if (UNLIKELY(!referrer->CanAccess(klass))) {
       self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
