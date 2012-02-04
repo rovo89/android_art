@@ -11,6 +11,7 @@
 #   --no-verify   -- turn off verification (on by default)
 #   --no-optimize -- turn off optimization (on by default)
 #   --no-precise  -- turn off precise GC (on by default)
+#   -O            -- run non-debug code
 
 msg() {
     if [ "$QUIET" = "n" ]; then
@@ -18,7 +19,7 @@ msg() {
     fi
 }
 
-OATEXEC="oatexec"
+OATEXEC="oatexecd"
 DEBUG="n"
 VERIFY="y"
 OPTIMIZE="y"
@@ -31,8 +32,8 @@ while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"
         shift
-    elif [ "x$1" = "x-d" ]; then
-        OATEXEC="oatexecd"
+    elif [ "x$1" = "x-O" ]; then
+        OATEXEC="oatexec"
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUG="y"
