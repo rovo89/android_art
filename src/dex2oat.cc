@@ -417,7 +417,12 @@ int dex2oat(int argc, char** argv) {
   uintptr_t image_base = 0;
   std::string host_prefix;
   std::vector<const char*> runtime_args;
+#if defined(__APPLE__)
+  // Apple lacks GetOwner and therefore working Mutexes, so only use one thread on that platform
+  int thread_count = 1;
+#else
   int thread_count = 2;
+#endif
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -445,10 +450,13 @@ int dex2oat(int argc, char** argv) {
       }
     } else if (option.starts_with("-j")) {
       const char* thread_count_str = option.substr(strlen("-j")).data();
+#if! defined(__APPLE__)
+      // Apple lacks GetOwner and therefore working Mutexes, so we ignore -j on that platform
       if (!ParseInt(thread_count_str, &thread_count)) {
         fprintf(stderr, "could not parse -j argument '%s' as an integer\n", thread_count_str);
         usage();
       }
+#endif
     } else if (option.starts_with("--oat-name=")) {
       oat_name = option.substr(strlen("--oat-name=")).data();
     } else if (option.starts_with("--image=")) {
