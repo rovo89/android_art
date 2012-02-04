@@ -446,7 +446,9 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
   context.class_linker = Runtime::Current()->GetClassLinker();
   context.class_loader = class_loader;
   context.dex_file = &dex_file;
-  Workers workers(&context, 0, dex_file.NumClassDefs(), VerifyClass);
+  {
+    Workers workers(&context, 0, dex_file.NumClassDefs(), VerifyClass);
+  }
 
   dex_file.ChangePermissions(PROT_READ);
 }
