@@ -24,8 +24,8 @@
 namespace art {
 
 static const int kLogSeverityToAndroidLogPriority[] = {
-  ANDROID_LOG_VERBOSE, ANDROID_LOG_DEBUG, ANDROID_LOG_INFO,
-  ANDROID_LOG_WARN, ANDROID_LOG_ERROR, ANDROID_LOG_FATAL
+  ANDROID_LOG_VERBOSE, ANDROID_LOG_DEBUG, ANDROID_LOG_INFO, ANDROID_LOG_WARN,
+  ANDROID_LOG_ERROR, ANDROID_LOG_FATAL, ANDROID_LOG_FATAL
 };
 
 LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int error)
