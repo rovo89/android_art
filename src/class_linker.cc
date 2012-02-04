@@ -1840,10 +1840,11 @@ Class* ClassLinker::LookupClass(const char* descriptor, const ClassLoader* class
     if (strcmp(descriptor, kh.GetDescriptor()) == 0 && klass->GetClassLoader() == class_loader) {
 #ifndef NDEBUG
       for (++it; it != end && it->first == hash; ++it) {
-        kh.ChangeClass(it->second);
-        CHECK(!(strcmp(descriptor, kh.GetDescriptor()) == 0 && klass->GetClassLoader() == class_loader))
+        Class* klass2 = it->second;
+        kh.ChangeClass(klass2);
+        CHECK(!(strcmp(descriptor, kh.GetDescriptor()) == 0 && klass2->GetClassLoader() == class_loader))
                 << PrettyClass(klass) << " " << klass << " " << klass->GetClassLoader() << " "
-                << PrettyClass(it->second) << " " << it->second << " " << it->second->GetClassLoader();
+                << PrettyClass(klass2) << " " << klass2 << " " << klass2->GetClassLoader();
       }
 #endif
       return klass;
