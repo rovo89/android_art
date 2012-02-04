@@ -110,7 +110,8 @@ class Dex2Oat {
 
   ~Dex2Oat() {
     delete runtime_;
-    LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_);
+    const size_t thread_count = static_cast<size_t>(sysconf(_SC_NPROCESSORS_ONLN));
+    LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_) << " (threads: " << thread_count << ")";
   }
 
   // Make a list of descriptors for classes to include in the image

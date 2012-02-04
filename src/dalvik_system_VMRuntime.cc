@@ -134,9 +134,13 @@ void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) 
 
 void VMRuntime_trimHeap(JNIEnv* env, jobject) {
   ScopedHeapLock heap_lock;
+  size_t alloc_space_size = Heap::GetAllocSpace()->Size();
+  float utilization = static_cast<float>(Heap::GetBytesAllocated()) / alloc_space_size;
   uint64_t start_ns = NanoTime();
   Heap::GetAllocSpace()->Trim();
-  VLOG(gc) << "VMRuntime_trimHeap took " << PrettyDuration(NanoTime() - start_ns);
+  LOG(INFO) << "Parallel heap trimming took " << PrettyDuration(NanoTime() - start_ns)
+            << " on a " << PrettySize(alloc_space_size)
+            << " heap with " << static_cast<int>(100 * utilization) << "% utilization";
 }
 
 JNINativeMethod gMethods[] = {
