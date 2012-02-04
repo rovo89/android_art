@@ -45,6 +45,8 @@ jobject Method_getExceptionTypesNative(JNIEnv* env, jobject javaMethod) {
   }
   CHECK_NE(throws_index, -1);
   ObjectArray<Class>* declared_exceptions = proxy_class->GetThrows()->Get(throws_index);
+  // Change thread state for allocation
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   return AddLocalReference<jobject>(env, declared_exceptions->Clone());
 }
 
