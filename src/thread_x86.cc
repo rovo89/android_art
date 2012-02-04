@@ -21,6 +21,7 @@
 
 #include "asm_support.h"
 #include "macros.h"
+#include "thread_list.h"
 
 #if defined(__APPLE__)
 #include <architecture/i386/table.h>
@@ -35,7 +36,9 @@ void Thread::InitCpu() {
 #if defined(__APPLE__)
   UNIMPLEMENTED(WARNING);
 #else
-  /*
+  // TODO: create specific lock for LDT modification
+  ScopedThreadListLock mutex;  // Avoid concurrent modification of the LDT
+
   // Read LDT
   CHECK_EQ((size_t)LDT_ENTRY_SIZE, sizeof(uint64_t));
   std::vector<uint64_t> ldt(LDT_ENTRIES);
@@ -85,7 +88,6 @@ void Thread::InitCpu() {
       : "r"(THREAD_SELF_OFFSET)  // input
       :);  // clobber
   CHECK_EQ(self_check, this);
-  */
 #endif
 }
 
