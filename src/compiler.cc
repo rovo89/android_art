@@ -54,8 +54,7 @@ namespace x86 {
   ByteArray* CreateJniDlsymLookupStub();
 }
 
-Compiler::Compiler(InstructionSet instruction_set,
-                   bool image,
+Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_count,
                    const std::set<std::string>* image_classes)
     : instruction_set_(instruction_set),
       jni_compiler_(instruction_set),
@@ -63,6 +62,7 @@ Compiler::Compiler(InstructionSet instruction_set,
       compiled_methods_lock_("compiled method lock"),
       compiled_invoke_stubs_lock_("compiled invoke stubs lock"),
       image_(image),
+      thread_count_(thread_count),
       image_classes_(image_classes) {
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
@@ -277,10 +277,9 @@ class WorkerThread {
   size_t stripe_;
 };
 
-void ForAll(Context* context, size_t begin, size_t end, Callback callback) {
+void ForAll(Context* context, size_t begin, size_t end, Callback callback, size_t thread_count) {
   std::vector<WorkerThread*> threads;
 
-  const size_t thread_count = static_cast<size_t>(sysconf(_SC_NPROCESSORS_ONLN));
   for (size_t i = 0; i < thread_count; ++i) {
     threads.push_back(new WorkerThread(context, begin + i, end, callback, thread_count));
   }
@@ -388,10 +387,10 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
   context.dex_cache = dex_cache;
   context.dex_file = &dex_file;
 
-  ForAll(&context, 0, dex_cache->NumResolvedTypes(), ResolveType);
+  ForAll(&context, 0, dex_cache->NumResolvedTypes(), ResolveType, thread_count_);
   timings.AddSplit("Resolve " + dex_file.GetLocation() + " Types");
 
-  ForAll(&context, 0, dex_file.NumClassDefs(), ResolveClassFieldsAndMethods);
+  ForAll(&context, 0, dex_file.NumClassDefs(), ResolveClassFieldsAndMethods, thread_count_);
   timings.AddSplit("Resolve " + dex_file.GetLocation() + " MethodsAndFields");
 }
 
@@ -436,7 +435,7 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
   context.class_linker = Runtime::Current()->GetClassLinker();
   context.class_loader = class_loader;
   context.dex_file = &dex_file;
-  ForAll(&context, 0, dex_file.NumClassDefs(), VerifyClass);
+  ForAll(&context, 0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
 
   dex_file.ChangePermissions(PROT_READ);
 }
@@ -534,7 +533,7 @@ void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& de
   context.class_loader = class_loader;
   context.compiler = this;
   context.dex_file = &dex_file;
-  ForAll(&context, 0, dex_file.NumClassDefs(), Compiler::CompileClass);
+  ForAll(&context, 0, dex_file.NumClassDefs(), Compiler::CompileClass, thread_count_);
 }
 
 void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,

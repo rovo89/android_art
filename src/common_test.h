@@ -342,7 +342,7 @@ class CommonTest : public testing::Test {
             runtime_->CreateCalleeSaveMethod(instruction_set, type), type);
       }
     }
-    compiler_.reset(new Compiler(instruction_set, false, NULL));
+    compiler_.reset(new Compiler(instruction_set, false, 2, NULL));
 
     Heap::VerifyHeap();  // Check for heap corruption before the test
   }

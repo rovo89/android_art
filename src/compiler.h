@@ -43,8 +43,7 @@ class Compiler {
   // enabled.  "image_classes" lets the compiler know what classes it
   // can assume will be in the image, with NULL implying all available
   // classes.
-  explicit Compiler(InstructionSet instruction_set,
-                    bool image,
+  explicit Compiler(InstructionSet instruction_set, bool image, size_t thread_count,
                     const std::set<std::string>* image_classes);
 
   ~Compiler();
@@ -169,7 +168,7 @@ class Compiler {
   InvokeStubTable compiled_invoke_stubs_;
 
   bool image_;
-
+  size_t thread_count_;
   uint64_t start_ns_;
 
   const std::set<std::string>* image_classes_;
