@@ -279,7 +279,7 @@ void AllocSpace::SetFootprintLimit(size_t new_size) {
 }
 
 ImageSpace* Space::CreateImageSpace(const std::string& image_file_name) {
-  CHECK(image_file_name != NULL);
+  CHECK(!image_file_name.empty());
 
   uint64_t start_time = 0;
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
