@@ -529,8 +529,13 @@ int dex2oat(int argc, char** argv) {
 
   bool image = (image_filename != NULL);
   if (!image && boot_image_filename.empty()) {
-    boot_image_filename += host_prefix;
-    boot_image_filename += "/system/framework/boot.art";
+    if (host_prefix.empty()) {
+      boot_image_filename += GetAndroidRoot();
+    } else {
+      boot_image_filename += host_prefix;
+      boot_image_filename += "/system";
+    }
+    boot_image_filename += "/framework/boot.art";
   }
   std::string boot_image_option;
   if (boot_image_filename != NULL) {

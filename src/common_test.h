@@ -396,7 +396,7 @@ class CommonTest : public testing::Test {
       CHECK(host_dir != NULL);
       return StringPrintf("%s/framework/core-hostdex.jar", host_dir);
     }
-    return std::string("/system/framework/core.jar");
+    return StringPrintf("%s/framework/core.jar", GetAndroidRoot());
   }
 
   const DexFile* OpenTestDexFile(const char* name) {

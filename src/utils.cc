@@ -700,21 +700,42 @@ void GetTaskStats(pid_t tid, int& utime, int& stime, int& task_cpu) {
   task_cpu = strtoull(fields[36].c_str(), NULL, 10);
 }
 
-std::string GetArtCacheOrDie() {
-  const char* data_root = getenv("ANDROID_DATA");
-  if (data_root == NULL) {
-    if (OS::DirectoryExists("/data")) {
-      data_root = "/data";
+const char* GetAndroidRoot() {
+  const char* android_root = getenv("ANDROID_ROOT");
+  if (android_root == NULL) {
+    if (OS::DirectoryExists("/system")) {
+      android_root = "/system";
     } else {
-      data_root = "/tmp";
+      LOG(FATAL) << "ANDROID_ROOT not set and /system does not exist";
+      return "";
     }
   }
-  if (!OS::DirectoryExists(data_root)) {
-    LOG(FATAL) << "Failed to find ANDROID_DATA directory " << data_root;
+  if (!OS::DirectoryExists(android_root)) {
+    LOG(FATAL) << "Failed to find ANDROID_ROOT directory " << android_root;
     return "";
   }
+  return android_root;
+}
 
-  std::string art_cache(StringPrintf("%s/art-cache", data_root));
+const char* GetAndroidData() {
+  const char* android_data = getenv("ANDROID_DATA");
+  if (android_data == NULL) {
+    if (OS::DirectoryExists("/data")) {
+      android_data = "/data";
+    } else {
+      LOG(FATAL) << "ANDROID_DATA not set and /data does not exist";
+      return "";
+    }
+  }
+  if (!OS::DirectoryExists(android_data)) {
+    LOG(FATAL) << "Failed to find ANDROID_DATA directory " << android_data;
+    return "";
+  }
+  return android_data;
+}
+
+std::string GetArtCacheOrDie() {
+  std::string art_cache(StringPrintf("%s/art-cache", GetAndroidData()));
 
   if (!OS::DirectoryExists(art_cache.c_str())) {
     if (StringPiece(art_cache).starts_with("/tmp/")) {

@@ -270,6 +270,12 @@ void GetTaskStats(pid_t tid, int& utime, int& stime, int& task_cpu);
 // implementation-defined limit.
 void SetThreadName(const char* name);
 
+// Find $ANDROID_ROOT, /system, or abort
+const char* GetAndroidRoot();
+
+// Find $ANDROID_DATA, /data, or abort
+const char* GetAndroidData();
+
 // Returns the art-cache location, or dies trying.
 std::string GetArtCacheOrDie();
 

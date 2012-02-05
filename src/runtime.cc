@@ -432,7 +432,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   }
 
   if (!parsed->is_compiler_ && parsed->images_.empty()) {
-    parsed->images_.push_back("/system/framework/boot.art");
+    std::string boot_art(GetAndroidRoot());
+    boot_art += "/framework/boot.art";
+    parsed->images_.push_back(boot_art);
   }
   if (parsed->heap_growth_limit_ == 0) {
     parsed->heap_growth_limit_ = parsed->heap_maximum_size_;

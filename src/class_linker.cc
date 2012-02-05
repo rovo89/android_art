@@ -568,7 +568,8 @@ void ClassLinker::RunRootClinits() {
 bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
                                   int oat_fd,
                                   const std::string& oat_cache_filename) {
-  std::string dex2oat_string("/system/bin/dex2oat");
+  std::string dex2oat_string(GetAndroidRoot());
+  dex2oat_string += "/bin/dex2oat";
 #ifndef NDEBUG
   dex2oat_string += 'd';
 #endif
