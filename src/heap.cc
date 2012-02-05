@@ -80,7 +80,7 @@ static void UpdateFirstAndLastSpace(Space** first_space, Space** last_space, Spa
 }
 
 void Heap::Init(size_t initial_size, size_t growth_limit, size_t capacity,
-                const std::vector<std::string>& image_file_names) {
+                const std::string& image_file_name) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap::Init entering";
   }
@@ -92,13 +92,11 @@ void Heap::Init(size_t initial_size, size_t growth_limit, size_t capacity,
 
   // Requested begin for the alloc space, to follow the mapped image and oat files
   byte* requested_begin = NULL;
-  std::vector<Space*> image_spaces;
-  for (size_t i = 0; i < image_file_names.size(); i++) {
-    ImageSpace* space = Space::CreateImageSpace(image_file_names[i]);
+  if (image_file_name != NULL) {
+    ImageSpace* space = Space::CreateImageSpace(image_file_name);
     if (space == NULL) {
-      LOG(FATAL) << "Failed to create space from " << image_file_names[i];
+      LOG(FATAL) << "Failed to create space from " << image_file_name;
     }
-    image_spaces.push_back(space);
     AddSpace(space);
     UpdateFirstAndLastSpace(&first_space, &last_space, space);
     // Oat files referenced by image files immediately follow them in memory, ensure alloc space

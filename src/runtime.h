@@ -63,7 +63,7 @@ class Runtime {
     std::string boot_class_path_;
     std::string class_path_;
     std::string host_prefix_;
-    std::vector<std::string> images_;
+    std::string image_;
     bool check_jni_;
     std::string jni_trace_;
     bool is_compiler_;

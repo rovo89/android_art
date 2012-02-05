@@ -51,7 +51,7 @@ class Heap {
   // image_file_names names specify Spaces to load based on
   // ImageWriter output.
   static void Init(size_t starting_size, size_t growth_limit, size_t capacity,
-                   const std::vector<std::string>& image_file_names);
+                   const std::string& image_file_name);
 
   static void Destroy();
 

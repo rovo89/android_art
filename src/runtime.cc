@@ -310,7 +310,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       const StringPiece& value = options[i].first;
       parsed->class_path_ = value.data();
     } else if (option.starts_with("-Ximage:")) {
-      parsed->images_.push_back(option.substr(strlen("-Ximage:")).data());
+      parsed->image_ = option.substr(strlen("-Ximage:")).data();
     } else if (option.starts_with("-Xcheck:jni")) {
       parsed->check_jni_ = true;
     } else if (option.starts_with("-Xrunjdwp:") || option.starts_with("-agentlib:jdwp=")) {
@@ -431,10 +431,9 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     }
   }
 
-  if (!parsed->is_compiler_ && parsed->images_.empty()) {
-    std::string boot_art(GetAndroidRoot());
-    boot_art += "/framework/boot.art";
-    parsed->images_.push_back(boot_art);
+  if (!parsed->is_compiler_ && parsed->image_.empty()) {
+    parsed->image_ += GetAndroidRoot();
+    parsed->image_ += "/framework/boot.art";
   }
   if (parsed->heap_growth_limit_ == 0) {
     parsed->heap_growth_limit_ = parsed->heap_maximum_size_;
@@ -604,7 +603,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   Heap::Init(options->heap_initial_size_,
              options->heap_growth_limit_,
              options->heap_maximum_size_,
-             options->images_);
+             options->image_);
 
   BlockSignals();
 

@@ -35,13 +35,13 @@ done
 
 mkdir -p /tmp/android-data/art-cache
 ANDROID_DATA=/tmp/android-data \
-ANDROID_ROOT=$ANDROID_BUILD_TOP/out/host/linux-x86 \
-LD_LIBRARY_PATH=$ANDROID_BUILD_TOP/out/host/linux-x86/lib \
-$invoke_with $ANDROID_BUILD_TOP/out/host/linux-x86/bin/$oatexec \
+ANDROID_ROOT=$ANDROID_HOST_OUT \
+LD_LIBRARY_PATH=$ANDROID_HOST_OUT/lib \
+$invoke_with $ANDROID_HOST_OUT/bin/$oatexec \
 -Xbootclasspath\
-:$ANDROID_BUILD_TOP/out/host/linux-x86/framework/core-hostdex.jar\
-:$ANDROID_BUILD_TOP/out/host/linux-x86/framework/core-junit-hostdex.jar\
-:$ANDROID_BUILD_TOP/out/host/linux-x86/framework/core-tests-hostdex.jar\
-:$ANDROID_BUILD_TOP/out/host/linux-x86/framework/bouncycastle-hostdex.jar\
-:$ANDROID_BUILD_TOP/out/host/linux-x86/framework/apache-xml-hostdex.jar \
+:$ANDROID_HOST_OUT/framework/core-hostdex.jar\
+:$ANDROID_HOST_OUT/framework/core-junit-hostdex.jar\
+:$ANDROID_HOST_OUT/framework/core-tests-hostdex.jar\
+:$ANDROID_HOST_OUT/framework/bouncycastle-hostdex.jar\
+:$ANDROID_HOST_OUT/framework/apache-xml-hostdex.jar \
 $*

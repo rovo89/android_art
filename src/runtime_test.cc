@@ -42,8 +42,6 @@ TEST_F(RuntimeTest, ParsedOptions) {
   options.push_back(std::make_pair("-cp", null));
   options.push_back(std::make_pair(lib_core.c_str(), null));
   options.push_back(std::make_pair("-Ximage:boot_image", null));
-  options.push_back(std::make_pair("-Ximage:image_1", null));
-  options.push_back(std::make_pair("-Ximage:image_2", null));
   options.push_back(std::make_pair("-Xcheck:jni", null));
   options.push_back(std::make_pair("-Xms2048", null));
   options.push_back(std::make_pair("-Xmx4k", null));
@@ -60,10 +58,7 @@ TEST_F(RuntimeTest, ParsedOptions) {
 
   EXPECT_EQ(lib_core, parsed->boot_class_path_);
   EXPECT_EQ(lib_core, parsed->class_path_);
-  EXPECT_EQ(3U, parsed->images_.size());
-  EXPECT_EQ(std::string("boot_image"), parsed->images_[0]);
-  EXPECT_EQ(std::string("image_1"), parsed->images_[1]);
-  EXPECT_EQ(std::string("image_2"), parsed->images_[2]);
+  EXPECT_EQ(std::string("boot_image"), parsed->image_);
   EXPECT_EQ(true, parsed->check_jni_);
   EXPECT_EQ(2048U, parsed->heap_initial_size_);
   EXPECT_EQ(4 * KB, parsed->heap_maximum_size_);
