@@ -449,8 +449,8 @@ int dex2oat(int argc, char** argv) {
         usage();
       }
     } else if (option.starts_with("-j")) {
-      const char* thread_count_str = option.substr(strlen("-j")).data();
 #if! defined(__APPLE__)
+      const char* thread_count_str = option.substr(strlen("-j")).data();
       // Apple lacks GetOwner and therefore working Mutexes, so we ignore -j on that platform
       if (!ParseInt(thread_count_str, &thread_count)) {
         fprintf(stderr, "could not parse -j argument '%s' as an integer\n", thread_count_str);
