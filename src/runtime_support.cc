@@ -447,7 +447,7 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
 // Fast path field resolution that can't throw exceptions
 static Field* FindFieldFast(uint32_t field_idx, const Method* referrer, bool is_primitive,
                             size_t expected_size) {
-  Field* resolved_field = referrer->GetDexCacheResolvedFields()->Get(field_idx);
+  Field* resolved_field = referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
   if (UNLIKELY(resolved_field == NULL)) {
     return NULL;
   }

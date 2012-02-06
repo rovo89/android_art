@@ -1516,7 +1516,6 @@ void ClassLinker::LoadMethod(const DexFile& dex_file, const ClassDataItemIterato
   dst->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
   dst->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
   dst->SetDexCacheResolvedMethods(klass->GetDexCache()->GetResolvedMethods());
-  dst->SetDexCacheResolvedFields(klass->GetDexCache()->GetResolvedFields());
   dst->SetDexCacheCodeAndDirectMethods(klass->GetDexCache()->GetCodeAndDirectMethods());
   dst->SetDexCacheInitializedStaticStorage(klass->GetDexCache()->GetInitializedStaticStorage());
 }

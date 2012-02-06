@@ -365,16 +365,6 @@ void Method::SetDexCacheResolvedMethods(ObjectArray<Method>* new_dex_cache_metho
                  new_dex_cache_methods, false);
 }
 
-ObjectArray<Field>* Method::GetDexCacheResolvedFields() const {
-  return GetFieldObject<ObjectArray<Field>*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_fields_), false);
-}
-
-void Method::SetDexCacheResolvedFields(ObjectArray<Field>* new_dex_cache_fields) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_fields_),
-                 new_dex_cache_fields, false);
-}
-
 CodeAndDirectMethods* Method::GetDexCacheCodeAndDirectMethods() const {
   return GetFieldPtr<CodeAndDirectMethods*>(
       OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_code_and_direct_methods_),

@@ -170,7 +170,8 @@ class ClassLinker {
   }
 
   Field* ResolveField(uint32_t field_idx, const Method* referrer, bool is_static) {
-    Field* resolved_field = referrer->GetDexCacheResolvedFields()->Get(field_idx);
+    Field* resolved_field =
+        referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
     if (UNLIKELY(resolved_field == NULL)) {
       Class* declaring_class = referrer->GetDeclaringClass();
       DexCache* dex_cache = declaring_class->GetDexCache();
@@ -193,7 +194,8 @@ class ClassLinker {
                       bool is_static);
 
   Field* ResolveFieldJLS(uint32_t field_idx, const Method* referrer) {
-    Field* resolved_field = referrer->GetDexCacheResolvedFields()->Get(field_idx);
+    Field* resolved_field =
+        referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
     if (UNLIKELY(resolved_field == NULL)) {
       Class* declaring_class = referrer->GetDeclaringClass();
       DexCache* dex_cache = declaring_class->GetDexCache();
