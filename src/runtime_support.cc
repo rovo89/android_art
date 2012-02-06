@@ -494,7 +494,7 @@ Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* sel
     if (UNLIKELY(fh.IsPrimitiveType() != is_primitive ||
                  fh.FieldSize() != expected_size)) {
       self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
-                               "Attempted read of %d-bit %s on field '%s'",
+                               "Attempted read of %zd-bit %s on field '%s'",
                                expected_size * (32 / sizeof(int32_t)),
                                is_primitive ? "primitive" : "non-primitive",
                                PrettyField(resolved_field, true).c_str());

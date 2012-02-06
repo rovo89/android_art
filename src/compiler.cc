@@ -380,25 +380,37 @@ typedef void Callback(Context* context, size_t index);
 
 class WorkerThread {
  public:
-  WorkerThread(Context* context, size_t begin, size_t end, Callback callback, size_t stripe)
-      : context_(context), begin_(begin), end_(end), callback_(callback), stripe_(stripe) {
-    CHECK_PTHREAD_CALL(pthread_create, (&pthread_, NULL, &Init, this), "compiler worker thread");
+  WorkerThread(Context* context, size_t begin, size_t end, Callback callback, size_t stripe, bool spawn)
+      : spawn_(spawn), context_(context), begin_(begin), end_(end), callback_(callback), stripe_(stripe) {
+    if (spawn_) {
+      CHECK_PTHREAD_CALL(pthread_create, (&pthread_, NULL, &Go, this), "compiler worker thread");
+    }
   }
 
   ~WorkerThread() {
-    CHECK_PTHREAD_CALL(pthread_join, (pthread_, NULL), "compiler worker shutdown");
+    if (spawn_) {
+      CHECK_PTHREAD_CALL(pthread_join, (pthread_, NULL), "compiler worker shutdown");
+    }
   }
 
  private:
-  static void* Init(void* arg) {
+  static void* Go(void* arg) {
     WorkerThread* worker = reinterpret_cast<WorkerThread*>(arg);
     Runtime* runtime = Runtime::Current();
-    runtime->AttachCurrentThread("Compiler Worker", true);
+    if (worker->spawn_) {
+      runtime->AttachCurrentThread("Compiler Worker", true);
+    }
     Thread::Current()->SetState(Thread::kRunnable);
     worker->Run();
-    Thread::Current()->SetState(Thread::kNative);
-    runtime->DetachCurrentThread();
+    if (worker->spawn_) {
+      Thread::Current()->SetState(Thread::kNative);
+      runtime->DetachCurrentThread();
+    }
     return NULL;
+  }
+
+  void Go() {
+    Go(this);
   }
 
   void Run() {
@@ -408,20 +420,25 @@ class WorkerThread {
   }
 
   pthread_t pthread_;
+  bool spawn_;
 
   Context* context_;
   size_t begin_;
   size_t end_;
   Callback* callback_;
   size_t stripe_;
+
+  friend void ForAll(Context*, size_t, size_t, Callback, size_t);
 };
 
 void ForAll(Context* context, size_t begin, size_t end, Callback callback, size_t thread_count) {
-  std::vector<WorkerThread*> threads;
+  CHECK_GT(thread_count, 0U);
 
+  std::vector<WorkerThread*> threads;
   for (size_t i = 0; i < thread_count; ++i) {
-    threads.push_back(new WorkerThread(context, begin + i, end, callback, thread_count));
+    threads.push_back(new WorkerThread(context, begin + i, end, callback, thread_count, (i != 0)));
   }
+  threads[0]->Go();
 
   // Switch to kVmWait while we're blocked waiting for the other threads to finish.
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
