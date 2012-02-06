@@ -313,8 +313,17 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
                                             resolved_field->GetAccessFlags())) {
           // We have the resolved field, we must make it into a ssbIndex for the referrer
           // in its static storage base (which may fail if it doesn't have a slot for it)
-          // TODO: if we know the field and referrer are in the same dex file then we can use
-          // resolved_field->GetDeclaringClass()->GetDexTypeIndex()
+          // TODO: for images we can elide the static storage base null check
+          // if we know there's a non-null entry in the image
+          if (fields_class->GetDexCache() == cUnit->dex_cache) {
+            // common case where the dex cache of both the referrer and the field are the same,
+            // no need to search the dex file
+            ssb_index = fields_class->GetDexTypeIndex();
+            field_offset = resolved_field->GetOffset().Int32Value();
+            is_volatile = resolved_field->IsVolatile();
+            return true;
+          }
+          // Search dex file for localized ssb index
           std::string descriptor(FieldHelper(resolved_field).GetDeclaringClassDescriptor());
           const DexFile::StringId* string_id =
           cUnit->dex_file->FindStringId(descriptor);
@@ -323,8 +332,6 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
                cUnit->dex_file->FindTypeId(cUnit->dex_file->GetIndexForStringId(*string_id));
             if(type_id != NULL) {
               // medium path, needs check of static storage base being initialized
-              // TODO: for images we can elide the static storage base null check
-              // if we know there's a no null entry in the image
               ssb_index = cUnit->dex_file->GetIndexForTypeId(*type_id);
               field_offset = resolved_field->GetOffset().Int32Value();
               is_volatile = resolved_field->IsVolatile();
