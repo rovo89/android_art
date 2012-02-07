@@ -71,12 +71,13 @@ bool ImageWriter::Write(const char* image_filename,
     return false;
   }
 
+  PruneNonImageClasses();  // Remove junk
+  ComputeLazyFieldsForImageClasses();  // Add useful information
+  Heap::CollectGarbage(false);  // Remove garbage
+  Heap::GetAllocSpace()->Trim();  // Trim size of source_space
   if (!AllocMemory()) {
     return false;
   }
-  PruneNonImageClasses();
-  ComputeLazyFieldsForImageClasses();
-  Heap::CollectGarbage(false);
 #ifndef NDEBUG
   CheckNonImageClassesRemoved();
 #endif
