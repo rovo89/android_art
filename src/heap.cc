@@ -16,6 +16,9 @@
 
 #include "heap.h"
 
+#include <sys/types.h>
+#include <sys/wait.h>
+
 #include <limits>
 #include <vector>
 
@@ -25,6 +28,7 @@
 #include "mark_sweep.h"
 #include "object.h"
 #include "object_utils.h"
+#include "os.h"
 #include "space.h"
 #include "stl_util.h"
 #include "thread_list.h"
@@ -79,8 +83,91 @@ static void UpdateFirstAndLastSpace(Space** first_space, Space** last_space, Spa
   }
 }
 
+bool GenerateImage(const std::string image_file_name) {
+  const std::string boot_class_path_string = Runtime::Current()->GetBootClassPath();
+  std::vector<std::string> boot_class_path;
+  Split(boot_class_path_string, ':', boot_class_path);
+
+  std::vector<char*> arg_vector;
+
+  std::string dex2oat_string(GetAndroidRoot());
+  dex2oat_string += "/bin/dex2oat";
+#ifndef NDEBUG
+  dex2oat_string += 'd';
+#endif
+  const char* dex2oat = dex2oat_string.c_str();
+  arg_vector.push_back(strdup(dex2oat));
+
+  std::string image_option_string("--image=");
+  image_option_string += image_file_name;
+  const char* image_option = image_option_string.c_str();
+  arg_vector.push_back(strdup(image_option));
+
+  arg_vector.push_back(strdup("--runtime-arg"));
+  arg_vector.push_back(strdup("-Xms64m"));
+
+  arg_vector.push_back(strdup("--runtime-arg"));
+  arg_vector.push_back(strdup("-Xmx64m"));
+
+  for (size_t i = 0; i < boot_class_path.size(); i++) {
+    std::string dex_file_option_string("--dex-file=");
+    dex_file_option_string += boot_class_path[i];
+    const char* dex_file_option = dex_file_option_string.c_str();
+    arg_vector.push_back(strdup(dex_file_option));
+  }
+
+  std::string oat_file_option_string("--oat-file=");
+  oat_file_option_string += image_file_name;
+  oat_file_option_string.erase(oat_file_option_string.size() - 3);
+  oat_file_option_string += "oat";
+  const char* oat_file_option = oat_file_option_string.c_str();
+  arg_vector.push_back(strdup(oat_file_option));
+
+  arg_vector.push_back(strdup("--base=0x60000000"));
+
+  arg_vector.push_back(NULL);
+
+  std::string command_line;
+  for (size_t i = 0; i < arg_vector.size() - 1; i++) {
+    command_line += arg_vector[i];
+    command_line += " ";
+  }
+  LOG(INFO) << command_line;
+
+  char** argv = &arg_vector[0];
+
+  // fork and exec dex2oat
+  pid_t pid = fork();
+  if (pid == 0) {
+    // no allocation allowed between fork and exec
+
+    // change process groups, so we don't get reaped by ProcessManager
+    setpgid(0, 0);
+
+    execv(dex2oat, argv);
+
+    PLOG(FATAL) << "execv(" << dex2oat << ") failed";
+    return false;
+  } else {
+    STLDeleteElements(&arg_vector);
+
+    // wait for dex2oat to finish
+    int status;
+    pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
+    if (got_pid != pid) {
+      PLOG(ERROR) << "waitpid failed: wanted " << pid << ", got " << got_pid;
+      return false;
+    }
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+      LOG(ERROR) << dex2oat << " failed: " << command_line;
+      return false;
+    }
+  }
+  return true;
+}
+
 void Heap::Init(size_t initial_size, size_t growth_limit, size_t capacity,
-                const std::string& image_file_name) {
+                const std::string& original_image_file_name) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap::Init entering";
   }
@@ -92,11 +179,31 @@ void Heap::Init(size_t initial_size, size_t growth_limit, size_t capacity,
 
   // Requested begin for the alloc space, to follow the mapped image and oat files
   byte* requested_begin = NULL;
-  if (image_file_name != NULL) {
-    ImageSpace* space = Space::CreateImageSpace(image_file_name);
+  std::string image_file_name(original_image_file_name);
+  if (!image_file_name.empty()) {
+    ImageSpace* space = NULL;
+    if (OS::FileExists(image_file_name.c_str())) {
+      // If the /system file exists, it should be up-to-date, don't try to generate
+      space = Space::CreateImageSpace(image_file_name);
+    } else {
+      // If the /system file didn't exist, we need to use one from the art-cache.
+      // If the cache file exists, try to open, but if it fails, regenerate.
+      // If it does not exist, generate.
+      image_file_name = GetArtCacheFilenameOrDie(image_file_name);
+      if (OS::FileExists(image_file_name.c_str())) {
+        space = Space::CreateImageSpace(image_file_name);
+      }
+      if (space == NULL) {
+        if (!GenerateImage(image_file_name)) {
+          LOG(FATAL) << "Failed to generate image: " << image_file_name;
+        }
+        space = Space::CreateImageSpace(image_file_name);
+      }
+    }
     if (space == NULL) {
       LOG(FATAL) << "Failed to create space from " << image_file_name;
     }
+
     AddSpace(space);
     UpdateFirstAndLastSpace(&first_space, &last_space, space);
     // Oat files referenced by image files immediately follow them in memory, ensure alloc space
