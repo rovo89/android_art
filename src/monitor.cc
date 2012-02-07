@@ -229,13 +229,70 @@ void Monitor::Lock(Thread* self) {
   }
 }
 
-void ThrowIllegalMonitorStateException(const char* msg) {
-  Thread::Current()->ThrowNewException("Ljava/lang/IllegalMonitorStateException;", msg);
+static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
+                                              __attribute__((format(printf, 1, 2)));
+
+static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  Thread::Current()->ThrowNewExceptionV("Ljava/lang/IllegalMonitorStateException;", fmt, args);
+  va_end(args);
+}
+
+void Monitor::FailedUnlock(Object* obj, Thread* expected_owner, Thread* found_owner,
+                           Monitor* mon) {
+  // Acquire thread list lock so threads won't disappear from under us
+  ScopedThreadListLock tll;
+  // Re-read owner now that we hold lock
+  Thread* current_owner = mon != NULL ? mon->owner_ : NULL;
+  std::ostringstream expected_ss;
+  expected_ss << expected_owner;
+  if (current_owner == NULL) {
+    if (found_owner == NULL) {
+      ThrowIllegalMonitorStateExceptionF("unlock of unowned monitor on object of type '%s'"
+                                         " on thread '%s'",
+                                         PrettyTypeOf(obj).c_str(), expected_ss.str().c_str());
+    } else {
+      // Race: the original read found an owner but now there is none
+      std::ostringstream found_ss;
+      found_ss << found_owner;
+      ThrowIllegalMonitorStateExceptionF("unlock of monitor owned by '%s' on object of type '%s'"
+                                         " (where now the monitor appears unowned) on thread '%s'",
+                                         found_ss.str().c_str(), PrettyTypeOf(obj).c_str(),
+                                         expected_ss.str().c_str());
+    }
+  } else {
+    std::ostringstream current_ss;
+    current_ss << current_owner;
+    if (found_owner == NULL) {
+      // Race: originally there was no owner, there is now
+      ThrowIllegalMonitorStateExceptionF("unlock of monitor owned by '%s' on object of type '%s'"
+                                         " (originally believed to be unowned) on thread '%s'",
+                                         current_ss.str().c_str(), PrettyTypeOf(obj).c_str(),
+                                         expected_ss.str().c_str());
+    } else {
+      if (found_owner != current_owner) {
+        // Race: originally found and current owner have changed
+        std::ostringstream found_ss;
+        found_ss << found_owner;
+        ThrowIllegalMonitorStateExceptionF("unlock of monitor originally owned by '%s' (now"
+                                           " owned by '%s') on object of type '%s' on thread '%s'",
+                                           found_ss.str().c_str(), current_ss.str().c_str(),
+                                           PrettyTypeOf(obj).c_str(), expected_ss.str().c_str());
+      } else {
+        ThrowIllegalMonitorStateExceptionF("unlock of monitor owned by '%s' on object of type '%s'"
+                                           " on thread '%s",
+                                           current_ss.str().c_str(), PrettyTypeOf(obj).c_str(),
+                                           expected_ss.str().c_str());
+      }
+    }
+  }
 }
 
 bool Monitor::Unlock(Thread* self) {
   DCHECK(self != NULL);
-  if (owner_ == self) {
+  Thread* owner = owner_;
+  if (owner == self) {
     // We own the monitor, so nobody else can be in here.
     if (lock_count_ == 0) {
       owner_ = NULL;
@@ -249,7 +306,7 @@ bool Monitor::Unlock(Thread* self) {
     // We don't own this, so we're not allowed to unlock it.
     // The JNI spec says that we should throw IllegalMonitorStateException
     // in this case.
-    ThrowIllegalMonitorStateException("unlock of unowned monitor");
+    FailedUnlock(obj_, self, owner, this);
     return false;
   }
   return true;
@@ -326,7 +383,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
 
   // Make sure that we hold the lock.
   if (owner_ != self) {
-    ThrowIllegalMonitorStateException("object not locked by thread before wait()");
+    ThrowIllegalMonitorStateExceptionF("object not locked by thread before wait()");
     return;
   }
 
@@ -455,7 +512,7 @@ void Monitor::Notify(Thread* self) {
 
   // Make sure that we hold the lock.
   if (owner_ != self) {
-    ThrowIllegalMonitorStateException("object not locked by thread before notify()");
+    ThrowIllegalMonitorStateExceptionF("object not locked by thread before notify()");
     return;
   }
   // Signal the first waiting thread in the wait set.
@@ -478,7 +535,7 @@ void Monitor::NotifyAll(Thread* self) {
 
   // Make sure that we hold the lock.
   if (owner_ != self) {
-    ThrowIllegalMonitorStateException("object not locked by thread before notifyAll()");
+    ThrowIllegalMonitorStateExceptionF("object not locked by thread before notifyAll()");
     return;
   }
   // Signal all threads in the wait set.
@@ -666,7 +723,7 @@ bool Monitor::MonitorExit(Thread* self, Object* obj) {
        * We do not own the lock.  The JVM spec requires that we
        * throw an exception in this case.
        */
-      ThrowIllegalMonitorStateException("unlock of unowned monitor");
+      FailedUnlock(obj, self, NULL, NULL);
       return false;
     }
   } else {
@@ -694,7 +751,7 @@ void Monitor::Wait(Thread* self, Object *obj, int64_t ms, int32_t ns, bool inter
   if (LW_SHAPE(thin) == LW_SHAPE_THIN) {
     // Make sure that 'self' holds the lock.
     if (LW_LOCK_OWNER(thin) != self->GetThinLockId()) {
-      ThrowIllegalMonitorStateException("object not locked by thread before wait()");
+      ThrowIllegalMonitorStateExceptionF("object not locked by thread before wait()");
       return;
     }
 
@@ -717,7 +774,7 @@ void Monitor::Notify(Thread* self, Object *obj) {
   if (LW_SHAPE(thin) == LW_SHAPE_THIN) {
     // Make sure that 'self' holds the lock.
     if (LW_LOCK_OWNER(thin) != self->GetThinLockId()) {
-      ThrowIllegalMonitorStateException("object not locked by thread before notify()");
+      ThrowIllegalMonitorStateExceptionF("object not locked by thread before notify()");
       return;
     }
     // no-op;  there are no waiters to notify.
@@ -735,7 +792,7 @@ void Monitor::NotifyAll(Thread* self, Object *obj) {
   if (LW_SHAPE(thin) == LW_SHAPE_THIN) {
     // Make sure that 'self' holds the lock.
     if (LW_LOCK_OWNER(thin) != self->GetThinLockId()) {
-      ThrowIllegalMonitorStateException("object not locked by thread before notifyAll()");
+      ThrowIllegalMonitorStateExceptionF("object not locked by thread before notifyAll()");
       return;
     }
     // no-op;  there are no waiters to notify.

@@ -1460,4 +1460,51 @@ TEST_F(JniInternalTest, DISABLED_NewDirectBuffer_GetDirectBufferAddress_GetDirec
   ASSERT_TRUE(env_->GetDirectBufferCapacity(buffer) == sizeof(bytes));
 }
 
+TEST_F(JniInternalTest, MonitorEnterExit) {
+  // Create an object to torture
+  jclass object_class = env_->FindClass("java/lang/Object");
+  ASSERT_TRUE(object_class != NULL);
+  jobject object = env_->AllocObject(object_class);
+  ASSERT_TRUE(object != NULL);
+
+  // Expected class of exceptions
+  jclass imse_class = env_->FindClass("java/lang/IllegalMonitorStateException");
+  ASSERT_TRUE(imse_class != NULL);
+
+  jthrowable thrown_exception;
+
+  // Unlock of unowned monitor
+  env_->MonitorExit(object);
+  EXPECT_TRUE(env_->ExceptionCheck());
+  thrown_exception = env_->ExceptionOccurred();
+  env_->ExceptionClear();
+  EXPECT_TRUE(env_->IsInstanceOf(thrown_exception, imse_class));
+
+  // Lock of unowned monitor
+  env_->MonitorEnter(object);
+  EXPECT_FALSE(env_->ExceptionCheck());
+  // Regular unlock
+  env_->MonitorExit(object);
+  EXPECT_FALSE(env_->ExceptionCheck());
+
+  // Recursively lock a lot
+  size_t max_recursive_lock = 1024;
+  for (size_t i = 0; i < max_recursive_lock; i++) {
+    env_->MonitorEnter(object);
+    EXPECT_FALSE(env_->ExceptionCheck());
+  }
+  // Recursively unlock a lot
+  for (size_t i = 0; i < max_recursive_lock; i++) {
+    env_->MonitorExit(object);
+    EXPECT_FALSE(env_->ExceptionCheck());
+  }
+
+  // Unlock of unowned monitor
+  env_->MonitorExit(object);
+  EXPECT_TRUE(env_->ExceptionCheck());
+  thrown_exception = env_->ExceptionOccurred();
+  env_->ExceptionClear();
+  EXPECT_TRUE(env_->IsInstanceOf(thrown_exception, imse_class));
+}
+
 }  // namespace art
