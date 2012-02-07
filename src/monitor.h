@@ -89,6 +89,8 @@ class Monitor {
 
   void LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent, const char* owner_filename, uint32_t owner_line_number);
 
+  static void FailedUnlock(Object* obj, Thread* expected_owner, Thread* found_owner, Monitor* mon);
+
   void Lock(Thread* self);
   bool Unlock(Thread* thread);
 
@@ -105,13 +107,13 @@ class Monitor {
   static uint32_t lock_profiling_threshold_;
 
   // Which thread currently owns the lock?
-  Thread* owner_;
+  Thread* volatile owner_;
 
   // Owner's recursive lock depth.
   int lock_count_;
 
   // What object are we part of (for debugging).
-  Object* obj_;
+  Object* const obj_;
 
   // Threads currently waiting on this monitor.
   Thread* wait_set_;
