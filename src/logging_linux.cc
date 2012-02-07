@@ -33,10 +33,10 @@ LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int err
   data_->file = (last_slash == NULL) ? file : last_slash + 1;
 }
 
-void LogMessage::LogLine(const char* line) {
+void LogMessage::LogLine(const char* message) {
   std::cerr << "VDIWEFF"[data_->severity] << ' '
             << StringPrintf("%5d %5d", getpid(), ::art::GetTid()) << ' '
-            << data_->file << ':' << data_->line_number << "] " << line << std::endl;
+            << data_->file << ':' << data_->line_number << "] " << message << std::endl;
 }
 
 }  // namespace art
