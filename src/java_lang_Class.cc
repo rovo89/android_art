@@ -153,6 +153,9 @@ static bool IsVisibleMethod(Method* m, bool public_only) {
   if (m->IsConstructor()) {
     return false;
   }
+  if (m->IsMiranda()) {
+    return false;
+  }
   return true;
 }
 
