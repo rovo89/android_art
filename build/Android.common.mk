@@ -18,6 +18,11 @@
 ART_CACHE_DIR := /data/art-cache
 ART_CACHE_OUT := $(TARGET_OUT_DATA)/art-cache
 
+# $(1): pathname
+define art-cache-out
+$(ART_CACHE_OUT)/$(subst /,@,$(1))
+endef
+
 # directory used for gtests on device
 ART_NATIVETEST_DIR := /data/nativetest/art
 ART_NATIVETEST_OUT := $(TARGET_OUT_DATA_NATIVE_TESTS)/art

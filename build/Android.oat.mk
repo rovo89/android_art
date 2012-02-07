@@ -66,8 +66,13 @@ $(TARGET_CORE_IMG): $(TARGET_CORE_OAT)
 # The full system boot classpath
 TARGET_BOOT_JARS := $(subst :, ,$(DEXPREOPT_BOOT_JARS))
 TARGET_BOOT_DEX := $(foreach jar,$(TARGET_BOOT_JARS),$(TARGET_OUT_JAVA_LIBRARIES)/$(jar).jar)
-TARGET_BOOT_OAT := $(TARGET_OUT_JAVA_LIBRARIES)/boot.oat
-TARGET_BOOT_IMG := $(TARGET_OUT_JAVA_LIBRARIES)/boot.art
+ifeq ($(TARGET_PRODUCT),$(filter $(TARGET_PRODUCT),trygon))
+  TARGET_BOOT_OAT := $(call art-cache-out,$(DEXPREOPT_BOOT_JAR_DIR)/boot.oat)
+  TARGET_BOOT_IMG := $(call art-cache-out,$(DEXPREOPT_BOOT_JAR_DIR)/boot.art)
+else
+  TARGET_BOOT_OAT := $(TARGET_OUT_JAVA_LIBRARIES)/boot.oat
+  TARGET_BOOT_IMG := $(TARGET_OUT_JAVA_LIBRARIES)/boot.art
+endif
 
 $(TARGET_BOOT_OAT): $(TARGET_BOOT_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
