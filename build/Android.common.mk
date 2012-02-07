@@ -59,6 +59,7 @@ ifeq ($(HOST_OS),linux)
 endif
 
 art_debug_cflags := \
+	-DDYNAMIC_ANNOTATIONS_ENABLED=1 \
 	-UNDEBUG
 
 ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1

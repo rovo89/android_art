@@ -290,6 +290,10 @@ Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon)
   // a native peer!
   if (self->thin_lock_id_ != ThreadList::kMainId && !Runtime::Current()->IsCompiler()) {
     self->CreatePeer(name, as_daemon);
+  } else {
+    // These aren't necessary, but they improve diagnostics for unit tests & command-line tools.
+    self->name_->assign(name);
+    ::art::SetThreadName(name);
   }
 
   self->GetJniEnv()->locals.AssertEmpty();
@@ -643,7 +647,10 @@ Thread::State Thread::SetState(Thread::State new_state) {
      * on SMP and slightly more correct, but less convenient.
      */
     android_atomic_acquire_store(new_state, addr);
-    if (ANNOTATE_UNPROTECTED_READ(suspend_count_) != 0) {
+    ANNOTATE_IGNORE_READS_BEGIN();
+    int suspend_count = suspend_count_;
+    ANNOTATE_IGNORE_READS_END();
+    if (suspend_count != 0) {
       Runtime::Current()->GetThreadList()->FullSuspendCheck(this);
     }
   } else {
@@ -661,7 +668,10 @@ Thread::State Thread::SetState(Thread::State new_state) {
 }
 
 bool Thread::IsSuspended() {
-  return ANNOTATE_UNPROTECTED_READ(suspend_count_) != 0 && GetState() != Thread::kRunnable;
+  ANNOTATE_IGNORE_READS_BEGIN();
+  int suspend_count = suspend_count_;
+  ANNOTATE_IGNORE_READS_END();
+  return suspend_count != 0 && GetState() != Thread::kRunnable;
 }
 
 static void ReportThreadSuspendTimeout(Thread* waiting_thread) {

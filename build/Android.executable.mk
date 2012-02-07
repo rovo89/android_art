@@ -75,6 +75,11 @@ define build-art-executable
     LOCAL_SHARED_LIBRARIES += libart
   else # debug
     LOCAL_SHARED_LIBRARIES += libartd
+    ifeq ($$(art_target_or_host),target)
+      LOCAL_SHARED_LIBRARIES += libdynamic_annotations
+    else
+      LOCAL_SHARED_LIBRARIES += libdynamic_annotations-host
+    endif
   endif
 
   ifeq ($$(art_target_or_host),target)
@@ -111,4 +116,3 @@ ifeq ($(ART_BUILD_HOST_DEBUG),true)
   $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),host,debug))
   $(eval $(call build-art-executable,oatexec,$(OATEXEC_SRC_FILES),host,debug))
 endif
-

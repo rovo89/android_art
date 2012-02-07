@@ -16,6 +16,7 @@
 
 #include "utils.h"
 
+#include <dynamic_annotations.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -651,6 +652,8 @@ void Split(const std::string& s, char delim, std::vector<std::string>& result) {
 }
 
 void SetThreadName(const char* threadName) {
+  ANNOTATE_THREAD_NAME(threadName); // For tsan.
+
   int hasAt = 0;
   int hasDot = 0;
   const char* s = threadName;

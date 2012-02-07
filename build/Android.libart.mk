@@ -70,10 +70,10 @@ define build-libart
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
   ifeq ($$(art_target_or_host),target)
-    LOCAL_SHARED_LIBRARIES += libcutils libstlport libz libdl
+    LOCAL_SHARED_LIBRARIES += libcutils libstlport libz libdl libdynamic_annotations
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils
-    LOCAL_SHARED_LIBRARIES += libz-host
+    LOCAL_SHARED_LIBRARIES += libz-host libdynamic_annotations-host
     LOCAL_LDLIBS := -ldl -lpthread
     ifeq ($(HOST_OS),linux)
       LOCAL_LDLIBS += -lrt

@@ -44,6 +44,11 @@ define build-art-test
   LOCAL_SRC_FILES := $$(art_gtest_filename)
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := libartd
+  ifeq ($$(art_target_or_host),target)
+    LOCAL_SHARED_LIBRARIES += libdynamic_annotations
+  else
+    LOCAL_SHARED_LIBRARIES += libdynamic_annotations-host
+  endif
 
   # Mac OS linker doesn't understand --export-dynamic.
   ifneq ($(HOST_OS)-$$(art_target_or_host),darwin-host)
