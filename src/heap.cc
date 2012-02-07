@@ -125,15 +125,10 @@ bool GenerateImage(const std::string image_file_name) {
 
   arg_vector.push_back(strdup("--base=0x60000000"));
 
-  arg_vector.push_back(NULL);
-
-  std::string command_line;
-  for (size_t i = 0; i < arg_vector.size() - 1; i++) {
-    command_line += arg_vector[i];
-    command_line += " ";
-  }
+  std::string command_line(Join(arg_vector, ' '));
   LOG(INFO) << command_line;
 
+  arg_vector.push_back(NULL);
   char** argv = &arg_vector[0];
 
   // fork and exec dex2oat

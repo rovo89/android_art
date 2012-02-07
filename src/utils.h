@@ -256,9 +256,12 @@ static inline uint64_t MsToNs(uint64_t ns) {
   return ns * 1000 * 1000;
 }
 
-// Splits a string using the given delimiter character into a vector of
+// Splits a string using the given separator character into a vector of
 // strings. Empty strings will be omitted.
-void Split(const std::string& s, char delim, std::vector<std::string>& result);
+void Split(const std::string& s, char separator, std::vector<std::string>& result);
+
+// Joins a vector of strings into a single string, using the given separator.
+template <typename StringT> std::string Join(std::vector<StringT>& strings, char separator);
 
 // Returns the calling thread's tid. (The C libraries don't expose this.)
 pid_t GetTid();

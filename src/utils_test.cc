@@ -256,4 +256,42 @@ TEST_F(UtilsTest, Split) {
   EXPECT_EQ(expected, actual);
 }
 
+TEST_F(UtilsTest, Join) {
+  std::vector<std::string> strings;
+
+  strings.clear();
+  EXPECT_EQ("", Join(strings, ':'));
+
+  strings.clear();
+  strings.push_back("foo");
+  EXPECT_EQ("foo", Join(strings, ':'));
+
+  strings.clear();
+  strings.push_back("");
+  strings.push_back("foo");
+  EXPECT_EQ(":foo", Join(strings, ':'));
+
+  strings.clear();
+  strings.push_back("foo");
+  strings.push_back("");
+  EXPECT_EQ("foo:", Join(strings, ':'));
+
+  strings.clear();
+  strings.push_back("");
+  strings.push_back("foo");
+  strings.push_back("");
+  EXPECT_EQ(":foo:", Join(strings, ':'));
+
+  strings.clear();
+  strings.push_back("foo");
+  strings.push_back("bar");
+  EXPECT_EQ("foo:bar", Join(strings, ':'));
+
+  strings.clear();
+  strings.push_back("foo");
+  strings.push_back("bar");
+  strings.push_back("baz");
+  EXPECT_EQ("foo:bar:baz", Join(strings, ':'));
+}
+
 }  // namespace art

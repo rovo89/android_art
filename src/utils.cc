@@ -635,21 +635,40 @@ bool IsValidDescriptor(const char* s) {
   return IsValidClassName(s, kDescriptor, '/');
 }
 
-void Split(const std::string& s, char delim, std::vector<std::string>& result) {
+void Split(const std::string& s, char separator, std::vector<std::string>& result) {
   const char* p = s.data();
   const char* end = p + s.size();
   while (p != end) {
-    if (*p == delim) {
+    if (*p == separator) {
       ++p;
     } else {
       const char* start = p;
-      while (++p != end && *p != delim) {
-        // Skip to the next occurrence of the delimiter.
+      while (++p != end && *p != separator) {
+        // Skip to the next occurrence of the separator.
       }
       result.push_back(std::string(start, p - start));
     }
   }
 }
+
+template <typename StringT>
+std::string Join(std::vector<StringT>& strings, char separator) {
+  if (strings.empty()) {
+    return "";
+  }
+
+  std::string result(strings[0]);
+  for (size_t i = 1; i < strings.size(); ++i) {
+    result += separator;
+    result += strings[i];
+  }
+  return result;
+}
+
+// Explicit instantiations.
+template std::string Join<std::string>(std::vector<std::string>& strings, char separator);
+template std::string Join<const char*>(std::vector<const char*>& strings, char separator);
+template std::string Join<char*>(std::vector<char*>& strings, char separator);
 
 void SetThreadName(const char* threadName) {
   ANNOTATE_THREAD_NAME(threadName); // For tsan.
