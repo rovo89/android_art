@@ -171,7 +171,7 @@ art_throw_verification_error_from_code:
     b   artThrowVerificationErrorFromCode @ artThrowVerificationErrorFromCode(kind, ref, Thread*, SP)
 
     .global art_invoke_interface_trampoline
-    .extern artFindInterfaceMethodInCacheFromCode
+    .extern artInvokeInterfaceTrampoline
     /*
      * All generated callsites for interface invokes will load arguments as usual - except instead
      * of loading arg0/r0 with the target Method*, arg0/r0 will contain the method_idx.  This
@@ -179,10 +179,10 @@ art_throw_verification_error_from_code:
      * artFindInterfaceMethodInCacheFromCode(idx, this, method);
      * NOTE: "this" is first visable argument of the target, and so can be found in arg1/r1.
      *
-     * artFindInterfaceMethodInCacheFromCode will attempt to locate the target and return a 64-bit
+     * artInvokeInterfaceTrampoline will attempt to locate the target and return a 64-bit
      * result in r0/r1 consisting of the target Method* in r0 and method->code_ in r1.
      *
-     * If unsuccessful, artFindInterfaceMethodInCacheFromCode will return NULL/NULL. There will be
+     * If unsuccessful, artInvokeInterfaceTrampoline will return NULL/NULL. There will be
      * a pending exception in the thread and we branch to another stub to deliver it.
      *
      * On success this wrapper will restore arguments and *jump* to the target, leaving the lr
@@ -193,7 +193,49 @@ art_invoke_interface_trampoline:
     ldr    r2, [sp, #48]                          @ pass caller Method*
     mov    r3, r9                                 @ pass Thread::Current
     str    sp, [sp, #0]                           @ pass SP
-    bl     artFindInterfaceMethodInCacheFromCode  @ (method_idx, this, caller, Thread*, SP)
+    bl     artInvokeInterfaceTrampoline           @ (method_idx, this, caller, Thread*, SP)
+    mov    r12, r1                                @ save r0->code_
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    cmp    r0, #0                                 @ did we find the target?
+    bxne   r12                                    @ tail call to target if so
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_invoke_interface_trampoline_with_access_check
+    .extern artInvokeInterfaceTrampolineWithAccessCheck
+art_invoke_interface_trampoline_with_access_check:
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  @ save callee saves in case allocation triggers GC
+    ldr    r2, [sp, #48]                          @ pass caller Method*
+    mov    r3, r9                                 @ pass Thread::Current
+    str    sp, [sp, #0]                           @ pass SP
+    bl     artInvokeInterfaceTrampolineWithAccessCheck @ (method_idx, this, caller, Thread*, SP)
+    mov    r12, r1                                @ save r0->code_
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    cmp    r0, #0                                 @ did we find the target?
+    bxne   r12                                    @ tail call to target if so
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_invoke_super_trampoline_with_access_check
+    .extern artInvokeSuperTrampolineWithAccessCheck
+art_invoke_super_trampoline_with_access_check:
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  @ save callee saves in case allocation triggers GC
+    ldr    r2, [sp, #48]                          @ pass caller Method*
+    mov    r3, r9                                 @ pass Thread::Current
+    str    sp, [sp, #0]                           @ pass SP
+    bl     artInvokeSuperTrampolineWithAccessCheck @ (method_idx, this, caller, Thread*, SP)
+    mov    r12, r1                                @ save r0->code_
+    RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
+    cmp    r0, #0                                 @ did we find the target?
+    bxne   r12                                    @ tail call to target if so
+    DELIVER_PENDING_EXCEPTION
+
+    .global art_invoke_virtual_trampoline_with_access_check
+    .extern artInvokeVirtualTrampolineWithAccessCheck
+art_invoke_virtual_trampoline_with_access_check:
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  @ save callee saves in case allocation triggers GC
+    ldr    r2, [sp, #48]                          @ pass caller Method*
+    mov    r3, r9                                 @ pass Thread::Current
+    str    sp, [sp, #0]                           @ pass SP
+    bl     artInvokeVirtualTrampolineWithAccessCheck @ (method_idx, this, caller, Thread*, SP)
     mov    r12, r1                                @ save r0->code_
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     cmp    r0, #0                                 @ did we find the target?

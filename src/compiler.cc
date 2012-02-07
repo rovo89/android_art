@@ -250,20 +250,32 @@ bool Compiler::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
   return referrer_class->CanAccess(resolved_class) && resolved_class->IsInstantiable();
 }
 
+static Class* ComputeReferrerClass(CompilationUnit* cUnit) {
+  const DexFile::MethodId& referrer_method_id = cUnit->dex_file->GetMethodId(cUnit->method_idx);
+  return cUnit->class_linker->ResolveType(*cUnit->dex_file, referrer_method_id.class_idx_,
+                                          cUnit->dex_cache, cUnit->class_loader);
+}
+
+static Field* ComputeReferrerField(CompilationUnit* cUnit, uint32_t field_idx) {
+  return cUnit->class_linker->ResolveField(*cUnit->dex_file, field_idx, cUnit->dex_cache,
+                                           cUnit->class_loader, false);
+
+}
+
+static Method* ComputeReferrerMethod(CompilationUnit* cUnit, uint32_t method_idx) {
+  return cUnit->class_linker->ResolveMethod(*cUnit->dex_file, method_idx, cUnit->dex_cache,
+                                            cUnit->class_loader, true);
+}
+
 bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
                                         int& field_offset, bool& is_volatile) const {
   // Conservative defaults
   field_offset = -1;
   is_volatile = true;
   // Try to resolve field
-  Field* resolved_field =
-      cUnit->class_linker->ResolveField(*cUnit->dex_file, field_idx, cUnit->dex_cache,
-                                        cUnit->class_loader, false);
+  Field* resolved_field = ComputeReferrerField(cUnit, field_idx);
   if (resolved_field != NULL) {
-    const DexFile::MethodId& referrer_method_id = cUnit->dex_file->GetMethodId(cUnit->method_idx);
-    Class* referrer_class =
-        cUnit->class_linker->ResolveType(*cUnit->dex_file, referrer_method_id.class_idx_,
-                                         cUnit->dex_cache, cUnit->class_loader);
+    Class* referrer_class = ComputeReferrerClass(cUnit);
     // Try to resolve referring class then access check, failure to pass the
     Class* fields_class = resolved_field->GetDeclaringClass();
     if (referrer_class != NULL &&
@@ -292,14 +304,10 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
   is_referrers_class = false;
   is_volatile = true;
   // Try to resolve field
-  Field* resolved_field =
-      cUnit->class_linker->ResolveField(*cUnit->dex_file, field_idx, cUnit->dex_cache,
-                                        cUnit->class_loader, true);
+  Field* resolved_field = ComputeReferrerField(cUnit, field_idx);
   if (resolved_field != NULL) {
-    const DexFile::MethodId& referrer_method_id = cUnit->dex_file->GetMethodId(cUnit->method_idx);
-    Class* referrer_class =
-        cUnit->class_linker->ResolveType(*cUnit->dex_file, referrer_method_id.class_idx_,
-                                         cUnit->dex_cache, cUnit->class_loader);
+    DCHECK(resolved_field->IsStatic());
+    Class* referrer_class = ComputeReferrerClass(cUnit);
     if (referrer_class != NULL) {
       if (resolved_field->GetDeclaringClass() == referrer_class) {
         is_referrers_class = true;  // implies no worrying about class initialization
@@ -343,6 +351,54 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
     }
   }
   // Clean up any exception left by field/type resolution
+  Thread* thread = Thread::Current();
+  if (thread->IsExceptionPending()) {
+      thread->ClearException();
+  }
+  return false;  // Incomplete knowledge needs slow path.
+}
+
+bool Compiler::ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit,
+                                 bool is_interface, bool is_super,
+                                 int& vtable_idx) const {
+  vtable_idx = -1;
+  Method* resolved_method = ComputeReferrerMethod(cUnit, method_idx);
+  if (resolved_method != NULL) {
+    Class* referrer_class = ComputeReferrerClass(cUnit);
+    if (referrer_class != NULL) {
+      Class* methods_class = resolved_method->GetDeclaringClass();
+      if (!referrer_class->CanAccess(methods_class) ||
+          !referrer_class->CanAccessMember(methods_class,
+                                          resolved_method->GetAccessFlags())) {
+        // The referring class can't access the resolved method, this may occur as a result of a
+        // protected method being made public by implementing an interface that re-declares the
+        // method public. Resort to the dex file to determine the correct class for the access check
+        const DexFile& dex_file = cUnit->class_linker->FindDexFile(referrer_class->GetDexCache());
+        methods_class =
+            cUnit->class_linker->ResolveType(dex_file,
+                                             dex_file.GetMethodId(method_idx).class_idx_,
+                                             referrer_class);
+
+      }
+      if (referrer_class->CanAccess(methods_class) &&
+          referrer_class->CanAccessMember(methods_class,
+                                          resolved_method->GetAccessFlags())) {
+        vtable_idx = resolved_method->GetMethodIndex();
+        if (is_interface || is_super) {
+          // nothing left to do for virtual/interface dispatch
+          return true;
+        } else {
+          // ensure the vtable index will be correct to dispatch in the vtable of the super class
+          Class* super_class = methods_class->GetSuperClass();
+          if (super_class != NULL && vtable_idx <= super_class->GetVTable()->GetLength()) {
+            vtable_idx = resolved_method->GetMethodIndex();
+            return true;
+          }
+        }
+      }
+    }
+  }
+  // Clean up any exception left by method/type resolution
   Thread* thread = Thread::Current();
   if (thread->IsExceptionPending()) {
       thread->ClearException();

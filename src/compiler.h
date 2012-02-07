@@ -109,6 +109,10 @@ class Compiler {
                               int& field_offset, int& ssb_index,
                               bool& is_referrers_class, bool& is_volatile) const;
 
+  // Can we fastpath a interface, super class or virtual method call? Computes method's vtable index
+  bool ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit, bool is_interface,
+                         bool is_super, int& vtable_idx) const;
+
  private:
 
   // Checks if class specified by type_idx is one of the image_classes_

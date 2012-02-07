@@ -1015,7 +1015,7 @@ ObjectArray<T>* ObjectArray<T>::Alloc(Class* object_array_class, int32_t length)
 
 template<class T>
 T* ObjectArray<T>::Get(int32_t i) const {
-  if (!IsValidIndex(i)) {
+  if (UNLIKELY(!IsValidIndex(i))) {
     return NULL;
   }
   MemberOffset data_offset(DataOffset().Int32Value() + i * sizeof(Object*));
@@ -1523,7 +1523,7 @@ class MANAGED Class : public StaticStorageBase {
   // Given a method implemented by this class, but potentially from a
   // super class or interface, return the specific implementation
   // method for this class.
-  Method* FindVirtualMethodForInterface(Method* method, bool can_throw);
+  Method* FindVirtualMethodForInterface(Method* method);
 
   Method* FindInterfaceMethod(const StringPiece& name, const StringPiece& descriptor) const;
 
@@ -1532,7 +1532,7 @@ class MANAGED Class : public StaticStorageBase {
       return method;
     }
     if (method->GetDeclaringClass()->IsInterface()) {
-      return FindVirtualMethodForInterface(method, true);
+      return FindVirtualMethodForInterface(method);
     }
     return FindVirtualMethodForVirtual(method);
   }
@@ -1941,10 +1941,10 @@ inline size_t Array::SizeOf() const {
 
 template<class T>
 void ObjectArray<T>::Set(int32_t i, T* object) {
-  if (IsValidIndex(i)) {
+  if (LIKELY(IsValidIndex(i))) {
     if (object != NULL) {
       Class* element_class = GetClass()->GetComponentType();
-      if (!object->InstanceOf(element_class)) {
+      if (UNLIKELY(!object->InstanceOf(element_class))) {
         ThrowArrayStoreException(object);
         return;
       }
@@ -2260,6 +2260,9 @@ class MANAGED Throwable : public Object {
   void SetDetailMessage(String* new_detail_message) {
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_),
                    new_detail_message, false);
+  }
+  String* GetDetailMessage() const {
+    return GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), false);
   }
   std::string Dump() const;
 

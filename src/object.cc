@@ -909,7 +909,7 @@ void Class::SetClassLoader(const ClassLoader* new_cl) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader, false);
 }
 
-Method* Class::FindVirtualMethodForInterface(Method* method, bool can_throw) {
+Method* Class::FindVirtualMethodForInterface(Method* method) {
   Class* declaring_class = method->GetDeclaringClass();
   DCHECK(declaring_class != NULL) << PrettyClass(this);
   DCHECK(declaring_class->IsInterface()) << PrettyMethod(method);
@@ -921,11 +921,6 @@ Method* Class::FindVirtualMethodForInterface(Method* method, bool can_throw) {
     if (interface_entry->GetInterface() == declaring_class) {
       return interface_entry->GetMethodArray()->Get(method->GetMethodIndex());
     }
-  }
-  if (can_throw) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-        "Class %s does not implement interface %s",
-        PrettyDescriptor(this).c_str(), PrettyDescriptor(declaring_class).c_str());
   }
   return NULL;
 }
@@ -1346,7 +1341,7 @@ bool Throwable::IsCheckedException() const {
 std::string Throwable::Dump() const {
   std::string result(PrettyTypeOf(this));
   result += ": ";
-  String* msg = GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), false);
+  String* msg = GetDetailMessage();
   if (msg != NULL) {
     result += msg->ToModifiedUtf8();
   }

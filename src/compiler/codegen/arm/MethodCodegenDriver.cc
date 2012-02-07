@@ -351,19 +351,16 @@ STATIC void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     }
 }
 
-typedef int (*NextCallInsn)(CompilationUnit*, MIR*, DecodedInstruction*, int,
-                            ArmLIR*);
+typedef int (*NextCallInsn)(CompilationUnit*, MIR*, int, uint32_t dexIdx,
+                            uint32_t methodIdx);
 
 /*
  * Bit of a hack here - in leiu of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
 STATIC int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
-                        DecodedInstruction* dInsn, int state,
-                        ArmLIR* rollback)
+                          int state, uint32_t dexIdx, uint32_t unused)
 {
-    DCHECK(rollback == NULL);
-    uint32_t idx = dInsn->vB;
     switch(state) {
         case 0:  // Get the current Method* [sets r0]
             loadCurrMethodDirect(cUnit, r0);
@@ -375,9 +372,9 @@ STATIC int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
             break;
         case 2:  // Grab target method* and target code_
             loadWordDisp(cUnit, r0,
-                CodeAndDirectMethods::CodeOffsetInBytes(idx), rLR);
+                CodeAndDirectMethods::CodeOffsetInBytes(dexIdx), rLR);
             loadWordDisp(cUnit, r0,
-                CodeAndDirectMethods::MethodOffsetInBytes(idx), r0);
+                CodeAndDirectMethods::MethodOffsetInBytes(dexIdx), r0);
             break;
         default:
             return -1;
@@ -393,22 +390,13 @@ STATIC int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
  * r1 here rather than the standard loadArgRegs.
  */
 STATIC int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
-                        DecodedInstruction* dInsn, int state,
-                        ArmLIR* rollback)
+                         int state, uint32_t dexIdx, uint32_t methodIdx)
 {
-    DCHECK(rollback == NULL);
     RegLocation rlArg;
     /*
      * This is the fast path in which the target virtual method is
      * fully resolved at compile time.
      */
-    Method* baseMethod = cUnit->class_linker->ResolveMethod(*cUnit->dex_file,
-                                                            dInsn->vB,
-                                                            cUnit->dex_cache,
-                                                            cUnit->class_loader,
-                                                            false);
-    CHECK(baseMethod != NULL);
-    uint32_t target_idx = baseMethod->GetMethodIndex();
     switch(state) {
         case 0:  // Get "this" [set r1]
             rlArg = oatGetSrc(cUnit, mir, 0);
@@ -423,130 +411,11 @@ STATIC int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
             loadWordDisp(cUnit, rLR, Class::VTableOffset().Int32Value(), rLR);
             break;
         case 3: // Get target method [use rLR, set r0]
-            loadWordDisp(cUnit, rLR, (target_idx * 4) +
+            loadWordDisp(cUnit, rLR, (methodIdx * 4) +
                          Array::DataOffset().Int32Value(), r0);
             break;
         case 4: // Get the target compiled code address [uses r0, sets rLR]
             loadWordDisp(cUnit, r0, Method::GetCodeOffset().Int32Value(), rLR);
-            break;
-        default:
-            return -1;
-    }
-    return state + 1;
-}
-
-STATIC int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
-                           DecodedInstruction* dInsn, int state,
-                           ArmLIR* rollback)
-{
-    RegLocation rlArg;
-    ArmLIR* skipBranch;
-    ArmLIR* skipTarget;
-    /*
-     * This handles the case in which the base method is not fully
-     * resolved at compile time.  We must generate code to test
-     * for resolution a run time, bail to the slow path if not to
-     * fill in all the tables.  In the latter case, we'll restart at
-     * at the beginning of the sequence.
-     */
-    switch(state) {
-        case 0:  // Get the current Method* [sets r0]
-            loadCurrMethodDirect(cUnit, r0);
-            break;
-        case 1: // Get method->dex_cache_resolved_methods_
-            loadWordDisp(cUnit, r0,
-                Method::GetDexCacheResolvedMethodsOffset().Int32Value(), rLR);
-            break;
-        case 2: // method->dex_cache_resolved_methods_->Get(method_idx)
-            loadWordDisp(cUnit, rLR, (dInsn->vB * 4) +
-                         Array::DataOffset().Int32Value(), rLR);
-            break;
-        case 3: // Resolved?
-            skipBranch = genCmpImmBranch(cUnit, kArmCondNe, rLR, 0);
-            // Slowest path, bail to helper, rollback and retry
-            loadWordDisp(cUnit, rSELF,
-                         OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
-            loadConstant(cUnit, r1, dInsn->vB);
-            loadConstant(cUnit, r2, false);
-            callRuntimeHelper(cUnit, rLR);
-            genUnconditionalBranch(cUnit, rollback);
-            // Resume normal slow path
-            skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
-            skipTarget->defMask = ENCODE_ALL;
-            skipBranch->generic.target = (LIR*)skipTarget;
-            // Get base_method->method_index [usr rLR, set r0]
-            loadBaseDisp(cUnit, mir, rLR,
-                         Method::GetMethodIndexOffset().Int32Value(), r0,
-                         kUnsignedHalf, INVALID_SREG);
-            // Load "this" [set r1]
-            rlArg = oatGetSrc(cUnit, mir, 0);
-            loadValueDirectFixed(cUnit, rlArg, r1);
-            break;
-        case 4:
-            // Is "this" null? [use r1]
-            genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
-            // get this->clazz [use r1, set rLR]
-            loadWordDisp(cUnit, r1, Object::ClassOffset().Int32Value(), rLR);
-            break;
-        case 5:
-            // get this->klass_->vtable_ [usr rLR, set rLR]
-            loadWordDisp(cUnit, rLR, Class::VTableOffset().Int32Value(), rLR);
-            DCHECK_EQ((Array::DataOffset().Int32Value() & 0x3), 0);
-            // In load shadow fold vtable_ object header size into method_index_
-            opRegImm(cUnit, kOpAdd, r0,
-                     Array::DataOffset().Int32Value() / 4);
-            // Get target Method*
-            loadBaseIndexed(cUnit, rLR, r0, r0, 2, kWord);
-            break;
-        case 6: // Get the target compiled code address [uses r0, sets rLR]
-            loadWordDisp(cUnit, r0, Method::GetCodeOffset().Int32Value(), rLR);
-            break;
-        default:
-            return -1;
-    }
-    return state + 1;
-}
-
-STATIC int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
-                          DecodedInstruction* dInsn, int callState,
-                          NextCallInsn nextCallInsn, ArmLIR* rollback,
-                          bool skipThis)
-{
-    int nextReg = r1;
-    int nextArg = 0;
-    if (skipThis) {
-        nextReg++;
-        nextArg++;
-    }
-    for (; (nextReg <= r3) && (nextArg < mir->ssaRep->numUses); nextReg++) {
-        RegLocation rlArg = oatGetRawSrc(cUnit, mir, nextArg++);
-        rlArg = oatUpdateRawLoc(cUnit, rlArg);
-        if (rlArg.wide && (nextReg <= r2)) {
-            loadValueDirectWideFixed(cUnit, rlArg, nextReg, nextReg + 1);
-            nextReg++;
-            nextArg++;
-        } else {
-            rlArg.wide = false;
-            loadValueDirectFixed(cUnit, rlArg, nextReg);
-        }
-        callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
-    }
-    return callState;
-}
-
-// Interleave launch code for INVOKE_INTERFACE.
-STATIC int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
-                                 DecodedInstruction* dInsn, int state,
-                                 ArmLIR* rollback)
-{
-    DCHECK(rollback == NULL);
-    switch(state) {
-        case 0: // Load trampoline target
-            loadWordDisp(cUnit, rSELF,
-                         OFFSETOF_MEMBER(Thread, pInvokeInterfaceTrampoline),
-                         rLR);
-            // Load r0 with method index
-            loadConstant(cUnit, r0, dInsn->vB);
             break;
         default:
             return -1;
@@ -559,33 +428,15 @@ STATIC int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
  * for nextVCallIns.
  */
 STATIC int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
-                             DecodedInstruction* dInsn, int state,
-                             ArmLIR* rollback)
+                             int state, uint32_t dexIdx, uint32_t methodIdx)
 {
-    DCHECK(rollback == NULL);
-    RegLocation rlArg;
     /*
      * This is the fast path in which the target virtual method is
      * fully resolved at compile time.  Note also that this path assumes
      * that the check to verify that the target method index falls
      * within the size of the super's vtable has been done at compile-time.
      */
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    Method* baseMethod = class_linker->ResolveMethod(*cUnit->dex_file,
-                                                     dInsn->vB,
-                                                     cUnit->dex_cache,
-                                                     cUnit->class_loader,
-                                                     false);
-    CHECK(baseMethod != NULL);
-    Class* declaring_class = cUnit->dex_cache->GetResolvedTypes()
-        ->Get(cUnit->dex_file->GetMethodId(cUnit->method_idx).class_idx_);
-    Class* superClass = (declaring_class != NULL)
-        ? declaring_class->GetSuperClass() : NULL;
-    CHECK(superClass != NULL);
-    int32_t target_idx = baseMethod->GetMethodIndex();
-    CHECK(superClass->GetVTable()->GetLength() > target_idx);
-    Method* targetMethod = superClass->GetVTable()->Get(target_idx);
-    CHECK(targetMethod != NULL);
+    RegLocation rlArg;
     switch(state) {
         case 0: // Get current Method* [set r0]
             loadCurrMethodDirect(cUnit, r0);
@@ -606,7 +457,7 @@ STATIC int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
             loadWordDisp(cUnit, rLR, Class::VTableOffset().Int32Value(), rLR);
             break;
         case 3: // Get target method [use rLR, set r0]
-            loadWordDisp(cUnit, rLR, (target_idx * 4) +
+            loadWordDisp(cUnit, rLR, (methodIdx * 4) +
                          Array::DataOffset().Int32Value(), r0);
             break;
         case 4: // Get the target compiled code address [uses r0, sets rLR]
@@ -618,85 +469,95 @@ STATIC int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
     return state + 1;
 }
 
-/* Slow-path version of nextSuperCallInsn */
-STATIC int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
-                               DecodedInstruction* dInsn, int state,
-                               ArmLIR* rollback)
+STATIC int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir,
+                                  bool accessCheck, bool isInterface,
+                                  bool isSuper, int state, uint32_t dexIdx,
+                                  uint32_t methodIdx)
 {
-    RegLocation rlArg;
-    ArmLIR* skipBranch;
-    ArmLIR* skipTarget;
-    int tReg;
     /*
      * This handles the case in which the base method is not fully
-     * resolved at compile time.  We must generate code to test
-     * for resolution a run time, bail to the slow path if not to
-     * fill in all the tables.  In the latter case, we'll restart at
-     * at the beginning of the sequence.
+     * resolved at compile time, we bail to a runtime helper.
      */
-    switch(state) {
-        case 0:  // Get the current Method* [sets r0]
-            loadCurrMethodDirect(cUnit, r0);
-            break;
-        case 1: // Get method->dex_cache_resolved_methods_ [uses r0, set rLR]
-            loadWordDisp(cUnit, r0,
-                Method::GetDexCacheResolvedMethodsOffset().Int32Value(), rLR);
-            break;
-        case 2: // method->dex_cache_resolved_methods_->Get(meth_idx) [u/s rLR]
-            loadWordDisp(cUnit, rLR, (dInsn->vB * 4) +
-                         Array::DataOffset().Int32Value(), rLR);
-            break;
-        case 3: // Resolved?
-            skipBranch = genCmpImmBranch(cUnit, kArmCondNe, rLR, 0);
-            // Slowest path, bail to helper, rollback and retry
-            loadWordDisp(cUnit, rSELF,
-                         OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
-            loadConstant(cUnit, r1, dInsn->vB);
-            loadConstant(cUnit, r2, true);
-            callRuntimeHelper(cUnit, rLR);
-            genUnconditionalBranch(cUnit, rollback);
-            // Resume normal slow path
-            skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
-            skipTarget->defMask = ENCODE_ALL;
-            skipBranch->generic.target = (LIR*)skipTarget;
-            // Get base_method->method_index [usr rLR, set rLR]
-            loadBaseDisp(cUnit, mir, rLR,
-                         Method::GetMethodIndexOffset().Int32Value(), rLR,
-                         kUnsignedHalf, INVALID_SREG);
-            // Load "this" [set r1]
-            rlArg = oatGetSrc(cUnit, mir, 0);
-            loadValueDirectFixed(cUnit, rlArg, r1);
-            // Load curMethod->declaring_class_ [uses r0, sets r0]
-            loadWordDisp(cUnit, r0, Method::DeclaringClassOffset().Int32Value(),
-                         r0);
-            // Null this?
-            genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
-            // Get method->declaring_class_->super_class [usr r0, set r0]
-            loadWordDisp(cUnit, r0, Class::SuperClassOffset().Int32Value(), r0);
-            break;
-        case 4: // Get ...->super_class_->vtable [u/s r0]
-            loadWordDisp(cUnit, r0, Class::VTableOffset().Int32Value(), r0);
-            if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
-                // Range check, throw NSM on failure
-                tReg = oatAllocTemp(cUnit);
-                loadWordDisp(cUnit, r0, Array::LengthOffset().Int32Value(),
-                             tReg);
-                genRegRegCheck(cUnit, kArmCondCs, rLR, tReg, mir,
-                               kArmThrowNoSuchMethod);
-                oatFreeTemp(cUnit, tReg);
-            }
-            // Adjust vtable_ base past object header
-            opRegImm(cUnit, kOpAdd, r0, Array::DataOffset().Int32Value());
-            // Get target Method*
-            loadBaseIndexed(cUnit, r0, rLR, r0, 2, kWord);
-            break;
-        case 5: // Get the target compiled code address [uses r0, sets rLR]
-            loadWordDisp(cUnit, r0, Method::GetCodeOffset().Int32Value(), rLR);
-            break;
-        default:
-            return -1;
+    if (state == 0) {
+        int trampoline;
+        if (!accessCheck) {
+          DCHECK(isInterface);
+          trampoline = OFFSETOF_MEMBER(Thread, pInvokeInterfaceTrampoline);
+        } else {
+          if (isInterface) {
+            trampoline = OFFSETOF_MEMBER(Thread, pInvokeInterfaceTrampolineWithAccessCheck);
+          } else if (isSuper) {
+            trampoline = OFFSETOF_MEMBER(Thread, pInvokeSuperTrampolineWithAccessCheck);
+          } else {
+            trampoline = OFFSETOF_MEMBER(Thread, pInvokeVirtualTrampolineWithAccessCheck);
+          }
+        }
+        // Load trampoline target
+        loadWordDisp(cUnit, rSELF, trampoline, rLR);
+        // Load r0 with method index
+        loadConstant(cUnit, r0, dexIdx);
+        return 1;
     }
-    return state + 1;
+    return -1;
+}
+
+STATIC int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
+                               int state, uint32_t dexIdx, uint32_t methodIdx)
+{
+  return nextInvokeInsnSP(cUnit, mir, true, false, true, state, dexIdx,
+                          methodIdx);
+}
+
+STATIC int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
+                           int state, uint32_t dexIdx, uint32_t methodIdx)
+{
+  return nextInvokeInsnSP(cUnit, mir, true, false, false, state, dexIdx,
+                          methodIdx);
+}
+
+/*
+ * All invoke-interface calls bounce off of art_invoke_interface_trampoline,
+ * which will locate the target and continue on via a tail call.
+ */
+STATIC int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
+                                 int state, uint32_t dexIdx, uint32_t unused)
+{
+  return nextInvokeInsnSP(cUnit, mir, false, true, false, state, dexIdx, 0);
+}
+
+STATIC int nextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit,
+                                                MIR* mir, int state,
+                                                uint32_t dexIdx,
+                                                uint32_t unused)
+{
+  return nextInvokeInsnSP(cUnit, mir, true, true, false, state, dexIdx, 0);
+}
+
+STATIC int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
+                          DecodedInstruction* dInsn, int callState,
+                          NextCallInsn nextCallInsn, uint32_t dexIdx,
+                          uint32_t methodIdx, bool skipThis)
+{
+    int nextReg = r1;
+    int nextArg = 0;
+    if (skipThis) {
+        nextReg++;
+        nextArg++;
+    }
+    for (; (nextReg <= r3) && (nextArg < mir->ssaRep->numUses); nextReg++) {
+        RegLocation rlArg = oatGetRawSrc(cUnit, mir, nextArg++);
+        rlArg = oatUpdateRawLoc(cUnit, rlArg);
+        if (rlArg.wide && (nextReg <= r2)) {
+            loadValueDirectWideFixed(cUnit, rlArg, nextReg, nextReg + 1);
+            nextReg++;
+            nextArg++;
+        } else {
+            rlArg.wide = false;
+            loadValueDirectFixed(cUnit, rlArg, nextReg);
+        }
+        callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
+    }
+    return callState;
 }
 
 /*
@@ -709,8 +570,8 @@ STATIC int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
 STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                                 DecodedInstruction* dInsn, int callState,
                                 ArmLIR** pcrLabel, bool isRange,
-                                NextCallInsn nextCallInsn, ArmLIR* rollback,
-                                bool skipThis)
+                                NextCallInsn nextCallInsn, uint32_t dexIdx,
+                                uint32_t methodIdx, bool skipThis)
 {
     RegLocation rlArg;
 
@@ -718,7 +579,7 @@ STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
     if (dInsn->vA == 0)
         return callState;
 
-    callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+    callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
 
     DCHECK_LE(dInsn->vA, 5U);
     if (dInsn->vA > 3) {
@@ -739,12 +600,12 @@ STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                 reg = r3;
                 loadWordDisp(cUnit, rSP,
                              oatSRegOffset(cUnit, rlArg.sRegLow) + 4, reg);
-                callState = nextCallInsn(cUnit, mir, dInsn, callState,
-                                         rollback);
+                callState = nextCallInsn(cUnit, mir, callState, dexIdx,
+                                         methodIdx);
             }
             storeBaseDisp(cUnit, rSP, (nextUse + 1) * 4, reg, kWord);
             storeBaseDisp(cUnit, rSP, 16 /* (3+1)*4 */, reg, kWord);
-            callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+            callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
             nextUse++;
         }
         // Loop through the rest
@@ -764,8 +625,8 @@ STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                 } else {
                     loadValueDirectFixed(cUnit, rlArg, lowReg);
                 }
-                callState = nextCallInsn(cUnit, mir, dInsn, callState,
-                                         rollback);
+                callState = nextCallInsn(cUnit, mir, callState, dexIdx,
+                                         methodIdx);
             }
             int outsOffset = (nextUse + 1) * 4;
             if (rlArg.wide) {
@@ -775,12 +636,12 @@ STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                 storeWordDisp(cUnit, rSP, outsOffset, lowReg);
                 nextUse++;
             }
-            callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+            callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
         }
     }
 
     callState = loadArgRegs(cUnit, mir, dInsn, callState, nextCallInsn,
-                            rollback, skipThis);
+                            dexIdx, methodIdx, skipThis);
 
     if (pcrLabel) {
         *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
@@ -806,7 +667,8 @@ STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
 STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
                               DecodedInstruction* dInsn, int callState,
                               ArmLIR** pcrLabel, NextCallInsn nextCallInsn,
-                              ArmLIR* rollback, bool skipThis)
+                              uint32_t dexIdx, uint32_t methodIdx,
+                              bool skipThis)
 {
     int firstArg = dInsn->vC;
     int numArgs = dInsn->vA;
@@ -814,7 +676,8 @@ STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     // If we can treat it as non-range (Jumbo ops will use range form)
     if (numArgs <= 5)
         return genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pcrLabel,
-                                    true, nextCallInsn, rollback, skipThis);
+                                    true, nextCallInsn, dexIdx, methodIdx,
+                                    skipThis);
     /*
      * Make sure range list doesn't span the break between in normal
      * Dalvik vRegs and the ins.
@@ -867,25 +730,25 @@ STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     } else {
         // Use vldm/vstm pair using r3 as a temp
         int regsLeft = std::min(numArgs - 3, 16);
-        callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+        callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
         opRegRegImm(cUnit, kOpAdd, r3, rSP, startOffset);
         ArmLIR* ld = newLIR3(cUnit, kThumb2Vldms, r3, fr0, regsLeft);
         //TUNING: loosen barrier
         ld->defMask = ENCODE_ALL;
         setMemRefType(ld, true /* isLoad */, kDalvikReg);
-        callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+        callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
         opRegRegImm(cUnit, kOpAdd, r3, rSP, 4 /* Method* */ + (3 * 4));
-        callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+        callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
         ArmLIR* st = newLIR3(cUnit, kThumb2Vstms, r3, fr0, regsLeft);
         setMemRefType(st, false /* isLoad */, kDalvikReg);
         st->defMask = ENCODE_ALL;
-        callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+        callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
     }
 
     callState = loadArgRegs(cUnit, mir, dInsn, callState, nextCallInsn,
-                            rollback, skipThis);
+                            dexIdx, methodIdx, skipThis);
 
-    callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+    callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
     if (pcrLabel) {
         *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
     }
@@ -916,10 +779,10 @@ STATIC void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
     // Explicit register usage
     oatLockCallTemps(cUnit);
 
+    uint32_t dexMethodIdx = mir->dalvikInsn.vB;
     // Is this the special "Ljava/lang/Object;.<init>:()V" case?
-    if (mir->dalvikInsn.opcode == OP_INVOKE_DIRECT) {
-        int idx = mir->dalvikInsn.vB;
-        Method* target = cUnit->dex_cache->GetResolvedMethods()->Get(idx);
+    if (direct && !range) {
+        Method* target = cUnit->dex_cache->GetResolvedMethods()->Get(dexMethodIdx);
         if (target) {
             if (PrettyMethod(target) == "java.lang.Object.<init>()V") {
                 RegLocation rlArg = oatGetSrc(cUnit, mir, 0);
@@ -936,14 +799,15 @@ STATIC void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
 
     if (range) {
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, pNullCk,
-                                       nextCallInsn, NULL, false);
+                                       nextCallInsn, dexMethodIdx, 0, false);
     } else {
         callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pNullCk,
-                                         false, nextCallInsn, NULL, false);
+                                         false, nextCallInsn, dexMethodIdx,
+                                         0, false);
     }
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
-        callState = nextCallInsn(cUnit, mir, dInsn, callState, NULL);
+        callState = nextCallInsn(cUnit, mir, callState, dexMethodIdx, 0);
     }
     if (DISPLAY_MISSING_TARGETS) {
         genShowTarget(cUnit);
@@ -952,164 +816,44 @@ STATIC void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
     oatClobberCalleeSave(cUnit);
 }
 
-/*
- * All invoke-interface calls bounce off of art_invoke_interface_trampoline,
- * which will locate the target and continue on via a tail call.
- */
-STATIC void genInvokeInterface(CompilationUnit* cUnit, MIR* mir)
+STATIC void genInvoke(CompilationUnit* cUnit, MIR* mir, bool isInterface,
+                      bool isSuper, bool isRange)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
-    ArmLIR* nullCk;
-    oatFlushAllRegs(cUnit);    /* Everything to home location */
-
-    // Explicit register usage
-    oatLockCallTemps(cUnit);
-    /* Note: must call nextInterfaceCallInsn() prior to 1st argument load */
-    callState = nextInterfaceCallInsn(cUnit, mir, dInsn, callState, NULL);
-    if (mir->dalvikInsn.opcode == OP_INVOKE_INTERFACE)
-        callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, &nullCk,
-                                         false, nextInterfaceCallInsn, NULL,
-                                         false);
-    else
-        callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, &nullCk,
-                                       nextInterfaceCallInsn, NULL, false);
-    // Finish up any of the call sequence not interleaved in arg loading
-    while (callState >= 0) {
-        callState = nextInterfaceCallInsn(cUnit, mir, dInsn, callState, NULL);
-    }
-    if (DISPLAY_MISSING_TARGETS) {
-        genShowTarget(cUnit);
-    }
-    opReg(cUnit, kOpBlx, rLR);
-    oatClobberCalleeSave(cUnit);
-}
-
-STATIC void genInvokeSuper(CompilationUnit* cUnit, MIR* mir)
-{
-    DecodedInstruction* dInsn = &mir->dalvikInsn;
-    int callState = 0;
-    ArmLIR* rollback;
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    Method* baseMethod = class_linker->ResolveMethod(*cUnit->dex_file,
-                                                     dInsn->vB,
-                                                     cUnit->dex_cache,
-                                                     cUnit->class_loader,
-                                                     false);
-    NextCallInsn nextCallInsn;
-    bool fastPath = true;
-    oatFlushAllRegs(cUnit);    /* Everything to home location */
-
-    // Explicit register usage
-    oatLockCallTemps(cUnit);
-
-    // For testing, force call to artResolveMethodFromCode & ignore result
-    if (EXERCISE_RESOLVE_METHOD) {
-        loadCurrMethodDirect(cUnit, r0);
-        loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
-        loadConstant(cUnit, r1, dInsn->vB);
-        loadConstant(cUnit, r2, true);
-        callRuntimeHelper(cUnit, rLR);
-    }
-
-    if (SLOW_INVOKE_PATH || baseMethod == NULL) {
-        Thread* thread = Thread::Current();
-        if (thread->IsExceptionPending()) {  // clear any exception left by resolve method
-            thread->ClearException();
-        }
-        fastPath = false;
-    } else {
-        Class* declaring_class = cUnit->dex_cache->GetResolvedTypes()
-            ->Get(cUnit->dex_file->GetMethodId(cUnit->method_idx).class_idx_);
-        Class* superClass = (declaring_class != NULL)
-            ? declaring_class->GetSuperClass() : NULL;
-        if (superClass == NULL) {
-            fastPath = false;
-        } else {
-            int32_t target_idx = baseMethod->GetMethodIndex();
-            if (superClass->GetVTable()->GetLength() <= target_idx) {
-                fastPath = false;
-            } else {
-                fastPath = (superClass->GetVTable()->Get(target_idx) != NULL);
-            }
-        }
-    }
-    if (fastPath) {
-        nextCallInsn = nextSuperCallInsn;
-        rollback = NULL;
-    } else {
-        nextCallInsn = nextSuperCallInsnSP;
-        rollback = newLIR0(cUnit, kArmPseudoTargetLabel);
-        rollback->defMask = -1;
-    }
-    if (mir->dalvikInsn.opcode == OP_INVOKE_SUPER)
-        callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, NULL,
-                                         false, nextCallInsn, rollback, true);
-    else
-        callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, NULL,
-                                       nextCallInsn, rollback, true);
-    // Finish up any of the call sequence not interleaved in arg loading
-    while (callState >= 0) {
-        callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
-    }
-    if (DISPLAY_MISSING_TARGETS) {
-        genShowTarget(cUnit);
-    }
-    opReg(cUnit, kOpBlx, rLR);
-    oatClobberCalleeSave(cUnit);
-}
-
-STATIC void genInvokeVirtual(CompilationUnit* cUnit, MIR* mir)
-{
-    DecodedInstruction* dInsn = &mir->dalvikInsn;
-    int callState = 0;
-    ArmLIR* rollback;
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    Method* method = class_linker->ResolveMethod(*cUnit->dex_file,
-                                                 dInsn->vB,
-                                                 cUnit->dex_cache,
-                                                 cUnit->class_loader,
-                                                 false);
     NextCallInsn nextCallInsn;
     oatFlushAllRegs(cUnit);    /* Everything to home location */
     // Explicit register usage
     oatLockCallTemps(cUnit);
 
-    // For testing, force call to artResolveMethodFromCode & ignore result
-    if (EXERCISE_RESOLVE_METHOD) {
-        loadCurrMethodDirect(cUnit, r0);
-        loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pResolveMethodFromCode), rLR);
-        loadConstant(cUnit, r1, dInsn->vB);
-        loadConstant(cUnit, r2, false);
-        callRuntimeHelper(cUnit, rLR);
-    }
-
-    if (SLOW_INVOKE_PATH || method == NULL) {
-        Thread* thread = Thread::Current();
-        if (thread->IsExceptionPending()) {  // clear any exception left by resolve method
-            thread->ClearException();
-        }
-        // Slow path
-        nextCallInsn = nextVCallInsnSP;
-        // If we need a slow-path callout, we'll restart here
-        rollback = newLIR0(cUnit, kArmPseudoTargetLabel);
-        rollback->defMask = -1;
+    uint32_t dexMethodIdx = dInsn->vB;
+    int vtableIdx;
+    bool fastPath =
+        cUnit->compiler->ComputeInvokeInfo(dexMethodIdx, cUnit,
+                                           isInterface, isSuper, vtableIdx)
+        && !SLOW_INVOKE_PATH;
+    if (isInterface) {
+      nextCallInsn = fastPath ? nextInterfaceCallInsn
+                              : nextInterfaceCallInsnWithAccessCheck;
+    } else if (isSuper) {
+      nextCallInsn = fastPath ? nextSuperCallInsn : nextSuperCallInsnSP;
     } else {
-        // Fast path
-        nextCallInsn = nextVCallInsn;
-        rollback = NULL;
+      nextCallInsn = fastPath ? nextVCallInsn : nextVCallInsnSP;
     }
-    if (mir->dalvikInsn.opcode == OP_INVOKE_VIRTUAL)
+    bool skipThis = fastPath && !isInterface;
+    if (!isRange) {
         callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, NULL,
-                                         false, nextCallInsn, rollback, true);
-    else
+                                         false, nextCallInsn, dexMethodIdx,
+                                         vtableIdx, skipThis);
+    } else {
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, NULL,
-                                       nextCallInsn, rollback, true);
+                                       nextCallInsn, dexMethodIdx, vtableIdx,
+                                       skipThis);
+    }
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
-        callState = nextCallInsn(cUnit, mir, dInsn, callState, rollback);
+        callState = nextCallInsn(cUnit, mir, callState, dexMethodIdx,
+                                 vtableIdx);
     }
     if (DISPLAY_MISSING_TARGETS) {
         genShowTarget(cUnit);
@@ -1586,18 +1330,30 @@ STATIC bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             break;
 
         case OP_INVOKE_VIRTUAL:
+            genInvoke(cUnit, mir, false /*interface*/, false /*super*/,
+                      false /*range*/);
+            break;
         case OP_INVOKE_VIRTUAL_RANGE:
-            genInvokeVirtual(cUnit, mir);
+            genInvoke(cUnit, mir, false /*interface*/, false /*super*/,
+                      true /*range*/);
             break;
 
         case OP_INVOKE_SUPER:
+            genInvoke(cUnit, mir, false /*interface*/, true /*super*/,
+                      false /*range*/);
+            break;
         case OP_INVOKE_SUPER_RANGE:
-            genInvokeSuper(cUnit, mir);
+            genInvoke(cUnit, mir, false /*interface*/, true /*super*/,
+                      true /*range*/);
             break;
 
         case OP_INVOKE_INTERFACE:
+            genInvoke(cUnit, mir, true /*interface*/, false /*super*/,
+                      false /*range*/);
+            break;
         case OP_INVOKE_INTERFACE_RANGE:
-            genInvokeInterface(cUnit, mir);
+            genInvoke(cUnit, mir, true /*interface*/, false /*super*/,
+                      true /*range*/);
             break;
 
         case OP_NEG_INT:

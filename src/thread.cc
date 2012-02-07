@@ -116,6 +116,9 @@ void Thread::InitFunctionPointers() {
   pInitializeTypeFromCode = art_initialize_type_from_code;
   pInitializeTypeAndVerifyAccessFromCode = art_initialize_type_and_verify_access_from_code;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
+  pInvokeInterfaceTrampolineWithAccessCheck = art_invoke_interface_trampoline_with_access_check;
+  pInvokeSuperTrampolineWithAccessCheck = art_invoke_super_trampoline_with_access_check;
+  pInvokeVirtualTrampolineWithAccessCheck = art_invoke_virtual_trampoline_with_access_check;
   pLockObjectFromCode = art_lock_object_from_code;
   pObjectInit = art_object_init_from_code;
   pResolveStringFromCode = art_resolve_string_from_code;
@@ -1451,7 +1454,10 @@ void Thread::DeliverException() {
   // resolution.
   ClearException();
   if (kDebugExceptionDelivery) {
-    DumpStack(LOG(INFO) << "Delivering exception: " << PrettyTypeOf(exception) << std::endl);
+    String* msg = exception->GetDetailMessage();
+    std::string str_msg(msg != NULL ? msg->ToModifiedUtf8() : "");
+    DumpStack(LOG(INFO) << "Delivering exception: " << PrettyTypeOf(exception)
+                        << ": " << str_msg << std::endl);
   }
 
   Context* long_jump_context = GetLongJumpContext();

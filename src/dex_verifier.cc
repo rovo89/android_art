@@ -3172,7 +3172,7 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
   if (is_super) {
     DCHECK(method_type == METHOD_VIRTUAL);
     Class* super = method_->GetDeclaringClass()->GetSuperClass();
-    if (super == NULL || res_method->GetMethodIndex() > super->GetVTable()->GetLength()) {
+    if (super == NULL || res_method->GetMethodIndex() >= super->GetVTable()->GetLength()) {
       if (super == NULL) {  // Only Object has no super class
         Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from " << PrettyMethod(method_)
                                      << " to super " << PrettyMethod(res_method);
