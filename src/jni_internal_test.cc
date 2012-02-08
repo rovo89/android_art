@@ -1505,6 +1505,14 @@ TEST_F(JniInternalTest, MonitorEnterExit) {
   thrown_exception = env_->ExceptionOccurred();
   env_->ExceptionClear();
   EXPECT_TRUE(env_->IsInstanceOf(thrown_exception, imse_class));
+
+  // It's an error to call MonitorEnter or MonitorExit on NULL.
+  vm_->check_jni_abort_hook = TestCheckJniAbortHook;
+  env_->MonitorEnter(NULL);
+  EXPECT_TRUE(gCheckJniAbortMessage.find("in call to MonitorEnter") != std::string::npos);
+  env_->MonitorExit(NULL);
+  EXPECT_TRUE(gCheckJniAbortMessage.find("in call to MonitorExit") != std::string::npos);
+  vm_->check_jni_abort_hook = NULL;
 }
 
 }  // namespace art

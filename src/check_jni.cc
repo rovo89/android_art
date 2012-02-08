@@ -568,6 +568,83 @@ class ScopedCheck {
     }
   }
 
+  enum InstanceKind {
+    kClass,
+        kDirectByteBuffer,
+        kObject,
+        kString,
+        kThrowable,
+  };
+
+  /*
+   * Verify that "jobj" is a valid non-NULL object reference, and points to
+   * an instance of expectedClass.
+   *
+   * Because we're looking at an object on the GC heap, we have to switch
+   * to "running" mode before doing the checks.
+   */
+  bool CheckInstance(InstanceKind kind, jobject java_object) {
+    const char* what = NULL;
+    switch (kind) {
+    case kClass:
+      what = "jclass";
+      break;
+    case kDirectByteBuffer:
+      what = "direct ByteBuffer";
+      break;
+    case kObject:
+      what = "jobject";
+      break;
+    case kString:
+      what = "jstring";
+      break;
+    case kThrowable:
+      what = "jthrowable";
+      break;
+    default:
+      CHECK(false) << static_cast<int>(kind);
+    }
+
+    if (java_object == NULL) {
+      LOG(ERROR) << "JNI ERROR: " << function_name_ << " received null " << what;
+      JniAbort();
+      return false;
+    }
+
+    ScopedJniThreadState ts(env_);
+    Object* obj = Decode<Object*>(ts, java_object);
+    if (!Heap::IsHeapAddress(obj)) {
+      LOG(ERROR) << "JNI ERROR: " << what << " is an invalid  " << GetIndirectRefKind(java_object) << ": " << java_object;
+      JniAbort();
+      return false;
+    }
+
+    bool okay = true;
+    switch (kind) {
+    case kClass:
+      okay = obj->IsClass();
+      break;
+    case kDirectByteBuffer:
+      UNIMPLEMENTED(FATAL);
+      break;
+    case kString:
+      okay = obj->GetClass()->IsStringClass();
+      break;
+    case kThrowable:
+      okay = obj->GetClass()->IsThrowableClass();
+      break;
+    case kObject:
+      break;
+    }
+    if (!okay) {
+      LOG(ERROR) << "JNI ERROR: " << what << " has wrong type: " << PrettyTypeOf(obj);
+      JniAbort();
+      return false;
+    }
+
+    return true;
+  }
+
  private:
   void Init(JNIEnv* env, JavaVM* vm, int flags, const char* functionName, bool hasMethod) {
     env_ = reinterpret_cast<JNIEnvExt*>(env);
@@ -765,74 +842,6 @@ class ScopedCheck {
                  << "           string: '" << bytes << "'";
       JniAbort();
       return;
-    }
-  }
-
-  enum InstanceKind {
-    kClass,
-    kDirectByteBuffer,
-    kString,
-    kThrowable,
-  };
-
-  /*
-   * Verify that "jobj" is a valid non-NULL object reference, and points to
-   * an instance of expectedClass.
-   *
-   * Because we're looking at an object on the GC heap, we have to switch
-   * to "running" mode before doing the checks.
-   */
-  void CheckInstance(InstanceKind kind, jobject java_object) {
-    const char* what = NULL;
-    switch (kind) {
-    case kClass:
-      what = "jclass";
-      break;
-    case kDirectByteBuffer:
-      what = "direct ByteBuffer";
-      break;
-    case kString:
-      what = "jstring";
-      break;
-    case kThrowable:
-      what = "jthrowable";
-      break;
-    default:
-      CHECK(false) << static_cast<int>(kind);
-    }
-
-    if (java_object == NULL) {
-      LOG(ERROR) << "JNI ERROR: received null " << what;
-      JniAbort();
-      return;
-    }
-
-    ScopedJniThreadState ts(env_);
-    Object* obj = Decode<Object*>(ts, java_object);
-    if (!Heap::IsHeapAddress(obj)) {
-      LOG(ERROR) << "JNI ERROR: " << what << " is an invalid  " << GetIndirectRefKind(java_object) << ": " << java_object;
-      JniAbort();
-      return;
-    }
-
-    bool okay = true;
-    switch (kind) {
-    case kClass:
-      okay = obj->IsClass();
-      break;
-    case kDirectByteBuffer:
-      // TODO
-      break;
-    case kString:
-      okay = obj->GetClass()->IsStringClass();
-      break;
-    case kThrowable:
-      okay = obj->GetClass()->IsThrowableClass();
-      break;
-    }
-    if (!okay) {
-      LOG(ERROR) << "JNI ERROR: " << what << " has wrong type: " << PrettyTypeOf(obj);
-      JniAbort();
     }
   }
 
@@ -1680,11 +1689,17 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
 
   static jint MonitorEnter(JNIEnv* env, jobject obj) {
     CHECK_JNI_ENTRY(kFlag_Default, "EL", env, obj);
+    if (!sc.CheckInstance(ScopedCheck::kObject, obj)) {
+      return JNI_ERR; // Only for jni_internal_test. Real code will have aborted already.
+    }
     return CHECK_JNI_EXIT("I", baseEnv(env)->MonitorEnter(env, obj));
   }
 
   static jint MonitorExit(JNIEnv* env, jobject obj) {
     CHECK_JNI_ENTRY(kFlag_Default | kFlag_ExcepOkay, "EL", env, obj);
+    if (!sc.CheckInstance(ScopedCheck::kObject, obj)) {
+      return JNI_ERR; // Only for jni_internal_test. Real code will have aborted already.
+    }
     return CHECK_JNI_EXIT("I", baseEnv(env)->MonitorExit(env, obj));
   }
 
