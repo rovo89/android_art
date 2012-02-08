@@ -63,6 +63,11 @@ void JniAbort(const char* jni_function_name) {
  * ===========================================================================
  */
 
+static bool IsSirtLocalRef(JNIEnv* env, jobject localRef) {
+  return GetIndirectRefKind(localRef) == kSirtOrInvalid &&
+      reinterpret_cast<JNIEnvExt*>(env)->self->SirtContains(localRef);
+}
+
 template<typename T>
 T Decode(ScopedJniThreadState& ts, jobject obj) {
   return reinterpret_cast<T>(ts.Self()->DecodeJObject(obj));
@@ -1272,7 +1277,7 @@ class CheckJNI {
 
   static void DeleteLocalRef(JNIEnv* env, jobject localRef) {
     CHECK_JNI_ENTRY(kFlag_Default | kFlag_ExcepOkay, "EL", env, localRef);
-    if (localRef != NULL && GetIndirectRefKind(localRef) != kLocal) {
+    if (localRef != NULL && GetIndirectRefKind(localRef) != kLocal && !IsSirtLocalRef(env, localRef)) {
       LOG(ERROR) << "JNI ERROR: DeleteLocalRef on " << GetIndirectRefKind(localRef) << ": " << localRef;
       JniAbort(__FUNCTION__);
     } else {
