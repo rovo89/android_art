@@ -81,7 +81,6 @@ const char* image_roots_descriptions_[] = {
 class OatDump {
  public:
   static void Dump(const std::string& oat_filename,
-                   const std::string& host_prefix,
                    std::ostream& os,
                    const OatFile& oat_file) {
     const OatHeader& oat_header = oat_file.GetOatHeader();
@@ -110,26 +109,19 @@ class OatDump {
     for (size_t i = 0; i < oat_dex_files.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
       CHECK(oat_dex_file != NULL);
-      DumpOatDexFile(host_prefix, os, oat_file, *oat_dex_file);
+      DumpOatDexFile(os, oat_file, *oat_dex_file);
     }
   }
 
  private:
-  static void DumpOatDexFile(const std::string& host_prefix,
-                             std::ostream& os,
+  static void DumpOatDexFile(std::ostream& os,
                              const OatFile& oat_file,
                              const OatFile::OatDexFile& oat_dex_file) {
     os << "OAT DEX FILE:\n";
-    std::string dex_file_location(oat_dex_file.GetDexFileLocation());
-    os << "location: " << dex_file_location;
-    if (!host_prefix.empty()) {
-      dex_file_location = host_prefix + dex_file_location;
-      os << " (" << dex_file_location << ")";
-    }
-    os << "\n";
+    os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
     os << StringPrintf("checksum: %08x\n", oat_dex_file.GetDexFileLocationChecksum());
-    const DexFile* dex_file = DexFile::Open(dex_file_location, "");
-    if (dex_file == NULL) {
+    UniquePtr<const DexFile> dex_file(oat_dex_file.OpenDexFile());
+    if (dex_file.get() == NULL) {
       os << "NOT FOUND\n\n";
       return;
     }
@@ -140,7 +132,7 @@ class OatDump {
       CHECK(oat_class.get() != NULL);
       os << StringPrintf("%zd: %s (type_idx=%d) (", class_def_index, descriptor, class_def.class_idx_)
          << oat_class->GetStatus() << ")\n";
-      DumpOatClass(os, oat_file, *oat_class.get(), *dex_file, class_def);
+      DumpOatClass(os, oat_file, *oat_class.get(), *(dex_file.get()), class_def);
     }
 
     os << std::flush;
@@ -291,7 +283,7 @@ class ImageDump {
     os << "\n";
     os << std::flush;
 
-    OatDump::Dump(oat_location, host_prefix, os, *oat_file);
+    OatDump::Dump(oat_location, os, *oat_file);
   }
 
  private:
@@ -561,12 +553,12 @@ int oatdump(int argc, char** argv) {
   }
 
   if (oat_filename != NULL) {
-    const OatFile* oat_file = OatFile::Open(oat_filename, "", NULL);
+    const OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, NULL);
     if (oat_file == NULL) {
       fprintf(stderr, "Failed to open oat file from %s\n", oat_filename);
       return EXIT_FAILURE;
     }
-    OatDump::Dump(oat_filename, host_prefix, *os, *oat_file);
+    OatDump::Dump(oat_filename, *os, *oat_file);
     return EXIT_SUCCESS;
   }
 

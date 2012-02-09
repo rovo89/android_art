@@ -60,8 +60,9 @@ class Runtime {
     // returns null if problem parsing and ignore_unrecognized is false
     static ParsedOptions* Create(const Options& options, bool ignore_unrecognized);
 
-    std::string boot_class_path_;
-    std::string class_path_;
+    const std::vector<const DexFile*>* boot_class_path_;
+    std::string boot_class_path_string_;
+    std::string class_path_string_;
     std::string host_prefix_;
     std::string image_;
     bool check_jni_;
@@ -131,16 +132,16 @@ class Runtime {
 
   ~Runtime();
 
-  const std::string& GetBootClassPath() const {
-    return boot_class_path_;
+  const std::string& GetBootClassPathString() const {
+    return boot_class_path_string_;
+  }
+
+  const std::string& GetClassPathString() const {
+    return class_path_string_;
   }
 
   ClassLinker* GetClassLinker() const {
     return class_linker_;
-  }
-
-  const std::string& GetClassPath() const {
-    return class_path_;
   }
 
   size_t GetDefaultStackSize() const {
@@ -255,8 +256,8 @@ class Runtime {
   // files contain the expected target path.
   std::string host_prefix_;
 
-  std::string boot_class_path_;
-  std::string class_path_;
+  std::string boot_class_path_string_;
+  std::string class_path_string_;
   std::vector<std::string> properties_;
 
   // The default stack size for managed threads created by the runtime.

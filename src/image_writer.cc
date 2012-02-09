@@ -41,11 +41,11 @@ namespace art {
 
 std::map<const Object*, size_t> ImageWriter::offsets_;
 
-bool ImageWriter::Write(const char* image_filename,
+bool ImageWriter::Write(const std::string& image_filename,
                         uintptr_t image_begin,
                         const std::string& oat_filename,
-                        const std::string& strip_location_prefix) {
-  CHECK(image_filename != NULL);
+                        const std::string& oat_location) {
+  CHECK(!image_filename.empty());
 
   CHECK_NE(image_begin, 0U);
   image_begin_ = reinterpret_cast<byte*>(image_begin);
@@ -65,7 +65,7 @@ bool ImageWriter::Write(const char* image_filename,
     }
   }
 
-  oat_file_.reset(OatFile::Open(oat_filename, strip_location_prefix, NULL));
+  oat_file_.reset(OatFile::Open(oat_filename, oat_location, NULL));
   if (oat_file_.get() == NULL) {
     LOG(ERROR) << "Failed to open oat file " << oat_filename;
     return false;
@@ -85,7 +85,7 @@ bool ImageWriter::Write(const char* image_filename,
   CalculateNewObjectOffsets();
   CopyAndFixupObjects();
 
-  UniquePtr<File> file(OS::OpenFile(image_filename, true));
+  UniquePtr<File> file(OS::OpenFile(image_filename.c_str(), true));
   if (file.get() == NULL) {
     LOG(ERROR) << "Failed to open image file " << image_filename;
     return false;

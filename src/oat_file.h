@@ -36,7 +36,7 @@ class OatFile {
   // Open an oat file. Returns NULL on failure.  Requested base can
   // optionally be used to request where the file should be loaded.
   static OatFile* Open(const std::string& filename,
-                       const std::string& strip_location_prefix,
+                       const std::string& location,
                        byte* requested_base);
 
   // Open an oat file from an already opened File with the given location.

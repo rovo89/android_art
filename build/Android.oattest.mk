@@ -38,13 +38,14 @@ $(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test
 ########################################################################
 
 # $(1): input jar or apk filename
-# $(2): output oat filename
-# $(3): boot image
+# $(2): input jar or apk target location
+# $(3): output oat filename
+# $(4): boot image
 define build-art-oat
-$(2): $(1) $(3) $(DEX2OAT_DEPENDENCY)
+$(3): $(1) $(4) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $$@ ($$?)"
 	@mkdir -p $$(dir $$@)
-	$(hide) $(DEX2OAT) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(3) $(addprefix --dex-file=,$$<) --oat-file=$$@ --host-prefix=$(PRODUCT_OUT)
+	$(hide) $(DEX2OAT) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(4) --dex-file=$(1) --dex-location=$(2) --oat-file=$$@ --host-prefix=$(PRODUCT_OUT)
 endef
 
 ########################################################################
@@ -52,10 +53,12 @@ ART_TEST_OAT_FILES :=
 
 # $(1): directory
 define build-art-test-oat
-  $(call build-art-oat,$(ART_TEST_OUT)/oat-test-dex-$(1).jar,$(ART_TEST_OUT)/oat-test-dex-$(1).jar.oat,$(TARGET_CORE_IMG))
+  $(call build-art-oat,$(call intermediates-dir-for,JAVA_LIBRARIES,oat-test-dex-$(dir),,COMMON)/javalib.jar,$(ART_TEST_DIR)/oat-test-dex-$(1).jar,$(ART_TEST_OUT)/oat-test-dex-$(1).jar.oat,$(TARGET_CORE_IMG_OUT))
   ART_TEST_OAT_FILES += $(ART_TEST_OUT)/oat-test-dex-$(1).jar.oat
 endef
-$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-oat,$(dir))))
+ifneq (user,$(TARGET_BUILD_VARIANT))
+  $(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-oat,$(dir))))
+endif
 
 ########################################################################
 

@@ -32,19 +32,14 @@ std::string OatFile::DexFilenameToOatFilename(const std::string& location) {
 }
 
 OatFile* OatFile::Open(const std::string& filename,
-                       const std::string& strip_location_prefix,
+                       const std::string& location,
                        byte* requested_base) {
-  StringPiece location(filename);
-  if (!location.starts_with(strip_location_prefix)) {
-    LOG(ERROR) << filename << " does not start with " << strip_location_prefix;
-    return NULL;
-  }
-  location.remove_prefix(strip_location_prefix.size());
+  CHECK(!location.empty()) << filename;
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), false));
   if (file.get() == NULL) {
     return false;
   }
-  return Open(*file.get(), location.ToString(), requested_base);
+  return Open(*file.get(), location, requested_base);
 }
 
 OatFile* OatFile::Open(File& file,
@@ -58,7 +53,9 @@ OatFile* OatFile::Open(File& file,
   return oat_file.release();
 }
 
-OatFile::OatFile(const std::string& filename) : location_(filename) {}
+OatFile::OatFile(const std::string& location) : location_(location) {
+  CHECK(!location_.empty());
+}
 
 OatFile::~OatFile() {
   STLDeleteValues(&oat_dex_files_);

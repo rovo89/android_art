@@ -109,11 +109,11 @@ const char* DefaultToDot(const std::string& class_path) {
 }
 
 jstring VMRuntime_bootClassPath(JNIEnv* env, jobject) {
-  return env->NewStringUTF(DefaultToDot(Runtime::Current()->GetBootClassPath()));
+  return env->NewStringUTF(DefaultToDot(Runtime::Current()->GetBootClassPathString()));
 }
 
 jstring VMRuntime_classPath(JNIEnv* env, jobject) {
-  return env->NewStringUTF(DefaultToDot(Runtime::Current()->GetClassPath()));
+  return env->NewStringUTF(DefaultToDot(Runtime::Current()->GetClassPathString()));
 }
 
 jstring VMRuntime_vmVersion(JNIEnv* env, jobject) {

@@ -129,7 +129,7 @@ endef
 ART_CACHE_OATS :=
 # $(1): name
 define build-art-cache-oat
-  $(call build-art-oat,$(PRODUCT_OUT)/$(1),$(call art-cache-oat,$(1)),$(TARGET_BOOT_IMG))
+  $(call build-art-oat,$(PRODUCT_OUT)/$(1),/$(1),$(call art-cache-oat,$(1)),$(TARGET_BOOT_IMG))
   ART_CACHE_OATS += $(call art-cache-oat,$(1))
 endef
 
@@ -144,7 +144,7 @@ $(foreach file,\
   $(eval $(call build-art-cache-oat,$(subst $(PRODUCT_OUT)/,,$(file)))))
 
 .PHONY: oat-target-sync
-oat-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT) $(ART_CACHE_OATS)
+oat-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT_OUT) $(ART_CACHE_OATS)
 	adb remount
 	adb sync
 
@@ -155,17 +155,17 @@ oat-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT) $(ART_CACHE_OATS)
 dump-oat: dump-oat-core dump-oat-boot dump-oat-Calculator
 
 .PHONY: dump-oat-core
-dump-oat-core: $(TARGET_CORE_OAT) $(OATDUMP)
-	$(OATDUMP) --image=$(TARGET_CORE_IMG) --host-prefix=$(PRODUCT_OUT) --output=/tmp/core.oatdump.txt
+dump-oat-core: $(TARGET_CORE_OAT_OUT) $(OATDUMP)
+	$(OATDUMP) --image=$(TARGET_CORE_IMG_OUT) --host-prefix=$(PRODUCT_OUT) --output=/tmp/core.oatdump.txt
 	@echo Output in /tmp/core.oatdump.txt
 
 .PHONY: dump-oat-boot
-dump-oat-boot: $(TARGET_BOOT_OAT) $(OATDUMP)
-	$(OATDUMP) --image=$(TARGET_BOOT_IMG) --host-prefix=$(PRODUCT_OUT) --output=/tmp/boot.oatdump.txt
+dump-oat-boot: $(TARGET_BOOT_OAT_OUT) $(OATDUMP)
+	$(OATDUMP) --image=$(TARGET_BOOT_IMG_OUT) --host-prefix=$(PRODUCT_OUT) --output=/tmp/boot.oatdump.txt
 	@echo Output in /tmp/boot.oatdump.txt
 
 .PHONY: dump-oat-Calculator
-dump-oat-Calculator: $(call art-cache-oat,system/app/Calculator.apk) $(TARGET_BOOT_OAT) $(OATDUMP)
+dump-oat-Calculator: $(call art-cache-oat,system/app/Calculator.apk) $(TARGET_BOOT_OAT_OUT) $(OATDUMP)
 	$(OATDUMP) --oat-file=$< --boot-image=$(TARGET_BOOT_IMG) --host-prefix=$(PRODUCT_OUT) --output=/tmp/Calculator.oatdump.txt
 	@echo Output in /tmp/Calculator.oatdump.txt
 
@@ -176,14 +176,26 @@ dump-oat-Calculator: $(call art-cache-oat,system/app/Calculator.apk) $(TARGET_BO
 
 .PHONY: clean-oat
 clean-oat:
+	rm -f $(ART_NATIVETEST_OUT)/*.oat
+	rm -f $(ART_NATIVETEST_OUT)/*.art
 	rm -f $(ART_TEST_OUT)/*.oat
 	rm -f $(ART_TEST_OUT)/*.art
 	rm -f $(ART_CACHE_OUT)/*.oat
 	rm -f $(ART_CACHE_OUT)/*.art
+	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.oat
+	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.art
+	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.oat
+	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.art
+	rm -f $(TARGET_OUT_APPS)/*.oat
+	adb shell rm $(ART_NATIVETEST_DIR)/*.oat
+	adb shell rm $(ART_NATIVETEST_DIR)/*.art
 	adb shell rm $(ART_TEST_DIR)/*.oat
 	adb shell rm $(ART_TEST_DIR)/*.art
 	adb shell rm $(ART_CACHE_DIR)/*.oat
 	adb shell rm $(ART_CACHE_DIR)/*.art
+	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.oat
+	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.art
+	adb shell rm system/app/*.oat
 
 ########################################################################
 # cpplint target

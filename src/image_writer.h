@@ -43,10 +43,10 @@ class ImageWriter {
 
   ~ImageWriter() {}
 
-  bool Write(const char* image_filename,
+  bool Write(const std::string& image_filename,
              uintptr_t image_begin,
              const std::string& oat_filename,
-             const std::string& strip_location_prefix);
+             const std::string& oat_location);
  private:
 
   bool AllocMemory();

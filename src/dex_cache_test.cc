@@ -27,7 +27,7 @@ namespace art {
 class DexCacheTest : public CommonTest {};
 
 TEST_F(DexCacheTest, Open) {
-  SirtRef<DexCache> dex_cache(class_linker_->AllocDexCache(*java_lang_dex_file_.get()));
+  SirtRef<DexCache> dex_cache(class_linker_->AllocDexCache(*java_lang_dex_file_));
   ASSERT_TRUE(dex_cache.get() != NULL);
 
   EXPECT_EQ(java_lang_dex_file_->NumStringIds(), dex_cache->NumStrings());

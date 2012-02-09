@@ -56,8 +56,8 @@ TEST_F(RuntimeTest, ParsedOptions) {
   UniquePtr<Runtime::ParsedOptions> parsed(Runtime::ParsedOptions::Create(options, false));
   ASSERT_TRUE(parsed.get() != NULL);
 
-  EXPECT_EQ(lib_core, parsed->boot_class_path_);
-  EXPECT_EQ(lib_core, parsed->class_path_);
+  EXPECT_EQ(lib_core, parsed->boot_class_path_string_);
+  EXPECT_EQ(lib_core, parsed->class_path_string_);
   EXPECT_EQ(std::string("boot_image"), parsed->image_);
   EXPECT_EQ(true, parsed->check_jni_);
   EXPECT_EQ(2048U, parsed->heap_initial_size_);

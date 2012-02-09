@@ -84,7 +84,7 @@ static void UpdateFirstAndLastSpace(Space** first_space, Space** last_space, Spa
 }
 
 bool GenerateImage(const std::string image_file_name) {
-  const std::string boot_class_path_string = Runtime::Current()->GetBootClassPath();
+  const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
   std::vector<std::string> boot_class_path;
   Split(boot_class_path_string, ':', boot_class_path);
 

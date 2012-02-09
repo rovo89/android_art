@@ -185,19 +185,29 @@ jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
     }
   }
 
-  uint32_t location_checksum;
-  if (!DexFile::GetChecksum(filename.c_str(), location_checksum)) {
-    return JNI_TRUE;
+  // If we have an oat file next to the dex file, assume up-to-date.
+  // A user build looks like this, and it will have no classes.dex in
+  // the input for checksum validation.
+  std::string oat_filename(OatFile::DexFilenameToOatFilename(filename.c_str()));
+  const OatFile* oat_file = class_linker->FindOatFileFromOatLocation(oat_filename);
+  if (oat_file != NULL && oat_file->GetOatDexFile(filename.c_str()) != NULL) {
+    return JNI_FALSE;
   }
 
-  std::string oat_filename(OatFile::DexFilenameToOatFilename(filename.c_str()));
-  const OatFile* oat_file(class_linker->FindOatFileFromOatLocation(oat_filename));
+  // Check if we have an oat file in the cache
+  std::string cache_location(GetArtCacheFilenameOrDie(oat_filename));
+  oat_file = class_linker->FindOatFileFromOatLocation(cache_location);
   if (oat_file == NULL) {
     return JNI_TRUE;
   }
 
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str());
   if (oat_dex_file == NULL) {
+    return JNI_TRUE;
+  }
+
+  uint32_t location_checksum;
+  if (!DexFile::GetChecksum(filename.c_str(), location_checksum)) {
     return JNI_TRUE;
   }
 

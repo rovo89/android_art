@@ -322,7 +322,7 @@ class DexFile {
 
   // Opens .dex file, guessing the container format based on file extension
   static const DexFile* Open(const std::string& filename,
-                             const std::string& strip_location_prefix);
+                             const std::string& location);
 
   // Opens .dex file, backed by existing memory
   static const DexFile* Open(const uint8_t* base, size_t size,
@@ -773,12 +773,12 @@ class DexFile {
 
   // Opens a .dex file
   static const DexFile* OpenFile(const std::string& filename,
-                                 const std::string& strip_location_prefix,
+                                 const std::string& location,
                                  bool verify);
 
   // Opens a dex file from within a .jar, .zip, or .apk file
   static const DexFile* OpenZip(const std::string& filename,
-                                const std::string& strip_location_prefix);
+                                const std::string& location);
 
   // Opens a .dex file at the given address backed by a MemMap
   static const DexFile* OpenMemory(const std::string& location,

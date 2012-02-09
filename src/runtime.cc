@@ -261,13 +261,13 @@ void LoadJniLibrary(JavaVMExt* vm, const char* name) {
 
 Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
   UniquePtr<ParsedOptions> parsed(new ParsedOptions());
-  const char* boot_class_path = getenv("BOOTCLASSPATH");
-  if (boot_class_path != NULL) {
-    parsed->boot_class_path_ = boot_class_path;
+  const char* boot_class_path_string = getenv("BOOTCLASSPATH");
+  if (boot_class_path_string != NULL) {
+    parsed->boot_class_path_string_ = boot_class_path_string;
   }
-  const char* class_path = getenv("CLASSPATH");
-  if (class_path != NULL) {
-    parsed->class_path_ = class_path;
+  const char* class_path_string = getenv("CLASSPATH");
+  if (class_path_string != NULL) {
+    parsed->class_path_string_ = class_path_string;
   }
 #ifdef NDEBUG
   // -Xcheck:jni is off by default for regular builds...
@@ -299,7 +299,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       LOG(INFO) << "option[" << i << "]=" << option;
     }
     if (StartsWith(option, "-Xbootclasspath:")) {
-      parsed->boot_class_path_ = option.substr(strlen("-Xbootclasspath:"));
+      parsed->boot_class_path_string_ = option.substr(strlen("-Xbootclasspath:")).data();
     } else if (option == "-classpath" || option == "-cp") {
       // TODO: support -Djava.class.path
       i++;
@@ -308,9 +308,13 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         LOG(FATAL) << "Missing required class path value for " << option;
         return NULL;
       }
-      parsed->class_path_ = options[i].first;
+      const StringPiece& value = options[i].first;
+      parsed->class_path_string_ = value.data();
+    } else if (option == "bootclasspath") {
+      parsed->boot_class_path_
+          = reinterpret_cast<const std::vector<const DexFile*>*>(options[i].second);
     } else if (StartsWith(option, "-Ximage:")) {
-      parsed->image_ = option.substr(strlen("-Ximage:"));
+      parsed->image_ = option.substr(strlen("-Ximage:")).data();
     } else if (StartsWith(option, "-Xcheck:jni")) {
       parsed->check_jni_ = true;
     } else if (StartsWith(option, "-Xrunjdwp:") || StartsWith(option, "-agentlib:jdwp=")) {
@@ -582,8 +586,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   Monitor::Init(options->lock_profiling_threshold_, options->hook_is_sensitive_thread_);
 
   host_prefix_ = options->host_prefix_;
-  boot_class_path_ = options->boot_class_path_;
-  class_path_ = options->class_path_;
+  boot_class_path_string_ = options->boot_class_path_string_;
+  class_path_string_ = options->class_path_string_;
   properties_ = options->properties_;
 
   is_compiler_ = options->is_compiler_;
@@ -619,9 +623,14 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   Thread::Current()->SetState(Thread::kRunnable);
 
   CHECK_GE(Heap::GetSpaces().size(), 1U);
-  class_linker_ = ((Heap::GetSpaces()[0]->IsImageSpace())
-                   ? ClassLinker::Create(intern_table_)
-                   : ClassLinker::Create(options->boot_class_path_, intern_table_));
+  if (Heap::GetSpaces()[0]->IsImageSpace()) {
+    class_linker_ = ClassLinker::CreateFromImage(intern_table_);
+  } else {
+    CHECK(options->boot_class_path_ != NULL);
+    CHECK_NE(options->boot_class_path_->size(), 0U);
+    class_linker_ = ClassLinker::CreateFromCompiler(*options->boot_class_path_, intern_table_);
+  }
+  CHECK(class_linker_ != NULL);
 
   VLOG(startup) << "Runtime::Init exiting";
   return true;

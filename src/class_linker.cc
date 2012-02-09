@@ -209,14 +209,15 @@ const char* ClassLinker::class_roots_descriptors_[] = {
   "[Ljava/lang/StackTraceElement;",
 };
 
-ClassLinker* ClassLinker::Create(const std::string& boot_class_path, InternTable* intern_table) {
+ClassLinker* ClassLinker::CreateFromCompiler(const std::vector<const DexFile*>& boot_class_path,
+                                             InternTable* intern_table) {
   CHECK_NE(boot_class_path.size(), 0U);
   UniquePtr<ClassLinker> class_linker(new ClassLinker(intern_table));
-  class_linker->Init(boot_class_path);
+  class_linker->InitFromCompiler(boot_class_path);
   return class_linker.release();
 }
 
-ClassLinker* ClassLinker::Create(InternTable* intern_table) {
+ClassLinker* ClassLinker::CreateFromImage(InternTable* intern_table) {
   UniquePtr<ClassLinker> class_linker(new ClassLinker(intern_table));
   class_linker->InitFromImage();
   return class_linker.release();
@@ -232,22 +233,9 @@ ClassLinker::ClassLinker(InternTable* intern_table)
   CHECK_EQ(arraysize(class_roots_descriptors_), size_t(kClassRootsMax));
 }
 
-void CreateClassPath(const std::string& class_path,
-                     std::vector<const DexFile*>& class_path_vector) {
-  std::vector<std::string> parsed;
-  Split(class_path, ':', parsed);
-  for (size_t i = 0; i < parsed.size(); ++i) {
-    const DexFile* dex_file = DexFile::Open(parsed[i], Runtime::Current()->GetHostPrefix());
-    if (dex_file == NULL) {
-      LOG(WARNING) << "Failed to open dex file " << parsed[i];
-    } else {
-      class_path_vector.push_back(dex_file);
-    }
-  }
-}
-
-void ClassLinker::Init(const std::string& boot_class_path) {
-  VLOG(startup) << "ClassLinker::InitFrom entering boot_class_path=" << boot_class_path;
+void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class_path) {
+  VLOG(startup) << "ClassLinker::Init";
+  CHECK(Runtime::Current()->IsCompiler());
 
   CHECK(!init_done_);
 
@@ -321,11 +309,9 @@ void ClassLinker::Init(const std::string& boot_class_path) {
 
   // setup boot_class_path_ and register class_path now that we can
   // use AllocObjectArray to create DexCache instances
-  std::vector<const DexFile*> boot_class_path_vector;
-  CreateClassPath(boot_class_path, boot_class_path_vector);
-  CHECK_NE(0U, boot_class_path_vector.size());
-  for (size_t i = 0; i != boot_class_path_vector.size(); ++i) {
-    const DexFile* dex_file = boot_class_path_vector[i];
+  CHECK_NE(0U, boot_class_path.size());
+  for (size_t i = 0; i != boot_class_path.size(); ++i) {
+    const DexFile* dex_file = boot_class_path[i];
     CHECK(dex_file != NULL);
     AppendToBootClassPath(*dex_file);
   }
@@ -481,7 +467,7 @@ void ClassLinker::Init(const std::string& boot_class_path) {
 
   FinishInit();
 
-  VLOG(startup) << "ClassLinker::InitFrom exiting";
+  VLOG(startup) << "ClassLinker::InitFromCompiler exiting";
 }
 
 void ClassLinker::FinishInit() {
@@ -575,7 +561,7 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
 #endif
   const char* dex2oat = dex2oat_string.c_str();
 
-  const char* class_path = Runtime::Current()->GetClassPath().c_str();
+  const char* class_path = Runtime::Current()->GetClassPathString().c_str();
 
   std::string boot_image_option_string("--boot-image=");
   boot_image_option_string += Heap::GetSpaces()[0]->AsImageSpace()->GetImageFilename();
@@ -589,9 +575,9 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
   StringAppendF(&oat_fd_option_string, "%d", oat_fd);
   const char* oat_fd_option = oat_fd_option_string.c_str();
 
-  std::string oat_name_option_string("--oat-name=");
-  oat_name_option_string += oat_cache_filename;
-  const char* oat_name_option = oat_name_option_string.c_str();
+  std::string oat_location_option_string("--oat-location=");
+  oat_location_option_string += oat_cache_filename;
+  const char* oat_location_option = oat_location_option_string.c_str();
 
   // fork and exec dex2oat
   pid_t pid = fork();
@@ -609,7 +595,7 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
                        << " " << boot_image_option
                        << " " << dex_file_option
                        << " " << oat_fd_option
-                       << " " << oat_name_option;
+                       << " " << oat_location_option;
 
     execl(dex2oat, dex2oat,
           "--runtime-arg", "-Xms64m",
@@ -619,7 +605,7 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
           boot_image_option,
           dex_file_option,
           oat_fd_option,
-          oat_name_option,
+          oat_location_option,
           NULL);
 
     PLOG(FATAL) << "execl(" << dex2oat << ") failed";
@@ -660,7 +646,7 @@ OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
   std::string oat_filename;
   oat_filename += runtime->GetHostPrefix();
   oat_filename += oat_location->ToModifiedUtf8();
-  OatFile* oat_file = OatFile::Open(oat_filename, "", image_header.GetOatBegin());
+  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatBegin());
   VLOG(startup) << "ClassLinker::OpenOat entering oat_filename=" << oat_filename;
   if (oat_file == NULL) {
     LOG(ERROR) << "Failed to open oat file " << oat_filename << " referenced from image.";
@@ -680,18 +666,15 @@ OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileForDexFile(const DexFile& dex_file) {
-  return FindOpenedOatFileFromDexLocation(dex_file.GetLocation(),
-                                          dex_file.GetLocationChecksum());
+  return FindOpenedOatFileFromDexLocation(dex_file.GetLocation());
 }
 
-const OatFile* ClassLinker::FindOpenedOatFileFromDexLocation(const std::string& dex_location,
-                                                             uint32_t dex_location_checksum) {
+const OatFile* ClassLinker::FindOpenedOatFileFromDexLocation(const std::string& dex_location) {
   for (size_t i = 0; i < oat_files_.size(); i++) {
     const OatFile* oat_file = oat_files_[i];
     DCHECK(oat_file != NULL);
     const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location, false);
-    if (oat_dex_file != NULL
-        && oat_dex_file->GetDexFileLocationChecksum() == dex_location_checksum) {
+    if (oat_dex_file != NULL) {
       return oat_file;
     }
   }
@@ -747,7 +730,7 @@ class LockedFd {
 static const DexFile* FindDexFileInOatLocation(const std::string& dex_location,
                                                uint32_t dex_location_checksum,
                                                const std::string& oat_location) {
-  UniquePtr<OatFile> oat_file(OatFile::Open(oat_location, "", NULL));
+  UniquePtr<OatFile> oat_file(OatFile::Open(oat_location, oat_location, NULL));
   if (oat_file.get() == NULL) {
     return NULL;
   }
@@ -811,22 +794,31 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const std::string&
 const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::string& dex_location) {
   MutexLock mu(dex_lock_);
 
-  uint32_t dex_location_checksum;
-  if (!DexFile::GetChecksum(dex_location, dex_location_checksum)) {
-    LOG(WARNING) << "Failed to compute checksum: " << dex_location;
-    return NULL;
-  }
-
-  const OatFile* open_oat_file = FindOpenedOatFileFromDexLocation(dex_location, dex_location_checksum);
+  const OatFile* open_oat_file = FindOpenedOatFileFromDexLocation(dex_location);
   if (open_oat_file != NULL) {
     return open_oat_file->GetOatDexFile(dex_location)->OpenDexFile();
   }
 
-  // Look for an existing file first next to dex and in art-cache
+  // Look for an existing file next to dex, assuming its up-to-date if found
   std::string oat_filename(OatFile::DexFilenameToOatFilename(dex_location));
-  const OatFile* oat_file(FindOatFileFromOatLocation(oat_filename));
+  const OatFile* oat_file = FindOatFileFromOatLocation(oat_filename);
   if (oat_file != NULL) {
     const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location);
+    CHECK(oat_dex_file != NULL) << oat_filename << " " << dex_location;
+    return oat_dex_file->OpenDexFile();
+  }
+  // Look for an existing file in the art-cache, validating the result if found
+  // not found in /foo/bar/baz.oat? try /data/art-cache/foo@bar@baz.oat
+  std::string cache_location(GetArtCacheFilenameOrDie(oat_filename));
+  oat_file = FindOatFileFromOatLocation(cache_location);
+  if (oat_file != NULL) {
+    uint32_t dex_location_checksum;
+    if (!DexFile::GetChecksum(dex_location, dex_location_checksum)) {
+      LOG(WARNING) << "Failed to compute checksum: " << dex_location;
+      return NULL;
+    }
+    const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location);
+    CHECK(oat_dex_file != NULL) << oat_filename << " " << dex_location;
     if (dex_location_checksum == oat_dex_file->GetDexFileLocationChecksum()) {
       return oat_file->GetOatDexFile(dex_location)->OpenDexFile();
     }
@@ -838,6 +830,8 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
       PLOG(FATAL) << "Couldn't remove obsolete .oat file " << oat_file->GetLocation();
     }
   }
+  LOG(INFO) << "Failed to open oat file from " << oat_filename << " or " << cache_location << ".";
+
   // Try to generate oat file if it wasn't found or was obsolete.
   std::string oat_cache_filename(GetArtCacheFilenameOrDie(oat_filename));
   return FindOrCreateOatFileForDexLocation(dex_location, oat_cache_filename);
@@ -861,26 +855,10 @@ const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_lo
     return oat_file;
   }
 
-  oat_file = OatFile::Open(oat_location, "", NULL);
+  oat_file = OatFile::Open(oat_location, oat_location, NULL);
   if (oat_file == NULL) {
-    if (oat_location.empty() || oat_location[0] != '/') {
-      LOG(ERROR) << "Failed to open oat file from " << oat_location;
-      return NULL;
-    }
-
-    // not found in /foo/bar/baz.oat? try /data/art-cache/foo@bar@baz.oat
-    std::string cache_location(GetArtCacheFilenameOrDie(oat_location));
-    oat_file = FindOpenedOatFileFromOatLocation(cache_location);
-    if (oat_file != NULL) {
-      return oat_file;
-    }
-    oat_file = OatFile::Open(cache_location, "", NULL);
-    if (oat_file  == NULL) {
-      LOG(INFO) << "Failed to open oat file from " << oat_location << " or " << cache_location << ".";
-      return NULL;
-    }
+    return NULL;
   }
-
   CHECK(oat_file != NULL) << oat_location;
   RegisterOatFileLocked(*oat_file);
   return oat_file;

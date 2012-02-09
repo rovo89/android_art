@@ -39,50 +39,59 @@ PRELOADED_CLASSES := frameworks/base/preloaded-classes
 HOST_CORE_JARS := core-hostdex
 TARGET_CORE_JARS := core
 
-HOST_CORE_DEX   := $(foreach jar,$(HOST_CORE_JARS),  $(HOST_OUT_JAVA_LIBRARIES)/$(jar).jar)
-TARGET_CORE_DEX := $(foreach jar,$(TARGET_CORE_JARS),$(TARGET_OUT_JAVA_LIBRARIES)/$(jar).jar)
+HOST_CORE_DEX_LOCATIONS   := $(foreach jar,$(HOST_CORE_JARS),  $(HOST_OUT_JAVA_LIBRARIES)/$(jar).jar)
+TARGET_CORE_DEX_LOCATIONS := $(foreach jar,$(TARGET_CORE_JARS),/$(DEXPREOPT_BOOT_JAR_DIR)/$(jar).jar)
+
+HOST_CORE_DEX_FILES   := $(foreach jar,$(HOST_CORE_JARS),  $(call intermediates-dir-for,JAVA_LIBRARIES,$(jar),t,COMMON)/javalib.jar)
+TARGET_CORE_DEX_FILES := $(foreach jar,$(TARGET_CORE_JARS),$(call intermediates-dir-for,JAVA_LIBRARIES,$(jar), ,COMMON)/javalib.jar)
 
 HOST_CORE_OAT := $(HOST_OUT_JAVA_LIBRARIES)/core.oat
-TARGET_CORE_OAT := $(ART_TEST_OUT)/core.oat
+TARGET_CORE_OAT := $(ART_TEST_DIR)/core.oat
 
-HOST_CORE_IMG := $(HOST_OUT_JAVA_LIBRARIES)/core.art
-TARGET_CORE_IMG := $(ART_TEST_OUT)/core.art
+HOST_CORE_OAT_OUT := $(HOST_OUT_JAVA_LIBRARIES)/core.oat
+TARGET_CORE_OAT_OUT := $(ART_TEST_OUT)/core.oat
 
-$(HOST_CORE_OAT): $(HOST_CORE_DEX) $(DEX2OAT_DEPENDENCY)
+HOST_CORE_IMG_OUT := $(HOST_OUT_JAVA_LIBRARIES)/core.art
+TARGET_CORE_IMG_OUT := $(ART_TEST_OUT)/core.art
+
+$(HOST_CORE_OAT_OUT): $(HOST_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@echo "host dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
-	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat-file=$@ --image=$(HOST_CORE_IMG) --base=$(IMG_HOST_BASE_ADDRESS)
+	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(HOST_CORE_DEX_FILES)) $(addprefix --dex-location=,$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$@ --oat-location=$(HOST_CORE_OAT) --image=$(HOST_CORE_IMG_OUT) --base=$(IMG_HOST_BASE_ADDRESS)
 
-$(TARGET_CORE_OAT): $(TARGET_CORE_DEX) $(DEX2OAT_DEPENDENCY)
+$(TARGET_CORE_OAT_OUT): $(TARGET_CORE_DEX) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
-	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat-file=$@ --image=$(TARGET_CORE_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
+	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(TARGET_CORE_DEX_FILES)) $(addprefix --dex-location=,$(TARGET_CORE_DEX_LOCATIONS)) --oat-file=$@ --oat-location=$(TARGET_CORE_OAT) --image=$(TARGET_CORE_IMG_OUT) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
 
-$(HOST_CORE_IMG): $(HOST_CORE_OAT)
+$(HOST_CORE_IMG_OUT): $(HOST_CORE_OAT_OUT)
 
-$(TARGET_CORE_IMG): $(TARGET_CORE_OAT)
+$(TARGET_CORE_IMG_OUT): $(TARGET_CORE_OAT_OUT)
 
 ########################################################################
 # The full system boot classpath
 TARGET_BOOT_JARS := $(subst :, ,$(DEXPREOPT_BOOT_JARS))
-TARGET_BOOT_DEX := $(foreach jar,$(TARGET_BOOT_JARS),$(TARGET_OUT_JAVA_LIBRARIES)/$(jar).jar)
+TARGET_BOOT_DEX_LOCATIONS := $(foreach jar,$(TARGET_BOOT_JARS),/$(DEXPREOPT_BOOT_JAR_DIR)/$(jar).jar)
+TARGET_BOOT_DEX_FILES := $(foreach jar,$(TARGET_BOOT_JARS),$(call intermediates-dir-for,JAVA_LIBRARIES,$(jar),,COMMON)/javalib.jar)
 ifeq ($(TARGET_PRODUCT),$(filter $(TARGET_PRODUCT),trygon))
-  TARGET_BOOT_OAT := $(call art-cache-out,$(DEXPREOPT_BOOT_JAR_DIR)/boot.oat)
-  TARGET_BOOT_IMG := $(call art-cache-out,$(DEXPREOPT_BOOT_JAR_DIR)/boot.art)
+  TARGET_BOOT_OAT := $(call art-cache-dir,$(DEXPREOPT_BOOT_JAR_DIR)/boot.oat)
+  TARGET_BOOT_OAT_OUT := $(call art-cache-out,$(DEXPREOPT_BOOT_JAR_DIR)/boot.oat)
+  TARGET_BOOT_IMG_OUT := $(call art-cache-out,$(DEXPREOPT_BOOT_JAR_DIR)/boot.art)
 else
-  TARGET_BOOT_OAT := $(TARGET_OUT_JAVA_LIBRARIES)/boot.oat
-  TARGET_BOOT_IMG := $(TARGET_OUT_JAVA_LIBRARIES)/boot.art
+  TARGET_BOOT_OAT := /$(DEXPREOPT_BOOT_JAR_DIR)/boot.oat
+  TARGET_BOOT_OAT_OUT := $(TARGET_OUT_JAVA_LIBRARIES)/boot.oat
+  TARGET_BOOT_IMG_OUT := $(TARGET_OUT_JAVA_LIBRARIES)/boot.art
 endif
 
-$(TARGET_BOOT_OAT): $(TARGET_BOOT_DEX) $(DEX2OAT_DEPENDENCY)
+$(TARGET_BOOT_OAT_OUT): $(TARGET_BOOT_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
-	$(hide) $(DEX2OAT) --runtime-arg -Xms256m --runtime-arg -Xmx256m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(filter-out $(DEX2OAT),$^)) --oat-file=$@ --image=$(TARGET_BOOT_IMG) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
+	$(hide) $(DEX2OAT) --runtime-arg -Xms256m --runtime-arg -Xmx256m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(TARGET_BOOT_DEX_FILES)) $(addprefix --dex-location=,$(TARGET_BOOT_DEX_LOCATIONS)) --oat-file=$@ --oat-location=$(TARGET_BOOT_OAT) --image=$(TARGET_BOOT_IMG_OUT) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
 
-$(TARGET_BOOT_IMG): $(TARGET_BOOT_OAT)
+$(TARGET_BOOT_IMG_OUT): $(TARGET_BOOT_OAT_OUT)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := boot.art
 LOCAL_MODULE_TAGS := optional
-LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_BOOT_IMG)
+LOCAL_ADDITIONAL_DEPENDENCIES := $(TARGET_BOOT_IMG_OUT)
 include $(BUILD_PHONY_PACKAGE)

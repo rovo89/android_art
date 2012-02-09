@@ -85,14 +85,14 @@ bool DexFile::GetChecksum(const std::string& filename, uint32_t& checksum) {
 }
 
 const DexFile* DexFile::Open(const std::string& filename,
-                             const std::string& strip_location_prefix) {
+                             const std::string& location) {
   if (IsValidZipFilename(filename)) {
-    return DexFile::OpenZip(filename, strip_location_prefix);
+    return DexFile::OpenZip(filename, location);
   }
   if (!IsValidDexFilename(filename)) {
     LOG(WARNING) << "Attempting to open dex file with unknown extension '" << filename << "'";
   }
-  return DexFile::OpenFile(filename, strip_location_prefix, true);
+  return DexFile::OpenFile(filename, location, true);
 }
 
 void DexFile::ChangePermissions(int prot) const {
@@ -101,25 +101,10 @@ void DexFile::ChangePermissions(int prot) const {
   }
 }
 
-const std::string StripLocationPrefix(const std::string& original_location,
-                                      const std::string& strip_location_prefix) {
-  StringPiece location = original_location;
-  if (!location.starts_with(strip_location_prefix)) {
-    LOG(ERROR) << location << " does not start with " << strip_location_prefix;
-    return "";
-  }
-  location.remove_prefix(strip_location_prefix.size());
-  return location.ToString();
-}
-
 const DexFile* DexFile::OpenFile(const std::string& filename,
-                                 const std::string& strip_location_prefix,
+                                 const std::string& location,
                                  bool verify) {
-  std::string location(StripLocationPrefix(filename, strip_location_prefix));
-  if (location.empty()) {
-    return NULL;
-  }
-
+  CHECK(!location.empty()) << filename;
   int fd = open(filename.c_str(), O_RDONLY);  // TODO: scoped_fd
   if (fd == -1) {
     PLOG(ERROR) << "open(\"" << filename << "\", O_RDONLY) failed";
@@ -170,12 +155,7 @@ const char* DexFile::kClassesDex = "classes.dex";
 
 // Open classes.dex from within a .zip, .jar, .apk, ...
 const DexFile* DexFile::OpenZip(const std::string& filename,
-                                const std::string& strip_location_prefix) {
-  std::string location(StripLocationPrefix(filename, strip_location_prefix));
-  if (location.empty()) {
-    return NULL;
-  }
-
+                                const std::string& location) {
   UniquePtr<ZipArchive> zip_archive(ZipArchive::Open(filename));
   if (zip_archive.get() == NULL) {
     LOG(ERROR) << "Failed to open " << filename << " when looking for classes.dex";
@@ -185,6 +165,7 @@ const DexFile* DexFile::OpenZip(const std::string& filename,
 }
 
 const DexFile* DexFile::Open(const ZipArchive& zip_archive, const std::string& location) {
+  CHECK(!location.empty());
   UniquePtr<ZipEntry> zip_entry(zip_archive.Find(kClassesDex));
   if (zip_entry.get() == NULL) {
     LOG(ERROR) << "Failed to find classes.dex within " << location;

@@ -44,10 +44,11 @@ typedef bool (ClassVisitor)(Class* c, void* arg);
 class ClassLinker {
  public:
   // Creates the class linker by boot strapping from dex files.
-  static ClassLinker* Create(const std::string& boot_class_path, InternTable* intern_table);
+  static ClassLinker* CreateFromCompiler(const std::vector<const DexFile*>& boot_class_path,
+                                         InternTable* intern_table);
 
-  // Creates the class linker from one or more images.
-  static ClassLinker* Create(InternTable* intern_table);
+  // Creates the class linker from an image.
+  static ClassLinker* CreateFromImage(InternTable* intern_table);
 
   ~ClassLinker();
 
@@ -291,7 +292,7 @@ class ClassLinker {
   explicit ClassLinker(InternTable*);
 
   // Initialize class linker by bootstraping from dex files
-  void Init(const std::string& boot_class_path);
+  void InitFromCompiler(const std::vector<const DexFile*>& boot_class_path);
 
   // Initialize class linker from one or more images.
   void InitFromImage();
@@ -397,8 +398,7 @@ class ClassLinker {
   }
 
   const OatFile* FindOpenedOatFileForDexFile(const DexFile& dex_file);
-  const OatFile* FindOpenedOatFileFromDexLocation(const std::string& dex_location,
-                                                  uint32_t dex_location_checksum);
+  const OatFile* FindOpenedOatFileFromDexLocation(const std::string& dex_location);
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location);
 
   Method* CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class);

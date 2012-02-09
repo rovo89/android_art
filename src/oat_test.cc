@@ -40,23 +40,23 @@ TEST_F(OatTest, WriteRead) {
   if (compile) {  // OatWriter strips the code, regenerate to compare
     compiler_->CompileAll(class_loader.get(), class_linker->GetBootClassPath());
   }
-  UniquePtr<OatFile> oat_file(OatFile::Open(std::string(tmp.GetFilename()), "", NULL));
+  UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL));
   ASSERT_TRUE(oat_file.get() != NULL);
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_EQ(1U, oat_header.GetDexFileCount());
 
-  const DexFile& dex_file = *java_lang_dex_file_.get();
-  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
-  CHECK_EQ(dex_file.GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
-  for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
-    const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
-    const byte* class_data = dex_file.GetClassData(class_def);
+  const DexFile* dex_file = java_lang_dex_file_;
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file->GetLocation());
+  CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
+  for (size_t i = 0; i < dex_file->NumClassDefs(); i++) {
+    const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
+    const byte* class_data = dex_file->GetClassData(class_def);
     size_t num_virtual_methods =0;
     if (class_data != NULL) {
-      ClassDataItemIterator it(dex_file, class_data);
+      ClassDataItemIterator it(*dex_file, class_data);
       num_virtual_methods = it.NumVirtualMethods();
     }
-    const char* descriptor = dex_file.GetClassDescriptor(class_def);
+    const char* descriptor = dex_file->GetClassDescriptor(class_def);
 
     UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(i));
 
@@ -67,7 +67,7 @@ TEST_F(OatTest, WriteRead) {
       Method* method = klass->GetDirectMethod(i);
       const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
       const CompiledMethod* compiled_method =
-          compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file,
+          compiler_->GetCompiledMethod(Compiler::MethodReference(dex_file,
                                                                  method->GetDexMethodIndex()));
 
       if (compiled_method == NULL) {
@@ -94,7 +94,7 @@ TEST_F(OatTest, WriteRead) {
       Method* method = klass->GetVirtualMethod(i);
       const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
       const CompiledMethod* compiled_method =
-          compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file,
+          compiler_->GetCompiledMethod(Compiler::MethodReference(dex_file,
                                                                  method->GetDexMethodIndex()));
 
       if (compiled_method == NULL) {

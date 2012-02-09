@@ -50,7 +50,7 @@ class DexVerifierTest : public CommonTest {
 };
 
 TEST_F(DexVerifierTest, LibCore) {
-  VerifyDexFile(java_lang_dex_file_.get(), NULL);
+  VerifyDexFile(java_lang_dex_file_, NULL);
 }
 
 TEST_F(DexVerifierTest, IntMath) {

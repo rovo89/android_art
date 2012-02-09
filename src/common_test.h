@@ -125,7 +125,7 @@ static inline const DexFile* OpenDexFileBase64(const char* base64,
   file.reset();
 
   // read dex file
-  const DexFile* dex_file = DexFile::Open(location, "");
+  const DexFile* dex_file = DexFile::Open(location, location);
   CHECK(dex_file != NULL);
   return dex_file;
 }
@@ -137,7 +137,7 @@ class ScratchFile {
     filename_ += "/TmpFile-XXXXXX";
     fd_ = mkstemp(&filename_[0]);
     CHECK_NE(-1, fd_);
-    file_.reset(OS::FileFromFd(GetFilename(), fd_));
+    file_.reset(OS::FileFromFd(GetFilename().c_str(), fd_));
   }
 
   ~ScratchFile() {
@@ -147,8 +147,8 @@ class ScratchFile {
     CHECK_EQ(0, close_result);
   }
 
-  const char* GetFilename() const {
-    return filename_.c_str();
+  const std::string& GetFilename() const {
+    return filename_;
   }
 
   File* GetFile() const {
@@ -301,18 +301,15 @@ class CommonTest : public testing::Test {
     int mkdir_result = mkdir(art_cache_.c_str(), 0700);
     ASSERT_EQ(mkdir_result, 0);
 
-    java_lang_dex_file_.reset(DexFile::Open(GetLibCoreDexFileName(), ""));
-
-    std::string boot_class_path;
-    boot_class_path += "-Xbootclasspath:";
-    boot_class_path += GetLibCoreDexFileName();
+    java_lang_dex_file_ = DexFile::Open(GetLibCoreDexFileName(), GetLibCoreDexFileName());
+    boot_class_path_.push_back(java_lang_dex_file_);
 
     std::string min_heap_string(StringPrintf("-Xms%zdm", Heap::kInitialSize / MB));
     std::string max_heap_string(StringPrintf("-Xmx%zdm", Heap::kMaximumSize / MB));
 
     Runtime::Options options;
     options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
-    options.push_back(std::make_pair(boot_class_path.c_str(), reinterpret_cast<void*>(NULL)));
+    options.push_back(std::make_pair("bootclasspath", &boot_class_path_));
     options.push_back(std::make_pair("-Xcheck:jni", reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair(min_heap_string.c_str(), reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair(max_heap_string.c_str(), reinterpret_cast<void*>(NULL)));
@@ -409,7 +406,7 @@ class CommonTest : public testing::Test {
     filename += "/data/nativetest/art/art-test-dex-";
     filename += name;
     filename += ".jar";
-    const DexFile* dex_file = DexFile::Open(filename, "");
+    const DexFile* dex_file = DexFile::Open(filename, filename);
     CHECK(dex_file != NULL) << "Failed to open " << filename;
     opened_dex_files_.push_back(dex_file);
     return dex_file;
@@ -476,7 +473,7 @@ class CommonTest : public testing::Test {
   bool is_host_;
   std::string android_data_;
   std::string art_cache_;
-  UniquePtr<const DexFile> java_lang_dex_file_;
+  const DexFile* java_lang_dex_file_;  // owned by runtime_
   std::vector<const DexFile*> boot_class_path_;
   UniquePtr<Runtime> runtime_;
   // Owned by the runtime

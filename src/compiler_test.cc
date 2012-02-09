@@ -88,7 +88,7 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
   CompileAll(NULL);
 
   // All libcore references should resolve
-  const DexFile* dex = java_lang_dex_file_.get();
+  const DexFile* dex = java_lang_dex_file_;
   DexCache* dex_cache = class_linker_->FindDexCache(*dex);
   EXPECT_EQ(dex->NumStringIds(), dex_cache->NumStrings());
   for (size_t i = 0; i < dex_cache->NumStrings(); i++) {
@@ -139,6 +139,7 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
 }
 
 TEST_F(CompilerTest, AbstractMethodErrorStub) {
+  CompileVirtualMethod(NULL, "java.lang.Class", "isFinalizable", "()Z");
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
 
   SirtRef<ClassLoader> class_loader(LoadDex("AbstractMethod"));

@@ -33,7 +33,7 @@ class ImageTest : public CommonTest {};
 TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_oat;
   std::vector<const DexFile*> dex_files;
-  dex_files.push_back(java_lang_dex_file_.get());
+  dex_files.push_back(java_lang_dex_file_);
   bool success_oat = OatWriter::Create(tmp_oat.GetFile(), NULL, dex_files, *compiler_.get());
   ASSERT_TRUE(success_oat);
 
@@ -49,11 +49,11 @@ TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_image;
   const uintptr_t requested_image_base = 0x60000000;
   bool success_image = writer.Write(tmp_image.GetFilename(), requested_image_base,
-                                    std::string(tmp_oat.GetFilename()), "");
+                                    tmp_oat.GetFilename(), tmp_oat.GetFilename());
   ASSERT_TRUE(success_image);
 
   {
-    UniquePtr<File> file(OS::OpenFile(tmp_image.GetFilename(), false));
+    UniquePtr<File> file(OS::OpenFile(tmp_image.GetFilename().c_str(), false));
     ASSERT_TRUE(file.get() != NULL);
     ImageHeader image_header;
     file->ReadFully(&image_header, sizeof(image_header));
@@ -68,12 +68,9 @@ TEST_F(ImageTest, WriteRead) {
 
   // tear down old runtime before making a new one, clearing out misc state
   delete runtime_.release();
+  java_lang_dex_file_ = NULL;
 
-  // don't reuse java_lang_dex_file_ so we make sure we don't get
-  // lucky by pointers that happen to work referencing the earlier
-  // dex.
-  delete java_lang_dex_file_.release();
-  UniquePtr<const DexFile> dex(DexFile::Open(GetLibCoreDexFileName(), ""));
+  UniquePtr<const DexFile> dex(DexFile::Open(GetLibCoreDexFileName(), GetLibCoreDexFileName()));
   ASSERT_TRUE(dex.get() != NULL);
 
   Runtime::Options options;

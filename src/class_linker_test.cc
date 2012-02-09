@@ -739,7 +739,7 @@ TEST_F(ClassLinkerTest, FindClass) {
 }
 
 TEST_F(ClassLinkerTest, LibCore) {
-  AssertDexFile(java_lang_dex_file_.get(), NULL);
+  AssertDexFile(java_lang_dex_file_, NULL);
 }
 
 // The first reference array element must be a multiple of 8 bytes from the
