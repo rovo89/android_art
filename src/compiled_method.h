@@ -98,10 +98,17 @@ class CompiledMethod {
 
 class CompiledInvokeStub {
  public:
+#if defined(ART_USE_LLVM_COMPILER)
+  explicit CompiledInvokeStub(llvm::Function* func);
+#else
   explicit CompiledInvokeStub(std::vector<uint8_t>& code);
+#endif
   ~CompiledInvokeStub();
   const std::vector<uint8_t>& GetCode() const;
  private:
+#if defined(ART_USE_LLVM_COMPILER)
+  llvm::Function* func_;
+#endif
   std::vector<uint8_t> code_;
 };
 

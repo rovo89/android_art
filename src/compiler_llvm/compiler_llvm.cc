@@ -19,6 +19,7 @@
 #include "compiler.h"
 #include "ir_builder.h"
 #include "method_compiler.h"
+#include "upcall_compiler.h"
 
 #include <llvm/ADT/OwningPtr.h>
 #include <llvm/Bitcode/ReaderWriter.h>
@@ -101,6 +102,18 @@ CompilerLLVM::CompileDexMethod(DexFile::CodeItem const* code_item,
                        access_flags));
 
   return method_compiler->Compile();
+}
+
+
+CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
+                                                   char const *shorty) {
+
+  MutexLock GUARD(compiler_lock_);
+
+  UniquePtr<UpcallCompiler> upcall_compiler(
+    new UpcallCompiler(insn_set_, *compiler_));
+
+  return upcall_compiler->CreateStub(is_static, shorty);
 }
 
 

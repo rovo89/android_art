@@ -35,6 +35,10 @@ IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
   CHECK_NE(jobject_struct_type, static_cast<llvm::Type*>(NULL));
   jobject_type_ = jobject_struct_type->getPointerTo();
 
+  // Create JEnv* type
+  llvm::Type* jenv_struct_type = llvm::StructType::create(context, "JEnv");
+  jenv_type_ = jenv_struct_type->getPointerTo();
+
   // Load the runtime support function declaration from module
   InitRuntimeSupportFuncDecl(module);
 }

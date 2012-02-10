@@ -988,6 +988,9 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
   bool is_static = (access_flags & kAccStatic) != 0;
   const CompiledInvokeStub* compiled_invoke_stub = FindInvokeStub(is_static, shorty);
   if (compiled_invoke_stub == NULL) {
+#if defined(ART_USE_LLVM_COMPILER)
+    compiled_invoke_stub = compiler_llvm_->CreateInvokeStub(is_static, shorty);
+#else
     if (instruction_set_ == kX86) {
       compiled_invoke_stub = ::art::x86::X86CreateInvokeStub(is_static, shorty);
     } else {
@@ -995,6 +998,8 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
       // Generates invocation stub using ARM instruction set
       compiled_invoke_stub = ::art::arm::ArmCreateInvokeStub(is_static, shorty);
     }
+#endif
+
     CHECK(compiled_invoke_stub != NULL);
     InsertInvokeStub(is_static, shorty, compiled_invoke_stub);
   }

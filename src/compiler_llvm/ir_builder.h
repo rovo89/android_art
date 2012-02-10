@@ -162,6 +162,18 @@ class IRBuilder : public LLVMIRBuilder {
     return jobject_type_;
   }
 
+  llvm::PointerType* getJEnvTy() {
+    return jenv_type_;
+  }
+
+  llvm::Type* getJValueTy() {
+    // NOTE: JValue is an union type, which may contains boolean, byte, char,
+    // short, int, long, float, double, Object.  However, LLVM itself does
+    // not support union type, so we have to return a type with biggest size,
+    // then bitcast it before we use it.
+    return getJLongTy();
+  }
+
 
   //--------------------------------------------------------------------------
   // Constant Value Helper Function
@@ -265,6 +277,8 @@ class IRBuilder : public LLVMIRBuilder {
 
  private:
   llvm::PointerType* jobject_type_;
+
+  llvm::PointerType* jenv_type_;
 
   llvm::Function* runtime_support_func_decls_[runtime_support::MAX_ID];
 

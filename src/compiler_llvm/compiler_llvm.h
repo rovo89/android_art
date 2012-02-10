@@ -27,6 +27,7 @@
 
 namespace art {
   class ClassLoader;
+  class CompiledInvokeStub;
   class CompiledMethod;
   class Compiler;
 }
@@ -82,6 +83,8 @@ class CompilerLLVM {
                                    uint32_t method_idx,
                                    ClassLoader const* class_loader,
                                    DexFile const& dex_file);
+
+  CompiledInvokeStub* CreateInvokeStub(bool is_static, char const *shorty);
 
  private:
   Compiler* compiler_;

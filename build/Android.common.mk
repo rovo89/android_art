@@ -180,8 +180,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/jdwp/jdwp_socket.cc \
 	src/jni_compiler.cc \
 	src/jni_internal.cc \
-	src/jni_internal_arm.cc \
-	src/jni_internal_x86.cc \
 	src/logging.cc \
 	src/mark_stack.cc \
 	src/mark_sweep.cc \
@@ -227,6 +225,7 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/ir_builder.cc \
 	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/compiler_llvm/method_compiler.cc \
+	src/compiler_llvm/upcall_compiler.cc \
 	src/compiler_llvm/utils_llvm.cc
 else
 LIBART_COMMON_SRC_FILES += \
@@ -241,7 +240,9 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler/codegen/arm/ArmRallocUtil.cc \
 	src/compiler/codegen/arm/Assemble.cc \
 	src/compiler/codegen/arm/LocalOptimizations.cc \
-	src/compiler/codegen/arm/armv7-a/Codegen.cc
+	src/compiler/codegen/arm/armv7-a/Codegen.cc \
+	src/jni_internal_arm.cc \
+	src/jni_internal_x86.cc
 endif
 
 LIBART_TARGET_SRC_FILES := \

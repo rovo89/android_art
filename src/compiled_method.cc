@@ -171,10 +171,16 @@ const void* CompiledMethod::CodePointer(const void* code_pointer,
   }
 }
 
+#if defined(ART_USE_LLVM_COMPILER)
+CompiledInvokeStub::CompiledInvokeStub(llvm::Function* func) : func_(func) {
+  CHECK_NE(func, static_cast<llvm::Function*>(NULL));
+}
+#else
 CompiledInvokeStub::CompiledInvokeStub(std::vector<uint8_t>& code) {
   CHECK_NE(code.size(), 0U);
   code_ = code;
 }
+#endif
 
 CompiledInvokeStub::~CompiledInvokeStub() {}
 
