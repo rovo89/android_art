@@ -235,12 +235,12 @@ size_t ParseMemoryOption(const char* s, size_t div) {
   return 0;
 }
 
-size_t ParseIntegerOrDie(const StringPiece& s) {
-  StringPiece::size_type colon = s.find(':');
-  if (colon == StringPiece::npos) {
+size_t ParseIntegerOrDie(const std::string& s) {
+  std::string::size_type colon = s.find(':');
+  if (colon == std::string::npos) {
     LOG(FATAL) << "Missing integer: " << s;
   }
-  const char* begin = &s.data()[colon + 1];
+  const char* begin = &s[colon + 1];
   char* end;
   size_t result = strtoul(begin, &end, 10);
   if (begin == end || *end != '\0') {
@@ -293,12 +293,12 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->hook_abort_ = abort;
 
   for (size_t i = 0; i < options.size(); ++i) {
-    const StringPiece& option = options[i].first;
+    const std::string option(options[i].first);
     if (true && options[0].first == "-Xzygote") {
       LOG(INFO) << "option[" << i << "]=" << option;
     }
-    if (option.starts_with("-Xbootclasspath:")) {
-      parsed->boot_class_path_ = option.substr(strlen("-Xbootclasspath:")).data();
+    if (StartsWith(option, "-Xbootclasspath:")) {
+      parsed->boot_class_path_ = option.substr(strlen("-Xbootclasspath:"));
     } else if (option == "-classpath" || option == "-cp") {
       // TODO: support -Djava.class.path
       i++;
@@ -307,21 +307,20 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         LOG(FATAL) << "Missing required class path value for " << option;
         return NULL;
       }
-      const StringPiece& value = options[i].first;
-      parsed->class_path_ = value.data();
-    } else if (option.starts_with("-Ximage:")) {
-      parsed->image_ = option.substr(strlen("-Ximage:")).data();
-    } else if (option.starts_with("-Xcheck:jni")) {
+      parsed->class_path_ = options[i].first;
+    } else if (StartsWith(option, "-Ximage:")) {
+      parsed->image_ = option.substr(strlen("-Ximage:"));
+    } else if (StartsWith(option, "-Xcheck:jni")) {
       parsed->check_jni_ = true;
-    } else if (option.starts_with("-Xrunjdwp:") || option.starts_with("-agentlib:jdwp=")) {
-      std::string tail(option.substr(option[1] == 'X' ? 10 : 15).ToString());
+    } else if (StartsWith(option, "-Xrunjdwp:") || StartsWith(option, "-agentlib:jdwp=")) {
+      std::string tail(option.substr(option[1] == 'X' ? 10 : 15));
       if (tail == "help" || !Dbg::ParseJdwpOptions(tail)) {
         LOG(FATAL) << "Example: -Xrunjdwp:transport=dt_socket,address=8000,server=y\n"
                    << "Example: -Xrunjdwp:transport=dt_socket,address=localhost:6500,server=n";
         return NULL;
       }
-    } else if (option.starts_with("-Xms")) {
-      size_t size = ParseMemoryOption(option.substr(strlen("-Xms")).data(), 1024);
+    } else if (StartsWith(option, "-Xms")) {
+      size_t size = ParseMemoryOption(option.substr(strlen("-Xms")).c_str(), 1024);
       if (size == 0) {
         if (ignore_unrecognized) {
           continue;
@@ -331,8 +330,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->heap_initial_size_ = size;
-    } else if (option.starts_with("-Xmx")) {
-      size_t size = ParseMemoryOption(option.substr(strlen("-Xmx")).data(), 1024);
+    } else if (StartsWith(option, "-Xmx")) {
+      size_t size = ParseMemoryOption(option.substr(strlen("-Xmx")).c_str(), 1024);
       if (size == 0) {
         if (ignore_unrecognized) {
           continue;
@@ -342,8 +341,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->heap_maximum_size_ = size;
-    } else if (option.starts_with("-XX:HeapGrowthLimit=")) {
-      size_t size = ParseMemoryOption(option.substr(strlen("-XX:HeapGrowthLimit=")).data(), 1024);
+    } else if (StartsWith(option, "-XX:HeapGrowthLimit=")) {
+      size_t size = ParseMemoryOption(option.substr(strlen("-XX:HeapGrowthLimit=")).c_str(), 1024);
       if (size == 0) {
         if (ignore_unrecognized) {
           continue;
@@ -353,8 +352,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->heap_growth_limit_ = size;
-    } else if (option.starts_with("-Xss")) {
-      size_t size = ParseMemoryOption(option.substr(strlen("-Xss")).data(), 1);
+    } else if (StartsWith(option, "-Xss")) {
+      size_t size = ParseMemoryOption(option.substr(strlen("-Xss")).c_str(), 1);
       if (size == 0) {
         if (ignore_unrecognized) {
           continue;
@@ -364,17 +363,17 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
         return NULL;
       }
       parsed->stack_size_ = size;
-    } else if (option.starts_with("-D")) {
-      parsed->properties_.push_back(option.substr(strlen("-D")).data());
-    } else if (option.starts_with("-Xjnitrace:")) {
-      parsed->jni_trace_ = option.substr(strlen("-Xjnitrace:")).data();
+    } else if (StartsWith(option, "-D")) {
+      parsed->properties_.push_back(option.substr(strlen("-D")));
+    } else if (StartsWith(option, "-Xjnitrace:")) {
+      parsed->jni_trace_ = option.substr(strlen("-Xjnitrace:"));
     } else if (option == "compiler") {
       parsed->is_compiler_ = true;
     } else if (option == "-Xzygote") {
       parsed->is_zygote_ = true;
-    } else if (option.starts_with("-verbose:")) {
+    } else if (StartsWith(option, "-verbose:")) {
       std::vector<std::string> verbose_options;
-      Split(option.substr(strlen("-verbose:")).data(), ',', verbose_options);
+      Split(option.substr(strlen("-verbose:")), ',', verbose_options);
       for (size_t i = 0; i < verbose_options.size(); ++i) {
         if (verbose_options[i] == "class") {
           gLogVerbosity.class_linker = true;
@@ -400,14 +399,14 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
           LOG(WARNING) << "Ignoring unknown -verbose option: " << verbose_options[i];
         }
       }
-    } else if (option.starts_with("-Xjnigreflimit:")) {
+    } else if (StartsWith(option, "-Xjnigreflimit:")) {
       parsed->jni_globals_max_ = ParseIntegerOrDie(option);
-    } else if (option.starts_with("-Xlockprofthreshold:")) {
+    } else if (StartsWith(option, "-Xlockprofthreshold:")) {
       parsed->lock_profiling_threshold_ = ParseIntegerOrDie(option);
-    } else if (option.starts_with("-Xstacktracefile:")) {
+    } else if (StartsWith(option, "-Xstacktracefile:")) {
 // always show stack traces in debug builds
 #ifdef NDEBUG
-      parsed->stack_trace_file_ = option.substr(strlen("-Xstacktracefile:")).data();
+      parsed->stack_trace_file_ = option.substr(strlen("-Xstacktracefile:"));
 #endif
     } else if (option == "sensitiveThread") {
       parsed->hook_is_sensitive_thread_ = reinterpret_cast<bool (*)()>(options[i].second);

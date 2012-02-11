@@ -53,7 +53,7 @@ class Trace;
 class Runtime {
  public:
 
-  typedef std::vector<std::pair<StringPiece, const void*> > Options;
+  typedef std::vector<std::pair<std::string, const void*> > Options;
 
   class ParsedOptions {
    public:
@@ -110,9 +110,6 @@ class Runtime {
   static Runtime* Current() {
     return instance_;
   }
-
-  // Compiles a dex file.
-  static void Compile(const StringPiece& filename);
 
   // Aborts semi-cleanly. Used in the implementation of LOG(FATAL), which most
   // callers should prefer.

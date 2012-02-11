@@ -374,10 +374,12 @@ std::string DotToDescriptor(const char* class_name) {
   return descriptor;
 }
 
-std::string DescriptorToDot(const StringPiece& descriptor) {
+std::string DescriptorToDot(const char* descriptor) {
+  size_t length = strlen(descriptor);
+  DCHECK_GT(length, 0U);
   DCHECK_EQ(descriptor[0], 'L');
-  DCHECK_EQ(descriptor[descriptor.size()-1], ';');
-  std::string dot(descriptor.substr(1, descriptor.size() - 2).ToString());
+  DCHECK_EQ(descriptor[length - 1], ';');
+  std::string dot(descriptor + 1, length - 2);
   std::replace(dot.begin(), dot.end(), '/', '.');
   return dot;
 }
@@ -670,6 +672,10 @@ template std::string Join<std::string>(std::vector<std::string>& strings, char s
 template std::string Join<const char*>(std::vector<const char*>& strings, char separator);
 template std::string Join<char*>(std::vector<char*>& strings, char separator);
 
+bool StartsWith(const std::string& s, const char* prefix) {
+  return s.compare(0, strlen(prefix), prefix) == 0;
+}
+
 void SetThreadName(const char* threadName) {
   ANNOTATE_THREAD_NAME(threadName); // For tsan.
 
@@ -760,7 +766,7 @@ std::string GetArtCacheOrDie() {
   std::string art_cache(StringPrintf("%s/art-cache", GetAndroidData()));
 
   if (!OS::DirectoryExists(art_cache.c_str())) {
-    if (StringPiece(art_cache).starts_with("/tmp/")) {
+    if (StartsWith(art_cache, "/tmp/")) {
       int result = mkdir(art_cache.c_str(), 0700);
       if (result != 0) {
         LOG(FATAL) << "Failed to create art-cache directory " << art_cache;

@@ -126,7 +126,7 @@ class Dex2Oat {
     while (image_classes_file->good()) {
       std::string dot;
       std::getline(*image_classes_file.get(), dot);
-      if (StringPiece(dot).starts_with("#") || dot.empty()) {
+      if (StartsWith(dot, "#") || dot.empty()) {
         continue;
       }
       std::string descriptor(DotToDescriptor(dot.c_str()));
