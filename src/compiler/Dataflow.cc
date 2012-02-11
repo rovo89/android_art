@@ -1145,6 +1145,16 @@ bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb)
                 handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vC+1);
             }
         }
+        if (dfAttributes & DF_FORMAT_35C) {
+            for (unsigned int i = 0; i < dInsn->vA; i++) {
+                handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->arg[i]);
+           }
+        }
+        if (dfAttributes & DF_FORMAT_3RC) {
+            for (unsigned int i = 0; i < dInsn->vA; i++) {
+                handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vC+i);
+           }
+        }
         if (dfAttributes & DF_HAS_DEFS) {
             handleDef(cUnit, defV, dInsn->vA);
             if (dfAttributes & DF_DA_WIDE) {
