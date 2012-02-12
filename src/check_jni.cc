@@ -120,16 +120,15 @@ bool ShouldTrace(JavaVMExt* vm, const Method* method) {
   // such as NewByteArray.
   // If -verbose:third-party-jni is on, we want to log any JNI function calls
   // made by a third-party native method.
-  std::string classNameStr(MethodHelper(method).GetDeclaringClassDescriptor());
-  if (!vm->trace.empty() && classNameStr.find(vm->trace) != std::string::npos) {
+  std::string className(MethodHelper(method).GetDeclaringClassDescriptor());
+  if (!vm->trace.empty() && className.find(vm->trace) != std::string::npos) {
     return true;
   }
   if (VLOG_IS_ON(third_party_jni)) {
     // Return true if we're trying to log all third-party JNI activity and 'method' doesn't look
     // like part of Android.
-    StringPiece className(classNameStr);
     for (size_t i = 0; gBuiltInPrefixes[i] != NULL; ++i) {
-      if (className.starts_with(gBuiltInPrefixes[i])) {
+      if (StartsWith(className, gBuiltInPrefixes[i])) {
         return false;
       }
     }

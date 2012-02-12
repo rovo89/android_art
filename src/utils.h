@@ -165,6 +165,9 @@ static inline std::string PrintableString(const StringT& s) {
   return result;
 }
 
+// Tests whether 's' starts with 'prefix'.
+bool StartsWith(const std::string& s, const char* prefix);
+
 // Used to implement PrettyClass, PrettyField, PrettyMethod, and PrettyTypeOf,
 // one of which is probably more useful to you.
 // Returns a human-readable equivalent of 'descriptor'. So "I" would be "int",
@@ -213,7 +216,7 @@ std::string MangleForJni(const std::string& s);
 std::string DotToDescriptor(const char* class_name);
 
 // Turn "Ljava/lang/String;" into "java.lang.String".
-std::string DescriptorToDot(const StringPiece& descriptor);
+std::string DescriptorToDot(const char* descriptor);
 
 // Tests for whether 's' is a valid class name in the three common forms:
 bool IsValidBinaryClassName(const char* s);  // "java.lang.String"
