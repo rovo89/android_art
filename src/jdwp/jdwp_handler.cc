@@ -630,8 +630,9 @@ static JdwpError handleRT_Methods(JdwpState* state, const uint8_t* buf, int data
 static JdwpError handleCT_Superclass(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId classId = ReadRefTypeId(&buf);
   RefTypeId superClassId;
-  if (!Dbg::GetSuperclass(classId, superClassId)) {
-    return ERR_INVALID_CLASS;
+  JdwpError status = Dbg::GetSuperclass(classId, superClassId);
+  if (status != ERR_NONE) {
+    return status;
   }
   expandBufAddRefTypeId(pReply, superClassId);
   return ERR_NONE;
@@ -653,7 +654,10 @@ static JdwpError handleCT_SetValues(JdwpState* state, const uint8_t* buf, int da
     uint64_t value = jdwpReadValue(&buf, width);
 
     VLOG(jdwp) << StringPrintf("    --> field=%x tag=%c -> %lld", fieldId, fieldTag, value);
-    Dbg::SetStaticFieldValue(fieldId, value, width);
+    JdwpError status = Dbg::SetStaticFieldValue(fieldId, value, width);
+    if (status != ERR_NONE) {
+      return status;
+    }
   }
 
   return ERR_NONE;
@@ -730,24 +734,26 @@ static JdwpError handleM_LineTable(JdwpState* state, const uint8_t* buf, int dat
   return ERR_NONE;
 }
 
-/*
- * Pull out the LocalVariableTable goodies.
- */
-static JdwpError handleM_VariableTableWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+static JdwpError handleM_VariableTable(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply, bool generic) {
   RefTypeId classId = ReadRefTypeId(&buf);
   MethodId methodId = ReadMethodId(&buf);
 
   VLOG(jdwp) << StringPrintf("  Req for LocalVarTab in class=%s method=%s", Dbg::GetClassDescriptor(classId).c_str(), Dbg::GetMethodName(classId, methodId).c_str());
 
-  /*
-   * We could return ERR_ABSENT_INFORMATION here if the DEX file was
-   * built without local variable information.  That will cause Eclipse
-   * to make a best-effort attempt at displaying local variables
-   * anonymously.  However, the attempt isn't very good, so we're probably
-   * better off just not showing anything.
-   */
-  Dbg::OutputVariableTable(classId, methodId, true, pReply);
+  // We could return ERR_ABSENT_INFORMATION here if the DEX file was built without local variable
+  // information. That will cause Eclipse to make a best-effort attempt at displaying local
+  // variables anonymously. However, the attempt isn't very good, so we're probably better off just
+  // not showing anything.
+  Dbg::OutputVariableTable(classId, methodId, generic, pReply);
   return ERR_NONE;
+}
+
+static JdwpError handleM_VariableTable(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+  return handleM_VariableTable(state, buf, dataLen, pReply, false);
+}
+
+static JdwpError handleM_VariableTableWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+  return handleM_VariableTable(state, buf, dataLen, pReply, true);
 }
 
 /*
@@ -1133,11 +1139,14 @@ static JdwpError handleAR_Length(JdwpState* state, const uint8_t* buf, int dataL
   ObjectId arrayId = ReadObjectId(&buf);
   VLOG(jdwp) << StringPrintf("  Req for length of array 0x%llx", arrayId);
 
-  uint32_t arrayLength = Dbg::GetArrayLength(arrayId);
+  int length;
+  JdwpError status = Dbg::GetArrayLength(arrayId, length);
+  if (status != ERR_NONE) {
+    return status;
+  }
+  VLOG(jdwp) << StringPrintf("    --> %d", length);
 
-  VLOG(jdwp) << StringPrintf("    --> %d", arrayLength);
-
-  expandBufAdd4BE(pReply, arrayLength);
+  expandBufAdd4BE(pReply, length);
 
   return ERR_NONE;
 }
@@ -1149,18 +1158,9 @@ static JdwpError handleAR_GetValues(JdwpState* state, const uint8_t* buf, int da
   ObjectId arrayId = ReadObjectId(&buf);
   uint32_t firstIndex = Read4BE(&buf);
   uint32_t length = Read4BE(&buf);
+  VLOG(jdwp) << StringPrintf("  Req for array values 0x%llx first=%d len=%d", arrayId, firstIndex, length);
 
-  uint8_t tag = Dbg::GetArrayElementTag(arrayId);
-  VLOG(jdwp) << StringPrintf("  Req for array values 0x%llx first=%d len=%d (elem tag=%c)", arrayId, firstIndex, length, tag);
-
-  expandBufAdd1(pReply, tag);
-  expandBufAdd4BE(pReply, length);
-
-  if (!Dbg::OutputArray(arrayId, firstIndex, length, pReply)) {
-    return ERR_INVALID_LENGTH;
-  }
-
-  return ERR_NONE;
+  return Dbg::OutputArray(arrayId, firstIndex, length, pReply);
 }
 
 /*
@@ -1173,11 +1173,7 @@ static JdwpError handleAR_SetValues(JdwpState* state, const uint8_t* buf, int da
 
   VLOG(jdwp) << StringPrintf("  Req to set array values 0x%llx first=%d count=%d", arrayId, firstIndex, values);
 
-  if (!Dbg::SetArrayElements(arrayId, firstIndex, values, buf)) {
-    return ERR_INVALID_LENGTH;
-  }
-
-  return ERR_NONE;
+  return Dbg::SetArrayElements(arrayId, firstIndex, values, buf);
 }
 
 /*
@@ -1620,7 +1616,7 @@ static const JdwpHandlerMap gHandlerMap[] = {
 
   /* Method command set (6) */
   { 6,    1,  handleM_LineTable,      "Method.LineTable" },
-  { 6,    2,  NULL, "Method.VariableTable" },
+  { 6,    2,  handleM_VariableTable,  "Method.VariableTable" },
   { 6,    3,  NULL, "Method.Bytecodes" },
   { 6,    4,  NULL, "Method.IsObsolete" },
   { 6,    5,  handleM_VariableTableWithGeneric, "Method.VariableTableWithGeneric" },
