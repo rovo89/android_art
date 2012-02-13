@@ -34,12 +34,18 @@
 #include "stl_util.h"
 #include "timing_logger.h"
 
+#if defined(ART_USE_LLVM_COMPILER)
+#include "compiler_llvm/compiler_llvm.h"
+#endif
+
 namespace art {
 
+#if !defined(ART_USE_LLVM_COMPILER)
 CompiledMethod* oatCompileMethod(Compiler& compiler, const DexFile::CodeItem* code_item,
                                  uint32_t access_flags, uint32_t method_idx,
                                  const ClassLoader* class_loader,
                                  const DexFile& dex_file, InstructionSet);
+#endif
 
 namespace arm {
   ByteArray* CreateAbstractMethodErrorStub();
@@ -172,7 +178,12 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       compiled_invoke_stubs_lock_("compiled invoke stubs lock"),
       image_(image),
       thread_count_(thread_count),
-      image_classes_(image_classes) {
+      image_classes_(image_classes)
+#if defined(ART_USE_LLVM_COMPILER)
+      ,
+      compiler_llvm_(new compiler_llvm::CompilerLLVM(this, instruction_set))
+#endif
+      {
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
     CHECK(image_classes_ == NULL);
@@ -293,6 +304,9 @@ void Compiler::PreCompile(const ClassLoader* class_loader,
 void Compiler::PostCompile(const ClassLoader* class_loader,
                            const std::vector<const DexFile*>& dex_files) {
   SetGcMaps(class_loader, dex_files);
+#if defined(ART_USE_LLVM_COMPILER)
+  compiler_llvm_->MaterializeLLVMModule();
+#endif
   SetCodeAndDirectMethods(dex_files);
 }
 
@@ -914,8 +928,14 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
+#if defined(ART_USE_LLVM_COMPILER)
+    compiled_method =
+      compiler_llvm_->CompileDexMethod(code_item, access_flags, method_idx,
+                                       class_loader, dex_file);
+#else
     compiled_method = oatCompileMethod(*this, code_item, access_flags, method_idx, class_loader,
                                        dex_file, kThumb2);
+#endif
     CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
   }
   uint64_t duration_ns = NanoTime() - start_ns;

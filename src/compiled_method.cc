@@ -18,6 +18,13 @@
 
 namespace art {
 
+#if defined(ART_USE_LLVM_COMPILER)
+CompiledMethod::CompiledMethod(art::InstructionSet instruction_set,
+                               llvm::Function *func)
+    : instruction_set_(instruction_set), func_(func), frame_size_in_bytes_(0),
+      core_spill_mask_(0), fp_spill_mask_(0) {
+}
+#else
 CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                const std::vector<uint16_t>& short_code,
                                const size_t frame_size_in_bytes,
@@ -56,13 +63,16 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
 
   DCHECK_EQ(vmap_table_[0], static_cast<uint32_t>(__builtin_popcount(core_spill_mask) + __builtin_popcount(fp_spill_mask)));
 }
+#endif
 
 void CompiledMethod::SetGcMap(const std::vector<uint8_t>& gc_map) {
   CHECK_NE(gc_map.size(), 0U);
 
+#if !defined(ART_USE_LLVM_COMPILER)
   // Should only be used with CompiledMethods created with oatCompileMethod
   CHECK_NE(mapping_table_.size(), 0U);
   CHECK_NE(vmap_table_.size(), 0U);
+#endif
 
   gc_map_ = gc_map;
 }

@@ -14,6 +14,18 @@
 # limitations under the License.
 #
 
+# Use llvm as the backend
+ifneq ($(wildcard art/USE_LLVM_COMPILER),)
+ART_USE_LLVM_COMPILER := true
+else
+ART_USE_LLVM_COMPILER := false
+endif
+
+ifeq ($(ART_USE_LLVM_COMPILER),true)
+LLVM_ROOT_PATH := external/llvm
+include $(LLVM_ROOT_PATH)/llvm.mk
+endif
+
 # art-cache
 ART_CACHE_DIR := /data/art-cache
 ART_CACHE_OUT := $(TARGET_OUT_DATA)/art-cache
@@ -52,6 +64,11 @@ art_cflags := \
 	-Wstrict-aliasing=3 \
 	-fno-align-jumps \
 	-fstrict-aliasing
+
+ifeq ($(ART_USE_LLVM_COMPILER),true)
+art_cflags := \
+	-DART_USE_LLVM_COMPILER=1
+endif
 
 ifeq ($(HOST_OS),linux)
   art_non_debug_cflags := \
@@ -113,18 +130,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/class_loader.cc \
 	src/compiled_method.cc \
 	src/compiler.cc \
-	src/compiler/Dataflow.cc \
-	src/compiler/Frontend.cc \
-	src/compiler/IntermediateRep.cc \
-	src/compiler/Ralloc.cc \
-	src/compiler/SSATransformation.cc \
-	src/compiler/Utility.cc \
-	src/compiler/codegen/RallocUtil.cc \
-	src/compiler/codegen/arm/ArchUtility.cc \
-	src/compiler/codegen/arm/ArmRallocUtil.cc \
-	src/compiler/codegen/arm/Assemble.cc \
-	src/compiler/codegen/arm/LocalOptimizations.cc \
-	src/compiler/codegen/arm/armv7-a/Codegen.cc \
 	src/dalvik_system_DexFile.cc \
 	src/dalvik_system_VMDebug.cc \
 	src/dalvik_system_VMRuntime.cc \
@@ -207,6 +212,28 @@ LIBART_COMMON_SRC_FILES := \
 	src/utf.cc \
 	src/utils.cc \
 	src/zip_archive.cc
+
+ifeq ($(ART_USE_LLVM_COMPILER),true)
+LIBART_COMMON_SRC_FILES += \
+	src/compiler_llvm/compiler_llvm.cc \
+	src/compiler_llvm/frontend.cc \
+	src/compiler_llvm/ir_builder.cc \
+	src/compiler_llvm/method_compiler.cc
+else
+LIBART_COMMON_SRC_FILES += \
+	src/compiler/Dataflow.cc \
+	src/compiler/Frontend.cc \
+	src/compiler/IntermediateRep.cc \
+	src/compiler/Ralloc.cc \
+	src/compiler/SSATransformation.cc \
+	src/compiler/Utility.cc \
+	src/compiler/codegen/RallocUtil.cc \
+	src/compiler/codegen/arm/ArchUtility.cc \
+	src/compiler/codegen/arm/ArmRallocUtil.cc \
+	src/compiler/codegen/arm/Assemble.cc \
+	src/compiler/codegen/arm/LocalOptimizations.cc \
+	src/compiler/codegen/arm/armv7-a/Codegen.cc
+endif
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \

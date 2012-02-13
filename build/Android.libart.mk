@@ -43,6 +43,8 @@ define build-libart
   endif
 
   LOCAL_MODULE_TAGS := optional
+  LOCAL_MODULE_CLASS := SHARED_LIBRARIES
+
   ifeq ($$(art_target_or_host),target)
     LOCAL_SRC_FILES := $(LIBART_TARGET_SRC_FILES)
   else # host
@@ -68,6 +70,9 @@ define build-libart
     endif
   endif
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
+  ifeq ($(ART_USE_LLVM_COMPILER),true)
+    LOCAL_STATIC_LIBRARIES += libLLVMBitWriter libLLVMCore libLLVMSupport
+  endif
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils libstlport libz libdl libdynamic_annotations
@@ -81,8 +86,17 @@ define build-libart
   endif
   LOCAL_STATIC_LIBRARIES += libdex
   ifeq ($$(art_target_or_host),target)
+    ifeq ($(ART_USE_LLVM_COMPILER),true)
+      include $(LLVM_GEN_INTRINSICS_MK)
+      include $(LLVM_DEVICE_BUILD_MK)
+    endif
     include $(BUILD_SHARED_LIBRARY)
   else # host
+    LOCAL_IS_HOST_MODULE := true
+    ifeq ($(ART_USE_LLVM_COMPILER),true)
+      include $(LLVM_GEN_INTRINSICS_MK)
+      include $(LLVM_HOST_BUILD_MK)
+    endif
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 endef

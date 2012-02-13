@@ -31,6 +31,10 @@
 #include "object.h"
 #include "runtime.h"
 
+#if defined(ART_USE_LLVM_COMPILER)
+#include "compiler_llvm/compiler_llvm.h"
+#endif
+
 namespace art {
 
 class Context;
@@ -176,6 +180,12 @@ class Compiler {
   bool ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit, bool is_interface,
                          bool is_super, int& vtable_idx);
 
+#if defined(ART_USE_LLVM_COMPILER)
+  compiler_llvm::CompilerLLVM* GetCompilerLLVM() const {
+    return compiler_llvm_.get();
+  }
+#endif
+
  private:
 
   // Checks if class specified by type_idx is one of the image_classes_
@@ -243,6 +253,11 @@ class Compiler {
   AOTCompilationStats stats_;
 
   const std::set<std::string>* image_classes_;
+
+
+#if defined(ART_USE_LLVM_COMPILER)
+  UniquePtr<compiler_llvm::CompilerLLVM> compiler_llvm_;
+#endif
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);
 };

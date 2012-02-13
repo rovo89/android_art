@@ -22,10 +22,19 @@
 #include "constants.h"
 #include "utils.h"
 
+namespace llvm {
+  class Function;
+}
+
 namespace art {
 
 class CompiledMethod {
  public:
+#if defined(ART_USE_LLVM_COMPILER)
+  // Create a CompiledMethod from the oatCompileMethod
+  CompiledMethod(InstructionSet instruction_set,
+                 llvm::Function* func);
+#else
   // Create a CompiledMethod from the oatCompileMethod
   CompiledMethod(InstructionSet instruction_set,
                  const std::vector<uint16_t>& code,
@@ -34,6 +43,7 @@ class CompiledMethod {
                  const uint32_t fp_spill_mask,
                  const std::vector<uint32_t>& mapping_table,
                  const std::vector<uint16_t>& vmap_table);
+#endif
 
   // Add a GC map to a CompiledMethod created by oatCompileMethod
   void SetGcMap(const std::vector<uint8_t>& gc_map);
@@ -74,6 +84,9 @@ class CompiledMethod {
 
  private:
   const InstructionSet instruction_set_;
+#if defined(ART_USE_LLVM_COMPILER)
+  llvm::Function* func_;
+#endif
   std::vector<uint8_t> code_;
   const size_t frame_size_in_bytes_;
   const uint32_t core_spill_mask_;
