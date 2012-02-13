@@ -130,7 +130,7 @@ class Dbg {
    */
   static std::string GetClassDescriptor(JDWP::RefTypeId id);
   static bool GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& classObjectId);
-  static bool GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclassId);
+  static JDWP::JdwpError GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclassId);
   static JDWP::ObjectId GetClassLoader(JDWP::RefTypeId id);
   static bool GetAccessFlags(JDWP::RefTypeId id, uint32_t& access_flags);
   static bool IsInterface(JDWP::RefTypeId classId, bool& is_interface);
@@ -145,10 +145,9 @@ class Dbg {
   static uint8_t GetObjectTag(JDWP::ObjectId objectId);
   static size_t GetTagWidth(JDWP::JdwpTag tag);
 
-  static int GetArrayLength(JDWP::ObjectId arrayId);
-  static uint8_t GetArrayElementTag(JDWP::ObjectId arrayId);
-  static bool OutputArray(JDWP::ObjectId arrayId, int firstIndex, int count, JDWP::ExpandBuf* pReply);
-  static bool SetArrayElements(JDWP::ObjectId arrayId, int firstIndex, int count, const uint8_t* buf);
+  static JDWP::JdwpError GetArrayLength(JDWP::ObjectId arrayId, int& length);
+  static JDWP::JdwpError OutputArray(JDWP::ObjectId arrayId, int firstIndex, int count, JDWP::ExpandBuf* pReply);
+  static JDWP::JdwpError SetArrayElements(JDWP::ObjectId arrayId, int firstIndex, int count, const uint8_t* buf);
 
   static JDWP::ObjectId CreateString(const std::string& str);
   static bool CreateObject(JDWP::RefTypeId classId, JDWP::ObjectId& new_object);
@@ -169,9 +168,9 @@ class Dbg {
   static JDWP::JdwpTag GetFieldBasicTag(JDWP::FieldId fieldId);
   static JDWP::JdwpTag GetStaticFieldBasicTag(JDWP::FieldId fieldId);
   static void GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply);
-  static void SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width);
+  static JDWP::JdwpError SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width);
   static void GetStaticFieldValue(JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply);
-  static void SetStaticFieldValue(JDWP::FieldId fieldId, uint64_t value, int width);
+  static JDWP::JdwpError SetStaticFieldValue(JDWP::FieldId fieldId, uint64_t value, int width);
 
   static std::string StringToUtf8(JDWP::ObjectId strId);
 

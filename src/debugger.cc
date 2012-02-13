@@ -160,11 +160,11 @@ static JDWP::JdwpTag TagFromClass(Class* c) {
     return JDWP::JT_STRING;
   } else if (c->IsClassClass()) {
     return JDWP::JT_CLASS_OBJECT;
-  } else if (c->InstanceOf(class_linker->FindSystemClass("Ljava/lang/Thread;"))) {
+  } else if (class_linker->FindSystemClass("Ljava/lang/Thread;")->IsAssignableFrom(c)) {
     return JDWP::JT_THREAD;
-  } else if (c->InstanceOf(class_linker->FindSystemClass("Ljava/lang/ThreadGroup;"))) {
+  } else if (class_linker->FindSystemClass("Ljava/lang/ThreadGroup;")->IsAssignableFrom(c)) {
     return JDWP::JT_THREAD_GROUP;
-  } else if (c->InstanceOf(class_linker->FindSystemClass("Ljava/lang/ClassLoader;"))) {
+  } else if (class_linker->FindSystemClass("Ljava/lang/ClassLoader;")->IsAssignableFrom(c)) {
     return JDWP::JT_CLASS_LOADER;
   } else {
     return JDWP::JT_OBJECT;
@@ -464,13 +464,48 @@ bool Dbg::GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& classObjectId) {
   return true;
 }
 
-bool Dbg::GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclassId) {
+static Array* DecodeArray(JDWP::RefTypeId id, JDWP::JdwpError& status) {
   Object* o = gRegistry->Get<Object*>(id);
-  if (o == NULL || !o->IsClass()) {
-    return false;
+  if (o == NULL) {
+    status = JDWP::ERR_INVALID_OBJECT;
+    return NULL;
   }
-  superclassId = gRegistry->Add(o->AsClass()->GetSuperClass());
-  return true;
+  if (!o->IsArrayInstance()) {
+    status = JDWP::ERR_INVALID_ARRAY;
+    return NULL;
+  }
+  status = JDWP::ERR_NONE;
+  return o->AsArray();
+}
+
+// TODO: this should probably be used everywhere we're converting a RefTypeId to a Class*.
+static Class* DecodeClass(JDWP::RefTypeId id, JDWP::JdwpError& status) {
+  Object* o = gRegistry->Get<Object*>(id);
+  if (o == NULL) {
+    status = JDWP::ERR_INVALID_OBJECT;
+    return NULL;
+  }
+  if (!o->IsClass()) {
+    status = JDWP::ERR_INVALID_CLASS;
+    return NULL;
+  }
+  status = JDWP::ERR_NONE;
+  return o->AsClass();
+}
+
+JDWP::JdwpError Dbg::GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclassId) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(id, status);
+  if (c == NULL) {
+    return status;
+  }
+  if (c->IsInterface()) {
+    // http://code.google.com/p/android/issues/detail?id=20856
+    superclassId = NULL;
+  } else {
+    superclassId = gRegistry->Add(c->GetSuperClass());
+  }
+  return JDWP::ERR_NONE;
 }
 
 JDWP::ObjectId Dbg::GetClassLoader(JDWP::RefTypeId id) {
@@ -630,33 +665,32 @@ size_t Dbg::GetTagWidth(JDWP::JdwpTag tag) {
   }
 }
 
-int Dbg::GetArrayLength(JDWP::ObjectId arrayId) {
-  Object* o = gRegistry->Get<Object*>(arrayId);
-  Array* a = o->AsArray();
-  return a->GetLength();
-}
-
-uint8_t Dbg::GetArrayElementTag(JDWP::ObjectId arrayId) {
-  Object* o = gRegistry->Get<Object*>(arrayId);
-  Array* a = o->AsArray();
-  std::string descriptor(ClassHelper(a->GetClass()).GetDescriptor());
-  JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
-  if (!IsPrimitiveTag(tag)) {
-    tag = TagFromClass(a->GetClass()->GetComponentType());
+JDWP::JdwpError Dbg::GetArrayLength(JDWP::ObjectId arrayId, int& length) {
+  JDWP::JdwpError status;
+  Array* a = DecodeArray(arrayId, status);
+  if (a == NULL) {
+    return status;
   }
-  return tag;
+  length = a->GetLength();
+  return JDWP::ERR_NONE;
 }
 
-bool Dbg::OutputArray(JDWP::ObjectId arrayId, int offset, int count, JDWP::ExpandBuf* pReply) {
-  Object* o = gRegistry->Get<Object*>(arrayId);
-  Array* a = o->AsArray();
+JDWP::JdwpError Dbg::OutputArray(JDWP::ObjectId arrayId, int offset, int count, JDWP::ExpandBuf* pReply) {
+  JDWP::JdwpError status;
+  Array* a = DecodeArray(arrayId, status);
+  if (a == NULL) {
+    return status;
+  }
 
   if (offset < 0 || count < 0 || offset > a->GetLength() || a->GetLength() - offset < count) {
     LOG(WARNING) << __FUNCTION__ << " access out of bounds: offset=" << offset << "; count=" << count;
-    return false;
+    return JDWP::ERR_INVALID_LENGTH;
   }
   std::string descriptor(ClassHelper(a->GetClass()).GetDescriptor());
   JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
+
+  expandBufAdd1(pReply, tag);
+  expandBufAdd4BE(pReply, count);
 
   if (IsPrimitiveTag(tag)) {
     size_t width = GetTagWidth(tag);
@@ -684,16 +718,19 @@ bool Dbg::OutputArray(JDWP::ObjectId arrayId, int offset, int count, JDWP::Expan
     }
   }
 
-  return true;
+  return JDWP::ERR_NONE;
 }
 
-bool Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int count, const uint8_t* src) {
-  Object* o = gRegistry->Get<Object*>(arrayId);
-  Array* a = o->AsArray();
+JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int count, const uint8_t* src) {
+  JDWP::JdwpError status;
+  Array* a = DecodeArray(arrayId, status);
+  if (a == NULL) {
+    return status;
+  }
 
   if (offset < 0 || count < 0 || offset > a->GetLength() || a->GetLength() - offset < count) {
     LOG(WARNING) << __FUNCTION__ << " access out of bounds: offset=" << offset << "; count=" << count;
-    return false;
+    return JDWP::ERR_INVALID_LENGTH;
   }
   std::string descriptor(ClassHelper(a->GetClass()).GetDescriptor());
   JDWP::JdwpTag tag = BasicTagFromDescriptor(descriptor.c_str() + 1);
@@ -726,7 +763,7 @@ bool Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int count, const 
     }
   }
 
-  return true;
+  return JDWP::ERR_NONE;
 }
 
 JDWP::ObjectId Dbg::CreateString(const std::string& str) {
@@ -1047,7 +1084,7 @@ void Dbg::GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::Ex
   }
 }
 
-void Dbg::SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width) {
+JDWP::JdwpError Dbg::SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width) {
   Object* o = gRegistry->Get<Object*>(objectId);
   Field* f = FromFieldId(fieldId);
 
@@ -1060,16 +1097,23 @@ void Dbg::SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t
       f->Set32(o, value);
     }
   } else {
-    f->SetObject(o, gRegistry->Get<Object*>(value));
+    Object* v = gRegistry->Get<Object*>(value);
+    Class* field_type = FieldHelper(f).GetType();
+    if (!field_type->IsAssignableFrom(v->GetClass())) {
+      return JDWP::ERR_INVALID_OBJECT;
+    }
+    f->SetObject(o, v);
   }
+
+  return JDWP::ERR_NONE;
 }
 
 void Dbg::GetStaticFieldValue(JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
   GetFieldValue(0, fieldId, pReply);
 }
 
-void Dbg::SetStaticFieldValue(JDWP::FieldId fieldId, uint64_t value, int width) {
-  SetFieldValue(0, fieldId, value, width);
+JDWP::JdwpError Dbg::SetStaticFieldValue(JDWP::FieldId fieldId, uint64_t value, int width) {
+  return SetFieldValue(0, fieldId, value, width);
 }
 
 std::string Dbg::StringToUtf8(JDWP::ObjectId strId) {
