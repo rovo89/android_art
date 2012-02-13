@@ -46,6 +46,50 @@ class IRBuilder : public LLVMIRBuilder {
 
 
   //--------------------------------------------------------------------------
+  // Pointer Arithmetic Helper Function
+  //--------------------------------------------------------------------------
+
+  llvm::IntegerType* getPtrEquivIntTy() {
+    return getInt32Ty();
+  }
+
+  size_t getSizeOfPtrEquivInt() {
+    return 4;
+  }
+
+  llvm::ConstantInt* getSizeOfPtrEquivIntValue() {
+    return getPtrEquivInt(getSizeOfPtrEquivInt());
+  }
+
+  llvm::ConstantInt* getPtrEquivInt(uint64_t i) {
+    return llvm::ConstantInt::get(getPtrEquivIntTy(), i);
+  }
+
+  llvm::Value* CreatePtrDisp(llvm::Value* base,
+                             llvm::Value* offset,
+                             llvm::PointerType* ret_ty) {
+
+    llvm::Value* base_int = CreatePtrToInt(base, getPtrEquivIntTy());
+    llvm::Value* result_int = CreateAdd(base_int, offset);
+    llvm::Value* result = CreateIntToPtr(result_int, ret_ty);
+
+    return result;
+  }
+
+  llvm::Value* CreatePtrDisp(llvm::Value* base,
+                             llvm::Value* bs,
+                             llvm::Value* count,
+                             llvm::Value* offset,
+                             llvm::PointerType* ret_ty) {
+
+    llvm::Value* block_offset = CreateMul(bs, count);
+    llvm::Value* total_offset = CreateAdd(block_offset, offset);
+
+    return CreatePtrDisp(base, total_offset, ret_ty);
+  }
+
+
+  //--------------------------------------------------------------------------
   // Type Helper Function
   //--------------------------------------------------------------------------
 
