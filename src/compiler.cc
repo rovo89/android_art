@@ -985,7 +985,11 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
 #endif
 
   if ((access_flags & kAccNative) != 0) {
+#if defined(ART_USE_LLVM_COMPILER)
+    compiled_method = compiler_llvm_->CompileNativeMethod(oat_compilation_unit.get());
+#else
     compiled_method = jni_compiler_.Compile(access_flags, method_idx, class_loader, dex_file);
+#endif
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {

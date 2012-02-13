@@ -18,6 +18,7 @@
 
 #include "compiler.h"
 #include "ir_builder.h"
+#include "jni_compiler.h"
 #include "method_compiler.h"
 #include "oat_compilation_unit.h"
 #include "upcall_compiler.h"
@@ -89,6 +90,16 @@ CompiledMethod* CompilerLLVM::CompileDexMethod(OatCompilationUnit* oat_compilati
     new MethodCompiler(insn_set_, compiler_, oat_compilation_unit));
 
   return method_compiler->Compile();
+}
+
+
+CompiledMethod* CompilerLLVM::CompileNativeMethod(OatCompilationUnit* oat_compilation_unit) {
+  MutexLock GUARD(compiler_lock_);
+
+  UniquePtr<JniCompiler> jni_compiler(
+    new JniCompiler(insn_set_, *compiler_, oat_compilation_unit));
+
+  return jni_compiler->Compile();
 }
 
 

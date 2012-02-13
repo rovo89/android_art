@@ -210,6 +210,7 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/generated/art_module.cc \
 	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/compiler_llvm/ir_builder.cc \
+	src/compiler_llvm/jni_compiler.cc \
 	src/compiler_llvm/method_compiler.cc \
 	src/compiler_llvm/upcall_compiler.cc \
 	src/compiler_llvm/utils_llvm.cc
