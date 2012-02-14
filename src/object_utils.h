@@ -561,7 +561,7 @@ class MethodHelper {
     if (method != NULL) {
       Class* klass = method->GetDeclaringClass();
       if (klass->IsProxyClass()) {
-        method = klass->GetDexCache()->GetResolvedMethod(method->GetDexMethodIndex());
+        method = method->GetDexCacheResolvedMethods()->Get(method->GetDexMethodIndex());
         CHECK(method != NULL);
       }
     }

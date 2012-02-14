@@ -604,6 +604,9 @@ class MANAGED Method : public Object {
   ObjectArray<Class>* GetDexCacheResolvedTypes() const;
   void SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_types);
 
+  ObjectArray<Method>* GetDexCacheResolvedMethods() const;
+  void SetDexCacheResolvedMethods(ObjectArray<Method>* new_dex_cache_methods);
+
   CodeAndDirectMethods* GetDexCacheCodeAndDirectMethods() const;
   void SetDexCacheCodeAndDirectMethods(CodeAndDirectMethods* new_value);
 
@@ -789,6 +792,10 @@ class MANAGED Method : public Object {
     return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_code_and_direct_methods_);
   }
 
+  static MemberOffset GetDexCacheResolvedMethodsOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_methods_);
+  }
+
   static MemberOffset GetMethodIndexOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, method_index_);
   }
@@ -859,6 +866,9 @@ class MANAGED Method : public Object {
 
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
   ObjectArray<StaticStorageBase>* dex_cache_initialized_static_storage_;
+
+  // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
+  ObjectArray<Method>* dex_cache_resolved_methods_;
 
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
   ObjectArray<Class>* dex_cache_resolved_types_;
