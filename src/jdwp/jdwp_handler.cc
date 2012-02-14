@@ -469,15 +469,17 @@ static JdwpError handleRT_Signature(JdwpState* state, const uint8_t* buf, int da
   return ERR_NONE;
 }
 
-/*
- * Return the modifiers (a/k/a access flags) for a reference type.
- */
 static JdwpError handleRT_Modifiers(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
   uint32_t access_flags;
   if (!Dbg::GetAccessFlags(refTypeId, access_flags)) {
     return ERR_INVALID_CLASS;
   }
+
+  // Set ACC_SUPER; dex files don't contain this flag, but all classes are supposed to have it set.
+  // Class.getModifiers doesn't return it, but JDWP does, so we set it here.
+  access_flags |= kAccSuper;
+
   expandBufAdd4BE(pReply, access_flags);
   return ERR_NONE;
 }
