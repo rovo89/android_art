@@ -416,10 +416,7 @@ static JdwpError handleVM_CapabilitiesNew(JdwpState* state, const uint8_t* buf, 
   return ERR_NONE;
 }
 
-/*
- * Cough up the complete list of classes.
- */
-static JdwpError handleVM_AllClassesWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+static JdwpError handleVM_AllClasses(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply, bool generic) {
   std::vector<JDWP::RefTypeId> classes;
   Dbg::GetClassList(classes);
 
@@ -437,11 +434,21 @@ static JdwpError handleVM_AllClassesWithGeneric(JdwpState* state, const uint8_t*
     expandBufAdd1(pReply, refTypeTag);
     expandBufAddRefTypeId(pReply, classes[i]);
     expandBufAddUtf8String(pReply, descriptor);
-    expandBufAddUtf8String(pReply, genericSignature);
+    if (generic) {
+      expandBufAddUtf8String(pReply, genericSignature);
+    }
     expandBufAdd4BE(pReply, status);
   }
 
   return ERR_NONE;
+}
+
+static JdwpError handleVM_AllClasses(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+  return handleVM_AllClasses(state, buf, dataLen, pReply, false);
+}
+
+static JdwpError handleVM_AllClassesWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+  return handleVM_AllClasses(state, buf, dataLen, pReply, true);
 }
 
 /*
@@ -453,8 +460,10 @@ static JdwpError handleRT_Signature(JdwpState* state, const uint8_t* buf, int da
 
   VLOG(jdwp) << StringPrintf("  Req for signature of refTypeId=0x%llx", refTypeId);
   std::string signature;
-  if (!Dbg::GetSignature(refTypeId, signature)) {
-    return ERR_INVALID_CLASS;
+
+  JdwpError status = Dbg::GetSignature(refTypeId, signature);
+  if (status != ERR_NONE) {
+    return status;
   }
   expandBufAddUtf8String(pReply, signature);
   return ERR_NONE;
@@ -1563,7 +1572,7 @@ static const JdwpHandlerMap gHandlerMap[] = {
   /* VirtualMachine command set (1) */
   { 1,    1,  handleVM_Version,       "VirtualMachine.Version" },
   { 1,    2,  handleVM_ClassesBySignature, "VirtualMachine.ClassesBySignature" },
-  { 1,    3,  NULL, "VirtualMachine.AllClasses" },
+  { 1,    3,  handleVM_AllClasses,    "VirtualMachine.AllClasses" },
   { 1,    4,  handleVM_AllThreads,    "VirtualMachine.AllThreads" },
   { 1,    5,  handleVM_TopLevelThreadGroups, "VirtualMachine.TopLevelThreadGroups" },
   { 1,    6,  handleVM_Dispose,       "VirtualMachine.Dispose" },

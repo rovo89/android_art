@@ -140,7 +140,7 @@ class Dbg {
   static void FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids);
   static void GetObjectType(JDWP::ObjectId objectId, JDWP::JdwpTypeTag* pRefTypeTag, JDWP::RefTypeId* pRefTypeId);
   static uint8_t GetClassObjectType(JDWP::RefTypeId refTypeId);
-  static bool GetSignature(JDWP::RefTypeId refTypeId, std::string& signature);
+  static JDWP::JdwpError GetSignature(JDWP::RefTypeId refTypeId, std::string& signature);
   static bool GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file);
   static uint8_t GetObjectTag(JDWP::ObjectId objectId);
   static size_t GetTagWidth(JDWP::JdwpTag tag);
