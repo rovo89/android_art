@@ -1386,6 +1386,8 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   uint32_t access_flags = dex_class_def.access_flags_;
   // Make sure that none of our runtime-only flags are set.
   CHECK_EQ(access_flags & ~kAccJavaFlagsMask, 0U);
+  // Set ACC_SUPER; dex files don't contain this flag, but all classes are supposed to have it set.
+  access_flags |= kAccSuper;
   klass->SetAccessFlags(access_flags);
   klass->SetClassLoader(class_loader);
   DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
