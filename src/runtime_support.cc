@@ -119,20 +119,6 @@ extern void DebugMe(Method* method, uint32_t info) {
   LOG(INFO) << "Info: " << info;
 }
 
-extern "C" uint32_t artObjectInitFromCode(Object* o, Thread* self, Method** sp) {
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  Class* c = o->GetClass();
-  if (UNLIKELY(c->IsFinalizable())) {
-    Heap::AddFinalizerReference(self, o);
-  }
-  /*
-   * NOTE: once debugger/profiler support is added, we'll need to check
-   * here and branch to actual compiled object.<init> to handle any
-   * breakpoint/logging activities if either is active.
-   */
-  return self->IsExceptionPending() ? -1 : 0;
-}
-
 // Return value helper for jobject return types
 extern Object* DecodeJObjectInThread(Thread* thread, jobject obj) {
   if (thread->IsExceptionPending()) {

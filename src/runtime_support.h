@@ -74,7 +74,6 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" void art_invoke_super_trampoline_with_access_check(uint32_t, void*);
   extern "C" void art_invoke_virtual_trampoline_with_access_check(uint32_t, void*);
   extern "C" void art_lock_object_from_code(void*);
-  extern "C" void art_object_init_from_code(void*);
   extern "C" void art_test_suspend();
   extern "C" void art_throw_array_bounds_from_code(int32_t index, int32_t limit);
   extern "C" void art_throw_div_zero_from_code();

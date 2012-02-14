@@ -780,22 +780,6 @@ STATIC void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
     oatLockCallTemps(cUnit);
 
     uint32_t dexMethodIdx = mir->dalvikInsn.vB;
-    // Is this the special "Ljava/lang/Object;.<init>:()V" case?
-    if (direct && !range) {
-        Method* target = cUnit->dex_cache->GetResolvedMethods()->Get(dexMethodIdx);
-        if (target) {
-            if (PrettyMethod(target) == "java.lang.Object.<init>()V") {
-                RegLocation rlArg = oatGetSrc(cUnit, mir, 0);
-                loadValueDirectFixed(cUnit, rlArg, r0);
-                loadWordDisp(cUnit, rSELF,
-                         OFFSETOF_MEMBER(Thread, pObjectInit), rLR);
-                genNullCheck(cUnit, oatSSASrc(mir,0), r0, mir);
-                opReg(cUnit, kOpBlx, rLR);
-                oatClobberCalleeSave(cUnit);
-                return;
-            }
-        }
-    }
 
     if (range) {
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, pNullCk,
