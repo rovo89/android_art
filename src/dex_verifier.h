@@ -570,10 +570,12 @@ const int kVerifyErrorRefTypeShift = 6;
  */
 enum RegisterMapFormat {
   kRegMapFormatUnknown = 0,
-  kRegMapFormatNone,          /* indicates no map data follows */
-  kRegMapFormatCompact8,      /* compact layout, 8-bit addresses */
-  kRegMapFormatCompact16,     /* compact layout, 16-bit addresses */
+  kRegMapFormatNone = 1,      /* indicates no map data follows */
+  kRegMapFormatCompact8 = 2,  /* compact layout, 8-bit addresses */
+  kRegMapFormatCompact16 = 3, /* compact layout, 16-bit addresses */
 };
+const int kRegMapFormatShift = 5;
+const uint8_t kRegMapFormatMask = 0x7;
 
 // During verification, we associate one of these with every "interesting" instruction. We track
 // the status of all registers, and (if the method has any monitor-enter instructions) maintain a
@@ -611,7 +613,7 @@ class RegisterLine {
   // Set the type of register N, verifying that the register is valid.  If "newType" is the "Lo"
   // part of a 64-bit value, register N+1 will be set to "newType+1".
   // The register index was validated during the static pass, so we don't need to check it here.
-  void SetRegisterType(uint32_t vdst, const RegType& new_type);
+  bool SetRegisterType(uint32_t vdst, const RegType& new_type);
 
   /* Set the type of the "result" register. */
   void SetResultRegisterType(const RegType& new_type);
@@ -1313,7 +1315,7 @@ class PcToReferenceMap {
 
   // The number of bytes used to encode registers
   size_t RegWidth() const {
-    return GetData()[1];
+    return GetData()[1] | ((GetData()[0] & ~kRegMapFormatMask) << kRegMapFormatShift);
   }
 
  private:
@@ -1324,7 +1326,7 @@ class PcToReferenceMap {
 
   // The format of the table of the PCs for the table
   RegisterMapFormat Format() const {
-    return static_cast<RegisterMapFormat>(GetData()[0]);
+    return static_cast<RegisterMapFormat>(GetData()[0] & kRegMapFormatMask);
   }
 
   // Number of bytes used to encode a dex pc

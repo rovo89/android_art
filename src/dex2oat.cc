@@ -387,10 +387,10 @@ void OpenDexFiles(const std::vector<const char*>& dex_filenames,
     const char* dex_filename = dex_filenames[i];
     const DexFile* dex_file = DexFile::Open(dex_filename, strip_location_prefix);
     if (dex_file == NULL) {
-      fprintf(stderr, "could not open .dex from file %s\n", dex_filename);
-      exit(EXIT_FAILURE);
+      LOG(WARNING) << "could not open .dex from file " << dex_filename;
+    } else {
+      dex_files.push_back(dex_file);
     }
-    dex_files.push_back(dex_file);
   }
 }
 

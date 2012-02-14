@@ -575,7 +575,7 @@ bool RegisterLine::CheckConstructorReturn() const {
   return true;
 }
 
-void RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
+bool RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
   DCHECK(vdst < num_regs_);
   if (new_type.IsLowHalf()) {
     line_[vdst] = new_type.GetId();
@@ -583,13 +583,16 @@ void RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
   } else if (new_type.IsHighHalf()) {
     /* should never set these explicitly */
     verifier_->Fail(VERIFY_ERROR_GENERIC) << "Explicit set of high register type";
+    return false;
   } else if (new_type.IsConflict()) {  // should only be set during a merge
     verifier_->Fail(VERIFY_ERROR_GENERIC) << "Set register to unknown type " << new_type;
+    return false;
   } else {
     line_[vdst] = new_type.GetId();
   }
   // Clear the monitor entry bits for this register.
   ClearAllRegToLockDepths(vdst);
+  return true;
 }
 
 void RegisterLine::SetResultTypeToUnknown() {
@@ -677,7 +680,9 @@ void RegisterLine::MarkUninitRefsAsInvalid(const RegType& uninit_type) {
 void RegisterLine::CopyRegister1(uint32_t vdst, uint32_t vsrc, TypeCategory cat) {
   DCHECK(cat == kTypeCategory1nr || cat == kTypeCategoryRef);
   const RegType& type = GetRegisterType(vsrc);
-  SetRegisterType(vdst, type);
+  if (!SetRegisterType(vdst, type)) {
+    return;
+  }
   if ((cat == kTypeCategory1nr && !type.IsCategory1Types()) ||
       (cat == kTypeCategoryRef && !type.IsReferenceTypes())) {
     verifier_->Fail(VERIFY_ERROR_GENERIC) << "copy1 v" << vdst << "<-v" << vsrc << " type=" << type
@@ -1123,6 +1128,12 @@ bool DexVerifier::ScanTryCatchBlocks() {
       uint32_t dex_pc= iterator.GetHandlerAddress();
       if (!insn_flags_[dex_pc].IsOpcode()) {
         Fail(VERIFY_ERROR_GENERIC) << "exception handler starts at bad address (" << dex_pc << ")";
+        return false;
+      }
+      const Instruction* inst = Instruction::At(code_item_->insns_ + dex_pc);
+      if (inst->Opcode() != Instruction::MOVE_EXCEPTION) {
+        Fail(VERIFY_ERROR_GENERIC) << "exception handler doesn't start with move-exception ("
+                                   << dex_pc << ")";
         return false;
       }
       insn_flags_[dex_pc].SetBranchTarget();
@@ -1966,9 +1977,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
     case Instruction::MOVE_EXCEPTION: {
       /*
-       * This statement can only appear as the first instruction in an exception handler (though not
-       * all exception handlers need to have one of these). We verify that as part of extracting the
-       * exception type from the catch block list.
+       * This statement can only appear as the first instruction in an exception handler. We verify
+       * that as part of extracting the exception type from the catch block list.
        */
       const RegType& res_type = GetCaughtExceptionType();
       work_line_->SetRegisterType(dec_insn.vA_, res_type);
@@ -3780,7 +3790,7 @@ const std::vector<uint8_t>* DexVerifier::GenerateGcMap() {
   size_t num_entries, ref_bitmap_bits, pc_bits;
   ComputeGcMapSizes(&num_entries, &ref_bitmap_bits, &pc_bits);
   // There's a single byte to encode the size of each bitmap
-  if (ref_bitmap_bits >= (8 /* bits per byte */ * 256 /* max unsigned byte + 1 */ )) {
+  if (ref_bitmap_bits >= (8 /* bits per byte */ * 8192 /* 13-bit size */ )) {
     // TODO: either a better GC map format or per method failures
     Fail(VERIFY_ERROR_GENERIC) << "Cannot encode GC map for method with "
        << ref_bitmap_bits << " registers";
@@ -3815,8 +3825,8 @@ const std::vector<uint8_t>* DexVerifier::GenerateGcMap() {
     return NULL;
   }
   // Write table header
-  table->push_back(format);
-  table->push_back(ref_bitmap_bytes);
+  table->push_back(format | ((ref_bitmap_bytes >> kRegMapFormatShift) & ~kRegMapFormatMask));
+  table->push_back(ref_bitmap_bytes & 0xFF);
   table->push_back(num_entries & 0xFF);
   table->push_back((num_entries >> 8) & 0xFF);
   // Write table data
