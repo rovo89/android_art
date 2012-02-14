@@ -158,10 +158,10 @@ class ClassLinker {
                         bool is_direct);
 
   Method* ResolveMethod(uint32_t method_idx, const Method* referrer, bool is_direct) {
-    Method* resolved_method = referrer->GetDexCacheResolvedMethods()->Get(method_idx);
+    Class* declaring_class = referrer->GetDeclaringClass();
+    DexCache* dex_cache = declaring_class->GetDexCache();
+    Method* resolved_method = dex_cache->GetResolvedMethod(method_idx);
     if (UNLIKELY(resolved_method == NULL)) {
-      Class* declaring_class = referrer->GetDeclaringClass();
-      DexCache* dex_cache = declaring_class->GetDexCache();
       const ClassLoader* class_loader = declaring_class->GetClassLoader();
       const DexFile& dex_file = FindDexFile(dex_cache);
       resolved_method = ResolveMethod(dex_file, method_idx, dex_cache, class_loader, is_direct);
@@ -282,6 +282,7 @@ class ClassLinker {
   Class* CreateProxyClass(String* name, ObjectArray<Class>* interfaces, ClassLoader* loader,
                           ObjectArray<Method>* methods, ObjectArray<ObjectArray<Class> >* throws);
   std::string GetDescriptorForProxy(const Class* proxy_class);
+  Method* FindMethodForProxy(const Class* proxy_class, const Method* proxy_method);
 
   pid_t GetClassesLockOwner(); // For SignalCatcher.
   pid_t GetDexLockOwner(); // For SignalCatcher.

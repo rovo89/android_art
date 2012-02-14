@@ -1515,7 +1515,6 @@ void ClassLinker::LoadMethod(const DexFile& dex_file, const ClassDataItemIterato
 
   dst->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
   dst->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
-  dst->SetDexCacheResolvedMethods(klass->GetDexCache()->GetResolvedMethods());
   dst->SetDexCacheCodeAndDirectMethods(klass->GetDexCache()->GetCodeAndDirectMethods());
   dst->SetDexCacheInitializedStaticStorage(klass->GetDexCache()->GetInitializedStaticStorage());
 }
@@ -2140,6 +2139,28 @@ std::string ClassLinker::GetDescriptorForProxy(const Class* proxy_class) {
   return DotToDescriptor(name->ToModifiedUtf8().c_str());
 }
 
+Method* ClassLinker::FindMethodForProxy(const Class* proxy_class, const Method* proxy_method) {
+  DCHECK(proxy_class->IsProxyClass());
+  DCHECK(proxy_method->IsProxyMethod());
+  // Locate the dex cache of the original interface/Object
+  DexCache* dex_cache = NULL;
+  {
+    ObjectArray<Class>* resolved_types = proxy_method->GetDexCacheResolvedTypes();
+    MutexLock mu(dex_lock_);
+    for (size_t i = 0; i != dex_caches_.size(); ++i) {
+      if (dex_caches_[i]->GetResolvedTypes() == resolved_types) {
+        dex_cache = dex_caches_[i];
+        break;
+      }
+    }
+  }
+  CHECK(dex_cache != NULL);
+  uint32_t method_idx = proxy_method->GetDexMethodIndex();
+  Method* resolved_method = dex_cache->GetResolvedMethod(method_idx);
+  CHECK(resolved_method != NULL);
+  return resolved_method;
+}
+
 
 Method* ClassLinker::CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class) {
   // Create constructor for Proxy that must initialize h
@@ -2166,7 +2187,8 @@ static void CheckProxyConstructor(Method* constructor) {
 Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype) {
   // Ensure prototype is in dex cache so that we can use the dex cache to look up the overridden
   // prototype method
-  prototype->GetDexCacheResolvedMethods()->Set(prototype->GetDexMethodIndex(), prototype.get());
+  prototype->GetDeclaringClass()->GetDexCache()->SetResolvedMethod(prototype->GetDexMethodIndex(),
+                                                                   prototype.get());
   // We steal everything from the prototype (such as DexCache, invoke stub, etc.) then specialize
   // as necessary
   Method* method = down_cast<Method*>(prototype->Clone());
@@ -2183,6 +2205,7 @@ Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& p
   method->SetFpSpillMask(refs_and_args->GetFpSpillMask());
   method->SetFrameSizeInBytes(refs_and_args->GetFrameSizeInBytes());
   method->SetCode(reinterpret_cast<void*>(art_proxy_invoke_handler));
+
   return method;
 }
 

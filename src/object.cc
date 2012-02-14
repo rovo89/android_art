@@ -355,16 +355,6 @@ void Method::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_classes)
                  new_dex_cache_classes, false);
 }
 
-ObjectArray<Method>* Method::GetDexCacheResolvedMethods() const {
-  return GetFieldObject<ObjectArray<Method>*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_methods_), false);
-}
-
-void Method::SetDexCacheResolvedMethods(ObjectArray<Method>* new_dex_cache_methods) {
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_methods_),
-                 new_dex_cache_methods, false);
-}
-
 CodeAndDirectMethods* Method::GetDexCacheCodeAndDirectMethods() const {
   return GetFieldPtr<CodeAndDirectMethods*>(
       OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_code_and_direct_methods_),
@@ -421,18 +411,22 @@ Method* Method::FindOverriddenMethod() const {
     result = super_class_vtable->Get(method_index);
   } else {
     // Method didn't override superclass method so search interfaces
-    MethodHelper mh(this);
-    MethodHelper interface_mh;
-    ObjectArray<InterfaceEntry>* iftable = GetDeclaringClass()->GetIfTable();
-    for (int32_t i = 0; i < iftable->GetLength() && result == NULL; i++) {
-      InterfaceEntry* entry = iftable->Get(i);
-      Class* interface = entry->GetInterface();
-      for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-        Method* interface_method = interface->GetVirtualMethod(j);
-        interface_mh.ChangeMethod(interface_method);
-        if (mh.HasSameNameAndSignature(&interface_mh)) {
-          result = interface_method;
-          break;
+    if (IsProxyMethod()) {
+      result = Runtime::Current()->GetClassLinker()->FindMethodForProxy(GetDeclaringClass(), this);
+    } else {
+      MethodHelper mh(this);
+      MethodHelper interface_mh;
+      ObjectArray<InterfaceEntry>* iftable = GetDeclaringClass()->GetIfTable();
+      for (int32_t i = 0; i < iftable->GetLength() && result == NULL; i++) {
+        InterfaceEntry* entry = iftable->Get(i);
+        Class* interface = entry->GetInterface();
+        for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
+          Method* interface_method = interface->GetVirtualMethod(j);
+          interface_mh.ChangeMethod(interface_method);
+          if (mh.HasSameNameAndSignature(&interface_mh)) {
+            result = interface_method;
+            break;
+          }
         }
       }
     }

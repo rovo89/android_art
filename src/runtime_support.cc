@@ -1037,7 +1037,6 @@ extern "C" Method* artResolveMethodFromCode(Method* referrer,
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     Method* method = class_linker->ResolveMethod(method_idx, referrer, is_direct);
-    referrer->GetDexCacheResolvedMethods()->Set(method_idx, method);
     return method;
 }
 

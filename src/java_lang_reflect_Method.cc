@@ -50,9 +50,15 @@ jobject Method_getExceptionTypesNative(JNIEnv* env, jobject javaMethod) {
   return AddLocalReference<jobject>(env, declared_exceptions->Clone());
 }
 
+jobject Method_findOverriddenMethod(JNIEnv* env, jobject javaMethod) {
+  Method* method = Decode<Object*>(env, javaMethod)->AsMethod();
+  return AddLocalReference<jobject>(env, method->FindOverriddenMethod());
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Method, invoke, "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;"),
   NATIVE_METHOD(Method, getExceptionTypesNative, "()[Ljava/lang/Class;"),
+  NATIVE_METHOD(Method, findOverriddenMethod, "()Ljava/lang/reflect/Method;"),
 };
 
 }  // namespace
