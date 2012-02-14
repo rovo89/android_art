@@ -23,7 +23,7 @@ OATEXEC="oatexecd"
 DEBUG="n"
 VERIFY="y"
 OPTIMIZE="y"
-ZYGOTE="n"
+ZYGOTE=""
 QUIET="n"
 DEV_MODE="n"
 INVOKE_WITH=""
@@ -39,7 +39,7 @@ while true; do
         DEBUG="y"
         shift
     elif [ "x$1" = "x--zygote" ]; then
-        ZYGOTE="y"
+        ZYGOTE="--zygote"
         msg "Spawning from zygote"
         shift
     elif [ "x$1" = "x--dev" ]; then
@@ -66,7 +66,7 @@ while true; do
     fi
 done
 
-if [ "$ZYGOTE" = "n" ]; then
+if [ "$ZYGOTE" = "" ]; then
     if [ "$OPTIMIZE" = "y" ]; then
         if [ "$VERIFY" = "y" ]; then
             DEX_OPTIMIZE="-Xdexopt:verified"
@@ -116,18 +116,12 @@ if [ "$DEBUG" = "y" ]; then
   #   jdb -attach localhost:12345
 fi
 
-if [ "$ZYGOTE" = "y" ]; then
-  adb shell cd /data \; dvz -classpath $TEST_NAME.jar Main "$@"
-else
-  cmdline="cd /data; $INVOKE_WITH $OATEXEC ${DEX_DEBUG} -Xjnigreflimit:256 \
-      -Ximage:/data/art-test/core.art \
-      -cp /data/art-test/$TEST_NAME.jar \
-      Main"
-  #cmdline="cd /data; dalvikvm $DEX_VERIFY $DEX_OPTIMIZE $DEX_DEBUG \
-  #     -cp test.jar -Xint:${INTERP} -ea Main"
-  if [ "$DEV_MODE" = "y" ]; then
-    echo $cmdline "$@"
-  fi
-
-  adb shell $cmdline "$@"
+cmdline="cd /data; $INVOKE_WITH $OATEXEC $DEX_DEBUG $ZYGOTE -Xjnigreflimit:256 \
+    -Ximage:/data/art-test/core.art \
+    -cp /data/art-test/$TEST_NAME.jar \
+    Main"
+if [ "$DEV_MODE" = "y" ]; then
+  echo $cmdline "$@"
 fi
+
+adb shell $cmdline "$@"

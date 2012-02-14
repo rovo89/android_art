@@ -54,11 +54,11 @@ while true; do
     if [ "x$1" = "x--host" ]; then
         RUN="${progdir}/etc/host-run-test-jar"
         shift
-    elif [ "x$1" = "x--reference" ]; then
+    elif [ "x$1" = "x--jvm" ]; then
         RUN="${progdir}/etc/reference-run-test-classes"
         shift
-    elif [ "x$1" = "x-d" ]; then
-        run_args="${run_args} -d"
+    elif [ "x$1" = "x-O" ]; then
+        run_args="${run_args} -O"
         shift
     elif [ "x$1" = "x--debug" ]; then
         run_args="${run_args} --debug"
@@ -142,6 +142,7 @@ if [ "$usage" = "yes" ]; then
         echo '  Omitting the test name or specifying "-" will use the' \
              "current directory."
         echo "  Runtime Options:"
+        echo "    -O             Run oatexec rather than oatexecd (off by default)."
         echo "    --debug        Wait for a debugger to attach."
         #echo "    --gdb          Run under gdb; incompatible with some tests."
         echo "    --no-verify    Turn off verification (on by default)."
@@ -152,7 +153,7 @@ if [ "$usage" = "yes" ]; then
         echo "                   other runtime options are ignored."
         echo "    --host         Use the host-mode virtual machine."
         echo "    --valgrind     Use valgrind when running locally."
-        echo "    --reference    Use a host-local reference virtual machine."
+        echo "    --jvm          Use a host-local RI virtual machine."
     ) 1>&2
     exit 1
 fi

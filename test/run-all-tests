@@ -40,8 +40,8 @@ while true; do
     if [ "x$1" = "x--host" ]; then
         run_args="${run_args} --host"
         shift
-    elif [ "x$1" = "x--reference" ]; then
-        run_args="${run_args} --reference"
+    elif [ "x$1" = "x--jvm" ]; then
+        run_args="${run_args} --jvm"
         shift
     elif [ "x$1" = "x--debug" ]; then
         run_args="${run_args} --debug"
@@ -84,8 +84,8 @@ if [ "$usage" = "yes" ]; then
         echo "  $prog [options]  Run all tests with the given options."
         echo "  Options are all passed to run-test; refer to that for " \
              "further documentation:"
-        echo "    --debug --dev --host --no-optimize --no-verify"
-        echo "    --reference --update --valgrind --zygote"
+        echo "    --debug --dev --host --jvm --no-optimize --no-verify"
+        echo "    -O --update --valgrind --zygote"
     ) 1>&2
     exit 1
 fi
