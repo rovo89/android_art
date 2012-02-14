@@ -124,7 +124,8 @@ void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
   delete dex_file;
 }
 
-jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLoader, jint cookie) {
+jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
+                                 jint cookie) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   const DexFile* dex_file = toDexFile(env, cookie);
   if (dex_file == NULL) {
@@ -145,20 +146,6 @@ jclass DexFile_defineClass(JNIEnv* env, jclass, jstring javaName, jobject javaLo
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   class_linker->RegisterDexFile(*dex_file);
   Class* result = class_linker->DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
-  if (env->ExceptionCheck()) {
-    // Swallow any ClassNotFoundException or NoClassDefFoundError; the contract with the caller
-    // is that we return null if the class is not found.
-    jthrowable exception = env->ExceptionOccurred();
-    env->ExceptionClear();
-
-    static jclass ClassNotFoundException_class = CacheClass(env, "java/lang/ClassNotFoundException");
-    static jclass NoClassDefFoundError_class = CacheClass(env, "java/lang/NoClassDefFoundError");
-
-    if (!env->IsInstanceOf(exception, ClassNotFoundException_class) && !env->IsInstanceOf(exception, NoClassDefFoundError_class)) {
-      env->Throw(exception);
-    }
-    return NULL;
-  }
   return AddLocalReference<jclass>(env, result);
 }
 
@@ -223,7 +210,7 @@ jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, closeDexFile, "(I)V"),
-  NATIVE_METHOD(DexFile, defineClass, "(Ljava/lang/String;Ljava/lang/ClassLoader;I)Ljava/lang/Class;"),
+  NATIVE_METHOD(DexFile, defineClassNative, "(Ljava/lang/String;Ljava/lang/ClassLoader;I)Ljava/lang/Class;"),
   NATIVE_METHOD(DexFile, getClassNameList, "(I)[Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(DexFile, openDexFile, "(Ljava/lang/String;Ljava/lang/String;I)I"),
