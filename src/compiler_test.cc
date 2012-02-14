@@ -139,7 +139,6 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
 }
 
 TEST_F(CompilerTest, AbstractMethodErrorStub) {
-  CompileVirtualMethod(NULL, "java.lang.Class", "isFinalizable", "()Z");
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
 
   SirtRef<ClassLoader> class_loader(LoadDex("AbstractMethod"));

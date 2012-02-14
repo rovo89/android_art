@@ -158,10 +158,10 @@ class ClassLinker {
                         bool is_direct);
 
   Method* ResolveMethod(uint32_t method_idx, const Method* referrer, bool is_direct) {
-    Class* declaring_class = referrer->GetDeclaringClass();
-    DexCache* dex_cache = declaring_class->GetDexCache();
-    Method* resolved_method = dex_cache->GetResolvedMethod(method_idx);
+    Method* resolved_method = referrer->GetDexCacheResolvedMethods()->Get(method_idx);
     if (UNLIKELY(resolved_method == NULL)) {
+      Class* declaring_class = referrer->GetDeclaringClass();
+      DexCache* dex_cache = declaring_class->GetDexCache();
       const ClassLoader* class_loader = declaring_class->GetClassLoader();
       const DexFile& dex_file = FindDexFile(dex_cache);
       resolved_method = ResolveMethod(dex_file, method_idx, dex_cache, class_loader, is_direct);
@@ -170,10 +170,11 @@ class ClassLinker {
   }
 
   Field* ResolveField(uint32_t field_idx, const Method* referrer, bool is_static) {
-    Class* declaring_class = referrer->GetDeclaringClass();
-    DexCache* dex_cache = declaring_class->GetDexCache();
-    Field* resolved_field = dex_cache->GetResolvedField(field_idx);
+    Field* resolved_field =
+        referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
     if (UNLIKELY(resolved_field == NULL)) {
+      Class* declaring_class = referrer->GetDeclaringClass();
+      DexCache* dex_cache = declaring_class->GetDexCache();
       const ClassLoader* class_loader = declaring_class->GetClassLoader();
       const DexFile& dex_file = FindDexFile(dex_cache);
       resolved_field = ResolveField(dex_file, field_idx, dex_cache, class_loader, is_static);
@@ -193,10 +194,11 @@ class ClassLinker {
                       bool is_static);
 
   Field* ResolveFieldJLS(uint32_t field_idx, const Method* referrer) {
-    Class* declaring_class = referrer->GetDeclaringClass();
-    DexCache* dex_cache = declaring_class->GetDexCache();
-    Field* resolved_field = dex_cache->GetResolvedField(field_idx);
+    Field* resolved_field =
+        referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
     if (UNLIKELY(resolved_field == NULL)) {
+      Class* declaring_class = referrer->GetDeclaringClass();
+      DexCache* dex_cache = declaring_class->GetDexCache();
       const ClassLoader* class_loader = declaring_class->GetClassLoader();
       const DexFile& dex_file = FindDexFile(dex_cache);
       resolved_field = ResolveFieldJLS(dex_file, field_idx, dex_cache, class_loader);
