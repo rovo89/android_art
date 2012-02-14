@@ -612,13 +612,14 @@ uint8_t Dbg::GetClassObjectType(JDWP::RefTypeId refTypeId) {
   return 0;
 }
 
-bool Dbg::GetSignature(JDWP::RefTypeId refTypeId, std::string& signature) {
-  Object* o = gRegistry->Get<Object*>(refTypeId);
-  if (o == NULL || !o->IsClass()) {
-    return false;
+JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId refTypeId, std::string& signature) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(refTypeId, status);
+  if (c == NULL) {
+    return status;
   }
-  signature = ClassHelper(o->AsClass()).GetDescriptor();
-  return true;
+  signature = ClassHelper(c).GetDescriptor();
+  return JDWP::ERR_NONE;
 }
 
 bool Dbg::GetSourceFile(JDWP::RefTypeId refTypeId, std::string& result) {
