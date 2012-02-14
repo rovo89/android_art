@@ -1517,7 +1517,6 @@ void ClassLinker::LoadMethod(const DexFile& dex_file, const ClassDataItemIterato
 
   dst->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
   dst->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
-  dst->SetDexCacheResolvedMethods(klass->GetDexCache()->GetResolvedMethods());
   dst->SetDexCacheCodeAndDirectMethods(klass->GetDexCache()->GetCodeAndDirectMethods());
   dst->SetDexCacheInitializedStaticStorage(klass->GetDexCache()->GetInitializedStaticStorage());
 }
@@ -2168,7 +2167,8 @@ static void CheckProxyConstructor(Method* constructor) {
 Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype) {
   // Ensure prototype is in dex cache so that we can use the dex cache to look up the overridden
   // prototype method
-  prototype->GetDexCacheResolvedMethods()->Set(prototype->GetDexMethodIndex(), prototype.get());
+  klass->GetDexCache()->SetResolvedMethod(prototype->GetDexMethodIndex(),
+                                          prototype.get());
   // We steal everything from the prototype (such as DexCache, invoke stub, etc.) then specialize
   // as necessary
   Method* method = down_cast<Method*>(prototype->Clone());

@@ -139,15 +139,12 @@ class ClassLinkerTest : public CommonTest {
 
     EXPECT_TRUE(method->GetDexCacheStrings() != NULL);
     EXPECT_TRUE(method->GetDexCacheResolvedTypes() != NULL);
-    EXPECT_TRUE(method->GetDexCacheResolvedMethods() != NULL);
     EXPECT_TRUE(method->GetDexCacheCodeAndDirectMethods() != NULL);
     EXPECT_TRUE(method->GetDexCacheInitializedStaticStorage() != NULL);
     EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetStrings(),
               method->GetDexCacheStrings());
     EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedTypes(),
               method->GetDexCacheResolvedTypes());
-    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods(),
-              method->GetDexCacheResolvedMethods());
     EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetCodeAndDirectMethods(),
               method->GetDexCacheCodeAndDirectMethods());
     EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetInitializedStaticStorage(),
@@ -446,7 +443,6 @@ struct MethodOffsets : public CheckOffsets<Method> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, declaring_class_),                      "declaringClass"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_code_and_direct_methods_),    "dexCacheCodeAndDirectMethods"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_initialized_static_storage_), "dexCacheInitializedStaticStorage"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_methods_),           "dexCacheResolvedMethods"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_types_),             "dexCacheResolvedTypes"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_strings_),                    "dexCacheStrings"));
 
