@@ -120,7 +120,6 @@ void Thread::InitFunctionPointers() {
   pInvokeSuperTrampolineWithAccessCheck = art_invoke_super_trampoline_with_access_check;
   pInvokeVirtualTrampolineWithAccessCheck = art_invoke_virtual_trampoline_with_access_check;
   pLockObjectFromCode = art_lock_object_from_code;
-  pObjectInit = art_object_init_from_code;
   pResolveStringFromCode = art_resolve_string_from_code;
   pSet32Instance = art_set32_instance_from_code;
   pSet64Instance = art_set64_instance_from_code;

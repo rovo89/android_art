@@ -23,12 +23,6 @@ namespace art {
 
 namespace {
 
-jclass Object_getClass(JNIEnv* env, jobject javaThis) {
-  // TODO: we can just share the Object::class_ field with Java and use field access instead.
-  Object* o = Decode<Object*>(env, javaThis);
-  return AddLocalReference<jclass>(env, o->GetClass());
-}
-
 jobject Object_internalClone(JNIEnv* env, jobject javaThis) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Object* o = Decode<Object*>(env, javaThis);
@@ -51,7 +45,6 @@ void Object_wait(JNIEnv* env, jobject javaThis, jlong ms, jint ns) {
 }
 
 JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Object, getClass, "()Ljava/lang/Class;"),
   NATIVE_METHOD(Object, internalClone, "(Ljava/lang/Cloneable;)Ljava/lang/Object;"),
   NATIVE_METHOD(Object, notify, "()V"),
   NATIVE_METHOD(Object, notifyAll, "()V"),

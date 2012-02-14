@@ -624,7 +624,6 @@ class PACKED Thread {
   void* (*pInitializeTypeFromCode)(uint32_t, void*);
   void* (*pInitializeTypeAndVerifyAccessFromCode)(uint32_t, void*);
   void (*pLockObjectFromCode)(void*);
-  void (*pObjectInit)(void*);
   void* (*pResolveMethodFromCode)(void*, uint32_t, bool);
   void* (*pResolveStringFromCode)(void*, uint32_t);
   int (*pSet32Instance)(uint32_t, void*, int32_t);  // field_idx, obj, src
