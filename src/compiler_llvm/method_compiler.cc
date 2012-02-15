@@ -598,11 +598,11 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::INVOKE_DIRECT:
-    EmitInsn_InvokeDirect(ARGS, false);
+    EmitInsn_InvokeStaticDirect(ARGS, /* is_range */ false, /* is_static */ false);
     break;
 
   case Instruction::INVOKE_STATIC:
-    EmitInsn_InvokeStatic(ARGS, false);
+    EmitInsn_InvokeStaticDirect(ARGS, /* is_range */ false, /* is_static */ true);
     break;
 
   case Instruction::INVOKE_INTERFACE:
@@ -618,11 +618,11 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::INVOKE_DIRECT_RANGE:
-    EmitInsn_InvokeDirect(ARGS, true);
+    EmitInsn_InvokeStaticDirect(ARGS, /* is_range */ true, /* is_static */ false);
     break;
 
   case Instruction::INVOKE_STATIC_RANGE:
-    EmitInsn_InvokeStatic(ARGS, true);
+    EmitInsn_InvokeStaticDirect(ARGS, /* is_range */ true, /* is_static */ true);
     break;
 
   case Instruction::INVOKE_INTERFACE_RANGE:
@@ -2554,6 +2554,60 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
 }
 
 
+llvm::Value* MethodCompiler::
+EmitLoadCalleeThis(Instruction::DecodedInstruction const& dec_insn,
+                   bool is_range) {
+  if (is_range) {
+    return EmitLoadDalvikReg(dec_insn.vC_, kObject, kAccurate);
+  } else {
+    return EmitLoadDalvikReg(dec_insn.arg_[0], kObject, kAccurate);
+  }
+}
+
+
+void MethodCompiler::
+EmitLoadActualParameters(std::vector<llvm::Value*>& args,
+                         uint32_t callee_method_idx,
+                         Instruction::DecodedInstruction const& dec_insn,
+                         bool is_range,
+                         bool is_static) {
+
+  // Get method signature
+  DexFile::MethodId const& method_id =
+    dex_file_->GetMethodId(callee_method_idx);
+
+  int32_t shorty_size;
+  char const* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
+  CHECK_GE(shorty_size, 1);
+
+  // Load argument values according to the shorty (without "this")
+  uint16_t reg_count = 0;
+
+  if (!is_static) {
+    ++reg_count; // skip the "this" pointer
+  }
+
+  for (int32_t i = 1; i < shorty_size; ++i) {
+    uint32_t reg_idx = (is_range) ? (dec_insn.vC_ + reg_count)
+                                  : (dec_insn.arg_[reg_count]);
+
+    args.push_back(EmitLoadDalvikReg(reg_idx, shorty[i], kAccurate));
+
+    ++reg_count;
+    if (shorty[i] == 'J' || shorty[i] == 'D') {
+      // Wide types, such as long and double, are using a pair of registers
+      // to store the value, so we have to increase arg_reg again.
+      ++reg_count;
+    }
+  }
+
+  DCHECK_EQ(reg_count, dec_insn.vA_)
+    << "Actual argument mismatch for callee: "
+    << PrettyMethod(callee_method_idx, *dex_file_);
+}
+
+
+
 void MethodCompiler::EmitInsn_InvokeVirtual(uint32_t dex_pc,
                                             Instruction const* insn,
                                             bool is_range) {
@@ -2570,18 +2624,78 @@ void MethodCompiler::EmitInsn_InvokeSuper(uint32_t dex_pc,
 }
 
 
-void MethodCompiler::EmitInsn_InvokeDirect(uint32_t dex_pc,
-                                           Instruction const* insn,
-                                           bool is_range) {
-  // UNIMPLEMENTED(WARNING);
-  irb_.CreateBr(GetNextBasicBlock(dex_pc));
-}
+void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
+                                                 Instruction const* insn,
+                                                 bool is_range,
+                                                 bool is_static) {
 
+  Instruction::DecodedInstruction dec_insn(insn);
 
-void MethodCompiler::EmitInsn_InvokeStatic(uint32_t dex_pc,
-                                           Instruction const* insn,
-                                           bool is_range) {
-  // UNIMPLEMENTED(WARNING);
+  uint32_t callee_method_idx = dec_insn.vB_;
+
+  // Find the method object at compile time
+  Method* callee_method = dex_cache_->GetResolvedMethod(callee_method_idx);
+  CHECK_NE(callee_method, static_cast<Method*>(NULL));
+
+  llvm::Value* this_addr = NULL;
+
+  if (!is_static) {
+    // Test: Is *this* parameter equal to null?
+    this_addr = EmitLoadCalleeThis(dec_insn, is_range);
+    EmitGuard_NullPointerException(dex_pc, this_addr);
+  }
+
+  // Load method function pointers
+
+  // TODO: Besides finding the callee function address through Code and
+  // Direct Methods (CADMS) at runtime, try to find the callee function
+  // through something like compiler_llvm_->GetCompiledMethod(...)
+  // so that we can perform inlining.
+
+  llvm::Value* code_addr_field_addr = NULL;
+  llvm::Value* method_field_addr = NULL;
+
+  EmitLoadDexCacheCodeAndDirectMethodFieldAddr(
+    code_addr_field_addr, method_field_addr, callee_method_idx);
+
+  // NOTE: Since CADMS are mixing int type with pointer type, we have to
+  // cast the integer type to pointer type.  Following code must be refined
+  // when we are going to port to 64bit architecture.
+
+  llvm::Value* code_addr_int = irb_.CreateLoad(code_addr_field_addr);
+
+  llvm::FunctionType* callee_type =
+    GetFunctionType(callee_method_idx, is_static);
+
+  llvm::Value* code_addr =
+    irb_.CreateIntToPtr(code_addr_int, callee_type->getPointerTo());
+
+  llvm::Value* callee_method_value_int = irb_.CreateLoad(method_field_addr);
+
+  llvm::Value* callee_method_object_addr =
+    irb_.CreateIntToPtr(callee_method_value_int, irb_.getJObjectTy());
+
+  // Load the actual parameter
+  std::vector<llvm::Value*> args;
+
+  args.push_back(callee_method_object_addr); // method object for callee
+
+  if (!is_static) {
+    args.push_back(this_addr); // "this" object for callee
+  }
+
+  EmitLoadActualParameters(args, callee_method_idx, dec_insn,
+                           is_range, is_static);
+
+  llvm::Value* retval = irb_.CreateCall(code_addr, args);
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  MethodHelper method_helper(callee_method);
+  char ret_shorty = method_helper.GetShorty()[0];
+  if (ret_shorty != 'V') {
+    EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
+  }
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 

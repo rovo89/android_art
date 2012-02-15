@@ -231,8 +231,9 @@ class MethodCompiler {
   // INVOKE instructions
   void EmitInsn_InvokeVirtual(GEN_INSN_ARGS, bool is_range);
   void EmitInsn_InvokeSuper(GEN_INSN_ARGS, bool is_range);
-  void EmitInsn_InvokeDirect(GEN_INSN_ARGS, bool is_range);
-  void EmitInsn_InvokeStatic(GEN_INSN_ARGS, bool is_range);
+  void EmitInsn_InvokeStaticDirect(GEN_INSN_ARGS,
+                                   bool is_range,
+                                   bool is_static);
   void EmitInsn_InvokeInterface(GEN_INSN_ARGS, bool is_range);
 
   // Unary instructions
@@ -324,6 +325,15 @@ class MethodCompiler {
   llvm::Value* EmitLoadConstantClass(uint32_t dex_pc, uint32_t type_idx);
 
   llvm::Value* EmitLoadStaticStorage(uint32_t dex_pc, uint32_t type_idx);
+
+  llvm::Value* EmitLoadCalleeThis(Instruction::DecodedInstruction const& di,
+                                  bool is_range);
+
+  void EmitLoadActualParameters(std::vector<llvm::Value*>& args,
+                                uint32_t callee_method_idx,
+                                Instruction::DecodedInstruction const& di,
+                                bool is_range,
+                                bool is_static);
 
   void EmitGuard_DivZeroException(uint32_t dex_pc,
                                   llvm::Value* denominator,
