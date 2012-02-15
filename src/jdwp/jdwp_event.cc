@@ -352,12 +352,8 @@ void JdwpState::CleanupMatchList(JdwpEvent** matchList, int matchCount) {
  */
 static bool PatternMatch(const char* pattern, const std::string& target) {
   size_t patLen = strlen(pattern);
-
   if (pattern[0] == '*') {
     patLen--;
-    // TODO: remove printf when we find a test case to verify this
-    LOG(ERROR) << ">>> comparing '" << (pattern + 1) << "' to '" << (target.c_str() + (target.size()-patLen)) << "'";
-
     if (target.size() < patLen) {
       return false;
     }
@@ -701,12 +697,6 @@ bool JdwpState::PostVMStart() {
   return true;
 }
 
-// TODO: This doesn't behave like the real dvmDescriptorToName.
-// I'm hoping this isn't used to communicate with the debugger, and we can just use descriptors.
-std::string dvmDescriptorToName(const std::string& descriptor) {
-  return descriptor;
-}
-
 /*
  * A location of interest has been reached.  This handles:
  *   Breakpoint
@@ -736,7 +726,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
   basket.classId = pLoc->classId;
   basket.thisPtr = thisPtr;
   basket.threadId = Dbg::GetThreadSelfId();
-  basket.className = dvmDescriptorToName(Dbg::GetClassDescriptor(pLoc->classId));
+  basket.className = DescriptorToName(Dbg::GetClassDescriptor(pLoc->classId).c_str());
 
   /*
    * On rare occasions we may need to execute interpreted code in the VM
@@ -931,7 +921,7 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
   basket.pLoc = pThrowLoc;
   basket.classId = pThrowLoc->classId;
   basket.threadId = Dbg::GetThreadSelfId();
-  basket.className = dvmDescriptorToName(Dbg::GetClassDescriptor(basket.classId));
+  basket.className = DescriptorToName(Dbg::GetClassDescriptor(basket.classId).c_str());
   basket.excepClassId = exceptionClassId;
   basket.caught = (pCatchLoc->classId != 0);
   basket.thisPtr = thisPtr;
@@ -1014,7 +1004,7 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
   memset(&basket, 0, sizeof(basket));
   basket.classId = refTypeId;
   basket.threadId = Dbg::GetThreadSelfId();
-  basket.className = dvmDescriptorToName(Dbg::GetClassDescriptor(basket.classId));
+  basket.className = DescriptorToName(Dbg::GetClassDescriptor(basket.classId).c_str());
 
   /* suppress class prep caused by debugger */
   if (InvokeInProgress()) {

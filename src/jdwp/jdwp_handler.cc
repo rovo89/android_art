@@ -1482,9 +1482,7 @@ static JdwpError handleSF_ThisObject(JdwpState* state, const uint8_t* buf, int d
   FrameId frameId = ReadFrameId(&buf);
 
   ObjectId objectId;
-  if (!Dbg::GetThisObject(frameId, &objectId)) {
-    return ERR_INVALID_FRAMEID;
-  }
+  Dbg::GetThisObject(frameId, &objectId);
 
   uint8_t objectTag = Dbg::GetObjectTag(objectId);
   VLOG(jdwp) << StringPrintf("  Req for 'this' in frame=%llx --> %llx '%c'", frameId, objectId, (char)objectTag);

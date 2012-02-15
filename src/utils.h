@@ -218,6 +218,9 @@ std::string DotToDescriptor(const char* class_name);
 // Turn "Ljava/lang/String;" into "java.lang.String".
 std::string DescriptorToDot(const char* descriptor);
 
+// Turn "Ljava/lang/String;" into "java/lang/String".
+std::string DescriptorToName(const char* descriptor);
+
 // Tests for whether 's' is a valid class name in the three common forms:
 bool IsValidBinaryClassName(const char* s);  // "java.lang.String"
 bool IsValidJniClassName(const char* s);     // "java/lang/String"

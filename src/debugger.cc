@@ -797,7 +797,7 @@ bool Dbg::MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId) {
   return gRegistry->Get<Class*>(instClassId)->InstanceOf(gRegistry->Get<Class*>(classId));
 }
 
-JDWP::FieldId ToFieldId(Field* f) {
+JDWP::FieldId ToFieldId(const Field* f) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
@@ -805,7 +805,7 @@ JDWP::FieldId ToFieldId(Field* f) {
 #endif
 }
 
-JDWP::MethodId ToMethodId(Method* m) {
+JDWP::MethodId ToMethodId(const Method* m) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
@@ -830,11 +830,15 @@ Method* FromMethodId(JDWP::MethodId mid) {
 }
 
 void SetLocation(JDWP::JdwpLocation& location, Method* m, uintptr_t native_pc) {
-  Class* c = m->GetDeclaringClass();
-  location.typeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
-  location.classId = gRegistry->Add(c);
-  location.methodId = ToMethodId(m);
-  location.idx = m->IsNative() ? -1 : m->ToDexPC(native_pc);
+  if (m == NULL) {
+    memset(&location, 0, sizeof(location));
+  } else {
+    Class* c = m->GetDeclaringClass();
+    location.typeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
+    location.classId = gRegistry->Add(c);
+    location.methodId = ToMethodId(m);
+    location.idx = m->IsNative() ? -1 : m->ToDexPC(native_pc);
+  }
 }
 
 std::string Dbg::GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId) {
@@ -880,11 +884,12 @@ static uint16_t MangleSlot(uint16_t slot, const char* name) {
   return newSlot;
 }
 
-static uint16_t DemangleSlot(uint16_t slot, Frame& f) {
+static uint16_t DemangleSlot(uint16_t slot, Method* m) {
   if (slot == kEclipseWorkaroundSlot) {
     return 0;
   } else if (slot == 0) {
-    const DexFile::CodeItem* code_item = MethodHelper(f.GetMethod()).GetCodeItem();
+    const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+    CHECK(code_item != NULL);
     return code_item->registers_size_ - code_item->ins_size_;
   }
   return slot;
@@ -1368,27 +1373,28 @@ void Dbg::SuspendSelf() {
   Runtime::Current()->GetThreadList()->SuspendSelfForDebugger();
 }
 
-bool Dbg::GetThisObject(JDWP::FrameId frameId, JDWP::ObjectId* pThisId) {
-  Method** sp = reinterpret_cast<Method**>(frameId);
-  Frame f;
-  f.SetSP(sp);
+static Object* GetThis(Frame& f) {
   Method* m = f.GetMethod();
-
   Object* o = NULL;
   if (!m->IsNative() && !m->IsStatic()) {
-    uint16_t reg = DemangleSlot(0, f);
+    uint16_t reg = DemangleSlot(0, m);
     o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
   }
+  return o;
+}
+
+void Dbg::GetThisObject(JDWP::FrameId frameId, JDWP::ObjectId* pThisId) {
+  Method** sp = reinterpret_cast<Method**>(frameId);
+  Frame f(sp);
+  Object* o = GetThis(f);
   *pThisId = gRegistry->Add(o);
-  return true;
 }
 
 void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t width) {
   Method** sp = reinterpret_cast<Method**>(frameId);
-  Frame f;
-  f.SetSP(sp);
-  uint16_t reg = DemangleSlot(slot, f);
+  Frame f(sp);
   Method* m = f.GetMethod();
+  uint16_t reg = DemangleSlot(slot, m);
 
   const VmapTable vmap_table(m->GetVmapTableRaw());
   uint32_t vmap_offset;
@@ -1476,10 +1482,9 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
 
 void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint64_t value, size_t width) {
   Method** sp = reinterpret_cast<Method**>(frameId);
-  Frame f;
-  f.SetSP(sp);
-  uint16_t reg = DemangleSlot(slot, f);
+  Frame f(sp);
   Method* m = f.GetMethod();
+  uint16_t reg = DemangleSlot(slot, m);
 
   const VmapTable vmap_table(m->GetVmapTableRaw());
   uint32_t vmap_offset;
@@ -1524,8 +1529,25 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   }
 }
 
-void Dbg::PostLocationEvent(const Method* method, int pcOffset, Object* thisPtr, int eventFlags) {
-  UNIMPLEMENTED(FATAL);
+void Dbg::PostLocationEvent(const Method* m, int dex_pc, Object* this_object, int event_flags) {
+  Class* c = m->GetDeclaringClass();
+
+  JDWP::JdwpLocation location;
+  location.typeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
+  location.classId = gRegistry->Add(c);
+  location.methodId = ToMethodId(m);
+  location.idx = m->IsNative() ? -1 : dex_pc;
+
+  // Note we use "NoReg" so we don't keep track of references that are
+  // never actually sent to the debugger. 'this_id' is only used to
+  // compare against registered events...
+  JDWP::ObjectId this_id = static_cast<JDWP::ObjectId>(reinterpret_cast<uintptr_t>(this_object));
+  if (gJdwpState->PostLocationEvent(&location, this_id, event_flags)) {
+    // ...unless there's a registered event, in which case we
+    // need to really track the class and 'this'.
+    gRegistry->Add(c);
+    gRegistry->Add(this_object);
+  }
 }
 
 void Dbg::PostException(Method** sp, Method* throwMethod, uintptr_t throwNativePc, Method* catchMethod, uintptr_t catchNativePc, Object* exception) {
@@ -1568,6 +1590,127 @@ void Dbg::PostClassPrepare(Class* c) {
   int state = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
   JDWP::JdwpTypeTag tag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
   gJdwpState->PostClassPrepare(tag, gRegistry->Add(c), ClassHelper(c).GetDescriptor(), state);
+}
+
+void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
+  if (!gDebuggerActive) {
+    return;
+  }
+
+  int event_flags = 0;
+
+  // Update xtra.currentPc on every instruction.  We need to do this if
+  // there's a chance that we could get suspended.  This can happen if
+  // event_flags != 0 here, or somebody manually requests a suspend
+  // (which gets handled at PERIOD_CHECKS time).  One place where this
+  // needs to be correct is in dvmAddSingleStep().
+  //dvmExportPC(pc, fp);
+
+  // We use a pc of -1 to represent method entry, since we might branch back to pc 0 later.
+  if (dex_pc == -1) {
+    event_flags |= kMethodEntry;
+  }
+
+  /*
+  // See if we have a breakpoint here.
+  // Depending on the "mods" associated with event(s) on this address,
+  // we may or may not actually send a message to the debugger.
+  if (GET_OPCODE(*pc) == OP_BREAKPOINT) {
+    ALOGV("+++ breakpoint hit at %p", pc);
+    event_flags |= kBreakPoint;
+  }
+  */
+
+  /*
+  // If the debugger is single-stepping one of our threads, check to
+  // see if we're that thread and we've reached a step point.
+  const StepControl* pCtrl = &gDvm.stepControl;
+  if (pCtrl->active && pCtrl->thread == self) {
+    int frameDepth;
+    bool doStop = false;
+    const char* msg = NULL;
+
+    assert(!dvmIsNativeMethod(method));
+
+    if (pCtrl->depth == SD_INTO) {
+      // Step into method calls.  We break when the line number
+      // or method pointer changes.  If we're in SS_MIN mode, we
+      // always stop.
+      if (pCtrl->method != method) {
+        doStop = true;
+        msg = "new method";
+      } else if (pCtrl->size == SS_MIN) {
+        doStop = true;
+        msg = "new instruction";
+      } else if (!dvmAddressSetGet(pCtrl->pAddressSet, pc - method->insns)) {
+        doStop = true;
+        msg = "new line";
+      }
+    } else if (pCtrl->depth == SD_OVER) {
+      // Step over method calls.  We break when the line number is
+      // different and the frame depth is <= the original frame
+      // depth.  (We can't just compare on the method, because we
+      // might get unrolled past it by an exception, and it's tricky
+      // to identify recursion.)
+      frameDepth = dvmComputeVagueFrameDepth(self, fp);
+      if (frameDepth < pCtrl->frameDepth) {
+        // popped up one or more frames, always trigger
+        doStop = true;
+        msg = "method pop";
+      } else if (frameDepth == pCtrl->frameDepth) {
+        // same depth, see if we moved
+        if (pCtrl->size == SS_MIN) {
+          doStop = true;
+          msg = "new instruction";
+        } else if (!dvmAddressSetGet(pCtrl->pAddressSet, pc - method->insns)) {
+          doStop = true;
+          msg = "new line";
+        }
+      }
+    } else {
+      assert(pCtrl->depth == SD_OUT);
+      // Return from the current method.  We break when the frame
+      // depth pops up.
+
+      // This differs from the "method exit" break in that it stops
+      // with the PC at the next instruction in the returned-to
+      // function, rather than the end of the returning function.
+      frameDepth = dvmComputeVagueFrameDepth(self, fp);
+      if (frameDepth < pCtrl->frameDepth) {
+        doStop = true;
+        msg = "method pop";
+      }
+    }
+
+    if (doStop) {
+      ALOGV("#####S %s", msg);
+      event_flags |= kSingleStep;
+    }
+  }
+  */
+
+  /*
+  // Check to see if this is a "return" instruction.  JDWP says we should
+  // send the event *after* the code has been executed, but it also says
+  // the location we provide is the last instruction.  Since the "return"
+  // instruction has no interesting side effects, we should be safe.
+  // (We can't just move this down to the returnFromMethod label because
+  // we potentially need to combine it with other events.)
+  // We're also not supposed to generate a method exit event if the method
+  // terminates "with a thrown exception".
+  u2 opcode = GET_OPCODE(*pc);
+  if (opcode == OP_RETURN_VOID || opcode == OP_RETURN || opcode == OP_RETURN_WIDE ||opcode == OP_RETURN_OBJECT) {
+    event_flags |= kMethodExit;
+  }
+  */
+
+  // If there's something interesting going on, see if it matches one
+  // of the debugger filters.
+  if (event_flags != 0) {
+    Frame f(sp);
+    f.Next(); // Skip callee save frame.
+    Dbg::PostLocationEvent(f.GetMethod(), dex_pc, GetThis(f), event_flags);
+  }
 }
 
 bool Dbg::WatchLocation(const JDWP::JdwpLocation* pLoc) {

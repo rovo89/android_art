@@ -16,6 +16,7 @@
 
 #include "runtime_support.h"
 
+#include "debugger.h"
 #include "dex_cache.h"
 #include "dex_verifier.h"
 #include "macros.h"
@@ -100,14 +101,14 @@ static void ThrowNullPointerExceptionForMethodAccess(Thread* self, Method* calle
 }
 
 /*
- * Report location to debugger.  Note: dalvikPC is the current offset within
+ * Report location to debugger.  Note: dex_pc is the current offset within
  * the method.  However, because the offset alone cannot distinguish between
  * method entry and offset 0 within the method, we'll use an offset of -1
  * to denote method entry.
  */
-extern "C" void artUpdateDebuggerFromCode(int32_t dalvikPC, Thread* self, Method** sp) {
+extern "C" void artUpdateDebuggerFromCode(int32_t dex_pc, Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp,  Runtime::kRefsAndArgs);
-    // TODO: fill this out similar to old "updateDebugger"
+  Dbg::UpdateDebugger(dex_pc, self, sp);
 }
 
 // Temporary debugging hook for compiler.

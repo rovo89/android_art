@@ -201,7 +201,7 @@ class Dbg {
   static void ResumeThread(JDWP::ObjectId threadId);
   static void SuspendSelf();
 
-  static bool GetThisObject(JDWP::FrameId frameId, JDWP::ObjectId* pThisId);
+  static void GetThisObject(JDWP::FrameId frameId, JDWP::ObjectId* pThisId);
   static void GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t expectedLen);
   static void SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint64_t value, size_t width);
 
@@ -219,6 +219,8 @@ class Dbg {
   static void PostThreadStart(Thread* t);
   static void PostThreadDeath(Thread* t);
   static void PostClassPrepare(Class* c);
+
+  static void UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp);
 
   static bool WatchLocation(const JDWP::JdwpLocation* pLoc);
   static void UnwatchLocation(const JDWP::JdwpLocation* pLoc);

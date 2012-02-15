@@ -28,7 +28,7 @@ extern void CheckSuspendFromCode(Thread* thread);
 extern Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
                                          Thread* self, bool access_check);
 extern void DebugMe(Method* method, uint32_t info);
-extern void UpdateDebuggerFromCode(Method* method, Thread* thread , int32_t dalvikPC, Method** sp);
+extern void UpdateDebuggerFromCode(Method* method, Thread* thread , int32_t dex_pc, Method** sp);
 extern Object* DecodeJObjectInThread(Thread* thread, jobject obj);
 extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* self,
                                 bool is_static, bool is_primitive, size_t expected_size);

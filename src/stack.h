@@ -41,6 +41,8 @@ class PACKED Frame {
  public:
   Frame() : sp_(NULL) {}
 
+  Frame(Method** sp) : sp_(sp) {}
+
   Method* GetMethod() const {
     return (sp_ != NULL) ? *sp_ : NULL;
   }
@@ -68,8 +70,6 @@ class PACKED Frame {
     return sp_;
   }
 
-  // TODO: this is here for testing, remove when we have exception unit tests
-  // that use the real stack
   void SetSP(Method** sp) {
     sp_ = sp;
   }
