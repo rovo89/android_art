@@ -736,7 +736,7 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
 /*
  * Compile a method.
  */
-CompiledMethod* oatCompileMethod(const Compiler& compiler, const DexFile::CodeItem* code_item,
+CompiledMethod* oatCompileMethod(Compiler& compiler, const DexFile::CodeItem* code_item,
                                  uint32_t access_flags, uint32_t method_idx,
                                  const ClassLoader* class_loader,
                                  const DexFile& dex_file, InstructionSet insnSet)

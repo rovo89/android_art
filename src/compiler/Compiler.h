@@ -173,7 +173,7 @@ bool oatArchInit(void);
 void oatArchDump(void);
 bool oatStartup(void);
 void oatShutdown(void);
-CompiledMethod* oatCompileMethod(const Compiler& compiler, bool is_direct,
+CompiledMethod* oatCompileMethod(Compiler& compiler, bool is_direct,
                                  uint32_t method_idx, const ClassLoader* class_loader,
                                  const DexFile& dex_file, OatInstructionSetType);
 void oatDumpStats(void);

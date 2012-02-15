@@ -212,7 +212,7 @@ typedef struct CompilationUnit {
     int numInsts;
     int numBlocks;
     GrowableList blockList;
-    const Compiler* compiler;           // Compiler driving this compiler
+    Compiler* compiler;            // Compiler driving this compiler
     ClassLinker* class_linker;     // Linker to resolve fields and methods
     const DexFile* dex_file;       // DexFile containing the method being compiled
     DexCache* dex_cache;           // DexFile's corresponding cache
