@@ -36,6 +36,69 @@ namespace art {
 class Context;
 class TimingLogger;
 typedef struct CompilationUnit CompilationUnit;
+class AOTCompilationStats {
+ public:
+  AOTCompilationStats() : stats_lock_("AOT compilation statistics lock"),
+     types_in_dex_cache_(0), types_not_in_dex_cache_(0),
+     strings_in_dex_cache_(0), strings_not_in_dex_cache_(0),
+     resolved_types_(0), unresolved_types_(0),
+     resolved_instance_fields_(0), unresolved_instance_fields_(0),
+     resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0),
+     resolved_virtual_methods_(0), unresolved_virtual_methods_(0),
+     resolved_super_methods_(0), unresolved_super_methods_(0),
+     resolved_interface_methods_(0), unresolved_interface_methods_(0) {}
+
+  void Dump();
+
+  void TypeInDexCache();
+  void TypeNotInDexCache();
+
+  void StringInDexCache();
+  void StringNotInDexCache();
+
+  void TypeDoesntNeedAccessCheck();
+  void TypeNeedsAccessCheck();
+
+  void ResolvedInstanceField();
+  void UnresolvedInstanceField();
+
+  void ResolvedLocalStaticField();
+  void ResolvedStaticField();
+  void UnresolvedStaticField();
+
+  void ResolvedMethod(bool is_interface, bool is_super);
+  void UnresolvedMethod(bool is_interface, bool is_super);
+
+ private:
+  Mutex stats_lock_;
+
+  size_t types_in_dex_cache_;
+  size_t types_not_in_dex_cache_;
+
+  size_t strings_in_dex_cache_;
+  size_t strings_not_in_dex_cache_;
+
+  size_t resolved_types_;
+  size_t unresolved_types_;
+
+  size_t resolved_instance_fields_;
+  size_t unresolved_instance_fields_;
+
+  size_t resolved_local_static_fields_;
+  size_t resolved_static_fields_;
+  size_t unresolved_static_fields_;
+
+  size_t resolved_virtual_methods_;
+  size_t unresolved_virtual_methods_;
+
+  size_t resolved_super_methods_;
+  size_t unresolved_super_methods_;
+
+  size_t resolved_interface_methods_;
+  size_t unresolved_interface_methods_;
+
+  DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);;
+};
 
 class Compiler {
  public:
@@ -87,31 +150,31 @@ class Compiler {
 
   // Callbacks from OAT/ART compiler to see what runtime checks must be generated
 
-  bool CanAssumeTypeIsPresentInDexCache(const DexCache* dex_cache, uint32_t type_idx) const;
+  bool CanAssumeTypeIsPresentInDexCache(const DexCache* dex_cache, uint32_t type_idx);
 
-  bool CanAssumeStringIsPresentInDexCache(const DexCache* dex_cache, uint32_t string_idx) const;
+  bool CanAssumeStringIsPresentInDexCache(const DexCache* dex_cache, uint32_t string_idx);
 
   // Are runtime access checks necessary in the compiled code?
   bool CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexCache* dex_cache,
-                                  const DexFile& dex_file, uint32_t type_idx) const;
+                                  const DexFile& dex_file, uint32_t type_idx);
 
   // Are runtime access and instantiable checks necessary in the code?
   bool CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx, const DexCache* dex_cache,
-                                              const DexFile& dex_file, uint32_t type_idx) const;
+                                              const DexFile& dex_file, uint32_t type_idx);
 
   // Can we fast path instance field access? Computes field's offset and volatility
   bool ComputeInstanceFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
-                                int& field_offset, bool& is_volatile) const;
+                                int& field_offset, bool& is_volatile);
 
   // Can we fastpath static field access? Computes field's offset, volatility and whether the
   // field is within the referrer (which can avoid checking class initialization)
   bool ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
                               int& field_offset, int& ssb_index,
-                              bool& is_referrers_class, bool& is_volatile) const;
+                              bool& is_referrers_class, bool& is_volatile);
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable index
   bool ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit, bool is_interface,
-                         bool is_super, int& vtable_idx) const;
+                         bool is_super, int& vtable_idx);
 
  private:
 
@@ -176,6 +239,8 @@ class Compiler {
   bool image_;
   size_t thread_count_;
   uint64_t start_ns_;
+
+  AOTCompilationStats stats_;
 
   const std::set<std::string>* image_classes_;
 
