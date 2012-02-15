@@ -2611,7 +2611,58 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
 void MethodCompiler::EmitInsn_InvokeVirtual(uint32_t dex_pc,
                                             Instruction const* insn,
                                             bool is_range) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  uint32_t callee_method_idx = dec_insn.vB_;
+
+  // Find the method object at compile time
+  Method* callee_method = ResolveMethod(callee_method_idx);
+
+  if (callee_method == NULL) {
+    // Callee method can't be resolved at compile time.  Emit the runtime
+    // method resolution code.
+
+    UNIMPLEMENTED(FATAL) << "Method index " << callee_method_idx
+                         << " can't be resolved";
+
+  } else {
+    // Test: Is *this* parameter equal to null?
+    llvm::Value* this_addr = EmitLoadCalleeThis(dec_insn, is_range);
+    EmitGuard_NullPointerException(dex_pc, this_addr);
+
+    // Load class object of *this* pointer
+    llvm::Value* class_object_addr = EmitLoadClassObjectAddr(this_addr);
+
+    // Load callee method code address (branch destination)
+    llvm::Value* vtable_addr = EmitLoadVTableAddr(class_object_addr);
+
+    llvm::Value* method_object_addr =
+      EmitLoadMethodObjectAddrFromVTable(vtable_addr,
+                                         callee_method->GetMethodIndex());
+
+    llvm::Value* code_addr =
+      EmitLoadCodeAddr(method_object_addr, callee_method_idx, false);
+
+    // Load actual parameters
+    std::vector<llvm::Value*> args;
+    args.push_back(method_object_addr);
+    args.push_back(this_addr);
+    EmitLoadActualParameters(args, callee_method_idx, dec_insn,
+                             is_range, false);
+
+    // Invoke callee
+    llvm::Value* retval = irb_.CreateCall(code_addr, args);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+    MethodHelper method_helper(callee_method);
+    char ret_shorty = method_helper.GetShorty()[0];
+    if (ret_shorty != 'V') {
+      EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
+    }
+  }
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
@@ -2691,8 +2742,7 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
   EmitGuard_ExceptionLandingPad(dex_pc);
 
   MethodHelper method_helper(callee_method);
-  char ret_shorty = method_helper.GetShorty()[0];
-  if (ret_shorty != 'V') {
+  if (!method_helper.GetReturnType()->IsPrimitiveVoid()) {
     EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
   }
 
@@ -3091,6 +3141,61 @@ void MethodCompiler::EmitGuard_DivZeroException(uint32_t dex_pc,
   EmitBranchExceptionLandingPad(dex_pc);
 
   irb_.SetInsertPoint(block_continue);
+}
+
+
+llvm::Value* MethodCompiler::EmitLoadClassObjectAddr(llvm::Value* this_addr) {
+  llvm::Constant* class_field_offset_value =
+    irb_.getPtrEquivInt(Object::ClassOffset().Int32Value());
+
+  llvm::Value* class_field_addr =
+    irb_.CreatePtrDisp(this_addr, class_field_offset_value,
+                       irb_.getJObjectTy()->getPointerTo());
+
+  return irb_.CreateLoad(class_field_addr);
+}
+
+
+llvm::Value*
+MethodCompiler::EmitLoadVTableAddr(llvm::Value* class_object_addr) {
+  llvm::Constant* vtable_offset_value =
+    irb_.getPtrEquivInt(Class::VTableOffset().Int32Value());
+
+  llvm::Value* vtable_field_addr =
+    irb_.CreatePtrDisp(class_object_addr, vtable_offset_value,
+                       irb_.getJObjectTy()->getPointerTo());
+
+  return irb_.CreateLoad(vtable_field_addr);
+}
+
+
+llvm::Value* MethodCompiler::
+EmitLoadMethodObjectAddrFromVTable(llvm::Value* vtable_addr,
+                                   uint16_t vtable_index) {
+  llvm::Value* vtable_index_value =
+    irb_.getPtrEquivInt(static_cast<uint64_t>(vtable_index));
+
+  llvm::Value* method_field_addr =
+    EmitArrayGEP(vtable_addr, vtable_index_value, irb_.getJObjectTy());
+
+  return irb_.CreateLoad(method_field_addr);
+}
+
+
+llvm::Value* MethodCompiler::EmitLoadCodeAddr(llvm::Value* method_object_addr,
+                                              uint32_t method_idx,
+                                              bool is_static) {
+
+  llvm::Value* code_field_offset_value =
+    irb_.getPtrEquivInt(Method::GetCodeOffset().Int32Value());
+
+  llvm::FunctionType* method_type = GetFunctionType(method_idx, is_static);
+
+  llvm::Value* code_field_addr =
+    irb_.CreatePtrDisp(method_object_addr, code_field_offset_value,
+                       method_type->getPointerTo()->getPointerTo());
+
+  return irb_.CreateLoad(code_field_addr);
 }
 
 
