@@ -61,6 +61,7 @@ Runtime::Runtime()
       java_vm_(NULL),
       jni_stub_array_(NULL),
       abstract_method_error_stub_array_(NULL),
+      system_class_loader_(NULL),
       shutting_down_(false),
       started_(false),
       vfprintf_(NULL),
