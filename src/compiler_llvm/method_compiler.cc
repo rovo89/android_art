@@ -1148,7 +1148,54 @@ void MethodCompiler::EmitInsn_Return(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_LoadConstant(uint32_t dex_pc,
                                            Instruction const* insn,
                                            JType imm_jty) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  DCHECK(imm_jty == kInt || imm_jty == kLong) << imm_jty;
+
+  int64_t imm = 0;
+
+  switch (insn->Opcode()) {
+  // 32-bit Immediate
+  case Instruction::CONST_4:
+  case Instruction::CONST_16:
+  case Instruction::CONST:
+  case Instruction::CONST_WIDE_16:
+  case Instruction::CONST_WIDE_32:
+    imm = static_cast<int64_t>(static_cast<int32_t>(dec_insn.vB_));
+    break;
+
+  case Instruction::CONST_HIGH16:
+    imm = static_cast<int64_t>(static_cast<int32_t>(
+          static_cast<uint32_t>(static_cast<uint16_t>(dec_insn.vB_)) << 16));
+    break;
+
+  // 64-bit Immediate
+  case Instruction::CONST_WIDE:
+    imm = static_cast<int64_t>(dec_insn.vB_wide_);
+    break;
+
+  case Instruction::CONST_WIDE_HIGH16:
+    imm = static_cast<int64_t>(
+          static_cast<uint64_t>(static_cast<uint16_t>(dec_insn.vB_)) << 48);
+    break;
+
+  // Unknown opcode for load constant (unreachable)
+  default:
+    LOG(FATAL) << "Unknown opcode for load constant: " << insn->Opcode();
+    break;
+  }
+
+  // Store the non-object register
+  llvm::Type* imm_type = irb_.getJType(imm_jty, kAccurate);
+  llvm::Constant* imm_value = llvm::ConstantInt::getSigned(imm_type, imm);
+  EmitStoreDalvikReg(dec_insn.vA_, imm_jty, kAccurate, imm_value);
+
+  // Store the object register if it is possible to be null.
+  if (imm_jty == kInt && imm == 0) {
+    EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, irb_.getJNull());
+  }
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
