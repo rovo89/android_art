@@ -3223,20 +3223,30 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
     return NULL;
   }
 
-  const char* name = dex_file.StringDataByIdx(method_id.name_idx_);
-  std::string signature(dex_file.CreateMethodSignature(method_id.proto_idx_, NULL));
   if (is_direct) {
-    resolved = klass->FindDirectMethod(name, signature);
+    resolved = klass->FindDirectMethod(dex_cache, method_idx);
   } else if (klass->IsInterface()) {
-    resolved = klass->FindInterfaceMethod(name, signature);
+    resolved = klass->FindInterfaceMethod(dex_cache, method_idx);
   } else {
-    resolved = klass->FindVirtualMethod(name, signature);
+    resolved = klass->FindVirtualMethod(dex_cache, method_idx);
   }
-  if (resolved != NULL) {
-    dex_cache->SetResolvedMethod(method_idx, resolved);
-  } else {
-    ThrowNoSuchMethodError(is_direct, klass, name, signature);
+
+  if (resolved == NULL) {
+    const char* name = dex_file.StringDataByIdx(method_id.name_idx_);
+    std::string signature(dex_file.CreateMethodSignature(method_id.proto_idx_, NULL));
+    if (is_direct) {
+      resolved = klass->FindDirectMethod(name, signature);
+    } else if (klass->IsInterface()) {
+      resolved = klass->FindInterfaceMethod(name, signature);
+    } else {
+      resolved = klass->FindVirtualMethod(name, signature);
+    }
+    if (resolved == NULL) {
+      ThrowNoSuchMethodError(is_direct, klass, name, signature);
+      return NULL;
+    }
   }
+  dex_cache->SetResolvedMethod(method_idx, resolved);
   return resolved;
 }
 
@@ -3256,18 +3266,26 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
     return NULL;
   }
 
-  const char* name = dex_file.GetFieldName(field_id);
-  const char* type = dex_file.GetFieldTypeDescriptor(field_id);
   if (is_static) {
-    resolved = klass->FindStaticField(name, type);
+    resolved = klass->FindStaticField(dex_cache, field_idx);
   } else {
-    resolved = klass->FindInstanceField(name, type);
+    resolved = klass->FindInstanceField(dex_cache, field_idx);
   }
-  if (resolved != NULL) {
-    dex_cache->SetResolvedField(field_idx, resolved);
-  } else {
-    ThrowNoSuchFieldError(is_static ? "static " : "instance ", klass, type, name);
+
+  if (resolved == NULL) {
+    const char* name = dex_file.GetFieldName(field_id);
+    const char* type = dex_file.GetFieldTypeDescriptor(field_id);
+    if (is_static) {
+      resolved = klass->FindStaticField(name, type);
+    } else {
+      resolved = klass->FindInstanceField(name, type);
+    }
+    if (resolved == NULL) {
+      ThrowNoSuchFieldError(is_static ? "static " : "instance ", klass, type, name);
+      return NULL;
+    }
   }
+  dex_cache->SetResolvedField(field_idx, resolved);
   return resolved;
 }
 

@@ -510,19 +510,16 @@ class MethodHelper {
     return GetShorty()[param] == 'L';  // An array also has a shorty character of 'L' (not '[')
   }
   bool HasSameNameAndSignature(MethodHelper* other) {
-    StringPiece name(GetName());
-    StringPiece other_name(other->GetName());
-    if (name != other_name) {
-      return false;
-    }
     if (GetDexCache() == other->GetDexCache()) {
       const DexFile& dex_file = GetDexFile();
       const DexFile::MethodId& mid = dex_file.GetMethodId(method_->GetDexMethodIndex());
       const DexFile::MethodId& other_mid =
           dex_file.GetMethodId(other->method_->GetDexMethodIndex());
-      return mid.proto_idx_ == other_mid.proto_idx_;
+      return mid.name_idx_ == other_mid.name_idx_ && mid.proto_idx_ == other_mid.proto_idx_;
     }
-    return GetSignature() == other->GetSignature();
+    StringPiece name(GetName());
+    StringPiece other_name(other->GetName());
+    return name == other_name && GetSignature() == other->GetSignature();
   }
   const DexFile::CodeItem* GetCodeItem() {
     return GetDexFile().GetCodeItem(method_->GetCodeItemOffset());

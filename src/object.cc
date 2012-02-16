@@ -970,8 +970,26 @@ Method* Class::FindInterfaceMethod(const StringPiece& name,  const StringPiece& 
   return NULL;
 }
 
-Method* Class::FindDeclaredDirectMethod(const StringPiece& name,
-                                        const StringPiece& signature) {
+Method* Class::FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+  // Check the current class before checking the interfaces.
+  Method* method = FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
+  if (method != NULL) {
+    return method;
+  }
+
+  int32_t iftable_count = GetIfTableCount();
+  ObjectArray<InterfaceEntry>* iftable = GetIfTable();
+  for (int32_t i = 0; i < iftable_count; i++) {
+    method = iftable->Get(i)->GetInterface()->FindVirtualMethod(dex_cache, dex_method_idx);
+    if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
+
+Method* Class::FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const {
   MethodHelper mh;
   for (size_t i = 0; i < NumDirectMethods(); ++i) {
     Method* method = GetDirectMethod(i);
@@ -983,10 +1001,31 @@ Method* Class::FindDeclaredDirectMethod(const StringPiece& name,
   return NULL;
 }
 
-Method* Class::FindDirectMethod(const StringPiece& name,
-                                const StringPiece& signature) {
-  for (Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+Method* Class::FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+  if (GetDexCache() == dex_cache) {
+    for (size_t i = 0; i < NumDirectMethods(); ++i) {
+      Method* method = GetDirectMethod(i);
+      if (method->GetDexMethodIndex() == dex_method_idx) {
+        return method;
+      }
+    }
+  }
+  return NULL;
+}
+
+Method* Class::FindDirectMethod(const StringPiece& name, const StringPiece& signature) const {
+  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     Method* method = klass->FindDeclaredDirectMethod(name, signature);
+    if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
+Method* Class::FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+    Method* method = klass->FindDeclaredDirectMethod(dex_cache, dex_method_idx);
     if (method != NULL) {
       return method;
     }
@@ -1007,9 +1046,31 @@ Method* Class::FindDeclaredVirtualMethod(const StringPiece& name,
   return NULL;
 }
 
+Method* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+  if (GetDexCache() == dex_cache) {
+    for (size_t i = 0; i < NumVirtualMethods(); ++i) {
+      Method* method = GetVirtualMethod(i);
+      if (method->GetDexMethodIndex() == dex_method_idx) {
+        return method;
+      }
+    }
+  }
+  return NULL;
+}
+
 Method* Class::FindVirtualMethod(const StringPiece& name, const StringPiece& signature) const {
   for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
     Method* method = klass->FindDeclaredVirtualMethod(name, signature);
+    if (method != NULL) {
+      return method;
+    }
+  }
+  return NULL;
+}
+
+Method* Class::FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const {
+  for (const Class* klass = this; klass != NULL; klass = klass->GetSuperClass()) {
+    Method* method = klass->FindDeclaredVirtualMethod(dex_cache, dex_method_idx);
     if (method != NULL) {
       return method;
     }
@@ -1031,11 +1092,35 @@ Field* Class::FindDeclaredInstanceField(const StringPiece& name, const StringPie
   return NULL;
 }
 
+Field* Class::FindDeclaredInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx) {
+  if (GetDexCache() == dex_cache) {
+    for (size_t i = 0; i < NumInstanceFields(); ++i) {
+      Field* f = GetInstanceField(i);
+      if (f->GetDexFieldIndex() == dex_field_idx) {
+        return f;
+      }
+    }
+  }
+  return NULL;
+}
+
 Field* Class::FindInstanceField(const StringPiece& name, const StringPiece& type) {
   // Is the field in this class, or any of its superclasses?
   // Interfaces are not relevant because they can't contain instance fields.
   for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
     Field* f = c->FindDeclaredInstanceField(name, type);
+    if (f != NULL) {
+      return f;
+    }
+  }
+  return NULL;
+}
+
+Field* Class::FindInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx) {
+  // Is the field in this class, or any of its superclasses?
+  // Interfaces are not relevant because they can't contain instance fields.
+  for (Class* c = this; c != NULL; c = c->GetSuperClass()) {
+    Field* f = c->FindDeclaredInstanceField(dex_cache, dex_field_idx);
     if (f != NULL) {
       return f;
     }
@@ -1056,6 +1141,18 @@ Field* Class::FindDeclaredStaticField(const StringPiece& name, const StringPiece
   return NULL;
 }
 
+Field* Class::FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex_field_idx) {
+  if (dex_cache == GetDexCache()) {
+    for (size_t i = 0; i < NumStaticFields(); ++i) {
+      Field* f = GetStaticField(i);
+      if (f->GetDexFieldIndex() == dex_field_idx) {
+        return f;
+      }
+    }
+  }
+  return NULL;
+}
+
 Field* Class::FindStaticField(const StringPiece& name, const StringPiece& type) {
   // Is the field in this class (or its interfaces), or any of its
   // superclasses (or their interfaces)?
@@ -1071,6 +1168,27 @@ Field* Class::FindStaticField(const StringPiece& name, const StringPiece& type) 
     for (uint32_t i = 0; i < kh.NumInterfaces(); ++i) {
       Class* interface = kh.GetInterface(i);
       f = interface->FindDeclaredStaticField(name, type);
+      if (f != NULL) {
+        return f;
+      }
+    }
+  }
+  return NULL;
+}
+
+Field* Class::FindStaticField(const DexCache* dex_cache, uint32_t dex_field_idx) {
+  ClassHelper kh;
+  for (Class* k = this; k != NULL; k = k->GetSuperClass()) {
+    // Is the field in this class?
+    Field* f = k->FindDeclaredStaticField(dex_cache, dex_field_idx);
+    if (f != NULL) {
+      return f;
+    }
+    // Is this field in any of this class' interfaces?
+    kh.ChangeClass(k);
+    for (uint32_t i = 0; i < kh.NumInterfaces(); ++i) {
+      Class* interface = kh.GetInterface(i);
+      f = interface->FindDeclaredStaticField(dex_cache, dex_field_idx);
       if (f != NULL) {
         return f;
       }
