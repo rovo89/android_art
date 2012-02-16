@@ -325,7 +325,7 @@ void JdwpState::Run() {
 
     /* process requests until the debugger drops */
     bool first = true;
-    while (true) {
+    while (!Dbg::IsDisposed()) {
       // sanity check -- shouldn't happen?
       if (Thread::Current()->GetState() != Thread::kVmWait) {
         LOG(ERROR) << "JDWP thread no longer in VMWAIT (now " << Thread::Current()->GetState() << "); resetting";

@@ -275,13 +275,8 @@ static JdwpError handleVM_IDSizes(JdwpState* state, const uint8_t* buf, int data
   return ERR_NONE;
 }
 
-/*
- * The debugger is politely asking to disconnect.  We're good with that.
- *
- * We could resume threads and clean up pinned references, but we can do
- * that when the TCP connection drops.
- */
 static JdwpError handleVM_Dispose(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+  Dbg::Disposed();
   return ERR_NONE;
 }
 
@@ -416,7 +411,7 @@ static JdwpError handleVM_CapabilitiesNew(JdwpState* state, const uint8_t* buf, 
   return ERR_NONE;
 }
 
-static JdwpError handleVM_AllClasses(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply, bool generic) {
+static JdwpError handleVM_AllClasses(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply, bool descriptor_and_status, bool generic) {
   std::vector<JDWP::RefTypeId> classes;
   Dbg::GetClassList(classes);
 
@@ -433,22 +428,24 @@ static JdwpError handleVM_AllClasses(JdwpState* state, const uint8_t* buf, int d
 
     expandBufAdd1(pReply, refTypeTag);
     expandBufAddRefTypeId(pReply, classes[i]);
-    expandBufAddUtf8String(pReply, descriptor);
-    if (generic) {
-      expandBufAddUtf8String(pReply, genericSignature);
+    if (descriptor_and_status) {
+      expandBufAddUtf8String(pReply, descriptor);
+      if (generic) {
+        expandBufAddUtf8String(pReply, genericSignature);
+      }
+      expandBufAdd4BE(pReply, status);
     }
-    expandBufAdd4BE(pReply, status);
   }
 
   return ERR_NONE;
 }
 
 static JdwpError handleVM_AllClasses(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  return handleVM_AllClasses(state, buf, dataLen, pReply, false);
+  return handleVM_AllClasses(state, buf, dataLen, pReply, true, false);
 }
 
 static JdwpError handleVM_AllClassesWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  return handleVM_AllClasses(state, buf, dataLen, pReply, true);
+  return handleVM_AllClasses(state, buf, dataLen, pReply, true, true);
 }
 
 /*
@@ -1187,56 +1184,13 @@ static JdwpError handleAR_SetValues(JdwpState* state, const uint8_t* buf, int da
   return Dbg::SetArrayElements(arrayId, firstIndex, values, buf);
 }
 
-/*
- * Return the set of classes visible to a class loader.  All classes which
- * have the class loader as a defining or initiating loader are returned.
- */
 static JdwpError handleCLR_VisibleClasses(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId classLoaderObject;
-  uint32_t numClasses = 0;
-  RefTypeId* classRefBuf = NULL;
-  int i;
-
   classLoaderObject = ReadObjectId(&buf);
-
-  Dbg::GetVisibleClassList(classLoaderObject, &numClasses, &classRefBuf);
-
-  expandBufAdd4BE(pReply, numClasses);
-  for (i = 0; i < (int) numClasses; i++) {
-    uint8_t refTypeTag = Dbg::GetClassObjectType(classRefBuf[i]);
-
-    expandBufAdd1(pReply, refTypeTag);
-    expandBufAddRefTypeId(pReply, classRefBuf[i]);
-  }
-
-  return ERR_NONE;
-}
-
-/*
- * Return a newly-allocated string in which all occurrences of '.' have
- * been changed to '/'.  If we find a '/' in the original string, NULL
- * is returned to avoid ambiguity.
- */
-char* dvmDotToSlash(const char* str) {
-  char* newStr = strdup(str);
-  char* cp = newStr;
-
-  if (newStr == NULL) {
-    return NULL;
-  }
-
-  while (*cp != '\0') {
-    if (*cp == '/') {
-      CHECK(false);
-      return NULL;
-    }
-    if (*cp == '.') {
-      *cp = '/';
-    }
-    cp++;
-  }
-
-  return newStr;
+  // TODO: we should only return classes which have the given class loader as a defining or
+  // initiating loader. The former would be easy; the latter is hard, because we don't have
+  // any such notion.
+  return handleVM_AllClasses(state, buf, dataLen, pReply, false, false);
 }
 
 /*
@@ -1305,17 +1259,20 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
       break;
     case MK_CLASS_MATCH:    /* restrict events to matching classes */
       {
+        // pattern is "java.foo.*", we want "java/foo/*".
         std::string pattern(ReadNewUtf8String(&buf));
+        std::replace(pattern.begin(), pattern.end(), '.', '/');
         VLOG(jdwp) << StringPrintf("    ClassMatch: '%s'", pattern.c_str());
-        /* pattern is "java.foo.*", we want "java/foo/ *" */
-        pEvent->mods[idx].classMatch.classPattern = dvmDotToSlash(pattern.c_str());
+        pEvent->mods[idx].classMatch.classPattern = strdup(pattern.c_str());
       }
       break;
     case MK_CLASS_EXCLUDE:  /* restrict events to non-matching classes */
       {
+        // pattern is "java.foo.*", we want "java/foo/*".
         std::string pattern(ReadNewUtf8String(&buf));
+        std::replace(pattern.begin(), pattern.end(), '.', '/');
         VLOG(jdwp) << StringPrintf("    ClassExclude: '%s'", pattern.c_str());
-        pEvent->mods[idx].classExclude.classPattern = dvmDotToSlash(pattern.c_str());
+        pEvent->mods[idx].classExclude.classPattern = strdup(pattern.c_str());
       }
       break;
     case MK_LOCATION_ONLY:  /* restrict certain events based on loc */
