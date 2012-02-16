@@ -1359,15 +1359,59 @@ void MethodCompiler::EmitInsn_FPCompare(uint32_t dex_pc,
                                         Instruction const* insn,
                                         JType fp_jty,
                                         bool gt_bias) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  DCHECK(fp_jty == kFloat || fp_jty == kDouble) << "JType: " << fp_jty;
+
+  llvm::Value* src1_value = EmitLoadDalvikReg(dec_insn.vB_, fp_jty, kAccurate);
+  llvm::Value* src2_value = EmitLoadDalvikReg(dec_insn.vC_, fp_jty, kAccurate);
+
+  llvm::Value* cmp_eq = irb_.CreateFCmpOEQ(src1_value, src2_value);
+  llvm::Value* cmp_lt;
+
+  if (gt_bias) {
+    cmp_lt = irb_.CreateFCmpOLT(src1_value, src2_value);
+  } else {
+    cmp_lt = irb_.CreateFCmpULT(src1_value, src2_value);
+  }
+
+  llvm::Value* result = EmitCompareResultSelection(cmp_eq, cmp_lt);
+  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
 
 void MethodCompiler::EmitInsn_LongCompare(uint32_t dex_pc,
                                           Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src1_value = EmitLoadDalvikReg(dec_insn.vB_, kLong, kAccurate);
+  llvm::Value* src2_value = EmitLoadDalvikReg(dec_insn.vC_, kLong, kAccurate);
+
+  llvm::Value* cmp_eq = irb_.CreateICmpEQ(src1_value, src2_value);
+  llvm::Value* cmp_lt = irb_.CreateICmpSLT(src1_value, src2_value);
+
+  llvm::Value* result = EmitCompareResultSelection(cmp_eq, cmp_lt);
+  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+llvm::Value* MethodCompiler::EmitCompareResultSelection(llvm::Value* cmp_eq,
+                                                        llvm::Value* cmp_lt) {
+
+  llvm::Constant* zero = irb_.getJInt(0);
+  llvm::Constant* pos1 = irb_.getJInt(1);
+  llvm::Constant* neg1 = irb_.getJInt(-1);
+
+  llvm::Value* result_lt = irb_.CreateSelect(cmp_lt, neg1, pos1);
+  llvm::Value* result_eq = irb_.CreateSelect(cmp_eq, zero, result_lt);
+
+  return result_eq;
 }
 
 
