@@ -1056,18 +1056,21 @@ class CountStackDepthVisitor : public Thread::StackVisitor {
 
 class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
  public:
-  explicit BuildInternalStackTraceVisitor(int depth, int skip_depth, ScopedJniThreadState& ts)
+  explicit BuildInternalStackTraceVisitor(int skip_depth)
       : skip_depth_(skip_depth), count_(0), pc_trace_(NULL), method_trace_(NULL), local_ref_(NULL) {
+  }
+
+  bool Init(int depth, ScopedJniThreadState& ts) {
     // Allocate method trace with an extra slot that will hold the PC trace
     method_trace_ = Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(depth + 1);
     if (method_trace_ == NULL) {
-      return;
+      return false;
     }
     // Register a local reference as IntArray::Alloc may trigger GC
     local_ref_ = AddLocalReference<jobject>(ts.Env(), method_trace_);
     pc_trace_ = IntArray::Alloc(depth);
     if (pc_trace_ == NULL) {
-      return;
+      return false;
     }
 #ifdef MOVING_GARBAGE_COLLECTOR
     // Re-read after potential GC
@@ -1076,6 +1079,7 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
     // Save PC trace in last element of method trace, also places it into the
     // object graph.
     method_trace_->Set(depth, pc_trace_);
+    return true;
   }
 
   virtual ~BuildInternalStackTraceVisitor() {}
@@ -1205,10 +1209,13 @@ jobject Thread::CreateInternalStackTrace(JNIEnv* env) const {
   ScopedJniThreadState ts(env);
 
   // Build internal stack trace
-  BuildInternalStackTraceVisitor build_trace_visitor(depth, skip_depth, ts);
-  WalkStack(&build_trace_visitor);
-
-  return build_trace_visitor.GetInternalStackTrace();
+  BuildInternalStackTraceVisitor build_trace_visitor(depth);
+  if (build_trace_visitor.Init(skip_depth, ts)) {
+    return NULL;  // Allocation failed
+  } else {
+    WalkStack(&build_trace_visitor);
+    return build_trace_visitor.GetInternalStackTrace();
+  }
 }
 
 jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
