@@ -93,6 +93,7 @@ class Dbg {
   static void Connected();
   static void GoActive();
   static void Disconnected();
+  static void Disposed();
 
   /*
    * Returns "true" if a debugger is connected.  Returns "false" if it's
@@ -101,6 +102,8 @@ class Dbg {
   static bool IsDebuggerConnected();
 
   static bool IsDebuggingEnabled();
+
+  static bool IsDisposed();
 
   /*
    * Time, in milliseconds, since the last debugger activity.  Does not
@@ -135,11 +138,9 @@ class Dbg {
   static bool GetAccessFlags(JDWP::RefTypeId id, uint32_t& access_flags);
   static bool IsInterface(JDWP::RefTypeId classId, bool& is_interface);
   static void GetClassList(std::vector<JDWP::RefTypeId>& classes);
-  static void GetVisibleClassList(JDWP::ObjectId classLoaderId, uint32_t* pNumClasses, JDWP::RefTypeId** pClassRefBuf);
   static bool GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor);
   static void FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids);
   static void GetObjectType(JDWP::ObjectId objectId, JDWP::JdwpTypeTag* pRefTypeTag, JDWP::RefTypeId* pRefTypeId);
-  static uint8_t GetClassObjectType(JDWP::RefTypeId refTypeId);
   static JDWP::JdwpError GetSignature(JDWP::RefTypeId refTypeId, std::string& signature);
   static bool GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file);
   static uint8_t GetObjectTag(JDWP::ObjectId objectId);
@@ -209,7 +210,7 @@ class Dbg {
    * Debugger notification
    */
   enum {
-    kBreakPoint     = 0x01,
+    kBreakpoint     = 0x01,
     kSingleStep     = 0x02,
     kMethodEntry    = 0x04,
     kMethodExit     = 0x08,
@@ -222,7 +223,7 @@ class Dbg {
 
   static void UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp);
 
-  static bool WatchLocation(const JDWP::JdwpLocation* pLoc);
+  static void WatchLocation(const JDWP::JdwpLocation* pLoc);
   static void UnwatchLocation(const JDWP::JdwpLocation* pLoc);
   static bool ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize size, JDWP::JdwpStepDepth depth);
   static void UnconfigureStep(JDWP::ObjectId threadId);

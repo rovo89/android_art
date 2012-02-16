@@ -760,7 +760,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
 
   {
     MutexLock mu(event_lock_);
-    if ((eventFlags & Dbg::kBreakPoint) != 0) {
+    if ((eventFlags & Dbg::kBreakpoint) != 0) {
       FindMatchingEvents(EK_BREAKPOINT, &basket, matchList, &matchCount);
     }
     if ((eventFlags & Dbg::kSingleStep) != 0) {
@@ -771,11 +771,14 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
     }
     if ((eventFlags & Dbg::kMethodExit) != 0) {
       FindMatchingEvents(EK_METHOD_EXIT, &basket, matchList, &matchCount);
+
+      // TODO: match EK_METHOD_EXIT_WITH_RETURN_VALUE too; we need to include the 'value', though.
+      //FindMatchingEvents(EK_METHOD_EXIT_WITH_RETURN_VALUE, &basket, matchList, &matchCount);
     }
     if (matchCount != 0) {
       VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
-                   << basket.className << "." << Dbg::GetMethodName(pLoc->classId, pLoc->methodId)
-                   << " thread=" << (void*) basket.threadId << " code=" << (void*) pLoc->idx << ")";
+                 << basket.className << "." << Dbg::GetMethodName(pLoc->classId, pLoc->methodId)
+                 << " thread=" << (void*) basket.threadId << " code=" << (void*) pLoc->idx << ")";
 
       suspendPolicy = scanSuspendPolicy(matchList, matchCount);
       VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;

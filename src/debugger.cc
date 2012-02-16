@@ -22,6 +22,7 @@
 
 #include "class_linker.h"
 #include "class_loader.h"
+#include "dex_verifier.h" // For Instruction.
 #include "context.h"
 #include "object_utils.h"
 #include "ScopedLocalRef.h"
@@ -112,6 +113,31 @@ struct AllocRecord {
   }
 };
 
+struct Breakpoint {
+  Method* method;
+  uint32_t pc;
+  Breakpoint(Method* method, uint32_t pc) : method(method), pc(pc) {}
+};
+
+static std::ostream& operator<<(std::ostream& os, const Breakpoint& rhs) {
+  os << "Breakpoint[" << PrettyMethod(rhs.method) << " @" << rhs.pc << "]";
+  return os;
+}
+
+struct SingleStepControl {
+  // Are we single-stepping right now?
+  bool is_active;
+  Thread* thread;
+
+  JDWP::JdwpStepSize step_size;
+  JDWP::JdwpStepDepth step_depth;
+
+  const Method* method;
+  int line; // May be -1.
+  //const AddressSet* pAddressSet;    /* if non-null, address set for line */
+  int stack_depth;
+};
+
 // JDWP is allowed unless the Zygote forbids it.
 static bool gJdwpAllowed = true;
 
@@ -125,6 +151,7 @@ static JDWP::JdwpOptions gJdwpOptions;
 static JDWP::JdwpState* gJdwpState = NULL;
 static bool gDebuggerConnected;  // debugger or DDMS is connected.
 static bool gDebuggerActive;     // debugger is making requests.
+static bool gDisposed;           // debugger called VirtualMachine.Dispose, so we should drop the connection.
 
 static bool gDdmThreadNotification = false;
 
@@ -142,6 +169,22 @@ static Mutex gAllocTrackerLock("AllocTracker lock");
 AllocRecord* Dbg::recent_allocation_records_ = NULL; // TODO: CircularBuffer<AllocRecord>
 static size_t gAllocRecordHead = 0;
 static size_t gAllocRecordCount = 0;
+
+// Breakpoints and single-stepping.
+static Mutex gBreakpointsLock("breakpoints lock");
+static std::vector<Breakpoint> gBreakpoints;
+static SingleStepControl gSingleStepControl;
+
+static bool IsBreakpoint(Method* m, uint32_t dex_pc) {
+  MutexLock mu(gBreakpointsLock);
+  for (size_t i = 0; i < gBreakpoints.size(); ++i) {
+    if (gBreakpoints[i].method == m && gBreakpoints[i].pc == dex_pc) {
+      VLOG(jdwp) << "Hit breakpoint #" << i << ": " << gBreakpoints[i];
+      return true;
+    }
+  }
+  return false;
+}
 
 static JDWP::JdwpTag BasicTagFromDescriptor(const char* descriptor) {
   // JDWP deliberately uses the descriptor characters' ASCII values for its enum.
@@ -379,6 +422,15 @@ void Dbg::Connected() {
   CHECK(!gDebuggerConnected);
   VLOG(jdwp) << "JDWP has attached";
   gDebuggerConnected = true;
+  gDisposed = false;
+}
+
+void Dbg::Disposed() {
+  gDisposed = true;
+}
+
+bool Dbg::IsDisposed() {
+  return gDisposed;
 }
 
 void Dbg::GoActive() {
@@ -493,6 +545,12 @@ static Class* DecodeClass(JDWP::RefTypeId id, JDWP::JdwpError& status) {
   return o->AsClass();
 }
 
+static Thread* DecodeThread(JDWP::ObjectId threadId) {
+  Object* thread_peer = gRegistry->Get<Object*>(threadId);
+  CHECK(thread_peer != NULL);
+  return Thread::FromManagedThread(thread_peer);
+}
+
 JDWP::JdwpError Dbg::GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclassId) {
   JDWP::JdwpError status;
   Class* c = DecodeClass(id, status);
@@ -557,10 +615,6 @@ void Dbg::GetClassList(std::vector<JDWP::RefTypeId>& classes) {
   Runtime::Current()->GetClassLinker()->VisitClasses(ClassListCreator::Visit, &clc);
 }
 
-void Dbg::GetVisibleClassList(JDWP::ObjectId classLoaderId, uint32_t* pNumClasses, JDWP::RefTypeId** pClassRefBuf) {
-  UNIMPLEMENTED(FATAL);
-}
-
 bool Dbg::GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor) {
   Object* o = gRegistry->Get<Object*>(classId);
   if (o == NULL || !o->IsClass()) {
@@ -605,11 +659,6 @@ void Dbg::GetObjectType(JDWP::ObjectId objectId, JDWP::JdwpTypeTag* pRefTypeTag,
     *pRefTypeTag = JDWP::TT_CLASS;
   }
   *pRefTypeId = gRegistry->Add(o->GetClass());
-}
-
-uint8_t Dbg::GetClassObjectType(JDWP::RefTypeId refTypeId) {
-  UNIMPLEMENTED(FATAL);
-  return 0;
 }
 
 JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId refTypeId, std::string& signature) {
@@ -797,7 +846,7 @@ bool Dbg::MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId) {
   return gRegistry->Get<Class*>(instClassId)->InstanceOf(gRegistry->Get<Class*>(classId));
 }
 
-JDWP::FieldId ToFieldId(const Field* f) {
+static JDWP::FieldId ToFieldId(const Field* f) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
@@ -805,7 +854,7 @@ JDWP::FieldId ToFieldId(const Field* f) {
 #endif
 }
 
-JDWP::MethodId ToMethodId(const Method* m) {
+static JDWP::MethodId ToMethodId(const Method* m) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
@@ -813,7 +862,7 @@ JDWP::MethodId ToMethodId(const Method* m) {
 #endif
 }
 
-Field* FromFieldId(JDWP::FieldId fid) {
+static Field* FromFieldId(JDWP::FieldId fid) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
@@ -821,7 +870,7 @@ Field* FromFieldId(JDWP::FieldId fid) {
 #endif
 }
 
-Method* FromMethodId(JDWP::MethodId mid) {
+static Method* FromMethodId(JDWP::MethodId mid) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
@@ -829,7 +878,7 @@ Method* FromMethodId(JDWP::MethodId mid) {
 #endif
 }
 
-void SetLocation(JDWP::JdwpLocation& location, Method* m, uintptr_t native_pc) {
+static void SetLocation(JDWP::JdwpLocation& location, Method* m, uintptr_t native_pc) {
   if (m == NULL) {
     memset(&location, 0, sizeof(location));
   } else {
@@ -1127,12 +1176,6 @@ std::string Dbg::StringToUtf8(JDWP::ObjectId strId) {
   return s->ToModifiedUtf8();
 }
 
-Thread* DecodeThread(JDWP::ObjectId threadId) {
-  Object* thread_peer = gRegistry->Get<Object*>(threadId);
-  CHECK(thread_peer != NULL);
-  return Thread::FromManagedThread(thread_peer);
-}
-
 bool Dbg::GetThreadName(JDWP::ObjectId threadId, std::string& name) {
   ScopedThreadListLock thread_list_lock;
   Thread* thread = DecodeThread(threadId);
@@ -1286,8 +1329,7 @@ void Dbg::GetAllThreads(JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
   GetThreadGroupThreadsImpl(NULL, ppThreadIds, pThreadCount);
 }
 
-int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
-  ScopedThreadListLock thread_list_lock;
+static int GetStackDepth(Thread* thread) {
   struct CountStackDepthVisitor : public Thread::StackVisitor {
     CountStackDepthVisitor() : depth(0) {}
     virtual void VisitFrame(const Frame& f, uintptr_t) {
@@ -1299,8 +1341,13 @@ int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
     size_t depth;
   };
   CountStackDepthVisitor visitor;
-  DecodeThread(threadId)->WalkStack(&visitor);
+  thread->WalkStack(&visitor);
   return visitor.depth;
+}
+
+int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
+  ScopedThreadListLock thread_list_lock;
+  return GetStackDepth(DecodeThread(threadId));
 }
 
 bool Dbg::GetThreadFrame(JDWP::ObjectId threadId, int desired_frame_number, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc) {
@@ -1597,6 +1644,9 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
     return;
   }
 
+  Frame f(sp);
+  f.Next(); // Skip callee save frame.
+  Method* m = f.GetMethod();
   int event_flags = 0;
 
   // Update xtra.currentPc on every instruction.  We need to do this if
@@ -1611,85 +1661,73 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
     event_flags |= kMethodEntry;
   }
 
-  /*
   // See if we have a breakpoint here.
   // Depending on the "mods" associated with event(s) on this address,
   // we may or may not actually send a message to the debugger.
-  if (GET_OPCODE(*pc) == OP_BREAKPOINT) {
-    ALOGV("+++ breakpoint hit at %p", pc);
-    event_flags |= kBreakPoint;
+  if (IsBreakpoint(m, dex_pc)) {
+    event_flags |= kBreakpoint;
   }
-  */
 
-  /*
   // If the debugger is single-stepping one of our threads, check to
   // see if we're that thread and we've reached a step point.
-  const StepControl* pCtrl = &gDvm.stepControl;
-  if (pCtrl->active && pCtrl->thread == self) {
-    int frameDepth;
-    bool doStop = false;
-    const char* msg = NULL;
-
-    assert(!dvmIsNativeMethod(method));
-
-    if (pCtrl->depth == SD_INTO) {
+  if (gSingleStepControl.is_active && gSingleStepControl.thread == self) {
+    CHECK(!m->IsNative());
+    if (gSingleStepControl.step_depth == JDWP::SD_INTO) {
       // Step into method calls.  We break when the line number
       // or method pointer changes.  If we're in SS_MIN mode, we
       // always stop.
-      if (pCtrl->method != method) {
-        doStop = true;
-        msg = "new method";
-      } else if (pCtrl->size == SS_MIN) {
-        doStop = true;
-        msg = "new instruction";
-      } else if (!dvmAddressSetGet(pCtrl->pAddressSet, pc - method->insns)) {
-        doStop = true;
-        msg = "new line";
+      if (gSingleStepControl.method != m) {
+        event_flags |= kSingleStep;
+        VLOG(jdwp) << "SS new method";
+      } else if (gSingleStepControl.step_size == JDWP::SS_MIN) {
+        event_flags |= kSingleStep;
+        VLOG(jdwp) << "SS new instruction";
+//      } else if (!dvmAddressSetGet(gSingleStepControl.pAddressSet, pc - method->insns)) {
+//        event_flags |= kSingleStep;
+//        VLOG(jdwp) << "SS new line";
       }
-    } else if (pCtrl->depth == SD_OVER) {
+    } else if (gSingleStepControl.step_depth == JDWP::SD_OVER) {
       // Step over method calls.  We break when the line number is
       // different and the frame depth is <= the original frame
       // depth.  (We can't just compare on the method, because we
       // might get unrolled past it by an exception, and it's tricky
       // to identify recursion.)
-      frameDepth = dvmComputeVagueFrameDepth(self, fp);
-      if (frameDepth < pCtrl->frameDepth) {
+
+      // TODO: can we just use the value of 'sp'?
+      int stack_depth = GetStackDepth(self);
+
+      if (stack_depth < gSingleStepControl.stack_depth) {
         // popped up one or more frames, always trigger
-        doStop = true;
-        msg = "method pop";
-      } else if (frameDepth == pCtrl->frameDepth) {
+        event_flags |= kSingleStep;
+        VLOG(jdwp) << "SS method pop";
+      } else if (stack_depth == gSingleStepControl.stack_depth) {
         // same depth, see if we moved
-        if (pCtrl->size == SS_MIN) {
-          doStop = true;
-          msg = "new instruction";
-        } else if (!dvmAddressSetGet(pCtrl->pAddressSet, pc - method->insns)) {
-          doStop = true;
-          msg = "new line";
+        if (gSingleStepControl.step_size == JDWP::SS_MIN) {
+          event_flags |= kSingleStep;
+          VLOG(jdwp) << "SS new instruction";
+//        } else if (!dvmAddressSetGet(gSingleStepControl.pAddressSet, pc - method->insns)) {
+//          event_flags |= kSingleStep;
+//          VLOG(jdwp) << "SS new line";
         }
       }
     } else {
-      assert(pCtrl->depth == SD_OUT);
+      CHECK_EQ(gSingleStepControl.step_depth, JDWP::SD_OUT);
       // Return from the current method.  We break when the frame
       // depth pops up.
 
       // This differs from the "method exit" break in that it stops
       // with the PC at the next instruction in the returned-to
       // function, rather than the end of the returning function.
-      frameDepth = dvmComputeVagueFrameDepth(self, fp);
-      if (frameDepth < pCtrl->frameDepth) {
-        doStop = true;
-        msg = "method pop";
+
+      // TODO: can we just use the value of 'sp'?
+      int stack_depth = GetStackDepth(self);
+      if (stack_depth < gSingleStepControl.stack_depth) {
+        event_flags |= kSingleStep;
+        VLOG(jdwp) << "SS method pop";
       }
     }
-
-    if (doStop) {
-      ALOGV("#####S %s", msg);
-      event_flags |= kSingleStep;
-    }
   }
-  */
 
-  /*
   // Check to see if this is a "return" instruction.  JDWP says we should
   // send the event *after* the code has been executed, but it also says
   // the location we provide is the last instruction.  Since the "return"
@@ -1698,37 +1736,80 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
   // we potentially need to combine it with other events.)
   // We're also not supposed to generate a method exit event if the method
   // terminates "with a thrown exception".
-  u2 opcode = GET_OPCODE(*pc);
-  if (opcode == OP_RETURN_VOID || opcode == OP_RETURN || opcode == OP_RETURN_WIDE ||opcode == OP_RETURN_OBJECT) {
-    event_flags |= kMethodExit;
+  if (dex_pc >= 0) {
+    const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+    CHECK(code_item != NULL);
+    CHECK_LT(dex_pc, static_cast<int32_t>(code_item->insns_size_in_code_units_));
+    if (Instruction::At(&code_item->insns_[dex_pc])->IsReturn()) {
+      event_flags |= kMethodExit;
+    }
   }
-  */
 
   // If there's something interesting going on, see if it matches one
   // of the debugger filters.
   if (event_flags != 0) {
-    Frame f(sp);
-    f.Next(); // Skip callee save frame.
-    Dbg::PostLocationEvent(f.GetMethod(), dex_pc, GetThis(f), event_flags);
+    Dbg::PostLocationEvent(m, dex_pc, GetThis(f), event_flags);
   }
 }
 
-bool Dbg::WatchLocation(const JDWP::JdwpLocation* pLoc) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+void Dbg::WatchLocation(const JDWP::JdwpLocation* location) {
+  MutexLock mu(gBreakpointsLock);
+  Method* m = FromMethodId(location->methodId);
+  gBreakpoints.push_back(Breakpoint(m, location->idx));
+  VLOG(jdwp) << "Set breakpoint #" << (gBreakpoints.size() - 1) << ": " << gBreakpoints[gBreakpoints.size() - 1];
 }
 
-void Dbg::UnwatchLocation(const JDWP::JdwpLocation* pLoc) {
-  UNIMPLEMENTED(FATAL);
+void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
+  MutexLock mu(gBreakpointsLock);
+  Method* m = FromMethodId(location->methodId);
+  for (size_t i = 0; i < gBreakpoints.size(); ++i) {
+    if (gBreakpoints[i].method == m && gBreakpoints[i].pc == location->idx) {
+      VLOG(jdwp) << "Removed breakpoint #" << i << ": " << gBreakpoints[i];
+      gBreakpoints.erase(gBreakpoints.begin() + i);
+      return;
+    }
+  }
 }
 
-bool Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize size, JDWP::JdwpStepDepth depth) {
-  UNIMPLEMENTED(FATAL);
-  return false;
+bool Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize step_size, JDWP::JdwpStepDepth step_depth) {
+  Thread* thread = DecodeThread(threadId);
+
+  // TODO: there's no theoretical reason why we couldn't support single-stepping
+  // of multiple threads at once, but we never did so historically.
+  if (gSingleStepControl.thread != NULL && thread != gSingleStepControl.thread) {
+    LOG(WARNING) << "single-step already active for " << *gSingleStepControl.thread
+                 << "; switching to " << *thread;
+  }
+
+  struct SingleStepStackVisitor : public Thread::StackVisitor {
+    SingleStepStackVisitor() {
+      gSingleStepControl.method = NULL;
+      gSingleStepControl.stack_depth = 0;
+    }
+    virtual void VisitFrame(const Frame& f, uintptr_t) {
+      // TODO: we'll need to skip callee-save frames too.
+      if (f.HasMethod()) {
+        ++gSingleStepControl.stack_depth;
+        if (gSingleStepControl.method == NULL) {
+          gSingleStepControl.method = f.GetMethod();
+        }
+      }
+    }
+  };
+  SingleStepStackVisitor visitor;
+  thread->WalkStack(&visitor);
+
+  gSingleStepControl.thread = thread;
+  gSingleStepControl.step_size = step_size;
+  gSingleStepControl.step_depth = step_depth;
+  gSingleStepControl.is_active = true;
+
+  return true;
 }
 
 void Dbg::UnconfigureStep(JDWP::ObjectId threadId) {
-  UNIMPLEMENTED(FATAL);
+  gSingleStepControl.is_active = false;
+  gSingleStepControl.thread = NULL;
 }
 
 JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t numArgs, uint64_t* argArray, uint32_t options, JDWP::JdwpTag* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptionId) {
