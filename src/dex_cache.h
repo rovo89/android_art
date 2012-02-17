@@ -69,19 +69,19 @@ class MANAGED CodeAndDirectMethods : public IntArray {
     return GetLength() / kMax;
   }
 
- private:
-  enum TupleIndex {
-    kCode   = 0,
-    kMethod = 1,
-    kMax    = 2,
-  };
-
   static size_t CodeIndex(uint32_t method_idx) {
     return method_idx * kMax + kCode;
   }
   static size_t MethodIndex(uint32_t method_idx) {
     return method_idx * kMax + kMethod;
   }
+
+ private:
+  enum TupleIndex {
+    kCode   = 0,
+    kMethod = 1,
+    kMax    = 2,
+  };
 
   // grant friend status to ImageWriter fixup code that needs to know internal layout
   friend class ImageWriter;

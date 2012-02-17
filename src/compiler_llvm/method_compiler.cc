@@ -2324,6 +2324,78 @@ void MethodCompiler::EmitGuard_NullPointerException(uint32_t dex_pc,
 }
 
 
+llvm::Value* MethodCompiler::EmitLoadDexCacheAddr(MemberOffset offset) {
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* dex_cache_offset_value =
+    irb_.getPtrEquivInt(offset.Int32Value());
+
+  llvm::Value* dex_cache_field_addr =
+    irb_.CreatePtrDisp(method_object_addr, dex_cache_offset_value,
+                       irb_.getJObjectTy()->getPointerTo());
+
+  return irb_.CreateLoad(dex_cache_field_addr);
+}
+
+
+void MethodCompiler::
+EmitLoadDexCacheCodeAndDirectMethodFieldAddr(llvm::Value*& code_field_addr,
+                                             llvm::Value*& method_field_addr,
+                                             uint32_t method_idx) {
+  llvm::Value* cadms_dex_cache_addr =
+    EmitLoadDexCacheAddr(Method::GetDexCacheCodeAndDirectMethodsOffset());
+
+  llvm::Value* code_index_value =
+    irb_.getPtrEquivInt(CodeAndDirectMethods::CodeIndex(method_idx));
+
+  llvm::Value* method_index_value =
+    irb_.getPtrEquivInt(CodeAndDirectMethods::MethodIndex(method_idx));
+
+  // Return the field address
+  code_field_addr = EmitArrayGEP(cadms_dex_cache_addr, code_index_value,
+                                 irb_.getJIntTy());
+
+  method_field_addr = EmitArrayGEP(cadms_dex_cache_addr, method_index_value,
+                                   irb_.getJIntTy());
+}
+
+
+llvm::Value* MethodCompiler::
+EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
+  llvm::Value* static_storage_dex_cache_addr =
+    EmitLoadDexCacheAddr(Method::DexCacheInitializedStaticStorageOffset());
+
+  llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
+
+  return EmitArrayGEP(static_storage_dex_cache_addr, type_idx_value,
+                      irb_.getJObjectTy());
+}
+
+
+llvm::Value* MethodCompiler::
+EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx) {
+  llvm::Value* resolved_type_dex_cache_addr =
+    EmitLoadDexCacheAddr(Method::DexCacheResolvedTypesOffset());
+
+  llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
+
+  return EmitArrayGEP(resolved_type_dex_cache_addr, type_idx_value,
+                      irb_.getJObjectTy());
+}
+
+
+llvm::Value* MethodCompiler::
+EmitLoadDexCacheStringFieldAddr(uint32_t string_idx) {
+  llvm::Value* string_dex_cache_addr =
+    EmitLoadDexCacheAddr(Method::DexCacheStringsOffset());
+
+  llvm::Value* string_idx_value = irb_.getPtrEquivInt(string_idx);
+
+  return EmitArrayGEP(string_dex_cache_addr, string_idx_value,
+                      irb_.getJObjectTy());
+}
+
+
 CompiledMethod *MethodCompiler::Compile() {
   // Code generation
   CreateFunction();

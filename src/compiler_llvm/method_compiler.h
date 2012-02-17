@@ -264,6 +264,21 @@ class MethodCompiler {
 #undef GEN_INSN_ARGS
 
 
+  // Dex cache code generation helper function
+  llvm::Value* EmitLoadDexCacheAddr(MemberOffset dex_cache_offset);
+
+  void EmitLoadDexCacheCodeAndDirectMethodFieldAddr(
+                                          llvm::Value*& code_addr_field_addr,
+                                          llvm::Value*& method_field_addr,
+                                          uint32_t method_idx);
+
+  llvm::Value* EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx);
+
+  llvm::Value* EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx);
+
+  llvm::Value* EmitLoadDexCacheStringFieldAddr(uint32_t string_idx);
+
+
   // Code generation helper function
 
   llvm::Value* EmitLoadMethodObjectAddr();
