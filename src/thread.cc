@@ -1209,8 +1209,8 @@ jobject Thread::CreateInternalStackTrace(JNIEnv* env) const {
   ScopedJniThreadState ts(env);
 
   // Build internal stack trace
-  BuildInternalStackTraceVisitor build_trace_visitor(depth);
-  if (!build_trace_visitor.Init(skip_depth, ts)) {
+  BuildInternalStackTraceVisitor build_trace_visitor(skip_depth);
+  if (!build_trace_visitor.Init(depth, ts)) {
     return NULL;  // Allocation failed
   }
   WalkStack(&build_trace_visitor);
