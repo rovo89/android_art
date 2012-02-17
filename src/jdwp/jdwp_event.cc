@@ -726,7 +726,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
   basket.classId = pLoc->classId;
   basket.thisPtr = thisPtr;
   basket.threadId = Dbg::GetThreadSelfId();
-  basket.className = DescriptorToName(Dbg::GetClassDescriptor(pLoc->classId).c_str());
+  basket.className = Dbg::GetClassName(pLoc->classId);
 
   /*
    * On rare occasions we may need to execute interpreted code in the VM
@@ -924,7 +924,7 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
   basket.pLoc = pThrowLoc;
   basket.classId = pThrowLoc->classId;
   basket.threadId = Dbg::GetThreadSelfId();
-  basket.className = DescriptorToName(Dbg::GetClassDescriptor(basket.classId).c_str());
+  basket.className = Dbg::GetClassName(basket.classId);
   basket.excepClassId = exceptionClassId;
   basket.caught = (pCatchLoc->classId != 0);
   basket.thisPtr = thisPtr;
@@ -1007,7 +1007,7 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
   memset(&basket, 0, sizeof(basket));
   basket.classId = refTypeId;
   basket.threadId = Dbg::GetThreadSelfId();
-  basket.className = DescriptorToName(Dbg::GetClassDescriptor(basket.classId).c_str());
+  basket.className = Dbg::GetClassName(basket.classId);
 
   /* suppress class prep caused by debugger */
   if (InvokeInProgress()) {

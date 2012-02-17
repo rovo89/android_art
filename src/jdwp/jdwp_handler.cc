@@ -109,7 +109,7 @@ static JdwpError finishInvoke(JdwpState* state,
   uint32_t numArgs = Read4BE(&buf);
 
   VLOG(jdwp) << StringPrintf("    --> threadId=%llx objectId=%llx", threadId, objectId);
-  VLOG(jdwp) << StringPrintf("        classId=%llx methodId=%x %s.%s", classId, methodId, Dbg::GetClassDescriptor(classId).c_str(), Dbg::GetMethodName(classId, methodId).c_str());
+  VLOG(jdwp) << StringPrintf("        classId=%llx methodId=%x %s.%s", classId, methodId, Dbg::GetClassName(classId).c_str(), Dbg::GetMethodName(classId, methodId).c_str());
   VLOG(jdwp) << StringPrintf("        %d args:", numArgs);
 
   uint64_t* argArray = NULL;
@@ -531,7 +531,7 @@ static JdwpError handleRT_Status(JdwpState* state, const uint8_t* buf, int dataL
  */
 static JdwpError handleRT_Interfaces(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for interfaces in %llx (%s)", refTypeId, Dbg::GetClassDescriptor(refTypeId).c_str());
+  VLOG(jdwp) << StringPrintf("  Req for interfaces in %llx (%s)", refTypeId, Dbg::GetClassName(refTypeId).c_str());
   return Dbg::OutputDeclaredInterfaces(refTypeId, pReply) ? ERR_NONE : ERR_INVALID_CLASS;
 }
 
@@ -697,7 +697,7 @@ static JdwpError handleCT_NewInstance(JdwpState* state, const uint8_t* buf, int 
   ObjectId threadId = ReadObjectId(&buf);
   MethodId methodId = ReadMethodId(&buf);
 
-  VLOG(jdwp) << "Creating instance of " << Dbg::GetClassDescriptor(classId);
+  VLOG(jdwp) << "Creating instance of " << Dbg::GetClassName(classId);
   ObjectId objectId;
   if (!Dbg::CreateObject(classId, objectId)) {
     return ERR_INVALID_CLASS;
@@ -715,7 +715,7 @@ static JdwpError handleAT_newInstance(JdwpState* state, const uint8_t* buf, int 
   RefTypeId arrayTypeId = ReadRefTypeId(&buf);
   uint32_t length = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("Creating array %s[%u]", Dbg::GetClassDescriptor(arrayTypeId).c_str(), length);
+  VLOG(jdwp) << StringPrintf("Creating array %s[%u]", Dbg::GetClassName(arrayTypeId).c_str(), length);
   ObjectId objectId;
   if (!Dbg::CreateArrayObject(arrayTypeId, length, objectId)) {
     return ERR_INVALID_CLASS;
@@ -735,7 +735,7 @@ static JdwpError handleM_LineTable(JdwpState* state, const uint8_t* buf, int dat
   RefTypeId refTypeId = ReadRefTypeId(&buf);
   MethodId methodId = ReadMethodId(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for line table in %s.%s", Dbg::GetClassDescriptor(refTypeId).c_str(), Dbg::GetMethodName(refTypeId,methodId).c_str());
+  VLOG(jdwp) << StringPrintf("  Req for line table in %s.%s", Dbg::GetClassName(refTypeId).c_str(), Dbg::GetMethodName(refTypeId,methodId).c_str());
 
   Dbg::OutputLineTable(refTypeId, methodId, pReply);
 
@@ -746,7 +746,7 @@ static JdwpError handleM_VariableTable(JdwpState* state, const uint8_t* buf, int
   RefTypeId classId = ReadRefTypeId(&buf);
   MethodId methodId = ReadMethodId(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for LocalVarTab in class=%s method=%s", Dbg::GetClassDescriptor(classId).c_str(), Dbg::GetMethodName(classId, methodId).c_str());
+  VLOG(jdwp) << StringPrintf("  Req for LocalVarTab in class=%s method=%s", Dbg::GetClassName(classId).c_str(), Dbg::GetMethodName(classId, methodId).c_str());
 
   // We could return ERR_ABSENT_INFORMATION here if the DEX file was built without local variable
   // information. That will cause Eclipse to make a best-effort attempt at displaying local
@@ -1253,7 +1253,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
     case MK_CLASS_ONLY:     /* for ClassPrepare, MethodEntry */
       {
         RefTypeId clazzId = ReadRefTypeId(&buf);
-        VLOG(jdwp) << StringPrintf("    ClassOnly: %llx (%s)", clazzId, Dbg::GetClassDescriptor(clazzId).c_str());
+        VLOG(jdwp) << StringPrintf("    ClassOnly: %llx (%s)", clazzId, Dbg::GetClassName(clazzId).c_str());
         pEvent->mods[idx].classOnly.refTypeId = clazzId;
       }
       break;
@@ -1294,7 +1294,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         caught = Read1(&buf);
         uncaught = Read1(&buf);
         VLOG(jdwp) << StringPrintf("    ExceptionOnly: type=%llx(%s) caught=%d uncaught=%d",
-            exceptionOrNull, (exceptionOrNull == 0) ? "null" : Dbg::GetClassDescriptor(exceptionOrNull).c_str(), caught, uncaught);
+            exceptionOrNull, (exceptionOrNull == 0) ? "null" : Dbg::GetClassName(exceptionOrNull).c_str(), caught, uncaught);
 
         pEvent->mods[idx].exceptionOnly.refTypeId = exceptionOrNull;
         pEvent->mods[idx].exceptionOnly.caught = caught;
@@ -1460,7 +1460,7 @@ static JdwpError handleSF_ThisObject(JdwpState* state, const uint8_t* buf, int d
 static JdwpError handleCOR_ReflectedType(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId classObjectId = ReadRefTypeId(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for refTypeId for class=%llx (%s)", classObjectId, Dbg::GetClassDescriptor(classObjectId).c_str());
+  VLOG(jdwp) << StringPrintf("  Req for refTypeId for class=%llx (%s)", classObjectId, Dbg::GetClassName(classObjectId).c_str());
 
   bool is_interface;
   if (!Dbg::IsInterface(classObjectId, is_interface)) {

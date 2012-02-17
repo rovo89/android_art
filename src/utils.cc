@@ -382,9 +382,9 @@ std::string DescriptorToDot(const char* descriptor) {
 
 std::string DescriptorToName(const char* descriptor) {
   size_t length = strlen(descriptor);
-  DCHECK_GT(length, 0U);
-  DCHECK_EQ(descriptor[0], 'L');
-  DCHECK_EQ(descriptor[length - 1], ';');
+  CHECK_GT(length, 0U) << descriptor;
+  CHECK_EQ(descriptor[0], 'L') << descriptor;
+  CHECK_EQ(descriptor[length - 1], ';') << descriptor;
   std::string result(descriptor + 1, length - 2);
   return result;
 }
@@ -787,7 +787,7 @@ std::string GetArtCacheOrDie() {
 
 std::string GetArtCacheFilenameOrDie(const std::string& location) {
   std::string art_cache(GetArtCacheOrDie());
-  CHECK_EQ(location[0], '/');
+  CHECK_EQ(location[0], '/') << location;
   std::string cache_file(location, 1); // skip leading slash
   std::replace(cache_file.begin(), cache_file.end(), '/', '@');
   return art_cache + "/" + cache_file;

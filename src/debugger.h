@@ -131,7 +131,7 @@ class Dbg {
   /*
    * Class, Object, Array
    */
-  static std::string GetClassDescriptor(JDWP::RefTypeId id);
+  static std::string GetClassName(JDWP::RefTypeId id);
   static bool GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& classObjectId);
   static JDWP::JdwpError GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclassId);
   static JDWP::ObjectId GetClassLoader(JDWP::RefTypeId id);
