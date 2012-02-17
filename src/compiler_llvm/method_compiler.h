@@ -289,6 +289,11 @@ class MethodCompiler {
                                               IntArithmKind arithm,
                                               JType op_jty);
 
+  llvm::Value* EmitFPArithmResultComputation(uint32_t dex_pc,
+                                             llvm::Value* lhs,
+                                             llvm::Value* rhs,
+                                             FPArithmKind arithm);
+
   void EmitGuard_DivZeroException(uint32_t dex_pc,
                                   llvm::Value* denominator,
                                   JType op_jty);
