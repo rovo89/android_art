@@ -1823,7 +1823,13 @@ void MethodCompiler::EmitInsn_FExt(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_FTrunc(uint32_t dex_pc,
                                      Instruction const* insn) {
-  // UNIMPLEMENTED(WARNING);
+
+  Instruction::DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kDouble, kAccurate);
+  llvm::Value* result_value = irb_.CreateFPTrunc(src_value, irb_.getJFloatTy());
+  EmitStoreDalvikReg(dec_insn.vA_, kFloat, kAccurate, result_value);
+
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
 
