@@ -3213,27 +3213,22 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
   // We use vAA as our expected arg count, rather than res_method->insSize, because we need to
   // match the call to the signature. Also, we might might be calling through an abstract method
   // definition (which doesn't have register count values).
-  int expected_args = dec_insn.vA_;
+  size_t expected_args = dec_insn.vA_;
   /* caught by static verifier */
   DCHECK(is_range || expected_args <= 5);
   if (expected_args > code_item_->outs_size_) {
-    Fail(VERIFY_ERROR_GENERIC) << "invalid arg count (" << expected_args
+    Fail(VERIFY_ERROR_GENERIC) << "invalid argument count (" << expected_args
         << ") exceeds outsSize (" << code_item_->outs_size_ << ")";
     return NULL;
   }
-  std::string sig(MethodHelper(res_method).GetSignature());
-  if (sig[0] != '(') {
-    Fail(VERIFY_ERROR_GENERIC) << "rejecting call to " << res_method
-        << " as descriptor doesn't start with '(': " << sig;
-    return NULL;
-  }
+
   /*
    * Check the "this" argument, which must be an instance of the class
    * that declared the method. For an interface class, we don't do the
    * full interface merge, so we can't do a rigorous check here (which
    * is okay since we have to do it at runtime).
    */
-  int actual_args = 0;
+  size_t actual_args = 0;
   if (!res_method->IsStatic()) {
     const RegType& actual_arg_type = work_line_->GetInvocationThis(dec_insn);
     if (failure_ != VERIFY_ERROR_NONE) {
@@ -3246,8 +3241,8 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
     if (method_type != METHOD_INTERFACE && !actual_arg_type.IsZero()) {
       const RegType& res_method_class = reg_types_.FromClass(res_method->GetDeclaringClass());
       if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
-        Fail(VERIFY_ERROR_GENERIC) << "'this' arg '" << actual_arg_type << "' not instance of '"
-            << res_method_class << "'";
+        Fail(VERIFY_ERROR_GENERIC) << "'this' argument '" << actual_arg_type
+            << "' not instance of '" << res_method_class << "'";
         return NULL;
       }
     }
@@ -3257,51 +3252,34 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
    * Process the target method's signature. This signature may or may not
    * have been verified, so we can't assume it's properly formed.
    */
-  size_t sig_offset = 0;
-  for (sig_offset = 1; sig_offset < sig.size() && sig[sig_offset] != ')'; sig_offset++) {
+  MethodHelper mh(res_method);
+  const DexFile::TypeList* params = mh.GetParameterTypeList();
+  size_t params_size = params == NULL ? 0 : params->Size();
+  for (size_t param_index = 0; param_index < params_size; param_index++) {
     if (actual_args >= expected_args) {
       Fail(VERIFY_ERROR_GENERIC) << "Rejecting invalid call to '" << PrettyMethod(res_method)
-          << "'. Expected " << expected_args << " args, found more ("
-          << sig.substr(sig_offset) << ")";
+          << "'. Expected " << expected_args << " arguments, processing argument " << actual_args
+          << " (where longs/doubles count twice).";
       return NULL;
     }
-    std::string descriptor;
-    if ((sig[sig_offset] == 'L') || (sig[sig_offset] == '[')) {
-      size_t end;
-      if (sig[sig_offset] == 'L') {
-        end = sig.find(';', sig_offset);
-      } else {
-        for(end = sig_offset + 1; sig[end] == '['; end++) ;
-        if (sig[end] == 'L') {
-          end = sig.find(';', end);
-        }
-      }
-      if (end == std::string::npos) {
-        Fail(VERIFY_ERROR_GENERIC) << "Rejecting invocation of " << PrettyMethod(res_method)
-            << "bad signature component '" << sig << "' (missing ';')";
-        return NULL;
-      }
-      descriptor = sig.substr(sig_offset, end - sig_offset + 1);
-      sig_offset = end;
-    } else {
-      descriptor = sig[sig_offset];
+    const char* descriptor =
+        mh.GetTypeDescriptorFromTypeIdx(params->GetTypeItem(param_index).type_idx_);
+    if (descriptor == NULL) {
+      Fail(VERIFY_ERROR_GENERIC) << "Rejecting invocation of " << PrettyMethod(res_method)
+          << " missing signature component";
+      return NULL;
     }
     const RegType& reg_type =
-        reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(),
-                                  descriptor.c_str());
+        reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
     uint32_t get_reg = is_range ? dec_insn.vC_ + actual_args : dec_insn.arg_[actual_args];
     if (!work_line_->VerifyRegisterType(get_reg, reg_type)) {
       return NULL;
     }
     actual_args = reg_type.IsLongOrDoubleTypes() ? actual_args + 2 : actual_args + 1;
   }
-  if (sig[sig_offset] != ')') {
-    Fail(VERIFY_ERROR_GENERIC) << "invocation target: bad signature" << PrettyMethod(res_method);
-    return NULL;
-  }
   if (actual_args != expected_args) {
     Fail(VERIFY_ERROR_GENERIC) << "Rejecting invocation of " << PrettyMethod(res_method)
-        << " expected " << expected_args << " args, found " << actual_args;
+        << " expected " << expected_args << " arguments, found " << actual_args;
     return NULL;
   } else {
     return res_method;
@@ -3748,7 +3726,6 @@ void DexVerifier::ReplaceFailingInstruction() {
 }
 
 bool DexVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_line) {
-  const bool merge_debug = true;
   bool changed = true;
   RegisterLine* target_line = reg_table_.GetLine(next_insn);
   if (!insn_flags_[next_insn].IsVisitedOrChanged()) {
@@ -3759,14 +3736,17 @@ bool DexVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_
      */
     target_line->CopyFromLine(merge_line);
   } else {
-    UniquePtr<RegisterLine> copy(merge_debug ? new RegisterLine(target_line->NumRegs(), this) : NULL);
-    copy->CopyFromLine(target_line);
+    UniquePtr<RegisterLine> copy(gDebugVerify ? new RegisterLine(target_line->NumRegs(), this) : NULL);
+    if (gDebugVerify) {
+      copy->CopyFromLine(target_line);
+    }
     changed = target_line->MergeRegisters(merge_line);
     if (failure_ != VERIFY_ERROR_NONE) {
       return false;
     }
     if (gDebugVerify && changed) {
-      LogVerifyInfo() << "Merging at [" << (void*)work_insn_idx_ << "] to [" <<(void*)next_insn << "]: " << std::endl
+      LogVerifyInfo() << "Merging at [" << (void*)work_insn_idx_ << "]"
+                         " to [" <<(void*)next_insn << "]: " << std::endl
                       << *copy.get() << "  MERGE" << std::endl
                       << *merge_line << "  ==" << std::endl
                       << *target_line << std::endl;

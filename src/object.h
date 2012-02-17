@@ -1533,6 +1533,8 @@ class MANAGED Class : public StaticStorageBase {
 
   Method* FindInterfaceMethod(const StringPiece& name, const StringPiece& descriptor) const;
 
+  Method* FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const;
+
   Method* FindVirtualMethodForVirtualOrInterface(Method* method) {
     if (method->IsDirect()) {
       return method;
@@ -1545,13 +1547,19 @@ class MANAGED Class : public StaticStorageBase {
 
   Method* FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) const;
 
+  Method* FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const;
+
   Method* FindVirtualMethod(const StringPiece& name, const StringPiece& descriptor) const;
 
-  Method* FindDeclaredDirectMethod(const StringPiece& name,
-                                   const StringPiece& signature);
+  Method* FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const;
 
-  Method* FindDirectMethod(const StringPiece& name,
-                           const StringPiece& signature);
+  Method* FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const;
+
+  Method* FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const;
+
+  Method* FindDirectMethod(const StringPiece& name, const StringPiece& signature) const;
+
+  Method* FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const;
 
   int32_t GetIfTableCount() const {
     ObjectArray<InterfaceEntry>* iftable = GetIfTable();
@@ -1683,12 +1691,24 @@ class MANAGED Class : public StaticStorageBase {
   // Finds the given instance field in this class or a superclass.
   Field* FindInstanceField(const StringPiece& name, const StringPiece& type);
 
+  // Finds the given instance field in this class or a superclass, only searches classes that
+  // have the same dex cache.
+  Field* FindInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx);
+
   Field* FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type);
+
+  Field* FindDeclaredInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx);
 
   // Finds the given static field in this class or a superclass.
   Field* FindStaticField(const StringPiece& name, const StringPiece& type);
 
+  // Finds the given static field in this class or superclass, only searches classes that
+  // have the same dex cache.
+  Field* FindStaticField(const DexCache* dex_cache, uint32_t dex_field_idx);
+
   Field* FindDeclaredStaticField(const StringPiece& name, const StringPiece& type);
+
+  Field* FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex_field_idx);
 
   pid_t GetClinitThreadId() const {
     DCHECK(IsIdxLoaded() || IsErroneous());

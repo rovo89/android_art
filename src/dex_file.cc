@@ -339,7 +339,7 @@ int32_t DexFile::GetStringLength(const StringId& string_id) const {
 
 // Returns a pointer to the UTF-8 string data referred to by the given string_id.
 const char* DexFile::GetStringDataAndLength(const StringId& string_id, int32_t* length) const {
-  CHECK(length != NULL) << GetLocation();
+  DCHECK(length != NULL) << GetLocation();
   const byte* ptr = begin_ + string_id.string_data_off_;
   *length = DecodeUnsignedLeb128(&ptr);
   return reinterpret_cast<const char*>(ptr);
