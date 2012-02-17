@@ -85,6 +85,39 @@ public class IntMath {
         Main.assertTrue(i == 268435455);
     }
 
+    static void shiftTest3(int thirtyTwo) {
+        System.out.println("IntMath.shiftTest3");
+
+        int one = thirtyTwo / 32;
+        int sixteen = thirtyTwo / 2;
+        int thirtyThree = thirtyTwo + 1;
+        int sixtyFour = thirtyTwo * 2;
+
+        Main.assertTrue(1 << thirtyTwo == 1);
+        Main.assertTrue((1 << sixteen) << sixteen == 0);
+        Main.assertTrue(1 << thirtyThree == 2);
+        Main.assertTrue(1 << -one == -2147483648);
+        Main.assertTrue(1 << -thirtyTwo == 1);
+        Main.assertTrue(1 << -thirtyThree == -2147483648);
+        Main.assertTrue(1 << thirtyThree == 2);
+
+        Main.assertTrue(1 >> thirtyTwo == 1);
+        Main.assertTrue((1 >> sixteen) >> sixteen == 0);
+        Main.assertTrue(1 >> thirtyThree == 0);
+        Main.assertTrue(1 >> -one == 0);
+        Main.assertTrue(1 >> -thirtyTwo == 1);
+        Main.assertTrue(1 >> -thirtyThree == 0);
+        Main.assertTrue(-4 >> thirtyThree == -2);
+
+        Main.assertTrue(1 >>> thirtyTwo == 1);
+        Main.assertTrue((1 >>> sixteen) >>> sixteen == 0);
+        Main.assertTrue(1 >>> thirtyThree == 0);
+        Main.assertTrue(1 >>> -one == 0);
+        Main.assertTrue(1 >>> -thirtyTwo == 1);
+        Main.assertTrue(1 >>> -thirtyThree == 0);
+        Main.assertTrue(-4 >>> thirtyThree == 2147483646);
+    }
+
     static void convTest() {
         System.out.println("IntMath.convTest");
 
@@ -469,6 +502,7 @@ public class IntMath {
         shiftTest1();
         shiftTest2();
         unsignedShiftTest();
+        shiftTest3(32);
         convTest();
         charSubTest();
 

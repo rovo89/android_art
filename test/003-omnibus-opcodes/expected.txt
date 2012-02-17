@@ -6,6 +6,7 @@ StaticField check...
 IntMath.shiftTest1
 IntMath.shiftTest2
 IntMath.unsignedShiftTest
+IntMath.shiftTest3
 IntMath.convTest
 IntMath.charSubTest
 IntMath.intOperTest
