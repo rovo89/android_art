@@ -140,10 +140,13 @@ TEST_F(ExceptionTest, StackTraceElement) {
 
   JNIEnv* env = thread->GetJniEnv();
   jobject internal = thread->CreateInternalStackTrace(env);
+  ASSERT_TRUE(internal != NULL);
   jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(env, internal);
+  ASSERT_TRUE(ste_array != NULL);
   ObjectArray<StackTraceElement>* trace_array =
       Decode<ObjectArray<StackTraceElement>*>(env, ste_array);
 
+  ASSERT_TRUE(trace_array != NULL);
   ASSERT_TRUE(trace_array->Get(0) != NULL);
   EXPECT_STREQ("ExceptionHandle",
                trace_array->Get(0)->GetDeclaringClass()->ToModifiedUtf8().c_str());

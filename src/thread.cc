@@ -1074,7 +1074,7 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
     }
 #ifdef MOVING_GARBAGE_COLLECTOR
     // Re-read after potential GC
-    method_trace = Decode<ObjectArray<Object>*>(ts.Env(), local_ref_);
+    method_trace_ = Decode<ObjectArray<Object>*>(ts.Env(), local_ref_);
 #endif
     // Save PC trace in last element of method trace, also places it into the
     // object graph.
@@ -1210,12 +1210,11 @@ jobject Thread::CreateInternalStackTrace(JNIEnv* env) const {
 
   // Build internal stack trace
   BuildInternalStackTraceVisitor build_trace_visitor(depth);
-  if (build_trace_visitor.Init(skip_depth, ts)) {
+  if (!build_trace_visitor.Init(skip_depth, ts)) {
     return NULL;  // Allocation failed
-  } else {
-    WalkStack(&build_trace_visitor);
-    return build_trace_visitor.GetInternalStackTrace();
   }
+  WalkStack(&build_trace_visitor);
+  return build_trace_visitor.GetInternalStackTrace();
 }
 
 jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
