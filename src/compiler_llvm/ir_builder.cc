@@ -28,7 +28,7 @@ namespace compiler_llvm {
 //----------------------------------------------------------------------------
 
 IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
-: LLVMIRBuilder(context) {
+: LLVMIRBuilder(context), module_(&module) {
 
   // Get java object type from module
   llvm::Type* jobject_struct_type = module.getTypeByName("JavaObject");
@@ -40,7 +40,7 @@ IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
   jenv_type_ = jenv_struct_type->getPointerTo();
 
   // Load the runtime support function declaration from module
-  InitRuntimeSupportFuncDecl(module);
+  InitRuntimeSupportFuncDecl();
 }
 
 
@@ -48,12 +48,12 @@ IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
 // Runtime Helper Function
 //----------------------------------------------------------------------------
 
-void IRBuilder::InitRuntimeSupportFuncDecl(llvm::Module& module) {
+void IRBuilder::InitRuntimeSupportFuncDecl() {
   using namespace runtime_support;
 
 #define GET_RUNTIME_SUPPORT_FUNC_DECL(ID, NAME) \
   do { \
-    llvm::Function* fn = module.getFunction(NAME); \
+    llvm::Function* fn = module_->getFunction(NAME); \
     DCHECK_NE(fn, (void*)NULL) << "Function not found: " << NAME; \
     runtime_support_func_decls_[ID] = fn; \
   } while (0);

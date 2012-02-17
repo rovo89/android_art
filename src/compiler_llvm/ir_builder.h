@@ -263,7 +263,7 @@ class IRBuilder : public LLVMIRBuilder {
   // Runtime Helper Function (Private)
   //--------------------------------------------------------------------------
 
-  void InitRuntimeSupportFuncDecl(llvm::Module& module);
+  void InitRuntimeSupportFuncDecl();
 
 
   //--------------------------------------------------------------------------
@@ -276,6 +276,8 @@ class IRBuilder : public LLVMIRBuilder {
 
 
  private:
+  llvm::Module* module_;
+
   llvm::PointerType* jobject_type_;
 
   llvm::PointerType* jenv_type_;
