@@ -39,62 +39,69 @@
 
 namespace art {
 
-static void usage() {
-  fprintf(stderr,
-          "Usage: dex2oat [options]...\n"
-          "\n");
-  fprintf(stderr,
-          "  --dex-file=<dex-file>: specifies a .dex file to compile.\n"
-          "      Example: --dex-file=/system/framework/core.jar\n"
-          "\n");
-  fprintf(stderr,
-          "  --zip-fd=<file-descriptor>: specifies a file descriptor of a zip file\n"
-          "      containing a classes.dex file to compile.\n"
-          "      Example: --zip-fd=5\n"
-          "\n");
-  fprintf(stderr,
-          "  --zip-location=<zip-location>: specifies a symbolic name for the file corresponding\n"
-          "      to the file descriptor specified by --zip-fd.\n"
-          "      Example: --zip-location=/system/app/Calculator.apk\n"
-          "\n");
-  fprintf(stderr,
-          "  --oat-file=<file.oat>: specifies the required oat filename.\n"
-          "      Example: --oat-file=/system/framework/boot.oat\n"
-          "\n");
-  fprintf(stderr,
-          "  --oat-location=<oat-name>: specifies a symbolic name for the file corresponding\n"
-          "      to the file descriptor specified by --oat-fd.\n"
-          "      Example: --oat-location=/data/art-cache/system@app@Calculator.apk.oat\n"
-          "\n");
-  fprintf(stderr,
-          "  --image=<file.art>: specifies the output image filename.\n"
-          "      Example: --image=/system/framework/boot.art\n"
-          "\n");
-  fprintf(stderr,
-          "  --image-classes=<classname-file>: specifies classes to include in an image.\n"
-          "      Example: --image=frameworks/base/preloaded-classes\n"
-          "\n");
-  fprintf(stderr,
-          "  --base=<hex-address>: specifies the base address when creating a boot image.\n"
-          "      Example: --base=0x50000000\n"
-          "\n");
-  fprintf(stderr,
-          "  --boot-image=<file.art>: provide the image file for the boot class path.\n"
-          "      Example: --boot-image=/system/framework/boot.art\n"
-          "      Default: <host-prefix>/system/framework/boot.art\n"
-          "\n");
-  fprintf(stderr,
-          "  --host-prefix may be used to translate host paths to target paths during\n"
-          "      cross compilation.\n"
-          "      Example: --host-prefix=out/target/product/crespo\n"
-          "      Default: $ANDROID_PRODUCT_OUT\n"
-          "\n");
-  fprintf(stderr,
-          "  --runtime-arg <argument>: used to specify various arguments for the runtime,\n"
-          "      such as initial heap size, maximum heap size, and verbose output.\n"
-          "      Use a separate --runtime-arg switch for each argument.\n"
-          "      Example: --runtime-arg -Xms256m\n"
-          "\n");
+static void UsageErrorV(const char* fmt, va_list ap) {
+  std::string error;
+  StringAppendV(&error, fmt, ap);
+  LOG(ERROR) << error;
+}
+
+static void UsageError(const char* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  UsageErrorV(fmt, ap);
+  va_end(ap);
+}
+
+static void Usage(const char* fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  UsageErrorV(fmt, ap);
+  va_end(ap);
+
+  UsageError("Usage: dex2oat [options]...");
+  UsageError("");
+  UsageError("  --dex-file=<dex-file>: specifies a .dex file to compile.");
+  UsageError("      Example: --dex-file=/system/framework/core.jar");
+  UsageError("");
+  UsageError("  --zip-fd=<file-descriptor>: specifies a file descriptor of a zip file");
+  UsageError("      containing a classes.dex file to compile.");
+  UsageError("      Example: --zip-fd=5");
+  UsageError("");
+  UsageError("  --zip-location=<zip-location>: specifies a symbolic name for the file corresponding");
+  UsageError("      to the file descriptor specified by --zip-fd.");
+  UsageError("      Example: --zip-location=/system/app/Calculator.apk");
+  UsageError("");
+  UsageError("  --oat-file=<file.oat>: specifies the required oat filename.");
+  UsageError("      Example: --oat-file=/system/framework/boot.oat");
+  UsageError("");
+  UsageError("  --oat-location=<oat-name>: specifies a symbolic name for the file corresponding");
+  UsageError("      to the file descriptor specified by --oat-fd.");
+  UsageError("      Example: --oat-location=/data/art-cache/system@app@Calculator.apk.oat");
+  UsageError("");
+  UsageError("  --image=<file.art>: specifies the output image filename.");
+  UsageError("      Example: --image=/system/framework/boot.art");
+  UsageError("");
+  UsageError("  --image-classes=<classname-file>: specifies classes to include in an image.");
+  UsageError("      Example: --image=frameworks/base/preloaded-classes");
+  UsageError("");
+  UsageError("  --base=<hex-address>: specifies the base address when creating a boot image.");
+  UsageError("      Example: --base=0x50000000");
+  UsageError("");
+  UsageError("  --boot-image=<file.art>: provide the image file for the boot class path.");
+  UsageError("      Example: --boot-image=/system/framework/boot.art");
+  UsageError("      Default: <host-prefix>/system/framework/boot.art");
+  UsageError("");
+  UsageError("  --host-prefix may be used to translate host paths to target paths during");
+  UsageError("      cross compilation.");
+  UsageError("      Example: --host-prefix=out/target/product/crespo");
+  UsageError("      Default: $ANDROID_PRODUCT_OUT");
+  UsageError("");
+  UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
+  UsageError("      such as initial heap size, maximum heap size, and verbose output.");
+  UsageError("      Use a separate --runtime-arg switch for each argument.");
+  UsageError("      Example: --runtime-arg -Xms256m");
+  UsageError("");
+  std::cerr << "See log for usage error information\n";
   exit(EXIT_FAILURE);
 }
 
@@ -396,15 +403,13 @@ void OpenDexFiles(const std::vector<const char*>& dex_filenames,
   }
 }
 
-
 int dex2oat(int argc, char** argv) {
   // Skip over argv[0].
   argv++;
   argc--;
 
   if (argc == 0) {
-    fprintf(stderr, "no arguments specified\n");
-    usage();
+    Usage("no arguments specified");
   }
 
   std::vector<const char*> dex_filenames;
@@ -435,8 +440,7 @@ int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--zip-fd=")) {
       const char* zip_fd_str = option.substr(strlen("--zip-fd=")).data();
       if (!ParseInt(zip_fd_str, &zip_fd)) {
-        fprintf(stderr, "could not parse --zip-fd argument '%s' as an integer\n", zip_fd_str);
-        usage();
+        Usage("could not parse --zip-fd argument '%s' as an integer", zip_fd_str);
       }
     } else if (option.starts_with("--zip-location=")) {
       zip_location = option.substr(strlen("--zip-location=")).data();
@@ -445,14 +449,12 @@ int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--oat-fd=")) {
       const char* oat_fd_str = option.substr(strlen("--oat-fd=")).data();
       if (!ParseInt(oat_fd_str, &oat_fd)) {
-        fprintf(stderr, "could not parse --oat-fd argument '%s' as an integer\n", oat_fd_str);
-        usage();
+        Usage("could not parse --oat-fd argument '%s' as an integer", oat_fd_str);
       }
     } else if (option.starts_with("-j")) {
       const char* thread_count_str = option.substr(strlen("-j")).data();
       if (!ParseInt(thread_count_str, &thread_count)) {
-        fprintf(stderr, "could not parse -j argument '%s' as an integer\n", thread_count_str);
-        usage();
+        Usage("could not parse -j argument '%s' as an integer", thread_count_str);
       }
     } else if (option.starts_with("--oat-location=")) {
       oat_location = option.substr(strlen("--oat-location=")).data();
@@ -465,8 +467,7 @@ int dex2oat(int argc, char** argv) {
       char* end;
       image_base = strtoul(image_base_str, &end, 16);
       if (end == image_base_str || *end != '\0') {
-        fprintf(stderr, "Failed to parse hexadecimal value for option %s\n", option.data());
-        usage();
+        Usage("Failed to parse hexadecimal value for option %s", option.data());
       }
     } else if (option.starts_with("--boot-image=")) {
       boot_image_filename = option.substr(strlen("--boot-image=")).data();
@@ -474,37 +475,31 @@ int dex2oat(int argc, char** argv) {
       host_prefix = option.substr(strlen("--host-prefix=")).data();
     } else if (option == "--runtime-arg") {
       if (++i >= argc) {
-        fprintf(stderr, "Missing required argument for --runtime-arg\n");
-        usage();
+        Usage("Missing required argument for --runtime-arg");
       }
       if (log_options) {
         LOG(INFO) << "dex2oat: option[" << i << "]=" << argv[i];
       }
       runtime_args.push_back(argv[i]);
     } else {
-      fprintf(stderr, "unknown argument %s\n", option.data());
-      usage();
+      Usage("unknown argument %s", option.data());
     }
   }
 
   if (oat_filename.empty() && oat_fd == -1) {
-    fprintf(stderr, "Output must be supplied with either --oat-file or --oat-fd\n");
-    return EXIT_FAILURE;
+    Usage("Output must be supplied with either --oat-file or --oat-fd");
   }
 
   if (!oat_filename.empty() && oat_fd != -1) {
-    fprintf(stderr, "--oat-file should not be used with --oat-fd\n");
-    return EXIT_FAILURE;
+    Usage("--oat-file should not be used with --oat-fd");
   }
 
   if (!oat_filename.empty() && oat_fd != -1) {
-    fprintf(stderr, "--oat-file should not be used with --oat-fd\n");
-    return EXIT_FAILURE;
+    Usage("--oat-file should not be used with --oat-fd");
   }
 
   if (oat_fd != -1 && !image_filename.empty()) {
-    fprintf(stderr, "--oat-fd should not be used with --image\n");
-    return EXIT_FAILURE;
+    Usage("--oat-fd should not be used with --image");
   }
 
   if (host_prefix.empty()) {
@@ -526,37 +521,28 @@ int dex2oat(int argc, char** argv) {
   }
   std::string boot_image_option;
   if (!boot_image_filename.empty()) {
-    if (!OS::FileExists(boot_image_filename.c_str())) {
-      fprintf(stderr, "Failed to find boot image file %s\n", boot_image_filename.c_str());
-      return EXIT_FAILURE;
-    }
     boot_image_option += "-Ximage:";
     boot_image_option += boot_image_filename;
   }
 
   if (image_classes_filename != NULL && !image) {
-    fprintf(stderr, "--image-classes should only be used with --image\n");
-    return EXIT_FAILURE;
+    Usage("--image-classes should only be used with --image");
   }
 
   if (image_classes_filename != NULL && !boot_image_option.empty()) {
-    fprintf(stderr, "--image-classes should not be used with --boot-image\n");
-    return EXIT_FAILURE;
+    Usage("--image-classes should not be used with --boot-image");
   }
 
   if (dex_filenames.empty() && zip_fd == -1) {
-    fprintf(stderr, "Input must be supplied with either --dex-file or --zip-fd\n");
-    return EXIT_FAILURE;
+    Usage("Input must be supplied with either --dex-file or --zip-fd");
   }
 
   if (!dex_filenames.empty() && zip_fd != -1) {
-    fprintf(stderr, "--dex-file should not be used with --zip-fd\n");
-    return EXIT_FAILURE;
+    Usage("--dex-file should not be used with --zip-fd");
   }
 
   if (!dex_filenames.empty() && !zip_location.empty()) {
-    fprintf(stderr, "--dex-file should not be used with --zip-location\n");
-    return EXIT_FAILURE;
+    Usage("--dex-file should not be used with --zip-location");
   }
 
   if (dex_locations.empty()) {
@@ -564,19 +550,16 @@ int dex2oat(int argc, char** argv) {
       dex_locations.push_back(dex_filenames[i]);
     }
   } else if (dex_locations.size() != dex_filenames.size()) {
-    fprintf(stderr, "--dex-location arguments do not match --dex-file arguments\n");
-    return EXIT_FAILURE;
+    Usage("--dex-location arguments do not match --dex-file arguments");
   }
 
   if (zip_fd != -1 && zip_location.empty()) {
-    fprintf(stderr, "--zip-location should be supplied with --zip-fd\n");
-    return EXIT_FAILURE;
+    Usage("--zip-location should be supplied with --zip-fd");
   }
 
   if (boot_image_option.empty()) {
     if (image_base == 0) {
-      fprintf(stderr, "non-zero --base not specified\n");
-      return EXIT_FAILURE;
+      Usage("non-zero --base not specified");
     }
   }
 

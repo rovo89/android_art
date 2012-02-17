@@ -129,7 +129,7 @@ endef
 ART_CACHE_OATS :=
 # $(1): name
 define build-art-cache-oat
-  $(call build-art-oat,$(PRODUCT_OUT)/$(1),/$(1),$(call art-cache-oat,$(1)),$(TARGET_BOOT_IMG))
+  $(call build-art-oat,$(PRODUCT_OUT)/$(1),/$(1),$(call art-cache-oat,$(1)),$(TARGET_BOOT_IMG_OUT))
   ART_CACHE_OATS += $(call art-cache-oat,$(1))
 endef
 
