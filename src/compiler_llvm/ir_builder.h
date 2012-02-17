@@ -174,6 +174,8 @@ class IRBuilder : public LLVMIRBuilder {
     return getJLongTy();
   }
 
+  llvm::StructType* getShadowFrameTy(uint32_t sirt_size);
+
 
   //--------------------------------------------------------------------------
   // Constant Value Helper Function
@@ -281,6 +283,8 @@ class IRBuilder : public LLVMIRBuilder {
   llvm::PointerType* jobject_type_;
 
   llvm::PointerType* jenv_type_;
+
+  llvm::StructType* art_frame_type_;
 
   llvm::Function* runtime_support_func_decls_[runtime_support::MAX_ID];
 

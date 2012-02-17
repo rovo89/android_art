@@ -86,6 +86,7 @@ class MethodCompiler {
   UniquePtr<DalvikReg> retval_reg_;
 
   llvm::BasicBlock* basic_block_reg_alloca_;
+  llvm::BasicBlock* basic_block_shadow_frame_alloca_;
   llvm::BasicBlock* basic_block_reg_zero_init_;
   llvm::BasicBlock* basic_block_reg_arg_init_;
   std::vector<llvm::BasicBlock*> basic_blocks_;
@@ -93,6 +94,8 @@ class MethodCompiler {
   std::vector<llvm::BasicBlock*> basic_block_landing_pads_;
   llvm::BasicBlock* basic_block_unwind_;
   llvm::BasicBlock* basic_block_unreachable_;
+
+  llvm::AllocaInst* shadow_frame_;
 
 
  public:
@@ -129,6 +132,7 @@ class MethodCompiler {
   void CreateFunction();
   void EmitPrologue();
   void EmitPrologueLastBranch();
+  void EmitPrologueAllocShadowFrame();
   void EmitPrologueAssignArgRegister();
   void EmitInstructions();
   void EmitInstruction(uint32_t dex_pc, Instruction const* insn);
@@ -264,6 +268,12 @@ class MethodCompiler {
                          JType op_jty, bool is_2addr);
 
 #undef GEN_INSN_ARGS
+
+
+  // Shadow frame helper function
+  void EmitPopShadowFrame();
+  void EmitUpdateLineNum(int32_t line_number);
+  void EmitUpdateLineNumFromDexPC(uint32_t dex_pc);
 
 
   // Dex cache code generation helper function

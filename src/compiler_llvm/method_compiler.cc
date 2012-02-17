@@ -60,11 +60,12 @@ MethodCompiler::MethodCompiler(InstructionSet insn_set,
   access_flags_(access_flags), module_(compiler_llvm_->GetModule()),
   context_(compiler_llvm_->GetLLVMContext()),
   irb_(*compiler_llvm_->GetIRBuilder()), func_(NULL), retval_reg_(NULL),
-  basic_block_reg_alloca_(NULL),
+  basic_block_reg_alloca_(NULL), basic_block_shadow_frame_alloca_(NULL),
   basic_block_reg_zero_init_(NULL), basic_block_reg_arg_init_(NULL),
   basic_blocks_(code_item->insns_size_in_code_units_),
   basic_block_landing_pads_(code_item->tries_size_, NULL),
-  basic_block_unwind_(NULL), basic_block_unreachable_(NULL) {
+  basic_block_unwind_(NULL), basic_block_unreachable_(NULL),
+  shadow_frame_(NULL) {
 }
 
 
@@ -139,6 +140,9 @@ void MethodCompiler::EmitPrologue() {
   basic_block_reg_alloca_ =
     llvm::BasicBlock::Create(*context_, "prologue.alloca", func_);
 
+  basic_block_shadow_frame_alloca_ =
+    llvm::BasicBlock::Create(*context_, "prologue.shadowframe", func_);
+
   basic_block_reg_zero_init_ =
     llvm::BasicBlock::Create(*context_, "prologue.zeroinit", func_);
 
@@ -152,6 +156,9 @@ void MethodCompiler::EmitPrologue() {
 
   retval_reg_.reset(DalvikReg::CreateRetValReg(*this));
 
+  // Create Shadow Frame
+  EmitPrologueAllocShadowFrame();
+
   // Store argument to dalvik register
   irb_.SetInsertPoint(basic_block_reg_arg_init_);
   EmitPrologueAssignArgRegister();
@@ -163,10 +170,60 @@ void MethodCompiler::EmitPrologue() {
 
 void MethodCompiler::EmitPrologueLastBranch() {
   irb_.SetInsertPoint(basic_block_reg_alloca_);
+  irb_.CreateBr(basic_block_shadow_frame_alloca_);
+
+  irb_.SetInsertPoint(basic_block_shadow_frame_alloca_);
   irb_.CreateBr(basic_block_reg_zero_init_);
 
   irb_.SetInsertPoint(basic_block_reg_zero_init_);
   irb_.CreateBr(basic_block_reg_arg_init_);
+}
+
+
+void MethodCompiler::EmitPrologueAllocShadowFrame() {
+  irb_.SetInsertPoint(basic_block_shadow_frame_alloca_);
+
+  // Allocate the shadow frame now!
+  uint32_t sirt_size = code_item_->registers_size_;
+  // TODO: registers_size_ is a bad approximation.  Compute a
+  // tighter approximation at Dex verifier while performing data-flow
+  // analysis.
+
+  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
+  shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
+
+  // Zero-initialization of the shadow frame
+  llvm::ConstantAggregateZero* zero_initializer =
+    llvm::ConstantAggregateZero::get(shadow_frame_type);
+
+  irb_.CreateStore(zero_initializer, shadow_frame_);
+
+  // Variables for GetElementPtr
+  llvm::Constant* zero = irb_.getInt32(0);
+
+  llvm::Value* gep_index[] = {
+    zero, // No displacement for shadow frame pointer
+    zero, // Get the %ArtFrame data structure
+    NULL,
+  };
+
+  // Store the method pointer
+  gep_index[2] = irb_.getInt32(1);
+  llvm::Value* method_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+  irb_.CreateStore(method_object_addr, method_field_addr);
+
+  // Store the number of the pointer slots
+  gep_index[2] = irb_.getInt32(3);
+  llvm::Value* size_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
+  llvm::ConstantInt* sirt_size_value = irb_.getInt32(sirt_size);
+  irb_.CreateStore(sirt_size_value, size_field_addr);
+
+  // Push the shadow frame
+  llvm::Value* shadow_frame_upcast =
+    irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
+
+  irb_.CreateCall(irb_.GetRuntime(PushShadowFrame), shadow_frame_upcast);
 }
 
 
@@ -1145,6 +1202,8 @@ void MethodCompiler::EmitInsn_ThrowException(uint32_t dex_pc,
   llvm::Value* exception_addr =
     EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
 
+  EmitUpdateLineNumFromDexPC(dex_pc);
+
   irb_.CreateCall(irb_.GetRuntime(ThrowException), exception_addr);
 
   EmitBranchExceptionLandingPad(dex_pc);
@@ -1155,6 +1214,9 @@ void MethodCompiler::EmitInsn_ReturnVoid(uint32_t dex_pc,
                                          Instruction const* insn) {
   // Garbage collection safe-point
   EmitGuard_GarbageCollectionSuspend(dex_pc);
+
+  // Pop the shadow frame
+  EmitPopShadowFrame();
 
   // Return!
   irb_.CreateRetVoid();
@@ -1168,6 +1230,11 @@ void MethodCompiler::EmitInsn_Return(uint32_t dex_pc,
 
   // Garbage collection safe-point
   EmitGuard_GarbageCollectionSuspend(dex_pc);
+
+  // Pop the shadow frame
+  EmitPopShadowFrame();
+  // NOTE: It is important to keep this AFTER the GC safe-point.  Otherwise,
+  // the return value might be collected since the shadow stack is popped.
 
   // Return!
   char ret_shorty = method_helper_.GetShorty()[0];
@@ -1269,8 +1336,10 @@ void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
 
     llvm::Value* string_idx_value = irb_.getInt32(string_idx);
 
-    string_addr = irb_.CreateCall2(runtime_func,
-                                   method_object_addr, string_idx_value);
+    EmitUpdateLineNumFromDexPC(dex_pc);
+
+    string_addr = irb_.CreateCall2(runtime_func, method_object_addr,
+                                   string_idx_value);
 
     EmitGuard_ExceptionLandingPad(dex_pc);
   }
@@ -1292,6 +1361,8 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
 
     llvm::Function* runtime_func =
       irb_.GetRuntime(InitializeTypeAndVerifyAccess);
+
+    EmitUpdateLineNumFromDexPC(dex_pc);
 
     llvm::Value* type_object_addr =
       irb_.CreateCall2(runtime_func, type_idx_value, method_object_addr);
@@ -1333,6 +1404,8 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
     llvm::Constant* type_idx_value = irb_.getInt32(type_idx);
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    EmitUpdateLineNumFromDexPC(dex_pc);
 
     llvm::Value* loaded_type_object_addr =
       irb_.CreateCall2(runtime_func, type_idx_value, method_object_addr);
@@ -1379,6 +1452,8 @@ void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
   // TODO: Slow path always. May not need NullPointerException check.
   EmitGuard_NullPointerException(dex_pc, object_addr);
 
+  EmitUpdateLineNumFromDexPC(dex_pc);
+
   irb_.CreateCall(irb_.GetRuntime(LockObject), object_addr);
   EmitGuard_ExceptionLandingPad(dex_pc);
 
@@ -1395,6 +1470,8 @@ void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
     EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
 
   EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  EmitUpdateLineNumFromDexPC(dex_pc);
 
   irb_.CreateCall(irb_.GetRuntime(UnlockObject), object_addr);
   EmitGuard_ExceptionLandingPad(dex_pc);
@@ -1446,6 +1523,8 @@ void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
 
   // Test: Is the object instantiated from the subclass of the given class?
   irb_.SetInsertPoint(block_test_sub_class);
+
+  EmitUpdateLineNumFromDexPC(dex_pc);
 
   irb_.CreateCall2(irb_.GetRuntime(CheckCast),
                    type_object_addr, object_type_object_addr);
@@ -1574,6 +1653,8 @@ void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
 
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
+  EmitUpdateLineNumFromDexPC(dex_pc);
+
   llvm::Value* object_addr =
     irb_.CreateCall2(runtime_func, type_index_value, method_object_addr);
 
@@ -1610,6 +1691,8 @@ llvm::Value* MethodCompiler::EmitAllocNewArray(uint32_t dex_pc,
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
   llvm::Value* array_length_value = irb_.getInt32(length);
+
+  EmitUpdateLineNumFromDexPC(dex_pc);
 
   llvm::Value* object_addr =
     irb_.CreateCall3(runtime_func, type_index_value, method_object_addr,
@@ -2092,6 +2175,8 @@ MethodCompiler::EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
   irb_.CreateCondBr(cmp, block_exception, block_continue);
 
   irb_.SetInsertPoint(block_exception);
+
+  EmitUpdateLineNumFromDexPC(dex_pc);
   irb_.CreateCall2(irb_.GetRuntime(ThrowIndexOutOfBounds), index, array_len);
   EmitBranchExceptionLandingPad(dex_pc);
 
@@ -2215,6 +2300,8 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
+    EmitUpdateLineNumFromDexPC(dex_pc);
+
     field_value = irb_.CreateCall2(runtime_func, field_idx_value,
                                    method_object_addr);
 
@@ -2272,6 +2359,8 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
     llvm::Value* field_idx_value = irb_.getInt32(field_idx);
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    EmitUpdateLineNumFromDexPC(dex_pc);
 
     irb_.CreateCall3(runtime_func, field_idx_value,
                      method_object_addr, new_value);
@@ -2431,6 +2520,8 @@ llvm::Value* MethodCompiler::EmitLoadStaticStorage(uint32_t dex_pc,
 
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
+  EmitUpdateLineNumFromDexPC(dex_pc);
+
   llvm::Value* loaded_storage_object_addr =
     irb_.CreateCall2(runtime_func, type_idx_value, method_object_addr);
 
@@ -2478,6 +2569,8 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
     llvm::Constant* field_idx_value = irb_.getInt32(dec_insn.vB_);
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    EmitUpdateLineNumFromDexPC(dex_pc);
 
     static_field_value =
       irb_.CreateCall2(runtime_func, field_idx_value, method_object_addr);
@@ -2530,6 +2623,8 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
     llvm::Constant* field_idx_value = irb_.getInt32(dec_insn.vB_);
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    EmitUpdateLineNumFromDexPC(dex_pc);
 
     irb_.CreateCall3(runtime_func, field_idx_value,
                      method_object_addr, new_value);
@@ -2652,8 +2747,8 @@ void MethodCompiler::EmitInsn_InvokeVirtual(uint32_t dex_pc,
                              is_range, false);
 
     // Invoke callee
+    EmitUpdateLineNumFromDexPC(dex_pc);
     llvm::Value* retval = irb_.CreateCall(code_addr, args);
-
     EmitGuard_ExceptionLandingPad(dex_pc);
 
     MethodHelper method_helper(callee_method);
@@ -2746,8 +2841,8 @@ void MethodCompiler::EmitInsn_InvokeSuper(uint32_t dex_pc,
                              is_range, false);
 
     // Invoke callee
+    EmitUpdateLineNumFromDexPC(dex_pc);
     llvm::Value* retval = irb_.CreateCall(code_addr, args);
-
     EmitGuard_ExceptionLandingPad(dex_pc);
 
     MethodHelper method_helper(callee_method);
@@ -2824,6 +2919,8 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
   EmitLoadActualParameters(args, callee_method_idx, dec_insn,
                            is_range, is_static);
 
+  // Invoke callee
+  EmitUpdateLineNumFromDexPC(dex_pc);
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
   EmitGuard_ExceptionLandingPad(dex_pc);
 
@@ -2859,6 +2956,8 @@ void MethodCompiler::EmitInsn_InvokeInterface(uint32_t dex_pc,
 
   llvm::Value* callee_method_idx_value = irb_.getInt32(callee_method_idx);
 
+  EmitUpdateLineNumFromDexPC(dex_pc);
+
   llvm::Value* callee_method_object_addr =
     irb_.CreateCall2(runtime_func, callee_method_idx_value, method_object_addr);
 
@@ -2873,7 +2972,8 @@ void MethodCompiler::EmitInsn_InvokeInterface(uint32_t dex_pc,
   args.push_back(this_addr);
   EmitLoadActualParameters(args, callee_method_idx, dec_insn, is_range, false);
 
-  // Emit the code to invoke callee
+  // Invoke callee
+  EmitUpdateLineNumFromDexPC(dex_pc);
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
   EmitGuard_ExceptionLandingPad(dex_pc);
 
@@ -3266,6 +3366,7 @@ void MethodCompiler::EmitGuard_DivZeroException(uint32_t dex_pc,
   irb_.CreateCondBr(equal_zero, block_exception, block_continue);
 
   irb_.SetInsertPoint(block_exception);
+  EmitUpdateLineNumFromDexPC(dex_pc);
   irb_.CreateCall(irb_.GetRuntime(ThrowDivZeroException));
   EmitBranchExceptionLandingPad(dex_pc);
 
@@ -3341,6 +3442,7 @@ void MethodCompiler::EmitGuard_NullPointerException(uint32_t dex_pc,
   irb_.CreateCondBr(equal_null, block_exception, block_continue);
 
   irb_.SetInsertPoint(block_exception);
+  EmitUpdateLineNumFromDexPC(dex_pc);
   irb_.CreateCall(irb_.GetRuntime(ThrowNullPointerException));
   EmitBranchExceptionLandingPad(dex_pc);
 
@@ -3470,6 +3572,7 @@ void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
 
 void MethodCompiler::EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc) {
   llvm::Value* runtime_func = irb_.GetRuntime(TestSuspend);
+  EmitUpdateLineNumFromDexPC(dex_pc);
   irb_.CreateCall(runtime_func);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
@@ -3619,6 +3722,9 @@ llvm::BasicBlock* MethodCompiler::GetUnwindBasicBlock() {
   llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
   irb_.SetInsertPoint(basic_block_unwind_);
 
+  // Pop the shadow frame
+  EmitPopShadowFrame();
+
   // Emit the code to return default value (zero) for the given return type.
   char ret_shorty = method_helper_.GetShorty()[0];
   if (ret_shorty == 'V') {
@@ -3663,12 +3769,21 @@ llvm::Value* MethodCompiler::AllocDalvikLocalVarReg(RegCategory cat,
     break;
 
   case kRegObject:
-    irb_.SetInsertPoint(basic_block_reg_alloca_);
-    reg_addr = irb_.CreateAlloca(irb_.getJObjectTy(), 0,
-                                 StringPrintf("p%u", reg_idx));
+    {
+      irb_.SetInsertPoint(basic_block_shadow_frame_alloca_);
 
-    irb_.SetInsertPoint(basic_block_reg_zero_init_);
-    irb_.CreateStore(irb_.getJNull(), reg_addr);
+      llvm::Value* gep_index[] = {
+        irb_.getInt32(0), // No pointer displacement
+        irb_.getInt32(1), // SIRT
+        irb_.getInt32(reg_idx) // Pointer field
+      };
+
+      reg_addr = irb_.CreateGEP(shadow_frame_, gep_index,
+                                StringPrintf("p%u", reg_idx));
+
+      irb_.SetInsertPoint(basic_block_reg_zero_init_);
+      irb_.CreateStore(irb_.getJNull(), reg_addr);
+    }
     break;
 
   default:
@@ -3715,6 +3830,31 @@ llvm::Value* MethodCompiler::AllocDalvikRetValReg(RegCategory cat) {
 
   DCHECK_NE(reg_addr, static_cast<llvm::Value*>(NULL));
   return reg_addr;
+}
+
+
+void MethodCompiler::EmitPopShadowFrame() {
+  irb_.CreateCall(irb_.GetRuntime(PopShadowFrame));
+}
+
+
+void MethodCompiler::EmitUpdateLineNum(int32_t line_num) {
+  llvm::Constant* zero = irb_.getInt32(0);
+
+  llvm::Value* gep_index[] = {
+    zero, // No displacement for shadow frame pointer
+    zero, // Get the %ArtFrame data structure
+    irb_.getInt32(2),
+  };
+
+  llvm::Value* line_num_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
+  llvm::ConstantInt* line_num_value = irb_.getInt32(line_num);
+  irb_.CreateStore(line_num_value, line_num_field_addr);
+}
+
+
+void MethodCompiler::EmitUpdateLineNumFromDexPC(uint32_t dex_pc) {
+  EmitUpdateLineNum(dex_file_->GetLineNumFromPC(method_, dex_pc));
 }
 
 

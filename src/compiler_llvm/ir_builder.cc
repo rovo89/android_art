@@ -16,6 +16,7 @@
 
 #include "ir_builder.h"
 #include "runtime_support_func.h"
+#include "stringprintf.h"
 
 #include <llvm/Module.h>
 
@@ -38,6 +39,10 @@ IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
   // Create JEnv* type
   llvm::Type* jenv_struct_type = llvm::StructType::create(context, "JEnv");
   jenv_type_ = jenv_struct_type->getPointerTo();
+
+  // Get Art shadow frame struct type from module
+  art_frame_type_ = module.getTypeByName("ArtFrame");
+  CHECK_NE(art_frame_type_, static_cast<llvm::StructType*>(NULL));
 
   // Load the runtime support function declaration from module
   InitRuntimeSupportFuncDecl();
@@ -176,6 +181,25 @@ llvm::Type* IRBuilder::getJTypeInArraySpace(JType jty) {
 
   LOG(FATAL) << "Unknown java type: " << jty;
   return NULL;
+}
+
+
+llvm::StructType* IRBuilder::getShadowFrameTy(uint32_t sirt_size) {
+  std::string name(StringPrintf("ArtFrame%u", sirt_size));
+
+  // Try to find the existing struct type definition
+  if (llvm::Type* type = module_->getTypeByName(name)) {
+    CHECK(llvm::isa<llvm::StructType>(type));
+    return static_cast<llvm::StructType*>(type);
+  }
+
+  // Create new struct type definition
+  llvm::Type* elem_types[] = {
+    art_frame_type_,
+    llvm::ArrayType::get(jobject_type_, sirt_size),
+  };
+
+  return llvm::StructType::create(elem_types, name);
 }
 
 
