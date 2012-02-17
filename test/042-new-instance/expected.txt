@@ -4,6 +4,8 @@ LocalClass3 succeeded
 Got expected InstantationError
 Cons LocalClass failed as expected
 Cons LocalClass2 succeeded
+Cons InnerClass succeeded
+Cons StaticInnerClass succeeded
 Cons got expected PackageAccess complaint
 Cons got expected InstantationException
 Cons got expected PackageAccess2 complaint

@@ -92,6 +92,28 @@ public class Main {
             ex.printStackTrace();
         }
 
+        // should succeed
+        try {
+            Class c = Class.forName("Main$InnerClass");
+            Constructor cons = c.getDeclaredConstructor(new Class<?>[]{Main.class});
+            Object obj = cons.newInstance(new Main());
+            System.out.println("Cons InnerClass succeeded");
+        } catch (Exception ex) {
+            System.err.println("Cons InnerClass failed");
+            ex.printStackTrace();
+        }
+
+        // should succeed
+        try {
+            Class c = Class.forName("Main$StaticInnerClass");
+            Constructor cons = c.getDeclaredConstructor((Class[]) null);
+            Object obj = cons.newInstance();
+            System.out.println("Cons StaticInnerClass succeeded");
+        } catch (Exception ex) {
+            System.err.println("Cons StaticInnerClass failed");
+            ex.printStackTrace();
+        }
+
         // should fail
         try {
             Class c = Class.forName("otherpackage.PackageAccess");
@@ -134,6 +156,12 @@ public class Main {
             ex.printStackTrace();
         }
 
+    }
+
+    class InnerClass {
+    }
+
+    static class StaticInnerClass {
     }
 }
 

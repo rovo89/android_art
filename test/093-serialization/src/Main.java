@@ -47,6 +47,8 @@ public class Main {
 
         Sub sub = new Sub('X');
         objStream.writeObject(sub);
+        Inner inner = new Inner(0xCAFEF00D);
+        objStream.writeObject(inner);
         byte[] bytes = byteStream.toByteArray();
 
         objStream.close();
@@ -59,8 +61,10 @@ public class Main {
         ObjectInputStream objStream = new ObjectInputStream(byteStream);
 
         Sub sub;
+        Inner inner;
         try {
             sub = (Sub) objStream.readObject();
+            inner = (Inner) objStream.readObject();
         } catch (ClassNotFoundException cnfe) {
             throw new RuntimeException(cnfe);
         }
@@ -69,6 +73,19 @@ public class Main {
         byteStream.close();
 
         sub.check();
+        inner.check();
+    }
+
+    static class Inner implements Serializable {
+        private static final long serialVersionUID = 319009;
+        private final int x;
+        public Inner (int x) {
+            this.x = x;
+        }
+
+        public void check() {
+            System.out.println("x=" + Integer.toHexString(x));
+        }
     }
 }
 
@@ -113,4 +130,3 @@ class Sub extends Base {
             + " thing=" + thing);
     }
 }
-
