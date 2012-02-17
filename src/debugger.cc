@@ -499,12 +499,12 @@ void Dbg::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   }
 }
 
-std::string Dbg::GetClassDescriptor(JDWP::RefTypeId classId) {
+std::string Dbg::GetClassName(JDWP::RefTypeId classId) {
   Object* o = gRegistry->Get<Object*>(classId);
   if (o == NULL || !o->IsClass()) {
     return StringPrintf("non-class %p", o); // This is only used for debugging output anyway.
   }
-  return ClassHelper(o->AsClass()).GetDescriptor();
+  return DescriptorToName(ClassHelper(o->AsClass()).GetDescriptor());
 }
 
 bool Dbg::GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& classObjectId) {

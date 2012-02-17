@@ -452,7 +452,7 @@ std::ostream& operator<<(std::ostream& os, const JdwpTransportType& value) {
 
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs) {
   os << "JdwpLocation["
-     << Dbg::GetClassDescriptor(rhs.classId) << "." << Dbg::GetMethodName(rhs.classId, rhs.methodId)
+     << Dbg::GetClassName(rhs.classId) << "." << Dbg::GetMethodName(rhs.classId, rhs.methodId)
      << "@" << rhs.idx << " " << rhs.typeTag << "]";
   return os;
 }
