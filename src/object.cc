@@ -393,7 +393,8 @@ const InferredRegCategoryMap* Method::GetInferredRegCategoryMap() const {
 }
 
 void Method::SetInferredRegCategoryMap(const InferredRegCategoryMap* map) {
-  const InferredRegCategoryMap* existing_map = GetInferredRegCategoryMap();
+  const InferredRegCategoryMap* existing_map = GetFieldPtr<const InferredRegCategoryMap*>(
+      OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), false);
 
   DCHECK(existing_map == NULL) << PrettyMethod(this);
   DCHECK(map != NULL) << PrettyMethod(this);
@@ -406,7 +407,7 @@ void Method::SetInferredRegCategoryMap(const InferredRegCategoryMap* map) {
 void Method::ResetInferredRegCategoryMap() {
   delete GetInferredRegCategoryMap();
   SetFieldPtr<const InferredRegCategoryMap*>(
-    OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), NULL, false);
+      OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), NULL, false);
 }
 
 #endif
