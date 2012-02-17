@@ -21,7 +21,14 @@
 
 %JavaObject = type opaque
 
-declare void @__art_type_list(%JavaObject*)
+%ArtFrame = type { %ArtFrame*           ; Previous frame (sirt)
+                 , %JavaObject*         ; Method object pointer
+                 , i32                  ; Line number for stack backtrace
+                 , i32                  ; Size of SIRT
+                 ; [0 x %JavaObject*]   ; Stack indirect reference table
+                 }
+
+declare void @__art_type_list(%JavaObject*, %ArtFrame*)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -35,6 +42,9 @@ declare void @art_lock_object_from_code(%JavaObject*)
 declare void @art_unlock_object_from_code(%JavaObject*)
 
 declare void @art_test_suspend_from_code()
+
+declare void @art_push_shadow_frame_from_code(%ArtFrame*)
+declare void @art_pop_shadow_frame_from_code()
 
 
 
