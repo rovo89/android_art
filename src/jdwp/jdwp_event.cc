@@ -160,7 +160,10 @@ JdwpError JdwpState::RegisterEvent(JdwpEvent* pEvent) {
       /* should only be for EK_SINGLE_STEP; should only be one */
       JdwpStepSize size = static_cast<JdwpStepSize>(pMod->step.size);
       JdwpStepDepth depth = static_cast<JdwpStepDepth>(pMod->step.depth);
-      Dbg::ConfigureStep(pMod->step.threadId, size, depth);
+      JdwpError status = Dbg::ConfigureStep(pMod->step.threadId, size, depth);
+      if (status != ERR_NONE) {
+        return status;
+      }
     } else if (pMod->modKind == MK_FIELD_ONLY) {
       /* should be for EK_FIELD_ACCESS or EK_FIELD_MODIFICATION */
       dumpEvent(pEvent);  /* TODO - need for field watches */

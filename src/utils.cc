@@ -375,18 +375,22 @@ std::string DotToDescriptor(const char* class_name) {
 }
 
 std::string DescriptorToDot(const char* descriptor) {
-  std::string result(DescriptorToName(descriptor));
-  std::replace(result.begin(), result.end(), '/', '.');
-  return result;
+  size_t length = strlen(descriptor);
+  if (descriptor[0] == 'L' && descriptor[length - 1] == ';') {
+    std::string result(descriptor + 1, length - 2);
+    std::replace(result.begin(), result.end(), '/', '.');
+    return result;
+  }
+  return descriptor;
 }
 
 std::string DescriptorToName(const char* descriptor) {
   size_t length = strlen(descriptor);
-  CHECK_GT(length, 0U) << descriptor;
-  CHECK_EQ(descriptor[0], 'L') << descriptor;
-  CHECK_EQ(descriptor[length - 1], ';') << descriptor;
-  std::string result(descriptor + 1, length - 2);
-  return result;
+  if (descriptor[0] == 'L' && descriptor[length - 1] == ';') {
+    std::string result(descriptor + 1, length - 2);
+    return result;
+  }
+  return descriptor;
 }
 
 std::string JniShortName(const Method* m) {

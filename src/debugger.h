@@ -140,7 +140,7 @@ class Dbg {
   static void GetClassList(std::vector<JDWP::RefTypeId>& classes);
   static bool GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor);
   static void FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids);
-  static void GetObjectType(JDWP::ObjectId objectId, JDWP::JdwpTypeTag* pRefTypeTag, JDWP::RefTypeId* pRefTypeId);
+  static JDWP::JdwpError GetReferenceType(JDWP::ObjectId objectId, JDWP::ExpandBuf* pReply);
   static JDWP::JdwpError GetSignature(JDWP::RefTypeId refTypeId, std::string& signature);
   static bool GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file);
   static uint8_t GetObjectTag(JDWP::ObjectId objectId);
@@ -179,14 +179,14 @@ class Dbg {
    * Thread, ThreadGroup, Frame
    */
   static bool GetThreadName(JDWP::ObjectId threadId, std::string& name);
-  static JDWP::ObjectId GetThreadGroup(JDWP::ObjectId threadId);
+  static JDWP::JdwpError GetThreadGroup(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply);
   static std::string GetThreadGroupName(JDWP::ObjectId threadGroupId);
   static JDWP::ObjectId GetThreadGroupParent(JDWP::ObjectId threadGroupId);
   static JDWP::ObjectId GetSystemThreadGroupId();
   static JDWP::ObjectId GetMainThreadGroupId();
 
   static bool GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus);
-  static uint32_t GetThreadSuspendCount(JDWP::ObjectId threadId);
+  static JDWP::JdwpError GetThreadSuspendCount(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply);
   static bool ThreadExists(JDWP::ObjectId threadId);
   static bool IsSuspended(JDWP::ObjectId threadId);
   //static void WaitForSuspend(JDWP::ObjectId threadId);
@@ -225,7 +225,7 @@ class Dbg {
 
   static void WatchLocation(const JDWP::JdwpLocation* pLoc);
   static void UnwatchLocation(const JDWP::JdwpLocation* pLoc);
-  static bool ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize size, JDWP::JdwpStepDepth depth);
+  static JDWP::JdwpError ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize size, JDWP::JdwpStepDepth depth);
   static void UnconfigureStep(JDWP::ObjectId threadId);
 
   static JDWP::JdwpError InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t numArgs, uint64_t* argArray, uint32_t options, JDWP::JdwpTag* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptObj);

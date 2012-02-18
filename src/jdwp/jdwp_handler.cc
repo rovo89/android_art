@@ -122,7 +122,7 @@ static JdwpError finishInvoke(JdwpState* state,
     size_t width = Dbg::GetTagWidth(typeTag);
     uint64_t value = jdwpReadValue(&buf, width);
 
-    VLOG(jdwp) << StringPrintf("          '%c'(%zd): 0x%llx", typeTag, width, value);
+    VLOG(jdwp) << "          " << typeTag << StringPrintf("(%zd): 0x%llx", width, value);
     argArray[i] = value;
   }
 
@@ -152,7 +152,7 @@ static JdwpError finishInvoke(JdwpState* state,
     expandBufAdd1(pReply, JT_OBJECT);
     expandBufAddObjectId(pReply, exceptObjId);
 
-    VLOG(jdwp) << StringPrintf("  --> returned '%c' 0x%llx (except=%08llx)", resultTag, resultValue, exceptObjId);
+    VLOG(jdwp) << "  --> returned " << resultTag << StringPrintf(" 0x%llx (except=%08llx)", resultValue, exceptObjId);
 
     /* show detailed debug output */
     if (resultTag == JT_STRING && exceptObjId == 0) {
@@ -661,7 +661,7 @@ static JdwpError handleCT_SetValues(JdwpState* state, const uint8_t* buf, int da
     size_t width = Dbg::GetTagWidth(fieldTag);
     uint64_t value = jdwpReadValue(&buf, width);
 
-    VLOG(jdwp) << StringPrintf("    --> field=%x tag=%c -> %lld", fieldId, fieldTag, value);
+    VLOG(jdwp) << "    --> field=" << fieldId << " tag=" << fieldTag << " -> " << value;
     JdwpError status = Dbg::SetStaticFieldValue(fieldId, value, width);
     if (status != ERR_NONE) {
       return status;
@@ -715,7 +715,7 @@ static JdwpError handleAT_newInstance(JdwpState* state, const uint8_t* buf, int 
   RefTypeId arrayTypeId = ReadRefTypeId(&buf);
   uint32_t length = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("Creating array %s[%u]", Dbg::GetClassName(arrayTypeId).c_str(), length);
+  VLOG(jdwp) << "Creating array " << Dbg::GetClassName(arrayTypeId) << "[" << length << "]";
   ObjectId objectId;
   if (!Dbg::CreateArrayObject(arrayTypeId, length, objectId)) {
     return ERR_INVALID_CLASS;
@@ -735,7 +735,7 @@ static JdwpError handleM_LineTable(JdwpState* state, const uint8_t* buf, int dat
   RefTypeId refTypeId = ReadRefTypeId(&buf);
   MethodId methodId = ReadMethodId(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for line table in %s.%s", Dbg::GetClassName(refTypeId).c_str(), Dbg::GetMethodName(refTypeId,methodId).c_str());
+  VLOG(jdwp) << "  Req for line table in " << Dbg::GetClassName(refTypeId) << "." << Dbg::GetMethodName(refTypeId,methodId);
 
   Dbg::OutputLineTable(refTypeId, methodId, pReply);
 
@@ -774,15 +774,7 @@ static JdwpError handleM_VariableTableWithGeneric(JdwpState* state, const uint8_
 static JdwpError handleOR_ReferenceType(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId objectId = ReadObjectId(&buf);
   VLOG(jdwp) << StringPrintf("  Req for type of objectId=0x%llx", objectId);
-
-  JDWP::JdwpTypeTag refTypeTag;
-  RefTypeId typeId;
-  Dbg::GetObjectType(objectId, &refTypeTag, &typeId);
-
-  expandBufAdd1(pReply, refTypeTag);
-  expandBufAddRefTypeId(pReply, typeId);
-
-  return ERR_NONE;
+  return Dbg::GetReferenceType(objectId, pReply);
 }
 
 /*
@@ -820,7 +812,7 @@ static JdwpError handleOR_SetValues(JdwpState* state, const uint8_t* buf, int da
     size_t width = Dbg::GetTagWidth(fieldTag);
     uint64_t value = jdwpReadValue(&buf, width);
 
-    VLOG(jdwp) << StringPrintf("    --> fieldId=%x tag='%c'(%zd) value=%lld", fieldId, fieldTag, width, value);
+    VLOG(jdwp) << "    --> fieldId=" << fieldId << " tag=" << fieldTag << "(" << width << ") value=" << value;
 
     Dbg::SetFieldValue(objectId, fieldId, value, width);
   }
@@ -970,12 +962,7 @@ static JdwpError handleTR_Status(JdwpState* state, const uint8_t* buf, int dataL
  */
 static JdwpError handleTR_ThreadGroup(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId threadId = ReadObjectId(&buf);
-
-  /* currently not handling these */
-  ObjectId threadGroupId = Dbg::GetThreadGroup(threadId);
-  expandBufAddObjectId(pReply, threadGroupId);
-
-  return ERR_NONE;
+  return Dbg::GetThreadGroup(threadId, pReply);
 }
 
 /*
@@ -1021,7 +1008,7 @@ static JdwpError handleTR_Frames(JdwpState* state, const uint8_t* buf, int dataL
     expandBufAdd8BE(pReply, frameId);
     AddLocation(pReply, &loc);
 
-    VLOG(jdwp) << StringPrintf("    Frame %d: id=%llx loc={type=%d cls=%llx mth=%x loc=%llx}", i, frameId, loc.typeTag, loc.classId, loc.methodId, loc.idx);
+    VLOG(jdwp) << StringPrintf("    Frame %d: id=%llx ", i, frameId) << loc;
   }
 
   return ERR_NONE;
@@ -1072,11 +1059,7 @@ static JdwpError handleTR_CurrentContendedMonitor(JdwpState* state, const uint8_
  */
 static JdwpError handleTR_SuspendCount(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId threadId = ReadObjectId(&buf);
-
-  uint32_t suspendCount = Dbg::GetThreadSuspendCount(threadId);
-  expandBufAdd4BE(pReply, suspendCount);
-
-  return ERR_NONE;
+  return Dbg::GetThreadSuspendCount(threadId, pReply);
 }
 
 /*
@@ -1152,7 +1135,7 @@ static JdwpError handleAR_Length(JdwpState* state, const uint8_t* buf, int dataL
   if (status != ERR_NONE) {
     return status;
   }
-  VLOG(jdwp) << StringPrintf("    --> %d", length);
+  VLOG(jdwp) << "    --> " << length;
 
   expandBufAdd4BE(pReply, length);
 
@@ -1262,7 +1245,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         // pattern is "java.foo.*", we want "java/foo/*".
         std::string pattern(ReadNewUtf8String(&buf));
         std::replace(pattern.begin(), pattern.end(), '.', '/');
-        VLOG(jdwp) << StringPrintf("    ClassMatch: '%s'", pattern.c_str());
+        VLOG(jdwp) << "    ClassMatch: '" << pattern << "'";
         pEvent->mods[idx].classMatch.classPattern = strdup(pattern.c_str());
       }
       break;
@@ -1271,17 +1254,15 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         // pattern is "java.foo.*", we want "java/foo/*".
         std::string pattern(ReadNewUtf8String(&buf));
         std::replace(pattern.begin(), pattern.end(), '.', '/');
-        VLOG(jdwp) << StringPrintf("    ClassExclude: '%s'", pattern.c_str());
+        VLOG(jdwp) << "    ClassExclude: '" << pattern << "'";
         pEvent->mods[idx].classExclude.classPattern = strdup(pattern.c_str());
       }
       break;
     case MK_LOCATION_ONLY:  /* restrict certain events based on loc */
       {
         JdwpLocation loc;
-
         jdwpReadLocation(&buf, &loc);
-        VLOG(jdwp) << StringPrintf("    LocationOnly: typeTag=%d classId=%llx methodId=%x idx=%llx",
-        loc.typeTag, loc.classId, loc.methodId, loc.idx);
+        VLOG(jdwp) << "    LocationOnly: " << loc;
         pEvent->mods[idx].locationOnly.loc = loc;
       }
       break;
@@ -1398,7 +1379,7 @@ static JdwpError handleSF_GetValues(JdwpState* state, const uint8_t* buf, int da
     uint32_t slot = Read4BE(&buf);
     JDWP::JdwpTag reqSigByte = ReadTag(&buf);
 
-    VLOG(jdwp) << StringPrintf("    --> slot %d '%c'", slot, reqSigByte);
+    VLOG(jdwp) << "    --> slot " << slot << " " << reqSigByte;
 
     size_t width = Dbg::GetTagWidth(reqSigByte);
     uint8_t* ptr = expandBufAddSpace(pReply, width+1);
@@ -1424,7 +1405,7 @@ static JdwpError handleSF_SetValues(JdwpState* state, const uint8_t* buf, int da
     size_t width = Dbg::GetTagWidth(sigByte);
     uint64_t value = jdwpReadValue(&buf, width);
 
-    VLOG(jdwp) << StringPrintf("    --> slot %d '%c' %llx", slot, sigByte, value);
+    VLOG(jdwp) << "    --> slot " << slot << " " << sigByte << " " << value;
     Dbg::SetLocalValue(threadId, frameId, slot, sigByte, value, width);
   }
 

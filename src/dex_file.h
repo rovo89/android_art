@@ -683,18 +683,18 @@ class DexFile {
 
   // Callback for "new position table entry".
   // Returning true causes the decoder to stop early.
-  typedef bool (*DexDebugNewPositionCb)(void* cnxt, uint32_t address, uint32_t line_num);
+  typedef bool (*DexDebugNewPositionCb)(void* context, uint32_t address, uint32_t line_num);
 
   // Callback for "new locals table entry". "signature" is an empty string
   // if no signature is available for an entry.
-  typedef void (*DexDebugNewLocalCb)(void* cnxt, uint16_t reg,
+  typedef void (*DexDebugNewLocalCb)(void* context, uint16_t reg,
                                      uint32_t startAddress,
                                      uint32_t endAddress,
                                      const char* name,
                                      const char* descriptor,
                                      const char* signature);
 
-  static bool LineNumForPcCb(void* cnxt, uint32_t address, uint32_t line_num);
+  static bool LineNumForPcCb(void* context, uint32_t address, uint32_t line_num);
 
   // Debug info opcodes and constants
   enum {
@@ -736,10 +736,10 @@ class DexFile {
     DISALLOW_COPY_AND_ASSIGN(LineNumFromPcContext);
   };
 
-  void InvokeLocalCbIfLive(void* cnxt, int reg, uint32_t end_address,
+  void InvokeLocalCbIfLive(void* context, int reg, uint32_t end_address,
                            LocalInfo* local_in_reg, DexDebugNewLocalCb local_cb) const {
     if (local_cb != NULL && local_in_reg[reg].is_live_) {
-      local_cb(cnxt, reg, local_in_reg[reg].start_address_, end_address,
+      local_cb(context, reg, local_in_reg[reg].start_address_, end_address,
           local_in_reg[reg].name_, local_in_reg[reg].descriptor_,
           local_in_reg[reg].signature_ != NULL ? local_in_reg[reg].signature_ : "");
     }
@@ -756,8 +756,8 @@ class DexFile {
   int32_t GetLineNumFromPC(const Method* method, uint32_t rel_pc) const;
 
   void DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
-                       DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
-                       void* cnxt) const;
+                       DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
+                       void* context) const;
 
   const char* GetSourceFile(const ClassDef& class_def) const {
     if (class_def.source_file_idx_ == 0xffffffff) {
@@ -840,8 +840,8 @@ class DexFile {
   bool CheckMagicAndVersion() const;
 
   void DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
-      DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
-      void* cnxt, const byte* stream, LocalInfo* local_in_reg) const;
+      DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
+      void* context, const byte* stream, LocalInfo* local_in_reg) const;
 
   // The index of descriptors to class definition indexes (as opposed to type id indexes)
   typedef std::map<const StringPiece, uint32_t> Index;
