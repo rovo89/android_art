@@ -177,8 +177,9 @@ static SingleStepControl gSingleStepControl;
 
 static bool IsBreakpoint(Method* m, uint32_t dex_pc) {
   MutexLock mu(gBreakpointsLock);
+  uint32_t pc = dex_pc / 2; // dex bytecodes are twice the size JDWP expects.
   for (size_t i = 0; i < gBreakpoints.size(); ++i) {
-    if (gBreakpoints[i].method == m && gBreakpoints[i].pc == dex_pc) {
+    if (gBreakpoints[i].method == m && gBreakpoints[i].pc == pc) {
       VLOG(jdwp) << "Hit breakpoint #" << i << ": " << gBreakpoints[i];
       return true;
     }
@@ -898,7 +899,7 @@ static void SetLocation(JDWP::JdwpLocation& location, Method* m, uintptr_t nativ
     location.typeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
     location.classId = gRegistry->Add(c);
     location.methodId = ToMethodId(m);
-    location.idx = m->IsNative() ? -1 : m->ToDexPC(native_pc);
+    location.idx = m->IsNative() ? -1 : m->ToDexPC(native_pc) / 2;
   }
 }
 
@@ -1610,7 +1611,7 @@ void Dbg::PostLocationEvent(const Method* m, int dex_pc, Object* this_object, in
   location.typeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
   location.classId = gRegistry->Add(c);
   location.methodId = ToMethodId(m);
-  location.idx = m->IsNative() ? -1 : dex_pc;
+  location.idx = m->IsNative() ? -1 : dex_pc / 2;
 
   // Note we use "NoReg" so we don't keep track of references that are
   // never actually sent to the debugger. 'this_id' is only used to
@@ -1667,30 +1668,24 @@ void Dbg::PostClassPrepare(Class* c) {
 }
 
 void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
-  if (!gDebuggerActive) {
+  if (!gDebuggerActive || dex_pc == -2 /* fake method exit */) {
     return;
   }
 
   Frame f(sp);
   f.Next(); // Skip callee save frame.
   Method* m = f.GetMethod();
-  int event_flags = 0;
 
-  // Update xtra.currentPc on every instruction.  We need to do this if
-  // there's a chance that we could get suspended.  This can happen if
-  // event_flags != 0 here, or somebody manually requests a suspend
-  // (which gets handled at PERIOD_CHECKS time).  One place where this
-  // needs to be correct is in dvmAddSingleStep().
-  //dvmExportPC(pc, fp);
-
-  // We use a pc of -1 to represent method entry, since we might branch back to pc 0 later.
   if (dex_pc == -1) {
-    event_flags |= kMethodEntry;
+    // We use a pc of -1 to represent method entry, since we might branch back to pc 0 later.
+    // This means that for this special notification, there can't be anything else interesting
+    // going on, so we're done already.
+    Dbg::PostLocationEvent(m, 0, GetThis(f), kMethodEntry);
+    return;
   }
 
-  // See if we have a breakpoint here.
-  // Depending on the "mods" associated with event(s) on this address,
-  // we may or may not actually send a message to the debugger.
+  int event_flags = 0;
+
   if (IsBreakpoint(m, dex_pc)) {
     event_flags |= kBreakpoint;
   }

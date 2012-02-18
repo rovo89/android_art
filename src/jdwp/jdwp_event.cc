@@ -326,10 +326,10 @@ static JdwpEvent** AllocMatchList(size_t event_count) {
  * Run through the list and remove any entries with an expired "count" mod
  * from the event list, then free the match list.
  */
-void JdwpState::CleanupMatchList(JdwpEvent** matchList, int matchCount) {
+void JdwpState::CleanupMatchList(JdwpEvent** matchList, int match_count) {
   JdwpEvent** ppEvent = matchList;
 
-  while (matchCount--) {
+  while (match_count--) {
     JdwpEvent* pEvent = *ppEvent;
 
     for (int i = 0; i < pEvent->modCount; i++) {
@@ -366,21 +366,6 @@ static bool PatternMatch(const char* pattern, const std::string& target) {
   } else {
     return strcmp(pattern, target.c_str()) == 0;
   }
-}
-
-/*
- * See if two locations are equal.
- *
- * It's tempting to do a bitwise compare ("struct ==" or memcmp), but if
- * the storage wasn't zeroed out there could be undefined values in the
- * padding.  Besides, the odds of "idx" being equal while the others aren't
- * is very small, so this is usually just a simple integer comparison.
- */
-static inline bool LocationMatch(const JdwpLocation* pLoc1, const JdwpLocation* pLoc2) {
-  return pLoc1->idx == pLoc2->idx &&
-      pLoc1->methodId == pLoc2->methodId &&
-      pLoc1->classId == pLoc2->classId &&
-      pLoc1->typeTag == pLoc2->typeTag;
 }
 
 /*
@@ -422,7 +407,7 @@ static bool ModsMatch(JdwpEvent* pEvent, ModBasket* basket) {
       }
       break;
     case MK_LOCATION_ONLY:
-      if (!LocationMatch(&pMod->locationOnly.loc, basket->pLoc)) {
+      if (pMod->locationOnly.loc != *basket->pLoc) {
         return false;
       }
       break;
@@ -486,10 +471,10 @@ void JdwpState::FindMatchingEvents(JdwpEventKind eventKind, ModBasket* basket, J
  * Scan through the list of matches and determine the most severe
  * suspension policy.
  */
-static JdwpSuspendPolicy scanSuspendPolicy(JdwpEvent** matchList, int matchCount) {
+static JdwpSuspendPolicy scanSuspendPolicy(JdwpEvent** matchList, int match_count) {
   JdwpSuspendPolicy policy = SP_NONE;
 
-  while (matchCount--) {
+  while (match_count--) {
     if ((*matchList)->suspendPolicy > policy) {
       policy = (*matchList)->suspendPolicy;
     }
@@ -757,40 +742,40 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
   }
 
   JdwpEvent** matchList = AllocMatchList(numEvents);
-  int matchCount = 0;
+  int match_count = 0;
   ExpandBuf* pReq = NULL;
   JdwpSuspendPolicy suspendPolicy = SP_NONE;
 
   {
     MutexLock mu(event_lock_);
     if ((eventFlags & Dbg::kBreakpoint) != 0) {
-      FindMatchingEvents(EK_BREAKPOINT, &basket, matchList, &matchCount);
+      FindMatchingEvents(EK_BREAKPOINT, &basket, matchList, &match_count);
     }
     if ((eventFlags & Dbg::kSingleStep) != 0) {
-      FindMatchingEvents(EK_SINGLE_STEP, &basket, matchList, &matchCount);
+      FindMatchingEvents(EK_SINGLE_STEP, &basket, matchList, &match_count);
     }
     if ((eventFlags & Dbg::kMethodEntry) != 0) {
-      FindMatchingEvents(EK_METHOD_ENTRY, &basket, matchList, &matchCount);
+      FindMatchingEvents(EK_METHOD_ENTRY, &basket, matchList, &match_count);
     }
     if ((eventFlags & Dbg::kMethodExit) != 0) {
-      FindMatchingEvents(EK_METHOD_EXIT, &basket, matchList, &matchCount);
+      FindMatchingEvents(EK_METHOD_EXIT, &basket, matchList, &match_count);
 
       // TODO: match EK_METHOD_EXIT_WITH_RETURN_VALUE too; we need to include the 'value', though.
-      //FindMatchingEvents(EK_METHOD_EXIT_WITH_RETURN_VALUE, &basket, matchList, &matchCount);
+      //FindMatchingEvents(EK_METHOD_EXIT_WITH_RETURN_VALUE, &basket, matchList, &match_count);
     }
-    if (matchCount != 0) {
-      VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
+    if (match_count != 0) {
+      VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << match_count << " total) "
                  << basket.className << "." << Dbg::GetMethodName(pLoc->classId, pLoc->methodId)
                  << " thread=" << (void*) basket.threadId << " code=" << (void*) pLoc->idx << ")";
 
-      suspendPolicy = scanSuspendPolicy(matchList, matchCount);
+      suspendPolicy = scanSuspendPolicy(matchList, match_count);
       VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;
 
       pReq = eventPrep();
       expandBufAdd1(pReq, suspendPolicy);
-      expandBufAdd4BE(pReq, matchCount);
+      expandBufAdd4BE(pReq, match_count);
 
-      for (int i = 0; i < matchCount; i++) {
+      for (int i = 0; i < match_count; i++) {
         expandBufAdd1(pReq, matchList[i]->eventKind);
         expandBufAdd4BE(pReq, matchList[i]->requestId);
         expandBufAdd8BE(pReq, basket.threadId);
@@ -798,7 +783,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
       }
     }
 
-    CleanupMatchList(matchList, matchCount);
+    CleanupMatchList(matchList, match_count);
   }
 
   /* send request and possibly suspend ourselves */
@@ -814,7 +799,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
     Dbg::ThreadContinuing(old_state);
   }
 
-  return matchCount != 0;
+  return match_count != 0;
 }
 
 /*
@@ -840,37 +825,37 @@ bool JdwpState::PostThreadChange(ObjectId threadId, bool start) {
 
   ExpandBuf* pReq = NULL;
   JdwpSuspendPolicy suspendPolicy = SP_NONE;
-  int matchCount = 0;
+  int match_count = 0;
   {
     // Don't allow the list to be updated while we scan it.
     MutexLock mu(event_lock_);
     JdwpEvent** matchList = AllocMatchList(numEvents);
 
     if (start) {
-      FindMatchingEvents(EK_THREAD_START, &basket, matchList, &matchCount);
+      FindMatchingEvents(EK_THREAD_START, &basket, matchList, &match_count);
     } else {
-      FindMatchingEvents(EK_THREAD_DEATH, &basket, matchList, &matchCount);
+      FindMatchingEvents(EK_THREAD_DEATH, &basket, matchList, &match_count);
     }
 
-    if (matchCount != 0) {
-      VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
+    if (match_count != 0) {
+      VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << match_count << " total) "
                    << "thread=" << (void*) basket.threadId << ")";
 
-      suspendPolicy = scanSuspendPolicy(matchList, matchCount);
+      suspendPolicy = scanSuspendPolicy(matchList, match_count);
       VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;
 
       pReq = eventPrep();
       expandBufAdd1(pReq, suspendPolicy);
-      expandBufAdd4BE(pReq, matchCount);
+      expandBufAdd4BE(pReq, match_count);
 
-      for (int i = 0; i < matchCount; i++) {
+      for (int i = 0; i < match_count; i++) {
         expandBufAdd1(pReq, matchList[i]->eventKind);
         expandBufAdd4BE(pReq, matchList[i]->requestId);
         expandBufAdd8BE(pReq, basket.threadId);
       }
     }
 
-    CleanupMatchList(matchList, matchCount);
+    CleanupMatchList(matchList, match_count);
   }
 
   /* send request and possibly suspend ourselves */
@@ -885,7 +870,7 @@ bool JdwpState::PostThreadChange(ObjectId threadId, bool start) {
     Dbg::ThreadContinuing(old_state);
   }
 
-  return matchCount != 0;
+  return match_count != 0;
 }
 
 /*
@@ -939,14 +924,14 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
   }
 
   JdwpEvent** matchList = AllocMatchList(numEvents);
-  int matchCount = 0;
+  int match_count = 0;
   ExpandBuf* pReq = NULL;
   JdwpSuspendPolicy suspendPolicy = SP_NONE;
   {
     MutexLock mu(event_lock_);
-    FindMatchingEvents(EK_EXCEPTION, &basket, matchList, &matchCount);
-    if (matchCount != 0) {
-      VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total)"
+    FindMatchingEvents(EK_EXCEPTION, &basket, matchList, &match_count);
+    if (match_count != 0) {
+      VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << match_count << " total)"
                    << " thread=" << (void*) basket.threadId
                    << " exceptId=" << (void*) exceptionId
                    << " caught=" << basket.caught << ")";
@@ -957,14 +942,14 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
         VLOG(jdwp) << "  catch: " << *pCatchLoc;
       }
 
-      suspendPolicy = scanSuspendPolicy(matchList, matchCount);
+      suspendPolicy = scanSuspendPolicy(matchList, match_count);
       VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;
 
       pReq = eventPrep();
       expandBufAdd1(pReq, suspendPolicy);
-      expandBufAdd4BE(pReq, matchCount);
+      expandBufAdd4BE(pReq, match_count);
 
-      for (int i = 0; i < matchCount; i++) {
+      for (int i = 0; i < match_count; i++) {
         expandBufAdd1(pReq, matchList[i]->eventKind);
         expandBufAdd4BE(pReq, matchList[i]->requestId);
         expandBufAdd8BE(pReq, basket.threadId);
@@ -979,7 +964,7 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
       Dbg::RegisterObjectId(exceptionId);
     }
 
-    CleanupMatchList(matchList, matchCount);
+    CleanupMatchList(matchList, match_count);
   }
 
   /* send request and possibly suspend ourselves */
@@ -995,7 +980,7 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
     Dbg::ThreadContinuing(old_state);
   }
 
-  return matchCount != 0;
+  return match_count != 0;
 }
 
 /*
@@ -1019,17 +1004,17 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
   }
 
   JdwpEvent** matchList = AllocMatchList(numEvents);
-  int matchCount = 0;
+  int match_count = 0;
   ExpandBuf* pReq = NULL;
   JdwpSuspendPolicy suspendPolicy = SP_NONE;
   {
     MutexLock mu(event_lock_);
-    FindMatchingEvents(EK_CLASS_PREPARE, &basket, matchList, &matchCount);
-    if (matchCount != 0) {
-      VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << matchCount << " total) "
+    FindMatchingEvents(EK_CLASS_PREPARE, &basket, matchList, &match_count);
+    if (match_count != 0) {
+      VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << match_count << " total) "
                    << "thread=" << (void*) basket.threadId << ") " << signature;
 
-      suspendPolicy = scanSuspendPolicy(matchList, matchCount);
+      suspendPolicy = scanSuspendPolicy(matchList, match_count);
       VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;
 
       if (basket.threadId == debugThreadId) {
@@ -1047,9 +1032,9 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
 
       pReq = eventPrep();
       expandBufAdd1(pReq, suspendPolicy);
-      expandBufAdd4BE(pReq, matchCount);
+      expandBufAdd4BE(pReq, match_count);
 
-      for (int i = 0; i < matchCount; i++) {
+      for (int i = 0; i < match_count; i++) {
         expandBufAdd1(pReq, matchList[i]->eventKind);
         expandBufAdd4BE(pReq, matchList[i]->requestId);
         expandBufAdd8BE(pReq, basket.threadId);
@@ -1060,7 +1045,7 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
         expandBufAdd4BE(pReq, status);
       }
     }
-    CleanupMatchList(matchList, matchCount);
+    CleanupMatchList(matchList, match_count);
   }
 
   /* send request and possibly suspend ourselves */
@@ -1075,7 +1060,7 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
     Dbg::ThreadContinuing(old_state);
   }
 
-  return matchCount != 0;
+  return match_count != 0;
 }
 
 /*

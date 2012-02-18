@@ -79,6 +79,8 @@ struct JdwpLocation {
   uint64_t idx; // A Dex PC.
 };
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs);
+bool operator==(const JdwpLocation& lhs, const JdwpLocation& rhs);
+bool operator!=(const JdwpLocation& lhs, const JdwpLocation& rhs);
 
 /*
  * How we talk to the debugger.

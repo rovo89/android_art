@@ -457,6 +457,15 @@ std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs) {
   return os;
 }
 
+bool operator==(const JdwpLocation& lhs, const JdwpLocation& rhs) {
+  return lhs.idx == rhs.idx && lhs.methodId == rhs.methodId &&
+      lhs.classId == rhs.classId && lhs.typeTag == rhs.typeTag;
+}
+
+bool operator!=(const JdwpLocation& lhs, const JdwpLocation& rhs) {
+  return !(lhs == rhs);
+}
+
 std::ostream& operator<<(std::ostream& os, const JdwpTag& value) {
   switch (value) {
   case JT_ARRAY: os << "JT_ARRAY"; break;
