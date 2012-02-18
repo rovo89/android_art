@@ -839,7 +839,7 @@ bool JdwpState::PostThreadChange(ObjectId threadId, bool start) {
 
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << match_count << " total) "
-                   << "thread=" << (void*) basket.threadId << ")";
+                 << "thread=" << (void*) basket.threadId << ")";
 
       suspendPolicy = scanSuspendPolicy(matchList, match_count);
       VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;
@@ -932,10 +932,10 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
     FindMatchingEvents(EK_EXCEPTION, &basket, matchList, &match_count);
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << match_count << " total)"
-                   << " thread=" << (void*) basket.threadId
-                   << " exceptId=" << (void*) exceptionId
-                   << " caught=" << basket.caught << ")";
-      VLOG(jdwp) << "  throw: " << *pThrowLoc;
+                 << " thread=" << (void*) basket.threadId
+                 << " exceptId=" << (void*) exceptionId
+                 << " caught=" << basket.caught << ")"
+                 << "  throw: " << *pThrowLoc;
       if (pCatchLoc->classId == 0) {
         VLOG(jdwp) << "  catch: (not caught)";
       } else {
@@ -1012,7 +1012,7 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
     FindMatchingEvents(EK_CLASS_PREPARE, &basket, matchList, &match_count);
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << match_count << " total) "
-                   << "thread=" << (void*) basket.threadId << ") " << signature;
+                 << "thread=" << (void*) basket.threadId << ") " << signature;
 
       suspendPolicy = scanSuspendPolicy(matchList, match_count);
       VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;
