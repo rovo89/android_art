@@ -1016,7 +1016,12 @@ class MANAGED ObjectArray : public Array {
 
 template<class T>
 ObjectArray<T>* ObjectArray<T>::Alloc(Class* object_array_class, int32_t length) {
-  return Array::Alloc(object_array_class, length, sizeof(uint32_t))->AsObjectArray<T>();
+  Array* array = Array::Alloc(object_array_class, length, sizeof(uint32_t));
+  if (UNLIKELY(array == NULL)) {
+    return NULL;
+  } else {
+    return array->AsObjectArray<T>();
+  }
 }
 
 template<class T>

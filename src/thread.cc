@@ -115,8 +115,10 @@ void Thread::InitFunctionPointers() {
   pInitializeStaticStorage = art_initialize_static_storage_from_code;
   pInitializeTypeFromCode = art_initialize_type_from_code;
   pInitializeTypeAndVerifyAccessFromCode = art_initialize_type_and_verify_access_from_code;
+  pInvokeDirectTrampolineWithAccessCheck = art_invoke_direct_trampoline_with_access_check;
   pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
   pInvokeInterfaceTrampolineWithAccessCheck = art_invoke_interface_trampoline_with_access_check;
+  pInvokeStaticTrampolineWithAccessCheck = art_invoke_static_trampoline_with_access_check;
   pInvokeSuperTrampolineWithAccessCheck = art_invoke_super_trampoline_with_access_check;
   pInvokeVirtualTrampolineWithAccessCheck = art_invoke_virtual_trampoline_with_access_check;
   pLockObjectFromCode = art_lock_object_from_code;

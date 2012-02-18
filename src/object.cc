@@ -1506,7 +1506,7 @@ std::string Throwable::Dump() const {
     }
   }
   Throwable* cause = GetFieldObject<Throwable*>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), false);
-  if (cause != NULL) {
+  if (cause != NULL && cause != this) {  // Constructor makes cause == this by default.
     result += "Caused by: ";
     result += cause->Dump();
   }

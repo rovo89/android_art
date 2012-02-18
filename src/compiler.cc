@@ -71,19 +71,36 @@ static void DumpStat(size_t x, size_t y, const char* str) {
   LOG(INFO) << Percentage(x, y) << "% of " << str << " for " << (x + y) << " cases";
 }
 
-void AOTCompilationStats::Dump() {
-  DumpStat(types_in_dex_cache_, types_not_in_dex_cache_, "types known to be in dex cache");
-  DumpStat(strings_in_dex_cache_, strings_not_in_dex_cache_, "strings known to be in dex cache");
-  DumpStat(resolved_types_, unresolved_types_, "types resolved");
-  DumpStat(resolved_instance_fields_, unresolved_instance_fields_, "instance fields resolved");
-  DumpStat(resolved_local_static_fields_ + resolved_static_fields_, unresolved_static_fields_,
-           "static fields resolved");
-  DumpStat(resolved_local_static_fields_, resolved_static_fields_ + unresolved_static_fields_,
-           "static fields local to a class");
-  DumpStat(resolved_virtual_methods_, unresolved_virtual_methods_, "resolved virtual methods");
-  DumpStat(resolved_super_methods_, unresolved_super_methods_, "resolved super-class methods");
-  DumpStat(resolved_interface_methods_, unresolved_interface_methods_, "resolved interface methods");
-}
+class AOTCompilationStats {
+ public:
+  AOTCompilationStats() : stats_lock_("AOT compilation statistics lock"),
+     types_in_dex_cache_(0), types_not_in_dex_cache_(0),
+     strings_in_dex_cache_(0), strings_not_in_dex_cache_(0),
+     resolved_types_(0), unresolved_types_(0),
+     resolved_instance_fields_(0), unresolved_instance_fields_(0),
+     resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0) {
+    for (size_t i = 0; i < kMaxInvokeType; i++) {
+      resolved_methods_[i] = 0;
+      unresolved_methods_[i] = 0;
+    }
+  }
+
+  void Dump() {
+    DumpStat(types_in_dex_cache_, types_not_in_dex_cache_, "types known to be in dex cache");
+    DumpStat(strings_in_dex_cache_, strings_not_in_dex_cache_, "strings known to be in dex cache");
+    DumpStat(resolved_types_, unresolved_types_, "types resolved");
+    DumpStat(resolved_instance_fields_, unresolved_instance_fields_, "instance fields resolved");
+    DumpStat(resolved_local_static_fields_ + resolved_static_fields_, unresolved_static_fields_,
+             "static fields resolved");
+    DumpStat(resolved_local_static_fields_, resolved_static_fields_ + unresolved_static_fields_,
+             "static fields local to a class");
+
+    for (size_t i = 0; i < kMaxInvokeType; i++) {
+      std::ostringstream oss;
+      oss << "resolved " << static_cast<InvokeType>(i) << " methods";
+      DumpStat(resolved_methods_[i], unresolved_methods_[i], oss.str().c_str());
+    }
+  }
 
 // Allow lossy statistics in non-debug builds
 #ifndef NDEBUG
@@ -92,82 +109,97 @@ void AOTCompilationStats::Dump() {
 #define STATS_LOCK()
 #endif
 
-void AOTCompilationStats::TypeInDexCache() {
-  STATS_LOCK();
-  types_in_dex_cache_++;
-}
-
-void AOTCompilationStats::TypeNotInDexCache() {
-  STATS_LOCK();
-  types_not_in_dex_cache_++;
-}
-
-void AOTCompilationStats::StringInDexCache() {
-  STATS_LOCK();
-  strings_in_dex_cache_++;
-}
-
-void AOTCompilationStats::StringNotInDexCache() {
-  STATS_LOCK();
-  strings_not_in_dex_cache_++;
-}
-
-void AOTCompilationStats::TypeDoesntNeedAccessCheck() {
-  STATS_LOCK();
-  resolved_types_++;
-}
-
-void AOTCompilationStats::TypeNeedsAccessCheck() {
-  STATS_LOCK();
-  unresolved_types_++;
-}
-
-void AOTCompilationStats::ResolvedInstanceField() {
-  STATS_LOCK();
-  resolved_instance_fields_++;
-}
-
-void AOTCompilationStats::UnresolvedInstanceField(){
-  STATS_LOCK();
-  unresolved_instance_fields_++;
-}
-
-void AOTCompilationStats::ResolvedLocalStaticField() {
-  STATS_LOCK();
-  resolved_local_static_fields_++;
-}
-
-void AOTCompilationStats::ResolvedStaticField() {
-  STATS_LOCK();
-  resolved_static_fields_++;
-}
-
-void AOTCompilationStats::UnresolvedStaticField() {
-  STATS_LOCK();
-  unresolved_static_fields_++;
-}
-
-void AOTCompilationStats::ResolvedMethod(bool is_interface, bool is_super) {
-  STATS_LOCK();
-  if (is_interface) {
-    resolved_interface_methods_++;
-  } else if (is_super) {
-    resolved_super_methods_++;
-  } else {
-    resolved_virtual_methods_++;
+  void TypeInDexCache() {
+    STATS_LOCK();
+    types_in_dex_cache_++;
   }
-}
 
-void AOTCompilationStats::UnresolvedMethod(bool is_interface, bool is_super) {
-  STATS_LOCK();
-  if (is_interface) {
-    unresolved_interface_methods_++;
-  } else if (is_super) {
-    unresolved_super_methods_++;
-  } else {
-    unresolved_virtual_methods_++;
+  void TypeNotInDexCache() {
+    STATS_LOCK();
+    types_not_in_dex_cache_++;
   }
-}
+
+  void StringInDexCache() {
+    STATS_LOCK();
+    strings_in_dex_cache_++;
+  }
+
+  void StringNotInDexCache() {
+    STATS_LOCK();
+    strings_not_in_dex_cache_++;
+  }
+
+  void TypeDoesntNeedAccessCheck() {
+    STATS_LOCK();
+    resolved_types_++;
+  }
+
+  void TypeNeedsAccessCheck() {
+    STATS_LOCK();
+    unresolved_types_++;
+  }
+
+  void ResolvedInstanceField() {
+    STATS_LOCK();
+    resolved_instance_fields_++;
+  }
+
+  void UnresolvedInstanceField(){
+    STATS_LOCK();
+    unresolved_instance_fields_++;
+  }
+
+  void ResolvedLocalStaticField() {
+    STATS_LOCK();
+    resolved_local_static_fields_++;
+  }
+
+  void ResolvedStaticField() {
+    STATS_LOCK();
+    resolved_static_fields_++;
+  }
+
+  void UnresolvedStaticField() {
+    STATS_LOCK();
+    unresolved_static_fields_++;
+  }
+
+  void ResolvedMethod(InvokeType type) {
+    DCHECK_LE(type, kMaxInvokeType);
+    STATS_LOCK();
+    resolved_methods_[type]++;
+  }
+
+  void UnresolvedMethod(InvokeType type) {
+    DCHECK_LE(type, kMaxInvokeType);
+    STATS_LOCK();
+    unresolved_methods_[type]++;
+  }
+
+ private:
+  Mutex stats_lock_;
+
+  size_t types_in_dex_cache_;
+  size_t types_not_in_dex_cache_;
+
+  size_t strings_in_dex_cache_;
+  size_t strings_not_in_dex_cache_;
+
+  size_t resolved_types_;
+  size_t unresolved_types_;
+
+  size_t resolved_instance_fields_;
+  size_t unresolved_instance_fields_;
+
+  size_t resolved_local_static_fields_;
+  size_t resolved_static_fields_;
+  size_t unresolved_static_fields_;
+
+  size_t resolved_methods_[kMaxInvokeType + 1];
+  size_t unresolved_methods_[kMaxInvokeType + 1];
+
+  DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);;
+};
 
 Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_count,
                    const std::set<std::string>* image_classes)
@@ -178,6 +210,7 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       compiled_invoke_stubs_lock_("compiled invoke stubs lock"),
       image_(image),
       thread_count_(thread_count),
+      stats_(new AOTCompilationStats),
       image_classes_(image_classes)
 #if defined(ART_USE_LLVM_COMPILER)
       ,
@@ -257,7 +290,7 @@ void Compiler::CompileAll(const ClassLoader* class_loader,
     timings.Dump();
   }
 
-  stats_.Dump();
+  stats_->Dump();
 }
 
 void Compiler::CompileOne(const Method* method) {
@@ -320,19 +353,19 @@ bool Compiler::IsImageClass(const std::string& descriptor) const {
 bool Compiler::CanAssumeTypeIsPresentInDexCache(const DexCache* dex_cache,
                                                 uint32_t type_idx) {
   if (!IsImage()) {
-    stats_.TypeNotInDexCache();
+    stats_->TypeNotInDexCache();
     return false;
   }
   Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == NULL) {
-    stats_.TypeNotInDexCache();
+    stats_->TypeNotInDexCache();
     return false;
   }
   bool result = IsImageClass(ClassHelper(resolved_class).GetDescriptor());
   if (result) {
-    stats_.TypeInDexCache();
+    stats_->TypeInDexCache();
   } else {
-    stats_.TypeNotInDexCache();
+    stats_->TypeNotInDexCache();
   }
   return result;
 }
@@ -346,9 +379,9 @@ bool Compiler::CanAssumeStringIsPresentInDexCache(const DexCache* dex_cache,
   // image classes then we can assume the string is present in the dex cache if it is there now
   bool result = IsImage() && image_classes_ == NULL && dex_cache->GetResolvedString(string_idx) != NULL;
   if (result) {
-    stats_.StringInDexCache();
+    stats_->StringInDexCache();
   } else {
-    stats_.StringNotInDexCache();
+    stats_->StringNotInDexCache();
   }
   return result;
 }
@@ -358,22 +391,22 @@ bool Compiler::CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexCache*
   // Get type from dex cache assuming it was populated by the verifier
   Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == NULL) {
-    stats_.TypeNeedsAccessCheck();
+    stats_->TypeNeedsAccessCheck();
     return false;  // Unknown class needs access checks.
   }
   const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
   Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
   if (referrer_class == NULL) {
-    stats_.TypeNeedsAccessCheck();
+    stats_->TypeNeedsAccessCheck();
     return false;  // Incomplete referrer knowledge needs access check.
   }
   // Perform access check, will return true if access is ok or false if we're going to have to
   // check this at runtime (for example for class loaders).
   bool result = referrer_class->CanAccess(resolved_class);
   if (result) {
-    stats_.TypeDoesntNeedAccessCheck();
+    stats_->TypeDoesntNeedAccessCheck();
   } else {
-    stats_.TypeNeedsAccessCheck();
+    stats_->TypeNeedsAccessCheck();
   }
   return result;
 }
@@ -385,22 +418,22 @@ bool Compiler::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
   // Get type from dex cache assuming it was populated by the verifier.
   Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == NULL) {
-    stats_.TypeNeedsAccessCheck();
+    stats_->TypeNeedsAccessCheck();
     return false;  // Unknown class needs access checks.
   }
   const DexFile::MethodId& method_id = dex_file.GetMethodId(referrer_idx);
   Class* referrer_class = dex_cache->GetResolvedType(method_id.class_idx_);
   if (referrer_class == NULL) {
-    stats_.TypeNeedsAccessCheck();
+    stats_->TypeNeedsAccessCheck();
     return false;  // Incomplete referrer knowledge needs access check.
   }
   // Perform access and instantiable checks, will return true if access is ok or false if we're
   // going to have to check this at runtime (for example for class loaders).
   bool result = referrer_class->CanAccess(resolved_class) && resolved_class->IsInstantiable();
   if (result) {
-    stats_.TypeDoesntNeedAccessCheck();
+    stats_->TypeDoesntNeedAccessCheck();
   } else {
-    stats_.TypeNeedsAccessCheck();
+    stats_->TypeNeedsAccessCheck();
   }
   return result;
 }
@@ -439,7 +472,7 @@ bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, CompilationUnit* cUn
                                         resolved_field->GetAccessFlags())) {
       field_offset = resolved_field->GetOffset().Int32Value();
       is_volatile = resolved_field->IsVolatile();
-      stats_.ResolvedInstanceField();
+      stats_->ResolvedInstanceField();
       return true;  // Fast path.
     }
   }
@@ -448,7 +481,7 @@ bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, CompilationUnit* cUn
   if (thread->IsExceptionPending()) {
       thread->ClearException();
   }
-  stats_.UnresolvedInstanceField();
+  stats_->UnresolvedInstanceField();
   return false;  // Incomplete knowledge needs slow path.
 }
 
@@ -470,7 +503,7 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
         is_referrers_class = true;  // implies no worrying about class initialization
         field_offset = resolved_field->GetOffset().Int32Value();
         is_volatile = resolved_field->IsVolatile();
-        stats_.ResolvedLocalStaticField();
+        stats_->ResolvedLocalStaticField();
         return true;  // fast path
       } else {
         Class* fields_class = resolved_field->GetDeclaringClass();
@@ -487,7 +520,7 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
             ssb_index = fields_class->GetDexTypeIndex();
             field_offset = resolved_field->GetOffset().Int32Value();
             is_volatile = resolved_field->IsVolatile();
-            stats_.ResolvedStaticField();
+            stats_->ResolvedStaticField();
             return true;
           }
           // Search dex file for localized ssb index
@@ -502,7 +535,7 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
               ssb_index = cUnit->dex_file->GetIndexForTypeId(*type_id);
               field_offset = resolved_field->GetOffset().Int32Value();
               is_volatile = resolved_field->IsVolatile();
-              stats_.ResolvedStaticField();
+              stats_->ResolvedStaticField();
               return true;
             }
           }
@@ -515,12 +548,11 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
   if (thread->IsExceptionPending()) {
       thread->ClearException();
   }
-  stats_.UnresolvedStaticField();
+  stats_->UnresolvedStaticField();
   return false;  // Incomplete knowledge needs slow path.
 }
 
-bool Compiler::ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit,
-                                 bool is_interface, bool is_super,
+bool Compiler::ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit, InvokeType type,
                                  int& vtable_idx) {
   vtable_idx = -1;
   Method* resolved_method = ComputeReferrerMethod(cUnit, method_idx);
@@ -545,15 +577,15 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit,
           referrer_class->CanAccessMember(methods_class,
                                           resolved_method->GetAccessFlags())) {
         vtable_idx = resolved_method->GetMethodIndex();
-        if (is_interface || !is_super) {
-          // nothing left to do for virtual/interface dispatch
-          stats_.ResolvedMethod(is_interface, is_super);
+        if (type != kSuper) {
+          // nothing left to do for static/direct/virtual/interface dispatch
+          stats_->ResolvedMethod(type);
           return true;
         } else {
           // ensure the vtable index will be correct to dispatch in the vtable of the super class
           if (referrer_class->IsSubClass(methods_class) &&
               vtable_idx < methods_class->GetVTable()->GetLength()) {
-            stats_.ResolvedMethod(is_interface, is_super);
+            stats_->ResolvedMethod(type);
             return true;
           }
         }
@@ -565,7 +597,7 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit,
   if (thread->IsExceptionPending()) {
       thread->ClearException();
   }
-  stats_.UnresolvedMethod(is_interface, is_super);
+  stats_->UnresolvedMethod(type);
   return false;  // Incomplete knowledge needs slow path.
 }
 

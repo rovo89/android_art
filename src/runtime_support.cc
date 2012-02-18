@@ -45,13 +45,15 @@ static void ThrowNewIllegalAccessErrorClass(Thread* self, Class* referrer, Class
 static void ThrowNewIllegalAccessErrorClassForMethodDispatch(Thread* self, Class* referrer,
                                                              Class* accessed, const Method* caller,
                                                              const Method* called,
-                                                             bool is_interface, bool is_super) {
+                                                             InvokeType type) {
+  std::ostringstream type_stream;
+  type_stream << type;
   self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
                            "illegal class access ('%s' -> '%s')"
                            "in attempt to invoke %s method '%s' from '%s'",
                            PrettyDescriptor(referrer).c_str(),
                            PrettyDescriptor(accessed).c_str(),
-                           (is_interface ? "interface" : (is_super ? "super class" : "virtual")),
+                           type_stream.str().c_str(),
                            PrettyMethod(called).c_str(),
                            PrettyMethod(caller).c_str());
 }
@@ -89,13 +91,14 @@ static void ThrowNullPointerExceptionForFieldAccess(Thread* self, Field* field, 
 }
 
 static void ThrowNullPointerExceptionForMethodAccess(Thread* self, Method* caller,
-                                                     uint32_t method_idx, bool is_interface,
-                                                     bool is_super) {
+                                                     uint32_t method_idx, InvokeType type) {
   const DexFile& dex_file =
       Runtime::Current()->GetClassLinker()->FindDexFile(caller->GetDeclaringClass()->GetDexCache());
+  std::ostringstream type_stream;
+  type_stream << type;
   self->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
                            "Attempt to invoke %s method '%s' from '%s' on a null object reference",
-                           (is_interface ? "interface" : (is_super ? "super class" : "virtual")),
+                           type_stream.str().c_str(),
                            PrettyMethod(method_idx, dex_file, true).c_str(),
                            PrettyMethod(caller).c_str());
 }
@@ -540,40 +543,46 @@ Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* sel
                          bool is_static, bool is_primitive, size_t expected_size) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Field* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
-  if (LIKELY(resolved_field != NULL)) {
+  if (UNLIKELY(resolved_field == NULL)) {
+    DCHECK(self->IsExceptionPending());  // Throw exception and unwind
+    return NULL;  // failure
+  } else {
     Class* fields_class = resolved_field->GetDeclaringClass();
     Class* referring_class = referrer->GetDeclaringClass();
     if (UNLIKELY(!referring_class->CanAccess(fields_class))) {
       ThrowNewIllegalAccessErrorClass(self, referring_class, fields_class);
+      return NULL;  // failure
     } else if (UNLIKELY(!referring_class->CanAccessMember(fields_class,
                                                           resolved_field->GetAccessFlags()))) {
       ThrowNewIllegalAccessErrorField(self, referring_class, resolved_field);
       return NULL;  // failure
-    }
-    FieldHelper fh(resolved_field);
-    if (UNLIKELY(fh.IsPrimitiveType() != is_primitive ||
-                 fh.FieldSize() != expected_size)) {
-      self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
-                               "Attempted read of %zd-bit %s on field '%s'",
-                               expected_size * (32 / sizeof(int32_t)),
-                               is_primitive ? "primitive" : "non-primitive",
-                               PrettyField(resolved_field, true).c_str());
-    }
-    if (!is_static) {
-      // instance fields must be being accessed on an initialized class
-      return resolved_field;
     } else {
-      // If the class is already initializing, we must be inside <clinit>, or
-      // we'd still be waiting for the lock.
-      if (fields_class->IsInitializing()) {
+      FieldHelper fh(resolved_field);
+      if (UNLIKELY(fh.IsPrimitiveType() != is_primitive ||
+                   fh.FieldSize() != expected_size)) {
+        self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
+                                 "Attempted read of %zd-bit %s on field '%s'",
+                                 expected_size * (32 / sizeof(int32_t)),
+                                 is_primitive ? "primitive" : "non-primitive",
+                                 PrettyField(resolved_field, true).c_str());
+        return NULL;  // failure
+      } else if (!is_static) {
+        // instance fields must be being accessed on an initialized class
         return resolved_field;
-      } else if (Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true)) {
-        return resolved_field;
+      } else {
+        // If the class is already initializing, we must be inside <clinit>, or
+        // we'd still be waiting for the lock.
+        if (fields_class->IsInitializing()) {
+          return resolved_field;
+        } else if (Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true)) {
+          return resolved_field;
+        } else {
+          DCHECK(self->IsExceptionPending());  // Throw exception and unwind
+          return NULL;  // failure
+        }
       }
     }
   }
-  DCHECK(self->IsExceptionPending());  // Throw exception and unwind
-  return NULL;
 }
 
 extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* referrer,
@@ -1118,8 +1127,9 @@ extern "C" int artHandleFillArrayDataFromCode(Array* array, const uint16_t* tabl
 
 // Fast path method resolution that can't throw exceptions
 static Method* FindMethodFast(uint32_t method_idx, Object* this_object, const Method* referrer,
-                              bool access_check, bool is_interface, bool is_super) {
-  if (UNLIKELY(this_object == NULL)) {
+                              bool access_check, InvokeType type) {
+  bool is_direct = type == kStatic || type == kDirect;
+  if (UNLIKELY(this_object == NULL && !is_direct)) {
     return NULL;
   }
   Method* resolved_method =
@@ -1137,38 +1147,46 @@ static Method* FindMethodFast(uint32_t method_idx, Object* this_object, const Me
       return NULL;
     }
   }
-  if (is_interface) {
+  if (type == kInterface) {  // Most common form of slow path dispatch.
     return this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
-  } else if (is_super) {
+  } else if (is_direct) {
+    return resolved_method;
+  } else if (type == kSuper) {
     return referrer->GetDeclaringClass()->GetSuperClass()->GetVTable()->Get(resolved_method->GetMethodIndex());
   } else {
+    DCHECK(type == kVirtual);
     return this_object->GetClass()->GetVTable()->Get(resolved_method->GetMethodIndex());
   }
 }
 
 // Slow path method resolution
 static Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Method* referrer,
-                                  Thread* self, bool access_check, bool is_interface,
-                                  bool is_super) {
+                                  Thread* self, bool access_check, InvokeType type) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Method* resolved_method = class_linker->ResolveMethod(method_idx, referrer, false);
-  if (LIKELY(resolved_method != NULL)) {
+  bool is_direct = type == kStatic || type == kDirect;
+  Method* resolved_method = class_linker->ResolveMethod(method_idx, referrer, is_direct);
+  if (UNLIKELY(resolved_method == NULL)) {
+    DCHECK(self->IsExceptionPending());  // Throw exception and unwind
+    return NULL;  // failure
+  } else {
     if (!access_check) {
-      if (is_interface) {
+      if (is_direct) {
+        return resolved_method;
+      } else if (type == kInterface) {
         Method* interface_method =
             this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == NULL)) {
           ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(self, referrer,
                                                                         resolved_method,
                                                                         this_object);
-          return NULL;
+          return NULL;  // failure
         } else {
           return interface_method;
         }
       } else {
         ObjectArray<Method>* vtable;
         uint16_t vtable_index = resolved_method->GetMethodIndex();
-        if (is_super) {
+        if (type == kSuper) {
           vtable = referrer->GetDeclaringClass()->GetSuperClass()->GetVTable();
         } else {
           vtable = this_object->GetClass()->GetVTable();
@@ -1191,8 +1209,7 @@ static Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, cons
                                                   referring_class);
         if (UNLIKELY(!referring_class->CanAccess(methods_class))) {
           ThrowNewIllegalAccessErrorClassForMethodDispatch(self, referring_class, methods_class,
-                                                           referrer, resolved_method, is_interface,
-                                                           is_super);
+                                                           referrer, resolved_method, type);
           return NULL;  // failure
         } else if (UNLIKELY(!referring_class->CanAccessMember(methods_class,
                                                               resolved_method->GetAccessFlags()))) {
@@ -1200,21 +1217,23 @@ static Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, cons
           return NULL;  // failure
         }
       }
-      if (is_interface) {
+      if (is_direct) {
+        return resolved_method;
+      } else if (type == kInterface) {
         Method* interface_method =
             this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == NULL)) {
           ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(self, referrer,
                                                                         resolved_method,
                                                                         this_object);
-          return NULL;
+          return NULL;  // failure
         } else {
           return interface_method;
         }
       } else {
         ObjectArray<Method>* vtable;
         uint16_t vtable_index = resolved_method->GetMethodIndex();
-        if (is_super) {
+        if (type == kSuper) {
           Class* super_class = referring_class->GetSuperClass();
           if (LIKELY(super_class != NULL)) {
             vtable = referring_class->GetSuperClass()->GetVTable();
@@ -1232,32 +1251,26 @@ static Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, cons
           self->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
                                    "attempt to invoke %s method '%s' from '%s'"
                                    " using incorrect form of method dispatch",
-                                   (is_super ? "super class" : "virtual"),
+                                   (type == kSuper ? "super class" : "virtual"),
                                    PrettyMethod(resolved_method).c_str(),
                                    PrettyMethod(referrer).c_str());
-          return NULL;
+          return NULL;  // failure
         }
       }
     }
   }
-  DCHECK(self->IsExceptionPending());  // Throw exception and unwind
-  return NULL;
 }
 
 static uint64_t artInvokeCommon(uint32_t method_idx, Object* this_object, Method* caller_method,
-                                Thread* self, Method** sp, bool access_check, bool is_interface,
-                                bool is_super){
-  Method* method = FindMethodFast(method_idx, this_object, caller_method, access_check,
-                                  is_interface, is_super);
+                                Thread* self, Method** sp, bool access_check, InvokeType type){
+  Method* method = FindMethodFast(method_idx, this_object, caller_method, access_check, type);
   if (UNLIKELY(method == NULL)) {
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
-    if (UNLIKELY(this_object == NULL)) {
-      ThrowNullPointerExceptionForMethodAccess(self, caller_method, method_idx, is_interface,
-                                               is_super);
+    if (UNLIKELY(this_object == NULL && type != kDirect && type != kStatic)) {
+      ThrowNullPointerExceptionForMethodAccess(self, caller_method, method_idx, type);
       return 0;  // failure
     }
-    method = FindMethodFromCode(method_idx, this_object, caller_method, self, access_check,
-                                is_interface, is_super);
+    method = FindMethodFromCode(method_idx, this_object, caller_method, self, access_check, type);
     if (UNLIKELY(method == NULL)) {
       CHECK(self->IsExceptionPending());
       return 0;  // failure
@@ -1277,28 +1290,43 @@ static uint64_t artInvokeCommon(uint32_t method_idx, Object* this_object, Method
 extern "C" uint64_t artInvokeInterfaceTrampoline(uint32_t method_idx, Object* this_object,
                                                  Method* caller_method, Thread* self,
                                                  Method** sp) {
-  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, false, true, false);
+  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, false, kInterface);
 }
 
 extern "C" uint64_t artInvokeInterfaceTrampolineWithAccessCheck(uint32_t method_idx,
                                                                 Object* this_object,
                                                                 Method* caller_method, Thread* self,
                                                                 Method** sp) {
-  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, true, false);
+  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, kInterface);
+}
+
+
+extern "C" uint64_t artInvokeDirectTrampolineWithAccessCheck(uint32_t method_idx,
+                                                             Object* this_object,
+                                                             Method* caller_method, Thread* self,
+                                                             Method** sp) {
+  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, kDirect);
+}
+
+extern "C" uint64_t artInvokeStaticTrampolineWithAccessCheck(uint32_t method_idx,
+                                                            Object* this_object,
+                                                            Method* caller_method, Thread* self,
+                                                            Method** sp) {
+  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, kStatic);
 }
 
 extern "C" uint64_t artInvokeSuperTrampolineWithAccessCheck(uint32_t method_idx,
                                                             Object* this_object,
                                                             Method* caller_method, Thread* self,
                                                             Method** sp) {
-  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, false, true);
+  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, kSuper);
 }
 
 extern "C" uint64_t artInvokeVirtualTrampolineWithAccessCheck(uint32_t method_idx,
                                                               Object* this_object,
                                                               Method* caller_method, Thread* self,
                                                               Method** sp) {
-  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, false, false);
+  return artInvokeCommon(method_idx, this_object, caller_method, self, sp, true, kVirtual);
 }
 
 static void ThrowNewUndeclaredThrowableException(Thread* self, JNIEnv* env, Throwable* exception) {
