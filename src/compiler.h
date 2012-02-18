@@ -37,72 +37,11 @@
 
 namespace art {
 
+class AOTCompilationStats;
 class Context;
 class TimingLogger;
 typedef struct CompilationUnit CompilationUnit;
-class AOTCompilationStats {
- public:
-  AOTCompilationStats() : stats_lock_("AOT compilation statistics lock"),
-     types_in_dex_cache_(0), types_not_in_dex_cache_(0),
-     strings_in_dex_cache_(0), strings_not_in_dex_cache_(0),
-     resolved_types_(0), unresolved_types_(0),
-     resolved_instance_fields_(0), unresolved_instance_fields_(0),
-     resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0),
-     resolved_virtual_methods_(0), unresolved_virtual_methods_(0),
-     resolved_super_methods_(0), unresolved_super_methods_(0),
-     resolved_interface_methods_(0), unresolved_interface_methods_(0) {}
 
-  void Dump();
-
-  void TypeInDexCache();
-  void TypeNotInDexCache();
-
-  void StringInDexCache();
-  void StringNotInDexCache();
-
-  void TypeDoesntNeedAccessCheck();
-  void TypeNeedsAccessCheck();
-
-  void ResolvedInstanceField();
-  void UnresolvedInstanceField();
-
-  void ResolvedLocalStaticField();
-  void ResolvedStaticField();
-  void UnresolvedStaticField();
-
-  void ResolvedMethod(bool is_interface, bool is_super);
-  void UnresolvedMethod(bool is_interface, bool is_super);
-
- private:
-  Mutex stats_lock_;
-
-  size_t types_in_dex_cache_;
-  size_t types_not_in_dex_cache_;
-
-  size_t strings_in_dex_cache_;
-  size_t strings_not_in_dex_cache_;
-
-  size_t resolved_types_;
-  size_t unresolved_types_;
-
-  size_t resolved_instance_fields_;
-  size_t unresolved_instance_fields_;
-
-  size_t resolved_local_static_fields_;
-  size_t resolved_static_fields_;
-  size_t unresolved_static_fields_;
-
-  size_t resolved_virtual_methods_;
-  size_t unresolved_virtual_methods_;
-
-  size_t resolved_super_methods_;
-  size_t unresolved_super_methods_;
-
-  size_t resolved_interface_methods_;
-  size_t unresolved_interface_methods_;
-
-  DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);;
-};
 
 class Compiler {
  public:
@@ -177,8 +116,8 @@ class Compiler {
                               bool& is_referrers_class, bool& is_volatile);
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable index
-  bool ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit, bool is_interface,
-                         bool is_super, int& vtable_idx);
+  bool ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit, InvokeType type,
+                         int& vtable_idx);
 
 #if defined(ART_USE_LLVM_COMPILER)
   compiler_llvm::CompilerLLVM* GetCompilerLLVM() const {
@@ -250,10 +189,9 @@ class Compiler {
   size_t thread_count_;
   uint64_t start_ns_;
 
-  AOTCompilationStats stats_;
+  UniquePtr<AOTCompilationStats> stats_;
 
   const std::set<std::string>* image_classes_;
-
 
 #if defined(ART_USE_LLVM_COMPILER)
   UniquePtr<compiler_llvm::CompilerLLVM> compiler_llvm_;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright 2012 Google Inc. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,30 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_CONSTANTS_H_
-#define ART_SRC_CONSTANTS_H_
-
-#include <iosfwd>
+#include "constants.h"
 
 namespace art {
 
-enum InstructionSet {
-  kNone,
-  kArm,
-  kThumb2,
-  kX86
-};
-
-enum InvokeType {
-  kStatic, kDirect, kVirtual, kSuper, kInterface,
-  kMaxInvokeType = kInterface
-};
-
-std::ostream& operator<<(std::ostream& os, const InvokeType& rhs);
+std::ostream& operator<<(std::ostream& os, const InvokeType& rhs) {
+  switch (rhs) {
+    case kStatic: os << "static"; break;
+    case kDirect: os << "direct"; break;
+    case kVirtual: os << "virtual"; break;
+    case kSuper: os << "super"; break;
+    case kInterface: os << "interface"; break;
+    default: os << "InvokeType[" << static_cast<int>(rhs) << "]"; break;
+  }
+  return os;
+}
 
 }  // namespace art
-
-#include "constants_x86.h"
-#include "constants_arm.h"
-
-#endif  // ART_SRC_CONSTANTS_H_

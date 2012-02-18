@@ -83,7 +83,7 @@ void ThrowNoSuchMethodError(bool is_direct, Class* c, const StringPiece& name,
                             const StringPiece& signature) {
   ClassHelper kh(c);
   std::ostringstream msg;
-  msg << "no " << (is_direct ? "direct" : "virtual") << " method " << name << "." << signature
+  msg << "no " << (is_direct ? "direct" : "virtual") << " method " << name << signature
       << " in class " << kh.GetDescriptor() << " or its superclasses";
   std::string location(kh.GetLocation());
   if (!location.empty()) {

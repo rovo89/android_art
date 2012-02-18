@@ -617,8 +617,10 @@ class PACKED Thread {
   void (*pHandleFillArrayDataFromCode)(void*, void*);
   void* (*pInitializeStaticStorage)(uint32_t, void*);
   uint32_t (*pInstanceofNonTrivialFromCode)(const Class*, const Class*);
+  void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
   void (*pInvokeInterfaceTrampolineWithAccessCheck)(uint32_t, void*);
+  void (*pInvokeStaticTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeSuperTrampolineWithAccessCheck)(uint32_t, void*);
   void (*pInvokeVirtualTrampolineWithAccessCheck)(uint32_t, void*);
   void* (*pInitializeTypeFromCode)(uint32_t, void*);

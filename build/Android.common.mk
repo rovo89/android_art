@@ -60,7 +60,7 @@ ART_C_INCLUDES := \
 	dalvik/libdex
 
 art_cflags := \
-	-O2 \
+	-O0 \
 	-ggdb3 \
 	-Wall \
 	-Werror \
@@ -127,6 +127,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/calling_convention_arm.cc \
 	src/calling_convention_x86.cc \
 	src/card_table.cc \
+	src/constants.cc \
 	src/context.cc \
 	src/context_arm.cc.arm \
 	src/context_x86.cc \

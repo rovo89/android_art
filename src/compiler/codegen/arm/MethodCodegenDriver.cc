@@ -469,29 +469,14 @@ STATIC int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
     return state + 1;
 }
 
-STATIC int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir,
-                                  bool accessCheck, bool isInterface,
-                                  bool isSuper, int state, uint32_t dexIdx,
-                                  uint32_t methodIdx)
+STATIC int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir, int trampoline,
+                            int state, uint32_t dexIdx, uint32_t methodIdx)
 {
     /*
      * This handles the case in which the base method is not fully
      * resolved at compile time, we bail to a runtime helper.
      */
     if (state == 0) {
-        int trampoline;
-        if (!accessCheck) {
-          DCHECK(isInterface);
-          trampoline = OFFSETOF_MEMBER(Thread, pInvokeInterfaceTrampoline);
-        } else {
-          if (isInterface) {
-            trampoline = OFFSETOF_MEMBER(Thread, pInvokeInterfaceTrampolineWithAccessCheck);
-          } else if (isSuper) {
-            trampoline = OFFSETOF_MEMBER(Thread, pInvokeSuperTrampolineWithAccessCheck);
-          } else {
-            trampoline = OFFSETOF_MEMBER(Thread, pInvokeVirtualTrampolineWithAccessCheck);
-          }
-        }
         // Load trampoline target
         loadWordDisp(cUnit, rSELF, trampoline, rLR);
         // Load r0 with method index
@@ -501,18 +486,32 @@ STATIC int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir,
     return -1;
 }
 
+STATIC int nextStaticCallInsnSP(CompilationUnit* cUnit, MIR* mir,
+                                int state, uint32_t dexIdx, uint32_t methodIdx)
+{
+  int trampoline = OFFSETOF_MEMBER(Thread, pInvokeStaticTrampolineWithAccessCheck);
+  return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
+}
+
+STATIC int nextDirectCallInsnSP(CompilationUnit* cUnit, MIR* mir,
+                                int state, uint32_t dexIdx, uint32_t methodIdx)
+{
+  int trampoline = OFFSETOF_MEMBER(Thread, pInvokeDirectTrampolineWithAccessCheck);
+  return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
+}
+
 STATIC int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                                int state, uint32_t dexIdx, uint32_t methodIdx)
 {
-  return nextInvokeInsnSP(cUnit, mir, true, false, true, state, dexIdx,
-                          methodIdx);
+  int trampoline = OFFSETOF_MEMBER(Thread, pInvokeSuperTrampolineWithAccessCheck);
+  return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
 }
 
 STATIC int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                            int state, uint32_t dexIdx, uint32_t methodIdx)
 {
-  return nextInvokeInsnSP(cUnit, mir, true, false, false, state, dexIdx,
-                          methodIdx);
+  int trampoline = OFFSETOF_MEMBER(Thread, pInvokeVirtualTrampolineWithAccessCheck);
+  return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
 }
 
 /*
@@ -522,7 +521,8 @@ STATIC int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir,
 STATIC int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir,
                                  int state, uint32_t dexIdx, uint32_t unused)
 {
-  return nextInvokeInsnSP(cUnit, mir, false, true, false, state, dexIdx, 0);
+  int trampoline = OFFSETOF_MEMBER(Thread, pInvokeInterfaceTrampoline);
+  return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
 }
 
 STATIC int nextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit,
@@ -530,7 +530,8 @@ STATIC int nextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit,
                                                 uint32_t dexIdx,
                                                 uint32_t unused)
 {
-  return nextInvokeInsnSP(cUnit, mir, true, true, false, state, dexIdx, 0);
+  int trampoline = OFFSETOF_MEMBER(Thread, pInvokeInterfaceTrampolineWithAccessCheck);
+  return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
 }
 
 STATIC int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
@@ -569,9 +570,9 @@ STATIC int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
  */
 STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                                 DecodedInstruction* dInsn, int callState,
-                                ArmLIR** pcrLabel, bool isRange,
-                                NextCallInsn nextCallInsn, uint32_t dexIdx,
-                                uint32_t methodIdx, bool skipThis)
+                                ArmLIR** pcrLabel, NextCallInsn nextCallInsn,
+                                uint32_t dexIdx, uint32_t methodIdx,
+                                bool skipThis)
 {
     RegLocation rlArg;
 
@@ -676,7 +677,7 @@ STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     // If we can treat it as non-range (Jumbo ops will use range form)
     if (numArgs <= 5)
         return genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pcrLabel,
-                                    true, nextCallInsn, dexIdx, methodIdx,
+                                    nextCallInsn, dexIdx, methodIdx,
                                     skipThis);
     /*
      * Make sure range list doesn't span the break between in normal
@@ -766,45 +767,13 @@ STATIC void genShowTarget(CompilationUnit* cUnit)
     branchOver->generic.target = (LIR*)target;
 }
 
-STATIC void genInvokeStaticDirect(CompilationUnit* cUnit, MIR* mir,
-                                  bool direct, bool range)
+STATIC void genInvoke(CompilationUnit* cUnit, MIR* mir,
+                      InvokeType type, bool isRange)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
     ArmLIR* nullCk;
-    ArmLIR** pNullCk = direct ? &nullCk : NULL;
-    NextCallInsn nextCallInsn = nextSDCallInsn;
-    oatFlushAllRegs(cUnit);    /* Everything to home location */
-
-    // Explicit register usage
-    oatLockCallTemps(cUnit);
-
-    uint32_t dexMethodIdx = mir->dalvikInsn.vB;
-
-    if (range) {
-        callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, pNullCk,
-                                       nextCallInsn, dexMethodIdx, 0, false);
-    } else {
-        callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pNullCk,
-                                         false, nextCallInsn, dexMethodIdx,
-                                         0, false);
-    }
-    // Finish up any of the call sequence not interleaved in arg loading
-    while (callState >= 0) {
-        callState = nextCallInsn(cUnit, mir, callState, dexMethodIdx, 0);
-    }
-    if (DISPLAY_MISSING_TARGETS) {
-        genShowTarget(cUnit);
-    }
-    opReg(cUnit, kOpBlx, rLR);
-    oatClobberCalleeSave(cUnit);
-}
-
-STATIC void genInvoke(CompilationUnit* cUnit, MIR* mir, bool isInterface,
-                      bool isSuper, bool isRange)
-{
-    DecodedInstruction* dInsn = &mir->dalvikInsn;
-    int callState = 0;
+    ArmLIR** pNullCk = NULL;
     NextCallInsn nextCallInsn;
     oatFlushAllRegs(cUnit);    /* Everything to home location */
     // Explicit register usage
@@ -812,25 +781,38 @@ STATIC void genInvoke(CompilationUnit* cUnit, MIR* mir, bool isInterface,
 
     uint32_t dexMethodIdx = dInsn->vB;
     int vtableIdx;
+    bool skipThis;
     bool fastPath =
-        cUnit->compiler->ComputeInvokeInfo(dexMethodIdx, cUnit,
-                                           isInterface, isSuper, vtableIdx)
+        cUnit->compiler->ComputeInvokeInfo(dexMethodIdx, cUnit, type,
+                                           vtableIdx)
         && !SLOW_INVOKE_PATH;
-    if (isInterface) {
+    if (type == kInterface) {
       nextCallInsn = fastPath ? nextInterfaceCallInsn
                               : nextInterfaceCallInsnWithAccessCheck;
-    } else if (isSuper) {
+      skipThis = false;
+    } else if (type == kDirect) {
+      if (fastPath) {
+        pNullCk = &nullCk;
+      }
+      nextCallInsn = fastPath ? nextSDCallInsn : nextDirectCallInsnSP;
+      skipThis = false;
+    } else if (type == kStatic) {
+      nextCallInsn = fastPath ? nextSDCallInsn : nextStaticCallInsnSP;
+      skipThis = false;
+    } else if (type == kSuper) {
       nextCallInsn = fastPath ? nextSuperCallInsn : nextSuperCallInsnSP;
+      skipThis = fastPath;
     } else {
+      DCHECK_EQ(type, kVirtual);
       nextCallInsn = fastPath ? nextVCallInsn : nextVCallInsnSP;
+      skipThis = fastPath;
     }
-    bool skipThis = fastPath && !isInterface;
     if (!isRange) {
-        callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, NULL,
-                                         false, nextCallInsn, dexMethodIdx,
+        callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pNullCk,
+                                         nextCallInsn, dexMethodIdx,
                                          vtableIdx, skipThis);
     } else {
-        callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, NULL,
+        callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, pNullCk,
                                        nextCallInsn, dexMethodIdx, vtableIdx,
                                        skipThis);
     }
@@ -1296,48 +1278,38 @@ STATIC bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             break;
 
         case OP_INVOKE_STATIC_RANGE:
-            genInvokeStaticDirect(cUnit, mir, false /*direct*/,
-                                  true /*range*/);
+            genInvoke(cUnit, mir, kStatic, true /*range*/);
             break;
         case OP_INVOKE_STATIC:
-            genInvokeStaticDirect(cUnit, mir, false /*direct*/,
-                                  false /*range*/);
+            genInvoke(cUnit, mir, kStatic, false /*range*/);
             break;
 
         case OP_INVOKE_DIRECT:
-            genInvokeStaticDirect(cUnit, mir, true /*direct*/,
-                                  false /*range*/);
+            genInvoke(cUnit, mir, kDirect, false /*range*/);
             break;
         case OP_INVOKE_DIRECT_RANGE:
-            genInvokeStaticDirect(cUnit, mir, true /*direct*/,
-                                  true /*range*/);
+            genInvoke(cUnit, mir, kDirect, true /*range*/);
             break;
 
         case OP_INVOKE_VIRTUAL:
-            genInvoke(cUnit, mir, false /*interface*/, false /*super*/,
-                      false /*range*/);
+            genInvoke(cUnit, mir, kVirtual, false /*range*/);
             break;
         case OP_INVOKE_VIRTUAL_RANGE:
-            genInvoke(cUnit, mir, false /*interface*/, false /*super*/,
-                      true /*range*/);
+            genInvoke(cUnit, mir, kVirtual, true /*range*/);
             break;
 
         case OP_INVOKE_SUPER:
-            genInvoke(cUnit, mir, false /*interface*/, true /*super*/,
-                      false /*range*/);
+            genInvoke(cUnit, mir, kSuper, false /*range*/);
             break;
         case OP_INVOKE_SUPER_RANGE:
-            genInvoke(cUnit, mir, false /*interface*/, true /*super*/,
-                      true /*range*/);
+            genInvoke(cUnit, mir, kSuper, true /*range*/);
             break;
 
         case OP_INVOKE_INTERFACE:
-            genInvoke(cUnit, mir, true /*interface*/, false /*super*/,
-                      false /*range*/);
+            genInvoke(cUnit, mir, kInterface, false /*range*/);
             break;
         case OP_INVOKE_INTERFACE_RANGE:
-            genInvoke(cUnit, mir, true /*interface*/, false /*super*/,
-                      true /*range*/);
+            genInvoke(cUnit, mir, kInterface, true /*range*/);
             break;
 
         case OP_NEG_INT:
