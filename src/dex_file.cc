@@ -624,8 +624,8 @@ int32_t DexFile::FindCatchHandlerOffset(const CodeItem &code_item, int32_t tries
 }
 
 void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
-                               DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
-                               void* cnxt, const byte* stream, LocalInfo* local_in_reg) const {
+                               DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
+                               void* context, const byte* stream, LocalInfo* local_in_reg) const {
   uint32_t line = DecodeUnsignedLeb128(&stream);
   uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
   uint16_t arg_reg = code_item->registers_size_ - code_item->ins_size_;
@@ -713,7 +713,7 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
 
         // Emit what was previously there, if anything
         if (need_locals) {
-          InvokeLocalCbIfLive(cnxt, reg, address, local_in_reg, local_cb);
+          InvokeLocalCbIfLive(context, reg, address, local_in_reg, local_cb);
 
           local_in_reg[reg].name_ = StringDataByIdx(name_idx);
           local_in_reg[reg].descriptor_ = StringByTypeIdx(descriptor_idx);
@@ -734,7 +734,7 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
         }
 
         if (need_locals) {
-          InvokeLocalCbIfLive(cnxt, reg, address, local_in_reg, local_cb);
+          InvokeLocalCbIfLive(context, reg, address, local_in_reg, local_cb);
           local_in_reg[reg].is_live_ = false;
         }
         break;
@@ -773,8 +773,8 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
         address += adjopcode / DBG_LINE_RANGE;
         line += DBG_LINE_BASE + (adjopcode % DBG_LINE_RANGE);
 
-        if (posCb != NULL) {
-          if (posCb(cnxt, address, line)) {
+        if (position_cb != NULL) {
+          if (position_cb(context, address, line)) {
             // early exit
             return;
           }
@@ -786,21 +786,21 @@ void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32
 }
 
 void DexFile::DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
-                                 DexDebugNewPositionCb posCb, DexDebugNewLocalCb local_cb,
-                                 void* cnxt) const {
+                              DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
+                              void* context) const {
   const byte* stream = GetDebugInfoStream(code_item);
   LocalInfo local_in_reg[code_item->registers_size_];
 
   if (stream != NULL) {
-    DecodeDebugInfo0(code_item, is_static, method_idx, posCb, local_cb, cnxt, stream, local_in_reg);
+    DecodeDebugInfo0(code_item, is_static, method_idx, position_cb, local_cb, context, stream, local_in_reg);
   }
   for (int reg = 0; reg < code_item->registers_size_; reg++) {
-    InvokeLocalCbIfLive(cnxt, reg, code_item->insns_size_in_code_units_, local_in_reg, local_cb);
+    InvokeLocalCbIfLive(context, reg, code_item->insns_size_in_code_units_, local_in_reg, local_cb);
   }
 }
 
-bool DexFile::LineNumForPcCb(void* cnxt, uint32_t address, uint32_t line_num) {
-  LineNumFromPcContext* context = reinterpret_cast<LineNumFromPcContext*>(cnxt);
+bool DexFile::LineNumForPcCb(void* raw_context, uint32_t address, uint32_t line_num) {
+  LineNumFromPcContext* context = reinterpret_cast<LineNumFromPcContext*>(raw_context);
 
   // We know that this callback will be called in
   // ascending address order, so keep going until we find

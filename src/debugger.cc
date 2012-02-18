@@ -133,8 +133,8 @@ struct SingleStepControl {
   JDWP::JdwpStepDepth step_depth;
 
   const Method* method;
-  int line; // May be -1.
-  //const AddressSet* pAddressSet;    /* if non-null, address set for line */
+  int32_t line_number; // Or -1 for native methods.
+  std::set<uint32_t> dex_pcs;
   int stack_depth;
 };
 
@@ -547,7 +547,9 @@ static Class* DecodeClass(JDWP::RefTypeId id, JDWP::JdwpError& status) {
 
 static Thread* DecodeThread(JDWP::ObjectId threadId) {
   Object* thread_peer = gRegistry->Get<Object*>(threadId);
-  CHECK(thread_peer != NULL);
+  if (thread_peer == NULL) {
+    return NULL;
+  }
   return Thread::FromManagedThread(thread_peer);
 }
 
@@ -649,16 +651,26 @@ void Dbg::FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::R
   }
 }
 
-void Dbg::GetObjectType(JDWP::ObjectId objectId, JDWP::JdwpTypeTag* pRefTypeTag, JDWP::RefTypeId* pRefTypeId) {
+JDWP::JdwpError Dbg::GetReferenceType(JDWP::ObjectId objectId, JDWP::ExpandBuf* pReply) {
   Object* o = gRegistry->Get<Object*>(objectId);
-  if (o->GetClass()->IsArrayClass()) {
-    *pRefTypeTag = JDWP::TT_ARRAY;
-  } else if (o->GetClass()->IsInterface()) {
-    *pRefTypeTag = JDWP::TT_INTERFACE;
-  } else {
-    *pRefTypeTag = JDWP::TT_CLASS;
+  if (o == NULL) {
+    return JDWP::ERR_INVALID_OBJECT;
   }
-  *pRefTypeId = gRegistry->Add(o->GetClass());
+
+  JDWP::JdwpTypeTag type_tag;
+  if (o->GetClass()->IsArrayClass()) {
+    type_tag = JDWP::TT_ARRAY;
+  } else if (o->GetClass()->IsInterface()) {
+    type_tag = JDWP::TT_INTERFACE;
+  } else {
+    type_tag = JDWP::TT_CLASS;
+  }
+  JDWP::RefTypeId type_id = gRegistry->Add(o->GetClass());
+
+  expandBufAdd1(pReply, type_tag);
+  expandBufAddRefTypeId(pReply, type_id);
+
+  return JDWP::ERR_NONE;
 }
 
 JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId refTypeId, std::string& signature) {
@@ -1017,10 +1029,10 @@ void Dbg::OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JD
     int numItems;
     JDWP::ExpandBuf* pReply;
 
-    static bool Callback(void* context, uint32_t address, uint32_t lineNum) {
+    static bool Callback(void* context, uint32_t address, uint32_t line_number) {
       DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
       expandBufAdd8BE(pContext->pReply, address);
-      expandBufAdd4BE(pContext->pReply, lineNum);
+      expandBufAdd4BE(pContext->pReply, line_number);
       pContext->numItems++;
       return true;
     }
@@ -1186,9 +1198,16 @@ bool Dbg::GetThreadName(JDWP::ObjectId threadId, std::string& name) {
   return true;
 }
 
-JDWP::ObjectId Dbg::GetThreadGroup(JDWP::ObjectId threadId) {
+JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply) {
   Object* thread = gRegistry->Get<Object*>(threadId);
-  CHECK(thread != NULL);
+  if (thread != NULL) {
+    return JDWP::ERR_INVALID_OBJECT;
+  }
+
+  // Okay, so it's an object, but is it actually a thread?
+  if (DecodeThread(threadId)) {
+    return JDWP::ERR_INVALID_THREAD;
+  }
 
   Class* c = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/Thread;");
   CHECK(c != NULL);
@@ -1196,7 +1215,10 @@ JDWP::ObjectId Dbg::GetThreadGroup(JDWP::ObjectId threadId) {
   CHECK(f != NULL);
   Object* group = f->GetObject(thread);
   CHECK(group != NULL);
-  return gRegistry->Add(group);
+  JDWP::ObjectId thread_group_id = gRegistry->Add(group);
+
+  expandBufAddObjectId(pReply, thread_group_id);
+  return JDWP::ERR_NONE;
 }
 
 std::string Dbg::GetThreadGroupName(JDWP::ObjectId threadGroupId) {
@@ -1269,8 +1291,13 @@ bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThre
   return true;
 }
 
-uint32_t Dbg::GetThreadSuspendCount(JDWP::ObjectId threadId) {
-  return DecodeThread(threadId)->GetSuspendCount();
+JDWP::JdwpError Dbg::GetThreadSuspendCount(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply) {
+  Thread* thread = DecodeThread(threadId);
+  if (thread == NULL) {
+    return JDWP::ERR_INVALID_THREAD;
+  }
+  expandBufAdd4BE(pReply, thread->GetSuspendCount());
+  return JDWP::ERR_NONE;
 }
 
 bool Dbg::ThreadExists(JDWP::ObjectId threadId) {
@@ -1682,9 +1709,9 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
       } else if (gSingleStepControl.step_size == JDWP::SS_MIN) {
         event_flags |= kSingleStep;
         VLOG(jdwp) << "SS new instruction";
-//      } else if (!dvmAddressSetGet(gSingleStepControl.pAddressSet, pc - method->insns)) {
-//        event_flags |= kSingleStep;
-//        VLOG(jdwp) << "SS new line";
+      } else if (gSingleStepControl.dex_pcs.find(dex_pc) == gSingleStepControl.dex_pcs.end()) {
+        event_flags |= kSingleStep;
+        VLOG(jdwp) << "SS new line";
       }
     } else if (gSingleStepControl.step_depth == JDWP::SD_OVER) {
       // Step over method calls.  We break when the line number is
@@ -1705,9 +1732,9 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
         if (gSingleStepControl.step_size == JDWP::SS_MIN) {
           event_flags |= kSingleStep;
           VLOG(jdwp) << "SS new instruction";
-//        } else if (!dvmAddressSetGet(gSingleStepControl.pAddressSet, pc - method->insns)) {
-//          event_flags |= kSingleStep;
-//          VLOG(jdwp) << "SS new line";
+        } else if (gSingleStepControl.dex_pcs.find(dex_pc) == gSingleStepControl.dex_pcs.end()) {
+          event_flags |= kSingleStep;
+          VLOG(jdwp) << "SS new line";
         }
       }
     } else {
@@ -1771,8 +1798,11 @@ void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
   }
 }
 
-bool Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize step_size, JDWP::JdwpStepDepth step_depth) {
+JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize step_size, JDWP::JdwpStepDepth step_depth) {
   Thread* thread = DecodeThread(threadId);
+  if (thread == NULL) {
+    return JDWP::ERR_INVALID_THREAD;
+  }
 
   // TODO: there's no theoretical reason why we couldn't support single-stepping
   // of multiple threads at once, but we never did so historically.
@@ -1781,17 +1811,29 @@ bool Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize step_size, J
                  << "; switching to " << *thread;
   }
 
+  //
+  // Work out what Method* we're in, the current line number, and how deep the stack currently
+  // is for step-out.
+  //
+
   struct SingleStepStackVisitor : public Thread::StackVisitor {
     SingleStepStackVisitor() {
       gSingleStepControl.method = NULL;
       gSingleStepControl.stack_depth = 0;
     }
-    virtual void VisitFrame(const Frame& f, uintptr_t) {
+    virtual void VisitFrame(const Frame& f, uintptr_t pc) {
       // TODO: we'll need to skip callee-save frames too.
       if (f.HasMethod()) {
         ++gSingleStepControl.stack_depth;
         if (gSingleStepControl.method == NULL) {
-          gSingleStepControl.method = f.GetMethod();
+          const Method* m = f.GetMethod();
+          const DexCache* dex_cache = m->GetDeclaringClass()->GetDexCache();
+          gSingleStepControl.method = m;
+          gSingleStepControl.line_number = -1;
+          if (dex_cache != NULL) {
+            const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
+            gSingleStepControl.line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
+          }
         }
       }
     }
@@ -1799,17 +1841,85 @@ bool Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize step_size, J
   SingleStepStackVisitor visitor;
   thread->WalkStack(&visitor);
 
+  //
+  // Find the dex_pc values that correspond to the current line, for line-based single-stepping.
+  //
+
+  struct DebugCallbackContext {
+    DebugCallbackContext() {
+      last_pc_valid = false;
+      last_pc = 0;
+      gSingleStepControl.dex_pcs.clear();
+    }
+
+    static bool Callback(void* raw_context, uint32_t address, uint32_t line_number) {
+      DebugCallbackContext* context = reinterpret_cast<DebugCallbackContext*>(raw_context);
+      if (static_cast<int32_t>(line_number) == gSingleStepControl.line_number) {
+        if (!context->last_pc_valid) {
+          // Everything from this address until the next line change is ours.
+          context->last_pc = address;
+          context->last_pc_valid = true;
+        }
+        // Otherwise, if we're already in a valid range for this line,
+        // just keep going (shouldn't really happen)...
+      } else if (context->last_pc_valid) { // and the line number is new
+        // Add everything from the last entry up until here to the set
+        for (uint32_t dex_pc = context->last_pc; dex_pc < address; ++dex_pc) {
+          gSingleStepControl.dex_pcs.insert(dex_pc);
+        }
+        context->last_pc_valid = false;
+      }
+      return false; // There may be multiple entries for any given line.
+    }
+
+    ~DebugCallbackContext() {
+      // If the line number was the last in the position table...
+      if (last_pc_valid) {
+        size_t end = MethodHelper(gSingleStepControl.method).GetCodeItem()->insns_size_in_code_units_;
+        for (uint32_t dex_pc = last_pc; dex_pc < end; ++dex_pc) {
+          gSingleStepControl.dex_pcs.insert(dex_pc);
+        }
+      }
+    }
+
+    bool last_pc_valid;
+    uint32_t last_pc;
+  };
+  DebugCallbackContext context;
+  const Method* m = gSingleStepControl.method;
+  MethodHelper mh(m);
+  mh.GetDexFile().DecodeDebugInfo(mh.GetCodeItem(), m->IsStatic(), m->GetDexMethodIndex(),
+                                  DebugCallbackContext::Callback, NULL, &context);
+
+  //
+  // Everything else...
+  //
+
   gSingleStepControl.thread = thread;
   gSingleStepControl.step_size = step_size;
   gSingleStepControl.step_depth = step_depth;
   gSingleStepControl.is_active = true;
 
-  return true;
+  if (VLOG_IS_ON(jdwp)) {
+    VLOG(jdwp) << "Single-step thread: " << *gSingleStepControl.thread;
+    VLOG(jdwp) << "Single-step step size: " << gSingleStepControl.step_size;
+    VLOG(jdwp) << "Single-step step depth: " << gSingleStepControl.step_depth;
+    VLOG(jdwp) << "Single-step current method: " << PrettyMethod(gSingleStepControl.method);
+    VLOG(jdwp) << "Single-step current line: " << gSingleStepControl.line_number;
+    VLOG(jdwp) << "Single-step current stack depth: " << gSingleStepControl.stack_depth;
+    VLOG(jdwp) << "Single-step dex_pc values:";
+    for (std::set<uint32_t>::iterator it = gSingleStepControl.dex_pcs.begin() ; it != gSingleStepControl.dex_pcs.end(); ++it) {
+      VLOG(jdwp) << " " << *it;
+    }
+  }
+
+  return JDWP::ERR_NONE;
 }
 
 void Dbg::UnconfigureStep(JDWP::ObjectId threadId) {
   gSingleStepControl.is_active = false;
   gSingleStepControl.thread = NULL;
+  gSingleStepControl.dex_pcs.clear();
 }
 
 JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t numArgs, uint64_t* argArray, uint32_t options, JDWP::JdwpTag* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptionId) {
