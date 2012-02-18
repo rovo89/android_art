@@ -43,6 +43,9 @@ namespace art {
 static const size_t kMaxAllocRecordStackDepth = 16; // Max 255.
 static const size_t kNumAllocRecords = 512; // Must be power of 2.
 
+static const uintptr_t kInvalidId = 1;
+static const Object* kInvalidObject = reinterpret_cast<Object*>(kInvalidId);
+
 class ObjectRegistry {
  public:
   ObjectRegistry() : lock_("ObjectRegistry lock") {
@@ -70,10 +73,14 @@ class ObjectRegistry {
   }
 
   template<typename T> T Get(JDWP::ObjectId id) {
+    if (id == 0) {
+      return NULL;
+    }
+
     MutexLock mu(lock_);
     typedef std::map<JDWP::ObjectId, Object*>::iterator It; // C++0x auto
     It it = map_.find(id);
-    return (it != map_.end()) ? reinterpret_cast<T>(it->second) : NULL;
+    return (it != map_.end()) ? reinterpret_cast<T>(it->second) : reinterpret_cast<T>(kInvalidId);
   }
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) {
@@ -185,6 +192,42 @@ static bool IsBreakpoint(Method* m, uint32_t dex_pc) {
     }
   }
   return false;
+}
+
+static Array* DecodeArray(JDWP::RefTypeId id, JDWP::JdwpError& status) {
+  Object* o = gRegistry->Get<Object*>(id);
+  if (o == NULL || o == kInvalidObject) {
+    status = JDWP::ERR_INVALID_OBJECT;
+    return NULL;
+  }
+  if (!o->IsArrayInstance()) {
+    status = JDWP::ERR_INVALID_ARRAY;
+    return NULL;
+  }
+  status = JDWP::ERR_NONE;
+  return o->AsArray();
+}
+
+static Class* DecodeClass(JDWP::RefTypeId id, JDWP::JdwpError& status) {
+  Object* o = gRegistry->Get<Object*>(id);
+  if (o == NULL || o == kInvalidObject) {
+    status = JDWP::ERR_INVALID_OBJECT;
+    return NULL;
+  }
+  if (!o->IsClass()) {
+    status = JDWP::ERR_INVALID_CLASS;
+    return NULL;
+  }
+  status = JDWP::ERR_NONE;
+  return o->AsClass();
+}
+
+static Thread* DecodeThread(JDWP::ObjectId threadId) {
+  Object* thread_peer = gRegistry->Get<Object*>(threadId);
+  if (thread_peer == NULL || thread_peer == kInvalidObject) {
+    return NULL;
+  }
+  return Thread::FromManagedThread(thread_peer);
 }
 
 static JDWP::JdwpTag BasicTagFromDescriptor(const char* descriptor) {
@@ -502,56 +545,26 @@ void Dbg::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
 
 std::string Dbg::GetClassName(JDWP::RefTypeId classId) {
   Object* o = gRegistry->Get<Object*>(classId);
-  if (o == NULL || !o->IsClass()) {
+  if (o == NULL) {
+    return "NULL";
+  }
+  if (o == kInvalidObject) {
+    return StringPrintf("invalid object %p", reinterpret_cast<void*>(classId));
+  }
+  if (!o->IsClass()) {
     return StringPrintf("non-class %p", o); // This is only used for debugging output anyway.
   }
   return DescriptorToName(ClassHelper(o->AsClass()).GetDescriptor());
 }
 
-bool Dbg::GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& classObjectId) {
-  Object* o = gRegistry->Get<Object*>(id);
-  if (o == NULL || !o->IsClass()) {
-    return false;
+JDWP::JdwpError Dbg::GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& classObjectId) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(id, status);
+  if (c == NULL) {
+    return status;
   }
-  classObjectId = gRegistry->Add(o);
-  return true;
-}
-
-static Array* DecodeArray(JDWP::RefTypeId id, JDWP::JdwpError& status) {
-  Object* o = gRegistry->Get<Object*>(id);
-  if (o == NULL) {
-    status = JDWP::ERR_INVALID_OBJECT;
-    return NULL;
-  }
-  if (!o->IsArrayInstance()) {
-    status = JDWP::ERR_INVALID_ARRAY;
-    return NULL;
-  }
-  status = JDWP::ERR_NONE;
-  return o->AsArray();
-}
-
-// TODO: this should probably be used everywhere we're converting a RefTypeId to a Class*.
-static Class* DecodeClass(JDWP::RefTypeId id, JDWP::JdwpError& status) {
-  Object* o = gRegistry->Get<Object*>(id);
-  if (o == NULL) {
-    status = JDWP::ERR_INVALID_OBJECT;
-    return NULL;
-  }
-  if (!o->IsClass()) {
-    status = JDWP::ERR_INVALID_CLASS;
-    return NULL;
-  }
-  status = JDWP::ERR_NONE;
-  return o->AsClass();
-}
-
-static Thread* DecodeThread(JDWP::ObjectId threadId) {
-  Object* thread_peer = gRegistry->Get<Object*>(threadId);
-  if (thread_peer == NULL) {
-    return NULL;
-  }
-  return Thread::FromManagedThread(thread_peer);
+  classObjectId = gRegistry->Add(c);
+  return JDWP::ERR_NONE;
 }
 
 JDWP::JdwpError Dbg::GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclassId) {
@@ -569,27 +582,43 @@ JDWP::JdwpError Dbg::GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& supercla
   return JDWP::ERR_NONE;
 }
 
-JDWP::ObjectId Dbg::GetClassLoader(JDWP::RefTypeId id) {
+JDWP::JdwpError Dbg::GetClassLoader(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply) {
   Object* o = gRegistry->Get<Object*>(id);
-  return gRegistry->Add(o->GetClass()->GetClassLoader());
+  if (o == NULL || o == kInvalidObject) {
+    return JDWP::ERR_INVALID_OBJECT;
+  }
+  expandBufAddObjectId(pReply, gRegistry->Add(o->GetClass()->GetClassLoader()));
+  return JDWP::ERR_NONE;
 }
 
-bool Dbg::GetAccessFlags(JDWP::RefTypeId id, uint32_t& access_flags) {
-  Object* o = gRegistry->Get<Object*>(id);
-  if (o == NULL || !o->IsClass()) {
-    return false;
+JDWP::JdwpError Dbg::GetModifiers(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(id, status);
+  if (c == NULL) {
+    return status;
   }
-  access_flags = o->AsClass()->GetAccessFlags() & kAccJavaFlagsMask;
-  return true;
+
+  uint32_t access_flags = c->GetAccessFlags() & kAccJavaFlagsMask;
+
+  // Set ACC_SUPER; dex files don't contain this flag, but all classes are supposed to have it set.
+  // Class.getModifiers doesn't return it, but JDWP does, so we set it here.
+  access_flags |= kAccSuper;
+
+  expandBufAdd4BE(pReply, access_flags);
+
+  return JDWP::ERR_NONE;
 }
 
-bool Dbg::IsInterface(JDWP::RefTypeId classId, bool& is_interface) {
-  Object* o = gRegistry->Get<Object*>(classId);
-  if (o == NULL || !o->IsClass()) {
-    return false;
+JDWP::JdwpError Dbg::GetReflectedType(JDWP::RefTypeId classId, JDWP::ExpandBuf* pReply) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(classId, status);
+  if (c == NULL) {
+    return status;
   }
-  is_interface = o->AsClass()->IsInterface();
-  return true;
+
+  expandBufAdd1(pReply, c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS);
+  expandBufAddRefTypeId(pReply, classId);
+  return JDWP::ERR_NONE;
 }
 
 void Dbg::GetClassList(std::vector<JDWP::RefTypeId>& classes) {
@@ -618,13 +647,13 @@ void Dbg::GetClassList(std::vector<JDWP::RefTypeId>& classes) {
   Runtime::Current()->GetClassLinker()->VisitClasses(ClassListCreator::Visit, &clc);
 }
 
-bool Dbg::GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor) {
-  Object* o = gRegistry->Get<Object*>(classId);
-  if (o == NULL || !o->IsClass()) {
-    return false;
+JDWP::JdwpError Dbg::GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(classId, status);
+  if (c == NULL) {
+    return status;
   }
 
-  Class* c = o->AsClass();
   if (c->IsArrayClass()) {
     *pStatus = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
     *pTypeTag = JDWP::TT_ARRAY;
@@ -640,7 +669,7 @@ bool Dbg::GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uin
   if (pDescriptor != NULL) {
     *pDescriptor = ClassHelper(c).GetDescriptor();
   }
-  return true;
+  return JDWP::ERR_NONE;
 }
 
 void Dbg::FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids) {
@@ -654,7 +683,7 @@ void Dbg::FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::R
 
 JDWP::JdwpError Dbg::GetReferenceType(JDWP::ObjectId objectId, JDWP::ExpandBuf* pReply) {
   Object* o = gRegistry->Get<Object*>(objectId);
-  if (o == NULL) {
+  if (o == NULL || o == kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
 
@@ -674,9 +703,9 @@ JDWP::JdwpError Dbg::GetReferenceType(JDWP::ObjectId objectId, JDWP::ExpandBuf* 
   return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId refTypeId, std::string& signature) {
+JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId classId, std::string& signature) {
   JDWP::JdwpError status;
-  Class* c = DecodeClass(refTypeId, status);
+  Class* c = DecodeClass(classId, status);
   if (c == NULL) {
     return status;
   }
@@ -684,13 +713,14 @@ JDWP::JdwpError Dbg::GetSignature(JDWP::RefTypeId refTypeId, std::string& signat
   return JDWP::ERR_NONE;
 }
 
-bool Dbg::GetSourceFile(JDWP::RefTypeId refTypeId, std::string& result) {
-  Object* o = gRegistry->Get<Object*>(refTypeId);
-  if (o == NULL || !o->IsClass()) {
-    return false;
+JDWP::JdwpError Dbg::GetSourceFile(JDWP::RefTypeId classId, std::string& result) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(classId, status);
+  if (c == NULL) {
+    return status;
   }
-  result = ClassHelper(o->AsClass()).GetSourceFile();
-  return result != NULL;
+  result = ClassHelper(c).GetSourceFile();
+  return JDWP::ERR_NONE;
 }
 
 uint8_t Dbg::GetObjectTag(JDWP::ObjectId objectId) {
@@ -822,7 +852,11 @@ JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int co
     ObjectArray<Object>* oa = a->AsObjectArray<Object>();
     for (int i = 0; i < count; ++i) {
       JDWP::ObjectId id = JDWP::ReadObjectId(&src);
-      oa->Set(offset + i, gRegistry->Get<Object*>(id));
+      Object* o = gRegistry->Get<Object*>(id);
+      if (o == kInvalidObject) {
+        return JDWP::ERR_INVALID_OBJECT;
+      }
+      oa->Set(offset + i, o);
     }
   }
 
@@ -833,30 +867,38 @@ JDWP::ObjectId Dbg::CreateString(const std::string& str) {
   return gRegistry->Add(String::AllocFromModifiedUtf8(str.c_str()));
 }
 
-bool Dbg::CreateObject(JDWP::RefTypeId classId, JDWP::ObjectId& new_object) {
-  Object* o = gRegistry->Get<Object*>(classId);
-  if (o == NULL || !o->IsClass()) {
-    return false;
+JDWP::JdwpError Dbg::CreateObject(JDWP::RefTypeId classId, JDWP::ObjectId& new_object) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(classId, status);
+  if (c == NULL) {
+    return status;
   }
-  new_object = gRegistry->Add(o->AsClass()->AllocObject());
-  return true;
+  new_object = gRegistry->Add(c->AllocObject());
+  return JDWP::ERR_NONE;
 }
 
 /*
  * Used by Eclipse's "Display" view to evaluate "new byte[5]" to get "(byte[]) [0, 0, 0, 0, 0]".
  */
-bool Dbg::CreateArrayObject(JDWP::RefTypeId arrayTypeId, uint32_t length, JDWP::ObjectId& new_array) {
-  Object* o = gRegistry->Get<Object*>(arrayTypeId);
-  if (o == NULL || !o->IsClass()) {
-    return false;
+JDWP::JdwpError Dbg::CreateArrayObject(JDWP::RefTypeId arrayClassId, uint32_t length, JDWP::ObjectId& new_array) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(arrayClassId, status);
+  if (c == NULL) {
+    return status;
   }
-  new_array = gRegistry->Add(Array::Alloc(o->AsClass(), length));
-  return true;
+  new_array = gRegistry->Add(Array::Alloc(c, length));
+  return JDWP::ERR_NONE;
 }
 
 bool Dbg::MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId) {
-  // TODO: error handling if the RefTypeIds aren't actually Class*s.
-  return gRegistry->Get<Class*>(instClassId)->InstanceOf(gRegistry->Get<Class*>(classId));
+  JDWP::JdwpError status;
+  Class* c1 = DecodeClass(instClassId, status);
+  Class* c2 = DecodeClass(classId, status);
+  if (c1 == NULL || c2 == NULL) {
+    // TODO: it doesn't seem like we can do any better here?
+    return false;
+  }
+  return c1->InstanceOf(c2);
 }
 
 static JDWP::FieldId ToFieldId(const Field* f) {
@@ -903,7 +945,7 @@ static void SetLocation(JDWP::JdwpLocation& location, Method* m, uintptr_t nativ
   }
 }
 
-std::string Dbg::GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId) {
+std::string Dbg::GetMethodName(JDWP::RefTypeId, JDWP::MethodId methodId) {
   Method* m = FromMethodId(methodId);
   return MethodHelper(m).GetName();
 }
@@ -957,13 +999,13 @@ static uint16_t DemangleSlot(uint16_t slot, Method* m) {
   return slot;
 }
 
-bool Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool with_generic, JDWP::ExpandBuf* pReply) {
-  Object* o = gRegistry->Get<Object*>(refTypeId);
-  if (o == NULL || !o->IsClass()) {
-    return false;
+JDWP::JdwpError Dbg::OutputDeclaredFields(JDWP::RefTypeId classId, bool with_generic, JDWP::ExpandBuf* pReply) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(classId, status);
+  if (c == NULL) {
+    return status;
   }
 
-  Class* c = o->AsClass();
   size_t instance_field_count = c->NumInstanceFields();
   size_t static_field_count = c->NumStaticFields();
 
@@ -981,16 +1023,16 @@ bool Dbg::OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool with_generic, JDW
     }
     expandBufAdd4BE(pReply, MangleAccessFlags(f->GetAccessFlags()));
   }
-  return true;
+  return JDWP::ERR_NONE;
 }
 
-bool Dbg::OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool with_generic, JDWP::ExpandBuf* pReply) {
-  Object* o = gRegistry->Get<Object*>(refTypeId);
-  if (o == NULL || !o->IsClass()) {
-    return false;
+JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId classId, bool with_generic, JDWP::ExpandBuf* pReply) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(classId, status);
+  if (c == NULL) {
+    return status;
   }
 
-  Class* c = o->AsClass();
   size_t direct_method_count = c->NumDirectMethods();
   size_t virtual_method_count = c->NumVirtualMethods();
 
@@ -1008,24 +1050,26 @@ bool Dbg::OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool with_generic, JD
     }
     expandBufAdd4BE(pReply, MangleAccessFlags(m->GetAccessFlags()));
   }
-  return true;
+  return JDWP::ERR_NONE;
 }
 
-bool Dbg::OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply) {
-  Object* o = gRegistry->Get<Object*>(refTypeId);
-  if (o == NULL || !o->IsClass()) {
-    return false;
+JDWP::JdwpError Dbg::OutputDeclaredInterfaces(JDWP::RefTypeId classId, JDWP::ExpandBuf* pReply) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(classId, status);
+  if (c == NULL) {
+    return status;
   }
-  ClassHelper kh(o->AsClass());
+
+  ClassHelper kh(c);
   size_t interface_count = kh.NumInterfaces();
   expandBufAdd4BE(pReply, interface_count);
   for (size_t i = 0; i < interface_count; ++i) {
     expandBufAddRefTypeId(pReply, gRegistry->Add(kh.GetInterface(i)));
   }
-  return true;
+  return JDWP::ERR_NONE;
 }
 
-void Dbg::OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JDWP::ExpandBuf* pReply) {
+void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId methodId, JDWP::ExpandBuf* pReply) {
   struct DebugCallbackContext {
     int numItems;
     JDWP::ExpandBuf* pReply;
@@ -1068,7 +1112,7 @@ void Dbg::OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JD
   JDWP::Set4BE(expandBufGetBuffer(pReply) + numLinesOffset, context.numItems);
 }
 
-void Dbg::OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, bool with_generic, JDWP::ExpandBuf* pReply) {
+void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId methodId, bool with_generic, JDWP::ExpandBuf* pReply) {
   struct DebugCallbackContext {
     JDWP::ExpandBuf* pReply;
     size_t variable_count;
@@ -1201,12 +1245,12 @@ bool Dbg::GetThreadName(JDWP::ObjectId threadId, std::string& name) {
 
 JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply) {
   Object* thread = gRegistry->Get<Object*>(threadId);
-  if (thread != NULL) {
+  if (thread == kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
 
   // Okay, so it's an object, but is it actually a thread?
-  if (DecodeThread(threadId)) {
+  if (DecodeThread(threadId) == NULL) {
     return JDWP::ERR_INVALID_THREAD;
   }
 

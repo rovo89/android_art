@@ -132,17 +132,17 @@ class Dbg {
    * Class, Object, Array
    */
   static std::string GetClassName(JDWP::RefTypeId id);
-  static bool GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& classObjectId);
+  static JDWP::JdwpError GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& classObjectId);
   static JDWP::JdwpError GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclassId);
-  static JDWP::ObjectId GetClassLoader(JDWP::RefTypeId id);
-  static bool GetAccessFlags(JDWP::RefTypeId id, uint32_t& access_flags);
-  static bool IsInterface(JDWP::RefTypeId classId, bool& is_interface);
+  static JDWP::JdwpError GetClassLoader(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply);
+  static JDWP::JdwpError GetModifiers(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply);
+  static JDWP::JdwpError GetReflectedType(JDWP::RefTypeId classId, JDWP::ExpandBuf* pReply);
   static void GetClassList(std::vector<JDWP::RefTypeId>& classes);
-  static bool GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor);
+  static JDWP::JdwpError GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag, uint32_t* pStatus, std::string* pDescriptor);
   static void FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids);
   static JDWP::JdwpError GetReferenceType(JDWP::ObjectId objectId, JDWP::ExpandBuf* pReply);
   static JDWP::JdwpError GetSignature(JDWP::RefTypeId refTypeId, std::string& signature);
-  static bool GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file);
+  static JDWP::JdwpError GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file);
   static uint8_t GetObjectTag(JDWP::ObjectId objectId);
   static size_t GetTagWidth(JDWP::JdwpTag tag);
 
@@ -151,8 +151,8 @@ class Dbg {
   static JDWP::JdwpError SetArrayElements(JDWP::ObjectId arrayId, int firstIndex, int count, const uint8_t* buf);
 
   static JDWP::ObjectId CreateString(const std::string& str);
-  static bool CreateObject(JDWP::RefTypeId classId, JDWP::ObjectId& new_object);
-  static bool CreateArrayObject(JDWP::RefTypeId arrayTypeId, uint32_t length, JDWP::ObjectId& new_array);
+  static JDWP::JdwpError CreateObject(JDWP::RefTypeId classId, JDWP::ObjectId& new_object);
+  static JDWP::JdwpError CreateArrayObject(JDWP::RefTypeId arrayTypeId, uint32_t length, JDWP::ObjectId& new_array);
 
   static bool MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId);
 
@@ -160,9 +160,9 @@ class Dbg {
    * Method and Field
    */
   static std::string GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId id);
-  static bool OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
-  static bool OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
-  static bool OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply);
+  static JDWP::JdwpError OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
+  static JDWP::JdwpError OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool withGeneric, JDWP::ExpandBuf* pReply);
+  static JDWP::JdwpError OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId, JDWP::ExpandBuf* pReply);
   static void OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId, JDWP::ExpandBuf* pReply);
   static void OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId id, bool withGeneric, JDWP::ExpandBuf* pReply);
 
