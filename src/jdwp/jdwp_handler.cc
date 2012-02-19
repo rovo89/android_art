@@ -485,7 +485,10 @@ static JdwpError handleRT_GetValues(JdwpState* state, const uint8_t* buf, int da
   expandBufAdd4BE(pReply, numFields);
   for (uint32_t i = 0; i < numFields; i++) {
     FieldId fieldId = ReadFieldId(&buf);
-    Dbg::GetStaticFieldValue(fieldId, pReply);
+    JdwpError status = Dbg::GetStaticFieldValue(fieldId, pReply);
+    if (status != ERR_NONE) {
+      return status;
+    }
   }
 
   return ERR_NONE;
@@ -784,7 +787,10 @@ static JdwpError handleOR_GetValues(JdwpState* state, const uint8_t* buf, int da
 
   for (uint32_t i = 0; i < numFields; i++) {
     FieldId fieldId = ReadFieldId(&buf);
-    Dbg::GetFieldValue(objectId, fieldId, pReply);
+    JdwpError status = Dbg::GetFieldValue(objectId, fieldId, pReply);
+    if (status != ERR_NONE) {
+      return status;
+    }
   }
 
   return ERR_NONE;
@@ -807,8 +813,10 @@ static JdwpError handleOR_SetValues(JdwpState* state, const uint8_t* buf, int da
     uint64_t value = jdwpReadValue(&buf, width);
 
     VLOG(jdwp) << "    --> fieldId=" << fieldId << " tag=" << fieldTag << "(" << width << ") value=" << value;
-
-    Dbg::SetFieldValue(objectId, fieldId, value, width);
+    JdwpError status = Dbg::SetFieldValue(objectId, fieldId, value, width);
+    if (status != ERR_NONE) {
+      return status;
+    }
   }
 
   return ERR_NONE;
@@ -967,7 +975,7 @@ static JdwpError handleTR_ThreadGroup(JdwpState* state, const uint8_t* buf, int 
  */
 static JdwpError handleTR_Frames(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId threadId = ReadObjectId(&buf);
-  uint32_t startFrame = Read4BE(&buf);
+  uint32_t start_frame = Read4BE(&buf);
   uint32_t length = Read4BE(&buf);
 
   if (!Dbg::ThreadExists(threadId)) {
@@ -978,25 +986,27 @@ static JdwpError handleTR_Frames(JdwpState* state, const uint8_t* buf, int dataL
     return ERR_THREAD_NOT_SUSPENDED;
   }
 
-  size_t frameCount = Dbg::GetThreadFrameCount(threadId);
+  size_t actual_frame_count = Dbg::GetThreadFrameCount(threadId);
 
-  VLOG(jdwp) << StringPrintf("  Request for frames: threadId=%llx start=%d length=%d [count=%zd]", threadId, startFrame, length, frameCount);
-  if (frameCount <= 0) {
+  VLOG(jdwp) << StringPrintf("  Request for frames: threadId=%llx start=%d length=%d [count=%zd]", threadId, start_frame, length, actual_frame_count);
+  if (actual_frame_count <= 0) {
     return ERR_THREAD_NOT_SUSPENDED;    /* == 0 means 100% native */
   }
-  if (length == (uint32_t) -1) {
-    length = frameCount;
-  }
-  CHECK_GE(startFrame, 0U);
-  CHECK_LT(startFrame, frameCount);
-  CHECK_LE(startFrame + length, frameCount);
 
-  uint32_t frames = length;
-  expandBufAdd4BE(pReply, frames);
-  for (uint32_t i = startFrame; i < (startFrame+length); i++) {
+  if (start_frame > actual_frame_count) {
+    return ERR_INVALID_INDEX;
+  }
+  if (length == static_cast<uint32_t>(-1)) {
+    length = actual_frame_count - start_frame;
+  }
+  if (start_frame + length > actual_frame_count) {
+    return ERR_INVALID_LENGTH;
+  }
+
+  expandBufAdd4BE(pReply, length);
+  for (uint32_t i = start_frame; i < (start_frame + length); ++i) {
     FrameId frameId;
     JdwpLocation loc;
-
     Dbg::GetThreadFrame(threadId, i, &frameId, &loc);
 
     expandBufAdd8BE(pReply, frameId);
@@ -1022,11 +1032,11 @@ static JdwpError handleTR_FrameCount(JdwpState* state, const uint8_t* buf, int d
     return ERR_THREAD_NOT_SUSPENDED;
   }
 
-  int frameCount = Dbg::GetThreadFrameCount(threadId);
-  if (frameCount < 0) {
+  int frame_count = Dbg::GetThreadFrameCount(threadId);
+  if (frame_count < 0) {
     return ERR_INVALID_THREAD;
   }
-  expandBufAdd4BE(pReply, (uint32_t)frameCount);
+  expandBufAdd4BE(pReply, static_cast<uint32_t>(frame_count));
 
   return ERR_NONE;
 }

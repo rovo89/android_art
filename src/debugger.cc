@@ -1170,9 +1170,15 @@ JDWP::JdwpTag Dbg::GetStaticFieldBasicTag(JDWP::FieldId fieldId) {
   return BasicTagFromDescriptor(FieldHelper(FromFieldId(fieldId)).GetTypeDescriptor());
 }
 
-void Dbg::GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
+static JDWP::JdwpError GetFieldValueImpl(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply, bool is_static) {
   Object* o = gRegistry->Get<Object*>(objectId);
+  if ((!is_static && o == NULL) || o == kInvalidObject) {
+    return JDWP::ERR_INVALID_OBJECT;
+  }
   Field* f = FromFieldId(fieldId);
+  if (f->IsStatic() != is_static) {
+    return JDWP::ERR_INVALID_FIELDID;
+  }
 
   JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
 
@@ -1194,11 +1200,26 @@ void Dbg::GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::Ex
     expandBufAdd1(pReply, TagFromObject(value));
     expandBufAddObjectId(pReply, gRegistry->Add(value));
   }
+  return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width) {
+JDWP::JdwpError Dbg::GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
+  return GetFieldValueImpl(objectId, fieldId, pReply, false);
+}
+
+JDWP::JdwpError Dbg::GetStaticFieldValue(JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
+  return GetFieldValueImpl(0, fieldId, pReply, true);
+}
+
+static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width, bool is_static) {
   Object* o = gRegistry->Get<Object*>(objectId);
+  if ((!is_static && o == NULL) || o == kInvalidObject) {
+    return JDWP::ERR_INVALID_OBJECT;
+  }
   Field* f = FromFieldId(fieldId);
+  if (f->IsStatic() != is_static) {
+    return JDWP::ERR_INVALID_FIELDID;
+  }
 
   JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
 
@@ -1210,9 +1231,14 @@ JDWP::JdwpError Dbg::SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldI
     }
   } else {
     Object* v = gRegistry->Get<Object*>(value);
-    Class* field_type = FieldHelper(f).GetType();
-    if (!field_type->IsAssignableFrom(v->GetClass())) {
+    if (v == kInvalidObject) {
       return JDWP::ERR_INVALID_OBJECT;
+    }
+    if (v != NULL) {
+      Class* field_type = FieldHelper(f).GetType();
+      if (!field_type->IsAssignableFrom(v->GetClass())) {
+        return JDWP::ERR_INVALID_OBJECT;
+      }
     }
     f->SetObject(o, v);
   }
@@ -1220,12 +1246,12 @@ JDWP::JdwpError Dbg::SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldI
   return JDWP::ERR_NONE;
 }
 
-void Dbg::GetStaticFieldValue(JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
-  GetFieldValue(0, fieldId, pReply);
+JDWP::JdwpError Dbg::SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width) {
+  return SetFieldValueImpl(objectId, fieldId, value, width, false);
 }
 
 JDWP::JdwpError Dbg::SetStaticFieldValue(JDWP::FieldId fieldId, uint64_t value, int width) {
-  return SetFieldValue(0, fieldId, value, width);
+  return SetFieldValueImpl(0, fieldId, value, width, true);
 }
 
 std::string Dbg::StringToUtf8(JDWP::ObjectId strId) {
@@ -1239,7 +1265,7 @@ bool Dbg::GetThreadName(JDWP::ObjectId threadId, std::string& name) {
   if (thread == NULL) {
     return false;
   }
-  StringAppendF(&name, "<%d> %s", thread->GetThinLockId(), thread->GetThreadName()->ToModifiedUtf8().c_str());
+  name = thread->GetThreadName()->ToModifiedUtf8();
   return true;
 }
 
@@ -1999,15 +2025,22 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
       return JDWP::ERR_THREAD_SUSPENDED; // Probably not expected here.
     }
 
-    /*
-     * OLD-TODO: ought to screen the various IDs, and verify that the argument
-     * list is valid.
-     */
+    JDWP::JdwpError status;
     req->receiver_ = gRegistry->Get<Object*>(objectId);
-    req->thread_ = gRegistry->Get<Object*>(threadId);
-    req->class_ = gRegistry->Get<Class*>(classId);
+    if (req->receiver_ == kInvalidObject) {
+      return JDWP::ERR_INVALID_OBJECT;
+    }
+    req->thread_ = gRegistry->Get<Object*>(threadId); // TODO: check that this is actually a thread!
+    if (req->thread_ == kInvalidObject) {
+      return JDWP::ERR_INVALID_OBJECT;
+    }
+    req->class_ = DecodeClass(classId, status);
+    if (req->class_ == NULL) {
+      return status;
+    }
     req->method_ = FromMethodId(methodId);
     req->num_args_ = numArgs;
+    // TODO: check that the argument list is valid.
     req->arg_array_ = argArray;
     req->options_ = options;
     req->invoke_needed_ = true;
