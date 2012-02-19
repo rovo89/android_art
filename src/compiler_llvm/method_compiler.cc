@@ -2828,7 +2828,8 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
   EmitGuard_ExceptionLandingPad(dex_pc);
 
   MethodHelper method_helper(callee_method);
-  if (!method_helper.GetReturnType()->IsPrimitiveVoid()) {
+  char ret_shorty = method_helper.GetShorty()[0];
+  if (ret_shorty != 'V') {
     EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
   }
 

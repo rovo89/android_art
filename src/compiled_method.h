@@ -109,10 +109,11 @@ class CompiledInvokeStub {
 #if defined(ART_USE_LLVM_COMPILER)
   llvm::Function* func_;
 #endif
+  // TODO: Change the line above from #endif to #else, after oat_writer is
+  // changed.
   std::vector<uint8_t> code_;
 };
 
 }  // namespace art
 
 #endif  // ART_SRC_COMPILED_METHOD_H_
-

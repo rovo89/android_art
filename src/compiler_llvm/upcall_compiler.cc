@@ -148,7 +148,7 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
       args.push_back(irb_.CreateLoad(arg_addr));
 
     } else {
-      LOG(ERROR) << "Unexpected arg shorty for invoke stub: " << shorty[i];
+      LOG(FATAL) << "Unexpected arg shorty for invoke stub: " << shorty[i];
     }
   }
 
