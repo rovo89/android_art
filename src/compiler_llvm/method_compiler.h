@@ -316,6 +316,17 @@ class MethodCompiler {
                                  uint32_t type_idx,
                                  bool is_filled_new_array);
 
+  llvm::Value* EmitLoadClassObjectAddr(llvm::Value* this_addr);
+
+  llvm::Value* EmitLoadVTableAddr(llvm::Value* class_object_addr);
+
+  llvm::Value* EmitLoadMethodObjectAddrFromVTable(llvm::Value* vtable_addr,
+                                                  uint16_t vtable_index);
+
+  llvm::Value* EmitLoadCodeAddr(llvm::Value* method_object_addr,
+                                uint32_t method_idx,
+                                bool is_static);
+
   llvm::Value* EmitLoadArrayLength(llvm::Value* array);
 
   llvm::Value* EmitArrayGEP(llvm::Value* array_addr,
