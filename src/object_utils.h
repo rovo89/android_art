@@ -416,7 +416,7 @@ class MethodHelper {
     }
     return result;
   }
-  int32_t GetShortyLength() {
+  uint32_t GetShortyLength() {
     if (shorty_ == NULL) {
       GetShorty();
     }
@@ -587,7 +587,7 @@ class MethodHelper {
   const DexFile* dex_file_;
   const Method* method_;
   const char* shorty_;
-  int32_t shorty_len_;
+  uint32_t shorty_len_;
 
   DISALLOW_COPY_AND_ASSIGN(MethodHelper);
 };

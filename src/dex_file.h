@@ -385,15 +385,15 @@ class DexFile {
   int32_t GetStringLength(const StringId& string_id) const;
 
   // Returns a pointer to the UTF-8 string data referred to by the given string_id.
-  const char* GetStringDataAndLength(const StringId& string_id, int32_t* length) const;
+  const char* GetStringDataAndLength(const StringId& string_id, uint32_t* length) const;
 
   const char* GetStringData(const StringId& string_id) const {
-    int32_t length;
+    uint32_t length;
     return GetStringDataAndLength(string_id, &length);
   }
 
   // return the UTF-8 encoded string with the specified string_id index
-  const char* StringDataAndLengthByIdx(uint32_t idx, int32_t* unicode_length) const {
+  const char* StringDataAndLengthByIdx(uint32_t idx, uint32_t* unicode_length) const {
     if (idx == kDexNoIndex) {
       *unicode_length = 0;
       return NULL;
@@ -403,7 +403,7 @@ class DexFile {
   }
 
   const char* StringDataByIdx(uint32_t idx) const {
-    int32_t unicode_length;
+    uint32_t unicode_length;
     return StringDataAndLengthByIdx(idx, &unicode_length);
   }
 
@@ -431,7 +431,7 @@ class DexFile {
   }
 
   // Get the descriptor string associated with a given type index.
-  const char* StringByTypeIdx(uint32_t idx, int32_t* unicode_length) const {
+  const char* StringByTypeIdx(uint32_t idx, uint32_t* unicode_length) const {
     const TypeId& type_id = GetTypeId(idx);
     return StringDataAndLengthByIdx(type_id.descriptor_idx_, unicode_length);
   }
@@ -537,7 +537,7 @@ class DexFile {
   const char* GetMethodShorty(const MethodId& method_id) const {
     return StringDataByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_);
   }
-  const char* GetMethodShorty(const MethodId& method_id, int32_t* length) const {
+  const char* GetMethodShorty(const MethodId& method_id, uint32_t* length) const {
     return StringDataAndLengthByIdx(GetProtoId(method_id.proto_idx_).shorty_idx_, length);
   }
   // Returns the number of class definitions in the .dex file.

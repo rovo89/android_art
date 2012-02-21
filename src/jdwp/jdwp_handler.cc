@@ -96,58 +96,54 @@ static void jdwpWriteValue(ExpandBuf* pReply, int width, uint64_t value) {
 /*
  * Common code for *_InvokeMethod requests.
  *
- * If "isConstructor" is set, this returns "objectId" rather than the
+ * If "is_constructor" is set, this returns "objectId" rather than the
  * expected-to-be-void return value of the called function.
  */
 static JdwpError finishInvoke(JdwpState* state,
     const uint8_t* buf, int dataLen, ExpandBuf* pReply,
     ObjectId threadId, ObjectId objectId, RefTypeId classId, MethodId methodId,
-    bool isConstructor)
+    bool is_constructor)
 {
-  CHECK(!isConstructor || objectId != 0);
+  CHECK(!is_constructor || objectId != 0);
 
-  uint32_t numArgs = Read4BE(&buf);
+  uint32_t arg_count = Read4BE(&buf);
 
   VLOG(jdwp) << StringPrintf("    --> threadId=%llx objectId=%llx", threadId, objectId);
   VLOG(jdwp) << StringPrintf("        classId=%llx methodId=%x %s.%s", classId, methodId, Dbg::GetClassName(classId).c_str(), Dbg::GetMethodName(classId, methodId).c_str());
-  VLOG(jdwp) << StringPrintf("        %d args:", numArgs);
+  VLOG(jdwp) << StringPrintf("        %d args:", arg_count);
 
-  uint64_t* argArray = NULL;
-  if (numArgs > 0) {
-    argArray = (ObjectId*) malloc(sizeof(ObjectId) * numArgs);
-  }
-
-  for (uint32_t i = 0; i < numArgs; i++) {
-    JDWP::JdwpTag typeTag = ReadTag(&buf);
-    size_t width = Dbg::GetTagWidth(typeTag);
-    uint64_t value = jdwpReadValue(&buf, width);
-
-    VLOG(jdwp) << "          " << typeTag << StringPrintf("(%zd): 0x%llx", width, value);
-    argArray[i] = value;
+  UniquePtr<JdwpTag[]> argTypes(arg_count > 0 ? new JdwpTag[arg_count] : NULL);
+  UniquePtr<uint64_t[]> argValues(arg_count > 0 ? new uint64_t[arg_count] : NULL);
+  for (uint32_t i = 0; i < arg_count; ++i) {
+    argTypes[i] = ReadTag(&buf);
+    size_t width = Dbg::GetTagWidth(argTypes[i]);
+    argValues[i] = jdwpReadValue(&buf, width);
+    VLOG(jdwp) << "          " << argTypes[i] << StringPrintf("(%zd): 0x%llx", width, argValues[i]);
   }
 
   uint32_t options = Read4BE(&buf);  /* enum InvokeOptions bit flags */
   VLOG(jdwp) << StringPrintf("        options=0x%04x%s%s", options, (options & INVOKE_SINGLE_THREADED) ? " (SINGLE_THREADED)" : "", (options & INVOKE_NONVIRTUAL) ? " (NONVIRTUAL)" : "");
 
-  JDWP::JdwpTag resultTag;
+  JdwpTag resultTag;
   uint64_t resultValue;
   ObjectId exceptObjId;
-  JdwpError err = Dbg::InvokeMethod(threadId, objectId, classId, methodId, numArgs, argArray, options, &resultTag, &resultValue, &exceptObjId);
+  JdwpError err = Dbg::InvokeMethod(threadId, objectId, classId, methodId, arg_count, argValues.get(), argTypes.get(), options, &resultTag, &resultValue, &exceptObjId);
   if (err != ERR_NONE) {
-    goto bail;
+    return err;
   }
 
   if (err == ERR_NONE) {
-    if (isConstructor) {
-      expandBufAdd1(pReply, JT_OBJECT);
-      expandBufAddObjectId(pReply, objectId);
-    } else {
-      size_t width = Dbg::GetTagWidth(resultTag);
+    if (is_constructor) {
+      // If we invoked a constructor (which actually returns void), return the receiver,
+      // unless we threw, in which case we return NULL.
+      resultTag = JT_OBJECT;
+      resultValue = (exceptObjId == 0) ? objectId : 0;
+    }
 
-      expandBufAdd1(pReply, resultTag);
-      if (width != 0) {
-        jdwpWriteValue(pReply, width, resultValue);
-      }
+    size_t width = Dbg::GetTagWidth(resultTag);
+    expandBufAdd1(pReply, resultTag);
+    if (width != 0) {
+      jdwpWriteValue(pReply, width, resultValue);
     }
     expandBufAdd1(pReply, JT_OBJECT);
     expandBufAddObjectId(pReply, exceptObjId);
@@ -164,8 +160,6 @@ static JdwpError finishInvoke(JdwpState* state,
     }
   }
 
-bail:
-  free(argArray);
   return err;
 }
 

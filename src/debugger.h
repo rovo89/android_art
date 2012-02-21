@@ -54,8 +54,8 @@ struct DebugInvokeReq {
   Object* thread_;
   Class* class_;
   Method* method_;
-  uint32_t num_args_;
-  uint64_t* arg_array_;   /* will be NULL if numArgs==0 */
+  uint32_t arg_count_;
+  uint64_t* arg_values_;   /* will be NULL if arg_count_ == 0 */
   uint32_t options_;
 
   /* result */
@@ -228,7 +228,7 @@ class Dbg {
   static JDWP::JdwpError ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize size, JDWP::JdwpStepDepth depth);
   static void UnconfigureStep(JDWP::ObjectId threadId);
 
-  static JDWP::JdwpError InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t numArgs, uint64_t* argArray, uint32_t options, JDWP::JdwpTag* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptObj);
+  static JDWP::JdwpError InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t arg_count, uint64_t* arg_values, JDWP::JdwpTag* arg_types, uint32_t options, JDWP::JdwpTag* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptObj);
   static void ExecuteMethod(DebugInvokeReq* pReq);
 
   /* perform "late registration" of an object ID */

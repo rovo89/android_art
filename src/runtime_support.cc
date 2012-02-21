@@ -540,7 +540,7 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp) {
   // Fix up jobject arguments
   MethodHelper mh(jni_method);
   int reg_num = 2;  // Current register being processed, -1 for stack arguments.
-  for (int32_t i = 1; i < mh.GetShortyLength(); i++) {
+  for (uint32_t i = 1; i < mh.GetShortyLength(); i++) {
     char shorty_char = mh.GetShorty()[i];
     if (shorty_char == 'L') {
       WorkAroundJniBugsForJobject(arg_ptr);
