@@ -1914,7 +1914,6 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     DebugCallbackContext() {
       last_pc_valid = false;
       last_pc = 0;
-      gSingleStepControl.dex_pcs.clear();
     }
 
     static bool Callback(void* raw_context, uint32_t address, uint32_t line_number) {
@@ -1950,11 +1949,16 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     bool last_pc_valid;
     uint32_t last_pc;
   };
-  DebugCallbackContext context;
+  gSingleStepControl.dex_pcs.clear();
   const Method* m = gSingleStepControl.method;
-  MethodHelper mh(m);
-  mh.GetDexFile().DecodeDebugInfo(mh.GetCodeItem(), m->IsStatic(), m->GetDexMethodIndex(),
-                                  DebugCallbackContext::Callback, NULL, &context);
+  if (m->IsNative()) {
+    gSingleStepControl.line_number = -1;
+  } else {
+    DebugCallbackContext context;
+    MethodHelper mh(m);
+    mh.GetDexFile().DecodeDebugInfo(mh.GetCodeItem(), m->IsStatic(), m->GetDexMethodIndex(),
+                                    DebugCallbackContext::Callback, NULL, &context);
+  }
 
   //
   // Everything else...
