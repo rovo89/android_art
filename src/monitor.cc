@@ -239,51 +239,59 @@ static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...) {
   va_end(args);
 }
 
+static std::string ThreadToString(Thread* thread) {
+  if (thread == NULL) {
+    return "NULL";
+  }
+  std::ostringstream oss;
+  // TODO: alternatively, we could just return the thread's name.
+  oss << *thread;
+  return oss.str();
+}
+
 void Monitor::FailedUnlock(Object* obj, Thread* expected_owner, Thread* found_owner,
                            Monitor* mon) {
   // Acquire thread list lock so threads won't disappear from under us
   ScopedThreadListLock tll;
   // Re-read owner now that we hold lock
   Thread* current_owner = mon != NULL ? mon->owner_ : NULL;
-  std::ostringstream expected_ss;
-  expected_ss << expected_owner;
   if (current_owner == NULL) {
     if (found_owner == NULL) {
       ThrowIllegalMonitorStateExceptionF("unlock of unowned monitor on object of type '%s'"
                                          " on thread '%s'",
-                                         PrettyTypeOf(obj).c_str(), expected_ss.str().c_str());
+                                         PrettyTypeOf(obj).c_str(),
+                                         ThreadToString(expected_owner).c_str());
     } else {
       // Race: the original read found an owner but now there is none
-      std::ostringstream found_ss;
-      found_ss << found_owner;
       ThrowIllegalMonitorStateExceptionF("unlock of monitor owned by '%s' on object of type '%s'"
                                          " (where now the monitor appears unowned) on thread '%s'",
-                                         found_ss.str().c_str(), PrettyTypeOf(obj).c_str(),
-                                         expected_ss.str().c_str());
+                                         ThreadToString(found_owner).c_str(),
+                                         PrettyTypeOf(obj).c_str(),
+                                         ThreadToString(expected_owner).c_str());
     }
   } else {
-    std::ostringstream current_ss;
-    current_ss << current_owner;
     if (found_owner == NULL) {
       // Race: originally there was no owner, there is now
       ThrowIllegalMonitorStateExceptionF("unlock of monitor owned by '%s' on object of type '%s'"
                                          " (originally believed to be unowned) on thread '%s'",
-                                         current_ss.str().c_str(), PrettyTypeOf(obj).c_str(),
-                                         expected_ss.str().c_str());
+                                         ThreadToString(current_owner).c_str(),
+                                         PrettyTypeOf(obj).c_str(),
+                                         ThreadToString(expected_owner).c_str());
     } else {
       if (found_owner != current_owner) {
         // Race: originally found and current owner have changed
-        std::ostringstream found_ss;
-        found_ss << found_owner;
         ThrowIllegalMonitorStateExceptionF("unlock of monitor originally owned by '%s' (now"
                                            " owned by '%s') on object of type '%s' on thread '%s'",
-                                           found_ss.str().c_str(), current_ss.str().c_str(),
-                                           PrettyTypeOf(obj).c_str(), expected_ss.str().c_str());
+                                           ThreadToString(found_owner).c_str(),
+                                           ThreadToString(current_owner).c_str(),
+                                           PrettyTypeOf(obj).c_str(),
+                                           ThreadToString(expected_owner).c_str());
       } else {
         ThrowIllegalMonitorStateExceptionF("unlock of monitor owned by '%s' on object of type '%s'"
                                            " on thread '%s",
-                                           current_ss.str().c_str(), PrettyTypeOf(obj).c_str(),
-                                           expected_ss.str().c_str());
+                                           ThreadToString(current_owner).c_str(),
+                                           PrettyTypeOf(obj).c_str(),
+                                           ThreadToString(expected_owner).c_str());
       }
     }
   }
