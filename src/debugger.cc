@@ -1991,7 +1991,35 @@ void Dbg::UnconfigureStep(JDWP::ObjectId threadId) {
   gSingleStepControl.dex_pcs.clear();
 }
 
-JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t numArgs, uint64_t* argArray, uint32_t options, JDWP::JdwpTag* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptionId) {
+static char JdwpTagToShortyChar(JDWP::JdwpTag tag) {
+  switch (tag) {
+    default:
+      LOG(FATAL) << "unknown JDWP tag: " << PrintableChar(tag);
+
+    // Primitives.
+    case JDWP::JT_BYTE:    return 'B';
+    case JDWP::JT_CHAR:    return 'C';
+    case JDWP::JT_FLOAT:   return 'F';
+    case JDWP::JT_DOUBLE:  return 'D';
+    case JDWP::JT_INT:     return 'I';
+    case JDWP::JT_LONG:    return 'J';
+    case JDWP::JT_SHORT:   return 'S';
+    case JDWP::JT_VOID:    return 'V';
+    case JDWP::JT_BOOLEAN: return 'Z';
+
+    // Reference types.
+    case JDWP::JT_ARRAY:
+    case JDWP::JT_OBJECT:
+    case JDWP::JT_STRING:
+    case JDWP::JT_THREAD:
+    case JDWP::JT_THREAD_GROUP:
+    case JDWP::JT_CLASS_LOADER:
+    case JDWP::JT_CLASS_OBJECT:
+      return 'L';
+  }
+}
+
+JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t arg_count, uint64_t* arg_values, JDWP::JdwpTag* arg_types, uint32_t options, JDWP::JdwpTag* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptionId) {
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
 
   Thread* targetThread = NULL;
@@ -2030,22 +2058,54 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
     }
 
     JDWP::JdwpError status;
-    req->receiver_ = gRegistry->Get<Object*>(objectId);
-    if (req->receiver_ == kInvalidObject) {
+    Object* receiver = gRegistry->Get<Object*>(objectId);
+    if (receiver == kInvalidObject) {
       return JDWP::ERR_INVALID_OBJECT;
     }
-    req->thread_ = gRegistry->Get<Object*>(threadId); // TODO: check that this is actually a thread!
-    if (req->thread_ == kInvalidObject) {
+
+    Object* thread = gRegistry->Get<Object*>(threadId);
+    if (thread == kInvalidObject) {
       return JDWP::ERR_INVALID_OBJECT;
     }
-    req->class_ = DecodeClass(classId, status);
-    if (req->class_ == NULL) {
+    // TODO: check that 'thread' is actually a java.lang.Thread!
+
+    Class* c = DecodeClass(classId, status);
+    if (c == NULL) {
       return status;
     }
-    req->method_ = FromMethodId(methodId);
-    req->num_args_ = numArgs;
-    // TODO: check that the argument list is valid.
-    req->arg_array_ = argArray;
+
+    Method* m = FromMethodId(methodId);
+    if (m->IsStatic() != (receiver == NULL)) {
+      return JDWP::ERR_INVALID_METHODID;
+    }
+    if (m->IsStatic()) {
+      if (m->GetDeclaringClass() != c) {
+        return JDWP::ERR_INVALID_METHODID;
+      }
+    } else {
+      if (!m->GetDeclaringClass()->IsAssignableFrom(c)) {
+        return JDWP::ERR_INVALID_METHODID;
+      }
+    }
+
+    // Check the argument list matches the method.
+    MethodHelper mh(m);
+    if (mh.GetShortyLength() - 1 != arg_count) {
+      return JDWP::ERR_ILLEGAL_ARGUMENT;
+    }
+    const char* shorty = mh.GetShorty();
+    for (size_t i = 0; i < arg_count; ++i) {
+      if (shorty[i + 1] != JdwpTagToShortyChar(arg_types[i])) {
+        return JDWP::ERR_ILLEGAL_ARGUMENT;
+      }
+    }
+
+    req->receiver_ = receiver;
+    req->thread_ = thread;
+    req->class_ = c;
+    req->method_ = m;
+    req->arg_count_ = arg_count;
+    req->arg_values_ = arg_values;
     req->options_ = options;
     req->invoke_needed_ = true;
   }
@@ -2124,16 +2184,20 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
   Method* m = pReq->method_;
-  VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m);
   if ((pReq->options_ & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver_ != NULL) {
-    m = pReq->class_->FindVirtualMethodForVirtualOrInterface(pReq->method_);
-    VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m);
+    Method* actual_method = pReq->class_->FindVirtualMethodForVirtualOrInterface(pReq->method_);
+    if (actual_method != m) {
+      VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m) << " to " << PrettyMethod(actual_method);
+      m = actual_method;
+    }
   }
+  VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m);
   CHECK(m != NULL);
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 
-  pReq->result_value = InvokeWithJValues(self, pReq->receiver_, m, reinterpret_cast<JValue*>(pReq->arg_array_));
+  LOG(INFO) << "self=" << self << " pReq->receiver_=" << pReq->receiver_ << " m=" << m << " #" << pReq->arg_count_ << " " << pReq->arg_values_;
+  pReq->result_value = InvokeWithJValues(self, pReq->receiver_, m, reinterpret_cast<JValue*>(pReq->arg_values_));
 
   pReq->exception = gRegistry->Add(self->GetException());
   pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m).GetShorty());

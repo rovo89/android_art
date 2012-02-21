@@ -319,7 +319,7 @@ int32_t DexFile::GetStringLength(const StringId& string_id) const {
 }
 
 // Returns a pointer to the UTF-8 string data referred to by the given string_id.
-const char* DexFile::GetStringDataAndLength(const StringId& string_id, int32_t* length) const {
+const char* DexFile::GetStringDataAndLength(const StringId& string_id, uint32_t* length) const {
   DCHECK(length != NULL) << GetLocation();
   const byte* ptr = begin_ + string_id.string_data_off_;
   *length = DecodeUnsignedLeb128(&ptr);
@@ -427,7 +427,7 @@ const DexFile::StringId* DexFile::FindStringId(const std::string& string) const 
   uint32_t hi = NumStringIds() - 1;
   while (hi >= lo) {
     uint32_t mid = (hi + lo) / 2;
-    int32_t length;
+    uint32_t length;
     const DexFile::StringId& str_id = GetStringId(mid);
     const char* str = GetStringDataAndLength(str_id, &length);
     int compare = CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(string.c_str(), str);
@@ -563,7 +563,7 @@ std::string DexFile::CreateMethodSignature(uint32_t proto_idx, int32_t* unicode_
     for (size_t i = 0; i < type_list->Size(); ++i) {
       const TypeItem& type_item = type_list->GetTypeItem(i);
       uint32_t type_idx = type_item.type_idx_;
-      int32_t type_length;
+      uint32_t type_length;
       const char* name = StringByTypeIdx(type_idx, &type_length);
       parameter_length += type_length;
       descriptor.append(name);
@@ -571,7 +571,7 @@ std::string DexFile::CreateMethodSignature(uint32_t proto_idx, int32_t* unicode_
   }
   descriptor.push_back(')');
   uint32_t return_type_idx = proto_id.return_type_idx_;
-  int32_t return_type_length;
+  uint32_t return_type_length;
   const char* name = StringByTypeIdx(return_type_idx, &return_type_length);
   descriptor.append(name);
   if (unicode_length != NULL) {
