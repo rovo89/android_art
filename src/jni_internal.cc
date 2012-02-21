@@ -2252,7 +2252,7 @@ class JNI {
 
       VLOG(jni) << "[Registering JNI native method " << PrettyMethod(m) << "]";
 
-      m->RegisterNative(methods[i].fnPtr);
+      m->RegisterNative(ts.Self(), methods[i].fnPtr);
     }
     return JNI_OK;
   }

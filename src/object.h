@@ -762,7 +762,7 @@ class MANAGED Method : public Object {
 
   bool IsRegistered() const;
 
-  void RegisterNative(const void* native_method);
+  void RegisterNative(Thread* self, const void* native_method);
 
   void UnregisterNative();
 

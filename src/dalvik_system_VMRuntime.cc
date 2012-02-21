@@ -125,10 +125,10 @@ void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) 
   // Note that targetSdkVersion may be CUR_DEVELOPMENT (10000).
   // Note that targetSdkVersion may be 0, meaning "current".
   if (targetSdkVersion > 0 && targetSdkVersion <= 13 /* honeycomb-mr2 */) {
+    JNIEnvExt* env_ext = reinterpret_cast<JNIEnvExt*>(env);
     // TODO: running with CheckJNI should override this and force you to obey the strictest rules.
     LOG(INFO) << "Turning on JNI app bug workarounds for target SDK version " << targetSdkVersion << "...";
-    // Runtime::Current()->GetJavaVM()->work_around_app_jni_bugs = true;
-    UNIMPLEMENTED(WARNING) << "Support work arounds for app JNI bugs";
+    env_ext->vm->work_around_app_jni_bugs = true;
   }
 }
 

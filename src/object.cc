@@ -34,6 +34,7 @@
 #include "monitor.h"
 #include "object_utils.h"
 #include "runtime.h"
+#include "runtime_support.h"
 #include "stack.h"
 #include "utils.h"
 
@@ -598,17 +599,34 @@ bool Method::IsRegistered() const {
   return native_method != jni_stub;
 }
 
-void Method::RegisterNative(const void* native_method) {
+void Method::RegisterNative(Thread* self, const void* native_method) {
+  DCHECK(Thread::Current() == self);
   CHECK(IsNative()) << PrettyMethod(this);
   CHECK(native_method != NULL) << PrettyMethod(this);
-  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
-                           native_method, false);
+  if (!self->GetJniEnv()->vm->work_around_app_jni_bugs) {
+    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
+                             native_method, false);
+  } else {
+    // We've been asked to associate this method with the given native method but are working
+    // around JNI bugs, that include not giving Object** SIRT references to native methods. Direct
+    // the native method to runtime support and store the target somewhere runtime support will
+    // find it.
+#if defined(__arm__)
+    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
+        reinterpret_cast<const void*>(art_work_around_app_jni_bugs), false);
+#else
+    UNIMPLEMENTED(FATAL);
+#endif
+    SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, gc_map_),
+        reinterpret_cast<const uint8_t*>(native_method), false);
+  }
 }
 
 void Method::UnregisterNative() {
   CHECK(IsNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
-  RegisterNative(Runtime::Current()->GetJniDlsymLookupStub()->GetData());
+  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
+      Runtime::Current()->GetJniDlsymLookupStub()->GetData(), false);
 }
 
 void Class::SetStatus(Status new_status) {

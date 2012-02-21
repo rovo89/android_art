@@ -99,6 +99,7 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" void* art_resolve_string_from_code(void*, uint32_t);
   extern "C" void* art_resolve_method_from_code(void* referrer, uint32_t method_idx, bool is_direct);
   extern "C" void art_update_debugger(void*, void*, int32_t, void*);
+  extern "C" void art_work_around_app_jni_bugs();
 
   /* Conversions */
   extern "C" float __aeabi_i2f(int op1);             // OP_INT_TO_FLOAT

@@ -210,6 +210,23 @@ INVOKE_TRAMPOLINE art_invoke_direct_trampoline_with_access_check, artInvokeDirec
 INVOKE_TRAMPOLINE art_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
+    .global art_work_around_app_jni_bugs
+    .extern artWorkAroundAppJniBugs
+    /*
+     * Entry point of native methods when JNI bug compatibility is enabled.
+     */
+art_work_around_app_jni_bugs:
+    @ save registers that may contain arguments and LR that will be crushed by a call
+    push {r0-r3, lr}
+    sub sp, #12      @ 3 words of space for alignment
+    mov r0, r9       @ pass Thread::Current
+    mov r1, sp       @ pass SP
+    bl  artWorkAroundAppJniBugs  @ (Thread*, SP)
+    add sp, #12      @ rewind stack
+    mov r12, r0      @ save target address
+    pop {r0-r3, lr}  @ restore possibly modified argument registers
+    bx  r12          @ tail call into JNI routine
+
     .global art_handle_fill_data_from_code
     .extern artHandleFillArrayDataFromCode
     /*

@@ -131,21 +131,21 @@ extern Object* DecodeJObjectInThread(Thread* thread, jobject obj) {
   return thread->DecodeJObject(obj);
 }
 
-extern void* FindNativeMethod(Thread* thread) {
-  DCHECK(Thread::Current() == thread);
+extern void* FindNativeMethod(Thread* self) {
+  DCHECK(Thread::Current() == self);
 
-  Method* method = const_cast<Method*>(thread->GetCurrentMethod());
+  Method* method = const_cast<Method*>(self->GetCurrentMethod());
   DCHECK(method != NULL);
 
   // Lookup symbol address for method, on failure we'll return NULL with an
   // exception set, otherwise we return the address of the method we found.
-  void* native_code = thread->GetJniEnv()->vm->FindCodeForNativeMethod(method);
+  void* native_code = self->GetJniEnv()->vm->FindCodeForNativeMethod(method);
   if (native_code == NULL) {
-    DCHECK(thread->IsExceptionPending());
+    DCHECK(self->IsExceptionPending());
     return NULL;
   } else {
     // Register so that future calls don't come here
-    method->RegisterNative(native_code);
+    method->RegisterNative(self, native_code);
     return native_code;
   }
 }
@@ -509,6 +509,74 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
   }
   return code;
 }
+
+static void WorkAroundJniBugsForJobject(intptr_t* arg_ptr) {
+  intptr_t value = *arg_ptr;
+  Object** value_as_jni_rep = reinterpret_cast<Object**>(value);
+  Object* value_as_work_around_rep = value_as_jni_rep != NULL ? *value_as_jni_rep : NULL;
+  CHECK(Heap::IsHeapAddress(value_as_work_around_rep));
+  *arg_ptr = reinterpret_cast<intptr_t>(value_as_work_around_rep);
+}
+
+extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp) {
+  DCHECK(Thread::Current() == self);
+  // TODO: this code is specific to ARM
+  // On entry the stack pointed by sp is:
+  // | arg3   | <- Calling JNI method's frame (and extra bit for out args)
+  // | LR     |
+  // | R3     |    arg2
+  // | R2     |    arg1
+  // | R1     |    jclass/jobject
+  // | R0     |    JNIEnv
+  // | unused |
+  // | unused |
+  // | unused | <- sp
+  Method* jni_method = self->GetTopOfStack().GetMethod();
+  DCHECK(jni_method->IsNative()) << PrettyMethod(jni_method);
+  intptr_t* arg_ptr = sp + 4;  // pointer to r1 on stack
+  // Fix up this/jclass argument
+  WorkAroundJniBugsForJobject(arg_ptr);
+  arg_ptr++;
+  // Fix up jobject arguments
+  MethodHelper mh(jni_method);
+  int reg_num = 2;  // Current register being processed, -1 for stack arguments.
+  for (int32_t i = 1; i < mh.GetShortyLength(); i++) {
+    char shorty_char = mh.GetShorty()[i];
+    if (shorty_char == 'L') {
+      WorkAroundJniBugsForJobject(arg_ptr);
+    }
+    if (shorty_char == 'J' || shorty_char == 'D') {
+      if (reg_num == 2) {
+        arg_ptr = sp + 8;  // skip to out arguments
+        reg_num = -1;
+      } else if (reg_num == 3) {
+        arg_ptr = sp + 10;  // skip to out arguments plus 2 slots as long must be aligned
+        reg_num = -1;
+      } else {
+        DCHECK(reg_num == -1);
+        if ((reinterpret_cast<intptr_t>(arg_ptr) & 7) == 4) {
+          arg_ptr += 3;  // unaligned, pad and move through stack arguments
+        } else {
+          arg_ptr += 2;  // aligned, move through stack arguments
+        }
+      }
+    } else {
+      if (reg_num == 2) {
+        arg_ptr++; // move through register arguments
+        reg_num++;
+      } else if (reg_num == 3) {
+        arg_ptr = sp + 8;  // skip to outgoing stack arguments
+        reg_num = -1;
+      } else {
+        DCHECK(reg_num == -1);
+        arg_ptr++;  // move through stack arguments
+      }
+    }
+  }
+  // Load expected destination, see Method::RegisterNative
+  return reinterpret_cast<const void*>(jni_method->GetGcMapRaw());
+}
+
 
 // Fast path field resolution that can't throw exceptions
 static Field* FindFieldFast(uint32_t field_idx, const Method* referrer, bool is_primitive,
