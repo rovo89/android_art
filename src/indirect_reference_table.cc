@@ -247,7 +247,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
     LOG(WARNING) << "Attempt to remove local SIRT entry from IRT, ignoring";
     return true;
   }
-  if (GetIndirectRefKind(iref) == kSirtOrInvalid || vm->work_around_app_jni_bugs) {
+  if (GetIndirectRefKind(iref) == kSirtOrInvalid && vm->work_around_app_jni_bugs) {
     Object* direct_pointer = reinterpret_cast<Object*>(iref);
     idx = Find(direct_pointer, bottomIndex, topIndex, table_);
     if (idx == -1) {
