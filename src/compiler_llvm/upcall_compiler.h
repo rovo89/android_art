@@ -34,19 +34,19 @@ namespace llvm {
 namespace art {
 namespace compiler_llvm {
 
+class CompilationUnit;
 class CompilerLLVM;
 class IRBuilder;
 
 class UpcallCompiler {
  public:
-  UpcallCompiler(InstructionSet insn_set, Compiler& compiler);
+  UpcallCompiler(CompilationUnit* cunit, Compiler& compiler);
 
   CompiledInvokeStub* CreateStub(bool is_static, char const* shorty);
 
  private:
-  InstructionSet insn_set_;
+  CompilationUnit* cunit_;
   Compiler const* compiler_;
-  CompilerLLVM* compiler_llvm_;
   llvm::Module* module_;
   llvm::LLVMContext* context_;
   IRBuilder& irb_;

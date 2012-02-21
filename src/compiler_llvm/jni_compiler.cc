@@ -17,6 +17,7 @@
 #include "jni_compiler.h"
 
 #include "class_linker.h"
+#include "compilation_unit.h"
 #include "compiled_method.h"
 #include "compiler.h"
 #include "compiler_llvm.h"
@@ -35,14 +36,11 @@ namespace art {
 namespace compiler_llvm {
 
 
-JniCompiler::JniCompiler(InstructionSet insn_set,
+JniCompiler::JniCompiler(CompilationUnit* cunit,
                          Compiler const& compiler,
                          OatCompilationUnit* oat_compilation_unit)
-: insn_set_(insn_set), compiler_(&compiler),
-  compiler_llvm_(compiler_->GetCompilerLLVM()),
-  module_(compiler_llvm_->GetModule()),
-  context_(compiler_llvm_->GetLLVMContext()),
-  irb_(*compiler_llvm_->GetIRBuilder()),
+: cunit_(cunit), compiler_(&compiler), module_(cunit_->GetModule()),
+  context_(cunit_->GetLLVMContext()), irb_(*cunit_->GetIRBuilder()),
   oat_compilation_unit_(oat_compilation_unit),
   access_flags_(oat_compilation_unit->access_flags_),
   method_idx_(oat_compilation_unit->method_idx_),
@@ -63,7 +61,7 @@ JniCompiler::JniCompiler(InstructionSet insn_set,
 CompiledMethod* JniCompiler::Compile() {
   CreateFunction();
 
-  return new CompiledMethod(insn_set_, func_);
+  return new CompiledMethod(cunit_->GetInstructionSet(), func_);
 }
 
 

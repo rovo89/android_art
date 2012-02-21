@@ -124,6 +124,9 @@ class Compiler {
                          int& vtable_idx);
 
 #if defined(ART_USE_LLVM_COMPILER)
+  void SetElfFileName(std::string const& filename);
+  void SetBitcodeFileName(std::string const& filename);
+
   compiler_llvm::CompilerLLVM* GetCompilerLLVM() const {
     return compiler_llvm_.get();
   }

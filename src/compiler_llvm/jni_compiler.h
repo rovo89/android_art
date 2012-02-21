@@ -42,12 +42,12 @@ namespace llvm {
 namespace art {
 namespace compiler_llvm {
 
-class CompilerLLVM;
+class CompilationUnit;
 class IRBuilder;
 
 class JniCompiler {
  public:
-  JniCompiler(InstructionSet insn_set,
+  JniCompiler(CompilationUnit* cunit,
               Compiler const& compiler,
               OatCompilationUnit* oat_compilation_unit);
 
@@ -60,9 +60,8 @@ class JniCompiler {
                                       bool is_static);
 
  private:
-  InstructionSet insn_set_;
+  CompilationUnit* cunit_;
   Compiler const* compiler_;
-  CompilerLLVM* compiler_llvm_;
 
   llvm::Module* module_;
   llvm::LLVMContext* context_;

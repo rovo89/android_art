@@ -56,14 +56,14 @@ namespace llvm {
 namespace art {
 namespace compiler_llvm {
 
+class CompilationUnit;
 class CompilerLLVM;
 class IRBuilder;
 
 class MethodCompiler {
  private:
-  InstructionSet insn_set_;
+  CompilationUnit* cunit_;
   Compiler* compiler_;
-  compiler_llvm::CompilerLLVM* compiler_llvm_;
 
   ClassLinker* class_linker_;
   ClassLoader const* class_loader_;
@@ -101,7 +101,7 @@ class MethodCompiler {
 
 
  public:
-  MethodCompiler(InstructionSet insn_set,
+  MethodCompiler(CompilationUnit* cunit,
                  Compiler* compiler,
                  OatCompilationUnit* oat_compilation_unit);
 

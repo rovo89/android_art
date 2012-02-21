@@ -47,6 +47,7 @@ namespace llvm {
 namespace art {
 namespace compiler_llvm {
 
+class CompilationUnit;
 class IRBuilder;
 
 class CompilerLLVM {
@@ -55,9 +56,7 @@ class CompilerLLVM {
 
   ~CompilerLLVM();
 
-  void MaterializeLLVMModule();
-
-  void WriteBitcodeToFile(std::string const &filename);
+  void MaterializeEveryCompilationUnit();
 
   Compiler* GetCompiler() const {
     return compiler_;
@@ -67,16 +66,12 @@ class CompilerLLVM {
     return insn_set_;
   }
 
-  llvm::Module* GetModule() const {
-    return module_;
+  void SetElfFileName(std::string const& filename) {
+    elf_filename_ = filename;
   }
 
-  llvm::LLVMContext* GetLLVMContext() const {
-    return context_.get();
-  }
-
-  IRBuilder* GetIRBuilder() const {
-    return irb_.get();
+  void SetBitcodeFileName(std::string const& filename) {
+    bitcode_filename_ = filename;
   }
 
   CompiledMethod* CompileDexMethod(OatCompilationUnit* oat_compilation_unit);
@@ -86,17 +81,25 @@ class CompilerLLVM {
   CompiledInvokeStub* CreateInvokeStub(bool is_static, char const *shorty);
 
  private:
+  void EnsureCompilationUnit();
+
+  void MaterializeCompilationUnit();
+
+  void MaterializeCompilationUnitSafePoint();
+
   Compiler* compiler_;
 
   Mutex compiler_lock_;
 
   InstructionSet insn_set_;
 
-  UniquePtr<llvm::LLVMContext> context_;
+  UniquePtr<CompilationUnit> cunit_;
 
-  UniquePtr<IRBuilder> irb_;
+  unsigned cunit_counter_;
 
-  llvm::Module* module_;
+  std::string elf_filename_;
+
+  std::string bitcode_filename_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerLLVM);
 };

@@ -347,7 +347,7 @@ void Compiler::PostCompile(const ClassLoader* class_loader,
                            const std::vector<const DexFile*>& dex_files) {
   SetGcMaps(class_loader, dex_files);
 #if defined(ART_USE_LLVM_COMPILER)
-  compiler_llvm_->MaterializeLLVMModule();
+  compiler_llvm_->MaterializeEveryCompilationUnit();
 #endif
 }
 
@@ -1148,5 +1148,15 @@ void Compiler::SetGcMapsMethod(const DexFile& dex_file, Method* method) {
   }
   compiled_method->SetGcMap(*gc_map);
 }
+
+#if defined(ART_USE_LLVM_COMPILER)
+void Compiler::SetElfFileName(std::string const& filename) {
+  compiler_llvm_->SetElfFileName(filename);
+}
+
+void Compiler::SetBitcodeFileName(std::string const& filename) {
+  compiler_llvm_->SetBitcodeFileName(filename);
+}
+#endif
 
 }  // namespace art

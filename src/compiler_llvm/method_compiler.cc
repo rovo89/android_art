@@ -17,6 +17,7 @@
 #include "method_compiler.h"
 
 #include "backend_types.h"
+#include "compilation_unit.h"
 #include "compiler.h"
 #include "inferred_reg_category_map.h"
 #include "ir_builder.h"
@@ -43,30 +44,29 @@ namespace compiler_llvm {
 using namespace runtime_support;
 
 
-MethodCompiler::MethodCompiler(InstructionSet insn_set,
+MethodCompiler::MethodCompiler(CompilationUnit* cunit,
                                Compiler* compiler,
                                OatCompilationUnit* oat_compilation_unit)
-: insn_set_(insn_set), compiler_(compiler),
-  compiler_llvm_(compiler->GetCompilerLLVM()),
-  class_linker_(oat_compilation_unit->class_linker_),
-  class_loader_(oat_compilation_unit->class_loader_),
-  dex_file_(oat_compilation_unit->dex_file_),
-  dex_cache_(oat_compilation_unit->dex_cache_),
-  code_item_(oat_compilation_unit->code_item_),
-  oat_compilation_unit_(oat_compilation_unit),
-  method_(dex_cache_->GetResolvedMethod(oat_compilation_unit->method_idx_)),
-  method_helper_(method_),
-  method_idx_(oat_compilation_unit->method_idx_),
-  access_flags_(oat_compilation_unit->access_flags_),
-  module_(compiler_llvm_->GetModule()),
-  context_(compiler_llvm_->GetLLVMContext()),
-  irb_(*compiler_llvm_->GetIRBuilder()), func_(NULL), retval_reg_(NULL),
-  basic_block_reg_alloca_(NULL), basic_block_shadow_frame_alloca_(NULL),
-  basic_block_reg_zero_init_(NULL), basic_block_reg_arg_init_(NULL),
-  basic_blocks_(code_item_->insns_size_in_code_units_),
-  basic_block_landing_pads_(code_item_->tries_size_, NULL),
-  basic_block_unwind_(NULL), basic_block_unreachable_(NULL),
-  shadow_frame_(NULL) {
+  : cunit_(cunit), compiler_(compiler),
+    class_linker_(oat_compilation_unit->class_linker_),
+    class_loader_(oat_compilation_unit->class_loader_),
+    dex_file_(oat_compilation_unit->dex_file_),
+    dex_cache_(oat_compilation_unit->dex_cache_),
+    code_item_(oat_compilation_unit->code_item_),
+    oat_compilation_unit_(oat_compilation_unit),
+    method_(dex_cache_->GetResolvedMethod(oat_compilation_unit->method_idx_)),
+    method_helper_(method_),
+    method_idx_(oat_compilation_unit->method_idx_),
+    access_flags_(oat_compilation_unit->access_flags_),
+    module_(cunit->GetModule()),
+    context_(cunit->GetLLVMContext()),
+    irb_(*cunit->GetIRBuilder()), func_(NULL), retval_reg_(NULL),
+    basic_block_reg_alloca_(NULL), basic_block_shadow_frame_alloca_(NULL),
+    basic_block_reg_zero_init_(NULL), basic_block_reg_arg_init_(NULL),
+    basic_blocks_(code_item_->insns_size_in_code_units_),
+    basic_block_landing_pads_(code_item_->tries_size_, NULL),
+    basic_block_unwind_(NULL), basic_block_unreachable_(NULL),
+    shadow_frame_(NULL) {
 }
 
 
@@ -3529,7 +3529,13 @@ CompiledMethod *MethodCompiler::Compile() {
   // Delete the inferred register category map (won't be used anymore)
   method_->ResetInferredRegCategoryMap();
 
-  return new CompiledMethod(insn_set_, func_);
+  // Add the memory usage approximation of the compilation unit
+  cunit_->AddMemUsageApproximation(code_item_->insns_size_in_code_units_ * 900);
+  // NOTE: From statistic, the bitcode size is 4.5 times bigger than the
+  // Dex file.  Besides, we have to convert the code unit into bytes.
+  // Thus, we got our magic number 9.
+
+  return new CompiledMethod(cunit_->GetInstructionSet(), func_);
 }
 
 
