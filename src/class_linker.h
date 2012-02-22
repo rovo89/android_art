@@ -441,6 +441,7 @@ class ClassLinker {
     kDalvikSystemBaseDexClassLoader,
     kDalvikSystemPathClassLoader,
     kJavaLangThrowable,
+    kJavaLangClassNotFoundException,
     kJavaLangStackTraceElement,
     kPrimitiveBoolean,
     kPrimitiveByte,

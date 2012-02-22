@@ -31,7 +31,7 @@ extern void DebugMe(Method* method, uint32_t info);
 extern void UpdateDebuggerFromCode(Method* method, Thread* thread , int32_t dex_pc, Method** sp);
 extern Object* DecodeJObjectInThread(Thread* thread, jobject obj);
 extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* self,
-                                bool is_static, bool is_primitive, size_t expected_size);
+                                bool is_static, bool is_primitive, bool is_set, size_t expected_size);
 extern void* FindNativeMethod(Thread* thread);
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp);
 void* UnresolvedDirectMethodTrampolineFromCode(int32_t, Method**, Thread*, Runtime::TrampolineType);
