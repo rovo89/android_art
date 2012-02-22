@@ -453,12 +453,12 @@ std::ostream& operator<<(std::ostream& os, const JdwpTransportType& value) {
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs) {
   os << "JdwpLocation["
      << Dbg::GetClassName(rhs.classId) << "." << Dbg::GetMethodName(rhs.classId, rhs.methodId)
-     << "@" << rhs.idx << " " << rhs.typeTag << "]";
+     << "@" << rhs.dex_pc << " " << rhs.typeTag << "]";
   return os;
 }
 
 bool operator==(const JdwpLocation& lhs, const JdwpLocation& rhs) {
-  return lhs.idx == rhs.idx && lhs.methodId == rhs.methodId &&
+  return lhs.dex_pc == rhs.dex_pc && lhs.methodId == rhs.methodId &&
       lhs.classId == rhs.classId && lhs.typeTag == rhs.typeTag;
 }
 

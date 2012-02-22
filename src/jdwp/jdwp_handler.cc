@@ -52,7 +52,7 @@ static void jdwpReadLocation(const uint8_t** pBuf, JdwpLocation* pLoc) {
   pLoc->typeTag = ReadTypeTag(pBuf);
   pLoc->classId = ReadObjectId(pBuf);
   pLoc->methodId = ReadMethodId(pBuf);
-  pLoc->idx = Read8BE(pBuf);
+  pLoc->dex_pc = Read8BE(pBuf);
 }
 
 /*
@@ -62,7 +62,7 @@ void AddLocation(ExpandBuf* pReply, const JdwpLocation* pLoc) {
   expandBufAdd1(pReply, pLoc->typeTag);
   expandBufAddObjectId(pReply, pLoc->classId);
   expandBufAddMethodId(pReply, pLoc->methodId);
-  expandBufAdd8BE(pReply, pLoc->idx);
+  expandBufAdd8BE(pReply, pLoc->dex_pc);
 }
 
 /*
@@ -1201,12 +1201,10 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
    * Read modifiers.  Ordering may be significant (see explanation of Count
    * mods in JDWP doc).
    */
-  for (uint32_t idx = 0; idx < modifierCount; idx++) {
-    JdwpModKind modKind = static_cast<JdwpModKind>(Read1(&buf));
-
-    pEvent->mods[idx].modKind = modKind;
-
-    switch (modKind) {
+  for (uint32_t i = 0; i < modifierCount; ++i) {
+    JdwpEventMod& mod = pEvent->mods[i];
+    mod.modKind = static_cast<JdwpModKind>(Read1(&buf));
+    switch (mod.modKind) {
     case MK_COUNT:          /* report once, when "--count" reaches 0 */
       {
         uint32_t count = Read4BE(&buf);
@@ -1214,28 +1212,28 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         if (count == 0) {
           return ERR_INVALID_COUNT;
         }
-        pEvent->mods[idx].count.count = count;
+        mod.count.count = count;
       }
       break;
     case MK_CONDITIONAL:    /* conditional on expression) */
       {
         uint32_t exprId = Read4BE(&buf);
         VLOG(jdwp) << "    Conditional: " << exprId;
-        pEvent->mods[idx].conditional.exprId = exprId;
+        mod.conditional.exprId = exprId;
       }
       break;
     case MK_THREAD_ONLY:    /* only report events in specified thread */
       {
         ObjectId threadId = ReadObjectId(&buf);
         VLOG(jdwp) << StringPrintf("    ThreadOnly: %llx", threadId);
-        pEvent->mods[idx].threadOnly.threadId = threadId;
+        mod.threadOnly.threadId = threadId;
       }
       break;
     case MK_CLASS_ONLY:     /* for ClassPrepare, MethodEntry */
       {
         RefTypeId clazzId = ReadRefTypeId(&buf);
         VLOG(jdwp) << StringPrintf("    ClassOnly: %llx (%s)", clazzId, Dbg::GetClassName(clazzId).c_str());
-        pEvent->mods[idx].classOnly.refTypeId = clazzId;
+        mod.classOnly.refTypeId = clazzId;
       }
       break;
     case MK_CLASS_MATCH:    /* restrict events to matching classes */
@@ -1244,7 +1242,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         std::string pattern(ReadNewUtf8String(&buf));
         std::replace(pattern.begin(), pattern.end(), '.', '/');
         VLOG(jdwp) << "    ClassMatch: '" << pattern << "'";
-        pEvent->mods[idx].classMatch.classPattern = strdup(pattern.c_str());
+        mod.classMatch.classPattern = strdup(pattern.c_str());
       }
       break;
     case MK_CLASS_EXCLUDE:  /* restrict events to non-matching classes */
@@ -1253,7 +1251,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         std::string pattern(ReadNewUtf8String(&buf));
         std::replace(pattern.begin(), pattern.end(), '.', '/');
         VLOG(jdwp) << "    ClassExclude: '" << pattern << "'";
-        pEvent->mods[idx].classExclude.classPattern = strdup(pattern.c_str());
+        mod.classExclude.classPattern = strdup(pattern.c_str());
       }
       break;
     case MK_LOCATION_ONLY:  /* restrict certain events based on loc */
@@ -1261,7 +1259,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         JdwpLocation loc;
         jdwpReadLocation(&buf, &loc);
         VLOG(jdwp) << "    LocationOnly: " << loc;
-        pEvent->mods[idx].locationOnly.loc = loc;
+        mod.locationOnly.loc = loc;
       }
       break;
     case MK_EXCEPTION_ONLY: /* modifies EK_EXCEPTION events */
@@ -1275,9 +1273,9 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         VLOG(jdwp) << StringPrintf("    ExceptionOnly: type=%llx(%s) caught=%d uncaught=%d",
             exceptionOrNull, (exceptionOrNull == 0) ? "null" : Dbg::GetClassName(exceptionOrNull).c_str(), caught, uncaught);
 
-        pEvent->mods[idx].exceptionOnly.refTypeId = exceptionOrNull;
-        pEvent->mods[idx].exceptionOnly.caught = caught;
-        pEvent->mods[idx].exceptionOnly.uncaught = uncaught;
+        mod.exceptionOnly.refTypeId = exceptionOrNull;
+        mod.exceptionOnly.caught = caught;
+        mod.exceptionOnly.uncaught = uncaught;
       }
       break;
     case MK_FIELD_ONLY:     /* for field access/mod events */
@@ -1285,8 +1283,8 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         RefTypeId declaring = ReadRefTypeId(&buf);
         FieldId fieldId = ReadFieldId(&buf);
         VLOG(jdwp) << StringPrintf("    FieldOnly: %llx %x", declaring, fieldId);
-        pEvent->mods[idx].fieldOnly.refTypeId = declaring;
-        pEvent->mods[idx].fieldOnly.fieldId = fieldId;
+        mod.fieldOnly.refTypeId = declaring;
+        mod.fieldOnly.fieldId = fieldId;
       }
       break;
     case MK_STEP:           /* for use with EK_SINGLE_STEP */
@@ -1300,20 +1298,20 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         VLOG(jdwp) << StringPrintf("    Step: thread=%llx", threadId)
                      << " size=" << JdwpStepSize(size) << " depth=" << JdwpStepDepth(depth);
 
-        pEvent->mods[idx].step.threadId = threadId;
-        pEvent->mods[idx].step.size = size;
-        pEvent->mods[idx].step.depth = depth;
+        mod.step.threadId = threadId;
+        mod.step.size = size;
+        mod.step.depth = depth;
       }
       break;
     case MK_INSTANCE_ONLY:  /* report events related to a specific obj */
       {
         ObjectId instance = ReadObjectId(&buf);
         VLOG(jdwp) << StringPrintf("    InstanceOnly: %llx", instance);
-        pEvent->mods[idx].instanceOnly.objectId = instance;
+        mod.instanceOnly.objectId = instance;
       }
       break;
     default:
-      LOG(WARNING) << "GLITCH: unsupported modKind=" << modKind;
+      LOG(WARNING) << "GLITCH: unsupported modKind=" << mod.modKind;
       break;
     }
   }

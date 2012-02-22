@@ -76,7 +76,7 @@ struct JdwpLocation {
   JdwpTypeTag typeTag;
   RefTypeId classId;
   MethodId methodId;
-  uint64_t idx; // A Dex PC.
+  uint64_t dex_pc;
 };
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs);
 bool operator==(const JdwpLocation& lhs, const JdwpLocation& rhs);

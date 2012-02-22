@@ -938,7 +938,7 @@ static void SetLocation(JDWP::JdwpLocation& location, Method* m, uintptr_t nativ
     location.typeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
     location.classId = gRegistry->Add(c);
     location.methodId = ToMethodId(m);
-    location.idx = m->IsNative() ? -1 : m->ToDexPC(native_pc);
+    location.dex_pc = m->IsNative() ? -1 : m->ToDexPC(native_pc);
   }
 }
 
@@ -1682,7 +1682,7 @@ void Dbg::PostLocationEvent(const Method* m, int dex_pc, Object* this_object, in
   location.typeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
   location.classId = gRegistry->Add(c);
   location.methodId = ToMethodId(m);
-  location.idx = m->IsNative() ? -1 : dex_pc;
+  location.dex_pc = m->IsNative() ? -1 : dex_pc;
 
   // Note we use "NoReg" so we don't keep track of references that are
   // never actually sent to the debugger. 'this_id' is only used to
@@ -1848,7 +1848,7 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
 void Dbg::WatchLocation(const JDWP::JdwpLocation* location) {
   MutexLock mu(gBreakpointsLock);
   Method* m = FromMethodId(location->methodId);
-  gBreakpoints.push_back(Breakpoint(m, location->idx));
+  gBreakpoints.push_back(Breakpoint(m, location->dex_pc));
   VLOG(jdwp) << "Set breakpoint #" << (gBreakpoints.size() - 1) << ": " << gBreakpoints[gBreakpoints.size() - 1];
 }
 
@@ -1856,7 +1856,7 @@ void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
   MutexLock mu(gBreakpointsLock);
   Method* m = FromMethodId(location->methodId);
   for (size_t i = 0; i < gBreakpoints.size(); ++i) {
-    if (gBreakpoints[i].method == m && gBreakpoints[i].dex_pc == location->idx) {
+    if (gBreakpoints[i].method == m && gBreakpoints[i].dex_pc == location->dex_pc) {
       VLOG(jdwp) << "Removed breakpoint #" << i << ": " << gBreakpoints[i];
       gBreakpoints.erase(gBreakpoints.begin() + i);
       return;
