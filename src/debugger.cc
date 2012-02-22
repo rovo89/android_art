@@ -122,12 +122,12 @@ struct AllocRecord {
 
 struct Breakpoint {
   Method* method;
-  uint32_t pc;
-  Breakpoint(Method* method, uint32_t pc) : method(method), pc(pc) {}
+  uint32_t dex_pc;
+  Breakpoint(Method* method, uint32_t dex_pc) : method(method), dex_pc(dex_pc) {}
 };
 
 static std::ostream& operator<<(std::ostream& os, const Breakpoint& rhs) {
-  os << "Breakpoint[" << PrettyMethod(rhs.method) << " @" << rhs.pc << "]";
+  os << "Breakpoint[" << PrettyMethod(rhs.method) << " @" << rhs.dex_pc << "]";
   return os;
 }
 
@@ -184,9 +184,8 @@ static SingleStepControl gSingleStepControl;
 
 static bool IsBreakpoint(Method* m, uint32_t dex_pc) {
   MutexLock mu(gBreakpointsLock);
-  uint32_t pc = dex_pc / 2; // dex bytecodes are twice the size JDWP expects.
   for (size_t i = 0; i < gBreakpoints.size(); ++i) {
-    if (gBreakpoints[i].method == m && gBreakpoints[i].pc == pc) {
+    if (gBreakpoints[i].method == m && gBreakpoints[i].dex_pc == dex_pc) {
       VLOG(jdwp) << "Hit breakpoint #" << i << ": " << gBreakpoints[i];
       return true;
     }
@@ -893,12 +892,10 @@ JDWP::JdwpError Dbg::CreateArrayObject(JDWP::RefTypeId arrayClassId, uint32_t le
 bool Dbg::MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId) {
   JDWP::JdwpError status;
   Class* c1 = DecodeClass(instClassId, status);
+  CHECK(c1 != NULL);
   Class* c2 = DecodeClass(classId, status);
-  if (c1 == NULL || c2 == NULL) {
-    // TODO: it doesn't seem like we can do any better here?
-    return false;
-  }
-  return c1->InstanceOf(c2);
+  CHECK(c2 != NULL);
+  return c1->IsAssignableFrom(c2);
 }
 
 static JDWP::FieldId ToFieldId(const Field* f) {
@@ -941,7 +938,7 @@ static void SetLocation(JDWP::JdwpLocation& location, Method* m, uintptr_t nativ
     location.typeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
     location.classId = gRegistry->Add(c);
     location.methodId = ToMethodId(m);
-    location.idx = m->IsNative() ? -1 : m->ToDexPC(native_pc) / 2;
+    location.idx = m->IsNative() ? -1 : m->ToDexPC(native_pc);
   }
 }
 
@@ -1455,6 +1452,10 @@ bool Dbg::GetThreadFrame(JDWP::ObjectId threadId, int desired_frame_number, JDWP
         : found(false), depth(0), desired_frame_number(desired_frame_number), pFrameId(pFrameId), pLoc(pLoc) {
     }
     virtual void VisitFrame(const Frame& f, uintptr_t pc) {
+      if (found) {
+        return;
+      }
+
       // TODO: we'll need to skip callee-save frames too.
       if (!f.HasMethod()) {
         return; // The debugger can't do anything useful with a frame that has no Method*.
@@ -1681,7 +1682,7 @@ void Dbg::PostLocationEvent(const Method* m, int dex_pc, Object* this_object, in
   location.typeTag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
   location.classId = gRegistry->Add(c);
   location.methodId = ToMethodId(m);
-  location.idx = m->IsNative() ? -1 : dex_pc / 2;
+  location.idx = m->IsNative() ? -1 : dex_pc;
 
   // Note we use "NoReg" so we don't keep track of references that are
   // never actually sent to the debugger. 'this_id' is only used to
@@ -1855,7 +1856,7 @@ void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
   MutexLock mu(gBreakpointsLock);
   Method* m = FromMethodId(location->methodId);
   for (size_t i = 0; i < gBreakpoints.size(); ++i) {
-    if (gBreakpoints[i].method == m && gBreakpoints[i].pc == location->idx) {
+    if (gBreakpoints[i].method == m && gBreakpoints[i].dex_pc == location->idx) {
       VLOG(jdwp) << "Removed breakpoint #" << i << ": " << gBreakpoints[i];
       gBreakpoints.erase(gBreakpoints.begin() + i);
       return;
