@@ -72,6 +72,7 @@ art_cflags := \
 
 ifeq ($(ART_USE_LLVM_COMPILER),true)
 art_cflags := \
+	$(art_cflags) \
 	-DART_USE_LLVM_COMPILER=1
 endif
 
