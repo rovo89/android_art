@@ -1174,7 +1174,7 @@ class DexVerifier {
    * the referrer can access the resolved method.
    * Does not throw exceptions.
    */
-  Method* ResolveMethodAndCheckAccess(uint32_t method_idx,  bool is_direct);
+  Method* ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type);
 
   /*
    * Verify the arguments to a method. We're executing in "method", making

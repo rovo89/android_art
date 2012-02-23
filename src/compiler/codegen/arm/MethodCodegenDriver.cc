@@ -177,7 +177,7 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
     bool fastPath =
         cUnit->compiler->ComputeStaticFieldInfo(fieldIdx, cUnit,
                                                 fieldOffset, ssbIndex,
-                                                isReferrersClass, isVolatile);
+                                                isReferrersClass, isVolatile, true);
     if (fastPath && !SLOW_FIELD_PATH) {
         DCHECK_GE(fieldOffset, 0);
         int rBase;
@@ -271,7 +271,7 @@ STATIC void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     bool fastPath =
         cUnit->compiler->ComputeStaticFieldInfo(fieldIdx, cUnit,
                                                 fieldOffset, ssbIndex,
-                                                isReferrersClass, isVolatile);
+                                                isReferrersClass, isVolatile, false);
     if (fastPath && !SLOW_FIELD_PATH) {
         DCHECK_GE(fieldOffset, 0);
         int rBase;

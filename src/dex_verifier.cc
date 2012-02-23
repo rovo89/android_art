@@ -2168,6 +2168,10 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
     case Instruction::NEW_INSTANCE: {
       const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB_);
+      if (res_type.IsUnknown()) {
+        CHECK_NE(failure_, VERIFY_ERROR_NONE);
+        break;  // couldn't resolve class
+      }
       // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
       // can't create an instance of an interface or abstract class */
       if (!res_type.IsInstantiableTypes()) {
@@ -3123,26 +3127,27 @@ const RegType& DexVerifier::GetCaughtExceptionType() {
   return *common_super;
 }
 
-Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, bool is_direct) {
+Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type) {
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
   const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
   if (failure_ != VERIFY_ERROR_NONE) {
     fail_messages_ << " in attempt to access method " << dex_file_->GetMethodName(method_id);
     return NULL;
   }
-  if(klass_type.IsUnresolvedTypes()) {
+  if (klass_type.IsUnresolvedTypes()) {
     return NULL;  // Can't resolve Class so no more to do here
   }
+  Class* klass = klass_type.GetClass();
   Class* referrer = method_->GetDeclaringClass();
   DexCache* dex_cache = referrer->GetDexCache();
   Method* res_method = dex_cache->GetResolvedMethod(method_idx);
   if (res_method == NULL) {
-    Class* klass = klass_type.GetClass();
     const char* name = dex_file_->GetMethodName(method_id);
     std::string signature(dex_file_->CreateMethodSignature(method_id.proto_idx_, NULL));
-    if (is_direct) {
+
+    if (method_type == METHOD_DIRECT || method_type == METHOD_STATIC) {
       res_method = klass->FindDirectMethod(name, signature);
-    } else if (klass->IsInterface()) {
+    } else if (method_type == METHOD_INTERFACE) {
       res_method = klass->FindInterfaceMethod(name, signature);
     } else {
       res_method = klass->FindVirtualMethod(name, signature);
@@ -3150,35 +3155,53 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, bool is_di
     if (res_method != NULL) {
       dex_cache->SetResolvedMethod(method_idx, res_method);
     } else {
-      Fail(VERIFY_ERROR_NO_METHOD) << "couldn't find method "
-                                   << PrettyDescriptor(klass) << "." << name
-                                   << " " << signature;
-      return NULL;
+      // If a virtual or interface method wasn't found with the expected type, look in
+      // the direct methods. This can happen when the wrong invoke type is used or when
+      // a class has changed, and will be flagged as an error in later checks.
+      if (method_type == METHOD_INTERFACE || method_type == METHOD_VIRTUAL) {
+        res_method = klass->FindDirectMethod(name, signature);
+      }
+      if (res_method == NULL) {
+        Fail(VERIFY_ERROR_NO_METHOD) << "couldn't find method "
+                                     << PrettyDescriptor(klass) << "." << name
+                                     << " " << signature;
+        return NULL;
+      }
     }
-  }
-  /* Check if access is allowed. */
-  if (!referrer->CanAccessMember(res_method->GetDeclaringClass(), res_method->GetAccessFlags())) {
-    Fail(VERIFY_ERROR_ACCESS_METHOD) << "illegal method access (call " << PrettyMethod(res_method)
-                                  << " from " << PrettyDescriptor(referrer) << ")";
-    return NULL;
-  }
-  return res_method;
-}
-
-Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction& dec_insn,
-                                          MethodType method_type, bool is_range, bool is_super) {
-  // Resolve the method. This could be an abstract or concrete method depending on what sort of call
-  // we're making.
-  Method* res_method = ResolveMethodAndCheckAccess(dec_insn.vB_,
-                           (method_type == METHOD_DIRECT || method_type == METHOD_STATIC));
-  if (res_method == NULL) {  // error or class is unresolved
-    return NULL;
   }
   // Make sure calls to constructors are "direct". There are additional restrictions but we don't
   // enforce them here.
   if (res_method->IsConstructor() && method_type != METHOD_DIRECT) {
     Fail(VERIFY_ERROR_GENERIC) << "rejecting non-direct call to constructor "
                                << PrettyMethod(res_method);
+    return NULL;
+  }
+  // Disallow any calls to class initializers.
+  if (MethodHelper(res_method).IsClassInitializer()) {
+    Fail(VERIFY_ERROR_GENERIC) << "rejecting call to class initializer "
+                               << PrettyMethod(res_method);
+    return NULL;
+  }
+  // Check that invoke-virtual and invoke-super are not used on private methods.
+  if (res_method->IsPrivate() && method_type == METHOD_VIRTUAL) {
+    Fail(VERIFY_ERROR_GENERIC) << "invoke-super/virtual can't be used on private method "
+                               << PrettyMethod(res_method);
+    return NULL;
+  }
+  // Check if access is allowed.
+  if (!referrer->CanAccessMember(res_method->GetDeclaringClass(), res_method->GetAccessFlags())) {
+    Fail(VERIFY_ERROR_ACCESS_METHOD) << "illegal method access (call " << PrettyMethod(res_method)
+                                  << " from " << PrettyDescriptor(referrer) << ")";
+    return NULL;
+  }
+  // Check that interface methods match interface classes.
+  if (klass->IsInterface() && method_type != METHOD_INTERFACE) {
+    Fail(VERIFY_ERROR_CLASS_CHANGE) << "non-interface method " << PrettyMethod(res_method)
+                                    << " is in an interface class " << PrettyClass(klass);
+    return NULL;
+  } else if (!klass->IsInterface() && method_type == METHOD_INTERFACE) {
+    Fail(VERIFY_ERROR_CLASS_CHANGE) << "interface method " << PrettyMethod(res_method)
+                                    << " is in a non-interface class " << PrettyClass(klass);
     return NULL;
   }
   // See if the method type implied by the invoke instruction matches the access flags for the
@@ -3191,6 +3214,18 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
                                     << PrettyMethod(res_method);
     return NULL;
   }
+  return res_method;
+}
+
+Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction& dec_insn,
+                                          MethodType method_type, bool is_range, bool is_super) {
+  // Resolve the method. This could be an abstract or concrete method depending on what sort of call
+  // we're making.
+  Method* res_method = ResolveMethodAndCheckAccess(dec_insn.vB_, method_type);
+  if (res_method == NULL) {  // error or class is unresolved
+    return NULL;
+  }
+
   // If we're using invoke-super(method), make sure that the executing method's class' superclass
   // has a vtable entry for the target method.
   if (is_super) {
@@ -3449,7 +3484,7 @@ Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
               << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
     return NULL;
   }
-  if(klass_type.IsUnresolvedTypes()) {
+  if (klass_type.IsUnresolvedTypes()) {
     return NULL;  // Can't resolve Class so no more to do here
   }
   Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(field_idx, method_);
@@ -3472,7 +3507,7 @@ Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
   } else if (obj_type.IsZero()) {
     // Cannot infer and check type, however, access will cause null pointer exception
     return field;
-  } else if(obj_type.IsUninitializedReference() &&
+  } else if(obj_type.IsUninitializedTypes() &&
             (!method_->IsConstructor() || method_->GetDeclaringClass() != obj_type.GetClass() ||
              field->GetDeclaringClass() != method_->GetDeclaringClass())) {
     // Field accesses through uninitialized references are only allowable for constructors where
@@ -3637,7 +3672,7 @@ bool DexVerifier::CheckMoveException(const uint16_t* insns, int insn_idx) {
 
 void DexVerifier::ReplaceFailingInstruction() {
   if (Runtime::Current()->IsStarted()) {
-    LOG(ERROR) << "Verification attempting to replacing instructions in " << PrettyMethod(method_)
+    LOG(ERROR) << "Verification attempting to replace instructions in " << PrettyMethod(method_)
                << " " << fail_messages_.str();
     return;
   }

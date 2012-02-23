@@ -456,7 +456,7 @@ static Method* ComputeReferrerMethod(CompilationUnit* cUnit, uint32_t method_idx
 }
 
 bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
-                                        int& field_offset, bool& is_volatile) {
+                                        int& field_offset, bool& is_volatile, bool is_put) {
   // Conservative defaults
   field_offset = -1;
   is_volatile = true;
@@ -466,10 +466,11 @@ bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, CompilationUnit* cUn
     Class* referrer_class = ComputeReferrerClass(cUnit);
     // Try to resolve referring class then access check, failure to pass the
     Class* fields_class = resolved_field->GetDeclaringClass();
-    if (referrer_class != NULL &&
-        referrer_class->CanAccess(fields_class) &&
-        referrer_class->CanAccessMember(fields_class,
-                                        resolved_field->GetAccessFlags())) {
+    bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal() &&
+                                              fields_class != referrer_class;
+    if (referrer_class != NULL && referrer_class->CanAccess(fields_class) &&
+        referrer_class->CanAccessMember(fields_class, resolved_field->GetAccessFlags()) &&
+        !is_write_to_final_from_wrong_class) {
       field_offset = resolved_field->GetOffset().Int32Value();
       is_volatile = resolved_field->IsVolatile();
       stats_->ResolvedInstanceField();
@@ -487,7 +488,7 @@ bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, CompilationUnit* cUn
 
 bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
                                       int& field_offset, int& ssb_index,
-                                      bool& is_referrers_class, bool& is_volatile) {
+                                      bool& is_referrers_class, bool& is_volatile, bool is_put) {
   // Conservative defaults
   field_offset = -1;
   ssb_index = -1;
@@ -499,17 +500,18 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
     DCHECK(resolved_field->IsStatic());
     Class* referrer_class = ComputeReferrerClass(cUnit);
     if (referrer_class != NULL) {
-      if (resolved_field->GetDeclaringClass() == referrer_class) {
+      Class* fields_class = resolved_field->GetDeclaringClass();
+      if (fields_class == referrer_class) {
         is_referrers_class = true;  // implies no worrying about class initialization
         field_offset = resolved_field->GetOffset().Int32Value();
         is_volatile = resolved_field->IsVolatile();
         stats_->ResolvedLocalStaticField();
         return true;  // fast path
       } else {
-        Class* fields_class = resolved_field->GetDeclaringClass();
+        bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal();
         if (referrer_class->CanAccess(fields_class) &&
-            referrer_class->CanAccessMember(fields_class,
-                                            resolved_field->GetAccessFlags())) {
+            referrer_class->CanAccessMember(fields_class, resolved_field->GetAccessFlags()) &&
+            !is_write_to_final_from_wrong_class) {
           // We have the resolved field, we must make it into a ssbIndex for the referrer
           // in its static storage base (which may fail if it doesn't have a slot for it)
           // TODO: for images we can elide the static storage base null check

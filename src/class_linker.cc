@@ -188,6 +188,7 @@ const char* ClassLinker::class_roots_descriptors_[] = {
   "Ldalvik/system/BaseDexClassLoader;",
   "Ldalvik/system/PathClassLoader;",
   "Ljava/lang/Throwable;",
+  "Ljava/lang/ClassNotFoundException;",
   "Ljava/lang/StackTraceElement;",
   "Z",
   "B",
@@ -458,9 +459,11 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   SetClassRoot(kDalvikSystemPathClassLoader, dalvik_system_PathClassLoader);
   PathClassLoader::SetClass(dalvik_system_PathClassLoader);
 
-  // Set up java.lang.Throwable and java.lang.StackTraceElement as a convenience
+  // Set up java.lang.Throwable, java.lang.ClassNotFoundException, and
+  // java.lang.StackTraceElement as a convenience
   SetClassRoot(kJavaLangThrowable, FindSystemClass("Ljava/lang/Throwable;"));
   Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
+  SetClassRoot(kJavaLangClassNotFoundException, FindSystemClass("Ljava/lang/ClassNotFoundException;"));
   SetClassRoot(kJavaLangStackTraceElement, FindSystemClass("Ljava/lang/StackTraceElement;"));
   SetClassRoot(kJavaLangStackTraceElementArrayClass, FindSystemClass("[Ljava/lang/StackTraceElement;"));
   StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
@@ -3180,6 +3183,11 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
     } else {
       CHECK(Thread::Current()->IsExceptionPending())
           << "Expected pending exception for failed resolution of: " << descriptor;
+      // Convert a ClassNotFoundException to a NoClassDefFoundError
+      if (Thread::Current()->GetException()->InstanceOf(GetClassRoot(kJavaLangClassNotFoundException))) {
+        Thread::Current()->ClearException();
+        ThrowNoClassDefFoundError("Failed resolution of: %s", descriptor);
+      }
     }
   }
   return resolved;
@@ -3218,6 +3226,12 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
       resolved = klass->FindInterfaceMethod(name, signature);
     } else {
       resolved = klass->FindVirtualMethod(name, signature);
+      // If a virtual method isn't found, search the direct methods. This can
+      // happen when trying to access private methods directly, and allows the
+      // proper exception to be thrown in the caller.
+      if (resolved == NULL) {
+        resolved = klass->FindDirectMethod(name, signature);
+      }
     }
     if (resolved == NULL) {
       ThrowNoSuchMethodError(is_direct, klass, name, signature);

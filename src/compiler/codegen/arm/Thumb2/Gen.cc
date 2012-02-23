@@ -415,7 +415,7 @@ STATIC void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
     uint32_t fieldIdx = mir->dalvikInsn.vC;
     bool fastPath =
         cUnit->compiler->ComputeInstanceFieldInfo(fieldIdx, cUnit,
-                                                  fieldOffset, isVolatile);
+                                                  fieldOffset, isVolatile, false);
     if (fastPath && !SLOW_FIELD_PATH) {
         RegLocation rlResult;
         RegisterClass regClass = oatRegClassBySize(size);
@@ -470,7 +470,7 @@ STATIC void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
     uint32_t fieldIdx = mir->dalvikInsn.vC;
     bool fastPath =
         cUnit->compiler->ComputeInstanceFieldInfo(fieldIdx, cUnit,
-                                                  fieldOffset, isVolatile);
+                                                  fieldOffset, isVolatile, true);
     if (fastPath && !SLOW_FIELD_PATH) {
         RegisterClass regClass = oatRegClassBySize(size);
         DCHECK_GE(fieldOffset, 0);

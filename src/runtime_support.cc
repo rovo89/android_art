@@ -76,6 +76,13 @@ static void ThrowNewIllegalAccessErrorField(Thread* self, Class* referrer, Field
                            PrettyDescriptor(referrer).c_str());
 }
 
+static void ThrowNewIllegalAccessErrorFinalField(Thread* self, const Method* referrer, Field* accessed) {
+  self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
+                           "Final field '%s' cannot be written to by method '%s'",
+                           PrettyField(accessed, false).c_str(),
+                           PrettyMethod(referrer).c_str());
+}
+
 static void ThrowNewIllegalAccessErrorMethod(Thread* self, Class* referrer, Method* accessed) {
   self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
                            "Method '%s' is inaccessible to class '%s'",
@@ -580,7 +587,7 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp) {
 
 // Fast path field resolution that can't throw exceptions
 static Field* FindFieldFast(uint32_t field_idx, const Method* referrer, bool is_primitive,
-                            size_t expected_size) {
+                            size_t expected_size, bool is_set) {
   Field* resolved_field = referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
   if (UNLIKELY(resolved_field == NULL)) {
     return NULL;
@@ -593,7 +600,8 @@ static Field* FindFieldFast(uint32_t field_idx, const Method* referrer, bool is_
   Class* referring_class = referrer->GetDeclaringClass();
   if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
                !referring_class->CanAccessMember(fields_class,
-                                                 resolved_field->GetAccessFlags()))) {
+                                                 resolved_field->GetAccessFlags()) ||
+               (is_set && resolved_field->IsFinal() && (fields_class != referring_class)))) {
     // illegal access
     return NULL;
   }
@@ -608,7 +616,7 @@ static Field* FindFieldFast(uint32_t field_idx, const Method* referrer, bool is_
 
 // Slow path field resolution and declaring class initialization
 Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* self,
-                         bool is_static, bool is_primitive, size_t expected_size) {
+                         bool is_static, bool is_primitive, bool is_set, size_t expected_size) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Field* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
   if (UNLIKELY(resolved_field == NULL)) {
@@ -623,6 +631,9 @@ Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* sel
     } else if (UNLIKELY(!referring_class->CanAccessMember(fields_class,
                                                           resolved_field->GetAccessFlags()))) {
       ThrowNewIllegalAccessErrorField(self, referring_class, resolved_field);
+      return NULL;  // failure
+    } else if (UNLIKELY(is_set && resolved_field->IsFinal() && (fields_class != referring_class))) {
+      ThrowNewIllegalAccessErrorFinalField(self, referrer, resolved_field);
       return NULL;  // failure
     } else {
       FieldHelper fh(resolved_field);
@@ -655,12 +666,12 @@ Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* sel
 
 extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* referrer,
                                            Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int32_t));
+  Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(NULL);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, true, true, sizeof(int32_t));
+  field = FindFieldFromCode(field_idx, referrer, self, true, true, false, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(NULL);
   }
@@ -669,12 +680,12 @@ extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* ref
 
 extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const Method* referrer,
                                            Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int64_t));
+  Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(NULL);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, true, true, sizeof(int64_t));
+  field = FindFieldFromCode(field_idx, referrer, self, true, true, false, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(NULL);
   }
@@ -683,12 +694,12 @@ extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const Method* ref
 
 extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const Method* referrer,
                                            Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer, false, sizeof(Object*));
+  Field* field = FindFieldFast(field_idx, referrer, false, false, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(NULL);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, true, false, sizeof(Object*));
+  field = FindFieldFromCode(field_idx, referrer, self, true, false, false, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(NULL);
   }
@@ -697,12 +708,12 @@ extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const Method* ref
 
 extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, Object* obj,
                                              const Method* referrer, Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int32_t));
+  Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(int32_t));
   if (LIKELY(field != NULL && obj != NULL)) {
     return field->Get32(obj);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, false, true, sizeof(int32_t));
+  field = FindFieldFromCode(field_idx, referrer, self, false, true, false, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowNullPointerExceptionForFieldAccess(self, field, true);
@@ -715,12 +726,12 @@ extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, Object* obj,
 
 extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, Object* obj,
                                              const Method* referrer, Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int64_t));
+  Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(int64_t));
   if (LIKELY(field != NULL && obj != NULL)) {
     return field->Get64(obj);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, false, true, sizeof(int64_t));
+  field = FindFieldFromCode(field_idx, referrer, self, false, true, false, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowNullPointerExceptionForFieldAccess(self, field, true);
@@ -733,12 +744,12 @@ extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, Object* obj,
 
 extern "C" Object* artGetObjInstanceFromCode(uint32_t field_idx, Object* obj,
                                               const Method* referrer, Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer, false, sizeof(Object*));
+  Field* field = FindFieldFast(field_idx, referrer, false, false, sizeof(Object*));
   if (LIKELY(field != NULL && obj != NULL)) {
     return field->GetObj(obj);
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, false, false, sizeof(Object*));
+  field = FindFieldFromCode(field_idx, referrer, self, false, false, false, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowNullPointerExceptionForFieldAccess(self, field, true);
@@ -751,13 +762,13 @@ extern "C" Object* artGetObjInstanceFromCode(uint32_t field_idx, Object* obj,
 
 extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
                                       const Method* referrer, Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int32_t));
+  Field* field = FindFieldFast(field_idx, referrer, true, true, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(NULL, new_value);
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, true, true, sizeof(int32_t));
+  field = FindFieldFromCode(field_idx, referrer, self, true, true, true, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(NULL, new_value);
     return 0;  // success
@@ -767,13 +778,13 @@ extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
 
 extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer,
                                       uint64_t new_value, Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int64_t));
+  Field* field = FindFieldFast(field_idx, referrer, true, true, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(NULL, new_value);
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, true, true, sizeof(int64_t));
+  field = FindFieldFromCode(field_idx, referrer, self, true, true, true, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(NULL, new_value);
     return 0;  // success
@@ -783,7 +794,7 @@ extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer
 
 extern "C" int artSetObjStaticFromCode(uint32_t field_idx, Object* new_value,
                                        const Method* referrer, Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer, false, sizeof(Object*));
+  Field* field = FindFieldFast(field_idx, referrer, false, true, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     if (LIKELY(!FieldHelper(field).IsPrimitiveType())) {
       field->SetObj(NULL, new_value);
@@ -791,7 +802,7 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, Object* new_value,
     }
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, true, false, sizeof(Object*));
+  field = FindFieldFromCode(field_idx, referrer, self, true, false, true, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(NULL, new_value);
     return 0;  // success
@@ -801,13 +812,13 @@ extern "C" int artSetObjStaticFromCode(uint32_t field_idx, Object* new_value,
 
 extern "C" int artSet32InstanceFromCode(uint32_t field_idx, Object* obj, uint32_t new_value,
                                         const Method* referrer, Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int32_t));
+  Field* field = FindFieldFast(field_idx, referrer, true, true, sizeof(int32_t));
   if (LIKELY(field != NULL && obj != NULL)) {
     field->Set32(obj, new_value);
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, false, true, sizeof(int32_t));
+  field = FindFieldFromCode(field_idx, referrer, self, false, true, true, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowNullPointerExceptionForFieldAccess(self, field, false);
@@ -823,14 +834,14 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, Object* obj, uint64_
                                         Thread* self, Method** sp) {
   Method* callee_save = Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsOnly);
   Method* referrer = sp[callee_save->GetFrameSizeInBytes() / sizeof(Method*)];
-  Field* field = FindFieldFast(field_idx, referrer, true, sizeof(int64_t));
+  Field* field = FindFieldFast(field_idx, referrer, true, true, sizeof(int64_t));
   if (LIKELY(field != NULL  && obj != NULL)) {
     field->Set64(obj, new_value);
     return 0;  // success
   }
   *sp = callee_save;
   self->SetTopOfStack(sp, 0);
-  field = FindFieldFromCode(field_idx, referrer, self, false, true, sizeof(int64_t));
+  field = FindFieldFromCode(field_idx, referrer, self, false, true, true, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowNullPointerExceptionForFieldAccess(self, field, false);
@@ -844,13 +855,13 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, Object* obj, uint64_
 
 extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, Object* obj, Object* new_value,
                                          const Method* referrer, Thread* self, Method** sp) {
-  Field* field = FindFieldFast(field_idx, referrer, false, sizeof(Object*));
+  Field* field = FindFieldFast(field_idx, referrer, false, true, sizeof(Object*));
   if (LIKELY(field != NULL && obj != NULL)) {
     field->SetObj(obj, new_value);
     return 0;  // success
   }
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  field = FindFieldFromCode(field_idx, referrer, self, false, false, sizeof(Object*));
+  field = FindFieldFromCode(field_idx, referrer, self, false, false, true, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
       ThrowNullPointerExceptionForFieldAccess(self, field, false);
