@@ -1508,16 +1508,19 @@ Context* Thread::GetLongJumpContext() {
 Method* Thread::GetCurrentMethod(uintptr_t* pc, Method*** sp) const {
   Frame f = top_of_managed_stack_;
   Method* m = f.GetMethod();
+  uintptr_t native_pc = top_of_managed_stack_pc_;
+
   // We use JNI internally for exception throwing, so it's possible to arrive
   // here via a "FromCode" function, in which case there's a synthetic
   // callee-save method at the top of the stack. These shouldn't be user-visible,
   // so if we find one, skip it and return the compiled method underneath.
   if (m != NULL && m->IsCalleeSaveMethod()) {
+    native_pc = f.GetReturnPC();
     f.Next();
     m = f.GetMethod();
   }
   if (pc != NULL) {
-    *pc = (m != NULL) ? ManglePc(f.GetReturnPC()) : 0;
+    *pc = (m != NULL) ? ManglePc(native_pc) : 0;
   }
   if (sp != NULL) {
     *sp = f.GetSP();
