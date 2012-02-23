@@ -108,8 +108,8 @@ static JdwpError finishInvoke(JdwpState* state,
 
   uint32_t arg_count = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("    --> threadId=%llx objectId=%llx", threadId, objectId);
-  VLOG(jdwp) << StringPrintf("        classId=%llx methodId=%x %s.%s", classId, methodId, Dbg::GetClassName(classId).c_str(), Dbg::GetMethodName(classId, methodId).c_str());
+  VLOG(jdwp) << StringPrintf("    --> threadId=%#llx objectId=%#llx", threadId, objectId);
+  VLOG(jdwp) << StringPrintf("        classId=%#llx methodId=%x %s.%s", classId, methodId, Dbg::GetClassName(classId).c_str(), Dbg::GetMethodName(classId, methodId).c_str());
   VLOG(jdwp) << StringPrintf("        %d args:", arg_count);
 
   UniquePtr<JdwpTag[]> argTypes(arg_count > 0 ? new JdwpTag[arg_count] : NULL);
@@ -118,7 +118,7 @@ static JdwpError finishInvoke(JdwpState* state,
     argTypes[i] = ReadTag(&buf);
     size_t width = Dbg::GetTagWidth(argTypes[i]);
     argValues[i] = jdwpReadValue(&buf, width);
-    VLOG(jdwp) << "          " << argTypes[i] << StringPrintf("(%zd): 0x%llx", width, argValues[i]);
+    VLOG(jdwp) << "          " << argTypes[i] << StringPrintf("(%zd): %#llx", width, argValues[i]);
   }
 
   uint32_t options = Read4BE(&buf);  /* enum InvokeOptions bit flags */
@@ -148,7 +148,7 @@ static JdwpError finishInvoke(JdwpState* state,
     expandBufAdd1(pReply, JT_OBJECT);
     expandBufAddObjectId(pReply, exceptObjId);
 
-    VLOG(jdwp) << "  --> returned " << resultTag << StringPrintf(" 0x%llx (except=%08llx)", resultValue, exceptObjId);
+    VLOG(jdwp) << "  --> returned " << resultTag << StringPrintf(" %#llx (except=%#llx)", resultValue, exceptObjId);
 
     /* show detailed debug output */
     if (resultTag == JT_STRING && exceptObjId == 0) {
@@ -451,7 +451,7 @@ static JdwpError handleVM_AllClassesWithGeneric(JdwpState* state, const uint8_t*
 static JdwpError handleRT_Signature(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for signature of refTypeId=0x%llx", refTypeId);
+  VLOG(jdwp) << StringPrintf("  Req for signature of refTypeId=%#llx", refTypeId);
   std::string signature;
 
   JdwpError status = Dbg::GetSignature(refTypeId, signature);
@@ -522,7 +522,7 @@ static JdwpError handleRT_Status(JdwpState* state, const uint8_t* buf, int dataL
  */
 static JdwpError handleRT_Interfaces(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for interfaces in %llx (%s)", refTypeId, Dbg::GetClassName(refTypeId).c_str());
+  VLOG(jdwp) << StringPrintf("  Req for interfaces in %#llx (%s)", refTypeId, Dbg::GetClassName(refTypeId).c_str());
   return Dbg::OutputDeclaredInterfaces(refTypeId, pReply);
 }
 
@@ -536,7 +536,7 @@ static JdwpError handleRT_ClassObject(JdwpState* state, const uint8_t* buf, int 
   if (status != ERR_NONE) {
     return status;
   }
-  VLOG(jdwp) << StringPrintf("  RefTypeId %llx -> ObjectId %llx", refTypeId, classObjectId);
+  VLOG(jdwp) << StringPrintf("  RefTypeId %#llx -> ObjectId %#llx", refTypeId, classObjectId);
   expandBufAddObjectId(pReply, classObjectId);
   return ERR_NONE;
 }
@@ -559,12 +559,12 @@ static JdwpError handleRT_SignatureWithGeneric(JdwpState* state, const uint8_t* 
 
   RefTypeId refTypeId = ReadRefTypeId(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for signature of refTypeId=0x%llx", refTypeId);
+  VLOG(jdwp) << StringPrintf("  Req for signature of refTypeId=%#llx", refTypeId);
   std::string signature;
   if (Dbg::GetSignature(refTypeId, signature)) {
     expandBufAddUtf8String(pReply, signature);
   } else {
-    LOG(WARNING) << StringPrintf("No signature for refTypeId=0x%llx", refTypeId);
+    LOG(WARNING) << StringPrintf("No signature for refTypeId=%#llx", refTypeId);
     expandBufAddUtf8String(pReply, "Lunknown;");
   }
   expandBufAddUtf8String(pReply, genericSignature);
@@ -584,7 +584,7 @@ static JdwpError handleRT_ClassLoader(JdwpState* state, const uint8_t* buf, int 
 static std::string Describe(const RefTypeId& refTypeId) {
   std::string signature("unknown");
   Dbg::GetSignature(refTypeId, signature);
-  return StringPrintf("refTypeId=0x%llx (%s)", refTypeId, signature.c_str());
+  return StringPrintf("refTypeId=%#llx (%s)", refTypeId, signature.c_str());
 }
 
 /*
@@ -642,7 +642,7 @@ static JdwpError handleCT_SetValues(JdwpState* state, const uint8_t* buf, int da
   RefTypeId classId = ReadRefTypeId(&buf);
   uint32_t values = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req to set %d values in classId=%llx", values, classId);
+  VLOG(jdwp) << StringPrintf("  Req to set %d values in classId=%#llx", values, classId);
 
   for (uint32_t i = 0; i < values; i++) {
     FieldId fieldId = ReadFieldId(&buf);
@@ -764,7 +764,7 @@ static JdwpError handleM_VariableTableWithGeneric(JdwpState* state, const uint8_
  */
 static JdwpError handleOR_ReferenceType(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId objectId = ReadObjectId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for type of objectId=0x%llx", objectId);
+  VLOG(jdwp) << StringPrintf("  Req for type of objectId=%#llx", objectId);
   return Dbg::GetReferenceType(objectId, pReply);
 }
 
@@ -775,7 +775,7 @@ static JdwpError handleOR_GetValues(JdwpState* state, const uint8_t* buf, int da
   ObjectId objectId = ReadObjectId(&buf);
   uint32_t numFields = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for %d fields from objectId=0x%llx", numFields, objectId);
+  VLOG(jdwp) << StringPrintf("  Req for %d fields from objectId=%#llx", numFields, objectId);
 
   expandBufAdd4BE(pReply, numFields);
 
@@ -797,7 +797,7 @@ static JdwpError handleOR_SetValues(JdwpState* state, const uint8_t* buf, int da
   ObjectId objectId = ReadObjectId(&buf);
   uint32_t numFields = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req to set %d fields in objectId=0x%llx", numFields, objectId);
+  VLOG(jdwp) << StringPrintf("  Req to set %d fields in objectId=%#llx", numFields, objectId);
 
   for (uint32_t i = 0; i < numFields; i++) {
     FieldId fieldId = ReadFieldId(&buf);
@@ -859,7 +859,7 @@ static JdwpError handleOR_IsCollected(JdwpState* state, const uint8_t* buf, int 
   ObjectId objectId;
 
   objectId = ReadObjectId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req IsCollected(0x%llx)", objectId);
+  VLOG(jdwp) << StringPrintf("  Req IsCollected(%#llx)", objectId);
 
   // TODO: currently returning false; must integrate with GC
   expandBufAdd1(pReply, 0);
@@ -874,7 +874,7 @@ static JdwpError handleSR_Value(JdwpState* state, const uint8_t* buf, int dataLe
   ObjectId stringObject = ReadObjectId(&buf);
   std::string str(Dbg::StringToUtf8(stringObject));
 
-  VLOG(jdwp) << StringPrintf("  Req for str %llx --> '%s'", stringObject, PrintableString(str).c_str());
+  VLOG(jdwp) << StringPrintf("  Req for str %#llx --> '%s'", stringObject, PrintableString(str).c_str());
 
   expandBufAddUtf8String(pReply, str);
 
@@ -887,12 +887,12 @@ static JdwpError handleSR_Value(JdwpState* state, const uint8_t* buf, int dataLe
 static JdwpError handleTR_Name(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId threadId = ReadObjectId(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for name of thread 0x%llx", threadId);
+  VLOG(jdwp) << StringPrintf("  Req for name of thread %#llx", threadId);
   std::string name;
   if (!Dbg::GetThreadName(threadId, name)) {
     return ERR_INVALID_THREAD;
   }
-  VLOG(jdwp) << StringPrintf("  Name of thread 0x%llx is \"%s\"", threadId, name.c_str());
+  VLOG(jdwp) << StringPrintf("  Name of thread %#llx is \"%s\"", threadId, name.c_str());
   expandBufAddUtf8String(pReply, name);
 
   return ERR_NONE;
@@ -911,7 +911,7 @@ static JdwpError handleTR_Suspend(JdwpState* state, const uint8_t* buf, int data
     LOG(INFO) << "  Warning: ignoring request to suspend self";
     return ERR_THREAD_NOT_SUSPENDED;
   }
-  VLOG(jdwp) << StringPrintf("  Req to suspend thread 0x%llx", threadId);
+  VLOG(jdwp) << StringPrintf("  Req to suspend thread %#llx", threadId);
   Dbg::SuspendThread(threadId);
   return ERR_NONE;
 }
@@ -926,7 +926,7 @@ static JdwpError handleTR_Resume(JdwpState* state, const uint8_t* buf, int dataL
     LOG(INFO) << "  Warning: ignoring request to resume self";
     return ERR_NONE;
   }
-  VLOG(jdwp) << StringPrintf("  Req to resume thread 0x%llx", threadId);
+  VLOG(jdwp) << StringPrintf("  Req to resume thread %#llx", threadId);
   Dbg::ResumeThread(threadId);
   return ERR_NONE;
 }
@@ -937,7 +937,7 @@ static JdwpError handleTR_Resume(JdwpState* state, const uint8_t* buf, int dataL
 static JdwpError handleTR_Status(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId threadId = ReadObjectId(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for status of thread 0x%llx", threadId);
+  VLOG(jdwp) << StringPrintf("  Req for status of thread %#llx", threadId);
 
   JDWP::JdwpThreadStatus threadStatus;
   JDWP::JdwpSuspendStatus suspendStatus;
@@ -976,13 +976,13 @@ static JdwpError handleTR_Frames(JdwpState* state, const uint8_t* buf, int dataL
     return ERR_INVALID_THREAD;
   }
   if (!Dbg::IsSuspended(threadId)) {
-    LOG(WARNING) << StringPrintf("  Rejecting req for frames in running thread %llx", threadId);
+    LOG(WARNING) << StringPrintf("  Rejecting req for frames in running thread %#llx", threadId);
     return ERR_THREAD_NOT_SUSPENDED;
   }
 
   size_t actual_frame_count = Dbg::GetThreadFrameCount(threadId);
 
-  VLOG(jdwp) << StringPrintf("  Request for frames: threadId=%llx start=%d length=%d [count=%zd]", threadId, start_frame, length, actual_frame_count);
+  VLOG(jdwp) << StringPrintf("  Request for frames: threadId=%#llx start=%d length=%d [count=%zd]", threadId, start_frame, length, actual_frame_count);
   if (actual_frame_count <= 0) {
     return ERR_THREAD_NOT_SUSPENDED;    /* == 0 means 100% native */
   }
@@ -1006,7 +1006,7 @@ static JdwpError handleTR_Frames(JdwpState* state, const uint8_t* buf, int dataL
     expandBufAdd8BE(pReply, frameId);
     AddLocation(pReply, &loc);
 
-    VLOG(jdwp) << StringPrintf("    Frame %d: id=%llx ", i, frameId) << loc;
+    VLOG(jdwp) << StringPrintf("    Frame %d: id=%#llx ", i, frameId) << loc;
   }
 
   return ERR_NONE;
@@ -1022,7 +1022,7 @@ static JdwpError handleTR_FrameCount(JdwpState* state, const uint8_t* buf, int d
     return ERR_INVALID_THREAD;
   }
   if (!Dbg::IsSuspended(threadId)) {
-    LOG(WARNING) << StringPrintf("  Rejecting req for frames in running thread %llx", threadId);
+    LOG(WARNING) << StringPrintf("  Rejecting req for frames in running thread %#llx", threadId);
     return ERR_THREAD_NOT_SUSPENDED;
   }
 
@@ -1067,7 +1067,7 @@ static JdwpError handleTR_SuspendCount(JdwpState* state, const uint8_t* buf, int
  */
 static JdwpError handleTGR_Name(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId threadGroupId = ReadObjectId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for name of threadGroupId=0x%llx", threadGroupId);
+  VLOG(jdwp) << StringPrintf("  Req for name of threadGroupId=%#llx", threadGroupId);
 
   expandBufAddUtf8String(pReply, Dbg::GetThreadGroupName(threadGroupId));
 
@@ -1093,7 +1093,7 @@ static JdwpError handleTGR_Parent(JdwpState* state, const uint8_t* buf, int data
  */
 static JdwpError handleTGR_Children(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId threadGroupId = ReadObjectId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for threads in threadGroupId=0x%llx", threadGroupId);
+  VLOG(jdwp) << StringPrintf("  Req for threads in threadGroupId=%#llx", threadGroupId);
 
   ObjectId* pThreadIds;
   uint32_t threadCount;
@@ -1126,7 +1126,7 @@ static JdwpError handleTGR_Children(JdwpState* state, const uint8_t* buf, int da
  */
 static JdwpError handleAR_Length(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId arrayId = ReadObjectId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for length of array 0x%llx", arrayId);
+  VLOG(jdwp) << StringPrintf("  Req for length of array %#llx", arrayId);
 
   int length;
   JdwpError status = Dbg::GetArrayLength(arrayId, length);
@@ -1147,7 +1147,7 @@ static JdwpError handleAR_GetValues(JdwpState* state, const uint8_t* buf, int da
   ObjectId arrayId = ReadObjectId(&buf);
   uint32_t firstIndex = Read4BE(&buf);
   uint32_t length = Read4BE(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for array values 0x%llx first=%d len=%d", arrayId, firstIndex, length);
+  VLOG(jdwp) << StringPrintf("  Req for array values %#llx first=%d len=%d", arrayId, firstIndex, length);
 
   return Dbg::OutputArray(arrayId, firstIndex, length, pReply);
 }
@@ -1160,7 +1160,7 @@ static JdwpError handleAR_SetValues(JdwpState* state, const uint8_t* buf, int da
   uint32_t firstIndex = Read4BE(&buf);
   uint32_t values = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req to set array values 0x%llx first=%d count=%d", arrayId, firstIndex, values);
+  VLOG(jdwp) << StringPrintf("  Req to set array values %#llx first=%d count=%d", arrayId, firstIndex, values);
 
   return Dbg::SetArrayElements(arrayId, firstIndex, values, buf);
 }
@@ -1225,14 +1225,14 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
     case MK_THREAD_ONLY:    /* only report events in specified thread */
       {
         ObjectId threadId = ReadObjectId(&buf);
-        VLOG(jdwp) << StringPrintf("    ThreadOnly: %llx", threadId);
+        VLOG(jdwp) << StringPrintf("    ThreadOnly: %#llx", threadId);
         mod.threadOnly.threadId = threadId;
       }
       break;
     case MK_CLASS_ONLY:     /* for ClassPrepare, MethodEntry */
       {
         RefTypeId clazzId = ReadRefTypeId(&buf);
-        VLOG(jdwp) << StringPrintf("    ClassOnly: %llx (%s)", clazzId, Dbg::GetClassName(clazzId).c_str());
+        VLOG(jdwp) << StringPrintf("    ClassOnly: %#llx (%s)", clazzId, Dbg::GetClassName(clazzId).c_str());
         mod.classOnly.refTypeId = clazzId;
       }
       break;
@@ -1270,7 +1270,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         exceptionOrNull = ReadRefTypeId(&buf);
         caught = Read1(&buf);
         uncaught = Read1(&buf);
-        VLOG(jdwp) << StringPrintf("    ExceptionOnly: type=%llx(%s) caught=%d uncaught=%d",
+        VLOG(jdwp) << StringPrintf("    ExceptionOnly: type=%#llx(%s) caught=%d uncaught=%d",
             exceptionOrNull, (exceptionOrNull == 0) ? "null" : Dbg::GetClassName(exceptionOrNull).c_str(), caught, uncaught);
 
         mod.exceptionOnly.refTypeId = exceptionOrNull;
@@ -1282,7 +1282,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
       {
         RefTypeId declaring = ReadRefTypeId(&buf);
         FieldId fieldId = ReadFieldId(&buf);
-        VLOG(jdwp) << StringPrintf("    FieldOnly: %llx %x", declaring, fieldId);
+        VLOG(jdwp) << StringPrintf("    FieldOnly: %#llx %x", declaring, fieldId);
         mod.fieldOnly.refTypeId = declaring;
         mod.fieldOnly.fieldId = fieldId;
       }
@@ -1295,7 +1295,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
         threadId = ReadObjectId(&buf);
         size = Read4BE(&buf);
         depth = Read4BE(&buf);
-        VLOG(jdwp) << StringPrintf("    Step: thread=%llx", threadId)
+        VLOG(jdwp) << StringPrintf("    Step: thread=%#llx", threadId)
                      << " size=" << JdwpStepSize(size) << " depth=" << JdwpStepDepth(depth);
 
         mod.step.threadId = threadId;
@@ -1306,7 +1306,7 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
     case MK_INSTANCE_ONLY:  /* report events related to a specific obj */
       {
         ObjectId instance = ReadObjectId(&buf);
-        VLOG(jdwp) << StringPrintf("    InstanceOnly: %llx", instance);
+        VLOG(jdwp) << StringPrintf("    InstanceOnly: %#llx", instance);
         mod.instanceOnly.objectId = instance;
       }
       break;
@@ -1368,7 +1368,7 @@ static JdwpError handleSF_GetValues(JdwpState* state, const uint8_t* buf, int da
   FrameId frameId = ReadFrameId(&buf);
   uint32_t slots = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for %d slots in threadId=%llx frameId=%llx", slots, threadId, frameId);
+  VLOG(jdwp) << StringPrintf("  Req for %d slots in threadId=%#llx frameId=%#llx", slots, threadId, frameId);
 
   expandBufAdd4BE(pReply, slots);     /* "int values" */
   for (uint32_t i = 0; i < slots; i++) {
@@ -1393,7 +1393,7 @@ static JdwpError handleSF_SetValues(JdwpState* state, const uint8_t* buf, int da
   FrameId frameId = ReadFrameId(&buf);
   uint32_t slots = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req to set %d slots in threadId=%llx frameId=%llx", slots, threadId, frameId);
+  VLOG(jdwp) << StringPrintf("  Req to set %d slots in threadId=%#llx frameId=%#llx", slots, threadId, frameId);
 
   for (uint32_t i = 0; i < slots; i++) {
     uint32_t slot = Read4BE(&buf);
@@ -1419,7 +1419,7 @@ static JdwpError handleSF_ThisObject(JdwpState* state, const uint8_t* buf, int d
   Dbg::GetThisObject(frameId, &objectId);
 
   uint8_t objectTag = Dbg::GetObjectTag(objectId);
-  VLOG(jdwp) << StringPrintf("  Req for 'this' in frame=%llx --> %llx '%c'", frameId, objectId, (char)objectTag);
+  VLOG(jdwp) << StringPrintf("  Req for 'this' in frame=%#llx --> %#llx '%c'", frameId, objectId, (char)objectTag);
 
   expandBufAdd1(pReply, objectTag);
   expandBufAddObjectId(pReply, objectId);
@@ -1436,7 +1436,7 @@ static JdwpError handleSF_ThisObject(JdwpState* state, const uint8_t* buf, int d
  */
 static JdwpError handleCOR_ReflectedType(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId classObjectId = ReadRefTypeId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for refTypeId for class=%llx (%s)", classObjectId, Dbg::GetClassName(classObjectId).c_str());
+  VLOG(jdwp) << StringPrintf("  Req for refTypeId for class=%#llx (%s)", classObjectId, Dbg::GetClassName(classObjectId).c_str());
   return Dbg::GetReflectedType(classObjectId, pReply);
 }
 

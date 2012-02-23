@@ -573,13 +573,13 @@ void JdwpState::SetWaitForEventThread(ObjectId threadId) {
    * go to sleep indefinitely.
    */
   while (eventThreadId != 0) {
-    VLOG(jdwp) << StringPrintf("event in progress (0x%llx), 0x%llx sleeping", eventThreadId, threadId);
+    VLOG(jdwp) << StringPrintf("event in progress (%#llx), %#llx sleeping", eventThreadId, threadId);
     waited = true;
     event_thread_cond_.Wait(event_thread_lock_);
   }
 
   if (waited || threadId != 0) {
-    VLOG(jdwp) << StringPrintf("event token grabbed (0x%llx)", threadId);
+    VLOG(jdwp) << StringPrintf("event token grabbed (%#llx)", threadId);
   }
   if (threadId != 0) {
     eventThreadId = threadId;
@@ -598,7 +598,7 @@ void JdwpState::ClearWaitForEventThread() {
   MutexLock mu(event_thread_lock_);
 
   CHECK_NE(eventThreadId, 0U);
-  VLOG(jdwp) << StringPrintf("cleared event token (0x%llx)", eventThreadId);
+  VLOG(jdwp) << StringPrintf("cleared event token (%#llx)", eventThreadId);
 
   eventThreadId = 0;
 
@@ -766,7 +766,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << matchList[0]->eventKind << "(" << match_count << " total) "
                  << basket.className << "." << Dbg::GetMethodName(pLoc->classId, pLoc->methodId)
-                 << " thread=" << (void*) basket.threadId << " code=" << (void*) pLoc->dex_pc << ")";
+                 << StringPrintf(" thread=%#llx dex_pc=%#llx)", basket.threadId, pLoc->dex_pc);
 
       suspendPolicy = scanSuspendPolicy(matchList, match_count);
       VLOG(jdwp) << "  suspendPolicy=" << suspendPolicy;

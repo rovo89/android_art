@@ -127,7 +127,7 @@ struct Breakpoint {
 };
 
 static std::ostream& operator<<(std::ostream& os, const Breakpoint& rhs) {
-  os << "Breakpoint[" << PrettyMethod(rhs.method) << " @" << rhs.dex_pc << "]";
+  os << StringPrintf("Breakpoint[%s @%#x]", PrettyMethod(rhs.method).c_str(), rhs.dex_pc);
   return os;
 }
 
@@ -1979,7 +1979,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     VLOG(jdwp) << "Single-step current stack depth: " << gSingleStepControl.stack_depth;
     VLOG(jdwp) << "Single-step dex_pc values:";
     for (std::set<uint32_t>::iterator it = gSingleStepControl.dex_pcs.begin() ; it != gSingleStepControl.dex_pcs.end(); ++it) {
-      VLOG(jdwp) << " " << *it;
+      VLOG(jdwp) << StringPrintf(" %#x", *it);
     }
   }
 
