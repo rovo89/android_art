@@ -308,7 +308,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
   // know where image_roots is going to end up
   image_end_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
 
-  heap_bitmap->Walk(CalculateNewObjectOffsetsCallback, this);  // TODO: add Space-limited Walk
+  heap_bitmap->InOrderWalk(CalculateNewObjectOffsetsCallback, this);  // TODO: add Space-limited Walk
   DCHECK_LT(image_end_, image_->Size());
 
   // Note that image_top_ is left at end of used space
