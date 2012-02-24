@@ -274,12 +274,16 @@ class Dex2Oat {
         runtime->SetResolutionStubArray(Compiler::CreateResolutionStub(instruction_set_, type), type);
       }
     }
+    if (!runtime->HasResolutionMethod()) {
+      runtime->SetResolutionMethod(runtime->CreateResolutionMethod());
+    }
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
       Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
       if (!runtime->HasCalleeSaveMethod(type)) {
         runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(instruction_set_, type), type);
       }
     }
+    runtime->GetClassLinker()->FixupDexCaches(runtime->GetResolutionMethod());
     return runtime;
   }
 

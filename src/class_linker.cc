@@ -1041,10 +1041,6 @@ DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {
   if (fields.get() == NULL) {
     return NULL;
   }
-  SirtRef<CodeAndDirectMethods> code_and_direct_methods(AllocCodeAndDirectMethods(dex_file.NumMethodIds()));
-  if (code_and_direct_methods.get() == NULL) {
-    return NULL;
-  }
   SirtRef<ObjectArray<StaticStorageBase> > initialized_static_storage(AllocObjectArray<StaticStorageBase>(dex_file.NumTypeIds()));
   if (initialized_static_storage.get() == NULL) {
     return NULL;
@@ -1055,13 +1051,8 @@ DexCache* ClassLinker::AllocDexCache(const DexFile& dex_file) {
                   types.get(),
                   methods.get(),
                   fields.get(),
-                  code_and_direct_methods.get(),
                   initialized_static_storage.get());
   return dex_cache.get();
-}
-
-CodeAndDirectMethods* ClassLinker::AllocCodeAndDirectMethods(size_t length) {
-  return down_cast<CodeAndDirectMethods*>(IntArray::Alloc(CodeAndDirectMethods::LengthAsArray(length)));
 }
 
 InterfaceEntry* ClassLinker::AllocInterfaceEntry(Class* interface) {
@@ -1327,19 +1318,89 @@ size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
   return size;
 }
 
+const OatFile::OatClass* ClassLinker::GetOatClass(const DexFile& dex_file, const char* descriptor) {
+  DCHECK(descriptor != NULL);
+  if (!Runtime::Current()->IsStarted() || ClassLoader::UseCompileTimeClassPath()) {
+    return NULL;
+  }
+  const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);
+  CHECK(oat_file != NULL) << dex_file.GetLocation() << " " << descriptor;
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
+  CHECK(oat_dex_file != NULL) << dex_file.GetLocation() << " " << descriptor;
+  uint32_t class_def_index;
+  bool found = dex_file.FindClassDefIndex(descriptor, class_def_index);
+  CHECK(found) << dex_file.GetLocation() << " " << descriptor;
+  const OatFile::OatClass* oat_class = oat_dex_file->GetOatClass(class_def_index);
+  CHECK(oat_class != NULL) << dex_file.GetLocation() << " " << descriptor;
+  return oat_class;
+}
+
+const void* ClassLinker::GetOatCodeFor(const Method* method) {
+  // Special case to get oat code without overwriting a trampoline.
+  CHECK(method->GetDeclaringClass()->IsInitializing());
+  // Although we overwrite the trampoline of non-static methods, we may get here via the resolution
+  // method for direct methods.
+  CHECK(method->IsStatic() || method->IsDirect());
+  ClassHelper kh(method->GetDeclaringClass());
+  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(kh.GetDexFile(), kh.GetDescriptor()));
+  size_t method_index = method->GetMethodIndex();
+  return oat_class->GetOatMethod(method_index).GetCode();
+}
+
+void ClassLinker::FixupStaticTrampolines(Class* klass) {
+  ClassHelper kh(klass);
+  const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
+  CHECK(dex_class_def != NULL);
+  const DexFile& dex_file = kh.GetDexFile();
+  const byte* class_data = dex_file.GetClassData(*dex_class_def);
+  if (class_data == NULL) {
+    return;  // no fields or methods - for example a marker interface
+  }
+  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, kh.GetDescriptor()));
+  if (oat_class.get() == NULL) {
+    // OAT file unavailable
+    return;
+  }
+  ClassDataItemIterator it(dex_file, class_data);
+  // Skip fields
+  while (it.HasNextStaticField()) {
+    it.Next();
+  }
+  while (it.HasNextInstanceField()) {
+    it.Next();
+  }
+  size_t method_index = 0;
+  // Link the code of methods skipped by LinkCode
+  const void* trampoline = Runtime::Current()->GetResolutionStubArray(Runtime::kStaticMethod)->GetData();
+  for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
+    Method* method = klass->GetDirectMethod(i);
+    if (method->GetCode() == trampoline) {
+      const void* code = oat_class->GetOatMethod(method_index).GetCode();
+      CHECK(code != NULL);
+      method->SetCode(code);
+    }
+    method_index++;
+  }
+}
+
 void LinkCode(SirtRef<Method>& method, const OatFile::OatClass* oat_class, uint32_t method_index) {
   // Every kind of method should at least get an invoke stub from the oat_method.
   // non-abstract methods also get their code pointers.
   const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
   oat_method.LinkMethodPointers(method.get());
 
+  Runtime* runtime = Runtime::Current();
   if (method->IsAbstract()) {
-    method->SetCode(Runtime::Current()->GetAbstractMethodErrorStubArray()->GetData());
+    method->SetCode(runtime->GetAbstractMethodErrorStubArray()->GetData());
     return;
   }
-  if (method->IsNative()) {
+
+  if (method->IsStatic() && !method->IsConstructor()) {
+    // For static methods excluding the class initializer, install the trampoline
+    method->SetCode(runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData());
+  } else if (method->IsNative()) {
     // unregistering restores the dlsym lookup stub
-    method->UnregisterNative();
+    method->UnregisterNative(Thread::Current());
   }
 
   if (Runtime::Current()->IsMethodTracingActive()) {
@@ -1397,18 +1458,8 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     LoadField(dex_file, it, klass, ifield);
   }
 
-  UniquePtr<const OatFile::OatClass> oat_class;
-  if (Runtime::Current()->IsStarted() && !ClassLoader::UseCompileTimeClassPath()) {
-    const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);
-    CHECK(oat_file != NULL) << dex_file.GetLocation() << " " << descriptor;
-    const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
-    CHECK(oat_dex_file != NULL) << dex_file.GetLocation() << " " << descriptor;
-    uint32_t class_def_index;
-    bool found = dex_file.FindClassDefIndex(descriptor, class_def_index);
-    CHECK(found) << dex_file.GetLocation() << " " << descriptor;
-    oat_class.reset(oat_dex_file->GetOatClass(class_def_index));
-    CHECK(oat_class.get() != NULL) << dex_file.GetLocation() << " " << descriptor;
-  }
+  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, descriptor));
+
   // Load methods.
   if (it.NumDirectMethods() != 0) {
     // TODO: append direct methods to class object
@@ -1426,6 +1477,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     if (oat_class.get() != NULL) {
       LinkCode(method, oat_class.get(), method_index);
     }
+    method->SetMethodIndex(method_index);
     method_index++;
   }
   for (size_t i = 0; it.HasNextVirtualMethod(); i++, it.Next()) {
@@ -1450,9 +1502,9 @@ void ClassLinker::LoadField(const DexFile& dex_file, const ClassDataItemIterator
 
 void ClassLinker::LoadMethod(const DexFile& dex_file, const ClassDataItemIterator& it,
                              SirtRef<Class>& klass, SirtRef<Method>& dst) {
-  uint32_t method_idx = it.GetMemberIndex();
-  dst->SetDexMethodIndex(method_idx);
-  const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
+  uint32_t dex_method_idx = it.GetMemberIndex();
+  dst->SetDexMethodIndex(dex_method_idx);
+  const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
   dst->SetDeclaringClass(klass.get());
 
 
@@ -1495,8 +1547,8 @@ void ClassLinker::LoadMethod(const DexFile& dex_file, const ClassDataItemIterato
   dst->SetAccessFlags(it.GetMemberAccessFlags());
 
   dst->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
+  dst->SetDexCacheResolvedMethods(klass->GetDexCache()->GetResolvedMethods());
   dst->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
-  dst->SetDexCacheCodeAndDirectMethods(klass->GetDexCache()->GetCodeAndDirectMethods());
   dst->SetDexCacheInitializedStaticStorage(klass->GetDexCache()->GetInitializedStaticStorage());
 }
 
@@ -1515,7 +1567,7 @@ bool ClassLinker::IsDexFileRegisteredLocked(const DexFile& dex_file) const {
   dex_lock_.AssertHeld();
   for (size_t i = 0; i != dex_files_.size(); ++i) {
     if (dex_files_[i] == &dex_file) {
-        return true;
+      return true;
     }
   }
   return false;
@@ -1564,7 +1616,7 @@ const DexFile& ClassLinker::FindDexFile(const DexCache* dex_cache) const {
   MutexLock mu(dex_lock_);
   for (size_t i = 0; i != dex_caches_.size(); ++i) {
     if (dex_caches_[i] == dex_cache) {
-        return *dex_files_[i];
+      return *dex_files_[i];
     }
   }
   CHECK(false) << "Failed to find DexFile for DexCache " << dex_cache->GetLocation()->ToModifiedUtf8();
@@ -1575,11 +1627,18 @@ DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
   MutexLock mu(dex_lock_);
   for (size_t i = 0; i != dex_files_.size(); ++i) {
     if (dex_files_[i] == &dex_file) {
-        return dex_caches_[i];
+      return dex_caches_[i];
     }
   }
   CHECK(false) << "Failed to find DexCache for DexFile " << dex_file.GetLocation();
   return NULL;
+}
+
+void ClassLinker::FixupDexCaches(Method* resolution_method) const {
+  MutexLock mu(dex_lock_);
+  for (size_t i = 0; i != dex_caches_.size(); ++i) {
+    dex_caches_[i]->Fixup(resolution_method);
+  }
 }
 
 Class* ClassLinker::InitializePrimitiveClass(Class* primitive_class,
@@ -2195,18 +2254,22 @@ static void CheckProxyMethod(Method* method, SirtRef<Method>& prototype) {
   CHECK(!prototype->IsFinal());
   CHECK(method->IsFinal());
   CHECK(!method->IsAbstract());
+
+  // The proxy method doesn't have its own dex cache or dex file and so it steals those of its
+  // interface prototype. The exception to this are Constructors and the Class of the Proxy itself.
+  CHECK_EQ(prototype->GetDexCacheStrings(), method->GetDexCacheStrings());
+  CHECK_EQ(prototype->GetDexCacheResolvedMethods(), method->GetDexCacheResolvedMethods());
+  CHECK_EQ(prototype->GetDexCacheResolvedTypes(), method->GetDexCacheResolvedTypes());
+  CHECK_EQ(prototype->GetDexCacheInitializedStaticStorage(),
+           method->GetDexCacheInitializedStaticStorage());
+  CHECK_EQ(prototype->GetDexMethodIndex(), method->GetDexMethodIndex());
+
   MethodHelper mh(method);
-  const char* method_name = mh.GetName();
-  const char* method_shorty = mh.GetShorty();
-  Class* method_return = mh.GetReturnType();
-
-  mh.ChangeMethod(prototype.get());
-
-  CHECK_STREQ(mh.GetName(), method_name);
-  CHECK_STREQ(mh.GetShorty(), method_shorty);
-
+  MethodHelper mh2(prototype.get());
+  CHECK_STREQ(mh.GetName(), mh2.GetName());
+  CHECK_STREQ(mh.GetShorty(), mh2.GetShorty());
   // More complex sanity - via dex cache
-  CHECK_EQ(mh.GetReturnType(), method_return);
+  CHECK_EQ(mh.GetReturnType(), mh2.GetReturnType());
 }
 
 bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
@@ -2242,6 +2305,8 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
       // if the class has a <clinit> but we can't run it during compilation,
       // don't bother going to kStatusInitializing. We return false so that
       // sub-classes don't believe this class is initialized.
+      // Opportunistically link non-static methods, TODO: don't initialize and dirty pages
+      // in second pass.
       return false;
     }
 
@@ -2290,6 +2355,8 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
   if (clinit != NULL) {
     clinit->Invoke(self, NULL, NULL, NULL);
   }
+
+  FixupStaticTrampolines(klass);
 
   uint64_t t1 = NanoTime();
 
@@ -3307,12 +3374,12 @@ Field* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
   return resolved;
 }
 
-const char* ClassLinker::MethodShorty(uint32_t method_idx, Method* referrer) {
+const char* ClassLinker::MethodShorty(uint32_t method_idx, Method* referrer, uint32_t* length) {
   Class* declaring_class = referrer->GetDeclaringClass();
   DexCache* dex_cache = declaring_class->GetDexCache();
   const DexFile& dex_file = FindDexFile(dex_cache);
   const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
-  return dex_file.GetShorty(method_id.proto_idx_);
+  return dex_file.GetMethodShorty(method_id, length);
 }
 
 void ClassLinker::DumpAllClasses(int flags) const {

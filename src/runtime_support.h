@@ -34,7 +34,8 @@ extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thre
                                 bool is_static, bool is_primitive, bool is_set, size_t expected_size);
 extern void* FindNativeMethod(Thread* thread);
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp);
-void* UnresolvedDirectMethodTrampolineFromCode(int32_t, Method**, Thread*, Runtime::TrampolineType);
+const void* UnresolvedDirectMethodTrampolineFromCode(Method*, Method**, Thread*,
+                                                     Runtime::TrampolineType);
 extern Class* ResolveVerifyAndClinit(uint32_t type_idx, const Method* referrer, Thread* self,
                                      bool can_run_clinit, bool verify_access);
 extern Class* InitializeTypeFromCode(uint32_t type_idx, Method* method);
@@ -97,7 +98,6 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" void art_trace_entry_from_code(void*);
   extern "C" void art_trace_exit_from_code();
   extern "C" void* art_resolve_string_from_code(void*, uint32_t);
-  extern "C" void* art_resolve_method_from_code(void* referrer, uint32_t method_idx, bool is_direct);
   extern "C" void art_update_debugger(void*, void*, int32_t, void*);
   extern "C" void art_work_around_app_jni_bugs();
 

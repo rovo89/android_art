@@ -61,6 +61,7 @@ Runtime::Runtime()
       java_vm_(NULL),
       jni_stub_array_(NULL),
       abstract_method_error_stub_array_(NULL),
+      resolution_method_(NULL),
       system_class_loader_(NULL),
       shutting_down_(false),
       started_(false),
@@ -802,6 +803,7 @@ void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
     visitor(resolution_stub_array_[i], arg);
   }
+  visitor(resolution_method_, arg);
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
     visitor(callee_save_method_[i], arg);
   }
@@ -865,12 +867,38 @@ void Runtime::SetResolutionStubArray(ByteArray* resolution_stub_array, Trampolin
   resolution_stub_array_[type] = resolution_stub_array;
 }
 
+Method* Runtime::CreateResolutionMethod() {
+  Class* method_class = Method::GetMethodClass();
+  SirtRef<Method> method(down_cast<Method*>(method_class->AllocObject()));
+  method->SetDeclaringClass(method_class);
+  // TODO: use a special method for resolution method saves
+  method->SetDexMethodIndex(DexFile::kDexNoIndex16);
+  ByteArray* unknown_resolution_stub = GetResolutionStubArray(kUnknownMethod);
+  CHECK(unknown_resolution_stub != NULL);
+  method->SetCode(unknown_resolution_stub->GetData());
+  return method.get();
+}
+
+bool Runtime::HasResolutionMethod() const {
+  return resolution_method_ != NULL;
+}
+
+// Returns a special method that calls into a trampoline for runtime method resolution
+Method* Runtime::GetResolutionMethod() const {
+  CHECK(HasResolutionMethod());
+  return resolution_method_;
+}
+
+void Runtime::SetResolutionMethod(Method* method) {
+  resolution_method_ = method;
+}
+
 Method* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type) {
   Class* method_class = Method::GetMethodClass();
   SirtRef<Method> method(down_cast<Method*>(method_class->AllocObject()));
   method->SetDeclaringClass(method_class);
   // TODO: use a special method for callee saves
-  method->SetMethodIndex(DexFile::kDexNoIndex16);
+  method->SetDexMethodIndex(DexFile::kDexNoIndex16);
   method->SetCode(NULL);
   if ((instruction_set == kThumb2) || (instruction_set == kArm)) {
     uint32_t ref_spills = (1 << art::arm::R5) | (1 << art::arm::R6)  | (1 << art::arm::R7) |

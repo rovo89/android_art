@@ -2266,13 +2266,13 @@ class JNI {
     for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
       Method* m = c->GetDirectMethod(i);
       if (m->IsNative()) {
-        m->UnregisterNative();
+        m->UnregisterNative(ts.Self());
       }
     }
     for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
       Method* m = c->GetVirtualMethod(i);
       if (m->IsNative()) {
-        m->UnregisterNative();
+        m->UnregisterNative(ts.Self());
       }
     }
 

@@ -329,6 +329,9 @@ ImageSpace* Space::CreateImageSpace(const std::string& image_file_name) {
   runtime->SetResolutionStubArray(
       down_cast<ByteArray*>(resolution_stub_array), Runtime::kUnknownMethod);
 
+  Object* resolution_method = image_header.GetImageRoot(ImageHeader::kResolutionMethod);
+  runtime->SetResolutionMethod(down_cast<Method*>(resolution_method));
+
   Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
   runtime->SetCalleeSaveMethod(down_cast<Method*>(callee_save_method), Runtime::kSaveAll);
   callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsOnlySaveMethod);

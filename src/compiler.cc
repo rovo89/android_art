@@ -341,7 +341,6 @@ void Compiler::PostCompile(const ClassLoader* class_loader,
 #if defined(ART_USE_LLVM_COMPILER)
   compiler_llvm_->MaterializeLLVMModule();
 #endif
-  SetCodeAndDirectMethods(dex_files);
 }
 
 bool Compiler::IsImageClass(const std::string& descriptor) const {
@@ -1125,32 +1124,6 @@ void Compiler::SetGcMapsMethod(const DexFile& dex_file, Method* method) {
     return;
   }
   compiled_method->SetGcMap(*gc_map);
-}
-
-void Compiler::SetCodeAndDirectMethods(const std::vector<const DexFile*>& dex_files) {
-  for (size_t i = 0; i != dex_files.size(); ++i) {
-    const DexFile* dex_file = dex_files[i];
-    CHECK(dex_file != NULL);
-    SetCodeAndDirectMethodsDexFile(*dex_file);
-  }
-}
-
-void Compiler::SetCodeAndDirectMethodsDexFile(const DexFile& dex_file) {
-  Runtime* runtime = Runtime::Current();
-  ClassLinker* class_linker = runtime->GetClassLinker();
-  DexCache* dex_cache = class_linker->FindDexCache(dex_file);
-  CodeAndDirectMethods* code_and_direct_methods = dex_cache->GetCodeAndDirectMethods();
-  for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
-    Method* method = dex_cache->GetResolvedMethod(i);
-    if (method == NULL || method->IsDirect()) {
-      Runtime::TrampolineType type = Runtime::GetTrampolineType(method);
-      ByteArray* res_trampoline = runtime->GetResolutionStubArray(type);
-      code_and_direct_methods->SetResolvedDirectMethodTrampoline(i, res_trampoline);
-    } else {
-      // TODO: we currently leave the entry blank for resolved
-      // non-direct methods.  we could put in an error stub.
-    }
-  }
 }
 
 }  // namespace art

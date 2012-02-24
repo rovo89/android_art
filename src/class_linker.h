@@ -159,10 +159,10 @@ class ClassLinker {
                         bool is_direct);
 
   Method* ResolveMethod(uint32_t method_idx, const Method* referrer, bool is_direct) {
-    Class* declaring_class = referrer->GetDeclaringClass();
-    DexCache* dex_cache = declaring_class->GetDexCache();
-    Method* resolved_method = dex_cache->GetResolvedMethod(method_idx);
-    if (UNLIKELY(resolved_method == NULL)) {
+    Method* resolved_method = referrer->GetDexCacheResolvedMethods()->Get(method_idx);
+    if (UNLIKELY(resolved_method == NULL || resolved_method->IsRuntimeMethod())) {
+      Class* declaring_class = referrer->GetDeclaringClass();
+      DexCache* dex_cache = declaring_class->GetDexCache();
       const ClassLoader* class_loader = declaring_class->GetClassLoader();
       const DexFile& dex_file = FindDexFile(dex_cache);
       resolved_method = ResolveMethod(dex_file, method_idx, dex_cache, class_loader, is_direct);
@@ -217,7 +217,7 @@ class ClassLinker {
                          const ClassLoader* class_loader);
 
   // Get shorty from method index without resolution. Used to do handlerization.
-  const char* MethodShorty(uint32_t method_idx, Method* referrer);
+  const char* MethodShorty(uint32_t method_idx, Method* referrer, uint32_t* length);
 
   // Returns true on success, false if there's an exception pending.
   // can_run_clinit=false allows the compiler to attempt to init a class,
@@ -244,6 +244,7 @@ class ClassLinker {
   const DexFile& FindDexFile(const DexCache* dex_cache) const;
   DexCache* FindDexCache(const DexFile& dex_file) const;
   bool IsDexFileRegistered(const DexFile& dex_file) const;
+  void FixupDexCaches(Method* resolution_method) const;
 
   // Generate an oat file from a dex file
   bool GenerateOatFile(const std::string& dex_filename,
@@ -285,6 +286,9 @@ class ClassLinker {
   std::string GetDescriptorForProxy(const Class* proxy_class);
   Method* FindMethodForProxy(const Class* proxy_class, const Method* proxy_method);
 
+  // Get the oat code for a method when its class isn't yet initialized
+  const void* GetOatCodeFor(const Method* method);
+
   pid_t GetClassesLockOwner(); // For SignalCatcher.
   pid_t GetDexLockOwner(); // For SignalCatcher.
 
@@ -314,7 +318,6 @@ class ClassLinker {
 
   Method* AllocMethod();
 
-  CodeAndDirectMethods* AllocCodeAndDirectMethods(size_t length);
   InterfaceEntry* AllocInterfaceEntry(Class* interface);
 
   Class* CreatePrimitiveClass(const char* descriptor, Primitive::Type type) {
@@ -346,6 +349,11 @@ class ClassLinker {
 
   void LoadMethod(const DexFile& dex_file, const ClassDataItemIterator& dex_method,
                   SirtRef<Class>& klass, SirtRef<Method>& dst);
+
+  void FixupStaticTrampolines(Class* klass);
+
+  // Finds the associated oat class for a dex_file and descriptor
+  const OatFile::OatClass* GetOatClass(const DexFile& dex_file, const char* descriptor);
 
   // Attempts to insert a class into a class table.  Returns NULL if
   // the class was inserted, otherwise returns an existing class with

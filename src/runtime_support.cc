@@ -388,8 +388,8 @@ extern "C" void artThrowNegArraySizeFromCode(int32_t size, Thread* thread, Metho
   thread->DeliverException();
 }
 
-void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, Thread* thread,
-                                               Runtime::TrampolineType type) {
+const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp, Thread* thread,
+                                                     Runtime::TrampolineType type) {
   // TODO: this code is specific to ARM
   // On entry the stack pointed by sp is:
   // | argN       |  |
@@ -414,22 +414,16 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
   // Start new JNI local reference state
   JNIEnvExt* env = thread->GetJniEnv();
   ScopedJniEnvLocalRefState env_state(env);
-  // Discover shorty (avoid GCs)
+
+  // Compute details about the called method (avoid GCs)
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  const char* shorty = linker->MethodShorty(method_idx, *caller_sp);
-  size_t shorty_len = strlen(shorty);
-  size_t args_in_regs = 0;
-  for (size_t i = 1; i < shorty_len; i++) {
-    char c = shorty[i];
-    args_in_regs = args_in_regs + (c == 'J' || c == 'D' ? 2 : 1);
-    if (args_in_regs > 3) {
-      args_in_regs = 3;
-      break;
-    }
-  }
+  Method* caller = *caller_sp;
   bool is_static;
+  uint32_t dex_method_idx;
+  const char* shorty;
+  uint32_t shorty_len;
   if (type == Runtime::kUnknownMethod) {
-    Method* caller = *caller_sp;
+    DCHECK(called->IsRuntimeMethod());
     // less two as return address may span into next dex instruction
     uint32_t dex_pc = caller->ToDexPC(caller_pc - 2);
     const DexFile::CodeItem* code = MethodHelper(caller).GetCodeItem();
@@ -440,8 +434,26 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
                 (instr_code == Instruction::INVOKE_STATIC_RANGE);
     DCHECK(is_static || (instr_code == Instruction::INVOKE_DIRECT) ||
            (instr_code == Instruction::INVOKE_DIRECT_RANGE));
+    Instruction::DecodedInstruction dec_insn(instr);
+    dex_method_idx = dec_insn.vB_;
+    shorty = linker->MethodShorty(dex_method_idx, caller, &shorty_len);
   } else {
+    DCHECK(!called->IsRuntimeMethod());
     is_static = type == Runtime::kStaticMethod;
+    dex_method_idx = called->GetDexMethodIndex();
+    MethodHelper mh(called);
+    shorty = mh.GetShorty();
+    shorty_len = mh.GetShortyLength();
+  }
+  // Discover shorty (avoid GCs)
+  size_t args_in_regs = 0;
+  for (size_t i = 1; i < shorty_len; i++) {
+    char c = shorty[i];
+    args_in_regs = args_in_regs + (c == 'J' || c == 'D' ? 2 : 1);
+    if (args_in_regs > 3) {
+      args_in_regs = 3;
+      break;
+    }
   }
   // Place into local references incoming arguments from the caller's register arguments
   size_t cur_arg = 1;   // skip method_idx in R0, first arg is in R1
@@ -478,20 +490,23 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
     cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
   }
   // Resolve method filling in dex cache
-  Method* called = linker->ResolveMethod(method_idx, *caller_sp, true);
+  if (type == Runtime::kUnknownMethod) {
+    called = linker->ResolveMethod(dex_method_idx, caller, true);
+  }
+  const void* code = NULL;
   if (LIKELY(!thread->IsExceptionPending())) {
     if (LIKELY(called->IsDirect())) {
-      // Ensure that the called method's class is initialized
+      // Ensure that the called method's class is initialized.
       Class* called_class = called->GetDeclaringClass();
       linker->EnsureInitialized(called_class, true);
       if (LIKELY(called_class->IsInitialized())) {
-        // Update CodeAndDirectMethod table and avoid the trampoline when we know the called class
-        // is initialized (see test 084-class-init SlowInit)
-        Method* caller = *caller_sp;
-        DexCache* dex_cache = caller->GetDeclaringClass()->GetDexCache();
-        dex_cache->GetCodeAndDirectMethods()->SetResolvedDirectMethod(method_idx, called);
-        // We got this far, ensure that the declaring class is initialized
-        linker->EnsureInitialized(called->GetDeclaringClass(), true);
+        code = called->GetCode();
+      } else if (called_class->IsInitializing()) {
+        // Class is still initializing, go to oat and grab code (trampoline must be left in place
+        // until class is initialized to stop races between threads).
+        code = linker->GetOatCodeFor(called);
+      } else {
+        DCHECK(called_class->IsErroneous());
       }
     } else {
       // Direct method has been made virtual
@@ -500,19 +515,19 @@ void* UnresolvedDirectMethodTrampolineFromCode(int32_t method_idx, Method** sp, 
                                  PrettyMethod(called, true).c_str());
     }
   }
-  void* code;
-  if (UNLIKELY(thread->IsExceptionPending())) {
+  if (UNLIKELY(code == NULL)) {
     // Something went wrong in ResolveMethod or EnsureInitialized,
     // go into deliver exception with the pending exception in r0
     code = reinterpret_cast<void*>(art_deliver_exception_from_code);
     regs[0] = reinterpret_cast<uintptr_t>(thread->GetException());
     thread->ClearException();
   } else {
-    // Expect class to at least be initializing
+    // Expect class to at least be initializing.
     DCHECK(called->GetDeclaringClass()->IsInitializing());
+    // Don't want infinite recursion.
+    DCHECK(code != Runtime::Current()->GetResolutionStubArray(Runtime::kUnknownMethod)->GetData());
     // Set up entry into main method
     regs[0] = reinterpret_cast<uintptr_t>(called);
-    code = const_cast<void*>(called->GetCode());
   }
   return code;
 }
@@ -581,7 +596,12 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp) {
     }
   }
   // Load expected destination, see Method::RegisterNative
-  return reinterpret_cast<const void*>(jni_method->GetGcMapRaw());
+  const void* code = reinterpret_cast<const void*>(jni_method->GetGcMapRaw());
+  if (UNLIKELY(code == NULL)) {
+    code = Runtime::Current()->GetJniDlsymLookupStub()->GetData();
+    jni_method->RegisterNative(self, code);
+  }
+  return code;
 }
 
 
@@ -1112,23 +1132,6 @@ extern "C" Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx,
   return ResolveVerifyAndClinit(type_idx, referrer, self, false, true);
 }
 
-// Helper function to resolve virtual method
-extern "C" Method* artResolveMethodFromCode(Method* referrer,
-                                            uint32_t method_idx,
-                                            bool is_direct,
-                                            Thread* self,
-                                            Method** sp) {
-    /*
-     * Slow-path handler on invoke virtual method path in which
-     * base method is unresolved at compile-time.  Caller will
-     * unwind if can't resolve.
-     */
-    FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    Method* method = class_linker->ResolveMethod(method_idx, referrer, is_direct);
-    return method;
-}
-
 String* ResolveStringFromCode(const Method* referrer, uint32_t string_idx) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   return class_linker->ResolveString(string_idx, referrer);
@@ -1355,8 +1358,7 @@ static uint64_t artInvokeCommon(uint32_t method_idx, Object* this_object, Method
       return 0;  // failure
     }
   }
-  // TODO: DCHECK
-  CHECK(!self->IsExceptionPending());
+  DCHECK(!self->IsExceptionPending());
   const void* code = method->GetCode();
 
   uint32_t method_uint = reinterpret_cast<uint32_t>(method);
@@ -1498,17 +1500,17 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
   }
   // Convert proxy method into expected interface method
   Method* interface_method = proxy_method->FindOverriddenMethod();
-  CHECK(interface_method != NULL);
-  CHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
+  DCHECK(interface_method != NULL);
+  DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
   args_jobj[1].l = AddLocalReference<jobject>(env, interface_method);
   // Box arguments
   cur_arg = 0;  // reset stack location to read to start
   // reset index, will index into param type array which doesn't include the receiver
   param_index = 0;
   ObjectArray<Class>* param_types = proxy_mh.GetParameterTypes();
-  CHECK(param_types != NULL);
+  DCHECK(param_types != NULL);
   // Check number of parameter types agrees with number from the Method - less 1 for the receiver.
-  CHECK_EQ(static_cast<size_t>(param_types->GetLength()), num_params - 1);
+  DCHECK_EQ(static_cast<size_t>(param_types->GetLength()), num_params - 1);
   while (cur_arg < args_in_regs && param_index < (num_params - 1)) {
     Class* param_type = param_types->Get(param_index);
     Object* obj;

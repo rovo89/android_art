@@ -598,6 +598,10 @@ class MANAGED Method : public Object {
     return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_strings_);
   }
 
+  static MemberOffset DexCacheResolvedMethodsOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_methods_);
+  }
+
   static MemberOffset DexCacheResolvedTypesOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_types_);
   }
@@ -607,11 +611,11 @@ class MANAGED Method : public Object {
         dex_cache_initialized_static_storage_);
   }
 
+  ObjectArray<Method>* GetDexCacheResolvedMethods() const;
+  void SetDexCacheResolvedMethods(ObjectArray<Method>* new_dex_cache_methods);
+
   ObjectArray<Class>* GetDexCacheResolvedTypes() const;
   void SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_types);
-
-  CodeAndDirectMethods* GetDexCacheCodeAndDirectMethods() const;
-  void SetDexCacheCodeAndDirectMethods(CodeAndDirectMethods* new_value);
 
   ObjectArray<StaticStorageBase>* GetDexCacheInitializedStaticStorage() const;
   void SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value);
@@ -764,7 +768,7 @@ class MANAGED Method : public Object {
 
   void RegisterNative(Thread* self, const void* native_method);
 
-  void UnregisterNative();
+  void UnregisterNative(Thread* self);
 
   static MemberOffset NativeMethodOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, native_method_);
@@ -801,10 +805,6 @@ class MANAGED Method : public Object {
     return OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_);
   }
 
-  static MemberOffset GetDexCacheCodeAndDirectMethodsOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_code_and_direct_methods_);
-  }
-
   static MemberOffset GetMethodIndexOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, method_index_);
   }
@@ -838,8 +838,21 @@ class MANAGED Method : public Object {
       }
     }
     // Check that if we do think it is phony it looks like the callee save method
-    DCHECK(!result || GetCoreSpillMask() != 0);
+    DCHECK(!result || GetDexMethodIndex() == DexFile::kDexNoIndex16);
     return result;
+  }
+
+  bool IsResolutionMethod() const {
+    bool result = this == Runtime::Current()->GetResolutionMethod();
+    // Check that if we do think it is phony it looks like the resolution method
+    DCHECK(!result || GetDexMethodIndex() == DexFile::kDexNoIndex16);
+    return result;
+  }
+
+  // Is this a CalleSaveMethod or ResolutionMethod and therefore doesn't adhere to normal
+  // conventions for a method of managed code.
+  bool IsRuntimeMethod() const {
+    return GetDexMethodIndex() == DexFile::kDexNoIndex16;
   }
 
   // Converts a native PC to a dex PC.  TODO: this is a no-op
@@ -871,10 +884,10 @@ class MANAGED Method : public Object {
   Class* declaring_class_;
 
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
-  CodeAndDirectMethods* dex_cache_code_and_direct_methods_;
+  ObjectArray<StaticStorageBase>* dex_cache_initialized_static_storage_;
 
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
-  ObjectArray<StaticStorageBase>* dex_cache_initialized_static_storage_;
+  ObjectArray<Class>* dex_cache_resolved_methods_;
 
   // short cuts to declaring_class_->dex_cache_ member for fast compiled code access
   ObjectArray<Class>* dex_cache_resolved_types_;
@@ -917,6 +930,8 @@ class MANAGED Method : public Object {
   //
   // For abstract methods in an interface class, this is the offset of the method in
   // "iftable_->Get(n)->GetMethodArray()".
+  //
+  // For static and direct methods this is the index in the direct methods table.
   uint32_t method_index_;
 
   // The target native method registered with this method

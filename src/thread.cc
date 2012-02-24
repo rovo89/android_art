@@ -138,7 +138,6 @@ void Thread::InitFunctionPointers() {
   pThrowStackOverflowFromCode = art_throw_stack_overflow_from_code;
   pThrowVerificationErrorFromCode = art_throw_verification_error_from_code;
   pUnlockObjectFromCode = art_unlock_object_from_code;
-  pResolveMethodFromCode = art_resolve_method_from_code;
   pUpdateDebuggerFromCode = NULL;  // To enable, set to art_update_debugger
 #endif
   pF2l = F2L;

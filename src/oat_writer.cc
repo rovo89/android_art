@@ -340,7 +340,13 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index, size_
     method->SetCoreSpillMask(core_spill_mask);
     method->SetFpSpillMask(fp_spill_mask);
     method->SetOatMappingTableOffset(mapping_table_offset);
-    method->SetOatCodeOffset(code_offset);
+    // Don't overwrite static method trampoline
+    if (!method->IsStatic() || method->IsConstructor() ||
+        method->GetDeclaringClass()->IsInitialized()) {
+      method->SetOatCodeOffset(code_offset);
+    } else {
+      method->SetCode(Runtime::Current()->GetResolutionStubArray(Runtime::kStaticMethod)->GetData());
+    }
     method->SetOatVmapTableOffset(vmap_table_offset);
     method->SetOatGcMapOffset(gc_map_offset);
     method->SetOatInvokeStubOffset(invoke_stub_offset);

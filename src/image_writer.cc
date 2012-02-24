@@ -115,6 +115,7 @@ void ImageWriter::ComputeLazyFieldsForImageClasses() {
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   class_linker->VisitClasses(ComputeLazyFieldsForClassesVisitor, NULL);
+
 }
 
 bool ImageWriter::ComputeLazyFieldsForClassesVisitor(Class* klass, void* arg) {
@@ -189,6 +190,7 @@ void ImageWriter::PruneNonImageClasses() {
     class_linker->RemoveClass((*it).c_str(), NULL);
   }
 
+  Method* resolution_method = runtime->GetResolutionMethod();
   typedef Set::const_iterator CacheIt;  // TODO: C++0x auto
   for (CacheIt it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ++it) {
     DexCache* dex_cache = *it;
@@ -202,10 +204,7 @@ void ImageWriter::PruneNonImageClasses() {
     for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
       Method* method = dex_cache->GetResolvedMethod(i);
       if (method != NULL && !IsImageClass(method->GetDeclaringClass())) {
-        dex_cache->SetResolvedMethod(i, NULL);
-        Runtime::TrampolineType type = Runtime::GetTrampolineType(method);
-        ByteArray* res_trampoline = runtime->GetResolutionStubArray(type);
-        dex_cache->GetCodeAndDirectMethods()->SetResolvedDirectMethodTrampoline(i, res_trampoline);
+        dex_cache->SetResolvedMethod(i, resolution_method);
       }
     }
     for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
@@ -309,6 +308,7 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
                    runtime->GetResolutionStubArray(Runtime::kStaticMethod));
   image_roots->Set(ImageHeader::kUnknownMethodResolutionStubArray,
                    runtime->GetResolutionStubArray(Runtime::kUnknownMethod));
+  image_roots->Set(ImageHeader::kResolutionMethod, runtime->GetResolutionMethod());
   image_roots->Set(ImageHeader::kCalleeSaveMethod,
                    runtime->GetCalleeSaveMethod(Runtime::kSaveAll));
   image_roots->Set(ImageHeader::kRefsOnlySaveMethod,
@@ -360,7 +360,6 @@ void ImageWriter::CopyAndFixupObjects() {
   // TODO: heap validation can't handle this fix up pass
   Heap::DisableObjectValidation();
   heap_bitmap->Walk(CopyAndFixupObjectsCallback, this);  // TODO: add Space-limited Walk
-  FixupDexCaches();
 }
 
 void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {
@@ -405,19 +404,6 @@ void ImageWriter::FixupClass(const Class* orig, Class* copy) {
   FixupStaticFields(orig, copy);
 }
 
-static uint32_t FixupCode(const ByteArray* copy_code_array, uint32_t orig_code) {
-  // TODO: change to DCHECK when all code compiling
-  if (copy_code_array == NULL) {
-    return 0;
-  }
-  uint32_t copy_code = reinterpret_cast<uint32_t>(copy_code_array->GetData());
-  // TODO: remember InstructionSet with each code array so we know if we need to do thumb fixup?
-  if ((orig_code % 2) == 1) {
-    return copy_code + 1;
-  }
-  return copy_code;
-}
-
 void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
   FixupInstanceFields(orig, copy);
 
@@ -437,9 +423,31 @@ void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
     return;
   }
 
+  if (orig == Runtime::Current()->GetResolutionMethod()) {
+    // The resolution stub's code points at the unknown resolution trampoline
+    ByteArray* orig_res_stub_array_ =
+        Runtime::Current()->GetResolutionStubArray(Runtime::kUnknownMethod);
+    CHECK(orig->GetCode() == orig_res_stub_array_->GetData());
+    ByteArray* copy_res_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_res_stub_array_));
+    copy->code_ = copy_res_stub_array_->GetData();
+    return;
+  }
+
   // Non-abstract methods typically have code
   uint32_t code_offset = orig->GetOatCodeOffset();
-  const byte* code = GetOatAddress(code_offset);
+  const byte* code = NULL;
+  if (orig->IsStatic()) {
+    // Static methods may point at the resolution trampoline stub
+    ByteArray* orig_res_stub_array_ =
+        Runtime::Current()->GetResolutionStubArray(Runtime::kStaticMethod);
+    if (reinterpret_cast<int8_t*>(code_offset) == orig_res_stub_array_->GetData()) {
+      ByteArray* copy_res_stub_array_ = down_cast<ByteArray*>(GetImageAddress(orig_res_stub_array_));
+      code = reinterpret_cast<const byte*>(copy_res_stub_array_->GetData());
+    }
+  }
+  if (code == NULL) {
+    code = GetOatAddress(code_offset);
+  }
   copy->code_ = code;
 
   if (orig->IsNative()) {
@@ -460,6 +468,7 @@ void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
 
     uint32_t gc_map_offset = orig->GetOatGcMapOffset();
     const byte* gc_map = GetOatAddress(gc_map_offset);
+    CHECK(gc_map != NULL || orig->IsRuntimeMethod()) << PrettyMethod(orig);
     copy->gc_map_ = reinterpret_cast<const uint8_t*>(gc_map);
   }
 }
@@ -523,60 +532,6 @@ void ImageWriter::FixupFields(const Object* orig,
         const Object* ref = orig->GetFieldObject<const Object*>(field_offset, false);
         copy->SetFieldObject(field_offset, GetImageAddress(ref), false);
       }
-    }
-  }
-}
-
-void ImageWriter::FixupDexCaches() {
-  typedef Set::const_iterator It;  // TODO: C++0x auto
-  for (It it = dex_caches_.begin(), end = dex_caches_.end(); it != end; ++it) {
-    DexCache* orig = *it;
-    DexCache* copy = down_cast<DexCache*>(GetLocalAddress(orig));
-    FixupDexCache(orig, copy);
-  }
-}
-
-void ImageWriter::FixupDexCache(const DexCache* orig, DexCache* copy) {
-  CHECK(orig != NULL);
-  CHECK(copy != NULL);
-
-  // The original array value
-  CodeAndDirectMethods* orig_cadms = orig->GetCodeAndDirectMethods();
-  // The compacted object in local memory but not at the correct image address
-  CodeAndDirectMethods* copy_cadms = down_cast<CodeAndDirectMethods*>(GetLocalAddress(orig_cadms));
-
-  Runtime* runtime = Runtime::Current();
-  for (size_t i = 0; i < orig->NumResolvedMethods(); i++) {
-    Method* orig_method = orig->GetResolvedMethod(i);
-    if (orig_method != NULL && !InSourceSpace(orig_method)) {
-      continue;
-    }
-    // if it was unresolved or a resolved static method in an uninit class, use a resolution stub
-    // we need to use the stub in the static method case to ensure <clinit> is run.
-    if (orig_method == NULL
-        || (orig_method->IsStatic() && !orig_method->GetDeclaringClass()->IsInitialized())) {
-      uint32_t orig_res_stub_code = orig_cadms->Get(CodeAndDirectMethods::CodeIndex(i));
-      if (orig_res_stub_code == 0) {
-        continue;  // NULL maps the same in the image and the original
-      }
-      Runtime::TrampolineType type = Runtime::GetTrampolineType(orig_method);  // Type of trampoline
-      ByteArray* orig_res_stub_array = runtime->GetResolutionStubArray(type);
-      // Do we need to relocate this for this space?
-      if (!InSourceSpace(orig_res_stub_array)) {
-        continue;
-      }
-      // Compute address in image of resolution stub and the code address
-      ByteArray* image_res_stub_array = down_cast<ByteArray*>(GetImageAddress(orig_res_stub_array));
-      uint32_t image_res_stub_code = FixupCode(image_res_stub_array, orig_res_stub_code);
-      // Put the image code address in the array
-      copy_cadms->Set(CodeAndDirectMethods::CodeIndex(i), image_res_stub_code);
-    } else if (orig_method->IsDirect()) {
-      // if it was resolved in the original, resolve it in the copy
-      Method* copy_method = down_cast<Method*>(GetLocalAddress(orig_method));
-      copy_cadms->Set(CodeAndDirectMethods::CodeIndex(i),
-                      reinterpret_cast<int32_t>(copy_method->code_));
-      copy_cadms->Set(CodeAndDirectMethods::MethodIndex(i),
-                      reinterpret_cast<int32_t>(GetImageAddress(orig_method)));
     }
   }
 }

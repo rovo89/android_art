@@ -123,19 +123,6 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
   // TODO check Class::IsVerified for all classes
 
   // TODO: check that all Method::GetCode() values are non-null
-
-  EXPECT_EQ(dex->NumMethodIds(), dex_cache->NumCodeAndDirectMethods());
-  CodeAndDirectMethods* code_and_direct_methods = dex_cache->GetCodeAndDirectMethods();
-  for (size_t i = 0; i < dex_cache->NumCodeAndDirectMethods(); i++) {
-    Method* method = dex_cache->GetResolvedMethod(i);
-    if (method->IsDirect()) {
-      EXPECT_EQ(method->GetCode(), code_and_direct_methods->GetResolvedCode(i));
-      EXPECT_EQ(method,            code_and_direct_methods->GetResolvedMethod(i));
-    } else {
-      EXPECT_EQ(0U, code_and_direct_methods->GetResolvedCode(i));
-      EXPECT_TRUE(code_and_direct_methods->GetResolvedMethod(i) == NULL);
-    }
-  }
 }
 
 TEST_F(CompilerTest, AbstractMethodErrorStub) {
