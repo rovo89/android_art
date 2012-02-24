@@ -1658,6 +1658,13 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
         oatFreeTemp(cUnit, r2);
         oatFreeTemp(cUnit, r3);
     } else if (bb->blockType == kExitBlock) {
+        /*
+         * In the exit path, r0/r1 are live - make sure they aren't
+         * allocated by the register utilities as temps.
+         */
+        oatLockTemp(cUnit, r0);
+        oatLockTemp(cUnit, r1);
+
         newLIR0(cUnit, kArmPseudoMethodExit);
         /* If we're compiling for the debugger, generate an update callout */
         if (cUnit->genDebugger) {
