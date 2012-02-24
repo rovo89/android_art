@@ -73,7 +73,7 @@ class PACKED Thread {
     // These correspond to JDWP states (but needn't share the same values).
     kTerminated   = 0,        // TS_ZOMBIE
     kRunnable     = 1,        // TS_RUNNING
-    kTimedWaiting = 2,        // TS_SLEEPING in Object.wait()
+    kTimedWaiting = 2,        // TS_WAIT in Object.wait() with a timeout
     kBlocked      = 3,        // TS_MONITOR on a monitor
     kWaiting      = 4,        // TS_WAIT in Object.wait()
     // Non-JDWP states.

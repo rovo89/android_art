@@ -1375,10 +1375,12 @@ bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThre
     return false;
   }
 
+  // TODO: if we're in Thread.sleep(long), we should return TS_SLEEPING,
+  // even if it's implemented using Object.wait(long).
   switch (thread->GetState()) {
   case Thread::kTerminated:   *pThreadStatus = JDWP::TS_ZOMBIE;   break;
   case Thread::kRunnable:     *pThreadStatus = JDWP::TS_RUNNING;  break;
-  case Thread::kTimedWaiting: *pThreadStatus = JDWP::TS_SLEEPING; break;
+  case Thread::kTimedWaiting: *pThreadStatus = JDWP::TS_WAIT;     break;
   case Thread::kBlocked:      *pThreadStatus = JDWP::TS_MONITOR;  break;
   case Thread::kWaiting:      *pThreadStatus = JDWP::TS_WAIT;     break;
   case Thread::kInitializing: *pThreadStatus = JDWP::TS_ZOMBIE;   break;
