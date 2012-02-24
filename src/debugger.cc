@@ -1167,14 +1167,40 @@ JDWP::JdwpTag Dbg::GetStaticFieldBasicTag(JDWP::FieldId fieldId) {
   return BasicTagFromDescriptor(FieldHelper(FromFieldId(fieldId)).GetTypeDescriptor());
 }
 
-static JDWP::JdwpError GetFieldValueImpl(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply, bool is_static) {
+static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId refTypeId, JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply, bool is_static) {
+  JDWP::JdwpError status;
+  Class* c = DecodeClass(refTypeId, status);
+  if (refTypeId != 0 && c == NULL) {
+    return status;
+  }
+
   Object* o = gRegistry->Get<Object*>(objectId);
   if ((!is_static && o == NULL) || o == kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
   Field* f = FromFieldId(fieldId);
-  if (f->IsStatic() != is_static) {
+
+  Class* receiver_class = c;
+  if (receiver_class == NULL && o != NULL) {
+    receiver_class = o->GetClass();
+  }
+  // TODO: should we give up now if receiver_class is NULL?
+  if (receiver_class != NULL && !f->GetDeclaringClass()->IsAssignableFrom(receiver_class)) {
+    LOG(INFO) << "ERR_INVALID_FIELDID: " << PrettyField(f) << " " << PrettyClass(receiver_class);
     return JDWP::ERR_INVALID_FIELDID;
+  }
+
+  // The RI only enforces the static/non-static mismatch in one direction.
+  // TODO: should we change the tests and check both?
+  if (is_static) {
+    if (!f->IsStatic()) {
+      return JDWP::ERR_INVALID_FIELDID;
+    }
+  } else {
+    if (f->IsStatic()) {
+      LOG(WARNING) << "Ignoring non-NULL receiver for ObjectReference.SetValues on static field " << PrettyField(f);
+      o = NULL;
+    }
   }
 
   JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
@@ -1201,11 +1227,11 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::ObjectId objectId, JDWP::FieldId 
 }
 
 JDWP::JdwpError Dbg::GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
-  return GetFieldValueImpl(objectId, fieldId, pReply, false);
+  return GetFieldValueImpl(0, objectId, fieldId, pReply, false);
 }
 
-JDWP::JdwpError Dbg::GetStaticFieldValue(JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
-  return GetFieldValueImpl(0, fieldId, pReply, true);
+JDWP::JdwpError Dbg::GetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
+  return GetFieldValueImpl(refTypeId, 0, fieldId, pReply, true);
 }
 
 static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width, bool is_static) {
@@ -1214,8 +1240,18 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId objectId, JDWP::FieldId 
     return JDWP::ERR_INVALID_OBJECT;
   }
   Field* f = FromFieldId(fieldId);
-  if (f->IsStatic() != is_static) {
-    return JDWP::ERR_INVALID_FIELDID;
+
+  // The RI only enforces the static/non-static mismatch in one direction.
+  // TODO: should we change the tests and check both?
+  if (is_static) {
+    if (!f->IsStatic()) {
+      return JDWP::ERR_INVALID_FIELDID;
+    }
+  } else {
+    if (f->IsStatic()) {
+      LOG(WARNING) << "Ignoring non-NULL receiver for ObjectReference.SetValues on static field " << PrettyField(f);
+      o = NULL;
+    }
   }
 
   JDWP::JdwpTag tag = BasicTagFromDescriptor(FieldHelper(f).GetTypeDescriptor());
