@@ -1580,8 +1580,8 @@ bool DexVerifier::VerifyCodeFlow() {
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
 
   if (registers_size * insns_size > 4*1024*1024) {
-    Fail(VERIFY_ERROR_GENERIC) << "warning: method is huge (regs=" << registers_size
-                               << " insns_size=" << insns_size << ")";
+    LOG(WARNING) << "warning: method is huge (regs=" << registers_size
+                 << " insns_size=" << insns_size << ")";
   }
   /* Create and initialize table holding register status */
   reg_table_.Init(PcToRegisterLineTable::kTrackRegsGcPoints, insn_flags_.get(), insns_size,
