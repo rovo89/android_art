@@ -9,3 +9,4 @@ This test covers JIT regressions
 2302318 Crash during spin-on-suspend testing
 2487514 Missed exception in PriorityBlockingQueueTest.testToArray1_BadArg
 5884080 ICS JIT regression in nested loop formation
+largeFrame Stress large frame codegen
