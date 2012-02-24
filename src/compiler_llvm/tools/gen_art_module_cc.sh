@@ -17,9 +17,34 @@
 SCRIPTDIR=`dirname "$0"`
 cd "${SCRIPTDIR}/.."
 
-OUTPUT_FILE=art_module.cc
+mkdir -p generated
+
+OUTPUT_FILE=generated/art_module.cc
 
 echo "// Generated with ${0}" > ${OUTPUT_FILE}
-echo '' >> ${OUTPUT_FILE}
+
+echo '
+
+#pragma GCC diagnostic ignored "-Wframe-larger-than="
+// TODO: Remove this pragma after llc can generate makeLLVMModuleContents()
+// with smaller frame size.
+
+#include <llvm/DerivedTypes.h>
+#include <llvm/Function.h>
+#include <llvm/Module.h>
+#include <llvm/Type.h>
+
+#include <vector>
+
+using namespace llvm;
+
+namespace art {
+namespace compiler_llvm {
+
+' >> ${OUTPUT_FILE}
 
 llc -march=cpp -cppgen=contents art_module.ll -o - >> ${OUTPUT_FILE}
+
+echo '
+} // namespace compiler_llvm
+} // namespace art' >> ${OUTPUT_FILE}

@@ -32,10 +32,7 @@ namespace art {
 namespace compiler_llvm {
 
 
-namespace {
-using namespace llvm;
-#include "art_module.cc"
-}
+llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
 
 CompilerLLVM::CompilerLLVM(Compiler* compiler, InstructionSet insn_set)
