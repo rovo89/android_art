@@ -337,28 +337,21 @@ static JdwpError handleVM_Capabilities(JdwpState* state, const uint8_t* buf, int
   return ERR_NONE;
 }
 
-/*
- * Return classpath and bootclasspath.
- */
 static JdwpError handleVM_ClassPaths(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  char baseDir[2] = "/";
+  expandBufAddUtf8String(pReply, "/");
 
-  /*
-   * TODO: make this real.  Not important for remote debugging, but
-   * might be useful for local debugging.
-   */
-  uint32_t classPaths = 1;
-  uint32_t bootClassPaths = 0;
-
-  expandBufAddUtf8String(pReply, baseDir);
-  expandBufAdd4BE(pReply, classPaths);
-  for (uint32_t i = 0; i < classPaths; i++) {
-    expandBufAddUtf8String(pReply, ".");
+  std::vector<std::string> class_path;
+  Split(Runtime::Current()->GetClassPathString(), ':', class_path);
+  expandBufAdd4BE(pReply, class_path.size());
+  for (size_t i = 0; i < class_path.size(); ++i) {
+    expandBufAddUtf8String(pReply, class_path[i]);
   }
 
-  expandBufAdd4BE(pReply, bootClassPaths);
-  for (uint32_t i = 0; i < classPaths; i++) {
-    /* add bootclasspath components as strings */
+  std::vector<std::string> boot_class_path;
+  Split(Runtime::Current()->GetBootClassPathString(), ':', boot_class_path);
+  expandBufAdd4BE(pReply, boot_class_path.size());
+  for (size_t i = 0; i < boot_class_path.size(); ++i) {
+    expandBufAddUtf8String(pReply, boot_class_path[i]);
   }
 
   return ERR_NONE;
