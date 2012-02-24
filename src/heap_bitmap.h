@@ -90,6 +90,8 @@ class HeapBitmap {
 
   void Walk(Callback* callback, void* arg);
 
+  void InOrderWalk(HeapBitmap::Callback* callback, void* arg);
+
   void ScanWalk(uintptr_t base, uintptr_t max, ScanCallback* thunk, void* arg);
 
   static void SweepWalk(const HeapBitmap& live,

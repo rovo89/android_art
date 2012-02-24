@@ -209,3 +209,103 @@ void HeapBitmap::SweepWalk(const HeapBitmap& live_bitmap,
 }
 
 }  // namespace art
+
+// Support needed for in order traversal
+#include "object.h"
+#include "object_utils.h"
+
+namespace art {
+
+static void WalkFieldsInOrder(HeapBitmap* visited, HeapBitmap::Callback* callback, Object* obj,
+                              void* arg);
+
+// Walk instance fields of the given Class. Separate function to allow recursion on the super
+// class.
+static void WalkInstanceFields(HeapBitmap* visited, HeapBitmap::Callback* callback, Object* obj,
+                               Class* klass, void* arg) {
+  // Visit fields of parent classes first.
+  Class* super = klass->GetSuperClass();
+  if (super != NULL) {
+    WalkInstanceFields(visited, callback, obj, super, arg);
+  }
+  // Walk instance fields
+  ObjectArray<Field>* fields = klass->GetIFields();
+  if (fields != NULL) {
+    for (int32_t i = 0; i < fields->GetLength(); i++) {
+      Field* field = fields->Get(i);
+      FieldHelper fh(field);
+      if (!fh.GetType()->IsPrimitive()) {
+        Object* value = field->GetObj(obj);
+        if (value != NULL) {
+          WalkFieldsInOrder(visited, callback, value,  arg);
+        }
+      }
+    }
+  }
+}
+
+// For an unvisited object, visit it then all its children found via fields.
+static void WalkFieldsInOrder(HeapBitmap* visited, HeapBitmap::Callback* callback, Object* obj,
+                              void* arg) {
+  if (visited->Test(obj)) {
+    return;
+  }
+  // visit the object itself
+  (*callback)(obj, arg);
+  visited->Set(obj);
+  // Walk instance fields of all objects
+  Class* klass = obj->GetClass();
+  WalkInstanceFields(visited, callback, obj, klass, arg);
+  // Walk static fields of a Class
+  if (obj->IsClass()) {
+    ObjectArray<Field>* fields = klass->GetSFields();
+    if (fields != NULL) {
+      for (int32_t i = 0; i < fields->GetLength(); i++) {
+        Field* field = fields->Get(i);
+        FieldHelper fh(field);
+        if (!fh.GetType()->IsPrimitive()) {
+          Object* value = field->GetObj(NULL);
+          if (value != NULL) {
+            WalkFieldsInOrder(visited, callback, value, arg);
+          }
+        }
+      }
+    }
+  } else if (obj->IsObjectArray()) {
+    // Walk elements of an object array
+    ObjectArray<Object>* obj_array = obj->AsObjectArray<Object>();
+    int32_t length = obj_array->GetLength();
+    for (int32_t i = 0; i < length; i++) {
+      Object* value = obj_array->Get(i);
+      if (value != NULL) {
+        WalkFieldsInOrder(visited, callback, value, arg);
+      }
+    }
+  }
+}
+
+// Visits set bits with an in order traversal.  The callback is not permitted to change the bitmap
+// bits or max during the traversal.
+void HeapBitmap::InOrderWalk(HeapBitmap::Callback* callback, void* arg) {
+  UniquePtr<HeapBitmap> visited (Create("bitmap for in-order walk",
+                                        reinterpret_cast<byte*>(heap_begin_),
+                                        HB_INDEX_TO_OFFSET(bitmap_size_ / kWordSize)));
+  CHECK(bitmap_begin_ != NULL);
+  CHECK(callback != NULL);
+  uintptr_t end = HB_OFFSET_TO_INDEX(heap_end_ - heap_begin_);
+  for (uintptr_t i = 0; i <= end; ++i) {
+    word w = bitmap_begin_[i];
+    if (UNLIKELY(w != 0)) {
+      word high_bit = 1 << (kBitsPerWord - 1);
+      uintptr_t ptr_base = HB_INDEX_TO_OFFSET(i) + heap_begin_;
+      while (w != 0) {
+        const int shift = CLZ(w);
+        Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
+        WalkFieldsInOrder(visited.get(), callback, obj, arg);
+        w &= ~(high_bit >> shift);
+      }
+    }
+  }
+}
+
+}  // namespace art
