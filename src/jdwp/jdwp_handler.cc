@@ -444,24 +444,6 @@ static JdwpError handleVM_AllClassesWithGeneric(JdwpState* state, const uint8_t*
   return handleVM_AllClasses(state, buf, dataLen, pReply, true, true);
 }
 
-/*
- * Given a referenceTypeID, return a string with the JNI reference type
- * signature (e.g. "Ljava/lang/Error;").
- */
-static JdwpError handleRT_Signature(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  RefTypeId refTypeId = ReadRefTypeId(&buf);
-
-  VLOG(jdwp) << StringPrintf("  Req for signature of refTypeId=%#llx", refTypeId);
-  std::string signature;
-
-  JdwpError status = Dbg::GetSignature(refTypeId, signature);
-  if (status != ERR_NONE) {
-    return status;
-  }
-  expandBufAddUtf8String(pReply, signature);
-  return ERR_NONE;
-}
-
 static JdwpError handleRT_Modifiers(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
   return Dbg::GetModifiers(refTypeId, pReply);
@@ -547,25 +529,29 @@ static JdwpError handleRT_SourceDebugExtension(JdwpState* state, const uint8_t* 
   return ERR_ABSENT_INFORMATION;
 }
 
-/*
- * Like RT_Signature but with the possibility of a "generic signature".
- */
-static JdwpError handleRT_SignatureWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  static const char genericSignature[1] = "";
-
+static JdwpError handleRT_Signature(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply, bool with_generic) {
   RefTypeId refTypeId = ReadRefTypeId(&buf);
 
   VLOG(jdwp) << StringPrintf("  Req for signature of refTypeId=%#llx", refTypeId);
   std::string signature;
-  if (Dbg::GetSignature(refTypeId, signature)) {
-    expandBufAddUtf8String(pReply, signature);
-  } else {
-    LOG(WARNING) << StringPrintf("No signature for refTypeId=%#llx", refTypeId);
+
+  JdwpError status = Dbg::GetSignature(refTypeId, signature);
+  if (status != ERR_NONE) {
+    return status;
+  }
+  expandBufAddUtf8String(pReply, signature);
+  if (with_generic) {
     expandBufAddUtf8String(pReply, "");
   }
-  expandBufAddUtf8String(pReply, genericSignature);
-
   return ERR_NONE;
+}
+
+static JdwpError handleRT_Signature(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+  return handleRT_Signature(state, buf, dataLen, pReply, false);
+}
+
+static JdwpError handleRT_SignatureWithGeneric(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
+  return handleRT_Signature(state, buf, dataLen, pReply, true);
 }
 
 /*
