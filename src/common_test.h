@@ -24,6 +24,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "compiler.h"
+#include "compiler_llvm/utils_llvm.h"
 #include "constants.h"
 #include "dex_file.h"
 #include "file.h"
@@ -174,8 +175,10 @@ class CommonTest : public testing::Test {
   }
 
   static void MakeExecutable(const std::vector<uint8_t>& code) {
+#if !defined(ART_USE_LLVM_COMPILER)  // LLVM compilation uses ELF instead
     CHECK_NE(code.size(), 0U);
     MakeExecutable(&code[0], code.size());
+#endif
   }
 
   // Create an OatMethod based on pointers (for unit tests)
@@ -232,7 +235,11 @@ class CommonTest : public testing::Test {
                                                       &compiled_method->GetVmapTable()[0],
                                                       NULL,
                                                       method_invoke_stub);
+#if !defined(ART_USE_LLVM_COMPILER)
       oat_method.LinkMethodPointers(method);
+#else
+      LLVMLinkLoadMethod("-0", method);
+#endif
     } else {
       MakeExecutable(runtime_->GetAbstractMethodErrorStubArray());
       const void* method_code = runtime_->GetAbstractMethodErrorStubArray()->GetData();

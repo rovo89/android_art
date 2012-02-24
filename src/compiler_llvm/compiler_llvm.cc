@@ -55,8 +55,8 @@ llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
 
 CompilerLLVM::CompilerLLVM(Compiler* compiler, InstructionSet insn_set)
-: compiler_(compiler), compiler_lock_("llvm_compiler_lock"),
-  insn_set_(insn_set), cunit_counter_(0) {
+    : compiler_(compiler), compiler_lock_("llvm_compiler_lock"),
+      insn_set_(insn_set), cunit_counter_(0) {
 
   // Initialize LLVM libraries
   pthread_once(&llvm_initialized, InitializeLLVM);
@@ -69,6 +69,7 @@ CompilerLLVM::~CompilerLLVM() {
 
 
 void CompilerLLVM::EnsureCompilationUnit() {
+  MutexLock GUARD(compiler_lock_);
   DCHECK_NE(llvm_initialized, PTHREAD_ONCE_INIT);
   if (cunit_.get() == NULL) {
     cunit_.reset(new CompilationUnit(insn_set_));

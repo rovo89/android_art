@@ -698,6 +698,9 @@ int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+#if defined(ART_USE_LLVM_COMPILER)
+  LOG(INFO) << "oat=" << oat_location << " elf=" << elf_filename;
+#endif
   if (!image) {
     LOG(INFO) << "Oat file written successfully: " << oat_location;
     return EXIT_SUCCESS;

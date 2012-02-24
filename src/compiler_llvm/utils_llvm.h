@@ -33,6 +33,10 @@ std::string LLVMShortName(const Method* m);
 // Returns the LLVM function name for the overloaded method 'm'.
 std::string LLVMLongName(const Method* m);
 
+// Returns the LLVM stub function name for the overloaded method 'm'.
+std::string LLVMStubName(const Method* m);
+
+void LLVMLinkLoadMethod(const std::string& file_name, Method* method);
 }  // namespace art
 
 #endif  // ART_SRC_UTILS_LLVM_H_

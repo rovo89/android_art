@@ -71,6 +71,7 @@ define build-libart
   endif
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   ifeq ($(ART_USE_LLVM_COMPILER),true)
+    LOCAL_C_INCLUDES += frameworks/compile/linkloader
     libart_arm_STATIC_LIBRARIES := \
       libLLVMARMInfo \
       libLLVMARMDisassembler \
@@ -122,7 +123,8 @@ define build-libart
       libLLVMMC \
       libLLVMMCParser \
       libLLVMCore \
-      libLLVMSupport
+      libLLVMSupport \
+      librsloader
   endif
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
   ifeq ($$(art_target_or_host),target)
