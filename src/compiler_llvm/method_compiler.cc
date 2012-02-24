@@ -111,9 +111,9 @@ llvm::FunctionType* MethodCompiler::GetFunctionType(uint32_t method_idx,
   // Get method signature
   DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx);
 
-  int32_t shorty_size;
+  uint32_t shorty_size;
   char const* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
-  CHECK_GE(shorty_size, 1);
+  CHECK_GE(shorty_size, 1u);
 
   // Get return type
   llvm::Type* ret_type = irb_.getJType(shorty[0], kAccurate);
@@ -127,7 +127,7 @@ llvm::FunctionType* MethodCompiler::GetFunctionType(uint32_t method_idx,
     args_type.push_back(irb_.getJType('L', kAccurate)); // "this" object pointer
   }
 
-  for (int32_t i = 1; i < shorty_size; ++i) {
+  for (uint32_t i = 1; i < shorty_size; ++i) {
     args_type.push_back(irb_.getJType(shorty[i], kAccurate));
   }
 
@@ -2671,9 +2671,9 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
   DexFile::MethodId const& method_id =
     dex_file_->GetMethodId(callee_method_idx);
 
-  int32_t shorty_size;
+  uint32_t shorty_size;
   char const* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
-  CHECK_GE(shorty_size, 1);
+  CHECK_GE(shorty_size, 1u);
 
   // Load argument values according to the shorty (without "this")
   uint16_t reg_count = 0;
@@ -2682,7 +2682,7 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
     ++reg_count; // skip the "this" pointer
   }
 
-  for (int32_t i = 1; i < shorty_size; ++i) {
+  for (uint32_t i = 1; i < shorty_size; ++i) {
     uint32_t reg_idx = (is_range) ? (dec_insn.vC_ + reg_count)
                                   : (dec_insn.arg_[reg_count]);
 
