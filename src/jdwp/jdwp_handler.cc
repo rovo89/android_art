@@ -471,20 +471,16 @@ static JdwpError handleRT_Modifiers(JdwpState* state, const uint8_t* buf, int da
  * Get values from static fields in a reference type.
  */
 static JdwpError handleRT_GetValues(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
-  ReadRefTypeId(&buf); // We don't need this, but we need to skip over it in the request.
-  uint32_t numFields = Read4BE(&buf);
-
-  VLOG(jdwp) << "  RT_GetValues " << numFields << ":";
-
-  expandBufAdd4BE(pReply, numFields);
-  for (uint32_t i = 0; i < numFields; i++) {
+  RefTypeId refTypeId = ReadRefTypeId(&buf);
+  uint32_t field_count = Read4BE(&buf);
+  expandBufAdd4BE(pReply, field_count);
+  for (uint32_t i = 0; i < field_count; i++) {
     FieldId fieldId = ReadFieldId(&buf);
-    JdwpError status = Dbg::GetStaticFieldValue(fieldId, pReply);
+    JdwpError status = Dbg::GetStaticFieldValue(refTypeId, fieldId, pReply);
     if (status != ERR_NONE) {
       return status;
     }
   }
-
   return ERR_NONE;
 }
 
@@ -565,7 +561,7 @@ static JdwpError handleRT_SignatureWithGeneric(JdwpState* state, const uint8_t* 
     expandBufAddUtf8String(pReply, signature);
   } else {
     LOG(WARNING) << StringPrintf("No signature for refTypeId=%#llx", refTypeId);
-    expandBufAddUtf8String(pReply, "Lunknown;");
+    expandBufAddUtf8String(pReply, "");
   }
   expandBufAddUtf8String(pReply, genericSignature);
 
@@ -773,13 +769,13 @@ static JdwpError handleOR_ReferenceType(JdwpState* state, const uint8_t* buf, in
  */
 static JdwpError handleOR_GetValues(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId objectId = ReadObjectId(&buf);
-  uint32_t numFields = Read4BE(&buf);
+  uint32_t field_count = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for %d fields from objectId=%#llx", numFields, objectId);
+  VLOG(jdwp) << StringPrintf("  Req for %d fields from objectId=%#llx", field_count, objectId);
 
-  expandBufAdd4BE(pReply, numFields);
+  expandBufAdd4BE(pReply, field_count);
 
-  for (uint32_t i = 0; i < numFields; i++) {
+  for (uint32_t i = 0; i < field_count; i++) {
     FieldId fieldId = ReadFieldId(&buf);
     JdwpError status = Dbg::GetFieldValue(objectId, fieldId, pReply);
     if (status != ERR_NONE) {
@@ -795,11 +791,11 @@ static JdwpError handleOR_GetValues(JdwpState* state, const uint8_t* buf, int da
  */
 static JdwpError handleOR_SetValues(JdwpState* state, const uint8_t* buf, int dataLen, ExpandBuf* pReply) {
   ObjectId objectId = ReadObjectId(&buf);
-  uint32_t numFields = Read4BE(&buf);
+  uint32_t field_count = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req to set %d fields in objectId=%#llx", numFields, objectId);
+  VLOG(jdwp) << StringPrintf("  Req to set %d fields in objectId=%#llx", field_count, objectId);
 
-  for (uint32_t i = 0; i < numFields; i++) {
+  for (uint32_t i = 0; i < field_count; i++) {
     FieldId fieldId = ReadFieldId(&buf);
 
     JDWP::JdwpTag fieldTag = Dbg::GetFieldBasicTag(fieldId);

@@ -170,7 +170,7 @@ class Dbg {
   static JDWP::JdwpTag GetStaticFieldBasicTag(JDWP::FieldId fieldId);
   static JDWP::JdwpError GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply);
   static JDWP::JdwpError SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width);
-  static JDWP::JdwpError GetStaticFieldValue(JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply);
+  static JDWP::JdwpError GetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply);
   static JDWP::JdwpError SetStaticFieldValue(JDWP::FieldId fieldId, uint64_t value, int width);
 
   static std::string StringToUtf8(JDWP::ObjectId strId);
