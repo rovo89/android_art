@@ -691,16 +691,24 @@ STATIC ArmLIR* loadBaseIndexed(CompilationUnit* cUnit, int rBase,
     int regPtr;
 
     if (FPREG(rDest)) {
-        DCHECK(SINGLEREG(rDest));
-        DCHECK((size == kWord) || (size == kSingle));
-        opcode = kThumb2Vldrs;
-        size = kSingle;
+        if (SINGLEREG(rDest)) {
+            DCHECK((size == kWord) || (size == kSingle));
+            opcode = kThumb2Vldrs;
+            size = kSingle;
+        } else {
+            DCHECK(DOUBLEREG(rDest));
+            DCHECK((size == kLong) || (size == kDouble));
+            DCHECK((rDest & 0x1) == 0);
+            opcode = kThumb2Vldrd;
+            size = kDouble;
+        }
     } else {
         if (size == kSingle)
             size = kWord;
     }
 
     switch (size) {
+        case kDouble: // fall-through
         case kSingle:
             regPtr = oatAllocTemp(cUnit);
             if (scale) {
@@ -747,16 +755,24 @@ STATIC ArmLIR* storeBaseIndexed(CompilationUnit* cUnit, int rBase,
     int regPtr;
 
     if (FPREG(rSrc)) {
-        DCHECK(SINGLEREG(rSrc));
-        DCHECK((size == kWord) || (size == kSingle));
-        opcode = kThumb2Vstrs;
-        size = kSingle;
+        if (SINGLEREG(rSrc)) {
+            DCHECK((size == kWord) || (size == kSingle));
+            opcode = kThumb2Vstrs;
+            size = kSingle;
+        } else {
+            DCHECK(DOUBLEREG(rSrc));
+            DCHECK((size == kLong) || (size == kDouble));
+            DCHECK((rSrc & 0x1) == 0);
+            opcode = kThumb2Vstrd;
+            size = kDouble;
+        }
     } else {
         if (size == kSingle)
             size = kWord;
     }
 
     switch (size) {
+        case kDouble: // fall-through
         case kSingle:
             regPtr = oatAllocTemp(cUnit);
             if (scale) {
