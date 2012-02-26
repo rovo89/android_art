@@ -22,18 +22,21 @@
  *
  */
 
-#define SLOW_FIELD_PATH (cUnit->enableDebug & (1 << kDebugSlowFieldPath))
-#define SLOW_INVOKE_PATH (cUnit->enableDebug & (1 << kDebugSlowInvokePath))
-#define SLOW_STRING_PATH (cUnit->enableDebug & (1 << kDebugSlowStringPath))
-#define SLOW_TYPE_PATH (cUnit->enableDebug & (1 << kDebugSlowTypePath))
-#define EXERCISE_SLOWEST_FIELD_PATH (cUnit->enableDebug & \
-    (1 << kDebugSlowestFieldPath))
-#define EXERCISE_SLOWEST_STRING_PATH (cUnit->enableDebug & \
-    (1 << kDebugSlowestStringPath))
-#define EXERCISE_RESOLVE_METHOD (cUnit->enableDebug & \
-    (1 << kDebugExerciseResolveMethod))
-
 namespace art {
+
+/*
+ * Return most flexible allowed register class based on size.
+ * Bug: 2813841
+ * Must use a core register for data types narrower than word (due
+ * to possible unaligned load/store.
+ */
+STATIC inline RegisterClass oatRegClassBySize(OpSize size)
+{
+    return (size == kUnsignedHalf ||
+            size == kSignedHalf ||
+            size == kUnsignedByte ||
+            size == kSignedByte ) ? kCoreReg : kAnyReg;
+}
 
 STATIC RegLocation getRetLoc(CompilationUnit* cUnit);
 
@@ -66,20 +69,6 @@ STATIC inline s4 s4FromSwitchData(const void* switchData) {
     return data[0] | (((s4) data[1]) << 16);
 }
 #endif
-
-STATIC ArmLIR* callRuntimeHelper(CompilationUnit* cUnit, int reg)
-{
-    oatClobberCalleeSave(cUnit);
-    return opReg(cUnit, kOpBlx, reg);
-}
-
-/* Generate unconditional branch instructions */
-STATIC ArmLIR* genUnconditionalBranch(CompilationUnit* cUnit, ArmLIR* target)
-{
-    ArmLIR* branch = opNone(cUnit, kOpUncondBr);
-    branch->generic.target = (LIR*) target;
-    return branch;
-}
 
 /*
  * Generate a Thumb2 IT instruction, which can nullify up to
@@ -384,26 +373,6 @@ STATIC void genFillArrayData(CompilationUnit* cUnit, MIR* mir,
     // Materialize a pointer to the fill data image
     newLIR3(cUnit, kThumb2Adr, r1, 0, (intptr_t)tabRec);
     callRuntimeHelper(cUnit, rLR);
-}
-
-/*
- * Mark garbage collection card. Skip if the value we're storing is null.
- */
-STATIC void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
-{
-    int regCardBase = oatAllocTemp(cUnit);
-    int regCardNo = oatAllocTemp(cUnit);
-    ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondEq, valReg, 0);
-    loadWordDisp(cUnit, rSELF, Thread::CardTableOffset().Int32Value(),
-                 regCardBase);
-    opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, GC_CARD_SHIFT);
-    storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
-                     kUnsignedByte);
-    ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
-    branchOver->generic.target = (LIR*)target;
-    oatFreeTemp(cUnit, regCardBase);
-    oatFreeTemp(cUnit, regCardNo);
 }
 
 STATIC void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
@@ -1272,16 +1241,6 @@ STATIC bool genConversionPortable(CompilationUnit* cUnit, MIR* mir)
             return true;
     }
     return false;
-}
-
-/* Generate conditional branch instructions */
-STATIC ArmLIR* genConditionalBranch(CompilationUnit* cUnit,
-                                    ArmConditionCode cond,
-                                    ArmLIR* target)
-{
-    ArmLIR* branch = opCondBranch(cUnit, cond);
-    branch->generic.target = (LIR*) target;
-    return branch;
 }
 
 /*

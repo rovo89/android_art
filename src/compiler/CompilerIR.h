@@ -56,6 +56,34 @@ typedef struct RegLocation {
     s2 sRegLow;           // SSA name for low Dalvik word
 } RegLocation;
 
+ /*
+ * Data structure tracking the mapping between a Dalvik register (pair) and a
+ * native register (pair). The idea is to reuse the previously loaded value
+ * if possible, otherwise to keep the value in a native register as long as
+ * possible.
+ */
+typedef struct RegisterInfo {
+    int reg;                    // Reg number
+    bool inUse;                 // Has it been allocated?
+    bool isTemp;                // Can allocate as temp?
+    bool pair;                  // Part of a register pair?
+    int partner;                // If pair, other reg of pair
+    bool live;                  // Is there an associated SSA name?
+    bool dirty;                 // If live, is it dirty?
+    int sReg;                   // Name of live value
+    struct LIR *defStart;       // Starting inst in last def sequence
+    struct LIR *defEnd;         // Ending inst in last def sequence
+} RegisterInfo;
+
+typedef struct RegisterPool {
+    int numCoreRegs;
+    RegisterInfo *coreRegs;
+    int nextCoreReg;
+    int numFPRegs;
+    RegisterInfo *FPRegs;
+    int nextFPReg;
+} RegisterPool;
+
 #define INVALID_SREG (-1)
 #define INVALID_VREG (0xFFFFU)
 #define INVALID_REG (0xFF)
@@ -341,6 +369,17 @@ typedef struct CompilationUnit {
      int numArenaBlocks;
      struct Memstats* mstats;
 } CompilationUnit;
+
+typedef enum OpSize {
+    kWord,
+    kLong,
+    kSingle,
+    kDouble,
+    kUnsignedHalf,
+    kSignedHalf,
+    kUnsignedByte,
+    kSignedByte,
+} OpSize;
 
 BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId);
 

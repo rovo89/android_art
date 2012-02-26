@@ -24,25 +24,18 @@
 #include "../CompilerUtility.h"
 #include "../CompilerIR.h"
 #include "../Dataflow.h"
-#include "arm/ArmLIR.h"
 
 namespace art {
 
-/*
- * Return most flexible allowed register class based on size.
- * Bug: 2813841
- * Must use a core register for data types narrower than word (due
- * to possible unaligned load/store.
- */
-STATIC inline RegisterClass oatRegClassBySize(OpSize size)
-{
-    return (size == kUnsignedHalf ||
-            size == kSignedHalf ||
-            size == kUnsignedByte ||
-            size == kSignedByte ) ? kCoreReg : kAnyReg;
-}
+/* Static register use counts */
+typedef struct RefCounts {
+    int count;
+    int sReg;
+    bool doubleStart;   // Starting vReg for a double
+} RefCounts;
 
-STATIC inline int oatS2VReg(CompilationUnit* cUnit, int sReg)
+
+inline int oatS2VReg(CompilationUnit* cUnit, int sReg)
 {
     DCHECK_NE(sReg, INVALID_SREG);
     return DECODE_REG(oatConvertSSARegToDalvik(cUnit, sReg));
@@ -58,18 +51,18 @@ STATIC inline int oatS2VReg(CompilationUnit* cUnit, int sReg)
  * identified by the dataflow pass what it's new name is.
  */
 
-STATIC inline int oatSRegHi(int lowSreg) {
+inline int oatSRegHi(int lowSreg) {
     return (lowSreg == INVALID_SREG) ? INVALID_SREG : lowSreg + 1;
 }
 
 
-STATIC inline bool oatLiveOut(CompilationUnit* cUnit, int sReg)
+inline bool oatLiveOut(CompilationUnit* cUnit, int sReg)
 {
     //For now.
     return true;
 }
 
-STATIC inline int oatSSASrc(MIR* mir, int num)
+inline int oatSSASrc(MIR* mir, int num)
 {
     DCHECK_GT(mir->ssaRep->numUses, num);
     return mir->ssaRep->uses[num];
@@ -108,7 +101,7 @@ extern void oatResetDef(CompilationUnit* cUnit, int reg);
 extern void oatResetDefLoc(CompilationUnit* cUnit, RegLocation rl);
 
 /* Set up temp & preserved register pools specialized by target */
-extern void oatInitPool(RegisterInfo* regs, int* regNums, int num);
+extern void oatInitPool(struct RegisterInfo* regs, int* regNums, int num);
 
 /*
  * Mark the beginning and end LIR of a def sequence.  Note that
@@ -212,6 +205,13 @@ extern void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2);
 
 extern void oatFlushReg(CompilationUnit* cUnit, int reg);
 
+extern void oatDoPromotion(CompilationUnit* cUnit);
+extern int oatVRegOffset(CompilationUnit* cUnit, int reg);
+extern int oatSRegOffset(CompilationUnit* cUnit, int reg);
+extern void oatCountRefs(CompilationUnit*, BasicBlock*, RefCounts*, RefCounts*);
+extern int oatSortCounts(const void *val1, const void *val2);
+extern void oatDumpCounts(const RefCounts* arr, int size, const char* msg);
+
 /*
  * Architecture-dependent register allocation routines implemented in
  * ${TARGET_ARCH}/${TARGET_ARCH_VARIANT}/Ralloc.c
@@ -222,8 +222,6 @@ extern int oatAllocTypedTempPair(CompilationUnit* cUnit,
 extern int oatAllocTypedTemp(CompilationUnit* cUnit, bool fpHint,
                              int regClass);
 
-extern ArmLIR* oatRegCopy(CompilationUnit* cUnit, int rDest, int rSrc);
-
 extern void oatRegCopyWide(CompilationUnit* cUnit, int destLo,
                            int destHi, int srcLo, int srcHi);
 
@@ -233,13 +231,16 @@ extern void oatFlushRegImpl(CompilationUnit* cUnit, int rBase,
 extern void oatFlushRegWideImpl(CompilationUnit* cUnit, int rBase,
                                 int displacement, int rSrcLo, int rSrcHi);
 
-extern void oatDoPromotion(CompilationUnit* cUnit);
-extern int oatVRegOffset(CompilationUnit* cUnit, int reg);
-extern int oatSRegOffset(CompilationUnit* cUnit, int reg);
 extern void oatDumpCoreRegPool(CompilationUnit* cUint);
 extern void oatDumpFPRegPool(CompilationUnit* cUint);
 extern bool oatCheckCorePoolSanity(CompilationUnit* cUnit);
 extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg);
+extern void oatNopLIR(LIR* lir);
+extern bool oatIsFPReg(int reg);
+extern uint32_t oatFPRegMask(void);
+extern void oatAdjustSpillMask(CompilationUnit* cUnit);
+void oatMarkPreservedSingle(CompilationUnit* cUnit, int sReg, int reg);
+void oatRegCopy(CompilationUnit* cUnit, int rDest, int rSrc);
 
 }  // namespace art
 

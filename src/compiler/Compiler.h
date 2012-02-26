@@ -32,10 +32,19 @@ namespace art {
 #define DEBUGGER_METHOD_ENTRY -1
 #define DEBUGGER_METHOD_EXIT -2
 
+/*
+ * Assembly is an iterative process, and usually terminates within
+ * two or three passes.  This should be high enough to handle bizarre
+ * cases, but detect an infinite loop bug.
+ */
+#define MAX_ASSEMBLER_RETRIES 50
+
 typedef enum OatInstructionSetType {
     DALVIK_OAT_NONE = 0,
     DALVIK_OAT_ARM,
     DALVIK_OAT_THUMB2,
+    DALVIK_OAT_IA32,
+    DALVIK_OAT_MIPS32
 } OatInstructionSetType;
 
 /* Supress optimization if corresponding bit set */
@@ -206,6 +215,8 @@ void oatMethodSSATransformation(struct CompilationUnit* cUnit);
 u8 oatGetRegResourceMask(int reg);
 void oatDumpCFG(struct CompilationUnit* cUnit, const char* dirPrefix);
 void oatProcessSwitchTables(CompilationUnit* cUnit);
+bool oatIsFpReg(int reg);
+uint32_t oatFpRegMask(void);
 
 }  // namespace art
 

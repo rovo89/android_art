@@ -125,41 +125,9 @@ namespace art {
 #define rNone   (-1)
 
 /* RegisterLocation templates return values (r0, or r0/r1) */
-#define LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 1, r0, INVALID_REG, INVALID_SREG}
+#define LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 1, r0, INVALID_REG,\
+                      INVALID_SREG}
 #define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, r0, r1, INVALID_SREG}
-/* RegisterLocation templates for interpState->retVal; */
-#define LOC_DALVIK_RETURN_VAL {kLocPhysReg, 0, 0, 0, 0, 0, 1, r0, INVALID_REG, \
-                      INVALID_SREG}
-#define LOC_DALVIK_RETURN_VAL_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, r0, r1, \
-                      INVALID_SREG}
-
- /*
- * Data structure tracking the mapping between a Dalvik register (pair) and a
- * native register (pair). The idea is to reuse the previously loaded value
- * if possible, otherwise to keep the value in a native register as long as
- * possible.
- */
-typedef struct RegisterInfo {
-    int reg;                    // Reg number
-    bool inUse;                 // Has it been allocated?
-    bool isTemp;                // Can allocate as temp?
-    bool pair;                  // Part of a register pair?
-    int partner;                // If pair, other reg of pair
-    bool live;                  // Is there an associated SSA name?
-    bool dirty;                 // If live, is it dirty?
-    int sReg;                   // Name of live value
-    struct LIR *defStart;       // Starting inst in last def sequence
-    struct LIR *defEnd;         // Ending inst in last def sequence
-} RegisterInfo;
-
-typedef struct RegisterPool {
-    int numCoreRegs;
-    RegisterInfo *coreRegs;
-    int nextCoreReg;
-    int numFPRegs;
-    RegisterInfo *FPRegs;
-    int nextFPReg;
-} RegisterPool;
 
 typedef enum ResourceEncodingPos {
     kGPReg0     = 0,
@@ -199,17 +167,6 @@ typedef enum ResourceEncodingPos {
 #define DECODE_ALIAS_INFO_REG(X)        (X & 0xffff)
 #define DECODE_ALIAS_INFO_WIDE(X)       ((X & 0x80000000) ? 1 : 0)
 
-typedef enum OpSize {
-    kWord,
-    kLong,
-    kSingle,
-    kDouble,
-    kUnsignedHalf,
-    kSignedHalf,
-    kUnsignedByte,
-    kSignedByte,
-} OpSize;
-
 typedef enum OpKind {
     kOpMov,
     kOpMvn,
@@ -243,6 +200,7 @@ typedef enum OpKind {
     kOp2Byte,
     kOpCondBr,
     kOpUncondBr,
+    kOpInvalid,
 } OpKind;
 
 /*
@@ -844,12 +802,10 @@ typedef struct ArmLIR {
     int operands[4];            // [0..3] = [dest, src1, src2, extra]
     struct {
         bool isNop:1;           // LIR is optimized away
-        bool insertWrapper:1;   // insert branch to emulate memory accesses
-        bool squashed:1;        // Eliminated def
         bool pcRelFixup:1;      // May need pc-relative fixup
         unsigned int age:4;     // default is 0, set lazily by the optimizer
         unsigned int size:3;    // bytes (2 for thumb, 2/4 for thumb2)
-        unsigned int unused:21;
+        unsigned int unused:23;
     } flags;
     int aliasInfo;              // For Dalvik register & litpool disambiguation
     u8 useMask;                 // Resource mask for use
@@ -871,21 +827,12 @@ typedef struct FillArrayData {
     int vaddr;                 // Dalvik offset of OP_FILL_ARRAY_DATA opcode
 } FillArrayData;
 
-/* Init values when a predicted chain is initially assembled */
-/* E7FE is branch to self */
-#define PREDICTED_CHAIN_BX_PAIR_INIT     0xe7fe
-
 /* Utility macros to traverse the LIR/ArmLIR list */
 #define NEXT_LIR(lir) ((ArmLIR *) lir->generic.next)
 #define PREV_LIR(lir) ((ArmLIR *) lir->generic.prev)
 
 #define NEXT_LIR_LVALUE(lir) (lir)->generic.next
 #define PREV_LIR_LVALUE(lir) (lir)->generic.prev
-
-#define CHAIN_CELL_OFFSET_TAG   0xcdab
-
-#define CHAIN_CELL_NORMAL_SIZE 12
-#define CHAIN_CELL_PREDICTED_SIZE 16
 
 }  // namespace art
 

@@ -26,6 +26,10 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit);
 
 /* Assemble LIR into machine code */
 void oatAssembleLIR(CompilationUnit* cUnit);
+AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
+                                        intptr_t startAddr);
+void oatAssignOffsets(CompilationUnit* cUnit);
+int oatAssignInsnOffsets(CompilationUnit* cUnit);
 
 /* Implemented in the codegen/<target>/ArchUtility.c */
 void oatCodegenDump(CompilationUnit* cUnit);

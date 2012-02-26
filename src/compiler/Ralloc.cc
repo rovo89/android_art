@@ -293,9 +293,10 @@ void oatDumpRegLocTable(RegLocation* table, int count)
              i, storageName[table[i].location], table[i].wide ? 'W' : 'N',
              table[i].defined ? 'D' : 'U', table[i].fp ? 'F' : 'C',
              table[i].highWord ? 'H' : 'L', table[i].home ? 'h' : 't',
-             FPREG(table[i].lowReg) ? 's' : 'r', table[i].lowReg & FP_REG_MASK,
-             FPREG(table[i].highReg) ? 's' : 'r', table[i].highReg & FP_REG_MASK,
-             table[i].sRegLow);
+             oatIsFpReg(table[i].lowReg) ? 's' : 'r',
+             table[i].lowReg & oatFpRegMask(),
+             oatIsFpReg(table[i].highReg) ? 's' : 'r',
+             table[i].highReg & oatFpRegMask(), table[i].sRegLow);
         LOG(INFO) << buf;
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2012 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,29 +15,17 @@
  */
 
 /*
- * This file contains Arm-specific register allocation support.
+ * This file contains Mips-specific register allocation support.
  */
 
 #include "../../CompilerUtility.h"
 #include "../../CompilerIR.h"
 #include "../..//Dataflow.h"
-#include "ArmLIR.h"
+#include "MipsLIR.h"
 #include "Codegen.h"
 #include "../Ralloc.h"
 
 namespace art {
-
-/*
- * TUNING: is leaf?  Can't just use "hasInvoke" to determine as some
- * instructions might call out to C/assembly helper functions.  Until
- * machinery is in place, always spill lr.
- */
-
-void oatAdjustSpillMask(CompilationUnit* cUnit)
-{
-    cUnit->coreSpillMask |= (1 << rLR);
-    cUnit->numCoreSpills++;
-}
 
 /*
  * Mark a callee-save fp register as promoted.  Note that
@@ -45,8 +33,10 @@ void oatAdjustSpillMask(CompilationUnit* cUnit)
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void oatMarkPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
+STATIC void markPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
 {
+    UNIMPLEMENTED(FATAL) << "No support yet for promoted FP regs";
+#if 0
     DCHECK_GE(reg, FP_REG_MASK + FP_CALLEE_SAVE_BASE);
     reg = (reg & FP_REG_MASK) - FP_CALLEE_SAVE_BASE;
     // Ensure fpVmapTable is large enough
@@ -59,6 +49,7 @@ void oatMarkPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
     // Size of fpVmapTable is high-water mark, use to set mask
     cUnit->numFPSpills = cUnit->fpVmapTable.size();
     cUnit->fpSpillMask = ((1 << cUnit->numFPSpills) - 1) << FP_CALLEE_SAVE_BASE;
+#endif
 }
 
 void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
@@ -108,36 +99,69 @@ uint32_t oatFpRegMask() {
 }
 
 /* Clobber all regs that might be used by an external C call */
-void oatClobberCalleeSave(CompilationUnit *cUnit)
+extern void oatClobberCalleeSave(CompilationUnit *cUnit)
 {
-    oatClobber(cUnit, r0);
-    oatClobber(cUnit, r1);
-    oatClobber(cUnit, r2);
-    oatClobber(cUnit, r3);
-    oatClobber(cUnit, r12);
-    oatClobber(cUnit, r14lr);
+    oatClobber(cUnit, r_ZERO);
+    oatClobber(cUnit, r_AT);
+    oatClobber(cUnit, r_V0);
+    oatClobber(cUnit, r_V1);
+    oatClobber(cUnit, r_A0);
+    oatClobber(cUnit, r_A1);
+    oatClobber(cUnit, r_A2);
+    oatClobber(cUnit, r_A3);
+    oatClobber(cUnit, r_T0);
+    oatClobber(cUnit, r_T1);
+    oatClobber(cUnit, r_T2);
+    oatClobber(cUnit, r_T3);
+    oatClobber(cUnit, r_T4);
+    oatClobber(cUnit, r_T5);
+    oatClobber(cUnit, r_T6);
+    oatClobber(cUnit, r_T7);
+    oatClobber(cUnit, r_T8);
+    oatClobber(cUnit, r_T9);
+    oatClobber(cUnit, r_K0);
+    oatClobber(cUnit, r_K1);
+    oatClobber(cUnit, r_GP);
+    oatClobber(cUnit, r_FP);
+    oatClobber(cUnit, r_RA);
+    oatClobber(cUnit, r_HI);
+    oatClobber(cUnit, r_LO);
+    oatClobber(cUnit, r_F0);
+    oatClobber(cUnit, r_F1);
+    oatClobber(cUnit, r_F2);
+    oatClobber(cUnit, r_F3);
+    oatClobber(cUnit, r_F4);
+    oatClobber(cUnit, r_F5);
+    oatClobber(cUnit, r_F6);
+    oatClobber(cUnit, r_F7);
+    oatClobber(cUnit, r_F8);
+    oatClobber(cUnit, r_F9);
+    oatClobber(cUnit, r_F10);
+    oatClobber(cUnit, r_F11);
+    oatClobber(cUnit, r_F12);
+    oatClobber(cUnit, r_F13);
+    oatClobber(cUnit, r_F14);
+    oatClobber(cUnit, r_F15);
 }
 
 extern RegLocation oatGetReturnWide(CompilationUnit* cUnit)
 {
     RegLocation res = LOC_C_RETURN_WIDE;
-    oatClobber(cUnit, r0);
-    oatClobber(cUnit, r1);
-    oatMarkInUse(cUnit, r0);
-    oatMarkInUse(cUnit, r1);
+    oatClobber(cUnit, r_V0);
+    oatClobber(cUnit, r_V1);
+    oatMarkInUse(cUnit, r_V0);
+    oatMarkInUse(cUnit, r_V1);
     oatMarkPair(cUnit, res.lowReg, res.highReg);
     return res;
 }
 
 extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
 {
-    RegLocation res = LOC_C_RETURN_WIDE;
-    res.lowReg = r2;
-    res.highReg = r3;
-    oatClobber(cUnit, r2);
-    oatClobber(cUnit, r3);
-    oatMarkInUse(cUnit, r2);
-    oatMarkInUse(cUnit, r3);
+    RegLocation res = LOC_C_RETURN_WIDE_ALT;
+    oatClobber(cUnit, r_F0);
+    oatClobber(cUnit, r_F1);
+    oatMarkInUse(cUnit, r_F0);
+    oatMarkInUse(cUnit, r_F1);
     oatMarkPair(cUnit, res.lowReg, res.highReg);
     return res;
 }
@@ -145,17 +169,16 @@ extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
 extern RegLocation oatGetReturn(CompilationUnit* cUnit)
 {
     RegLocation res = LOC_C_RETURN;
-    oatClobber(cUnit, r0);
-    oatMarkInUse(cUnit, r0);
+    oatClobber(cUnit, r_V0);
+    oatMarkInUse(cUnit, r_V0);
     return res;
 }
 
 extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
 {
-    RegLocation res = LOC_C_RETURN;
-    res.lowReg = r1;
-    oatClobber(cUnit, r1);
-    oatMarkInUse(cUnit, r1);
+    RegLocation res = LOC_C_RETURN_ALT;
+    oatClobber(cUnit, r_F0);
+    oatMarkInUse(cUnit, r_F0);
     return res;
 }
 
@@ -168,25 +191,19 @@ extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)
 /* To be used when explicitly managing register use */
 extern void oatLockCallTemps(CompilationUnit* cUnit)
 {
-    oatLockTemp(cUnit, r0);
-    oatLockTemp(cUnit, r1);
-    oatLockTemp(cUnit, r2);
-    oatLockTemp(cUnit, r3);
+    oatLockTemp(cUnit, r_A0);
+    oatLockTemp(cUnit, r_A1);
+    oatLockTemp(cUnit, r_A2);
+    oatLockTemp(cUnit, r_A3);
 }
 
 /* To be used when explicitly managing register use */
 extern void oatFreeCallTemps(CompilationUnit* cUnit)
 {
-    oatFreeTemp(cUnit, r0);
-    oatFreeTemp(cUnit, r1);
-    oatFreeTemp(cUnit, r2);
-    oatFreeTemp(cUnit, r3);
-}
-
-/* Convert an instruction to a NOP */
-STATIC void oatNopLIR( LIR* lir)
-{
-    ((ArmLIR*)lir)->flags.isNop = true;
+    oatFreeTemp(cUnit, r_A0);
+    oatFreeTemp(cUnit, r_A1);
+    oatFreeTemp(cUnit, r_A2);
+    oatFreeTemp(cUnit, r_A3);
 }
 
 }  // namespace art

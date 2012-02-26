@@ -14,31 +14,184 @@
  * limitations under the License.
  */
 
-#include "object_utils.h"
+/*
+ * This file contains mips-specific codegen factory support.
+ * It is included by
+ *
+ *        Codegen-$(TARGET_ARCH_VARIANT).c
+ *
+ */
+
+#define SLOW_FIELD_PATH (cUnit->enableDebug & (1 << kDebugSlowFieldPath))
+#define SLOW_INVOKE_PATH (cUnit->enableDebug & (1 << kDebugSlowInvokePath))
+#define SLOW_STRING_PATH (cUnit->enableDebug & (1 << kDebugSlowStringPath))
+#define SLOW_TYPE_PATH (cUnit->enableDebug & (1 << kDebugSlowTypePath))
+#define EXERCISE_SLOWEST_FIELD_PATH (cUnit->enableDebug & \
+    (1 << kDebugSlowestFieldPath))
+#define EXERCISE_SLOWEST_STRING_PATH (cUnit->enableDebug & \
+    (1 << kDebugSlowestStringPath))
+#define EXERCISE_RESOLVE_METHOD (cUnit->enableDebug & \
+    (1 << kDebugExerciseResolveMethod))
+
+// FIXME - this is the Mips version, change to MIPS
 
 namespace art {
 
-#define DISPLAY_MISSING_TARGETS (cUnit->enableDebug & \
-    (1 << kDebugDisplayMissingTargets))
+STATIC void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset);
 
-STATIC const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, INVALID_REG,
-                                   INVALID_REG, INVALID_SREG};
-
-/* Mark register usage state and return long retloc */
-STATIC RegLocation getRetLocWide(CompilationUnit* cUnit)
+/* Generate conditional branch instructions */
+STATIC MipsLIR* genConditionalBranch(CompilationUnit* cUnit,
+                                    MipsConditionCode cond,
+                                    MipsLIR* target)
 {
-    RegLocation res = LOC_DALVIK_RETURN_VAL_WIDE;
-    oatLockTemp(cUnit, res.lowReg);
-    oatLockTemp(cUnit, res.highReg);
-    oatMarkPair(cUnit, res.lowReg, res.highReg);
-    return res;
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+    return NULL;
+#if 0
+    MipsLIR* branch = opCondBranch(cUnit, cond);
+    branch->generic.target = (LIR*) target;
+    return branch;
+#endif
 }
 
-STATIC RegLocation getRetLoc(CompilationUnit* cUnit)
+/* Generate unconditional branch instructions */
+STATIC MipsLIR* genUnconditionalBranch(CompilationUnit* cUnit, MipsLIR* target)
 {
-    RegLocation res = LOC_DALVIK_RETURN_VAL;
-    oatLockTemp(cUnit, res.lowReg);
-    return res;
+    MipsLIR* branch = opNone(cUnit, kOpUncondBr);
+    branch->generic.target = (LIR*) target;
+    return branch;
+}
+
+STATIC MipsLIR* callRuntimeHelper(CompilationUnit* cUnit, int reg)
+{
+    oatClobberCalleeSave(cUnit);
+    return opReg(cUnit, kOpBlx, reg);
+}
+
+/*
+ * Mark garbage collection card. Skip if the value we're storing is null.
+ */
+STATIC void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
+{
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
+    int regCardBase = oatAllocTemp(cUnit);
+    int regCardNo = oatAllocTemp(cUnit);
+    MipsLIR* branchOver = genCmpImmBranch(cUnit, kMipsCondEq, valReg, 0);
+    loadWordDisp(cUnit, rSELF, Thread::CardTableOffset().Int32Value(),
+                 regCardBase);
+    opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, GC_CARD_SHIFT);
+    storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
+                     kUnsignedByte);
+    MipsLIR* target = newLIR0(cUnit, kMipsPseudoTargetLabel);
+    target->defMask = ENCODE_ALL;
+    branchOver->generic.target = (LIR*)target;
+    oatFreeTemp(cUnit, regCardBase);
+    oatFreeTemp(cUnit, regCardNo);
+#endif
+}
+
+/*
+ * Utiltiy to load the current Method*.  Broken out
+ * to allow easy change between placing the current Method* in a
+ * dedicated register or its home location in the frame.
+ */
+STATIC void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
+{
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
+#if defined(METHOD_IN_REG)
+    genRegCopy(cUnit, rTgt, rMETHOD);
+#else
+    loadWordDisp(cUnit, rSP, 0, rTgt);
+#endif
+#endif
+}
+
+STATIC int loadCurrMethod(CompilationUnit *cUnit)
+{
+#if defined(METHOD_IN_REG)
+    return rMETHOD;
+#else
+    int mReg = oatAllocTemp(cUnit);
+    loadCurrMethodDirect(cUnit, mReg);
+    return mReg;
+#endif
+}
+
+STATIC MipsLIR* genCheck(CompilationUnit* cUnit, MipsConditionCode cCode,
+                        MIR* mir, MipsThrowKind kind)
+{
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+    return 0;
+#if 0
+    MipsLIR* tgt = (MipsLIR*)oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
+    tgt->opcode = kMipsPseudoThrowTarget;
+    tgt->operands[0] = kind;
+    tgt->operands[1] = mir ? mir->offset : 0;
+    MipsLIR* branch = genConditionalBranch(cUnit, cCode, tgt);
+    // Remember branch target - will process later
+    oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
+    return branch;
+#endif
+}
+
+STATIC MipsLIR* genImmedCheck(CompilationUnit* cUnit, MipsConditionCode cCode,
+                             int reg, int immVal, MIR* mir, MipsThrowKind kind)
+{
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+    return 0;
+#if 0
+    MipsLIR* tgt = (MipsLIR*)oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
+    tgt->opcode = kMipsPseudoThrowTarget;
+    tgt->operands[0] = kind;
+    tgt->operands[1] = mir->offset;
+    MipsLIR* branch;
+    if (cCode == kMipsCondAl) {
+        branch = genUnconditionalBranch(cUnit, tgt);
+    } else {
+        branch = genCmpImmBranch(cUnit, cCode, reg, immVal);
+        branch->generic.target = (LIR*)tgt;
+    }
+    // Remember branch target - will process later
+    oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
+    return branch;
+#endif
+}
+
+/* Perform null-check on a register.  */
+STATIC MipsLIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg,
+                             MIR* mir)
+{
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+    return 0;
+#if 0
+    if (!(cUnit->disableOpt & (1 << kNullCheckElimination)) &&
+        mir->optimizationFlags & MIR_IGNORE_NULL_CHECK) {
+        return NULL;
+    }
+    return genImmedCheck(cUnit, kMipsCondEq, mReg, 0, mir, kMipsThrowNullPointer);
+#endif
+}
+
+/* Perform check on two registers */
+STATIC TGT_LIR* genRegRegCheck(CompilationUnit* cUnit, MipsConditionCode cCode,
+                               int reg1, int reg2, MIR* mir, MipsThrowKind kind)
+{
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+    return 0;
+#if 0
+    MipsLIR* tgt = (MipsLIR*)oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
+    tgt->opcode = kMipsPseudoThrowTarget;
+    tgt->operands[0] = kind;
+    tgt->operands[1] = mir ? mir->offset : 0;
+    tgt->operands[2] = reg1;
+    tgt->operands[3] = reg2;
+    opRegReg(cUnit, kOpCmp, reg1, reg2);
+    MipsLIR* branch = genConditionalBranch(cUnit, cCode, tgt);
+    // Remember branch target - will process later
+    oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
+    return branch;
+#endif
 }
 
 /*
@@ -49,6 +202,8 @@ STATIC RegLocation getRetLoc(CompilationUnit* cUnit)
 STATIC void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                         RegLocation rlSrc)
 {
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     oatFlushAllRegs(cUnit);    /* Everything to home location */
     uint32_t type_idx = mir->dalvikInsn.vC;
     if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
@@ -67,6 +222,7 @@ STATIC void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     callRuntimeHelper(cUnit, rLR);
     RegLocation rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
+#endif
 }
 
 /*
@@ -77,6 +233,8 @@ STATIC void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
  */
 STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
 {
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int elems = dInsn->vA;
     int typeId = dInsn->vB;
@@ -141,14 +299,14 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
         // Set up the loop counter (known to be > 0)
         loadConstant(cUnit, rIdx, dInsn->vA - 1);
         // Generate the copy loop.  Going backwards for convenience
-        ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
+        MipsLIR* target = newLIR0(cUnit, kMipsPseudoTargetLabel);
         target->defMask = ENCODE_ALL;
         // Copy next element
         loadBaseIndexed(cUnit, rSrc, rIdx, rVal, 2, kWord);
         storeBaseIndexed(cUnit, rDst, rIdx, rVal, 2, kWord);
         // Use setflags encoding here
         newLIR3(cUnit, kThumb2SubsRRI12, rIdx, rIdx, 1);
-        ArmLIR* branch = opCondBranch(cUnit, kArmCondGe);
+        MipsLIR* branch = opCondBranch(cUnit, kMipsCondGe);
         branch->generic.target = (LIR*)target;
     } else if (!isRange) {
         // TUNING: interleave
@@ -164,11 +322,14 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
             }
         }
     }
+#endif
 }
 
 STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
                     bool isLongOrDouble, bool isObject)
 {
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     int fieldOffset;
     int ssbIndex;
     bool isVolatile;
@@ -205,17 +366,17 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
                 Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
                 rBase);
             loadWordDisp(cUnit, rBase,
-                         Array::DataOffset().Int32Value() + sizeof(int32_t*) * ssbIndex,
-                         rBase);
+                         Array::DataOffset().Int32Value() + sizeof(int32_t*) *
+                         ssbIndex, rBase);
             // rBase now points at appropriate static storage base (Class*)
             // or NULL if not initialized. Check for NULL and call helper if NULL.
             // TUNING: fast path should fall through
-            ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
+            MipsLIR* branchOver = genCmpImmBranch(cUnit, kMipsCondNe, rBase, 0);
             loadWordDisp(cUnit, rSELF,
                          OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
             loadConstant(cUnit, r0, ssbIndex);
             callRuntimeHelper(cUnit, rLR);
-            ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
+            MipsLIR* skipTarget = newLIR0(cUnit, kMipsPseudoTargetLabel);
             skipTarget->defMask = ENCODE_ALL;
             branchOver->generic.target = (LIR*)skipTarget;
         }
@@ -258,11 +419,14 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
         }
         callRuntimeHelper(cUnit, rLR);
     }
+#endif
 }
 
 STATIC void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                     bool isLongOrDouble, bool isObject)
 {
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     int fieldOffset;
     int ssbIndex;
     bool isVolatile;
@@ -304,12 +468,12 @@ STATIC void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             // rBase now points at appropriate static storage base (Class*)
             // or NULL if not initialized. Check for NULL and call helper if NULL.
             // TUNING: fast path should fall through
-            ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rBase, 0);
+            MipsLIR* branchOver = genCmpImmBranch(cUnit, kMipsCondNe, rBase, 0);
             loadWordDisp(cUnit, rSELF,
                          OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
             loadConstant(cUnit, r0, ssbIndex);
             callRuntimeHelper(cUnit, rLR);
-            ArmLIR* skipTarget = newLIR0(cUnit, kArmPseudoTargetLabel);
+            MipsLIR* skipTarget = newLIR0(cUnit, kMipsPseudoTargetLabel);
             skipTarget->defMask = ENCODE_ALL;
             branchOver->generic.target = (LIR*)skipTarget;
         }
@@ -349,6 +513,7 @@ STATIC void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             storeValue(cUnit, rlDest, rlResult);
         }
     }
+#endif
 }
 
 typedef int (*NextCallInsn)(CompilationUnit*, MIR*, int, uint32_t dexIdx,
@@ -361,6 +526,8 @@ typedef int (*NextCallInsn)(CompilationUnit*, MIR*, int, uint32_t dexIdx,
 STATIC int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
                           int state, uint32_t dexIdx, uint32_t unused)
 {
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     switch(state) {
         case 0:  // Get the current Method* [sets r0]
             loadCurrMethodDirect(cUnit, r0);
@@ -379,6 +546,7 @@ STATIC int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
         default:
             return -1;
     }
+#endif
     return state + 1;
 }
 
@@ -392,6 +560,8 @@ STATIC int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
 STATIC int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
                          int state, uint32_t dexIdx, uint32_t methodIdx)
 {
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     RegLocation rlArg;
     /*
      * This is the fast path in which the target virtual method is
@@ -420,6 +590,7 @@ STATIC int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
         default:
             return -1;
     }
+#endif
     return state + 1;
 }
 
@@ -430,6 +601,8 @@ STATIC int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
 STATIC int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
                              int state, uint32_t dexIdx, uint32_t methodIdx)
 {
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     /*
      * This is the fast path in which the target virtual method is
      * fully resolved at compile time.  Note also that this path assumes
@@ -466,12 +639,15 @@ STATIC int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
         default:
             return -1;
     }
+#endif
     return state + 1;
 }
 
 STATIC int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir, int trampoline,
                             int state, uint32_t dexIdx, uint32_t methodIdx)
 {
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     /*
      * This handles the case in which the base method is not fully
      * resolved at compile time, we bail to a runtime helper.
@@ -483,6 +659,7 @@ STATIC int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir, int trampoline,
         loadConstant(cUnit, r0, dexIdx);
         return 1;
     }
+#endif
     return -1;
 }
 
@@ -539,6 +716,8 @@ STATIC int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
                           NextCallInsn nextCallInsn, uint32_t dexIdx,
                           uint32_t methodIdx, bool skipThis)
 {
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     int nextReg = r1;
     int nextArg = 0;
     if (skipThis) {
@@ -558,6 +737,7 @@ STATIC int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
         }
         callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
     }
+#endif
     return callState;
 }
 
@@ -570,10 +750,12 @@ STATIC int loadArgRegs(CompilationUnit* cUnit, MIR* mir,
  */
 STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                                 DecodedInstruction* dInsn, int callState,
-                                ArmLIR** pcrLabel, NextCallInsn nextCallInsn,
+                                MipsLIR** pcrLabel, NextCallInsn nextCallInsn,
                                 uint32_t dexIdx, uint32_t methodIdx,
                                 bool skipThis)
 {
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     RegLocation rlArg;
 
     /* If no arguments, just return */
@@ -647,6 +829,7 @@ STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
     if (pcrLabel) {
         *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
     }
+#endif
     return callState;
 }
 
@@ -667,10 +850,12 @@ STATIC int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
  */
 STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
                               DecodedInstruction* dInsn, int callState,
-                              ArmLIR** pcrLabel, NextCallInsn nextCallInsn,
+                              MipsLIR** pcrLabel, NextCallInsn nextCallInsn,
                               uint32_t dexIdx, uint32_t methodIdx,
                               bool skipThis)
 {
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     int firstArg = dInsn->vC;
     int numArgs = dInsn->vA;
 
@@ -733,14 +918,14 @@ STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
         int regsLeft = std::min(numArgs - 3, 16);
         callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
         opRegRegImm(cUnit, kOpAdd, r3, rSP, startOffset);
-        ArmLIR* ld = newLIR3(cUnit, kThumb2Vldms, r3, fr0, regsLeft);
+        MipsLIR* ld = newLIR3(cUnit, kThumb2Vldms, r3, fr0, regsLeft);
         //TUNING: loosen barrier
         ld->defMask = ENCODE_ALL;
         setMemRefType(ld, true /* isLoad */, kDalvikReg);
         callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
         opRegRegImm(cUnit, kOpAdd, r3, rSP, 4 /* Method* */ + (3 * 4));
         callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
-        ArmLIR* st = newLIR3(cUnit, kThumb2Vstms, r3, fr0, regsLeft);
+        MipsLIR* st = newLIR3(cUnit, kThumb2Vstms, r3, fr0, regsLeft);
         setMemRefType(st, false /* isLoad */, kDalvikReg);
         st->defMask = ENCODE_ALL;
         callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx);
@@ -753,776 +938,154 @@ STATIC int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     if (pcrLabel) {
         *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), r1, mir);
     }
+#endif
     return callState;
 }
 
 // Debugging routine - if null target, branch to DebugMe
 STATIC void genShowTarget(CompilationUnit* cUnit)
 {
-    ArmLIR* branchOver = genCmpImmBranch(cUnit, kArmCondNe, rLR, 0);
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
+    MipsLIR* branchOver = genCmpImmBranch(cUnit, kMipsCondNe, rLR, 0);
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pDebugMe), rLR);
-    ArmLIR* target = newLIR0(cUnit, kArmPseudoTargetLabel);
+    MipsLIR* target = newLIR0(cUnit, kMipsPseudoTargetLabel);
     target->defMask = -1;
     branchOver->generic.target = (LIR*)target;
+#endif
 }
 
-STATIC void genInvoke(CompilationUnit* cUnit, MIR* mir,
-                      InvokeType type, bool isRange)
+STATIC void genThrowVerificationError(CompilationUnit* cUnit, MIR* mir)
 {
-    DecodedInstruction* dInsn = &mir->dalvikInsn;
-    int callState = 0;
-    ArmLIR* nullCk;
-    ArmLIR** pNullCk = NULL;
-    NextCallInsn nextCallInsn;
-    oatFlushAllRegs(cUnit);    /* Everything to home location */
-    // Explicit register usage
-    oatLockCallTemps(cUnit);
-
-    uint32_t dexMethodIdx = dInsn->vB;
-    int vtableIdx;
-    bool skipThis;
-    bool fastPath =
-        cUnit->compiler->ComputeInvokeInfo(dexMethodIdx, cUnit, type,
-                                           vtableIdx)
-        && !SLOW_INVOKE_PATH;
-    if (type == kInterface) {
-      nextCallInsn = fastPath ? nextInterfaceCallInsn
-                              : nextInterfaceCallInsnWithAccessCheck;
-      skipThis = false;
-    } else if (type == kDirect) {
-      if (fastPath) {
-        pNullCk = &nullCk;
-      }
-      nextCallInsn = fastPath ? nextSDCallInsn : nextDirectCallInsnSP;
-      skipThis = false;
-    } else if (type == kStatic) {
-      nextCallInsn = fastPath ? nextSDCallInsn : nextStaticCallInsnSP;
-      skipThis = false;
-    } else if (type == kSuper) {
-      nextCallInsn = fastPath ? nextSuperCallInsn : nextSuperCallInsnSP;
-      skipThis = fastPath;
-    } else {
-      DCHECK_EQ(type, kVirtual);
-      nextCallInsn = fastPath ? nextVCallInsn : nextVCallInsnSP;
-      skipThis = fastPath;
-    }
-    if (!isRange) {
-        callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pNullCk,
-                                         nextCallInsn, dexMethodIdx,
-                                         vtableIdx, skipThis);
-    } else {
-        callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, pNullCk,
-                                       nextCallInsn, dexMethodIdx, vtableIdx,
-                                       skipThis);
-    }
-    // Finish up any of the call sequence not interleaved in arg loading
-    while (callState >= 0) {
-        callState = nextCallInsn(cUnit, mir, callState, dexMethodIdx,
-                                 vtableIdx);
-    }
-    if (DISPLAY_MISSING_TARGETS) {
-        genShowTarget(cUnit);
-    }
-    opReg(cUnit, kOpBlx, rLR);
-    oatClobberCalleeSave(cUnit);
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
+    loadWordDisp(cUnit, rSELF,
+                 OFFSETOF_MEMBER(Thread, pThrowVerificationErrorFromCode), rLR);
+    loadConstant(cUnit, r0, mir->dalvikInsn.vA);
+    loadConstant(cUnit, r1, mir->dalvikInsn.vB);
+    callRuntimeHelper(cUnit, rLR);
+#endif
 }
 
-STATIC bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
-                                     BasicBlock* bb, ArmLIR* labelList)
+STATIC void genCompareAndBranch(CompilationUnit* cUnit, BasicBlock* bb,
+                                MIR* mir, RegLocation rlSrc1,
+                                RegLocation rlSrc2, MipsLIR* labelList)
 {
-    bool res = false;   // Assume success
-    RegLocation rlSrc[3];
-    RegLocation rlDest = badLoc;
-    RegLocation rlResult = badLoc;
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
+    MipsConditionCode cond;
+    rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
+    rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
+    opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
     Opcode opcode = mir->dalvikInsn.opcode;
-
-    /* Prep Src and Dest locations */
-    int nextSreg = 0;
-    int nextLoc = 0;
-    int attrs = oatDataFlowAttributes[opcode];
-    rlSrc[0] = rlSrc[1] = rlSrc[2] = badLoc;
-    if (attrs & DF_UA) {
-        rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
-        nextSreg++;
-    } else if (attrs & DF_UA_WIDE) {
-        rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg,
-                                                 nextSreg + 1);
-        nextSreg+= 2;
-    }
-    if (attrs & DF_UB) {
-        rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
-        nextSreg++;
-    } else if (attrs & DF_UB_WIDE) {
-        rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg,
-                                                 nextSreg + 1);
-        nextSreg+= 2;
-    }
-    if (attrs & DF_UC) {
-        rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
-    } else if (attrs & DF_UC_WIDE) {
-        rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg,
-                                                 nextSreg + 1);
-    }
-    if (attrs & DF_DA) {
-        rlDest = oatGetDest(cUnit, mir, 0);
-    } else if (attrs & DF_DA_WIDE) {
-        rlDest = oatGetDestWide(cUnit, mir, 0, 1);
-    }
-
     switch(opcode) {
-        case OP_NOP:
-            break;
-
-        case OP_MOVE_EXCEPTION:
-            int exOffset;
-            int resetReg;
-            exOffset = Thread::ExceptionOffset().Int32Value();
-            resetReg = oatAllocTemp(cUnit);
-            rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-            loadWordDisp(cUnit, rSELF, exOffset, rlResult.lowReg);
-            loadConstant(cUnit, resetReg, 0);
-            storeWordDisp(cUnit, rSELF, exOffset, resetReg);
-            storeValue(cUnit, rlDest, rlResult);
-            break;
-
-        case OP_RETURN_VOID:
-            genSuspendTest(cUnit, mir);
-            break;
-
-        case OP_RETURN:
-        case OP_RETURN_OBJECT:
-            genSuspendTest(cUnit, mir);
-            storeValue(cUnit, getRetLoc(cUnit), rlSrc[0]);
-            break;
-
-        case OP_RETURN_WIDE:
-            genSuspendTest(cUnit, mir);
-            storeValueWide(cUnit, getRetLocWide(cUnit), rlSrc[0]);
-            break;
-
-        case OP_MOVE_RESULT_WIDE:
-            if (mir->optimizationFlags & MIR_INLINED)
-                break;  // Nop - combined w/ previous invoke
-            storeValueWide(cUnit, rlDest, getRetLocWide(cUnit));
-            break;
-
-        case OP_MOVE_RESULT:
-        case OP_MOVE_RESULT_OBJECT:
-            if (mir->optimizationFlags & MIR_INLINED)
-                break;  // Nop - combined w/ previous invoke
-            storeValue(cUnit, rlDest, getRetLoc(cUnit));
-            break;
-
-        case OP_MOVE:
-        case OP_MOVE_OBJECT:
-        case OP_MOVE_16:
-        case OP_MOVE_OBJECT_16:
-        case OP_MOVE_FROM16:
-        case OP_MOVE_OBJECT_FROM16:
-            storeValue(cUnit, rlDest, rlSrc[0]);
-            break;
-
-        case OP_MOVE_WIDE:
-        case OP_MOVE_WIDE_16:
-        case OP_MOVE_WIDE_FROM16:
-            storeValueWide(cUnit, rlDest, rlSrc[0]);
-            break;
-
-        case OP_CONST:
-        case OP_CONST_4:
-        case OP_CONST_16:
-            rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-            loadConstantNoClobber(cUnit, rlResult.lowReg, mir->dalvikInsn.vB);
-            storeValue(cUnit, rlDest, rlResult);
-            break;
-
-        case OP_CONST_HIGH16:
-            rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-            loadConstantNoClobber(cUnit, rlResult.lowReg,
-                                  mir->dalvikInsn.vB << 16);
-            storeValue(cUnit, rlDest, rlResult);
-            break;
-
-        case OP_CONST_WIDE_16:
-        case OP_CONST_WIDE_32:
-            rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-            loadConstantValueWide(cUnit, rlResult.lowReg, rlResult.highReg,
-                                  mir->dalvikInsn.vB,
-                                  (mir->dalvikInsn.vB & 0x80000000) ? -1 : 0);
-            storeValueWide(cUnit, rlDest, rlResult);
-            break;
-
-        case OP_CONST_WIDE:
-            rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-            loadConstantValueWide(cUnit, rlResult.lowReg, rlResult.highReg,
-                          mir->dalvikInsn.vB_wide & 0xffffffff,
-                          (mir->dalvikInsn.vB_wide >> 32) & 0xffffffff);
-            storeValueWide(cUnit, rlDest, rlResult);
-            break;
-
-        case OP_CONST_WIDE_HIGH16:
-            rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-            loadConstantValueWide(cUnit, rlResult.lowReg, rlResult.highReg,
-                                  0, mir->dalvikInsn.vB << 16);
-            storeValueWide(cUnit, rlDest, rlResult);
-            break;
-
-        case OP_MONITOR_ENTER:
-            genMonitorEnter(cUnit, mir, rlSrc[0]);
-            break;
-
-        case OP_MONITOR_EXIT:
-            genMonitorExit(cUnit, mir, rlSrc[0]);
-            break;
-
-        case OP_CHECK_CAST:
-            genCheckCast(cUnit, mir, rlSrc[0]);
-            break;
-
-        case OP_INSTANCE_OF:
-            genInstanceof(cUnit, mir, rlDest, rlSrc[0]);
-            break;
-
-        case OP_NEW_INSTANCE:
-            genNewInstance(cUnit, mir, rlDest);
-            break;
-
-        case OP_THROW:
-            genThrow(cUnit, mir, rlSrc[0]);
-            break;
-
-        case OP_THROW_VERIFICATION_ERROR:
-            loadWordDisp(cUnit, rSELF,
-                OFFSETOF_MEMBER(Thread, pThrowVerificationErrorFromCode), rLR);
-            loadConstant(cUnit, r0, mir->dalvikInsn.vA);
-            loadConstant(cUnit, r1, mir->dalvikInsn.vB);
-            callRuntimeHelper(cUnit, rLR);
-            break;
-
-        case OP_ARRAY_LENGTH:
-            int lenOffset;
-            lenOffset = Array::LengthOffset().Int32Value();
-            rlSrc[0] = loadValue(cUnit, rlSrc[0], kCoreReg);
-            genNullCheck(cUnit, rlSrc[0].sRegLow, rlSrc[0].lowReg, mir);
-            rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-            loadWordDisp(cUnit, rlSrc[0].lowReg, lenOffset,
-                         rlResult.lowReg);
-            storeValue(cUnit, rlDest, rlResult);
-            break;
-
-        case OP_CONST_STRING:
-        case OP_CONST_STRING_JUMBO:
-            genConstString(cUnit, mir, rlDest, rlSrc[0]);
-            break;
-
-        case OP_CONST_CLASS:
-            genConstClass(cUnit, mir, rlDest, rlSrc[0]);
-            break;
-
-        case OP_FILL_ARRAY_DATA:
-            genFillArrayData(cUnit, mir, rlSrc[0]);
-            break;
-
-        case OP_FILLED_NEW_ARRAY:
-            genFilledNewArray(cUnit, mir, false /* not range */);
-            break;
-
-        case OP_FILLED_NEW_ARRAY_RANGE:
-            genFilledNewArray(cUnit, mir, true /* range */);
-            break;
-
-        case OP_NEW_ARRAY:
-            genNewArray(cUnit, mir, rlDest, rlSrc[0]);
-            break;
-
-        case OP_GOTO:
-        case OP_GOTO_16:
-        case OP_GOTO_32:
-            if (bb->taken->startOffset <= mir->offset) {
-                genSuspendTest(cUnit, mir);
-            }
-            genUnconditionalBranch(cUnit, &labelList[bb->taken->id]);
-            break;
-
-        case OP_PACKED_SWITCH:
-            genPackedSwitch(cUnit, mir, rlSrc[0]);
-            break;
-
-        case OP_SPARSE_SWITCH:
-            genSparseSwitch(cUnit, mir, rlSrc[0]);
-            break;
-
-        case OP_CMPL_FLOAT:
-        case OP_CMPG_FLOAT:
-        case OP_CMPL_DOUBLE:
-        case OP_CMPG_DOUBLE:
-            res = genCmpFP(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
-            break;
-
-        case OP_CMP_LONG:
-            genCmpLong(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
-            break;
-
         case OP_IF_EQ:
+            cond = kMipsCondEq;
+            break;
         case OP_IF_NE:
+            cond = kMipsCondNe;
+            break;
         case OP_IF_LT:
+            cond = kMipsCondLt;
+            break;
         case OP_IF_GE:
+            cond = kMipsCondGe;
+            break;
         case OP_IF_GT:
-        case OP_IF_LE: {
-            bool backwardBranch;
-            ArmConditionCode cond;
-            backwardBranch = (bb->taken->startOffset <= mir->offset);
-            if (backwardBranch) {
-                genSuspendTest(cUnit, mir);
-            }
-            rlSrc[0] = loadValue(cUnit, rlSrc[0], kCoreReg);
-            rlSrc[1] = loadValue(cUnit, rlSrc[1], kCoreReg);
-            opRegReg(cUnit, kOpCmp, rlSrc[0].lowReg, rlSrc[1].lowReg);
-            switch(opcode) {
-                case OP_IF_EQ:
-                    cond = kArmCondEq;
-                    break;
-                case OP_IF_NE:
-                    cond = kArmCondNe;
-                    break;
-                case OP_IF_LT:
-                    cond = kArmCondLt;
-                    break;
-                case OP_IF_GE:
-                    cond = kArmCondGe;
-                    break;
-                case OP_IF_GT:
-                    cond = kArmCondGt;
-                    break;
-                case OP_IF_LE:
-                    cond = kArmCondLe;
-                    break;
-                default:
-                    cond = (ArmConditionCode)0;
-                    LOG(FATAL) << "Unexpected opcode " << (int)opcode;
-            }
-            genConditionalBranch(cUnit, cond, &labelList[bb->taken->id]);
-            genUnconditionalBranch(cUnit, &labelList[bb->fallThrough->id]);
+            cond = kMipsCondGt;
             break;
-            }
-
-        case OP_IF_EQZ:
-        case OP_IF_NEZ:
-        case OP_IF_LTZ:
-        case OP_IF_GEZ:
-        case OP_IF_GTZ:
-        case OP_IF_LEZ: {
-            bool backwardBranch;
-            ArmConditionCode cond;
-            backwardBranch = (bb->taken->startOffset <= mir->offset);
-            if (backwardBranch) {
-                genSuspendTest(cUnit, mir);
-            }
-            rlSrc[0] = loadValue(cUnit, rlSrc[0], kCoreReg);
-            opRegImm(cUnit, kOpCmp, rlSrc[0].lowReg, 0);
-            switch(opcode) {
-                case OP_IF_EQZ:
-                    cond = kArmCondEq;
-                    break;
-                case OP_IF_NEZ:
-                    cond = kArmCondNe;
-                    break;
-                case OP_IF_LTZ:
-                    cond = kArmCondLt;
-                    break;
-                case OP_IF_GEZ:
-                    cond = kArmCondGe;
-                    break;
-                case OP_IF_GTZ:
-                    cond = kArmCondGt;
-                    break;
-                case OP_IF_LEZ:
-                    cond = kArmCondLe;
-                    break;
-                default:
-                    cond = (ArmConditionCode)0;
-                    LOG(FATAL) << "Unexpected opcode " << (int)opcode;
-            }
-            genConditionalBranch(cUnit, cond, &labelList[bb->taken->id]);
-            genUnconditionalBranch(cUnit, &labelList[bb->fallThrough->id]);
+        case OP_IF_LE:
+            cond = kMipsCondLe;
             break;
-            }
-
-      case OP_AGET_WIDE:
-            genArrayGet(cUnit, mir, kLong, rlSrc[0], rlSrc[1], rlDest, 3);
-            break;
-        case OP_AGET:
-        case OP_AGET_OBJECT:
-            genArrayGet(cUnit, mir, kWord, rlSrc[0], rlSrc[1], rlDest, 2);
-            break;
-        case OP_AGET_BOOLEAN:
-            genArrayGet(cUnit, mir, kUnsignedByte, rlSrc[0], rlSrc[1],
-                        rlDest, 0);
-            break;
-        case OP_AGET_BYTE:
-            genArrayGet(cUnit, mir, kSignedByte, rlSrc[0], rlSrc[1], rlDest, 0);
-            break;
-        case OP_AGET_CHAR:
-            genArrayGet(cUnit, mir, kUnsignedHalf, rlSrc[0], rlSrc[1],
-                        rlDest, 1);
-            break;
-        case OP_AGET_SHORT:
-            genArrayGet(cUnit, mir, kSignedHalf, rlSrc[0], rlSrc[1], rlDest, 1);
-            break;
-        case OP_APUT_WIDE:
-            genArrayPut(cUnit, mir, kLong, rlSrc[1], rlSrc[2], rlSrc[0], 3);
-            break;
-        case OP_APUT:
-            genArrayPut(cUnit, mir, kWord, rlSrc[1], rlSrc[2], rlSrc[0], 2);
-            break;
-        case OP_APUT_OBJECT:
-            genArrayObjPut(cUnit, mir, rlSrc[1], rlSrc[2], rlSrc[0], 2);
-            break;
-        case OP_APUT_SHORT:
-        case OP_APUT_CHAR:
-            genArrayPut(cUnit, mir, kUnsignedHalf, rlSrc[1], rlSrc[2],
-                        rlSrc[0], 1);
-            break;
-        case OP_APUT_BYTE:
-        case OP_APUT_BOOLEAN:
-            genArrayPut(cUnit, mir, kUnsignedByte, rlSrc[1], rlSrc[2],
-                        rlSrc[0], 0);
-            break;
-
-        case OP_IGET_OBJECT:
-        case OP_IGET_OBJECT_VOLATILE:
-            genIGet(cUnit, mir, kWord, rlDest, rlSrc[0], false, true);
-            break;
-
-        case OP_IGET_WIDE:
-        case OP_IGET_WIDE_VOLATILE:
-            genIGet(cUnit, mir, kLong, rlDest, rlSrc[0], true, false);
-            break;
-
-        case OP_IGET:
-        case OP_IGET_VOLATILE:
-            genIGet(cUnit, mir, kWord, rlDest, rlSrc[0], false, false);
-            break;
-
-        case OP_IGET_CHAR:
-            genIGet(cUnit, mir, kUnsignedHalf, rlDest, rlSrc[0], false, false);
-            break;
-
-        case OP_IGET_SHORT:
-            genIGet(cUnit, mir, kSignedHalf, rlDest, rlSrc[0], false, false);
-            break;
-
-        case OP_IGET_BOOLEAN:
-        case OP_IGET_BYTE:
-            genIGet(cUnit, mir, kUnsignedByte, rlDest, rlSrc[0], false, false);
-            break;
-
-        case OP_IPUT_WIDE:
-        case OP_IPUT_WIDE_VOLATILE:
-            genIPut(cUnit, mir, kLong, rlSrc[0], rlSrc[1], true, false);
-            break;
-
-        case OP_IPUT_OBJECT:
-        case OP_IPUT_OBJECT_VOLATILE:
-            genIPut(cUnit, mir, kWord, rlSrc[0], rlSrc[1], false, true);
-            break;
-
-        case OP_IPUT:
-        case OP_IPUT_VOLATILE:
-            genIPut(cUnit, mir, kWord, rlSrc[0], rlSrc[1], false, false);
-            break;
-
-        case OP_IPUT_BOOLEAN:
-        case OP_IPUT_BYTE:
-            genIPut(cUnit, mir, kUnsignedByte, rlSrc[0], rlSrc[1], false, false);
-            break;
-
-        case OP_IPUT_CHAR:
-            genIPut(cUnit, mir, kUnsignedHalf, rlSrc[0], rlSrc[1], false, false);
-            break;
-
-        case OP_IPUT_SHORT:
-            genIPut(cUnit, mir, kSignedHalf, rlSrc[0], rlSrc[1], false, false);
-            break;
-
-        case OP_SGET_OBJECT:
-          genSget(cUnit, mir, rlDest, false, true);
-          break;
-        case OP_SGET:
-        case OP_SGET_BOOLEAN:
-        case OP_SGET_BYTE:
-        case OP_SGET_CHAR:
-        case OP_SGET_SHORT:
-            genSget(cUnit, mir, rlDest, false, false);
-            break;
-
-        case OP_SGET_WIDE:
-            genSget(cUnit, mir, rlDest, true, false);
-            break;
-
-        case OP_SPUT_OBJECT:
-          genSput(cUnit, mir, rlSrc[0], false, true);
-          break;
-
-        case OP_SPUT:
-        case OP_SPUT_BOOLEAN:
-        case OP_SPUT_BYTE:
-        case OP_SPUT_CHAR:
-        case OP_SPUT_SHORT:
-            genSput(cUnit, mir, rlSrc[0], false, false);
-            break;
-
-        case OP_SPUT_WIDE:
-            genSput(cUnit, mir, rlSrc[0], true, false);
-            break;
-
-        case OP_INVOKE_STATIC_RANGE:
-            genInvoke(cUnit, mir, kStatic, true /*range*/);
-            break;
-        case OP_INVOKE_STATIC:
-            genInvoke(cUnit, mir, kStatic, false /*range*/);
-            break;
-
-        case OP_INVOKE_DIRECT:
-            genInvoke(cUnit, mir, kDirect, false /*range*/);
-            break;
-        case OP_INVOKE_DIRECT_RANGE:
-            genInvoke(cUnit, mir, kDirect, true /*range*/);
-            break;
-
-        case OP_INVOKE_VIRTUAL:
-            genInvoke(cUnit, mir, kVirtual, false /*range*/);
-            break;
-        case OP_INVOKE_VIRTUAL_RANGE:
-            genInvoke(cUnit, mir, kVirtual, true /*range*/);
-            break;
-
-        case OP_INVOKE_SUPER:
-            genInvoke(cUnit, mir, kSuper, false /*range*/);
-            break;
-        case OP_INVOKE_SUPER_RANGE:
-            genInvoke(cUnit, mir, kSuper, true /*range*/);
-            break;
-
-        case OP_INVOKE_INTERFACE:
-            genInvoke(cUnit, mir, kInterface, false /*range*/);
-            break;
-        case OP_INVOKE_INTERFACE_RANGE:
-            genInvoke(cUnit, mir, kInterface, true /*range*/);
-            break;
-
-        case OP_NEG_INT:
-        case OP_NOT_INT:
-            res = genArithOpInt(cUnit, mir, rlDest, rlSrc[0], rlSrc[0]);
-            break;
-
-        case OP_NEG_LONG:
-        case OP_NOT_LONG:
-            res = genArithOpLong(cUnit, mir, rlDest, rlSrc[0], rlSrc[0]);
-            break;
-
-        case OP_NEG_FLOAT:
-            res = genArithOpFloat(cUnit, mir, rlDest, rlSrc[0], rlSrc[0]);
-            break;
-
-        case OP_NEG_DOUBLE:
-            res = genArithOpDouble(cUnit, mir, rlDest, rlSrc[0], rlSrc[0]);
-            break;
-
-        case OP_INT_TO_LONG:
-            rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-            if (rlSrc[0].location == kLocPhysReg) {
-                genRegCopy(cUnit, rlResult.lowReg, rlSrc[0].lowReg);
-            } else {
-                loadValueDirect(cUnit, rlSrc[0], rlResult.lowReg);
-            }
-            opRegRegImm(cUnit, kOpAsr, rlResult.highReg,
-                        rlResult.lowReg, 31);
-            storeValueWide(cUnit, rlDest, rlResult);
-            break;
-
-        case OP_LONG_TO_INT:
-            rlSrc[0] = oatUpdateLocWide(cUnit, rlSrc[0]);
-            rlSrc[0] = oatWideToNarrow(cUnit, rlSrc[0]);
-            storeValue(cUnit, rlDest, rlSrc[0]);
-            break;
-
-        case OP_INT_TO_BYTE:
-            rlSrc[0] = loadValue(cUnit, rlSrc[0], kCoreReg);
-            rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-            opRegReg(cUnit, kOp2Byte, rlResult.lowReg, rlSrc[0].lowReg);
-            storeValue(cUnit, rlDest, rlResult);
-            break;
-
-        case OP_INT_TO_SHORT:
-            rlSrc[0] = loadValue(cUnit, rlSrc[0], kCoreReg);
-            rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-            opRegReg(cUnit, kOp2Short, rlResult.lowReg, rlSrc[0].lowReg);
-            storeValue(cUnit, rlDest, rlResult);
-            break;
-
-        case OP_INT_TO_CHAR:
-            rlSrc[0] = loadValue(cUnit, rlSrc[0], kCoreReg);
-            rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-            opRegReg(cUnit, kOp2Char, rlResult.lowReg, rlSrc[0].lowReg);
-            storeValue(cUnit, rlDest, rlResult);
-            break;
-
-        case OP_INT_TO_FLOAT:
-        case OP_INT_TO_DOUBLE:
-        case OP_LONG_TO_FLOAT:
-        case OP_LONG_TO_DOUBLE:
-        case OP_FLOAT_TO_INT:
-        case OP_FLOAT_TO_LONG:
-        case OP_FLOAT_TO_DOUBLE:
-        case OP_DOUBLE_TO_INT:
-        case OP_DOUBLE_TO_LONG:
-        case OP_DOUBLE_TO_FLOAT:
-            genConversion(cUnit, mir);
-            break;
-
-        case OP_ADD_INT:
-        case OP_SUB_INT:
-        case OP_MUL_INT:
-        case OP_DIV_INT:
-        case OP_REM_INT:
-        case OP_AND_INT:
-        case OP_OR_INT:
-        case OP_XOR_INT:
-        case OP_SHL_INT:
-        case OP_SHR_INT:
-        case OP_USHR_INT:
-        case OP_ADD_INT_2ADDR:
-        case OP_SUB_INT_2ADDR:
-        case OP_MUL_INT_2ADDR:
-        case OP_DIV_INT_2ADDR:
-        case OP_REM_INT_2ADDR:
-        case OP_AND_INT_2ADDR:
-        case OP_OR_INT_2ADDR:
-        case OP_XOR_INT_2ADDR:
-        case OP_SHL_INT_2ADDR:
-        case OP_SHR_INT_2ADDR:
-        case OP_USHR_INT_2ADDR:
-            genArithOpInt(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
-            break;
-
-        case OP_ADD_LONG:
-        case OP_SUB_LONG:
-        case OP_MUL_LONG:
-        case OP_DIV_LONG:
-        case OP_REM_LONG:
-        case OP_AND_LONG:
-        case OP_OR_LONG:
-        case OP_XOR_LONG:
-        case OP_ADD_LONG_2ADDR:
-        case OP_SUB_LONG_2ADDR:
-        case OP_MUL_LONG_2ADDR:
-        case OP_DIV_LONG_2ADDR:
-        case OP_REM_LONG_2ADDR:
-        case OP_AND_LONG_2ADDR:
-        case OP_OR_LONG_2ADDR:
-        case OP_XOR_LONG_2ADDR:
-            genArithOpLong(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
-            break;
-
-        case OP_SHL_LONG:
-        case OP_SHR_LONG:
-        case OP_USHR_LONG:
-        case OP_SHL_LONG_2ADDR:
-        case OP_SHR_LONG_2ADDR:
-        case OP_USHR_LONG_2ADDR:
-            genShiftOpLong(cUnit,mir, rlDest, rlSrc[0], rlSrc[1]);
-            break;
-
-        case OP_ADD_FLOAT:
-        case OP_SUB_FLOAT:
-        case OP_MUL_FLOAT:
-        case OP_DIV_FLOAT:
-        case OP_REM_FLOAT:
-        case OP_ADD_FLOAT_2ADDR:
-        case OP_SUB_FLOAT_2ADDR:
-        case OP_MUL_FLOAT_2ADDR:
-        case OP_DIV_FLOAT_2ADDR:
-        case OP_REM_FLOAT_2ADDR:
-            genArithOpFloat(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
-            break;
-
-        case OP_ADD_DOUBLE:
-        case OP_SUB_DOUBLE:
-        case OP_MUL_DOUBLE:
-        case OP_DIV_DOUBLE:
-        case OP_REM_DOUBLE:
-        case OP_ADD_DOUBLE_2ADDR:
-        case OP_SUB_DOUBLE_2ADDR:
-        case OP_MUL_DOUBLE_2ADDR:
-        case OP_DIV_DOUBLE_2ADDR:
-        case OP_REM_DOUBLE_2ADDR:
-            genArithOpDouble(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
-            break;
-
-        case OP_RSUB_INT:
-        case OP_ADD_INT_LIT16:
-        case OP_MUL_INT_LIT16:
-        case OP_DIV_INT_LIT16:
-        case OP_REM_INT_LIT16:
-        case OP_AND_INT_LIT16:
-        case OP_OR_INT_LIT16:
-        case OP_XOR_INT_LIT16:
-        case OP_ADD_INT_LIT8:
-        case OP_RSUB_INT_LIT8:
-        case OP_MUL_INT_LIT8:
-        case OP_DIV_INT_LIT8:
-        case OP_REM_INT_LIT8:
-        case OP_AND_INT_LIT8:
-        case OP_OR_INT_LIT8:
-        case OP_XOR_INT_LIT8:
-        case OP_SHL_INT_LIT8:
-        case OP_SHR_INT_LIT8:
-        case OP_USHR_INT_LIT8:
-            genArithOpIntLit(cUnit, mir, rlDest, rlSrc[0], mir->dalvikInsn.vC);
-            break;
-
         default:
-            res = true;
+            cond = (MipsConditionCode)0;
+            LOG(FATAL) << "Unexpected opcode " << (int)opcode;
     }
-    return res;
+    genConditionalBranch(cUnit, cond, &labelList[bb->taken->id]);
+    genUnconditionalBranch(cUnit, &labelList[bb->fallThrough->id]);
+#endif
 }
 
-STATIC const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
-    "kMirOpPhi",
-    "kMirOpNullNRangeUpCheck",
-    "kMirOpNullNRangeDownCheck",
-    "kMirOpLowerBound",
-    "kMirOpPunt",
-    "kMirOpCheckInlinePrediction",
-};
-
-/* Extended MIR instructions like PHI */
-STATIC void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
+STATIC void genCompareZeroAndBranch(CompilationUnit* cUnit, BasicBlock* bb,
+                                   MIR* mir, RegLocation rlSrc,
+                                   MipsLIR* labelList)
 {
-    int opOffset = mir->dalvikInsn.opcode - kMirOpFirst;
-    char* msg = NULL;
-    if (cUnit->printMe) {
-        msg = (char*)oatNew(cUnit, strlen(extendedMIROpNames[opOffset]) + 1,
-                            false, kAllocDebugInfo);
-        strcpy(msg, extendedMIROpNames[opOffset]);
-    }
-    ArmLIR* op = newLIR1(cUnit, kArmPseudoExtended, (int) msg);
-
-    switch ((ExtendedMIROpcode)mir->dalvikInsn.opcode) {
-        case kMirOpPhi: {
-            char* ssaString = NULL;
-            if (cUnit->printMe) {
-                ssaString = oatGetSSAString(cUnit, mir->ssaRep);
-            }
-            op->flags.isNop = true;
-            newLIR1(cUnit, kArmPseudoSSARep, (int) ssaString);
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
+    MipsConditionCode cond;
+    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+    opRegImm(cUnit, kOpCmp, rlSrc.lowReg, 0);
+    Opcode opcode = mir->dalvikInsn.opcode;
+    switch(opcode) {
+        case OP_IF_EQZ:
+            cond = kMipsCondEq;
             break;
-        }
+        case OP_IF_NEZ:
+            cond = kMipsCondNe;
+            break;
+        case OP_IF_LTZ:
+            cond = kMipsCondLt;
+            break;
+        case OP_IF_GEZ:
+            cond = kMipsCondGe;
+            break;
+        case OP_IF_GTZ:
+            cond = kMipsCondGt;
+            break;
+        case OP_IF_LEZ:
+            cond = kMipsCondLe;
+            break;
         default:
-            break;
+            cond = (MipsConditionCode)0;
+            LOG(FATAL) << "Unexpected opcode " << (int)opcode;
     }
+    genConditionalBranch(cUnit, cond, &labelList[bb->taken->id]);
+    genUnconditionalBranch(cUnit, &labelList[bb->fallThrough->id]);
+#endif
+}
+
+STATIC void genIntToLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                         RegLocation rlSrc)
+{
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    if (rlSrc.location == kLocPhysReg) {
+        genRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
+    } else {
+        loadValueDirect(cUnit, rlSrc, rlResult.lowReg);
+    }
+    opRegRegImm(cUnit, kOpAsr, rlResult.highReg,
+                rlResult.lowReg, 31);
+    storeValueWide(cUnit, rlDest, rlResult);
+#endif
+}
+
+STATIC void genIntNarrowing(CompilationUnit* cUnit, MIR* mir,
+                            RegLocation rlDest, RegLocation rlSrc)
+{
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
+     rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+     OpKind op = kOpInvalid;
+     switch(mir->dalvikInsn.opcode) {
+         case OP_INT_TO_BYTE:
+             op = kOp2Byte;
+             break;
+         case OP_INT_TO_SHORT:
+              op = kOp2Short;
+              break;
+         case OP_INT_TO_CHAR:
+              op = kOp2Char;
+              break;
+         default:
+             LOG(ERROR) << "Bad int conversion type";
+     }
+     opRegReg(cUnit, op, rlResult.lowReg, rlSrc.lowReg);
+     storeValue(cUnit, rlDest, rlResult);
+#endif
 }
 
 /*
@@ -1532,6 +1095,8 @@ STATIC void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
  */
 STATIC void flushIns(CompilationUnit* cUnit)
 {
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     if (cUnit->numIns == 0)
         return;
     int firstArgReg = r1;
@@ -1573,198 +1138,109 @@ STATIC void flushIns(CompilationUnit* cUnit)
             }
         }
     }
+#endif
 }
 
-/* Handle the content in each basic block */
-STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
+STATIC void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
 {
-    MIR* mir;
-    ArmLIR* labelList = (ArmLIR*) cUnit->blockLabelList;
-    int blockId = bb->id;
-
-    cUnit->curBlock = bb;
-    labelList[blockId].operands[0] = bb->startOffset;
-
-    /* Insert the block label */
-    labelList[blockId].opcode = kArmPseudoNormalBlockLabel;
-    oatAppendLIR(cUnit, (LIR*) &labelList[blockId]);
-
-    /* Reset local optimization data on block boundaries */
-    oatResetRegPool(cUnit);
-    oatClobberAllRegs(cUnit);
-    oatResetDefTracking(cUnit);
-
-    ArmLIR* headLIR = NULL;
-
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
     int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
-    if (bb->blockType == kEntryBlock) {
+    /*
+     * On entry, r0, r1, r2 & r3 are live.  Let the register allocation
+     * mechanism know so it doesn't try to use any of them when
+     * expanding the frame or flushing.  This leaves the utility
+     * code with a single temp: r12.  This should be enough.
+     */
+    oatLockTemp(cUnit, r0);
+    oatLockTemp(cUnit, r1);
+    oatLockTemp(cUnit, r2);
+    oatLockTemp(cUnit, r3);
+
+    /*
+     * We can safely skip the stack overflow check if we're
+     * a leaf *and* our frame size < fudge factor.
+     */
+    bool skipOverflowCheck = ((cUnit->attrs & METHOD_IS_LEAF) &&
+                              ((size_t)cUnit->frameSize <
+                              Thread::kStackOverflowReservedBytes));
+    newLIR0(cUnit, kMipsPseudoMethodEntry);
+    if (!skipOverflowCheck) {
+        /* Load stack limit */
+        loadWordDisp(cUnit, rSELF,
+                     Thread::StackEndOffset().Int32Value(), r12);
+    }
+    /* Spill core callee saves */
+    newLIR1(cUnit, kThumb2Push, cUnit->coreSpillMask);
+    /* Need to spill any FP regs? */
+    if (cUnit->numFPSpills) {
         /*
-         * On entry, r0, r1, r2 & r3 are live.  Let the register allocation
-         * mechanism know so it doesn't try to use any of them when
-         * expanding the frame or flushing.  This leaves the utility
-         * code with a single temp: r12.  This should be enough.
+         * NOTE: fp spills are a little different from core spills in that
+         * they are pushed as a contiguous block.  When promoting from
+         * the fp set, we must allocate all singles from s16..highest-promoted
          */
-        oatLockTemp(cUnit, r0);
-        oatLockTemp(cUnit, r1);
-        oatLockTemp(cUnit, r2);
-        oatLockTemp(cUnit, r3);
+        newLIR1(cUnit, kThumb2VPushCS, cUnit->numFPSpills);
+    }
+    if (!skipOverflowCheck) {
+        opRegRegImm(cUnit, kOpSub, rLR, rSP,
+                    cUnit->frameSize - (spillCount * 4));
+        genRegRegCheck(cUnit, kMipsCondCc, rLR, r12, NULL,
+                       kMipsThrowStackOverflow);
+        genRegCopy(cUnit, rSP, rLR);         // Establish stack
+    } else {
+        opRegImm(cUnit, kOpSub, rSP,
+                 cUnit->frameSize - (spillCount * 4));
+    }
+    storeBaseDisp(cUnit, rSP, 0, r0, kWord);
+    flushIns(cUnit);
 
-        /*
-         * We can safely skip the stack overflow check if we're
-         * a leaf *and* our frame size < fudge factor.
-         */
-        bool skipOverflowCheck = ((cUnit->attrs & METHOD_IS_LEAF) &&
-                                  ((size_t)cUnit->frameSize <
-                                  Thread::kStackOverflowReservedBytes));
-        newLIR0(cUnit, kArmPseudoMethodEntry);
-        if (!skipOverflowCheck) {
-            /* Load stack limit */
-            loadWordDisp(cUnit, rSELF,
-                         Thread::StackEndOffset().Int32Value(), r12);
-        }
-        /* Spill core callee saves */
-        newLIR1(cUnit, kThumb2Push, cUnit->coreSpillMask);
-        /* Need to spill any FP regs? */
-        if (cUnit->numFPSpills) {
-            /*
-             * NOTE: fp spills are a little different from core spills in that
-             * they are pushed as a contiguous block.  When promoting from
-             * the fp set, we must allocate all singles from s16..highest-promoted
-             */
-            newLIR1(cUnit, kThumb2VPushCS, cUnit->numFPSpills);
-        }
-        if (!skipOverflowCheck) {
-            opRegRegImm(cUnit, kOpSub, rLR, rSP,
-                        cUnit->frameSize - (spillCount * 4));
-            genRegRegCheck(cUnit, kArmCondCc, rLR, r12, NULL,
-                           kArmThrowStackOverflow);
-            genRegCopy(cUnit, rSP, rLR);         // Establish stack
-        } else {
-            opRegImm(cUnit, kOpSub, rSP,
-                     cUnit->frameSize - (spillCount * 4));
-        }
-        storeBaseDisp(cUnit, rSP, 0, r0, kWord);
-        flushIns(cUnit);
-
-        if (cUnit->genDebugger) {
-            // Refresh update debugger callout
-            loadWordDisp(cUnit, rSELF,
-                         OFFSETOF_MEMBER(Thread, pUpdateDebuggerFromCode), rSUSPEND);
-            genDebuggerUpdate(cUnit, DEBUGGER_METHOD_ENTRY);
-        }
-
-        oatFreeTemp(cUnit, r0);
-        oatFreeTemp(cUnit, r1);
-        oatFreeTemp(cUnit, r2);
-        oatFreeTemp(cUnit, r3);
-    } else if (bb->blockType == kExitBlock) {
-        /*
-         * In the exit path, r0/r1 are live - make sure they aren't
-         * allocated by the register utilities as temps.
-         */
-        oatLockTemp(cUnit, r0);
-        oatLockTemp(cUnit, r1);
-
-        newLIR0(cUnit, kArmPseudoMethodExit);
-        /* If we're compiling for the debugger, generate an update callout */
-        if (cUnit->genDebugger) {
-            genDebuggerUpdate(cUnit, DEBUGGER_METHOD_EXIT);
-        }
-        opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize - (spillCount * 4));
-        /* Need to restore any FP callee saves? */
-        if (cUnit->numFPSpills) {
-            newLIR1(cUnit, kThumb2VPopCS, cUnit->numFPSpills);
-        }
-        if (cUnit->coreSpillMask & (1 << rLR)) {
-            /* Unspill rLR to rPC */
-            cUnit->coreSpillMask &= ~(1 << rLR);
-            cUnit->coreSpillMask |= (1 << rPC);
-        }
-        newLIR1(cUnit, kThumb2Pop, cUnit->coreSpillMask);
-        if (!(cUnit->coreSpillMask & (1 << rPC))) {
-            /* We didn't pop to rPC, so must do a bv rLR */
-            newLIR1(cUnit, kThumbBx, rLR);
-        }
+    if (cUnit->genDebugger) {
+        // Refresh update debugger callout
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pUpdateDebuggerFromCode), rSUSPEND);
+        genDebuggerUpdate(cUnit, DEBUGGER_METHOD_ENTRY);
     }
 
-    for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
+    oatFreeTemp(cUnit, r0);
+    oatFreeTemp(cUnit, r1);
+    oatFreeTemp(cUnit, r2);
+    oatFreeTemp(cUnit, r3);
+#endif
+}
 
-        oatResetRegPool(cUnit);
-        if (cUnit->disableOpt & (1 << kTrackLiveTemps)) {
-            oatClobberAllRegs(cUnit);
-        }
+STATIC void genExitSequence(CompilationUnit* cUnit, BasicBlock* bb)
+{
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
+    int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
+    /*
+     * In the exit path, r0/r1 are live - make sure they aren't
+     * allocated by the register utilities as temps.
+     */
+    oatLockTemp(cUnit, r0);
+    oatLockTemp(cUnit, r1);
 
-        if (cUnit->disableOpt & (1 << kSuppressLoads)) {
-            oatResetDefTracking(cUnit);
-        }
-
-        if ((int)mir->dalvikInsn.opcode >= (int)kMirOpFirst) {
-            handleExtendedMethodMIR(cUnit, mir);
-            continue;
-        }
-
-        cUnit->currentDalvikOffset = mir->offset;
-
-        Opcode dalvikOpcode = mir->dalvikInsn.opcode;
-        InstructionFormat dalvikFormat =
-            dexGetFormatFromOpcode(dalvikOpcode);
-
-        ArmLIR* boundaryLIR;
-
-        /* Mark the beginning of a Dalvik instruction for line tracking */
-        char* instStr = cUnit->printMe ?
-           oatGetDalvikDisassembly(cUnit, &mir->dalvikInsn, "") : NULL;
-        boundaryLIR = newLIR1(cUnit, kArmPseudoDalvikByteCodeBoundary,
-                              (intptr_t) instStr);
-        cUnit->boundaryMap.insert(std::make_pair(mir->offset,
-                                 (LIR*)boundaryLIR));
-        /* Remember the first LIR for this block */
-        if (headLIR == NULL) {
-            headLIR = boundaryLIR;
-            /* Set the first boundaryLIR as a scheduling barrier */
-            headLIR->defMask = ENCODE_ALL;
-        }
-
-        /* If we're compiling for the debugger, generate an update callout */
-        if (cUnit->genDebugger) {
-            genDebuggerUpdate(cUnit, mir->offset);
-        }
-
-        /* Don't generate the SSA annotation unless verbose mode is on */
-        if (cUnit->printMe && mir->ssaRep) {
-            char* ssaString = oatGetSSAString(cUnit, mir->ssaRep);
-            newLIR1(cUnit, kArmPseudoSSARep, (int) ssaString);
-        }
-
-        bool notHandled = compileDalvikInstruction(cUnit, mir, bb, labelList);
-
-        if (notHandled) {
-            char buf[100];
-            snprintf(buf, 100, "%#06x: Opcode %#x (%s) / Fmt %d not handled",
-                 mir->offset,
-                 dalvikOpcode, dexGetOpcodeName(dalvikOpcode),
-                 dalvikFormat);
-            LOG(FATAL) << buf;
-        }
+    newLIR0(cUnit, kMipsPseudoMethodExit);
+    /* If we're compiling for the debugger, generate an update callout */
+    if (cUnit->genDebugger) {
+        genDebuggerUpdate(cUnit, DEBUGGER_METHOD_EXIT);
     }
-
-    if (headLIR) {
-        /*
-         * Eliminate redundant loads/stores and delay stores into later
-         * slots
-         */
-        oatApplyLocalOptimizations(cUnit, (LIR*) headLIR,
-                                           cUnit->lastLIRInsn);
-
-        /*
-         * Generate an unconditional branch to the fallthrough block.
-         */
-        if (bb->fallThrough) {
-            genUnconditionalBranch(cUnit,
-                                   &labelList[bb->fallThrough->id]);
-        }
+    opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize - (spillCount * 4));
+    /* Need to restore any FP callee saves? */
+    if (cUnit->numFPSpills) {
+        newLIR1(cUnit, kThumb2VPopCS, cUnit->numFPSpills);
     }
-    return false;
+    if (cUnit->coreSpillMask & (1 << rLR)) {
+        /* Unspill rLR to rPC */
+        cUnit->coreSpillMask &= ~(1 << rLR);
+        cUnit->coreSpillMask |= (1 << rPC);
+    }
+    newLIR1(cUnit, kThumb2Pop, cUnit->coreSpillMask);
+    if (!(cUnit->coreSpillMask & (1 << rPC))) {
+        /* We didn't pop to rPC, so must do a bv rLR */
+        newLIR1(cUnit, kThumbBx, rLR);
+    }
+#endif
 }
 
 /*
@@ -1774,16 +1250,18 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
  */
 void removeRedundantBranches(CompilationUnit* cUnit)
 {
-    ArmLIR* thisLIR;
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
+    MipsLIR* thisLIR;
 
-    for (thisLIR = (ArmLIR*) cUnit->firstLIRInsn;
-         thisLIR != (ArmLIR*) cUnit->lastLIRInsn;
+    for (thisLIR = (MipsLIR*) cUnit->firstLIRInsn;
+         thisLIR != (MipsLIR*) cUnit->lastLIRInsn;
          thisLIR = NEXT_LIR(thisLIR)) {
 
         /* Branch to the next instruction */
         if ((thisLIR->opcode == kThumbBUncond) ||
             (thisLIR->opcode == kThumb2BUncond)) {
-            ArmLIR* nextLIR = thisLIR;
+            MipsLIR* nextLIR = thisLIR;
 
             while (true) {
                 nextLIR = NEXT_LIR(nextLIR);
@@ -1791,7 +1269,7 @@ void removeRedundantBranches(CompilationUnit* cUnit)
                 /*
                  * Is the branch target the next instruction?
                  */
-                if (nextLIR == (ArmLIR*) thisLIR->generic.target) {
+                if (nextLIR == (MipsLIR*) thisLIR->generic.target) {
                     thisLIR->flags.isNop = true;
                     break;
                 }
@@ -1802,23 +1280,26 @@ void removeRedundantBranches(CompilationUnit* cUnit)
                  * might be the last real instruction.
                  */
                 if (!isPseudoOpcode(nextLIR->opcode) ||
-                    (nextLIR = (ArmLIR*) cUnit->lastLIRInsn))
+                    (nextLIR = (MipsLIR*) cUnit->lastLIRInsn))
                     break;
             }
         }
     }
+#endif
 }
 
 STATIC void handleSuspendLaunchpads(CompilationUnit *cUnit)
 {
-    ArmLIR** suspendLabel =
-        (ArmLIR **) cUnit->suspendLaunchpads.elemList;
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
+    MipsLIR** suspendLabel =
+        (MipsLIR **) cUnit->suspendLaunchpads.elemList;
     int numElems = cUnit->suspendLaunchpads.numUsed;
 
     for (int i = 0; i < numElems; i++) {
         /* TUNING: move suspend count load into helper */
-        ArmLIR* lab = suspendLabel[i];
-        ArmLIR* resumeLab = (ArmLIR*)lab->operands[0];
+        MipsLIR* lab = suspendLabel[i];
+        MipsLIR* resumeLab = (MipsLIR*)lab->operands[0];
         cUnit->currentDalvikOffset = lab->operands[1];
         oatAppendLIR(cUnit, (LIR *)lab);
         loadWordDisp(cUnit, rSELF,
@@ -1836,27 +1317,30 @@ STATIC void handleSuspendLaunchpads(CompilationUnit *cUnit)
         }
         genUnconditionalBranch(cUnit, resumeLab);
     }
+#endif
 }
 
 STATIC void handleThrowLaunchpads(CompilationUnit *cUnit)
 {
-    ArmLIR** throwLabel =
-        (ArmLIR **) cUnit->throwLaunchpads.elemList;
+    UNIMPLEMENTED(FATAL) << "Needs mips version";
+#if 0
+    MipsLIR** throwLabel =
+        (MipsLIR **) cUnit->throwLaunchpads.elemList;
     int numElems = cUnit->throwLaunchpads.numUsed;
     int i;
 
     for (i = 0; i < numElems; i++) {
-        ArmLIR* lab = throwLabel[i];
+        MipsLIR* lab = throwLabel[i];
         cUnit->currentDalvikOffset = lab->operands[1];
         oatAppendLIR(cUnit, (LIR *)lab);
         int funcOffset = 0;
         int v1 = lab->operands[2];
         int v2 = lab->operands[3];
         switch(lab->operands[0]) {
-            case kArmThrowNullPointer:
+            case kMipsThrowNullPointer:
                 funcOffset = OFFSETOF_MEMBER(Thread, pThrowNullPointerFromCode);
                 break;
-            case kArmThrowArrayBounds:
+            case kMipsThrowArrayBounds:
                 if (v2 != r0) {
                     genRegCopy(cUnit, r0, v1);
                     genRegCopy(cUnit, r1, v2);
@@ -1872,26 +1356,26 @@ STATIC void handleThrowLaunchpads(CompilationUnit *cUnit)
                 }
                 funcOffset = OFFSETOF_MEMBER(Thread, pThrowArrayBoundsFromCode);
                 break;
-            case kArmThrowDivZero:
+            case kMipsThrowDivZero:
                 funcOffset = OFFSETOF_MEMBER(Thread, pThrowDivZeroFromCode);
                 break;
-            case kArmThrowVerificationError:
+            case kMipsThrowVerificationError:
                 loadConstant(cUnit, r0, v1);
                 loadConstant(cUnit, r1, v2);
                 funcOffset =
                     OFFSETOF_MEMBER(Thread, pThrowVerificationErrorFromCode);
                 break;
-            case kArmThrowNegArraySize:
+            case kMipsThrowNegArraySize:
                 genRegCopy(cUnit, r0, v1);
                 funcOffset =
                     OFFSETOF_MEMBER(Thread, pThrowNegArraySizeFromCode);
                 break;
-            case kArmThrowNoSuchMethod:
+            case kMipsThrowNoSuchMethod:
                 genRegCopy(cUnit, r0, v1);
                 funcOffset =
                     OFFSETOF_MEMBER(Thread, pThrowNoSuchMethodFromCode);
                 break;
-            case kArmThrowStackOverflow:
+            case kMipsThrowStackOverflow:
                 funcOffset =
                     OFFSETOF_MEMBER(Thread, pThrowStackOverflowFromCode);
                 // Restore stack alignment
@@ -1904,22 +1388,7 @@ STATIC void handleThrowLaunchpads(CompilationUnit *cUnit)
         loadWordDisp(cUnit, rSELF, funcOffset, rLR);
         callRuntimeHelper(cUnit, rLR);
     }
-}
-
-void oatMethodMIR2LIR(CompilationUnit* cUnit)
-{
-    /* Used to hold the labels of each block */
-    cUnit->blockLabelList =
-        (void *) oatNew(cUnit, sizeof(ArmLIR) * cUnit->numBlocks, true,
-                        kAllocLIR);
-
-    oatDataFlowAnalysisDispatcher(cUnit, methodBlockCodeGen,
-                                  kPreOrderDFSTraversal, false /* Iterative */);
-    handleSuspendLaunchpads(cUnit);
-
-    handleThrowLaunchpads(cUnit);
-
-    removeRedundantBranches(cUnit);
+#endif
 }
 
 /* Common initialization routine for an architecture family */
@@ -1927,7 +1396,7 @@ bool oatArchInit()
 {
     int i;
 
-    for (i = 0; i < kArmLast; i++) {
+    for (i = 0; i < kMipsLast; i++) {
         if (EncodingMap[i].opcode != i) {
             LOG(FATAL) << "Encoding order for " << EncodingMap[i].name <<
                " is wrong: expecting " << i << ", seeing " <<
@@ -1939,40 +1408,9 @@ bool oatArchInit()
 }
 
 /* Needed by the Assembler */
-void oatSetupResourceMasks(ArmLIR* lir)
+void oatSetupResourceMasks(MipsLIR* lir)
 {
     setupResourceMasks(lir);
-}
-
-/* Needed by the ld/st optmizatons */
-ArmLIR* oatRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
-{
-    return genRegCopyNoInsert(cUnit, rDest, rSrc);
-}
-
-/* Needed by the register allocator */
-ArmLIR* oatRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
-{
-    return genRegCopy(cUnit, rDest, rSrc);
-}
-
-/* Needed by the register allocator */
-void oatRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
-                            int srcLo, int srcHi)
-{
-    genRegCopyWide(cUnit, destLo, destHi, srcLo, srcHi);
-}
-
-void oatFlushRegImpl(CompilationUnit* cUnit, int rBase,
-                             int displacement, int rSrc, OpSize size)
-{
-    storeBaseDisp(cUnit, rBase, displacement, rSrc, size);
-}
-
-void oatFlushRegWideImpl(CompilationUnit* cUnit, int rBase,
-                                 int displacement, int rSrcLo, int rSrcHi)
-{
-    storeBaseDispWide(cUnit, rBase, displacement, rSrcLo, rSrcHi);
 }
 
 }  // namespace art

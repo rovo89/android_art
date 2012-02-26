@@ -239,7 +239,6 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler/codegen/arm/ArchUtility.cc \
 	src/compiler/codegen/arm/ArmRallocUtil.cc \
 	src/compiler/codegen/arm/Assemble.cc \
-	src/compiler/codegen/arm/LocalOptimizations.cc \
 	src/compiler/codegen/arm/armv7-a/Codegen.cc \
 	src/jni_internal_arm.cc \
 	src/jni_internal_x86.cc

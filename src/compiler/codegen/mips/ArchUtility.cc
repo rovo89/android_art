@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2012 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,106 +15,32 @@
  */
 
 #include "../../CompilerInternals.h"
-#include "ArmLIR.h"
+#include "MipsLIR.h"
 #include "../Ralloc.h"
 
 #include <string>
 
 namespace art {
 
-static const char* coreRegNames[16] = {
-    "r0",
-    "r1",
-    "r2",
-    "r3",
-    "r4",
-    "r5",
-    "r6",
-    "r7",
-    "r8",
-    "rSELF",
-    "r10",
-    "r11",
-    "r12",
-    "sp",
-    "lr",
-    "pc",
+/* For dumping instructions */
+#define MIPS_REG_COUNT 32
+static const char *mipsRegName[MIPS_REG_COUNT] = {
+    "zero", "at", "v0", "v1", "a0", "a1", "a2", "a3",
+    "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
+    "s0", "s1", "s2", "s3", "s4", "s5", "s6", "s7",
+    "t8", "t9", "k0", "k1", "gp", "sp", "fp", "ra"
 };
 
-
-static const char* shiftNames[4] = {
-    "lsl",
-    "lsr",
-    "asr",
-    "ror"};
-
-/* Decode and print a ARM register name */
-STATIC char* decodeRegList(ArmOpcode opcode, int vector, char* buf)
-{
-    int i;
-    bool printed = false;
-    buf[0] = 0;
-    for (i = 0; i < 16; i++, vector >>= 1) {
-        if (vector & 0x1) {
-            int regId = i;
-            if (opcode == kThumbPush && i == 8) {
-                regId = r14lr;
-            } else if (opcode == kThumbPop && i == 8) {
-                regId = r15pc;
-            }
-            if (printed) {
-                sprintf(buf + strlen(buf), ", r%d", regId);
-            } else {
-                printed = true;
-                sprintf(buf, "r%d", regId);
-            }
-        }
-    }
-    return buf;
-}
-
-STATIC char*  decodeFPCSRegList(int count, int base, char* buf)
-{
-    sprintf(buf, "s%d", base);
-    for (int i = 1; i < count; i++) {
-        sprintf(buf + strlen(buf), ", s%d",base + i);
-    }
-    return buf;
-}
-
-STATIC int expandImmediate(int value)
-{
-    int mode = (value & 0xf00) >> 8;
-    u4 bits = value & 0xff;
-    switch(mode) {
-        case 0:
-            return bits;
-       case 1:
-            return (bits << 16) | bits;
-       case 2:
-            return (bits << 24) | (bits << 8);
-       case 3:
-            return (bits << 24) | (bits << 16) | (bits << 8) | bits;
-      default:
-            break;
-    }
-    bits = (bits | 0x80) << 24;
-    return bits >> (((value & 0xf80) >> 7) - 8);
-}
-
-const char* ccNames[] = {"eq","ne","cs","cc","mi","pl","vs","vc",
-                         "hi","ls","ge","lt","gt","le","al","nv"};
 /*
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.c.
  */
-STATIC std::string buildInsnString(const char* fmt, ArmLIR* lir, unsigned char* baseAddr)
+STATIC std::string buildInsnString(const char *fmt, MipsLIR *lir, unsigned char* baseAddr)
 {
     std::string buf;
     int i;
-    const char* fmtEnd = &fmt[strlen(fmt)];
+    const char *fmtEnd = &fmt[strlen(fmt)];
     char tbuf[256];
-    const char* name;
     char nc;
     while (fmt < fmtEnd) {
         int operand;
@@ -126,43 +52,9 @@ STATIC std::string buildInsnString(const char* fmt, ArmLIR* lir, unsigned char* 
                 strcpy(tbuf, "!");
             } else {
                DCHECK_LT(fmt, fmtEnd);
-               DCHECK_LT((unsigned)(nc-'0'), 4U);
+               DCHECK_LT((unsigned)(nc-'0'), 4u);
                operand = lir->operands[nc-'0'];
                switch(*fmt++) {
-                   case 'H':
-                       if (operand != 0) {
-                           sprintf(tbuf, ", %s %d",shiftNames[operand & 0x3],
-                                   operand >> 2);
-                       } else {
-                           strcpy(tbuf,"");
-                       }
-                       break;
-                   case 'B':
-                       switch (operand) {
-                           case kSY:
-                               name = "sy";
-                               break;
-                           case kST:
-                               name = "st";
-                               break;
-                           case kISH:
-                               name = "ish";
-                               break;
-                           case kISHST:
-                               name = "ishst";
-                               break;
-                           case kNSH:
-                               name = "nsh";
-                               break;
-                           case kNSHST:
-                               name = "shst";
-                               break;
-                           default:
-                               name = "DecodeError2";
-                               break;
-                       }
-                       strcpy(tbuf, name);
-                       break;
                    case 'b':
                        strcpy(tbuf,"0000");
                        for (i=3; i>= 0; i--) {
@@ -170,19 +62,12 @@ STATIC std::string buildInsnString(const char* fmt, ArmLIR* lir, unsigned char* 
                            operand >>= 1;
                        }
                        break;
-                   case 'n':
-                       operand = ~expandImmediate(operand);
-                       sprintf(tbuf,"%d [%#x]", operand, operand);
-                       break;
-                   case 'm':
-                       operand = expandImmediate(operand);
-                       sprintf(tbuf,"%d [%#x]", operand, operand);
-                       break;
                    case 's':
-                       sprintf(tbuf,"s%d",operand & FP_REG_MASK);
+                       sprintf(tbuf,"$f%d",operand & FP_REG_MASK);
                        break;
                    case 'S':
-                       sprintf(tbuf,"d%d",(operand & FP_REG_MASK) >> 1);
+                       DCHECK_EQ(((operand & FP_REG_MASK) & 1), 0);
+                       sprintf(tbuf,"$f%d",operand & FP_REG_MASK);
                        break;
                    case 'h':
                        sprintf(tbuf,"%04x", operand);
@@ -191,8 +76,8 @@ STATIC std::string buildInsnString(const char* fmt, ArmLIR* lir, unsigned char* 
                    case 'd':
                        sprintf(tbuf,"%d", operand);
                        break;
-                   case 'C':
-                       sprintf(tbuf,"%s",coreRegNames[operand]);
+                   case 'D':
+                       sprintf(tbuf,"%d", operand+1);
                        break;
                    case 'E':
                        sprintf(tbuf,"%d", operand*4);
@@ -201,13 +86,45 @@ STATIC std::string buildInsnString(const char* fmt, ArmLIR* lir, unsigned char* 
                        sprintf(tbuf,"%d", operand*2);
                        break;
                    case 'c':
-                       strcpy(tbuf, ccNames[operand]);
+                       switch (operand) {
+                           case kMipsCondEq:
+                               strcpy(tbuf, "eq");
+                               break;
+                           case kMipsCondNe:
+                               strcpy(tbuf, "ne");
+                               break;
+                           case kMipsCondLt:
+                               strcpy(tbuf, "lt");
+                               break;
+                           case kMipsCondGe:
+                               strcpy(tbuf, "ge");
+                               break;
+                           case kMipsCondGt:
+                               strcpy(tbuf, "gt");
+                               break;
+                           case kMipsCondLe:
+                               strcpy(tbuf, "le");
+                               break;
+                           case kMipsCondCs:
+                               strcpy(tbuf, "cs");
+                               break;
+                           case kMipsCondMi:
+                               strcpy(tbuf, "mi");
+                               break;
+                           default:
+                               strcpy(tbuf, "");
+                               break;
+                       }
                        break;
                    case 't':
                        sprintf(tbuf,"0x%08x (L%p)",
                                (int) baseAddr + lir->generic.offset + 4 +
-                               (operand << 1),
+                               (operand << 2),
                                lir->generic.target);
+                       break;
+                   case 'T':
+                       sprintf(tbuf,"0x%08x",
+                               (int) (operand << 2));
                        break;
                    case 'u': {
                        int offset_1 = lir->operands[0];
@@ -224,20 +141,15 @@ STATIC std::string buildInsnString(const char* fmt, ArmLIR* lir, unsigned char* 
                    case 'v':
                        strcpy(tbuf, "see above");
                        break;
-                   case 'R':
-                       decodeRegList(lir->opcode, operand, tbuf);
-                       break;
-                   case 'P':
-                       decodeFPCSRegList(operand, 16, tbuf);
-                       break;
-                   case 'Q':
-                       decodeFPCSRegList(operand, 0, tbuf);
+                   case 'r':
+                       DCHECK(operand >= 0 && operand < MIPS_REG_COUNT);
+                       strcpy(tbuf, mipsRegName[operand]);
                        break;
                    default:
-                       strcpy(tbuf,"DecodeError1");
+                       strcpy(tbuf,"DecodeError");
                        break;
-                }
-                buf += tbuf;
+               }
+               buf += tbuf;
             }
         } else {
            buf += *fmt++;
@@ -246,11 +158,12 @@ STATIC std::string buildInsnString(const char* fmt, ArmLIR* lir, unsigned char* 
     return buf;
 }
 
-void oatDumpResourceMask(LIR* lir, u8 mask, const char* prefix)
+// FIXME: need to redo resourse maps for MIPS - fix this at that time
+void oatDumpResourceMask(LIR *lir, u8 mask, const char *prefix)
 {
     char buf[256];
     buf[0] = 0;
-    ArmLIR* armLIR = (ArmLIR*) lir;
+    MipsLIR *mipsLIR = (MipsLIR *) lir;
 
     if (mask == ENCODE_ALL) {
         strcpy(buf, "all");
@@ -271,11 +184,10 @@ void oatDumpResourceMask(LIR* lir, u8 mask, const char* prefix)
         if (mask & ENCODE_FP_STATUS) {
             strcat(buf, "fpcc ");
         }
-
         /* Memory bits */
-        if (armLIR && (mask & ENCODE_DALVIK_REG)) {
-            sprintf(buf + strlen(buf), "dr%d%s", armLIR->aliasInfo & 0xffff,
-                    (armLIR->aliasInfo & 0x80000000) ? "(+1)" : "");
+        if (mipsLIR && (mask & ENCODE_DALVIK_REG)) {
+            sprintf(buf + strlen(buf), "dr%d%s", mipsLIR->aliasInfo & 0xffff,
+                    (mipsLIR->aliasInfo & 0x80000000) ? "(+1)" : "");
         }
         if (mask & ENCODE_LITERAL) {
             strcat(buf, "lit ");
@@ -289,7 +201,7 @@ void oatDumpResourceMask(LIR* lir, u8 mask, const char* prefix)
         }
     }
     if (buf[0]) {
-        LOG(INFO) << prefix << ": " << buf;
+        LOG(INFO) << prefix << ": " <<  buf;
     }
 }
 
@@ -302,57 +214,57 @@ void oatDumpResourceMask(LIR* lir, u8 mask, const char* prefix)
 /* Pretty-print a LIR instruction */
 void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
 {
-    ArmLIR* lir = (ArmLIR*) arg;
+    MipsLIR* lir = (MipsLIR*) arg;
     int offset = lir->generic.offset;
     int dest = lir->operands[0];
     const bool dumpNop = false;
 
     /* Handle pseudo-ops individually, and all regular insns as a group */
     switch(lir->opcode) {
-        case kArmPseudoMethodEntry:
+        case kMipsPseudoMethodEntry:
             LOG(INFO) << "-------- method entry " <<
                 PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
             break;
-        case kArmPseudoMethodExit:
+        case kMipsPseudoMethodExit:
             LOG(INFO) << "-------- Method_Exit";
             break;
-        case kArmPseudoBarrier:
+        case kMipsPseudoBarrier:
             LOG(INFO) << "-------- BARRIER";
             break;
-        case kArmPseudoExtended:
+        case kMipsPseudoExtended:
             LOG(INFO) << "-------- " << (char* ) dest;
             break;
-        case kArmPseudoSSARep:
+        case kMipsPseudoSSARep:
             DUMP_SSA_REP(LOG(INFO) << "-------- kMirOpPhi: " <<  (char* ) dest);
             break;
-        case kArmPseudoEntryBlock:
+        case kMipsPseudoEntryBlock:
             LOG(INFO) << "-------- entry offset: 0x" << std::hex << dest;
             break;
-        case kArmPseudoDalvikByteCodeBoundary:
+        case kMipsPseudoDalvikByteCodeBoundary:
             LOG(INFO) << "-------- dalvik offset: 0x" << std::hex <<
                  lir->generic.dalvikOffset << " @ " << (char* )lir->operands[0];
             break;
-        case kArmPseudoExitBlock:
+        case kMipsPseudoExitBlock:
             LOG(INFO) << "-------- exit offset: 0x" << std::hex << dest;
             break;
-        case kArmPseudoPseudoAlign4:
+        case kMipsPseudoPseudoAlign4:
             LOG(INFO) << (intptr_t)baseAddr + offset << " (0x" << std::hex <<
                 offset << "): .align4";
             break;
-        case kArmPseudoEHBlockLabel:
+        case kMipsPseudoEHBlockLabel:
             LOG(INFO) << "Exception_Handling:";
             break;
-        case kArmPseudoTargetLabel:
-        case kArmPseudoNormalBlockLabel:
+        case kMipsPseudoTargetLabel:
+        case kMipsPseudoNormalBlockLabel:
             LOG(INFO) << "L" << (intptr_t)lir << ":";
             break;
-        case kArmPseudoThrowTarget:
+        case kMipsPseudoThrowTarget:
             LOG(INFO) << "LT" << (intptr_t)lir << ":";
             break;
-        case kArmPseudoSuspendTarget:
+        case kMipsPseudoSuspendTarget:
             LOG(INFO) << "LS" << (intptr_t)lir << ":";
             break;
-        case kArmPseudoCaseLabel:
+        case kMipsPseudoCaseLabel:
             LOG(INFO) << "LC" << (intptr_t)lir << ": Case target 0x" <<
                 std::hex << lir->operands[0] << "|" << std::dec <<
                 lir->operands[0];
@@ -416,7 +328,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
     LOG(INFO) << "Dumping LIR insns for "
         << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
     LIR* lirInsn;
-    ArmLIR* armLIR;
+    MipsLIR* mipsLIR;
     int insnsSize = cUnit->insnsSize;
 
     LOG(INFO) << "Regs (excluding ins) : " << cUnit->numRegs;
@@ -437,15 +349,15 @@ void oatCodegenDump(CompilationUnit* cUnit)
         oatDumpLIRInsn(cUnit, lirInsn, 0);
     }
     for (lirInsn = cUnit->classPointerList; lirInsn; lirInsn = lirInsn->next) {
-        armLIR = (ArmLIR*) lirInsn;
+        mipsLIR = (MipsLIR*) lirInsn;
         LOG(INFO) << StringPrintf("%x (%04x): .class (%s)",
-            armLIR->generic.offset, armLIR->generic.offset,
-            ((CallsiteInfo *) armLIR->operands[0])->classDescriptor);
+            mipsLIR->generic.offset, mipsLIR->generic.offset,
+            ((CallsiteInfo *) mipsLIR->operands[0])->classDescriptor);
     }
     for (lirInsn = cUnit->literalList; lirInsn; lirInsn = lirInsn->next) {
-        armLIR = (ArmLIR*) lirInsn;
+        mipsLIR = (MipsLIR*) lirInsn;
         LOG(INFO) << StringPrintf("%x (%04x): .word (%#x)",
-            armLIR->generic.offset, armLIR->generic.offset, armLIR->operands[0]);
+            mipsLIR->generic.offset, mipsLIR->generic.offset, mipsLIR->operands[0]);
     }
 
     const DexFile::MethodId& method_id =
@@ -469,4 +381,4 @@ void oatCodegenDump(CompilationUnit* cUnit)
     }
 }
 
-}  // namespace art
+} // namespace art

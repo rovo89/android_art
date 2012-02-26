@@ -18,11 +18,8 @@
 #define TGT_LIR ArmLIR
 
 #include "../../../Dalvik.h"
-//#include "interp/InterpDefs.h"
-//#include "libdex/DexOpcodes.h"
 #include "../../../CompilerInternals.h"
 #include "../arm/ArmLIR.h"
-//#include "mterp/common/FindInterface.h"
 #include "../../Ralloc.h"
 #include "../Codegen.h"
 
@@ -45,7 +42,13 @@
 #include "../Thumb2/Ralloc.cc"
 
 /* MIR2LIR dispatcher and architectural independent codegen routines */
-#include "../MethodCodegenDriver.cc"
+#include "../../MethodCodegenDriver.cc"
+
+/* Target-independent local optimizations */
+#include "../../LocalOptimizations.cc"
+
+/* Common codegen utility code */
+#include "../../CodegenUtil.cc"
 
 /* Architecture manifest */
 #include "ArchVariant.cc"

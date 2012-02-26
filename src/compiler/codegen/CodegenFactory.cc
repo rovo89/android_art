@@ -28,6 +28,8 @@ namespace art {
  * Prior to including this file, TGT_LIR should be #defined.
  * For example, for arm:
  *    #define TGT_LIR ArmLIR
+ * for MIPS:
+ *    #define TGT_LIR MipsLIR
  * and for x86:
  *    #define TGT_LIR X86LIR
  */
