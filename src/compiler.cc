@@ -202,7 +202,7 @@ class AOTCompilationStats {
 };
 
 Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_count,
-                   const std::set<std::string>* image_classes)
+                   bool support_debugging, const std::set<std::string>* image_classes)
     : instruction_set_(instruction_set),
       jni_compiler_(instruction_set),
       compiled_classes_lock_("compiled classes lock"),
@@ -210,6 +210,7 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       compiled_invoke_stubs_lock_("compiled invoke stubs lock"),
       image_(image),
       thread_count_(thread_count),
+      support_debugging_(support_debugging),
       stats_(new AOTCompilationStats),
       image_classes_(image_classes)
 #if defined(ART_USE_LLVM_COMPILER)

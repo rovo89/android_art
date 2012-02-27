@@ -108,12 +108,12 @@ static void Usage(const char* fmt, ...) {
 class Dex2Oat {
  public:
 
-  static Dex2Oat* Create(Runtime::Options& options, size_t thread_count) {
+  static Dex2Oat* Create(Runtime::Options& options, size_t thread_count, bool support_debugging) {
     UniquePtr<Runtime> runtime(CreateRuntime(options));
     if (runtime.get() == NULL) {
       return NULL;
     }
-    return new Dex2Oat(runtime.release(), thread_count);
+    return new Dex2Oat(runtime.release(), thread_count, support_debugging);
   }
 
   ~Dex2Oat() {
@@ -206,7 +206,7 @@ class Dex2Oat {
       class_loader.get()->reset(PathClassLoader::AllocCompileTime(class_path_files));
     }
 
-    Compiler compiler(instruction_set_, image, thread_count_, image_classes);
+    Compiler compiler(instruction_set_, image, thread_count_, support_debugging_, image_classes);
     compiler.CompileAll(class_loader->get(), dex_files);
 
     if (!OatWriter::Create(oat_file, class_loader->get(), dex_files, compiler)) {
@@ -247,8 +247,11 @@ class Dex2Oat {
 
  private:
 
-  explicit Dex2Oat(Runtime* runtime, size_t thread_count)
-      : runtime_(runtime), thread_count_(thread_count), start_ns_(NanoTime()) {
+  explicit Dex2Oat(Runtime* runtime, size_t thread_count, bool support_debugging)
+      : runtime_(runtime),
+        thread_count_(thread_count),
+        support_debugging_(support_debugging),
+        start_ns_(NanoTime()) {
   }
 
   static Runtime* CreateRuntime(Runtime::Options& options) {
@@ -373,6 +376,7 @@ class Dex2Oat {
 
   Runtime* runtime_;
   size_t thread_count_;
+  bool support_debugging_;
   uint64_t start_ns_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
@@ -426,6 +430,7 @@ int dex2oat(int argc, char** argv) {
   std::string host_prefix;
   std::vector<const char*> runtime_args;
   int thread_count = 2;
+  bool support_debugging = false;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -451,6 +456,8 @@ int dex2oat(int argc, char** argv) {
       if (!ParseInt(oat_fd_str, &oat_fd)) {
         Usage("could not parse --oat-fd argument '%s' as an integer", oat_fd_str);
       }
+    } else if (option.starts_with("-g")) {
+      support_debugging = true;
     } else if (option.starts_with("-j")) {
       const char* thread_count_str = option.substr(strlen("-j")).data();
       if (!ParseInt(thread_count_str, &thread_count)) {
@@ -596,7 +603,7 @@ int dex2oat(int argc, char** argv) {
     options.push_back(std::make_pair(runtime_args[i], reinterpret_cast<void*>(NULL)));
   }
 
-  UniquePtr<Dex2Oat> dex2oat(Dex2Oat::Create(options, thread_count));
+  UniquePtr<Dex2Oat> dex2oat(Dex2Oat::Create(options, thread_count, support_debugging));
 
   // If --image-classes was specified, calculate the full list of classes to include in the image
   UniquePtr<const std::set<std::string> > image_classes(NULL);

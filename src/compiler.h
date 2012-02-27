@@ -51,7 +51,7 @@ class Compiler {
   // can assume will be in the image, with NULL implying all available
   // classes.
   explicit Compiler(InstructionSet instruction_set, bool image, size_t thread_count,
-                    const std::set<std::string>* image_classes);
+                    bool support_debugging, const std::set<std::string>* image_classes);
 
   ~Compiler();
 
@@ -60,6 +60,10 @@ class Compiler {
 
   // Compile a single Method
   void CompileOne(const Method* method);
+
+  bool IsDebuggingSupported() {
+    return support_debugging_;
+  }
 
   InstructionSet GetInstructionSet() const {
     return instruction_set_;
@@ -187,6 +191,7 @@ class Compiler {
 
   bool image_;
   size_t thread_count_;
+  bool support_debugging_;
   uint64_t start_ns_;
 
   UniquePtr<AOTCompilationStats> stats_;
