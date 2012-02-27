@@ -66,7 +66,6 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
 
   // Get argument types
   llvm::Type* arg_types[] = {
-    irb_.getJEnvTy(), // JEnv*
     irb_.getJObjectTy(), // Method object pointer
     irb_.getJObjectTy(), // "this" object pointer (NULL for static)
     irb_.getJObjectTy(), // Thread object pointer
@@ -93,7 +92,6 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
   // Actual arguments
   llvm::Function::arg_iterator arg_iter = func->arg_begin();
 
-  arg_iter++; // jenv_addr
   llvm::Value* method_object_addr = arg_iter++;
   llvm::Value* callee_this_addr = arg_iter++;
   llvm::Value* thread_object_addr = arg_iter++;
