@@ -110,6 +110,10 @@ class ImageWriter {
   void ComputeLazyFieldsForImageClasses();
   static bool ComputeLazyFieldsForClassesVisitor(Class* klass, void* arg);
 
+  // Wire dex cache resolved strings to strings in the image to avoid runtime resolution
+  void ComputeEagerResolvedStrings();
+  static void ComputeEagerResolvedStringsCallback(Object* obj, void* arg);
+
   void PruneNonImageClasses();
   static bool NonImageClassesVisitor(Class* c, void* arg);
 

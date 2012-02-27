@@ -73,6 +73,7 @@ bool ImageWriter::Write(const std::string& image_filename,
 
   PruneNonImageClasses();  // Remove junk
   ComputeLazyFieldsForImageClasses();  // Add useful information
+  ComputeEagerResolvedStrings();
   Heap::CollectGarbage(false);  // Remove garbage
   Heap::GetAllocSpace()->Trim();  // Trim size of source_space
   if (!AllocMemory()) {
@@ -119,6 +120,35 @@ void ImageWriter::ComputeLazyFieldsForImageClasses() {
 bool ImageWriter::ComputeLazyFieldsForClassesVisitor(Class* klass, void* arg) {
   klass->ComputeName();
   return true;
+}
+
+void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
+  if (!obj->GetClass()->IsStringClass()) {
+    return;
+  }
+  String* string = obj->AsString();
+  std::string utf8_string(string->ToModifiedUtf8());
+  ImageWriter* writer = reinterpret_cast<ImageWriter*>(arg);
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  typedef Set::const_iterator CacheIt;  // TODO: C++0x auto
+  for (CacheIt it = writer->dex_caches_.begin(), end = writer->dex_caches_.end(); it != end; ++it) {
+    DexCache* dex_cache = *it;
+    const DexFile& dex_file = linker->FindDexFile(dex_cache);
+    const DexFile::StringId* string_id = dex_file.FindStringId(utf8_string);
+    if (string_id != NULL) {
+      // This string occurs in this dex file, assign the dex cache entry.
+      uint32_t string_idx = dex_file.GetIndexForStringId(*string_id);
+      if (dex_cache->GetResolvedString(string_idx) == NULL) {
+        dex_cache->SetResolvedString(string_idx, string);
+      }
+    }
+  }
+}
+
+void ImageWriter::ComputeEagerResolvedStrings() {
+  HeapBitmap* heap_bitmap = Heap::GetLiveBits();
+  DCHECK(heap_bitmap != NULL);
+  heap_bitmap->Walk(ComputeEagerResolvedStringsCallback, this);  // TODO: add Space-limited Walk
 }
 
 bool ImageWriter::IsImageClass(const Class* klass) {
