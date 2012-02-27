@@ -3182,16 +3182,16 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType
                                << PrettyMethod(res_method);
     return NULL;
   }
-  // Check that invoke-virtual and invoke-super are not used on private methods.
-  if (res_method->IsPrivate() && method_type == METHOD_VIRTUAL) {
-    Fail(VERIFY_ERROR_GENERIC) << "invoke-super/virtual can't be used on private method "
-                               << PrettyMethod(res_method);
-    return NULL;
-  }
   // Check if access is allowed.
   if (!referrer->CanAccessMember(res_method->GetDeclaringClass(), res_method->GetAccessFlags())) {
     Fail(VERIFY_ERROR_ACCESS_METHOD) << "illegal method access (call " << PrettyMethod(res_method)
                                   << " from " << PrettyDescriptor(referrer) << ")";
+    return NULL;
+  }
+  // Check that invoke-virtual and invoke-super are not used on private methods of the same class.
+  if (res_method->IsPrivate() && method_type == METHOD_VIRTUAL) {
+    Fail(VERIFY_ERROR_GENERIC) << "invoke-super/virtual can't be used on private method "
+                               << PrettyMethod(res_method);
     return NULL;
   }
   // Check that interface methods match interface classes.
