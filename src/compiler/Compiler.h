@@ -56,7 +56,6 @@ enum optControlVector {
     kPromoteRegs,
     kTrackLiveTemps,
     kSkipLargeMethodOptimization,
-    kGenCodeForDebugger,
 };
 
 /* Type of allocation for memory tuning */

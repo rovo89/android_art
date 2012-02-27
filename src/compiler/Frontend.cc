@@ -33,7 +33,6 @@ uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
      //(1 << kPromoteRegs) |
      //(1 << kTrackLiveTemps) |
      //(1 << kSkipLargeMethodOptimization) |
-     //(1 << kGenCodeForDebugger) |
      0;
 
 uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
@@ -787,7 +786,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler, const DexFile::CodeItem* co
     }
 
     /* Are we generating code for the debugger? */
-    if (cUnit->disableOpt & (1 << kGenCodeForDebugger)) {
+    if (compiler.IsDebuggingSupported()) {
         cUnit->genDebugger = true;
         // Yes, disable most optimizations
         cUnit->disableOpt |= (
