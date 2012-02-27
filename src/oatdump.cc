@@ -407,7 +407,7 @@ class ImageDump {
         if (run == 0) {
           StringAppendF(&summary, "\t%d: ", i);
         } else {
-          StringAppendF(&summary, "\t%d to %d: ", i, i + run);
+          StringAppendF(&summary, "\t%d to %zd: ", i, i + run);
           i = i + run;
         }
         Class* value_class = value == NULL ? obj_class->GetComponentType() : value->GetClass();
