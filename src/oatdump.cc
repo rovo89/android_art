@@ -239,7 +239,15 @@ class ImageDump {
             = down_cast<ObjectArray<Object>*>(image_root_object);
         //  = image_root_object->AsObjectArray<Object>();
         for (int i = 0; i < image_root_object_array->GetLength(); i++) {
-            os << StringPrintf("\t%d: %p\n", i, image_root_object_array->Get(i));
+          Object* value = image_root_object_array->Get(i);
+          if (value != NULL) {
+            os << "\t" << i << ": ";
+            std::string summary;
+            PrettyObjectValue(summary, value->GetClass(), value);
+            os << summary;
+          } else {
+            os << StringPrintf("\t%d: null\n", i);
+          }
         }
       }
     }
@@ -292,6 +300,59 @@ class ImageDump {
 
   ~ImageDump() {}
 
+  static void PrettyObjectValue(std::string& summary, Class* type, Object* value) {
+    CHECK(type != NULL);
+    if (value == NULL) {
+      StringAppendF(&summary, "null   %s\n", PrettyDescriptor(type).c_str());
+    } else if (type->IsStringClass()) {
+      String* string = value->AsString();
+      StringAppendF(&summary, "%p   String: \"%s\"\n", string, string->ToModifiedUtf8().c_str());
+    } else if (value->IsClass()) {
+      Class* klass = value->AsClass();
+      StringAppendF(&summary, "%p   Class: %s\n", klass, PrettyDescriptor(klass).c_str());
+    } else if (value->IsField()) {
+      Field* field = value->AsField();
+      StringAppendF(&summary, "%p   Field: %s\n", field, PrettyField(field).c_str());
+    } else if (value->IsMethod()) {
+      Method* method = value->AsMethod();
+      StringAppendF(&summary, "%p   Method: %s\n", method, PrettyMethod(method).c_str());
+    } else {
+      StringAppendF(&summary, "%p   %s\n", value, PrettyDescriptor(type).c_str());
+    }
+  }
+
+  static void PrintField(std::string& summary, Field* field, Object* obj) {
+    FieldHelper fh(field);
+    Class* type = fh.GetType();
+    StringAppendF(&summary, "\t%s: ", fh.GetName());
+    if (type->IsPrimitiveLong()) {
+      StringAppendF(&summary, "%lld (0x%llx)\n", field->Get64(obj), field->Get64(obj));
+    } else if (type->IsPrimitiveDouble()) {
+      StringAppendF(&summary, "%f (%a)\n", field->GetDouble(obj), field->GetDouble(obj));
+    } else if (type->IsPrimitiveFloat()) {
+      StringAppendF(&summary, "%f (%a)\n", field->GetFloat(obj), field->GetFloat(obj));
+    } else if (type->IsPrimitive()){
+      StringAppendF(&summary, "%d (0x%x)\n", field->Get32(obj), field->Get32(obj));
+    } else {
+      Object* value = field->GetObj(obj);
+      PrettyObjectValue(summary, type, value);
+    }
+  }
+
+  static void DumpFields(std::string& summary, Object* obj, Class* klass) {
+    Class* super = klass->GetSuperClass();
+    if (super != NULL) {
+      DumpFields(summary, obj, super);
+    }
+    ObjectArray<Field>* fields = klass->GetIFields();
+    if (fields != NULL) {
+      for (int32_t i = 0; i < fields->GetLength(); i++) {
+        Field* field = fields->Get(i);
+        PrintField(summary, field, obj);
+      }
+    }
+  }
+
   static void Callback(Object* obj, void* arg) {
     DCHECK(obj != NULL);
     DCHECK(arg != NULL);
@@ -306,59 +367,68 @@ class ImageDump {
     state->stats_.alignment_bytes += alignment_bytes;
 
     std::string summary;
-    StringAppendF(&summary, "%p: ", obj);
-    if (obj->IsClass()) {
+    Class* obj_class = obj->GetClass();
+    if (obj_class->IsArrayClass()) {
+      StringAppendF(&summary, "%p: %s length:%d\n", obj, PrettyDescriptor(obj_class).c_str(),
+                    obj->AsArray()->GetLength());
+    } else if (obj->IsClass()) {
       Class* klass = obj->AsClass();
-      summary += "CLASS ";
-      summary += ClassHelper(klass).GetDescriptor();
+      StringAppendF(&summary, "%p: java.lang.Class \"%s\" (", obj,
+                    PrettyDescriptor(klass).c_str());
       std::ostringstream ss;
-      ss << " (" << klass->GetStatus() << ")";
+      ss << klass->GetStatus() << ")\n";
       summary += ss.str();
+    } else if (obj->IsField()) {
+      StringAppendF(&summary, "%p: java.lang.reflect.Field %s\n", obj,
+                    PrettyField(obj->AsField()).c_str());
+    } else if (obj->IsMethod()) {
+      StringAppendF(&summary, "%p: java.lang.reflect.Method %s\n", obj,
+                    PrettyMethod(obj->AsMethod()).c_str());
+    } else if (obj_class->IsStringClass()) {
+      StringAppendF(&summary, "%p: java.lang.String \"%s\"\n", obj,
+                    obj->AsString()->ToModifiedUtf8().c_str());
+    } else {
+      StringAppendF(&summary, "%p: %s\n", obj, PrettyDescriptor(obj_class).c_str());
+    }
+    DumpFields(summary, obj, obj_class);
+    if (obj->IsObjectArray()) {
+      ObjectArray<Object>* obj_array = obj->AsObjectArray<Object>();
+      int32_t length = obj_array->GetLength();
+      for (int32_t i = 0; i < length; i++) {
+        Object* value = obj_array->Get(i);
+        size_t run = 0;
+        for (int32_t j = i + 1; j < length; j++) {
+          if (value == obj_array->Get(j)) {
+            run++;
+          } else {
+            break;
+          }
+        }
+        if (run == 0) {
+          StringAppendF(&summary, "\t%d: ", i);
+        } else {
+          StringAppendF(&summary, "\t%d to %d: ", i, i + run);
+          i = i + run;
+        }
+        Class* value_class = value == NULL ? obj_class->GetComponentType() : value->GetClass();
+        PrettyObjectValue(summary, value_class, value);
+      }
+    } else if (obj->IsClass()) {
+      ObjectArray<Field>* sfields = obj->AsClass()->GetSFields();
+      if (sfields != NULL) {
+        summary += "\t\tSTATICS:\n";
+        for (int32_t i = 0; i < sfields->GetLength(); i++) {
+          Field* field = sfields->Get(i);
+          PrintField(summary, field, NULL);
+        }
+      }
     } else if (obj->IsMethod()) {
       Method* method = obj->AsMethod();
-      StringAppendF(&summary, "METHOD %s", PrettyMethod(method).c_str());
-    } else if (obj->IsField()) {
-      Field* field = obj->AsField();
-      StringAppendF(&summary, "FIELD %s", PrettyField(field).c_str());
-    } else if (obj->IsArrayInstance()) {
-      StringAppendF(&summary, "ARRAY %d", obj->AsArray()->GetLength());
-    } else if (obj->GetClass()->IsStringClass()) {
-      StringAppendF(&summary, "STRING %s", obj->AsString()->ToModifiedUtf8().c_str());
-    } else {
-      StringAppendF(&summary, "OBJECT");
-    }
-    StringAppendF(&summary, "\n");
-    std::string descriptor(ClassHelper(obj->GetClass()).GetDescriptor());
-    StringAppendF(&summary, "\tclass %p: %s\n", obj->GetClass(), descriptor.c_str());
-    state->stats_.descriptor_to_bytes[descriptor] += object_bytes;
-    state->stats_.descriptor_to_count[descriptor] += 1;
-    // StringAppendF(&summary, "\tsize %d (alignment padding %d)\n",
-    //               object_bytes, RoundUp(object_bytes, kObjectAlignment) - object_bytes);
-    if (obj->IsMethod()) {
-      Method* method = obj->AsMethod();
-      if (!method->IsCalleeSaveMethod()) {
-        const int8_t* code =reinterpret_cast<const int8_t*>(method->GetCode());
-        StringAppendF(&summary, "\tCODE     %p\n", code);
-
-        const Method::InvokeStub* invoke_stub = method->GetInvokeStub();
-        StringAppendF(&summary, "\tJNI STUB %p\n", invoke_stub);
-      }
       if (method->IsNative()) {
-        if (method->IsRegistered()) {
-          StringAppendF(&summary, "\tNATIVE REGISTERED %p\n", method->GetNativeMethod());
-        } else {
-          StringAppendF(&summary, "\tNATIVE UNREGISTERED\n");
-        }
         DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
         DCHECK_EQ(0U, method->GetGcMapLength()) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
-      } else if (method->IsAbstract()) {
-        StringAppendF(&summary, "\tABSTRACT\n");
-        DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
-        DCHECK_EQ(0U, method->GetGcMapLength()) << PrettyMethod(method);
-        DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
-      } else if (method->IsCalleeSaveMethod()) {
-        StringAppendF(&summary, "\tCALLEE SAVE METHOD\n");
+      } else if (method->IsAbstract() || method->IsCalleeSaveMethod()) {
         DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
         DCHECK_EQ(0U, method->GetGcMapLength()) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
@@ -368,20 +438,22 @@ class ImageDump {
 
         size_t register_map_bytes = method->GetGcMapLength();
         state->stats_.register_map_bytes += register_map_bytes;
-        StringAppendF(&summary, "GC=%zd ", register_map_bytes);
 
         size_t pc_mapping_table_bytes = method->GetMappingTableLength();
         state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
-        StringAppendF(&summary, "Mapping=%zd ", pc_mapping_table_bytes);
 
         const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
         state->stats_.dex_instruction_bytes += dex_instruction_bytes;
 
-        StringAppendF(&summary, "\tSIZE Code=%zd GC=%zd Mapping=%zd",
+        StringAppendF(&summary, "\t\tSIZE: Dex Instructions=%zd GC=%zd Mapping=%zd\n",
                       dex_instruction_bytes, register_map_bytes, pc_mapping_table_bytes);
       }
     }
+    std::string descriptor(ClassHelper(obj_class).GetDescriptor());
+    state->stats_.descriptor_to_bytes[descriptor] += object_bytes;
+    state->stats_.descriptor_to_count[descriptor] += 1;
+
     state->os_ << summary << std::flush;
   }
 
