@@ -69,20 +69,14 @@ Throw.rethrow
 UnresTest1...
 UnresTest1...
 UnresTest2...
-java.lang.ClassNotFoundException: Didn't find class "UnresClass" on path: /data/art-test/003-omnibus-opcodes.jar
-	at dalvik.system.BaseDexClassLoader.findClass(BaseDexClassLoader.java:64)
-	at java.lang.ClassLoader.loadClass(ClassLoader.java:511)
-	at java.lang.ClassLoader.loadClass(ClassLoader.java:469)
+java.lang.NoClassDefFoundError: Failed resolution of: LUnresClass;
 	at UnresTest2.run(UnresTest2.java:33)
 	at Main.run(Main.java:64)
 	at Main.main(Main.java:26)
-	Suppressed: java.lang.ClassNotFoundException: UnresClass
-		at java.lang.Class.classForName(Native Method)
-		at java.lang.BootClassLoader.findClass(ClassLoader.java:781)
-		at java.lang.BootClassLoader.loadClass(ClassLoader.java:841)
-		at java.lang.ClassLoader.loadClass(ClassLoader.java:504)
-		... 4 more
-	Caused by: java.lang.NoClassDefFoundError: Class "LUnresClass;" not found
-		... 8 more
+java.lang.NoClassDefFoundError: Failed resolution of: LUnresClassSubclass;
+	at UnresTest2.run(UnresTest2.java:41)
+	at Main.run(Main.java:64)
+	at Main.main(Main.java:26)
+UnresTest2 done
 InternedString.run
 Done!
