@@ -1118,7 +1118,7 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId methodId, bool wit
     static void Callback(void* context, uint16_t slot, uint32_t startAddress, uint32_t endAddress, const char* name, const char* descriptor, const char* signature) {
       DebugCallbackContext* pContext = reinterpret_cast<DebugCallbackContext*>(context);
 
-      VLOG(jdwp) << StringPrintf("    %2zd: %d(%d) '%s' '%s' '%s' slot=%d", pContext->variable_count, startAddress, endAddress - startAddress, name, descriptor, signature, slot);
+      VLOG(jdwp) << StringPrintf("    %2zd: %d(%d) '%s' '%s' '%s' actual slot=%d mangled slot=%d", pContext->variable_count, startAddress, endAddress - startAddress, name, descriptor, signature, slot, MangleSlot(slot, name));
 
       slot = MangleSlot(slot, name);
 
@@ -1586,6 +1586,8 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     UNIMPLEMENTED(FATAL) << "Don't know how to pull locals from callee save frames: " << vmap_offset;
   }
 
+  // TODO: check that the tag is compatible with the actual type of the slot!
+
   switch (tag) {
   case JDWP::JT_BOOLEAN:
     {
@@ -1632,7 +1634,12 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       JDWP::SetObjectId(buf+1, gRegistry->Add(o));
     }
     break;
+  case JDWP::JT_CLASS_LOADER:
+  case JDWP::JT_CLASS_OBJECT:
   case JDWP::JT_OBJECT:
+  case JDWP::JT_STRING:
+  case JDWP::JT_THREAD:
+  case JDWP::JT_THREAD_GROUP:
     {
       CHECK_EQ(width, sizeof(JDWP::ObjectId));
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
@@ -1676,6 +1683,8 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     UNIMPLEMENTED(FATAL) << "Don't know how to pull locals from callee save frames: " << vmap_offset;
   }
 
+  // TODO: check that the tag is compatible with the actual type of the slot!
+
   switch (tag) {
   case JDWP::JT_BOOLEAN:
   case JDWP::JT_BYTE:
@@ -1698,6 +1707,9 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     {
       CHECK_EQ(width, sizeof(JDWP::ObjectId));
       Object* o = gRegistry->Get<Object*>(static_cast<JDWP::ObjectId>(value));
+      if (o == kInvalidObject) {
+        UNIMPLEMENTED(FATAL) << "return an error code when given an invalid object to store";
+      }
       f.SetVReg(m, reg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)));
     }
     break;
