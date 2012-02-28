@@ -22,6 +22,8 @@
  *
  */
 
+#include "oat_compilation_unit.h"
+
 namespace art {
 
 /*
@@ -382,8 +384,13 @@ STATIC void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
     int fieldOffset;
     bool isVolatile;
     uint32_t fieldIdx = mir->dalvikInsn.vC;
+
+    OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
+                             *cUnit->dex_file, *cUnit->dex_cache, cUnit->code_item,
+                             cUnit->method_idx, cUnit->access_flags);
+
     bool fastPath =
-        cUnit->compiler->ComputeInstanceFieldInfo(fieldIdx, cUnit,
+        cUnit->compiler->ComputeInstanceFieldInfo(fieldIdx, &mUnit,
                                                   fieldOffset, isVolatile, false);
     if (fastPath && !SLOW_FIELD_PATH) {
         RegLocation rlResult;
@@ -437,8 +444,13 @@ STATIC void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
     int fieldOffset;
     bool isVolatile;
     uint32_t fieldIdx = mir->dalvikInsn.vC;
+
+    OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
+                             *cUnit->dex_file, *cUnit->dex_cache, cUnit->code_item,
+                             cUnit->method_idx, cUnit->access_flags);
+
     bool fastPath =
-        cUnit->compiler->ComputeInstanceFieldInfo(fieldIdx, cUnit,
+        cUnit->compiler->ComputeInstanceFieldInfo(fieldIdx, &mUnit,
                                                   fieldOffset, isVolatile, true);
     if (fastPath && !SLOW_FIELD_PATH) {
         RegisterClass regClass = oatRegClassBySize(size);

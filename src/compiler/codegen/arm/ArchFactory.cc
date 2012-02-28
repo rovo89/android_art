@@ -22,6 +22,8 @@
  *
  */
 
+#include "oat_compilation_unit.h"
+
 #define SLOW_FIELD_PATH (cUnit->enableDebug & (1 << kDebugSlowFieldPath))
 #define SLOW_INVOKE_PATH (cUnit->enableDebug & (1 << kDebugSlowInvokePath))
 #define SLOW_STRING_PATH (cUnit->enableDebug & (1 << kDebugSlowStringPath))
@@ -303,8 +305,13 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
     bool isVolatile;
     bool isReferrersClass;
     uint32_t fieldIdx = mir->dalvikInsn.vB;
+
+    OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
+                             *cUnit->dex_file, *cUnit->dex_cache, cUnit->code_item,
+                             cUnit->method_idx, cUnit->access_flags);
+
     bool fastPath =
-        cUnit->compiler->ComputeStaticFieldInfo(fieldIdx, cUnit,
+        cUnit->compiler->ComputeStaticFieldInfo(fieldIdx, &mUnit,
                                                 fieldOffset, ssbIndex,
                                                 isReferrersClass, isVolatile, true);
     if (fastPath && !SLOW_FIELD_PATH) {
@@ -397,8 +404,13 @@ STATIC void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     bool isVolatile;
     bool isReferrersClass;
     uint32_t fieldIdx = mir->dalvikInsn.vB;
+
+    OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
+                             *cUnit->dex_file, *cUnit->dex_cache, cUnit->code_item,
+                             cUnit->method_idx, cUnit->access_flags);
+
     bool fastPath =
-        cUnit->compiler->ComputeStaticFieldInfo(fieldIdx, cUnit,
+        cUnit->compiler->ComputeStaticFieldInfo(fieldIdx, &mUnit,
                                                 fieldOffset, ssbIndex,
                                                 isReferrersClass, isVolatile, false);
     if (fastPath && !SLOW_FIELD_PATH) {

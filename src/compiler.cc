@@ -24,10 +24,10 @@
 #include "assembler.h"
 #include "class_linker.h"
 #include "class_loader.h"
-#include "compiler/CompilerIR.h"
 #include "dex_cache.h"
 #include "jni_compiler.h"
 #include "jni_internal.h"
+#include "oat_compilation_unit.h"
 #include "oat_file.h"
 #include "object_utils.h"
 #include "runtime.h"
@@ -438,32 +438,36 @@ bool Compiler::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
   return result;
 }
 
-static Class* ComputeReferrerClass(CompilationUnit* cUnit) {
-  const DexFile::MethodId& referrer_method_id = cUnit->dex_file->GetMethodId(cUnit->method_idx);
-  return cUnit->class_linker->ResolveType(*cUnit->dex_file, referrer_method_id.class_idx_,
-                                          cUnit->dex_cache, cUnit->class_loader);
+static Class* ComputeReferrerClass(OatCompilationUnit* mUnit) {
+  const DexFile::MethodId& referrer_method_id =
+    mUnit->dex_file_->GetMethodId(mUnit->method_idx_);
+
+  return mUnit->class_linker_->ResolveType(
+    *mUnit->dex_file_, referrer_method_id.class_idx_,
+    mUnit->dex_cache_, mUnit->class_loader_);
 }
 
-static Field* ComputeReferrerField(CompilationUnit* cUnit, uint32_t field_idx) {
-  return cUnit->class_linker->ResolveField(*cUnit->dex_file, field_idx, cUnit->dex_cache,
-                                           cUnit->class_loader, false);
-
+static Field* ComputeReferrerField(OatCompilationUnit* mUnit, uint32_t field_idx) {
+  return mUnit->class_linker_->ResolveField(
+    *mUnit->dex_file_, field_idx, mUnit->dex_cache_,
+    mUnit->class_loader_, false);
 }
 
-static Method* ComputeReferrerMethod(CompilationUnit* cUnit, uint32_t method_idx) {
-  return cUnit->class_linker->ResolveMethod(*cUnit->dex_file, method_idx, cUnit->dex_cache,
-                                            cUnit->class_loader, true);
+static Method* ComputeReferrerMethod(OatCompilationUnit* mUnit, uint32_t method_idx) {
+  return mUnit->class_linker_->ResolveMethod(
+    *mUnit->dex_file_, method_idx, mUnit->dex_cache_,
+    mUnit->class_loader_, true);
 }
 
-bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
+bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
                                         int& field_offset, bool& is_volatile, bool is_put) {
   // Conservative defaults
   field_offset = -1;
   is_volatile = true;
   // Try to resolve field
-  Field* resolved_field = ComputeReferrerField(cUnit, field_idx);
+  Field* resolved_field = ComputeReferrerField(mUnit, field_idx);
   if (resolved_field != NULL) {
-    Class* referrer_class = ComputeReferrerClass(cUnit);
+    Class* referrer_class = ComputeReferrerClass(mUnit);
     // Try to resolve referring class then access check, failure to pass the
     Class* fields_class = resolved_field->GetDeclaringClass();
     bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal() &&
@@ -486,7 +490,7 @@ bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, CompilationUnit* cUn
   return false;  // Incomplete knowledge needs slow path.
 }
 
-bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
+bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
                                       int& field_offset, int& ssb_index,
                                       bool& is_referrers_class, bool& is_volatile, bool is_put) {
   // Conservative defaults
@@ -495,10 +499,10 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
   is_referrers_class = false;
   is_volatile = true;
   // Try to resolve field
-  Field* resolved_field = ComputeReferrerField(cUnit, field_idx);
+  Field* resolved_field = ComputeReferrerField(mUnit, field_idx);
   if (resolved_field != NULL) {
     DCHECK(resolved_field->IsStatic());
-    Class* referrer_class = ComputeReferrerClass(cUnit);
+    Class* referrer_class = ComputeReferrerClass(mUnit);
     if (referrer_class != NULL) {
       Class* fields_class = resolved_field->GetDeclaringClass();
       if (fields_class == referrer_class) {
@@ -516,7 +520,7 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
           // in its static storage base (which may fail if it doesn't have a slot for it)
           // TODO: for images we can elide the static storage base null check
           // if we know there's a non-null entry in the image
-          if (fields_class->GetDexCache() == cUnit->dex_cache) {
+          if (fields_class->GetDexCache() == mUnit->dex_cache_) {
             // common case where the dex cache of both the referrer and the field are the same,
             // no need to search the dex file
             ssb_index = fields_class->GetDexTypeIndex();
@@ -528,13 +532,13 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
           // Search dex file for localized ssb index
           std::string descriptor(FieldHelper(resolved_field).GetDeclaringClassDescriptor());
           const DexFile::StringId* string_id =
-          cUnit->dex_file->FindStringId(descriptor);
+          mUnit->dex_file_->FindStringId(descriptor);
           if (string_id != NULL) {
             const DexFile::TypeId* type_id =
-               cUnit->dex_file->FindTypeId(cUnit->dex_file->GetIndexForStringId(*string_id));
+               mUnit->dex_file_->FindTypeId(mUnit->dex_file_->GetIndexForStringId(*string_id));
             if(type_id != NULL) {
               // medium path, needs check of static storage base being initialized
-              ssb_index = cUnit->dex_file->GetIndexForTypeId(*type_id);
+              ssb_index = mUnit->dex_file_->GetIndexForTypeId(*type_id);
               field_offset = resolved_field->GetOffset().Int32Value();
               is_volatile = resolved_field->IsVolatile();
               stats_->ResolvedStaticField();
@@ -554,12 +558,12 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit
   return false;  // Incomplete knowledge needs slow path.
 }
 
-bool Compiler::ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit, InvokeType type,
+bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType type,
                                  int& vtable_idx) {
   vtable_idx = -1;
-  Method* resolved_method = ComputeReferrerMethod(cUnit, method_idx);
+  Method* resolved_method = ComputeReferrerMethod(mUnit, method_idx);
   if (resolved_method != NULL) {
-    Class* referrer_class = ComputeReferrerClass(cUnit);
+    Class* referrer_class = ComputeReferrerClass(mUnit);
     if (referrer_class != NULL) {
       Class* methods_class = resolved_method->GetDeclaringClass();
       if (!referrer_class->CanAccess(methods_class) ||
@@ -568,11 +572,11 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit, In
         // The referring class can't access the resolved method, this may occur as a result of a
         // protected method being made public by implementing an interface that re-declares the
         // method public. Resort to the dex file to determine the correct class for the access check
-        const DexFile& dex_file = cUnit->class_linker->FindDexFile(referrer_class->GetDexCache());
+        const DexFile& dex_file = mUnit->class_linker_->FindDexFile(referrer_class->GetDexCache());
         methods_class =
-            cUnit->class_linker->ResolveType(dex_file,
-                                             dex_file.GetMethodId(method_idx).class_idx_,
-                                             referrer_class);
+            mUnit->class_linker_->ResolveType(dex_file,
+                                              dex_file.GetMethodId(method_idx).class_idx_,
+                                              referrer_class);
 
       }
       if (referrer_class->CanAccess(methods_class) &&
@@ -957,15 +961,23 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
                              const DexFile& dex_file) {
   CompiledMethod* compiled_method = NULL;
   uint64_t start_ns = NanoTime();
+
+#if defined(ART_USE_LLVM_COMPILER)
+  ClassLinker *class_linker = Runtime::Current()->GetClassLinker();
+  DexCache *dex_cache = class_linker->FindDexCache(dex_file);
+
+  UniquePtr<OatCompilationUnit> oat_compilation_unit(
+    new OatCompilationUnit(class_loader, class_linker, dex_file, *dex_cache, code_item,
+                   method_idx, access_flags));
+#endif
+
   if ((access_flags & kAccNative) != 0) {
     compiled_method = jni_compiler_.Compile(access_flags, method_idx, class_loader, dex_file);
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
 #if defined(ART_USE_LLVM_COMPILER)
-    compiled_method =
-      compiler_llvm_->CompileDexMethod(code_item, access_flags, method_idx,
-                                       class_loader, dex_file);
+    compiled_method = compiler_llvm_->CompileDexMethod(oat_compilation_unit.get());
 #else
     compiled_method = oatCompileMethod(*this, code_item, access_flags, method_idx, class_loader,
                                        dex_file, kThumb2);

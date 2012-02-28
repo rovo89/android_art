@@ -38,6 +38,7 @@ namespace art {
   class Compiler;
   class DexCache;
   class Field;
+  class OatCompilationUnit;
 }
 
 
@@ -71,6 +72,7 @@ class MethodCompiler {
   DexCache* dex_cache_;
   DexFile::CodeItem const* code_item_;
 
+  OatCompilationUnit* oat_compilation_unit_;
   Method* method_;
   MethodHelper method_helper_;
 
@@ -101,13 +103,7 @@ class MethodCompiler {
  public:
   MethodCompiler(InstructionSet insn_set,
                  Compiler* compiler,
-                 ClassLinker* class_linker,
-                 ClassLoader const* class_loader,
-                 DexFile const* dex_file,
-                 DexCache* dex_cache,
-                 DexFile::CodeItem const* code_item,
-                 uint32_t method_idx,
-                 uint32_t access_flags);
+                 OatCompilationUnit* oat_compilation_unit);
 
   ~MethodCompiler();
 

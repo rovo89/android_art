@@ -30,6 +30,7 @@ namespace art {
   class CompiledInvokeStub;
   class CompiledMethod;
   class Compiler;
+  class OatCompilationUnit;
 }
 
 
@@ -78,11 +79,7 @@ class CompilerLLVM {
     return irb_.get();
   }
 
-  CompiledMethod* CompileDexMethod(DexFile::CodeItem const* code_item,
-                                   uint32_t access_flags,
-                                   uint32_t method_idx,
-                                   ClassLoader const* class_loader,
-                                   DexFile const& dex_file);
+  CompiledMethod* CompileDexMethod(OatCompilationUnit* oat_compilation_unit);
 
   CompiledInvokeStub* CreateInvokeStub(bool is_static, char const *shorty);
 

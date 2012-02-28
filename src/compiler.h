@@ -39,8 +39,8 @@ namespace art {
 
 class AOTCompilationStats;
 class Context;
+class OatCompilationUnit;
 class TimingLogger;
-typedef struct CompilationUnit CompilationUnit;
 
 
 class Compiler {
@@ -110,17 +110,17 @@ class Compiler {
                                               const DexFile& dex_file, uint32_t type_idx);
 
   // Can we fast path instance field access? Computes field's offset and volatility
-  bool ComputeInstanceFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
+  bool ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
                                 int& field_offset, bool& is_volatile, bool is_put);
 
   // Can we fastpath static field access? Computes field's offset, volatility and whether the
   // field is within the referrer (which can avoid checking class initialization)
-  bool ComputeStaticFieldInfo(uint32_t field_idx, CompilationUnit* cUnit,
+  bool ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
                               int& field_offset, int& ssb_index,
                               bool& is_referrers_class, bool& is_volatile, bool is_put);
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable index
-  bool ComputeInvokeInfo(uint32_t method_idx, CompilationUnit* cUnit, InvokeType type,
+  bool ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType type,
                          int& vtable_idx);
 
 #if defined(ART_USE_LLVM_COMPILER)

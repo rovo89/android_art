@@ -21,6 +21,7 @@
 #include "inferred_reg_category_map.h"
 #include "ir_builder.h"
 #include "logging.h"
+#include "oat_compilation_unit.h"
 #include "object.h"
 #include "object_utils.h"
 #include "runtime_support_func.h"
@@ -44,26 +45,26 @@ using namespace runtime_support;
 
 MethodCompiler::MethodCompiler(InstructionSet insn_set,
                                Compiler* compiler,
-                               ClassLinker* class_linker,
-                               ClassLoader const* class_loader,
-                               DexFile const* dex_file,
-                               DexCache* dex_cache,
-                               DexFile::CodeItem const* code_item,
-                               uint32_t method_idx,
-                               uint32_t access_flags)
-: insn_set_(insn_set),
-  compiler_(compiler), compiler_llvm_(compiler->GetCompilerLLVM()),
-  class_linker_(class_linker), class_loader_(class_loader),
-  dex_file_(dex_file), dex_cache_(dex_cache), code_item_(code_item),
-  method_(dex_cache->GetResolvedMethod(method_idx)),
-  method_helper_(method_), method_idx_(method_idx),
-  access_flags_(access_flags), module_(compiler_llvm_->GetModule()),
+                               OatCompilationUnit* oat_compilation_unit)
+: insn_set_(insn_set), compiler_(compiler),
+  compiler_llvm_(compiler->GetCompilerLLVM()),
+  class_linker_(oat_compilation_unit->class_linker_),
+  class_loader_(oat_compilation_unit->class_loader_),
+  dex_file_(oat_compilation_unit->dex_file_),
+  dex_cache_(oat_compilation_unit->dex_cache_),
+  code_item_(oat_compilation_unit->code_item_),
+  oat_compilation_unit_(oat_compilation_unit),
+  method_(dex_cache_->GetResolvedMethod(oat_compilation_unit->method_idx_)),
+  method_helper_(method_),
+  method_idx_(oat_compilation_unit->method_idx_),
+  access_flags_(oat_compilation_unit->access_flags_),
+  module_(compiler_llvm_->GetModule()),
   context_(compiler_llvm_->GetLLVMContext()),
   irb_(*compiler_llvm_->GetIRBuilder()), func_(NULL), retval_reg_(NULL),
   basic_block_reg_alloca_(NULL), basic_block_shadow_frame_alloca_(NULL),
   basic_block_reg_zero_init_(NULL), basic_block_reg_arg_init_(NULL),
-  basic_blocks_(code_item->insns_size_in_code_units_),
-  basic_block_landing_pads_(code_item->tries_size_, NULL),
+  basic_blocks_(code_item_->insns_size_in_code_units_),
+  basic_block_landing_pads_(code_item_->tries_size_, NULL),
   basic_block_unwind_(NULL), basic_block_unreachable_(NULL),
   shadow_frame_(NULL) {
 }

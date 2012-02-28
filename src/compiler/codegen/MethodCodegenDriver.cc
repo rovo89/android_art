@@ -53,11 +53,15 @@ STATIC void genInvoke(CompilationUnit* cUnit, MIR* mir,
     // Explicit register usage
     oatLockCallTemps(cUnit);
 
+    OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
+                             *cUnit->dex_file, *cUnit->dex_cache, cUnit->code_item,
+                             cUnit->method_idx, cUnit->access_flags);
+
     uint32_t dexMethodIdx = dInsn->vB;
     int vtableIdx;
     bool skipThis;
     bool fastPath =
-        cUnit->compiler->ComputeInvokeInfo(dexMethodIdx, cUnit, type,
+        cUnit->compiler->ComputeInvokeInfo(dexMethodIdx, &mUnit, type,
                                            vtableIdx)
         && !SLOW_INVOKE_PATH;
     if (type == kInterface) {

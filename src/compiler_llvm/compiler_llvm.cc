@@ -19,6 +19,7 @@
 #include "compiler.h"
 #include "ir_builder.h"
 #include "method_compiler.h"
+#include "oat_compilation_unit.h"
 #include "upcall_compiler.h"
 
 #include <llvm/ADT/OwningPtr.h>
@@ -81,22 +82,11 @@ void CompilerLLVM::WriteBitcodeToFile(std::string const &filepath) {
 }
 
 
-CompiledMethod*
-CompilerLLVM::CompileDexMethod(DexFile::CodeItem const* code_item,
-                               uint32_t access_flags,
-                               uint32_t method_idx,
-                               ClassLoader const* class_loader,
-                               DexFile const& dex_file) {
-
+CompiledMethod* CompilerLLVM::CompileDexMethod(OatCompilationUnit* oat_compilation_unit) {
   MutexLock GUARD(compiler_lock_);
 
-  ClassLinker *class_linker = Runtime::Current()->GetClassLinker();
-  DexCache *dex_cache = class_linker->FindDexCache(dex_file);
-
   UniquePtr<MethodCompiler> method_compiler(
-    new MethodCompiler(insn_set_, compiler_, class_linker, class_loader,
-                       &dex_file, dex_cache, code_item, method_idx,
-                       access_flags));
+    new MethodCompiler(insn_set_, compiler_, oat_compilation_unit));
 
   return method_compiler->Compile();
 }
