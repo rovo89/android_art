@@ -468,7 +468,6 @@ void ImageWriter::FixupMethod(const Method* orig, Method* copy) {
 
     uint32_t gc_map_offset = orig->GetOatGcMapOffset();
     const byte* gc_map = GetOatAddress(gc_map_offset);
-    CHECK(gc_map != NULL || orig->IsRuntimeMethod()) << PrettyMethod(orig);
     copy->gc_map_ = reinterpret_cast<const uint8_t*>(gc_map);
   }
 }
