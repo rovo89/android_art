@@ -65,8 +65,8 @@ endif
 
 ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES)/core.jar $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 
-ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_TEST_EXECUTABLES)   $(ART_TEST_DEX_FILES) $(ART_TEST_OAT_FILES)
-ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_TEST_EXECUTABLES) $(ART_TEST_DEX_FILES) $(ART_TEST_OAT_FILES)
+ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_TEST_EXECUTABLES)   $(ART_TEST_DEX_FILES)
+ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_TEST_EXECUTABLES) $(ART_TEST_DEX_FILES)
 
 ########################################################################
 # host test targets
@@ -119,32 +119,30 @@ test-art-target-run-test-002: test-art-target-sync
 	@echo test-art-target-run-test-002 PASSED
 
 ########################################################################
-# oat test targets
+# oat-target and oat-target-sync targets
 
-# $(1): jar or apk name
-define art-cache-oat
-  $(call art-cache-out,$(1).oat)
+OAT_TARGET_TARGETS :=
+
+# $(1): input jar or apk target location
+define declare-oat-target-target
+.PHONY: oat-target-$(1)
+oat-target-$(1): $(PRODUCT_OUT)/$(1) $(TARGET_BOOT_IMG_OUT) $(DEX2OAT_DEPENDENCY)
+	$(DEX2OAT) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(TARGET_BOOT_IMG_OUT) --dex-file=$(PRODUCT_OUT)/$(1) --dex-location=$(1) --oat-file=$(call art-cache-out,$(1).oat) --host-prefix=$(PRODUCT_OUT)
+
+OAT_TARGET_TARGETS += oat-target-$(1)
 endef
-
-ART_CACHE_OATS :=
-# $(1): name
-define build-art-cache-oat
-  $(call build-art-oat,$(PRODUCT_OUT)/$(1),/$(1),$(call art-cache-oat,$(1)),$(TARGET_BOOT_IMG_OUT))
-  ART_CACHE_OATS += $(call art-cache-oat,$(1))
-endef
-
-
-########################################################################
-# oat-target-sync
 
 $(foreach file,\
   $(filter-out\
     $(TARGET_BOOT_DEX),\
     $(wildcard $(TARGET_OUT_APPS)/*.apk) $(wildcard $(TARGET_OUT_JAVA_LIBRARIES)/*.jar)),\
-  $(eval $(call build-art-cache-oat,$(subst $(PRODUCT_OUT)/,,$(file)))))
+  $(eval $(call declare-oat-target-target,$(subst $(PRODUCT_OUT)/,,$(file)))))
+
+.PHONY: oat-target
+oat-target: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT_OUT) $(OAT_TARGET_TARGETS)
 
 .PHONY: oat-target-sync
-oat-target-sync: $(ART_TARGET_DEPENDENCIES) $(TARGET_BOOT_OAT_OUT) $(ART_CACHE_OATS)
+oat-target-sync: oat-target
 	adb remount
 	adb sync
 

@@ -29,6 +29,7 @@ define build-art-test-dex
   LOCAL_JAVA_LIBRARIES := core
   LOCAL_NO_STANDARD_LIBRARIES := true
   LOCAL_MODULE_PATH := $(3)
+  LOCAL_DEX_PREOPT_IMAGE := $(TARGET_CORE_IMG_OUT)
   include $(BUILD_JAVA_LIBRARY)
   ART_TEST_DEX_FILES += $(3)/$$(LOCAL_MODULE).jar
 endef
@@ -37,36 +38,11 @@ $(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test
 
 ########################################################################
 
-# $(1): input jar or apk filename
-# $(2): input jar or apk target location
-# $(3): output oat filename
-# $(4): boot image
-define build-art-oat
-$(3): $(1) $(4) $(DEX2OAT_DEPENDENCY)
-	@echo "target dex2oat: $$@ ($$?)"
-	@mkdir -p $$(dir $$@)
-	$(hide) $(DEX2OAT) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(4) --dex-file=$(1) --dex-location=$(2) --oat-file=$$@ --host-prefix=$(PRODUCT_OUT)
-endef
-
-########################################################################
-ART_TEST_OAT_FILES :=
-
-# $(1): directory
-define build-art-test-oat
-  $(call build-art-oat,$(call intermediates-dir-for,JAVA_LIBRARIES,oat-test-dex-$(dir),,COMMON)/javalib.jar,$(ART_TEST_DIR)/oat-test-dex-$(1).jar,$(ART_TEST_OUT)/oat-test-dex-$(1).jar.oat,$(TARGET_CORE_IMG_OUT))
-  ART_TEST_OAT_FILES += $(ART_TEST_OUT)/oat-test-dex-$(1).jar.oat
-endef
-ifneq (user,$(TARGET_BUILD_VARIANT))
-  $(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-oat,$(dir))))
-endif
-
-########################################################################
-
 ART_TEST_OAT_TARGETS :=
 
 # $(1): directory
 # $(2): arguments
-define declare-test-test-target
+define declare-test-art-target
 .PHONY: test-art-target-oat-$(1)
 test-art-target-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-sync
 	adb shell touch $(ART_TEST_DIR)/test-art-target-oat-$(1)
@@ -77,6 +53,6 @@ test-art-target-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-
 
 ART_TEST_OAT_TARGETS += test-art-target-oat-$(1)
 endef
-$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call declare-test-test-target,$(dir))))
+$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call declare-test-art-target,$(dir))))
 
 ########################################################################

@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-DEX2OAT := $(HOST_OUT_EXECUTABLES)/dex2oat$(HOST_EXECUTABLE_SUFFIX)
+# DEX2OAT defined in build/core/config.mk
 DEX2OATD := $(HOST_OUT_EXECUTABLES)/dex2oatd$(HOST_EXECUTABLE_SUFFIX)
 # TODO: for now, override with debug version for better error reporting
 DEX2OAT := $(DEX2OATD)
@@ -73,15 +73,10 @@ $(TARGET_CORE_IMG_OUT): $(TARGET_CORE_OAT_OUT)
 TARGET_BOOT_JARS := $(subst :, ,$(DEXPREOPT_BOOT_JARS))
 TARGET_BOOT_DEX_LOCATIONS := $(foreach jar,$(TARGET_BOOT_JARS),/$(DEXPREOPT_BOOT_JAR_DIR)/$(jar).jar)
 TARGET_BOOT_DEX_FILES := $(foreach jar,$(TARGET_BOOT_JARS),$(call intermediates-dir-for,JAVA_LIBRARIES,$(jar),,COMMON)/javalib.jar)
-ifeq ($(TARGET_PRODUCT),$(filter $(TARGET_PRODUCT),trygon))
-  TARGET_BOOT_OAT := $(call art-cache-dir,$(DEXPREOPT_BOOT_JAR_DIR)/boot.oat)
-  TARGET_BOOT_OAT_OUT := $(call art-cache-out,$(DEXPREOPT_BOOT_JAR_DIR)/boot.oat)
-  TARGET_BOOT_IMG_OUT := $(call art-cache-out,$(DEXPREOPT_BOOT_JAR_DIR)/boot.art)
-else
-  TARGET_BOOT_OAT := /$(DEXPREOPT_BOOT_JAR_DIR)/boot.oat
-  TARGET_BOOT_OAT_OUT := $(TARGET_OUT_JAVA_LIBRARIES)/boot.oat
-  TARGET_BOOT_IMG_OUT := $(TARGET_OUT_JAVA_LIBRARIES)/boot.art
-endif
+
+TARGET_BOOT_IMG_OUT := $(DEFAULT_DEX_PREOPT_IMAGE)
+TARGET_BOOT_OAT_OUT := $(patsubst %.art,%.oat,$(TARGET_BOOT_IMG_OUT))
+TARGET_BOOT_OAT := $(subst $(PRODUCT_OUT),,$(TARGET_BOOT_OAT_OUT))
 
 $(TARGET_BOOT_OAT_OUT): $(TARGET_BOOT_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
