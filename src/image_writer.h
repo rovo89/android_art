@@ -134,9 +134,6 @@ class ImageWriter {
   void FixupStaticFields(const Class* orig, Class* copy);
   void FixupFields(const Object* orig, Object* copy, uint32_t ref_offsets, bool is_static);
 
-  void FixupDexCaches();
-  void FixupDexCache(const DexCache* orig, DexCache* copy);
-
   // oat file with code for this image
   UniquePtr<OatFile> oat_file_;
 

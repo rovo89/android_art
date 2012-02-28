@@ -399,11 +399,28 @@ class MethodHelper {
   }
   const char* GetName() {
     const DexFile& dex_file = GetDexFile();
-    return dex_file.GetMethodName(dex_file.GetMethodId(method_->GetDexMethodIndex()));
+    uint32_t dex_method_idx = method_->GetDexMethodIndex();
+    if (dex_method_idx != DexFile::kDexNoIndex16) {
+      return dex_file.GetMethodName(dex_file.GetMethodId(dex_method_idx));
+    } else {
+      Runtime* runtime = Runtime::Current();
+      if (method_ == runtime->GetResolutionMethod()) {
+        return "<VM internal resolution method>";
+      } else if (method_ == runtime->GetCalleeSaveMethod(Runtime::kSaveAll)) {
+        return "<VM internal callee-save all registers method>";
+      } else if (method_ == runtime->GetCalleeSaveMethod(Runtime::kRefsOnly)) {
+        return "<VM internal callee-save reference registers method>";
+      } else if (method_ == runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs)) {
+        return "<VM internal callee-save reference and argument registers method>";
+      } else {
+        return "<unknown VM internal method>";
+      }
+    }
   }
   String* GetNameAsString() {
     const DexFile& dex_file = GetDexFile();
-    const DexFile::MethodId& method_id = dex_file.GetMethodId(method_->GetDexMethodIndex());
+    uint32_t dex_method_idx = method_->GetDexMethodIndex();
+    const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
     return GetClassLinker()->ResolveString(dex_file, method_id.name_idx_, GetDexCache());
   }
   const char* GetShorty() {
@@ -424,7 +441,12 @@ class MethodHelper {
   }
   const std::string GetSignature() {
     const DexFile& dex_file = GetDexFile();
-    return dex_file.GetMethodSignature(dex_file.GetMethodId(method_->GetDexMethodIndex()));
+    uint32_t dex_method_idx = method_->GetDexMethodIndex();
+    if (dex_method_idx != DexFile::kDexNoIndex16) {
+      return dex_file.GetMethodSignature(dex_file.GetMethodId(dex_method_idx));
+    } else {
+      return "<no signature>";
+    }
   }
   const DexFile::ProtoId& GetPrototype() {
     const DexFile& dex_file = GetDexFile();
@@ -558,8 +580,11 @@ class MethodHelper {
     if (method != NULL) {
       Class* klass = method->GetDeclaringClass();
       if (klass->IsProxyClass()) {
-        method = GetClassLinker()->FindMethodForProxy(klass, method);
-        CHECK(method != NULL);
+        Method* interface_method =
+            method->GetDexCacheResolvedMethods()->Get(method->GetDexMethodIndex());
+        CHECK(interface_method != NULL);
+        CHECK(interface_method == GetClassLinker()->FindMethodForProxy(klass, method));
+        method = interface_method;
       }
     }
     method_ = method;

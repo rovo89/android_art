@@ -351,6 +351,16 @@ void Method::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
                  new_dex_cache_strings, false);
 }
 
+ObjectArray<Method>* Method::GetDexCacheResolvedMethods() const {
+  return GetFieldObject<ObjectArray<Method>*>(
+      OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_methods_), false);
+}
+
+void Method::SetDexCacheResolvedMethods(ObjectArray<Method>* new_dex_cache_methods) {
+  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_methods_),
+                 new_dex_cache_methods, false);
+}
+
 ObjectArray<Class>* Method::GetDexCacheResolvedTypes() const {
   return GetFieldObject<ObjectArray<Class>*>(
       OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_types_), false);
@@ -359,18 +369,6 @@ ObjectArray<Class>* Method::GetDexCacheResolvedTypes() const {
 void Method::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_classes) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_resolved_types_),
                  new_dex_cache_classes, false);
-}
-
-CodeAndDirectMethods* Method::GetDexCacheCodeAndDirectMethods() const {
-  return GetFieldPtr<CodeAndDirectMethods*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_code_and_direct_methods_),
-      false);
-}
-
-void Method::SetDexCacheCodeAndDirectMethods(CodeAndDirectMethods* new_value) {
-  SetFieldPtr<CodeAndDirectMethods*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_code_and_direct_methods_),
-      new_value, false);
 }
 
 ObjectArray<StaticStorageBase>* Method::GetDexCacheInitializedStaticStorage() const {
@@ -447,7 +445,9 @@ Method* Method::FindOverriddenMethod() const {
   } else {
     // Method didn't override superclass method so search interfaces
     if (IsProxyMethod()) {
-      result = Runtime::Current()->GetClassLinker()->FindMethodForProxy(GetDeclaringClass(), this);
+      result = GetDexCacheResolvedMethods()->Get(GetDexMethodIndex());
+      CHECK_EQ(result,
+               Runtime::Current()->GetClassLinker()->FindMethodForProxy(GetDeclaringClass(), this));
     } else {
       MethodHelper mh(this);
       MethodHelper interface_mh;
@@ -481,11 +481,16 @@ uint32_t Method::ToDexPC(const uintptr_t pc) const {
   }
   size_t mapping_table_length = GetMappingTableLength();
   const void* code_offset;
-  if (Runtime::Current()->IsMethodTracingActive() &&
-      Runtime::Current()->GetTracer()->GetSavedCodeFromMap(this) != NULL) {
-    code_offset = Runtime::Current()->GetTracer()->GetSavedCodeFromMap(this);
+  Runtime* runtime = Runtime::Current();
+  if (runtime->IsMethodTracingActive() &&
+      runtime->GetTracer()->GetSavedCodeFromMap(this) != NULL) {
+    code_offset = runtime->GetTracer()->GetSavedCodeFromMap(this);
   } else {
     code_offset = GetCode();
+  }
+  if (code_offset == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData() ||
+      code_offset == runtime->GetResolutionStubArray(Runtime::kInstanceMethod)->GetData()) {
+    code_offset = runtime->GetClassLinker()->GetOatCodeFor(this);
   }
   uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(code_offset);
   uint32_t best_offset = 0;
@@ -595,6 +600,7 @@ void Method::Invoke(Thread* self, Object* receiver, byte* args, JValue* result) 
 
 bool Method::IsRegistered() const {
   void* native_method = GetFieldPtr<void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_), false);
+  CHECK(native_method != NULL);
   void* jni_stub = Runtime::Current()->GetJniDlsymLookupStub()->GetData();
   return native_method != jni_stub;
 }
@@ -622,11 +628,10 @@ void Method::RegisterNative(Thread* self, const void* native_method) {
   }
 }
 
-void Method::UnregisterNative() {
+void Method::UnregisterNative(Thread* self) {
   CHECK(IsNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
-  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
-      Runtime::Current()->GetJniDlsymLookupStub()->GetData(), false);
+  RegisterNative(self, Runtime::Current()->GetJniDlsymLookupStub()->GetData());
 }
 
 void Class::SetStatus(Status new_status) {
@@ -1516,11 +1521,16 @@ std::string Throwable::Dump() const {
     // Decode the internal stack trace into the depth and method trace
     ObjectArray<Object>* method_trace = down_cast<ObjectArray<Object>*>(stack_state);
     int32_t depth = method_trace->GetLength() - 1;
+    IntArray* pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
+    MethodHelper mh;
     for (int32_t i = 0; i < depth; ++i) {
       Method* method = down_cast<Method*>(method_trace->Get(i));
-      result += "  at ";
-      result += PrettyMethod(method, true);
-      result += "\n";
+      mh.ChangeMethod(method);
+      uint32_t native_pc = pc_trace->Get(i);
+      int32_t line_number = mh.GetLineNumFromNativePC(native_pc);
+      const char* source_file = mh.GetDeclaringClassSourceFile();
+      result += StringPrintf("  at %s (%s:%d)\n", PrettyMethod(method, true).c_str(),
+                             source_file, line_number);
     }
   }
   Throwable* cause = GetFieldObject<Throwable*>(OFFSET_OF_OBJECT_MEMBER(Throwable, cause_), false);

@@ -70,6 +70,7 @@ const char* image_roots_descriptions_[] = {
   "kInstanceResolutionStubArray",
   "kStaticResolutionStubArray",
   "kUnknownMethodResolutionStubArray",
+  "kResolutionMethod",
   "kCalleeSaveMethod",
   "kRefsOnlySaveMethod",
   "kRefsAndArgsSaveMethod",
@@ -428,7 +429,8 @@ class ImageDump {
         DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
         DCHECK_EQ(0U, method->GetGcMapLength()) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
-      } else if (method->IsAbstract() || method->IsCalleeSaveMethod()) {
+      } else if (method->IsAbstract() || method->IsCalleeSaveMethod() ||
+          method->IsResolutionMethod()) {
         DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
         DCHECK_EQ(0U, method->GetGcMapLength()) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);

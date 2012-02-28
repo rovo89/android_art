@@ -332,6 +332,9 @@ class CommonTest : public testing::Test {
             Compiler::CreateResolutionStub(instruction_set, type), type);
       }
     }
+    if (!runtime_->HasResolutionMethod()) {
+      runtime_->SetResolutionMethod(runtime_->CreateResolutionMethod());
+    }
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
       Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
       if (!runtime_->HasCalleeSaveMethod(type)) {
@@ -339,6 +342,7 @@ class CommonTest : public testing::Test {
             runtime_->CreateCalleeSaveMethod(instruction_set, type), type);
       }
     }
+    class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
     compiler_.reset(new Compiler(instruction_set, false, 2, false, NULL));
 
     Heap::VerifyHeap();  // Check for heap corruption before the test

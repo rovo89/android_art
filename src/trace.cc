@@ -121,16 +121,6 @@ static bool InstallStubsClassVisitor(Class* klass, void* trace_stub) {
       tracer->SaveAndUpdateCode(method, trace_stub);
     }
   }
-
-  if (!klass->IsArrayClass() && !klass->IsPrimitive()) {
-    CodeAndDirectMethods* c_and_dm = klass->GetDexCache()->GetCodeAndDirectMethods();
-    for (size_t i = 0; i < c_and_dm->NumCodeAndDirectMethods(); i++) {
-      Method* method = c_and_dm->GetResolvedMethod(i);
-      if (method != NULL && (size_t) method != i) {
-        c_and_dm->SetResolvedDirectMethodTraceEntry(i, trace_stub);
-      }
-    }
-  }
   return true;
 }
 
@@ -147,20 +137,6 @@ static bool UninstallStubsClassVisitor(Class* klass, void* trace_stub) {
     Method* method = klass->GetVirtualMethod(i);
     if (tracer->GetSavedCodeFromMap(method) != NULL) {
       tracer->ResetSavedCode(method);
-    }
-  }
-
-  if (!klass->IsArrayClass() && !klass->IsPrimitive()) {
-    CodeAndDirectMethods* c_and_dm = klass->GetDexCache()->GetCodeAndDirectMethods();
-    for (size_t i = 0; i < c_and_dm->NumCodeAndDirectMethods(); i++) {
-      const void* code = c_and_dm->GetResolvedCode(i);
-      if (code == trace_stub) {
-        Method* method = klass->GetDexCache()->GetResolvedMethod(i);
-        if (tracer->GetSavedCodeFromMap(method) != NULL) {
-          tracer->ResetSavedCode(method);
-        }
-        c_and_dm->SetResolvedDirectMethod(i, method);
-      }
     }
   }
   return true;

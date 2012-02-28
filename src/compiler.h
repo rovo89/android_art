@@ -163,11 +163,6 @@ class Compiler {
   void SetGcMapsDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
   void SetGcMapsMethod(const DexFile& dex_file, Method* method);
 
-  // After compiling, walk all the DexCaches and set the code and
-  // method pointers of CodeAndDirectMethods entries in the DexCaches.
-  void SetCodeAndDirectMethods(const std::vector<const DexFile*>& dex_files);
-  void SetCodeAndDirectMethodsDexFile(const DexFile& dex_file);
-
   void InsertInvokeStub(bool is_static, const char* shorty,
                         const CompiledInvokeStub* compiled_invoke_stub);
 

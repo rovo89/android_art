@@ -626,7 +626,6 @@ class PACKED Thread {
   void* (*pInitializeTypeFromCode)(uint32_t, void*);
   void* (*pInitializeTypeAndVerifyAccessFromCode)(uint32_t, void*);
   void (*pLockObjectFromCode)(void*);
-  void* (*pResolveMethodFromCode)(void*, uint32_t, bool);
   void* (*pResolveStringFromCode)(void*, uint32_t);
   int (*pSet32Instance)(uint32_t, void*, int32_t);  // field_idx, obj, src
   int (*pSet64Instance)(uint32_t, void*, int64_t);
@@ -643,8 +642,8 @@ class PACKED Thread {
   void (*pThrowNoSuchMethodFromCode)(int32_t);
   void (*pThrowAbstractMethodErrorFromCode)(Method* method, Thread* thread, Method** sp);
   void (*pUnlockObjectFromCode)(void*);
-  void* (*pUnresolvedDirectMethodTrampolineFromCode)(int32_t, Method**, Thread*,
-                                                     Runtime::TrampolineType);
+  const void* (*pUnresolvedDirectMethodTrampolineFromCode)(Method*, Method**, Thread*,
+                                                           Runtime::TrampolineType);
   void (*pUpdateDebuggerFromCode)(void*, void*, int32_t, void*);
 
  private:

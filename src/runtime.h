@@ -193,6 +193,12 @@ class Runtime {
   ByteArray* GetResolutionStubArray(TrampolineType type) const;
   void SetResolutionStubArray(ByteArray* resolution_stub_array, TrampolineType type);
 
+  // Returns a special method to trampoline into runtime resolution
+  Method* CreateResolutionMethod();
+  bool HasResolutionMethod() const;
+  Method* GetResolutionMethod() const;
+  void SetResolutionMethod(Method* method);
+
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {
     kSaveAll,
@@ -283,6 +289,8 @@ class Runtime {
   ByteArray* resolution_stub_array_[kLastTrampolineMethodType];
 
   Method* callee_save_method_[kLastCalleeSaveType];
+
+  Method* resolution_method_;
 
   // As returned by ClassLoader.getSystemClassLoader()
   ClassLoader* system_class_loader_;

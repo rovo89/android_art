@@ -31,64 +31,6 @@ class Method;
 class String;
 union JValue;
 
-class MANAGED CodeAndDirectMethods : public IntArray {
- public:
-  void* GetResolvedCode(uint32_t method_idx) const {
-    return reinterpret_cast<byte*>(Get(CodeIndex(method_idx)));
-  }
-  Method* GetResolvedMethod(uint32_t method_idx) const {
-    return reinterpret_cast<Method*>(Get(MethodIndex(method_idx)));
-  }
-
-  void SetResolvedDirectMethodTrampoline(uint32_t method_idx, ByteArray* code_array) {
-    CHECK(code_array != NULL);
-    int32_t code = reinterpret_cast<int32_t>(code_array->GetData());
-    Set(CodeIndex(method_idx), code);
-    Set(MethodIndex(method_idx), method_idx);
-  }
-
-  void SetResolvedDirectMethodTraceEntry(uint32_t method_idx, const void* pcode);
-
-  void SetResolvedDirectMethod(uint32_t method_idx, Method* method);
-
-  static size_t LengthAsArray(size_t elements) {
-    return kMax * elements;
-  }
-
-  // Offset of resolved method entry from start of code_and_direct_methods_
-  static size_t MethodOffsetInBytes(uint32_t method_idx) {
-    return (MethodIndex(method_idx) * sizeof(ElementType) + Array::DataOffset().Int32Value());
-  }
-
-  // Offset of resolved method's code_ from start of code_and_direct_methods_
-  static size_t CodeOffsetInBytes(uint32_t method_idx) {
-    return (CodeIndex(method_idx) * sizeof(ElementType) + Array::DataOffset().Int32Value());
-  }
-
-  size_t NumCodeAndDirectMethods() const {
-    return GetLength() / kMax;
-  }
-
-  static size_t CodeIndex(uint32_t method_idx) {
-    return method_idx * kMax + kCode;
-  }
-  static size_t MethodIndex(uint32_t method_idx) {
-    return method_idx * kMax + kMethod;
-  }
-
- private:
-  enum TupleIndex {
-    kCode   = 0,
-    kMethod = 1,
-    kMax    = 2,
-  };
-
-  // grant friend status to ImageWriter fixup code that needs to know internal layout
-  friend class ImageWriter;
-
-  DISALLOW_IMPLICIT_CONSTRUCTORS(CodeAndDirectMethods);
-};
-
 class MANAGED DexCache : public ObjectArray<Object> {
  public:
   void Init(String* location,
@@ -96,8 +38,9 @@ class MANAGED DexCache : public ObjectArray<Object> {
             ObjectArray<Class>* types,
             ObjectArray<Method>* methods,
             ObjectArray<Field>* fields,
-            CodeAndDirectMethods* code_and_direct_methods,
             ObjectArray<StaticStorageBase>* initialized_static_storage);
+
+  void Fixup(Method* trampoline);
 
   String* GetLocation() const {
     return Get(kLocation)->AsString();
@@ -134,10 +77,6 @@ class MANAGED DexCache : public ObjectArray<Object> {
     return GetResolvedFields()->GetLength();
   }
 
-  size_t NumCodeAndDirectMethods() const {
-    return GetCodeAndDirectMethods()->NumCodeAndDirectMethods();
-  }
-
   size_t NumInitializedStaticStorage() const {
     return GetInitializedStaticStorage()->GetLength();
   }
@@ -159,7 +98,14 @@ class MANAGED DexCache : public ObjectArray<Object> {
   }
 
   Method* GetResolvedMethod(uint32_t method_idx) const {
-    return GetResolvedMethods()->Get(method_idx);
+    Method* method = GetResolvedMethods()->Get(method_idx);
+    // Hide resolution trampoline methods from the caller
+    if (method != NULL && method->GetDexMethodIndex() == DexFile::kDexNoIndex16) {
+      DCHECK(method == Runtime::Current()->GetResolutionMethod());
+      return NULL;
+    } else {
+      return method;
+    }
   }
 
   void SetResolvedMethod(uint32_t method_idx, Method* resolved) {
@@ -186,9 +132,6 @@ class MANAGED DexCache : public ObjectArray<Object> {
   ObjectArray<Field>* GetResolvedFields() const {
     return static_cast<ObjectArray<Field>*>(GetNonNull(kResolvedFields));
   }
-  CodeAndDirectMethods* GetCodeAndDirectMethods() const {
-    return static_cast<CodeAndDirectMethods*>(GetNonNull(kCodeAndDirectMethods));
-  }
   ObjectArray<StaticStorageBase>* GetInitializedStaticStorage() const {
     return static_cast<ObjectArray<StaticStorageBase>*>(GetNonNull(kInitializedStaticStorage));
   }
@@ -205,9 +148,8 @@ class MANAGED DexCache : public ObjectArray<Object> {
     kResolvedTypes            = 2,
     kResolvedMethods          = 3,
     kResolvedFields           = 4,
-    kCodeAndDirectMethods     = 5,
-    kInitializedStaticStorage = 6,
-    kMax                      = 7,
+    kInitializedStaticStorage = 5,
+    kMax                      = 6,
   };
 
   Object* GetNonNull(ArrayIndex array_index) const {

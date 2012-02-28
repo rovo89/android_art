@@ -278,7 +278,7 @@ void OatFile::OatMethod::LinkMethodPointers(Method* method) const {
   method->SetFpSpillMask(fp_spill_mask_);
   method->SetMappingTable(GetMappingTable());
   method->SetVmapTable(GetVmapTable());
-  method->SetGcMap(GetGcMap());
+  method->SetGcMap(GetGcMap());  // Note, used by native methods in work around JNI mode.
   method->SetInvokeStub(GetInvokeStub());
 }
 

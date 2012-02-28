@@ -138,15 +138,15 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(mh.GetSignature() != NULL);
 
     EXPECT_TRUE(method->GetDexCacheStrings() != NULL);
+    EXPECT_TRUE(method->GetDexCacheResolvedMethods() != NULL);
     EXPECT_TRUE(method->GetDexCacheResolvedTypes() != NULL);
-    EXPECT_TRUE(method->GetDexCacheCodeAndDirectMethods() != NULL);
     EXPECT_TRUE(method->GetDexCacheInitializedStaticStorage() != NULL);
     EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetStrings(),
               method->GetDexCacheStrings());
+    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods(),
+              method->GetDexCacheResolvedMethods());
     EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetResolvedTypes(),
               method->GetDexCacheResolvedTypes());
-    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetCodeAndDirectMethods(),
-              method->GetDexCacheCodeAndDirectMethods());
     EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetInitializedStaticStorage(),
               method->GetDexCacheInitializedStaticStorage());
   }
@@ -314,6 +314,12 @@ class ClassLinkerTest : public CommonTest {
       AssertDexFileClass(class_loader, descriptor);
     }
     class_linker_->VisitRoots(TestRootVisitor, NULL);
+    // Verify the dex cache has resolution methods in all resolved method slots
+    DexCache* dex_cache = class_linker_->FindDexCache(*dex);
+    ObjectArray<Method>* resolved_methods = dex_cache->GetResolvedMethods();
+    for (size_t i = 0; i < static_cast<size_t>(resolved_methods->GetLength()); i++) {
+      EXPECT_TRUE(resolved_methods->Get(i) != NULL);
+    }
   }
 
   static void TestRootVisitor(const Object* root, void* arg) {
@@ -441,8 +447,8 @@ struct MethodOffsets : public CheckOffsets<Method> {
   MethodOffsets() : CheckOffsets<Method>(false, "Ljava/lang/reflect/Method;") {
     // alphabetical references
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, declaring_class_),                      "declaringClass"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_code_and_direct_methods_),    "dexCacheCodeAndDirectMethods"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_initialized_static_storage_), "dexCacheInitializedStaticStorage"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_methods_),           "dexCacheResolvedMethods"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_resolved_types_),             "dexCacheResolvedTypes"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(Method, dex_cache_strings_),                    "dexCacheStrings"));
 

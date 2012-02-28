@@ -490,16 +490,17 @@ STATIC int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
         case 0:  // Get the current Method* [sets r0]
             loadCurrMethodDirect(cUnit, r0);
             break;
-        case 1:  // Get method->code_and_direct_methods_
+        case 1:  // Get method->dex_cache_resolved_methods_
             loadWordDisp(cUnit, r0,
-                Method::GetDexCacheCodeAndDirectMethodsOffset().Int32Value(),
+                Method::DexCacheResolvedMethodsOffset().Int32Value(),
                 r0);
             break;
-        case 2:  // Grab target method* and target code_
+        case 2:  // Grab target method*
             loadWordDisp(cUnit, r0,
-                CodeAndDirectMethods::CodeOffsetInBytes(dexIdx), rLR);
-            loadWordDisp(cUnit, r0,
-                CodeAndDirectMethods::MethodOffsetInBytes(dexIdx), r0);
+                Array::DataOffset().Int32Value() + dexIdx * 4, r0);
+            break;
+        case 3:  // Grab the code from the method*
+            loadWordDisp(cUnit, r0, Method::GetCodeOffset().Int32Value(), rLR);
             break;
         default:
             return -1;
