@@ -16,9 +16,8 @@
 
 namespace art {
 
-STATIC bool genArithOpFloat(CompilationUnit* cUnit, MIR* mir,
-                            RegLocation rlDest, RegLocation rlSrc1,
-                            RegLocation rlSrc2)
+bool genArithOpFloat(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                     RegLocation rlSrc1, RegLocation rlSrc2)
 {
     int op = kThumbBkpt;
     RegLocation rlResult;
@@ -62,9 +61,8 @@ STATIC bool genArithOpFloat(CompilationUnit* cUnit, MIR* mir,
     return false;
 }
 
-STATIC bool genArithOpDouble(CompilationUnit* cUnit, MIR* mir,
-                             RegLocation rlDest, RegLocation rlSrc1,
-                             RegLocation rlSrc2)
+bool genArithOpDouble(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                      RegLocation rlSrc1, RegLocation rlSrc2)
 {
     int op = kThumbBkpt;
     RegLocation rlResult;
@@ -110,7 +108,7 @@ STATIC bool genArithOpDouble(CompilationUnit* cUnit, MIR* mir,
     return false;
 }
 
-STATIC bool genConversion(CompilationUnit* cUnit, MIR* mir)
+bool genConversion(CompilationUnit* cUnit, MIR* mir)
 {
     Opcode opcode = mir->dalvikInsn.opcode;
     int op = kThumbBkpt;
@@ -184,8 +182,8 @@ STATIC bool genConversion(CompilationUnit* cUnit, MIR* mir)
     return false;
 }
 
-STATIC bool genCmpFP(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
-                     RegLocation rlSrc1, RegLocation rlSrc2)
+bool genCmpFP(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+              RegLocation rlSrc1, RegLocation rlSrc2)
 {
     bool isDouble;
     int defaultResult;

@@ -22,6 +22,33 @@
 
 namespace art {
 
+ArmConditionCode oatArmConditionEncoding(ConditionCode code)
+{
+    ArmConditionCode res;
+    switch(code) {
+        case kCondEq: res = kArmCondEq; break;
+        case kCondNe: res = kArmCondNe; break;
+        case kCondCs: res = kArmCondCs; break;
+        case kCondCc: res = kArmCondCc; break;
+        case kCondMi: res = kArmCondMi; break;
+        case kCondPl: res = kArmCondPl; break;
+        case kCondVs: res = kArmCondVs; break;
+        case kCondVc: res = kArmCondVc; break;
+        case kCondHi: res = kArmCondHi; break;
+        case kCondLs: res = kArmCondLs; break;
+        case kCondGe: res = kArmCondGe; break;
+        case kCondLt: res = kArmCondLt; break;
+        case kCondGt: res = kArmCondGt; break;
+        case kCondLe: res = kArmCondLe; break;
+        case kCondAl: res = kArmCondAl; break;
+        case kCondNv: res = kArmCondNv; break;
+        default:
+            LOG(FATAL) << "Bad condition code" << (int)code;
+            res = (ArmConditionCode)0;  // Quiet gcc
+    }
+    return res;
+}
+
 static const char* coreRegNames[16] = {
     "r0",
     "r1",
@@ -49,7 +76,7 @@ static const char* shiftNames[4] = {
     "ror"};
 
 /* Decode and print a ARM register name */
-STATIC char* decodeRegList(ArmOpcode opcode, int vector, char* buf)
+char* decodeRegList(int opcode, int vector, char* buf)
 {
     int i;
     bool printed = false;
@@ -73,7 +100,7 @@ STATIC char* decodeRegList(ArmOpcode opcode, int vector, char* buf)
     return buf;
 }
 
-STATIC char*  decodeFPCSRegList(int count, int base, char* buf)
+char*  decodeFPCSRegList(int count, int base, char* buf)
 {
     sprintf(buf, "s%d", base);
     for (int i = 1; i < count; i++) {
@@ -82,7 +109,7 @@ STATIC char*  decodeFPCSRegList(int count, int base, char* buf)
     return buf;
 }
 
-STATIC int expandImmediate(int value)
+int expandImmediate(int value)
 {
     int mode = (value & 0xf00) >> 8;
     u4 bits = value & 0xff;
@@ -108,7 +135,8 @@ const char* ccNames[] = {"eq","ne","cs","cc","mi","pl","vs","vc",
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.c.
  */
-STATIC std::string buildInsnString(const char* fmt, ArmLIR* lir, unsigned char* baseAddr)
+std::string buildInsnString(const char* fmt, LIR* lir,
+                            unsigned char* baseAddr)
 {
     std::string buf;
     int i;
@@ -205,15 +233,15 @@ STATIC std::string buildInsnString(const char* fmt, ArmLIR* lir, unsigned char* 
                        break;
                    case 't':
                        sprintf(tbuf,"0x%08x (L%p)",
-                               (int) baseAddr + lir->generic.offset + 4 +
+                               (int) baseAddr + lir->offset + 4 +
                                (operand << 1),
-                               lir->generic.target);
+                               lir->target);
                        break;
                    case 'u': {
                        int offset_1 = lir->operands[0];
                        int offset_2 = NEXT_LIR(lir)->operands[0];
                        intptr_t target =
-                           ((((intptr_t) baseAddr + lir->generic.offset + 4) &
+                           ((((intptr_t) baseAddr + lir->offset + 4) &
                             ~3) + (offset_1 << 21 >> 9) + (offset_2 << 1)) &
                            0xfffffffc;
                        sprintf(tbuf, "%p", (void *) target);
@@ -250,7 +278,7 @@ void oatDumpResourceMask(LIR* lir, u8 mask, const char* prefix)
 {
     char buf[256];
     buf[0] = 0;
-    ArmLIR* armLIR = (ArmLIR*) lir;
+    LIR* armLIR = (LIR*) lir;
 
     if (mask == ENCODE_ALL) {
         strcpy(buf, "all");
@@ -302,57 +330,57 @@ void oatDumpResourceMask(LIR* lir, u8 mask, const char* prefix)
 /* Pretty-print a LIR instruction */
 void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
 {
-    ArmLIR* lir = (ArmLIR*) arg;
-    int offset = lir->generic.offset;
+    LIR* lir = (LIR*) arg;
+    int offset = lir->offset;
     int dest = lir->operands[0];
     const bool dumpNop = false;
 
     /* Handle pseudo-ops individually, and all regular insns as a group */
     switch(lir->opcode) {
-        case kArmPseudoMethodEntry:
+        case kPseudoMethodEntry:
             LOG(INFO) << "-------- method entry " <<
                 PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
             break;
-        case kArmPseudoMethodExit:
+        case kPseudoMethodExit:
             LOG(INFO) << "-------- Method_Exit";
             break;
-        case kArmPseudoBarrier:
+        case kPseudoBarrier:
             LOG(INFO) << "-------- BARRIER";
             break;
-        case kArmPseudoExtended:
+        case kPseudoExtended:
             LOG(INFO) << "-------- " << (char* ) dest;
             break;
-        case kArmPseudoSSARep:
+        case kPseudoSSARep:
             DUMP_SSA_REP(LOG(INFO) << "-------- kMirOpPhi: " <<  (char* ) dest);
             break;
-        case kArmPseudoEntryBlock:
+        case kPseudoEntryBlock:
             LOG(INFO) << "-------- entry offset: 0x" << std::hex << dest;
             break;
-        case kArmPseudoDalvikByteCodeBoundary:
+        case kPseudoDalvikByteCodeBoundary:
             LOG(INFO) << "-------- dalvik offset: 0x" << std::hex <<
-                 lir->generic.dalvikOffset << " @ " << (char* )lir->operands[0];
+                 lir->dalvikOffset << " @ " << (char* )lir->operands[0];
             break;
-        case kArmPseudoExitBlock:
+        case kPseudoExitBlock:
             LOG(INFO) << "-------- exit offset: 0x" << std::hex << dest;
             break;
-        case kArmPseudoPseudoAlign4:
+        case kPseudoPseudoAlign4:
             LOG(INFO) << (intptr_t)baseAddr + offset << " (0x" << std::hex <<
                 offset << "): .align4";
             break;
-        case kArmPseudoEHBlockLabel:
+        case kPseudoEHBlockLabel:
             LOG(INFO) << "Exception_Handling:";
             break;
-        case kArmPseudoTargetLabel:
-        case kArmPseudoNormalBlockLabel:
+        case kPseudoTargetLabel:
+        case kPseudoNormalBlockLabel:
             LOG(INFO) << "L" << (intptr_t)lir << ":";
             break;
-        case kArmPseudoThrowTarget:
+        case kPseudoThrowTarget:
             LOG(INFO) << "LT" << (intptr_t)lir << ":";
             break;
-        case kArmPseudoSuspendTarget:
+        case kPseudoSuspendTarget:
             LOG(INFO) << "LS" << (intptr_t)lir << ":";
             break;
-        case kArmPseudoCaseLabel:
+        case kPseudoCaseLabel:
             LOG(INFO) << "LC" << (intptr_t)lir << ": Case target 0x" <<
                 std::hex << lir->operands[0] << "|" << std::dec <<
                 lir->operands[0];
@@ -416,7 +444,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
     LOG(INFO) << "Dumping LIR insns for "
         << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
     LIR* lirInsn;
-    ArmLIR* armLIR;
+    LIR* armLIR;
     int insnsSize = cUnit->insnsSize;
 
     LOG(INFO) << "Regs (excluding ins) : " << cUnit->numRegs;
@@ -437,15 +465,15 @@ void oatCodegenDump(CompilationUnit* cUnit)
         oatDumpLIRInsn(cUnit, lirInsn, 0);
     }
     for (lirInsn = cUnit->classPointerList; lirInsn; lirInsn = lirInsn->next) {
-        armLIR = (ArmLIR*) lirInsn;
+        armLIR = (LIR*) lirInsn;
         LOG(INFO) << StringPrintf("%x (%04x): .class (%s)",
-            armLIR->generic.offset, armLIR->generic.offset,
+            armLIR->offset, armLIR->offset,
             ((CallsiteInfo *) armLIR->operands[0])->classDescriptor);
     }
     for (lirInsn = cUnit->literalList; lirInsn; lirInsn = lirInsn->next) {
-        armLIR = (ArmLIR*) lirInsn;
+        armLIR = (LIR*) lirInsn;
         LOG(INFO) << StringPrintf("%x (%04x): .word (%#x)",
-            armLIR->generic.offset, armLIR->generic.offset, armLIR->operands[0]);
+            armLIR->offset, armLIR->offset, armLIR->operands[0]);
     }
 
     const DexFile::MethodId& method_id =

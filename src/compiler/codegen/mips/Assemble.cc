@@ -540,7 +540,7 @@ int oatAssignInsnOffsets(CompilationUnit* cUnit)
                 mipsLIR->flags.size = EncodingMap[mipsLIR->opcode].size * 2;
                 offset += mipsLIR->flags.size;
             }
-        } else if (mipsLIR->opcode == kMipsPseudoPseudoAlign4) {
+        } else if (mipsLIR->opcode == kPseudoPseudoAlign4) {
             if (offset & 0x2) {
                 offset += 2;
                 mipsLIR->operands[0] = 1;

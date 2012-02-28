@@ -21,7 +21,7 @@ extern void oatFlushRegWideForV5TEVFP(CompilationUnit *cUnit,
 extern void oatFlushRegForV5TEVFP(CompilationUnit *cUnit, int reg);
 
 /* First, flush any registers associated with this value */
-static void loadValueAddress(CompilationUnit *cUnit, RegLocation rlSrc,
+void loadValueAddress(CompilationUnit *cUnit, RegLocation rlSrc,
                              int rDest)
 {
     UNIMPLEMENTED(FATAL) << "Need Mips implementation";
@@ -253,7 +253,6 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir)
     int op = kMipsNop;
     int srcReg;
     RegLocation rlResult;
-
     switch (opcode) {
         case OP_INT_TO_FLOAT:
             longSrc = false;

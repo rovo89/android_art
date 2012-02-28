@@ -26,9 +26,6 @@ namespace art {
  * applicable directory below this one.
  */
 
-/* Track exercised opcodes */
-static int opcodeCoverage[kNumPackedOpcodes];
-
 static void setMemRefType(MipsLIR *lir, bool isLoad, int memType)
 {
     /* MIPSTODO simplify setMemRefType() */
@@ -230,46 +227,13 @@ STATIC void setupResourceMasks(MipsLIR *lir)
 }
 
 /*
- * Set up the accurate resource mask for branch instructions
- */
-static void relaxBranchMasks(MipsLIR *lir)
-{
-    int flags = EncodingMap[lir->opcode].flags;
-
-    /* Make sure only branch instructions are passed here */
-    DCHECK(flags & IS_BRANCH);
-
-    lir->defMask |= ENCODE_REG_PC;
-    lir->useMask |= ENCODE_REG_PC;
-
-
-    if (flags & REG_DEF_LR) {
-        lir->defMask |= ENCODE_REG_LR;
-    }
-
-    if (flags & (REG_USE0 | REG_USE1 | REG_USE2 | REG_USE3)) {
-        int i;
-
-        for (i = 0; i < 4; i++) {
-            if (flags & (1 << (kRegUse0 + i))) {
-                setupRegMask(&lir->useMask, lir->operands[i]);
-            }
-        }
-    }
-
-    if (flags & USES_CCODES) {
-        lir->useMask |= ENCODE_CCODE;
-    }
-}
-
-/*
  * The following are building blocks to construct low-level IRs with 0 - 4
  * operands.
  */
-static MipsLIR *newLIR0(CompilationUnit *cUnit, MipsOpCode opcode)
+MipsLIR *newLIR0(CompilationUnit *cUnit, MipsOpCode opcode)
 {
     MipsLIR *insn = (MipsLIR *) oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
-    DCHECK(isPseudoOpCode(opcode) || (EncodingMap[opcode].flags & NO_OPERAND));
+    DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & NO_OPERAND));
     insn->opcode = opcode;
     setupResourceMasks(insn);
     insn->generic.dalvikOffset = cUnit->currentDalvikOffset;
@@ -277,11 +241,11 @@ static MipsLIR *newLIR0(CompilationUnit *cUnit, MipsOpCode opcode)
     return insn;
 }
 
-static MipsLIR *newLIR1(CompilationUnit *cUnit, MipsOpCode opcode,
+MipsLIR *newLIR1(CompilationUnit *cUnit, MipsOpCode opcode,
                            int dest)
 {
     MipsLIR *insn = (MipsLIR *) oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
-    DCHECK(isPseudoOpCode(opcode) || (EncodingMap[opcode].flags & IS_UNARY_OP));
+    DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & IS_UNARY_OP));
     insn->opcode = opcode;
     insn->operands[0] = dest;
     setupResourceMasks(insn);
@@ -290,11 +254,11 @@ static MipsLIR *newLIR1(CompilationUnit *cUnit, MipsOpCode opcode,
     return insn;
 }
 
-static MipsLIR *newLIR2(CompilationUnit *cUnit, MipsOpCode opcode,
+MipsLIR *newLIR2(CompilationUnit *cUnit, MipsOpCode opcode,
                            int dest, int src1)
 {
     MipsLIR *insn = (MipsLIR *) oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
-    DCHECK(isPseudoOpCode(opcode) ||
+    DCHECK(isPseudoOpcode(opcode) ||
            (EncodingMap[opcode].flags & IS_BINARY_OP));
     insn->opcode = opcode;
     insn->operands[0] = dest;
@@ -305,14 +269,14 @@ static MipsLIR *newLIR2(CompilationUnit *cUnit, MipsOpCode opcode,
     return insn;
 }
 
-static MipsLIR *newLIR3(CompilationUnit *cUnit, MipsOpCode opcode,
+MipsLIR *newLIR3(CompilationUnit *cUnit, MipsOpCode opcode,
                            int dest, int src1, int src2)
 {
     MipsLIR *insn = (MipsLIR *) oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
     if (!(EncodingMap[opcode].flags & IS_TERTIARY_OP)) {
         LOG(FATAL) << "Bad LIR3: " << EncodingMap[opcode].name;
     }
-    DCHECK(isPseudoOpCode(opcode) ||
+    DCHECK(isPseudoOpcode(opcode) ||
            (EncodingMap[opcode].flags & IS_TERTIARY_OP));
     insn->opcode = opcode;
     insn->operands[0] = dest;
@@ -324,11 +288,11 @@ static MipsLIR *newLIR3(CompilationUnit *cUnit, MipsOpCode opcode,
     return insn;
 }
 
-static MipsLIR *newLIR4(CompilationUnit *cUnit, MipsOpCode opcode,
+MipsLIR *newLIR4(CompilationUnit *cUnit, MipsOpCode opcode,
                            int dest, int src1, int src2, int info)
 {
     MipsLIR *insn = (MipsLIR *) oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
-    DCHECK(isPseudoOpCode(opcode) ||
+    DCHECK(isPseudoOpcode(opcode) ||
            (EncodingMap[opcode].flags & IS_QUAD_OP));
     insn->opcode = opcode;
     insn->operands[0] = dest;
@@ -342,36 +306,12 @@ static MipsLIR *newLIR4(CompilationUnit *cUnit, MipsOpCode opcode,
 }
 
 /*
- * The following are building blocks to insert constants into the pool or
- * instruction streams.
- */
-
-/* Add a 32-bit constant either in the constant pool or mixed with code */
-static MipsLIR *addWordData(CompilationUnit *cUnit, LIR **constantListP,
-                           int value)
-{
-    /* Add the constant to the literal pool */
-    if (constantListP) {
-        MipsLIR *newValue = (MipsLIR *) oatNew(cUnit, sizeof(MipsLIR), true,
-                                               kAllocData);
-        newValue->operands[0] = value;
-        newValue->generic.next = *constantListP;
-        *constantListP = (LIR *) newValue;
-        return newValue;
-    } else {
-        /* Add the constant in the middle of code stream */
-        newLIR1(cUnit, kMips32BitData, value);
-    }
-    return NULL;
-}
-
-/*
- * Generate an kMipsPseudoBarrier marker to indicate the boundary of special
+ * Generate an kPseudoBarrier marker to indicate the boundary of special
  * blocks.
  */
 static void genBarrier(CompilationUnit *cUnit)
 {
-    MipsLIR *barrier = newLIR0(cUnit, kMipsPseudoBarrier);
+    MipsLIR *barrier = newLIR0(cUnit, kPseudoBarrier);
     /* Mark all resources as being clobbered */
     barrier->defMask = -1;
 }

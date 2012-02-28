@@ -15,7 +15,7 @@
  */
 #define _CODEGEN_C
 #define _ARMV7_A
-#define TGT_LIR ArmLIR
+#define TARGET_ARM
 
 #include "../../../Dalvik.h"
 #include "../../../CompilerInternals.h"
@@ -23,13 +23,17 @@
 #include "../../Ralloc.h"
 #include "../Codegen.h"
 
-/* Arm codegen building blocks */
-#include "../CodegenCommon.cc"
+/* Common codegen utility code */
+#include "../../CodegenUtil.cc"
 
 /* Thumb2-specific factory utilities */
 #include "../Thumb2/Factory.cc"
 /* Target independent factory utilities */
 #include "../../CodegenFactory.cc"
+/* Target independent gen routines */
+#include "../../GenCommon.cc"
+/* Shared invoke gen routines */
+#include "../../GenInvoke.cc"
 /* Arm-specific factory utilities */
 #include "../ArchFactory.cc"
 
@@ -46,9 +50,6 @@
 
 /* Target-independent local optimizations */
 #include "../../LocalOptimizations.cc"
-
-/* Common codegen utility code */
-#include "../../CodegenUtil.cc"
 
 /* Architecture manifest */
 #include "ArchVariant.cc"

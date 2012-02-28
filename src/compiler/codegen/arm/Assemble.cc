@@ -77,7 +77,7 @@ namespace art {
  *
  *  [!] escape.  To insert "!", use "!!"
  */
-/* NOTE: must be kept in sync with enum ArmOpcode from ArmLIR.h */
+/* NOTE: must be kept in sync with enum ArmOpcode from LIR.h */
 const ArmEncodingMap EncodingMap[kArmLast] = {
     ENCODING_MAP(kArm16BitData,    0x0000,
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
@@ -983,13 +983,13 @@ const ArmEncodingMap EncodingMap[kArmLast] = {
 AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                                         intptr_t startAddr)
 {
-    ArmLIR* lir;
+    LIR* lir;
     AssemblerStatus res = kSuccess;  // Assume success
 
-    for (lir = (ArmLIR *) cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
+    for (lir = (LIR *) cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
 
         if (lir->opcode < 0) {
-            if ((lir->opcode == kArmPseudoPseudoAlign4) &&
+            if ((lir->opcode == kPseudoPseudoAlign4) &&
                 /* 1 means padding is needed */
                 (lir->operands[0] == 1)) {
                 cUnit->codeBuffer.push_back(PADDING_MOV_R5_R5);
@@ -1024,9 +1024,9 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                  * However, if the load displacement exceeds the limit,
                  * we revert to a 2-instruction materialization sequence.
                  */
-                ArmLIR *lirTarget = (ArmLIR *) lir->generic.target;
-                intptr_t pc = (lir->generic.offset + 4) & ~3;
-                intptr_t target = lirTarget->generic.offset;
+                LIR *lirTarget = (LIR *) lir->target;
+                intptr_t pc = (lir->offset + 4) & ~3;
+                intptr_t target = lirTarget->offset;
                 int delta = target - pc;
                 if (delta & 0x3) {
                     LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
@@ -1050,10 +1050,10 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                         lir->operands[0] : rLR;
 
                     // Add new Adr to generate the address
-                    ArmLIR *newAdr = (ArmLIR *)oatNew(cUnit, sizeof(ArmLIR),
+                    LIR *newAdr = (LIR *)oatNew(cUnit, sizeof(LIR),
                         true, kAllocLIR);
-                    newAdr->generic.dalvikOffset = lir->generic.dalvikOffset;
-                    newAdr->generic.target = lir->generic.target;
+                    newAdr->dalvikOffset = lir->dalvikOffset;
+                    newAdr->target = lir->target;
                     newAdr->opcode = kThumb2Adr;
                     newAdr->operands[0] = baseReg;
                     oatSetupResourceMasks(newAdr);
@@ -1078,28 +1078,28 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                     }
                 }
             } else if (lir->opcode == kThumb2Cbnz || lir->opcode == kThumb2Cbz) {
-                ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
-                intptr_t pc = lir->generic.offset + 4;
-                intptr_t target = targetLIR->generic.offset;
+                LIR *targetLIR = (LIR *) lir->target;
+                intptr_t pc = lir->offset + 4;
+                intptr_t target = targetLIR->offset;
                 int delta = target - pc;
                 if (delta > 126 || delta < 0) {
                     /* Convert to cmp rx,#0 / b[eq/ne] tgt pair */
-                    ArmLIR *newInst = (ArmLIR *)oatNew(cUnit, sizeof(ArmLIR),
+                    LIR *newInst = (LIR *)oatNew(cUnit, sizeof(LIR),
                         true, kAllocLIR);
                     /* Make new branch instruction and insert after */
-                    newInst->generic.dalvikOffset = lir->generic.dalvikOffset;
+                    newInst->dalvikOffset = lir->dalvikOffset;
                     newInst->opcode = kThumbBCond;
                     newInst->operands[0] = 0;
                     newInst->operands[1] = (lir->opcode == kThumb2Cbz) ?
                                             kArmCondEq : kArmCondNe;
-                    newInst->generic.target = lir->generic.target;
+                    newInst->target = lir->target;
                     oatSetupResourceMasks(newInst);
                     oatInsertLIRAfter((LIR *)lir, (LIR *)newInst);
                     /* Convert the cb[n]z to a cmp rx, #0 ] */
                     lir->opcode = kThumbCmpRI8;
                     /* operand[0] is src1 in both cb[n]z & CmpRI8 */
                     lir->operands[1] = 0;
-                    lir->generic.target = 0;
+                    lir->target = 0;
                     oatSetupResourceMasks(lir);
                     res = kRetryAll;
                 } else {
@@ -1131,11 +1131,11 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                 }
             } else if (lir->opcode == kThumbBCond ||
                        lir->opcode == kThumb2BCond) {
-                ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
+                LIR *targetLIR = (LIR *) lir->target;
                 int delta = 0;
                 DCHECK(targetLIR);
-                intptr_t pc = lir->generic.offset + 4;
-                intptr_t target = targetLIR->generic.offset;
+                intptr_t pc = lir->offset + 4;
+                intptr_t target = targetLIR->offset;
                 delta = target - pc;
                 if ((lir->opcode == kThumbBCond) &&
                     (delta > 254 || delta < -256)) {
@@ -1145,9 +1145,9 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                 }
                 lir->operands[0] = delta >> 1;
             } else if (lir->opcode == kThumb2BUncond) {
-                ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
-                intptr_t pc = lir->generic.offset + 4;
-                intptr_t target = targetLIR->generic.offset;
+                LIR *targetLIR = (LIR *) lir->target;
+                intptr_t pc = lir->offset + 4;
+                intptr_t target = targetLIR->offset;
                 int delta = target - pc;
                 lir->operands[0] = delta >> 1;
                 if (lir->operands[0] == 0) {  // Useless branch?
@@ -1155,9 +1155,9 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                     res = kRetryAll;
                 }
             } else if (lir->opcode == kThumbBUncond) {
-                ArmLIR *targetLIR = (ArmLIR *) lir->generic.target;
-                intptr_t pc = lir->generic.offset + 4;
-                intptr_t target = targetLIR->generic.offset;
+                LIR *targetLIR = (LIR *) lir->target;
+                intptr_t pc = lir->offset + 4;
+                intptr_t target = targetLIR->offset;
                 int delta = target - pc;
                 if (delta > 2046 || delta < -2048) {
                     // Convert to Thumb2BCond w/ kArmCondAl
@@ -1175,7 +1175,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
             } else if (lir->opcode == kThumbBlx1) {
                 DCHECK(NEXT_LIR(lir)->opcode == kThumbBlx2);
                 /* curPC is Thumb */
-                intptr_t curPC = (startAddr + lir->generic.offset + 4) & ~3;
+                intptr_t curPC = (startAddr + lir->offset + 4) & ~3;
                 intptr_t target = lir->operands[1];
 
                 /* Match bit[1] in target with base */
@@ -1190,7 +1190,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
             } else if (lir->opcode == kThumbBl1) {
                 DCHECK(NEXT_LIR(lir)->opcode == kThumbBl2);
                 /* Both curPC and target are Thumb */
-                intptr_t curPC = startAddr + lir->generic.offset + 4;
+                intptr_t curPC = startAddr + lir->offset + 4;
                 intptr_t target = lir->operands[1];
 
                 int delta = target - curPC;
@@ -1200,30 +1200,30 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                 NEXT_LIR(lir)->operands[0] = (delta>> 1) & 0x7ff;
             } else if (lir->opcode == kThumb2Adr) {
                 SwitchTable *tabRec = (SwitchTable*)lir->operands[2];
-                ArmLIR* target = (ArmLIR*)lir->generic.target;
+                LIR* target = (LIR*)lir->target;
                 int targetDisp = tabRec ? tabRec->offset
-                                        : target->generic.offset;
-                int disp = targetDisp - ((lir->generic.offset + 4) & ~3);
+                                        : target->offset;
+                int disp = targetDisp - ((lir->offset + 4) & ~3);
                 if (disp < 4096) {
                     lir->operands[1] = disp;
                 } else {
                     // convert to ldimm16l, ldimm16h, add tgt, pc, operands[0]
-                    ArmLIR *newMov16L =
-                        (ArmLIR *)oatNew(cUnit, sizeof(ArmLIR), true,
+                    LIR *newMov16L =
+                        (LIR *)oatNew(cUnit, sizeof(LIR), true,
                         kAllocLIR);
-                    newMov16L->generic.dalvikOffset = lir->generic.dalvikOffset;
-                    newMov16L->generic.target = lir->generic.target;
+                    newMov16L->dalvikOffset = lir->dalvikOffset;
+                    newMov16L->target = lir->target;
                     newMov16L->opcode = kThumb2MovImm16LST;
                     newMov16L->operands[0] = lir->operands[0];
                     newMov16L->operands[2] = (intptr_t)lir;
                     newMov16L->operands[3] = (intptr_t)tabRec;
                     oatSetupResourceMasks(newMov16L);
                     oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16L);
-                    ArmLIR *newMov16H =
-                        (ArmLIR *)oatNew(cUnit, sizeof(ArmLIR), true,
+                    LIR *newMov16H =
+                        (LIR *)oatNew(cUnit, sizeof(LIR), true,
                         kAllocLIR);
-                    newMov16H->generic.dalvikOffset = lir->generic.dalvikOffset;
-                    newMov16H->generic.target = lir->generic.target;
+                    newMov16H->dalvikOffset = lir->dalvikOffset;
+                    newMov16H->target = lir->target;
                     newMov16H->opcode = kThumb2MovImm16HST;
                     newMov16H->operands[0] = lir->operands[0];
                     newMov16H->operands[2] = (intptr_t)lir;
@@ -1238,24 +1238,24 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                 }
             } else if (lir->opcode == kThumb2MovImm16LST) {
                 // operands[1] should hold disp, [2] has add, [3] has tabRec
-                ArmLIR *addPCInst = (ArmLIR*)lir->operands[2];
+                LIR *addPCInst = (LIR*)lir->operands[2];
                 SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
-                // If tabRec is null, this is a literal load. Use generic.target
-                ArmLIR* target = (ArmLIR*)lir->generic.target;
+                // If tabRec is null, this is a literal load. Use target
+                LIR* target = (LIR*)lir->target;
                 int targetDisp = tabRec ? tabRec->offset
-                                        : target->generic.offset;
+                                        : target->offset;
                 lir->operands[1] = (targetDisp -
-                    (addPCInst->generic.offset + 4)) & 0xffff;
+                    (addPCInst->offset + 4)) & 0xffff;
             } else if (lir->opcode == kThumb2MovImm16HST) {
                 // operands[1] should hold disp, [2] has add, [3] has tabRec
-                ArmLIR *addPCInst = (ArmLIR*)lir->operands[2];
+                LIR *addPCInst = (LIR*)lir->operands[2];
                 SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
-                // If tabRec is null, this is a literal load. Use generic.target
-                ArmLIR* target = (ArmLIR*)lir->generic.target;
+                // If tabRec is null, this is a literal load. Use target
+                LIR* target = (LIR*)lir->target;
                 int targetDisp = tabRec ? tabRec->offset
-                                        : target->generic.offset;
+                                        : target->offset;
                 lir->operands[1] = ((targetDisp -
-                    (addPCInst->generic.offset + 4)) >> 16) & 0xffff;
+                    (addPCInst->offset + 4)) >> 16) & 0xffff;
             }
         }
         /*
@@ -1387,19 +1387,19 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
  */
 int oatAssignInsnOffsets(CompilationUnit* cUnit)
 {
-    ArmLIR* armLIR;
+    LIR* armLIR;
     int offset = 0;
 
-    for (armLIR = (ArmLIR *) cUnit->firstLIRInsn;
+    for (armLIR = (LIR *) cUnit->firstLIRInsn;
          armLIR;
          armLIR = NEXT_LIR(armLIR)) {
-        armLIR->generic.offset = offset;
+        armLIR->offset = offset;
         if (armLIR->opcode >= 0) {
             if (!armLIR->flags.isNop) {
                 armLIR->flags.size = EncodingMap[armLIR->opcode].size * 2;
                 offset += armLIR->flags.size;
             }
-        } else if (armLIR->opcode == kArmPseudoPseudoAlign4) {
+        } else if (armLIR->opcode == kPseudoPseudoAlign4) {
             if (offset & 0x2) {
                 offset += 2;
                 armLIR->operands[0] = 1;

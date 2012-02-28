@@ -167,42 +167,6 @@ typedef enum ResourceEncodingPos {
 #define DECODE_ALIAS_INFO_REG(X)        (X & 0xffff)
 #define DECODE_ALIAS_INFO_WIDE(X)       ((X & 0x80000000) ? 1 : 0)
 
-typedef enum OpKind {
-    kOpMov,
-    kOpMvn,
-    kOpCmp,
-    kOpLsl,
-    kOpLsr,
-    kOpAsr,
-    kOpRor,
-    kOpNot,
-    kOpAnd,
-    kOpOr,
-    kOpXor,
-    kOpNeg,
-    kOpAdd,
-    kOpAdc,
-    kOpSub,
-    kOpSbc,
-    kOpRsub,
-    kOpMul,
-    kOpDiv,
-    kOpRem,
-    kOpBic,
-    kOpCmn,
-    kOpTst,
-    kOpBkpt,
-    kOpBlx,
-    kOpPush,
-    kOpPop,
-    kOp2Char,
-    kOp2Short,
-    kOp2Byte,
-    kOpCondBr,
-    kOpUncondBr,
-    kOpInvalid,
-} OpKind;
-
 /*
  * Annotate special-purpose core registers:
  *   - VM: r6SELF
@@ -280,6 +244,15 @@ typedef enum NativeRegisterPool {
     dr15 = fr30 + FP_DOUBLE,
 } NativeRegisterPool;
 
+/* Target-independent aliases */
+#define rARG0 r0
+#define rARG1 r1
+#define rARG2 r2
+#define rARG3 r3
+#define rRET0 r0
+#define rRET1 r1
+#define rLINK rLR
+
 /* Shift encodings */
 typedef enum ArmShiftEncodings {
     kArmLsl = 0x0,
@@ -308,16 +281,6 @@ typedef enum ArmConditionCode {
     kArmCondNv = 0xf,    /* 1111 */
 } ArmConditionCode;
 
-typedef enum ArmThrowKind {
-    kArmThrowNullPointer,
-    kArmThrowDivZero,
-    kArmThrowArrayBounds,
-    kArmThrowVerificationError,
-    kArmThrowNegArraySize,
-    kArmThrowNoSuchMethod,
-    kArmThrowStackOverflow,
-} ArmThrowKind;
-
 #define isPseudoOpcode(opcode) ((int)(opcode) < 0)
 
 /*
@@ -326,21 +289,21 @@ typedef enum ArmThrowKind {
  * Assemble.c.
  */
 typedef enum ArmOpcode {
-    kArmPseudoSuspendTarget = -15,
-    kArmPseudoThrowTarget = -14,
-    kArmPseudoCaseLabel = -13,
-    kArmPseudoMethodEntry = -12,
-    kArmPseudoMethodExit = -11,
-    kArmPseudoBarrier = -10,
-    kArmPseudoExtended = -9,
-    kArmPseudoSSARep = -8,
-    kArmPseudoEntryBlock = -7,
-    kArmPseudoExitBlock = -6,
-    kArmPseudoTargetLabel = -5,
-    kArmPseudoDalvikByteCodeBoundary = -4,
-    kArmPseudoPseudoAlign4 = -3,
-    kArmPseudoEHBlockLabel = -2,
-    kArmPseudoNormalBlockLabel = -1,
+    kPseudoSuspendTarget = -15,
+    kPseudoThrowTarget = -14,
+    kPseudoCaseLabel = -13,
+    kPseudoMethodEntry = -12,
+    kPseudoMethodExit = -11,
+    kPseudoBarrier = -10,
+    kPseudoExtended = -9,
+    kPseudoSSARep = -8,
+    kPseudoEntryBlock = -7,
+    kPseudoExitBlock = -6,
+    kPseudoTargetLabel = -5,
+    kPseudoDalvikByteCodeBoundary = -4,
+    kPseudoPseudoAlign4 = -3,
+    kPseudoEHBlockLabel = -2,
+    kPseudoNormalBlockLabel = -1,
     /************************************************************************/
     kArm16BitData,       /* DATA   [0] rd[15..0] */
     kThumbAdcRR,         /* adc     [0100000101] rm[5..3] rd[2..0] */
@@ -782,42 +745,12 @@ typedef enum ArmTargetOptHints {
 
 extern const ArmEncodingMap EncodingMap[kArmLast];
 
-/*
- * Each instance of this struct holds a pseudo or real LIR instruction:
- * - pseudo ones (eg labels and marks) and will be discarded by the assembler.
- * - real ones will be assembled into Thumb instructions.
- *
- * Machine resources are encoded into a 64-bit vector, where the encodings are
- * as following:
- * - [ 0..15]: general purpose registers including PC, SP, and LR
- * - [16..47]: floating-point registers where d0 is expanded to s[01] and s0
- *   starts at bit 16
- * - [48]: IT block
- * - [49]: integer condition code
- * - [50]: floatint-point status word
- */
-typedef struct ArmLIR {
-    LIR generic;
-    ArmOpcode opcode;
-    int operands[4];            // [0..3] = [dest, src1, src2, extra]
-    struct {
-        bool isNop:1;           // LIR is optimized away
-        bool pcRelFixup:1;      // May need pc-relative fixup
-        unsigned int age:4;     // default is 0, set lazily by the optimizer
-        unsigned int size:3;    // bytes (2 for thumb, 2/4 for thumb2)
-        unsigned int unused:23;
-    } flags;
-    int aliasInfo;              // For Dalvik register & litpool disambiguation
-    u8 useMask;                 // Resource mask for use
-    u8 defMask;                 // Resource mask for def
-} ArmLIR;
-
 typedef struct SwitchTable {
     int offset;
     const u2* table;            // Original dex table
     int vaddr;                  // Dalvik offset of switch opcode
-    ArmLIR* bxInst;             // Switch indirect branch instruction
-    ArmLIR** targets;           // Array of case targets
+    LIR* bxInst;                // Switch indirect branch instruction
+    LIR** targets;              // Array of case targets
 } SwitchTable;
 
 typedef struct FillArrayData {
@@ -827,12 +760,6 @@ typedef struct FillArrayData {
     int vaddr;                 // Dalvik offset of OP_FILL_ARRAY_DATA opcode
 } FillArrayData;
 
-/* Utility macros to traverse the LIR/ArmLIR list */
-#define NEXT_LIR(lir) ((ArmLIR *) lir->generic.next)
-#define PREV_LIR(lir) ((ArmLIR *) lir->generic.prev)
-
-#define NEXT_LIR_LVALUE(lir) (lir)->generic.next
-#define PREV_LIR_LVALUE(lir) (lir)->generic.prev
 
 }  // namespace art
 

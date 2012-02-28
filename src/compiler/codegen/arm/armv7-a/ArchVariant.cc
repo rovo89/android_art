@@ -47,7 +47,7 @@ int oatTargetOptHint(int key)
 void oatGenMemBarrier(CompilationUnit* cUnit, int barrierKind)
 {
 #if ANDROID_SMP != 0
-    ArmLIR* dmb = newLIR1(cUnit, kThumb2Dmb, barrierKind);
+    LIR* dmb = newLIR1(cUnit, kThumb2Dmb, barrierKind);
     dmb->defMask = ENCODE_ALL;
 #endif
 }

@@ -221,50 +221,50 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
 
     /* Handle pseudo-ops individually, and all regular insns as a group */
     switch(lir->opcode) {
-        case kMipsPseudoMethodEntry:
+        case kPseudoMethodEntry:
             LOG(INFO) << "-------- method entry " <<
                 PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
             break;
-        case kMipsPseudoMethodExit:
+        case kPseudoMethodExit:
             LOG(INFO) << "-------- Method_Exit";
             break;
-        case kMipsPseudoBarrier:
+        case kPseudoBarrier:
             LOG(INFO) << "-------- BARRIER";
             break;
-        case kMipsPseudoExtended:
+        case kPseudoExtended:
             LOG(INFO) << "-------- " << (char* ) dest;
             break;
-        case kMipsPseudoSSARep:
+        case kPseudoSSARep:
             DUMP_SSA_REP(LOG(INFO) << "-------- kMirOpPhi: " <<  (char* ) dest);
             break;
-        case kMipsPseudoEntryBlock:
+        case kPseudoEntryBlock:
             LOG(INFO) << "-------- entry offset: 0x" << std::hex << dest;
             break;
-        case kMipsPseudoDalvikByteCodeBoundary:
+        case kPseudoDalvikByteCodeBoundary:
             LOG(INFO) << "-------- dalvik offset: 0x" << std::hex <<
                  lir->generic.dalvikOffset << " @ " << (char* )lir->operands[0];
             break;
-        case kMipsPseudoExitBlock:
+        case kPseudoExitBlock:
             LOG(INFO) << "-------- exit offset: 0x" << std::hex << dest;
             break;
-        case kMipsPseudoPseudoAlign4:
+        case kPseudoPseudoAlign4:
             LOG(INFO) << (intptr_t)baseAddr + offset << " (0x" << std::hex <<
                 offset << "): .align4";
             break;
-        case kMipsPseudoEHBlockLabel:
+        case kPseudoEHBlockLabel:
             LOG(INFO) << "Exception_Handling:";
             break;
-        case kMipsPseudoTargetLabel:
-        case kMipsPseudoNormalBlockLabel:
+        case kPseudoTargetLabel:
+        case kPseudoNormalBlockLabel:
             LOG(INFO) << "L" << (intptr_t)lir << ":";
             break;
-        case kMipsPseudoThrowTarget:
+        case kPseudoThrowTarget:
             LOG(INFO) << "LT" << (intptr_t)lir << ":";
             break;
-        case kMipsPseudoSuspendTarget:
+        case kPseudoSuspendTarget:
             LOG(INFO) << "LS" << (intptr_t)lir << ":";
             break;
-        case kMipsPseudoCaseLabel:
+        case kPseudoCaseLabel:
             LOG(INFO) << "LC" << (intptr_t)lir << ": Case target 0x" <<
                 std::hex << lir->operands[0] << "|" << std::dec <<
                 lir->operands[0];

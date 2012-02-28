@@ -27,30 +27,72 @@
 namespace art {
 
 #if defined(_CODEGEN_C)
-/*
- * loadConstant() sometimes needs to add a small imm to a pre-existing constant
- */
-STATIC ArmLIR *opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
-                        int value);
-STATIC ArmLIR *opRegReg(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
-                        int rSrc2);
+LIR *opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int value);
+LIR *opRegReg(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int rSrc2);
 
-/* Forward decalraton the portable versions due to circular dependency */
-STATIC bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
+/* Forward declaraton the portable versions due to circular dependency */
+bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
                                     RegLocation rlDest, RegLocation rlSrc1,
                                     RegLocation rlSrc2);
 
-STATIC bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
+bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
                                      RegLocation rlDest, RegLocation rlSrc1,
                                      RegLocation rlSrc2);
 
-STATIC bool genConversionPortable(CompilationUnit* cUnit, MIR* mir);
+bool genConversionPortable(CompilationUnit* cUnit, MIR* mir);
+
+ArmConditionCode oatArmConditionEncoding(ConditionCode code);
+
+int loadHelper(CompilationUnit* cUnit, int offset);
+LIR* callRuntimeHelper(CompilationUnit* cUnit, int reg);
+RegLocation getRetLoc(CompilationUnit* cUnit);
+LIR* loadConstant(CompilationUnit* cUnit, int reg, int immVal);
+void genRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
+                    int srcLo, int srcHi);
+LIR* genRegCopy(CompilationUnit* cUnit, int rDest, int rSrc);
+LIR* genCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
+                     int checkValue);
+void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
+                     RegLocation rlFree);
+
+
+/*
+ * Return most flexible allowed register class based on size.
+ * Bug: 2813841
+ * Must use a core register for data types narrower than word (due
+ * to possible unaligned load/store.
+ */
+inline RegisterClass oatRegClassBySize(OpSize size)
+{
+    return (size == kUnsignedHalf ||
+            size == kSignedHalf ||
+            size == kUnsignedByte ||
+            size == kSignedByte ) ? kCoreReg : kAnyReg;
+}
+
+/*
+ * Construct an s4 from two consecutive half-words of switch data.
+ * This needs to check endianness because the DEX optimizer only swaps
+ * half-words in instruction stream.
+ *
+ * "switchData" must be 32-bit aligned.
+ */
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+inline s4 s4FromSwitchData(const void* switchData) {
+    return *(s4*) switchData;
+}
+#else
+inline s4 s4FromSwitchData(const void* switchData) {
+    u2* data = switchData;
+    return data[0] | (((s4) data[1]) << 16);
+}
+#endif
 
 #endif
 
-extern void oatSetupResourceMasks(ArmLIR* lir);
+extern void oatSetupResourceMasks(LIR* lir);
 
-extern ArmLIR* oatRegCopyNoInsert(CompilationUnit* cUnit, int rDest,
+extern LIR* oatRegCopyNoInsert(CompilationUnit* cUnit, int rDest,
                                           int rSrc);
 
 }  // namespace art

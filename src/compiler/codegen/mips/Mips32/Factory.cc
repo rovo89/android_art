@@ -38,21 +38,17 @@ static int fpTemps[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
                         r_F8, r_F9, r_F10, r_F11, r_F12, r_F13, r_F14, r_F15};
 #endif
 
-static void storePair(CompilationUnit *cUnit, int base, int lowReg,
-                      int highReg);
-static void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg);
-static MipsLIR *loadWordDisp(CompilationUnit *cUnit, int rBase, int displacement,
-                            int rDest);
-static MipsLIR *storeWordDisp(CompilationUnit *cUnit, int rBase,
-                             int displacement, int rSrc);
-static MipsLIR *genRegRegCheck(CompilationUnit *cUnit,
-                              MipsConditionCode cond,
-                              int reg1, int reg2, int dOffset,
-                              MipsLIR *pcrLabel);
-static MipsLIR *loadConstant(CompilationUnit *cUnit, int rDest, int value);
+void storePair(CompilationUnit *cUnit, int base, int lowReg,
+               int highReg);
+void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg);
+MipsLIR *loadWordDisp(CompilationUnit *cUnit, int rBase, int displacement,
+                      int rDest);
+MipsLIR *storeWordDisp(CompilationUnit *cUnit, int rBase,
+                       int displacement, int rSrc);
+MipsLIR *loadConstant(CompilationUnit *cUnit, int rDest, int value);
 
 #ifdef __mips_hard_float
-static MipsLIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
+MipsLIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
     MipsLIR* res = (MipsLIR *) oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
     res->operands[0] = rDest;
@@ -94,8 +90,8 @@ static MipsLIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
  * 1) rDest is freshly returned from oatAllocTemp or
  * 2) The codegen is under fixed register usage
  */
-static MipsLIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest,
-                                     int value)
+MipsLIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest,
+                               int value)
 {
     MipsLIR *res;
 
@@ -135,7 +131,7 @@ static MipsLIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest,
  * Load an immediate value into a fixed or temp register.  Target
  * register is clobbered, and marked inUse.
  */
-static MipsLIR *loadConstant(CompilationUnit *cUnit, int rDest, int value)
+MipsLIR *loadConstant(CompilationUnit *cUnit, int rDest, int value)
 {
     if (oatIsTemp(cUnit, rDest)) {
         oatClobber(cUnit, rDest);
@@ -144,24 +140,7 @@ static MipsLIR *loadConstant(CompilationUnit *cUnit, int rDest, int value)
     return loadConstantNoClobber(cUnit, rDest, value);
 }
 
-/*
- * Load a class pointer value into a fixed or temp register.  Target
- * register is clobbered, and marked inUse.
- */
-static MipsLIR *loadClassPointer(CompilationUnit *cUnit, int rDest, int value)
-{
-    MipsLIR *res;
-    if (oatIsTemp(cUnit, rDest)) {
-        oatClobber(cUnit, rDest);
-        oatMarkInUse(cUnit, rDest);
-    }
-    res = newLIR2(cUnit, kMipsLui, rDest, value>>16);
-    if (value & 0xffff)
-        newLIR3(cUnit, kMipsOri, rDest, rDest, value);
-    return res;
-}
-
-static MipsLIR *opNone(CompilationUnit *cUnit, OpKind op)
+MipsLIR *opNone(CompilationUnit *cUnit, OpKind op)
 {
     MipsLIR *res;
     MipsOpCode opcode = kMipsNop;
@@ -176,7 +155,27 @@ static MipsLIR *opNone(CompilationUnit *cUnit, OpKind op)
     return res;
 }
 
-static MipsLIR *opCompareBranch(CompilationUnit *cUnit, MipsOpCode opc, int rs, int rt)
+
+MipsLIR *opCmpBranchCC(CompilationUnit *cUnit, MipsConditionCode cc,
+                           int rs, int rt)
+{
+    UNIMPLEMENTED(FATAL);
+    return 0;
+}
+MipsLIR *opCmpImmBranchCC(CompilationUnit *cUnit, MipsConditionCode cc,
+                           int rs, int immVal)
+{
+    UNIMPLEMENTED(FATAL);
+    return 0;
+}
+MipsLIR *opCmpImmBranch(CompilationUnit *cUnit, MipsOpCode cc,
+                           int rs, int immVal)
+{
+    UNIMPLEMENTED(FATAL);
+    return 0;
+}
+
+MipsLIR *opCmpBranch(CompilationUnit *cUnit, MipsOpCode opc, int rs, int rt)
 {
     MipsLIR *res;
     if (rt < 0) {
@@ -189,9 +188,9 @@ static MipsLIR *opCompareBranch(CompilationUnit *cUnit, MipsOpCode opc, int rs, 
     return res;
 }
 
-static MipsLIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask);
+MipsLIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask);
 
-static MipsLIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
+MipsLIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
 {
     MipsOpCode opcode = kMipsNop;
     switch (op) {
@@ -204,8 +203,8 @@ static MipsLIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
     return newLIR2(cUnit, opcode, r_RA, rDestSrc);
 }
 
-static MipsLIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
-                           int rSrc1, int value);
+MipsLIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
+                     int rSrc1, int value);
 MipsLIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
                   int value)
 {
@@ -238,7 +237,7 @@ MipsLIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
     return res;
 }
 
-static MipsLIR *opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest,
+MipsLIR *opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest,
                            int rSrc1, int rSrc2)
 {
     MipsOpCode opcode = kMipsNop;
@@ -277,7 +276,7 @@ static MipsLIR *opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest,
     return newLIR3(cUnit, opcode, rDest, rSrc1, rSrc2);
 }
 
-static MipsLIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
+MipsLIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
                            int rSrc1, int value)
 {
     MipsLIR *res;
@@ -412,7 +411,7 @@ MipsLIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
     return newLIR2(cUnit, opcode, rDestSrc1, rSrc2);
 }
 
-static MipsLIR *loadConstantValueWide(CompilationUnit *cUnit, int rDestLo,
+MipsLIR *loadConstantValueWide(CompilationUnit *cUnit, int rDestLo,
                                      int rDestHi, int valLo, int valHi)
 {
     MipsLIR *res;
@@ -422,7 +421,7 @@ static MipsLIR *loadConstantValueWide(CompilationUnit *cUnit, int rDestLo,
 }
 
 /* Load value from base + scaled index. */
-static MipsLIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
+MipsLIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
                                int rIndex, int rDest, int scale, OpSize size)
 {
     MipsLIR *first = NULL;
@@ -479,7 +478,7 @@ static MipsLIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
 }
 
 /* store value base base + scaled index. */
-static MipsLIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
+MipsLIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
                                 int rIndex, int rSrc, int scale, OpSize size)
 {
     MipsLIR *first = NULL;
@@ -531,7 +530,7 @@ static MipsLIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
     return first;
 }
 
-static MipsLIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
+MipsLIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
     int i;
     int loadCnt = 0;
@@ -553,7 +552,7 @@ static MipsLIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
     return res; /* NULL always returned which should be ok since no callers use it */
 }
 
-static MipsLIR *storeMultiple(CompilationUnit *cUnit, int rBase, int rMask)
+MipsLIR *storeMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
     int i;
     int storeCnt = 0;
@@ -575,7 +574,7 @@ static MipsLIR *storeMultiple(CompilationUnit *cUnit, int rBase, int rMask)
     return res; /* NULL always returned which should be ok since no callers use it */
 }
 
-static MipsLIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
+MipsLIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
                                 int displacement, int rDest, int rDestHi,
                                 OpSize size, int sReg)
 /*
@@ -681,7 +680,7 @@ static MipsLIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
     return load;
 }
 
-static MipsLIR *loadBaseDisp(CompilationUnit *cUnit, MIR *mir, int rBase,
+MipsLIR *loadBaseDisp(CompilationUnit *cUnit, MIR *mir, int rBase,
                             int displacement, int rDest, OpSize size,
                             int sReg)
 {
@@ -689,15 +688,15 @@ static MipsLIR *loadBaseDisp(CompilationUnit *cUnit, MIR *mir, int rBase,
                             size, sReg);
 }
 
-static MipsLIR *loadBaseDispWide(CompilationUnit *cUnit, MIR *mir, int rBase,
-                                int displacement, int rDestLo, int rDestHi,
+MipsLIR *loadBaseDispWide(CompilationUnit *cUnit, MIR *mir, int rBase,
+                          int displacement, int rDestLo, int rDestHi,
                                 int sReg)
 {
     return loadBaseDispBody(cUnit, mir, rBase, displacement, rDestLo, rDestHi,
                             kLong, sReg);
 }
 
-static MipsLIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
+MipsLIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
                                  int displacement, int rSrc, int rSrcHi,
                                  OpSize size)
 {
@@ -786,31 +785,25 @@ static MipsLIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
     return res;
 }
 
-static MipsLIR *storeBaseDisp(CompilationUnit *cUnit, int rBase,
-                             int displacement, int rSrc, OpSize size)
+MipsLIR *storeBaseDisp(CompilationUnit *cUnit, int rBase,
+                       int displacement, int rSrc, OpSize size)
 {
     return storeBaseDispBody(cUnit, rBase, displacement, rSrc, -1, size);
 }
 
-static MipsLIR *storeBaseDispWide(CompilationUnit *cUnit, int rBase,
-                                 int displacement, int rSrcLo, int rSrcHi)
+MipsLIR *storeBaseDispWide(CompilationUnit *cUnit, int rBase,
+                           int displacement, int rSrcLo, int rSrcHi)
 {
     return storeBaseDispBody(cUnit, rBase, displacement, rSrcLo, rSrcHi, kLong);
 }
 
-static void storePair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
-{
-    storeWordDisp(cUnit, base, LOWORD_OFFSET, lowReg);
-    storeWordDisp(cUnit, base, HIWORD_OFFSET, highReg);
-}
-
-static void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
+void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
 {
     loadWordDisp(cUnit, base, LOWORD_OFFSET , lowReg);
     loadWordDisp(cUnit, base, HIWORD_OFFSET , highReg);
 }
 
-static MipsLIR* genRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
+MipsLIR* genRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
 {
     MipsLIR* res;
     MipsOpCode opcode;
@@ -831,14 +824,14 @@ static MipsLIR* genRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
     return res;
 }
 
-static MipsLIR* genRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
+MipsLIR* genRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
     MipsLIR *res = genRegCopyNoInsert(cUnit, rDest, rSrc);
     oatAppendLIR(cUnit, (LIR*)res);
     return res;
 }
 
-static void genRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
+void genRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
                            int srcLo, int srcHi)
 {
 #ifdef __mips_hard_float
@@ -881,10 +874,10 @@ static void genRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
 #endif
 }
 
-static inline MipsLIR *genRegImmCheck(CompilationUnit *cUnit,
-                                     MipsConditionCode cond, int reg,
-                                     int checkValue, int dOffset,
-                                     MipsLIR *pcrLabel)
+inline MipsLIR *genRegImmCheck(CompilationUnit *cUnit,
+                               MipsConditionCode cond, int reg,
+                               int checkValue, int dOffset,
+                               MipsLIR *pcrLabel)
 {
     MipsLIR *branch = NULL;
 

@@ -20,7 +20,7 @@
 namespace art {
 
 /* Enter the node to the dfsOrder list then visit its successors */
-STATIC void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
+void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
 {
 
     if (block->visited || block->hidden) return;
@@ -51,7 +51,7 @@ STATIC void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
 }
 
 /* Sort the blocks by the Depth-First-Search */
-STATIC void computeDFSOrders(CompilationUnit* cUnit)
+void computeDFSOrders(CompilationUnit* cUnit)
 {
     /* Initialize or reset the DFS preOrder list */
     if (cUnit->dfsOrder.elemList == NULL) {
@@ -83,7 +83,7 @@ STATIC void computeDFSOrders(CompilationUnit* cUnit)
  * Mark block bit on the per-Dalvik register vector to denote that Dalvik
  * register idx is defined in BasicBlock bb.
  */
-STATIC bool fillDefBlockMatrix(CompilationUnit* cUnit, BasicBlock* bb)
+bool fillDefBlockMatrix(CompilationUnit* cUnit, BasicBlock* bb)
 {
     if (bb->dataFlowInfo == NULL) return false;
 
@@ -99,7 +99,7 @@ STATIC bool fillDefBlockMatrix(CompilationUnit* cUnit, BasicBlock* bb)
     return true;
 }
 
-STATIC void computeDefBlockMatrix(CompilationUnit* cUnit)
+void computeDefBlockMatrix(CompilationUnit* cUnit)
 {
     int numRegisters = cUnit->numDalvikRegisters;
     /* Allocate numDalvikRegisters bit vector pointers */
@@ -132,7 +132,7 @@ STATIC void computeDefBlockMatrix(CompilationUnit* cUnit)
 }
 
 /* Compute the post-order traversal of the CFG */
-STATIC void computeDomPostOrderTraversal(CompilationUnit* cUnit, BasicBlock* bb)
+void computeDomPostOrderTraversal(CompilationUnit* cUnit, BasicBlock* bb)
 {
     ArenaBitVectorIterator bvIterator;
     oatBitVectorIteratorInit(bb->iDominated, &bvIterator);
@@ -157,8 +157,8 @@ STATIC void computeDomPostOrderTraversal(CompilationUnit* cUnit, BasicBlock* bb)
     }
 }
 
-STATIC void checkForDominanceFrontier(CompilationUnit* cUnit, BasicBlock* domBB,
-                                      const BasicBlock* succBB)
+void checkForDominanceFrontier(CompilationUnit* cUnit, BasicBlock* domBB,
+                               const BasicBlock* succBB)
 {
     /*
      * TODO - evaluate whether phi will ever need to be inserted into exit
@@ -172,7 +172,7 @@ STATIC void checkForDominanceFrontier(CompilationUnit* cUnit, BasicBlock* domBB,
 }
 
 /* Worker function to compute the dominance frontier */
-STATIC bool computeDominanceFrontier(CompilationUnit* cUnit, BasicBlock* bb)
+bool computeDominanceFrontier(CompilationUnit* cUnit, BasicBlock* bb)
 {
     GrowableList* blockList = &cUnit->blockList;
 
@@ -221,7 +221,7 @@ STATIC bool computeDominanceFrontier(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 /* Worker function for initializing domination-related data structures */
-STATIC bool initializeDominationInfo(CompilationUnit* cUnit, BasicBlock* bb)
+bool initializeDominationInfo(CompilationUnit* cUnit, BasicBlock* bb)
 {
     int numTotalBlocks = cUnit->blockList.numUsed;
 
@@ -251,7 +251,7 @@ STATIC bool initializeDominationInfo(CompilationUnit* cUnit, BasicBlock* bb)
  * is only used when kDebugVerifyDataflow is active and should compute
  * the same dominator sets as computeBlockDominators.
  */
-STATIC bool slowComputeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
+bool slowComputeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
 {
     GrowableList* blockList = &cUnit->blockList;
     int numTotalBlocks = blockList->numUsed;
@@ -289,7 +289,7 @@ STATIC bool slowComputeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
  * used when kDebugVerifyDataflow is active and should compute the
  * same iDom as computeBlockIDom.
  */
-STATIC bool slowComputeBlockIDom(CompilationUnit* cUnit, BasicBlock* bb)
+bool slowComputeBlockIDom(CompilationUnit* cUnit, BasicBlock* bb)
 {
     GrowableList* blockList = &cUnit->blockList;
     ArenaBitVector* tempBlockV = cUnit->tempBlockV;
@@ -352,7 +352,7 @@ int findCommonParent(CompilationUnit *cUnit, int block1, int block2)
 }
 
 /* Worker function to compute each block's immediate dominator */
-STATIC bool computeBlockIDom(CompilationUnit* cUnit, BasicBlock* bb)
+bool computeBlockIDom(CompilationUnit* cUnit, BasicBlock* bb)
 {
     GrowableListIterator iter;
     int idom = -1;
@@ -397,7 +397,7 @@ STATIC bool computeBlockIDom(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 /* Worker function to compute each block's domintors */
-STATIC bool computeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
+bool computeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
 {
     if (bb == cUnit->entryBlock) {
         oatClearAllBits(bb->dominators);
@@ -408,7 +408,7 @@ STATIC bool computeBlockDominators(CompilationUnit* cUnit, BasicBlock* bb)
     return false;
 }
 
-STATIC bool setDominators(CompilationUnit* cUnit, BasicBlock* bb)
+bool setDominators(CompilationUnit* cUnit, BasicBlock* bb)
 {
     if (bb != cUnit->entryBlock) {
         int iDomDFSIdx = cUnit->iDomList[bb->dfsId];
@@ -427,7 +427,7 @@ STATIC bool setDominators(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 /* Compute dominators, immediate dominator, and dominance fronter */
-STATIC void computeDominators(CompilationUnit* cUnit)
+void computeDominators(CompilationUnit* cUnit)
 {
     int numReachableBlocks = cUnit->numReachableBlocks;
     int numTotalBlocks = cUnit->blockList.numUsed;
@@ -513,7 +513,7 @@ STATIC void computeDominators(CompilationUnit* cUnit)
  * Perform dest U= src1 ^ ~src2
  * This is probably not general enough to be placed in BitVector.[ch].
  */
-STATIC void computeSuccLiveIn(ArenaBitVector* dest,
+void computeSuccLiveIn(ArenaBitVector* dest,
                               const ArenaBitVector* src1,
                               const ArenaBitVector* src2)
 {
@@ -535,7 +535,7 @@ STATIC void computeSuccLiveIn(ArenaBitVector* dest,
  * The calculated result is used for phi-node pruning - where we only need to
  * insert a phi node if the variable is live-in to the block.
  */
-STATIC bool computeBlockLiveIns(CompilationUnit* cUnit, BasicBlock* bb)
+bool computeBlockLiveIns(CompilationUnit* cUnit, BasicBlock* bb)
 {
     ArenaBitVector* tempDalvikRegisterV = cUnit->tempDalvikRegisterV;
 
@@ -572,7 +572,7 @@ STATIC bool computeBlockLiveIns(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 /* Insert phi nodes to for each variable to the dominance frontiers */
-STATIC void insertPhiNodes(CompilationUnit* cUnit)
+void insertPhiNodes(CompilationUnit* cUnit)
 {
     int dalvikReg;
     const GrowableList* blockList = &cUnit->blockList;
@@ -658,7 +658,7 @@ STATIC void insertPhiNodes(CompilationUnit* cUnit)
  * Worker function to insert phi-operands with latest SSA names from
  * predecessor blocks
  */
-STATIC bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
+bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
 {
     ArenaBitVector* ssaRegV = cUnit->tempSSARegisterV;
     GrowableListIterator iter;
@@ -711,7 +711,7 @@ STATIC bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
     return true;
 }
 
-STATIC void doDFSPreOrderSSARename(CompilationUnit* cUnit, BasicBlock* block)
+void doDFSPreOrderSSARename(CompilationUnit* cUnit, BasicBlock* block)
 {
 
     if (block->visited || block->hidden) return;

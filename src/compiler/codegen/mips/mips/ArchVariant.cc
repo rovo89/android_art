@@ -25,9 +25,9 @@ namespace art {
  * Determine the initial instruction set to be used for this trace.
  * Later components may decide to change this.
  */
-JitInstructionSetType oatInstructionSet(void)
+OatInstructionSetType oatInstructionSet(void)
 {
-    return DALVIK_OAT_MIPS;
+    return DALVIK_OAT_MIPS32;
 }
 
 /* Architecture-specific initializations and checks go here */

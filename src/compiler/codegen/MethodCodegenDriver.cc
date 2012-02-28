@@ -21,11 +21,11 @@ namespace art {
 #define DISPLAY_MISSING_TARGETS (cUnit->enableDebug & \
     (1 << kDebugDisplayMissingTargets))
 
-STATIC const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0,
-                                   INVALID_REG, INVALID_REG, INVALID_SREG};
+const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0,
+                            INVALID_REG, INVALID_REG, INVALID_SREG};
 
 /* Mark register usage state and return long retloc */
-STATIC RegLocation getRetLocWide(CompilationUnit* cUnit)
+RegLocation getRetLocWide(CompilationUnit* cUnit)
 {
     RegLocation res = LOC_C_RETURN_WIDE;
     oatLockTemp(cUnit, res.lowReg);
@@ -34,28 +34,28 @@ STATIC RegLocation getRetLocWide(CompilationUnit* cUnit)
     return res;
 }
 
-STATIC RegLocation getRetLoc(CompilationUnit* cUnit)
+RegLocation getRetLoc(CompilationUnit* cUnit)
 {
     RegLocation res = LOC_C_RETURN;
     oatLockTemp(cUnit, res.lowReg);
     return res;
 }
 
-STATIC void genInvoke(CompilationUnit* cUnit, MIR* mir,
-                      InvokeType type, bool isRange)
+void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
-    TGT_LIR* nullCk;
-    TGT_LIR** pNullCk = NULL;
+    LIR* nullCk;
+    LIR** pNullCk = NULL;
     NextCallInsn nextCallInsn;
     oatFlushAllRegs(cUnit);    /* Everything to home location */
     // Explicit register usage
     oatLockCallTemps(cUnit);
 
     OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
-                             *cUnit->dex_file, *cUnit->dex_cache, cUnit->code_item,
-                             cUnit->method_idx, cUnit->access_flags);
+                             *cUnit->dex_file, *cUnit->dex_cache,
+                             cUnit->code_item, cUnit->method_idx,
+                             cUnit->access_flags);
 
     uint32_t dexMethodIdx = dInsn->vB;
     int vtableIdx;
@@ -111,8 +111,8 @@ STATIC void genInvoke(CompilationUnit* cUnit, MIR* mir,
  * load/store utilities here, or target-dependent genXX() handlers
  * when necessary.
  */
-STATIC bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
-                                     BasicBlock* bb, TGT_LIR* labelList)
+bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
+                              BasicBlock* bb, LIR* labelList)
 {
     bool res = false;   // Assume success
     RegLocation rlSrc[3];
@@ -690,7 +690,7 @@ STATIC bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     return res;
 }
 
-STATIC const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
+const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
     "kMirOpPhi",
     "kMirOpNullNRangeUpCheck",
     "kMirOpNullNRangeDownCheck",
@@ -700,7 +700,7 @@ STATIC const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
 };
 
 /* Extended MIR instructions like PHI */
-STATIC void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
+void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
 {
     int opOffset = mir->dalvikInsn.opcode - kMirOpFirst;
     char* msg = NULL;
@@ -709,7 +709,7 @@ STATIC void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
                             false, kAllocDebugInfo);
         strcpy(msg, extendedMIROpNames[opOffset]);
     }
-    TGT_LIR* op = newLIR1(cUnit, kArmPseudoExtended, (int) msg);
+    LIR* op = newLIR1(cUnit, kPseudoExtended, (int) msg);
 
     switch ((ExtendedMIROpcode)mir->dalvikInsn.opcode) {
         case kMirOpPhi: {
@@ -718,7 +718,7 @@ STATIC void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
                 ssaString = oatGetSSAString(cUnit, mir->ssaRep);
             }
             op->flags.isNop = true;
-            newLIR1(cUnit, kArmPseudoSSARep, (int) ssaString);
+            newLIR1(cUnit, kPseudoSSARep, (int) ssaString);
             break;
         }
         default:
@@ -727,17 +727,17 @@ STATIC void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
 }
 
 /* Handle the content in each basic block */
-STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
+bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 {
     MIR* mir;
-    TGT_LIR* labelList = (TGT_LIR*) cUnit->blockLabelList;
+    LIR* labelList = (LIR*) cUnit->blockLabelList;
     int blockId = bb->id;
 
     cUnit->curBlock = bb;
     labelList[blockId].operands[0] = bb->startOffset;
 
     /* Insert the block label */
-    labelList[blockId].opcode = kArmPseudoNormalBlockLabel;
+    labelList[blockId].opcode = kPseudoNormalBlockLabel;
     oatAppendLIR(cUnit, (LIR*) &labelList[blockId]);
 
     /* Reset local optimization data on block boundaries */
@@ -745,7 +745,7 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
     oatClobberAllRegs(cUnit);
     oatResetDefTracking(cUnit);
 
-    TGT_LIR* headLIR = NULL;
+    LIR* headLIR = NULL;
 
     if (bb->blockType == kEntryBlock) {
         genEntrySequence(cUnit, bb);
@@ -775,12 +775,12 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
         InstructionFormat dalvikFormat =
             dexGetFormatFromOpcode(dalvikOpcode);
 
-        TGT_LIR* boundaryLIR;
+        LIR* boundaryLIR;
 
         /* Mark the beginning of a Dalvik instruction for line tracking */
         char* instStr = cUnit->printMe ?
            oatGetDalvikDisassembly(cUnit, &mir->dalvikInsn, "") : NULL;
-        boundaryLIR = newLIR1(cUnit, kArmPseudoDalvikByteCodeBoundary,
+        boundaryLIR = newLIR1(cUnit, kPseudoDalvikByteCodeBoundary,
                               (intptr_t) instStr);
         cUnit->boundaryMap.insert(std::make_pair(mir->offset,
                                  (LIR*)boundaryLIR));
@@ -799,7 +799,7 @@ STATIC bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
         /* Don't generate the SSA annotation unless verbose mode is on */
         if (cUnit->printMe && mir->ssaRep) {
             char* ssaString = oatGetSSAString(cUnit, mir->ssaRep);
-            newLIR1(cUnit, kArmPseudoSSARep, (int) ssaString);
+            newLIR1(cUnit, kPseudoSSARep, (int) ssaString);
         }
 
         bool notHandled = compileDalvikInstruction(cUnit, mir, bb, labelList);
@@ -837,7 +837,7 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
 {
     /* Used to hold the labels of each block */
     cUnit->blockLabelList =
-        (void *) oatNew(cUnit, sizeof(TGT_LIR) * cUnit->numBlocks, true,
+        (void *) oatNew(cUnit, sizeof(LIR) * cUnit->numBlocks, true,
                         kAllocLIR);
 
     oatDataFlowAnalysisDispatcher(cUnit, methodBlockCodeGen,
@@ -850,7 +850,7 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
 }
 
 /* Needed by the ld/st optmizatons */
-TGT_LIR* oatRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
+LIR* oatRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
 {
     return genRegCopyNoInsert(cUnit, rDest, rSrc);
 }

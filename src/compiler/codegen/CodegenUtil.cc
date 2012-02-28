@@ -16,7 +16,378 @@
 
 namespace art {
 
-STATIC void pushWord(std::vector<uint16_t>&buf, int data) {
+void setMemRefType(LIR* lir, bool isLoad, int memType)
+{
+    u8 *maskPtr;
+    u8 mask = ENCODE_MEM;;
+    DCHECK(EncodingMap[lir->opcode].flags & (IS_LOAD | IS_STORE));
+    if (isLoad) {
+        maskPtr = &lir->useMask;
+    } else {
+        maskPtr = &lir->defMask;
+    }
+    /* Clear out the memref flags */
+    *maskPtr &= ~mask;
+    /* ..and then add back the one we need */
+    switch(memType) {
+        case kLiteral:
+            DCHECK(isLoad);
+            *maskPtr |= ENCODE_LITERAL;
+            break;
+        case kDalvikReg:
+            *maskPtr |= ENCODE_DALVIK_REG;
+            break;
+        case kHeapRef:
+            *maskPtr |= ENCODE_HEAP_REF;
+            break;
+        case kMustNotAlias:
+            /* Currently only loads can be marked as kMustNotAlias */
+            DCHECK(!(EncodingMap[lir->opcode].flags & IS_STORE));
+            *maskPtr |= ENCODE_MUST_NOT_ALIAS;
+            break;
+        default:
+            LOG(FATAL) << "Oat: invalid memref kind - " << memType;
+    }
+}
+
+/*
+ * Mark load/store instructions that access Dalvik registers through r5FP +
+ * offset.
+ */
+void annotateDalvikRegAccess(LIR* lir, int regId, bool isLoad)
+{
+    setMemRefType(lir, isLoad, kDalvikReg);
+
+    /*
+     * Store the Dalvik register id in aliasInfo. Mark he MSB if it is a 64-bit
+     * access.
+     */
+    lir->aliasInfo = regId;
+    if (DOUBLEREG(lir->operands[0])) {
+        lir->aliasInfo |= 0x80000000;
+    }
+}
+
+/*
+ * Decode the register id.
+ */
+inline u8 getRegMaskCommon(int reg)
+{
+    u8 seed;
+    int shift;
+    int regId = reg & 0x1f;
+
+    /*
+     * Each double register is equal to a pair of single-precision FP registers
+     */
+    seed = DOUBLEREG(reg) ? 3 : 1;
+    /* FP register starts at bit position 16 */
+    shift = FPREG(reg) ? kFPReg0 : 0;
+    /* Expand the double register id into single offset */
+    shift += regId;
+    return (seed << shift);
+}
+
+/*
+ * Mark the corresponding bit(s).
+ */
+inline void setupRegMask(u8* mask, int reg)
+{
+    *mask |= getRegMaskCommon(reg);
+}
+
+/*
+ * Set up the proper fields in the resource mask
+ */
+void setupResourceMasks(LIR* lir)
+{
+    int opcode = lir->opcode;
+    int flags;
+
+    if (opcode <= 0) {
+        lir->useMask = lir->defMask = 0;
+        return;
+    }
+
+    flags = EncodingMap[lir->opcode].flags;
+
+    if (flags & NEEDS_FIXUP) {
+        lir->flags.pcRelFixup = true;
+    }
+
+    /* Set up the mask for resources that are updated */
+    if (flags & (IS_LOAD | IS_STORE)) {
+        /* Default to heap - will catch specialized classes later */
+        setMemRefType(lir, flags & IS_LOAD, kHeapRef);
+    }
+
+    /*
+     * Conservatively assume the branch here will call out a function that in
+     * turn will trash everything.
+     */
+    if (flags & IS_BRANCH) {
+        lir->defMask = lir->useMask = ENCODE_ALL;
+        return;
+    }
+
+    if (flags & REG_DEF0) {
+        setupRegMask(&lir->defMask, lir->operands[0]);
+    }
+
+    if (flags & REG_DEF1) {
+        setupRegMask(&lir->defMask, lir->operands[1]);
+    }
+
+    if (flags & REG_DEF_SP) {
+        lir->defMask |= ENCODE_REG_SP;
+    }
+
+    if (flags & REG_DEF_LR) {
+        lir->defMask |= ENCODE_REG_LR;
+    }
+
+    if (flags & REG_DEF_LIST0) {
+        lir->defMask |= ENCODE_REG_LIST(lir->operands[0]);
+    }
+
+    if (flags & REG_DEF_LIST1) {
+        lir->defMask |= ENCODE_REG_LIST(lir->operands[1]);
+    }
+
+    if (flags & REG_DEF_FPCS_LIST0) {
+        lir->defMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
+    }
+
+    if (flags & REG_DEF_FPCS_LIST2) {
+        for (int i = 0; i < lir->operands[2]; i++) {
+            setupRegMask(&lir->defMask, lir->operands[1] + i);
+        }
+    }
+
+    if (flags & SETS_CCODES) {
+        lir->defMask |= ENCODE_CCODE;
+    }
+
+#if defined(TARGET_ARM)
+    /* Conservatively treat the IT block */
+    if (flags & IS_IT) {
+        lir->defMask = ENCODE_ALL;
+    }
+#endif
+
+    if (flags & (REG_USE0 | REG_USE1 | REG_USE2 | REG_USE3)) {
+        int i;
+
+        for (i = 0; i < 4; i++) {
+            if (flags & (1 << (kRegUse0 + i))) {
+                setupRegMask(&lir->useMask, lir->operands[i]);
+            }
+        }
+    }
+
+    if (flags & REG_USE_PC) {
+        lir->useMask |= ENCODE_REG_PC;
+    }
+
+    if (flags & REG_USE_SP) {
+        lir->useMask |= ENCODE_REG_SP;
+    }
+
+    if (flags & REG_USE_LIST0) {
+        lir->useMask |= ENCODE_REG_LIST(lir->operands[0]);
+    }
+
+    if (flags & REG_USE_LIST1) {
+        lir->useMask |= ENCODE_REG_LIST(lir->operands[1]);
+    }
+
+    if (flags & REG_USE_FPCS_LIST0) {
+        lir->useMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
+    }
+
+    if (flags & REG_USE_FPCS_LIST2) {
+        for (int i = 0; i < lir->operands[2]; i++) {
+            setupRegMask(&lir->useMask, lir->operands[1] + i);
+        }
+    }
+
+    if (flags & USES_CCODES) {
+        lir->useMask |= ENCODE_CCODE;
+    }
+
+#if defined(TARGET_ARM)
+    /* Fixup for kThumbPush/lr and kThumbPop/pc */
+    if (opcode == kThumbPush || opcode == kThumbPop) {
+        u8 r8Mask = getRegMaskCommon(r8);
+        if ((opcode == kThumbPush) && (lir->useMask & r8Mask)) {
+            lir->useMask &= ~r8Mask;
+            lir->useMask |= ENCODE_REG_LR;
+        } else if ((opcode == kThumbPop) && (lir->defMask & r8Mask)) {
+            lir->defMask &= ~r8Mask;
+            lir->defMask |= ENCODE_REG_PC;
+        }
+    }
+#endif
+}
+
+/*
+ * The following are building blocks to construct low-level IRs with 0 - 4
+ * operands.
+ */
+LIR* newLIR0(CompilationUnit* cUnit, ArmOpcode opcode)
+{
+    LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
+    DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & NO_OPERAND));
+    insn->opcode = opcode;
+    setupResourceMasks(insn);
+    insn->dalvikOffset = cUnit->currentDalvikOffset;
+    oatAppendLIR(cUnit, (LIR*) insn);
+    return insn;
+}
+
+LIR* newLIR1(CompilationUnit* cUnit, ArmOpcode opcode,
+                           int dest)
+{
+    LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
+    DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & IS_UNARY_OP));
+    insn->opcode = opcode;
+    insn->operands[0] = dest;
+    setupResourceMasks(insn);
+    insn->dalvikOffset = cUnit->currentDalvikOffset;
+    oatAppendLIR(cUnit, (LIR*) insn);
+    return insn;
+}
+
+LIR* newLIR2(CompilationUnit* cUnit, ArmOpcode opcode,
+                           int dest, int src1)
+{
+    LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
+    DCHECK(isPseudoOpcode(opcode) ||
+           (EncodingMap[opcode].flags & IS_BINARY_OP));
+    insn->opcode = opcode;
+    insn->operands[0] = dest;
+    insn->operands[1] = src1;
+    setupResourceMasks(insn);
+    insn->dalvikOffset = cUnit->currentDalvikOffset;
+    oatAppendLIR(cUnit, (LIR*) insn);
+    return insn;
+}
+
+LIR* newLIR3(CompilationUnit* cUnit, ArmOpcode opcode,
+                           int dest, int src1, int src2)
+{
+    LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
+    DCHECK(isPseudoOpcode(opcode) ||
+           (EncodingMap[opcode].flags & IS_TERTIARY_OP))
+            << (int)opcode << " "
+            << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
+            << cUnit->currentDalvikOffset;
+    insn->opcode = opcode;
+    insn->operands[0] = dest;
+    insn->operands[1] = src1;
+    insn->operands[2] = src2;
+    setupResourceMasks(insn);
+    insn->dalvikOffset = cUnit->currentDalvikOffset;
+    oatAppendLIR(cUnit, (LIR*) insn);
+    return insn;
+}
+
+#if defined(TARGET_ARM)
+LIR* newLIR4(CompilationUnit* cUnit, ArmOpcode opcode,
+                           int dest, int src1, int src2, int info)
+{
+    LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
+    DCHECK(isPseudoOpcode(opcode) ||
+           (EncodingMap[opcode].flags & IS_QUAD_OP));
+    insn->opcode = opcode;
+    insn->operands[0] = dest;
+    insn->operands[1] = src1;
+    insn->operands[2] = src2;
+    insn->operands[3] = info;
+    setupResourceMasks(insn);
+    insn->dalvikOffset = cUnit->currentDalvikOffset;
+    oatAppendLIR(cUnit, (LIR*) insn);
+    return insn;
+}
+#endif
+
+/*
+ * Search the existing constants in the literal pool for an exact or close match
+ * within specified delta (greater or equal to 0).
+ */
+LIR* scanLiteralPool(LIR* dataTarget, int value, unsigned int delta)
+{
+    while (dataTarget) {
+        if (((unsigned) (value - ((LIR* ) dataTarget)->operands[0])) <=
+            delta)
+            return (LIR* ) dataTarget;
+        dataTarget = dataTarget->next;
+    }
+    return NULL;
+}
+
+/* Search the existing constants in the literal pool for an exact wide match */
+LIR* scanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi)
+{
+    bool loMatch = false;
+    LIR* loTarget = NULL;
+    while (dataTarget) {
+        if (loMatch && (((LIR*)dataTarget)->operands[0] == valHi)) {
+            return (LIR*)loTarget;
+        }
+        loMatch = false;
+        if (((LIR*)dataTarget)->operands[0] == valLo) {
+            loMatch = true;
+            loTarget = dataTarget;
+        }
+        dataTarget = dataTarget->next;
+    }
+    return NULL;
+}
+
+/*
+ * The following are building blocks to insert constants into the pool or
+ * instruction streams.
+ */
+
+/* Add a 32-bit constant either in the constant pool or mixed with code */
+LIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP,
+                           int value)
+{
+    /* Add the constant to the literal pool */
+    if (constantListP) {
+        LIR* newValue = (LIR* ) oatNew(cUnit, sizeof(LIR), true,
+                                             kAllocData);
+        newValue->operands[0] = value;
+        newValue->next = *constantListP;
+        *constantListP = (LIR*) newValue;
+        return newValue;
+    } else {
+        /* Add the constant in the middle of code stream */
+        newLIR1(cUnit, kArm16BitData, (value & 0xffff));
+        newLIR1(cUnit, kArm16BitData, (value >> 16));
+    }
+    return NULL;
+}
+
+/* Add a 64-bit constant to the constant pool or mixed with code */
+LIR* addWideData(CompilationUnit* cUnit, LIR* *constantListP,
+                           int valLo, int valHi)
+{
+    LIR* res;
+    //FIXME: hard-coded little endian, need BE variant
+    if (constantListP == NULL) {
+        res = addWordData(cUnit, NULL, valLo);
+        addWordData(cUnit, NULL, valHi);
+    } else {
+        // Insert high word into list first
+        addWordData(cUnit, constantListP, valHi);
+        res = addWordData(cUnit, constantListP, valLo);
+    }
+    return res;
+}
+
+void pushWord(std::vector<uint16_t>&buf, int data) {
     buf.push_back( data & 0xffff);
     buf.push_back( (data >> 16) & 0xffff);
 }
@@ -27,10 +398,10 @@ void alignBuffer(std::vector<uint16_t>&buf, size_t offset) {
 }
 
 /* Write the literal pool to the output stream */
-STATIC void installLiteralPools(CompilationUnit* cUnit)
+void installLiteralPools(CompilationUnit* cUnit)
 {
     alignBuffer(cUnit->codeBuffer, cUnit->dataOffset);
-    TGT_LIR* dataLIR = (TGT_LIR*) cUnit->literalList;
+    LIR* dataLIR = (LIR*) cUnit->literalList;
     while (dataLIR != NULL) {
         pushWord(cUnit->codeBuffer, dataLIR->operands[0]);
         dataLIR = NEXT_LIR(dataLIR);
@@ -38,7 +409,7 @@ STATIC void installLiteralPools(CompilationUnit* cUnit)
 }
 
 /* Write the switch tables to the output stream */
-STATIC void installSwitchTables(CompilationUnit* cUnit)
+void installSwitchTables(CompilationUnit* cUnit)
 {
     GrowableListIterator iterator;
     oatGrowableListIteratorInit(&cUnit->switchTables, &iterator);
@@ -47,14 +418,14 @@ STATIC void installSwitchTables(CompilationUnit* cUnit)
              &iterator);
         if (tabRec == NULL) break;
         alignBuffer(cUnit->codeBuffer, tabRec->offset);
-        int bxOffset = tabRec->bxInst->generic.offset + 4;
+        int bxOffset = tabRec->bxInst->offset + 4;
         if (cUnit->printMe) {
             LOG(INFO) << "Switch table for offset 0x" << std::hex << bxOffset;
         }
         if (tabRec->table[0] == kSparseSwitchSignature) {
             int* keys = (int*)&(tabRec->table[2]);
             for (int elems = 0; elems < tabRec->table[1]; elems++) {
-                int disp = tabRec->targets[elems]->generic.offset - bxOffset;
+                int disp = tabRec->targets[elems]->offset - bxOffset;
                 if (cUnit->printMe) {
                     LOG(INFO) << "    Case[" << elems << "] key: 0x" <<
                         std::hex << keys[elems] << ", disp: 0x" <<
@@ -62,25 +433,25 @@ STATIC void installSwitchTables(CompilationUnit* cUnit)
                 }
                 pushWord(cUnit->codeBuffer, keys[elems]);
                 pushWord(cUnit->codeBuffer,
-                    tabRec->targets[elems]->generic.offset - bxOffset);
+                    tabRec->targets[elems]->offset - bxOffset);
             }
         } else {
             DCHECK_EQ(tabRec->table[0], kPackedSwitchSignature);
             for (int elems = 0; elems < tabRec->table[1]; elems++) {
-                int disp = tabRec->targets[elems]->generic.offset - bxOffset;
+                int disp = tabRec->targets[elems]->offset - bxOffset;
                 if (cUnit->printMe) {
                     LOG(INFO) << "    Case[" << elems << "] disp: 0x" <<
                         std::hex << disp;
                 }
                 pushWord(cUnit->codeBuffer,
-                         tabRec->targets[elems]->generic.offset - bxOffset);
+                         tabRec->targets[elems]->offset - bxOffset);
             }
         }
     }
 }
 
 /* Write the fill array dta to the output stream */
-STATIC void installFillArrayData(CompilationUnit* cUnit)
+void installFillArrayData(CompilationUnit* cUnit)
 {
     GrowableListIterator iterator;
     oatGrowableListIteratorInit(&cUnit->fillArrayData, &iterator);
@@ -95,7 +466,7 @@ STATIC void installFillArrayData(CompilationUnit* cUnit)
     }
 }
 
-STATIC int assignLiteralOffsetCommon(LIR* lir, int offset)
+int assignLiteralOffsetCommon(LIR* lir, int offset)
 {
     for (;lir != NULL; lir = lir->next) {
         lir->offset = offset;
@@ -104,32 +475,32 @@ STATIC int assignLiteralOffsetCommon(LIR* lir, int offset)
     return offset;
 }
 
-STATIC void createMappingTable(CompilationUnit* cUnit)
+void createMappingTable(CompilationUnit* cUnit)
 {
-    TGT_LIR* tgtLIR;
+    LIR* tgtLIR;
     int currentDalvikOffset = -1;
 
-    for (tgtLIR = (TGT_LIR *) cUnit->firstLIRInsn;
+    for (tgtLIR = (LIR *) cUnit->firstLIRInsn;
          tgtLIR;
          tgtLIR = NEXT_LIR(tgtLIR)) {
         if ((tgtLIR->opcode >= 0) && !tgtLIR->flags.isNop &&
-            (currentDalvikOffset != tgtLIR->generic.dalvikOffset)) {
+            (currentDalvikOffset != tgtLIR->dalvikOffset)) {
             // Changed - need to emit a record
-            cUnit->mappingTable.push_back(tgtLIR->generic.offset);
-            cUnit->mappingTable.push_back(tgtLIR->generic.dalvikOffset);
-            currentDalvikOffset = tgtLIR->generic.dalvikOffset;
+            cUnit->mappingTable.push_back(tgtLIR->offset);
+            cUnit->mappingTable.push_back(tgtLIR->dalvikOffset);
+            currentDalvikOffset = tgtLIR->dalvikOffset;
         }
     }
 }
 
 /* Determine the offset of each literal field */
-STATIC int assignLiteralOffset(CompilationUnit* cUnit, int offset)
+int assignLiteralOffset(CompilationUnit* cUnit, int offset)
 {
     offset = assignLiteralOffsetCommon(cUnit->literalList, offset);
     return offset;
 }
 
-STATIC int assignSwitchTablesOffset(CompilationUnit* cUnit, int offset)
+int assignSwitchTablesOffset(CompilationUnit* cUnit, int offset)
 {
     GrowableListIterator iterator;
     oatGrowableListIteratorInit(&cUnit->switchTables, &iterator);
@@ -148,7 +519,7 @@ STATIC int assignSwitchTablesOffset(CompilationUnit* cUnit, int offset)
     return offset;
 }
 
-STATIC int assignFillArrayDataOffset(CompilationUnit* cUnit, int offset)
+int assignFillArrayDataOffset(CompilationUnit* cUnit, int offset)
 {
     GrowableListIterator iterator;
     oatGrowableListIteratorInit(&cUnit->fillArrayData, &iterator);
@@ -230,6 +601,119 @@ void oatAssembleLIR(CompilationUnit* cUnit)
     createMappingTable(cUnit);
 }
 
+/*
+ * Insert a kPseudoCaseLabel at the beginning of the Dalvik
+ * offset vaddr.  This label will be used to fix up the case
+ * branch table during the assembly phase.  Be sure to set
+ * all resource flags on this to prevent code motion across
+ * target boundaries.  KeyVal is just there for debugging.
+ */
+LIR* insertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
+{
+    std::map<unsigned int, LIR*>::iterator it;
+    it = cUnit->boundaryMap.find(vaddr);
+    if (it == cUnit->boundaryMap.end()) {
+        LOG(FATAL) << "Error: didn't find vaddr 0x" << std::hex << vaddr;
+    }
+    LIR* newLabel = (LIR*)oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
+    newLabel->dalvikOffset = vaddr;
+    newLabel->opcode = kPseudoCaseLabel;
+    newLabel->operands[0] = keyVal;
+    oatInsertLIRAfter(it->second, (LIR*)newLabel);
+    return newLabel;
+}
+
+void markPackedCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
+{
+    const u2* table = tabRec->table;
+    int baseVaddr = tabRec->vaddr;
+    int *targets = (int*)&table[4];
+    int entries = table[1];
+    int lowKey = s4FromSwitchData(&table[2]);
+    for (int i = 0; i < entries; i++) {
+        tabRec->targets[i] = insertCaseLabel(cUnit, baseVaddr + targets[i],
+                                             i + lowKey);
+    }
+}
+
+void markSparseCaseLabels(CompilationUnit* cUnit, SwitchTable *tabRec)
+{
+    const u2* table = tabRec->table;
+    int baseVaddr = tabRec->vaddr;
+    int entries = table[1];
+    int* keys = (int*)&table[2];
+    int* targets = &keys[entries];
+    for (int i = 0; i < entries; i++) {
+        tabRec->targets[i] = insertCaseLabel(cUnit, baseVaddr + targets[i],
+                                             keys[i]);
+    }
+}
+
+void oatProcessSwitchTables(CompilationUnit* cUnit)
+{
+    GrowableListIterator iterator;
+    oatGrowableListIteratorInit(&cUnit->switchTables, &iterator);
+    while (true) {
+        SwitchTable *tabRec = (SwitchTable *) oatGrowableListIteratorNext(
+             &iterator);
+        if (tabRec == NULL) break;
+        if (tabRec->table[0] == kPackedSwitchSignature)
+            markPackedCaseLabels(cUnit, tabRec);
+        else if (tabRec->table[0] == kSparseSwitchSignature)
+            markSparseCaseLabels(cUnit, tabRec);
+        else {
+            LOG(FATAL) << "Invalid switch table";
+        }
+    }
+}
+
+//FIXME: Do we have endian issues here?
+
+void dumpSparseSwitchTable(const u2* table)
+    /*
+     * Sparse switch data format:
+     *  ushort ident = 0x0200   magic value
+     *  ushort size             number of entries in the table; > 0
+     *  int keys[size]          keys, sorted low-to-high; 32-bit aligned
+     *  int targets[size]       branch targets, relative to switch opcode
+     *
+     * Total size is (2+size*4) 16-bit code units.
+     */
+{
+    u2 ident = table[0];
+    int entries = table[1];
+    int* keys = (int*)&table[2];
+    int* targets = &keys[entries];
+    LOG(INFO) <<  "Sparse switch table - ident:0x" << std::hex << ident <<
+       ", entries: " << std::dec << entries;
+    for (int i = 0; i < entries; i++) {
+        LOG(INFO) << "    Key[" << keys[i] << "] -> 0x" << std::hex <<
+        targets[i];
+    }
+}
+
+void dumpPackedSwitchTable(const u2* table)
+    /*
+     * Packed switch data format:
+     *  ushort ident = 0x0100   magic value
+     *  ushort size             number of entries in the table
+     *  int first_key           first (and lowest) switch case value
+     *  int targets[size]       branch targets, relative to switch opcode
+     *
+     * Total size is (4+size*2) 16-bit code units.
+     */
+{
+    u2 ident = table[0];
+    int* targets = (int*)&table[4];
+    int entries = table[1];
+    int lowKey = s4FromSwitchData(&table[2]);
+    LOG(INFO) << "Packed switch table - ident:0x" << std::hex << ident <<
+        ", entries: " << std::dec << entries << ", lowKey: " << lowKey;
+    for (int i = 0; i < entries; i++) {
+        LOG(INFO) << "    Key[" << (i + lowKey) << "] -> 0x" << std::hex <<
+            targets[i];
+    }
+}
 
 
 }  // namespace art

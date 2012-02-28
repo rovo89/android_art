@@ -55,13 +55,6 @@ typedef unsigned long long  u8;
 #include "DexOpcodes.h"
 #include "InstrUtils.h"
 
-// use to switch visibility on DCHECK tracebacks
-#if 1
-#define STATIC
-#else
-#define STATIC static
-#endif
-
 #include "Compiler.h"
 
 #endif

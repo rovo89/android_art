@@ -76,7 +76,7 @@ extern void oatInitPool(RegisterInfo* regs, int* regNums, int num)
     }
 }
 
-STATIC void dumpRegPool(RegisterInfo* p, int numRegs)
+void dumpRegPool(RegisterInfo* p, int numRegs)
 {
     int i;
     LOG(INFO) << "================================================";
@@ -124,7 +124,7 @@ void oatClobber(CompilationUnit* cUnit, int reg)
     clobberBody(cUnit, oatGetRegInfo(cUnit, reg));
 }
 
-STATIC void clobberSRegBody(RegisterInfo* p, int numRegs, int sReg)
+void clobberSRegBody(RegisterInfo* p, int numRegs, int sReg)
 {
     int i;
     for (i=0; i< numRegs; i++) {
@@ -174,7 +174,7 @@ extern int oatAllocPreservedCoreReg(CompilationUnit* cUnit, int sReg)
  * even/odd  allocation, but go ahead and allocate anything if not
  * available.  If nothing's available, return -1.
  */
-STATIC int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
+int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
 {
     int res = -1;
     RegisterInfo* FPRegs = cUnit->regPool->FPRegs;
@@ -202,7 +202,7 @@ STATIC int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
  * allocate if we can't meet the requirements for the pair of
  * sReg<=sX[even] & (sReg+1)<= sX+1.
  */
-STATIC int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
+int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
 {
     int res = -1; // Assume failure
     //  Should be promoting based on initial sReg set
@@ -274,8 +274,8 @@ extern int oatAllocPreservedFPReg(CompilationUnit* cUnit, int sReg,
     return res;
 }
 
-STATIC int allocTempBody(CompilationUnit* cUnit, RegisterInfo* p, int numRegs,
-                         int* nextTemp, bool required)
+int allocTempBody(CompilationUnit* cUnit, RegisterInfo* p, int numRegs,
+                  int* nextTemp, bool required)
 {
     int i;
     int next = *nextTemp;
@@ -389,7 +389,7 @@ extern int oatAllocTempFloat(CompilationUnit* cUnit)
                          &cUnit->regPool->nextFPReg, true);
 }
 
-STATIC RegisterInfo* allocLiveBody(RegisterInfo* p, int numRegs, int sReg)
+RegisterInfo* allocLiveBody(RegisterInfo* p, int numRegs, int sReg)
 {
     int i;
     if (sReg == -1)
@@ -404,8 +404,7 @@ STATIC RegisterInfo* allocLiveBody(RegisterInfo* p, int numRegs, int sReg)
     return NULL;
 }
 
-STATIC RegisterInfo* allocLive(CompilationUnit* cUnit, int sReg,
-                               int regClass)
+RegisterInfo* allocLive(CompilationUnit* cUnit, int sReg, int regClass)
 {
     RegisterInfo* res = NULL;
     switch(regClass) {
@@ -537,7 +536,7 @@ extern void oatResetDef(CompilationUnit* cUnit, int reg)
     resetDefBody(oatGetRegInfo(cUnit, reg));
 }
 
-STATIC void nullifyRange(CompilationUnit* cUnit, LIR *start, LIR *finish,
+void nullifyRange(CompilationUnit* cUnit, LIR *start, LIR *finish,
                          int sReg1, int sReg2)
 {
     if (start && finish) {
@@ -557,7 +556,7 @@ STATIC void nullifyRange(CompilationUnit* cUnit, LIR *start, LIR *finish,
  * sequence.
  */
 extern void oatMarkDef(CompilationUnit* cUnit, RegLocation rl,
-                    LIR *start, LIR *finish)
+                       LIR *start, LIR *finish)
 {
     DCHECK(!rl.wide);
     DCHECK(start && start->next);
@@ -573,7 +572,7 @@ extern void oatMarkDef(CompilationUnit* cUnit, RegLocation rl,
  * sequence.
  */
 extern void oatMarkDefWide(CompilationUnit* cUnit, RegLocation rl,
-                        LIR *start, LIR *finish)
+                           LIR *start, LIR *finish)
 {
     DCHECK(rl.wide);
     DCHECK(start && start->next);
@@ -584,8 +583,7 @@ extern void oatMarkDefWide(CompilationUnit* cUnit, RegLocation rl,
     p->defEnd = finish;
 }
 
-extern RegLocation oatWideToNarrow(CompilationUnit* cUnit,
-                                           RegLocation rl)
+extern RegLocation oatWideToNarrow(CompilationUnit* cUnit, RegLocation rl)
 {
     DCHECK(rl.wide);
     if (rl.location == kLocPhysReg) {
@@ -658,7 +656,7 @@ extern void oatClobberAllRegs(CompilationUnit* cUnit)
 }
 
 // Make sure nothing is live and dirty
-STATIC void flushAllRegsBody(CompilationUnit* cUnit, RegisterInfo* info,
+void flushAllRegsBody(CompilationUnit* cUnit, RegisterInfo* info,
                              int numRegs)
 {
     int i;
@@ -684,7 +682,7 @@ extern void oatFlushAllRegs(CompilationUnit* cUnit)
 
 
 //TUNING: rewrite all of this reg stuff.  Probably use an attribute table
-STATIC bool regClassMatches(int regClass, int reg)
+bool regClassMatches(int regClass, int reg)
 {
     if (regClass == kAnyReg) {
         return true;
@@ -764,7 +762,7 @@ extern void oatMarkInUse(CompilationUnit* cUnit, int reg)
       info->inUse = true;
 }
 
-STATIC void copyRegInfo(CompilationUnit* cUnit, int newReg, int oldReg)
+void copyRegInfo(CompilationUnit* cUnit, int newReg, int oldReg)
 {
     RegisterInfo* newInfo = oatGetRegInfo(cUnit, newReg);
     RegisterInfo* oldInfo = oatGetRegInfo(cUnit, oldReg);
@@ -835,8 +833,7 @@ bool oatCheckCorePoolSanity(CompilationUnit* cUnit)
 }
 
 /* see comments for updateLoc */
-extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit,
-                                    RegLocation loc)
+extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit, RegLocation loc)
 {
     DCHECK(loc.wide);
     DCHECK(oatCheckCorePoolSanity(cUnit));
@@ -889,8 +886,7 @@ extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit,
 
 
 /* For use in cases we don't know (or care) width */
-extern RegLocation oatUpdateRawLoc(CompilationUnit* cUnit,
-                                   RegLocation loc)
+extern RegLocation oatUpdateRawLoc(CompilationUnit* cUnit, RegLocation loc)
 {
     if (loc.wide)
         return oatUpdateLocWide(cUnit, loc);
@@ -898,8 +894,8 @@ extern RegLocation oatUpdateRawLoc(CompilationUnit* cUnit,
         return oatUpdateLoc(cUnit, loc);
 }
 
-STATIC RegLocation evalLocWide(CompilationUnit* cUnit, RegLocation loc,
-                               int regClass, bool update)
+RegLocation evalLocWide(CompilationUnit* cUnit, RegLocation loc,
+                        int regClass, bool update)
 {
     DCHECK(loc.wide);
     int newRegs;
@@ -1017,7 +1013,7 @@ extern RegLocation oatGetSrcWide(CompilationUnit* cUnit, MIR* mir,
 
 /* USE SSA names to count references of base Dalvik vRegs. */
 void oatCountRefs(CompilationUnit *cUnit, BasicBlock* bb,
-                      RefCounts* coreCounts, RefCounts* fpCounts)
+                  RefCounts* coreCounts, RefCounts* fpCounts)
 {
     MIR* mir;
     if (bb->blockType != kDalvikByteCode && bb->blockType != kEntryBlock &&

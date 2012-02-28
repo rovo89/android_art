@@ -20,8 +20,20 @@
 #include "codegen/Optimizer.h"
 #include "CompilerUtility.h"
 #include <vector>
+#include "oat_compilation_unit.h"
 
 namespace art {
+
+#define SLOW_FIELD_PATH (cUnit->enableDebug & (1 << kDebugSlowFieldPath))
+#define SLOW_INVOKE_PATH (cUnit->enableDebug & (1 << kDebugSlowInvokePath))
+#define SLOW_STRING_PATH (cUnit->enableDebug & (1 << kDebugSlowStringPath))
+#define SLOW_TYPE_PATH (cUnit->enableDebug & (1 << kDebugSlowTypePath))
+#define EXERCISE_SLOWEST_FIELD_PATH (cUnit->enableDebug & \
+    (1 << kDebugSlowestFieldPath))
+#define EXERCISE_SLOWEST_STRING_PATH (cUnit->enableDebug & \
+    (1 << kDebugSlowestStringPath))
+#define EXERCISE_RESOLVE_METHOD (cUnit->enableDebug & \
+    (1 << kDebugExerciseResolveMethod))
 
 typedef enum RegisterClass {
     kCoreReg,
@@ -108,12 +120,31 @@ typedef enum BBType {
     kCatchEntry,
 } BBType;
 
+/* Utility macros to traverse the LIR list */
+#define NEXT_LIR(lir) (lir->next)
+#define PREV_LIR(lir) (lir->prev)
+
+#define NEXT_LIR_LVALUE(lir) (lir)->next
+#define PREV_LIR_LVALUE(lir) (lir)->prev
+
 typedef struct LIR {
     int offset;                        // Offset of this instruction
     int dalvikOffset;                  // Offset of Dalvik opcode
     struct LIR* next;
     struct LIR* prev;
     struct LIR* target;
+    int opcode;
+    int operands[4];            // [0..3] = [dest, src1, src2, extra]
+    struct {
+        bool isNop:1;           // LIR is optimized away
+        bool pcRelFixup:1;      // May need pc-relative fixup
+        unsigned int age:4;     // default is 0, set lazily by the optimizer
+        unsigned int size:4;    // in bytes
+        unsigned int unused:22;
+    } flags;
+    int aliasInfo;              // For Dalvik register & litpool disambiguation
+    u8 useMask;                 // Resource mask for use
+    u8 defMask;                 // Resource mask for def
 } LIR;
 
 enum ExtendedMIROpcode {
@@ -380,6 +411,71 @@ typedef enum OpSize {
     kUnsignedByte,
     kSignedByte,
 } OpSize;
+
+typedef enum OpKind {
+    kOpMov,
+    kOpMvn,
+    kOpCmp,
+    kOpLsl,
+    kOpLsr,
+    kOpAsr,
+    kOpRor,
+    kOpNot,
+    kOpAnd,
+    kOpOr,
+    kOpXor,
+    kOpNeg,
+    kOpAdd,
+    kOpAdc,
+    kOpSub,
+    kOpSbc,
+    kOpRsub,
+    kOpMul,
+    kOpDiv,
+    kOpRem,
+    kOpBic,
+    kOpCmn,
+    kOpTst,
+    kOpBkpt,
+    kOpBlx,
+    kOpPush,
+    kOpPop,
+    kOp2Char,
+    kOp2Short,
+    kOp2Byte,
+    kOpCondBr,
+    kOpUncondBr,
+    kOpInvalid,
+} OpKind;
+
+typedef enum ConditionCode {
+    kCondEq,
+    kCondNe,
+    kCondCs,
+    kCondCc,
+    kCondMi,
+    kCondPl,
+    kCondVs,
+    kCondVc,
+    kCondHi,
+    kCondLs,
+    kCondGe,
+    kCondLt,
+    kCondGt,
+    kCondLe,
+    kCondAl,
+    kCondNv,
+} ConditionCode;
+
+typedef enum ThrowKind {
+    kThrowNullPointer,
+    kThrowDivZero,
+    kThrowArrayBounds,
+    kThrowVerificationError,
+    kThrowNegArraySize,
+    kThrowNoSuchMethod,
+    kThrowStackOverflow,
+} ThrowKind;
 
 BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId);
 

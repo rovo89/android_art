@@ -188,7 +188,7 @@ void oatInitGrowableList(CompilationUnit* cUnit, GrowableList* gList,
 }
 
 /* Expand the capacity of a growable list */
-STATIC void expandGrowableList(CompilationUnit* cUnit, GrowableList* gList)
+void expandGrowableList(CompilationUnit* cUnit, GrowableList* gList)
 {
     int newLength = gList->numAllocated;
     if (newLength < 128) {
@@ -339,14 +339,6 @@ void oatDumpCompilationUnit(CompilationUnit* cUnit)
                  " (0x" << std::hex << bb->fallThrough->startOffset << ")";
         }
     }
-}
-
-/*
- * Dump the current stats of the compiler.
- */
-void oatDumpStats(void)
-{
-    oatArchDump();
 }
 
 static uint32_t checkMasks[32] = {
@@ -518,7 +510,7 @@ void oatBitVectorIteratorInit(ArenaBitVector* pBits,
 /*
  * If the vector sizes don't match, log an error and abort.
  */
-STATIC void checkSizes(const ArenaBitVector* bv1, const ArenaBitVector* bv2)
+void checkSizes(const ArenaBitVector* bv1, const ArenaBitVector* bv2)
 {
     if (bv1->storageSize != bv2->storageSize) {
         LOG(FATAL) << "Mismatched vector sizes (" << bv1->storageSize <<

@@ -917,8 +917,7 @@ char* getSSAName(const CompilationUnit* cUnit, int ssaReg, char* name)
 /*
  * Dalvik instruction disassembler with optional SSA printing.
  */
-char* oatFullDisassembler(CompilationUnit* cUnit,
-                          const MIR* mir)
+char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
 {
     char buffer[256];
     char operand0[32], operand1[32];
@@ -1084,9 +1083,9 @@ char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
 }
 
 /* Any register that is used before being defined is considered live-in */
-STATIC inline void handleLiveInUse(CompilationUnit* cUnit, ArenaBitVector* useV,
-                                   ArenaBitVector* defV,
-                                   ArenaBitVector* liveInV, int dalvikRegId)
+inline void handleLiveInUse(CompilationUnit* cUnit, ArenaBitVector* useV,
+                            ArenaBitVector* defV, ArenaBitVector* liveInV,
+                            int dalvikRegId)
 {
     oatSetBit(cUnit, useV, dalvikRegId);
     if (!oatIsBitSet(defV, dalvikRegId)) {
@@ -1095,8 +1094,8 @@ STATIC inline void handleLiveInUse(CompilationUnit* cUnit, ArenaBitVector* useV,
 }
 
 /* Mark a reg as being defined */
-STATIC inline void handleDef(CompilationUnit* cUnit, ArenaBitVector* defV,
-                             int dalvikRegId)
+inline void handleDef(CompilationUnit* cUnit, ArenaBitVector* defV,
+                      int dalvikRegId)
 {
     oatSetBit(cUnit, defV, dalvikRegId);
 }
@@ -1166,8 +1165,8 @@ bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 /* Find out the latest SSA register for a given Dalvik register */
-STATIC void handleSSAUse(CompilationUnit* cUnit, int* uses, int dalvikReg,
-                         int regIndex)
+void handleSSAUse(CompilationUnit* cUnit, int* uses, int dalvikReg,
+                  int regIndex)
 {
     int encodedValue = cUnit->dalvikToSSAMap[dalvikReg];
     int ssaReg = DECODE_REG(encodedValue);
@@ -1175,8 +1174,8 @@ STATIC void handleSSAUse(CompilationUnit* cUnit, int* uses, int dalvikReg,
 }
 
 /* Setup a new SSA register for a given Dalvik register */
-STATIC void handleSSADef(CompilationUnit* cUnit, int* defs, int dalvikReg,
-                         int regIndex)
+void handleSSADef(CompilationUnit* cUnit, int* defs, int dalvikReg,
+                  int regIndex)
 {
     int ssaReg = cUnit->numSSARegs++;
     /* Bump up the subscript */
@@ -1192,7 +1191,7 @@ STATIC void handleSSADef(CompilationUnit* cUnit, int* defs, int dalvikReg,
 }
 
 /* Look up new SSA names for format_35c instructions */
-STATIC void dataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
+void dataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction *dInsn = &mir->dalvikInsn;
     int numUses = dInsn->vA;
@@ -1211,7 +1210,7 @@ STATIC void dataFlowSSAFormat35C(CompilationUnit* cUnit, MIR* mir)
 }
 
 /* Look up new SSA names for format_3rc instructions */
-STATIC void dataFlowSSAFormat3RC(CompilationUnit* cUnit, MIR* mir)
+void dataFlowSSAFormat3RC(CompilationUnit* cUnit, MIR* mir)
 {
     DecodedInstruction *dInsn = &mir->dalvikInsn;
     int numUses = dInsn->vA;
@@ -1370,7 +1369,7 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 /* Setup a constant value for opcodes thare have the DF_SETS_CONST attribute */
-STATIC void setConstant(CompilationUnit* cUnit, int ssaReg, int value)
+void setConstant(CompilationUnit* cUnit, int ssaReg, int value)
 {
     oatSetBit(cUnit, cUnit->isConstantV, ssaReg);
     cUnit->constantValues[ssaReg] = value;
@@ -1515,8 +1514,7 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
 }
 
 /* Clear the visited flag for each BB */
-bool oatClearVisitedFlag(struct CompilationUnit* cUnit,
-                                 struct BasicBlock* bb)
+bool oatClearVisitedFlag(struct CompilationUnit* cUnit, struct BasicBlock* bb)
 {
     bb->visited = false;
     return true;
@@ -1636,8 +1634,8 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
     }
 }
 
-STATIC bool nullCheckEliminationInit(struct CompilationUnit* cUnit,
-                                     struct BasicBlock* bb)
+bool nullCheckEliminationInit(struct CompilationUnit* cUnit,
+                              struct BasicBlock* bb)
 {
     if (bb->dataFlowInfo == NULL) return false;
     bb->dataFlowInfo->endingNullCheckV =
@@ -1647,8 +1645,7 @@ STATIC bool nullCheckEliminationInit(struct CompilationUnit* cUnit,
 }
 
 /* Eliminate unnecessary null checks for a basic block. */
-STATIC bool eliminateNullChecks( struct CompilationUnit* cUnit,
-                                 struct BasicBlock* bb)
+bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
 {
     if (bb->dataFlowInfo == NULL) return false;
 

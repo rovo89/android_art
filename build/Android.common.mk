@@ -21,6 +21,13 @@ else
 ART_USE_LLVM_COMPILER := false
 endif
 
+# Build for MIPS target (temporary)
+ifneq ($(wildcard art/MIPS_TARGET),)
+ART_MIPS_TARGET := true
+else
+ART_MIPS_TARGET := false
+endif
+
 ifeq ($(ART_USE_LLVM_COMPILER),true)
 LLVM_ROOT_PATH := external/llvm
 include $(LLVM_ROOT_PATH)/llvm.mk
@@ -58,6 +65,11 @@ art_cflags := \
 
 ifeq ($(ART_USE_LLVM_COMPILER),true)
 art_cflags += -DART_USE_LLVM_COMPILER=1
+endif
+
+# (temp) for testing
+ifeq ($(ART_MIPS_TARGET),true)
+art_cflags += -D__mips_hard_float
 endif
 
 ifeq ($(HOST_OS),linux)
@@ -224,12 +236,21 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler/SSATransformation.cc \
 	src/compiler/Utility.cc \
 	src/compiler/codegen/RallocUtil.cc \
+	src/jni_internal_arm.cc \
+	src/jni_internal_x86.cc
+ifeq ($(ART_MIPS_TARGET),true)
+LIBART_COMMON_SRC_FILES += \
+	src/compiler/codegen/mips/ArchUtility.cc \
+	src/compiler/codegen/mips/MipsRallocUtil.cc \
+	src/compiler/codegen/mips/Assemble.cc \
+	src/compiler/codegen/mips/mips/Codegen.cc
+else
+LIBART_COMMON_SRC_FILES += \
 	src/compiler/codegen/arm/ArchUtility.cc \
 	src/compiler/codegen/arm/ArmRallocUtil.cc \
 	src/compiler/codegen/arm/Assemble.cc \
-	src/compiler/codegen/arm/armv7-a/Codegen.cc \
-	src/jni_internal_arm.cc \
-	src/jni_internal_x86.cc
+	src/compiler/codegen/arm/armv7-a/Codegen.cc
+endif
 endif
 
 LIBART_TARGET_SRC_FILES := \

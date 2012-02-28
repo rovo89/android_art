@@ -62,9 +62,191 @@ bool genShiftOpLong(CompilationUnit* cUnit, MIR* mir,
 bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir,
                              RegLocation rlDest, RegLocation rlSrc,
                              int lit) { return 0; }
+void oatArchDump(void) {};
+void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset) {};
 
 
 
+
+STATIC bool genConversionCall(CompilationUnit* cUnit, MIR* mir, int funcOffset,
+                                     int srcSize, int tgtSize)
+{
+    UNIMPLEMENTED(FATAL) << "Need Mips implementation";
+    return 0;
+#if 0
+    /*
+     * Don't optimize the register usage since it calls out to support
+     * functions
+     */
+    RegLocation rlSrc;
+    RegLocation rlDest;
+    oatFlushAllRegs(cUnit);   /* Send everything to home location */
+    loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+    if (srcSize == 1) {
+        rlSrc = oatGetSrc(cUnit, mir, 0);
+        loadValueDirectFixed(cUnit, rlSrc, r0);
+    } else {
+        rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+        loadValueDirectWideFixed(cUnit, rlSrc, r0, r1);
+    }
+    callRuntimeHelper(cUnit, rLR);
+    if (tgtSize == 1) {
+        RegLocation rlResult;
+        rlDest = oatGetDest(cUnit, mir, 0);
+        rlResult = oatGetReturn(cUnit);
+        storeValue(cUnit, rlDest, rlResult);
+    } else {
+        RegLocation rlResult;
+        rlDest = oatGetDestWide(cUnit, mir, 0, 1);
+        rlResult = oatGetReturnWide(cUnit);
+        storeValueWide(cUnit, rlDest, rlResult);
+    }
+    return false;
+#endif
+}
+
+bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
+                                    RegLocation rlDest, RegLocation rlSrc1,
+                                    RegLocation rlSrc2)
+{
+    UNIMPLEMENTED(FATAL) << "Need Mips implementation";
+    return 0;
+#if 0
+    RegLocation rlResult;
+    int funcOffset;
+
+    switch (mir->dalvikInsn.opcode) {
+        case OP_ADD_FLOAT_2ADDR:
+        case OP_ADD_FLOAT:
+            funcOffset = OFFSETOF_MEMBER(Thread, pFadd);
+            break;
+        case OP_SUB_FLOAT_2ADDR:
+        case OP_SUB_FLOAT:
+            funcOffset = OFFSETOF_MEMBER(Thread, pFsub);
+            break;
+        case OP_DIV_FLOAT_2ADDR:
+        case OP_DIV_FLOAT:
+            funcOffset = OFFSETOF_MEMBER(Thread, pFdiv);
+            break;
+        case OP_MUL_FLOAT_2ADDR:
+        case OP_MUL_FLOAT:
+            funcOffset = OFFSETOF_MEMBER(Thread, pFmul);
+            break;
+        case OP_REM_FLOAT_2ADDR:
+        case OP_REM_FLOAT:
+            funcOffset = OFFSETOF_MEMBER(Thread, pFmodf);
+            break;
+        case OP_NEG_FLOAT: {
+            genNegFloat(cUnit, rlDest, rlSrc1);
+            return false;
+        }
+        default:
+            return true;
+    }
+    oatFlushAllRegs(cUnit);   /* Send everything to home location */
+    loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+    loadValueDirectFixed(cUnit, rlSrc1, r0);
+    loadValueDirectFixed(cUnit, rlSrc2, r1);
+    callRuntimeHelper(cUnit, rLR);
+    rlResult = oatGetReturn(cUnit);
+    storeValue(cUnit, rlDest, rlResult);
+    return false;
+#endif
+}
+
+bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
+                                     RegLocation rlDest, RegLocation rlSrc1,
+                                     RegLocation rlSrc2)
+{
+    UNIMPLEMENTED(FATAL) << "Need Mips implementation";
+    return 0;
+#if 0
+    RegLocation rlResult;
+    int funcOffset;
+
+    switch (mir->dalvikInsn.opcode) {
+        case OP_ADD_DOUBLE_2ADDR:
+        case OP_ADD_DOUBLE:
+            funcOffset = OFFSETOF_MEMBER(Thread, pDadd);
+            break;
+        case OP_SUB_DOUBLE_2ADDR:
+        case OP_SUB_DOUBLE:
+            funcOffset = OFFSETOF_MEMBER(Thread, pDsub);
+            break;
+        case OP_DIV_DOUBLE_2ADDR:
+        case OP_DIV_DOUBLE:
+            funcOffset = OFFSETOF_MEMBER(Thread, pDdiv);
+            break;
+        case OP_MUL_DOUBLE_2ADDR:
+        case OP_MUL_DOUBLE:
+            funcOffset = OFFSETOF_MEMBER(Thread, pDmul);
+            break;
+        case OP_REM_DOUBLE_2ADDR:
+        case OP_REM_DOUBLE:
+            funcOffset = OFFSETOF_MEMBER(Thread, pFmod);
+            break;
+        case OP_NEG_DOUBLE: {
+            genNegDouble(cUnit, rlDest, rlSrc1);
+            return false;
+        }
+        default:
+            return true;
+    }
+    oatFlushAllRegs(cUnit);   /* Send everything to home location */
+    loadWordDisp(cUnit, rSELF, funcOffset, rLR);
+    loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
+    loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+    callRuntimeHelper(cUnit, rLR);
+    rlResult = oatGetReturnWide(cUnit);
+    storeValueWide(cUnit, rlDest, rlResult);
+    return false;
+#endif
+}
+
+bool genConversionPortable(CompilationUnit* cUnit, MIR* mir)
+{
+    UNIMPLEMENTED(FATAL) << "Need Mips implementation";
+    return 0;
+#if 0
+    Opcode opcode = mir->dalvikInsn.opcode;
+
+    switch (opcode) {
+        case OP_INT_TO_FLOAT:
+            return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pI2f),
+                                     1, 1);
+        case OP_FLOAT_TO_INT:
+            return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pF2iz),
+                                     1, 1);
+        case OP_DOUBLE_TO_FLOAT:
+            return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pD2f),
+                                     2, 1);
+        case OP_FLOAT_TO_DOUBLE:
+            return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pF2d),
+                                     1, 2);
+        case OP_INT_TO_DOUBLE:
+            return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pI2d),
+                                     1, 2);
+        case OP_DOUBLE_TO_INT:
+            return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pD2iz),
+                                     2, 1);
+        case OP_FLOAT_TO_LONG:
+            return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread,
+                                     pF2l), 1, 2);
+        case OP_LONG_TO_FLOAT:
+            return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pL2f),
+                                     2, 1);
+        case OP_DOUBLE_TO_LONG:
+            return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread,
+                                     pD2l), 2, 2);
+        case OP_LONG_TO_DOUBLE:
+            return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pL2d),
+                                     2, 2);
+        default:
+            return true;
+    }
+    return false;
+#endif
+}
 
 
 
@@ -102,7 +284,7 @@ STATIC inline s4 s4FromSwitchData(const void* switchData) {
 }
 #endif
 /*
- * Insert a kMipsPseudoCaseLabel at the beginning of the Dalvik
+ * Insert a kPseudoCaseLabel at the beginning of the Dalvik
  * offset vaddr.  This label will be used to fix up the case
  * branch table during the assembly phase.  Be sure to set
  * all resource flags on this to prevent code motion across
@@ -117,7 +299,7 @@ STATIC MipsLIR* insertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
     }
     MipsLIR* newLabel = (MipsLIR*)oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
     newLabel->generic.dalvikOffset = vaddr;
-    newLabel->opcode = kMipsPseudoCaseLabel;
+    newLabel->opcode = kPseudoCaseLabel;
     newLabel->operands[0] = keyVal;
     oatInsertLIRAfter(it->second, (LIR*)newLabel);
     return newLabel;
@@ -269,7 +451,7 @@ STATIC void genSparseSwitch(CompilationUnit* cUnit, MIR* mir,
     int rIdx = oatAllocTemp(cUnit);
     loadConstant(cUnit, rIdx, size);
     // Establish loop branch target
-    MipsLIR* target = newLIR0(cUnit, kMipsPseudoTargetLabel);
+    MipsLIR* target = newLIR0(cUnit, kPseudoTargetLabel);
     target->defMask = ENCODE_ALL;
     // Load next key/disp
     newLIR2(cUnit, kThumb2LdmiaWB, rBase, (1 << rKey) | (1 << rDisp));
@@ -331,7 +513,7 @@ STATIC void genPackedSwitch(CompilationUnit* cUnit, MIR* mir,
     tabRec->bxInst = switchBranch;
 
     /* branchOver target here */
-    MipsLIR* target = newLIR0(cUnit, kMipsPseudoTargetLabel);
+    MipsLIR* target = newLIR0(cUnit, kPseudoTargetLabel);
     target->defMask = ENCODE_ALL;
     branchOver->generic.target = (LIR*)target;
 #endif

@@ -52,4 +52,71 @@ int oatAllocTypedTemp(CompilationUnit* cUnit, bool fpHint, int regClass)
     return oatAllocTemp(cUnit);
 }
 
+void oatInitializeRegAlloc(CompilationUnit* cUnit)
+{
+    int numRegs = sizeof(coreRegs)/sizeof(*coreRegs);
+    int numReserved = sizeof(reservedRegs)/sizeof(*reservedRegs);
+    int numTemps = sizeof(coreTemps)/sizeof(*coreTemps);
+    int numFPRegs = sizeof(fpRegs)/sizeof(*fpRegs);
+    int numFPTemps = sizeof(fpTemps)/sizeof(*fpTemps);
+    RegisterPool *pool = (RegisterPool *)oatNew(cUnit, sizeof(*pool), true,
+                                                kAllocRegAlloc);
+    cUnit->regPool = pool;
+    pool->numCoreRegs = numRegs;
+    pool->coreRegs = (RegisterInfo *)
+            oatNew(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs),
+                   true, kAllocRegAlloc);
+    pool->numFPRegs = numFPRegs;
+    pool->FPRegs = (RegisterInfo *)
+            oatNew(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs), true,
+                   kAllocRegAlloc);
+    oatInitPool(pool->coreRegs, coreRegs, pool->numCoreRegs);
+    oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
+    // Keep special registers from being allocated
+    for (int i = 0; i < numReserved; i++) {
+        if (NO_SUSPEND && !cUnit->genDebugger &&
+            (reservedRegs[i] == rSUSPEND)) {
+            //To measure cost of suspend check
+            continue;
+        }
+        oatMarkInUse(cUnit, reservedRegs[i]);
+    }
+    // Mark temp regs - all others not in use can be used for promotion
+    for (int i = 0; i < numTemps; i++) {
+        oatMarkTemp(cUnit, coreTemps[i]);
+    }
+    for (int i = 0; i < numFPTemps; i++) {
+        oatMarkTemp(cUnit, fpTemps[i]);
+    }
+    // Construct the alias map.
+    cUnit->phiAliasMap = (int*)oatNew(cUnit, cUnit->numSSARegs *
+                                      sizeof(cUnit->phiAliasMap[0]), false,
+                                      kAllocDFInfo);
+    for (int i = 0; i < cUnit->numSSARegs; i++) {
+        cUnit->phiAliasMap[i] = i;
+    }
+    for (MIR* phi = cUnit->phiList; phi; phi = phi->meta.phiNext) {
+        int defReg = phi->ssaRep->defs[0];
+        for (int i = 0; i < phi->ssaRep->numUses; i++) {
+           for (int j = 0; j < cUnit->numSSARegs; j++) {
+               if (cUnit->phiAliasMap[j] == phi->ssaRep->uses[i]) {
+                   cUnit->phiAliasMap[j] = defReg;
+               }
+           }
+        }
+    }
+}
+
+void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
+                     RegLocation rlFree)
+{
+    if ((rlFree.lowReg != rlKeep.lowReg) && (rlFree.lowReg != rlKeep.highReg) &&
+        (rlFree.highReg != rlKeep.lowReg) && (rlFree.highReg != rlKeep.highReg)) {
+        // No overlap, free both
+        oatFreeTemp(cUnit, rlFree.lowReg);
+        oatFreeTemp(cUnit, rlFree.highReg);
+    }
+}
+
+
 }  // namespace art

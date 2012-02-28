@@ -17,9 +17,6 @@
 #define _CODEGEN_C
 #define TGT_LIR MipsLIR
 
-/* For testing */
-#define __mips_hard_float
-
 #include "../../../Dalvik.h"
 #include "../../../CompilerInternals.h"
 #include "../MipsLIR.h"

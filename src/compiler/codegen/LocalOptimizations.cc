@@ -27,7 +27,7 @@ namespace art {
 #define LDLD_DISTANCE 4
 #define LD_LATENCY 2
 
-STATIC inline bool isDalvikRegisterClobbered(TGT_LIR* lir1, TGT_LIR* lir2)
+inline bool isDalvikRegisterClobbered(LIR* lir1, LIR* lir2)
 {
     int reg1Lo = DECODE_ALIAS_INFO_REG(lir1->aliasInfo);
     int reg1Hi = reg1Lo + DECODE_ALIAS_INFO_WIDE(lir1->aliasInfo);
@@ -38,11 +38,11 @@ STATIC inline bool isDalvikRegisterClobbered(TGT_LIR* lir1, TGT_LIR* lir2)
 }
 
 /* Convert a more expensive instruction (ie load) into a move */
-STATIC void convertMemOpIntoMove(CompilationUnit* cUnit, TGT_LIR* origLIR,
-                                 int dest, int src)
+void convertMemOpIntoMove(CompilationUnit* cUnit, LIR* origLIR, int dest,
+                          int src)
 {
     /* Insert a move to replace the load */
-    TGT_LIR* moveLIR;
+    LIR* moveLIR;
     moveLIR = oatRegCopyNoInsert( cUnit, dest, src);
     /*
      * Insert the converted instruction after the original since the
@@ -71,11 +71,10 @@ STATIC void convertMemOpIntoMove(CompilationUnit* cUnit, TGT_LIR* origLIR,
  *   1) They are must-aliases
  *   2) The memory location is not written to in between
  */
-STATIC void applyLoadStoreElimination(CompilationUnit* cUnit,
-                                      TGT_LIR* headLIR,
-                                      TGT_LIR* tailLIR)
+void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
+                               LIR* tailLIR)
 {
-    TGT_LIR* thisLIR;
+    LIR* thisLIR;
 
     if (headLIR == tailLIR) return;
 
@@ -93,7 +92,7 @@ STATIC void applyLoadStoreElimination(CompilationUnit* cUnit,
 
         int nativeRegId = thisLIR->operands[0];
         bool isThisLIRLoad = EncodingMap[thisLIR->opcode].flags & IS_LOAD;
-        TGT_LIR* checkLIR;
+        LIR* checkLIR;
         /* Use the mem mask to determine the rough memory location */
         u8 thisMemMask = (thisLIR->useMask | thisLIR->defMask) & ENCODE_MEM;
 
@@ -230,9 +229,9 @@ STATIC void applyLoadStoreElimination(CompilationUnit* cUnit,
                                                 "REG CLOBBERED"));
                 /* Only sink store instructions */
                 if (sinkDistance && !isThisLIRLoad) {
-                    TGT_LIR* newStoreLIR =
-                        (TGT_LIR* ) oatNew(cUnit, sizeof(TGT_LIR), true,
-                                          kAllocLIR);
+                    LIR* newStoreLIR =
+                        (LIR* ) oatNew(cUnit, sizeof(LIR), true,
+                                       kAllocLIR);
                     *newStoreLIR = *thisLIR;
                     /*
                      * Stop point found - insert *before* the checkLIR
@@ -255,16 +254,14 @@ STATIC void applyLoadStoreElimination(CompilationUnit* cUnit,
  * Perform a pass of bottom-up walk, from the second instruction in the
  * superblock, to try to hoist loads to earlier slots.
  */
-STATIC void applyLoadHoisting(CompilationUnit* cUnit,
-                              TGT_LIR* headLIR,
-                              TGT_LIR* tailLIR)
+void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
 {
-    TGT_LIR* thisLIR, *checkLIR;
+    LIR* thisLIR, *checkLIR;
     /*
      * Store the list of independent instructions that can be hoisted past.
      * Will decide the best place to insert later.
      */
-    TGT_LIR* prevInstList[MAX_HOIST_DISTANCE];
+    LIR* prevInstList[MAX_HOIST_DISTANCE];
 
     /* Empty block */
     if (headLIR == tailLIR) return;
@@ -373,7 +370,7 @@ STATIC void applyLoadHoisting(CompilationUnit* cUnit,
         if (nextSlot >= 2) {
             int firstSlot = nextSlot - 2;
             int slot;
-            TGT_LIR* depLIR = prevInstList[nextSlot-1];
+            LIR* depLIR = prevInstList[nextSlot-1];
             /* If there is ld-ld dependency, wait LDLD_DISTANCE cycles */
             if (!isPseudoOpcode(depLIR->opcode) &&
                 (EncodingMap[depLIR->opcode].flags & IS_LOAD)) {
@@ -384,8 +381,8 @@ STATIC void applyLoadHoisting(CompilationUnit* cUnit,
              * when the loop is first entered.
              */
             for (slot = firstSlot; slot >= 0; slot--) {
-                TGT_LIR* curLIR = prevInstList[slot];
-                TGT_LIR* prevLIR = prevInstList[slot+1];
+                LIR* curLIR = prevInstList[slot];
+                LIR* prevLIR = prevInstList[slot+1];
 
                 /* Check the highest instruction */
                 if (prevLIR->defMask == ENCODE_ALL) {
@@ -418,8 +415,8 @@ STATIC void applyLoadHoisting(CompilationUnit* cUnit,
 
             /* Found a slot to hoist to */
             if (slot >= 0) {
-                TGT_LIR* curLIR = prevInstList[slot];
-                TGT_LIR* newLoadLIR = (TGT_LIR* ) oatNew(cUnit, sizeof(TGT_LIR),
+                LIR* curLIR = prevInstList[slot];
+                LIR* newLoadLIR = (LIR* ) oatNew(cUnit, sizeof(LIR),
                                                        true, kAllocLIR);
                 *newLoadLIR = *thisLIR;
                 /*
@@ -437,11 +434,11 @@ void oatApplyLocalOptimizations(CompilationUnit* cUnit, LIR* headLIR,
                                         LIR* tailLIR)
 {
     if (!(cUnit->disableOpt & (1 << kLoadStoreElimination))) {
-        applyLoadStoreElimination(cUnit, (TGT_LIR* ) headLIR,
-                                  (TGT_LIR* ) tailLIR);
+        applyLoadStoreElimination(cUnit, (LIR* ) headLIR,
+                                  (LIR* ) tailLIR);
     }
     if (!(cUnit->disableOpt & (1 << kLoadHoisting))) {
-        applyLoadHoisting(cUnit, (TGT_LIR* ) headLIR, (TGT_LIR* ) tailLIR);
+        applyLoadHoisting(cUnit, (LIR* ) headLIR, (LIR* ) tailLIR);
     }
 }
 

@@ -178,13 +178,11 @@ struct MIR;
 
 void oatInit(CompilationUnit* cUnit, const Compiler& compiler);
 bool oatArchInit(void);
-void oatArchDump(void);
 bool oatStartup(void);
 void oatShutdown(void);
 CompiledMethod* oatCompileMethod(Compiler& compiler, bool is_direct,
                                  uint32_t method_idx, const ClassLoader* class_loader,
                                  const DexFile& dex_file, OatInstructionSetType);
-void oatDumpStats(void);
 void oatScanAllClassPointers(void (*callback)(void* ptr));
 void oatInitializeSSAConversion(struct CompilationUnit* cUnit);
 int oatConvertSSARegToDalvik(const struct CompilationUnit* cUnit, int ssaReg);

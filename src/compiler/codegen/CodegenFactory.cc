@@ -25,26 +25,31 @@ namespace art {
  * which combines this common code with specific support found in the
  * applicable directories below this one.
  *
- * Prior to including this file, TGT_LIR should be #defined.
- * For example, for arm:
- *    #define TGT_LIR ArmLIR
- * for MIPS:
- *    #define TGT_LIR MipsLIR
- * and for x86:
- *    #define TGT_LIR X86LIR
  */
 
+/*
+ * Load an immediate value into a fixed or temp register.  Target
+ * register is clobbered, and marked inUse.
+ */
+LIR* loadConstant(CompilationUnit* cUnit, int rDest, int value)
+{
+    if (oatIsTemp(cUnit, rDest)) {
+        oatClobber(cUnit, rDest);
+        oatMarkInUse(cUnit, rDest);
+    }
+    return loadConstantNoClobber(cUnit, rDest, value);
+}
 
 /* Load a word at base + displacement.  Displacement must be word multiple */
-STATIC TGT_LIR* loadWordDisp(CompilationUnit* cUnit, int rBase,
-                             int displacement, int rDest)
+LIR* loadWordDisp(CompilationUnit* cUnit, int rBase, int displacement,
+                  int rDest)
 {
     return loadBaseDisp(cUnit, NULL, rBase, displacement, rDest, kWord,
                         INVALID_SREG);
 }
 
-STATIC TGT_LIR* storeWordDisp(CompilationUnit* cUnit, int rBase,
-                             int displacement, int rSrc)
+LIR* storeWordDisp(CompilationUnit* cUnit, int rBase, int displacement,
+                   int rSrc)
 {
     return storeBaseDisp(cUnit, rBase, displacement, rSrc, kWord);
 }
@@ -54,8 +59,7 @@ STATIC TGT_LIR* storeWordDisp(CompilationUnit* cUnit, int rBase,
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.
  */
-STATIC void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc,
-                            int reg1)
+void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int reg1)
 {
     rlSrc = oatUpdateLoc(cUnit, rlSrc);
     if (rlSrc.location == kLocPhysReg) {
@@ -71,8 +75,7 @@ STATIC void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc,
  * register.  Should be used when loading to a fixed register (for example,
  * loading arguments to an out of line call.
  */
-STATIC void loadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc,
-                                 int reg1)
+void loadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc, int reg1)
 {
     oatClobber(cUnit, reg1);
     oatMarkInUse(cUnit, reg1);
@@ -84,8 +87,8 @@ STATIC void loadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc,
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.
  */
-STATIC void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc,
-                                int regLo, int regHi)
+void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc, int regLo,
+                         int regHi)
 {
     rlSrc = oatUpdateLocWide(cUnit, rlSrc);
     if (rlSrc.location == kLocPhysReg) {
@@ -103,8 +106,8 @@ STATIC void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc,
  * registers.  Should be used when loading to a fixed registers (for example,
  * loading arguments to an out of line call.
  */
-STATIC void loadValueDirectWideFixed(CompilationUnit* cUnit, RegLocation rlSrc,
-                                     int regLo, int regHi)
+void loadValueDirectWideFixed(CompilationUnit* cUnit, RegLocation rlSrc,
+                              int regLo, int regHi)
 {
     oatClobber(cUnit, regLo);
     oatClobber(cUnit, regHi);
@@ -113,8 +116,8 @@ STATIC void loadValueDirectWideFixed(CompilationUnit* cUnit, RegLocation rlSrc,
     loadValueDirectWide(cUnit, rlSrc, regLo, regHi);
 }
 
-STATIC RegLocation loadValue(CompilationUnit* cUnit, RegLocation rlSrc,
-                             RegisterClass opKind)
+RegLocation loadValue(CompilationUnit* cUnit, RegLocation rlSrc,
+                      RegisterClass opKind)
 {
     rlSrc = oatEvalLoc(cUnit, rlSrc, opKind, false);
     if (rlSrc.location == kLocDalvikFrame) {
@@ -125,8 +128,7 @@ STATIC RegLocation loadValue(CompilationUnit* cUnit, RegLocation rlSrc,
     return rlSrc;
 }
 
-STATIC void storeValue(CompilationUnit* cUnit, RegLocation rlDest,
-                       RegLocation rlSrc)
+void storeValue(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
     LIR* defStart;
     LIR* defEnd;
@@ -169,8 +171,8 @@ STATIC void storeValue(CompilationUnit* cUnit, RegLocation rlDest,
     }
 }
 
-STATIC RegLocation loadValueWide(CompilationUnit* cUnit, RegLocation rlSrc,
-                                 RegisterClass opKind)
+RegLocation loadValueWide(CompilationUnit* cUnit, RegLocation rlSrc,
+                          RegisterClass opKind)
 {
     DCHECK(rlSrc.wide);
     rlSrc = oatEvalLoc(cUnit, rlSrc, opKind, false);
@@ -184,8 +186,8 @@ STATIC RegLocation loadValueWide(CompilationUnit* cUnit, RegLocation rlSrc,
     return rlSrc;
 }
 
-STATIC void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
-                           RegLocation rlSrc)
+void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
+                    RegLocation rlSrc)
 {
     LIR* defStart;
     LIR* defEnd;
@@ -239,5 +241,51 @@ STATIC void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
         oatMarkDefWide(cUnit, rlDest, defStart, defEnd);
     }
 }
+
+/*
+ * Mark garbage collection card. Skip if the value we're storing is null.
+ */
+void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
+{
+    int regCardBase = oatAllocTemp(cUnit);
+    int regCardNo = oatAllocTemp(cUnit);
+    LIR* branchOver = genCmpImmBranch(cUnit, kCondEq, valReg, 0);
+    loadWordDisp(cUnit, rSELF, Thread::CardTableOffset().Int32Value(),
+                 regCardBase);
+    opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, GC_CARD_SHIFT);
+    storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
+                     kUnsignedByte);
+    LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
+    target->defMask = ENCODE_ALL;
+    branchOver->target = (LIR*)target;
+    oatFreeTemp(cUnit, regCardBase);
+    oatFreeTemp(cUnit, regCardNo);
+}
+
+/*
+ * Utiltiy to load the current Method*.  Broken out
+ * to allow easy change between placing the current Method* in a
+ * dedicated register or its home location in the frame.
+ */
+void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
+{
+#if defined(METHOD_IN_REG)
+    genRegCopy(cUnit, rTgt, rMETHOD);
+#else
+    loadWordDisp(cUnit, rSP, 0, rTgt);
+#endif
+}
+
+int loadCurrMethod(CompilationUnit *cUnit)
+{
+#if defined(METHOD_IN_REG)
+    return rMETHOD;
+#else
+    int mReg = oatAllocTemp(cUnit);
+    loadCurrMethodDirect(cUnit, mReg);
+    return mReg;
+#endif
+}
+
 
 }  // namespace art

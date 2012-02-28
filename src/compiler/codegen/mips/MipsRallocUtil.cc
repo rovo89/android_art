@@ -28,12 +28,24 @@
 namespace art {
 
 /*
+ * TUNING: is leaf?  Can't just use "hasInvoke" to determine as some
+ * instructions might call out to C/assembly helper functions.  Until
+ * machinery is in place, always spill lr.
+ */
+
+void oatAdjustSpillMask(CompilationUnit* cUnit)
+{
+    cUnit->coreSpillMask |= (1 << r_RA);
+    cUnit->numCoreSpills++;
+}
+
+/*
  * Mark a callee-save fp register as promoted.  Note that
  * vpush/vpop uses contiguous register lists so we must
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-STATIC void markPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
+void oatMarkPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
 {
     UNIMPLEMENTED(FATAL) << "No support yet for promoted FP regs";
 #if 0
@@ -204,6 +216,12 @@ extern void oatFreeCallTemps(CompilationUnit* cUnit)
     oatFreeTemp(cUnit, r_A1);
     oatFreeTemp(cUnit, r_A2);
     oatFreeTemp(cUnit, r_A3);
+}
+
+/* Convert an instruction to a NOP */
+STATIC void oatNopLIR( LIR* lir)
+{
+    ((MipsLIR*)lir)->flags.isNop = true;
 }
 
 }  // namespace art

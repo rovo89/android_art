@@ -39,20 +39,6 @@ namespace art {
 
 STATIC void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset);
 
-/* Generate conditional branch instructions */
-STATIC MipsLIR* genConditionalBranch(CompilationUnit* cUnit,
-                                    MipsConditionCode cond,
-                                    MipsLIR* target)
-{
-    UNIMPLEMENTED(FATAL) << "Needs mips version";
-    return NULL;
-#if 0
-    MipsLIR* branch = opCondBranch(cUnit, cond);
-    branch->generic.target = (LIR*) target;
-    return branch;
-#endif
-}
-
 /* Generate unconditional branch instructions */
 STATIC MipsLIR* genUnconditionalBranch(CompilationUnit* cUnit, MipsLIR* target)
 {
@@ -72,22 +58,19 @@ STATIC MipsLIR* callRuntimeHelper(CompilationUnit* cUnit, int reg)
  */
 STATIC void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 {
-    UNIMPLEMENTED(FATAL) << "Needs mips version";
-#if 0
     int regCardBase = oatAllocTemp(cUnit);
     int regCardNo = oatAllocTemp(cUnit);
-    MipsLIR* branchOver = genCmpImmBranch(cUnit, kMipsCondEq, valReg, 0);
+    MipsLIR* branchOver = opCompareBranchCC(cUnit, kMipsCondEq, valReg, r_ZERO);
     loadWordDisp(cUnit, rSELF, Thread::CardTableOffset().Int32Value(),
                  regCardBase);
     opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, GC_CARD_SHIFT);
     storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
                      kUnsignedByte);
-    MipsLIR* target = newLIR0(cUnit, kMipsPseudoTargetLabel);
+    MipsLIR* target = newLIR0(cUnit, kPseudoTargetLabel);
     target->defMask = ENCODE_ALL;
     branchOver->generic.target = (LIR*)target;
     oatFreeTemp(cUnit, regCardBase);
     oatFreeTemp(cUnit, regCardNo);
-#endif
 }
 
 /*
@@ -97,13 +80,10 @@ STATIC void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
  */
 STATIC void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
 {
-    UNIMPLEMENTED(FATAL) << "Needs mips version";
-#if 0
 #if defined(METHOD_IN_REG)
     genRegCopy(cUnit, rTgt, rMETHOD);
 #else
     loadWordDisp(cUnit, rSP, 0, rTgt);
-#endif
 #endif
 }
 
@@ -118,70 +98,49 @@ STATIC int loadCurrMethod(CompilationUnit *cUnit)
 #endif
 }
 
-STATIC MipsLIR* genCheck(CompilationUnit* cUnit, MipsConditionCode cCode,
-                        MIR* mir, MipsThrowKind kind)
-{
-    UNIMPLEMENTED(FATAL) << "Needs mips version";
-    return 0;
-#if 0
-    MipsLIR* tgt = (MipsLIR*)oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
-    tgt->opcode = kMipsPseudoThrowTarget;
-    tgt->operands[0] = kind;
-    tgt->operands[1] = mir ? mir->offset : 0;
-    MipsLIR* branch = genConditionalBranch(cUnit, cCode, tgt);
-    // Remember branch target - will process later
-    oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
-    return branch;
-#endif
-}
-
 STATIC MipsLIR* genImmedCheck(CompilationUnit* cUnit, MipsConditionCode cCode,
                              int reg, int immVal, MIR* mir, MipsThrowKind kind)
 {
-    UNIMPLEMENTED(FATAL) << "Needs mips version";
-    return 0;
-#if 0
     MipsLIR* tgt = (MipsLIR*)oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
-    tgt->opcode = kMipsPseudoThrowTarget;
+    tgt->opcode = kPseudoThrowTarget;
     tgt->operands[0] = kind;
     tgt->operands[1] = mir->offset;
     MipsLIR* branch;
     if (cCode == kMipsCondAl) {
         branch = genUnconditionalBranch(cUnit, tgt);
     } else {
-        branch = genCmpImmBranch(cUnit, cCode, reg, immVal);
+        int tReg;
+        if (immVal == 0) {
+            tReg = r_ZERO;
+        } else {
+            tReg = oatAllocTemp(cUnit);
+            loadConstant(cUnit, tReg, immVal);
+        }
+        branch = opCompareBranchCC(cUnit, cCode, reg, tReg);
         branch->generic.target = (LIR*)tgt;
     }
     // Remember branch target - will process later
     oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
     return branch;
-#endif
 }
 
 /* Perform null-check on a register.  */
 STATIC MipsLIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg,
                              MIR* mir)
 {
-    UNIMPLEMENTED(FATAL) << "Needs mips version";
-    return 0;
-#if 0
     if (!(cUnit->disableOpt & (1 << kNullCheckElimination)) &&
         mir->optimizationFlags & MIR_IGNORE_NULL_CHECK) {
         return NULL;
     }
     return genImmedCheck(cUnit, kMipsCondEq, mReg, 0, mir, kMipsThrowNullPointer);
-#endif
 }
 
 /* Perform check on two registers */
 STATIC TGT_LIR* genRegRegCheck(CompilationUnit* cUnit, MipsConditionCode cCode,
                                int reg1, int reg2, MIR* mir, MipsThrowKind kind)
 {
-    UNIMPLEMENTED(FATAL) << "Needs mips version";
-    return 0;
-#if 0
     MipsLIR* tgt = (MipsLIR*)oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
-    tgt->opcode = kMipsPseudoThrowTarget;
+    tgt->opcode = kPseudoThrowTarget;
     tgt->operands[0] = kind;
     tgt->operands[1] = mir ? mir->offset : 0;
     tgt->operands[2] = reg1;
@@ -191,7 +150,6 @@ STATIC TGT_LIR* genRegRegCheck(CompilationUnit* cUnit, MipsConditionCode cCode,
     // Remember branch target - will process later
     oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
     return branch;
-#endif
 }
 
 /*
@@ -202,27 +160,26 @@ STATIC TGT_LIR* genRegRegCheck(CompilationUnit* cUnit, MipsConditionCode cCode,
 STATIC void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                         RegLocation rlSrc)
 {
-    UNIMPLEMENTED(FATAL) << "Needs mips version";
-#if 0
     oatFlushAllRegs(cUnit);    /* Everything to home location */
+    oatLockCallTemps(cUnit);
+    int addrReg = oatAllocTemp(cUnit);
     uint32_t type_idx = mir->dalvikInsn.vC;
     if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
                                                     cUnit->dex_cache,
                                                     *cUnit->dex_file,
                                                     type_idx)) {
         loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pAllocArrayFromCode), rLR);
+                     OFFSETOF_MEMBER(Thread, pAllocArrayFromCode), addrReg);
     } else {
         loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pAllocArrayFromCodeWithAccessCheck), rLR);
+                     OFFSETOF_MEMBER(Thread, pAllocArrayFromCodeWithAccessCheck), addrReg);
     }
-    loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
-    loadConstant(cUnit, r0, type_idx);            // arg0 <- type_id
-    loadValueDirectFixed(cUnit, rlSrc, r2);       // arg2 <- count
-    callRuntimeHelper(cUnit, rLR);
+    loadCurrMethodDirect(cUnit, r_ARG1);              // arg1 <- Method*
+    loadConstant(cUnit, r_ARG0, type_idx);            // arg0 <- type_id
+    loadValueDirectFixed(cUnit, rlSrc, r_ARG2);       // arg2 <- count
+    callRuntimeHelper(cUnit, addrReg);
     RegLocation rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
-#endif
 }
 
 /*
@@ -233,34 +190,36 @@ STATIC void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
  */
 STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
 {
-    UNIMPLEMENTED(FATAL) << "Needs mips version";
-#if 0
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int elems = dInsn->vA;
     int typeId = dInsn->vB;
     oatFlushAllRegs(cUnit);    /* Everything to home location */
+    oatLockCallTemps(cUnit);
+    int addrReg = oatAllocTemp(cUnit);
     if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
                                                     cUnit->dex_cache,
                                                     *cUnit->dex_file,
                                                     typeId)) {
         loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pCheckAndAllocArrayFromCode), rLR);
+                     OFFSETOF_MEMBER(Thread, pCheckAndAllocArrayFromCode),
+                                     addrReg);
     } else {
         loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pCheckAndAllocArrayFromCodeWithAccessCheck), rLR);
+                     OFFSETOF_MEMBER(Thread,
+                     pCheckAndAllocArrayFromCodeWithAccessCheck), addrReg);
     }
-    loadCurrMethodDirect(cUnit, r1);              // arg1 <- Method*
-    loadConstant(cUnit, r0, typeId);              // arg0 <- type_id
-    loadConstant(cUnit, r2, elems);               // arg2 <- count
-    callRuntimeHelper(cUnit, rLR);
+    loadCurrMethodDirect(cUnit, r_ARG1);              // arg1 <- Method*
+    loadConstant(cUnit, r_ARG0, typeId);              // arg0 <- type_id
+    loadConstant(cUnit, r_ARG2, elems);               // arg2 <- count
+    callRuntimeHelper(cUnit, addrReg);
     /*
      * NOTE: the implicit target for OP_FILLED_NEW_ARRAY is the
      * return region.  Because AllocFromCode placed the new array
-     * in r0, we'll just lock it into place.  When debugger support is
+     * in r_V0, we'll just lock it into place.  When debugger support is
      * added, it may be necessary to additionally copy all return
      * values to a home location in thread-local storage
      */
-    oatLockTemp(cUnit, r0);
+    oatLockTemp(cUnit, r_V0);
 
     // Having a range of 0 is legal
     if (isRange && (dInsn->vA > 0)) {
@@ -288,32 +247,31 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
         int rSrc = oatAllocTemp(cUnit);
         int rDst = oatAllocTemp(cUnit);
         int rIdx = oatAllocTemp(cUnit);
-        int rVal = rLR;  // Using a lot of temps, rLR is known free here
+        int rVal = oatAllocTemp(cUnit);
         // Set up source pointer
         RegLocation rlFirst = oatGetSrc(cUnit, mir, 0);
         opRegRegImm(cUnit, kOpAdd, rSrc, rSP,
                     oatSRegOffset(cUnit, rlFirst.sRegLow));
         // Set up the target pointer
-        opRegRegImm(cUnit, kOpAdd, rDst, r0,
+        opRegRegImm(cUnit, kOpAdd, rDst, r_V0,
                     Array::DataOffset().Int32Value());
         // Set up the loop counter (known to be > 0)
         loadConstant(cUnit, rIdx, dInsn->vA - 1);
         // Generate the copy loop.  Going backwards for convenience
-        MipsLIR* target = newLIR0(cUnit, kMipsPseudoTargetLabel);
+        MipsLIR* target = newLIR0(cUnit, kPseudoTargetLabel);
         target->defMask = ENCODE_ALL;
         // Copy next element
         loadBaseIndexed(cUnit, rSrc, rIdx, rVal, 2, kWord);
         storeBaseIndexed(cUnit, rDst, rIdx, rVal, 2, kWord);
-        // Use setflags encoding here
-        newLIR3(cUnit, kThumb2SubsRRI12, rIdx, rIdx, 1);
-        MipsLIR* branch = opCondBranch(cUnit, kMipsCondGe);
+        opRegImm(cUnit, kOpSub, rIdx, 1);
+        MipsLIR* branch = opCompareBranchCC(cUnit, kMipsCondGe, rIdx, r_ZERO);
         branch->generic.target = (LIR*)target;
     } else if (!isRange) {
         // TUNING: interleave
         for (unsigned int i = 0; i < dInsn->vA; i++) {
             RegLocation rlArg = loadValue(cUnit,
                 oatGetSrc(cUnit, mir, i), kCoreReg);
-            storeBaseDisp(cUnit, r0,
+            storeBaseDisp(cUnit, r_V0,
                           Array::DataOffset().Int32Value() +
                           i * 4, rlArg.lowReg, kWord);
             // If the loadValue caused a temp to be allocated, free it
@@ -322,14 +280,11 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
             }
         }
     }
-#endif
 }
 
 STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
                     bool isLongOrDouble, bool isObject)
 {
-    UNIMPLEMENTED(FATAL) << "Needs mips version";
-#if 0
     int fieldOffset;
     int ssbIndex;
     bool isVolatile;
@@ -357,6 +312,7 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
             oatFlushAllRegs(cUnit);
             // Using fixed register to sync with possible call to runtime
             // support.
+            oatLockCallTemps(cUnit);
             rMethod = r1;
             oatLockTemp(cUnit, rMethod);
             loadCurrMethodDirect(cUnit, rMethod);
@@ -371,12 +327,13 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
             // rBase now points at appropriate static storage base (Class*)
             // or NULL if not initialized. Check for NULL and call helper if NULL.
             // TUNING: fast path should fall through
-            MipsLIR* branchOver = genCmpImmBranch(cUnit, kMipsCondNe, rBase, 0);
+            MipsLIR* branchOver = opCmpImmBranchCC(cUnit, kMipsCondNe,
+                                                   rBase, 0);
             loadWordDisp(cUnit, rSELF,
                          OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
             loadConstant(cUnit, r0, ssbIndex);
             callRuntimeHelper(cUnit, rLR);
-            MipsLIR* skipTarget = newLIR0(cUnit, kMipsPseudoTargetLabel);
+            MipsLIR* skipTarget = newLIR0(cUnit, kPseudoTargetLabel);
             skipTarget->defMask = ENCODE_ALL;
             branchOver->generic.target = (LIR*)skipTarget;
         }
@@ -419,7 +376,6 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
         }
         callRuntimeHelper(cUnit, rLR);
     }
-#endif
 }
 
 STATIC void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
@@ -468,12 +424,12 @@ STATIC void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             // rBase now points at appropriate static storage base (Class*)
             // or NULL if not initialized. Check for NULL and call helper if NULL.
             // TUNING: fast path should fall through
-            MipsLIR* branchOver = genCmpImmBranch(cUnit, kMipsCondNe, rBase, 0);
+            MipsLIR* branchOver = opCmpImmBranchCC(cUnit, kMipsCondNe, rBase, 0);
             loadWordDisp(cUnit, rSELF,
                          OFFSETOF_MEMBER(Thread, pInitializeStaticStorage), rLR);
             loadConstant(cUnit, r0, ssbIndex);
             callRuntimeHelper(cUnit, rLR);
-            MipsLIR* skipTarget = newLIR0(cUnit, kMipsPseudoTargetLabel);
+            MipsLIR* skipTarget = newLIR0(cUnit, kPseudoTargetLabel);
             skipTarget->defMask = ENCODE_ALL;
             branchOver->generic.target = (LIR*)skipTarget;
         }
@@ -947,10 +903,10 @@ STATIC void genShowTarget(CompilationUnit* cUnit)
 {
     UNIMPLEMENTED(FATAL) << "Needs mips version";
 #if 0
-    MipsLIR* branchOver = genCmpImmBranch(cUnit, kMipsCondNe, rLR, 0);
+    MipsLIR* branchOver = opCmpImmBranch(cUnit, kMipsCondNe, rLR, 0);
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pDebugMe), rLR);
-    MipsLIR* target = newLIR0(cUnit, kMipsPseudoTargetLabel);
+    MipsLIR* target = newLIR0(cUnit, kPseudoTargetLabel);
     target->defMask = -1;
     branchOver->generic.target = (LIR*)target;
 #endif
@@ -1164,7 +1120,7 @@ STATIC void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
     bool skipOverflowCheck = ((cUnit->attrs & METHOD_IS_LEAF) &&
                               ((size_t)cUnit->frameSize <
                               Thread::kStackOverflowReservedBytes));
-    newLIR0(cUnit, kMipsPseudoMethodEntry);
+    newLIR0(cUnit, kPseudoMethodEntry);
     if (!skipOverflowCheck) {
         /* Load stack limit */
         loadWordDisp(cUnit, rSELF,
@@ -1220,7 +1176,7 @@ STATIC void genExitSequence(CompilationUnit* cUnit, BasicBlock* bb)
     oatLockTemp(cUnit, r0);
     oatLockTemp(cUnit, r1);
 
-    newLIR0(cUnit, kMipsPseudoMethodExit);
+    newLIR0(cUnit, kPseudoMethodExit);
     /* If we're compiling for the debugger, generate an update callout */
     if (cUnit->genDebugger) {
         genDebuggerUpdate(cUnit, DEBUGGER_METHOD_EXIT);

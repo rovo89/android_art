@@ -193,42 +193,6 @@ typedef enum ResourceEncodingPos {
 #define DECODE_ALIAS_INFO_REG(X)        (X & 0xffff)
 #define DECODE_ALIAS_INFO_WIDE(X)       ((X & 0x80000000) ? 1 : 0)
 
-typedef enum OpKind {
-    kOpMov,
-    kOpMvn,
-    kOpCmp,
-    kOpLsl,
-    kOpLsr,
-    kOpAsr,
-    kOpRor,
-    kOpNot,
-    kOpAnd,
-    kOpOr,
-    kOpXor,
-    kOpNeg,
-    kOpAdd,
-    kOpAdc,
-    kOpSub,
-    kOpSbc,
-    kOpRsub,
-    kOpMul,
-    kOpDiv,
-    kOpRem,
-    kOpBic,
-    kOpCmn,
-    kOpTst,
-    kOpBkpt,
-    kOpBlx,
-    kOpPush,
-    kOpPop,
-    kOp2Char,
-    kOp2Short,
-    kOp2Byte,
-    kOpCondBr,
-    kOpUncondBr,
-    kOpInvalid,
-} OpKind;
-
 /*
  * FIXME:
  * Originally had r4PC as r_S0, rFP as r_S1, rSELF as r_S2, rINST as r_S4
@@ -240,8 +204,13 @@ typedef enum OpKind {
 #define rSELF r_S1
 #define rSP r_SP
 
-/* FIXME: don't do this - find and fix all rLR's */
-#define rLR r_RA
+#define rARG0 r_ARG0
+#define rARG1 r_ARG1
+#define rARG2 r_ARG2
+#define rARG3 r_ARG3
+
+#define rRET0 r_V0
+#define rRET1 r_V1
 
 /*
  * Annotate special-purpose core registers:
@@ -376,7 +345,7 @@ typedef enum MipsThrowKind {
     kMipsThrowStackOverflow,
 } MipsThrowKind;
 
-#define isPseudoOpCode(opCode) ((int)(opCode) < 0)
+#define isPseudoOpcode(opCode) ((int)(opCode) < 0)
 
 /*
  * The following enum defines the list of supported Thumb instructions by the
@@ -384,21 +353,21 @@ typedef enum MipsThrowKind {
  * Assemble.c.
  */
 typedef enum MipsOpCode {
-    kMipsPseudoSuspendTarget = -15,
-    kMipsPseudoThrowTarget = -14,
-    kMipsPseudoCaseLabel = -13,
-    kMipsPseudoMethodEntry = -12,
-    kMipsPseudoMethodExit = -11,
-    kMipsPseudoBarrier = -10,
-    kMipsPseudoExtended = -9,
-    kMipsPseudoSSARep = -8,
-    kMipsPseudoEntryBlock = -7,
-    kMipsPseudoExitBlock = -6,
-    kMipsPseudoTargetLabel = -5,
-    kMipsPseudoDalvikByteCodeBoundary = -4,
-    kMipsPseudoPseudoAlign4 = -3,
-    kMipsPseudoEHBlockLabel = -2,
-    kMipsPseudoNormalBlockLabel = -1,
+    kPseudoSuspendTarget = -15,
+    kPseudoThrowTarget = -14,
+    kPseudoCaseLabel = -13,
+    kPseudoMethodEntry = -12,
+    kPseudoMethodExit = -11,
+    kPseudoBarrier = -10,
+    kPseudoExtended = -9,
+    kPseudoSSARep = -8,
+    kPseudoEntryBlock = -7,
+    kPseudoExitBlock = -6,
+    kPseudoTargetLabel = -5,
+    kPseudoDalvikByteCodeBoundary = -4,
+    kPseudoPseudoAlign4 = -3,
+    kPseudoEHBlockLabel = -2,
+    kPseudoNormalBlockLabel = -1,
 
     kMipsFirst,
     kMips32BitData = kMipsFirst, /* data [31..0] */

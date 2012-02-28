@@ -21,7 +21,7 @@
 
 namespace art {
 
-STATIC bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
+bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
     bool change = false;
     if (cUnit->regLocation[index].highWord) {
         return change;
@@ -34,7 +34,7 @@ STATIC bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
     return change;
 }
 
-STATIC bool setCore(CompilationUnit* cUnit, int index, bool isCore) {
+bool setCore(CompilationUnit* cUnit, int index, bool isCore) {
     bool change = false;
     if (cUnit->regLocation[index].highWord) {
         return change;
@@ -47,7 +47,7 @@ STATIC bool setCore(CompilationUnit* cUnit, int index, bool isCore) {
     return change;
 }
 
-STATIC bool remapNames(CompilationUnit* cUnit, BasicBlock* bb)
+bool remapNames(CompilationUnit* cUnit, BasicBlock* bb)
 {
     if (bb->blockType != kDalvikByteCode && bb->blockType != kEntryBlock &&
         bb->blockType != kExitBlock)
@@ -68,7 +68,7 @@ STATIC bool remapNames(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 // Try to find the next move result which might have an FP target
-STATIC SSARepresentation* findMoveResult(MIR* mir)
+SSARepresentation* findMoveResult(MIR* mir)
 {
     SSARepresentation* res = NULL;
     for (; mir; mir = mir->next) {
@@ -86,7 +86,7 @@ STATIC SSARepresentation* findMoveResult(MIR* mir)
  * as it doesn't propagate.  We're guaranteed at least one pass through
  * the cfg.
  */
-STATIC bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
+bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
 {
     MIR *mir;
     bool changed = false;   // Did anything change?

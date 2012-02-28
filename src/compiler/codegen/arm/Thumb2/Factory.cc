@@ -35,7 +35,7 @@ static int coreTemps[] = {r0, r1, r2, r3, r12};
 static int fpTemps[] = {fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
                         fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15};
 
-STATIC int encodeImmSingle(int value)
+int encodeImmSingle(int value)
 {
     int res;
     int bitA =    (value & 0x80000000) >> 31;
@@ -57,23 +57,22 @@ STATIC int encodeImmSingle(int value)
     return res;
 }
 
-STATIC ArmLIR* loadFPConstantValue(CompilationUnit* cUnit, int rDest,
-                                   int value)
+LIR* loadFPConstantValue(CompilationUnit* cUnit, int rDest, int value)
 {
     int encodedImm = encodeImmSingle(value);
     DCHECK(SINGLEREG(rDest));
     if (encodedImm >= 0) {
         return newLIR2(cUnit, kThumb2Vmovs_IMM8, rDest, encodedImm);
     }
-    ArmLIR* dataTarget = scanLiteralPool(cUnit->literalList, value, 0);
+    LIR* dataTarget = scanLiteralPool(cUnit->literalList, value, 0);
     if (dataTarget == NULL) {
         dataTarget = addWordData(cUnit, &cUnit->literalList, value);
     }
-    ArmLIR* loadPcRel = (ArmLIR* ) oatNew(cUnit, sizeof(ArmLIR), true,
+    LIR* loadPcRel = (LIR* ) oatNew(cUnit, sizeof(LIR), true,
                                           kAllocLIR);
-    loadPcRel->generic.dalvikOffset = cUnit->currentDalvikOffset;
+    loadPcRel->dalvikOffset = cUnit->currentDalvikOffset;
     loadPcRel->opcode = kThumb2Vldrs;
-    loadPcRel->generic.target = (LIR* ) dataTarget;
+    loadPcRel->target = (LIR* ) dataTarget;
     loadPcRel->operands[0] = rDest;
     loadPcRel->operands[1] = r15pc;
     setupResourceMasks(loadPcRel);
@@ -83,7 +82,7 @@ STATIC ArmLIR* loadFPConstantValue(CompilationUnit* cUnit, int rDest,
     return loadPcRel;
 }
 
-STATIC int leadingZeros(u4 val)
+int leadingZeros(u4 val)
 {
     u4 alt;
     int n;
@@ -106,7 +105,7 @@ STATIC int leadingZeros(u4 val)
  * Determine whether value can be encoded as a Thumb2 modified
  * immediate.  If not, return -1.  If so, return i:imm3:a:bcdefgh form.
  */
-STATIC int modifiedImmediate(u4 value)
+int modifiedImmediate(u4 value)
 {
    int zLeading;
    int zTrailing;
@@ -144,10 +143,9 @@ STATIC int modifiedImmediate(u4 value)
  * 1) rDest is freshly returned from oatAllocTemp or
  * 2) The codegen is under fixed register usage
  */
-STATIC ArmLIR* loadConstantNoClobber(CompilationUnit* cUnit, int rDest,
-                                     int value)
+LIR* loadConstantNoClobber(CompilationUnit* cUnit, int rDest, int value)
 {
-    ArmLIR* res;
+    LIR* res;
     int modImm;
 
     if (FPREG(rDest)) {
@@ -175,15 +173,15 @@ STATIC ArmLIR* loadConstantNoClobber(CompilationUnit* cUnit, int rDest,
         return res;
     }
     /* No shortcut - go ahead and use literal pool */
-    ArmLIR* dataTarget = scanLiteralPool(cUnit->literalList, value, 0);
+    LIR* dataTarget = scanLiteralPool(cUnit->literalList, value, 0);
     if (dataTarget == NULL) {
         dataTarget = addWordData(cUnit, &cUnit->literalList, value);
     }
-    ArmLIR* loadPcRel = (ArmLIR* ) oatNew(cUnit, sizeof(ArmLIR), true,
+    LIR* loadPcRel = (LIR* ) oatNew(cUnit, sizeof(LIR), true,
                                           kAllocLIR);
     loadPcRel->opcode = kThumb2LdrPcRel12;
-    loadPcRel->generic.target = (LIR* ) dataTarget;
-    loadPcRel->generic.dalvikOffset = cUnit->currentDalvikOffset;
+    loadPcRel->target = (LIR* ) dataTarget;
+    loadPcRel->dalvikOffset = cUnit->currentDalvikOffset;
     loadPcRel->operands[0] = rDest;
     setupResourceMasks(loadPcRel);
     setMemRefType(loadPcRel, true, kLiteral);
@@ -201,20 +199,7 @@ STATIC ArmLIR* loadConstantNoClobber(CompilationUnit* cUnit, int rDest,
     return res;
 }
 
-/*
- * Load an immediate value into a fixed or temp register.  Target
- * register is clobbered, and marked inUse.
- */
-STATIC ArmLIR* loadConstant(CompilationUnit* cUnit, int rDest, int value)
-{
-    if (oatIsTemp(cUnit, rDest)) {
-        oatClobber(cUnit, rDest);
-        oatMarkInUse(cUnit, rDest);
-    }
-    return loadConstantNoClobber(cUnit, rDest, value);
-}
-
-STATIC ArmLIR* opNone(CompilationUnit* cUnit, OpKind op)
+LIR* opNone(CompilationUnit* cUnit, OpKind op)
 {
     ArmOpcode opcode = kThumbBkpt;
     switch (op) {
@@ -227,12 +212,13 @@ STATIC ArmLIR* opNone(CompilationUnit* cUnit, OpKind op)
     return newLIR0(cUnit, opcode);
 }
 
-STATIC ArmLIR* opCondBranch(CompilationUnit* cUnit, ArmConditionCode cc)
+LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc)
 {
-    return newLIR2(cUnit, kThumb2BCond, 0 /* offset to be patched */, cc);
+    return newLIR2(cUnit, kThumb2BCond, 0 /* offset to be patched */,
+                   oatArmConditionEncoding(cc));
 }
 
-STATIC ArmLIR* opReg(CompilationUnit* cUnit, OpKind op, int rDestSrc)
+LIR* opReg(CompilationUnit* cUnit, OpKind op, int rDestSrc)
 {
     ArmOpcode opcode = kThumbBkpt;
     switch (op) {
@@ -245,8 +231,8 @@ STATIC ArmLIR* opReg(CompilationUnit* cUnit, OpKind op, int rDestSrc)
     return newLIR1(cUnit, opcode, rDestSrc);
 }
 
-STATIC ArmLIR* opRegRegShift(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
-                             int rSrc2, int shift)
+LIR* opRegRegShift(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
+                   int rSrc2, int shift)
 {
     bool thumbForm = ((shift == 0) && LOWREG(rDestSrc1) && LOWREG(rSrc2));
     ArmOpcode opcode = kThumbBkpt;
@@ -361,14 +347,13 @@ STATIC ArmLIR* opRegRegShift(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
     }
 }
 
-STATIC ArmLIR* opRegReg(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
-                        int rSrc2)
+LIR* opRegReg(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int rSrc2)
 {
     return opRegRegShift(cUnit, op, rDestSrc1, rSrc2, 0);
 }
 
-STATIC ArmLIR* opRegRegRegShift(CompilationUnit* cUnit, OpKind op,
-                                int rDest, int rSrc1, int rSrc2, int shift)
+LIR* opRegRegRegShift(CompilationUnit* cUnit, OpKind op, int rDest, int rSrc1,
+                      int rSrc2, int shift)
 {
     ArmOpcode opcode = kThumbBkpt;
     bool thumbForm = (shift == 0) && LOWREG(rDest) && LOWREG(rSrc1) &&
@@ -431,16 +416,16 @@ STATIC ArmLIR* opRegRegRegShift(CompilationUnit* cUnit, OpKind op,
     }
 }
 
-STATIC ArmLIR* opRegRegReg(CompilationUnit* cUnit, OpKind op, int rDest,
-                           int rSrc1, int rSrc2)
+LIR* opRegRegReg(CompilationUnit* cUnit, OpKind op, int rDest, int rSrc1,
+                 int rSrc2)
 {
     return opRegRegRegShift(cUnit, op, rDest, rSrc1, rSrc2, 0);
 }
 
-STATIC ArmLIR* opRegRegImm(CompilationUnit* cUnit, OpKind op, int rDest,
-                           int rSrc1, int value)
+LIR* opRegRegImm(CompilationUnit* cUnit, OpKind op, int rDest, int rSrc1,
+                 int value)
 {
-    ArmLIR* res;
+    LIR* res;
     bool neg = (value < 0);
     int absValue = (neg) ? -value : value;
     ArmOpcode opcode = kThumbBkpt;
@@ -531,7 +516,7 @@ STATIC ArmLIR* opRegRegImm(CompilationUnit* cUnit, OpKind op, int rDest,
             break;
         case kOpCmp: {
             int modImm = modifiedImmediate(value);
-            ArmLIR* res;
+            LIR* res;
             if (modImm >= 0) {
                 res = newLIR2(cUnit, kThumb2CmpRI8, rSrc1, modImm);
             } else {
@@ -561,8 +546,7 @@ STATIC ArmLIR* opRegRegImm(CompilationUnit* cUnit, OpKind op, int rDest,
 }
 
 /* Handle Thumb-only variants here - otherwise punt to opRegRegImm */
-STATIC ArmLIR* opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
-                        int value)
+LIR* opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int value)
 {
     bool neg = (value < 0);
     int absValue = (neg) ? -value : value;
@@ -611,7 +595,7 @@ STATIC ArmLIR* opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1,
  * Determine whether value can be encoded as a Thumb2 floating point
  * immediate.  If not, return -1.  If so return encoded 8-bit value.
  */
-STATIC int encodeImmDoubleHigh(int value)
+int encodeImmDoubleHigh(int value)
 {
     int res;
     int bitA =    (value & 0x80000000) >> 31;
@@ -633,7 +617,7 @@ STATIC int encodeImmDoubleHigh(int value)
     return res;
 }
 
-STATIC int encodeImmDouble(int valLo, int valHi)
+int encodeImmDouble(int valLo, int valHi)
 {
     int res = -1;
     if (valLo == 0)
@@ -641,27 +625,27 @@ STATIC int encodeImmDouble(int valLo, int valHi)
     return res;
 }
 
-STATIC ArmLIR* loadConstantValueWide(CompilationUnit* cUnit, int rDestLo,
-                                     int rDestHi, int valLo, int valHi)
+LIR* loadConstantValueWide(CompilationUnit* cUnit, int rDestLo, int rDestHi,
+                           int valLo, int valHi)
 {
     int encodedImm = encodeImmDouble(valLo, valHi);
-    ArmLIR* res;
+    LIR* res;
     if (FPREG(rDestLo)) {
         if (encodedImm >= 0) {
             res = newLIR2(cUnit, kThumb2Vmovd_IMM8, S2D(rDestLo, rDestHi),
                           encodedImm);
         } else {
-            ArmLIR* dataTarget = scanLiteralPoolWide(cUnit->literalList, valLo,
+            LIR* dataTarget = scanLiteralPoolWide(cUnit->literalList, valLo,
                valHi);
             if (dataTarget == NULL) {
                 dataTarget = addWideData(cUnit, &cUnit->literalList, valLo,
                                          valHi);
             }
-            ArmLIR* loadPcRel = (ArmLIR* ) oatNew(cUnit, sizeof(ArmLIR), true,
+            LIR* loadPcRel = (LIR* ) oatNew(cUnit, sizeof(LIR), true,
                                                   kAllocLIR);
-            loadPcRel->generic.dalvikOffset = cUnit->currentDalvikOffset;
+            loadPcRel->dalvikOffset = cUnit->currentDalvikOffset;
             loadPcRel->opcode = kThumb2Vldrd;
-            loadPcRel->generic.target = (LIR* ) dataTarget;
+            loadPcRel->target = (LIR* ) dataTarget;
             loadPcRel->operands[0] = S2D(rDestLo, rDestHi);
             loadPcRel->operands[1] = r15pc;
             setupResourceMasks(loadPcRel);
@@ -677,15 +661,15 @@ STATIC ArmLIR* loadConstantValueWide(CompilationUnit* cUnit, int rDestLo,
     return res;
 }
 
-STATIC int encodeShift(int code, int amount) {
+int encodeShift(int code, int amount) {
     return ((amount & 0x1f) << 2) | code;
 }
 
-STATIC ArmLIR* loadBaseIndexed(CompilationUnit* cUnit, int rBase,
-                               int rIndex, int rDest, int scale, OpSize size)
+LIR* loadBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rDest,
+                     int scale, OpSize size)
 {
     bool allLowRegs = LOWREG(rBase) && LOWREG(rIndex) && LOWREG(rDest);
-    ArmLIR* load;
+    LIR* load;
     ArmOpcode opcode = kThumbBkpt;
     bool thumbForm = (allLowRegs && (scale == 0));
     int regPtr;
@@ -745,11 +729,11 @@ STATIC ArmLIR* loadBaseIndexed(CompilationUnit* cUnit, int rBase,
     return load;
 }
 
-STATIC ArmLIR* storeBaseIndexed(CompilationUnit* cUnit, int rBase,
-                                int rIndex, int rSrc, int scale, OpSize size)
+LIR* storeBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rSrc,
+                      int scale, OpSize size)
 {
     bool allLowRegs = LOWREG(rBase) && LOWREG(rIndex) && LOWREG(rSrc);
-    ArmLIR* store;
+    LIR* store;
     ArmOpcode opcode = kThumbBkpt;
     bool thumbForm = (allLowRegs && (scale == 0));
     int regPtr;
@@ -810,12 +794,12 @@ STATIC ArmLIR* storeBaseIndexed(CompilationUnit* cUnit, int rBase,
  * on base (which must have an associated sReg and MIR).  If not
  * performing null check, incoming MIR can be null.
  */
-STATIC ArmLIR* loadBaseDispBody(CompilationUnit* cUnit, MIR* mir, int rBase,
-                                int displacement, int rDest, int rDestHi,
-                                OpSize size, int sReg)
+LIR* loadBaseDispBody(CompilationUnit* cUnit, MIR* mir, int rBase,
+                      int displacement, int rDest, int rDestHi, OpSize size,
+                      int sReg)
 {
-    ArmLIR* res;
-    ArmLIR* load;
+    LIR* res;
+    LIR* load;
     ArmOpcode opcode = kThumbBkpt;
     bool shortForm = false;
     bool thumb2Form = (displacement < 4092 && displacement >= 0);
@@ -925,28 +909,25 @@ STATIC ArmLIR* loadBaseDispBody(CompilationUnit* cUnit, MIR* mir, int rBase,
     return load;
 }
 
-STATIC ArmLIR* loadBaseDisp(CompilationUnit* cUnit, MIR* mir, int rBase,
-                            int displacement, int rDest, OpSize size,
-                            int sReg)
+LIR* loadBaseDisp(CompilationUnit* cUnit, MIR* mir, int rBase,
+                  int displacement, int rDest, OpSize size, int sReg)
 {
     return loadBaseDispBody(cUnit, mir, rBase, displacement, rDest, -1,
                             size, sReg);
 }
 
-STATIC  ArmLIR* loadBaseDispWide(CompilationUnit* cUnit, MIR* mir, int rBase,
-                                 int displacement, int rDestLo, int rDestHi,
-                                 int sReg)
+ LIR* loadBaseDispWide(CompilationUnit* cUnit, MIR* mir, int rBase,
+                       int displacement, int rDestLo, int rDestHi, int sReg)
 {
     return loadBaseDispBody(cUnit, mir, rBase, displacement, rDestLo, rDestHi,
                             kLong, sReg);
 }
 
 
-STATIC ArmLIR* storeBaseDispBody(CompilationUnit* cUnit, int rBase,
-                                 int displacement, int rSrc, int rSrcHi,
-                                 OpSize size)
+LIR* storeBaseDispBody(CompilationUnit* cUnit, int rBase, int displacement,
+                       int rSrc, int rSrcHi, OpSize size)
 {
-    ArmLIR* res, *store;
+    LIR* res, *store;
     ArmOpcode opcode = kThumbBkpt;
     bool shortForm = false;
     bool thumb2Form = (displacement < 4092 && displacement >= 0);
@@ -1035,63 +1016,32 @@ STATIC ArmLIR* storeBaseDispBody(CompilationUnit* cUnit, int rBase,
     return res;
 }
 
-STATIC ArmLIR* storeBaseDisp(CompilationUnit* cUnit, int rBase,
-                             int displacement, int rSrc, OpSize size)
+LIR* storeBaseDisp(CompilationUnit* cUnit, int rBase, int displacement,
+                   int rSrc, OpSize size)
 {
     return storeBaseDispBody(cUnit, rBase, displacement, rSrc, -1, size);
 }
 
-STATIC ArmLIR* storeBaseDispWide(CompilationUnit* cUnit, int rBase,
-                                 int displacement, int rSrcLo, int rSrcHi)
+LIR* storeBaseDispWide(CompilationUnit* cUnit, int rBase, int displacement,
+                       int rSrcLo, int rSrcHi)
 {
     return storeBaseDispBody(cUnit, rBase, displacement, rSrcLo, rSrcHi, kLong);
 }
 
-STATIC void storePair(CompilationUnit* cUnit, int base, int lowReg, int highReg)
+void storePair(CompilationUnit* cUnit, int base, int lowReg, int highReg)
 {
     storeBaseDispWide(cUnit, base, 0, lowReg, highReg);
 }
 
-STATIC void loadPair(CompilationUnit* cUnit, int base, int lowReg, int highReg)
+void loadPair(CompilationUnit* cUnit, int base, int lowReg, int highReg)
 {
     loadBaseDispWide(cUnit, NULL, base, 0, lowReg, highReg, INVALID_SREG);
 }
 
-/*
- * Generate a register comparison to an immediate and branch.  Caller
- * is responsible for setting branch target field.
- */
-STATIC ArmLIR* genCmpImmBranch(CompilationUnit* cUnit,
-                              ArmConditionCode cond, int reg,
-                              int checkValue)
+LIR* fpRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
 {
-    ArmLIR* branch;
-    int modImm;
-    if ((LOWREG(reg)) && (checkValue == 0) &&
-       ((cond == kArmCondEq) || (cond == kArmCondNe))) {
-        branch = newLIR2(cUnit,
-                         (cond == kArmCondEq) ? kThumb2Cbz : kThumb2Cbnz,
-                         reg, 0);
-    } else {
-        modImm = modifiedImmediate(checkValue);
-        if (LOWREG(reg) && ((checkValue & 0xff) == checkValue)) {
-            newLIR2(cUnit, kThumbCmpRI8, reg, checkValue);
-        } else if (modImm >= 0) {
-            newLIR2(cUnit, kThumb2CmpRI8, reg, modImm);
-        } else {
-            int tReg = oatAllocTemp(cUnit);
-            loadConstant(cUnit, tReg, checkValue);
-            opRegReg(cUnit, kOpCmp, reg, tReg);
-        }
-        branch = newLIR2(cUnit, kThumbBCond, 0, cond);
-    }
-    return branch;
-}
-
-STATIC ArmLIR* fpRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
-{
-    ArmLIR* res = (ArmLIR* ) oatNew(cUnit, sizeof(ArmLIR), true, kAllocLIR);
-    res->generic.dalvikOffset = cUnit->currentDalvikOffset;
+    LIR* res = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
+    res->dalvikOffset = cUnit->currentDalvikOffset;
     res->operands[0] = rDest;
     res->operands[1] = rSrc;
     if (rDest == rSrc) {
@@ -1115,67 +1065,6 @@ STATIC ArmLIR* fpRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
     return res;
 }
 
-STATIC ArmLIR* genRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
-{
-    ArmLIR* res;
-    ArmOpcode opcode;
-    if (FPREG(rDest) || FPREG(rSrc))
-        return fpRegCopy(cUnit, rDest, rSrc);
-    res = (ArmLIR* ) oatNew(cUnit, sizeof(ArmLIR), true, kAllocLIR);
-    res->generic.dalvikOffset = cUnit->currentDalvikOffset;
-    if (LOWREG(rDest) && LOWREG(rSrc))
-        opcode = kThumbMovRR;
-    else if (!LOWREG(rDest) && !LOWREG(rSrc))
-         opcode = kThumbMovRR_H2H;
-    else if (LOWREG(rDest))
-         opcode = kThumbMovRR_H2L;
-    else
-         opcode = kThumbMovRR_L2H;
 
-    res->operands[0] = rDest;
-    res->operands[1] = rSrc;
-    res->opcode = opcode;
-    setupResourceMasks(res);
-    if (rDest == rSrc) {
-        res->flags.isNop = true;
-    }
-    return res;
-}
-
-STATIC ArmLIR* genRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
-{
-    ArmLIR* res = genRegCopyNoInsert(cUnit, rDest, rSrc);
-    oatAppendLIR(cUnit, (LIR*)res);
-    return res;
-}
-
-STATIC void genRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
-                           int srcLo, int srcHi)
-{
-    bool destFP = FPREG(destLo) && FPREG(destHi);
-    bool srcFP = FPREG(srcLo) && FPREG(srcHi);
-    DCHECK_EQ(FPREG(srcLo), FPREG(srcHi));
-    DCHECK_EQ(FPREG(destLo), FPREG(destHi));
-    if (destFP) {
-        if (srcFP) {
-            genRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
-        } else {
-            newLIR3(cUnit, kThumb2Fmdrr, S2D(destLo, destHi), srcLo, srcHi);
-        }
-    } else {
-        if (srcFP) {
-            newLIR3(cUnit, kThumb2Fmrrd, destLo, destHi, S2D(srcLo, srcHi));
-        } else {
-            // Handle overlap
-            if (srcHi == destLo) {
-                genRegCopy(cUnit, destHi, srcHi);
-                genRegCopy(cUnit, destLo, srcLo);
-            } else {
-                genRegCopy(cUnit, destLo, srcLo);
-                genRegCopy(cUnit, destHi, srcHi);
-            }
-        }
-    }
-}
 
 }  // namespace art

@@ -49,7 +49,7 @@ uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
      //(1 << kDebugShowMemoryUsage) |
      0;
 
-STATIC inline bool contentIsInsn(const u2* codePtr) {
+inline bool contentIsInsn(const u2* codePtr) {
     u2 instr = *codePtr;
     Opcode opcode = (Opcode)(instr & 0xff);
 
@@ -63,7 +63,7 @@ STATIC inline bool contentIsInsn(const u2* codePtr) {
 /*
  * Parse an instruction, return the length of the instruction
  */
-STATIC inline int parseInsn(CompilationUnit* cUnit, const u2* codePtr,
+inline int parseInsn(CompilationUnit* cUnit, const u2* codePtr,
                             DecodedInstruction* decInsn, bool printMe)
 {
     // Don't parse instruction data
@@ -85,7 +85,7 @@ STATIC inline int parseInsn(CompilationUnit* cUnit, const u2* codePtr,
 
 #define UNKNOWN_TARGET 0xffffffff
 
-STATIC inline bool isGoto(MIR* insn)
+inline bool isGoto(MIR* insn)
 {
     switch (insn->dalvikInsn.opcode) {
         case OP_GOTO:
@@ -100,7 +100,7 @@ STATIC inline bool isGoto(MIR* insn)
 /*
  * Identify unconditional branch instructions
  */
-STATIC inline bool isUnconditionalBranch(MIR* insn)
+inline bool isUnconditionalBranch(MIR* insn)
 {
     switch (insn->dalvikInsn.opcode) {
         case OP_RETURN_VOID:
@@ -114,10 +114,8 @@ STATIC inline bool isUnconditionalBranch(MIR* insn)
 }
 
 /* Split an existing block from the specified code offset into two */
-STATIC BasicBlock *splitBlock(CompilationUnit* cUnit,
-                              unsigned int codeOffset,
-                              BasicBlock* origBlock,
-                              BasicBlock** immedPredBlockP)
+BasicBlock *splitBlock(CompilationUnit* cUnit, unsigned int codeOffset,
+                       BasicBlock* origBlock, BasicBlock** immedPredBlockP)
 {
     MIR* insn = origBlock->firstMIRInsn;
     while (insn) {
@@ -205,10 +203,8 @@ STATIC BasicBlock *splitBlock(CompilationUnit* cUnit,
  * (by the caller)
  * Utilizes a map for fast lookup of the typical cases.
  */
-STATIC BasicBlock *findBlock(CompilationUnit* cUnit,
-                             unsigned int codeOffset,
-                             bool split, bool create,
-                             BasicBlock** immedPredBlockP)
+BasicBlock *findBlock(CompilationUnit* cUnit, unsigned int codeOffset,
+                      bool split, bool create, BasicBlock** immedPredBlockP)
 {
     GrowableList* blockList = &cUnit->blockList;
     BasicBlock* bb;
@@ -404,7 +400,7 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
 }
 
 /* Verify if all the successor is connected with all the claimed predecessors */
-STATIC bool verifyPredInfo(CompilationUnit* cUnit, BasicBlock* bb)
+bool verifyPredInfo(CompilationUnit* cUnit, BasicBlock* bb)
 {
     GrowableListIterator iter;
 
@@ -446,7 +442,7 @@ STATIC bool verifyPredInfo(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 /* Identify code range in try blocks and set up the empty catch blocks */
-STATIC void processTryCatchBlocks(CompilationUnit* cUnit)
+void processTryCatchBlocks(CompilationUnit* cUnit)
 {
     const DexFile::CodeItem* code_item = cUnit->code_item;
     int triesSize = code_item->tries_size_;
@@ -484,10 +480,9 @@ STATIC void processTryCatchBlocks(CompilationUnit* cUnit)
 }
 
 /* Process instructions with the kInstrCanBranch flag */
-STATIC BasicBlock* processCanBranch(CompilationUnit* cUnit,
-                                    BasicBlock* curBlock, MIR* insn,
-                                    int curOffset, int width, int flags,
-                                    const u2* codePtr, const u2* codeEnd)
+BasicBlock* processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
+                             MIR* insn, int curOffset, int width, int flags,
+                             const u2* codePtr, const u2* codeEnd)
 {
     int target = curOffset;
     switch (insn->dalvikInsn.opcode) {
@@ -566,8 +561,8 @@ STATIC BasicBlock* processCanBranch(CompilationUnit* cUnit,
 }
 
 /* Process instructions with the kInstrCanSwitch flag */
-STATIC void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
-                             MIR* insn, int curOffset, int width, int flags)
+void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
+                      MIR* insn, int curOffset, int width, int flags)
 {
     u2* switchData= (u2 *) (cUnit->insns + curOffset +
                             insn->dalvikInsn.vB);
@@ -654,10 +649,10 @@ STATIC void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
 }
 
 /* Process instructions with the kInstrCanThrow flag */
-STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
-                            MIR* insn, int curOffset, int width, int flags,
-                            ArenaBitVector* tryBlockAddr, const u2* codePtr,
-                            const u2* codeEnd)
+void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock, MIR* insn,
+                     int curOffset, int width, int flags,
+                     ArenaBitVector* tryBlockAddr, const u2* codePtr,
+                     const u2* codeEnd)
 {
     const DexFile::CodeItem* code_item = cUnit->code_item;
 
@@ -735,10 +730,12 @@ STATIC void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
 /*
  * Compile a method.
  */
-CompiledMethod* oatCompileMethod(Compiler& compiler, const DexFile::CodeItem* code_item,
+CompiledMethod* oatCompileMethod(Compiler& compiler,
+                                 const DexFile::CodeItem* code_item,
                                  uint32_t access_flags, uint32_t method_idx,
                                  const ClassLoader* class_loader,
-                                 const DexFile& dex_file, InstructionSet insnSet)
+                                 const DexFile& dex_file,
+                                 InstructionSet insnSet)
 {
     VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
 

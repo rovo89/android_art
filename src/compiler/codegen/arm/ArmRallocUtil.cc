@@ -184,9 +184,9 @@ extern void oatFreeCallTemps(CompilationUnit* cUnit)
 }
 
 /* Convert an instruction to a NOP */
-STATIC void oatNopLIR( LIR* lir)
+void oatNopLIR( LIR* lir)
 {
-    ((ArmLIR*)lir)->flags.isNop = true;
+    ((LIR*)lir)->flags.isNop = true;
 }
 
 }  // namespace art
