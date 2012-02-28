@@ -1939,10 +1939,16 @@ static void CheckMethodsHaveGcMaps(Class* klass) {
 #endif
 
 void ClassLinker::VerifyClass(Class* klass) {
+  // TODO: assert that the monitor on the Class is held
   ObjectLock lock(klass);
 
-  // TODO: assert that the monitor on the Class is held
   if (klass->IsVerified()) {
+    return;
+  }
+
+  // The class might already be erroneous if we attempted to verify a subclass
+  if (klass->IsErroneous()) {
+    ThrowEarlierClassFailure(klass);
     return;
   }
 
