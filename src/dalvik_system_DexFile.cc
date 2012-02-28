@@ -165,12 +165,16 @@ jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
 }
 
 jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
+  bool debug_logging = false;
+
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == NULL) {
+    LOG(ERROR) << "DexFile_isDexOptNeeded null filename";
     return JNI_TRUE;
   }
 
   if (!OS::FileExists(filename.c_str())) {
+    LOG(ERROR) << "DexFile_isDexOptNeeded file '" << filename.c_str() << "' does not exist";
     jniThrowExceptionFmt(env, "java/io/FileNotFoundException", "%s", filename.c_str());
     return JNI_TRUE;
   }
@@ -181,6 +185,9 @@ jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
   const std::vector<const DexFile*>& boot_class_path = class_linker->GetBootClassPath();
   for (size_t i = 0; i < boot_class_path.size(); i++) {
     if (boot_class_path[i]->GetLocation() == filename.c_str()) {
+      if (debug_logging) {
+        LOG(INFO) << "DexFile_isDexOptNeeded ignoring boot class path file: " << filename.c_str();
+      }
       return JNI_FALSE;
     }
   }
@@ -191,6 +198,9 @@ jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
   std::string oat_filename(OatFile::DexFilenameToOatFilename(filename.c_str()));
   const OatFile* oat_file = class_linker->FindOatFileFromOatLocation(oat_filename);
   if (oat_file != NULL && oat_file->GetOatDexFile(filename.c_str()) != NULL) {
+    if (debug_logging) {
+      LOG(INFO) << "DexFile_isDexOptNeeded ignoring precompiled file: " << filename.c_str();
+    }
     return JNI_FALSE;
   }
 
@@ -198,23 +208,40 @@ jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
   std::string cache_location(GetArtCacheFilenameOrDie(oat_filename));
   oat_file = class_linker->FindOatFileFromOatLocation(cache_location);
   if (oat_file == NULL) {
+    LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
+              << " does not exist for " << filename.c_str();
     return JNI_TRUE;
   }
 
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str());
   if (oat_dex_file == NULL) {
+    LOG(ERROR) << "DexFile_isDexOptNeeded cache file " << cache_location
+               << " does not contain contents for " << filename.c_str();
+    std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file->GetOatDexFiles();
+    for (size_t i = 0; i < oat_dex_files.size(); i++) {
+      const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
+      LOG(ERROR) << "DexFile_isDexOptNeeded cache file " << cache_location
+                 << " contains contents for " << oat_dex_file->GetDexFileLocation();
+    }
     return JNI_TRUE;
   }
 
   uint32_t location_checksum;
   if (!DexFile::GetChecksum(filename.c_str(), location_checksum)) {
+    LOG(ERROR) << "DexFile_isDexOptNeeded failed to compute checksum of " << filename.c_str();
     return JNI_TRUE;
   }
 
   if (location_checksum != oat_dex_file->GetDexFileLocationChecksum()) {
+    LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
+              << " has out-of-date checksum compared to " << filename.c_str();
     return JNI_TRUE;
   }
 
+  if (debug_logging) {
+    LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
+              << " is up-to-date for " << filename.c_str();
+  }
   return JNI_FALSE;
 }
 
