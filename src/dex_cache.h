@@ -47,17 +47,17 @@ class MANAGED DexCache : public ObjectArray<Object> {
   }
 
   static MemberOffset StringsOffset() {
-    return MemberOffset(DataOffset().Int32Value() +
+    return MemberOffset(DataOffset(sizeof(Object*)).Int32Value() +
                         kStrings * sizeof(Object*));
   }
 
   static MemberOffset ResolvedFieldsOffset() {
-    return MemberOffset(DataOffset().Int32Value() +
+    return MemberOffset(DataOffset(sizeof(Object*)).Int32Value() +
                         kResolvedFields * sizeof(Object*));
   }
 
   static MemberOffset ResolvedMethodsOffset() {
-    return MemberOffset(DataOffset().Int32Value() +
+    return MemberOffset(DataOffset(sizeof(Object*)).Int32Value() +
                         kResolvedMethods * sizeof(Object*));
   }
 

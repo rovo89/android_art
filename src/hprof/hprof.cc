@@ -421,7 +421,7 @@ int Hprof::DumpHeapObject(const Object* obj) {
         rec->AddId(LookupClassId(clazz));
 
         // Dump the elements, which are always objects or NULL.
-        rec->AddIdList((const HprofObjectId *)aobj->GetRawData(), length);
+        rec->AddIdList((const HprofObjectId *)aobj->GetRawData(sizeof(Object*)), length);
       } else {
         size_t size;
         HprofBasicType t = PrimitiveToBasicTypeAndSize(clazz->GetComponentType()->GetPrimitiveType(), &size);
@@ -441,13 +441,13 @@ int Hprof::DumpHeapObject(const Object* obj) {
 #if DUMP_PRIM_DATA
         // Dump the raw, packed element values.
         if (size == 1) {
-          rec->AddU1List((const uint8_t *)aobj->GetRawData(), length);
+          rec->AddU1List((const uint8_t *)aobj->GetRawData(sizeof(uint8_t)), length);
         } else if (size == 2) {
-          rec->AddU2List((const uint16_t *)(void *)aobj->GetRawData(), length);
+          rec->AddU2List((const uint16_t *)(void *)aobj->GetRawData(sizeof(uint16_t)), length);
         } else if (size == 4) {
-          rec->AddU4List((const uint32_t *)(void *)aobj->GetRawData(), length);
+          rec->AddU4List((const uint32_t *)(void *)aobj->GetRawData(sizeof(uint32_t)), length);
         } else if (size == 8) {
-          rec->AddU8List((const uint64_t *)aobj->GetRawData(), length);
+          rec->AddU8List((const uint64_t *)aobj->GetRawData(sizeof(uint64_t)), length);
         }
 #endif
       }

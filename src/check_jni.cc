@@ -1110,8 +1110,9 @@ void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean* isCopy
   ScopedJniThreadState ts(env);
 
   Array* a = Decode<Array*>(ts, java_array);
-  size_t byte_count = a->GetLength() * a->GetClass()->GetComponentSize();
-  void* result = GuardedCopy::Create(a->GetRawData(), byte_count, true);
+  size_t component_size = a->GetClass()->GetComponentSize();
+  size_t byte_count = a->GetLength() * component_size;
+  void* result = GuardedCopy::Create(a->GetRawData(component_size), byte_count, true);
   if (isCopy != NULL) {
     *isCopy = JNI_TRUE;
   }
@@ -1134,7 +1135,7 @@ void ReleaseGuardedPACopy(JNIEnv* env, jarray java_array, void* dataBuf, int mod
 
   if (mode != JNI_ABORT) {
     size_t len = GuardedCopy::FromData(dataBuf)->original_length;
-    memcpy(a->GetRawData(), dataBuf, len);
+    memcpy(a->GetRawData(a->GetClass()->GetComponentSize()), dataBuf, len);
   }
   if (mode != JNI_COMMIT) {
     GuardedCopy::Destroy(dataBuf);

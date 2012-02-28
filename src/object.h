@@ -973,12 +973,18 @@ class MANAGED Array : public Object {
     return OFFSET_OF_OBJECT_MEMBER(Array, length_);
   }
 
-  static MemberOffset DataOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Array, first_element_);
+  static MemberOffset DataOffset(size_t component_size) {
+    if (component_size != sizeof(int64_t)) {
+      return OFFSET_OF_OBJECT_MEMBER(Array, first_element_);
+    } else {
+      // Align longs and doubles.
+      return MemberOffset(OFFSETOF_MEMBER(Array, first_element_) + 4);
+    }
   }
 
-  void* GetRawData() {
-    return reinterpret_cast<void*>(first_element_);
+  void* GetRawData(size_t component_size) {
+    intptr_t data = reinterpret_cast<intptr_t>(this) + DataOffset(component_size).Int32Value();
+    return reinterpret_cast<void*>(data);
   }
 
  protected:
@@ -996,8 +1002,6 @@ class MANAGED Array : public Object {
  private:
   // The number of array elements.
   int32_t length_;
-  // Padding to ensure the first member defined by a subclass begins on a 8-byte boundary
-  int32_t padding_;
   // Marker for the data (used by generated code)
   uint32_t first_element_[0];
 
@@ -1031,7 +1035,7 @@ class MANAGED ObjectArray : public Array {
 
 template<class T>
 ObjectArray<T>* ObjectArray<T>::Alloc(Class* object_array_class, int32_t length) {
-  Array* array = Array::Alloc(object_array_class, length, sizeof(uint32_t));
+  Array* array = Array::Alloc(object_array_class, length, sizeof(Object*));
   if (UNLIKELY(array == NULL)) {
     return NULL;
   } else {
@@ -1044,7 +1048,7 @@ T* ObjectArray<T>::Get(int32_t i) const {
   if (UNLIKELY(!IsValidIndex(i))) {
     return NULL;
   }
-  MemberOffset data_offset(DataOffset().Int32Value() + i * sizeof(Object*));
+  MemberOffset data_offset(DataOffset(sizeof(Object*)).Int32Value() + i * sizeof(Object*));
   return GetFieldObject<T*>(data_offset, false);
 }
 
@@ -1982,7 +1986,11 @@ inline void Method::SetDeclaringClass(Class *new_declaring_class) {
 
 inline size_t Array::SizeOf() const {
   // This is safe from overflow because the array was already allocated, so we know it's sane.
-  return sizeof(Array) + GetLength() * GetClass()->GetComponentSize();
+  size_t component_size = GetClass()->GetComponentSize();
+  int32_t component_count = GetLength();
+  size_t header_size = sizeof(Object) + (component_size == sizeof(int64_t) ? 8 : 4);
+  size_t data_size = component_count * component_size;
+  return header_size + data_size;
 }
 
 template<class T>
@@ -1995,7 +2003,7 @@ void ObjectArray<T>::Set(int32_t i, T* object) {
         return;
       }
     }
-    MemberOffset data_offset(DataOffset().Int32Value() + i * sizeof(Object*));
+    MemberOffset data_offset(DataOffset(sizeof(Object*)).Int32Value() + i * sizeof(Object*));
     SetFieldObject(data_offset, object, false);
   }
 }
@@ -2003,14 +2011,14 @@ void ObjectArray<T>::Set(int32_t i, T* object) {
 template<class T>
 void ObjectArray<T>::SetWithoutChecks(int32_t i, T* object) {
   DCHECK(IsValidIndex(i));
-  MemberOffset data_offset(DataOffset().Int32Value() + i * sizeof(Object*));
+  MemberOffset data_offset(DataOffset(sizeof(Object*)).Int32Value() + i * sizeof(Object*));
   SetFieldObject(data_offset, object, false);
 }
 
 template<class T>
 T* ObjectArray<T>::GetWithoutChecks(int32_t i) const {
   DCHECK(IsValidIndex(i));
-  MemberOffset data_offset(DataOffset().Int32Value() + i * sizeof(Object*));
+  MemberOffset data_offset(DataOffset(sizeof(Object*)).Int32Value() + i * sizeof(Object*));
   return GetFieldObject<T*>(data_offset, false);
 }
 
@@ -2022,8 +2030,8 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
       src->IsValidIndex(src_pos+length-1) &&
       dst->IsValidIndex(dst_pos) &&
       dst->IsValidIndex(dst_pos+length-1)) {
-    MemberOffset src_offset(DataOffset().Int32Value() + src_pos * sizeof(Object*));
-    MemberOffset dst_offset(DataOffset().Int32Value() + dst_pos * sizeof(Object*));
+    MemberOffset src_offset(DataOffset(sizeof(Object*)).Int32Value() + src_pos * sizeof(Object*));
+    MemberOffset dst_offset(DataOffset(sizeof(Object*)).Int32Value() + dst_pos * sizeof(Object*));
     Class* array_class = dst->GetClass();
     if (array_class == src->GetClass()) {
       // No need for array store checks if arrays are of the same type
@@ -2095,11 +2103,13 @@ class MANAGED PrimitiveArray : public Array {
   static PrimitiveArray<T>* Alloc(size_t length);
 
   const T* GetData() const {
-    return &elements_[0];
+    intptr_t data = reinterpret_cast<intptr_t>(this) + DataOffset(sizeof(T)).Int32Value();
+    return reinterpret_cast<T*>(data);
   }
 
   T* GetData() {
-    return &elements_[0];
+    intptr_t data = reinterpret_cast<intptr_t>(this) + DataOffset(sizeof(T)).Int32Value();
+    return reinterpret_cast<T*>(data);
   }
 
   T Get(int32_t i) const {
@@ -2128,9 +2138,6 @@ class MANAGED PrimitiveArray : public Array {
   }
 
  private:
-  // Location of first element.
-  T elements_[0];
-
   static Class* array_class_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(PrimitiveArray);

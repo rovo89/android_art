@@ -24,13 +24,17 @@ namespace art {
 namespace {
 
 jlong Unsafe_objectFieldOffset0(JNIEnv* env, jclass, jobject javaField) {
+  // TODO: move to Java code
   jfieldID fid = env->FromReflectedField(javaField);
   Field* field = DecodeField(fid);
   return field->GetOffset().Int32Value();
 }
 
-jint Unsafe_arrayBaseOffset0(JNIEnv*, jclass, jclass) {
-  return Array::DataOffset().Int32Value();
+jint Unsafe_arrayBaseOffset0(JNIEnv* env, jclass, jclass javaArrayClass) {
+  // TODO: move to Java code
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  Class* array_class = Decode<Class*>(env, javaArrayClass);
+  return Array::DataOffset(array_class->GetComponentSize()).Int32Value();
 }
 
 jint Unsafe_arrayIndexScale0(JNIEnv* env, jclass, jclass javaClass) {

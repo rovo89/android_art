@@ -1252,7 +1252,7 @@ Array* Array::Alloc(Class* array_class, int32_t component_count, size_t componen
   DCHECK_GE(component_count, 0);
   DCHECK(array_class->IsArrayClass());
 
-  size_t header_size = sizeof(Array);
+  size_t header_size = sizeof(Object) + (component_size == sizeof(int64_t) ? 8 : 4);
   size_t data_size = component_count * component_size;
   size_t size = header_size + data_size;
 

@@ -229,6 +229,10 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
      */
     oatLockTemp(cUnit, r0);
 
+    // TODO: use the correct component size, currently all supported types share array alignment
+    // with ints (see comment at head of function)
+    size_t component_size = sizeof(int32_t);
+
     // Having a range of 0 is legal
     if (isRange && (dInsn->vA > 0)) {
         /*
@@ -262,7 +266,7 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
                     oatSRegOffset(cUnit, rlFirst.sRegLow));
         // Set up the target pointer
         opRegRegImm(cUnit, kOpAdd, rDst, r0,
-                    Array::DataOffset().Int32Value());
+                    Array::DataOffset(component_size).Int32Value());
         // Set up the loop counter (known to be > 0)
         loadConstant(cUnit, rIdx, dInsn->vA - 1);
         // Generate the copy loop.  Going backwards for convenience
@@ -281,7 +285,7 @@ STATIC void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
             RegLocation rlArg = loadValue(cUnit,
                 oatGetSrc(cUnit, mir, i), kCoreReg);
             storeBaseDisp(cUnit, r0,
-                          Array::DataOffset().Int32Value() +
+                          Array::DataOffset(component_size).Int32Value() +
                           i * 4, rlArg.lowReg, kWord);
             // If the loadValue caused a temp to be allocated, free it
             if (oatIsTemp(cUnit, rlArg.lowReg)) {
@@ -330,7 +334,7 @@ STATIC void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
                 Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
                 rBase);
             loadWordDisp(cUnit, rBase,
-                         Array::DataOffset().Int32Value() + sizeof(int32_t*) *
+                         Array::DataOffset(sizeof(Object*)).Int32Value() + sizeof(int32_t*) *
                          ssbIndex, rBase);
             // rBase now points at appropriate static storage base (Class*)
             // or NULL if not initialized. Check for NULL and call helper if NULL.
@@ -424,7 +428,8 @@ STATIC void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                 Method::DexCacheInitializedStaticStorageOffset().Int32Value(),
                 rBase);
             loadWordDisp(cUnit, rBase,
-                         Array::DataOffset().Int32Value() + sizeof(int32_t*) * ssbIndex,
+                         Array::DataOffset(sizeof(Object*)).Int32Value() +
+                         sizeof(int32_t*) * ssbIndex,
                          rBase);
             // rBase now points at appropriate static storage base (Class*)
             // or NULL if not initialized. Check for NULL and call helper if NULL.
@@ -497,7 +502,8 @@ STATIC int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
             break;
         case 2:  // Grab target method*
             loadWordDisp(cUnit, r0,
-                Array::DataOffset().Int32Value() + dexIdx * 4, r0);
+                Array::DataOffset(sizeof(Object*)).Int32Value() + dexIdx * 4,
+                r0);
             break;
         case 3:  // Grab the code from the method*
             loadWordDisp(cUnit, r0, Method::GetCodeOffset().Int32Value(), rLR);
@@ -538,7 +544,7 @@ STATIC int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
             break;
         case 3: // Get target method [use rLR, set r0]
             loadWordDisp(cUnit, rLR, (methodIdx * 4) +
-                         Array::DataOffset().Int32Value(), r0);
+                         Array::DataOffset(sizeof(Object*)).Int32Value(), r0);
             break;
         case 4: // Get the target compiled code address [uses r0, sets rLR]
             loadWordDisp(cUnit, r0, Method::GetCodeOffset().Int32Value(), rLR);
@@ -584,7 +590,7 @@ STATIC int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
             break;
         case 3: // Get target method [use rLR, set r0]
             loadWordDisp(cUnit, rLR, (methodIdx * 4) +
-                         Array::DataOffset().Int32Value(), r0);
+                         Array::DataOffset(sizeof(Object*)).Int32Value(), r0);
             break;
         case 4: // Get the target compiled code address [uses r0, sets rLR]
             loadWordDisp(cUnit, r0, Method::GetCodeOffset().Int32Value(), rLR);

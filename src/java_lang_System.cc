@@ -148,9 +148,6 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
     return;
   }
 
-  uint8_t* dstBytes = reinterpret_cast<uint8_t*>(dstArray->GetRawData());
-  const uint8_t* srcBytes = reinterpret_cast<const uint8_t*>(srcArray->GetRawData());
-
   // Handle primitive arrays.
   if (srcComponentType->IsPrimitive() || dstComponentType->IsPrimitive()) {
     // If one of the arrays holds a primitive type the other array must hold the exact same type.
@@ -162,7 +159,11 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
       return;
     }
 
-    switch (srcArray->GetClass()->GetComponentSize()) {
+    size_t width = srcArray->GetClass()->GetComponentSize();
+    uint8_t* dstBytes = reinterpret_cast<uint8_t*>(dstArray->GetRawData(width));
+    const uint8_t* srcBytes = reinterpret_cast<const uint8_t*>(srcArray->GetRawData(width));
+
+    switch (width) {
     case 1:
       memmove(dstBytes + dstPos, srcBytes + srcPos, length);
       break;
@@ -185,6 +186,8 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
 
   // Neither class is primitive. Are the types trivially compatible?
   const size_t width = sizeof(Object*);
+  uint8_t* dstBytes = reinterpret_cast<uint8_t*>(dstArray->GetRawData(width));
+  const uint8_t* srcBytes = reinterpret_cast<const uint8_t*>(srcArray->GetRawData(width));
   if (dstArray == srcArray || dstComponentType->IsAssignableFrom(srcComponentType)) {
     // Yes. Bulk copy.
     COMPILE_ASSERT(sizeof(width) == sizeof(uint32_t), move32_assumes_Object_references_are_32_bit);

@@ -786,18 +786,18 @@ JDWP::JdwpError Dbg::OutputArray(JDWP::ObjectId arrayId, int offset, int count, 
 
   if (IsPrimitiveTag(tag)) {
     size_t width = GetTagWidth(tag);
-    const uint8_t* src = reinterpret_cast<uint8_t*>(a->GetRawData());
     uint8_t* dst = expandBufAddSpace(pReply, count * width);
     if (width == 8) {
-      const uint64_t* src8 = reinterpret_cast<const uint64_t*>(src);
+      const uint64_t* src8 = reinterpret_cast<uint64_t*>(a->GetRawData(sizeof(uint64_t)));
       for (int i = 0; i < count; ++i) JDWP::Write8BE(&dst, src8[offset + i]);
     } else if (width == 4) {
-      const uint32_t* src4 = reinterpret_cast<const uint32_t*>(src);
+      const uint32_t* src4 = reinterpret_cast<uint32_t*>(a->GetRawData(sizeof(uint32_t)));
       for (int i = 0; i < count; ++i) JDWP::Write4BE(&dst, src4[offset + i]);
     } else if (width == 2) {
-      const uint16_t* src2 = reinterpret_cast<const uint16_t*>(src);
+      const uint16_t* src2 = reinterpret_cast<uint16_t*>(a->GetRawData(sizeof(uint16_t)));
       for (int i = 0; i < count; ++i) JDWP::Write2BE(&dst, src2[offset + i]);
     } else {
+      const uint8_t* src = reinterpret_cast<uint8_t*>(a->GetRawData(sizeof(uint8_t)));
       memcpy(dst, &src[offset * width], count * width);
     }
   } else {
@@ -829,8 +829,8 @@ JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int co
 
   if (IsPrimitiveTag(tag)) {
     size_t width = GetTagWidth(tag);
-    uint8_t* dst = &(reinterpret_cast<uint8_t*>(a->GetRawData())[offset * width]);
     if (width == 8) {
+      uint8_t* dst = &(reinterpret_cast<uint8_t*>(a->GetRawData(sizeof(uint64_t)))[offset * width]);
       for (int i = 0; i < count; ++i) {
         // Handle potentially non-aligned memory access one byte at a time for ARM's benefit.
         uint64_t value;
@@ -839,12 +839,15 @@ JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int co
         JDWP::Write8BE(&dst, value);
       }
     } else if (width == 4) {
+      uint8_t* dst = &(reinterpret_cast<uint8_t*>(a->GetRawData(sizeof(uint32_t)))[offset * width]);
       const uint32_t* src4 = reinterpret_cast<const uint32_t*>(src);
       for (int i = 0; i < count; ++i) JDWP::Write4BE(&dst, src4[i]);
     } else if (width == 2) {
+      uint8_t* dst = &(reinterpret_cast<uint8_t*>(a->GetRawData(sizeof(uint16_t)))[offset * width]);
       const uint16_t* src2 = reinterpret_cast<const uint16_t*>(src);
       for (int i = 0; i < count; ++i) JDWP::Write2BE(&dst, src2[i]);
     } else {
+      uint8_t* dst = &(reinterpret_cast<uint8_t*>(a->GetRawData(sizeof(uint8_t)))[offset * width]);
       memcpy(&dst[offset * width], src, count * width);
     }
   } else {

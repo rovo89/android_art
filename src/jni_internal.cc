@@ -2053,9 +2053,14 @@ class JNI {
     return NewPrimitiveArray<jshortArray, ShortArray>(ts, length);
   }
 
-  static void* GetPrimitiveArrayCritical(JNIEnv* env, jarray array, jboolean* is_copy) {
+  static void* GetPrimitiveArrayCritical(JNIEnv* env, jarray java_array, jboolean* is_copy) {
     ScopedJniThreadState ts(env);
-    return GetPrimitiveArray<jarray, jbyte*, ByteArray>(ts, array, is_copy);
+    Array* array = Decode<Array*>(ts, java_array);
+    PinPrimitiveArray(ts, array);
+    if (is_copy != NULL) {
+      *is_copy = JNI_FALSE;
+    }
+    return array->GetRawData(array->GetClass()->GetComponentSize());
   }
 
   static void ReleasePrimitiveArrayCritical(JNIEnv* env, jarray array, void* data, jint mode) {

@@ -1203,7 +1203,7 @@ extern "C" int artHandleFillArrayDataFromCode(Array* array, const uint16_t* tabl
   }
   uint16_t width = table[1];
   uint32_t size_in_bytes = size * width;
-  memcpy((char*)array + Array::DataOffset().Int32Value(), (char*)&table[4], size_in_bytes);
+  memcpy((char*)array + Array::DataOffset(width).Int32Value(), (char*)&table[4], size_in_bytes);
   return 0;  // Success
 }
 

@@ -371,8 +371,9 @@ inline void MarkSweep::CheckArray(const Object* obj) {
     const ObjectArray<Object>* array = obj->AsObjectArray<Object>();
     for (int32_t i = 0; i < array->GetLength(); ++i) {
       const Object* element = array->GetWithoutChecks(i);
-      CheckReference(obj, element, MemberOffset(i * sizeof(Object*) +
-                                                Array::DataOffset().Int32Value()), false);
+      size_t width = sizeof(Object*);
+      CheckReference(obj, element, MemberOffset(i * width +
+                                                Array::DataOffset(width).Int32Value()), false);
     }
   }
 }

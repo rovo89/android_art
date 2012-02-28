@@ -510,7 +510,8 @@ STATIC void genConstClass(CompilationUnit* cUnit, MIR* mir,
         // We're don't need access checks, load type from dex cache
         int32_t dex_cache_offset = Method::DexCacheResolvedTypesOffset().Int32Value();
         loadWordDisp(cUnit, mReg, dex_cache_offset, resReg);
-        int32_t offset_of_type = Array::DataOffset().Int32Value() + (sizeof(Class*) * type_idx);
+        int32_t offset_of_type = Array::DataOffset(sizeof(Class*)).Int32Value() +
+                                 (sizeof(Class*) * type_idx);
         loadWordDisp(cUnit, resReg, offset_of_type, rlResult.lowReg);
         if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->dex_cache,
                                                                type_idx) ||
@@ -571,7 +572,8 @@ STATIC void genConstString(CompilationUnit* cUnit, MIR* mir,
 {
     /* NOTE: Most strings should be available at compile time */
     uint32_t string_idx = mir->dalvikInsn.vB;
-    int32_t offset_of_string = Array::DataOffset().Int32Value() + (sizeof(String*) * string_idx);
+    int32_t offset_of_string = Array::DataOffset(sizeof(String*)).Int32Value() +
+                               (sizeof(String*) * string_idx);
     if (!cUnit->compiler->CanAssumeStringIsPresentInDexCache(cUnit->dex_cache, string_idx) ||
         SLOW_STRING_PATH) {
         // slow path, resolve string if not in dex cache
@@ -664,7 +666,8 @@ STATIC void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         // Load dex cache entry into classReg (r2)
         loadValueDirectFixed(cUnit, rlSrc, r0);  // r0 <= ref
         loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(), classReg);
-        int32_t offset_of_type = Array::DataOffset().Int32Value() + (sizeof(Class*) * type_idx);
+        int32_t offset_of_type = Array::DataOffset(sizeof(Class*)).Int32Value() +
+                                 (sizeof(Class*) * type_idx);
         loadWordDisp(cUnit, classReg, offset_of_type, classReg);
         if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->dex_cache, type_idx)) {
             // Need to test presence of type in dex cache at runtime
@@ -728,7 +731,8 @@ STATIC void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     } else {
         // Load dex cache entry into classReg (r2)
         loadWordDisp(cUnit, r1, Method::DexCacheResolvedTypesOffset().Int32Value(), classReg);
-        int32_t offset_of_type = Array::DataOffset().Int32Value() + (sizeof(Class*) * type_idx);
+        int32_t offset_of_type = Array::DataOffset(sizeof(Class*)).Int32Value() +
+                                 (sizeof(Class*) * type_idx);
         loadWordDisp(cUnit, classReg, offset_of_type, classReg);
         if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->dex_cache, type_idx)) {
             // Need to test presence of type in dex cache at runtime
@@ -1253,7 +1257,7 @@ STATIC void genArrayObjPut(CompilationUnit* cUnit, MIR* mir,
 {
     RegisterClass regClass = oatRegClassBySize(kWord);
     int lenOffset = Array::LengthOffset().Int32Value();
-    int dataOffset = Array::DataOffset().Int32Value();
+    int dataOffset = Array::DataOffset(sizeof(Object*)).Int32Value();
 
     oatFlushAllRegs(cUnit);
     /* Make sure it's a legal object Put. Use direct regs at first */
@@ -1313,11 +1317,17 @@ STATIC void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
 {
     RegisterClass regClass = oatRegClassBySize(size);
     int lenOffset = Array::LengthOffset().Int32Value();
-    int dataOffset = Array::DataOffset().Int32Value();
+    int dataOffset;
     RegLocation rlResult;
     rlArray = loadValue(cUnit, rlArray, kCoreReg);
     rlIndex = loadValue(cUnit, rlIndex, kCoreReg);
     int regPtr;
+
+    if (size == kLong || size == kDouble) {
+      dataOffset = Array::DataOffset(sizeof(int64_t)).Int32Value();
+    } else {
+      dataOffset = Array::DataOffset(sizeof(int32_t)).Int32Value();
+    }
 
     /* null object? */
     genNullCheck(cUnit, rlArray.sRegLow, rlArray.lowReg, mir);
@@ -1375,7 +1385,13 @@ STATIC void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
 {
     RegisterClass regClass = oatRegClassBySize(size);
     int lenOffset = Array::LengthOffset().Int32Value();
-    int dataOffset = Array::DataOffset().Int32Value();
+    int dataOffset;
+
+    if (size == kLong || size == kDouble) {
+      dataOffset = Array::DataOffset(sizeof(int64_t)).Int32Value();
+    } else {
+      dataOffset = Array::DataOffset(sizeof(int32_t)).Int32Value();
+    }
 
     int regPtr;
     rlArray = loadValue(cUnit, rlArray, kCoreReg);

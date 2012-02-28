@@ -77,6 +77,9 @@ jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaElementCla
 }
 
 jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
+  if (javaArray == NULL) {  // Most likely allocation failed
+    return 0;
+  }
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Array* array = Decode<Array*>(env, javaArray);
   if (!array->IsArrayInstance()) {
@@ -84,7 +87,7 @@ jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
     return 0;
   }
   // TODO: we should also check that this is a non-movable array.
-  return reinterpret_cast<uintptr_t>(array->GetRawData());
+  return reinterpret_cast<uintptr_t>(array->GetRawData(array->GetClass()->GetComponentSize()));
 }
 
 void VMRuntime_clearGrowthLimit(JNIEnv*, jobject) {
