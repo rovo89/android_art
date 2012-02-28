@@ -656,11 +656,11 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::INVOKE_DIRECT:
-    EmitInsn_InvokeStaticDirect(ARGS, /* is_range */ false, /* is_static */ false);
+    EmitInsn_InvokeStaticDirect(ARGS, kDirect, /* is_range */ false);
     break;
 
   case Instruction::INVOKE_STATIC:
-    EmitInsn_InvokeStaticDirect(ARGS, /* is_range */ false, /* is_static */ true);
+    EmitInsn_InvokeStaticDirect(ARGS, kStatic, /* is_range */ false);
     break;
 
   case Instruction::INVOKE_INTERFACE:
@@ -676,11 +676,11 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::INVOKE_DIRECT_RANGE:
-    EmitInsn_InvokeStaticDirect(ARGS, /* is_range */ true, /* is_static */ false);
+    EmitInsn_InvokeStaticDirect(ARGS, kDirect, true);
     break;
 
   case Instruction::INVOKE_STATIC_RANGE:
-    EmitInsn_InvokeStaticDirect(ARGS, /* is_range */ true, /* is_static */ true);
+    EmitInsn_InvokeStaticDirect(ARGS, kStatic, true);
     break;
 
   case Instruction::INVOKE_INTERFACE_RANGE:
@@ -2859,16 +2859,24 @@ void MethodCompiler::EmitInsn_InvokeSuper(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
                                                  Instruction const* insn,
-                                                 bool is_range,
-                                                 bool is_static) {
+                                                 InvokeType invoke_type,
+                                                 bool is_range) {
 
   Instruction::DecodedInstruction dec_insn(insn);
 
   uint32_t callee_method_idx = dec_insn.vB_;
 
-  // Find the method object at compile time
-  Method* callee_method = dex_cache_->GetResolvedMethod(callee_method_idx);
-  CHECK_NE(callee_method, static_cast<Method*>(NULL));
+  bool is_static = (invoke_type == kStatic);
+
+  UniquePtr<OatCompilationUnit> callee_oatcompilation_unit(
+      oatcompilation_unit_->GetCallee(callee_method_idx, is_static ? kAccStatic : 0));
+
+  int vtable_idx = -1; // Currently unused
+  bool is_fast_path = compiler_->
+    ComputeInvokeInfo(callee_method_idx, callee_oatcompilation_unit.get(),
+                      invoke_type, vtable_idx);
+
+  CHECK(is_fast_path) << "Slow path for invoke static/direct is unimplemented";
 
   llvm::Value* this_addr = NULL;
 
@@ -2879,34 +2887,14 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
   }
 
   // Load method function pointers
-
-  // TODO: Besides finding the callee function address through Code and
-  // Direct Methods (CADMS) at runtime, try to find the callee function
-  // through something like compiler_llvm_->GetCompiledMethod(...)
-  // so that we can perform inlining.
-
-  llvm::Value* code_addr_field_addr = NULL;
-  llvm::Value* method_field_addr = NULL;
-
-  EmitLoadDexCacheCodeAndDirectMethodFieldAddr(
-    code_addr_field_addr, method_field_addr, callee_method_idx);
-
-  // NOTE: Since CADMS are mixing int type with pointer type, we have to
-  // cast the integer type to pointer type.  Following code must be refined
-  // when we are going to port to 64bit architecture.
-
-  llvm::Value* code_addr_int = irb_.CreateLoad(code_addr_field_addr);
-
-  llvm::FunctionType* callee_type =
-    GetFunctionType(callee_method_idx, is_static);
-
-  llvm::Value* code_addr =
-    irb_.CreateIntToPtr(code_addr_int, callee_type->getPointerTo());
-
-  llvm::Value* callee_method_value_int = irb_.CreateLoad(method_field_addr);
+  llvm::Value* callee_method_object_field_addr =
+    EmitLoadDexCacheResolvedMethodFieldAddr(callee_method_idx);
 
   llvm::Value* callee_method_object_addr =
-    irb_.CreateIntToPtr(callee_method_value_int, irb_.getJObjectTy());
+    irb_.CreateLoad(callee_method_object_field_addr);
+
+  llvm::Value* code_addr =
+    EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, is_static);
 
   // Load the actual parameter
   std::vector<llvm::Value*> args;
@@ -2925,8 +2913,7 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
   EmitGuard_ExceptionLandingPad(dex_pc);
 
-  MethodHelper method_helper(callee_method);
-  char ret_shorty = method_helper.GetShorty()[0];
+  char ret_shorty = callee_oatcompilation_unit->GetShorty()[0];
   if (ret_shorty != 'V') {
     EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
   }
@@ -3465,28 +3452,6 @@ llvm::Value* MethodCompiler::EmitLoadDexCacheAddr(MemberOffset offset) {
 }
 
 
-void MethodCompiler::
-EmitLoadDexCacheCodeAndDirectMethodFieldAddr(llvm::Value*& code_field_addr,
-                                             llvm::Value*& method_field_addr,
-                                             uint32_t method_idx) {
-  llvm::Value* cadms_dex_cache_addr =
-    EmitLoadDexCacheAddr(Method::GetDexCacheCodeAndDirectMethodsOffset());
-
-  llvm::Value* code_index_value =
-    irb_.getPtrEquivInt(CodeAndDirectMethods::CodeIndex(method_idx));
-
-  llvm::Value* method_index_value =
-    irb_.getPtrEquivInt(CodeAndDirectMethods::MethodIndex(method_idx));
-
-  // Return the field address
-  code_field_addr = EmitArrayGEP(cadms_dex_cache_addr, code_index_value,
-                                 irb_.getJIntTy());
-
-  method_field_addr = EmitArrayGEP(cadms_dex_cache_addr, method_index_value,
-                                   irb_.getJIntTy());
-}
-
-
 llvm::Value* MethodCompiler::
 EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
   llvm::Value* static_storage_dex_cache_addr =
@@ -3507,6 +3472,18 @@ EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx) {
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
   return EmitArrayGEP(resolved_type_dex_cache_addr, type_idx_value,
+                      irb_.getJObjectTy());
+}
+
+
+llvm::Value* MethodCompiler::
+EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx) {
+  llvm::Value* resolved_method_dex_cache_addr =
+    EmitLoadDexCacheAddr(Method::DexCacheResolvedMethodsOffset());
+
+  llvm::Value* method_idx_value = irb_.getPtrEquivInt(method_idx);
+
+  return EmitArrayGEP(resolved_method_dex_cache_addr, method_idx_value,
                       irb_.getJObjectTy());
 }
 

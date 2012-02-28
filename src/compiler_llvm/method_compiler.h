@@ -232,8 +232,8 @@ class MethodCompiler {
   void EmitInsn_InvokeVirtual(GEN_INSN_ARGS, bool is_range);
   void EmitInsn_InvokeSuper(GEN_INSN_ARGS, bool is_range);
   void EmitInsn_InvokeStaticDirect(GEN_INSN_ARGS,
-                                   bool is_range,
-                                   bool is_static);
+                                   InvokeType invoke_type,
+                                   bool is_range);
   void EmitInsn_InvokeInterface(GEN_INSN_ARGS, bool is_range);
 
   // Unary instructions
@@ -275,14 +275,11 @@ class MethodCompiler {
   // Dex cache code generation helper function
   llvm::Value* EmitLoadDexCacheAddr(MemberOffset dex_cache_offset);
 
-  void EmitLoadDexCacheCodeAndDirectMethodFieldAddr(
-                                          llvm::Value*& code_addr_field_addr,
-                                          llvm::Value*& method_field_addr,
-                                          uint32_t method_idx);
-
   llvm::Value* EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx);
 
   llvm::Value* EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx);
+
+  llvm::Value* EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx);
 
   llvm::Value* EmitLoadDexCacheStringFieldAddr(uint32_t string_idx);
 

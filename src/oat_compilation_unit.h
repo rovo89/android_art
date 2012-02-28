@@ -17,6 +17,8 @@
 #ifndef ART_SRC_METHOD_UNIT_H_
 #define ART_SRC_METHOD_UNIT_H_
 
+#include "dex_file.h"
+
 #include <stdint.h>
 
 namespace art {
@@ -35,6 +37,22 @@ class OatCompilationUnit {
       : class_loader_(class_loader), class_linker_(class_linker),
         dex_file_(&dex_file), dex_cache_(&dex_cache), code_item_(code_item),
         method_idx_(method_idx), access_flags_(access_flags) {
+  }
+
+  OatCompilationUnit* GetCallee(uint32_t callee_method_idx,
+                        uint32_t callee_access_flags) {
+    return new OatCompilationUnit(class_loader_, class_linker_, *dex_file_, *dex_cache_,
+                                  NULL, callee_method_idx, callee_access_flags);
+  }
+
+  char const* GetShorty() const {
+    DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx_);
+    return dex_file_->GetMethodShorty(method_id);
+  }
+
+  char const* GetShorty(uint32_t* shorty_len) const {
+    DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx_);
+    return dex_file_->GetMethodShorty(method_id, shorty_len);
   }
 
  public:
