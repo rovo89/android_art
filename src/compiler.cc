@@ -49,13 +49,13 @@ CompiledMethod* oatCompileMethod(Compiler& compiler, const DexFile::CodeItem* co
 
 namespace arm {
   ByteArray* CreateAbstractMethodErrorStub();
-  CompiledInvokeStub* ArmCreateInvokeStub(bool is_static, const char* shorty);
+  CompiledInvokeStub* ArmCreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len);
   ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type);
   ByteArray* CreateJniDlsymLookupStub();
 }
 namespace x86 {
   ByteArray* CreateAbstractMethodErrorStub();
-  CompiledInvokeStub* X86CreateInvokeStub(bool is_static, const char* shorty);
+  CompiledInvokeStub* X86CreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len);
   ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type);
   ByteArray* CreateJniDlsymLookupStub();
 }
@@ -986,7 +986,8 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
     DCHECK(GetCompiledMethod(ref) != NULL) << PrettyMethod(method_idx, dex_file);
   }
 
-  const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
+  uint32_t shorty_len;
+  const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx), &shorty_len);
   bool is_static = (access_flags & kAccStatic) != 0;
   const CompiledInvokeStub* compiled_invoke_stub = FindInvokeStub(is_static, shorty);
   if (compiled_invoke_stub == NULL) {
@@ -994,11 +995,11 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
     compiled_invoke_stub = compiler_llvm_->CreateInvokeStub(is_static, shorty);
 #else
     if (instruction_set_ == kX86) {
-      compiled_invoke_stub = ::art::x86::X86CreateInvokeStub(is_static, shorty);
+      compiled_invoke_stub = ::art::x86::X86CreateInvokeStub(is_static, shorty, shorty_len);
     } else {
       CHECK(instruction_set_ == kArm || instruction_set_ == kThumb2);
       // Generates invocation stub using ARM instruction set
-      compiled_invoke_stub = ::art::arm::ArmCreateInvokeStub(is_static, shorty);
+      compiled_invoke_stub = ::art::arm::ArmCreateInvokeStub(is_static, shorty, shorty_len);
     }
 #endif
 

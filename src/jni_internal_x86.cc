@@ -39,11 +39,11 @@ namespace x86 {
 // "running" state the remaining responsibilities of this routine are
 // to save the native registers and set up the managed registers. On
 // return, the return value must be store into the result JValue.
-CompiledInvokeStub* X86CreateInvokeStub(bool is_static, const char* shorty) {
+CompiledInvokeStub* X86CreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len) {
   UniquePtr<X86Assembler> assembler(
       down_cast<X86Assembler*>(Assembler::Create(kX86)));
 #define __ assembler->
-  size_t num_arg_array_bytes = NumArgArrayBytes(shorty);
+  size_t num_arg_array_bytes = NumArgArrayBytes(shorty, shorty_len);
   // Size of frame - return address + Method* + possible receiver + arg array
   size_t frame_size = (2 * kPointerSize) +
                       (is_static ? 0 : kPointerSize) +
