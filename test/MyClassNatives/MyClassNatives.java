@@ -18,6 +18,7 @@ class MyClass {
     native void throwException();
     native void foo();
     native int bar(int count);
+    static native int sbar(int count);
     native int fooI(int x);
     native int fooII(int x, int y);
     native long fooJJ(long x, long y);
