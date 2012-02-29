@@ -126,7 +126,7 @@ class PACKED ImageHeader {
   uint32_t image_roots_;
 
   friend class ImageWriter;
-  friend class ImageDump;  // For GetImageRoots()
+  friend class ImageDumper;  // For GetImageRoots()
 };
 
 }  // namespace art

@@ -110,7 +110,9 @@ DEX2OAT_SRC_FILES := \
 	src/dex2oat.cc
 
 OATDUMP_SRC_FILES := \
-	src/oatdump.cc
+	src/oatdump.cc \
+	src/disassembler.cc \
+	src/disassembler_arm.cc
 
 OATEXEC_SRC_FILES := \
 	src/oatexec.cc

@@ -24,7 +24,10 @@
 #include <vector>
 
 #include "class_linker.h"
+#include "context.h"
 #include "dex_instruction.h"
+#include "dex_verifier.h"
+#include "disassembler.h"
 #include "file.h"
 #include "image.h"
 #include "object_utils.h"
@@ -83,8 +86,14 @@ const char* image_roots_descriptions_[] = {
 
 class OatDumper {
  public:
-  void Dump(const std::string& oat_filename, std::ostream& os, const OatFile& oat_file) {
-    const OatHeader& oat_header = oat_file.GetOatHeader();
+  explicit OatDumper(const OatFile& oat_file) : oat_file_(oat_file),
+      oat_dex_files_(oat_file.GetOatDexFiles()), disassembler_(Disassembler::Create(kArm)) {
+    // TODO: the disassembler should find the oat file instruction set from the oat header
+    AddAllOffsets();
+  }
+
+  void Dump(std::ostream& os) {
+    const OatHeader& oat_header = oat_file_.GetOatHeader();
 
     os << "MAGIC:\n";
     os << oat_header.GetMagic() << "\n\n";
@@ -99,36 +108,68 @@ class OatDumper {
     os << StringPrintf("0x%08x\n\n", oat_header.GetExecutableOffset());
 
     os << "BEGIN:\n";
-    os << reinterpret_cast<const void*>(oat_file.Begin()) << "\n\n";
+    os << reinterpret_cast<const void*>(oat_file_.Begin()) << "\n\n";
 
     os << "END:\n";
-    os << reinterpret_cast<const void*>(oat_file.End()) << "\n\n";
+    os << reinterpret_cast<const void*>(oat_file_.End()) << "\n\n";
 
     os << std::flush;
 
-    std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file.GetOatDexFiles();
-    AddAllOffsets(oat_file, oat_dex_files);
-
-    for (size_t i = 0; i < oat_dex_files.size(); i++) {
-      const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
+    for (size_t i = 0; i < oat_dex_files_.size(); i++) {
+      const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
       CHECK(oat_dex_file != NULL);
-      DumpOatDexFile(os, oat_file, *oat_dex_file);
+      DumpOatDexFile(os, *oat_dex_file);
     }
   }
 
+  size_t ComputeSize(const void* oat_data) {
+    if (reinterpret_cast<const byte*>(oat_data) < oat_file_.Begin() ||
+        reinterpret_cast<const byte*>(oat_data) > oat_file_.End()) {
+      return 0;  // Address not in oat file
+    }
+    uint32_t begin_offset = reinterpret_cast<size_t>(oat_data) -
+                            reinterpret_cast<size_t>(oat_file_.Begin());
+    typedef std::set<uint32_t>::iterator It;
+    It it = offsets_.upper_bound(begin_offset);
+    CHECK(it != offsets_.end());
+    uint32_t end_offset = *it;
+    return end_offset - begin_offset;
+  }
+
+  const void* GetOatCode(Method* m) {
+    MethodHelper mh(m);
+    for (size_t i = 0; i < oat_dex_files_.size(); i++) {
+      const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
+      CHECK(oat_dex_file != NULL);
+      UniquePtr<const DexFile> dex_file(oat_dex_file->OpenDexFile());
+      if (dex_file.get() != NULL) {
+        uint32_t class_def_index;
+        bool found = dex_file->FindClassDefIndex(mh.GetDeclaringClassDescriptor(), class_def_index);
+        if (found) {
+          const OatFile::OatClass* oat_class = oat_dex_file->GetOatClass(class_def_index);
+          CHECK(oat_class != NULL);
+          size_t method_index = m->GetMethodIndex();
+          return oat_class->GetOatMethod(method_index).GetCode();
+        }
+      }
+    }
+    return NULL;
+  }
+
  private:
-  void AddAllOffsets(const OatFile& oat_file, std::vector<const OatFile::OatDexFile*>& oat_dex_files) {
+  void AddAllOffsets() {
     // We don't know the length of the code for each method, but we need to know where to stop
     // when disassembling. What we do know is that a region of code will be followed by some other
     // region, so if we keep a sorted sequence of the start of each region, we can infer the length
     // of a piece of code by using upper_bound to find the start of the next region.
-    for (size_t i = 0; i < oat_dex_files.size(); i++) {
-      const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
+    for (size_t i = 0; i < oat_dex_files_.size(); i++) {
+      const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
       CHECK(oat_dex_file != NULL);
       UniquePtr<const DexFile> dex_file(oat_dex_file->OpenDexFile());
       if (dex_file.get() == NULL) {
-        return;
+        continue;
       }
+      offsets_.insert(reinterpret_cast<uint32_t>(&dex_file->GetHeader()));
       for (size_t class_def_index = 0; class_def_index < dex_file->NumClassDefs(); class_def_index++) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
         UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(class_def_index));
@@ -152,7 +193,7 @@ class OatDumper {
     // If the last thing in the file is code for a method, there won't be an offset for the "next"
     // thing. Instead of having a special case in the upper_bound code, let's just add an entry
     // for the end of the file.
-    offsets_.insert(static_cast<uint32_t>(oat_file.End() - oat_file.Begin()));
+    offsets_.insert(static_cast<uint32_t>(oat_file_.End() - oat_file_.Begin()));
   }
 
   void AddOffsets(const OatFile::OatMethod& oat_method) {
@@ -163,8 +204,7 @@ class OatDumper {
     offsets_.insert(oat_method.GetInvokeStubOffset());
   }
 
-  void DumpOatDexFile(std::ostream& os, const OatFile& oat_file,
-                      const OatFile::OatDexFile& oat_dex_file) {
+  void DumpOatDexFile(std::ostream& os, const OatFile::OatDexFile& oat_dex_file) {
     os << "OAT DEX FILE:\n";
     os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
     os << StringPrintf("checksum: 0x%08x\n", oat_dex_file.GetDexFileLocationChecksum());
@@ -180,7 +220,7 @@ class OatDumper {
       CHECK(oat_class.get() != NULL);
       os << StringPrintf("%zd: %s (type_idx=%d) (", class_def_index, descriptor, class_def.class_idx_)
          << oat_class->GetStatus() << ")\n";
-      DumpOatClass(os, oat_file, *oat_class.get(), *(dex_file.get()), class_def);
+      DumpOatClass(os, *oat_class.get(), *(dex_file.get()), class_def);
     }
 
     os << std::flush;
@@ -195,8 +235,8 @@ class OatDumper {
     }
   }
 
-  void DumpOatClass(std::ostream& os, const OatFile& oat_file, const OatFile::OatClass& oat_class,
-      const DexFile& dex_file, const DexFile::ClassDef& class_def) {
+  void DumpOatClass(std::ostream& os, const OatFile::OatClass& oat_class, const DexFile& dex_file,
+                    const DexFile::ClassDef& class_def) {
     const byte* class_data = dex_file.GetClassData(class_def);
     if (class_data == NULL) {  // empty class such as a marker interface?
       return;
@@ -207,15 +247,15 @@ class OatDumper {
     uint32_t class_method_index = 0;
     while (it.HasNextDirectMethod()) {
       const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_index);
-      DumpOatMethod(os, class_method_index, oat_file, oat_method, dex_file,
-          it.GetMemberIndex(), it.GetMethodCodeItem());
+      DumpOatMethod(os, class_method_index, oat_method, dex_file,
+                    it.GetMemberIndex(), it.GetMethodCodeItem());
       class_method_index++;
       it.Next();
     }
     while (it.HasNextVirtualMethod()) {
       const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_index);
-      DumpOatMethod(os, class_method_index, oat_file, oat_method, dex_file,
-          it.GetMemberIndex(), it.GetMethodCodeItem());
+      DumpOatMethod(os, class_method_index, oat_method, dex_file,
+                    it.GetMemberIndex(), it.GetMethodCodeItem());
       class_method_index++;
       it.Next();
     }
@@ -223,7 +263,7 @@ class OatDumper {
     os << std::flush;
   }
 
-  void DumpOatMethod(std::ostream& os, uint32_t class_method_index, const OatFile& oat_file,
+  void DumpOatMethod(std::ostream& os, uint32_t class_method_index,
                      const OatFile::OatMethod& oat_method, const DexFile& dex_file,
                      uint32_t dex_method_idx, const DexFile::CodeItem* code_item) {
     const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
@@ -235,24 +275,118 @@ class OatDumper {
                        oat_method.GetCode(), oat_method.GetCodeOffset());
     os << StringPrintf("\t\tframe_size_in_bytes: %zd\n",
                        oat_method.GetFrameSizeInBytes());
-    os << StringPrintf("\t\tcore_spill_mask: 0x%08x\n",
+    os << StringPrintf("\t\tcore_spill_mask: 0x%08x",
                        oat_method.GetCoreSpillMask());
-    os << StringPrintf("\t\tfp_spill_mask: 0x%08x\n",
+    DumpSpillMask(os, oat_method.GetCoreSpillMask(), false);
+    os << StringPrintf("\n\t\tfp_spill_mask: 0x%08x",
                        oat_method.GetFpSpillMask());
-    os << StringPrintf("\t\tmapping_table: %p (offset=0x%08x)\n",
+    DumpSpillMask(os, oat_method.GetFpSpillMask(), true);
+    os << StringPrintf("\n\t\tmapping_table: %p (offset=0x%08x)\n",
                        oat_method.GetMappingTable(), oat_method.GetMappingTableOffset());
-    DumpMappingTable(os, oat_file, oat_method, dex_file, code_item);
+    DumpMappingTable(os, oat_method);
     os << StringPrintf("\t\tvmap_table: %p (offset=0x%08x)\n",
                        oat_method.GetVmapTable(), oat_method.GetVmapTableOffset());
+    DumpVmap(os, oat_method.GetVmapTable(), oat_method.GetCoreSpillMask(),
+             oat_method.GetFpSpillMask());
     os << StringPrintf("\t\tgc_map: %p (offset=0x%08x)\n",
                        oat_method.GetGcMap(), oat_method.GetGcMapOffset());
+    DumpGcMap(os, oat_method.GetGcMap());
     os << StringPrintf("\t\tinvoke_stub: %p (offset=0x%08x)\n",
                        oat_method.GetInvokeStub(), oat_method.GetInvokeStubOffset());
+    os << "\t\tCODE:\n";
+    DumpCode(os, oat_method.GetCode(), oat_method.GetMappingTable(), dex_file, code_item);
+    os << "\t\tINVOKE STUB:\n";
+    DumpCode(os, reinterpret_cast<const void*>(oat_method.GetInvokeStub()), NULL, dex_file, NULL);
   }
 
-  void DumpMappingTable(std::ostream& os,
-      const OatFile& oat_file, const OatFile::OatMethod& oat_method,
-      const DexFile& dex_file, const DexFile::CodeItem* code_item) {
+  void DumpSpillMask(std::ostream& os, uint32_t spill_mask, bool is_float) {
+    if (spill_mask == 0) {
+      return;
+    }
+    os << " (";
+    for (size_t i = 0; i < 32; i++) {
+      if ((spill_mask & (1 << i)) != 0) {
+        if (is_float) {
+          os << "fr" << i;
+        } else {
+          os << "r" << i;
+        }
+        spill_mask ^= 1 << i;  // clear bit
+        if (spill_mask != 0) {
+          os << ", ";
+        } else {
+          break;
+        }
+      }
+    }
+    os << ")";
+  }
+
+  void DumpVmap(std::ostream& os, const uint16_t* raw_table, uint32_t core_spill_mask,
+                uint32_t fp_spill_mask) {
+    if (raw_table == NULL) {
+      return;
+    }
+    const VmapTable vmap_table(raw_table);
+    bool first = true;
+    os << "\t\t\t";
+    for (size_t i = 0; i < vmap_table.size(); i++) {
+      uint16_t dex_reg = vmap_table[i];
+      size_t matches = 0;
+      size_t spill_shifts = 0;
+      uint32_t spill_mask = core_spill_mask;
+      bool processing_fp = false;
+      while (matches != (i + 1)) {
+        if (spill_mask == 0) {
+          CHECK(!processing_fp);
+          spill_mask = fp_spill_mask;
+          processing_fp = true;
+        }
+        matches += spill_mask & 1;  // Add 1 if the low bit is set
+        spill_mask >>= 1;
+        spill_shifts++;
+      }
+      size_t arm_reg = spill_shifts - 1;  // wind back one as we want the last match
+      os << (first ? "v" : ", v")  << dex_reg;
+      if (arm_reg < 16) {
+        os << "/r" << arm_reg;
+      } else {
+        os << "/fr" << (arm_reg - 16);
+      }
+      if (first) {
+        first = false;
+      }
+    }
+    os << std::endl;
+  }
+
+  void DumpGcMap(std::ostream& os, const uint8_t* gc_map_raw) {
+    if (gc_map_raw == NULL) {
+      return;
+    }
+    uint32_t gc_map_length = (gc_map_raw[0] << 24) | (gc_map_raw[1] << 16) |
+                             (gc_map_raw[2] << 8) | (gc_map_raw[3] << 0);
+    verifier::PcToReferenceMap map(gc_map_raw + sizeof(uint32_t), gc_map_length);
+    for (size_t entry = 0; entry < map.NumEntries(); entry++) {
+      os << StringPrintf("\t\t\t0x%04x", map.GetPC(entry));
+      size_t num_regs = map.RegWidth() * 8;
+      const uint8_t* reg_bitmap = map.GetBitMap(entry);
+      bool first = true;
+      for (size_t reg = 0; reg < num_regs; reg++) {
+        if (((reg_bitmap[reg / 8] >> (reg % 8)) & 0x01) != 0) {
+          if (first) {
+            os << "  v" << reg;
+            first = false;
+          } else {
+            os << ", v" << reg;
+          }
+        }
+      }
+      os << std::endl;
+    }
+  }
+
+  void DumpMappingTable(std::ostream& os, const OatFile::OatMethod& oat_method) {
     const uint32_t* raw_table = oat_method.GetMappingTable();
     const void* code = oat_method.GetCode();
     if (raw_table == NULL || code == NULL) {
@@ -262,17 +396,54 @@ class OatDumper {
     uint32_t length = *raw_table;
     ++raw_table;
 
+    os << "\t\t{";
     for (size_t i = 0; i < length; i += 2) {
+      const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code) + raw_table[i];
       uint32_t dex_pc = raw_table[i + 1];
+      os << StringPrintf("%p -> 0x%04x", native_pc, dex_pc);
+      if (i + 2 < length) {
+        os << ", ";
+      }
+    }
+    os << "}" << std::endl << std::flush;
+  }
+
+  void DumpCode(std::ostream& os, const void* code, const uint32_t* raw_mapping_table,
+                const DexFile& dex_file, const DexFile::CodeItem* code_item) {
+    if (code == NULL) {
+      return;
+    }
+
+    if (raw_mapping_table == NULL) {
+      // code but no mapping table is most likely caused by code created by the JNI compiler
+      const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code);
+      const uint8_t* oat_begin = reinterpret_cast<const uint8_t*>(oat_file_.Begin());
+      uint32_t last_offset = static_cast<uint32_t>(native_pc - oat_begin);
+
+      typedef std::set<uint32_t>::iterator It;
+      It it = offsets_.upper_bound(last_offset);
+      CHECK(it != offsets_.end());
+      const uint8_t* end_native_pc = reinterpret_cast<const uint8_t*>(oat_begin) + *it;
+      CHECK(native_pc < end_native_pc);
+
+      disassembler_->Dump(os, native_pc, end_native_pc);
+      return;
+    }
+
+    uint32_t length = *raw_mapping_table;
+    ++raw_mapping_table;
+
+    for (size_t i = 0; i < length; i += 2) {
+      uint32_t dex_pc = raw_mapping_table[i + 1];
       const Instruction* instruction = Instruction::At(&code_item->insns_[dex_pc]);
       os << StringPrintf("\t\t0x%04x: %s\n", dex_pc, instruction->DumpString(&dex_file).c_str());
 
-      const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code) + raw_table[i];
+      const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code) + raw_mapping_table[i];
       const uint8_t* end_native_pc = NULL;
       if (i + 2 < length) {
-        end_native_pc = reinterpret_cast<const uint8_t*>(code) + raw_table[i + 2];
+        end_native_pc = reinterpret_cast<const uint8_t*>(code) + raw_mapping_table[i + 2];
       } else {
-        const uint8_t* oat_begin = reinterpret_cast<const uint8_t*>(oat_file.Begin());
+        const uint8_t* oat_begin = reinterpret_cast<const uint8_t*>(oat_file_.Begin());
         uint32_t last_offset = static_cast<uint32_t>(native_pc - oat_begin);
 
         typedef std::set<uint32_t>::iterator It;
@@ -280,50 +451,50 @@ class OatDumper {
         CHECK(it != offsets_.end());
         end_native_pc = reinterpret_cast<const uint8_t*>(oat_begin) + *it;
       }
-
-      // TODO: insert disassembler here.
       CHECK(native_pc < end_native_pc);
-      os << StringPrintf("\t\t\t%p:", native_pc);
-      for (; native_pc < end_native_pc; ++native_pc) {
-        os << StringPrintf(" 0x%02x", *native_pc);
-      }
-      os << "\n";
+      disassembler_->Dump(os, native_pc, end_native_pc);
     }
   }
 
+  const OatFile& oat_file_;
+  std::vector<const OatFile::OatDexFile*> oat_dex_files_;
   std::set<uint32_t> offsets_;
+  UniquePtr<Disassembler> disassembler_;
 };
 
-class ImageDump {
+class ImageDumper {
  public:
-  static void Dump(const std::string& image_filename,
-                   const std::string& host_prefix,
-                   std::ostream& os,
-                   Space& image_space,
-                   const ImageHeader& image_header) {
-    os << "MAGIC:\n";
-    os << image_header.GetMagic() << "\n\n";
+  explicit ImageDumper(std::ostream& os, const std::string& image_filename,
+                       const std::string& host_prefix, Space& image_space,
+                       const ImageHeader& image_header) : os_(os),
+                       image_filename_(image_filename), host_prefix_(host_prefix),
+                       image_space_(image_space), image_header_(image_header) {
+  }
 
-    os << "IMAGE BEGIN:\n";
-    os << reinterpret_cast<void*>(image_header.GetImageBegin()) << "\n\n";
+  void Dump() {
+    os_ << "MAGIC:\n";
+    os_ << image_header_.GetMagic() << "\n\n";
 
-    os << "OAT CHECKSUM:\n";
-    os << StringPrintf("0x%08x\n\n", image_header.GetOatChecksum());
+    os_ << "IMAGE BEGIN:\n";
+    os_ << reinterpret_cast<void*>(image_header_.GetImageBegin()) << "\n\n";
 
-    os << "OAT BEGIN:\n";
-    os << reinterpret_cast<void*>(image_header.GetOatBegin()) << "\n\n";
+    os_ << "OAT CHECKSUM:\n";
+    os_ << StringPrintf("0x%08x\n\n", image_header_.GetOatChecksum());
 
-    os << "OAT END:\n";
-    os << reinterpret_cast<void*>(image_header.GetOatEnd()) << "\n\n";
+    os_ << "OAT BEGIN:\n";
+    os_ << reinterpret_cast<void*>(image_header_.GetOatBegin()) << "\n\n";
 
-    os << "ROOTS:\n";
-    os << reinterpret_cast<void*>(image_header.GetImageRoots()) << "\n";
+    os_ << "OAT END:\n";
+    os_ << reinterpret_cast<void*>(image_header_.GetOatEnd()) << "\n\n";
+
+    os_ << "ROOTS:\n";
+    os_ << reinterpret_cast<void*>(image_header_.GetImageRoots()) << "\n";
     CHECK_EQ(arraysize(image_roots_descriptions_), size_t(ImageHeader::kImageRootsMax));
     for (int i = 0; i < ImageHeader::kImageRootsMax; i++) {
       ImageHeader::ImageRoot image_root = static_cast<ImageHeader::ImageRoot>(i);
       const char* image_root_description = image_roots_descriptions_[i];
-      Object* image_root_object = image_header.GetImageRoot(image_root);
-      os << StringPrintf("%s: %p\n", image_root_description, image_root_object);
+      Object* image_root_object = image_header_.GetImageRoot(image_root);
+      os_ << StringPrintf("%s: %p\n", image_root_description, image_root_object);
       if (image_root_object->IsObjectArray()) {
         // TODO: replace down_cast with AsObjectArray (g++ currently has a problem with this)
         ObjectArray<Object>* image_root_object_array
@@ -332,65 +503,60 @@ class ImageDump {
         for (int i = 0; i < image_root_object_array->GetLength(); i++) {
           Object* value = image_root_object_array->Get(i);
           if (value != NULL) {
-            os << "\t" << i << ": ";
+            os_ << "\t" << i << ": ";
             std::string summary;
             PrettyObjectValue(summary, value->GetClass(), value);
-            os << summary;
+            os_ << summary;
           } else {
-            os << StringPrintf("\t%d: null\n", i);
+            os_ << StringPrintf("\t%d: null\n", i);
           }
         }
       }
     }
-    os << "\n";
+    os_ << "\n";
 
-    os << "OBJECTS:\n" << std::flush;
-    ImageDump state(image_space, os);
-    HeapBitmap* heap_bitmap = Heap::GetLiveBits();
-    DCHECK(heap_bitmap != NULL);
-    heap_bitmap->Walk(ImageDump::Callback, &state);
-    os << "\n";
-
-    os << "STATS:\n" << std::flush;
-    UniquePtr<File> file(OS::OpenFile(image_filename.c_str(), false));
-    state.stats_.file_bytes = file->Length();
-    size_t header_bytes = sizeof(ImageHeader);
-    state.stats_.header_bytes = header_bytes;
-    size_t alignment_bytes = RoundUp(header_bytes, kObjectAlignment) - header_bytes;
-    state.stats_.alignment_bytes += alignment_bytes;
-    state.stats_.Dump(os);
-    os << "\n";
-
-    os << std::flush;
-
-    os << "OAT LOCATION:\n" << std::flush;
-    Object* oat_location_object = image_header.GetImageRoot(ImageHeader::kOatLocation);
-    std::string oat_location(oat_location_object->AsString()->ToModifiedUtf8());
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    os << oat_location;
-    if (!host_prefix.empty()) {
-      oat_location = host_prefix + oat_location;
-      os << " (" << oat_location << ")";
+    Object* oat_location_object = image_header_.GetImageRoot(ImageHeader::kOatLocation);
+    std::string oat_location(oat_location_object->AsString()->ToModifiedUtf8());
+    if (!host_prefix_.empty()) {
+      oat_location = host_prefix_ + oat_location;
+      os_ << " (" << oat_location << ")";
     }
-    os << "\n";
     const OatFile* oat_file = class_linker->FindOatFileFromOatLocation(oat_location);
     if (oat_file == NULL) {
-      os << "NOT FOUND\n";
-      os << std::flush;
+      os_ << "OAT FILE NOT FOUND: " << oat_location << std::endl << std::flush;
       return;
     }
-    os << "\n";
-    os << std::flush;
 
-    OatDumper oat_dumper;
-    oat_dumper.Dump(oat_location, os, *oat_file);
+    stats_.oat_file_bytes = oat_file->Size();
+
+    oat_dumper_.reset(new OatDumper(*oat_file));
+
+    os_ << "OBJECTS:\n" << std::flush;
+    HeapBitmap* heap_bitmap = Heap::GetLiveBits();
+    DCHECK(heap_bitmap != NULL);
+    heap_bitmap->Walk(ImageDumper::Callback, this);
+    os_ << "\n";
+
+    os_ << "STATS:\n" << std::flush;
+    UniquePtr<File> file(OS::OpenFile(image_filename_.c_str(), false));
+    stats_.file_bytes = file->Length();
+    size_t header_bytes = sizeof(ImageHeader);
+    stats_.header_bytes = header_bytes;
+    size_t alignment_bytes = RoundUp(header_bytes, kObjectAlignment) - header_bytes;
+    stats_.alignment_bytes += alignment_bytes;
+    stats_.Dump(os_);
+    os_ << "\n";
+
+    os_ << std::flush;
+
+    os_ << "OAT LOCATION:\n" << std::flush;
+    os_ << oat_location;
+    os_ << "\n";
+    oat_dumper_->Dump(os_);
   }
 
  private:
-
-  ImageDump(const Space& dump_space, std::ostream& os) : dump_space_(dump_space), os_(os) {}
-
-  ~ImageDump() {}
 
   static void PrettyObjectValue(std::string& summary, Class* type, Object* value) {
     CHECK(type != NULL);
@@ -445,10 +611,24 @@ class ImageDump {
     }
   }
 
+  bool InDumpSpace(const Object* object) {
+    return image_space_.Contains(object);
+ }
+
+  const void* GetOatCode(Method* m) {
+    Runtime* runtime = Runtime::Current();
+    const void* code = m->GetCode();
+    if (code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData() ||
+        code == runtime->GetResolutionStubArray(Runtime::kInstanceMethod)->GetData()) {
+      code = oat_dumper_->GetOatCode(m);
+    }
+    return code;
+  }
+
   static void Callback(Object* obj, void* arg) {
     DCHECK(obj != NULL);
     DCHECK(arg != NULL);
-    ImageDump* state = reinterpret_cast<ImageDump*>(arg);
+    ImageDumper* state = reinterpret_cast<ImageDumper*>(arg);
     if (!state->InDumpSpace(obj)) {
       return;
     }
@@ -520,6 +700,20 @@ class ImageDump {
         DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
         DCHECK_EQ(0U, method->GetGcMapLength()) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
+        bool first_occurrence;
+        size_t invoke_stub_size = state->ComputeOatSize(
+            reinterpret_cast<const void*>(method->GetInvokeStub()), &first_occurrence);
+        if (first_occurrence) {
+          state->stats_.managed_to_native_code_bytes += invoke_stub_size;
+        }
+        const void* oat_code = state->GetOatCode(method);
+        size_t code_size = state->ComputeOatSize(oat_code, &first_occurrence);
+        if (first_occurrence) {
+          state->stats_.native_to_managed_code_bytes += code_size;
+        }
+        if (oat_code != method->GetCode()) {
+          StringAppendF(&summary, "\t\tOAT CODE: %p\n", oat_code);
+        }
       } else if (method->IsAbstract() || method->IsCalleeSaveMethod() ||
           method->IsResolutionMethod()) {
         DCHECK(method->GetGcMap() == NULL) << PrettyMethod(method);
@@ -529,18 +723,52 @@ class ImageDump {
         DCHECK(method->GetGcMap() != NULL) << PrettyMethod(method);
         DCHECK_NE(0U, method->GetGcMapLength()) << PrettyMethod(method);
 
-        size_t register_map_bytes = method->GetGcMapLength();
-        state->stats_.register_map_bytes += register_map_bytes;
-
-        size_t pc_mapping_table_bytes = method->GetMappingTableLength();
-        state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
-
         const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
         state->stats_.dex_instruction_bytes += dex_instruction_bytes;
 
+        bool first_occurance;
+        size_t gc_map_bytes = state->ComputeOatSize(method->GetGcMapRaw(), &first_occurance);
+        if (first_occurance) {
+          state->stats_.gc_map_bytes += gc_map_bytes;
+        }
+
+        size_t pc_mapping_table_bytes =
+            state->ComputeOatSize(method->GetMappingTableRaw(), &first_occurance);
+        if (first_occurance) {
+          state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
+        }
+
+        size_t vmap_table_bytes =
+            state->ComputeOatSize(method->GetVmapTableRaw(), &first_occurance);
+        if (first_occurance) {
+          state->stats_.vmap_table_bytes += vmap_table_bytes;
+        }
+
+        size_t invoke_stub_size = state->ComputeOatSize(
+            reinterpret_cast<const void*>(method->GetInvokeStub()), &first_occurance);
+        if (first_occurance) {
+          state->stats_.native_to_managed_code_bytes += invoke_stub_size;
+        }
+        const void* oat_code = state->GetOatCode(method);
+        size_t code_size = state->ComputeOatSize(oat_code, &first_occurance);
+        if (first_occurance) {
+          state->stats_.managed_code_bytes += code_size;
+        }
+        state->stats_.managed_code_bytes_ignoring_deduplication += code_size;
+
+        if (oat_code != method->GetCode()) {
+          StringAppendF(&summary, "\t\tOAT CODE: %p\n", oat_code);
+        }
         StringAppendF(&summary, "\t\tSIZE: Dex Instructions=%zd GC=%zd Mapping=%zd\n",
-                      dex_instruction_bytes, register_map_bytes, pc_mapping_table_bytes);
+                      dex_instruction_bytes, gc_map_bytes, pc_mapping_table_bytes);
+
+        size_t total_size = dex_instruction_bytes + gc_map_bytes + pc_mapping_table_bytes +
+            vmap_table_bytes + invoke_stub_size + code_size + object_bytes;
+
+        double expansion =
+            static_cast<double>(code_size) / static_cast<double>(dex_instruction_bytes);
+        state->stats_.ComputeOutliers(total_size, expansion, method);
       }
     }
     std::string descriptor(ClassHelper(obj_class).GetDescriptor());
@@ -550,12 +778,22 @@ class ImageDump {
     state->os_ << summary << std::flush;
   }
 
-  bool InDumpSpace(const Object* object) {
-    return dump_space_.Contains(object);
+  std::set<const void*> already_seen_;
+  // Compute the size of the given data within the oat file and whether this is the first time
+  // this data has been requested
+  size_t ComputeOatSize(const void* oat_data, bool* first_occurance) {
+    if (already_seen_.count(oat_data) == 0) {
+      *first_occurance = true;
+      already_seen_.insert(oat_data);
+    } else {
+      *first_occurance = false;
+    }
+    return oat_dumper_->ComputeSize(oat_data);
   }
 
  public:
   struct Stats {
+    size_t oat_file_bytes;
     size_t file_bytes;
 
     size_t header_bytes;
@@ -563,24 +801,33 @@ class ImageDump {
     size_t alignment_bytes;
 
     size_t managed_code_bytes;
+    size_t managed_code_bytes_ignoring_deduplication;
     size_t managed_to_native_code_bytes;
     size_t native_to_managed_code_bytes;
 
-    size_t register_map_bytes;
+    size_t gc_map_bytes;
     size_t pc_mapping_table_bytes;
+    size_t vmap_table_bytes;
 
     size_t dex_instruction_bytes;
 
-    Stats()
-        : file_bytes(0),
+    std::vector<Method*> method_outlier;
+    std::vector<size_t> method_outlier_size;
+    std::vector<double> method_outlier_expansion;
+
+    explicit Stats()
+        : oat_file_bytes(0),
+          file_bytes(0),
           header_bytes(0),
           object_bytes(0),
           alignment_bytes(0),
           managed_code_bytes(0),
+          managed_code_bytes_ignoring_deduplication(0),
           managed_to_native_code_bytes(0),
           native_to_managed_code_bytes(0),
-          register_map_bytes(0),
+          gc_map_bytes(0),
           pc_mapping_table_bytes(0),
+          vmap_table_bytes(0),
           dex_instruction_bytes(0) {}
 
     typedef std::map<std::string, size_t> TableBytes;
@@ -588,6 +835,10 @@ class ImageDump {
 
     typedef std::map<std::string, size_t> TableCount;
     TableCount descriptor_to_count;
+
+    double PercentOfOatBytes(size_t size) {
+      return (static_cast<double>(size) / static_cast<double>(oat_file_bytes)) * 100;
+    }
 
     double PercentOfFileBytes(size_t size) {
       return (static_cast<double>(size) / static_cast<double>(file_bytes)) * 100;
@@ -597,19 +848,124 @@ class ImageDump {
       return (static_cast<double>(size) / static_cast<double>(object_bytes)) * 100;
     }
 
-    void Dump(std::ostream& os) {
-      os << StringPrintf("\tfile_bytes = %zd\n", file_bytes);
-      os << "\n";
+    void ComputeOutliers(size_t total_size, double expansion, Method* method) {
+      method_outlier_size.push_back(total_size);
+      method_outlier_expansion.push_back(expansion);
+      method_outlier.push_back(method);
+    }
 
-      os << "\tfile_bytes = header_bytes + object_bytes + alignment_bytes\n";
-      os << StringPrintf("\theader_bytes    = %10zd (%2.0f%% of file_bytes)\n",
-                         header_bytes, PercentOfFileBytes(header_bytes));
-      os << StringPrintf("\tobject_bytes    = %10zd (%2.0f%% of file_bytes)\n",
-                         object_bytes, PercentOfFileBytes(object_bytes));
-      os << StringPrintf("\talignment_bytes = %10zd (%2.0f%% of file_bytes)\n",
-                         alignment_bytes, PercentOfFileBytes(alignment_bytes));
-      os << "\n";
-      os << std::flush;
+    void DumpOutliers(std::ostream& os) {
+      size_t sum_of_sizes = 0;
+      size_t sum_of_sizes_squared = 0;
+      size_t sum_of_expansion = 0;
+      size_t sum_of_expansion_squared = 0;
+      size_t n = method_outlier_size.size();
+      for (size_t i = 0; i < n; i++) {
+        size_t cur_size = method_outlier_size[i];
+        sum_of_sizes += cur_size;
+        sum_of_sizes_squared += cur_size * cur_size;
+        double cur_expansion = method_outlier_expansion[i];
+        sum_of_expansion += cur_expansion;
+        sum_of_expansion_squared += cur_expansion * cur_expansion;
+      }
+      size_t size_mean = sum_of_sizes / n;
+      size_t size_variance = (sum_of_sizes_squared - sum_of_sizes * size_mean) / (n - 1);
+      double expansion_mean = sum_of_expansion / n;
+      double expansion_variance =
+          (sum_of_expansion_squared - sum_of_expansion * expansion_mean) / (n - 1);
+
+      // Dump methods whose size is a certain number of standard deviations from the mean
+      size_t dumped_values = 0;
+      size_t skipped_values = 0;
+      for (size_t i = 100; i > 0; i--) {  // i is the current number of standard deviations
+        size_t cur_size_variance = i * i * size_variance;
+        bool first = true;
+        for (size_t j = 0; j < n; j++) {
+          size_t cur_size = method_outlier_size[j];
+          if (cur_size > size_mean) {
+            size_t cur_var = cur_size - size_mean;
+            cur_var = cur_var * cur_var;
+            if (cur_var > cur_size_variance) {
+              if (dumped_values > 20) {
+                if (i == 1) {
+                  skipped_values++;
+                } else {
+                  i = 2;  // jump to counting for 1 standard deviation
+                  break;
+                }
+              } else {
+                if (first) {
+                  os << "\nBig methods (size > " << i << " standard deviations the norm):"
+                     << std::endl;
+                  first = false;
+                }
+                os << "\t" << PrettyMethod(method_outlier[j]) << " requires storage of "
+                    << PrettySize(cur_size) << std::endl;
+                method_outlier_size[j] = 0;  // don't consider this method again
+                dumped_values++;
+              }
+            }
+          }
+        }
+      }
+      if (skipped_values > 0) {
+        os << "\t... skipped " << skipped_values
+           << " methods with size > 1 standard deviation from the norm" << std::endl;
+      }
+      os << std::endl << std::flush;
+
+      // Dump methods whose expansion is a certain number of standard deviations from the mean
+      dumped_values = 0;
+      skipped_values = 0;
+      for (size_t i = 10; i > 0; i--) {  // i is the current number of standard deviations
+        double cur_expansion_variance = i * i * expansion_variance;
+        bool first = true;
+        for (size_t j = 0; j < n; j++) {
+          double cur_expansion = method_outlier_expansion[j];
+          if (cur_expansion > expansion_mean) {
+            size_t cur_var = cur_expansion - expansion_mean;
+            cur_var = cur_var * cur_var;
+            if (cur_var > cur_expansion_variance) {
+              if (dumped_values > 20) {
+                if (i == 1) {
+                  skipped_values++;
+                } else {
+                  i = 2;  // jump to counting for 1 standard deviation
+                  break;
+                }
+              } else {
+                if (first) {
+                  os << "\nLarge expansion methods (size > " << i
+                      << " standard deviations the norm):" << std::endl;
+                  first = false;
+                }
+                os << "\t" << PrettyMethod(method_outlier[j]) << " expanded code by "
+                    << cur_expansion << std::endl;
+                method_outlier_expansion[j] = 0.0;  // don't consider this method again
+                dumped_values++;
+              }
+            }
+          }
+        }
+      }
+      if (skipped_values > 0) {
+        os << "\t... skipped " << skipped_values
+           << " methods with expansion > 1 standard deviation from the norm" << std::endl;
+      }
+      os << std::endl << std::flush;
+    }
+
+    void Dump(std::ostream& os) {
+      os << "\tart_file_bytes = " << PrettySize(file_bytes) << std::endl << std::endl
+         << "\tart_file_bytes = header_bytes + object_bytes + alignment_bytes" << std::endl
+         << StringPrintf("\theader_bytes    =  %8zd (%2.0f%% of art file bytes)\n"
+                         "\tobject_bytes    =  %8zd (%2.0f%% of art file bytes)\n"
+                         "\talignment_bytes =  %8zd (%2.0f%% of art file bytes)\n",
+                         header_bytes, PercentOfFileBytes(header_bytes),
+                         object_bytes, PercentOfFileBytes(object_bytes),
+                         alignment_bytes, PercentOfFileBytes(alignment_bytes))
+         << std::endl << std::flush;
+
       CHECK_EQ(file_bytes, header_bytes + object_bytes + alignment_bytes);
 
       os << "\tobject_bytes = sum of descriptor_to_bytes values below:\n";
@@ -628,42 +984,45 @@ class ImageDump {
 
         object_bytes_total += bytes;
       }
-      os << "\n";
-      os << std::flush;
+      os << std::endl << std::flush;
       CHECK_EQ(object_bytes, object_bytes_total);
 
-      os << StringPrintf("\tmanaged_code_bytes           = %8zd (%2.0f%% of object_bytes)\n",
-                         managed_code_bytes, PercentOfObjectBytes(managed_code_bytes));
-      os << StringPrintf("\tmanaged_to_native_code_bytes = %8zd (%2.0f%% of object_bytes)\n",
-                         managed_to_native_code_bytes,
-                         PercentOfObjectBytes(managed_to_native_code_bytes));
-      os << StringPrintf("\tnative_to_managed_code_bytes = %8zd (%2.0f%% of object_bytes)\n",
-                         native_to_managed_code_bytes,
-                         PercentOfObjectBytes(native_to_managed_code_bytes));
-      os << "\n";
-      os << std::flush;
+      os << StringPrintf("\tmanaged_code_bytes           = %8zd (%2.0f%% of oat file bytes)\n"
+                         "\tmanaged_to_native_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
+                         "\tnative_to_managed_code_bytes = %8zd (%2.0f%% of oat file bytes)\n",
+                         managed_code_bytes, PercentOfOatBytes(managed_code_bytes),
+                         managed_to_native_code_bytes, PercentOfOatBytes(managed_to_native_code_bytes),
+                         native_to_managed_code_bytes, PercentOfOatBytes(native_to_managed_code_bytes))
+         << std::endl << std::flush;
 
-      os << StringPrintf("\tregister_map_bytes     = %7zd (%2.0f%% of object_bytes)\n",
-                         register_map_bytes, PercentOfObjectBytes(register_map_bytes));
-      os << StringPrintf("\tpc_mapping_table_bytes = %7zd (%2.0f%% of object_bytes)\n",
-                         pc_mapping_table_bytes, PercentOfObjectBytes(pc_mapping_table_bytes));
-      os << "\n";
-      os << std::flush;
+      os << StringPrintf("\tgc_map_bytes           = %7zd (%2.0f%% of oat file_bytes)\n"
+                         "\tpc_mapping_table_bytes = %7zd (%2.0f%% of oat file_bytes)\n"
+                         "\tvmap_table_bytes       = %7zd (%2.0f%% of oat file_bytes)\n",
+                         gc_map_bytes, PercentOfOatBytes(gc_map_bytes),
+                         pc_mapping_table_bytes, PercentOfOatBytes(pc_mapping_table_bytes),
+                         vmap_table_bytes, PercentOfOatBytes(vmap_table_bytes))
+         << std::endl << std::flush;
 
       os << StringPrintf("\tdex_instruction_bytes = %zd\n", dex_instruction_bytes);
-      os << StringPrintf("\tmanaged_code_bytes expansion = %.2f\n",
-                         static_cast<double>(managed_code_bytes)
-                         / static_cast<double>(dex_instruction_bytes));
-      os << "\n";
-      os << std::flush;
+      os << StringPrintf("\tmanaged_code_bytes expansion = %.2f (ignoring deduplication %.2f)\n",
+          static_cast<double>(managed_code_bytes) / static_cast<double>(dex_instruction_bytes),
+          static_cast<double>(managed_code_bytes_ignoring_deduplication) /
+            static_cast<double>(dex_instruction_bytes));
+      os << std::endl << std::flush;
+
+      DumpOutliers(os);
     }
   } stats_;
 
  private:
-  const Space& dump_space_;
+  UniquePtr<OatDumper> oat_dumper_;
   std::ostream& os_;
+  const std::string image_filename_;
+  const std::string host_prefix_;
+  Space& image_space_;
+  const ImageHeader& image_header_;
 
-  DISALLOW_COPY_AND_ASSIGN(ImageDump);
+  DISALLOW_COPY_AND_ASSIGN(ImageDumper);
 };
 
 int oatdump(int argc, char** argv) {
@@ -718,13 +1077,13 @@ int oatdump(int argc, char** argv) {
   }
 
   if (oat_filename != NULL) {
-    const OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, NULL);
+    OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, NULL);
     if (oat_file == NULL) {
       fprintf(stderr, "Failed to open oat file from %s\n", oat_filename);
       return EXIT_FAILURE;
     }
-    OatDumper oat_dumper;
-    oat_dumper.Dump(oat_filename, *os, *oat_file);
+    OatDumper oat_dumper(*oat_file);
+    oat_dumper.Dump(*os);
     return EXIT_SUCCESS;
   }
 
@@ -767,7 +1126,8 @@ int oatdump(int argc, char** argv) {
     fprintf(stderr, "Invalid image header %s\n", image_filename);
     return EXIT_FAILURE;
   }
-  ImageDump::Dump(image_filename, host_prefix, *os, *image_space, image_header);
+  ImageDumper image_dumper(*os, image_filename, host_prefix, *image_space, image_header);
+  image_dumper.Dump();
   return EXIT_SUCCESS;
 }
 
