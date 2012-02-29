@@ -1398,7 +1398,8 @@ void LinkCode(SirtRef<Method>& method, const OatFile::OatClass* oat_class, uint3
   if (method->IsStatic() && !method->IsConstructor()) {
     // For static methods excluding the class initializer, install the trampoline
     method->SetCode(runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData());
-  } else if (method->IsNative()) {
+  }
+  if (method->IsNative()) {
     // unregistering restores the dlsym lookup stub
     method->UnregisterNative(Thread::Current());
   }
