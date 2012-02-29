@@ -89,13 +89,13 @@ class OatDumper {
     os << oat_header.GetMagic() << "\n\n";
 
     os << "CHECKSUM:\n";
-    os << StringPrintf("%08x\n\n", oat_header.GetChecksum());
+    os << StringPrintf("0x%08x\n\n", oat_header.GetChecksum());
 
     os << "DEX FILE COUNT:\n";
     os << oat_header.GetDexFileCount() << "\n\n";
 
     os << "EXECUTABLE OFFSET:\n";
-    os << StringPrintf("%08x\n\n", oat_header.GetExecutableOffset());
+    os << StringPrintf("0x%08x\n\n", oat_header.GetExecutableOffset());
 
     os << "BEGIN:\n";
     os << reinterpret_cast<const void*>(oat_file.Begin()) << "\n\n";
@@ -166,7 +166,7 @@ class OatDumper {
                       const OatFile::OatDexFile& oat_dex_file) {
     os << "OAT DEX FILE:\n";
     os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
-    os << StringPrintf("checksum: %08x\n", oat_dex_file.GetDexFileLocationChecksum());
+    os << StringPrintf("checksum: 0x%08x\n", oat_dex_file.GetDexFileLocationChecksum());
     UniquePtr<const DexFile> dex_file(oat_dex_file.OpenDexFile());
     if (dex_file.get() == NULL) {
       os << "NOT FOUND\n\n";
@@ -230,22 +230,22 @@ class OatDumper {
     std::string signature(dex_file.GetMethodSignature(method_id));
     os << StringPrintf("\t%d: %s %s (dex_method_idx=%d)\n",
                        class_method_index, name, signature.c_str(), dex_method_idx);
-    os << StringPrintf("\t\tcode: %p (offset=%08x)\n",
+    os << StringPrintf("\t\tcode: %p (offset=0x%08x)\n",
                        oat_method.GetCode(), oat_method.GetCodeOffset());
     os << StringPrintf("\t\tframe_size_in_bytes: %zd\n",
                        oat_method.GetFrameSizeInBytes());
-    os << StringPrintf("\t\tcore_spill_mask: %08x\n",
+    os << StringPrintf("\t\tcore_spill_mask: 0x%08x\n",
                        oat_method.GetCoreSpillMask());
-    os << StringPrintf("\t\tfp_spill_mask: %08x\n",
+    os << StringPrintf("\t\tfp_spill_mask: 0x%08x\n",
                        oat_method.GetFpSpillMask());
-    os << StringPrintf("\t\tmapping_table: %p (offset=%08x)\n",
+    os << StringPrintf("\t\tmapping_table: %p (offset=0x%08x)\n",
                        oat_method.GetMappingTable(), oat_method.GetMappingTableOffset());
     DumpMappingTable(os, oat_file, oat_method, dex_file, code_item);
-    os << StringPrintf("\t\tvmap_table: %p (offset=%08x)\n",
+    os << StringPrintf("\t\tvmap_table: %p (offset=0x%08x)\n",
                        oat_method.GetVmapTable(), oat_method.GetVmapTableOffset());
-    os << StringPrintf("\t\tgc_map: %p (offset=%08x)\n",
+    os << StringPrintf("\t\tgc_map: %p (offset=0x%08x)\n",
                        oat_method.GetGcMap(), oat_method.GetGcMapOffset());
-    os << StringPrintf("\t\tinvoke_stub: %p (offset=%08x)\n",
+    os << StringPrintf("\t\tinvoke_stub: %p (offset=0x%08x)\n",
                        oat_method.GetInvokeStub(), oat_method.GetInvokeStubOffset());
   }
 
@@ -266,7 +266,6 @@ class OatDumper {
       const Instruction* instruction = Instruction::At(&code_item->insns_[dex_pc]);
       os << StringPrintf("\t\t0x%04x: %s\n", dex_pc, instruction->DumpString(&dex_file).c_str());
 
-      // TODO: this is thumb2-specific.
       const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code) + raw_table[i];
       const uint8_t* end_native_pc = NULL;
       if (i + 2 < length) {
@@ -276,16 +275,18 @@ class OatDumper {
         uint32_t last_offset = static_cast<uint32_t>(native_pc - oat_begin);
 
         typedef std::set<uint32_t>::iterator It;
-        It it = offsets_.lower_bound(last_offset);
+        It it = offsets_.upper_bound(last_offset);
         CHECK(it != offsets_.end());
         end_native_pc = reinterpret_cast<const uint8_t*>(oat_begin) + *it;
       }
 
       // TODO: insert disassembler here.
-      CHECK(native_pc <= end_native_pc);
-      for (; native_pc < end_native_pc; native_pc += 2) {
-        os << StringPrintf("\t\t\t%p: 0x%04x\n", native_pc, *reinterpret_cast<const uint16_t*>(native_pc));
+      CHECK(native_pc < end_native_pc);
+      os << StringPrintf("\t\t\t%p:", native_pc);
+      for (; native_pc < end_native_pc; ++native_pc) {
+        os << StringPrintf(" 0x%02x", *native_pc);
       }
+      os << "\n";
     }
   }
 
@@ -306,7 +307,7 @@ class ImageDump {
     os << reinterpret_cast<void*>(image_header.GetImageBegin()) << "\n\n";
 
     os << "OAT CHECKSUM:\n";
-    os << StringPrintf("%08x\n\n", image_header.GetOatChecksum());
+    os << StringPrintf("0x%08x\n\n", image_header.GetOatChecksum());
 
     os << "OAT BEGIN:\n";
     os << reinterpret_cast<void*>(image_header.GetOatBegin()) << "\n\n";
