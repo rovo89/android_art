@@ -221,7 +221,7 @@ class OatFile {
 
   friend class OatClass;
   friend class OatDexFile;
-  friend class OatDump;  // For GetBase and GetLimit
+  friend class OatDumper;  // For GetBase and GetLimit
   DISALLOW_COPY_AND_ASSIGN(OatFile);
 };
 
