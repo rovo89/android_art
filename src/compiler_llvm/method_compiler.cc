@@ -1732,8 +1732,11 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
     llvm::Value* object_addr_int =
       irb_.CreatePtrToInt(object_addr, irb_.getPtrEquivIntTy());
 
+    // TODO: currently FilledNewArray doesn't support I, J, D and L, [ so computing the component
+    // size using int alignment is safe. This code should determine the width of the FilledNewArray
+    // component.
     llvm::Value* data_field_offset =
-      irb_.getPtrEquivInt(Array::DataOffset().Int32Value());
+      irb_.getPtrEquivInt(Array::DataOffset(sizeof(int32_t)).Int32Value());
 
     llvm::Value* data_field_addr_int =
       irb_.CreateAdd(object_addr_int, data_field_offset);
@@ -1818,9 +1821,12 @@ void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
 
     EmitGuard_ArrayIndexOutOfBoundsException(dex_pc, array_addr, last_index);
 
+    // TODO: currently FillArray doesn't support I, J, D and L, [ so computing the component
+    // size using int alignment is safe. This code should determine the width of the FillArray
+    // component.
     // Get array data field
     llvm::Value* data_field_offset_value =
-      irb_.getPtrEquivInt(Array::DataOffset().Int32Value());
+      irb_.getPtrEquivInt(Array::DataOffset(sizeof(int32_t)).Int32Value());
 
     llvm::Value* data_field_addr =
       irb_.CreatePtrDisp(array_addr, data_field_offset_value,
@@ -2196,10 +2202,19 @@ void MethodCompiler::EmitGuard_ArrayException(uint32_t dex_pc,
 // Emit Array GetElementPtr
 llvm::Value* MethodCompiler::EmitArrayGEP(llvm::Value* array_addr,
                                           llvm::Value* index_value,
-                                          llvm::Type* elem_type) {
+                                          llvm::Type* elem_type,
+                                          JType elem_jty) {
+
+  int data_offset;
+  if (elem_jty == kLong || elem_jty == kDouble ||
+      (elem_jty == kObject && sizeof(uint64_t) == sizeof(Object*))) {
+    data_offset = Array::DataOffset(sizeof(int64_t)).Int32Value();
+  } else {
+    data_offset = Array::DataOffset(sizeof(int32_t)).Int32Value();
+  }
 
   llvm::Constant* data_offset_value =
-    irb_.getPtrEquivInt(Array::DataOffset().Int32Value());
+    irb_.getPtrEquivInt(data_offset);
 
   llvm::Value* array_data_addr =
     irb_.CreatePtrDisp(array_addr, data_offset_value,
@@ -2223,7 +2238,7 @@ void MethodCompiler::EmitInsn_AGet(uint32_t dex_pc,
   llvm::Type* elem_type = irb_.getJType(elem_jty, kArray);
 
   llvm::Value* array_elem_addr =
-    EmitArrayGEP(array_addr, index_value, elem_type);
+    EmitArrayGEP(array_addr, index_value, elem_type, elem_jty);
 
   llvm::Value* array_elem_value = irb_.CreateLoad(array_elem_addr);
 
@@ -2247,7 +2262,7 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
   llvm::Type* elem_type = irb_.getJType(elem_jty, kArray);
 
   llvm::Value* array_elem_addr =
-    EmitArrayGEP(array_addr, index_value, elem_type);
+    EmitArrayGEP(array_addr, index_value, elem_type, elem_jty);
 
   llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA_, elem_jty, kArray);
 
@@ -2869,7 +2884,7 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
   bool is_static = (invoke_type == kStatic);
 
   UniquePtr<OatCompilationUnit> callee_oatcompilation_unit(
-      oatcompilation_unit_->GetCallee(callee_method_idx, is_static ? kAccStatic : 0));
+      oat_compilation_unit_->GetCallee(callee_method_idx, is_static ? kAccStatic : 0));
 
   int vtable_idx = -1; // Currently unused
   bool is_fast_path = compiler_->
@@ -3394,7 +3409,7 @@ EmitLoadMethodObjectAddrFromVTable(llvm::Value* vtable_addr,
     irb_.getPtrEquivInt(static_cast<uint64_t>(vtable_index));
 
   llvm::Value* method_field_addr =
-    EmitArrayGEP(vtable_addr, vtable_index_value, irb_.getJObjectTy());
+    EmitArrayGEP(vtable_addr, vtable_index_value, irb_.getJObjectTy(), kObject);
 
   return irb_.CreateLoad(method_field_addr);
 }
@@ -3460,7 +3475,7 @@ EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
   return EmitArrayGEP(static_storage_dex_cache_addr, type_idx_value,
-                      irb_.getJObjectTy());
+                      irb_.getJObjectTy(), kObject);
 }
 
 
@@ -3472,7 +3487,7 @@ EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx) {
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
   return EmitArrayGEP(resolved_type_dex_cache_addr, type_idx_value,
-                      irb_.getJObjectTy());
+                      irb_.getJObjectTy(), kObject);
 }
 
 
@@ -3484,7 +3499,7 @@ EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx) {
   llvm::Value* method_idx_value = irb_.getPtrEquivInt(method_idx);
 
   return EmitArrayGEP(resolved_method_dex_cache_addr, method_idx_value,
-                      irb_.getJObjectTy());
+                      irb_.getJObjectTy(), kObject);
 }
 
 
@@ -3496,7 +3511,7 @@ EmitLoadDexCacheStringFieldAddr(uint32_t string_idx) {
   llvm::Value* string_idx_value = irb_.getPtrEquivInt(string_idx);
 
   return EmitArrayGEP(string_dex_cache_addr, string_idx_value,
-                      irb_.getJObjectTy());
+                      irb_.getJObjectTy(), kObject);
 }
 
 

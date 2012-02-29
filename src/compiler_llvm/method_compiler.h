@@ -334,7 +334,8 @@ class MethodCompiler {
 
   llvm::Value* EmitArrayGEP(llvm::Value* array_addr,
                             llvm::Value* index_value,
-                            llvm::Type* elem_type);
+                            llvm::Type* elem_type,
+                            JType elem_jty);
 
   llvm::Value* EmitLoadConstantClass(uint32_t dex_pc, uint32_t type_idx);
 
