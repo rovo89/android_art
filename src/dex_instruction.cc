@@ -290,28 +290,28 @@ std::string Instruction::DumpString(const DexFile* file) const {
   std::ostringstream os;
   const char* opcode = kInstructionNames[insn.opcode_];
   switch (Format()) {
-    case k10x: os << opcode; break;
-    case k12x: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_; break;
-    case k11n: os << opcode << " v" << insn.vA_ << ", #+" << insn.vB_; break;
-    case k11x: os << opcode << " v" << insn.vA_; break;
-    case k10t: os << opcode << " +" << (int)insn.vA_; break;
-    case k20bc: os << opcode << " " << insn.vA_ << ", kind@" << insn.vB_; break;
-    case k20t: os << opcode << " +" << (int)insn.vA_; break;
-    case k22x: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_; break;
-    case k21t: os << opcode << " v" << insn.vA_ << ", +" << insn.vB_; break;
-    case k21s: os << opcode << " v" << insn.vA_ << ", #+" << insn.vB_; break;
-    case k21h: os << opcode << " v" << insn.vA_ << ", #+" << insn.vB_ << "00000[00000000]"; break;
-    case k21c: os << opcode << " " << insn.vA_ << ", thing@" << insn.vB_; break;
-    case k23x: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_ << ", v" << insn.vC_; break;
-    case k22b: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_ << ", #+" << insn.vC_; break;
-    case k22t: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_ << ", +" << insn.vC_; break;
-    case k22s: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_ << ", #+" << insn.vC_; break;
-    case k22c: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_ << ", thing@" << insn.vC_; break;
-    case k32x: os << opcode << " v" << insn.vA_ << ", v" << insn.vB_; break;
-    case k30t: os << opcode << " +" << (int)insn.vA_; break;
-    case k31t: os << opcode << " v" << insn.vA_ << ", +" << insn.vB_; break;
-    case k31i: os << opcode << " v" << insn.vA_ << ", #+" << insn.vB_; break;
-    case k31c: os << opcode << " v" << insn.vA_ << ", thing@" << insn.vB_; break;
+    case k10x:  os << opcode; break;
+    case k12x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA_, insn.vB_); break;
+    case k11n:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA_, insn.vB_); break;
+    case k11x:  os << StringPrintf("%s v%d", opcode, insn.vA_); break;
+    case k10t:  os << StringPrintf("%s %+d", opcode, insn.vA_); break;
+    case k20bc: os << StringPrintf("%s %d, kind@%d", opcode, insn.vA_, insn.vB_); break;
+    case k20t:  os << StringPrintf("%s %+d", opcode, insn.vA_); break;
+    case k22x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA_, insn.vB_); break;
+    case k21t:  os << StringPrintf("%s v%d, %+d", opcode, insn.vA_, insn.vB_); break;
+    case k21s:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA_, insn.vB_); break;
+    case k21h:  os << StringPrintf("%s v%d, #%+d00000[00000000]", opcode, insn.vA_, insn.vB_); break;
+    case k21c:  os << StringPrintf("%s v%d, thing@%d", opcode, insn.vA_, insn.vB_); break;
+    case k23x:  os << StringPrintf("%s v%d, v%d, v%d", opcode, insn.vA_, insn.vB_, insn.vC_); break;
+    case k22b:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, insn.vA_, insn.vB_, insn.vC_); break;
+    case k22t:  os << StringPrintf("%s v%d, v%d, %+d", opcode, insn.vA_, insn.vB_, insn.vC_); break;
+    case k22s:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, insn.vA_, insn.vB_, insn.vC_); break;
+    case k22c:  os << StringPrintf("%s v%d, v%d, thing@%d", opcode, insn.vA_, insn.vB_, insn.vC_); break;
+    case k32x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA_, insn.vB_); break;
+    case k30t:  os << StringPrintf("%s %+d", opcode, insn.vA_); break;
+    case k31t:  os << StringPrintf("%s v%d, %+d", opcode, insn.vA_, insn.vB_); break;
+    case k31i:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA_, insn.vB_); break;
+    case k31c:  os << StringPrintf("%s v%d, thing@%d", opcode, insn.vA_, insn.vB_); break;
     case k35c: {
       switch (insn.opcode_) {
         case INVOKE_VIRTUAL:
@@ -321,11 +321,17 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case INVOKE_INTERFACE:
           if (file != NULL) {
             const DexFile::MethodId& meth_id = file->GetMethodId(insn.vB_);
-            os << opcode << " {v" << insn.arg_[0] << ", v" << insn.arg_[1] << ", v" << insn.arg_[2]
-                         << ", v" << insn.arg_[3] << ", v" << insn.arg_[4] << "}, "
-                         << file->GetMethodDeclaringClassDescriptor(meth_id) << "."
-                         << file->GetMethodName(meth_id) << file->GetMethodSignature(meth_id)
-                         << " // method@" << insn.vB_;
+            os << opcode << " {";
+            for (size_t i = 0; i < insn.vA_; ++i) {
+              if (i != 0) {
+                os << ", ";
+              }
+              os << "v" << insn.arg_[i];
+            }
+            os << "}, "
+               << file->GetMethodDeclaringClassDescriptor(meth_id) << "."
+               << file->GetMethodName(meth_id) << file->GetMethodSignature(meth_id)
+               << " // method@" << insn.vB_;
             break;
           }  // else fall-through
         default:
@@ -335,8 +341,8 @@ std::string Instruction::DumpString(const DexFile* file) const {
       }
       break;
     }
-    case k3rc: os << opcode << " {v" << insn.vC_ << " .. v" << (insn.vC_+ insn.vA_ - 1) << "}, method@" << insn.vB_; break;
-    case k51l: os << opcode << " v" << insn.vA_ << ", #+" << insn.vB_; break;
+    case k3rc: os << StringPrintf("%s, {v%d .. v%d}, method@%d", opcode, insn.vC_, (insn.vC_+ insn.vA_ - 1), insn.vB_); break;
+    case k51l: os << StringPrintf("%s v%d, #%+d", opcode, insn.vA_, insn.vB_); break;
     default: os << " unknown format (" << DumpHex(5) << ")"; break;
   }
   return os.str();

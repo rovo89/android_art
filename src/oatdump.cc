@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "class_linker.h"
+#include "dex_instruction.h"
 #include "file.h"
 #include "image.h"
 #include "object_utils.h"
@@ -79,11 +80,9 @@ const char* image_roots_descriptions_[] = {
   "kClassRoots",
 };
 
-class OatDump {
+class OatDumper {
  public:
-  static void Dump(const std::string& oat_filename,
-                   std::ostream& os,
-                   const OatFile& oat_file) {
+  void Dump(const std::string& oat_filename, std::ostream& os, const OatFile& oat_file) {
     const OatHeader& oat_header = oat_file.GetOatHeader();
 
     os << "MAGIC:\n";
@@ -107,6 +106,8 @@ class OatDump {
     os << std::flush;
 
     std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file.GetOatDexFiles();
+    AddAllOffsets(oat_file, oat_dex_files);
+
     for (size_t i = 0; i < oat_dex_files.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
       CHECK(oat_dex_file != NULL);
@@ -115,9 +116,54 @@ class OatDump {
   }
 
  private:
-  static void DumpOatDexFile(std::ostream& os,
-                             const OatFile& oat_file,
-                             const OatFile::OatDexFile& oat_dex_file) {
+  void AddAllOffsets(const OatFile& oat_file, std::vector<const OatFile::OatDexFile*>& oat_dex_files) {
+    // We don't know the length of the code for each method, but we need to know where to stop
+    // when disassembling. What we do know is that a region of code will be followed by some other
+    // region, so if we keep a sorted sequence of the start of each region, we can infer the length
+    // of a piece of code by using upper_bound to find the start of the next region.
+    for (size_t i = 0; i < oat_dex_files.size(); i++) {
+      const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
+      CHECK(oat_dex_file != NULL);
+      UniquePtr<const DexFile> dex_file(oat_dex_file->OpenDexFile());
+      if (dex_file.get() == NULL) {
+        return;
+      }
+      for (size_t class_def_index = 0; class_def_index < dex_file->NumClassDefs(); class_def_index++) {
+        const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
+        UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(class_def_index));
+        const byte* class_data = dex_file->GetClassData(class_def);
+        if (class_data != NULL) {
+          ClassDataItemIterator it(*dex_file, class_data);
+          SkipAllFields(it);
+          uint32_t class_method_index = 0;
+          while (it.HasNextDirectMethod()) {
+            AddOffsets(oat_class->GetOatMethod(class_method_index++));
+            it.Next();
+          }
+          while (it.HasNextVirtualMethod()) {
+            AddOffsets(oat_class->GetOatMethod(class_method_index++));
+            it.Next();
+          }
+        }
+      }
+    }
+
+    // If the last thing in the file is code for a method, there won't be an offset for the "next"
+    // thing. Instead of having a special case in the upper_bound code, let's just add an entry
+    // for the end of the file.
+    offsets_.insert(static_cast<uint32_t>(oat_file.End() - oat_file.Begin()));
+  }
+
+  void AddOffsets(const OatFile::OatMethod& oat_method) {
+    offsets_.insert(oat_method.GetCodeOffset());
+    offsets_.insert(oat_method.GetMappingTableOffset());
+    offsets_.insert(oat_method.GetVmapTableOffset());
+    offsets_.insert(oat_method.GetGcMapOffset());
+    offsets_.insert(oat_method.GetInvokeStubOffset());
+  }
+
+  void DumpOatDexFile(std::ostream& os, const OatFile& oat_file,
+                      const OatFile::OatDexFile& oat_dex_file) {
     os << "OAT DEX FILE:\n";
     os << StringPrintf("location: %s\n", oat_dex_file.GetDexFileLocation().c_str());
     os << StringPrintf("checksum: %08x\n", oat_dex_file.GetDexFileLocationChecksum());
@@ -139,52 +185,51 @@ class OatDump {
     os << std::flush;
   }
 
-  static void DumpOatClass(std::ostream& os,
-                           const OatFile& oat_file,
-                           const OatFile::OatClass& oat_class,
-                           const DexFile& dex_file,
-                           const DexFile::ClassDef& class_def) {
-    const byte* class_data = dex_file.GetClassData(class_def);
-    if (class_data == NULL) {  // empty class such as a marker interface?
-      return;
-    }
-    ClassDataItemIterator it(dex_file, class_data);
-
-    // just skipping through the fields to advance class_data
+  static void SkipAllFields(ClassDataItemIterator& it) {
     while (it.HasNextStaticField()) {
       it.Next();
     }
     while (it.HasNextInstanceField()) {
       it.Next();
     }
+  }
 
-    uint32_t method_index = 0;
+  void DumpOatClass(std::ostream& os, const OatFile& oat_file, const OatFile::OatClass& oat_class,
+      const DexFile& dex_file, const DexFile::ClassDef& class_def) {
+    const byte* class_data = dex_file.GetClassData(class_def);
+    if (class_data == NULL) {  // empty class such as a marker interface?
+      return;
+    }
+    ClassDataItemIterator it(dex_file, class_data);
+    SkipAllFields(it);
+
+    uint32_t class_method_index = 0;
     while (it.HasNextDirectMethod()) {
-      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
-      DumpOatMethod(os, method_index, oat_file, oat_method, dex_file, it.GetMemberIndex());
-      method_index++;
+      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_index);
+      DumpOatMethod(os, class_method_index, oat_file, oat_method, dex_file,
+          it.GetMemberIndex(), it.GetMethodCodeItem());
+      class_method_index++;
       it.Next();
     }
     while (it.HasNextVirtualMethod()) {
-      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
-      DumpOatMethod(os, method_index, oat_file, oat_method, dex_file, it.GetMemberIndex());
-      method_index++;
+      const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_index);
+      DumpOatMethod(os, class_method_index, oat_file, oat_method, dex_file,
+          it.GetMemberIndex(), it.GetMethodCodeItem());
+      class_method_index++;
       it.Next();
     }
     DCHECK(!it.HasNext());
     os << std::flush;
   }
-  static void DumpOatMethod(std::ostream& os,
-                            uint32_t method_index,
-                            const OatFile& oat_file,
-                            const OatFile::OatMethod& oat_method,
-                            const DexFile& dex_file,
-                            uint32_t method_idx) {
-    const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
+
+  void DumpOatMethod(std::ostream& os, uint32_t class_method_index, const OatFile& oat_file,
+                     const OatFile::OatMethod& oat_method, const DexFile& dex_file,
+                     uint32_t dex_method_idx, const DexFile::CodeItem* code_item) {
+    const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
     const char* name = dex_file.GetMethodName(method_id);
     std::string signature(dex_file.GetMethodSignature(method_id));
-    os << StringPrintf("\t%d: %s %s (method_idx=%d)\n",
-                       method_index, name, signature.c_str(), method_idx);
+    os << StringPrintf("\t%d: %s %s (dex_method_idx=%d)\n",
+                       class_method_index, name, signature.c_str(), dex_method_idx);
     os << StringPrintf("\t\tcode: %p (offset=%08x)\n",
                        oat_method.GetCode(), oat_method.GetCodeOffset());
     os << StringPrintf("\t\tframe_size_in_bytes: %zd\n",
@@ -195,6 +240,7 @@ class OatDump {
                        oat_method.GetFpSpillMask());
     os << StringPrintf("\t\tmapping_table: %p (offset=%08x)\n",
                        oat_method.GetMappingTable(), oat_method.GetMappingTableOffset());
+    DumpMappingTable(os, oat_file, oat_method, dex_file, code_item);
     os << StringPrintf("\t\tvmap_table: %p (offset=%08x)\n",
                        oat_method.GetVmapTable(), oat_method.GetVmapTableOffset());
     os << StringPrintf("\t\tgc_map: %p (offset=%08x)\n",
@@ -202,6 +248,48 @@ class OatDump {
     os << StringPrintf("\t\tinvoke_stub: %p (offset=%08x)\n",
                        oat_method.GetInvokeStub(), oat_method.GetInvokeStubOffset());
   }
+
+  void DumpMappingTable(std::ostream& os,
+      const OatFile& oat_file, const OatFile::OatMethod& oat_method,
+      const DexFile& dex_file, const DexFile::CodeItem* code_item) {
+    const uint32_t* raw_table = oat_method.GetMappingTable();
+    const void* code = oat_method.GetCode();
+    if (raw_table == NULL || code == NULL) {
+      return;
+    }
+
+    uint32_t length = *raw_table;
+    ++raw_table;
+
+    for (size_t i = 0; i < length; i += 2) {
+      uint32_t dex_pc = raw_table[i + 1];
+      const Instruction* instruction = Instruction::At(&code_item->insns_[dex_pc]);
+      os << StringPrintf("\t\t0x%04x: %s\n", dex_pc, instruction->DumpString(&dex_file).c_str());
+
+      // TODO: this is thumb2-specific.
+      const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code) + raw_table[i];
+      const uint8_t* end_native_pc = NULL;
+      if (i + 2 < length) {
+        end_native_pc = reinterpret_cast<const uint8_t*>(code) + raw_table[i + 2];
+      } else {
+        const uint8_t* oat_begin = reinterpret_cast<const uint8_t*>(oat_file.Begin());
+        uint32_t last_offset = static_cast<uint32_t>(native_pc - oat_begin);
+
+        typedef std::set<uint32_t>::iterator It;
+        It it = offsets_.lower_bound(last_offset);
+        CHECK(it != offsets_.end());
+        end_native_pc = reinterpret_cast<const uint8_t*>(oat_begin) + *it;
+      }
+
+      // TODO: insert disassembler here.
+      CHECK(native_pc <= end_native_pc);
+      for (; native_pc < end_native_pc; native_pc += 2) {
+        os << StringPrintf("\t\t\t%p: 0x%04x\n", native_pc, *reinterpret_cast<const uint16_t*>(native_pc));
+      }
+    }
+  }
+
+  std::set<uint32_t> offsets_;
 };
 
 class ImageDump {
@@ -292,7 +380,8 @@ class ImageDump {
     os << "\n";
     os << std::flush;
 
-    OatDump::Dump(oat_location, os, *oat_file);
+    OatDumper oat_dumper;
+    oat_dumper.Dump(oat_location, os, *oat_file);
   }
 
  private:
@@ -632,7 +721,8 @@ int oatdump(int argc, char** argv) {
       fprintf(stderr, "Failed to open oat file from %s\n", oat_filename);
       return EXIT_FAILURE;
     }
-    OatDump::Dump(oat_filename, *os, *oat_file);
+    OatDumper oat_dumper;
+    oat_dumper.Dump(oat_filename, *os, *oat_file);
     return EXIT_SUCCESS;
   }
 
