@@ -1043,12 +1043,12 @@ bool DexVerifier::Verify() {
 
 std::ostream& DexVerifier::Fail(VerifyError error) {
   CHECK_EQ(failure_, VERIFY_ERROR_NONE);
-  // If we're optimistically running verification at compile time, turn NO_xxx and ACCESS_xxx
-  // errors into generic errors so that we re-verify at runtime. We may fail to find or to agree
-  // on access because of not yet available class loaders, or class loaders that will differ at
-  // runtime.
   if (Runtime::Current()->IsCompiler()) {
-    switch(error) {
+    switch (error) {
+      // If we're optimistically running verification at compile time, turn NO_xxx and ACCESS_xxx
+      // errors into generic errors so that we re-verify at runtime. We may fail to find or to agree
+      // on access because of not yet available class loaders, or class loaders that will differ at
+      // runtime.
       case VERIFY_ERROR_NO_CLASS:
       case VERIFY_ERROR_NO_FIELD:
       case VERIFY_ERROR_NO_METHOD:
@@ -1057,6 +1057,15 @@ std::ostream& DexVerifier::Fail(VerifyError error) {
       case VERIFY_ERROR_ACCESS_METHOD:
         error = VERIFY_ERROR_GENERIC;
         break;
+      // Generic failures at compile time will still fail at runtime, so the class is marked as
+      // rejected to prevent it from being compiled.
+      case VERIFY_ERROR_GENERIC: {
+        const DexFile::ClassDef* class_def = ClassHelper(method_->GetDeclaringClass()).GetClassDef();
+        CHECK(class_def != NULL);
+        Compiler::ClassReference ref(dex_file_, dex_file_->GetIndexForClassDef(*class_def));
+        AddRejectedClass(ref);
+        break;
+      }
       default:
         break;
     }
@@ -1168,7 +1177,7 @@ bool DexVerifier::VerifyInstructions() {
   for(uint32_t dex_pc = 0; dex_pc < insns_size;) {
     if (!VerifyInstruction(inst, dex_pc)) {
       DCHECK_NE(failure_, VERIFY_ERROR_NONE);
-      fail_messages_ << "Rejecting opcode " << inst->DumpString(dex_file_) << " at " << dex_pc;
+      fail_messages_ << "Rejecting opcode " << inst->Name() << " at " << dex_pc;
       return false;
     }
     /* Flag instructions that are garbage collection points */
@@ -3073,6 +3082,10 @@ const RegType& DexVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
   if (klass == NULL && !result.IsUnresolvedTypes()) {
     method_->GetDexCacheResolvedTypes()->Set(class_idx, result.GetClass());
   }
+  if (result.IsUnknown()) {
+    Fail(VERIFY_ERROR_GENERIC) << "accessing unknown class in " << PrettyDescriptor(referrer);
+    return result;
+  }
   // Check if access is allowed. Unresolved types use AllocObjectFromCodeWithAccessCheck to
   // check at runtime if access is allowed and so pass here.
   if (!result.IsUnresolvedTypes() && !referrer->CanAccess(result.GetClass())) {
@@ -3960,6 +3973,20 @@ const std::vector<uint8_t>* DexVerifier::GetGcMap(Compiler::MethodReference ref)
 void DexVerifier::DeleteGcMaps() {
   MutexLock mu(gc_maps_lock_);
   STLDeleteValues(&gc_maps_);
+}
+
+Mutex DexVerifier::rejected_classes_lock_("verifier rejected classes lock");
+std::set<Compiler::ClassReference> DexVerifier::rejected_classes_;
+
+void DexVerifier::AddRejectedClass(Compiler::ClassReference ref) {
+  MutexLock mu(rejected_classes_lock_);
+  rejected_classes_.insert(ref);
+  CHECK(IsClassRejected(ref));
+}
+
+bool DexVerifier::IsClassRejected(Compiler::ClassReference ref) {
+  MutexLock mu(rejected_classes_lock_);
+  return (rejected_classes_.find(ref) != rejected_classes_.end());
 }
 
 #if defined(ART_USE_LLVM_COMPILER)

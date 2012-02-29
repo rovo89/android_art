@@ -20,6 +20,7 @@
 #include <deque>
 #include <limits>
 #include <map>
+#include <set>
 #include <vector>
 
 #include "casts.h"
@@ -926,6 +927,8 @@ class DexVerifier {
   static const std::vector<uint8_t>* GetGcMap(Compiler::MethodReference ref);
   static void DeleteGcMaps();
 
+  static bool IsClassRejected(Compiler::ClassReference ref);
+
  private:
 
   explicit DexVerifier(Method* method);
@@ -1259,6 +1262,11 @@ class DexVerifier {
   static Mutex gc_maps_lock_;
   static GcMapTable gc_maps_;
   static void SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map);
+
+  // Set of rejected classes that skip compilation
+  static Mutex rejected_classes_lock_;
+  static std::set<Compiler::ClassReference> rejected_classes_;
+  static void AddRejectedClass(Compiler::ClassReference ref);
 
   RegTypeCache reg_types_;
 

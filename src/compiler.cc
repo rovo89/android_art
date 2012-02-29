@@ -60,6 +60,14 @@ namespace x86 {
   ByteArray* CreateJniDlsymLookupStub();
 }
 
+namespace verifier {
+  class DexVerifier {
+   public:
+    static const std::vector<uint8_t>* GetGcMap(Compiler::MethodReference ref);
+    static bool IsClassRejected(Compiler::ClassReference ref);
+  };
+}
+
 static double Percentage(size_t x, size_t y) {
   return 100.0 * ((double)x) / ((double)(x + y));
 }
@@ -920,6 +928,11 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
   if (SkipClass(class_loader, dex_file, class_def)) {
     return;
   }
+  ClassReference ref(&dex_file, class_def_index);
+  // Skip compiling classes with generic verifier failures since they will still fail at runtime
+  if (verifier::DexVerifier::IsClassRejected(ref)) {
+    return;
+  }
   const byte* class_data = dex_file.GetClassData(class_def);
   if (class_data == NULL) {
     // empty class, probably a marker interface
@@ -1112,13 +1125,6 @@ void Compiler::SetGcMapsDexFile(const ClassLoader* class_loader, const DexFile& 
       it.Next();
     }
   }
-}
-
-namespace verifier {
-  class DexVerifier {
-   public:
-    static const std::vector<uint8_t>* GetGcMap(Compiler::MethodReference ref);
-  };
 }
 
 void Compiler::SetGcMapsMethod(const DexFile& dex_file, Method* method) {
