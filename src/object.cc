@@ -473,6 +473,21 @@ Method* Method::FindOverriddenMethod() const {
   return result;
 }
 
+static const void* GetOatCode(const Method* m) {
+  Runtime* runtime = Runtime::Current();
+  const void* code = m->GetCode();
+  // Peel off any method tracing trampoline.
+  if (runtime->IsMethodTracingActive() && runtime->GetTracer()->GetSavedCodeFromMap(m) != NULL) {
+    code = runtime->GetTracer()->GetSavedCodeFromMap(m);
+  }
+  // Peel off any resolution stub.
+  if (code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData() ||
+      code == runtime->GetResolutionStubArray(Runtime::kInstanceMethod)->GetData()) {
+    code = runtime->GetClassLinker()->GetOatCodeFor(m);
+  }
+  return code;
+}
+
 uint32_t Method::ToDexPC(const uintptr_t pc) const {
   const uint32_t* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
@@ -480,19 +495,7 @@ uint32_t Method::ToDexPC(const uintptr_t pc) const {
     return DexFile::kDexNoIndex;   // Special no mapping case
   }
   size_t mapping_table_length = GetMappingTableLength();
-  const void* code_offset;
-  Runtime* runtime = Runtime::Current();
-  if (runtime->IsMethodTracingActive() &&
-      runtime->GetTracer()->GetSavedCodeFromMap(this) != NULL) {
-    code_offset = runtime->GetTracer()->GetSavedCodeFromMap(this);
-  } else {
-    code_offset = GetCode();
-  }
-  if (code_offset == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData() ||
-      code_offset == runtime->GetResolutionStubArray(Runtime::kInstanceMethod)->GetData()) {
-    code_offset = runtime->GetClassLinker()->GetOatCodeFor(this);
-  }
-  uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(code_offset);
+  uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(GetOatCode(this));
   uint32_t best_offset = 0;
   uint32_t best_dex_offset = 0;
   for (size_t i = 0; i < mapping_table_length; i += 2) {
@@ -522,12 +525,7 @@ uintptr_t Method::ToNativePC(const uint32_t dex_pc) const {
     uint32_t map_offset = mapping_table[i];
     uint32_t map_dex_offset = mapping_table[i + 1];
     if (map_dex_offset == dex_pc) {
-      if (Runtime::Current()->IsMethodTracingActive()) {
-        Trace* tracer = Runtime::Current()->GetTracer();
-        return reinterpret_cast<uintptr_t>(tracer->GetSavedCodeFromMap(this)) + map_offset;
-      } else {
-        return reinterpret_cast<uintptr_t>(GetCode()) + map_offset;
-      }
+      return reinterpret_cast<uintptr_t>(GetOatCode(this)) + map_offset;
     }
   }
   LOG(FATAL) << "Looking up Dex PC not contained in method";
