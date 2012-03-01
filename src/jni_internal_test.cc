@@ -1032,6 +1032,7 @@ TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
   EXPECT_EQ(DBL_MIN, result.d);
 }
 
+#if defined(ART_USE_LLVM_COMPILER)
 static byte* CreateArgArray(Method* method, JValue* args) {
   const char* shorty = MethodHelper(method).GetShorty();
   size_t shorty_len = strlen(shorty);
@@ -1062,6 +1063,7 @@ static byte* CreateArgArray(Method* method, JValue* args) {
   }
   return arg_array.release();
 }
+#endif
 
 TEST_F(JniInternalTest, StaticSumIntIntMethod) {
   SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
