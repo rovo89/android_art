@@ -95,7 +95,7 @@ art_do_long_jump:
 
     .global art_deliver_exception_from_code
     /*
-     * Called by managed code, saves mosts registers (forms basis of long jump context) and passes
+     * Called by managed code, saves most registers (forms basis of long jump context) and passes
      * the bottom of the stack. artDeliverExceptionFromCode will place the callee save Method* at
      * the bottom of the thread. On entry r0 holds Throwable*
      */
