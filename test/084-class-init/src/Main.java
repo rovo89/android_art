@@ -16,12 +16,12 @@
 
 public class Main {
     static {
-        staticMethod();
+        staticMethodCalledByClinit();
     }
 
-    private static void staticMethod() {
-        // Test that DeliverException works when the handler -- this method -- is currently a
-        // resolution stub because it's running on behalf of <clinit>.
+    private static void staticMethodCalledByClinit() {
+        // Test that DeliverException works when we need to unwind to a handler -- this method --
+        // that is currently a resolution stub because it's running on behalf of <clinit>.
         try {
             throwDuringClinit();
             System.err.println("didn't throw!");
