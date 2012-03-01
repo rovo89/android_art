@@ -101,19 +101,28 @@ bool CompilationUnit::Materialize() {
   char const* target_triple = NULL;
   char const* target_attr = NULL;
 
-  if (insn_set_ == kThumb2) {
+  switch (insn_set_) {
+  case kThumb2:
     target_triple = "thumb-none-linux-gnueabi";
     target_attr = "+thumb2,+neon,+neonfp,+vfp3";
-  } else if (insn_set_ == kArm) {
+    break;
+
+  case kArm:
     target_triple = "armv7-none-linux-gnueabi";
     target_attr = "+v7,+neon,+neonfp,+vfp3";
-  } else if (insn_set_ == kX86) {
+    break;
+
+  case kX86:
     target_triple = "i386-pc-linux-gnu";
     target_attr = "";
-  // } else if (insn_set_ == kMips) {
+    break;
+
+  //case kMips:
   //  target_triple = "mipsel-unknown-linux";
   //  target_attr = "";
-  } else {
+  //  break;
+
+  default:
     LOG(FATAL) << "Unknown instruction set: " << insn_set_;
   }
 
