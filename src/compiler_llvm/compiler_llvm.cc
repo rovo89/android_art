@@ -16,6 +16,7 @@
 
 #include "compiler_llvm.h"
 
+#include "compilation_unit.h"
 #include "compiler.h"
 #include "ir_builder.h"
 #include "jni_compiler.h"
@@ -23,12 +24,28 @@
 #include "oat_compilation_unit.h"
 #include "upcall_compiler.h"
 
-#include <llvm/ADT/OwningPtr.h>
-#include <llvm/Bitcode/ReaderWriter.h>
-#include <llvm/DerivedTypes.h>
-#include <llvm/LLVMContext.h>
-#include <llvm/Module.h>
-#include <llvm/Support/ToolOutputFile.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Support/Threading.h>
+
+
+namespace {
+
+pthread_once_t llvm_initialized = PTHREAD_ONCE_INIT;
+
+void InitializeLLVM() {
+  // Initialize LLVM target, MC subsystem, asm printer, and asm parser
+  llvm::InitializeAllTargets();
+  llvm::InitializeAllTargetMCs();
+  llvm::InitializeAllAsmPrinters();
+  llvm::InitializeAllAsmParsers();
+  // TODO: Maybe we don't have to initialize "all" targets.
+
+  // Initialize LLVM internal data structure for multithreading
+  llvm::llvm_start_multithreaded();
+}
+
+} // anonymous namespace
+
 
 namespace art {
 namespace compiler_llvm {
@@ -39,67 +56,93 @@ llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
 CompilerLLVM::CompilerLLVM(Compiler* compiler, InstructionSet insn_set)
 : compiler_(compiler), compiler_lock_("llvm_compiler_lock"),
-  insn_set_(insn_set), context_(new llvm::LLVMContext()) {
+  insn_set_(insn_set), cunit_counter_(0) {
 
-  // Create the module and include the runtime function declaration
-  module_ = new llvm::Module("art", *context_);
-  makeLLVMModuleContents(module_);
-
-  // Create IRBuilder
-  irb_.reset(new IRBuilder(*context_, *module_));
+  // Initialize LLVM libraries
+  pthread_once(&llvm_initialized, InitializeLLVM);
 }
 
 
 CompilerLLVM::~CompilerLLVM() {
+  DCHECK(cunit_.get() == NULL);
 }
 
 
-void CompilerLLVM::MaterializeLLVMModule() {
-#if !defined(NDEBUG)
-  // TODO: Add options to JNI_CreateJavaVM() and dex2oat, so that we don't
-  // have to hard-code the path.
-  WriteBitcodeToFile("/tmp/art_llvm_module.bc");
-#endif
+void CompilerLLVM::EnsureCompilationUnit() {
+  DCHECK_NE(llvm_initialized, PTHREAD_ONCE_INIT);
+  if (cunit_.get() == NULL) {
+    cunit_.reset(new CompilationUnit(insn_set_));
+  }
 }
 
 
-void CompilerLLVM::WriteBitcodeToFile(std::string const &filepath) {
-  std::string error_msg;
+void CompilerLLVM::MaterializeEveryCompilationUnit() {
+  if (cunit_.get() != NULL) {
+    MaterializeCompilationUnit();
+  }
+}
 
-  // Write the translated bitcode
-  llvm::OwningPtr<llvm::tool_output_file>
-    out(new llvm::tool_output_file(filepath.c_str(), error_msg,
-                                   llvm::raw_fd_ostream::F_Binary));
 
-  if (!error_msg.empty()) {
-    LOG(FATAL) << "Unable to open file: " << error_msg;
-    return;
+void CompilerLLVM::MaterializeCompilationUnitSafePoint() {
+  if (cunit_->IsMaterializeThresholdReached()) {
+    MaterializeCompilationUnit();
+  }
+}
+
+
+void CompilerLLVM::MaterializeCompilationUnit() {
+  MutexLock GUARD(compiler_lock_);
+
+  cunit_->SetElfFileName(StringPrintf("%s-%u", elf_filename_.c_str(),
+                                      cunit_counter_));
+
+  // Write the translated bitcode for debugging
+  if (!bitcode_filename_.empty()) {
+    cunit_->SetBitcodeFileName(StringPrintf("%s-%u", bitcode_filename_.c_str(),
+                                            cunit_counter_));
+    cunit_->WriteBitcodeToFile();
   }
 
-  llvm::WriteBitcodeToFile(module_, out->os());
-  out->keep();
+  // Materialize the llvm::Module into ELF object file
+  cunit_->Materialize();
 
-  LOG(DEBUG) << "Bitcode Written At: " << filepath;
+  // Increase compilation unit counter
+  ++cunit_counter_;
+
+  // Delete the compilation unit
+  cunit_.reset(NULL);
 }
 
 
 CompiledMethod* CompilerLLVM::CompileDexMethod(OatCompilationUnit* oat_compilation_unit) {
   MutexLock GUARD(compiler_lock_);
 
-  UniquePtr<MethodCompiler> method_compiler(
-    new MethodCompiler(insn_set_, compiler_, oat_compilation_unit));
+  EnsureCompilationUnit();
 
-  return method_compiler->Compile();
+  UniquePtr<MethodCompiler> method_compiler(
+      new MethodCompiler(cunit_.get(), compiler_, oat_compilation_unit));
+
+  CompiledMethod* result = method_compiler->Compile();
+
+  MaterializeCompilationUnitSafePoint();
+
+  return result;
 }
 
 
 CompiledMethod* CompilerLLVM::CompileNativeMethod(OatCompilationUnit* oat_compilation_unit) {
   MutexLock GUARD(compiler_lock_);
 
-  UniquePtr<JniCompiler> jni_compiler(
-    new JniCompiler(insn_set_, *compiler_, oat_compilation_unit));
+  EnsureCompilationUnit();
 
-  return jni_compiler->Compile();
+  UniquePtr<JniCompiler> jni_compiler(
+      new JniCompiler(cunit_.get(), *compiler_, oat_compilation_unit));
+
+  CompiledMethod* result = jni_compiler->Compile();
+
+  MaterializeCompilationUnitSafePoint();
+
+  return result;
 }
 
 
@@ -108,10 +151,16 @@ CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
 
   MutexLock GUARD(compiler_lock_);
 
-  UniquePtr<UpcallCompiler> upcall_compiler(
-    new UpcallCompiler(insn_set_, *compiler_));
+  EnsureCompilationUnit();
 
-  return upcall_compiler->CreateStub(is_static, shorty);
+  UniquePtr<UpcallCompiler> upcall_compiler(
+    new UpcallCompiler(cunit_.get(), *compiler_));
+
+  CompiledInvokeStub* result = upcall_compiler->CreateStub(is_static, shorty);
+
+  MaterializeCompilationUnitSafePoint();
+
+  return result;
 }
 
 

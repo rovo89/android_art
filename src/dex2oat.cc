@@ -78,6 +78,14 @@ static void Usage(const char* fmt, ...) {
   UsageError("      to the file descriptor specified by --oat-fd.");
   UsageError("      Example: --oat-location=/data/art-cache/system@app@Calculator.apk.oat");
   UsageError("");
+#if defined(ART_USE_LLVM_COMPILER)
+  UsageError("  --elf-file=<file.elf>: specifies the required elf filename.");
+  UsageError("      Example: --elf-file=/system/framework/boot.elf");
+  UsageError("");
+  UsageError("  --bitcode=<file.bc>: specifies the optional bitcode filename.");
+  UsageError("      Example: --bitcode=/system/framework/boot.bc");
+  UsageError("");
+#endif
   UsageError("  --image=<file.art>: specifies the output image filename.");
   UsageError("      Example: --image=/system/framework/boot.art");
   UsageError("");
@@ -187,6 +195,10 @@ class Dex2Oat {
   bool CreateOatFile(const std::string& boot_image_option,
                      const std::vector<const DexFile*>& dex_files,
                      File* oat_file,
+#if defined(ART_USE_LLVM_COMPILER)
+                     std::string const& elf_filename,
+                     std::string const& bitcode_filename,
+#endif
                      bool image,
                      const std::set<std::string>* image_classes) {
     // SirtRef and ClassLoader creation needs to come after Runtime::Create
@@ -207,6 +219,12 @@ class Dex2Oat {
     }
 
     Compiler compiler(instruction_set_, image, thread_count_, support_debugging_, image_classes);
+
+#if defined(ART_USE_LLVM_COMPILER)
+    compiler.SetElfFileName(elf_filename);
+    compiler.SetBitcodeFileName(bitcode_filename);
+#endif
+
     compiler.CompileAll(class_loader->get(), dex_files);
 
     if (!OatWriter::Create(oat_file, class_loader->get(), dex_files, compiler)) {
@@ -427,6 +445,10 @@ int dex2oat(int argc, char** argv) {
   std::string oat_filename;
   std::string oat_location;
   int oat_fd = -1;
+#if defined(ART_USE_LLVM_COMPILER)
+  std::string elf_filename;
+  std::string bitcode_filename;
+#endif
   const char* image_classes_filename = NULL;
   std::string image_filename;
   std::string boot_image_filename;
@@ -469,6 +491,12 @@ int dex2oat(int argc, char** argv) {
       }
     } else if (option.starts_with("--oat-location=")) {
       oat_location = option.substr(strlen("--oat-location=")).data();
+#if defined(ART_USE_LLVM_COMPILER)
+    } else if (option.starts_with("--elf-file=")) {
+      elf_filename = option.substr(strlen("--elf-file=")).data();
+    } else if (option.starts_with("--bitcode=")) {
+      bitcode_filename = option.substr(strlen("--bitcode=")).data();
+#endif
     } else if (option.starts_with("--image=")) {
       image_filename = option.substr(strlen("--image=")).data();
     } else if (option.starts_with("--image-classes=")) {
@@ -591,6 +619,23 @@ int dex2oat(int argc, char** argv) {
 
   LOG(INFO) << "dex2oat: " << oat_location;
 
+#if defined(ART_USE_LLVM_COMPILER)
+  if (elf_filename.empty()) {
+    if (oat_filename.empty()) {
+      LOG(FATAL) << "Both --oat-file and --elf-file are not specified";
+    }
+
+    StringPiece elf_filename_sp(oat_filename);
+    if (elf_filename_sp.ends_with(".oat")) {
+      elf_filename_sp.remove_suffix(strlen(".oat"));
+    }
+
+    elf_filename = elf_filename_sp.ToString() + ".elf";
+  }
+
+  LOG(INFO) << "ELF output: " << elf_filename;
+#endif
+
   Runtime::Options options;
   options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
   std::vector<const DexFile*> boot_class_path;
@@ -643,6 +688,10 @@ int dex2oat(int argc, char** argv) {
   if (!dex2oat->CreateOatFile(boot_image_option,
                               dex_files,
                               oat_file.get(),
+#if defined(ART_USE_LLVM_COMPILER)
+                              elf_filename,
+                              bitcode_filename,
+#endif
                               image,
                               image_classes.get())) {
     LOG(ERROR) << "Failed to create oat file: " << oat_location;
@@ -664,6 +713,12 @@ int dex2oat(int argc, char** argv) {
 
   // We wrote the oat file successfully, and want to keep it.
   LOG(INFO) << "Oat file written successfully: " << oat_filename;
+#if defined(ART_USE_LLVM_COMPILER)
+  LOG(INFO) << "ELF file written successfully: " << elf_filename;
+  if (!bitcode_filename.empty()) {
+    LOG(INFO) << "Bitcode file written successfully: " << bitcode_filename;
+  }
+#endif
   LOG(INFO) << "Image written successfully: " << image_filename;
   return EXIT_SUCCESS;
 }

@@ -16,8 +16,9 @@
 
 #include "upcall_compiler.h"
 
-#include "compiler.h"
+#include "compilation_unit.h"
 #include "compiled_method.h"
+#include "compiler.h"
 #include "compiler_llvm.h"
 #include "ir_builder.h"
 #include "logging.h"
@@ -39,13 +40,9 @@ namespace compiler_llvm {
 using namespace runtime_support;
 
 
-UpcallCompiler::UpcallCompiler(InstructionSet insn_set,
-                               Compiler& compiler)
-: insn_set_(insn_set), compiler_(&compiler),
-  compiler_llvm_(compiler_->GetCompilerLLVM()),
-  module_(compiler_llvm_->GetModule()),
-  context_(compiler_llvm_->GetLLVMContext()),
-  irb_(*compiler_llvm_->GetIRBuilder()) {
+UpcallCompiler::UpcallCompiler(CompilationUnit* cunit, Compiler& compiler)
+: cunit_(cunit), compiler_(&compiler), module_(cunit_->GetModule()),
+  context_(cunit_->GetLLVMContext()), irb_(*cunit_->GetIRBuilder()) {
 }
 
 
@@ -172,7 +169,15 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
 
   irb_.CreateRetVoid();
 
+  // Verify the generated function
   llvm::verifyFunction(*func, llvm::PrintMessageAction);
+
+  // Add the memory usage approximation of the compilation unit
+  cunit_->AddMemUsageApproximation((shorty_size * 3 + 8) * 500);
+  // NOTE: We will emit 3 LLVM instructions per shorty for the argument,
+  // plus 3 for pointer arithmetic, and 5 for code_addr, retval, ret_addr,
+  // store ret_addr, and ret_void.  Beside, we guess that we have to use
+  // 50 bytes to represent one LLVM instruction.
 
   return new CompiledInvokeStub(func);
 }
