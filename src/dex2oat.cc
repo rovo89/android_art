@@ -632,8 +632,6 @@ int dex2oat(int argc, char** argv) {
 
     elf_filename = elf_filename_sp.ToString() + ".elf";
   }
-
-  LOG(INFO) << "ELF output: " << elf_filename;
 #endif
 
   Runtime::Options options;
@@ -716,12 +714,6 @@ int dex2oat(int argc, char** argv) {
 
   // We wrote the oat file successfully, and want to keep it.
   LOG(INFO) << "Oat file written successfully: " << oat_filename;
-#if defined(ART_USE_LLVM_COMPILER)
-  LOG(INFO) << "ELF file written successfully: " << elf_filename;
-  if (!bitcode_filename.empty()) {
-    LOG(INFO) << "Bitcode file written successfully: " << bitcode_filename;
-  }
-#endif
   LOG(INFO) << "Image written successfully: " << image_filename;
   return EXIT_SUCCESS;
 }
