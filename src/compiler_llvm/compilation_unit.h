@@ -56,12 +56,10 @@ class CompilationUnit {
   }
 
   std::string const& GetElfFileName() const {
-    CHECK(IsFinalized());
     return elf_filename_;
   }
 
   std::string const& GetBitcodeFileName() const {
-    CHECK(IsFinalized());
     return bitcode_filename_;
   }
 
@@ -77,11 +75,9 @@ class CompilationUnit {
 
   bool Materialize();
 
-  bool IsFinalized() const {
+  bool IsMaterialized() const {
     return (context_.get() == NULL);
   }
-
-  void Finalize();
 
   bool IsMaterializeThresholdReached() const {
     return (mem_usage_ > 300000000u); // (threshold: 300 MB)

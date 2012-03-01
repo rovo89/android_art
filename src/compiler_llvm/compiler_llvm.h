@@ -56,7 +56,9 @@ class CompilerLLVM {
 
   ~CompilerLLVM();
 
-  void MaterializeEveryCompilationUnit();
+  void MaterializeIfThresholdReached();
+
+  void MaterializeRemainder();
 
   Compiler* GetCompiler() const {
     return compiler_;
@@ -81,21 +83,25 @@ class CompilerLLVM {
   CompiledInvokeStub* CreateInvokeStub(bool is_static, char const *shorty);
 
  private:
-  void EnsureCompilationUnit();
+  void EnsureCompilationUnit(MutexLock& GUARD);
 
-  void MaterializeCompilationUnit();
+  void Materialize(MutexLock& GUARD);
 
-  void MaterializeCompilationUnitSafePoint();
+  bool IsBitcodeFileNameAvailable() const {
+    return !bitcode_filename_.empty();
+  }
 
   Compiler* compiler_;
 
+ public:
   Mutex compiler_lock_;
 
+ private:
   InstructionSet insn_set_;
 
-  UniquePtr<CompilationUnit> cunit_;
+  CompilationUnit* curr_cunit_;
 
-  unsigned cunit_counter_;
+  std::vector<CompilationUnit*> cunits_;
 
   std::string elf_filename_;
 

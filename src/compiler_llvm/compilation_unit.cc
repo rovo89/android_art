@@ -193,24 +193,22 @@ bool CompilationUnit::Materialize() {
     fpm.run(*F);
   }
   fpm.doFinalization();
-  LOG(INFO) << "Intraprocedural optimization finished!";
 
   // Run the code generation passes
   pm.run(*module_);
-  LOG(INFO) << "Code generation finished!";
 
+  // Keep the generated executable
   out_file->keep();
-  LOG(DEBUG) << "ELF: " << elf_filename_ << " (done)";
+  LOG(INFO) << "ELF: " << elf_filename_ << " (done)";
+
+  // Free the resources
+  context_.reset(NULL);
+  irb_.reset(NULL);
+  module_ = NULL;
 
   return true;
 }
 
-
-void CompilationUnit::Finalize() {
-  context_.reset(NULL);
-  irb_.reset(NULL);
-  module_ = NULL;
-}
 
 } // namespace compiler_llvm
 } // namespace art

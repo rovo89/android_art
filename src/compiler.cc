@@ -347,7 +347,7 @@ void Compiler::PostCompile(const ClassLoader* class_loader,
                            const std::vector<const DexFile*>& dex_files) {
   SetGcMaps(class_loader, dex_files);
 #if defined(ART_USE_LLVM_COMPILER)
-  compiler_llvm_->MaterializeEveryCompilationUnit();
+  compiler_llvm_->MaterializeRemainder();
 #endif
 }
 
@@ -925,6 +925,15 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
   const ClassLoader* class_loader = context->class_loader;
   const DexFile& dex_file = *context->dex_file;
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
+
+#if defined(ART_USE_LLVM_COMPILER)
+  compiler_llvm::CompilerLLVM* compiler_llvm = context->compiler->GetCompilerLLVM();
+
+  MutexLock GUARD(compiler_llvm->compiler_lock_);
+  // TODO: Remove this.  We should not lock the compiler_lock_ in CompileClass()
+  // However, without this mutex lock, we will get segmentation fault.
+#endif
+
   if (SkipClass(class_loader, dex_file, class_def)) {
     return;
   }
@@ -959,6 +968,10 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
     it.Next();
   }
   DCHECK(!it.HasNext());
+
+#if defined(ART_USE_LLVM_COMPILER)
+  compiler_llvm->MaterializeIfThresholdReached();
+#endif
 }
 
 void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {

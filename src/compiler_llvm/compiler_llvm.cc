@@ -22,6 +22,7 @@
 #include "jni_compiler.h"
 #include "method_compiler.h"
 #include "oat_compilation_unit.h"
+#include "stl_util.h"
 #include "upcall_compiler.h"
 
 #include <llvm/LinkAllPasses.h>
@@ -71,7 +72,7 @@ llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
 CompilerLLVM::CompilerLLVM(Compiler* compiler, InstructionSet insn_set)
     : compiler_(compiler), compiler_lock_("llvm_compiler_lock"),
-      insn_set_(insn_set), cunit_counter_(0) {
+      insn_set_(insn_set), curr_cunit_(NULL) {
 
   // Initialize LLVM libraries
   pthread_once(&llvm_initialized, InitializeLLVM);
@@ -79,104 +80,105 @@ CompilerLLVM::CompilerLLVM(Compiler* compiler, InstructionSet insn_set)
 
 
 CompilerLLVM::~CompilerLLVM() {
-  DCHECK(cunit_.get() == NULL);
+  STLDeleteElements(&cunits_);
 }
 
 
-void CompilerLLVM::EnsureCompilationUnit() {
-  MutexLock GUARD(compiler_lock_);
+void CompilerLLVM::EnsureCompilationUnit(MutexLock& GUARD) {
   DCHECK_NE(llvm_initialized, PTHREAD_ONCE_INIT);
-  if (cunit_.get() == NULL) {
-    cunit_.reset(new CompilationUnit(insn_set_));
+
+  if (curr_cunit_ != NULL) {
+    return;
   }
+
+  // Allocate compilation unit
+  size_t cunit_idx = cunits_.size();
+
+  curr_cunit_ = new CompilationUnit(insn_set_);
+
+  // Setup output filename
+  curr_cunit_->SetElfFileName(
+    StringPrintf("%s-%zu", elf_filename_.c_str(), cunit_idx));
+
+  if (IsBitcodeFileNameAvailable()) {
+    curr_cunit_->SetBitcodeFileName(
+      StringPrintf("%s-%zu", bitcode_filename_.c_str(), cunit_idx));
+  }
+
+  // Register compilation unit
+  cunits_.push_back(curr_cunit_);
 }
 
 
-void CompilerLLVM::MaterializeEveryCompilationUnit() {
-  if (cunit_.get() != NULL) {
-    MaterializeCompilationUnit();
-  }
-}
-
-
-void CompilerLLVM::MaterializeCompilationUnitSafePoint() {
-  if (cunit_->IsMaterializeThresholdReached()) {
-    MaterializeCompilationUnit();
-  }
-}
-
-
-void CompilerLLVM::MaterializeCompilationUnit() {
+void CompilerLLVM::MaterializeRemainder() {
   MutexLock GUARD(compiler_lock_);
+  if (curr_cunit_ != NULL) {
+    Materialize(GUARD);
+  }
+}
 
-  cunit_->SetElfFileName(StringPrintf("%s-%u", elf_filename_.c_str(),
-                                      cunit_counter_));
 
-  // Write the translated bitcode for debugging
-  if (!bitcode_filename_.empty()) {
-    cunit_->SetBitcodeFileName(StringPrintf("%s-%u", bitcode_filename_.c_str(),
-                                            cunit_counter_));
-    cunit_->WriteBitcodeToFile();
+void CompilerLLVM::MaterializeIfThresholdReached() {
+  MutexLock GUARD(compiler_lock_);
+  if (curr_cunit_ != NULL && curr_cunit_->IsMaterializeThresholdReached()) {
+    Materialize(GUARD);
+  }
+}
+
+
+void CompilerLLVM::Materialize(MutexLock& GUARD) {
+  DCHECK(curr_cunit_ != NULL);
+  DCHECK(!curr_cunit_->IsMaterialized());
+
+  // Write bitcode to file when filename is set
+  if (IsBitcodeFileNameAvailable()) {
+    curr_cunit_->WriteBitcodeToFile();
   }
 
   // Materialize the llvm::Module into ELF object file
-  cunit_->Materialize();
-
-  // Increase compilation unit counter
-  ++cunit_counter_;
+  curr_cunit_->Materialize();
 
   // Delete the compilation unit
-  cunit_.reset(NULL);
+  curr_cunit_ = NULL;
 }
 
 
-CompiledMethod* CompilerLLVM::CompileDexMethod(OatCompilationUnit* oat_compilation_unit) {
+CompiledMethod* CompilerLLVM::
+CompileDexMethod(OatCompilationUnit* oat_compilation_unit) {
   MutexLock GUARD(compiler_lock_);
 
-  EnsureCompilationUnit();
+  EnsureCompilationUnit(GUARD);
 
   UniquePtr<MethodCompiler> method_compiler(
-      new MethodCompiler(cunit_.get(), compiler_, oat_compilation_unit));
+      new MethodCompiler(curr_cunit_, compiler_, oat_compilation_unit));
 
-  CompiledMethod* result = method_compiler->Compile();
-
-  MaterializeCompilationUnitSafePoint();
-
-  return result;
+  return method_compiler->Compile();
 }
 
 
-CompiledMethod* CompilerLLVM::CompileNativeMethod(OatCompilationUnit* oat_compilation_unit) {
+CompiledMethod* CompilerLLVM::
+CompileNativeMethod(OatCompilationUnit* oat_compilation_unit) {
   MutexLock GUARD(compiler_lock_);
 
-  EnsureCompilationUnit();
+  EnsureCompilationUnit(GUARD);
 
   UniquePtr<JniCompiler> jni_compiler(
-      new JniCompiler(cunit_.get(), *compiler_, oat_compilation_unit));
+      new JniCompiler(curr_cunit_, *compiler_, oat_compilation_unit));
 
-  CompiledMethod* result = jni_compiler->Compile();
-
-  MaterializeCompilationUnitSafePoint();
-
-  return result;
+  return jni_compiler->Compile();
 }
 
 
 CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
                                                    char const *shorty) {
-
   MutexLock GUARD(compiler_lock_);
 
-  EnsureCompilationUnit();
+  EnsureCompilationUnit(GUARD);
 
   UniquePtr<UpcallCompiler> upcall_compiler(
-    new UpcallCompiler(cunit_.get(), *compiler_));
+    new UpcallCompiler(curr_cunit_, *compiler_));
 
-  CompiledInvokeStub* result = upcall_compiler->CreateStub(is_static, shorty);
-
-  MaterializeCompilationUnitSafePoint();
-
-  return result;
+  return upcall_compiler->CreateStub(is_static, shorty);
 }
 
 
