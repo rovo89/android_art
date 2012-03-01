@@ -15,6 +15,25 @@
  */
 
 public class Main {
+    static {
+        staticMethod();
+    }
+
+    private static void staticMethod() {
+        // Test that DeliverException works when the handler -- this method -- is currently a
+        // resolution stub because it's running on behalf of <clinit>.
+        try {
+            throwDuringClinit();
+            System.err.println("didn't throw!");
+        } catch (NullPointerException ex) {
+            System.out.println("caught exception thrown during clinit");
+        }
+    }
+
+    private static void throwDuringClinit() {
+        throw new NullPointerException();
+    }
+
     public static void main(String[] args) {
         checkExceptions();
         checkTiming();
