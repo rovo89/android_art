@@ -61,45 +61,6 @@ class CompilerLLVM;
 class IRBuilder;
 
 class MethodCompiler {
- private:
-  CompilationUnit* cunit_;
-  Compiler* compiler_;
-
-  ClassLinker* class_linker_;
-  ClassLoader const* class_loader_;
-
-  DexFile const* dex_file_;
-  DexCache* dex_cache_;
-  DexFile::CodeItem const* code_item_;
-
-  OatCompilationUnit* oat_compilation_unit_;
-  Method* method_;
-  MethodHelper method_helper_;
-
-  uint32_t method_idx_;
-  uint32_t access_flags_;
-
-  llvm::Module* module_;
-  llvm::LLVMContext* context_;
-  IRBuilder& irb_;
-  llvm::Function* func_;
-
-  std::vector<DalvikReg*> regs_;
-  UniquePtr<DalvikReg> retval_reg_;
-
-  llvm::BasicBlock* basic_block_reg_alloca_;
-  llvm::BasicBlock* basic_block_shadow_frame_alloca_;
-  llvm::BasicBlock* basic_block_reg_zero_init_;
-  llvm::BasicBlock* basic_block_reg_arg_init_;
-  std::vector<llvm::BasicBlock*> basic_blocks_;
-
-  std::vector<llvm::BasicBlock*> basic_block_landing_pads_;
-  llvm::BasicBlock* basic_block_unwind_;
-  llvm::BasicBlock* basic_block_unreachable_;
-
-  llvm::AllocaInst* shadow_frame_;
-
-
  public:
   MethodCompiler(CompilationUnit* cunit,
                  Compiler* compiler,
@@ -433,6 +394,45 @@ class MethodCompiler {
                                 llvm::Value* new_value) {
     EmitStoreDalvikRetValReg(GetJTypeFromShorty(shorty), space, new_value);
   }
+
+
+ private:
+  CompilationUnit* cunit_;
+  Compiler* compiler_;
+
+  ClassLinker* class_linker_;
+  ClassLoader const* class_loader_;
+
+  DexFile const* dex_file_;
+  DexCache* dex_cache_;
+  DexFile::CodeItem const* code_item_;
+
+  OatCompilationUnit* oat_compilation_unit_;
+  Method* method_;
+  MethodHelper method_helper_;
+
+  uint32_t method_idx_;
+  uint32_t access_flags_;
+
+  llvm::Module* module_;
+  llvm::LLVMContext* context_;
+  IRBuilder& irb_;
+  llvm::Function* func_;
+
+  std::vector<DalvikReg*> regs_;
+  UniquePtr<DalvikReg> retval_reg_;
+
+  llvm::BasicBlock* basic_block_reg_alloca_;
+  llvm::BasicBlock* basic_block_shadow_frame_alloca_;
+  llvm::BasicBlock* basic_block_reg_zero_init_;
+  llvm::BasicBlock* basic_block_reg_arg_init_;
+  std::vector<llvm::BasicBlock*> basic_blocks_;
+
+  std::vector<llvm::BasicBlock*> basic_block_landing_pads_;
+  llvm::BasicBlock* basic_block_unwind_;
+  llvm::BasicBlock* basic_block_unreachable_;
+
+  llvm::AllocaInst* shadow_frame_;
 };
 
 
