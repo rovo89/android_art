@@ -1,3 +1,4 @@
+caught exception thrown during clinit
 Got expected EIIE for FIELD0
 Got expected NCDFE for FIELD0
 Got expected NCDFE for FIELD1
