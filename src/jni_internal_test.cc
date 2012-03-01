@@ -677,6 +677,7 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
   } while (false)
 
 
+#if !defined(ART_USE_LLVM_COMPILER)
 TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
   SirtRef<ClassLoader> class_loader(LoadDex("AllFields"));
   runtime_->Start();
@@ -734,6 +735,7 @@ TEST_F(JniInternalTest, GetObjectField_SetObjectField) {
   env_->SetObjectField(o, i_fid, s2);
   ASSERT_TRUE(env_->IsSameObject(s2, env_->GetObjectField(o, i_fid)));
 }
+#endif
 
 TEST_F(JniInternalTest, NewLocalRef_NULL) {
   EXPECT_TRUE(env_->NewLocalRef(NULL) == NULL);
@@ -889,7 +891,7 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
   env_->DeleteWeakGlobalRef(o2);
 }
 
-#if defined(__arm__)
+#if defined(__arm__) || defined(ART_USE_LLVM_COMPILER)
 TEST_F(JniInternalTest, StaticMainMethod) {
   SirtRef<ClassLoader> class_loader(LoadDex("Main"));
   CompileDirectMethod(class_loader.get(), "Main", "main", "([Ljava/lang/String;)V");
@@ -1030,6 +1032,37 @@ TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
   EXPECT_EQ(DBL_MIN, result.d);
 }
 
+static byte* CreateArgArray(Method* method, JValue* args) {
+  const char* shorty = MethodHelper(method).GetShorty();
+  size_t shorty_len = strlen(shorty);
+  UniquePtr<byte[]> arg_array(new byte[shorty_len * 8]);
+  for (size_t i = 1, offset = 0; i < shorty_len; ++i) {
+    switch (shorty[i]) {
+    case 'Z':
+    case 'B':
+    case 'C':
+    case 'S':
+    case 'I':
+      *reinterpret_cast<uint32_t*>(&arg_array[offset]) = args[i - 1].i;
+      break;
+    case 'F':
+      *reinterpret_cast<float*>(&arg_array[offset]) = args[i - 1].f;
+      break;
+    case 'L':
+      *reinterpret_cast<Object**>(&arg_array[offset]) = args[i - 1].l;
+      break;
+    case 'D':
+      *reinterpret_cast<double*>(&arg_array[offset]) = args[i - 1].d;
+      break;
+    case 'J':
+      *reinterpret_cast<uint64_t*>(&arg_array[offset]) = args[i - 1].j;
+      break;
+    }
+    offset += 8;
+  }
+  return arg_array.release();
+}
+
 TEST_F(JniInternalTest, StaticSumIntIntMethod) {
   SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
   CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(II)I");
@@ -1042,37 +1075,67 @@ TEST_F(JniInternalTest, StaticSumIntIntMethod) {
 
   Method::InvokeStub* stub = method->GetInvokeStub();
 
-  int args[2];
   JValue result;
-
+  result.i = -1;
+#if !defined(ART_USE_LLVM_COMPILER)
+  int args[2];
   args[0] = 0;
   args[1] = 0;
-  result.i = -1;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  JValue args[2];
+  args[0].i = 0;
+  args[1].i = 0;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(0, result.i);
 
+  result.i = 0;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = 1;
   args[1] = 2;
-  result.i = 0;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = 1;
+  args[1].i = 2;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(3, result.i);
 
+  result.i = 0;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = -2;
   args[1] = 5;
-  result.i = 0;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = -2;
+  args[1].i = 5;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(3, result.i);
 
+  result.i = 1234;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = INT_MAX;
   args[1] = INT_MIN;
-  result.i = 1234;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = INT_MAX;
+  args[1].i = INT_MIN;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(-1, result.i);
 
+  result.i = INT_MIN;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = INT_MAX;
   args[1] = INT_MAX;
-  result.i = INT_MIN;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = INT_MAX;
+  args[1].i = INT_MAX;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(-2, result.i);
 }
 
@@ -1088,42 +1151,77 @@ TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
 
   Method::InvokeStub* stub = method->GetInvokeStub();
 
-  int args[3];
   JValue result;
-
+  result.i = -1;
+#if !defined(ART_USE_LLVM_COMPILER)
+  int args[3];
   args[0] = 0;
   args[1] = 0;
   args[2] = 0;
-  result.i = -1;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  JValue args[3];
+  args[0].i = 0;
+  args[1].i = 0;
+  args[2].i = 0;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(0, result.i);
 
+  result.i = 0;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = 1;
   args[1] = 2;
   args[2] = 3;
-  result.i = 0;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = 1;
+  args[1].i = 2;
+  args[2].i = 3;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(6, result.i);
 
+  result.i = 0;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = -1;
   args[1] = 2;
   args[2] = -3;
-  result.i = 0;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = -1;
+  args[1].i = 2;
+  args[2].i = -3;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(-2, result.i);
 
+  result.i = 1234;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = INT_MAX;
   args[1] = INT_MIN;
   args[2] = INT_MAX;
-  result.i = 1234;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = INT_MAX;
+  args[1].i = INT_MIN;
+  args[2].i = INT_MAX;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(2147483646, result.i);
 
+  result.i = INT_MIN;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = INT_MAX;
   args[1] = INT_MAX;
   args[2] = INT_MAX;
-  result.i = INT_MIN;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = INT_MAX;
+  args[1].i = INT_MAX;
+  args[2].i = INT_MAX;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(2147483645, result.i);
 }
 
@@ -1139,47 +1237,87 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
 
   Method::InvokeStub* stub = method->GetInvokeStub();
 
-  int args[4];
   JValue result;
-
+  result.i = -1;
+#if !defined(ART_USE_LLVM_COMPILER)
+  int args[4];
   args[0] = 0;
   args[1] = 0;
   args[2] = 0;
   args[3] = 0;
-  result.i = -1;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  JValue args[4];
+  args[0].i = 0;
+  args[1].i = 0;
+  args[2].i = 0;
+  args[3].i = 0;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(0, result.i);
 
+  result.i = 0;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = 1;
   args[1] = 2;
   args[2] = 3;
   args[3] = 4;
-  result.i = 0;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = 1;
+  args[1].i = 2;
+  args[2].i = 3;
+  args[3].i = 4;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(10, result.i);
 
+  result.i = 0;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = -1;
   args[1] = 2;
   args[2] = -3;
   args[3] = 4;
-  result.i = 0;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = -1;
+  args[1].i = 2;
+  args[2].i = -3;
+  args[3].i = 4;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(2, result.i);
 
+  result.i = 1234;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = INT_MAX;
   args[1] = INT_MIN;
   args[2] = INT_MAX;
   args[3] = INT_MIN;
-  result.i = 1234;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = INT_MAX;
+  args[1].i = INT_MIN;
+  args[2].i = INT_MAX;
+  args[3].i = INT_MIN;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(-2, result.i);
 
+  result.i = INT_MIN;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = INT_MAX;
   args[1] = INT_MAX;
   args[2] = INT_MAX;
   args[3] = INT_MAX;
-  result.i = INT_MIN;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = INT_MAX;
+  args[1].i = INT_MAX;
+  args[2].i = INT_MAX;
+  args[3].i = INT_MAX;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(-4, result.i);
 }
 
@@ -1195,52 +1333,97 @@ TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
 
   Method::InvokeStub* stub = method->GetInvokeStub();
 
-  int args[5];
   JValue result;
-
+  result.i = -1.0;
+#if !defined(ART_USE_LLVM_COMPILER)
+  int args[5];
   args[0] = 0;
   args[1] = 0;
   args[2] = 0;
   args[3] = 0;
   args[4] = 0;
-  result.i = -1.0;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  JValue args[5];
+  args[0].i = 0;
+  args[1].i = 0;
+  args[2].i = 0;
+  args[3].i = 0;
+  args[4].i = 0;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(0, result.i);
 
+  result.i = 0;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = 1;
   args[1] = 2;
   args[2] = 3;
   args[3] = 4;
   args[4] = 5;
-  result.i = 0;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = 1;
+  args[1].i = 2;
+  args[2].i = 3;
+  args[3].i = 4;
+  args[4].i = 5;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(15, result.i);
 
+  result.i = 0;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = -1;
   args[1] = 2;
   args[2] = -3;
   args[3] = 4;
   args[4] = -5;
-  result.i = 0;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = -1;
+  args[1].i = 2;
+  args[2].i = -3;
+  args[3].i = 4;
+  args[4].i = -5;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(-3, result.i);
 
+  result.i = 1234;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = INT_MAX;
   args[1] = INT_MIN;
   args[2] = INT_MAX;
   args[3] = INT_MIN;
   args[4] = INT_MAX;
-  result.i = 1234;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = INT_MAX;
+  args[1].i = INT_MIN;
+  args[2].i = INT_MAX;
+  args[3].i = INT_MIN;
+  args[4].i = INT_MAX;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(2147483645, result.i);
 
+  result.i = INT_MIN;
+#if !defined(ART_USE_LLVM_COMPILER)
   args[0] = INT_MAX;
   args[1] = INT_MAX;
   args[2] = INT_MAX;
   args[3] = INT_MAX;
   args[4] = INT_MAX;
-  result.i = INT_MIN;
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
+#else
+  args[0].i = INT_MAX;
+  args[1].i = INT_MAX;
+  args[2].i = INT_MAX;
+  args[3].i = INT_MAX;
+  args[4].i = INT_MAX;
+  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
+#endif
   EXPECT_EQ(2147483643, result.i);
 }
 
@@ -1409,7 +1592,7 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(3.0, result.d);
 }
-#endif  // __arm__
+#endif  // __arm__ || ART_USE_LLVM_COMPILER
 
 TEST_F(JniInternalTest, Throw) {
   EXPECT_EQ(JNI_ERR, env_->Throw(NULL));

@@ -143,6 +143,8 @@ bool CompilationUnit::Materialize() {
 
   target_options.FloatABIType = llvm::FloatABI::Soft;
   target_options.UseSoftFloat = false;
+  target_options.NoFramePointerElim = true;
+  target_options.NoFramePointerElimNonLeaf = true;
 
   // Create the llvm::TargetMachine
   llvm::TargetMachine* target_machine =
