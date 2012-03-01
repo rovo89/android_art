@@ -147,9 +147,6 @@ class MonitorList {
   DISALLOW_COPY_AND_ASSIGN(MonitorList);
 };
 
-// Relative timed wait on condition
-int dvmRelativeCondWait(pthread_cond_t* cond, pthread_mutex_t* mutex, int64_t msec, int32_t nsec);
-
 }  // namespace art
 
 #endif  // ART_SRC_MONITOR_H_

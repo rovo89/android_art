@@ -252,7 +252,7 @@ static std::string ThreadToString(Thread* thread) {
 void Monitor::FailedUnlock(Object* obj, Thread* expected_owner, Thread* found_owner,
                            Monitor* mon) {
   // Acquire thread list lock so threads won't disappear from under us
-  ScopedThreadListLock tll;
+  ScopedThreadListLock thread_list_lock;
   // Re-read owner now that we hold lock
   Thread* current_owner = mon != NULL ? mon->owner_ : NULL;
   if (current_owner == NULL) {
@@ -323,7 +323,7 @@ bool Monitor::Unlock(Thread* self) {
 /*
  * Converts the given relative waiting time into an absolute time.
  */
-void ToAbsoluteTime(int64_t ms, int32_t ns, struct timespec *ts) {
+static void ToAbsoluteTime(int64_t ms, int32_t ns, struct timespec *ts) {
   int64_t endSec;
 
 #ifdef HAVE_TIMEDWAIT_MONOTONIC
@@ -349,18 +349,6 @@ void ToAbsoluteTime(int64_t ms, int32_t ns, struct timespec *ts) {
     ts->tv_sec++;
     ts->tv_nsec -= 1000000000L;
   }
-}
-
-int dvmRelativeCondWait(pthread_cond_t* cond, pthread_mutex_t* mutex, int64_t ms, int32_t ns) {
-  struct timespec ts;
-  ToAbsoluteTime(ms, ns, &ts);
-#if defined(HAVE_TIMEDWAIT_MONOTONIC)
-  int rc = pthread_cond_timedwait_monotonic(cond, mutex, &ts);
-#else
-  int rc = pthread_cond_timedwait(cond, mutex, &ts);
-#endif
-  DCHECK(rc == 0 || rc == ETIMEDOUT);
-  return rc;
 }
 
 /*
