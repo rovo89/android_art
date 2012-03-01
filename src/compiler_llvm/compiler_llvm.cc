@@ -24,6 +24,8 @@
 #include "oat_compilation_unit.h"
 #include "upcall_compiler.h"
 
+#include <llvm/LinkAllPasses.h>
+#include <llvm/LinkAllVMCore.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
 
@@ -39,6 +41,19 @@ void InitializeLLVM() {
   llvm::InitializeAllAsmPrinters();
   llvm::InitializeAllAsmParsers();
   // TODO: Maybe we don't have to initialize "all" targets.
+
+  // Initialize LLVM optimization passes
+  llvm::PassRegistry &registry = *llvm::PassRegistry::getPassRegistry();
+
+  llvm::initializeCore(registry);
+  llvm::initializeScalarOpts(registry);
+  llvm::initializeIPO(registry);
+  llvm::initializeAnalysis(registry);
+  llvm::initializeIPA(registry);
+  llvm::initializeTransformUtils(registry);
+  llvm::initializeInstCombine(registry);
+  llvm::initializeInstrumentation(registry);
+  llvm::initializeTarget(registry);
 
   // Initialize LLVM internal data structure for multithreading
   llvm::llvm_start_multithreaded();
