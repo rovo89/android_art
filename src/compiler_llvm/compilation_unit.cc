@@ -117,10 +117,10 @@ bool CompilationUnit::Materialize() {
     target_attr = "";
     break;
 
-  //case kMips:
-  //  target_triple = "mipsel-unknown-linux";
-  //  target_attr = "";
-  //  break;
+  case kMips:
+    target_triple = "mipsel-unknown-linux";
+    target_attr = "mips32r2";
+    break;
 
   default:
     LOG(FATAL) << "Unknown instruction set: " << insn_set_;
@@ -135,8 +135,6 @@ bool CompilationUnit::Materialize() {
   // Target options
   llvm::TargetOptions target_options;
 
-  target_options.NoFramePointerElim = true;
-  target_options.NoFramePointerElimNonLeaf = true;
   target_options.FloatABIType = llvm::FloatABI::Soft;
   target_options.UseSoftFloat = false;
   target_options.NoFramePointerElim = true;

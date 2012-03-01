@@ -25,7 +25,8 @@ enum InstructionSet {
   kNone,
   kArm,
   kThumb2,
-  kX86
+  kX86,
+  kMips
 };
 
 enum InvokeType {

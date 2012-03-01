@@ -161,7 +161,7 @@ void* find_sym(void* context, char const* name) {
     }
   }
 
-  CHECK(0) << "Error: Can't find symbol " << name;
+  LOG(FATAL) << "Error: Can't find symbol " << name;
   return 0;
 }
 
