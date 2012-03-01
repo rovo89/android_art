@@ -33,8 +33,6 @@
 #include <llvm/CallGraphSCCPass.h>
 #include <llvm/DerivedTypes.h>
 #include <llvm/LLVMContext.h>
-#include <llvm/LinkAllPasses.h>
-#include <llvm/LinkAllVMCore.h>
 #include <llvm/Module.h>
 #include <llvm/PassManager.h>
 #include <llvm/Support/Debug.h>
@@ -99,19 +97,6 @@ bool CompilationUnit::WriteBitcodeToFile() {
 
 
 bool CompilationUnit::Materialize() {
-  // Initialize LLVM optimization passes
-  llvm::PassRegistry &Registry = *llvm::PassRegistry::getPassRegistry();
-
-  llvm::initializeCore(Registry);
-  llvm::initializeScalarOpts(Registry);
-  llvm::initializeIPO(Registry);
-  llvm::initializeAnalysis(Registry);
-  llvm::initializeIPA(Registry);
-  llvm::initializeTransformUtils(Registry);
-  llvm::initializeInstCombine(Registry);
-  llvm::initializeInstrumentation(Registry);
-  llvm::initializeTarget(Registry);
-
   // Lookup the LLVM target
   char const* target_triple = NULL;
   char const* target_attr = NULL;
