@@ -979,14 +979,14 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
   ClassLinker *class_linker = Runtime::Current()->GetClassLinker();
   DexCache *dex_cache = class_linker->FindDexCache(dex_file);
 
-  UniquePtr<OatCompilationUnit> oat_compilation_unit(
-    new OatCompilationUnit(class_loader, class_linker, dex_file, *dex_cache, code_item,
-                   method_idx, access_flags));
+  OatCompilationUnit oat_compilation_unit(
+    class_loader, class_linker, dex_file, *dex_cache, code_item,
+    method_idx, access_flags);
 #endif
 
   if ((access_flags & kAccNative) != 0) {
 #if defined(ART_USE_LLVM_COMPILER)
-    compiled_method = compiler_llvm_->CompileNativeMethod(oat_compilation_unit.get());
+    compiled_method = compiler_llvm_->CompileNativeMethod(&oat_compilation_unit);
 #else
     compiled_method = jni_compiler_.Compile(access_flags, method_idx, class_loader, dex_file);
 #endif
@@ -994,7 +994,7 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
 #if defined(ART_USE_LLVM_COMPILER)
-    compiled_method = compiler_llvm_->CompileDexMethod(oat_compilation_unit.get());
+    compiled_method = compiler_llvm_->CompileDexMethod(&oat_compilation_unit);
 #else
     compiled_method = oatCompileMethod(*this, code_item, access_flags, method_idx, class_loader,
                                        dex_file, kThumb2);
