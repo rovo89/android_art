@@ -154,6 +154,7 @@ void setupResourceMasks(LIR* lir)
         lir->defMask |= ENCODE_REG_LIST(lir->operands[1]);
     }
 
+#if defined(TARGET_ARM)
     if (flags & REG_DEF_FPCS_LIST0) {
         lir->defMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
     }
@@ -163,6 +164,7 @@ void setupResourceMasks(LIR* lir)
             setupRegMask(&lir->defMask, lir->operands[1] + i);
         }
     }
+#endif
 
     if (flags & SETS_CCODES) {
         lir->defMask |= ENCODE_CCODE;
@@ -201,6 +203,7 @@ void setupResourceMasks(LIR* lir)
         lir->useMask |= ENCODE_REG_LIST(lir->operands[1]);
     }
 
+#if defined(TARGET_ARM)
     if (flags & REG_USE_FPCS_LIST0) {
         lir->useMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
     }
@@ -210,6 +213,7 @@ void setupResourceMasks(LIR* lir)
             setupRegMask(&lir->useMask, lir->operands[1] + i);
         }
     }
+#endif
 
     if (flags & USES_CCODES) {
         lir->useMask |= ENCODE_CCODE;
@@ -231,10 +235,186 @@ void setupResourceMasks(LIR* lir)
 }
 
 /*
+ * Debugging macros
+ */
+#define DUMP_RESOURCE_MASK(X)
+#define DUMP_SSA_REP(X)
+
+/* Pretty-print a LIR instruction */
+void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
+{
+    LIR* lir = (LIR*) arg;
+    int offset = lir->offset;
+    int dest = lir->operands[0];
+    const bool dumpNop = false;
+
+    /* Handle pseudo-ops individually, and all regular insns as a group */
+    switch(lir->opcode) {
+        case kPseudoMethodEntry:
+            LOG(INFO) << "-------- method entry " <<
+                PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+            break;
+        case kPseudoMethodExit:
+            LOG(INFO) << "-------- Method_Exit";
+            break;
+        case kPseudoBarrier:
+            LOG(INFO) << "-------- BARRIER";
+            break;
+        case kPseudoExtended:
+            LOG(INFO) << "-------- " << (char* ) dest;
+            break;
+        case kPseudoSSARep:
+            DUMP_SSA_REP(LOG(INFO) << "-------- kMirOpPhi: " <<  (char* ) dest);
+            break;
+        case kPseudoEntryBlock:
+            LOG(INFO) << "-------- entry offset: 0x" << std::hex << dest;
+            break;
+        case kPseudoDalvikByteCodeBoundary:
+            LOG(INFO) << "-------- dalvik offset: 0x" << std::hex <<
+                 lir->dalvikOffset << " @ " << (char* )lir->operands[0];
+            break;
+        case kPseudoExitBlock:
+            LOG(INFO) << "-------- exit offset: 0x" << std::hex << dest;
+            break;
+        case kPseudoPseudoAlign4:
+            LOG(INFO) << (intptr_t)baseAddr + offset << " (0x" << std::hex <<
+                offset << "): .align4";
+            break;
+        case kPseudoEHBlockLabel:
+            LOG(INFO) << "Exception_Handling:";
+            break;
+        case kPseudoTargetLabel:
+        case kPseudoNormalBlockLabel:
+            LOG(INFO) << "L" << (intptr_t)lir << ":";
+            break;
+        case kPseudoThrowTarget:
+            LOG(INFO) << "LT" << (intptr_t)lir << ":";
+            break;
+        case kPseudoSuspendTarget:
+            LOG(INFO) << "LS" << (intptr_t)lir << ":";
+            break;
+        case kPseudoCaseLabel:
+            LOG(INFO) << "LC" << (intptr_t)lir << ": Case target 0x" <<
+                std::hex << lir->operands[0] << "|" << std::dec <<
+                lir->operands[0];
+            break;
+        default:
+            if (lir->flags.isNop && !dumpNop) {
+                break;
+            } else {
+                std::string op_name(buildInsnString(EncodingMap[lir->opcode].name, lir, baseAddr));
+                std::string op_operands(buildInsnString(EncodingMap[lir->opcode].fmt, lir, baseAddr));
+                LOG(INFO) << StringPrintf("%p (%04x): %-9s%s%s", baseAddr + offset, offset,
+                    op_name.c_str(), op_operands.c_str(), lir->flags.isNop ? "(nop)" : "");
+            }
+            break;
+    }
+
+    if (lir->useMask && (!lir->flags.isNop || dumpNop)) {
+        DUMP_RESOURCE_MASK(oatDumpResourceMask((LIR* ) lir,
+                                               lir->useMask, "use"));
+    }
+    if (lir->defMask && (!lir->flags.isNop || dumpNop)) {
+        DUMP_RESOURCE_MASK(oatDumpResourceMask((LIR* ) lir,
+                                               lir->defMask, "def"));
+    }
+}
+
+void oatDumpPromotionMap(CompilationUnit *cUnit)
+{
+    for (int i = 0; i < cUnit->numDalvikRegisters; i++) {
+        PromotionMap vRegMap = cUnit->promotionMap[i];
+        char buf[100];
+        if (vRegMap.fpLocation == kLocPhysReg) {
+            snprintf(buf, 100, " : s%d", vRegMap.fpReg & FP_REG_MASK);
+        } else {
+            buf[0] = 0;
+        }
+        char buf2[100];
+        snprintf(buf2, 100, "V[%02d] -> %s%d%s", i,
+                 vRegMap.coreLocation == kLocPhysReg ?
+                 "r" : "SP+", vRegMap.coreLocation == kLocPhysReg ?
+                 vRegMap.coreReg : oatSRegOffset(cUnit, i), buf);
+        LOG(INFO) << buf2;
+    }
+}
+
+void oatDumpFullPromotionMap(CompilationUnit *cUnit)
+{
+    for (int i = 0; i < cUnit->numDalvikRegisters; i++) {
+        PromotionMap vRegMap = cUnit->promotionMap[i];
+        LOG(INFO) << i << " -> " << "CL:" << (int)vRegMap.coreLocation <<
+            ", CR:" << (int)vRegMap.coreReg << ", FL:" <<
+            (int)vRegMap.fpLocation << ", FR:" << (int)vRegMap.fpReg <<
+            ", - " << (int)vRegMap.firstInPair;
+    }
+}
+
+/* Dump instructions and constant pool contents */
+void oatCodegenDump(CompilationUnit* cUnit)
+{
+    LOG(INFO) << "/*";
+    LOG(INFO) << "Dumping LIR insns for "
+        << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+    LIR* lirInsn;
+    LIR* thisLIR;
+    int insnsSize = cUnit->insnsSize;
+
+    LOG(INFO) << "Regs (excluding ins) : " << cUnit->numRegs;
+    LOG(INFO) << "Ins                  : " << cUnit->numIns;
+    LOG(INFO) << "Outs                 : " << cUnit->numOuts;
+    LOG(INFO) << "CoreSpills           : " << cUnit->numCoreSpills;
+    LOG(INFO) << "FPSpills             : " << cUnit->numFPSpills;
+    LOG(INFO) << "Padding              : " << cUnit->numPadding;
+    LOG(INFO) << "Frame size           : " << cUnit->frameSize;
+    LOG(INFO) << "Start of ins         : " << cUnit->insOffset;
+    LOG(INFO) << "Start of regs        : " << cUnit->regsOffset;
+    LOG(INFO) << "code size is " << cUnit->totalSize <<
+        " bytes, Dalvik size is " << insnsSize * 2;
+    LOG(INFO) << "expansion factor: " <<
+         (float)cUnit->totalSize / (float)(insnsSize * 2);
+    oatDumpPromotionMap(cUnit);
+    for (lirInsn = cUnit->firstLIRInsn; lirInsn; lirInsn = lirInsn->next) {
+        oatDumpLIRInsn(cUnit, lirInsn, 0);
+    }
+    for (lirInsn = cUnit->classPointerList; lirInsn; lirInsn = lirInsn->next) {
+        thisLIR = (LIR*) lirInsn;
+        LOG(INFO) << StringPrintf("%x (%04x): .class (%s)",
+            thisLIR->offset, thisLIR->offset,
+            ((CallsiteInfo *) thisLIR->operands[0])->classDescriptor);
+    }
+    for (lirInsn = cUnit->literalList; lirInsn; lirInsn = lirInsn->next) {
+        thisLIR = (LIR*) lirInsn;
+        LOG(INFO) << StringPrintf("%x (%04x): .word (%#x)",
+            thisLIR->offset, thisLIR->offset, thisLIR->operands[0]);
+    }
+
+    const DexFile::MethodId& method_id =
+        cUnit->dex_file->GetMethodId(cUnit->method_idx);
+    std::string signature(cUnit->dex_file->GetMethodSignature(method_id));
+    std::string name(cUnit->dex_file->GetMethodName(method_id));
+    std::string descriptor(cUnit->dex_file->GetMethodDeclaringClassDescriptor(method_id));
+
+    // Dump mapping table
+    if (cUnit->mappingTable.size() > 0) {
+        std::string line(StringPrintf("\n    MappingTable %s%s_%s_mappingTable[%zu] = {",
+            descriptor.c_str(), name.c_str(), signature.c_str(), cUnit->mappingTable.size()));
+        std::replace(line.begin(), line.end(), ';', '_');
+        LOG(INFO) << line;
+        for (uint32_t i = 0; i < cUnit->mappingTable.size(); i+=2) {
+            line = StringPrintf("        {0x%08x, 0x%04x},",
+                cUnit->mappingTable[i], cUnit->mappingTable[i+1]);
+            LOG(INFO) << line;
+        }
+        LOG(INFO) <<"    };\n\n";
+    }
+}
+
+/*
  * The following are building blocks to construct low-level IRs with 0 - 4
  * operands.
  */
-LIR* newLIR0(CompilationUnit* cUnit, ArmOpcode opcode)
+LIR* newLIR0(CompilationUnit* cUnit, int opcode)
 {
     LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
     DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & NO_OPERAND));
@@ -245,7 +425,7 @@ LIR* newLIR0(CompilationUnit* cUnit, ArmOpcode opcode)
     return insn;
 }
 
-LIR* newLIR1(CompilationUnit* cUnit, ArmOpcode opcode,
+LIR* newLIR1(CompilationUnit* cUnit, int opcode,
                            int dest)
 {
     LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
@@ -258,7 +438,7 @@ LIR* newLIR1(CompilationUnit* cUnit, ArmOpcode opcode,
     return insn;
 }
 
-LIR* newLIR2(CompilationUnit* cUnit, ArmOpcode opcode,
+LIR* newLIR2(CompilationUnit* cUnit, int opcode,
                            int dest, int src1)
 {
     LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
@@ -273,7 +453,7 @@ LIR* newLIR2(CompilationUnit* cUnit, ArmOpcode opcode,
     return insn;
 }
 
-LIR* newLIR3(CompilationUnit* cUnit, ArmOpcode opcode,
+LIR* newLIR3(CompilationUnit* cUnit, int opcode,
                            int dest, int src1, int src2)
 {
     LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
@@ -293,7 +473,7 @@ LIR* newLIR3(CompilationUnit* cUnit, ArmOpcode opcode,
 }
 
 #if defined(TARGET_ARM)
-LIR* newLIR4(CompilationUnit* cUnit, ArmOpcode opcode,
+LIR* newLIR4(CompilationUnit* cUnit, int opcode,
                            int dest, int src1, int src2, int info)
 {
     LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
@@ -350,7 +530,7 @@ LIR* scanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi)
  * instruction streams.
  */
 
-/* Add a 32-bit constant either in the constant pool or mixed with code */
+/* Add a 32-bit constant either in the constant pool */
 LIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP,
                            int value)
 {
@@ -362,10 +542,6 @@ LIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP,
         newValue->next = *constantListP;
         *constantListP = (LIR*) newValue;
         return newValue;
-    } else {
-        /* Add the constant in the middle of code stream */
-        newLIR1(cUnit, kArm16BitData, (value & 0xffff));
-        newLIR1(cUnit, kArm16BitData, (value >> 16));
     }
     return NULL;
 }
@@ -374,17 +550,10 @@ LIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP,
 LIR* addWideData(CompilationUnit* cUnit, LIR* *constantListP,
                            int valLo, int valHi)
 {
-    LIR* res;
     //FIXME: hard-coded little endian, need BE variant
-    if (constantListP == NULL) {
-        res = addWordData(cUnit, NULL, valLo);
-        addWordData(cUnit, NULL, valHi);
-    } else {
-        // Insert high word into list first
-        addWordData(cUnit, constantListP, valHi);
-        res = addWordData(cUnit, constantListP, valLo);
-    }
-    return res;
+    // Insert high word into list first
+    addWordData(cUnit, constantListP, valHi);
+    return addWordData(cUnit, constantListP, valLo);
 }
 
 void pushWord(std::vector<uint16_t>&buf, int data) {

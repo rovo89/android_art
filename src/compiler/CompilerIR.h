@@ -445,6 +445,7 @@ typedef enum OpKind {
     kOp2Byte,
     kOpCondBr,
     kOpUncondBr,
+    kOpBx,
     kOpInvalid,
 } OpKind;
 
@@ -476,6 +477,22 @@ typedef enum ThrowKind {
     kThrowNoSuchMethod,
     kThrowStackOverflow,
 } ThrowKind;
+
+typedef struct SwitchTable {
+    int offset;
+    const u2* table;            // Original dex table
+    int vaddr;                  // Dalvik offset of switch opcode
+    LIR* bxInst;                // Switch indirect branch instruction
+    LIR** targets;              // Array of case targets
+} SwitchTable;
+
+typedef struct FillArrayData {
+    int offset;
+    const u2* table;           // Original dex table
+    int size;
+    int vaddr;                 // Dalvik offset of OP_FILL_ARRAY_DATA opcode
+} FillArrayData;
+
 
 BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId);
 

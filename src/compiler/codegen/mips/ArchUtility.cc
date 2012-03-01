@@ -22,6 +22,33 @@
 
 namespace art {
 
+MipsConditionCode oatMipsConditionEncoding(ConditionCode code)
+{
+    MipsConditionCode res;
+    switch(code) {
+        case kCondEq: res = kMipsCondEq; break;
+        case kCondNe: res = kMipsCondNe; break;
+        case kCondCs: res = kMipsCondCs; break;
+        case kCondCc: res = kMipsCondCc; break;
+        case kCondMi: res = kMipsCondMi; break;
+        case kCondPl: res = kMipsCondPl; break;
+        case kCondVs: res = kMipsCondVs; break;
+        case kCondVc: res = kMipsCondVc; break;
+        case kCondHi: res = kMipsCondHi; break;
+        case kCondLs: res = kMipsCondLs; break;
+        case kCondGe: res = kMipsCondGe; break;
+        case kCondLt: res = kMipsCondLt; break;
+        case kCondGt: res = kMipsCondGt; break;
+        case kCondLe: res = kMipsCondLe; break;
+        case kCondAl: res = kMipsCondAl; break;
+        case kCondNv: res = kMipsCondNv; break;
+        default:
+            LOG(FATAL) << "Bad condition code" << (int)code;
+            res = (MipsConditionCode)0;  // Quiet gcc
+    }
+    return res;
+}
+
 /* For dumping instructions */
 #define MIPS_REG_COUNT 32
 static const char *mipsRegName[MIPS_REG_COUNT] = {
@@ -35,7 +62,7 @@ static const char *mipsRegName[MIPS_REG_COUNT] = {
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.c.
  */
-STATIC std::string buildInsnString(const char *fmt, MipsLIR *lir, unsigned char* baseAddr)
+std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr)
 {
     std::string buf;
     int i;
@@ -118,9 +145,9 @@ STATIC std::string buildInsnString(const char *fmt, MipsLIR *lir, unsigned char*
                        break;
                    case 't':
                        sprintf(tbuf,"0x%08x (L%p)",
-                               (int) baseAddr + lir->generic.offset + 4 +
+                               (int) baseAddr + lir->offset + 4 +
                                (operand << 2),
-                               lir->generic.target);
+                               lir->target);
                        break;
                    case 'T':
                        sprintf(tbuf,"0x%08x",
@@ -130,7 +157,7 @@ STATIC std::string buildInsnString(const char *fmt, MipsLIR *lir, unsigned char*
                        int offset_1 = lir->operands[0];
                        int offset_2 = NEXT_LIR(lir)->operands[0];
                        intptr_t target =
-                           ((((intptr_t) baseAddr + lir->generic.offset + 4) &
+                           ((((intptr_t) baseAddr + lir->offset + 4) &
                             ~3) + (offset_1 << 21 >> 9) + (offset_2 << 1)) &
                            0xfffffffc;
                        sprintf(tbuf, "%p", (void *) target);
@@ -163,7 +190,7 @@ void oatDumpResourceMask(LIR *lir, u8 mask, const char *prefix)
 {
     char buf[256];
     buf[0] = 0;
-    MipsLIR *mipsLIR = (MipsLIR *) lir;
+    LIR *mipsLIR = (LIR *) lir;
 
     if (mask == ENCODE_ALL) {
         strcpy(buf, "all");
@@ -202,182 +229,6 @@ void oatDumpResourceMask(LIR *lir, u8 mask, const char *prefix)
     }
     if (buf[0]) {
         LOG(INFO) << prefix << ": " <<  buf;
-    }
-}
-
-/*
- * Debugging macros
- */
-#define DUMP_RESOURCE_MASK(X)
-#define DUMP_SSA_REP(X)
-
-/* Pretty-print a LIR instruction */
-void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
-{
-    MipsLIR* lir = (MipsLIR*) arg;
-    int offset = lir->generic.offset;
-    int dest = lir->operands[0];
-    const bool dumpNop = false;
-
-    /* Handle pseudo-ops individually, and all regular insns as a group */
-    switch(lir->opcode) {
-        case kPseudoMethodEntry:
-            LOG(INFO) << "-------- method entry " <<
-                PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
-            break;
-        case kPseudoMethodExit:
-            LOG(INFO) << "-------- Method_Exit";
-            break;
-        case kPseudoBarrier:
-            LOG(INFO) << "-------- BARRIER";
-            break;
-        case kPseudoExtended:
-            LOG(INFO) << "-------- " << (char* ) dest;
-            break;
-        case kPseudoSSARep:
-            DUMP_SSA_REP(LOG(INFO) << "-------- kMirOpPhi: " <<  (char* ) dest);
-            break;
-        case kPseudoEntryBlock:
-            LOG(INFO) << "-------- entry offset: 0x" << std::hex << dest;
-            break;
-        case kPseudoDalvikByteCodeBoundary:
-            LOG(INFO) << "-------- dalvik offset: 0x" << std::hex <<
-                 lir->generic.dalvikOffset << " @ " << (char* )lir->operands[0];
-            break;
-        case kPseudoExitBlock:
-            LOG(INFO) << "-------- exit offset: 0x" << std::hex << dest;
-            break;
-        case kPseudoPseudoAlign4:
-            LOG(INFO) << (intptr_t)baseAddr + offset << " (0x" << std::hex <<
-                offset << "): .align4";
-            break;
-        case kPseudoEHBlockLabel:
-            LOG(INFO) << "Exception_Handling:";
-            break;
-        case kPseudoTargetLabel:
-        case kPseudoNormalBlockLabel:
-            LOG(INFO) << "L" << (intptr_t)lir << ":";
-            break;
-        case kPseudoThrowTarget:
-            LOG(INFO) << "LT" << (intptr_t)lir << ":";
-            break;
-        case kPseudoSuspendTarget:
-            LOG(INFO) << "LS" << (intptr_t)lir << ":";
-            break;
-        case kPseudoCaseLabel:
-            LOG(INFO) << "LC" << (intptr_t)lir << ": Case target 0x" <<
-                std::hex << lir->operands[0] << "|" << std::dec <<
-                lir->operands[0];
-            break;
-        default:
-            if (lir->flags.isNop && !dumpNop) {
-                break;
-            } else {
-                std::string op_name(buildInsnString(EncodingMap[lir->opcode].name, lir, baseAddr));
-                std::string op_operands(buildInsnString(EncodingMap[lir->opcode].fmt, lir, baseAddr));
-                LOG(INFO) << StringPrintf("%p (%04x): %-9s%s%s", baseAddr + offset, offset,
-                    op_name.c_str(), op_operands.c_str(), lir->flags.isNop ? "(nop)" : "");
-            }
-            break;
-    }
-
-    if (lir->useMask && (!lir->flags.isNop || dumpNop)) {
-        DUMP_RESOURCE_MASK(oatDumpResourceMask((LIR* ) lir,
-                                               lir->useMask, "use"));
-    }
-    if (lir->defMask && (!lir->flags.isNop || dumpNop)) {
-        DUMP_RESOURCE_MASK(oatDumpResourceMask((LIR* ) lir,
-                                               lir->defMask, "def"));
-    }
-}
-
-void oatDumpPromotionMap(CompilationUnit *cUnit)
-{
-    for (int i = 0; i < cUnit->numDalvikRegisters; i++) {
-        PromotionMap vRegMap = cUnit->promotionMap[i];
-        char buf[100];
-        if (vRegMap.fpLocation == kLocPhysReg) {
-            snprintf(buf, 100, " : s%d", vRegMap.fpReg & FP_REG_MASK);
-        } else {
-            buf[0] = 0;
-        }
-        char buf2[100];
-        snprintf(buf2, 100, "V[%02d] -> %s%d%s", i,
-                 vRegMap.coreLocation == kLocPhysReg ?
-                 "r" : "SP+", vRegMap.coreLocation == kLocPhysReg ?
-                 vRegMap.coreReg : oatSRegOffset(cUnit, i), buf);
-        LOG(INFO) << buf2;
-    }
-}
-
-void oatDumpFullPromotionMap(CompilationUnit *cUnit)
-{
-    for (int i = 0; i < cUnit->numDalvikRegisters; i++) {
-        PromotionMap vRegMap = cUnit->promotionMap[i];
-        LOG(INFO) << i << " -> " << "CL:" << (int)vRegMap.coreLocation <<
-            ", CR:" << (int)vRegMap.coreReg << ", FL:" <<
-            (int)vRegMap.fpLocation << ", FR:" << (int)vRegMap.fpReg <<
-            ", - " << (int)vRegMap.firstInPair;
-    }
-}
-
-/* Dump instructions and constant pool contents */
-void oatCodegenDump(CompilationUnit* cUnit)
-{
-    LOG(INFO) << "/*";
-    LOG(INFO) << "Dumping LIR insns for "
-        << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
-    LIR* lirInsn;
-    MipsLIR* mipsLIR;
-    int insnsSize = cUnit->insnsSize;
-
-    LOG(INFO) << "Regs (excluding ins) : " << cUnit->numRegs;
-    LOG(INFO) << "Ins                  : " << cUnit->numIns;
-    LOG(INFO) << "Outs                 : " << cUnit->numOuts;
-    LOG(INFO) << "CoreSpills           : " << cUnit->numCoreSpills;
-    LOG(INFO) << "FPSpills             : " << cUnit->numFPSpills;
-    LOG(INFO) << "Padding              : " << cUnit->numPadding;
-    LOG(INFO) << "Frame size           : " << cUnit->frameSize;
-    LOG(INFO) << "Start of ins         : " << cUnit->insOffset;
-    LOG(INFO) << "Start of regs        : " << cUnit->regsOffset;
-    LOG(INFO) << "code size is " << cUnit->totalSize <<
-        " bytes, Dalvik size is " << insnsSize * 2;
-    LOG(INFO) << "expansion factor: " <<
-         (float)cUnit->totalSize / (float)(insnsSize * 2);
-    oatDumpPromotionMap(cUnit);
-    for (lirInsn = cUnit->firstLIRInsn; lirInsn; lirInsn = lirInsn->next) {
-        oatDumpLIRInsn(cUnit, lirInsn, 0);
-    }
-    for (lirInsn = cUnit->classPointerList; lirInsn; lirInsn = lirInsn->next) {
-        mipsLIR = (MipsLIR*) lirInsn;
-        LOG(INFO) << StringPrintf("%x (%04x): .class (%s)",
-            mipsLIR->generic.offset, mipsLIR->generic.offset,
-            ((CallsiteInfo *) mipsLIR->operands[0])->classDescriptor);
-    }
-    for (lirInsn = cUnit->literalList; lirInsn; lirInsn = lirInsn->next) {
-        mipsLIR = (MipsLIR*) lirInsn;
-        LOG(INFO) << StringPrintf("%x (%04x): .word (%#x)",
-            mipsLIR->generic.offset, mipsLIR->generic.offset, mipsLIR->operands[0]);
-    }
-
-    const DexFile::MethodId& method_id =
-        cUnit->dex_file->GetMethodId(cUnit->method_idx);
-    std::string signature(cUnit->dex_file->GetMethodSignature(method_id));
-    std::string name(cUnit->dex_file->GetMethodName(method_id));
-    std::string descriptor(cUnit->dex_file->GetMethodDeclaringClassDescriptor(method_id));
-
-    // Dump mapping table
-    if (cUnit->mappingTable.size() > 0) {
-        std::string line(StringPrintf("\n    MappingTable %s%s_%s_mappingTable[%zu] = {",
-            descriptor.c_str(), name.c_str(), signature.c_str(), cUnit->mappingTable.size()));
-        std::replace(line.begin(), line.end(), ';', '_');
-        LOG(INFO) << line;
-        for (uint32_t i = 0; i < cUnit->mappingTable.size(); i+=2) {
-            line = StringPrintf("        {0x%08x, 0x%04x},",
-                cUnit->mappingTable[i], cUnit->mappingTable[i+1]);
-            LOG(INFO) << line;
-        }
-        LOG(INFO) <<"    };\n\n";
     }
 }
 

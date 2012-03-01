@@ -745,22 +745,6 @@ typedef enum ArmTargetOptHints {
 
 extern const ArmEncodingMap EncodingMap[kArmLast];
 
-typedef struct SwitchTable {
-    int offset;
-    const u2* table;            // Original dex table
-    int vaddr;                  // Dalvik offset of switch opcode
-    LIR* bxInst;                // Switch indirect branch instruction
-    LIR** targets;              // Array of case targets
-} SwitchTable;
-
-typedef struct FillArrayData {
-    int offset;
-    const u2* table;           // Original dex table
-    int size;
-    int vaddr;                 // Dalvik offset of OP_FILL_ARRAY_DATA opcode
-} FillArrayData;
-
-
 }  // namespace art
 
 #endif  // ART_SRC_COMPILER_CODEGEN_ARM_ARMLIR_H_

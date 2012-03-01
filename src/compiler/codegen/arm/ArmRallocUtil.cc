@@ -116,6 +116,22 @@ void oatClobberCalleeSave(CompilationUnit *cUnit)
     oatClobber(cUnit, r3);
     oatClobber(cUnit, r12);
     oatClobber(cUnit, r14lr);
+    oatClobber(cUnit, fr0);
+    oatClobber(cUnit, fr1);
+    oatClobber(cUnit, fr2);
+    oatClobber(cUnit, fr3);
+    oatClobber(cUnit, fr4);
+    oatClobber(cUnit, fr5);
+    oatClobber(cUnit, fr6);
+    oatClobber(cUnit, fr7);
+    oatClobber(cUnit, fr8);
+    oatClobber(cUnit, fr9);
+    oatClobber(cUnit, fr10);
+    oatClobber(cUnit, fr11);
+    oatClobber(cUnit, fr12);
+    oatClobber(cUnit, fr13);
+    oatClobber(cUnit, fr14);
+    oatClobber(cUnit, fr15);
 }
 
 extern RegLocation oatGetReturnWide(CompilationUnit* cUnit)

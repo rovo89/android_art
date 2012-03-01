@@ -35,6 +35,9 @@ int oatAssignInsnOffsets(CompilationUnit* cUnit);
 void oatCodegenDump(CompilationUnit* cUnit);
 void oatDumpPromotionMap(CompilationUnit* cUnit);
 void oatDumpFullPromotionMap(CompilationUnit* cUnit);
+std::string buildInsnString(const char* fmt, LIR* lir,
+                            unsigned char* baseAddr);
+
 
 /* Implemented in codegen/<target>/Ralloc.c */
 void oatSimpleRegAlloc(CompilationUnit* cUnit);

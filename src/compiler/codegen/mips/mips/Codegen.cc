@@ -15,7 +15,7 @@
  */
 
 #define _CODEGEN_C
-#define TGT_LIR MipsLIR
+#define TARGET_MIPS
 
 #include "../../../Dalvik.h"
 #include "../../../CompilerInternals.h"
@@ -24,12 +24,16 @@
 #include "../Codegen.h"
 
 /* Mips codegen building blocks */
-#include "../CodegenCommon.cc"
+#include "../../CodegenUtil.cc"
 
 /* Mips-specific factory utilities */
 #include "../Mips32/Factory.cc"
-/* Target indepedent factory utilities */
+/* Target independent factory utilities */
 #include "../../CodegenFactory.cc"
+/* Target independent gen routines */
+#include "../../GenCommon.cc"
+/* Shared invoke gen routines */
+#include "../../GenInvoke.cc"
 /* Mips-specific factory utilities */
 #include "../ArchFactory.cc"
 
@@ -46,9 +50,6 @@
 
 /* Target-independent local optimizations */
 #include "../../LocalOptimizations.cc"
-
-/* Common codegen utility code */
-#include "../../CodegenUtil.cc"
 
 /* Architecture manifest */
 #include "ArchVariant.cc"

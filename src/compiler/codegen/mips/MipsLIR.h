@@ -149,10 +149,10 @@ namespace art {
                       INVALID_SREG}
 #define LOC_C_RETURN_ALT {kLocPhysReg, 0, 0, 0, 0, 0, 1, r_F0, INVALID_REG, \
                       INVALID_SREG}
-#define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, r_V0, r_V1,\
+#define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, r_RESULT0, r_RESULT1,\
                            INVALID_SREG}
-#define LOC_C_RETURN_WIDE_ALT {kLocPhysReg, 1, 0, 0, 0, 0, 1, r_F0, r_F1,\
-                           INVALID_SREG}
+#define LOC_C_RETURN_WIDE_ALT {kLocPhysReg, 1, 0, 0, 0, 0, 1, r_FRESULT0,\
+                               r_FRESULT1, INVALID_SREG}
 
 typedef enum ResourceEncodingPos {
     kGPReg0     = 0,
@@ -192,25 +192,6 @@ typedef enum ResourceEncodingPos {
 
 #define DECODE_ALIAS_INFO_REG(X)        (X & 0xffff)
 #define DECODE_ALIAS_INFO_WIDE(X)       ((X & 0x80000000) ? 1 : 0)
-
-/*
- * FIXME:
- * Originally had r4PC as r_S0, rFP as r_S1, rSELF as r_S2, rINST as r_S4
- * Remap - don't need r4PC, rFP or rINST.  Might make sense to keep
- * Method* in one of these since we have so many registers to play with.
- */
-
-#define rSUSPEND r_S0
-#define rSELF r_S1
-#define rSP r_SP
-
-#define rARG0 r_ARG0
-#define rARG1 r_ARG1
-#define rARG2 r_ARG2
-#define rARG3 r_ARG3
-
-#define rRET0 r_V0
-#define rRET1 r_V1
 
 /*
  * Annotate special-purpose core registers:
@@ -307,6 +288,21 @@ typedef enum NativeRegisterPool {
     r_PC,
 } NativeRegisterPool;
 
+/*
+ * Target-independent aliases
+ */
+
+#define rSUSPEND r_S0
+#define rSELF r_S1
+#define rSP r_SP
+#define rARG0 r_ARG0
+#define rARG1 r_ARG1
+#define rARG2 r_ARG2
+#define rARG3 r_ARG3
+#define rRET0 r_RESULT0
+#define rRET1 r_RESULT1
+#define rLINK r_RA
+
 /* Shift encodings */
 typedef enum MipsShiftEncodings {
     kMipsLsl = 0x0,
@@ -335,15 +331,9 @@ typedef enum MipsConditionCode {
     kMipsCondNv = 0xf,    /* 1111 */
 } MipsConditionCode;
 
-typedef enum MipsThrowKind {
-    kMipsThrowNullPointer,
-    kMipsThrowDivZero,
-    kMipsThrowArrayBounds,
-    kMipsThrowVerificationError,
-    kMipsThrowNegArraySize,
-    kMipsThrowNoSuchMethod,
-    kMipsThrowStackOverflow,
-} MipsThrowKind;
+// FIXME: Need support for barriers.  Adding these defines to allow compile
+#define kST 0
+#define kSY 1
 
 #define isPseudoOpcode(opCode) ((int)(opCode) < 0)
 
@@ -487,6 +477,8 @@ typedef enum MipsOpFeatureFlags {
     kUsesCCodes,
     kMemLoad,
     kMemStore,
+    kPCRelFixup,
+// FIXME: add NEEDS_FIXUP to instruction attributes
 } MipsOpFeatureFlags;
 
 #define IS_LOAD         (1 << kMemLoad)
@@ -514,6 +506,12 @@ typedef enum MipsOpFeatureFlags {
 #define IS_IT           (1 << kIsIT)
 #define SETS_CCODES     (1 << kSetsCCodes)
 #define USES_CCODES     (1 << kUsesCCodes)
+#define NEEDS_FIXUP      (1 << kPCRelFixup)
+
+/*  attributes, included for compatibility */
+#define REG_DEF_FPCS_LIST0   (0)
+#define REG_DEF_FPCS_LIST2   (0)
+
 
 /* Common combo register usage patterns */
 #define REG_USE01       (REG_USE0 | REG_USE1)
@@ -559,63 +557,6 @@ typedef enum MipsTargetOptHints {
 
 extern MipsEncodingMap EncodingMap[kMipsLast];
 
-/*
- * Each instance of this struct holds a pseudo or real LIR instruction:
- * - pseudo ones (eg labels and marks) and will be discarded by the assembler.
- * - real ones will be assembled
- *
- * FIXME: notes below are Arm-specific.  We have 32 core registers instead
- * of 16, and no IT blocks.  Must widen this or overload in order to
- * support all 32 FP regs.  Perhaps use r0 for ccodes, eliminate IT block
- * and overload gp with fp status word? (or just use a single bit for
- * both core and fp condition code/status word?
- *
- * Machine resources are encoded into a 64-bit vector, where the encodings are
- * as following:
- * - [ 0..15]: general purpose registers including PC, SP, and LR
- * - [16..47]: floating-point registers where d0 is expanded to s[01] and s0
- *   starts at bit 16
- * - [48]: IT block
- * - [49]: integer condition code
- * - [50]: floatint-point status word
- */
-typedef struct MipsLIR {
-    LIR generic;
-    MipsOpCode opcode;
-    int operands[4];            // [0..3] = [dest, src1, src2, extra]
-    struct {
-        bool isNop:1;           // LIR is optimized away
-        bool pcRelFixup:1;      // May need pc-relative fixup
-        unsigned int age:4;     // default is 0, set lazily by the optimizer
-        unsigned int size:3;    // in bytes
-        unsigned int unused:23;
-    } flags;
-    int aliasInfo;              // For Dalvik register access & litpool disambiguation
-    u8 useMask;                 // Resource mask for use
-    u8 defMask;                 // Resource mask for def
-} MipsLIR;
-
-typedef struct SwitchTable {
-    int offset;
-    const u2* table;            // Original dex table
-    int vaddr;                  // Dalvik offset of switch opcode
-    MipsLIR* bxInst;             // Switch indirect branch instruction
-    MipsLIR** targets;           // Array of case targets
-} SwitchTable;
-
-typedef struct FillArrayData {
-    int offset;
-    const u2* table;           // Original dex table
-    int size;
-    int vaddr;                 // Dalvik offset of OP_FILL_ARRAY_DATA opcode
-} FillArrayData;
-
-/* Utility macros to traverse the LIR/MipsLIR list */
-#define NEXT_LIR(lir) ((MipsLIR *) lir->generic.next)
-#define PREV_LIR(lir) ((MipsLIR *) lir->generic.prev)
-
-#define NEXT_LIR_LVALUE(lir) (lir)->generic.next
-#define PREV_LIR_LVALUE(lir) (lir)->generic.prev
 
 #define IS_UIMM16(v) ((0 <= (v)) && ((v) <= 65535))
 #define IS_SIMM16(v) ((-32768 <= (v)) && ((v) <= 32766))

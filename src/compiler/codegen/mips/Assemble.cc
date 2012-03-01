@@ -75,7 +75,7 @@ namespace art {
  *
  *  [!] escape.  To insert "!", use "!!"
  */
-/* NOTE: must be kept in sync with enum MipsOpcode from MipsLIR.h */
+/* NOTE: must be kept in sync with enum MipsOpcode from LIR.h */
 MipsEncodingMap EncodingMap[kMipsLast] = {
     ENCODING_MAP(kMips32BitData, 0x00000000,
                  kFmtBitBlt, 31, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
@@ -406,12 +406,10 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
 AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                                         intptr_t startAddr)
 {
-    UNIMPLEMENTED(FATAL) << "Rework for art code buffer";
-#if 0
-    int *bufferAddr = (int *) cUnit->codeBuffer;
-    MipsLIR *lir;
+    LIR *lir;
+    AssemblerStatus res = kSuccess;  // Assume success
 
-    for (lir = (MipsLIR *) cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
+    for (lir = (LIR *) cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
         if (lir->opcode < 0) {
             continue;
         }
@@ -422,43 +420,43 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         }
 
         if (lir->opcode == kMipsB || lir->opcode == kMipsBal) {
-            MipsLIR *targetLIR = (MipsLIR *) lir->generic.target;
-            intptr_t pc = lir->generic.offset + 4;
-            intptr_t target = targetLIR->generic.offset;
+            LIR *targetLIR = (LIR *) lir->target;
+            intptr_t pc = lir->offset + 4;
+            intptr_t target = targetLIR->offset;
             int delta = target - pc;
             if (delta & 0x3) {
                 LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
             }
             if (delta > 131068 || delta < -131069) {
-                LOG(FATAL) << "Unconditional branch out of range: " << delta;
+                UNIMPLEMENTED(FATAL) << "B out of range, need long sequence: " << delta;
             }
             lir->operands[0] = delta >> 2;
         } else if (lir->opcode >= kMipsBeqz && lir->opcode <= kMipsBnez) {
-            MipsLIR *targetLIR = (MipsLIR *) lir->generic.target;
-            intptr_t pc = lir->generic.offset + 4;
-            intptr_t target = targetLIR->generic.offset;
+            LIR *targetLIR = (LIR *) lir->target;
+            intptr_t pc = lir->offset + 4;
+            intptr_t target = targetLIR->offset;
             int delta = target - pc;
             if (delta & 0x3) {
                 LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
             }
             if (delta > 131068 || delta < -131069) {
-                LOG(FATAL) << "Conditional branch out of range: " << delta;
+                UNIMPLEMENTED(FATAL) << "B[eq|ne]z needs long sequence: " << delta;
             }
             lir->operands[1] = delta >> 2;
         } else if (lir->opcode == kMipsBeq || lir->opcode == kMipsBne) {
-            MipsLIR *targetLIR = (MipsLIR *) lir->generic.target;
-            intptr_t pc = lir->generic.offset + 4;
-            intptr_t target = targetLIR->generic.offset;
+            LIR *targetLIR = (LIR *) lir->target;
+            intptr_t pc = lir->offset + 4;
+            intptr_t target = targetLIR->offset;
             int delta = target - pc;
             if (delta & 0x3) {
                 LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
             }
             if (delta > 131068 || delta < -131069) {
-                LOG(FATAL) << "Conditional branch out of range: " << delta;
+                UNIMPLEMENTED(FATAL) << "B[eq|ne] needs long sequence: " << delta;
             }
             lir->operands[2] = delta >> 2;
         } else if (lir->opcode == kMipsJal) {
-            intptr_t curPC = (startAddr + lir->generic.offset + 4) & ~3;
+            intptr_t curPC = (startAddr + lir->offset + 4) & ~3;
             intptr_t target = lir->operands[0];
             /* ensure PC-region branch can be used */
             DCHECK_EQ((curPC & 0xF0000000), (target & 0xF0000000));
@@ -467,16 +465,24 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
             }
             lir->operands[0] =  target >> 2;
         } else if (lir->opcode == kMipsLahi) { /* load address hi (via lui) */
-            MipsLIR *targetLIR = (MipsLIR *) lir->generic.target;
-            intptr_t target = startAddr + targetLIR->generic.offset;
+            LIR *targetLIR = (LIR *) lir->target;
+            intptr_t target = startAddr + targetLIR->offset;
             lir->operands[1] = target >> 16;
         } else if (lir->opcode == kMipsLalo) { /* load address lo (via ori) */
-            MipsLIR *targetLIR = (MipsLIR *) lir->generic.target;
-            intptr_t target = startAddr + targetLIR->generic.offset;
+            LIR *targetLIR = (LIR *) lir->target;
+            intptr_t target = startAddr + targetLIR->offset;
             lir->operands[2] = lir->operands[2] + target;
         }
 
-        MipsEncodingMap *encoder = &EncodingMap[lir->opcode];
+        /*
+         * If one of the pc-relative instructions expanded we'll have
+         * to make another pass.  Don't bother to fully assemble the
+         * instruction.
+         */
+        if (res != kSuccess) {
+            continue;
+        }
+        const MipsEncodingMap *encoder = &EncodingMap[lir->opcode];
         u4 bits = encoder->skeleton;
         int i;
         for (i = 0; i < 4; i++) {
@@ -497,7 +503,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                     break;
                 case kFmtDfp: {
                     DCHECK(DOUBLEREG(operand));
-                    DCHECK_EQ((operand & 0x1), 0);
+                    DCHECK((operand & 0x1) == 0);
                     value = ((operand & FP_REG_MASK) << encoder->fieldLoc[i].start) &
                             ((1 << (encoder->fieldLoc[i].end + 1)) - 1);
                     bits |= value;
@@ -511,14 +517,15 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                     break;
                 default:
                     LOG(FATAL) << "Bad encoder format: "
-                               << encoder->fieldLoc[i].kind;
+                               << (int)encoder->fieldLoc[i].kind;
             }
         }
         DCHECK_EQ(encoder->size, 2);
-        *bufferAddr++ = bits;
+        // FIXME: need multi-endian handling here
+        cUnit->codeBuffer.push_back((bits >> 16) & 0xffff);
+        cUnit->codeBuffer.push_back(bits & 0xffff);
     }
-#endif
-    return kSuccess;
+    return res;
 }
 
 /*
@@ -528,13 +535,13 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
  */
 int oatAssignInsnOffsets(CompilationUnit* cUnit)
 {
-    MipsLIR* mipsLIR;
+    LIR* mipsLIR;
     int offset = 0;
 
-    for (mipsLIR = (MipsLIR *) cUnit->firstLIRInsn;
-         mipsLIR;
-         mipsLIR = NEXT_LIR(mipsLIR)) {
-        mipsLIR->generic.offset = offset;
+    for (mipsLIR = (LIR *) cUnit->firstLIRInsn;
+        mipsLIR;
+        mipsLIR = NEXT_LIR(mipsLIR)) {
+        mipsLIR->offset = offset;
         if (mipsLIR->opcode >= 0) {
             if (!mipsLIR->flags.isNop) {
                 mipsLIR->flags.size = EncodingMap[mipsLIR->opcode].size * 2;

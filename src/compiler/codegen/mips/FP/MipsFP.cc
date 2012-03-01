@@ -16,42 +16,8 @@
 
 namespace art {
 
-extern void oatFlushRegWideForV5TEVFP(CompilationUnit *cUnit,
-                                              int reg1, int reg2);
-extern void oatFlushRegForV5TEVFP(CompilationUnit *cUnit, int reg);
-
-/* First, flush any registers associated with this value */
-void loadValueAddress(CompilationUnit *cUnit, RegLocation rlSrc,
-                             int rDest)
-{
-    UNIMPLEMENTED(FATAL) << "Need Mips implementation";
-#if 0
-     rlSrc = rlSrc.wide ? oatUpdateLocWide(cUnit, rlSrc) :
-                          oatUpdateLoc(cUnit, rlSrc);
-     if (rlSrc.location == kLocPhysReg) {
-         if (rlSrc.wide) {
-             oatFlushRegWideForV5TEVFP(cUnit, rlSrc.lowReg,
-                                               rlSrc.highReg);
-         } else {
-             oatFlushRegForV5TEVFP(cUnit, rlSrc.lowReg);
-         }
-     }
-     opRegRegImm(cUnit, kOpAdd, rDest, rFP,
-                 oatS2VReg(cUnit, rlSrc.sRegLow) << 2);
-#endif
-}
-
-/*
- * TUNING: On some implementations, it is quicker to pass addresses
- * to the handlers rather than load the operands into core registers
- * and then move the values to FP regs in the handlers.  Other implementations
- * may prefer passing data in registers (and the latter approach would
- * yeild cleaner register handling - avoiding the requirement that operands
- * be flushed to memory prior to the call).
- */
-static bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir,
-                            RegLocation rlDest, RegLocation rlSrc1,
-                            RegLocation rlSrc2)
+bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
+                     RegLocation rlSrc1, RegLocation rlSrc2)
 {
 #ifdef __mips_hard_float
     int op = kMipsNop;
@@ -89,60 +55,14 @@ static bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir,
     rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
     rlSrc2 = loadValue(cUnit, rlSrc2, kFPReg);
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-    newLIR3(cUnit, (MipsOpCode)op, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
+    newLIR3(cUnit, (MipsOpCode)op, rlResult.lowReg, rlSrc1.lowReg,
+                    rlSrc2.lowReg);
     storeValue(cUnit, rlDest, rlResult);
 
     return false;
 #else
-    UNIMPLEMENTED(FATAL) << "Need Mips implementation";
+    UNIMPLEMENTED(FATAL) << "Need Mips soft float implementation";
     return false;
-#if 0
-    TemplateOpcode opcode;
-
-    /*
-     * Don't attempt to optimize register usage since these opcodes call out to
-     * the handlers.
-     */
-    switch (mir->dalvikInsn.opcode) {
-        case OP_ADD_FLOAT_2ADDR:
-        case OP_ADD_FLOAT:
-            opcode = TEMPLATE_ADD_FLOAT_VFP;
-            break;
-        case OP_SUB_FLOAT_2ADDR:
-        case OP_SUB_FLOAT:
-            opcode = TEMPLATE_SUB_FLOAT_VFP;
-            break;
-        case OP_DIV_FLOAT_2ADDR:
-        case OP_DIV_FLOAT:
-            opcode = TEMPLATE_DIV_FLOAT_VFP;
-            break;
-        case OP_MUL_FLOAT_2ADDR:
-        case OP_MUL_FLOAT:
-            opcode = TEMPLATE_MUL_FLOAT_VFP;
-            break;
-        case OP_REM_FLOAT_2ADDR:
-        case OP_REM_FLOAT:
-        case OP_NEG_FLOAT: {
-            return genArithOpFloatPortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
-        }
-        default:
-            return true;
-    }
-    loadValueAddress(cUnit, rlDest, r_A0);
-    oatClobber(cUnit, r_A0);
-    loadValueAddress(cUnit, rlSrc1, r_A1);
-    oatClobber(cUnit, r_A1);
-    loadValueAddress(cUnit, rlSrc2, r_A2);
-    UNIMP(FATAL) << "Need callout to handler";
-#if 0
-    genDispatchToHandler(cUnit, opcode);
-#endif
-    rlDest = oatUpdateLoc(cUnit, rlDest);
-    if (rlDest.location == kLocPhysReg) {
-        oatClobber(cUnit, rlDest.lowReg);
-    }
-    return false;
-#endif
 #endif
 }
 
@@ -192,64 +112,19 @@ static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
     storeValueWide(cUnit, rlDest, rlResult);
     return false;
 #else
-    UNIMPLEMENTED(FATAL) << "Need Mips implementation";
+    UNIMPLEMENTED(FATAL) << "Need Mips soft float implementation";
     return false;
-#if 0
-    TemplateOpcode opcode;
-
-    switch (mir->dalvikInsn.opcode) {
-        case OP_ADD_DOUBLE_2ADDR:
-        case OP_ADD_DOUBLE:
-            opcode = TEMPLATE_ADD_DOUBLE_VFP;
-            break;
-        case OP_SUB_DOUBLE_2ADDR:
-        case OP_SUB_DOUBLE:
-            opcode = TEMPLATE_SUB_DOUBLE_VFP;
-            break;
-        case OP_DIV_DOUBLE_2ADDR:
-        case OP_DIV_DOUBLE:
-            opcode = TEMPLATE_DIV_DOUBLE_VFP;
-            break;
-        case OP_MUL_DOUBLE_2ADDR:
-        case OP_MUL_DOUBLE:
-            opcode = TEMPLATE_MUL_DOUBLE_VFP;
-            break;
-        case OP_REM_DOUBLE_2ADDR:
-        case OP_REM_DOUBLE:
-        case OP_NEG_DOUBLE: {
-            return genArithOpDoublePortable(cUnit, mir, rlDest, rlSrc1,
-                                               rlSrc2);
-        }
-        default:
-            return true;
-    }
-    loadValueAddress(cUnit, rlDest, r_A0);
-    oatClobber(cUnit, r_A0);
-    loadValueAddress(cUnit, rlSrc1, r_A1);
-    oatClobber(cUnit, r_A1);
-    loadValueAddress(cUnit, rlSrc2, r_A2);
-    UNIMP(FATAL) << "Need callout to handler";
-#if 0
-    genDispatchToHandler(cUnit, opcode);
-#endif
-    rlDest = oatUpdateLocWide(cUnit, rlDest);
-    if (rlDest.location == kLocPhysReg) {
-        oatClobber(cUnit, rlDest.lowReg);
-        oatClobber(cUnit, rlDest.highReg);
-    }
-    return false;
-#endif
 #endif
 }
 
 static bool genConversion(CompilationUnit *cUnit, MIR *mir)
 {
+#ifdef __mips_hard_float
     Opcode opcode = mir->dalvikInsn.opcode;
     bool longSrc = false;
     bool longDest = false;
     RegLocation rlSrc;
     RegLocation rlDest;
-#ifdef __mips_hard_float
     int op = kMipsNop;
     int srcReg;
     RegLocation rlResult;
@@ -306,77 +181,8 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir)
     }
     return false;
 #else
-    UNIMPLEMENTED(FATAL) << "Need Mips implementation";
+    UNIMPLEMENTED(FATAL) << "Need Mips soft float implementation";
     return false;
-#if 0
-    TemplateOpcode templateOpcode;
-    switch (opcode) {
-        case OP_INT_TO_FLOAT:
-            longSrc = false;
-            longDest = false;
-            templateOpcode = TEMPLATE_INT_TO_FLOAT_VFP;
-            break;
-        case OP_FLOAT_TO_INT:
-            longSrc = false;
-            longDest = false;
-            templateOpcode = TEMPLATE_FLOAT_TO_INT_VFP;
-            break;
-        case OP_DOUBLE_TO_FLOAT:
-            longSrc = true;
-            longDest = false;
-            templateOpcode = TEMPLATE_DOUBLE_TO_FLOAT_VFP;
-            break;
-        case OP_FLOAT_TO_DOUBLE:
-            longSrc = false;
-            longDest = true;
-            templateOpcode = TEMPLATE_FLOAT_TO_DOUBLE_VFP;
-            break;
-        case OP_INT_TO_DOUBLE:
-            longSrc = false;
-            longDest = true;
-            templateOpcode = TEMPLATE_INT_TO_DOUBLE_VFP;
-            break;
-        case OP_DOUBLE_TO_INT:
-            longSrc = true;
-            longDest = false;
-            templateOpcode = TEMPLATE_DOUBLE_TO_INT_VFP;
-            break;
-        case OP_LONG_TO_DOUBLE:
-        case OP_FLOAT_TO_LONG:
-        case OP_LONG_TO_FLOAT:
-        case OP_DOUBLE_TO_LONG:
-            return genConversionPortable(cUnit, mir);
-        default:
-            return true;
-    }
-
-    if (longSrc) {
-        rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
-    } else {
-        rlSrc = oatGetSrc(cUnit, mir, 0);
-    }
-
-    if (longDest) {
-        rlDest = oatGetDestWide(cUnit, mir, 0, 1);
-    } else {
-        rlDest = oatGetDest(cUnit, mir, 0);
-    }
-    loadValueAddress(cUnit, rlDest, r_A0);
-    oatClobber(cUnit, r_A0);
-    loadValueAddress(cUnit, rlSrc, r_A1);
-    UNIMP(FATAL) << "Need callout to handler";
-#if 0
-    genDispatchToHandler(cUnit, templateOpcode);
-#endif
-    if (rlDest.wide) {
-        rlDest = oatUpdateLocWide(cUnit, rlDest);
-        oatClobber(cUnit, rlDest.highReg);
-    } else {
-        rlDest = oatUpdateLoc(cUnit, rlDest);
-    }
-    oatClobber(cUnit, rlDest.lowReg);
-    return false;
-#endif
 #endif
 }
 

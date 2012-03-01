@@ -38,19 +38,24 @@ static int fpTemps[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
                         r_F8, r_F9, r_F10, r_F11, r_F12, r_F13, r_F14, r_F15};
 #endif
 
+void genBarrier(CompilationUnit *cUnit);
+LIR* genCompareBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
+                      int src2);
+LIR* opCompareBranch(CompilationUnit* cUnit, MipsOpCode opc, int src1,
+                      int src2);
 void storePair(CompilationUnit *cUnit, int base, int lowReg,
                int highReg);
 void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg);
-MipsLIR *loadWordDisp(CompilationUnit *cUnit, int rBase, int displacement,
+LIR *loadWordDisp(CompilationUnit *cUnit, int rBase, int displacement,
                       int rDest);
-MipsLIR *storeWordDisp(CompilationUnit *cUnit, int rBase,
+LIR *storeWordDisp(CompilationUnit *cUnit, int rBase,
                        int displacement, int rSrc);
-MipsLIR *loadConstant(CompilationUnit *cUnit, int rDest, int value);
+LIR *loadConstant(CompilationUnit *cUnit, int rDest, int value);
 
 #ifdef __mips_hard_float
-MipsLIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
+LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
-    MipsLIR* res = (MipsLIR *) oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
+    LIR* res = (LIR *) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
     res->operands[0] = rDest;
     res->operands[1] = rSrc;
     if (rDest == rSrc) {
@@ -90,10 +95,10 @@ MipsLIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
  * 1) rDest is freshly returned from oatAllocTemp or
  * 2) The codegen is under fixed register usage
  */
-MipsLIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest,
+LIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest,
                                int value)
 {
-    MipsLIR *res;
+    LIR *res;
 
 #ifdef __mips_hard_float
     int rDestSave = rDest;
@@ -127,22 +132,9 @@ MipsLIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest,
     return res;
 }
 
-/*
- * Load an immediate value into a fixed or temp register.  Target
- * register is clobbered, and marked inUse.
- */
-MipsLIR *loadConstant(CompilationUnit *cUnit, int rDest, int value)
+LIR *opNone(CompilationUnit *cUnit, OpKind op)
 {
-    if (oatIsTemp(cUnit, rDest)) {
-        oatClobber(cUnit, rDest);
-        oatMarkInUse(cUnit, rDest);
-    }
-    return loadConstantNoClobber(cUnit, rDest, value);
-}
-
-MipsLIR *opNone(CompilationUnit *cUnit, OpKind op)
-{
-    MipsLIR *res;
+    LIR *res;
     MipsOpCode opcode = kMipsNop;
     switch (op) {
         case kOpUncondBr:
@@ -156,28 +148,28 @@ MipsLIR *opNone(CompilationUnit *cUnit, OpKind op)
 }
 
 
-MipsLIR *opCmpBranchCC(CompilationUnit *cUnit, MipsConditionCode cc,
+LIR *opCmpBranchCC(CompilationUnit *cUnit, MipsConditionCode cc,
                            int rs, int rt)
 {
     UNIMPLEMENTED(FATAL);
     return 0;
 }
-MipsLIR *opCmpImmBranchCC(CompilationUnit *cUnit, MipsConditionCode cc,
+LIR *opCmpImmBranchCC(CompilationUnit *cUnit, MipsConditionCode cc,
                            int rs, int immVal)
 {
     UNIMPLEMENTED(FATAL);
     return 0;
 }
-MipsLIR *opCmpImmBranch(CompilationUnit *cUnit, MipsOpCode cc,
+LIR *opCmpImmBranch(CompilationUnit *cUnit, MipsOpCode cc,
                            int rs, int immVal)
 {
     UNIMPLEMENTED(FATAL);
     return 0;
 }
 
-MipsLIR *opCmpBranch(CompilationUnit *cUnit, MipsOpCode opc, int rs, int rt)
+LIR *opCmpBranch(CompilationUnit *cUnit, MipsOpCode opc, int rs, int rt)
 {
-    MipsLIR *res;
+    LIR *res;
     if (rt < 0) {
       DCHECK(opc >= kMipsBeqz && opc <= kMipsBnez);
       res = newLIR1(cUnit, opc, rs);
@@ -188,9 +180,9 @@ MipsLIR *opCmpBranch(CompilationUnit *cUnit, MipsOpCode opc, int rs, int rt)
     return res;
 }
 
-MipsLIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask);
+LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask);
 
-MipsLIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
+LIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
 {
     MipsOpCode opcode = kMipsNop;
     switch (op) {
@@ -203,12 +195,12 @@ MipsLIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
     return newLIR2(cUnit, opcode, r_RA, rDestSrc);
 }
 
-MipsLIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
+LIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
                      int rSrc1, int value);
-MipsLIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
+LIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
                   int value)
 {
-    MipsLIR *res;
+    LIR *res;
     bool neg = (value < 0);
     int absValue = (neg) ? -value : value;
     bool shortForm = (absValue & 0xff) == absValue;
@@ -237,7 +229,7 @@ MipsLIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
     return res;
 }
 
-MipsLIR *opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest,
+LIR *opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest,
                            int rSrc1, int rSrc2)
 {
     MipsOpCode opcode = kMipsNop;
@@ -276,10 +268,10 @@ MipsLIR *opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest,
     return newLIR3(cUnit, opcode, rDest, rSrc1, rSrc2);
 }
 
-MipsLIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
+LIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
                            int rSrc1, int value)
 {
-    MipsLIR *res;
+    LIR *res;
     MipsOpCode opcode = kMipsNop;
     bool shortForm = true;
 
@@ -366,11 +358,11 @@ MipsLIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
     return res;
 }
 
-MipsLIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
+LIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
                   int rSrc2)
 {
     MipsOpCode opcode = kMipsNop;
-    MipsLIR *res;
+    LIR *res;
     switch (op) {
         case kOpMov:
             opcode = kMipsMove;
@@ -411,21 +403,21 @@ MipsLIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
     return newLIR2(cUnit, opcode, rDestSrc1, rSrc2);
 }
 
-MipsLIR *loadConstantValueWide(CompilationUnit *cUnit, int rDestLo,
+LIR *loadConstantValueWide(CompilationUnit *cUnit, int rDestLo,
                                      int rDestHi, int valLo, int valHi)
 {
-    MipsLIR *res;
+    LIR *res;
     res = loadConstantNoClobber(cUnit, rDestLo, valLo);
     loadConstantNoClobber(cUnit, rDestHi, valHi);
     return res;
 }
 
 /* Load value from base + scaled index. */
-MipsLIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
+LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
                                int rIndex, int rDest, int scale, OpSize size)
 {
-    MipsLIR *first = NULL;
-    MipsLIR *res;
+    LIR *first = NULL;
+    LIR *res;
     MipsOpCode opcode = kMipsNop;
     int tReg = oatAllocTemp(cUnit);
 
@@ -478,11 +470,11 @@ MipsLIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
 }
 
 /* store value base base + scaled index. */
-MipsLIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
+LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
                                 int rIndex, int rSrc, int scale, OpSize size)
 {
-    MipsLIR *first = NULL;
-    MipsLIR *res;
+    LIR *first = NULL;
+    LIR *res;
     MipsOpCode opcode = kMipsNop;
     int rNewIndex = rIndex;
     int tReg = oatAllocTemp(cUnit);
@@ -530,11 +522,11 @@ MipsLIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
     return first;
 }
 
-MipsLIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
+LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
     int i;
     int loadCnt = 0;
-    MipsLIR *res = NULL ;
+    LIR *res = NULL ;
     genBarrier(cUnit);
 
     for (i = 0; i < 8; i++, rMask >>= 1) {
@@ -552,11 +544,11 @@ MipsLIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
     return res; /* NULL always returned which should be ok since no callers use it */
 }
 
-MipsLIR *storeMultiple(CompilationUnit *cUnit, int rBase, int rMask)
+LIR *storeMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
     int i;
     int storeCnt = 0;
-    MipsLIR *res = NULL ;
+    LIR *res = NULL ;
     genBarrier(cUnit);
 
     for (i = 0; i < 8; i++, rMask >>= 1) {
@@ -574,7 +566,7 @@ MipsLIR *storeMultiple(CompilationUnit *cUnit, int rBase, int rMask)
     return res; /* NULL always returned which should be ok since no callers use it */
 }
 
-MipsLIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
+LIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
                                 int displacement, int rDest, int rDestHi,
                                 OpSize size, int sReg)
 /*
@@ -586,9 +578,9 @@ MipsLIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
  * rlp and then restore.
  */
 {
-    MipsLIR *res;
-    MipsLIR *load = NULL;
-    MipsLIR *load2 = NULL;
+    LIR *res;
+    LIR *load = NULL;
+    LIR *load2 = NULL;
     MipsOpCode opcode = kMipsNop;
     bool shortForm = IS_SIMM16(displacement);
     bool pair = false;
@@ -680,7 +672,7 @@ MipsLIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
     return load;
 }
 
-MipsLIR *loadBaseDisp(CompilationUnit *cUnit, MIR *mir, int rBase,
+LIR *loadBaseDisp(CompilationUnit *cUnit, MIR *mir, int rBase,
                             int displacement, int rDest, OpSize size,
                             int sReg)
 {
@@ -688,7 +680,7 @@ MipsLIR *loadBaseDisp(CompilationUnit *cUnit, MIR *mir, int rBase,
                             size, sReg);
 }
 
-MipsLIR *loadBaseDispWide(CompilationUnit *cUnit, MIR *mir, int rBase,
+LIR *loadBaseDispWide(CompilationUnit *cUnit, MIR *mir, int rBase,
                           int displacement, int rDestLo, int rDestHi,
                                 int sReg)
 {
@@ -696,13 +688,13 @@ MipsLIR *loadBaseDispWide(CompilationUnit *cUnit, MIR *mir, int rBase,
                             kLong, sReg);
 }
 
-MipsLIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
+LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
                                  int displacement, int rSrc, int rSrcHi,
                                  OpSize size)
 {
-    MipsLIR *res;
-    MipsLIR *store = NULL;
-    MipsLIR *store2 = NULL;
+    LIR *res;
+    LIR *store = NULL;
+    LIR *store2 = NULL;
     MipsOpCode opcode = kMipsNop;
     bool shortForm = IS_SIMM16(displacement);
     bool pair = false;
@@ -785,13 +777,13 @@ MipsLIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
     return res;
 }
 
-MipsLIR *storeBaseDisp(CompilationUnit *cUnit, int rBase,
+LIR *storeBaseDisp(CompilationUnit *cUnit, int rBase,
                        int displacement, int rSrc, OpSize size)
 {
     return storeBaseDispBody(cUnit, rBase, displacement, rSrc, -1, size);
 }
 
-MipsLIR *storeBaseDispWide(CompilationUnit *cUnit, int rBase,
+LIR *storeBaseDispWide(CompilationUnit *cUnit, int rBase,
                            int displacement, int rSrcLo, int rSrcHi)
 {
     return storeBaseDispBody(cUnit, rBase, displacement, rSrcLo, rSrcHi, kLong);
@@ -803,83 +795,12 @@ void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
     loadWordDisp(cUnit, base, HIWORD_OFFSET , highReg);
 }
 
-MipsLIR* genRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
-{
-    MipsLIR* res;
-    MipsOpCode opcode;
-#ifdef __mips_hard_float
-    if (FPREG(rDest) || FPREG(rSrc))
-        return fpRegCopy(cUnit, rDest, rSrc);
-#endif
-    res = (MipsLIR *) oatNew(cUnit, sizeof(MipsLIR), true, kAllocLIR);
-    opcode = kMipsMove;
-    DCHECK(LOWREG(rDest) && LOWREG(rSrc));
-    res->operands[0] = rDest;
-    res->operands[1] = rSrc;
-    res->opcode = opcode;
-    setupResourceMasks(res);
-    if (rDest == rSrc) {
-        res->flags.isNop = true;
-    }
-    return res;
-}
-
-MipsLIR* genRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
-{
-    MipsLIR *res = genRegCopyNoInsert(cUnit, rDest, rSrc);
-    oatAppendLIR(cUnit, (LIR*)res);
-    return res;
-}
-
-void genRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
-                           int srcLo, int srcHi)
-{
-#ifdef __mips_hard_float
-    bool destFP = FPREG(destLo) && FPREG(destHi);
-    bool srcFP = FPREG(srcLo) && FPREG(srcHi);
-    DCHECK_EQ(FPREG(srcLo), FPREG(srcHi));
-    DCHECK_EQ(FPREG(destLo), FPREG(destHi));
-    if (destFP) {
-        if (srcFP) {
-            genRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
-        } else {
-           /* note the operands are swapped for the mtc1 instr */
-            newLIR2(cUnit, kMipsMtc1, srcLo, destLo);
-            newLIR2(cUnit, kMipsMtc1, srcHi, destHi);
-        }
-    } else {
-        if (srcFP) {
-            newLIR2(cUnit, kMipsMfc1, destLo, srcLo);
-            newLIR2(cUnit, kMipsMfc1, destHi, srcHi);
-        } else {
-            // Handle overlap
-            if (srcHi == destLo) {
-                genRegCopy(cUnit, destHi, srcHi);
-                genRegCopy(cUnit, destLo, srcLo);
-            } else {
-                genRegCopy(cUnit, destLo, srcLo);
-                genRegCopy(cUnit, destHi, srcHi);
-            }
-        }
-    }
-#else
-    // Handle overlap
-    if (srcHi == destLo) {
-        genRegCopy(cUnit, destHi, srcHi);
-        genRegCopy(cUnit, destLo, srcLo);
-    } else {
-        genRegCopy(cUnit, destLo, srcLo);
-        genRegCopy(cUnit, destHi, srcHi);
-    }
-#endif
-}
-
-inline MipsLIR *genRegImmCheck(CompilationUnit *cUnit,
+LIR *genRegImmCheck(CompilationUnit *cUnit,
                                MipsConditionCode cond, int reg,
                                int checkValue, int dOffset,
-                               MipsLIR *pcrLabel)
+                               LIR *pcrLabel)
 {
-    MipsLIR *branch = NULL;
+    LIR *branch = NULL;
 
     if (checkValue == 0) {
         MipsOpCode opc = kMipsNop;
@@ -918,9 +839,9 @@ inline MipsLIR *genRegImmCheck(CompilationUnit *cUnit,
     if (cUnit->jitMode == kJitMethod) {
         BasicBlock *bb = cUnit->curBlock;
         if (bb->taken) {
-            MipsLIR  *exceptionLabel = (MipsLIR *) cUnit->blockLabelList;
+            LIR  *exceptionLabel = (LIR *) cUnit->blockLabelList;
             exceptionLabel += bb->taken->id;
-            branch->generic.target = (LIR *) exceptionLabel;
+            branch->target = (LIR *) exceptionLabel;
             return exceptionLabel;
         } else {
             LOG(FATAL) <<  "Catch blocks not handled yet";
