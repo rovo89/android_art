@@ -154,17 +154,17 @@ dump-oat: dump-oat-core dump-oat-boot dump-oat-Calculator
 
 .PHONY: dump-oat-core
 dump-oat-core: $(TARGET_CORE_OAT_OUT) $(OATDUMP)
-	$(OATDUMP) --image=$(TARGET_CORE_IMG_OUT) --host-prefix=$(PRODUCT_OUT) --output=/tmp/core.oatdump.txt
+	$(OATDUMP) --image=$(TARGET_CORE_IMG_OUT) --output=/tmp/core.oatdump.txt
 	@echo Output in /tmp/core.oatdump.txt
 
 .PHONY: dump-oat-boot
 dump-oat-boot: $(TARGET_BOOT_OAT_OUT) $(OATDUMP)
-	$(OATDUMP) --image=$(TARGET_BOOT_IMG_OUT) --host-prefix=$(PRODUCT_OUT) --output=/tmp/boot.oatdump.txt
+	$(OATDUMP) --image=$(TARGET_BOOT_IMG_OUT) --output=/tmp/boot.oatdump.txt
 	@echo Output in /tmp/boot.oatdump.txt
 
 .PHONY: dump-oat-Calculator
-dump-oat-Calculator: $(call art-cache-oat,system/app/Calculator.apk) $(TARGET_BOOT_OAT_OUT) $(OATDUMP)
-	$(OATDUMP) --oat-file=$< --boot-image=$(TARGET_BOOT_IMG) --host-prefix=$(PRODUCT_OUT) --output=/tmp/Calculator.oatdump.txt
+dump-oat-Calculator: $(call art-cache-out,system/app/Calculator.apk.oat) $(TARGET_BOOT_IMG_OUT) $(OATDUMP)
+	$(OATDUMP) --oat-file=$< --output=/tmp/Calculator.oatdump.txt
 	@echo Output in /tmp/Calculator.oatdump.txt
 
 

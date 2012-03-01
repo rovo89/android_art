@@ -57,6 +57,7 @@ static void usage() {
           "  --host-prefix may be used to translate host paths to target paths during\n"
           "      cross compilation.\n"
           "      Example: --host-prefix=out/target/product/crespo\n"
+          "      Default: $ANDROID_PRODUCT_OUT\n"
           "\n");
   fprintf(stderr,
           "  --output=<file> may be used to send the output to a file.\n"
@@ -743,6 +744,12 @@ int oatdump(int argc, char** argv) {
     options.push_back(std::make_pair(image_option.c_str(), reinterpret_cast<void*>(NULL)));
   }
 
+  if (host_prefix.empty()) {
+    const char* android_product_out = getenv("ANDROID_PRODUCT_OUT");
+    if (android_product_out != NULL) {
+        host_prefix = android_product_out;
+    }
+  }
   if (!host_prefix.empty()) {
     options.push_back(std::make_pair("host-prefix", host_prefix.c_str()));
   }
