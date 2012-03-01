@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_METHOD_UNIT_H_
-#define ART_SRC_METHOD_UNIT_H_
+#ifndef ART_SRC_OAT_COMPILATION_UNIT_H_
+#define ART_SRC_OAT_COMPILATION_UNIT_H_
 
 #include "dex_file.h"
 
@@ -69,4 +69,4 @@ class OatCompilationUnit {
 
 } // namespace art
 
-#endif // ART_SRC_METHOD_UNIT_H_
+#endif // ART_SRC_OAT_COMPILATION_UNIT_H_
