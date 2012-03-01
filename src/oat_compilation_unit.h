@@ -30,9 +30,9 @@ class DexCache;
 
 class OatCompilationUnit {
  public:
-  OatCompilationUnit(ClassLoader const* class_loader, ClassLinker* class_linker,
-                     DexFile const& dex_file, DexCache& dex_cache,
-                     DexFile::CodeItem const* code_item,
+  OatCompilationUnit(const ClassLoader* class_loader, ClassLinker* class_linker,
+                     const DexFile& dex_file, DexCache& dex_cache,
+                     const DexFile::CodeItem* code_item,
                      uint32_t method_idx, uint32_t access_flags)
       : class_loader_(class_loader), class_linker_(class_linker),
         dex_file_(&dex_file), dex_cache_(&dex_cache), code_item_(code_item),
@@ -40,29 +40,30 @@ class OatCompilationUnit {
   }
 
   OatCompilationUnit* GetCallee(uint32_t callee_method_idx,
-                        uint32_t callee_access_flags) {
-    return new OatCompilationUnit(class_loader_, class_linker_, *dex_file_, *dex_cache_,
-                                  NULL, callee_method_idx, callee_access_flags);
+                                uint32_t callee_access_flags) {
+    return new OatCompilationUnit(class_loader_, class_linker_, *dex_file_,
+                                  *dex_cache_, NULL, callee_method_idx,
+                                  callee_access_flags);
   }
 
-  char const* GetShorty() const {
-    DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx_);
+  const char* GetShorty() const {
+    const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx_);
     return dex_file_->GetMethodShorty(method_id);
   }
 
-  char const* GetShorty(uint32_t* shorty_len) const {
-    DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx_);
+  const char* GetShorty(uint32_t* shorty_len) const {
+    const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx_);
     return dex_file_->GetMethodShorty(method_id, shorty_len);
   }
 
  public:
-  ClassLoader const* class_loader_;
+  const ClassLoader* class_loader_;
   ClassLinker* class_linker_;
 
-  DexFile const* dex_file_;
+  const DexFile* dex_file_;
   DexCache* dex_cache_;
 
-  DexFile::CodeItem const* code_item_;
+  const DexFile::CodeItem* code_item_;
   uint32_t method_idx_;
   uint32_t access_flags_;
 };
