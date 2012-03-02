@@ -134,11 +134,10 @@ bool CompilationUnit::Materialize() {
 
   // Target options
   llvm::TargetOptions target_options;
-
   target_options.FloatABIType = llvm::FloatABI::Soft;
-  target_options.UseSoftFloat = false;
   target_options.NoFramePointerElim = true;
   target_options.NoFramePointerElimNonLeaf = true;
+  target_options.UseSoftFloat = false;
 
   // Create the llvm::TargetMachine
   llvm::TargetMachine* target_machine =
