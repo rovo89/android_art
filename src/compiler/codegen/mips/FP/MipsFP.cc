@@ -217,7 +217,7 @@ static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
     loadValueAddress(cUnit, rlSrc1, r_A0);
     oatClobber(cUnit, r_A0);
     loadValueAddress(cUnit, rlSrc2, r_A1);
-    UNIMP(FATAL) << "Need callout to handler";
+    UNIMPLEMENTED(FATAL) << "Need callout to handler";
 #if 0
     genDispatchToHandler(cUnit, templateOpcode);
 #endif

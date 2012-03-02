@@ -39,8 +39,6 @@ static int fpTemps[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
 #endif
 
 void genBarrier(CompilationUnit *cUnit);
-LIR* genCompareBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
-                      int src2);
 void storePair(CompilationUnit *cUnit, int base, int lowReg,
                int highReg);
 void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg);
@@ -145,39 +143,6 @@ LIR *opNone(CompilationUnit *cUnit, OpKind op)
     return res;
 }
 
-
-LIR *opCmpBranchCC(CompilationUnit *cUnit, MipsConditionCode cc,
-                           int rs, int rt)
-{
-    UNIMPLEMENTED(FATAL);
-    return 0;
-}
-LIR *opCmpImmBranchCC(CompilationUnit *cUnit, MipsConditionCode cc,
-                           int rs, int immVal)
-{
-    UNIMPLEMENTED(FATAL);
-    return 0;
-}
-LIR *opCmpImmBranch(CompilationUnit *cUnit, MipsOpCode cc,
-                           int rs, int immVal)
-{
-    UNIMPLEMENTED(FATAL);
-    return 0;
-}
-
-LIR *opCmpBranch(CompilationUnit *cUnit, MipsOpCode opc, int rs, int rt)
-{
-    LIR *res;
-    if (rt < 0) {
-      DCHECK(opc >= kMipsBeqz && opc <= kMipsBnez);
-      res = newLIR1(cUnit, opc, rs);
-    } else  {
-      DCHECK(opc == kMipsBeq || opc == kMipsBne);
-      res = newLIR2(cUnit, opc, rs, rt);
-    }
-    return res;
-}
-
 LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask);
 
 LIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
@@ -186,6 +151,9 @@ LIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
     switch (op) {
         case kOpBlx:
             opcode = kMipsJalr;
+            break;
+        case kOpBx:
+            return newLIR1(cUnit, kMipsJr, rDestSrc);
             break;
         default:
             LOG(FATAL) << "Bad case in opReg";
@@ -656,9 +624,7 @@ LIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
         }
     }
 
-    UNIMPLEMENTED(FATAL) << "Needs art conversion";
-#if 0
-    if (rBase == rFP) {
+    if (rBase == rSP) {
         if (load != NULL)
             annotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                                     true /* isLoad */);
@@ -666,7 +632,6 @@ LIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
             annotateDalvikRegAccess(load2, (displacement + HIWORD_OFFSET) >> 2,
                                     true /* isLoad */);
     }
-#endif
     return load;
 }
 
@@ -760,9 +725,7 @@ LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
         oatFreeTemp(cUnit, rScratch);
     }
 
-    UNIMPLEMENTED(FATAL) << "Needs art conversion";
-#if 0
-    if (rBase == rFP) {
+    if (rBase == rSP) {
         if (store != NULL)
             annotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                                     false /* isLoad */);
@@ -770,7 +733,6 @@ LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
             annotateDalvikRegAccess(store2, (displacement + HIWORD_OFFSET) >> 2,
                                     false /* isLoad */);
     }
-#endif
 
     return res;
 }

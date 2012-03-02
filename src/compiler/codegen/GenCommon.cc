@@ -23,7 +23,7 @@ namespace art {
  */
 
 #if defined(TARGET_ARM)
-LIR* genIT(CompilationUnit* cUnit, ArmConditionCode cond, const char* guide);
+LIR* opIT(CompilationUnit* cUnit, ArmConditionCode cond, const char* guide);
 #endif
 
 LIR* callRuntimeHelper(CompilationUnit* cUnit, int reg)
@@ -45,7 +45,7 @@ void genBarrier(CompilationUnit* cUnit)
 
 
 /* Generate unconditional branch instructions */
-LIR* genUnconditionalBranch(CompilationUnit* cUnit, LIR* target)
+LIR* opUnconditionalBranch(CompilationUnit* cUnit, LIR* target)
 {
     LIR* branch = opNone(cUnit, kOpUncondBr);
     branch->target = (LIR*) target;
@@ -55,15 +55,6 @@ LIR* genUnconditionalBranch(CompilationUnit* cUnit, LIR* target)
 // FIXME: need to do some work to split out targets with
 // condition codes and those without
 #if defined(TARGET_ARM) || defined(TARGET_X86)
-/* Generate conditional branch instructions */
-LIR* genConditionalBranch(CompilationUnit* cUnit, ConditionCode cond,
-                          LIR* target)
-{
-    LIR* branch = opCondBranch(cUnit, cond);
-    branch->target = (LIR*) target;
-    return branch;
-}
-
 LIR* genCheck(CompilationUnit* cUnit, ConditionCode cCode, MIR* mir,
               ThrowKind kind)
 {
@@ -71,7 +62,7 @@ LIR* genCheck(CompilationUnit* cUnit, ConditionCode cCode, MIR* mir,
     tgt->opcode = kPseudoThrowTarget;
     tgt->operands[0] = kind;
     tgt->operands[1] = mir ? mir->offset : 0;
-    LIR* branch = genConditionalBranch(cUnit, cCode, tgt);
+    LIR* branch = opCondBranch(cUnit, cCode, tgt);
     // Remember branch target - will process later
     oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
     return branch;
@@ -87,10 +78,9 @@ LIR* genImmedCheck(CompilationUnit* cUnit, ConditionCode cCode,
     tgt->operands[1] = mir->offset;
     LIR* branch;
     if (cCode == kCondAl) {
-        branch = genUnconditionalBranch(cUnit, tgt);
+        branch = opUnconditionalBranch(cUnit, tgt);
     } else {
-        branch = genCmpImmBranch(cUnit, cCode, reg, immVal);
-        branch->target = (LIR*)tgt;
+        branch = opCmpImmBranch(cUnit, cCode, reg, immVal, tgt);
     }
     // Remember branch target - will process later
     oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
@@ -118,10 +108,10 @@ LIR* genRegRegCheck(CompilationUnit* cUnit, ConditionCode cCode,
     tgt->operands[2] = reg1;
     tgt->operands[3] = reg2;
 #if defined(TARGET_MIPS)
-    LIR* branch = genCompareBranch(cUnit, cCode, reg1, reg2);
+    LIR* branch = opCmpBranch(cUnit, cCode, reg1, reg2, tgt);
 #else
     opRegReg(cUnit, kOpCmp, reg1, reg2);
-    LIR* branch = genConditionalBranch(cUnit, cCode, tgt);
+    LIR* branch = opCondBranch(cUnit, cCode, tgt);
 #endif
     // Remember branch target - will process later
     oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
@@ -159,13 +149,13 @@ void genCompareAndBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
             LOG(FATAL) << "Unexpected opcode " << (int)opcode;
     }
 #if defined(TARGET_MIPS)
-    LIR* branch = genCompareBranch(cUnit, cond, rlSrc1.lowReg, rlSrc2.lowReg);
-    branch->target = &labelList[bb->taken->id];
+    opCmpBranch(cUnit, cond, rlSrc1.lowReg, rlSrc2.lowReg,
+                &labelList[bb->taken->id]);
 #else
     opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
-    genConditionalBranch(cUnit, cond, &labelList[bb->taken->id]);
+    opCondBranch(cUnit, cond, &labelList[bb->taken->id]);
 #endif
-    genUnconditionalBranch(cUnit, &labelList[bb->fallThrough->id]);
+    opUnconditionalBranch(cUnit, &labelList[bb->fallThrough->id]);
 }
 
 void genCompareZeroAndBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
@@ -198,13 +188,12 @@ void genCompareZeroAndBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
             LOG(FATAL) << "Unexpected opcode " << (int)opcode;
     }
 #if defined(TARGET_MIPS)
-    LIR* branch = genCmpImmBranch(cUnit, cond, rlSrc.lowReg, 0);
-    branch->target = &labelList[bb->taken->id];
+    opCmpImmBranch(cUnit, cond, rlSrc.lowReg, 0, &labelList[bb->taken->id]);
 #else
     opRegImm(cUnit, kOpCmp, rlSrc.lowReg, 0);
-    genConditionalBranch(cUnit, cond, &labelList[bb->taken->id]);
+    opCondBranch(cUnit, cond, &labelList[bb->taken->id]);
 #endif
-    genUnconditionalBranch(cUnit, &labelList[bb->fallThrough->id]);
+    opUnconditionalBranch(cUnit, &labelList[bb->fallThrough->id]);
 }
 
 void genIntToLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
@@ -212,7 +201,7 @@ void genIntToLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 {
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
     if (rlSrc.location == kLocPhysReg) {
-        genRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
+        opRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
     } else {
         loadValueDirect(cUnit, rlSrc, rlResult.lowReg);
     }
@@ -361,13 +350,12 @@ void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
 #if defined(TARGET_ARM)
         // Combine sub & test using sub setflags encoding here
         newLIR3(cUnit, kThumb2SubsRRI12, rIdx, rIdx, 1);
-        LIR* branch = opCondBranch(cUnit, kCondGe);
+        opCondBranch(cUnit, kCondGe, target);
 #else
         oatFreeTemp(cUnit, rVal);
         opRegImm(cUnit, kOpSub, rIdx, 1);
-        LIR* branch = genCmpImmBranch(cUnit, kCondGe, rIdx, 0);
+        opCmpImmBranch(cUnit, kCondGe, rIdx, 0, target);
 #endif
-        branch->target = (LIR*)target;
     } else if (!isRange) {
         // TUNING: interleave
         for (unsigned int i = 0; i < dInsn->vA; i++) {
@@ -434,14 +422,14 @@ void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
             // rBase now points at appropriate static storage base (Class*)
             // or NULL if not initialized. Check for NULL and call helper if NULL.
             // TUNING: fast path should fall through
-            LIR* branchOver = genCmpImmBranch(cUnit, kCondNe, rBase, 0);
+            LIR* branchOver = opCmpImmBranch(cUnit, kCondNe, rBase, 0, NULL);
             int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                                   pInitializeStaticStorage));
             loadConstant(cUnit, rARG0, ssbIndex);
             callRuntimeHelper(cUnit, rTgt);
 #if defined(TARGET_MIPS)
             // For Arm, rRET0 = rARG0 = rBASE, for Mips, we need to copy
-            genRegCopy(cUnit, rBase, rRET0);
+            opRegCopy(cUnit, rBase, rRET0);
 #endif
             LIR* skipTarget = newLIR0(cUnit, kPseudoTargetLabel);
             skipTarget->defMask = ENCODE_ALL;
@@ -541,14 +529,14 @@ void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             // rBase now points at appropriate static storage base (Class*)
             // or NULL if not initialized. Check for NULL and call helper if NULL.
             // TUNING: fast path should fall through
-            LIR* branchOver = genCmpImmBranch(cUnit, kCondNe, rBase, 0);
+            LIR* branchOver = opCmpImmBranch(cUnit, kCondNe, rBase, 0, NULL);
             int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                                   pInitializeStaticStorage));
             loadConstant(cUnit, rARG0, ssbIndex);
             callRuntimeHelper(cUnit, rTgt);
 #if defined(TARGET_MIPS)
             // For Arm, rRET0 = rARG0 = rBASE, for Mips, we need to copy
-            genRegCopy(cUnit, rBase, rRET0);
+            opRegCopy(cUnit, rBase, rRET0);
 #endif
             LIR* skipTarget = newLIR0(cUnit, kPseudoTargetLabel);
             skipTarget->defMask = ENCODE_ALL;
@@ -596,7 +584,7 @@ void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 // Debugging routine - if null target, branch to DebugMe
 void genShowTarget(CompilationUnit* cUnit)
 {
-    LIR* branchOver = genCmpImmBranch(cUnit, kCondNe, rLINK, 0);
+    LIR* branchOver = opCmpImmBranch(cUnit, kCondNe, rLINK, 0, NULL);
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pDebugMe), rLINK);
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
@@ -639,7 +627,7 @@ void handleSuspendLaunchpads(CompilationUnit *cUnit)
                          OFFSETOF_MEMBER(Thread, pUpdateDebuggerFromCode),
                          rSUSPEND);
         }
-        genUnconditionalBranch(cUnit, resumeLab);
+        opUnconditionalBranch(cUnit, resumeLab);
     }
 }
 
@@ -662,8 +650,8 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
                 break;
             case kThrowArrayBounds:
                 if (v2 != rARG0) {
-                    genRegCopy(cUnit, rARG0, v1);
-                    genRegCopy(cUnit, rARG1, v2);
+                    opRegCopy(cUnit, rARG0, v1);
+                    opRegCopy(cUnit, rARG1, v2);
                 } else {
                     if (v1 == rARG1) {
 #if defined(TARGET_ARM)
@@ -671,15 +659,15 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
 #else
                         int rTmp = oatAllocTemp(cUnit);
 #endif
-                        genRegCopy(cUnit, rTmp, v1);
-                        genRegCopy(cUnit, rARG1, v2);
-                        genRegCopy(cUnit, rARG0, rTmp);
+                        opRegCopy(cUnit, rTmp, v1);
+                        opRegCopy(cUnit, rARG1, v2);
+                        opRegCopy(cUnit, rARG0, rTmp);
 #if !(defined(TARGET_ARM))
                         oatFreeTemp(cUnit, rTmp);
 #endif
                     } else {
-                        genRegCopy(cUnit, rARG1, v2);
-                        genRegCopy(cUnit, rARG0, v1);
+                        opRegCopy(cUnit, rARG1, v2);
+                        opRegCopy(cUnit, rARG0, v1);
                     }
                 }
                 funcOffset = OFFSETOF_MEMBER(Thread, pThrowArrayBoundsFromCode);
@@ -694,12 +682,12 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
                     OFFSETOF_MEMBER(Thread, pThrowVerificationErrorFromCode);
                 break;
             case kThrowNegArraySize:
-                genRegCopy(cUnit, rARG0, v1);
+                opRegCopy(cUnit, rARG0, v1);
                 funcOffset =
                     OFFSETOF_MEMBER(Thread, pThrowNegArraySizeFromCode);
                 break;
             case kThrowNoSuchMethod:
-                genRegCopy(cUnit, rARG0, v1);
+                opRegCopy(cUnit, rARG0, v1);
                 funcOffset =
                     OFFSETOF_MEMBER(Thread, pThrowNoSuchMethodFromCode);
                 break;
@@ -859,7 +847,7 @@ void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         // Resolved type returned in rRET0.
         int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                               pInitializeTypeAndVerifyAccessFromCode));
-        genRegCopy(cUnit, rARG1, mReg);
+        opRegCopy(cUnit, rARG1, mReg);
         loadConstant(cUnit, rARG0, type_idx);
         callRuntimeHelper(cUnit, rTgt);
         RegLocation rlResult = oatGetReturn(cUnit);
@@ -877,17 +865,18 @@ void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                 type_idx) || SLOW_TYPE_PATH) {
             // Slow path, at runtime test if type is null and if so initialize
             oatFlushAllRegs(cUnit);
-            LIR* branch1 = genCmpImmBranch(cUnit, kCondEq, rlResult.lowReg, 0);
+            LIR* branch1 = opCmpImmBranch(cUnit, kCondEq, rlResult.lowReg, 0,
+                                          NULL);
             // Resolved, store and hop over following code
             storeValue(cUnit, rlDest, rlResult);
-            LIR* branch2 = genUnconditionalBranch(cUnit,0);
+            LIR* branch2 = opUnconditionalBranch(cUnit,0);
             // TUNING: move slow path to end & remove unconditional branch
             LIR* target1 = newLIR0(cUnit, kPseudoTargetLabel);
             target1->defMask = ENCODE_ALL;
             // Call out to helper, which will return resolved type in rARG0
             int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                                   pInitializeTypeFromCode));
-            genRegCopy(cUnit, rARG1, mReg);
+            opRegCopy(cUnit, rARG1, mReg);
             loadConstant(cUnit, rARG0, type_idx);
             callRuntimeHelper(cUnit, rTgt);
             RegLocation rlResult = oatGetReturn(cUnit);
@@ -928,13 +917,13 @@ void genConstString(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         genBarrier(cUnit);
         // For testing, always force through helper
         if (!EXERCISE_SLOWEST_STRING_PATH) {
-            genIT(cUnit, kArmCondEq, "T");
+            opIT(cUnit, kArmCondEq, "T");
         }
-        genRegCopy(cUnit, rARG0, rARG2);   // .eq
+        opRegCopy(cUnit, rARG0, rARG2);   // .eq
         opReg(cUnit, kOpBlx, rTgt);        // .eq, helper(Method*, string_idx)
 #else
-        LIR* branch = genCmpImmBranch(cUnit, kCondNe, rRET0, 0);
-        genRegCopy(cUnit, rARG0, rARG2);   // .eq
+        LIR* branch = opCmpImmBranch(cUnit, kCondNe, rRET0, 0, NULL);
+        opRegCopy(cUnit, rARG0, rARG2);   // .eq
         opReg(cUnit, kOpBlx, rTgt);
         LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
         target->defMask = ENCODE_ALL;
@@ -997,7 +986,7 @@ void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                               pInitializeTypeAndVerifyAccessFromCode));
         loadConstant(cUnit, rARG0, type_idx);
         callRuntimeHelper(cUnit, rTgt);  // InitializeTypeAndVerifyAccess(idx, method)
-        genRegCopy(cUnit, classReg, rRET0);  // Align usage with fast path
+        opRegCopy(cUnit, classReg, rRET0);  // Align usage with fast path
         loadValueDirectFixed(cUnit, rlSrc, rARG0);  // rARG0 <= ref
     } else {
         // Load dex cache entry into classReg (rARG2)
@@ -1012,14 +1001,14 @@ void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(
                 cUnit->dex_cache, type_idx)) {
             // Need to test presence of type in dex cache at runtime
-            LIR* hopBranch = genCmpImmBranch(cUnit, kCondNe, classReg, 0);
+            LIR* hopBranch = opCmpImmBranch(cUnit, kCondNe, classReg, 0, NULL);
             // Not resolved
             // Call out to helper, which will return resolved type in rRET0
             int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                                   pInitializeTypeFromCode));
             loadConstant(cUnit, rARG0, type_idx);
             callRuntimeHelper(cUnit, rTgt);  // InitializeTypeFromCode(idx, method)
-            genRegCopy(cUnit, rARG2, rRET0); // Align usage with fast path
+            opRegCopy(cUnit, rARG2, rRET0); // Align usage with fast path
             loadValueDirectFixed(cUnit, rlSrc, rARG0);  /* reload Ref */
             // Rejoin code paths
             LIR* hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
@@ -1028,7 +1017,7 @@ void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         }
     }
     /* rARG0 is ref, rARG2 is class. If ref==null, use directly as bool result */
-    LIR* branch1 = genCmpImmBranch(cUnit, kCondEq, rARG0, 0);
+    LIR* branch1 = opCmpImmBranch(cUnit, kCondEq, rARG0, 0, NULL);
     /* load object->clazz */
     DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
     loadWordDisp(cUnit, rARG0,  Object::ClassOffset().Int32Value(), rARG1);
@@ -1038,9 +1027,9 @@ void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 #if defined(TARGET_ARM)
     opRegReg(cUnit, kOpCmp, rARG1, rARG2);  // Same?
     genBarrier(cUnit);
-    genIT(cUnit, kArmCondEq, "EE");   // if-convert the test
+    opIT(cUnit, kArmCondEq, "EE");   // if-convert the test
     loadConstant(cUnit, rARG0, 1);       // .eq case - load true
-    genRegCopy(cUnit, rARG0, rARG2);        // .ne case - arg0 <= class
+    opRegCopy(cUnit, rARG0, rARG2);        // .ne case - arg0 <= class
     opReg(cUnit, kOpBlx, rTgt);        // .ne case: helper(class, ref->class)
     genBarrier(cUnit);
     oatClobberCalleeSave(cUnit);
@@ -1075,7 +1064,7 @@ void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
                               pInitializeTypeAndVerifyAccessFromCode));
         loadConstant(cUnit, rARG0, type_idx);
         callRuntimeHelper(cUnit, rTgt);  // InitializeTypeAndVerifyAccess(idx, method)
-        genRegCopy(cUnit, classReg, rRET0);  // Align usage with fast path
+        opRegCopy(cUnit, classReg, rRET0);  // Align usage with fast path
     } else {
         // Load dex cache entry into classReg (rARG2)
         loadWordDisp(cUnit, rARG1,
@@ -1088,13 +1077,13 @@ void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
         if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(
                 cUnit->dex_cache, type_idx)) {
             // Need to test presence of type in dex cache at runtime
-            LIR* hopBranch = genCmpImmBranch(cUnit, kCondNe, classReg, 0);
+            LIR* hopBranch = opCmpImmBranch(cUnit, kCondNe, classReg, 0, NULL);
             // Not resolved
             // Call out to helper, which will return resolved type in rARG0
             int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pInitializeTypeFromCode));
             loadConstant(cUnit, rARG0, type_idx);
             callRuntimeHelper(cUnit, rTgt);  // InitializeTypeFromCode(idx, method)
-            genRegCopy(cUnit, classReg, rARG0); // Align usage with fast path
+            opRegCopy(cUnit, classReg, rARG0); // Align usage with fast path
             // Rejoin code paths
             LIR* hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
             hopTarget->defMask = ENCODE_ALL;
@@ -1104,7 +1093,7 @@ void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     // At this point, classReg (rARG2) has class
     loadValueDirectFixed(cUnit, rlSrc, rARG0);  // rARG0 <= ref
     /* Null is OK - continue */
-    LIR* branch1 = genCmpImmBranch(cUnit, kCondEq, rARG0, 0);
+    LIR* branch1 = opCmpImmBranch(cUnit, kCondEq, rARG0, 0, NULL);
     /* load object->clazz */
     DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
     loadWordDisp(cUnit, rARG0,  Object::ClassOffset().Int32Value(), rARG1);
@@ -1112,13 +1101,13 @@ void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                           pCheckCastFromCode));
 #if defined(TARGET_MIPS)
-    LIR* branch2 = genCompareBranch(cUnit, kCondEq, rARG1, classReg);
+    LIR* branch2 = opCmpBranch(cUnit, kCondEq, rARG1, classReg, NULL);
 #else
     opRegReg(cUnit, kOpCmp, rARG1, classReg);
-    LIR* branch2 = opCondBranch(cUnit, kCondEq); /* If equal, trivial yes */
+    LIR* branch2 = opCondBranch(cUnit, kCondEq, NULL); /* If eq, trivial yes */
 #endif
-    genRegCopy(cUnit, rARG0, rARG1);
-    genRegCopy(cUnit, rARG1, rARG2);
+    opRegCopy(cUnit, rARG0, rARG1);
+    opRegCopy(cUnit, rARG1, rARG2);
     callRuntimeHelper(cUnit, rTgt);
     /* branch target here */
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
@@ -1173,7 +1162,7 @@ void genArrayObjPut(CompilationUnit* cUnit, MIR* mir, RegLocation rlArray,
         regPtr = rlArray.lowReg;
     } else {
         regPtr = oatAllocTemp(cUnit);
-        genRegCopy(cUnit, regPtr, rlArray.lowReg);
+        opRegCopy(cUnit, regPtr, rlArray.lowReg);
     }
 
     if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
@@ -1290,7 +1279,7 @@ void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
         regPtr = rlArray.lowReg;
     } else {
         regPtr = oatAllocTemp(cUnit);
-        genRegCopy(cUnit, regPtr, rlArray.lowReg);
+        opRegCopy(cUnit, regPtr, rlArray.lowReg);
     }
 
     /* null object? */
@@ -1357,7 +1346,7 @@ void genLong3Addr(CompilationUnit* cUnit, MIR* mir, OpKind firstOp,
     // The longs may overlap - use intermediate temp if so
     if (rlResult.lowReg == rlSrc1.highReg) {
         int tReg = oatAllocTemp(cUnit);
-        genRegCopy(cUnit, tReg, rlSrc1.highReg);
+        opRegCopy(cUnit, tReg, rlSrc1.highReg);
         opRegRegReg(cUnit, firstOp, rlResult.lowReg, rlSrc1.lowReg,
                     rlSrc2.lowReg);
         opRegRegReg(cUnit, secondOp, rlResult.highReg, tReg,
@@ -1789,7 +1778,7 @@ bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
     // Avoid shifts by literal 0 - no support in Thumb.  Change to copy
     if (shiftOp && (lit == 0)) {
-        genRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
+        opRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
     } else {
         opRegRegImm(cUnit, op, rlResult.lowReg, rlSrc.lowReg, lit);
     }
@@ -1815,7 +1804,7 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             // Check for destructive overlap
             if (rlResult.lowReg == rlSrc2.highReg) {
                 int tReg = oatAllocTemp(cUnit);
-                genRegCopy(cUnit, tReg, rlSrc2.highReg);
+                opRegCopy(cUnit, tReg, rlSrc2.highReg);
                 opRegReg(cUnit, kOpMvn, rlResult.lowReg, rlSrc2.lowReg);
                 opRegReg(cUnit, kOpMvn, rlResult.highReg, tReg);
                 oatFreeTemp(cUnit, tReg);
@@ -2117,11 +2106,11 @@ void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset)
     oatClobberCalleeSave(cUnit);
 #if defined(TARGET_ARM)
     opRegImm(cUnit, kOpCmp, rSUSPEND, 0);
-    genIT(cUnit, kArmCondNe, "T");
+    opIT(cUnit, kArmCondNe, "T");
     loadConstant(cUnit, rARG2, offset);     // arg2 <- Entry code
     opReg(cUnit, kOpBlx, rSUSPEND);
 #else
-    LIR* branch = genCmpImmBranch(cUnit, kCondEq, rSUSPEND, 0);
+    LIR* branch = opCmpImmBranch(cUnit, kCondEq, rSUSPEND, 0, NULL);
     loadConstant(cUnit, rARG2, offset);
     opReg(cUnit, kOpBlx, rSUSPEND);
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
@@ -2141,15 +2130,15 @@ void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
     LIR* branch;
     if (cUnit->genDebugger) {
         // If generating code for the debugger, always check for suspension
-        branch = genUnconditionalBranch(cUnit, NULL);
+        branch = opUnconditionalBranch(cUnit, NULL);
     } else {
 #if defined(TARGET_ARM)
         // In non-debug case, only check periodically
         newLIR2(cUnit, kThumbSubRI8, rSUSPEND, 1);
-        branch = opCondBranch(cUnit, kCondEq);
+        branch = opCondBranch(cUnit, kCondEq, NULL);
 #else
         opRegImm(cUnit, kOpSub, rSUSPEND, 1);
-        branch = genCmpImmBranch(cUnit, kCondEq, rSUSPEND, 0);
+        branch = opCmpImmBranch(cUnit, kCondEq, rSUSPEND, 0, NULL);
 #endif
     }
     LIR* retLab = newLIR0(cUnit, kPseudoTargetLabel);

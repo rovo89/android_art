@@ -72,10 +72,17 @@ namespace art {
  *     n -> complimented Thumb2 modified immediate
  *     M -> Thumb2 16-bit zero-extended immediate
  *     b -> 4-digit binary
+ *     N -> append a NOP
  *
  *  [!] escape.  To insert "!", use "!!"
  */
 /* NOTE: must be kept in sync with enum MipsOpcode from LIR.h */
+/*
+ * TUNING: We're currently punting on the branch delay slots.  All branch
+ * instructions in this map are given a size of 8, which during assembly
+ * is expanded to include a nop.  This scheme should be replaced with
+ * an assembler pass to fill those slots when possible.
+ */
 MipsEncodingMap EncodingMap[kMipsLast] = {
     ENCODING_MAP(kMips32BitData, 0x00000000,
                  kFmtBitBlt, 31, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
@@ -100,43 +107,43 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
     ENCODING_MAP(kMipsB, 0x10000000,
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH,
-                 "b", "!0t", 4),
+                 "b", "!0t!0N", 8),
     ENCODING_MAP(kMipsBal, 0x04110000,
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH | REG_DEF_LR,
-                 "bal", "!0t", 4),
+                 "bal", "!0t!0N", 8),
     ENCODING_MAP(kMipsBeq, 0x10000000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0,
                  kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_USE01,
-                 "beq", "!0r,!1r,!2t", 4),
+                 "beq", "!0r,!1r,!2t!0N", 8),
     ENCODING_MAP(kMipsBeqz, 0x10000000, /* same as beq above with t = $zero */
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "beqz", "!0r,!1t", 4),
+                 "beqz", "!0r,!1t!0N", 8),
     ENCODING_MAP(kMipsBgez, 0x04010000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "bgez", "!0r,!1t", 4),
+                 "bgez", "!0r,!1t!0N", 8),
     ENCODING_MAP(kMipsBgtz, 0x1C000000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "bgtz", "!0r,!1t", 4),
+                 "bgtz", "!0r,!1t!0N", 8),
     ENCODING_MAP(kMipsBlez, 0x18000000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "blez", "!0r,!1t", 4),
+                 "blez", "!0r,!1t!0N", 8),
     ENCODING_MAP(kMipsBltz, 0x04000000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "bltz", "!0r,!1t", 4),
+                 "bltz", "!0r,!1t!0N", 8),
     ENCODING_MAP(kMipsBnez, 0x14000000, /* same as bne below with t = $zero */
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "bnez", "!0r,!1t", 4),
+                 "bnez", "!0r,!1t!0N", 8),
     ENCODING_MAP(kMipsBne, 0x14000000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0,
                  kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_USE01,
-                 "bne", "!0r,!1r,!2t", 4),
+                 "bne", "!0r,!1r,!2t!0N", 8),
     ENCODING_MAP(kMipsDiv, 0x0000001a,
                  kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtBitBlt, 25, 21,
                  kFmtBitBlt, 20, 16, IS_QUAD_OP | REG_DEF01 | REG_USE23,
@@ -150,15 +157,15 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
     ENCODING_MAP(kMipsJal, 0x0c000000,
                  kFmtBitBlt, 25, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_DEF_LR,
-                 "jal", "!0T(!0E)", 4),
+                 "jal", "!0T(!0E)!0N", 8),
     ENCODING_MAP(kMipsJalr, 0x00000009,
                  kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_DEF0_USE1,
-                 "jalr", "!0r,!1r", 4),
+                 "jalr", "!0r,!1r!0N", 8),
     ENCODING_MAP(kMipsJr, 0x00000008,
                  kFmtBitBlt, 25, 21, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "jr", "!0r", 4),
+                 "jr", "!0r!0N", 8),
     ENCODING_MAP(kMipsLahi, 0x3C000000,
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0,
@@ -520,10 +527,17 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                                << (int)encoder->fieldLoc[i].kind;
             }
         }
-        DCHECK_EQ(encoder->size, 2);
+        DCHECK_EQ(encoder->size, 4);
         // FIXME: need multi-endian handling here
         cUnit->codeBuffer.push_back((bits >> 16) & 0xffff);
         cUnit->codeBuffer.push_back(bits & 0xffff);
+        // TUNING: replace with proper delay slot handling
+        if (encoder->size == 8) {
+            const MipsEncodingMap *encoder = &EncodingMap[kMipsNop];
+            u4 bits = encoder->skeleton;
+            cUnit->codeBuffer.push_back((bits >> 16) & 0xffff);
+            cUnit->codeBuffer.push_back(bits & 0xffff);
+        }
     }
     return res;
 }

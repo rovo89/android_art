@@ -228,12 +228,12 @@ bool genCmpFP(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     DCHECK(!FPREG(rlResult.lowReg));
     newLIR0(cUnit, kThumb2Fmstat);
 
-    genIT(cUnit, (defaultResult == -1) ? kArmCondGt : kArmCondMi, "");
+    opIT(cUnit, (defaultResult == -1) ? kArmCondGt : kArmCondMi, "");
     newLIR2(cUnit, kThumb2MovImmShift, rlResult.lowReg,
             modifiedImmediate(-defaultResult)); // Must not alter ccodes
     genBarrier(cUnit);
 
-    genIT(cUnit, kArmCondEq, "");
+    opIT(cUnit, kArmCondEq, "");
     loadConstant(cUnit, rlResult.lowReg, 0);
     genBarrier(cUnit);
 

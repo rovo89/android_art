@@ -212,10 +212,12 @@ LIR* opNone(CompilationUnit* cUnit, OpKind op)
     return newLIR0(cUnit, opcode);
 }
 
-LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc)
+LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target)
 {
-    return newLIR2(cUnit, kThumb2BCond, 0 /* offset to be patched */,
-                   oatArmConditionEncoding(cc));
+    LIR* branch = newLIR2(cUnit, kThumb2BCond, 0 /* offset to be patched */,
+                          oatArmConditionEncoding(cc));
+    branch->target = target;
+    return branch;
 }
 
 LIR* opReg(CompilationUnit* cUnit, OpKind op, int rDestSrc)

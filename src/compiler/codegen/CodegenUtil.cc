@@ -304,7 +304,7 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
             } else {
                 std::string op_name(buildInsnString(EncodingMap[lir->opcode].name, lir, baseAddr));
                 std::string op_operands(buildInsnString(EncodingMap[lir->opcode].fmt, lir, baseAddr));
-                LOG(INFO) << StringPrintf("%p (%04x): %-9s%s%s", baseAddr + offset, offset,
+                LOG(INFO) << StringPrintf("%05x: %-9s%s%s", (intptr_t)baseAddr + offset,
                     op_name.c_str(), op_operands.c_str(), lir->flags.isNop ? "(nop)" : "");
             }
             break;
@@ -402,7 +402,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
         std::replace(line.begin(), line.end(), ';', '_');
         LOG(INFO) << line;
         for (uint32_t i = 0; i < cUnit->mappingTable.size(); i+=2) {
-            line = StringPrintf("        {0x%08x, 0x%04x},",
+            line = StringPrintf("        {0x%05x, 0x%04x},",
                 cUnit->mappingTable[i], cUnit->mappingTable[i+1]);
             LOG(INFO) << line;
         }

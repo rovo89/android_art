@@ -103,7 +103,7 @@ void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
         genShowTarget(cUnit);
     }
 #if defined(TARGET_MIPS)
-    UNIMPLEMENTED(FATAL) << "Need to handle common target register";
+    UNIMPLEMENTED(WARNING) << "Need to handle common target register";
 #else
     opReg(cUnit, kOpBlx, rLR);
 #endif
@@ -325,7 +325,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             if (bb->taken->startOffset <= mir->offset) {
                 genSuspendTest(cUnit, mir);
             }
-            genUnconditionalBranch(cUnit, &labelList[bb->taken->id]);
+            opUnconditionalBranch(cUnit, &labelList[bb->taken->id]);
             break;
 
         case OP_PACKED_SWITCH:
@@ -830,8 +830,8 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
          * Generate an unconditional branch to the fallthrough block.
          */
         if (bb->fallThrough) {
-            genUnconditionalBranch(cUnit,
-                                   &labelList[bb->fallThrough->id]);
+            opUnconditionalBranch(cUnit,
+                                  &labelList[bb->fallThrough->id]);
         }
     }
     return false;
@@ -856,20 +856,20 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
 /* Needed by the ld/st optmizatons */
 LIR* oatRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
 {
-    return genRegCopyNoInsert(cUnit, rDest, rSrc);
+    return opRegCopyNoInsert(cUnit, rDest, rSrc);
 }
 
 /* Needed by the register allocator */
 void oatRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
 {
-    genRegCopy(cUnit, rDest, rSrc);
+    opRegCopy(cUnit, rDest, rSrc);
 }
 
 /* Needed by the register allocator */
 void oatRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
                             int srcLo, int srcHi)
 {
-    genRegCopyWide(cUnit, destLo, destHi, srcLo, srcHi);
+    opRegCopyWide(cUnit, destLo, destHi, srcLo, srcHi);
 }
 
 void oatFlushRegImpl(CompilationUnit* cUnit, int rBase,

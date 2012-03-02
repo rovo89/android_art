@@ -63,7 +63,7 @@ void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int reg1)
 {
     rlSrc = oatUpdateLoc(cUnit, rlSrc);
     if (rlSrc.location == kLocPhysReg) {
-        genRegCopy(cUnit, reg1, rlSrc.lowReg);
+        opRegCopy(cUnit, reg1, rlSrc.lowReg);
     } else {
         DCHECK(rlSrc.location == kLocDalvikFrame);
         loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, rlSrc.sRegLow), reg1);
@@ -92,7 +92,7 @@ void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc, int regLo,
 {
     rlSrc = oatUpdateLocWide(cUnit, rlSrc);
     if (rlSrc.location == kLocPhysReg) {
-        genRegCopyWide(cUnit, regLo, regHi, rlSrc.lowReg, rlSrc.highReg);
+        opRegCopyWide(cUnit, regLo, regHi, rlSrc.lowReg, rlSrc.highReg);
     } else {
         DCHECK(rlSrc.location == kLocDalvikFrame);
         loadBaseDispWide(cUnit, NULL, rSP,
@@ -142,7 +142,7 @@ void storeValue(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
             (rlDest.location == kLocPhysReg)) {
             // Src is live/promoted or Dest has assigned reg.
             rlDest = oatEvalLoc(cUnit, rlDest, kAnyReg, false);
-            genRegCopy(cUnit, rlDest.lowReg, rlSrc.lowReg);
+            opRegCopy(cUnit, rlDest.lowReg, rlSrc.lowReg);
         } else {
             // Just re-assign the registers.  Dest gets Src's regs
             rlDest.lowReg = rlSrc.lowReg;
@@ -202,7 +202,7 @@ void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
             (rlDest.location == kLocPhysReg)) {
             // Src is live or promoted or Dest has assigned reg.
             rlDest = oatEvalLoc(cUnit, rlDest, kAnyReg, false);
-            genRegCopyWide(cUnit, rlDest.lowReg, rlDest.highReg,
+            opRegCopyWide(cUnit, rlDest.lowReg, rlDest.highReg,
                            rlSrc.lowReg, rlSrc.highReg);
         } else {
             // Just re-assign the registers.  Dest gets Src's regs
@@ -249,7 +249,7 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 {
     int regCardBase = oatAllocTemp(cUnit);
     int regCardNo = oatAllocTemp(cUnit);
-    LIR* branchOver = genCmpImmBranch(cUnit, kCondEq, valReg, 0);
+    LIR* branchOver = opCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
     loadWordDisp(cUnit, rSELF, Thread::CardTableOffset().Int32Value(),
                  regCardBase);
     opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, GC_CARD_SHIFT);
@@ -270,7 +270,7 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
 {
 #if defined(METHOD_IN_REG)
-    genRegCopy(cUnit, rTgt, rMETHOD);
+    opRegCopy(cUnit, rTgt, rMETHOD);
 #else
     loadWordDisp(cUnit, rSP, 0, rTgt);
 #endif

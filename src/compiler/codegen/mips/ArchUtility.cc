@@ -22,33 +22,6 @@
 
 namespace art {
 
-MipsConditionCode oatMipsConditionEncoding(ConditionCode code)
-{
-    MipsConditionCode res;
-    switch(code) {
-        case kCondEq: res = kMipsCondEq; break;
-        case kCondNe: res = kMipsCondNe; break;
-        case kCondCs: res = kMipsCondCs; break;
-        case kCondCc: res = kMipsCondCc; break;
-        case kCondMi: res = kMipsCondMi; break;
-        case kCondPl: res = kMipsCondPl; break;
-        case kCondVs: res = kMipsCondVs; break;
-        case kCondVc: res = kMipsCondVc; break;
-        case kCondHi: res = kMipsCondHi; break;
-        case kCondLs: res = kMipsCondLs; break;
-        case kCondGe: res = kMipsCondGe; break;
-        case kCondLt: res = kMipsCondLt; break;
-        case kCondGt: res = kMipsCondGt; break;
-        case kCondLe: res = kMipsCondLe; break;
-        case kCondAl: res = kMipsCondAl; break;
-        case kCondNv: res = kMipsCondNv; break;
-        default:
-            LOG(FATAL) << "Bad condition code" << (int)code;
-            res = (MipsConditionCode)0;  // Quiet gcc
-    }
-    return res;
-}
-
 /* For dumping instructions */
 #define MIPS_REG_COUNT 32
 static const char *mipsRegName[MIPS_REG_COUNT] = {
@@ -112,37 +85,6 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr)
                    case 'F':
                        sprintf(tbuf,"%d", operand*2);
                        break;
-                   case 'c':
-                       switch (operand) {
-                           case kMipsCondEq:
-                               strcpy(tbuf, "eq");
-                               break;
-                           case kMipsCondNe:
-                               strcpy(tbuf, "ne");
-                               break;
-                           case kMipsCondLt:
-                               strcpy(tbuf, "lt");
-                               break;
-                           case kMipsCondGe:
-                               strcpy(tbuf, "ge");
-                               break;
-                           case kMipsCondGt:
-                               strcpy(tbuf, "gt");
-                               break;
-                           case kMipsCondLe:
-                               strcpy(tbuf, "le");
-                               break;
-                           case kMipsCondCs:
-                               strcpy(tbuf, "cs");
-                               break;
-                           case kMipsCondMi:
-                               strcpy(tbuf, "mi");
-                               break;
-                           default:
-                               strcpy(tbuf, "");
-                               break;
-                       }
-                       break;
                    case 't':
                        sprintf(tbuf,"0x%08x (L%p)",
                                (int) baseAddr + lir->offset + 4 +
@@ -171,6 +113,10 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr)
                    case 'r':
                        DCHECK(operand >= 0 && operand < MIPS_REG_COUNT);
                        strcpy(tbuf, mipsRegName[operand]);
+                       break;
+                   case 'N':
+                       // Placeholder for delay slot handling
+                       strcpy(tbuf, ";    nop");
                        break;
                    default:
                        strcpy(tbuf,"DecodeError");

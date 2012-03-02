@@ -75,7 +75,7 @@ void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
                     cUnit->frameSize - (spillCount * 4));
         genRegRegCheck(cUnit, kCondCc, rLR, r12, NULL,
                        kThrowStackOverflow);
-        genRegCopy(cUnit, rSP, rLR);         // Establish stack
+        opRegCopy(cUnit, rSP, rLR);         // Establish stack
     } else {
         opRegImm(cUnit, kOpSub, rSP,
                  cUnit->frameSize - (spillCount * 4));

@@ -37,7 +37,7 @@ namespace art {
  * met, and an "E" means the instruction is executed if the condition
  * is not met.
  */
-LIR* genIT(CompilationUnit* cUnit, ArmConditionCode code, const char* guide)
+LIR* opIT(CompilationUnit* cUnit, ArmConditionCode code, const char* guide)
 {
     int mask;
     int condBit = code & 1;
@@ -58,7 +58,7 @@ LIR* genIT(CompilationUnit* cUnit, ArmConditionCode code, const char* guide)
         case 0:
             break;
         default:
-            LOG(FATAL) << "OAT: bad case in genIT";
+            LOG(FATAL) << "OAT: bad case in opIT";
     }
     mask = (mask3 << 3) | (mask2 << 2) | (mask1 << 1) |
            (1 << (3 - strlen(guide)));
@@ -124,13 +124,12 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     newLIR2(cUnit, kThumb2LdmiaWB, rBase, (1 << rKey) | (1 << rDisp));
     opRegReg(cUnit, kOpCmp, rKey, rlSrc.lowReg);
     // Go if match. NOTE: No instruction set switch here - must stay Thumb2
-    genIT(cUnit, kArmCondEq, "");
+    opIT(cUnit, kArmCondEq, "");
     LIR* switchBranch = newLIR1(cUnit, kThumb2AddPCR, rDisp);
     tabRec->bxInst = switchBranch;
     // Needs to use setflags encoding here
     newLIR3(cUnit, kThumb2SubsRRI12, rIdx, rIdx, 1);
-    LIR* branch = opCondBranch(cUnit, kCondNe);
-    branch->target = (LIR*)target;
+    opCondBranch(cUnit, kCondNe, target);
 }
 
 
@@ -166,7 +165,7 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     }
     // Bounds check - if < 0 or >= size continue following switch
     opRegImm(cUnit, kOpCmp, keyReg, size-1);
-    LIR* branchOver = opCondBranch(cUnit, kCondHi);
+    LIR* branchOver = opCondBranch(cUnit, kCondHi, NULL);
 
     // Load the displacement from the switch table
     int dispReg = oatAllocTemp(cUnit);
@@ -328,7 +327,7 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     opRegImm(cUnit, kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
     newLIR3(cUnit, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
     opRegReg(cUnit, kOpSub, r1, r2);
-    hopBranch = opCondBranch(cUnit, kCondNe);
+    hopBranch = opCondBranch(cUnit, kCondNe, NULL);
     oatGenMemBarrier(cUnit, kSY);
     storeWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r3);
     branch = opNone(cUnit, kOpUncondBr);
@@ -373,12 +372,12 @@ void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     int tReg = oatAllocTemp(cUnit);
     loadConstant(cUnit, tReg, -1);
     opRegReg(cUnit, kOpCmp, rlSrc1.highReg, rlSrc2.highReg);
-    LIR* branch1 = opCondBranch(cUnit, kCondLt);
-    LIR* branch2 = opCondBranch(cUnit, kCondGt);
+    LIR* branch1 = opCondBranch(cUnit, kCondLt, NULL);
+    LIR* branch2 = opCondBranch(cUnit, kCondGt, NULL);
     opRegRegReg(cUnit, kOpSub, tReg, rlSrc1.lowReg, rlSrc2.lowReg);
-    LIR* branch3 = opCondBranch(cUnit, kCondEq);
+    LIR* branch3 = opCondBranch(cUnit, kCondEq, NULL);
 
-    genIT(cUnit, kArmCondHi, "E");
+    opIT(cUnit, kArmCondHi, "E");
     newLIR2(cUnit, kThumb2MovImmShift, tReg, modifiedImmediate(-1));
     loadConstant(cUnit, tReg, 1);
     genBarrier(cUnit);
@@ -404,8 +403,8 @@ void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
  * Generate a register comparison to an immediate and branch.  Caller
  * is responsible for setting branch target field.
  */
-LIR* genCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
-                        int checkValue)
+LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
+                    int checkValue, LIR* target)
 {
     LIR* branch;
     int modImm;
@@ -428,9 +427,10 @@ LIR* genCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
         }
         branch = newLIR2(cUnit, kThumbBCond, 0, armCond);
     }
+    branch->target = target;
     return branch;
 }
-LIR* genRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
+LIR* opRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
 {
     LIR* res;
     ArmOpcode opcode;
@@ -457,14 +457,14 @@ LIR* genRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
     return res;
 }
 
-LIR* genRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
+LIR* opRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
 {
-    LIR* res = genRegCopyNoInsert(cUnit, rDest, rSrc);
+    LIR* res = opRegCopyNoInsert(cUnit, rDest, rSrc);
     oatAppendLIR(cUnit, (LIR*)res);
     return res;
 }
 
-void genRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
+void opRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
                            int srcLo, int srcHi)
 {
     bool destFP = FPREG(destLo) && FPREG(destHi);
@@ -473,7 +473,7 @@ void genRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
     DCHECK_EQ(FPREG(destLo), FPREG(destHi));
     if (destFP) {
         if (srcFP) {
-            genRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
+            opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
         } else {
             newLIR3(cUnit, kThumb2Fmdrr, S2D(destLo, destHi), srcLo, srcHi);
         }
@@ -483,11 +483,11 @@ void genRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
         } else {
             // Handle overlap
             if (srcHi == destLo) {
-                genRegCopy(cUnit, destHi, srcHi);
-                genRegCopy(cUnit, destLo, srcLo);
+                opRegCopy(cUnit, destHi, srcHi);
+                opRegCopy(cUnit, destLo, srcLo);
             } else {
-                genRegCopy(cUnit, destLo, srcLo);
-                genRegCopy(cUnit, destHi, srcHi);
+                opRegCopy(cUnit, destLo, srcLo);
+                opRegCopy(cUnit, destHi, srcHi);
             }
         }
     }

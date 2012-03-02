@@ -311,26 +311,6 @@ typedef enum MipsShiftEncodings {
     kMipsRor = 0x3
 } MipsShiftEncodings;
 
-/* condition encodings */
-typedef enum MipsConditionCode {
-    kMipsCondEq = 0x0,    /* 0000 */
-    kMipsCondNe = 0x1,    /* 0001 */
-    kMipsCondCs = 0x2,    /* 0010 */
-    kMipsCondCc = 0x3,    /* 0011 */
-    kMipsCondMi = 0x4,    /* 0100 */
-    kMipsCondPl = 0x5,    /* 0101 */
-    kMipsCondVs = 0x6,    /* 0110 */
-    kMipsCondVc = 0x7,    /* 0111 */
-    kMipsCondHi = 0x8,    /* 1000 */
-    kMipsCondLs = 0x9,    /* 1001 */
-    kMipsCondGe = 0xa,    /* 1010 */
-    kMipsCondLt = 0xb,    /* 1011 */
-    kMipsCondGt = 0xc,    /* 1100 */
-    kMipsCondLe = 0xd,    /* 1101 */
-    kMipsCondAl = 0xe,    /* 1110 */
-    kMipsCondNv = 0xf,    /* 1111 */
-} MipsConditionCode;
-
 // FIXME: Need support for barriers.  Adding these defines to allow compile
 #define kST 0
 #define kSY 1

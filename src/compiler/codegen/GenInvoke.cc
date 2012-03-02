@@ -58,10 +58,10 @@ void flushIns(CompilationUnit* cUnit)
         if (i <= (lastArgReg - firstArgReg)) {
             // If arriving in register
             if (vMap.coreLocation == kLocPhysReg) {
-                genRegCopy(cUnit, vMap.coreReg, firstArgReg + i);
+                opRegCopy(cUnit, vMap.coreReg, firstArgReg + i);
             }
             if (vMap.fpLocation == kLocPhysReg) {
-                genRegCopy(cUnit, vMap.fpReg, firstArgReg + i);
+                opRegCopy(cUnit, vMap.fpReg, firstArgReg + i);
             }
             // Also put a copy in memory in case we're partially promoted
             storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),

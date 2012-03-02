@@ -29,6 +29,8 @@ namespace art {
 #if defined(_CODEGEN_C)
 LIR *opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int value);
 LIR *opRegReg(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int rSrc2);
+LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
+                    int checkValue, LIR* target);
 
 /* Forward declaraton the portable versions due to circular dependency */
 bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
@@ -47,11 +49,9 @@ int loadHelper(CompilationUnit* cUnit, int offset);
 LIR* callRuntimeHelper(CompilationUnit* cUnit, int reg);
 RegLocation getRetLoc(CompilationUnit* cUnit);
 LIR* loadConstant(CompilationUnit* cUnit, int reg, int immVal);
-void genRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
-                    int srcLo, int srcHi);
-LIR* genRegCopy(CompilationUnit* cUnit, int rDest, int rSrc);
-LIR* genCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
-                     int checkValue);
+void opRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
+                   int srcLo, int srcHi);
+LIR* opRegCopy(CompilationUnit* cUnit, int rDest, int rSrc);
 void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
                      RegLocation rlFree);
 

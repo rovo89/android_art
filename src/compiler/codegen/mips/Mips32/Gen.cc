@@ -85,13 +85,12 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     newLIR2(cUnit, kThumb2LdmiaWB, rBase, (1 << rKey) | (1 << rDisp));
     opRegReg(cUnit, kOpCmp, rKey, rlSrc.lowReg);
     // Go if match. NOTE: No instruction set switch here - must stay Thumb2
-    genIT(cUnit, kArmCondEq, "");
+    opIT(cUnit, kArmCondEq, "");
     LIR* switchBranch = newLIR1(cUnit, kThumb2AddPCR, rDisp);
     tabRec->bxInst = switchBranch;
     // Needs to use setflags encoding here
     newLIR3(cUnit, kThumb2SubsRRI12, rIdx, rIdx, 1);
-    LIR* branch = opCondBranch(cUnit, kCondNe);
-    branch->target = (LIR*)target;
+    LIR* branch = opCondBranch(cUnit, kCondNe, target);
 #endif
 }
 
@@ -130,7 +129,7 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     }
     // Bounds check - if < 0 or >= size continue following switch
     opRegImm(cUnit, kOpCmp, keyReg, size-1);
-    LIR* branchOver = opCondBranch(cUnit, kCondHi);
+    LIR* branchOver = opCondBranch(cUnit, kCondHi, NULL);
 
     // Load the displacement from the switch table
     int dispReg = oatAllocTemp(cUnit);
@@ -201,7 +200,7 @@ void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
     rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
     opRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc.highReg,
                         0x80000000);
-    genRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
+    opRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
     storeValueWide(cUnit, rlDest, rlResult);
 }
 
@@ -260,7 +259,7 @@ void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     newLIR3(cUnit, kMipsSlt, t0, rlSrc1.highReg, rlSrc2.highReg);
     newLIR3(cUnit, kMipsSlt, t1, rlSrc2.highReg, rlSrc1.highReg);
     newLIR3(cUnit, kMipsSubu, rlResult.lowReg, t1, t0);
-    LIR* branch = genCmpImmBranch(cUnit, kCondNe, rlResult.lowReg, 0);
+    LIR* branch = opCmpImmBranch(cUnit, kCondNe, rlResult.lowReg, 0, NULL);
     newLIR3(cUnit, kMipsSltu, t0, rlSrc1.lowReg, rlSrc2.lowReg);
     newLIR3(cUnit, kMipsSltu, t1, rlSrc2.lowReg, rlSrc1.lowReg);
     newLIR3(cUnit, kMipsSubu, rlResult.lowReg, t1, t0);
@@ -272,32 +271,71 @@ void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     storeValue(cUnit, rlDest, rlResult);
 }
 
-LIR* genCompareBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
-                      int src2)
+LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
+                 int src2, LIR* target)
 {
+   LIR* branch;
     if (cond == kCondEq) {
-        return newLIR2(cUnit, kMipsBeq, src1, src2);
+        branch = newLIR2(cUnit, kMipsBeq, src1, src2);
     } else if (cond == kCondNe) {
-        return newLIR2(cUnit, kMipsBne, src1, src2);
+        branch = newLIR2(cUnit, kMipsBne, src1, src2);
+    } else {
+        MipsOpCode sltOp;
+        MipsOpCode brOp;
+        bool swapped = false;
+        switch(cond) {
+            case kCondEq: return newLIR2(cUnit, kMipsBeq, src1, src2);
+            case kCondNe: return newLIR2(cUnit, kMipsBne, src1, src2);
+            case kCondCc:
+                sltOp = kMipsSltu;
+                brOp = kMipsBnez;
+                break;
+            case kCondGe:
+                sltOp = kMipsSlt;
+                brOp = kMipsBeqz;
+                break;
+            case kCondGt:
+                sltOp = kMipsSlt;
+                brOp = kMipsBnez;
+                swapped = true;
+                break;
+            case kCondLe:
+                sltOp = kMipsSlt;
+                brOp = kMipsBeqz;
+                swapped = true;
+                break;
+            case kCondLt:
+                sltOp = kMipsSlt;
+                brOp = kMipsBnez;
+                break;
+            default:
+                UNIMPLEMENTED(FATAL) << "No support for ConditionCode: "
+                                     << (int) cond;
+                return NULL;
+        }
+        int tReg = oatAllocTemp(cUnit);
+        if (swapped) {
+            newLIR3(cUnit, sltOp, tReg, src2, src1);
+        } else {
+            newLIR3(cUnit, sltOp, tReg, src1, src2);
+        }
+        branch = newLIR1(cUnit, brOp, tReg);
+        branch->target = target;
     }
-    //int rRes = oatAllocTemp(cUnit);
-    switch(cond) {
-        case kCondEq: return newLIR2(cUnit, kMipsBeq, src1, src2);
-        case kCondNe: return newLIR2(cUnit, kMipsBne, src1, src2);
-        default:
-            UNIMPLEMENTED(FATAL) << "Need to flesh out genCompareBranch";
-            return NULL;
-    }
+    return branch;
 }
 
-LIR* genCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
-                     int checkValue)
+LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
+                    int checkValue, LIR* target)
 {
+    LIR* branch;
     if (checkValue != 0) {
         // TUNING: handle s16 & kCondLt/Mi case using slti
         int tReg = oatAllocTemp(cUnit);
         loadConstant(cUnit, tReg, checkValue);
-        return genCompareBranch(cUnit, cond, reg, tReg);
+        branch = opCmpBranch(cUnit, cond, reg, tReg, target);
+        oatFreeTemp(cUnit, tReg);
+        return branch;
     }
     MipsOpCode opc;
     switch(cond) {
@@ -309,14 +347,19 @@ LIR* genCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
         case kCondLt: opc = kMipsBltz; break;
         case kCondNe: opc = kMipsBnez; break;
         default:
+            // Tuning: use slti when applicable
             int tReg = oatAllocTemp(cUnit);
             loadConstant(cUnit, tReg, checkValue);
-            return genCompareBranch(cUnit, cond, reg, tReg);
+            branch = opCmpBranch(cUnit, cond, reg, tReg, target);
+            oatFreeTemp(cUnit, tReg);
+            return branch;
     }
-    return newLIR1(cUnit, opc, reg);
+    branch = newLIR1(cUnit, opc, reg);
+    branch->target = target;
+    return branch;
 }
 
-LIR* genRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
+LIR* opRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
 {
     LIR* res;
     MipsOpCode opcode;
@@ -337,14 +380,14 @@ LIR* genRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
     return res;
 }
 
-LIR* genRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
+LIR* opRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
-    LIR *res = genRegCopyNoInsert(cUnit, rDest, rSrc);
+    LIR *res = opRegCopyNoInsert(cUnit, rDest, rSrc);
     oatAppendLIR(cUnit, (LIR*)res);
     return res;
 }
 
-void genRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
+void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
                     int srcLo, int srcHi)
 {
 #ifdef __mips_hard_float
@@ -354,7 +397,7 @@ void genRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
     assert(FPREG(destLo) == FPREG(destHi));
     if (destFP) {
         if (srcFP) {
-            genRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
+            opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
         } else {
            /* note the operands are swapped for the mtc1 instr */
             newLIR2(cUnit, kMipsMtc1, srcLo, destLo);
@@ -367,22 +410,22 @@ void genRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
         } else {
             // Handle overlap
             if (srcHi == destLo) {
-                genRegCopy(cUnit, destHi, srcHi);
-                genRegCopy(cUnit, destLo, srcLo);
+                opRegCopy(cUnit, destHi, srcHi);
+                opRegCopy(cUnit, destLo, srcLo);
             } else {
-                genRegCopy(cUnit, destLo, srcLo);
-                genRegCopy(cUnit, destHi, srcHi);
+                opRegCopy(cUnit, destLo, srcLo);
+                opRegCopy(cUnit, destHi, srcHi);
             }
         }
     }
 #else
     // Handle overlap
     if (srcHi == destLo) {
-        genRegCopy(cUnit, destHi, srcHi);
-        genRegCopy(cUnit, destLo, srcLo);
+        opRegCopy(cUnit, destHi, srcHi);
+        opRegCopy(cUnit, destLo, srcLo);
     } else {
-        genRegCopy(cUnit, destLo, srcLo);
-        genRegCopy(cUnit, destHi, srcHi);
+        opRegCopy(cUnit, destLo, srcLo);
+        opRegCopy(cUnit, destHi, srcHi);
     }
 #endif
 }

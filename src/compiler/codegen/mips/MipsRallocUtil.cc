@@ -122,8 +122,6 @@ extern void oatClobberCalleeSave(CompilationUnit *cUnit)
     oatClobber(cUnit, r_GP);
     oatClobber(cUnit, r_FP);
     oatClobber(cUnit, r_RA);
-    oatClobber(cUnit, r_HI);
-    oatClobber(cUnit, r_LO);
     oatClobber(cUnit, r_F0);
     oatClobber(cUnit, r_F1);
     oatClobber(cUnit, r_F2);
