@@ -212,7 +212,7 @@ void ThreadList::SuspendSelfForDebugger() {
   // Suspend ourselves.
   CHECK_GT(self->suspend_count_, 0);
   self->SetState(Thread::kSuspended);
-  VLOG(threads) << *self << " self-suspending (dbg)";
+  VLOG(threads) << *self << " self-suspending (debugger)";
 
   // Tell JDWP that we've completed suspension. The JDWP thread can't
   // tell us to resume before we're fully asleep because we hold the
@@ -232,7 +232,7 @@ void ThreadList::SuspendSelfForDebugger() {
   }
   CHECK_EQ(self->suspend_count_, 0);
   self->SetState(Thread::kRunnable);
-  VLOG(threads) << *self << " self-reviving (dbg)";
+  VLOG(threads) << *self << " self-reviving (debugger)";
 }
 
 void ThreadList::ResumeAll(bool for_debugger) {
