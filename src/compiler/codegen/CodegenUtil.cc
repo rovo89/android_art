@@ -304,7 +304,7 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
             } else {
                 std::string op_name(buildInsnString(EncodingMap[lir->opcode].name, lir, baseAddr));
                 std::string op_operands(buildInsnString(EncodingMap[lir->opcode].fmt, lir, baseAddr));
-                LOG(INFO) << StringPrintf("%05x: %-9s%s%s", ((uintptr_t)baseAddr + offset),
+                LOG(INFO) << StringPrintf("%05x: %-9s%s%s", (unsigned int)(baseAddr + offset),
                     op_name.c_str(), op_operands.c_str(), lir->flags.isNop ? "(nop)" : "");
             }
             break;
