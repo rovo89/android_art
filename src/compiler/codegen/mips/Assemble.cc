@@ -527,7 +527,6 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                                << (int)encoder->fieldLoc[i].kind;
             }
         }
-        DCHECK_EQ(encoder->size, 4);
         // FIXME: need multi-endian handling here
         cUnit->codeBuffer.push_back((bits >> 16) & 0xffff);
         cUnit->codeBuffer.push_back(bits & 0xffff);

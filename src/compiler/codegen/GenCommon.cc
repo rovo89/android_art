@@ -584,9 +584,9 @@ void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 // Debugging routine - if null target, branch to DebugMe
 void genShowTarget(CompilationUnit* cUnit)
 {
-    LIR* branchOver = opCmpImmBranch(cUnit, kCondNe, rLINK, 0, NULL);
+    LIR* branchOver = opCmpImmBranch(cUnit, kCondNe, rINVOKE_TGT, 0, NULL);
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pDebugMe), rLINK);
+                 OFFSETOF_MEMBER(Thread, pDebugMe), rINVOKE_TGT);
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
     target->defMask = -1;
     branchOver->target = (LIR*)target;
@@ -703,6 +703,7 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
         }
         int rTgt = loadHelper(cUnit, funcOffset);
         callRuntimeHelper(cUnit, rTgt);
+        oatFreeTemp(cUnit, rTgt);
     }
 }
 
@@ -1022,28 +1023,34 @@ void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
     loadWordDisp(cUnit, rARG0,  Object::ClassOffset().Int32Value(), rARG1);
     /* rARG0 is ref, rARG1 is ref->clazz, rARG2 is class */
+#if defined(TARGET_ARM)
+    /* Uses conditional nullification */
     int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                           pInstanceofNonTrivialFromCode));
-#if defined(TARGET_ARM)
     opRegReg(cUnit, kOpCmp, rARG1, rARG2);  // Same?
-    genBarrier(cUnit);
     opIT(cUnit, kArmCondEq, "EE");   // if-convert the test
     loadConstant(cUnit, rARG0, 1);       // .eq case - load true
     opRegCopy(cUnit, rARG0, rARG2);        // .ne case - arg0 <= class
     opReg(cUnit, kOpBlx, rTgt);        // .ne case: helper(class, ref->class)
-    genBarrier(cUnit);
-    oatClobberCalleeSave(cUnit);
 #else
-    (void)rTgt;
-    // Perhaps a general-purpose kOpSelect operator?
-    UNIMPLEMENTED(FATAL) << "Need non IT implementation";
+    /* Uses branchovers */
+    loadConstant(cUnit, rARG0, 1);       // assume true
+    LIR* branchover = opCmpBranch(cUnit, kCondEq, rARG1, rARG2, NULL);
+    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
+                          pInstanceofNonTrivialFromCode));
+    opRegCopy(cUnit, rARG0, rARG2);        // .ne case - arg0 <= class
+    opReg(cUnit, kOpBlx, rTgt);        // .ne case: helper(class, ref->class)
 #endif
-    /* branch target here */
+    oatClobberCalleeSave(cUnit);
+    /* branch targets here */
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
     target->defMask = ENCODE_ALL;
     RegLocation rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
-    branch1->target = (LIR*)target;
+    branch1->target = target;
+#if !defined(TARGET_ARM)
+    branchover->target = target;
+#endif
 }
 
 void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
@@ -1616,11 +1623,14 @@ void genMultiplyByTwoBitMultiplier(CompilationUnit* cUnit, RegLocation rlSrc,
                                    RegLocation rlResult, int lit,
                                    int firstBit, int secondBit)
 {
-#if defined(TARGET_MIPS)
-    UNIMPLEMENTED(FATAL) << "Need shift & add primative";
-#else
+#if defined(TARGET_ARM)
     opRegRegRegShift(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, rlSrc.lowReg,
                      encodeShift(kArmLsl, secondBit - firstBit));
+#else
+    int tReg = oatAllocTemp(cUnit);
+    opRegRegImm(cUnit, kOpLsl, tReg, rlSrc.lowReg, secondBit - firstBit);
+    opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, tReg);
+    oatFreeTemp(cUnit, tReg);
 #endif
     if (firstBit != 0) {
         opRegRegImm(cUnit, kOpLsl, rlResult.lowReg, rlResult.lowReg, firstBit);
