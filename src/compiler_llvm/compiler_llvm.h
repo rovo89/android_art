@@ -83,9 +83,9 @@ class CompilerLLVM {
   CompiledInvokeStub* CreateInvokeStub(bool is_static, char const *shorty);
 
  private:
-  void EnsureCompilationUnit(MutexLock& GUARD);
+  void EnsureCompilationUnit();
 
-  void Materialize(MutexLock& GUARD);
+  void Materialize();
 
   bool IsBitcodeFileNameAvailable() const {
     return !bitcode_filename_.empty();
