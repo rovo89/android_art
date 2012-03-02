@@ -547,7 +547,7 @@ typedef struct MipsEncodingMap {
     int flags;
     const char *name;
     const char* fmt;
-    int size;
+    int size;     /* Size in bytes */
 } MipsEncodingMap;
 
 /* Keys for target-specific scheduling and other optimization hints */

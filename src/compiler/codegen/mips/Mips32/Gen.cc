@@ -184,6 +184,27 @@ void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 #endif
 }
 
+void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
+{
+    RegLocation rlResult;
+    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+    rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    opRegRegImm(cUnit, kOpAdd, rlResult.lowReg,
+                rlSrc.lowReg, 0x80000000);
+    storeValue(cUnit, rlDest, rlResult);
+}
+
+void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
+{
+    RegLocation rlResult;
+    rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
+    rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    opRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc.highReg,
+                        0x80000000);
+    genRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
+    storeValueWide(cUnit, rlDest, rlResult);
+}
+
 /*
  * TODO: implement fast path to short-circuit thin-lock case
  */

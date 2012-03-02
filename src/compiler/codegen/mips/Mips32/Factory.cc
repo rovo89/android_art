@@ -41,8 +41,6 @@ static int fpTemps[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
 void genBarrier(CompilationUnit *cUnit);
 LIR* genCompareBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
                       int src2);
-LIR* opCompareBranch(CompilationUnit* cUnit, MipsOpCode opc, int src1,
-                      int src2);
 void storePair(CompilationUnit *cUnit, int base, int lowReg,
                int highReg);
 void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg);
@@ -789,68 +787,16 @@ LIR *storeBaseDispWide(CompilationUnit *cUnit, int rBase,
     return storeBaseDispBody(cUnit, rBase, displacement, rSrcLo, rSrcHi, kLong);
 }
 
+void storePair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
+{
+    storeWordDisp(cUnit, base, LOWORD_OFFSET, lowReg);
+    storeWordDisp(cUnit, base, HIWORD_OFFSET, highReg);
+}
+
 void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
 {
     loadWordDisp(cUnit, base, LOWORD_OFFSET , lowReg);
     loadWordDisp(cUnit, base, HIWORD_OFFSET , highReg);
-}
-
-LIR *genRegImmCheck(CompilationUnit *cUnit,
-                               MipsConditionCode cond, int reg,
-                               int checkValue, int dOffset,
-                               LIR *pcrLabel)
-{
-    LIR *branch = NULL;
-
-    if (checkValue == 0) {
-        MipsOpCode opc = kMipsNop;
-        if (cond == kMipsCondEq) {
-            opc = kMipsBeqz;
-        } else if (cond == kMipsCondNe) {
-            opc = kMipsBnez;
-        } else if (cond == kMipsCondLt || cond == kMipsCondMi) {
-            opc = kMipsBltz;
-        } else if (cond == kMipsCondLe) {
-            opc = kMipsBlez;
-        } else if (cond == kMipsCondGt) {
-            opc = kMipsBgtz;
-        } else if (cond == kMipsCondGe) {
-            opc = kMipsBgez;
-        } else {
-            LOG(FATAL) << "Bad case in genRegImmCheck";
-        }
-        branch = opCompareBranch(cUnit, opc, reg, -1);
-    } else if (IS_SIMM16(checkValue)) {
-        if (cond == kMipsCondLt) {
-            int tReg = oatAllocTemp(cUnit);
-            newLIR3(cUnit, kMipsSlti, tReg, reg, checkValue);
-            branch = opCompareBranch(cUnit, kMipsBne, tReg, r_ZERO);
-            oatFreeTemp(cUnit, tReg);
-        } else {
-            LOG(FATAL) << "Bad case in genRegImmCheck";
-        }
-    } else {
-        LOG(FATAL) << "Bad case in genRegImmCheck";
-    }
-
-    UNIMPLEMENTED(FATAL) << "Needs art conversion";
-    return NULL;
-#if 0
-    if (cUnit->jitMode == kJitMethod) {
-        BasicBlock *bb = cUnit->curBlock;
-        if (bb->taken) {
-            LIR  *exceptionLabel = (LIR *) cUnit->blockLabelList;
-            exceptionLabel += bb->taken->id;
-            branch->target = (LIR *) exceptionLabel;
-            return exceptionLabel;
-        } else {
-            LOG(FATAL) <<  "Catch blocks not handled yet";
-            return NULL;
-        }
-    } else {
-        return genCheckCommon(cUnit, dOffset, branch, pcrLabel);
-    }
-#endif
 }
 
 }  // namespace art

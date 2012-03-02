@@ -139,8 +139,8 @@ typedef struct LIR {
         bool isNop:1;           // LIR is optimized away
         bool pcRelFixup:1;      // May need pc-relative fixup
         unsigned int age:4;     // default is 0, set lazily by the optimizer
-        unsigned int size:4;    // in bytes
-        unsigned int unused:22;
+        unsigned int size:5;    // in bytes
+        unsigned int unused:21;
     } flags;
     int aliasInfo;              // For Dalvik register & litpool disambiguation
     u8 useMask;                 // Resource mask for use
