@@ -404,6 +404,7 @@ void Thread::Dump(std::ostream& os, bool full) const {
     }
     os << GetState()
        << ",Thread*=" << this
+       << ",peer=" << peer_
        << ",\"" << *name_ << "\""
        << "]";
   }
@@ -436,6 +437,10 @@ std::string GetSchedulerGroup(pid_t tid) {
 
 String* Thread::GetThreadName() const {
   return (peer_ != NULL) ? reinterpret_cast<String*>(gThread_name->GetObject(peer_)) : NULL;
+}
+
+void Thread::GetThreadName(std::string& name) const {
+  name.assign(*name_);
 }
 
 void Thread::DumpState(std::ostream& os) const {
@@ -586,6 +591,10 @@ struct StackDumpVisitor : public Thread::StackVisitor {
 };
 
 void Thread::DumpStack(std::ostream& os) const {
+  // If we're currently in native code, dump that stack before dumping the managed stack.
+  if (GetState() == Thread::kNative || GetState() == Thread::kVmWait) {
+    DumpNativeStack(os);
+  }
   StackDumpVisitor dumper(os, this);
   WalkStack(&dumper);
 }
@@ -681,7 +690,7 @@ bool Thread::IsSuspended() {
 static void ReportThreadSuspendTimeout(Thread* waiting_thread) {
   Runtime* runtime = Runtime::Current();
   std::ostringstream ss;
-  ss << "Thread suspend timeout; waiting thread=" << *waiting_thread << "\n";
+  ss << "Thread suspend timeout waiting for thread " << *waiting_thread << "\n";
   runtime->DumpLockHolders(ss);
   ss << "\n";
   runtime->GetThreadList()->DumpLocked(ss);
@@ -841,6 +850,7 @@ Thread::Thread()
       trace_stack_(new std::vector<TraceStackFrame>),
       name_(new std::string("<native thread without managed peer>")) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
+  memset(&held_mutexes_[0], 0, sizeof(held_mutexes_));
 }
 
 void MonitorExitVisitor(const Object* object, void*) {
@@ -1662,6 +1672,25 @@ std::ostream& operator<<(std::ostream& os, const Thread::State& state) {
 std::ostream& operator<<(std::ostream& os, const Thread& thread) {
   thread.Dump(os, false);
   return os;
+}
+
+void Thread::CheckRank(MutexRank rank, bool is_locking) {
+  if (is_locking) {
+    if (held_mutexes_[rank] == 0) {
+      bool bad_mutexes_held = false;
+      for (int i = kMaxMutexRank; i > rank; --i) {
+        if (held_mutexes_[i] != 0) {
+          LOG(ERROR) << "holding " << static_cast<MutexRank>(i) << " while " << (is_locking ? "locking" : "unlocking") << " " << rank;
+          bad_mutexes_held = true;
+        }
+      }
+      CHECK(!bad_mutexes_held);
+    }
+    ++held_mutexes_[rank];
+  } else {
+    CHECK_GT(held_mutexes_[rank], 0U);
+    --held_mutexes_[rank];
+  }
 }
 
 }  // namespace art

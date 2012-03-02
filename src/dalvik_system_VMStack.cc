@@ -26,6 +26,7 @@ namespace art {
 namespace {
 
 static jobject GetThreadStack(JNIEnv* env, jobject javaThread) {
+  ScopedHeapLock heap_lock;
   ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   return (thread != NULL) ? GetThreadStack(env, thread) : NULL;

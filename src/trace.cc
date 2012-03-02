@@ -45,17 +45,17 @@ static inline uint32_t TraceMethodCombine(uint32_t method, uint8_t traceEvent) {
   return (method | traceEvent);
 }
 
-bool UseThreadCpuClock() {
+static bool UseThreadCpuClock() {
   // TODO: Allow control over which clock is used
   return true;
 }
 
-bool UseWallClock() {
+static bool UseWallClock() {
   // TODO: Allow control over which clock is used
   return true;
 }
 
-void MeasureClockOverhead() {
+static void MeasureClockOverhead() {
   if (UseThreadCpuClock()) {
     ThreadCpuMicroTime();
   }
@@ -64,7 +64,7 @@ void MeasureClockOverhead() {
   }
 }
 
-uint32_t GetClockOverhead() {
+static uint32_t GetClockOverhead() {
   uint64_t start = ThreadCpuMicroTime();
 
   for (int i = 4000; i > 0; i--) {
@@ -82,19 +82,22 @@ uint32_t GetClockOverhead() {
   return uint32_t (elapsed / 32);
 }
 
-void Append2LE(uint8_t* buf, uint16_t val) {
+// TODO: put this somewhere with the big-endian equivalent used by JDWP.
+static void Append2LE(uint8_t* buf, uint16_t val) {
   *buf++ = (uint8_t) val;
   *buf++ = (uint8_t) (val >> 8);
 }
 
-void Append4LE(uint8_t* buf, uint32_t val) {
+// TODO: put this somewhere with the big-endian equivalent used by JDWP.
+static void Append4LE(uint8_t* buf, uint32_t val) {
   *buf++ = (uint8_t) val;
   *buf++ = (uint8_t) (val >> 8);
   *buf++ = (uint8_t) (val >> 16);
   *buf++ = (uint8_t) (val >> 24);
 }
 
-void Append8LE(uint8_t* buf, uint64_t val) {
+// TODO: put this somewhere with the big-endian equivalent used by JDWP.
+static void Append8LE(uint8_t* buf, uint64_t val) {
   *buf++ = (uint8_t) val;
   *buf++ = (uint8_t) (val >> 8);
   *buf++ = (uint8_t) (val >> 16);
@@ -391,8 +394,10 @@ void Trace::DumpMethodList(std::ostream& os) {
 }
 
 static void DumpThread(Thread* t, void* arg) {
-  std::ostream* os = reinterpret_cast<std::ostream*>(arg);
-  *os << StringPrintf("%d\t%s\n", t->GetTid(), t->GetThreadName()->ToModifiedUtf8().c_str());
+  std::ostream& os = *reinterpret_cast<std::ostream*>(arg);
+  std::string name;
+  t->GetThreadName(name);
+  os << t->GetTid() << "\t" << name << "\n";
 }
 
 void Trace::DumpThreadList(std::ostream& os) {

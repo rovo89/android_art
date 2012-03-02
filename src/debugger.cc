@@ -1301,7 +1301,7 @@ bool Dbg::GetThreadName(JDWP::ObjectId threadId, std::string& name) {
   if (thread == NULL) {
     return false;
   }
-  name = thread->GetThreadName()->ToModifiedUtf8();
+  thread->GetThreadName(name);
   return true;
 }
 

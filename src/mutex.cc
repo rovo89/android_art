@@ -18,16 +18,28 @@
 
 #include <errno.h>
 
-#include "heap.h" // for VERIFY_OBJECT_ENABLED
 #include "logging.h"
-#include "utils.h"
 #include "runtime.h"
+#include "thread.h"
+#include "utils.h"
 
 #define CHECK_MUTEX_CALL(call, args) CHECK_PTHREAD_CALL(call, args, name_)
 
 namespace art {
 
-Mutex::Mutex(const char* name) : name_(name) {
+static inline void CheckRank(MutexRank rank, bool is_locking) {
+#ifndef NDEBUG
+  if (rank == -1) {
+    return;
+  }
+  Thread* self = Thread::Current();
+  if (self != NULL) {
+    self->CheckRank(rank, is_locking);
+  }
+#endif
+}
+
+Mutex::Mutex(const char* name, MutexRank rank) : name_(name), rank_(rank) {
   // Like Java, we use recursive mutexes.
   pthread_mutexattr_t attributes;
   CHECK_MUTEX_CALL(pthread_mutexattr_init, (&attributes));
@@ -47,6 +59,7 @@ Mutex::~Mutex() {
 
 void Mutex::Lock() {
   CHECK_MUTEX_CALL(pthread_mutex_lock, (&mutex_));
+  CheckRank(rank_, true);
   AssertHeld();
 }
 
@@ -59,6 +72,7 @@ bool Mutex::TryLock() {
     errno = result;
     PLOG(FATAL) << "pthread_mutex_trylock failed for " << name_;
   }
+  CheckRank(rank_, true);
   AssertHeld();
   return true;
 }
@@ -66,6 +80,7 @@ bool Mutex::TryLock() {
 void Mutex::Unlock() {
   AssertHeld();
   CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
+  CheckRank(rank_, false);
 }
 
 pid_t Mutex::GetOwner() {
@@ -150,6 +165,16 @@ void ConditionVariable::TimedWait(Mutex& mutex, const timespec& ts) {
     errno = rc;
     PLOG(FATAL) << "TimedWait failed for " << name_;
   }
+}
+
+std::ostream& operator<<(std::ostream& os, const MutexRank& rhs) {
+  switch (rhs) {
+    case kHeapLock: os << "HeapLock"; break;
+    case kThreadListLock: os << "ThreadListLock"; break;
+    case kThreadSuspendCountLock: os << "ThreadSuspendCountLock"; break;
+    default: os << "MutexRank[" << static_cast<int>(rhs) << "]"; break;
+  }
+  return os;
 }
 
 }  // namespace

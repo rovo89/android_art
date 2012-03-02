@@ -21,6 +21,7 @@
 #include <limits.h>
 #include <errno.h>
 
+#include <corkscrew/backtrace.h>
 #include <cutils/sched_policy.h>
 #include <utils/threads.h>
 
@@ -86,6 +87,30 @@ int Thread::GetNativePriority() {
     managed_priority = Thread::kMaxPriority;
   }
   return managed_priority;
+}
+
+void Thread::DumpNativeStack(std::ostream& os) const {
+  const size_t MAX_DEPTH = 32;
+  UniquePtr<backtrace_frame_t[]> backtrace(new backtrace_frame_t[MAX_DEPTH]);
+  ssize_t frame_count = unwind_backtrace_thread(GetTid(), backtrace.get(), 0, MAX_DEPTH);
+  if (frame_count == -1) {
+    os << "  (unwind_backtrace_thread failed for thread " << GetTid() << ".)";
+    return;
+  } else if (frame_count == 0) {
+    return;
+  }
+
+  UniquePtr<backtrace_symbol_t[]> backtrace_symbols(new backtrace_symbol_t[frame_count]);
+  get_backtrace_symbols(backtrace.get(), frame_count, backtrace_symbols.get());
+
+  for (size_t i = 0; i < static_cast<size_t>(frame_count); ++i) {
+    char line[MAX_BACKTRACE_LINE_LENGTH];
+    format_backtrace_line(i, &backtrace[i], &backtrace_symbols[i],
+                          line, MAX_BACKTRACE_LINE_LENGTH);
+    os << "  " << line << "\n";
+  }
+
+  free_backtrace_symbols(backtrace_symbols.get(), frame_count);
 }
 
 }  // namespace art

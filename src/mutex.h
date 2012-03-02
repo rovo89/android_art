@@ -19,6 +19,8 @@
 
 #include <pthread.h>
 #include <stdint.h>
+
+#include <iosfwd>
 #include <string>
 
 #include "logging.h"
@@ -26,9 +28,18 @@
 
 namespace art {
 
+enum MutexRank {
+  kNoMutexRank = -1,
+  kHeapLock = 0,
+  kThreadListLock = 1,
+  kThreadSuspendCountLock = 2,
+  kMaxMutexRank = kThreadSuspendCountLock,
+};
+std::ostream& operator<<(std::ostream& os, const MutexRank& rhs);
+
 class Mutex {
  public:
-  explicit Mutex(const char* name);
+  explicit Mutex(const char* name, MutexRank rank = kNoMutexRank);
   ~Mutex();
 
   void Lock();
@@ -70,9 +81,9 @@ class Mutex {
 
   uint32_t GetDepth();
 
-  std::string name_;
-
   pthread_mutex_t mutex_;
+  std::string name_;
+  MutexRank rank_;
 
   DISALLOW_COPY_AND_ASSIGN(Mutex);
 };

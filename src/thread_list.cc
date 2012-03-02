@@ -23,28 +23,14 @@
 namespace art {
 
 ScopedThreadListLock::ScopedThreadListLock() {
-  // Self may be null during shutdown.
-  Thread* self = Thread::Current();
-
-  // We insist that anyone taking the thread list lock already has the heap lock,
-  // because pretty much any time someone takes the thread list lock, they may
-  // end up needing the heap lock (even removing a thread from the thread list calls
-  // back into managed code to remove the thread from its ThreadGroup, and that allocates
-  // an iterator).
-  // TODO: this makes the distinction between the two locks pretty pointless.
-  heap_lock_held_ = (self != NULL);
-  if (heap_lock_held_) {
-    Heap::Lock();
-  }
-
   // Avoid deadlock between two threads trying to SuspendAll
   // simultaneously by going to kVmWait if the lock cannot be
   // immediately acquired.
-  // TODO: is this needed if we took the heap lock? taking the heap lock will have done this,
-  // and the other thread will now be in kVmWait waiting for the heap lock.
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   if (!thread_list->thread_list_lock_.TryLock()) {
+    Thread* self = Thread::Current();
     if (self == NULL) {
+      // Self may be null during shutdown, but in that case there's no point going to kVmWait.
       thread_list->thread_list_lock_.Lock();
     } else {
       ScopedThreadStateChange tsc(self, Thread::kVmWait);
@@ -55,16 +41,13 @@ ScopedThreadListLock::ScopedThreadListLock() {
 
 ScopedThreadListLock::~ScopedThreadListLock() {
   Runtime::Current()->GetThreadList()->thread_list_lock_.Unlock();
-  if (heap_lock_held_) {
-    Heap::Unlock();
-  }
 }
 
 ThreadList::ThreadList()
-    : thread_list_lock_("thread list lock"),
+    : thread_list_lock_("thread list lock", kThreadListLock),
       thread_start_cond_("thread_start_cond_"),
       thread_exit_cond_("thread_exit_cond_"),
-      thread_suspend_count_lock_("thread suspend count lock"),
+      thread_suspend_count_lock_("thread suspend count lock", kThreadSuspendCountLock),
       thread_suspend_count_cond_("thread_suspend_count_cond_") {
   VLOG(threads) << "Default stack size: " << Runtime::Current()->GetDefaultStackSize() / KB << "KiB";
 }
@@ -424,16 +407,13 @@ void ThreadList::SignalGo(Thread* child) {
   CHECK(child != self);
 
   {
-    // We don't use ScopedThreadListLock here because we don't want to
-    // hold the heap lock while waiting because it can lead to deadlock.
-    thread_list_lock_.Lock();
+    ScopedThreadListLock thread_list_lock;
     VLOG(threads) << *self << " waiting for child " << *child << " to be in thread list...";
 
     // We wait for the child to tell us that it's in the thread list.
     while (child->GetState() != Thread::kStarting) {
       thread_start_cond_.Wait(thread_list_lock_);
     }
-    thread_list_lock_.Unlock();
   }
 
   // If we switch out of runnable and then back in, we know there's no pending suspend.
@@ -452,9 +432,7 @@ void ThreadList::WaitForGo() {
   DCHECK(Contains(self));
 
   {
-    // We don't use ScopedThreadListLock here because we don't want to
-    // hold the heap lock while waiting because it can lead to deadlock.
-    thread_list_lock_.Lock();
+    ScopedThreadListLock thread_list_lock;
 
     // Tell our parent that we're in the thread list.
     VLOG(threads) << *self << " telling parent that we're now in thread list...";
@@ -467,7 +445,6 @@ void ThreadList::WaitForGo() {
     while (self->GetState() != Thread::kVmWait) {
       thread_start_cond_.Wait(thread_list_lock_);
     }
-    thread_list_lock_.Unlock();
   }
 
   // Enter the runnable state. We know that any pending suspend will affect us now.

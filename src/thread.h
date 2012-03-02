@@ -161,8 +161,12 @@ class PACKED Thread {
     return tid_;
   }
 
-  // Returns the java.lang.Thread's name, or NULL.
+  // Returns the java.lang.Thread's name, or NULL if this Thread* doesn't have a peer.
   String* GetThreadName() const;
+
+  // Sets 'name' to the java.lang.Thread's name. This requires no transition to managed code,
+  // allocation, or locking.
+  void GetThreadName(std::string& name) const;
 
   // Sets the thread's name.
   void SetThreadName(const char* name);
@@ -418,6 +422,8 @@ class PACKED Thread {
     return frame;
   }
 
+  void CheckRank(MutexRank rank, bool is_locking);
+
  private:
   Thread();
   ~Thread();
@@ -428,6 +434,7 @@ class PACKED Thread {
 
   void DumpState(std::ostream& os) const;
   void DumpStack(std::ostream& os) const;
+  void DumpNativeStack(std::ostream& os) const;
 
   // Out-of-line conveniences for debugging in gdb.
   static Thread* CurrentFromGdb(); // Like Thread::Current.
@@ -562,6 +569,8 @@ class PACKED Thread {
 
   // A cached copy of the java.lang.Thread's name.
   std::string* name_;
+
+  uint32_t held_mutexes_[kMaxMutexRank + 1];
 
  public:
   // Runtime support function pointers

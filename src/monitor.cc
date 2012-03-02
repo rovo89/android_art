@@ -249,49 +249,60 @@ static std::string ThreadToString(Thread* thread) {
   return oss.str();
 }
 
-void Monitor::FailedUnlock(Object* obj, Thread* expected_owner, Thread* found_owner,
-                           Monitor* mon) {
-  // Acquire thread list lock so threads won't disappear from under us
-  ScopedThreadListLock thread_list_lock;
-  // Re-read owner now that we hold lock
-  Thread* current_owner = mon != NULL ? mon->owner_ : NULL;
+void Monitor::FailedUnlock(Object* o, Thread* expected_owner, Thread* found_owner,
+                           Monitor* monitor) {
+  Thread* current_owner = NULL;
+  std::string current_owner_string;
+  std::string expected_owner_string;
+  std::string found_owner_string;
+  {
+    // TODO: isn't this too late to prevent threads from disappearing?
+    // Acquire thread list lock so threads won't disappear from under us.
+    ScopedThreadListLock thread_list_lock;
+    // Re-read owner now that we hold lock.
+    current_owner = (monitor != NULL) ? monitor->owner_ : NULL;
+    // Get short descriptions of the threads involved.
+    current_owner_string = ThreadToString(current_owner);
+    expected_owner_string = ThreadToString(expected_owner);
+    found_owner_string = ThreadToString(found_owner);
+  }
   if (current_owner == NULL) {
     if (found_owner == NULL) {
       ThrowIllegalMonitorStateExceptionF("unlock of unowned monitor on object of type '%s'"
                                          " on thread '%s'",
-                                         PrettyTypeOf(obj).c_str(),
-                                         ThreadToString(expected_owner).c_str());
+                                         PrettyTypeOf(o).c_str(),
+                                         expected_owner_string.c_str());
     } else {
       // Race: the original read found an owner but now there is none
       ThrowIllegalMonitorStateExceptionF("unlock of monitor owned by '%s' on object of type '%s'"
                                          " (where now the monitor appears unowned) on thread '%s'",
-                                         ThreadToString(found_owner).c_str(),
-                                         PrettyTypeOf(obj).c_str(),
-                                         ThreadToString(expected_owner).c_str());
+                                         found_owner_string.c_str(),
+                                         PrettyTypeOf(o).c_str(),
+                                         expected_owner_string.c_str());
     }
   } else {
     if (found_owner == NULL) {
       // Race: originally there was no owner, there is now
       ThrowIllegalMonitorStateExceptionF("unlock of monitor owned by '%s' on object of type '%s'"
                                          " (originally believed to be unowned) on thread '%s'",
-                                         ThreadToString(current_owner).c_str(),
-                                         PrettyTypeOf(obj).c_str(),
-                                         ThreadToString(expected_owner).c_str());
+                                         current_owner_string.c_str(),
+                                         PrettyTypeOf(o).c_str(),
+                                         expected_owner_string.c_str());
     } else {
       if (found_owner != current_owner) {
         // Race: originally found and current owner have changed
         ThrowIllegalMonitorStateExceptionF("unlock of monitor originally owned by '%s' (now"
                                            " owned by '%s') on object of type '%s' on thread '%s'",
-                                           ThreadToString(found_owner).c_str(),
-                                           ThreadToString(current_owner).c_str(),
-                                           PrettyTypeOf(obj).c_str(),
-                                           ThreadToString(expected_owner).c_str());
+                                           found_owner_string.c_str(),
+                                           current_owner_string.c_str(),
+                                           PrettyTypeOf(o).c_str(),
+                                           expected_owner_string.c_str());
       } else {
         ThrowIllegalMonitorStateExceptionF("unlock of monitor owned by '%s' on object of type '%s'"
                                            " on thread '%s",
-                                           ThreadToString(current_owner).c_str(),
-                                           PrettyTypeOf(obj).c_str(),
-                                           ThreadToString(expected_owner).c_str());
+                                           current_owner_string.c_str(),
+                                           PrettyTypeOf(o).c_str(),
+                                           expected_owner_string.c_str());
       }
     }
   }

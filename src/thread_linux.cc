@@ -18,6 +18,10 @@
 
 namespace art {
 
+void Thread::DumpNativeStack(std::ostream& os) const {
+  // TODO: use glibc backtrace(3).
+}
+
 void Thread::SetNativePriority(int) {
   // Do nothing.
 }

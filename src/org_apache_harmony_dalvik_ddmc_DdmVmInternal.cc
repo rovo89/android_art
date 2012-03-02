@@ -63,6 +63,7 @@ static Thread* FindThreadByThinLockId(uint32_t thin_lock_id) {
  * NULL on failure, e.g. if the threadId couldn't be found.
  */
 static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint thin_lock_id) {
+  ScopedHeapLock heap_lock;
   ScopedThreadListLock thread_list_lock;
   Thread* thread = FindThreadByThinLockId(static_cast<uint32_t>(thin_lock_id));
   if (thread == NULL) {

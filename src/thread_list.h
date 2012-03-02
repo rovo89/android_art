@@ -93,7 +93,6 @@ class ScopedThreadListLock {
   ~ScopedThreadListLock();
 
  private:
-  bool heap_lock_held_;
   DISALLOW_COPY_AND_ASSIGN(ScopedThreadListLock);
 };
 

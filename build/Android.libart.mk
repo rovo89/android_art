@@ -128,10 +128,13 @@ define build-libart
   endif
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
   ifeq ($$(art_target_or_host),target)
-    LOCAL_SHARED_LIBRARIES += libcutils libstlport libz libdl libdynamic_annotations
+    LOCAL_SHARED_LIBRARIES += libcutils libstlport libz libdl
+    LOCAL_SHARED_LIBRARIES += libdynamic_annotations # tsan support
+    LOCAL_SHARED_LIBRARIES += libcorkscrew # native stack trace support
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils
-    LOCAL_SHARED_LIBRARIES += libz-host libdynamic_annotations-host
+    LOCAL_SHARED_LIBRARIES += libz-host
+    LOCAL_SHARED_LIBRARIES += libdynamic_annotations-host # tsan support
     LOCAL_LDLIBS := -ldl -lpthread
     ifeq ($(HOST_OS),linux)
       LOCAL_LDLIBS += -lrt

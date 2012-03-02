@@ -83,7 +83,7 @@ static void UpdateFirstAndLastSpace(Space** first_space, Space** last_space, Spa
   }
 }
 
-bool GenerateImage(const std::string image_file_name) {
+static bool GenerateImage(const std::string image_file_name) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
   std::vector<std::string> boot_class_path;
   Split(boot_class_path_string, ':', boot_class_path);
@@ -257,7 +257,7 @@ void Heap::Init(size_t initial_size, size_t growth_limit, size_t capacity,
   // It's still to early to take a lock because there are no threads yet,
   // but we can create the heap lock now. We don't create it earlier to
   // make it clear that you can't use locks during heap initialization.
-  lock_ = new Mutex("Heap lock");
+  lock_ = new Mutex("Heap lock", kHeapLock);
 
   Heap::EnableObjectValidation();
 
@@ -280,7 +280,7 @@ void Heap::Destroy() {
 
 Object* Heap::AllocObject(Class* klass, size_t byte_count) {
   {
-    ScopedHeapLock lock;
+    ScopedHeapLock heap_lock;
     DCHECK(klass == NULL || (klass->IsClassClass() && byte_count >= sizeof(Class)) ||
            (klass->IsVariableSize() || klass->GetObjectSize() == byte_count) ||
            strlen(ClassHelper(klass).GetDescriptor()) == 0);
@@ -323,7 +323,7 @@ void Heap::VerifyObject(const Object* obj) {
   if (!verify_objects_) {
     return;
   }
-  ScopedHeapLock lock;
+  ScopedHeapLock heap_lock;
   Heap::VerifyObjectLocked(obj);
 }
 #endif
@@ -366,7 +366,7 @@ void Heap::VerificationCallback(Object* obj, void* arg) {
 }
 
 void Heap::VerifyHeap() {
-  ScopedHeapLock lock;
+  ScopedHeapLock heap_lock;
   live_bitmap_->Walk(Heap::VerificationCallback, NULL);
 }
 
@@ -553,14 +553,14 @@ class InstanceCounter {
 };
 
 int64_t Heap::CountInstances(Class* c, bool count_assignable) {
-  ScopedHeapLock lock;
+  ScopedHeapLock heap_lock;
   InstanceCounter counter(c, count_assignable);
   live_bitmap_->Walk(InstanceCounter::Callback, &counter);
   return counter.GetCount();
 }
 
 void Heap::CollectGarbage(bool clear_soft_references) {
-  ScopedHeapLock lock;
+  ScopedHeapLock heap_lock;
   CollectGarbageInternal(clear_soft_references);
 }
 
@@ -685,7 +685,7 @@ void Heap::GrowForUtilization() {
 }
 
 void Heap::ClearGrowthLimit() {
-  ScopedHeapLock lock;
+  ScopedHeapLock heap_lock;
   WaitForConcurrentGcToComplete();
   alloc_space_->ClearGrowthLimit();
 }
