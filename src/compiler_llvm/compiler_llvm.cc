@@ -27,8 +27,13 @@
 
 #include <llvm/LinkAllPasses.h>
 #include <llvm/LinkAllVMCore.h>
+#include <llvm/Support/ManagedStatic.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
+
+namespace llvm {
+  extern bool TimePassesIsEnabled;
+}
 
 
 namespace {
@@ -36,6 +41,9 @@ namespace {
 pthread_once_t llvm_initialized = PTHREAD_ONCE_INIT;
 
 void InitializeLLVM() {
+  // NOTE: Uncomment following line to show the time consumption of LLVM passes
+  //llvm::TimePassesIsEnabled = true;
+
   // Initialize LLVM target, MC subsystem, asm printer, and asm parser
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
@@ -81,6 +89,7 @@ CompilerLLVM::CompilerLLVM(Compiler* compiler, InstructionSet insn_set)
 
 CompilerLLVM::~CompilerLLVM() {
   STLDeleteElements(&cunits_);
+  llvm::llvm_shutdown();
 }
 
 
