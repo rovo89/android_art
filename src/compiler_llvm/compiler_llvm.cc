@@ -84,8 +84,9 @@ CompilerLLVM::~CompilerLLVM() {
 }
 
 
-void CompilerLLVM::EnsureCompilationUnit(MutexLock& GUARD) {
+void CompilerLLVM::EnsureCompilationUnit() {
   DCHECK_NE(llvm_initialized, PTHREAD_ONCE_INIT);
+  compiler_lock_.AssertHeld();
 
   if (curr_cunit_ != NULL) {
     return;
@@ -113,7 +114,7 @@ void CompilerLLVM::EnsureCompilationUnit(MutexLock& GUARD) {
 void CompilerLLVM::MaterializeRemainder() {
   MutexLock GUARD(compiler_lock_);
   if (curr_cunit_ != NULL) {
-    Materialize(GUARD);
+    Materialize();
   }
 }
 
@@ -121,12 +122,14 @@ void CompilerLLVM::MaterializeRemainder() {
 void CompilerLLVM::MaterializeIfThresholdReached() {
   MutexLock GUARD(compiler_lock_);
   if (curr_cunit_ != NULL && curr_cunit_->IsMaterializeThresholdReached()) {
-    Materialize(GUARD);
+    Materialize();
   }
 }
 
 
-void CompilerLLVM::Materialize(MutexLock& GUARD) {
+void CompilerLLVM::Materialize() {
+  compiler_lock_.AssertHeld();
+
   DCHECK(curr_cunit_ != NULL);
   DCHECK(!curr_cunit_->IsMaterialized());
 
@@ -147,7 +150,7 @@ CompiledMethod* CompilerLLVM::
 CompileDexMethod(OatCompilationUnit* oat_compilation_unit) {
   MutexLock GUARD(compiler_lock_);
 
-  EnsureCompilationUnit(GUARD);
+  EnsureCompilationUnit();
 
   UniquePtr<MethodCompiler> method_compiler(
       new MethodCompiler(curr_cunit_, compiler_, oat_compilation_unit));
@@ -160,7 +163,7 @@ CompiledMethod* CompilerLLVM::
 CompileNativeMethod(OatCompilationUnit* oat_compilation_unit) {
   MutexLock GUARD(compiler_lock_);
 
-  EnsureCompilationUnit(GUARD);
+  EnsureCompilationUnit();
 
   UniquePtr<JniCompiler> jni_compiler(
       new JniCompiler(curr_cunit_, *compiler_, oat_compilation_unit));
@@ -173,7 +176,7 @@ CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
                                                    char const *shorty) {
   MutexLock GUARD(compiler_lock_);
 
-  EnsureCompilationUnit(GUARD);
+  EnsureCompilationUnit();
 
   UniquePtr<UpcallCompiler> upcall_compiler(
     new UpcallCompiler(curr_cunit_, *compiler_));
