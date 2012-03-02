@@ -27,6 +27,7 @@
 
 #include <llvm/LinkAllPasses.h>
 #include <llvm/LinkAllVMCore.h>
+#include <llvm/Support/CommandLine.h>
 #include <llvm/Support/ManagedStatic.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
@@ -34,6 +35,10 @@
 namespace llvm {
   extern bool TimePassesIsEnabled;
 }
+
+extern llvm::cl::opt<bool> EnableARMLongCalls;
+// NOTE: Although EnableARMLongCalls is defined in llvm/lib/Target/ARM/
+// ARMISelLowering.cpp, however, it is not in the llvm namespace.
 
 
 namespace {
@@ -50,6 +55,9 @@ void InitializeLLVM() {
   llvm::InitializeAllAsmPrinters();
   llvm::InitializeAllAsmParsers();
   // TODO: Maybe we don't have to initialize "all" targets.
+
+  // Enable -arm-long-calls
+  EnableARMLongCalls = true;
 
   // Initialize LLVM optimization passes
   llvm::PassRegistry &registry = *llvm::PassRegistry::getPassRegistry();
