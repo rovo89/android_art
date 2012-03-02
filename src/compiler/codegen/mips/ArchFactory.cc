@@ -145,7 +145,7 @@ void genExitSequence(CompilationUnit* cUnit, BasicBlock* bb)
         genDebuggerUpdate(cUnit, DEBUGGER_METHOD_EXIT);
     }
     unSpillCoreRegs(cUnit);
-    opReg(cUnit, kOpBx, rLINK);
+    opReg(cUnit, kOpBx, r_RA);
 }
 
 /*

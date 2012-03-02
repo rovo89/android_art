@@ -251,7 +251,7 @@ typedef enum NativeRegisterPool {
 #define rARG3 r3
 #define rRET0 r0
 #define rRET1 r1
-#define rLINK rLR
+#define rINVOKE_TGT rLR
 
 /* Shift encodings */
 typedef enum ArmShiftEncodings {

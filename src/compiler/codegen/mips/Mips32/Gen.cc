@@ -274,45 +274,54 @@ void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
                  int src2, LIR* target)
 {
-   LIR* branch;
-    if (cond == kCondEq) {
-        branch = newLIR2(cUnit, kMipsBeq, src1, src2);
-    } else if (cond == kCondNe) {
-        branch = newLIR2(cUnit, kMipsBne, src1, src2);
+    LIR* branch;
+    MipsOpCode sltOp;
+    MipsOpCode brOp;
+    bool cmpZero = false;
+    bool swapped = false;
+    switch(cond) {
+        case kCondEq:
+            brOp = kMipsBeq;
+            cmpZero = true;
+            break;
+        case kCondNe:
+            brOp = kMipsBne;
+            cmpZero = true;
+            break;
+        case kCondCc:
+            sltOp = kMipsSltu;
+            brOp = kMipsBnez;
+            break;
+        case kCondCs:
+            sltOp = kMipsSltu;
+            brOp = kMipsBeqz;
+            break;
+        case kCondGe:
+            sltOp = kMipsSlt;
+            brOp = kMipsBeqz;
+            break;
+        case kCondGt:
+            sltOp = kMipsSlt;
+            brOp = kMipsBnez;
+            swapped = true;
+            break;
+        case kCondLe:
+            sltOp = kMipsSlt;
+            brOp = kMipsBeqz;
+            swapped = true;
+            break;
+        case kCondLt:
+            sltOp = kMipsSlt;
+            brOp = kMipsBnez;
+            break;
+        default:
+            UNIMPLEMENTED(FATAL) << "No support for ConditionCode: "
+                                 << (int) cond;
+            return NULL;
+    }
+    if (cmpZero) {
+        branch = newLIR2(cUnit, brOp, src1, src2);
     } else {
-        MipsOpCode sltOp;
-        MipsOpCode brOp;
-        bool swapped = false;
-        switch(cond) {
-            case kCondEq: return newLIR2(cUnit, kMipsBeq, src1, src2);
-            case kCondNe: return newLIR2(cUnit, kMipsBne, src1, src2);
-            case kCondCc:
-                sltOp = kMipsSltu;
-                brOp = kMipsBnez;
-                break;
-            case kCondGe:
-                sltOp = kMipsSlt;
-                brOp = kMipsBeqz;
-                break;
-            case kCondGt:
-                sltOp = kMipsSlt;
-                brOp = kMipsBnez;
-                swapped = true;
-                break;
-            case kCondLe:
-                sltOp = kMipsSlt;
-                brOp = kMipsBeqz;
-                swapped = true;
-                break;
-            case kCondLt:
-                sltOp = kMipsSlt;
-                brOp = kMipsBnez;
-                break;
-            default:
-                UNIMPLEMENTED(FATAL) << "No support for ConditionCode: "
-                                     << (int) cond;
-                return NULL;
-        }
         int tReg = oatAllocTemp(cUnit);
         if (swapped) {
             newLIR3(cUnit, sltOp, tReg, src2, src1);
@@ -320,8 +329,9 @@ LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
             newLIR3(cUnit, sltOp, tReg, src1, src2);
         }
         branch = newLIR1(cUnit, brOp, tReg);
-        branch->target = target;
+        oatFreeTemp(cUnit, tReg);
     }
+    branch->target = target;
     return branch;
 }
 

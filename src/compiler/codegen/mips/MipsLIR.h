@@ -301,7 +301,7 @@ typedef enum NativeRegisterPool {
 #define rARG3 r_ARG3
 #define rRET0 r_RESULT0
 #define rRET1 r_RESULT1
-#define rLINK r_RA
+#define rINVOKE_TGT r_V0
 
 /* Shift encodings */
 typedef enum MipsShiftEncodings {

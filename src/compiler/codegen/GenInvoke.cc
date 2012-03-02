@@ -103,7 +103,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
             break;
         case 3:  // Grab the code from the method*
             loadWordDisp(cUnit, rARG0, Method::GetCodeOffset().Int32Value(),
-                         rLINK);
+                         rINVOKE_TGT);
             break;
         default:
             return -1;
@@ -133,22 +133,22 @@ int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
             break;
         case 1: // Is "this" null? [use rARG1]
             genNullCheck(cUnit, oatSSASrc(mir,0), rARG1, mir);
-            // get this->klass_ [use rARG1, set rLINK]
+            // get this->klass_ [use rARG1, set rINVOKE_TGT]
             loadWordDisp(cUnit, rARG1, Object::ClassOffset().Int32Value(),
-                         rLINK);
+                         rINVOKE_TGT);
             break;
-        case 2: // Get this->klass_->vtable [usr rLINK, set rLINK]
-            loadWordDisp(cUnit, rLINK, Class::VTableOffset().Int32Value(),
-                         rLINK);
+        case 2: // Get this->klass_->vtable [usr rINVOKE_TGT, set rINVOKE_TGT]
+            loadWordDisp(cUnit, rINVOKE_TGT, Class::VTableOffset().Int32Value(),
+                         rINVOKE_TGT);
             break;
-        case 3: // Get target method [use rLINK, set rARG0]
-            loadWordDisp(cUnit, rLINK, (methodIdx * 4) +
+        case 3: // Get target method [use rINVOKE_TGT, set rARG0]
+            loadWordDisp(cUnit, rINVOKE_TGT, (methodIdx * 4) +
                          Array::DataOffset(sizeof(Object*)).Int32Value(),
                          rARG0);
             break;
-        case 4: // Get the target compiled code address [uses rARG0, sets rLINK]
+        case 4: // Get the compiled code address [uses rARG0, sets rINVOKE_TGT]
             loadWordDisp(cUnit, rARG0, Method::GetCodeOffset().Int32Value(),
-                         rLINK);
+                         rINVOKE_TGT);
             break;
         default:
             return -1;
@@ -176,29 +176,29 @@ int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
             // Load "this" [set rARG1]
             rlArg = oatGetSrc(cUnit, mir, 0);
             loadValueDirectFixed(cUnit, rlArg, rARG1);
-            // Get method->declaring_class_ [use rARG0, set rLINK]
+            // Get method->declaring_class_ [use rARG0, set rINVOKE_TGT]
             loadWordDisp(cUnit, rARG0,
                          Method::DeclaringClassOffset().Int32Value(),
-                         rLINK);
+                         rINVOKE_TGT);
             // Is "this" null? [use rARG1]
             genNullCheck(cUnit, oatSSASrc(mir,0), rARG1, mir);
             break;
-        case 1: // Get method->declaring_class_->super_class [use/set rLINK]
-            loadWordDisp(cUnit, rLINK,
-                         Class::SuperClassOffset().Int32Value(), rLINK);
+        case 1: // method->declaring_class_->super_class [use/set rINVOKE_TGT]
+            loadWordDisp(cUnit, rINVOKE_TGT,
+                         Class::SuperClassOffset().Int32Value(), rINVOKE_TGT);
             break;
-        case 2: // Get ...->super_class_->vtable [u/s rLINK]
-            loadWordDisp(cUnit, rLINK,
-                         Class::VTableOffset().Int32Value(), rLINK);
+        case 2: // Get ...->super_class_->vtable [u/s rINVOKE_TGT]
+            loadWordDisp(cUnit, rINVOKE_TGT,
+                         Class::VTableOffset().Int32Value(), rINVOKE_TGT);
             break;
-        case 3: // Get target method [use rLINK, set rARG0]
-            loadWordDisp(cUnit, rLINK, (methodIdx * 4) +
+        case 3: // Get target method [use rINVOKE_TGT, set rARG0]
+            loadWordDisp(cUnit, rINVOKE_TGT, (methodIdx * 4) +
                          Array::DataOffset(sizeof(Object*)).Int32Value(),
                          rARG0);
             break;
-        case 4: // Get the target compiled code address [uses rARG0, sets rLINK]
+        case 4: // target compiled code address [uses rARG0, sets rINVOKE_TGT]
             loadWordDisp(cUnit, rARG0, Method::GetCodeOffset().Int32Value(),
-                         rLINK);
+                         rINVOKE_TGT);
             break;
         default:
             return -1;
@@ -215,7 +215,7 @@ int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir, int trampoline,
      */
     if (state == 0) {
         // Load trampoline target
-        loadWordDisp(cUnit, rSELF, trampoline, rLINK);
+        loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
         // Load rARG0 with method index
         loadConstant(cUnit, rARG0, dexIdx);
         return 1;

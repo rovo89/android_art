@@ -102,11 +102,7 @@ void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
     if (DISPLAY_MISSING_TARGETS) {
         genShowTarget(cUnit);
     }
-#if defined(TARGET_MIPS)
-    UNIMPLEMENTED(WARNING) << "Need to handle common target register";
-#else
-    opReg(cUnit, kOpBlx, rLR);
-#endif
+    opReg(cUnit, kOpBlx, rINVOKE_TGT);
     oatClobberCalleeSave(cUnit);
 }
 
