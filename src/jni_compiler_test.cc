@@ -622,4 +622,22 @@ TEST_F(JniCompilerTest, CompareAndSwapInt) {
   EXPECT_EQ(result, JNI_TRUE);
 }
 
+jint my_gettext(JNIEnv* env, jclass klass, jlong val1, jobject obj1, jlong val2, jobject obj2) {
+  EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
+  EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jobj_, obj1));
+  EXPECT_TRUE(env->IsSameObject(JniCompilerTest::jobj_, obj2));
+  EXPECT_EQ(0x12345678ABCDEF88ll, val1);
+  EXPECT_EQ(0x7FEDCBA987654321ll, val2);
+  return 42;
+}
+
+TEST_F(JniCompilerTest, GetText) {
+  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
+  SetupForTest(class_loader.get(), true, "getText", "(JLjava/lang/Object;JLjava/lang/Object;)I",
+               reinterpret_cast<void*>(&my_gettext));
+  jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 0x12345678ABCDEF88ll, jobj_,
+                                          0x7FEDCBA987654321ll, jobj_);
+  EXPECT_EQ(result, 42);
+}
+
 }  // namespace art

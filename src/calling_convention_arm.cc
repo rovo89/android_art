@@ -115,15 +115,18 @@ FrameOffset ArmManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 ArmJniCallingConvention::ArmJniCallingConvention(bool is_static, bool is_synchronized,
                                                  const char* shorty)
     : JniCallingConvention(is_static, is_synchronized, shorty) {
-  // Compute padding to ensure longs and doubles are not split in AAPCS
-  // TODO: in terms of outgoing argument size this may be overly generous
-  // due to padding appearing in the registers
+  // Compute padding to ensure longs and doubles are not split in AAPCS. Ignore the 'this' jobject
+  // or jclass for static methods and the JNIEnv. We start at the aligned register r2.
   size_t padding = 0;
-  size_t check = IsStatic() ? 1 : 0;
-  for (size_t i = 0; i < NumArgs(); i++) {
-    if (((i & 1) == check) && IsParamALongOrDouble(i)) {
-      padding += 4;
+  for (size_t cur_arg = IsStatic() ? 0 : 1, cur_reg = 2; cur_arg < NumArgs(); cur_arg++) {
+    if (IsParamALongOrDouble(cur_arg)) {
+      if ((cur_reg & 1) != 0) {
+        padding += 4;
+        cur_reg++;  // additional bump to ensure alignment
+      }
+      cur_reg++;  // additional bump to skip extra long word
     }
+    cur_reg++;  // bump the iterator for every argument
   }
   padding_ = padding;
 
@@ -205,8 +208,9 @@ ManagedRegister ArmJniCallingConvention::CurrentParamRegister() {
 
 FrameOffset ArmJniCallingConvention::CurrentParamStackOffset() {
   CHECK_GE(itr_slots_, 4u);
-  return FrameOffset(displacement_.Int32Value() - OutArgSize()
-                     + ((itr_slots_ - 4) * kPointerSize));
+  size_t offset = displacement_.Int32Value() - OutArgSize() + ((itr_slots_ - 4) * kPointerSize);
+  CHECK_LT(offset, OutArgSize());
+  return FrameOffset(offset);
 }
 
 size_t ArmJniCallingConvention::NumberOfOutgoingStackArgs() {
