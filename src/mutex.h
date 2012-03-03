@@ -56,6 +56,10 @@ class Mutex {
     return &mutex_;
   }
 
+  MutexRank GetRank() const {
+    return rank_;
+  }
+
   void AssertHeld() {
 #if !defined(__APPLE__)
     DCHECK_EQ(GetOwner(), GetTid());
