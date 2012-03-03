@@ -27,8 +27,7 @@ Disassembler* Disassembler::Create(InstructionSet instruction_set) {
   if (instruction_set == kArm || instruction_set == kThumb2) {
     return new arm::DisassemblerArm();
   } else {
-    // TODO: give a better fatal message
-    UNIMPLEMENTED(FATAL);
+    UNIMPLEMENTED(FATAL) << "no disassembler for " << instruction_set;
     return NULL;
   }
 }
