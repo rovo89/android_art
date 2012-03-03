@@ -27,14 +27,23 @@
 
 namespace art {
 
-static inline void CheckRank(MutexRank rank, bool is_locking) {
+static inline void CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
 #ifndef NDEBUG
   if (rank == -1) {
     return;
   }
   Thread* self = Thread::Current();
   if (self != NULL) {
-    self->CheckRank(rank, is_locking);
+    self->CheckSafeToLockOrUnlock(rank, is_locking);
+  }
+#endif
+}
+
+static inline void CheckSafeToWait(MutexRank rank) {
+#ifndef NDEBUG
+  Thread* self = Thread::Current();
+  if (self != NULL) {
+    self->CheckSafeToWait(rank);
   }
 #endif
 }
@@ -58,8 +67,8 @@ Mutex::~Mutex() {
 }
 
 void Mutex::Lock() {
+  CheckSafeToLockOrUnlock(rank_, true);
   CHECK_MUTEX_CALL(pthread_mutex_lock, (&mutex_));
-  CheckRank(rank_, true);
   AssertHeld();
 }
 
@@ -72,15 +81,15 @@ bool Mutex::TryLock() {
     errno = result;
     PLOG(FATAL) << "pthread_mutex_trylock failed for " << name_;
   }
-  CheckRank(rank_, true);
+  CheckSafeToLockOrUnlock(rank_, true);
   AssertHeld();
   return true;
 }
 
 void Mutex::Unlock() {
   AssertHeld();
+  CheckSafeToLockOrUnlock(rank_, false);
   CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
-  CheckRank(rank_, false);
 }
 
 pid_t Mutex::GetOwner() {
@@ -151,6 +160,7 @@ void ConditionVariable::Signal() {
 }
 
 void ConditionVariable::Wait(Mutex& mutex) {
+  CheckSafeToWait(mutex.GetRank());
   CHECK_MUTEX_CALL(pthread_cond_wait, (&cond_, mutex.GetImpl()));
 }
 
@@ -160,6 +170,7 @@ void ConditionVariable::TimedWait(Mutex& mutex, const timespec& ts) {
 #else
 #define TIMEDWAIT pthread_cond_timedwait
 #endif
+  CheckSafeToWait(mutex.GetRank());
   int rc = TIMEDWAIT(&cond_, mutex.GetImpl(), &ts);
   if (rc != 0 && rc != ETIMEDOUT) {
     errno = rc;

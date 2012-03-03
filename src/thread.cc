@@ -599,6 +599,12 @@ void Thread::DumpStack(std::ostream& os) const {
   WalkStack(&dumper);
 }
 
+void Thread::SetStateWithoutSuspendCheck(Thread::State new_state) {
+  volatile void* raw = reinterpret_cast<volatile void*>(&state_);
+  volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw);
+  android_atomic_release_store(new_state, addr);
+}
+
 Thread::State Thread::SetState(Thread::State new_state) {
   Thread::State old_state = state_;
   if (old_state == new_state) {
@@ -1674,7 +1680,7 @@ std::ostream& operator<<(std::ostream& os, const Thread& thread) {
   return os;
 }
 
-void Thread::CheckRank(MutexRank rank, bool is_locking) {
+void Thread::CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
   if (is_locking) {
     if (held_mutexes_[rank] == 0) {
       bool bad_mutexes_held = false;
@@ -1691,6 +1697,21 @@ void Thread::CheckRank(MutexRank rank, bool is_locking) {
     CHECK_GT(held_mutexes_[rank], 0U);
     --held_mutexes_[rank];
   }
+}
+
+void Thread::CheckSafeToWait(MutexRank rank) {
+  bool bad_mutexes_held = false;
+  for (int i = kMaxMutexRank; i >= 0; --i) {
+    if (i != rank && held_mutexes_[i] != 0) {
+      LOG(ERROR) << "holding " << static_cast<MutexRank>(i) << " while doing condition variable wait on " << rank;
+      bad_mutexes_held = true;
+    }
+  }
+  if (held_mutexes_[rank] == 0) {
+    LOG(ERROR) << "*not* holding " << rank << " while doing condition variable wait on it";
+    bad_mutexes_held = true;
+  }
+  CHECK(!bad_mutexes_held);
 }
 
 }  // namespace art

@@ -122,6 +122,7 @@ class PACKED Thread {
   }
 
   State SetState(State new_state);
+  void SetStateWithoutSuspendCheck(State new_state);
 
   bool IsDaemon();
   bool IsSuspended();
@@ -422,7 +423,8 @@ class PACKED Thread {
     return frame;
   }
 
-  void CheckRank(MutexRank rank, bool is_locking);
+  void CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking);
+  void CheckSafeToWait(MutexRank rank);
 
  private:
   Thread();
