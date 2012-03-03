@@ -119,14 +119,13 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     loadConstant(cUnit, rIdx, size);
     // Establish loop branch target
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
     // Load next key/disp
     newLIR2(cUnit, kThumb2LdmiaWB, rBase, (1 << rKey) | (1 << rDisp));
     opRegReg(cUnit, kOpCmp, rKey, rlSrc.lowReg);
     // Go if match. NOTE: No instruction set switch here - must stay Thumb2
     opIT(cUnit, kArmCondEq, "");
     LIR* switchBranch = newLIR1(cUnit, kThumb2AddPCR, rDisp);
-    tabRec->bxInst = switchBranch;
+    tabRec->anchor = switchBranch;
     // Needs to use setflags encoding here
     newLIR3(cUnit, kThumb2SubsRRI12, rIdx, rIdx, 1);
     opCondBranch(cUnit, kCondNe, target);
@@ -173,11 +172,10 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 
     // ..and go! NOTE: No instruction set switch here - must stay Thumb2
     LIR* switchBranch = newLIR1(cUnit, kThumb2AddPCR, dispReg);
-    tabRec->bxInst = switchBranch;
+    tabRec->anchor = switchBranch;
 
     /* branchOver target here */
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
     branchOver->target = (LIR*)target;
 }
 
@@ -287,7 +285,6 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     branch = newLIR2(cUnit, kThumb2Cbz, r1, 0);
 
     hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
-    hopTarget->defMask = ENCODE_ALL;
     hopBranch->target = (LIR*)hopTarget;
 
     // Go expensive route - artLockObjectFromCode(self, obj);
@@ -297,7 +294,6 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 
     // Resume here
     target = newLIR0(cUnit, kPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
     branch->target = (LIR*)target;
 }
 
@@ -333,7 +329,6 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     branch = opNone(cUnit, kOpUncondBr);
 
     hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
-    hopTarget->defMask = ENCODE_ALL;
     hopBranch->target = (LIR*)hopTarget;
 
     // Go expensive route - UnlockObjectFromCode(obj);
@@ -343,7 +338,6 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 
     // Resume here
     target = newLIR0(cUnit, kPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
     branch->target = (LIR*)target;
 }
 
@@ -383,11 +377,9 @@ void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     genBarrier(cUnit);
 
     target2 = newLIR0(cUnit, kPseudoTargetLabel);
-    target2->defMask = -1;
     opRegReg(cUnit, kOpNeg, tReg, tReg);
 
     target1 = newLIR0(cUnit, kPseudoTargetLabel);
-    target1->defMask = -1;
 
     RegLocation rlTemp = LOC_C_RETURN; // Just using as template, will change
     rlTemp.lowReg = tReg;

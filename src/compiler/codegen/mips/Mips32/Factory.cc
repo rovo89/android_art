@@ -28,7 +28,7 @@ static int coreRegs[] = {r_ZERO, r_AT, r_V0, r_V1, r_A0, r_A1, r_A2, r_A3,
                          r_T0, r_T1, r_T2, r_T3, r_T4, r_T5, r_T6, r_T7,
                          r_S0, r_S1, r_S2, r_S3, r_S4, r_S5, r_S6, r_S7, r_T8,
                          r_T9, r_K0, r_K1, r_GP, r_SP, r_FP, r_RA};
-static int reservedRegs[] = {r_ZERO, r_AT, r_S0, r_S1, r_K0, r_K1, r_GP, r_SP};
+static int reservedRegs[] = {r_ZERO, r_AT, r_S0, r_S1, r_K0, r_K1, r_GP, r_SP, r_RA};
 static int coreTemps[] = {r_V0, r_V1, r_A0, r_A1, r_A2, r_A3, r_T0, r_T1, r_T2,
                           r_T3, r_T4, r_T5, r_T6, r_T7, r_T8, r_T9};
 #ifdef __mips_hard_float
@@ -226,6 +226,10 @@ LIR *opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest,
             break;
         case kOpAsr:
             opcode = kMipsSrav;
+            break;
+        case kOpAdc:
+        case kOpSbc:
+            LOG(FATAL) << "No carry bit on MIPS";
             break;
         default:
             LOG(FATAL) << "bad case in opRegRegReg";

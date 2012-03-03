@@ -27,6 +27,12 @@
 namespace art {
 
 #if defined(_CODEGEN_C)
+bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2);
+bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2);
+bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                RegLocation rlSrc);
 LIR *opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int value);
 LIR *opRegReg(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int rSrc2);
 LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,

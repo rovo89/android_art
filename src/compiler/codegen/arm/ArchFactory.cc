@@ -26,6 +26,32 @@ namespace art {
 
 void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset);
 
+bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                RegLocation rlSrc)
+{
+    rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    int zReg = oatAllocTemp(cUnit);
+    loadConstantNoClobber(cUnit, zReg, 0);
+    // Check for destructive overlap
+    if (rlResult.lowReg == rlSrc.highReg) {
+        int tReg = oatAllocTemp(cUnit);
+        opRegRegReg(cUnit, kOpSub, rlResult.lowReg,
+                    zReg, rlSrc.lowReg);
+        opRegRegReg(cUnit, kOpSbc, rlResult.highReg,
+                    zReg, tReg);
+        oatFreeTemp(cUnit, tReg);
+    } else {
+        opRegRegReg(cUnit, kOpSub, rlResult.lowReg,
+                    zReg, rlSrc.lowReg);
+        opRegRegReg(cUnit, kOpSbc, rlResult.highReg,
+                    zReg, rlSrc.highReg);
+    }
+    oatFreeTemp(cUnit, zReg);
+    storeValueWide(cUnit, rlDest, rlResult);
+    return false;
+}
+
 int loadHelper(CompilationUnit* cUnit, int offset)
 {
     loadWordDisp(cUnit, rSELF, offset, rLR);

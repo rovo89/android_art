@@ -343,7 +343,6 @@ void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
         loadConstant(cUnit, rIdx, dInsn->vA - 1);
         // Generate the copy loop.  Going backwards for convenience
         LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-        target->defMask = ENCODE_ALL;
         // Copy next element
         loadBaseIndexed(cUnit, rSrc, rIdx, rVal, 2, kWord);
         storeBaseIndexed(cUnit, rDst, rIdx, rVal, 2, kWord);
@@ -432,7 +431,6 @@ void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
             opRegCopy(cUnit, rBase, rRET0);
 #endif
             LIR* skipTarget = newLIR0(cUnit, kPseudoTargetLabel);
-            skipTarget->defMask = ENCODE_ALL;
             branchOver->target = (LIR*)skipTarget;
         }
         // rBase now holds static storage base
@@ -539,7 +537,6 @@ void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             opRegCopy(cUnit, rBase, rRET0);
 #endif
             LIR* skipTarget = newLIR0(cUnit, kPseudoTargetLabel);
-            skipTarget->defMask = ENCODE_ALL;
             branchOver->target = (LIR*)skipTarget;
         }
         // rBase now holds static storage base
@@ -588,7 +585,6 @@ void genShowTarget(CompilationUnit* cUnit)
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pDebugMe), rINVOKE_TGT);
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    target->defMask = -1;
     branchOver->target = (LIR*)target;
 }
 
@@ -608,6 +604,7 @@ void handleSuspendLaunchpads(CompilationUnit *cUnit)
     int numElems = cUnit->suspendLaunchpads.numUsed;
 
     for (int i = 0; i < numElems; i++) {
+        oatResetRegPool(cUnit);
         /* TUNING: move suspend count load into helper */
         LIR* lab = suspendLabel[i];
         LIR* resumeLab = (LIR*)lab->operands[0];
@@ -638,6 +635,7 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
     int i;
 
     for (i = 0; i < numElems; i++) {
+        oatResetRegPool(cUnit);
         LIR* lab = throwLabel[i];
         cUnit->currentDalvikOffset = lab->operands[1];
         oatAppendLIR(cUnit, (LIR *)lab);
@@ -662,9 +660,6 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
                         opRegCopy(cUnit, rTmp, v1);
                         opRegCopy(cUnit, rARG1, v2);
                         opRegCopy(cUnit, rARG0, rTmp);
-#if !(defined(TARGET_ARM))
-                        oatFreeTemp(cUnit, rTmp);
-#endif
                     } else {
                         opRegCopy(cUnit, rARG1, v2);
                         opRegCopy(cUnit, rARG0, v1);
@@ -873,7 +868,6 @@ void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             LIR* branch2 = opUnconditionalBranch(cUnit,0);
             // TUNING: move slow path to end & remove unconditional branch
             LIR* target1 = newLIR0(cUnit, kPseudoTargetLabel);
-            target1->defMask = ENCODE_ALL;
             // Call out to helper, which will return resolved type in rARG0
             int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                                   pInitializeTypeFromCode));
@@ -884,7 +878,6 @@ void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             storeValue(cUnit, rlDest, rlResult);
             // Rejoin code paths
             LIR* target2 = newLIR0(cUnit, kPseudoTargetLabel);
-            target2->defMask = ENCODE_ALL;
             branch1->target = (LIR*)target1;
             branch2->target = (LIR*)target2;
         } else {
@@ -927,7 +920,6 @@ void genConstString(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         opRegCopy(cUnit, rARG0, rARG2);   // .eq
         opReg(cUnit, kOpBlx, rTgt);
         LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-        target->defMask = ENCODE_ALL;
         branch->target = target;
 #endif
         genBarrier(cUnit);
@@ -1013,7 +1005,6 @@ void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             loadValueDirectFixed(cUnit, rlSrc, rARG0);  /* reload Ref */
             // Rejoin code paths
             LIR* hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
-            hopTarget->defMask = ENCODE_ALL;
             hopBranch->target = (LIR*)hopTarget;
         }
     }
@@ -1044,7 +1035,6 @@ void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     oatClobberCalleeSave(cUnit);
     /* branch targets here */
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
     RegLocation rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
     branch1->target = target;
@@ -1093,7 +1083,6 @@ void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
             opRegCopy(cUnit, classReg, rARG0); // Align usage with fast path
             // Rejoin code paths
             LIR* hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
-            hopTarget->defMask = ENCODE_ALL;
             hopBranch->target = (LIR*)hopTarget;
         }
     }
@@ -1118,7 +1107,6 @@ void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     callRuntimeHelper(cUnit, rTgt);
     /* branch target here */
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
     branch1->target = (LIR*)target;
     branch2->target = (LIR*)target;
 }
@@ -1827,14 +1815,22 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             break;
         case OP_ADD_LONG:
         case OP_ADD_LONG_2ADDR:
+#if defined(TARGET_MIPS)
+            return genAddLong(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+#else
             firstOp = kOpAdd;
             secondOp = kOpAdc;
             break;
+#endif
         case OP_SUB_LONG:
         case OP_SUB_LONG_2ADDR:
+#if defined(TARGET_MIPS)
+            return genSubLong(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+#else
             firstOp = kOpSub;
             secondOp = kOpSbc;
             break;
+#endif
         case OP_MUL_LONG:
         case OP_MUL_LONG_2ADDR:
             callOut = true;
@@ -1873,27 +1869,7 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             secondOp = kOpXor;
             break;
         case OP_NEG_LONG: {
-            rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
-            rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-            int zReg = oatAllocTemp(cUnit);
-            loadConstantNoClobber(cUnit, zReg, 0);
-            // Check for destructive overlap
-            if (rlResult.lowReg == rlSrc2.highReg) {
-                int tReg = oatAllocTemp(cUnit);
-                opRegRegReg(cUnit, kOpSub, rlResult.lowReg,
-                            zReg, rlSrc2.lowReg);
-                opRegRegReg(cUnit, kOpSbc, rlResult.highReg,
-                            zReg, tReg);
-                oatFreeTemp(cUnit, tReg);
-            } else {
-                opRegRegReg(cUnit, kOpSub, rlResult.lowReg,
-                            zReg, rlSrc2.lowReg);
-                opRegRegReg(cUnit, kOpSbc, rlResult.highReg,
-                            zReg, rlSrc2.highReg);
-            }
-            oatFreeTemp(cUnit, zReg);
-            storeValueWide(cUnit, rlDest, rlResult);
-            return false;
+            return genNegLong(cUnit, mir, rlDest, rlSrc2);
         }
         default:
             LOG(FATAL) << "Invalid long arith op";
@@ -2124,7 +2100,6 @@ void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset)
     loadConstant(cUnit, rARG2, offset);
     opReg(cUnit, kOpBlx, rSUSPEND);
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
     branch->target = (LIR*)target;
 #endif
     oatFreeTemp(cUnit, rARG2);
@@ -2152,7 +2127,6 @@ void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
 #endif
     }
     LIR* retLab = newLIR0(cUnit, kPseudoTargetLabel);
-    retLab->defMask = ENCODE_ALL;
     LIR* target = (LIR*)oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
     target->dalvikOffset = cUnit->currentDalvikOffset;
     target->opcode = kPseudoSuspendTarget;
