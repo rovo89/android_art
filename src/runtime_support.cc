@@ -323,7 +323,7 @@ static std::string FieldNameFromIndex(const Method* method, uint32_t ref,
 }
 
 static std::string MethodNameFromIndex(const Method* method, uint32_t ref,
-                                verifier::VerifyErrorRefType ref_type, bool access) {
+                                       verifier::VerifyErrorRefType ref_type, bool access) {
   CHECK_EQ(static_cast<int>(ref_type), static_cast<int>(verifier::VERIFY_ERROR_REF_METHOD));
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();

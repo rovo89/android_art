@@ -26,6 +26,8 @@
 #include "object.h"
 #include "object_utils.h"
 
+#include "runtime_support_llvm.h"
+
 namespace art {
 
 std::string MangleForLLVM(const std::string& s) {
@@ -103,23 +105,6 @@ std::string LLVMStubName(const Method* m) {
   stub_name += mh.GetShorty();
 
   return stub_name;
-}
-
-// TODO: Remove these when art_llvm.ll runtime support is ready.
-void art_push_shadow_frame_from_code(void* frame) {
-}
-
-void art_pop_shadow_frame_from_code() {
-}
-
-int art_is_exception_pending_from_code() {
-  return 0;
-}
-
-void art_test_suspend_from_code() {
-}
-
-void art_set_current_thread_from_code(void* thread_object_addr) {
 }
 
 // Linker's call back function. Added some for debugging.

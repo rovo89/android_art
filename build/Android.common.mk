@@ -200,6 +200,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/reference_table.cc \
 	src/reflection.cc \
 	src/runtime.cc \
+	src/runtime_support.cc \
 	src/signal_catcher.cc \
 	src/space.cc \
 	src/stack.cc \
@@ -211,7 +212,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/thread.cc \
 	src/thread_list.cc \
 	src/trace.cc \
-	src/runtime_support.cc \
 	src/utf.cc \
 	src/utils.cc \
 	src/zip_archive.cc
@@ -227,6 +227,7 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/ir_builder.cc \
 	src/compiler_llvm/jni_compiler.cc \
 	src/compiler_llvm/method_compiler.cc \
+	src/compiler_llvm/runtime_support_llvm.cc \
 	src/compiler_llvm/upcall_compiler.cc \
 	src/compiler_llvm/utils_llvm.cc
 else
