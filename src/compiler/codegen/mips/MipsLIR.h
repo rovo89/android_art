@@ -530,7 +530,7 @@ typedef enum MipsEncodingKind {
     kFmtBlt5_2,        /* Same 5-bit field to 2 locations */
 } MipsEncodingKind;
 
-/* Struct used to define the snippet positions for each Thumb opcode */
+/* Struct used to define the snippet positions for each MIPS opcode */
 typedef struct MipsEncodingMap {
     u4 skeleton;
     struct {
