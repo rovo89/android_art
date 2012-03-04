@@ -61,8 +61,7 @@ bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
 
     return false;
 #else
-    UNIMPLEMENTED(WARNING) << "Need Mips soft float implementation";
-    return false;
+    return genArithOpFloatPortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
 #endif
 }
 
@@ -112,8 +111,7 @@ static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
     storeValueWide(cUnit, rlDest, rlResult);
     return false;
 #else
-    UNIMPLEMENTED(WARNING) << "Need Mips soft float implementation";
-    return false;
+    return genArithOpDoublePortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
 #endif
 }
 
@@ -181,49 +179,48 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir)
     }
     return false;
 #else
-    UNIMPLEMENTED(WARNING) << "Need Mips soft float implementation";
-    return false;
+    return genConversionPortable(cUnit, mir);
 #endif
 }
 
 static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
                      RegLocation rlSrc1, RegLocation rlSrc2)
 {
-    UNIMPLEMENTED(WARNING) << "Need Mips implementation";
-    return false;
-#if 0
-    TemplateOpcode templateOpcode;
-    RegLocation rlResult = oatGetReturn(cUnit);
     bool wide = true;
+    int offset;
 
     switch(mir->dalvikInsn.opcode) {
         case OP_CMPL_FLOAT:
-            templateOpcode = TEMPLATE_CMPL_FLOAT_VFP;
+            offset = OFFSETOF_MEMBER(Thread, pCmplFloat);
             wide = false;
             break;
         case OP_CMPG_FLOAT:
-            templateOpcode = TEMPLATE_CMPG_FLOAT_VFP;
+            offset = OFFSETOF_MEMBER(Thread, pCmpgFloat);
             wide = false;
             break;
         case OP_CMPL_DOUBLE:
-            templateOpcode = TEMPLATE_CMPL_DOUBLE_VFP;
+            offset = OFFSETOF_MEMBER(Thread, pCmplDouble);
             break;
         case OP_CMPG_DOUBLE:
-            templateOpcode = TEMPLATE_CMPG_DOUBLE_VFP;
+            offset = OFFSETOF_MEMBER(Thread, pCmpgDouble);
             break;
         default:
             return true;
     }
-    loadValueAddress(cUnit, rlSrc1, r_A0);
-    oatClobber(cUnit, r_A0);
-    loadValueAddress(cUnit, rlSrc2, r_A1);
-    UNIMPLEMENTED(FATAL) << "Need callout to handler";
-#if 0
-    genDispatchToHandler(cUnit, templateOpcode);
-#endif
+    oatFlushAllRegs(cUnit);
+    oatLockCallTemps(cUnit);
+    if (wide) {
+        loadValueDirectWideFixed(cUnit, rlSrc1, rARG0, rARG1);
+        loadValueDirectWideFixed(cUnit, rlSrc2, rARG2, rARG3);
+    } else {
+        loadValueDirectFixed(cUnit, rlSrc1, rARG0);
+        loadValueDirectFixed(cUnit, rlSrc2, rARG1);
+    }
+    int rTgt = loadHelper(cUnit, offset);
+    opReg(cUnit, kOpBlx, rTgt);
+    RegLocation rlResult = oatGetReturn(cUnit);
     storeValue(cUnit, rlDest, rlResult);
     return false;
-#endif
 }
 
 } //  namespace art

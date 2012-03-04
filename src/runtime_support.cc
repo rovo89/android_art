@@ -28,6 +28,50 @@
 
 namespace art {
 
+extern "C" int art_cmpl_float(float a, float b) {
+    if (a == b) {
+        return 0;
+    } else if (a < b) {
+        return -1;
+    } else if (a > b) {
+        return 1;
+    }
+    return -1;
+}
+
+extern "C" int art_cmpg_float(float a, float b) {
+    if (a == b) {
+        return 0;
+    } else if (a < b) {
+        return -1;
+    } else if (a > b) {
+        return 1;
+    }
+    return 1;
+}
+
+extern "C" int art_cmpl_double(double a, double b) {
+    if (a == b) {
+        return 0;
+    } else if (a < b) {
+        return -1;
+    } else if (a > b) {
+        return 1;
+    }
+    return -1;
+}
+
+extern "C" int art_cmpg_double(double a, double b) {
+    if (a == b) {
+        return 0;
+    } else if (a < b) {
+        return -1;
+    } else if (a > b) {
+        return 1;
+    }
+    return 1;
+}
+
 // Place a special frame at the TOS that will save the callee saves for the given type
 static void  FinishCalleeSaveFrameSetup(Thread* self, Method** sp, Runtime::CalleeSaveType type) {
   // Be aware the store below may well stomp on an incoming argument

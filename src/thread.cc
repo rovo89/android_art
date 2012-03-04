@@ -72,6 +72,32 @@ void Thread::InitCardTable() {
 }
 
 void Thread::InitFunctionPointers() {
+#if defined(__mips)
+  pShlLong = art_shl_long;
+  pShrLong = art_shr_long;
+  pUshrLong = art_ushr_long;
+  pI2f = __floatsisf;
+  pF2iz = __fixsfi;
+  pD2f = __truncdfsf2;
+  pF2d = __extendsfdfs;
+  pD2iz = __fixdfsi;
+  pL2f = __floatdisf;
+  pL2d = __floatdidf;
+  pFadd = __addsf3;
+  pFsub = __subsf3;
+  pFdiv = divsf3;
+  pFmul = __mulsf3;
+  pFmodf = fmodf;
+  pDadd = __adddf3;
+  pDsub = __subdf3;
+  pDdiv = __divdf3;
+  pDmul = muldf3;
+  pFmod = fmod;
+  pCmplFloat = art_cmpl_float;
+  pCmpgFloat = arg_cmpl_float;
+  pCmplDouble = art_cmpl_double;
+  pCmpgDouble = arg_cmpl_double;
+#endif
 #if defined(__arm__)
   pShlLong = art_shl_long;
   pShrLong = art_shr_long;

@@ -138,4 +138,42 @@ extern "C" void art_proxy_invoke_handler();
 
 #endif
 
+#if defined(__mips__)
+  /* Conversions */
+  extern "C" float __floatsisf(int op1);             // OP_INT_TO_FLOAT
+  extern "C" int __fixsfsi(float op1);               // OP_FLOAT_TO_INT
+  extern "C" float __truncdfsf2(double op1);         // OP_DOUBLE_TO_FLOAT
+  extern "C" double __extendsfdf2(float op1);        // OP_FLOAT_TO_DOUBLE
+  extern "C" double __floatsidf(int op1);            // OP_INT_TO_DOUBLE
+  extern "C" int __fixdfsi(double op1);              // OP_DOUBLE_TO_INT
+  extern "C" float __floatdisf(long long op1);       // OP_LONG_TO_FLOAT
+  extern "C" double __floatdidf(long long op1);      // OP_LONG_TO_DOUBLE
+  extern "C" long long __fixsfdi(float op1);         // OP_FLOAT_TO_LONG
+  extern "C" long long __fixdfdi(double op1);        // OP_DOUBLE_TO_LONG
+
+  /* Single-precision FP arithmetics */
+  extern "C" float __addsf3(float a, float b);   // OP_ADD_FLOAT[_2ADDR]
+  extern "C" float __subsf3(float a, float b);   // OP_SUB_FLOAT[_2ADDR]
+  extern "C" float __divsf3(float a, float b);   // OP_DIV_FLOAT[_2ADDR]
+  extern "C" float __mulsf3(float a, float b);   // OP_MUL_FLOAT[_2ADDR]
+  extern "C" float fmodf(float a, float b);          // OP_REM_FLOAT[_2ADDR]
+
+  /* Double-precision FP arithmetics */
+  extern "C" double __adddf3(double a, double b); // OP_ADD_DOUBLE[_2ADDR]
+  extern "C" double __subdf3(double a, double b); // OP_SUB_DOUBLE[_2ADDR]
+  extern "C" double __divdf3(double a, double b); // OP_DIV_DOUBLE[_2ADDR]
+  extern "C" double __muldf3(double a, double b); // OP_MUL_DOUBLE[_2ADDR]
+  extern "C" double fmod(double a, double b);         // OP_REM_DOUBLE[_2ADDR]
+
+  /* Long long arithmetics - OP_REM_LONG[_2ADDR] & OP_DIV_LONG[_2ADDR] */
+  extern "C" long long __divdi3(long long op1, long long op2);
+  extern "C" long long __moddi3(long long op1, long long op2);
+
+  /* Float and double comparison */
+  extern "C" int art_cmpl_float(float a, float b);
+  extern "C" int art_cmpl_double(double a, double b);
+  extern "C" int art_cmpg_float(float a, float b);
+  extern "C" int art_cmpg_double(double a, double b);
+#endif
+
 #endif  // ART_SRC_RUNTIME_SUPPORT_H_

@@ -656,6 +656,10 @@ class PACKED Thread {
   const void* (*pUnresolvedDirectMethodTrampolineFromCode)(Method*, Method**, Thread*,
                                                            Runtime::TrampolineType);
   void (*pUpdateDebuggerFromCode)(void*, void*, int32_t, void*);
+  bool (*pCmplFloat)(float, float);
+  bool (*pCmpgFloat)(float, float);
+  bool (*pCmplDouble)(double, double);
+  bool (*pCmpgDouble)(double, double);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Thread);
