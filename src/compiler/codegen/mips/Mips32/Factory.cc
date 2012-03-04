@@ -28,7 +28,8 @@ static int coreRegs[] = {r_ZERO, r_AT, r_V0, r_V1, r_A0, r_A1, r_A2, r_A3,
                          r_T0, r_T1, r_T2, r_T3, r_T4, r_T5, r_T6, r_T7,
                          r_S0, r_S1, r_S2, r_S3, r_S4, r_S5, r_S6, r_S7, r_T8,
                          r_T9, r_K0, r_K1, r_GP, r_SP, r_FP, r_RA};
-static int reservedRegs[] = {r_ZERO, r_AT, r_S0, r_S1, r_K0, r_K1, r_GP, r_SP, r_RA};
+static int reservedRegs[] = {r_ZERO, r_AT, r_S0, r_S1, r_K0, r_K1, r_GP, r_SP,
+                             r_RA};
 static int coreTemps[] = {r_V0, r_V1, r_A0, r_A1, r_A2, r_A3, r_T0, r_T1, r_T2,
                           r_T3, r_T4, r_T5, r_T6, r_T7, r_T8, r_T9};
 #ifdef __mips_hard_float
@@ -51,33 +52,31 @@ LIR *loadConstant(CompilationUnit *cUnit, int rDest, int value);
 #ifdef __mips_hard_float
 LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
-    LIR* res = (LIR *) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
-    res->operands[0] = rDest;
-    res->operands[1] = rSrc;
-    if (rDest == rSrc) {
-        res->flags.isNop = true;
+    int opcode;
+    /* must be both DOUBLE or both not DOUBLE */
+    DCHECK_EQ(DOUBLEREG(rDest),DOUBLEREG(rSrc));
+    if (DOUBLEREG(rDest)) {
+        opcode = kMipsFmovd;
     } else {
-        /* must be both DOUBLE or both not DOUBLE */
-        DCHECK_EQ(DOUBLEREG(rDest),DOUBLEREG(rSrc));
-        if (DOUBLEREG(rDest)) {
-            res->opcode = kMipsFmovd;
-        } else {
-            if (SINGLEREG(rDest)) {
-                if (SINGLEREG(rSrc)) {
-                    res->opcode = kMipsFmovs;
-                } else {
-                    /* note the operands are swapped for the mtc1 instr */
-                    res->opcode = kMipsMtc1;
-                    res->operands[0] = rSrc;
-                    res->operands[1] = rDest;
-                }
+        if (SINGLEREG(rDest)) {
+            if (SINGLEREG(rSrc)) {
+                opcode = kMipsFmovs;
             } else {
-                DCHECK(SINGLEREG(rSrc));
-                res->opcode = kMipsMfc1;
+                /* note the operands are swapped for the mtc1 instr */
+                int tOpnd = rSrc;
+                rSrc = rDest;
+                rDest = tOpnd;
+                opcode = kMipsMtc1;
             }
+        } else {
+            DCHECK(SINGLEREG(rSrc));
+            opcode = kMipsMfc1;
         }
     }
-    setupResourceMasks(res);
+    LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rSrc, rDest);
+    if (rDest == rSrc) {
+        res->flags.isNop = true;
+    }
     return res;
 }
 #endif

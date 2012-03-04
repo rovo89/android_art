@@ -68,14 +68,8 @@ LIR* loadFPConstantValue(CompilationUnit* cUnit, int rDest, int value)
     if (dataTarget == NULL) {
         dataTarget = addWordData(cUnit, &cUnit->literalList, value);
     }
-    LIR* loadPcRel = (LIR* ) oatNew(cUnit, sizeof(LIR), true,
-                                          kAllocLIR);
-    loadPcRel->dalvikOffset = cUnit->currentDalvikOffset;
-    loadPcRel->opcode = kThumb2Vldrs;
-    loadPcRel->target = (LIR* ) dataTarget;
-    loadPcRel->operands[0] = rDest;
-    loadPcRel->operands[1] = r15pc;
-    setupResourceMasks(loadPcRel);
+    LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset, kThumb2Vldrs,
+                            rDest, r15pc, 0, 0, dataTarget);
     setMemRefType(loadPcRel, true, kLiteral);
     loadPcRel->aliasInfo = (intptr_t)dataTarget;
     oatAppendLIR(cUnit, (LIR* ) loadPcRel);
@@ -177,13 +171,8 @@ LIR* loadConstantNoClobber(CompilationUnit* cUnit, int rDest, int value)
     if (dataTarget == NULL) {
         dataTarget = addWordData(cUnit, &cUnit->literalList, value);
     }
-    LIR* loadPcRel = (LIR* ) oatNew(cUnit, sizeof(LIR), true,
-                                          kAllocLIR);
-    loadPcRel->opcode = kThumb2LdrPcRel12;
-    loadPcRel->target = (LIR* ) dataTarget;
-    loadPcRel->dalvikOffset = cUnit->currentDalvikOffset;
-    loadPcRel->operands[0] = rDest;
-    setupResourceMasks(loadPcRel);
+    LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
+                            kThumb2LdrPcRel12, rDest, 0, 0, 0, dataTarget);
     setMemRefType(loadPcRel, true, kLiteral);
     loadPcRel->aliasInfo = (intptr_t)dataTarget;
     res = loadPcRel;
@@ -643,14 +632,9 @@ LIR* loadConstantValueWide(CompilationUnit* cUnit, int rDestLo, int rDestHi,
                 dataTarget = addWideData(cUnit, &cUnit->literalList, valLo,
                                          valHi);
             }
-            LIR* loadPcRel = (LIR* ) oatNew(cUnit, sizeof(LIR), true,
-                                                  kAllocLIR);
-            loadPcRel->dalvikOffset = cUnit->currentDalvikOffset;
-            loadPcRel->opcode = kThumb2Vldrd;
-            loadPcRel->target = (LIR* ) dataTarget;
-            loadPcRel->operands[0] = S2D(rDestLo, rDestHi);
-            loadPcRel->operands[1] = r15pc;
-            setupResourceMasks(loadPcRel);
+            LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
+                                    kThumb2Vldrd, S2D(rDestLo, rDestHi),
+                                    r15pc, 0, 0, dataTarget);
             setMemRefType(loadPcRel, true, kLiteral);
             loadPcRel->aliasInfo = (intptr_t)dataTarget;
             oatAppendLIR(cUnit, (LIR* ) loadPcRel);
@@ -1042,28 +1026,22 @@ void loadPair(CompilationUnit* cUnit, int base, int lowReg, int highReg)
 
 LIR* fpRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
 {
-    LIR* res = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
-    res->dalvikOffset = cUnit->currentDalvikOffset;
-    res->operands[0] = rDest;
-    res->operands[1] = rSrc;
+    int opcode;
+    DCHECK_EQ(DOUBLEREG(rDest), DOUBLEREG(rSrc));
+    if (DOUBLEREG(rDest)) {
+        opcode = kThumb2Vmovd;
+    } else {
+        if (SINGLEREG(rDest)) {
+            opcode = SINGLEREG(rSrc) ? kThumb2Vmovs : kThumb2Fmsr;
+        } else {
+            DCHECK(SINGLEREG(rSrc));
+            opcode = kThumb2Fmrs;
+        }
+    }
+    LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rDest, rSrc);
     if (rDest == rSrc) {
         res->flags.isNop = true;
-    } else {
-        DCHECK_EQ(DOUBLEREG(rDest), DOUBLEREG(rSrc));
-        if (DOUBLEREG(rDest)) {
-            res->opcode = kThumb2Vmovd;
-        } else {
-            if (SINGLEREG(rDest)) {
-                res->opcode = SINGLEREG(rSrc) ? kThumb2Vmovs : kThumb2Fmsr;
-            } else {
-                DCHECK(SINGLEREG(rSrc));
-                res->opcode = kThumb2Fmrs;
-            }
-        }
-        res->operands[0] = rDest;
-        res->operands[1] = rSrc;
     }
-    setupResourceMasks(res);
     return res;
 }
 

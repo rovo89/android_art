@@ -1050,13 +1050,8 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                         lir->operands[0] : rLR;
 
                     // Add new Adr to generate the address
-                    LIR *newAdr = (LIR *)oatNew(cUnit, sizeof(LIR),
-                        true, kAllocLIR);
-                    newAdr->dalvikOffset = lir->dalvikOffset;
-                    newAdr->target = lir->target;
-                    newAdr->opcode = kThumb2Adr;
-                    newAdr->operands[0] = baseReg;
-                    oatSetupResourceMasks(newAdr);
+                    LIR* newAdr = rawLIR(cUnit, lir->dalvikOffset, kThumb2Adr,
+                                         baseReg, 0, 0, 0, lir->target);
                     oatInsertLIRBefore((LIR*)lir, (LIR*)newAdr);
 
                     // Convert to normal load
@@ -1083,17 +1078,14 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                 intptr_t target = targetLIR->offset;
                 int delta = target - pc;
                 if (delta > 126 || delta < 0) {
-                    /* Convert to cmp rx,#0 / b[eq/ne] tgt pair */
-                    LIR *newInst = (LIR *)oatNew(cUnit, sizeof(LIR),
-                        true, kAllocLIR);
-                    /* Make new branch instruction and insert after */
-                    newInst->dalvikOffset = lir->dalvikOffset;
-                    newInst->opcode = kThumbBCond;
-                    newInst->operands[0] = 0;
-                    newInst->operands[1] = (lir->opcode == kThumb2Cbz) ?
-                                            kArmCondEq : kArmCondNe;
-                    newInst->target = lir->target;
-                    oatSetupResourceMasks(newInst);
+                    /*
+                     * Convert to cmp rx,#0 / b[eq/ne] tgt pair
+                     * Make new branch instruction and insert after
+                     */
+                    LIR* newInst =
+                        rawLIR(cUnit, lir->dalvikOffset, kThumbBCond, 0,
+                               (lir->opcode == kThumb2Cbz) ? kArmCondEq : kArmCondNe,
+                               0, 0, lir->target);
                     oatInsertLIRAfter((LIR *)lir, (LIR *)newInst);
                     /* Convert the cb[n]z to a cmp rx, #0 ] */
                     lir->opcode = kThumbCmpRI8;
@@ -1209,26 +1201,14 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                 } else {
                     // convert to ldimm16l, ldimm16h, add tgt, pc, operands[0]
                     LIR *newMov16L =
-                        (LIR *)oatNew(cUnit, sizeof(LIR), true,
-                        kAllocLIR);
-                    newMov16L->dalvikOffset = lir->dalvikOffset;
-                    newMov16L->target = lir->target;
-                    newMov16L->opcode = kThumb2MovImm16LST;
-                    newMov16L->operands[0] = lir->operands[0];
-                    newMov16L->operands[2] = (intptr_t)lir;
-                    newMov16L->operands[3] = (intptr_t)tabRec;
-                    oatSetupResourceMasks(newMov16L);
+                        rawLIR(cUnit, lir->dalvikOffset, kThumb2MovImm16LST,
+                               lir->operands[0], 0, (intptr_t)lir, (intptr_t)tabRec,
+                               lir->target);
                     oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16L);
                     LIR *newMov16H =
-                        (LIR *)oatNew(cUnit, sizeof(LIR), true,
-                        kAllocLIR);
-                    newMov16H->dalvikOffset = lir->dalvikOffset;
-                    newMov16H->target = lir->target;
-                    newMov16H->opcode = kThumb2MovImm16HST;
-                    newMov16H->operands[0] = lir->operands[0];
-                    newMov16H->operands[2] = (intptr_t)lir;
-                    newMov16H->operands[3] = (intptr_t)tabRec;
-                    oatSetupResourceMasks(newMov16H);
+                        rawLIR(cUnit, lir->dalvikOffset, kThumb2MovImm16HST,
+                               lir->operands[0], 0, (intptr_t)lir, (intptr_t)tabRec,
+                               lir->target);
                     oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16H);
                     lir->opcode = kThumb2AddRRR;
                     lir->operands[1] = rPC;

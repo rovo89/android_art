@@ -410,21 +410,34 @@ void oatCodegenDump(CompilationUnit* cUnit)
     }
 }
 
+
+LIR* rawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0,
+            int op1, int op2, int op3, LIR* target)
+{
+    LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
+    insn->dalvikOffset = dalvikOffset;
+    insn->opcode = opcode;
+    insn->operands[0] = op0;
+    insn->operands[1] = op1;
+    insn->operands[2] = op2;
+    insn->operands[3] = op3;
+    insn->target = target;
+    oatSetupResourceMasks(insn);
+    if (opcode == kPseudoTargetLabel) {
+        // Always make labels scheduling barriers
+        insn->defMask = ENCODE_ALL;
+    }
+    return insn;
+}
+
 /*
  * The following are building blocks to construct low-level IRs with 0 - 4
  * operands.
  */
 LIR* newLIR0(CompilationUnit* cUnit, int opcode)
 {
-    LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
     DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & NO_OPERAND));
-    insn->opcode = opcode;
-    setupResourceMasks(insn);
-    insn->dalvikOffset = cUnit->currentDalvikOffset;
-    if (opcode == kPseudoTargetLabel) {
-        // Always make labels scheduling barriers
-        insn->defMask = ENCODE_ALL;
-    }
+    LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode);
     oatAppendLIR(cUnit, (LIR*) insn);
     return insn;
 }
@@ -432,12 +445,8 @@ LIR* newLIR0(CompilationUnit* cUnit, int opcode)
 LIR* newLIR1(CompilationUnit* cUnit, int opcode,
                            int dest)
 {
-    LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
     DCHECK(isPseudoOpcode(opcode) || (EncodingMap[opcode].flags & IS_UNARY_OP));
-    insn->opcode = opcode;
-    insn->operands[0] = dest;
-    setupResourceMasks(insn);
-    insn->dalvikOffset = cUnit->currentDalvikOffset;
+    LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest);
     oatAppendLIR(cUnit, (LIR*) insn);
     return insn;
 }
@@ -445,14 +454,9 @@ LIR* newLIR1(CompilationUnit* cUnit, int opcode,
 LIR* newLIR2(CompilationUnit* cUnit, int opcode,
                            int dest, int src1)
 {
-    LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
     DCHECK(isPseudoOpcode(opcode) ||
            (EncodingMap[opcode].flags & IS_BINARY_OP));
-    insn->opcode = opcode;
-    insn->operands[0] = dest;
-    insn->operands[1] = src1;
-    setupResourceMasks(insn);
-    insn->dalvikOffset = cUnit->currentDalvikOffset;
+    LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1);
     oatAppendLIR(cUnit, (LIR*) insn);
     return insn;
 }
@@ -460,18 +464,13 @@ LIR* newLIR2(CompilationUnit* cUnit, int opcode,
 LIR* newLIR3(CompilationUnit* cUnit, int opcode,
                            int dest, int src1, int src2)
 {
-    LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
     DCHECK(isPseudoOpcode(opcode) ||
            (EncodingMap[opcode].flags & IS_TERTIARY_OP))
             << (int)opcode << " "
             << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
             << cUnit->currentDalvikOffset;
-    insn->opcode = opcode;
-    insn->operands[0] = dest;
-    insn->operands[1] = src1;
-    insn->operands[2] = src2;
-    setupResourceMasks(insn);
-    insn->dalvikOffset = cUnit->currentDalvikOffset;
+    LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1,
+                       src2);
     oatAppendLIR(cUnit, (LIR*) insn);
     return insn;
 }
@@ -479,16 +478,10 @@ LIR* newLIR3(CompilationUnit* cUnit, int opcode,
 LIR* newLIR4(CompilationUnit* cUnit, int opcode,
                            int dest, int src1, int src2, int info)
 {
-    LIR* insn = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
     DCHECK(isPseudoOpcode(opcode) ||
            (EncodingMap[opcode].flags & IS_QUAD_OP));
-    insn->opcode = opcode;
-    insn->operands[0] = dest;
-    insn->operands[1] = src1;
-    insn->operands[2] = src2;
-    insn->operands[3] = info;
-    setupResourceMasks(insn);
-    insn->dalvikOffset = cUnit->currentDalvikOffset;
+    LIR* insn = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, dest, src1,
+                       src2, info);
     oatAppendLIR(cUnit, (LIR*) insn);
     return insn;
 }

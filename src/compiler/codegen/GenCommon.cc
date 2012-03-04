@@ -58,10 +58,8 @@ LIR* opUnconditionalBranch(CompilationUnit* cUnit, LIR* target)
 LIR* genCheck(CompilationUnit* cUnit, ConditionCode cCode, MIR* mir,
               ThrowKind kind)
 {
-    LIR* tgt = (LIR*)oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
-    tgt->opcode = kPseudoThrowTarget;
-    tgt->operands[0] = kind;
-    tgt->operands[1] = mir ? mir->offset : 0;
+    LIR* tgt = rawLIR(cUnit, 0, kPseudoThrowTarget, kind,
+                      mir ? mir->offset : 0);
     LIR* branch = opCondBranch(cUnit, cCode, tgt);
     // Remember branch target - will process later
     oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
@@ -72,10 +70,7 @@ LIR* genCheck(CompilationUnit* cUnit, ConditionCode cCode, MIR* mir,
 LIR* genImmedCheck(CompilationUnit* cUnit, ConditionCode cCode,
                    int reg, int immVal, MIR* mir, ThrowKind kind)
 {
-    LIR* tgt = (LIR*)oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
-    tgt->opcode = kPseudoThrowTarget;
-    tgt->operands[0] = kind;
-    tgt->operands[1] = mir->offset;
+    LIR* tgt = rawLIR(cUnit, 0, kPseudoThrowTarget, kind, mir->offset);
     LIR* branch;
     if (cCode == kCondAl) {
         branch = opUnconditionalBranch(cUnit, tgt);
@@ -101,12 +96,8 @@ LIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg, MIR* mir)
 LIR* genRegRegCheck(CompilationUnit* cUnit, ConditionCode cCode,
                         int reg1, int reg2, MIR* mir, ThrowKind kind)
 {
-    LIR* tgt = (LIR*)oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
-    tgt->opcode = kPseudoThrowTarget;
-    tgt->operands[0] = kind;
-    tgt->operands[1] = mir ? mir->offset : 0;
-    tgt->operands[2] = reg1;
-    tgt->operands[3] = reg2;
+    LIR* tgt = rawLIR(cUnit, 0, kPseudoThrowTarget, kind,
+                      mir ? mir->offset : 0, reg1, reg2);
 #if defined(TARGET_MIPS)
     LIR* branch = opCmpBranch(cUnit, cCode, reg1, reg2, tgt);
 #else
@@ -2127,11 +2118,8 @@ void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
 #endif
     }
     LIR* retLab = newLIR0(cUnit, kPseudoTargetLabel);
-    LIR* target = (LIR*)oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
-    target->dalvikOffset = cUnit->currentDalvikOffset;
-    target->opcode = kPseudoSuspendTarget;
-    target->operands[0] = (intptr_t)retLab;
-    target->operands[1] = mir->offset;
+    LIR* target = rawLIR(cUnit, cUnit->currentDalvikOffset,
+                         kPseudoSuspendTarget, (intptr_t)retLab, mir->offset);
     branch->target = (LIR*)target;
     oatInsertGrowableList(cUnit, &cUnit->suspendLaunchpads, (intptr_t)target);
 }

@@ -106,44 +106,44 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
                  "andi", "!0r,!1r,0x!2h(!2d)", 4),
     ENCODING_MAP(kMipsB, 0x10000000,
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH,
+                 kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH | NEEDS_FIXUP,
                  "b", "!0t!0N", 8),
     ENCODING_MAP(kMipsBal, 0x04110000,
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH | REG_DEF_LR,
-                 "bal", "!0t!0N", 8),
+                 kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH | REG_DEF_LR |
+                 NEEDS_FIXUP, "bal", "!0t!0N", 8),
     ENCODING_MAP(kMipsBeq, 0x10000000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_USE01,
-                 "beq", "!0r,!1r,!2t!0N", 8),
+                 kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_USE01 |
+                 NEEDS_FIXUP, "beq", "!0r,!1r,!2t!0N", 8),
     ENCODING_MAP(kMipsBeqz, 0x10000000, /* same as beq above with t = $zero */
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "beqz", "!0r,!1t!0N", 8),
+                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0 |
+                 NEEDS_FIXUP, "beqz", "!0r,!1t!0N", 8),
     ENCODING_MAP(kMipsBgez, 0x04010000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "bgez", "!0r,!1t!0N", 8),
+                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0 |
+                 NEEDS_FIXUP, "bgez", "!0r,!1t!0N", 8),
     ENCODING_MAP(kMipsBgtz, 0x1C000000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "bgtz", "!0r,!1t!0N", 8),
+                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0 |
+                 NEEDS_FIXUP, "bgtz", "!0r,!1t!0N", 8),
     ENCODING_MAP(kMipsBlez, 0x18000000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "blez", "!0r,!1t!0N", 8),
+                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0 |
+                 NEEDS_FIXUP, "blez", "!0r,!1t!0N", 8),
     ENCODING_MAP(kMipsBltz, 0x04000000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "bltz", "!0r,!1t!0N", 8),
+                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0 |
+                 NEEDS_FIXUP, "bltz", "!0r,!1t!0N", 8),
     ENCODING_MAP(kMipsBnez, 0x14000000, /* same as bne below with t = $zero */
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "bnez", "!0r,!1t!0N", 8),
+                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0 |
+                 NEEDS_FIXUP, "bnez", "!0r,!1t!0N", 8),
     ENCODING_MAP(kMipsBne, 0x14000000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_USE01,
-                 "bne", "!0r,!1r,!2t!0N", 8),
+                 kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_USE01 |
+                 NEEDS_FIXUP, "bne", "!0r,!1r,!2t!0N", 8),
     ENCODING_MAP(kMipsDiv, 0x0000001a,
                  kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtBitBlt, 25, 21,
                  kFmtBitBlt, 20, 16, IS_QUAD_OP | REG_DEF01 | REG_USE23,
@@ -164,8 +164,8 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
                  "jalr", "!0r,!1r!0N", 8),
     ENCODING_MAP(kMipsJr, 0x00000008,
                  kFmtBitBlt, 25, 21, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0,
-                 "jr", "!0r!0N", 8),
+                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0 |
+                 NEEDS_FIXUP, "jr", "!0r!0N", 8),
     ENCODING_MAP(kMipsLahi, 0x3C000000,
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0,
@@ -400,25 +400,116 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
 #endif
     ENCODING_MAP(kMipsDelta, 0x27e00000,
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtUnused, 15, 0,
-                 kFmtUnused, -1, -1, IS_QUAD_OP | REG_DEF0 | REG_USE_LR,
-                 "addiu", "!0r,r_ra,0x!1h(!1d)", 4),
+                 kFmtUnused, -1, -1, IS_QUAD_OP | REG_DEF0 | REG_USE_LR |
+                 NEEDS_FIXUP, "addiu", "!0r,r_ra,0x!1h(!1d)", 4),
     ENCODING_MAP(kMipsDeltaHi, 0x3C000000,
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_QUAD_OP | REG_DEF0,
+                 kFmtUnused, -1, -1, IS_QUAD_OP | REG_DEF0 | NEEDS_FIXUP,
                  "lui", "!0r,0x!1h(!1d)", 4),
     ENCODING_MAP(kMipsDeltaLo, 0x34000000,
                  kFmtBlt5_2, 16, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_QUAD_OP | REG_DEF0_USE0,
+                 kFmtUnused, -1, -1, IS_QUAD_OP | REG_DEF0_USE0 | NEEDS_FIXUP,
                  "ori", "!0r,!0r,0x!1h(!1d)", 4),
-    ENCODING_MAP(kMipsCurrPC, 0x0c000000,
+    ENCODING_MAP(kMipsCurrPC, 0x04110020,
                  kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH | REG_DEF_LR,
                  "pc2ra", "; r_ra <- .+8", 4),
+    ENCODING_MAP(kMipsSync, 0x0000000f,
+                 kFmtBitBlt, 10, 6, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_UNARY_OP,
+                 "sync", ";", 4),
     ENCODING_MAP(kMipsUndefined, 0x64000000,
                  kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, NO_OPERAND,
                  "undefined", "", 4),
 };
+
+
+/*
+ * Convert a short-form branch to long form.  Hopefully, this won't happen
+ * very often because the PIC sequence is especially unfortunate.
+ *
+ * Orig conditional branch
+ * -----------------------
+ *      beq  rs,rt,target
+ *
+ * Long conditional branch
+ * -----------------------
+ *      bne  rs,rt,hop
+ *      bal  .+8   ; r_RA <- anchor
+ *      lui  r_AT, ((target-anchor) >> 16)
+ * anchor:
+ *      ori  r_AT, r_AT, ((target-anchor) & 0xffff)
+ *      addu r_AT, r_AT, r_RA
+ *      jr   r_AT
+ * hop:
+ *
+ * Orig unconditional branch
+ * -------------------------
+ *      b target
+ *
+ * Long unconditional branch
+ * -----------------------
+ *      bal  .+8   ; r_RA <- anchor
+ *      lui  r_AT, ((target-anchor) >> 16)
+ * anchor:
+ *      ori  r_AT, r_AT, ((target-anchor) & 0xffff)
+ *      addu r_AT, r_AT, r_RA
+ *      jr   r_AT
+ *
+ *
+ * NOTE: An out-of-range bal isn't supported because it should
+ * never happen with the current PIC model.
+ */
+void convertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
+{
+    // For conditional branches we'll need to reverse the sense
+    bool unconditional = false;
+    int opcode = lir->opcode;
+    int dalvikOffset = lir->dalvikOffset;
+    switch(opcode) {
+        case kMipsBal:
+            LOG(FATAL) << "long branch and link unsupported";
+        case kMipsB:
+            unconditional = true;
+            break;
+        case kMipsBeq:  opcode = kMipsBne; break;
+        case kMipsBne:  opcode = kMipsBeq; break;
+        case kMipsBeqz: opcode = kMipsBnez; break;
+        case kMipsBgez: opcode = kMipsBltz; break;
+        case kMipsBgtz: opcode = kMipsBlez; break;
+        case kMipsBlez: opcode = kMipsBgtz; break;
+        case kMipsBltz: opcode = kMipsBgez; break;
+        case kMipsBnez: opcode = kMipsBeqz; break;
+        default:
+            LOG(FATAL) << "Unexpected branch kind " << (int)opcode;
+    }
+    LIR* hopTarget = NULL;
+    if (!unconditional) {
+        hopTarget = rawLIR(cUnit, dalvikOffset, kPseudoTargetLabel);
+        LIR* hopBranch = rawLIR(cUnit, dalvikOffset, opcode, lir->operands[0],
+                                lir->operands[1], 0, 0, hopTarget);
+        oatInsertLIRBefore(lir, hopBranch);
+    }
+    LIR* currPC = rawLIR(cUnit, dalvikOffset, kMipsCurrPC);
+    oatInsertLIRBefore(lir, currPC);
+    LIR* anchor = rawLIR(cUnit, dalvikOffset, kPseudoTargetLabel);
+    LIR* deltaHi = rawLIR(cUnit, dalvikOffset, kMipsDeltaHi, r_AT, 0,
+                          (uintptr_t)anchor, 0, lir->target);
+    oatInsertLIRBefore(lir, deltaHi);
+    oatInsertLIRBefore(lir, anchor);
+    LIR* deltaLo = rawLIR(cUnit, dalvikOffset, kMipsDeltaLo, r_AT, 0,
+                          (uintptr_t)anchor, 0, lir->target);
+    oatInsertLIRBefore(lir, deltaLo);
+    LIR* addu = rawLIR(cUnit, dalvikOffset, kMipsAddu, r_AT, r_AT, r_RA);
+    oatInsertLIRBefore(lir, addu);
+    LIR* jr = rawLIR(cUnit, dalvikOffset, kMipsJr, r_AT);
+    oatInsertLIRBefore(lir, jr);
+    if (!unconditional) {
+        oatInsertLIRBefore(lir, hopTarget);
+    }
+    lir->flags.isNop = true;
+}
 
 /*
  * Assemble the LIR into binary instruction format.  Note that we may
@@ -442,108 +533,112 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
             continue;
         }
 
-// TODO: check for lir->flags.pcRelFixup
-
-        if (lir->opcode == kMipsDelta) {
-            int offset1 = ((LIR*)lir->operands[2])->offset;
-            SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
-            int offset2 = tabRec ? tabRec->offset : lir->target->offset;
-            int delta = offset2 - offset1;
-            if ((delta & 0xffff) == delta) {
-                // Fits
-                lir->operands[1] = delta;
-            } else {
-                // Doesn't fit - must expand to kMipsDelta[Hi|Lo] pair
-                LIR *newDeltaHi =
-                    (LIR *)oatNew(cUnit, sizeof(LIR), true,
-                    kAllocLIR);
-                newDeltaHi->dalvikOffset = lir->dalvikOffset;
-                newDeltaHi->target = lir->target;
-                newDeltaHi->opcode = kMipsDeltaHi;
-                newDeltaHi->operands[0] = lir->operands[0];
-                newDeltaHi->operands[2] = lir->operands[2];
-                newDeltaHi->operands[3] = lir->operands[3];
-                oatSetupResourceMasks(newDeltaHi);
-                oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaHi);
-                LIR *newDeltaLo =
-                    (LIR *)oatNew(cUnit, sizeof(LIR), true,
-                    kAllocLIR);
-                newDeltaLo->dalvikOffset = lir->dalvikOffset;
-                newDeltaLo->target = lir->target;
-                newDeltaLo->opcode = kMipsDeltaLo;
-                newDeltaLo->operands[0] = lir->operands[0];
-                newDeltaLo->operands[2] = lir->operands[2];
-                newDeltaLo->operands[3] = lir->operands[3];
-                oatSetupResourceMasks(newDeltaLo);
-                oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaLo);
-                lir->flags.isNop = true;
-                res = kRetryAll;
+        if (lir->flags.pcRelFixup) {
+            if (lir->opcode == kMipsDelta) {
+                /*
+                 * The "Delta" pseudo-ops load the difference between
+                 * two pc-relative locations into a the target register
+                 * found in operands[0].  The delta is determined by
+                 * (label2 - label1), where label1 is a standard
+                 * kPseudoTargetLabel and is stored in operands[2].
+                 * If operands[3] is null, then label2 is a kPseudoTargetLabel
+                 * and is found in lir->target.  If operands[3] is non-NULL,
+                 * then it is a Switch/Data table.
+                 */
+                int offset1 = ((LIR*)lir->operands[2])->offset;
+                SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
+                int offset2 = tabRec ? tabRec->offset : lir->target->offset;
+                int delta = offset2 - offset1;
+                if ((delta & 0xffff) == delta) {
+                    // Fits
+                    lir->operands[1] = delta;
+                } else {
+                    // Doesn't fit - must expand to kMipsDelta[Hi|Lo] pair
+                    LIR *newDeltaHi =
+                          rawLIR(cUnit, lir->dalvikOffset, kMipsDeltaHi,
+                                 lir->operands[0], 0, lir->operands[2],
+                                 lir->operands[3], lir->target);
+                    oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaHi);
+                    LIR *newDeltaLo =
+                          rawLIR(cUnit, lir->dalvikOffset, kMipsDeltaLo,
+                                 lir->operands[0], 0, lir->operands[2],
+                                 lir->operands[3], lir->target);
+                    oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaLo);
+                    lir->flags.isNop = true;
+                    res = kRetryAll;
+                }
+            } else if (lir->opcode == kMipsDeltaLo) {
+                int offset1 = ((LIR*)lir->operands[2])->offset;
+                SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
+                int offset2 = tabRec ? tabRec->offset : lir->target->offset;
+                int delta = offset2 - offset1;
+                lir->operands[1] = delta & 0xffff;
+            } else if (lir->opcode == kMipsDeltaHi) {
+                int offset1 = ((LIR*)lir->operands[2])->offset;
+                SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
+                int offset2 = tabRec ? tabRec->offset : lir->target->offset;
+                int delta = offset2 - offset1;
+                lir->operands[1] = (delta >> 16) & 0xffff;
+            } else if (lir->opcode == kMipsB || lir->opcode == kMipsBal) {
+                LIR *targetLIR = (LIR *) lir->target;
+                intptr_t pc = lir->offset + 4;
+                intptr_t target = targetLIR->offset;
+                int delta = target - pc;
+                if (delta & 0x3) {
+                    LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
+                }
+                if (delta > 131068 || delta < -131069) {
+                    res = kRetryAll;
+                    convertShortToLongBranch(cUnit, lir);
+                } else {
+                    lir->operands[0] = delta >> 2;
+                }
+            } else if (lir->opcode >= kMipsBeqz && lir->opcode <= kMipsBnez) {
+                LIR *targetLIR = (LIR *) lir->target;
+                intptr_t pc = lir->offset + 4;
+                intptr_t target = targetLIR->offset;
+                int delta = target - pc;
+                if (delta & 0x3) {
+                    LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
+                }
+                if (delta > 131068 || delta < -131069) {
+                    res = kRetryAll;
+                    convertShortToLongBranch(cUnit, lir);
+                } else {
+                    lir->operands[1] = delta >> 2;
+                }
+            } else if (lir->opcode == kMipsBeq || lir->opcode == kMipsBne) {
+                LIR *targetLIR = (LIR *) lir->target;
+                intptr_t pc = lir->offset + 4;
+                intptr_t target = targetLIR->offset;
+                int delta = target - pc;
+                if (delta & 0x3) {
+                    LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
+                }
+                if (delta > 131068 || delta < -131069) {
+                    res = kRetryAll;
+                    convertShortToLongBranch(cUnit, lir);
+                } else {
+                    lir->operands[2] = delta >> 2;
+                }
+            } else if (lir->opcode == kMipsJal) {
+                intptr_t curPC = (startAddr + lir->offset + 4) & ~3;
+                intptr_t target = lir->operands[0];
+                /* ensure PC-region branch can be used */
+                DCHECK_EQ((curPC & 0xF0000000), (target & 0xF0000000));
+                if (target & 0x3) {
+                    LOG(FATAL) << "Jump target not multiple of 4: " << target;
+                }
+                lir->operands[0] =  target >> 2;
+            } else if (lir->opcode == kMipsLahi) { /* ld address hi (via lui) */
+                LIR *targetLIR = (LIR *) lir->target;
+                intptr_t target = startAddr + targetLIR->offset;
+                lir->operands[1] = target >> 16;
+            } else if (lir->opcode == kMipsLalo) { /* ld address lo (via ori) */
+                LIR *targetLIR = (LIR *) lir->target;
+                intptr_t target = startAddr + targetLIR->offset;
+                lir->operands[2] = lir->operands[2] + target;
             }
-        } else if (lir->opcode == kMipsDeltaLo) {
-            int offset1 = ((LIR*)lir->operands[2])->offset;
-            SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
-            int offset2 = tabRec ? tabRec->offset : lir->target->offset;
-            int delta = offset2 - offset1;
-            lir->operands[1] = delta & 0xffff;
-        } else if (lir->opcode == kMipsDeltaHi) {
-            int offset1 = ((LIR*)lir->operands[2])->offset;
-            SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
-            int offset2 = tabRec ? tabRec->offset : lir->target->offset;
-            int delta = offset2 - offset1;
-            lir->operands[1] = (delta >> 16) & 0xffff;
-        } else if (lir->opcode == kMipsB || lir->opcode == kMipsBal) {
-            LIR *targetLIR = (LIR *) lir->target;
-            intptr_t pc = lir->offset + 4;
-            intptr_t target = targetLIR->offset;
-            int delta = target - pc;
-            if (delta & 0x3) {
-                LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
-            }
-            if (delta > 131068 || delta < -131069) {
-                UNIMPLEMENTED(FATAL) << "B out of range, need long sequence: " << delta;
-            }
-            lir->operands[0] = delta >> 2;
-        } else if (lir->opcode >= kMipsBeqz && lir->opcode <= kMipsBnez) {
-            LIR *targetLIR = (LIR *) lir->target;
-            intptr_t pc = lir->offset + 4;
-            intptr_t target = targetLIR->offset;
-            int delta = target - pc;
-            if (delta & 0x3) {
-                LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
-            }
-            if (delta > 131068 || delta < -131069) {
-                UNIMPLEMENTED(FATAL) << "B[eq|ne]z needs long sequence: " << delta;
-            }
-            lir->operands[1] = delta >> 2;
-        } else if (lir->opcode == kMipsBeq || lir->opcode == kMipsBne) {
-            LIR *targetLIR = (LIR *) lir->target;
-            intptr_t pc = lir->offset + 4;
-            intptr_t target = targetLIR->offset;
-            int delta = target - pc;
-            if (delta & 0x3) {
-                LOG(FATAL) << "PC-rel offset not multiple of 4: " << delta;
-            }
-            if (delta > 131068 || delta < -131069) {
-                UNIMPLEMENTED(FATAL) << "B[eq|ne] needs long sequence: " << delta;
-            }
-            lir->operands[2] = delta >> 2;
-        } else if (lir->opcode == kMipsJal) {
-            intptr_t curPC = (startAddr + lir->offset + 4) & ~3;
-            intptr_t target = lir->operands[0];
-            /* ensure PC-region branch can be used */
-            DCHECK_EQ((curPC & 0xF0000000), (target & 0xF0000000));
-            if (target & 0x3) {
-                LOG(FATAL) << "Jump target not multiple of 4: " << target;
-            }
-            lir->operands[0] =  target >> 2;
-        } else if (lir->opcode == kMipsLahi) { /* load address hi (via lui) */
-            LIR *targetLIR = (LIR *) lir->target;
-            intptr_t target = startAddr + targetLIR->offset;
-            lir->operands[1] = target >> 16;
-        } else if (lir->opcode == kMipsLalo) { /* load address lo (via ori) */
-            LIR *targetLIR = (LIR *) lir->target;
-            intptr_t target = startAddr + targetLIR->offset;
-            lir->operands[2] = lir->operands[2] + target;
         }
 
         /*

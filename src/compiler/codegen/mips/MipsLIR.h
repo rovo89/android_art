@@ -311,9 +311,17 @@ typedef enum MipsShiftEncodings {
     kMipsRor = 0x3
 } MipsShiftEncodings;
 
-// FIXME: Need support for barriers.  Adding these defines to allow compile
-#define kST 0
-#define kSY 1
+// MIPS sync kinds (Note: support for kinds other than kSYNC0 may not exist)
+#define kSYNC0        0x00
+#define kSYNC_WMB     0x04
+#define kSYNC_MB      0x01
+#define kSYNC_ACQUIRE 0x11
+#define kSYNC_RELEASE 0x12
+#define kSYNC_RMB     0x13
+
+// TODO: Use smaller hammer when appropriate for target CPU
+#define kST kSYNC0
+#define kSY kSYNC0
 
 #define isPseudoOpcode(opCode) ((int)(opCode) < 0)
 
@@ -430,6 +438,7 @@ typedef enum MipsOpCode {
     kMipsDeltaHi, /* Pseudo for lui t, high16(<label>-<label>) */
     kMipsDeltaLo, /* Pseudo for ori t, s, low16(<label>-<label>) */
     kMipsCurrPC,  /* jal to .+8 to materialize pc */
+    kMipsSync,    /* sync kind [000000] [0000000000000000] s[10..6] [001111] */
     kMipsUndefined,  /* undefined [011001xxxxxxxxxxxxxxxx] */
     kMipsLast
 } MipsOpCode;
@@ -463,7 +472,6 @@ typedef enum MipsOpFeatureFlags {
     kMemStore,
     kPCRelFixup,
     kRegUseLR,
-// FIXME: add NEEDS_FIXUP to instruction attributes
 } MipsOpFeatureFlags;
 
 #define IS_LOAD         (1 << kMemLoad)

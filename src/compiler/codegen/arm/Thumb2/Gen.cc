@@ -428,8 +428,6 @@ LIR* opRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
     ArmOpcode opcode;
     if (FPREG(rDest) || FPREG(rSrc))
         return fpRegCopy(cUnit, rDest, rSrc);
-    res = (LIR* ) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
-    res->dalvikOffset = cUnit->currentDalvikOffset;
     if (LOWREG(rDest) && LOWREG(rSrc))
         opcode = kThumbMovRR;
     else if (!LOWREG(rDest) && !LOWREG(rSrc))
@@ -438,11 +436,7 @@ LIR* opRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
          opcode = kThumbMovRR_H2L;
     else
          opcode = kThumbMovRR_L2H;
-
-    res->operands[0] = rDest;
-    res->operands[1] = rSrc;
-    res->opcode = opcode;
-    setupResourceMasks(res);
+    res = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rDest, rSrc);
     if (rDest == rSrc) {
         res->flags.isNop = true;
     }

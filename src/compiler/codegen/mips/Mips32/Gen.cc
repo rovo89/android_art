@@ -389,8 +389,7 @@ LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
             swapped = true;
             break;
         default:
-            UNIMPLEMENTED(FATAL) << "No support for ConditionCode: "
-                                 << (int) cond;
+            LOG(FATAL) << "No support for ConditionCode: " << (int) cond;
             return NULL;
     }
     if (cmpZero) {
@@ -445,19 +444,12 @@ LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
 
 LIR* opRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
 {
-    LIR* res;
-    MipsOpCode opcode;
 #ifdef __mips_hard_float
     if (FPREG(rDest) || FPREG(rSrc))
         return fpRegCopy(cUnit, rDest, rSrc);
 #endif
-    res = (LIR *) oatNew(cUnit, sizeof(LIR), true, kAllocLIR);
-    opcode = kMipsMove;
-    assert(LOWREG(rDest) && LOWREG(rSrc));
-    res->operands[0] = rDest;
-    res->operands[1] = rSrc;
-    res->opcode = opcode;
-    setupResourceMasks(res);
+    LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, kMipsMove,
+                      rDest, rSrc);
     if (rDest == rSrc) {
         res->flags.isNop = true;
     }

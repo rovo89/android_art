@@ -52,7 +52,7 @@ int dvmCompilerTargetOptHint(int key)
 void oatGenMemBarrier(CompilationUnit *cUnit, int barrierKind)
 {
 #if ANDROID_SMP != 0
-    // FIXME: what to do here for Mips?
+    newLIR1(cUnit, kMipsSync, barrierKind);
 #endif
 }
 

@@ -47,7 +47,7 @@ void oatAdjustSpillMask(CompilationUnit* cUnit)
  */
 void oatMarkPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
 {
-    UNIMPLEMENTED(FATAL) << "No support yet for promoted FP regs";
+    LOG(FATAL) << "No support yet for promoted FP regs";
 }
 
 void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
