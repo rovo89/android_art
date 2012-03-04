@@ -24,6 +24,77 @@
 
 namespace art {
 
+bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2)
+{
+    rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
+    rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    /*
+     *  [v1 v0] =  [a1 a0] + [a3 a2];
+     *    addu v0,a2,a0
+     *    addu t1,a3,a1
+     *    sltu v1,v0,a2
+     *    addu v1,v1,t1
+     */
+
+    opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc2.lowReg, rlSrc1.lowReg);
+    int tReg = oatAllocTemp(cUnit);
+    opRegRegReg(cUnit, kOpAdd, tReg, rlSrc2.highReg, rlSrc1.highReg);
+    newLIR3(cUnit, kMipsSltu, rlResult.highReg, rlResult.lowReg, rlSrc2.lowReg);
+    opRegRegReg(cUnit, kOpAdd, rlResult.highReg, rlResult.highReg, tReg);
+    oatFreeTemp(cUnit, tReg);
+    storeValueWide(cUnit, rlDest, rlResult);
+    return false;
+}
+
+bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2)
+{
+    rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
+    rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    /*
+     *  [v1 v0] =  [a1 a0] - [a3 a2];
+     *    subu    v0,a0,a2
+     *    subu    v1,a1,a3
+     *    sltu    t1,a0,v0
+     *    subu    v1,v1,t1
+     */
+
+    opRegRegReg(cUnit, kOpSub, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
+    opRegRegReg(cUnit, kOpSub, rlResult.highReg, rlSrc1.highReg, rlSrc2.highReg);
+    int tReg = oatAllocTemp(cUnit);
+    newLIR3(cUnit, kMipsSltu, tReg, rlSrc1.lowReg, rlResult.lowReg);
+    opRegRegReg(cUnit, kOpSub, rlResult.highReg, rlResult.highReg, tReg);
+    oatFreeTemp(cUnit, tReg);
+    storeValueWide(cUnit, rlDest, rlResult);
+    return false;
+}
+
+bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                RegLocation rlSrc)
+{
+    rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    /*
+     *  [v1 v0] =  -[a1 a0]
+     *    negu    v0,a0
+     *    negu    v1,a1
+     *    sltu    t1,r_zero
+     *    subu    v1,v1,t1
+     */
+
+    opRegReg(cUnit, kOpNeg, rlResult.lowReg, rlSrc.lowReg);
+    opRegReg(cUnit, kOpNeg, rlResult.highReg, rlSrc.highReg);
+    int tReg = oatAllocTemp(cUnit);
+    newLIR3(cUnit, kMipsSltu, tReg, r_ZERO, rlResult.lowReg);
+    opRegRegReg(cUnit, kOpSub, rlResult.highReg, rlResult.highReg, tReg);
+    oatFreeTemp(cUnit, tReg);
+    storeValueWide(cUnit, rlDest, rlResult);
+    return false;
+}
+
 void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset);
 
 /*

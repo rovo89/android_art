@@ -61,7 +61,7 @@ bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
 
     return false;
 #else
-    UNIMPLEMENTED(FATAL) << "Need Mips soft float implementation";
+    UNIMPLEMENTED(WARNING) << "Need Mips soft float implementation";
     return false;
 #endif
 }
@@ -112,7 +112,7 @@ static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
     storeValueWide(cUnit, rlDest, rlResult);
     return false;
 #else
-    UNIMPLEMENTED(FATAL) << "Need Mips soft float implementation";
+    UNIMPLEMENTED(WARNING) << "Need Mips soft float implementation";
     return false;
 #endif
 }
@@ -181,7 +181,7 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir)
     }
     return false;
 #else
-    UNIMPLEMENTED(FATAL) << "Need Mips soft float implementation";
+    UNIMPLEMENTED(WARNING) << "Need Mips soft float implementation";
     return false;
 #endif
 }
@@ -189,7 +189,7 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir)
 static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
                      RegLocation rlSrc1, RegLocation rlSrc2)
 {
-    UNIMPLEMENTED(FATAL) << "Need Mips implementation";
+    UNIMPLEMENTED(WARNING) << "Need Mips implementation";
     return false;
 #if 0
     TemplateOpcode templateOpcode;

@@ -256,7 +256,6 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
     storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
                      kUnsignedByte);
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
     branchOver->target = (LIR*)target;
     oatFreeTemp(cUnit, regCardBase);
     oatFreeTemp(cUnit, regCardNo);

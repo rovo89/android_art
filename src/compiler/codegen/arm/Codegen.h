@@ -31,6 +31,8 @@ LIR *opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int value);
 LIR *opRegReg(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int rSrc2);
 LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
                     int checkValue, LIR* target);
+bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                RegLocation rlSrc);
 
 /* Forward declaraton the portable versions due to circular dependency */
 bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,

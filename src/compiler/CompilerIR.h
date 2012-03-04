@@ -482,7 +482,7 @@ typedef struct SwitchTable {
     int offset;
     const u2* table;            // Original dex table
     int vaddr;                  // Dalvik offset of switch opcode
-    LIR* bxInst;                // Switch indirect branch instruction
+    LIR* anchor;                // Reference instruction for relative offsets
     LIR** targets;              // Array of case targets
 } SwitchTable;
 

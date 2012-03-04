@@ -426,6 +426,10 @@ typedef enum MipsOpCode {
     kMipsMfc1,    /* mfc1 t,s [01000100000] t[20..16] s[15..11] [00000000000] */
     kMipsMtc1,    /* mtc1 t,s [01000100100] t[20..16] s[15..11] [00000000000] */
 #endif
+    kMipsDelta,   /* Psuedo for ori t, s, <label>-<label> */
+    kMipsDeltaHi, /* Pseudo for lui t, high16(<label>-<label>) */
+    kMipsDeltaLo, /* Pseudo for ori t, s, low16(<label>-<label>) */
+    kMipsCurrPC,  /* jal to .+8 to materialize pc */
     kMipsUndefined,  /* undefined [011001xxxxxxxxxxxxxxxx] */
     kMipsLast
 } MipsOpCode;
@@ -458,6 +462,7 @@ typedef enum MipsOpFeatureFlags {
     kMemLoad,
     kMemStore,
     kPCRelFixup,
+    kRegUseLR,
 // FIXME: add NEEDS_FIXUP to instruction attributes
 } MipsOpFeatureFlags;
 
@@ -486,7 +491,8 @@ typedef enum MipsOpFeatureFlags {
 #define IS_IT           (1 << kIsIT)
 #define SETS_CCODES     (1 << kSetsCCodes)
 #define USES_CCODES     (1 << kUsesCCodes)
-#define NEEDS_FIXUP      (1 << kPCRelFixup)
+#define NEEDS_FIXUP     (1 << kPCRelFixup)
+#define REG_USE_LR      (1 << kRegUseLR)
 
 /*  attributes, included for compatibility */
 #define REG_DEF_FPCS_LIST0   (0)
@@ -513,6 +519,7 @@ typedef enum MipsEncodingKind {
     kFmtBitBlt,        /* Bit string using end/start */
     kFmtDfp,           /* Double FP reg */
     kFmtSfp,           /* Single FP reg */
+    kFmtBlt5_2,        /* Same 5-bit field to 2 locations */
 } MipsEncodingKind;
 
 /* Struct used to define the snippet positions for each Thumb opcode */

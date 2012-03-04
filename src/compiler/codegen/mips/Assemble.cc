@@ -221,7 +221,7 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
     ENCODING_MAP(kMipsNop, 0x00000000,
                  kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, NO_OPERAND,
-                 "nop", "", 4),
+                 "nop", ";", 4),
     ENCODING_MAP(kMipsNor, 0x00000027, /* used for "not" too */
                  kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
@@ -398,6 +398,22 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_USE0 | REG_DEF1,
                  "mtc1", "!0r,!1s", 4),
 #endif
+    ENCODING_MAP(kMipsDelta, 0x27e00000,
+                 kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtUnused, 15, 0,
+                 kFmtUnused, -1, -1, IS_QUAD_OP | REG_DEF0 | REG_USE_LR,
+                 "addiu", "!0r,r_ra,0x!1h(!1d)", 4),
+    ENCODING_MAP(kMipsDeltaHi, 0x3C000000,
+                 kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_QUAD_OP | REG_DEF0,
+                 "lui", "!0r,0x!1h(!1d)", 4),
+    ENCODING_MAP(kMipsDeltaLo, 0x34000000,
+                 kFmtBlt5_2, 16, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_QUAD_OP | REG_DEF0_USE0,
+                 "ori", "!0r,!0r,0x!1h(!1d)", 4),
+    ENCODING_MAP(kMipsCurrPC, 0x0c000000,
+                 kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH | REG_DEF_LR,
+                 "pc2ra", "; r_ra <- .+8", 4),
     ENCODING_MAP(kMipsUndefined, 0x64000000,
                  kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, NO_OPERAND,
@@ -426,7 +442,56 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
             continue;
         }
 
-        if (lir->opcode == kMipsB || lir->opcode == kMipsBal) {
+// TODO: check for lir->flags.pcRelFixup
+
+        if (lir->opcode == kMipsDelta) {
+            int offset1 = ((LIR*)lir->operands[2])->offset;
+            SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
+            int offset2 = tabRec ? tabRec->offset : lir->target->offset;
+            int delta = offset2 - offset1;
+            if ((delta & 0xffff) == delta) {
+                // Fits
+                lir->operands[1] = delta;
+            } else {
+                // Doesn't fit - must expand to kMipsDelta[Hi|Lo] pair
+                LIR *newDeltaHi =
+                    (LIR *)oatNew(cUnit, sizeof(LIR), true,
+                    kAllocLIR);
+                newDeltaHi->dalvikOffset = lir->dalvikOffset;
+                newDeltaHi->target = lir->target;
+                newDeltaHi->opcode = kMipsDeltaHi;
+                newDeltaHi->operands[0] = lir->operands[0];
+                newDeltaHi->operands[2] = lir->operands[2];
+                newDeltaHi->operands[3] = lir->operands[3];
+                oatSetupResourceMasks(newDeltaHi);
+                oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaHi);
+                LIR *newDeltaLo =
+                    (LIR *)oatNew(cUnit, sizeof(LIR), true,
+                    kAllocLIR);
+                newDeltaLo->dalvikOffset = lir->dalvikOffset;
+                newDeltaLo->target = lir->target;
+                newDeltaLo->opcode = kMipsDeltaLo;
+                newDeltaLo->operands[0] = lir->operands[0];
+                newDeltaLo->operands[2] = lir->operands[2];
+                newDeltaLo->operands[3] = lir->operands[3];
+                oatSetupResourceMasks(newDeltaLo);
+                oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaLo);
+                lir->flags.isNop = true;
+                res = kRetryAll;
+            }
+        } else if (lir->opcode == kMipsDeltaLo) {
+            int offset1 = ((LIR*)lir->operands[2])->offset;
+            SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
+            int offset2 = tabRec ? tabRec->offset : lir->target->offset;
+            int delta = offset2 - offset1;
+            lir->operands[1] = delta & 0xffff;
+        } else if (lir->opcode == kMipsDeltaHi) {
+            int offset1 = ((LIR*)lir->operands[2])->offset;
+            SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
+            int offset2 = tabRec ? tabRec->offset : lir->target->offset;
+            int delta = offset2 - offset1;
+            lir->operands[1] = (delta >> 16) & 0xffff;
+        } else if (lir->opcode == kMipsB || lir->opcode == kMipsBal) {
             LIR *targetLIR = (LIR *) lir->target;
             intptr_t pc = lir->offset + 4;
             intptr_t target = targetLIR->offset;
@@ -507,6 +572,11 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                                 ((1 << (encoder->fieldLoc[i].end + 1)) - 1);
                     }
                     bits |= value;
+                    break;
+                case kFmtBlt5_2:
+                    value = (operand & 0x1f);
+                    bits |= (value << encoder->fieldLoc[i].start);
+                    bits |= (value << encoder->fieldLoc[i].end);
                     break;
                 case kFmtDfp: {
                     DCHECK(DOUBLEREG(operand));

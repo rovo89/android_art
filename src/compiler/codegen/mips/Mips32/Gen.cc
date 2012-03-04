@@ -25,28 +25,38 @@
 namespace art {
 
 /*
- * The sparse table in the literal pool is an array of <key,displacement>
- * pairs.  For each set, we'll load them as a pair using ldmia.
- * This means that the register number of the temp we use for the key
- * must be lower than the reg for the displacement.
+ * The lack of pc-relative loads on Mips presents somewhat of a challenge
+ * for our PIC switch table strategy.  To materialize the current location
+ * we'll do a dummy JAL and reference our tables using r_RA as the
+ * base register.  Note that r_RA will be used both as the base to
+ * locate the switch table data and as the reference base for the switch
+ * target offsets stored in the table.  We'll use a special pseudo-instruction
+ * to represent the jal and trigger the construction of the
+ * switch table offsets (which will happen after final assembly and all
+ * labels are fixed).
  *
  * The test loop will look something like:
  *
- *   adr   rBase, <table>
- *   ldr   rVal, [rSP, vRegOff]
- *   mov   rIdx, #tableSize
- * lp:
- *   ldmia rBase!, {rKey, rDisp}
- *   sub   rIdx, #1
- *   cmp   rVal, rKey
- *   ifeq
- *   add   rPC, rDisp   ; This is the branch from which we compute displacement
- *   cbnz  rIdx, lp
+ *   ori   rEnd, r_ZERO, #tableSize  ; size in bytes
+ *   jal   BaseLabel         ; stores "return address" (BaseLabel) in r_RA
+ *   nop                     ; opportunistically fill
+ * BaseLabel:
+ *   addiu rBase, r_RA, <table> - <BaseLabel>  ; table relative to BaseLabel
+     addu  rEnd, rEnd, rBase                   ; end of table
+ *   lw    rVal, [rSP, vRegOff]                ; Test Value
+ * loop:
+ *   beq   rBase, rEnd, done
+ *   lw    rKey, 0(rBase)
+ *   addu  rBase, 8
+ *   bne   rVal, rKey, loop
+ *   lw    rDisp, -4(rBase)
+ *   addu  r_RA, rDisp
+ *   jr    r_RA
+ * done:
+ *
  */
 void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    UNIMPLEMENTED(FATAL) << "Needs Mips sparse switch";
-#if 0
     const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
     if (cUnit->printMe) {
         dumpSparseSwitchTable(table);
@@ -56,49 +66,75 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
                          true, kAllocData);
     tabRec->table = table;
     tabRec->vaddr = mir->offset;
-    int size = table[1];
-    tabRec->targets = (LIR* *)oatNew(cUnit, size * sizeof(LIR*), true,
+    int elements = table[1];
+    tabRec->targets = (LIR* *)oatNew(cUnit, elements * sizeof(LIR*), true,
                                      kAllocLIR);
     oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
 
-    // Get the switch value
-    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
-    int rBase = oatAllocTemp(cUnit);
-    /* Allocate key and disp temps */
-    int rKey = oatAllocTemp(cUnit);
-    int rDisp = oatAllocTemp(cUnit);
-    // Make sure rKey's register number is less than rDisp's number for ldmia
-    if (rKey > rDisp) {
-        int tmp = rDisp;
-        rDisp = rKey;
-        rKey = tmp;
+    // The table is composed of 8-byte key/disp pairs
+    int byteSize = elements * 8;
+
+    int sizeHi = byteSize >> 16;
+    int sizeLo = byteSize & 0xffff;
+
+    int rEnd = oatAllocTemp(cUnit);
+    if (sizeHi) {
+        newLIR2(cUnit, kMipsLui, rEnd, sizeHi);
     }
-    // Materialize a pointer to the switch table
-    newLIR3(cUnit, kThumb2Adr, rBase, 0, (intptr_t)tabRec);
-    // Set up rIdx
-    int rIdx = oatAllocTemp(cUnit);
-    loadConstant(cUnit, rIdx, size);
-    // Establish loop branch target
-    LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
-    // Load next key/disp
-    newLIR2(cUnit, kThumb2LdmiaWB, rBase, (1 << rKey) | (1 << rDisp));
-    opRegReg(cUnit, kOpCmp, rKey, rlSrc.lowReg);
-    // Go if match. NOTE: No instruction set switch here - must stay Thumb2
-    opIT(cUnit, kArmCondEq, "");
-    LIR* switchBranch = newLIR1(cUnit, kThumb2AddPCR, rDisp);
-    tabRec->bxInst = switchBranch;
-    // Needs to use setflags encoding here
-    newLIR3(cUnit, kThumb2SubsRRI12, rIdx, rIdx, 1);
-    LIR* branch = opCondBranch(cUnit, kCondNe, target);
-#endif
+    // Must prevent code motion for the curr pc pair
+    genBarrier(cUnit);  // Scheduling barrier
+    newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
+    // Now, fill the branch delay slot
+    if (sizeHi) {
+        newLIR3(cUnit, kMipsOri, rEnd, rEnd, sizeLo);
+    } else {
+        newLIR3(cUnit, kMipsOri, rEnd, r_ZERO, sizeLo);
+    }
+    genBarrier(cUnit);  // Scheduling barrier
+
+    // Construct BaseLabel and set up table base register
+    LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
+    // Remember base label so offsets can be computed later
+    tabRec->anchor = baseLabel;
+    int rBase = oatAllocTemp(cUnit);
+    newLIR4(cUnit, kMipsDelta, rBase, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
+    opRegRegReg(cUnit, kOpAdd, rEnd, rEnd, rBase);
+
+    // Grab switch test value
+    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+
+    // Test loop
+    int rKey = oatAllocTemp(cUnit);
+    LIR* loopLabel = newLIR0(cUnit, kPseudoTargetLabel);
+    LIR* exitBranch = opCmpBranch(cUnit , kCondEq, rBase, rEnd, NULL);
+    loadWordDisp(cUnit, rBase, 0, rKey);
+    opRegImm(cUnit, kOpAdd, rBase, 8);
+    opCmpBranch(cUnit, kCondNe, rlSrc.lowReg, rKey, loopLabel);
+    int rDisp = oatAllocTemp(cUnit);
+    loadWordDisp(cUnit, rBase, -4, rDisp);
+    opRegRegReg(cUnit, kOpAdd, r_RA, r_RA, rDisp);
+    opReg(cUnit, kOpBx, r_RA);
+
+    // Loop exit
+    LIR* exitLabel = newLIR0(cUnit, kPseudoTargetLabel);
+    exitBranch->target = exitLabel;
 }
 
-
+/*
+ * Code pattern will look something like:
+ *
+ *   lw    rVal
+ *   jal   BaseLabel         ; stores "return address" (BaseLabel) in r_RA
+ *   nop                     ; opportunistically fill
+ *   [subiu rVal, bias]      ; Remove bias if lowVal != 0
+ *   bound check -> done
+ *   lw    rDisp, [r_RA, rVal]
+ *   addu  r_RA, rDisp
+ *   jr    r_RA
+ * done:
+ */
 void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    UNIMPLEMENTED(FATAL) << "Need Mips packed switch";
-#if 0
     const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
     if (cUnit->printMe) {
         dumpPackedSwitchTable(table);
@@ -115,35 +151,59 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 
     // Get the switch value
     rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
-    int tableBase = oatAllocTemp(cUnit);
-    // Materialize a pointer to the switch table
-    newLIR3(cUnit, kThumb2Adr, tableBase, 0, (intptr_t)tabRec);
+
+    // Prepare the bias.  If too big, handle 1st stage here
     int lowKey = s4FromSwitchData(&table[2]);
-    int keyReg;
-    // Remove the bias, if necessary
+    bool largeBias = false;
+    int rKey;
     if (lowKey == 0) {
-        keyReg = rlSrc.lowReg;
+        rKey = rlSrc.lowReg;
+    } else if ((lowKey & 0xffff) != lowKey) {
+        rKey = oatAllocTemp(cUnit);
+        loadConstant(cUnit, rKey, lowKey);
+        largeBias = true;
     } else {
-        keyReg = oatAllocTemp(cUnit);
-        opRegRegImm(cUnit, kOpSub, keyReg, rlSrc.lowReg, lowKey);
+        rKey = oatAllocTemp(cUnit);
     }
+
+    // Must prevent code motion for the curr pc pair
+    genBarrier(cUnit);
+    newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
+    // Now, fill the branch delay slot with bias strip
+    if (lowKey == 0) {
+        newLIR0(cUnit, kMipsNop);
+    } else {
+        if (largeBias) {
+            opRegRegReg(cUnit, kOpSub, rKey, rlSrc.lowReg, rKey);
+        } else {
+            opRegRegImm(cUnit, kOpSub, rKey, rlSrc.lowReg, lowKey);
+        }
+    }
+    genBarrier(cUnit);  // Scheduling barrier
+
+    // Construct BaseLabel and set up table base register
+    LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
+    // Remember base label so offsets can be computed later
+    tabRec->anchor = baseLabel;
+
     // Bounds check - if < 0 or >= size continue following switch
-    opRegImm(cUnit, kOpCmp, keyReg, size-1);
-    LIR* branchOver = opCondBranch(cUnit, kCondHi, NULL);
+    LIR* branchOver = opCmpImmBranch(cUnit, kCondHi, rKey, size-1, NULL);
+
+    // Materialize the table base pointer
+    int rBase = oatAllocTemp(cUnit);
+    newLIR4(cUnit, kMipsDelta, rBase, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
 
     // Load the displacement from the switch table
-    int dispReg = oatAllocTemp(cUnit);
-    loadBaseIndexed(cUnit, tableBase, keyReg, dispReg, 2, kWord);
+    int rDisp = oatAllocTemp(cUnit);
+    loadBaseIndexed(cUnit, rBase, rKey, rDisp, 2, kWord);
 
-    // ..and go! NOTE: No instruction set switch here - must stay Thumb2
-    LIR* switchBranch = newLIR1(cUnit, kThumb2AddPCR, dispReg);
-    tabRec->bxInst = switchBranch;
+    // Add to r_AP and go
+    opRegRegReg(cUnit, kOpAdd, r_RA, r_RA, rDisp);
+    opReg(cUnit, kOpBx, r_RA);
 
     /* branchOver target here */
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
     branchOver->target = (LIR*)target;
-#endif
 }
 
 /*
@@ -158,8 +218,6 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  */
 void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    UNIMPLEMENTED(FATAL) << "Needs Mips FillArrayData";
-#if 0
     const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
     // Add the table to the list - we'll process it later
     FillArrayData *tabRec = (FillArrayData *)
@@ -174,13 +232,25 @@ void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 
     // Making a call - use explicit registers
     oatFlushAllRegs(cUnit);   /* Everything to home location */
+    oatLockCallTemps(cUnit);
     loadValueDirectFixed(cUnit, rlSrc, rARG0);
-    loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pHandleFillArrayDataFromCode), rLR);
+
+    // Must prevent code motion for the curr pc pair
+    genBarrier(cUnit);
+    newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
+    // Now, fill the branch delay slot with the helper load
+    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
+                          pHandleFillArrayDataFromCode));
+    genBarrier(cUnit);  // Scheduling barrier
+
+    // Construct BaseLabel and set up table base register
+    LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
+
     // Materialize a pointer to the fill data image
-    newLIR3(cUnit, kThumb2Adr, r1, 0, (intptr_t)tabRec);
-    callRuntimeHelper(cUnit, rLR);
-#endif
+    newLIR4(cUnit, kMipsDelta, rARG1, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
+
+    // And go...
+    callRuntimeHelper(cUnit, rTgt);  // ( array*, fill_data* )
 }
 
 void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
@@ -266,7 +336,6 @@ void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     oatFreeTemp(cUnit, t0);
     oatFreeTemp(cUnit, t1);
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    target->defMask = ENCODE_ALL;
     branch->target = (LIR*)target;
     storeValue(cUnit, rlDest, rlResult);
 }
@@ -313,6 +382,11 @@ LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
         case kCondLt:
             sltOp = kMipsSlt;
             brOp = kMipsBnez;
+            break;
+        case kCondHi:  // Gtu
+            sltOp = kMipsSltu;
+            brOp = kMipsBnez;
+            swapped = true;
             break;
         default:
             UNIMPLEMENTED(FATAL) << "No support for ConditionCode: "

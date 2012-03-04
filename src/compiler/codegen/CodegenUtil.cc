@@ -421,6 +421,10 @@ LIR* newLIR0(CompilationUnit* cUnit, int opcode)
     insn->opcode = opcode;
     setupResourceMasks(insn);
     insn->dalvikOffset = cUnit->currentDalvikOffset;
+    if (opcode == kPseudoTargetLabel) {
+        // Always make labels scheduling barriers
+        insn->defMask = ENCODE_ALL;
+    }
     oatAppendLIR(cUnit, (LIR*) insn);
     return insn;
 }
@@ -472,7 +476,6 @@ LIR* newLIR3(CompilationUnit* cUnit, int opcode,
     return insn;
 }
 
-#if defined(TARGET_ARM)
 LIR* newLIR4(CompilationUnit* cUnit, int opcode,
                            int dest, int src1, int src2, int info)
 {
@@ -489,7 +492,6 @@ LIR* newLIR4(CompilationUnit* cUnit, int opcode,
     oatAppendLIR(cUnit, (LIR*) insn);
     return insn;
 }
-#endif
 
 /*
  * Search the existing constants in the literal pool for an exact or close match
@@ -587,7 +589,17 @@ void installSwitchTables(CompilationUnit* cUnit)
              &iterator);
         if (tabRec == NULL) break;
         alignBuffer(cUnit->codeBuffer, tabRec->offset);
-        int bxOffset = tabRec->bxInst->offset + 4;
+        /*
+         * For Arm, our reference point is the address of the bx
+         * instruction that does the launch, so we have to subtract
+         * the auto pc-advance.  For other targets the reference point
+         * is a label, so we can use the offset as-is.
+         */
+#if defined(TARGET_ARM)
+        int bxOffset = tabRec->anchor->offset + 4;
+#else
+        int bxOffset = tabRec->anchor->offset;
+#endif
         if (cUnit->printMe) {
             LOG(INFO) << "Switch table for offset 0x" << std::hex << bxOffset;
         }
