@@ -5,11 +5,35 @@
 
 namespace art {
 
+//----------------------------------------------------------------------------
+// Thread
+//----------------------------------------------------------------------------
+
 void art_push_shadow_frame_from_code(void* new_shadow_frame);
 
 void art_pop_shadow_frame_from_code();
 
+
+//----------------------------------------------------------------------------
+// Exception
+//----------------------------------------------------------------------------
+
 bool art_is_exception_pending_from_code();
+
+void art_throw_div_zero_from_code();
+
+void art_throw_array_bounds_from_code(int32_t length, int32_t index);
+
+void art_throw_no_such_method_from_code(int32_t method_idx);
+
+void art_throw_null_pointer_exception_from_code();
+
+void art_throw_stack_overflow_from_code(void*);
+
+void art_throw_exception_from_code(Object* exception);
+
+int32_t art_find_catch_block_from_code(Object* exception, int32_t dex_pc);
+
 
 void art_test_suspend_from_code();
 
