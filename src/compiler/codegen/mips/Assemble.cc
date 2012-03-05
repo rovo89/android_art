@@ -706,9 +706,12 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
     return res;
 }
 
+int oatGetInsnSize(LIR* lir)
+{
+    return EncodingMap[lir->opcode].size;
+}
 /*
  * Target-dependent offset assignment.
- * TODO: normalize usage of flags.size and make this target
  * independent.
  */
 int oatAssignInsnOffsets(CompilationUnit* cUnit)
@@ -722,7 +725,6 @@ int oatAssignInsnOffsets(CompilationUnit* cUnit)
         mipsLIR->offset = offset;
         if (mipsLIR->opcode >= 0) {
             if (!mipsLIR->flags.isNop) {
-                mipsLIR->flags.size = EncodingMap[mipsLIR->opcode].size;
                 offset += mipsLIR->flags.size;
             }
         } else if (mipsLIR->opcode == kPseudoPseudoAlign4) {

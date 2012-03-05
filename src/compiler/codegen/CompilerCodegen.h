@@ -24,6 +24,8 @@ namespace art {
 LIR* rawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0 = 0,
             int op1 = 0, int op2 = 0, int op3 = 0, LIR* target = NULL);
 
+int oatGetInsnSize(LIR* lir);
+
 /* Lower middle-level IR to low-level IR for the whole method */
 void oatMethodMIR2LIR(CompilationUnit* cUnit);
 

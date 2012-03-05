@@ -43,7 +43,7 @@ typedef enum OatInstructionSetType {
     DALVIK_OAT_NONE = 0,
     DALVIK_OAT_ARM,
     DALVIK_OAT_THUMB2,
-    DALVIK_OAT_IA32,
+    DALVIK_OAT_X86,
     DALVIK_OAT_MIPS32
 } OatInstructionSetType;
 

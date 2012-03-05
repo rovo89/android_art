@@ -115,6 +115,9 @@ void setupResourceMasks(LIR* lir)
         lir->flags.pcRelFixup = true;
     }
 
+    /* Get the starting size of the instruction's template */
+    lir->flags.size = oatGetInsnSize(lir);
+
     /* Set up the mask for resources that are updated */
     if (flags & (IS_LOAD | IS_STORE)) {
         /* Default to heap - will catch specialized classes later */
