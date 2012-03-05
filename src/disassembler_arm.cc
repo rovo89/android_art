@@ -42,8 +42,35 @@ void DisassemblerArm::Dump(std::ostream& os, const uint8_t* begin, const uint8_t
   }
 }
 
+static const char* ConditionCodeNames[] = {
+    "EQ",  // 0000 - equal
+    "NE",  // 0001 - not-equal
+    "CS",  // 0010 - carry-set, greater than, equal or unordered
+    "CC",  // 0011 - carry-clear, less than
+    "MI",  // 0100 - minus, negative
+    "PL",  // 0101 - plus, positive or zero
+    "VS",  // 0110 - overflow
+    "VC",  // 0111 - no overflow
+    "HI",  // 1000 - unsigned higher
+    "LS",  // 1001 - unsigned lower or same
+    "GE",  // 1010 - signed greater than or equal
+    "LT",  // 1011 - signed less than
+    "GT",  // 1100 - signed greater than
+    "LE",  // 1101 - signed less than or equal
+    "AL",  // 1110 - always
+};
+
+void DisassemblerArm::DumpCond(std::ostream& os, uint32_t cond) {
+  if (cond < 15) {
+    os << ConditionCodeNames[cond];
+  } else {
+    os << "Unexpected condition: " << cond;
+  }
+}
+
 void DisassemblerArm::DumpReg(std::ostream& os, uint32_t reg) {
   switch (reg) {
+    case 13: os << "SP"; break;
     case 14: os << "LR"; break;
     case 15: os << "PC"; break;
     default: os << "r" << reg; break;
@@ -68,7 +95,10 @@ void DisassemblerArm::DumpRegList(std::ostream& os, uint32_t reg_list) {
     }
   }
   os << "}";
+}
 
+void DisassemblerArm::DumpBranchTarget(std::ostream& os, const uint8_t* instr_ptr, int32_t imm32) {
+  os << imm32 << " (" << reinterpret_cast<const void*>(instr_ptr + imm32) << ")";
 }
 
 static uint32_t ReadU16(const uint8_t* ptr) {
@@ -176,29 +206,213 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           break;
       }
       break;
+    case 2:
+      if ((instr & 0x8000) == 0 && (op2 & 0x20) == 0) {
+        // Data-processing (modified immediate)
+        // |111|11|10|0000|0|0000|1|111|1100|00000000|
+        // |5 3|21|09|8765|4|3  0|5|4 2|10 8|7 5    0|
+        // |---|--|--|----|-|----|-|---|----|--------|
+        // |332|22|22|2222|2|1111|1|111|1100|00000000|
+        // |1 9|87|65|4321|0|9  6|5|4 2|10 8|7 5    0|
+        // |---|--|--|----|-|----|-|---|----|--------|
+        // |111|10|i0| op3|S| Rn |0|iii| Rd |iiiiiiii|
+        //  111 10 x0 xxxx x xxxx opxxx xxxx xxxxxxxx
+        //  111 10 00 0110 0 0000 1 000 0000 10101101 - f0c080ad
+        uint32_t i = (instr >> 26) & 1;
+        uint32_t op3 = (instr >> 21) & 0xF;
+        uint32_t S = (instr >> 20) & 1;
+        uint32_t Rn = (instr >> 16) & 0xF;
+        uint32_t imm3 = (instr >> 12) & 7;
+        uint32_t Rd = (instr >> 8) & 0xF;
+        uint32_t imm8 = instr & 0xFF;
+        int32_t imm32 = (i << 12) | (imm3 << 8) | imm8;
+        switch (op3) {
+          case 0x0: os << "AND"; break;
+          case 0x1: os << "BIC"; break;
+          case 0x2: os << "ORR"; break;
+          case 0x3: os << "ORN"; break;
+          case 0x4: os << "EOR"; break;
+          case 0x8: os << "ADD"; break;
+          case 0xA: os << "ADC"; break;
+          case 0xB: os << "SBC"; break;
+          case 0xD: os << "SUB"; break;
+          case 0xE: os << "RSB"; break;
+          default: os << "UNKNOWN DPMI-" << op3; break;
+        }
+        if (S == 1) {
+          os << "S ";
+        } else {
+          os << " ";
+        }
+        DumpReg(os, Rd);
+        os << ", ";
+        DumpReg(os, Rn);
+        os << ", ThumbExpand(" << imm32 << ")  // ";
+      } else if ((instr & 0x8000) == 0 && (op2 & 0x20) != 0) {
+        // Data-processing (plain binary immediate)
+        // |111|11|10|00000|0000|1|111110000000000|
+        // |5 3|21|09|87654|3  0|5|4   0    5    0|
+        // |---|--|--|-----|----|-|---------------|
+        // |332|22|22|22222|1111|1|111110000000000|
+        // |1 9|87|65|43210|9  6|5|4   0    5    0|
+        // |---|--|--|-----|----|-|---------------|
+        // |111|10|x1| op3 | Rn |0|xxxxxxxxxxxxxxx|
+        uint32_t op3 = (instr >> 20) & 0x1F;
+        uint32_t Rn = (instr >> 16) & 0xF;
+        switch (op3) {
+          case 0x04: {
+            // MOVW Rd, #imm16     - 111 10 i0 0010 0 iiii 0 iii dddd iiiiiiii
+            uint32_t Rd = (instr >> 8) & 0xF;
+            uint32_t i = (instr >> 26) & 1;
+            uint32_t imm3 = (instr >> 12) & 0x7;
+            uint32_t imm8 = instr & 0xFF;
+            uint32_t imm16 = (Rn << 12) | (i << 11) | (imm3 << 8) | imm8;
+            os << "MOVW ";
+            DumpReg(os, Rd);
+            os << ", #" << imm16 << "  // ";
+            break;
+          }
+          case 0x0A: {
+            // SUB.W Rd, Rn #imm12 - 111 10 i1 0101 0 nnnn 0 iii dddd iiiiiiii
+            uint32_t Rd = (instr >> 8) & 0xF;
+            uint32_t i = (instr >> 26) & 1;
+            uint32_t imm3 = (instr >> 12) & 0x7;
+            uint32_t imm8 = instr & 0xFF;
+            uint32_t imm12 = (i << 11) | (imm3 << 8) | imm8;
+            os << "SUB.W ";
+            DumpReg(os, Rd);
+            os << ", ";
+            DumpReg(os, Rn);
+            os << ", #" << imm12 << "  // ";
+            break;
+          }
+          default:
+            break;
+        }
+      } else {
+        // Branches and miscellaneous control
+        // |111|11|1000000|0000|1|111|1100|00000000|
+        // |5 3|21|0987654|3  0|5|4 2|10 8|7 5    0|
+        // |---|--|-------|----|-|---|----|--------|
+        // |332|22|2222222|1111|1|111|1100|00000000|
+        // |1 9|87|6543210|9  6|5|4 2|10 8|7 5    0|
+        // |---|--|-------|----|-|---|----|--------|
+        // |111|10| op2   |    |1|op3|op4 |        |
+
+        uint32_t op3 = (instr >> 12) & 7;
+        //uint32_t op4 = (instr >> 8) & 0xF;
+        switch (op3) {
+          case 0:
+            if ((op2 & 0x38) != 0x38) {
+              // Conditional branch
+              // |111|11|1|0000|000000|1|1|1 |1|1 |10000000000|
+              // |5 3|21|0|9876|543  0|5|4|3 |2|1 |0    5    0|
+              // |---|--|-|----|------|-|-|--|-|--|-----------|
+              // |332|22|2|2222|221111|1|1|1 |1|1 |10000000000|
+              // |1 9|87|6|5432|109  6|5|4|3 |2|1 |0    5    0|
+              // |---|--|-|----|------|-|-|--|-|--|-----------|
+              // |111|10|S|cond| imm6 |1|0|J1|0|J2| imm11     |
+              uint32_t S = (instr >> 26) & 1;
+              uint32_t J2 = (instr >> 11) & 1;
+              uint32_t J1 = (instr >> 13) & 1;
+              uint32_t imm6 = (instr >> 16) & 0x3F;
+              uint32_t imm11 = instr & 0x7FF;
+              uint32_t cond = (instr >> 22) & 0xF;
+              int32_t imm32 = (S << 20) |  (J2 << 19) | (J1 << 18) | (imm6 << 12) | (imm11 << 1);
+              imm32 = (imm32 << 11) >> 11;  // sign extend 21bit immediate
+              os << "B";
+              DumpCond(os, cond);
+              os << ".W ";
+              DumpBranchTarget(os, instr_ptr + 4, imm32);
+              os << "  // ";
+            }
+            break;
+          case 2:
+          case 1: case 3:
+            break;
+          case 4: case 6: case 5: case 7: {
+            // BL, BLX (immediate)
+            // |111|11|1|0000000000|11|1 |1|1 |10000000000|
+            // |5 3|21|0|9876543  0|54|3 |2|1 |0    5    0|
+            // |---|--|-|----------|--|--|-|--|-----------|
+            // |332|22|2|2222221111|11|1 |1|1 |10000000000|
+            // |1 9|87|6|5    0   6|54|3 |2|1 |0    5    0|
+            // |---|--|-|----------|--|--|-|--|-----------|
+            // |111|10|S| imm10    |11|J1|L|J2| imm11     |
+            uint32_t S = (instr >> 26) & 1;
+            uint32_t J2 = (instr >> 11) & 1;
+            uint32_t L = (instr >> 12) & 1;
+            uint32_t J1 = (instr >> 13) & 1;
+            uint32_t imm10 = (instr >> 16) & 0x3FF;
+            uint32_t imm11 = instr & 0x7FF;
+            if (L == 0) {
+              os << "BX ";
+            } else {
+              os << "BLX ";
+            }
+            uint32_t I1 = ~(J1 ^ S);
+            uint32_t I2 = ~(J2 ^ S);
+            int32_t imm32 = (S << 24) | (I1 << 23) | (I2 << 22) | (imm10 << 12) | (imm11 << 1);
+            imm32 = (imm32 << 8) >> 8;  // sign extend 24 bit immediate.
+            DumpBranchTarget(os, instr_ptr + 4, imm32);
+            break;
+          }
+        }
+      }
+      break;
     case 3:
       switch (op2) {
         case 0x00: case 0x02: case 0x04: case 0x06:  // 000xxx0
         case 0x08: case 0x0A: case 0x0C: case 0x0E: {
           // Store single data item
+          // |111|11|100|000|0|0000|1111|110000|000000|
+          // |5 3|21|098|765|4|3  0|5  2|10   6|5    0|
+          // |---|--|---|---|-|----|----|------|------|
+          // |332|22|222|222|2|1111|1111|110000|000000|
+          // |1 9|87|654|321|0|9  6|5  2|10   6|5    0|
+          // |---|--|---|---|-|----|----|------|------|
+          // |111|11|000|op3|0|    |    |  op4 |      |
+
           uint32_t op3 = (instr >> 21) & 7;
           //uint32_t op4 = (instr >> 6) & 0x3F;
           switch (op3) {
             case 0x2: case 0x6: {
-              // Load word
-              // |111|11|100|000|0|0000|1111|110000|000000|
-              // |5 3|21|098|765|4|3  0|5  2|10   6|5    0|
-              // |---|--|---|---|-|----|----|------|------|
-              // |332|22|222|222|2|1111|1111|110000|000000|
-              // |1 9|87|654|321|0|9  6|5  2|10   6|5    0|
-              // |---|--|---|---|-|----|----|------|------|
-              // |111|11|000|op3|0|    |    |  op4 |      |
-
               // STR.W Rt, [Rn, #imm12] - 111 11 000 110 0 nnnn tttt iiiiiiiiiiii
               // STR Rt, [Rn, #imm8]    - 111 11 000 010 0 nnnn tttt 1PUWiiiiiiii
               uint32_t Rn = (instr >> 16) & 0xF;
               uint32_t Rt = (instr >> 12) & 0xF;
-              if (op3 == 6) {
+              if (op3 == 2) {
+                uint32_t P = (instr >> 10) & 1;
+                uint32_t U = (instr >> 9) & 1;
+                uint32_t W = (instr >> 8) & 1;
+                uint32_t imm8 = instr & 0xFF;
+                int32_t imm32 = (imm8 << 24) >> 24;  // sign-extend imm8
+                if (Rn == 13 && P == 1 && U == 0 && W == 1) {
+                  os << "PUSH ";
+                  DumpReg(os, Rt);
+                  os << "  // ";
+                } else if (Rn == 15 || (P == 0 && W == 0)) {
+                  os << "UNDEFINED ";
+                } else {
+                  if (P == 1 && U == 1 && W == 0) {
+                    os << "STRT ";
+                  } else {
+                    os << "STR ";
+                  }
+                  DumpReg(os, Rt);
+                  os << ", [";
+                  DumpReg(os, Rn);
+                  if (P == 0 && W == 1) {
+                    os << "], #" << imm32;
+                  } else {
+                    os << ", #" << imm32 << "]";
+                    if (W == 1) {
+                      os << "!";
+                    }
+                  }
+                  os << "  // ";
+                }
+              } else if (op3 == 6) {
                 uint32_t imm12 = instr & 0xFFF;
                 os << "STR.W ";
                 DumpReg(os, Rt);
@@ -206,6 +420,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
                 DumpReg(os, Rn);
                 os << ", #" << imm12 << "]  // ";
               }
+              break;
             }
           }
 
@@ -429,6 +644,26 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
           os << (imm7 << 2) << "  // ";
           break;
         }
+        case 0x78: case 0x79: case 0x7A: case 0x7B:  // 1111xxx
+        case 0x7C: case 0x7D: case 0x7E: case 0x7F: {
+          // If-Then, and hints
+          uint16_t opA = (instr >> 4) & 0xF;
+          uint16_t opB = instr & 0xF;
+          if (opB == 0) {
+            switch (opA) {
+              case 0: os << "NOP  // "; break;
+              case 1: os << "YIELD  // "; break;
+              case 2: os << "WFE  // ";  break;
+              case 3: os << "SEV  // "; break;
+              default: break;
+            }
+          } else {
+            os << "IT " << reinterpret_cast<void*>(opB) << " ";
+            DumpCond(os, opA);
+            os << "  // ";
+          }
+          break;
+        }
         default:
           break;
       }
@@ -472,6 +707,13 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
         default:
           break;
       }
+    } else if (opcode1 == 0x38 || opcode1 == 0x39) {
+      uint16_t imm11 = instr & 0x7FFF;
+      int32_t imm32 = imm11 << 1;
+      imm32 = (imm32 << 20) >> 20;  // sign extend 12 bit immediate
+      os << "B ";
+      DumpBranchTarget(os, instr_ptr + 4, imm32);
+      os << "  // ";
     }
     os << StringPrintf("%04x\n", instr);
   }
