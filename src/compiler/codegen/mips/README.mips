@@ -9,7 +9,7 @@ the vast majority of code for Mips support is either shared with other
 tested targets, or was taken from the functional Mips JIT compiler.  The
 expectation is that when it is first tried out on actual hardware lots of
 small bugs will be flushed out, but it should not take long to get it
-solidly running.  The following area are considered most likely to have
+solidly running.  The following areas are considered most likely to have
 problems that need to be addressed:
 
     o Endianness.  Focus was on little-endian support, and if a big-endian
