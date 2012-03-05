@@ -302,8 +302,6 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
   image_roots->Set(ImageHeader::kJniStubArray, runtime->GetJniDlsymLookupStub());
   image_roots->Set(ImageHeader::kAbstractMethodErrorStubArray,
                    runtime->GetAbstractMethodErrorStubArray());
-  image_roots->Set(ImageHeader::kInstanceResolutionStubArray,
-                   runtime->GetResolutionStubArray(Runtime::kInstanceMethod));
   image_roots->Set(ImageHeader::kStaticResolutionStubArray,
                    runtime->GetResolutionStubArray(Runtime::kStaticMethod));
   image_roots->Set(ImageHeader::kUnknownMethodResolutionStubArray,

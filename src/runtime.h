@@ -183,7 +183,6 @@ class Runtime {
   void SetAbstractMethodErrorStubArray(ByteArray* abstract_method_error_stub_array);
 
   enum TrampolineType {
-    kInstanceMethod,
     kStaticMethod,
     kUnknownMethod,
     kLastTrampolineMethodType  // Value used for iteration

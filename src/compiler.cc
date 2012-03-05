@@ -86,7 +86,8 @@ class AOTCompilationStats {
      strings_in_dex_cache_(0), strings_not_in_dex_cache_(0),
      resolved_types_(0), unresolved_types_(0),
      resolved_instance_fields_(0), unresolved_instance_fields_(0),
-     resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0) {
+     resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0),
+     virtual_made_direct_(0) {
     for (size_t i = 0; i < kMaxInvokeType; i++) {
       resolved_methods_[i] = 0;
       unresolved_methods_[i] = 0;
@@ -108,6 +109,8 @@ class AOTCompilationStats {
       oss << "resolved " << static_cast<InvokeType>(i) << " methods";
       DumpStat(resolved_methods_[i], unresolved_methods_[i], oss.str().c_str());
     }
+    DumpStat(virtual_made_direct_, resolved_methods_[kVirtual] + unresolved_methods_[kVirtual],
+             "made direct from virtual");
   }
 
 // Allow lossy statistics in non-debug builds
@@ -184,6 +187,10 @@ class AOTCompilationStats {
     unresolved_methods_[type]++;
   }
 
+  void VirtualMadeDirect() {
+    STATS_LOCK();
+    virtual_made_direct_++;
+  }
  private:
   Mutex stats_lock_;
 
@@ -205,6 +212,7 @@ class AOTCompilationStats {
 
   size_t resolved_methods_[kMaxInvokeType + 1];
   size_t unresolved_methods_[kMaxInvokeType + 1];
+  size_t virtual_made_direct_;
 
   DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);;
 };
@@ -566,7 +574,7 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mU
   return false;  // Incomplete knowledge needs slow path.
 }
 
-bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType type,
+bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType& type,
                                  int& vtable_idx) {
   vtable_idx = -1;
   Method* resolved_method = ComputeReferrerMethod(mUnit, method_idx);
@@ -591,7 +599,16 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
           referrer_class->CanAccessMember(methods_class,
                                           resolved_method->GetAccessFlags())) {
         vtable_idx = resolved_method->GetMethodIndex();
-        if (type != kSuper) {
+        if (type == kVirtual && (resolved_method->IsFinal() || methods_class->IsFinal())) {
+          stats_->ResolvedMethod(kVirtual);
+          // Sharpen a virtual call into a direct call. The method_idx is into referrer's
+          // dex cache, check that this resolved method is where we expect it.
+          CHECK(referrer_class->GetDexCache()->GetResolvedMethod(method_idx) == resolved_method)
+            << PrettyMethod(resolved_method);
+          type = kDirect;
+          stats_->VirtualMadeDirect();
+          return true;
+        } else if (type != kSuper) {
           // nothing left to do for static/direct/virtual/interface dispatch
           stats_->ResolvedMethod(type);
           return true;

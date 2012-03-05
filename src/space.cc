@@ -319,10 +319,8 @@ ImageSpace* Space::CreateImageSpace(const std::string& image_file_name) {
   Object* ame_stub_array = image_header.GetImageRoot(ImageHeader::kAbstractMethodErrorStubArray);
   runtime->SetAbstractMethodErrorStubArray(down_cast<ByteArray*>(ame_stub_array));
 
-  Object* resolution_stub_array = image_header.GetImageRoot(ImageHeader::kInstanceResolutionStubArray);
-  runtime->SetResolutionStubArray(
-      down_cast<ByteArray*>(resolution_stub_array), Runtime::kInstanceMethod);
-  resolution_stub_array = image_header.GetImageRoot(ImageHeader::kStaticResolutionStubArray);
+  Object* resolution_stub_array =
+      image_header.GetImageRoot(ImageHeader::kStaticResolutionStubArray);
   runtime->SetResolutionStubArray(
       down_cast<ByteArray*>(resolution_stub_array), Runtime::kStaticMethod);
   resolution_stub_array = image_header.GetImageRoot(ImageHeader::kUnknownMethodResolutionStubArray);

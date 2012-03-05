@@ -1339,12 +1339,30 @@ const void* ClassLinker::GetOatCodeFor(const Method* method) {
   // Special case to get oat code without overwriting a trampoline.
   CHECK(method->GetDeclaringClass()->IsInitializing());
   // Although we overwrite the trampoline of non-static methods, we may get here via the resolution
-  // method for direct methods.
-  CHECK(method->IsStatic() || method->IsDirect());
-  ClassHelper kh(method->GetDeclaringClass());
+  // method for direct methods (or virtual methods made direct).
+  Class* declaring_class = method->GetDeclaringClass();
+  size_t oat_method_index;
+  if (method->IsStatic() || method->IsDirect()) {
+    // Simple case where the oat method index was stashed at load time.
+    oat_method_index = method->GetMethodIndex();
+  } else {
+    // We're invoking a virtual method directly (thanks to sharpening), compute the oat_method_index
+    // by search for its position in the declared virtual methods.
+    oat_method_index = declaring_class->NumDirectMethods();
+    size_t end = declaring_class->NumVirtualMethods();
+    bool found = false;
+    for (size_t i = 0; i < end; i++) {
+      oat_method_index++;
+      if (declaring_class->GetVirtualMethod(i) == method) {
+        found = true;
+        break;
+      }
+    }
+    CHECK(found) << "Didn't find oat method index for virtual method: " << PrettyMethod(method);
+  }
+  ClassHelper kh(declaring_class);
   UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(kh.GetDexFile(), kh.GetDescriptor()));
-  size_t method_index = method->GetMethodIndex();
-  return oat_class->GetOatMethod(method_index).GetCode();
+  return oat_class->GetOatMethod(oat_method_index).GetCode();
 }
 
 void ClassLinker::FixupStaticTrampolines(Class* klass) {
@@ -1470,25 +1488,26 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     // TODO: append direct methods to class object
     klass->SetVirtualMethods(AllocObjectArray<Method>(it.NumVirtualMethods()));
   }
-  size_t method_index = 0;
+  size_t class_def_method_index = 0;
   for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
     SirtRef<Method> method(AllocMethod());
     klass->SetDirectMethod(i, method.get());
     LoadMethod(dex_file, it, klass, method);
     if (oat_class.get() != NULL) {
-      LinkCode(method, oat_class.get(), method_index);
+      LinkCode(method, oat_class.get(), class_def_method_index);
     }
-    method->SetMethodIndex(method_index);
-    method_index++;
+    method->SetMethodIndex(class_def_method_index);
+    class_def_method_index++;
   }
   for (size_t i = 0; it.HasNextVirtualMethod(); i++, it.Next()) {
     SirtRef<Method> method(AllocMethod());
     klass->SetVirtualMethod(i, method.get());
     LoadMethod(dex_file, it, klass, method);
+    DCHECK_EQ(class_def_method_index, it.NumDirectMethods() + i);
     if (oat_class.get() != NULL) {
-      LinkCode(method, oat_class.get(), method_index);
+      LinkCode(method, oat_class.get(), class_def_method_index);
     }
-    method_index++;
+    class_def_method_index++;
   }
   DCHECK(!it.HasNext());
 }

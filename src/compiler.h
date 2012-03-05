@@ -120,7 +120,7 @@ class Compiler {
                               bool& is_referrers_class, bool& is_volatile, bool is_put);
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable index
-  bool ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType type,
+  bool ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType& type,
                          int& vtable_idx);
 
 #if defined(ART_USE_LLVM_COMPILER)

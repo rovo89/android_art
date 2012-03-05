@@ -72,7 +72,6 @@ static void usage() {
 const char* image_roots_descriptions_[] = {
   "kJniStubArray",
   "kAbstractMethodErrorStubArray",
-  "kInstanceResolutionStubArray",
   "kStaticResolutionStubArray",
   "kUnknownMethodResolutionStubArray",
   "kResolutionMethod",
@@ -618,8 +617,7 @@ class ImageDumper {
   const void* GetOatCode(Method* m) {
     Runtime* runtime = Runtime::Current();
     const void* code = m->GetCode();
-    if (code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData() ||
-        code == runtime->GetResolutionStubArray(Runtime::kInstanceMethod)->GetData()) {
+    if (code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData()) {
       code = oat_dumper_->GetOatCode(m);
     }
     return code;

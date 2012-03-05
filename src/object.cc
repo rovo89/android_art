@@ -481,8 +481,7 @@ static const void* GetOatCode(const Method* m) {
     code = runtime->GetTracer()->GetSavedCodeFromMap(m);
   }
   // Peel off any resolution stub.
-  if (code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData() ||
-      code == runtime->GetResolutionStubArray(Runtime::kInstanceMethod)->GetData()) {
+  if (code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData()) {
     code = runtime->GetClassLinker()->GetOatCodeFor(m);
   }
   return code;

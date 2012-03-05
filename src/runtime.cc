@@ -847,7 +847,7 @@ Runtime::TrampolineType Runtime::GetTrampolineType(Method* method) {
   } else if (method->IsStatic()) {
     return Runtime::kStaticMethod;
   } else {
-    return Runtime::kInstanceMethod;
+    return Runtime::kUnknownMethod;
   }
 }
 

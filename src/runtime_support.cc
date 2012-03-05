@@ -463,6 +463,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   Method* caller = *caller_sp;
   bool is_static;
+  bool is_virtual;
   uint32_t dex_method_idx;
   const char* shorty;
   uint32_t shorty_len;
@@ -476,14 +477,19 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
     Instruction::Code instr_code = instr->Opcode();
     is_static = (instr_code == Instruction::INVOKE_STATIC) ||
                 (instr_code == Instruction::INVOKE_STATIC_RANGE);
+    is_virtual = (instr_code == Instruction::INVOKE_VIRTUAL) ||
+                 (instr_code == Instruction::INVOKE_VIRTUAL_RANGE);
     DCHECK(is_static || (instr_code == Instruction::INVOKE_DIRECT) ||
-           (instr_code == Instruction::INVOKE_DIRECT_RANGE));
+           (instr_code == Instruction::INVOKE_DIRECT_RANGE) ||
+           (instr_code == Instruction::INVOKE_VIRTUAL) ||
+           (instr_code == Instruction::INVOKE_VIRTUAL_RANGE));
     Instruction::DecodedInstruction dec_insn(instr);
     dex_method_idx = dec_insn.vB_;
     shorty = linker->MethodShorty(dex_method_idx, caller, &shorty_len);
   } else {
     DCHECK(!called->IsRuntimeMethod());
     is_static = type == Runtime::kStaticMethod;
+    is_virtual = false;
     dex_method_idx = called->GetDexMethodIndex();
     MethodHelper mh(called);
     shorty = mh.GetShorty();
@@ -535,11 +541,11 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
   }
   // Resolve method filling in dex cache
   if (type == Runtime::kUnknownMethod) {
-    called = linker->ResolveMethod(dex_method_idx, caller, true);
+    called = linker->ResolveMethod(dex_method_idx, caller, !is_virtual);
   }
   const void* code = NULL;
   if (LIKELY(!thread->IsExceptionPending())) {
-    if (LIKELY(called->IsDirect())) {
+    if (LIKELY(called->IsDirect() == !is_virtual)) {
       // Ensure that the called method's class is initialized.
       Class* called_class = called->GetDeclaringClass();
       linker->EnsureInitialized(called_class, true);
