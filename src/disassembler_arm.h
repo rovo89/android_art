@@ -34,6 +34,8 @@ class DisassemblerArm : public Disassembler {
   size_t DumpThumb16(std::ostream& os, const uint8_t* instr);
   size_t DumpThumb32(std::ostream& os, const uint8_t* instr_ptr);
 
+  void DumpBranchTarget(std::ostream& os, const uint8_t* instr_ptr, int32_t imm32);
+  void DumpCond(std::ostream& os, uint32_t cond);
   void DumpReg(std::ostream& os, uint32_t reg);
   void DumpRegList(std::ostream& os, uint32_t reg_list);
 };
