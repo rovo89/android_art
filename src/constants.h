@@ -29,6 +29,8 @@ enum InstructionSet {
   kMips
 };
 
+std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs);
+
 enum InvokeType {
   kStatic, kDirect, kVirtual, kSuper, kInterface,
   kMaxInvokeType = kInterface

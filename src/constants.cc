@@ -18,6 +18,18 @@
 
 namespace art {
 
+std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs) {
+  switch (rhs) {
+    case kNone: os << "none"; break;
+    case kArm: os << "ARM"; break;
+    case kThumb2: os << "Thumb2"; break;
+    case kX86: os << "x86"; break;
+    case kMips: os << "MIPS"; break;
+    default: os << "InstructionSet[" << static_cast<int>(rhs) << "]"; break;
+  }
+  return os;
+}
+
 std::ostream& operator<<(std::ostream& os, const InvokeType& rhs) {
   switch (rhs) {
     case kStatic: os << "static"; break;
