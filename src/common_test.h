@@ -238,7 +238,7 @@ class CommonTest : public testing::Test {
 #if !defined(ART_USE_LLVM_COMPILER)
       oat_method.LinkMethodPointers(method);
 #else
-      LLVMLinkLoadMethod("-0", method);
+      LLVMLinkLoadMethod("gtest-0", method);
 #endif
     } else {
       MakeExecutable(runtime_->GetAbstractMethodErrorStubArray());
@@ -351,6 +351,9 @@ class CommonTest : public testing::Test {
     }
     class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
     compiler_.reset(new Compiler(instruction_set, false, 2, false, NULL));
+#if defined(ART_USE_LLVM_COMPILER)
+    compiler_->GetCompilerLLVM()->SetElfFileName("gtest");
+#endif
 
     Heap::VerifyHeap();  // Check for heap corruption before the test
   }
