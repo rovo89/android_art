@@ -17,7 +17,7 @@
 namespace art {
 
 /*
- * This file is included by Codegen-mips.c, and implements architecture
+ * This file is included by Codegen-x86.c, and implements architecture
  * variant-specific code.
  */
 
@@ -54,7 +54,7 @@ void oatGenMemBarrier(CompilationUnit *cUnit, int barrierKind)
 #if ANDROID_SMP != 0
     UNIMPLEMENTED(WARNING) << "oatGenMemBarrier";
 #if 0
-    newLIR1(cUnit, kMipsSync, barrierKind);
+    newLIR1(cUnit, kX86Sync, barrierKind);
 #endif
 #endif
 }

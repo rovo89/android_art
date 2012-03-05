@@ -43,7 +43,7 @@ bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc2.lowReg, rlSrc1.lowReg);
     int tReg = oatAllocTemp(cUnit);
     opRegRegReg(cUnit, kOpAdd, tReg, rlSrc2.highReg, rlSrc1.highReg);
-    newLIR3(cUnit, kMipsSltu, rlResult.highReg, rlResult.lowReg, rlSrc2.lowReg);
+    newLIR3(cUnit, kX86Sltu, rlResult.highReg, rlResult.lowReg, rlSrc2.lowReg);
     opRegRegReg(cUnit, kOpAdd, rlResult.highReg, rlResult.highReg, tReg);
     oatFreeTemp(cUnit, tReg);
     storeValueWide(cUnit, rlDest, rlResult);
@@ -70,7 +70,7 @@ bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     opRegRegReg(cUnit, kOpSub, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
     opRegRegReg(cUnit, kOpSub, rlResult.highReg, rlSrc1.highReg, rlSrc2.highReg);
     int tReg = oatAllocTemp(cUnit);
-    newLIR3(cUnit, kMipsSltu, tReg, rlSrc1.lowReg, rlResult.lowReg);
+    newLIR3(cUnit, kX86Sltu, tReg, rlSrc1.lowReg, rlResult.lowReg);
     opRegRegReg(cUnit, kOpSub, rlResult.highReg, rlResult.highReg, tReg);
     oatFreeTemp(cUnit, tReg);
     storeValueWide(cUnit, rlDest, rlResult);
@@ -96,7 +96,7 @@ bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     opRegReg(cUnit, kOpNeg, rlResult.lowReg, rlSrc.lowReg);
     opRegReg(cUnit, kOpNeg, rlResult.highReg, rlSrc.highReg);
     int tReg = oatAllocTemp(cUnit);
-    newLIR3(cUnit, kMipsSltu, tReg, r_ZERO, rlResult.lowReg);
+    newLIR3(cUnit, kX86Sltu, tReg, r_ZERO, rlResult.lowReg);
     opRegRegReg(cUnit, kOpSub, rlResult.highReg, rlResult.highReg, tReg);
     oatFreeTemp(cUnit, tReg);
     storeValueWide(cUnit, rlDest, rlResult);
@@ -108,15 +108,19 @@ void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset);
 
 /*
  * In the Arm code a it is typical to use the link register
- * to hold the target address.  However, for Mips we must
+ * to hold the target address.  However, for X86 we must
  * ensure that all branch instructions can be restarted if
  * there is a trap in the shadow.  Allocate a temp register.
  */
 int loadHelper(CompilationUnit* cUnit, int offset)
 {
+    UNIMPLEMENTED(WARNING);
+    return 0;
+#if 0
     int tReg = oatAllocTemp(cUnit);
     loadWordDisp(cUnit, rSELF, offset, tReg);
     return tReg;
+#endif
 }
 
 void spillCoreRegs(CompilationUnit* cUnit)
@@ -256,7 +260,7 @@ void removeRedundantBranches(CompilationUnit* cUnit)
          thisLIR = NEXT_LIR(thisLIR)) {
 
         /* Branch to the next instruction */
-        if (thisLIR->opcode == kMipsB) {
+        if (thisLIR->opcode == kX86B) {
             LIR* nextLIR = thisLIR;
 
             while (true) {

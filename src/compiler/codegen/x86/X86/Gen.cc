@@ -15,7 +15,7 @@
  */
 
 /*
- * This file contains codegen for the Mips ISA and is intended to be
+ * This file contains codegen for the X86 ISA and is intended to be
  * includes by:
  *
  *        Codegen-$(TARGET_ARCH_VARIANT).c
@@ -25,7 +25,7 @@
 namespace art {
 
 /*
- * The lack of pc-relative loads on Mips presents somewhat of a challenge
+ * The lack of pc-relative loads on X86 presents somewhat of a challenge
  * for our PIC switch table strategy.  To materialize the current location
  * we'll do a dummy JAL and reference our tables using r_RA as the
  * base register.  Note that r_RA will be used both as the base to
@@ -58,7 +58,7 @@ namespace art {
 void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     UNIMPLEMENTED(WARNING) << "genSparseSwitch";
-    return NULL;
+    return;
 #if 0
     const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
     if (cUnit->printMe) {
@@ -82,16 +82,16 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 
     int rEnd = oatAllocTemp(cUnit);
     if (sizeHi) {
-        newLIR2(cUnit, kMipsLui, rEnd, sizeHi);
+        newLIR2(cUnit, kX86Lui, rEnd, sizeHi);
     }
     // Must prevent code motion for the curr pc pair
     genBarrier(cUnit);  // Scheduling barrier
-    newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
+    newLIR0(cUnit, kX86CurrPC);  // Really a jal to .+8
     // Now, fill the branch delay slot
     if (sizeHi) {
-        newLIR3(cUnit, kMipsOri, rEnd, rEnd, sizeLo);
+        newLIR3(cUnit, kX86Ori, rEnd, rEnd, sizeLo);
     } else {
-        newLIR3(cUnit, kMipsOri, rEnd, r_ZERO, sizeLo);
+        newLIR3(cUnit, kX86Ori, rEnd, r_ZERO, sizeLo);
     }
     genBarrier(cUnit);  // Scheduling barrier
 
@@ -100,7 +100,7 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     // Remember base label so offsets can be computed later
     tabRec->anchor = baseLabel;
     int rBase = oatAllocTemp(cUnit);
-    newLIR4(cUnit, kMipsDelta, rBase, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
+    newLIR4(cUnit, kX86Delta, rBase, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
     opRegRegReg(cUnit, kOpAdd, rEnd, rEnd, rBase);
 
     // Grab switch test value
@@ -174,10 +174,10 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 
     // Must prevent code motion for the curr pc pair
     genBarrier(cUnit);
-    newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
+    newLIR0(cUnit, kX86CurrPC);  // Really a jal to .+8
     // Now, fill the branch delay slot with bias strip
     if (lowKey == 0) {
-        newLIR0(cUnit, kMipsNop);
+        newLIR0(cUnit, kX86Nop);
     } else {
         if (largeBias) {
             opRegRegReg(cUnit, kOpSub, rKey, rlSrc.lowReg, rKey);
@@ -197,7 +197,7 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 
     // Materialize the table base pointer
     int rBase = oatAllocTemp(cUnit);
-    newLIR4(cUnit, kMipsDelta, rBase, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
+    newLIR4(cUnit, kX86Delta, rBase, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
 
     // Load the displacement from the switch table
     int rDisp = oatAllocTemp(cUnit);
@@ -246,7 +246,7 @@ void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 
     // Must prevent code motion for the curr pc pair
     genBarrier(cUnit);
-    newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
+    newLIR0(cUnit, kX86CurrPC);  // Really a jal to .+8
     // Now, fill the branch delay slot with the helper load
     int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                           pHandleFillArrayDataFromCode));
@@ -256,14 +256,17 @@ void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
 
     // Materialize a pointer to the fill data image
-    newLIR4(cUnit, kMipsDelta, rARG1, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
+    newLIR4(cUnit, kX86Delta, rARG1, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
 
     // And go...
     callRuntimeHelper(cUnit, rTgt);  // ( array*, fill_data* )
+#endif
 }
 
 void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
+    UNIMPLEMENTED(WARNING) << "genNegFloat";
+#if 0
     RegLocation rlResult;
     rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
     rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
@@ -347,13 +350,13 @@ void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     int t0 = oatAllocTemp(cUnit);
     int t1 = oatAllocTemp(cUnit);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    newLIR3(cUnit, kMipsSlt, t0, rlSrc1.highReg, rlSrc2.highReg);
-    newLIR3(cUnit, kMipsSlt, t1, rlSrc2.highReg, rlSrc1.highReg);
-    newLIR3(cUnit, kMipsSubu, rlResult.lowReg, t1, t0);
+    newLIR3(cUnit, kX86Slt, t0, rlSrc1.highReg, rlSrc2.highReg);
+    newLIR3(cUnit, kX86Slt, t1, rlSrc2.highReg, rlSrc1.highReg);
+    newLIR3(cUnit, kX86Subu, rlResult.lowReg, t1, t0);
     LIR* branch = opCmpImmBranch(cUnit, kCondNe, rlResult.lowReg, 0, NULL);
-    newLIR3(cUnit, kMipsSltu, t0, rlSrc1.lowReg, rlSrc2.lowReg);
-    newLIR3(cUnit, kMipsSltu, t1, rlSrc2.lowReg, rlSrc1.lowReg);
-    newLIR3(cUnit, kMipsSubu, rlResult.lowReg, t1, t0);
+    newLIR3(cUnit, kX86Sltu, t0, rlSrc1.lowReg, rlSrc2.lowReg);
+    newLIR3(cUnit, kX86Sltu, t1, rlSrc2.lowReg, rlSrc1.lowReg);
+    newLIR3(cUnit, kX86Subu, rlResult.lowReg, t1, t0);
     oatFreeTemp(cUnit, t0);
     oatFreeTemp(cUnit, t1);
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
@@ -369,48 +372,48 @@ LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
     return NULL;
 #if 0
     LIR* branch;
-    MipsOpCode sltOp;
-    MipsOpCode brOp;
+    X86OpCode sltOp;
+    X86OpCode brOp;
     bool cmpZero = false;
     bool swapped = false;
     switch(cond) {
         case kCondEq:
-            brOp = kMipsBeq;
+            brOp = kX86Beq;
             cmpZero = true;
             break;
         case kCondNe:
-            brOp = kMipsBne;
+            brOp = kX86Bne;
             cmpZero = true;
             break;
         case kCondCc:
-            sltOp = kMipsSltu;
-            brOp = kMipsBnez;
+            sltOp = kX86Sltu;
+            brOp = kX86Bnez;
             break;
         case kCondCs:
-            sltOp = kMipsSltu;
-            brOp = kMipsBeqz;
+            sltOp = kX86Sltu;
+            brOp = kX86Beqz;
             break;
         case kCondGe:
-            sltOp = kMipsSlt;
-            brOp = kMipsBeqz;
+            sltOp = kX86Slt;
+            brOp = kX86Beqz;
             break;
         case kCondGt:
-            sltOp = kMipsSlt;
-            brOp = kMipsBnez;
+            sltOp = kX86Slt;
+            brOp = kX86Bnez;
             swapped = true;
             break;
         case kCondLe:
-            sltOp = kMipsSlt;
-            brOp = kMipsBeqz;
+            sltOp = kX86Slt;
+            brOp = kX86Beqz;
             swapped = true;
             break;
         case kCondLt:
-            sltOp = kMipsSlt;
-            brOp = kMipsBnez;
+            sltOp = kX86Slt;
+            brOp = kX86Bnez;
             break;
         case kCondHi:  // Gtu
-            sltOp = kMipsSltu;
-            brOp = kMipsBnez;
+            sltOp = kX86Sltu;
+            brOp = kX86Bnez;
             swapped = true;
             break;
         default:
@@ -437,7 +440,7 @@ LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
 LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
                     int checkValue, LIR* target)
 {
-    UNIMPLEMENTED(WARNING) >> "opCmpImmBranch";
+    UNIMPLEMENTED(WARNING) << "opCmpImmBranch";
     return NULL;
 #if 0
     LIR* branch;
@@ -449,15 +452,15 @@ LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
         oatFreeTemp(cUnit, tReg);
         return branch;
     }
-    MipsOpCode opc;
+    X86OpCode opc;
     switch(cond) {
-        case kCondEq: opc = kMipsBeqz; break;
-        case kCondGe: opc = kMipsBgez; break;
-        case kCondGt: opc = kMipsBgtz; break;
-        case kCondLe: opc = kMipsBlez; break;
+        case kCondEq: opc = kX86Beqz; break;
+        case kCondGe: opc = kX86Bgez; break;
+        case kCondGt: opc = kX86Bgtz; break;
+        case kCondLe: opc = kX86Blez; break;
         //case KCondMi:
-        case kCondLt: opc = kMipsBltz; break;
-        case kCondNe: opc = kMipsBnez; break;
+        case kCondLt: opc = kX86Bltz; break;
+        case kCondNe: opc = kX86Bnez; break;
         default:
             // Tuning: use slti when applicable
             int tReg = oatAllocTemp(cUnit);
@@ -479,7 +482,7 @@ LIR* opRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
 #if 0
     if (FPREG(rDest) || FPREG(rSrc))
         return fpRegCopy(cUnit, rDest, rSrc);
-    LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, kMipsMove,
+    LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, kX86Move,
                       rDest, rSrc);
     if (rDest == rSrc) {
         res->flags.isNop = true;
@@ -509,13 +512,13 @@ void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
             opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
         } else {
            /* note the operands are swapped for the mtc1 instr */
-            newLIR2(cUnit, kMipsMtc1, srcLo, destLo);
-            newLIR2(cUnit, kMipsMtc1, srcHi, destHi);
+            newLIR2(cUnit, kX86Mtc1, srcLo, destLo);
+            newLIR2(cUnit, kX86Mtc1, srcHi, destHi);
         }
     } else {
         if (srcFP) {
-            newLIR2(cUnit, kMipsMfc1, destLo, srcLo);
-            newLIR2(cUnit, kMipsMfc1, destHi, srcHi);
+            newLIR2(cUnit, kX86Mfc1, destLo, srcLo);
+            newLIR2(cUnit, kX86Mfc1, destHi, srcHi);
         } else {
             // Handle overlap
             if (srcHi == destLo) {

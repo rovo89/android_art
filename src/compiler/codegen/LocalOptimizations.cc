@@ -102,6 +102,10 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
          */
         if (!(thisMemMask & (ENCODE_LITERAL | ENCODE_DALVIK_REG))) continue;
 
+// FIXME: make sure we have a branch barrier for x86
+#if defined(TARGET_X86)
+        u8 stopUseRegMask = (thisLIR->useMask) & ~ENCODE_MEM;
+#else
         /*
          * Add r15 (pc) to the resource mask to prevent this instruction
          * from sinking past branch instructions. Also take out the memory
@@ -110,6 +114,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
          */
         u8 stopUseRegMask = (ENCODE_REG_PC | thisLIR->useMask) &
                             ~ENCODE_MEM;
+#endif
         u8 stopDefRegMask = thisLIR->defMask & ~ENCODE_MEM;
 
         for (checkLIR = NEXT_LIR(thisLIR);
@@ -280,6 +285,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
 
         u8 stopUseAllMask = thisLIR->useMask;
 
+#if !defined(TARGET_X86)
         /*
          * Branches for null/range checks are marked with the true resource
          * bits, and loads to Dalvik registers, constant pools, and non-alias
@@ -289,6 +295,7 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
         if (stopUseAllMask & ENCODE_HEAP_REF) {
             stopUseAllMask |= ENCODE_REG_PC;
         }
+#endif
 
         /* Similar as above, but just check for pure register dependency */
         u8 stopUseRegMask = stopUseAllMask & ~ENCODE_MEM;

@@ -25,7 +25,7 @@ namespace art {
 #define MAX_ASSEMBLER_RETRIES 50
 
 /*
- * opcode: MipsOpCode enum
+ * opcode: X86OpCode enum
  * skeleton: pre-designated bit-pattern for this opcode
  * k0: key to applying ds/de
  * ds: dest start bit position
@@ -76,14 +76,14 @@ namespace art {
  *
  *  [!] escape.  To insert "!", use "!!"
  */
-/* NOTE: must be kept in sync with enum MipsOpcode from LIR.h */
+/* NOTE: must be kept in sync with enum X86Opcode from LIR.h */
 /*
  * TUNING: We're currently punting on the branch delay slots.  All branch
  * instructions in this map are given a size of 8, which during assembly
  * is expanded to include a nop.  This scheme should be replaced with
  * an assembler pass to fill those slots when possible.
  */
-MipsEncodingMap EncodingMap[kX86Last] = {
+X86EncodingMap EncodingMap[kX86Last] = {
 };
 
 
@@ -113,7 +113,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         }
 
         if (lir->flags.pcRelFixup) {
-            if (lir->opcode == kMipsDelta) {
+            if (lir->opcode == kX86Delta) {
                 /*
                  * The "Delta" pseudo-ops load the difference between
                  * two pc-relative locations into a the target register
@@ -132,33 +132,33 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                     // Fits
                     lir->operands[1] = delta;
                 } else {
-                    // Doesn't fit - must expand to kMipsDelta[Hi|Lo] pair
+                    // Doesn't fit - must expand to kX86Delta[Hi|Lo] pair
                     LIR *newDeltaHi =
-                          rawLIR(cUnit, lir->dalvikOffset, kMipsDeltaHi,
+                          rawLIR(cUnit, lir->dalvikOffset, kX86DeltaHi,
                                  lir->operands[0], 0, lir->operands[2],
                                  lir->operands[3], lir->target);
                     oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaHi);
                     LIR *newDeltaLo =
-                          rawLIR(cUnit, lir->dalvikOffset, kMipsDeltaLo,
+                          rawLIR(cUnit, lir->dalvikOffset, kX86DeltaLo,
                                  lir->operands[0], 0, lir->operands[2],
                                  lir->operands[3], lir->target);
                     oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaLo);
                     lir->flags.isNop = true;
                     res = kRetryAll;
                 }
-            } else if (lir->opcode == kMipsDeltaLo) {
+            } else if (lir->opcode == kX86DeltaLo) {
                 int offset1 = ((LIR*)lir->operands[2])->offset;
                 SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
                 int offset2 = tabRec ? tabRec->offset : lir->target->offset;
                 int delta = offset2 - offset1;
                 lir->operands[1] = delta & 0xffff;
-            } else if (lir->opcode == kMipsDeltaHi) {
+            } else if (lir->opcode == kX86DeltaHi) {
                 int offset1 = ((LIR*)lir->operands[2])->offset;
                 SwitchTable *tabRec = (SwitchTable*)lir->operands[3];
                 int offset2 = tabRec ? tabRec->offset : lir->target->offset;
                 int delta = offset2 - offset1;
                 lir->operands[1] = (delta >> 16) & 0xffff;
-            } else if (lir->opcode == kMipsB || lir->opcode == kMipsBal) {
+            } else if (lir->opcode == kX86B || lir->opcode == kX86Bal) {
                 LIR *targetLIR = (LIR *) lir->target;
                 intptr_t pc = lir->offset + 4;
                 intptr_t target = targetLIR->offset;
@@ -172,7 +172,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                 } else {
                     lir->operands[0] = delta >> 2;
                 }
-            } else if (lir->opcode >= kMipsBeqz && lir->opcode <= kMipsBnez) {
+            } else if (lir->opcode >= kX86Beqz && lir->opcode <= kX86Bnez) {
                 LIR *targetLIR = (LIR *) lir->target;
                 intptr_t pc = lir->offset + 4;
                 intptr_t target = targetLIR->offset;
@@ -186,7 +186,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                 } else {
                     lir->operands[1] = delta >> 2;
                 }
-            } else if (lir->opcode == kMipsBeq || lir->opcode == kMipsBne) {
+            } else if (lir->opcode == kX86Beq || lir->opcode == kX86Bne) {
                 LIR *targetLIR = (LIR *) lir->target;
                 intptr_t pc = lir->offset + 4;
                 intptr_t target = targetLIR->offset;
@@ -200,7 +200,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                 } else {
                     lir->operands[2] = delta >> 2;
                 }
-            } else if (lir->opcode == kMipsJal) {
+            } else if (lir->opcode == kX86Jal) {
                 intptr_t curPC = (startAddr + lir->offset + 4) & ~3;
                 intptr_t target = lir->operands[0];
                 /* ensure PC-region branch can be used */
@@ -209,11 +209,11 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                     LOG(FATAL) << "Jump target not multiple of 4: " << target;
                 }
                 lir->operands[0] =  target >> 2;
-            } else if (lir->opcode == kMipsLahi) { /* ld address hi (via lui) */
+            } else if (lir->opcode == kX86Lahi) { /* ld address hi (via lui) */
                 LIR *targetLIR = (LIR *) lir->target;
                 intptr_t target = startAddr + targetLIR->offset;
                 lir->operands[1] = target >> 16;
-            } else if (lir->opcode == kMipsLalo) { /* ld address lo (via ori) */
+            } else if (lir->opcode == kX86Lalo) { /* ld address lo (via ori) */
                 LIR *targetLIR = (LIR *) lir->target;
                 intptr_t target = startAddr + targetLIR->offset;
                 lir->operands[2] = lir->operands[2] + target;
@@ -228,7 +228,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         if (res != kSuccess) {
             continue;
         }
-        const MipsEncodingMap *encoder = &EncodingMap[lir->opcode];
+        const X86EncodingMap *encoder = &EncodingMap[lir->opcode];
         u4 bits = encoder->skeleton;
         int i;
         for (i = 0; i < 4; i++) {
@@ -276,7 +276,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         cUnit->codeBuffer.push_back(bits & 0xffff);
         // TUNING: replace with proper delay slot handling
         if (encoder->size == 8) {
-            const MipsEncodingMap *encoder = &EncodingMap[kMipsNop];
+            const X86EncodingMap *encoder = &EncodingMap[kX86Nop];
             u4 bits = encoder->skeleton;
             cUnit->codeBuffer.push_back((bits >> 16) & 0xffff);
             cUnit->codeBuffer.push_back(bits & 0xffff);

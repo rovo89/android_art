@@ -133,6 +133,10 @@ namespace art {
 /* non-existant physical register */
 #define rNone   (-1)
 
+/* RegisterLocation templates return values (r0, or r0/r1) */
+#define LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 1, rAX, INVALID_REG,\
+                      INVALID_SREG}
+#define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, rAX, rDX, INVALID_SREG}
 
 typedef enum ResourceEncodingPos {
     kGPReg0     = 0,
@@ -258,6 +262,10 @@ typedef enum X86OpCode {
     kX86First,
     kX86Last
 } X86OpCode;
+
+// FIXME: mem barrier type - what do we do for x86?
+#define kSY 0
+#define kST 0
 
 /* Bit flags describing the behavior of each native opcode */
 typedef enum X86OpFeatureFlags {

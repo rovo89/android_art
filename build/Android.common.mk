@@ -28,6 +28,13 @@ else
 ART_MIPS_TARGET := false
 endif
 
+# Build for x86 target (temporary)
+ifneq ($(wildcard art/X86_TARGET),)
+ART_X86_TARGET := true
+else
+ART_X86_TARGET := false
+endif
+
 ifeq ($(ART_USE_LLVM_COMPILER),true)
 LLVM_ROOT_PATH := external/llvm
 include $(LLVM_ROOT_PATH)/llvm.mk
@@ -248,11 +255,19 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler/codegen/mips/Assemble.cc \
 	src/compiler/codegen/mips/mips/Codegen.cc
 else
+ifeq ($(ART_X86_TARGET),true)
+LIBART_COMMON_SRC_FILES += \
+	src/compiler/codegen/x86/ArchUtility.cc \
+	src/compiler/codegen/x86/X86RallocUtil.cc \
+	src/compiler/codegen/x86/Assemble.cc \
+	src/compiler/codegen/x86/x86/Codegen.cc
+else
 LIBART_COMMON_SRC_FILES += \
 	src/compiler/codegen/arm/ArchUtility.cc \
 	src/compiler/codegen/arm/ArmRallocUtil.cc \
 	src/compiler/codegen/arm/Assemble.cc \
 	src/compiler/codegen/arm/armv7-a/Codegen.cc
+endif
 endif
 endif
 

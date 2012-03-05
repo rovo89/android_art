@@ -17,20 +17,21 @@
 namespace art {
 
 /*
- * This file contains codegen for the MIPS32 ISA and is intended to be
+ * This file contains codegen for the X86 ISA and is intended to be
  * includes by:
  *
  *        Codegen-$(TARGET_ARCH_VARIANT).c
  *
  */
 
-static int coreRegs[] = {rAX, rCX, rDX, rBX, rSP, rBP, rSI, rDI}
-static int reservedRegs[] = {rSP};
-static int coreTemps[] = {rAX, rCX, rDX}
-static int fpRegs[] = {fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7, fr8, fr9,
-                       fr10, fr11, fr12, fr13, fr14, fr15}
-static int fpTemps[] = {fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7, fr8, fr9,
-                        fr10, fr11, fr12, fr13, fr14, fr15}
+//FIXME: restore "static" when usage uncovered
+/*static*/ int coreRegs[] = {rAX, rCX, rDX, rBX, rSP, rBP, rSI, rDI};
+/*static*/ int reservedRegs[] = {rSP};
+/*static*/ int coreTemps[] = {rAX, rCX, rDX};
+/*static*/ int fpRegs[] = {fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7, fr8, fr9,
+                       fr10, fr11, fr12, fr13, fr14, fr15};
+/*static*/ int fpTemps[] = {fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7, fr8, fr9,
+                        fr10, fr11, fr12, fr13, fr14, fr15};
 
 void genBarrier(CompilationUnit *cUnit);
 void storePair(CompilationUnit *cUnit, int base, int lowReg,
@@ -51,21 +52,21 @@ LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
     /* must be both DOUBLE or both not DOUBLE */
     DCHECK_EQ(DOUBLEREG(rDest),DOUBLEREG(rSrc));
     if (DOUBLEREG(rDest)) {
-        opcode = kMipsFmovd;
+        opcode = kX86Fmovd;
     } else {
         if (SINGLEREG(rDest)) {
             if (SINGLEREG(rSrc)) {
-                opcode = kMipsFmovs;
+                opcode = kX86Fmovs;
             } else {
                 /* note the operands are swapped for the mtc1 instr */
                 int tOpnd = rSrc;
                 rSrc = rDest;
                 rDest = tOpnd;
-                opcode = kMipsMtc1;
+                opcode = kX86Mtc1;
             }
         } else {
             DCHECK(SINGLEREG(rSrc));
-            opcode = kMipsMfc1;
+            opcode = kX86Mfc1;
         }
     }
     LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rSrc, rDest);
@@ -102,19 +103,19 @@ LIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest,
 
     /* See if the value can be constructed cheaply */
     if (value == 0) {
-        res = newLIR2(cUnit, kMipsMove, rDest, r_ZERO);
+        res = newLIR2(cUnit, kX86Move, rDest, r_ZERO);
     } else if ((value > 0) && (value <= 65535)) {
-        res = newLIR3(cUnit, kMipsOri, rDest, r_ZERO, value);
+        res = newLIR3(cUnit, kX86Ori, rDest, r_ZERO, value);
     } else if ((value < 0) && (value >= -32768)) {
-        res = newLIR3(cUnit, kMipsAddiu, rDest, r_ZERO, value);
+        res = newLIR3(cUnit, kX86Addiu, rDest, r_ZERO, value);
     } else {
-        res = newLIR2(cUnit, kMipsLui, rDest, value>>16);
+        res = newLIR2(cUnit, kX86Lui, rDest, value>>16);
         if (value & 0xffff)
-            newLIR3(cUnit, kMipsOri, rDest, rDest, value);
+            newLIR3(cUnit, kX86Ori, rDest, rDest, value);
     }
 
     if (isFpReg) {
-        newLIR2(cUnit, kMipsMtc1, rDest, rDestSave);
+        newLIR2(cUnit, kX86Mtc1, rDest, rDestSave);
         oatFreeTemp(cUnit, rDest);
     }
 
@@ -128,10 +129,10 @@ LIR *opNone(CompilationUnit *cUnit, OpKind op)
     return NULL;
 #if 0
     LIR *res;
-    MipsOpCode opcode = kMipsNop;
+    X86OpCode opcode = kX86Nop;
     switch (op) {
         case kOpUncondBr:
-            opcode = kMipsB;
+            opcode = kX86B;
             break;
         default:
             LOG(FATAL) << "Bad case in opNone";
@@ -143,18 +144,24 @@ LIR *opNone(CompilationUnit *cUnit, OpKind op)
 
 LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask);
 
+LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target)
+{
+    UNIMPLEMENTED(WARNING) << "opCondBranch";
+    return NULL;
+}
+
 LIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
 {
     UNIMPLEMENTED(WARNING) << "opReg";
     return NULL;
 #if 0
-    MipsOpCode opcode = kMipsNop;
+    X86OpCode opcode = kX86Nop;
     switch (op) {
         case kOpBlx:
-            opcode = kMipsJalr;
+            opcode = kX86Jalr;
             break;
         case kOpBx:
-            return newLIR1(cUnit, kMipsJr, rDestSrc);
+            return newLIR1(cUnit, kX86Jr, rDestSrc);
             break;
         default:
             LOG(FATAL) << "Bad case in opReg";
@@ -175,7 +182,7 @@ LIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
     bool neg = (value < 0);
     int absValue = (neg) ? -value : value;
     bool shortForm = (absValue & 0xff) == absValue;
-    MipsOpCode opcode = kMipsNop;
+    X86OpCode opcode = kX86Nop;
     switch (op) {
         case kOpAdd:
             return opRegRegImm(cUnit, op, rDestSrc1, rDestSrc1, value);
@@ -207,34 +214,34 @@ LIR *opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest,
     UNIMPLEMENTED(WARNING) << "opRegRegReg";
     return NULL;
 #if 0
-    MipsOpCode opcode = kMipsNop;
+    X86OpCode opcode = kX86Nop;
     switch (op) {
         case kOpAdd:
-            opcode = kMipsAddu;
+            opcode = kX86Addu;
             break;
         case kOpSub:
-            opcode = kMipsSubu;
+            opcode = kX86Subu;
             break;
         case kOpAnd:
-            opcode = kMipsAnd;
+            opcode = kX86And;
             break;
         case kOpMul:
-            opcode = kMipsMul;
+            opcode = kX86Mul;
             break;
         case kOpOr:
-            opcode = kMipsOr;
+            opcode = kX86Or;
             break;
         case kOpXor:
-            opcode = kMipsXor;
+            opcode = kX86Xor;
             break;
         case kOpLsl:
-            opcode = kMipsSllv;
+            opcode = kX86Sllv;
             break;
         case kOpLsr:
-            opcode = kMipsSrlv;
+            opcode = kX86Srlv;
             break;
         case kOpAsr:
-            opcode = kMipsSrav;
+            opcode = kX86Srav;
             break;
         case kOpAdc:
         case kOpSbc:
@@ -255,71 +262,71 @@ LIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
     return NULL;
 #if 0
     LIR *res;
-    MipsOpCode opcode = kMipsNop;
+    X86OpCode opcode = kX86Nop;
     bool shortForm = true;
 
     switch(op) {
         case kOpAdd:
             if (IS_SIMM16(value)) {
-                opcode = kMipsAddiu;
+                opcode = kX86Addiu;
             }
             else {
                 shortForm = false;
-                opcode = kMipsAddu;
+                opcode = kX86Addu;
             }
             break;
         case kOpSub:
             if (IS_SIMM16((-value))) {
                 value = -value;
-                opcode = kMipsAddiu;
+                opcode = kX86Addiu;
             }
             else {
                 shortForm = false;
-                opcode = kMipsSubu;
+                opcode = kX86Subu;
             }
             break;
         case kOpLsl:
                 DCHECK(value >= 0 && value <= 31);
-                opcode = kMipsSll;
+                opcode = kX86Sll;
                 break;
         case kOpLsr:
                 DCHECK(value >= 0 && value <= 31);
-                opcode = kMipsSrl;
+                opcode = kX86Srl;
                 break;
         case kOpAsr:
                 DCHECK(value >= 0 && value <= 31);
-                opcode = kMipsSra;
+                opcode = kX86Sra;
                 break;
         case kOpAnd:
             if (IS_UIMM16((value))) {
-                opcode = kMipsAndi;
+                opcode = kX86Andi;
             }
             else {
                 shortForm = false;
-                opcode = kMipsAnd;
+                opcode = kX86And;
             }
             break;
         case kOpOr:
             if (IS_UIMM16((value))) {
-                opcode = kMipsOri;
+                opcode = kX86Ori;
             }
             else {
                 shortForm = false;
-                opcode = kMipsOr;
+                opcode = kX86Or;
             }
             break;
         case kOpXor:
             if (IS_UIMM16((value))) {
-                opcode = kMipsXori;
+                opcode = kX86Xori;
             }
             else {
                 shortForm = false;
-                opcode = kMipsXor;
+                opcode = kX86Xor;
             }
             break;
         case kOpMul:
             shortForm = false;
-            opcode = kMipsMul;
+            opcode = kX86Mul;
             break;
         default:
             LOG(FATAL) << "Bad case in opRegRegImm";
@@ -348,16 +355,16 @@ LIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
     UNIMPLEMENTED(WARNING) << "opRegReg";
     return NULL;
 #if 0
-    MipsOpCode opcode = kMipsNop;
+    X86OpCode opcode = kX86Nop;
     LIR *res;
     switch (op) {
         case kOpMov:
-            opcode = kMipsMove;
+            opcode = kX86Move;
             break;
         case kOpMvn:
-            return newLIR3(cUnit, kMipsNor, rDestSrc1, rSrc2, r_ZERO);
+            return newLIR3(cUnit, kX86Nor, rDestSrc1, rSrc2, r_ZERO);
         case kOpNeg:
-            return newLIR3(cUnit, kMipsSubu, rDestSrc1, r_ZERO, rSrc2);
+            return newLIR3(cUnit, kX86Subu, rDestSrc1, r_ZERO, rSrc2);
         case kOpAdd:
         case kOpAnd:
         case kOpMul:
@@ -366,23 +373,15 @@ LIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
         case kOpXor:
             return opRegRegReg(cUnit, op, rDestSrc1, rDestSrc1, rSrc2);
         case kOp2Byte:
-#if __mips_isa_rev>=2
-            res = newLIR2(cUnit, kMipsSeb, rDestSrc1, rSrc2);
-#else
             res = opRegRegImm(cUnit, kOpLsl, rDestSrc1, rSrc2, 24);
             opRegRegImm(cUnit, kOpAsr, rDestSrc1, rDestSrc1, 24);
-#endif
             return res;
         case kOp2Short:
-#if __mips_isa_rev>=2
-            res = newLIR2(cUnit, kMipsSeh, rDestSrc1, rSrc2);
-#else
             res = opRegRegImm(cUnit, kOpLsl, rDestSrc1, rSrc2, 16);
             opRegRegImm(cUnit, kOpAsr, rDestSrc1, rDestSrc1, 16);
-#endif
             return res;
         case kOp2Char:
-             return newLIR3(cUnit, kMipsAndi, rDestSrc1, rSrc2, 0xFFFF);
+             return newLIR3(cUnit, kX86Andi, rDestSrc1, rSrc2, 0xFFFF);
         default:
             LOG(FATAL) << "Bad case in opRegReg";
             break;
@@ -409,7 +408,7 @@ LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
 #if 0
     LIR *first = NULL;
     LIR *res;
-    MipsOpCode opcode = kMipsNop;
+    X86OpCode opcode = kX86Nop;
     int tReg = oatAllocTemp(cUnit);
 
     if (FPREG(rDest)) {
@@ -422,30 +421,30 @@ LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
     }
 
     if (!scale) {
-        first = newLIR3(cUnit, kMipsAddu, tReg , rBase, rIndex);
+        first = newLIR3(cUnit, kX86Addu, tReg , rBase, rIndex);
     } else {
         first = opRegRegImm(cUnit, kOpLsl, tReg, rIndex, scale);
-        newLIR3(cUnit, kMipsAddu, tReg , rBase, tReg);
+        newLIR3(cUnit, kX86Addu, tReg , rBase, tReg);
     }
 
     switch (size) {
         case kSingle:
-            opcode = kMipsFlwc1;
+            opcode = kX86Flwc1;
             break;
         case kWord:
-            opcode = kMipsLw;
+            opcode = kX86Lw;
             break;
         case kUnsignedHalf:
-            opcode = kMipsLhu;
+            opcode = kX86Lhu;
             break;
         case kSignedHalf:
-            opcode = kMipsLh;
+            opcode = kX86Lh;
             break;
         case kUnsignedByte:
-            opcode = kMipsLbu;
+            opcode = kX86Lbu;
             break;
         case kSignedByte:
-            opcode = kMipsLb;
+            opcode = kX86Lb;
             break;
         default:
             LOG(FATAL) << "Bad case in loadBaseIndexed";
@@ -466,11 +465,10 @@ LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
 #if 0
     LIR *first = NULL;
     LIR *res;
-    MipsOpCode opcode = kMipsNop;
+    X86OpCode opcode = kX86Nop;
     int rNewIndex = rIndex;
     int tReg = oatAllocTemp(cUnit);
 
-#ifdef __mips_hard_float
     if (FPREG(rSrc)) {
         DCHECK(SINGLEREG(rSrc));
         DCHECK((size == kWord) || (size == kSingle));
@@ -479,31 +477,28 @@ LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
         if (size == kSingle)
             size = kWord;
     }
-#endif
 
     if (!scale) {
-        first = newLIR3(cUnit, kMipsAddu, tReg , rBase, rIndex);
+        first = newLIR3(cUnit, kX86Addu, tReg , rBase, rIndex);
     } else {
         first = opRegRegImm(cUnit, kOpLsl, tReg, rIndex, scale);
-        newLIR3(cUnit, kMipsAddu, tReg , rBase, tReg);
+        newLIR3(cUnit, kX86Addu, tReg , rBase, tReg);
     }
 
     switch (size) {
-#ifdef __mips_hard_float
         case kSingle:
-            opcode = kMipsFswc1;
+            opcode = kX86Fswc1;
             break;
-#endif
         case kWord:
-            opcode = kMipsSw;
+            opcode = kX86Sw;
             break;
         case kUnsignedHalf:
         case kSignedHalf:
-            opcode = kMipsSh;
+            opcode = kX86Sh;
             break;
         case kUnsignedByte:
         case kSignedByte:
-            opcode = kMipsSb;
+            opcode = kX86Sb;
             break;
         default:
             LOG(FATAL) << "Bad case in storeBaseIndexed";
@@ -525,14 +520,14 @@ LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
     genBarrier(cUnit);
 
     for (i = 0; i < 8; i++, rMask >>= 1) {
-        if (rMask & 0x1) { /* map r0 to MIPS r_A0 */
-            newLIR3(cUnit, kMipsLw, i+r_A0, loadCnt*4, rBase);
+        if (rMask & 0x1) {
+            newLIR3(cUnit, kX86Lw, i+r_A0, loadCnt*4, rBase);
             loadCnt++;
         }
     }
 
     if (loadCnt) {/* increment after */
-        newLIR3(cUnit, kMipsAddiu, rBase, rBase, loadCnt*4);
+        newLIR3(cUnit, kX86Addiu, rBase, rBase, loadCnt*4);
     }
 
     genBarrier(cUnit);
@@ -544,20 +539,21 @@ LIR *storeMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
     UNIMPLEMENTED(WARNING) << "storeMultiple";
     return NULL;
+#if 0
     int i;
     int storeCnt = 0;
     LIR *res = NULL ;
     genBarrier(cUnit);
 
     for (i = 0; i < 8; i++, rMask >>= 1) {
-        if (rMask & 0x1) { /* map r0 to MIPS r_A0 */
-            newLIR3(cUnit, kMipsSw, i+r_A0, storeCnt*4, rBase);
+        if (rMask & 0x1) {
+            newLIR3(cUnit, kX86Sw, i+r_A0, storeCnt*4, rBase);
             storeCnt++;
         }
     }
 
     if (storeCnt) { /* increment after */
-        newLIR3(cUnit, kMipsAddiu, rBase, rBase, storeCnt*4);
+        newLIR3(cUnit, kX86Addiu, rBase, rBase, storeCnt*4);
     }
 
     genBarrier(cUnit);
@@ -583,7 +579,7 @@ LIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
     LIR *res;
     LIR *load = NULL;
     LIR *load2 = NULL;
-    MipsOpCode opcode = kMipsNop;
+    X86OpCode opcode = kX86Nop;
     bool shortForm = IS_SIMM16(displacement);
     bool pair = false;
 
@@ -591,9 +587,9 @@ LIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
         case kLong:
         case kDouble:
             pair = true;
-            opcode = kMipsLw;
+            opcode = kX86Lw;
             if (FPREG(rDest)) {
-                opcode = kMipsFlwc1;
+                opcode = kX86Flwc1;
                 if (DOUBLEREG(rDest)) {
                     rDest = rDest - FP_DOUBLE;
                 } else {
@@ -607,26 +603,26 @@ LIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
             break;
         case kWord:
         case kSingle:
-            opcode = kMipsLw;
+            opcode = kX86Lw;
             if (FPREG(rDest)) {
-                opcode = kMipsFlwc1;
+                opcode = kX86Flwc1;
                 DCHECK(SINGLEREG(rDest));
             }
             DCHECK_EQ((displacement & 0x3), 0);
             break;
         case kUnsignedHalf:
-            opcode = kMipsLhu;
+            opcode = kX86Lhu;
             DCHECK_EQ((displacement & 0x1), 0);
             break;
         case kSignedHalf:
-            opcode = kMipsLh;
+            opcode = kX86Lh;
             DCHECK_EQ((displacement & 0x1), 0);
             break;
         case kUnsignedByte:
-            opcode = kMipsLbu;
+            opcode = kX86Lbu;
             break;
         case kSignedByte:
-            opcode = kMipsLb;
+            opcode = kX86Lb;
             break;
         default:
             LOG(FATAL) << "Bad case in loadBaseIndexedBody";
@@ -694,7 +690,7 @@ LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
     LIR *res;
     LIR *store = NULL;
     LIR *store2 = NULL;
-    MipsOpCode opcode = kMipsNop;
+    X86OpCode opcode = kX86Nop;
     bool shortForm = IS_SIMM16(displacement);
     bool pair = false;
 
@@ -702,10 +698,9 @@ LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
         case kLong:
         case kDouble:
             pair = true;
-            opcode = kMipsSw;
-#ifdef __mips_hard_float
+            opcode = kX86Sw;
             if (FPREG(rSrc)) {
-                opcode = kMipsFswc1;
+                opcode = kX86Fswc1;
                 if (DOUBLEREG(rSrc)) {
                     rSrc = rSrc - FP_DOUBLE;
                 } else {
@@ -714,29 +709,26 @@ LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
                 }
                 rSrcHi = rSrc + 1;
             }
-#endif
             shortForm = IS_SIMM16_2WORD(displacement);
             DCHECK_EQ((displacement & 0x3), 0);
             break;
         case kWord:
         case kSingle:
-            opcode = kMipsSw;
-#ifdef __mips_hard_float
+            opcode = kX86Sw;
             if (FPREG(rSrc)) {
-                opcode = kMipsFswc1;
+                opcode = kX86Fswc1;
                 DCHECK(SINGLEREG(rSrc));
             }
-#endif
             DCHECK_EQ((displacement & 0x3), 0);
             break;
         case kUnsignedHalf:
         case kSignedHalf:
-            opcode = kMipsSh;
+            opcode = kX86Sh;
             DCHECK_EQ((displacement & 0x1), 0);
             break;
         case kUnsignedByte:
         case kSignedByte:
-            opcode = kMipsSb;
+            opcode = kX86Sb;
             break;
         default:
             LOG(FATAL) << "Bad case in storeBaseIndexedBody";
@@ -788,14 +780,14 @@ LIR *storeBaseDispWide(CompilationUnit *cUnit, int rBase,
 
 void storePair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
 {
-    storeWordDisp(cUnit, base, LOWORD_OFFSET, lowReg);
-    storeWordDisp(cUnit, base, HIWORD_OFFSET, highReg);
+    storeWordDisp(cUnit, base, 0, lowReg);
+    storeWordDisp(cUnit, base, 4, highReg);
 }
 
 void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
 {
-    loadWordDisp(cUnit, base, LOWORD_OFFSET , lowReg);
-    loadWordDisp(cUnit, base, HIWORD_OFFSET , highReg);
+    loadWordDisp(cUnit, base, 0, lowReg);
+    loadWordDisp(cUnit, base, 4, highReg);
 }
 
 }  // namespace art

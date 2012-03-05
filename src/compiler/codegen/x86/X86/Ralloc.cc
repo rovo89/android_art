@@ -17,7 +17,7 @@
 namespace art {
 
 /*
- * This file contains codegen for the Mips ISA and is intended to be
+ * This file contains codegen for the X86 ISA and is intended to be
  * includes by:
  *
  *        Codegen-$(TARGET_ARCH_VARIANT).c

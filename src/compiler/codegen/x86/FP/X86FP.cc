@@ -22,8 +22,7 @@ bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
     UNIMPLEMENTED(WARNING) << "genArithOpFloat";
     return false;
 #if 0
-#ifdef __mips_hard_float
-    int op = kMipsNop;
+    int op = kX86Nop;
     RegLocation rlResult;
 
     /*
@@ -33,19 +32,19 @@ bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
     switch (mir->dalvikInsn.opcode) {
         case OP_ADD_FLOAT_2ADDR:
         case OP_ADD_FLOAT:
-            op = kMipsFadds;
+            op = kX86Fadds;
             break;
         case OP_SUB_FLOAT_2ADDR:
         case OP_SUB_FLOAT:
-            op = kMipsFsubs;
+            op = kX86Fsubs;
             break;
         case OP_DIV_FLOAT_2ADDR:
         case OP_DIV_FLOAT:
-            op = kMipsFdivs;
+            op = kX86Fdivs;
             break;
         case OP_MUL_FLOAT_2ADDR:
         case OP_MUL_FLOAT:
-            op = kMipsFmuls;
+            op = kX86Fmuls;
             break;
         case OP_REM_FLOAT_2ADDR:
         case OP_REM_FLOAT:
@@ -58,14 +57,11 @@ bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
     rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
     rlSrc2 = loadValue(cUnit, rlSrc2, kFPReg);
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-    newLIR3(cUnit, (MipsOpCode)op, rlResult.lowReg, rlSrc1.lowReg,
+    newLIR3(cUnit, (X86OpCode)op, rlResult.lowReg, rlSrc1.lowReg,
                     rlSrc2.lowReg);
     storeValue(cUnit, rlDest, rlResult);
 
     return false;
-#else
-    return genArithOpFloatPortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
-#endif
 #endif
 }
 
@@ -76,26 +72,25 @@ static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
     UNIMPLEMENTED(WARNING) << "genArithOpDouble";
     return false;
 #if 0
-#ifdef __mips_hard_float
-    int op = kMipsNop;
+    int op = kX86Nop;
     RegLocation rlResult;
 
     switch (mir->dalvikInsn.opcode) {
         case OP_ADD_DOUBLE_2ADDR:
         case OP_ADD_DOUBLE:
-            op = kMipsFaddd;
+            op = kX86Faddd;
             break;
         case OP_SUB_DOUBLE_2ADDR:
         case OP_SUB_DOUBLE:
-            op = kMipsFsubd;
+            op = kX86Fsubd;
             break;
         case OP_DIV_DOUBLE_2ADDR:
         case OP_DIV_DOUBLE:
-            op = kMipsFdivd;
+            op = kX86Fdivd;
             break;
         case OP_MUL_DOUBLE_2ADDR:
         case OP_MUL_DOUBLE:
-            op = kMipsFmuld;
+            op = kX86Fmuld;
             break;
         case OP_REM_DOUBLE_2ADDR:
         case OP_REM_DOUBLE:
@@ -112,14 +107,11 @@ static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
     DCHECK(rlDest.wide);
     DCHECK(rlResult.wide);
-    newLIR3(cUnit, (MipsOpCode)op, S2D(rlResult.lowReg, rlResult.highReg),
+    newLIR3(cUnit, (X86OpCode)op, S2D(rlResult.lowReg, rlResult.highReg),
             S2D(rlSrc1.lowReg, rlSrc1.highReg),
             S2D(rlSrc2.lowReg, rlSrc2.highReg));
     storeValueWide(cUnit, rlDest, rlResult);
     return false;
-#else
-    return genArithOpDoublePortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
-#endif
 #endif
 }
 
@@ -128,35 +120,34 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir)
     UNIMPLEMENTED(WARNING) << "genConversion";
     return false;
 #if 0
-#ifdef __mips_hard_float
     Opcode opcode = mir->dalvikInsn.opcode;
     bool longSrc = false;
     bool longDest = false;
     RegLocation rlSrc;
     RegLocation rlDest;
-    int op = kMipsNop;
+    int op = kX86Nop;
     int srcReg;
     RegLocation rlResult;
     switch (opcode) {
         case OP_INT_TO_FLOAT:
             longSrc = false;
             longDest = false;
-            op = kMipsFcvtsw;
+            op = kX86Fcvtsw;
             break;
         case OP_DOUBLE_TO_FLOAT:
             longSrc = true;
             longDest = false;
-            op = kMipsFcvtsd;
+            op = kX86Fcvtsd;
             break;
         case OP_FLOAT_TO_DOUBLE:
             longSrc = false;
             longDest = true;
-            op = kMipsFcvtds;
+            op = kX86Fcvtds;
             break;
         case OP_INT_TO_DOUBLE:
             longSrc = false;
             longDest = true;
-            op = kMipsFcvtdw;
+            op = kX86Fcvtdw;
             break;
         case OP_FLOAT_TO_INT:
         case OP_DOUBLE_TO_INT:
@@ -180,18 +171,15 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir)
     if (longDest) {
         rlDest = oatGetDestWide(cUnit, mir, 0, 1);
         rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-        newLIR2(cUnit, (MipsOpCode)op, S2D(rlResult.lowReg, rlResult.highReg), srcReg);
+        newLIR2(cUnit, (X86OpCode)op, S2D(rlResult.lowReg, rlResult.highReg), srcReg);
         storeValueWide(cUnit, rlDest, rlResult);
     } else {
         rlDest = oatGetDest(cUnit, mir, 0);
         rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-        newLIR2(cUnit, (MipsOpCode)op, rlResult.lowReg, srcReg);
+        newLIR2(cUnit, (X86OpCode)op, rlResult.lowReg, srcReg);
         storeValue(cUnit, rlDest, rlResult);
     }
     return false;
-#else
-    return genConversionPortable(cUnit, mir);
-#endif
 #endif
 }
 

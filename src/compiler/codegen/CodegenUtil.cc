@@ -145,9 +145,11 @@ void setupResourceMasks(LIR* lir)
         lir->defMask |= ENCODE_REG_SP;
     }
 
+#if !defined(TARGET_X86)
     if (flags & REG_DEF_LR) {
         lir->defMask |= ENCODE_REG_LR;
     }
+#endif
 
     if (flags & REG_DEF_LIST0) {
         lir->defMask |= ENCODE_REG_LIST(lir->operands[0]);
@@ -190,9 +192,11 @@ void setupResourceMasks(LIR* lir)
         }
     }
 
+#if defined(TARGET_ARM)
     if (flags & REG_USE_PC) {
         lir->useMask |= ENCODE_REG_PC;
     }
+#endif
 
     if (flags & REG_USE_SP) {
         lir->useMask |= ENCODE_REG_SP;

@@ -365,6 +365,9 @@ void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
 void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
              bool isLongOrDouble, bool isObject)
 {
+#if defined(TARGET_X86)
+    UNIMPLEMENTED(WARNING) << "genSput";
+#else
     int fieldOffset;
     int ssbIndex;
     bool isVolatile;
@@ -464,6 +467,7 @@ void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
         }
         callRuntimeHelper(cUnit, rTgt);
     }
+#endif
 }
 
 void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
@@ -572,11 +576,15 @@ void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 // Debugging routine - if null target, branch to DebugMe
 void genShowTarget(CompilationUnit* cUnit)
 {
+#if defined(TARGET_X86)
+    UNIMPLEMENTED(WARNING) << "genShowTarget";
+#else
     LIR* branchOver = opCmpImmBranch(cUnit, kCondNe, rINVOKE_TGT, 0, NULL);
     loadWordDisp(cUnit, rSELF,
                  OFFSETOF_MEMBER(Thread, pDebugMe), rINVOKE_TGT);
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
     branchOver->target = (LIR*)target;
+#endif
 }
 
 void genThrowVerificationError(CompilationUnit* cUnit, MIR* mir)
@@ -590,6 +598,9 @@ void genThrowVerificationError(CompilationUnit* cUnit, MIR* mir)
 
 void handleSuspendLaunchpads(CompilationUnit *cUnit)
 {
+#if defined(TARGET_X86)
+    UNIMPLEMENTED(WARNING);
+#else
     LIR** suspendLabel =
         (LIR **) cUnit->suspendLaunchpads.elemList;
     int numElems = cUnit->suspendLaunchpads.numUsed;
@@ -617,6 +628,7 @@ void handleSuspendLaunchpads(CompilationUnit *cUnit)
         }
         opUnconditionalBranch(cUnit, resumeLab);
     }
+#endif
 }
 
 void handleThrowLaunchpads(CompilationUnit *cUnit)
@@ -763,6 +775,9 @@ void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
 void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size, RegLocation rlSrc,
              RegLocation rlObj, bool isLongOrDouble, bool isObject)
 {
+#if defined(TARGET_X86)
+    UNIMPLEMENTED(WARNING);
+#else
     int fieldOffset;
     bool isVolatile;
     uint32_t fieldIdx = mir->dalvikInsn.vC;
@@ -817,6 +832,7 @@ void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size, RegLocation rlSrc,
         loadConstant(cUnit, rARG0, fieldIdx);
         callRuntimeHelper(cUnit, rTgt);
     }
+#endif
 }
 
 void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
@@ -1778,6 +1794,10 @@ bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                     RegLocation rlSrc1, RegLocation rlSrc2)
 {
+#if defined(TARGET_X86)
+    UNIMPLEMENTED(WARNING) << "genArithOpLong";
+    return false;
+#else
     RegLocation rlResult;
     OpKind firstOp = kOpBkpt;
     OpKind secondOp = kOpBkpt;
@@ -1898,6 +1918,7 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         storeValueWide(cUnit, rlDest, rlResult);
     }
     return false;
+#endif
 }
 
 bool genConversionCall(CompilationUnit* cUnit, MIR* mir, int funcOffset,
@@ -1984,6 +2005,11 @@ bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
                               RegLocation rlDest, RegLocation rlSrc1,
                               RegLocation rlSrc2)
 {
+#if defined(TARGET_X86)
+//NOTE: probably don't need the portable versions for x86
+    UNIMPLEMENTED(WARNING) << "genArithOpDoublePortable";
+    return false;
+#else
     RegLocation rlResult;
     int funcOffset;
 
@@ -2023,6 +2049,7 @@ bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
     rlResult = oatGetReturnWide(cUnit);
     storeValueWide(cUnit, rlDest, rlResult);
     return false;
+#endif
 }
 
 bool genConversionPortable(CompilationUnit* cUnit, MIR* mir)
@@ -2077,6 +2104,9 @@ bool genConversionPortable(CompilationUnit* cUnit, MIR* mir)
  */
 void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset)
 {
+#if defined(TARGET_X86)
+    UNIMPLEMENTED(WARNING);
+#else
     // Following DCHECK verifies that dPC is in range of single load immediate
     DCHECK((offset == DEBUGGER_METHOD_ENTRY) ||
            (offset == DEBUGGER_METHOD_EXIT) || ((offset & 0xffff) == offset));
@@ -2094,11 +2124,15 @@ void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset)
     branch->target = (LIR*)target;
 #endif
     oatFreeTemp(cUnit, rARG2);
+#endif
 }
 
 /* Check if we need to check for pending suspend request */
 void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
 {
+#if defined(TARGET_X86)
+    UNIMPLEMENTED(WARNING) << "genSuspendTest";
+#else
     if (NO_SUSPEND || (mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK)) {
         return;
     }
@@ -2122,6 +2156,7 @@ void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
                          kPseudoSuspendTarget, (intptr_t)retLab, mir->offset);
     branch->target = (LIR*)target;
     oatInsertGrowableList(cUnit, &cUnit->suspendLaunchpads, (intptr_t)target);
+#endif
 }
 
 }  // namespace art

@@ -247,6 +247,9 @@ void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
  */
 void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 {
+#if defined(TARGET_X86)
+    UNIMPLEMENTED(WARNING) << "markGCCard";
+#else
     int regCardBase = oatAllocTemp(cUnit);
     int regCardNo = oatAllocTemp(cUnit);
     LIR* branchOver = opCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
@@ -259,6 +262,7 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
     branchOver->target = (LIR*)target;
     oatFreeTemp(cUnit, regCardBase);
     oatFreeTemp(cUnit, regCardNo);
+#endif
 }
 
 /*

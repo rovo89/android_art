@@ -15,13 +15,13 @@
  */
 
 /*
- * This file contains Mips-specific register allocation support.
+ * This file contains X86-specific register allocation support.
  */
 
 #include "../../CompilerUtility.h"
 #include "../../CompilerIR.h"
 #include "../..//Dataflow.h"
-#include "MipsLIR.h"
+#include "X86LIR.h"
 #include "Codegen.h"
 #include "../Ralloc.h"
 
@@ -162,6 +162,11 @@ extern RegLocation oatGetReturnWide(CompilationUnit* cUnit)
 
 extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
 {
+    UNIMPLEMENTED(WARNING) << "oatGetReturnWideAlt";
+    return oatGetReturnWide(cUnit);
+#if 0
+    // May not need this - it is used when calling a combined
+    // div/rem helper.  Quotient in regular return, remainder in alt regs
     RegLocation res = LOC_C_RETURN_WIDE_ALT;
     oatClobber(cUnit, res.lowReg);
     oatClobber(cUnit, res.highReg);
@@ -169,6 +174,7 @@ extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
     oatMarkInUse(cUnit, res.highReg);
     oatMarkPair(cUnit, res.lowReg, res.highReg);
     return res;
+#endif
 }
 
 extern RegLocation oatGetReturn(CompilationUnit* cUnit)
@@ -181,10 +187,16 @@ extern RegLocation oatGetReturn(CompilationUnit* cUnit)
 
 extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
 {
+    UNIMPLEMENTED(WARNING) << "oatGetReturnWideAlt";
+    return oatGetReturn(cUnit);
+#if 0
+    // May not need this - it is used when calling a combined
+    // div/rem helper.  Quotient in regular return, remainder in alt regs
     RegLocation res = LOC_C_RETURN_ALT;
     oatClobber(cUnit, res.lowReg);
     oatMarkInUse(cUnit, res.lowReg);
     return res;
+#endif
 }
 
 extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)

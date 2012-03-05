@@ -35,9 +35,6 @@ static const char *x86RegName[X86_REG_COUNT] = {
  */
 std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr)
 {
-    UNIMPLEMENTED(WARNING) << "buildInsnString";
-    return NULL;
-#if 0
     std::string buf;
     int i;
     const char *fmtEnd = &fmt[strlen(fmt)];
@@ -112,8 +109,8 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr)
                        strcpy(tbuf, "see above");
                        break;
                    case 'r':
-                       DCHECK(operand >= 0 && operand < MIPS_REG_COUNT);
-                       strcpy(tbuf, mipsRegName[operand]);
+                       DCHECK(operand >= 0 && operand < X86_REG_COUNT);
+                       strcpy(tbuf, x86RegName[operand]);
                        break;
                    case 'N':
                        // Placeholder for delay slot handling
@@ -130,16 +127,13 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr)
         }
     }
     return buf;
-#endif
 }
 
 void oatDumpResourceMask(LIR *lir, u8 mask, const char *prefix)
 {
-    UNIMPLEMENTED(WARNING) << "oatDumpResourceMasks";
-#if 0
     char buf[256];
     buf[0] = 0;
-    LIR *mipsLIR = (LIR *) lir;
+    LIR *x86LIR = (LIR *) lir;
 
     if (mask == ENCODE_ALL) {
         strcpy(buf, "all");
@@ -157,13 +151,10 @@ void oatDumpResourceMask(LIR *lir, u8 mask, const char *prefix)
         if (mask & ENCODE_CCODE) {
             strcat(buf, "cc ");
         }
-        if (mask & ENCODE_FP_STATUS) {
-            strcat(buf, "fpcc ");
-        }
         /* Memory bits */
-        if (mipsLIR && (mask & ENCODE_DALVIK_REG)) {
-            sprintf(buf + strlen(buf), "dr%d%s", mipsLIR->aliasInfo & 0xffff,
-                    (mipsLIR->aliasInfo & 0x80000000) ? "(+1)" : "");
+        if (x86LIR && (mask & ENCODE_DALVIK_REG)) {
+            sprintf(buf + strlen(buf), "dr%d%s", x86LIR->aliasInfo & 0xffff,
+                    (x86LIR->aliasInfo & 0x80000000) ? "(+1)" : "");
         }
         if (mask & ENCODE_LITERAL) {
             strcat(buf, "lit ");
@@ -179,7 +170,6 @@ void oatDumpResourceMask(LIR *lir, u8 mask, const char *prefix)
     if (buf[0]) {
         LOG(INFO) << prefix << ": " <<  buf;
     }
-#endif
 }
 
 } // namespace art

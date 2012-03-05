@@ -15,7 +15,7 @@
  */
 
 #define _CODEGEN_C
-#define TARGET_MIPS
+#define TARGET_X86
 
 #include "../../../Dalvik.h"
 #include "../../../CompilerInternals.h"
@@ -23,24 +23,24 @@
 #include "../../Ralloc.h"
 #include "../Codegen.h"
 
-/* Mips codegen building blocks */
+/* X86 codegen building blocks */
 #include "../../CodegenUtil.cc"
 
-/* Mips-specific factory utilities */
+/* X86-specific factory utilities */
 #include "../X86/Factory.cc"
 /* Target independent factory utilities */
 #include "../../CodegenFactory.cc"
 /* Target independent gen routines */
 #include "../../GenCommon.cc"
 /* Shared invoke gen routines */
-#include "../../GenInvoke.cc"
-/* Mips-specific factory utilities */
+#include "../GenInvoke.cc"
+/* X86-specific factory utilities */
 #include "../ArchFactory.cc"
 
 /* X86-specific codegen routines */
 #include "../X86/Gen.cc"
 /* FP codegen routines */
-#include "../FP/MipsFP.cc"
+#include "../FP/X86FP.cc"
 
 /* X86-specific register allocation */
 #include "../X86/Ralloc.cc"

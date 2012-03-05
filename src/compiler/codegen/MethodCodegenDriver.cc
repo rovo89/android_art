@@ -43,6 +43,9 @@ RegLocation getRetLoc(CompilationUnit* cUnit)
 
 void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
 {
+#if defined(TARGET_X86)
+    UNIMPLEMENTED(WARNING) << "genInvoke";
+#else
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
     LIR* nullCk;
@@ -104,6 +107,7 @@ void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
     }
     opReg(cUnit, kOpBlx, rINVOKE_TGT);
     oatClobberCalleeSave(cUnit);
+#endif
 }
 
 /*
@@ -158,6 +162,9 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             break;
 
         case OP_MOVE_EXCEPTION:
+#if defined(TARGET_X86)
+            UNIMPLEMENTED(WARNING) << "OP_MOVE_EXCEPTION";
+#else
             int exOffset;
             int resetReg;
             exOffset = Thread::ExceptionOffset().Int32Value();
@@ -167,6 +174,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             loadConstant(cUnit, resetReg, 0);
             storeWordDisp(cUnit, rSELF, exOffset, resetReg);
             storeValue(cUnit, rlDest, rlResult);
+#endif
             break;
 
         case OP_RETURN_VOID:
