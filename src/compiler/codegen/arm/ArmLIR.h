@@ -285,8 +285,8 @@ typedef enum ArmConditionCode {
 
 /*
  * The following enum defines the list of supported Thumb instructions by the
- * assembler. Their corresponding snippet positions will be defined in
- * Assemble.c.
+ * assembler. Their corresponding EncodingMap positions will be defined in
+ * Assemble.cc.
  */
 typedef enum ArmOpcode {
     kPseudoSuspendTarget = -15,
