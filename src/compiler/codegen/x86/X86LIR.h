@@ -231,9 +231,9 @@ typedef enum NativeRegisterPool {
 #define isPseudoOpcode(opCode) ((int)(opCode) < 0)
 
 /*
- * The following enum defines the list of supported Thumb instructions by the
- * assembler. Their corresponding snippet positions will be defined in
- * Assemble.c.
+ * The following enum defines the list of supported X86 instructions by the
+ * assembler. Their corresponding EncodingMap positions will be defined in
+ * Assemble.cc.
  */
 typedef enum X86OpCode {
     kPseudoSuspendTarget = -15,
@@ -253,6 +253,23 @@ typedef enum X86OpCode {
     kPseudoNormalBlockLabel = -1,
     kX86First,
     kX8632BitData = kX86First, /* data [31..0] */
+    // Define groups of binary operations
+    // RI - Register Immediate - opcode reg, #immediate
+    //                         - lir operands - 0: reg, 1: immediate
+    // MI - Memory Immediate   - opcode [base + disp], #immediate
+    //                         - lir operands - 0: base, 1: disp, 2: immediate
+    // AI - Array Immediate    - opcode [base + index * scale + disp], #immediate
+    //                         - lir operands - 0: base, 1: index, 2: scale, 3: disp 4: immediate
+    // RR - Register Register  - opcode reg1, reg2
+    //                         - lir operands - 0: reg1, 1: reg2
+    // RM - Register Memory    - opcode reg, [base + disp]
+    //                         - lir operands - 0: reg, 1: base, 2: disp
+    // RA - Register Array     - opcode reg, [base + index * scale + disp]
+    //                         - lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: disp
+    // MR - Memory Register    - opcode [base + disp], reg
+    //                         - lir operands - 0: base, 1: disp, 2: reg
+    // AR - Array Register     - opcode [base + index * scale + disp], reg
+    //                         - lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
 #define BinaryOpCode(opcode) \
   opcode ## RI, opcode ## MI, opcode ##AI, \
   opcode ## RR, opcode ## RM, opcode ##RA, \
@@ -265,9 +282,55 @@ typedef enum X86OpCode {
     BinaryOpCode(kOpSub),
     BinaryOpCode(kOpXor),
     BinaryOpCode(kOpCmp),
+    BinaryOpCode(kOpMov),
 #undef BinaryOpCode
     kX86Last
 } X86OpCode;
+
+/* Instruction assembly fieldLoc kind */
+typedef enum X86EncodingKind {
+  kData,                       // Special case for raw data
+  kRegImm, kMemImm, kArrayImm, // RI, MI, AI instruction kinds
+  kRegReg, kRegMem, kRegArray, // RR, RM, RA instruction kinds
+  kMemReg, kArrayReg,          // MR and AR instruction kinds
+  kUnimplemented               // Encoding used when an instruction isn't yet implemented.
+} X86EncodingKind;
+
+/* A form of instruction with an opcode byte and a secondary opcode within the modrm byte */
+typedef struct OpcodeModRMOpcode {
+  uint8_t opcode;        // 1 byte opcode
+  uint8_t modrm_opcode;  // 3 bit opcode that gets encoded in the register bits of the modrm byte
+} OpcodeModRMOpcode;
+
+/* Struct used to define the EncodingMap positions for each X86 opcode */
+typedef struct X86EncodingMap {
+  X86OpCode opcode;      // e.g. kOpAddRI
+  X86EncodingKind kind;  // Used to discriminate in the union below
+  int flags;
+  union {
+    struct {
+      uint8_t rax8_i8_opcode;
+      uint8_t rax32_i32_opcode;
+      OpcodeModRMOpcode rm8_i8_opcode;
+      OpcodeModRMOpcode rm32_i32_opcode;
+      OpcodeModRMOpcode rm32_i8_opcode;
+    } RegMem_Immediate;  // kind: kRegImm, kMemImm, kArrayImm
+    struct {
+      uint8_t r8_rm8_opcode;
+      uint8_t r32_rm32_opcode;
+    } Reg_RegMem;  // kind: kRegReg, kRegMem, kRegArray
+    struct {
+      uint8_t rm8_r8_opcode;
+      uint8_t rm32_r32_opcode;
+    } RegMem_Reg;  // kind: kMemReg, kArrayReg
+    // This is a convenience for static initialization where the kind doesn't require opcode data.
+    int unused;  // kind: kData, kUnimplemented
+  } skeleton;
+  const char *name;
+  const char* fmt;
+} X86EncodingMap;
+
+extern X86EncodingMap EncodingMap[kX86Last];
 
 // FIXME: mem barrier type - what do we do for x86?
 #define kSY 0
@@ -348,54 +411,13 @@ typedef enum X86OpFeatureFlags {
 #define REG_DEF0_USE12  (REG_DEF0 | REG_USE12)
 #define REG_DEF01_USE2  (REG_DEF0 | REG_DEF1 | REG_USE2)
 
-/* Instruction assembly fieldLoc kind */
-typedef enum X86EncodingKind {
-  kData,
-  kRegImm, kMemImm, kArrayImm,
-  kRegReg, kRegMem, kRegArray,
-  kMemReg, kArrayReg
-} X86EncodingKind;
-
-/* Struct used to define the snippet positions for each X86 opcode */
-typedef struct OpcodeModRMOpcode {
-  uint8_t opcode;
-  uint8_t modrm_opcode;
-} OpcodeModRMOpcode;
-
-typedef struct X86EncodingMap {
-  X86OpCode opcode;      // e.g. kOpAddRI
-  X86EncodingKind kind;  // Used to discriminate in the union below
-  int flags;
-  union {
-    struct {
-      uint8_t rax8_i8_opcode;
-      uint8_t rax32_i32_opcode;
-      OpcodeModRMOpcode rm8_i8_opcode;
-      OpcodeModRMOpcode rm32_i32_opcode;
-      OpcodeModRMOpcode rm32_i8_opcode;
-    } RegMem_Immediate;  // kind: kRegImm, kMemImm, kArrayImm
-    struct {
-      uint8_t r8_rm8_opcode;
-      uint8_t r32_rm32_opcode;
-    } Reg_RegMem;  // kind: kRegReg, kRegMem, kRegArray,
-    struct {
-      uint8_t rm8_r8_opcode;
-      uint8_t rm32_r32_opcode;
-    } RegMem_Reg;  // kind: kMemReg, kArrayReg
-    int unused;  // kind: kData
-  } skeleton;
-  const char *name;
-  const char* fmt;
-} X86EncodingMap;
-
 /* Keys for target-specific scheduling and other optimization hints */
 typedef enum X86TargetOptHints {
     kMaxHoistDistance,
 } X86TargetOptHints;
 
-extern X86EncodingMap EncodingMap[kX86Last];
 
-#define IS_SIMM8(v) ((-128 <= (v)) && ((v) <= 128))
+#define IS_SIMM8(v) ((-128 <= (v)) && ((v) <= 127))
 
 }  // namespace art
 

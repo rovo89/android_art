@@ -28,34 +28,34 @@ namespace art {
                             rm8_r8, rm32_r32, \
                             r8_rm8, r32_rm32, \
                             rax8_i8, rax32_i32, \
-                            rm8_i8_opcode, rm8_i8_modrm, \
-                            rm32_i32_opcode, rm32_i32_modrm, \
-                            rm32_i8_opcode, rm32_i8_modrm) \
+                            rm8_i8_opcode, rm8_i8_modrm_opcode, \
+                            rm32_i32_opcode, rm32_i32_modrm_opcode, \
+                            rm32_i8_opcode, rm32_i8_modrm_opcode) \
 { kOp ## opcode ## RI, \
   kRegImm, \
   0, \
   { RegMem_Immediate: { rax8_i8, rax32_i32, \
-                       {rm8_i8_opcode, rm8_i8_modrm}, \
-                       {rm32_i32_opcode, rm32_i32_modrm}, \
-                       {rm32_i8_opcode, rm32_i8_modrm} } }, \
+                       {rm8_i8_opcode,   rm8_i8_modrm_opcode}, \
+                       {rm32_i32_opcode, rm32_i32_modrm_opcode}, \
+                       {rm32_i8_opcode,  rm32_i8_modrm_opcode} } }, \
   #opcode "RI", "" \
 }, \
 { kOp ## opcode ## MI, \
   kMemImm, \
   0, \
   { RegMem_Immediate: { rax8_i8, rax32_i32, \
-                       {rm8_i8_opcode, rm8_i8_modrm}, \
-                       {rm32_i32_opcode, rm32_i32_modrm}, \
-                       {rm32_i8_opcode, rm32_i8_modrm} } }, \
+                       {rm8_i8_opcode, rm8_i8_modrm_opcode}, \
+                       {rm32_i32_opcode, rm32_i32_modrm_opcode}, \
+                       {rm32_i8_opcode, rm32_i8_modrm_opcode} } }, \
   #opcode "MI", "" \
 }, \
 { kOp ## opcode ## AI, \
   kArrayImm, \
   0, \
   { RegMem_Immediate: { rax8_i8, rax32_i32, \
-                       {rm8_i8_opcode, rm8_i8_modrm}, \
-                       {rm32_i32_opcode, rm32_i32_modrm}, \
-                       {rm32_i8_opcode, rm32_i8_modrm} } }, \
+                       {rm8_i8_opcode, rm8_i8_modrm_opcode}, \
+                       {rm32_i32_opcode, rm32_i32_modrm_opcode}, \
+                       {rm32_i8_opcode, rm32_i8_modrm_opcode} } }, \
   #opcode "AI", "" \
 }, \
 { kOp ## opcode ## RR, \
@@ -138,9 +138,72 @@ BINARY_ENCODING_MAP(Cmp,
   0x3A /* Reg8/RegMem8 */,     0x3B /* Reg32/RegMem32 */,
   0x3C /* Rax8/imm8 opcode */, 0x3D /* Rax32/imm32 */,
   0x80, 0x7 /* RegMem8/imm8 */,
-  0x81, 0x7 /* RegMem32/imm32 */, 0x83, 0x7 /* RegMem32/imm8 */)
+  0x81, 0x7 /* RegMem32/imm32 */, 0x83, 0x7 /* RegMem32/imm8 */),
+  { kOpMovRI, kUnimplemented, 0 /* flags - TODO */ , { unused: 0 }, "MovRI", "" },
+  { kOpMovMI, kUnimplemented, 0 /* flags - TODO */ , { unused: 0 }, "MovMI", "" },
+  { kOpMovAI, kUnimplemented, 0 /* flags - TODO */ , { unused: 0 }, "MovAI", "" },
+  { kOpMovRR, kRegReg,   0 /* flags - TODO */, { Reg_RegMem: {0x8A, 0x8B} }, "MovRR", "" },
+  { kOpMovRM, kRegMem,   0 /* flags - TODO */, { Reg_RegMem: {0x8A, 0x8B} }, "MovRM", "" },
+  { kOpMovRA, kRegArray, 0 /* flags - TODO */, { Reg_RegMem: {0x8A, 0x8B} }, "MovRA", "" },
+  { kOpMovMR, kMemReg,   0 /* flags - TODO */, { RegMem_Reg: {0x88, 0x89} }, "MovMR", "" },
+  { kOpMovAR, kArrayReg, 0 /* flags - TODO */, { RegMem_Reg: {0x88, 0x89} }, "MovAR", "" }
 };
 
+int oatGetInsnSize(LIR* lir)
+{
+  switch (EncodingMap[lir->opcode].kind) {
+    case kData:
+      return 4;
+    case kRegImm: {
+      int reg = lir->operands[0];
+      int imm = lir->operands[1];
+      return (reg == rAX ? 1 : 2) +  // AX opcodes don't require the modrm byte
+             (IS_SIMM8(imm) ? 1 : 4);  // 1 or 4 byte immediate
+      break;
+    }
+    case kMemImm: {
+      // int base = lir->operands[0];
+      int disp = lir->operands[1];
+      int imm  = lir->operands[2];
+      return 2 +  // opcode and modrm bytes
+          (disp == 0 ? 0 : (IS_SIMM8(disp) ? 1 : 4)) +  // 0, 1 or 4 byte displacement
+          (IS_SIMM8(imm) ? 1 : 4);  // 1 or 4 byte immediate
+      break;
+    }
+    case kArrayImm:
+      UNIMPLEMENTED(FATAL);
+      return 0;
+    case kRegReg:
+      return 2;  // opcode and modrm
+    case kRegMem: {
+      // int reg =  lir->operands[0];
+      // int base = lir->operands[1];
+      int disp = lir->operands[2];
+      return 2 +  // opcode and modrm bytes
+          (disp == 0 ? 0 : (IS_SIMM8(disp) ? 1 : 4));  // 0, 1 or 4 byte displacement
+      break;
+    }
+    case kRegArray:
+      UNIMPLEMENTED(FATAL);
+      return 0;
+    case kMemReg: {
+      // int base =  lir->operands[0];
+      int disp = lir->operands[1];
+      // int reg = lir->operands[2];
+      return 2 +  // opcode and modrm bytes
+          (disp == 0 ? 0 : (IS_SIMM8(disp) ? 1 : 4));  // 0, 1 or 4 byte displacement
+      break;
+    }
+    case kArrayReg:
+      UNIMPLEMENTED(FATAL);
+      return 0;
+    case kUnimplemented:
+      UNIMPLEMENTED(FATAL);
+      return 0;
+  }
+  UNIMPLEMENTED(FATAL);  // unreachable
+  return 0;
+}
 
 /*
  * Assemble the LIR into binary instruction format.  Note that we may
@@ -341,58 +404,6 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
 #endif
 }
 
-int oatGetInsnSize(LIR* lir)
-{
-  switch (EncodingMap[lir->opcode].kind) {
-    case kData:
-      return 4;
-    case kRegImm: {
-      int reg = lir->operands[0];
-      int imm = lir->operands[1];
-      return (reg == rAX ? 1 : 2) +  // AX opcodes don't require the modrm byte
-             (IS_SIMM8(imm) ? 1 : 4);  // 1 or 4 byte immediate
-      break;
-    }
-    case kMemImm: {
-      // int base = lir->operands[0];
-      int disp = lir->operands[1];
-      int imm  = lir->operands[2];
-      return 2 +  // opcode and modrm bytes
-          (disp == 0 ? 0 : (IS_SIMM8(disp) ? 1 : 4)) +  // 0, 1 or 4 byte displacement
-          (IS_SIMM8(imm) ? 1 : 4);  // 1 or 4 byte immediate
-      break;
-    }
-    case kArrayImm:
-      UNIMPLEMENTED(FATAL);
-      return 0;
-    case kRegReg:
-      return 2;  // opcode and modrm
-    case kRegMem: {
-      // int reg =  lir->operands[0];
-      // int base = lir->operands[1];
-      int disp = lir->operands[2];
-      return 2 +  // opcode and modrm bytes
-          (disp == 0 ? 0 : (IS_SIMM8(disp) ? 1 : 4));  // 0, 1 or 4 byte displacement
-      break;
-    }
-    case kRegArray:
-      UNIMPLEMENTED(FATAL);
-      return 0;
-    case kMemReg: {
-      // int base =  lir->operands[0];
-      int disp = lir->operands[1];
-      // int reg = lir->operands[2];
-      return 2 +  // opcode and modrm bytes
-          (disp == 0 ? 0 : (IS_SIMM8(disp) ? 1 : 4));  // 0, 1 or 4 byte displacement
-      break;
-    }
-    case kArrayReg:
-      UNIMPLEMENTED(FATAL);
-      return 0;
-  }
-  UNIMPLEMENTED(FATAL);  // unreachable
-  return 0;
-}
 /*
  * Target-dependent offset assignment.
  * independent.
