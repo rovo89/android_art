@@ -41,7 +41,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
   oat_header_ = NULL;
   executable_offset_padding_length_ = 0;
 
-  size_t offset = InitOatHeader();
+  size_t offset = InitOatHeader(compiler.GetInstructionSet());
   offset = InitOatDexFiles(offset);
   offset = InitDexFiles(offset);
   offset = InitOatClasses(offset);
@@ -57,9 +57,9 @@ OatWriter::~OatWriter() {
   STLDeleteElements(&oat_classes_);
 }
 
-size_t OatWriter::InitOatHeader() {
+size_t OatWriter::InitOatHeader(InstructionSet instruction_set) {
   // create the OatHeader
-  oat_header_ = new OatHeader(dex_files_);
+  oat_header_ = new OatHeader(instruction_set, dex_files_);
   size_t offset = sizeof(*oat_header_);
   return offset;
 }

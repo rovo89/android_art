@@ -19,6 +19,7 @@
 
 #include <vector>
 
+#include "constants.h"
 #include "dex_file.h"
 #include "macros.h"
 
@@ -26,8 +27,8 @@ namespace art {
 
 class PACKED OatHeader {
  public:
-  OatHeader() {}
-  OatHeader(const std::vector<const DexFile*>* dex_files);
+  OatHeader();
+  OatHeader(InstructionSet instruction_set, const std::vector<const DexFile*>* dex_files);
 
   bool IsValid() const;
   const char* GetMagic() const;
@@ -35,6 +36,7 @@ class PACKED OatHeader {
   void UpdateChecksum(const void* data, size_t length);
   uint32_t GetDexFileCount() const;
   uint32_t GetExecutableOffset() const;
+  InstructionSet GetInstructionSet() const;
   void SetExecutableOffset(uint32_t executable_offset);
 
  private:
@@ -44,6 +46,8 @@ class PACKED OatHeader {
   uint8_t magic_[4];
   uint8_t version_[4];
   uint32_t adler32_checksum_;
+
+  InstructionSet instruction_set_;
   uint32_t dex_file_count_;
   uint32_t executable_offset_;
 

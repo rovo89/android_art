@@ -86,8 +86,8 @@ const char* image_roots_descriptions_[] = {
 class OatDumper {
  public:
   explicit OatDumper(const OatFile& oat_file) : oat_file_(oat_file),
-      oat_dex_files_(oat_file.GetOatDexFiles()), disassembler_(Disassembler::Create(kArm)) {
-    // TODO: the disassembler should find the oat file instruction set from the oat header
+      oat_dex_files_(oat_file.GetOatDexFiles()),
+      disassembler_(Disassembler::Create(oat_file_.GetOatHeader().GetInstructionSet())) {
     AddAllOffsets();
   }
 
@@ -99,6 +99,9 @@ class OatDumper {
 
     os << "CHECKSUM:\n";
     os << StringPrintf("0x%08x\n\n", oat_header.GetChecksum());
+
+    os << "INSTRUCTION SET:\n";
+    os << oat_header.GetInstructionSet() << "\n\n";
 
     os << "DEX FILE COUNT:\n";
     os << oat_header.GetDexFileCount() << "\n\n";

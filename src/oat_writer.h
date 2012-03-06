@@ -73,7 +73,7 @@ class OatWriter {
             const Compiler& compiler);
   ~OatWriter();
 
-  size_t InitOatHeader();
+  size_t InitOatHeader(InstructionSet instruction_set);
   size_t InitOatDexFiles(size_t offset);
   size_t InitDexFiles(size_t offset);
   size_t InitOatClasses(size_t offset);
