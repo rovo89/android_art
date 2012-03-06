@@ -142,4 +142,58 @@ void art_test_suspend_from_code() {
 void art_set_current_thread_from_code(void* thread_object_addr) {
 }
 
+
+//----------------------------------------------------------------------------
+// Runtime Support Function Lookup Callback
+//----------------------------------------------------------------------------
+
+void* art_find_runtime_support_func(void* context, char const* name) {
+  struct func_entry_t {
+    char const* name;
+    size_t name_len;
+    void* addr;
+  };
+
+  static struct func_entry_t const tab[] = {
+#define DEF(NAME, ADDR) \
+    { NAME, sizeof(NAME) - 1, (void *)(&(ADDR)) },
+
+    DEF("art_push_shadow_frame_from_code", art_push_shadow_frame_from_code)
+    DEF("art_pop_shadow_frame_from_code", art_pop_shadow_frame_from_code)
+    DEF("art_is_exception_pending_from_code", art_is_exception_pending_from_code)
+    DEF("art_throw_div_zero_from_code", art_throw_div_zero_from_code)
+    DEF("art_throw_array_bounds_from_code", art_throw_array_bounds_from_code)
+    DEF("art_throw_no_such_method_from_code", art_throw_no_such_method_from_code)
+    DEF("art_throw_null_pointer_exception_from_code", art_throw_null_pointer_exception_from_code)
+    DEF("art_throw_stack_overflow_from_code", art_throw_stack_overflow_from_code)
+    DEF("art_throw_exception_from_code", art_throw_exception_from_code)
+    DEF("art_find_catch_block_from_code", art_find_catch_block_from_code)
+    DEF("art_test_suspend_from_code", art_test_suspend_from_code)
+    DEF("art_set_current_thread_from_code", art_set_current_thread_from_code)
+    DEF("printf", printf)
+    DEF("scanf", scanf)
+    DEF("__isoc99_scanf", scanf)
+    DEF("rand", rand)
+    DEF("time", time)
+    DEF("srand", srand)
+#undef DEF
+  };
+
+  static size_t const tab_size = sizeof(tab) / sizeof(struct func_entry_t);
+
+  // Note: Since our table is small, we are using trivial O(n) searching
+  // function.  For bigger table, it will be better to use binary
+  // search or hash function.
+  size_t i;
+  size_t name_len = strlen(name);
+  for (i = 0; i < tab_size; ++i) {
+    if (name_len == tab[i].name_len && strcmp(name, tab[i].name) == 0) {
+      return tab[i].addr;
+    }
+  }
+
+  LOG(FATAL) << "Error: Can't find symbol " << name;
+  return 0;
+}
+
 }  // namespace art
