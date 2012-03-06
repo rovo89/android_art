@@ -15,6 +15,26 @@ namespace art {
 // Thread
 //----------------------------------------------------------------------------
 
+Thread* art_get_current_thread_from_code() {
+  return Thread::Current();
+}
+
+void art_set_current_thread_from_code(void* thread_object_addr) {
+  UNIMPLEMENTED(WARNING);
+}
+
+void art_lock_object_from_code(Object* object) {
+  UNIMPLEMENTED(WARNING);
+}
+
+void art_unlock_object_from_code(Object* object) {
+  UNIMPLEMENTED(WARNING);
+}
+
+void art_test_suspend_from_code() {
+  UNIMPLEMENTED(WARNING);
+}
+
 void art_push_shadow_frame_from_code(void* new_shadow_frame) {
   Thread* thread = Thread::Current();
   thread->PushSirt(
@@ -26,6 +46,7 @@ void art_pop_shadow_frame_from_code() {
   Thread* thread = Thread::Current();
   thread->PopSirt();
 }
+
 
 
 //----------------------------------------------------------------------------
@@ -136,10 +157,177 @@ int32_t art_find_catch_block_from_code(Object* exception, int32_t dex_pc) {
   return -1;
 }
 
-void art_test_suspend_from_code() {
+
+//----------------------------------------------------------------------------
+// Object Space
+//----------------------------------------------------------------------------
+
+Object* art_alloc_object_from_code(uint32_t type_idx, Object* referrer) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
 }
 
-void art_set_current_thread_from_code(void* thread_object_addr) {
+Object* art_alloc_object_from_code_with_access_check(uint32_t type_idx,
+                                                     Object* referrer) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
+}
+
+Object* art_alloc_array_from_code(uint32_t type_idx,
+                                  Object* referrer,
+                                  uint32_t length) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
+}
+
+Object* art_alloc_array_from_code_with_access_check(uint32_t type_idx,
+                                                    Object* referrer,
+                                                    uint32_t length) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
+}
+
+Object* art_check_and_alloc_array_from_code(uint32_t type_idx,
+                                            Object* referrer,
+                                            uint32_t length) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
+}
+
+Object* art_check_and_alloc_array_from_code_with_access_check(uint32_t type_idx,
+                                                              Object* referrer,
+                                                              uint32_t length) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
+}
+
+void art_find_instance_field_from_code(uint32_t field_idx, Object* referrer) {
+  UNIMPLEMENTED(WARNING);
+}
+
+void art_find_static_field_from_code(uint32_t field_idx, Object* referrer) {
+  UNIMPLEMENTED(WARNING);
+}
+
+Object* art_find_interface_method_from_code(uint32_t method_idx,
+                                            Object* referrer) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
+}
+
+Object* art_initialize_static_storage_from_code(uint32_t type_idx,
+                                                Object* referrer) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
+}
+
+Object* art_initialize_type_from_code(uint32_t type_idx, Object* referrer) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
+}
+
+Object* art_initialize_type_and_verify_access_from_code(uint32_t type_idx,
+                                                        Object* referrer) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
+}
+
+Object* art_resolve_string_from_code(Object* referrer, uint32_t string_idx) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
+}
+
+int32_t art_set32_static_from_code(uint32_t field_idx,
+                                   Object* referrer,
+                                   int32_t new_value) {
+  UNIMPLEMENTED(WARNING);
+  return -1;
+}
+
+int32_t art_set64_static_from_code(uint32_t field_idx,
+                                   Object* referrer,
+                                   int64_t new_value) {
+  UNIMPLEMENTED(WARNING);
+  return -1;
+}
+
+int32_t art_set_obj_static_from_code(uint32_t field_idx,
+                                     Object* referrer,
+                                     Object* new_value) {
+  UNIMPLEMENTED(WARNING);
+  return -1;
+}
+
+int32_t art_get32_static_from_code(uint32_t field_idx, Object* referrer) {
+  UNIMPLEMENTED(WARNING);
+  return 0;
+}
+
+int64_t art_get64_static_from_code(uint32_t field_idx, Object* referrer) {
+  UNIMPLEMENTED(WARNING);
+  return 0;
+}
+
+Object* art_get_obj_static_from_code(uint32_t field_idx, Object* referrer) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
+}
+
+int32_t art_set32_instance_from_code(uint32_t field_idx,
+                                     Object* referrer,
+                                     Object* object,
+                                     uint32_t new_value) {
+  UNIMPLEMENTED(WARNING);
+  return -1;
+}
+
+int32_t art_set64_instance_from_code(uint32_t field_idx,
+                                     Object* referrer,
+                                     Object* object,
+                                     int64_t new_value) {
+  UNIMPLEMENTED(WARNING);
+  return -1;
+}
+
+int32_t art_set_obj_instance_from_code(uint32_t field_idx,
+                                       Object* referrer,
+                                       Object* object,
+                                       Object* new_value) {
+  UNIMPLEMENTED(WARNING);
+  return -1;
+}
+
+int32_t art_get32_instance_from_code(uint32_t field_idx,
+                                     Object* referrer,
+                                     Object* object) {
+  UNIMPLEMENTED(WARNING);
+  return 0;
+}
+
+int64_t art_get64_instance_from_code(uint32_t field_idx,
+                                     Object* referrer,
+                                     Object* object) {
+  UNIMPLEMENTED(WARNING);
+  return 0;
+}
+
+Object* art_get_obj_instance_from_code(uint32_t field_idx,
+                                       Object* referrer,
+                                       Object* object) {
+  UNIMPLEMENTED(WARNING);
+  return NULL;
+}
+
+
+//----------------------------------------------------------------------------
+// RTTI
+//----------------------------------------------------------------------------
+
+int32_t art_is_assignable_from_code(Object* dest_type, Object* src_type) {
+  return 0;
+}
+
+void art_check_cast_from_code(Object* dest_type, Object* src_type) {
 }
 
 
