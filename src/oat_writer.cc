@@ -237,18 +237,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index, size_
     frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
     core_spill_mask = compiled_method->GetCoreSpillMask();
     fp_spill_mask = compiled_method->GetFpSpillMask();
-  }
 
-  offset += sizeof(frame_size_in_bytes);
-  oat_header_->UpdateChecksum(&frame_size_in_bytes, sizeof(frame_size_in_bytes));
-
-  offset += sizeof(core_spill_mask);
-  oat_header_->UpdateChecksum(&core_spill_mask, sizeof(core_spill_mask));
-
-  offset += sizeof(fp_spill_mask);
-  oat_header_->UpdateChecksum(&fp_spill_mask, sizeof(fp_spill_mask));
-
-  if (compiled_method != NULL) {
     const std::vector<uint32_t>& mapping_table = compiled_method->GetMappingTable();
     size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);
     mapping_table_offset = (mapping_table_size == 0) ? 0 : offset;
@@ -526,7 +515,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
       if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
         PLOG(ERROR) << "Failed to seek to align oat code. Actual: " << new_offset
                     << " Expected: " << aligned_code_offset << " File: " << file->name();
-        return false;
+        return 0;
       }
       code_offset += aligned_code_delta;
       DCHECK_CODE_OFFSET();
@@ -548,7 +537,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
              << PrettyMethod(method_idx, dex_file);
       if (!file->WriteFully(&code[0], code_size)) {
         ReportWriteFailure("method code", method_idx, dex_file, file);
-        return false;
+        return 0;
       }
       code_offset += code_size;
     }
@@ -556,25 +545,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
     frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
     core_spill_mask = compiled_method->GetCoreSpillMask();
     fp_spill_mask = compiled_method->GetFpSpillMask();
-  }
 
-  if (!file->WriteFully(&frame_size_in_bytes, sizeof(frame_size_in_bytes))) {
-    ReportWriteFailure("method frame size", method_idx, dex_file, file);
-    return false;
-  }
-  code_offset += sizeof(frame_size_in_bytes);
-  if (!file->WriteFully(&core_spill_mask, sizeof(core_spill_mask))) {
-    ReportWriteFailure("method core spill mask", method_idx, dex_file, file);
-    return false;
-  }
-  code_offset += sizeof(core_spill_mask);
-  if (!file->WriteFully(&fp_spill_mask, sizeof(fp_spill_mask))) {
-    ReportWriteFailure("method fp spill mask", method_idx, dex_file, file);
-    return false;
-  }
-  code_offset += sizeof(fp_spill_mask);
-
-  if (compiled_method != NULL) {
     const std::vector<uint32_t>& mapping_table = compiled_method->GetMappingTable();
     size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);
 
@@ -592,7 +563,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
           << PrettyMethod(method_idx, dex_file);
       if (!file->WriteFully(&mapping_table[0], mapping_table_size)) {
         ReportWriteFailure("mapping table", method_idx, dex_file, file);
-        return false;
+        return 0;
       }
       code_offset += mapping_table_size;
     }
@@ -615,7 +586,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
           << PrettyMethod(method_idx, dex_file);
       if (!file->WriteFully(&vmap_table[0], vmap_table_size)) {
         ReportWriteFailure("vmap table", method_idx, dex_file, file);
-        return false;
+        return 0;
       }
       code_offset += vmap_table_size;
     }
@@ -638,7 +609,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
           << PrettyMethod(method_idx, dex_file);
       if (!file->WriteFully(&gc_map[0], gc_map_size)) {
         ReportWriteFailure("GC map", method_idx, dex_file, file);
-        return false;
+        return 0;
       }
       code_offset += gc_map_size;
     }
@@ -655,7 +626,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
       if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
         PLOG(ERROR) << "Failed to seek to align invoke stub code. Actual: " << new_offset
                     << " Expected: " << aligned_code_offset;
-        return false;
+        return 0;
       }
       code_offset += aligned_code_delta;
       DCHECK_CODE_OFFSET();
@@ -678,7 +649,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
           << PrettyMethod(method_idx, dex_file);
       if (!file->WriteFully(&invoke_stub[0], invoke_stub_size)) {
         ReportWriteFailure("invoke stub code", method_idx, dex_file, file);
-        return false;
+        return 0;
       }
       code_offset += invoke_stub_size;
     }

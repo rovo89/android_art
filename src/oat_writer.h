@@ -49,7 +49,7 @@ namespace art {
 // ...
 // OatClass[C]
 //
-// padding           if necessary so that the follow code will be page aligned
+// padding           if necessary so that the following code will be page aligned
 //
 // CompiledMethod    one variable sized blob with the contents of each CompiledMethod
 // CompiledMethod
