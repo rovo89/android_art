@@ -199,7 +199,11 @@ class OatDumper {
   }
 
   void AddOffsets(const OatFile::OatMethod& oat_method) {
-    offsets_.insert(oat_method.GetCodeOffset());
+    uint32_t code_offset = oat_method.GetCodeOffset();
+    if (oat_file_.GetOatHeader().GetInstructionSet() == kThumb2) {
+      code_offset &= ~0x1;
+    }
+    offsets_.insert(code_offset);
     offsets_.insert(oat_method.GetMappingTableOffset());
     offsets_.insert(oat_method.GetVmapTableOffset());
     offsets_.insert(oat_method.GetGcMapOffset());
