@@ -184,7 +184,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/jdwp/jdwp_handler.cc \
 	src/jdwp/jdwp_main.cc \
 	src/jdwp/jdwp_socket.cc \
-	src/jni_compiler.cc \
 	src/jni_internal.cc \
 	src/logging.cc \
 	src/mark_stack.cc \
@@ -246,6 +245,7 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler/SSATransformation.cc \
 	src/compiler/Utility.cc \
 	src/compiler/codegen/RallocUtil.cc \
+	src/jni_compiler.cc \
 	src/jni_internal_arm.cc \
 	src/jni_internal_x86.cc
 ifeq ($(ART_MIPS_TARGET),true)

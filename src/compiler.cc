@@ -25,7 +25,6 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "dex_cache.h"
-#include "jni_compiler.h"
 #include "jni_internal.h"
 #include "oat_compilation_unit.h"
 #include "oat_file.h"
@@ -33,6 +32,10 @@
 #include "runtime.h"
 #include "stl_util.h"
 #include "timing_logger.h"
+
+#if !defined(ART_USE_LLVM_COMPILER)
+#include "jni_compiler.h"
+#endif
 
 #if defined(ART_USE_LLVM_COMPILER)
 #include "compiler_llvm/compiler_llvm.h"
@@ -220,7 +223,9 @@ class AOTCompilationStats {
 Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_count,
                    bool support_debugging, const std::set<std::string>* image_classes)
     : instruction_set_(instruction_set),
+#if !defined(ART_USE_LLVM_COMPILER)
       jni_compiler_(instruction_set),
+#endif
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
       compiled_invoke_stubs_lock_("compiled invoke stubs lock"),

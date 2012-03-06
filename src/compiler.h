@@ -26,10 +26,13 @@
 #include "constants.h"
 #include "dex_cache.h"
 #include "dex_file.h"
-#include "jni_compiler.h"
 #include "oat_file.h"
 #include "object.h"
 #include "runtime.h"
+
+#if !defined(ART_USE_LLVM_COMPILER)
+#include "jni_compiler.h"
+#endif
 
 #if defined(ART_USE_LLVM_COMPILER)
 #include "compiler_llvm/compiler_llvm.h"
@@ -170,7 +173,9 @@ class Compiler {
                         const CompiledInvokeStub* compiled_invoke_stub);
 
   InstructionSet instruction_set_;
+#if !defined(ART_USE_LLVM_COMPILER)
   JniCompiler jni_compiler_;
+#endif
 
   typedef std::map<const ClassReference, CompiledClass*> ClassTable;
   // All class references that this compiler has compiled
