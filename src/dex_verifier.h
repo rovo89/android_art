@@ -34,6 +34,8 @@
 
 namespace art {
 
+struct ReferenceMap2Visitor;
+
 #if defined(ART_USE_LLVM_COMPILER)
 namespace compiler_llvm {
   class InferredRegCategoryMap;
@@ -876,30 +878,13 @@ class DexVerifier {
  public:
   /* Verify a class. Returns "true" on success. */
   static bool VerifyClass(const Class* klass, std::string& error);
+
   /*
-   * Perform verification on a single method.
-   *
-   * We do this in three passes:
-   *  (1) Walk through all code units, determining instruction locations,
-   *      widths, and other characteristics.
-   *  (2) Walk through all code units, performing static checks on
-   *      operands.
-   *  (3) Iterate through the method, checking type safety and looking
-   *      for code flow problems.
-   *
-   * Some checks may be bypassed depending on the verification mode. We can't
-   * turn this stuff off completely if we want to do "exact" GC.
-   *
-   * Confirmed here:
-   * - code array must not be empty
-   * Confirmed by ComputeWidthsAndCountOps():
-   * - opcode of first instruction begins at index 0
-   * - only documented instructions may appear
-   * - each instruction follows the last
-   * - last byte of last instruction is at (code_length-1)
+   * Structurally verify a class. Returns "true" on success. Used at compile time
+   * when the pointer for the method or declaring class can't be resolved.
    */
-  static bool VerifyMethod(Method* method);
-  static void VerifyMethodAndDump(Method* method);
+  static bool VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
+      const ClassLoader* class_loader, uint32_t class_def_idx, std::string& error);
 
   uint8_t EncodePcToReferenceMapData() const;
 
@@ -932,8 +917,55 @@ class DexVerifier {
  private:
 
   explicit DexVerifier(Method* method);
+  explicit DexVerifier(const DexFile* dex_file, DexCache* dex_cache,
+      const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item);
 
-  bool Verify();
+  /*
+   * Perform verification on a single method.
+   *
+   * We do this in three passes:
+   *  (1) Walk through all code units, determining instruction locations,
+   *      widths, and other characteristics.
+   *  (2) Walk through all code units, performing static checks on
+   *      operands.
+   *  (3) Iterate through the method, checking type safety and looking
+   *      for code flow problems.
+   *
+   * Some checks may be bypassed depending on the verification mode. We can't
+   * turn this stuff off completely if we want to do "exact" GC.
+   *
+   * Confirmed here:
+   * - code array must not be empty
+   * Confirmed by ComputeWidthsAndCountOps():
+   * - opcode of first instruction begins at index 0
+   * - only documented instructions may appear
+   * - each instruction follows the last
+   * - last byte of last instruction is at (code_length-1)
+   */
+  static bool VerifyMethod(Method* method);
+  static void VerifyMethodAndDump(Method* method);
+
+  /*
+   * Perform structural verification on a single method. Used at compile time
+   * when the pointer for the method or declaring class can't be resolved.
+   *
+   * We do this in two passes:
+   *  (1) Walk through all code units, determining instruction locations,
+   *      widths, and other characteristics.
+   *  (2) Walk through all code units, performing static checks on
+   *      operands.
+   *
+   * Code flow verification is skipped since a resolved method and class are
+   * necessary to perform all the checks.
+   */
+  static bool VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
+      const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item);
+
+  /* Run both structural and code flow verification on the method. */
+  bool VerifyAll();
+
+  /* Perform structural verification on a single method. */
+  bool VerifyStructure();
 
   /*
    * Compute the width of the instruction at each address in the instruction stream, and store it in
@@ -1284,6 +1316,9 @@ class DexVerifier {
 
   Method* method_;  // The method we're working on.
   const DexFile* dex_file_;  // The dex file containing the method.
+  DexCache* dex_cache_;  // The dex_cache for the declaring class of the method.
+  const ClassLoader* class_loader_;  // The class loader for the declaring class of the method.
+  uint32_t class_def_idx_;  // The class def index of the declaring class of the method.
   const DexFile::CodeItem* code_item_;  // The code item containing the code for the method.
   UniquePtr<InsnFlags[]> insn_flags_;  // Instruction widths and flags, one entry per code unit.
 
@@ -1298,6 +1333,8 @@ class DexVerifier {
   // The number of occurrences of specific opcodes.
   size_t new_instance_count_;
   size_t monitor_enter_count_;
+
+  friend struct art::ReferenceMap2Visitor; // for VerifyMethodAndDump
 };
 
 // Lightweight wrapper for PC to reference bit maps.

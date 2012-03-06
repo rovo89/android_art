@@ -25,6 +25,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "dex_cache.h"
+#include "dex_verifier.h"
 #include "jni_internal.h"
 #include "oat_compilation_unit.h"
 #include "oat_file.h"
@@ -61,14 +62,6 @@ namespace x86 {
   CompiledInvokeStub* X86CreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len);
   ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type);
   ByteArray* CreateJniDlsymLookupStub();
-}
-
-namespace verifier {
-  class DexVerifier {
-   public:
-    static const std::vector<uint8_t>* GetGcMap(Compiler::MethodReference ref);
-    static bool IsClassRejected(Compiler::ClassReference ref);
-  };
 }
 
 static double Percentage(size_t x, size_t y) {
@@ -861,6 +854,20 @@ static void VerifyClass(Context* context, size_t class_def_index) {
     Thread* self = Thread::Current();
     CHECK(self->IsExceptionPending());
     self->ClearException();
+
+    /*
+     * At compile time, we can still structurally verify the class even if FindClass fails.
+     * This is to ensure the class is structurally sound for compilation. An unsound class
+     * will be rejected by the verifier and later skipped during compilation in the compiler.
+     */
+    std::string error_msg;
+    if (!verifier::DexVerifier::VerifyClass(context->dex_file, context->dex_cache,
+        context->class_loader, class_def_index, error_msg)) {
+      const DexFile::ClassDef& class_def = context->dex_file->GetClassDef(class_def_index);
+      LOG(ERROR) << "Verification failed on class "
+                 << PrettyDescriptor(context->dex_file->GetClassDescriptor(class_def))
+                 << " because: " << error_msg;
+    }
     return;
   }
   CHECK(klass->IsResolved()) << PrettyClass(klass);
@@ -884,6 +891,7 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
   Context context;
   context.class_linker = Runtime::Current()->GetClassLinker();
   context.class_loader = class_loader;
+  context.dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
   context.dex_file = &dex_file;
   ForAll(&context, 0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
 

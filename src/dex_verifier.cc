@@ -968,7 +968,7 @@ bool DexVerifier::VerifyClass(const Class* klass, std::string& error) {
 
 bool DexVerifier::VerifyMethod(Method* method) {
   DexVerifier verifier(method);
-  bool success = verifier.Verify();
+  bool success = verifier.VerifyAll();
   CHECK_EQ(success, verifier.failure_ == VERIFY_ERROR_NONE);
 
   // We expect either success and no verification error, or failure and a generic failure to
@@ -992,11 +992,73 @@ bool DexVerifier::VerifyMethod(Method* method) {
 
 void DexVerifier::VerifyMethodAndDump(Method* method) {
   DexVerifier verifier(method);
-  verifier.Verify();
+  verifier.VerifyAll();
 
   LOG(INFO) << "Dump of method " << PrettyMethod(method) << " "
             << verifier.fail_messages_.str() << std::endl
             << verifier.info_messages_.str() << Dumpable<DexVerifier>(verifier);
+}
+
+bool DexVerifier::VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
+    const ClassLoader* class_loader, uint32_t class_def_idx, std::string& error) {
+  const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
+  const byte* class_data = dex_file->GetClassData(class_def);
+  ClassDataItemIterator it(*dex_file, class_data);
+  while (it.HasNextStaticField() || it.HasNextInstanceField()) {
+    it.Next();
+  }
+  while (it.HasNextDirectMethod()) {
+    uint32_t method_idx = it.GetMemberIndex();
+    if (!VerifyMethod(method_idx, dex_file, dex_cache, class_loader, class_def_idx,
+        it.GetMethodCodeItem())) {
+      error = "Verifier rejected class";
+      error += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
+      error += " due to bad method ";
+      error += PrettyMethod(method_idx, *dex_file);
+      return false;
+    }
+    it.Next();
+  }
+  while (it.HasNextVirtualMethod()) {
+    uint32_t method_idx = it.GetMemberIndex();
+    if (!VerifyMethod(method_idx, dex_file, dex_cache, class_loader, class_def_idx,
+        it.GetMethodCodeItem())) {
+      error = "Verifier rejected class";
+      error += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
+      error += " due to bad method ";
+      error += PrettyMethod(method_idx, *dex_file);
+      return false;
+    }
+    it.Next();
+  }
+  return true;
+}
+
+bool DexVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
+    const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item) {
+  DexVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item);
+
+  // Without a method*, we can only verify the struture.
+  bool success = verifier.VerifyStructure();
+  CHECK_EQ(success, verifier.failure_ == VERIFY_ERROR_NONE);
+
+  // We expect either success and no verification error, or failure and a generic failure to
+  // reject the class.
+  if (success) {
+    if (verifier.failure_ != VERIFY_ERROR_NONE) {
+      LOG(FATAL) << "Unhandled failure in verification of " << PrettyMethod(method_idx, *dex_file)
+                 << std::endl << verifier.fail_messages_;
+    }
+  } else {
+    LOG(INFO) << "Verification error in " << PrettyMethod(method_idx, *dex_file) << " "
+               << verifier.fail_messages_.str();
+    if (gDebugVerify) {
+      std::cout << std::endl << verifier.info_messages_.str();
+      verifier.Dump(std::cout);
+    }
+    DCHECK_EQ(verifier.failure_, VERIFY_ERROR_GENERIC);
+  }
+  return success;
 }
 
 DexVerifier::DexVerifier(Method* method)
@@ -1006,13 +1068,31 @@ DexVerifier::DexVerifier(Method* method)
       new_instance_count_(0),
       monitor_enter_count_(0) {
   CHECK(method != NULL);
-  const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
+  dex_cache_ = method->GetDeclaringClass()->GetDexCache();
+  class_loader_ = method->GetDeclaringClass()->GetClassLoader();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  dex_file_ = &class_linker->FindDexFile(dex_cache);
+  dex_file_ = &class_linker->FindDexFile(dex_cache_);
   code_item_ = dex_file_->GetCodeItem(method->GetCodeItemOffset());
+  const DexFile::ClassDef* class_def = ClassHelper(method_->GetDeclaringClass()).GetClassDef();
+  class_def_idx_ = dex_file_->GetIndexForClassDef(*class_def);
 }
 
-bool DexVerifier::Verify() {
+DexVerifier::DexVerifier(const DexFile* dex_file, DexCache* dex_cache,
+    const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item)
+    : work_insn_idx_(-1),
+      method_(NULL),
+      dex_file_(dex_file),
+      dex_cache_(dex_cache),
+      class_loader_(class_loader),
+      class_def_idx_(class_def_idx),
+      code_item_(code_item),
+      failure_(VERIFY_ERROR_NONE),
+      new_instance_count_(0),
+      monitor_enter_count_(0) {
+}
+
+bool DexVerifier::VerifyAll() {
+  CHECK(method_ != NULL);
   // If there aren't any instructions, make sure that's expected, then exit successfully.
   if (code_item_ == NULL) {
     if (!method_->IsNative() && !method_->IsAbstract()) {
@@ -1021,6 +1101,13 @@ bool DexVerifier::Verify() {
     } else {
       return true;
     }
+  }
+  return VerifyStructure() && VerifyCodeFlow();
+}
+
+bool DexVerifier::VerifyStructure() {
+  if (code_item_ == NULL) {
+    return true;
   }
   // Sanity-check the register counts. ins + locals = registers, so make sure that ins <= registers.
   if (code_item_->ins_size_ > code_item_->registers_size_) {
@@ -1036,8 +1123,6 @@ bool DexVerifier::Verify() {
   result = result && ScanTryCatchBlocks();
   // Perform static instruction verification.
   result = result && VerifyInstructions();
-  // Perform code flow analysis.
-  result = result && VerifyCodeFlow();
   return result;
 }
 
@@ -1060,9 +1145,7 @@ std::ostream& DexVerifier::Fail(VerifyError error) {
       // Generic failures at compile time will still fail at runtime, so the class is marked as
       // rejected to prevent it from being compiled.
       case VERIFY_ERROR_GENERIC: {
-        const DexFile::ClassDef* class_def = ClassHelper(method_->GetDeclaringClass()).GetClassDef();
-        CHECK(class_def != NULL);
-        Compiler::ClassReference ref(dex_file_, dex_file_->GetIndexForClassDef(*class_def));
+        Compiler::ClassReference ref(dex_file_, class_def_idx_);
         AddRejectedClass(ref);
         break;
       }
@@ -1155,7 +1238,8 @@ bool DexVerifier::ScanTryCatchBlocks() {
       // Ensure exception types are resolved so that they don't need resolution to be delivered,
       // unresolved exception types will be ignored by exception delivery
       if (iterator.GetHandlerTypeIndex() != DexFile::kDexNoIndex16) {
-        Class* exception_type = linker->ResolveType(iterator.GetHandlerTypeIndex(), method_);
+        Class* exception_type = linker->ResolveType(*dex_file_, iterator.GetHandlerTypeIndex(),
+                                                    dex_cache_, class_loader_);
         if (exception_type == NULL) {
           DCHECK(Thread::Current()->IsExceptionPending());
           Thread::Current()->ClearException();
@@ -1636,7 +1720,7 @@ bool DexVerifier::VerifyCodeFlow() {
 }
 
 void DexVerifier::Dump(std::ostream& os) {
-  if (method_->IsNative()) {
+  if (code_item_ == NULL) {
     os << "Native method" << std::endl;
     return;
   }
