@@ -81,8 +81,6 @@ declare %JavaObject* @art_check_and_alloc_array_from_code(
 declare %JavaObject* @art_check_and_alloc_array_from_code_with_access_check(
   i32, %JavaObject*, i32)
 
-declare void @art_object_init_from_code(%JavaObject*)
-
 declare void @art_find_instance_field_from_code(i32, %JavaObject*)
 declare void @art_find_static_field_from_code(i32, %JavaObject*)
 
@@ -94,7 +92,6 @@ declare %JavaObject* @art_initialize_type_and_verify_access_from_code(
   i32, %JavaObject*)
 
 declare %JavaObject* @art_resolve_string_from_code(%JavaObject*, i32)
-declare %JavaObject* @art_resolve_method_from_code(%JavaObject*, i32, i1)
 
 declare i32 @art_set32_static_from_code(i32, %JavaObject*, i32)
 declare i32 @art_set64_static_from_code(i32, %JavaObject*, i64)

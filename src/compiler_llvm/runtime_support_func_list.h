@@ -39,7 +39,6 @@
   V(FindInstanceField, "art_find_instance_field_from_code") \
   V(FindStaticField, "art_find_static_field_from_code") \
   V(ResolveString, "art_resolve_string_from_code") \
-  V(ResolveMethod, "art_resolve_method_from_code") \
   V(Set32Static, "art_set32_static_from_code") \
   V(Set64Static, "art_set64_static_from_code") \
   V(SetObjectStatic, "art_set_obj_static_from_code") \
@@ -55,5 +54,4 @@
   V(InitializeStaticStorage, "art_initialize_static_storage_from_code") \
   V(IsExceptionPending, "art_is_exception_pending_from_code") \
   V(FindCatchBlock, "art_find_catch_block_from_code") \
-  V(ObjectInit, "art_object_init_from_code") \
   V(FindInterfaceMethod, "art_find_interface_method_from_code")
