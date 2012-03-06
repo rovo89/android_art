@@ -58,8 +58,8 @@ void IRBuilder::InitRuntimeSupportFuncDecl() {
 
 #define GET_RUNTIME_SUPPORT_FUNC_DECL(ID, NAME) \
   do { \
-    llvm::Function* fn = module_->getFunction(NAME); \
-    DCHECK_NE(fn, (void*)NULL) << "Function not found: " << NAME; \
+    llvm::Function* fn = module_->getFunction(#NAME); \
+    DCHECK_NE(fn, (void*)NULL) << "Function not found: " << #NAME; \
     runtime_support_func_decls_[ID] = fn; \
   } while (0);
 
