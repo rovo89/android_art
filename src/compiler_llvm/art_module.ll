@@ -101,13 +101,32 @@ declare i32 @art_get32_static_from_code(i32, %JavaObject*)
 declare i64 @art_get64_static_from_code(i32, %JavaObject*)
 declare %JavaObject* @art_get_obj_static_from_code(i32, %JavaObject*)
 
-declare i32 @art_set32_instance_from_code(i32, %JavaObject*, i32)
-declare i32 @art_set64_instance_from_code(i32, %JavaObject*, i64)
-declare i32 @art_set_obj_instance_from_code(i32, %JavaObject*, %JavaObject*)
+declare i32 @art_set32_instance_from_code(i32,
+                                          %JavaObject*,
+                                          %JavaObject*,
+                                          i32)
 
-declare i32 @art_get32_instance_from_code(i32, %JavaObject*)
-declare i64 @art_get64_instance_from_code(i32, %JavaObject*)
-declare %JavaObject* @art_get_obj_instance_from_code(i32, %JavaObject*)
+declare i32 @art_set64_instance_from_code(i32,
+                                          %JavaObject*,
+                                          %JavaObject*,
+                                          i64)
+
+declare i32 @art_set_obj_instance_from_code(i32,
+                                            %JavaObject*,
+                                            %JavaObject*,
+                                            %JavaObject*)
+
+declare i32 @art_get32_instance_from_code(i32,
+                                          %JavaObject*,
+                                          %JavaObject*)
+
+declare i64 @art_get64_instance_from_code(i32,
+                                          %JavaObject*,
+                                          %JavaObject*)
+
+declare %JavaObject* @art_get_obj_instance_from_code(i32,
+                                                     %JavaObject*,
+                                                     %JavaObject*)
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

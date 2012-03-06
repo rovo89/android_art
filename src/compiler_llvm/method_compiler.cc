@@ -2305,11 +2305,11 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
     llvm::Function* runtime_func;
 
     if (field_jty == kObject) {
-      runtime_func = irb_.GetRuntime(SetObjectInstance);
+      runtime_func = irb_.GetRuntime(GetObjectInstance);
     } else if (field_jty == kLong || field_jty == kDouble) {
-      runtime_func = irb_.GetRuntime(Set64Instance);
+      runtime_func = irb_.GetRuntime(Get64Instance);
     } else {
-      runtime_func = irb_.GetRuntime(Set32Instance);
+      runtime_func = irb_.GetRuntime(Get32Instance);
     }
 
     llvm::ConstantInt* field_idx_value = irb_.getInt32(field_idx);
@@ -2318,8 +2318,8 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
 
     EmitUpdateLineNumFromDexPC(dex_pc);
 
-    field_value = irb_.CreateCall2(runtime_func, field_idx_value,
-                                   method_object_addr);
+    field_value = irb_.CreateCall3(runtime_func, field_idx_value,
+                                   method_object_addr, object_addr);
 
     EmitGuard_ExceptionLandingPad(dex_pc);
 
@@ -2378,8 +2378,8 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
 
     EmitUpdateLineNumFromDexPC(dex_pc);
 
-    irb_.CreateCall3(runtime_func, field_idx_value,
-                     method_object_addr, new_value);
+    irb_.CreateCall4(runtime_func, field_idx_value,
+                     method_object_addr, object_addr, new_value);
 
     EmitGuard_ExceptionLandingPad(dex_pc);
 

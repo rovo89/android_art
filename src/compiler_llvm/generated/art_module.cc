@@ -193,19 +193,67 @@ FunctionType* FuncTy_19 = FunctionType::get(
  /*isVarArg=*/false);
 
 std::vector<Type*>FuncTy_20_args;
+FuncTy_20_args.push_back(IntegerType::get(mod->getContext(), 32));
 FuncTy_20_args.push_back(PointerTy_1);
 FuncTy_20_args.push_back(PointerTy_1);
+FuncTy_20_args.push_back(IntegerType::get(mod->getContext(), 32));
 FunctionType* FuncTy_20 = FunctionType::get(
  /*Result=*/IntegerType::get(mod->getContext(), 32),
  /*Params=*/FuncTy_20_args,
  /*isVarArg=*/false);
 
 std::vector<Type*>FuncTy_21_args;
+FuncTy_21_args.push_back(IntegerType::get(mod->getContext(), 32));
 FuncTy_21_args.push_back(PointerTy_1);
 FuncTy_21_args.push_back(PointerTy_1);
+FuncTy_21_args.push_back(IntegerType::get(mod->getContext(), 64));
 FunctionType* FuncTy_21 = FunctionType::get(
- /*Result=*/Type::getVoidTy(mod->getContext()),
+ /*Result=*/IntegerType::get(mod->getContext(), 32),
  /*Params=*/FuncTy_21_args,
+ /*isVarArg=*/false);
+
+std::vector<Type*>FuncTy_22_args;
+FuncTy_22_args.push_back(IntegerType::get(mod->getContext(), 32));
+FuncTy_22_args.push_back(PointerTy_1);
+FuncTy_22_args.push_back(PointerTy_1);
+FuncTy_22_args.push_back(PointerTy_1);
+FunctionType* FuncTy_22 = FunctionType::get(
+ /*Result=*/IntegerType::get(mod->getContext(), 32),
+ /*Params=*/FuncTy_22_args,
+ /*isVarArg=*/false);
+
+std::vector<Type*>FuncTy_23_args;
+FuncTy_23_args.push_back(IntegerType::get(mod->getContext(), 32));
+FuncTy_23_args.push_back(PointerTy_1);
+FuncTy_23_args.push_back(PointerTy_1);
+FunctionType* FuncTy_23 = FunctionType::get(
+ /*Result=*/IntegerType::get(mod->getContext(), 64),
+ /*Params=*/FuncTy_23_args,
+ /*isVarArg=*/false);
+
+std::vector<Type*>FuncTy_24_args;
+FuncTy_24_args.push_back(IntegerType::get(mod->getContext(), 32));
+FuncTy_24_args.push_back(PointerTy_1);
+FuncTy_24_args.push_back(PointerTy_1);
+FunctionType* FuncTy_24 = FunctionType::get(
+ /*Result=*/PointerTy_1,
+ /*Params=*/FuncTy_24_args,
+ /*isVarArg=*/false);
+
+std::vector<Type*>FuncTy_25_args;
+FuncTy_25_args.push_back(PointerTy_1);
+FuncTy_25_args.push_back(PointerTy_1);
+FunctionType* FuncTy_25 = FunctionType::get(
+ /*Result=*/IntegerType::get(mod->getContext(), 32),
+ /*Params=*/FuncTy_25_args,
+ /*isVarArg=*/false);
+
+std::vector<Type*>FuncTy_26_args;
+FuncTy_26_args.push_back(PointerTy_1);
+FuncTy_26_args.push_back(PointerTy_1);
+FunctionType* FuncTy_26 = FunctionType::get(
+ /*Result=*/Type::getVoidTy(mod->getContext()),
+ /*Params=*/FuncTy_26_args,
  /*isVarArg=*/false);
 
 
@@ -599,7 +647,7 @@ func_art_get_obj_static_from_code->setAttributes(func_art_get_obj_static_from_co
 Function* func_art_set32_instance_from_code = mod->getFunction("art_set32_instance_from_code");
 if (!func_art_set32_instance_from_code) {
 func_art_set32_instance_from_code = Function::Create(
- /*Type=*/FuncTy_15,
+ /*Type=*/FuncTy_20,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_set32_instance_from_code", mod); // (external, no body)
 func_art_set32_instance_from_code->setCallingConv(CallingConv::C);
@@ -610,7 +658,7 @@ func_art_set32_instance_from_code->setAttributes(func_art_set32_instance_from_co
 Function* func_art_set64_instance_from_code = mod->getFunction("art_set64_instance_from_code");
 if (!func_art_set64_instance_from_code) {
 func_art_set64_instance_from_code = Function::Create(
- /*Type=*/FuncTy_16,
+ /*Type=*/FuncTy_21,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_set64_instance_from_code", mod); // (external, no body)
 func_art_set64_instance_from_code->setCallingConv(CallingConv::C);
@@ -621,7 +669,7 @@ func_art_set64_instance_from_code->setAttributes(func_art_set64_instance_from_co
 Function* func_art_set_obj_instance_from_code = mod->getFunction("art_set_obj_instance_from_code");
 if (!func_art_set_obj_instance_from_code) {
 func_art_set_obj_instance_from_code = Function::Create(
- /*Type=*/FuncTy_17,
+ /*Type=*/FuncTy_22,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_set_obj_instance_from_code", mod); // (external, no body)
 func_art_set_obj_instance_from_code->setCallingConv(CallingConv::C);
@@ -632,7 +680,7 @@ func_art_set_obj_instance_from_code->setAttributes(func_art_set_obj_instance_fro
 Function* func_art_get32_instance_from_code = mod->getFunction("art_get32_instance_from_code");
 if (!func_art_get32_instance_from_code) {
 func_art_get32_instance_from_code = Function::Create(
- /*Type=*/FuncTy_18,
+ /*Type=*/FuncTy_17,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_get32_instance_from_code", mod); // (external, no body)
 func_art_get32_instance_from_code->setCallingConv(CallingConv::C);
@@ -643,7 +691,7 @@ func_art_get32_instance_from_code->setAttributes(func_art_get32_instance_from_co
 Function* func_art_get64_instance_from_code = mod->getFunction("art_get64_instance_from_code");
 if (!func_art_get64_instance_from_code) {
 func_art_get64_instance_from_code = Function::Create(
- /*Type=*/FuncTy_19,
+ /*Type=*/FuncTy_23,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_get64_instance_from_code", mod); // (external, no body)
 func_art_get64_instance_from_code->setCallingConv(CallingConv::C);
@@ -654,7 +702,7 @@ func_art_get64_instance_from_code->setAttributes(func_art_get64_instance_from_co
 Function* func_art_get_obj_instance_from_code = mod->getFunction("art_get_obj_instance_from_code");
 if (!func_art_get_obj_instance_from_code) {
 func_art_get_obj_instance_from_code = Function::Create(
- /*Type=*/FuncTy_11,
+ /*Type=*/FuncTy_24,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_get_obj_instance_from_code", mod); // (external, no body)
 func_art_get_obj_instance_from_code->setCallingConv(CallingConv::C);
@@ -665,7 +713,7 @@ func_art_get_obj_instance_from_code->setAttributes(func_art_get_obj_instance_fro
 Function* func_art_is_assignable_from_code = mod->getFunction("art_is_assignable_from_code");
 if (!func_art_is_assignable_from_code) {
 func_art_is_assignable_from_code = Function::Create(
- /*Type=*/FuncTy_20,
+ /*Type=*/FuncTy_25,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_is_assignable_from_code", mod); // (external, no body)
 func_art_is_assignable_from_code->setCallingConv(CallingConv::C);
@@ -676,7 +724,7 @@ func_art_is_assignable_from_code->setAttributes(func_art_is_assignable_from_code
 Function* func_art_check_cast_from_code = mod->getFunction("art_check_cast_from_code");
 if (!func_art_check_cast_from_code) {
 func_art_check_cast_from_code = Function::Create(
- /*Type=*/FuncTy_21,
+ /*Type=*/FuncTy_26,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_check_cast_from_code", mod); // (external, no body)
 func_art_check_cast_from_code->setCallingConv(CallingConv::C);
