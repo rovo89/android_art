@@ -251,15 +251,21 @@ typedef enum X86OpCode {
     kPseudoPseudoAlign4 = -3,
     kPseudoEHBlockLabel = -2,
     kPseudoNormalBlockLabel = -1,
-    kOpAddRR,  // add reg, reg
-    kOpAddRM,  // add reg, [reg + displacement]
-    kOpAddMR,  // add [reg + displacement], reg
-    kOpAddRI,  // add reg, #immediate
-    kOpAddMI,  // add [reg + displacement], #immediate
-    kOpAddRA,  // add reg, [base reg + index reg * scale + displacment]
-    kOpAddAR,  // add [base reg + index reg * scale + displacment], reg
-    kOpAddAI,  // add [base reg + index reg * scale + displacment], #immediate
     kX86First,
+    kX8632BitData = kX86First, /* data [31..0] */
+#define BinaryOpCode(opcode) \
+  opcode ## RI, opcode ## MI, opcode ##AI, \
+  opcode ## RR, opcode ## RM, opcode ##RA, \
+  opcode ## MR, opcode ## AR
+    BinaryOpCode(kOpAdd),
+    BinaryOpCode(kOpOr),
+    BinaryOpCode(kOpAdc),
+    BinaryOpCode(kOpSbb),
+    BinaryOpCode(kOpAnd),
+    BinaryOpCode(kOpSub),
+    BinaryOpCode(kOpXor),
+    BinaryOpCode(kOpCmp),
+#undef BinaryOpCode
     kX86Last
 } X86OpCode;
 
@@ -344,19 +350,42 @@ typedef enum X86OpFeatureFlags {
 
 /* Instruction assembly fieldLoc kind */
 typedef enum X86EncodingKind {
-    kFmtUnused,
-    kFmtBitBlt,        /* Bit string using end/start */
-    kFmtDfp,           /* Double FP reg */
-    kFmtSfp,           /* Single FP reg */
+  kData,
+  kRegImm, kMemImm, kArrayImm,
+  kRegReg, kRegMem, kRegArray,
+  kMemReg, kArrayReg
 } X86EncodingKind;
 
 /* Struct used to define the snippet positions for each X86 opcode */
+typedef struct OpcodeModRMOpcode {
+  uint8_t opcode;
+  uint8_t modrm_opcode;
+} OpcodeModRMOpcode;
+
 typedef struct X86EncodingMap {
-    X86OpCode opcode;
-    int flags;
-    const char *name;
-    const char* fmt;
-    int size;     /* Size in bytes */
+  X86OpCode opcode;      // e.g. kOpAddRI
+  X86EncodingKind kind;  // Used to discriminate in the union below
+  int flags;
+  union {
+    struct {
+      uint8_t rax8_i8_opcode;
+      uint8_t rax32_i32_opcode;
+      OpcodeModRMOpcode rm8_i8_opcode;
+      OpcodeModRMOpcode rm32_i32_opcode;
+      OpcodeModRMOpcode rm32_i8_opcode;
+    } RegMem_Immediate;  // kind: kRegImm, kMemImm, kArrayImm
+    struct {
+      uint8_t r8_rm8_opcode;
+      uint8_t r32_rm32_opcode;
+    } Reg_RegMem;  // kind: kRegReg, kRegMem, kRegArray,
+    struct {
+      uint8_t rm8_r8_opcode;
+      uint8_t rm32_r32_opcode;
+    } RegMem_Reg;  // kind: kMemReg, kArrayReg
+    int unused;  // kind: kData
+  } skeleton;
+  const char *name;
+  const char* fmt;
 } X86EncodingMap;
 
 /* Keys for target-specific scheduling and other optimization hints */
@@ -366,9 +395,7 @@ typedef enum X86TargetOptHints {
 
 extern X86EncodingMap EncodingMap[kX86Last];
 
-#define IS_UIMM16(v) ((0 <= (v)) && ((v) <= 65535))
-#define IS_SIMM16(v) ((-32768 <= (v)) && ((v) <= 32766))
-#define IS_SIMM16_2WORD(v) ((-32764 <= (v)) && ((v) <= 32763)) /* 2 offsets must fit */
+#define IS_SIMM8(v) ((-128 <= (v)) && ((v) <= 128))
 
 }  // namespace art
 

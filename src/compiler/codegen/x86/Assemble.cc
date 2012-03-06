@@ -24,66 +24,121 @@ namespace art {
 
 #define MAX_ASSEMBLER_RETRIES 50
 
-/*
- * opcode: X86OpCode enum
- * skeleton: pre-designated bit-pattern for this opcode
- * k0: key to applying ds/de
- * ds: dest start bit position
- * de: dest end bit position
- * k1: key to applying s1s/s1e
- * s1s: src1 start bit position
- * s1e: src1 end bit position
- * k2: key to applying s2s/s2e
- * s2s: src2 start bit position
- * s2e: src2 end bit position
- * operands: number of operands (for sanity check purposes)
- * name: mnemonic name
- * fmt: for pretty-printing
- */
-#define ENCODING_MAP(opcode, skeleton, k0, ds, de, k1, s1s, s1e, k2, s2s, s2e, \
-                     k3, k3s, k3e, flags, name, fmt, size) \
-        {skeleton, {{k0, ds, de}, {k1, s1s, s1e}, {k2, s2s, s2e}, \
-                    {k3, k3s, k3e}}, opcode, flags, name, fmt, size}
+#define BINARY_ENCODING_MAP(opcode, \
+                            rm8_r8, rm32_r32, \
+                            r8_rm8, r32_rm32, \
+                            rax8_i8, rax32_i32, \
+                            rm8_i8_opcode, rm8_i8_modrm, \
+                            rm32_i32_opcode, rm32_i32_modrm, \
+                            rm32_i8_opcode, rm32_i8_modrm) \
+{ kOp ## opcode ## RI, \
+  kRegImm, \
+  0, \
+  { RegMem_Immediate: { rax8_i8, rax32_i32, \
+                       {rm8_i8_opcode, rm8_i8_modrm}, \
+                       {rm32_i32_opcode, rm32_i32_modrm}, \
+                       {rm32_i8_opcode, rm32_i8_modrm} } }, \
+  #opcode "RI", "" \
+}, \
+{ kOp ## opcode ## MI, \
+  kMemImm, \
+  0, \
+  { RegMem_Immediate: { rax8_i8, rax32_i32, \
+                       {rm8_i8_opcode, rm8_i8_modrm}, \
+                       {rm32_i32_opcode, rm32_i32_modrm}, \
+                       {rm32_i8_opcode, rm32_i8_modrm} } }, \
+  #opcode "MI", "" \
+}, \
+{ kOp ## opcode ## AI, \
+  kArrayImm, \
+  0, \
+  { RegMem_Immediate: { rax8_i8, rax32_i32, \
+                       {rm8_i8_opcode, rm8_i8_modrm}, \
+                       {rm32_i32_opcode, rm32_i32_modrm}, \
+                       {rm32_i8_opcode, rm32_i8_modrm} } }, \
+  #opcode "AI", "" \
+}, \
+{ kOp ## opcode ## RR, \
+  kRegReg, \
+  0, \
+  { Reg_RegMem: {r8_rm8, r32_rm32} }, \
+  #opcode "RR", "" \
+}, \
+{ kOp ## opcode ## RM, \
+  kRegMem, \
+  0, \
+  { Reg_RegMem: {r8_rm8, r32_rm32} }, \
+  #opcode "RM", "" \
+}, \
+{ kOp ## opcode ## RA, \
+  kRegArray, \
+  0, \
+  { Reg_RegMem: {r8_rm8, r32_rm32} }, \
+  #opcode "RA", "" \
+}, \
+{ kOp ## opcode ## MR, \
+  kMemReg, \
+  0, \
+  { RegMem_Reg: {rm8_r8, rm32_r32} }, \
+  #opcode "MR", "" \
+}, \
+{ kOp ## opcode ## AR, \
+  kArrayReg, \
+  0, \
+  { RegMem_Reg: {rm8_r8, rm32_r32} }, \
+  #opcode "AR", "" \
+}
 
-/* Instruction dump string format keys: !pf, where "!" is the start
- * of the key, "p" is which numeric operand to use and "f" is the
- * print format.
- *
- * [p]ositions:
- *     0 -> operands[0] (dest)
- *     1 -> operands[1] (src1)
- *     2 -> operands[2] (src2)
- *     3 -> operands[3] (extra)
- *
- * [f]ormats:
- *     h -> 4-digit hex
- *     d -> decimal
- *     E -> decimal*4
- *     F -> decimal*2
- *     c -> branch condition (beq, bne, etc.)
- *     t -> pc-relative target
- *     T -> pc-region target
- *     u -> 1st half of bl[x] target
- *     v -> 2nd half ob bl[x] target
- *     R -> register list
- *     s -> single precision floating point register
- *     S -> double precision floating point register
- *     m -> Thumb2 modified immediate
- *     n -> complimented Thumb2 modified immediate
- *     M -> Thumb2 16-bit zero-extended immediate
- *     b -> 4-digit binary
- *     N -> append a NOP
- *
- *  [!] escape.  To insert "!", use "!!"
- */
-/* NOTE: must be kept in sync with enum X86Opcode from LIR.h */
-/*
- * TUNING: We're currently punting on the branch delay slots.  All branch
- * instructions in this map are given a size of 8, which during assembly
- * is expanded to include a nop.  This scheme should be replaced with
- * an assembler pass to fill those slots when possible.
- */
 X86EncodingMap EncodingMap[kX86Last] = {
+  { kX8632BitData, kData, 0 /* flags - TODO */, { unused: 0 }, "data", "" },
+BINARY_ENCODING_MAP(Add,
+  0x00 /* RegMem8/Reg8 */,     0x01 /* RegMem32/Reg32 */,
+  0x02 /* Reg8/RegMem8 */,     0x03 /* Reg32/RegMem32 */,
+  0x04 /* Rax8/imm8 opcode */, 0x05 /* Rax32/imm32 */,
+  0x80, 0x0 /* RegMem8/imm8 */,
+  0x81, 0x0 /* RegMem32/imm32 */, 0x83, 0x0 /* RegMem32/imm8 */),
+BINARY_ENCODING_MAP(Or,
+  0x08 /* RegMem8/Reg8 */,     0x09 /* RegMem32/Reg32 */,
+  0x0A /* Reg8/RegMem8 */,     0x0B /* Reg32/RegMem32 */,
+  0x0C /* Rax8/imm8 opcode */, 0x0D /* Rax32/imm32 */,
+  0x80, 0x1 /* RegMem8/imm8 */,
+  0x81, 0x1 /* RegMem32/imm32 */, 0x83, 0x1 /* RegMem32/imm8 */),
+BINARY_ENCODING_MAP(Adc,
+  0x10 /* RegMem8/Reg8 */,     0x11 /* RegMem32/Reg32 */,
+  0x12 /* Reg8/RegMem8 */,     0x13 /* Reg32/RegMem32 */,
+  0x14 /* Rax8/imm8 opcode */, 0x15 /* Rax32/imm32 */,
+  0x80, 0x2 /* RegMem8/imm8 */,
+  0x81, 0x2 /* RegMem32/imm32 */, 0x83, 0x2 /* RegMem32/imm8 */),
+BINARY_ENCODING_MAP(Sbb,
+  0x18 /* RegMem8/Reg8 */,     0x19 /* RegMem32/Reg32 */,
+  0x1A /* Reg8/RegMem8 */,     0x1B /* Reg32/RegMem32 */,
+  0x1C /* Rax8/imm8 opcode */, 0x1D /* Rax32/imm32 */,
+  0x80, 0x3 /* RegMem8/imm8 */,
+  0x81, 0x3 /* RegMem32/imm32 */, 0x83, 0x3 /* RegMem32/imm8 */),
+BINARY_ENCODING_MAP(And,
+  0x20 /* RegMem8/Reg8 */,     0x21 /* RegMem32/Reg32 */,
+  0x22 /* Reg8/RegMem8 */,     0x23 /* Reg32/RegMem32 */,
+  0x24 /* Rax8/imm8 opcode */, 0x25 /* Rax32/imm32 */,
+  0x80, 0x4 /* RegMem8/imm8 */,
+  0x81, 0x4 /* RegMem32/imm32 */, 0x83, 0x4 /* RegMem32/imm8 */),
+BINARY_ENCODING_MAP(Sub,
+  0x28 /* RegMem8/Reg8 */,     0x29 /* RegMem32/Reg32 */,
+  0x2A /* Reg8/RegMem8 */,     0x2B /* Reg32/RegMem32 */,
+  0x2C /* Rax8/imm8 opcode */, 0x2D /* Rax32/imm32 */,
+  0x80, 0x5 /* RegMem8/imm8 */,
+  0x81, 0x5 /* RegMem32/imm32 */, 0x83, 0x5 /* RegMem32/imm8 */),
+BINARY_ENCODING_MAP(Xor,
+  0x30 /* RegMem8/Reg8 */,     0x31 /* RegMem32/Reg32 */,
+  0x32 /* Reg8/RegMem8 */,     0x33 /* Reg32/RegMem32 */,
+  0x34 /* Rax8/imm8 opcode */, 0x35 /* Rax32/imm32 */,
+  0x80, 0x6 /* RegMem8/imm8 */,
+  0x81, 0x6 /* RegMem32/imm32 */, 0x83, 0x6 /* RegMem32/imm8 */),
+BINARY_ENCODING_MAP(Cmp,
+  0x38 /* RegMem8/Reg8 */,     0x39 /* RegMem32/Reg32 */,
+  0x3A /* Reg8/RegMem8 */,     0x3B /* Reg32/RegMem32 */,
+  0x3C /* Rax8/imm8 opcode */, 0x3D /* Rax32/imm32 */,
+  0x80, 0x7 /* RegMem8/imm8 */,
+  0x81, 0x7 /* RegMem32/imm32 */, 0x83, 0x7 /* RegMem32/imm8 */)
 };
 
 
@@ -288,7 +343,55 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
 
 int oatGetInsnSize(LIR* lir)
 {
-    return EncodingMap[lir->opcode].size;
+  switch (EncodingMap[lir->opcode].kind) {
+    case kData:
+      return 4;
+    case kRegImm: {
+      int reg = lir->operands[0];
+      int imm = lir->operands[1];
+      return (reg == rAX ? 1 : 2) +  // AX opcodes don't require the modrm byte
+             (IS_SIMM8(imm) ? 1 : 4);  // 1 or 4 byte immediate
+      break;
+    }
+    case kMemImm: {
+      // int base = lir->operands[0];
+      int disp = lir->operands[1];
+      int imm  = lir->operands[2];
+      return 2 +  // opcode and modrm bytes
+          (disp == 0 ? 0 : (IS_SIMM8(disp) ? 1 : 4)) +  // 0, 1 or 4 byte displacement
+          (IS_SIMM8(imm) ? 1 : 4);  // 1 or 4 byte immediate
+      break;
+    }
+    case kArrayImm:
+      UNIMPLEMENTED(FATAL);
+      return 0;
+    case kRegReg:
+      return 2;  // opcode and modrm
+    case kRegMem: {
+      // int reg =  lir->operands[0];
+      // int base = lir->operands[1];
+      int disp = lir->operands[2];
+      return 2 +  // opcode and modrm bytes
+          (disp == 0 ? 0 : (IS_SIMM8(disp) ? 1 : 4));  // 0, 1 or 4 byte displacement
+      break;
+    }
+    case kRegArray:
+      UNIMPLEMENTED(FATAL);
+      return 0;
+    case kMemReg: {
+      // int base =  lir->operands[0];
+      int disp = lir->operands[1];
+      // int reg = lir->operands[2];
+      return 2 +  // opcode and modrm bytes
+          (disp == 0 ? 0 : (IS_SIMM8(disp) ? 1 : 4));  // 0, 1 or 4 byte displacement
+      break;
+    }
+    case kArrayReg:
+      UNIMPLEMENTED(FATAL);
+      return 0;
+  }
+  UNIMPLEMENTED(FATAL);  // unreachable
+  return 0;
 }
 /*
  * Target-dependent offset assignment.

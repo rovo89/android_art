@@ -40,7 +40,7 @@ LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
 LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
                     int checkValue, LIR* target);
 
-/* Forward declaraton the portable versions due to circular dependency */
+/* Forward declaration of the portable versions due to circular dependency */
 bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
                                     RegLocation rlDest, RegLocation rlSrc1,
                                     RegLocation rlSrc2);
