@@ -6,6 +6,7 @@
 #include "object_utils.h"
 #include "runtime_support_llvm.h"
 #include "thread.h"
+#include "thread_list.h"
 
 #include <stdint.h>
 
@@ -20,19 +21,29 @@ Thread* art_get_current_thread_from_code() {
 }
 
 void art_set_current_thread_from_code(void* thread_object_addr) {
+  // TODO: LLVM IR generating something like "r9 = thread_object_addr"
   UNIMPLEMENTED(WARNING);
 }
 
-void art_lock_object_from_code(Object* object) {
-  UNIMPLEMENTED(WARNING);
+void art_lock_object_from_code(Object* obj) {
+  Thread* thread = Thread::Current();
+  DCHECK(obj != NULL);        // Assumed to have been checked before entry
+  obj->MonitorEnter(thread);  // May block
+  DCHECK(thread->HoldsLock(obj));
+  // Only possible exception is NPE and is handled before entry
+  DCHECK(!thread->IsExceptionPending());
 }
 
-void art_unlock_object_from_code(Object* object) {
-  UNIMPLEMENTED(WARNING);
+void art_unlock_object_from_code(Object* obj) {
+  Thread* thread = Thread::Current();
+  DCHECK(obj != NULL);  // Assumed to have been checked before entry
+  // MonitorExit may throw exception
+  obj->MonitorExit(thread);
 }
 
 void art_test_suspend_from_code() {
-  UNIMPLEMENTED(WARNING);
+  Thread* thread = Thread::Current();
+  Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
 }
 
 void art_push_shadow_frame_from_code(void* new_shadow_frame) {
