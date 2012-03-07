@@ -655,12 +655,45 @@ static bool SkipClass(const ClassLoader* class_loader,
   return true;
 }
 
-struct Context {
-  ClassLinker* class_linker;
-  const ClassLoader* class_loader;
-  Compiler* compiler;
-  DexCache* dex_cache;
-  const DexFile* dex_file;
+class Context {
+ public:
+  Context(ClassLinker* class_linker,
+          const ClassLoader* class_loader,
+          Compiler* compiler,
+          DexCache* dex_cache,
+          const DexFile* dex_file)
+    : class_linker_(class_linker),
+      class_loader_(class_loader),
+      compiler_(compiler),
+      dex_cache_(dex_cache),
+      dex_file_(dex_file) {}
+
+  ClassLinker* GetClassLinker() {
+    CHECK(class_linker_ != NULL);
+    return class_linker_;
+  }
+  const ClassLoader* GetClassLoader() {
+    return class_loader_;
+  }
+  Compiler* GetCompiler() {
+    CHECK(compiler_ != NULL);
+    return compiler_;
+  }
+  DexCache* GetDexCache() {
+    CHECK(dex_cache_ != NULL);
+    return dex_cache_;
+  }
+  const DexFile* GetDexFile() {
+    CHECK(dex_file_ != NULL);
+    return dex_file_;
+  }
+
+ private:
+  ClassLinker* class_linker_;
+  const ClassLoader* class_loader_;
+  Compiler* compiler_;
+  DexCache* dex_cache_;
+  const DexFile* dex_file_;
 };
 
 typedef void Callback(Context* context, size_t index);
@@ -733,7 +766,7 @@ void ForAll(Context* context, size_t begin, size_t end, Callback callback, size_
 }
 
 static void ResolveClassFieldsAndMethods(Context* context, size_t class_def_index) {
-  const DexFile& dex_file = *context->dex_file;
+  const DexFile& dex_file = *context->GetDexFile();
 
   // Method and Field are the worst. We can't resolve without either
   // context from the code use (to disambiguate virtual vs direct
@@ -743,7 +776,7 @@ static void ResolveClassFieldsAndMethods(Context* context, size_t class_def_inde
   // definitions, since many of them many never be referenced by
   // generated code.
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-  if (SkipClass(context->class_loader, dex_file, class_def)) {
+  if (SkipClass(context->GetClassLoader(), dex_file, class_def)) {
     return;
   }
 
@@ -756,12 +789,12 @@ static void ResolveClassFieldsAndMethods(Context* context, size_t class_def_inde
     return;
   }
   Thread* self = Thread::Current();
-  ClassLinker* class_linker = context->class_linker;
+  ClassLinker* class_linker = context->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);
   ClassDataItemIterator it(dex_file, class_data);
   while (it.HasNextStaticField()) {
     Field* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(), dex_cache,
-                                              context->class_loader, true);
+                                              context->GetClassLoader(), true);
     if (field == NULL) {
       CHECK(self->IsExceptionPending());
       self->ClearException();
@@ -770,7 +803,7 @@ static void ResolveClassFieldsAndMethods(Context* context, size_t class_def_inde
   }
   while (it.HasNextInstanceField()) {
     Field* field = class_linker->ResolveField(dex_file, it.GetMemberIndex(), dex_cache,
-                                              context->class_loader, false);
+                                              context->GetClassLoader(), false);
     if (field == NULL) {
       CHECK(self->IsExceptionPending());
       self->ClearException();
@@ -779,7 +812,7 @@ static void ResolveClassFieldsAndMethods(Context* context, size_t class_def_inde
   }
   while (it.HasNextDirectMethod()) {
     Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
-                                                 context->class_loader, true);
+                                                 context->GetClassLoader(), true);
     if (method == NULL) {
       CHECK(self->IsExceptionPending());
       self->ClearException();
@@ -788,7 +821,7 @@ static void ResolveClassFieldsAndMethods(Context* context, size_t class_def_inde
   }
   while (it.HasNextVirtualMethod()) {
     Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
-                                                 context->class_loader, false);
+                                                 context->GetClassLoader(), false);
     if (method == NULL) {
       CHECK(self->IsExceptionPending());
       self->ClearException();
@@ -801,9 +834,10 @@ static void ResolveClassFieldsAndMethods(Context* context, size_t class_def_inde
 static void ResolveType(Context* context, size_t type_idx) {
   // Class derived values are more complicated, they require the linker and loader.
   Thread* self = Thread::Current();
-  ClassLinker* class_linker = context->class_linker;
-  const DexFile& dex_file = *context->dex_file;
-  Class* klass = class_linker->ResolveType(dex_file, type_idx, context->dex_cache, context->class_loader);
+  Class* klass = context->GetClassLinker()->ResolveType(*context->GetDexFile(),
+                                                        type_idx,
+                                                        context->GetDexCache(),
+                                                        context->GetClassLoader());
   if (klass == NULL) {
     CHECK(self->IsExceptionPending());
     Thread::Current()->ClearException();
@@ -824,12 +858,7 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
     timings.AddSplit("Resolve " + dex_file.GetLocation() + " Strings");
   }
 
-  Context context;
-  context.class_linker = class_linker;
-  context.class_loader = class_loader;
-  context.dex_cache = dex_cache;
-  context.dex_file = &dex_file;
-
+  Context context(class_linker, class_loader, this, dex_cache, &dex_file);
   ForAll(&context, 0, dex_cache->NumResolvedTypes(), ResolveType, thread_count_);
   timings.AddSplit("Resolve " + dex_file.GetLocation() + " Types");
 
@@ -847,9 +876,9 @@ void Compiler::Verify(const ClassLoader* class_loader,
 }
 
 static void VerifyClass(Context* context, size_t class_def_index) {
-  const DexFile::ClassDef& class_def = context->dex_file->GetClassDef(class_def_index);
-  const char* descriptor = context->dex_file->GetClassDescriptor(class_def);
-  Class* klass = context->class_linker->FindClass(descriptor, context->class_loader);
+  const DexFile::ClassDef& class_def = context->GetDexFile()->GetClassDef(class_def_index);
+  const char* descriptor = context->GetDexFile()->GetClassDescriptor(class_def);
+  Class* klass = context->GetClassLinker()->FindClass(descriptor, context->GetClassLoader());
   if (klass == NULL) {
     Thread* self = Thread::Current();
     CHECK(self->IsExceptionPending());
@@ -861,17 +890,17 @@ static void VerifyClass(Context* context, size_t class_def_index) {
      * will be rejected by the verifier and later skipped during compilation in the compiler.
      */
     std::string error_msg;
-    if (!verifier::DexVerifier::VerifyClass(context->dex_file, context->dex_cache,
-        context->class_loader, class_def_index, error_msg)) {
-      const DexFile::ClassDef& class_def = context->dex_file->GetClassDef(class_def_index);
+    if (!verifier::DexVerifier::VerifyClass(context->GetDexFile(), context->GetDexCache(),
+        context->GetClassLoader(), class_def_index, error_msg)) {
+      const DexFile::ClassDef& class_def = context->GetDexFile()->GetClassDef(class_def_index);
       LOG(ERROR) << "Verification failed on class "
-                 << PrettyDescriptor(context->dex_file->GetClassDescriptor(class_def))
+                 << PrettyDescriptor(context->GetDexFile()->GetClassDescriptor(class_def))
                  << " because: " << error_msg;
     }
     return;
   }
   CHECK(klass->IsResolved()) << PrettyClass(klass);
-  context->class_linker->VerifyClass(klass);
+  context->GetClassLinker()->VerifyClass(klass);
 
   if (klass->IsErroneous()) {
     // ClassLinker::VerifyClass throws, which isn't useful in the compiler.
@@ -888,11 +917,8 @@ static void VerifyClass(Context* context, size_t class_def_index) {
 void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
   dex_file.ChangePermissions(PROT_READ | PROT_WRITE);
 
-  Context context;
-  context.class_linker = Runtime::Current()->GetClassLinker();
-  context.class_loader = class_loader;
-  context.dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
-  context.dex_file = &dex_file;
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Context context(class_linker, class_loader, this, class_linker->FindDexCache(dex_file), &dex_file);
   ForAll(&context, 0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
 
   dex_file.ChangePermissions(PROT_READ);
@@ -952,8 +978,8 @@ void Compiler::Compile(const ClassLoader* class_loader,
 }
 
 void Compiler::CompileClass(Context* context, size_t class_def_index) {
-  const ClassLoader* class_loader = context->class_loader;
-  const DexFile& dex_file = *context->dex_file;
+  const ClassLoader* class_loader = context->GetClassLoader();
+  const DexFile& dex_file = *context->GetDexFile();
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
 
 #if defined(ART_USE_LLVM_COMPILER)
@@ -987,14 +1013,14 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
   }
   // Compile direct methods
   while (it.HasNextDirectMethod()) {
-    context->compiler->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
-                                     it.GetMemberIndex(), class_loader, dex_file);
+    context->GetCompiler()->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
+                                          it.GetMemberIndex(), class_loader, dex_file);
     it.Next();
   }
   // Compile virtual methods
   while (it.HasNextVirtualMethod()) {
-    context->compiler->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
-                                     it.GetMemberIndex(), class_loader, dex_file);
+    context->GetCompiler()->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
+                                          it.GetMemberIndex(), class_loader, dex_file);
     it.Next();
   }
   DCHECK(!it.HasNext());
@@ -1005,10 +1031,7 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
 }
 
 void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
-  Context context;
-  context.class_loader = class_loader;
-  context.compiler = this;
-  context.dex_file = &dex_file;
+  Context context(NULL, class_loader, this, NULL, &dex_file);
   ForAll(&context, 0, dex_file.NumClassDefs(), Compiler::CompileClass, thread_count_);
 }
 
