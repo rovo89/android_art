@@ -57,6 +57,7 @@ enum optControlVector {
     kPromoteRegs,
     kTrackLiveTemps,
     kSkipLargeMethodOptimization,
+    kSafeOptimizations,
 };
 
 /* Type of allocation for memory tuning */
@@ -131,6 +132,7 @@ enum debugControlVector {
     kDebugExerciseResolveMethod,
     kDebugVerifyDataflow,
     kDebugShowMemoryUsage,
+    kDebugShowNops,
 };
 
 extern uint32_t compilerDebugFlags;

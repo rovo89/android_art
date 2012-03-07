@@ -607,25 +607,13 @@ void handleSuspendLaunchpads(CompilationUnit *cUnit)
 
     for (int i = 0; i < numElems; i++) {
         oatResetRegPool(cUnit);
-        /* TUNING: move suspend count load into helper */
         LIR* lab = suspendLabel[i];
         LIR* resumeLab = (LIR*)lab->operands[0];
         cUnit->currentDalvikOffset = lab->operands[1];
         oatAppendLIR(cUnit, (LIR *)lab);
         int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                               pTestSuspendFromCode));
-        if (!cUnit->genDebugger) {
-            // use rSUSPEND for suspend count
-            loadWordDisp(cUnit, rSELF,
-                         Thread::SuspendCountOffset().Int32Value(), rSUSPEND);
-        }
         opReg(cUnit, kOpBlx, rTgt);
-        if ( cUnit->genDebugger) {
-            // use rSUSPEND for update debugger
-            loadWordDisp(cUnit, rSELF,
-                         OFFSETOF_MEMBER(Thread, pUpdateDebuggerFromCode),
-                         rSUSPEND);
-        }
         opUnconditionalBranch(cUnit, resumeLab);
     }
 #endif
@@ -930,7 +918,7 @@ void genConstString(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         branch->target = target;
 #endif
         genBarrier(cUnit);
-        storeValue(cUnit, rlDest, getRetLoc(cUnit));
+        storeValue(cUnit, rlDest, oatGetReturn(cUnit));
     } else {
         int mReg = loadCurrMethod(cUnit);
         int resReg = oatAllocTemp(cUnit);
@@ -2137,11 +2125,17 @@ void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
         return;
     }
     oatFlushAllRegs(cUnit);
-    LIR* branch;
     if (cUnit->genDebugger) {
         // If generating code for the debugger, always check for suspension
-        branch = opUnconditionalBranch(cUnit, NULL);
+        int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
+                              pTestSuspendFromCode));
+        opReg(cUnit, kOpBlx, rTgt);
+        // Refresh rSUSPEND
+        loadWordDisp(cUnit, rSELF,
+                     OFFSETOF_MEMBER(Thread, pUpdateDebuggerFromCode),
+                     rSUSPEND);
     } else {
+        LIR* branch;
 #if defined(TARGET_ARM)
         // In non-debug case, only check periodically
         newLIR2(cUnit, kThumbSubRI8, rSUSPEND, 1);
@@ -2150,12 +2144,12 @@ void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
         opRegImm(cUnit, kOpSub, rSUSPEND, 1);
         branch = opCmpImmBranch(cUnit, kCondEq, rSUSPEND, 0, NULL);
 #endif
+        LIR* retLab = newLIR0(cUnit, kPseudoTargetLabel);
+        LIR* target = rawLIR(cUnit, cUnit->currentDalvikOffset,
+                             kPseudoSuspendTarget, (intptr_t)retLab, mir->offset);
+        branch->target = (LIR*)target;
+        oatInsertGrowableList(cUnit, &cUnit->suspendLaunchpads, (intptr_t)target);
     }
-    LIR* retLab = newLIR0(cUnit, kPseudoTargetLabel);
-    LIR* target = rawLIR(cUnit, cUnit->currentDalvikOffset,
-                         kPseudoSuspendTarget, (intptr_t)retLab, mir->offset);
-    branch->target = (LIR*)target;
-    oatInsertGrowableList(cUnit, &cUnit->suspendLaunchpads, (intptr_t)target);
 #endif
 }
 

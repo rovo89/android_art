@@ -437,7 +437,7 @@ LIR* opRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc)
     else
          opcode = kThumbMovRR_L2H;
     res = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rDest, rSrc);
-    if (rDest == rSrc) {
+    if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) && rDest == rSrc) {
         res->flags.isNop = true;
     }
     return res;

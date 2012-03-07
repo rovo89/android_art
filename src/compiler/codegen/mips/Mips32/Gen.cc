@@ -450,7 +450,7 @@ LIR* opRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
 #endif
     LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, kMipsMove,
                       rDest, rSrc);
-    if (rDest == rSrc) {
+    if (!(cUnit->disableOpt && (1 << kSafeOptimizations)) && rDest == rSrc) {
         res->flags.isNop = true;
     }
     return res;

@@ -49,7 +49,6 @@ ArmConditionCode oatArmConditionEncoding(ConditionCode code);
 
 int loadHelper(CompilationUnit* cUnit, int offset);
 LIR* callRuntimeHelper(CompilationUnit* cUnit, int reg);
-RegLocation getRetLoc(CompilationUnit* cUnit);
 LIR* loadConstant(CompilationUnit* cUnit, int reg, int immVal);
 void opRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
                    int srcLo, int srcHi);

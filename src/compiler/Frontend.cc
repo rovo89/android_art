@@ -33,6 +33,7 @@ uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
      //(1 << kPromoteRegs) |
      //(1 << kTrackLiveTemps) |
      //(1 << kSkipLargeMethodOptimization) |
+     //(1 << kSafeOptimizations) |
      0;
 
 uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
@@ -47,6 +48,7 @@ uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
      //(1 << kDebugExerciseResolveMethod) |
      //(1 << kDebugVerifyDataflow) |
      //(1 << kDebugShowMemoryUsage) |
+     //(1 << kDebugShowNops) |
      0;
 
 inline bool contentIsInsn(const u2* codePtr) {

@@ -1039,7 +1039,7 @@ LIR* fpRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)
         }
     }
     LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rDest, rSrc);
-    if (rDest == rSrc) {
+    if (!(cUnit->disableOpt && (1 << kSafeOptimizations)) && rDest == rSrc) {
         res->flags.isNop = true;
     }
     return res;

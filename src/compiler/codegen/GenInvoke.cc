@@ -43,38 +43,52 @@ void flushIns(CompilationUnit* cUnit)
     int lastArgReg = rARG3;
     int startVReg = cUnit->numDalvikRegisters - cUnit->numIns;
     /*
-     * Arguments passed in registers should be flushed
-     * to their backing locations in the frame for now.
-     * Also, we need to do initial assignment for promoted
-     * arguments.  NOTE: an older version of dx had an issue
-     * in which it would reuse static method argument registers.
+     * Copy incoming arguments to their proper home locations.
+     * NOTE: an older version of dx had an issue in which
+     * it would reuse static method argument registers.
      * This could result in the same Dalvik virtual register
-     * being promoted to both core and fp regs.  In those
-     * cases, copy argument to both.  This will be uncommon
-     * enough that it isn't worth attempting to optimize.
+     * being promoted to both core and fp regs. To account for this,
+     * we only copy to the corresponding promoted physical register
+     * if it matches the type of the SSA name for the incoming
+     * argument.  It is also possible that long and double arguments
+     * end up half-promoted.  In those cases, we must flush the promoted
+     * half to memory as well.
      */
     for (int i = 0; i < cUnit->numIns; i++) {
-        PromotionMap vMap = cUnit->promotionMap[startVReg + i];
+        PromotionMap* vMap = &cUnit->promotionMap[startVReg + i];
         if (i <= (lastArgReg - firstArgReg)) {
             // If arriving in register
-            if (vMap.coreLocation == kLocPhysReg) {
-                opRegCopy(cUnit, vMap.coreReg, firstArgReg + i);
+            bool needFlush = true;
+            RegLocation* tLoc = &cUnit->regLocation[startVReg + i];
+            if ((vMap->coreLocation == kLocPhysReg) && !tLoc->fp) {
+                opRegCopy(cUnit, vMap->coreReg, firstArgReg + i);
+                needFlush = false;
+            } else if ((vMap->fpLocation == kLocPhysReg) && tLoc->fp) {
+                opRegCopy(cUnit, vMap->fpReg, firstArgReg + i);
+                needFlush = false;
+            } else {
+                needFlush = true;
             }
-            if (vMap.fpLocation == kLocPhysReg) {
-                opRegCopy(cUnit, vMap.fpReg, firstArgReg + i);
+
+            // For wide args, force flush if only half is promoted
+            if (tLoc->wide) {
+                PromotionMap* pMap = vMap + (tLoc->highWord ? -1 : +1);
+                needFlush |= (pMap->coreLocation != vMap->coreLocation) ||
+                             (pMap->fpLocation != vMap->fpLocation);
             }
-            // Also put a copy in memory in case we're partially promoted
-            storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
-                          firstArgReg + i, kWord);
+            if (needFlush) {
+                storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
+                              firstArgReg + i, kWord);
+            }
         } else {
             // If arriving in frame & promoted
-            if (vMap.coreLocation == kLocPhysReg) {
+            if (vMap->coreLocation == kLocPhysReg) {
                 loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
-                             vMap.coreReg);
+                             vMap->coreReg);
             }
-            if (vMap.fpLocation == kLocPhysReg) {
+            if (vMap->fpLocation == kLocPhysReg) {
                 loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
-                             vMap.fpReg);
+                             vMap->fpReg);
             }
         }
     }

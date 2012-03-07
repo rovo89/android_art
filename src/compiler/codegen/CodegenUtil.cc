@@ -253,7 +253,7 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
     LIR* lir = (LIR*) arg;
     int offset = lir->offset;
     int dest = lir->operands[0];
-    const bool dumpNop = false;
+    const bool dumpNop = (cUnit->enableDebug & (1 << kDebugShowNops));
 
     /* Handle pseudo-ops individually, and all regular insns as a group */
     switch(lir->opcode) {

@@ -149,56 +149,6 @@ extern void oatClobberCalleeSave(CompilationUnit *cUnit)
 #endif
 }
 
-extern RegLocation oatGetReturnWide(CompilationUnit* cUnit)
-{
-    RegLocation res = LOC_C_RETURN_WIDE;
-    oatClobber(cUnit, res.lowReg);
-    oatClobber(cUnit, res.highReg);
-    oatMarkInUse(cUnit, res.lowReg);
-    oatMarkInUse(cUnit, res.highReg);
-    oatMarkPair(cUnit, res.lowReg, res.highReg);
-    return res;
-}
-
-extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
-{
-    UNIMPLEMENTED(WARNING) << "oatGetReturnWideAlt";
-    return oatGetReturnWide(cUnit);
-#if 0
-    // May not need this - it is used when calling a combined
-    // div/rem helper.  Quotient in regular return, remainder in alt regs
-    RegLocation res = LOC_C_RETURN_WIDE_ALT;
-    oatClobber(cUnit, res.lowReg);
-    oatClobber(cUnit, res.highReg);
-    oatMarkInUse(cUnit, res.lowReg);
-    oatMarkInUse(cUnit, res.highReg);
-    oatMarkPair(cUnit, res.lowReg, res.highReg);
-    return res;
-#endif
-}
-
-extern RegLocation oatGetReturn(CompilationUnit* cUnit)
-{
-    RegLocation res = LOC_C_RETURN;
-    oatClobber(cUnit, res.lowReg);
-    oatMarkInUse(cUnit, res.lowReg);
-    return res;
-}
-
-extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
-{
-    UNIMPLEMENTED(WARNING) << "oatGetReturnWideAlt";
-    return oatGetReturn(cUnit);
-#if 0
-    // May not need this - it is used when calling a combined
-    // div/rem helper.  Quotient in regular return, remainder in alt regs
-    RegLocation res = LOC_C_RETURN_ALT;
-    oatClobber(cUnit, res.lowReg);
-    oatMarkInUse(cUnit, res.lowReg);
-    return res;
-#endif
-}
-
 extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)
 {
     return FPREG(reg) ? &cUnit->regPool->FPRegs[reg & FP_REG_MASK]

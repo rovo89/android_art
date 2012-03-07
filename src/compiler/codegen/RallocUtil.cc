@@ -1143,10 +1143,6 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
         // Promote fpRegs
         for (int i = 0; (fpRegs[i].count > 0) && (i < numRegs); i++) {
             if (cUnit->promotionMap[fpRegs[i].sReg].fpLocation != kLocPhysReg) {
-                if (fpRegs[i].sReg >= cUnit->numRegs) {
-                    // don't promote arg regs
-                    continue;
-                }
                 int reg = oatAllocPreservedFPReg(cUnit, fpRegs[i].sReg,
                     fpRegs[i].doubleStart);
                 if (reg < 0) {
@@ -1159,10 +1155,6 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
         for (int i = 0; (coreRegs[i].count > 0) && i < numRegs; i++) {
             if (cUnit->promotionMap[coreRegs[i].sReg].coreLocation !=
                     kLocPhysReg) {
-                if (coreRegs[i].sReg >= cUnit->numRegs) {
-                    // don't promote arg regs
-                    continue;
-                }
                 int reg = oatAllocPreservedCoreReg(cUnit, coreRegs[i].sReg);
                 if (reg < 0) {
                    break;  // No more left

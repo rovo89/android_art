@@ -1142,7 +1142,8 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                 intptr_t target = targetLIR->offset;
                 int delta = target - pc;
                 lir->operands[0] = delta >> 1;
-                if (lir->operands[0] == 0) {  // Useless branch?
+                if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) &&
+                    lir->operands[0] == 0) {  // Useless branch
                     lir->flags.isNop = true;
                     res = kRetryAll;
                 }
@@ -1157,12 +1158,13 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                     lir->operands[0] = 0;
                     oatSetupResourceMasks(lir);
                     res = kRetryAll;
-                }
-                lir->operands[0] = delta >> 1;
-                if ((lir->operands[0] == 0) ||
-                    (lir->operands[0] == -1)) {  // Useless branch?
-                    lir->flags.isNop = true;
-                    res = kRetryAll;
+                } else {
+                    lir->operands[0] = delta >> 1;
+                    if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) &&
+                        lir->operands[0] == -1) {  // Useless branch
+                        lir->flags.isNop = true;
+                        res = kRetryAll;
+                    }
                 }
             } else if (lir->opcode == kThumbBlx1) {
                 DCHECK(NEXT_LIR(lir)->opcode == kThumbBlx2);

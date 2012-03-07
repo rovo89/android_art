@@ -345,6 +345,7 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
                 case 'D':
                     cUnit->regLocation[sReg].wide = true;
                     cUnit->regLocation[sReg+1].highWord = true;
+                    cUnit->regLocation[sReg+1].fp = true;
                     DCHECK_EQ(oatS2VReg(cUnit, sReg)+1,
                               oatS2VReg(cUnit, sReg+1));
                     cUnit->regLocation[sReg].fp = true;

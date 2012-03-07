@@ -25,18 +25,21 @@ const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0,
                             INVALID_REG, INVALID_REG, INVALID_SREG};
 
 /* Mark register usage state and return long retloc */
-RegLocation getRetLocWide(CompilationUnit* cUnit)
+RegLocation oatGetReturnWide(CompilationUnit* cUnit)
 {
     RegLocation res = LOC_C_RETURN_WIDE;
+    oatClobber(cUnit, res.lowReg);
+    oatClobber(cUnit, res.highReg);
     oatLockTemp(cUnit, res.lowReg);
     oatLockTemp(cUnit, res.highReg);
     oatMarkPair(cUnit, res.lowReg, res.highReg);
     return res;
 }
 
-RegLocation getRetLoc(CompilationUnit* cUnit)
+RegLocation oatGetReturn(CompilationUnit* cUnit)
 {
     RegLocation res = LOC_C_RETURN;
+    oatClobber(cUnit, res.lowReg);
     oatLockTemp(cUnit, res.lowReg);
     return res;
 }
@@ -178,31 +181,37 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             break;
 
         case Instruction::RETURN_VOID:
-            genSuspendTest(cUnit, mir);
+            if (!cUnit->attrs & METHOD_IS_LEAF) {
+                genSuspendTest(cUnit, mir);
+            }
             break;
 
         case Instruction::RETURN:
         case Instruction::RETURN_OBJECT:
-            genSuspendTest(cUnit, mir);
-            storeValue(cUnit, getRetLoc(cUnit), rlSrc[0]);
+            if (!cUnit->attrs & METHOD_IS_LEAF) {
+                genSuspendTest(cUnit, mir);
+            }
+            storeValue(cUnit, oatGetReturn(cUnit), rlSrc[0]);
             break;
 
         case Instruction::RETURN_WIDE:
-            genSuspendTest(cUnit, mir);
-            storeValueWide(cUnit, getRetLocWide(cUnit), rlSrc[0]);
+            if (!cUnit->attrs & METHOD_IS_LEAF) {
+                genSuspendTest(cUnit, mir);
+            }
+            storeValueWide(cUnit, oatGetReturnWide(cUnit), rlSrc[0]);
             break;
 
         case Instruction::MOVE_RESULT_WIDE:
             if (mir->optimizationFlags & MIR_INLINED)
                 break;  // Nop - combined w/ previous invoke
-            storeValueWide(cUnit, rlDest, getRetLocWide(cUnit));
+            storeValueWide(cUnit, rlDest, oatGetReturnWide(cUnit));
             break;
 
         case Instruction::MOVE_RESULT:
         case Instruction::MOVE_RESULT_OBJECT:
             if (mir->optimizationFlags & MIR_INLINED)
                 break;  // Nop - combined w/ previous invoke
-            storeValue(cUnit, rlDest, getRetLoc(cUnit));
+            storeValue(cUnit, rlDest, oatGetReturn(cUnit));
             break;
 
         case Instruction::MOVE:
@@ -849,7 +858,9 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
 
     handleThrowLaunchpads(cUnit);
 
-    removeRedundantBranches(cUnit);
+    if (!(cUnit->disableOpt & (1 << kSafeOptimizations))) {
+        removeRedundantBranches(cUnit);
+    }
 }
 
 /* Needed by the ld/st optmizatons */

@@ -140,17 +140,6 @@ extern void oatClobberCalleeSave(CompilationUnit *cUnit)
     oatClobber(cUnit, r_F15);
 }
 
-extern RegLocation oatGetReturnWide(CompilationUnit* cUnit)
-{
-    RegLocation res = LOC_C_RETURN_WIDE;
-    oatClobber(cUnit, res.lowReg);
-    oatClobber(cUnit, res.highReg);
-    oatMarkInUse(cUnit, res.lowReg);
-    oatMarkInUse(cUnit, res.highReg);
-    oatMarkPair(cUnit, res.lowReg, res.highReg);
-    return res;
-}
-
 extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
 {
     RegLocation res = LOC_C_RETURN_WIDE_ALT;
@@ -165,14 +154,6 @@ extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
 extern RegLocation oatGetReturn(CompilationUnit* cUnit)
 {
     RegLocation res = LOC_C_RETURN;
-    oatClobber(cUnit, res.lowReg);
-    oatMarkInUse(cUnit, res.lowReg);
-    return res;
-}
-
-extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
-{
-    RegLocation res = LOC_C_RETURN_ALT;
     oatClobber(cUnit, res.lowReg);
     oatMarkInUse(cUnit, res.lowReg);
     return res;
