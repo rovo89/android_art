@@ -20,5 +20,6 @@ set -e
 # Use classes that are compiled with ecj that exposes an invokeinterface
 # issue when interfaces override methods in Object
 dx --debug --dex --dump-to=classes.lst --output=classes.dex classes
-zip ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar classes.dex
-dex2oatd --boot-image=${ANDROID_PRODUCT_OUT}/data/art-test/core.art --dex-file=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar --dex-location=/data/art-test/$TEST_NAME.jar --oat-file=${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar.oat
+mkdir -p ${ANDROID_PRODUCT_OUT}/data/run-test
+zip ${ANDROID_PRODUCT_OUT}/data/run-test/$TEST_NAME.jar classes.dex
+dex2oatd --boot-image=${ANDROID_PRODUCT_OUT}/data/art-test/core.art --dex-file=${ANDROID_PRODUCT_OUT}/data/run-test/$TEST_NAME.jar --dex-location=/data/run-test/$TEST_NAME.jar --oat-file=${ANDROID_PRODUCT_OUT}/data/run-test/$TEST_NAME.jar.oat
