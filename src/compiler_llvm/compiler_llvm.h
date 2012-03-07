@@ -107,6 +107,13 @@ class CompilerLLVM {
 
   std::string bitcode_filename_;
 
+  class LLVMInitializer {
+   public:
+    LLVMInitializer();
+    ~LLVMInitializer();
+  };
+  static LLVMInitializer llvm_initialize_guard;
+
   DISALLOW_COPY_AND_ASSIGN(CompilerLLVM);
 };
 
