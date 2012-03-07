@@ -521,18 +521,22 @@ class ImageDumper {
     }
     os_ << "\n";
 
+    os_ << "OAT LOCATION:\n" << std::flush;
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     Object* oat_location_object = image_header_.GetImageRoot(ImageHeader::kOatLocation);
     std::string oat_location(oat_location_object->AsString()->ToModifiedUtf8());
+    os_ << oat_location;
     if (!host_prefix_.empty()) {
       oat_location = host_prefix_ + oat_location;
       os_ << " (" << oat_location << ")";
     }
+    os_ << "\n";
     const OatFile* oat_file = class_linker->FindOatFileFromOatLocation(oat_location);
     if (oat_file == NULL) {
-      os_ << "OAT FILE NOT FOUND: " << oat_location << std::endl << std::flush;
+      os_ << "NOT FOUND\n";
       return;
     }
+    os_ << "\n";
 
     stats_.oat_file_bytes = oat_file->Size();
 
@@ -556,9 +560,6 @@ class ImageDumper {
 
     os_ << std::flush;
 
-    os_ << "OAT LOCATION:\n" << std::flush;
-    os_ << oat_location;
-    os_ << "\n";
     oat_dumper_->Dump(os_);
   }
 
