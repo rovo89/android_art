@@ -36,9 +36,13 @@ ManagedRegister X86JniCallingConvention::ReturnScratchRegister() const {
   return ManagedRegister::NoRegister();  // No free regs, so assembler uses push/pop
 }
 
-static ManagedRegister ReturnRegisterForShorty(const char* shorty) {
+static ManagedRegister ReturnRegisterForShorty(const char* shorty, bool jni) {
   if (shorty[0] == 'F' || shorty[0] == 'D') {
-    return X86ManagedRegister::FromX87Register(ST0);
+    if (jni) {
+      return X86ManagedRegister::FromX87Register(ST0);
+    } else {
+      return X86ManagedRegister::FromXmmRegister(XMM0);
+    }
   } else if (shorty[0] == 'J') {
     return X86ManagedRegister::FromRegisterPair(EAX_EDX);
   } else if (shorty[0] == 'V') {
@@ -49,11 +53,11 @@ static ManagedRegister ReturnRegisterForShorty(const char* shorty) {
 }
 
 ManagedRegister X86ManagedRuntimeCallingConvention::ReturnRegister() {
-  return ReturnRegisterForShorty(GetShorty());
+  return ReturnRegisterForShorty(GetShorty(), false);
 }
 
 ManagedRegister X86JniCallingConvention::ReturnRegister() {
-  return ReturnRegisterForShorty(GetShorty());
+  return ReturnRegisterForShorty(GetShorty(), true);
 }
 
 // Managed runtime calling convention
@@ -81,6 +85,21 @@ FrameOffset X86ManagedRuntimeCallingConvention::CurrentParamStackOffset() {
                      (itr_slots_ * kPointerSize));  // offset into in args
 }
 
+const std::vector<ManagedRegister>& X86ManagedRuntimeCallingConvention::EntrySpills() {
+  // We spill the argument registers on X86 to free them up for scratch use, we then assume
+  // all arguments are on the stack.
+  if (entry_spills_.size() == 0) {
+    size_t num_spills = NumArgs() + NumLongOrDoubleArgs();
+    if (num_spills > 0) {
+      entry_spills_.push_back(X86ManagedRegister::FromCpuRegister(EDX));
+      if (num_spills > 1) {
+        entry_spills_.push_back(X86ManagedRegister::FromCpuRegister(ECX));
+      }
+    }
+  }
+  return entry_spills_;
+}
+
 // JNI calling convention
 
 std::vector<ManagedRegister> X86JniCallingConvention::callee_save_regs_;
@@ -103,11 +122,11 @@ bool X86JniCallingConvention::IsMethodRegisterClobberedPreCall() {
 }
 
 bool X86JniCallingConvention::IsCurrentParamInRegister() {
-  return false;  // Everything is passed by stack
+  return false;  // Everything is passed by stack.
 }
 
 bool X86JniCallingConvention::IsCurrentParamOnStack() {
-  return true;  // Everything is passed by stack
+  return true;  // Everything is passed by stack.
 }
 
 ManagedRegister X86JniCallingConvention::CurrentParamRegister() {

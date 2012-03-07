@@ -25,6 +25,21 @@
 namespace art {
 
 /*
+ * Perform register memory operation.
+ */
+LIR* genRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
+                    int reg1, int base, int offset, MIR* mir, ThrowKind kind)
+{
+    LIR* tgt = rawLIR(cUnit, 0, kPseudoThrowTarget, kind,
+                      mir ? mir->offset : 0, reg1, base, offset);
+    opRegMem(cUnit, kOpCmp, reg1, base, offset);
+    LIR* branch = opCondBranch(cUnit, cCode, tgt);
+    // Remember branch target - will process later
+    oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
+    return branch;
+}
+
+/*
  * The lack of pc-relative loads on X86 presents somewhat of a challenge
  * for our PIC switch table strategy.  To materialize the current location
  * we'll do a dummy JAL and reference our tables using r_RA as the
@@ -365,130 +380,58 @@ void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 #endif
 }
 
-LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
-                 int src2, LIR* target)
+X86ConditionCode oatX86ConditionEncoding(ConditionCode cond) {
+  switch(cond) {
+    case kCondEq: return kX86CondEq;
+    case kCondNe: return kX86CondNe;
+    case kCondCs: return kX86CondC;
+    case kCondCc: return kX86CondNc;
+    case kCondMi: return kX86CondS;
+    case kCondPl: return kX86CondNs;
+    case kCondVs: return kX86CondO;
+    case kCondVc: return kX86CondNo;
+    case kCondHi: return kX86CondA;
+    case kCondLs: return kX86CondBe;
+    case kCondGe: return kX86CondGe;
+    case kCondLt: return kX86CondL;
+    case kCondGt: return kX86CondG;
+    case kCondLe: return kX86CondLe;
+    case kCondAl:
+    case kCondNv: LOG(FATAL) << "Should not reach here";
+  }
+  return kX86CondO;
+}
+
+LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1, int src2, LIR* target)
 {
-    UNIMPLEMENTED(WARNING) << "opCmpBranch";
-    return NULL;
-#if 0
-    LIR* branch;
-    X86OpCode sltOp;
-    X86OpCode brOp;
-    bool cmpZero = false;
-    bool swapped = false;
-    switch(cond) {
-        case kCondEq:
-            brOp = kX86Beq;
-            cmpZero = true;
-            break;
-        case kCondNe:
-            brOp = kX86Bne;
-            cmpZero = true;
-            break;
-        case kCondCc:
-            sltOp = kX86Sltu;
-            brOp = kX86Bnez;
-            break;
-        case kCondCs:
-            sltOp = kX86Sltu;
-            brOp = kX86Beqz;
-            break;
-        case kCondGe:
-            sltOp = kX86Slt;
-            brOp = kX86Beqz;
-            break;
-        case kCondGt:
-            sltOp = kX86Slt;
-            brOp = kX86Bnez;
-            swapped = true;
-            break;
-        case kCondLe:
-            sltOp = kX86Slt;
-            brOp = kX86Beqz;
-            swapped = true;
-            break;
-        case kCondLt:
-            sltOp = kX86Slt;
-            brOp = kX86Bnez;
-            break;
-        case kCondHi:  // Gtu
-            sltOp = kX86Sltu;
-            brOp = kX86Bnez;
-            swapped = true;
-            break;
-        default:
-            LOG(FATAL) << "No support for ConditionCode: " << (int) cond;
-            return NULL;
-    }
-    if (cmpZero) {
-        branch = newLIR2(cUnit, brOp, src1, src2);
-    } else {
-        int tReg = oatAllocTemp(cUnit);
-        if (swapped) {
-            newLIR3(cUnit, sltOp, tReg, src2, src1);
-        } else {
-            newLIR3(cUnit, sltOp, tReg, src1, src2);
-        }
-        branch = newLIR1(cUnit, brOp, tReg);
-        oatFreeTemp(cUnit, tReg);
-    }
-    branch->target = target;
-    return branch;
-#endif
+  newLIR2(cUnit, kX86Cmp32RR, src1, src2);
+  X86ConditionCode cc = oatX86ConditionEncoding(cond);
+  LIR* branch = newLIR2(cUnit, kX86Jcc, 0 /* lir operand for Jcc offset */ , cc);
+  branch->target = target;
+  return branch;
 }
 
 LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
                     int checkValue, LIR* target)
 {
-    UNIMPLEMENTED(WARNING) << "opCmpImmBranch";
-    return NULL;
-#if 0
-    LIR* branch;
-    if (checkValue != 0) {
-        // TUNING: handle s16 & kCondLt/Mi case using slti
-        int tReg = oatAllocTemp(cUnit);
-        loadConstant(cUnit, tReg, checkValue);
-        branch = opCmpBranch(cUnit, cond, reg, tReg, target);
-        oatFreeTemp(cUnit, tReg);
-        return branch;
-    }
-    X86OpCode opc;
-    switch(cond) {
-        case kCondEq: opc = kX86Beqz; break;
-        case kCondGe: opc = kX86Bgez; break;
-        case kCondGt: opc = kX86Bgtz; break;
-        case kCondLe: opc = kX86Blez; break;
-        //case KCondMi:
-        case kCondLt: opc = kX86Bltz; break;
-        case kCondNe: opc = kX86Bnez; break;
-        default:
-            // Tuning: use slti when applicable
-            int tReg = oatAllocTemp(cUnit);
-            loadConstant(cUnit, tReg, checkValue);
-            branch = opCmpBranch(cUnit, cond, reg, tReg, target);
-            oatFreeTemp(cUnit, tReg);
-            return branch;
-    }
-    branch = newLIR1(cUnit, opc, reg);
-    branch->target = target;
-    return branch;
-#endif
+  // TODO: when checkValue == 0 and reg is rCX, use the jcxz/nz opcode
+  newLIR2(cUnit, kX86Cmp32RI, reg, checkValue);
+  X86ConditionCode cc = oatX86ConditionEncoding(cond);
+  LIR* branch = newLIR2(cUnit, kX86Jcc, 0 /* lir operand for Jcc offset */ , cc);
+  branch->target = target;
+  return branch;
 }
 
 LIR* opRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
 {
-    UNIMPLEMENTED(WARNING) << "opRegCopyNoInsert";
-    return NULL;
-#if 0
     if (FPREG(rDest) || FPREG(rSrc))
         return fpRegCopy(cUnit, rDest, rSrc);
-    LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, kX86Move,
+    LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, kX86Mov32RR,
                       rDest, rSrc);
     if (rDest == rSrc) {
         res->flags.isNop = true;
     }
     return res;
-#endif
 }
 
 LIR* opRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)

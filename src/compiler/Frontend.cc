@@ -1002,18 +1002,15 @@ CompiledMethod* oatCompileMethodInternal(Compiler& compiler,
     for (size_t i = 0 ; i < cUnit->coreVmapTable.size(); i++) {
         vmapTable.push_back(cUnit->coreVmapTable[i]);
     }
-    // Add a marker to take place of lr
-    vmapTable.push_back(INVALID_VREG);
+    if (cUnit->instructionSet != kX86) {
+        // Add a marker to take place of lr
+        vmapTable.push_back(INVALID_VREG);
+    }
     // Combine vmap tables - core regs, then fp regs
     for (uint32_t i = 0; i < cUnit->fpVmapTable.size(); i++) {
         vmapTable.push_back(cUnit->fpVmapTable[i]);
     }
-    DCHECK_EQ(vmapTable.size(),
-              static_cast<uint32_t>(__builtin_popcount(cUnit->coreSpillMask)
-                                    + __builtin_popcount(cUnit->fpSpillMask)));
-    DCHECK_GE(vmapTable.size(), 1U);  // should always at least one INVALID_VREG for lr
-
-    CompiledMethod* result = new CompiledMethod(kThumb2, cUnit->codeBuffer,
+    CompiledMethod* result = new CompiledMethod(cUnit->instructionSet, cUnit->codeBuffer,
                                                 cUnit->frameSize, cUnit->coreSpillMask,
                                                 cUnit->fpSpillMask, cUnit->mappingTable,
                                                 vmapTable);

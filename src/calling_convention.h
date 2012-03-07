@@ -180,6 +180,9 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
 
   virtual ~ManagedRuntimeCallingConvention() {}
 
+  // Registers to spill to caller's out registers on entry.
+  virtual const std::vector<ManagedRegister>& EntrySpills() = 0;
+
  protected:
   ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty) :
       CallingConvention(is_static, is_synchronized, shorty) {}

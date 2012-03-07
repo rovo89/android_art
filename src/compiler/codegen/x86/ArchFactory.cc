@@ -128,18 +128,14 @@ void spillCoreRegs(CompilationUnit* cUnit)
     if (cUnit->numCoreSpills == 0) {
         return;
     }
-    UNIMPLEMENTED(WARNING) << "spillCoreRegs";
-#if 0
     uint32_t mask = cUnit->coreSpillMask;
-    int offset = cUnit->numCoreSpills * 4;
-    opRegImm(cUnit, kOpSub, rSP, offset);
+    int offset = cUnit->frameSize - 4;
     for (int reg = 0; mask; mask >>= 1, reg++) {
         if (mask & 0x1) {
             offset -= 4;
             storeWordDisp(cUnit, rSP, offset, reg);
         }
     }
-#endif
 }
 
 void unSpillCoreRegs(CompilationUnit* cUnit)
@@ -147,35 +143,42 @@ void unSpillCoreRegs(CompilationUnit* cUnit)
     if (cUnit->numCoreSpills == 0) {
         return;
     }
-    UNIMPLEMENTED(WARNING) << "unSpillCoreRegs";
-#if 0
     uint32_t mask = cUnit->coreSpillMask;
-    int offset = cUnit->frameSize;
+    int offset = cUnit->frameSize - 4;
     for (int reg = 0; mask; mask >>= 1, reg++) {
         if (mask & 0x1) {
             offset -= 4;
             loadWordDisp(cUnit, rSP, offset, reg);
         }
     }
-    opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize);
-#endif
+}
+
+void opRegThreadMem(CompilationUnit* cUnit, OpKind op, int rDest, int threadOffset) {
+  X86OpCode opcode = kX86Bkpt;
+  switch (op) {
+    case kOpCmp: opcode = kX86Cmp32RT;  break;
+    default:
+      LOG(FATAL) << "Bad opcode: " << op;
+      break;
+  }
+  DCHECK((EncodingMap[opcode].flags & IS_BINARY_OP) != 0);
+  newLIR2(cUnit, opcode, rDest, threadOffset);
 }
 
 void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
 {
-    UNIMPLEMENTED(WARNING) << "genEntrySequence";
-#if 0
-    int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
     /*
-     * On entry, rARG0, rARG1, rARG2 & rARG3 are live.  Let the register
+     * On entry, rARG0, rARG1, rARG2 are live.  Let the register
      * allocation mechanism know so it doesn't try to use any of them when
      * expanding the frame or flushing.  This leaves the utility
-     * code with a single temp: r12.  This should be enough.
+     * code with no spare temps.
      */
     oatLockTemp(cUnit, rARG0);
     oatLockTemp(cUnit, rARG1);
     oatLockTemp(cUnit, rARG2);
-    oatLockTemp(cUnit, rARG3);
+
+    /* Build frame, return address already on stack */
+    opRegImm(cUnit, kOpSub, rSP, cUnit->frameSize - 4);
 
     /*
      * We can safely skip the stack overflow check if we're
@@ -185,63 +188,54 @@ void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
                               ((size_t)cUnit->frameSize <
                               Thread::kStackOverflowReservedBytes));
     newLIR0(cUnit, kPseudoMethodEntry);
-    int checkReg = oatAllocTemp(cUnit);
-    int newSP = oatAllocTemp(cUnit);
-    if (!skipOverflowCheck) {
-        /* Load stack limit */
-        loadWordDisp(cUnit, rSELF,
-                     Thread::StackEndOffset().Int32Value(), checkReg);
-    }
     /* Spill core callee saves */
     spillCoreRegs(cUnit);
     /* NOTE: promotion of FP regs currently unsupported, thus no FP spill */
     DCHECK_EQ(cUnit->numFPSpills, 0);
     if (!skipOverflowCheck) {
-        opRegRegImm(cUnit, kOpSub, newSP, rSP,
-                    cUnit->frameSize - (spillCount * 4));
-        genRegRegCheck(cUnit, kCondCc, newSP, checkReg, NULL,
-                       kThrowStackOverflow);
-        opRegCopy(cUnit, rSP, newSP);         // Establish stack
-    } else {
-        opRegImm(cUnit, kOpSub, rSP,
-                 cUnit->frameSize - (spillCount * 4));
+        // cmp rSP, fs:[stack_end_]; jcc throw_launchpad
+        LIR* tgt = rawLIR(cUnit, 0, kPseudoThrowTarget, kThrowStackOverflow, 0, 0, 0, 0);
+        opRegThreadMem(cUnit, kOpCmp, rSP, Thread::StackEndOffset().Int32Value());
+        opCondBranch(cUnit, kCondUlt, tgt);
+        // Remember branch target - will process later
+        oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
     }
+    /* Spill Method* */
     storeBaseDisp(cUnit, rSP, 0, rARG0, kWord);
     flushIns(cUnit);
 
     if (cUnit->genDebugger) {
         // Refresh update debugger callout
+        UNIMPLEMENTED(WARNING) << "genDebugger";
+#if 0
         loadWordDisp(cUnit, rSELF,
                      OFFSETOF_MEMBER(Thread, pUpdateDebuggerFromCode), rSUSPEND);
         genDebuggerUpdate(cUnit, DEBUGGER_METHOD_ENTRY);
+#endif
     }
 
     oatFreeTemp(cUnit, rARG0);
     oatFreeTemp(cUnit, rARG1);
     oatFreeTemp(cUnit, rARG2);
-    oatFreeTemp(cUnit, rARG3);
-#endif
 }
 
-void genExitSequence(CompilationUnit* cUnit, BasicBlock* bb)
-{
-    UNIMPLEMENTED(WARNING) << "genExitSequence";
-#if 0
-    /*
-     * In the exit path, rRET0/rRET1 are live - make sure they aren't
-     * allocated by the register utilities as temps.
-     */
-    oatLockTemp(cUnit, rRET0);
-    oatLockTemp(cUnit, rRET1);
+void genExitSequence(CompilationUnit* cUnit, BasicBlock* bb) {
+  /*
+   * In the exit path, rRET0/rRET1 are live - make sure they aren't
+   * allocated by the register utilities as temps.
+   */
+  oatLockTemp(cUnit, rRET0);
+  oatLockTemp(cUnit, rRET1);
 
-    newLIR0(cUnit, kPseudoMethodExit);
-    /* If we're compiling for the debugger, generate an update callout */
-    if (cUnit->genDebugger) {
-        genDebuggerUpdate(cUnit, DEBUGGER_METHOD_EXIT);
-    }
-    unSpillCoreRegs(cUnit);
-    opReg(cUnit, kOpBx, r_RA);
-#endif
+  newLIR0(cUnit, kPseudoMethodExit);
+  /* If we're compiling for the debugger, generate an update callout */
+  if (cUnit->genDebugger) {
+    genDebuggerUpdate(cUnit, DEBUGGER_METHOD_EXIT);
+  }
+  unSpillCoreRegs(cUnit);
+  /* Remove frame except for return address */
+  opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize - 4);
+  newLIR0(cUnit, kX86Ret);
 }
 
 /*
@@ -249,43 +243,39 @@ void genExitSequence(CompilationUnit* cUnit, BasicBlock* bb)
  * Note: new redundant branches may be inserted later, and we'll
  * use a check in final instruction assembly to nop those out.
  */
-void removeRedundantBranches(CompilationUnit* cUnit)
-{
-    UNIMPLEMENTED(WARNING) << "removeRedundantBranches";
-#if 0
-    LIR* thisLIR;
+void removeRedundantBranches(CompilationUnit* cUnit) {
+  LIR* thisLIR;
 
-    for (thisLIR = (LIR*) cUnit->firstLIRInsn;
-         thisLIR != (LIR*) cUnit->lastLIRInsn;
-         thisLIR = NEXT_LIR(thisLIR)) {
+  for (thisLIR = (LIR*) cUnit->firstLIRInsn;
+      thisLIR != (LIR*) cUnit->lastLIRInsn;
+      thisLIR = NEXT_LIR(thisLIR)) {
 
-        /* Branch to the next instruction */
-        if (thisLIR->opcode == kX86B) {
-            LIR* nextLIR = thisLIR;
+    /* Branch to the next instruction */
+    if (thisLIR->opcode == kX86Jmp) {
+      LIR* nextLIR = thisLIR;
 
-            while (true) {
-                nextLIR = NEXT_LIR(nextLIR);
+      while (true) {
+        nextLIR = NEXT_LIR(nextLIR);
 
-                /*
-                 * Is the branch target the next instruction?
-                 */
-                if (nextLIR == (LIR*) thisLIR->target) {
-                    thisLIR->flags.isNop = true;
-                    break;
-                }
-
-                /*
-                 * Found real useful stuff between the branch and the target.
-                 * Need to explicitly check the lastLIRInsn here because it
-                 * might be the last real instruction.
-                 */
-                if (!isPseudoOpcode(nextLIR->opcode) ||
-                    (nextLIR = (LIR*) cUnit->lastLIRInsn))
-                    break;
-            }
+        /*
+         * Is the branch target the next instruction?
+         */
+        if (nextLIR == (LIR*) thisLIR->target) {
+          thisLIR->flags.isNop = true;
+          break;
         }
+
+        /*
+         * Found real useful stuff between the branch and the target.
+         * Need to explicitly check the lastLIRInsn here because it
+         * might be the last real instruction.
+         */
+        if (!isPseudoOpcode(nextLIR->opcode) ||
+            (nextLIR = (LIR*) cUnit->lastLIRInsn))
+          break;
+      }
     }
-#endif
+  }
 }
 
 

@@ -891,7 +891,6 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
   env_->DeleteWeakGlobalRef(o2);
 }
 
-#if defined(__arm__) || defined(ART_USE_LLVM_COMPILER)
 TEST_F(JniInternalTest, StaticMainMethod) {
   SirtRef<ClassLoader> class_loader(LoadDex("Main"));
   CompileDirectMethod(class_loader.get(), "Main", "main", "([Ljava/lang/String;)V");
@@ -996,6 +995,7 @@ TEST_F(JniInternalTest, StaticIdentityIntMethod) {
   EXPECT_EQ(INT_MIN, result.i);
 }
 
+#if defined(__arm__) || defined(ART_USE_LLVM_COMPILER)
 TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
   SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
   CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "identity", "(D)D");

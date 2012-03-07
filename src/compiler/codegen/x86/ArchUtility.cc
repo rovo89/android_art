@@ -23,110 +23,80 @@
 namespace art {
 
 /* For dumping instructions */
-#define X86_REG_COUNT 16
-static const char *x86RegName[X86_REG_COUNT] = {
+static const char* x86RegName[] = {
     "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
     "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+};
+
+static const char* x86CondName[] = {
+    "O",
+    "NO",
+    "B/NAE/C",
+    "NB/AE/NC",
+    "Z/EQ",
+    "NZ/NE",
+    "BE/NA",
+    "NBE/A",
+    "S",
+    "NS",
+    "P/PE",
+    "NP/PO",
+    "L/NGE",
+    "NL/GE",
+    "LE/NG",
+    "NLE/G"
 };
 
 /*
  * Interpret a format string and build a string no longer than size
  * See format key in Assemble.c.
  */
-std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr)
-{
-    std::string buf;
-    int i;
-    const char *fmtEnd = &fmt[strlen(fmt)];
-    char tbuf[256];
-    char nc;
-    while (fmt < fmtEnd) {
-        int operand;
-        if (*fmt == '!') {
-            fmt++;
-            DCHECK_LT(fmt, fmtEnd);
-            nc = *fmt++;
-            if (nc=='!') {
-                strcpy(tbuf, "!");
+std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) {
+  std::string buf;
+  size_t i = 0;
+  size_t fmt_len = strlen(fmt);
+  while(i < fmt_len) {
+    if (fmt[i] != '!') {
+      buf += fmt[i];
+      i++;
+    } else {
+      i++;
+      DCHECK_LT(i, fmt_len);
+      char operand_number_ch = fmt[i];
+      i++;
+      if (operand_number_ch == '!') {
+        buf += "!";
+      } else {
+        int operand_number = operand_number_ch - '0';
+        DCHECK_LT(operand_number, 6);  // Expect upto 6 LIR operands.
+        DCHECK_LT(i, fmt_len);
+        int operand = lir->operands[operand_number];
+        switch(fmt[i]) {
+          case 'd':
+            buf += StringPrintf("%d", operand);
+            break;
+          case 'r':
+            if (FPREG(operand) || DOUBLEREG(operand)) {
+              int fp_reg = operand & FP_REG_MASK;
+              buf += StringPrintf("xmm%d", fp_reg);
             } else {
-               DCHECK_LT(fmt, fmtEnd);
-               DCHECK_LT((unsigned)(nc-'0'), 4u);
-               operand = lir->operands[nc-'0'];
-               switch(*fmt++) {
-                   case 'b':
-                       strcpy(tbuf,"0000");
-                       for (i=3; i>= 0; i--) {
-                           tbuf[i] += operand & 1;
-                           operand >>= 1;
-                       }
-                       break;
-                   case 's':
-                       sprintf(tbuf,"$f%d",operand & FP_REG_MASK);
-                       break;
-                   case 'S':
-                       DCHECK_EQ(((operand & FP_REG_MASK) & 1), 0);
-                       sprintf(tbuf,"$f%d",operand & FP_REG_MASK);
-                       break;
-                   case 'h':
-                       sprintf(tbuf,"%04x", operand);
-                       break;
-                   case 'M':
-                   case 'd':
-                       sprintf(tbuf,"%d", operand);
-                       break;
-                   case 'D':
-                       sprintf(tbuf,"%d", operand+1);
-                       break;
-                   case 'E':
-                       sprintf(tbuf,"%d", operand*4);
-                       break;
-                   case 'F':
-                       sprintf(tbuf,"%d", operand*2);
-                       break;
-                   case 't':
-                       sprintf(tbuf,"0x%08x (L%p)",
-                               (int) baseAddr + lir->offset + 4 +
-                               (operand << 2),
-                               lir->target);
-                       break;
-                   case 'T':
-                       sprintf(tbuf,"0x%08x",
-                               (int) (operand << 2));
-                       break;
-                   case 'u': {
-                       int offset_1 = lir->operands[0];
-                       int offset_2 = NEXT_LIR(lir)->operands[0];
-                       intptr_t target =
-                           ((((intptr_t) baseAddr + lir->offset + 4) &
-                            ~3) + (offset_1 << 21 >> 9) + (offset_2 << 1)) &
-                           0xfffffffc;
-                       sprintf(tbuf, "%p", (void *) target);
-                       break;
-                    }
-
-                   /* Nothing to print for BLX_2 */
-                   case 'v':
-                       strcpy(tbuf, "see above");
-                       break;
-                   case 'r':
-                       DCHECK(operand >= 0 && operand < X86_REG_COUNT);
-                       strcpy(tbuf, x86RegName[operand]);
-                       break;
-                   case 'N':
-                       // Placeholder for delay slot handling
-                       strcpy(tbuf, ";    nop");
-                       break;
-                   default:
-                       strcpy(tbuf,"DecodeError");
-                       break;
-               }
-               buf += tbuf;
+              DCHECK_LT(static_cast<size_t>(operand), sizeof(x86RegName));
+              buf += x86RegName[operand];
             }
-        } else {
-           buf += *fmt++;
+            break;
+          case 'c':
+            DCHECK_LT(static_cast<size_t>(operand), sizeof(x86CondName));
+            buf += x86CondName[operand];
+            break;
+          default:
+            buf += StringPrintf("DecodeError '%c'", fmt[i]);
+            break;
         }
+        i++;
+      }
     }
-    return buf;
+  }
+  return buf;
 }
 
 void oatDumpResourceMask(LIR *lir, u8 mask, const char *prefix)

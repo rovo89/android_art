@@ -496,6 +496,7 @@ enum MipsOpFeatureFlags {
 #define IS_BINARY_OP    (1 << kIsBinaryOp)
 #define IS_TERTIARY_OP  (1 << kIsTertiaryOp)
 #define IS_QUAD_OP      (1 << kIsQuadOp)
+#define IS_QUIN_OP      0
 #define IS_IT           (1 << kIsIT)
 #define SETS_CCODES     (1 << kSetsCCodes)
 #define USES_CCODES     (1 << kUsesCCodes)

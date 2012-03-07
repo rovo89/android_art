@@ -1395,13 +1395,18 @@ void X86Assembler::EmitGenericShift(int rm,
 }
 
 void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                              const std::vector<ManagedRegister>& spill_regs) {
+                              const std::vector<ManagedRegister>& spill_regs,
+                              const std::vector<ManagedRegister>& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
   CHECK_EQ(0u, spill_regs.size());  // no spilled regs on x86
   // return address then method on stack
   addl(ESP, Immediate(-frame_size + kPointerSize /*method*/ +
                       kPointerSize /*return address*/));
   pushl(method_reg.AsX86().AsCpuRegister());
+  for (size_t i = 0; i < entry_spills.size(); ++i) {
+    movl(Address(ESP, frame_size + kPointerSize + (i * kPointerSize)),
+         entry_spills.at(i).AsX86().AsCpuRegister());
+  }
 }
 
 void X86Assembler::RemoveFrame(size_t frame_size,
@@ -1575,12 +1580,25 @@ void X86Assembler::LoadRawPtrFromThread(ManagedRegister mdest,
   fs()->movl(dest.AsCpuRegister(), Address::Absolute(offs));
 }
 
-void X86Assembler::Move(ManagedRegister mdest, ManagedRegister msrc) {
+void X86Assembler::Move(ManagedRegister mdest, ManagedRegister msrc, size_t size) {
   X86ManagedRegister dest = mdest.AsX86();
   X86ManagedRegister src = msrc.AsX86();
   if (!dest.Equals(src)) {
     if (dest.IsCpuRegister() && src.IsCpuRegister()) {
       movl(dest.AsCpuRegister(), src.AsCpuRegister());
+    } else if (src.IsX87Register() && dest.IsXmmRegister()) {
+      // Pass via stack and pop X87 register
+      subl(ESP, Immediate(16));
+      if (size == 4) {
+        CHECK_EQ(src.AsX87Register(), ST0);
+        fstps(Address(ESP, 0));
+        movss(dest.AsXmmRegister(), Address(ESP, 0));
+      } else {
+        CHECK_EQ(src.AsX87Register(), ST0);
+        fstpl(Address(ESP, 0));
+        movsd(dest.AsXmmRegister(), Address(ESP, 0));
+      }
+      addl(ESP, Immediate(16));
     } else {
       // TODO: x87, SSE
       UNIMPLEMENTED(FATAL) << ": Move " << dest << ", " << src;

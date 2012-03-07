@@ -47,7 +47,8 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
   UniquePtr<ArmAssembler> assembler(down_cast<ArmAssembler*>(Assembler::Create(kArm)));
 #define __ assembler->
   size_t num_arg_array_bytes = NumArgArrayBytes(shorty, shorty_len);
-  // Size of frame - spill of R4,R9/LR + Method* + possible receiver + arg array
+  // Size of frame = spill of R4,R9/LR + Method* + possible receiver + arg array size
+  // Note, space is left in the frame to flush arguments in registers back to out locations.
   size_t unpadded_frame_size = (4 * kPointerSize) +
                                (is_static ? 0 : kPointerSize) +
                                num_arg_array_bytes;

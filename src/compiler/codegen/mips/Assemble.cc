@@ -488,18 +488,18 @@ void convertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
     if (!unconditional) {
         hopTarget = rawLIR(cUnit, dalvikOffset, kPseudoTargetLabel);
         LIR* hopBranch = rawLIR(cUnit, dalvikOffset, opcode, lir->operands[0],
-                                lir->operands[1], 0, 0, hopTarget);
+                                lir->operands[1], 0, 0, 0, hopTarget);
         oatInsertLIRBefore(lir, hopBranch);
     }
     LIR* currPC = rawLIR(cUnit, dalvikOffset, kMipsCurrPC);
     oatInsertLIRBefore(lir, currPC);
     LIR* anchor = rawLIR(cUnit, dalvikOffset, kPseudoTargetLabel);
     LIR* deltaHi = rawLIR(cUnit, dalvikOffset, kMipsDeltaHi, r_AT, 0,
-                          (uintptr_t)anchor, 0, lir->target);
+                          (uintptr_t)anchor, 0, 0, lir->target);
     oatInsertLIRBefore(lir, deltaHi);
     oatInsertLIRBefore(lir, anchor);
     LIR* deltaLo = rawLIR(cUnit, dalvikOffset, kMipsDeltaLo, r_AT, 0,
-                          (uintptr_t)anchor, 0, lir->target);
+                          (uintptr_t)anchor, 0, 0, lir->target);
     oatInsertLIRBefore(lir, deltaLo);
     LIR* addu = rawLIR(cUnit, dalvikOffset, kMipsAddu, r_AT, r_AT, r_RA);
     oatInsertLIRBefore(lir, addu);
@@ -557,12 +557,12 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
                     LIR *newDeltaHi =
                           rawLIR(cUnit, lir->dalvikOffset, kMipsDeltaHi,
                                  lir->operands[0], 0, lir->operands[2],
-                                 lir->operands[3], lir->target);
+                                 lir->operands[3], 0, lir->target);
                     oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaHi);
                     LIR *newDeltaLo =
                           rawLIR(cUnit, lir->dalvikOffset, kMipsDeltaLo,
                                  lir->operands[0], 0, lir->operands[2],
-                                 lir->operands[3], lir->target);
+                                 lir->operands[3], 0, lir->target);
                     oatInsertLIRBefore((LIR*)lir, (LIR*)newDeltaLo);
                     lir->flags.isNop = true;
                     res = kRetryAll;

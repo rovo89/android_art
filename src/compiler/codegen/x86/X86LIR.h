@@ -118,6 +118,7 @@ namespace art {
 #define LOWREG(x) ((x & 0x1f) == x)
 #define DOUBLEREG(x) ((x & FP_DOUBLE) == FP_DOUBLE)
 #define SINGLEREG(x) (FPREG(x) && !DOUBLEREG(x))
+
 /*
  * Note: the low register of a floating point pair is sufficient to
  * create the name of a double, but require both names to be passed to
@@ -133,10 +134,9 @@ namespace art {
 /* non-existant physical register */
 #define rNone   (-1)
 
-/* RegisterLocation templates return values (r0, or r0/r1) */
-#define LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 1, rAX, INVALID_REG,\
-                      INVALID_SREG}
-#define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, rAX, rDX, INVALID_SREG}
+/* RegisterLocation templates return values (rAX, or rAX/rDX) */
+#define LOC_C_RETURN      {kLocPhysReg, 0, 0, 0, 0, 0, 1, rAX, INVALID_REG, INVALID_SREG}
+#define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, rAX, rDX,         INVALID_SREG}
 
 enum ResourceEncodingPos {
     kGPReg0     = 0,
@@ -177,15 +177,16 @@ enum ResourceEncodingPos {
 
 enum NativeRegisterPool {
   r0     = 0,
-  rAX   = r0,
+  rAX    = r0,
   r1     = 1,
-  rCX   = r1,
+  rCX    = r1,
   r2     = 2,
   rDX    = r2,
   r3     = 3,
   rBX    = r3,
   r4sp   = 4,
-  rSP    =r4sp,
+  rSP    = r4sp,
+  r4sib_no_index = r4sp,
   r5     = 5,
   rBP    = r5,
   r6     = 6,
@@ -230,6 +231,53 @@ enum NativeRegisterPool {
 
 #define isPseudoOpcode(opCode) ((int)(opCode) < 0)
 
+/* X86 condition encodings */
+enum X86ConditionCode {
+    kX86CondO   = 0x0,        // overflow
+    kX86CondNo  = 0x1,        // not overflow
+
+    kX86CondB   = 0x2,        // below
+    kX86CondNae = kX86CondB,  // not-above-equal
+    kX86CondC   = kX86CondB,  // carry
+
+    kX86CondNb  = 0x3,        // not-below
+    kX86CondAe  = kX86CondNb, // above-equal
+    kX86CondNc  = kX86CondNb, // not-carry
+
+    kX86CondZ   = 0x4,        // zero
+    kX86CondEq  = kX86CondZ,  // equal
+
+    kX86CondNz  = 0x5,        // not-zero
+    kX86CondNe  = kX86CondNz, // not-equal
+
+    kX86CondBe  = 0x6,        // below-equal
+    kX86CondNa  = kX86CondBe, // not-above
+
+    kX86CondNbe = 0x7,        // not-below-equal
+    kX86CondA   = kX86CondNbe,// above
+
+    kX86CondS   = 0x8,        // sign
+    kX86CondNs  = 0x9,        // not-sign
+
+    kX86CondP   = 0xA,        // 8-bit parity even
+    kX86CondPE  = kX86CondP,
+
+    kX86CondNp  = 0xB,        // 8-bit parity odd
+    kX86CondPo  = kX86CondNp,
+
+    kX86CondL   = 0xC,        // less-than
+    kX86CondNge = kX86CondL,  // not-greater-equal
+
+    kX86CondNl  = 0xD,        // not-less-than
+    kX86CondGe  = kX86CondL,  // not-greater-equal
+
+    kX86CondLe  = 0xE,        // less-than-equal
+    kX86CondNg  = kX86CondLe, // not-greater
+
+    kX86CondNle = 0xF,        // not-less-than
+    kX86CondG   = kX86CondNle,// greater
+};
+
 /*
  * The following enum defines the list of supported X86 instructions by the
  * assembler. Their corresponding EncodingMap positions will be defined in
@@ -253,53 +301,164 @@ enum X86OpCode {
     kPseudoNormalBlockLabel = -1,
     kX86First,
     kX8632BitData = kX86First, /* data [31..0] */
+    kX86Bkpt,
+    kX86Nop,
     // Define groups of binary operations
-    // RI - Register Immediate - opcode reg, #immediate
-    //                         - lir operands - 0: reg, 1: immediate
-    // MI - Memory Immediate   - opcode [base + disp], #immediate
-    //                         - lir operands - 0: base, 1: disp, 2: immediate
-    // AI - Array Immediate    - opcode [base + index * scale + disp], #immediate
-    //                         - lir operands - 0: base, 1: index, 2: scale, 3: disp 4: immediate
+    // MR - Memory Register    - opcode [base + disp], reg
+    //                         - lir operands - 0: base, 1: disp, 2: reg
+    // AR - Array Register     - opcode [base + index * scale + disp], reg
+    //                         - lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
+    // TR - Thread Register    - opcode fs:[disp], reg - where fs: is equal to Thread::Current()
+    //                         - lir operands - 0: disp, 1: reg
     // RR - Register Register  - opcode reg1, reg2
     //                         - lir operands - 0: reg1, 1: reg2
     // RM - Register Memory    - opcode reg, [base + disp]
     //                         - lir operands - 0: reg, 1: base, 2: disp
     // RA - Register Array     - opcode reg, [base + index * scale + disp]
     //                         - lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: disp
-    // MR - Memory Register    - opcode [base + disp], reg
-    //                         - lir operands - 0: base, 1: disp, 2: reg
-    // AR - Array Register     - opcode [base + index * scale + disp], reg
-    //                         - lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
+    // RT - Register Thread    - opcode reg, fs:[disp] - where fs: is equal to Thread::Current()
+    //                         - lir operands - 0: reg, 1: disp
+    // RI - Register Immediate - opcode reg, #immediate
+    //                         - lir operands - 0: reg, 1: immediate
+    // MI - Memory Immediate   - opcode [base + disp], #immediate
+    //                         - lir operands - 0: base, 1: disp, 2: immediate
+    // AI - Array Immediate    - opcode [base + index * scale + disp], #immediate
+    //                         - lir operands - 0: base, 1: index, 2: scale, 3: disp 4: immediate
+    // TI - Thread Register    - opcode fs:[disp], imm - where fs: is equal to Thread::Current()
+    //                         - lir operands - 0: disp, 1: imm
 #define BinaryOpCode(opcode) \
-  opcode ## RI, opcode ## MI, opcode ##AI, \
-  opcode ## RR, opcode ## RM, opcode ##RA, \
-  opcode ## MR, opcode ## AR
-    BinaryOpCode(kOpAdd),
-    BinaryOpCode(kOpOr),
-    BinaryOpCode(kOpAdc),
-    BinaryOpCode(kOpSbb),
-    BinaryOpCode(kOpAnd),
-    BinaryOpCode(kOpSub),
-    BinaryOpCode(kOpXor),
-    BinaryOpCode(kOpCmp),
-    BinaryOpCode(kOpMov),
+  opcode ## 8MR, opcode ## 8AR, opcode ## 8TR, \
+  opcode ## 8RR, opcode ## 8RM, opcode ## 8RA, opcode ## 8RT, \
+  opcode ## 8RI, opcode ## 8MI, opcode ## 8AI, opcode ## 8TI, \
+  opcode ## 16MR, opcode ## 16AR, opcode ## 16TR, \
+  opcode ## 16RR, opcode ## 16RM, opcode ## 16RA, opcode ## 16RT, \
+  opcode ## 16RI, opcode ## 16MI, opcode ## 16AI, opcode ## 16TI, \
+  opcode ## 16RI8, opcode ## 16MI8, opcode ## 16AI8, opcode ## 16TI8, \
+  opcode ## 32MR, opcode ## 32AR, opcode ## 32TR,  \
+  opcode ## 32RR, opcode ## 32RM, opcode ## 32RA, opcode ## 32RT, \
+  opcode ## 32RI, opcode ## 32MI, opcode ## 32AI, opcode ## 32TI, \
+  opcode ## 32RI8, opcode ## 32MI8, opcode ## 32AI8, opcode ## 32TI8
+    BinaryOpCode(kX86Add),
+    BinaryOpCode(kX86Or),
+    BinaryOpCode(kX86Adc),
+    BinaryOpCode(kX86Sbb),
+    BinaryOpCode(kX86And),
+    BinaryOpCode(kX86Sub),
+    BinaryOpCode(kX86Xor),
+    BinaryOpCode(kX86Cmp),
 #undef BinaryOpCode
+    kX86Imul16RRI, kX86Imul16RMI, kX86Imul16RAI,
+    kX86Imul32RRI, kX86Imul32RMI, kX86Imul32RAI,
+    kX86Imul32RRI8, kX86Imul32RMI8, kX86Imul32RAI8,
+    kX86Mov8MR, kX86Mov8AR, kX86Mov8TR,
+    kX86Mov8RR, kX86Mov8RM, kX86Mov8RA, kX86Mov8RT,
+    kX86Mov8RI, kX86Mov8MI, kX86Mov8AI, kX86Mov8TI,
+    kX86Mov16MR, kX86Mov16AR, kX86Mov16TR,
+    kX86Mov16RR, kX86Mov16RM, kX86Mov16RA, kX86Mov16RT,
+    kX86Mov16RI, kX86Mov16MI, kX86Mov16AI, kX86Mov16TI,
+    kX86Mov32MR, kX86Mov32AR, kX86Mov32TR,
+    kX86Mov32RR, kX86Mov32RM, kX86Mov32RA, kX86Mov32RT,
+    kX86Mov32RI, kX86Mov32MI, kX86Mov32AI, kX86Mov32TI,
+    kX86Lea32RA,
+    // RC - Register CL - opcode reg, CL
+    //                  - lir operands - 0: reg, 1: CL
+    // MC - Memory CL   - opcode [base + disp], CL
+    //                  - lir operands - 0: base, 1: disp, 2: CL
+    // AC - Array CL    - opcode [base + index * scale + disp], CL
+    //                  - lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: CL
+#define BinaryShiftOpCode(opcode) \
+    opcode ## 8RI, opcode ## 8MI, opcode ## 8AI, \
+    opcode ## 8RC, opcode ## 8MC, opcode ## 8AC, \
+    opcode ## 16RI, opcode ## 16MI, opcode ## 16AI, \
+    opcode ## 16RC, opcode ## 16MC, opcode ## 16AC, \
+    opcode ## 32RI, opcode ## 32MI, opcode ## 32AI, \
+    opcode ## 32RC, opcode ## 32MC, opcode ## 32AC
+    BinaryShiftOpCode(kX86Rol),
+    BinaryShiftOpCode(kX86Ror),
+    BinaryShiftOpCode(kX86Rcl),
+    BinaryShiftOpCode(kX86Rcr),
+    BinaryShiftOpCode(kX86Sal),
+    BinaryShiftOpCode(kX86Shl),
+    BinaryShiftOpCode(kX86Shr),
+    BinaryShiftOpCode(kX86Sar),
+#undef BinaryShiftOpcode
+#define UnaryOpcode(opcode, reg, mem, array) \
+    opcode ## 8 ## reg, opcode ## 8 ## mem, opcode ## 8 ## array, \
+    opcode ## 16 ## reg, opcode ## 16 ## mem, opcode ## 16 ## array, \
+    opcode ## 32 ## reg, opcode ## 32 ## mem, opcode ## 32 ## array
+    UnaryOpcode(kX86Test, RI, MI, AI),
+    UnaryOpcode(kX86Not, R, M, A),
+    UnaryOpcode(kX86Neg, R, M, A),
+    UnaryOpcode(kX86Mul,  DaR, DaM, DaA),
+    UnaryOpcode(kX86Imul, DaR, DaM, DaA),
+    UnaryOpcode(kX86Divmod,  DaR, DaM, DaA),
+    UnaryOpcode(kX86Idivmod, DaR, DaM, DaA),
+#undef UnaryOpcode
+#define Binary0fOpCode(opcode) \
+  opcode ## RR, opcode ## RM, opcode ## RA
+    Binary0fOpCode(kX86Movsd),
+    kX86MovsdMR,
+    kX86MovsdAR,
+    Binary0fOpCode(kX86Movss),
+    kX86MovssMR,
+    kX86MovssAR,
+    Binary0fOpCode(kX86Cvtsi2sd),   // int to double
+    Binary0fOpCode(kX86Cvtsi2ss),   // int to float
+    Binary0fOpCode(kX86Cvttsd2si),  // truncating double to int
+    Binary0fOpCode(kX86Cvttss2si),  // truncating float to int
+    Binary0fOpCode(kX86Cvtsd2si),   // rounding double to int
+    Binary0fOpCode(kX86Cvtss2si),   // rounding float to int
+    Binary0fOpCode(kX86Ucomisd),    // unordered double compare
+    Binary0fOpCode(kX86Ucomiss),    // unordered float compare
+    Binary0fOpCode(kX86Comisd),     // double compare
+    Binary0fOpCode(kX86Comiss),     // float compare
+    Binary0fOpCode(kX86Addsd),      // double add
+    Binary0fOpCode(kX86Addss),      // float add
+    Binary0fOpCode(kX86Mulsd),      // double multiply
+    Binary0fOpCode(kX86Mulss),      // float multiply
+    Binary0fOpCode(kX86Cvtss2sd),   // float to double
+    Binary0fOpCode(kX86Cvtsd2ss),   // double to float
+    Binary0fOpCode(kX86Subsd),      // double subtract
+    Binary0fOpCode(kX86Subss),      // float subtract
+    Binary0fOpCode(kX86Divsd),      // double subtract
+    Binary0fOpCode(kX86Divss),      // float subtract
+    Binary0fOpCode(kX86Movdxr),     // move into xmm from gpr
+    Binary0fOpCode(kX86Movdrx),     // move into reg from xmm
+    kX86Set8R, kX86Set8M, kX86Set8A,// set byte depending on condition operand
+    Binary0fOpCode(kX86Imul16),     // 16bit multiply
+    Binary0fOpCode(kX86Imul32),     // 32bit multiply
+    Binary0fOpCode(kX86Movzx8),     // zero-extend 8-bit value
+    Binary0fOpCode(kX86Movzx16),    // zero-extend 16-bit value
+    Binary0fOpCode(kX86Movsx8),     // sign-extend 8-bit value
+    Binary0fOpCode(kX86Movsx16),    // sign-extend 16-bit value
+#undef Binary0fOpCode
+    kX86Jcc,    // jCC rel; lir operands - 0: rel, 1: CC, target assigned
+    kX86Jmp,    // jmp rel; lir operands - 0: rel, target assigned
+    kX86CallR,  // call reg; lir operands - 0: reg
+    kX86CallM,  // call [base + disp]; lir operands - 0: base, 1: disp
+    kX86CallA,  // call [base + index * scale + disp]
+                // lir operands - 0: base, 1: index, 2: scale, 3: disp
+    kX86Ret,    // ret; no lir operands
     kX86Last
 };
 
 /* Instruction assembly fieldLoc kind */
 enum X86EncodingKind {
-  kData,                       // Special case for raw data
-  kRegImm, kMemImm, kArrayImm, // RI, MI, AI instruction kinds
-  kRegReg, kRegMem, kRegArray, // RR, RM, RA instruction kinds
-  kMemReg, kArrayReg,          // MR and AR instruction kinds
+  kData,                                   // Special case for raw data.
+  kNop,                                    // Special case for variable length nop.
+  kNullary,                                // Opcode that takes no arguments.
+  kReg, kMem, kArray,                      // R, M and A instruction kinds.
+  kMemReg, kArrayReg, kThreadReg,          // MR, AR and TR instruction kinds.
+  kRegReg, kRegMem, kRegArray, kRegThread, // RR, RM, RA and RT instruction kinds.
+  kRegImm, kMemImm, kArrayImm, kThreadImm, // RI, MI, AI and TI instruction kinds.
+  kRegRegImm, kRegMemImm, kRegArrayImm,    // RRI, RMI and RAI instruction kinds.
+  kMovRegImm,                              // Shorter form move RI.
+  kShiftRegImm, kShiftMemImm, kShiftArrayImm,  // Shift opcode with immediate.
+  kShiftRegCl, kShiftMemCl, kShiftArrayCl,     // Shift opcode with register CL.
+  kRegRegReg, kRegRegMem, kRegRegArray,    // RRR, RRM, RRA instruction kinds.
+  kRegCond, kMemCond, kArrayCond,          // R, M, A instruction kinds following by a condition.
+  kJmp, kJcc, kCall,           // Branch instruction kinds.
   kUnimplemented               // Encoding used when an instruction isn't yet implemented.
-};
-
-/* A form of instruction with an opcode byte and a secondary opcode within the modrm byte */
-struct OpcodeModRMOpcode {
-  uint8_t opcode;        // 1 byte opcode
-  uint8_t modrm_opcode;  // 3 bit opcode that gets encoded in the register bits of the modrm byte
 };
 
 /* Struct used to define the EncodingMap positions for each X86 opcode */
@@ -307,24 +466,17 @@ struct X86EncodingMap {
   X86OpCode opcode;      // e.g. kOpAddRI
   X86EncodingKind kind;  // Used to discriminate in the union below
   int flags;
-  union {
-    struct {
-      uint8_t rax8_i8_opcode;
-      uint8_t rax32_i32_opcode;
-      OpcodeModRMOpcode rm8_i8_opcode;
-      OpcodeModRMOpcode rm32_i32_opcode;
-      OpcodeModRMOpcode rm32_i8_opcode;
-    } RegMem_Immediate;  // kind: kRegImm, kMemImm, kArrayImm
-    struct {
-      uint8_t r8_rm8_opcode;
-      uint8_t r32_rm32_opcode;
-    } Reg_RegMem;  // kind: kRegReg, kRegMem, kRegArray
-    struct {
-      uint8_t rm8_r8_opcode;
-      uint8_t rm32_r32_opcode;
-    } RegMem_Reg;  // kind: kMemReg, kArrayReg
-    // This is a convenience for static initialization where the kind doesn't require opcode data.
-    int unused;  // kind: kData, kUnimplemented
+  struct {
+    uint8_t prefix1;     // non-zero => a prefix byte
+    uint8_t prefix2;     // non-zero => a second prefix byte
+    uint8_t opcode;      // 1 byte opcode
+    uint8_t extra_opcode1;  // possible extra opcode byte
+    uint8_t extra_opcode2;  // possible second extra opcode byte
+    // 3bit opcode that gets encoded in the register bits of the modrm byte, use determined by the
+    // encoding kind
+    uint8_t modrm_opcode;
+    uint8_t ax_opcode;  // non-zero => shorter encoding for AX as a destination
+    uint8_t immediate_bytes; // number of bytes of immediate
   } skeleton;
   const char *name;
   const char* fmt;
@@ -356,6 +508,8 @@ enum X86OpFeatureFlags {
     kIsBinaryOp,
     kIsTertiaryOp,
     kIsQuadOp,
+    kIsQuinOp,
+    kIsSextupleOp,
     kIsIT,
     kSetsCCodes,
     kUsesCCodes,
@@ -387,10 +541,12 @@ enum X86OpFeatureFlags {
 #define IS_BINARY_OP    (1 << kIsBinaryOp)
 #define IS_TERTIARY_OP  (1 << kIsTertiaryOp)
 #define IS_QUAD_OP      (1 << kIsQuadOp)
+#define IS_QUIN_OP      (1 << kIsQuinOp)
+#define IS_SEXTUPLE_OP  (1 << kIsSextupleOp)
 #define IS_IT           (1 << kIsIT)
 #define SETS_CCODES     (1 << kSetsCCodes)
 #define USES_CCODES     (1 << kUsesCCodes)
-#define NEEDS_FIXUP      (1 << kPCRelFixup)
+#define NEEDS_FIXUP     (1 << kPCRelFixup)
 
 /*  attributes, included for compatibility */
 #define REG_DEF_FPCS_LIST0   (0)
@@ -416,8 +572,15 @@ enum X86TargetOptHints {
     kMaxHoistDistance,
 };
 
+/* Offsets of high and low halves of a 64bit value */
+#define LOWORD_OFFSET 0
+#define HIWORD_OFFSET 4
+
+/* Segment override instruction prefix used for quick TLS access to Thread::Current() */
+#define THREAD_PREFIX 0x64
 
 #define IS_SIMM8(v) ((-128 <= (v)) && ((v) <= 127))
+#define IS_SIMM16(v) ((-32768 <= (v)) && ((v) <= 32767))
 
 }  // namespace art
 

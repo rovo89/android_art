@@ -27,19 +27,8 @@
 
 namespace art {
 
-/*
- * TUNING: is leaf?  Can't just use "hasInvoke" to determine as some
- * instructions might call out to C/assembly helper functions.  Until
- * machinery is in place, always spill lr.
- */
-
-void oatAdjustSpillMask(CompilationUnit* cUnit)
-{
-    UNIMPLEMENTED(WARNING) << "oatAdjustSpillMask";
-#if 0
-    cUnit->coreSpillMask |= (1 << r_RA);
-    cUnit->numCoreSpills++;
-#endif
+void oatAdjustSpillMask(CompilationUnit* cUnit) {
+  // Adjustment for LR spilling, x86 has no LR so nothing to do here
 }
 
 /*
@@ -149,6 +138,28 @@ extern void oatClobberCalleeSave(CompilationUnit *cUnit)
 #endif
 }
 
+extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
+{
+    RegLocation res = LOC_C_RETURN_WIDE;
+    res.lowReg = rAX;
+    res.highReg = rDX;
+    oatClobber(cUnit, rAX);
+    oatClobber(cUnit, rDX);
+    oatMarkInUse(cUnit, rAX);
+    oatMarkInUse(cUnit, rDX);
+    oatMarkPair(cUnit, res.lowReg, res.highReg);
+    return res;
+}
+
+extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
+{
+    RegLocation res = LOC_C_RETURN;
+    res.lowReg = rDX;
+    oatClobber(cUnit, rDX);
+    oatMarkInUse(cUnit, rDX);
+    return res;
+}
+
 extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)
 {
     return FPREG(reg) ? &cUnit->regPool->FPRegs[reg & FP_REG_MASK]
@@ -183,13 +194,6 @@ extern void oatFreeCallTemps(CompilationUnit* cUnit)
 void oatNopLIR( LIR* lir)
 {
     ((LIR*)lir)->flags.isNop = true;
-}
-
-extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
-{
-    UNIMPLEMENTED(FATAL);
-    RegLocation res = LOC_C_RETURN;
-    return res;
 }
 
 }  // namespace art

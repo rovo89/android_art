@@ -37,8 +37,9 @@ class X86ManagedRuntimeCallingConvention : public ManagedRuntimeCallingConventio
   virtual bool IsCurrentParamOnStack();
   virtual ManagedRegister CurrentParamRegister();
   virtual FrameOffset CurrentParamStackOffset();
-
+  virtual const std::vector<ManagedRegister>& EntrySpills();
  private:
+  std::vector<ManagedRegister> entry_spills_;
   DISALLOW_COPY_AND_ASSIGN(X86ManagedRuntimeCallingConvention);
 };
 

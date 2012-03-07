@@ -36,8 +36,13 @@ class ArmManagedRuntimeCallingConvention : public ManagedRuntimeCallingConventio
   virtual bool IsCurrentParamOnStack();
   virtual ManagedRegister CurrentParamRegister();
   virtual FrameOffset CurrentParamStackOffset();
-
+  virtual const std::vector<ManagedRegister>& EntrySpills() {
+    DCHECK(entry_spills_.empty());
+    return entry_spills_;
+  }
  private:
+  static std::vector<ManagedRegister> entry_spills_;
+
   DISALLOW_COPY_AND_ASSIGN(ArmManagedRuntimeCallingConvention);
 };
 

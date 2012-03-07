@@ -26,7 +26,7 @@ namespace x86 {
 // Creates a function which invokes a managed method with an array of
 // arguments.
 //
-// Immediately after the call, the environment looks like this:
+// Immediately after the call on X86, the environment looks like this:
 //
 // [SP+0 ] = Return address
 // [SP+4 ] = method pointer
@@ -40,34 +40,59 @@ namespace x86 {
 // to save the native registers and set up the managed registers. On
 // return, the return value must be store into the result JValue.
 CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len) {
-  UniquePtr<X86Assembler> assembler(
-      down_cast<X86Assembler*>(Assembler::Create(kX86)));
+  UniquePtr<X86Assembler> assembler(down_cast<X86Assembler*>(Assembler::Create(kX86)));
 #define __ assembler->
   size_t num_arg_array_bytes = NumArgArrayBytes(shorty, shorty_len);
-  // Size of frame - return address + Method* + possible receiver + arg array
-  size_t frame_size = (2 * kPointerSize) +
-                      (is_static ? 0 : kPointerSize) +
-                      num_arg_array_bytes;
+  // Size of frame = return address + Method* + possible receiver + arg array size
+  // Note, space is left in the frame to flush arguments in registers back to out locations.
+  size_t frame_size = 2 * kPointerSize + (is_static ? 0 : kPointerSize) + num_arg_array_bytes;
   size_t pad_size = RoundUp(frame_size, kStackAlignment) - frame_size;
 
-  __ movl(EAX, Address(ESP, 4));   // EAX = method
-  __ movl(ECX, Address(ESP, 8));   // ECX = receiver
-  __ movl(EDX, Address(ESP, 16));  // EDX = arg array
+  Register rMethod = EAX;
+  __ movl(rMethod,   Address(ESP, 4));     // EAX = method
+  Register rReceiver = EDX;
+  if (!is_static) {
+    __ movl(rReceiver, Address(ESP, 8));   // EDX = receiver
+  }
+  Register rArgArray = ECX;
+  __ movl(rArgArray, Address(ESP, 16));    // ECX = arg array
 
+  // TODO: optimize the frame set up to avoid excessive SP math
   // Push padding
   if (pad_size != 0) {
-    __ addl(ESP, Immediate(-pad_size));
+    __ subl(ESP, Immediate(pad_size));
   }
-
   // Push/copy arguments
   for (size_t off = num_arg_array_bytes; off > 0; off -= kPointerSize) {
-    __ pushl(Address(EDX, off - kPointerSize));
+    if (off > ((is_static ? 2 : 1) * kPointerSize)) {
+      // Copy argument
+      __ pushl(Address(rArgArray, off - kPointerSize));
+    } else {
+      // Space for argument passed in register
+      __ pushl(Immediate(0));
+    }
   }
+  // Backing space for receiver
   if (!is_static) {
-    __ pushl(ECX);
+    __ pushl(Immediate(0));
   }
   // Push 0 as NULL Method* thereby terminating managed stack crawls
   __ pushl(Immediate(0));
+  if (!is_static) {
+    if (num_arg_array_bytes >= static_cast<size_t>(kPointerSize)) {
+      // Receiver already in EDX, pass 1st arg in ECX
+      __ movl(ECX, Address(rArgArray, 0));
+    }
+  } else {
+    if (num_arg_array_bytes >= static_cast<size_t>(kPointerSize)) {
+      // Pass 1st arg in EDX
+      __ movl(EDX, Address(rArgArray, 0));
+      if (num_arg_array_bytes >= static_cast<size_t>(2* kPointerSize)) {
+        // Pass 2nd arg in ECX
+        __ movl(ECX, Address(rArgArray, kPointerSize));
+      }
+    }
+  }
 
   __ call(Address(EAX, Method::GetCodeOffset()));  // Call code off of method
 
@@ -79,10 +104,10 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
     __ movl(ECX, Address(ESP, 20));
     switch (ch) {
       case 'D':
-        __ fstpl(Address(ECX, 0));
+        __ movsd(Address(ECX, 0), XMM0);
         break;
       case 'F':
-        __ fstps(Address(ECX, 0));
+        __ movss(Address(ECX, 0), XMM0);
         break;
       case 'J':
         __ movl(Address(ECX, 0), EAX);

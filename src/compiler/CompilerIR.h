@@ -134,7 +134,7 @@ struct LIR {
     struct LIR* prev;
     struct LIR* target;
     int opcode;
-    int operands[4];            // [0..3] = [dest, src1, src2, extra]
+    int operands[5];            // [0..4] = [dest, src1, src2, extra, extra2]
     struct {
         bool isNop:1;           // LIR is optimized away
         bool pcRelFixup:1;      // May need pc-relative fixup
@@ -450,22 +450,24 @@ enum OpKind {
 std::ostream& operator<<(std::ostream& os, const OpKind& kind);
 
 enum ConditionCode {
-    kCondEq,
-    kCondNe,
-    kCondCs,
-    kCondCc,
-    kCondMi,
-    kCondPl,
-    kCondVs,
-    kCondVc,
-    kCondHi,
-    kCondLs,
-    kCondGe,
-    kCondLt,
-    kCondGt,
-    kCondLe,
-    kCondAl,
-    kCondNv,
+    kCondEq,  // equal
+    kCondNe,  // not equal
+    kCondCs,  // carry set (unsigned less than)
+    kCondUlt = kCondCs,
+    kCondCc,  // carry clear (unsigned greater than or same)
+    kCondUge = kCondCc,
+    kCondMi,  // minus
+    kCondPl,  // plus, positive or zero
+    kCondVs,  // overflow
+    kCondVc,  // no overflow
+    kCondHi,  // unsigned greater than
+    kCondLs,  // unsigned lower or same
+    kCondGe,  // signed greater than or equal
+    kCondLt,  // signed less than
+    kCondGt,  // signed greater than
+    kCondLe,  // signed less than or equal
+    kCondAl,  // always
+    kCondNv,  // never
 };
 
 enum ThrowKind {

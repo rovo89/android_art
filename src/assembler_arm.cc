@@ -1436,8 +1436,10 @@ void ArmAssembler::Rrx(Register rd, Register rm, Condition cond) {
 }
 
 void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                              const std::vector<ManagedRegister>& callee_save_regs) {
+                              const std::vector<ManagedRegister>& callee_save_regs,
+                              const std::vector<ManagedRegister>& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
+  DCHECK_EQ(entry_spills.size(), 0u);
   CHECK_EQ(R0, method_reg.AsArm().AsCoreRegister());
 
   // Push callee saves and link register
@@ -1656,7 +1658,7 @@ void ArmAssembler::StoreStackPointerToThread(ThreadOffset thr_offs) {
   StoreToOffset(kStoreWord, SP, TR, thr_offs.Int32Value());
 }
 
-void ArmAssembler::Move(ManagedRegister mdest, ManagedRegister msrc) {
+void ArmAssembler::Move(ManagedRegister mdest, ManagedRegister msrc, size_t size) {
   ArmManagedRegister dest = mdest.AsArm();
   ArmManagedRegister src = msrc.AsArm();
   if (!dest.Equals(src)) {

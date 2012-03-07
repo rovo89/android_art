@@ -55,6 +55,8 @@ ManagedRegister ArmJniCallingConvention::ReturnRegister() {
 
 // Managed runtime calling convention
 
+std::vector<ManagedRegister> ArmManagedRuntimeCallingConvention::entry_spills_;
+
 ManagedRegister ArmManagedRuntimeCallingConvention::MethodRegister() {
   return ArmManagedRegister::FromCoreRegister(R0);
 }

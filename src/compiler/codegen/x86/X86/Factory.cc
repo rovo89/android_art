@@ -25,13 +25,26 @@ namespace art {
  */
 
 //FIXME: restore "static" when usage uncovered
-/*static*/ int coreRegs[] = {rAX, rCX, rDX, rBX, rSP, rBP, rSI, rDI};
+/*static*/ int coreRegs[] = {
+    rAX, rCX, rDX, rBX, rSP, rBP, rSI, rDI
+#ifdef TARGET_REX_SUPPORT
+    r8, r9, r10, r11, r12, r13, r14, 15
+#endif
+};
 /*static*/ int reservedRegs[] = {rSP};
 /*static*/ int coreTemps[] = {rAX, rCX, rDX};
-/*static*/ int fpRegs[] = {fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7, fr8, fr9,
-                       fr10, fr11, fr12, fr13, fr14, fr15};
-/*static*/ int fpTemps[] = {fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7, fr8, fr9,
-                        fr10, fr11, fr12, fr13, fr14, fr15};
+/*static*/ int fpRegs[] = {
+    fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
+#ifdef TARGET_REX_SUPPORT
+    fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15
+#endif
+};
+/*static*/ int fpTemps[] = {
+    fr0, fr1, fr2, fr3, fr4, fr5, fr6, fr7,
+#ifdef TARGET_REX_SUPPORT
+    fr8, fr9, fr10, fr11, fr12, fr13, fr14, fr15
+#endif
+};
 
 void genBarrier(CompilationUnit *cUnit);
 void storePair(CompilationUnit *cUnit, int base, int lowReg,
@@ -45,36 +58,29 @@ LIR *loadConstant(CompilationUnit *cUnit, int rDest, int value);
 
 LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
-    UNIMPLEMENTED(WARNING) << "fpRegCopy";
-    return NULL;
-#if 0
     int opcode;
     /* must be both DOUBLE or both not DOUBLE */
     DCHECK_EQ(DOUBLEREG(rDest),DOUBLEREG(rSrc));
     if (DOUBLEREG(rDest)) {
-        opcode = kX86Fmovd;
+        opcode = kX86MovsdRR;
     } else {
         if (SINGLEREG(rDest)) {
             if (SINGLEREG(rSrc)) {
-                opcode = kX86Fmovs;
-            } else {
-                /* note the operands are swapped for the mtc1 instr */
-                int tOpnd = rSrc;
-                rSrc = rDest;
-                rDest = tOpnd;
-                opcode = kX86Mtc1;
+                opcode = kX86MovssRR;
+            } else {  // Fpr <- Gpr
+                opcode = kX86MovdxrRR;
             }
-        } else {
+        } else {  // Gpr <- Fpr
             DCHECK(SINGLEREG(rSrc));
-            opcode = kX86Mfc1;
+            opcode = kX86MovdrxRR;
         }
     }
+    DCHECK((EncodingMap[opcode].flags & IS_BINARY_OP) != 0);
     LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rSrc, rDest);
     if (rDest == rSrc) {
         res->flags.isNop = true;
     }
     return res;
-#endif
 }
 
 /*
@@ -123,277 +129,186 @@ LIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest,
 #endif
 }
 
-LIR *opNone(CompilationUnit *cUnit, OpKind op)
-{
-    UNIMPLEMENTED(WARNING) << "opNone";
-    return NULL;
-#if 0
-    LIR *res;
-    X86OpCode opcode = kX86Nop;
-    switch (op) {
-        case kOpUncondBr:
-            opcode = kX86B;
-            break;
-        default:
-            LOG(FATAL) << "Bad case in opNone";
-    }
-    res = newLIR0(cUnit, opcode);
-    return res;
-#endif
+LIR* opBranchUnconditional(CompilationUnit *cUnit, OpKind op) {
+  CHECK_EQ(op, kOpUncondBr);
+  return newLIR1(cUnit, kX86Jmp, 0 /* offset to be patched */ );
 }
 
 LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask);
 
-LIR* opBranchUnconditional(CompilationUnit* cUnit, OpKind op)
-{
-    UNIMPLEMENTED(WARNING) << "opBranchUnconditional";
-    return NULL;
-}
-
+X86ConditionCode oatX86ConditionEncoding(ConditionCode cond);
 LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target)
 {
-    UNIMPLEMENTED(WARNING) << "opCondBranch";
-    return NULL;
+  LIR* branch = newLIR2(cUnit, kX86Jcc, 0 /* offset to be patched */,
+                        oatX86ConditionEncoding(cc));
+  branch->target = target;
+  return branch;
 }
 
-LIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
+LIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc) {
+  X86OpCode opcode = kX86Bkpt;
+  switch (op) {
+    case kOpNeg: opcode = kX86Neg32R; break;
+    case kOpBlx: opcode = kX86CallR; break;
+    default:
+      LOG(FATAL) << "Bad case in opReg " << op;
+  }
+  return newLIR1(cUnit, opcode, rDestSrc);
+}
+
+LIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int value) {
+  X86OpCode opcode = kX86Bkpt;
+  bool byteImm = IS_SIMM8(value);
+  switch (op) {
+    case kOpLsl: opcode = kX86Sal32RI; break;
+    case kOpLsr: opcode = kX86Shr32RI; break;
+    case kOpAsr: opcode = kX86Sar32RI; break;
+    case kOpAdd: opcode = byteImm ? kX86Add32RI8 : kX86Add32RI; break;
+    case kOpOr:  opcode = byteImm ? kX86Or32RI8  : kX86Or32RI;  break;
+    case kOpAdc: opcode = byteImm ? kX86Adc32RI8 : kX86Adc32RI; break;
+    //case kOpSbb: opcode = kX86Sbb32RI; break;
+    case kOpAnd: opcode = byteImm ? kX86And32RI8 : kX86And32RI; break;
+    case kOpSub: opcode = byteImm ? kX86Sub32RI8 : kX86Sub32RI; break;
+    case kOpXor: opcode = byteImm ? kX86Xor32RI8 : kX86Xor32RI; break;
+    case kOpCmp: opcode = byteImm ? kX86Cmp32RI8 : kX86Cmp32RI; break;
+    case kOpMov: {
+      if (value == 0) {  // turn "mov reg, 0" into "xor reg, reg"
+        opcode = kX86Xor32RR;
+        value = rDestSrc1;
+      } else {
+        opcode = kX86Mov32RI;
+      }
+      break;
+    }
+    case kOpMul:
+      opcode = byteImm ? kX86Imul32RRI8 : kX86Imul32RRI;
+      return newLIR3(cUnit, opcode, rDestSrc1, rDestSrc1, value);
+    default:
+      LOG(FATAL) << "Bad case in opRegImm " << op;
+  }
+  return newLIR2(cUnit, opcode, rDestSrc1, value);
+}
+
+LIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int rSrc2)
 {
-    UNIMPLEMENTED(WARNING) << "opReg";
-    return NULL;
-#if 0
     X86OpCode opcode = kX86Nop;
     switch (op) {
-        case kOpBlx:
-            opcode = kX86Jalr;
-            break;
-        case kOpBx:
-            return newLIR1(cUnit, kX86Jr, rDestSrc);
-            break;
-        default:
-            LOG(FATAL) << "Bad case in opReg";
-    }
-    return newLIR2(cUnit, opcode, r_RA, rDestSrc);
-#endif
-}
-
-LIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
-                     int rSrc1, int value);
-LIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
-                  int value)
-{
-    UNIMPLEMENTED(WARNING) << "opRegImm";
-    return NULL;
-#if 0
-    LIR *res;
-    bool neg = (value < 0);
-    int absValue = (neg) ? -value : value;
-    bool shortForm = (absValue & 0xff) == absValue;
-    X86OpCode opcode = kX86Nop;
-    switch (op) {
-        case kOpAdd:
-            return opRegRegImm(cUnit, op, rDestSrc1, rDestSrc1, value);
-            break;
-        case kOpSub:
-            return opRegRegImm(cUnit, op, rDestSrc1, rDestSrc1, value);
-            break;
-        default:
-            LOG(FATAL) << "Bad case in opRegImm";
-            break;
-    }
-    if (shortForm)
-        res = newLIR2(cUnit, opcode, rDestSrc1, absValue);
-    else {
-        int rScratch = oatAllocTemp(cUnit);
-        res = loadConstant(cUnit, rScratch, value);
-        if (op == kOpCmp)
-            newLIR2(cUnit, opcode, rDestSrc1, rScratch);
-        else
-            newLIR3(cUnit, opcode, rDestSrc1, rDestSrc1, rScratch);
-    }
-    return res;
-#endif
-}
-
-LIR *opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest,
-                           int rSrc1, int rSrc2)
-{
-    UNIMPLEMENTED(WARNING) << "opRegRegReg";
-    return NULL;
-#if 0
-    X86OpCode opcode = kX86Nop;
-    switch (op) {
-        case kOpAdd:
-            opcode = kX86Addu;
-            break;
-        case kOpSub:
-            opcode = kX86Subu;
-            break;
-        case kOpAnd:
-            opcode = kX86And;
-            break;
-        case kOpMul:
-            opcode = kX86Mul;
-            break;
-        case kOpOr:
-            opcode = kX86Or;
-            break;
-        case kOpXor:
-            opcode = kX86Xor;
-            break;
-        case kOpLsl:
-            opcode = kX86Sllv;
-            break;
-        case kOpLsr:
-            opcode = kX86Srlv;
-            break;
-        case kOpAsr:
-            opcode = kX86Srav;
-            break;
-        case kOpAdc:
-        case kOpSbc:
-            LOG(FATAL) << "No carry bit on MIPS";
-            break;
-        default:
-            LOG(FATAL) << "bad case in opRegRegReg";
-            break;
-    }
-    return newLIR3(cUnit, opcode, rDest, rSrc1, rSrc2);
-#endif
-}
-
-LIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
-                           int rSrc1, int value)
-{
-    UNIMPLEMENTED(WARNING) << "opRegRegImm";
-    return NULL;
-#if 0
-    LIR *res;
-    X86OpCode opcode = kX86Nop;
-    bool shortForm = true;
-
-    switch(op) {
-        case kOpAdd:
-            if (IS_SIMM16(value)) {
-                opcode = kX86Addiu;
-            }
-            else {
-                shortForm = false;
-                opcode = kX86Addu;
-            }
-            break;
-        case kOpSub:
-            if (IS_SIMM16((-value))) {
-                value = -value;
-                opcode = kX86Addiu;
-            }
-            else {
-                shortForm = false;
-                opcode = kX86Subu;
-            }
-            break;
-        case kOpLsl:
-                DCHECK(value >= 0 && value <= 31);
-                opcode = kX86Sll;
-                break;
-        case kOpLsr:
-                DCHECK(value >= 0 && value <= 31);
-                opcode = kX86Srl;
-                break;
-        case kOpAsr:
-                DCHECK(value >= 0 && value <= 31);
-                opcode = kX86Sra;
-                break;
-        case kOpAnd:
-            if (IS_UIMM16((value))) {
-                opcode = kX86Andi;
-            }
-            else {
-                shortForm = false;
-                opcode = kX86And;
-            }
-            break;
-        case kOpOr:
-            if (IS_UIMM16((value))) {
-                opcode = kX86Ori;
-            }
-            else {
-                shortForm = false;
-                opcode = kX86Or;
-            }
-            break;
-        case kOpXor:
-            if (IS_UIMM16((value))) {
-                opcode = kX86Xori;
-            }
-            else {
-                shortForm = false;
-                opcode = kX86Xor;
-            }
-            break;
-        case kOpMul:
-            shortForm = false;
-            opcode = kX86Mul;
-            break;
-        default:
-            LOG(FATAL) << "Bad case in opRegRegImm";
-            break;
-    }
-
-    if (shortForm)
-        res = newLIR3(cUnit, opcode, rDest, rSrc1, value);
-    else {
-        if (rDest != rSrc1) {
-            res = loadConstant(cUnit, rDest, value);
-            newLIR3(cUnit, opcode, rDest, rSrc1, rDest);
-        } else {
-            int rScratch = oatAllocTemp(cUnit);
-            res = loadConstant(cUnit, rScratch, value);
-            newLIR3(cUnit, opcode, rDest, rSrc1, rScratch);
-        }
-    }
-    return res;
-#endif
-}
-
-LIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1,
-                  int rSrc2)
-{
-    UNIMPLEMENTED(WARNING) << "opRegReg";
-    return NULL;
-#if 0
-    X86OpCode opcode = kX86Nop;
-    LIR *res;
-    switch (op) {
-        case kOpMov:
-            opcode = kX86Move;
-            break;
-        case kOpMvn:
-            return newLIR3(cUnit, kX86Nor, rDestSrc1, rSrc2, r_ZERO);
-        case kOpNeg:
-            return newLIR3(cUnit, kX86Subu, rDestSrc1, r_ZERO, rSrc2);
-        case kOpAdd:
-        case kOpAnd:
-        case kOpMul:
-        case kOpOr:
-        case kOpSub:
-        case kOpXor:
-            return opRegRegReg(cUnit, op, rDestSrc1, rDestSrc1, rSrc2);
-        case kOp2Byte:
-            res = opRegRegImm(cUnit, kOpLsl, rDestSrc1, rSrc2, 24);
-            opRegRegImm(cUnit, kOpAsr, rDestSrc1, rDestSrc1, 24);
-            return res;
-        case kOp2Short:
-            res = opRegRegImm(cUnit, kOpLsl, rDestSrc1, rSrc2, 16);
-            opRegRegImm(cUnit, kOpAsr, rDestSrc1, rDestSrc1, 16);
-            return res;
-        case kOp2Char:
-             return newLIR3(cUnit, kX86Andi, rDestSrc1, rSrc2, 0xFFFF);
-        default:
-            LOG(FATAL) << "Bad case in opRegReg";
-            break;
+        // X86 unary opcodes
+      case kOpMvn:
+        opRegCopy(cUnit, rDestSrc1, rSrc2);
+        return opReg(cUnit, kOpNot, rDestSrc1);
+      case kOpNeg:
+        opRegCopy(cUnit, rDestSrc1, rSrc2);
+        return opReg(cUnit, kOpNeg, rDestSrc1);
+        // X86 binary opcodes
+      case kOpSub: opcode = kX86Sub32RR; break;
+      case kOpSbc: opcode = kX86Sbb32RR; break;
+      case kOpLsl: opcode = kX86Sal32RC; break;
+      case kOpLsr: opcode = kX86Shr32RC; break;
+      case kOpAsr: opcode = kX86Sar32RC; break;
+      case kOpMov: opcode = kX86Mov32RR; break;
+      case kOpCmp: opcode = kX86Cmp32RR; break;
+      case kOpAdd: opcode = kX86Add32RR; break;
+      case kOpAdc: opcode = kX86Adc32RR; break;
+      case kOpAnd: opcode = kX86And32RR; break;
+      case kOpOr:  opcode = kX86Or32RR; break;
+      case kOpXor: opcode = kX86Xor32RR; break;
+      case kOp2Byte: opcode = kX86Movsx8RR; break;
+      case kOp2Short: opcode = kX86Movsx16RR; break;
+      case kOp2Char: opcode = kX86Movzx16RR; break;
+      case kOpMul: opcode = kX86Imul32RR; break;
+      default:
+        LOG(FATAL) << "Bad case in opRegReg " << op;
+        break;
     }
     return newLIR2(cUnit, opcode, rDestSrc1, rSrc2);
-#endif
+}
+
+LIR* opRegMem(CompilationUnit *cUnit, OpKind op, int rDest, int rBase, int offset) {
+  X86OpCode opcode = kX86Nop;
+  switch (op) {
+      // X86 binary opcodes
+    case kOpSub: opcode = kX86Sub32RM; break;
+    case kOpMov: opcode = kX86Mov32RM; break;
+    case kOpCmp: opcode = kX86Cmp32RM; break;
+    case kOpAdd: opcode = kX86Add32RM; break;
+    case kOpAnd: opcode = kX86And32RM; break;
+    case kOpOr:  opcode = kX86Or32RM; break;
+    case kOpXor: opcode = kX86Xor32RM; break;
+    case kOp2Byte: opcode = kX86Movsx8RM; break;
+    case kOp2Short: opcode = kX86Movsx16RM; break;
+    case kOp2Char: opcode = kX86Movzx16RM; break;
+    case kOpMul:
+    default:
+      LOG(FATAL) << "Bad case in opRegReg " << op;
+      break;
+  }
+  return newLIR3(cUnit, opcode, rDest, rBase, offset);
+}
+
+LIR* opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest, int rSrc1, int rSrc2) {
+  if (rDest != rSrc1 && rDest != rSrc2) {
+    if (op == kOpAdd) { // lea special case, except can't encode rbp as base
+      if (rSrc1 == rSrc2) {
+        return opRegImm(cUnit, kOpLsl, rDest, 1);
+      } else if (rSrc1 != rBP) {
+        return newLIR5(cUnit, kX86Lea32RA, rDest, rSrc1 /* base */,
+                       rSrc2 /* index */, 0 /* scale */, 0 /* disp */);
+      } else {
+        return newLIR5(cUnit, kX86Lea32RA, rDest, rSrc2 /* base */,
+                       rSrc1 /* index */, 0 /* scale */, 0 /* disp */);
+      }
+    } else {
+      opRegCopy(cUnit, rDest, rSrc1);
+      return opRegReg(cUnit, op, rDest, rSrc2);
+    }
+  } else if (rDest == rSrc1) {
+    return opRegReg(cUnit, op, rDest, rSrc2);
+  } else {  // rDest == rSrc2
+    switch (op) {
+      case kOpSub:  // non-commutative
+        opReg(cUnit, kOpNeg, rDest);
+        op = kOpAdd;
+        break;
+      case kOpSbc:
+      case kOpLsl: case kOpLsr: case kOpAsr: case kOpRor: {
+        int tReg = oatAllocTemp(cUnit);
+        opRegCopy(cUnit, tReg, rSrc1);
+        opRegReg(cUnit, op, tReg, rSrc2);
+        LIR* res = opRegCopy(cUnit, rDest, tReg);
+        oatFreeTemp(cUnit, tReg);
+        return res;
+      }
+      case kOpAdd:  // commutative
+      case kOpOr:
+      case kOpAdc:
+      case kOpAnd:
+      case kOpXor:
+        break;
+      default:
+        LOG(FATAL) << "Bad case in opRegRegReg " << op;
+    }
+    return opRegReg(cUnit, op, rDest, rSrc1);
+  }
+}
+
+LIR* opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest, int rSrc, int value) {
+  if (op == kOpMul) {
+    X86OpCode opcode = IS_SIMM8(value) ? kX86Imul32RRI8 : kX86Imul32RRI;
+    return newLIR3(cUnit, opcode, rDest, rSrc, value);
+  }
+  if (op == kOpLsl && value >= 0 && value <= 3) { // lea shift special case
+    return newLIR5(cUnit, kX86Lea32RA, rDest, rSrc /* base */,
+                   r4sib_no_index /* index */, value /* scale */, value /* disp */);
+  }
+  if (rDest != rSrc) {
+    if (op == kOpAdd) { // lea add special case
+      return newLIR5(cUnit, kX86Lea32RA, rDest, rSrc /* base */,
+                     r4sib_no_index /* index */, 0 /* scale */, value /* disp */);
+    }
+    opRegCopy(cUnit, rDest, rSrc);
+  }
+  return opRegImm(cUnit, op, rDest, value);
 }
 
 LIR *loadConstantValueWide(CompilationUnit *cUnit, int rDestLo,
@@ -567,209 +482,175 @@ LIR *storeMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 #endif
 }
 
-LIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
-                                int displacement, int rDest, int rDestHi,
-                                OpSize size, int sReg)
-/*
- * Load value from base + displacement.  Optionally perform null check
- * on base (which must have an associated sReg and MIR).  If not
- * performing null check, incoming MIR can be null. IMPORTANT: this
- * code must not allocate any new temps.  If a new register is needed
- * and base and dest are the same, spill some other register to
- * rlp and then restore.
- */
-{
-    UNIMPLEMENTED(WARNING) << "loadBaseDispBody";
-    return NULL;
-#if 0
-    LIR *res;
-    LIR *load = NULL;
-    LIR *load2 = NULL;
-    X86OpCode opcode = kX86Nop;
-    bool shortForm = IS_SIMM16(displacement);
-    bool pair = false;
-
-    switch (size) {
-        case kLong:
-        case kDouble:
-            pair = true;
-            opcode = kX86Lw;
-            if (FPREG(rDest)) {
-                opcode = kX86Flwc1;
-                if (DOUBLEREG(rDest)) {
-                    rDest = rDest - FP_DOUBLE;
-                } else {
-                    DCHECK(FPREG(rDestHi));
-                    DCHECK(rDest == (rDestHi - 1));
-                }
-                rDestHi = rDest + 1;
-            }
-            shortForm = IS_SIMM16_2WORD(displacement);
-            DCHECK_EQ((displacement & 0x3), 0);
-            break;
-        case kWord:
-        case kSingle:
-            opcode = kX86Lw;
-            if (FPREG(rDest)) {
-                opcode = kX86Flwc1;
-                DCHECK(SINGLEREG(rDest));
-            }
-            DCHECK_EQ((displacement & 0x3), 0);
-            break;
-        case kUnsignedHalf:
-            opcode = kX86Lhu;
-            DCHECK_EQ((displacement & 0x1), 0);
-            break;
-        case kSignedHalf:
-            opcode = kX86Lh;
-            DCHECK_EQ((displacement & 0x1), 0);
-            break;
-        case kUnsignedByte:
-            opcode = kX86Lbu;
-            break;
-        case kSignedByte:
-            opcode = kX86Lb;
-            break;
-        default:
-            LOG(FATAL) << "Bad case in loadBaseIndexedBody";
-    }
-
-    if (shortForm) {
-        if (!pair) {
-            load = res = newLIR3(cUnit, opcode, rDest, displacement, rBase);
+LIR* loadBaseIndexedDisp(CompilationUnit *cUnit, MIR *mir,
+                         int rBase, int rIndex, int scale, int displacement,
+                         int rDest, int rDestHi,
+                         OpSize size, int sReg) {
+  LIR *load = NULL;
+  LIR *load2 = NULL;
+  bool isArray = rIndex != INVALID_REG;
+  bool pair = false;
+  bool is64bit = false;
+  X86OpCode opcode = kX86Nop;
+  switch (size) {
+    case kLong:
+    case kDouble:
+      is64bit = true;
+      if (FPREG(rDest)) {
+        opcode = isArray ? kX86MovsdRA : kX86MovsdRM;
+        if (DOUBLEREG(rDest)) {
+          rDest = rDest - FP_DOUBLE;
         } else {
-            load = res = newLIR3(cUnit, opcode, rDest, displacement + LOWORD_OFFSET, rBase);
-            load2 = newLIR3(cUnit, opcode, rDestHi, displacement + HIWORD_OFFSET, rBase);
+          DCHECK(FPREG(rDestHi));
+          DCHECK(rDest == (rDestHi - 1));
         }
+        rDestHi = rDest + 1;
+      } else {
+        pair = true;
+        opcode = isArray ? kX86Mov32RA  : kX86Mov32RM;
+      }
+      // TODO: double store is to unaligned address
+      DCHECK_EQ((displacement & 0x3), 0);
+      break;
+    case kWord:
+    case kSingle:
+      opcode = isArray ? kX86Mov32RA : kX86Mov32RM;
+      if (FPREG(rDest)) {
+        opcode = isArray ? kX86MovssRA : kX86MovssRM;
+        DCHECK(SINGLEREG(rDest));
+      }
+      DCHECK_EQ((displacement & 0x3), 0);
+      break;
+    case kUnsignedHalf:
+      opcode = isArray ? kX86Movzx16RA : kX86Movzx16RM;
+      DCHECK_EQ((displacement & 0x1), 0);
+      break;
+    case kSignedHalf:
+      opcode = isArray ? kX86Movsx16RA : kX86Movsx16RM;
+      DCHECK_EQ((displacement & 0x1), 0);
+      break;
+    case kUnsignedByte:
+      opcode = isArray ? kX86Movzx8RA : kX86Movzx8RM;
+      break;
+    case kSignedByte:
+      opcode = isArray ? kX86Movsx8RA : kX86Movsx8RM;
+      break;
+    default:
+      LOG(FATAL) << "Bad case in loadBaseIndexedDispBody";
+  }
+
+  if (!isArray) {
+    if (!pair) {
+      load = newLIR3(cUnit, opcode, rDest, rBase, displacement + LOWORD_OFFSET);
     } else {
-        if (pair) {
-            int rTmp = oatAllocFreeTemp(cUnit);
-            res = opRegRegImm(cUnit, kOpAdd, rTmp, rBase, displacement);
-            load = newLIR3(cUnit, opcode, rDest, LOWORD_OFFSET, rTmp);
-            load2 = newLIR3(cUnit, opcode, rDestHi, HIWORD_OFFSET, rTmp);
-            oatFreeTemp(cUnit, rTmp);
-        } else {
-            int rTmp = (rBase == rDest) ? oatAllocFreeTemp(cUnit)
-                                        : rDest;
-            res = loadConstant(cUnit, rTmp, displacement);
-            load = newLIR3(cUnit, opcode, rDest, rBase, rTmp);
-            if (rTmp != rDest)
-                oatFreeTemp(cUnit, rTmp);
-        }
+      load = newLIR3(cUnit, opcode, rDest, rBase, displacement + LOWORD_OFFSET);
+      load2 = newLIR3(cUnit, opcode, rDestHi, rBase, displacement + HIWORD_OFFSET);
     }
-
     if (rBase == rSP) {
-        if (load != NULL)
-            annotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
-                                    true /* isLoad */);
-        if (load2 != NULL)
-            annotateDalvikRegAccess(load2, (displacement + HIWORD_OFFSET) >> 2,
-                                    true /* isLoad */);
+      annotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
+                              true /* isLoad */, is64bit);
+      if (is64bit) {
+        annotateDalvikRegAccess(load2, (displacement + HIWORD_OFFSET) >> 2,
+                                true /* isLoad */, is64bit);
+      }
     }
-    return load;
-#endif
+  } else {
+    if (!pair) {
+      load = newLIR5(cUnit, opcode, rDest, rBase, rIndex, scale, displacement + LOWORD_OFFSET);
+    } else {
+      load = newLIR5(cUnit, opcode, rDest, rBase, rIndex, scale, displacement + LOWORD_OFFSET);
+      load2 = newLIR5(cUnit, opcode, rDestHi, rBase, rIndex, scale, displacement + HIWORD_OFFSET);
+    }
+  }
+
+  return load;
 }
 
-LIR *loadBaseDisp(CompilationUnit *cUnit, MIR *mir, int rBase,
-                            int displacement, int rDest, OpSize size,
-                            int sReg)
-{
-    return loadBaseDispBody(cUnit, mir, rBase, displacement, rDest, -1,
-                            size, sReg);
+LIR *loadBaseDisp(CompilationUnit *cUnit, MIR *mir,
+                  int rBase, int displacement,
+                  int rDest,
+                  OpSize size, int sReg) {
+  return loadBaseIndexedDisp(cUnit, mir, rBase, INVALID_REG, 0, displacement,
+                             rDest, INVALID_REG, size, sReg);
 }
 
-LIR *loadBaseDispWide(CompilationUnit *cUnit, MIR *mir, int rBase,
-                          int displacement, int rDestLo, int rDestHi,
-                                int sReg)
-{
-    return loadBaseDispBody(cUnit, mir, rBase, displacement, rDestLo, rDestHi,
-                            kLong, sReg);
+LIR *loadBaseDispWide(CompilationUnit *cUnit, MIR *mir,
+                      int rBase, int displacement,
+                      int rDestLo, int rDestHi,
+                      int sReg) {
+  return loadBaseIndexedDisp(cUnit, mir, rBase, INVALID_REG, 0, displacement,
+                             rDestLo, rDestHi, kLong, sReg);
 }
 
 LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
-                                 int displacement, int rSrc, int rSrcHi,
-                                 OpSize size)
+                       int displacement, int rSrc, int rSrcHi,
+                       OpSize size)
 {
-    UNIMPLEMENTED(WARNING) << "storeBaseDispBody";
-    return NULL;
-#if 0
-    LIR *res;
-    LIR *store = NULL;
-    LIR *store2 = NULL;
-    X86OpCode opcode = kX86Nop;
-    bool shortForm = IS_SIMM16(displacement);
-    bool pair = false;
-
-    switch (size) {
-        case kLong:
-        case kDouble:
-            pair = true;
-            opcode = kX86Sw;
-            if (FPREG(rSrc)) {
-                opcode = kX86Fswc1;
-                if (DOUBLEREG(rSrc)) {
-                    rSrc = rSrc - FP_DOUBLE;
-                } else {
-                    DCHECK(FPREG(rSrcHi));
-                    DCHECK_EQ(rSrc, (rSrcHi - 1));
-                }
-                rSrcHi = rSrc + 1;
-            }
-            shortForm = IS_SIMM16_2WORD(displacement);
-            DCHECK_EQ((displacement & 0x3), 0);
-            break;
-        case kWord:
-        case kSingle:
-            opcode = kX86Sw;
-            if (FPREG(rSrc)) {
-                opcode = kX86Fswc1;
-                DCHECK(SINGLEREG(rSrc));
-            }
-            DCHECK_EQ((displacement & 0x3), 0);
-            break;
-        case kUnsignedHalf:
-        case kSignedHalf:
-            opcode = kX86Sh;
-            DCHECK_EQ((displacement & 0x1), 0);
-            break;
-        case kUnsignedByte:
-        case kSignedByte:
-            opcode = kX86Sb;
-            break;
-        default:
-            LOG(FATAL) << "Bad case in storeBaseIndexedBody";
-    }
-
-    if (shortForm) {
-        if (!pair) {
-            store = res = newLIR3(cUnit, opcode, rSrc, displacement, rBase);
+  LIR *res = NULL;
+  LIR *store = NULL;
+  LIR *store2 = NULL;
+  X86OpCode opcode = kX86Bkpt;
+  bool pair = false;
+  bool is64bit = false;
+  switch (size) {
+    case kLong:
+    case kDouble:
+      is64bit = true;
+      if (FPREG(rSrc)) {
+        pair = false;
+        opcode = kX86MovsdMR;
+        if (DOUBLEREG(rSrc)) {
+          rSrc = rSrc - FP_DOUBLE;
         } else {
-            store = res = newLIR3(cUnit, opcode, rSrc, displacement + LOWORD_OFFSET, rBase);
-            store2 = newLIR3(cUnit, opcode, rSrcHi, displacement + HIWORD_OFFSET, rBase);
+          DCHECK(FPREG(rSrcHi));
+          DCHECK_EQ(rSrc, (rSrcHi - 1));
         }
-    } else {
-        int rScratch = oatAllocTemp(cUnit);
-        res = opRegRegImm(cUnit, kOpAdd, rScratch, rBase, displacement);
-        if (!pair) {
-            store =  newLIR3(cUnit, opcode, rSrc, 0, rScratch);
-        } else {
-            store =  newLIR3(cUnit, opcode, rSrc, LOWORD_OFFSET, rScratch);
-            store2 = newLIR3(cUnit, opcode, rSrcHi, HIWORD_OFFSET, rScratch);
-        }
-        oatFreeTemp(cUnit, rScratch);
-    }
+        rSrcHi = rSrc + 1;
+      } else {
+        pair = true;
+        opcode = kX86Mov32MR;
+      }
+      // TODO: double store is to unaligned address
+      DCHECK_EQ((displacement & 0x3), 0);
+      break;
+    case kWord:
+    case kSingle:
+      opcode = kX86Mov32MR;
+      if (FPREG(rSrc)) {
+        opcode = kX86MovssMR;
+        DCHECK(SINGLEREG(rSrc));
+      }
+      DCHECK_EQ((displacement & 0x3), 0);
+      break;
+    case kUnsignedHalf:
+    case kSignedHalf:
+      opcode = kX86Mov16MR;
+      DCHECK_EQ((displacement & 0x1), 0);
+      break;
+    case kUnsignedByte:
+    case kSignedByte:
+      opcode = kX86Mov8MR;
+      break;
+    default:
+      LOG(FATAL) << "Bad case in storeBaseIndexedBody";
+  }
 
-    if (rBase == rSP) {
-        if (store != NULL)
-            annotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
-                                    false /* isLoad */);
-        if (store2 != NULL)
-            annotateDalvikRegAccess(store2, (displacement + HIWORD_OFFSET) >> 2,
-                                    false /* isLoad */);
-    }
+  if (!pair) {
+    store = res = newLIR3(cUnit, opcode, rBase, displacement, rSrc);
+  } else {
+    store = res = newLIR3(cUnit, opcode, rBase, displacement + LOWORD_OFFSET, rSrc);
+    store2 = newLIR3(cUnit, opcode, rBase, displacement + HIWORD_OFFSET, rSrcHi);
+  }
 
-    return res;
-#endif
+  if (rBase == rSP) {
+    annotateDalvikRegAccess(store, (displacement + LOWORD_OFFSET) >> 2,
+                            false /* isLoad */, is64bit);
+    if (pair) {
+      annotateDalvikRegAccess(store2, (displacement + HIWORD_OFFSET) >> 2,
+                              false /* isLoad */, is64bit);
+    }
+  }
+  return res;
 }
 
 LIR *storeBaseDisp(CompilationUnit *cUnit, int rBase,

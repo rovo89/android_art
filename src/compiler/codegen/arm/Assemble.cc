@@ -1052,7 +1052,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
 
                     // Add new Adr to generate the address
                     LIR* newAdr = rawLIR(cUnit, lir->dalvikOffset, kThumb2Adr,
-                                         baseReg, 0, 0, 0, lir->target);
+                                         baseReg, 0, 0, 0, 0, lir->target);
                     oatInsertLIRBefore((LIR*)lir, (LIR*)newAdr);
 
                     // Convert to normal load
@@ -1086,7 +1086,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                     LIR* newInst =
                         rawLIR(cUnit, lir->dalvikOffset, kThumbBCond, 0,
                                (lir->opcode == kThumb2Cbz) ? kArmCondEq : kArmCondNe,
-                               0, 0, lir->target);
+                               0, 0, 0, lir->target);
                     oatInsertLIRAfter((LIR *)lir, (LIR *)newInst);
                     /* Convert the cb[n]z to a cmp rx, #0 ] */
                     lir->opcode = kThumbCmpRI8;
@@ -1206,12 +1206,12 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
                     LIR *newMov16L =
                         rawLIR(cUnit, lir->dalvikOffset, kThumb2MovImm16LST,
                                lir->operands[0], 0, (intptr_t)lir, (intptr_t)tabRec,
-                               lir->target);
+                               0, lir->target);
                     oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16L);
                     LIR *newMov16H =
                         rawLIR(cUnit, lir->dalvikOffset, kThumb2MovImm16HST,
                                lir->operands[0], 0, (intptr_t)lir, (intptr_t)tabRec,
-                               lir->target);
+                               0, lir->target);
                     oatInsertLIRBefore((LIR*)lir, (LIR*)newMov16H);
                     lir->opcode = kThumb2AddRRR;
                     lir->operands[1] = rPC;

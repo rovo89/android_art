@@ -318,7 +318,8 @@ class Assembler {
 
   // Emit code that will create an activation on the stack
   virtual void BuildFrame(size_t frame_size, ManagedRegister method_reg,
-                          const std::vector<ManagedRegister>& callee_save_regs) = 0;
+                          const std::vector<ManagedRegister>& callee_save_regs,
+                          const std::vector<ManagedRegister>& entry_spills) = 0;
 
   // Emit code that will remove an activation from the stack
   virtual void RemoveFrame(size_t frame_size,
@@ -364,7 +365,7 @@ class Assembler {
                                     ThreadOffset offs) = 0;
 
   // Copying routines
-  virtual void Move(ManagedRegister dest, ManagedRegister src) = 0;
+  virtual void Move(ManagedRegister dest, ManagedRegister src, size_t size) = 0;
 
   virtual void CopyRawPtrFromThread(FrameOffset fr_offs, ThreadOffset thr_offs,
                                     ManagedRegister scratch) = 0;

@@ -305,7 +305,7 @@ static const RegLocation freshLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0,
 /*
  * Simple register allocation.  Some Dalvik virtual registers may
  * be promoted to physical registers.  Most of the work for temp
- * allocation is done on the fly.  We also do some initilization and
+ * allocation is done on the fly.  We also do some initialization and
  * type inference here.
  */
 void oatSimpleRegAlloc(CompilationUnit* cUnit)

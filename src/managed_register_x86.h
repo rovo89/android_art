@@ -129,7 +129,7 @@ class X86ManagedRegister : public ManagedRegister {
   bool IsX87Register() const {
     CHECK(IsValidManagedRegister());
     const int test = id_ - (kNumberOfCpuRegIds + kNumberOfXmmRegIds);
-    return (0 <= test) && (test < kNumberOfXmmRegIds);
+    return (0 <= test) && (test < kNumberOfX87RegIds);
   }
 
   bool IsRegisterPair() const {

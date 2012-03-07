@@ -63,8 +63,6 @@ int oatAllocTypedTemp(CompilationUnit *cUnit, bool fpHint, int regClass)
 
 void oatInitializeRegAlloc(CompilationUnit* cUnit)
 {
-    UNIMPLEMENTED(WARNING) << "oatInitializeRegAlloc";
-#if 0
     int numRegs = sizeof(coreRegs)/sizeof(*coreRegs);
     int numReserved = sizeof(reservedRegs)/sizeof(*reservedRegs);
     int numTemps = sizeof(coreTemps)/sizeof(*coreTemps);
@@ -85,11 +83,6 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
     oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
     // Keep special registers from being allocated
     for (int i = 0; i < numReserved; i++) {
-        if (NO_SUSPEND && !cUnit->genDebugger &&
-            (reservedRegs[i] == rSUSPEND)) {
-            //To measure cost of suspend check
-            continue;
-        }
         oatMarkInUse(cUnit, reservedRegs[i]);
     }
     // Mark temp regs - all others not in use can be used for promotion
@@ -116,7 +109,6 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
            }
         }
     }
-#endif
 }
 
 void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,

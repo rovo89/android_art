@@ -31,17 +31,13 @@ typedef int (*NextCallInsn)(CompilationUnit*, MIR*, int, uint32_t dexIdx,
                             uint32_t methodIdx);
 /*
  * If there are any ins passed in registers that have not been promoted
- * to a callee-save register, flush them to the frame.  Perform intial
+ * to a callee-save register, flush them to the frame.  Perform initial
  * assignment of promoted arguments.
  */
 void flushIns(CompilationUnit* cUnit)
 {
-    UNIMPLEMENTED(WARNING) << "flushIns";
-#if 0
     if (cUnit->numIns == 0)
         return;
-    int firstArgReg = rARG1;
-    int lastArgReg = rARG3;
     int startVReg = cUnit->numDalvikRegisters - cUnit->numIns;
     /*
      * Arguments passed in registers should be flushed
@@ -56,17 +52,17 @@ void flushIns(CompilationUnit* cUnit)
      */
     for (int i = 0; i < cUnit->numIns; i++) {
         PromotionMap vMap = cUnit->promotionMap[startVReg + i];
-        if (i <= (lastArgReg - firstArgReg)) {
+        if (i == 0 || i == 1) {
             // If arriving in register
             if (vMap.coreLocation == kLocPhysReg) {
-                opRegCopy(cUnit, vMap.coreReg, firstArgReg + i);
+                opRegCopy(cUnit, vMap.coreReg, i == 0 ? rARG1 : rARG2);
             }
             if (vMap.fpLocation == kLocPhysReg) {
-                opRegCopy(cUnit, vMap.fpReg, firstArgReg + i);
+                opRegCopy(cUnit, vMap.fpReg, i == 0 ? rARG1 : rARG2);
             }
             // Also put a copy in memory in case we're partially promoted
             storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
-                          firstArgReg + i, kWord);
+                          i == 0 ? rARG1 : rARG2, kWord);
         } else {
             // If arriving in frame & promoted
             if (vMap.coreLocation == kLocPhysReg) {
@@ -79,7 +75,6 @@ void flushIns(CompilationUnit* cUnit)
             }
         }
     }
-#endif
 }
 
 /*

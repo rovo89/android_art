@@ -97,7 +97,7 @@ static void CopyParameter(Assembler* jni_asm,
     } else {
       if (!mr_conv->IsCurrentParamOnStack()) {
         // regular non-straddling move
-        __ Move(out_reg, in_reg);
+        __ Move(out_reg, in_reg, mr_conv->CurrentParamSize());
       } else {
         UNIMPLEMENTED(FATAL);  // we currently don't expect to see this case
       }
@@ -159,7 +159,7 @@ static void SetNativeParameter(Assembler* jni_asm,
     __ StoreRawPtr(dest, in_reg);
   } else {
     if (!jni_conv->CurrentParamRegister().Equals(in_reg)) {
-      __ Move(jni_conv->CurrentParamRegister(), in_reg);
+      __ Move(jni_conv->CurrentParamRegister(), in_reg, jni_conv->CurrentParamSize());
     }
   }
 }
@@ -199,7 +199,7 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
   // 1. Build the frame saving all callee saves
   const size_t frame_size(jni_conv->FrameSize());
   const std::vector<ManagedRegister>& callee_save_regs = jni_conv->CalleeSaveRegisters();
-  __ BuildFrame(frame_size, mr_conv->MethodRegister(), callee_save_regs);
+  __ BuildFrame(frame_size, mr_conv->MethodRegister(), callee_save_regs, mr_conv->EntrySpills());
 
   // 2. Set up the StackIndirectReferenceTable
   mr_conv->ResetIterator(FrameOffset(frame_size));
@@ -279,9 +279,11 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
     // Compute arguments in registers to preserve
     mr_conv->ResetIterator(FrameOffset(frame_size + out_arg_size));
     std::vector<ManagedRegister> live_argument_regs;
+    std::vector<size_t> live_argument_regs_size;
     while (mr_conv->HasNext()) {
       if (mr_conv->IsCurrentParamInRegister()) {
         live_argument_regs.push_back(mr_conv->CurrentParamRegister());
+        live_argument_regs_size.push_back(mr_conv->CurrentParamSize());
       }
       mr_conv->Next();
     }
@@ -289,7 +291,7 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
     // Copy arguments to preserve to callee save registers
     CHECK_LE(live_argument_regs.size(), callee_save_regs.size());
     for (size_t i = 0; i < live_argument_regs.size(); i++) {
-      __ Move(callee_save_regs.at(i), live_argument_regs.at(i));
+      __ Move(callee_save_regs.at(i), live_argument_regs.at(i), live_argument_regs_size.at(i));
     }
 
     // Get SIRT entry for 1st argument (jclass or this) to be 1st argument to
@@ -331,7 +333,7 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
 
     // Restore live arguments
     for (size_t i = 0; i < live_argument_regs.size(); i++) {
-      __ Move(live_argument_regs.at(i), callee_save_regs.at(i));
+      __ Move(live_argument_regs.at(i), callee_save_regs.at(i), live_argument_regs_size.at(i));
     }
   }
 
@@ -515,7 +517,8 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
     __ DecreaseFrameSize(out_arg_size);
     jni_conv->ResetIterator(FrameOffset(0));
   }
-  __ Move(mr_conv->ReturnRegister(), jni_conv->ReturnRegister());
+  DCHECK_EQ(mr_conv->SizeOfReturnValue(), jni_conv->SizeOfReturnValue());
+  __ Move(mr_conv->ReturnRegister(), jni_conv->ReturnRegister(), mr_conv->SizeOfReturnValue());
 
   // 14. Restore segment state and remove SIRT from thread
   {

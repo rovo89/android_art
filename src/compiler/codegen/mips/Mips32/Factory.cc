@@ -619,12 +619,12 @@ LIR *loadBaseDispBody(CompilationUnit *cUnit, MIR *mir, int rBase,
     }
 
     if (rBase == rSP) {
-        if (load != NULL)
-            annotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
-                                    true /* isLoad */);
-        if (load2 != NULL)
+        annotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
+                                true /* isLoad */, pair /* is64bit */);
+        if (pair) {
             annotateDalvikRegAccess(load2, (displacement + HIWORD_OFFSET) >> 2,
-                                    true /* isLoad */);
+                                    true /* isLoad */, pair /* is64bit */);
+        }
     }
     return load;
 }
@@ -720,12 +720,12 @@ LIR *storeBaseDispBody(CompilationUnit *cUnit, int rBase,
     }
 
     if (rBase == rSP) {
-        if (store != NULL)
-            annotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
-                                    false /* isLoad */);
-        if (store2 != NULL)
+        annotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
+                                false /* isLoad */, pair /* is64bit */);
+        if (pair) {
             annotateDalvikRegAccess(store2, (displacement + HIWORD_OFFSET) >> 2,
-                                    false /* isLoad */);
+                                    false /* isLoad */, pair /* is64bit */);
+        }
     }
 
     return res;

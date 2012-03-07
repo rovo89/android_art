@@ -35,7 +35,12 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
     : instruction_set_(instruction_set), frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask) {
   CHECK_NE(code.size(), 0U);
-  CHECK_GE(vmap_table.size(), 1U);  // should always contain an entry for LR
+  if (instruction_set != kX86) {
+    CHECK_GE(vmap_table.size(), 1U);  // should always contain an entry for LR
+  }
+  DCHECK_EQ(vmap_table.size(),
+            static_cast<uint32_t>(__builtin_popcount(core_spill_mask)
+                                  + __builtin_popcount(fp_spill_mask)));
   CHECK_LE(vmap_table.size(), (1U << 16) - 1); // length must fit in 2^16-1
 
   size_t code_byte_count = code.size() * sizeof(code[0]);

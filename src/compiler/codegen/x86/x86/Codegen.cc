@@ -30,17 +30,16 @@
 #include "../X86/Factory.cc"
 /* Target independent factory utilities */
 #include "../../CodegenFactory.cc"
+/* X86-specific codegen routines */
+#include "../X86/Gen.cc"
+/* FP codegen routines */
+#include "../FP/X86FP.cc"
 /* Target independent gen routines */
 #include "../../GenCommon.cc"
 /* Shared invoke gen routines */
 #include "../GenInvoke.cc"
 /* X86-specific factory utilities */
 #include "../ArchFactory.cc"
-
-/* X86-specific codegen routines */
-#include "../X86/Gen.cc"
-/* FP codegen routines */
-#include "../FP/X86FP.cc"
 
 /* X86-specific register allocation */
 #include "../X86/Ralloc.cc"

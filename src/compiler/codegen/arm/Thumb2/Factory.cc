@@ -69,7 +69,7 @@ LIR* loadFPConstantValue(CompilationUnit* cUnit, int rDest, int value)
         dataTarget = addWordData(cUnit, &cUnit->literalList, value);
     }
     LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset, kThumb2Vldrs,
-                            rDest, r15pc, 0, 0, dataTarget);
+                            rDest, r15pc, 0, 0, 0, dataTarget);
     setMemRefType(loadPcRel, true, kLiteral);
     loadPcRel->aliasInfo = (intptr_t)dataTarget;
     oatAppendLIR(cUnit, (LIR* ) loadPcRel);
@@ -172,7 +172,7 @@ LIR* loadConstantNoClobber(CompilationUnit* cUnit, int rDest, int value)
         dataTarget = addWordData(cUnit, &cUnit->literalList, value);
     }
     LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
-                            kThumb2LdrPcRel12, rDest, 0, 0, 0, dataTarget);
+                            kThumb2LdrPcRel12, rDest, 0, 0, 0, 0, dataTarget);
     setMemRefType(loadPcRel, true, kLiteral);
     loadPcRel->aliasInfo = (intptr_t)dataTarget;
     res = loadPcRel;
@@ -627,7 +627,7 @@ LIR* loadConstantValueWide(CompilationUnit* cUnit, int rDestLo, int rDestHi,
             }
             LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
                                     kThumb2Vldrd, S2D(rDestLo, rDestHi),
-                                    r15pc, 0, 0, dataTarget);
+                                    r15pc, 0, 0, 0, dataTarget);
             setMemRefType(loadPcRel, true, kLiteral);
             loadPcRel->aliasInfo = (intptr_t)dataTarget;
             oatAppendLIR(cUnit, (LIR* ) loadPcRel);
@@ -784,10 +784,11 @@ LIR* loadBaseDispBody(CompilationUnit* cUnit, MIR* mir, int rBase,
     bool thumb2Form = (displacement < 4092 && displacement >= 0);
     bool allLowRegs = (LOWREG(rBase) && LOWREG(rDest));
     int encodedDisp = displacement;
-
+    bool is64bit = false;
     switch (size) {
         case kDouble:
         case kLong:
+            is64bit = true;
             if (FPREG(rDest)) {
                 if (SINGLEREG(rDest)) {
                     DCHECK(FPREG(rDestHi));
@@ -883,7 +884,7 @@ LIR* loadBaseDispBody(CompilationUnit* cUnit, MIR* mir, int rBase,
 
     // TODO: in future may need to differentiate Dalvik accesses w/ spills
     if (rBase == rSP) {
-        annotateDalvikRegAccess(load, displacement >> 2, true /* isLoad */);
+        annotateDalvikRegAccess(load, displacement >> 2, true /* isLoad */, is64bit);
     }
     return load;
 }
@@ -912,10 +913,11 @@ LIR* storeBaseDispBody(CompilationUnit* cUnit, int rBase, int displacement,
     bool thumb2Form = (displacement < 4092 && displacement >= 0);
     bool allLowRegs = (LOWREG(rBase) && LOWREG(rSrc));
     int encodedDisp = displacement;
-
+    bool is64bit = false;
     switch (size) {
         case kLong:
         case kDouble:
+            is64bit = true;
             if (!FPREG(rSrc)) {
                 res = storeBaseDispBody(cUnit, rBase, displacement, rSrc,
                                         -1, kWord);
@@ -990,7 +992,7 @@ LIR* storeBaseDispBody(CompilationUnit* cUnit, int rBase, int displacement,
 
     // TODO: In future, may need to differentiate Dalvik & spill accesses
     if (rBase == rSP) {
-        annotateDalvikRegAccess(store, displacement >> 2, false /* isLoad */);
+        annotateDalvikRegAccess(store, displacement >> 2, false /* isLoad */, is64bit);
     }
     return res;
 }
