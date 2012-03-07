@@ -109,14 +109,20 @@ test-art-target-gtest: $(ART_TARGET_TEST_TARGETS)
 test-art-target-oat: $(ART_TEST_OAT_TARGETS)
 	@echo test-art-target-oat PASSED
 
-.PHONY: test-art-target-run-test
-test-art-target-run-test: test-art-target-run-test-002
-	@echo test-art-target-run-test PASSED
+define declare-test-art-target-run-test
+.PHONY: test-art-target-run-test-$(1)
+test-art-target-run-test-$(1): test-art-target-sync
+	art/test/run-test $(1)
+	@echo test-art-target-run-test-$(1) PASSED
 
-.PHONY: test-art-target-run-test-002
-test-art-target-run-test-002: test-art-target-sync
-	art/test/run-test 002
-	@echo test-art-target-run-test-002 PASSED
+TEST_ART_TARGET_RUN_TEST_TARGETS += test-art-target-run-test-$(1)
+endef
+
+$(foreach test, $(wildcard art/test/0*), $(eval $(call declare-test-art-target-run-test,$(notdir $(test)))))
+
+.PHONY: test-art-target-run-test
+test-art-target-run-test: $(TEST_ART_TARGET_RUN_TEST_TARGETS)
+	@echo test-art-target-run-test PASSED
 
 ########################################################################
 # oat-target and oat-target-sync targets
