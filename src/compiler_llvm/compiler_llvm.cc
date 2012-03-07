@@ -41,10 +41,11 @@ extern llvm::cl::opt<bool> EnableARMLongCalls;
 // ARMISelLowering.cpp, however, it is not in the llvm namespace.
 
 
-namespace art {
-namespace compiler_llvm {
+namespace {
 
-CompilerLLVM::LLVMInitializer::LLVMInitializer() {
+pthread_once_t llvm_initialized = PTHREAD_ONCE_INIT;
+
+void InitializeLLVM() {
   // NOTE: Uncomment following line to show the time consumption of LLVM passes
   //llvm::TimePassesIsEnabled = true;
 
@@ -75,13 +76,15 @@ CompilerLLVM::LLVMInitializer::LLVMInitializer() {
   llvm::llvm_start_multithreaded();
 }
 
-CompilerLLVM::LLVMInitializer::~LLVMInitializer() {
-  llvm::llvm_shutdown();
-}
-
 // Singleton. Otherwise, multiple CompilerLLVM instances may cause crashes if
 // one shuts down prematurely.
-CompilerLLVM::LLVMInitializer CompilerLLVM::llvm_initialize_guard;
+llvm::llvm_shutdown_obj llvm_guard;
+
+} // anonymous namespace
+
+
+namespace art {
+namespace compiler_llvm {
 
 
 llvm::Module* makeLLVMModuleContents(llvm::Module* module);
@@ -90,6 +93,10 @@ llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 CompilerLLVM::CompilerLLVM(Compiler* compiler, InstructionSet insn_set)
     : compiler_(compiler), compiler_lock_("llvm_compiler_lock"),
       insn_set_(insn_set), curr_cunit_(NULL) {
+
+
+  // Initialize LLVM libraries
+  pthread_once(&llvm_initialized, InitializeLLVM);
 }
 
 
