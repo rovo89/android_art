@@ -91,17 +91,17 @@ fi
 msg "------------------------------"
 
 if [ "$QUIET" = "n" ]; then
-  adb shell mkdir /data/art-test
-  adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar /data/art-test
-  adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar.oat /data/art-test
-  adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.jar /data/art-test
-  adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.jar.oat /data/art-test
+  adb shell mkdir /data/run-test
+  adb push ${ANDROID_PRODUCT_OUT}/data/run-test/$TEST_NAME.jar /data/run-test
+  adb push ${ANDROID_PRODUCT_OUT}/data/run-test/$TEST_NAME.jar.oat /data/run-test
+  adb push ${ANDROID_PRODUCT_OUT}/data/run-test/$TEST_NAME-ex.jar /data/run-test
+  adb push ${ANDROID_PRODUCT_OUT}/data/run-test/$TEST_NAME-ex.jar.oat /data/run-test
 else
-  adb shell mkdir /data/art-test >/dev/null 2>&1
-  adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar /data/art-test >/dev/null 2>&1
-  adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME.jar.oat /data/art-test >/dev/null 2>&1
-  adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.jar /data/art-test >/dev/null 2>&1
-  adb push ${ANDROID_PRODUCT_OUT}/data/art-test/$TEST_NAME-ex.jar.oat /data/art-test >/dev/null 2>&1
+  adb shell mkdir /data/run-test >/dev/null 2>&1
+  adb push ${ANDROID_PRODUCT_OUT}/data/run-test/$TEST_NAME.jar /data/run-test >/dev/null 2>&1
+  adb push ${ANDROID_PRODUCT_OUT}/data/run-test/$TEST_NAME.jar.oat /data/run-test >/dev/null 2>&1
+  adb push ${ANDROID_PRODUCT_OUT}/data/run-test/$TEST_NAME-ex.jar /data/run-test >/dev/null 2>&1
+  adb push ${ANDROID_PRODUCT_OUT}/data/run-test/$TEST_NAME-ex.jar.oat /data/run-test >/dev/null 2>&1
 fi
 
 if [ "$DEBUG" = "y" ]; then
@@ -118,7 +118,7 @@ fi
 
 cmdline="cd /data; $INVOKE_WITH $OATEXEC $DEX_DEBUG $ZYGOTE -Xjnigreflimit:256 \
     -Ximage:/data/art-test/core.art \
-    -cp /data/art-test/$TEST_NAME.jar \
+    -cp /data/run-test/$TEST_NAME.jar \
     Main"
 if [ "$DEV_MODE" = "y" ]; then
   echo $cmdline "$@"

@@ -55,7 +55,7 @@ public class Main {
         private static final String CLASS_NAME =
                 "Main$BrokenDexLoader$Inaccessible";
 
-        private static final String DEX_FILE = "/data/art-test/087-gc-after-link.jar";
+        private static final String DEX_FILE = "/data/run-test/087-gc-after-link.jar";
 
         public BrokenDexLoader(ClassLoader parent) {
             super(parent);
