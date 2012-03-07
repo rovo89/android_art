@@ -18,6 +18,7 @@
 #define ART_SRC_COMPILER_COMPILER_H_
 
 #include "dex_file.h"
+#include "dex_instruction.h"
 
 namespace art {
 
@@ -198,7 +199,7 @@ bool oatFindInductionVariables(struct CompilationUnit* cUnit,
 bool oatClearVisitedFlag(struct CompilationUnit* cUnit,
                                  struct BasicBlock* bb);
 char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
-                              const DecodedInstruction* insn,
+                              const DecodedInstruction& insn,
                               const char* note);
 char* oatFullDisassembler(struct CompilationUnit* cUnit,
                           const struct MIR* mir);

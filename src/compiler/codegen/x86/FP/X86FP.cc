@@ -30,25 +30,25 @@ bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
      * the handlers.
      */
     switch (mir->dalvikInsn.opcode) {
-        case OP_ADD_FLOAT_2ADDR:
-        case OP_ADD_FLOAT:
+        case Instruction::ADD_FLOAT_2ADDR:
+        case Instruction::ADD_FLOAT:
             op = kX86Fadds;
             break;
-        case OP_SUB_FLOAT_2ADDR:
-        case OP_SUB_FLOAT:
+        case Instruction::SUB_FLOAT_2ADDR:
+        case Instruction::SUB_FLOAT:
             op = kX86Fsubs;
             break;
-        case OP_DIV_FLOAT_2ADDR:
-        case OP_DIV_FLOAT:
+        case Instruction::DIV_FLOAT_2ADDR:
+        case Instruction::DIV_FLOAT:
             op = kX86Fdivs;
             break;
-        case OP_MUL_FLOAT_2ADDR:
-        case OP_MUL_FLOAT:
+        case Instruction::MUL_FLOAT_2ADDR:
+        case Instruction::MUL_FLOAT:
             op = kX86Fmuls;
             break;
-        case OP_REM_FLOAT_2ADDR:
-        case OP_REM_FLOAT:
-        case OP_NEG_FLOAT: {
+        case Instruction::REM_FLOAT_2ADDR:
+        case Instruction::REM_FLOAT:
+        case Instruction::NEG_FLOAT: {
             return genArithOpFloatPortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
         }
         default:
@@ -76,25 +76,25 @@ static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
     RegLocation rlResult;
 
     switch (mir->dalvikInsn.opcode) {
-        case OP_ADD_DOUBLE_2ADDR:
-        case OP_ADD_DOUBLE:
+        case Instruction::ADD_DOUBLE_2ADDR:
+        case Instruction::ADD_DOUBLE:
             op = kX86Faddd;
             break;
-        case OP_SUB_DOUBLE_2ADDR:
-        case OP_SUB_DOUBLE:
+        case Instruction::SUB_DOUBLE_2ADDR:
+        case Instruction::SUB_DOUBLE:
             op = kX86Fsubd;
             break;
-        case OP_DIV_DOUBLE_2ADDR:
-        case OP_DIV_DOUBLE:
+        case Instruction::DIV_DOUBLE_2ADDR:
+        case Instruction::DIV_DOUBLE:
             op = kX86Fdivd;
             break;
-        case OP_MUL_DOUBLE_2ADDR:
-        case OP_MUL_DOUBLE:
+        case Instruction::MUL_DOUBLE_2ADDR:
+        case Instruction::MUL_DOUBLE:
             op = kX86Fmuld;
             break;
-        case OP_REM_DOUBLE_2ADDR:
-        case OP_REM_DOUBLE:
-        case OP_NEG_DOUBLE: {
+        case Instruction::REM_DOUBLE_2ADDR:
+        case Instruction::REM_DOUBLE:
+        case Instruction::NEG_DOUBLE: {
             return genArithOpDoublePortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
         }
         default:
@@ -120,7 +120,7 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir)
     UNIMPLEMENTED(WARNING) << "genConversion";
     return false;
 #if 0
-    Opcode opcode = mir->dalvikInsn.opcode;
+    Instruction::Code opcode = mir->dalvikInsn.opcode;
     bool longSrc = false;
     bool longDest = false;
     RegLocation rlSrc;
@@ -129,32 +129,32 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir)
     int srcReg;
     RegLocation rlResult;
     switch (opcode) {
-        case OP_INT_TO_FLOAT:
+        case Instruction::INT_TO_FLOAT:
             longSrc = false;
             longDest = false;
             op = kX86Fcvtsw;
             break;
-        case OP_DOUBLE_TO_FLOAT:
+        case Instruction::DOUBLE_TO_FLOAT:
             longSrc = true;
             longDest = false;
             op = kX86Fcvtsd;
             break;
-        case OP_FLOAT_TO_DOUBLE:
+        case Instruction::FLOAT_TO_DOUBLE:
             longSrc = false;
             longDest = true;
             op = kX86Fcvtds;
             break;
-        case OP_INT_TO_DOUBLE:
+        case Instruction::INT_TO_DOUBLE:
             longSrc = false;
             longDest = true;
             op = kX86Fcvtdw;
             break;
-        case OP_FLOAT_TO_INT:
-        case OP_DOUBLE_TO_INT:
-        case OP_LONG_TO_DOUBLE:
-        case OP_FLOAT_TO_LONG:
-        case OP_LONG_TO_FLOAT:
-        case OP_DOUBLE_TO_LONG:
+        case Instruction::FLOAT_TO_INT:
+        case Instruction::DOUBLE_TO_INT:
+        case Instruction::LONG_TO_DOUBLE:
+        case Instruction::FLOAT_TO_LONG:
+        case Instruction::LONG_TO_FLOAT:
+        case Instruction::DOUBLE_TO_LONG:
             return genConversionPortable(cUnit, mir);
         default:
             return true;
@@ -192,18 +192,18 @@ static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
     int offset;
 
     switch(mir->dalvikInsn.opcode) {
-        case OP_CMPL_FLOAT:
+        case Instruction::CMPL_FLOAT:
             offset = OFFSETOF_MEMBER(Thread, pCmplFloat);
             wide = false;
             break;
-        case OP_CMPG_FLOAT:
+        case Instruction::CMPG_FLOAT:
             offset = OFFSETOF_MEMBER(Thread, pCmpgFloat);
             wide = false;
             break;
-        case OP_CMPL_DOUBLE:
+        case Instruction::CMPL_DOUBLE:
             offset = OFFSETOF_MEMBER(Thread, pCmplDouble);
             break;
-        case OP_CMPG_DOUBLE:
+        case Instruction::CMPG_DOUBLE:
             offset = OFFSETOF_MEMBER(Thread, pCmpgDouble);
             break;
         default:

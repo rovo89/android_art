@@ -29,7 +29,7 @@ const char* const Instruction::kInstructionNames[] = {
 #undef INSTRUCTION_NAME
 };
 
-Instruction::InstructionFormat const Instruction::kInstructionFormats[] = {
+Instruction::Format const Instruction::kInstructionFormats[] = {
 #define INSTRUCTION_FORMAT(o, c, p, format, r, i, a, v) format,
 #include "dex_instruction_list.h"
   DEX_INSTRUCTION_LIST(INSTRUCTION_FORMAT)
@@ -72,7 +72,7 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
   uint16_t insn = *insns;
   int opcode = insn & 0xFF;
 
-  switch (Format()) {
+  switch (FormatOf(Opcode())) {
     case k10x:       // op
       /* nothing to do; copy the AA bits out for the verifier */
       vA = INST_AA(insn);
@@ -203,16 +203,16 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
       vB_wide = FETCH_u4(1) | ((uint64_t) FETCH_u4(3) << 32);
       break;
     default:
-      LOG(ERROR) << "Can't decode unexpected format " << static_cast<int>(Format()) << " (op=" << opcode << ")";
+      LOG(ERROR) << "Can't decode unexpected format " << static_cast<int>(FormatOf(Opcode())) << " (op=" << opcode << ")";
       return;
   }
 }
 
 size_t Instruction::SizeInCodeUnits() const {
   const uint16_t* insns = reinterpret_cast<const uint16_t*>(this);
-  if (*insns == kPackedSwitchSignature) {
+  if (*insns == Instruction::kPackedSwitchSignature) {
     return (4 + insns[1] * 2);
-  } else if (*insns == kSparseSwitchSignature) {
+  } else if (*insns == Instruction::kSparseSwitchSignature) {
     return (2 + insns[1] * 4);
   } else if (*insns == kArrayDataSignature) {
     uint16_t element_size = insns[1];
@@ -220,7 +220,7 @@ size_t Instruction::SizeInCodeUnits() const {
     // The plus 1 is to round up for odd size and width.
     return (4 + (element_size * length + 1) / 2);
   } else {
-    switch (Format()) {
+    switch (FormatOf(Opcode())) {
       case k10x:
       case k12x:
       case k11n:
@@ -288,64 +288,69 @@ std::string Instruction::DumpHex(size_t code_units) const {
 std::string Instruction::DumpString(const DexFile* file) const {
   DecodedInstruction insn(this);
   std::ostringstream os;
-  const char* opcode = kInstructionNames[insn.opcode_];
-  switch (Format()) {
+  const char* opcode = kInstructionNames[insn.opcode];
+  switch (FormatOf(Opcode())) {
     case k10x:  os << opcode; break;
-    case k12x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA_, insn.vB_); break;
-    case k11n:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA_, insn.vB_); break;
-    case k11x:  os << StringPrintf("%s v%d", opcode, insn.vA_); break;
-    case k10t:  os << StringPrintf("%s %+d", opcode, insn.vA_); break;
-    case k20bc: os << StringPrintf("%s %d, kind@%d", opcode, insn.vA_, insn.vB_); break;
-    case k20t:  os << StringPrintf("%s %+d", opcode, insn.vA_); break;
-    case k22x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA_, insn.vB_); break;
-    case k21t:  os << StringPrintf("%s v%d, %+d", opcode, insn.vA_, insn.vB_); break;
-    case k21s:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA_, insn.vB_); break;
-    case k21h:  os << StringPrintf("%s v%d, #%+d00000[00000000]", opcode, insn.vA_, insn.vB_); break;
-    case k21c:  os << StringPrintf("%s v%d, thing@%d", opcode, insn.vA_, insn.vB_); break;
-    case k23x:  os << StringPrintf("%s v%d, v%d, v%d", opcode, insn.vA_, insn.vB_, insn.vC_); break;
-    case k22b:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, insn.vA_, insn.vB_, insn.vC_); break;
-    case k22t:  os << StringPrintf("%s v%d, v%d, %+d", opcode, insn.vA_, insn.vB_, insn.vC_); break;
-    case k22s:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, insn.vA_, insn.vB_, insn.vC_); break;
-    case k22c:  os << StringPrintf("%s v%d, v%d, thing@%d", opcode, insn.vA_, insn.vB_, insn.vC_); break;
-    case k32x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA_, insn.vB_); break;
-    case k30t:  os << StringPrintf("%s %+d", opcode, insn.vA_); break;
-    case k31t:  os << StringPrintf("%s v%d, %+d", opcode, insn.vA_, insn.vB_); break;
-    case k31i:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA_, insn.vB_); break;
-    case k31c:  os << StringPrintf("%s v%d, thing@%d", opcode, insn.vA_, insn.vB_); break;
+    case k12x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA, insn.vB); break;
+    case k11n:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA, insn.vB); break;
+    case k11x:  os << StringPrintf("%s v%d", opcode, insn.vA); break;
+    case k10t:  os << StringPrintf("%s %+d", opcode, insn.vA); break;
+    case k20bc: os << StringPrintf("%s %d, kind@%d", opcode, insn.vA, insn.vB); break;
+    case k20t:  os << StringPrintf("%s %+d", opcode, insn.vA); break;
+    case k22x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA, insn.vB); break;
+    case k21t:  os << StringPrintf("%s v%d, %+d", opcode, insn.vA, insn.vB); break;
+    case k21s:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA, insn.vB); break;
+    case k21h:  os << StringPrintf("%s v%d, #%+d00000[00000000]", opcode, insn.vA, insn.vB); break;
+    case k21c:  os << StringPrintf("%s v%d, thing@%d", opcode, insn.vA, insn.vB); break;
+    case k23x:  os << StringPrintf("%s v%d, v%d, v%d", opcode, insn.vA, insn.vB, insn.vC); break;
+    case k22b:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, insn.vA, insn.vB, insn.vC); break;
+    case k22t:  os << StringPrintf("%s v%d, v%d, %+d", opcode, insn.vA, insn.vB, insn.vC); break;
+    case k22s:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, insn.vA, insn.vB, insn.vC); break;
+    case k22c:  os << StringPrintf("%s v%d, v%d, thing@%d", opcode, insn.vA, insn.vB, insn.vC); break;
+    case k32x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA, insn.vB); break;
+    case k30t:  os << StringPrintf("%s %+d", opcode, insn.vA); break;
+    case k31t:  os << StringPrintf("%s v%d, %+d", opcode, insn.vA, insn.vB); break;
+    case k31i:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA, insn.vB); break;
+    case k31c:  os << StringPrintf("%s v%d, thing@%d", opcode, insn.vA, insn.vB); break;
     case k35c: {
-      switch (insn.opcode_) {
+      switch (insn.opcode) {
         case INVOKE_VIRTUAL:
         case INVOKE_SUPER:
         case INVOKE_DIRECT:
         case INVOKE_STATIC:
         case INVOKE_INTERFACE:
           if (file != NULL) {
-            const DexFile::MethodId& meth_id = file->GetMethodId(insn.vB_);
+            const DexFile::MethodId& meth_id = file->GetMethodId(insn.vB);
             os << opcode << " {";
-            for (size_t i = 0; i < insn.vA_; ++i) {
+            for (size_t i = 0; i < insn.vA; ++i) {
               if (i != 0) {
                 os << ", ";
               }
-              os << "v" << insn.arg_[i];
+              os << "v" << insn.arg[i];
             }
             os << "}, "
                << file->GetMethodDeclaringClassDescriptor(meth_id) << "."
                << file->GetMethodName(meth_id) << file->GetMethodSignature(meth_id)
-               << " // method@" << insn.vB_;
+               << " // method@" << insn.vB;
             break;
           }  // else fall-through
         default:
-          os << opcode << " {v" << insn.arg_[0] << ", v" << insn.arg_[1] << ", v" << insn.arg_[2]
-                       << ", v" << insn.arg_[3] << ", v" << insn.arg_[4] << "}, thing@" << insn.vB_;
+          os << opcode << " {v" << insn.arg[0] << ", v" << insn.arg[1] << ", v" << insn.arg[2]
+                       << ", v" << insn.arg[3] << ", v" << insn.arg[4] << "}, thing@" << insn.vB;
           break;
       }
       break;
     }
-    case k3rc: os << StringPrintf("%s, {v%d .. v%d}, method@%d", opcode, insn.vC_, (insn.vC_+ insn.vA_ - 1), insn.vB_); break;
-    case k51l: os << StringPrintf("%s v%d, #%+d", opcode, insn.vA_, insn.vB_); break;
+    case k3rc: os << StringPrintf("%s, {v%d .. v%d}, method@%d", opcode, insn.vC, (insn.vC + insn.vA - 1), insn.vB); break;
+    case k51l: os << StringPrintf("%s v%d, #%+d", opcode, insn.vA, insn.vB); break;
     default: os << " unknown format (" << DumpHex(5) << ")"; break;
   }
   return os.str();
+}
+
+DecodedInstruction::DecodedInstruction(const Instruction* inst) {
+  inst->Decode(vA, vB, vB_wide, vC, arg);
+  opcode = inst->Opcode();
 }
 
 }  // namespace art

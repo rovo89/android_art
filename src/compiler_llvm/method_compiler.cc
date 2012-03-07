@@ -1144,10 +1144,10 @@ void MethodCompiler::EmitInsn_Move(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, jty, kReg);
-  EmitStoreDalvikReg(dec_insn.vA_, jty, kReg, src_value);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, jty, kReg);
+  EmitStoreDalvikReg(dec_insn.vA, jty, kReg, src_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1157,10 +1157,10 @@ void MethodCompiler::EmitInsn_MoveResult(uint32_t dex_pc,
                                          Instruction const* insn,
                                          JType jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   llvm::Value* src_value = EmitLoadDalvikRetValReg(jty, kReg);
-  EmitStoreDalvikReg(dec_insn.vA_, jty, kReg, src_value);
+  EmitStoreDalvikReg(dec_insn.vA, jty, kReg, src_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1169,7 +1169,7 @@ void MethodCompiler::EmitInsn_MoveResult(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_MoveException(uint32_t dex_pc,
                                             Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   // Get thread-local exception field address
   llvm::Constant* exception_field_offset =
@@ -1189,7 +1189,7 @@ void MethodCompiler::EmitInsn_MoveException(uint32_t dex_pc,
   irb_.CreateStore(irb_.getJNull(), exception_field_addr);
 
   // Keep the exception object in the Dalvik register
-  EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, exception_object_addr);
+  EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, exception_object_addr);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1198,10 +1198,10 @@ void MethodCompiler::EmitInsn_MoveException(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_ThrowException(uint32_t dex_pc,
                                              Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   llvm::Value* exception_addr =
-    EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+    EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
 
   EmitUpdateLineNumFromDexPC(dex_pc);
 
@@ -1227,7 +1227,7 @@ void MethodCompiler::EmitInsn_ReturnVoid(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_Return(uint32_t dex_pc,
                                      Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   // Garbage collection safe-point
   EmitGuard_GarbageCollectionSuspend(dex_pc);
@@ -1239,7 +1239,7 @@ void MethodCompiler::EmitInsn_Return(uint32_t dex_pc,
 
   // Return!
   char ret_shorty = method_helper_.GetShorty()[0];
-  llvm::Value* retval = EmitLoadDalvikReg(dec_insn.vA_, ret_shorty, kAccurate);
+  llvm::Value* retval = EmitLoadDalvikReg(dec_insn.vA, ret_shorty, kAccurate);
 
   irb_.CreateRet(retval);
 }
@@ -1249,7 +1249,7 @@ void MethodCompiler::EmitInsn_LoadConstant(uint32_t dex_pc,
                                            Instruction const* insn,
                                            JType imm_jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   DCHECK(imm_jty == kInt || imm_jty == kLong) << imm_jty;
 
@@ -1262,22 +1262,22 @@ void MethodCompiler::EmitInsn_LoadConstant(uint32_t dex_pc,
   case Instruction::CONST:
   case Instruction::CONST_WIDE_16:
   case Instruction::CONST_WIDE_32:
-    imm = static_cast<int64_t>(static_cast<int32_t>(dec_insn.vB_));
+    imm = static_cast<int64_t>(static_cast<int32_t>(dec_insn.vB));
     break;
 
   case Instruction::CONST_HIGH16:
     imm = static_cast<int64_t>(static_cast<int32_t>(
-          static_cast<uint32_t>(static_cast<uint16_t>(dec_insn.vB_)) << 16));
+          static_cast<uint32_t>(static_cast<uint16_t>(dec_insn.vB)) << 16));
     break;
 
   // 64-bit Immediate
   case Instruction::CONST_WIDE:
-    imm = static_cast<int64_t>(dec_insn.vB_wide_);
+    imm = static_cast<int64_t>(dec_insn.vB_wide);
     break;
 
   case Instruction::CONST_WIDE_HIGH16:
     imm = static_cast<int64_t>(
-          static_cast<uint64_t>(static_cast<uint16_t>(dec_insn.vB_)) << 48);
+          static_cast<uint64_t>(static_cast<uint16_t>(dec_insn.vB)) << 48);
     break;
 
   // Unknown opcode for load constant (unreachable)
@@ -1289,11 +1289,11 @@ void MethodCompiler::EmitInsn_LoadConstant(uint32_t dex_pc,
   // Store the non-object register
   llvm::Type* imm_type = irb_.getJType(imm_jty, kAccurate);
   llvm::Constant* imm_value = llvm::ConstantInt::getSigned(imm_type, imm);
-  EmitStoreDalvikReg(dec_insn.vA_, imm_jty, kAccurate, imm_value);
+  EmitStoreDalvikReg(dec_insn.vA, imm_jty, kAccurate, imm_value);
 
   // Store the object register if it is possible to be null.
   if (imm_jty == kInt && imm == 0) {
-    EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, irb_.getJNull());
+    EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, irb_.getJNull());
   }
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
@@ -1303,9 +1303,9 @@ void MethodCompiler::EmitInsn_LoadConstant(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
                                                  Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  uint32_t string_idx = dec_insn.vB_;
+  uint32_t string_idx = dec_insn.vB;
 
   llvm::Value* string_field_addr = EmitLoadDexCacheStringFieldAddr(string_idx);
 
@@ -1325,7 +1325,7 @@ void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
 
     // String is resolved, go to next basic block.
     irb_.SetInsertPoint(block_str_exist);
-    EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, string_addr);
+    EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, string_addr);
     irb_.CreateBr(GetNextBasicBlock(dex_pc));
 
     // String is not resolved yet, resolve it now.
@@ -1346,7 +1346,7 @@ void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
   }
 
   // Store the string object to the Dalvik register
-  EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, string_addr);
+  EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, string_addr);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1433,10 +1433,10 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_LoadConstantClass(uint32_t dex_pc,
                                                 Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vB_);
-  EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, type_object_addr);
+  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vB);
+  EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, type_object_addr);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1445,10 +1445,10 @@ void MethodCompiler::EmitInsn_LoadConstantClass(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
                                            Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   llvm::Value* object_addr =
-    EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+    EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
 
   // TODO: Slow path always. May not need NullPointerException check.
   EmitGuard_NullPointerException(dex_pc, object_addr);
@@ -1465,10 +1465,10 @@ void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
                                           Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   llvm::Value* object_addr =
-    EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+    EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
 
   EmitGuard_NullPointerException(dex_pc, object_addr);
 
@@ -1484,7 +1484,7 @@ void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
                                         Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   llvm::BasicBlock* block_test_class =
     CreateBasicBlockWithDexPC(dex_pc, "test_class");
@@ -1493,7 +1493,7 @@ void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
     CreateBasicBlockWithDexPC(dex_pc, "test_sub_class");
 
   llvm::Value* object_addr =
-    EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+    EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
 
   // Test: Is the reference equal to null?  Act as no-op when it is null.
   llvm::Value* equal_null = irb_.CreateICmpEQ(object_addr, irb_.getJNull());
@@ -1504,7 +1504,7 @@ void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
 
   // Test: Is the object instantiated from the given class?
   irb_.SetInsertPoint(block_test_class);
-  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vB_);
+  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vB);
   DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
 
   llvm::PointerType* jobject_ptr_ty = irb_.getJObjectTy();
@@ -1539,7 +1539,7 @@ void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
                                          Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   llvm::Constant* zero = irb_.getJInt(0);
   llvm::Constant* one = irb_.getJInt(1);
@@ -1556,7 +1556,7 @@ void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
     CreateBasicBlockWithDexPC(dex_pc, "test_sub_class");
 
   llvm::Value* object_addr =
-    EmitLoadDalvikReg(dec_insn.vB_, kObject, kAccurate);
+    EmitLoadDalvikReg(dec_insn.vB, kObject, kAccurate);
 
   // Overview of the following code :
   // We check for null, if so, then false, otherwise check for class == . If so
@@ -1568,12 +1568,12 @@ void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
   irb_.CreateCondBr(equal_null, block_nullp, block_test_class);
 
   irb_.SetInsertPoint(block_nullp);
-  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, zero);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, zero);
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 
   // Test: Is the object instantiated from the given class?
   irb_.SetInsertPoint(block_test_class);
-  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vC_);
+  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vC);
   DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
 
   llvm::PointerType* jobject_ptr_ty = irb_.getJObjectTy();
@@ -1590,7 +1590,7 @@ void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
   irb_.CreateCondBr(equal_class, block_class_equals, block_test_sub_class);
 
   irb_.SetInsertPoint(block_class_equals);
-  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, one);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, one);
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 
   // Test: Is the object instantiated from the subclass of the given class?
@@ -1600,7 +1600,7 @@ void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
     irb_.CreateCall2(irb_.GetRuntime(IsAssignable),
                      type_object_addr, object_type_object_addr);
 
-  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1623,15 +1623,15 @@ llvm::Value* MethodCompiler::EmitLoadArrayLength(llvm::Value* array) {
 void MethodCompiler::EmitInsn_ArrayLength(uint32_t dex_pc,
                                           Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   // Get the array object address
-  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vB_, kObject, kAccurate);
+  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vB, kObject, kAccurate);
   EmitGuard_NullPointerException(dex_pc, array_addr);
 
   // Get the array length and store it to the register
   llvm::Value* array_len = EmitLoadArrayLength(array_addr);
-  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, array_len);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, array_len);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1640,17 +1640,17 @@ void MethodCompiler::EmitInsn_ArrayLength(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
                                           Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   llvm::Function* runtime_func;
   if (compiler_->CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
-                                            *dex_file_, dec_insn.vB_)) {
+                                            *dex_file_, dec_insn.vB)) {
     runtime_func = irb_.GetRuntime(AllocObject);
   } else {
     runtime_func = irb_.GetRuntime(AllocObjectWithAccessCheck);
   }
 
-  llvm::Constant* type_index_value = irb_.getInt32(dec_insn.vB_);
+  llvm::Constant* type_index_value = irb_.getInt32(dec_insn.vB);
 
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
@@ -1661,7 +1661,7 @@ void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
 
   EmitGuard_ExceptionLandingPad(dex_pc);
 
-  EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, object_addr);
+  EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, object_addr);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1708,12 +1708,12 @@ llvm::Value* MethodCompiler::EmitAllocNewArray(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_NewArray(uint32_t dex_pc,
                                        Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   llvm::Value* object_addr =
-    EmitAllocNewArray(dex_pc, dec_insn.vB_, dec_insn.vC_, false);
+    EmitAllocNewArray(dex_pc, dec_insn.vB, dec_insn.vC, false);
 
-  EmitStoreDalvikReg(dec_insn.vA_, kObject, kAccurate, object_addr);
+  EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, object_addr);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1723,12 +1723,12 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
                                              Instruction const* insn,
                                              bool is_range) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   llvm::Value* object_addr =
-    EmitAllocNewArray(dex_pc, dec_insn.vA_, dec_insn.vB_, true);
+    EmitAllocNewArray(dex_pc, dec_insn.vA, dec_insn.vB, true);
 
-  if (dec_insn.vA_ > 0) {
+  if (dec_insn.vA > 0) {
     llvm::Value* object_addr_int =
       irb_.CreatePtrToInt(object_addr, irb_.getPtrEquivIntTy());
 
@@ -1741,7 +1741,7 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
     llvm::Value* data_field_addr_int =
       irb_.CreateAdd(object_addr_int, data_field_offset);
 
-    Class* klass = method_->GetDexCacheResolvedTypes()->Get(dec_insn.vB_);
+    Class* klass = method_->GetDexCacheResolvedTypes()->Get(dec_insn.vB);
     CHECK_NE(klass, static_cast<Class*>(NULL));
     // Moved this below already: CHECK(!klass->IsPrimitive() || klass->IsPrimitiveInt());
 
@@ -1759,15 +1759,15 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
     // one element which may be very space consuming.  Maybe changing to use
     // memcpy may help; however, since we can't guarantee that the alloca of
     // dalvik register are continuous, we can't perform such optimization yet.
-    for (uint32_t i = 0; i < dec_insn.vA_; ++i) {
+    for (uint32_t i = 0; i < dec_insn.vA; ++i) {
       llvm::Value* data_field_addr =
         irb_.CreateIntToPtr(data_field_addr_int, field_type);
 
       int reg_index;
       if (is_range) {
-        reg_index = dec_insn.vC_ + i;
+        reg_index = dec_insn.vC + i;
       } else {
-        reg_index = dec_insn.arg_[i];
+        reg_index = dec_insn.arg[i];
       }
 
       llvm::Value* reg_value;
@@ -1792,7 +1792,7 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
                                             Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   // Read the payload
   struct PACKED Payload {
@@ -1803,7 +1803,7 @@ void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
   };
 
   int32_t payload_offset = static_cast<int32_t>(dex_pc) +
-                           static_cast<int32_t>(dec_insn.vB_);
+                           static_cast<int32_t>(dec_insn.vB);
 
   Payload const* payload =
     reinterpret_cast<Payload const*>(code_item_->insns_ + payload_offset);
@@ -1811,7 +1811,7 @@ void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
   uint32_t size_in_bytes = payload->elem_width_ * payload->num_elems_;
 
   // Load and check the array
-  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
 
   EmitGuard_NullPointerException(dex_pc, array_addr);
 
@@ -1879,9 +1879,9 @@ void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_UnconditionalBranch(uint32_t dex_pc,
                                                   Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  int32_t branch_offset = dec_insn.vA_;
+  int32_t branch_offset = dec_insn.vA;
 
   if (branch_offset <= 0) {
     // Garbage collection safe-point on backward branch
@@ -1895,7 +1895,7 @@ void MethodCompiler::EmitInsn_UnconditionalBranch(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_PackedSwitch(uint32_t dex_pc,
                                            Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   struct PACKED Payload {
     uint16_t ident_;
@@ -1905,12 +1905,12 @@ void MethodCompiler::EmitInsn_PackedSwitch(uint32_t dex_pc,
   };
 
   int32_t payload_offset = static_cast<int32_t>(dex_pc) +
-                           static_cast<int32_t>(dec_insn.vB_);
+                           static_cast<int32_t>(dec_insn.vB);
 
   Payload const* payload =
     reinterpret_cast<Payload const*>(code_item_->insns_ + payload_offset);
 
-  llvm::Value* value = EmitLoadDalvikReg(dec_insn.vA_, kInt, kAccurate);
+  llvm::Value* value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
 
   llvm::SwitchInst* sw =
     irb_.CreateSwitch(value, GetNextBasicBlock(dex_pc), payload->num_cases_);
@@ -1925,7 +1925,7 @@ void MethodCompiler::EmitInsn_PackedSwitch(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_SparseSwitch(uint32_t dex_pc,
                                            Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   struct PACKED Payload {
     uint16_t ident_;
@@ -1934,7 +1934,7 @@ void MethodCompiler::EmitInsn_SparseSwitch(uint32_t dex_pc,
   };
 
   int32_t payload_offset = static_cast<int32_t>(dex_pc) +
-                           static_cast<int32_t>(dec_insn.vB_);
+                           static_cast<int32_t>(dec_insn.vB);
 
   Payload const* payload =
     reinterpret_cast<Payload const*>(code_item_->insns_ + payload_offset);
@@ -1942,7 +1942,7 @@ void MethodCompiler::EmitInsn_SparseSwitch(uint32_t dex_pc,
   int32_t const* keys = payload->keys_and_targets_;
   int32_t const* targets = payload->keys_and_targets_ + payload->num_cases_;
 
-  llvm::Value* value = EmitLoadDalvikReg(dec_insn.vA_, kInt, kAccurate);
+  llvm::Value* value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
 
   llvm::SwitchInst* sw =
     irb_.CreateSwitch(value, GetNextBasicBlock(dex_pc), payload->num_cases_);
@@ -1958,12 +1958,12 @@ void MethodCompiler::EmitInsn_FPCompare(uint32_t dex_pc,
                                         JType fp_jty,
                                         bool gt_bias) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   DCHECK(fp_jty == kFloat || fp_jty == kDouble) << "JType: " << fp_jty;
 
-  llvm::Value* src1_value = EmitLoadDalvikReg(dec_insn.vB_, fp_jty, kAccurate);
-  llvm::Value* src2_value = EmitLoadDalvikReg(dec_insn.vC_, fp_jty, kAccurate);
+  llvm::Value* src1_value = EmitLoadDalvikReg(dec_insn.vB, fp_jty, kAccurate);
+  llvm::Value* src2_value = EmitLoadDalvikReg(dec_insn.vC, fp_jty, kAccurate);
 
   llvm::Value* cmp_eq = irb_.CreateFCmpOEQ(src1_value, src2_value);
   llvm::Value* cmp_lt;
@@ -1975,7 +1975,7 @@ void MethodCompiler::EmitInsn_FPCompare(uint32_t dex_pc,
   }
 
   llvm::Value* result = EmitCompareResultSelection(cmp_eq, cmp_lt);
-  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1984,16 +1984,16 @@ void MethodCompiler::EmitInsn_FPCompare(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_LongCompare(uint32_t dex_pc,
                                           Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* src1_value = EmitLoadDalvikReg(dec_insn.vB_, kLong, kAccurate);
-  llvm::Value* src2_value = EmitLoadDalvikReg(dec_insn.vC_, kLong, kAccurate);
+  llvm::Value* src1_value = EmitLoadDalvikReg(dec_insn.vB, kLong, kAccurate);
+  llvm::Value* src2_value = EmitLoadDalvikReg(dec_insn.vC, kLong, kAccurate);
 
   llvm::Value* cmp_eq = irb_.CreateICmpEQ(src1_value, src2_value);
   llvm::Value* cmp_lt = irb_.CreateICmpSLT(src1_value, src2_value);
 
   llvm::Value* result = EmitCompareResultSelection(cmp_eq, cmp_lt);
-  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -2017,17 +2017,17 @@ void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
                                                       Instruction const* insn,
                                                       CondBranchKind cond) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  int8_t src1_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vA_);
-  int8_t src2_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vB_);
+  int8_t src1_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vA);
+  int8_t src2_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vB);
 
   DCHECK_NE(kRegUnknown, src1_reg_cat);
   DCHECK_NE(kRegUnknown, src2_reg_cat);
   DCHECK_NE(kRegCat2, src1_reg_cat);
   DCHECK_NE(kRegCat2, src2_reg_cat);
 
-  int32_t branch_offset = dec_insn.vC_;
+  int32_t branch_offset = dec_insn.vC;
 
   if (branch_offset <= 0) {
     // Garbage collection safe-point on backward branch
@@ -2046,11 +2046,11 @@ void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
     CHECK_EQ(src1_reg_cat, src2_reg_cat);
 
     if (src1_reg_cat == kRegCat1nr) {
-      src1_value = EmitLoadDalvikReg(dec_insn.vA_, kInt, kAccurate);
-      src2_value = EmitLoadDalvikReg(dec_insn.vB_, kInt, kAccurate);
+      src1_value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
+      src2_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
     } else {
-      src1_value = EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
-      src2_value = EmitLoadDalvikReg(dec_insn.vB_, kObject, kAccurate);
+      src1_value = EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
+      src2_value = EmitLoadDalvikReg(dec_insn.vB, kObject, kAccurate);
     }
   } else {
     DCHECK(src1_reg_cat == kRegZero ||
@@ -2059,17 +2059,17 @@ void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
     if (src1_reg_cat == kRegZero) {
       if (src2_reg_cat == kRegCat1nr) {
         src1_value = irb_.getJInt(0);
-        src2_value = EmitLoadDalvikReg(dec_insn.vA_, kInt, kAccurate);
+        src2_value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
       } else {
         src1_value = irb_.getJNull();
-        src2_value = EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+        src2_value = EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
       }
     } else { // src2_reg_cat == kRegZero
       if (src2_reg_cat == kRegCat1nr) {
-        src1_value = EmitLoadDalvikReg(dec_insn.vA_, kInt, kAccurate);
+        src1_value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
         src2_value = irb_.getJInt(0);
       } else {
-        src1_value = EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+        src1_value = EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
         src2_value = irb_.getJNull();
       }
     }
@@ -2088,14 +2088,14 @@ void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
                                                      Instruction const* insn,
                                                      CondBranchKind cond) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  int8_t src_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vA_);
+  int8_t src_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vA);
 
   DCHECK_NE(kRegUnknown, src_reg_cat);
   DCHECK_NE(kRegCat2, src_reg_cat);
 
-  int32_t branch_offset = dec_insn.vB_;
+  int32_t branch_offset = dec_insn.vB;
 
   if (branch_offset <= 0) {
     // Garbage collection safe-point on backward branch
@@ -2111,10 +2111,10 @@ void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
   llvm::Value* src2_value;
 
   if (src_reg_cat == kRegCat1nr) {
-    src1_value = EmitLoadDalvikReg(dec_insn.vA_, kInt, kAccurate);
+    src1_value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
     src2_value = irb_.getInt32(0);
   } else {
-    src1_value = EmitLoadDalvikReg(dec_insn.vA_, kObject, kAccurate);
+    src1_value = EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
     src2_value = irb_.getJNull();
   }
 
@@ -2228,10 +2228,10 @@ void MethodCompiler::EmitInsn_AGet(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType elem_jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vB_, kObject, kAccurate);
-  llvm::Value* index_value = EmitLoadDalvikReg(dec_insn.vC_, kInt, kAccurate);
+  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vB, kObject, kAccurate);
+  llvm::Value* index_value = EmitLoadDalvikReg(dec_insn.vC, kInt, kAccurate);
 
   EmitGuard_ArrayException(dex_pc, array_addr, index_value);
 
@@ -2242,7 +2242,7 @@ void MethodCompiler::EmitInsn_AGet(uint32_t dex_pc,
 
   llvm::Value* array_elem_value = irb_.CreateLoad(array_elem_addr);
 
-  EmitStoreDalvikReg(dec_insn.vA_, elem_jty, kArray, array_elem_value);
+  EmitStoreDalvikReg(dec_insn.vA, elem_jty, kArray, array_elem_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -2252,10 +2252,10 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType elem_jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vB_, kObject, kAccurate);
-  llvm::Value* index_value = EmitLoadDalvikReg(dec_insn.vC_, kInt, kAccurate);
+  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vB, kObject, kAccurate);
+  llvm::Value* index_value = EmitLoadDalvikReg(dec_insn.vC, kInt, kAccurate);
 
   EmitGuard_ArrayException(dex_pc, array_addr, index_value);
 
@@ -2264,7 +2264,7 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
   llvm::Value* array_elem_addr =
     EmitArrayGEP(array_addr, index_value, elem_type, elem_jty);
 
-  llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA_, elem_jty, kArray);
+  llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA, elem_jty, kArray);
 
   irb_.CreateStore(new_value, array_elem_addr);
 
@@ -2286,10 +2286,10 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType field_jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  uint32_t reg_idx = dec_insn.vB_;
-  uint32_t field_idx = dec_insn.vC_;
+  uint32_t reg_idx = dec_insn.vB;
+  uint32_t field_idx = dec_insn.vC;
 
   Field* field = dex_cache_->GetResolvedField(field_idx);
 
@@ -2336,7 +2336,7 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
     field_value = irb_.CreateLoad(field_addr);
   }
 
-  EmitStoreDalvikReg(dec_insn.vA_, field_jty, kField, field_value);
+  EmitStoreDalvikReg(dec_insn.vA, field_jty, kField, field_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -2346,10 +2346,10 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType field_jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  uint32_t reg_idx = dec_insn.vB_;
-  uint32_t field_idx = dec_insn.vC_;
+  uint32_t reg_idx = dec_insn.vB;
+  uint32_t field_idx = dec_insn.vC;
 
   Field* field = dex_cache_->GetResolvedField(field_idx);
 
@@ -2357,7 +2357,7 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
 
   EmitGuard_NullPointerException(dex_pc, object_addr);
 
-  llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA_, field_jty, kField);
+  llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA, field_jty, kField);
 
   if (field == NULL) {
     PrintUnresolvedFieldWarning(field_idx);
@@ -2563,11 +2563,11 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType field_jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   uint32_t declaring_type_idx = DexFile::kDexNoIndex;
 
-  Field* field = FindFieldAndDeclaringTypeIdx(dec_insn.vB_, declaring_type_idx);
+  Field* field = FindFieldAndDeclaringTypeIdx(dec_insn.vB, declaring_type_idx);
 
   llvm::Value* static_field_value;
 
@@ -2582,7 +2582,7 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
       runtime_func = irb_.GetRuntime(Get32Static);
     }
 
-    llvm::Constant* field_idx_value = irb_.getInt32(dec_insn.vB_);
+    llvm::Constant* field_idx_value = irb_.getInt32(dec_insn.vB);
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
@@ -2607,7 +2607,7 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
     static_field_value = irb_.CreateLoad(static_field_addr);
   }
 
-  EmitStoreDalvikReg(dec_insn.vA_, field_jty, kField, static_field_value);
+  EmitStoreDalvikReg(dec_insn.vA, field_jty, kField, static_field_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -2617,13 +2617,13 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType field_jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   uint32_t declaring_type_idx = DexFile::kDexNoIndex;
 
-  Field* field = FindFieldAndDeclaringTypeIdx(dec_insn.vB_, declaring_type_idx);
+  Field* field = FindFieldAndDeclaringTypeIdx(dec_insn.vB, declaring_type_idx);
 
-  llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA_, field_jty, kField);
+  llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA, field_jty, kField);
 
   if (field == NULL) {
     llvm::Function* runtime_func;
@@ -2636,7 +2636,7 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
       runtime_func = irb_.GetRuntime(Set32Static);
     }
 
-    llvm::Constant* field_idx_value = irb_.getInt32(dec_insn.vB_);
+    llvm::Constant* field_idx_value = irb_.getInt32(dec_insn.vB);
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
@@ -2665,13 +2665,11 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
 }
 
 
-llvm::Value* MethodCompiler::
-EmitLoadCalleeThis(Instruction::DecodedInstruction const& dec_insn,
-                   bool is_range) {
+llvm::Value* MethodCompiler::EmitLoadCalleeThis(DecodedInstruction const& dec_insn, bool is_range) {
   if (is_range) {
-    return EmitLoadDalvikReg(dec_insn.vC_, kObject, kAccurate);
+    return EmitLoadDalvikReg(dec_insn.vC, kObject, kAccurate);
   } else {
-    return EmitLoadDalvikReg(dec_insn.arg_[0], kObject, kAccurate);
+    return EmitLoadDalvikReg(dec_insn.arg[0], kObject, kAccurate);
   }
 }
 
@@ -2679,7 +2677,7 @@ EmitLoadCalleeThis(Instruction::DecodedInstruction const& dec_insn,
 void MethodCompiler::
 EmitLoadActualParameters(std::vector<llvm::Value*>& args,
                          uint32_t callee_method_idx,
-                         Instruction::DecodedInstruction const& dec_insn,
+                         DecodedInstruction const& dec_insn,
                          bool is_range,
                          bool is_static) {
 
@@ -2699,8 +2697,8 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
   }
 
   for (uint32_t i = 1; i < shorty_size; ++i) {
-    uint32_t reg_idx = (is_range) ? (dec_insn.vC_ + reg_count)
-                                  : (dec_insn.arg_[reg_count]);
+    uint32_t reg_idx = (is_range) ? (dec_insn.vC + reg_count)
+                                  : (dec_insn.arg[reg_count]);
 
     args.push_back(EmitLoadDalvikReg(reg_idx, shorty[i], kAccurate));
 
@@ -2712,7 +2710,7 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
     }
   }
 
-  DCHECK_EQ(reg_count, dec_insn.vA_)
+  DCHECK_EQ(reg_count, dec_insn.vA)
     << "Actual argument mismatch for callee: "
     << PrettyMethod(callee_method_idx, *dex_file_);
 }
@@ -2723,9 +2721,9 @@ void MethodCompiler::EmitInsn_InvokeVirtual(uint32_t dex_pc,
                                             Instruction const* insn,
                                             bool is_range) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  uint32_t callee_method_idx = dec_insn.vB_;
+  uint32_t callee_method_idx = dec_insn.vB;
 
   // Find the method object at compile time
   Method* callee_method = ResolveMethod(callee_method_idx);
@@ -2782,9 +2780,9 @@ void MethodCompiler::EmitInsn_InvokeSuper(uint32_t dex_pc,
                                           Instruction const* insn,
                                           bool is_range) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  uint32_t callee_method_idx = dec_insn.vB_;
+  uint32_t callee_method_idx = dec_insn.vB;
 
   // Find the method object at compile time
   Method* callee_overiding_method = ResolveMethod(callee_method_idx);
@@ -2877,9 +2875,9 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
                                                  InvokeType invoke_type,
                                                  bool is_range) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  uint32_t callee_method_idx = dec_insn.vB_;
+  uint32_t callee_method_idx = dec_insn.vB;
 
   bool is_static = (invoke_type == kStatic);
 
@@ -2941,9 +2939,9 @@ void MethodCompiler::EmitInsn_InvokeInterface(uint32_t dex_pc,
                                               Instruction const* insn,
                                               bool is_range) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  uint32_t callee_method_idx = dec_insn.vB_;
+  uint32_t callee_method_idx = dec_insn.vB;
 
   // Resolve callee method
   Method* callee_method = ResolveMethod(callee_method_idx);
@@ -2994,13 +2992,13 @@ void MethodCompiler::EmitInsn_Neg(uint32_t dex_pc,
                                   Instruction const* insn,
                                   JType op_jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, op_jty, kAccurate);
   llvm::Value* result_value = irb_.CreateNeg(src_value);
-  EmitStoreDalvikReg(dec_insn.vA_, op_jty, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, op_jty, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3010,15 +3008,15 @@ void MethodCompiler::EmitInsn_Not(uint32_t dex_pc,
                                   Instruction const* insn,
                                   JType op_jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, op_jty, kAccurate);
   llvm::Value* result_value =
     irb_.CreateXor(src_value, static_cast<uint64_t>(-1));
 
-  EmitStoreDalvikReg(dec_insn.vA_, op_jty, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, op_jty, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3027,11 +3025,11 @@ void MethodCompiler::EmitInsn_Not(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_SExt(uint32_t dex_pc,
                                    Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kInt, kAccurate);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
   llvm::Value* result_value = irb_.CreateSExt(src_value, irb_.getJLongTy());
-  EmitStoreDalvikReg(dec_insn.vA_, kLong, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, kLong, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3040,11 +3038,11 @@ void MethodCompiler::EmitInsn_SExt(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_Trunc(uint32_t dex_pc,
                                     Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kLong, kAccurate);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kLong, kAccurate);
   llvm::Value* result_value = irb_.CreateTrunc(src_value, irb_.getJIntTy());
-  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3054,16 +3052,16 @@ void MethodCompiler::EmitInsn_TruncAndSExt(uint32_t dex_pc,
                                            Instruction const* insn,
                                            unsigned N) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kInt, kAccurate);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
 
   llvm::Value* trunc_value =
     irb_.CreateTrunc(src_value, llvm::Type::getIntNTy(*context_, N));
 
   llvm::Value* result_value = irb_.CreateSExt(trunc_value, irb_.getJIntTy());
 
-  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3073,16 +3071,16 @@ void MethodCompiler::EmitInsn_TruncAndZExt(uint32_t dex_pc,
                                            Instruction const* insn,
                                            unsigned N) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kInt, kAccurate);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
 
   llvm::Value* trunc_value =
     irb_.CreateTrunc(src_value, llvm::Type::getIntNTy(*context_, N));
 
   llvm::Value* result_value = irb_.CreateZExt(trunc_value, irb_.getJIntTy());
 
-  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3092,13 +3090,13 @@ void MethodCompiler::EmitInsn_FNeg(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType op_jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   DCHECK(op_jty == kFloat || op_jty == kDouble) << op_jty;
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, op_jty, kAccurate);
   llvm::Value* result_value = irb_.CreateFNeg(src_value);
-  EmitStoreDalvikReg(dec_insn.vA_, op_jty, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, op_jty, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3109,15 +3107,15 @@ void MethodCompiler::EmitInsn_IntToFP(uint32_t dex_pc,
                                       JType src_jty,
                                       JType dest_jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   DCHECK(src_jty == kInt || src_jty == kLong) << src_jty;
   DCHECK(dest_jty == kFloat || dest_jty == kDouble) << dest_jty;
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, src_jty, kAccurate);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, src_jty, kAccurate);
   llvm::Type* dest_type = irb_.getJType(dest_jty, kAccurate);
   llvm::Value* dest_value = irb_.CreateSIToFP(src_value, dest_type);
-  EmitStoreDalvikReg(dec_insn.vA_, dest_jty, kAccurate, dest_value);
+  EmitStoreDalvikReg(dec_insn.vA, dest_jty, kAccurate, dest_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3128,15 +3126,15 @@ void MethodCompiler::EmitInsn_FPToInt(uint32_t dex_pc,
                                       JType src_jty,
                                       JType dest_jty) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   DCHECK(src_jty == kFloat || src_jty == kDouble) << src_jty;
   DCHECK(dest_jty == kInt || dest_jty == kLong) << dest_jty;
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, src_jty, kAccurate);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, src_jty, kAccurate);
   llvm::Type* dest_type = irb_.getJType(dest_jty, kAccurate);
   llvm::Value* dest_value = irb_.CreateFPToSI(src_value, dest_type);
-  EmitStoreDalvikReg(dec_insn.vA_, dest_jty, kAccurate, dest_value);
+  EmitStoreDalvikReg(dec_insn.vA, dest_jty, kAccurate, dest_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3145,11 +3143,11 @@ void MethodCompiler::EmitInsn_FPToInt(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_FExt(uint32_t dex_pc,
                                    Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kFloat, kAccurate);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kFloat, kAccurate);
   llvm::Value* result_value = irb_.CreateFPExt(src_value, irb_.getJDoubleTy());
-  EmitStoreDalvikReg(dec_insn.vA_, kDouble, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, kDouble, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3158,11 +3156,11 @@ void MethodCompiler::EmitInsn_FExt(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_FTrunc(uint32_t dex_pc,
                                      Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kDouble, kAccurate);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kDouble, kAccurate);
   llvm::Value* result_value = irb_.CreateFPTrunc(src_value, irb_.getJFloatTy());
-  EmitStoreDalvikReg(dec_insn.vA_, kFloat, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, kFloat, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3174,7 +3172,7 @@ void MethodCompiler::EmitInsn_IntArithm(uint32_t dex_pc,
                                         JType op_jty,
                                         bool is_2addr) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
 
@@ -3182,18 +3180,18 @@ void MethodCompiler::EmitInsn_IntArithm(uint32_t dex_pc,
   llvm::Value* src2_value;
 
   if (is_2addr) {
-    src1_value = EmitLoadDalvikReg(dec_insn.vA_, op_jty, kAccurate);
-    src2_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
+    src1_value = EmitLoadDalvikReg(dec_insn.vA, op_jty, kAccurate);
+    src2_value = EmitLoadDalvikReg(dec_insn.vB, op_jty, kAccurate);
   } else {
-    src1_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
-    src2_value = EmitLoadDalvikReg(dec_insn.vC_, op_jty, kAccurate);
+    src1_value = EmitLoadDalvikReg(dec_insn.vB, op_jty, kAccurate);
+    src2_value = EmitLoadDalvikReg(dec_insn.vC, op_jty, kAccurate);
   }
 
   llvm::Value* result_value =
     EmitIntArithmResultComputation(dex_pc, src1_value, src2_value,
                                    arithm, op_jty);
 
-  EmitStoreDalvikReg(dec_insn.vA_, op_jty, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, op_jty, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3203,16 +3201,16 @@ void MethodCompiler::EmitInsn_IntArithmImmediate(uint32_t dex_pc,
                                                  Instruction const* insn,
                                                  IntArithmKind arithm) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kInt, kAccurate);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
 
-  llvm::Value* imm_value = irb_.getInt32(dec_insn.vC_);
+  llvm::Value* imm_value = irb_.getInt32(dec_insn.vC);
 
   llvm::Value* result_value =
     EmitIntArithmResultComputation(dex_pc, src_value, imm_value, arithm, kInt);
 
-  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3284,12 +3282,12 @@ MethodCompiler::EmitIntArithmResultComputation(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_RSubImmediate(uint32_t dex_pc,
                                             Instruction const* insn) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
-  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB_, kInt, kAccurate);
-  llvm::Value* imm_value = irb_.getInt32(dec_insn.vC_);
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
+  llvm::Value* imm_value = irb_.getInt32(dec_insn.vC);
   llvm::Value* result_value = irb_.CreateSub(imm_value, src_value);
-  EmitStoreDalvikReg(dec_insn.vA_, kInt, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3301,7 +3299,7 @@ void MethodCompiler::EmitInsn_FPArithm(uint32_t dex_pc,
                                        JType op_jty,
                                        bool is_2addr) {
 
-  Instruction::DecodedInstruction dec_insn(insn);
+  DecodedInstruction dec_insn(insn);
 
   DCHECK(op_jty == kFloat || op_jty == kDouble) << op_jty;
 
@@ -3309,17 +3307,17 @@ void MethodCompiler::EmitInsn_FPArithm(uint32_t dex_pc,
   llvm::Value* src2_value;
 
   if (is_2addr) {
-    src1_value = EmitLoadDalvikReg(dec_insn.vA_, op_jty, kAccurate);
-    src2_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
+    src1_value = EmitLoadDalvikReg(dec_insn.vA, op_jty, kAccurate);
+    src2_value = EmitLoadDalvikReg(dec_insn.vB, op_jty, kAccurate);
   } else {
-    src1_value = EmitLoadDalvikReg(dec_insn.vB_, op_jty, kAccurate);
-    src2_value = EmitLoadDalvikReg(dec_insn.vC_, op_jty, kAccurate);
+    src1_value = EmitLoadDalvikReg(dec_insn.vB, op_jty, kAccurate);
+    src2_value = EmitLoadDalvikReg(dec_insn.vC, op_jty, kAccurate);
   }
 
   llvm::Value* result_value =
     EmitFPArithmResultComputation(dex_pc, src1_value, src2_value, arithm);
 
-  EmitStoreDalvikReg(dec_insn.vA_, op_jty, kAccurate, result_value);
+  EmitStoreDalvikReg(dec_insn.vA, op_jty, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }

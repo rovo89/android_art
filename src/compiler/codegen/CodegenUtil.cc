@@ -603,7 +603,7 @@ void installSwitchTables(CompilationUnit* cUnit)
         if (cUnit->printMe) {
             LOG(INFO) << "Switch table for offset 0x" << std::hex << bxOffset;
         }
-        if (tabRec->table[0] == kSparseSwitchSignature) {
+        if (tabRec->table[0] == Instruction::kSparseSwitchSignature) {
             int* keys = (int*)&(tabRec->table[2]);
             for (int elems = 0; elems < tabRec->table[1]; elems++) {
                 int disp = tabRec->targets[elems]->offset - bxOffset;
@@ -617,7 +617,7 @@ void installSwitchTables(CompilationUnit* cUnit)
                     tabRec->targets[elems]->offset - bxOffset);
             }
         } else {
-            DCHECK_EQ(tabRec->table[0], kPackedSwitchSignature);
+            DCHECK_EQ(static_cast<int>(tabRec->table[0]), static_cast<int>(Instruction::kPackedSwitchSignature));
             for (int elems = 0; elems < tabRec->table[1]; elems++) {
                 int disp = tabRec->targets[elems]->offset - bxOffset;
                 if (cUnit->printMe) {
@@ -690,10 +690,10 @@ int assignSwitchTablesOffset(CompilationUnit* cUnit, int offset)
              &iterator);
         if (tabRec == NULL) break;
         tabRec->offset = offset;
-        if (tabRec->table[0] == kSparseSwitchSignature) {
+        if (tabRec->table[0] == Instruction::kSparseSwitchSignature) {
             offset += tabRec->table[1] * (sizeof(int) * 2);
         } else {
-            DCHECK_EQ(tabRec->table[0], kPackedSwitchSignature);
+            DCHECK_EQ(static_cast<int>(tabRec->table[0]), static_cast<int>(Instruction::kPackedSwitchSignature));
             offset += tabRec->table[1] * sizeof(int);
         }
     }
@@ -838,11 +838,11 @@ void oatProcessSwitchTables(CompilationUnit* cUnit)
         SwitchTable *tabRec = (SwitchTable *) oatGrowableListIteratorNext(
              &iterator);
         if (tabRec == NULL) break;
-        if (tabRec->table[0] == kPackedSwitchSignature)
+        if (tabRec->table[0] == Instruction::kPackedSwitchSignature) {
             markPackedCaseLabels(cUnit, tabRec);
-        else if (tabRec->table[0] == kSparseSwitchSignature)
+        } else if (tabRec->table[0] == Instruction::kSparseSwitchSignature) {
             markSparseCaseLabels(cUnit, tabRec);
-        else {
+        } else {
             LOG(FATAL) << "Invalid switch table";
         }
     }

@@ -56,8 +56,7 @@ ART_C_INCLUDES := \
 	external/icu4c/i18n \
 	external/valgrind/dynamic_annotations \
 	external/zlib \
-	art/src \
-	dalvik/libdex
+	art/src
 
 art_cflags := \
 	-O2 \

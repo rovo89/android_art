@@ -483,8 +483,8 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
            (instr_code == Instruction::INVOKE_DIRECT_RANGE) ||
            (instr_code == Instruction::INVOKE_VIRTUAL) ||
            (instr_code == Instruction::INVOKE_VIRTUAL_RANGE));
-    Instruction::DecodedInstruction dec_insn(instr);
-    dex_method_idx = dec_insn.vB_;
+    DecodedInstruction dec_insn(instr);
+    dex_method_idx = dec_insn.vB;
     shorty = linker->MethodShorty(dex_method_idx, caller, &shorty_len);
   } else {
     DCHECK(!called->IsRuntimeMethod());
@@ -1032,7 +1032,7 @@ extern "C" Array* artAllocArrayFromCodeWithAccessCheck(uint32_t type_idx, Method
   return AllocArrayFromCode(type_idx, method, component_count, self, true);
 }
 
-// Helper function to alloc array for OP_FILLED_NEW_ARRAY
+// Helper function to allocate array for FILLED_NEW_ARRAY.
 Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
                                   Thread* self, bool access_check) {
   if (UNLIKELY(component_count < 0)) {

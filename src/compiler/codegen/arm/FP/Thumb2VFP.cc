@@ -27,25 +27,25 @@ bool genArithOpFloat(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
      * the handlers.
      */
     switch (mir->dalvikInsn.opcode) {
-        case OP_ADD_FLOAT_2ADDR:
-        case OP_ADD_FLOAT:
+        case Instruction::ADD_FLOAT_2ADDR:
+        case Instruction::ADD_FLOAT:
             op = kThumb2Vadds;
             break;
-        case OP_SUB_FLOAT_2ADDR:
-        case OP_SUB_FLOAT:
+        case Instruction::SUB_FLOAT_2ADDR:
+        case Instruction::SUB_FLOAT:
             op = kThumb2Vsubs;
             break;
-        case OP_DIV_FLOAT_2ADDR:
-        case OP_DIV_FLOAT:
+        case Instruction::DIV_FLOAT_2ADDR:
+        case Instruction::DIV_FLOAT:
             op = kThumb2Vdivs;
             break;
-        case OP_MUL_FLOAT_2ADDR:
-        case OP_MUL_FLOAT:
+        case Instruction::MUL_FLOAT_2ADDR:
+        case Instruction::MUL_FLOAT:
             op = kThumb2Vmuls;
             break;
-        case OP_REM_FLOAT_2ADDR:
-        case OP_REM_FLOAT:
-        case OP_NEG_FLOAT: {
+        case Instruction::REM_FLOAT_2ADDR:
+        case Instruction::REM_FLOAT:
+        case Instruction::NEG_FLOAT: {
             return genArithOpFloatPortable(cUnit, mir, rlDest, rlSrc1,
                                               rlSrc2);
         }
@@ -68,25 +68,25 @@ bool genArithOpDouble(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     RegLocation rlResult;
 
     switch (mir->dalvikInsn.opcode) {
-        case OP_ADD_DOUBLE_2ADDR:
-        case OP_ADD_DOUBLE:
+        case Instruction::ADD_DOUBLE_2ADDR:
+        case Instruction::ADD_DOUBLE:
             op = kThumb2Vaddd;
             break;
-        case OP_SUB_DOUBLE_2ADDR:
-        case OP_SUB_DOUBLE:
+        case Instruction::SUB_DOUBLE_2ADDR:
+        case Instruction::SUB_DOUBLE:
             op = kThumb2Vsubd;
             break;
-        case OP_DIV_DOUBLE_2ADDR:
-        case OP_DIV_DOUBLE:
+        case Instruction::DIV_DOUBLE_2ADDR:
+        case Instruction::DIV_DOUBLE:
             op = kThumb2Vdivd;
             break;
-        case OP_MUL_DOUBLE_2ADDR:
-        case OP_MUL_DOUBLE:
+        case Instruction::MUL_DOUBLE_2ADDR:
+        case Instruction::MUL_DOUBLE:
             op = kThumb2Vmuld;
             break;
-        case OP_REM_DOUBLE_2ADDR:
-        case OP_REM_DOUBLE:
-        case OP_NEG_DOUBLE: {
+        case Instruction::REM_DOUBLE_2ADDR:
+        case Instruction::REM_DOUBLE:
+        case Instruction::NEG_DOUBLE: {
             return genArithOpDoublePortable(cUnit, mir, rlDest, rlSrc1,
                                                rlSrc2);
         }
@@ -110,7 +110,7 @@ bool genArithOpDouble(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 
 bool genConversion(CompilationUnit* cUnit, MIR* mir)
 {
-    Opcode opcode = mir->dalvikInsn.opcode;
+    Instruction::Code opcode = mir->dalvikInsn.opcode;
     int op = kThumbBkpt;
     bool longSrc = false;
     bool longDest = false;
@@ -120,40 +120,40 @@ bool genConversion(CompilationUnit* cUnit, MIR* mir)
     RegLocation rlResult;
 
     switch (opcode) {
-        case OP_INT_TO_FLOAT:
+        case Instruction::INT_TO_FLOAT:
             longSrc = false;
             longDest = false;
             op = kThumb2VcvtIF;
             break;
-        case OP_FLOAT_TO_INT:
+        case Instruction::FLOAT_TO_INT:
             longSrc = false;
             longDest = false;
             op = kThumb2VcvtFI;
             break;
-        case OP_DOUBLE_TO_FLOAT:
+        case Instruction::DOUBLE_TO_FLOAT:
             longSrc = true;
             longDest = false;
             op = kThumb2VcvtDF;
             break;
-        case OP_FLOAT_TO_DOUBLE:
+        case Instruction::FLOAT_TO_DOUBLE:
             longSrc = false;
             longDest = true;
             op = kThumb2VcvtFd;
             break;
-        case OP_INT_TO_DOUBLE:
+        case Instruction::INT_TO_DOUBLE:
             longSrc = false;
             longDest = true;
             op = kThumb2VcvtID;
             break;
-        case OP_DOUBLE_TO_INT:
+        case Instruction::DOUBLE_TO_INT:
             longSrc = true;
             longDest = false;
             op = kThumb2VcvtDI;
             break;
-        case OP_LONG_TO_DOUBLE:
-        case OP_FLOAT_TO_LONG:
-        case OP_LONG_TO_FLOAT:
-        case OP_DOUBLE_TO_LONG:
+        case Instruction::LONG_TO_DOUBLE:
+        case Instruction::FLOAT_TO_LONG:
+        case Instruction::LONG_TO_FLOAT:
+        case Instruction::DOUBLE_TO_LONG:
             return genConversionPortable(cUnit, mir);
         default:
             return true;
@@ -190,19 +190,19 @@ bool genCmpFP(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     RegLocation rlResult;
 
     switch(mir->dalvikInsn.opcode) {
-        case OP_CMPL_FLOAT:
+        case Instruction::CMPL_FLOAT:
             isDouble = false;
             defaultResult = -1;
             break;
-        case OP_CMPG_FLOAT:
+        case Instruction::CMPG_FLOAT:
             isDouble = false;
             defaultResult = 1;
             break;
-        case OP_CMPL_DOUBLE:
+        case Instruction::CMPL_DOUBLE:
             isDouble = true;
             defaultResult = -1;
             break;
-        case OP_CMPG_DOUBLE:
+        case Instruction::CMPG_DOUBLE:
             isDouble = true;
             defaultResult = 1;
             break;

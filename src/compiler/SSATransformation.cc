@@ -644,7 +644,7 @@ void insertPhiNodes(CompilationUnit* cUnit)
             /* Variable will be clobbered before being used - no need for phi */
             if (!oatIsBitSet(phiBB->dataFlowInfo->liveInV, dalvikReg)) continue;
             MIR *phi = (MIR *) oatNew(cUnit, sizeof(MIR), true, kAllocDFInfo);
-            phi->dalvikInsn.opcode = (Opcode)kMirOpPhi;
+            phi->dalvikInsn.opcode = (Instruction::Code)kMirOpPhi;
             phi->dalvikInsn.vA = dalvikReg;
             phi->offset = phiBB->startOffset;
             phi->meta.phiNext = cUnit->phiList;
@@ -666,7 +666,7 @@ bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
 
     /* Phi nodes are at the beginning of each block */
     for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
-        if (mir->dalvikInsn.opcode != (Opcode)kMirOpPhi)
+        if (mir->dalvikInsn.opcode != (Instruction::Code)kMirOpPhi)
             return true;
         int ssaReg = mir->ssaRep->defs[0];
         int encodedDalvikValue =

@@ -623,16 +623,16 @@ const RegType& RegisterLine::GetRegisterType(uint32_t vsrc) const {
   return verifier_->GetRegTypeCache()->GetFromId(line_[vsrc]);
 }
 
-const RegType& RegisterLine::GetInvocationThis(const Instruction::DecodedInstruction& dec_insn) {
-  if (dec_insn.vA_ < 1) {
+const RegType& RegisterLine::GetInvocationThis(const DecodedInstruction& dec_insn) {
+  if (dec_insn.vA < 1) {
     verifier_->Fail(VERIFY_ERROR_GENERIC) << "invoke lacks 'this'";
     return verifier_->GetRegTypeCache()->Unknown();
   }
   /* get the element type of the array held in vsrc */
-  const RegType& this_type = GetRegisterType(dec_insn.vC_);
+  const RegType& this_type = GetRegisterType(dec_insn.vC);
   if (!this_type.IsReferenceTypes()) {
     verifier_->Fail(VERIFY_ERROR_GENERIC) << "tried to get class from non-reference register v"
-                                          << dec_insn.vC_ << " (type=" << this_type << ")";
+                                          << dec_insn.vC << " (type=" << this_type << ")";
     return verifier_->GetRegTypeCache()->Unknown();
   }
   return this_type;
@@ -741,62 +741,62 @@ void RegisterLine::CopyResultRegister2(uint32_t vdst) {
   }
 }
 
-void RegisterLine::CheckUnaryOp(const Instruction::DecodedInstruction& dec_insn,
+void RegisterLine::CheckUnaryOp(const DecodedInstruction& dec_insn,
                                 const RegType& dst_type, const RegType& src_type) {
-  if (VerifyRegisterType(dec_insn.vB_, src_type)) {
-    SetRegisterType(dec_insn.vA_, dst_type);
+  if (VerifyRegisterType(dec_insn.vB, src_type)) {
+    SetRegisterType(dec_insn.vA, dst_type);
   }
 }
 
-void RegisterLine::CheckBinaryOp(const Instruction::DecodedInstruction& dec_insn,
+void RegisterLine::CheckBinaryOp(const DecodedInstruction& dec_insn,
                                  const RegType& dst_type,
                                  const RegType& src_type1, const RegType& src_type2,
                                  bool check_boolean_op) {
-  if (VerifyRegisterType(dec_insn.vB_, src_type1) &&
-      VerifyRegisterType(dec_insn.vC_, src_type2)) {
+  if (VerifyRegisterType(dec_insn.vB, src_type1) &&
+      VerifyRegisterType(dec_insn.vC, src_type2)) {
     if (check_boolean_op) {
       DCHECK(dst_type.IsInteger());
-      if (GetRegisterType(dec_insn.vB_).IsBooleanTypes() &&
-          GetRegisterType(dec_insn.vC_).IsBooleanTypes()) {
-        SetRegisterType(dec_insn.vA_, verifier_->GetRegTypeCache()->Boolean());
+      if (GetRegisterType(dec_insn.vB).IsBooleanTypes() &&
+          GetRegisterType(dec_insn.vC).IsBooleanTypes()) {
+        SetRegisterType(dec_insn.vA, verifier_->GetRegTypeCache()->Boolean());
         return;
       }
     }
-    SetRegisterType(dec_insn.vA_, dst_type);
+    SetRegisterType(dec_insn.vA, dst_type);
   }
 }
 
-void RegisterLine::CheckBinaryOp2addr(const Instruction::DecodedInstruction& dec_insn,
+void RegisterLine::CheckBinaryOp2addr(const DecodedInstruction& dec_insn,
                                       const RegType& dst_type, const RegType& src_type1,
                                       const RegType& src_type2, bool check_boolean_op) {
-  if (VerifyRegisterType(dec_insn.vA_, src_type1) &&
-      VerifyRegisterType(dec_insn.vB_, src_type2)) {
+  if (VerifyRegisterType(dec_insn.vA, src_type1) &&
+      VerifyRegisterType(dec_insn.vB, src_type2)) {
     if (check_boolean_op) {
       DCHECK(dst_type.IsInteger());
-      if (GetRegisterType(dec_insn.vA_).IsBooleanTypes() &&
-          GetRegisterType(dec_insn.vB_).IsBooleanTypes()) {
-        SetRegisterType(dec_insn.vA_, verifier_->GetRegTypeCache()->Boolean());
+      if (GetRegisterType(dec_insn.vA).IsBooleanTypes() &&
+          GetRegisterType(dec_insn.vB).IsBooleanTypes()) {
+        SetRegisterType(dec_insn.vA, verifier_->GetRegTypeCache()->Boolean());
         return;
       }
     }
-    SetRegisterType(dec_insn.vA_, dst_type);
+    SetRegisterType(dec_insn.vA, dst_type);
   }
 }
 
-void RegisterLine::CheckLiteralOp(const Instruction::DecodedInstruction& dec_insn,
+void RegisterLine::CheckLiteralOp(const DecodedInstruction& dec_insn,
                                   const RegType& dst_type, const RegType& src_type,
                                   bool check_boolean_op) {
-  if (VerifyRegisterType(dec_insn.vB_, src_type)) {
+  if (VerifyRegisterType(dec_insn.vB, src_type)) {
     if (check_boolean_op) {
       DCHECK(dst_type.IsInteger());
       /* check vB with the call, then check the constant manually */
-      if (GetRegisterType(dec_insn.vB_).IsBooleanTypes() &&
-          (dec_insn.vC_ == 0 || dec_insn.vC_ == 1)) {
-        SetRegisterType(dec_insn.vA_, verifier_->GetRegTypeCache()->Boolean());
+      if (GetRegisterType(dec_insn.vB).IsBooleanTypes() &&
+          (dec_insn.vC == 0 || dec_insn.vC == 1)) {
+        SetRegisterType(dec_insn.vA, verifier_->GetRegTypeCache()->Boolean());
         return;
       }
     }
-    SetRegisterType(dec_insn.vA_, dst_type);
+    SetRegisterType(dec_insn.vA, dst_type);
   }
 }
 
@@ -1275,54 +1275,54 @@ bool DexVerifier::VerifyInstructions() {
 }
 
 bool DexVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_offset) {
-  Instruction::DecodedInstruction dec_insn(inst);
+  DecodedInstruction dec_insn(inst);
   bool result = true;
   switch (inst->GetVerifyTypeArgumentA()) {
     case Instruction::kVerifyRegA:
-      result = result && CheckRegisterIndex(dec_insn.vA_);
+      result = result && CheckRegisterIndex(dec_insn.vA);
       break;
     case Instruction::kVerifyRegAWide:
-      result = result && CheckWideRegisterIndex(dec_insn.vA_);
+      result = result && CheckWideRegisterIndex(dec_insn.vA);
       break;
   }
   switch (inst->GetVerifyTypeArgumentB()) {
     case Instruction::kVerifyRegB:
-      result = result && CheckRegisterIndex(dec_insn.vB_);
+      result = result && CheckRegisterIndex(dec_insn.vB);
       break;
     case Instruction::kVerifyRegBField:
-      result = result && CheckFieldIndex(dec_insn.vB_);
+      result = result && CheckFieldIndex(dec_insn.vB);
       break;
     case Instruction::kVerifyRegBMethod:
-      result = result && CheckMethodIndex(dec_insn.vB_);
+      result = result && CheckMethodIndex(dec_insn.vB);
       break;
     case Instruction::kVerifyRegBNewInstance:
-      result = result && CheckNewInstance(dec_insn.vB_);
+      result = result && CheckNewInstance(dec_insn.vB);
       break;
     case Instruction::kVerifyRegBString:
-      result = result && CheckStringIndex(dec_insn.vB_);
+      result = result && CheckStringIndex(dec_insn.vB);
       break;
     case Instruction::kVerifyRegBType:
-      result = result && CheckTypeIndex(dec_insn.vB_);
+      result = result && CheckTypeIndex(dec_insn.vB);
       break;
     case Instruction::kVerifyRegBWide:
-      result = result && CheckWideRegisterIndex(dec_insn.vB_);
+      result = result && CheckWideRegisterIndex(dec_insn.vB);
       break;
   }
   switch (inst->GetVerifyTypeArgumentC()) {
     case Instruction::kVerifyRegC:
-      result = result && CheckRegisterIndex(dec_insn.vC_);
+      result = result && CheckRegisterIndex(dec_insn.vC);
       break;
     case Instruction::kVerifyRegCField:
-      result = result && CheckFieldIndex(dec_insn.vC_);
+      result = result && CheckFieldIndex(dec_insn.vC);
       break;
     case Instruction::kVerifyRegCNewArray:
-      result = result && CheckNewArray(dec_insn.vC_);
+      result = result && CheckNewArray(dec_insn.vC);
       break;
     case Instruction::kVerifyRegCType:
-      result = result && CheckTypeIndex(dec_insn.vC_);
+      result = result && CheckTypeIndex(dec_insn.vC);
       break;
     case Instruction::kVerifyRegCWide:
-      result = result && CheckWideRegisterIndex(dec_insn.vC_);
+      result = result && CheckWideRegisterIndex(dec_insn.vC);
       break;
   }
   switch (inst->GetVerifyExtraFlags()) {
@@ -1336,10 +1336,10 @@ bool DexVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_offse
       result = result && CheckSwitchTargets(code_offset);
       break;
     case Instruction::kVerifyVarArg:
-      result = result && CheckVarArgRegs(dec_insn.vA_, dec_insn.arg_);
+      result = result && CheckVarArgRegs(dec_insn.vA, dec_insn.arg);
       break;
     case Instruction::kVerifyVarArgRange:
-      result = result && CheckVarArgRangeRegs(dec_insn.vA_, dec_insn.vC_);
+      result = result && CheckVarArgRangeRegs(dec_insn.vA, dec_insn.vC);
       break;
     case Instruction::kVerifyError:
       Fail(VERIFY_ERROR_GENERIC) << "unexpected opcode " << inst->Name();
@@ -2003,12 +2003,12 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    * We can also return, in which case there is no successor instruction
    * from this point.
    *
-   * The behavior can be determined from the OpcodeFlags.
+   * The behavior can be determined from the opcode flags.
    */
   const uint16_t* insns = code_item_->insns_ + work_insn_idx_;
   const Instruction* inst = Instruction::At(insns);
-  Instruction::DecodedInstruction dec_insn(inst);
-  int opcode_flag = inst->Flag();
+  DecodedInstruction dec_insn(inst);
+  int opcode_flags = Instruction::Flags(inst->Opcode());
 
   int32_t branch_target = 0;
   bool just_set_result = false;
@@ -2025,7 +2025,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    * from the "successful" code path (e.g. a check-cast that "improves"
    * a type) to be visible to the exception handler.
    */
-  if ((opcode_flag & Instruction::kThrow) != 0 && CurrentInsnFlags().IsInTry()) {
+  if ((opcode_flags & Instruction::kThrow) != 0 && CurrentInsnFlags().IsInTry()) {
     saved_line_->CopyFromLine(work_line_.get());
   } else {
 #ifndef NDEBUG
@@ -2033,14 +2033,14 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 #endif
   }
 
-  switch (dec_insn.opcode_) {
+  switch (dec_insn.opcode) {
     case Instruction::NOP:
       /*
        * A "pure" NOP has no effect on anything. Data tables start with
        * a signature that looks like a NOP; if we see one of these in
        * the course of executing code then we have a problem.
        */
-      if (dec_insn.vA_ != 0) {
+      if (dec_insn.vA != 0) {
         Fail(VERIFY_ERROR_GENERIC) << "encountered data table in instruction stream";
       }
       break;
@@ -2048,17 +2048,17 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::MOVE:
     case Instruction::MOVE_FROM16:
     case Instruction::MOVE_16:
-      work_line_->CopyRegister1(dec_insn.vA_, dec_insn.vB_, kTypeCategory1nr);
+      work_line_->CopyRegister1(dec_insn.vA, dec_insn.vB, kTypeCategory1nr);
       break;
     case Instruction::MOVE_WIDE:
     case Instruction::MOVE_WIDE_FROM16:
     case Instruction::MOVE_WIDE_16:
-      work_line_->CopyRegister2(dec_insn.vA_, dec_insn.vB_);
+      work_line_->CopyRegister2(dec_insn.vA, dec_insn.vB);
       break;
     case Instruction::MOVE_OBJECT:
     case Instruction::MOVE_OBJECT_FROM16:
     case Instruction::MOVE_OBJECT_16:
-      work_line_->CopyRegister1(dec_insn.vA_, dec_insn.vB_, kTypeCategoryRef);
+      work_line_->CopyRegister1(dec_insn.vA, dec_insn.vB, kTypeCategoryRef);
       break;
 
     /*
@@ -2073,13 +2073,13 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
      * easier to read in some cases.)
      */
     case Instruction::MOVE_RESULT:
-      work_line_->CopyResultRegister1(dec_insn.vA_, false);
+      work_line_->CopyResultRegister1(dec_insn.vA, false);
       break;
     case Instruction::MOVE_RESULT_WIDE:
-      work_line_->CopyResultRegister2(dec_insn.vA_);
+      work_line_->CopyResultRegister2(dec_insn.vA);
       break;
     case Instruction::MOVE_RESULT_OBJECT:
-      work_line_->CopyResultRegister1(dec_insn.vA_, true);
+      work_line_->CopyResultRegister1(dec_insn.vA, true);
       break;
 
     case Instruction::MOVE_EXCEPTION: {
@@ -2088,7 +2088,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
        * that as part of extracting the exception type from the catch block list.
        */
       const RegType& res_type = GetCaughtExceptionType();
-      work_line_->SetRegisterType(dec_insn.vA_, res_type);
+      work_line_->SetRegisterType(dec_insn.vA, res_type);
       break;
     }
     case Instruction::RETURN_VOID:
@@ -2107,15 +2107,15 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         } else {
           // Compilers may generate synthetic functions that write byte values into boolean fields.
           // Also, it may use integer values for boolean, byte, short, and character return types.
-          const RegType& src_type = work_line_->GetRegisterType(dec_insn.vA_);
+          const RegType& src_type = work_line_->GetRegisterType(dec_insn.vA);
           bool use_src = ((return_type.IsBoolean() && src_type.IsByte()) ||
                           ((return_type.IsBoolean() || return_type.IsByte() ||
                            return_type.IsShort() || return_type.IsChar()) &&
                            src_type.IsInteger()));
           /* check the register contents */
-          work_line_->VerifyRegisterType(dec_insn.vA_, use_src ? src_type : return_type);
+          work_line_->VerifyRegisterType(dec_insn.vA, use_src ? src_type : return_type);
           if (failure_ != VERIFY_ERROR_NONE) {
-            fail_messages_ << " return-1nr on invalid register v" << dec_insn.vA_;
+            fail_messages_ << " return-1nr on invalid register v" << dec_insn.vA;
           }
         }
       }
@@ -2128,9 +2128,9 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           Fail(VERIFY_ERROR_GENERIC) << "return-wide not expected";
         } else {
           /* check the register contents */
-          work_line_->VerifyRegisterType(dec_insn.vA_, return_type);
+          work_line_->VerifyRegisterType(dec_insn.vA, return_type);
           if (failure_ != VERIFY_ERROR_NONE) {
-            fail_messages_ << " return-wide on invalid register pair v" << dec_insn.vA_;
+            fail_messages_ << " return-wide on invalid register pair v" << dec_insn.vA;
           }
         }
       }
@@ -2144,7 +2144,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           /* return_type is the *expected* return type, not register value */
           DCHECK(!return_type.IsZero());
           DCHECK(!return_type.IsUninitializedReference());
-          const RegType& reg_type = work_line_->GetRegisterType(dec_insn.vA_);
+          const RegType& reg_type = work_line_->GetRegisterType(dec_insn.vA);
           // Disallow returning uninitialized values and verify that the reference in vAA is an
           // instance of the "return_type"
           if (reg_type.IsUninitializedTypes()) {
@@ -2161,35 +2161,35 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::CONST_16:
     case Instruction::CONST:
       /* could be boolean, int, float, or a null reference */
-      work_line_->SetRegisterType(dec_insn.vA_, reg_types_.FromCat1Const((int32_t) dec_insn.vB_));
+      work_line_->SetRegisterType(dec_insn.vA, reg_types_.FromCat1Const((int32_t) dec_insn.vB));
       break;
     case Instruction::CONST_HIGH16:
       /* could be boolean, int, float, or a null reference */
-      work_line_->SetRegisterType(dec_insn.vA_,
-                                  reg_types_.FromCat1Const((int32_t) dec_insn.vB_ << 16));
+      work_line_->SetRegisterType(dec_insn.vA,
+                                  reg_types_.FromCat1Const((int32_t) dec_insn.vB << 16));
       break;
     case Instruction::CONST_WIDE_16:
     case Instruction::CONST_WIDE_32:
     case Instruction::CONST_WIDE:
     case Instruction::CONST_WIDE_HIGH16:
       /* could be long or double; resolved upon use */
-      work_line_->SetRegisterType(dec_insn.vA_, reg_types_.ConstLo());
+      work_line_->SetRegisterType(dec_insn.vA, reg_types_.ConstLo());
       break;
     case Instruction::CONST_STRING:
     case Instruction::CONST_STRING_JUMBO:
-      work_line_->SetRegisterType(dec_insn.vA_, reg_types_.JavaLangString());
+      work_line_->SetRegisterType(dec_insn.vA, reg_types_.JavaLangString());
       break;
     case Instruction::CONST_CLASS: {
       // Get type from instruction if unresolved then we need an access check
       // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
-      const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB_);
+      const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB);
       // Register holds class, ie its type is class, but on error we keep it Unknown
-      work_line_->SetRegisterType(dec_insn.vA_,
+      work_line_->SetRegisterType(dec_insn.vA,
                                   res_type.IsUnknown() ? res_type : reg_types_.JavaLangClass());
       break;
     }
     case Instruction::MONITOR_ENTER:
-      work_line_->PushMonitor(dec_insn.vA_, work_insn_idx_);
+      work_line_->PushMonitor(dec_insn.vA, work_insn_idx_);
       break;
     case Instruction::MONITOR_EXIT:
       /*
@@ -2212,8 +2212,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
        * we skip them here); if we can't, then the code path could be
        * "live" so we still need to check it.
        */
-      opcode_flag &= ~Instruction::kThrow;
-      work_line_->PopMonitor(dec_insn.vA_);
+      opcode_flags &= ~Instruction::kThrow;
+      work_line_->PopMonitor(dec_insn.vA);
       break;
 
     case Instruction::CHECK_CAST:
@@ -2223,44 +2223,44 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
        * could be a "upcast" -- not expected, so we don't try to address it.)
        *
        * If it fails, an exception is thrown, which we deal with later by ignoring the update to
-       * dec_insn.vA_ when branching to a handler.
+       * dec_insn.vA when branching to a handler.
        */
-      bool is_checkcast = dec_insn.opcode_ == Instruction::CHECK_CAST;
+      bool is_checkcast = dec_insn.opcode == Instruction::CHECK_CAST;
       const RegType& res_type =
-          ResolveClassAndCheckAccess(is_checkcast ? dec_insn.vB_ : dec_insn.vC_);
+          ResolveClassAndCheckAccess(is_checkcast ? dec_insn.vB : dec_insn.vC);
       if (res_type.IsUnknown()) {
         CHECK_NE(failure_, VERIFY_ERROR_NONE);
         break;  // couldn't resolve class
       }
       // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
       const RegType& orig_type =
-          work_line_->GetRegisterType(is_checkcast ? dec_insn.vA_ : dec_insn.vB_);
+          work_line_->GetRegisterType(is_checkcast ? dec_insn.vA : dec_insn.vB);
       if (!res_type.IsNonZeroReferenceTypes()) {
         Fail(VERIFY_ERROR_GENERIC) << "check-cast on unexpected class " << res_type;
       } else if (!orig_type.IsReferenceTypes()) {
-        Fail(VERIFY_ERROR_GENERIC) << "check-cast on non-reference in v" << dec_insn.vA_;
+        Fail(VERIFY_ERROR_GENERIC) << "check-cast on non-reference in v" << dec_insn.vA;
       } else {
         if (is_checkcast) {
-          work_line_->SetRegisterType(dec_insn.vA_, res_type);
+          work_line_->SetRegisterType(dec_insn.vA, res_type);
         } else {
-          work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Boolean());
+          work_line_->SetRegisterType(dec_insn.vA, reg_types_.Boolean());
         }
       }
       break;
     }
     case Instruction::ARRAY_LENGTH: {
-      const RegType& res_type = work_line_->GetRegisterType(dec_insn.vB_);
+      const RegType& res_type = work_line_->GetRegisterType(dec_insn.vB);
       if (res_type.IsReferenceTypes()) {
         if (!res_type.IsArrayTypes() && !res_type.IsZero()) {  // ie not an array or null
           Fail(VERIFY_ERROR_GENERIC) << "array-length on non-array " << res_type;
         } else {
-          work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Integer());
+          work_line_->SetRegisterType(dec_insn.vA, reg_types_.Integer());
         }
       }
       break;
     }
     case Instruction::NEW_INSTANCE: {
-      const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB_);
+      const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB);
       if (res_type.IsUnknown()) {
         CHECK_NE(failure_, VERIFY_ERROR_NONE);
         break;  // couldn't resolve class
@@ -2276,7 +2276,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         // initialized must be marked invalid.
         work_line_->MarkUninitRefsAsInvalid(uninit_type);
         // add the new uninitialized reference to the register state
-        work_line_->SetRegisterType(dec_insn.vA_, uninit_type);
+        work_line_->SetRegisterType(dec_insn.vA, uninit_type);
       }
       break;
     }
@@ -2293,35 +2293,35 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
     case Instruction::CMPL_FLOAT:
     case Instruction::CMPG_FLOAT:
-      if (!work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Float())) {
+      if (!work_line_->VerifyRegisterType(dec_insn.vB, reg_types_.Float())) {
         break;
       }
-      if (!work_line_->VerifyRegisterType(dec_insn.vC_, reg_types_.Float())) {
+      if (!work_line_->VerifyRegisterType(dec_insn.vC, reg_types_.Float())) {
         break;
       }
-      work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Integer());
+      work_line_->SetRegisterType(dec_insn.vA, reg_types_.Integer());
       break;
     case Instruction::CMPL_DOUBLE:
     case Instruction::CMPG_DOUBLE:
-      if (!work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Double())) {
+      if (!work_line_->VerifyRegisterType(dec_insn.vB, reg_types_.Double())) {
         break;
       }
-      if (!work_line_->VerifyRegisterType(dec_insn.vC_, reg_types_.Double())) {
+      if (!work_line_->VerifyRegisterType(dec_insn.vC, reg_types_.Double())) {
         break;
       }
-      work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Integer());
+      work_line_->SetRegisterType(dec_insn.vA, reg_types_.Integer());
       break;
     case Instruction::CMP_LONG:
-      if (!work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Long())) {
+      if (!work_line_->VerifyRegisterType(dec_insn.vB, reg_types_.Long())) {
         break;
       }
-      if (!work_line_->VerifyRegisterType(dec_insn.vC_, reg_types_.Long())) {
+      if (!work_line_->VerifyRegisterType(dec_insn.vC, reg_types_.Long())) {
         break;
       }
-      work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Integer());
+      work_line_->SetRegisterType(dec_insn.vA, reg_types_.Integer());
       break;
     case Instruction::THROW: {
-      const RegType& res_type = work_line_->GetRegisterType(dec_insn.vA_);
+      const RegType& res_type = work_line_->GetRegisterType(dec_insn.vA);
       if (!reg_types_.JavaLangThrowable().IsAssignableFrom(res_type)) {
         Fail(VERIFY_ERROR_GENERIC) << "thrown class " << res_type << " not instanceof Throwable";
       }
@@ -2336,12 +2336,12 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::PACKED_SWITCH:
     case Instruction::SPARSE_SWITCH:
       /* verify that vAA is an integer, or can be converted to one */
-      work_line_->VerifyRegisterType(dec_insn.vA_, reg_types_.Integer());
+      work_line_->VerifyRegisterType(dec_insn.vA, reg_types_.Integer());
       break;
 
     case Instruction::FILL_ARRAY_DATA: {
       /* Similar to the verification done for APUT */
-      const RegType& array_type = work_line_->GetRegisterType(dec_insn.vA_);
+      const RegType& array_type = work_line_->GetRegisterType(dec_insn.vA);
       /* array_type can be null if the reg type is Zero */
       if (!array_type.IsZero()) {
         if (!array_type.IsArrayTypes()) {
@@ -2375,8 +2375,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
     case Instruction::IF_EQ:
     case Instruction::IF_NE: {
-      const RegType& reg_type1 = work_line_->GetRegisterType(dec_insn.vA_);
-      const RegType& reg_type2 = work_line_->GetRegisterType(dec_insn.vB_);
+      const RegType& reg_type1 = work_line_->GetRegisterType(dec_insn.vA);
+      const RegType& reg_type2 = work_line_->GetRegisterType(dec_insn.vB);
       bool mismatch = false;
       if (reg_type1.IsZero()) {  // zero then integral or reference expected
         mismatch = !reg_type2.IsReferenceTypes() && !reg_type2.IsIntegralTypes();
@@ -2395,8 +2395,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::IF_GE:
     case Instruction::IF_GT:
     case Instruction::IF_LE: {
-      const RegType& reg_type1 = work_line_->GetRegisterType(dec_insn.vA_);
-      const RegType& reg_type2 = work_line_->GetRegisterType(dec_insn.vB_);
+      const RegType& reg_type1 = work_line_->GetRegisterType(dec_insn.vA);
+      const RegType& reg_type2 = work_line_->GetRegisterType(dec_insn.vB);
       if (!reg_type1.IsIntegralTypes() || !reg_type2.IsIntegralTypes()) {
         Fail(VERIFY_ERROR_GENERIC) << "args to 'if' (" << reg_type1 << ","
                                    << reg_type2 << ") must be integral";
@@ -2405,7 +2405,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
     case Instruction::IF_EQZ:
     case Instruction::IF_NEZ: {
-      const RegType& reg_type = work_line_->GetRegisterType(dec_insn.vA_);
+      const RegType& reg_type = work_line_->GetRegisterType(dec_insn.vA);
       if (!reg_type.IsReferenceTypes() && !reg_type.IsIntegralTypes()) {
         Fail(VERIFY_ERROR_GENERIC) << "type " << reg_type << " unexpected as arg to if-eqz/if-nez";
       }
@@ -2415,7 +2415,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::IF_GEZ:
     case Instruction::IF_GTZ:
     case Instruction::IF_LEZ: {
-      const RegType& reg_type = work_line_->GetRegisterType(dec_insn.vA_);
+      const RegType& reg_type = work_line_->GetRegisterType(dec_insn.vA);
       if (!reg_type.IsIntegralTypes()) {
         Fail(VERIFY_ERROR_GENERIC) << "type " << reg_type
                                    << " unexpected as arg to if-ltz/if-gez/if-gtz/if-lez";
@@ -2558,15 +2558,15 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_VIRTUAL_RANGE:
     case Instruction::INVOKE_SUPER:
     case Instruction::INVOKE_SUPER_RANGE: {
-      bool is_range = (dec_insn.opcode_ == Instruction::INVOKE_VIRTUAL_RANGE ||
-                       dec_insn.opcode_ == Instruction::INVOKE_SUPER_RANGE);
-      bool is_super =  (dec_insn.opcode_ == Instruction::INVOKE_SUPER ||
-                        dec_insn.opcode_ == Instruction::INVOKE_SUPER_RANGE);
+      bool is_range = (dec_insn.opcode == Instruction::INVOKE_VIRTUAL_RANGE ||
+                       dec_insn.opcode == Instruction::INVOKE_SUPER_RANGE);
+      bool is_super =  (dec_insn.opcode == Instruction::INVOKE_SUPER ||
+                        dec_insn.opcode == Instruction::INVOKE_SUPER_RANGE);
       Method* called_method = VerifyInvocationArgs(dec_insn, METHOD_VIRTUAL, is_range, is_super);
       if (failure_ == VERIFY_ERROR_NONE) {
         const char* descriptor;
         if (called_method == NULL) {
-          uint32_t method_idx = dec_insn.vB_;
+          uint32_t method_idx = dec_insn.vB;
           const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
           uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
           descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
@@ -2582,7 +2582,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
     case Instruction::INVOKE_DIRECT:
     case Instruction::INVOKE_DIRECT_RANGE: {
-      bool is_range = (dec_insn.opcode_ == Instruction::INVOKE_DIRECT_RANGE);
+      bool is_range = (dec_insn.opcode == Instruction::INVOKE_DIRECT_RANGE);
       Method* called_method = VerifyInvocationArgs(dec_insn, METHOD_DIRECT, is_range, false);
       if (failure_ == VERIFY_ERROR_NONE) {
         /*
@@ -2596,7 +2596,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         if (called_method != NULL) {
           is_constructor = called_method->IsConstructor();
         } else {
-          uint32_t method_idx = dec_insn.vB_;
+          uint32_t method_idx = dec_insn.vB;
           const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
           const char* name = dex_file_->GetMethodName(method_id);
           is_constructor = strcmp(name, "<init>") == 0;
@@ -2644,7 +2644,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         }
         const char* descriptor;
         if (called_method == NULL) {
-          uint32_t method_idx = dec_insn.vB_;
+          uint32_t method_idx = dec_insn.vB;
           const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
           uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
           descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
@@ -2660,12 +2660,12 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE: {
-        bool is_range = (dec_insn.opcode_ == Instruction::INVOKE_STATIC_RANGE);
+        bool is_range = (dec_insn.opcode == Instruction::INVOKE_STATIC_RANGE);
         Method* called_method = VerifyInvocationArgs(dec_insn, METHOD_STATIC, is_range, false);
         if (failure_ == VERIFY_ERROR_NONE) {
           const char* descriptor;
           if (called_method == NULL) {
-            uint32_t method_idx = dec_insn.vB_;
+            uint32_t method_idx = dec_insn.vB;
             const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
             uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
             descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
@@ -2681,7 +2681,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
     case Instruction::INVOKE_INTERFACE:
     case Instruction::INVOKE_INTERFACE_RANGE: {
-      bool is_range =  (dec_insn.opcode_ == Instruction::INVOKE_INTERFACE_RANGE);
+      bool is_range =  (dec_insn.opcode == Instruction::INVOKE_INTERFACE_RANGE);
       Method* abs_method = VerifyInvocationArgs(dec_insn, METHOD_INTERFACE, is_range, false);
       if (failure_ == VERIFY_ERROR_NONE) {
         if (abs_method != NULL) {
@@ -2720,7 +2720,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
          */
         const char* descriptor;
         if (abs_method == NULL) {
-          uint32_t method_idx = dec_insn.vB_;
+          uint32_t method_idx = dec_insn.vB;
           const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
           uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
           descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
@@ -2967,7 +2967,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
      * DO NOT add a "default" clause here. Without it the compiler will
      * complain if an instruction is missing (which is desirable).
      */
-  }  // end - switch (dec_insn.opcode_)
+  }  // end - switch (dec_insn.opcode)
 
   if (failure_ != VERIFY_ERROR_NONE) {
     if (failure_ == VERIFY_ERROR_GENERIC) {
@@ -2982,7 +2982,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       insns = code_item_->insns_ + work_insn_idx_;
       /* continue on as if we just handled a throw-verification-error */
       failure_ = VERIFY_ERROR_NONE;
-      opcode_flag = Instruction::kThrow;
+      opcode_flags = Instruction::kThrow;
     }
   }
   /*
@@ -2995,7 +2995,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   }
 
   /* Handle "continue". Tag the next consecutive instruction. */
-  if ((opcode_flag & Instruction::kContinue) != 0) {
+  if ((opcode_flags & Instruction::kContinue) != 0) {
     uint32_t next_insn_idx = work_insn_idx_ + CurrentInsnFlags().GetLengthInCodeUnits();
     if (next_insn_idx >= code_item_->insns_size_in_code_units_) {
       Fail(VERIFY_ERROR_GENERIC) << "Execution can walk off end of code area";
@@ -3034,14 +3034,14 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    *
    * TODO: avoid re-fetching the branch target
    */
-  if ((opcode_flag & Instruction::kBranch) != 0) {
+  if ((opcode_flags & Instruction::kBranch) != 0) {
     bool isConditional, selfOkay;
     if (!GetBranchOffset(work_insn_idx_, &branch_target, &isConditional, &selfOkay)) {
       /* should never happen after static verification */
       Fail(VERIFY_ERROR_GENERIC) << "bad branch";
       return false;
     }
-    DCHECK_EQ(isConditional, (opcode_flag & Instruction::kContinue) != 0);
+    DCHECK_EQ(isConditional, (opcode_flags & Instruction::kContinue) != 0);
     if (!CheckMoveException(code_item_->insns_, work_insn_idx_ + branch_target)) {
       return false;
     }
@@ -3057,7 +3057,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    * We've already verified that the table is structurally sound, so we
    * just need to walk through and tag the targets.
    */
-  if ((opcode_flag & Instruction::kSwitch) != 0) {
+  if ((opcode_flags & Instruction::kSwitch) != 0) {
     int offset_to_switch = insns[1] | (((int32_t) insns[2]) << 16);
     const uint16_t* switch_insns = insns + offset_to_switch;
     int switch_count = switch_insns[1];
@@ -3094,7 +3094,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    * Handle instructions that can throw and that are sitting in a "try" block. (If they're not in a
    * "try" block when they throw, control transfers out of the method.)
    */
-  if ((opcode_flag & Instruction::kThrow) != 0 && insn_flags_[work_insn_idx_].IsInTry()) {
+  if ((opcode_flags & Instruction::kThrow) != 0 && insn_flags_[work_insn_idx_].IsInTry()) {
     bool within_catch_all = false;
     CatchHandlerIterator iterator(*code_item_, work_insn_idx_);
 
@@ -3122,7 +3122,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
        * monitor-enter and the monitor stack was empty, we don't need a catch-all (if it throws,
        * it will do so before grabbing the lock).
        */
-      if (dec_insn.opcode_ != Instruction::MONITOR_ENTER || work_line_->MonitorStackDepth() != 1) {
+      if (dec_insn.opcode != Instruction::MONITOR_ENTER || work_line_->MonitorStackDepth() != 1) {
         Fail(VERIFY_ERROR_GENERIC)
             << "expected to be within a catch-all for an instruction where a monitor is held";
         return false;
@@ -3131,7 +3131,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   }
 
   /* If we're returning from the method, make sure monitor stack is empty. */
-  if ((opcode_flag & Instruction::kReturn) != 0) {
+  if ((opcode_flags & Instruction::kReturn) != 0) {
     if(!work_line_->VerifyMonitorStackEmpty()) {
       return false;
     }
@@ -3143,9 +3143,9 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    * neither of those exists we're in a return or throw; leave start_guess
    * alone and let the caller sort it out.
    */
-  if ((opcode_flag & Instruction::kContinue) != 0) {
+  if ((opcode_flags & Instruction::kContinue) != 0) {
     *start_guess = work_insn_idx_ + insn_flags_[work_insn_idx_].GetLengthInCodeUnits();
-  } else if ((opcode_flag & Instruction::kBranch) != 0) {
+  } else if ((opcode_flags & Instruction::kBranch) != 0) {
     /* we're still okay if branch_target is zero */
     *start_guess = work_insn_idx_ + branch_target;
   }
@@ -3314,11 +3314,11 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType
   return res_method;
 }
 
-Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction& dec_insn,
+Method* DexVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
                                           MethodType method_type, bool is_range, bool is_super) {
   // Resolve the method. This could be an abstract or concrete method depending on what sort of call
   // we're making.
-  Method* res_method = ResolveMethodAndCheckAccess(dec_insn.vB_, method_type);
+  Method* res_method = ResolveMethodAndCheckAccess(dec_insn.vB, method_type);
   if (res_method == NULL) {  // error or class is unresolved
     return NULL;
   }
@@ -3345,7 +3345,7 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
   // We use vAA as our expected arg count, rather than res_method->insSize, because we need to
   // match the call to the signature. Also, we might might be calling through an abstract method
   // definition (which doesn't have register count values).
-  size_t expected_args = dec_insn.vA_;
+  size_t expected_args = dec_insn.vA;
   /* caught by static verifier */
   DCHECK(is_range || expected_args <= 5);
   if (expected_args > code_item_->outs_size_) {
@@ -3403,7 +3403,7 @@ Method* DexVerifier::VerifyInvocationArgs(const Instruction::DecodedInstruction&
     }
     const RegType& reg_type =
         reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
-    uint32_t get_reg = is_range ? dec_insn.vC_ + actual_args : dec_insn.arg_[actual_args];
+    uint32_t get_reg = is_range ? dec_insn.vC + actual_args : dec_insn.arg[actual_args];
     if (!work_line_->VerifyRegisterType(get_reg, reg_type)) {
       return NULL;
     }
@@ -3423,9 +3423,9 @@ const RegType& DexVerifier::GetMethodReturnType() {
                                    MethodHelper(method_).GetReturnTypeDescriptor());
 }
 
-void DexVerifier::VerifyNewArray(const Instruction::DecodedInstruction& dec_insn, bool is_filled,
+void DexVerifier::VerifyNewArray(const DecodedInstruction& dec_insn, bool is_filled,
                                  bool is_range) {
-  const RegType& res_type = ResolveClassAndCheckAccess(is_filled ? dec_insn.vB_ : dec_insn.vC_);
+  const RegType& res_type = ResolveClassAndCheckAccess(is_filled ? dec_insn.vB : dec_insn.vC);
   if (res_type.IsUnknown()) {
     CHECK_NE(failure_, VERIFY_ERROR_NONE);
   } else {
@@ -3434,17 +3434,17 @@ void DexVerifier::VerifyNewArray(const Instruction::DecodedInstruction& dec_insn
       Fail(VERIFY_ERROR_GENERIC) << "new-array on non-array class " << res_type;
     } else if (!is_filled) {
       /* make sure "size" register is valid type */
-      work_line_->VerifyRegisterType(dec_insn.vB_, reg_types_.Integer());
+      work_line_->VerifyRegisterType(dec_insn.vB, reg_types_.Integer());
       /* set register type to array class */
-      work_line_->SetRegisterType(dec_insn.vA_, res_type);
+      work_line_->SetRegisterType(dec_insn.vA, res_type);
     } else {
       // Verify each register. If "arg_count" is bad, VerifyRegisterType() will run off the end of
       // the list and fail. It's legal, if silly, for arg_count to be zero.
       const RegType& expected_type = reg_types_.GetComponentType(res_type,
                                                     method_->GetDeclaringClass()->GetClassLoader());
-      uint32_t arg_count = dec_insn.vA_;
+      uint32_t arg_count = dec_insn.vA;
       for (size_t ui = 0; ui < arg_count; ui++) {
-        uint32_t get_reg = is_range ? dec_insn.vC_ + ui : dec_insn.arg_[ui];
+        uint32_t get_reg = is_range ? dec_insn.vC + ui : dec_insn.arg[ui];
         if (!work_line_->VerifyRegisterType(get_reg, expected_type)) {
           work_line_->SetResultRegisterType(reg_types_.Unknown());
           return;
@@ -3456,22 +3456,22 @@ void DexVerifier::VerifyNewArray(const Instruction::DecodedInstruction& dec_insn
   }
 }
 
-void DexVerifier::VerifyAGet(const Instruction::DecodedInstruction& dec_insn,
+void DexVerifier::VerifyAGet(const DecodedInstruction& dec_insn,
                              const RegType& insn_type, bool is_primitive) {
-  const RegType& index_type = work_line_->GetRegisterType(dec_insn.vC_);
+  const RegType& index_type = work_line_->GetRegisterType(dec_insn.vC);
   if (!index_type.IsArrayIndexTypes()) {
     Fail(VERIFY_ERROR_GENERIC) << "Invalid reg type for array index (" << index_type << ")";
   } else {
-    const RegType& array_type = work_line_->GetRegisterType(dec_insn.vB_);
+    const RegType& array_type = work_line_->GetRegisterType(dec_insn.vB);
     if (array_type.IsZero()) {
       // Null array class; this code path will fail at runtime. Infer a merge-able type from the
       // instruction type. TODO: have a proper notion of bottom here.
       if (!is_primitive || insn_type.IsCategory1Types()) {
         // Reference or category 1
-        work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Zero());
+        work_line_->SetRegisterType(dec_insn.vA, reg_types_.Zero());
       } else {
         // Category 2
-        work_line_->SetRegisterType(dec_insn.vA_, reg_types_.ConstLo());
+        work_line_->SetRegisterType(dec_insn.vA, reg_types_.ConstLo());
       }
     } else if (!array_type.IsArrayTypes()) {
       Fail(VERIFY_ERROR_GENERIC) << "not array type " << array_type << " with aget";
@@ -3494,19 +3494,19 @@ void DexVerifier::VerifyAGet(const Instruction::DecodedInstruction& dec_insn,
           // Use knowledge of the field type which is stronger than the type inferred from the
           // instruction, which can't differentiate object types and ints from floats, longs from
           // doubles.
-          work_line_->SetRegisterType(dec_insn.vA_, component_type);
+          work_line_->SetRegisterType(dec_insn.vA, component_type);
       }
     }
   }
 }
 
-void DexVerifier::VerifyAPut(const Instruction::DecodedInstruction& dec_insn,
+void DexVerifier::VerifyAPut(const DecodedInstruction& dec_insn,
                              const RegType& insn_type, bool is_primitive) {
-  const RegType& index_type = work_line_->GetRegisterType(dec_insn.vC_);
+  const RegType& index_type = work_line_->GetRegisterType(dec_insn.vC);
   if (!index_type.IsArrayIndexTypes()) {
     Fail(VERIFY_ERROR_GENERIC) << "Invalid reg type for array index (" << index_type << ")";
   } else {
-    const RegType& array_type = work_line_->GetRegisterType(dec_insn.vB_);
+    const RegType& array_type = work_line_->GetRegisterType(dec_insn.vB);
     if (array_type.IsZero()) {
       // Null array type; this code path will fail at runtime. Infer a merge-able type from the
       // instruction type.
@@ -3531,7 +3531,7 @@ void DexVerifier::VerifyAPut(const Instruction::DecodedInstruction& dec_insn,
         // The instruction agrees with the type of array, confirm the value to be stored does too
         // Note: we use the instruction type (rather than the component type) for aput-object as
         // incompatible classes will be caught at runtime as an array store exception
-        work_line_->VerifyRegisterType(dec_insn.vA_, is_primitive ? component_type : insn_type);
+        work_line_->VerifyRegisterType(dec_insn.vA, is_primitive ? component_type : insn_type);
       }
     }
   }
@@ -3625,18 +3625,18 @@ Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
   }
 }
 
-void DexVerifier::VerifyISGet(const Instruction::DecodedInstruction& dec_insn,
+void DexVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
                               const RegType& insn_type, bool is_primitive, bool is_static) {
-  uint32_t field_idx = is_static ? dec_insn.vB_ : dec_insn.vC_;
+  uint32_t field_idx = is_static ? dec_insn.vB : dec_insn.vC;
   Field* field;
   if (is_static) {
     field = GetStaticField(field_idx);
   } else {
-    const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB_);
+    const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB);
     field = GetInstanceField(object_type, field_idx);
   }
   if (failure_ != VERIFY_ERROR_NONE) {
-    work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Unknown());
+    work_line_->SetRegisterType(dec_insn.vA, reg_types_.Unknown());
   } else {
     const char* descriptor;
     const ClassLoader* loader;
@@ -3673,22 +3673,22 @@ void DexVerifier::VerifyISGet(const Instruction::DecodedInstruction& dec_insn,
         return;
       }
     }
-    work_line_->SetRegisterType(dec_insn.vA_, field_type);
+    work_line_->SetRegisterType(dec_insn.vA, field_type);
   }
 }
 
-void DexVerifier::VerifyISPut(const Instruction::DecodedInstruction& dec_insn,
+void DexVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
                               const RegType& insn_type, bool is_primitive, bool is_static) {
-  uint32_t field_idx = is_static ? dec_insn.vB_ : dec_insn.vC_;
+  uint32_t field_idx = is_static ? dec_insn.vB : dec_insn.vC;
   Field* field;
   if (is_static) {
     field = GetStaticField(field_idx);
   } else {
-    const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB_);
+    const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB);
     field = GetInstanceField(object_type, field_idx);
   }
   if (failure_ != VERIFY_ERROR_NONE) {
-    work_line_->SetRegisterType(dec_insn.vA_, reg_types_.Unknown());
+    work_line_->SetRegisterType(dec_insn.vA, reg_types_.Unknown());
   } else {
     const char* descriptor;
     const ClassLoader* loader;
@@ -3712,7 +3712,7 @@ void DexVerifier::VerifyISPut(const Instruction::DecodedInstruction& dec_insn,
       // Primitive field assignability rules are weaker than regular assignability rules
       bool instruction_compatible;
       bool value_compatible;
-      const RegType& value_type = work_line_->GetRegisterType(dec_insn.vA_);
+      const RegType& value_type = work_line_->GetRegisterType(dec_insn.vA);
       if (field_type.IsIntegralTypes()) {
         instruction_compatible = insn_type.IsIntegralTypes();
         value_compatible = value_type.IsIntegralTypes();
@@ -3740,7 +3740,7 @@ void DexVerifier::VerifyISPut(const Instruction::DecodedInstruction& dec_insn,
         return;
       }
       if (!value_compatible) {
-        Fail(VERIFY_ERROR_GENERIC) << "unexpected value in v" << dec_insn.vA_
+        Fail(VERIFY_ERROR_GENERIC) << "unexpected value in v" << dec_insn.vA
                                    << " of type " << value_type
                                    << " but expected " << field_type
                                    << " for store to " << PrettyField(field) << " in put";
@@ -3754,7 +3754,7 @@ void DexVerifier::VerifyISPut(const Instruction::DecodedInstruction& dec_insn,
                                   << "' in put-object";
         return;
       }
-      work_line_->VerifyRegisterType(dec_insn.vA_, field_type);
+      work_line_->VerifyRegisterType(dec_insn.vA, field_type);
     }
   }
 }

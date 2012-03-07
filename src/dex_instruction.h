@@ -25,13 +25,17 @@ namespace art {
 
 class DexFile;
 
+enum {
+  kNumPackedOpcodes = 0x100
+};
+
 class Instruction {
  public:
   // NOP-encoded switch-statement signatures.
   enum {
     kPackedSwitchSignature = 0x0100,
     kSparseSwitchSignature = 0x0200,
-    kArrayDataSignature = 0x0300
+    kArrayDataSignature = 0x0300,
   };
 
   enum Code {
@@ -42,7 +46,7 @@ class Instruction {
 #undef INSTRUCTION_ENUM
   };
 
-  enum InstructionFormat {
+  enum Format {
     k10x,  // op
     k12x,  // op vA, vB
     k11n,  // op vA, #+B
@@ -104,35 +108,23 @@ class Instruction {
     kVerifyError           = 0x80000,
   };
 
-  /*
-   * Holds the contents of a decoded instruction.
-   */
-  struct DecodedInstruction {
-    uint32_t vA_;
-    uint32_t vB_;
-    uint64_t vB_wide_;        /* for kFmt51l */
-    uint32_t vC_;
-    uint32_t arg_[5];         /* vC/D/E/F/G in invoke or filled-new-array */
-    Code     opcode_;
-
-    explicit DecodedInstruction(const Instruction* inst) {
-      inst->Decode(vA_, vB_, vB_wide_, vC_, arg_);
-      opcode_ = inst->Opcode();
-    }
-  };
-
   // Decodes this instruction, populating its arguments.
   void Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t &vC, uint32_t arg[]) const;
 
-  // Returns the size in 2 byte code units, for this instruction.
+  // Returns the size (in 2 byte code units) of this instruction.
   size_t SizeInCodeUnits() const;
 
   // Returns a pointer to the next instruction in the stream.
   const Instruction* Next() const;
 
-  // Name of the instruction.
+  // Returns the name of this instruction's opcode.
   const char* Name() const {
-    return kInstructionNames[Opcode()];
+    return Instruction::Name(Opcode());
+  }
+
+  // Returns the name of the given opcode.
+  static const char* Name(Code opcode) {
+    return kInstructionNames[opcode];
   }
 
   // Returns the opcode field of the instruction.
@@ -144,14 +136,14 @@ class Instruction {
     return reinterpret_cast<const Instruction*>(code);
   }
 
-  // Returns the format of the current instruction.
-  InstructionFormat Format() const {
-    return kInstructionFormats[Opcode()];
+  // Returns the format of the given opcode.
+  static Format FormatOf(Code opcode) {
+    return kInstructionFormats[opcode];
   }
 
-  // Returns the flags for the current instruction.
-  int Flag() const {
-    return kInstructionFlags[Opcode()];
+  // Returns the flags for the given opcode.
+  static int Flags(Code opcode) {
+    return kInstructionFlags[opcode];
   }
 
   // Returns true if this instruction is a branch.
@@ -211,12 +203,25 @@ class Instruction {
 
  private:
   static const char* const kInstructionNames[];
-  static InstructionFormat const kInstructionFormats[];
+  static Format const kInstructionFormats[];
   static int const kInstructionFlags[];
   static int const kInstructionVerifyFlags[];
   DISALLOW_IMPLICIT_CONSTRUCTORS(Instruction);
 };
-std::ostream& operator<<(std::ostream& os, const Instruction& rhs);
+
+/*
+ * Holds the contents of a decoded instruction.
+ */
+struct DecodedInstruction {
+  uint32_t vA;
+  uint32_t vB;
+  uint64_t vB_wide;        /* for k51l */
+  uint32_t vC;
+  uint32_t arg[5];         /* vC/D/E/F/G in invoke or filled-new-array */
+  Instruction::Code opcode;
+
+  explicit DecodedInstruction(const Instruction* inst);
+};
 
 }  // namespace art
 

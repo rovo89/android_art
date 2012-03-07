@@ -72,8 +72,8 @@ SSARepresentation* findMoveResult(MIR* mir)
 {
     SSARepresentation* res = NULL;
     for (; mir; mir = mir->next) {
-        if ((mir->dalvikInsn.opcode == OP_MOVE_RESULT) ||
-            (mir->dalvikInsn.opcode == OP_MOVE_RESULT_WIDE)) {
+      if ((mir->dalvikInsn.opcode == Instruction::MOVE_RESULT) ||
+          (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_WIDE)) {
             res = mir->ssaRep;
             break;
         }
@@ -156,11 +156,9 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
             }
 
             // Special-case handling for format 35c/3rc invokes
-            Opcode opcode = mir->dalvikInsn.opcode;
-            int flags = (opcode >= kNumPackedOpcodes) ? 0 :
-                dexGetFlagsFromOpcode(opcode);
-            if ((flags & kInstrInvoke) &&
-                (attrs & (DF_FORMAT_35C | DF_FORMAT_3RC))) {
+            Instruction::Code opcode = mir->dalvikInsn.opcode;
+            int flags = (static_cast<int>(opcode) >= kNumPackedOpcodes) ? 0 : Instruction::Flags(mir->dalvikInsn.opcode);
+            if ((flags & Instruction::kInvoke) && (attrs & (DF_FORMAT_35C | DF_FORMAT_3RC))) {
                 DCHECK_EQ(next, 0);
                 int target_idx = mir->dalvikInsn.vB;
                 const char* shorty =
@@ -185,8 +183,8 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                 }
                 int numUses = mir->dalvikInsn.vA;
                 // If this is a non-static invoke, skip implicit "this"
-                if (((mir->dalvikInsn.opcode != OP_INVOKE_STATIC) &&
-                     (mir->dalvikInsn.opcode != OP_INVOKE_STATIC_RANGE))) {
+                if (((mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC) &&
+                    (mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC_RANGE))) {
                    cUnit->regLocation[ssaRep->uses[next]].defined = true;
                    cUnit->regLocation[ssaRep->uses[next]].core = true;
                    next++;
@@ -258,7 +256,7 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                  * during verification can eliminate some type information,
                  * leaving us confused.  The real fix here is either to
                  * add explicit type information to Dalvik byte codes,
-                 * or to recognize OP_THROW_VERIFICATION_ERROR as
+                 * or to recognize THROW_VERIFICATION_ERROR as
                  * an unconditional branch and support dead code elimination.
                  * As a workaround we can detect this situation and
                  * disable register promotion (which is the only thing that

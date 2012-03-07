@@ -51,66 +51,63 @@ uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
 
 inline bool contentIsInsn(const u2* codePtr) {
     u2 instr = *codePtr;
-    Opcode opcode = (Opcode)(instr & 0xff);
+    Instruction::Code opcode = (Instruction::Code)(instr & 0xff);
 
     /*
-     * Since the low 8-bit in metadata may look like OP_NOP, we need to check
+     * Since the low 8-bit in metadata may look like NOP, we need to check
      * both the low and whole sub-word to determine whether it is code or data.
      */
-    return (opcode != OP_NOP || instr == 0);
+    return (opcode != Instruction::NOP || instr == 0);
 }
 
 /*
  * Parse an instruction, return the length of the instruction
  */
 inline int parseInsn(CompilationUnit* cUnit, const u2* codePtr,
-                            DecodedInstruction* decInsn, bool printMe)
+                     DecodedInstruction* decoded_instruction, bool printMe)
 {
-    // Don't parse instruction data
-    if (!contentIsInsn(codePtr)) {
-        return 0;
-    }
+  // Don't parse instruction data
+  if (!contentIsInsn(codePtr)) {
+    return 0;
+  }
 
-    u2 instr = *codePtr;
-    Opcode opcode = dexOpcodeFromCodeUnit(instr);
+  const Instruction* instruction = Instruction::At(codePtr);
+  *decoded_instruction = DecodedInstruction(instruction);
 
-    dexDecodeInstruction(codePtr, decInsn);
-    if (printMe) {
-        char* decodedString = oatGetDalvikDisassembly(cUnit, decInsn, NULL);
-        LOG(INFO) << codePtr << ": 0x" << std::hex << (int)opcode <<
-        " " << decodedString;
-    }
-    return dexGetWidthFromOpcode(opcode);
+  if (printMe) {
+    char* decodedString = oatGetDalvikDisassembly(cUnit, *decoded_instruction, NULL);
+    LOG(INFO) << codePtr << ": 0x" << std::hex << static_cast<int>(decoded_instruction->opcode)
+              << " " << decodedString;
+  }
+  return instruction->SizeInCodeUnits();
 }
 
 #define UNKNOWN_TARGET 0xffffffff
 
-inline bool isGoto(MIR* insn)
-{
-    switch (insn->dalvikInsn.opcode) {
-        case OP_GOTO:
-        case OP_GOTO_16:
-        case OP_GOTO_32:
-            return true;
-        default:
-            return false;
+inline bool isGoto(MIR* insn) {
+  switch (insn->dalvikInsn.opcode) {
+    case Instruction::GOTO:
+    case Instruction::GOTO_16:
+    case Instruction::GOTO_32:
+      return true;
+    default:
+      return false;
     }
 }
 
 /*
  * Identify unconditional branch instructions
  */
-inline bool isUnconditionalBranch(MIR* insn)
-{
-    switch (insn->dalvikInsn.opcode) {
-        case OP_RETURN_VOID:
-        case OP_RETURN:
-        case OP_RETURN_WIDE:
-        case OP_RETURN_OBJECT:
-            return true;
-        default:
-            return isGoto(insn);
-    }
+inline bool isUnconditionalBranch(MIR* insn) {
+  switch (insn->dalvikInsn.opcode) {
+    case Instruction::RETURN_VOID:
+    case Instruction::RETURN:
+    case Instruction::RETURN_WIDE:
+    case Instruction::RETURN_OBJECT:
+      return true;
+    default:
+      return isGoto(insn);
+  }
 }
 
 /* Split an existing block from the specified code offset into two */
@@ -301,9 +298,7 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
                     bb->firstMIRInsn ? " | " : " ");
             for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
                 fprintf(file, "    {%04x %s\\l}%s\\\n", mir->offset,
-                        mir->ssaRep ?
-                            oatFullDisassembler(cUnit, mir) :
-                            dexGetOpcodeName(mir->dalvikInsn.opcode),
+                        mir->ssaRep ? oatFullDisassembler(cUnit, mir) : Instruction::Name(mir->dalvikInsn.opcode),
                         mir->next ? " | " : " ");
             }
             fprintf(file, "  }\"];\n\n");
@@ -479,37 +474,37 @@ void processTryCatchBlocks(CompilationUnit* cUnit)
     }
 }
 
-/* Process instructions with the kInstrCanBranch flag */
+/* Process instructions with the kBranch flag */
 BasicBlock* processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
                              MIR* insn, int curOffset, int width, int flags,
                              const u2* codePtr, const u2* codeEnd)
 {
     int target = curOffset;
     switch (insn->dalvikInsn.opcode) {
-        case OP_GOTO:
-        case OP_GOTO_16:
-        case OP_GOTO_32:
+        case Instruction::GOTO:
+        case Instruction::GOTO_16:
+        case Instruction::GOTO_32:
             target += (int) insn->dalvikInsn.vA;
             break;
-        case OP_IF_EQ:
-        case OP_IF_NE:
-        case OP_IF_LT:
-        case OP_IF_GE:
-        case OP_IF_GT:
-        case OP_IF_LE:
+        case Instruction::IF_EQ:
+        case Instruction::IF_NE:
+        case Instruction::IF_LT:
+        case Instruction::IF_GE:
+        case Instruction::IF_GT:
+        case Instruction::IF_LE:
             target += (int) insn->dalvikInsn.vC;
             break;
-        case OP_IF_EQZ:
-        case OP_IF_NEZ:
-        case OP_IF_LTZ:
-        case OP_IF_GEZ:
-        case OP_IF_GTZ:
-        case OP_IF_LEZ:
+        case Instruction::IF_EQZ:
+        case Instruction::IF_NEZ:
+        case Instruction::IF_LTZ:
+        case Instruction::IF_GEZ:
+        case Instruction::IF_GTZ:
+        case Instruction::IF_LEZ:
             target += (int) insn->dalvikInsn.vB;
             break;
         default:
             LOG(FATAL) << "Unexpected opcode(" << (int)insn->dalvikInsn.opcode
-                << ") with kInstrCanBranch set";
+                << ") with kBranch set";
     }
     BasicBlock *takenBlock = findBlock(cUnit, target,
                                        /* split */
@@ -522,7 +517,7 @@ BasicBlock* processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
     oatInsertGrowableList(cUnit, takenBlock->predecessors, (intptr_t)curBlock);
 
     /* Always terminate the current block for conditional branches */
-    if (flags & kInstrCanContinue) {
+    if (flags & Instruction::kContinue) {
         BasicBlock *fallthroughBlock = findBlock(cUnit,
                                                  curOffset +  width,
                                                  /*
@@ -546,7 +541,7 @@ BasicBlock* processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
         oatInsertGrowableList(cUnit, fallthroughBlock->predecessors,
                               (intptr_t)curBlock);
     } else if (codePtr < codeEnd) {
-        /* Create a fallthrough block for real instructions (incl. OP_NOP) */
+        /* Create a fallthrough block for real instructions (incl. NOP) */
         if (contentIsInsn(codePtr)) {
             findBlock(cUnit, curOffset + width,
                       /* split */
@@ -560,7 +555,7 @@ BasicBlock* processCanBranch(CompilationUnit* cUnit, BasicBlock* curBlock,
     return curBlock;
 }
 
-/* Process instructions with the kInstrCanSwitch flag */
+/* Process instructions with the kSwitch flag */
 void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
                       MIR* insn, int curOffset, int width, int flags)
 {
@@ -581,8 +576,8 @@ void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
      *
      * Total size is (4+size*2) 16-bit code units.
      */
-    if (insn->dalvikInsn.opcode == OP_PACKED_SWITCH) {
-        DCHECK_EQ(switchData[0], kPackedSwitchSignature);
+    if (insn->dalvikInsn.opcode == Instruction::PACKED_SWITCH) {
+        DCHECK_EQ(static_cast<int>(switchData[0]), static_cast<int>(Instruction::kPackedSwitchSignature));
         size = switchData[1];
         firstKey = switchData[2] | (switchData[3] << 16);
         targetTable = (int *) &switchData[4];
@@ -597,7 +592,7 @@ void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
      * Total size is (2+size*4) 16-bit code units.
      */
     } else {
-        DCHECK_EQ(switchData[0], kSparseSwitchSignature);
+        DCHECK_EQ(static_cast<int>(switchData[0]), static_cast<int>(Instruction::kSparseSwitchSignature));
         size = switchData[1];
         keyTable = (int *) &switchData[2];
         targetTable = (int *) &switchData[2 + size*2];
@@ -609,7 +604,7 @@ void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
              (int)curBlock->successorBlockList.blockListType;
     }
     curBlock->successorBlockList.blockListType =
-        (insn->dalvikInsn.opcode == OP_PACKED_SWITCH) ?
+        (insn->dalvikInsn.opcode == Instruction::PACKED_SWITCH) ?
         kPackedSwitch : kSparseSwitch;
     oatInitGrowableList(cUnit, &curBlock->successorBlockList.blocks, size,
                         kListSuccessorBlocks);
@@ -626,7 +621,7 @@ void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
             (SuccessorBlockInfo *) oatNew(cUnit, sizeof(SuccessorBlockInfo),
                                           false, kAllocSuccessor);
         successorBlockInfo->block = caseBlock;
-        successorBlockInfo->key = (insn->dalvikInsn.opcode == OP_PACKED_SWITCH)?
+        successorBlockInfo->key = (insn->dalvikInsn.opcode == Instruction::PACKED_SWITCH)?
                                   firstKey + i : keyTable[i];
         oatInsertGrowableList(cUnit, &curBlock->successorBlockList.blocks,
                               (intptr_t) successorBlockInfo);
@@ -648,7 +643,7 @@ void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
                           (intptr_t)curBlock);
 }
 
-/* Process instructions with the kInstrCanThrow flag */
+/* Process instructions with the kThrow flag */
 void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock, MIR* insn,
                      int curOffset, int width, int flags,
                      ArenaBitVector* tryBlockAddr, const u2* codePtr,
@@ -701,7 +696,7 @@ void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock, MIR* insn,
      * whether it is code or data.
      */
     if (codePtr < codeEnd) {
-        /* Create a fallthrough block for real instructions (incl. OP_NOP) */
+        /* Create a fallthrough block for real instructions (incl. NOP) */
         if (contentIsInsn(codePtr)) {
             BasicBlock *fallthroughBlock = findBlock(cUnit,
                                                      curOffset + width,
@@ -712,13 +707,13 @@ void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock, MIR* insn,
                                                      /* immedPredBlockP */
                                                      NULL);
             /*
-             * OP_THROW is an unconditional branch.  NOTE:
-             * OP_THROW_VERIFICATION_ERROR is also an unconditional
+             * THROW is an unconditional branch.  NOTE:
+             * THROW_VERIFICATION_ERROR is also an unconditional
              * branch, but we shouldn't treat it as such until we have
              * a dead code elimination pass (which won't be important
              * until inlining w/ constant propogation is implemented.
              */
-            if (insn->dalvikInsn.opcode != OP_THROW) {
+            if (insn->dalvikInsn.opcode != Instruction::THROW) {
                 curBlock->fallThrough = fallthroughBlock;
                 oatInsertGrowableList(cUnit, fallthroughBlock->predecessors,
                                       (intptr_t)curBlock);
@@ -866,7 +861,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
         oatAppendMIR(curBlock, insn);
 
         codePtr += width;
-        int flags = dexGetFlagsFromOpcode(insn->dalvikInsn.opcode);
+        int flags = Instruction::Flags(insn->dalvikInsn.opcode);
 
         int dfFlags = oatDataFlowAttributes[insn->dalvikInsn.opcode];
 
@@ -874,10 +869,10 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
             cUnit->defCount += (dfFlags & DF_DA_WIDE) ? 2 : 1;
         }
 
-        if (flags & kInstrCanBranch) {
+        if (flags & Instruction::kBranch) {
             curBlock = processCanBranch(cUnit.get(), curBlock, insn, curOffset,
                                         width, flags, codePtr, codeEnd);
-        } else if (flags & kInstrCanReturn) {
+        } else if (flags & Instruction::kReturn) {
             curBlock->fallThrough = exitBlock;
             oatInsertGrowableList(cUnit.get(), exitBlock->predecessors,
                                   (intptr_t)curBlock);
@@ -888,7 +883,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
             if (codePtr < codeEnd) {
                 /*
                  * Create a fallthrough block for real instructions
-                 * (incl. OP_NOP).
+                 * (incl. NOP).
                  */
                 if (contentIsInsn(codePtr)) {
                     findBlock(cUnit.get(), curOffset + width,
@@ -900,10 +895,10 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
                               NULL);
                 }
             }
-        } else if (flags & kInstrCanThrow) {
+        } else if (flags & Instruction::kThrow) {
             processCanThrow(cUnit.get(), curBlock, insn, curOffset, width, flags,
                             tryBlockAddr, codePtr, codeEnd);
-        } else if (flags & kInstrCanSwitch) {
+        } else if (flags & Instruction::kSwitch) {
             processCanSwitch(cUnit.get(), curBlock, insn, curOffset, width, flags);
         }
         curOffset += width;
@@ -925,8 +920,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
                    curBlock->fallThrough == nextBlock ||
                    curBlock->fallThrough == exitBlock);
 
-            if ((curBlock->fallThrough == NULL) &&
-                (flags & kInstrCanContinue)) {
+            if ((curBlock->fallThrough == NULL) && (flags & Instruction::kContinue)) {
                 curBlock->fallThrough = nextBlock;
                 oatInsertGrowableList(cUnit.get(), nextBlock->predecessors,
                                       (intptr_t)curBlock);

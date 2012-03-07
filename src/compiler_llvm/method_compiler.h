@@ -302,12 +302,11 @@ class MethodCompiler {
 
   llvm::Value* EmitLoadStaticStorage(uint32_t dex_pc, uint32_t type_idx);
 
-  llvm::Value* EmitLoadCalleeThis(Instruction::DecodedInstruction const& di,
-                                  bool is_range);
+  llvm::Value* EmitLoadCalleeThis(DecodedInstruction const& di, bool is_range);
 
   void EmitLoadActualParameters(std::vector<llvm::Value*>& args,
                                 uint32_t callee_method_idx,
-                                Instruction::DecodedInstruction const& di,
+                                DecodedInstruction const& di,
                                 bool is_range,
                                 bool is_static);
 

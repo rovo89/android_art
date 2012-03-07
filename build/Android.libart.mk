@@ -140,7 +140,6 @@ define build-libart
       LOCAL_LDLIBS += -lrt
     endif
   endif
-  LOCAL_STATIC_LIBRARIES += libdex
   ifeq ($$(art_target_or_host),target)
     ifeq ($(ART_USE_LLVM_COMPILER),true)
       include $(LLVM_GEN_INTRINSICS_MK)

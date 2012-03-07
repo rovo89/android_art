@@ -705,13 +705,13 @@ class RegisterLine {
    * The argument count is in vA, and the first argument is in vC, for both "simple" and "range"
    * versions. We just need to make sure vA is >= 1 and then return vC.
    */
-  const RegType& GetInvocationThis(const Instruction::DecodedInstruction& dec_insn);
+  const RegType& GetInvocationThis(const DecodedInstruction& dec_insn);
 
   /*
    * Verify types for a simple two-register instruction (e.g. "neg-int").
    * "dst_type" is stored into vA, and "src_type" is verified against vB.
    */
-  void CheckUnaryOp(const Instruction::DecodedInstruction& dec_insn,
+  void CheckUnaryOp(const DecodedInstruction& dec_insn,
                     const RegType& dst_type, const RegType& src_type);
 
   /*
@@ -719,7 +719,7 @@ class RegisterLine {
    * "dst_type" is stored into vA, and "src_type1"/"src_type2" are verified
    * against vB/vC.
    */
-  void CheckBinaryOp(const Instruction::DecodedInstruction& dec_insn,
+  void CheckBinaryOp(const DecodedInstruction& dec_insn,
                      const RegType& dst_type, const RegType& src_type1, const RegType& src_type2,
                      bool check_boolean_op);
 
@@ -727,7 +727,7 @@ class RegisterLine {
    * Verify types for a binary "2addr" operation. "src_type1"/"src_type2"
    * are verified against vA/vB, then "dst_type" is stored into vA.
    */
-  void CheckBinaryOp2addr(const Instruction::DecodedInstruction& dec_insn,
+  void CheckBinaryOp2addr(const DecodedInstruction& dec_insn,
                           const RegType& dst_type,
                           const RegType& src_type1, const RegType& src_type2,
                           bool check_boolean_op);
@@ -738,7 +738,7 @@ class RegisterLine {
    *
    * If "check_boolean_op" is set, we use the constant value in vC.
    */
-  void CheckLiteralOp(const Instruction::DecodedInstruction& dec_insn,
+  void CheckLiteralOp(const DecodedInstruction& dec_insn,
                       const RegType& dst_type, const RegType& src_type, bool check_boolean_op);
 
   // Verify/push monitor onto the monitor stack, locking the value in reg_idx at location insn_idx.
@@ -1165,18 +1165,18 @@ class DexVerifier {
   bool CodeFlowVerifyInstruction(uint32_t* start_guess);
 
   // Perform verification of a new array instruction
-  void VerifyNewArray(const Instruction::DecodedInstruction& dec_insn, bool is_filled,
+  void VerifyNewArray(const DecodedInstruction& dec_insn, bool is_filled,
                       bool is_range);
 
   // Perform verification of an aget instruction. The destination register's type will be set to
   // be that of component type of the array unless the array type is unknown, in which case a
   // bottom type inferred from the type of instruction is used. is_primitive is false for an
   // aget-object.
-  void VerifyAGet(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
+  void VerifyAGet(const DecodedInstruction& insn, const RegType& insn_type,
                   bool is_primitive);
 
   // Perform verification of an aput instruction.
-  void VerifyAPut(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
+  void VerifyAPut(const DecodedInstruction& insn, const RegType& insn_type,
                   bool is_primitive);
 
   // Lookup instance field and fail for resolution violations
@@ -1186,11 +1186,11 @@ class DexVerifier {
   Field* GetStaticField(int field_idx);
 
   // Perform verification of an iget or sget instruction.
-  void VerifyISGet(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
+  void VerifyISGet(const DecodedInstruction& insn, const RegType& insn_type,
                    bool is_primitive, bool is_static);
 
   // Perform verification of an iput or sput instruction.
-  void VerifyISPut(const Instruction::DecodedInstruction& insn, const RegType& insn_type,
+  void VerifyISPut(const DecodedInstruction& insn, const RegType& insn_type,
                    bool is_primitive, bool is_static);
 
   // Resolves a class based on an index and performs access checks to ensure the referrer can
@@ -1233,7 +1233,7 @@ class DexVerifier {
    * Returns the resolved method on success, NULL on failure (with *failure
    * set appropriately).
    */
-  Method* VerifyInvocationArgs(const Instruction::DecodedInstruction& dec_insn,
+  Method* VerifyInvocationArgs(const DecodedInstruction& dec_insn,
                                MethodType method_type, bool is_range, bool is_super);
 
   /*

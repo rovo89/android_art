@@ -16,7 +16,6 @@
 
 #include "Dalvik.h"
 #include "Dataflow.h"
-//#include "libdex/DexOpcodes.h"
 
 namespace art {
 
@@ -30,777 +29,777 @@ namespace art {
  * scope of optimizations but will not cause mis-optimizations.
  */
 const int oatDataFlowAttributes[kMirOpLast] = {
-    // 00 OP_NOP
+    // 00 NOP
     DF_NOP,
 
-    // 01 OP_MOVE vA, vB
+    // 01 MOVE vA, vB
     DF_DA | DF_UB | DF_IS_MOVE,
 
-    // 02 OP_MOVE_FROM16 vAA, vBBBB
+    // 02 MOVE_FROM16 vAA, vBBBB
     DF_DA | DF_UB | DF_IS_MOVE,
 
-    // 03 OP_MOVE_16 vAAAA, vBBBB
+    // 03 MOVE_16 vAAAA, vBBBB
     DF_DA | DF_UB | DF_IS_MOVE,
 
-    // 04 OP_MOVE_WIDE vA, vB
+    // 04 MOVE_WIDE vA, vB
     DF_DA_WIDE | DF_UB_WIDE | DF_IS_MOVE,
 
-    // 05 OP_MOVE_WIDE_FROM16 vAA, vBBBB
+    // 05 MOVE_WIDE_FROM16 vAA, vBBBB
     DF_DA_WIDE | DF_UB_WIDE | DF_IS_MOVE,
 
-    // 06 OP_MOVE_WIDE_16 vAAAA, vBBBB
+    // 06 MOVE_WIDE_16 vAAAA, vBBBB
     DF_DA_WIDE | DF_UB_WIDE | DF_IS_MOVE,
 
-    // 07 OP_MOVE_OBJECT vA, vB
+    // 07 MOVE_OBJECT vA, vB
     DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE | DF_CORE_A | DF_CORE_B,
 
-    // 08 OP_MOVE_OBJECT_FROM16 vAA, vBBBB
+    // 08 MOVE_OBJECT_FROM16 vAA, vBBBB
     DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE | DF_CORE_A | DF_CORE_B,
 
-    // 09 OP_MOVE_OBJECT_16 vAAAA, vBBBB
+    // 09 MOVE_OBJECT_16 vAAAA, vBBBB
     DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE | DF_CORE_A | DF_CORE_B,
 
-    // 0A OP_MOVE_RESULT vAA
+    // 0A MOVE_RESULT vAA
     DF_DA,
 
-    // 0B OP_MOVE_RESULT_WIDE vAA
+    // 0B MOVE_RESULT_WIDE vAA
     DF_DA_WIDE,
 
-    // 0C OP_MOVE_RESULT_OBJECT vAA
+    // 0C MOVE_RESULT_OBJECT vAA
     DF_DA | DF_CORE_A,
 
-    // 0D OP_MOVE_EXCEPTION vAA
+    // 0D MOVE_EXCEPTION vAA
     DF_DA | DF_CORE_A,
 
-    // 0E OP_RETURN_VOID
+    // 0E RETURN_VOID
     DF_NOP,
 
-    // 0F OP_RETURN vAA
+    // 0F RETURN vAA
     DF_UA,
 
-    // 10 OP_RETURN_WIDE vAA
+    // 10 RETURN_WIDE vAA
     DF_UA_WIDE,
 
-    // 11 OP_RETURN_OBJECT vAA
+    // 11 RETURN_OBJECT vAA
     DF_UA | DF_CORE_A,
 
-    // 12 OP_CONST_4 vA, #+B
+    // 12 CONST_4 vA, #+B
     DF_DA | DF_SETS_CONST,
 
-    // 13 OP_CONST_16 vAA, #+BBBB
+    // 13 CONST_16 vAA, #+BBBB
     DF_DA | DF_SETS_CONST,
 
-    // 14 OP_CONST vAA, #+BBBBBBBB
+    // 14 CONST vAA, #+BBBBBBBB
     DF_DA | DF_SETS_CONST,
 
-    // 15 OP_CONST_HIGH16 VAA, #+BBBB0000
+    // 15 CONST_HIGH16 VAA, #+BBBB0000
     DF_DA | DF_SETS_CONST,
 
-    // 16 OP_CONST_WIDE_16 vAA, #+BBBB
+    // 16 CONST_WIDE_16 vAA, #+BBBB
     DF_DA_WIDE | DF_SETS_CONST,
 
-    // 17 OP_CONST_WIDE_32 vAA, #+BBBBBBBB
+    // 17 CONST_WIDE_32 vAA, #+BBBBBBBB
     DF_DA_WIDE | DF_SETS_CONST,
 
-    // 18 OP_CONST_WIDE vAA, #+BBBBBBBBBBBBBBBB
+    // 18 CONST_WIDE vAA, #+BBBBBBBBBBBBBBBB
     DF_DA_WIDE | DF_SETS_CONST,
 
-    // 19 OP_CONST_WIDE_HIGH16 vAA, #+BBBB000000000000
+    // 19 CONST_WIDE_HIGH16 vAA, #+BBBB000000000000
     DF_DA_WIDE | DF_SETS_CONST,
 
-    // 1A OP_CONST_STRING vAA, string@BBBB
+    // 1A CONST_STRING vAA, string@BBBB
     DF_DA | DF_CORE_A,
 
-    // 1B OP_CONST_STRING_JUMBO vAA, string@BBBBBBBB
+    // 1B CONST_STRING_JUMBO vAA, string@BBBBBBBB
     DF_DA | DF_CORE_A,
 
-    // 1C OP_CONST_CLASS vAA, type@BBBB
+    // 1C CONST_CLASS vAA, type@BBBB
     DF_DA | DF_CORE_A,
 
-    // 1D OP_MONITOR_ENTER vAA
+    // 1D MONITOR_ENTER vAA
     DF_UA | DF_NULL_CHK_0 | DF_CORE_A,
 
-    // 1E OP_MONITOR_EXIT vAA
+    // 1E MONITOR_EXIT vAA
     DF_UA | DF_NULL_CHK_0 | DF_CORE_A,
 
-    // 1F OP_CHK_CAST vAA, type@BBBB
+    // 1F CHK_CAST vAA, type@BBBB
     DF_UA | DF_CORE_A,
 
-    // 20 OP_INSTANCE_OF vA, vB, type@CCCC
+    // 20 INSTANCE_OF vA, vB, type@CCCC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // 21 OP_ARRAY_LENGTH vA, vB
+    // 21 ARRAY_LENGTH vA, vB
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_A | DF_CORE_B,
 
-    // 22 OP_NEW_INSTANCE vAA, type@BBBB
+    // 22 NEW_INSTANCE vAA, type@BBBB
     DF_DA | DF_NON_NULL_DST | DF_CORE_A,
 
-    // 23 OP_NEW_ARRAY vA, vB, type@CCCC
+    // 23 NEW_ARRAY vA, vB, type@CCCC
     DF_DA | DF_UB | DF_NON_NULL_DST | DF_CORE_A | DF_CORE_B,
 
-    // 24 OP_FILLED_NEW_ARRAY {vD, vE, vF, vG, vA}
+    // 24 FILLED_NEW_ARRAY {vD, vE, vF, vG, vA}
     DF_FORMAT_35C | DF_NON_NULL_RET,
 
-    // 25 OP_FILLED_NEW_ARRAY_RANGE {vCCCC .. vNNNN}, type@BBBB
+    // 25 FILLED_NEW_ARRAY_RANGE {vCCCC .. vNNNN}, type@BBBB
     DF_FORMAT_3RC | DF_NON_NULL_RET,
 
-    // 26 OP_FILL_ARRAY_DATA vAA, +BBBBBBBB
+    // 26 FILL_ARRAY_DATA vAA, +BBBBBBBB
     DF_UA | DF_CORE_A,
 
-    // 27 OP_THROW vAA
+    // 27 THROW vAA
     DF_UA | DF_CORE_A,
 
-    // 28 OP_GOTO
+    // 28 GOTO
     DF_NOP,
 
-    // 29 OP_GOTO_16
+    // 29 GOTO_16
     DF_NOP,
 
-    // 2A OP_GOTO_32
+    // 2A GOTO_32
     DF_NOP,
 
-    // 2B OP_PACKED_SWITCH vAA, +BBBBBBBB
+    // 2B PACKED_SWITCH vAA, +BBBBBBBB
     DF_UA,
 
-    // 2C OP_SPARSE_SWITCH vAA, +BBBBBBBB
+    // 2C SPARSE_SWITCH vAA, +BBBBBBBB
     DF_UA,
 
-    // 2D OP_CMPL_FLOAT vAA, vBB, vCC
+    // 2D CMPL_FLOAT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_FP_B | DF_FP_C | DF_CORE_A,
 
-    // 2E OP_CMPG_FLOAT vAA, vBB, vCC
+    // 2E CMPG_FLOAT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_FP_B | DF_FP_C | DF_CORE_A,
 
-    // 2F OP_CMPL_DOUBLE vAA, vBB, vCC
+    // 2F CMPL_DOUBLE vAA, vBB, vCC
     DF_DA | DF_UB_WIDE | DF_UC_WIDE | DF_FP_B | DF_FP_C | DF_CORE_A,
 
-    // 30 OP_CMPG_DOUBLE vAA, vBB, vCC
+    // 30 CMPG_DOUBLE vAA, vBB, vCC
     DF_DA | DF_UB_WIDE | DF_UC_WIDE | DF_FP_B | DF_FP_C | DF_CORE_A,
 
-    // 31 OP_CMP_LONG vAA, vBB, vCC
+    // 31 CMP_LONG vAA, vBB, vCC
     DF_DA | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 32 OP_IF_EQ vA, vB, +CCCC
+    // 32 IF_EQ vA, vB, +CCCC
     DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // 33 OP_IF_NE vA, vB, +CCCC
+    // 33 IF_NE vA, vB, +CCCC
     DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // 34 OP_IF_LT vA, vB, +CCCC
+    // 34 IF_LT vA, vB, +CCCC
     DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // 35 OP_IF_GE vA, vB, +CCCC
+    // 35 IF_GE vA, vB, +CCCC
     DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // 36 OP_IF_GT vA, vB, +CCCC
+    // 36 IF_GT vA, vB, +CCCC
     DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // 37 OP_IF_LE vA, vB, +CCCC
+    // 37 IF_LE vA, vB, +CCCC
     DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
 
-    // 38 OP_IF_EQZ vAA, +BBBB
+    // 38 IF_EQZ vAA, +BBBB
     DF_UA | DF_CORE_A,
 
-    // 39 OP_IF_NEZ vAA, +BBBB
+    // 39 IF_NEZ vAA, +BBBB
     DF_UA | DF_CORE_A,
 
-    // 3A OP_IF_LTZ vAA, +BBBB
+    // 3A IF_LTZ vAA, +BBBB
     DF_UA | DF_CORE_A,
 
-    // 3B OP_IF_GEZ vAA, +BBBB
+    // 3B IF_GEZ vAA, +BBBB
     DF_UA | DF_CORE_A,
 
-    // 3C OP_IF_GTZ vAA, +BBBB
+    // 3C IF_GTZ vAA, +BBBB
     DF_UA | DF_CORE_A,
 
-    // 3D OP_IF_LEZ vAA, +BBBB
+    // 3D IF_LEZ vAA, +BBBB
     DF_UA | DF_CORE_A,
 
-    // 3E OP_UNUSED_3E
+    // 3E UNUSED_3E
     DF_NOP,
 
-    // 3F OP_UNUSED_3F
+    // 3F UNUSED_3F
     DF_NOP,
 
-    // 40 OP_UNUSED_40
+    // 40 UNUSED_40
     DF_NOP,
 
-    // 41 OP_UNUSED_41
+    // 41 UNUSED_41
     DF_NOP,
 
-    // 42 OP_UNUSED_42
+    // 42 UNUSED_42
     DF_NOP,
 
-    // 43 OP_UNUSED_43
+    // 43 UNUSED_43
     DF_NOP,
 
-    // 44 OP_AGET vAA, vBB, vCC
+    // 44 AGET vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
-    // 45 OP_AGET_WIDE vAA, vBB, vCC
+    // 45 AGET_WIDE vAA, vBB, vCC
     DF_DA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
-    // 46 OP_AGET_OBJECT vAA, vBB, vCC
+    // 46 AGET_OBJECT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
-    // 47 OP_AGET_BOOLEAN vAA, vBB, vCC
+    // 47 AGET_BOOLEAN vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
-    // 48 OP_AGET_BYTE vAA, vBB, vCC
+    // 48 AGET_BYTE vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
-    // 49 OP_AGET_CHAR vAA, vBB, vCC
+    // 49 AGET_CHAR vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
-    // 4A OP_AGET_SHORT vAA, vBB, vCC
+    // 4A AGET_SHORT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
 
-    // 4B OP_APUT vAA, vBB, vCC
+    // 4B APUT vAA, vBB, vCC
     DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
-    // 4C OP_APUT_WIDE vAA, vBB, vCC
+    // 4C APUT_WIDE vAA, vBB, vCC
     DF_UA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
-    // 4D OP_APUT_OBJECT vAA, vBB, vCC
+    // 4D APUT_OBJECT vAA, vBB, vCC
     DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
-    // 4E OP_APUT_BOOLEAN vAA, vBB, vCC
+    // 4E APUT_BOOLEAN vAA, vBB, vCC
     DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
-    // 4F OP_APUT_BYTE vAA, vBB, vCC
+    // 4F APUT_BYTE vAA, vBB, vCC
     DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
-    // 50 OP_APUT_CHAR vAA, vBB, vCC
+    // 50 APUT_CHAR vAA, vBB, vCC
     DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
-    // 51 OP_APUT_SHORT vAA, vBB, vCC
+    // 51 APUT_SHORT vAA, vBB, vCC
     DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
-    // 52 OP_IGET vA, vB, field@CCCC
+    // 52 IGET vA, vB, field@CCCC
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
-    // 53 OP_IGET_WIDE vA, vB, field@CCCC
+    // 53 IGET_WIDE vA, vB, field@CCCC
     DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
-    // 54 OP_IGET_OBJECT vA, vB, field@CCCC
+    // 54 IGET_OBJECT vA, vB, field@CCCC
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
-    // 55 OP_IGET_BOOLEAN vA, vB, field@CCCC
+    // 55 IGET_BOOLEAN vA, vB, field@CCCC
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
-    // 56 OP_IGET_BYTE vA, vB, field@CCCC
+    // 56 IGET_BYTE vA, vB, field@CCCC
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
-    // 57 OP_IGET_CHAR vA, vB, field@CCCC
+    // 57 IGET_CHAR vA, vB, field@CCCC
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
-    // 58 OP_IGET_SHORT vA, vB, field@CCCC
+    // 58 IGET_SHORT vA, vB, field@CCCC
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
 
-    // 59 OP_IPUT vA, vB, field@CCCC
+    // 59 IPUT vA, vB, field@CCCC
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
-    // 5A OP_IPUT_WIDE vA, vB, field@CCCC
+    // 5A IPUT_WIDE vA, vB, field@CCCC
     DF_UA_WIDE | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
-    // 5B OP_IPUT_OBJECT vA, vB, field@CCCC
+    // 5B IPUT_OBJECT vA, vB, field@CCCC
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
-    // 5C OP_IPUT_BOOLEAN vA, vB, field@CCCC
+    // 5C IPUT_BOOLEAN vA, vB, field@CCCC
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
-    // 5D OP_IPUT_BYTE vA, vB, field@CCCC
+    // 5D IPUT_BYTE vA, vB, field@CCCC
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
-    // 5E OP_IPUT_CHAR vA, vB, field@CCCC
+    // 5E IPUT_CHAR vA, vB, field@CCCC
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
-    // 5F OP_IPUT_SHORT vA, vB, field@CCCC
+    // 5F IPUT_SHORT vA, vB, field@CCCC
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
-    // 60 OP_SGET vAA, field@BBBB
+    // 60 SGET vAA, field@BBBB
     DF_DA | DF_IS_GETTER,
 
-    // 61 OP_SGET_WIDE vAA, field@BBBB
+    // 61 SGET_WIDE vAA, field@BBBB
     DF_DA_WIDE | DF_IS_GETTER,
 
-    // 62 OP_SGET_OBJECT vAA, field@BBBB
+    // 62 SGET_OBJECT vAA, field@BBBB
     DF_DA | DF_IS_GETTER | DF_CORE_A,
 
-    // 63 OP_SGET_BOOLEAN vAA, field@BBBB
+    // 63 SGET_BOOLEAN vAA, field@BBBB
     DF_DA | DF_IS_GETTER,
 
-    // 64 OP_SGET_BYTE vAA, field@BBBB
+    // 64 SGET_BYTE vAA, field@BBBB
     DF_DA | DF_IS_GETTER,
 
-    // 65 OP_SGET_CHAR vAA, field@BBBB
+    // 65 SGET_CHAR vAA, field@BBBB
     DF_DA | DF_IS_GETTER,
 
-    // 66 OP_SGET_SHORT vAA, field@BBBB
+    // 66 SGET_SHORT vAA, field@BBBB
     DF_DA | DF_IS_GETTER,
 
-    // 67 OP_SPUT vAA, field@BBBB
+    // 67 SPUT vAA, field@BBBB
     DF_UA | DF_IS_SETTER,
 
-    // 68 OP_SPUT_WIDE vAA, field@BBBB
+    // 68 SPUT_WIDE vAA, field@BBBB
     DF_UA_WIDE | DF_IS_SETTER,
 
-    // 69 OP_SPUT_OBJECT vAA, field@BBBB
+    // 69 SPUT_OBJECT vAA, field@BBBB
     DF_UA | DF_IS_SETTER | DF_CORE_A,
 
-    // 6A OP_SPUT_BOOLEAN vAA, field@BBBB
+    // 6A SPUT_BOOLEAN vAA, field@BBBB
     DF_UA | DF_IS_SETTER,
 
-    // 6B OP_SPUT_BYTE vAA, field@BBBB
+    // 6B SPUT_BYTE vAA, field@BBBB
     DF_UA | DF_IS_SETTER,
 
-    // 6C OP_SPUT_CHAR vAA, field@BBBB
+    // 6C SPUT_CHAR vAA, field@BBBB
     DF_UA | DF_IS_SETTER,
 
-    // 6D OP_SPUT_SHORT vAA, field@BBBB
+    // 6D SPUT_SHORT vAA, field@BBBB
     DF_UA | DF_IS_SETTER,
 
-    // 6E OP_INVOKE_VIRTUAL {vD, vE, vF, vG, vA}
+    // 6E INVOKE_VIRTUAL {vD, vE, vF, vG, vA}
     DF_FORMAT_35C | DF_NULL_CHK_OUT0,
 
-    // 6F OP_INVOKE_SUPER {vD, vE, vF, vG, vA}
+    // 6F INVOKE_SUPER {vD, vE, vF, vG, vA}
     DF_FORMAT_35C | DF_NULL_CHK_OUT0,
 
-    // 70 OP_INVOKE_DIRECT {vD, vE, vF, vG, vA}
+    // 70 INVOKE_DIRECT {vD, vE, vF, vG, vA}
     DF_FORMAT_35C | DF_NULL_CHK_OUT0,
 
-    // 71 OP_INVOKE_STATIC {vD, vE, vF, vG, vA}
+    // 71 INVOKE_STATIC {vD, vE, vF, vG, vA}
     DF_FORMAT_35C,
 
-    // 72 OP_INVOKE_INTERFACE {vD, vE, vF, vG, vA}
+    // 72 INVOKE_INTERFACE {vD, vE, vF, vG, vA}
     DF_FORMAT_35C,
 
-    // 73 OP_UNUSED_73
+    // 73 UNUSED_73
     DF_NOP,
 
-    // 74 OP_INVOKE_VIRTUAL_RANGE {vCCCC .. vNNNN}
+    // 74 INVOKE_VIRTUAL_RANGE {vCCCC .. vNNNN}
     DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
-    // 75 OP_INVOKE_SUPER_RANGE {vCCCC .. vNNNN}
+    // 75 INVOKE_SUPER_RANGE {vCCCC .. vNNNN}
     DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
-    // 76 OP_INVOKE_DIRECT_RANGE {vCCCC .. vNNNN}
+    // 76 INVOKE_DIRECT_RANGE {vCCCC .. vNNNN}
     DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
-    // 77 OP_INVOKE_STATIC_RANGE {vCCCC .. vNNNN}
+    // 77 INVOKE_STATIC_RANGE {vCCCC .. vNNNN}
     DF_FORMAT_3RC,
 
-    // 78 OP_INVOKE_INTERFACE_RANGE {vCCCC .. vNNNN}
+    // 78 INVOKE_INTERFACE_RANGE {vCCCC .. vNNNN}
     DF_FORMAT_3RC,
 
-    // 79 OP_UNUSED_79
+    // 79 UNUSED_79
     DF_NOP,
 
-    // 7A OP_UNUSED_7A
+    // 7A UNUSED_7A
     DF_NOP,
 
-    // 7B OP_NEG_INT vA, vB
+    // 7B NEG_INT vA, vB
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // 7C OP_NOT_INT vA, vB
+    // 7C NOT_INT vA, vB
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // 7D OP_NEG_LONG vA, vB
+    // 7D NEG_LONG vA, vB
     DF_DA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
-    // 7E OP_NOT_LONG vA, vB
+    // 7E NOT_LONG vA, vB
     DF_DA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
-    // 7F OP_NEG_FLOAT vA, vB
+    // 7F NEG_FLOAT vA, vB
     DF_DA | DF_UB | DF_FP_A | DF_FP_B,
 
-    // 80 OP_NEG_DOUBLE vA, vB
+    // 80 NEG_DOUBLE vA, vB
     DF_DA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
 
-    // 81 OP_INT_TO_LONG vA, vB
+    // 81 INT_TO_LONG vA, vB
     DF_DA_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // 82 OP_INT_TO_FLOAT vA, vB
+    // 82 INT_TO_FLOAT vA, vB
     DF_DA | DF_UB | DF_FP_A | DF_CORE_B,
 
-    // 83 OP_INT_TO_DOUBLE vA, vB
+    // 83 INT_TO_DOUBLE vA, vB
     DF_DA_WIDE | DF_UB | DF_FP_A | DF_CORE_B,
 
-    // 84 OP_LONG_TO_INT vA, vB
+    // 84 LONG_TO_INT vA, vB
     DF_DA | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
-    // 85 OP_LONG_TO_FLOAT vA, vB
+    // 85 LONG_TO_FLOAT vA, vB
     DF_DA | DF_UB_WIDE | DF_FP_A | DF_CORE_B,
 
-    // 86 OP_LONG_TO_DOUBLE vA, vB
+    // 86 LONG_TO_DOUBLE vA, vB
     DF_DA_WIDE | DF_UB_WIDE | DF_FP_A | DF_CORE_B,
 
-    // 87 OP_FLOAT_TO_INT vA, vB
+    // 87 FLOAT_TO_INT vA, vB
     DF_DA | DF_UB | DF_FP_B | DF_CORE_A,
 
-    // 88 OP_FLOAT_TO_LONG vA, vB
+    // 88 FLOAT_TO_LONG vA, vB
     DF_DA_WIDE | DF_UB | DF_FP_B | DF_CORE_A,
 
-    // 89 OP_FLOAT_TO_DOUBLE vA, vB
+    // 89 FLOAT_TO_DOUBLE vA, vB
     DF_DA_WIDE | DF_UB | DF_FP_A | DF_FP_B,
 
-    // 8A OP_DOUBLE_TO_INT vA, vB
+    // 8A DOUBLE_TO_INT vA, vB
     DF_DA | DF_UB_WIDE | DF_FP_B | DF_CORE_A,
 
-    // 8B OP_DOUBLE_TO_LONG vA, vB
+    // 8B DOUBLE_TO_LONG vA, vB
     DF_DA_WIDE | DF_UB_WIDE | DF_FP_B | DF_CORE_A,
 
-    // 8C OP_DOUBLE_TO_FLOAT vA, vB
+    // 8C DOUBLE_TO_FLOAT vA, vB
     DF_DA | DF_UB_WIDE | DF_FP_A | DF_FP_B,
 
-    // 8D OP_INT_TO_BYTE vA, vB
+    // 8D INT_TO_BYTE vA, vB
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // 8E OP_INT_TO_CHAR vA, vB
+    // 8E INT_TO_CHAR vA, vB
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // 8F OP_INT_TO_SHORT vA, vB
+    // 8F INT_TO_SHORT vA, vB
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // 90 OP_ADD_INT vAA, vBB, vCC
+    // 90 ADD_INT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_IS_LINEAR | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 91 OP_SUB_INT vAA, vBB, vCC
+    // 91 SUB_INT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_IS_LINEAR | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 92 OP_MUL_INT vAA, vBB, vCC
+    // 92 MUL_INT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 93 OP_DIV_INT vAA, vBB, vCC
+    // 93 DIV_INT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 94 OP_REM_INT vAA, vBB, vCC
+    // 94 REM_INT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 95 OP_AND_INT vAA, vBB, vCC
+    // 95 AND_INT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 96 OP_OR_INT vAA, vBB, vCC
+    // 96 OR_INT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 97 OP_XOR_INT vAA, vBB, vCC
+    // 97 XOR_INT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 98 OP_SHL_INT vAA, vBB, vCC
+    // 98 SHL_INT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 99 OP_SHR_INT vAA, vBB, vCC
+    // 99 SHR_INT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 9A OP_USHR_INT vAA, vBB, vCC
+    // 9A USHR_INT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 9B OP_ADD_LONG vAA, vBB, vCC
+    // 9B ADD_LONG vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 9C OP_SUB_LONG vAA, vBB, vCC
+    // 9C SUB_LONG vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 9D OP_MUL_LONG vAA, vBB, vCC
+    // 9D MUL_LONG vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 9E OP_DIV_LONG vAA, vBB, vCC
+    // 9E DIV_LONG vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // 9F OP_REM_LONG vAA, vBB, vCC
+    // 9F REM_LONG vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // A0 OP_AND_LONG vAA, vBB, vCC
+    // A0 AND_LONG vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // A1 OP_OR_LONG vAA, vBB, vCC
+    // A1 OR_LONG vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // A2 OP_XOR_LONG vAA, vBB, vCC
+    // A2 XOR_LONG vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // A3 OP_SHL_LONG vAA, vBB, vCC
+    // A3 SHL_LONG vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // A4 OP_SHR_LONG vAA, vBB, vCC
+    // A4 SHR_LONG vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // A5 OP_USHR_LONG vAA, vBB, vCC
+    // A5 USHR_LONG vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
-    // A6 OP_ADD_FLOAT vAA, vBB, vCC
+    // A6 ADD_FLOAT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_FP_A | DF_FP_B | DF_FP_C,
 
-    // A7 OP_SUB_FLOAT vAA, vBB, vCC
+    // A7 SUB_FLOAT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_FP_A | DF_FP_B | DF_FP_C,
 
-    // A8 OP_MUL_FLOAT vAA, vBB, vCC
+    // A8 MUL_FLOAT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_FP_A | DF_FP_B | DF_FP_C,
 
-    // A9 OP_DIV_FLOAT vAA, vBB, vCC
+    // A9 DIV_FLOAT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_FP_A | DF_FP_B | DF_FP_C,
 
-    // AA OP_REM_FLOAT vAA, vBB, vCC
+    // AA REM_FLOAT vAA, vBB, vCC
     DF_DA | DF_UB | DF_UC | DF_FP_A | DF_FP_B | DF_FP_C,
 
-    // AB OP_ADD_DOUBLE vAA, vBB, vCC
+    // AB ADD_DOUBLE vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
 
-    // AC OP_SUB_DOUBLE vAA, vBB, vCC
+    // AC SUB_DOUBLE vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
 
-    // AD OP_MUL_DOUBLE vAA, vBB, vCC
+    // AD MUL_DOUBLE vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
 
-    // AE OP_DIV_DOUBLE vAA, vBB, vCC
+    // AE DIV_DOUBLE vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
 
-    // AF OP_REM_DOUBLE vAA, vBB, vCC
+    // AF REM_DOUBLE vAA, vBB, vCC
     DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
 
-    // B0 OP_ADD_INT_2ADDR vA, vB
+    // B0 ADD_INT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // B1 OP_SUB_INT_2ADDR vA, vB
+    // B1 SUB_INT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // B2 OP_MUL_INT_2ADDR vA, vB
+    // B2 MUL_INT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // B3 OP_DIV_INT_2ADDR vA, vB
+    // B3 DIV_INT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // B4 OP_REM_INT_2ADDR vA, vB
+    // B4 REM_INT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // B5 OP_AND_INT_2ADDR vA, vB
+    // B5 AND_INT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // B6 OP_OR_INT_2ADDR vA, vB
+    // B6 OR_INT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // B7 OP_XOR_INT_2ADDR vA, vB
+    // B7 XOR_INT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // B8 OP_SHL_INT_2ADDR vA, vB
+    // B8 SHL_INT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // B9 OP_SHR_INT_2ADDR vA, vB
+    // B9 SHR_INT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // BA OP_USHR_INT_2ADDR vA, vB
+    // BA USHR_INT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // BB OP_ADD_LONG_2ADDR vA, vB
+    // BB ADD_LONG_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
-    // BC OP_SUB_LONG_2ADDR vA, vB
+    // BC SUB_LONG_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
-    // BD OP_MUL_LONG_2ADDR vA, vB
+    // BD MUL_LONG_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
-    // BE OP_DIV_LONG_2ADDR vA, vB
+    // BE DIV_LONG_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
-    // BF OP_REM_LONG_2ADDR vA, vB
+    // BF REM_LONG_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
-    // C0 OP_AND_LONG_2ADDR vA, vB
+    // C0 AND_LONG_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
-    // C1 OP_OR_LONG_2ADDR vA, vB
+    // C1 OR_LONG_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
-    // C2 OP_XOR_LONG_2ADDR vA, vB
+    // C2 XOR_LONG_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
 
-    // C3 OP_SHL_LONG_2ADDR vA, vB
+    // C3 SHL_LONG_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // C4 OP_SHR_LONG_2ADDR vA, vB
+    // C4 SHR_LONG_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // C5 OP_USHR_LONG_2ADDR vA, vB
+    // C5 USHR_LONG_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // C6 OP_ADD_FLOAT_2ADDR vA, vB
+    // C6 ADD_FLOAT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_FP_A | DF_FP_B,
 
-    // C7 OP_SUB_FLOAT_2ADDR vA, vB
+    // C7 SUB_FLOAT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_FP_A | DF_FP_B,
 
-    // C8 OP_MUL_FLOAT_2ADDR vA, vB
+    // C8 MUL_FLOAT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_FP_A | DF_FP_B,
 
-    // C9 OP_DIV_FLOAT_2ADDR vA, vB
+    // C9 DIV_FLOAT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_FP_A | DF_FP_B,
 
-    // CA OP_REM_FLOAT_2ADDR vA, vB
+    // CA REM_FLOAT_2ADDR vA, vB
     DF_DA | DF_UA | DF_UB | DF_FP_A | DF_FP_B,
 
-    // CB OP_ADD_DOUBLE_2ADDR vA, vB
+    // CB ADD_DOUBLE_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
 
-    // CC OP_SUB_DOUBLE_2ADDR vA, vB
+    // CC SUB_DOUBLE_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
 
-    // CD OP_MUL_DOUBLE_2ADDR vA, vB
+    // CD MUL_DOUBLE_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
 
-    // CE OP_DIV_DOUBLE_2ADDR vA, vB
+    // CE DIV_DOUBLE_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
 
-    // CF OP_REM_DOUBLE_2ADDR vA, vB
+    // CF REM_DOUBLE_2ADDR vA, vB
     DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
 
-    // D0 OP_ADD_INT_LIT16 vA, vB, #+CCCC
+    // D0 ADD_INT_LIT16 vA, vB, #+CCCC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // D1 OP_RSUB_INT vA, vB, #+CCCC
+    // D1 RSUB_INT vA, vB, #+CCCC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // D2 OP_MUL_INT_LIT16 vA, vB, #+CCCC
+    // D2 MUL_INT_LIT16 vA, vB, #+CCCC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // D3 OP_DIV_INT_LIT16 vA, vB, #+CCCC
+    // D3 DIV_INT_LIT16 vA, vB, #+CCCC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // D4 OP_REM_INT_LIT16 vA, vB, #+CCCC
+    // D4 REM_INT_LIT16 vA, vB, #+CCCC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // D5 OP_AND_INT_LIT16 vA, vB, #+CCCC
+    // D5 AND_INT_LIT16 vA, vB, #+CCCC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // D6 OP_OR_INT_LIT16 vA, vB, #+CCCC
+    // D6 OR_INT_LIT16 vA, vB, #+CCCC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // D7 OP_XOR_INT_LIT16 vA, vB, #+CCCC
+    // D7 XOR_INT_LIT16 vA, vB, #+CCCC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // D8 OP_ADD_INT_LIT8 vAA, vBB, #+CC
+    // D8 ADD_INT_LIT8 vAA, vBB, #+CC
     DF_DA | DF_UB | DF_IS_LINEAR | DF_CORE_A | DF_CORE_B,
 
-    // D9 OP_RSUB_INT_LIT8 vAA, vBB, #+CC
+    // D9 RSUB_INT_LIT8 vAA, vBB, #+CC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // DA OP_MUL_INT_LIT8 vAA, vBB, #+CC
+    // DA MUL_INT_LIT8 vAA, vBB, #+CC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // DB OP_DIV_INT_LIT8 vAA, vBB, #+CC
+    // DB DIV_INT_LIT8 vAA, vBB, #+CC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // DC OP_REM_INT_LIT8 vAA, vBB, #+CC
+    // DC REM_INT_LIT8 vAA, vBB, #+CC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // DD OP_AND_INT_LIT8 vAA, vBB, #+CC
+    // DD AND_INT_LIT8 vAA, vBB, #+CC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // DE OP_OR_INT_LIT8 vAA, vBB, #+CC
+    // DE OR_INT_LIT8 vAA, vBB, #+CC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // DF OP_XOR_INT_LIT8 vAA, vBB, #+CC
+    // DF XOR_INT_LIT8 vAA, vBB, #+CC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // E0 OP_SHL_INT_LIT8 vAA, vBB, #+CC
+    // E0 SHL_INT_LIT8 vAA, vBB, #+CC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // E1 OP_SHR_INT_LIT8 vAA, vBB, #+CC
+    // E1 SHR_INT_LIT8 vAA, vBB, #+CC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // E2 OP_USHR_INT_LIT8 vAA, vBB, #+CC
+    // E2 USHR_INT_LIT8 vAA, vBB, #+CC
     DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
-    // E3 OP_IGET_VOLATILE
+    // E3 IGET_VOLATILE
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
 
-    // E4 OP_IPUT_VOLATILE
+    // E4 IPUT_VOLATILE
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
 
-    // E5 OP_SGET_VOLATILE
+    // E5 SGET_VOLATILE
     DF_DA,
 
-    // E6 OP_SPUT_VOLATILE
+    // E6 SPUT_VOLATILE
     DF_UA,
 
-    // E7 OP_IGET_OBJECT_VOLATILE
+    // E7 IGET_OBJECT_VOLATILE
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_A | DF_CORE_B,
 
-    // E8 OP_IGET_WIDE_VOLATILE
+    // E8 IGET_WIDE_VOLATILE
     DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
 
-    // E9 OP_IPUT_WIDE_VOLATILE
+    // E9 IPUT_WIDE_VOLATILE
     DF_UA_WIDE | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
 
-    // EA OP_SGET_WIDE_VOLATILE
+    // EA SGET_WIDE_VOLATILE
     DF_DA_WIDE,
 
-    // EB OP_SPUT_WIDE_VOLATILE
+    // EB SPUT_WIDE_VOLATILE
     DF_UA_WIDE,
 
-    // EC OP_BREAKPOINT
+    // EC BREAKPOINT
     DF_NOP,
 
-    // ED OP_THROW_VERIFICATION_ERROR
+    // ED THROW_VERIFICATION_ERROR
     DF_NOP,
 
-    // EE OP_EXECUTE_INLINE
+    // EE EXECUTE_INLINE
     DF_FORMAT_35C,
 
-    // EF OP_EXECUTE_INLINE_RANGE
+    // EF EXECUTE_INLINE_RANGE
     DF_FORMAT_3RC,
 
-    // F0 OP_INVOKE_OBJECT_INIT_RANGE
+    // F0 INVOKE_OBJECT_INIT_RANGE
     DF_NOP | DF_NULL_CHK_0,
 
-    // F1 OP_RETURN_VOID_BARRIER
+    // F1 RETURN_VOID_BARRIER
     DF_NOP,
 
-    // F2 OP_IGET_QUICK
+    // F2 IGET_QUICK
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
-    // F3 OP_IGET_WIDE_QUICK
+    // F3 IGET_WIDE_QUICK
     DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
-    // F4 OP_IGET_OBJECT_QUICK
+    // F4 IGET_OBJECT_QUICK
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
 
-    // F5 OP_IPUT_QUICK
+    // F5 IPUT_QUICK
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
-    // F6 OP_IPUT_WIDE_QUICK
+    // F6 IPUT_WIDE_QUICK
     DF_UA_WIDE | DF_UB | DF_NULL_CHK_1 |DF_IS_SETTER,
 
-    // F7 OP_IPUT_OBJECT_QUICK
+    // F7 IPUT_OBJECT_QUICK
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
-    // F8 OP_INVOKE_VIRTUAL_QUICK
+    // F8 INVOKE_VIRTUAL_QUICK
     DF_FORMAT_35C | DF_NULL_CHK_OUT0,
 
-    // F9 OP_INVOKE_VIRTUAL_QUICK_RANGE
+    // F9 INVOKE_VIRTUAL_QUICK_RANGE
     DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
-    // FA OP_INVOKE_SUPER_QUICK
+    // FA INVOKE_SUPER_QUICK
     DF_FORMAT_35C | DF_NULL_CHK_OUT0,
 
-    // FB OP_INVOKE_SUPER_QUICK_RANGE
+    // FB INVOKE_SUPER_QUICK_RANGE
     DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
 
-    // FC OP_IPUT_OBJECT_VOLATILE
+    // FC IPUT_OBJECT_VOLATILE
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_A | DF_CORE_B,
 
-    // FD OP_SGET_OBJECT_VOLATILE
+    // FD SGET_OBJECT_VOLATILE
     DF_DA | DF_CORE_A,
 
-    // FE OP_SPUT_OBJECT_VOLATILE
+    // FE SPUT_OBJECT_VOLATILE
     DF_UA | DF_CORE_A,
 
-    // FF OP_UNUSED_FF
+    // FF UNUSED_FF
     DF_NOP,
 
     // Beginning of extended MIR opcodes
-    // 100 OP_MIR_PHI
+    // 100 MIR_PHI
     DF_PHI | DF_DA | DF_NULL_TRANSFER_N,
     /*
      * For extended MIR inserted at the MIR2LIR stage, it is okay to have
@@ -820,10 +819,10 @@ int oatConvertSSARegToDalvik(const CompilationUnit* cUnit, int ssaReg)
  * ssaToDalvikMap list to get the subscript[31..16]/dalvik_reg[15..0] mapping.
  */
 char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
-                              const DecodedInstruction* insn, const char* note)
+                              const DecodedInstruction& insn, const char* note)
 {
     char buffer[256];
-    Opcode opcode = insn->opcode;
+    Instruction::Code opcode = insn.opcode;
     int dfAttributes = oatDataFlowAttributes[opcode];
     int flags;
     char* ret;
@@ -832,37 +831,35 @@ char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
     if ((int)opcode >= (int)kMirOpFirst) {
         if ((int)opcode == (int)kMirOpPhi) {
             strcpy(buffer, "PHI");
-        }
-        else {
+        } else {
             sprintf(buffer, "Opcode %#x", opcode);
         }
         flags = 0;
     } else {
-        strcpy(buffer, dexGetOpcodeName(opcode));
-        flags = dexGetFlagsFromOpcode(insn->opcode);
+        strcpy(buffer, Instruction::Name(opcode));
+        flags = Instruction::Flags(opcode);
     }
 
     if (note)
         strcat(buffer, note);
 
     /* For branches, decode the instructions to print out the branch targets */
-    if (flags & kInstrCanBranch) {
-        InstructionFormat dalvikFormat = dexGetFormatFromOpcode(insn->opcode);
+    if (flags & Instruction::kBranch) {
+        Instruction::Format dalvikFormat = Instruction::FormatOf(insn.opcode);
         int offset = 0;
         switch (dalvikFormat) {
-            case kFmt21t:
-                snprintf(buffer + strlen(buffer), 256, " v%d,", insn->vA);
-                offset = (int) insn->vB;
+            case Instruction::k21t:
+                snprintf(buffer + strlen(buffer), 256, " v%d,", insn.vA);
+                offset = (int) insn.vB;
                 break;
-            case kFmt22t:
-                snprintf(buffer + strlen(buffer), 256, " v%d, v%d,",
-                         insn->vA, insn->vB);
-                offset = (int) insn->vC;
+            case Instruction::k22t:
+                snprintf(buffer + strlen(buffer), 256, " v%d, v%d,", insn.vA, insn.vB);
+                offset = (int) insn.vC;
                 break;
-            case kFmt10t:
-            case kFmt20t:
-            case kFmt30t:
-                offset = (int) insn->vA;
+            case Instruction::k10t:
+            case Instruction::k20t:
+            case Instruction::k30t:
+                offset = (int) insn.vA;
                 break;
             default:
                 LOG(FATAL) << "Unexpected branch format " << (int)dalvikFormat
@@ -873,30 +870,30 @@ char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
                  offset > 0 ? offset : -offset);
     } else if (dfAttributes & DF_FORMAT_35C) {
         unsigned int i;
-        for (i = 0; i < insn->vA; i++) {
+        for (i = 0; i < insn.vA; i++) {
             if (i != 0) strcat(buffer, ",");
-            snprintf(buffer + strlen(buffer), 256, " v%d", insn->arg[i]);
+            snprintf(buffer + strlen(buffer), 256, " v%d", insn.arg[i]);
         }
     }
     else if (dfAttributes & DF_FORMAT_3RC) {
         snprintf(buffer + strlen(buffer), 256,
-                 " v%d..v%d", insn->vC, insn->vC + insn->vA - 1);
+                 " v%d..v%d", insn.vC, insn.vC + insn.vA - 1);
     }
     else {
         if (dfAttributes & DF_A_IS_REG) {
-            snprintf(buffer + strlen(buffer), 256, " v%d", insn->vA);
+            snprintf(buffer + strlen(buffer), 256, " v%d", insn.vA);
         }
         if (dfAttributes & DF_B_IS_REG) {
-            snprintf(buffer + strlen(buffer), 256, ", v%d", insn->vB);
+            snprintf(buffer + strlen(buffer), 256, ", v%d", insn.vB);
         }
         else if ((int)opcode < (int)kMirOpFirst) {
-            snprintf(buffer + strlen(buffer), 256, ", (#%d)", insn->vB);
+            snprintf(buffer + strlen(buffer), 256, ", (#%d)", insn.vB);
         }
         if (dfAttributes & DF_C_IS_REG) {
-            snprintf(buffer + strlen(buffer), 256, ", v%d", insn->vC);
+            snprintf(buffer + strlen(buffer), 256, ", v%d", insn.vC);
         }
         else if ((int)opcode < (int)kMirOpFirst) {
-            snprintf(buffer + strlen(buffer), 256, ", (#%d)", insn->vC);
+            snprintf(buffer + strlen(buffer), 256, ", (#%d)", insn.vC);
         }
     }
     int length = strlen(buffer) + 1;
@@ -921,16 +918,15 @@ char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
 {
     char buffer[256];
     char operand0[32], operand1[32];
-    const DecodedInstruction *insn = &mir->dalvikInsn;
-    int opcode = insn->opcode;
+    const DecodedInstruction* insn = &mir->dalvikInsn;
+    Instruction::Code opcode = insn->opcode;
     int dfAttributes = oatDataFlowAttributes[opcode];
     char* ret;
     int length;
-    OpcodeFlags flags;
 
     buffer[0] = 0;
-    if (opcode >= kMirOpFirst) {
-        if (opcode == kMirOpPhi) {
+    if (static_cast<int>(opcode) >= static_cast<int>(kMirOpFirst)) {
+        if (static_cast<int>(opcode) == static_cast<int>(kMirOpPhi)) {
             snprintf(buffer, 256, "PHI %s = (%s",
                      getSSAName(cUnit, mir->ssaRep->defs[0], operand0),
                      getSSAName(cUnit, mir->ssaRep->uses[0], operand1));
@@ -946,29 +942,28 @@ char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
         }
         goto done;
     } else {
-        strcpy(buffer, dexGetOpcodeName((Opcode)opcode));
+        strcpy(buffer, Instruction::Name(opcode));
     }
 
-    flags = dexGetFlagsFromOpcode((Opcode)opcode);
     /* For branches, decode the instructions to print out the branch targets */
-    if (flags & kInstrCanBranch) {
-        InstructionFormat dalvikFormat = dexGetFormatFromOpcode(insn->opcode);
+    if (Instruction::Flags(insn->opcode) & Instruction::kBranch) {
+        Instruction::Format dalvikFormat = Instruction::FormatOf(insn->opcode);
         int delta = 0;
         switch (dalvikFormat) {
-            case kFmt21t:
+            case Instruction::k21t:
                 snprintf(buffer + strlen(buffer), 256, " %s, ",
                          getSSAName(cUnit, mir->ssaRep->uses[0], operand0));
                 delta = (int) insn->vB;
                 break;
-            case kFmt22t:
+            case Instruction::k22t:
                 snprintf(buffer + strlen(buffer), 256, " %s, %s, ",
                          getSSAName(cUnit, mir->ssaRep->uses[0], operand0),
                          getSSAName(cUnit, mir->ssaRep->uses[1], operand1));
                 delta = (int) insn->vC;
                 break;
-            case kFmt10t:
-            case kFmt20t:
-            case kFmt30t:
+            case Instruction::k10t:
+            case Instruction::k20t:
+            case Instruction::k30t:
                 delta = (int) insn->vA;
                 break;
             default:
@@ -1003,27 +998,25 @@ char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
                          getSSAName(cUnit, mir->ssaRep->uses[udIdx], operand0));
             }
         }
-        if (opcode < kMirOpFirst) {
-            InstructionFormat dalvikFormat =
-                dexGetFormatFromOpcode((Opcode)opcode);
+        if (static_cast<int>(opcode) < static_cast<int>(kMirOpFirst)) {
+            Instruction::Format dalvikFormat = Instruction::FormatOf(opcode);
             switch (dalvikFormat) {
-                case kFmt11n:        // op vA, #+B
-                case kFmt21s:        // op vAA, #+BBBB
-                case kFmt21h:        // op vAA, #+BBBB00000[00000000]
-                case kFmt31i:        // op vAA, #+BBBBBBBB
-                case kFmt51l:        // op vAA, #+BBBBBBBBBBBBBBBB
+                case Instruction::k11n:        // op vA, #+B
+                case Instruction::k21s:        // op vAA, #+BBBB
+                case Instruction::k21h:        // op vAA, #+BBBB00000[00000000]
+                case Instruction::k31i:        // op vAA, #+BBBBBBBB
+                case Instruction::k51l:        // op vAA, #+BBBBBBBBBBBBBBBB
                     snprintf(buffer + strlen(buffer), 256, " #%#x", insn->vB);
                     break;
-                case kFmt21c:        // op vAA, thing@BBBB
-                case kFmt31c:        // op vAA, thing@BBBBBBBB
+                case Instruction::k21c:        // op vAA, thing@BBBB
+                case Instruction::k31c:        // op vAA, thing@BBBBBBBB
                     snprintf(buffer + strlen(buffer), 256, " @%#x", insn->vB);
                     break;
-                case kFmt22b:        // op vAA, vBB, #+CC
-                case kFmt22s:        // op vA, vB, #+CCCC
+                case Instruction::k22b:        // op vAA, vBB, #+CC
+                case Instruction::k22s:        // op vA, vB, #+CCCC
                     snprintf(buffer + strlen(buffer), 256, " #%#x", insn->vC);
                     break;
-                case kFmt22c:        // op vA, vB, thing@CCCC
-                case kFmt22cs:       // [opt] op vA, vB, field offset CCCC
+                case Instruction::k22c:        // op vA, vB, thing@CCCC
                     snprintf(buffer + strlen(buffer), 256, " @%#x", insn->vC);
                     break;
                     /* No need for special printing */
@@ -1243,14 +1236,14 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
             oatDataFlowAttributes[mir->dalvikInsn.opcode];
 
         // If not a pseudo-op, note non-leaf or can throw
-        if (mir->dalvikInsn.opcode < kNumPackedOpcodes) {
-            int flags = dexGetFlagsFromOpcode(mir->dalvikInsn.opcode);
+        if (static_cast<int>(mir->dalvikInsn.opcode) < static_cast<int>(kNumPackedOpcodes)) {
+            int flags = Instruction::Flags(mir->dalvikInsn.opcode);
 
-            if (flags & kInstrCanThrow) {
+            if (flags & Instruction::kThrow) {
                 cUnit->attrs &= ~METHOD_IS_THROW_FREE;
             }
 
-            if (flags & kInstrInvoke) {
+            if (flags & Instruction::kInvoke) {
                 cUnit->attrs &= ~METHOD_IS_LEAF;
             }
         }
@@ -1392,12 +1385,12 @@ bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb)
         if (dfAttributes & DF_SETS_CONST) {
             if (dfAttributes & DF_DA) {
                 switch (dInsn->opcode) {
-                    case OP_CONST_4:
-                    case OP_CONST_16:
-                    case OP_CONST:
+                    case Instruction::CONST_4:
+                    case Instruction::CONST_16:
+                    case Instruction::CONST:
                         setConstant(cUnit, mir->ssaRep->defs[0], dInsn->vB);
                         break;
-                    case OP_CONST_HIGH16:
+                    case Instruction::CONST_HIGH16:
                         setConstant(cUnit, mir->ssaRep->defs[0],
                                     dInsn->vB << 16);
                         break;
@@ -1406,18 +1399,18 @@ bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb)
                 }
             } else if (dfAttributes & DF_DA_WIDE) {
                 switch (dInsn->opcode) {
-                    case OP_CONST_WIDE_16:
-                    case OP_CONST_WIDE_32:
+                    case Instruction::CONST_WIDE_16:
+                    case Instruction::CONST_WIDE_32:
                         setConstant(cUnit, mir->ssaRep->defs[0], dInsn->vB);
                         setConstant(cUnit, mir->ssaRep->defs[1], 0);
                         break;
-                    case OP_CONST_WIDE:
+                    case Instruction::CONST_WIDE:
                         setConstant(cUnit, mir->ssaRep->defs[0],
                                     (int) dInsn->vB_wide);
                         setConstant(cUnit, mir->ssaRep->defs[1],
                                     (int) (dInsn->vB_wide >> 32));
                         break;
-                    case OP_CONST_WIDE_HIGH16:
+                    case Instruction::CONST_WIDE_HIGH16:
                         setConstant(cUnit, mir->ssaRep->defs[0], 0);
                         setConstant(cUnit, mir->ssaRep->defs[1],
                                     dInsn->vB << 16);
@@ -1698,8 +1691,8 @@ bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
         // Mark non-null returns from invoke-style NEW*
         if (dfAttributes & DF_NON_NULL_RET) {
             MIR* nextMir = mir->next;
-            // Next should be an OP_MOVE_RESULT_OBJECT
-            if (nextMir && nextMir->dalvikInsn.opcode == OP_MOVE_RESULT_OBJECT) {
+            // Next should be an MOVE_RESULT_OBJECT
+            if (nextMir && nextMir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
                 // Mark as null checked
                 oatSetBit(cUnit, cUnit->tempSSARegisterV,
                           nextMir->ssaRep->defs[0]);
@@ -1715,8 +1708,8 @@ bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
                        if ((int)tmir->dalvikInsn.opcode >= (int)kMirOpFirst) {
                            continue;
                        }
-                       // First non-pseudo should be OP_MOVE_RESULT_OBJECT
-                       if (tmir->dalvikInsn.opcode == OP_MOVE_RESULT_OBJECT) {
+                       // First non-pseudo should be MOVE_RESULT_OBJECT
+                       if (tmir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) {
                            // Mark as null checked
                            oatSetBit(cUnit, cUnit->tempSSARegisterV,
                                      tmir->ssaRep->defs[0]);

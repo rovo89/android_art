@@ -115,24 +115,24 @@ void genCompareAndBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     ConditionCode cond;
     rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
     rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
-    Opcode opcode = mir->dalvikInsn.opcode;
+    Instruction::Code opcode = mir->dalvikInsn.opcode;
     switch(opcode) {
-        case OP_IF_EQ:
+        case Instruction::IF_EQ:
             cond = kCondEq;
             break;
-        case OP_IF_NE:
+        case Instruction::IF_NE:
             cond = kCondNe;
             break;
-        case OP_IF_LT:
+        case Instruction::IF_LT:
             cond = kCondLt;
             break;
-        case OP_IF_GE:
+        case Instruction::IF_GE:
             cond = kCondGe;
             break;
-        case OP_IF_GT:
+        case Instruction::IF_GT:
             cond = kCondGt;
             break;
-        case OP_IF_LE:
+        case Instruction::IF_LE:
             cond = kCondLe;
             break;
         default:
@@ -154,24 +154,24 @@ void genCompareZeroAndBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 {
     ConditionCode cond;
     rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
-    Opcode opcode = mir->dalvikInsn.opcode;
+    Instruction::Code opcode = mir->dalvikInsn.opcode;
     switch(opcode) {
-        case OP_IF_EQZ:
+        case Instruction::IF_EQZ:
             cond = kCondEq;
             break;
-        case OP_IF_NEZ:
+        case Instruction::IF_NEZ:
             cond = kCondNe;
             break;
-        case OP_IF_LTZ:
+        case Instruction::IF_LTZ:
             cond = kCondLt;
             break;
-        case OP_IF_GEZ:
+        case Instruction::IF_GEZ:
             cond = kCondGe;
             break;
-        case OP_IF_GTZ:
+        case Instruction::IF_GTZ:
             cond = kCondGt;
             break;
-        case OP_IF_LEZ:
+        case Instruction::IF_LEZ:
             cond = kCondLe;
             break;
         default:
@@ -208,13 +208,13 @@ void genIntNarrowing(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
      RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
      OpKind op = kOpInvalid;
      switch(mir->dalvikInsn.opcode) {
-         case OP_INT_TO_BYTE:
+         case Instruction::INT_TO_BYTE:
              op = kOp2Byte;
              break;
-         case OP_INT_TO_SHORT:
+         case Instruction::INT_TO_SHORT:
               op = kOp2Short;
               break;
-         case OP_INT_TO_CHAR:
+         case Instruction::INT_TO_CHAR:
               op = kOp2Char;
               break;
          default:
@@ -280,7 +280,7 @@ void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     loadConstant(cUnit, rARG2, elems);               // arg2 <- count
     callRuntimeHelper(cUnit, rTgt);
     /*
-     * NOTE: the implicit target for OP_FILLED_NEW_ARRAY is the
+     * NOTE: the implicit target for Instruction::FILLED_NEW_ARRAY is the
      * return region.  Because AllocFromCode placed the new array
      * in rRET0, we'll just lock it into place.  When debugger support is
      * added, it may be necessary to additionally copy all return
@@ -1383,16 +1383,16 @@ bool genShiftOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     int funcOffset;
 
     switch( mir->dalvikInsn.opcode) {
-        case OP_SHL_LONG:
-        case OP_SHL_LONG_2ADDR:
+        case Instruction::SHL_LONG:
+        case Instruction::SHL_LONG_2ADDR:
             funcOffset = OFFSETOF_MEMBER(Thread, pShlLong);
             break;
-        case OP_SHR_LONG:
-        case OP_SHR_LONG_2ADDR:
+        case Instruction::SHR_LONG:
+        case Instruction::SHR_LONG_2ADDR:
             funcOffset = OFFSETOF_MEMBER(Thread, pShrLong);
             break;
-        case OP_USHR_LONG:
-        case OP_USHR_LONG_2ADDR:
+        case Instruction::USHR_LONG:
+        case Instruction::USHR_LONG_2ADDR:
             funcOffset = OFFSETOF_MEMBER(Thread, pUshrLong);
             break;
         default:
@@ -1423,65 +1423,65 @@ bool genArithOpInt(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     bool shiftOp = false;
 
     switch (mir->dalvikInsn.opcode) {
-        case OP_NEG_INT:
+        case Instruction::NEG_INT:
             op = kOpNeg;
             unary = true;
             break;
-        case OP_NOT_INT:
+        case Instruction::NOT_INT:
             op = kOpMvn;
             unary = true;
             break;
-        case OP_ADD_INT:
-        case OP_ADD_INT_2ADDR:
+        case Instruction::ADD_INT:
+        case Instruction::ADD_INT_2ADDR:
             op = kOpAdd;
             break;
-        case OP_SUB_INT:
-        case OP_SUB_INT_2ADDR:
+        case Instruction::SUB_INT:
+        case Instruction::SUB_INT_2ADDR:
             op = kOpSub;
             break;
-        case OP_MUL_INT:
-        case OP_MUL_INT_2ADDR:
+        case Instruction::MUL_INT:
+        case Instruction::MUL_INT_2ADDR:
             op = kOpMul;
             break;
-        case OP_DIV_INT:
-        case OP_DIV_INT_2ADDR:
+        case Instruction::DIV_INT:
+        case Instruction::DIV_INT_2ADDR:
             callOut = true;
             checkZero = true;
             funcOffset = OFFSETOF_MEMBER(Thread, pIdiv);
             retReg = rRET0;
             break;
         /* NOTE: returns in rARG1 */
-        case OP_REM_INT:
-        case OP_REM_INT_2ADDR:
+        case Instruction::REM_INT:
+        case Instruction::REM_INT_2ADDR:
             callOut = true;
             checkZero = true;
             funcOffset = OFFSETOF_MEMBER(Thread, pIdivmod);
             retReg = rRET1;
             break;
-        case OP_AND_INT:
-        case OP_AND_INT_2ADDR:
+        case Instruction::AND_INT:
+        case Instruction::AND_INT_2ADDR:
             op = kOpAnd;
             break;
-        case OP_OR_INT:
-        case OP_OR_INT_2ADDR:
+        case Instruction::OR_INT:
+        case Instruction::OR_INT_2ADDR:
             op = kOpOr;
             break;
-        case OP_XOR_INT:
-        case OP_XOR_INT_2ADDR:
+        case Instruction::XOR_INT:
+        case Instruction::XOR_INT_2ADDR:
             op = kOpXor;
             break;
-        case OP_SHL_INT:
-        case OP_SHL_INT_2ADDR:
+        case Instruction::SHL_INT:
+        case Instruction::SHL_INT_2ADDR:
             shiftOp = true;
             op = kOpLsl;
             break;
-        case OP_SHR_INT:
-        case OP_SHR_INT_2ADDR:
+        case Instruction::SHR_INT:
+        case Instruction::SHR_INT_2ADDR:
             shiftOp = true;
             op = kOpAsr;
             break;
-        case OP_USHR_INT:
-        case OP_USHR_INT_2ADDR:
+        case Instruction::USHR_INT:
+        case Instruction::USHR_INT_2ADDR:
             shiftOp = true;
             op = kOpLsr;
             break;
@@ -1564,7 +1564,7 @@ int lowestSetBit(unsigned int x) {
 
 // Returns true if it added instructions to 'cUnit' to divide 'rlSrc' by 'lit'
 // and store the result in 'rlDest'.
-bool handleEasyDivide(CompilationUnit* cUnit, Opcode dalvikOpcode,
+bool handleEasyDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
                       RegLocation rlSrc, RegLocation rlDest, int lit)
 {
     if (lit < 2 || !isPowerOfTwo(lit)) {
@@ -1575,8 +1575,8 @@ bool handleEasyDivide(CompilationUnit* cUnit, Opcode dalvikOpcode,
         // Avoid special cases.
         return false;
     }
-    bool div = (dalvikOpcode == OP_DIV_INT_LIT8 ||
-                dalvikOpcode == OP_DIV_INT_LIT16);
+    bool div = (dalvikOpcode == Instruction::DIV_INT_LIT8 ||
+                dalvikOpcode == Instruction::DIV_INT_LIT16);
     rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
     if (div) {
@@ -1680,7 +1680,7 @@ bool handleEasyMultiply(CompilationUnit* cUnit, RegLocation rlSrc,
 bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                       RegLocation rlSrc, int lit)
 {
-    Opcode dalvikOpcode = mir->dalvikInsn.opcode;
+    Instruction::Code dalvikOpcode = mir->dalvikInsn.opcode;
     RegLocation rlResult;
     OpKind op = (OpKind)0;      /* Make gcc happy */
     int shiftOp = false;
@@ -1689,8 +1689,8 @@ bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     int rTgt;
 
     switch (dalvikOpcode) {
-        case OP_RSUB_INT_LIT8:
-        case OP_RSUB_INT: {
+        case Instruction::RSUB_INT_LIT8:
+        case Instruction::RSUB_INT: {
             int tReg;
             //TUNING: add support for use of Arm rsub op
             rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
@@ -1704,50 +1704,50 @@ bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             break;
         }
 
-        case OP_ADD_INT_LIT8:
-        case OP_ADD_INT_LIT16:
+        case Instruction::ADD_INT_LIT8:
+        case Instruction::ADD_INT_LIT16:
             op = kOpAdd;
             break;
-        case OP_MUL_INT_LIT8:
-        case OP_MUL_INT_LIT16: {
+        case Instruction::MUL_INT_LIT8:
+        case Instruction::MUL_INT_LIT16: {
             if (handleEasyMultiply(cUnit, rlSrc, rlDest, lit)) {
                 return false;
             }
             op = kOpMul;
             break;
         }
-        case OP_AND_INT_LIT8:
-        case OP_AND_INT_LIT16:
+        case Instruction::AND_INT_LIT8:
+        case Instruction::AND_INT_LIT16:
             op = kOpAnd;
             break;
-        case OP_OR_INT_LIT8:
-        case OP_OR_INT_LIT16:
+        case Instruction::OR_INT_LIT8:
+        case Instruction::OR_INT_LIT16:
             op = kOpOr;
             break;
-        case OP_XOR_INT_LIT8:
-        case OP_XOR_INT_LIT16:
+        case Instruction::XOR_INT_LIT8:
+        case Instruction::XOR_INT_LIT16:
             op = kOpXor;
             break;
-        case OP_SHL_INT_LIT8:
+        case Instruction::SHL_INT_LIT8:
             lit &= 31;
             shiftOp = true;
             op = kOpLsl;
             break;
-        case OP_SHR_INT_LIT8:
+        case Instruction::SHR_INT_LIT8:
             lit &= 31;
             shiftOp = true;
             op = kOpAsr;
             break;
-        case OP_USHR_INT_LIT8:
+        case Instruction::USHR_INT_LIT8:
             lit &= 31;
             shiftOp = true;
             op = kOpLsr;
             break;
 
-        case OP_DIV_INT_LIT8:
-        case OP_DIV_INT_LIT16:
-        case OP_REM_INT_LIT8:
-        case OP_REM_INT_LIT16:
+        case Instruction::DIV_INT_LIT8:
+        case Instruction::DIV_INT_LIT16:
+        case Instruction::REM_INT_LIT8:
+        case Instruction::REM_INT_LIT16:
             if (lit == 0) {
                 genImmedCheck(cUnit, kCondAl, 0, 0, mir, kThrowDivZero);
                 return false;
@@ -1758,8 +1758,8 @@ bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             oatFlushAllRegs(cUnit);   /* Everything to home location */
             loadValueDirectFixed(cUnit, rlSrc, rARG0);
             oatClobber(cUnit, rARG0);
-            if ((dalvikOpcode == OP_DIV_INT_LIT8) ||
-                (dalvikOpcode == OP_DIV_INT_LIT16)) {
+            if ((dalvikOpcode == Instruction::DIV_INT_LIT8) ||
+                (dalvikOpcode == Instruction::DIV_INT_LIT16)) {
                 funcOffset = OFFSETOF_MEMBER(Thread, pIdiv);
                 isDiv = true;
             } else {
@@ -1807,7 +1807,7 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     int retReg = rRET0;
 
     switch (mir->dalvikInsn.opcode) {
-        case OP_NOT_LONG:
+        case Instruction::NOT_LONG:
             rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
             rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
             // Check for destructive overlap
@@ -1824,8 +1824,8 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             storeValueWide(cUnit, rlDest, rlResult);
             return false;
             break;
-        case OP_ADD_LONG:
-        case OP_ADD_LONG_2ADDR:
+        case Instruction::ADD_LONG:
+        case Instruction::ADD_LONG_2ADDR:
 #if defined(TARGET_MIPS)
             return genAddLong(cUnit, mir, rlDest, rlSrc1, rlSrc2);
 #else
@@ -1833,8 +1833,8 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             secondOp = kOpAdc;
             break;
 #endif
-        case OP_SUB_LONG:
-        case OP_SUB_LONG_2ADDR:
+        case Instruction::SUB_LONG:
+        case Instruction::SUB_LONG_2ADDR:
 #if defined(TARGET_MIPS)
             return genSubLong(cUnit, mir, rlDest, rlSrc1, rlSrc2);
 #else
@@ -1842,14 +1842,14 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             secondOp = kOpSbc;
             break;
 #endif
-        case OP_MUL_LONG:
-        case OP_MUL_LONG_2ADDR:
+        case Instruction::MUL_LONG:
+        case Instruction::MUL_LONG_2ADDR:
             callOut = true;
             retReg = rRET0;
             funcOffset = OFFSETOF_MEMBER(Thread, pLmul);
             break;
-        case OP_DIV_LONG:
-        case OP_DIV_LONG_2ADDR:
+        case Instruction::DIV_LONG:
+        case Instruction::DIV_LONG_2ADDR:
             callOut = true;
             checkZero = true;
             retReg = rRET0;
@@ -1857,29 +1857,29 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             break;
         /* NOTE - result is in rARG2/rARG3 instead of rRET0/rRET1 */
         // FIXME: is true, or could be made true, or other targets?
-        case OP_REM_LONG:
-        case OP_REM_LONG_2ADDR:
+        case Instruction::REM_LONG:
+        case Instruction::REM_LONG_2ADDR:
             callOut = true;
             checkZero = true;
             funcOffset = OFFSETOF_MEMBER(Thread, pLdivmod);
             retReg = rARG2;
             break;
-        case OP_AND_LONG_2ADDR:
-        case OP_AND_LONG:
+        case Instruction::AND_LONG_2ADDR:
+        case Instruction::AND_LONG:
             firstOp = kOpAnd;
             secondOp = kOpAnd;
             break;
-        case OP_OR_LONG:
-        case OP_OR_LONG_2ADDR:
+        case Instruction::OR_LONG:
+        case Instruction::OR_LONG_2ADDR:
             firstOp = kOpOr;
             secondOp = kOpOr;
             break;
-        case OP_XOR_LONG:
-        case OP_XOR_LONG_2ADDR:
+        case Instruction::XOR_LONG:
+        case Instruction::XOR_LONG_2ADDR:
             firstOp = kOpXor;
             secondOp = kOpXor;
             break;
-        case OP_NEG_LONG: {
+        case Instruction::NEG_LONG: {
             return genNegLong(cUnit, mir, rlDest, rlSrc2);
         }
         default:
@@ -1963,27 +1963,27 @@ bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
     int funcOffset;
 
     switch (mir->dalvikInsn.opcode) {
-        case OP_ADD_FLOAT_2ADDR:
-        case OP_ADD_FLOAT:
+        case Instruction::ADD_FLOAT_2ADDR:
+        case Instruction::ADD_FLOAT:
             funcOffset = OFFSETOF_MEMBER(Thread, pFadd);
             break;
-        case OP_SUB_FLOAT_2ADDR:
-        case OP_SUB_FLOAT:
+        case Instruction::SUB_FLOAT_2ADDR:
+        case Instruction::SUB_FLOAT:
             funcOffset = OFFSETOF_MEMBER(Thread, pFsub);
             break;
-        case OP_DIV_FLOAT_2ADDR:
-        case OP_DIV_FLOAT:
+        case Instruction::DIV_FLOAT_2ADDR:
+        case Instruction::DIV_FLOAT:
             funcOffset = OFFSETOF_MEMBER(Thread, pFdiv);
             break;
-        case OP_MUL_FLOAT_2ADDR:
-        case OP_MUL_FLOAT:
+        case Instruction::MUL_FLOAT_2ADDR:
+        case Instruction::MUL_FLOAT:
             funcOffset = OFFSETOF_MEMBER(Thread, pFmul);
             break;
-        case OP_REM_FLOAT_2ADDR:
-        case OP_REM_FLOAT:
+        case Instruction::REM_FLOAT_2ADDR:
+        case Instruction::REM_FLOAT:
             funcOffset = OFFSETOF_MEMBER(Thread, pFmodf);
             break;
-        case OP_NEG_FLOAT: {
+        case Instruction::NEG_FLOAT: {
             genNegFloat(cUnit, rlDest, rlSrc1);
             return false;
         }
@@ -2014,27 +2014,27 @@ bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
     int funcOffset;
 
     switch (mir->dalvikInsn.opcode) {
-        case OP_ADD_DOUBLE_2ADDR:
-        case OP_ADD_DOUBLE:
+        case Instruction::ADD_DOUBLE_2ADDR:
+        case Instruction::ADD_DOUBLE:
             funcOffset = OFFSETOF_MEMBER(Thread, pDadd);
             break;
-        case OP_SUB_DOUBLE_2ADDR:
-        case OP_SUB_DOUBLE:
+        case Instruction::SUB_DOUBLE_2ADDR:
+        case Instruction::SUB_DOUBLE:
             funcOffset = OFFSETOF_MEMBER(Thread, pDsub);
             break;
-        case OP_DIV_DOUBLE_2ADDR:
-        case OP_DIV_DOUBLE:
+        case Instruction::DIV_DOUBLE_2ADDR:
+        case Instruction::DIV_DOUBLE:
             funcOffset = OFFSETOF_MEMBER(Thread, pDdiv);
             break;
-        case OP_MUL_DOUBLE_2ADDR:
-        case OP_MUL_DOUBLE:
+        case Instruction::MUL_DOUBLE_2ADDR:
+        case Instruction::MUL_DOUBLE:
             funcOffset = OFFSETOF_MEMBER(Thread, pDmul);
             break;
-        case OP_REM_DOUBLE_2ADDR:
-        case OP_REM_DOUBLE:
+        case Instruction::REM_DOUBLE_2ADDR:
+        case Instruction::REM_DOUBLE:
             funcOffset = OFFSETOF_MEMBER(Thread, pFmod);
             break;
-        case OP_NEG_DOUBLE: {
+        case Instruction::NEG_DOUBLE: {
             genNegDouble(cUnit, rlDest, rlSrc1);
             return false;
         }
@@ -2054,37 +2054,37 @@ bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
 
 bool genConversionPortable(CompilationUnit* cUnit, MIR* mir)
 {
-    Opcode opcode = mir->dalvikInsn.opcode;
+    Instruction::Code opcode = mir->dalvikInsn.opcode;
 
     switch (opcode) {
-        case OP_INT_TO_FLOAT:
+        case Instruction::INT_TO_FLOAT:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pI2f),
                                      1, 1);
-        case OP_FLOAT_TO_INT:
+        case Instruction::FLOAT_TO_INT:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pF2iz),
                                      1, 1);
-        case OP_DOUBLE_TO_FLOAT:
+        case Instruction::DOUBLE_TO_FLOAT:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pD2f),
                                      2, 1);
-        case OP_FLOAT_TO_DOUBLE:
+        case Instruction::FLOAT_TO_DOUBLE:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pF2d),
                                      1, 2);
-        case OP_INT_TO_DOUBLE:
+        case Instruction::INT_TO_DOUBLE:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pI2d),
                                      1, 2);
-        case OP_DOUBLE_TO_INT:
+        case Instruction::DOUBLE_TO_INT:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pD2iz),
                                      2, 1);
-        case OP_FLOAT_TO_LONG:
+        case Instruction::FLOAT_TO_LONG:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread,
                                      pF2l), 1, 2);
-        case OP_LONG_TO_FLOAT:
+        case Instruction::LONG_TO_FLOAT:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pL2f),
                                      2, 1);
-        case OP_DOUBLE_TO_LONG:
+        case Instruction::DOUBLE_TO_LONG:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread,
                                      pD2l), 2, 2);
-        case OP_LONG_TO_DOUBLE:
+        case Instruction::LONG_TO_DOUBLE:
             return genConversionCall(cUnit, mir, OFFSETOF_MEMBER(Thread, pL2d),
                                      2, 2);
         default:

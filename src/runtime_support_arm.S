@@ -645,7 +645,7 @@ art_alloc_array_from_code_with_access_check:
     .global art_check_and_alloc_array_from_code
     .extern artCheckAndAllocArrayFromCode
     /*
-     * Called by managed code to allocate an array in a special case for OP_FILLED_NEW_ARRAY
+     * Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY
      */
 art_check_and_alloc_array_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
@@ -661,7 +661,7 @@ art_check_and_alloc_array_from_code:
     .global art_check_and_alloc_array_from_code_with_access_check
     .extern artCheckAndAllocArrayFromCodeWithAccessCheck
     /*
-     * Called by managed code to allocate an array in a special case for OP_FILLED_NEW_ARRAY
+     * Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY
      */
 art_check_and_alloc_array_from_code_with_access_check:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC

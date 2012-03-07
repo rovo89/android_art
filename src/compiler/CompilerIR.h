@@ -490,7 +490,7 @@ typedef struct FillArrayData {
     int offset;
     const u2* table;           // Original dex table
     int size;
-    int vaddr;                 // Dalvik offset of OP_FILL_ARRAY_DATA opcode
+    int vaddr;                 // Dalvik offset of FILL_ARRAY_DATA opcode
 } FillArrayData;
 
 

@@ -46,15 +46,6 @@ typedef int32_t             s4;
 typedef int64_t             s8;
 typedef unsigned long long  u8;
 
-//Skip old DexFile.h
-#define LIBDEX_DEXFILE_H_
-//Skip old vm/Common.h
-#define DALVIK_COMMON_H_
-//Make inlines inline
-#define DEX_INLINE inline
-#include "DexOpcodes.h"
-#include "InstrUtils.h"
-
 #include "Compiler.h"
 
 #endif
