@@ -983,7 +983,7 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
 
 #if defined(ART_USE_LLVM_COMPILER)
-  compiler_llvm::CompilerLLVM* compiler_llvm = context->compiler->GetCompilerLLVM();
+  compiler_llvm::CompilerLLVM* compiler_llvm = context->GetCompiler()->GetCompilerLLVM();
 
   MutexLock GUARD(compiler_llvm->compiler_lock_);
   // TODO: Remove this.  We should not lock the compiler_lock_ in CompileClass()
