@@ -3248,7 +3248,7 @@ void ClassLinker::CreateReferenceOffsets(SirtRef<Class>& klass, bool is_static,
 
 String* ClassLinker::ResolveString(const DexFile& dex_file,
     uint32_t string_idx, DexCache* dex_cache) {
-  CHECK(dex_cache != NULL);
+  DCHECK(dex_cache != NULL);
   String* resolved = dex_cache->GetResolvedString(string_idx);
   if (resolved != NULL) {
     return resolved;
@@ -3265,7 +3265,7 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
                                 uint16_t type_idx,
                                 DexCache* dex_cache,
                                 const ClassLoader* class_loader) {
-  CHECK(dex_cache != NULL);
+  DCHECK(dex_cache != NULL);
   Class* resolved = dex_cache->GetResolvedType(type_idx);
   if (resolved == NULL) {
     const char* descriptor = dex_file.StringByTypeIdx(type_idx);
@@ -3293,7 +3293,7 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
                                    DexCache* dex_cache,
                                    const ClassLoader* class_loader,
                                    bool is_direct) {
-  CHECK(dex_cache != NULL);
+  DCHECK(dex_cache != NULL);
   Method* resolved = dex_cache->GetResolvedMethod(method_idx);
   if (resolved != NULL) {
     return resolved;
@@ -3343,7 +3343,7 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
                                  DexCache* dex_cache,
                                  const ClassLoader* class_loader,
                                  bool is_static) {
-  CHECK(dex_cache != NULL);
+  DCHECK(dex_cache != NULL);
   Field* resolved = dex_cache->GetResolvedField(field_idx);
   if (resolved != NULL) {
     return resolved;
@@ -3382,7 +3382,7 @@ Field* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
                                     uint32_t field_idx,
                                     DexCache* dex_cache,
                                     const ClassLoader* class_loader) {
-  CHECK(dex_cache != NULL);
+  DCHECK(dex_cache != NULL);
   Field* resolved = dex_cache->GetResolvedField(field_idx);
   if (resolved != NULL) {
     return resolved;
