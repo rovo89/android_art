@@ -174,160 +174,124 @@ int32_t art_find_catch_block_from_code(Object* exception, int32_t dex_pc) {
 // Object Space
 //----------------------------------------------------------------------------
 
-Object* art_alloc_object_from_code(uint32_t type_idx, Object* referrer) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+Object* art_alloc_object_from_code(uint32_t type_idx, Method* referrer) {
+  return AllocObjectFromCode(type_idx, referrer, Thread::Current(), false);
 }
 
-Object* art_alloc_object_from_code_with_access_check(uint32_t type_idx,
-                                                     Object* referrer) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+Object* art_alloc_object_from_code_with_access_check(uint32_t type_idx, Method* referrer) {
+  return AllocObjectFromCode(type_idx, referrer, Thread::Current(), true);
 }
 
-Object* art_alloc_array_from_code(uint32_t type_idx,
-                                  Object* referrer,
-                                  uint32_t length) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+Object* art_alloc_array_from_code(uint32_t type_idx, Method* referrer, uint32_t length) {
+  return AllocArrayFromCode(type_idx, referrer, length, Thread::Current(), false);
 }
 
 Object* art_alloc_array_from_code_with_access_check(uint32_t type_idx,
-                                                    Object* referrer,
+                                                    Method* referrer,
                                                     uint32_t length) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+  return AllocArrayFromCode(type_idx, referrer, length, Thread::Current(), true);
 }
 
 Object* art_check_and_alloc_array_from_code(uint32_t type_idx,
-                                            Object* referrer,
+                                            Method* referrer,
                                             uint32_t length) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+  return CheckAndAllocArrayFromCode(type_idx, referrer, length, Thread::Current(), false);
 }
 
 Object* art_check_and_alloc_array_from_code_with_access_check(uint32_t type_idx,
-                                                              Object* referrer,
+                                                              Method* referrer,
                                                               uint32_t length) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
-}
-
-void art_find_instance_field_from_code(uint32_t field_idx, Object* referrer) {
-  UNIMPLEMENTED(WARNING);
-}
-
-void art_find_static_field_from_code(uint32_t field_idx, Object* referrer) {
-  UNIMPLEMENTED(WARNING);
+  return CheckAndAllocArrayFromCode(type_idx, referrer, length, Thread::Current(), true);
 }
 
 Object* art_find_interface_method_from_code(uint32_t method_idx,
-                                            Object* referrer) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+                                            Object* this_object,
+                                            Method* referrer) {
+  return _artInvokeCommon(method_idx, this_object, referrer,
+                          Thread::Current(), NULL, true, kInterface);
 }
 
-Object* art_initialize_static_storage_from_code(uint32_t type_idx,
-                                                Object* referrer) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+Object* art_find_virtual_method_from_code(uint32_t method_idx,
+                                          Object* this_object,
+                                          Method* referrer) {
+  return _artInvokeCommon(method_idx, this_object, referrer,
+                          Thread::Current(), NULL, true, kVirtual);
 }
 
-Object* art_initialize_type_from_code(uint32_t type_idx, Object* referrer) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+Object* art_find_super_method_from_code(uint32_t method_idx,
+                                        Object* this_object,
+                                        Method* referrer) {
+  return _artInvokeCommon(method_idx, this_object, referrer,
+                          Thread::Current(), NULL, true, kSuper);
 }
 
-Object* art_initialize_type_and_verify_access_from_code(uint32_t type_idx,
-                                                        Object* referrer) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+Object* art_initialize_static_storage_from_code(uint32_t type_idx, Method* referrer) {
+  return ResolveVerifyAndClinit(type_idx, referrer, Thread::Current(), true, true);
 }
 
-Object* art_resolve_string_from_code(Object* referrer, uint32_t string_idx) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+Object* art_initialize_type_from_code(uint32_t type_idx, Method* referrer) {
+  return ResolveVerifyAndClinit(type_idx, referrer, Thread::Current(), false, false);
 }
 
-int32_t art_set32_static_from_code(uint32_t field_idx,
-                                   Object* referrer,
-                                   int32_t new_value) {
-  UNIMPLEMENTED(WARNING);
-  return -1;
+Object* art_initialize_type_and_verify_access_from_code(uint32_t type_idx, Method* referrer) {
+  // Called when caller isn't guaranteed to have access to a type and the dex cache may be
+  // unpopulated
+  return ResolveVerifyAndClinit(type_idx, referrer, Thread::Current(), false, true);
 }
 
-int32_t art_set64_static_from_code(uint32_t field_idx,
-                                   Object* referrer,
-                                   int64_t new_value) {
-  UNIMPLEMENTED(WARNING);
-  return -1;
+Object* art_resolve_string_from_code(Method* referrer, uint32_t string_idx) {
+  return ResolveStringFromCode(referrer, string_idx);
 }
 
-int32_t art_set_obj_static_from_code(uint32_t field_idx,
-                                     Object* referrer,
-                                     Object* new_value) {
-  UNIMPLEMENTED(WARNING);
-  return -1;
+int32_t art_set32_static_from_code(uint32_t field_idx, Method* referrer, int32_t new_value) {
+  return artSet32StaticFromCode(field_idx, new_value, referrer, Thread::Current(), NULL);
 }
 
-int32_t art_get32_static_from_code(uint32_t field_idx, Object* referrer) {
-  UNIMPLEMENTED(WARNING);
-  return 0;
+int32_t art_set64_static_from_code(uint32_t field_idx, Method* referrer, int64_t new_value) {
+  return artSet64StaticFromCode(field_idx, referrer, new_value, Thread::Current(), NULL);
 }
 
-int64_t art_get64_static_from_code(uint32_t field_idx, Object* referrer) {
-  UNIMPLEMENTED(WARNING);
-  return 0;
+int32_t art_set_obj_static_from_code(uint32_t field_idx, Method* referrer, Object* new_value) {
+  return artSetObjStaticFromCode(field_idx, new_value, referrer, Thread::Current(), NULL);
 }
 
-Object* art_get_obj_static_from_code(uint32_t field_idx, Object* referrer) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+int32_t art_get32_static_from_code(uint32_t field_idx, Method* referrer) {
+  return artGet32StaticFromCode(field_idx, referrer, Thread::Current(), NULL);
 }
 
-int32_t art_set32_instance_from_code(uint32_t field_idx,
-                                     Object* referrer,
-                                     Object* object,
-                                     uint32_t new_value) {
-  UNIMPLEMENTED(WARNING);
-  return -1;
+int64_t art_get64_static_from_code(uint32_t field_idx, Method* referrer) {
+  return artGet64StaticFromCode(field_idx, referrer, Thread::Current(), NULL);
 }
 
-int32_t art_set64_instance_from_code(uint32_t field_idx,
-                                     Object* referrer,
-                                     Object* object,
-                                     int64_t new_value) {
-  UNIMPLEMENTED(WARNING);
-  return -1;
+Object* art_get_obj_static_from_code(uint32_t field_idx, Method* referrer) {
+  return artGetObjStaticFromCode(field_idx, referrer, Thread::Current(), NULL);
 }
 
-int32_t art_set_obj_instance_from_code(uint32_t field_idx,
-                                       Object* referrer,
-                                       Object* object,
-                                       Object* new_value) {
-  UNIMPLEMENTED(WARNING);
-  return -1;
+int32_t art_set32_instance_from_code(uint32_t field_idx, Method* referrer,
+                                     Object* obj, uint32_t new_value) {
+  return artSet32InstanceFromCode(field_idx, obj, new_value, referrer, Thread::Current(), NULL);
 }
 
-int32_t art_get32_instance_from_code(uint32_t field_idx,
-                                     Object* referrer,
-                                     Object* object) {
-  UNIMPLEMENTED(WARNING);
-  return 0;
+int32_t art_set64_instance_from_code(uint32_t field_idx, Method* referrer,
+                                     Object* obj, int64_t new_value) {
+  return artSet64InstanceFromCode(field_idx, obj, new_value, referrer, Thread::Current(), NULL);
 }
 
-int64_t art_get64_instance_from_code(uint32_t field_idx,
-                                     Object* referrer,
-                                     Object* object) {
-  UNIMPLEMENTED(WARNING);
-  return 0;
+int32_t art_set_obj_instance_from_code(uint32_t field_idx, Method* referrer,
+                                       Object* obj, Object* new_value) {
+  return artSetObjInstanceFromCode(field_idx, obj, new_value, referrer, Thread::Current(), NULL);
 }
 
-Object* art_get_obj_instance_from_code(uint32_t field_idx,
-                                       Object* referrer,
-                                       Object* object) {
-  UNIMPLEMENTED(WARNING);
-  return NULL;
+int32_t art_get32_instance_from_code(uint32_t field_idx, Method* referrer, Object* obj) {
+  return artGet32InstanceFromCode(field_idx, obj, referrer, Thread::Current(), NULL);
+}
+
+int64_t art_get64_instance_from_code(uint32_t field_idx, Method* referrer, Object* obj) {
+  return artGet64InstanceFromCode(field_idx, obj, referrer, Thread::Current(), NULL);
+}
+
+Object* art_get_obj_instance_from_code(uint32_t field_idx, Method* referrer, Object* obj) {
+  return artGetObjInstanceFromCode(field_idx, obj, referrer, Thread::Current(), NULL);
 }
 
 

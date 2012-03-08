@@ -247,6 +247,89 @@ static inline Method* FindMethodFast(uint32_t method_idx, Object* this_object, c
 extern Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Method* referrer,
                                   Thread* self, bool access_check, InvokeType type);
 
+static inline
+Method* _artInvokeCommon(uint32_t method_idx, Object* this_object, Method* caller_method,
+                         Thread* self, Method** sp, bool access_check, InvokeType type){
+  Method* method = FindMethodFast(method_idx, this_object, caller_method, access_check, type);
+  if (UNLIKELY(method == NULL)) {
+#if !defined(ART_USE_LLVM_COMPILER)
+    FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
+    if (UNLIKELY(this_object == NULL && type != kDirect && type != kStatic)) {
+      ThrowNullPointerExceptionForMethodAccess(self, caller_method, method_idx, type);
+      return 0;  // failure
+    }
+#endif
+    method = FindMethodFromCode(method_idx, this_object, caller_method, self, access_check, type);
+    if (UNLIKELY(method == NULL)) {
+      CHECK(self->IsExceptionPending());
+      return 0;  // failure
+    }
+  }
+  DCHECK(!self->IsExceptionPending());
+  return method;
+}
+
+static inline
+uint64_t artInvokeCommon(uint32_t method_idx, Object* this_object, Method* caller_method,
+                         Thread* self, Method** sp, bool access_check, InvokeType type){
+  Method* method = _artInvokeCommon(method_idx, this_object, caller_method,
+                                    self, sp, access_check, type);
+  const void* code = method->GetCode();
+
+  uint32_t method_uint = reinterpret_cast<uint32_t>(method);
+  uint64_t code_uint = reinterpret_cast<uint32_t>(code);
+  uint64_t result = ((code_uint << 32) | method_uint);
+  return result;
+}
+
+extern Class* ResolveVerifyAndClinit(uint32_t type_idx, const Method* referrer, Thread* self,
+                                     bool can_run_clinit, bool verify_access);
+
+static inline String* ResolveStringFromCode(const Method* referrer, uint32_t string_idx) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  return class_linker->ResolveString(string_idx, referrer);
+}
+
+extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* referrer,
+                                           Thread* self, Method** sp);
+
+extern "C" uint64_t artGet64StaticFromCode(uint32_t field_idx, const Method* referrer,
+                                           Thread* self, Method** sp);
+
+extern "C" Object* artGetObjStaticFromCode(uint32_t field_idx, const Method* referrer,
+                                           Thread* self, Method** sp);
+
+extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, Object* obj,
+                                             const Method* referrer, Thread* self, Method** sp);
+
+extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, Object* obj,
+                                             const Method* referrer, Thread* self, Method** sp);
+
+extern "C" Object* artGetObjInstanceFromCode(uint32_t field_idx, Object* obj,
+                                             const Method* referrer, Thread* self, Method** sp);
+
+extern "C" int artSet32StaticFromCode(uint32_t field_idx, uint32_t new_value,
+                                      const Method* referrer, Thread* self, Method** sp);
+
+extern "C" int artSet64StaticFromCode(uint32_t field_idx, const Method* referrer,
+                                      uint64_t new_value, Thread* self, Method** sp);
+
+extern "C" int artSetObjStaticFromCode(uint32_t field_idx, Object* new_value,
+                                       const Method* referrer, Thread* self, Method** sp);
+
+extern "C" int artSet32InstanceFromCode(uint32_t field_idx, Object* obj, uint32_t new_value,
+                                        const Method* referrer, Thread* self, Method** sp);
+
+extern "C" int artSet64InstanceFromCode(uint32_t field_idx, Object* obj, uint64_t new_value,
+#if !defined(ART_USE_LLVM_COMPILER)
+                                        Thread* self, Method** sp);
+#else
+                                        const Method* referrer, Thread* self, Method** sp);
+#endif
+
+extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, Object* obj, Object* new_value,
+                                         const Method* referrer, Thread* self, Method** sp);
+
 }  // namespace art
 
 #endif  // ART_SRC_RUNTIME_SUPPORT_COMMON_H_

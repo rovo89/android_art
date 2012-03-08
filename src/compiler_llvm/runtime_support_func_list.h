@@ -36,8 +36,9 @@
   V(AllocArrayWithAccessCheck, art_alloc_array_from_code_with_access_check) \
   V(CheckAndAllocArray, art_check_and_alloc_array_from_code) \
   V(CheckAndAllocArrayWithAccessCheck, art_check_and_alloc_array_from_code_with_access_check) \
-  V(FindInstanceField, art_find_instance_field_from_code) \
-  V(FindStaticField, art_find_static_field_from_code) \
+  V(FindInterfaceMethod, art_find_interface_method_from_code) \
+  V(FindVirtualMethod, art_find_virtual_method_from_code) \
+  V(FindSuperMethod, art_find_super_method_from_code) \
   V(ResolveString, art_resolve_string_from_code) \
   V(Set32Static, art_set32_static_from_code) \
   V(Set64Static, art_set64_static_from_code) \
@@ -53,5 +54,4 @@
   V(GetObjectInstance, art_get_obj_instance_from_code) \
   V(InitializeStaticStorage, art_initialize_static_storage_from_code) \
   V(IsExceptionPending, art_is_exception_pending_from_code) \
-  V(FindCatchBlock, art_find_catch_block_from_code) \
-  V(FindInterfaceMethod, art_find_interface_method_from_code)
+  V(FindCatchBlock, art_find_catch_block_from_code)

@@ -2716,6 +2716,58 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
 }
 
 
+void MethodCompiler::EmitInsn_InvokeVirtualSuperSlow(uint32_t dex_pc,
+                                                     DecodedInstruction &dec_insn,
+                                                     bool is_range,
+                                                     uint32_t callee_method_idx,
+                                                     bool is_virtual) {
+  // Callee method can't be resolved at compile time.  Emit the runtime
+  // method resolution code.
+
+  // Test: Is "this" pointer equal to null?
+  llvm::Value* this_addr = EmitLoadCalleeThis(dec_insn, is_range);
+  EmitGuard_NullPointerException(dex_pc, this_addr);
+
+  // Resolve the callee method object address at runtime
+  llvm::Value* runtime_func;
+  if (is_virtual) {
+    runtime_func = irb_.GetRuntime(FindVirtualMethod);
+  } else {
+    runtime_func = irb_.GetRuntime(FindSuperMethod);
+  }
+
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* callee_method_idx_value = irb_.getInt32(callee_method_idx);
+
+  EmitUpdateLineNumFromDexPC(dex_pc);
+
+  llvm::Value* callee_method_object_addr =
+      irb_.CreateCall3(runtime_func,
+                       callee_method_idx_value, this_addr, method_object_addr);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  llvm::Value* code_addr =
+      EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, false);
+  // Load the actual parameter
+  std::vector<llvm::Value*> args;
+  args.push_back(callee_method_object_addr);
+  args.push_back(this_addr);
+  EmitLoadActualParameters(args, callee_method_idx, dec_insn, is_range, false);
+
+  // Invoke callee
+  EmitUpdateLineNumFromDexPC(dex_pc);
+  llvm::Value* retval = irb_.CreateCall(code_addr, args);
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  UniquePtr<OatCompilationUnit>
+      callee(oat_compilation_unit_->GetCallee(callee_method_idx, /* access flags */ 0));
+  char ret_shorty = callee->GetShorty()[0];
+  if (ret_shorty != 'V') {
+    EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
+  }
+}
 
 void MethodCompiler::EmitInsn_InvokeVirtual(uint32_t dex_pc,
                                             Instruction const* insn,
@@ -2729,12 +2781,8 @@ void MethodCompiler::EmitInsn_InvokeVirtual(uint32_t dex_pc,
   Method* callee_method = ResolveMethod(callee_method_idx);
 
   if (callee_method == NULL) {
-    // Callee method can't be resolved at compile time.  Emit the runtime
-    // method resolution code.
-
-    UNIMPLEMENTED(FATAL) << "Method index " << callee_method_idx
-                         << " can't be resolved";
-
+    EmitInsn_InvokeVirtualSuperSlow(dex_pc, dec_insn, is_range,
+                                    callee_method_idx, /*is_virtual*/ true);
   } else {
     // Test: Is *this* parameter equal to null?
     llvm::Value* this_addr = EmitLoadCalleeThis(dec_insn, is_range);
@@ -2788,12 +2836,8 @@ void MethodCompiler::EmitInsn_InvokeSuper(uint32_t dex_pc,
   Method* callee_overiding_method = ResolveMethod(callee_method_idx);
 
   if (callee_overiding_method == NULL) {
-    // Callee method can't be resolved at compile time.  Emit the runtime
-    // method resolution code.
-
-    UNIMPLEMENTED(FATAL) << "Method index " << callee_method_idx
-                         << " can't be resolved";
-
+    EmitInsn_InvokeVirtualSuperSlow(dex_pc, dec_insn, is_range,
+                                    callee_method_idx, /*is_virtual*/ false);
   } else {
     // CHECK: Is the instruction well-encoded or is the class hierarchy correct?
     Class* declaring_class = method_->GetDeclaringClass();
@@ -2960,7 +3004,8 @@ void MethodCompiler::EmitInsn_InvokeInterface(uint32_t dex_pc,
   EmitUpdateLineNumFromDexPC(dex_pc);
 
   llvm::Value* callee_method_object_addr =
-    irb_.CreateCall2(runtime_func, callee_method_idx_value, method_object_addr);
+    irb_.CreateCall3(runtime_func,
+                     callee_method_idx_value, this_addr, method_object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
 

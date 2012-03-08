@@ -192,6 +192,11 @@ class MethodCompiler {
   // INVOKE instructions
   void EmitInsn_InvokeVirtual(GEN_INSN_ARGS, bool is_range);
   void EmitInsn_InvokeSuper(GEN_INSN_ARGS, bool is_range);
+  void EmitInsn_InvokeVirtualSuperSlow(uint32_t dex_pc,
+                                       DecodedInstruction &dec_insn,
+                                       bool is_range,
+                                       uint32_t callee_method_idx,
+                                       bool is_virtual);
   void EmitInsn_InvokeStaticDirect(GEN_INSN_ARGS,
                                    InvokeType invoke_type,
                                    bool is_range);
