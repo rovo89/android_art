@@ -59,7 +59,7 @@ $(HOST_CORE_OAT_OUT): $(HOST_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@mkdir -p $(dir $@)
 	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(HOST_CORE_DEX_FILES)) $(addprefix --dex-location=,$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$@ --oat-location=$(HOST_CORE_OAT) --image=$(HOST_CORE_IMG_OUT) --base=$(IMG_HOST_BASE_ADDRESS)
 
-$(TARGET_CORE_OAT_OUT): $(TARGET_CORE_DEX) $(DEX2OAT_DEPENDENCY)
+$(TARGET_CORE_OAT_OUT): $(TARGET_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
 	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(TARGET_CORE_DEX_FILES)) $(addprefix --dex-location=,$(TARGET_CORE_DEX_LOCATIONS)) --oat-file=$@ --oat-location=$(TARGET_CORE_OAT) --image=$(TARGET_CORE_IMG_OUT) --base=$(IMG_TARGET_BASE_ADDRESS) --host-prefix=$(PRODUCT_OUT)
