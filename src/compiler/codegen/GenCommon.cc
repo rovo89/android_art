@@ -47,7 +47,7 @@ void genBarrier(CompilationUnit* cUnit)
 /* Generate unconditional branch instructions */
 LIR* opUnconditionalBranch(CompilationUnit* cUnit, LIR* target)
 {
-    LIR* branch = opNone(cUnit, kOpUncondBr);
+    LIR* branch = opBranchUnconditional(cUnit, kOpUncondBr);
     branch->target = (LIR*) target;
     return branch;
 }

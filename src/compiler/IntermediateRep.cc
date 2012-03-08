@@ -19,6 +19,52 @@
 
 namespace art {
 
+static const char* gOpKindNames[kOpInvalid + 1] = {
+    "OpMov",
+    "OpMvn",
+    "OpCmp",
+    "OpLsl",
+    "OpLsr",
+    "OpAsr",
+    "OpRor",
+    "OpNot",
+    "OpAnd",
+    "OpOr",
+    "OpXor",
+    "OpNeg",
+    "OpAdd",
+    "OpAdc",
+    "OpSub",
+    "OpSbc",
+    "OpRsub",
+    "OpMul",
+    "OpDiv",
+    "OpRem",
+    "OpBic",
+    "OpCmn",
+    "OpTst",
+    "OpBkpt",
+    "OpBlx",
+    "OpPush",
+    "OpPop",
+    "Op2Char",
+    "Op2Short",
+    "Op2Byte",
+    "OpCondBr",
+    "OpUncondBr",
+    "OpBx",
+    "OpInvalid",
+};
+
+std::ostream& operator<<(std::ostream& os, const OpKind& kind) {
+  if (kind >= kOpMov && kind <= kOpInvalid) {
+    os << gOpKindNames[kind];
+  } else {
+    os << "Unknown Op " << static_cast<int>(kind);
+  }
+  return os;
+}
+
 /* Allocate a new basic block */
 BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId)
 {

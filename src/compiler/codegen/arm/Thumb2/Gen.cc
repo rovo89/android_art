@@ -326,7 +326,7 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     hopBranch = opCondBranch(cUnit, kCondNe, NULL);
     oatGenMemBarrier(cUnit, kSY);
     storeWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r3);
-    branch = opNone(cUnit, kOpUncondBr);
+    branch = opBranchUnconditional(cUnit, kOpUncondBr);
 
     hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
     hopBranch->target = (LIR*)hopTarget;

@@ -449,6 +449,8 @@ typedef enum OpKind {
     kOpInvalid,
 } OpKind;
 
+std::ostream& operator<<(std::ostream& os, const OpKind& kind);
+
 typedef enum ConditionCode {
     kCondEq,
     kCondNe,

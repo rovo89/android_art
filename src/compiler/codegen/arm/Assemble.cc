@@ -147,7 +147,7 @@ const ArmEncodingMap EncodingMap[kArmLast] = {
                  NEEDS_FIXUP, "b!1c", "!0t", 2),
     ENCODING_MAP(kThumbBUncond,      0xe000,
                  kFmtBitBlt, 10, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH | NEEDS_FIXUP,
+                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | NEEDS_FIXUP,
                  "b", "!0t", 2),
     ENCODING_MAP(kThumbBicRR,        0x4380,
                  kFmtBitBlt, 2, 0, kFmtBitBlt, 5, 3, kFmtUnused, -1, -1,

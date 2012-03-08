@@ -188,17 +188,10 @@ LIR* loadConstantNoClobber(CompilationUnit* cUnit, int rDest, int value)
     return res;
 }
 
-LIR* opNone(CompilationUnit* cUnit, OpKind op)
+LIR* opBranchUnconditional(CompilationUnit* cUnit, OpKind op)
 {
-    ArmOpcode opcode = kThumbBkpt;
-    switch (op) {
-        case kOpUncondBr:
-            opcode = kThumbBUncond;
-            break;
-        default:
-            LOG(FATAL) << "Bad opcode " << (int)op;
-    }
-    return newLIR0(cUnit, opcode);
+    DCHECK_EQ(op, kOpUncondBr);
+    return newLIR1(cUnit, kThumbBUncond, 0 /* offset to be patched */);
 }
 
 LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target)

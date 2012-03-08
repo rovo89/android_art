@@ -127,19 +127,10 @@ LIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest,
     return res;
 }
 
-LIR *opNone(CompilationUnit *cUnit, OpKind op)
+LIR *opBranchUnconditional(CompilationUnit *cUnit, OpKind op)
 {
-    LIR *res;
-    MipsOpCode opcode = kMipsNop;
-    switch (op) {
-        case kOpUncondBr:
-            opcode = kMipsB;
-            break;
-        default:
-            LOG(FATAL) << "Bad case in opNone";
-    }
-    res = newLIR0(cUnit, opcode);
-    return res;
+    DCHECK_EQ(op, kOpUncondBr);
+    return newLIR1(cUnit, kMipsB, 0 /* offset to be patched */ );
 }
 
 LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask);

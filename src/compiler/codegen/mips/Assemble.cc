@@ -106,11 +106,11 @@ MipsEncodingMap EncodingMap[kMipsLast] = {
                  "andi", "!0r,!1r,0x!2h(!2d)", 4),
     ENCODING_MAP(kMipsB, 0x10000000,
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH | NEEDS_FIXUP,
+                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | NEEDS_FIXUP,
                  "b", "!0t!0N", 8),
     ENCODING_MAP(kMipsBal, 0x04110000,
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH | REG_DEF_LR |
+                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_DEF_LR |
                  NEEDS_FIXUP, "bal", "!0t!0N", 8),
     ENCODING_MAP(kMipsBeq, 0x10000000,
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0,
