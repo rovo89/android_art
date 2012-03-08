@@ -1174,7 +1174,8 @@ uintptr_t ManglePc(uintptr_t pc) {
 // TODO: remove this.
 uintptr_t DemanglePc(uintptr_t pc) {
   // Revert mangling for the case where we need the PC to return to the upcall
-  return pc + 2;
+  if (pc > 0) { pc +=  2; }
+  return pc;
 }
 
 void Thread::PushSirt(StackIndirectReferenceTable* sirt) {
@@ -1532,9 +1533,11 @@ void Thread::DeliverException() {
     }
   }
   SetException(exception);
+  CHECK_NE(catch_native_pc, 0u);
   long_jump_context->SetSP(reinterpret_cast<uintptr_t>(catch_finder.handler_frame_.GetSP()));
-  long_jump_context->SetPC(catch_finder.handler_pc_);
+  long_jump_context->SetPC(catch_native_pc);
   long_jump_context->DoLongJump();
+  LOG(FATAL) << "UNREACHABLE";
 }
 
 Context* Thread::GetLongJumpContext() {
