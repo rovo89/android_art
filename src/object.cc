@@ -898,17 +898,6 @@ bool Class::IsInSamePackage(const StringPiece& descriptor1, const StringPiece& d
   }
 }
 
-#if 0
-bool Class::IsInSamePackage(const StringPiece& descriptor1,
-                            const StringPiece& descriptor2) {
-  size_t size = std::min(descriptor1.size(), descriptor2.size());
-  std::pair<StringPiece::const_iterator, StringPiece::const_iterator> pos;
-  pos = std::mismatch(descriptor1.begin(), descriptor1.begin() + size,
-                      descriptor2.begin());
-  return !(*(pos.second).rfind('/') != npos && descriptor2.rfind('/') != npos);
-}
-#endif
-
 bool Class::IsInSamePackage(const Class* that) const {
   const Class* klass1 = this;
   const Class* klass2 = that;
