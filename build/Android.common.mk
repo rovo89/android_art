@@ -206,6 +206,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/reflection.cc \
 	src/runtime.cc \
 	src/runtime_support.cc \
+	src/runtime_support_common.cc \
 	src/signal_catcher.cc \
 	src/space.cc \
 	src/stack.cc \
