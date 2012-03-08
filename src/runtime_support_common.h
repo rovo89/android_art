@@ -19,7 +19,7 @@ class Field;
 class Method;
 class Object;
 
-static void ThrowNewIllegalAccessErrorClass(Thread* self,
+static inline void ThrowNewIllegalAccessErrorClass(Thread* self,
                                                    Class* referrer,
                                                    Class* accessed) {
   self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
@@ -28,7 +28,7 @@ static void ThrowNewIllegalAccessErrorClass(Thread* self,
                            PrettyDescriptor(accessed).c_str());
 }
 
-static void
+static inline void
 ThrowNewIllegalAccessErrorClassForMethodDispatch(Thread* self,
                                                  Class* referrer,
                                                  Class* accessed,
@@ -47,7 +47,7 @@ ThrowNewIllegalAccessErrorClassForMethodDispatch(Thread* self,
                            PrettyMethod(caller).c_str());
 }
 
-static void
+static inline void
 ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(Thread* self,
                                                               const Method* referrer,
                                                               const Method* interface_method,
@@ -59,7 +59,7 @@ ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(Thread* self,
                            PrettyMethod(interface_method).c_str(), PrettyMethod(referrer).c_str());
 }
 
-static void ThrowNewIllegalAccessErrorField(Thread* self,
+static inline void ThrowNewIllegalAccessErrorField(Thread* self,
                                                    Class* referrer,
                                                    Field* accessed) {
   self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
@@ -68,7 +68,7 @@ static void ThrowNewIllegalAccessErrorField(Thread* self,
                            PrettyDescriptor(referrer).c_str());
 }
 
-static void ThrowNewIllegalAccessErrorFinalField(Thread* self,
+static inline void ThrowNewIllegalAccessErrorFinalField(Thread* self,
                                                         const Method* referrer,
                                                         Field* accessed) {
   self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
@@ -77,7 +77,7 @@ static void ThrowNewIllegalAccessErrorFinalField(Thread* self,
                            PrettyMethod(referrer).c_str());
 }
 
-static void ThrowNewIllegalAccessErrorMethod(Thread* self,
+static inline void ThrowNewIllegalAccessErrorMethod(Thread* self,
                                                     Class* referrer,
                                                     Method* accessed) {
   self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
@@ -86,7 +86,7 @@ static void ThrowNewIllegalAccessErrorMethod(Thread* self,
                            PrettyDescriptor(referrer).c_str());
 }
 
-static void ThrowNullPointerExceptionForFieldAccess(Thread* self,
+static inline void ThrowNullPointerExceptionForFieldAccess(Thread* self,
                                                            Field* field,
                                                            bool is_read) {
   self->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
@@ -95,7 +95,7 @@ static void ThrowNullPointerExceptionForFieldAccess(Thread* self,
                            PrettyField(field, true).c_str());
 }
 
-static void ThrowNullPointerExceptionForMethodAccess(Thread* self,
+static inline void ThrowNullPointerExceptionForMethodAccess(Thread* self,
                                                             Method* caller,
                                                             uint32_t method_idx,
                                                             InvokeType type) {
@@ -114,7 +114,7 @@ static void ThrowNullPointerExceptionForMethodAccess(Thread* self,
 // cannot be resolved, throw an error. If it can, use it to create an instance.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-static Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thread* self,
+static inline Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thread* self,
                                           bool access_check) {
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
   Runtime* runtime = Runtime::Current();
@@ -148,7 +148,7 @@ static Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thread* se
 // it cannot be resolved, throw an error. If it can, use it to create an array.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-static Array* AllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
+static inline Array* AllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
                                         Thread* self, bool access_check) {
   if (UNLIKELY(component_count < 0)) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
@@ -182,7 +182,7 @@ extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thre
                                 size_t expected_size);
 
 // Fast path field resolution that can't throw exceptions
-static Field* FindFieldFast(uint32_t field_idx, const Method* referrer, bool is_primitive,
+static inline Field* FindFieldFast(uint32_t field_idx, const Method* referrer, bool is_primitive,
                                    size_t expected_size, bool is_set) {
   Field* resolved_field = referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
   if (UNLIKELY(resolved_field == NULL)) {
@@ -210,7 +210,7 @@ static Field* FindFieldFast(uint32_t field_idx, const Method* referrer, bool is_
 }
 
 // Fast path method resolution that can't throw exceptions
-static Method* FindMethodFast(uint32_t method_idx, Object* this_object, const Method* referrer,
+static inline Method* FindMethodFast(uint32_t method_idx, Object* this_object, const Method* referrer,
                               bool access_check, InvokeType type) {
   bool is_direct = type == kStatic || type == kDirect;
   if (UNLIKELY(this_object == NULL && !is_direct)) {
