@@ -597,7 +597,9 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
           referrer_class->CanAccessMember(methods_class,
                                           resolved_method->GetAccessFlags())) {
         vtable_idx = resolved_method->GetMethodIndex();
-        if (type == kVirtual && (resolved_method->IsFinal() || methods_class->IsFinal())) {
+        const bool kEnableSharpening = false;
+        if (kEnableSharpening && type == kVirtual &&
+            (resolved_method->IsFinal() || methods_class->IsFinal())) {
           stats_->ResolvedMethod(kVirtual);
           // Sharpen a virtual call into a direct call. The method_idx is into referrer's
           // dex cache, check that this resolved method is where we expect it.
