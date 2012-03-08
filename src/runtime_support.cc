@@ -23,6 +23,7 @@
 #include "object.h"
 #include "object_utils.h"
 #include "reflection.h"
+#include "runtime_support_common.h"
 #include "trace.h"
 #include "ScopedLocalRef.h"
 
@@ -77,81 +78,6 @@ static void  FinishCalleeSaveFrameSetup(Thread* self, Method** sp, Runtime::Call
   // Be aware the store below may well stomp on an incoming argument
   *sp = Runtime::Current()->GetCalleeSaveMethod(type);
   self->SetTopOfStack(sp, 0);
-}
-
-static void ThrowNewIllegalAccessErrorClass(Thread* self, Class* referrer, Class* accessed) {
-  self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                           "illegal class access: '%s' -> '%s'",
-                           PrettyDescriptor(referrer).c_str(),
-                           PrettyDescriptor(accessed).c_str());
-}
-
-static void ThrowNewIllegalAccessErrorClassForMethodDispatch(Thread* self, Class* referrer,
-                                                             Class* accessed, const Method* caller,
-                                                             const Method* called,
-                                                             InvokeType type) {
-  std::ostringstream type_stream;
-  type_stream << type;
-  self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                           "illegal class access ('%s' -> '%s')"
-                           "in attempt to invoke %s method '%s' from '%s'",
-                           PrettyDescriptor(referrer).c_str(),
-                           PrettyDescriptor(accessed).c_str(),
-                           type_stream.str().c_str(),
-                           PrettyMethod(called).c_str(),
-                           PrettyMethod(caller).c_str());
-}
-
-static void ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(Thread* self,
-                                                                          const Method* referrer,
-                                                                          const Method* interface_method,
-                                                                          Object* this_object) {
-  Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-      "class '%s' does not implement interface '%s' in call to '%s' from '%s'",
-      PrettyDescriptor(this_object->GetClass()).c_str(),
-      PrettyDescriptor(interface_method->GetDeclaringClass()).c_str(),
-      PrettyMethod(interface_method).c_str(), PrettyMethod(referrer).c_str());
-}
-
-static void ThrowNewIllegalAccessErrorField(Thread* self, Class* referrer, Field* accessed) {
-  self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                           "Field '%s' is inaccessible to class '%s'",
-                           PrettyField(accessed, false).c_str(),
-                           PrettyDescriptor(referrer).c_str());
-}
-
-static void ThrowNewIllegalAccessErrorFinalField(Thread* self, const Method* referrer, Field* accessed) {
-  self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                           "Final field '%s' cannot be written to by method '%s'",
-                           PrettyField(accessed, false).c_str(),
-                           PrettyMethod(referrer).c_str());
-}
-
-static void ThrowNewIllegalAccessErrorMethod(Thread* self, Class* referrer, Method* accessed) {
-  self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                           "Method '%s' is inaccessible to class '%s'",
-                           PrettyMethod(accessed).c_str(),
-                           PrettyDescriptor(referrer).c_str());
-}
-
-static void ThrowNullPointerExceptionForFieldAccess(Thread* self, Field* field, bool is_read) {
-  self->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
-                           "Attempt to %s field '%s' on a null object reference",
-                           is_read ? "read from" : "write to",
-                           PrettyField(field, true).c_str());
-}
-
-static void ThrowNullPointerExceptionForMethodAccess(Thread* self, Method* caller,
-                                                     uint32_t method_idx, InvokeType type) {
-  const DexFile& dex_file =
-      Runtime::Current()->GetClassLinker()->FindDexFile(caller->GetDeclaringClass()->GetDexCache());
-  std::ostringstream type_stream;
-  type_stream << type;
-  self->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
-                           "Attempt to invoke %s method '%s' from '%s' on a null object reference",
-                           type_stream.str().c_str(),
-                           PrettyMethod(method_idx, dex_file, true).c_str(),
-                           PrettyMethod(caller).c_str());
 }
 
 /*
@@ -655,85 +581,6 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp) {
 }
 
 
-// Fast path field resolution that can't throw exceptions
-static Field* FindFieldFast(uint32_t field_idx, const Method* referrer, bool is_primitive,
-                            size_t expected_size, bool is_set) {
-  Field* resolved_field = referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
-  if (UNLIKELY(resolved_field == NULL)) {
-    return NULL;
-  }
-  Class* fields_class = resolved_field->GetDeclaringClass();
-  // Check class is initiliazed or initializing
-  if (UNLIKELY(!fields_class->IsInitializing())) {
-    return NULL;
-  }
-  Class* referring_class = referrer->GetDeclaringClass();
-  if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
-               !referring_class->CanAccessMember(fields_class,
-                                                 resolved_field->GetAccessFlags()) ||
-               (is_set && resolved_field->IsFinal() && (fields_class != referring_class)))) {
-    // illegal access
-    return NULL;
-  }
-  FieldHelper fh(resolved_field);
-  if (UNLIKELY(fh.IsPrimitiveType() != is_primitive ||
-               fh.FieldSize() != expected_size)) {
-    return NULL;
-  }
-  return resolved_field;
-}
-
-
-// Slow path field resolution and declaring class initialization
-Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* self,
-                         bool is_static, bool is_primitive, bool is_set, size_t expected_size) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Field* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
-  if (UNLIKELY(resolved_field == NULL)) {
-    DCHECK(self->IsExceptionPending());  // Throw exception and unwind
-    return NULL;  // failure
-  } else {
-    Class* fields_class = resolved_field->GetDeclaringClass();
-    Class* referring_class = referrer->GetDeclaringClass();
-    if (UNLIKELY(!referring_class->CanAccess(fields_class))) {
-      ThrowNewIllegalAccessErrorClass(self, referring_class, fields_class);
-      return NULL;  // failure
-    } else if (UNLIKELY(!referring_class->CanAccessMember(fields_class,
-                                                          resolved_field->GetAccessFlags()))) {
-      ThrowNewIllegalAccessErrorField(self, referring_class, resolved_field);
-      return NULL;  // failure
-    } else if (UNLIKELY(is_set && resolved_field->IsFinal() && (fields_class != referring_class))) {
-      ThrowNewIllegalAccessErrorFinalField(self, referrer, resolved_field);
-      return NULL;  // failure
-    } else {
-      FieldHelper fh(resolved_field);
-      if (UNLIKELY(fh.IsPrimitiveType() != is_primitive ||
-                   fh.FieldSize() != expected_size)) {
-        self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
-                                 "Attempted read of %zd-bit %s on field '%s'",
-                                 expected_size * (32 / sizeof(int32_t)),
-                                 is_primitive ? "primitive" : "non-primitive",
-                                 PrettyField(resolved_field, true).c_str());
-        return NULL;  // failure
-      } else if (!is_static) {
-        // instance fields must be being accessed on an initialized class
-        return resolved_field;
-      } else {
-        // If the class is already initializing, we must be inside <clinit>, or
-        // we'd still be waiting for the lock.
-        if (fields_class->IsInitializing()) {
-          return resolved_field;
-        } else if (Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true)) {
-          return resolved_field;
-        } else {
-          DCHECK(self->IsExceptionPending());  // Throw exception and unwind
-          return NULL;  // failure
-        }
-      }
-    }
-  }
-}
-
 extern "C" uint32_t artGet32StaticFromCode(uint32_t field_idx, const Method* referrer,
                                            Thread* self, Method** sp) {
   Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(int32_t));
@@ -943,40 +790,6 @@ extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, Object* obj, Object
   return -1;  // failure
 }
 
-// Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
-// cannot be resolved, throw an error. If it can, use it to create an instance.
-// When verification/compiler hasn't been able to verify access, optionally perform an access
-// check.
-static Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thread* self,
-                                   bool access_check) {
-  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
-  Runtime* runtime = Runtime::Current();
-  if (UNLIKELY(klass == NULL)) {
-    klass = runtime->GetClassLinker()->ResolveType(type_idx, method);
-    if (klass == NULL) {
-      DCHECK(self->IsExceptionPending());
-      return NULL;  // Failure
-    }
-  }
-  if (access_check) {
-    if (UNLIKELY(!klass->IsInstantiable())) {
-      self->ThrowNewException("Ljava/lang/InstantiationError;",
-                              PrettyDescriptor(klass).c_str());
-      return NULL;  // Failure
-    }
-    Class* referrer = method->GetDeclaringClass();
-    if (UNLIKELY(!referrer->CanAccess(klass))) {
-      ThrowNewIllegalAccessErrorClass(self, referrer, klass);
-      return NULL;  // Failure
-    }
-  }
-  if (!runtime->GetClassLinker()->EnsureInitialized(klass, true)) {
-    DCHECK(self->IsExceptionPending());
-    return NULL;  // Failure
-  }
-  return klass->AllocObject();
-}
-
 extern "C" Object* artAllocObjectFromCode(uint32_t type_idx, Method* method,
                                           Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
@@ -987,36 +800,6 @@ extern "C" Object* artAllocObjectFromCodeWithAccessCheck(uint32_t type_idx, Meth
                                                          Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   return AllocObjectFromCode(type_idx, method, self, true);
-}
-
-// Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If
-// it cannot be resolved, throw an error. If it can, use it to create an array.
-// When verification/compiler hasn't been able to verify access, optionally perform an access
-// check.
-static Array* AllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
-                                  Thread* self, bool access_check) {
-  if (UNLIKELY(component_count < 0)) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
-                                         component_count);
-    return NULL;  // Failure
-  }
-  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
-  if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
-    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
-    if (klass == NULL) {  // Error
-      DCHECK(Thread::Current()->IsExceptionPending());
-      return NULL;  // Failure
-    }
-    CHECK(klass->IsArrayClass()) << PrettyClass(klass);
-  }
-  if (access_check) {
-    Class* referrer = method->GetDeclaringClass();
-    if (UNLIKELY(!referrer->CanAccess(klass))) {
-      ThrowNewIllegalAccessErrorClass(self, referrer, klass);
-      return NULL;  // Failure
-    }
-  }
-  return Array::Alloc(klass, component_count);
 }
 
 extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
@@ -1030,45 +813,6 @@ extern "C" Array* artAllocArrayFromCodeWithAccessCheck(uint32_t type_idx, Method
                                                        Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   return AllocArrayFromCode(type_idx, method, component_count, self, true);
-}
-
-// Helper function to allocate array for FILLED_NEW_ARRAY.
-Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
-                                  Thread* self, bool access_check) {
-  if (UNLIKELY(component_count < 0)) {
-    self->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", component_count);
-    return NULL;  // Failure
-  }
-  Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
-  if (UNLIKELY(klass == NULL)) {  // Not in dex cache so try to resolve
-    klass = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
-    if (klass == NULL) {  // Error
-      DCHECK(Thread::Current()->IsExceptionPending());
-      return NULL;  // Failure
-    }
-  }
-  if (UNLIKELY(klass->IsPrimitive() && !klass->IsPrimitiveInt())) {
-    if (klass->IsPrimitiveLong() || klass->IsPrimitiveDouble()) {
-      Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
-          "Bad filled array request for type %s",
-          PrettyDescriptor(klass).c_str());
-    } else {
-      Thread::Current()->ThrowNewExceptionF("Ljava/lang/InternalError;",
-          "Found type %s; filled-new-array not implemented for anything but \'int\'",
-          PrettyDescriptor(klass).c_str());
-    }
-    return NULL;  // Failure
-  } else {
-    if (access_check) {
-      Class* referrer = method->GetDeclaringClass();
-      if (UNLIKELY(!referrer->CanAccess(klass))) {
-        ThrowNewIllegalAccessErrorClass(self, referrer, klass);
-        return NULL;  // Failure
-      }
-    }
-    DCHECK(klass->IsArrayClass()) << PrettyClass(klass);
-    return Array::Alloc(klass, component_count);
-  }
 }
 
 extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method,
@@ -1255,142 +999,6 @@ extern "C" int artHandleFillArrayDataFromCode(Array* array, const uint16_t* tabl
   uint32_t size_in_bytes = size * width;
   memcpy((char*)array + Array::DataOffset(width).Int32Value(), (char*)&table[4], size_in_bytes);
   return 0;  // Success
-}
-
-// Fast path method resolution that can't throw exceptions
-static Method* FindMethodFast(uint32_t method_idx, Object* this_object, const Method* referrer,
-                              bool access_check, InvokeType type) {
-  bool is_direct = type == kStatic || type == kDirect;
-  if (UNLIKELY(this_object == NULL && !is_direct)) {
-    return NULL;
-  }
-  Method* resolved_method =
-      referrer->GetDeclaringClass()->GetDexCache()->GetResolvedMethod(method_idx);
-  if (UNLIKELY(resolved_method == NULL)) {
-    return NULL;
-  }
-  if (access_check) {
-    Class* methods_class = resolved_method->GetDeclaringClass();
-    Class* referring_class = referrer->GetDeclaringClass();
-    if (UNLIKELY(!referring_class->CanAccess(methods_class) ||
-                 !referring_class->CanAccessMember(methods_class,
-                                                   resolved_method->GetAccessFlags()))) {
-      // potential illegal access
-      return NULL;
-    }
-  }
-  if (type == kInterface) {  // Most common form of slow path dispatch.
-    return this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
-  } else if (is_direct) {
-    return resolved_method;
-  } else if (type == kSuper) {
-    return referrer->GetDeclaringClass()->GetSuperClass()->GetVTable()->Get(resolved_method->GetMethodIndex());
-  } else {
-    DCHECK(type == kVirtual);
-    return this_object->GetClass()->GetVTable()->Get(resolved_method->GetMethodIndex());
-  }
-}
-
-// Slow path method resolution
-static Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Method* referrer,
-                                  Thread* self, bool access_check, InvokeType type) {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  bool is_direct = type == kStatic || type == kDirect;
-  Method* resolved_method = class_linker->ResolveMethod(method_idx, referrer, is_direct);
-  if (UNLIKELY(resolved_method == NULL)) {
-    DCHECK(self->IsExceptionPending());  // Throw exception and unwind
-    return NULL;  // failure
-  } else {
-    if (!access_check) {
-      if (is_direct) {
-        return resolved_method;
-      } else if (type == kInterface) {
-        Method* interface_method =
-            this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
-        if (UNLIKELY(interface_method == NULL)) {
-          ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(self, referrer,
-                                                                        resolved_method,
-                                                                        this_object);
-          return NULL;  // failure
-        } else {
-          return interface_method;
-        }
-      } else {
-        ObjectArray<Method>* vtable;
-        uint16_t vtable_index = resolved_method->GetMethodIndex();
-        if (type == kSuper) {
-          vtable = referrer->GetDeclaringClass()->GetSuperClass()->GetVTable();
-        } else {
-          vtable = this_object->GetClass()->GetVTable();
-        }
-        // TODO: eliminate bounds check?
-        return vtable->Get(vtable_index);
-      }
-    } else {
-      Class* methods_class = resolved_method->GetDeclaringClass();
-      Class* referring_class = referrer->GetDeclaringClass();
-      if (UNLIKELY(!referring_class->CanAccess(methods_class) ||
-                   !referring_class->CanAccessMember(methods_class,
-                                                     resolved_method->GetAccessFlags()))) {
-        // The referring class can't access the resolved method, this may occur as a result of a
-        // protected method being made public by implementing an interface that re-declares the
-        // method public. Resort to the dex file to determine the correct class for the access check
-        const DexFile& dex_file = class_linker->FindDexFile(referring_class->GetDexCache());
-        methods_class = class_linker->ResolveType(dex_file,
-                                                  dex_file.GetMethodId(method_idx).class_idx_,
-                                                  referring_class);
-        if (UNLIKELY(!referring_class->CanAccess(methods_class))) {
-          ThrowNewIllegalAccessErrorClassForMethodDispatch(self, referring_class, methods_class,
-                                                           referrer, resolved_method, type);
-          return NULL;  // failure
-        } else if (UNLIKELY(!referring_class->CanAccessMember(methods_class,
-                                                              resolved_method->GetAccessFlags()))) {
-          ThrowNewIllegalAccessErrorMethod(self, referring_class, resolved_method);
-          return NULL;  // failure
-        }
-      }
-      if (is_direct) {
-        return resolved_method;
-      } else if (type == kInterface) {
-        Method* interface_method =
-            this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
-        if (UNLIKELY(interface_method == NULL)) {
-          ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(self, referrer,
-                                                                        resolved_method,
-                                                                        this_object);
-          return NULL;  // failure
-        } else {
-          return interface_method;
-        }
-      } else {
-        ObjectArray<Method>* vtable;
-        uint16_t vtable_index = resolved_method->GetMethodIndex();
-        if (type == kSuper) {
-          Class* super_class = referring_class->GetSuperClass();
-          if (LIKELY(super_class != NULL)) {
-            vtable = referring_class->GetSuperClass()->GetVTable();
-          } else {
-            vtable = NULL;
-          }
-        } else {
-          vtable = this_object->GetClass()->GetVTable();
-        }
-        if (LIKELY(vtable != NULL &&
-                   vtable_index < static_cast<uint32_t>(vtable->GetLength()))) {
-          return vtable->GetWithoutChecks(vtable_index);
-        } else {
-          // Behavior to agree with that of the verifier
-          self->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
-                                   "attempt to invoke %s method '%s' from '%s'"
-                                   " using incorrect form of method dispatch",
-                                   (type == kSuper ? "super class" : "virtual"),
-                                   PrettyMethod(resolved_method).c_str(),
-                                   PrettyMethod(referrer).c_str());
-          return NULL;  // failure
-        }
-      }
-    }
-  }
 }
 
 static uint64_t artInvokeCommon(uint32_t method_idx, Object* this_object, Method* caller_method,

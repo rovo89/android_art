@@ -4,6 +4,7 @@
 #include "dex_verifier.h"
 #include "object.h"
 #include "object_utils.h"
+#include "runtime_support_common.h"
 #include "runtime_support_llvm.h"
 #include "thread.h"
 #include "thread_list.h"
