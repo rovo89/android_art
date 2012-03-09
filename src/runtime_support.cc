@@ -29,50 +29,6 @@
 
 namespace art {
 
-extern "C" int art_cmpl_float(float a, float b) {
-    if (a == b) {
-        return 0;
-    } else if (a < b) {
-        return -1;
-    } else if (a > b) {
-        return 1;
-    }
-    return -1;
-}
-
-extern "C" int art_cmpg_float(float a, float b) {
-    if (a == b) {
-        return 0;
-    } else if (a < b) {
-        return -1;
-    } else if (a > b) {
-        return 1;
-    }
-    return 1;
-}
-
-extern "C" int art_cmpl_double(double a, double b) {
-    if (a == b) {
-        return 0;
-    } else if (a < b) {
-        return -1;
-    } else if (a > b) {
-        return 1;
-    }
-    return -1;
-}
-
-extern "C" int art_cmpg_double(double a, double b) {
-    if (a == b) {
-        return 0;
-    } else if (a < b) {
-        return -1;
-    } else if (a > b) {
-        return 1;
-    }
-    return 1;
-}
-
 /*
  * Report location to debugger.  Note: dex_pc is the current offset within
  * the method.  However, because the offset alone cannot distinguish between
@@ -1022,34 +978,80 @@ uint32_t artTraceMethodUnwindFromCode(Thread* self) {
   return lr;
 }
 
+int artCmplFloat(float a, float b) {
+  if (a == b) {
+    return 0;
+  } else if (a < b) {
+    return -1;
+  } else if (a > b) {
+    return 1;
+  }
+  return -1;
+}
+
+int artCmpgFloat(float a, float b) {
+  if (a == b) {
+    return 0;
+  } else if (a < b) {
+    return -1;
+  } else if (a > b) {
+    return 1;
+  }
+  return 1;
+}
+
+int artCmpgDouble(double a, double b) {
+  if (a == b) {
+    return 0;
+  } else if (a < b) {
+    return -1;
+  } else if (a > b) {
+    return 1;
+  }
+  return 1;
+}
+
+int artCmplDouble(double a, double b) {
+  if (a == b) {
+    return 0;
+  } else if (a < b) {
+    return -1;
+  } else if (a > b) {
+    return 1;
+  }
+  return -1;
+}
+
 /*
  * Float/double conversion requires clamping to min and max of integer form.  If
  * target doesn't support this normally, use these.
  */
 int64_t D2L(double d) {
-    static const double kMaxLong = (double)(int64_t)0x7fffffffffffffffULL;
-    static const double kMinLong = (double)(int64_t)0x8000000000000000ULL;
-    if (d >= kMaxLong)
-        return (int64_t)0x7fffffffffffffffULL;
-    else if (d <= kMinLong)
-        return (int64_t)0x8000000000000000ULL;
-    else if (d != d) // NaN case
-        return 0;
-    else
-        return (int64_t)d;
+  static const double kMaxLong = (double) (int64_t) 0x7fffffffffffffffULL;
+  static const double kMinLong = (double) (int64_t) 0x8000000000000000ULL;
+  if (d >= kMaxLong) {
+    return (int64_t) 0x7fffffffffffffffULL;
+  } else if (d <= kMinLong) {
+    return (int64_t) 0x8000000000000000ULL;
+  } else if (d != d)  { // NaN case
+    return 0;
+  } else {
+    return (int64_t) d;
+  }
 }
 
 int64_t F2L(float f) {
-    static const float kMaxLong = (float)(int64_t)0x7fffffffffffffffULL;
-    static const float kMinLong = (float)(int64_t)0x8000000000000000ULL;
-    if (f >= kMaxLong)
-        return (int64_t)0x7fffffffffffffffULL;
-    else if (f <= kMinLong)
-        return (int64_t)0x8000000000000000ULL;
-    else if (f != f) // NaN case
-        return 0;
-    else
-        return (int64_t)f;
+  static const float kMaxLong = (float) (int64_t) 0x7fffffffffffffffULL;
+  static const float kMinLong = (float) (int64_t) 0x8000000000000000ULL;
+  if (f >= kMaxLong) {
+    return (int64_t) 0x7fffffffffffffffULL;
+  } else if (f <= kMinLong) {
+    return (int64_t) 0x8000000000000000ULL;
+  } else if (f != f) { // NaN case
+    return 0;
+  } else {
+    return (int64_t) f;
+  }
 }
 
 }  // namespace art

@@ -43,6 +43,10 @@ uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class);
 void ObjectInitFromCode(Object* o);
 extern void LockObjectFromCode(Thread* thread, Object* obj);
 uint32_t artTraceMethodUnwindFromCode(Thread* self);
+extern int artCmpgDouble(double a, double b);
+extern int artCmplDouble(double a, double b);
+extern int artCmpgFloat(float a, float b);
+extern int artCmplFloat(float a, float b);
 extern int64_t D2L(double d);
 extern int64_t F2L(float f);
 
@@ -168,12 +172,6 @@ extern "C" void art_proxy_invoke_handler();
   /* Long long arithmetics - REM_LONG[_2ADDR] and DIV_LONG[_2ADDR] */
   extern "C" long long __divdi3(long long op1, long long op2);
   extern "C" long long __moddi3(long long op1, long long op2);
-
-  /* Float and double comparison */
-  extern "C" int art_cmpl_float(float a, float b);
-  extern "C" int art_cmpl_double(double a, double b);
-  extern "C" int art_cmpg_float(float a, float b);
-  extern "C" int art_cmpg_double(double a, double b);
 #endif
 
 #endif  // ART_SRC_RUNTIME_SUPPORT_H_

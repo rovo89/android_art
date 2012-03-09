@@ -93,10 +93,10 @@ void Thread::InitFunctionPointers() {
   pDdiv = __divdf3;
   pDmul = muldf3;
   pFmod = fmod;
-  pCmplFloat = art_cmpl_float;
-  pCmpgFloat = arg_cmpl_float;
-  pCmplDouble = art_cmpl_double;
-  pCmpgDouble = arg_cmpl_double;
+  pCmpgFloat = artCmpgFloat;
+  pCmplFloat = artCmplFloat;
+  pCmpgDouble = artCmpgDouble;
+  pCmplDouble = artCmplDouble;
 #endif
 #if defined(__arm__)
   pShlLong = art_shl_long;
