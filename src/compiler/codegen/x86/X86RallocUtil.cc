@@ -185,4 +185,11 @@ void oatNopLIR( LIR* lir)
     ((LIR*)lir)->flags.isNop = true;
 }
 
+extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
+{
+    UNIMPLEMENTED(FATAL);
+    RegLocation res = LOC_C_RETURN;
+    return res;
+}
+
 }  // namespace art

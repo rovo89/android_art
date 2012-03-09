@@ -144,6 +144,12 @@ LIR *opNone(CompilationUnit *cUnit, OpKind op)
 
 LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask);
 
+LIR* opBranchUnconditional(CompilationUnit* cUnit, OpKind op)
+{
+    UNIMPLEMENTED(WARNING) << "opBranchUnconditional";
+    return NULL;
+}
+
 LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target)
 {
     UNIMPLEMENTED(WARNING) << "opCondBranch";
