@@ -204,25 +204,37 @@ Object* art_check_and_alloc_array_from_code_with_access_check(uint32_t type_idx,
   return CheckAndAllocArrayFromCode(type_idx, referrer, length, Thread::Current(), true);
 }
 
+static Method* FindMethodHelper(uint32_t method_idx, Object* this_object, Method* caller_method,
+                                bool access_check, InvokeType type){
+  Method* method = FindMethodFast(method_idx, this_object, caller_method, access_check, type);
+  if (UNLIKELY(method == NULL)) {
+    method = FindMethodFromCode(method_idx, this_object, caller_method,
+                                Thread::Current(), access_check, type);
+    if (UNLIKELY(method == NULL)) {
+      CHECK(Thread::Current()->IsExceptionPending());
+      return 0;  // failure
+    }
+  }
+  DCHECK(!Thread::Current()->IsExceptionPending());
+  return method;
+}
+
 Object* art_find_interface_method_from_code(uint32_t method_idx,
                                             Object* this_object,
                                             Method* referrer) {
-  return _artInvokeCommon(method_idx, this_object, referrer,
-                          Thread::Current(), NULL, true, kInterface);
+  return FindMethodHelper(method_idx, this_object, referrer, true, kInterface);
 }
 
 Object* art_find_virtual_method_from_code(uint32_t method_idx,
                                           Object* this_object,
                                           Method* referrer) {
-  return _artInvokeCommon(method_idx, this_object, referrer,
-                          Thread::Current(), NULL, true, kVirtual);
+  return FindMethodHelper(method_idx, this_object, referrer, true, kVirtual);
 }
 
 Object* art_find_super_method_from_code(uint32_t method_idx,
                                         Object* this_object,
                                         Method* referrer) {
-  return _artInvokeCommon(method_idx, this_object, referrer,
-                          Thread::Current(), NULL, true, kSuper);
+  return FindMethodHelper(method_idx, this_object, referrer, true, kSuper);
 }
 
 Object* art_initialize_static_storage_from_code(uint32_t type_idx, Method* referrer) {
@@ -244,54 +256,174 @@ Object* art_resolve_string_from_code(Method* referrer, uint32_t string_idx) {
 }
 
 int32_t art_set32_static_from_code(uint32_t field_idx, Method* referrer, int32_t new_value) {
-  return artSet32StaticFromCode(field_idx, new_value, referrer, Thread::Current(), NULL);
+  Field* field = FindFieldFast(field_idx, referrer, true, true, sizeof(uint32_t));
+  if (LIKELY(field != NULL)) {
+    field->Set32(NULL, new_value);
+    return 0;
+  }
+  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+                            true, true, true, sizeof(uint32_t));
+  if (LIKELY(field != NULL)) {
+    field->Set32(NULL, new_value);
+    return 0;
+  }
+  return -1;
 }
 
 int32_t art_set64_static_from_code(uint32_t field_idx, Method* referrer, int64_t new_value) {
-  return artSet64StaticFromCode(field_idx, referrer, new_value, Thread::Current(), NULL);
+  Field* field = FindFieldFast(field_idx, referrer, true, true, sizeof(uint64_t));
+  if (LIKELY(field != NULL)) {
+    field->Set64(NULL, new_value);
+    return 0;
+  }
+  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+                            true, true, true, sizeof(uint64_t));
+  if (LIKELY(field != NULL)) {
+    field->Set64(NULL, new_value);
+    return 0;
+  }
+  return -1;
 }
 
 int32_t art_set_obj_static_from_code(uint32_t field_idx, Method* referrer, Object* new_value) {
-  return artSetObjStaticFromCode(field_idx, new_value, referrer, Thread::Current(), NULL);
+  Field* field = FindFieldFast(field_idx, referrer, false, true, sizeof(Object*));
+  if (LIKELY(field != NULL)) {
+    field->SetObj(NULL, new_value);
+    return 0;
+  }
+  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+                            true, false, true, sizeof(Object*));
+  if (LIKELY(field != NULL)) {
+    field->SetObj(NULL, new_value);
+    return 0;
+  }
+  return -1;
 }
 
 int32_t art_get32_static_from_code(uint32_t field_idx, Method* referrer) {
-  return artGet32StaticFromCode(field_idx, referrer, Thread::Current(), NULL);
+  Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(uint32_t));
+  if (LIKELY(field != NULL)) {
+    return field->Get32(NULL);
+  }
+  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+                            true, true, false, sizeof(uint32_t));
+  if (LIKELY(field != NULL)) {
+    return field->Get32(NULL);
+  }
+  return 0;
 }
 
 int64_t art_get64_static_from_code(uint32_t field_idx, Method* referrer) {
-  return artGet64StaticFromCode(field_idx, referrer, Thread::Current(), NULL);
+  Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(uint64_t));
+  if (LIKELY(field != NULL)) {
+    return field->Get64(NULL);
+  }
+  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+                            true, true, false, sizeof(uint64_t));
+  if (LIKELY(field != NULL)) {
+    return field->Get64(NULL);
+  }
+  return 0;
 }
 
 Object* art_get_obj_static_from_code(uint32_t field_idx, Method* referrer) {
-  return artGetObjStaticFromCode(field_idx, referrer, Thread::Current(), NULL);
+  Field* field = FindFieldFast(field_idx, referrer, false, false, sizeof(Object*));
+  if (LIKELY(field != NULL)) {
+    return field->GetObj(NULL);
+  }
+  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+                            true, false, false, sizeof(Object*));
+  if (LIKELY(field != NULL)) {
+    return field->GetObj(NULL);
+  }
+  return 0;
 }
 
 int32_t art_set32_instance_from_code(uint32_t field_idx, Method* referrer,
                                      Object* obj, uint32_t new_value) {
-  return artSet32InstanceFromCode(field_idx, obj, new_value, referrer, Thread::Current(), NULL);
+  Field* field = FindFieldFast(field_idx, referrer, true, true, sizeof(uint32_t));
+  if (LIKELY(field != NULL)) {
+    field->Set32(obj, new_value);
+    return 0;
+  }
+  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+                            false, true, true, sizeof(uint32_t));
+  if (LIKELY(field != NULL)) {
+    field->Set32(obj, new_value);
+    return 0;
+  }
+  return -1;
 }
 
 int32_t art_set64_instance_from_code(uint32_t field_idx, Method* referrer,
                                      Object* obj, int64_t new_value) {
-  return artSet64InstanceFromCode(field_idx, obj, new_value, referrer, Thread::Current(), NULL);
+  Field* field = FindFieldFast(field_idx, referrer, true, true, sizeof(uint64_t));
+  if (LIKELY(field != NULL)) {
+    field->Set64(obj, new_value);
+    return 0;
+  }
+  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+                            false, true, true, sizeof(uint64_t));
+  if (LIKELY(field != NULL)) {
+    field->Set64(obj, new_value);
+    return 0;
+  }
+  return -1;
 }
 
 int32_t art_set_obj_instance_from_code(uint32_t field_idx, Method* referrer,
                                        Object* obj, Object* new_value) {
-  return artSetObjInstanceFromCode(field_idx, obj, new_value, referrer, Thread::Current(), NULL);
+  Field* field = FindFieldFast(field_idx, referrer, false, true, sizeof(Object*));
+  if (LIKELY(field != NULL)) {
+    field->SetObj(obj, new_value);
+    return 0;
+  }
+  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+                            false, false, true, sizeof(Object*));
+  if (LIKELY(field != NULL)) {
+    field->SetObj(obj, new_value);
+    return 0;
+  }
+  return -1;
 }
 
 int32_t art_get32_instance_from_code(uint32_t field_idx, Method* referrer, Object* obj) {
-  return artGet32InstanceFromCode(field_idx, obj, referrer, Thread::Current(), NULL);
+  Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(uint32_t));
+  if (LIKELY(field != NULL)) {
+    return field->Get32(obj);
+  }
+  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+                            false, true, false, sizeof(uint32_t));
+  if (LIKELY(field != NULL)) {
+    return field->Get32(obj);
+  }
+  return 0;
 }
 
 int64_t art_get64_instance_from_code(uint32_t field_idx, Method* referrer, Object* obj) {
-  return artGet64InstanceFromCode(field_idx, obj, referrer, Thread::Current(), NULL);
+  Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(uint64_t));
+  if (LIKELY(field != NULL)) {
+    return field->Get64(obj);
+  }
+  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+                            false, true, false, sizeof(uint64_t));
+  if (LIKELY(field != NULL)) {
+    return field->Get64(obj);
+  }
+  return 0;
 }
 
 Object* art_get_obj_instance_from_code(uint32_t field_idx, Method* referrer, Object* obj) {
-  return artGetObjInstanceFromCode(field_idx, obj, referrer, Thread::Current(), NULL);
+  Field* field = FindFieldFast(field_idx, referrer, false, false, sizeof(Object*));
+  if (LIKELY(field != NULL)) {
+    return field->GetObj(obj);
+  }
+  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+                            false, false, false, sizeof(Object*));
+  if (LIKELY(field != NULL)) {
+    return field->GetObj(obj);
+  }
+  return 0;
 }
 
 
