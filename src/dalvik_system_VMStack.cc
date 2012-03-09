@@ -50,23 +50,37 @@ jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
   frame.Next();
   frame.Next();
   Method* callerCaller = frame.GetMethod();
+  DCHECK(callerCaller != NULL);
   const Object* cl = callerCaller->GetDeclaringClass()->GetClassLoader();
   return AddLocalReference<jobject>(env, cl);
 }
 
 jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap, jobject javaSystem) {
-  Thread* self = Thread::Current();
+  struct ClosestUserClassLoaderVisitor : public Thread::StackVisitor {
+    ClosestUserClassLoaderVisitor(Object* bootstrap, Object* system)
+      : bootstrap(bootstrap), system(system), class_loader(NULL) {}
+    virtual void VisitFrame(const Frame& f, uintptr_t) {
+      if (class_loader != NULL) {
+        // If we already found a result, nothing to do.
+        // TODO: need SmartFrame (Thread::WalkStack-like iterator).
+        // (or change VisitFrame to let us return bool to stop visiting)
+        return;
+      }
+      Class* c = f.GetMethod()->GetDeclaringClass();
+      Object* cl = c->GetClassLoader();
+      if (cl != NULL && cl != bootstrap && cl != system) {
+        class_loader = cl;
+      }
+    }
+    Object* bootstrap;
+    Object* system;
+    Object* class_loader;
+  };
   Object* bootstrap = Decode<Object*>(env, javaBootstrap);
   Object* system = Decode<Object*>(env, javaSystem);
-  // TODO: need SmartFrame (Thread::WalkStack-like iterator).
-  for (Frame frame = self->GetTopOfStack(); frame.HasNext(); frame.Next()) {
-    Class* c = frame.GetMethod()->GetDeclaringClass();
-    Object* cl = c->GetClassLoader();
-    if (cl != NULL && cl != bootstrap && cl != system) {
-      return AddLocalReference<jobject>(env, cl);
-    }
-  }
-  return NULL;
+  ClosestUserClassLoaderVisitor visitor(bootstrap, system);
+  Thread::Current()->WalkStack(&visitor);
+  return AddLocalReference<jobject>(env, visitor.class_loader);
 }
 
 jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
@@ -77,6 +91,7 @@ jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
   frame.Next();
   frame.Next();
   Method* callerCallerCaller = frame.GetMethod();
+  DCHECK(callerCallerCaller != NULL);
   Class* c = callerCallerCaller->GetDeclaringClass();
   return AddLocalReference<jclass>(env, c);
 }
