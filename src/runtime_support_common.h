@@ -282,6 +282,9 @@ uint64_t artInvokeCommon(uint32_t method_idx, Object* this_object, Method* calle
                          Thread* self, Method** sp, bool access_check, InvokeType type){
   Method* method = _artInvokeCommon(method_idx, this_object, caller_method,
                                     self, sp, access_check, type);
+  if (method == NULL) {
+    return 0;  // failure
+  }
   const void* code = method->GetCode();
 
   uint32_t method_uint = reinterpret_cast<uint32_t>(method);
