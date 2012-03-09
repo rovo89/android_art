@@ -964,7 +964,7 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   // case 2, get the initialized storage from StaticsFromCode.getS0
 
   SirtRef<ClassLoader> class_loader(LoadDex("StaticsFromCode"));
-  const DexFile* dex_file = ClassLoader::GetCompileTimeClassPath(class_loader.get())[0];
+  const DexFile* dex_file = Runtime::Current()->GetCompileTimeClassPath(class_loader.get())[0];
   CHECK(dex_file != NULL);
 
   Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());

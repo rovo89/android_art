@@ -307,7 +307,7 @@ typedef struct CompilationUnit {
     bool methodTraceSupport;            // For TraceView profiling
     struct RegisterPool* regPool;
     int optRound;                       // round number to tell an LIR's age
-    OatInstructionSetType instructionSet;
+    InstructionSet instructionSet;
     /* Number of total regs used in the whole cUnit after SSA transformation */
     int numSSARegs;
     /* Map SSA reg i to the Dalvik[15..0]/Sub[31..16] pair. */

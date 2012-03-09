@@ -724,15 +724,20 @@ void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock, MIR* insn,
     }
 }
 
-/*
- * Compile a method.
- */
-CompiledMethod* oatCompileMethod(Compiler& compiler,
-                                 const DexFile::CodeItem* code_item,
-                                 uint32_t access_flags, uint32_t method_idx,
-                                 const ClassLoader* class_loader,
-                                 const DexFile& dex_file,
-                                 InstructionSet insnSet)
+void oatInit(CompilationUnit* cUnit, const Compiler& compiler) {
+  if (!oatArchInit()) {
+    LOG(FATAL) << "Failed to initialize oat";
+  }
+  if (!oatHeapInit(cUnit)) {
+    LOG(FATAL) << "Failed to initialize oat heap";
+  }
+}
+
+CompiledMethod* oatCompileMethodInternal(Compiler& compiler,
+                                         const DexFile::CodeItem* code_item,
+                                         uint32_t access_flags, uint32_t method_idx,
+                                         const ClassLoader* class_loader,
+                                         const DexFile& dex_file)
 {
     VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
 
@@ -746,6 +751,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     memset(cUnit.get(), 0, sizeof(*cUnit));
 
     oatInit(cUnit.get(), compiler);
+
     cUnit->compiler = &compiler;
     cUnit->class_linker = class_linker;
     cUnit->dex_file = &dex_file;
@@ -754,7 +760,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     cUnit->code_item = code_item;
     cUnit->access_flags = access_flags;
     cUnit->shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
-    cUnit->instructionSet = (OatInstructionSetType)insnSet;
+    cUnit->instructionSet = compiler.GetInstructionSet();
     cUnit->insns = code_item->insns_;
     cUnit->insnsSize = code_item->insns_size_in_code_units_;
     cUnit->numIns = code_item->ins_size_;
@@ -943,7 +949,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
                 (1 << kPromoteRegs);
             if (cUnit->printMe) {
                 LOG(INFO) << "Compiler: " << PrettyMethod(method_idx, dex_file)
-                   << " too big: " << cUnit->numBlocks;
+                          << " too big: " << cUnit->numBlocks;
             }
         }
     }
@@ -1027,14 +1033,14 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     return result;
 }
 
-void oatInit(CompilationUnit* cUnit, const Compiler& compiler)
-{
-    if (!oatArchInit()) {
-        LOG(FATAL) << "Failed to initialize oat";
-    }
-    if (!oatHeapInit(cUnit)) {
-        LOG(FATAL) << "Failed to initialize oat heap";
-    }
-}
-
 }  // namespace art
+
+extern "C" art::CompiledMethod* oatCompileMethod(art::Compiler& compiler,
+                                                 const art::DexFile::CodeItem* code_item,
+                                                 uint32_t access_flags, uint32_t method_idx,
+                                                 const art::ClassLoader* class_loader,
+                                                 const art::DexFile& dex_file)
+{
+  CHECK_EQ(compiler.GetInstructionSet(), art::oatInstructionSet());
+  return art::oatCompileMethodInternal(compiler, code_item, access_flags, method_idx, class_loader, dex_file);
+}

@@ -266,7 +266,7 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 }
 
 /*
- * Utiltiy to load the current Method*.  Broken out
+ * Utility to load the current Method*.  Broken out
  * to allow easy change between placing the current Method* in a
  * dedicated register or its home location in the frame.
  */

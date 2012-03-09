@@ -203,6 +203,14 @@ class Compiler {
 
 #if defined(ART_USE_LLVM_COMPILER)
   UniquePtr<compiler_llvm::CompilerLLVM> compiler_llvm_;
+#else
+  void* compiler_library_;
+  typedef CompiledMethod* (*CompilerFn)(Compiler& compiler,
+                                        const DexFile::CodeItem* code_item,
+                                        uint32_t access_flags, uint32_t method_idx,
+                                        const ClassLoader* class_loader,
+                                        const DexFile& dex_file);
+  CompilerFn compiler_;
 #endif
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);

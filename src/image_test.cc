@@ -38,7 +38,7 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_TRUE(success_oat);
 
   // Force all system classes into memory
-  for (size_t i = 0; i < java_lang_dex_file_->NumClassDefs(); i++) {
+  for (size_t i = 0; i < java_lang_dex_file_->NumClassDefs(); ++i) {
     const DexFile::ClassDef& class_def = java_lang_dex_file_->GetClassDef(i);
     const char* descriptor = java_lang_dex_file_->GetClassDescriptor(class_def);
     Class* klass = class_linker_->FindSystemClass(descriptor);
@@ -59,8 +59,9 @@ TEST_F(ImageTest, WriteRead) {
     file->ReadFully(&image_header, sizeof(image_header));
     ASSERT_TRUE(image_header.IsValid());
 
-    ASSERT_EQ(1U, Heap::GetSpaces().size());
-    Space* space = Heap::GetSpaces()[0];
+    Heap* heap = Runtime::Current()->GetHeap();
+    ASSERT_EQ(1U, heap->GetSpaces().size());
+    Space* space = heap->GetSpaces()[0];
     ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != NULL);
     ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->Length()));
@@ -84,15 +85,16 @@ TEST_F(ImageTest, WriteRead) {
 
   ASSERT_TRUE(runtime_->GetJniDlsymLookupStub() != NULL);
 
-  ASSERT_EQ(2U, Heap::GetSpaces().size());
-  ASSERT_TRUE(Heap::GetSpaces()[0]->IsImageSpace());
-  ASSERT_FALSE(Heap::GetSpaces()[1]->IsImageSpace());
+  Heap* heap = Runtime::Current()->GetHeap();
+  ASSERT_EQ(2U, heap->GetSpaces().size());
+  ASSERT_TRUE(heap->GetSpaces()[0]->IsImageSpace());
+  ASSERT_FALSE(heap->GetSpaces()[1]->IsImageSpace());
 
-  ImageSpace* image_space = Heap::GetSpaces()[0]->AsImageSpace();
+  ImageSpace* image_space = heap->GetSpaces()[0]->AsImageSpace();
   byte* image_begin = image_space->Begin();
   byte* image_end = image_space->End();
   CHECK_EQ(requested_image_base, reinterpret_cast<uintptr_t>(image_begin));
-  for (size_t i = 0; i < dex->NumClassDefs(); i++) {
+  for (size_t i = 0; i < dex->NumClassDefs(); ++i) {
     const DexFile::ClassDef& class_def = dex->GetClassDef(i);
     const char* descriptor = dex->GetClassDescriptor(class_def);
     Class* klass = class_linker_->FindSystemClass(descriptor);

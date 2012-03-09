@@ -51,7 +51,7 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit);
 void oatInitializeRegAlloc(CompilationUnit* cUnit);
 
 /* Implemented in codegen/<target>/<target_variant>/ArchVariant.c */
-OatInstructionSetType oatInstructionSet(void);
+InstructionSet oatInstructionSet();
 
 /*
  * Implemented in codegen/<target>/<target_variant>/ArchVariant.c

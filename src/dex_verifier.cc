@@ -4030,47 +4030,61 @@ const uint8_t* PcToReferenceMap::FindBitMap(uint16_t dex_pc, bool error_if_not_p
   return NULL;
 }
 
-Mutex DexVerifier::gc_maps_lock_("verifier gc maps lock");
-DexVerifier::GcMapTable DexVerifier::gc_maps_;
+Mutex* DexVerifier::gc_maps_lock_ = NULL;
+DexVerifier::GcMapTable* DexVerifier::gc_maps_ = NULL;
+
+void DexVerifier::InitGcMaps() {
+  gc_maps_lock_ = new Mutex("verifier GC maps lock");
+  MutexLock mu(*gc_maps_lock_);
+  gc_maps_ = new DexVerifier::GcMapTable;
+}
+
+void DexVerifier::DeleteGcMaps() {
+  MutexLock mu(*gc_maps_lock_);
+  STLDeleteValues(gc_maps_);
+}
 
 void DexVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
-  MutexLock mu(gc_maps_lock_);
+  MutexLock mu(*gc_maps_lock_);
   const std::vector<uint8_t>* existing_gc_map = GetGcMap(ref);
   if (existing_gc_map != NULL) {
     CHECK(*existing_gc_map == gc_map);
     delete existing_gc_map;
   }
-  gc_maps_[ref] = &gc_map;
+  (*gc_maps_)[ref] = &gc_map;
   CHECK(GetGcMap(ref) != NULL);
 }
 
 const std::vector<uint8_t>* DexVerifier::GetGcMap(Compiler::MethodReference ref) {
-  MutexLock mu(gc_maps_lock_);
-  GcMapTable::const_iterator it = gc_maps_.find(ref);
-  if (it == gc_maps_.end()) {
+  MutexLock mu(*gc_maps_lock_);
+  GcMapTable::const_iterator it = gc_maps_->find(ref);
+  if (it == gc_maps_->end()) {
     return NULL;
   }
   CHECK(it->second != NULL);
   return it->second;
 }
 
-void DexVerifier::DeleteGcMaps() {
-  MutexLock mu(gc_maps_lock_);
-  STLDeleteValues(&gc_maps_);
+static Mutex& GetRejectedClassesLock() {
+  static Mutex rejected_classes_lock("verifier rejected classes lock");
+  return rejected_classes_lock;
 }
 
-Mutex DexVerifier::rejected_classes_lock_("verifier rejected classes lock");
-std::set<Compiler::ClassReference> DexVerifier::rejected_classes_;
+static std::set<Compiler::ClassReference>& GetRejectedClasses() {
+  static std::set<Compiler::ClassReference> rejected_classes;
+  return rejected_classes;
+}
 
 void DexVerifier::AddRejectedClass(Compiler::ClassReference ref) {
-  MutexLock mu(rejected_classes_lock_);
-  rejected_classes_.insert(ref);
+  MutexLock mu(GetRejectedClassesLock());
+  GetRejectedClasses().insert(ref);
   CHECK(IsClassRejected(ref));
 }
 
 bool DexVerifier::IsClassRejected(Compiler::ClassReference ref) {
-  MutexLock mu(rejected_classes_lock_);
-  return (rejected_classes_.find(ref) != rejected_classes_.end());
+  MutexLock mu(GetRejectedClassesLock());
+  std::set<Compiler::ClassReference>& rejected_classes(GetRejectedClasses());
+  return (rejected_classes.find(ref) != rejected_classes.end());
 }
 
 #if defined(ART_USE_LLVM_COMPILER)

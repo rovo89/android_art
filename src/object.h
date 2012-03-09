@@ -279,20 +279,20 @@ class MANAGED Object {
   T GetFieldObject(MemberOffset field_offset, bool is_volatile) const {
     DCHECK(Thread::Current() == NULL || Thread::Current()->CanAccessDirectReferences());
     T result = reinterpret_cast<T>(GetField32(field_offset, is_volatile));
-    Heap::VerifyObject(result);
+    Runtime::Current()->GetHeap()->VerifyObject(result);
     return result;
   }
 
   void SetFieldObject(MemberOffset field_offset, const Object* new_value, bool is_volatile, bool this_is_valid = true) {
-    Heap::VerifyObject(new_value);
+    Runtime::Current()->GetHeap()->VerifyObject(new_value);
     SetField32(field_offset, reinterpret_cast<uint32_t>(new_value), is_volatile, this_is_valid);
     if (new_value != NULL) {
-      Heap::WriteBarrierField(this, field_offset, new_value);
+      Runtime::Current()->GetHeap()->WriteBarrierField(this, field_offset, new_value);
     }
   }
 
   uint32_t GetField32(MemberOffset field_offset, bool is_volatile) const {
-    Heap::VerifyObject(this);
+    Runtime::Current()->GetHeap()->VerifyObject(this);
     const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
     const int32_t* word_addr = reinterpret_cast<const int32_t*>(raw_addr);
     if (UNLIKELY(is_volatile)) {
@@ -304,7 +304,7 @@ class MANAGED Object {
 
   void SetField32(MemberOffset field_offset, uint32_t new_value, bool is_volatile, bool this_is_valid = true) {
     if (this_is_valid) {
-      Heap::VerifyObject(this);
+      Runtime::Current()->GetHeap()->VerifyObject(this);
     }
     byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
     uint32_t* word_addr = reinterpret_cast<uint32_t*>(raw_addr);
@@ -323,7 +323,7 @@ class MANAGED Object {
   }
 
   uint64_t GetField64(MemberOffset field_offset, bool is_volatile) const {
-    Heap::VerifyObject(this);
+    Runtime::Current()->GetHeap()->VerifyObject(this);
     const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
     const int64_t* addr = reinterpret_cast<const int64_t*>(raw_addr);
     if (UNLIKELY(is_volatile)) {
@@ -336,7 +336,7 @@ class MANAGED Object {
   }
 
   void SetField64(MemberOffset field_offset, uint64_t new_value, bool is_volatile) {
-    Heap::VerifyObject(this);
+    Runtime::Current()->GetHeap()->VerifyObject(this);
     byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
     int64_t* addr = reinterpret_cast<int64_t*>(raw_addr);
     if (UNLIKELY(is_volatile)) {
@@ -2035,11 +2035,12 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
     MemberOffset src_offset(DataOffset(sizeof(Object*)).Int32Value() + src_pos * sizeof(Object*));
     MemberOffset dst_offset(DataOffset(sizeof(Object*)).Int32Value() + dst_pos * sizeof(Object*));
     Class* array_class = dst->GetClass();
+    Heap* heap = Runtime::Current()->GetHeap();
     if (array_class == src->GetClass()) {
       // No need for array store checks if arrays are of the same type
       for (size_t i = 0; i < length; i++) {
         Object* object = src->GetFieldObject<Object*>(src_offset, false);
-        Heap::VerifyObject(object);
+        heap->VerifyObject(object);
         // directly set field, we do a bulk write barrier at the end
         dst->SetField32(dst_offset, reinterpret_cast<uint32_t>(object), false, true);
         src_offset = MemberOffset(src_offset.Uint32Value() + sizeof(Object*));
@@ -2054,14 +2055,14 @@ void ObjectArray<T>::Copy(const ObjectArray<T>* src, int src_pos,
           dst->ThrowArrayStoreException(object);
           return;
         }
-        Heap::VerifyObject(object);
+        heap->VerifyObject(object);
         // directly set field, we do a bulk write barrier at the end
         dst->SetField32(dst_offset, reinterpret_cast<uint32_t>(object), false, true);
         src_offset = MemberOffset(src_offset.Uint32Value() + sizeof(Object*));
         dst_offset = MemberOffset(dst_offset.Uint32Value() + sizeof(Object*));
       }
     }
-    Heap::WriteBarrierArray(dst, dst_pos, length);
+    heap->WriteBarrierArray(dst, dst_pos, length);
   }
 }
 

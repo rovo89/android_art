@@ -20,6 +20,7 @@
 #include <stdio.h>
 
 #include <iosfwd>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -148,6 +149,10 @@ class Runtime {
     return default_stack_size_;
   }
 
+  Heap* GetHeap() const {
+    return heap_;
+  }
+
   InternTable* GetInternTable() const {
     return intern_table_;
   }
@@ -232,6 +237,12 @@ class Runtime {
   bool IsMethodTracingActive() const;
   Trace* GetTracer() const;
 
+  bool UseCompileTimeClassPath() const {
+    return use_compile_time_class_path_;
+  }
+  const std::vector<const DexFile*>& GetCompileTimeClassPath(const ClassLoader* class_loader);
+  void SetCompileTimeClassPath(const ClassLoader* class_loader, std::vector<const DexFile*>& class_path);
+
  private:
   static void PlatformAbort(const char*, int);
 
@@ -245,6 +256,9 @@ class Runtime {
 
   void StartDaemonThreads();
   void StartSignalCatcher();
+
+  // A pointer to the active runtime or NULL.
+  static Runtime* instance_;
 
   bool is_compiler_;
   bool is_zygote_;
@@ -267,6 +281,8 @@ class Runtime {
 
   // The default stack size for managed threads created by the runtime.
   size_t default_stack_size_;
+
+  Heap* heap_;
 
   MonitorList* monitor_list_;
 
@@ -307,10 +323,9 @@ class Runtime {
 
   Trace* tracer_;
 
-  // A pointer to the active runtime or NULL.
-  static Runtime* instance_;
-
-  static Mutex abort_lock_;
+  typedef std::map<const ClassLoader*, std::vector<const DexFile*> > CompileTimeClassPaths;
+  CompileTimeClassPaths compile_time_class_paths_;
+  bool use_compile_time_class_path_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

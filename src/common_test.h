@@ -355,7 +355,7 @@ class CommonTest : public testing::Test {
     compiler_->GetCompilerLLVM()->SetElfFileName("gtest");
 #endif
 
-    Heap::VerifyHeap();  // Check for heap corruption before the test
+    Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption before the test
   }
 
   virtual void TearDown() {
@@ -398,7 +398,7 @@ class CommonTest : public testing::Test {
     compiler_.reset();
     STLDeleteElements(&opened_dex_files_);
 
-    Heap::VerifyHeap();  // Check for heap corruption after the test
+    Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
   }
 
   std::string GetLibCoreDexFileName() {

@@ -192,7 +192,7 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
 TEST_F(ObjectTest, StaticFieldFromCode) {
   // pretend we are trying to access 'Static.s0' from StaticsFromCode.<clinit>
   SirtRef<ClassLoader> class_loader(LoadDex("StaticsFromCode"));
-  const DexFile* dex_file = ClassLoader::GetCompileTimeClassPath(class_loader.get())[0];
+  const DexFile* dex_file = Runtime::Current()->GetCompileTimeClassPath(class_loader.get())[0];
   CHECK(dex_file != NULL);
 
   Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());

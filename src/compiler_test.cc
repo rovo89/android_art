@@ -33,7 +33,7 @@ class CompilerTest : public CommonTest {
  protected:
 
   void CompileAll(const ClassLoader* class_loader) {
-    compiler_->CompileAll(class_loader, ClassLoader::GetCompileTimeClassPath(class_loader));
+    compiler_->CompileAll(class_loader, Runtime::Current()->GetCompileTimeClassPath(class_loader));
     MakeAllExecutable(class_loader);
   }
 
@@ -54,7 +54,7 @@ class CompilerTest : public CommonTest {
 
   void MakeAllExecutable(const ClassLoader* class_loader) {
     const std::vector<const DexFile*>& class_path
-        = ClassLoader::GetCompileTimeClassPath(class_loader);
+        = Runtime::Current()->GetCompileTimeClassPath(class_loader);
     for (size_t i = 0; i != class_path.size(); ++i) {
       const DexFile* dex_file = class_path[i];
       CHECK(dex_file != NULL);
@@ -126,6 +126,7 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
 }
 
 TEST_F(CompilerTest, AbstractMethodErrorStub) {
+#if defined(__arm__)
   CompileVirtualMethod(NULL, "java.lang.Class", "isFinalizable", "()Z");
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
 
@@ -139,7 +140,6 @@ TEST_F(CompilerTest, AbstractMethodErrorStub) {
   jobject jobj_ = env_->NewObject(c_class, constructor);
   ASSERT_TRUE(jobj_ != NULL);
 
-#if defined(__arm__)
   Class* jlame = class_linker_->FindClass("Ljava/lang/AbstractMethodError;", class_loader.get());
   // Force non-virtual call to AbstractClass foo, will throw AbstractMethodError exception.
   env_->CallNonvirtualVoidMethod(jobj_, class_, mid_);

@@ -47,12 +47,11 @@ namespace art {
 
 Runtime* Runtime::instance_ = NULL;
 
-Mutex Runtime::abort_lock_("abort lock");
-
 Runtime::Runtime()
     : is_compiler_(false),
       is_zygote_(false),
       default_stack_size_(Thread::kDefaultStackSize),
+      heap_(NULL),
       monitor_list_(NULL),
       thread_list_(NULL),
       intern_table_(NULL),
@@ -69,7 +68,8 @@ Runtime::Runtime()
       exit_(NULL),
       abort_(NULL),
       stats_enabled_(false),
-      tracer_(NULL) {
+      tracer_(NULL),
+      use_compile_time_class_path_(false) {
   for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
     resolution_stub_array_[i] = NULL;
   }
@@ -92,7 +92,7 @@ Runtime::~Runtime() {
   delete monitor_list_;
 
   delete class_linker_;
-  Heap::Destroy();
+  delete heap_;
   verifier::DexVerifier::DeleteGcMaps();
   delete intern_table_;
   delete java_vm_;
@@ -129,10 +129,15 @@ struct AbortState {
   }
 };
 
+static Mutex& GetAbortLock() {
+  static Mutex abort_lock("abort lock");
+  return abort_lock;
+}
+
 void Runtime::Abort(const char* file, int line) {
   // Ensure that we don't have multiple threads trying to abort at once,
   // which would result in significantly worse diagnostics.
-  MutexLock mu(abort_lock_);
+  MutexLock mu(GetAbortLock());
 
   // Get any pending output out of the way.
   fflush(NULL);
@@ -293,6 +298,17 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->hook_vfprintf_ = vfprintf;
   parsed->hook_exit_ = exit;
   parsed->hook_abort_ = abort;
+
+//  gLogVerbosity.class_linker = true; // TODO: don't check this in!
+//  gLogVerbosity.compiler = true; // TODO: don't check this in!
+//  gLogVerbosity.heap = true; // TODO: don't check this in!
+//  gLogVerbosity.gc = true; // TODO: don't check this in!
+//  gLogVerbosity.jdwp = true; // TODO: don't check this in!
+//  gLogVerbosity.jni = true; // TODO: don't check this in!
+//  gLogVerbosity.monitor = true; // TODO: don't check this in!
+//  gLogVerbosity.startup = true; // TODO: don't check this in!
+//  gLogVerbosity.third_party_jni = true; // TODO: don't check this in!
+//  gLogVerbosity.threads = true; // TODO: don't check this in!
 
   for (size_t i = 0; i < options.size(); ++i) {
     const std::string option(options[i].first);
@@ -469,7 +485,7 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
 }
 
 void CreateSystemClassLoader() {
-  if (ClassLoader::UseCompileTimeClassPath()) {
+  if (Runtime::Current()->UseCompileTimeClassPath()) {
     return;
   }
 
@@ -605,10 +621,12 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   thread_list_ = new ThreadList;
   intern_table_ = new InternTable;
 
-  Heap::Init(options->heap_initial_size_,
-             options->heap_growth_limit_,
-             options->heap_maximum_size_,
-             options->image_);
+  verifier::DexVerifier::InitGcMaps();
+
+  heap_ = new Heap(options->heap_initial_size_,
+                   options->heap_growth_limit_,
+                   options->heap_maximum_size_,
+                   options->image_);
 
   BlockSignals();
 
@@ -623,8 +641,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   // Set us to runnable so tools using a runtime can allocate and GC by default
   Thread::Current()->SetState(Thread::kRunnable);
 
-  CHECK_GE(Heap::GetSpaces().size(), 1U);
-  if (Heap::GetSpaces()[0]->IsImageSpace()) {
+  CHECK_GE(GetHeap()->GetSpaces().size(), 1U);
+  if (GetHeap()->GetSpaces()[0]->IsImageSpace()) {
     class_linker_ = ClassLinker::CreateFromImage(intern_table_);
   } else {
     CHECK(options->boot_class_path_ != NULL);
@@ -697,7 +715,7 @@ void Runtime::Dump(std::ostream& os) {
 }
 
 void Runtime::DumpLockHolders(std::ostream& os) {
-  pid_t heap_lock_owner = Heap::GetLockOwner();
+  pid_t heap_lock_owner = GetHeap()->GetLockOwner();
   pid_t thread_list_lock_owner = GetThreadList()->GetLockOwner();
   pid_t classes_lock_owner = GetClassLinker()->GetClassesLockOwner();
   pid_t dex_lock_owner = GetClassLinker()->GetDexLockOwner();
@@ -969,6 +987,22 @@ bool Runtime::IsMethodTracingActive() const {
 Trace* Runtime::GetTracer() const {
   CHECK(IsMethodTracingActive());
   return tracer_;
+}
+
+const std::vector<const DexFile*>& Runtime::GetCompileTimeClassPath(const ClassLoader* class_loader) {
+  if (class_loader == NULL) {
+    return GetClassLinker()->GetBootClassPath();
+  }
+  CHECK(UseCompileTimeClassPath());
+  CompileTimeClassPaths::const_iterator it = compile_time_class_paths_.find(class_loader);
+  CHECK(it != compile_time_class_paths_.end());
+  return it->second;
+}
+
+void Runtime::SetCompileTimeClassPath(const ClassLoader* class_loader, std::vector<const DexFile*>& class_path) {
+  CHECK(!IsStarted());
+  use_compile_time_class_path_ = true;
+  compile_time_class_paths_[class_loader] = class_path;
 }
 
 }  // namespace art

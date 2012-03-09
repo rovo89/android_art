@@ -96,7 +96,7 @@ class Object;
  */
 typedef void* IndirectRef;
 
-/* Magic failure values; must not pass Heap::ValidateObject() or Heap::IsHeapAddress(). */
+// Magic failure values; must not pass Heap::ValidateObject() or Heap::IsHeapAddress().
 static Object* const kInvalidIndirectRefObject = reinterpret_cast<Object*>(0xdead4321);
 static Object* const kClearedJniWeakGlobal = reinterpret_cast<Object*>(0xdead1234);
 
@@ -327,6 +327,7 @@ class IndirectReferenceTable {
   static Offset SegmentStateOffset() {
     return Offset(OFFSETOF_MEMBER(IndirectReferenceTable, segment_state_));
   }
+
  private:
   /*
    * Extract the table index from an indirect reference.

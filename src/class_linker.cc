@@ -241,7 +241,8 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   CHECK(!init_done_);
 
   // java_lang_Class comes first, it's needed for AllocClass
-  SirtRef<Class> java_lang_Class(down_cast<Class*>(Heap::AllocObject(NULL, sizeof(ClassClass))));
+  Heap* heap = Runtime::Current()->GetHeap();
+  SirtRef<Class> java_lang_Class(down_cast<Class*>(heap->AllocObject(NULL, sizeof(ClassClass))));
   CHECK(java_lang_Class.get() != NULL);
   java_lang_Class->SetClass(java_lang_Class.get());
   java_lang_Class->SetClassSize(sizeof(ClassClass));
@@ -484,7 +485,8 @@ void ClassLinker::FinishInit() {
   Class* java_lang_ref_ReferenceQueue = FindSystemClass("Ljava/lang/ref/ReferenceQueue;");
   Class* java_lang_ref_FinalizerReference = FindSystemClass("Ljava/lang/ref/FinalizerReference;");
 
-  Heap::SetWellKnownClasses(java_lang_ref_FinalizerReference, java_lang_ref_ReferenceQueue);
+  Heap* heap = Runtime::Current()->GetHeap();
+  heap->SetWellKnownClasses(java_lang_ref_FinalizerReference, java_lang_ref_ReferenceQueue);
 
   const DexFile& java_lang_dex = FindDexFile(java_lang_ref_Reference->GetDexCache());
 
@@ -518,7 +520,7 @@ void ClassLinker::FinishInit() {
   CHECK_EQ(java_lang_dex.GetFieldId(zombie->GetDexFieldIndex()).type_idx_,
            GetClassRoot(kJavaLangObject)->GetDexTypeIndex());
 
-  Heap::SetReferenceOffsets(referent->GetOffset(),
+  heap->SetReferenceOffsets(referent->GetOffset(),
                             queue->GetOffset(),
                             queueNext->GetOffset(),
                             pendingNext->GetOffset(),
@@ -566,8 +568,9 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
 
   const char* class_path = Runtime::Current()->GetClassPathString().c_str();
 
+  Heap* heap = Runtime::Current()->GetHeap();
   std::string boot_image_option_string("--boot-image=");
-  boot_image_option_string += Heap::GetSpaces()[0]->AsImageSpace()->GetImageFilename();
+  boot_image_option_string += heap->GetSpaces()[0]->AsImageSpace()->GetImageFilename();
   const char* boot_image_option = boot_image_option_string.c_str();
 
   std::string dex_file_option_string("--dex-file=");
@@ -871,8 +874,9 @@ void ClassLinker::InitFromImage() {
   VLOG(startup) << "ClassLinker::InitFromImage entering";
   CHECK(!init_done_);
 
-  const std::vector<Space*>& spaces = Heap::GetSpaces();
-  for (size_t i = 0; i < spaces.size(); i++) {
+  Heap* heap = Runtime::Current()->GetHeap();
+  const std::vector<Space*>& spaces = heap->GetSpaces();
+  for (size_t i = 0; i < spaces.size(); ++i) {
     if (spaces[i]->IsImageSpace()) {
       ImageSpace* space = spaces[i]->AsImageSpace();
       OatFile* oat_file = OpenOat(space);
@@ -907,7 +911,7 @@ void ClassLinker::InitFromImage() {
     }
   }
 
-  HeapBitmap* heap_bitmap = Heap::GetLiveBits();
+  HeapBitmap* heap_bitmap = heap->GetLiveBits();
   DCHECK(heap_bitmap != NULL);
 
   // reinit clases_ table
@@ -1065,7 +1069,8 @@ InterfaceEntry* ClassLinker::AllocInterfaceEntry(Class* interface) {
 
 Class* ClassLinker::AllocClass(Class* java_lang_Class, size_t class_size) {
   DCHECK_GE(class_size, sizeof(Class));
-  SirtRef<Class> klass(Heap::AllocObject(java_lang_Class, class_size)->AsClass());
+  Heap* heap = Runtime::Current()->GetHeap();
+  SirtRef<Class> klass(heap->AllocObject(java_lang_Class, class_size)->AsClass());
   klass->SetPrimitiveType(Primitive::kPrimNot);  // default to not being primitive
   klass->SetClassSize(class_size);
   return klass.get();
@@ -1147,7 +1152,7 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
       return DefineClass(descriptor, NULL, *pair.first, *pair.second);
     }
 
-  } else if (ClassLoader::UseCompileTimeClassPath()) {
+  } else if (Runtime::Current()->UseCompileTimeClassPath()) {
     // first try the boot class path
     Class* system_class = FindSystemClass(descriptor);
     if (system_class != NULL) {
@@ -1158,7 +1163,7 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
 
     // next try the compile time class path
     const std::vector<const DexFile*>& class_path
-        = ClassLoader::GetCompileTimeClassPath(class_loader);
+        = Runtime::Current()->GetCompileTimeClassPath(class_loader);
     DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_path);
     if (pair.second != NULL) {
       return DefineClass(descriptor, class_loader, *pair.first, *pair.second);
@@ -1320,7 +1325,7 @@ size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
 
 const OatFile::OatClass* ClassLinker::GetOatClass(const DexFile& dex_file, const char* descriptor) {
   DCHECK(descriptor != NULL);
-  if (!Runtime::Current()->IsStarted() || ClassLoader::UseCompileTimeClassPath()) {
+  if (!Runtime::Current()->IsStarted() || Runtime::Current()->UseCompileTimeClassPath()) {
     return NULL;
   }
   const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);
@@ -2032,7 +2037,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass)
   if (!Runtime::Current()->IsStarted()) {
     return false;
   }
-  if (ClassLoader::UseCompileTimeClassPath()) {
+  if (Runtime::Current()->UseCompileTimeClassPath()) {
     return false;
   }
   const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);

@@ -38,8 +38,10 @@ namespace art {
 
 void MarkSweep::Init() {
   mark_stack_ = MarkStack::Create();
-  mark_bitmap_ = Heap::GetMarkBits();
-  live_bitmap_ = Heap::GetLiveBits();
+
+  heap_ = Runtime::Current()->GetHeap();
+  mark_bitmap_ = heap_->GetMarkBits();
+  live_bitmap_ = heap_->GetLiveBits();
 
   // TODO: if concurrent, clear the card table.
 
@@ -100,8 +102,8 @@ void MarkSweep::ScanImageRootVisitor(Object* root, void* arg) {
 
 // Marks all objects that are in images and have been touched by the mutator
 void MarkSweep::ScanDirtyImageRoots() {
-  const std::vector<Space*>& spaces = Heap::GetSpaces();
-  CardTable* card_table = Heap::GetCardTable();
+  const std::vector<Space*>& spaces = heap_->GetSpaces();
+  CardTable* card_table = heap_->GetCardTable();
   for (size_t i = 0; i < spaces.size(); ++i) {
     if (spaces[i]->IsImageSpace()) {
       byte* begin = spaces[i]->Begin();
@@ -135,7 +137,7 @@ void MarkSweep::RecursiveMark() {
   CHECK(cleared_reference_list_ == NULL);
 
   void* arg = reinterpret_cast<void*>(this);
-  const std::vector<Space*>& spaces = Heap::GetSpaces();
+  const std::vector<Space*>& spaces = heap_->GetSpaces();
   for (size_t i = 0; i < spaces.size(); ++i) {
 #ifndef NDEBUG
     uintptr_t begin = reinterpret_cast<uintptr_t>(spaces[i]->Begin());
@@ -181,11 +183,18 @@ void MarkSweep::SweepSystemWeaks() {
   SweepJniWeakGlobals();
 }
 
+struct SweepCallbackContext {
+  Heap* heap;
+  AllocSpace* space;
+};
+
 void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
   // TODO: lock heap if concurrent
   size_t freed_objects = num_ptrs;
   size_t freed_bytes = 0;
-  AllocSpace* space = static_cast<AllocSpace*>(arg);
+  SweepCallbackContext* context = static_cast<SweepCallbackContext*>(arg);
+  Heap* heap = context->heap;
+  AllocSpace* space = context->space;
   // Use a bulk free, that merges consecutive objects before freeing or free per object?
   // Documentation suggests better free performance with merging, but this may be at the expensive
   // of allocation.
@@ -195,7 +204,7 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
     for (size_t i = 0; i < num_ptrs; ++i) {
       Object* obj = static_cast<Object*>(ptrs[i]);
       freed_bytes += space->AllocationSize(obj);
-      Heap::GetLiveBits()->Clear(obj);
+      heap->GetLiveBits()->Clear(obj);
     }
     // AllocSpace::FreeList clears the value in ptrs, so perform after clearing the live bit
     space->FreeList(num_ptrs, ptrs);
@@ -203,25 +212,27 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
     for (size_t i = 0; i < num_ptrs; ++i) {
       Object* obj = static_cast<Object*>(ptrs[i]);
       freed_bytes += space->AllocationSize(obj);
-      Heap::GetLiveBits()->Clear(obj);
+      heap->GetLiveBits()->Clear(obj);
       space->Free(obj);
     }
   }
-  Heap::RecordFreeLocked(freed_objects, freed_bytes);
+  heap->RecordFreeLocked(freed_objects, freed_bytes);
   // TODO: unlock heap if concurrent
 }
 
 void MarkSweep::Sweep() {
   SweepSystemWeaks();
 
-  const std::vector<Space*>& spaces = Heap::GetSpaces();
+  const std::vector<Space*>& spaces = heap_->GetSpaces();
+  SweepCallbackContext scc;
+  scc.heap = heap_;
   for (size_t i = 0; i < spaces.size(); ++i) {
     if (!spaces[i]->IsImageSpace()) {
       uintptr_t begin = reinterpret_cast<uintptr_t>(spaces[i]->Begin());
       uintptr_t end = reinterpret_cast<uintptr_t>(spaces[i]->End());
-      void* arg = static_cast<void*>(spaces[i]);
+      scc.space = spaces[i]->AsAllocSpace();
       HeapBitmap::SweepWalk(*live_bitmap_, *mark_bitmap_, begin, end,
-                            &MarkSweep::SweepCallback, arg);
+                            &MarkSweep::SweepCallback, reinterpret_cast<void*>(&scc));
     }
   }
 }
@@ -283,7 +294,7 @@ inline void MarkSweep::ScanFields(const Object* obj, uint32_t ref_offsets, bool 
 }
 
 inline void MarkSweep::CheckReference(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) {
-  AllocSpace* alloc_space = Heap::GetAllocSpace();
+  AllocSpace* alloc_space = heap_->GetAllocSpace();
   if (alloc_space->Contains(ref)) {
     bool is_marked = mark_bitmap_->Test(ref);
     if(!is_marked) {
@@ -292,7 +303,7 @@ inline void MarkSweep::CheckReference(const Object* obj, const Object* ref, Memb
           << "' (" << (void*)ref << ") in '" << PrettyTypeOf(obj)
           << "' (" << (void*)obj << ") at offset "
           << (void*)offset.Int32Value() << " wasn't marked";
-      bool obj_marked = Heap::GetCardTable()->IsDirty(obj);
+      bool obj_marked = heap_->GetCardTable()->IsDirty(obj);
       if (!obj_marked) {
         LOG(WARNING) << "Object '" << PrettyTypeOf(obj) << "' (" << (void*)obj
             << ") contains references to the alloc space, but wasn't card marked";
@@ -386,8 +397,8 @@ void MarkSweep::DelayReferenceReferent(Object* obj) {
   Class* klass = obj->GetClass();
   DCHECK(klass != NULL);
   DCHECK(klass->IsReferenceClass());
-  Object* pending = obj->GetFieldObject<Object*>(Heap::GetReferencePendingNextOffset(), false);
-  Object* referent = Heap::GetReferenceReferent(obj);
+  Object* pending = obj->GetFieldObject<Object*>(heap_->GetReferencePendingNextOffset(), false);
+  Object* referent = heap_->GetReferenceReferent(obj);
   if (pending == NULL && referent != NULL && !IsMarked(referent)) {
     Object** list = NULL;
     if (klass->IsSoftReferenceClass()) {
@@ -400,7 +411,7 @@ void MarkSweep::DelayReferenceReferent(Object* obj) {
       list = &phantom_reference_list_;
     }
     DCHECK(list != NULL) << PrettyClass(klass) << " " << std::hex << klass->GetAccessFlags();
-    Heap::EnqueuePendingReference(obj, list);
+    heap_->EnqueuePendingReference(obj, list);
   }
 }
 
@@ -452,7 +463,7 @@ inline void MarkSweep::CheckObject(const Object* obj) {
 
 // Scan anything that's on the mark stack.
 void MarkSweep::ProcessMarkStack() {
-  Space* alloc_space = Heap::GetAllocSpace();
+  Space* alloc_space = heap_->GetAllocSpace();
   while (!mark_stack_->IsEmpty()) {
     const Object* obj = mark_stack_->Pop();
     if (alloc_space->Contains(obj)) {
@@ -474,8 +485,8 @@ void MarkSweep::PreserveSomeSoftReferences(Object** list) {
   Object* clear = NULL;
   size_t counter = 0;
   while (*list != NULL) {
-    Object* ref = Heap::DequeuePendingReference(list);
-    Object* referent = Heap::GetReferenceReferent(ref);
+    Object* ref = heap_->DequeuePendingReference(list);
+    Object* referent = heap_->GetReferenceReferent(ref);
     if (referent == NULL) {
       // Referent was cleared by the user during marking.
       continue;
@@ -488,7 +499,7 @@ void MarkSweep::PreserveSomeSoftReferences(Object** list) {
     }
     if (!is_marked) {
       // Referent is white, queue it for clearing.
-      Heap::EnqueuePendingReference(ref, &clear);
+      heap_->EnqueuePendingReference(ref, &clear);
     }
   }
   *list = clear;
@@ -503,13 +514,13 @@ void MarkSweep::PreserveSomeSoftReferences(Object** list) {
 void MarkSweep::ClearWhiteReferences(Object** list) {
   DCHECK(list != NULL);
   while (*list != NULL) {
-    Object* ref = Heap::DequeuePendingReference(list);
-    Object* referent = Heap::GetReferenceReferent(ref);
+    Object* ref = heap_->DequeuePendingReference(list);
+    Object* referent = heap_->GetReferenceReferent(ref);
     if (referent != NULL && !IsMarked(referent)) {
       // Referent is white, clear it.
-      Heap::ClearReferenceReferent(ref);
-      if (Heap::IsEnqueuable(ref)) {
-        Heap::EnqueueReference(ref, &cleared_reference_list_);
+      heap_->ClearReferenceReferent(ref);
+      if (heap_->IsEnqueuable(ref)) {
+        heap_->EnqueueReference(ref, &cleared_reference_list_);
       }
     }
   }
@@ -521,18 +532,18 @@ void MarkSweep::ClearWhiteReferences(Object** list) {
 // referent field is cleared.
 void MarkSweep::EnqueueFinalizerReferences(Object** list) {
   DCHECK(list != NULL);
-  MemberOffset zombie_offset = Heap::GetFinalizerReferenceZombieOffset();
+  MemberOffset zombie_offset = heap_->GetFinalizerReferenceZombieOffset();
   bool has_enqueued = false;
   while (*list != NULL) {
-    Object* ref = Heap::DequeuePendingReference(list);
-    Object* referent = Heap::GetReferenceReferent(ref);
+    Object* ref = heap_->DequeuePendingReference(list);
+    Object* referent = heap_->GetReferenceReferent(ref);
     if (referent != NULL && !IsMarked(referent)) {
       MarkObject(referent);
       // If the referent is non-null the reference must queuable.
-      DCHECK(Heap::IsEnqueuable(ref));
+      DCHECK(heap_->IsEnqueuable(ref));
       ref->SetFieldObject(zombie_offset, referent, false);
-      Heap::ClearReferenceReferent(ref);
-      Heap::EnqueueReference(ref, &cleared_reference_list_);
+      heap_->ClearReferenceReferent(ref);
+      heap_->EnqueueReference(ref, &cleared_reference_list_);
       has_enqueued = true;
     }
   }

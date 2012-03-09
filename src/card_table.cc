@@ -21,6 +21,7 @@
 #include "heap.h"
 #include "heap_bitmap.h"
 #include "logging.h"
+#include "runtime.h"
 #include "utils.h"
 
 namespace art {
@@ -96,6 +97,7 @@ void CardTable::CheckAddrIsInCardTable(const byte* addr) const {
 }
 
 void CardTable::Scan(byte* heap_begin, byte* heap_end, Callback* visitor, void* arg) const {
+  Heap* heap = Runtime::Current()->GetHeap();
   byte* card_cur = CardFromAddr(heap_begin);
   byte* card_end = CardFromAddr(heap_end);
   while (card_cur < card_end) {
@@ -110,7 +112,7 @@ void CardTable::Scan(byte* heap_begin, byte* heap_end, Callback* visitor, void* 
     }
     if (run > 0) {
       byte* run_end = &card_cur[run];
-      Heap::GetLiveBits()->VisitRange(reinterpret_cast<uintptr_t>(AddrFromCard(run_start)),
+      heap->GetLiveBits()->VisitRange(reinterpret_cast<uintptr_t>(AddrFromCard(run_start)),
                                       reinterpret_cast<uintptr_t>(AddrFromCard(run_end)),
                                       visitor, arg);
     }

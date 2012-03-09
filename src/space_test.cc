@@ -75,7 +75,7 @@ TEST_F(SpaceTest, AllocAndFree) {
   ASSERT_TRUE(space != NULL);
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
-  Heap::AddSpace(space);
+  Runtime::Current()->GetHeap()->AddSpace(space);
 
   // Succeeds, fits without adjusting the footprint limit.
   Object* ptr1 = space->AllocWithoutGrowth(1 * MB);
@@ -117,7 +117,7 @@ TEST_F(SpaceTest, AllocAndFreeList) {
   ASSERT_TRUE(space != NULL);
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
-  Heap::AddSpace(space);
+  Runtime::Current()->GetHeap()->AddSpace(space);
 
   // Succeeds, fits without adjusting the max allowed footprint.
   Object* lots_of_objects[1024];
@@ -309,7 +309,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimDriver(size_t object_size) {
   EXPECT_EQ(space->NonGrowthLimitCapacity(), capacity);
 
   // Make space findable to the heap, will also delete space when runtime is cleaned up
-  Heap::AddSpace(space);
+  Runtime::Current()->GetHeap()->AddSpace(space);
 
   // In this round we don't allocate with growth and therefore can't grow past the initial size.
   // This effectively makes the growth_limit the initial_size, so assert this.

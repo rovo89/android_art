@@ -1227,23 +1227,4 @@ extern int oatSRegOffset(CompilationUnit* cUnit, int sReg)
     return oatVRegOffset(cUnit, oatS2VReg(cUnit, sReg));
 }
 
-
-/* Return sp-relative offset in bytes using Method* */
-extern int oatVRegOffset(const DexFile::CodeItem* code_item,
-                         uint32_t core_spills, uint32_t fp_spills,
-                         size_t frame_size, int reg)
-{
-    int numIns = code_item->ins_size_;
-    int numRegs = code_item->registers_size_ - numIns;
-    int numOuts = code_item->outs_size_;
-    int numSpills = __builtin_popcount(core_spills) +
-                    __builtin_popcount(fp_spills);
-    int numPadding = (STACK_ALIGN_WORDS -
-        (numSpills + numRegs + numOuts + 2)) & (STACK_ALIGN_WORDS-1);
-    int regsOffset = (numOuts + numPadding + 1) * 4;
-    int insOffset = frame_size + 4;
-    return (reg < numRegs) ? regsOffset + (reg << 2) :
-           insOffset + ((reg - numRegs) << 2);
-}
-
 }  // namespace art

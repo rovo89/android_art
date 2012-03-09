@@ -39,8 +39,6 @@
 
 namespace art {
 
-std::map<const Object*, size_t> ImageWriter::offsets_;
-
 bool ImageWriter::Write(const std::string& image_filename,
                         uintptr_t image_begin,
                         const std::string& oat_filename,
@@ -50,7 +48,8 @@ bool ImageWriter::Write(const std::string& image_filename,
   CHECK_NE(image_begin, 0U);
   image_begin_ = reinterpret_cast<byte*>(image_begin);
 
-  const std::vector<Space*>& spaces = Heap::GetSpaces();
+  Heap* heap = Runtime::Current()->GetHeap();
+  const std::vector<Space*>& spaces = heap->GetSpaces();
   // currently just write the last space, assuming it is the space that was being used for allocation
   CHECK_GE(spaces.size(), 1U);
   source_space_ = spaces[spaces.size()-1];
@@ -74,15 +73,15 @@ bool ImageWriter::Write(const std::string& image_filename,
   PruneNonImageClasses();  // Remove junk
   ComputeLazyFieldsForImageClasses();  // Add useful information
   ComputeEagerResolvedStrings();
-  Heap::CollectGarbage(false);  // Remove garbage
-  Heap::GetAllocSpace()->Trim();  // Trim size of source_space
+  heap->CollectGarbage(false);  // Remove garbage
+  heap->GetAllocSpace()->Trim();  // Trim size of source_space
   if (!AllocMemory()) {
     return false;
   }
 #ifndef NDEBUG
   CheckNonImageClassesRemoved();
 #endif
-  Heap::DisableCardMarking();
+  heap->DisableCardMarking();
   CalculateNewObjectOffsets();
   CopyAndFixupObjects();
 
@@ -147,7 +146,7 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
 }
 
 void ImageWriter::ComputeEagerResolvedStrings() {
-  HeapBitmap* heap_bitmap = Heap::GetLiveBits();
+  HeapBitmap* heap_bitmap = Runtime::Current()->GetHeap()->GetLiveBits();
   DCHECK(heap_bitmap != NULL);
   heap_bitmap->Walk(ComputeEagerResolvedStringsCallback, this);  // TODO: add Space-limited Walk
 }
@@ -228,7 +227,7 @@ void ImageWriter::CheckNonImageClassesRemoved() {
   if (image_classes_ == NULL) {
     return;
   }
-  Heap::GetLiveBits()->Walk(CheckNonImageClassesRemovedCallback, this);
+  Runtime::Current()->GetHeap()->GetLiveBits()->Walk(CheckNonImageClassesRemovedCallback, this);
 }
 
 void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
@@ -262,18 +261,18 @@ void ImageWriter::CalculateNewObjectOffsetsCallback(Object* obj, void* arg) {
   // if it is a string, we want to intern it if its not interned.
   if (obj->GetClass()->IsStringClass()) {
     // we must be an interned string that was forward referenced and already assigned
-    if (IsImageOffsetAssigned(obj)) {
+    if (image_writer->IsImageOffsetAssigned(obj)) {
       DCHECK_EQ(obj, obj->AsString()->Intern());
       return;
     }
     SirtRef<String> interned(obj->AsString()->Intern());
     if (obj != interned.get()) {
-      if (!IsImageOffsetAssigned(interned.get())) {
+      if (!image_writer->IsImageOffsetAssigned(interned.get())) {
         // interned obj is after us, allocate its location early
         image_writer->AssignImageOffset(interned.get());
       }
       // point those looking for this object to the interned version.
-      SetImageOffset(obj, GetImageOffset(interned.get()));
+      image_writer->SetImageOffset(obj, image_writer->GetImageOffset(interned.get()));
       return;
     }
     // else (obj == interned), nothing to do but fall through to the normal case
@@ -328,7 +327,7 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
 void ImageWriter::CalculateNewObjectOffsets() {
   SirtRef<ObjectArray<Object> > image_roots(CreateImageRoots());
 
-  HeapBitmap* heap_bitmap = Heap::GetLiveBits();
+  HeapBitmap* heap_bitmap = Runtime::Current()->GetHeap()->GetLiveBits();
   DCHECK(heap_bitmap != NULL);
   DCHECK_EQ(0U, image_end_);
 
@@ -353,10 +352,11 @@ void ImageWriter::CalculateNewObjectOffsets() {
 }
 
 void ImageWriter::CopyAndFixupObjects() {
-  HeapBitmap* heap_bitmap = Heap::GetLiveBits();
+  Heap* heap = Runtime::Current()->GetHeap();
+  HeapBitmap* heap_bitmap = heap->GetLiveBits();
   DCHECK(heap_bitmap != NULL);
   // TODO: heap validation can't handle this fix up pass
-  Heap::DisableObjectValidation();
+  heap->DisableObjectValidation();
   heap_bitmap->Walk(CopyAndFixupObjectsCallback, this);  // TODO: add Space-limited Walk
 }
 

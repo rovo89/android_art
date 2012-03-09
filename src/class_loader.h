@@ -17,7 +17,6 @@
 #ifndef ART_SRC_CLASS_LOADER_H_
 #define ART_SRC_CLASS_LOADER_H_
 
-#include <map>
 #include <vector>
 
 #include "dex_file.h"
@@ -27,31 +26,18 @@ namespace art {
 
 // C++ mirror of java.lang.ClassLoader
 class MANAGED ClassLoader : public Object {
- public:
-  static const std::vector<const DexFile*>& GetCompileTimeClassPath(const ClassLoader* class_loader);
-  static void SetCompileTimeClassPath(const ClassLoader* class_loader, std::vector<const DexFile*>& class_path);
-  static bool UseCompileTimeClassPath() {
-    return use_compile_time_class_path;
-  }
-
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   Object* packages_;
   ClassLoader* parent_;
   Object* proxyCache_;
 
-  typedef std::map<const ClassLoader*, std::vector<const DexFile*> > Table;
-  static Table compile_time_class_paths_;
-
-  static bool use_compile_time_class_path;
-
   friend struct ClassLoaderOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassLoader);
 };
 
 // C++ mirror of dalvik.system.BaseDexClassLoader
-// TODO: add MANAGED when class_path_ removed
-class BaseDexClassLoader : public ClassLoader {
+class MANAGED BaseDexClassLoader : public ClassLoader {
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   String* original_path_;
@@ -62,8 +48,7 @@ class BaseDexClassLoader : public ClassLoader {
 };
 
 // C++ mirror of dalvik.system.PathClassLoader
-// TODO: add MANAGED when class_path_ removed
-class PathClassLoader : public BaseDexClassLoader {
+class MANAGED PathClassLoader : public BaseDexClassLoader {
  public:
   static PathClassLoader* AllocCompileTime(std::vector<const DexFile*>& dex_files);
   static void SetClass(Class* dalvik_system_PathClassLoader);
@@ -76,4 +61,4 @@ class PathClassLoader : public BaseDexClassLoader {
 
 }  // namespace art
 
-#endif  // ART_SRC_OBJECT_H_
+#endif  // ART_SRC_CLASS_LOADER_H_

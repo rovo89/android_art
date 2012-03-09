@@ -23,10 +23,6 @@
 
 namespace art {
 
-int oatVRegOffset(const DexFile::CodeItem* code_item,
-                  uint32_t core_spills, uint32_t fp_spills,
-                  size_t frame_size, int reg);
-
 bool Frame::HasMethod() const {
   return GetMethod() != NULL && (!GetMethod()->IsCalleeSaveMethod());
 }
@@ -53,9 +49,26 @@ void Frame::SetReturnPC(uintptr_t pc) {
   *reinterpret_cast<uintptr_t*>(pc_addr) = pc;
 }
 
+/* Return sp-relative offset in bytes using Method* */
+static int GetVRegOffset(const DexFile::CodeItem* code_item,
+                         uint32_t core_spills, uint32_t fp_spills,
+                         size_t frame_size, int reg)
+{
+  static const int kStackAlignWords = kStackAlignment/sizeof(uint32_t);
+  int numIns = code_item->ins_size_;
+  int numRegs = code_item->registers_size_ - numIns;
+  int numOuts = code_item->outs_size_;
+  int numSpills = __builtin_popcount(core_spills) + __builtin_popcount(fp_spills);
+  int numPadding = (kStackAlignWords - (numSpills + numRegs + numOuts + 2)) & (kStackAlignWords - 1);
+  int regsOffset = (numOuts + numPadding + 1) * 4;
+  int insOffset = frame_size + 4;
+  return (reg < numRegs) ? regsOffset + (reg << 2) :
+  insOffset + ((reg - numRegs) << 2);
+}
+
 uint32_t Frame::GetVReg(const DexFile::CodeItem* code_item, uint32_t core_spills,
                         uint32_t fp_spills, size_t frame_size, int vreg) const {
-  int offset = oatVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
+  int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
   byte* vreg_addr = reinterpret_cast<byte*>(sp_) + offset;
   return *reinterpret_cast<uint32_t*>(vreg_addr);
 }
@@ -77,7 +90,7 @@ void Frame::SetVReg(Method* m, int vreg, uint32_t new_value) {
   uint32_t core_spills = m->GetCoreSpillMask();
   uint32_t fp_spills = m->GetFpSpillMask();
   size_t frame_size = m->GetFrameSizeInBytes();
-  int offset = oatVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
+  int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
   byte* vreg_addr = reinterpret_cast<byte*>(sp_) + offset;
   *reinterpret_cast<uint32_t*>(vreg_addr) = new_value;
 }

@@ -406,9 +406,10 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     }
 
     /* Figure out the frame size */
-    cUnit->numPadding = (STACK_ALIGN_WORDS -
+    static const int kStackAlignWords = kStackAlignment/sizeof(uint32_t);
+    cUnit->numPadding = (kStackAlignWords -
         (cUnit->numCoreSpills + cUnit->numFPSpills + cUnit->numRegs +
-         cUnit->numOuts + 2)) & (STACK_ALIGN_WORDS-1);
+             cUnit->numOuts + 2)) & (kStackAlignWords - 1);
     cUnit->frameSize = (cUnit->numCoreSpills + cUnit->numFPSpills +
                         cUnit->numRegs + cUnit->numOuts +
                         cUnit->numPadding + 2) * 4;

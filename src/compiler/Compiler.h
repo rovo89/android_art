@@ -40,15 +40,7 @@ namespace art {
  */
 #define MAX_ASSEMBLER_RETRIES 50
 
-typedef enum OatInstructionSetType {
-    DALVIK_OAT_NONE = 0,
-    DALVIK_OAT_ARM,
-    DALVIK_OAT_THUMB2,
-    DALVIK_OAT_X86,
-    DALVIK_OAT_MIPS32
-} OatInstructionSetType;
-
-/* Supress optimization if corresponding bit set */
+/* Suppress optimization if corresponding bit set */
 enum optControlVector {
     kLoadStoreElimination = 0,
     kLoadHoisting,
@@ -183,9 +175,6 @@ void oatInit(CompilationUnit* cUnit, const Compiler& compiler);
 bool oatArchInit(void);
 bool oatStartup(void);
 void oatShutdown(void);
-CompiledMethod* oatCompileMethod(Compiler& compiler, bool is_direct,
-                                 uint32_t method_idx, const ClassLoader* class_loader,
-                                 const DexFile& dex_file, OatInstructionSetType);
 void oatScanAllClassPointers(void (*callback)(void* ptr));
 void oatInitializeSSAConversion(struct CompilationUnit* cUnit);
 int oatConvertSSARegToDalvik(const struct CompilationUnit* cUnit, int ssaReg);
@@ -219,5 +208,11 @@ bool oatIsFpReg(int reg);
 uint32_t oatFpRegMask(void);
 
 }  // namespace art
+
+extern "C" art::CompiledMethod* oatCompileMethod(art::Compiler& compiler,
+                                                 const art::DexFile::CodeItem* code_item,
+                                                 uint32_t access_flags, uint32_t method_idx,
+                                                 const art::ClassLoader* class_loader,
+                                                 const art::DexFile& dex_file);
 
 #endif // ART_SRC_COMPILER_COMPILER_H_

@@ -277,7 +277,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index, size_
     Class::Status status =
         (compiled_class != NULL) ? compiled_class->GetStatus() : Class::kStatusNotReady;
     CHECK(gc_map_size != 0 || is_native || status < Class::kStatusVerified)
-        << PrettyMethod(method_idx, *dex_file);
+        << &gc_map << " " << gc_map_size << " " << (is_native ? "true" : "false") << " " << (status < Class::kStatusVerified) << " " << status << " " << PrettyMethod(method_idx, *dex_file);
 #endif
 
     // Deduplicate GC maps

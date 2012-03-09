@@ -30,6 +30,7 @@
 #include "heap.h"
 #include "os.h"
 #include "runtime.h"
+#include "scoped_heap_lock.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "utils.h"
@@ -131,7 +132,7 @@ void SignalCatcher::HandleSigQuit() {
 
 void SignalCatcher::HandleSigUsr1() {
   LOG(INFO) << "SIGUSR1 forcing GC (no HPROF)";
-  Heap::CollectGarbage(false);
+  Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
 int SignalCatcher::WaitForSignal(sigset_t& mask) {

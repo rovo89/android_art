@@ -29,6 +29,7 @@
 #include "object.h"
 #include "object_utils.h"
 #include "os.h"
+#include "scoped_heap_lock.h"
 #include "space.h"
 #include "stl_util.h"
 #include "thread_list.h"
@@ -36,39 +37,6 @@
 #include "UniquePtr.h"
 
 namespace art {
-
-std::vector<Space*> Heap::spaces_;
-
-AllocSpace* Heap::alloc_space_ = NULL;
-
-size_t Heap::num_bytes_allocated_ = 0;
-
-size_t Heap::num_objects_allocated_ = 0;
-
-bool Heap::is_gc_running_ = false;
-
-HeapBitmap* Heap::mark_bitmap_ = NULL;
-
-HeapBitmap* Heap::live_bitmap_ = NULL;
-
-CardTable* Heap::card_table_ = NULL;
-
-bool Heap::card_marking_disabled_ = false;
-
-Class* Heap::java_lang_ref_FinalizerReference_ = NULL;
-Class* Heap::java_lang_ref_ReferenceQueue_ = NULL;
-
-MemberOffset Heap::reference_referent_offset_ = MemberOffset(0);
-MemberOffset Heap::reference_queue_offset_ = MemberOffset(0);
-MemberOffset Heap::reference_queueNext_offset_ = MemberOffset(0);
-MemberOffset Heap::reference_pendingNext_offset_ = MemberOffset(0);
-MemberOffset Heap::finalizer_reference_zombie_offset_ = MemberOffset(0);
-
-float Heap::target_utilization_ = 0.5;
-
-Mutex* Heap::lock_ = NULL;
-
-bool Heap::verify_objects_ = false;
 
 static void UpdateFirstAndLastSpace(Space** first_space, Space** last_space, Space* space) {
   if (*first_space == NULL) {
@@ -161,10 +129,29 @@ static bool GenerateImage(const std::string image_file_name) {
   return true;
 }
 
-void Heap::Init(size_t initial_size, size_t growth_limit, size_t capacity,
-                const std::string& original_image_file_name) {
+Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
+           const std::string& original_image_file_name)
+    : lock_(NULL),
+      alloc_space_(NULL),
+      mark_bitmap_(NULL),
+      live_bitmap_(NULL),
+      card_table_(NULL),
+      card_marking_disabled_(false),
+      is_gc_running_(false),
+      num_bytes_allocated_(0),
+      num_objects_allocated_(0),
+      java_lang_ref_FinalizerReference_(NULL),
+      java_lang_ref_ReferenceQueue_(NULL),
+      reference_referent_offset_(0),
+      reference_queue_offset_(0),
+      reference_queueNext_offset_(0),
+      reference_pendingNext_offset_(0),
+      finalizer_reference_zombie_offset_(0),
+      target_utilization_(0.5),
+      verify_objects_(false)
+{
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
-    LOG(INFO) << "Heap::Init entering";
+    LOG(INFO) << "Heap() entering";
   }
 
   // Compute the bounds of all spaces for allocating live and mark bitmaps
@@ -228,7 +215,7 @@ void Heap::Init(size_t initial_size, size_t growth_limit, size_t capacity,
   }
 
   // Mark image objects in the live bitmap
-  for (size_t i = 0; i < spaces_.size(); i++) {
+  for (size_t i = 0; i < spaces_.size(); ++i) {
     Space* space = spaces_[i];
     if (space->IsImageSpace()) {
       space->AsImageSpace()->RecordImageAllocations(live_bitmap.get());
@@ -254,7 +241,7 @@ void Heap::Init(size_t initial_size, size_t growth_limit, size_t capacity,
   num_bytes_allocated_ = 0;
   num_objects_allocated_ = 0;
 
-  // It's still to early to take a lock because there are no threads yet,
+  // It's still too early to take a lock because there are no threads yet,
   // but we can create the heap lock now. We don't create it earlier to
   // make it clear that you can't use locks during heap initialization.
   lock_ = new Mutex("Heap lock", kHeapLock);
@@ -262,11 +249,16 @@ void Heap::Init(size_t initial_size, size_t growth_limit, size_t capacity,
   Heap::EnableObjectValidation();
 
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
-    LOG(INFO) << "Heap::Init exiting";
+    LOG(INFO) << "Heap() exiting";
   }
 }
 
-void Heap::Destroy() {
+void Heap::AddSpace(Space* space) {
+  spaces_.push_back(space);
+}
+
+Heap::~Heap() {
+  VLOG(heap) << "~Heap()";
   // We can't take the heap lock here because there might be a daemon thread suspended with the
   // heap lock held. We know though that no non-daemon threads are executing, and we know that
   // all daemon threads are suspended, and we also know that the threads list have been deleted, so
@@ -305,7 +297,7 @@ bool Heap::IsHeapAddress(const Object* obj) {
   if (obj == NULL || !IsAligned<kObjectAlignment>(obj)) {
     return false;
   }
-  for (size_t i = 0; i < spaces_.size(); i++) {
+  for (size_t i = 0; i < spaces_.size(); ++i) {
     if (spaces_[i]->Contains(obj)) {
       return true;
     }
@@ -362,12 +354,12 @@ void Heap::VerifyObjectLocked(const Object* obj) {
 
 void Heap::VerificationCallback(Object* obj, void* arg) {
   DCHECK(obj != NULL);
-  Heap::VerifyObjectLocked(obj);
+  reinterpret_cast<Heap*>(arg)->VerifyObjectLocked(obj);
 }
 
 void Heap::VerifyHeap() {
   ScopedHeapLock heap_lock;
-  live_bitmap_->Walk(Heap::VerificationCallback, NULL);
+  live_bitmap_->Walk(Heap::VerificationCallback, this);
 }
 
 void Heap::RecordAllocationLocked(AllocSpace* space, const Object* obj) {

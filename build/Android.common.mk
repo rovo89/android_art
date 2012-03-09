@@ -14,25 +14,12 @@
 # limitations under the License.
 #
 
+# TODO: move the LLVM compiler out into a separate .so too...
 # Use llvm as the backend
 ifneq ($(wildcard art/USE_LLVM_COMPILER),)
 ART_USE_LLVM_COMPILER := true
 else
 ART_USE_LLVM_COMPILER := false
-endif
-
-# Build for MIPS target (temporary)
-ifneq ($(wildcard art/MIPS_TARGET),)
-ART_MIPS_TARGET := true
-else
-ART_MIPS_TARGET := false
-endif
-
-# Build for x86 target (temporary)
-ifneq ($(wildcard art/X86_TARGET),)
-ART_X86_TARGET := true
-else
-ART_X86_TARGET := false
 endif
 
 ifeq ($(ART_USE_LLVM_COMPILER),true)
@@ -71,11 +58,6 @@ art_cflags := \
 
 ifeq ($(ART_USE_LLVM_COMPILER),true)
 art_cflags += -DART_USE_LLVM_COMPILER=1
-endif
-
-# (temp) for testing
-ifeq ($(ART_MIPS_TARGET),true)
-art_cflags += -D__mips_hard_float
 endif
 
 ifeq ($(HOST_OS),linux)
@@ -237,38 +219,11 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/upcall_compiler.cc \
 	src/compiler_llvm/utils_llvm.cc
 else
+# TODO: should these be in libart-compiler.so instead?
 LIBART_COMMON_SRC_FILES += \
-	src/compiler/Dataflow.cc \
-	src/compiler/Frontend.cc \
-	src/compiler/IntermediateRep.cc \
-	src/compiler/Ralloc.cc \
-	src/compiler/SSATransformation.cc \
-	src/compiler/Utility.cc \
-	src/compiler/codegen/RallocUtil.cc \
 	src/jni_compiler.cc \
 	src/jni_internal_arm.cc \
 	src/jni_internal_x86.cc
-ifeq ($(ART_MIPS_TARGET),true)
-LIBART_COMMON_SRC_FILES += \
-	src/compiler/codegen/mips/ArchUtility.cc \
-	src/compiler/codegen/mips/MipsRallocUtil.cc \
-	src/compiler/codegen/mips/Assemble.cc \
-	src/compiler/codegen/mips/mips/Codegen.cc
-else
-ifeq ($(ART_X86_TARGET),true)
-LIBART_COMMON_SRC_FILES += \
-	src/compiler/codegen/x86/ArchUtility.cc \
-	src/compiler/codegen/x86/X86RallocUtil.cc \
-	src/compiler/codegen/x86/Assemble.cc \
-	src/compiler/codegen/x86/x86/Codegen.cc
-else
-LIBART_COMMON_SRC_FILES += \
-	src/compiler/codegen/arm/ArchUtility.cc \
-	src/compiler/codegen/arm/ArmRallocUtil.cc \
-	src/compiler/codegen/arm/Assemble.cc \
-	src/compiler/codegen/arm/armv7-a/Codegen.cc
-endif
-endif
 endif
 
 LIBART_TARGET_SRC_FILES := \

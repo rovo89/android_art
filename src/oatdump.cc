@@ -543,7 +543,7 @@ class ImageDumper {
     oat_dumper_.reset(new OatDumper(*oat_file));
 
     os_ << "OBJECTS:\n" << std::flush;
-    HeapBitmap* heap_bitmap = Heap::GetLiveBits();
+    HeapBitmap* heap_bitmap = Runtime::Current()->GetHeap()->GetLiveBits();
     DCHECK(heap_bitmap != NULL);
     heap_bitmap->Walk(ImageDumper::Callback, this);
     os_ << "\n";
@@ -1125,7 +1125,8 @@ int oatdump(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  ImageSpace* image_space = Heap::GetSpaces()[Heap::GetSpaces().size()-2]->AsImageSpace();
+  Heap* heap = Runtime::Current()->GetHeap();
+  ImageSpace* image_space = heap->GetSpaces()[heap->GetSpaces().size()-2]->AsImageSpace();
   CHECK(image_space != NULL);
   const ImageHeader& image_header = image_space->GetImageHeader();
   if (!image_header.IsValid()) {

@@ -51,8 +51,6 @@ class ImageWriter {
 
   bool AllocMemory();
 
-  static std::map<const Object*, size_t> offsets_;
-
   // we use the lock word to store the offset of the object in the image
   void AssignImageOffset(Object* object) {
     DCHECK(object != NULL);
@@ -60,26 +58,30 @@ class ImageWriter {
     image_end_ += RoundUp(object->SizeOf(), 8);  // 64-bit alignment
     DCHECK_LT(image_end_, image_->Size());
   }
-  static void SetImageOffset(Object* object, size_t offset) {
+
+  void SetImageOffset(Object* object, size_t offset) {
     DCHECK(object != NULL);
     DCHECK_NE(offset, 0U);
     DCHECK(!IsImageOffsetAssigned(object));
     offsets_[object] = offset;
   }
-  static size_t IsImageOffsetAssigned(const Object* object) {
+
+  size_t IsImageOffsetAssigned(const Object* object) const {
     DCHECK(object != NULL);
     return offsets_.find(object) != offsets_.end();
   }
-  static size_t GetImageOffset(const Object* object) {
+
+  size_t GetImageOffset(const Object* object) const {
     DCHECK(object != NULL);
     DCHECK(IsImageOffsetAssigned(object));
-    return offsets_[object];
+    return offsets_.find(object)->second;
   }
 
   bool InSourceSpace(const Object* object) const {
     DCHECK(source_space_ != NULL);
     return source_space_->Contains(object);
   }
+
   Object* GetImageAddress(const Object* object) const {
     if (object == NULL) {
       return NULL;
@@ -90,6 +92,7 @@ class ImageWriter {
     }
     return reinterpret_cast<Object*>(image_begin_ + GetImageOffset(object));
   }
+
   Object* GetLocalAddress(const Object* object) const {
     size_t offset = GetImageOffset(object);
     byte* dst = image_->Begin() + offset;
@@ -133,6 +136,8 @@ class ImageWriter {
   void FixupInstanceFields(const Object* orig, Object* copy);
   void FixupStaticFields(const Class* orig, Class* copy);
   void FixupFields(const Object* orig, Object* copy, uint32_t ref_offsets, bool is_static);
+
+  std::map<const Object*, size_t> offsets_;
 
   // oat file with code for this image
   UniquePtr<OatFile> oat_file_;

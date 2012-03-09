@@ -61,6 +61,7 @@ Mutex::~Mutex() {
   int rc = pthread_mutex_destroy(&mutex_);
   if (rc != 0) {
     errno = rc;
+    // TODO: should we just not log at all if shutting down? this could be the logging mutex!
     bool shutting_down = Runtime::Current()->IsShuttingDown();
     PLOG(shutting_down ? WARNING : FATAL) << "pthread_mutex_destroy failed for " << name_;
   }

@@ -31,7 +31,7 @@ namespace {
 
 void Runtime_gc(JNIEnv*, jclass) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
-  Heap::CollectGarbage(false);
+  Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
 void Runtime_nativeExit(JNIEnv* env, jclass, jint status, jboolean isExit) {
@@ -67,15 +67,15 @@ jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject ja
 }
 
 jlong Runtime_maxMemory(JNIEnv* env, jclass) {
-  return Heap::GetMaxMemory();
+  return Runtime::Current()->GetHeap()->GetMaxMemory();
 }
 
 jlong Runtime_totalMemory(JNIEnv* env, jclass) {
-  return Heap::GetTotalMemory();
+  return Runtime::Current()->GetHeap()->GetTotalMemory();
 }
 
 jlong Runtime_freeMemory(JNIEnv* env, jclass) {
-  return Heap::GetFreeMemory();
+  return Runtime::Current()->GetHeap()->GetFreeMemory();
 }
 
 static JNINativeMethod gMethods[] = {

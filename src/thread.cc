@@ -68,7 +68,7 @@ static Method* gThreadGroup_removeThread = NULL;
 static Method* gUncaughtExceptionHandler_uncaughtException = NULL;
 
 void Thread::InitCardTable() {
-  card_table_ = Heap::GetCardTable()->GetBiasedBegin();
+  card_table_ = Runtime::Current()->GetHeap()->GetCardTable()->GetBiasedBegin();
 }
 
 void Thread::InitFunctionPointers() {
@@ -540,7 +540,7 @@ void Thread::PushNativeToManagedRecord(NativeToManagedRecord* record) {
 #ifndef NDEBUG
   if (sp != NULL) {
     Method* m = *sp;
-    Heap::VerifyObject(m);
+    Runtime::Current()->GetHeap()->VerifyObject(m);
     DCHECK((m == NULL) || m->IsMethod());
   }
 #endif
@@ -1056,7 +1056,7 @@ Object* Thread::DecodeJObject(jobject obj) {
     JniAbort(NULL);
   } else {
     if (result != kInvalidIndirectRefObject) {
-      Heap::VerifyObject(result);
+      Runtime::Current()->GetHeap()->VerifyObject(result);
     }
   }
   return result;

@@ -240,7 +240,7 @@ jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass, jbool
   if (c == NULL) {
     return 0;
   }
-  return Heap::CountInstances(c, countAssignable);
+  return Runtime::Current()->GetHeap()->CountInstances(c, countAssignable);
 }
 
 JNINativeMethod gMethods[] = {

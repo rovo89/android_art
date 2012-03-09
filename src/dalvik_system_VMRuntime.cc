@@ -19,6 +19,7 @@
 #include "jni_internal.h"
 #include "object.h"
 #include "object_utils.h"
+#include "scoped_heap_lock.h"
 #include "space.h"
 #include "thread.h"
 
@@ -32,11 +33,11 @@ namespace art {
 namespace {
 
 jfloat VMRuntime_getTargetHeapUtilization(JNIEnv*, jobject) {
-  return Heap::GetTargetHeapUtilization();
+  return Runtime::Current()->GetHeap()->GetTargetHeapUtilization();
 }
 
 void VMRuntime_nativeSetTargetHeapUtilization(JNIEnv*, jobject, jfloat target) {
-  Heap::SetTargetHeapUtilization(target);
+  Runtime::Current()->GetHeap()->SetTargetHeapUtilization(target);
 }
 
 void VMRuntime_startJitCompilation(JNIEnv*, jobject) {
@@ -91,7 +92,7 @@ jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
 }
 
 void VMRuntime_clearGrowthLimit(JNIEnv*, jobject) {
-  Heap::ClearGrowthLimit();
+  Runtime::Current()->GetHeap()->ClearGrowthLimit();
 }
 
 jboolean VMRuntime_isDebuggerActive(JNIEnv*, jobject) {
@@ -132,7 +133,7 @@ void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) 
     // running with CheckJNI forces you to obey the strictest rules.
     if (!env_ext->check_jni) {
       LOG(INFO) << "Turning on JNI app bug workarounds for target SDK version "
-          << targetSdkVersion << "...";
+                << targetSdkVersion << "...";
       env_ext->vm->work_around_app_jni_bugs = true;
     }
   }
@@ -140,10 +141,11 @@ void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) 
 
 void VMRuntime_trimHeap(JNIEnv* env, jobject) {
   ScopedHeapLock heap_lock;
-  size_t alloc_space_size = Heap::GetAllocSpace()->Size();
-  float utilization = static_cast<float>(Heap::GetBytesAllocated()) / alloc_space_size;
+  Heap* heap = Runtime::Current()->GetHeap();
+  size_t alloc_space_size = heap->GetAllocSpace()->Size();
+  float utilization = static_cast<float>(heap->GetBytesAllocated()) / alloc_space_size;
   uint64_t start_ns = NanoTime();
-  Heap::GetAllocSpace()->Trim();
+  heap->GetAllocSpace()->Trim();
   LOG(INFO) << "Parallel heap trimming took " << PrettyDuration(NanoTime() - start_ns)
             << " on a " << PrettySize(alloc_space_size)
             << " heap with " << static_cast<int>(100 * utilization) << "% utilization";

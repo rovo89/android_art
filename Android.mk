@@ -27,6 +27,7 @@ build_path := $(LOCAL_PATH)/build
 include $(build_path)/Android.common.mk
 
 include $(build_path)/Android.libart.mk
+include $(build_path)/Android.libart-compiler.mk
 include $(build_path)/Android.executable.mk
 
 include $(build_path)/Android.oat.mk

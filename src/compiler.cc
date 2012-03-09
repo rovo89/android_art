@@ -18,6 +18,7 @@
 
 #include <vector>
 
+#include <dlfcn.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -31,6 +32,7 @@
 #include "oat_file.h"
 #include "object_utils.h"
 #include "runtime.h"
+#include "space.h"
 #include "stl_util.h"
 #include "timing_logger.h"
 
@@ -43,13 +45,6 @@
 #endif
 
 namespace art {
-
-#if !defined(ART_USE_LLVM_COMPILER)
-CompiledMethod* oatCompileMethod(Compiler& compiler, const DexFile::CodeItem* code_item,
-                                 uint32_t access_flags, uint32_t method_idx,
-                                 const ClassLoader* class_loader,
-                                 const DexFile& dex_file, InstructionSet);
-#endif
 
 namespace arm {
   ByteArray* CreateAbstractMethodErrorStub();
@@ -213,6 +208,28 @@ class AOTCompilationStats {
   DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);;
 };
 
+static std::string MakeCompilerSoName(InstructionSet instruction_set) {
+  // TODO: is the ARM/Thumb2 instruction set distinction really buying us anything,
+  // or just causing hassle like this?
+  if (instruction_set == kThumb2) {
+    instruction_set = kArm;
+  }
+
+  std::ostringstream instruction_set_name_os;
+  instruction_set_name_os << instruction_set;
+  std::string instruction_set_name(instruction_set_name_os.str());
+  for (size_t i = 0; i < instruction_set_name.size(); ++i) {
+    instruction_set_name[i] = toupper(instruction_set_name[i]);
+  }
+#ifndef NDEBUG
+  const char* suffix = "d";
+#else
+  const char* suffix = "";
+#endif
+  std::string name(StringPrintf("art%s-compiler-%s", suffix, instruction_set_name.c_str()));
+  return StringPrintf(OS_SHARED_LIB_FORMAT_STR, name.c_str());
+}
+
 Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_count,
                    bool support_debugging, const std::set<std::string>* image_classes)
     : instruction_set_(instruction_set),
@@ -226,12 +243,28 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       thread_count_(thread_count),
       support_debugging_(support_debugging),
       stats_(new AOTCompilationStats),
-      image_classes_(image_classes)
-#if defined(ART_USE_LLVM_COMPILER)
-      ,
+      image_classes_(image_classes),
+#if !defined(ART_USE_LLVM_COMPILER)
+      compiler_library_(NULL),
+      compiler_(NULL)
+#else
       compiler_llvm_(new compiler_llvm::CompilerLLVM(this, instruction_set))
 #endif
-      {
+{
+  std::string compiler_so_name(MakeCompilerSoName(instruction_set));
+  compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
+  if (compiler_library_ == NULL) {
+    LOG(FATAL) << "Couldn't find compiler library " << compiler_so_name << ": " << dlerror();
+  }
+  VLOG(compiler) << "dlopen(\"" << compiler_so_name << "\", RTLD_LAZY) returned " << compiler_library_;
+
+  compiler_ = reinterpret_cast<CompilerFn>(dlsym(compiler_library_, "oatCompileMethod"));
+  if (compiler_ == NULL) {
+    LOG(FATAL) << "Couldn't find \"oatCompileMethod\" in compiler library " << compiler_so_name << ": " << dlerror();
+  }
+
+  VLOG(compiler) << "dlsym(compiler_library, \"oatCompileMethod\") returned " << reinterpret_cast<void*>(compiler_);
+
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
     CHECK(image_classes_ == NULL);
@@ -250,6 +283,10 @@ Compiler::~Compiler() {
   {
     MutexLock mu(compiled_invoke_stubs_lock_);
     STLDeleteValues(&compiled_invoke_stubs_);
+  }
+  if (compiler_library_ != NULL) {
+    VLOG(compiler) << "dlclose(" << compiler_library_ << ")";
+    dlclose(compiler_library_);
   }
 }
 
@@ -1064,8 +1101,8 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
 #if defined(ART_USE_LLVM_COMPILER)
     compiled_method = compiler_llvm_->CompileDexMethod(&oat_compilation_unit);
 #else
-    compiled_method = oatCompileMethod(*this, code_item, access_flags, method_idx, class_loader,
-                                       dex_file, kThumb2);
+    compiled_method = (*compiler_)(*this, code_item, access_flags, method_idx, class_loader,
+                                   dex_file);
 #endif
     CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
   }

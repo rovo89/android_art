@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2012 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_COMPILER_OPTIMIZATION_H_
-#define ART_SRC_COMPILER_COMPILER_OPTIMIZATION_H_
+#ifndef ART_SRC_SCOPED_HEAP_LOCK_H_
+#define ART_SRC_SCOPED_HEAP_LOCK_H_
 
-#include "../Dalvik.h"
+#include "heap.h"
+#include "macros.h"
+#include "runtime.h"
 
 namespace art {
 
-/* Forward declarations */
-struct CompilationUnit;
-struct LIR;
+class ScopedHeapLock {
+ public:
+  ScopedHeapLock() {
+    Runtime::Current()->GetHeap()->Lock();
+  }
 
-void oatApplyLocalOptimizations(struct CompilationUnit* cUnit,
-                                struct LIR* head, struct LIR* tail);
+  ~ScopedHeapLock() {
+    Runtime::Current()->GetHeap()->Unlock();
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(ScopedHeapLock);
+};
 
 }  // namespace art
 
-#endif  // ART_SRC_COMPILER_COMPILER_OPTIMIZATION_H_
+#endif  // ART_SRC_SCOPED_HEAP_LOCK_H_

@@ -70,7 +70,7 @@ jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaObj, jlon
   int result = android_atomic_release_cas(reinterpret_cast<int32_t>(expectedValue),
       reinterpret_cast<int32_t>(newValue), address);
   if (result == 0) {
-    Heap::WriteBarrierField(obj, MemberOffset(offset), newValue);
+    Runtime::Current()->GetHeap()->WriteBarrierField(obj, MemberOffset(offset), newValue);
   }
   return (result == 0);
 }

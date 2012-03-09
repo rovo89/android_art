@@ -24,9 +24,9 @@ namespace art {
 
 LogVerbosity gLogVerbosity;
 
-Mutex& GetLoggingLock() {
-  static Mutex lock("LogMessage lock");
-  return lock;
+static Mutex& GetLoggingLock() {
+  static Mutex logging_lock("LogMessage lock");
+  return logging_lock;
 }
 
 LogMessage::~LogMessage() {

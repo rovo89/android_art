@@ -176,13 +176,14 @@ void AllocSpace::FreeList(size_t num_ptrs, Object** ptrs) {
 
 // Callback from dlmalloc when it needs to increase the footprint
 extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
-  AllocSpace* space = Heap::GetAllocSpace();
+  Heap* heap = Runtime::Current()->GetHeap();
+  AllocSpace* space = heap->GetAllocSpace();
   if (LIKELY(space->GetMspace() == mspace)) {
     return space->MoreCore(increment);
   } else {
     // Exhaustively search alloc spaces
-    const std::vector<Space*>& spaces = Heap::GetSpaces();
-    for (size_t i = 0; i < spaces.size(); i++) {
+    const std::vector<Space*>& spaces = heap->GetSpaces();
+    for (size_t i = 0; i < spaces.size(); ++i) {
       if (spaces[i]->IsAllocSpace()) {
         AllocSpace* space = spaces[i]->AsAllocSpace();
         if (mspace == space->GetMspace()) {
@@ -191,7 +192,7 @@ extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
       }
     }
     LOG(FATAL) << "Unexpected call to art_heap_morecore. mspace: " << mspace
-        << " increment: " << increment;
+               << " increment: " << increment;
     return NULL;
   }
 }

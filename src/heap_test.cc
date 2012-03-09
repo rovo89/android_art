@@ -21,11 +21,12 @@ namespace art {
 class HeapTest : public CommonTest {};
 
 TEST_F(HeapTest, ClearGrowthLimit) {
-  int64_t max_memory_before = Heap::GetMaxMemory();
-  int64_t total_memory_before = Heap::GetTotalMemory();
-  Heap::ClearGrowthLimit();
-  int64_t max_memory_after = Heap::GetMaxMemory();
-  int64_t total_memory_after = Heap::GetTotalMemory();
+  Heap* heap = Runtime::Current()->GetHeap();
+  int64_t max_memory_before = heap->GetMaxMemory();
+  int64_t total_memory_before = heap->GetTotalMemory();
+  heap->ClearGrowthLimit();
+  int64_t max_memory_after = heap->GetMaxMemory();
+  int64_t total_memory_after = heap->GetTotalMemory();
   EXPECT_GE(max_memory_after, max_memory_before);
   EXPECT_GE(total_memory_after, total_memory_before);
 }
@@ -41,7 +42,7 @@ TEST_F(HeapTest, GarbageCollectClassLinkerInit) {
     }
   }
 
-  Heap::CollectGarbage(false);
+  Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
 }  // namespace art

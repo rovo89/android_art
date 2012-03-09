@@ -23,6 +23,7 @@
 #include "logging.h"
 #include "object_utils.h"
 #include "scoped_jni_thread_state.h"
+#include "space.h"
 #include "thread.h"
 #include "runtime.h"
 
@@ -196,7 +197,7 @@ class ScopedCheck {
          * obj will be NULL.  Otherwise, obj should always be non-NULL
          * and valid.
          */
-        if (obj != NULL && !Heap::IsHeapAddress(obj)) {
+        if (obj != NULL && !Runtime::Current()->GetHeap()->IsHeapAddress(obj)) {
           LOG(ERROR) << "JNI ERROR: field operation on invalid " << GetIndirectRefKind(java_object) << ": " << java_object;
           JniAbort();
           return;
@@ -234,7 +235,7 @@ class ScopedCheck {
     ScopedJniThreadState ts(env_);
 
     Object* o = Decode<Object*>(ts, java_object);
-    if (o == NULL || !Heap::IsHeapAddress(o)) {
+    if (o == NULL || !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
       LOG(ERROR) << "JNI ERROR: field operation on invalid " << GetIndirectRefKind(java_object) << ": " << java_object;
       JniAbort();
       return;
@@ -449,7 +450,7 @@ class ScopedCheck {
           Class* c = reinterpret_cast<Class*>(Thread::Current()->DecodeJObject(jc));
           if (c == NULL) {
             msg += "NULL";
-          } else if (c == kInvalidIndirectRefObject || !Heap::IsHeapAddress(c)) {
+          } else if (c == kInvalidIndirectRefObject || !Runtime::Current()->GetHeap()->IsHeapAddress(c)) {
             StringAppendF(&msg, "INVALID POINTER:%p", jc);
           } else if (!c->IsClass()) {
             msg += "INVALID NON-CLASS OBJECT OF TYPE:" + PrettyTypeOf(c);
@@ -617,8 +618,9 @@ class ScopedCheck {
 
     ScopedJniThreadState ts(env_);
     Object* obj = Decode<Object*>(ts, java_object);
-    if (!Heap::IsHeapAddress(obj)) {
-      LOG(ERROR) << "JNI ERROR: " << what << " is an invalid  " << GetIndirectRefKind(java_object) << ": " << java_object;
+    if (!Runtime::Current()->GetHeap()->IsHeapAddress(obj)) {
+      LOG(ERROR) << "JNI ERROR: " << what << " is an invalid " << GetIndirectRefKind(java_object) << ": "
+                 << java_object << " (" << obj << ")";
       JniAbort();
       return false;
     }
@@ -676,8 +678,8 @@ class ScopedCheck {
 
     ScopedJniThreadState ts(env_);
     Array* a = Decode<Array*>(ts, java_array);
-    if (!Heap::IsHeapAddress(a)) {
-      LOG(ERROR) << "JNI ERROR: jarray is an invalid " << GetIndirectRefKind(java_array) << ": " << reinterpret_cast<void*>(java_array);
+    if (!Runtime::Current()->GetHeap()->IsHeapAddress(a)) {
+      LOG(ERROR) << "JNI ERROR: jarray is an invalid " << GetIndirectRefKind(java_array) << ": " << reinterpret_cast<void*>(java_array) << " (" << a << ")";
       JniAbort();
     } else if (!a->IsArrayInstance()) {
       LOG(ERROR) << "JNI ERROR: jarray argument has non-array type: " << PrettyTypeOf(a);
@@ -699,7 +701,7 @@ class ScopedCheck {
       return NULL;
     }
     Field* f = DecodeField(fid);
-    if (!Heap::IsHeapAddress(f)) {
+    if (!Runtime::Current()->GetHeap()->IsHeapAddress(f)) {
       LOG(ERROR) << "JNI ERROR: invalid jfieldID: " << fid;
       JniAbort();
       return NULL;
@@ -714,7 +716,7 @@ class ScopedCheck {
       return NULL;
     }
     Method* m = DecodeMethod(mid);
-    if (!Heap::IsHeapAddress(m)) {
+    if (!Runtime::Current()->GetHeap()->IsHeapAddress(m)) {
       LOG(ERROR) << "JNI ERROR: invalid jmethodID: " << mid;
       JniAbort();
       return NULL;
@@ -736,7 +738,7 @@ class ScopedCheck {
     ScopedJniThreadState ts(env_);
 
     Object* o = Decode<Object*>(ts, java_object);
-    if (o != NULL && !Heap::IsHeapAddress(o)) {
+    if (o != NULL && !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
       // TODO: when we remove work_around_app_jni_bugs, this should be impossible.
       LOG(ERROR) << "JNI ERROR: native code passing in reference to invalid " << GetIndirectRefKind(java_object) << ": " << java_object;
       JniAbort();

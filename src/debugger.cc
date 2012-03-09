@@ -1631,7 +1631,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       CHECK_EQ(width, sizeof(JDWP::ObjectId));
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
       VLOG(jdwp) << "get array local " << reg << " = " << o;
-      if (o != NULL && !Heap::IsHeapAddress(o)) {
+      if (o != NULL && !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
         LOG(FATAL) << "Register " << reg << " expected to hold array: " << o;
       }
       JDWP::SetObjectId(buf+1, gRegistry->Add(o));
@@ -1647,7 +1647,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       CHECK_EQ(width, sizeof(JDWP::ObjectId));
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
       VLOG(jdwp) << "get object local " << reg << " = " << o;
-      if (o != NULL && !Heap::IsHeapAddress(o)) {
+      if (o != NULL && !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
         LOG(FATAL) << "Register " << reg << " expected to hold object: " << o;
       }
       tag = TagFromObject(o);
@@ -2572,15 +2572,16 @@ void Dbg::DdmSendHeapInfo(HpifWhen reason) {
    *     [u4]: current number of objects allocated
    */
   uint8_t heap_count = 1;
+  Heap* heap = Runtime::Current()->GetHeap();
   std::vector<uint8_t> bytes;
   JDWP::Append4BE(bytes, heap_count);
   JDWP::Append4BE(bytes, 1); // Heap id (bogus; we only have one heap).
   JDWP::Append8BE(bytes, MilliTime());
   JDWP::Append1BE(bytes, reason);
-  JDWP::Append4BE(bytes, Heap::GetMaxMemory()); // Max allowed heap size in bytes.
-  JDWP::Append4BE(bytes, Heap::GetTotalMemory()); // Current heap size in bytes.
-  JDWP::Append4BE(bytes, Heap::GetBytesAllocated());
-  JDWP::Append4BE(bytes, Heap::GetObjectsAllocated());
+  JDWP::Append4BE(bytes, heap->GetMaxMemory()); // Max allowed heap size in bytes.
+  JDWP::Append4BE(bytes, heap->GetTotalMemory()); // Current heap size in bytes.
+  JDWP::Append4BE(bytes, heap->GetBytesAllocated());
+  JDWP::Append4BE(bytes, heap->GetObjectsAllocated());
   CHECK_EQ(bytes.size(), 4U + (heap_count * (4 + 8 + 1 + 4 + 4 + 4 + 4)));
   Dbg::DdmSendChunk(CHUNK_TYPE("HPIF"), bytes);
 }
@@ -2736,7 +2737,7 @@ class HeapChunkContext {
 
     // If we're looking at the native heap, we'll just return
     // (SOLIDITY_HARD, KIND_NATIVE) for all allocated chunks.
-    if (is_native_heap || !Heap::IsLiveObjectLocked(o)) {
+    if (is_native_heap || !Runtime::Current()->GetHeap()->IsLiveObjectLocked(o)) {
       return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
     }
 
@@ -2746,7 +2747,7 @@ class HeapChunkContext {
       return HPSG_STATE(SOLIDITY_HARD, KIND_OBJECT);
     }
 
-    if (!Heap::IsHeapAddress(c)) {
+    if (!Runtime::Current()->GetHeap()->IsHeapAddress(c)) {
       LOG(WARNING) << "Invalid class for managed heap object: " << o << " " << c;
       return HPSG_STATE(SOLIDITY_HARD, KIND_UNKNOWN);
     }
@@ -2810,7 +2811,8 @@ void Dbg::DdmSendHeapSegments(bool native) {
     // dlmalloc_inspect_all(HeapChunkContext::HeapChunkCallback, &context);
     UNIMPLEMENTED(WARNING) << "Native heap send heap segments";
   } else {
-    Heap::GetAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+    Heap* heap = Runtime::Current()->GetHeap();
+    heap->GetAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
   }
 
   // Finally, send a heap end chunk.

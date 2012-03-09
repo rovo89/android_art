@@ -910,6 +910,7 @@ class DexVerifier {
   void Dump(std::ostream& os);
 
   static const std::vector<uint8_t>* GetGcMap(Compiler::MethodReference ref);
+  static void InitGcMaps();
   static void DeleteGcMaps();
 
   static bool IsClassRejected(Compiler::ClassReference ref);
@@ -1289,15 +1290,12 @@ class DexVerifier {
     return insn_flags_[work_insn_idx_];
   }
 
-  typedef std::map<const Compiler::MethodReference, const std::vector<uint8_t>*> GcMapTable;
   // All the GC maps that the verifier has created
-  static Mutex gc_maps_lock_;
-  static GcMapTable gc_maps_;
+  typedef std::map<const Compiler::MethodReference, const std::vector<uint8_t>*> GcMapTable;
+  static Mutex* gc_maps_lock_;
+  static GcMapTable* gc_maps_;
   static void SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map);
 
-  // Set of rejected classes that skip compilation
-  static Mutex rejected_classes_lock_;
-  static std::set<Compiler::ClassReference> rejected_classes_;
   static void AddRejectedClass(Compiler::ClassReference ref);
 
   RegTypeCache reg_types_;

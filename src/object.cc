@@ -57,7 +57,8 @@ Object* Object::Clone() {
   // Object::SizeOf gets the right size even if we're an array.
   // Using c->AllocObject() here would be wrong.
   size_t num_bytes = SizeOf();
-  SirtRef<Object> copy(Heap::AllocObject(c, num_bytes));
+  Heap* heap = Runtime::Current()->GetHeap();
+  SirtRef<Object> copy(heap->AllocObject(c, num_bytes));
   if (copy.get() == NULL) {
     return NULL;
   }
@@ -70,7 +71,7 @@ Object* Object::Clone() {
   memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
 
   if (c->IsFinalizable()) {
-    Heap::AddFinalizerReference(Thread::Current(), copy.get());
+    heap->AddFinalizerReference(Thread::Current(), copy.get());
   }
 
   return copy.get();
@@ -676,7 +677,7 @@ Object* Class::AllocObject() {
   // TODO: decide whether we want this check. It currently fails during bootstrap.
   // DCHECK(!Runtime::Current()->IsStarted() || IsInitializing()) << PrettyClass(this);
   DCHECK_GE(this->object_size_, sizeof(Object));
-  return Heap::AllocObject(this, this->object_size_);
+  return Runtime::Current()->GetHeap()->AllocObject(this, this->object_size_);
 }
 
 void Class::SetClassSize(size_t new_class_size) {
@@ -1251,7 +1252,8 @@ Array* Array::Alloc(Class* array_class, int32_t component_count, size_t componen
     return NULL;
   }
 
-  Array* array = down_cast<Array*>(Heap::AllocObject(array_class, size));
+  Heap* heap = Runtime::Current()->GetHeap();
+  Array* array = down_cast<Array*>(heap->AllocObject(array_class, size));
   if (array != NULL) {
     DCHECK(array->IsArrayInstance());
     array->SetLength(component_count);

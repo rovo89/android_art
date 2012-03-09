@@ -30,6 +30,7 @@
 #include "logging.h"
 #include "object.h"
 #include "object_utils.h"
+#include "scoped_heap_lock.h"
 #include "stringprintf.h"
 
 #include <cutils/open_memstream.h>
@@ -763,9 +764,10 @@ int DumpHeap(const char* fileName, int fd, bool directToDdms) {
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   thread_list->SuspendAll();
 
+  Runtime* runtime = Runtime::Current();
   Hprof hprof(fileName, fd, false, directToDdms);
-  Runtime::Current()->VisitRoots(HprofRootVisitor, &hprof);
-  Heap::GetLiveBits()->Walk(HprofBitmapCallback, &hprof);
+  runtime->VisitRoots(HprofRootVisitor, &hprof);
+  runtime->GetHeap()->GetLiveBits()->Walk(HprofBitmapCallback, &hprof);
   // TODO: write a HEAP_SUMMARY record
   int success = hprof.Finish() ? 0 : -1;
   thread_list->ResumeAll();

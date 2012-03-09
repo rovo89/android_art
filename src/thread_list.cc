@@ -19,6 +19,7 @@
 #include <unistd.h>
 
 #include "debugger.h"
+#include "scoped_heap_lock.h"
 
 namespace art {
 
@@ -458,8 +459,9 @@ void ThreadList::WaitForGo() {
   // started, we wait until it's over. Which means that if there's now another GC pending, our
   // suspend count is non-zero, so switching to the runnable state will suspend us.
   // TODO: find a better solution!
-  Heap::Lock();
-  Heap::Unlock();
+  {
+    ScopedHeapLock heap_lock;
+  }
   self->SetState(Thread::kRunnable);
 }
 

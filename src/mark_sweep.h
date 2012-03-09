@@ -25,11 +25,16 @@
 namespace art {
 
 class Class;
+class Heap;
 class Object;
 
 class MarkSweep {
  public:
   MarkSweep() :
+      mark_stack_(NULL),
+      heap_(NULL),
+      mark_bitmap_(NULL),
+      live_bitmap_(NULL),
       finger_(NULL),
       condemned_(NULL),
       soft_reference_list_(NULL),
@@ -162,8 +167,8 @@ class MarkSweep {
 
   MarkStack* mark_stack_;
 
+  Heap* heap_;
   HeapBitmap* mark_bitmap_;
-
   HeapBitmap* live_bitmap_;
 
   Object* finger_;
