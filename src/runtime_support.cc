@@ -73,13 +73,6 @@ extern "C" int art_cmpg_double(double a, double b) {
     return 1;
 }
 
-// Place a special frame at the TOS that will save the callee saves for the given type
-static void  FinishCalleeSaveFrameSetup(Thread* self, Method** sp, Runtime::CalleeSaveType type) {
-  // Be aware the store below may well stomp on an incoming argument
-  *sp = Runtime::Current()->GetCalleeSaveMethod(type);
-  self->SetTopOfStack(sp, 0);
-}
-
 /*
  * Report location to debugger.  Note: dex_pc is the current offset within
  * the method.  However, because the offset alone cannot distinguish between

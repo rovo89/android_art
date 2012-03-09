@@ -144,6 +144,14 @@ static inline Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thr
   return klass->AllocObject();
 }
 
+// Place a special frame at the TOS that will save the callee saves for the given type
+static inline
+void  FinishCalleeSaveFrameSetup(Thread* self, Method** sp, Runtime::CalleeSaveType type) {
+  // Be aware the store below may well stomp on an incoming argument
+  *sp = Runtime::Current()->GetCalleeSaveMethod(type);
+  self->SetTopOfStack(sp, 0);
+}
+
 // Given the context of a calling Method, use its DexCache to resolve a type to an array Class. If
 // it cannot be resolved, throw an error. If it can, use it to create an array.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
