@@ -28,11 +28,11 @@
 namespace art {
 
 /* Static register use counts */
-typedef struct RefCounts {
+struct RefCounts {
     int count;
     int sReg;
     bool doubleStart;   // Starting vReg for a double
-} RefCounts;
+};
 
 
 inline int oatS2VReg(CompilationUnit* cUnit, int sReg)

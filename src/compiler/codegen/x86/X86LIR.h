@@ -138,7 +138,7 @@ namespace art {
                       INVALID_SREG}
 #define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, rAX, rDX, INVALID_SREG}
 
-typedef enum ResourceEncodingPos {
+enum ResourceEncodingPos {
     kGPReg0     = 0,
     kRegSP      = 4,
     kRegLR      = -1,
@@ -151,7 +151,7 @@ typedef enum ResourceEncodingPos {
     kLiteral,           // 2 Literal pool (can be fully disambiguated)
     kHeapRef,           // 3 Somewhere on the heap (alias with any other heap)
     kMustNotAlias,      // 4 Guaranteed to be non-alias (eg *(r6+x))
-} ResourceEncodingPos;
+};
 
 #define ENCODE_REG_LIST(N)      ((u8) N)
 #define ENCODE_REG_SP           (1ULL << kRegSP)
@@ -175,7 +175,7 @@ typedef enum ResourceEncodingPos {
  * Annotate special-purpose core registers:
  */
 
-typedef enum NativeRegisterPool {
+enum NativeRegisterPool {
   r0     = 0,
   rAX   = r0,
   r1     = 1,
@@ -216,7 +216,7 @@ typedef enum NativeRegisterPool {
   fr13 = 13 + FP_REG_OFFSET,
   fr14 = 14 + FP_REG_OFFSET,
   fr15 = 15 + FP_REG_OFFSET,
-} NativeRegisterPool;
+};
 
 /*
  * Target-independent aliases
@@ -235,7 +235,7 @@ typedef enum NativeRegisterPool {
  * assembler. Their corresponding EncodingMap positions will be defined in
  * Assemble.cc.
  */
-typedef enum X86OpCode {
+enum X86OpCode {
     kPseudoSuspendTarget = -15,
     kPseudoThrowTarget = -14,
     kPseudoCaseLabel = -13,
@@ -285,25 +285,25 @@ typedef enum X86OpCode {
     BinaryOpCode(kOpMov),
 #undef BinaryOpCode
     kX86Last
-} X86OpCode;
+};
 
 /* Instruction assembly fieldLoc kind */
-typedef enum X86EncodingKind {
+enum X86EncodingKind {
   kData,                       // Special case for raw data
   kRegImm, kMemImm, kArrayImm, // RI, MI, AI instruction kinds
   kRegReg, kRegMem, kRegArray, // RR, RM, RA instruction kinds
   kMemReg, kArrayReg,          // MR and AR instruction kinds
   kUnimplemented               // Encoding used when an instruction isn't yet implemented.
-} X86EncodingKind;
+};
 
 /* A form of instruction with an opcode byte and a secondary opcode within the modrm byte */
-typedef struct OpcodeModRMOpcode {
+struct OpcodeModRMOpcode {
   uint8_t opcode;        // 1 byte opcode
   uint8_t modrm_opcode;  // 3 bit opcode that gets encoded in the register bits of the modrm byte
-} OpcodeModRMOpcode;
+};
 
 /* Struct used to define the EncodingMap positions for each X86 opcode */
-typedef struct X86EncodingMap {
+struct X86EncodingMap {
   X86OpCode opcode;      // e.g. kOpAddRI
   X86EncodingKind kind;  // Used to discriminate in the union below
   int flags;
@@ -328,7 +328,7 @@ typedef struct X86EncodingMap {
   } skeleton;
   const char *name;
   const char* fmt;
-} X86EncodingMap;
+};
 
 extern X86EncodingMap EncodingMap[kX86Last];
 
@@ -337,7 +337,7 @@ extern X86EncodingMap EncodingMap[kX86Last];
 #define kST 0
 
 /* Bit flags describing the behavior of each native opcode */
-typedef enum X86OpFeatureFlags {
+enum X86OpFeatureFlags {
     kIsBranch = 0,
     kRegDef0,
     kRegDef1,
@@ -363,7 +363,7 @@ typedef enum X86OpFeatureFlags {
     kMemStore,
     kPCRelFixup,
 // FIXME: add NEEDS_FIXUP to instruction attributes
-} X86OpFeatureFlags;
+};
 
 #define IS_LOAD         (1 << kMemLoad)
 #define IS_STORE        (1 << kMemStore)
@@ -412,9 +412,9 @@ typedef enum X86OpFeatureFlags {
 #define REG_DEF01_USE2  (REG_DEF0 | REG_DEF1 | REG_USE2)
 
 /* Keys for target-specific scheduling and other optimization hints */
-typedef enum X86TargetOptHints {
+enum X86TargetOptHints {
     kMaxHoistDistance,
-} X86TargetOptHints;
+};
 
 
 #define IS_SIMM8(v) ((-128 <= (v)) && ((v) <= 127))

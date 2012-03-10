@@ -154,7 +154,7 @@ namespace art {
 #define LOC_C_RETURN_WIDE_ALT {kLocPhysReg, 1, 0, 0, 0, 0, 1, r_FRESULT0,\
                                r_FRESULT1, INVALID_SREG}
 
-typedef enum ResourceEncodingPos {
+enum ResourceEncodingPos {
     kGPReg0     = 0,
     kRegSP      = 29,
     kRegLR      = 31,
@@ -171,7 +171,7 @@ typedef enum ResourceEncodingPos {
     kLiteral,           // 2 Literal pool (can be fully disambiguated)
     kHeapRef,           // 3 Somewhere on the heap (alias with any other heap)
     kMustNotAlias,      // 4 Guaranteed to be non-alias (eg *(r6+x))
-} ResourceEncodingPos;
+};
 
 #define ENCODE_REG_LIST(N)      ((u8) N)
 #define ENCODE_REG_SP           (1ULL << kRegSP)
@@ -197,7 +197,7 @@ typedef enum ResourceEncodingPos {
  * Annotate special-purpose core registers:
  */
 
-typedef enum NativeRegisterPool {
+enum NativeRegisterPool {
     r_ZERO = 0,
     r_AT = 1,
     r_V0 = 2,
@@ -286,7 +286,7 @@ typedef enum NativeRegisterPool {
     r_HI = EXTRA_REG_OFFSET,
     r_LO,
     r_PC,
-} NativeRegisterPool;
+};
 
 /*
  * Target-independent aliases
@@ -304,12 +304,12 @@ typedef enum NativeRegisterPool {
 #define rINVOKE_TGT r_V0
 
 /* Shift encodings */
-typedef enum MipsShiftEncodings {
+enum MipsShiftEncodings {
     kMipsLsl = 0x0,
     kMipsLsr = 0x1,
     kMipsAsr = 0x2,
     kMipsRor = 0x3
-} MipsShiftEncodings;
+};
 
 // MIPS sync kinds (Note: support for kinds other than kSYNC0 may not exist)
 #define kSYNC0        0x00
@@ -330,7 +330,7 @@ typedef enum MipsShiftEncodings {
  * assembler. Their corresponding EncodingMap positions will be defined in
  * Assemble.cc.
  */
-typedef enum MipsOpCode {
+enum MipsOpCode {
     kPseudoSuspendTarget = -15,
     kPseudoThrowTarget = -14,
     kPseudoCaseLabel = -13,
@@ -441,10 +441,10 @@ typedef enum MipsOpCode {
     kMipsSync,    /* sync kind [000000] [0000000000000000] s[10..6] [001111] */
     kMipsUndefined,  /* undefined [011001xxxxxxxxxxxxxxxx] */
     kMipsLast
-} MipsOpCode;
+};
 
 /* Bit flags describing the behavior of each native opcode */
-typedef enum MipsOpFeatureFlags {
+enum MipsOpFeatureFlags {
     kIsBranch = 0,
     kRegDef0,
     kRegDef1,
@@ -472,7 +472,7 @@ typedef enum MipsOpFeatureFlags {
     kMemStore,
     kPCRelFixup,
     kRegUseLR,
-} MipsOpFeatureFlags;
+};
 
 #define IS_LOAD         (1 << kMemLoad)
 #define IS_STORE        (1 << kMemStore)
@@ -522,16 +522,16 @@ typedef enum MipsOpFeatureFlags {
 #define REG_DEF01_USE2  (REG_DEF0 | REG_DEF1 | REG_USE2)
 
 /* Instruction assembly fieldLoc kind */
-typedef enum MipsEncodingKind {
+enum MipsEncodingKind {
     kFmtUnused,
     kFmtBitBlt,        /* Bit string using end/start */
     kFmtDfp,           /* Double FP reg */
     kFmtSfp,           /* Single FP reg */
     kFmtBlt5_2,        /* Same 5-bit field to 2 locations */
-} MipsEncodingKind;
+};
 
 /* Struct used to define the snippet positions for each MIPS opcode */
-typedef struct MipsEncodingMap {
+struct MipsEncodingMap {
     u4 skeleton;
     struct {
         MipsEncodingKind kind;
@@ -543,12 +543,12 @@ typedef struct MipsEncodingMap {
     const char *name;
     const char* fmt;
     int size;     /* Size in bytes */
-} MipsEncodingMap;
+};
 
 /* Keys for target-specific scheduling and other optimization hints */
-typedef enum MipsTargetOptHints {
+enum MipsTargetOptHints {
     kMaxHoistDistance,
-} MipsTargetOptHints;
+};
 
 extern MipsEncodingMap EncodingMap[kMipsLast];
 

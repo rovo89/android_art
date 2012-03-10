@@ -20,7 +20,7 @@
 namespace art {
 
 #ifdef WITH_MEMSTATS
-typedef struct Memstats {
+struct Memstats {
     u4 allocStats[kNumAllocKinds];
     int listSizes[kNumListKinds];
     int listWasted[kNumListKinds];
@@ -29,7 +29,7 @@ typedef struct Memstats {
     int bitMapSizes[kNumBitMapKinds];
     int bitMapWasted[kNumBitMapKinds];
     int bitMapGrows[kNumBitMapKinds];
-} memstats;
+};
 
 const char* allocNames[kNumAllocKinds] = {
     "Misc       ",
