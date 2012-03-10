@@ -30,10 +30,6 @@
 #include "object.h"
 #include "runtime.h"
 
-#if !defined(ART_USE_LLVM_COMPILER)
-#include "jni_compiler.h"
-#endif
-
 #if defined(ART_USE_LLVM_COMPILER)
 #include "compiler_llvm/compiler_llvm.h"
 #endif
@@ -173,9 +169,6 @@ class Compiler {
                         const CompiledInvokeStub* compiled_invoke_stub);
 
   InstructionSet instruction_set_;
-#if !defined(ART_USE_LLVM_COMPILER)
-  JniCompiler jni_compiler_;
-#endif
 
   typedef std::map<const ClassReference, CompiledClass*> ClassTable;
   // All class references that this compiler has compiled
@@ -205,12 +198,23 @@ class Compiler {
   UniquePtr<compiler_llvm::CompilerLLVM> compiler_llvm_;
 #else
   void* compiler_library_;
+
   typedef CompiledMethod* (*CompilerFn)(Compiler& compiler,
                                         const DexFile::CodeItem* code_item,
                                         uint32_t access_flags, uint32_t method_idx,
                                         const ClassLoader* class_loader,
                                         const DexFile& dex_file);
   CompilerFn compiler_;
+
+  typedef CompiledMethod* (*JniCompilerFn)(Compiler& compiler,
+                                           uint32_t access_flags, uint32_t method_idx,
+                                           const ClassLoader* class_loader,
+                                           const DexFile& dex_file);
+  JniCompilerFn jni_compiler_;
+
+  typedef CompiledInvokeStub* (*CreateInvokeStubFn)(bool is_static,
+                                                    const char* shorty, uint32_t shorty_len);
+  CreateInvokeStubFn create_invoke_stub_;
 #endif
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);

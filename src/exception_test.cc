@@ -22,7 +22,6 @@
 #include "common_test.h"
 #include "dex_file.h"
 #include "gtest/gtest.h"
-#include "jni_compiler.h"
 #include "runtime.h"
 #include "thread.h"
 

@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "jni_compiler.h"
-
 #include <sys/mman.h>
 #include <vector>
 
@@ -23,6 +21,7 @@
 #include "calling_convention.h"
 #include "class_linker.h"
 #include "compiled_method.h"
+#include "compiler.h"
 #include "constants.h"
 #include "jni_internal.h"
 #include "logging.h"
@@ -31,39 +30,165 @@
 #include "thread.h"
 #include "UniquePtr.h"
 
+#define __ jni_asm->
+
 namespace art {
 
-JniCompiler::JniCompiler(InstructionSet instruction_set) {
-  if (instruction_set == kThumb2) {
-    // currently only ARM code generation is supported
-    instruction_set_ = kArm;
+static void ChangeThreadState(Assembler* jni_asm, Thread::State new_state,
+                              ManagedRegister scratch, ManagedRegister return_reg,
+                              FrameOffset return_save_location,
+                              size_t return_size) {
+  /*
+   * This code mirrors that of Thread::SetState where detail is given on why
+   * barriers occur when they do.
+   */
+  if (new_state == Thread::kRunnable) {
+    /*
+     * Change our status to Thread::kRunnable.  The transition requires
+     * that we check for pending suspension, because the VM considers
+     * us to be "asleep" in all other states, and another thread could
+     * be performing a GC now.
+     */
+    __ StoreImmediateToThread(Thread::StateOffset(), Thread::kRunnable, scratch);
+    __ MemoryBarrier(scratch);
+    __ SuspendPoll(scratch, return_reg, return_save_location, return_size);
   } else {
-    instruction_set_ = instruction_set;
+    /*
+     * Not changing to Thread::kRunnable. No additional work required.
+     */
+    __ MemoryBarrier(scratch);
+    __ StoreImmediateToThread(Thread::StateOffset(), new_state, scratch);
   }
 }
 
-JniCompiler::~JniCompiler() {}
+// Copy a single parameter from the managed to the JNI calling convention
+static void CopyParameter(Assembler* jni_asm,
+                          ManagedRuntimeCallingConvention* mr_conv,
+                          JniCallingConvention* jni_conv,
+                          size_t frame_size, size_t out_arg_size) {
+  bool input_in_reg = mr_conv->IsCurrentParamInRegister();
+  bool output_in_reg = jni_conv->IsCurrentParamInRegister();
+  FrameOffset sirt_offset(0);
+  bool null_allowed = false;
+  bool ref_param = jni_conv->IsCurrentParamAReference();
+  CHECK(!ref_param || mr_conv->IsCurrentParamAReference());
+  // input may be in register, on stack or both - but not none!
+  CHECK(input_in_reg || mr_conv->IsCurrentParamOnStack());
+  if (output_in_reg) {  // output shouldn't straddle registers and stack
+    CHECK(!jni_conv->IsCurrentParamOnStack());
+  } else {
+    CHECK(jni_conv->IsCurrentParamOnStack());
+  }
+  // References need placing in SIRT and the entry address passing
+  if (ref_param) {
+    null_allowed = mr_conv->IsCurrentArgPossiblyNull();
+    // Compute SIRT offset. Note null is placed in the SIRT but the jobject
+    // passed to the native code must be null (not a pointer into the SIRT
+    // as with regular references).
+    sirt_offset = jni_conv->CurrentParamSirtEntryOffset();
+    // Check SIRT offset is within frame.
+    CHECK_LT(sirt_offset.Uint32Value(), (frame_size + out_arg_size));
+  }
+  if (input_in_reg && output_in_reg) {
+    ManagedRegister in_reg = mr_conv->CurrentParamRegister();
+    ManagedRegister out_reg = jni_conv->CurrentParamRegister();
+    if (ref_param) {
+      __ CreateSirtEntry(out_reg, sirt_offset, in_reg, null_allowed);
+    } else {
+      if (!mr_conv->IsCurrentParamOnStack()) {
+        // regular non-straddling move
+        __ Move(out_reg, in_reg);
+      } else {
+        UNIMPLEMENTED(FATAL);  // we currently don't expect to see this case
+      }
+    }
+  } else if (!input_in_reg && !output_in_reg) {
+    FrameOffset out_off = jni_conv->CurrentParamStackOffset();
+    if (ref_param) {
+      __ CreateSirtEntry(out_off, sirt_offset, mr_conv->InterproceduralScratchRegister(),
+                         null_allowed);
+    } else {
+      FrameOffset in_off = mr_conv->CurrentParamStackOffset();
+      size_t param_size = mr_conv->CurrentParamSize();
+      CHECK_EQ(param_size, jni_conv->CurrentParamSize());
+      __ Copy(out_off, in_off, mr_conv->InterproceduralScratchRegister(), param_size);
+    }
+  } else if (!input_in_reg && output_in_reg) {
+    FrameOffset in_off = mr_conv->CurrentParamStackOffset();
+    ManagedRegister out_reg = jni_conv->CurrentParamRegister();
+    // Check that incoming stack arguments are above the current stack frame.
+    CHECK_GT(in_off.Uint32Value(), frame_size);
+    if (ref_param) {
+      __ CreateSirtEntry(out_reg, sirt_offset, ManagedRegister::NoRegister(), null_allowed);
+    } else {
+      size_t param_size = mr_conv->CurrentParamSize();
+      CHECK_EQ(param_size, jni_conv->CurrentParamSize());
+      __ Load(out_reg, in_off, param_size);
+    }
+  } else {
+    CHECK(input_in_reg && !output_in_reg);
+    ManagedRegister in_reg = mr_conv->CurrentParamRegister();
+    FrameOffset out_off = jni_conv->CurrentParamStackOffset();
+    // Check outgoing argument is within frame
+    CHECK_LT(out_off.Uint32Value(), frame_size);
+    if (ref_param) {
+      // TODO: recycle value in in_reg rather than reload from SIRT
+      __ CreateSirtEntry(out_off, sirt_offset, mr_conv->InterproceduralScratchRegister(),
+                         null_allowed);
+    } else {
+      size_t param_size = mr_conv->CurrentParamSize();
+      CHECK_EQ(param_size, jni_conv->CurrentParamSize());
+      if (!mr_conv->IsCurrentParamOnStack()) {
+        // regular non-straddling store
+        __ Store(out_off, in_reg, param_size);
+      } else {
+        // store where input straddles registers and stack
+        CHECK_EQ(param_size, 8u);
+        FrameOffset in_off = mr_conv->CurrentParamStackOffset();
+        __ StoreSpanning(out_off, in_reg, in_off, mr_conv->InterproceduralScratchRegister());
+      }
+    }
+  }
+}
+
+static void SetNativeParameter(Assembler* jni_asm,
+                               JniCallingConvention* jni_conv,
+                               ManagedRegister in_reg) {
+  if (jni_conv->IsCurrentParamOnStack()) {
+    FrameOffset dest = jni_conv->CurrentParamStackOffset();
+    __ StoreRawPtr(dest, in_reg);
+  } else {
+    if (!jni_conv->CurrentParamRegister().Equals(in_reg)) {
+      __ Move(jni_conv->CurrentParamRegister(), in_reg);
+    }
+  }
+}
 
 // Generate the JNI bridge for the given method, general contract:
 // - Arguments are in the managed runtime format, either on stack or in
 //   registers, a reference to the method object is supplied as part of this
 //   convention.
 //
-CompiledMethod* JniCompiler::Compile(uint32_t access_flags, uint32_t method_idx,
-                                     const ClassLoader* class_loader, const DexFile& dex_file) {
+CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
+                                            uint32_t access_flags, uint32_t method_idx,
+                                            const ClassLoader* class_loader,
+                                            const DexFile& dex_file) {
   CHECK((access_flags & kAccNative) != 0);
   const bool is_static = (access_flags & kAccStatic) != 0;
   const bool is_synchronized = (access_flags & kAccSynchronized) != 0;
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
+  InstructionSet instruction_set = compiler.GetInstructionSet();
+  if (instruction_set == kThumb2) {
+    instruction_set = kArm;
+  }
   // Calling conventions used to iterate over parameters to method
   UniquePtr<JniCallingConvention> jni_conv(
-      JniCallingConvention::Create(is_static, is_synchronized, shorty, instruction_set_));
+      JniCallingConvention::Create(is_static, is_synchronized, shorty, instruction_set));
   UniquePtr<ManagedRuntimeCallingConvention> mr_conv(
-      ManagedRuntimeCallingConvention::Create(is_static, is_synchronized, shorty, instruction_set_));
+      ManagedRuntimeCallingConvention::Create(is_static, is_synchronized, shorty, instruction_set));
 
   // Assembler that holds generated instructions
-  UniquePtr<Assembler> jni_asm(Assembler::Create(instruction_set_));
-#define __ jni_asm->
+  UniquePtr<Assembler> jni_asm(Assembler::Create(instruction_set));
 
   // Offsets into data structures
   // TODO: if cross compiling these offsets are for the host not the target
@@ -426,148 +551,18 @@ CompiledMethod* JniCompiler::Compile(uint32_t access_flags, uint32_t method_idx,
   std::vector<uint8_t> managed_code(cs);
   MemoryRegion code(&managed_code[0], managed_code.size());
   __ FinalizeInstructions(code);
-  return new CompiledMethod(instruction_set_,
+  return new CompiledMethod(instruction_set,
                             managed_code,
                             frame_size,
                             jni_conv->CoreSpillMask(),
                             jni_conv->FpSpillMask());
-#undef __
-}
-
-void JniCompiler::SetNativeParameter(Assembler* jni_asm,
-                                     JniCallingConvention* jni_conv,
-                                     ManagedRegister in_reg) {
-#define __ jni_asm->
-  if (jni_conv->IsCurrentParamOnStack()) {
-    FrameOffset dest = jni_conv->CurrentParamStackOffset();
-    __ StoreRawPtr(dest, in_reg);
-  } else {
-    if (!jni_conv->CurrentParamRegister().Equals(in_reg)) {
-      __ Move(jni_conv->CurrentParamRegister(), in_reg);
-    }
-  }
-#undef __
-}
-
-// Copy a single parameter from the managed to the JNI calling convention
-void JniCompiler::CopyParameter(Assembler* jni_asm,
-                                ManagedRuntimeCallingConvention* mr_conv,
-                                JniCallingConvention* jni_conv,
-                                size_t frame_size, size_t out_arg_size) {
-  bool input_in_reg = mr_conv->IsCurrentParamInRegister();
-  bool output_in_reg = jni_conv->IsCurrentParamInRegister();
-  FrameOffset sirt_offset(0);
-  bool null_allowed = false;
-  bool ref_param = jni_conv->IsCurrentParamAReference();
-  CHECK(!ref_param || mr_conv->IsCurrentParamAReference());
-  // input may be in register, on stack or both - but not none!
-  CHECK(input_in_reg || mr_conv->IsCurrentParamOnStack());
-  if (output_in_reg) {  // output shouldn't straddle registers and stack
-    CHECK(!jni_conv->IsCurrentParamOnStack());
-  } else {
-    CHECK(jni_conv->IsCurrentParamOnStack());
-  }
-  // References need placing in SIRT and the entry address passing
-  if (ref_param) {
-    null_allowed = mr_conv->IsCurrentArgPossiblyNull();
-    // Compute SIRT offset. Note null is placed in the SIRT but the jobject
-    // passed to the native code must be null (not a pointer into the SIRT
-    // as with regular references).
-    sirt_offset = jni_conv->CurrentParamSirtEntryOffset();
-    // Check SIRT offset is within frame.
-    CHECK_LT(sirt_offset.Uint32Value(), (frame_size + out_arg_size));
-  }
-#define __ jni_asm->
-  if (input_in_reg && output_in_reg) {
-    ManagedRegister in_reg = mr_conv->CurrentParamRegister();
-    ManagedRegister out_reg = jni_conv->CurrentParamRegister();
-    if (ref_param) {
-      __ CreateSirtEntry(out_reg, sirt_offset, in_reg, null_allowed);
-    } else {
-      if (!mr_conv->IsCurrentParamOnStack()) {
-        // regular non-straddling move
-        __ Move(out_reg, in_reg);
-      } else {
-        UNIMPLEMENTED(FATAL);  // we currently don't expect to see this case
-      }
-    }
-  } else if (!input_in_reg && !output_in_reg) {
-    FrameOffset out_off = jni_conv->CurrentParamStackOffset();
-    if (ref_param) {
-      __ CreateSirtEntry(out_off, sirt_offset, mr_conv->InterproceduralScratchRegister(),
-                         null_allowed);
-    } else {
-      FrameOffset in_off = mr_conv->CurrentParamStackOffset();
-      size_t param_size = mr_conv->CurrentParamSize();
-      CHECK_EQ(param_size, jni_conv->CurrentParamSize());
-      __ Copy(out_off, in_off, mr_conv->InterproceduralScratchRegister(), param_size);
-    }
-  } else if (!input_in_reg && output_in_reg) {
-    FrameOffset in_off = mr_conv->CurrentParamStackOffset();
-    ManagedRegister out_reg = jni_conv->CurrentParamRegister();
-    // Check that incoming stack arguments are above the current stack frame.
-    CHECK_GT(in_off.Uint32Value(), frame_size);
-    if (ref_param) {
-      __ CreateSirtEntry(out_reg, sirt_offset, ManagedRegister::NoRegister(), null_allowed);
-    } else {
-      size_t param_size = mr_conv->CurrentParamSize();
-      CHECK_EQ(param_size, jni_conv->CurrentParamSize());
-      __ Load(out_reg, in_off, param_size);
-    }
-  } else {
-    CHECK(input_in_reg && !output_in_reg);
-    ManagedRegister in_reg = mr_conv->CurrentParamRegister();
-    FrameOffset out_off = jni_conv->CurrentParamStackOffset();
-    // Check outgoing argument is within frame
-    CHECK_LT(out_off.Uint32Value(), frame_size);
-    if (ref_param) {
-      // TODO: recycle value in in_reg rather than reload from SIRT
-      __ CreateSirtEntry(out_off, sirt_offset, mr_conv->InterproceduralScratchRegister(),
-                         null_allowed);
-    } else {
-      size_t param_size = mr_conv->CurrentParamSize();
-      CHECK_EQ(param_size, jni_conv->CurrentParamSize());
-      if (!mr_conv->IsCurrentParamOnStack()) {
-        // regular non-straddling store
-        __ Store(out_off, in_reg, param_size);
-      } else {
-        // store where input straddles registers and stack
-        CHECK_EQ(param_size, 8u);
-        FrameOffset in_off = mr_conv->CurrentParamStackOffset();
-        __ StoreSpanning(out_off, in_reg, in_off, mr_conv->InterproceduralScratchRegister());
-      }
-    }
-  }
-#undef __
-}
-
-void JniCompiler::ChangeThreadState(Assembler* jni_asm, Thread::State new_state,
-                                    ManagedRegister scratch, ManagedRegister return_reg,
-                                    FrameOffset return_save_location,
-                                    size_t return_size) {
-  /*
-   * This code mirrors that of Thread::SetState where detail is given on why
-   * barriers occur when they do.
-   */
-#define __ jni_asm->
-  if (new_state == Thread::kRunnable) {
-    /*
-     * Change our status to Thread::kRunnable.  The transition requires
-     * that we check for pending suspension, because the VM considers
-     * us to be "asleep" in all other states, and another thread could
-     * be performing a GC now.
-     */
-    __ StoreImmediateToThread(Thread::StateOffset(), Thread::kRunnable, scratch);
-    __ MemoryBarrier(scratch);
-    __ SuspendPoll(scratch, return_reg, return_save_location, return_size);
-  } else {
-    /*
-     * Not changing to Thread::kRunnable. No additional work required.
-     */
-    __ MemoryBarrier(scratch);
-    __ StoreImmediateToThread(Thread::StateOffset(), new_state, scratch);
-  }
-  #undef __
 }
 
 }  // namespace art
+
+extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
+                                                    uint32_t access_flags, uint32_t method_idx,
+                                                    const art::ClassLoader* class_loader,
+                                                    const art::DexFile& dex_file) {
+  return ArtJniCompileMethodInternal(compiler, access_flags, method_idx, class_loader, dex_file);
+}

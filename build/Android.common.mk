@@ -218,12 +218,6 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/runtime_support_llvm.cc \
 	src/compiler_llvm/upcall_compiler.cc \
 	src/compiler_llvm/utils_llvm.cc
-else
-# TODO: should these be in libart-compiler.so instead?
-LIBART_COMMON_SRC_FILES += \
-	src/jni_compiler.cc \
-	src/jni_internal_arm.cc \
-	src/jni_internal_x86.cc
 endif
 
 LIBART_TARGET_SRC_FILES := \
