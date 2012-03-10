@@ -40,7 +40,11 @@ RegLocation oatGetReturn(CompilationUnit* cUnit)
 {
     RegLocation res = LOC_C_RETURN;
     oatClobber(cUnit, res.lowReg);
-    oatLockTemp(cUnit, res.lowReg);
+    if (cUnit->instructionSet == kMips) {
+        oatMarkInUse(cUnit, res.lowReg);
+    } else {
+        oatLockTemp(cUnit, res.lowReg);
+    }
     return res;
 }
 

@@ -158,14 +158,6 @@ extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
     return res;
 }
 
-extern RegLocation oatGetReturn(CompilationUnit* cUnit)
-{
-    RegLocation res = LOC_C_RETURN;
-    oatClobber(cUnit, res.lowReg);
-    oatMarkInUse(cUnit, res.lowReg);
-    return res;
-}
-
 extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)
 {
     return FPREG(reg) ? &cUnit->regPool->FPRegs[reg & FP_REG_MASK]
