@@ -141,7 +141,7 @@ extern "C" void artThrowStackOverflowFromCode(Method* method, Thread* thread, Me
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   // Remove extra entry pushed onto second stack during method tracing
   if (Runtime::Current()->IsMethodTracingActive()) {
-    artTraceMethodUnwindFromCode(thread);
+    TraceMethodUnwindFromCode(thread);
   }
   thread->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute
   thread->ThrowNewExceptionF("Ljava/lang/StackOverflowError;",
@@ -1208,7 +1208,7 @@ extern "C" uintptr_t artTraceMethodExitFromCode() {
   return lr;
 }
 
-uint32_t artTraceMethodUnwindFromCode(Thread* self) {
+uint32_t TraceMethodUnwindFromCode(Thread* self) {
   Trace* tracer = Runtime::Current()->GetTracer();
   TraceStackFrame trace_frame = self->PopTraceStackFrame();
   Method* method = trace_frame.method_;
@@ -1219,7 +1219,7 @@ uint32_t artTraceMethodUnwindFromCode(Thread* self) {
   return lr;
 }
 
-int artCmplFloat(float a, float b) {
+int CmplFloat(float a, float b) {
   if (a == b) {
     return 0;
   } else if (a < b) {
@@ -1230,7 +1230,7 @@ int artCmplFloat(float a, float b) {
   return -1;
 }
 
-int artCmpgFloat(float a, float b) {
+int CmpgFloat(float a, float b) {
   if (a == b) {
     return 0;
   } else if (a < b) {
@@ -1241,7 +1241,7 @@ int artCmpgFloat(float a, float b) {
   return 1;
 }
 
-int artCmpgDouble(double a, double b) {
+int CmpgDouble(double a, double b) {
   if (a == b) {
     return 0;
   } else if (a < b) {
@@ -1252,7 +1252,7 @@ int artCmpgDouble(double a, double b) {
   return 1;
 }
 
-int artCmplDouble(double a, double b) {
+int CmplDouble(double a, double b) {
   if (a == b) {
     return 0;
   } else if (a < b) {

@@ -93,10 +93,10 @@ void Thread::InitFunctionPointers() {
   pDdiv = __divdf3;
   pDmul = muldf3;
   pFmod = fmod;
-  pCmpgFloat = artCmpgFloat;
-  pCmplFloat = artCmplFloat;
-  pCmpgDouble = artCmpgDouble;
-  pCmplDouble = artCmplDouble;
+  pCmpgFloat = CmpgFloat;
+  pCmplFloat = CmplFloat;
+  pCmpgDouble = CmpgDouble;
+  pCmplDouble = CmplDouble;
 #endif
 #if defined(__arm__)
   pShlLong = art_shl_long;
@@ -1458,7 +1458,7 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
 #if defined(__arm__)
           uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
           if (ManglePc(trace_exit) == pc) {
-            pc = ManglePc(artTraceMethodUnwindFromCode(Thread::Current()));
+            pc = ManglePc(TraceMethodUnwindFromCode(Thread::Current()));
           }
 #else
           UNIMPLEMENTED(WARNING);

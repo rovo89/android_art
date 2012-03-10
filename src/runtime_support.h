@@ -42,11 +42,11 @@ extern Class* InitializeTypeFromCode(uint32_t type_idx, Method* method);
 uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class);
 void ObjectInitFromCode(Object* o);
 extern void LockObjectFromCode(Thread* thread, Object* obj);
-uint32_t artTraceMethodUnwindFromCode(Thread* self);
-extern int artCmpgDouble(double a, double b);
-extern int artCmplDouble(double a, double b);
-extern int artCmpgFloat(float a, float b);
-extern int artCmplFloat(float a, float b);
+uint32_t TraceMethodUnwindFromCode(Thread* self);
+extern int CmpgDouble(double a, double b);
+extern int CmplDouble(double a, double b);
+extern int CmpgFloat(float a, float b);
+extern int CmplFloat(float a, float b);
 extern int64_t D2L(double d);
 extern int64_t F2L(float f);
 
