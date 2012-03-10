@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "jni_compiler.h"
-
 #include <sys/mman.h>
 
 #include "UniquePtr.h"

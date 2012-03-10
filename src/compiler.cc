@@ -36,10 +36,6 @@
 #include "stl_util.h"
 #include "timing_logger.h"
 
-#if !defined(ART_USE_LLVM_COMPILER)
-#include "jni_compiler.h"
-#endif
-
 #if defined(ART_USE_LLVM_COMPILER)
 #include "compiler_llvm/compiler_llvm.h"
 #endif
@@ -48,13 +44,11 @@ namespace art {
 
 namespace arm {
   ByteArray* CreateAbstractMethodErrorStub();
-  CompiledInvokeStub* ArmCreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len);
   ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type);
   ByteArray* CreateJniDlsymLookupStub();
 }
 namespace x86 {
   ByteArray* CreateAbstractMethodErrorStub();
-  CompiledInvokeStub* X86CreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len);
   ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type);
   ByteArray* CreateJniDlsymLookupStub();
 }
@@ -230,12 +224,19 @@ static std::string MakeCompilerSoName(InstructionSet instruction_set) {
   return StringPrintf(OS_SHARED_LIB_FORMAT_STR, name.c_str());
 }
 
+template<typename Fn>
+static Fn FindFunction(const std::string& compiler_so_name, void* library, const char* name) {
+  Fn fn = reinterpret_cast<Fn>(dlsym(library, name));
+  if (fn == NULL) {
+    LOG(FATAL) << "Couldn't find \"" << name << "\" in compiler library " << compiler_so_name << ": " << dlerror();
+  }
+  VLOG(compiler) << "Found \"" << name << "\") at " << reinterpret_cast<void*>(fn);
+  return fn;
+}
+
 Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_count,
                    bool support_debugging, const std::set<std::string>* image_classes)
     : instruction_set_(instruction_set),
-#if !defined(ART_USE_LLVM_COMPILER)
-      jni_compiler_(instruction_set),
-#endif
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
       compiled_invoke_stubs_lock_("compiled invoke stubs lock"),
@@ -246,7 +247,9 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       image_classes_(image_classes),
 #if !defined(ART_USE_LLVM_COMPILER)
       compiler_library_(NULL),
-      compiler_(NULL)
+      compiler_(NULL),
+      jni_compiler_(NULL),
+      create_invoke_stub_(NULL)
 #else
       compiler_llvm_(new compiler_llvm::CompilerLLVM(this, instruction_set))
 #endif
@@ -258,12 +261,9 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
   }
   VLOG(compiler) << "dlopen(\"" << compiler_so_name << "\", RTLD_LAZY) returned " << compiler_library_;
 
-  compiler_ = reinterpret_cast<CompilerFn>(dlsym(compiler_library_, "oatCompileMethod"));
-  if (compiler_ == NULL) {
-    LOG(FATAL) << "Couldn't find \"oatCompileMethod\" in compiler library " << compiler_so_name << ": " << dlerror();
-  }
-
-  VLOG(compiler) << "dlsym(compiler_library, \"oatCompileMethod\") returned " << reinterpret_cast<void*>(compiler_);
+  compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "oatCompileMethod");
+  jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtJniCompileMethod");
+  create_invoke_stub_ = FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateInvokeStub");
 
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
@@ -1093,7 +1093,7 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
 #if defined(ART_USE_LLVM_COMPILER)
     compiled_method = compiler_llvm_->CompileNativeMethod(&oat_compilation_unit);
 #else
-    compiled_method = jni_compiler_.Compile(access_flags, method_idx, class_loader, dex_file);
+    compiled_method = (*jni_compiler_)(*this, access_flags, method_idx, class_loader, dex_file);
 #endif
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
@@ -1128,13 +1128,7 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
 #if defined(ART_USE_LLVM_COMPILER)
     compiled_invoke_stub = compiler_llvm_->CreateInvokeStub(is_static, shorty);
 #else
-    if (instruction_set_ == kX86) {
-      compiled_invoke_stub = ::art::x86::X86CreateInvokeStub(is_static, shorty, shorty_len);
-    } else {
-      CHECK(instruction_set_ == kArm || instruction_set_ == kThumb2);
-      // Generates invocation stub using ARM instruction set
-      compiled_invoke_stub = ::art::arm::ArmCreateInvokeStub(is_static, shorty, shorty_len);
-    }
+    compiled_invoke_stub = (*create_invoke_stub_)(is_static, shorty, shorty_len);
 #endif
 
     CHECK(compiled_invoke_stub != NULL);

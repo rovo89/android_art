@@ -21,10 +21,12 @@ LIBART_COMPILER_COMMON_SRC_FILES += \
 	src/compiler/Ralloc.cc \
 	src/compiler/SSATransformation.cc \
 	src/compiler/Utility.cc \
-	src/compiler/codegen/RallocUtil.cc
+	src/compiler/codegen/RallocUtil.cc \
+	src/jni_compiler.cc
 
 LIBART_COMPILER_ARM_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
+	src/jni_internal_arm.cc \
 	src/compiler/codegen/arm/ArchUtility.cc \
 	src/compiler/codegen/arm/ArmRallocUtil.cc \
 	src/compiler/codegen/arm/Assemble.cc \
@@ -39,6 +41,7 @@ LIBART_COMPILER_MIPS_SRC_FILES += \
 
 LIBART_COMPILER_X86_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
+	src/jni_internal_x86.cc \
 	src/compiler/codegen/x86/ArchUtility.cc \
 	src/compiler/codegen/x86/X86RallocUtil.cc \
 	src/compiler/codegen/x86/Assemble.cc \

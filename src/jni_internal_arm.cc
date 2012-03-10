@@ -43,9 +43,8 @@ namespace arm {
 // register and transfer arguments from the array into register and on
 // the stack, if needed.  On return, the thread register must be
 // shuffled and the return value must be store into the result JValue.
-CompiledInvokeStub* ArmCreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len) {
-  UniquePtr<ArmAssembler> assembler(
-      down_cast<ArmAssembler*>(Assembler::Create(kArm)));
+CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len) {
+  UniquePtr<ArmAssembler> assembler(down_cast<ArmAssembler*>(Assembler::Create(kArm)));
 #define __ assembler->
   size_t num_arg_array_bytes = NumArgArrayBytes(shorty, shorty_len);
   // Size of frame - spill of R4,R9/LR + Method* + possible receiver + arg array
@@ -143,3 +142,7 @@ CompiledInvokeStub* ArmCreateInvokeStub(bool is_static, const char* shorty, uint
 
 }  // namespace arm
 }  // namespace art
+
+extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len) {
+  return art::arm::CreateInvokeStub(is_static, shorty, shorty_len);
+}

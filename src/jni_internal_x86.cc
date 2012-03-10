@@ -39,7 +39,7 @@ namespace x86 {
 // "running" state the remaining responsibilities of this routine are
 // to save the native registers and set up the managed registers. On
 // return, the return value must be store into the result JValue.
-CompiledInvokeStub* X86CreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len) {
+CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len) {
   UniquePtr<X86Assembler> assembler(
       down_cast<X86Assembler*>(Assembler::Create(kX86)));
 #define __ assembler->
@@ -104,3 +104,7 @@ CompiledInvokeStub* X86CreateInvokeStub(bool is_static, const char* shorty, uint
 
 }  // namespace x86
 }  // namespace art
+
+extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(bool is_static, const char* shorty, uint32_t shorty_len) {
+  return art::x86::CreateInvokeStub(is_static, shorty, shorty_len);
+}
