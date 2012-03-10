@@ -22,7 +22,7 @@
 
 namespace art {
 
-typedef enum DataFlowAttributePos {
+enum DataFlowAttributePos {
     kUA = 0,
     kUB,
     kUC,
@@ -54,7 +54,7 @@ typedef enum DataFlowAttributePos {
     kCoreC,
     kGetter,
     kSetter,
-} DataFlowAttributes;
+};
 
 #define DF_NOP                  0
 #define DF_UA                   (1 << kUA)
@@ -110,42 +110,42 @@ typedef enum DataFlowAttributePos {
 
 extern const int oatDataFlowAttributes[kMirOpLast];
 
-typedef struct BasicBlockDataFlow {
+struct BasicBlockDataFlow {
     ArenaBitVector* useV;
     ArenaBitVector* defV;
     ArenaBitVector* liveInV;
     ArenaBitVector* phiV;
     int* dalvikToSSAMap;
     ArenaBitVector* endingNullCheckV;
-} BasicBlockDataFlow;
+};
 
-typedef struct SSARepresentation {
+struct SSARepresentation {
     int numUses;
     int* uses;
     bool* fpUse;
     int numDefs;
     int* defs;
     bool* fpDef;
-} SSARepresentation;
+};
 
 /*
  * An induction variable is represented by "m*i + c", where i is a basic
  * induction variable.
  */
-typedef struct InductionVariableInfo {
+struct InductionVariableInfo {
     int ssaReg;
     int basicSSAReg;
     int m;      // multiplier
     int c;      // constant
     int inc;    // loop increment
-} InductionVariableInfo;
+};
 
-typedef struct ArrayAccessInfo {
+struct ArrayAccessInfo {
     int arrayReg;
     int ivReg;
     int maxC;                   // For DIV - will affect upper bound checking
     int minC;                   // For DIV - will affect lower bound checking
-} ArrayAccessInfo;
+};
 
 #define ENCODE_REG_SUB(r,s)             ((s<<16) | r)
 #define DECODE_REG(v)                   (v & 0xffff)

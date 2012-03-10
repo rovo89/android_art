@@ -129,7 +129,7 @@ namespace art {
                       INVALID_SREG}
 #define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, r0, r1, INVALID_SREG}
 
-typedef enum ResourceEncodingPos {
+enum ResourceEncodingPos {
     kGPReg0     = 0,
     kRegSP      = 13,
     kRegLR      = 14,
@@ -144,7 +144,7 @@ typedef enum ResourceEncodingPos {
     kLiteral,           // 2 Literal pool (can be fully disambiguated)
     kHeapRef,           // 3 Somewhere on the heap (alias with any other heap)
     kMustNotAlias,      // 4 Guaranteed to be non-alias (eg *(r6+x))
-} ResourceEncodingPos;
+};
 
 #define ENCODE_REG_LIST(N)      ((u8) N)
 #define ENCODE_REG_SP           (1ULL << kRegSP)
@@ -174,7 +174,7 @@ typedef enum ResourceEncodingPos {
  *
  * rPC, rFP, and rSELF are for architecture-independent code to use.
  */
-typedef enum NativeRegisterPool {
+enum NativeRegisterPool {
     r0     = 0,
     r1     = 1,
     r2     = 2,
@@ -242,7 +242,7 @@ typedef enum NativeRegisterPool {
     dr13 = fr26 + FP_DOUBLE,
     dr14 = fr28 + FP_DOUBLE,
     dr15 = fr30 + FP_DOUBLE,
-} NativeRegisterPool;
+};
 
 /* Target-independent aliases */
 #define rARG0 r0
@@ -254,15 +254,15 @@ typedef enum NativeRegisterPool {
 #define rINVOKE_TGT rLR
 
 /* Shift encodings */
-typedef enum ArmShiftEncodings {
+enum ArmShiftEncodings {
     kArmLsl = 0x0,
     kArmLsr = 0x1,
     kArmAsr = 0x2,
     kArmRor = 0x3
-} ArmShiftEncodings;
+};
 
 /* Thumb condition encodings */
-typedef enum ArmConditionCode {
+enum ArmConditionCode {
     kArmCondEq = 0x0,    /* 0000 */
     kArmCondNe = 0x1,    /* 0001 */
     kArmCondCs = 0x2,    /* 0010 */
@@ -279,7 +279,7 @@ typedef enum ArmConditionCode {
     kArmCondLe = 0xd,    /* 1101 */
     kArmCondAl = 0xe,    /* 1110 */
     kArmCondNv = 0xf,    /* 1111 */
-} ArmConditionCode;
+};
 
 #define isPseudoOpcode(opcode) ((int)(opcode) < 0)
 
@@ -288,7 +288,7 @@ typedef enum ArmConditionCode {
  * assembler. Their corresponding EncodingMap positions will be defined in
  * Assemble.cc.
  */
-typedef enum ArmOpcode {
+enum ArmOpcode {
     kPseudoSuspendTarget = -15,
     kPseudoThrowTarget = -14,
     kPseudoCaseLabel = -13,
@@ -616,20 +616,20 @@ typedef enum ArmOpcode {
     kThumb2Push1,        /* t3 encoding of push */
     kThumb2Pop1,         /* t3 encoding of pop */
     kArmLast,
-} ArmOpcode;
+};
 
 /* DMB option encodings */
-typedef enum ArmOpDmbOptions {
+enum ArmOpDmbOptions {
     kSY = 0xf,
     kST = 0xe,
     kISH = 0xb,
     kISHST = 0xa,
     kNSH = 0x7,
     kNSHST = 0x6
-} ArmOpDmbOptions;
+};
 
 /* Bit flags describing the behavior of each native opcode */
-typedef enum ArmOpFeatureFlags {
+enum ArmOpFeatureFlags {
     kIsBranch = 0,
     kRegDef0,
     kRegDef1,
@@ -661,7 +661,7 @@ typedef enum ArmOpFeatureFlags {
     kMemLoad,
     kMemStore,
     kPCRelFixup,
-} ArmOpFeatureFlags;
+};
 
 #define IS_LOAD         (1 << kMemLoad)
 #define IS_STORE        (1 << kMemStore)
@@ -705,7 +705,7 @@ typedef enum ArmOpFeatureFlags {
 #define REG_DEF01_USE2  (REG_DEF0 | REG_DEF1 | REG_USE2)
 
 /* Instruction assembly fieldLoc kind */
-typedef enum ArmEncodingKind {
+enum ArmEncodingKind {
     kFmtUnused,
     kFmtBitBlt,        /* Bit string using end/start */
     kFmtDfp,           /* Double FP reg */
@@ -721,10 +721,10 @@ typedef enum ArmEncodingKind {
     kFmtBrOffset,      /* Signed extended [26,11,13,21-16,10-0]:0 */
     kFmtFPImm,         /* Encoded floating point immediate */
     kFmtOff24,         /* 24-bit Thumb2 unconditional branch encoding */
-} ArmEncodingKind;
+};
 
 /* Struct used to define the snippet positions for each Thumb opcode */
-typedef struct ArmEncodingMap {
+struct ArmEncodingMap {
     u4 skeleton;
     struct {
         ArmEncodingKind kind;
@@ -736,12 +736,12 @@ typedef struct ArmEncodingMap {
     const char* name;
     const char* fmt;
     int size;     /* Size in bytes */
-} ArmEncodingMap;
+};
 
 /* Keys for target-specific scheduling and other optimization hints */
-typedef enum ArmTargetOptHints {
+enum ArmTargetOptHints {
     kMaxHoistDistance,
-} ArmTargetOptHints;
+};
 
 extern const ArmEncodingMap EncodingMap[kArmLast];
 

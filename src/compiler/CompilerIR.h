@@ -35,27 +35,27 @@ namespace art {
 #define EXERCISE_RESOLVE_METHOD (cUnit->enableDebug & \
     (1 << kDebugExerciseResolveMethod))
 
-typedef enum RegisterClass {
+enum RegisterClass {
     kCoreReg,
     kFPReg,
     kAnyReg,
-} RegisterClass;
+};
 
-typedef enum RegLocationType {
+enum RegLocationType {
     kLocDalvikFrame = 0, // Normal Dalvik register
     kLocPhysReg,
     kLocSpill,
-} RegLocationType;
+};
 
-typedef struct PromotionMap {
+struct PromotionMap {
    RegLocationType coreLocation:3;
    u1 coreReg;
    RegLocationType fpLocation:3;
    u1 fpReg;
    bool firstInPair;
-} PromotionMap;
+};
 
-typedef struct RegLocation {
+struct RegLocation {
     RegLocationType location:3;
     unsigned wide:1;
     unsigned defined:1;   // Do we know the type?
@@ -66,7 +66,7 @@ typedef struct RegLocation {
     u1 lowReg;            // First physical register
     u1 highReg;           // 2nd physical register (if wide)
     s2 sRegLow;           // SSA name for low Dalvik word
-} RegLocation;
+};
 
  /*
  * Data structure tracking the mapping between a Dalvik register (pair) and a
@@ -74,7 +74,7 @@ typedef struct RegLocation {
  * if possible, otherwise to keep the value in a native register as long as
  * possible.
  */
-typedef struct RegisterInfo {
+struct RegisterInfo {
     int reg;                    // Reg number
     bool inUse;                 // Has it been allocated?
     bool isTemp;                // Can allocate as temp?
@@ -85,16 +85,16 @@ typedef struct RegisterInfo {
     int sReg;                   // Name of live value
     struct LIR *defStart;       // Starting inst in last def sequence
     struct LIR *defEnd;         // Ending inst in last def sequence
-} RegisterInfo;
+};
 
-typedef struct RegisterPool {
+struct RegisterPool {
     int numCoreRegs;
     RegisterInfo *coreRegs;
     int nextCoreReg;
     int numFPRegs;
     RegisterInfo *FPRegs;
     int nextFPReg;
-} RegisterPool;
+};
 
 #define INVALID_SREG (-1)
 #define INVALID_VREG (0xFFFFU)
@@ -112,13 +112,13 @@ typedef struct RegisterPool {
 #define MANY_BLOCKS_INITIALIZER 1000 /* Threshold for switching dataflow off */
 #define MANY_BLOCKS 4000 /* Non-initializer threshold */
 
-typedef enum BBType {
+enum BBType {
     kEntryBlock,
     kDalvikByteCode,
     kExitBlock,
     kExceptionHandling,
     kCatchEntry,
-} BBType;
+};
 
 /* Utility macros to traverse the LIR list */
 #define NEXT_LIR(lir) (lir->next)
@@ -127,7 +127,7 @@ typedef enum BBType {
 #define NEXT_LIR_LVALUE(lir) (lir)->next
 #define PREV_LIR_LVALUE(lir) (lir)->prev
 
-typedef struct LIR {
+struct LIR {
     int offset;                        // Offset of this instruction
     int dalvikOffset;                  // Offset of Dalvik opcode
     struct LIR* next;
@@ -145,7 +145,7 @@ typedef struct LIR {
     int aliasInfo;              // For Dalvik register & litpool disambiguation
     u8 useMask;                 // Resource mask for use
     u8 defMask;                 // Resource mask for def
-} LIR;
+};
 
 enum ExtendedMIROpcode {
     kMirOpFirst = kNumPackedOpcodes,
@@ -160,7 +160,7 @@ enum ExtendedMIROpcode {
 
 struct SSARepresentation;
 
-typedef enum {
+enum MIROptimizationFlagPositons {
     kMIRIgnoreNullCheck = 0,
     kMIRNullCheckOnly,
     kMIRIgnoreRangeCheck,
@@ -169,7 +169,7 @@ typedef enum {
     kMIRInlinedPred,                    // Invoke is inlined via prediction
     kMIRCallee,                         // Instruction is inlined from callee
     kMIRIgnoreSuspendCheck,
-} MIROptimizationFlagPositons;
+};
 
 #define MIR_IGNORE_NULL_CHECK           (1 << kMIRIgnoreNullCheck)
 #define MIR_NULL_CHECK_ONLY             (1 << kMIRNullCheckOnly)
@@ -180,14 +180,14 @@ typedef enum {
 #define MIR_CALLEE                      (1 << kMIRCallee)
 #define MIR_IGNORE_SUSPEND_CHECK        (1 << kMIRIgnoreSuspendCheck)
 
-typedef struct CallsiteInfo {
+struct CallsiteInfo {
     const char* classDescriptor;
     Object* classLoader;
     const Method* method;
     LIR* misPredBranchOver;
-} CallsiteInfo;
+};
 
-typedef struct MIR {
+struct MIR {
     DecodedInstruction dalvikInsn;
     unsigned int width;
     unsigned int offset;
@@ -204,19 +204,19 @@ typedef struct MIR {
         // Used to quickly locate all Phi opcodes
         struct MIR* phiNext;
     } meta;
-} MIR;
+};
 
 struct BasicBlockDataFlow;
 
 /* For successorBlockList */
-typedef enum BlockListType {
+enum BlockListType {
     kNotUsed = 0,
     kCatch,
     kPackedSwitch,
     kSparseSwitch,
-} BlockListType;
+};
 
-typedef struct BasicBlock {
+struct BasicBlock {
     int id;
     int dfsId;
     bool visited;
@@ -241,7 +241,7 @@ typedef struct BasicBlock {
         BlockListType blockListType;    // switch and exception handling
         GrowableList blocks;
     } successorBlockList;
-} BasicBlock;
+};
 
 /*
  * The "blocks" field in "successorBlockList" points to an array of
@@ -249,25 +249,25 @@ typedef struct BasicBlock {
  * For catch blocks, key is type index for the exception.
  * For swtich blocks, key is the case value.
  */
-typedef struct SuccessorBlockInfo {
+struct SuccessorBlockInfo {
     BasicBlock* block;
     int key;
-} SuccessorBlockInfo;
+};
 
 struct LoopAnalysis;
 struct RegisterPool;
 struct ArenaMemBlock;
 struct Memstats;
 
-typedef enum AssemblerStatus {
+enum AssemblerStatus {
     kSuccess,
     kRetryAll,
     kRetryHalve
-} AssemblerStatus;
+};
 
 #define NOTVISITED (-1)
 
-typedef struct CompilationUnit {
+struct CompilationUnit {
     int numInsts;
     int numBlocks;
     GrowableList blockList;
@@ -399,9 +399,9 @@ typedef struct CompilationUnit {
      struct ArenaMemBlock* currentArena;
      int numArenaBlocks;
      struct Memstats* mstats;
-} CompilationUnit;
+};
 
-typedef enum OpSize {
+enum OpSize {
     kWord,
     kLong,
     kSingle,
@@ -410,9 +410,9 @@ typedef enum OpSize {
     kSignedHalf,
     kUnsignedByte,
     kSignedByte,
-} OpSize;
+};
 
-typedef enum OpKind {
+enum OpKind {
     kOpMov,
     kOpMvn,
     kOpCmp,
@@ -447,11 +447,11 @@ typedef enum OpKind {
     kOpUncondBr,
     kOpBx,
     kOpInvalid,
-} OpKind;
+};
 
 std::ostream& operator<<(std::ostream& os, const OpKind& kind);
 
-typedef enum ConditionCode {
+enum ConditionCode {
     kCondEq,
     kCondNe,
     kCondCs,
@@ -468,9 +468,9 @@ typedef enum ConditionCode {
     kCondLe,
     kCondAl,
     kCondNv,
-} ConditionCode;
+};
 
-typedef enum ThrowKind {
+enum ThrowKind {
     kThrowNullPointer,
     kThrowDivZero,
     kThrowArrayBounds,
@@ -478,22 +478,22 @@ typedef enum ThrowKind {
     kThrowNegArraySize,
     kThrowNoSuchMethod,
     kThrowStackOverflow,
-} ThrowKind;
+};
 
-typedef struct SwitchTable {
+struct SwitchTable {
     int offset;
     const u2* table;            // Original dex table
     int vaddr;                  // Dalvik offset of switch opcode
     LIR* anchor;                // Reference instruction for relative offsets
     LIR** targets;              // Array of case targets
-} SwitchTable;
+};
 
-typedef struct FillArrayData {
+struct FillArrayData {
     int offset;
     const u2* table;           // Original dex table
     int size;
     int vaddr;                 // Dalvik offset of FILL_ARRAY_DATA opcode
-} FillArrayData;
+};
 
 
 BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId);

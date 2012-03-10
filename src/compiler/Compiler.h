@@ -135,7 +135,7 @@ extern std::string compilerMethodMatch;
 /* Flips sense of compilerMethodMatch - apply flags if doesn't match */
 extern bool compilerFlipMatch;
 
-typedef enum OatMethodAttributes {
+enum OatMethodAttributes {
     kIsCallee = 0,      /* Code is part of a callee (invoked by a hot trace) */
     kIsHot,             /* Code is part of a hot trace */
     kIsLeaf,            /* Method is leaf */
@@ -144,7 +144,7 @@ typedef enum OatMethodAttributes {
     kIsGetter,          /* Method fits the getter pattern */
     kIsSetter,          /* Method fits the setter pattern */
     kCannotCompile,     /* Method cannot be compiled */
-} OatMethodAttributes;
+};
 
 #define METHOD_IS_CALLEE        (1 << kIsCallee)
 #define METHOD_IS_HOT           (1 << kIsHot)
@@ -156,14 +156,14 @@ typedef enum OatMethodAttributes {
 #define METHOD_CANNOT_COMPILE   (1 << kCannotCompile)
 
 /* Customized node traversal orders for different needs */
-typedef enum DataFlowAnalysisMode {
+enum DataFlowAnalysisMode {
     kAllNodes = 0,              // All nodes
     kReachableNodes,            // All reachable nodes
     kPreOrderDFSTraversal,      // Depth-First-Search / Pre-Order
     kPostOrderDFSTraversal,     // Depth-First-Search / Post-Order
     kPostOrderDOMTraversal,     // Dominator tree / Post-Order
     kReversePostOrderTraversal, // Depth-First-Search / reverse Post-Order
-} DataFlowAnalysisMode;
+};
 
 struct CompilationUnit;
 struct BasicBlock;

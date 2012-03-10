@@ -30,32 +30,32 @@ bool oatHeapInit(CompilationUnit* cUnit);
 /* Collect memory usage statstics */
 //#define WITH_MEMSTATS
 
-typedef struct ArenaMemBlock {
+struct ArenaMemBlock {
     size_t blockSize;
     size_t bytesAllocated;
     struct ArenaMemBlock *next;
     char ptr[0];
-} ArenaMemBlock;
+};
 
 void* oatNew(CompilationUnit* cUnit, size_t size, bool zero,
              oatAllocKind kind = kAllocMisc);
 
 void oatArenaReset(CompilationUnit *cUnit);
 
-typedef struct GrowableList {
+struct GrowableList {
     size_t numAllocated;
     size_t numUsed;
     intptr_t *elemList;
 #ifdef WITH_MEMSTATS
     oatListKind kind;
 #endif
-} GrowableList;
+};
 
-typedef struct GrowableListIterator {
+struct GrowableListIterator {
     GrowableList* list;
     size_t idx;
     size_t size;
-} GrowableListIterator;
+};
 
 /*
  * Expanding bitmap, used for tracking resources.  Bits are numbered starting

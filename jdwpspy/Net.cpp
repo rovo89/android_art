@@ -33,7 +33,7 @@
 /*
  * Information about the remote end.
  */
-typedef struct Peer {
+struct Peer {
     char    label[2];           /* 'D' or 'V' */
 
     int     sock;
@@ -41,13 +41,13 @@ typedef struct Peer {
     int     inputCount;
 
     bool    awaitingHandshake;  /* waiting for "JDWP-Handshake" */
-} Peer;
+};
 
 
 /*
  * Network state.
  */
-typedef struct NetState {
+struct NetState {
     /* listen here for connection from debugger */
     int     listenSock;
 
@@ -57,16 +57,16 @@ typedef struct NetState {
 
     Peer    dbg;
     Peer    vm;
-} NetState;
+};
 
 /*
  * Function names.
  */
-typedef struct {
+struct JdwpHandlerMap {
     u1  cmdSet;
     u1  cmd;
     const char* descr;
-} JdwpHandlerMap;
+};
 
 /*
  * Map commands to names.

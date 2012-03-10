@@ -93,7 +93,7 @@ int run(const char* connectHost, int connectPort, int listenPort);
  * "mem" mode shows the actual memory address, and will offset the start
  * so that the low nibble of the address is always zero.
  */
-typedef enum { kHexDumpLocal, kHexDumpMem } HexDumpMode;
+enum HexDumpMode { kHexDumpLocal, kHexDumpMem };
 void printHexDump(const void* vaddr, size_t length);
 void printHexDump2(const void* vaddr, size_t length, const char* prefix);
 void printHexDumpEx(FILE* fp, const void* vaddr, size_t length,
