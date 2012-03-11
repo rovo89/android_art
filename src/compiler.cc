@@ -40,10 +40,6 @@
 #include <mach-o/dyld.h>
 #endif
 
-#if defined(ART_USE_LLVM_COMPILER)
-#include "compiler_llvm/compiler_llvm.h"
-#endif
-
 namespace art {
 
 namespace arm {
@@ -230,7 +226,11 @@ static std::string MakeCompilerSoName(InstructionSet instruction_set) {
 #endif
 
   // Work out the filename for the compiler library.
+#if !defined(ART_USE_LLVM_COMPILER)
   std::string library_name(StringPrintf("art%s-compiler-%s", suffix, instruction_set_name.c_str()));
+#else
+  std::string library_name(StringPrintf("art%s-compiler-llvm", suffix));
+#endif
   std::string filename(StringPrintf(OS_SHARED_LIB_FORMAT_STR, library_name.c_str()));
 
 #if defined(__APPLE__)
@@ -282,16 +282,15 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       support_debugging_(support_debugging),
       stats_(new AOTCompilationStats),
       image_classes_(image_classes),
-#if !defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER)
+      compiler_llvm_(NULL),
+#endif
       compiler_library_(NULL),
       compiler_(NULL),
       jni_compiler_(NULL),
       create_invoke_stub_(NULL)
-#else
-      compiler_llvm_(new compiler_llvm::CompilerLLVM(this, instruction_set))
-#endif
 {
-  std::string compiler_so_name(MakeCompilerSoName(instruction_set));
+  std::string compiler_so_name(MakeCompilerSoName(instruction_set_));
   compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
   if (compiler_library_ == NULL) {
     LOG(FATAL) << "Couldn't find compiler library " << compiler_so_name << ": " << dlerror();
@@ -321,6 +320,12 @@ Compiler::~Compiler() {
     MutexLock mu(compiled_invoke_stubs_lock_);
     STLDeleteValues(&compiled_invoke_stubs_);
   }
+#if defined(ART_USE_LLVM_COMPILER)
+  CompilerCallbackFn f = FindFunction<CompilerCallbackFn>(MakeCompilerSoName(instruction_set_),
+                                                          compiler_library_,
+                                                          "compilerLLVMDispose");
+  (*f)(*this);
+#endif
   if (compiler_library_ != NULL) {
     VLOG(compiler) << "dlclose(" << compiler_library_ << ")";
     dlclose(compiler_library_);
@@ -427,7 +432,10 @@ void Compiler::PostCompile(const ClassLoader* class_loader,
                            const std::vector<const DexFile*>& dex_files) {
   SetGcMaps(class_loader, dex_files);
 #if defined(ART_USE_LLVM_COMPILER)
-  compiler_llvm_->MaterializeRemainder();
+  CompilerCallbackFn f = FindFunction<CompilerCallbackFn>(MakeCompilerSoName(instruction_set_),
+                                                          compiler_library_,
+                                                          "compilerLLVMMaterializeRemainder");
+  (*f)(*this);
 #endif
 }
 
@@ -1057,13 +1065,16 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
   const ClassLoader* class_loader = context->GetClassLoader();
   const DexFile& dex_file = *context->GetDexFile();
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-
 #if defined(ART_USE_LLVM_COMPILER)
-  compiler_llvm::CompilerLLVM* compiler_llvm = context->GetCompiler()->GetCompilerLLVM();
-
-  MutexLock GUARD(compiler_llvm->compiler_lock_);
   // TODO: Remove this.  We should not lock the compiler_lock_ in CompileClass()
-  // However, without this mutex lock, we will get segmentation fault.
+  // However, without this mutex lock, we will get segmentation fault before
+  // LLVM becomes multithreaded.
+  Compiler* cmplr = context->GetCompiler();
+  CompilerMutexLockFn f =
+      FindFunction<CompilerMutexLockFn>(MakeCompilerSoName(cmplr->GetInstructionSet()),
+                                        cmplr->compiler_library_,
+                                        "compilerLLVMMutexLock");
+  UniquePtr<MutexLock> GUARD((*f)(*cmplr));
 #endif
 
   if (SkipClass(class_loader, dex_file, class_def)) {
@@ -1102,7 +1113,11 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
   DCHECK(!it.HasNext());
 
 #if defined(ART_USE_LLVM_COMPILER)
-  compiler_llvm->MaterializeIfThresholdReached();
+  CompilerCallbackFn fn =
+      FindFunction<CompilerCallbackFn>(MakeCompilerSoName(cmplr->GetInstructionSet()),
+                                       cmplr->compiler_library_,
+                                       "compilerLLVMMaterializeIfThresholdReached");
+                                       (*fn)(*cmplr);
 #endif
 }
 
@@ -1117,30 +1132,13 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
   CompiledMethod* compiled_method = NULL;
   uint64_t start_ns = NanoTime();
 
-#if defined(ART_USE_LLVM_COMPILER)
-  ClassLinker *class_linker = Runtime::Current()->GetClassLinker();
-  DexCache *dex_cache = class_linker->FindDexCache(dex_file);
-
-  OatCompilationUnit oat_compilation_unit(
-    class_loader, class_linker, dex_file, *dex_cache, code_item,
-    method_idx, access_flags);
-#endif
-
   if ((access_flags & kAccNative) != 0) {
-#if defined(ART_USE_LLVM_COMPILER)
-    compiled_method = compiler_llvm_->CompileNativeMethod(&oat_compilation_unit);
-#else
     compiled_method = (*jni_compiler_)(*this, access_flags, method_idx, class_loader, dex_file);
-#endif
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
-#if defined(ART_USE_LLVM_COMPILER)
-    compiled_method = compiler_llvm_->CompileDexMethod(&oat_compilation_unit);
-#else
     compiled_method = (*compiler_)(*this, code_item, access_flags, method_idx, class_loader,
                                    dex_file);
-#endif
     CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
   }
   uint64_t duration_ns = NanoTime() - start_ns;
@@ -1163,7 +1161,7 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
   const CompiledInvokeStub* compiled_invoke_stub = FindInvokeStub(is_static, shorty);
   if (compiled_invoke_stub == NULL) {
 #if defined(ART_USE_LLVM_COMPILER)
-    compiled_invoke_stub = compiler_llvm_->CreateInvokeStub(is_static, shorty);
+    compiled_invoke_stub = (*create_invoke_stub_)(*this, is_static, shorty, shorty_len);
 #else
     compiled_invoke_stub = (*create_invoke_stub_)(is_static, shorty, shorty_len);
 #endif
@@ -1287,11 +1285,17 @@ void Compiler::SetGcMapsMethod(const DexFile& dex_file, Method* method) {
 
 #if defined(ART_USE_LLVM_COMPILER)
 void Compiler::SetElfFileName(std::string const& filename) {
-  compiler_llvm_->SetElfFileName(filename);
+  elf_filename_ = filename;
 }
 
 void Compiler::SetBitcodeFileName(std::string const& filename) {
-  compiler_llvm_->SetBitcodeFileName(filename);
+  bitcode_filename_ = filename;
+}
+std::string const& Compiler::GetElfFileName() {
+  return elf_filename_;
+}
+std::string const& Compiler::GetBitcodeFileName() {
+  return bitcode_filename_;
 }
 #endif
 

@@ -28,6 +28,9 @@ include $(build_path)/Android.common.mk
 
 include $(build_path)/Android.libart.mk
 include $(build_path)/Android.libart-compiler.mk
+ifeq ($(ART_USE_LLVM_COMPILER),true)
+include $(build_path)/Android.libart-compiler-llvm.mk
+endif
 include $(build_path)/Android.executable.mk
 
 # *_DEPENDENCIES depend on Android.executable.mk and are needed by Android.gtest.mk

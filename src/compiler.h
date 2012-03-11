@@ -30,11 +30,13 @@
 #include "object.h"
 #include "runtime.h"
 
-#if defined(ART_USE_LLVM_COMPILER)
-#include "compiler_llvm/compiler_llvm.h"
-#endif
-
 namespace art {
+
+#if defined(ART_USE_LLVM_COMPILER)
+namespace compiler_llvm {
+class CompilerLLVM;
+}
+#endif
 
 class AOTCompilationStats;
 class Context;
@@ -125,9 +127,14 @@ class Compiler {
 #if defined(ART_USE_LLVM_COMPILER)
   void SetElfFileName(std::string const& filename);
   void SetBitcodeFileName(std::string const& filename);
+  std::string const& GetElfFileName();
+  std::string const& GetBitcodeFileName();
 
+  void SetCompilerLLVM(compiler_llvm::CompilerLLVM* compiler_llvm) {
+    compiler_llvm_ = compiler_llvm;
+  }
   compiler_llvm::CompilerLLVM* GetCompilerLLVM() const {
-    return compiler_llvm_.get();
+    return compiler_llvm_;
   }
 #endif
 
@@ -195,8 +202,12 @@ class Compiler {
   const std::set<std::string>* image_classes_;
 
 #if defined(ART_USE_LLVM_COMPILER)
-  UniquePtr<compiler_llvm::CompilerLLVM> compiler_llvm_;
-#else
+  compiler_llvm::CompilerLLVM* compiler_llvm_;
+  std::string elf_filename_;
+  std::string bitcode_filename_;
+  typedef void (*CompilerCallbackFn)(Compiler& compiler);
+  typedef MutexLock* (*CompilerMutexLockFn)(Compiler& compiler);
+#endif
   void* compiler_library_;
 
   typedef CompiledMethod* (*CompilerFn)(Compiler& compiler,
@@ -211,11 +222,14 @@ class Compiler {
                                            const ClassLoader* class_loader,
                                            const DexFile& dex_file);
   JniCompilerFn jni_compiler_;
-
+#if !defined(ART_USE_LLVM_COMPILER)
   typedef CompiledInvokeStub* (*CreateInvokeStubFn)(bool is_static,
                                                     const char* shorty, uint32_t shorty_len);
-  CreateInvokeStubFn create_invoke_stub_;
+#else
+  typedef CompiledInvokeStub* (*CreateInvokeStubFn)(Compiler& compiler, bool is_static,
+                                                    const char* shorty, uint32_t shorty_len);
 #endif
+  CreateInvokeStubFn create_invoke_stub_;
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);
 };

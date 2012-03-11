@@ -352,7 +352,7 @@ class CommonTest : public testing::Test {
     class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
     compiler_.reset(new Compiler(instruction_set, false, 2, false, NULL));
 #if defined(ART_USE_LLVM_COMPILER)
-    compiler_->GetCompilerLLVM()->SetElfFileName("gtest");
+    compiler_->SetElfFileName("gtest");
 #endif
 
     Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption before the test

@@ -34,7 +34,7 @@ class CompiledMethod {
   // Create a CompiledMethod from the oatCompileMethod
   CompiledMethod(InstructionSet instruction_set,
                  llvm::Function* func);
-#else
+#endif
   // Create a CompiledMethod from the oatCompileMethod
   CompiledMethod(InstructionSet instruction_set,
                  const std::vector<uint8_t>& code,
@@ -43,7 +43,6 @@ class CompiledMethod {
                  const uint32_t fp_spill_mask,
                  const std::vector<uint32_t>& mapping_table,
                  const std::vector<uint16_t>& vmap_table);
-#endif
 
   // Add a GC map to a CompiledMethod created by oatCompileMethod
   void SetGcMap(const std::vector<uint8_t>& gc_map);
@@ -100,9 +99,8 @@ class CompiledInvokeStub {
  public:
 #if defined(ART_USE_LLVM_COMPILER)
   explicit CompiledInvokeStub(llvm::Function* func);
-#else
-  explicit CompiledInvokeStub(std::vector<uint8_t>& code);
 #endif
+  explicit CompiledInvokeStub(std::vector<uint8_t>& code);
   ~CompiledInvokeStub();
   const std::vector<uint8_t>& GetCode() const;
  private:

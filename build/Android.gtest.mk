@@ -19,6 +19,11 @@ ART_TARGET_TEST_EXECUTABLES :=
 ART_HOST_TEST_TARGETS :=
 ART_TARGET_TEST_TARGETS :=
 
+ART_TEST_CFLAGS :=
+ifeq ($(ART_USE_LLVM_COMPILER),true)
+  ART_TEST_CFLAGS += -DART_USE_LLVM_COMPILER=1
+endif
+
 # $(1): target or host
 # $(2): file name
 define build-art-test
@@ -61,8 +66,9 @@ define build-art-test
     LOCAL_LDFLAGS := -Wl,--export-dynamic -Wl,-u,Java_MyClass_bar -Wl,-u,Java_MyClass_sbar
   endif
 
+  LOCAL_CFLAGS := $(ART_TEST_CFLAGS)
   ifeq ($$(art_target_or_host),target)
-    LOCAL_CFLAGS := $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
+    LOCAL_CFLAGS += $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz
     LOCAL_STATIC_LIBRARIES += libgtest libgtest_main
     LOCAL_MODULE_PATH := $(ART_NATIVETEST_OUT)
@@ -70,7 +76,7 @@ define build-art-test
     art_gtest_exe := $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE)
     ART_TARGET_TEST_EXECUTABLES += $$(art_gtest_exe)
   else # host
-    LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
+    LOCAL_CFLAGS += $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
     # glibc complains about double frees if you include both libraries, but Mac OS
     # complains about unresolved symbols if you don't!

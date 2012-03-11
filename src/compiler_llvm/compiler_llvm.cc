@@ -16,8 +16,10 @@
 
 #include "compiler_llvm.h"
 
+#include "class_linker.h"
 #include "compilation_unit.h"
 #include "compiler.h"
+#include "dex_cache.h"
 #include "ir_builder.h"
 #include "jni_compiler.h"
 #include "method_compiler.h"
@@ -207,3 +209,78 @@ CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
 
 } // namespace compiler_llvm
 } // namespace art
+
+namespace {
+
+void ensureCompilerLLVM(art::Compiler& compiler) {
+  if (compiler.GetCompilerLLVM() == NULL) {
+    compiler.SetCompilerLLVM(new art::compiler_llvm::CompilerLLVM(&compiler,
+                                                                  compiler.GetInstructionSet()));
+  }
+  art::compiler_llvm::CompilerLLVM* compiler_llvm = compiler.GetCompilerLLVM();
+  compiler_llvm->SetElfFileName(compiler.GetElfFileName());
+  compiler_llvm->SetBitcodeFileName(compiler.GetBitcodeFileName());
+}
+
+}  // anonymous namespace
+
+extern "C" art::CompiledMethod* oatCompileMethod(art::Compiler& compiler,
+                                                 const art::DexFile::CodeItem* code_item,
+                                                 uint32_t access_flags, uint32_t method_idx,
+                                                 const art::ClassLoader* class_loader,
+                                                 const art::DexFile& dex_file)
+{
+  ensureCompilerLLVM(compiler);
+
+  art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
+  art::DexCache *dex_cache = class_linker->FindDexCache(dex_file);
+
+  art::OatCompilationUnit oat_compilation_unit(
+    class_loader, class_linker, dex_file, *dex_cache, code_item,
+    method_idx, access_flags);
+
+  return compiler.GetCompilerLLVM()->CompileDexMethod(&oat_compilation_unit);
+}
+
+extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
+                                                    uint32_t access_flags, uint32_t method_idx,
+                                                    const art::ClassLoader* class_loader,
+                                                    const art::DexFile& dex_file) {
+  ensureCompilerLLVM(compiler);
+
+  art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
+  art::DexCache *dex_cache = class_linker->FindDexCache(dex_file);
+
+  art::OatCompilationUnit oat_compilation_unit(
+    class_loader, class_linker, dex_file, *dex_cache, NULL,
+    method_idx, access_flags);
+
+  return compiler.GetCompilerLLVM()->CompileNativeMethod(&oat_compilation_unit);
+}
+
+extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(art::Compiler& compiler, bool is_static,
+                                                        const char* shorty, uint32_t shorty_len) {
+  ensureCompilerLLVM(compiler);
+  //shorty_len = 0; // To make the compiler happy
+  return compiler.GetCompilerLLVM()->CreateInvokeStub(is_static, shorty);
+}
+
+extern "C" void compilerLLVMMaterializeRemainder(art::Compiler& compiler) {
+  ensureCompilerLLVM(compiler);
+  compiler.GetCompilerLLVM()->MaterializeRemainder();
+}
+
+extern "C" void compilerLLVMMaterializeIfThresholdReached(art::Compiler& compiler) {
+  ensureCompilerLLVM(compiler);
+  compiler.GetCompilerLLVM()->MaterializeIfThresholdReached();
+}
+
+// Note: Using this function carefully!!! This is temporary solution, we will remove it.
+extern "C" art::MutexLock* compilerLLVMMutexLock(art::Compiler& compiler) {
+  ensureCompilerLLVM(compiler);
+  return new art::MutexLock(compiler.GetCompilerLLVM()->compiler_lock_);
+}
+
+extern "C" void compilerLLVMDispose(art::Compiler& compiler) {
+  delete compiler.GetCompilerLLVM();
+}

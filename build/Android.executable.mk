@@ -17,6 +17,11 @@
 ART_HOST_EXECUTABLES :=
 ART_TARGET_EXECUTABLES :=
 
+ART_EXECUTABLES_CFLAGS :=
+ifeq ($(ART_USE_LLVM_COMPILER),true)
+  ART_EXECUTABLES_CFLAGS += -DART_USE_LLVM_COMPILER=1
+endif
+
 # $(1): executable ("d" will be appended for debug version)
 # $(2): source
 # $(3): target or host
@@ -55,15 +60,16 @@ define build-art-executable
     LOCAL_MODULE := $$(art_executable)d
   endif
 
+  LOCAL_CFLAGS := $(ART_EXECUTABLES_CFLAGS)
   ifeq ($$(art_target_or_host),target)
-    LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
+    LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
     else
       LOCAL_CFLAGS += $(ART_TARGET_NON_DEBUG_CFLAGS)
     endif
   else # host
-    LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
+    LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
     else

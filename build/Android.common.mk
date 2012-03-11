@@ -56,10 +56,6 @@ art_cflags := \
 	-fno-align-jumps \
 	-fstrict-aliasing
 
-ifeq ($(ART_USE_LLVM_COMPILER),true)
-art_cflags += -DART_USE_LLVM_COMPILER=1
-endif
-
 ifeq ($(HOST_OS),linux)
   art_non_debug_cflags := \
 	-Wframe-larger-than=1728
@@ -206,17 +202,8 @@ LIBART_COMMON_SRC_FILES := \
 
 ifeq ($(ART_USE_LLVM_COMPILER),true)
 LIBART_COMMON_SRC_FILES += \
-	src/compiler_llvm/compilation_unit.cc \
-	src/compiler_llvm/compiler_llvm.cc \
-	src/compiler_llvm/dalvik_reg.cc \
-	src/compiler_llvm/frontend.cc \
-	src/compiler_llvm/generated/art_module.cc \
 	src/compiler_llvm/inferred_reg_category_map.cc \
-	src/compiler_llvm/ir_builder.cc \
-	src/compiler_llvm/jni_compiler.cc \
-	src/compiler_llvm/method_compiler.cc \
 	src/compiler_llvm/runtime_support_llvm.cc \
-	src/compiler_llvm/upcall_compiler.cc \
 	src/compiler_llvm/utils_llvm.cc
 endif
 

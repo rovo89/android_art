@@ -24,7 +24,7 @@ CompiledMethod::CompiledMethod(art::InstructionSet instruction_set,
     : instruction_set_(instruction_set), func_(func), frame_size_in_bytes_(0),
       core_spill_mask_(0), fp_spill_mask_(0) {
 }
-#else
+#endif
 CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                const std::vector<uint8_t>& code,
                                const size_t frame_size_in_bytes,
@@ -68,7 +68,6 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
 
   DCHECK_EQ(vmap_table_[0], static_cast<uint32_t>(__builtin_popcount(core_spill_mask) + __builtin_popcount(fp_spill_mask)));
 }
-#endif
 
 void CompiledMethod::SetGcMap(const std::vector<uint8_t>& gc_map) {
   CHECK_NE(gc_map.size(), 0U);
@@ -180,12 +179,11 @@ const void* CompiledMethod::CodePointer(const void* code_pointer,
 CompiledInvokeStub::CompiledInvokeStub(llvm::Function* func) : func_(func) {
   CHECK_NE(func, static_cast<llvm::Function*>(NULL));
 }
-#else
+#endif
 CompiledInvokeStub::CompiledInvokeStub(std::vector<uint8_t>& code) {
   CHECK_NE(code.size(), 0U);
   code_ = code;
 }
-#endif
 
 CompiledInvokeStub::~CompiledInvokeStub() {}
 

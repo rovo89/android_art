@@ -14,6 +14,11 @@
 # limitations under the License.
 #
 
+LIBART_CFLAGS :=
+ifeq ($(ART_USE_LLVM_COMPILER),true)
+  LIBART_CFLAGS += -DART_USE_LLVM_COMPILER=1
+endif
+
 # $(1): target or host
 # $(2): ndebug or debug
 define build-libart
@@ -50,10 +55,12 @@ define build-libart
   else # host
     LOCAL_SRC_FILES := $(LIBART_HOST_SRC_FILES)
   endif
+
+  LOCAL_CFLAGS := $(LIBART_CFLAGS)
   ifeq ($$(art_target_or_host),target)
-    LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
+    LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
   else # host
-    LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
+    LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
   endif
   ifeq ($$(art_ndebug_or_debug),debug)
     ifeq ($$(art_target_or_host),target)
@@ -72,6 +79,7 @@ define build-libart
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   ifeq ($(ART_USE_LLVM_COMPILER),true)
     LOCAL_C_INCLUDES += frameworks/compile/linkloader
+    LOCAL_STATIC_LIBRARIES += librsloader
     libart_arm_STATIC_LIBRARIES := \
       libLLVMARMInfo \
       libLLVMARMDisassembler \
@@ -123,8 +131,7 @@ define build-libart
       libLLVMMC \
       libLLVMMCParser \
       libLLVMCore \
-      libLLVMSupport \
-      librsloader
+      libLLVMSupport
   endif
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
   ifeq ($$(art_target_or_host),target)
