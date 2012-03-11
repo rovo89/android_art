@@ -260,11 +260,6 @@ void genNegDouble(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
  */
 void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    LIR* target;
-    LIR* hopTarget;
-    LIR* branch;
-    LIR* hopBranch;
-
     oatFlushAllRegs(cUnit);
     DCHECK_EQ(LW_SHAPE_THIN, 0);
     loadValueDirectFixed(cUnit, rlSrc, r0);  // Get obj
@@ -278,23 +273,17 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     // Is lock unheld on lock or held by us (==threadId) on unlock?
     newLIR4(cUnit, kThumb2Bfi, r2, r1, 0, LW_LOCK_OWNER_SHIFT - 1);
     newLIR3(cUnit, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
-    hopBranch = newLIR2(cUnit, kThumb2Cbnz, r1, 0);
+    opRegImm(cUnit, kOpCmp, r1, 0);
+    opIT(cUnit, kArmCondEq, "");
     newLIR4(cUnit, kThumb2Strex, r1, r2, r0,
             Object::MonitorOffset().Int32Value() >> 2);
-    oatGenMemBarrier(cUnit, kSY);
-    branch = newLIR2(cUnit, kThumb2Cbz, r1, 0);
-
-    hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
-    hopBranch->target = (LIR*)hopTarget;
-
+    opRegImm(cUnit, kOpCmp, r1, 0);
+    opIT(cUnit, kArmCondNe, "T");
     // Go expensive route - artLockObjectFromCode(self, obj);
     loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pLockObjectFromCode),
                  rLR);
     callRuntimeHelper(cUnit, rLR);
-
-    // Resume here
-    target = newLIR0(cUnit, kPseudoTargetLabel);
-    branch->target = (LIR*)target;
+    oatGenMemBarrier(cUnit, kSY);
 }
 
 /*
@@ -305,11 +294,6 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  */
 void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    LIR* target;
-    LIR* branch;
-    LIR* hopTarget;
-    LIR* hopBranch;
-
     DCHECK_EQ(LW_SHAPE_THIN, 0);
     oatFlushAllRegs(cUnit);
     loadValueDirectFixed(cUnit, rlSrc, r0);  // Get obj
@@ -323,22 +307,13 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     opRegImm(cUnit, kOpLsl, r2, LW_LOCK_OWNER_SHIFT);
     newLIR3(cUnit, kThumb2Bfc, r1, LW_HASH_STATE_SHIFT, LW_LOCK_OWNER_SHIFT - 1);
     opRegReg(cUnit, kOpSub, r1, r2);
-    hopBranch = opCondBranch(cUnit, kCondNe, NULL);
-    oatGenMemBarrier(cUnit, kSY);
+    opIT(cUnit, kArmCondEq, "EE");
     storeWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r3);
-    branch = opBranchUnconditional(cUnit, kOpUncondBr);
-
-    hopTarget = newLIR0(cUnit, kPseudoTargetLabel);
-    hopBranch->target = (LIR*)hopTarget;
-
     // Go expensive route - UnlockObjectFromCode(obj);
     loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pUnlockObjectFromCode),
                  rLR);
     callRuntimeHelper(cUnit, rLR);
-
-    // Resume here
-    target = newLIR0(cUnit, kPseudoTargetLabel);
-    branch->target = (LIR*)target;
+    oatGenMemBarrier(cUnit, kSY);
 }
 
 /*
