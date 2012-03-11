@@ -122,6 +122,21 @@ define build-libart-compiler
     LOCAL_IS_HOST_MODULE := true
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
+
+  ifeq ($$(art_target_or_host),target)
+    ifeq ($$(art_ndebug_or_debug),debug)
+      $(TARGET_OUT_EXECUTABLES)/dex2oatd: $$(LOCAL_INSTALLED_MODULE)
+    else
+      $(TARGET_OUT_EXECUTABLES)/dex2oat: $$(LOCAL_INSTALLED_MODULE)
+    endif
+  else # host
+    ifeq ($$(art_ndebug_or_debug),debug)
+      $(HOST_OUT_EXECUTABLES)/dex2oatd: $$(LOCAL_INSTALLED_MODULE)
+    else
+      $(HOST_OUT_EXECUTABLES)/dex2oat: $$(LOCAL_INSTALLED_MODULE)
+    endif
+  endif
+
 endef
 
 # $(1): target or host
