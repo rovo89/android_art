@@ -104,6 +104,11 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --host-prefix=out/target/product/crespo");
   UsageError("      Default: $ANDROID_PRODUCT_OUT");
   UsageError("");
+  UsageError("  --instruction-set=(ARM|Thumb2|MIPS|X86): compile for a particular instruction");
+  UsageError("      set.");
+  UsageError("      Example: --instruction-set=X86");
+  UsageError("      Default: Thumb2");
+  UsageError("");
   UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
   UsageError("      such as initial heap size, maximum heap size, and verbose output.");
   UsageError("      Use a separate --runtime-arg switch for each argument.");
@@ -116,12 +121,13 @@ static void Usage(const char* fmt, ...) {
 class Dex2Oat {
  public:
 
-  static Dex2Oat* Create(Runtime::Options& options, size_t thread_count, bool support_debugging) {
-    UniquePtr<Runtime> runtime(CreateRuntime(options));
+  static Dex2Oat* Create(Runtime::Options& options, InstructionSet instruction_set,
+                         size_t thread_count, bool support_debugging) {
+    UniquePtr<Runtime> runtime(CreateRuntime(options, instruction_set));
     if (runtime.get() == NULL) {
       return NULL;
     }
-    return new Dex2Oat(runtime.release(), thread_count, support_debugging);
+    return new Dex2Oat(runtime.release(), instruction_set, thread_count, support_debugging);
   }
 
   ~Dex2Oat() {
@@ -266,14 +272,16 @@ class Dex2Oat {
 
  private:
 
-  explicit Dex2Oat(Runtime* runtime, size_t thread_count, bool support_debugging)
-      : runtime_(runtime),
+  explicit Dex2Oat(Runtime* runtime, InstructionSet instruction_set, size_t thread_count,
+                   bool support_debugging)
+      : instruction_set_(instruction_set),
+        runtime_(runtime),
         thread_count_(thread_count),
         support_debugging_(support_debugging),
         start_ns_(NanoTime()) {
   }
 
-  static Runtime* CreateRuntime(Runtime::Options& options) {
+  static Runtime* CreateRuntime(Runtime::Options& options, InstructionSet instruction_set) {
     Runtime* runtime = Runtime::Create(options, false);
     if (runtime == NULL) {
       LOG(ERROR) << "Failed to create runtime";
@@ -282,15 +290,15 @@ class Dex2Oat {
 
     // if we loaded an existing image, we will reuse values from the image roots.
     if (!runtime->HasJniDlsymLookupStub()) {
-      runtime->SetJniDlsymLookupStub(Compiler::CreateJniDlsymLookupStub(instruction_set_));
+      runtime->SetJniDlsymLookupStub(Compiler::CreateJniDlsymLookupStub(instruction_set));
     }
     if (!runtime->HasAbstractMethodErrorStubArray()) {
-      runtime->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(instruction_set_));
+      runtime->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(instruction_set));
     }
     for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
       Runtime::TrampolineType type = Runtime::TrampolineType(i);
       if (!runtime->HasResolutionStubArray(type)) {
-        runtime->SetResolutionStubArray(Compiler::CreateResolutionStub(instruction_set_, type), type);
+        runtime->SetResolutionStubArray(Compiler::CreateResolutionStub(instruction_set, type), type);
       }
     }
     if (!runtime->HasResolutionMethod()) {
@@ -299,7 +307,7 @@ class Dex2Oat {
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
       Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
       if (!runtime->HasCalleeSaveMethod(type)) {
-        runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(instruction_set_, type), type);
+        runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(instruction_set, type), type);
       }
     }
     runtime->GetClassLinker()->FixupDexCaches(runtime->GetResolutionMethod());
@@ -395,7 +403,7 @@ class Dex2Oat {
     return false;
   }
 
-  static const InstructionSet instruction_set_ = kThumb2;
+  const InstructionSet instruction_set_;
 
   Runtime* runtime_;
   size_t thread_count_;
@@ -458,6 +466,7 @@ int dex2oat(int argc, char** argv) {
   std::vector<const char*> runtime_args;
   int thread_count = 2;
   bool support_debugging = false;
+  InstructionSet instruction_set = kThumb2;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -513,6 +522,15 @@ int dex2oat(int argc, char** argv) {
       boot_image_filename = option.substr(strlen("--boot-image=")).data();
     } else if (option.starts_with("--host-prefix=")) {
       host_prefix = option.substr(strlen("--host-prefix=")).data();
+    } else if (option.starts_with("--instruction-set=")) {
+      StringPiece instruction_set_str = option.substr(strlen("--instruction-set=")).data();
+      if (instruction_set_str == "Thumb2" || instruction_set_str == "ARM") {
+        instruction_set = kThumb2;
+      } else if (instruction_set_str == "MIPS") {
+        instruction_set = kMips;
+      } else if (instruction_set_str == "X86") {
+        instruction_set = kX86;
+      }
     } else if (option == "--runtime-arg") {
       if (++i >= argc) {
         Usage("Missing required argument for --runtime-arg");
@@ -651,7 +669,8 @@ int dex2oat(int argc, char** argv) {
     options.push_back(std::make_pair(runtime_args[i], reinterpret_cast<void*>(NULL)));
   }
 
-  UniquePtr<Dex2Oat> dex2oat(Dex2Oat::Create(options, thread_count, support_debugging));
+  UniquePtr<Dex2Oat> dex2oat(Dex2Oat::Create(options, instruction_set, thread_count,
+                                             support_debugging));
 
   // If --image-classes was specified, calculate the full list of classes to include in the image
   UniquePtr<const std::set<std::string> > image_classes(NULL);

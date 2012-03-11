@@ -309,7 +309,7 @@ ByteArray* Compiler::CreateJniDlsymLookupStub(InstructionSet instruction_set) {
     case kX86:
       return x86::CreateJniDlsymLookupStub();
     default:
-      LOG(FATAL) << "Unknown InstructionSet: " << static_cast<int>(instruction_set);
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
       return NULL;
   }
 }
