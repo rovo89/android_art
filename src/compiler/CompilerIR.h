@@ -367,9 +367,7 @@ struct CompilationUnit {
     int numRegs;            // Unlike numDalvikRegisters, does not include ins
     int numCoreSpills;
     int numFPSpills;
-    int numPadding;         // # of 4-byte padding cells
-    int regsOffset;         // sp-relative offset to beginning of Dalvik regs
-    int insOffset;          // sp-relative offset to beginning of Dalvik ins
+    int numCompilerTemps;
     int frameSize;
     unsigned int coreSpillMask;
     unsigned int fpSpillMask;

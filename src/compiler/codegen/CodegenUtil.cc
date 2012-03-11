@@ -372,10 +372,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
     LOG(INFO) << "Outs                 : " << cUnit->numOuts;
     LOG(INFO) << "CoreSpills           : " << cUnit->numCoreSpills;
     LOG(INFO) << "FPSpills             : " << cUnit->numFPSpills;
-    LOG(INFO) << "Padding              : " << cUnit->numPadding;
     LOG(INFO) << "Frame size           : " << cUnit->frameSize;
-    LOG(INFO) << "Start of ins         : " << cUnit->insOffset;
-    LOG(INFO) << "Start of regs        : " << cUnit->regsOffset;
     LOG(INFO) << "code size is " << cUnit->totalSize <<
         " bytes, Dalvik size is " << insnsSize * 2;
     LOG(INFO) << "expansion factor: " <<

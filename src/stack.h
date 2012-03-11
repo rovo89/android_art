@@ -59,6 +59,8 @@ class PACKED Frame {
 
   uintptr_t LoadCalleeSave(int num) const;
 
+  static int GetVRegOffset(const DexFile::CodeItem* code_item, uint32_t core_spills,
+                           uint32_t fp_spills, size_t frame_size, int reg);
 
   uint32_t GetVReg(const DexFile::CodeItem* code_item, uint32_t core_spills, uint32_t fp_spills,
                     size_t frame_size, int vreg) const;

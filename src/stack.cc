@@ -49,21 +49,60 @@ void Frame::SetReturnPC(uintptr_t pc) {
   *reinterpret_cast<uintptr_t*>(pc_addr) = pc;
 }
 
-/* Return sp-relative offset in bytes using Method* */
-static int GetVRegOffset(const DexFile::CodeItem* code_item,
+/*
+ * Return sp-relative offset for a Dalvik virtual register, compiler
+ * spill or Method* in bytes using Method*.
+ * Note that (reg >= 0) refers to a Dalvik register, (reg == -1)
+ * denotes Method* and (reg <= -2) denotes a compiler temp.
+ *
+ *     +------------------------+
+ *     | IN[ins-1]              |  {Note: resides in caller's frame}
+ *     |       .                |
+ *     | IN[0]                  |
+ *     | caller's Method*       |
+ *     +========================+  {Note: start of callee's frame}
+ *     | core callee-save spill |  {variable sized}
+ *     +------------------------+
+ *     | fp calle-save spill    |
+ *     +------------------------+
+ *     | V[locals-1]            |
+ *     | V[locals-2]            |
+ *     |      .                 |
+ *     |      .                 |  ... (reg == 2)
+ *     | V[1]                   |  ... (reg == 1)
+ *     | V[0]                   |  ... (reg == 0) <---- "locals_start"
+ *     +------------------------+
+ *     | Compiler temps         |  ... (reg == -2)
+ *     |                        |  ... (reg == -3)
+ *     |                        |  ... (reg == -4)
+ *     +------------------------+
+ *     | stack alignment padding|  {0 to (kStackAlignWords-1) of padding}
+ *     +------------------------+
+ *     | OUT[outs-1]            |
+ *     | OUT[outs-2]            |
+ *     |       .                |
+ *     | OUT[0]                 |
+ *     | curMethod*             |  ... (reg == -1) <<== sp, 16-byte aligned
+ *     +========================+
+ */
+int Frame::GetVRegOffset(const DexFile::CodeItem* code_item,
                          uint32_t core_spills, uint32_t fp_spills,
                          size_t frame_size, int reg)
 {
-  static const int kStackAlignWords = kStackAlignment/sizeof(uint32_t);
-  int numIns = code_item->ins_size_;
-  int numRegs = code_item->registers_size_ - numIns;
-  int numOuts = code_item->outs_size_;
-  int numSpills = __builtin_popcount(core_spills) + __builtin_popcount(fp_spills);
-  int numPadding = (kStackAlignWords - (numSpills + numRegs + numOuts + 2)) & (kStackAlignWords - 1);
-  int regsOffset = (numOuts + numPadding + 1) * 4;
-  int insOffset = frame_size + 4;
-  return (reg < numRegs) ? regsOffset + (reg << 2) :
-  insOffset + ((reg - numRegs) << 2);
+  DCHECK_EQ( frame_size & (kStackAlignment - 1), 0U);
+  int num_spills = __builtin_popcount(core_spills) + __builtin_popcount(fp_spills);
+  int num_ins = code_item->ins_size_;
+  int num_regs = code_item->registers_size_ - num_ins;
+  int locals_start = frame_size - ((num_spills + num_regs) * sizeof(uint32_t));
+  if (reg == -1) {
+    return 0;  // Method*
+  } else if (reg <= -2) {
+    return locals_start - ((reg + 1) * sizeof(uint32_t));  // Compiler temp
+  } else if (reg < num_regs) {
+    return locals_start + (reg * sizeof(uint32_t));        // Dalvik local reg
+  } else {
+    return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + sizeof(uint32_t); // Dalvik in
+  }
 }
 
 uint32_t Frame::GetVReg(const DexFile::CodeItem* code_item, uint32_t core_spills,

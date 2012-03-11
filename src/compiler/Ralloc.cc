@@ -406,15 +406,12 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     }
 
     /* Figure out the frame size */
-    static const int kStackAlignWords = kStackAlignment/sizeof(uint32_t);
-    cUnit->numPadding = (kStackAlignWords -
-        (cUnit->numCoreSpills + cUnit->numFPSpills + cUnit->numRegs +
-             cUnit->numOuts + 2)) & (kStackAlignWords - 1);
-    cUnit->frameSize = (cUnit->numCoreSpills + cUnit->numFPSpills +
-                        cUnit->numRegs + cUnit->numOuts +
-                        cUnit->numPadding + 2) * 4;
-    cUnit->insOffset = cUnit->frameSize + 4;
-    cUnit->regsOffset = (cUnit->numOuts + cUnit->numPadding + 1) * 4;
+    static const uint32_t kAlignMask = kStackAlignment - 1;
+    uint32_t size = (cUnit->numCoreSpills + cUnit->numFPSpills +
+                     cUnit->numRegs + cUnit->numOuts + cUnit->numCompilerTemps +
+                     1 /* curMethod* */) * sizeof(uint32_t);
+    /* Align and set */
+    cUnit->frameSize = (size + kAlignMask) & ~(kAlignMask);
 }
 
 }  // namespace art
