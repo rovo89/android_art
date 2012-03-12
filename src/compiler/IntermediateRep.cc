@@ -110,7 +110,7 @@ void oatPrependMIR(BasicBlock* bb, MIR* mir)
     }
 }
 
-/* Insert an MIR instruction after the specified MIR */
+/* Insert a MIR instruction after the specified MIR */
 void oatInsertMIRAfter(BasicBlock* bb, MIR* currentMIR, MIR* newMIR)
 {
     newMIR->prev = currentMIR;

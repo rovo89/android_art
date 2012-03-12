@@ -716,8 +716,7 @@ const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
     "kMirOpNullNRangeUpCheck",
     "kMirOpNullNRangeDownCheck",
     "kMirOpLowerBound",
-    "kMirOpPunt",
-    "kMirOpCheckInlinePrediction",
+    "kMirOpCopy",
 };
 
 /* Extended MIR instructions like PHI */
@@ -742,6 +741,9 @@ void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
             newLIR1(cUnit, kPseudoSSARep, (int) ssaString);
             break;
         }
+        case kMirOpCopy:
+            UNIMPLEMENTED(FATAL) << "Need kMirOpCopy";
+            break;
         default:
             break;
     }
@@ -761,10 +763,18 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
     labelList[blockId].opcode = kPseudoNormalBlockLabel;
     oatAppendLIR(cUnit, (LIR*) &labelList[blockId]);
 
-    /* Reset local optimization data on block boundaries */
+    /* Free temp registers and reset redundant store tracking */
     oatResetRegPool(cUnit);
-    oatClobberAllRegs(cUnit);
     oatResetDefTracking(cUnit);
+
+    /*
+     * If control reached us from our immediate predecessor via
+     * fallthrough and we have no other incoming arcs we can
+     * reuse existing liveness.  Otherwise, reset.
+     */
+    if (!bb->fallThroughTarget || bb->predecessors->numUsed != 1) {
+        oatClobberAllRegs(cUnit);
+    }
 
     LIR* headLIR = NULL;
 

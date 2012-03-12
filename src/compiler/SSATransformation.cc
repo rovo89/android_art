@@ -29,7 +29,10 @@ void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
     /* Enqueue the preOrder block id */
     oatInsertGrowableList(cUnit, &cUnit->dfsOrder, block->id);
 
-    if (block->fallThrough) recordDFSOrders(cUnit, block->fallThrough);
+    if (block->fallThrough) {
+        block->fallThrough->fallThroughTarget = true;
+        recordDFSOrders(cUnit, block->fallThrough);
+    }
     if (block->taken) recordDFSOrders(cUnit, block->taken);
     if (block->successorBlockList.blockListType != kNotUsed) {
         GrowableListIterator iterator;
@@ -669,9 +672,8 @@ bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
         if (mir->dalvikInsn.opcode != (Instruction::Code)kMirOpPhi)
             return true;
         int ssaReg = mir->ssaRep->defs[0];
-        int encodedDalvikValue =
-            (int) oatGrowableListGetElement(cUnit->ssaToDalvikMap, ssaReg);
-        int dalvikReg = DECODE_REG(encodedDalvikValue);
+        DCHECK_GE(ssaReg, 0);   // Shouldn't see compiler temps here
+        int vReg = SRegToVReg(cUnit, ssaReg);
 
         oatClearAllBits(ssaRegV);
 
@@ -681,9 +683,8 @@ bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
             BasicBlock* predBB =
                (BasicBlock*)oatGrowableListIteratorNext(&iter);
             if (!predBB) break;
-            int encodedSSAValue =
-                predBB->dataFlowInfo->dalvikToSSAMap[dalvikReg];
-            int ssaReg = DECODE_REG(encodedSSAValue);
+            int ssaReg =
+                predBB->dataFlowInfo->vRegToSSAMap[vReg];
             oatSetBit(cUnit, ssaRegV, ssaReg);
         }
 
@@ -724,17 +725,17 @@ void doDFSPreOrderSSARename(CompilationUnit* cUnit, BasicBlock* block)
     /* Save SSA map snapshot */
     int* savedSSAMap = (int*)oatNew(cUnit, mapSize, false,
                                     kAllocDalvikToSSAMap);
-    memcpy(savedSSAMap, cUnit->dalvikToSSAMap, mapSize);
+    memcpy(savedSSAMap, cUnit->vRegToSSAMap, mapSize);
 
     if (block->fallThrough) {
         doDFSPreOrderSSARename(cUnit, block->fallThrough);
         /* Restore SSA map snapshot */
-        memcpy(cUnit->dalvikToSSAMap, savedSSAMap, mapSize);
+        memcpy(cUnit->vRegToSSAMap, savedSSAMap, mapSize);
     }
     if (block->taken) {
         doDFSPreOrderSSARename(cUnit, block->taken);
         /* Restore SSA map snapshot */
-        memcpy(cUnit->dalvikToSSAMap, savedSSAMap, mapSize);
+        memcpy(cUnit->vRegToSSAMap, savedSSAMap, mapSize);
     }
     if (block->successorBlockList.blockListType != kNotUsed) {
         GrowableListIterator iterator;
@@ -747,10 +748,10 @@ void doDFSPreOrderSSARename(CompilationUnit* cUnit, BasicBlock* block)
             BasicBlock* succBB = successorBlockInfo->block;
             doDFSPreOrderSSARename(cUnit, succBB);
             /* Restore SSA map snapshot */
-            memcpy(cUnit->dalvikToSSAMap, savedSSAMap, mapSize);
+            memcpy(cUnit->vRegToSSAMap, savedSSAMap, mapSize);
         }
     }
-    cUnit->dalvikToSSAMap = savedSSAMap;
+    cUnit->vRegToSSAMap = savedSSAMap;
     return;
 }
 

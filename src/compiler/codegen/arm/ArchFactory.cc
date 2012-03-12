@@ -106,7 +106,21 @@ void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
         opRegImm(cUnit, kOpSub, rSP,
                  cUnit->frameSize - (spillCount * 4));
     }
-    storeBaseDisp(cUnit, rSP, 0, r0, kWord);
+
+    /*
+     * Dummy up a RegLocation for the incoming Method*
+     * It will attempt to keep r0 live (or copy it to home location
+     * if promoted).
+     */
+    RegLocation rlSrc = cUnit->regLocation[cUnit->methodSReg];
+    RegLocation rlMethod = cUnit->regLocation[cUnit->methodSReg];
+    rlSrc.location = kLocPhysReg;
+    rlSrc.lowReg = r0;
+    rlSrc.home = false;
+    oatMarkLive(cUnit, rlSrc.lowReg, rlSrc.sRegLow);
+    storeValue(cUnit, rlMethod, rlSrc);
+
+    /* Flush the rest of the ins */
     flushIns(cUnit);
 
     if (cUnit->genDebugger) {

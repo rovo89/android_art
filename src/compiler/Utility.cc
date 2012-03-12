@@ -574,6 +574,19 @@ bool oatUnifyBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
 }
 
 /*
+ * Return true if any bits collide.  Vectors must be same size.
+ */
+bool oatTestBitVectors(const ArenaBitVector* src1,
+                       const ArenaBitVector* src2)
+{
+    DCHECK_EQ(src1->storageSize, src2->storageSize);
+    for (uint32_t idx = 0; idx < src1->storageSize; idx++) {
+        if (src1->storage[idx] & src2->storage[idx]) return true;
+    }
+    return false;
+}
+
+/*
  * Compare two bit vectors and return true if difference is seen.
  */
 bool oatCompareBitVectors(const ArenaBitVector* src1,

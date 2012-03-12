@@ -275,10 +275,12 @@ void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
         rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                           pCheckAndAllocArrayFromCodeWithAccessCheck));
     }
-    loadCurrMethodDirect(cUnit, rARG1);              // arg1 <- Method*
     loadConstant(cUnit, rARG0, typeId);              // arg0 <- type_id
     loadConstant(cUnit, rARG2, elems);               // arg2 <- count
+    loadCurrMethodDirect(cUnit, rARG1);              // arg1 <- Method*
     callRuntimeHelper(cUnit, rTgt);
+    oatFreeTemp(cUnit, rARG2);
+    oatFreeTemp(cUnit, rARG1);
     /*
      * NOTE: the implicit target for Instruction::FILLED_NEW_ARRAY is the
      * return region.  Because AllocFromCode placed the new array
@@ -387,12 +389,11 @@ void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
     if (fastPath && !SLOW_FIELD_PATH) {
         DCHECK_GE(fieldOffset, 0);
         int rBase;
-        int rMethod;
         if (isReferrersClass) {
             // Fast path, static storage base is this method's class
-            rMethod  = loadCurrMethod(cUnit);
+            RegLocation rlMethod  = loadCurrMethod(cUnit);
             rBase = oatAllocTemp(cUnit);
-            loadWordDisp(cUnit, rMethod,
+            loadWordDisp(cUnit, rlMethod.lowReg,
                          Method::DeclaringClassOffset().Int32Value(), rBase);
         } else {
             // Medium path, static storage base in a different class which
@@ -402,7 +403,7 @@ void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
             oatFlushAllRegs(cUnit);
             // Using fixed register to sync with possible call to runtime
             // support.
-            rMethod = rARG1;
+            int rMethod = rARG1;
             oatLockTemp(cUnit, rMethod);
             loadCurrMethodDirect(cUnit, rMethod);
             rBase = rARG0;
@@ -427,9 +428,9 @@ void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
 #endif
             LIR* skipTarget = newLIR0(cUnit, kPseudoTargetLabel);
             branchOver->target = (LIR*)skipTarget;
+            oatFreeTemp(cUnit, rMethod);
         }
         // rBase now holds static storage base
-        oatFreeTemp(cUnit, rMethod);
         if (isLongOrDouble) {
             rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
             rlSrc = loadValueWide(cUnit, rlSrc, kAnyReg);
@@ -496,12 +497,11 @@ void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     if (fastPath && !SLOW_FIELD_PATH) {
         DCHECK_GE(fieldOffset, 0);
         int rBase;
-        int rMethod;
         if (isReferrersClass) {
             // Fast path, static storage base is this method's class
-            rMethod  = loadCurrMethod(cUnit);
+            RegLocation rlMethod  = loadCurrMethod(cUnit);
             rBase = oatAllocTemp(cUnit);
-            loadWordDisp(cUnit, rMethod,
+            loadWordDisp(cUnit, rlMethod.lowReg,
                          Method::DeclaringClassOffset().Int32Value(), rBase);
         } else {
             // Medium path, static storage base in a different class which
@@ -511,7 +511,7 @@ void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             oatFlushAllRegs(cUnit);
             // Using fixed register to sync with possible call to runtime
             // support
-            rMethod = rARG1;
+            int rMethod = rARG1;
             oatLockTemp(cUnit, rMethod);
             loadCurrMethodDirect(cUnit, rMethod);
             rBase = rARG0;
@@ -537,9 +537,9 @@ void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 #endif
             LIR* skipTarget = newLIR0(cUnit, kPseudoTargetLabel);
             branchOver->target = (LIR*)skipTarget;
+            oatFreeTemp(cUnit, rMethod);
         }
         // rBase now holds static storage base
-        oatFreeTemp(cUnit, rMethod);
         rlDest = isLongOrDouble ? oatGetDestWide(cUnit, mir, 0, 1)
                                 : oatGetDest(cUnit, mir, 0);
         RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
@@ -837,7 +837,7 @@ void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                    RegLocation rlSrc)
 {
     uint32_t type_idx = mir->dalvikInsn.vB;
-    int mReg = loadCurrMethod(cUnit);
+    RegLocation rlMethod = loadCurrMethod(cUnit);
     int resReg = oatAllocTemp(cUnit);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
     if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
@@ -848,7 +848,7 @@ void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         // Resolved type returned in rRET0.
         int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                               pInitializeTypeAndVerifyAccessFromCode));
-        opRegCopy(cUnit, rARG1, mReg);
+        opRegCopy(cUnit, rARG1, rlMethod.lowReg);
         loadConstant(cUnit, rARG0, type_idx);
         callRuntimeHelper(cUnit, rTgt);
         RegLocation rlResult = oatGetReturn(cUnit);
@@ -857,7 +857,7 @@ void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         // We're don't need access checks, load type from dex cache
         int32_t dex_cache_offset =
             Method::DexCacheResolvedTypesOffset().Int32Value();
-        loadWordDisp(cUnit, mReg, dex_cache_offset, resReg);
+        loadWordDisp(cUnit, rlMethod.lowReg, dex_cache_offset, resReg);
         int32_t offset_of_type =
             Array::DataOffset(sizeof(Class*)).Int32Value() + (sizeof(Class*)
                               * type_idx);
@@ -876,7 +876,7 @@ void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             // Call out to helper, which will return resolved type in rARG0
             int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
                                   pInitializeTypeFromCode));
-            opRegCopy(cUnit, rARG1, mReg);
+            opRegCopy(cUnit, rARG1, rlMethod.lowReg);
             loadConstant(cUnit, rARG0, type_idx);
             callRuntimeHelper(cUnit, rTgt);
             RegLocation rlResult = oatGetReturn(cUnit);
@@ -930,10 +930,10 @@ void genConstString(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         genBarrier(cUnit);
         storeValue(cUnit, rlDest, oatGetReturn(cUnit));
     } else {
-        int mReg = loadCurrMethod(cUnit);
+        RegLocation rlMethod = loadCurrMethod(cUnit);
         int resReg = oatAllocTemp(cUnit);
         RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-        loadWordDisp(cUnit, mReg,
+        loadWordDisp(cUnit, rlMethod.lowReg,
                      Method::DexCacheStringsOffset().Int32Value(), resReg);
         loadWordDisp(cUnit, resReg, offset_of_string, rlResult.lowReg);
         storeValue(cUnit, rlDest, rlResult);

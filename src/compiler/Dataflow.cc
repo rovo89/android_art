@@ -807,17 +807,19 @@ const int oatDataFlowAttributes[kMirOpLast] = {
      */
 };
 
-/* Return the Dalvik register/subscript pair of a given SSA register */
-int oatConvertSSARegToDalvik(const CompilationUnit* cUnit, int ssaReg)
+/* Return the base virtual register for a SSA name */
+int SRegToVReg(const CompilationUnit* cUnit, int ssaReg)
 {
-      return GET_ELEM_N(cUnit->ssaToDalvikMap, int, ssaReg);
+    DCHECK_LT(ssaReg, (int)cUnit->ssaBaseVRegs->numUsed);
+    return GET_ELEM_N(cUnit->ssaBaseVRegs, int, ssaReg);
 }
 
-/*
- * Utility function to convert encoded SSA register value into Dalvik register
- * and subscript pair. Each SSA register can be used to index the
- * ssaToDalvikMap list to get the subscript[31..16]/dalvik_reg[15..0] mapping.
- */
+int SRegToSubscript(const CompilationUnit* cUnit, int ssaReg)
+{
+    DCHECK(ssaReg < (int)cUnit->ssaSubscripts->numUsed);
+    return GET_ELEM_N(cUnit->ssaSubscripts, int, ssaReg);
+}
+
 char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
                               const DecodedInstruction& insn, const char* note)
 {
@@ -904,10 +906,8 @@ char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
 
 char* getSSAName(const CompilationUnit* cUnit, int ssaReg, char* name)
 {
-    int ssa2DalvikValue = oatConvertSSARegToDalvik(cUnit, ssaReg);
-
-    sprintf(name, "v%d_%d",
-            DECODE_REG(ssa2DalvikValue), DECODE_SUB(ssa2DalvikValue));
+    sprintf(name, "v%d_%d", SRegToVReg(cUnit, ssaReg),
+            SRegToSubscript(cUnit, ssaReg));
     return name;
 }
 
@@ -1033,11 +1033,6 @@ done:
     return ret;
 }
 
-/*
- * Utility function to convert encoded SSA register value into Dalvik register
- * and subscript pair. Each SSA register can be used to index the
- * ssaToDalvikMap list to get the subscript[31..16]/dalvik_reg[15..0] mapping.
- */
 char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
 {
     char buffer[256];
@@ -1046,11 +1041,9 @@ char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
 
     buffer[0] = 0;
     for (i = 0; i < ssaRep->numDefs; i++) {
-        int ssa2DalvikValue = oatConvertSSARegToDalvik(cUnit, ssaRep->defs[i]);
-
-        sprintf(buffer + strlen(buffer), "s%d(v%d_%d) ",
-                ssaRep->defs[i], DECODE_REG(ssa2DalvikValue),
-                DECODE_SUB(ssa2DalvikValue));
+        int ssaReg = ssaRep->defs[i];
+        sprintf(buffer + strlen(buffer), "s%d(v%d_%d) ", ssaReg,
+                SRegToVReg(cUnit, ssaReg), SRegToSubscript(cUnit, ssaReg));
     }
 
     if (ssaRep->numDefs) {
@@ -1058,12 +1051,12 @@ char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
     }
 
     for (i = 0; i < ssaRep->numUses; i++) {
-        int ssa2DalvikValue = oatConvertSSARegToDalvik(cUnit, ssaRep->uses[i]);
         int len = strlen(buffer);
+        int ssaReg = ssaRep->uses[i];
 
-        if (snprintf(buffer + len, 250 - len, "s%d(v%d_%d) ",
-                     ssaRep->uses[i], DECODE_REG(ssa2DalvikValue),
-                     DECODE_SUB(ssa2DalvikValue)) >= (250 - len)) {
+        if (snprintf(buffer + len, 250 - len, "s%d(v%d_%d) ", ssaReg,
+                     SRegToVReg(cUnit, ssaReg),
+                     SRegToSubscript(cUnit, ssaReg))) {
             strcat(buffer, "...");
             break;
         }
@@ -1157,29 +1150,32 @@ bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb)
     return true;
 }
 
+int addNewSReg(CompilationUnit* cUnit, int vReg)
+{
+    // Compiler temps always have a subscript of 0
+    int subscript = (vReg < 0) ? 0 : ++cUnit->SSALastDefs[vReg];
+    int ssaReg = cUnit->numSSARegs++;
+    oatInsertGrowableList(cUnit, cUnit->ssaBaseVRegs, vReg);
+    oatInsertGrowableList(cUnit, cUnit->ssaSubscripts, subscript);
+    DCHECK_EQ(cUnit->ssaBaseVRegs->numUsed, cUnit->ssaSubscripts->numUsed);
+    return ssaReg;
+}
+
 /* Find out the latest SSA register for a given Dalvik register */
 void handleSSAUse(CompilationUnit* cUnit, int* uses, int dalvikReg,
                   int regIndex)
 {
-    int encodedValue = cUnit->dalvikToSSAMap[dalvikReg];
-    int ssaReg = DECODE_REG(encodedValue);
-    uses[regIndex] = ssaReg;
+    DCHECK((dalvikReg >= 0) && (dalvikReg < cUnit->numDalvikRegisters));
+    uses[regIndex] = cUnit->vRegToSSAMap[dalvikReg];
 }
 
 /* Setup a new SSA register for a given Dalvik register */
 void handleSSADef(CompilationUnit* cUnit, int* defs, int dalvikReg,
                   int regIndex)
 {
-    int ssaReg = cUnit->numSSARegs++;
-    /* Bump up the subscript */
-    int dalvikSub = ++cUnit->SSALastDefs[dalvikReg];
-    int newD2SMapping = ENCODE_REG_SUB(ssaReg, dalvikSub);
-
-    cUnit->dalvikToSSAMap[dalvikReg] = newD2SMapping;
-
-    int newS2DMapping = ENCODE_REG_SUB(dalvikReg, dalvikSub);
-    oatInsertGrowableList(cUnit, cUnit->ssaToDalvikMap, newS2DMapping);
-
+    DCHECK((dalvikReg >= 0) && (dalvikReg < cUnit->numDalvikRegisters));
+    int ssaReg = addNewSReg(cUnit, dalvikReg);
+    cUnit->vRegToSSAMap[dalvikReg] = ssaReg;
     defs[regIndex] = ssaReg;
 }
 
@@ -1351,11 +1347,11 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
          * input to PHI nodes can be derived from the snapshot of all
          * predecessor blocks.
          */
-        bb->dataFlowInfo->dalvikToSSAMap =
+        bb->dataFlowInfo->vRegToSSAMap =
             (int *)oatNew(cUnit, sizeof(int) * cUnit->numDalvikRegisters, false,
                           kAllocDFInfo);
 
-        memcpy(bb->dataFlowInfo->dalvikToSSAMap, cUnit->dalvikToSSAMap,
+        memcpy(bb->dataFlowInfo->vRegToSSAMap, cUnit->vRegToSSAMap,
                sizeof(int) * cUnit->numDalvikRegisters);
     }
     return true;
@@ -1447,10 +1443,15 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
     int i;
     int numDalvikReg = cUnit->numDalvikRegisters;
 
-    cUnit->ssaToDalvikMap = (GrowableList *)oatNew(cUnit, sizeof(GrowableList),
-                                                   false, kAllocDFInfo);
-    // Create the SSAtoDalvikMap, estimating the max size
-    oatInitGrowableList(cUnit, cUnit->ssaToDalvikMap,
+    cUnit->ssaBaseVRegs = (GrowableList *)oatNew(cUnit, sizeof(GrowableList),
+                                                 false, kAllocDFInfo);
+    cUnit->ssaSubscripts = (GrowableList *)oatNew(cUnit, sizeof(GrowableList),
+                                                  false, kAllocDFInfo);
+    // Create the ssa mappings, estimating the max size
+    oatInitGrowableList(cUnit, cUnit->ssaBaseVRegs,
+                        numDalvikReg + cUnit->defCount + 128,
+                        kListSSAtoDalvikMap);
+    oatInitGrowableList(cUnit, cUnit->ssaSubscripts,
                         numDalvikReg + cUnit->defCount + 128,
                         kListSSAtoDalvikMap);
     /*
@@ -1465,25 +1466,27 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
      * into "(0 << 16) | i"
      */
     for (i = 0; i < numDalvikReg; i++) {
-        oatInsertGrowableList(cUnit, cUnit->ssaToDalvikMap,
-                              ENCODE_REG_SUB(i, 0));
+        oatInsertGrowableList(cUnit, cUnit->ssaBaseVRegs, i);
+        oatInsertGrowableList(cUnit, cUnit->ssaSubscripts, 0);
     }
 
     /*
-     * Initialize the DalvikToSSAMap map. The low 16 bit is the SSA register id,
-     * while the high 16 bit is the current subscript. The original Dalvik
-     * register N is mapped to SSA register N with subscript 0.
+     * Initialize the DalvikToSSAMap map. There is one entry for each
+     * Dalvik register, and the SSA names for those are the same.
      */
-    cUnit->dalvikToSSAMap = (int *)oatNew(cUnit, sizeof(int) * numDalvikReg,
+    cUnit->vRegToSSAMap = (int *)oatNew(cUnit, sizeof(int) * numDalvikReg,
                                           false, kAllocDFInfo);
     /* Keep track of the higest def for each dalvik reg */
     cUnit->SSALastDefs = (int *)oatNew(cUnit, sizeof(int) * numDalvikReg,
                                        false, kAllocDFInfo);
 
     for (i = 0; i < numDalvikReg; i++) {
-        cUnit->dalvikToSSAMap[i] = i;
+        cUnit->vRegToSSAMap[i] = i;
         cUnit->SSALastDefs[i] = 0;
     }
+
+    /* Add ssa reg for Method* */
+    cUnit->methodSReg = addNewSReg(cUnit, SSA_METHOD_BASEREG);
 
     /*
      * Allocate the BasicBlockDataFlow structure for the entry and code blocks
@@ -1625,6 +1628,160 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
         /* If isIterative is false, exit the loop after the first iteration */
         change &= isIterative;
     }
+}
+
+/* Advance to next strictly dominated MIR node in an extended basic block */
+MIR* advanceMIR(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir, ArenaBitVector* bv) {
+    BasicBlock* bb = *pBb;
+    if (mir != NULL) {
+        mir = mir->next;
+        if (mir == NULL) {
+            bb = bb->fallThrough;
+            if ((bb == NULL) || bb->predecessors->numUsed != 1) {
+                mir = NULL;
+            } else {
+                if (bv) {
+                    oatSetBit(cUnit, bv, bb->id);
+                }
+                *pBb = bb;
+                mir = bb->firstMIRInsn;
+            }
+        }
+    }
+    return mir;
+}
+
+/* Allocate a compiler temp, return Sreg.  Reuse existing if no conflict */
+int allocCompilerTempSreg(CompilationUnit* cUnit, ArenaBitVector* bv)
+{
+    for (int i = 0; i < cUnit->numCompilerTemps; i++) {
+        CompilerTemp* ct = (CompilerTemp*)cUnit->compilerTemps.elemList[i];
+        ArenaBitVector* tBv = ct->bv;
+        if (!oatTestBitVectors(bv, tBv)) {
+            // Combine live maps and reuse existing temp
+            oatUnifyBitVectors(tBv, tBv, bv);
+            return ct->sReg;
+        }
+    }
+
+    // Create a new compiler temp & associated live bitmap
+    CompilerTemp* ct = (CompilerTemp*)oatNew(cUnit, sizeof(CompilerTemp),
+                                             true, kAllocMisc);
+    ArenaBitVector *nBv = oatAllocBitVector(cUnit, cUnit->numBlocks, true,
+                                            kBitMapMisc);
+    oatCopyBitVector(nBv, bv);
+    ct->bv = nBv;
+    ct->sReg = addNewSReg(cUnit, SSA_CTEMP_BASEREG - cUnit->numCompilerTemps);
+    cUnit->numCompilerTemps++;
+    oatInsertGrowableList(cUnit, &cUnit->compilerTemps, (intptr_t)ct);
+    DCHECK_EQ(cUnit->numCompilerTemps, (int)cUnit->compilerTemps.numUsed);
+    return ct->sReg;
+}
+
+/* Creata a new MIR node for a new pseudo op. */
+MIR* rawMIR(CompilationUnit* cUnit, Instruction::Code opcode, int defs, int uses)
+{
+    MIR* res = (MIR*)oatNew( cUnit, sizeof(MIR), true, kAllocMIR);
+    res->ssaRep =(struct SSARepresentation *)
+            oatNew(cUnit, sizeof(SSARepresentation), true, kAllocDFInfo);
+    if (uses) {
+        res->ssaRep->numUses = uses;
+        res->ssaRep->uses = (int*)oatNew(cUnit, sizeof(int) * uses, false, kAllocDFInfo);
+    }
+    if (defs) {
+        res->ssaRep->numDefs = defs;
+        res->ssaRep->defs = (int*)oatNew(cUnit, sizeof(int) * defs, false, kAllocDFInfo);
+        res->ssaRep->fpDef = (bool*)oatNew(cUnit, sizeof(bool) * defs, true, kAllocDFInfo);
+    }
+    res->dalvikInsn.opcode = opcode;
+    return res;
+}
+
+/* Do some MIR-level basic block optimizations */
+bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
+{
+    int numTemps = 0;
+
+    for (MIR* mir = bb->firstMIRInsn; mir; mir = mir->next) {
+        // Look for interesting opcodes, skip otherwise
+        switch(mir->dalvikInsn.opcode) {
+            case Instruction::IGET_OBJECT: {
+                // TODO: look for CSE
+                    if (mir->optimizationFlags & MIR_DUP) {
+                        break;
+                    }
+                    ArenaBitVector* tempBlockV = cUnit->tempBlockV;
+                    oatClearAllBits(tempBlockV);
+                    oatSetBit(cUnit, tempBlockV, bb->id);
+                    int objSreg = mir->ssaRep->uses[0];
+                    int dstSreg = mir->ssaRep->defs[0];
+                    uint32_t fieldIdx = mir->dalvikInsn.vC;
+                    int matches = 0;
+                    BasicBlock* tbb = bb;
+                    MIR* tm = mir;
+                    while (true) {
+                        tm = advanceMIR(cUnit, &tbb, tm, tempBlockV);
+                        if ((tm == NULL) || (tm == mir)) {
+                            break;
+                        }
+                        Instruction::Code opcode = tm->dalvikInsn.opcode;
+                        if ((opcode == Instruction::IGET_OBJECT)
+                            && (tm->ssaRep->uses[0] == objSreg)
+                            && (tm->dalvikInsn.vC == fieldIdx)) {
+                            if (cUnit->printMe) {
+                                LOG(INFO) << "Got DUP IGET_OBJECT @ 0x"
+                                          << std::hex << tm->offset << ", from 0x"
+                                          << std::hex <<mir->offset;
+                            }
+                            matches++;
+                        } else if ((opcode == Instruction::IPUT_OBJECT)
+                            && (tm->ssaRep->uses[0] == objSreg)
+                            && (tm->dalvikInsn.vC == fieldIdx)) {
+                            if (cUnit->printMe) {
+                                LOG(INFO) << "Clobbered IGET_OBJECT @ 0x"
+                                          << std::hex << tm->offset;
+                            }
+                            break;
+                        }
+                    }
+                    if (matches >= 2) {
+                        // Allocate compiler temp, redirect 1st load to temp,
+                        // insert copy to real target. Convert all dups to
+                        // copies and rename all uses.
+                        int tmpSreg = allocCompilerTempSreg(cUnit, tempBlockV);
+                        MIR* newMir = rawMIR(cUnit, (Instruction::Code)kMirOpCopy, 1, 1);
+                        newMir->ssaRep->defs[0] = dstSreg;
+                        newMir->ssaRep->uses[0] = tmpSreg;
+                        mir->ssaRep->defs[0] = tmpSreg;
+                        oatInsertMIRAfter(bb, mir, newMir);
+                    }
+                }
+                break;
+            case Instruction::IF_EQ:
+            case Instruction::IF_NE:
+            case Instruction::IF_LT:
+            case Instruction::IF_GE:
+            case Instruction::IF_GT:
+            case Instruction::IF_LE:
+                // TODO: Check for and fuse preceeding comparison
+                break;
+            case Instruction::IF_EQZ:
+            case Instruction::IF_NEZ:
+            case Instruction::IF_LTZ:
+            case Instruction::IF_GEZ:
+            case Instruction::IF_GTZ:
+            case Instruction::IF_LEZ:
+                // TODO: Check for and fuse preceeding comparison
+                break;
+            default:
+                break;
+        }
+    }
+
+    if (numTemps > cUnit->numCompilerTemps) {
+        cUnit->numCompilerTemps = numTemps;
+    }
+    return true;
 }
 
 bool nullCheckEliminationInit(struct CompilationUnit* cUnit,
@@ -1776,6 +1933,17 @@ void oatMethodNullCheckElimination(CompilationUnit *cUnit)
         oatDataFlowAnalysisDispatcher(cUnit, eliminateNullChecks,
                                       kPreOrderDFSTraversal,
                                       true /* isIterative */);
+    }
+}
+
+void oatMethodBasicBlockOptimization(CompilationUnit *cUnit)
+{
+    oatInitGrowableList(cUnit, &cUnit->compilerTemps, 6, kListMisc);
+    DCHECK_EQ(cUnit->numCompilerTemps, 0);
+    if (!(cUnit->disableOpt & (1 << kBBOpt))) {
+        oatDataFlowAnalysisDispatcher(cUnit, basicBlockOpt,
+                                      kAllNodes,
+                                      false /* isIterative */);
     }
 }
 
