@@ -63,7 +63,7 @@ void Frame::SetReturnPC(uintptr_t pc) {
  *     +========================+  {Note: start of callee's frame}
  *     | core callee-save spill |  {variable sized}
  *     +------------------------+
- *     | fp calle-save spill    |
+ *     | fp callee-save spill   |
  *     +------------------------+
  *     | V[locals-1]            |
  *     | V[locals-2]            |

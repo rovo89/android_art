@@ -35,12 +35,6 @@ struct RefCounts {
 };
 
 
-inline int oatS2VReg(CompilationUnit* cUnit, int sReg)
-{
-    DCHECK_NE(sReg, INVALID_SREG);
-    return DECODE_REG(oatConvertSSARegToDalvik(cUnit, sReg));
-}
-
 /*
  * Get the "real" sreg number associated with an sReg slot.  In general,
  * sReg values passed through codegen are the SSA names created by

@@ -60,10 +60,10 @@ void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
 
         info1->dirty = false;
         info2->dirty = false;
-        if (oatS2VReg(cUnit, info2->sReg) <
-            oatS2VReg(cUnit, info1->sReg))
+        if (SRegToVReg(cUnit, info2->sReg) <
+            SRegToVReg(cUnit, info1->sReg))
             info1 = info2;
-        int vReg = oatS2VReg(cUnit, info1->sReg);
+        int vReg = SRegToVReg(cUnit, info1->sReg);
         oatFlushRegWideImpl(cUnit, rSP,
                                     oatVRegOffset(cUnit, vReg),
                                     info1->reg, info1->partner);
@@ -75,7 +75,7 @@ void oatFlushReg(CompilationUnit* cUnit, int reg)
     RegisterInfo* info = oatGetRegInfo(cUnit, reg);
     if (info->live && info->dirty) {
         info->dirty = false;
-        int vReg = oatS2VReg(cUnit, info->sReg);
+        int vReg = SRegToVReg(cUnit, info->sReg);
         oatFlushRegImpl(cUnit, rSP,
                                 oatVRegOffset(cUnit, vReg),
                                 reg, kWord);

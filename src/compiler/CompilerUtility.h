@@ -118,6 +118,7 @@ bool oatUnifyBitVectors(ArenaBitVector* dest, const ArenaBitVector* src1,
                         const ArenaBitVector* src2);
 bool oatCompareBitVectors(const ArenaBitVector* src1,
                           const ArenaBitVector* src2);
+bool oatTestBitVectors(const ArenaBitVector* src1, const ArenaBitVector* src2);
 int oatCountSetBits(const ArenaBitVector* pBits);
 
 void oatDumpLIRInsn(CompilationUnit* cUnit, struct LIR* lir,

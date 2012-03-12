@@ -108,8 +108,8 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                 if (attrs & DF_DA_WIDE) {
                     cUnit->regLocation[ssaRep->defs[0]].wide = true;
                     cUnit->regLocation[ssaRep->defs[1]].highWord = true;
-                    DCHECK_EQ(oatS2VReg(cUnit, ssaRep->defs[0])+1,
-                              oatS2VReg(cUnit, ssaRep->defs[1]));
+                    DCHECK_EQ(SRegToVReg(cUnit, ssaRep->defs[0])+1,
+                              SRegToVReg(cUnit, ssaRep->defs[1]));
                 }
             }
 
@@ -122,8 +122,8 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                 if (attrs & DF_UA_WIDE) {
                     cUnit->regLocation[ssaRep->uses[next]].wide = true;
                     cUnit->regLocation[ssaRep->uses[next + 1]].highWord = true;
-                    DCHECK_EQ(oatS2VReg(cUnit, ssaRep->uses[next])+1,
-                              oatS2VReg(cUnit, ssaRep->uses[next + 1]));
+                    DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[next])+1,
+                              SRegToVReg(cUnit, ssaRep->uses[next + 1]));
                     next += 2;
                 } else {
                     next++;
@@ -136,8 +136,8 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                 if (attrs & DF_UB_WIDE) {
                     cUnit->regLocation[ssaRep->uses[next]].wide = true;
                     cUnit->regLocation[ssaRep->uses[next + 1]].highWord = true;
-                    DCHECK_EQ(oatS2VReg(cUnit, ssaRep->uses[next])+1,
-                              oatS2VReg(cUnit, ssaRep->uses[next + 1]));
+                    DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[next])+1,
+                              SRegToVReg(cUnit, ssaRep->uses[next + 1]));
                     next += 2;
                 } else {
                     next++;
@@ -150,8 +150,8 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                 if (attrs & DF_UC_WIDE) {
                     cUnit->regLocation[ssaRep->uses[next]].wide = true;
                     cUnit->regLocation[ssaRep->uses[next + 1]].highWord = true;
-                    DCHECK_EQ(oatS2VReg(cUnit, ssaRep->uses[next])+1,
-                              oatS2VReg(cUnit, ssaRep->uses[next + 1]));
+                    DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[next])+1,
+                              SRegToVReg(cUnit, ssaRep->uses[next + 1]));
                 }
             }
 
@@ -200,16 +200,16 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                                 cUnit->regLocation[ssaRep->uses[i]].wide = true;
                                 cUnit->regLocation[ssaRep->uses[i+1]].highWord
                                     = true;
-                                DCHECK_EQ(oatS2VReg(cUnit, ssaRep->uses[i])+1,
-                                          oatS2VReg(cUnit, ssaRep->uses[i+1]));
+                                DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[i])+1,
+                                          SRegToVReg(cUnit, ssaRep->uses[i+1]));
                                 i++;
                                 break;
                             case 'J':
                                 cUnit->regLocation[ssaRep->uses[i]].wide = true;
                                 cUnit->regLocation[ssaRep->uses[i+1]].highWord
                                     = true;
-                                DCHECK_EQ(oatS2VReg(cUnit, ssaRep->uses[i])+1,
-                                          oatS2VReg(cUnit, ssaRep->uses[i+1]));
+                                DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[i])+1,
+                                          SRegToVReg(cUnit, ssaRep->uses[i+1]));
                                 changed |= setCore(cUnit, ssaRep->uses[i],true);
                                 i++;
                                break;
@@ -320,13 +320,24 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
         loc[i] = freshLoc;
         loc[i].sRegLow = i;
     }
+
+    /* Patch up the locations for Method* and the compiler temps */
+    loc[cUnit->methodSReg].location = kLocCompilerTemp;
+    for (i = 0; i < cUnit->numCompilerTemps; i++) {
+        CompilerTemp* ct = (CompilerTemp*)cUnit->compilerTemps.elemList[i];
+        loc[ct->sReg].location = kLocCompilerTemp;
+    }
+
     cUnit->regLocation = loc;
 
     /* Allocation the promotion map */
     int numRegs = cUnit->numDalvikRegisters;
-    cUnit->promotionMap =
-        (PromotionMap*)oatNew(cUnit, numRegs * sizeof(cUnit->promotionMap[0]),
-                              true, kAllocRegAlloc);
+    PromotionMap* tMap =
+        (PromotionMap*)oatNew(cUnit, (numRegs + cUnit->numCompilerTemps + 1) *
+                              sizeof(cUnit->promotionMap[0]), true,
+                              kAllocRegAlloc);
+    // Bias the promotion map
+    cUnit->promotionMap = &tMap[cUnit->numCompilerTemps + 1];
 
     /* Add types of incoming arguments based on signature */
     int numIns = cUnit->numIns;
@@ -346,8 +357,8 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
                     cUnit->regLocation[sReg].wide = true;
                     cUnit->regLocation[sReg+1].highWord = true;
                     cUnit->regLocation[sReg+1].fp = true;
-                    DCHECK_EQ(oatS2VReg(cUnit, sReg)+1,
-                              oatS2VReg(cUnit, sReg+1));
+                    DCHECK_EQ(SRegToVReg(cUnit, sReg)+1,
+                              SRegToVReg(cUnit, sReg+1));
                     cUnit->regLocation[sReg].fp = true;
                     cUnit->regLocation[sReg].defined = true;
                     sReg++;
@@ -355,8 +366,8 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
                 case 'J':
                     cUnit->regLocation[sReg].wide = true;
                     cUnit->regLocation[sReg+1].highWord = true;
-                    DCHECK_EQ(oatS2VReg(cUnit, sReg)+1,
-                              oatS2VReg(cUnit, sReg+1));
+                    DCHECK_EQ(SRegToVReg(cUnit, sReg)+1,
+                              SRegToVReg(cUnit, sReg+1));
                     cUnit->regLocation[sReg].core = true;
                     cUnit->regLocation[sReg].defined = true;
                     sReg++;
@@ -390,8 +401,9 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
      * allocator, remove this remapping.
      */
     for (i=0; i < cUnit->numSSARegs; i++) {
-        cUnit->regLocation[i].sRegLow =
-                DECODE_REG(oatConvertSSARegToDalvik(cUnit, loc[i].sRegLow));
+        if (cUnit->regLocation[i].location != kLocCompilerTemp) {
+            cUnit->regLocation[i].sRegLow = SRegToVReg(cUnit, loc[i].sRegLow);
+        }
     }
 
     cUnit->coreSpillMask = 0;

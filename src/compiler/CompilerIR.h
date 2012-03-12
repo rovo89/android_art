@@ -44,7 +44,7 @@ enum RegisterClass {
 enum RegLocationType {
     kLocDalvikFrame = 0, // Normal Dalvik register
     kLocPhysReg,
-    kLocSpill,
+    kLocCompilerTemp,
 };
 
 struct PromotionMap {
@@ -65,7 +65,12 @@ struct RegLocation {
     unsigned home:1;      // Does this represent the home location?
     u1 lowReg;            // First physical register
     u1 highReg;           // 2nd physical register (if wide)
-    s2 sRegLow;           // SSA name for low Dalvik word
+    int32_t sRegLow;      // SSA name for low Dalvik word
+};
+
+struct CompilerTemp {
+    int sReg;
+    ArenaBitVector* bv;
 };
 
  /*
@@ -100,6 +105,11 @@ struct RegisterPool {
 #define INVALID_VREG (0xFFFFU)
 #define INVALID_REG (0xFF)
 #define INVALID_OFFSET (-1)
+
+/* SSA encodings for special registers */
+#define SSA_METHOD_BASEREG (-1)
+/* First compiler temp basereg, grows smaller */
+#define SSA_CTEMP_BASEREG (-2)
 
 /*
  * Some code patterns cause the generation of excessively large
@@ -153,8 +163,7 @@ enum ExtendedMIROpcode {
     kMirOpNullNRangeUpCheck,
     kMirOpNullNRangeDownCheck,
     kMirOpLowerBound,
-    kMirOpPunt,
-    kMirOpCheckInlinePrediction,        // Gen checks for predicted inlining
+    kMirOpCopy,
     kMirOpLast,
 };
 
@@ -169,6 +178,7 @@ enum MIROptimizationFlagPositons {
     kMIRInlinedPred,                    // Invoke is inlined via prediction
     kMIRCallee,                         // Instruction is inlined from callee
     kMIRIgnoreSuspendCheck,
+    kMIRDup,
 };
 
 #define MIR_IGNORE_NULL_CHECK           (1 << kMIRIgnoreNullCheck)
@@ -179,6 +189,7 @@ enum MIROptimizationFlagPositons {
 #define MIR_INLINED_PRED                (1 << kMIRInlinedPred)
 #define MIR_CALLEE                      (1 << kMIRCallee)
 #define MIR_IGNORE_SUSPEND_CHECK        (1 << kMIRIgnoreSuspendCheck)
+#define MIR_DUP                         (1 << kMIRDup)
 
 struct CallsiteInfo {
     const char* classDescriptor;
@@ -222,6 +233,7 @@ struct BasicBlock {
     bool visited;
     bool hidden;
     bool catchEntry;
+    bool fallThroughTarget;             // Reached via fallthrough
     unsigned int startOffset;
     const Method* containingMethod;     // For blocks from the callee
     BBType blockType;
@@ -310,12 +322,13 @@ struct CompilationUnit {
     InstructionSet instructionSet;
     /* Number of total regs used in the whole cUnit after SSA transformation */
     int numSSARegs;
-    /* Map SSA reg i to the Dalvik[15..0]/Sub[31..16] pair. */
-    GrowableList* ssaToDalvikMap;
+    /* Map SSA reg i to the base virtual register/subscript */
+    GrowableList* ssaBaseVRegs;
+    GrowableList* ssaSubscripts;
 
     /* The following are new data structures to support SSA representations */
-    /* Map original Dalvik reg i to the SSA[15..0]/Sub[31..16] pair */
-    int* dalvikToSSAMap;                // length == method->registersSize
+    /* Map original Dalvik virtual reg i to the current SSA name */
+    int* vRegToSSAMap;                  // length == method->registersSize
     int* SSALastDefs;                   // length == method->registersSize
     ArenaBitVector* isConstantV;        // length == numSSAReg
     int* constantValues;                // length == numSSAReg
@@ -329,6 +342,9 @@ struct CompilationUnit {
     /* Keep track of Dalvik vReg to physical register mappings */
     PromotionMap* promotionMap;
 
+    /* SSA name for Method* */
+    int methodSReg;
+
     /*
      * Set to the Dalvik PC of the switch instruction if it has more than
      * MAX_CHAINED_SWITCH_CASES cases.
@@ -336,7 +352,7 @@ struct CompilationUnit {
     const u2* switchOverflowPad;
 
     int numReachableBlocks;
-    int numDalvikRegisters;             // method->registersSize + inlined
+    int numDalvikRegisters;             // method->registersSize
     BasicBlock* entryBlock;
     BasicBlock* exitBlock;
     BasicBlock* curBlock;
@@ -346,6 +362,7 @@ struct CompilationUnit {
     GrowableList domPostOrderTraversal;
     GrowableList throwLaunchpads;
     GrowableList suspendLaunchpads;
+    GrowableList compilerTemps;
     int* iDomList;
     ArenaBitVector* tryBlockAddr;
     ArenaBitVector** defBlockMatrix;    // numDalvikRegister x numBlocks

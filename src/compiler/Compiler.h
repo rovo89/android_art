@@ -50,6 +50,7 @@ enum optControlVector {
     kTrackLiveTemps,
     kSkipLargeMethodOptimization,
     kSafeOptimizations,
+    kBBOpt,
 };
 
 /* Type of allocation for memory tuning */
@@ -177,7 +178,8 @@ bool oatStartup(void);
 void oatShutdown(void);
 void oatScanAllClassPointers(void (*callback)(void* ptr));
 void oatInitializeSSAConversion(struct CompilationUnit* cUnit);
-int oatConvertSSARegToDalvik(const struct CompilationUnit* cUnit, int ssaReg);
+int SRegToVReg(const struct CompilationUnit* cUnit, int ssaReg);
+int SRegToSubscript(const struct CompilationUnit* cUnit, int ssaReg);
 bool oatFindLocalLiveIn(struct CompilationUnit* cUnit,
                                 struct BasicBlock* bb);
 bool oatDoSSAConversion(struct CompilationUnit* cUnit,

@@ -88,6 +88,10 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit)
     for (int i = 0; i < numFPTemps; i++) {
         oatMarkTemp(cUnit, fpTemps[i]);
     }
+
+    // Start allocation at r2 in an attempt to avoid clobbering return values
+    pool->nextCoreReg = r2;
+
     // Construct the alias map.
     cUnit->phiAliasMap = (int*)oatNew(cUnit, cUnit->numSSARegs *
                                       sizeof(cUnit->phiAliasMap[0]), false,

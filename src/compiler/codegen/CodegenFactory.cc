@@ -65,7 +65,8 @@ void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int reg1)
     if (rlSrc.location == kLocPhysReg) {
         opRegCopy(cUnit, reg1, rlSrc.lowReg);
     } else {
-        DCHECK(rlSrc.location == kLocDalvikFrame);
+        DCHECK((rlSrc.location == kLocDalvikFrame) ||
+               (rlSrc.location == kLocCompilerTemp));
         loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, rlSrc.sRegLow), reg1);
     }
 }
@@ -94,7 +95,8 @@ void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc, int regLo,
     if (rlSrc.location == kLocPhysReg) {
         opRegCopyWide(cUnit, regLo, regHi, rlSrc.lowReg, rlSrc.highReg);
     } else {
-        DCHECK(rlSrc.location == kLocDalvikFrame);
+        DCHECK((rlSrc.location == kLocDalvikFrame) ||
+               (rlSrc.location == kLocCompilerTemp));
         loadBaseDispWide(cUnit, NULL, rSP,
                          oatSRegOffset(cUnit, rlSrc.sRegLow),
                          regLo, regHi, INVALID_SREG);
@@ -120,7 +122,9 @@ RegLocation loadValue(CompilationUnit* cUnit, RegLocation rlSrc,
                       RegisterClass opKind)
 {
     rlSrc = oatEvalLoc(cUnit, rlSrc, opKind, false);
-    if (rlSrc.location == kLocDalvikFrame) {
+    if (rlSrc.location != kLocPhysReg) {
+        DCHECK((rlSrc.location == kLocDalvikFrame) ||
+               (rlSrc.location == kLocCompilerTemp));
         loadValueDirect(cUnit, rlSrc, rlSrc.lowReg);
         rlSrc.location = kLocPhysReg;
         oatMarkLive(cUnit, rlSrc.lowReg, rlSrc.sRegLow);
@@ -176,7 +180,9 @@ RegLocation loadValueWide(CompilationUnit* cUnit, RegLocation rlSrc,
 {
     DCHECK(rlSrc.wide);
     rlSrc = oatEvalLoc(cUnit, rlSrc, opKind, false);
-    if (rlSrc.location == kLocDalvikFrame) {
+    if (rlSrc.location != kLocPhysReg) {
+        DCHECK((rlSrc.location == kLocDalvikFrame) ||
+               (rlSrc.location == kLocCompilerTemp));
         loadValueDirectWide(cUnit, rlSrc, rlSrc.lowReg, rlSrc.highReg);
         rlSrc.location = kLocPhysReg;
         oatMarkLive(cUnit, rlSrc.lowReg, rlSrc.sRegLow);
@@ -232,8 +238,8 @@ void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
         (oatLiveOut(cUnit, rlDest.sRegLow) ||
         oatLiveOut(cUnit, oatSRegHi(rlDest.sRegLow)))) {
         defStart = (LIR*)cUnit->lastLIRInsn;
-        DCHECK_EQ((oatS2VReg(cUnit, rlDest.sRegLow)+1),
-                oatS2VReg(cUnit, oatSRegHi(rlDest.sRegLow)));
+        DCHECK_EQ((SRegToVReg(cUnit, rlDest.sRegLow)+1),
+                   SRegToVReg(cUnit, oatSRegHi(rlDest.sRegLow)));
         storeBaseDispWide(cUnit, rSP, oatSRegOffset(cUnit, rlDest.sRegLow),
                           rlDest.lowReg, rlDest.highReg);
         oatMarkClean(cUnit, rlDest);
@@ -265,29 +271,15 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 #endif
 }
 
-/*
- * Utility to load the current Method*.  Broken out
- * to allow easy change between placing the current Method* in a
- * dedicated register or its home location in the frame.
- */
+/* Utilities to load the current Method* */
 void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
 {
-#if defined(METHOD_IN_REG)
-    opRegCopy(cUnit, rTgt, rMETHOD);
-#else
-    loadWordDisp(cUnit, rSP, 0, rTgt);
-#endif
+    loadValueDirectFixed(cUnit, cUnit->regLocation[cUnit->methodSReg], rTgt);
 }
 
-int loadCurrMethod(CompilationUnit *cUnit)
+RegLocation loadCurrMethod(CompilationUnit *cUnit)
 {
-#if defined(METHOD_IN_REG)
-    return rMETHOD;
-#else
-    int mReg = oatAllocTemp(cUnit);
-    loadCurrMethodDirect(cUnit, mReg);
-    return mReg;
-#endif
+    return loadValue(cUnit, cUnit->regLocation[cUnit->methodSReg], kCoreReg);
 }
 
 
