@@ -74,7 +74,7 @@ bool DexFile::GetChecksum(const std::string& filename, uint32_t& checksum) {
     return true;
   }
   if (IsValidDexFilename(filename)) {
-    UniquePtr<const DexFile> dex_file(DexFile::OpenFile(filename, "", false));
+    UniquePtr<const DexFile> dex_file(DexFile::OpenFile(filename, filename, false));
     if (dex_file.get() == NULL) {
       return false;
     }
