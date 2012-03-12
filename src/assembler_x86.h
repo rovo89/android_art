@@ -431,6 +431,8 @@ class X86Assembler : public Assembler {
   X86Assembler* lock();
   void cmpxchgl(const Address& address, Register reg);
 
+  void mfence();
+
   X86Assembler* fs();
 
   //

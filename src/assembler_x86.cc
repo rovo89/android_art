@@ -1202,6 +1202,13 @@ void X86Assembler::cmpxchgl(const Address& address, Register reg) {
   EmitOperand(reg, address);
 }
 
+void X86Assembler::mfence() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0xAE);
+  EmitUint8(0xF0);
+}
+
 X86Assembler* X86Assembler::fs() {
   // TODO: fs is a prefix and not an instruction
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
@@ -1665,9 +1672,7 @@ void X86Assembler::Copy(FrameOffset dest, Offset dest_offset, FrameOffset src, O
 
 void X86Assembler::MemoryBarrier(ManagedRegister) {
 #if ANDROID_SMP != 0
-  EmitUint8(0x0F);  // mfence
-  EmitUint8(0xAE);
-  EmitUint8(0xF0);
+  mfence();
 #endif
 }
 
