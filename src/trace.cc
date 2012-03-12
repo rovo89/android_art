@@ -108,26 +108,25 @@ static void Append8LE(uint8_t* buf, uint64_t val) {
   *buf++ = (uint8_t) (val >> 56);
 }
 
-#if defined(__arm__)
-static bool InstallStubsClassVisitor(Class* klass, void* trace_stub) {
+static bool InstallStubsClassVisitor(Class* klass, void*) {
   Trace* tracer = Runtime::Current()->GetTracer();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
     Method* method = klass->GetDirectMethod(i);
-    if (method->GetCode() != trace_stub) {
-      tracer->SaveAndUpdateCode(method, trace_stub);
+    if (tracer->GetSavedCodeFromMap(method) == NULL) {
+      tracer->SaveAndUpdateCode(method);
     }
   }
 
   for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
     Method* method = klass->GetVirtualMethod(i);
-    if (method->GetCode() != trace_stub) {
-      tracer->SaveAndUpdateCode(method, trace_stub);
+    if (tracer->GetSavedCodeFromMap(method) == NULL) {
+      tracer->SaveAndUpdateCode(method);
     }
   }
   return true;
 }
 
-static bool UninstallStubsClassVisitor(Class* klass, void* trace_stub) {
+static bool UninstallStubsClassVisitor(Class* klass, void*) {
   Trace* tracer = Runtime::Current()->GetTracer();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
     Method* method = klass->GetDirectMethod(i);
@@ -146,6 +145,7 @@ static bool UninstallStubsClassVisitor(Class* klass, void* trace_stub) {
 }
 
 static void TraceRestoreStack(Thread* t, void*) {
+#if defined(__arm__)
   uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
 
   Frame frame = t->GetTopOfStack();
@@ -163,8 +163,10 @@ static void TraceRestoreStack(Thread* t, void*) {
       }
     }
   }
-}
+#else
+  UNIMPLEMENTED(WARNING);
 #endif
+}
 
 void Trace::AddSavedCodeToMap(const Method* method, const void* code) {
   saved_code_map_.insert(std::make_pair(method, code));
@@ -184,10 +186,15 @@ const void* Trace::GetSavedCodeFromMap(const Method* method) {
   }
 }
 
-void Trace::SaveAndUpdateCode(Method* method, const void* new_code) {
+void Trace::SaveAndUpdateCode(Method* method) {
+#if defined(__arm__)
+  void* trace_stub = reinterpret_cast<void*>(art_trace_entry_from_code);
   CHECK(GetSavedCodeFromMap(method) == NULL);
   AddSavedCodeToMap(method, method->GetCode());
-  method->SetCode(new_code);
+  method->SetCode(trace_stub);
+#else
+  UNIMPLEMENTED(WARNING);
+#endif
 }
 
 void Trace::ResetSavedCode(Method* method) {
@@ -214,7 +221,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
       trace_file = OS::FileFromFd("tracefile", trace_fd);
     }
     if (trace_file == NULL) {
-      PLOG(ERROR) << "Unable to open trace file '" << trace_filename;
+      PLOG(ERROR) << "Unable to open trace file '" << trace_filename << "'";
       Thread::Current()->ThrowNewException("Ljava/lang/RuntimeException;",
           StringPrintf("Unable to open trace file '%s'", trace_filename).c_str());
       Runtime::Current()->GetThreadList()->ResumeAll(false);
@@ -243,6 +250,15 @@ void Trace::Stop() {
   Runtime::Current()->DisableMethodTracing();
 
   Runtime::Current()->GetThreadList()->ResumeAll(false);
+}
+
+void Trace::Shutdown() {
+  if (!Runtime::Current()->IsMethodTracingActive()) {
+    LOG(INFO) << "Trace shutdown requested, but no trace currently running";
+    return;
+  }
+  Runtime::Current()->GetTracer()->FinishTracing();
+  Runtime::Current()->DisableMethodTracing();
 }
 
 void Trace::BeginTracing() {
@@ -406,27 +422,17 @@ void Trace::DumpThreadList(std::ostream& os) {
 }
 
 void Trace::InstallStubs() {
-#if defined(__arm__)
-  void* trace_stub = reinterpret_cast<void*>(art_trace_entry_from_code);
-  Runtime::Current()->GetClassLinker()->VisitClasses(InstallStubsClassVisitor, trace_stub);
-#else
-  UNIMPLEMENTED(WARNING);
-#endif
+  Runtime::Current()->GetClassLinker()->VisitClasses(InstallStubsClassVisitor, NULL);
 }
 
 void Trace::UninstallStubs() {
-#if defined(__arm__)
-  void* trace_stub = reinterpret_cast<void*>(art_trace_entry_from_code);
-  Runtime::Current()->GetClassLinker()->VisitClasses(UninstallStubsClassVisitor, trace_stub);
+  Runtime::Current()->GetClassLinker()->VisitClasses(UninstallStubsClassVisitor, NULL);
 
   // Restore stacks of all threads
   {
     ScopedThreadListLock thread_list_lock;
     Runtime::Current()->GetThreadList()->ForEach(TraceRestoreStack, NULL);
   }
-#else
-  UNIMPLEMENTED(WARNING);
-#endif
 }
 
 }  // namespace art

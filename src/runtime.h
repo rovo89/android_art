@@ -77,6 +77,9 @@ class Runtime {
     size_t jni_globals_max_;
     size_t lock_profiling_threshold_;
     std::string stack_trace_file_;
+    bool method_trace_;
+    std::string method_trace_file_;
+    size_t method_trace_file_size_;
     bool (*hook_is_sensitive_thread_)();
     jint (*hook_vfprintf_)(FILE* stream, const char* format, va_list ap);
     void (*hook_exit_)(jint status);
@@ -321,6 +324,9 @@ class Runtime {
   bool stats_enabled_;
   RuntimeStats stats_;
 
+  bool method_trace_;
+  std::string method_trace_file_;
+  size_t method_trace_file_size_;
   Trace* tracer_;
 
   typedef std::map<const ClassLoader*, std::vector<const DexFile*> > CompileTimeClassPaths;
