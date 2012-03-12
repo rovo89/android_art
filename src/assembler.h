@@ -204,12 +204,14 @@ class AssemblerBuffer {
   //     AssemblerBuffer::EnsureCapacity ensured(&buffer);
   //     ... emit bytes for single instruction ...
 
-#ifdef DEBUG
+#ifndef NDEBUG
 
   class EnsureCapacity {
    public:
     explicit EnsureCapacity(AssemblerBuffer* buffer) {
-      if (buffer->cursor() >= buffer->limit()) buffer->ExtendCapacity();
+      if (buffer->cursor() >= buffer->limit()) {
+        buffer->ExtendCapacity();
+      }
       // In debug mode, we save the assembler buffer along with the gap
       // size before we start emitting to the buffer. This allows us to
       // check that any single generated instruction doesn't overflow the

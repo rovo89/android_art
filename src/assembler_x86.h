@@ -460,8 +460,6 @@ class X86Assembler : public Assembler {
   // Debugging and bringup support.
   void Stop(const char* message);
 
-  static void InitializeMemoryWithBreakpoints(byte* data, size_t length);
-
   //
   // Overridden common assembler high-level functionality
   //

@@ -118,10 +118,8 @@ class Instr {
   static const uint8_t kHltInstruction = 0xF4;
   // We prefer not to use the int3 instruction since it conflicts with gdb.
   static const uint8_t kBreakPointInstruction = kHltInstruction;
-  static const int kBreakPointInstructionSize = 1;
 
   bool IsBreakPoint() {
-    CHECK_EQ(kBreakPointInstructionSize, 1);
     return (*reinterpret_cast<const uint8_t*>(this)) == kBreakPointInstruction;
   }
 
