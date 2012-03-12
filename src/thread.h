@@ -92,7 +92,8 @@ class PACKED Thread {
   class StackVisitor {
    public:
     virtual ~StackVisitor() {}
-    virtual void VisitFrame(const Frame& frame, uintptr_t pc) = 0;
+    // Return 'true' if we should continue to visit more frames, 'false' to stop.
+    virtual bool VisitFrame(const Frame& frame, uintptr_t pc) = 0;
   };
 
   // Creates a new thread.
@@ -399,7 +400,7 @@ class PACKED Thread {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, top_sirt_));
   }
 
-  void WalkStack(StackVisitor* visitor) const;
+  void WalkStack(StackVisitor* visitor, bool include_upcalls = false) const;
 
   DebugInvokeReq* GetInvokeReq() {
     return debug_invoke_req_;
@@ -462,8 +463,6 @@ class PACKED Thread {
   }
 
   static void ThreadExitCallback(void* arg);
-
-  void WalkStackUntilUpCall(StackVisitor* visitor, bool include_upcall) const;
 
   // Thin lock thread id. This is a small integer used by the thin lock implementation.
   // This is not to be confused with the native thread's tid, nor is it the value returned

@@ -193,7 +193,7 @@ class Dbg {
   static void GetThreadGroupThreads(JDWP::ObjectId threadGroupId, JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount);
   static void GetAllThreads(JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount);
   static int GetThreadFrameCount(JDWP::ObjectId threadId);
-  static bool GetThreadFrame(JDWP::ObjectId threadId, int num, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc);
+  static void GetThreadFrame(JDWP::ObjectId threadId, int num, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc);
 
   static JDWP::ObjectId GetThreadSelfId();
   static void SuspendVM();

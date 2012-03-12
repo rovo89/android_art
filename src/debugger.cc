@@ -1468,11 +1468,11 @@ void Dbg::GetAllThreads(JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
 static int GetStackDepth(Thread* thread) {
   struct CountStackDepthVisitor : public Thread::StackVisitor {
     CountStackDepthVisitor() : depth(0) {}
-    virtual void VisitFrame(const Frame& f, uintptr_t) {
-      // TODO: we'll need to skip callee-save frames too.
+    bool VisitFrame(const Frame& f, uintptr_t) {
       if (f.HasMethod()) {
         ++depth;
       }
+      return true;
     }
     size_t depth;
   };
@@ -1486,30 +1486,24 @@ int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
   return GetStackDepth(DecodeThread(threadId));
 }
 
-bool Dbg::GetThreadFrame(JDWP::ObjectId threadId, int desired_frame_number, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc) {
+void Dbg::GetThreadFrame(JDWP::ObjectId threadId, int desired_frame_number, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc) {
   ScopedThreadListLock thread_list_lock;
   struct GetFrameVisitor : public Thread::StackVisitor {
     GetFrameVisitor(int desired_frame_number, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc)
-        : found(false), depth(0), desired_frame_number(desired_frame_number), pFrameId(pFrameId), pLoc(pLoc) {
+        : depth(0), desired_frame_number(desired_frame_number), pFrameId(pFrameId), pLoc(pLoc) {
     }
-    virtual void VisitFrame(const Frame& f, uintptr_t pc) {
-      if (found) {
-        return;
-      }
-
-      // TODO: we'll need to skip callee-save frames too.
+    bool VisitFrame(const Frame& f, uintptr_t pc) {
       if (!f.HasMethod()) {
-        return; // The debugger can't do anything useful with a frame that has no Method*.
+        return true; // The debugger can't do anything useful with a frame that has no Method*.
       }
-
       if (depth == desired_frame_number) {
         *pFrameId = reinterpret_cast<JDWP::FrameId>(f.GetSP());
         SetLocation(*pLoc, f.GetMethod(), pc);
-        found = true;
+        return false;
       }
       ++depth;
+      return true;
     }
-    bool found;
     int depth;
     int desired_frame_number;
     JDWP::FrameId* pFrameId;
@@ -1518,7 +1512,6 @@ bool Dbg::GetThreadFrame(JDWP::ObjectId threadId, int desired_frame_number, JDWP
   GetFrameVisitor visitor(desired_frame_number, pFrameId, pLoc);
   visitor.desired_frame_number = desired_frame_number;
   DecodeThread(threadId)->WalkStack(&visitor);
-  return visitor.found;
 }
 
 JDWP::ObjectId Dbg::GetThreadSelfId() {
@@ -1940,8 +1933,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
       gSingleStepControl.method = NULL;
       gSingleStepControl.stack_depth = 0;
     }
-    virtual void VisitFrame(const Frame& f, uintptr_t pc) {
-      // TODO: we'll need to skip callee-save frames too.
+    bool VisitFrame(const Frame& f, uintptr_t pc) {
       if (f.HasMethod()) {
         ++gSingleStepControl.stack_depth;
         if (gSingleStepControl.method == NULL) {
@@ -1955,6 +1947,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
           }
         }
       }
+      return true;
     }
   };
   SingleStepStackVisitor visitor;
@@ -2840,17 +2833,16 @@ struct AllocRecordStackVisitor : public Thread::StackVisitor {
   explicit AllocRecordStackVisitor(AllocRecord* record) : record(record), depth(0) {
   }
 
-  virtual void VisitFrame(const Frame& f, uintptr_t pc) {
+  bool VisitFrame(const Frame& f, uintptr_t pc) {
     if (depth >= kMaxAllocRecordStackDepth) {
-      return;
+      return false;
     }
-    Method* m = f.GetMethod();
-    if (m == NULL || m->IsCalleeSaveMethod()) {
-      return;
+    if (f.HasMethod()) {
+      record->stack[depth].method = f.GetMethod();
+      record->stack[depth].raw_pc = pc;
+      ++depth;
     }
-    record->stack[depth].method = m;
-    record->stack[depth].raw_pc = pc;
-    ++depth;
+    return true;
   }
 
   ~AllocRecordStackVisitor() {

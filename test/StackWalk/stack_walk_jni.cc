@@ -42,7 +42,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
   ReferenceMapVisitor() {
   }
 
-  void VisitFrame(const Frame& frame, uintptr_t pc) {
+  bool VisitFrame(const Frame& frame, uintptr_t pc) {
     Method* m = frame.GetMethod();
     CHECK(m != NULL);
     LOG(INFO) << "At " << PrettyMethod(m, false);
@@ -50,7 +50,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
     if (m->IsCalleeSaveMethod() || m->IsNative()) {
       LOG(WARNING) << "no PC for " << PrettyMethod(m);
       CHECK_EQ(pc, 0u);
-      return;
+      return true;
     }
     verifier::PcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
     const uint8_t* reg_bitmap = map.FindBitMap(m->ToDexPC(pc));
@@ -89,6 +89,8 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
       }
     }
     LOG(INFO) << reinterpret_cast<const void*>(reg_bitmap);
+
+    return true;
   }
 };
 

@@ -566,9 +566,9 @@ struct StackDumpVisitor : public Thread::StackVisitor {
   virtual ~StackDumpVisitor() {
   }
 
-  void VisitFrame(const Frame& frame, uintptr_t pc) {
+  bool VisitFrame(const Frame& frame, uintptr_t pc) {
     if (!frame.HasMethod()) {
-      return;
+      return true;
     }
     const int kMaxRepetition = 3;
     Method* m = frame.GetMethod();
@@ -606,6 +606,7 @@ struct StackDumpVisitor : public Thread::StackVisitor {
     if (frame_count++ == 0) {
       Monitor::DescribeWait(os, thread);
     }
+    return true;
   }
   MethodHelper mh;
   Method* last_method;
@@ -1066,7 +1067,7 @@ class CountStackDepthVisitor : public Thread::StackVisitor {
  public:
   CountStackDepthVisitor() : depth_(0), skip_depth_(0), skipping_(true) {}
 
-  virtual void VisitFrame(const Frame& frame, uintptr_t pc) {
+  bool VisitFrame(const Frame& frame, uintptr_t pc) {
     // We want to skip frames up to and including the exception's constructor.
     // Note we also skip the frame if it doesn't have a method (namely the callee
     // save frame)
@@ -1081,6 +1082,7 @@ class CountStackDepthVisitor : public Thread::StackVisitor {
     } else {
       ++skip_depth_;
     }
+    return true;
   }
 
   int GetDepth() const {
@@ -1127,20 +1129,21 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
 
   virtual ~BuildInternalStackTraceVisitor() {}
 
-  virtual void VisitFrame(const Frame& frame, uintptr_t pc) {
+  bool VisitFrame(const Frame& frame, uintptr_t pc) {
     if (method_trace_ == NULL || pc_trace_ == NULL) {
-      return; // We're probably trying to fillInStackTrace for an OutOfMemoryError.
+      return true; // We're probably trying to fillInStackTrace for an OutOfMemoryError.
     }
     if (skip_depth_ > 0) {
       skip_depth_--;
-      return;
+      return true;
     }
     if (!frame.HasMethod()) {
-      return;  // ignore callee save frames
+      return true;  // ignore callee save frames
     }
     method_trace_->Set(count_, frame.GetMethod());
     pc_trace_->Set(count_, pc);
     ++count_;
+    return true;
   }
 
   jobject GetInternalStackTrace() const {
@@ -1190,7 +1193,7 @@ StackIndirectReferenceTable* Thread::PopSirt() {
   return sirt;
 }
 
-void Thread::WalkStack(StackVisitor* visitor) const {
+void Thread::WalkStack(StackVisitor* visitor, bool include_upcalls) const {
   Frame frame = GetTopOfStack();
   uintptr_t pc = ManglePc(top_of_managed_stack_pc_);
 #if defined(__arm__)
@@ -1200,10 +1203,13 @@ void Thread::WalkStack(StackVisitor* visitor) const {
   // CHECK(native_to_managed_record_ != NULL);
   NativeToManagedRecord* record = native_to_managed_record_;
 
-  while (frame.GetSP() != 0) {
-    for ( ; frame.GetMethod() != 0; frame.Next()) {
+  while (frame.GetSP() != NULL) {
+    for ( ; frame.GetMethod() != NULL; frame.Next()) {
       // DCHECK(frame.GetMethod()->IsWithinCode(pc));  // TODO: restore IsWithinCode
-      visitor->VisitFrame(frame, pc);
+      bool should_continue = visitor->VisitFrame(frame, pc);
+      if (!should_continue) {
+        return;
+      }
       pc = ManglePc(frame.GetReturnPC());
       if (Runtime::Current()->IsMethodTracingActive()) {
 #if defined(__arm__)
@@ -1216,29 +1222,19 @@ void Thread::WalkStack(StackVisitor* visitor) const {
 #endif
       }
     }
+    if (include_upcalls) {
+      bool should_continue = visitor->VisitFrame(frame, pc);
+      if (!should_continue) {
+        return;
+      }
+    }
     if (record == NULL) {
-      break;
+      return;
     }
     // last_tos should return Frame instead of sp?
     frame.SetSP(reinterpret_cast<Method**>(record->last_top_of_managed_stack_));
     pc = ManglePc(record->last_top_of_managed_stack_pc_);
     record = record->link_;
-  }
-}
-
-void Thread::WalkStackUntilUpCall(StackVisitor* visitor, bool include_upcall) const {
-  Frame frame = GetTopOfStack();
-  uintptr_t pc = ManglePc(top_of_managed_stack_pc_);
-
-  if (frame.GetSP() != 0) {
-    for ( ; frame.GetMethod() != 0; frame.Next()) {
-      // DCHECK(frame.GetMethod()->IsWithinCode(pc));  // TODO: restore IsWithinCode
-      visitor->VisitFrame(frame, pc);
-      pc = ManglePc(frame.GetReturnPC());
-    }
-    if (include_upcall) {
-      visitor->VisitFrame(frame, pc);
-    }
   }
 }
 
@@ -1430,59 +1426,54 @@ void Thread::DumpFromGdb() const {
 class CatchBlockStackVisitor : public Thread::StackVisitor {
  public:
   CatchBlockStackVisitor(Class* to_find, Context* ljc)
-      : found_(false), to_find_(to_find), long_jump_context_(ljc), native_method_count_(0) {
+      : to_find_(to_find), long_jump_context_(ljc), native_method_count_(0) {
 #ifndef NDEBUG
     handler_pc_ = 0xEBADC0DE;
     handler_frame_.SetSP(reinterpret_cast<Method**>(0xEBADF00D));
 #endif
   }
 
-  virtual void VisitFrame(const Frame& fr, uintptr_t pc) {
-    if (!found_) {
-      Method* method = fr.GetMethod();
-      if (method == NULL) {
-        // This is the upcall, we remember the frame and last_pc so that we may
-        // long jump to them
-        handler_pc_ = DemanglePc(pc);
-        handler_frame_ = fr;
-        return;
-      }
-      uint32_t dex_pc = DexFile::kDexNoIndex;
-      if (method->IsCalleeSaveMethod()) {
-        // ignore callee save method
-      } else if (method->IsNative()) {
-        native_method_count_++;
-      } else {
-        // Unwind stack during method tracing
-        if (Runtime::Current()->IsMethodTracingActive()) {
+  bool VisitFrame(const Frame& fr, uintptr_t pc) {
+    Method* method = fr.GetMethod();
+    if (method == NULL) {
+      // This is the upcall, we remember the frame and last_pc so that we may
+      // long jump to them
+      handler_pc_ = DemanglePc(pc);
+      handler_frame_ = fr;
+      return false;
+    }
+    uint32_t dex_pc = DexFile::kDexNoIndex;
+    if (method->IsCalleeSaveMethod()) {
+      // ignore callee save method
+    } else if (method->IsNative()) {
+      native_method_count_++;
+    } else {
+      // Unwind stack during method tracing
+      if (Runtime::Current()->IsMethodTracingActive()) {
 #if defined(__arm__)
-          uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
-          if (ManglePc(trace_exit) == pc) {
-            pc = ManglePc(TraceMethodUnwindFromCode(Thread::Current()));
-          }
+        uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
+        if (ManglePc(trace_exit) == pc) {
+          pc = ManglePc(TraceMethodUnwindFromCode(Thread::Current()));
+        }
 #else
-          UNIMPLEMENTED(WARNING);
+        UNIMPLEMENTED(WARNING);
 #endif
-        }
-        dex_pc = method->ToDexPC(pc);
       }
-      if (dex_pc != DexFile::kDexNoIndex) {
-        uint32_t found_dex_pc = method->FindCatchBlock(to_find_, dex_pc);
-        if (found_dex_pc != DexFile::kDexNoIndex) {
-          found_ = true;
-          handler_pc_ = method->ToNativePC(found_dex_pc);
-          handler_frame_ = fr;
-        }
-      }
-      if (!found_) {
-        // Caller may be handler, fill in callee saves in context
-        long_jump_context_->FillCalleeSaves(fr);
+      dex_pc = method->ToDexPC(pc);
+    }
+    if (dex_pc != DexFile::kDexNoIndex) {
+      uint32_t found_dex_pc = method->FindCatchBlock(to_find_, dex_pc);
+      if (found_dex_pc != DexFile::kDexNoIndex) {
+        handler_pc_ = method->ToNativePC(found_dex_pc);
+        handler_frame_ = fr;
+        return false;
       }
     }
+    // Caller may be handler, fill in callee saves in context
+    long_jump_context_->FillCalleeSaves(fr);
+    return true;
   }
 
-  // Did we find a catch block yet?
-  bool found_;
   // The type of the exception catch block to find
   Class* to_find_;
   // Frame with found handler or last frame if no handler found
@@ -1511,7 +1502,7 @@ void Thread::DeliverException() {
 
   Context* long_jump_context = GetLongJumpContext();
   CatchBlockStackVisitor catch_finder(exception->GetClass(), long_jump_context);
-  WalkStackUntilUpCall(&catch_finder, true);
+  WalkStack(&catch_finder, true);
 
   Method** sp;
   uintptr_t throw_native_pc;
@@ -1589,7 +1580,7 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
     context_(context), root_visitor_(root_visitor), arg_(arg) {
   }
 
-  void VisitFrame(const Frame& frame, uintptr_t pc) {
+  bool VisitFrame(const Frame& frame, uintptr_t pc) {
     Method* m = frame.GetMethod();
     if (false) {
       LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m, false)
@@ -1641,6 +1632,7 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
       }
     }
     context_->FillCalleeSaves(frame);
+    return true;
   }
 
  private:

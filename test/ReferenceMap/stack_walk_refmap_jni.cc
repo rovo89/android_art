@@ -43,10 +43,10 @@ struct ReferenceMap2Visitor : public Thread::StackVisitor {
   ReferenceMap2Visitor() {
   }
 
-  void VisitFrame(const Frame& frame, uintptr_t pc) {
+  bool VisitFrame(const Frame& frame, uintptr_t pc) {
     Method* m = frame.GetMethod();
     if (!m || m->IsNative()) {
-      return;
+      return true;
     }
     LOG(INFO) << "At " << PrettyMethod(m, false);
 
@@ -54,11 +54,11 @@ struct ReferenceMap2Visitor : public Thread::StackVisitor {
 
     if (!pc) {
       // pc == NULL: m is either a native method or a phony method
-      return;
+      return true;
     }
     if (m->IsCalleeSaveMethod()) {
       LOG(WARNING) << "no PC for " << PrettyMethod(m);
-      return;
+      return true;
     }
 
     // Enable this to dump reference map to LOG(INFO)
@@ -156,6 +156,8 @@ struct ReferenceMap2Visitor : public Thread::StackVisitor {
       CHECK(ref_bitmap);
       CHECK_REGS_CONTAIN_REFS(8, 3, 2, 1, 0);  // v8: this, v3: y, v2: y, v1: x, v0: ex
     }
+
+    return true;
   }
 };
 

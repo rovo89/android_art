@@ -59,18 +59,15 @@ jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBoots
   struct ClosestUserClassLoaderVisitor : public Thread::StackVisitor {
     ClosestUserClassLoaderVisitor(Object* bootstrap, Object* system)
       : bootstrap(bootstrap), system(system), class_loader(NULL) {}
-    virtual void VisitFrame(const Frame& f, uintptr_t) {
-      if (class_loader != NULL) {
-        // If we already found a result, nothing to do.
-        // TODO: need SmartFrame (Thread::WalkStack-like iterator).
-        // (or change VisitFrame to let us return bool to stop visiting)
-        return;
-      }
+    bool VisitFrame(const Frame& f, uintptr_t) {
+      DCHECK(class_loader == NULL);
       Class* c = f.GetMethod()->GetDeclaringClass();
       Object* cl = c->GetClassLoader();
       if (cl != NULL && cl != bootstrap && cl != system) {
         class_loader = cl;
+        return false;
       }
+      return true;
     }
     Object* bootstrap;
     Object* system;

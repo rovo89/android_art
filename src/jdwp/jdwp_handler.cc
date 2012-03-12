@@ -976,6 +976,8 @@ static JdwpError handleTR_Frames(JdwpState* state, const uint8_t* buf, int dataL
   for (uint32_t i = start_frame; i < (start_frame + length); ++i) {
     FrameId frameId;
     JdwpLocation loc;
+    // TODO: switch to GetThreadFrames so we don't have to search for each frame
+    // even though we only want them in order.
     Dbg::GetThreadFrame(threadId, i, &frameId, &loc);
 
     expandBufAdd8BE(pReply, frameId);
