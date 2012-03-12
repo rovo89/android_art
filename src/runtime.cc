@@ -38,6 +38,7 @@
 #include "space.h"
 #include "thread.h"
 #include "thread_list.h"
+#include "trace.h"
 #include "UniquePtr.h"
 
 // TODO: this drags in cutil/log.h, which conflicts with our logging.h.
@@ -80,6 +81,10 @@ Runtime::Runtime()
 
 Runtime::~Runtime() {
   shutting_down_ = true;
+
+  if (IsMethodTracingActive()) {
+    Trace::Shutdown();
+  }
 
   Dbg::StopJdwp();
 
@@ -310,6 +315,10 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 //  gLogVerbosity.third_party_jni = true; // TODO: don't check this in!
 //  gLogVerbosity.threads = true; // TODO: don't check this in!
 
+  parsed->method_trace_ = false;
+  parsed->method_trace_file_ = "/data/method-trace-file.bin";
+  parsed->method_trace_file_size_ = 10 * MB;
+
   for (size_t i = 0; i < options.size(); ++i) {
     const std::string option(options[i].first);
     if (true && options[0].first == "-Xzygote") {
@@ -442,6 +451,12 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->host_prefix_ = reinterpret_cast<const char*>(options[i].second);
     } else if (option == "-Xgenregmap" || option == "-Xgc:precise") {
       // We silently ignore these for backwards compatibility.
+    } else if (option == "-Xmethod-trace") {
+      parsed->method_trace_ = true;
+    } else if (StartsWith(option, "-Xmethod-trace-file:")) {
+      parsed->method_trace_file_ = option.substr(strlen("-Xmethod-trace-file:"));
+    } else if (StartsWith(option, "-Xmethod-trace-file-size:")) {
+      parsed->method_trace_file_size_ = ParseIntegerOrDie(option);
     } else {
       if (!ignore_unrecognized) {
         // TODO: print usage via vfprintf
@@ -650,6 +665,14 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     class_linker_ = ClassLinker::CreateFromCompiler(*options->boot_class_path_, intern_table_);
   }
   CHECK(class_linker_ != NULL);
+
+  method_trace_ = options->method_trace_;
+  method_trace_file_ = options->method_trace_file_;
+  method_trace_file_size_ = options->method_trace_file_size_;
+
+  if (options->method_trace_) {
+    Trace::Start(options->method_trace_file_.c_str(), -1, options->method_trace_file_size_, 0, false);
+  }
 
   VLOG(startup) << "Runtime::Init exiting";
   return true;

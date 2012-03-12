@@ -1397,7 +1397,15 @@ void ClassLinker::FixupStaticTrampolines(Class* klass) {
   const void* trampoline = Runtime::Current()->GetResolutionStubArray(Runtime::kStaticMethod)->GetData();
   for (size_t i = 0; it.HasNextDirectMethod(); i++, it.Next()) {
     Method* method = klass->GetDirectMethod(i);
-    if (method->GetCode() == trampoline) {
+    if (Runtime::Current()->IsMethodTracingActive()) {
+      Trace* tracer = Runtime::Current()->GetTracer();
+      if (tracer->GetSavedCodeFromMap(method) == trampoline) {
+        const void* code = oat_class->GetOatMethod(method_index).GetCode();
+        tracer->ResetSavedCode(method);
+        method->SetCode(code);
+        tracer->SaveAndUpdateCode(method);
+      }
+    } else if (method->GetCode() == trampoline) {
       const void* code = oat_class->GetOatMethod(method_index).GetCode();
       CHECK(code != NULL);
       method->SetCode(code);
@@ -1428,13 +1436,8 @@ void LinkCode(SirtRef<Method>& method, const OatFile::OatClass* oat_class, uint3
   }
 
   if (Runtime::Current()->IsMethodTracingActive()) {
-#if defined(__arm__)
     Trace* tracer = Runtime::Current()->GetTracer();
-    void* trace_stub = reinterpret_cast<void*>(art_trace_entry_from_code);
-    tracer->SaveAndUpdateCode(method.get(), trace_stub);
-#else
-    UNIMPLEMENTED(WARNING);
-#endif
+    tracer->SaveAndUpdateCode(method.get());
   }
 }
 

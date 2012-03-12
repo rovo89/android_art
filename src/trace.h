@@ -52,6 +52,7 @@ class Trace {
 
   static void Start(const char* trace_filename, int trace_fd, int buffer_size, int flags, bool direct_to_ddms);
   static void Stop();
+  static void Shutdown();
 
   void LogMethodTraceEvent(Thread* self, const Method* method, TraceEvent event);
 
@@ -59,7 +60,7 @@ class Trace {
   void RemoveSavedCodeFromMap(const Method* method);
   const void* GetSavedCodeFromMap(const Method* method);
 
-  void SaveAndUpdateCode(Method* method, const void* new_code);
+  void SaveAndUpdateCode(Method* method);
   void ResetSavedCode(Method* method);
 
  private:
