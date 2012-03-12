@@ -352,7 +352,7 @@ jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
     return NULL;
   }
 
-  Method* init = c->FindDirectMethod("<init>", "()V");
+  Method* init = c->FindDeclaredDirectMethod("<init>", "()V");
   if (init == NULL) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
         "Class %s has no default <init>()V constructor", PrettyDescriptor(ClassHelper(c).GetDescriptor()).c_str());
