@@ -54,10 +54,6 @@ std::ostream& operator<<(std::ostream& os, const X87Register& reg) {
   return os << "ST" << static_cast<int>(reg);
 }
 
-void X86Assembler::InitializeMemoryWithBreakpoints(byte* data, size_t length) {
-  memset(reinterpret_cast<void*>(data), Instr::kBreakPointInstruction, length);
-}
-
 void X86Assembler::call(Register reg) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xFF);

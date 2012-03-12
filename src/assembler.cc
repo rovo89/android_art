@@ -27,43 +27,8 @@
 namespace art {
 
 static byte* NewContents(size_t capacity) {
-  byte* result = new byte[capacity];
-#if defined(DEBUG)
-  // Initialize the buffer with kBreakPointInstruction to force a break
-  // point if we ever execute an uninitialized part of the code buffer.
-  Assembler::InitializeMemoryWithBreakpoints(result, capacity);
-#endif
-  return result;
+  return new byte[capacity];
 }
-
-
-#if defined(DEBUG)
-AssemblerBuffer::EnsureCapacity::EnsureCapacity(AssemblerBuffer* buffer) {
-  if (buffer->cursor() >= buffer->limit()) buffer->ExtendCapacity();
-  // In debug mode, we save the assembler buffer along with the gap
-  // size before we start emitting to the buffer. This allows us to
-  // check that any single generated instruction doesn't overflow the
-  // limit implied by the minimum gap size.
-  buffer_ = buffer;
-  gap_ = ComputeGap();
-  // Make sure that extending the capacity leaves a big enough gap
-  // for any kind of instruction.
-  CHECK_GE(gap_, kMinimumGap);
-  // Mark the buffer as having ensured the capacity.
-  CHECK(!buffer->HasEnsuredCapacity());  // Cannot nest.
-  buffer->has_ensured_capacity_ = true;
-}
-
-
-AssemblerBuffer::EnsureCapacity::~EnsureCapacity() {
-  // Unmark the buffer, so we cannot emit after this.
-  buffer_->has_ensured_capacity_ = false;
-  // Make sure the generated instruction doesn't take up more
-  // space than the minimum gap.
-  int delta = gap_ - ComputeGap();
-  CHECK_LE(delta, kMinimumGap);
-}
-#endif
 
 
 AssemblerBuffer::AssemblerBuffer() {
@@ -73,7 +38,7 @@ AssemblerBuffer::AssemblerBuffer() {
   limit_ = ComputeLimit(contents_, kInitialBufferCapacity);
   fixup_ = NULL;
   slow_path_ = NULL;
-#if defined(DEBUG)
+#ifndef NDEBUG
   has_ensured_capacity_ = false;
   fixups_processed_ = false;
 #endif
@@ -104,7 +69,7 @@ void AssemblerBuffer::FinalizeInstructions(const MemoryRegion& instructions) {
   instructions.CopyFrom(0, from);
   // Process fixups in the instructions.
   ProcessFixups(instructions);
-#if defined(DEBUG)
+#ifndef NDEBUG
   fixups_processed_ = true;
 #endif
 }

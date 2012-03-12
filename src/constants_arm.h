@@ -227,17 +227,6 @@ enum Shift {
 };
 
 
-// Special Supervisor Call 24-bit codes used in the presence of the ARM
-// simulator for redirection, breakpoints, stop messages, and spill markers.
-// See /usr/include/asm/unistd.h
-const uint32_t kRedirectionSvcCode = 0x90001f;  //  unused syscall, was sys_stty
-const uint32_t kBreakpointSvcCode = 0x900020;  // unused syscall, was sys_gtty
-const uint32_t kStopMessageSvcCode = 0x9f0001;  // __ARM_NR_breakpoint
-const uint32_t kSpillMarkerSvcBase = 0x9f0100;  // unused ARM private syscall
-const uint32_t kWordSpillMarkerSvcCode = kSpillMarkerSvcBase + 1;
-const uint32_t kDWordSpillMarkerSvcCode = kSpillMarkerSvcBase + 2;
-
-
 // Constants used for the decoding or encoding of the individual fields of
 // instructions. Based on the "Figure 3-1 ARM instruction set summary".
 enum InstructionFields {
@@ -296,46 +285,6 @@ const int kRegisterSize = 4;
 // List of registers used in load/store multiple.
 typedef uint16_t RegList;
 
-const RegList kAllCoreRegistersList = 0xFFFF;
-
-// C++ ABI call registers
-const int kAbiRegisterCount = 4;
-const Register kAbiRegisters[kAbiRegisterCount] = { R0, R1, R2, R3 };
-const RegList kAbiRegisterList = (1 << R0) | (1 << R1) | (1 << R2) | (1 << R3);
-
-// Parfait callee-saved registers.
-#ifdef DEBUG
-// Save FP only in Debug mode.
-static const Register kUnsavedCoreRegisters[] = { IP, SP, LR, PC };
-static const RegList kUnsavedCoreRegistersList =
-    (1 << IP | 1 << SP | 1 << LR | 1 << PC);
-#else
-static const Register kUnsavedCoreRegisters[] = { FP, IP, SP, LR, PC };
-static const RegList kUnsavedCoreRegistersList =
-    (1 << FP | 1 << IP | 1 << SP | 1 << LR | 1 << PC);
-#endif  // DEBUG
-static const RegList kSavedCoreRegistersList =
-    kAllCoreRegistersList & (~kUnsavedCoreRegistersList);
-static const int kNumberOfUnsavedCoreRegisters =
-    arraysize(kUnsavedCoreRegisters);
-static const int kNumberOfSavedCoreRegisters =
-    kNumberOfCoreRegisters - kNumberOfUnsavedCoreRegisters;
-
-// D8-D15 are ABI callee saved. No need to save them. If there are more than 16
-// D-registers than the following ones (D16 ...) are not ABI callee saved and
-// must be saved by parfait.
-static const int kNumberOfUnsavedDRegisters = 8;
-static const int kNumberOfSavedDRegisters =
-    kNumberOfDRegisters - kNumberOfUnsavedDRegisters;
-
-// Frame layout constants.
-const int kExitLinkByteOffsetFromFp = 9 * kPointerSize;
-const int kSpByteOffsetFromPreviousFp = 2 * kPointerSize;
-const int kPcAddressByteOffsetFromSp = -1 * kPointerSize;
-const int kPcAddressByteOffsetFromExitFp = -1 * kPointerSize;
-const int kCallSaveArea = 2 * kPointerSize;
-const int kCallerSavedCoreRegistersByteOffsetFromFp = -2 * kPointerSize;
-
 // The class Instr enables access to individual fields defined in the ARM
 // architecture instruction set encoding as described in figure A3-1.
 //
@@ -356,7 +305,6 @@ class Instr {
     kPCReadOffset = 8
   };
 
-  static const int kBreakPointInstructionSize = kInstrSize;
   bool IsBreakPoint() {
     return IsBkpt();
   }
