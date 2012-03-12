@@ -555,14 +555,17 @@ LIR* addWideData(CompilationUnit* cUnit, LIR* *constantListP,
     return addWordData(cUnit, constantListP, valLo);
 }
 
-void pushWord(std::vector<uint16_t>&buf, int data) {
-    buf.push_back( data & 0xffff);
-    buf.push_back( (data >> 16) & 0xffff);
+void pushWord(std::vector<uint8_t>&buf, int data) {
+    buf.push_back( data & 0xff);
+    buf.push_back( (data >> 8) & 0xff);
+    buf.push_back( (data >> 16) & 0xff);
+    buf.push_back( (data >> 24) & 0xff);
 }
 
-void alignBuffer(std::vector<uint16_t>&buf, size_t offset) {
-    while (buf.size() < (offset/2))
+void alignBuffer(std::vector<uint8_t>&buf, size_t offset) {
+    while (buf.size() < offset) {
         buf.push_back(0);
+    }
 }
 
 /* Write the literal pool to the output stream */
@@ -638,8 +641,9 @@ void installFillArrayData(CompilationUnit* cUnit)
              &iterator);
         if (tabRec == NULL) break;
         alignBuffer(cUnit->codeBuffer, tabRec->offset);
-        for (int i = 0; i < ((tabRec->size + 1) / 2) ; i++) {
-            cUnit->codeBuffer.push_back( tabRec->table[i]);
+        for (int i = 0; i < (tabRec->size + 1) / 2; i++) {
+            cUnit->codeBuffer.push_back( tabRec->table[i] & 0xFF);
+            cUnit->codeBuffer.push_back( (tabRec->table[i] >> 8) & 0xFF);
         }
     }
 }

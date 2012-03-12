@@ -26,7 +26,7 @@ CompiledMethod::CompiledMethod(art::InstructionSet instruction_set,
 }
 #else
 CompiledMethod::CompiledMethod(InstructionSet instruction_set,
-                               const std::vector<uint16_t>& short_code,
+                               const std::vector<uint8_t>& code,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask,
@@ -34,13 +34,13 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                const std::vector<uint16_t>& vmap_table)
     : instruction_set_(instruction_set), frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask) {
-  CHECK_NE(short_code.size(), 0U);
+  CHECK_NE(code.size(), 0U);
   CHECK_GE(vmap_table.size(), 1U);  // should always contain an entry for LR
   CHECK_LE(vmap_table.size(), (1U << 16) - 1); // length must fit in 2^16-1
 
-  size_t code_byte_count = short_code.size() * sizeof(short_code[0]);
+  size_t code_byte_count = code.size() * sizeof(code[0]);
   std::vector<uint8_t> byte_code(code_byte_count);
-  memcpy(&byte_code[0], &short_code[0], code_byte_count);
+  memcpy(&byte_code[0], &code[0], code_byte_count);
 
   std::vector<uint32_t> length_prefixed_mapping_table;
   length_prefixed_mapping_table.push_back(mapping_table.size());

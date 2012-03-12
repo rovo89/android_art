@@ -693,14 +693,18 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
             }
         }
         // FIXME: need multi-endian handling here
-        cUnit->codeBuffer.push_back((bits >> 16) & 0xffff);
-        cUnit->codeBuffer.push_back(bits & 0xffff);
+        cUnit->codeBuffer.push_back((bits >> 24) & 0xff);
+        cUnit->codeBuffer.push_back((bits >> 16) & 0xff);
+        cUnit->codeBuffer.push_back((bits >> 8) & 0xff);
+        cUnit->codeBuffer.push_back(bits & 0xff);
         // TUNING: replace with proper delay slot handling
         if (encoder->size == 8) {
             const MipsEncodingMap *encoder = &EncodingMap[kMipsNop];
             u4 bits = encoder->skeleton;
-            cUnit->codeBuffer.push_back((bits >> 16) & 0xffff);
-            cUnit->codeBuffer.push_back(bits & 0xffff);
+            cUnit->codeBuffer.push_back((bits >> 24) & 0xff);
+            cUnit->codeBuffer.push_back((bits >> 16) & 0xff);
+            cUnit->codeBuffer.push_back((bits >> 8) & 0xff);
+            cUnit->codeBuffer.push_back(bits & 0xff);
         }
     }
     return res;

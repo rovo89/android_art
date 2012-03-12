@@ -992,7 +992,8 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
             if ((lir->opcode == kPseudoPseudoAlign4) &&
                 /* 1 means padding is needed */
                 (lir->operands[0] == 1)) {
-                cUnit->codeBuffer.push_back(PADDING_MOV_R5_R5);
+                cUnit->codeBuffer.push_back(PADDING_MOV_R5_R5 & 0xFF);
+                cUnit->codeBuffer.push_back((PADDING_MOV_R5_R5 >> 8) & 0xFF);
             }
             continue;
         }
@@ -1355,9 +1356,11 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
             }
         }
         if (encoder->size == 4) {
-                cUnit->codeBuffer.push_back((bits >> 16) & 0xffff);
+            cUnit->codeBuffer.push_back((bits >> 16) & 0xff);
+            cUnit->codeBuffer.push_back((bits >> 24) & 0xff);
         }
-        cUnit->codeBuffer.push_back(bits & 0xffff);
+        cUnit->codeBuffer.push_back(bits & 0xff);
+        cUnit->codeBuffer.push_back((bits >> 8) & 0xff);
     }
     return res;
 }
