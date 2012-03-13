@@ -30,6 +30,18 @@ include $(build_path)/Android.libart.mk
 include $(build_path)/Android.libart-compiler.mk
 include $(build_path)/Android.executable.mk
 
+# *_DEPENDENCIES depend on Android.executable.mk and are needed by Android.gtest.mk
+ART_HOST_DEPENDENCIES := $(ART_HOST_EXECUTABLES) $(HOST_OUT_JAVA_LIBRARIES)/core-hostdex.jar
+ifeq ($(HOST_OS),linux)
+  ART_HOST_DEPENDENCIES += $(HOST_OUT_SHARED_LIBRARIES)/libjavacore.so
+else
+  ART_HOST_DEPENDENCIES += $(HOST_OUT_SHARED_LIBRARIES)/libjavacore.dylib
+endif
+ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES)/core.jar $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
+
+ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_TEST_EXECUTABLES)   $(ART_TEST_DEX_FILES)
+ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_TEST_EXECUTABLES) $(ART_TEST_DEX_FILES)
+
 include $(build_path)/Android.oat.mk
 
 include $(build_path)/Android.libarttest.mk
@@ -57,24 +69,12 @@ define run-host-tests-with
   $(foreach file,$(sort $(ART_HOST_TEST_EXECUTABLES)),$(1) $(file) &&) true
 endef
 
-ART_HOST_DEPENDENCIES := $(ART_HOST_EXECUTABLES) $(HOST_OUT_JAVA_LIBRARIES)/core-hostdex.jar
-ifeq ($(HOST_OS),linux)
-  ART_HOST_DEPENDENCIES += $(HOST_OUT_SHARED_LIBRARIES)/libjavacore.so
-else
-  ART_HOST_DEPENDENCIES += $(HOST_OUT_SHARED_LIBRARIES)/libjavacore.dylib
-endif
-
-ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES)/core.jar $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
-
-ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_TEST_EXECUTABLES)   $(ART_TEST_DEX_FILES)
-ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_TEST_EXECUTABLES) $(ART_TEST_DEX_FILES)
-
 ########################################################################
 # host test targets
 
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
-test-art-host: $(ART_HOST_TEST_DEPENDENCIES) $(ART_HOST_TEST_TARGETS)
+test-art-host: $(ART_HOST_TEST_TARGETS)
 	@echo test-art-host PASSED
 
 # "mm valgrind-art-host" to build and run all host tests under valgrind.
