@@ -29,7 +29,9 @@
 
 namespace art {
 
-size_t ParseHex(const std::string& string) {
+#if !defined(NDEBUG)
+
+static size_t ParseHex(const std::string& string) {
   CHECK_EQ(8U, string.size());
   const char* str = string.c_str();
   char* end;
@@ -39,17 +41,65 @@ size_t ParseHex(const std::string& string) {
   return value;
 }
 
+static void CheckMapRegion(uint32_t base, uint32_t limit, uint32_t start, uint32_t end, const std::string& maps) {
+  CHECK(!(base >= start && base < end)      // start of new within old
+        && !(limit > start && limit < end)  // end of new within old
+        && !(base <= start && limit > end)) // start/end of new includes all of old
+      << StringPrintf("Requested region %08x-%08x overlaps with existing map %08x-%08x\n",
+                      base, limit, start, end)
+      << maps;
+}
+
 void CheckMapRequest(byte* addr, size_t length) {
-#if !defined(NDEBUG)
-#if defined(__APPLE__)
-  UNIMPLEMENTED(WARNING);
-#else
   if (addr == NULL) {
     return;
   }
-  size_t base = reinterpret_cast<size_t>(addr);
-  size_t limit = base + length;
+  uint32_t base = reinterpret_cast<size_t>(addr);
+  uint32_t limit = base + length;
 
+#if defined(__APPLE__)
+  // Mac OS vmmap(1) output currently looks something like this:
+
+  // Virtual Memory Map of process 51036 (dex2oatd)
+  // Output report format:  2.2  -- 32-bit process
+  //
+  // ==== regions for process 51036  (non-writable and writable regions are interleaved)
+  // __PAGEZERO             00000000-00001000 [    4K     0K     0K] ---/--- SM=NUL          out/host/darwin-x86/bin/dex2oatd
+  // __TEXT                 00001000-00015000 [   80K    80K     0K] r-x/rwx SM=COW          out/host/darwin-x86/bin/dex2oatd
+  // __DATA                 00015000-00016000 [    4K     4K     4K] rw-/rwx SM=PRV          out/host/darwin-x86/bin/dex2oatd
+  // __LINKEDIT             00016000-00044000 [  184K   184K     0K] r--/rwx SM=COW          out/host/darwin-x86/bin/dex2oatd
+  // __TEXT                 00044000-00046000 [    8K     8K     4K] r-x/rwx SM=COW          out/host/darwin-x86/obj/lib/libnativehelper.dylib
+  // __DATA                 00046000-00047000 [    4K     4K     4K] rw-/rwx SM=ZER          out/host/darwin-x86/obj/lib/libnativehelper.dylib
+  // __LINKEDIT             00047000-0004a000 [   12K    12K     0K] r--/rwx SM=COW          out/host/darwin-x86/obj/lib/libnativehelper.dylib
+  // ...
+
+  std::string command(StringPrintf("vmmap -v -interleaved %d", getpid()));
+  FILE* fp = popen(command.c_str(), "r");
+  if (fp == NULL) {
+    PLOG(FATAL) << "popen failed";
+  }
+  std::vector<char> chars(512);
+  std::string maps;
+  while (fgets(&chars[0], chars.size(), fp) != NULL) {
+    std::string line(&chars[0]);
+    maps += line;
+    if (line.size() < 40 || line[31] != '-') {
+      continue;
+    }
+
+    std::string start_str(line.substr(22, 8));
+    std::string end_str(line.substr(31, 8));
+    uint32_t start = ParseHex(start_str);
+    uint32_t end = ParseHex(end_str);
+    CheckMapRegion(base, limit, start, end, maps);
+  }
+  if (ferror(fp)) {
+    PLOG(FATAL) << "fgets failed";
+  }
+  if (pclose(fp) == -1) {
+    PLOG(FATAL) << "pclose failed";
+  }
+#else // Linux
   std::string maps;
   bool read = ReadFileToString("/proc/self/maps", &maps);
   if (!read) {
@@ -93,19 +143,17 @@ void CheckMapRequest(byte* addr, size_t length) {
     std::string end_str(maps.substr(i+1+8, 8));
     uint32_t start = ParseHex(start_str);
     uint32_t end = ParseHex(end_str);
-    CHECK(!(base >= start && base < end)       // start of new within old
-          && !(limit > start && limit < end)  // end of new within old
-          && !(base <= start && limit > end))  // start/end of new includes all of old
-        << StringPrintf("Requested region %08x-%08x overlaps with existing map %08x-%08x\n",
-                        base, limit, start, end)
-        << maps;
+    CheckMapRegion(base, limit, start, end, maps);
     i += 8+1+8;
     i = maps.find('\n', i);
     CHECK(i != std::string::npos) << "Failed to find newline from pos " << i << "\n" << maps;
   }
 #endif
-#endif
 }
+
+#else
+static void CheckMapRequest(byte* addr, size_t length) { }
+#endif
 
 MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t length, int prot) {
   CHECK_NE(0U, length);
