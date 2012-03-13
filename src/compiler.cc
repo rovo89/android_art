@@ -36,6 +36,10 @@
 #include "stl_util.h"
 #include "timing_logger.h"
 
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
+
 #if defined(ART_USE_LLVM_COMPILER)
 #include "compiler_llvm/compiler_llvm.h"
 #endif
@@ -209,19 +213,52 @@ static std::string MakeCompilerSoName(InstructionSet instruction_set) {
     instruction_set = kArm;
   }
 
+  // Capitalize the instruction set, because that's what we do in the build system.
   std::ostringstream instruction_set_name_os;
   instruction_set_name_os << instruction_set;
   std::string instruction_set_name(instruction_set_name_os.str());
   for (size_t i = 0; i < instruction_set_name.size(); ++i) {
     instruction_set_name[i] = toupper(instruction_set_name[i]);
   }
+
+  // Bad things happen if we pull in the libartd-compiler to a libart dex2oat or vice versa,
+  // because we end up with both libart and libartd in the same address space!
 #ifndef NDEBUG
   const char* suffix = "d";
 #else
   const char* suffix = "";
 #endif
-  std::string name(StringPrintf("art%s-compiler-%s", suffix, instruction_set_name.c_str()));
-  return StringPrintf(OS_SHARED_LIB_FORMAT_STR, name.c_str());
+
+  // Work out the filename for the compiler library.
+  std::string library_name(StringPrintf("art%s-compiler-%s", suffix, instruction_set_name.c_str()));
+  std::string filename(StringPrintf(OS_SHARED_LIB_FORMAT_STR, library_name.c_str()));
+
+#if defined(__APPLE__)
+  // On Linux, dex2oat will have been built with an RPATH of $ORIGIN/../lib, so dlopen(3) will find
+  // the .so by itself. On Mac OS, there isn't really an equivalent, so we have to manually do the
+  // same work.
+  std::vector<char> executable_path(1);
+  uint32_t executable_path_length = 0;
+  _NSGetExecutablePath(&executable_path[0], &executable_path_length);
+  while (_NSGetExecutablePath(&executable_path[0], &executable_path_length) == -1) {
+    executable_path.resize(executable_path_length);
+  }
+
+  executable_path.resize(executable_path.size() - 1); // Strip trailing NUL.
+  std::string path(&executable_path[0]);
+
+  // Strip the "/dex2oat".
+  size_t last_slash = path.find_last_of('/');
+  CHECK_NE(last_slash, std::string::npos) << path;
+  path.resize(last_slash);
+
+  // Strip the "/bin".
+  last_slash = path.find_last_of('/');
+  path.resize(last_slash);
+
+  filename = path + "/lib/" + filename;
+#endif
+  return filename;
 }
 
 template<typename Fn>
@@ -230,7 +267,7 @@ static Fn FindFunction(const std::string& compiler_so_name, void* library, const
   if (fn == NULL) {
     LOG(FATAL) << "Couldn't find \"" << name << "\" in compiler library " << compiler_so_name << ": " << dlerror();
   }
-  VLOG(compiler) << "Found \"" << name << "\") at " << reinterpret_cast<void*>(fn);
+  VLOG(compiler) << "Found \"" << name << "\" at " << reinterpret_cast<void*>(fn);
   return fn;
 }
 
