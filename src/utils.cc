@@ -38,6 +38,10 @@
 #include <sys/prctl.h>
 #endif
 
+#if defined(__APPLE__)
+#include "AvailabilityMacros.h"
+#endif
+
 #if defined(__linux__)
 #include <linux/unistd.h>
 #endif
@@ -714,7 +718,7 @@ void SetThreadName(const char* threadName) {
   if (errno != 0) {
     PLOG(WARNING) << "Unable to set the name of current thread to '" << buf << "'";
   }
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) && MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
   pthread_setname_np(threadName);
 #elif defined(HAVE_PRCTL)
   prctl(PR_SET_NAME, (unsigned long) s, 0, 0, 0);
