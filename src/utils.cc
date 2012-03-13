@@ -706,7 +706,7 @@ void SetThreadName(const char* threadName) {
     s = threadName + len - 15;
   }
 #if defined(HAVE_ANDROID_PTHREAD_SETNAME_NP)
-  /* pthread_setname_np fails rather than truncating long strings */
+  // pthread_setname_np fails rather than truncating long strings.
   char buf[16];       // MAX_TASK_COMM_LEN=16 is hard-coded into bionic
   strncpy(buf, s, sizeof(buf)-1);
   buf[sizeof(buf)-1] = '\0';
@@ -714,6 +714,8 @@ void SetThreadName(const char* threadName) {
   if (errno != 0) {
     PLOG(WARNING) << "Unable to set the name of current thread to '" << buf << "'";
   }
+#elif defined(__APPLE__)
+  pthread_setname_np(threadName);
 #elif defined(HAVE_PRCTL)
   prctl(PR_SET_NAME, (unsigned long) s, 0, 0, 0);
 #else
