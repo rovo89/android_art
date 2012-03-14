@@ -679,7 +679,7 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
           referrer_class->CanAccessMember(methods_class,
                                           resolved_method->GetAccessFlags())) {
         vtable_idx = resolved_method->GetMethodIndex();
-        const bool kEnableSharpening = false;
+        const bool kEnableSharpening = true;
         if (kEnableSharpening && type == kVirtual &&
             (resolved_method->IsFinal() || methods_class->IsFinal())) {
           stats_->ResolvedMethod(kVirtual);
