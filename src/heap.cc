@@ -246,8 +246,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   // make it clear that you can't use locks during heap initialization.
   lock_ = new Mutex("Heap lock", kHeapLock);
 
-  Heap::EnableObjectValidation();
-
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() exiting";
   }
@@ -312,7 +310,8 @@ bool Heap::IsLiveObjectLocked(const Object* obj) {
 
 #if VERIFY_OBJECT_ENABLED
 void Heap::VerifyObject(const Object* obj) {
-  if (!verify_objects_) {
+  if (this == NULL || !verify_objects_ || Runtime::Current()->IsShuttingDown() ||
+      Runtime::Current()->GetThreadList()->GetLockOwner() == Thread::Current()->GetTid()) {
     return;
   }
   ScopedHeapLock heap_lock;

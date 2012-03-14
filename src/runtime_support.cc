@@ -34,6 +34,7 @@ static void  FinishCalleeSaveFrameSetup(Thread* self, Method** sp, Runtime::Call
   // Be aware the store below may well stomp on an incoming argument
   *sp = Runtime::Current()->GetCalleeSaveMethod(type);
   self->SetTopOfStack(sp, 0);
+  self->VerifyStack();
 }
 
 /*

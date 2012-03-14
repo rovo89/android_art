@@ -243,6 +243,8 @@ class Heap {
 
   void VerifyObjectLocked(const Object *obj);
 
+  void VerifyHeapLocked();
+
   static void VerificationCallback(Object* obj, void* arg);
 
   Mutex* lock_;

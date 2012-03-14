@@ -642,6 +642,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                    options->heap_growth_limit_,
                    options->heap_maximum_size_,
                    options->image_);
+  heap_->EnableObjectValidation();
 
   BlockSignals();
 

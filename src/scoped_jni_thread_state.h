@@ -29,6 +29,7 @@ class ScopedJniThreadState {
       : env_(reinterpret_cast<JNIEnvExt*>(env)) {
     self_ = ThreadForEnv(env);
     old_thread_state_ = self_->SetState(Thread::kRunnable);
+    self_->VerifyStack();
   }
 
   ~ScopedJniThreadState() {
