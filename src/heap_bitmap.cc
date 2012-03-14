@@ -87,6 +87,9 @@ void HeapBitmap::VisitRange(uintptr_t visit_begin, uintptr_t visit_end, Callback
 void HeapBitmap::Walk(HeapBitmap::Callback* callback, void* arg) {
   CHECK(bitmap_begin_ != NULL);
   CHECK(callback != NULL);
+  if (heap_end_ < heap_begin_) {
+    return;  // Bitmap is empty.
+  }
   uintptr_t end = HB_OFFSET_TO_INDEX(heap_end_ - heap_begin_);
   for (uintptr_t i = 0; i <= end; ++i) {
     word w = bitmap_begin_[i];

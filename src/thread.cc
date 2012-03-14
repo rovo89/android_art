@@ -1637,7 +1637,7 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
   bool VisitFrame(const Frame& frame, uintptr_t pc) {
     Method* m = frame.GetMethod();
     if (false) {
-      LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m, false)
+      LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m)
                 << StringPrintf("@ PC:%04x", m->ToDexPC(pc));
     }
     // Process register map (which native and callee save methods don't have)
@@ -1727,6 +1727,18 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   ReferenceMapVisitor mapper(context, visitor, arg);
   WalkStack(&mapper);
 }
+
+#if VERIFY_OBJECT_ENABLED
+void VerifyObject(const Object* obj, void*) {
+  Runtime::Current()->GetHeap()->VerifyObject(obj);
+}
+
+void Thread::VerifyStack() {
+  Context* context = GetLongJumpContext();
+  ReferenceMapVisitor mapper(context, VerifyObject, NULL);
+  WalkStack(&mapper);
+}
+#endif
 
 static const char* kStateNames[] = {
   "Terminated",

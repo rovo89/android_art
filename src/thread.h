@@ -324,6 +324,12 @@ class PACKED Thread {
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg);
 
+#if VERIFY_OBJECT_ENABLED
+  void VerifyStack();
+#else
+  void VerifyStack() {}
+#endif
+
   //
   // Offsets of various members of native Thread class, used by compiled code.
   //
