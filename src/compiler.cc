@@ -282,11 +282,9 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       support_debugging_(support_debugging),
       stats_(new AOTCompilationStats),
       image_classes_(image_classes),
-#if defined(ART_USE_LLVM_COMPILER)
-      compiler_llvm_(NULL),
-#endif
       compiler_library_(NULL),
       compiler_(NULL),
+      compiler_context_(NULL),
       jni_compiler_(NULL),
       create_invoke_stub_(NULL)
 {
