@@ -53,7 +53,7 @@
   V(0x23, NEW_ARRAY, "new-array", k22c, true, kTypeRef, kContinue | kThrow, kVerifyRegA | kVerifyRegB | kVerifyRegCNewArray) \
   V(0x24, FILLED_NEW_ARRAY, "filled-new-array", k35c, false, kTypeRef, kContinue | kThrow, kVerifyRegBType | kVerifyVarArg) \
   V(0x25, FILLED_NEW_ARRAY_RANGE, "filled-new-array/range", k3rc, false, kTypeRef, kContinue | kThrow, kVerifyRegBType | kVerifyVarArgRange) \
-  V(0x26, FILL_ARRAY_DATA, "fill-array-data", k31t, false, kNone, kContinue, kVerifyRegA | kVerifyArrayData) \
+  V(0x26, FILL_ARRAY_DATA, "fill-array-data", k31t, false, kNone, kContinue | kThrow, kVerifyRegA | kVerifyArrayData) \
   V(0x27, THROW, "throw", k11x, false, kNone, kThrow, kVerifyRegA) \
   V(0x28, GOTO, "goto", k10t, false, kNone, kBranch, kVerifyBranchTarget) \
   V(0x29, GOTO_16, "goto/16", k20t, false, kNone, kBranch, kVerifyBranchTarget) \
