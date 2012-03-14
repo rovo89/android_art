@@ -91,7 +91,8 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
     Object* arg = objects->Get(i);
     Class* dst_class = mh.GetClassFromTypeIdx(classes->GetTypeItem(i).type_idx_);
     if (dst_class->IsPrimitive()) {
-      if (!UnboxPrimitive(env, arg, dst_class, decoded_args[i])) {
+      std::string what(StringPrintf("argument %d", i + 1)); // Humans count from 1.
+      if (!UnboxPrimitive(env, arg, dst_class, decoded_args[i], what.c_str())) {
         return NULL;
       }
     } else {
@@ -119,16 +120,17 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
 }
 
 bool VerifyObjectInClass(JNIEnv* env, Object* o, Class* c) {
+  const char* exception = NULL;
   if (o == NULL) {
-    jniThrowNullPointerException(env, "receiver for non-static field access was null");
-    return false;
+    exception = "java/lang/NullPointerException";
+  } else if (!o->InstanceOf(c)) {
+    exception = "java/lang/IllegalArgumentException";
   }
-  if (!o->InstanceOf(c)) {
-    std::string expectedClassName(PrettyDescriptor(c));
-    std::string actualClassName(PrettyTypeOf(o));
-    jniThrowExceptionFmt(env, "java/lang/IllegalArgumentException",
-        "expected receiver of type %s, but got %s",
-        expectedClassName.c_str(), actualClassName.c_str());
+  if (exception != NULL) {
+    std::string expected_class_name(PrettyDescriptor(c));
+    std::string actual_class_name(PrettyTypeOf(o));
+    jniThrowExceptionFmt(env, exception, "expected receiver of type %s, but got %s",
+                         expected_class_name.c_str(), actual_class_name.c_str());
     return false;
   }
   return true;
@@ -281,26 +283,30 @@ void BoxPrimitive(JNIEnv* env, Primitive::Type src_class, JValue& value) {
   m->Invoke(self, NULL, args.get(), &value);
 }
 
-bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_value) {
+bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_value, const char* what) {
   if (!dst_class->IsPrimitive()) {
     if (o != NULL && !o->InstanceOf(dst_class)) {
-      jniThrowExceptionFmt(env, "java/lang/IllegalArgumentException",
-          "expected object of type %s, but got %s",
-          PrettyDescriptor(dst_class).c_str(),
-          PrettyTypeOf(o).c_str());
+      Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
+                                            "boxed object for %s should have type %s, but got %s",
+                                            what,
+                                            PrettyDescriptor(dst_class).c_str(),
+                                            PrettyTypeOf(o).c_str());
       return false;
     }
     unboxed_value.l = o;
     return true;
   } else if (dst_class->GetPrimitiveType() == Primitive::kPrimVoid) {
-    Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
-        "can't unbox to void");
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
+                                          "can't unbox %s to void",
+                                          what);
     return false;
   }
 
   if (o == NULL) {
-    Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;",
-        "null passed for boxed primitive type");
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
+                                          "%s should have type %s, got null",
+                                          what,
+                                          PrettyDescriptor(dst_class).c_str());
     return false;
   }
 
@@ -335,7 +341,10 @@ bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_va
     boxed_value.i = primitive_field->GetShort(o);  // and extend read value to 32bits
   } else {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-        "%s is not a boxed primitive type", PrettyDescriptor(src_descriptor.c_str()).c_str());
+                                          "%s should have type %s, got %s",
+                                          what,
+                                          PrettyDescriptor(dst_class).c_str(),
+                                          PrettyDescriptor(src_descriptor.c_str()).c_str());
     return false;
   }
 

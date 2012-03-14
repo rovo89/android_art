@@ -28,7 +28,7 @@ class Object;
 
 void InitBoxingMethods();
 void BoxPrimitive(JNIEnv* env, Primitive::Type src_class, JValue& value);
-bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_value);
+bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_value, const char* what);
 
 bool ConvertPrimitiveValue(Primitive::Type src_class, Primitive::Type dst_class, const JValue& src, JValue& dst);
 

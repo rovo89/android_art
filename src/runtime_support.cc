@@ -1147,7 +1147,8 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     Object* result_ref = self->DecodeJObject(result);
     if (result_ref != NULL) {
       JValue result_unboxed;
-      UnboxPrimitive(env, result_ref, proxy_mh.GetReturnType(), result_unboxed);
+      bool unboxed_okay = UnboxPrimitive(env, result_ref, proxy_mh.GetReturnType(), result_unboxed, "result");
+      CHECK(unboxed_okay);
       *reinterpret_cast<JValue*>(stack_args) = result_unboxed;
     } else {
       *reinterpret_cast<jobject*>(stack_args) = NULL;
