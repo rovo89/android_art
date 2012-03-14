@@ -222,13 +222,8 @@ class Compiler {
                                            const ClassLoader* class_loader,
                                            const DexFile& dex_file);
   JniCompilerFn jni_compiler_;
-#if !defined(ART_USE_LLVM_COMPILER)
-  typedef CompiledInvokeStub* (*CreateInvokeStubFn)(bool is_static,
-                                                    const char* shorty, uint32_t shorty_len);
-#else
   typedef CompiledInvokeStub* (*CreateInvokeStubFn)(Compiler& compiler, bool is_static,
                                                     const char* shorty, uint32_t shorty_len);
-#endif
   CreateInvokeStubFn create_invoke_stub_;
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);

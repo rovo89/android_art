@@ -31,11 +31,11 @@ namespace art {
 class CompiledMethod {
  public:
 #if defined(ART_USE_LLVM_COMPILER)
-  // Create a CompiledMethod from the oatCompileMethod
-  CompiledMethod(InstructionSet instruction_set,
-                 llvm::Function* func);
+  // Constructs a CompiledMethod for the LLVM compiler.
+  CompiledMethod(InstructionSet instruction_set, llvm::Function* func);
 #endif
-  // Create a CompiledMethod from the oatCompileMethod
+
+  // Constructs a CompiledMethod for the non-LLVM compilers.
   CompiledMethod(InstructionSet instruction_set,
                  const std::vector<uint8_t>& code,
                  const size_t frame_size_in_bytes,
@@ -44,10 +44,10 @@ class CompiledMethod {
                  const std::vector<uint32_t>& mapping_table,
                  const std::vector<uint16_t>& vmap_table);
 
-  // Add a GC map to a CompiledMethod created by oatCompileMethod
+  // Sets the GC map for a CompiledMethod.
   void SetGcMap(const std::vector<uint8_t>& gc_map);
 
-  // Create a CompiledMethod from the JniCompiler
+  // Constructs a CompiledMethod for the JniCompiler.
   CompiledMethod(InstructionSet instruction_set,
                  const std::vector<uint8_t>& code,
                  const size_t frame_size_in_bytes,

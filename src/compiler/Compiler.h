@@ -209,7 +209,7 @@ uint32_t oatFpRegMask(void);
 
 }  // namespace art
 
-extern "C" art::CompiledMethod* oatCompileMethod(art::Compiler& compiler,
+extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags, uint32_t method_idx,
                                                  const art::ClassLoader* class_loader,
