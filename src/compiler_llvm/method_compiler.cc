@@ -26,6 +26,7 @@
 #include "object.h"
 #include "object_utils.h"
 #include "runtime_support_func.h"
+#include "shadow_frame.h"
 #include "stl_util.h"
 #include "stringprintf.h"
 #include "utils_llvm.h"
@@ -199,26 +200,25 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
 
   irb_.CreateStore(zero_initializer, shadow_frame_);
 
-  // Variables for GetElementPtr
-  llvm::Constant* zero = irb_.getInt32(0);
-
-  llvm::Value* gep_index[] = {
-    zero, // No displacement for shadow frame pointer
-    zero, // Get the %ArtFrame data structure
-    NULL,
-  };
-
   // Store the method pointer
-  gep_index[2] = irb_.getInt32(1);
-  llvm::Value* method_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
+  llvm::Value* method_field_addr =
+    irb_.CreatePtrDisp(shadow_frame_,
+                       irb_.getPtrEquivInt(ShadowFrame::MethodOffset()),
+                       irb_.getJObjectTy()->getPointerTo());
+
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
   irb_.CreateStore(method_object_addr, method_field_addr);
 
   // Store the number of the pointer slots
-  gep_index[2] = irb_.getInt32(3);
-  llvm::Value* size_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
-  llvm::ConstantInt* sirt_size_value = irb_.getInt32(sirt_size);
-  irb_.CreateStore(sirt_size_value, size_field_addr);
+  llvm::ConstantInt* num_of_refs_offset =
+    irb_.getPtrEquivInt(ShadowFrame::NumberOfReferencesOffset());
+
+  llvm::Value* num_of_refs_field_addr =
+    irb_.CreatePtrDisp(shadow_frame_, num_of_refs_offset,
+                       irb_.getJIntTy()->getPointerTo());
+
+  llvm::ConstantInt* num_of_refs_value = irb_.getJInt(sirt_size);
+  irb_.CreateStore(num_of_refs_value, num_of_refs_field_addr);
 
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast =
@@ -3881,15 +3881,11 @@ void MethodCompiler::EmitPopShadowFrame() {
 
 
 void MethodCompiler::EmitUpdateLineNum(int32_t line_num) {
-  llvm::Constant* zero = irb_.getInt32(0);
+  llvm::Value* line_num_field_addr =
+    irb_.CreatePtrDisp(shadow_frame_,
+                       irb_.getPtrEquivInt(ShadowFrame::LineNumOffset()),
+                       irb_.getJIntTy()->getPointerTo());
 
-  llvm::Value* gep_index[] = {
-    zero, // No displacement for shadow frame pointer
-    zero, // Get the %ArtFrame data structure
-    irb_.getInt32(2),
-  };
-
-  llvm::Value* line_num_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
   llvm::ConstantInt* line_num_value = irb_.getInt32(line_num);
   irb_.CreateStore(line_num_value, line_num_field_addr);
 }
