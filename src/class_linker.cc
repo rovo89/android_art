@@ -1357,11 +1357,11 @@ const void* ClassLinker::GetOatCodeFor(const Method* method) {
     size_t end = declaring_class->NumVirtualMethods();
     bool found = false;
     for (size_t i = 0; i < end; i++) {
-      oat_method_index++;
       if (declaring_class->GetVirtualMethod(i) == method) {
         found = true;
         break;
       }
+      oat_method_index++;
     }
     CHECK(found) << "Didn't find oat method index for virtual method: " << PrettyMethod(method);
   }
