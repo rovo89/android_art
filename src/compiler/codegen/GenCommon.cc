@@ -248,7 +248,7 @@ void genNewArray(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     loadConstant(cUnit, rARG0, type_idx);            // arg0 <- type_id
     loadValueDirectFixed(cUnit, rlSrc, rARG2);       // arg2 <- count
     callRuntimeHelper(cUnit, rTgt);
-    RegLocation rlResult = oatGetReturn(cUnit);
+    RegLocation rlResult = oatGetReturn(cUnit, false);
     storeValue(cUnit, rlDest, rlResult);
 }
 
@@ -567,10 +567,10 @@ void genSget(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         loadConstant(cUnit, rARG0, fieldIdx);
         callRuntimeHelper(cUnit, rTgt);
         if (isLongOrDouble) {
-            RegLocation rlResult = oatGetReturnWide(cUnit);
+            RegLocation rlResult = oatGetReturnWide(cUnit, rlDest.fp);
             storeValueWide(cUnit, rlDest, rlResult);
         } else {
-            RegLocation rlResult = oatGetReturn(cUnit);
+            RegLocation rlResult = oatGetReturn(cUnit, rlDest.fp);
             storeValue(cUnit, rlDest, rlResult);
         }
     }
@@ -761,10 +761,10 @@ void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
         loadConstant(cUnit, rARG0, fieldIdx);
         callRuntimeHelper(cUnit, rTgt);
         if (isLongOrDouble) {
-            RegLocation rlResult = oatGetReturnWide(cUnit);
+            RegLocation rlResult = oatGetReturnWide(cUnit, rlDest.fp);
             storeValueWide(cUnit, rlDest, rlResult);
         } else {
-            RegLocation rlResult = oatGetReturn(cUnit);
+            RegLocation rlResult = oatGetReturn(cUnit, rlDest.fp);
             storeValue(cUnit, rlDest, rlResult);
         }
     }
@@ -851,7 +851,7 @@ void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         opRegCopy(cUnit, rARG1, rlMethod.lowReg);
         loadConstant(cUnit, rARG0, type_idx);
         callRuntimeHelper(cUnit, rTgt);
-        RegLocation rlResult = oatGetReturn(cUnit);
+        RegLocation rlResult = oatGetReturn(cUnit, false);
         storeValue(cUnit, rlDest, rlResult);
     } else {
         // We're don't need access checks, load type from dex cache
@@ -879,7 +879,7 @@ void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             opRegCopy(cUnit, rARG1, rlMethod.lowReg);
             loadConstant(cUnit, rARG0, type_idx);
             callRuntimeHelper(cUnit, rTgt);
-            RegLocation rlResult = oatGetReturn(cUnit);
+            RegLocation rlResult = oatGetReturn(cUnit, false);
             storeValue(cUnit, rlDest, rlResult);
             // Rejoin code paths
             LIR* target2 = newLIR0(cUnit, kPseudoTargetLabel);
@@ -928,7 +928,7 @@ void genConstString(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         branch->target = target;
 #endif
         genBarrier(cUnit);
-        storeValue(cUnit, rlDest, oatGetReturn(cUnit));
+        storeValue(cUnit, rlDest, oatGetReturn(cUnit, false));
     } else {
         RegLocation rlMethod = loadCurrMethod(cUnit);
         int resReg = oatAllocTemp(cUnit);
@@ -961,7 +961,7 @@ void genNewInstance(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest)
     loadCurrMethodDirect(cUnit, rARG1);    // arg1 <= Method*
     loadConstant(cUnit, rARG0, type_idx);  // arg0 <- type_idx
     callRuntimeHelper(cUnit, rTgt);
-    RegLocation rlResult = oatGetReturn(cUnit);
+    RegLocation rlResult = oatGetReturn(cUnit, false);
     storeValue(cUnit, rlDest, rlResult);
 }
 
@@ -1040,7 +1040,7 @@ void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     oatClobberCalleeSave(cUnit);
     /* branch targets here */
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    RegLocation rlResult = oatGetReturn(cUnit);
+    RegLocation rlResult = oatGetReturn(cUnit, false);
     storeValue(cUnit, rlDest, rlResult);
     branch1->target = target;
 #if !defined(TARGET_ARM)
@@ -1424,7 +1424,7 @@ bool genShiftOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     loadValueDirectWideFixed(cUnit, rlSrc1, rARG0, rARG1);
     loadValueDirect(cUnit, rlShift, rARG2);
     callRuntimeHelper(cUnit, rTgt);
-    RegLocation rlResult = oatGetReturnWide(cUnit);
+    RegLocation rlResult = oatGetReturnWide(cUnit, false);
     storeValueWide(cUnit, rlDest, rlResult);
     return false;
 }
@@ -1549,7 +1549,7 @@ bool genArithOpInt(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         }
         callRuntimeHelper(cUnit, rTgt);
         if (retReg == rRET0)
-            rlResult = oatGetReturn(cUnit);
+            rlResult = oatGetReturn(cUnit, false);
         else
             rlResult = oatGetReturnAlt(cUnit);
         storeValue(cUnit, rlDest, rlResult);
@@ -1797,7 +1797,7 @@ bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             loadConstant(cUnit, rARG1, lit);
             callRuntimeHelper(cUnit, rTgt);
             if (isDiv)
-                rlResult = oatGetReturn(cUnit);
+                rlResult = oatGetReturn(cUnit, false);
             else
                 rlResult = oatGetReturnAlt(cUnit);
             storeValue(cUnit, rlDest, rlResult);
@@ -1947,7 +1947,7 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         callRuntimeHelper(cUnit, rTgt);
         // Adjust return regs in to handle case of rem returning rARG2/rARG3
         if (retReg == rRET0)
-            rlResult = oatGetReturnWide(cUnit);
+            rlResult = oatGetReturnWide(cUnit, false);
         else
             rlResult = oatGetReturnWideAlt(cUnit);
         storeValueWide(cUnit, rlDest, rlResult);
@@ -1977,12 +1977,12 @@ bool genConversionCall(CompilationUnit* cUnit, MIR* mir, int funcOffset,
     if (tgtSize == 1) {
         RegLocation rlResult;
         rlDest = oatGetDest(cUnit, mir, 0);
-        rlResult = oatGetReturn(cUnit);
+        rlResult = oatGetReturn(cUnit, rlDest.fp);
         storeValue(cUnit, rlDest, rlResult);
     } else {
         RegLocation rlResult;
         rlDest = oatGetDestWide(cUnit, mir, 0, 1);
-        rlResult = oatGetReturnWide(cUnit);
+        rlResult = oatGetReturnWide(cUnit, rlDest.fp);
         storeValueWide(cUnit, rlDest, rlResult);
     }
     return false;
@@ -2029,7 +2029,7 @@ bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
     loadValueDirectFixed(cUnit, rlSrc1, rARG0);
     loadValueDirectFixed(cUnit, rlSrc2, rARG1);
     callRuntimeHelper(cUnit, rTgt);
-    rlResult = oatGetReturn(cUnit);
+    rlResult = oatGetReturn(cUnit, true);
     storeValue(cUnit, rlDest, rlResult);
     return false;
 }
@@ -2079,7 +2079,7 @@ bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
     loadValueDirectWideFixed(cUnit, rlSrc2, rARG2, rARG3);
 #endif
     callRuntimeHelper(cUnit, rTgt);
-    rlResult = oatGetReturnWide(cUnit);
+    rlResult = oatGetReturnWide(cUnit, true);
     storeValueWide(cUnit, rlDest, rlResult);
     return false;
 }

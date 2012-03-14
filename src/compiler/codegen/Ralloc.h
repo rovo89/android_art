@@ -124,7 +124,7 @@ extern RegLocation oatGetRawSrc(CompilationUnit* cUnit, MIR* mir, int num);
 // Get the LocRecord associated with an SSA name def.
 extern RegLocation oatGetDest(CompilationUnit* cUnit, MIR* mir, int num);
 
-extern RegLocation oatGetReturnWide(CompilationUnit* cUnit);
+extern RegLocation oatGetReturnWide(CompilationUnit* cUnit, bool isDouble);
 
 /* Clobber all regs that might be used by an external C call */
 extern void oatClobberCalleeSave(CompilationUnit* cUnit);
@@ -161,7 +161,7 @@ extern void oatFlushAllRegs(CompilationUnit* cUnit);
 
 extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit);
 
-extern RegLocation oatGetReturn(CompilationUnit* cUnit);
+extern RegLocation oatGetReturn(CompilationUnit* cUnit, bool isFloat);
 
 extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit);
 

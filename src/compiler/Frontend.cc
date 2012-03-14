@@ -785,7 +785,6 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
         cUnit->enableDebug = compilerDebugFlags;
         cUnit->printMe = VLOG_IS_ON(compiler) || (cUnit->enableDebug & (1 << kDebugVerbose));
     }
-
     /* Are we generating code for the debugger? */
     if (compiler.IsDebuggingSupported()) {
         cUnit->genDebugger = true;
@@ -1008,10 +1007,8 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     for (size_t i = 0 ; i < cUnit->coreVmapTable.size(); i++) {
         vmapTable.push_back(cUnit->coreVmapTable[i]);
     }
-    if (cUnit->instructionSet != kX86) {
-        // Add a marker to take place of lr
-        vmapTable.push_back(INVALID_VREG);
-    }
+    // Add a marker to take place of lr
+    vmapTable.push_back(INVALID_VREG);
     // Combine vmap tables - core regs, then fp regs
     for (uint32_t i = 0; i < cUnit->fpVmapTable.size(); i++) {
         vmapTable.push_back(cUnit->fpVmapTable[i]);
