@@ -50,6 +50,7 @@ class Method;
 class Monitor;
 class Object;
 class Runtime;
+class ShadowFrame;
 class StackIndirectReferenceTable;
 class StackTraceElement;
 class StaticStorageBase;
@@ -272,6 +273,8 @@ class PACKED Thread {
 
   void SirtVisitRoots(Heap::RootVisitor* visitor, void* arg);
 
+  void ShadowFrameVisitRoots(Heap::RootVisitor* visitor, void* arg);
+
   // Convert a jobject into a Object*
   Object* DecodeJObject(jobject obj);
 
@@ -404,6 +407,9 @@ class PACKED Thread {
   static ThreadOffset TopOfManagedStackPcOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, top_of_managed_stack_pc_));
   }
+
+  void PushShadowFrame(ShadowFrame* frame);
+  ShadowFrame* PopShadowFrame();
 
   void PushSirt(StackIndirectReferenceTable* sirt);
   StackIndirectReferenceTable* PopSirt();
@@ -538,6 +544,10 @@ class PACKED Thread {
 
   // Top of linked list of stack indirect reference tables or NULL for none
   StackIndirectReferenceTable* top_sirt_;
+
+  // Top of linked list of shadow stack or NULL for none
+  // Some backend may require shadow frame to ease the GC work.
+  ShadowFrame* top_shadow_frame_;
 
   // Every thread may have an associated JNI environment
   JNIEnvExt* jni_env_;

@@ -1,0 +1,70 @@
+/*
+ * Copyright (C) 2012 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef ART_SRC_SHADOW_FRAME_H_
+#define ART_SRC_SHADOW_FRAME_H_
+
+#include "logging.h"
+#include "macros.h"
+
+namespace art {
+
+class Object;
+
+class ShadowFrame {
+ public:
+  // Number of references contained within this shadow frame
+  uint32_t NumberOfReferences() const {
+    return number_of_references_;
+  }
+
+  // Link to previous shadow frame or NULL
+  ShadowFrame* GetLink() const {
+    return link_;
+  }
+
+  void SetLink(ShadowFrame* frame) {
+    DCHECK_NE(this, frame);
+    link_ = frame;
+  }
+
+  Object* GetReference(size_t i) const {
+    DCHECK_LT(i, number_of_references_);
+    return references_[i];
+  }
+
+  void SetReference(size_t i, Object* object) {
+    DCHECK_LT(i, number_of_references_);
+    references_[i] = object;
+  }
+
+ private:
+  // ShadowFrame should be allocated by the generated code directly.
+  // We should not create new shadow stack in the runtime support function.
+  ~ShadowFrame() {}
+
+  uint32_t number_of_references_;
+  ShadowFrame* link_;
+  Object* method_;
+  uint32_t line_num_;
+  Object* references_[];
+
+  DISALLOW_IMPLICIT_CONSTRUCTORS(ShadowFrame);
+};
+
+}  // namespace art
+
+#endif  // ART_SRC_SHADOW_FRAME_H_

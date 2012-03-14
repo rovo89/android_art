@@ -43,6 +43,7 @@
 #include "runtime_support.h"
 #include "ScopedLocalRef.h"
 #include "scoped_jni_thread_state.h"
+#include "shadow_frame.h"
 #include "space.h"
 #include "stack.h"
 #include "stack_indirect_reference_table.h"
@@ -954,6 +955,7 @@ Thread::Thread()
       stack_end_(NULL),
       native_to_managed_record_(NULL),
       top_sirt_(NULL),
+      top_shadow_frame_(NULL),
       jni_env_(NULL),
       state_(Thread::kNative),
       self_(NULL),
@@ -1082,6 +1084,18 @@ bool Thread::SirtContains(jobject obj) {
 
 void Thread::SirtVisitRoots(Heap::RootVisitor* visitor, void* arg) {
   for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->GetLink()) {
+    size_t num_refs = cur->NumberOfReferences();
+    for (size_t j = 0; j < num_refs; j++) {
+      Object* object = cur->GetReference(j);
+      if (object != NULL) {
+        visitor(object, arg);
+      }
+    }
+  }
+}
+
+void Thread::ShadowFrameVisitRoots(Heap::RootVisitor* visitor, void* arg) {
+  for (ShadowFrame* cur = top_shadow_frame_; cur; cur = cur->GetLink()) {
     size_t num_refs = cur->NumberOfReferences();
     for (size_t j = 0; j < num_refs; j++) {
       Object* object = cur->GetReference(j);
@@ -1268,6 +1282,18 @@ uintptr_t DemanglePc(uintptr_t pc) {
   // Revert mangling for the case where we need the PC to return to the upcall
   if (pc > 0) { pc +=  2; }
   return pc;
+}
+
+void Thread::PushShadowFrame(ShadowFrame* frame) {
+  frame->SetLink(top_shadow_frame_);
+  top_shadow_frame_ = frame;
+}
+
+ShadowFrame* Thread::PopShadowFrame() {
+  CHECK(top_shadow_frame_ != NULL);
+  ShadowFrame* frame = top_shadow_frame_;
+  top_shadow_frame_ = frame->GetLink();
+  return frame;
 }
 
 void Thread::PushSirt(StackIndirectReferenceTable* sirt) {
@@ -1754,6 +1780,7 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   jni_env_->monitors.VisitRoots(visitor, arg);
 
   SirtVisitRoots(visitor, arg);
+  ShadowFrameVisitRoots(visitor, arg);
 
   // Cheat and steal the long jump context. Assume that we are not doing a GC during exception
   // delivery.

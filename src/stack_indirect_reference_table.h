@@ -90,10 +90,6 @@ class StackIndirectReferenceTable {
 
   size_t number_of_references_;
   StackIndirectReferenceTable* link_;
-#if defined(ART_USE_LLVM_COMPILER)
-  Object* method_;
-  uint32_t line_num_;
-#endif
 
   // number_of_references_ are available if this is allocated and filled in by jni_compiler.
   Object* references_[1];
