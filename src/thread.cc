@@ -1205,7 +1205,7 @@ void Thread::WalkStack(StackVisitor* visitor, bool include_upcalls) const {
 
   while (frame.GetSP() != NULL) {
     for ( ; frame.GetMethod() != NULL; frame.Next()) {
-      // DCHECK(frame.GetMethod()->IsWithinCode(pc));  // TODO: restore IsWithinCode
+      frame.GetMethod()->AssertPcIsWithinCode(pc);
       bool should_continue = visitor->VisitFrame(frame, pc);
       if (!should_continue) {
         return;

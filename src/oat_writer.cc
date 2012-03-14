@@ -220,9 +220,10 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index, size_
     offset = compiled_method->AlignCode(offset);
     DCHECK_ALIGNED(offset, kArmAlignment);
     const std::vector<uint8_t>& code = compiled_method->GetCode();
-    size_t code_size = code.size() * sizeof(code[0]);
+    uint32_t code_size = code.size() * sizeof(code[0]);
+    CHECK_NE(code_size, 0U);
     uint32_t thumb_offset = compiled_method->CodeDelta();
-    code_offset = (code_size == 0) ? 0 : offset + thumb_offset;
+    code_offset = offset + sizeof(code_size) + thumb_offset;
 
     // Deduplicate code arrays
     std::map<const std::vector<uint8_t>*, uint32_t>::iterator code_iter = code_offsets_.find(&code);
@@ -230,10 +231,10 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index, size_
       code_offset = code_iter->second;
     } else {
       code_offsets_.insert(std::pair<const std::vector<uint8_t>*, uint32_t>(&code, code_offset));
+      offset += sizeof(code_size);  // code size is prepended before code
       offset += code_size;
       oat_header_->UpdateChecksum(&code[0], code_size);
     }
-
     frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
     core_spill_mask = compiled_method->GetCoreSpillMask();
     fp_spill_mask = compiled_method->GetFpSpillMask();
@@ -297,8 +298,9 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index, size_
     offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
     DCHECK_ALIGNED(offset, kArmAlignment);
     const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
-    size_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
-    invoke_stub_offset = (invoke_stub_size == 0) ? 0 : offset;
+    uint32_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
+    CHECK_NE(invoke_stub_size, 0U);
+    invoke_stub_offset = offset + sizeof(invoke_stub_size);
 
     // Deduplicate invoke stubs
     std::map<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter = code_offsets_.find(&invoke_stub);
@@ -306,6 +308,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index, size_
       invoke_stub_offset = stub_iter->second;
     } else {
       code_offsets_.insert(std::pair<const std::vector<uint8_t>*, uint32_t>(&invoke_stub, invoke_stub_offset));
+      offset += sizeof(invoke_stub_size);  // invoke stub size is prepended before code
       offset += invoke_stub_size;
       oat_header_->UpdateChecksum(&invoke_stub[0], invoke_stub_size);
     }
@@ -522,19 +525,22 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
     }
     DCHECK_ALIGNED(code_offset, kArmAlignment);
     const std::vector<uint8_t>& code = compiled_method->GetCode();
-    size_t code_size = code.size() * sizeof(code[0]);
+    uint32_t code_size = code.size() * sizeof(code[0]);
+    CHECK_NE(code_size, 0U);
 
     // Deduplicate code arrays
-    size_t offset = code_offset + compiled_method->CodeDelta();
+    size_t offset = code_offset + sizeof(code_size) + compiled_method->CodeDelta();
     std::map<const std::vector<uint8_t>*, uint32_t>::iterator code_iter = code_offsets_.find(&code);
     if (code_iter != code_offsets_.end() && offset != method_offsets.code_offset_) {
-      DCHECK((code_size == 0 && method_offsets.code_offset_ == 0)
-             || code_iter->second == method_offsets.code_offset_)
-             << PrettyMethod(method_idx, dex_file);
+      DCHECK(code_iter->second == method_offsets.code_offset_) << PrettyMethod(method_idx, dex_file);
     } else {
-      DCHECK((code_size == 0 && method_offsets.code_offset_ == 0)
-             || offset == method_offsets.code_offset_)
-             << PrettyMethod(method_idx, dex_file);
+      DCHECK(offset == method_offsets.code_offset_) << PrettyMethod(method_idx, dex_file);
+      if (!file->WriteFully(&code_size, sizeof(code_size))) {
+        ReportWriteFailure("method code size", method_idx, dex_file, file);
+        return 0;
+      }
+      code_offset += sizeof(code_size);
+      DCHECK_CODE_OFFSET();
       if (!file->WriteFully(&code[0], code_size)) {
         ReportWriteFailure("method code", method_idx, dex_file, file);
         return 0;
@@ -633,20 +639,23 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
     }
     DCHECK_ALIGNED(code_offset, kArmAlignment);
     const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
-    size_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
+    uint32_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
+    CHECK_NE(invoke_stub_size, 0U);
 
     // Deduplicate invoke stubs
+    size_t offset = code_offset + sizeof(invoke_stub_size);
     std::map<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter =
         code_offsets_.find(&invoke_stub);
-    if (stub_iter != code_offsets_.end() &&
-        code_offset != method_offsets.invoke_stub_offset_) {
-      DCHECK((invoke_stub_size == 0 && method_offsets.invoke_stub_offset_ == 0)
-          || stub_iter->second == method_offsets.invoke_stub_offset_)
-          << PrettyMethod(method_idx, dex_file);
+    if (stub_iter != code_offsets_.end() && offset != method_offsets.invoke_stub_offset_) {
+      DCHECK(stub_iter->second == method_offsets.invoke_stub_offset_) << PrettyMethod(method_idx, dex_file);
     } else {
-      DCHECK((invoke_stub_size == 0 && method_offsets.invoke_stub_offset_ == 0)
-          || code_offset == method_offsets.invoke_stub_offset_)
-          << PrettyMethod(method_idx, dex_file);
+      DCHECK(offset == method_offsets.invoke_stub_offset_) << PrettyMethod(method_idx, dex_file);
+      if (!file->WriteFully(&invoke_stub_size, sizeof(invoke_stub_size))) {
+        ReportWriteFailure("invoke stub code size", method_idx, dex_file, file);
+        return 0;
+      }
+      code_offset += sizeof(invoke_stub_size);
+      DCHECK_CODE_OFFSET();
       if (!file->WriteFully(&invoke_stub[0], invoke_stub_size)) {
         ReportWriteFailure("invoke stub code", method_idx, dex_file, file);
         return 0;
