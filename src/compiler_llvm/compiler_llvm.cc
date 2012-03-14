@@ -255,7 +255,10 @@ extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
     class_loader, class_linker, dex_file, *dex_cache, NULL,
     method_idx, access_flags);
 
-  return compiler.GetCompilerLLVM()->CompileNativeMethod(&oat_compilation_unit);
+  art::CompiledMethod* result =
+      compiler.GetCompilerLLVM()->CompileNativeMethod(&oat_compilation_unit);
+  compiler.GetCompilerLLVM()->MaterializeIfThresholdReached();
+  return result;
 }
 
 extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(art::Compiler& compiler, bool is_static,
@@ -268,11 +271,6 @@ extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(art::Compiler& compiler,
 extern "C" void compilerLLVMMaterializeRemainder(art::Compiler& compiler) {
   ensureCompilerLLVM(compiler);
   compiler.GetCompilerLLVM()->MaterializeRemainder();
-}
-
-extern "C" void compilerLLVMMaterializeIfThresholdReached(art::Compiler& compiler) {
-  ensureCompilerLLVM(compiler);
-  compiler.GetCompilerLLVM()->MaterializeIfThresholdReached();
 }
 
 // Note: Using this function carefully!!! This is temporary solution, we will remove it.

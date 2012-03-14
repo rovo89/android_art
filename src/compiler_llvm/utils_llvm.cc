@@ -14,18 +14,19 @@
  * limitations under the License.
  */
 
-#include <android/librsloader.h>
-#include <cutils/log.h>
+#include "utils_llvm.h"
+
 #include <fcntl.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#include "utils_llvm.h"
-
+#include "android/librsloader.h"
 #include "class_loader.h"
 #include "object.h"
 #include "object_utils.h"
-
 #include "runtime_support_llvm.h"
 
 namespace art {
