@@ -83,11 +83,11 @@ define build-libart-compiler-llvm
     libLLVMARMCodeGen \
     libLLVMARMDesc
 
-  libart_compiler_llvm_mips_STATIC_LIBRARIES := \
-    libLLVMMipsInfo \
-    libLLVMMipsCodeGen \
-    libLLVMMipsDesc \
-    libLLVMMipsAsmPrinter \
+#  libart_compiler_llvm_mips_STATIC_LIBRARIES := \
+#    libLLVMMipsInfo \
+#    libLLVMMipsCodeGen \
+#    libLLVMMipsDesc \
+#    libLLVMMipsAsmPrinter \
 
   libart_compiler_llvm_x86_STATIC_LIBRARIES := \
     libLLVMX86Info \
