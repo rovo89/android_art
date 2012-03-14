@@ -32,17 +32,10 @@
 
 namespace art {
 
-#if defined(ART_USE_LLVM_COMPILER)
-namespace compiler_llvm {
-class CompilerLLVM;
-}
-#endif
-
 class AOTCompilationStats;
 class Context;
 class OatCompilationUnit;
 class TimingLogger;
-
 
 class Compiler {
  public:
@@ -129,14 +122,15 @@ class Compiler {
   void SetBitcodeFileName(std::string const& filename);
   std::string const& GetElfFileName();
   std::string const& GetBitcodeFileName();
-
-  void SetCompilerLLVM(compiler_llvm::CompilerLLVM* compiler_llvm) {
-    compiler_llvm_ = compiler_llvm;
-  }
-  compiler_llvm::CompilerLLVM* GetCompilerLLVM() const {
-    return compiler_llvm_;
-  }
 #endif
+
+  void SetCompilerContext(void* compiler_context) {
+    compiler_context_ = compiler_context;
+  }
+
+  void* GetCompilerContext() const {
+    return compiler_context_;
+  }
 
  private:
 
@@ -202,7 +196,6 @@ class Compiler {
   const std::set<std::string>* image_classes_;
 
 #if defined(ART_USE_LLVM_COMPILER)
-  compiler_llvm::CompilerLLVM* compiler_llvm_;
   std::string elf_filename_;
   std::string bitcode_filename_;
   typedef void (*CompilerCallbackFn)(Compiler& compiler);
@@ -216,6 +209,8 @@ class Compiler {
                                         const ClassLoader* class_loader,
                                         const DexFile& dex_file);
   CompilerFn compiler_;
+
+  void* compiler_context_;
 
   typedef CompiledMethod* (*JniCompilerFn)(Compiler& compiler,
                                            uint32_t access_flags, uint32_t method_idx,
