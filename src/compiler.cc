@@ -297,7 +297,7 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
   }
   VLOG(compiler) << "dlopen(\"" << compiler_so_name << "\", RTLD_LAZY) returned " << compiler_library_;
 
-  compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "oatCompileMethod");
+  compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtCompileMethod");
   jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtJniCompileMethod");
   create_invoke_stub_ = FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateInvokeStub");
 
@@ -1160,12 +1160,7 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
   bool is_static = (access_flags & kAccStatic) != 0;
   const CompiledInvokeStub* compiled_invoke_stub = FindInvokeStub(is_static, shorty);
   if (compiled_invoke_stub == NULL) {
-#if defined(ART_USE_LLVM_COMPILER)
     compiled_invoke_stub = (*create_invoke_stub_)(*this, is_static, shorty, shorty_len);
-#else
-    compiled_invoke_stub = (*create_invoke_stub_)(is_static, shorty, shorty_len);
-#endif
-
     CHECK(compiled_invoke_stub != NULL);
     InsertInvokeStub(is_static, shorty, compiled_invoke_stub);
   }

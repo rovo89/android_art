@@ -733,11 +733,11 @@ void oatInit(CompilationUnit* cUnit, const Compiler& compiler) {
   }
 }
 
-CompiledMethod* oatCompileMethodInternal(Compiler& compiler,
-                                         const DexFile::CodeItem* code_item,
-                                         uint32_t access_flags, uint32_t method_idx,
-                                         const ClassLoader* class_loader,
-                                         const DexFile& dex_file)
+CompiledMethod* oatCompileMethod(Compiler& compiler,
+                                 const DexFile::CodeItem* code_item,
+                                 uint32_t access_flags, uint32_t method_idx,
+                                 const ClassLoader* class_loader,
+                                 const DexFile& dex_file)
 {
     VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
 
@@ -1032,12 +1032,12 @@ CompiledMethod* oatCompileMethodInternal(Compiler& compiler,
 
 }  // namespace art
 
-extern "C" art::CompiledMethod* oatCompileMethod(art::Compiler& compiler,
+extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags, uint32_t method_idx,
                                                  const art::ClassLoader* class_loader,
                                                  const art::DexFile& dex_file)
 {
   CHECK_EQ(compiler.GetInstructionSet(), art::oatInstructionSet());
-  return art::oatCompileMethodInternal(compiler, code_item, access_flags, method_idx, class_loader, dex_file);
+  return art::oatCompileMethod(compiler, code_item, access_flags, method_idx, class_loader, dex_file);
 }
