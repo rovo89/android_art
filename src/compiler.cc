@@ -1111,14 +1111,6 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
     it.Next();
   }
   DCHECK(!it.HasNext());
-
-#if defined(ART_USE_LLVM_COMPILER)
-  CompilerCallbackFn fn =
-      FindFunction<CompilerCallbackFn>(MakeCompilerSoName(cmplr->GetInstructionSet()),
-                                       cmplr->compiler_library_,
-                                       "compilerLLVMMaterializeIfThresholdReached");
-                                       (*fn)(*cmplr);
-#endif
 }
 
 void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
