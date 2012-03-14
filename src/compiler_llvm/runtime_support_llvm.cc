@@ -6,6 +6,7 @@
 #include "object_utils.h"
 #include "runtime_support_common.h"
 #include "runtime_support_llvm.h"
+#include "shadow_frame.h"
 #include "thread.h"
 #include "thread_list.h"
 
@@ -49,14 +50,12 @@ void art_test_suspend_from_code() {
 
 void art_push_shadow_frame_from_code(void* new_shadow_frame) {
   Thread* thread = Thread::Current();
-  thread->PushSirt(
-      static_cast<StackIndirectReferenceTable*>(new_shadow_frame)
-                   );
+  thread->PushShadowFrame(static_cast<ShadowFrame*>(new_shadow_frame));
 }
 
 void art_pop_shadow_frame_from_code() {
   Thread* thread = Thread::Current();
-  thread->PopSirt();
+  thread->PopShadowFrame();
 }
 
 
