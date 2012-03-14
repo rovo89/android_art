@@ -468,6 +468,9 @@ static void emitOpReg(CompilationUnit* cUnit, const X86EncodingMap* entry, uint8
     DCHECK_EQ(0, entry->skeleton.extra_opcode1);
     DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   }
+  if (FPREG(reg)) {
+    reg = reg & FP_REG_MASK;
+  }
   DCHECK_LT(reg, 8);
   uint8_t modrm = (3 << 6) | (entry->skeleton.modrm_opcode << 3) | reg;
   cUnit->codeBuffer.push_back(modrm);
@@ -518,6 +521,9 @@ static void emitMemReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
     DCHECK_EQ(0, entry->skeleton.extra_opcode1);
     DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   }
+  if (FPREG(reg)) {
+    reg = reg & FP_REG_MASK;
+  }
   DCHECK_LT(reg, 8);
   DCHECK_LT(base, 8);
   uint8_t modrm = (modrmForDisp(disp) << 6) | (reg << 3) | base;
@@ -560,6 +566,9 @@ static void emitRegArray(CompilationUnit* cUnit, const X86EncodingMap* entry, ui
     DCHECK_EQ(0, entry->skeleton.extra_opcode1);
     DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   }
+  if (FPREG(reg)) {
+    reg = reg & FP_REG_MASK;
+  }
   DCHECK_LT(reg, 8);
   uint8_t modrm = (modrmForDisp(disp) << 6) | (reg << 3) | rSP;
   cUnit->codeBuffer.push_back(modrm);
@@ -596,6 +605,14 @@ static void emitRegReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
     DCHECK_EQ(0, entry->skeleton.extra_opcode1);
     DCHECK_EQ(0, entry->skeleton.extra_opcode2);
   }
+  if (FPREG(reg1)) {
+    reg1 = reg1 & FP_REG_MASK;
+  }
+  if (FPREG(reg2)) {
+    reg2 = reg2 & FP_REG_MASK;
+  }
+  DCHECK_LT(reg1, 8);
+  DCHECK_LT(reg2, 8);
   uint8_t modrm = (3 << 6) | (reg1 << 3) | reg2;
   cUnit->codeBuffer.push_back(modrm);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);

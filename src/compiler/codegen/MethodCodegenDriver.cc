@@ -25,9 +25,11 @@ const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0,
                             INVALID_REG, INVALID_REG, INVALID_SREG};
 
 /* Mark register usage state and return long retloc */
-RegLocation oatGetReturnWide(CompilationUnit* cUnit)
+RegLocation oatGetReturnWide(CompilationUnit* cUnit, bool isDouble)
 {
-    RegLocation res = LOC_C_RETURN_WIDE;
+    RegLocation gpr_res = LOC_C_RETURN_WIDE;
+    RegLocation fpr_res = LOC_C_RETURN_WIDE_DOUBLE;
+    RegLocation res = isDouble ? fpr_res : gpr_res;
     oatClobber(cUnit, res.lowReg);
     oatClobber(cUnit, res.highReg);
     oatLockTemp(cUnit, res.lowReg);
@@ -36,9 +38,11 @@ RegLocation oatGetReturnWide(CompilationUnit* cUnit)
     return res;
 }
 
-RegLocation oatGetReturn(CompilationUnit* cUnit)
+RegLocation oatGetReturn(CompilationUnit* cUnit, bool isFloat)
 {
-    RegLocation res = LOC_C_RETURN;
+  RegLocation gpr_res = LOC_C_RETURN;
+  RegLocation fpr_res = LOC_C_RETURN_FLOAT;
+  RegLocation res = isFloat ? fpr_res : gpr_res;
     oatClobber(cUnit, res.lowReg);
     if (cUnit->instructionSet == kMips) {
         oatMarkInUse(cUnit, res.lowReg);
@@ -195,27 +199,29 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             if (!cUnit->attrs & METHOD_IS_LEAF) {
                 genSuspendTest(cUnit, mir);
             }
-            storeValue(cUnit, oatGetReturn(cUnit), rlSrc[0]);
+            storeValue(cUnit, oatGetReturn(cUnit, cUnit->shorty[0] == 'F'),
+                       rlSrc[0]);
             break;
 
         case Instruction::RETURN_WIDE:
             if (!cUnit->attrs & METHOD_IS_LEAF) {
                 genSuspendTest(cUnit, mir);
             }
-            storeValueWide(cUnit, oatGetReturnWide(cUnit), rlSrc[0]);
+            storeValueWide(cUnit, oatGetReturnWide(cUnit,
+                                           cUnit->shorty[0] == 'D'), rlSrc[0]);
             break;
 
         case Instruction::MOVE_RESULT_WIDE:
             if (mir->optimizationFlags & MIR_INLINED)
                 break;  // Nop - combined w/ previous invoke
-            storeValueWide(cUnit, rlDest, oatGetReturnWide(cUnit));
+            storeValueWide(cUnit, rlDest, oatGetReturnWide(cUnit, rlDest.fp));
             break;
 
         case Instruction::MOVE_RESULT:
         case Instruction::MOVE_RESULT_OBJECT:
             if (mir->optimizationFlags & MIR_INLINED)
                 break;  // Nop - combined w/ previous invoke
-            storeValue(cUnit, rlDest, oatGetReturn(cUnit));
+            storeValue(cUnit, rlDest, oatGetReturn(cUnit, rlDest.fp));
             break;
 
         case Instruction::MOVE:

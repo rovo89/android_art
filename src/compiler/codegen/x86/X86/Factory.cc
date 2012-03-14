@@ -76,7 +76,7 @@ LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
         }
     }
     DCHECK((EncodingMap[opcode].flags & IS_BINARY_OP) != 0);
-    LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rSrc, rDest);
+    LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rDest, rSrc);
     if (rDest == rSrc) {
         res->flags.isNop = true;
     }
@@ -502,7 +502,7 @@ LIR* loadBaseIndexedDisp(CompilationUnit *cUnit, MIR *mir,
           rDest = rDest - FP_DOUBLE;
         } else {
           DCHECK(FPREG(rDestHi));
-          DCHECK(rDest == (rDestHi - 1));
+          DCHECK_EQ(rDest, (rDestHi - 1));
         }
         rDestHi = rDest + 1;
       } else {
@@ -549,7 +549,7 @@ LIR* loadBaseIndexedDisp(CompilationUnit *cUnit, MIR *mir,
     if (rBase == rSP) {
       annotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                               true /* isLoad */, is64bit);
-      if (is64bit) {
+      if (pair) {
         annotateDalvikRegAccess(load2, (displacement + HIWORD_OFFSET) >> 2,
                                 true /* isLoad */, is64bit);
       }

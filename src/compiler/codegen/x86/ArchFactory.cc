@@ -27,54 +27,36 @@ namespace art {
 bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2)
 {
-    UNIMPLEMENTED(WARNING) << "genAddLong";
-#if 0
     rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
     /*
      *  [v1 v0] =  [a1 a0] + [a3 a2];
-     *    addu v0,a2,a0
-     *    addu t1,a3,a1
-     *    sltu v1,v0,a2
-     *    addu v1,v1,t1
+     *    add v0,a2,a0
+     *    adc v1,a3,a1
      */
 
     opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc2.lowReg, rlSrc1.lowReg);
-    int tReg = oatAllocTemp(cUnit);
-    opRegRegReg(cUnit, kOpAdd, tReg, rlSrc2.highReg, rlSrc1.highReg);
-    newLIR3(cUnit, kX86Sltu, rlResult.highReg, rlResult.lowReg, rlSrc2.lowReg);
-    opRegRegReg(cUnit, kOpAdd, rlResult.highReg, rlResult.highReg, tReg);
-    oatFreeTemp(cUnit, tReg);
+    opRegRegReg(cUnit, kOpAdc, rlResult.highReg, rlSrc2.highReg, rlSrc1.highReg);
     storeValueWide(cUnit, rlDest, rlResult);
-#endif
     return false;
 }
 
 bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2)
 {
-    UNIMPLEMENTED(WARNING) << "genSubLong";
-#if 0
     rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
     RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
     /*
      *  [v1 v0] =  [a1 a0] - [a3 a2];
-     *    subu    v0,a0,a2
-     *    subu    v1,a1,a3
-     *    sltu    t1,a0,v0
-     *    subu    v1,v1,t1
+     *    sub    v0,a0,a2
+     *    sbb    v1,a1,a3
      */
 
     opRegRegReg(cUnit, kOpSub, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
-    opRegRegReg(cUnit, kOpSub, rlResult.highReg, rlSrc1.highReg, rlSrc2.highReg);
-    int tReg = oatAllocTemp(cUnit);
-    newLIR3(cUnit, kX86Sltu, tReg, rlSrc1.lowReg, rlResult.lowReg);
-    opRegRegReg(cUnit, kOpSub, rlResult.highReg, rlResult.highReg, tReg);
-    oatFreeTemp(cUnit, tReg);
+    opRegRegReg(cUnit, kOpSbc, rlResult.highReg, rlSrc1.highReg, rlSrc2.highReg);
     storeValueWide(cUnit, rlDest, rlResult);
-#endif
     return false;
 }
 
@@ -123,34 +105,34 @@ int loadHelper(CompilationUnit* cUnit, int offset)
 #endif
 }
 
-void spillCoreRegs(CompilationUnit* cUnit)
-{
-    if (cUnit->numCoreSpills == 0) {
-        return;
+void spillCoreRegs(CompilationUnit* cUnit) {
+  if (cUnit->numCoreSpills == 0) {
+    return;
+  }
+  // Spill mask not including fake return address register
+  uint32_t mask = cUnit->coreSpillMask & ~(1 << rRET);
+  int offset = cUnit->frameSize - 4;
+  for (int reg = 0; mask; mask >>= 1, reg++) {
+    if (mask & 0x1) {
+      offset -= 4;
+      storeWordDisp(cUnit, rSP, offset, reg);
     }
-    uint32_t mask = cUnit->coreSpillMask;
-    int offset = cUnit->frameSize - 4;
-    for (int reg = 0; mask; mask >>= 1, reg++) {
-        if (mask & 0x1) {
-            offset -= 4;
-            storeWordDisp(cUnit, rSP, offset, reg);
-        }
-    }
+  }
 }
 
-void unSpillCoreRegs(CompilationUnit* cUnit)
-{
-    if (cUnit->numCoreSpills == 0) {
-        return;
+void unSpillCoreRegs(CompilationUnit* cUnit) {
+  if (cUnit->numCoreSpills == 0) {
+    return;
+  }
+  // Spill mask not including fake return address register
+  uint32_t mask = cUnit->coreSpillMask & ~(1 << rRET);
+  int offset = cUnit->frameSize - 4;
+  for (int reg = 0; mask; mask >>= 1, reg++) {
+    if (mask & 0x1) {
+      offset -= 4;
+      loadWordDisp(cUnit, rSP, offset, reg);
     }
-    uint32_t mask = cUnit->coreSpillMask;
-    int offset = cUnit->frameSize - 4;
-    for (int reg = 0; mask; mask >>= 1, reg++) {
-        if (mask & 0x1) {
-            offset -= 4;
-            loadWordDisp(cUnit, rSP, offset, reg);
-        }
-    }
+  }
 }
 
 void opRegThreadMem(CompilationUnit* cUnit, OpKind op, int rDest, int threadOffset) {
@@ -280,19 +262,17 @@ void removeRedundantBranches(CompilationUnit* cUnit) {
 
 
 /* Common initialization routine for an architecture family */
-bool oatArchInit()
-{
-    int i;
+bool oatArchInit() {
+  int i;
 
-    for (i = 0; i < kX86Last; i++) {
-        if (EncodingMap[i].opcode != i) {
-            LOG(FATAL) << "Encoding order for " << EncodingMap[i].name <<
-               " is wrong: expecting " << i << ", seeing " <<
-               (int)EncodingMap[i].opcode;
-        }
+  for (i = 0; i < kX86Last; i++) {
+    if (EncodingMap[i].opcode != i) {
+      LOG(FATAL) << "Encoding order for " << EncodingMap[i].name
+          << " is wrong: expecting " << i << ", seeing " << (int)EncodingMap[i].opcode;
     }
+  }
 
-    return oatArchVariantInit();
+  return oatArchVariantInit();
 }
 
 }  // namespace art

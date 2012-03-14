@@ -995,7 +995,6 @@ TEST_F(JniInternalTest, StaticIdentityIntMethod) {
   EXPECT_EQ(INT_MIN, result.i);
 }
 
-#if defined(__arm__) || defined(ART_USE_LLVM_COMPILER)
 TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
   SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
   CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "identity", "(D)D");
@@ -1594,7 +1593,6 @@ TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
   (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
   EXPECT_EQ(3.0, result.d);
 }
-#endif  // __arm__ || ART_USE_LLVM_COMPILER
 
 TEST_F(JniInternalTest, Throw) {
   EXPECT_EQ(JNI_ERR, env_->Throw(NULL));

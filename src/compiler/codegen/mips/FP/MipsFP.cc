@@ -218,7 +218,7 @@ static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
     }
     int rTgt = loadHelper(cUnit, offset);
     opReg(cUnit, kOpBlx, rTgt);
-    RegLocation rlResult = oatGetReturn(cUnit);
+    RegLocation rlResult = oatGetReturn(cUnit, false);
     storeValue(cUnit, rlDest, rlResult);
     return false;
 }

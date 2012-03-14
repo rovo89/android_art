@@ -29,6 +29,8 @@ namespace art {
 
 void oatAdjustSpillMask(CompilationUnit* cUnit) {
   // Adjustment for LR spilling, x86 has no LR so nothing to do here
+  cUnit->coreSpillMask |= (1 << rRET);
+  cUnit->numCoreSpills++;
 }
 
 /*
@@ -138,17 +140,16 @@ extern void oatClobberCalleeSave(CompilationUnit *cUnit)
 #endif
 }
 
-extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
-{
-    RegLocation res = LOC_C_RETURN_WIDE;
-    res.lowReg = rAX;
-    res.highReg = rDX;
-    oatClobber(cUnit, rAX);
-    oatClobber(cUnit, rDX);
-    oatMarkInUse(cUnit, rAX);
-    oatMarkInUse(cUnit, rDX);
-    oatMarkPair(cUnit, res.lowReg, res.highReg);
-    return res;
+extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit) {
+  RegLocation res = LOC_C_RETURN_WIDE;
+  CHECK(res.lowReg == rAX);
+  CHECK(res.highReg == rDX);
+  oatClobber(cUnit, rAX);
+  oatClobber(cUnit, rDX);
+  oatMarkInUse(cUnit, rAX);
+  oatMarkInUse(cUnit, rDX);
+  oatMarkPair(cUnit, res.lowReg, res.highReg);
+  return res;
 }
 
 extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)

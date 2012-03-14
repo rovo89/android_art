@@ -437,51 +437,39 @@ LIR* opRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
 LIR* opRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
     LIR *res = opRegCopyNoInsert(cUnit, rDest, rSrc);
-    oatAppendLIR(cUnit, (LIR*)res);
+    oatAppendLIR(cUnit, res);
     return res;
 }
 
 void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
-                    int srcLo, int srcHi)
-{
-    UNIMPLEMENTED(WARNING) << "opRegCopyWide";
-#if 0
-    bool destFP = FPREG(destLo) && FPREG(destHi);
-    bool srcFP = FPREG(srcLo) && FPREG(srcHi);
-    assert(FPREG(srcLo) == FPREG(srcHi));
-    assert(FPREG(destLo) == FPREG(destHi));
-    if (destFP) {
-        if (srcFP) {
-            opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
-        } else {
-           /* note the operands are swapped for the mtc1 instr */
-            newLIR2(cUnit, kX86Mtc1, srcLo, destLo);
-            newLIR2(cUnit, kX86Mtc1, srcHi, destHi);
-        }
+                   int srcLo, int srcHi) {
+  bool destFP = FPREG(destLo) && FPREG(destHi);
+  bool srcFP = FPREG(srcLo) && FPREG(srcHi);
+  assert(FPREG(srcLo) == FPREG(srcHi));
+  assert(FPREG(destLo) == FPREG(destHi));
+  LOG(INFO) << "RegCopyWide: destLo=" << destLo << " destHi=" << destHi
+      << " srcLo=" << srcLo << " srcHi=" << srcHi
+      << " dFP=" << destFP << " sFP=" << srcFP;
+  if (destFP) {
+    if (srcFP) {
+      opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
     } else {
-        if (srcFP) {
-            newLIR2(cUnit, kX86Mfc1, destLo, srcLo);
-            newLIR2(cUnit, kX86Mfc1, destHi, srcHi);
-        } else {
-            // Handle overlap
-            if (srcHi == destLo) {
-                opRegCopy(cUnit, destHi, srcHi);
-                opRegCopy(cUnit, destLo, srcLo);
-            } else {
-                opRegCopy(cUnit, destLo, srcLo);
-                opRegCopy(cUnit, destHi, srcHi);
-            }
-        }
+      UNIMPLEMENTED(WARNING);
     }
-    // Handle overlap
-    if (srcHi == destLo) {
+  } else {
+    if (srcFP) {
+      UNIMPLEMENTED(WARNING);
+    } else {
+      // Handle overlap
+      if (srcHi == destLo) {
         opRegCopy(cUnit, destHi, srcHi);
         opRegCopy(cUnit, destLo, srcLo);
-    } else {
+      } else {
         opRegCopy(cUnit, destLo, srcLo);
         opRegCopy(cUnit, destHi, srcHi);
+      }
     }
-#endif
+  }
 }
 
 }  // namespace art

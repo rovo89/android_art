@@ -106,11 +106,11 @@ namespace art {
  */
 
 /* Offset to distingish FP regs */
-#define FP_REG_OFFSET 16
+#define FP_REG_OFFSET 32
 /* Offset to distinguish DP FP regs */
-#define FP_DOUBLE 32
+#define FP_DOUBLE (FP_REG_OFFSET + 16)
 /* Offset to distingish the extra regs */
-#define EXTRA_REG_OFFSET 64
+#define EXTRA_REG_OFFSET (FP_DOUBLE + 16)
 /* Reg types */
 #define REGTYPE(x) (x & (FP_REG_OFFSET | FP_DOUBLE))
 #define FPREG(x) ((x & FP_REG_OFFSET) == FP_REG_OFFSET)
@@ -128,15 +128,18 @@ namespace art {
  */
 #define S2D(x,y) ((x) | FP_DOUBLE)
 /* Mask to strip off fp flags */
-#define FP_REG_MASK (FP_REG_OFFSET-1)
+#define FP_REG_MASK 0xF
 /* non-existent Dalvik register */
 #define vNone   (-1)
 /* non-existant physical register */
 #define rNone   (-1)
 
-/* RegisterLocation templates return values (rAX, or rAX/rDX) */
-#define LOC_C_RETURN      {kLocPhysReg, 0, 0, 0, 0, 0, 1, rAX, INVALID_REG, INVALID_SREG}
-#define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, rAX, rDX,         INVALID_SREG}
+/* RegisterLocation templates return values (rAX, rAX/rDX or XMM0) */
+//                               location,     wide, defined, fp, core, highWord, home, lowReg, highReg,     sRegLow
+#define LOC_C_RETURN             {kLocPhysReg, 0,    0,       0,  0,    0,        1,    rAX,    INVALID_REG, INVALID_SREG}
+#define LOC_C_RETURN_WIDE        {kLocPhysReg, 1,    0,       0,  0,    0,        1,    rAX,    rDX,         INVALID_SREG}
+#define LOC_C_RETURN_FLOAT       {kLocPhysReg, 0,    0,       1,  0,    0,        1,    fr0,    INVALID_REG, INVALID_SREG}
+#define LOC_C_RETURN_WIDE_DOUBLE {kLocPhysReg, 1,    0,       1,  0,    0,        1,    fr0,    fr1,         INVALID_SREG}
 
 enum ResourceEncodingPos {
     kGPReg0     = 0,
@@ -201,6 +204,7 @@ enum NativeRegisterPool {
   r13    = 13,
   r14    = 14,
   r15    = 15,
+  rRET   = 16,  // fake return address register for core spill mask
   fr0  =  0 + FP_REG_OFFSET,
   fr1  =  1 + FP_REG_OFFSET,
   fr2  =  2 + FP_REG_OFFSET,
