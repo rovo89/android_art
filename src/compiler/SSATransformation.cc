@@ -30,7 +30,10 @@ void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
     oatInsertGrowableList(cUnit, &cUnit->dfsOrder, block->id);
 
     if (block->fallThrough) {
+#if 0
+   // Temporary bug workaround
         block->fallThrough->fallThroughTarget = true;
+#endif
         recordDFSOrders(cUnit, block->fallThrough);
     }
     if (block->taken) recordDFSOrders(cUnit, block->taken);
