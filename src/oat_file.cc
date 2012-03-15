@@ -82,7 +82,7 @@ bool OatFile::Read(File& file, byte* requested_base) {
     return false;
   }
   CHECK(requested_base == 0 || requested_base == map->Begin())
-          << GetLocation() << " " << reinterpret_cast<void*>(map->Begin());
+      << GetLocation() << " " << reinterpret_cast<void*>(map->Begin());
   DCHECK_EQ(0, memcmp(&oat_header, map->Begin(), sizeof(OatHeader))) << GetLocation();
 
   off_t code_offset = oat_header.GetExecutableOffset();

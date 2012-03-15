@@ -633,6 +633,27 @@ class MANAGED Method : public Object {
     SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), code, false);
   }
 
+  uint32_t GetCodeSize() const {
+    DCHECK(!IsRuntimeMethod() && !IsProxyMethod()) << PrettyMethod(this);
+    uintptr_t code = reinterpret_cast<uintptr_t>(GetCode());
+    if (code == 0) {
+      return 0;
+    }
+    // TODO: make this Thumb2 specific
+    code &= ~0x1;
+    return reinterpret_cast<uint32_t*>(code)[-1];
+  }
+
+  bool IsWithinCode(uintptr_t pc) const {
+    uintptr_t code = reinterpret_cast<uintptr_t>(GetCode());
+    if (code == 0) {
+      return pc == 0;
+    }
+    return (code <= pc && pc < code + GetCodeSize());
+  }
+
+  void AssertPcIsWithinCode(uintptr_t pc) const;
+
   uint32_t GetOatCodeOffset() const {
     DCHECK(!Runtime::Current()->IsStarted());
     return reinterpret_cast<uint32_t>(GetCode());
@@ -781,7 +802,7 @@ class MANAGED Method : public Object {
   }
 
   // Native to managed invocation stub entry point
-  InvokeStub* GetInvokeStub() const {
+  const InvokeStub* GetInvokeStub() const {
     InvokeStub* result = GetFieldPtr<InvokeStub*>(
         OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_), false);
     // TODO: DCHECK(result != NULL);  should be ahead of time compiled
@@ -791,6 +812,14 @@ class MANAGED Method : public Object {
   void SetInvokeStub(InvokeStub* invoke_stub) {
     SetFieldPtr<const InvokeStub*>(OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_),
                                    invoke_stub, false);
+  }
+
+  uint32_t GetInvokeStubSize() const {
+    const uint32_t* invoke_stub = reinterpret_cast<const uint32_t*>(GetInvokeStub());
+    if (invoke_stub == NULL) {
+      return 0;
+    }
+    return invoke_stub[-1];
   }
 
   uint32_t GetOatInvokeStubOffset() const {
@@ -2301,6 +2330,23 @@ inline uint16_t Method::GetMethodIndex() const {
 inline uint32_t Method::GetDexMethodIndex() const {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_dex_index_), false);
+}
+
+inline void Method::AssertPcIsWithinCode(uintptr_t pc) const {
+#ifndef NDEBUG
+  if (IsNative() || IsRuntimeMethod() || IsProxyMethod()) {
+    return;
+  }
+  Runtime* runtime = Runtime::Current();
+  if (GetCode() == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData()) {
+      return;
+  }
+  DCHECK(IsWithinCode(pc))
+      << PrettyMethod(this)
+      << " pc=" << std::hex << pc
+      << " code=" << GetCode()
+      << " size=" << GetCodeSize();
+#endif
 }
 
 inline String* Class::GetName() const {

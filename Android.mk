@@ -204,6 +204,7 @@ clean-oat:
 	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.oat
 	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.art
 	adb shell rm system/app/*.oat
+	adb shell rm data/run-test/*.oat
 
 ########################################################################
 # cpplint target

@@ -38,8 +38,13 @@ class ExceptionTest : public CommonTest {
 
     dex_ = &Runtime::Current()->GetClassLinker()->FindDexFile(my_klass_->GetDexCache());
 
-    for (size_t i = 0 ; i < 12; i++) {
-      fake_code_.push_back(0x70000000 | i);
+    uint32_t code_size = 12;
+    fake_code_.push_back((code_size >> 24) & 0xFF);
+    fake_code_.push_back((code_size >> 16) & 0xFF);
+    fake_code_.push_back((code_size >>  8) & 0xFF);
+    fake_code_.push_back((code_size >>  0) & 0xFF);
+    for (size_t i = 0 ; i < code_size; i++) {
+      fake_code_.push_back(0x70 | i);
     }
 
     fake_mapping_data_.push_back(2);  // first element is count of remaining elements
@@ -49,13 +54,13 @@ class ExceptionTest : public CommonTest {
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
     method_f_->SetFrameSizeInBytes(kStackAlignment);
-    method_f_->SetCode(CompiledMethod::CodePointer(&fake_code_[0], kThumb2));
+    method_f_->SetCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
     method_f_->SetMappingTable(&fake_mapping_data_[0]);
 
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
     method_g_->SetFrameSizeInBytes(kStackAlignment);
-    method_g_->SetCode(CompiledMethod::CodePointer(&fake_code_[0], kThumb2));
+    method_g_->SetCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
     method_g_->SetMappingTable(&fake_mapping_data_[0]);
   }
 

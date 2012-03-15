@@ -90,6 +90,15 @@ class OatFile {
     const void* GetCode() const {
       return GetOatPointer<const void*>(code_offset_);
     }
+    uint32_t GetCodeSize() const {
+      uintptr_t code = reinterpret_cast<uint32_t>(GetCode());
+      if (code == 0) {
+        return 0;
+      }
+      // TODO: make this Thumb2 specific
+      code &= ~0x1;
+      return reinterpret_cast<uint32_t*>(code)[-1];
+    }
     const uint32_t* GetMappingTable() const {
       return GetOatPointer<const uint32_t*>(mapping_table_offset_);
     }
@@ -101,6 +110,13 @@ class OatFile {
     }
     const Method::InvokeStub* GetInvokeStub() const {
       return GetOatPointer<const Method::InvokeStub*>(invoke_stub_offset_);
+    }
+    uint32_t GetInvokeStubSize() const {
+      uintptr_t code = reinterpret_cast<uint32_t>(GetInvokeStub());
+      if (code == 0) {
+        return 0;
+      }
+      return reinterpret_cast<uint32_t*>(code)[-1];
     }
 
     ~OatMethod();

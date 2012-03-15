@@ -138,6 +138,10 @@ class OatDumper {
     return end_offset - begin_offset;
   }
 
+  InstructionSet GetInstructionSet() {
+    return oat_file_.GetOatHeader().GetInstructionSet();
+  }
+
   const void* GetOatCode(Method* m) {
     MethodHelper mh(m);
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
@@ -299,9 +303,9 @@ class OatDumper {
     DumpGcMap(os, oat_method.GetGcMap());
     os << StringPrintf("\t\tinvoke_stub: %p (offset=0x%08x)\n",
                        oat_method.GetInvokeStub(), oat_method.GetInvokeStubOffset());
-    os << "\t\tCODE:\n";
+    os << "\t\tCODE: (size=" << oat_method.GetCodeSize() << ")\n";
     DumpCode(os, oat_method.GetCode(), oat_method.GetMappingTable(), dex_file, code_item);
-    os << "\t\tINVOKE STUB:\n";
+    os << "\t\tINVOKE STUB: (size=" << oat_method.GetInvokeStubSize() << ")\n";
     DumpCode(os, reinterpret_cast<const void*>(oat_method.GetInvokeStub()), NULL, dex_file, NULL);
   }
 
@@ -620,15 +624,34 @@ class ImageDumper {
 
   bool InDumpSpace(const Object* object) {
     return image_space_.Contains(object);
- }
+  }
 
-  const void* GetOatCode(Method* m) {
+  const void* GetOatCodeBegin(Method* m) {
     Runtime* runtime = Runtime::Current();
     const void* code = m->GetCode();
     if (code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData()) {
       code = oat_dumper_->GetOatCode(m);
     }
+    if (oat_dumper_->GetInstructionSet() == kThumb2) {
+      code = reinterpret_cast<void*>(reinterpret_cast<uint32_t>(code) & ~0x1);
+    }
     return code;
+  }
+
+  uint32_t GetOatCodeSize(Method* m) {
+    const uint32_t* oat_code_begin = reinterpret_cast<const uint32_t*>(GetOatCodeBegin(m));
+    if (oat_code_begin == NULL) {
+      return 0;
+    }
+    return oat_code_begin[-1];
+  }
+
+  const void* GetOatCodeEnd(Method* m) {
+    const uint8_t* oat_code_begin = reinterpret_cast<const uint8_t*>(GetOatCodeBegin(m));
+    if (oat_code_begin == NULL) {
+      return NULL;
+    }
+    return oat_code_begin + GetOatCodeSize(m);
   }
 
   static void Callback(Object* obj, void* arg) {
@@ -712,7 +735,7 @@ class ImageDumper {
         if (first_occurrence) {
           state->stats_.managed_to_native_code_bytes += invoke_stub_size;
         }
-        const void* oat_code = state->GetOatCode(method);
+        const void* oat_code = state->GetOatCodeBegin(method);
         size_t code_size = state->ComputeOatSize(oat_code, &first_occurrence);
         if (first_occurrence) {
           state->stats_.native_to_managed_code_bytes += code_size;
@@ -756,16 +779,17 @@ class ImageDumper {
         if (first_occurance) {
           state->stats_.native_to_managed_code_bytes += invoke_stub_size;
         }
-        const void* oat_code = state->GetOatCode(method);
-        size_t code_size = state->ComputeOatSize(oat_code, &first_occurance);
+        const void* oat_code_begin = state->GetOatCodeBegin(method);
+        const void* oat_code_end = state->GetOatCodeEnd(method);
+        // TODO: use oat_code_size and remove code_size based on offsets
+        // uint32_t oat_code_size = state->GetOatCodeSize(method);
+        size_t code_size = state->ComputeOatSize(oat_code_begin, &first_occurance);
         if (first_occurance) {
           state->stats_.managed_code_bytes += code_size;
         }
         state->stats_.managed_code_bytes_ignoring_deduplication += code_size;
 
-        if (oat_code != method->GetCode()) {
-          StringAppendF(&summary, "\t\tOAT CODE: %p\n", oat_code);
-        }
+        StringAppendF(&summary, "\t\tOAT CODE: %p-%p\n", oat_code_begin, oat_code_end);
         StringAppendF(&summary, "\t\tSIZE: Dex Instructions=%zd GC=%zd Mapping=%zd\n",
                       dex_instruction_bytes, gc_map_bytes, pc_mapping_table_bytes);
 
