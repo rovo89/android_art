@@ -88,11 +88,11 @@ define build-libart
       libLLVMARMCodeGen \
       libLLVMARMDesc
 
-#    libart_mips_STATIC_LIBRARIES := \
-#      libLLVMMipsInfo \
-#      libLLVMMipsCodeGen \
-#      libLLVMMipsDesc \
-#      libLLVMMipsAsmPrinter \
+    libart_mips_STATIC_LIBRARIES := \
+      libLLVMMipsInfo \
+      libLLVMMipsCodeGen \
+      libLLVMMipsDesc \
+      libLLVMMipsAsmPrinter \
 
     libart_x86_STATIC_LIBRARIES := \
       libLLVMX86Info \
