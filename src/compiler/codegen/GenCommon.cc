@@ -870,6 +870,11 @@ void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                                           NULL);
             // Resolved, store and hop over following code
             storeValue(cUnit, rlDest, rlResult);
+            /*
+             * Because we have stores of the target value on two paths,
+             * clobber temp tracking for the destination using the ssa name
+             */
+            oatClobberSReg(cUnit, rlDest.sRegLow);
             LIR* branch2 = opUnconditionalBranch(cUnit,0);
             // TUNING: move slow path to end & remove unconditional branch
             LIR* target1 = newLIR0(cUnit, kPseudoTargetLabel);
@@ -881,6 +886,11 @@ void genConstClass(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             callRuntimeHelper(cUnit, rTgt);
             RegLocation rlResult = oatGetReturn(cUnit);
             storeValue(cUnit, rlDest, rlResult);
+            /*
+             * Because we have stores of the target value on two paths,
+             * clobber temp tracking for the destination using the ssa name
+             */
+            oatClobberSReg(cUnit, rlDest.sRegLow);
             // Rejoin code paths
             LIR* target2 = newLIR0(cUnit, kPseudoTargetLabel);
             branch1->target = (LIR*)target1;

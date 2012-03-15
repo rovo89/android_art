@@ -26,14 +26,22 @@ void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
     if (block->visited || block->hidden) return;
     block->visited = true;
 
+    // Can this block be reached only via previous block fallthrough?
+    if ((block->blockType == kDalvikByteCode) &&
+        (block->predecessors->numUsed == 1)) {
+        DCHECK_GE(cUnit->dfsOrder.numUsed, 1U);
+        int prevIdx = cUnit->dfsOrder.numUsed - 1;
+        int prevId = cUnit->dfsOrder.elemList[prevIdx];
+        BasicBlock* predBB = (BasicBlock*)block->predecessors->elemList[0];
+        if (predBB->id == prevId) {
+            block->fallThroughTarget = true;
+        }
+    }
+
     /* Enqueue the preOrder block id */
     oatInsertGrowableList(cUnit, &cUnit->dfsOrder, block->id);
 
     if (block->fallThrough) {
-#if 0
-   // Temporary bug workaround
-        block->fallThrough->fallThroughTarget = true;
-#endif
         recordDFSOrders(cUnit, block->fallThrough);
     }
     if (block->taken) recordDFSOrders(cUnit, block->taken);
