@@ -65,6 +65,8 @@ void Frame::SetReturnPC(uintptr_t pc) {
  *     +------------------------+
  *     | fp callee-save spill   |
  *     +------------------------+
+ *     | filler word            |  {For compatibility, if V[locals-1] used as wide
+ *     +------------------------+
  *     | V[locals-1]            |
  *     | V[locals-2]            |
  *     |      .                 |
@@ -90,7 +92,7 @@ int Frame::GetVRegOffset(const DexFile::CodeItem* code_item,
                          size_t frame_size, int reg)
 {
   DCHECK_EQ( frame_size & (kStackAlignment - 1), 0U);
-  int num_spills = __builtin_popcount(core_spills) + __builtin_popcount(fp_spills);
+  int num_spills = __builtin_popcount(core_spills) + __builtin_popcount(fp_spills) + 1 /* filler */;
   int num_ins = code_item->ins_size_;
   int num_regs = code_item->registers_size_ - num_ins;
   int locals_start = frame_size - ((num_spills + num_regs) * sizeof(uint32_t));
