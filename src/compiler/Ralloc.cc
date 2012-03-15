@@ -420,8 +420,9 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     /* Figure out the frame size */
     static const uint32_t kAlignMask = kStackAlignment - 1;
     uint32_t size = (cUnit->numCoreSpills + cUnit->numFPSpills +
-                     cUnit->numRegs + cUnit->numOuts + cUnit->numCompilerTemps +
-                     1 /* curMethod* */) * sizeof(uint32_t);
+                     1 /* filler word */ + cUnit->numRegs + cUnit->numOuts +
+                     cUnit->numCompilerTemps + 1 /* curMethod* */)
+                     * sizeof(uint32_t);
     /* Align and set */
     cUnit->frameSize = (size + kAlignMask) & ~(kAlignMask);
 }
