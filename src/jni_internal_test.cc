@@ -52,6 +52,517 @@ class JniInternalTest : public CommonTest {
     CommonTest::TearDown();
   }
 
+  Method::InvokeStub* DoCompile(Method*& method, Object*& receiver, bool is_static, const char* method_name, const char* method_signature) {
+    const char* class_name = is_static ? "StaticLeafMethods" : "NonStaticLeafMethods";
+    SirtRef<ClassLoader> class_loader(LoadDex(class_name));
+    if (is_static) {
+      CompileDirectMethod(class_loader.get(), class_name, method_name, method_signature);
+    } else {
+      CompileVirtualMethod(NULL, "java.lang.Class", "isFinalizable", "()Z");
+      CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+      CompileVirtualMethod(class_loader.get(), class_name, method_name, method_signature);
+    }
+
+    Class* c = class_linker_->FindClass(DotToDescriptor(class_name).c_str(), class_loader.get());
+    CHECK(c != NULL);
+
+    method = is_static ? c->FindDirectMethod(method_name, method_signature) : c->FindVirtualMethod(method_name, method_signature);
+    CHECK(method != NULL);
+
+    receiver = (is_static ? NULL : c->AllocObject());
+
+    Method::InvokeStub* stub = method->GetInvokeStub();
+    CHECK(stub != NULL);
+
+    return stub;
+  }
+
+  void InvokeNopMethod(bool is_static) {
+    // TODO: remove this when we have a working x86 compiler.
+#if !defined(__arm__)
+    if (!is_static) {
+      return;
+    }
+#endif
+    Method* method;
+    Object* receiver;
+    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "nop", "()V");
+    (*stub)(method, receiver, Thread::Current(), NULL, NULL);
+  }
+
+  void InvokeIdentityByteMethod(bool is_static) {
+    // TODO: remove this when we have a working x86 compiler.
+#if !defined(__arm__)
+    if (!is_static) {
+      return;
+    }
+#endif
+    Method* method;
+    Object* receiver;
+    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(B)B");
+
+    JValue args[1];
+    JValue result;
+
+    args[0].i = 0;
+    result.b = -1;
+    (*stub)(method, receiver, Thread::Current(), args, &result);
+    EXPECT_EQ(0, result.b);
+
+    args[0].i = -1;
+    result.b = 0;
+    (*stub)(method, receiver, Thread::Current(), args, &result);
+    EXPECT_EQ(-1, result.b);
+
+    args[0].i = SCHAR_MAX;
+    result.b = 0;
+    (*stub)(method, receiver, Thread::Current(), args, &result);
+    EXPECT_EQ(SCHAR_MAX, result.b);
+
+    args[0].i = SCHAR_MIN;
+    result.b = 0;
+    (*stub)(method, receiver, Thread::Current(), args, &result);
+    EXPECT_EQ(SCHAR_MIN, result.b);
+  }
+
+  void InvokeIdentityIntMethod(bool is_static) {
+    // TODO: remove this when we have a working x86 compiler.
+#if !defined(__arm__)
+    if (!is_static) {
+      return;
+    }
+#endif
+    Method* method;
+    Object* receiver;
+    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(I)I");
+
+    JValue args[1];
+    JValue result;
+
+    args[0].i = 0;
+    result.i = -1;
+    (*stub)(method, receiver, Thread::Current(), args, &result);
+    EXPECT_EQ(0, result.i);
+
+    args[0].i = -1;
+    result.i = 0;
+    (*stub)(method, receiver, Thread::Current(), args, &result);
+    EXPECT_EQ(-1, result.i);
+
+    args[0].i = INT_MAX;
+    result.i = 0;
+    (*stub)(method, receiver, Thread::Current(), args, &result);
+    EXPECT_EQ(INT_MAX, result.i);
+
+    args[0].i = INT_MIN;
+    result.i = 0;
+    (*stub)(method, receiver, Thread::Current(), args, &result);
+    EXPECT_EQ(INT_MIN, result.i);
+  }
+
+  void InvokeIdentityDoubleMethod(bool is_static) {
+    // TODO: remove this when we have a working x86 compiler.
+#if !defined(__arm__)
+    if (!is_static) {
+      return;
+    }
+#endif
+    Method* method;
+    Object* receiver;
+    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(D)D");
+
+    JValue args[1];
+    JValue result;
+
+    args[0].d = 0.0;
+    result.d = -1.0;
+    (*stub)(method, receiver, Thread::Current(), args, &result);
+    EXPECT_EQ(0.0, result.d);
+
+    args[0].d = -1.0;
+    result.d = 0.0;
+    (*stub)(method, receiver, Thread::Current(), args, &result);
+    EXPECT_EQ(-1.0, result.d);
+
+    args[0].d = DBL_MAX;
+    result.d = 0.0;
+    (*stub)(method, receiver, Thread::Current(), args, &result);
+    EXPECT_EQ(DBL_MAX, result.d);
+
+    args[0].d = DBL_MIN;
+    result.d = 0.0;
+    (*stub)(method, receiver, Thread::Current(), args, &result);
+    EXPECT_EQ(DBL_MIN, result.d);
+  }
+
+  void InvokeSumIntIntMethod(bool is_static) {
+    // TODO: remove this when we have a working x86 compiler.
+#if !defined(__arm__)
+    if (!is_static) {
+      return;
+    }
+#endif
+    Method* method;
+    Object* receiver;
+    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(II)I");
+
+    JValue result;
+    result.i = -1;
+    JValue args[2];
+    args[0].i = 0;
+    args[1].i = 0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(0, result.i);
+
+    result.i = 0;
+    args[0].i = 1;
+    args[1].i = 2;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(3, result.i);
+
+    result.i = 0;
+    args[0].i = -2;
+    args[1].i = 5;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(3, result.i);
+
+    result.i = 1234;
+    args[0].i = INT_MAX;
+    args[1].i = INT_MIN;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(-1, result.i);
+
+    result.i = INT_MIN;
+    args[0].i = INT_MAX;
+    args[1].i = INT_MAX;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(-2, result.i);
+  }
+
+  void InvokeSumIntIntIntMethod(bool is_static) {
+    // TODO: remove this when we have a working x86 compiler.
+#if !defined(__arm__)
+    if (!is_static) {
+      return;
+    }
+#endif
+    Method* method;
+    Object* receiver;
+    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(III)I");
+
+    JValue result;
+    result.i = -1;
+    JValue args[3];
+    args[0].i = 0;
+    args[1].i = 0;
+    args[2].i = 0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(0, result.i);
+
+    result.i = 0;
+    args[0].i = 1;
+    args[1].i = 2;
+    args[2].i = 3;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(6, result.i);
+
+    result.i = 0;
+    args[0].i = -1;
+    args[1].i = 2;
+    args[2].i = -3;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(-2, result.i);
+
+    result.i = 1234;
+    args[0].i = INT_MAX;
+    args[1].i = INT_MIN;
+    args[2].i = INT_MAX;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(2147483646, result.i);
+
+    result.i = INT_MIN;
+    args[0].i = INT_MAX;
+    args[1].i = INT_MAX;
+    args[2].i = INT_MAX;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(2147483645, result.i);
+  }
+
+  void InvokeSumIntIntIntIntMethod(bool is_static) {
+    // TODO: remove this when we have a working x86 compiler.
+#if !defined(__arm__)
+    if (!is_static) {
+      return;
+    }
+#endif
+    Method* method;
+    Object* receiver;
+    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIII)I");
+
+    JValue result;
+    result.i = -1;
+    JValue args[4];
+    args[0].i = 0;
+    args[1].i = 0;
+    args[2].i = 0;
+    args[3].i = 0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(0, result.i);
+
+    result.i = 0;
+    args[0].i = 1;
+    args[1].i = 2;
+    args[2].i = 3;
+    args[3].i = 4;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(10, result.i);
+
+    result.i = 0;
+    args[0].i = -1;
+    args[1].i = 2;
+    args[2].i = -3;
+    args[3].i = 4;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(2, result.i);
+
+    result.i = 1234;
+    args[0].i = INT_MAX;
+    args[1].i = INT_MIN;
+    args[2].i = INT_MAX;
+    args[3].i = INT_MIN;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(-2, result.i);
+
+    result.i = INT_MIN;
+    args[0].i = INT_MAX;
+    args[1].i = INT_MAX;
+    args[2].i = INT_MAX;
+    args[3].i = INT_MAX;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(-4, result.i);
+  }
+
+  void InvokeSumIntIntIntIntIntMethod(bool is_static) {
+    // TODO: remove this when we have a working x86 compiler.
+#if !defined(__arm__)
+    if (!is_static) {
+      return;
+    }
+#endif
+    Method* method;
+    Object* receiver;
+    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIIII)I");
+
+    JValue result;
+    result.i = -1.0;
+    JValue args[5];
+    args[0].i = 0;
+    args[1].i = 0;
+    args[2].i = 0;
+    args[3].i = 0;
+    args[4].i = 0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(0, result.i);
+
+    result.i = 0;
+    args[0].i = 1;
+    args[1].i = 2;
+    args[2].i = 3;
+    args[3].i = 4;
+    args[4].i = 5;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(15, result.i);
+
+    result.i = 0;
+    args[0].i = -1;
+    args[1].i = 2;
+    args[2].i = -3;
+    args[3].i = 4;
+    args[4].i = -5;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(-3, result.i);
+
+    result.i = 1234;
+    args[0].i = INT_MAX;
+    args[1].i = INT_MIN;
+    args[2].i = INT_MAX;
+    args[3].i = INT_MIN;
+    args[4].i = INT_MAX;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(2147483645, result.i);
+
+    result.i = INT_MIN;
+    args[0].i = INT_MAX;
+    args[1].i = INT_MAX;
+    args[2].i = INT_MAX;
+    args[3].i = INT_MAX;
+    args[4].i = INT_MAX;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(2147483643, result.i);
+  }
+
+  void InvokeSumDoubleDoubleMethod(bool is_static) {
+    // TODO: remove this when we have a working x86 compiler.
+#if !defined(__arm__)
+    if (!is_static) {
+      return;
+    }
+#endif
+    Method* method;
+    Object* receiver;
+    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DD)D");
+
+    JValue args[2];
+    JValue result;
+
+    args[0].d = 0.0;
+    args[1].d = 0.0;
+    result.d = -1.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(0.0, result.d);
+
+    args[0].d = 1.0;
+    args[1].d = 2.0;
+    result.d = 0.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(3.0, result.d);
+
+    args[0].d = 1.0;
+    args[1].d = -2.0;
+    result.d = 0.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(-1.0, result.d);
+
+    args[0].d = DBL_MAX;
+    args[1].d = DBL_MIN;
+    result.d = 0.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(1.7976931348623157e308, result.d);
+
+    args[0].d = DBL_MAX;
+    args[1].d = DBL_MAX;
+    result.d = 0.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(INFINITY, result.d);
+  }
+
+  void InvokeSumDoubleDoubleDoubleMethod(bool is_static) {
+    // TODO: remove this when we have a working x86 compiler.
+#if !defined(__arm__)
+    if (!is_static) {
+      return;
+    }
+#endif
+    Method* method;
+    Object* receiver;
+    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDD)D");
+
+    JValue args[3];
+    JValue result;
+
+    args[0].d = 0.0;
+    args[1].d = 0.0;
+    args[2].d = 0.0;
+    result.d = -1.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(0.0, result.d);
+
+    args[0].d = 1.0;
+    args[1].d = 2.0;
+    args[2].d = 3.0;
+    result.d = 0.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(6.0, result.d);
+
+    args[0].d = 1.0;
+    args[1].d = -2.0;
+    args[2].d = 3.0;
+    result.d = 0.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(2.0, result.d);
+  }
+
+  void InvokeSumDoubleDoubleDoubleDoubleMethod(bool is_static) {
+    // TODO: remove this when we have a working x86 compiler.
+#if !defined(__arm__)
+    if (!is_static) {
+      return;
+    }
+#endif
+    Method* method;
+    Object* receiver;
+    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDD)D");
+
+    JValue args[4];
+    JValue result;
+
+    args[0].d = 0.0;
+    args[1].d = 0.0;
+    args[2].d = 0.0;
+    args[3].d = 0.0;
+    result.d = -1.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(0.0, result.d);
+
+    args[0].d = 1.0;
+    args[1].d = 2.0;
+    args[2].d = 3.0;
+    args[3].d = 4.0;
+    result.d = 0.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(10.0, result.d);
+
+    args[0].d = 1.0;
+    args[1].d = -2.0;
+    args[2].d = 3.0;
+    args[3].d = -4.0;
+    result.d = 0.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(-2.0, result.d);
+  }
+
+  void InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(bool is_static) {
+    // TODO: remove this when we have a working x86 compiler.
+#if !defined(__arm__)
+    if (!is_static) {
+      return;
+    }
+#endif
+    Method* method;
+    Object* receiver;
+    Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDDD)D");
+
+    JValue args[5];
+    JValue result;
+
+    args[0].d = 0.0;
+    args[1].d = 0.0;
+    args[2].d = 0.0;
+    args[3].d = 0.0;
+    args[4].d = 0.0;
+    result.d = -1.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(0.0, result.d);
+
+    args[0].d = 1.0;
+    args[1].d = 2.0;
+    args[2].d = 3.0;
+    args[3].d = 4.0;
+    args[4].d = 5.0;
+    result.d = 0.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(15.0, result.d);
+
+    args[0].d = 1.0;
+    args[1].d = -2.0;
+    args[2].d = 3.0;
+    args[3].d = -4.0;
+    args[4].d = 5.0;
+    result.d = 0.0;
+    (*stub)(method, NULL, Thread::Current(), args, &result);
+    EXPECT_EQ(3.0, result.d);
+  }
+
   JavaVMExt* vm_;
   JNIEnvExt* env_;
   jclass aioobe_;
@@ -903,695 +1414,106 @@ TEST_F(JniInternalTest, StaticMainMethod) {
 
   Method::InvokeStub* stub = method->GetInvokeStub();
 
-  Object* arg = NULL;
+  JValue args[1];
+  args[0].l = NULL;
 
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), NULL);
+  (*stub)(method, NULL, Thread::Current(), args, NULL);
 }
 
 TEST_F(JniInternalTest, StaticNopMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
-  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "nop", "()V");
+  InvokeNopMethod(true);
+}
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method = klass->FindDirectMethod("nop", "()V");
-  ASSERT_TRUE(method != NULL);
-
-  Method::InvokeStub* stub = method->GetInvokeStub();
-
-  (*stub)(method, NULL, Thread::Current(), NULL, NULL);
+TEST_F(JniInternalTest, NonStaticNopMethod) {
+  InvokeNopMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticIdentityByteMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
-  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "identity", "(B)B");
+  InvokeIdentityByteMethod(true);
+}
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method = klass->FindDirectMethod("identity", "(B)B");
-  ASSERT_TRUE(method != NULL);
-
-  Method::InvokeStub* stub = method->GetInvokeStub();
-
-  int arg;
-  JValue result;
-
-  arg = 0;
-  result.b = -1;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
-  EXPECT_EQ(0, result.b);
-
-  arg = -1;
-  result.b = 0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
-  EXPECT_EQ(-1, result.b);
-
-  arg = SCHAR_MAX;
-  result.b = 0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
-  EXPECT_EQ(SCHAR_MAX, result.b);
-
-  arg = SCHAR_MIN;
-  result.b = 0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
-  EXPECT_EQ(SCHAR_MIN, result.b);
+TEST_F(JniInternalTest, NonStaticIdentityByteMethod) {
+  InvokeIdentityByteMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticIdentityIntMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
-  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "identity", "(I)I");
+  InvokeIdentityIntMethod(true);
+}
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method = klass->FindDirectMethod("identity", "(I)I");
-  ASSERT_TRUE(method != NULL);
-
-  Method::InvokeStub* stub = method->GetInvokeStub();
-
-  int arg;
-  JValue result;
-
-  arg = 0;
-  result.i = -1;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
-  EXPECT_EQ(0, result.i);
-
-  arg = -1;
-  result.i = 0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
-  EXPECT_EQ(-1, result.i);
-
-  arg = INT_MAX;
-  result.i = 0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
-  EXPECT_EQ(INT_MAX, result.i);
-
-  arg = INT_MIN;
-  result.i = 0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
-  EXPECT_EQ(INT_MIN, result.i);
+TEST_F(JniInternalTest, NonStaticIdentityIntMethod) {
+  InvokeIdentityIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
-  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "identity", "(D)D");
-
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method = klass->FindDirectMethod("identity", "(D)D");
-  ASSERT_TRUE(method != NULL);
-
-  Method::InvokeStub* stub = method->GetInvokeStub();
-
-  double arg;
-  JValue result;
-
-  arg = 0.0;
-  result.d = -1.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
-  EXPECT_EQ(0.0, result.d);
-
-  arg = -1.0;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
-  EXPECT_EQ(-1.0, result.d);
-
-  arg = DBL_MAX;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
-  EXPECT_EQ(DBL_MAX, result.d);
-
-  arg = DBL_MIN;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(&arg), &result);
-  EXPECT_EQ(DBL_MIN, result.d);
+  InvokeIdentityDoubleMethod(true);
 }
 
-#if defined(ART_USE_LLVM_COMPILER)
-static byte* CreateArgArray(Method* method, JValue* args) {
-  const char* shorty = MethodHelper(method).GetShorty();
-  size_t shorty_len = strlen(shorty);
-  UniquePtr<byte[]> arg_array(new byte[shorty_len * 8]);
-  for (size_t i = 1, offset = 0; i < shorty_len; ++i) {
-    switch (shorty[i]) {
-    case 'Z':
-    case 'B':
-    case 'C':
-    case 'S':
-    case 'I':
-      *reinterpret_cast<uint32_t*>(&arg_array[offset]) = args[i - 1].i;
-      break;
-    case 'F':
-      *reinterpret_cast<float*>(&arg_array[offset]) = args[i - 1].f;
-      break;
-    case 'L':
-      *reinterpret_cast<Object**>(&arg_array[offset]) = args[i - 1].l;
-      break;
-    case 'D':
-      *reinterpret_cast<double*>(&arg_array[offset]) = args[i - 1].d;
-      break;
-    case 'J':
-      *reinterpret_cast<uint64_t*>(&arg_array[offset]) = args[i - 1].j;
-      break;
-    }
-    offset += 8;
-  }
-  return arg_array.release();
+TEST_F(JniInternalTest, NonStaticIdentityDoubleMethod) {
+  InvokeIdentityDoubleMethod(false);
 }
-#endif
 
 TEST_F(JniInternalTest, StaticSumIntIntMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
-  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(II)I");
+  InvokeSumIntIntMethod(true);
+}
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method = klass->FindDirectMethod("sum", "(II)I");
-  ASSERT_TRUE(method != NULL);
-
-  Method::InvokeStub* stub = method->GetInvokeStub();
-
-  JValue result;
-  result.i = -1;
-#if !defined(ART_USE_LLVM_COMPILER)
-  int args[2];
-  args[0] = 0;
-  args[1] = 0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  JValue args[2];
-  args[0].i = 0;
-  args[1].i = 0;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(0, result.i);
-
-  result.i = 0;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = 1;
-  args[1] = 2;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = 1;
-  args[1].i = 2;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(3, result.i);
-
-  result.i = 0;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = -2;
-  args[1] = 5;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = -2;
-  args[1].i = 5;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(3, result.i);
-
-  result.i = 1234;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = INT_MAX;
-  args[1] = INT_MIN;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = INT_MAX;
-  args[1].i = INT_MIN;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(-1, result.i);
-
-  result.i = INT_MIN;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = INT_MAX;
-  args[1] = INT_MAX;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = INT_MAX;
-  args[1].i = INT_MAX;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(-2, result.i);
+TEST_F(JniInternalTest, NonStaticSumIntIntMethod) {
+  InvokeSumIntIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
-  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(III)I");
+  InvokeSumIntIntIntMethod(true);
+}
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method = klass->FindDirectMethod("sum", "(III)I");
-  ASSERT_TRUE(method != NULL);
-
-  Method::InvokeStub* stub = method->GetInvokeStub();
-
-  JValue result;
-  result.i = -1;
-#if !defined(ART_USE_LLVM_COMPILER)
-  int args[3];
-  args[0] = 0;
-  args[1] = 0;
-  args[2] = 0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  JValue args[3];
-  args[0].i = 0;
-  args[1].i = 0;
-  args[2].i = 0;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(0, result.i);
-
-  result.i = 0;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = 1;
-  args[1] = 2;
-  args[2] = 3;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = 1;
-  args[1].i = 2;
-  args[2].i = 3;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(6, result.i);
-
-  result.i = 0;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = -1;
-  args[1] = 2;
-  args[2] = -3;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = -1;
-  args[1].i = 2;
-  args[2].i = -3;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(-2, result.i);
-
-  result.i = 1234;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = INT_MAX;
-  args[1] = INT_MIN;
-  args[2] = INT_MAX;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = INT_MAX;
-  args[1].i = INT_MIN;
-  args[2].i = INT_MAX;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(2147483646, result.i);
-
-  result.i = INT_MIN;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = INT_MAX;
-  args[1] = INT_MAX;
-  args[2] = INT_MAX;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = INT_MAX;
-  args[1].i = INT_MAX;
-  args[2].i = INT_MAX;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(2147483645, result.i);
+TEST_F(JniInternalTest, NonStaticSumIntIntIntMethod) {
+  InvokeSumIntIntIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
-  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(IIII)I");
+  InvokeSumIntIntIntIntMethod(true);
+}
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method = klass->FindDirectMethod("sum", "(IIII)I");
-  ASSERT_TRUE(method != NULL);
-
-  Method::InvokeStub* stub = method->GetInvokeStub();
-
-  JValue result;
-  result.i = -1;
-#if !defined(ART_USE_LLVM_COMPILER)
-  int args[4];
-  args[0] = 0;
-  args[1] = 0;
-  args[2] = 0;
-  args[3] = 0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  JValue args[4];
-  args[0].i = 0;
-  args[1].i = 0;
-  args[2].i = 0;
-  args[3].i = 0;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(0, result.i);
-
-  result.i = 0;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = 1;
-  args[1] = 2;
-  args[2] = 3;
-  args[3] = 4;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = 1;
-  args[1].i = 2;
-  args[2].i = 3;
-  args[3].i = 4;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(10, result.i);
-
-  result.i = 0;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = -1;
-  args[1] = 2;
-  args[2] = -3;
-  args[3] = 4;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = -1;
-  args[1].i = 2;
-  args[2].i = -3;
-  args[3].i = 4;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(2, result.i);
-
-  result.i = 1234;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = INT_MAX;
-  args[1] = INT_MIN;
-  args[2] = INT_MAX;
-  args[3] = INT_MIN;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = INT_MAX;
-  args[1].i = INT_MIN;
-  args[2].i = INT_MAX;
-  args[3].i = INT_MIN;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(-2, result.i);
-
-  result.i = INT_MIN;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = INT_MAX;
-  args[1] = INT_MAX;
-  args[2] = INT_MAX;
-  args[3] = INT_MAX;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = INT_MAX;
-  args[1].i = INT_MAX;
-  args[2].i = INT_MAX;
-  args[3].i = INT_MAX;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(-4, result.i);
+TEST_F(JniInternalTest, NonStaticSumIntIntIntIntMethod) {
+  InvokeSumIntIntIntIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
-  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(IIIII)I");
+  InvokeSumIntIntIntIntIntMethod(true);
+}
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method = klass->FindDirectMethod("sum", "(IIIII)I");
-  ASSERT_TRUE(method != NULL);
-
-  Method::InvokeStub* stub = method->GetInvokeStub();
-
-  JValue result;
-  result.i = -1.0;
-#if !defined(ART_USE_LLVM_COMPILER)
-  int args[5];
-  args[0] = 0;
-  args[1] = 0;
-  args[2] = 0;
-  args[3] = 0;
-  args[4] = 0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  JValue args[5];
-  args[0].i = 0;
-  args[1].i = 0;
-  args[2].i = 0;
-  args[3].i = 0;
-  args[4].i = 0;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(0, result.i);
-
-  result.i = 0;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = 1;
-  args[1] = 2;
-  args[2] = 3;
-  args[3] = 4;
-  args[4] = 5;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = 1;
-  args[1].i = 2;
-  args[2].i = 3;
-  args[3].i = 4;
-  args[4].i = 5;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(15, result.i);
-
-  result.i = 0;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = -1;
-  args[1] = 2;
-  args[2] = -3;
-  args[3] = 4;
-  args[4] = -5;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = -1;
-  args[1].i = 2;
-  args[2].i = -3;
-  args[3].i = 4;
-  args[4].i = -5;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(-3, result.i);
-
-  result.i = 1234;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = INT_MAX;
-  args[1] = INT_MIN;
-  args[2] = INT_MAX;
-  args[3] = INT_MIN;
-  args[4] = INT_MAX;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = INT_MAX;
-  args[1].i = INT_MIN;
-  args[2].i = INT_MAX;
-  args[3].i = INT_MIN;
-  args[4].i = INT_MAX;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(2147483645, result.i);
-
-  result.i = INT_MIN;
-#if !defined(ART_USE_LLVM_COMPILER)
-  args[0] = INT_MAX;
-  args[1] = INT_MAX;
-  args[2] = INT_MAX;
-  args[3] = INT_MAX;
-  args[4] = INT_MAX;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-#else
-  args[0].i = INT_MAX;
-  args[1].i = INT_MAX;
-  args[2].i = INT_MAX;
-  args[3].i = INT_MAX;
-  args[4].i = INT_MAX;
-  (*stub)(method, NULL, Thread::Current(), CreateArgArray(method, args), &result);
-#endif
-  EXPECT_EQ(2147483643, result.i);
+TEST_F(JniInternalTest, NonStaticSumIntIntIntIntIntMethod) {
+  InvokeSumIntIntIntIntIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
-  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(DD)D");
+  InvokeSumDoubleDoubleMethod(true);
+}
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method = klass->FindDirectMethod("sum", "(DD)D");
-  ASSERT_TRUE(method != NULL);
-
-  Method::InvokeStub* stub = method->GetInvokeStub();
-
-  double args[2];
-  JValue result;
-
-  args[0] = 0.0;
-  args[1] = 0.0;
-  result.d = -1.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(0.0, result.d);
-
-  args[0] = 1.0;
-  args[1] = 2.0;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(3.0, result.d);
-
-  args[0] = 1.0;
-  args[1] = -2.0;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(-1.0, result.d);
-
-  args[0] = DBL_MAX;
-  args[1] = DBL_MIN;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(1.7976931348623157e308, result.d);
-
-  args[0] = DBL_MAX;
-  args[1] = DBL_MAX;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(INFINITY, result.d);
+TEST_F(JniInternalTest, NonStaticSumDoubleDoubleMethod) {
+  InvokeSumDoubleDoubleMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
-  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(DDD)D");
+  InvokeSumDoubleDoubleDoubleMethod(true);
+}
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method = klass->FindDirectMethod("sum", "(DDD)D");
-  ASSERT_TRUE(method != NULL);
-
-  Method::InvokeStub* stub = method->GetInvokeStub();
-
-  double args[3];
-  JValue result;
-
-  args[0] = 0.0;
-  args[1] = 0.0;
-  args[2] = 0.0;
-  result.d = -1.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(0.0, result.d);
-
-  args[0] = 1.0;
-  args[1] = 2.0;
-  args[2] = 3.0;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(6.0, result.d);
-
-  args[0] = 1.0;
-  args[1] = -2.0;
-  args[2] = 3.0;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(2.0, result.d);
+TEST_F(JniInternalTest, NonStaticSumDoubleDoubleDoubleMethod) {
+  InvokeSumDoubleDoubleDoubleMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
-  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(DDDD)D");
+  InvokeSumDoubleDoubleDoubleDoubleMethod(true);
+}
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method = klass->FindDirectMethod("sum", "(DDDD)D");
-  ASSERT_TRUE(method != NULL);
-
-  Method::InvokeStub* stub = method->GetInvokeStub();
-
-  double args[4];
-  JValue result;
-
-  args[0] = 0.0;
-  args[1] = 0.0;
-  args[2] = 0.0;
-  args[3] = 0.0;
-  result.d = -1.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(0.0, result.d);
-
-  args[0] = 1.0;
-  args[1] = 2.0;
-  args[2] = 3.0;
-  args[3] = 4.0;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(10.0, result.d);
-
-  args[0] = 1.0;
-  args[1] = -2.0;
-  args[2] = 3.0;
-  args[3] = -4.0;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(-2.0, result.d);
+TEST_F(JniInternalTest, NonStaticSumDoubleDoubleDoubleDoubleMethod) {
+  InvokeSumDoubleDoubleDoubleDoubleMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticLeafMethods"));
-  CompileDirectMethod(class_loader.get(), "StaticLeafMethods", "sum", "(DDDDD)D");
+  InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(true);
+}
 
-  Class* klass = class_linker_->FindClass("LStaticLeafMethods;", class_loader.get());
-  ASSERT_TRUE(klass != NULL);
-
-  Method* method = klass->FindDirectMethod("sum", "(DDDDD)D");
-  ASSERT_TRUE(method != NULL);
-
-  Method::InvokeStub* stub = method->GetInvokeStub();
-
-  double args[5];
-  JValue result;
-
-  args[0] = 0.0;
-  args[1] = 0.0;
-  args[2] = 0.0;
-  args[3] = 0.0;
-  args[4] = 0.0;
-  result.d = -1.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(0.0, result.d);
-
-  args[0] = 1.0;
-  args[1] = 2.0;
-  args[2] = 3.0;
-  args[3] = 4.0;
-  args[4] = 5.0;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(15.0, result.d);
-
-  args[0] = 1.0;
-  args[1] = -2.0;
-  args[2] = 3.0;
-  args[3] = -4.0;
-  args[4] = 5.0;
-  result.d = 0.0;
-  (*stub)(method, NULL, Thread::Current(), reinterpret_cast<byte*>(args), &result);
-  EXPECT_EQ(3.0, result.d);
+TEST_F(JniInternalTest, NonStaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
+  InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(false);
 }
 
 TEST_F(JniInternalTest, Throw) {

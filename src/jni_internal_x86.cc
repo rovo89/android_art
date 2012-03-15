@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "jni_internal.h"
-
 #include "assembler.h"
 #include "compiled_method.h"
 #include "compiler.h"
@@ -63,16 +61,32 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
   if (pad_size != 0) {
     __ subl(ESP, Immediate(pad_size));
   }
-  // Push/copy arguments
-  for (size_t off = num_arg_array_bytes; off > 0; off -= kPointerSize) {
-    if (off > ((is_static ? 2 : 1) * kPointerSize)) {
-      // Copy argument
-      __ pushl(Address(rArgArray, off - kPointerSize));
-    } else {
-      // Space for argument passed in register
-      __ pushl(Immediate(0));
+
+  // Push/copy arguments.
+  size_t arg_count = (shorty_len - 1);
+  size_t dst_offset = num_arg_array_bytes;
+  size_t src_offset = arg_count * sizeof(JValue);
+  for (size_t i = shorty_len - 1; i > 0; --i) {
+    switch (shorty[i]) {
+      case 'D':
+      case 'J':
+        // Move both pointers 64 bits.
+        dst_offset -= kPointerSize;
+        __ pushl(Address(rArgArray, src_offset));
+        src_offset -= sizeof(JValue);
+        dst_offset -= kPointerSize;
+        __ pushl(Address(rArgArray, src_offset));
+        src_offset -= sizeof(JValue);
+        break;
+      default:
+        // Move the source pointer sizeof(JValue) and the destination pointer 32 bits.
+        dst_offset -= kPointerSize;
+        __ pushl(Address(rArgArray, src_offset));
+        src_offset -= sizeof(JValue);
+        break;
     }
   }
+
   // Backing space for receiver
   if (!is_static) {
     __ pushl(Immediate(0));
@@ -81,16 +95,17 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
   __ pushl(Immediate(0));
   if (!is_static) {
     if (num_arg_array_bytes >= static_cast<size_t>(kPointerSize)) {
-      // Receiver already in EDX, pass 1st arg in ECX
+      // Receiver already in EDX, pass 1st arg in ECX.
       __ movl(ECX, Address(rArgArray, 0));
     }
   } else {
     if (num_arg_array_bytes >= static_cast<size_t>(kPointerSize)) {
-      // Pass 1st arg in EDX
+      // Pass 1st arg in EDX.
       __ movl(EDX, Address(rArgArray, 0));
       if (num_arg_array_bytes >= static_cast<size_t>(2* kPointerSize)) {
-        // Pass 2nd arg in ECX
-        __ movl(ECX, Address(rArgArray, kPointerSize));
+        // Pass 2nd arg (or second 32-bit chunk of a wide 1st arg) in ECX.
+        bool is_wide = (shorty[1] == 'D' || shorty[1] == 'J');
+        __ movl(ECX, Address(rArgArray, is_wide ? kPointerSize : 2 * kPointerSize));
       }
     }
   }

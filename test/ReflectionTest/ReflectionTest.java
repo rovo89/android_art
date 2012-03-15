@@ -119,8 +119,8 @@ class ReflectionTest {
     try {
       f = ReflectionTest.class.getDeclaredField("s");
       f.set(null, Integer.valueOf(14));
-    } catch (Exception ex) {
-      ex.printStackTrace();
+    } catch (IllegalArgumentException expected) {
+      expected.printStackTrace();
     }
 
     f = ReflectionTest.class.getDeclaredField("z");
@@ -209,8 +209,8 @@ class ReflectionTest {
       System.out.println(Arrays.toString(m.getParameterTypes()));
       show(m.invoke(null));
       System.out.println("************* should have thrown!");
-    } catch (Exception ex) {
-      ex.printStackTrace();
+    } catch (Exception expected) {
+      expected.printStackTrace();
     }
   }
 

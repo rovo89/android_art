@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "jni_internal.h"
+#include <stdint.h>
 
 #include <algorithm>
 
@@ -83,34 +83,51 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
   __ LoadImmediate(IP, 0, AL);
   __ StoreToOffset(kStoreWord, IP, SP, 0);
 
-  // Copy values by stack
-  for (size_t off = 0; off < stack_bytes; off += kPointerSize) {
-    // we're displaced off of r3 by bytes that'll go in registers
-    int r3_offset = reg_bytes + off;
-    __ LoadFromOffset(kLoadWord, IP, R3, r3_offset);
+  // Copy values onto the stack.
+  size_t src_offset = 0;
+  size_t dst_offset = (is_static ? 1 : 2) * kPointerSize;
+  for (size_t i = 1; i < shorty_len; ++i) {
+    switch (shorty[i]) {
+      case 'D':
+      case 'J':
+        // Move both pointers 64 bits.
+        __ LoadFromOffset(kLoadWord, IP, R3, src_offset);
+        src_offset += kPointerSize;
+        __ StoreToOffset(kStoreWord, IP, SP, dst_offset);
+        dst_offset += kPointerSize;
 
-    // we're displaced off of the arguments by the spill space for the incoming
-    // arguments, the Method* and possibly the receiver
-    int sp_offset = reg_bytes + (is_static ? 1 : 2) * kPointerSize + off;
-    __ StoreToOffset(kStoreWord, IP, SP, sp_offset);
+        __ LoadFromOffset(kLoadWord, IP, R3, src_offset);
+        src_offset += kPointerSize;
+        __ StoreToOffset(kStoreWord, IP, SP, dst_offset);
+        dst_offset += kPointerSize;
+        break;
+      default:
+        // Move the source pointer sizeof(JValue) and the destination pointer 32 bits.
+        __ LoadFromOffset(kLoadWord, IP, R3, src_offset);
+        src_offset += sizeof(JValue);
+        __ StoreToOffset(kStoreWord, IP, SP, dst_offset);
+        dst_offset += kPointerSize;
+        break;
+    }
   }
 
   // Move all the register arguments into place.
+  dst_offset = (is_static ? 1 : 2) * kPointerSize;
   if (is_static) {
-    if (reg_bytes > 0) {
-      __ LoadFromOffset(kLoadWord, R1, R3, 0);
-      if (reg_bytes > 4) {
-        __ LoadFromOffset(kLoadWord, R2, R3, 4);
-        if (reg_bytes > 8) {
-          __ LoadFromOffset(kLoadWord, R3, R3, 8);
+    if (reg_bytes > 0 && num_arg_array_bytes > 0) {
+      __ LoadFromOffset(kLoadWord, R1, SP, dst_offset + 0);
+      if (reg_bytes > 4 && num_arg_array_bytes > 4) {
+        __ LoadFromOffset(kLoadWord, R2, SP, dst_offset + 4);
+        if (reg_bytes > 8 && num_arg_array_bytes > 8) {
+          __ LoadFromOffset(kLoadWord, R3, SP, dst_offset + 8);
         }
       }
     }
   } else {
-    if (reg_bytes > 0) {
-      __ LoadFromOffset(kLoadWord, R2, R3, 0);
-      if (reg_bytes > 4) {
-        __ LoadFromOffset(kLoadWord, R3, R3, 4);
+    if (reg_bytes > 0 && num_arg_array_bytes > 0) {
+      __ LoadFromOffset(kLoadWord, R2, SP, dst_offset + 0);
+      if (reg_bytes > 4 && num_arg_array_bytes > 4) {
+        __ LoadFromOffset(kLoadWord, R3, SP, dst_offset + 4);
       }
     }
   }

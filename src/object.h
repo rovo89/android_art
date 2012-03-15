@@ -490,7 +490,7 @@ class MANAGED Method : public Object {
   typedef void InvokeStub(const Method* method,
                           Object* obj,
                           Thread* thread,
-                          byte* args,
+                          JValue* args,
                           JValue* result);
 
   Class* GetDeclaringClass() const;
@@ -623,7 +623,7 @@ class MANAGED Method : public Object {
   // Find the method that this method overrides
   Method* FindOverriddenMethod() const;
 
-  void Invoke(Thread* self, Object* receiver, byte* args, JValue* result) const;
+  void Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const;
 
   const void* GetCode() const {
     return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), false);

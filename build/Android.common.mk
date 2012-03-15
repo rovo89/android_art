@@ -280,6 +280,7 @@ TEST_DEX_DIRECTORIES := \
 	MyClass \
 	MyClassNatives \
 	Nested \
+	NonStaticLeafMethods \
 	ProtoCompare \
 	ProtoCompare2 \
 	StaticLeafMethods \
