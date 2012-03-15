@@ -570,7 +570,7 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
 
   Heap* heap = Runtime::Current()->GetHeap();
   std::string boot_image_option_string("--boot-image=");
-  boot_image_option_string += heap->GetSpaces()[0]->AsImageSpace()->GetImageFilename();
+  boot_image_option_string += heap->GetImageSpace()->GetImageFilename();
   const char* boot_image_option = boot_image_option_string.c_str();
 
   std::string dex_file_option_string("--dex-file=");
@@ -875,40 +875,33 @@ void ClassLinker::InitFromImage() {
   CHECK(!init_done_);
 
   Heap* heap = Runtime::Current()->GetHeap();
-  const std::vector<Space*>& spaces = heap->GetSpaces();
-  for (size_t i = 0; i < spaces.size(); ++i) {
-    if (spaces[i]->IsImageSpace()) {
-      ImageSpace* space = spaces[i]->AsImageSpace();
-      OatFile* oat_file = OpenOat(space);
-      CHECK(oat_file != NULL) << "Failed to open oat file for image";
-      Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
-      ObjectArray<DexCache>* dex_caches = dex_caches_object->AsObjectArray<DexCache>();
+  ImageSpace* space = heap->GetImageSpace();
+  OatFile* oat_file = OpenOat(space);
+  CHECK(oat_file != NULL) << "Failed to open oat file for image";
+  Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
+  ObjectArray<DexCache>* dex_caches = dex_caches_object->AsObjectArray<DexCache>();
 
-      if (i == 0) {
-        // Special case of setting up the String class early so that we can test arbitrary objects
-        // as being Strings or not
-        Class* java_lang_String = space->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)
-            ->AsObjectArray<Class>()->Get(kJavaLangString);
-        String::SetClass(java_lang_String);
-      }
+  // Special case of setting up the String class early so that we can test arbitrary objects
+  // as being Strings or not
+  Class* java_lang_String = space->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots)
+      ->AsObjectArray<Class>()->Get(kJavaLangString);
+  String::SetClass(java_lang_String);
 
-      CHECK_EQ(oat_file->GetOatHeader().GetDexFileCount(),
-               static_cast<uint32_t>(dex_caches->GetLength()));
-      for (int i = 0; i < dex_caches->GetLength(); i++) {
-        SirtRef<DexCache> dex_cache(dex_caches->Get(i));
-        const std::string& dex_file_location(dex_cache->GetLocation()->ToModifiedUtf8());
-        const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file_location);
-        const DexFile* dex_file = oat_dex_file->OpenDexFile();
-        if (dex_file == NULL) {
-          LOG(FATAL) << "Failed to open dex file " << dex_file_location
-                     << " from within oat file " << oat_file->GetLocation();
-        }
-
-        CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
-
-        AppendToBootClassPath(*dex_file, dex_cache);
-      }
+  CHECK_EQ(oat_file->GetOatHeader().GetDexFileCount(),
+           static_cast<uint32_t>(dex_caches->GetLength()));
+  for (int i = 0; i < dex_caches->GetLength(); i++) {
+    SirtRef<DexCache> dex_cache(dex_caches->Get(i));
+    const std::string& dex_file_location(dex_cache->GetLocation()->ToModifiedUtf8());
+    const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file_location);
+    const DexFile* dex_file = oat_dex_file->OpenDexFile();
+    if (dex_file == NULL) {
+      LOG(FATAL) << "Failed to open dex file " << dex_file_location
+                 << " from within oat file " << oat_file->GetLocation();
     }
+
+    CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
+
+    AppendToBootClassPath(*dex_file, dex_cache);
   }
 
   HeapBitmap* heap_bitmap = heap->GetLiveBits();
@@ -919,7 +912,7 @@ void ClassLinker::InitFromImage() {
 
   // reinit class_roots_
   Object* class_roots_object =
-      spaces[0]->AsImageSpace()->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots);
+      heap->GetImageSpace()->GetImageHeader().GetImageRoot(ImageHeader::kClassRoots);
   class_roots_ = class_roots_object->AsObjectArray<Class>();
 
   // reinit array_iftable_ from any array class instance, they should be ==

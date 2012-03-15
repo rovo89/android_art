@@ -33,6 +33,7 @@ namespace art {
 
 class AllocSpace;
 class Class;
+class ImageSpace;
 class Object;
 class Space;
 class Thread;
@@ -208,7 +209,13 @@ class Heap {
   size_t GetBytesAllocated() { return num_bytes_allocated_; }
   size_t GetObjectsAllocated() { return num_objects_allocated_; }
 
+  ImageSpace* GetImageSpace() {
+    CHECK(image_space_ != NULL);
+    return image_space_;
+  }
+
   AllocSpace* GetAllocSpace() {
+    CHECK(alloc_space_ != NULL);
     return alloc_space_;
   }
 
@@ -241,6 +248,8 @@ class Heap {
   Mutex* lock_;
 
   std::vector<Space*> spaces_;
+
+  ImageSpace* image_space_;
 
   // default Space for allocations
   AllocSpace* alloc_space_;
