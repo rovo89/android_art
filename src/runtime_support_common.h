@@ -104,10 +104,9 @@ static inline void ThrowNullPointerExceptionForMethodAccess(Thread* self,
   std::ostringstream type_stream;
   type_stream << type;
   self->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
-                           "Attempt to invoke %s method '%s' from '%s' on a null object reference",
+                           "Attempt to invoke %s method '%s' on a null object reference",
                            type_stream.str().c_str(),
-                           PrettyMethod(method_idx, dex_file, true).c_str(),
-                           PrettyMethod(caller).c_str());
+                           PrettyMethod(method_idx, dex_file, true).c_str());
 }
 
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it

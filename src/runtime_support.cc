@@ -108,10 +108,81 @@ extern "C" void artDeliverPendingExceptionFromCode(Thread* thread, Method** sp) 
 }
 
 // Called by generated call to throw a NPE exception
-extern "C" void artThrowNullPointerExceptionFromCode(Thread* thread, Method** sp) {
-  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
-  thread->ThrowNewException("Ljava/lang/NullPointerException;", NULL);
-  thread->DeliverException();
+extern "C" void artThrowNullPointerExceptionFromCode(Thread* self, Method** sp) {
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
+  Frame fr = self->GetTopOfStack();
+  uintptr_t throw_native_pc = fr.GetReturnPC();
+  fr.Next();
+  Method* throw_method = fr.GetMethod();
+  uint32_t dex_pc = throw_method->ToDexPC(throw_native_pc - 2);
+  const DexFile::CodeItem* code = MethodHelper(throw_method).GetCodeItem();
+  CHECK_LT(dex_pc, code->insns_size_in_code_units_);
+  const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
+  DecodedInstruction dec_insn(instr);
+  switch (instr->Opcode()) {
+    case Instruction::INVOKE_DIRECT:
+    case Instruction::INVOKE_DIRECT_RANGE:
+      ThrowNullPointerExceptionForMethodAccess(self, throw_method, dec_insn.vB, kDirect);
+      break;
+    case Instruction::INVOKE_VIRTUAL:
+    case Instruction::INVOKE_VIRTUAL_RANGE:
+      ThrowNullPointerExceptionForMethodAccess(self, throw_method, dec_insn.vB, kVirtual);
+      break;
+    case Instruction::IGET:
+    case Instruction::IGET_WIDE:
+    case Instruction::IGET_OBJECT:
+    case Instruction::IGET_BOOLEAN:
+    case Instruction::IGET_BYTE:
+    case Instruction::IGET_CHAR:
+    case Instruction::IGET_SHORT: {
+      Field* field =
+          Runtime::Current()->GetClassLinker()->ResolveField(dec_insn.vC, throw_method, false);
+      ThrowNullPointerExceptionForFieldAccess(self, field, true /* read */);
+      break;
+    }
+    case Instruction::IPUT:
+    case Instruction::IPUT_WIDE:
+    case Instruction::IPUT_OBJECT:
+    case Instruction::IPUT_BOOLEAN:
+    case Instruction::IPUT_BYTE:
+    case Instruction::IPUT_CHAR:
+    case Instruction::IPUT_SHORT: {
+      Field* field =
+          Runtime::Current()->GetClassLinker()->ResolveField(dec_insn.vC, throw_method, false);
+      ThrowNullPointerExceptionForFieldAccess(self, field, false /* write */);
+      break;
+    }
+    case Instruction::AGET:
+    case Instruction::AGET_WIDE:
+    case Instruction::AGET_OBJECT:
+    case Instruction::AGET_BOOLEAN:
+    case Instruction::AGET_BYTE:
+    case Instruction::AGET_CHAR:
+    case Instruction::AGET_SHORT:
+      self->ThrowNewException("Ljava/lang/NullPointerException;",
+                              "Attempt to read from null array");
+      break;
+    case Instruction::APUT:
+    case Instruction::APUT_WIDE:
+    case Instruction::APUT_OBJECT:
+    case Instruction::APUT_BOOLEAN:
+    case Instruction::APUT_BYTE:
+    case Instruction::APUT_CHAR:
+    case Instruction::APUT_SHORT:
+      self->ThrowNewException("Ljava/lang/NullPointerException;",
+                              "Attempt to write to null array");
+      break;
+    default: {
+      const DexFile& dex_file = Runtime::Current()->GetClassLinker()
+          ->FindDexFile(throw_method->GetDeclaringClass()->GetDexCache());
+      std::string message("Null pointer exception during instruction '");
+      message += instr->DumpString(&dex_file);
+      message += "'";
+      self->ThrowNewException("Ljava/lang/NullPointerException;", message.c_str());
+      break;
+    }
+  }
+  self->DeliverException();
 }
 
 // Called by generated call to throw an arithmetic divide by zero exception

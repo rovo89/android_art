@@ -1,2 +1,2 @@
-java.lang.NullPointerException
+java.lang.NullPointerException: Attempt to invoke direct method 'Main.doStuff()V' on a null object reference
 	at Main.main(Main.java:26)
