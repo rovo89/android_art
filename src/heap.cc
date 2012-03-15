@@ -790,8 +790,9 @@ void Heap::AddFinalizerReference(Thread* self, Object* object) {
   static Method* FinalizerReference_add =
       java_lang_ref_FinalizerReference_->FindDirectMethod("add", "(Ljava/lang/Object;)V");
   DCHECK(FinalizerReference_add != NULL);
-  Object* args[] = { object };
-  FinalizerReference_add->Invoke(self, NULL, reinterpret_cast<byte*>(&args), NULL);
+  JValue args[1];
+  args[0].l = object;
+  FinalizerReference_add->Invoke(self, NULL, args, NULL);
 }
 
 void Heap::EnqueueClearedReferences(Object** cleared) {
@@ -803,8 +804,9 @@ void Heap::EnqueueClearedReferences(Object** cleared) {
 
     Thread* self = Thread::Current();
     ScopedThreadStateChange tsc(self, Thread::kRunnable);
-    Object* args[] = { *cleared };
-    ReferenceQueue_add->Invoke(self, NULL, reinterpret_cast<byte*>(&args), NULL);
+    JValue args[1];
+    args[0].l = *cleared;
+    ReferenceQueue_add->Invoke(self, NULL, args, NULL);
     *cleared = NULL;
   }
 }

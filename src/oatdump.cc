@@ -281,8 +281,6 @@ class OatDumper {
     std::string signature(dex_file.GetMethodSignature(method_id));
     os << StringPrintf("\t%d: %s %s (dex_method_idx=%d)\n",
                        class_method_index, name, signature.c_str(), dex_method_idx);
-    os << StringPrintf("\t\tcode: %p (offset=0x%08x)\n",
-                       oat_method.GetCode(), oat_method.GetCodeOffset());
     os << StringPrintf("\t\tframe_size_in_bytes: %zd\n",
                        oat_method.GetFrameSizeInBytes());
     os << StringPrintf("\t\tcore_spill_mask: 0x%08x",
@@ -301,11 +299,17 @@ class OatDumper {
     os << StringPrintf("\t\tgc_map: %p (offset=0x%08x)\n",
                        oat_method.GetGcMap(), oat_method.GetGcMapOffset());
     DumpGcMap(os, oat_method.GetGcMap());
-    os << StringPrintf("\t\tinvoke_stub: %p (offset=0x%08x)\n",
-                       oat_method.GetInvokeStub(), oat_method.GetInvokeStubOffset());
-    os << "\t\tCODE: (size=" << oat_method.GetCodeSize() << ")\n";
+    os << StringPrintf("\t\tCODE: %p (offset=0x%08x size=%d)%s\n",
+                       oat_method.GetCode(),
+                       oat_method.GetCodeOffset(),
+                       oat_method.GetCodeSize(),
+                       oat_method.GetCode() != NULL ? "..." : "");
     DumpCode(os, oat_method.GetCode(), oat_method.GetMappingTable(), dex_file, code_item);
-    os << "\t\tINVOKE STUB: (size=" << oat_method.GetInvokeStubSize() << ")\n";
+    os << StringPrintf("\t\tINVOKE STUB: %p (offset=0x%08x size=%d)%s\n",
+                       oat_method.GetInvokeStub(),
+                       oat_method.GetInvokeStubOffset(),
+                       oat_method.GetInvokeStubSize(),
+                       oat_method.GetInvokeStub() != NULL ? "..." : "");
     DumpCode(os, reinterpret_cast<const void*>(oat_method.GetInvokeStub()), NULL, dex_file, NULL);
   }
 

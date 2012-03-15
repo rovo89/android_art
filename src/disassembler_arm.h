@@ -37,7 +37,6 @@ class DisassemblerArm : public Disassembler {
   void DumpBranchTarget(std::ostream& os, const uint8_t* instr_ptr, int32_t imm32);
   void DumpCond(std::ostream& os, uint32_t cond);
   void DumpReg(std::ostream& os, uint32_t reg);
-  void DumpRegList(std::ostream& os, uint32_t reg_list);
 };
 
 }  // namespace arm

@@ -235,40 +235,30 @@ void BoxPrimitive(JNIEnv* env, Primitive::Type src_class, JValue& value) {
   }
 
   Method* m = NULL;
-  UniquePtr<byte[]> args(new byte[8]);
-  memset(&args[0], 0, 8);
   switch (src_class) {
   case Primitive::kPrimBoolean:
     m = gBoolean_valueOf;
-    *reinterpret_cast<uint32_t*>(&args[0]) = value.z;
     break;
   case Primitive::kPrimByte:
     m = gByte_valueOf;
-    *reinterpret_cast<uint32_t*>(&args[0]) = value.b;
     break;
   case Primitive::kPrimChar:
     m = gCharacter_valueOf;
-    *reinterpret_cast<uint32_t*>(&args[0]) = value.c;
     break;
   case Primitive::kPrimDouble:
     m = gDouble_valueOf;
-    *reinterpret_cast<double*>(&args[0]) = value.d;
     break;
   case Primitive::kPrimFloat:
     m = gFloat_valueOf;
-    *reinterpret_cast<float*>(&args[0]) = value.f;
     break;
   case Primitive::kPrimInt:
     m = gInteger_valueOf;
-    *reinterpret_cast<uint32_t*>(&args[0]) = value.i;
     break;
   case Primitive::kPrimLong:
     m = gLong_valueOf;
-    *reinterpret_cast<uint64_t*>(&args[0]) = value.j;
     break;
   case Primitive::kPrimShort:
     m = gShort_valueOf;
-    *reinterpret_cast<uint32_t*>(&args[0]) = value.s;
     break;
   case Primitive::kPrimVoid:
     // There's no such thing as a void field, and void methods invoked via reflection return null.
@@ -280,7 +270,9 @@ void BoxPrimitive(JNIEnv* env, Primitive::Type src_class, JValue& value) {
 
   Thread* self = Thread::Current();
   ScopedThreadStateChange tsc(self, Thread::kRunnable);
-  m->Invoke(self, NULL, args.get(), &value);
+  JValue args[1];
+  args[0].j = 0;
+  m->Invoke(self, NULL, args, &value);
 }
 
 bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_value, const char* what) {
