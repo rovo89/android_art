@@ -801,6 +801,11 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
             oatResetDefTracking(cUnit);
         }
 
+#ifndef NDEBUG
+        /* Reset temp tracking sanity check */
+        cUnit->liveSReg = INVALID_SREG;
+#endif
+
         if ((int)mir->dalvikInsn.opcode >= (int)kMirOpFirst) {
             handleExtendedMethodMIR(cUnit, mir);
             continue;

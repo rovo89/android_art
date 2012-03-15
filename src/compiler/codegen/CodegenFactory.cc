@@ -134,6 +134,16 @@ RegLocation loadValue(CompilationUnit* cUnit, RegLocation rlSrc,
 
 void storeValue(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
+#ifndef NDEBUG
+    /*
+     * Sanity checking - should never try to store to the same
+     * ssa name during the compilation of a single instruction
+     * without an intervening oatClobberSReg().
+     */
+    DCHECK((cUnit->liveSReg == INVALID_SREG) ||
+           (rlDest.sRegLow != cUnit->liveSReg));
+    cUnit->liveSReg = rlDest.sRegLow;
+#endif
     LIR* defStart;
     LIR* defEnd;
     DCHECK(!rlDest.wide);
@@ -195,6 +205,16 @@ RegLocation loadValueWide(CompilationUnit* cUnit, RegLocation rlSrc,
 void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
                     RegLocation rlSrc)
 {
+#ifndef NDEBUG
+    /*
+     * Sanity checking - should never try to store to the same
+     * ssa name during the compilation of a single instruction
+     * without an intervening oatClobberSReg().
+     */
+    DCHECK((cUnit->liveSReg == INVALID_SREG) ||
+           (rlDest.sRegLow != cUnit->liveSReg));
+    cUnit->liveSReg = rlDest.sRegLow;
+#endif
     LIR* defStart;
     LIR* defEnd;
     DCHECK_EQ(FPREG(rlSrc.lowReg), FPREG(rlSrc.highReg));

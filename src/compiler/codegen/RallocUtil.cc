@@ -141,6 +141,12 @@ void clobberSRegBody(RegisterInfo* p, int numRegs, int sReg)
 /* Clobber any temp associated with an sReg.  Could be in either class */
 extern void oatClobberSReg(CompilationUnit* cUnit, int sReg)
 {
+#ifndef NDEBUG
+    /* Reset live temp tracking sanity checker */
+    if (sReg == cUnit->liveSReg) {
+        cUnit->liveSReg = INVALID_SREG;
+    }
+#endif
     clobberSRegBody(cUnit->regPool->coreRegs, cUnit->regPool->numCoreRegs,
                     sReg);
     clobberSRegBody(cUnit->regPool->FPRegs, cUnit->regPool->numFPRegs,

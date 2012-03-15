@@ -414,6 +414,14 @@ struct CompilationUnit {
      struct ArenaMemBlock* currentArena;
      int numArenaBlocks;
      struct Memstats* mstats;
+#ifndef NDEBUG
+    /*
+     * Sanity checking for the register temp tracking.  The same ssa
+     * name should never be associated with one temp register per
+     * instruction compilation.
+     */
+    int liveSReg;
+#endif
 };
 
 enum OpSize {
