@@ -51,6 +51,31 @@ class ShadowFrame {
     references_[i] = object;
   }
 
+  // Offset of link within shadow frame
+  static size_t LinkOffset() {
+    return OFFSETOF_MEMBER(ShadowFrame, link_);
+  }
+
+  // Offset of method within shadow frame
+  static size_t MethodOffset() {
+    return OFFSETOF_MEMBER(ShadowFrame, method_);
+  }
+
+  // Offset of line number within shadow frame
+  static size_t LineNumOffset() {
+    return OFFSETOF_MEMBER(ShadowFrame, line_num_);
+  }
+
+  // Offset of length within shadow frame
+  static size_t NumberOfReferencesOffset() {
+    return OFFSETOF_MEMBER(ShadowFrame, number_of_references_);
+  }
+
+  // Offset of references within shadow frame
+  static size_t ReferencesOffset() {
+    return OFFSETOF_MEMBER(ShadowFrame, references_);
+  }
+
  private:
   // ShadowFrame should be allocated by the generated code directly.
   // We should not create new shadow stack in the runtime support function.

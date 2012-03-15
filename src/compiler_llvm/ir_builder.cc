@@ -33,7 +33,7 @@ IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
 
   // Get java object type from module
   llvm::Type* jobject_struct_type = module.getTypeByName("JavaObject");
-  CHECK_NE(jobject_struct_type, static_cast<llvm::Type*>(NULL));
+  CHECK(jobject_struct_type != NULL);
   jobject_type_ = jobject_struct_type->getPointerTo();
 
   // Create JEnv* type
@@ -41,8 +41,8 @@ IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
   jenv_type_ = jenv_struct_type->getPointerTo();
 
   // Get Art shadow frame struct type from module
-  art_frame_type_ = module.getTypeByName("ArtFrame");
-  CHECK_NE(art_frame_type_, static_cast<llvm::StructType*>(NULL));
+  art_frame_type_ = module.getTypeByName("ShadowFrame");
+  CHECK(art_frame_type_ != NULL);
 
   // Load the runtime support function declaration from module
   InitRuntimeSupportFuncDecl();
@@ -185,7 +185,7 @@ llvm::Type* IRBuilder::getJTypeInArraySpace(JType jty) {
 
 
 llvm::StructType* IRBuilder::getShadowFrameTy(uint32_t sirt_size) {
-  std::string name(StringPrintf("ArtFrame%u", sirt_size));
+  std::string name(StringPrintf("ShadowFrame%u", sirt_size));
 
   // Try to find the existing struct type definition
   if (llvm::Type* type = module_->getTypeByName(name)) {
