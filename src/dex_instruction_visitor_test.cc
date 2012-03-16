@@ -35,7 +35,7 @@ class CountVisitor : public DexInstructionVisitor<CountVisitor> {
 
   CountVisitor() : count_(0) {}
 
-  void Do_Default(const Instruction* inst) {
+  void Do_Default(const Instruction*) {
     ++count_;
   }
 };
