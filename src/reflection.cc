@@ -270,8 +270,7 @@ void BoxPrimitive(JNIEnv*, Primitive::Type src_class, JValue& value) {
 
   Thread* self = Thread::Current();
   ScopedThreadStateChange tsc(self, Thread::kRunnable);
-  JValue args[1];
-  args[0].j = 0;
+  JValue args[1] = { value };
   m->Invoke(self, NULL, args, &value);
 }
 
