@@ -1043,52 +1043,31 @@ extern RegLocation oatGetSrcWide(CompilationUnit* cUnit, MIR* mir,
 void oatCountRefs(CompilationUnit *cUnit, BasicBlock* bb,
                   RefCounts* coreCounts, RefCounts* fpCounts)
 {
-    MIR* mir;
-    if (bb->blockType != kDalvikByteCode && bb->blockType != kEntryBlock &&
-        bb->blockType != kExitBlock)
+    if ((cUnit->disableOpt & (1 << kPromoteRegs)) ||
+        !((bb->blockType == kEntryBlock) || (bb->blockType == kExitBlock) ||
+          (bb->blockType == kDalvikByteCode))) {
         return;
-
-    for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
-        SSARepresentation *ssaRep = mir->ssaRep;
-        if (ssaRep) {
-            for (int i = 0; i < ssaRep->numDefs;) {
-                RegLocation loc = cUnit->regLocation[ssaRep->defs[i]];
-                RefCounts* counts = loc.fp ? fpCounts : coreCounts;
-                int vReg = SRegToVReg(cUnit, ssaRep->defs[i]);
-                if (loc.defined) {
-                    counts[vReg].count++;
-                }
-                if (loc.wide) {
-                    if (loc.defined) {
-                        if (loc.fp) {
-                            counts[vReg].doubleStart = true;
-                        }
-                        counts[vReg+1].count++;
-                    }
-                    i += 2;
-                } else {
-                    i++;
+    }
+    for (int i = 0; i < cUnit->numSSARegs;) {
+        RegLocation loc = cUnit->regLocation[i];
+        RefCounts* counts = loc.fp ? fpCounts : coreCounts;
+        int vReg = SRegToVReg(cUnit, loc.sRegLow);
+        if (vReg < 0) {
+            vReg = cUnit->numDalvikRegisters - (vReg + 1);
+        }
+        if (loc.defined) {
+            counts[vReg].count += cUnit->useCounts.elemList[i];
+        }
+        if (loc.wide) {
+            if (loc.defined) {
+                if (loc.fp) {
+                    counts[vReg].doubleStart = true;
+                counts[vReg+1].count += cUnit->useCounts.elemList[i+1];
                 }
             }
-            for (int i = 0; i < ssaRep->numUses;) {
-                RegLocation loc = cUnit->regLocation[ssaRep->uses[i]];
-                RefCounts* counts = loc.fp ? fpCounts : coreCounts;
-                int vReg = SRegToVReg(cUnit, ssaRep->uses[i]);
-                if (loc.defined) {
-                    counts[vReg].count++;
-                }
-                if (loc.wide) {
-                    if (loc.defined) {
-                        if (loc.fp) {
-                            counts[vReg].doubleStart = true;
-                        }
-                        counts[vReg+1].count++;
-                    }
-                    i += 2;
-                } else {
-                    i++;
-                }
-            }
+            i += 2;
+        } else {
+            i++;
         }
     }
 }
@@ -1115,7 +1094,9 @@ void oatDumpCounts(const RefCounts* arr, int size, const char* msg)
  */
 extern void oatDoPromotion(CompilationUnit* cUnit)
 {
-    int numRegs = cUnit->numDalvikRegisters;
+    int regBias = cUnit->numCompilerTemps + 1;
+    int dalvikRegs = cUnit->numDalvikRegisters;
+    int numRegs = dalvikRegs + regBias;
 
     // Allow target code to add any special registers
     oatAdjustSpillMask(cUnit);
@@ -1135,8 +1116,13 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
           oatNew(cUnit, sizeof(RefCounts) * numRegs, true, kAllocRegAlloc);
     RefCounts *fpRegs = (RefCounts *)
           oatNew(cUnit, sizeof(RefCounts) * numRegs, true, kAllocRegAlloc);
-    for (int i = 0; i < numRegs; i++) {
+    // Set ssa names for original Dalvik registers
+    for (int i = 0; i < dalvikRegs; i++) {
         coreRegs[i].sReg = fpRegs[i].sReg = i;
+    }
+    // Set ssa names for Method* and compiler temps
+    for (int i = 0; i < regBias; i++) {
+        coreRegs[dalvikRegs + i].sReg = fpRegs[dalvikRegs + i].sReg = (-1 - i);
     }
     GrowableListIterator iterator;
     oatGrowableListIteratorInit(&cUnit->blockList, &iterator);

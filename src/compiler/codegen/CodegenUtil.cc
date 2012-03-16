@@ -371,6 +371,7 @@ void oatCodegenDump(CompilationUnit* cUnit)
     LOG(INFO) << "Outs                 : " << cUnit->numOuts;
     LOG(INFO) << "CoreSpills           : " << cUnit->numCoreSpills;
     LOG(INFO) << "FPSpills             : " << cUnit->numFPSpills;
+    LOG(INFO) << "CompilerTemps        : " << cUnit->numCompilerTemps;
     LOG(INFO) << "Frame size           : " << cUnit->frameSize;
     LOG(INFO) << "code size is " << cUnit->totalSize <<
         " bytes, Dalvik size is " << insnsSize * 2;

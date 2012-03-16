@@ -757,9 +757,12 @@ void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
             newLIR1(cUnit, kPseudoSSARep, (int) ssaString);
             break;
         }
-        case kMirOpCopy:
-            UNIMPLEMENTED(FATAL) << "Need kMirOpCopy";
+        case kMirOpCopy: {
+            RegLocation rlSrc = oatGetSrc(cUnit, mir, 0);
+            RegLocation rlDest = oatGetDest(cUnit, mir, 0);
+            storeValue(cUnit, rlDest, rlSrc);
             break;
+        }
         default:
             break;
     }

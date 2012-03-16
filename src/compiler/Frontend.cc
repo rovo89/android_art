@@ -34,7 +34,7 @@ uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
      //(1 << kTrackLiveTemps) |
      //(1 << kSkipLargeMethodOptimization) |
      //(1 << kSafeOptimizations) |
-     (1 << kBBOpt) |
+     //(1 << kBBOpt) |
      0;
 
 uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
@@ -967,13 +967,17 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     /* Perform SSA transformation for the whole method */
     oatMethodSSATransformation(cUnit.get());
 
+    /* Detect loops */
+    oatMethodLoopDetection(cUnit.get());
+
+    /* Count uses */
+    oatMethodUseCount(cUnit.get());
+
     /* Perform null check elimination */
     oatMethodNullCheckElimination(cUnit.get());
 
-#if 0
     /* Do some basic block optimizations */
     oatMethodBasicBlockOptimization(cUnit.get());
-#endif
 
     oatInitializeRegAlloc(cUnit.get());  // Needs to happen after SSA naming
 
