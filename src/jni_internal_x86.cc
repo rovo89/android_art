@@ -72,17 +72,17 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
       case 'J':
         // Move both pointers 64 bits.
         dst_offset -= kPointerSize;
+        src_offset -= sizeof(JValue) / 2;
         __ pushl(Address(rArgArray, src_offset));
-        src_offset -= sizeof(JValue);
         dst_offset -= kPointerSize;
+        src_offset -= sizeof(JValue) / 2;
         __ pushl(Address(rArgArray, src_offset));
-        src_offset -= sizeof(JValue);
         break;
       default:
         // Move the source pointer sizeof(JValue) and the destination pointer 32 bits.
         dst_offset -= kPointerSize;
-        __ pushl(Address(rArgArray, src_offset));
         src_offset -= sizeof(JValue);
+        __ pushl(Address(rArgArray, src_offset));
         break;
     }
   }
