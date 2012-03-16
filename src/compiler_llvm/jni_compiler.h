@@ -33,10 +33,14 @@ namespace art {
 }
 
 namespace llvm {
+  class AllocaInst;
   class Function;
   class FunctionType;
+  class BasicBlock;
   class LLVMContext;
   class Module;
+  class Type;
+  class Value;
 }
 
 namespace art {
@@ -57,9 +61,14 @@ class JniCompiler {
   void CreateFunction();
 
   llvm::FunctionType* GetFunctionType(uint32_t method_idx,
-                                      bool is_static);
+                                      bool is_static, bool is_target_function);
 
  private:
+  llvm::Value* LoadFromObjectOffset(llvm::Value* object_addr, int32_t offset, llvm::Type* type);
+
+  void StoreToObjectOffset(llvm::Value* object_addr, int32_t offset,
+                           llvm::Type* type, llvm::Value* value);
+
   CompilationUnit* cunit_;
   Compiler const* compiler_;
 
@@ -76,6 +85,9 @@ class JniCompiler {
   DexCache const* dex_cache_;
   DexFile const* dex_file_;
   Method* method_;
+
+  llvm::BasicBlock* basic_block_;
+  llvm::AllocaInst* shadow_frame_;
 
   llvm::Function* func_;
 };

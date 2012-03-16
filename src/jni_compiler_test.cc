@@ -106,7 +106,7 @@ jobject JniCompilerTest::jobj_;
 int gJava_MyClass_foo_calls = 0;
 void Java_MyClass_foo(JNIEnv* env, jobject thisObj) {
   // 2 = SirtRef<ClassLoader> + thisObj
-  EXPECT_EQ(2U, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
@@ -155,7 +155,7 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntMethodThroughStub) {
 int gJava_MyClass_fooI_calls = 0;
 jint Java_MyClass_fooI(JNIEnv* env, jobject thisObj, jint x) {
   // 2 = SirtRef<ClassLoader> + thisObj
-  EXPECT_EQ(2U, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
@@ -181,7 +181,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethod) {
 int gJava_MyClass_fooII_calls = 0;
 jint Java_MyClass_fooII(JNIEnv* env, jobject thisObj, jint x, jint y) {
   // 2 = SirtRef<ClassLoader> + thisObj
-  EXPECT_EQ(2U, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
@@ -208,7 +208,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
 int gJava_MyClass_fooJJ_calls = 0;
 jlong Java_MyClass_fooJJ(JNIEnv* env, jobject thisObj, jlong x, jlong y) {
   // 2 = SirtRef<ClassLoader> + thisObj
-  EXPECT_EQ(2U, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
@@ -236,7 +236,7 @@ TEST_F(JniCompilerTest, CompileAndRunLongLongMethod) {
 int gJava_MyClass_fooDD_calls = 0;
 jdouble Java_MyClass_fooDD(JNIEnv* env, jobject thisObj, jdouble x, jdouble y) {
   // 2 = SirtRef<ClassLoader> + thisObj
-  EXPECT_EQ(2U, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
@@ -266,7 +266,7 @@ int gJava_MyClass_fooIOO_calls = 0;
 jobject Java_MyClass_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject y,
                             jobject z) {
   // 4 = SirtRef<ClassLoader> + this + y + z
-  EXPECT_EQ(4U, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(4U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
@@ -317,7 +317,7 @@ TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
 int gJava_MyClass_fooSII_calls = 0;
 jint Java_MyClass_fooSII(JNIEnv* env, jclass klass, jint x, jint y) {
   // 2 = SirtRef<ClassLoader> + klass
-  EXPECT_EQ(2U, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
@@ -340,7 +340,7 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntIntMethod) {
 int gJava_MyClass_fooSDD_calls = 0;
 jdouble Java_MyClass_fooSDD(JNIEnv* env, jclass klass, jdouble x, jdouble y) {
   // 2 = SirtRef<ClassLoader> + klass
-  EXPECT_EQ(2U, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
@@ -369,7 +369,7 @@ int gJava_MyClass_fooSIOO_calls = 0;
 jobject Java_MyClass_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
                              jobject z) {
   // 4 = SirtRef<ClassLoader> + klass + y + z
-  EXPECT_EQ(4U, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(4U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
@@ -422,7 +422,7 @@ int gJava_MyClass_fooSSIOO_calls = 0;
 jobject Java_MyClass_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
                              jobject z) {
   // 4 = SirtRef<ClassLoader> + klass + y + z
-  EXPECT_EQ(4U, Thread::Current()->NumSirtReferences());
+  EXPECT_EQ(4U, Thread::Current()->NumStackReferences());
   EXPECT_EQ(Thread::kNative, Thread::Current()->GetState());
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);

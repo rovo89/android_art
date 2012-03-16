@@ -241,7 +241,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   if (GetIndirectRefKind(iref) == kSirtOrInvalid &&
-      Thread::Current()->SirtContains(reinterpret_cast<jobject>(iref))) {
+      Thread::Current()->StackReferencesContain(reinterpret_cast<jobject>(iref))) {
     LOG(WARNING) << "Attempt to remove local SIRT entry from IRT, ignoring";
     return true;
   }

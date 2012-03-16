@@ -54,4 +54,5 @@
   V(GetObjectInstance, art_get_obj_instance_from_code) \
   V(InitializeStaticStorage, art_initialize_static_storage_from_code) \
   V(IsExceptionPending, art_is_exception_pending_from_code) \
-  V(FindCatchBlock, art_find_catch_block_from_code)
+  V(FindCatchBlock, art_find_catch_block_from_code) \
+  V(DecodeJObjectInThread, art_decode_jobject_in_thread)

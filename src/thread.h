@@ -265,11 +265,25 @@ class PACKED Thread {
     return jni_env_;
   }
 
-  // Number of references allocated in SIRTs on this thread
+  // Number of references in SIRTs on this thread
   size_t NumSirtReferences();
+
+  // Number of references allocated in ShadowFrames on this thread
+  size_t NumShadowFrameReferences();
+
+  // Number of references allocated in SIRTs & shadow frames on this thread
+  size_t NumStackReferences() {
+    return NumSirtReferences() + NumShadowFrameReferences();
+  };
 
   // Is the given obj in this thread's stack indirect reference table?
   bool SirtContains(jobject obj);
+
+  // Is the given obj in this thread's ShadowFrame?
+  bool ShadowFrameContains(jobject obj);
+
+  // Is the given obj in this thread's Sirts & ShadowFrames?
+  bool StackReferencesContain(jobject obj);
 
   void SirtVisitRoots(Heap::RootVisitor* visitor, void* arg);
 

@@ -130,6 +130,9 @@ declare %JavaObject* @art_get_obj_instance_from_code(i32,
                                                      %JavaObject*,
                                                      %JavaObject*)
 
+declare %JavaObject* @art_decode_jobject_in_thread(%JavaObject*,
+                                                   %JavaObject*)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; RTTI

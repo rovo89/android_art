@@ -1072,6 +1072,14 @@ size_t Thread::NumSirtReferences() {
   return count;
 }
 
+size_t Thread::NumShadowFrameReferences() {
+  size_t count = 0;
+  for (ShadowFrame* cur = top_shadow_frame_; cur; cur = cur->GetLink()) {
+    count += cur->NumberOfReferences();
+  }
+  return count;
+}
+
 bool Thread::SirtContains(jobject obj) {
   Object** sirt_entry = reinterpret_cast<Object**>(obj);
   for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->GetLink()) {
@@ -1080,6 +1088,20 @@ bool Thread::SirtContains(jobject obj) {
     }
   }
   return false;
+}
+
+bool Thread::ShadowFrameContains(jobject obj) {
+  Object** shadow_frame_entry = reinterpret_cast<Object**>(obj);
+  for (ShadowFrame* cur = top_shadow_frame_; cur; cur = cur->GetLink()) {
+    if (cur->Contains(shadow_frame_entry)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Thread::StackReferencesContain(jobject obj) {
+  return SirtContains(obj) || ShadowFrameContains(obj);
 }
 
 void Thread::SirtVisitRoots(Heap::RootVisitor* visitor, void* arg) {
@@ -1145,7 +1167,7 @@ Object* Thread::DecodeJObject(jobject obj) {
   default:
     // TODO: make stack indirect reference table lookup more efficient
     // Check if this is a local reference in the SIRT
-    if (SirtContains(obj)) {
+    if (StackReferencesContain(obj)) {
       result = *reinterpret_cast<Object**>(obj);  // Read from SIRT
     } else if (Runtime::Current()->GetJavaVM()->work_around_app_jni_bugs) {
       // Assume an invalid local reference is actually a direct pointer.

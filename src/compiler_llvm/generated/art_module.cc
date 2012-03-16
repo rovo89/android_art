@@ -46,9 +46,9 @@ StructTy_ShadowFrame = StructType::create(mod->getContext(), "ShadowFrame");
 std::vector<Type*>StructTy_ShadowFrame_fields;
 PointerType* PointerTy_2 = PointerType::get(StructTy_ShadowFrame, 0);
 
+StructTy_ShadowFrame_fields.push_back(IntegerType::get(mod->getContext(), 32));
 StructTy_ShadowFrame_fields.push_back(PointerTy_2);
 StructTy_ShadowFrame_fields.push_back(PointerTy_1);
-StructTy_ShadowFrame_fields.push_back(IntegerType::get(mod->getContext(), 32));
 StructTy_ShadowFrame_fields.push_back(IntegerType::get(mod->getContext(), 32));
 if (StructTy_ShadowFrame->isOpaque()) {
 StructTy_ShadowFrame->setBody(StructTy_ShadowFrame_fields, /*isPacked=*/false);
@@ -254,6 +254,14 @@ FuncTy_26_args.push_back(PointerTy_1);
 FunctionType* FuncTy_26 = FunctionType::get(
  /*Result=*/Type::getVoidTy(mod->getContext()),
  /*Params=*/FuncTy_26_args,
+ /*isVarArg=*/false);
+
+std::vector<Type*>FuncTy_27_args;
+FuncTy_27_args.push_back(PointerTy_1);
+FuncTy_27_args.push_back(PointerTy_1);
+FunctionType* FuncTy_27 = FunctionType::get(
+ /*Result=*/PointerTy_1,
+ /*Params=*/FuncTy_27_args,
  /*isVarArg=*/false);
 
 
@@ -731,6 +739,17 @@ func_art_get_obj_instance_from_code->setCallingConv(CallingConv::C);
 }
 AttrListPtr func_art_get_obj_instance_from_code_PAL;
 func_art_get_obj_instance_from_code->setAttributes(func_art_get_obj_instance_from_code_PAL);
+
+Function* func_art_decode_jobject_in_thread = mod->getFunction("art_decode_jobject_in_thread");
+if (!func_art_decode_jobject_in_thread) {
+func_art_decode_jobject_in_thread = Function::Create(
+ /*Type=*/FuncTy_27,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_decode_jobject_in_thread", mod); // (external, no body)
+func_art_decode_jobject_in_thread->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_decode_jobject_in_thread_PAL;
+func_art_decode_jobject_in_thread->setAttributes(func_art_decode_jobject_in_thread_PAL);
 
 Function* func_art_is_assignable_from_code = mod->getFunction("art_is_assignable_from_code");
 if (!func_art_is_assignable_from_code) {

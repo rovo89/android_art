@@ -425,6 +425,12 @@ Object* art_get_obj_instance_from_code(uint32_t field_idx, Method* referrer, Obj
   return 0;
 }
 
+Object* art_decode_jobject_in_thread(Thread* thread, jobject obj) {
+  if (thread->IsExceptionPending()) {
+    return NULL;
+  }
+  return thread->DecodeJObject(obj);
+}
 
 //----------------------------------------------------------------------------
 // RTTI
@@ -436,7 +442,6 @@ int32_t art_is_assignable_from_code(Object* dest_type, Object* src_type) {
 
 void art_check_cast_from_code(Object* dest_type, Object* src_type) {
 }
-
 
 //----------------------------------------------------------------------------
 // Runtime Support Function Lookup Callback

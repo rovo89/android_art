@@ -2300,7 +2300,7 @@ class JNI {
       return JNIWeakGlobalRefType;
     case kSirtOrInvalid:
       // Is it in a stack IRT?
-      if (ts.Self()->SirtContains(java_object)) {
+      if (ts.Self()->StackReferencesContain(java_object)) {
         return JNILocalRefType;
       }
 
