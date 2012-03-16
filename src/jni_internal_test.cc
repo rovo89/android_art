@@ -78,12 +78,6 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeNopMethod(bool is_static) {
-    // TODO: remove this when we have a working x86 compiler.
-#if !defined(__arm__)
-    if (!is_static) {
-      return;
-    }
-#endif
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "nop", "()V");
@@ -91,12 +85,6 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeIdentityByteMethod(bool is_static) {
-    // TODO: remove this when we have a working x86 compiler.
-#if !defined(__arm__)
-    if (!is_static) {
-      return;
-    }
-#endif
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(B)B");
@@ -126,12 +114,6 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeIdentityIntMethod(bool is_static) {
-    // TODO: remove this when we have a working x86 compiler.
-#if !defined(__arm__)
-    if (!is_static) {
-      return;
-    }
-#endif
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(I)I");
@@ -161,12 +143,6 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeIdentityDoubleMethod(bool is_static) {
-    // TODO: remove this when we have a working x86 compiler.
-#if !defined(__arm__)
-    if (!is_static) {
-      return;
-    }
-#endif
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(D)D");
@@ -196,12 +172,6 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumIntIntMethod(bool is_static) {
-    // TODO: remove this when we have a working x86 compiler.
-#if !defined(__arm__)
-    if (!is_static) {
-      return;
-    }
-#endif
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(II)I");
@@ -240,12 +210,6 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumIntIntIntMethod(bool is_static) {
-    // TODO: remove this when we have a working x86 compiler.
-#if !defined(__arm__)
-    if (!is_static) {
-      return;
-    }
-#endif
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(III)I");
@@ -289,12 +253,6 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumIntIntIntIntMethod(bool is_static) {
-    // TODO: remove this when we have a working x86 compiler.
-#if !defined(__arm__)
-    if (!is_static) {
-      return;
-    }
-#endif
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIII)I");
@@ -343,12 +301,6 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumIntIntIntIntIntMethod(bool is_static) {
-    // TODO: remove this when we have a working x86 compiler.
-#if !defined(__arm__)
-    if (!is_static) {
-      return;
-    }
-#endif
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIIII)I");
@@ -402,12 +354,6 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumDoubleDoubleMethod(bool is_static) {
-    // TODO: remove this when we have a working x86 compiler.
-#if !defined(__arm__)
-    if (!is_static) {
-      return;
-    }
-#endif
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DD)D");
@@ -447,12 +393,6 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumDoubleDoubleDoubleMethod(bool is_static) {
-    // TODO: remove this when we have a working x86 compiler.
-#if !defined(__arm__)
-    if (!is_static) {
-      return;
-    }
-#endif
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDD)D");
@@ -483,12 +423,6 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumDoubleDoubleDoubleDoubleMethod(bool is_static) {
-    // TODO: remove this when we have a working x86 compiler.
-#if !defined(__arm__)
-    if (!is_static) {
-      return;
-    }
-#endif
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDD)D");
@@ -522,12 +456,6 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(bool is_static) {
-    // TODO: remove this when we have a working x86 compiler.
-#if !defined(__arm__)
-    if (!is_static) {
-      return;
-    }
-#endif
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDDD)D");
