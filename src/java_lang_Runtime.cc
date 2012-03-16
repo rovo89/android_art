@@ -32,11 +32,8 @@ static void Runtime_gc(JNIEnv*, jclass) {
   Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
-static void Runtime_nativeExit(JNIEnv*, jclass, jint status, jboolean isExit) {
-  // isExit is true for System.exit and false for System.halt.
-  if (isExit) {
-    Runtime::Current()->CallExitHook(status);
-  }
+static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
+  Runtime::Current()->CallExitHook(status);
   exit(status);
 }
 
@@ -80,7 +77,7 @@ static JNINativeMethod gMethods[] = {
     NATIVE_METHOD(Runtime, freeMemory, "()J"),
     NATIVE_METHOD(Runtime, gc, "()V"),
     NATIVE_METHOD(Runtime, maxMemory, "()J"),
-    NATIVE_METHOD(Runtime, nativeExit, "(IZ)V"),
+    NATIVE_METHOD(Runtime, nativeExit, "(I)V"),
     NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;)Ljava/lang/String;"),
     NATIVE_METHOD(Runtime, totalMemory, "()J"),
 };
