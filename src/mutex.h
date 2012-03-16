@@ -23,6 +23,7 @@
 #include <iosfwd>
 #include <string>
 
+#include "gtest/gtest.h"
 #include "logging.h"
 #include "macros.h"
 
@@ -74,12 +75,6 @@ class Mutex {
 
   pid_t GetOwner();
 
-  void AssertDepth(uint32_t depth) {
-#if !defined(__APPLE__)
-    DCHECK_EQ(depth, GetDepth());
-#endif
-  }
-
  private:
   static pid_t GetTid();
 
@@ -89,6 +84,7 @@ class Mutex {
   std::string name_;
   MutexRank rank_;
 
+  friend class MutexTester;
   DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
 
