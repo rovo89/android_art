@@ -139,7 +139,7 @@ void LLVMLinkLoadMethod(const std::string& file_name, Method* method) {
   addr = rsloaderGetSymbolAddress(relocatable, LLVMStubName(method).c_str());
   CHECK(addr) << "Error: ELF (" << file_name << ") has no symbol " << LLVMStubName(method);
   method->SetInvokeStub(reinterpret_cast<void (*)(const art::Method*, art::Object*, art::Thread*,
-                                                  art::byte*, art::JValue*)>(addr));
+                                                  art::JValue*, art::JValue*)>(addr));
 
   close(fd);
 }
