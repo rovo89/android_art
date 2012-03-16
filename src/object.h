@@ -2332,8 +2332,8 @@ inline uint32_t Method::GetDexMethodIndex() const {
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_dex_index_), false);
 }
 
-inline void Method::AssertPcIsWithinCode(uintptr_t __attribute__((unused)) pc) const {
-#ifndef NDEBUG
+#if !defined(NDEBUG)
+inline void Method::AssertPcIsWithinCode(uintptr_t pc) const {
   if (IsNative() || IsRuntimeMethod() || IsProxyMethod()) {
     return;
   }
@@ -2346,8 +2346,10 @@ inline void Method::AssertPcIsWithinCode(uintptr_t __attribute__((unused)) pc) c
       << " pc=" << std::hex << pc
       << " code=" << GetCode()
       << " size=" << GetCodeSize();
-#endif
 }
+#else
+inline void Method::AssertPcIsWithinCode(uintptr_t) const {}
+#endif
 
 inline String* Class::GetName() const {
   return GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Class, name_), false);

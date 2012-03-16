@@ -27,9 +27,8 @@
 
 namespace art {
 
-static inline void CheckSafeToLockOrUnlock(MutexRank __attribute__((unused)) rank,
-                                           bool __attribute__((unused)) is_locking) {
-#ifndef NDEBUG
+#if !defined(NDBEUG)
+static inline void CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
   if (rank == -1) {
     return;
   }
@@ -37,17 +36,21 @@ static inline void CheckSafeToLockOrUnlock(MutexRank __attribute__((unused)) ran
   if (self != NULL) {
     self->CheckSafeToLockOrUnlock(rank, is_locking);
   }
-#endif
 }
+#else
+static inline void CheckSafeToLockOrUnlock(MutexRank, bool) {}
+#endif
 
-static inline void CheckSafeToWait(MutexRank __attribute__((unused)) rank) {
-#ifndef NDEBUG
+#if !defined(NDEBUG)
+static inline void CheckSafeToWait(MutexRank rank) {
   Thread* self = Thread::Current();
   if (self != NULL) {
     self->CheckSafeToWait(rank);
   }
-#endif
 }
+#else
+static inline void CheckSafeToWait(MutexRank) {}
+#endif
 
 Mutex::Mutex(const char* name, MutexRank rank) : name_(name), rank_(rank) {
   // Like Java, we use recursive mutexes.

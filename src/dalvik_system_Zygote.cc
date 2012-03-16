@@ -175,8 +175,8 @@ static int SetRLimits(JNIEnv* env, jobjectArray javaRlimits) {
   return 0;
 }
 
-static void SetCapabilities(int64_t __attribute__((unused)) permitted, int64_t __attribute__((unused)) effective) {
-#ifdef HAVE_ANDROID_OS
+#if defined(HAVE_ANDROID_OS)
+static void SetCapabilities(int64_t permitted, int64_t effective) {
   struct __user_cap_header_struct capheader;
   struct __user_cap_data_struct capdata;
 
@@ -192,8 +192,10 @@ static void SetCapabilities(int64_t __attribute__((unused)) permitted, int64_t _
   if (capset(&capheader, &capdata) != 0) {
     PLOG(FATAL) << "capset(" << permitted << ", " << effective << ") failed";
   }
-#endif /*HAVE_ANDROID_OS*/
 }
+#else
+static void SetCapabilities(int64_t, int64_t) {}
+#endif
 
 static void EnableDebugFeatures(uint32_t debug_flags) {
   // Must match values in dalvik.system.Zygote.
