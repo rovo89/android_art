@@ -1738,17 +1738,16 @@ void ArmAssembler::Copy(FrameOffset /*dst*/, Offset /*dest_offset*/, FrameOffset
 
 
 void ArmAssembler::MemoryBarrier(ManagedRegister mscratch) {
+  CHECK(mscratch.AsArm().AsCoreRegister() == R12);
 #if ANDROID_SMP != 0
 #if defined(__ARM_HAVE_DMB)
   int32_t encoding = 0xf57ff05f;  // dmb
   Emit(encoding);
 #elif  defined(__ARM_HAVE_LDREX_STREX)
-  CHECK(mscratch.AsArm().AsCoreRegister() == R12);
   LoadImmediate(R12, 0);
   int32_t encoding = 0xee07cfba;  // mcr p15, 0, r12, c7, c10, 5
   Emit(encoding);
 #else
-  CHECK(mscratch.AsArm().AsCoreRegister() == R12);
   LoadImmediate(R12, 0xffff0fa0);  // kuser_memory_barrier
   blx(R12);
 #endif
