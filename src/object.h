@@ -770,7 +770,9 @@ class MANAGED Method : public Object {
   size_t GetFrameSizeInBytes() const {
     DCHECK_EQ(sizeof(size_t), sizeof(uint32_t));
     size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Method, frame_size_in_bytes_), false);
+#if !defined(ART_USE_LLVM_COMPILER)  // LLVM uses shadow stack instead.
     DCHECK_LE(static_cast<size_t>(kStackAlignment), result);
+#endif
     return result;
   }
 

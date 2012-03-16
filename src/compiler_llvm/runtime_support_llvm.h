@@ -39,7 +39,6 @@ void art_test_suspend_from_code();
 
 void art_set_current_thread_from_code(void* thread_object_addr);
 
-
 //----------------------------------------------------------------------------
 // Runtime Support Function Lookup Callback
 //----------------------------------------------------------------------------

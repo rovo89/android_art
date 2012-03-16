@@ -51,6 +51,16 @@ class ShadowFrame {
     references_[i] = object;
   }
 
+  bool Contains(Object** shadow_frame_entry) const {
+    // A ShadowFrame should at least contain a reference. Even if a
+    // native method has no argument, we put jobject or jclass as a
+    // reference. The former is "this", while the latter is for static
+    // method.
+    DCHECK_GT(number_of_references_, 0U);
+    return ((&references_[0] <= shadow_frame_entry)
+            && (shadow_frame_entry <= (&references_[number_of_references_ - 1])));
+  }
+
   // Offset of link within shadow frame
   static size_t LinkOffset() {
     return OFFSETOF_MEMBER(ShadowFrame, link_);
