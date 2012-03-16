@@ -671,6 +671,12 @@ static void emitRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
   }
 }
 
+void emitUnimplemented(CompilationUnit* cUnit, LIR* lir) {
+  for (int i = 0; i < oatGetInsnSize(lir); ++i) {
+    cUnit->codeBuffer.push_back(0xCC);  // push breakpoint instruction - int 3
+  }
+}
+
 /*
  * Assemble the LIR into binary instruction format.  Note that we may
  * discover that pc-relative displacements may not fit the selected
@@ -705,6 +711,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
       continue;
     }
     const X86EncodingMap *entry = &EncodingMap[lir->opcode];
+    size_t starting_cbuf_size = cUnit->codeBuffer.size();
     switch(entry->kind) {
       case kData:  // 4 bytes of data
         cUnit->codeBuffer.push_back(lir->operands[0]);
@@ -742,9 +749,12 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         emitRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       default:
-        UNIMPLEMENTED(FATAL) << "Unimplemented encoding for: " << entry->name;
+        UNIMPLEMENTED(WARNING) << "Unimplemented encoding for: " << entry->name;
+        emitUnimplemented(cUnit, lir);
         break;
     }
+    CHECK_EQ(static_cast<size_t>(oatGetInsnSize(lir)),
+             cUnit->codeBuffer.size() - starting_cbuf_size);
   }
   return res;
 }
