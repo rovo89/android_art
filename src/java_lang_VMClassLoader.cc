@@ -41,7 +41,7 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   }
 }
 
-static jint VMClassLoader_getBootClassPathSize(JNIEnv* env, jclass) {
+static jint VMClassLoader_getBootClassPathSize(JNIEnv*, jclass) {
   return Runtime::Current()->GetClassLinker()->GetBootClassPath().size();
 }
 

@@ -280,8 +280,7 @@ struct ReferenceMap2Visitor : public Thread::StackVisitor {
 //        0x0032 - 0x0033 reg=2 y Ljava/lang/Object;
 //        0x0000 - 0x0033 reg=8 this LReferenceMap;
 
-extern "C"
-JNIEXPORT jint JNICALL Java_ReferenceMap_refmap(JNIEnv* env, jobject thisObj, jint count) {
+extern "C" JNIEXPORT jint JNICALL Java_ReferenceMap_refmap(JNIEnv*, jobject, jint count) {
   // Visitor
   ReferenceMap2Visitor mapper;
   Thread::Current()->WalkStack(&mapper);

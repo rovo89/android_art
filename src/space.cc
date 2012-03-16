@@ -237,7 +237,7 @@ size_t AllocSpace::AllocationSize(const Object* obj) {
 // Call back from mspace_inspect_all returning the start and end of chunks and the bytes used,
 // if used_bytes is 0 then it indicates the range isn't in use and we madvise to the system that
 // we don't need it
-static void DontNeed(void* start, void* end, size_t used_bytes, void* num_bytes) {
+static void DontNeed(void* start, void* end, size_t used_bytes, void* /*num_bytes*/) {
   if (used_bytes == 0) {
     start = reinterpret_cast<void*>(RoundUp((uintptr_t)start, kPageSize));
     end = reinterpret_cast<void*>(RoundDown((uintptr_t)end, kPageSize));

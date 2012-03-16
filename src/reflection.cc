@@ -229,7 +229,7 @@ bool ConvertPrimitiveValue(Primitive::Type srcType, Primitive::Type dstType,
   return false;
 }
 
-void BoxPrimitive(JNIEnv* env, Primitive::Type src_class, JValue& value) {
+void BoxPrimitive(JNIEnv*, Primitive::Type src_class, JValue& value) {
   if (src_class == Primitive::kPrimNot) {
     return;
   }
@@ -275,7 +275,7 @@ void BoxPrimitive(JNIEnv* env, Primitive::Type src_class, JValue& value) {
   m->Invoke(self, NULL, args, &value);
 }
 
-bool UnboxPrimitive(JNIEnv* env, Object* o, Class* dst_class, JValue& unboxed_value, const char* what) {
+bool UnboxPrimitive(JNIEnv*, Object* o, Class* dst_class, JValue& unboxed_value, const char* what) {
   if (!dst_class->IsPrimitive()) {
     if (o != NULL && !o->InstanceOf(dst_class)) {
       Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",

@@ -544,10 +544,10 @@ class SharedLibrary {
   }
 
   /*
-   * Check the result of an earlier call to JNI_OnLoad on this library.  If
-   * the call has not yet finished in another thread, wait for it.
+   * Check the result of an earlier call to JNI_OnLoad on this library.
+   * If the call has not yet finished in another thread, wait for it.
    */
-  bool CheckOnLoadResult(JavaVMExt* vm) {
+  bool CheckOnLoadResult() {
     Thread* self = Thread::Current();
     if (jni_on_load_thread_id_ == self->GetThinLockId()) {
       // Check this so we don't end up waiting for ourselves.  We need
@@ -1240,8 +1240,7 @@ class JNI {
     InvokeVirtualOrInterfaceWithJValues(env, obj, mid, args);
   }
 
-  static jobject CallNonvirtualObjectMethod(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, ...) {
+  static jobject CallNonvirtualObjectMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1252,21 +1251,21 @@ class JNI {
   }
 
   static jobject CallNonvirtualObjectMethodV(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, va_list args) {
+      jobject obj, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     JValue result = InvokeWithVarArgs(env, obj, mid, args);
     return AddLocalReference<jobject>(env, result.l);
   }
 
   static jobject CallNonvirtualObjectMethodA(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, jvalue* args) {
+      jobject obj, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     JValue result = InvokeWithJValues(env, obj, mid, args);
     return AddLocalReference<jobject>(env, result.l);
   }
 
   static jboolean CallNonvirtualBooleanMethod(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, ...) {
+      jobject obj, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1276,19 +1275,18 @@ class JNI {
   }
 
   static jboolean CallNonvirtualBooleanMethodV(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, va_list args) {
+      jobject obj, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, obj, mid, args).z;
   }
 
   static jboolean CallNonvirtualBooleanMethodA(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, jvalue* args) {
+      jobject obj, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, obj, mid, args).z;
   }
 
-  static jbyte CallNonvirtualByteMethod(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, ...) {
+  static jbyte CallNonvirtualByteMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1298,19 +1296,18 @@ class JNI {
   }
 
   static jbyte CallNonvirtualByteMethodV(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, va_list args) {
+      jobject obj, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, obj, mid, args).b;
   }
 
   static jbyte CallNonvirtualByteMethodA(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, jvalue* args) {
+      jobject obj, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, obj, mid, args).b;
   }
 
-  static jchar CallNonvirtualCharMethod(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, ...) {
+  static jchar CallNonvirtualCharMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1320,19 +1317,18 @@ class JNI {
   }
 
   static jchar CallNonvirtualCharMethodV(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, va_list args) {
+      jobject obj, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, obj, mid, args).c;
   }
 
   static jchar CallNonvirtualCharMethodA(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, jvalue* args) {
+      jobject obj, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, obj, mid, args).c;
   }
 
-  static jshort CallNonvirtualShortMethod(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, ...) {
+  static jshort CallNonvirtualShortMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1342,18 +1338,18 @@ class JNI {
   }
 
   static jshort CallNonvirtualShortMethodV(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, va_list args) {
+      jobject obj, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, obj, mid, args).s;
   }
 
   static jshort CallNonvirtualShortMethodA(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, jvalue* args) {
+      jobject obj, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, obj, mid, args).s;
   }
 
-  static jint CallNonvirtualIntMethod(JNIEnv* env, jobject obj, jclass clazz, jmethodID mid, ...) {
+  static jint CallNonvirtualIntMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1363,19 +1359,18 @@ class JNI {
   }
 
   static jint CallNonvirtualIntMethodV(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, va_list args) {
+      jobject obj, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, obj, mid, args).i;
   }
 
   static jint CallNonvirtualIntMethodA(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, jvalue* args) {
+      jobject obj, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, obj, mid, args).i;
   }
 
-  static jlong CallNonvirtualLongMethod(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, ...) {
+  static jlong CallNonvirtualLongMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1385,19 +1380,18 @@ class JNI {
   }
 
   static jlong CallNonvirtualLongMethodV(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, va_list args) {
+      jobject obj, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, obj, mid, args).j;
   }
 
   static jlong CallNonvirtualLongMethodA(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, jvalue* args) {
+      jobject obj, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, obj, mid, args).j;
   }
 
-  static jfloat CallNonvirtualFloatMethod(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, ...) {
+  static jfloat CallNonvirtualFloatMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1407,19 +1401,18 @@ class JNI {
   }
 
   static jfloat CallNonvirtualFloatMethodV(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, va_list args) {
+      jobject obj, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, obj, mid, args).f;
   }
 
   static jfloat CallNonvirtualFloatMethodA(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, jvalue* args) {
+      jobject obj, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, obj, mid, args).f;
   }
 
-  static jdouble CallNonvirtualDoubleMethod(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, ...) {
+  static jdouble CallNonvirtualDoubleMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1429,19 +1422,18 @@ class JNI {
   }
 
   static jdouble CallNonvirtualDoubleMethodV(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, va_list args) {
+      jobject obj, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, obj, mid, args).d;
   }
 
   static jdouble CallNonvirtualDoubleMethodA(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, jvalue* args) {
+      jobject obj, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, obj, mid, args).d;
   }
 
-  static void CallNonvirtualVoidMethod(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, ...) {
+  static void CallNonvirtualVoidMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1450,13 +1442,13 @@ class JNI {
   }
 
   static void CallNonvirtualVoidMethodV(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, va_list args) {
+      jobject obj, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     InvokeWithVarArgs(env, obj, mid, args);
   }
 
   static void CallNonvirtualVoidMethodA(JNIEnv* env,
-      jobject obj, jclass clazz, jmethodID mid, jvalue* args) {
+      jobject obj, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     InvokeWithJValues(env, obj, mid, args);
   }
@@ -1544,35 +1536,35 @@ class JNI {
     GET_PRIMITIVE_FIELD(GetDouble, obj);
   }
 
-  static jboolean GetStaticBooleanField(JNIEnv* env, jclass clazz, jfieldID fid) {
+  static jboolean GetStaticBooleanField(JNIEnv* env, jclass, jfieldID fid) {
     GET_PRIMITIVE_FIELD(GetBoolean, NULL);
   }
 
-  static jbyte GetStaticByteField(JNIEnv* env, jclass clazz, jfieldID fid) {
+  static jbyte GetStaticByteField(JNIEnv* env, jclass, jfieldID fid) {
     GET_PRIMITIVE_FIELD(GetByte, NULL);
   }
 
-  static jchar GetStaticCharField(JNIEnv* env, jclass clazz, jfieldID fid) {
+  static jchar GetStaticCharField(JNIEnv* env, jclass, jfieldID fid) {
     GET_PRIMITIVE_FIELD(GetChar, NULL);
   }
 
-  static jshort GetStaticShortField(JNIEnv* env, jclass clazz, jfieldID fid) {
+  static jshort GetStaticShortField(JNIEnv* env, jclass, jfieldID fid) {
     GET_PRIMITIVE_FIELD(GetShort, NULL);
   }
 
-  static jint GetStaticIntField(JNIEnv* env, jclass clazz, jfieldID fid) {
+  static jint GetStaticIntField(JNIEnv* env, jclass, jfieldID fid) {
     GET_PRIMITIVE_FIELD(GetInt, NULL);
   }
 
-  static jlong GetStaticLongField(JNIEnv* env, jclass clazz, jfieldID fid) {
+  static jlong GetStaticLongField(JNIEnv* env, jclass, jfieldID fid) {
     GET_PRIMITIVE_FIELD(GetLong, NULL);
   }
 
-  static jfloat GetStaticFloatField(JNIEnv* env, jclass clazz, jfieldID fid) {
+  static jfloat GetStaticFloatField(JNIEnv* env, jclass, jfieldID fid) {
     GET_PRIMITIVE_FIELD(GetFloat, NULL);
   }
 
-  static jdouble GetStaticDoubleField(JNIEnv* env, jclass clazz, jfieldID fid) {
+  static jdouble GetStaticDoubleField(JNIEnv* env, jclass, jfieldID fid) {
     GET_PRIMITIVE_FIELD(GetDouble, NULL);
   }
 
@@ -1640,7 +1632,7 @@ class JNI {
     SET_PRIMITIVE_FIELD(SetShort, NULL, v);
   }
 
-  static jobject CallStaticObjectMethod(JNIEnv* env, jclass clazz, jmethodID mid, ...) {
+  static jobject CallStaticObjectMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1650,19 +1642,19 @@ class JNI {
     return local_result;
   }
 
-  static jobject CallStaticObjectMethodV(JNIEnv* env, jclass clazz, jmethodID mid, va_list args) {
+  static jobject CallStaticObjectMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     JValue result = InvokeWithVarArgs(env, NULL, mid, args);
     return AddLocalReference<jobject>(env, result.l);
   }
 
-  static jobject CallStaticObjectMethodA(JNIEnv* env, jclass clazz, jmethodID mid, jvalue* args) {
+  static jobject CallStaticObjectMethodA(JNIEnv* env, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     JValue result = InvokeWithJValues(env, NULL, mid, args);
     return AddLocalReference<jobject>(env, result.l);
   }
 
-  static jboolean CallStaticBooleanMethod(JNIEnv* env, jclass clazz, jmethodID mid, ...) {
+  static jboolean CallStaticBooleanMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1671,17 +1663,17 @@ class JNI {
     return result.z;
   }
 
-  static jboolean CallStaticBooleanMethodV(JNIEnv* env, jclass clazz, jmethodID mid, va_list args) {
+  static jboolean CallStaticBooleanMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, NULL, mid, args).z;
   }
 
-  static jboolean CallStaticBooleanMethodA(JNIEnv* env, jclass clazz, jmethodID mid, jvalue* args) {
+  static jboolean CallStaticBooleanMethodA(JNIEnv* env, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, NULL, mid, args).z;
   }
 
-  static jbyte CallStaticByteMethod(JNIEnv* env, jclass clazz, jmethodID mid, ...) {
+  static jbyte CallStaticByteMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1690,17 +1682,17 @@ class JNI {
     return result.b;
   }
 
-  static jbyte CallStaticByteMethodV(JNIEnv* env, jclass clazz, jmethodID mid, va_list args) {
+  static jbyte CallStaticByteMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, NULL, mid, args).b;
   }
 
-  static jbyte CallStaticByteMethodA(JNIEnv* env, jclass clazz, jmethodID mid, jvalue* args) {
+  static jbyte CallStaticByteMethodA(JNIEnv* env, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, NULL, mid, args).b;
   }
 
-  static jchar CallStaticCharMethod(JNIEnv* env, jclass clazz, jmethodID mid, ...) {
+  static jchar CallStaticCharMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1709,17 +1701,17 @@ class JNI {
     return result.c;
   }
 
-  static jchar CallStaticCharMethodV(JNIEnv* env, jclass clazz, jmethodID mid, va_list args) {
+  static jchar CallStaticCharMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, NULL, mid, args).c;
   }
 
-  static jchar CallStaticCharMethodA(JNIEnv* env, jclass clazz, jmethodID mid, jvalue* args) {
+  static jchar CallStaticCharMethodA(JNIEnv* env, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, NULL, mid, args).c;
   }
 
-  static jshort CallStaticShortMethod(JNIEnv* env, jclass clazz, jmethodID mid, ...) {
+  static jshort CallStaticShortMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1728,17 +1720,17 @@ class JNI {
     return result.s;
   }
 
-  static jshort CallStaticShortMethodV(JNIEnv* env, jclass clazz, jmethodID mid, va_list args) {
+  static jshort CallStaticShortMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, NULL, mid, args).s;
   }
 
-  static jshort CallStaticShortMethodA(JNIEnv* env, jclass clazz, jmethodID mid, jvalue* args) {
+  static jshort CallStaticShortMethodA(JNIEnv* env, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, NULL, mid, args).s;
   }
 
-  static jint CallStaticIntMethod(JNIEnv* env, jclass clazz, jmethodID mid, ...) {
+  static jint CallStaticIntMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1747,17 +1739,17 @@ class JNI {
     return result.i;
   }
 
-  static jint CallStaticIntMethodV(JNIEnv* env, jclass clazz, jmethodID mid, va_list args) {
+  static jint CallStaticIntMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, NULL, mid, args).i;
   }
 
-  static jint CallStaticIntMethodA(JNIEnv* env, jclass clazz, jmethodID mid, jvalue* args) {
+  static jint CallStaticIntMethodA(JNIEnv* env, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, NULL, mid, args).i;
   }
 
-  static jlong CallStaticLongMethod(JNIEnv* env, jclass clazz, jmethodID mid, ...) {
+  static jlong CallStaticLongMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1766,17 +1758,17 @@ class JNI {
     return result.j;
   }
 
-  static jlong CallStaticLongMethodV(JNIEnv* env, jclass clazz, jmethodID mid, va_list args) {
+  static jlong CallStaticLongMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, NULL, mid, args).j;
   }
 
-  static jlong CallStaticLongMethodA(JNIEnv* env, jclass clazz, jmethodID mid, jvalue* args) {
+  static jlong CallStaticLongMethodA(JNIEnv* env, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, NULL, mid, args).j;
   }
 
-  static jfloat CallStaticFloatMethod(JNIEnv* env, jclass cls, jmethodID mid, ...) {
+  static jfloat CallStaticFloatMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1785,17 +1777,17 @@ class JNI {
     return result.f;
   }
 
-  static jfloat CallStaticFloatMethodV(JNIEnv* env, jclass clazz, jmethodID mid, va_list args) {
+  static jfloat CallStaticFloatMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, NULL, mid, args).f;
   }
 
-  static jfloat CallStaticFloatMethodA(JNIEnv* env, jclass clazz, jmethodID mid, jvalue* args) {
+  static jfloat CallStaticFloatMethodA(JNIEnv* env, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, NULL, mid, args).f;
   }
 
-  static jdouble CallStaticDoubleMethod(JNIEnv* env, jclass cls, jmethodID mid, ...) {
+  static jdouble CallStaticDoubleMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1804,17 +1796,17 @@ class JNI {
     return result.d;
   }
 
-  static jdouble CallStaticDoubleMethodV(JNIEnv* env, jclass clazz, jmethodID mid, va_list args) {
+  static jdouble CallStaticDoubleMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     return InvokeWithVarArgs(env, NULL, mid, args).d;
   }
 
-  static jdouble CallStaticDoubleMethodA(JNIEnv* env, jclass clazz, jmethodID mid, jvalue* args) {
+  static jdouble CallStaticDoubleMethodA(JNIEnv* env, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     return InvokeWithJValues(env, NULL, mid, args).d;
   }
 
-  static void CallStaticVoidMethod(JNIEnv* env, jclass cls, jmethodID mid, ...) {
+  static void CallStaticVoidMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
@@ -1822,12 +1814,12 @@ class JNI {
     va_end(ap);
   }
 
-  static void CallStaticVoidMethodV(JNIEnv* env, jclass cls, jmethodID mid, va_list args) {
+  static void CallStaticVoidMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     InvokeWithVarArgs(env, NULL, mid, args);
   }
 
-  static void CallStaticVoidMethodA(JNIEnv* env, jclass cls, jmethodID mid, jvalue* args) {
+  static void CallStaticVoidMethodA(JNIEnv* env, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     InvokeWithJValues(env, NULL, mid, args);
   }
@@ -1890,7 +1882,7 @@ class JNI {
     return chars->GetData() + s->GetOffset();
   }
 
-  static void ReleaseStringChars(JNIEnv* env, jstring java_string, const jchar* chars) {
+  static void ReleaseStringChars(JNIEnv* env, jstring java_string, const jchar*) {
     ScopedJniThreadState ts(env);
     UnpinPrimitiveArray(ts, Decode<String*>(ts, java_string)->GetCharArray());
   }
@@ -2028,7 +2020,7 @@ class JNI {
     return array->GetRawData(array->GetClass()->GetComponentSize());
   }
 
-  static void ReleasePrimitiveArrayCritical(JNIEnv* env, jarray array, void* data, jint mode) {
+  static void ReleasePrimitiveArrayCritical(JNIEnv* env, jarray array, void*, jint mode) {
     ScopedJniThreadState ts(env);
     ReleasePrimitiveArray(ts, array, mode);
   }
@@ -2073,42 +2065,42 @@ class JNI {
     return GetPrimitiveArray<jshortArray, jshort*, ShortArray>(ts, array, is_copy);
   }
 
-  static void ReleaseBooleanArrayElements(JNIEnv* env, jbooleanArray array, jboolean* data, jint mode) {
+  static void ReleaseBooleanArrayElements(JNIEnv* env, jbooleanArray array, jboolean*, jint mode) {
     ScopedJniThreadState ts(env);
     ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseByteArrayElements(JNIEnv* env, jbyteArray array, jbyte* data, jint mode) {
+  static void ReleaseByteArrayElements(JNIEnv* env, jbyteArray array, jbyte*, jint mode) {
     ScopedJniThreadState ts(env);
     ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseCharArrayElements(JNIEnv* env, jcharArray array, jchar* data, jint mode) {
+  static void ReleaseCharArrayElements(JNIEnv* env, jcharArray array, jchar*, jint mode) {
     ScopedJniThreadState ts(env);
     ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseDoubleArrayElements(JNIEnv* env, jdoubleArray array, jdouble* data, jint mode) {
+  static void ReleaseDoubleArrayElements(JNIEnv* env, jdoubleArray array, jdouble*, jint mode) {
     ScopedJniThreadState ts(env);
     ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseFloatArrayElements(JNIEnv* env, jfloatArray array, jfloat* data, jint mode) {
+  static void ReleaseFloatArrayElements(JNIEnv* env, jfloatArray array, jfloat*, jint mode) {
     ScopedJniThreadState ts(env);
     ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseIntArrayElements(JNIEnv* env, jintArray array, jint* data, jint mode) {
+  static void ReleaseIntArrayElements(JNIEnv* env, jintArray array, jint*, jint mode) {
     ScopedJniThreadState ts(env);
     ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseLongArrayElements(JNIEnv* env, jlongArray array, jlong* data, jint mode) {
+  static void ReleaseLongArrayElements(JNIEnv* env, jlongArray array, jlong*, jint mode) {
     ScopedJniThreadState ts(env);
     ReleasePrimitiveArray(ts, array, mode);
   }
 
-  static void ReleaseShortArrayElements(JNIEnv* env, jshortArray array, jshort* data, jint mode) {
+  static void ReleaseShortArrayElements(JNIEnv* env, jshortArray array, jshort*, jint mode) {
     ScopedJniThreadState ts(env);
     ReleasePrimitiveArray(ts, array, mode);
   }
@@ -2617,7 +2609,8 @@ void JNIEnvExt::DumpReferenceTables() {
   monitors.Dump();
 }
 
-void JNIEnvExt::PushFrame(int capacity) {
+void JNIEnvExt::PushFrame(int /*capacity*/) {
+  // TODO: take 'capacity' into account.
   stacked_local_ref_cookies.push_back(local_ref_cookie);
   local_ref_cookie = locals.GetSegmentState();
 }
@@ -2663,7 +2656,7 @@ extern "C" jint JNI_GetCreatedJavaVMs(JavaVM** vms, jsize, jsize* vm_count) {
 }
 
 // Historically unsupported.
-extern "C" jint JNI_GetDefaultJavaVMInitArgs(void* vm_args) {
+extern "C" jint JNI_GetDefaultJavaVMInitArgs(void* /*vm_args*/) {
   return JNI_ERR;
 }
 
@@ -2797,7 +2790,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     }
     VLOG(jni) << "[Shared library \"" << path << "\" already loaded in "
               << "ClassLoader " << class_loader << "]";
-    if (!library->CheckOnLoadResult(this)) {
+    if (!library->CheckOnLoadResult()) {
       StringAppendF(&detail, "JNI_OnLoad failed on a previous attempt "
           "to load \"%s\"", path.c_str());
       return false;
@@ -2854,7 +2847,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
     if (library != NULL) {
       LOG(INFO) << "WOW: we lost a race to add shared library: "
                 << "\"" << path << "\" ClassLoader=" << class_loader;
-      return library->CheckOnLoadResult(this);
+      return library->CheckOnLoadResult();
     }
     library = new SharedLibrary(path, handle, class_loader);
     libraries->Put(path, library);

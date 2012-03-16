@@ -1509,7 +1509,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   DCHECK(!it.HasNext());
 }
 
-void ClassLinker::LoadField(const DexFile& dex_file, const ClassDataItemIterator& it,
+void ClassLinker::LoadField(const DexFile& /*dex_file*/, const ClassDataItemIterator& it,
                             SirtRef<Class>& klass, SirtRef<Field>& dst) {
   uint32_t field_idx = it.GetMemberIndex();
   dst->SetDexFieldIndex(field_idx);
@@ -1951,7 +1951,7 @@ static void CheckMethodsHaveGcMaps(Class* klass) {
   }
 }
 #else
-static void CheckMethodsHaveGcMaps(Class* klass) {
+static void CheckMethodsHaveGcMaps(Class*) {
 }
 #endif
 

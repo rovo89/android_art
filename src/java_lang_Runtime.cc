@@ -32,7 +32,7 @@ static void Runtime_gc(JNIEnv*, jclass) {
   Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
-static void Runtime_nativeExit(JNIEnv* env, jclass, jint status, jboolean isExit) {
+static void Runtime_nativeExit(JNIEnv*, jclass, jint status, jboolean isExit) {
   // isExit is true for System.exit and false for System.halt.
   if (isExit) {
     Runtime::Current()->CallExitHook(status);
@@ -64,15 +64,15 @@ static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, job
   return env->NewStringUTF(detail.c_str());
 }
 
-static jlong Runtime_maxMemory(JNIEnv* env, jclass) {
+static jlong Runtime_maxMemory(JNIEnv*, jclass) {
   return Runtime::Current()->GetHeap()->GetMaxMemory();
 }
 
-static jlong Runtime_totalMemory(JNIEnv* env, jclass) {
+static jlong Runtime_totalMemory(JNIEnv*, jclass) {
   return Runtime::Current()->GetHeap()->GetTotalMemory();
 }
 
-static jlong Runtime_freeMemory(JNIEnv* env, jclass) {
+static jlong Runtime_freeMemory(JNIEnv*, jclass) {
   return Runtime::Current()->GetHeap()->GetFreeMemory();
 }
 

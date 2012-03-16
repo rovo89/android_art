@@ -41,7 +41,7 @@ std::string Demangle(const std::string& mangled_name) {
   return mangled_name + "()";
 }
 
-void Runtime::PlatformAbort(const char* file, int line) {
+void Runtime::PlatformAbort(const char* /*file*/, int /*line_number*/) {
   // On the host, we don't have debuggerd to dump a stack for us.
 
   // Get the raw stack frames.

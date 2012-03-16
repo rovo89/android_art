@@ -143,7 +143,7 @@ const DexFile* DexFile::OpenFile(const std::string& filename,
     return NULL;
   }
 
-  if (!DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size())) {
+  if (verify && !DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size())) {
     LOG(ERROR) << "Failed to verify dex file '" << filename << "'";
     return NULL;
   }

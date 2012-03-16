@@ -278,7 +278,7 @@ int Hprof::MarkRootObject(const Object *obj, jobject jniObj) {
   return err;
 }
 
-int Hprof::StackTraceSerialNumber(const void *obj) {
+int Hprof::StackTraceSerialNumber(const void* /*obj*/) {
   return HPROF_NULL_STACK_TRACE;
 }
 

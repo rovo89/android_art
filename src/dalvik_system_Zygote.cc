@@ -52,7 +52,7 @@ static void Zygote_nativeExecShell(JNIEnv* env, jclass, jstring javaCommand) {
 }
 
 // This signal handler is for zygote mode, since the zygote must reap its children
-static void SigChldHandler(int s) {
+static void SigChldHandler(int /*signal_number*/) {
   pid_t pid;
   int status;
 
@@ -175,7 +175,7 @@ static int SetRLimits(JNIEnv* env, jobjectArray javaRlimits) {
   return 0;
 }
 
-static void SetCapabilities(int64_t permitted, int64_t effective) {
+static void SetCapabilities(int64_t __attribute__((unused)) permitted, int64_t __attribute__((unused)) effective) {
 #ifdef HAVE_ANDROID_OS
   struct __user_cap_header_struct capheader;
   struct __user_cap_data_struct capdata;

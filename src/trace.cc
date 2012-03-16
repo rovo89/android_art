@@ -145,8 +145,8 @@ static bool UninstallStubsClassVisitor(Class* klass, void*) {
   return true;
 }
 
-static void TraceRestoreStack(Thread* t, void*) {
 #if defined(__arm__)
+static void TraceRestoreStack(Thread* t, void*) {
   uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
 
   Frame frame = t->GetTopOfStack();
@@ -164,10 +164,12 @@ static void TraceRestoreStack(Thread* t, void*) {
       }
     }
   }
-#else
-  UNIMPLEMENTED(WARNING);
-#endif
 }
+#else
+static void TraceRestoreStack(Thread*, void*) {
+  UNIMPLEMENTED(WARNING);
+}
+#endif
 
 void Trace::AddSavedCodeToMap(const Method* method, const void* code) {
   saved_code_map_.insert(std::make_pair(method, code));
@@ -187,16 +189,18 @@ const void* Trace::GetSavedCodeFromMap(const Method* method) {
   }
 }
 
-void Trace::SaveAndUpdateCode(Method* method) {
 #if defined(__arm__)
+void Trace::SaveAndUpdateCode(Method* method) {
   void* trace_stub = reinterpret_cast<void*>(art_trace_entry_from_code);
   CHECK(GetSavedCodeFromMap(method) == NULL);
   AddSavedCodeToMap(method, method->GetCode());
   method->SetCode(trace_stub);
-#else
-  UNIMPLEMENTED(WARNING);
-#endif
 }
+#else
+void Trace::SaveAndUpdateCode(Method*) {
+  UNIMPLEMENTED(WARNING);
+}
+#endif
 
 void Trace::ResetSavedCode(Method* method) {
   CHECK(GetSavedCodeFromMap(method) != NULL);
@@ -208,6 +212,11 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
   if (Runtime::Current()->IsMethodTracingActive()) {
     LOG(INFO) << "Trace already in progress, ignoring this request";
     return;
+  }
+
+  // TODO: implement alloc counting.
+  if (flags != 0) {
+    UNIMPLEMENTED(FATAL) << "trace flags";
   }
 
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);

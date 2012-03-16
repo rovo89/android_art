@@ -28,7 +28,7 @@ namespace verifier {
 
 class DexVerifierTest : public CommonTest {
  protected:
-  void VerifyClass(ClassLoader* class_loader, const std::string& descriptor) {
+  void VerifyClass(const std::string& descriptor) {
     ASSERT_TRUE(descriptor != NULL);
     Class* klass = class_linker_->FindSystemClass(descriptor.c_str());
 
@@ -37,20 +37,20 @@ class DexVerifierTest : public CommonTest {
     ASSERT_TRUE(DexVerifier::VerifyClass(klass, error_msg)) << error_msg;
   }
 
-  void VerifyDexFile(const DexFile* dex, ClassLoader* class_loader) {
+  void VerifyDexFile(const DexFile* dex) {
     ASSERT_TRUE(dex != NULL);
 
     // Verify all the classes defined in this file
     for (size_t i = 0; i < dex->NumClassDefs(); i++) {
       const DexFile::ClassDef& class_def = dex->GetClassDef(i);
       const char* descriptor = dex->GetClassDescriptor(class_def);
-      VerifyClass(class_loader, descriptor);
+      VerifyClass(descriptor);
     }
   }
 };
 
 TEST_F(DexVerifierTest, LibCore) {
-  VerifyDexFile(java_lang_dex_file_, NULL);
+  VerifyDexFile(java_lang_dex_file_);
 }
 
 TEST_F(DexVerifierTest, IntMath) {

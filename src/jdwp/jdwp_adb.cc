@@ -294,7 +294,7 @@ retry:
 /*
  * Connect out to a debugger (for server=n).  Not required.
  */
-static bool establishConnection(JdwpState* state) {
+static bool establishConnection(JdwpState*) {
   return false;
 }
 
