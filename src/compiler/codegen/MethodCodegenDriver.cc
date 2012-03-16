@@ -54,9 +54,6 @@ RegLocation oatGetReturn(CompilationUnit* cUnit, bool isFloat)
 
 void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
 {
-#if defined(TARGET_X86)
-    UNIMPLEMENTED(WARNING) << "genInvoke";
-#else
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     int callState = 0;
     LIR* nullCk;
@@ -116,9 +113,18 @@ void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
     if (DISPLAY_MISSING_TARGETS) {
         genShowTarget(cUnit);
     }
+#if !defined(TARGET_X86)
     opReg(cUnit, kOpBlx, rINVOKE_TGT);
-    oatClobberCalleeSave(cUnit);
+#else
+    if (fastPath) {
+      opMem(cUnit, kOpBlx, rARG0, Method::GetCodeOffset().Int32Value());
+    } else {
+      UNIMPLEMENTED(FATAL) << "compute trampoline";
+      opThreadMem(cUnit, kOpBlx, 0);
+    }
 #endif
+
+    oatClobberCalleeSave(cUnit);
 }
 
 /*

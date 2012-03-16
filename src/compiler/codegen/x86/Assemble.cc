@@ -283,12 +283,13 @@ ENCODING_MAP(Cmp,
   EXT_0F_ENCODING_MAP(Movsx16, 0x00, 0xBF),
 #undef EXT_0F_ENCODING_MAP
 
-  { kX86Jcc,   kJcc,  IS_BINARY_OP | IS_BRANCH | NEEDS_FIXUP, { 0, 0, 0x70, 0, 0, 0, 0, 0 }, "Jcc", "!1c" },
-  { kX86Jmp,   kJmp,  IS_UNARY_OP  | IS_BRANCH | NEEDS_FIXUP, { 0, 0, 0xE9, 0, 0, 0, 0, 0 }, "Jmp", "" },
-  { kX86CallR, kCall, IS_UNARY_OP  | IS_BRANCH,               { 0, 0, 0xE8, 0, 0, 0, 0, 0 }, "CallR", "" },
-  { kX86CallM, kCall, IS_BINARY_OP | IS_BRANCH,               { 0, 0, 0xFF, 0, 0, 2, 0, 0 }, "CallM", "" },
-  { kX86CallA, kCall, IS_QUAD_OP   | IS_BRANCH,               { 0, 0, 0xFF, 0, 0, 2, 0, 0 }, "CallA", "" },
-  { kX86Ret,   kNullary,NO_OPERAND | IS_BRANCH,               { 0, 0, 0xC3, 0, 0, 0, 0, 0 }, "Ret", "" },
+  { kX86Jcc,   kJcc,  IS_BINARY_OP | IS_BRANCH | NEEDS_FIXUP, { 0,             0, 0x70, 0, 0, 0, 0, 0 }, "Jcc", "!1c" },
+  { kX86Jmp,   kJmp,  IS_UNARY_OP  | IS_BRANCH | NEEDS_FIXUP, { 0,             0, 0xE9, 0, 0, 0, 0, 0 }, "Jmp", "" },
+  { kX86CallR, kCall, IS_UNARY_OP  | IS_BRANCH,               { 0,             0, 0xE8, 0, 0, 0, 0, 0 }, "CallR", "!0r" },
+  { kX86CallM, kCall, IS_BINARY_OP | IS_BRANCH | IS_LOAD,     { 0,             0, 0xFF, 0, 0, 2, 0, 0 }, "CallM", "[!0r+!1d]" },
+  { kX86CallA, kCall, IS_QUAD_OP   | IS_BRANCH | IS_LOAD,     { 0,             0, 0xFF, 0, 0, 2, 0, 0 }, "CallA", "[!0r+!1r<<!2d+!3d]" },
+  { kX86CallT, kCall, IS_UNARY_OP  | IS_BRANCH | IS_LOAD,     { THREAD_PREFIX, 0, 0xFF, 0, 0, 2, 0, 0 }, "CallT", "fs:[!0d]" },
+  { kX86Ret,   kNullary,NO_OPERAND | IS_BRANCH,               { 0,             0, 0xC3, 0, 0, 0, 0, 0 }, "Ret", "" },
 };
 
 static size_t computeSize(X86EncodingMap* entry, int displacement, bool has_sib) {
@@ -413,6 +414,8 @@ int oatGetInsnSize(LIR* lir) {
           return computeSize(entry, lir->operands[1], false);
         case kX86CallA:  // lir operands - 0: base, 1: index, 2: scale, 3: disp
           return computeSize(entry, lir->operands[3], true);
+        case kX86CallT:  // lir operands - 0: disp
+          return computeSize(entry, lir->operands[0], true);
         default:
           break;
       }
@@ -671,7 +674,8 @@ static void emitRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
   }
 }
 
-void emitUnimplemented(CompilationUnit* cUnit, LIR* lir) {
+void emitUnimplemented(CompilationUnit* cUnit, const X86EncodingMap* entry, LIR* lir) {
+  UNIMPLEMENTED(WARNING) << "Unimplemented encoding for: " << entry->name;
   for (int i = 0; i < oatGetInsnSize(lir); ++i) {
     cUnit->codeBuffer.push_back(0xCC);  // push breakpoint instruction - int 3
   }
@@ -749,8 +753,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         emitRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       default:
-        UNIMPLEMENTED(WARNING) << "Unimplemented encoding for: " << entry->name;
-        emitUnimplemented(cUnit, lir);
+        emitUnimplemented(cUnit, entry, lir);
         break;
     }
     CHECK_EQ(static_cast<size_t>(oatGetInsnSize(lir)),

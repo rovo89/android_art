@@ -232,6 +232,7 @@ enum NativeRegisterPool {
 #define rARG2 rCX
 #define rRET0 rAX
 #define rRET1 rDX
+#define rINVOKE_TGT rAX
 
 #define isPseudoOpcode(opCode) ((int)(opCode) < 0)
 
@@ -442,6 +443,7 @@ enum X86OpCode {
     kX86CallM,  // call [base + disp]; lir operands - 0: base, 1: disp
     kX86CallA,  // call [base + index * scale + disp]
                 // lir operands - 0: base, 1: index, 2: scale, 3: disp
+    kX86CallT,  // call fs:[disp]; fs: is equal to Thread::Current(); lir operands - 0: disp
     kX86Ret,    // ret; no lir operands
     kX86Last
 };
