@@ -174,12 +174,14 @@ class CommonTest : public testing::Test {
     MakeExecutable(code_array->GetData(), code_array->GetLength());
   }
 
-  static void MakeExecutable(const std::vector<uint8_t>& code) {
 #if !defined(ART_USE_LLVM_COMPILER)  // LLVM compilation uses ELF instead
+  static void MakeExecutable(const std::vector<uint8_t>& code) {
     CHECK_NE(code.size(), 0U);
     MakeExecutable(&code[0], code.size());
-#endif
   }
+#else
+  static void MakeExecutable(const std::vector<uint8_t>&) {}
+#endif
 
   // Create an OatMethod based on pointers (for unit tests)
   OatFile::OatMethod CreateOatMethod(const void* code,
