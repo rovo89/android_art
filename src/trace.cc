@@ -24,6 +24,7 @@
 #include "object_utils.h"
 #include "os.h"
 #include "runtime_support.h"
+#include "scoped_thread_list_lock.h"
 #include "thread.h"
 
 

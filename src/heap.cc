@@ -294,7 +294,10 @@ Object* Heap::AllocObject(Class* klass, size_t byte_count) {
 bool Heap::IsHeapAddress(const Object* obj) {
   // Note: we deliberately don't take the lock here, and mustn't test anything that would
   // require taking the lock.
-  if (obj == NULL || !IsAligned<kObjectAlignment>(obj)) {
+  if (obj == NULL) {
+    return true;
+  }
+  if (!IsAligned<kObjectAlignment>(obj)) {
     return false;
   }
   for (size_t i = 0; i < spaces_.size(); ++i) {

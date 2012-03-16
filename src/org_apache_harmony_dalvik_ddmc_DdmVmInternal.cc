@@ -17,6 +17,7 @@
 #include "debugger.h"
 #include "logging.h"
 #include "scoped_heap_lock.h"
+#include "scoped_thread_list_lock.h"
 #include "stack.h"
 #include "thread_list.h"
 

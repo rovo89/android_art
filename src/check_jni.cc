@@ -198,7 +198,7 @@ class ScopedCheck {
          * obj will be NULL.  Otherwise, obj should always be non-NULL
          * and valid.
          */
-        if (obj != NULL && !Runtime::Current()->GetHeap()->IsHeapAddress(obj)) {
+        if (!Runtime::Current()->GetHeap()->IsHeapAddress(obj)) {
           LOG(ERROR) << "JNI ERROR: field operation on invalid " << GetIndirectRefKind(java_object) << ": " << java_object;
           JniAbort();
           return;
@@ -739,7 +739,7 @@ class ScopedCheck {
     ScopedJniThreadState ts(env_);
 
     Object* o = Decode<Object*>(ts, java_object);
-    if (o != NULL && !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+    if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
       // TODO: when we remove work_around_app_jni_bugs, this should be impossible.
       LOG(ERROR) << "JNI ERROR: native code passing in reference to invalid " << GetIndirectRefKind(java_object) << ": " << java_object;
       JniAbort();

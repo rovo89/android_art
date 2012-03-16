@@ -20,34 +20,9 @@
 
 #include "debugger.h"
 #include "scoped_heap_lock.h"
+#include "scoped_thread_list_lock.h"
 
 namespace art {
-
-ScopedThreadListLock::ScopedThreadListLock() {
-  // Avoid deadlock between two threads trying to SuspendAll
-  // simultaneously by going to kVmWait if the lock cannot be
-  // immediately acquired.
-  ThreadList* thread_list = Runtime::Current()->GetThreadList();
-  if (!thread_list->thread_list_lock_.TryLock()) {
-    Thread* self = Thread::Current();
-    if (self == NULL) {
-      // Self may be null during shutdown, but in that case there's no point going to kVmWait.
-      thread_list->thread_list_lock_.Lock();
-    } else {
-      Thread::State old_thread_state = self->SetState(Thread::kVmWait);
-      thread_list->thread_list_lock_.Lock();
-      // If we have the lock, by definition there's no GC in progress (though we
-      // might be taking the lock in order to start one). We avoid the suspend
-      // check here so we don't risk going to sleep on the thread suspend count lock
-      // while holding the thread list lock.
-      self->SetStateWithoutSuspendCheck(old_thread_state);
-    }
-  }
-}
-
-ScopedThreadListLock::~ScopedThreadListLock() {
-  Runtime::Current()->GetThreadList()->thread_list_lock_.Unlock();
-}
 
 ThreadList::ThreadList()
     : thread_list_lock_("thread list lock", kThreadListLock),

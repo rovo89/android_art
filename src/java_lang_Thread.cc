@@ -17,6 +17,7 @@
 #include "debugger.h"
 #include "jni_internal.h"
 #include "object.h"
+#include "scoped_thread_list_lock.h"
 #include "ScopedUtfChars.h"
 #include "thread.h"
 #include "thread_list.h"

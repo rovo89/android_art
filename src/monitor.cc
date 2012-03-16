@@ -28,6 +28,7 @@
 #include "mutex.h"
 #include "object.h"
 #include "object_utils.h"
+#include "scoped_thread_list_lock.h"
 #include "stl_util.h"
 #include "thread.h"
 #include "thread_list.h"

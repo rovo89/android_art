@@ -18,6 +18,7 @@
 #include "class_loader.h"
 #include "object.h"
 #include "scoped_heap_lock.h"
+#include "scoped_thread_list_lock.h"
 #include "thread_list.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
