@@ -88,23 +88,6 @@ bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 
 void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset);
 
-/*
- * In the Arm code a it is typical to use the link register
- * to hold the target address.  However, for X86 we must
- * ensure that all branch instructions can be restarted if
- * there is a trap in the shadow.  Allocate a temp register.
- */
-int loadHelper(CompilationUnit* cUnit, int offset)
-{
-    UNIMPLEMENTED(WARNING);
-    return 0;
-#if 0
-    int tReg = oatAllocTemp(cUnit);
-    loadWordDisp(cUnit, rSELF, offset, tReg);
-    return tReg;
-#endif
-}
-
 void spillCoreRegs(CompilationUnit* cUnit) {
   if (cUnit->numCoreSpills == 0) {
     return;
@@ -143,7 +126,6 @@ void opRegThreadMem(CompilationUnit* cUnit, OpKind op, int rDest, int threadOffs
       LOG(FATAL) << "Bad opcode: " << op;
       break;
   }
-  DCHECK((EncodingMap[opcode].flags & IS_BINARY_OP) != 0);
   newLIR2(cUnit, opcode, rDest, threadOffset);
 }
 

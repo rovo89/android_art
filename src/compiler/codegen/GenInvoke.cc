@@ -23,11 +23,6 @@ namespace art {
  */
 
 
-/*
- * x86 targets will likely be different enough to need their own
- * invoke gen routies.
- */
-#if defined(TARGET_ARM) || defined (TARGET_MIPS)
 typedef int (*NextCallInsn)(CompilationUnit*, MIR*, int, uint32_t dexIdx,
                             uint32_t methodIdx);
 /*
@@ -40,7 +35,11 @@ void flushIns(CompilationUnit* cUnit)
     if (cUnit->numIns == 0)
         return;
     int firstArgReg = rARG1;
+#if !defined(TARGET_X86)
     int lastArgReg = rARG3;
+#else
+    int lastArgReg = rARG2;
+#endif
     int startVReg = cUnit->numDalvikRegisters - cUnit->numIns;
     /*
      * Copy incoming arguments to their proper home locations.
@@ -115,10 +114,12 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
                 Array::DataOffset(sizeof(Object*)).Int32Value() + dexIdx * 4,
                 rARG0);
             break;
+#if !defined(TARGET_X86)
         case 3:  // Grab the code from the method*
             loadWordDisp(cUnit, rARG0, Method::GetCodeOffset().Int32Value(),
                          rINVOKE_TGT);
             break;
+#endif
         default:
             return -1;
     }
@@ -160,10 +161,12 @@ int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
                          Array::DataOffset(sizeof(Object*)).Int32Value(),
                          rARG0);
             break;
+#if !defined(TARGET_X86)
         case 4: // Get the compiled code address [uses rARG0, sets rINVOKE_TGT]
             loadWordDisp(cUnit, rARG0, Method::GetCodeOffset().Int32Value(),
                          rINVOKE_TGT);
             break;
+#endif
         default:
             return -1;
     }
@@ -210,10 +213,12 @@ int nextSuperCallInsn(CompilationUnit* cUnit, MIR* mir,
                          Array::DataOffset(sizeof(Object*)).Int32Value(),
                          rARG0);
             break;
+#if !defined(TARGET_X86)
         case 4: // target compiled code address [uses rARG0, sets rINVOKE_TGT]
             loadWordDisp(cUnit, rARG0, Method::GetCodeOffset().Int32Value(),
                          rINVOKE_TGT);
             break;
+#endif
         default:
             return -1;
     }
@@ -227,6 +232,7 @@ int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir, int trampoline,
      * This handles the case in which the base method is not fully
      * resolved at compile time, we bail to a runtime helper.
      */
+#if !defined(TARGET_X86)
     if (state == 0) {
         // Load trampoline target
         loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
@@ -234,6 +240,7 @@ int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir, int trampoline,
         loadConstant(cUnit, rARG0, dexIdx);
         return 1;
     }
+#endif
     return -1;
 }
 
@@ -288,13 +295,18 @@ int loadArgRegs(CompilationUnit* cUnit, MIR* mir, DecodedInstruction* dInsn,
                 int callState, NextCallInsn nextCallInsn, uint32_t dexIdx,
                 uint32_t methodIdx, bool skipThis)
 {
+#if !defined(TARGET_X86)
+    int lastArgReg = rARG3;
+#else
+    int lastArgReg = rARG2;
+#endif
     int nextReg = rARG1;
     int nextArg = 0;
     if (skipThis) {
         nextReg++;
         nextArg++;
     }
-    for (; (nextReg <= rARG3) && (nextArg < mir->ssaRep->numUses); nextReg++) {
+    for (; (nextReg <= lastArgReg) && (nextArg < mir->ssaRep->numUses); nextReg++) {
         RegLocation rlArg = oatGetRawSrc(cUnit, mir, nextArg++);
         rlArg = oatUpdateRawLoc(cUnit, rlArg);
         if (rlArg.wide && (nextReg <= rARG2)) {
@@ -339,14 +351,18 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
         RegLocation rlUse2 = oatGetRawSrc(cUnit, mir, 2);
         if (((!rlUse0.wide && !rlUse1.wide) || rlUse0.wide) &&
             rlUse2.wide) {
-            int reg;
+            int reg = -1;
             // Wide spans, we need the 2nd half of uses[2].
             rlArg = oatUpdateLocWide(cUnit, rlUse2);
             if (rlArg.location == kLocPhysReg) {
                 reg = rlArg.highReg;
             } else {
                 // rARG2 & rARG3 can safely be used here
+#if defined(TARGET_X86)
+                UNIMPLEMENTED(FATAL);
+#else
                 reg = rARG3;
+#endif
                 loadWordDisp(cUnit, rSP,
                              oatSRegOffset(cUnit, rlArg.sRegLow) + 4, reg);
                 callState = nextCallInsn(cUnit, mir, callState, dexIdx,
@@ -360,7 +376,7 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
         // Loop through the rest
         while (nextUse < dInsn->vA) {
             int lowReg;
-            int highReg;
+            int highReg = -1;
             rlArg = oatGetRawSrc(cUnit, mir, nextUse);
             rlArg = oatUpdateRawLoc(cUnit, rlArg);
             if (rlArg.location == kLocPhysReg) {
@@ -368,7 +384,11 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                 highReg = rlArg.highReg;
             } else {
                 lowReg = rARG2;
+#if defined(TARGET_X86)
+                UNIMPLEMENTED(FATAL);
+#else
                 highReg = rARG3;
+#endif
                 if (rlArg.wide) {
                     loadValueDirectWideFixed(cUnit, rlArg, lowReg, highReg);
                 } else {
@@ -475,6 +495,14 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     callRuntimeHelper(cUnit, rTgt);
     // Restore Method*
     loadCurrMethodDirect(cUnit, rARG0);
+#elif defined(TARGET_X86)
+    // Generate memcpy
+    opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
+    opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
+    loadConstant(cUnit, rARG2, (numArgs - 3) * 4);
+    callRuntimeHelper(cUnit, OFFSETOF_MEMBER(Thread, pMemcpy));
+    // Restore Method*
+    loadCurrMethodDirect(cUnit, rARG0);
 #else
     if (numArgs >= 20) {
         // Generate memcpy
@@ -513,8 +541,5 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     }
     return callState;
 }
-
-#endif  // TARGET_ARM || TARGET_MIPS
-
 
 }  // namespace art

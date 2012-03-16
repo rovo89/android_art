@@ -447,9 +447,6 @@ void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
   bool srcFP = FPREG(srcLo) && FPREG(srcHi);
   assert(FPREG(srcLo) == FPREG(srcHi));
   assert(FPREG(destLo) == FPREG(destHi));
-  LOG(INFO) << "RegCopyWide: destLo=" << destLo << " destHi=" << destHi
-      << " srcLo=" << srcLo << " srcHi=" << srcHi
-      << " dFP=" << destFP << " sFP=" << srcFP;
   if (destFP) {
     if (srcFP) {
       opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));

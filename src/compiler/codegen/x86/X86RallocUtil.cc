@@ -96,48 +96,10 @@ uint32_t oatFpRegMask() {
 /* Clobber all regs that might be used by an external C call */
 extern void oatClobberCalleeSave(CompilationUnit *cUnit)
 {
-    UNIMPLEMENTED(WARNING) << "oatClobberCalleeSave";
-#if 0
-    oatClobber(cUnit, r_ZERO);
-    oatClobber(cUnit, r_AT);
-    oatClobber(cUnit, r_V0);
-    oatClobber(cUnit, r_V1);
-    oatClobber(cUnit, r_A0);
-    oatClobber(cUnit, r_A1);
-    oatClobber(cUnit, r_A2);
-    oatClobber(cUnit, r_A3);
-    oatClobber(cUnit, r_T0);
-    oatClobber(cUnit, r_T1);
-    oatClobber(cUnit, r_T2);
-    oatClobber(cUnit, r_T3);
-    oatClobber(cUnit, r_T4);
-    oatClobber(cUnit, r_T5);
-    oatClobber(cUnit, r_T6);
-    oatClobber(cUnit, r_T7);
-    oatClobber(cUnit, r_T8);
-    oatClobber(cUnit, r_T9);
-    oatClobber(cUnit, r_K0);
-    oatClobber(cUnit, r_K1);
-    oatClobber(cUnit, r_GP);
-    oatClobber(cUnit, r_FP);
-    oatClobber(cUnit, r_RA);
-    oatClobber(cUnit, r_F0);
-    oatClobber(cUnit, r_F1);
-    oatClobber(cUnit, r_F2);
-    oatClobber(cUnit, r_F3);
-    oatClobber(cUnit, r_F4);
-    oatClobber(cUnit, r_F5);
-    oatClobber(cUnit, r_F6);
-    oatClobber(cUnit, r_F7);
-    oatClobber(cUnit, r_F8);
-    oatClobber(cUnit, r_F9);
-    oatClobber(cUnit, r_F10);
-    oatClobber(cUnit, r_F11);
-    oatClobber(cUnit, r_F12);
-    oatClobber(cUnit, r_F13);
-    oatClobber(cUnit, r_F14);
-    oatClobber(cUnit, r_F15);
-#endif
+    oatClobber(cUnit, rBX);
+    oatClobber(cUnit, rBP);
+    oatClobber(cUnit, rSI);
+    oatClobber(cUnit, rDI);
 }
 
 extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit) {
@@ -170,25 +132,17 @@ extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)
 /* To be used when explicitly managing register use */
 extern void oatLockCallTemps(CompilationUnit* cUnit)
 {
-    UNIMPLEMENTED(WARNING) << "oatLockCallTemps";
-#if 0
     oatLockTemp(cUnit, rARG0);
     oatLockTemp(cUnit, rARG1);
     oatLockTemp(cUnit, rARG2);
-    oatLockTemp(cUnit, rARG3);
-#endif
 }
 
 /* To be used when explicitly managing register use */
 extern void oatFreeCallTemps(CompilationUnit* cUnit)
 {
-    UNIMPLEMENTED(WARNING) << "oatFreeCallTemps";
-#if 0
     oatFreeTemp(cUnit, rARG0);
     oatFreeTemp(cUnit, rARG1);
     oatFreeTemp(cUnit, rARG2);
-    oatFreeTemp(cUnit, rARG3);
-#endif
 }
 
 /* Convert an instruction to a NOP */

@@ -92,41 +92,30 @@ LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
  * 1) rDest is freshly returned from oatAllocTemp or
  * 2) The codegen is under fixed register usage
  */
-LIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest,
-                               int value)
-{
-    UNIMPLEMENTED(WARNING) << "loadConstantNoClobber";
-    return NULL;
-#if 0
-    LIR *res;
+LIR *loadConstantNoClobber(CompilationUnit *cUnit, int rDest, int value) {
+  LIR *res;
 
-    int rDestSave = rDest;
-    int isFpReg = FPREG(rDest);
-    if (isFpReg) {
-        DCHECK(SINGLEREG(rDest));
-        rDest = oatAllocTemp(cUnit);
-    }
+  int rDestSave = rDest;
+  int isFpReg = FPREG(rDest);
+  if (isFpReg) {
+    DCHECK(SINGLEREG(rDest));
+    rDest = oatAllocTemp(cUnit);
+  }
 
-    /* See if the value can be constructed cheaply */
-    if (value == 0) {
-        res = newLIR2(cUnit, kX86Move, rDest, r_ZERO);
-    } else if ((value > 0) && (value <= 65535)) {
-        res = newLIR3(cUnit, kX86Ori, rDest, r_ZERO, value);
-    } else if ((value < 0) && (value >= -32768)) {
-        res = newLIR3(cUnit, kX86Addiu, rDest, r_ZERO, value);
-    } else {
-        res = newLIR2(cUnit, kX86Lui, rDest, value>>16);
-        if (value & 0xffff)
-            newLIR3(cUnit, kX86Ori, rDest, rDest, value);
-    }
+  /* See if the value can be constructed cheaply */
+  if (value == 0) {
+    res = newLIR2(cUnit, kX86Xor32RR, rDest, rDest);
+  } else {
+    res = newLIR2(cUnit, kX86Mov32RI, rDest, value);
+  }
 
-    if (isFpReg) {
-        newLIR2(cUnit, kX86Mtc1, rDest, rDestSave);
-        oatFreeTemp(cUnit, rDest);
-    }
+  if (isFpReg) {
+    UNIMPLEMENTED(FATAL);
+    newLIR2(cUnit, kX86Mov32RR, rDest, rDestSave);
+    oatFreeTemp(cUnit, rDest);
+  }
 
-    return res;
-#endif
+  return res;
 }
 
 LIR* opBranchUnconditional(CompilationUnit *cUnit, OpKind op) {
@@ -309,6 +298,28 @@ LIR* opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest, int rSrc, int val
     opRegCopy(cUnit, rDest, rSrc);
   }
   return opRegImm(cUnit, op, rDest, value);
+}
+
+LIR* opThreadMem(CompilationUnit* cUnit, OpKind op, int threadOffset) {
+  X86OpCode opcode = kX86Bkpt;
+  switch (op) {
+    case kOpBlx: opcode = kX86CallT;  break;
+    default:
+      LOG(FATAL) << "Bad opcode: " << op;
+      break;
+  }
+  return newLIR1(cUnit, opcode, threadOffset);
+}
+
+LIR* opMem(CompilationUnit* cUnit, OpKind op, int rBase, int disp) {
+  X86OpCode opcode = kX86Bkpt;
+  switch (op) {
+    case kOpBlx: opcode = kX86CallM;  break;
+    default:
+      LOG(FATAL) << "Bad opcode: " << op;
+      break;
+  }
+  return newLIR2(cUnit, opcode, rBase, disp);
 }
 
 LIR *loadConstantValueWide(CompilationUnit *cUnit, int rDestLo,

@@ -37,7 +37,7 @@
 /* Target independent gen routines */
 #include "../../GenCommon.cc"
 /* Shared invoke gen routines */
-#include "../GenInvoke.cc"
+#include "../../GenInvoke.cc"
 /* X86-specific factory utilities */
 #include "../ArchFactory.cc"
 
