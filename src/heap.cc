@@ -132,6 +132,7 @@ static bool GenerateImage(const std::string image_file_name) {
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
            const std::string& original_image_file_name)
     : lock_(NULL),
+      image_space_(NULL),
       alloc_space_(NULL),
       mark_bitmap_(NULL),
       live_bitmap_(NULL),
@@ -163,35 +164,34 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   byte* requested_begin = NULL;
   std::string image_file_name(original_image_file_name);
   if (!image_file_name.empty()) {
-    ImageSpace* space = NULL;
     if (OS::FileExists(image_file_name.c_str())) {
       // If the /system file exists, it should be up-to-date, don't try to generate
-      space = Space::CreateImageSpace(image_file_name);
+      image_space_ = Space::CreateImageSpace(image_file_name);
     } else {
       // If the /system file didn't exist, we need to use one from the art-cache.
       // If the cache file exists, try to open, but if it fails, regenerate.
       // If it does not exist, generate.
       image_file_name = GetArtCacheFilenameOrDie(image_file_name);
       if (OS::FileExists(image_file_name.c_str())) {
-        space = Space::CreateImageSpace(image_file_name);
+        image_space_ = Space::CreateImageSpace(image_file_name);
       }
-      if (space == NULL) {
+      if (image_space_ == NULL) {
         if (!GenerateImage(image_file_name)) {
           LOG(FATAL) << "Failed to generate image: " << image_file_name;
         }
-        space = Space::CreateImageSpace(image_file_name);
+        image_space_ = Space::CreateImageSpace(image_file_name);
       }
     }
-    if (space == NULL) {
+    if (image_space_ == NULL) {
       LOG(FATAL) << "Failed to create space from " << image_file_name;
     }
 
-    AddSpace(space);
-    UpdateFirstAndLastSpace(&first_space, &last_space, space);
+    AddSpace(image_space_);
+    UpdateFirstAndLastSpace(&first_space, &last_space, image_space_);
     // Oat files referenced by image files immediately follow them in memory, ensure alloc space
     // isn't going to get in the middle
-    byte* oat_end_addr = space->GetImageHeader().GetOatEnd();
-    CHECK(oat_end_addr > space->End());
+    byte* oat_end_addr = image_space_->GetImageHeader().GetOatEnd();
+    CHECK(oat_end_addr > image_space_->End());
     if (oat_end_addr > requested_begin) {
       requested_begin = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_end_addr),
                                                         kPageSize));

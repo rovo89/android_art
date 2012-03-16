@@ -245,23 +245,6 @@ class Dex2Oat {
                        const std::set<std::string>* image_classes,
                        const std::string& oat_filename,
                        const std::string& oat_location) {
-    // If we have an existing boot image, position new space after its oat file
-    Heap* heap = Runtime::Current()->GetHeap();
-    if (heap->GetSpaces().size() > 1) {
-      ImageSpace* last_image_space = NULL;
-      const std::vector<Space*>& spaces = heap->GetSpaces();
-      for (size_t i=0; i < spaces.size(); i++) {
-        if (spaces[i]->IsImageSpace()) {
-          last_image_space = spaces[i]->AsImageSpace();
-        }
-      }
-      CHECK(last_image_space != NULL);
-      CHECK(last_image_space->IsImageSpace());
-      CHECK(!heap->GetSpaces()[heap->GetSpaces().size()-1]->IsImageSpace());
-      byte* oat_limit_addr = last_image_space->GetImageHeader().GetOatEnd();
-      image_base = RoundUp(reinterpret_cast<uintptr_t>(oat_limit_addr), kPageSize);
-    }
-
     ImageWriter image_writer(image_classes);
     if (!image_writer.Write(image_filename, image_base, oat_filename, oat_location)) {
       LOG(ERROR) << "Failed to create image file " << image_filename;

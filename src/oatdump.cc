@@ -1154,7 +1154,7 @@ int oatdump(int argc, char** argv) {
   }
 
   Heap* heap = Runtime::Current()->GetHeap();
-  ImageSpace* image_space = heap->GetSpaces()[heap->GetSpaces().size()-2]->AsImageSpace();
+  ImageSpace* image_space = heap->GetImageSpace();
   CHECK(image_space != NULL);
   const ImageHeader& image_header = image_space->GetImageHeader();
   if (!image_header.IsValid()) {

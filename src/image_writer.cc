@@ -49,11 +49,7 @@ bool ImageWriter::Write(const std::string& image_filename,
   image_begin_ = reinterpret_cast<byte*>(image_begin);
 
   Heap* heap = Runtime::Current()->GetHeap();
-  const std::vector<Space*>& spaces = heap->GetSpaces();
-  // currently just write the last space, assuming it is the space that was being used for allocation
-  CHECK_GE(spaces.size(), 1U);
-  source_space_ = spaces[spaces.size()-1];
-  CHECK(!source_space_->IsImageSpace());
+  source_space_ = heap->GetAllocSpace();
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const std::vector<DexCache*>& all_dex_caches = class_linker->GetDexCaches();
