@@ -436,31 +436,6 @@ void Thread::Dump(std::ostream& os, bool full) const {
   }
 }
 
-std::string GetSchedulerGroup(pid_t tid) {
-  // /proc/<pid>/group looks like this:
-  // 2:devices:/
-  // 1:cpuacct,cpu:/
-  // We want the third field from the line whose second field contains the "cpu" token.
-  std::string cgroup_file;
-  if (!ReadFileToString("/proc/self/cgroup", &cgroup_file)) {
-    return "";
-  }
-  std::vector<std::string> cgroup_lines;
-  Split(cgroup_file, '\n', cgroup_lines);
-  for (size_t i = 0; i < cgroup_lines.size(); ++i) {
-    std::vector<std::string> cgroup_fields;
-    Split(cgroup_lines[i], ':', cgroup_fields);
-    std::vector<std::string> cgroups;
-    Split(cgroup_fields[1], ',', cgroups);
-    for (size_t i = 0; i < cgroups.size(); ++i) {
-      if (cgroups[i] == "cpu") {
-        return cgroup_fields[2].substr(1); // Skip the leading slash.
-      }
-    }
-  }
-  return "";
-}
-
 String* Thread::GetThreadName() const {
   return (peer_ != NULL) ? reinterpret_cast<String*>(gThread_name->GetObject(peer_)) : NULL;
 }
@@ -491,9 +466,9 @@ void Thread::DumpState(std::ostream& os) const {
   sched_param sp;
   CHECK_PTHREAD_CALL(pthread_getschedparam, (pthread_self(), &policy, &sp), __FUNCTION__);
 
-  std::string scheduler_group(GetSchedulerGroup(GetTid()));
-  if (scheduler_group.empty()) {
-    scheduler_group = "default";
+  std::string scheduler_group_name(GetSchedulerGroupName(GetTid()));
+  if (scheduler_group_name.empty()) {
+    scheduler_group_name = "default";
   }
 
   os << '"' << *name_ << '"';
@@ -512,7 +487,7 @@ void Thread::DumpState(std::ostream& os) const {
   os << "  | sysTid=" << GetTid()
      << " nice=" << getpriority(PRIO_PROCESS, GetTid())
      << " sched=" << policy << "/" << sp.sched_priority
-     << " cgrp=" << scheduler_group
+     << " cgrp=" << scheduler_group_name
      << " handle=" << pthread_self() << "\n";
 
   // Grab the scheduler stats for this thread.
@@ -1068,7 +1043,7 @@ class CountStackDepthVisitor : public Thread::StackVisitor {
  public:
   CountStackDepthVisitor() : depth_(0), skip_depth_(0), skipping_(true) {}
 
-  bool VisitFrame(const Frame& frame, uintptr_t pc) {
+  bool VisitFrame(const Frame& frame, uintptr_t /*pc*/) {
     // We want to skip frames up to and including the exception's constructor.
     // Note we also skip the frame if it doesn't have a method (namely the callee
     // save frame)

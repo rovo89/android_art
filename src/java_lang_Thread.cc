@@ -30,7 +30,7 @@ static jobject Thread_currentThread(JNIEnv* env, jclass) {
   return AddLocalReference<jobject>(env, Thread::Current()->GetPeer());
 }
 
-static jboolean Thread_interrupted(JNIEnv* env, jclass) {
+static jboolean Thread_interrupted(JNIEnv*, jclass) {
   return Thread::Current()->Interrupted();
 }
 

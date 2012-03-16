@@ -341,7 +341,7 @@ class IndirectReferenceTable {
    * The object pointer itself is subject to relocation in some GC
    * implementations, so we shouldn't really be using it here.
    */
-  IndirectRef ToIndirectRef(const Object* obj, uint32_t tableIndex) const {
+  IndirectRef ToIndirectRef(const Object* /*o*/, uint32_t tableIndex) const {
     DCHECK_LT(tableIndex, 65536U);
     uint32_t serialChunk = slot_data_[tableIndex].serial;
     uint32_t uref = serialChunk << 20 | (tableIndex << 2) | kind_;

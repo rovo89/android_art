@@ -152,7 +152,7 @@ void CheckMapRequest(byte* addr, size_t length) {
 }
 
 #else
-static void CheckMapRequest(byte* addr, size_t length) { }
+static void CheckMapRequest(byte*, size_t) { }
 #endif
 
 MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t length, int prot) {

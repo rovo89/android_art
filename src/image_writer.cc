@@ -113,8 +113,8 @@ void ImageWriter::ComputeLazyFieldsForImageClasses() {
 
 }
 
-bool ImageWriter::ComputeLazyFieldsForClassesVisitor(Class* klass, void* arg) {
-  klass->ComputeName();
+bool ImageWriter::ComputeLazyFieldsForClassesVisitor(Class* c, void* /*arg*/) {
+  c->ComputeName();
   return true;
 }
 

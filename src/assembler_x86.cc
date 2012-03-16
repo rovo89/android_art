@@ -183,7 +183,7 @@ void X86Assembler::movsxb(Register dst, const Address& src) {
 }
 
 
-void X86Assembler::movb(Register dst, const Address& src) {
+void X86Assembler::movb(Register /*dst*/, const Address& /*src*/) {
   LOG(FATAL) << "Use movzxb or movsxb instead.";
 }
 
@@ -236,7 +236,7 @@ void X86Assembler::movsxw(Register dst, const Address& src) {
 }
 
 
-void X86Assembler::movw(Register dst, const Address& src) {
+void X86Assembler::movw(Register /*dst*/, const Address& /*src*/) {
   LOG(FATAL) << "Use movzxw or movsxw instead.";
 }
 
@@ -1494,8 +1494,8 @@ void X86Assembler::StoreLabelToThread(ThreadOffset thr_offs, Label* lbl) {
   fs()->movl(Address::Absolute(thr_offs), lbl);
 }
 
-void X86Assembler::StoreSpanning(FrameOffset dest, ManagedRegister src,
-                                 FrameOffset in_off, ManagedRegister scratch) {
+void X86Assembler::StoreSpanning(FrameOffset /*dst*/, ManagedRegister /*src*/,
+                                 FrameOffset /*in_off*/, ManagedRegister /*scratch*/) {
   UNIMPLEMENTED(FATAL);  // this case only currently exists for ARM
 }
 
@@ -1647,8 +1647,8 @@ void X86Assembler::Copy(FrameOffset dest, FrameOffset src,
   }
 }
 
-void X86Assembler::Copy(FrameOffset dest, ManagedRegister src_base, Offset src_offset,
-                        ManagedRegister scratch, size_t size) {
+void X86Assembler::Copy(FrameOffset /*dst*/, ManagedRegister /*src_base*/, Offset /*src_offset*/,
+                        ManagedRegister /*scratch*/, size_t /*size*/) {
   UNIMPLEMENTED(FATAL);
 }
 
@@ -1752,11 +1752,11 @@ void X86Assembler::LoadReferenceFromSirt(ManagedRegister mout_reg,
   Bind(&null_arg);
 }
 
-void X86Assembler::VerifyObject(ManagedRegister src, bool could_be_null) {
+void X86Assembler::VerifyObject(ManagedRegister /*src*/, bool /*could_be_null*/) {
   // TODO: not validating references
 }
 
-void X86Assembler::VerifyObject(FrameOffset src, bool could_be_null) {
+void X86Assembler::VerifyObject(FrameOffset /*src*/, bool /*could_be_null*/) {
   // TODO: not validating references
 }
 
@@ -1773,7 +1773,7 @@ void X86Assembler::Call(FrameOffset base, Offset offset, ManagedRegister mscratc
   call(Address(scratch, offset));
 }
 
-void X86Assembler::Call(ThreadOffset offset, ManagedRegister mscratch) {
+void X86Assembler::Call(ThreadOffset offset, ManagedRegister /*mscratch*/) {
   fs()->call(Address::Absolute(offset));
 }
 
@@ -1789,7 +1789,7 @@ void X86Assembler::GetCurrentThread(FrameOffset offset,
   movl(Address(ESP, offset), scratch.AsCpuRegister());
 }
 
-void X86Assembler::SuspendPoll(ManagedRegister scratch,
+void X86Assembler::SuspendPoll(ManagedRegister /*scratch*/,
                                ManagedRegister return_reg,
                                FrameOffset return_save_location,
                                size_t return_size) {
@@ -1819,7 +1819,7 @@ void X86SuspendCountSlowPath::Emit(Assembler *sasm) {
 #undef __
 }
 
-void X86Assembler::ExceptionPoll(ManagedRegister scratch) {
+void X86Assembler::ExceptionPoll(ManagedRegister /*scratch*/) {
   X86ExceptionSlowPath* slow = new X86ExceptionSlowPath();
   buffer_.EnqueueSlowPath(slow);
   fs()->cmpl(Address::Absolute(Thread::ExceptionOffset()), Immediate(0));

@@ -27,7 +27,8 @@
 
 namespace art {
 
-static inline void CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
+static inline void CheckSafeToLockOrUnlock(MutexRank __attribute__((unused)) rank,
+                                           bool __attribute__((unused)) is_locking) {
 #ifndef NDEBUG
   if (rank == -1) {
     return;
@@ -39,7 +40,7 @@ static inline void CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
 #endif
 }
 
-static inline void CheckSafeToWait(MutexRank rank) {
+static inline void CheckSafeToWait(MutexRank __attribute__((unused)) rank) {
 #ifndef NDEBUG
   Thread* self = Thread::Current();
   if (self != NULL) {

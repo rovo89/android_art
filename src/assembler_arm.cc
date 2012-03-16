@@ -1658,7 +1658,7 @@ void ArmAssembler::StoreStackPointerToThread(ThreadOffset thr_offs) {
   StoreToOffset(kStoreWord, SP, TR, thr_offs.Int32Value());
 }
 
-void ArmAssembler::Move(ManagedRegister mdest, ManagedRegister msrc, size_t size) {
+void ArmAssembler::Move(ManagedRegister mdest, ManagedRegister msrc, size_t /*size*/) {
   ArmManagedRegister dest = mdest.AsArm();
   ArmManagedRegister src = msrc.AsArm();
   if (!dest.Equals(src)) {
@@ -1717,8 +1717,8 @@ void ArmAssembler::Copy(ManagedRegister dest_base, Offset dest_offset, FrameOffs
   StoreToOffset(kStoreWord, scratch, dest_base.AsArm().AsCoreRegister(), dest_offset.Int32Value());
 }
 
-void ArmAssembler::Copy(FrameOffset dest, FrameOffset src_base, Offset src_offset,
-                        ManagedRegister mscratch, size_t size) {
+void ArmAssembler::Copy(FrameOffset /*dst*/, FrameOffset /*src_base*/, Offset /*src_offset*/,
+                        ManagedRegister /*mscratch*/, size_t /*size*/) {
   UNIMPLEMENTED(FATAL);
 }
 
@@ -1731,8 +1731,8 @@ void ArmAssembler::Copy(ManagedRegister dest, Offset dest_offset,
   StoreToOffset(kStoreWord, scratch, dest.AsArm().AsCoreRegister(), dest_offset.Int32Value());
 }
 
-void ArmAssembler::Copy(FrameOffset dest, Offset dest_offset, FrameOffset src, Offset src_offset,
-                        ManagedRegister scratch, size_t size) {
+void ArmAssembler::Copy(FrameOffset /*dst*/, Offset /*dest_offset*/, FrameOffset /*src*/, Offset /*src_offset*/,
+                        ManagedRegister /*scratch*/, size_t /*size*/) {
   UNIMPLEMENTED(FATAL);
 }
 
@@ -1816,11 +1816,11 @@ void ArmAssembler::LoadReferenceFromSirt(ManagedRegister mout_reg,
                  in_reg.AsCoreRegister(), 0, NE);
 }
 
-void ArmAssembler::VerifyObject(ManagedRegister src, bool could_be_null) {
+void ArmAssembler::VerifyObject(ManagedRegister /*src*/, bool /*could_be_null*/) {
   // TODO: not validating references
 }
 
-void ArmAssembler::VerifyObject(FrameOffset src, bool could_be_null) {
+void ArmAssembler::VerifyObject(FrameOffset /*src*/, bool /*could_be_null*/) {
   // TODO: not validating references
 }
 
@@ -1849,7 +1849,7 @@ void ArmAssembler::Call(FrameOffset base, Offset offset,
   // TODO: place reference map on call
 }
 
-void ArmAssembler::Call(ThreadOffset offset, ManagedRegister scratch) {
+void ArmAssembler::Call(ThreadOffset /*offset*/, ManagedRegister /*scratch*/) {
   UNIMPLEMENTED(FATAL);
 }
 
@@ -1858,7 +1858,7 @@ void ArmAssembler::GetCurrentThread(ManagedRegister tr) {
 }
 
 void ArmAssembler::GetCurrentThread(FrameOffset offset,
-                                    ManagedRegister scratch) {
+                                    ManagedRegister /*scratch*/) {
   StoreToOffset(kStoreWord, TR, SP, offset.Int32Value(), AL);
 }
 

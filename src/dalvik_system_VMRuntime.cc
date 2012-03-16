@@ -129,7 +129,7 @@ static void DisableCheckJniCallback(Thread* t, void*) {
   t->GetJniEnv()->SetCheckJniEnabled(false);
 }
 
-static void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) {
+static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersion) {
   // This is the target SDK version of the app we're about to run.
   // Note that targetSdkVersion may be CUR_DEVELOPMENT (10000).
   // Note that targetSdkVersion may be 0, meaning "current".
@@ -150,7 +150,7 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVe
   }
 }
 
-static void VMRuntime_trimHeap(JNIEnv* env, jobject) {
+static void VMRuntime_trimHeap(JNIEnv*, jobject) {
   ScopedHeapLock heap_lock;
   Heap* heap = Runtime::Current()->GetHeap();
   size_t alloc_space_size = heap->GetAllocSpace()->Size();

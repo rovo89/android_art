@@ -29,13 +29,11 @@
 #include "scoped_jni_thread_state.h"
 #include "thread.h"
 
-extern "C"
-JNIEXPORT jint JNICALL Java_MyClass_bar(JNIEnv* env, jobject thisObj, jint count) {
+extern "C" JNIEXPORT jint JNICALL Java_MyClass_bar(JNIEnv*, jobject, jint count) {
   return count + 1;
 }
 
-extern "C"
-JNIEXPORT jint JNICALL Java_MyClass_sbar(JNIEnv* env, jclass myClass, jint count) {
+extern "C" JNIEXPORT jint JNICALL Java_MyClass_sbar(JNIEnv*, jclass, jint count) {
   return count + 1;
 }
 
@@ -556,7 +554,7 @@ TEST_F(JniCompilerTest, NativeStackTraceElement) {
   EXPECT_EQ(10+9+8+7+6+5+4+3+2+1, result);
 }
 
-jobject Java_MyClass_fooO(JNIEnv* env, jobject thisObj, jobject x) {
+jobject Java_MyClass_fooO(JNIEnv* env, jobject, jobject x) {
   return env->NewGlobalRef(x);
 }
 

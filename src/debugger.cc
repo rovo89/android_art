@@ -1262,8 +1262,10 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId objectId, JDWP::FieldId 
 
   if (IsPrimitiveTag(tag)) {
     if (tag == JDWP::JT_DOUBLE || tag == JDWP::JT_LONG) {
+      CHECK_EQ(width, 8);
       f->Set64(o, value);
     } else {
+      CHECK_LE(width, 4);
       f->Set32(o, value);
     }
   } else {
@@ -1571,7 +1573,7 @@ void Dbg::GetThisObject(JDWP::FrameId frameId, JDWP::ObjectId* pThisId) {
   *pThisId = gRegistry->Add(o);
 }
 
-void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t width) {
+void Dbg::GetLocalValue(JDWP::ObjectId /*threadId*/, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t width) {
   Method** sp = reinterpret_cast<Method**>(frameId);
   Frame f(sp);
   Method* m = f.GetMethod();
@@ -1668,7 +1670,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
   JDWP::Set1(buf, tag);
 }
 
-void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint64_t value, size_t width) {
+void Dbg::SetLocalValue(JDWP::ObjectId /*threadId*/, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint64_t value, size_t width) {
   Method** sp = reinterpret_cast<Method**>(frameId);
   Frame f(sp);
   Method* m = f.GetMethod();
@@ -2033,7 +2035,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
   return JDWP::ERR_NONE;
 }
 
-void Dbg::UnconfigureStep(JDWP::ObjectId threadId) {
+void Dbg::UnconfigureStep(JDWP::ObjectId /*threadId*/) {
   gSingleStepControl.is_active = false;
   gSingleStepControl.thread = NULL;
   gSingleStepControl.dex_pcs.clear();
@@ -2668,7 +2670,7 @@ class HeapChunkContext {
     pieceLenField_ = NULL;
   }
 
-  void HeapChunkCallback(void* start, void* end, size_t used_bytes) {
+  void HeapChunkCallback(void* start, void* /*end*/, size_t used_bytes) {
     // Note: heap call backs cannot manipulate the heap upon which they are crawling, care is taken
     // in the following code not to allocate memory, by ensuring buf_ is of the correct size
 

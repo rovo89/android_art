@@ -18,7 +18,7 @@
 
 namespace art {
 
-void Thread::DumpNativeStack(std::ostream& os) const {
+void Thread::DumpNativeStack(std::ostream&) const {
   // TODO: use glibc backtrace(3).
 }
 

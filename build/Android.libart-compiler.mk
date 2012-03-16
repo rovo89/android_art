@@ -88,6 +88,10 @@ define build-libart-compiler
   else # host
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS)
   endif
+
+  # TODO: clean up the compilers and remove this.
+  LOCAL_CFLAGS += -Wno-unused-parameter
+
   LOCAL_SHARED_LIBRARIES := liblog
   ifeq ($$(art_ndebug_or_debug),debug)
     ifeq ($$(art_target_or_host),target)

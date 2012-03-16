@@ -56,7 +56,7 @@ static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
   return true;
 }
 
-static int InvokeMain(JNIEnv* env, int argc, char** argv) {
+static int InvokeMain(JNIEnv* env, char** argv) {
   // We want to call main() with a String array with our arguments in
   // it.  Create an array and populate it.  Note argv[0] is not
   // included.
@@ -171,7 +171,7 @@ int oatexec(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  int rc = InvokeMain(env, argc - arg_idx, &argv[arg_idx]);
+  int rc = InvokeMain(env, &argv[arg_idx]);
 
   if (vm->DetachCurrentThread() != JNI_OK) {
     fprintf(stderr, "Warning: unable to detach main thread\n");

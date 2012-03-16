@@ -51,7 +51,6 @@ art_cflags := \
 	-Wall \
 	-Werror \
 	-Wextra \
-	-Wno-unused-parameter \
 	-Wstrict-aliasing=3 \
 	-fno-align-jumps \
 	-fstrict-aliasing

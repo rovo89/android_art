@@ -198,10 +198,12 @@ size_t OatWriter::InitOatCodeClassDef(size_t offset,
   return offset;
 }
 
-size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index, size_t class_def_index,
-                                    size_t class_def_method_index, bool is_native, bool is_static,
-                                    bool is_direct, uint32_t method_idx, const DexFile* dex_file) {
-
+size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
+                                    size_t __attribute__((unused)) class_def_index,
+                                    size_t class_def_method_index,
+                                    bool __attribute__((unused)) is_native,
+                                    bool is_static, bool is_direct,
+                                    uint32_t method_idx, const DexFile* dex_file) {
 #if !defined(ART_USE_LLVM_COMPILER)
   // derived from CompiledMethod if available
   uint32_t code_offset = 0;

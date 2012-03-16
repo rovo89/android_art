@@ -278,6 +278,9 @@ pid_t GetTid();
 // Reads data from "/proc/self/task/${tid}/stat".
 void GetTaskStats(pid_t tid, int& utime, int& stime, int& task_cpu);
 
+// Returns the name of the scheduler group for the given thread the current process, or the empty string.
+std::string GetSchedulerGroupName(pid_t tid);
+
 // Sets the name of the current thread. The name may be truncated to an
 // implementation-defined limit.
 void SetThreadName(const char* name);

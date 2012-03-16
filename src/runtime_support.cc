@@ -208,7 +208,7 @@ extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Met
   thread->DeliverException();
 }
 
-extern "C" void artThrowStackOverflowFromCode(Method* method, Thread* thread, Method** sp) {
+extern "C" void artThrowStackOverflowFromCode(Method* /*method*/, Thread* thread, Method** sp) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   // Remove extra entry pushed onto second stack during method tracing
   if (Runtime::Current()->IsMethodTracingActive()) {

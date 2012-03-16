@@ -94,8 +94,7 @@ struct ReferenceMapVisitor : public Thread::StackVisitor {
   }
 };
 
-extern "C"
-JNIEXPORT jint JNICALL Java_StackWalk_refmap(JNIEnv* env, jobject thisObj, jint count) {
+extern "C" JNIEXPORT jint JNICALL Java_StackWalk_refmap(JNIEnv*, jobject, jint count) {
   CHECK_EQ(count, 0);
   gJava_StackWalk_refmap_calls++;
 
@@ -106,8 +105,7 @@ JNIEXPORT jint JNICALL Java_StackWalk_refmap(JNIEnv* env, jobject thisObj, jint 
   return count + 1;
 }
 
-extern "C"
-JNIEXPORT jint JNICALL Java_StackWalk2_refmap2(JNIEnv* env, jobject thisObj, jint count) {
+extern "C" JNIEXPORT jint JNICALL Java_StackWalk2_refmap2(JNIEnv*, jobject, jint count) {
   gJava_StackWalk_refmap_calls++;
 
   // Visitor

@@ -2332,7 +2332,7 @@ inline uint32_t Method::GetDexMethodIndex() const {
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_dex_index_), false);
 }
 
-inline void Method::AssertPcIsWithinCode(uintptr_t pc) const {
+inline void Method::AssertPcIsWithinCode(uintptr_t __attribute__((unused)) pc) const {
 #ifndef NDEBUG
   if (IsNative() || IsRuntimeMethod() || IsProxyMethod()) {
     return;

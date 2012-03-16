@@ -130,7 +130,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_STREQ(kh.GetDescriptor(), "Ljava/io/Serializable;");
   }
 
-  void AssertMethod(Class* klass, Method* method) {
+  void AssertMethod(Method* method) {
     MethodHelper mh(method);
     EXPECT_TRUE(method != NULL);
     EXPECT_TRUE(method->GetClass() != NULL);
@@ -226,14 +226,14 @@ class ClassLinkerTest : public CommonTest {
 
     for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
       Method* method = klass->GetDirectMethod(i);
-      AssertMethod(klass, method);
+      AssertMethod(method);
       EXPECT_TRUE(method->IsDirect());
       EXPECT_EQ(klass, method->GetDeclaringClass());
     }
 
     for (size_t i = 0; i < klass->NumVirtualMethods(); i++) {
       Method* method = klass->GetVirtualMethod(i);
-      AssertMethod(klass, method);
+      AssertMethod(method);
       EXPECT_FALSE(method->IsDirect());
       EXPECT_TRUE(method->GetDeclaringClass()->IsAssignableFrom(klass));
     }
@@ -322,7 +322,7 @@ class ClassLinkerTest : public CommonTest {
     }
   }
 
-  static void TestRootVisitor(const Object* root, void* arg) {
+  static void TestRootVisitor(const Object* root, void*) {
     EXPECT_TRUE(root != NULL);
   }
 };

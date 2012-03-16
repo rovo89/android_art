@@ -62,9 +62,9 @@ class Heap {
 
   // Check sanity of given reference. Requires the heap lock.
 #if VERIFY_OBJECT_ENABLED
-  void VerifyObject(const Object *obj);
+  void VerifyObject(const Object* o);
 #else
-  void VerifyObject(const Object *obj) {}
+  void VerifyObject(const Object*) {}
 #endif
 
   // Check sanity of all live references. Requires the heap lock.
@@ -182,16 +182,16 @@ class Heap {
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.
-  void WriteBarrierField(const Object* dest, MemberOffset offset, const Object* new_val) {
+  void WriteBarrierField(const Object* dst, MemberOffset /*offset*/, const Object* /*new_value*/) {
     if (!card_marking_disabled_) {
-      card_table_->MarkCard(dest);
+      card_table_->MarkCard(dst);
     }
   }
 
   // Write barrier for array operations that update many field positions
-  void WriteBarrierArray(const Object* dest, int pos, size_t len) {
+  void WriteBarrierArray(const Object* dst, int /*start_offset*/, size_t /*length TODO: element_count or byte_count?*/) {
     if (UNLIKELY(!card_marking_disabled_)) {
-      card_table_->MarkCard(dest);
+      card_table_->MarkCard(dst);
     }
   }
 

@@ -26,15 +26,15 @@
 
 namespace art {
 
-static void DdmVmInternal_enableRecentAllocations(JNIEnv* env, jclass, jboolean enable) {
+static void DdmVmInternal_enableRecentAllocations(JNIEnv*, jclass, jboolean enable) {
   Dbg::SetAllocTrackingEnabled(enable);
 }
 
-static jbyteArray DdmVmInternal_getRecentAllocations(JNIEnv* env, jclass) {
+static jbyteArray DdmVmInternal_getRecentAllocations(JNIEnv*, jclass) {
   return Dbg::GetRecentAllocations();
 }
 
-static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv* env, jclass) {
+static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv*, jclass) {
   return Dbg::IsAllocTrackingEnabled();
 }
 
@@ -138,15 +138,15 @@ static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
   return result;
 }
 
-static jint DdmVmInternal_heapInfoNotify(JNIEnv* env, jclass, jint when) {
+static jint DdmVmInternal_heapInfoNotify(JNIEnv*, jclass, jint when) {
   return Dbg::DdmHandleHpifChunk(static_cast<Dbg::HpifWhen>(when));
 }
 
-static jboolean DdmVmInternal_heapSegmentNotify(JNIEnv* env, jclass, jint when, jint what, jboolean native) {
+static jboolean DdmVmInternal_heapSegmentNotify(JNIEnv*, jclass, jint when, jint what, jboolean native) {
   return Dbg::DdmHandleHpsgNhsgChunk(static_cast<Dbg::HpsgWhen>(when), static_cast<Dbg::HpsgWhat>(what), native);
 }
 
-static void DdmVmInternal_threadNotify(JNIEnv* env, jclass, jboolean enable) {
+static void DdmVmInternal_threadNotify(JNIEnv*, jclass, jboolean enable) {
   Dbg::DdmSetThreadNotification(enable);
 }
 

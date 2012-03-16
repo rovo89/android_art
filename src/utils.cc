@@ -741,7 +741,7 @@ void SetThreadName(const char* threadName) {
 void GetTaskStats(pid_t tid, int& utime, int& stime, int& task_cpu) {
   utime = stime = task_cpu = 0;
   std::string stats;
-  if (!ReadFileToString(StringPrintf("/proc/self/task/%d/stat", GetTid()).c_str(), &stats)) {
+  if (!ReadFileToString(StringPrintf("/proc/self/task/%d/stat", tid).c_str(), &stats)) {
     return;
   }
   // Skip the command, which may contain spaces.
@@ -752,6 +752,31 @@ void GetTaskStats(pid_t tid, int& utime, int& stime, int& task_cpu) {
   utime = strtoull(fields[11].c_str(), NULL, 10);
   stime = strtoull(fields[12].c_str(), NULL, 10);
   task_cpu = strtoull(fields[36].c_str(), NULL, 10);
+}
+
+std::string GetSchedulerGroupName(pid_t tid) {
+  // /proc/<pid>/cgroup looks like this:
+  // 2:devices:/
+  // 1:cpuacct,cpu:/
+  // We want the third field from the line whose second field contains the "cpu" token.
+  std::string cgroup_file;
+  if (!ReadFileToString(StringPrintf("/proc/self/task/%d/cgroup", tid), &cgroup_file)) {
+    return "";
+  }
+  std::vector<std::string> cgroup_lines;
+  Split(cgroup_file, '\n', cgroup_lines);
+  for (size_t i = 0; i < cgroup_lines.size(); ++i) {
+    std::vector<std::string> cgroup_fields;
+    Split(cgroup_lines[i], ':', cgroup_fields);
+    std::vector<std::string> cgroups;
+    Split(cgroup_fields[1], ',', cgroups);
+    for (size_t i = 0; i < cgroups.size(); ++i) {
+      if (cgroups[i] == "cpu") {
+        return cgroup_fields[2].substr(1); // Skip the leading slash.
+      }
+    }
+  }
+  return "";
 }
 
 const char* GetAndroidRoot() {

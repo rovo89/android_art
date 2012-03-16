@@ -50,7 +50,7 @@ static void VMDebug_stopAllocCounting(JNIEnv*, jclass) {
   Runtime::Current()->SetStatsEnabled(false);
 }
 
-static jint VMDebug_getAllocCount(JNIEnv* env, jclass, jint kind) {
+static jint VMDebug_getAllocCount(JNIEnv*, jclass, jint kind) {
   return Runtime::Current()->GetStat(kind);
 }
 
@@ -58,7 +58,7 @@ static void VMDebug_resetAllocCount(JNIEnv*, jclass, jint kinds) {
   Runtime::Current()->ResetStats(kinds);
 }
 
-static void VMDebug_startMethodTracingDdmsImpl(JNIEnv* env, jclass, jint bufferSize, jint flags) {
+static void VMDebug_startMethodTracingDdmsImpl(JNIEnv*, jclass, jint bufferSize, jint flags) {
   Trace::Start("[DDMS]", -1, bufferSize, flags, true);
 }
 
@@ -127,7 +127,7 @@ static void VMDebug_stopInstructionCounting(JNIEnv* env, jclass) {
   jniThrowException(env, "java/lang/UnsupportedOperationException", NULL);
 }
 
-static void VMDebug_getInstructionCount(JNIEnv* env, jclass, jintArray javaCounts) {
+static void VMDebug_getInstructionCount(JNIEnv* env, jclass, jintArray /*javaCounts*/) {
   jniThrowException(env, "java/lang/UnsupportedOperationException", NULL);
 }
 
