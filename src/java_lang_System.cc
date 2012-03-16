@@ -102,15 +102,13 @@ static void move32(void* dst, const void* src, size_t n) {
 
 namespace art {
 
-namespace {
-
-void ThrowArrayStoreException_NotAnArray(const char* identifier, Object* array) {
+static void ThrowArrayStoreException_NotAnArray(const char* identifier, Object* array) {
   std::string actualType(PrettyTypeOf(array));
   Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
       "%s of type %s is not an array", identifier, actualType.c_str());
 }
 
-void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject javaDst, jint dstPos, jint length) {
+static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject javaDst, jint dstPos, jint length) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Thread* self = Thread::Current();
 
@@ -244,17 +242,15 @@ void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject
   }
 }
 
-jint System_identityHashCode(JNIEnv* env, jclass, jobject javaObject) {
+static jint System_identityHashCode(JNIEnv* env, jclass, jobject javaObject) {
   Object* o = Decode<Object*>(env, javaObject);
   return static_cast<jint>(reinterpret_cast<uintptr_t>(o));
 }
 
-JNINativeMethod gMethods[] = {
+static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(System, arraycopy, "(Ljava/lang/Object;ILjava/lang/Object;II)V"),
   NATIVE_METHOD(System, identityHashCode, "(Ljava/lang/Object;)I"),
 };
-
-}  // namespace
 
 void register_java_lang_System(JNIEnv* env) {
     jniRegisterNativeMethods(env, "java/lang/System", gMethods, NELEM(gMethods));

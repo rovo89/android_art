@@ -27,14 +27,12 @@
 
 namespace art {
 
-namespace {
-
-void Runtime_gc(JNIEnv*, jclass) {
+static void Runtime_gc(JNIEnv*, jclass) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
-void Runtime_nativeExit(JNIEnv* env, jclass, jint status, jboolean isExit) {
+static void Runtime_nativeExit(JNIEnv* env, jclass, jint status, jboolean isExit) {
   // isExit is true for System.exit and false for System.halt.
   if (isExit) {
     Runtime::Current()->CallExitHook(status);
@@ -49,7 +47,7 @@ void Runtime_nativeExit(JNIEnv* env, jclass, jint status, jboolean isExit) {
  * JNI-compatible methods. Returns null on success, or a failure
  * message on failure.
  */
-jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader) {
+static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader) {
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == NULL) {
     return NULL;
@@ -66,15 +64,15 @@ jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject ja
   return env->NewStringUTF(detail.c_str());
 }
 
-jlong Runtime_maxMemory(JNIEnv* env, jclass) {
+static jlong Runtime_maxMemory(JNIEnv* env, jclass) {
   return Runtime::Current()->GetHeap()->GetMaxMemory();
 }
 
-jlong Runtime_totalMemory(JNIEnv* env, jclass) {
+static jlong Runtime_totalMemory(JNIEnv* env, jclass) {
   return Runtime::Current()->GetHeap()->GetTotalMemory();
 }
 
-jlong Runtime_freeMemory(JNIEnv* env, jclass) {
+static jlong Runtime_freeMemory(JNIEnv* env, jclass) {
   return Runtime::Current()->GetHeap()->GetFreeMemory();
 }
 
@@ -86,8 +84,6 @@ static JNINativeMethod gMethods[] = {
     NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;)Ljava/lang/String;"),
     NATIVE_METHOD(Runtime, totalMemory, "()J"),
 };
-
-}  // namespace
 
 void register_java_lang_Runtime(JNIEnv* env) {
     jniRegisterNativeMethods(env, "java/lang/Runtime", gMethods, NELEM(gMethods));

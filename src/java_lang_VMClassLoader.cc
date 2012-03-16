@@ -23,9 +23,7 @@
 
 namespace art {
 
-namespace {
-
-jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader, jstring javaName) {
+static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader, jstring javaName) {
   ClassLoader* loader = Decode<ClassLoader*>(env, javaLoader);
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == NULL) {
@@ -43,7 +41,7 @@ jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader, js
   }
 }
 
-jint VMClassLoader_getBootClassPathSize(JNIEnv* env, jclass) {
+static jint VMClassLoader_getBootClassPathSize(JNIEnv* env, jclass) {
   return Runtime::Current()->GetClassLinker()->GetBootClassPath().size();
 }
 
@@ -60,7 +58,7 @@ jint VMClassLoader_getBootClassPathSize(JNIEnv* env, jclass) {
  * with '/'); if it's not we'd need to make it absolute as part of forming
  * the URL string.
  */
-jstring VMClassLoader_getBootClassPathResource(JNIEnv* env, jclass, jstring javaName, jint index) {
+static jstring VMClassLoader_getBootClassPathResource(JNIEnv* env, jclass, jstring javaName, jint index) {
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == NULL) {
     return NULL;
@@ -91,8 +89,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMClassLoader, getBootClassPathResource, "(Ljava/lang/String;I)Ljava/lang/String;"),
   NATIVE_METHOD(VMClassLoader, getBootClassPathSize, "()I"),
 };
-
-}  // namespace
 
 void register_java_lang_VMClassLoader(JNIEnv* env) {
   jniRegisterNativeMethods(env, "java/lang/VMClassLoader", gMethods, NELEM(gMethods));

@@ -24,9 +24,7 @@
 
 namespace art {
 
-namespace {
-
-bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
+static bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   switch (FieldHelper(f).GetTypeAsPrimitiveType()) {
   case Primitive::kPrimBoolean:
@@ -69,7 +67,7 @@ bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
   return false;
 }
 
-bool CheckReceiver(JNIEnv* env, jobject javaObj, Field* f, Object*& o) {
+static bool CheckReceiver(JNIEnv* env, jobject javaObj, Field* f, Object*& o) {
   if (f->IsStatic()) {
     o = NULL;
     return true;
@@ -83,7 +81,7 @@ bool CheckReceiver(JNIEnv* env, jobject javaObj, Field* f, Object*& o) {
   return true;
 }
 
-jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
+static jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
   Field* f = DecodeField(env->FromReflectedField(javaField));
   Object* o = NULL;
   if (!CheckReceiver(env, javaObj, f, o)) {
@@ -100,7 +98,7 @@ jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
   return AddLocalReference<jobject>(env, value.l);
 }
 
-JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char dst_descriptor) {
+static JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char dst_descriptor) {
   Field* f = DecodeField(env->FromReflectedField(javaField));
   Object* o = NULL;
   if (!CheckReceiver(env, javaObj, f, o)) {
@@ -123,39 +121,39 @@ JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char d
   return wide_value;
 }
 
-jboolean Field_getBoolean(JNIEnv* env, jobject javaField, jobject javaObj) {
+static jboolean Field_getBoolean(JNIEnv* env, jobject javaField, jobject javaObj) {
   return GetPrimitiveField(env, javaField, javaObj, 'Z').z;
 }
 
-jbyte Field_getByte(JNIEnv* env, jobject javaField, jobject javaObj) {
+static jbyte Field_getByte(JNIEnv* env, jobject javaField, jobject javaObj) {
   return GetPrimitiveField(env, javaField, javaObj, 'B').b;
 }
 
-jchar Field_getChar(JNIEnv* env, jobject javaField, jobject javaObj) {
+static jchar Field_getChar(JNIEnv* env, jobject javaField, jobject javaObj) {
   return GetPrimitiveField(env, javaField, javaObj, 'C').c;
 }
 
-jdouble Field_getDouble(JNIEnv* env, jobject javaField, jobject javaObj) {
+static jdouble Field_getDouble(JNIEnv* env, jobject javaField, jobject javaObj) {
   return GetPrimitiveField(env, javaField, javaObj, 'D').d;
 }
 
-jfloat Field_getFloat(JNIEnv* env, jobject javaField, jobject javaObj) {
+static jfloat Field_getFloat(JNIEnv* env, jobject javaField, jobject javaObj) {
   return GetPrimitiveField(env, javaField, javaObj, 'F').f;
 }
 
-jint Field_getInt(JNIEnv* env, jobject javaField, jobject javaObj) {
+static jint Field_getInt(JNIEnv* env, jobject javaField, jobject javaObj) {
   return GetPrimitiveField(env, javaField, javaObj, 'I').i;
 }
 
-jlong Field_getLong(JNIEnv* env, jobject javaField, jobject javaObj) {
+static jlong Field_getLong(JNIEnv* env, jobject javaField, jobject javaObj) {
   return GetPrimitiveField(env, javaField, javaObj, 'J').j;
 }
 
-jshort Field_getShort(JNIEnv* env, jobject javaField, jobject javaObj) {
+static jshort Field_getShort(JNIEnv* env, jobject javaField, jobject javaObj) {
   return GetPrimitiveField(env, javaField, javaObj, 'S').s;
 }
 
-void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_references) {
+static void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_references) {
   switch (FieldHelper(f).GetTypeAsPrimitiveType()) {
   case Primitive::kPrimBoolean:
     f->SetBoolean(o, new_value.z);
@@ -201,7 +199,7 @@ void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_refe
   }
 }
 
-void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject javaValue) {
+static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject javaValue) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Field* f = DecodeField(env->FromReflectedField(javaField));
 
@@ -221,8 +219,8 @@ void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject javaValu
   SetFieldValue(o, f, unboxed_value, true);
 }
 
-void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char src_descriptor,
-                       const JValue& new_value) {
+static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char src_descriptor,
+                              const JValue& new_value) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Field* f = DecodeField(env->FromReflectedField(javaField));
   Object* o = NULL;
@@ -248,49 +246,49 @@ void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char src
   SetFieldValue(o, f, wide_value, false);
 }
 
-void Field_setBoolean(JNIEnv* env, jobject javaField, jobject javaObj, jboolean value) {
+static void Field_setBoolean(JNIEnv* env, jobject javaField, jobject javaObj, jboolean value) {
   JValue v = { 0 };
   v.z = value;
   SetPrimitiveField(env, javaField, javaObj, 'Z', v);
 }
 
-void Field_setByte(JNIEnv* env, jobject javaField, jobject javaObj, jbyte value) {
+static void Field_setByte(JNIEnv* env, jobject javaField, jobject javaObj, jbyte value) {
   JValue v = { 0 };
   v.b = value;
   SetPrimitiveField(env, javaField, javaObj, 'B', v);
 }
 
-void Field_setChar(JNIEnv* env, jobject javaField, jobject javaObj, jchar value) {
+static void Field_setChar(JNIEnv* env, jobject javaField, jobject javaObj, jchar value) {
   JValue v = { 0 };
   v.c = value;
   SetPrimitiveField(env, javaField, javaObj, 'C', v);
 }
 
-void Field_setDouble(JNIEnv* env, jobject javaField, jobject javaObj, jdouble value) {
+static void Field_setDouble(JNIEnv* env, jobject javaField, jobject javaObj, jdouble value) {
   JValue v = { 0 };
   v.d = value;
   SetPrimitiveField(env, javaField, javaObj, 'D', v);
 }
 
-void Field_setFloat(JNIEnv* env, jobject javaField, jobject javaObj, jfloat value) {
+static void Field_setFloat(JNIEnv* env, jobject javaField, jobject javaObj, jfloat value) {
   JValue v = { 0 };
   v.f = value;
   SetPrimitiveField(env, javaField, javaObj, 'F', v);
 }
 
-void Field_setInt(JNIEnv* env, jobject javaField, jobject javaObj, jint value) {
+static void Field_setInt(JNIEnv* env, jobject javaField, jobject javaObj, jint value) {
   JValue v = { 0 };
   v.i = value;
   SetPrimitiveField(env, javaField, javaObj, 'I', v);
 }
 
-void Field_setLong(JNIEnv* env, jobject javaField, jobject javaObj, jlong value) {
+static void Field_setLong(JNIEnv* env, jobject javaField, jobject javaObj, jlong value) {
   JValue v = { 0 };
   v.j = value;
   SetPrimitiveField(env, javaField, javaObj, 'J', v);
 }
 
-void Field_setShort(JNIEnv* env, jobject javaField, jobject javaObj, jshort value) {
+static void Field_setShort(JNIEnv* env, jobject javaField, jobject javaObj, jshort value) {
   JValue v = { 0 };
   v.s = value;
   SetPrimitiveField(env, javaField, javaObj, 'S', v);
@@ -316,8 +314,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Field, setLong,    "(Ljava/lang/Object;J)V"),
   NATIVE_METHOD(Field, setShort,   "(Ljava/lang/Object;S)V"),
 };
-
-}  // namespace
 
 void register_java_lang_reflect_Field(JNIEnv* env) {
   jniRegisterNativeMethods(env, "java/lang/reflect/Field", gMethods, NELEM(gMethods));

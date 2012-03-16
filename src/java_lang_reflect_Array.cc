@@ -23,12 +23,9 @@
 
 namespace art {
 
-namespace {
-
-
 // Recursively create an array with multiple dimensions.  Elements may be
 // Objects or primitive types.
-Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dimensions) {
+static Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dimensions) {
   int32_t array_length = dimensions->Get(current_dimension++);
   SirtRef<Array> new_array(Array::Alloc(array_class, array_length));
   if (new_array.get() == NULL) {
@@ -72,7 +69,7 @@ Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dim
 // easiest way to deal with that is to create the full name once and then
 // subtract pieces off.  Besides, we want to start with the outermost
 // piece and work our way in.
-jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, jobject javaDimArray) {
+static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, jobject javaDimArray) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   DCHECK(javaElementClass != NULL);
   Class* element_class = Decode<Class*>(env, javaElementClass);
@@ -120,8 +117,7 @@ jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, job
   return AddLocalReference<jobject>(env, new_array);
 }
 
-jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementClass, jint length)
-{
+static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementClass, jint length) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   DCHECK(javaElementClass != NULL);
   Class* element_class = Decode<Class*>(env, javaElementClass);
@@ -152,8 +148,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Array, createMultiArray, "(Ljava/lang/Class;[I)Ljava/lang/Object;"),
   NATIVE_METHOD(Array, createObjectArray, "(Ljava/lang/Class;I)Ljava/lang/Object;"),
 };
-
-}  // namespace
 
 void register_java_lang_reflect_Array(JNIEnv* env) {
   jniRegisterNativeMethods(env, "java/lang/reflect/Array", gMethods, NELEM(gMethods));

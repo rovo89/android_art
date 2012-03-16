@@ -21,17 +21,13 @@
 
 namespace art {
 
-namespace {
-
-jboolean AtomicLong_VMSupportsCS8(JNIEnv*, jclass) {
+static jboolean AtomicLong_VMSupportsCS8(JNIEnv*, jclass) {
   return JNI_TRUE;
 }
 
-JNINativeMethod gMethods[] = {
+static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(AtomicLong, VMSupportsCS8, "()Z"),
 };
-
-}  // namespace
 
 void register_java_util_concurrent_atomic_AtomicLong(JNIEnv* env) {
   jniRegisterNativeMethods(env, "java/util/concurrent/atomic/AtomicLong", gMethods, NELEM(gMethods));

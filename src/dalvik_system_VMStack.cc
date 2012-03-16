@@ -25,8 +25,6 @@
 
 namespace art {
 
-namespace {
-
 static jobject GetThreadStack(JNIEnv* env, jobject javaThread) {
   ScopedHeapLock heap_lock;
   ScopedThreadListLock thread_list_lock;
@@ -34,7 +32,7 @@ static jobject GetThreadStack(JNIEnv* env, jobject javaThread) {
   return (thread != NULL) ? GetThreadStack(env, thread) : NULL;
 }
 
-jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThread, jobjectArray javaSteArray) {
+static jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThread, jobjectArray javaSteArray) {
   jobject trace = GetThreadStack(env, javaThread);
   if (trace == NULL) {
     return 0;
@@ -44,7 +42,7 @@ jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThread, job
   return depth;
 }
 
-jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
+static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
   // Returns the defining class loader of the caller's caller.
   // TODO: need SmartFrame (Thread::WalkStack-like iterator).
   Frame frame = Thread::Current()->GetTopOfStack();
@@ -56,7 +54,7 @@ jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
   return AddLocalReference<jobject>(env, cl);
 }
 
-jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap, jobject javaSystem) {
+static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap, jobject javaSystem) {
   struct ClosestUserClassLoaderVisitor : public Thread::StackVisitor {
     ClosestUserClassLoaderVisitor(Object* bootstrap, Object* system)
       : bootstrap(bootstrap), system(system), class_loader(NULL) {}
@@ -81,7 +79,7 @@ jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBoots
   return AddLocalReference<jobject>(env, visitor.class_loader);
 }
 
-jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
+static jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
   // Returns the class of the caller's caller's caller.
   // TODO: need SmartFrame (Thread::WalkStack-like iterator).
   Frame frame = Thread::Current()->GetTopOfStack();
@@ -94,7 +92,7 @@ jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
   return AddLocalReference<jclass>(env, c);
 }
 
-jobjectArray VMStack_getThreadStackTrace(JNIEnv* env, jclass, jobject javaThread) {
+static jobjectArray VMStack_getThreadStackTrace(JNIEnv* env, jclass, jobject javaThread) {
   jobject trace = GetThreadStack(env, javaThread);
   if (trace == NULL) {
     return NULL;
@@ -109,8 +107,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMStack, getStackClass2, "()Ljava/lang/Class;"),
   NATIVE_METHOD(VMStack, getThreadStackTrace, "(Ljava/lang/Thread;)[Ljava/lang/StackTraceElement;"),
 };
-
-}  // namespace
 
 void register_dalvik_system_VMStack(JNIEnv* env) {
   jniRegisterNativeMethods(env, "dalvik/system/VMStack", gMethods, NELEM(gMethods));

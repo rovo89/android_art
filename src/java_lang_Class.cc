@@ -26,10 +26,8 @@
 
 namespace art {
 
-namespace {
-
 // "name" is in "binary name" format, e.g. "dalvik.system.Debug$1".
-jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initialize, jobject javaLoader) {
+static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initialize, jobject javaLoader) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == NULL) {
@@ -65,7 +63,7 @@ jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initia
   return AddLocalReference<jclass>(env, c);
 }
 
-jint Class_getAnnotationDirectoryOffset(JNIEnv* env, jclass javaClass) {
+static jint Class_getAnnotationDirectoryOffset(JNIEnv* env, jclass javaClass) {
   Class* c = Decode<Class*>(env, javaClass);
   if (c->IsPrimitive() || c->IsArrayClass() || c->IsProxyClass()) {
     return 0;  // primitive, array and proxy classes don't have class definitions
@@ -79,7 +77,7 @@ jint Class_getAnnotationDirectoryOffset(JNIEnv* env, jclass javaClass) {
 }
 
 template<typename T>
-jobjectArray ToArray(JNIEnv* env, const char* array_class_name, const std::vector<T*>& objects) {
+static jobjectArray ToArray(JNIEnv* env, const char* array_class_name, const std::vector<T*>& objects) {
   jclass array_class = env->FindClass(array_class_name);
   jobjectArray result = env->NewObjectArray(objects.size(), array_class, NULL);
   for (size_t i = 0; i < objects.size(); ++i) {
@@ -99,7 +97,7 @@ static bool IsVisibleConstructor(Method* m, bool public_only) {
   return m->IsConstructor();
 }
 
-jobjectArray Class_getDeclaredConstructors(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
+static jobjectArray Class_getDeclaredConstructors(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
   Class* c = Decode<Class*>(env, javaClass);
 
   std::vector<Method*> constructors;
@@ -120,7 +118,7 @@ static bool IsVisibleField(Field* f, bool public_only) {
   return true;
 }
 
-jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
+static jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
   Class* c = Decode<Class*>(env, javaClass);
 
   std::vector<Field*> fields;
@@ -159,7 +157,7 @@ static bool IsVisibleMethod(Method* m, bool public_only) {
   return true;
 }
 
-jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
+static jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
   Class* c = Decode<Class*>(env, javaClass);
   std::vector<Method*> methods;
   for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
@@ -184,7 +182,7 @@ jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboolean pu
   return ToArray(env, "java/lang/reflect/Method", methods);
 }
 
-jobject Class_getDex(JNIEnv* env, jobject javaClass) {
+static jobject Class_getDex(JNIEnv* env, jobject javaClass) {
   Class* c = Decode<Class*>(env, javaClass);
 
   DexCache* dex_cache = c->GetDexCache();
@@ -242,8 +240,8 @@ static Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, cons
   return result;
 }
 
-jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClass, jstring javaName,
-                                             jobjectArray javaArgs) {
+static jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClass, jstring javaName,
+                                                    jobjectArray javaArgs) {
   Class* c = Decode<Class*>(env, javaClass);
   std::string name(Decode<String*>(env, javaName)->ToModifiedUtf8());
   ObjectArray<Class>* arg_array = Decode<ObjectArray<Class>*>(env, javaArgs);
@@ -260,7 +258,7 @@ jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClass, jstr
   }
 }
 
-jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass jklass, jobject jname) {
+static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass jklass, jobject jname) {
   Class* klass = Decode<Class*>(env, jklass);
   DCHECK(klass->IsClass());
   String* name = Decode<String*>(env, jname);
@@ -284,13 +282,13 @@ jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass jklass, jobject jname) 
   return NULL;
 }
 
-jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
+static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Class* c = Decode<Class*>(env, javaThis);
   return AddLocalReference<jstring>(env, c->ComputeName());
 }
 
-jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass javaRhs) {
+static jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass javaRhs) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Class* lhs = Decode<Class*>(env, javaLhs);
   Class* rhs = Decode<Class*>(env, javaRhs);
@@ -301,7 +299,7 @@ jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass javaRhs) {
   return lhs->IsAssignableFrom(rhs) ? JNI_TRUE : JNI_FALSE;
 }
 
-jboolean Class_isInstance(JNIEnv* env, jobject javaClass, jobject javaObject) {
+static jboolean Class_isInstance(JNIEnv* env, jobject javaClass, jobject javaObject) {
   Class* c = Decode<Class*>(env, javaClass);
   Object* o = Decode<Object*>(env, javaObject);
   if (o == NULL) {
@@ -339,7 +337,7 @@ static bool CheckMemberAccess(const Class* access_from, Class* access_to, uint32
   return access_from->IsInSamePackage(access_to);
 }
 
-jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
+static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Class* c = Decode<Class*>(env, javaThis);
   if (c->IsPrimitive() || c->IsInterface() || c->IsArrayClass() || c->IsAbstract()) {
@@ -416,8 +414,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, isInstance, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(Class, newInstanceImpl, "()Ljava/lang/Object;"),
 };
-
-}  // namespace
 
 void register_java_lang_Class(JNIEnv* env) {
   jniRegisterNativeMethods(env, "java/lang/Class", gMethods, NELEM(gMethods));

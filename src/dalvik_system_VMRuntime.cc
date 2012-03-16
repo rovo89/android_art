@@ -32,23 +32,21 @@
 
 namespace art {
 
-namespace {
-
-jfloat VMRuntime_getTargetHeapUtilization(JNIEnv*, jobject) {
+static jfloat VMRuntime_getTargetHeapUtilization(JNIEnv*, jobject) {
   return Runtime::Current()->GetHeap()->GetTargetHeapUtilization();
 }
 
-void VMRuntime_nativeSetTargetHeapUtilization(JNIEnv*, jobject, jfloat target) {
+static void VMRuntime_nativeSetTargetHeapUtilization(JNIEnv*, jobject, jfloat target) {
   Runtime::Current()->GetHeap()->SetTargetHeapUtilization(target);
 }
 
-void VMRuntime_startJitCompilation(JNIEnv*, jobject) {
+static void VMRuntime_startJitCompilation(JNIEnv*, jobject) {
 }
 
-void VMRuntime_disableJitCompilation(JNIEnv*, jobject) {
+static void VMRuntime_disableJitCompilation(JNIEnv*, jobject) {
 }
 
-jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaElementClass, jint length) {
+static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaElementClass, jint length) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
 #ifdef MOVING_GARBAGE_COLLECTOR
   // TODO: right now, we don't have a copying collector, so there's no need
@@ -79,7 +77,7 @@ jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaElementCla
   return AddLocalReference<jobject>(env, result);
 }
 
-jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
+static jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
   if (javaArray == NULL) {  // Most likely allocation failed
     return 0;
   }
@@ -93,15 +91,15 @@ jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
   return reinterpret_cast<uintptr_t>(array->GetRawData(array->GetClass()->GetComponentSize()));
 }
 
-void VMRuntime_clearGrowthLimit(JNIEnv*, jobject) {
+static void VMRuntime_clearGrowthLimit(JNIEnv*, jobject) {
   Runtime::Current()->GetHeap()->ClearGrowthLimit();
 }
 
-jboolean VMRuntime_isDebuggerActive(JNIEnv*, jobject) {
+static jboolean VMRuntime_isDebuggerActive(JNIEnv*, jobject) {
   return Dbg::IsDebuggerConnected();
 }
 
-jobjectArray VMRuntime_properties(JNIEnv* env, jobject) {
+static jobjectArray VMRuntime_properties(JNIEnv* env, jobject) {
   return toStringArray(env, Runtime::Current()->GetProperties());
 }
 
@@ -110,19 +108,19 @@ jobjectArray VMRuntime_properties(JNIEnv* env, jobject) {
 // specified. Unfortunately, some tests were using java.class.path to
 // lookup relative file locations, so they are counting on this to be
 // ".", presumably some applications or libraries could have as well.
-const char* DefaultToDot(const std::string& class_path) {
+static const char* DefaultToDot(const std::string& class_path) {
   return class_path.empty() ? "." : class_path.c_str();
 }
 
-jstring VMRuntime_bootClassPath(JNIEnv* env, jobject) {
+static jstring VMRuntime_bootClassPath(JNIEnv* env, jobject) {
   return env->NewStringUTF(DefaultToDot(Runtime::Current()->GetBootClassPathString()));
 }
 
-jstring VMRuntime_classPath(JNIEnv* env, jobject) {
+static jstring VMRuntime_classPath(JNIEnv* env, jobject) {
   return env->NewStringUTF(DefaultToDot(Runtime::Current()->GetClassPathString()));
 }
 
-jstring VMRuntime_vmVersion(JNIEnv* env, jobject) {
+static jstring VMRuntime_vmVersion(JNIEnv* env, jobject) {
   return env->NewStringUTF(Runtime::Current()->GetVersion());
 }
 
@@ -131,7 +129,7 @@ static void DisableCheckJniCallback(Thread* t, void*) {
   t->GetJniEnv()->SetCheckJniEnabled(false);
 }
 
-void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) {
+static void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) {
   // This is the target SDK version of the app we're about to run.
   // Note that targetSdkVersion may be CUR_DEVELOPMENT (10000).
   // Note that targetSdkVersion may be 0, meaning "current".
@@ -152,7 +150,7 @@ void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) 
   }
 }
 
-void VMRuntime_trimHeap(JNIEnv* env, jobject) {
+static void VMRuntime_trimHeap(JNIEnv* env, jobject) {
   ScopedHeapLock heap_lock;
   Heap* heap = Runtime::Current()->GetHeap();
   size_t alloc_space_size = heap->GetAllocSpace()->Size();
@@ -164,7 +162,7 @@ void VMRuntime_trimHeap(JNIEnv* env, jobject) {
             << " heap with " << static_cast<int>(100 * utilization) << "% utilization";
 }
 
-JNINativeMethod gMethods[] = {
+static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, addressOf, "(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, classPath, "()Ljava/lang/String;"),
@@ -180,8 +178,6 @@ JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, trimHeap, "()V"),
   NATIVE_METHOD(VMRuntime, vmVersion, "()Ljava/lang/String;"),
 };
-
-}  // namespace
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {
   jniRegisterNativeMethods(env, "dalvik/system/VMRuntime", gMethods, NELEM(gMethods));

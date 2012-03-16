@@ -21,28 +21,26 @@
 
 namespace art {
 
-namespace {
-
-jlong Unsafe_objectFieldOffset0(JNIEnv* env, jclass, jobject javaField) {
+static jlong Unsafe_objectFieldOffset0(JNIEnv* env, jclass, jobject javaField) {
   // TODO: move to Java code
   jfieldID fid = env->FromReflectedField(javaField);
   Field* field = DecodeField(fid);
   return field->GetOffset().Int32Value();
 }
 
-jint Unsafe_arrayBaseOffset0(JNIEnv* env, jclass, jclass javaArrayClass) {
+static jint Unsafe_arrayBaseOffset0(JNIEnv* env, jclass, jclass javaArrayClass) {
   // TODO: move to Java code
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Class* array_class = Decode<Class*>(env, javaArrayClass);
   return Array::DataOffset(array_class->GetComponentSize()).Int32Value();
 }
 
-jint Unsafe_arrayIndexScale0(JNIEnv* env, jclass, jclass javaClass) {
+static jint Unsafe_arrayIndexScale0(JNIEnv* env, jclass, jclass javaClass) {
   Class* c = Decode<Class*>(env, javaClass);
   return c->GetComponentSize();
 }
 
-jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint expectedValue, jint newValue) {
+static jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint expectedValue, jint newValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
@@ -51,7 +49,7 @@ jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, jlong o
   return (result == 0);
 }
 
-jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong expectedValue, jlong newValue) {
+static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong expectedValue, jlong newValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   volatile int64_t* address = reinterpret_cast<volatile int64_t*>(raw_addr);
@@ -60,7 +58,7 @@ jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj, jlong 
   return (result == 0);
 }
 
-jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaExpectedValue, jobject javaNewValue) {
+static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaExpectedValue, jobject javaNewValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   Object* expectedValue = Decode<Object*>(env, javaExpectedValue);
   Object* newValue = Decode<Object*>(env, javaNewValue);
@@ -75,97 +73,96 @@ jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaObj, jlon
   return (result == 0);
 }
 
-jint Unsafe_getInt(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+static jint Unsafe_getInt(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   Object* obj = Decode<Object*>(env, javaObj);
   return obj->GetField32(MemberOffset(offset), false);
 }
 
-jint Unsafe_getIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+static jint Unsafe_getIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   Object* obj = Decode<Object*>(env, javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
   return android_atomic_acquire_load(address);
 }
 
-void Unsafe_putInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
+static void Unsafe_putInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   obj->SetField32(MemberOffset(offset), newValue, false);
 }
 
-void Unsafe_putIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
+static void Unsafe_putIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
   android_atomic_release_store(newValue, address);
 }
 
-void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
+static void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   ANDROID_MEMBAR_STORE();
   obj->SetField32(MemberOffset(offset), newValue, false);
 }
 
-jlong Unsafe_getLong(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+static jlong Unsafe_getLong(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   Object* obj = Decode<Object*>(env, javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   int64_t* address = reinterpret_cast<int64_t*>(raw_addr);
   return *address;
 }
 
-jlong Unsafe_getLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+static jlong Unsafe_getLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   Object* obj = Decode<Object*>(env, javaObj);
   return obj->GetField64(MemberOffset(offset), true);
 }
 
-void Unsafe_putLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
+static void Unsafe_putLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   obj->SetField64(MemberOffset(offset), newValue, false);
 }
 
-void Unsafe_putLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
+static void Unsafe_putLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   obj->SetField64(MemberOffset(offset), newValue, true);
 }
 
-void Unsafe_putOrderedLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
+static void Unsafe_putOrderedLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   ANDROID_MEMBAR_STORE();
   obj->SetField64(MemberOffset(offset), newValue, false);
 }
 
-jobject Unsafe_getObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+static jobject Unsafe_getObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   Object* obj = Decode<Object*>(env, javaObj);
   Object* value = obj->GetFieldObject<Object*>(MemberOffset(offset), true);
   return AddLocalReference<jobject>(env, value);
 }
 
-jobject Unsafe_getObject(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
+static jobject Unsafe_getObject(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   Object* obj = Decode<Object*>(env, javaObj);
   Object* value = obj->GetFieldObject<Object*>(MemberOffset(offset), false);
   return AddLocalReference<jobject>(env, value);
 }
 
-void Unsafe_putObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
+static void Unsafe_putObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   Object* newValue = Decode<Object*>(env, javaNewValue);
   obj->SetFieldObject(MemberOffset(offset), newValue, false);
 }
 
-void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
+static void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   Object* newValue = Decode<Object*>(env, javaNewValue);
   obj->SetFieldObject(MemberOffset(offset), newValue, true);
 }
 
-
-void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
+static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
   Object* obj = Decode<Object*>(env, javaObj);
   Object* newValue = Decode<Object*>(env, javaNewValue);
   ANDROID_MEMBAR_STORE();
   obj->SetFieldObject(MemberOffset(offset), newValue, false);
 }
 
-JNINativeMethod gMethods[] = {
+static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Unsafe, objectFieldOffset0, "(Ljava/lang/reflect/Field;)J"),
   NATIVE_METHOD(Unsafe, arrayBaseOffset0, "(Ljava/lang/Class;)I"),
   NATIVE_METHOD(Unsafe, arrayIndexScale0, "(Ljava/lang/Class;)I"),
@@ -188,8 +185,6 @@ JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Unsafe, putObject, "(Ljava/lang/Object;JLjava/lang/Object;)V"),
   NATIVE_METHOD(Unsafe, putOrderedObject, "(Ljava/lang/Object;JLjava/lang/Object;)V"),
 };
-
-}  // namespace
 
 void register_sun_misc_Unsafe(JNIEnv* env) {
   jniRegisterNativeMethods(env, "sun/misc/Unsafe", gMethods, NELEM(gMethods));

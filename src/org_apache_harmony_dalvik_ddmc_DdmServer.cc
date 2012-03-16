@@ -22,8 +22,6 @@
 
 namespace art {
 
-namespace {
-
 static void DdmServer_nativeSendChunk(JNIEnv* env, jclass, jint type,
                                       jbyteArray javaData, jint offset, jint length)
 {
@@ -35,8 +33,6 @@ static void DdmServer_nativeSendChunk(JNIEnv* env, jclass, jint type,
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DdmServer, nativeSendChunk, "(I[BII)V"),
 };
-
-}  // namespace
 
 void register_org_apache_harmony_dalvik_ddmc_DdmServer(JNIEnv* env) {
   jniRegisterNativeMethods(env, "org/apache/harmony/dalvik/ddmc/DdmServer", gMethods, NELEM(gMethods));

@@ -36,9 +36,7 @@ uint32_t MemCmp16(const uint16_t* s0, const uint16_t* s1, size_t count) {
 
 namespace art {
 
-namespace {
-
-jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
+static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   String* lhs = Decode<String*>(env, javaThis);
   String* rhs = Decode<String*>(env, javaRhs);
@@ -72,7 +70,7 @@ jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
   return countDiff;
 }
 
-jboolean String_equals(JNIEnv* env, jobject javaThis, jobject javaRhs) {
+static jboolean String_equals(JNIEnv* env, jobject javaThis, jobject javaRhs) {
   String* lhs = Decode<String*>(env, javaThis);
   String* rhs = Decode<String*>(env, javaRhs);
 
@@ -128,7 +126,7 @@ jboolean String_equals(JNIEnv* env, jobject javaThis, jobject javaRhs) {
  *
  * Returns -1 if no match is found.
  */
-jint String_fastIndexOf(JNIEnv* env, jobject javaThis, jint ch, jint start) {
+static jint String_fastIndexOf(JNIEnv* env, jobject javaThis, jint ch, jint start) {
   String* s = Decode<String*>(env, javaThis);
   const uint16_t* chars = s->GetCharArray()->GetData() + s->GetOffset();
 
@@ -148,20 +146,18 @@ jint String_fastIndexOf(JNIEnv* env, jobject javaThis, jint ch, jint start) {
   return -1;
 }
 
-jstring String_intern(JNIEnv* env, jobject javaThis) {
+static jstring String_intern(JNIEnv* env, jobject javaThis) {
   String* s = Decode<String*>(env, javaThis);
   String* result = s->Intern();
   return AddLocalReference<jstring>(env, result);
 }
 
-JNINativeMethod gMethods[] = {
+static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(String, compareTo, "(Ljava/lang/String;)I"),
   NATIVE_METHOD(String, equals, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(String, fastIndexOf, "(II)I"),
   NATIVE_METHOD(String, intern, "()Ljava/lang/String;"),
 };
-
-}  // namespace
 
 void register_java_lang_String(JNIEnv* env) {
   jniRegisterNativeMethods(env, "java/lang/String", gMethods, NELEM(gMethods));

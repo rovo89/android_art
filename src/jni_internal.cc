@@ -238,9 +238,7 @@ class ArgArray {
   UniquePtr<JValue[]> large_arg_array_;
 };
 
-namespace {
-
-jweak AddWeakGlobalReference(ScopedJniThreadState& ts, Object* obj) {
+static jweak AddWeakGlobalReference(ScopedJniThreadState& ts, Object* obj) {
   if (obj == NULL) {
     return NULL;
   }
@@ -253,7 +251,7 @@ jweak AddWeakGlobalReference(ScopedJniThreadState& ts, Object* obj) {
 
 // For internal use.
 template<typename T>
-T Decode(ScopedJniThreadState& ts, jobject obj) {
+static T Decode(ScopedJniThreadState& ts, jobject obj) {
   return reinterpret_cast<T>(ts.Self()->DecodeJObject(obj));
 }
 
@@ -412,14 +410,14 @@ static void UnpinPrimitiveArray(ScopedJniThreadState& ts, const Array* array) {
 }
 
 template<typename JniT, typename ArtT>
-JniT NewPrimitiveArray(ScopedJniThreadState& ts, jsize length) {
+static JniT NewPrimitiveArray(ScopedJniThreadState& ts, jsize length) {
   CHECK_GE(length, 0); // TODO: ReportJniError
   ArtT* result = ArtT::Alloc(length);
   return AddLocalReference<JniT>(ts.Env(), result);
 }
 
 template <typename ArrayT, typename CArrayT, typename ArtArrayT>
-CArrayT GetPrimitiveArray(ScopedJniThreadState& ts, ArrayT java_array, jboolean* is_copy) {
+static CArrayT GetPrimitiveArray(ScopedJniThreadState& ts, ArrayT java_array, jboolean* is_copy) {
   ArtArrayT* array = Decode<ArtArrayT*>(ts, java_array);
   PinPrimitiveArray(ts, array);
   if (is_copy != NULL) {
@@ -429,7 +427,7 @@ CArrayT GetPrimitiveArray(ScopedJniThreadState& ts, ArrayT java_array, jboolean*
 }
 
 template <typename ArrayT>
-void ReleasePrimitiveArray(ScopedJniThreadState& ts, ArrayT java_array, jint mode) {
+static void ReleasePrimitiveArray(ScopedJniThreadState& ts, ArrayT java_array, jint mode) {
   if (mode != JNI_COMMIT) {
     Array* array = Decode<Array*>(ts, java_array);
     UnpinPrimitiveArray(ts, array);
@@ -449,7 +447,7 @@ static void ThrowSIOOBE(ScopedJniThreadState& ts, jsize start, jsize length, jsi
 }
 
 template <typename JavaArrayT, typename JavaT, typename ArrayT>
-void GetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, jsize start, jsize length, JavaT* buf) {
+static void GetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, jsize start, jsize length, JavaT* buf) {
   ArrayT* array = Decode<ArrayT*>(ts, java_array);
   if (start < 0 || length < 0 || start + length > array->GetLength()) {
     ThrowAIOOBE(ts, array, start, length, "src");
@@ -460,7 +458,7 @@ void GetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, js
 }
 
 template <typename JavaArrayT, typename JavaT, typename ArrayT>
-void SetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, jsize start, jsize length, const JavaT* buf) {
+static void SetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_array, jsize start, jsize length, const JavaT* buf) {
   ArrayT* array = Decode<ArrayT*>(ts, java_array);
   if (start < 0 || length < 0 || start + length > array->GetLength()) {
     ThrowAIOOBE(ts, array, start, length, "dst");
@@ -611,8 +609,6 @@ class SharedLibrary {
   // Result of earlier JNI_OnLoad call.
   JNI_OnLoadState jni_on_load_result_;
 };
-
-}  // namespace
 
 // This exists mainly to keep implementation details out of the header file.
 class Libraries {

@@ -21,26 +21,22 @@
 
 namespace art {
 
-namespace {
-
-jobject Throwable_nativeFillInStackTrace(JNIEnv* env, jclass) {
+static jobject Throwable_nativeFillInStackTrace(JNIEnv* env, jclass) {
   JNIEnvExt* env_ext = reinterpret_cast<JNIEnvExt*>(env);
   return env_ext->self->CreateInternalStackTrace(env);
 }
 
-jobjectArray Throwable_nativeGetStackTrace(JNIEnv* env, jclass, jobject javaStackState) {
+static jobjectArray Throwable_nativeGetStackTrace(JNIEnv* env, jclass, jobject javaStackState) {
   if (javaStackState == NULL) {
       return NULL;
   }
   return Thread::InternalStackTraceToStackTraceElementArray(env, javaStackState);
 }
 
-JNINativeMethod gMethods[] = {
+static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Throwable, nativeFillInStackTrace, "()Ljava/lang/Object;"),
   NATIVE_METHOD(Throwable, nativeGetStackTrace, "(Ljava/lang/Object;)[Ljava/lang/StackTraceElement;"),
 };
-
-}  // namespace
 
 void register_java_lang_Throwable(JNIEnv* env) {
   jniRegisterNativeMethods(env, "java/lang/Throwable", gMethods, NELEM(gMethods));

@@ -29,13 +29,11 @@
 
 namespace art {
 
-namespace {
-
 /*
  * Return a set of strings describing available VM features (this is chiefly
  * of interest to DDMS).
  */
-jobjectArray VMDebug_getVmFeatureList(JNIEnv* env, jclass) {
+static jobjectArray VMDebug_getVmFeatureList(JNIEnv* env, jclass) {
   std::vector<std::string> features;
   features.push_back("method-trace-profiling");
   features.push_back("method-trace-profiling-streaming");
@@ -44,27 +42,27 @@ jobjectArray VMDebug_getVmFeatureList(JNIEnv* env, jclass) {
   return toStringArray(env, features);
 }
 
-void VMDebug_startAllocCounting(JNIEnv*, jclass) {
+static void VMDebug_startAllocCounting(JNIEnv*, jclass) {
   Runtime::Current()->SetStatsEnabled(true);
 }
 
-void VMDebug_stopAllocCounting(JNIEnv*, jclass) {
+static void VMDebug_stopAllocCounting(JNIEnv*, jclass) {
   Runtime::Current()->SetStatsEnabled(false);
 }
 
-jint VMDebug_getAllocCount(JNIEnv* env, jclass, jint kind) {
+static jint VMDebug_getAllocCount(JNIEnv* env, jclass, jint kind) {
   return Runtime::Current()->GetStat(kind);
 }
 
-void VMDebug_resetAllocCount(JNIEnv*, jclass, jint kinds) {
+static void VMDebug_resetAllocCount(JNIEnv*, jclass, jint kinds) {
   Runtime::Current()->ResetStats(kinds);
 }
 
-void VMDebug_startMethodTracingDdmsImpl(JNIEnv* env, jclass, jint bufferSize, jint flags) {
+static void VMDebug_startMethodTracingDdmsImpl(JNIEnv* env, jclass, jint bufferSize, jint flags) {
   Trace::Start("[DDMS]", -1, bufferSize, flags, true);
 }
 
-void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceFilename, jobject javaFd, jint bufferSize, jint flags) {
+static void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceFilename, jobject javaFd, jint bufferSize, jint flags) {
   int originalFd = jniGetFDFromFileDescriptor(env, javaFd);
   if (originalFd < 0) {
     return;
@@ -83,7 +81,7 @@ void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceFilename
   Trace::Start(traceFilename.c_str(), fd, bufferSize, flags, false);
 }
 
-void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring javaTraceFilename, jint bufferSize, jint flags) {
+static void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring javaTraceFilename, jint bufferSize, jint flags) {
   ScopedUtfChars traceFilename(env, javaTraceFilename);
   if (traceFilename.c_str() == NULL) {
     return;
@@ -91,57 +89,57 @@ void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring javaTraceFi
   Trace::Start(traceFilename.c_str(), -1, bufferSize, flags, false);
 }
 
-jboolean VMDebug_isMethodTracingActive(JNIEnv*, jclass) {
+static jboolean VMDebug_isMethodTracingActive(JNIEnv*, jclass) {
   return Runtime::Current()->IsMethodTracingActive();
 }
 
-void VMDebug_stopMethodTracing(JNIEnv*, jclass) {
+static void VMDebug_stopMethodTracing(JNIEnv*, jclass) {
   Trace::Stop();
 }
 
-void VMDebug_startEmulatorTracing(JNIEnv*, jclass) {
+static void VMDebug_startEmulatorTracing(JNIEnv*, jclass) {
   UNIMPLEMENTED(WARNING);
   //dvmEmulatorTraceStart();
 }
 
-void VMDebug_stopEmulatorTracing(JNIEnv*, jclass) {
+static void VMDebug_stopEmulatorTracing(JNIEnv*, jclass) {
   UNIMPLEMENTED(WARNING);
   //dvmEmulatorTraceStop();
 }
 
-jboolean VMDebug_isDebuggerConnected(JNIEnv*, jclass) {
+static jboolean VMDebug_isDebuggerConnected(JNIEnv*, jclass) {
   return Dbg::IsDebuggerConnected();
 }
 
-jboolean VMDebug_isDebuggingEnabled(JNIEnv*, jclass) {
+static jboolean VMDebug_isDebuggingEnabled(JNIEnv*, jclass) {
   return Dbg::IsDebuggingEnabled();
 }
 
-jlong VMDebug_lastDebuggerActivity(JNIEnv*, jclass) {
+static jlong VMDebug_lastDebuggerActivity(JNIEnv*, jclass) {
   return Dbg::LastDebuggerActivity();
 }
 
-void VMDebug_startInstructionCounting(JNIEnv* env, jclass) {
+static void VMDebug_startInstructionCounting(JNIEnv* env, jclass) {
   jniThrowException(env, "java/lang/UnsupportedOperationException", NULL);
 }
 
-void VMDebug_stopInstructionCounting(JNIEnv* env, jclass) {
+static void VMDebug_stopInstructionCounting(JNIEnv* env, jclass) {
   jniThrowException(env, "java/lang/UnsupportedOperationException", NULL);
 }
 
-void VMDebug_getInstructionCount(JNIEnv* env, jclass, jintArray javaCounts) {
+static void VMDebug_getInstructionCount(JNIEnv* env, jclass, jintArray javaCounts) {
   jniThrowException(env, "java/lang/UnsupportedOperationException", NULL);
 }
 
-void VMDebug_resetInstructionCount(JNIEnv* env, jclass) {
+static void VMDebug_resetInstructionCount(JNIEnv* env, jclass) {
   jniThrowException(env, "java/lang/UnsupportedOperationException", NULL);
 }
 
-void VMDebug_printLoadedClasses(JNIEnv*, jclass, jint flags) {
+static void VMDebug_printLoadedClasses(JNIEnv*, jclass, jint flags) {
   return Runtime::Current()->GetClassLinker()->DumpAllClasses(flags);
 }
 
-jint VMDebug_getLoadedClassCount(JNIEnv*, jclass) {
+static jint VMDebug_getLoadedClassCount(JNIEnv*, jclass) {
   return Runtime::Current()->GetClassLinker()->NumLoadedClasses();
 }
 
@@ -149,14 +147,8 @@ jint VMDebug_getLoadedClassCount(JNIEnv*, jclass) {
  * Returns the thread-specific CPU-time clock value for the current thread,
  * or -1 if the feature isn't supported.
  */
-jlong VMDebug_threadCpuTimeNanos(JNIEnv*, jclass) {
-#ifdef HAVE_POSIX_CLOCKS
-  struct timespec now;
-  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
-  return static_cast<jlong>(now.tv_sec*1000000000LL + now.tv_nsec);
-#else
-  return -1LL;
-#endif
+static jlong VMDebug_threadCpuTimeNanos(JNIEnv*, jclass) {
+  return ThreadCpuNanoTime();
 }
 
 /*
@@ -165,7 +157,7 @@ jlong VMDebug_threadCpuTimeNanos(JNIEnv*, jclass) {
  * Cause "hprof" data to be dumped.  We can throw an IOException if an
  * error occurs during file handling.
  */
-void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, jobject javaFd) {
+static void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, jobject javaFd) {
   // Only one of these may be NULL.
   if (javaFilename == NULL && javaFd == NULL) {
     jniThrowNullPointerException(env, "fileName == null && fd == null");
@@ -200,7 +192,7 @@ void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, jobject ja
   }
 }
 
-void VMDebug_dumpHprofDataDdms(JNIEnv* env, jclass) {
+static void VMDebug_dumpHprofDataDdms(JNIEnv* env, jclass) {
   int result = hprof::DumpHeap("[DDMS]", -1, true);
   if (result != 0) {
     // TODO: ideally we'd throw something more specific based on actual failure
@@ -209,7 +201,7 @@ void VMDebug_dumpHprofDataDdms(JNIEnv* env, jclass) {
   }
 }
 
-void VMDebug_dumpReferenceTables(JNIEnv* env, jclass) {
+static void VMDebug_dumpReferenceTables(JNIEnv* env, jclass) {
   LOG(INFO) << "--- reference table dump ---";
 
   JNIEnvExt* e = reinterpret_cast<JNIEnvExt*>(env);
@@ -223,7 +215,7 @@ void VMDebug_dumpReferenceTables(JNIEnv* env, jclass) {
  * Dump the current thread's interpreted stack and abort the VM.  Useful
  * for seeing both interpreted and native stack traces.
  */
-void VMDebug_crash(JNIEnv*, jclass) {
+static void VMDebug_crash(JNIEnv*, jclass) {
   LOG(FATAL) << "Crashing VM on request";
 }
 
@@ -231,11 +223,11 @@ void VMDebug_crash(JNIEnv*, jclass) {
  * Provide a hook for gdb to hang to so that the VM can be stopped when
  * user-tagged source locations are being executed.
  */
-void VMDebug_infopoint(JNIEnv*, jclass, jint id) {
+static void VMDebug_infopoint(JNIEnv*, jclass, jint id) {
   LOG(INFO) << "VMDebug infopoint " << id << " hit";
 }
 
-jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass, jboolean countAssignable) {
+static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass, jboolean countAssignable) {
   Class* c = Decode<Class*>(env, javaClass);
   if (c == NULL) {
     return 0;
@@ -243,7 +235,7 @@ jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass, jbool
   return Runtime::Current()->GetHeap()->CountInstances(c, countAssignable);
 }
 
-JNINativeMethod gMethods[] = {
+static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, countInstancesOfClass, "(Ljava/lang/Class;Z)J"),
   NATIVE_METHOD(VMDebug, crash, "()V"),
   NATIVE_METHOD(VMDebug, dumpHprofData, "(Ljava/lang/String;Ljava/io/FileDescriptor;)V"),
@@ -273,8 +265,6 @@ JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, stopMethodTracing, "()V"),
   NATIVE_METHOD(VMDebug, threadCpuTimeNanos, "()J"),
 };
-
-}  // namespace
 
 void register_dalvik_system_VMDebug(JNIEnv* env) {
   jniRegisterNativeMethods(env, "dalvik/system/VMDebug", gMethods, NELEM(gMethods));
