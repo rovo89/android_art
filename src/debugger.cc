@@ -27,6 +27,7 @@
 #include "object_utils.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
+#include "scoped_thread_list_lock.h"
 #include "space.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
@@ -1624,7 +1625,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       CHECK_EQ(width, sizeof(JDWP::ObjectId));
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
       VLOG(jdwp) << "get array local " << reg << " = " << o;
-      if (o != NULL && !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+      if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
         LOG(FATAL) << "Register " << reg << " expected to hold array: " << o;
       }
       JDWP::SetObjectId(buf+1, gRegistry->Add(o));
@@ -1640,7 +1641,7 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
       CHECK_EQ(width, sizeof(JDWP::ObjectId));
       Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
       VLOG(jdwp) << "get object local " << reg << " = " << o;
-      if (o != NULL && !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+      if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
         LOG(FATAL) << "Register " << reg << " expected to hold object: " << o;
       }
       tag = TagFromObject(o);

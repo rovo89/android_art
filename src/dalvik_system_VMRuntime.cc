@@ -20,8 +20,10 @@
 #include "object.h"
 #include "object_utils.h"
 #include "scoped_heap_lock.h"
+#include "scoped_thread_list_lock.h"
 #include "space.h"
 #include "thread.h"
+#include "thread_list.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 #include "toStringArray.h"
@@ -124,18 +126,29 @@ jstring VMRuntime_vmVersion(JNIEnv* env, jobject) {
   return env->NewStringUTF(Runtime::Current()->GetVersion());
 }
 
+static void DisableCheckJniCallback(Thread* t, void*) {
+  LOG(INFO) << "Disabling CheckJNI for " << *t;
+  t->GetJniEnv()->SetCheckJniEnabled(false);
+}
+
 void VMRuntime_setTargetSdkVersion(JNIEnv* env, jobject, jint targetSdkVersion) {
   // This is the target SDK version of the app we're about to run.
   // Note that targetSdkVersion may be CUR_DEVELOPMENT (10000).
   // Note that targetSdkVersion may be 0, meaning "current".
   if (targetSdkVersion > 0 && targetSdkVersion <= 13 /* honeycomb-mr2 */) {
-    JNIEnvExt* env_ext = reinterpret_cast<JNIEnvExt*>(env);
-    // running with CheckJNI forces you to obey the strictest rules.
-    if (!env_ext->check_jni) {
-      LOG(INFO) << "Turning on JNI app bug workarounds for target SDK version "
-                << targetSdkVersion << "...";
-      env_ext->vm->work_around_app_jni_bugs = true;
+    Runtime* runtime = Runtime::Current();
+    JavaVMExt* vm = runtime->GetJavaVM();
+
+    if (vm->check_jni) {
+      LOG(WARNING) << "Turning off CheckJNI so we can turn on JNI app bug workarounds...";
+      ScopedThreadListLock thread_list_lock;
+      vm->SetCheckJniEnabled(false);
+      runtime->GetThreadList()->ForEach(DisableCheckJniCallback, NULL);
     }
+
+    LOG(INFO) << "Turning on JNI app bug workarounds for target SDK version "
+              << targetSdkVersion << "...";
+    vm->work_around_app_jni_bugs = true;
   }
 }
 

@@ -2354,7 +2354,7 @@ class JNI {
   }
 };
 
-const JNINativeInterface gNativeInterface = {
+const JNINativeInterface gJniNativeInterface = {
   NULL,  // reserved0.
   NULL,  // reserved1.
   NULL,  // reserved2.
@@ -2598,9 +2598,9 @@ JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
       check_jni(false),
       critical(false),
       monitors("monitors", kMonitorsInitial, kMonitorsMax) {
-  functions = unchecked_functions = &gNativeInterface;
+  functions = unchecked_functions = &gJniNativeInterface;
   if (vm->check_jni) {
-    EnableCheckJni();
+    SetCheckJniEnabled(true);
   }
   // The JniEnv local reference values must be at a consistent offset or else cross-compilation
   // errors will ensue.
@@ -2611,9 +2611,9 @@ JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
 JNIEnvExt::~JNIEnvExt() {
 }
 
-void JNIEnvExt::EnableCheckJni() {
-  check_jni = true;
-  functions = GetCheckJniNativeInterface();
+void JNIEnvExt::SetCheckJniEnabled(bool enabled) {
+  check_jni = enabled;
+  functions = enabled ? GetCheckJniNativeInterface() : &gJniNativeInterface;
 }
 
 void JNIEnvExt::DumpReferenceTables() {
@@ -2719,7 +2719,7 @@ class JII {
   }
 };
 
-const JNIInvokeInterface gInvokeInterface = {
+const JNIInvokeInterface gJniInvokeInterface = {
   NULL,  // reserved0
   NULL,  // reserved1
   NULL,  // reserved2
@@ -2745,9 +2745,9 @@ JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
       weak_globals(kWeakGlobalsInitial, kWeakGlobalsMax, kWeakGlobal),
       libraries_lock("JNI shared libraries map lock"),
       libraries(new Libraries) {
-  functions = unchecked_functions = &gInvokeInterface;
+  functions = unchecked_functions = &gJniInvokeInterface;
   if (options->check_jni_) {
-    EnableCheckJni();
+    SetCheckJniEnabled(true);
   }
 }
 
@@ -2755,9 +2755,9 @@ JavaVMExt::~JavaVMExt() {
   delete libraries;
 }
 
-void JavaVMExt::EnableCheckJni() {
-  check_jni = true;
-  functions = GetCheckJniInvokeInterface();
+void JavaVMExt::SetCheckJniEnabled(bool enabled) {
+  check_jni = enabled;
+  functions = enabled ? GetCheckJniInvokeInterface() : &gJniInvokeInterface;
 }
 
 void JavaVMExt::DumpReferenceTables() {

@@ -87,15 +87,6 @@ class ThreadList {
   DISALLOW_COPY_AND_ASSIGN(ThreadList);
 };
 
-class ScopedThreadListLock {
- public:
-  ScopedThreadListLock();
-  ~ScopedThreadListLock();
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(ScopedThreadListLock);
-};
-
 }  // namespace art
 
 #endif  // ART_SRC_THREAD_LIST_H_

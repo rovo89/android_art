@@ -185,6 +185,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/runtime.cc \
 	src/runtime_support.cc \
 	src/runtime_support_common.cc \
+	src/scoped_thread_list_lock.cc \
 	src/signal_catcher.cc \
 	src/space.cc \
 	src/stack.cc \
