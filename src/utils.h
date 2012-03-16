@@ -240,17 +240,20 @@ bool ReadFileToString(const std::string& file_name, std::string* result);
 // Returns the current date in ISO yyyy-mm-dd hh:mm:ss format.
 std::string GetIsoDate();
 
-// Returns the current time in milliseconds (using the POSIX CLOCK_MONOTONIC).
+// Returns the monotonic time since some unspecified starting point in milliseconds.
 uint64_t MilliTime();
 
-// Returns the current time in microseconds (using the POSIX CLOCK_MONOTONIC).
+// Returns the monotonic time since some unspecified starting point in microseconds.
 uint64_t MicroTime();
 
-// Returns the current time in nanoseconds (using the POSIX CLOCK_MONOTONIC).
+// Returns the monotonic time since some unspecified starting point in nanoseconds.
 uint64_t NanoTime();
 
-// Returns the current time in microseconds (using the POSIX CLOCK_THREAD_CPUTIME_ID).
+// Returns the thread-specific CPU-time clock in microseconds or -1 if unavailable.
 uint64_t ThreadCpuMicroTime();
+
+// Returns the thread-specific CPU-time clock in nanoseconds or -1 if unavailable.
+uint64_t ThreadCpuNanoTime();
 
 // Converts the given number of nanoseconds to milliseconds.
 static inline uint64_t NsToMs(uint64_t ns) {

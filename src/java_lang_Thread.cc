@@ -26,28 +26,26 @@
 
 namespace art {
 
-namespace {
-
-jobject Thread_currentThread(JNIEnv* env, jclass) {
+static jobject Thread_currentThread(JNIEnv* env, jclass) {
   return AddLocalReference<jobject>(env, Thread::Current()->GetPeer());
 }
 
-jboolean Thread_interrupted(JNIEnv* env, jclass) {
+static jboolean Thread_interrupted(JNIEnv* env, jclass) {
   return Thread::Current()->Interrupted();
 }
 
-jboolean Thread_isInterrupted(JNIEnv* env, jobject javaThread) {
+static jboolean Thread_isInterrupted(JNIEnv* env, jobject javaThread) {
   ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   return (thread != NULL) ? thread->IsInterrupted() : JNI_FALSE;
 }
 
-void Thread_nativeCreate(JNIEnv* env, jclass, jobject javaThread, jlong stackSize) {
+static void Thread_nativeCreate(JNIEnv* env, jclass, jobject javaThread, jlong stackSize) {
   Object* managedThread = Decode<Object*>(env, javaThread);
   Thread::Create(managedThread, stackSize);
 }
 
-jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread) {
+static jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread) {
   ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   if (thread == NULL) {
@@ -56,7 +54,7 @@ jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread) {
   return static_cast<jint>(thread->GetState());
 }
 
-jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject javaThread, jobject javaObject) {
+static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject javaThread, jobject javaObject) {
   Object* object = Decode<Object*>(env, javaObject);
   if (object == NULL) {
     ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
@@ -68,7 +66,7 @@ jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject javaThread, jobject javaObj
   return thread->HoldsLock(object);
 }
 
-void Thread_nativeInterrupt(JNIEnv* env, jobject javaThread) {
+static void Thread_nativeInterrupt(JNIEnv* env, jobject javaThread) {
   ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   if (thread != NULL) {
@@ -76,7 +74,7 @@ void Thread_nativeInterrupt(JNIEnv* env, jobject javaThread) {
   }
 }
 
-void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring javaName) {
+static void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring javaName) {
   ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   if (thread == NULL) {
@@ -94,7 +92,7 @@ void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring javaName) {
  * from Thread.MIN_PRIORITY to Thread.MAX_PRIORITY (1-10), with "normal"
  * threads at Thread.NORM_PRIORITY (5).
  */
-void Thread_nativeSetPriority(JNIEnv* env, jobject javaThread, jint newPriority) {
+static void Thread_nativeSetPriority(JNIEnv* env, jobject javaThread, jint newPriority) {
   ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   if (thread != NULL) {
@@ -108,7 +106,7 @@ void Thread_nativeSetPriority(JNIEnv* env, jobject javaThread, jint newPriority)
  * The exact behavior is poorly defined.  Some discussion here:
  *   http://www.cs.umd.edu/~pugh/java/memoryModel/archive/0944.html
  */
-void Thread_yield(JNIEnv*, jobject) {
+static void Thread_yield(JNIEnv*, jobject) {
   sched_yield();
 }
 
@@ -124,8 +122,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Thread, nativeSetPriority, "(I)V"),
   NATIVE_METHOD(Thread, yield, "()V"),
 };
-
-}  // namespace
 
 void register_java_lang_Thread(JNIEnv* env) {
   jniRegisterNativeMethods(env, "java/lang/Thread", gMethods, NELEM(gMethods));

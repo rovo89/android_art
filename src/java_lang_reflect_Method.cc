@@ -24,13 +24,11 @@
 
 namespace art {
 
-namespace {
-
-jobject Method_invoke(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobject javaArgs) {
+static jobject Method_invoke(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobject javaArgs) {
   return InvokeMethod(env, javaMethod, javaReceiver, javaArgs);
 }
 
-jobject Method_getExceptionTypesNative(JNIEnv* env, jobject javaMethod) {
+static jobject Method_getExceptionTypesNative(JNIEnv* env, jobject javaMethod) {
   Method* proxy_method = Decode<Object*>(env, javaMethod)->AsMethod();
   CHECK(proxy_method->GetDeclaringClass()->IsProxyClass());
   SynthesizedProxyClass* proxy_class =
@@ -50,7 +48,7 @@ jobject Method_getExceptionTypesNative(JNIEnv* env, jobject javaMethod) {
   return AddLocalReference<jobject>(env, declared_exceptions->Clone());
 }
 
-jobject Method_findOverriddenMethodNative(JNIEnv* env, jobject javaMethod) {
+static jobject Method_findOverriddenMethodNative(JNIEnv* env, jobject javaMethod) {
   Method* method = Decode<Object*>(env, javaMethod)->AsMethod();
   return AddLocalReference<jobject>(env, method->FindOverriddenMethod());
 }
@@ -60,8 +58,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Method, getExceptionTypesNative, "()[Ljava/lang/Class;"),
   NATIVE_METHOD(Method, findOverriddenMethodNative, "()Ljava/lang/reflect/Method;"),
 };
-
-}  // namespace
 
 void register_java_lang_reflect_Method(JNIEnv* env) {
   jniRegisterNativeMethods(env, "java/lang/reflect/Method", gMethods, NELEM(gMethods));

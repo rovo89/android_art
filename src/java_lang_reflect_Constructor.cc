@@ -24,8 +24,6 @@
 
 namespace art {
 
-namespace {
-
 /*
  * We get here through Constructor.newInstance().  The Constructor object
  * would not be available if the constructor weren't public (per the
@@ -33,7 +31,7 @@ namespace {
  * check.  We can also safely assume the constructor isn't associated
  * with an interface, array, or primitive class.
  */
-jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
+static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Method* m = Decode<Object*>(env, javaMethod)->AsMethod();
   Class* c = m->GetDeclaringClass();
@@ -63,8 +61,6 @@ jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray ja
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Constructor, newInstance, "([Ljava/lang/Object;)Ljava/lang/Object;"),
 };
-
-}  // namespace
 
 void register_java_lang_reflect_Constructor(JNIEnv* env) {
   jniRegisterNativeMethods(env, "java/lang/reflect/Constructor", gMethods, NELEM(gMethods));

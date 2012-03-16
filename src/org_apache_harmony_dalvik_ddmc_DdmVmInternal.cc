@@ -26,8 +26,6 @@
 
 namespace art {
 
-namespace {
-
 static void DdmVmInternal_enableRecentAllocations(JNIEnv* env, jclass, jboolean enable) {
   Dbg::SetAllocTrackingEnabled(enable);
 }
@@ -162,8 +160,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DdmVmInternal, heapSegmentNotify, "(IIZ)Z"),
   NATIVE_METHOD(DdmVmInternal, threadNotify, "(Z)V"),
 };
-
-}  // namespace
 
 void register_org_apache_harmony_dalvik_ddmc_DdmVmInternal(JNIEnv* env) {
   jniRegisterNativeMethods(env, "org/apache/harmony/dalvik/ddmc/DdmVmInternal", gMethods, NELEM(gMethods));

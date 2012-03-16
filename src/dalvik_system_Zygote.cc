@@ -37,11 +37,9 @@
 
 namespace art {
 
-namespace {
-
 static pid_t gSystemServerPid = 0;
 
-void Zygote_nativeExecShell(JNIEnv* env, jclass, jstring javaCommand) {
+static void Zygote_nativeExecShell(JNIEnv* env, jclass, jstring javaCommand) {
   ScopedUtfChars command(env, javaCommand);
   if (command.c_str() == NULL) {
     return;
@@ -53,9 +51,8 @@ void Zygote_nativeExecShell(JNIEnv* env, jclass, jstring javaCommand) {
   exit(127);
 }
 
-
 // This signal handler is for zygote mode, since the zygote must reap its children
-void SigChldHandler(int s) {
+static void SigChldHandler(int s) {
   pid_t pid;
   int status;
 
@@ -100,14 +97,14 @@ void SigChldHandler(int s) {
   }
 }
 
-// configure sigchld handler for the zygote process This is configured
+// Configures the SIGCHLD handler for the zygote process. This is configured
 // very late, because earlier in the runtime we may fork() and exec()
 // other processes, and we want to waitpid() for those rather than
 // have them be harvested immediately.
 //
 // This ends up being called repeatedly before each fork(), but there's
 // no real harm in that.
-void SetSigChldHandler() {
+static void SetSigChldHandler() {
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
   sa.sa_handler = SigChldHandler;
@@ -118,8 +115,8 @@ void SetSigChldHandler() {
   }
 }
 
-// Set the SIGCHLD handler back to default behavior in zygote children
-void UnsetSigChldHandler() {
+// Sets the SIGCHLD handler back to default behavior in zygote children.
+static void UnsetSigChldHandler() {
   struct sigaction sa;
   memset(&sa, 0, sizeof(sa));
   sa.sa_handler = SIG_DFL;
@@ -132,7 +129,7 @@ void UnsetSigChldHandler() {
 
 // Calls POSIX setgroups() using the int[] object as an argument.
 // A NULL argument is tolerated.
-int SetGids(JNIEnv* env, jintArray javaGids) {
+static int SetGids(JNIEnv* env, jintArray javaGids) {
   if (javaGids == NULL) {
     return 0;
   }
@@ -151,7 +148,7 @@ int SetGids(JNIEnv* env, jintArray javaGids) {
 // treated as an empty array.
 //
 // -1 is returned on error.
-int SetRLimits(JNIEnv* env, jobjectArray javaRlimits) {
+static int SetRLimits(JNIEnv* env, jobjectArray javaRlimits) {
   if (javaRlimits == NULL) {
     return 0;
   }
@@ -178,7 +175,7 @@ int SetRLimits(JNIEnv* env, jobjectArray javaRlimits) {
   return 0;
 }
 
-void SetCapabilities(int64_t permitted, int64_t effective) {
+static void SetCapabilities(int64_t permitted, int64_t effective) {
 #ifdef HAVE_ANDROID_OS
   struct __user_cap_header_struct capheader;
   struct __user_cap_data_struct capdata;
@@ -198,7 +195,7 @@ void SetCapabilities(int64_t permitted, int64_t effective) {
 #endif /*HAVE_ANDROID_OS*/
 }
 
-void EnableDebugFeatures(uint32_t debug_flags) {
+static void EnableDebugFeatures(uint32_t debug_flags) {
   // Must match values in dalvik.system.Zygote.
   enum {
     DEBUG_ENABLE_DEBUGGER           = 1,
@@ -264,9 +261,9 @@ extern "C" int gMallocLeakZygoteChild;
 #endif
 
 // Utility routine to fork zygote and specialize the child process.
-pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaGids,
-                              jint debug_flags, jobjectArray javaRlimits,
-                              jlong permittedCapabilities, jlong effectiveCapabilities) {
+static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaGids,
+                                     jint debug_flags, jobjectArray javaRlimits,
+                                     jlong permittedCapabilities, jlong effectiveCapabilities) {
   Runtime* runtime = Runtime::Current();
   CHECK(runtime->IsZygote()) << "runtime instance not started with -Xzygote";
   if (false) { // TODO: do we need do anything special like !dvmGcPreZygoteFork()?
@@ -331,14 +328,14 @@ pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaG
   return pid;
 }
 
-jint Zygote_nativeForkAndSpecialize(JNIEnv* env, jclass, jint uid, jint gid, jintArray gids,
-                                    jint debug_flags, jobjectArray rlimits) {
+static jint Zygote_nativeForkAndSpecialize(JNIEnv* env, jclass, jint uid, jint gid, jintArray gids,
+                                           jint debug_flags, jobjectArray rlimits) {
   return ForkAndSpecializeCommon(env, uid, gid, gids, debug_flags, rlimits, 0, 0);
 }
 
-jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t gid, jintArray gids,
-                                   jint debug_flags, jobjectArray rlimits,
-                                   jlong permittedCapabilities, jlong effectiveCapabilities) {
+static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t gid, jintArray gids,
+                                          jint debug_flags, jobjectArray rlimits,
+                                          jlong permittedCapabilities, jlong effectiveCapabilities) {
   pid_t pid = ForkAndSpecializeCommon(env, uid, gid, gids,
                                       debug_flags, rlimits,
                                       permittedCapabilities, effectiveCapabilities);
@@ -363,8 +360,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Zygote, nativeForkAndSpecialize, "(II[II[[I)I"),
   NATIVE_METHOD(Zygote, nativeForkSystemServer, "(II[II[[IJJ)I"),
 };
-
-}  // namespace
 
 void register_dalvik_system_Zygote(JNIEnv* env) {
   jniRegisterNativeMethods(env, "dalvik/system/Zygote", gMethods, NELEM(gMethods));

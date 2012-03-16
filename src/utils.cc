@@ -133,6 +133,17 @@ uint64_t ThreadCpuMicroTime() {
 #endif
 }
 
+uint64_t ThreadCpuNanoTime() {
+#if defined(HAVE_POSIX_CLOCKS)
+  struct timespec now;
+  clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
+  return static_cast<uint64_t>(now.tv_sec) * 1000000000LL + now.tv_nsec;
+#else
+  UNIMPLEMENTED(WARNING);
+  return -1;
+#endif
+}
+
 std::string PrettyDescriptor(const String* java_descriptor) {
   if (java_descriptor == NULL) {
     return "null";

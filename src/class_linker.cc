@@ -53,34 +53,32 @@
 
 namespace art {
 
-namespace {
-
-void ThrowNoClassDefFoundError(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
-void ThrowNoClassDefFoundError(const char* fmt, ...) {
+static void ThrowNoClassDefFoundError(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
+static void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   Thread::Current()->ThrowNewExceptionV("Ljava/lang/NoClassDefFoundError;", fmt, args);
   va_end(args);
 }
 
-void ThrowClassFormatError(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
-void ThrowClassFormatError(const char* fmt, ...) {
+static void ThrowClassFormatError(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
+static void ThrowClassFormatError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   Thread::Current()->ThrowNewExceptionV("Ljava/lang/ClassFormatError;", fmt, args);
   va_end(args);
 }
 
-void ThrowLinkageError(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
-void ThrowLinkageError(const char* fmt, ...) {
+static void ThrowLinkageError(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
+static void ThrowLinkageError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   Thread::Current()->ThrowNewExceptionV("Ljava/lang/LinkageError;", fmt, args);
   va_end(args);
 }
 
-void ThrowNoSuchMethodError(bool is_direct, Class* c, const StringPiece& name,
-                            const StringPiece& signature) {
+static void ThrowNoSuchMethodError(bool is_direct, Class* c, const StringPiece& name,
+                                   const StringPiece& signature) {
   ClassHelper kh(c);
   std::ostringstream msg;
   msg << "no " << (is_direct ? "direct" : "virtual") << " method " << name << signature
@@ -92,8 +90,8 @@ void ThrowNoSuchMethodError(bool is_direct, Class* c, const StringPiece& name,
   Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", msg.str().c_str());
 }
 
-void ThrowNoSuchFieldError(const StringPiece& scope, Class* c, const StringPiece& type,
-                           const StringPiece& name) {
+static void ThrowNoSuchFieldError(const StringPiece& scope, Class* c, const StringPiece& type,
+                                  const StringPiece& name) {
   ClassHelper kh(c);
   std::ostringstream msg;
   msg << "no " << scope << "field " << name << " of type " << type
@@ -105,15 +103,15 @@ void ThrowNoSuchFieldError(const StringPiece& scope, Class* c, const StringPiece
   Thread::Current()->ThrowNewException("Ljava/lang/NoSuchFieldError;", msg.str().c_str());
 }
 
-void ThrowNullPointerException(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
-void ThrowNullPointerException(const char* fmt, ...) {
+static void ThrowNullPointerException(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
+static void ThrowNullPointerException(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   Thread::Current()->ThrowNewExceptionV("Ljava/lang/NullPointerException;", fmt, args);
   va_end(args);
 }
 
-void ThrowEarlierClassFailure(Class* c) {
+static void ThrowEarlierClassFailure(Class* c) {
   /*
    * The class failed to initialize on a previous attempt, so we want to throw
    * a NoClassDefFoundError (v2 2.17.5).  The exception to this rule is if we
@@ -133,7 +131,7 @@ void ThrowEarlierClassFailure(Class* c) {
   }
 }
 
-void WrapExceptionInInitializer() {
+static void WrapExceptionInInitializer() {
   JNIEnv* env = Thread::Current()->GetJniEnv();
 
   ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
@@ -170,8 +168,6 @@ static size_t Hash(const char* s) {
   }
   return hash;
 }
-
-}  // namespace
 
 const char* ClassLinker::class_roots_descriptors_[] = {
   "Ljava/lang/Class;",

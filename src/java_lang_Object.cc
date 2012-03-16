@@ -21,37 +21,33 @@
 
 namespace art {
 
-namespace {
-
-jobject Object_internalClone(JNIEnv* env, jobject javaThis) {
+static jobject Object_internalClone(JNIEnv* env, jobject javaThis) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Object* o = Decode<Object*>(env, javaThis);
   return AddLocalReference<jobject>(env, o->Clone());
 }
 
-void Object_notify(JNIEnv* env, jobject javaThis) {
+static void Object_notify(JNIEnv* env, jobject javaThis) {
   Object* o = Decode<Object*>(env, javaThis);
   o->Notify();
 }
 
-void Object_notifyAll(JNIEnv* env, jobject javaThis) {
+static void Object_notifyAll(JNIEnv* env, jobject javaThis) {
   Object* o = Decode<Object*>(env, javaThis);
   o->NotifyAll();
 }
 
-void Object_wait(JNIEnv* env, jobject javaThis, jlong ms, jint ns) {
+static void Object_wait(JNIEnv* env, jobject javaThis, jlong ms, jint ns) {
   Object* o = Decode<Object*>(env, javaThis);
   o->Wait(ms, ns);
 }
 
-JNINativeMethod gMethods[] = {
+static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Object, internalClone, "(Ljava/lang/Cloneable;)Ljava/lang/Object;"),
   NATIVE_METHOD(Object, notify, "()V"),
   NATIVE_METHOD(Object, notifyAll, "()V"),
   NATIVE_METHOD(Object, wait, "(JI)V"),
 };
-
-}  // namespace
 
 void register_java_lang_Object(JNIEnv* env) {
   jniRegisterNativeMethods(env, "java/lang/Object", gMethods, NELEM(gMethods));

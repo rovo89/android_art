@@ -22,8 +22,6 @@
 
 namespace art {
 
-namespace {
-
 static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring javaName, jobjectArray javaInterfaces, jobject javaLoader, jobjectArray javaMethods, jobjectArray javaThrows) {
   // Allocates Class so transition thread state to runnable
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
@@ -37,11 +35,9 @@ static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring javaName, jobject
   return AddLocalReference<jclass>(env, result);
 }
 
-JNINativeMethod gMethods[] = {
+static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Proxy, generateProxy, "(Ljava/lang/String;[Ljava/lang/Class;Ljava/lang/ClassLoader;[Ljava/lang/reflect/Method;[[Ljava/lang/Class;)Ljava/lang/Class;"),
 };
-
-}  // namespace
 
 void register_java_lang_reflect_Proxy(JNIEnv* env) {
   jniRegisterNativeMethods(env, "java/lang/reflect/Proxy", gMethods, NELEM(gMethods));

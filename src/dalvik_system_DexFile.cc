@@ -31,8 +31,6 @@
 
 namespace art {
 
-namespace {
-
 // A smart pointer that provides read-only access to a Java string's UTF chars.
 // Unlike libcore's NullableScopedUtfChars, this will *not* throw NullPointerException if
 // passed a null jstring. The correct idiom is:
@@ -113,7 +111,7 @@ static const DexFile* toDexFile(JNIEnv* env, int dex_file_address) {
   return dex_file;
 }
 
-void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
+static void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
   const DexFile* dex_file = toDexFile(env, cookie);
   if (dex_file == NULL) {
     return;
@@ -124,8 +122,8 @@ void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
   delete dex_file;
 }
 
-jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
-                                 jint cookie) {
+static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
+                                        jint cookie) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   const DexFile* dex_file = toDexFile(env, cookie);
   if (dex_file == NULL) {
@@ -149,7 +147,7 @@ jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject 
   return AddLocalReference<jclass>(env, result);
 }
 
-jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
+static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
   const DexFile* dex_file = toDexFile(env, cookie);
   if (dex_file == NULL) {
     return NULL;
@@ -164,7 +162,7 @@ jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
   return toStringArray(env, class_names);
 }
 
-jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
+static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename) {
   bool debug_logging = false;
 
   ScopedUtfChars filename(env, javaFilename);
@@ -252,8 +250,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(DexFile, openDexFile, "(Ljava/lang/String;Ljava/lang/String;I)I"),
 };
-
-}  // namespace
 
 void register_dalvik_system_DexFile(JNIEnv* env) {
   jniRegisterNativeMethods(env, "dalvik/system/DexFile", gMethods, NELEM(gMethods));
