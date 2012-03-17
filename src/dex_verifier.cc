@@ -4040,8 +4040,14 @@ void DexVerifier::InitGcMaps() {
 }
 
 void DexVerifier::DeleteGcMaps() {
-  MutexLock mu(*gc_maps_lock_);
-  STLDeleteValues(gc_maps_);
+  {
+    MutexLock mu(*gc_maps_lock_);
+    STLDeleteValues(gc_maps_);
+    delete gc_maps_;
+    gc_maps_ = NULL;
+  }
+  delete gc_maps_lock_;
+  gc_maps_lock_ = NULL;
 }
 
 void DexVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
