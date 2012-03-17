@@ -2929,9 +2929,11 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
       oat_compilation_unit_->GetCallee(callee_method_idx, is_static ? kAccStatic : 0));
 
   int vtable_idx = -1; // Currently unused
+  uintptr_t direct_code = 0; // Currently unused
+  uintptr_t direct_method = 0; // Currently unused
   bool is_fast_path = compiler_->
     ComputeInvokeInfo(callee_method_idx, callee_oatcompilation_unit.get(),
-                      invoke_type, vtable_idx);
+                      invoke_type, vtable_idx, direct_code, direct_method);
 
   CHECK(is_fast_path) << "Slow path for invoke static/direct is unimplemented";
 
