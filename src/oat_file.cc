@@ -101,7 +101,14 @@ bool OatFile::Read(File& file, byte* requested_base) {
   const byte* oat = map->Begin();
 
   oat += sizeof(OatHeader);
-  CHECK_LE(oat, map->End()) << GetLocation();
+  oat += oat_header.GetImageFileLocationSize();
+
+  CHECK_LE(oat, map->End())
+    << reinterpret_cast<void*>(map->Begin())
+    << "+" << sizeof(OatHeader)
+    << "+" << oat_header.GetImageFileLocationSize()
+    << "<=" << reinterpret_cast<void*>(map->End())
+    << " " << GetLocation();
   for (size_t i = 0; i < oat_header.GetDexFileCount(); i++) {
     size_t dex_file_location_size = *reinterpret_cast<const uint32_t*>(oat);
     CHECK_GT(dex_file_location_size, 0U) << GetLocation();

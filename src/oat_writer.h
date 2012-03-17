@@ -28,11 +28,10 @@
 #include "oat.h"
 #include "object.h"
 #include "os.h"
-#include "space.h"
 
 namespace art {
 
-// OatHeader         fixed length with count of D OatDexFiles
+// OatHeader         variable length with count of D OatDexFiles
 //
 // OatDexFile[0]     one variable sized OatDexFile with offsets to Dex and OatClasses
 // OatDexFile[1]
@@ -63,17 +62,23 @@ namespace art {
 class OatWriter {
  public:
   // Write an oat file. Returns true on success, false on failure.
-  static bool Create(File* file, const ClassLoader* class_loader,
-                     const std::vector<const DexFile*>& dex_files, const Compiler& compiler);
+  static bool Create(File* file,
+                     const ClassLoader* class_loader,
+                     const std::vector<const DexFile*>& dex_files,
+                     uint32_t image_file_location_checksum,
+                     const std::string& image_file_location,
+                     const Compiler& compiler);
 
  private:
 
   OatWriter(const std::vector<const DexFile*>& dex_files,
+            uint32_t image_file_location_checksum,
+            const std::string& image_file_location,
             const ClassLoader* class_loader,
             const Compiler& compiler);
   ~OatWriter();
 
-  size_t InitOatHeader(InstructionSet instruction_set);
+  size_t InitOatHeader();
   size_t InitOatDexFiles(size_t offset);
   size_t InitDexFiles(size_t offset);
   size_t InitOatClasses(size_t offset);
@@ -145,6 +150,10 @@ class OatWriter {
 
   // note OatFile does not take ownership of the DexFiles
   const std::vector<const DexFile*>* dex_files_;
+
+  // dependency on the image
+  uint32_t image_file_location_checksum_;
+  std::string image_file_location_;
 
   // data to write
   OatHeader* oat_header_;
