@@ -71,12 +71,14 @@ class AOTCompilationStats {
      strings_in_dex_cache_(0), strings_not_in_dex_cache_(0),
      resolved_types_(0), unresolved_types_(0),
      resolved_instance_fields_(0), unresolved_instance_fields_(0),
-     resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0),
-     virtual_made_direct_(0) {
-    for (size_t i = 0; i < kMaxInvokeType; i++) {
+     resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0) {
+    for (size_t i = 0; i <= kMaxInvokeType; i++) {
       resolved_methods_[i] = 0;
       unresolved_methods_[i] = 0;
-    }
+      virtual_made_direct_[i] = 0;
+      direct_calls_to_boot_[i] = 0;
+      direct_methods_to_boot_[i] = 0;
+   }
   }
 
   void Dump() {
@@ -89,13 +91,32 @@ class AOTCompilationStats {
     DumpStat(resolved_local_static_fields_, resolved_static_fields_ + unresolved_static_fields_,
              "static fields local to a class");
 
-    for (size_t i = 0; i < kMaxInvokeType; i++) {
+    for (size_t i = 0; i <= kMaxInvokeType; i++) {
       std::ostringstream oss;
-      oss << "resolved " << static_cast<InvokeType>(i) << " methods";
+      oss << static_cast<InvokeType>(i) << " methods were AOT resolved";
       DumpStat(resolved_methods_[i], unresolved_methods_[i], oss.str().c_str());
+      if (virtual_made_direct_[i] > 0) {
+        std::ostringstream oss2;
+        oss2 << static_cast<InvokeType>(i) << " methods made direct";
+        DumpStat(virtual_made_direct_[i],
+                 resolved_methods_[i] + unresolved_methods_[i] - virtual_made_direct_[i],
+                 oss2.str().c_str());
+      }
+      if (direct_calls_to_boot_[i] > 0) {
+        std::ostringstream oss2;
+        oss2 << static_cast<InvokeType>(i) << " method calls are direct into boot";
+        DumpStat(direct_calls_to_boot_[i],
+                 resolved_methods_[i] + unresolved_methods_[i] - direct_calls_to_boot_[i],
+                 oss2.str().c_str());
+      }
+      if (direct_methods_to_boot_[i] > 0) {
+        std::ostringstream oss2;
+        oss2 << static_cast<InvokeType>(i) << " method calls have methods in boot";
+        DumpStat(direct_methods_to_boot_[i],
+                 resolved_methods_[i] + unresolved_methods_[i] - direct_methods_to_boot_[i],
+                 oss2.str().c_str());
+      }
     }
-    DumpStat(virtual_made_direct_, resolved_methods_[kVirtual] + unresolved_methods_[kVirtual],
-             "made direct from virtual");
   }
 
 // Allow lossy statistics in non-debug builds
@@ -172,10 +193,24 @@ class AOTCompilationStats {
     unresolved_methods_[type]++;
   }
 
-  void VirtualMadeDirect() {
+  void VirtualMadeDirect(InvokeType type) {
+    DCHECK_LE(type, kMaxInvokeType);
     STATS_LOCK();
-    virtual_made_direct_++;
+    virtual_made_direct_[type]++;
   }
+
+  void DirectCallsToBoot(InvokeType type) {
+    DCHECK_LE(type, kMaxInvokeType);
+    STATS_LOCK();
+    direct_calls_to_boot_[type]++;
+  }
+
+  void DirectMethodsToBoot(InvokeType type) {
+    DCHECK_LE(type, kMaxInvokeType);
+    STATS_LOCK();
+    direct_methods_to_boot_[type]++;
+  }
+
  private:
   Mutex stats_lock_;
 
@@ -197,7 +232,9 @@ class AOTCompilationStats {
 
   size_t resolved_methods_[kMaxInvokeType + 1];
   size_t unresolved_methods_[kMaxInvokeType + 1];
-  size_t virtual_made_direct_;
+  size_t virtual_made_direct_[kMaxInvokeType + 1];
+  size_t direct_calls_to_boot_[kMaxInvokeType + 1];
+  size_t direct_methods_to_boot_[kMaxInvokeType + 1];
 
   DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);;
 };
@@ -652,9 +689,39 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mU
   return false;  // Incomplete knowledge needs slow path.
 }
 
+void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type, Method* method,
+                                             uintptr_t& direct_code, uintptr_t& direct_method) {
+  direct_code = 0;
+  direct_method = 0;
+  if (sharp_type != kStatic && sharp_type != kDirect) {
+    return;
+  }
+  bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
+  if (compiling_boot) {
+    return;
+  }
+  bool method_code_in_boot = method->GetDeclaringClass()->GetClassLoader() == NULL;
+  if (!method_code_in_boot) {
+    return;
+  }
+  bool has_clinit_trampoline = method->IsStatic() && !method->GetDeclaringClass()->IsInitialized();
+  if (has_clinit_trampoline) {
+    return;
+  }
+  stats_->DirectCallsToBoot(type);
+  stats_->DirectMethodsToBoot(type);
+  if (Runtime::Current()->GetHeap()->GetImageSpace()->Contains(method)) {
+    direct_method = reinterpret_cast<uintptr_t>(method);
+  }
+  direct_code = reinterpret_cast<uintptr_t>(method->GetCode());
+}
+
 bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType& type,
-                                 int& vtable_idx) {
+                                 int& vtable_idx, uintptr_t& direct_code,
+                                 uintptr_t& direct_method) {
   vtable_idx = -1;
+  direct_code = 0;
+  direct_method = 0;
   Method* resolved_method = ComputeReferrerMethod(mUnit, method_idx);
   if (resolved_method != NULL) {
     Class* referrer_class = ComputeReferrerClass(mUnit);
@@ -678,27 +745,33 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
                                           resolved_method->GetAccessFlags())) {
         vtable_idx = resolved_method->GetMethodIndex();
         const bool kEnableSharpening = true;
-        if (kEnableSharpening && type == kVirtual &&
-            (resolved_method->IsFinal() || methods_class->IsFinal())) {
-          stats_->ResolvedMethod(kVirtual);
+        // Sharpen a virtual call into a direct call when the target is known.
+        bool can_sharpen = type == kVirtual && (resolved_method->IsFinal() ||
+                                                methods_class->IsFinal());
+        // ensure the vtable index will be correct to dispatch in the vtable of the super class
+        can_sharpen = can_sharpen || (type == kSuper &&
+                                      referrer_class->IsSubClass(methods_class) &&
+                                      vtable_idx < methods_class->GetVTable()->GetLength());
+        if (kEnableSharpening && can_sharpen) {
+          stats_->ResolvedMethod(type);
           // Sharpen a virtual call into a direct call. The method_idx is into referrer's
           // dex cache, check that this resolved method is where we expect it.
           CHECK(referrer_class->GetDexCache()->GetResolvedMethod(method_idx) == resolved_method)
             << PrettyMethod(resolved_method);
-          type = kDirect;
-          stats_->VirtualMadeDirect();
-          return true;
-        } else if (type != kSuper) {
-          // nothing left to do for static/direct/virtual/interface dispatch
-          stats_->ResolvedMethod(type);
-          return true;
-        } else {
-          // ensure the vtable index will be correct to dispatch in the vtable of the super class
-          if (referrer_class->IsSubClass(methods_class) &&
-              vtable_idx < methods_class->GetVTable()->GetLength()) {
-            stats_->ResolvedMethod(type);
-            return true;
+          if (type == kSuper) {
+            CHECK(methods_class->GetVTable()->Get(vtable_idx) == resolved_method)
+              << PrettyMethod(resolved_method);
           }
+          stats_->VirtualMadeDirect(type);
+          GetCodeAndMethodForDirectCall(type, kDirect, resolved_method, direct_code, direct_method);
+          type = kDirect;
+          return true;
+        } else if (type == kSuper) {
+          // Unsharpened super calls are suspicious so go slowpath.
+        } else {
+          stats_->ResolvedMethod(type);
+          GetCodeAndMethodForDirectCall(type, type, resolved_method, direct_code, direct_method);
+          return true;
         }
       }
     }

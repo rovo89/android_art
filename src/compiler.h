@@ -115,7 +115,7 @@ class Compiler {
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable index
   bool ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType& type,
-                         int& vtable_idx);
+                         int& vtable_idx, uintptr_t& direct_code, uintptr_t& direct_method);
 
 #if defined(ART_USE_LLVM_COMPILER)
   void SetElfFileName(std::string const& filename);
@@ -133,6 +133,10 @@ class Compiler {
   }
 
  private:
+
+  // Compute constant code and method pointers when possible
+  void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type,Method* method,
+                                     uintptr_t& direct_code, uintptr_t& direct_method);
 
   // Checks if class specified by type_idx is one of the image_classes_
   bool IsImageClass(const std::string& descriptor) const;

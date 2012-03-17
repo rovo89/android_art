@@ -70,10 +70,13 @@ void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
 
     uint32_t dexMethodIdx = dInsn->vB;
     int vtableIdx;
+    uintptr_t directCode;
+    uintptr_t directMethod;
     bool skipThis;
     bool fastPath =
         cUnit->compiler->ComputeInvokeInfo(dexMethodIdx, &mUnit, type,
-                                           vtableIdx)
+                                           vtableIdx, directCode,
+                                           directMethod)
         && !SLOW_INVOKE_PATH;
     if (type == kInterface) {
       nextCallInsn = fastPath ? nextInterfaceCallInsn
@@ -89,8 +92,9 @@ void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
       nextCallInsn = fastPath ? nextSDCallInsn : nextStaticCallInsnSP;
       skipThis = false;
     } else if (type == kSuper) {
-      nextCallInsn = fastPath ? nextSuperCallInsn : nextSuperCallInsnSP;
-      skipThis = fastPath;
+      DCHECK(!fastPath);  // Fast path is a direct call.
+      nextCallInsn = nextSuperCallInsnSP;
+      skipThis = false;
     } else {
       DCHECK_EQ(type, kVirtual);
       nextCallInsn = fastPath ? nextVCallInsn : nextVCallInsnSP;
@@ -99,16 +103,16 @@ void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
     if (!isRange) {
         callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pNullCk,
                                          nextCallInsn, dexMethodIdx,
-                                         vtableIdx, skipThis);
+                                         vtableIdx, directCode, directMethod, skipThis);
     } else {
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, pNullCk,
                                        nextCallInsn, dexMethodIdx, vtableIdx,
-                                       skipThis);
+                                       directCode, directMethod, skipThis);
     }
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
         callState = nextCallInsn(cUnit, mir, callState, dexMethodIdx,
-                                 vtableIdx);
+                                 vtableIdx, directCode, directMethod);
     }
     if (DISPLAY_MISSING_TARGETS) {
         genShowTarget(cUnit);
