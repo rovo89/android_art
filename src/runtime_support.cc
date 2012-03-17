@@ -432,11 +432,11 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
     is_static = (instr_code == Instruction::INVOKE_STATIC) ||
                 (instr_code == Instruction::INVOKE_STATIC_RANGE);
     is_virtual = (instr_code == Instruction::INVOKE_VIRTUAL) ||
-                 (instr_code == Instruction::INVOKE_VIRTUAL_RANGE);
-    DCHECK(is_static || (instr_code == Instruction::INVOKE_DIRECT) ||
-           (instr_code == Instruction::INVOKE_DIRECT_RANGE) ||
-           (instr_code == Instruction::INVOKE_VIRTUAL) ||
-           (instr_code == Instruction::INVOKE_VIRTUAL_RANGE));
+                 (instr_code == Instruction::INVOKE_VIRTUAL_RANGE) ||
+                 (instr_code == Instruction::INVOKE_SUPER) ||
+                 (instr_code == Instruction::INVOKE_SUPER_RANGE);
+    DCHECK(is_static || is_virtual || (instr_code == Instruction::INVOKE_DIRECT) ||
+           (instr_code == Instruction::INVOKE_DIRECT_RANGE));
     DecodedInstruction dec_insn(instr);
     dex_method_idx = dec_insn.vB;
     shorty = linker->MethodShorty(dex_method_idx, caller, &shorty_len);
@@ -506,9 +506,14 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
       if (LIKELY(called_class->IsInitialized())) {
         code = called->GetCode();
       } else if (called_class->IsInitializing()) {
-        // Class is still initializing, go to oat and grab code (trampoline must be left in place
-        // until class is initialized to stop races between threads).
-        code = linker->GetOatCodeFor(called);
+        if (is_static) {
+          // Class is still initializing, go to oat and grab code (trampoline must be left in place
+          // until class is initialized to stop races between threads).
+          code = linker->GetOatCodeFor(called);
+        } else {
+          // No trampoline for non-static methods.
+          code = called->GetCode();
+        }
       } else {
         DCHECK(called_class->IsErroneous());
       }
