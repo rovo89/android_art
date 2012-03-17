@@ -178,7 +178,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t 
 
   // Fill the space with lots of small objects up to the growth limit
   size_t max_objects = (growth_limit / (object_size > 0 ? object_size : 8)) + 1;
-  UniquePtr<Object*> lots_of_objects(new Object*[max_objects]);
+  UniquePtr<Object*[]> lots_of_objects(new Object*[max_objects]);
   size_t last_object = 0;  // last object for which allocation succeeded
   size_t amount_allocated = 0;  // amount of space allocated
   for(size_t i = 0; i < max_objects; i++) {
