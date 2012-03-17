@@ -20,6 +20,7 @@
 #include "constants.h"
 #include "dex_file.h"
 #include "macros.h"
+#include "object.h"
 
 #include <UniquePtr.h>
 
@@ -31,6 +32,7 @@ namespace art {
   class CompiledMethod;
   class Compiler;
   class OatCompilationUnit;
+  class Method;
 }
 
 
@@ -48,6 +50,7 @@ namespace art {
 namespace compiler_llvm {
 
 class CompilationUnit;
+class ElfLoader;
 class IRBuilder;
 
 class CompilerLLVM {
@@ -84,6 +87,19 @@ class CompilerLLVM {
     bitcode_filename_ = filename;
   }
 
+  void EnableAutoElfLoading();
+
+  bool IsAutoElfLoadingEnabled() const {
+    return (elf_loader_.get() != NULL);
+  }
+
+  const void* GetMethodCodeAddr(const CompiledMethod* cm,
+                                const Method* method) const;
+
+  const Method::InvokeStub* GetMethodInvokeStubAddr(
+                                const CompiledInvokeStub* cm,
+                                const Method* method) const;
+
   CompiledMethod* CompileDexMethod(OatCompilationUnit* oat_compilation_unit);
 
   CompiledMethod* CompileNativeMethod(OatCompilationUnit* oat_compilation_unit);
@@ -94,6 +110,8 @@ class CompilerLLVM {
   void EnsureCompilationUnit();
 
   void Materialize();
+
+  void LoadElfFromCompilationUnit(const CompilationUnit* cunit);
 
   bool IsBitcodeFileNameAvailable() const {
     return !bitcode_filename_.empty();
@@ -114,6 +132,8 @@ class CompilerLLVM {
   std::string elf_filename_;
 
   std::string bitcode_filename_;
+
+  UniquePtr<ElfLoader> elf_loader_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerLLVM);
 };

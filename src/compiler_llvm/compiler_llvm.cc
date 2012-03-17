@@ -18,8 +18,10 @@
 
 #include "class_linker.h"
 #include "compilation_unit.h"
+#include "compiled_method.h"
 #include "compiler.h"
 #include "dex_cache.h"
+#include "elf_loader.h"
 #include "ir_builder.h"
 #include "jni_compiler.h"
 #include "method_compiler.h"
@@ -166,8 +168,61 @@ void CompilerLLVM::Materialize() {
   // Materialize the llvm::Module into ELF object file
   curr_cunit_->Materialize();
 
+  // Load ELF image when automatic ELF loading is enabled
+  if (IsAutoElfLoadingEnabled()) {
+    LoadElfFromCompilationUnit(curr_cunit_);
+  }
+
   // Delete the compilation unit
   curr_cunit_ = NULL;
+}
+
+
+void CompilerLLVM::EnableAutoElfLoading() {
+  MutexLock GUARD(compiler_lock_);
+
+  if (IsAutoElfLoadingEnabled()) {
+    // If there is an existing ELF loader, then do nothing.
+    // Because the existing ELF loader may have returned some code address
+    // already.  If we replace the existing ELF loader with
+    // elf_loader_.reset(...), then it is possible to have some dangling
+    // pointer.
+    return;
+  }
+
+  // Create ELF loader and load the materialized CompilationUnit
+  elf_loader_.reset(new ElfLoader());
+
+  for (size_t i = 0; i < cunits_.size(); ++i) {
+    if (cunits_[i]->IsMaterialized()) {
+      LoadElfFromCompilationUnit(cunits_[i]);
+    }
+  }
+}
+
+
+void CompilerLLVM::LoadElfFromCompilationUnit(const CompilationUnit* cunit) {
+  compiler_lock_.AssertHeld();
+  DCHECK(cunit->IsMaterialized()) << cunit->GetElfIndex();
+
+  if (!elf_loader_->LoadElfAt(cunit->GetElfIndex(),
+                              cunit->GetElfImage(),
+                              cunit->GetElfSize())) {
+    LOG(ERROR) << "Failed to load ELF from compilation unit "
+               << cunit->GetElfIndex();
+  }
+}
+
+
+const void* CompilerLLVM::GetMethodCodeAddr(const CompiledMethod* cm,
+                                            const Method* method) const {
+  return elf_loader_->GetMethodCodeAddr(cm->GetElfIndex(), method);
+}
+
+
+const Method::InvokeStub* CompilerLLVM::
+GetMethodInvokeStubAddr(const CompiledInvokeStub* cm, const Method* method) const {
+  return elf_loader_->GetMethodInvokeStubAddr(cm->GetElfIndex(), method);
 }
 
 
@@ -284,6 +339,28 @@ extern "C" void compilerLLVMSetBitcodeFileName(art::Compiler& compiler,
 
 extern "C" void compilerLLVMMaterializeRemainder(art::Compiler& compiler) {
   ContextOf(compiler)->MaterializeRemainder();
+}
+
+extern "C" void compilerLLVMEnableAutoElfLoading(art::Compiler& compiler) {
+  art::compiler_llvm::CompilerLLVM* compiler_llvm =
+      reinterpret_cast<art::compiler_llvm::CompilerLLVM*>(compiler.GetCompilerContext());
+  return compiler_llvm->EnableAutoElfLoading();
+}
+
+extern "C" const void* compilerLLVMGetMethodCodeAddr(const art::Compiler& compiler,
+                                                     const art::CompiledMethod* cm,
+                                                     const art::Method* method) {
+  const art::compiler_llvm::CompilerLLVM* compiler_llvm =
+      reinterpret_cast<const art::compiler_llvm::CompilerLLVM*>(compiler.GetCompilerContext());
+  return compiler_llvm->GetMethodCodeAddr(cm, method);
+}
+
+extern "C" const art::Method::InvokeStub* compilerLLVMGetMethodInvokeStubAddr(const art::Compiler& compiler,
+                                                                              const art::CompiledInvokeStub* cm,
+                                                                              const art::Method* method) {
+  const art::compiler_llvm::CompilerLLVM* compiler_llvm =
+      reinterpret_cast<const art::compiler_llvm::CompilerLLVM*>(compiler.GetCompilerContext());
+  return compiler_llvm->GetMethodInvokeStubAddr(cm, method);
 }
 
 // Note: Using this function carefully!!! This is temporary solution, we will remove it.

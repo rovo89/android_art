@@ -24,7 +24,6 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "compiler.h"
-#include "compiler_llvm/utils_llvm.h"
 #include "constants.h"
 #include "dex_file.h"
 #include "file.h"
@@ -215,10 +214,17 @@ class CommonTest : public testing::Test {
     const CompiledInvokeStub* compiled_invoke_stub =
         compiler_->FindInvokeStub(mh.IsStatic(), mh.GetShorty());
     CHECK(compiled_invoke_stub != NULL) << PrettyMethod(method);
-    const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
-    MakeExecutable(invoke_stub);
-    const Method::InvokeStub* method_invoke_stub
-        = reinterpret_cast<const Method::InvokeStub*>(&invoke_stub[0]);
+
+    const Method::InvokeStub* method_invoke_stub = NULL;
+    if (compiled_invoke_stub->IsExecutableInElf()) {
+      method_invoke_stub =
+          compiler_->GetMethodInvokeStubAddr(compiled_invoke_stub, method);
+    } else {
+      const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
+      MakeExecutable(invoke_stub);
+      method_invoke_stub = reinterpret_cast<const Method::InvokeStub*>(&invoke_stub[0]);
+    }
+
     LOG(INFO) << "MakeExecutable " << PrettyMethod(method)
               << " invoke_stub=" << reinterpret_cast<void*>(method_invoke_stub);
 
@@ -229,11 +235,18 @@ class CommonTest : public testing::Test {
           compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file,
                                                                  method->GetDexMethodIndex()));
       CHECK(compiled_method != NULL) << PrettyMethod(method);
-      const std::vector<uint8_t>& code = compiled_method->GetCode();
-      MakeExecutable(code);
-      const void* method_code
-          = CompiledMethod::CodePointer(&code[0], compiled_method->GetInstructionSet());
+
+      const void* method_code = NULL;
+      if (compiled_method->IsExecutableInElf()) {
+        method_code = compiler_->GetMethodCodeAddr(compiled_method, method);
+      } else {
+        const std::vector<uint8_t>& code = compiled_method->GetCode();
+        MakeExecutable(code);
+        method_code = CompiledMethod::CodePointer(&code[0], compiled_method->GetInstructionSet());
+      }
+
       LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
+
       OatFile::OatMethod oat_method = CreateOatMethod(method_code,
                                                       compiled_method->GetFrameSizeInBytes(),
                                                       compiled_method->GetCoreSpillMask(),
@@ -242,11 +255,7 @@ class CommonTest : public testing::Test {
                                                       &compiled_method->GetVmapTable()[0],
                                                       NULL,
                                                       method_invoke_stub);
-#if !defined(ART_USE_LLVM_COMPILER)
       oat_method.LinkMethodPointers(method);
-#else
-      LLVMLinkLoadMethod("gtest-0", method);
-#endif
     } else {
       MakeExecutable(runtime_->GetAbstractMethodErrorStubArray());
       const void* method_code = runtime_->GetAbstractMethodErrorStubArray()->GetData();
@@ -361,6 +370,7 @@ class CommonTest : public testing::Test {
                                  true, true));
 #if defined(ART_USE_LLVM_COMPILER)
     compiler_->SetElfFileName("gtest");
+    compiler_->EnableAutoElfLoading();
 #endif
 
     Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption before the test

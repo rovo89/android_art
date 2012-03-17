@@ -137,6 +137,26 @@ class Compiler {
 #if defined(ART_USE_LLVM_COMPILER)
   void SetElfFileName(std::string const& filename);
   void SetBitcodeFileName(std::string const& filename);
+
+  void EnableAutoElfLoading();
+
+  const void* GetMethodCodeAddr(const CompiledMethod* cm,
+                                const Method* method) const;
+
+  const Method::InvokeStub* GetMethodInvokeStubAddr(const CompiledInvokeStub* cm,
+                                                    const Method* method) const;
+#else
+  void EnableAutoElfLoader() { }
+
+  const void* GetMethodCodeAddr(const CompiledMethod*,
+                                const Method*) const {
+    return NULL;
+  }
+
+  const Method::InvokeStub* GetMethodInvokeStubAddr(const CompiledInvokeStub*,
+                                                    const Method*) const {
+    return NULL;
+  }
 #endif
 
   void SetCompilerContext(void* compiler_context) {
@@ -285,6 +305,7 @@ class Compiler {
   typedef void (*CompilerCallbackFn)(Compiler& compiler);
   typedef MutexLock* (*CompilerMutexLockFn)(Compiler& compiler);
 #endif
+
   void* compiler_library_;
 
   typedef CompiledMethod* (*CompilerFn)(Compiler& compiler,
@@ -304,6 +325,20 @@ class Compiler {
   typedef CompiledInvokeStub* (*CreateInvokeStubFn)(Compiler& compiler, bool is_static,
                                                     const char* shorty, uint32_t shorty_len);
   CreateInvokeStubFn create_invoke_stub_;
+
+#if defined(ART_USE_LLVM_COMPILER)
+  typedef void (*CompilerEnableAutoElfLoadingFn)(Compiler& compiler);
+  CompilerEnableAutoElfLoadingFn compiler_enable_auto_elf_loading_;
+
+  typedef const void* (*CompilerGetMethodCodeAddrFn)
+      (const Compiler& compiler, const CompiledMethod* cm, const Method* method);
+  CompilerGetMethodCodeAddrFn compiler_get_method_code_addr_;
+
+  typedef const Method::InvokeStub* (*CompilerGetMethodInvokeStubAddrFn)
+      (const Compiler& compiler, const CompiledInvokeStub* cm, const Method* method);
+  CompilerGetMethodInvokeStubAddrFn compiler_get_method_invoke_stub_addr_;
+#endif
+
 
   DISALLOW_COPY_AND_ASSIGN(Compiler);
 };
