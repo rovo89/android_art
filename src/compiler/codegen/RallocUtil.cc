@@ -1169,7 +1169,7 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
 
     if (!(cUnit->disableOpt & (1 << kPromoteRegs))) {
         // Promote fpRegs
-        for (int i = 0; (fpRegs[i].count > 0) && (i < numRegs); i++) {
+        for (int i = 0; (i < numRegs) && (fpRegs[i].count > 0); i++) {
             DCHECK(validSreg(cUnit,fpRegs[i].sReg));
             if (cUnit->promotionMap[fpRegs[i].sReg].fpLocation != kLocPhysReg) {
                 int reg = oatAllocPreservedFPReg(cUnit, fpRegs[i].sReg,
@@ -1181,7 +1181,7 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
         }
 
         // Promote core regs
-        for (int i = 0; (coreRegs[i].count > 0) && i < numRegs; i++) {
+        for (int i = 0; (i < numRegs) && (coreRegs[i].count > 0); i++) {
             DCHECK(validSreg(cUnit,coreRegs[i].sReg));
             if (cUnit->promotionMap[coreRegs[i].sReg].coreLocation !=
                     kLocPhysReg) {
