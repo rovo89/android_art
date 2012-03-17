@@ -119,7 +119,7 @@ void CompilerLLVM::EnsureCompilationUnit() {
   // Allocate compilation unit
   size_t cunit_idx = cunits_.size();
 
-  curr_cunit_ = new CompilationUnit(insn_set_);
+  curr_cunit_ = new CompilationUnit(insn_set_, cunit_idx);
 
   // Setup output filename
   curr_cunit_->SetElfFileName(
