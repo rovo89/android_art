@@ -167,35 +167,41 @@ bool CompilationUnit::Materialize() {
   pm_builder.populateModulePassManager(pm);
   pm_builder.populateFunctionPassManager(fpm);
 
-  // Add passes to emit file
+  // Add passes to emit ELF image
+  {
+    llvm::formatted_raw_ostream formatted_os(
+      *(new llvm::raw_string_ostream(elf_image_)), true);
+
+    // Ask the target to add backend passes as necessary.
+    if (target_machine->addPassesToEmitFile(pm,
+                                            formatted_os,
+                                            llvm::TargetMachine::CGFT_ObjectFile,
+                                            true)) {
+      LOG(FATAL) << "Unable to generate ELF for this target";
+      return false;
+    }
+
+    // Run the per-function optimization
+    fpm.doInitialization();
+    for (llvm::Module::iterator F = module_->begin(), E = module_->end();
+         F != E; ++F) {
+      fpm.run(*F);
+    }
+    fpm.doFinalization();
+
+    // Run the code generation passes
+    pm.run(*module_);
+  }
+
+  // Write ELF image to file
+  // TODO: Remove this when we can embed the ELF image in the Oat file.
+  // We are keeping these code to run the unit test.
   llvm::OwningPtr<llvm::tool_output_file> out_file(
     new llvm::tool_output_file(elf_filename_.c_str(), errmsg,
                                llvm::raw_fd_ostream::F_Binary));
-
-  llvm::formatted_raw_ostream formatted_os(out_file->os(), false);
-
-  // Ask the target to add backend passes as necessary.
-  if (target_machine->addPassesToEmitFile(pm,
-                                          formatted_os,
-                                          llvm::TargetMachine::CGFT_ObjectFile,
-                                          true)) {
-    LOG(FATAL) << "Unable to generate ELF for this target";
-    return false;
-  }
-
-  // Run the per-function optimization
-  fpm.doInitialization();
-  for (llvm::Module::iterator F = module_->begin(), E = module_->end();
-       F != E; ++F) {
-    fpm.run(*F);
-  }
-  fpm.doFinalization();
-
-  // Run the code generation passes
-  pm.run(*module_);
-
-  // Keep the generated executable
+  out_file->os().write(reinterpret_cast<const char*>(GetElfImage()), GetElfSize());
   out_file->keep();
+
   LOG(INFO) << "ELF: " << elf_filename_ << " (done)";
 
   // Free the resources
