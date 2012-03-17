@@ -18,6 +18,7 @@
 #define ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
 
 #include "constants.h"
+#include "globals.h"
 #include "logging.h"
 
 #include <UniquePtr.h>
@@ -71,6 +72,14 @@ class CompilationUnit {
     bitcode_filename_ = filename;
   }
 
+  const byte* GetElfImage() const {
+    return reinterpret_cast<const byte*>(&*elf_image_.begin());
+  }
+
+  size_t GetElfSize() const {
+    return elf_image_.size();
+  }
+
   bool WriteBitcodeToFile();
 
   bool Materialize();
@@ -94,6 +103,7 @@ class CompilationUnit {
   UniquePtr<IRBuilder> irb_;
   llvm::Module* module_;
 
+  std::string elf_image_;
   std::string elf_filename_;
   std::string bitcode_filename_;
 
