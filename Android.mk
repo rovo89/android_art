@@ -32,8 +32,12 @@ ifeq ($(ART_USE_LLVM_COMPILER),true)
 include $(build_path)/Android.libart-compiler-llvm.mk
 endif
 include $(build_path)/Android.executable.mk
+include $(build_path)/Android.oattest.mk
 
-# *_DEPENDENCIES depend on Android.executable.mk and are needed by Android.gtest.mk
+# The *_DEPENDENCIES definitions:
+# - depend on Android.executable.mk above for ART_HOST_EXECUTABLES
+# - depend on Android.oattest.mk above for ART_TEST_DEX_FILES
+# - are needed by Android.gtest.mk below
 ART_HOST_DEPENDENCIES := $(ART_HOST_EXECUTABLES) $(HOST_OUT_JAVA_LIBRARIES)/core-hostdex.jar
 ifeq ($(HOST_OS),linux)
   ART_HOST_DEPENDENCIES += $(HOST_OUT_SHARED_LIBRARIES)/libjavacore.so
@@ -49,7 +53,6 @@ include $(build_path)/Android.oat.mk
 
 include $(build_path)/Android.libarttest.mk
 include $(build_path)/Android.gtest.mk
-include $(build_path)/Android.oattest.mk
 
 # "m build-art" for quick minimal build
 .PHONY: build-art
