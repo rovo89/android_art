@@ -179,6 +179,7 @@ enum MIROptimizationFlagPositons {
     kMIRCallee,                         // Instruction is inlined from callee
     kMIRIgnoreSuspendCheck,
     kMIRDup,
+    kMIRMark,                           // Temporary node mark
 };
 
 #define MIR_IGNORE_NULL_CHECK           (1 << kMIRIgnoreNullCheck)
@@ -190,6 +191,7 @@ enum MIROptimizationFlagPositons {
 #define MIR_CALLEE                      (1 << kMIRCallee)
 #define MIR_IGNORE_SUSPEND_CHECK        (1 << kMIRIgnoreSuspendCheck)
 #define MIR_DUP                         (1 << kMIRDup)
+#define MIR_MARK                        (1 << kMIRMark)
 
 struct CallsiteInfo {
     const char* classDescriptor;
@@ -234,7 +236,8 @@ struct BasicBlock {
     bool hidden;
     bool catchEntry;
     bool fallThroughTarget;             // Reached via fallthrough
-    unsigned int startOffset;
+    uint16_t startOffset;
+    uint16_t nestingDepth;
     const Method* containingMethod;     // For blocks from the callee
     BBType blockType;
     bool needFallThroughBranch;         // For blocks ended due to length limit
@@ -334,6 +337,12 @@ struct CompilationUnit {
     int* constantValues;                // length == numSSAReg
     int* phiAliasMap;                   // length == numSSAReg
     MIR* phiList;
+
+    /* Use counts of ssa names */
+    GrowableList useCounts;
+
+    /* Optimization support */
+    GrowableList loopHeaders;
 
     /* Map SSA names to location */
     RegLocation* regLocation;

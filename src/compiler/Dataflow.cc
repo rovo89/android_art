@@ -259,7 +259,7 @@ const int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
     // 4C APUT_WIDE vAA, vBB, vCC
-    DF_UA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
+    DF_UA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_2 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
 
     // 4D APUT_OBJECT vAA, vBB, vCC
     DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
@@ -301,7 +301,7 @@ const int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
 
     // 5A IPUT_WIDE vA, vB, field@CCCC
-    DF_UA_WIDE | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
+    DF_UA_WIDE | DF_UB | DF_NULL_CHK_2 | DF_IS_SETTER | DF_CORE_B,
 
     // 5B IPUT_OBJECT vA, vB, field@CCCC
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
@@ -730,7 +730,7 @@ const int oatDataFlowAttributes[kMirOpLast] = {
     DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
 
     // E9 IPUT_WIDE_VOLATILE
-    DF_UA_WIDE | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
+    DF_UA_WIDE | DF_UB | DF_NULL_CHK_2 | DF_CORE_B,
 
     // EA SGET_WIDE_VOLATILE
     DF_DA_WIDE,
@@ -769,7 +769,7 @@ const int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
 
     // F6 IPUT_WIDE_QUICK
-    DF_UA_WIDE | DF_UB | DF_NULL_CHK_1 |DF_IS_SETTER,
+    DF_UA_WIDE | DF_UB | DF_NULL_CHK_2 |DF_IS_SETTER,
 
     // F7 IPUT_OBJECT_QUICK
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
@@ -1631,7 +1631,8 @@ void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
 }
 
 /* Advance to next strictly dominated MIR node in an extended basic block */
-MIR* advanceMIR(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir, ArenaBitVector* bv) {
+MIR* advanceMIR(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir, ArenaBitVector* bv,
+                bool clearMark) {
     BasicBlock* bb = *pBb;
     if (mir != NULL) {
         mir = mir->next;
@@ -1648,7 +1649,96 @@ MIR* advanceMIR(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir, ArenaBitVect
             }
         }
     }
+    if (mir && clearMark) {
+        mir->optimizationFlags &= ~MIR_MARK;
+    }
     return mir;
+}
+
+/*
+ * For the rest of the extended run, replace uses of rOld with rNew.
+ */
+void replaceOperands(CompilationUnit* cUnit, BasicBlock** pBp, MIR* mir,
+                     int rOld, int rNew)
+{
+    while (true) {
+       mir = advanceMIR(cUnit, pBp, mir, NULL, false);
+       if (mir == NULL) {
+           break;
+       }
+       if (mir->ssaRep == NULL) {
+           continue;
+       }
+       if (mir->optimizationFlags & MIR_MARK) {
+           LOG(INFO) << "recursive replace";
+           mir->dalvikInsn.opcode = (Instruction::Code)kMirOpCopy;
+           mir->ssaRep->uses[0] = rNew;
+           mir->ssaRep->numUses = 1;
+           replaceOperands(cUnit, pBp, mir, mir->ssaRep->defs[0], rNew);
+           mir->optimizationFlags &= ~MIR_MARK;
+       } else {
+           for (int i = 0; i < mir->ssaRep->numUses; i++) {
+               if (mir->ssaRep->uses[i] == rOld) {
+                   mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
+                   mir->ssaRep->uses[i] = rNew;
+               }
+           }
+       }
+    }
+}
+
+void squashDupRangeChecks(CompilationUnit* cUnit, BasicBlock** pBp, MIR* mir,
+                          int arraySreg, int indexSreg)
+{
+    while (true) {
+       mir = advanceMIR(cUnit, pBp, mir, NULL, false);
+       if (!mir) {
+           break;
+       }
+       if ((mir->ssaRep == NULL) ||
+           (mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
+           continue;
+       }
+       int checkArray = INVALID_SREG;
+       int checkIndex = INVALID_SREG;
+       switch(mir->dalvikInsn.opcode) {
+            case Instruction::AGET:
+            case Instruction::AGET_OBJECT:
+            case Instruction::AGET_BOOLEAN:
+            case Instruction::AGET_BYTE:
+            case Instruction::AGET_CHAR:
+            case Instruction::AGET_SHORT:
+            case Instruction::AGET_WIDE:
+                checkArray = mir->ssaRep->uses[0];
+                checkIndex = mir->ssaRep->uses[1];
+                break;
+                break;
+            case Instruction::APUT:
+            case Instruction::APUT_OBJECT:
+            case Instruction::APUT_SHORT:
+            case Instruction::APUT_CHAR:
+            case Instruction::APUT_BYTE:
+            case Instruction::APUT_BOOLEAN:
+                checkArray = mir->ssaRep->uses[1];
+                checkIndex = mir->ssaRep->uses[2];
+                break;
+            case Instruction::APUT_WIDE:
+                checkArray = mir->ssaRep->uses[2];
+                checkIndex = mir->ssaRep->uses[3];
+            default:
+                break;
+       }
+       if (checkArray == INVALID_SREG) {
+           continue;
+       }
+       if ((arraySreg == checkArray) && (indexSreg == checkIndex)) {
+           if (cUnit->printMe) {
+               LOG(INFO) << "Squashing range check @ 0x" << std::hex
+                         << mir->offset;
+           }
+           mir->optimizationFlags |= MIR_IGNORE_RANGE_CHECK;
+       }
+    }
 }
 
 /* Allocate a compiler temp, return Sreg.  Reuse existing if no conflict */
@@ -1704,7 +1794,39 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
 
     for (MIR* mir = bb->firstMIRInsn; mir; mir = mir->next) {
         // Look for interesting opcodes, skip otherwise
-        switch(mir->dalvikInsn.opcode) {
+        Instruction::Code opcode = mir->dalvikInsn.opcode;
+        switch(opcode) {
+            case Instruction::AGET:
+            case Instruction::AGET_OBJECT:
+            case Instruction::AGET_BOOLEAN:
+            case Instruction::AGET_BYTE:
+            case Instruction::AGET_CHAR:
+            case Instruction::AGET_SHORT:
+            case Instruction::AGET_WIDE:
+                if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
+                    int arrSreg = mir->ssaRep->uses[0];
+                    int idxSreg = mir->ssaRep->uses[1];
+                    BasicBlock* tbb = bb;
+                    squashDupRangeChecks(cUnit, &tbb, mir, arrSreg, idxSreg);
+                }
+                break;
+            case Instruction::APUT:
+            case Instruction::APUT_OBJECT:
+            case Instruction::APUT_SHORT:
+            case Instruction::APUT_CHAR:
+            case Instruction::APUT_BYTE:
+            case Instruction::APUT_BOOLEAN:
+            case Instruction::APUT_WIDE:
+                if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
+                    int start = (opcode == Instruction::APUT_WIDE) ? 2 : 1;
+                    int arrSreg = mir->ssaRep->uses[start];
+                    int idxSreg = mir->ssaRep->uses[start + 1];
+                    BasicBlock* tbb = bb;
+                    squashDupRangeChecks(cUnit, &tbb, mir, arrSreg, idxSreg);
+                }
+                break;
+#if 0
+            // Probably not worthwhile.
             case Instruction::IGET_OBJECT: {
                 // TODO: look for CSE
                     if (mir->optimizationFlags & MIR_DUP) {
@@ -1720,7 +1842,7 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
                     BasicBlock* tbb = bb;
                     MIR* tm = mir;
                     while (true) {
-                        tm = advanceMIR(cUnit, &tbb, tm, tempBlockV);
+                        tm = advanceMIR(cUnit, &tbb, tm, tempBlockV, true);
                         if ((tm == NULL) || (tm == mir)) {
                             break;
                         }
@@ -1730,9 +1852,11 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
                             && (tm->dalvikInsn.vC == fieldIdx)) {
                             if (cUnit->printMe) {
                                 LOG(INFO) << "Got DUP IGET_OBJECT @ 0x"
-                                          << std::hex << tm->offset << ", from 0x"
-                                          << std::hex <<mir->offset;
+                                          << std::hex << tm->offset
+                                          << ", from 0x" << std::hex
+                                          << mir->offset;
                             }
+                            tm->optimizationFlags |= MIR_MARK;
                             matches++;
                         } else if ((opcode == Instruction::IPUT_OBJECT)
                             && (tm->ssaRep->uses[0] == objSreg)
@@ -1753,24 +1877,19 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
                         newMir->ssaRep->defs[0] = dstSreg;
                         newMir->ssaRep->uses[0] = tmpSreg;
                         mir->ssaRep->defs[0] = tmpSreg;
+                        mir->optimizationFlags &= ~MIR_MARK;
                         oatInsertMIRAfter(bb, mir, newMir);
+                        BasicBlock* tbb = bb;
+                        replaceOperands(cUnit, &tbb, mir, dstSreg, tmpSreg);
                     }
                 }
                 break;
-            case Instruction::IF_EQ:
-            case Instruction::IF_NE:
-            case Instruction::IF_LT:
-            case Instruction::IF_GE:
-            case Instruction::IF_GT:
-            case Instruction::IF_LE:
-                // TODO: Check for and fuse preceeding comparison
-                break;
-            case Instruction::IF_EQZ:
-            case Instruction::IF_NEZ:
-            case Instruction::IF_LTZ:
-            case Instruction::IF_GEZ:
-            case Instruction::IF_GTZ:
-            case Instruction::IF_LEZ:
+#endif
+            case Instruction::CMPL_FLOAT:
+            case Instruction::CMPL_DOUBLE:
+            case Instruction::CMPG_FLOAT:
+            case Instruction::CMPG_DOUBLE:
+            case Instruction::CMP_LONG:
                 // TODO: Check for and fuse preceeding comparison
                 break;
             default:
@@ -1901,8 +2020,15 @@ bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
 
         // Already nullchecked?
         if (dfAttributes & DF_HAS_NULL_CHKS) {
-            int srcSreg = (dfAttributes & DF_NULL_CHK_1) ?
-                mir->ssaRep->uses[1] : mir->ssaRep->uses[0];
+            int srcIdx;
+            if (dfAttributes & DF_NULL_CHK_1) {
+                srcIdx = 1;
+            } else if (dfAttributes & DF_NULL_CHK_2) {
+                srcIdx = 2;
+            } else {
+                srcIdx = 0;
+            }
+            int srcSreg = mir->ssaRep->uses[srcIdx];
             if (oatIsBitSet(cUnit->tempSSARegisterV, srcSreg)) {
                 // Eliminate the null check
                 mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
@@ -1938,13 +2064,202 @@ void oatMethodNullCheckElimination(CompilationUnit *cUnit)
 
 void oatMethodBasicBlockOptimization(CompilationUnit *cUnit)
 {
-    oatInitGrowableList(cUnit, &cUnit->compilerTemps, 6, kListMisc);
-    DCHECK_EQ(cUnit->numCompilerTemps, 0);
     if (!(cUnit->disableOpt & (1 << kBBOpt))) {
-        oatDataFlowAnalysisDispatcher(cUnit, basicBlockOpt,
-                                      kAllNodes,
-                                      false /* isIterative */);
+        oatInitGrowableList(cUnit, &cUnit->compilerTemps, 6, kListMisc);
+        DCHECK_EQ(cUnit->numCompilerTemps, 0);
+        if (!(cUnit->disableOpt & (1 << kBBOpt))) {
+            oatDataFlowAnalysisDispatcher(cUnit, basicBlockOpt,
+                                          kAllNodes, false /* isIterative */);
+        }
     }
+}
+
+void addLoopHeader(CompilationUnit* cUnit, BasicBlock* header,
+                   BasicBlock* backEdge)
+{
+    GrowableListIterator iter;
+    oatGrowableListIteratorInit(&cUnit->loopHeaders, &iter);
+    for (LoopInfo* loop = (LoopInfo*)oatGrowableListIteratorNext(&iter);
+         (loop != NULL); loop = (LoopInfo*)oatGrowableListIteratorNext(&iter)) {
+         if (loop->header == header) {
+             oatInsertGrowableList(cUnit, &loop->incomingBackEdges,
+                                   (intptr_t)backEdge);
+             return;
+         }
+    }
+    LoopInfo* info = (LoopInfo*)oatNew(cUnit, sizeof(LoopInfo), true,
+                                       kAllocDFInfo);
+    info->header = header;
+    oatInitGrowableList(cUnit, &info->incomingBackEdges, 2, kListMisc);
+    oatInsertGrowableList(cUnit, &info->incomingBackEdges, (intptr_t)backEdge);
+    oatInsertGrowableList(cUnit, &cUnit->loopHeaders, (intptr_t)info);
+}
+
+bool findBackEdges(struct CompilationUnit* cUnit, struct BasicBlock* bb)
+{
+    if ((bb->dataFlowInfo == NULL) || (bb->lastMIRInsn == NULL)) {
+        return false;
+    }
+    Instruction::Code opcode = bb->lastMIRInsn->dalvikInsn.opcode;
+    if (Instruction::Flags(opcode) & Instruction::kBranch) {
+        if (bb->taken && (bb->taken->startOffset <= bb->startOffset)) {
+            DCHECK(bb->dominators != NULL);
+            if (oatIsBitSet(bb->dominators, bb->taken->id)) {
+                if (cUnit->printMe) {
+                    LOG(INFO) << "Loop backedge from 0x"
+                              << std::hex << bb->lastMIRInsn->offset
+                              << " to 0x" << std::hex << bb->taken->startOffset;
+                }
+                addLoopHeader(cUnit, bb->taken, bb);
+            }
+        }
+    }
+    return false;
+}
+
+void addBlocksToLoop(CompilationUnit* cUnit, ArenaBitVector* blocks,
+                     BasicBlock* bb, int headId)
+{
+    if (!oatIsBitSet(bb->dominators, headId) ||
+        oatIsBitSet(blocks, bb->id)) {
+        return;
+    }
+    oatSetBit(cUnit, blocks, bb->id);
+    GrowableListIterator iter;
+    oatGrowableListIteratorInit(bb->predecessors, &iter);
+    BasicBlock* predBB;
+    for (predBB = (BasicBlock*)oatGrowableListIteratorNext(&iter); predBB;
+         predBB = (BasicBlock*)oatGrowableListIteratorNext(&iter)) {
+             addBlocksToLoop(cUnit, blocks, predBB, headId);
+    }
+}
+
+void oatDumpLoops(CompilationUnit *cUnit)
+{
+    GrowableListIterator iter;
+    oatGrowableListIteratorInit(&cUnit->loopHeaders, &iter);
+    for (LoopInfo* loop = (LoopInfo*)oatGrowableListIteratorNext(&iter);
+         (loop != NULL); loop = (LoopInfo*)oatGrowableListIteratorNext(&iter)) {
+         LOG(INFO) << "Loop head block id " << loop->header->id
+                   << ", offset 0x" << std::hex << loop->header->startOffset
+                   << ", Depth: " << loop->header->nestingDepth;
+         GrowableListIterator iter;
+         oatGrowableListIteratorInit(&loop->incomingBackEdges, &iter);
+         BasicBlock* edgeBB;
+         for (edgeBB = (BasicBlock*)oatGrowableListIteratorNext(&iter); edgeBB;
+              edgeBB = (BasicBlock*)oatGrowableListIteratorNext(&iter)) {
+              LOG(INFO) << "    Backedge block id " << edgeBB->id
+                        << ", offset 0x" << std::hex << edgeBB->startOffset;
+              ArenaBitVectorIterator bIter;
+              oatBitVectorIteratorInit(loop->blocks, &bIter);
+              for (int bbId = oatBitVectorIteratorNext(&bIter); bbId != -1;
+                   bbId = oatBitVectorIteratorNext(&bIter)) {
+                  BasicBlock *bb;
+                  bb = (BasicBlock*)
+                        oatGrowableListGetElement(&cUnit->blockList, bbId);
+                  LOG(INFO) << "        (" << bb->id << ", 0x" << std::hex
+                            << bb->startOffset << ")";
+              }
+         }
+    }
+}
+
+void oatMethodLoopDetection(CompilationUnit *cUnit)
+{
+    if (cUnit->disableOpt & (1 << kPromoteRegs)) {
+        return;
+    }
+    oatInitGrowableList(cUnit, &cUnit->loopHeaders, 6, kListMisc);
+    // Find the loop headers
+    oatDataFlowAnalysisDispatcher(cUnit, findBackEdges,
+                                  kAllNodes, false /* isIterative */);
+    GrowableListIterator iter;
+    oatGrowableListIteratorInit(&cUnit->loopHeaders, &iter);
+    // Add blocks to each header
+    for (LoopInfo* loop = (LoopInfo*)oatGrowableListIteratorNext(&iter);
+         loop; loop = (LoopInfo*)oatGrowableListIteratorNext(&iter)) {
+         loop->blocks = oatAllocBitVector(cUnit, cUnit->numBlocks, true,
+                                          kBitMapMisc);
+         oatSetBit(cUnit, loop->blocks, loop->header->id);
+         GrowableListIterator iter;
+         oatGrowableListIteratorInit(&loop->incomingBackEdges, &iter);
+         BasicBlock* edgeBB;
+         for (edgeBB = (BasicBlock*)oatGrowableListIteratorNext(&iter); edgeBB;
+              edgeBB = (BasicBlock*)oatGrowableListIteratorNext(&iter)) {
+             addBlocksToLoop(cUnit, loop->blocks, edgeBB, loop->header->id);
+         }
+    }
+    // Compute the nesting depth of each header
+    oatGrowableListIteratorInit(&cUnit->loopHeaders, &iter);
+    for (LoopInfo* loop = (LoopInfo*)oatGrowableListIteratorNext(&iter);
+         loop; loop = (LoopInfo*)oatGrowableListIteratorNext(&iter)) {
+        GrowableListIterator iter2;
+        oatGrowableListIteratorInit(&cUnit->loopHeaders, &iter2);
+        LoopInfo* loop2;
+        for (loop2 = (LoopInfo*)oatGrowableListIteratorNext(&iter2);
+             loop2; loop2 = (LoopInfo*)oatGrowableListIteratorNext(&iter2)) {
+            if (oatIsBitSet(loop2->blocks, loop->header->id)) {
+                loop->header->nestingDepth++;
+            }
+        }
+    }
+    // Assign nesting depth to each block in all loops
+    oatGrowableListIteratorInit(&cUnit->loopHeaders, &iter);
+    for (LoopInfo* loop = (LoopInfo*)oatGrowableListIteratorNext(&iter);
+         (loop != NULL); loop = (LoopInfo*)oatGrowableListIteratorNext(&iter)) {
+        ArenaBitVectorIterator bIter;
+        oatBitVectorIteratorInit(loop->blocks, &bIter);
+        for (int bbId = oatBitVectorIteratorNext(&bIter); bbId != -1;
+            bbId = oatBitVectorIteratorNext(&bIter)) {
+            BasicBlock *bb;
+            bb = (BasicBlock*) oatGrowableListGetElement(&cUnit->blockList,
+                                                         bbId);
+            bb->nestingDepth = std::max(bb->nestingDepth,
+                                        loop->header->nestingDepth);
+        }
+    }
+    if (cUnit->printMe) {
+        oatDumpLoops(cUnit);
+    }
+}
+
+/*
+ * Count uses, weighting by loop nesting depth.  This code only
+ * counts explicitly used sRegs.  A later phase will add implicit
+ * counts for things such as Method*, null-checked references, etc.
+ */
+bool countUses(struct CompilationUnit* cUnit, struct BasicBlock* bb)
+{
+    if (bb->blockType != kDalvikByteCode) {
+        return false;
+    }
+    for (MIR* mir = bb->firstMIRInsn; (mir != NULL); mir = mir->next) {
+        if (mir->ssaRep == NULL) {
+            continue;
+        }
+        for (int i = 0; i < mir->ssaRep->numUses; i++) {
+            int sReg = mir->ssaRep->uses[i];
+            uint32_t weight = std::min(16U, (uint32_t)bb->nestingDepth);
+            DCHECK_LT(sReg, (int)cUnit->useCounts.numUsed);
+            cUnit->useCounts.elemList[sReg] += (1 << weight);
+        }
+    }
+    return false;
+}
+
+void oatMethodUseCount(CompilationUnit *cUnit)
+{
+    if (cUnit->disableOpt & (1 << kPromoteRegs)) {
+        return;
+    }
+    oatInitGrowableList(cUnit, &cUnit->useCounts, cUnit->numSSARegs + 32,
+                        kListMisc);
+    // Initialize list
+    for (int i = 0; i < cUnit->numSSARegs; i++) {
+        oatInsertGrowableList(cUnit, &cUnit->useCounts, 0);
+    }
+    oatDataFlowAnalysisDispatcher(cUnit, countUses,
+                                  kAllNodes, false /* isIterative */);
 }
 
 }  // namespace art

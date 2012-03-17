@@ -1341,22 +1341,23 @@ void genArrayObjPut(CompilationUnit* cUnit, MIR* mir, RegLocation rlArray,
         opRegCopy(cUnit, regPtr, rlArray.lowReg);
     }
 
-    if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
-        int regLen = oatAllocTemp(cUnit);
+    bool needsRangeCheck = (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK));
+    int regLen = INVALID_REG;
+    if (needsRangeCheck) {
+        regLen = oatAllocTemp(cUnit);
         //NOTE: max live temps(4) here.
         /* Get len */
         loadWordDisp(cUnit, rlArray.lowReg, lenOffset, regLen);
-        /* regPtr -> array data */
-        opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
+    }
+    /* regPtr -> array data */
+    opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
+    /* at this point, regPtr points to array, 2 live temps */
+    rlSrc = loadValue(cUnit, rlSrc, regClass);
+    if (needsRangeCheck) {
         genRegRegCheck(cUnit, kCondCs, rlIndex.lowReg, regLen, mir,
                        kThrowArrayBounds);
         oatFreeTemp(cUnit, regLen);
-    } else {
-        /* regPtr -> array data */
-        opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
     }
-    /* at this point, regPtr points to array, 2 live temps */
-    rlSrc = loadValue(cUnit, rlSrc, regClass);
     storeBaseIndexed(cUnit, regPtr, rlIndex.lowReg, rlSrc.lowReg,
                      scale, kWord);
 }
@@ -1406,21 +1407,15 @@ void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
     }
 #else
     int regPtr = oatAllocTemp(cUnit);
-    if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
-        int regLen = oatAllocTemp(cUnit);
+    bool needsRangeCheck = (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK));
+    int regLen = INVALID_REG;
+    if (needsRangeCheck) {
+        regLen = oatAllocTemp(cUnit);
         /* Get len */
         loadWordDisp(cUnit, rlArray.lowReg, lenOffset, regLen);
-        /* regPtr -> array data */
-        opRegRegImm(cUnit, kOpAdd, regPtr, rlArray.lowReg, dataOffset);
-        // TODO: change kCondCS to a more meaningful name, is the sense of
-        // carry-set/clear flipped?
-        genRegRegCheck(cUnit, kCondCs, rlIndex.lowReg, regLen, mir,
-                       kThrowArrayBounds);
-        oatFreeTemp(cUnit, regLen);
-    } else {
-        /* regPtr -> array data */
-        opRegRegImm(cUnit, kOpAdd, regPtr, rlArray.lowReg, dataOffset);
     }
+    /* regPtr -> array data */
+    opRegRegImm(cUnit, kOpAdd, regPtr, rlArray.lowReg, dataOffset);
     oatFreeTemp(cUnit, rlArray.lowReg);
     if ((size == kLong) || (size == kDouble)) {
         if (scale) {
@@ -1434,6 +1429,13 @@ void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
         oatFreeTemp(cUnit, rlIndex.lowReg);
         rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
 
+        if (needsRangeCheck) {
+            // TODO: change kCondCS to a more meaningful name, is the sense of
+            // carry-set/clear flipped?
+            genRegRegCheck(cUnit, kCondCs, rlIndex.lowReg, regLen, mir,
+                           kThrowArrayBounds);
+            oatFreeTemp(cUnit, regLen);
+        }
         loadPair(cUnit, regPtr, rlResult.lowReg, rlResult.highReg);
 
         oatFreeTemp(cUnit, regPtr);
@@ -1441,6 +1443,13 @@ void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
     } else {
         rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
 
+        if (needsRangeCheck) {
+            // TODO: change kCondCS to a more meaningful name, is the sense of
+            // carry-set/clear flipped?
+            genRegRegCheck(cUnit, kCondCs, rlIndex.lowReg, regLen, mir,
+                           kThrowArrayBounds);
+            oatFreeTemp(cUnit, regLen);
+        }
         loadBaseIndexed(cUnit, regPtr, rlIndex.lowReg, rlResult.lowReg,
                         scale, size);
 
@@ -1483,20 +1492,16 @@ void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
     /* null object? */
     genNullCheck(cUnit, rlArray.sRegLow, rlArray.lowReg, mir);
 
-    if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
-        int regLen = oatAllocTemp(cUnit);
+    bool needsRangeCheck = (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK));
+    int regLen = INVALID_REG;
+    if (needsRangeCheck) {
+        regLen = oatAllocTemp(cUnit);
         //NOTE: max live temps(4) here.
         /* Get len */
         loadWordDisp(cUnit, rlArray.lowReg, lenOffset, regLen);
-        /* regPtr -> array data */
-        opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
-        genRegRegCheck(cUnit, kCondCs, rlIndex.lowReg, regLen, mir,
-                       kThrowArrayBounds);
-        oatFreeTemp(cUnit, regLen);
-    } else {
-        /* regPtr -> array data */
-        opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
     }
+    /* regPtr -> array data */
+    opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
     /* at this point, regPtr points to array, 2 live temps */
     if ((size == kLong) || (size == kDouble)) {
         //TUNING: specific wide routine that can handle fp regs
@@ -1510,12 +1515,22 @@ void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
         }
         rlSrc = loadValueWide(cUnit, rlSrc, regClass);
 
+        if (needsRangeCheck) {
+            genRegRegCheck(cUnit, kCondCs, rlIndex.lowReg, regLen, mir,
+                           kThrowArrayBounds);
+            oatFreeTemp(cUnit, regLen);
+        }
+
         storePair(cUnit, regPtr, rlSrc.lowReg, rlSrc.highReg);
 
         oatFreeTemp(cUnit, regPtr);
     } else {
         rlSrc = loadValue(cUnit, rlSrc, regClass);
-
+        if (needsRangeCheck) {
+            genRegRegCheck(cUnit, kCondCs, rlIndex.lowReg, regLen, mir,
+                           kThrowArrayBounds);
+            oatFreeTemp(cUnit, regLen);
+        }
         storeBaseIndexed(cUnit, regPtr, rlIndex.lowReg, rlSrc.lowReg,
                          scale, size);
     }

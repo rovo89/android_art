@@ -37,15 +37,16 @@ enum DataFlowAttributePos {
     kFormat35c,
     kFormat3rc,
     kPhi,
-    kNullCheckSrc0,        // Null check of src[0]
-    kNullCheckSrc1,        // Null check of src[1]
+    kNullCheckSrc0,        // Null check of uses[0]
+    kNullCheckSrc1,        // Null check of uses[1]
+    kNullCheckSrc2,        // Null check of uses[2]
     kNullCheckOut0,        // Null check out outgoing arg0
     kDstNonNull,           // May assume dst is non-null
     kRetNonNull,           // May assume retval is non-null
     kNullTransferSrc0,     // Object copy src[0] -> dst
     kNullTransferSrcN,     // Phi null check state transfer
-    kRangeCheckSrc1,       // Range check of src[1]
-    kRangeCheckSrc2,       // Range check of src[2]
+    kRangeCheckSrc1,       // Range check of uses[1]
+    kRangeCheckSrc2,       // Range check of uses[2]
     kFPA,
     kFPB,
     kFPC,
@@ -73,6 +74,7 @@ enum DataFlowAttributePos {
 #define DF_PHI                  (1 << kPhi)
 #define DF_NULL_CHK_0           (1 << kNullCheckSrc0)
 #define DF_NULL_CHK_1           (1 << kNullCheckSrc1)
+#define DF_NULL_CHK_2           (1 << kNullCheckSrc2)
 #define DF_NULL_CHK_OUT0        (1 << kNullCheckOut0)
 #define DF_NON_NULL_DST         (1 << kDstNonNull)
 #define DF_NON_NULL_RET         (1 << kRetNonNull)
@@ -96,6 +98,7 @@ enum DataFlowAttributePos {
 
 #define DF_HAS_NULL_CHKS        (DF_NULL_CHK_0 | \
                                  DF_NULL_CHK_1 | \
+                                 DF_NULL_CHK_2 | \
                                  DF_NULL_CHK_OUT0)
 
 #define DF_HAS_NR_CHKS          (DF_HAS_NULL_CHKS | \
@@ -146,6 +149,16 @@ struct ArrayAccessInfo {
     int maxC;                   // For DIV - will affect upper bound checking
     int minC;                   // For DIV - will affect lower bound checking
 };
+
+struct LoopInfo {
+    BasicBlock* header;
+    GrowableList incomingBackEdges;
+    ArenaBitVector* blocks;
+};
+
+void oatMethodLoopDetection(CompilationUnit*);
+
+void oatMethodUseCount(CompilationUnit*);
 
 void oatMethodNullCheckElimination(CompilationUnit*);
 
