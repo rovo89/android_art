@@ -324,6 +324,11 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       compiler_context_(NULL),
       jni_compiler_(NULL),
       create_invoke_stub_(NULL)
+#if defined(ART_USE_LLVM_COMPILER)
+    , compiler_enable_auto_elf_loading_(NULL),
+      compiler_get_method_code_addr_(NULL),
+      compiler_get_method_invoke_stub_addr_(NULL)
+#endif
 {
   std::string compiler_so_name(MakeCompilerSoName(instruction_set_));
   compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
@@ -347,6 +352,15 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
   compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtCompileMethod");
   jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtJniCompileMethod");
   create_invoke_stub_ = FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateInvokeStub");
+
+#if defined(ART_USE_LLVM_COMPILER)
+  compiler_enable_auto_elf_loading_ = FindFunction<CompilerEnableAutoElfLoadingFn>(
+      compiler_so_name, compiler_library_, "compilerLLVMEnableAutoElfLoading");
+  compiler_get_method_code_addr_ = FindFunction<CompilerGetMethodCodeAddrFn>(
+      compiler_so_name, compiler_library_, "compilerLLVMGetMethodCodeAddr");
+  compiler_get_method_invoke_stub_addr_ = FindFunction<CompilerGetMethodInvokeStubAddrFn>(
+      compiler_so_name, compiler_library_, "compilerLLVMGetMethodInvokeStubAddr");
+#endif
 
   CHECK(!Runtime::Current()->IsStarted());
   if (!image_) {
@@ -1397,6 +1411,20 @@ void Compiler::SetBitcodeFileName(std::string const& filename) {
                                        "compilerLLVMSetBitcodeFileName");
 
   set_bitcode_file_name(*this, filename);
+}
+
+void Compiler::EnableAutoElfLoading() {
+  compiler_enable_auto_elf_loading_(*this);
+}
+
+const void* Compiler::GetMethodCodeAddr(const CompiledMethod* cm,
+                                        const Method* method) const {
+  return compiler_get_method_code_addr_(*this, cm, method);
+}
+
+const Method::InvokeStub* Compiler::GetMethodInvokeStubAddr(const CompiledInvokeStub* cm,
+                                                            const Method* method) const {
+  return compiler_get_method_invoke_stub_addr_(*this, cm, method);
 }
 #endif
 

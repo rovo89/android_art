@@ -108,40 +108,4 @@ std::string LLVMStubName(const Method* m) {
   return stub_name;
 }
 
-void LLVMLinkLoadMethod(const std::string& file_name, Method* method) {
-  CHECK(method != NULL);
-
-  int fd = open(file_name.c_str(), O_RDONLY);
-  CHECK(fd >= 0) << "Error: ELF not found: " << file_name;
-
-  struct stat sb;
-  CHECK(fstat(fd, &sb) == 0) << "Error: Unable to stat ELF: " << file_name;
-
-  unsigned char const *image = (unsigned char const *)
-      mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  CHECK(image != MAP_FAILED) << "Error: Unable to mmap ELF: " << file_name;
-
-  RSExecRef relocatable =
-    rsloaderCreateExec(image, sb.st_size, art_find_runtime_support_func, 0);
-  CHECK(relocatable) << "Error: Unable to load ELF: " << file_name;
-
-  const void *addr = rsloaderGetSymbolAddress(relocatable, LLVMLongName(method).c_str());
-  CHECK(addr) << "Error: ELF (" << file_name << ") has no symbol " << LLVMLongName(method);
-  method->SetCode(reinterpret_cast<const uint32_t*>(addr));
-
-  method->SetFrameSizeInBytes(0);
-  method->SetCoreSpillMask(0);
-  method->SetFpSpillMask(0);
-  method->SetMappingTable(reinterpret_cast<const uint32_t*>(NULL));
-  method->SetVmapTable(reinterpret_cast<const uint16_t*>(NULL));
-  method->SetGcMap(reinterpret_cast<const uint8_t*>(NULL));
-
-  addr = rsloaderGetSymbolAddress(relocatable, LLVMStubName(method).c_str());
-  CHECK(addr) << "Error: ELF (" << file_name << ") has no symbol " << LLVMStubName(method);
-  method->SetInvokeStub(reinterpret_cast<void (*)(const art::Method*, art::Object*, art::Thread*,
-                                                  art::JValue*, art::JValue*)>(addr));
-
-  close(fd);
-}
-
 }  // namespace art

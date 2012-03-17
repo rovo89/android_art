@@ -21,6 +21,7 @@ LIBART_COMPILER_LLVM_SRC_FILES += \
 	src/compiler_llvm/compilation_unit.cc \
 	src/compiler_llvm/compiler_llvm.cc \
 	src/compiler_llvm/dalvik_reg.cc \
+	src/compiler_llvm/elf_loader.cc \
 	src/compiler_llvm/frontend.cc \
 	src/compiler_llvm/generated/art_module.cc \
 	src/compiler_llvm/inferred_reg_category_map.cc \
