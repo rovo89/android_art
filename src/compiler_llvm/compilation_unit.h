@@ -36,9 +36,13 @@ class IRBuilder;
 
 class CompilationUnit {
  public:
-  CompilationUnit(InstructionSet insn_set);
+  CompilationUnit(InstructionSet insn_set, size_t elf_idx);
 
   ~CompilationUnit();
+
+  size_t GetElfIndex() const {
+    return elf_idx_;
+  }
 
   InstructionSet GetInstructionSet() const {
     return insn_set_;
@@ -98,6 +102,7 @@ class CompilationUnit {
 
  private:
   InstructionSet insn_set_;
+  const size_t elf_idx_;
 
   UniquePtr<llvm::LLVMContext> context_;
   UniquePtr<IRBuilder> irb_;
