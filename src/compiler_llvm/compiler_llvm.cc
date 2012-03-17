@@ -79,10 +79,11 @@ void InitializeLLVM() {
 }
 
 // The Guard to Shutdown LLVM
-//llvm::llvm_shutdown_obj llvm_guard;
-// TODO: We are commenting this line because this will cause SEGV.  This may
-// related to two possible reasons: (1) the order of the destruction of static
-// objects, and (2) dlopen/dlclose side-effect on static objects.
+// llvm::llvm_shutdown_obj llvm_guard;
+// TODO: We are commenting out this line because this will cause SEGV from
+// time to time.
+// Two reasons: (1) the order of the destruction of static objects, or
+//              (2) dlopen/dlclose side-effect on static objects.
 
 } // anonymous namespace
 
