@@ -92,7 +92,7 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
     Class* dst_class = mh.GetClassFromTypeIdx(classes->GetTypeItem(i).type_idx_);
     if (dst_class->IsPrimitive()) {
       std::string what(StringPrintf("argument %d", i + 1)); // Humans count from 1.
-      if (!UnboxPrimitive(env, arg, dst_class, decoded_args[i], what.c_str())) {
+      if (!UnboxPrimitive(arg, dst_class, decoded_args[i], what.c_str())) {
         return NULL;
       }
     } else {
@@ -115,7 +115,7 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
   }
 
   // Box if necessary and return.
-  BoxPrimitive(env, mh.GetReturnType()->GetPrimitiveType(), value);
+  BoxPrimitive(mh.GetReturnType()->GetPrimitiveType(), value);
   return AddLocalReference<jobject>(env, value.l);
 }
 
@@ -229,46 +229,36 @@ bool ConvertPrimitiveValue(Primitive::Type srcType, Primitive::Type dstType,
   return false;
 }
 
-void BoxPrimitive(JNIEnv*, Primitive::Type src_class, JValue& value) {
+void BoxPrimitive(Primitive::Type src_class, JValue& value) {
   if (src_class == Primitive::kPrimNot) {
     return;
   }
 
   Method* m = NULL;
-  JValue args[1];
-  args[0].j = 0;
   switch (src_class) {
   case Primitive::kPrimBoolean:
     m = gBoolean_valueOf;
-    args[0].z = value.z;
     break;
   case Primitive::kPrimByte:
     m = gByte_valueOf;
-    args[0].b = value.b;
     break;
   case Primitive::kPrimChar:
     m = gCharacter_valueOf;
-    args[0].c = value.c;
     break;
   case Primitive::kPrimDouble:
     m = gDouble_valueOf;
-    args[0].d = value.d;
     break;
   case Primitive::kPrimFloat:
     m = gFloat_valueOf;
-    args[0].f = value.f;
     break;
   case Primitive::kPrimInt:
     m = gInteger_valueOf;
-    args[0].i = value.i;
     break;
   case Primitive::kPrimLong:
     m = gLong_valueOf;
-    args[0].j = value.j;
     break;
   case Primitive::kPrimShort:
     m = gShort_valueOf;
-    args[0].s = value.s;
     break;
   case Primitive::kPrimVoid:
     // There's no such thing as a void field, and void methods invoked via reflection return null.
@@ -280,10 +270,11 @@ void BoxPrimitive(JNIEnv*, Primitive::Type src_class, JValue& value) {
 
   Thread* self = Thread::Current();
   ScopedThreadStateChange tsc(self, Thread::kRunnable);
+  JValue args[1] = { value };
   m->Invoke(self, NULL, args, &value);
 }
 
-bool UnboxPrimitive(JNIEnv*, Object* o, Class* dst_class, JValue& unboxed_value, const char* what) {
+bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, const char* what) {
   if (!dst_class->IsPrimitive()) {
     if (o != NULL && !o->InstanceOf(dst_class)) {
       Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",

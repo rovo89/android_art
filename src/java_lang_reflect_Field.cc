@@ -89,11 +89,11 @@ static jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
   }
 
   // Get the field's value, boxing if necessary.
-  JValue value;
+  JValue value = { 0 };
   if (!GetFieldValue(o, f, value, true)) {
     return NULL;
   }
-  BoxPrimitive(env, FieldHelper(f).GetTypeAsPrimitiveType(), value);
+  BoxPrimitive(FieldHelper(f).GetTypeAsPrimitiveType(), value);
 
   return AddLocalReference<jobject>(env, value.l);
 }
@@ -106,7 +106,7 @@ static JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj,
   }
 
   // Read the value.
-  JValue field_value;
+  JValue field_value = { 0 };
   if (!GetFieldValue(o, f, field_value, false)) {
     return JValue();
   }
@@ -206,7 +206,7 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
   // Unbox the value, if necessary.
   Object* boxed_value = Decode<Object*>(env, javaValue);
   JValue unboxed_value;
-  if (!UnboxPrimitive(env, boxed_value, FieldHelper(f).GetType(), unboxed_value, "field")) {
+  if (!UnboxPrimitive(boxed_value, FieldHelper(f).GetType(), unboxed_value, "field")) {
     return;
   }
 
