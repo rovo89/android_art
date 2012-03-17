@@ -332,6 +332,18 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
   }
   VLOG(compiler) << "dlopen(\"" << compiler_so_name << "\", RTLD_LAZY) returned " << compiler_library_;
 
+#if defined(ART_USE_LLVM_COMPILER)
+  // Initialize compiler_context_
+  typedef void (*InitCompilerContextFn)(Compiler&);
+
+  InitCompilerContextFn init_compiler_context =
+    FindFunction<void (*)(Compiler&)>(compiler_so_name,
+                                      compiler_library_,
+                                      "ArtInitCompilerContext");
+
+  init_compiler_context(*this);
+#endif
+
   compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtCompileMethod");
   jni_compiler_ = FindFunction<JniCompilerFn>(compiler_so_name, compiler_library_, "ArtJniCompileMethod");
   create_invoke_stub_ = FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateInvokeStub");
@@ -1366,17 +1378,25 @@ void Compiler::SetGcMapsMethod(const DexFile& dex_file, Method* method) {
 
 #if defined(ART_USE_LLVM_COMPILER)
 void Compiler::SetElfFileName(std::string const& filename) {
-  elf_filename_ = filename;
+  typedef void (*SetElfFileNameFn)(Compiler&, std::string const&);
+
+  SetElfFileNameFn set_elf_file_name =
+    FindFunction<SetElfFileNameFn>(MakeCompilerSoName(instruction_set_),
+                                   compiler_library_,
+                                   "compilerLLVMSetElfFileName");
+
+  set_elf_file_name(*this, filename);
 }
 
 void Compiler::SetBitcodeFileName(std::string const& filename) {
-  bitcode_filename_ = filename;
-}
-std::string const& Compiler::GetElfFileName() {
-  return elf_filename_;
-}
-std::string const& Compiler::GetBitcodeFileName() {
-  return bitcode_filename_;
+  typedef void (*SetBitcodeFileNameFn)(Compiler&, std::string const&);
+
+  SetBitcodeFileNameFn set_bitcode_file_name =
+    FindFunction<SetBitcodeFileNameFn>(MakeCompilerSoName(instruction_set_),
+                                       compiler_library_,
+                                       "compilerLLVMSetBitcodeFileName");
+
+  set_bitcode_file_name(*this, filename);
 }
 #endif
 

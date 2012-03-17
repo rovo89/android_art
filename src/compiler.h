@@ -128,8 +128,6 @@ class Compiler {
 #if defined(ART_USE_LLVM_COMPILER)
   void SetElfFileName(std::string const& filename);
   void SetBitcodeFileName(std::string const& filename);
-  std::string const& GetElfFileName();
-  std::string const& GetBitcodeFileName();
 #endif
 
   void SetCompilerContext(void* compiler_context) {
@@ -227,8 +225,6 @@ class Compiler {
   const std::set<std::string>* image_classes_;
 
 #if defined(ART_USE_LLVM_COMPILER)
-  std::string elf_filename_;
-  std::string bitcode_filename_;
   typedef void (*CompilerCallbackFn)(Compiler& compiler);
   typedef MutexLock* (*CompilerMutexLockFn)(Compiler& compiler);
 #endif
