@@ -257,7 +257,7 @@ static T Decode(ScopedJniThreadState& ts, jobject obj) {
 
 static JValue InvokeWithArgArray(JNIEnv* public_env, Object* receiver, Method* method, JValue* args) {
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
-  JValue result;
+  JValue result = { 0 };
   method->Invoke(env->self, receiver, args, &result);
   return result;
 }

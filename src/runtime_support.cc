@@ -1170,7 +1170,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
         uint64_t high_half = *reinterpret_cast<uint32_t*>(stack_args + (13 * kPointerSize));
         val.j = (val.j & 0xffffffffULL) | (high_half << 32);
       }
-      BoxPrimitive(env, param_type->GetPrimitiveType(), val);
+      BoxPrimitive(param_type->GetPrimitiveType(), val);
       if (self->IsExceptionPending()) {
         return;
       }
@@ -1189,7 +1189,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
       obj = self->DecodeJObject(*reinterpret_cast<jobject*>(stack_args + (cur_arg * kPointerSize)));
     } else {
       JValue val = *reinterpret_cast<JValue*>(stack_args + (cur_arg * kPointerSize));
-      BoxPrimitive(env, param_type->GetPrimitiveType(), val);
+      BoxPrimitive(param_type->GetPrimitiveType(), val);
       if (self->IsExceptionPending()) {
         return;
       }
@@ -1218,7 +1218,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     Object* result_ref = self->DecodeJObject(result);
     if (result_ref != NULL) {
       JValue result_unboxed;
-      bool unboxed_okay = UnboxPrimitive(env, result_ref, proxy_mh.GetReturnType(), result_unboxed, "result");
+      bool unboxed_okay = UnboxPrimitive(result_ref, proxy_mh.GetReturnType(), result_unboxed, "result");
       CHECK(unboxed_okay);
       *reinterpret_cast<JValue*>(stack_args) = result_unboxed;
     } else {
