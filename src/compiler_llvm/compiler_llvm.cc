@@ -209,18 +209,30 @@ CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
   return upcall_compiler->CreateStub(is_static, shorty);
 }
 
-CompilerLLVM* EnsureCompilerLLVM(art::Compiler& compiler) {
-  if (compiler.GetCompilerContext() == NULL) {
-    compiler.SetCompilerContext(new CompilerLLVM(&compiler, compiler.GetInstructionSet()));
-  }
-  CompilerLLVM* compiler_llvm = reinterpret_cast<CompilerLLVM*>(compiler.GetCompilerContext());
-  compiler_llvm->SetElfFileName(compiler.GetElfFileName());
-  compiler_llvm->SetBitcodeFileName(compiler.GetBitcodeFileName());
-  return compiler_llvm;
-}
-
 } // namespace compiler_llvm
 } // namespace art
+
+inline static art::compiler_llvm::CompilerLLVM* ContextOf(art::Compiler& compiler) {
+  void *compiler_context = compiler.GetCompilerContext();
+  CHECK(compiler_context != NULL);
+  return reinterpret_cast<art::compiler_llvm::CompilerLLVM*>(compiler_context);
+}
+
+inline static const art::compiler_llvm::CompilerLLVM* ContextOf(const art::Compiler& compiler) {
+  void *compiler_context = compiler.GetCompilerContext();
+  CHECK(compiler_context != NULL);
+  return reinterpret_cast<const art::compiler_llvm::CompilerLLVM*>(compiler_context);
+}
+
+extern "C" void ArtInitCompilerContext(art::Compiler& compiler) {
+  CHECK(compiler.GetCompilerContext() == NULL);
+
+  art::compiler_llvm::CompilerLLVM* compiler_llvm =
+      new art::compiler_llvm::CompilerLLVM(&compiler,
+                                           compiler.GetInstructionSet());
+
+  compiler.SetCompilerContext(compiler_llvm);
+}
 
 extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
                                                  const art::DexFile::CodeItem* code_item,
@@ -235,7 +247,7 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
     class_loader, class_linker, dex_file, *dex_cache, code_item,
     method_idx, access_flags);
 
-  return art::compiler_llvm::EnsureCompilerLLVM(compiler)->CompileDexMethod(&oat_compilation_unit);
+  return ContextOf(compiler)->CompileDexMethod(&oat_compilation_unit);
 }
 
 extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
@@ -249,7 +261,7 @@ extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
     class_loader, class_linker, dex_file, *dex_cache, NULL,
     method_idx, access_flags);
 
-  art::compiler_llvm::CompilerLLVM* compiler_llvm = art::compiler_llvm::EnsureCompilerLLVM(compiler);
+  art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
   art::CompiledMethod* result = compiler_llvm->CompileNativeMethod(&oat_compilation_unit);
   compiler_llvm->MaterializeIfThresholdReached();
   return result;
@@ -257,18 +269,28 @@ extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
 
 extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(art::Compiler& compiler, bool is_static,
                                                         const char* shorty, uint32_t shorty_len) {
-  return art::compiler_llvm::EnsureCompilerLLVM(compiler)->CreateInvokeStub(is_static, shorty);
+  return ContextOf(compiler)->CreateInvokeStub(is_static, shorty);
+}
+
+extern "C" void compilerLLVMSetElfFileName(art::Compiler& compiler,
+                                           std::string const& filename) {
+  ContextOf(compiler)->SetElfFileName(filename);
+}
+
+extern "C" void compilerLLVMSetBitcodeFileName(art::Compiler& compiler,
+                                               std::string const& filename) {
+  ContextOf(compiler)->SetBitcodeFileName(filename);
 }
 
 extern "C" void compilerLLVMMaterializeRemainder(art::Compiler& compiler) {
-  art::compiler_llvm::EnsureCompilerLLVM(compiler)->MaterializeRemainder();
+  ContextOf(compiler)->MaterializeRemainder();
 }
 
 // Note: Using this function carefully!!! This is temporary solution, we will remove it.
 extern "C" art::MutexLock* compilerLLVMMutexLock(art::Compiler& compiler) {
-  return new art::MutexLock(art::compiler_llvm::EnsureCompilerLLVM(compiler)->compiler_lock_);
+  return new art::MutexLock(ContextOf(compiler)->compiler_lock_);
 }
 
 extern "C" void compilerLLVMDispose(art::Compiler& compiler) {
-  delete art::compiler_llvm::EnsureCompilerLLVM(compiler);
+  delete ContextOf(compiler);
 }
