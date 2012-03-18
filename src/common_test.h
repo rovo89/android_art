@@ -414,10 +414,12 @@ class CommonTest : public testing::Test {
     CHECK(name != NULL);
     std::string filename;
     if (is_host_) {
-      // on the host, just read target dex file
-      filename += getenv("ANDROID_PRODUCT_OUT");
+      filename += getenv("ANDROID_HOST_OUT");
+      filename += "/framework/";
+    } else {
+      filename += "/data/nativetest/art/";
     }
-    filename += "/data/nativetest/art/art-test-dex-";
+    filename += "art-test-dex-";
     filename += name;
     filename += ".jar";
     const DexFile* dex_file = DexFile::Open(filename, filename);

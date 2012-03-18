@@ -26,18 +26,17 @@ ART_BUILD_HOST_DEBUG ?= true
 build_path := $(LOCAL_PATH)/build
 include $(build_path)/Android.common.mk
 
+########################################################################
+# product targets
 include $(build_path)/Android.libart.mk
 include $(build_path)/Android.libart-compiler.mk
 ifeq ($(ART_USE_LLVM_COMPILER),true)
 include $(build_path)/Android.libart-compiler-llvm.mk
 endif
 include $(build_path)/Android.executable.mk
-include $(build_path)/Android.oattest.mk
+include $(build_path)/Android.oat.mk
 
-# The *_DEPENDENCIES definitions:
-# - depend on Android.executable.mk above for ART_HOST_EXECUTABLES
-# - depend on Android.oattest.mk above for ART_TEST_DEX_FILES
-# - are needed by Android.gtest.mk below
+# ART_HOST_DEPENDENCIES depends on Android.executable.mk above for ART_HOST_EXECUTABLES
 ART_HOST_DEPENDENCIES := $(ART_HOST_EXECUTABLES) $(HOST_OUT_JAVA_LIBRARIES)/core-hostdex.jar
 ifeq ($(HOST_OS),linux)
   ART_HOST_DEPENDENCIES += $(HOST_OUT_SHARED_LIBRARIES)/libjavacore.so
@@ -46,10 +45,16 @@ else
 endif
 ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES)/core.jar $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 
-ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_TEST_EXECUTABLES)   $(ART_TEST_DEX_FILES)
-ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_TEST_EXECUTABLES) $(ART_TEST_DEX_FILES)
+########################################################################
+# test targets
 
-include $(build_path)/Android.oat.mk
+include $(build_path)/Android.oattest.mk
+
+# The ART_*_TEST_DEPENDENCIES definitions:
+# - depend on Android.oattest.mk above for ART_TEST_*_DEX_FILES
+# - are needed by Android.gtest.mk below
+ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_TEST_EXECUTABLES)   $(ART_TEST_HOST_DEX_FILES)   $(HOST_CORE_IMG_OUT)
+ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_TEST_EXECUTABLES) $(ART_TEST_TARGET_DEX_FILES) $(TARGET_CORE_IMG_OUT)
 
 include $(build_path)/Android.libarttest.mk
 include $(build_path)/Android.gtest.mk
@@ -68,32 +73,44 @@ test-art: test-art-host test-art-target
 	@echo test-art PASSED
 
 .PHONY: test-art-gtest
-test-art-gtest: test-art-host test-art-target-gtest
+test-art-gtest: test-art-host-gtest test-art-target-gtest
 	@echo test-art-gtest PASSED
 
-define run-host-tests-with
-  $(foreach file,$(sort $(ART_HOST_TEST_EXECUTABLES)),$(1) $(file) &&) true
-endef
+.PHONY: test-art-oat
+test-art-oat: test-art-target-oat # test-art-host-oat
+	@echo test-art-oat PASSED
 
 ########################################################################
 # host test targets
 
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
-test-art-host: $(ART_HOST_TEST_TARGETS)
+test-art-host: test-art-host-gtest # test-art-host-oat # test-art-host-run-test
 	@echo test-art-host PASSED
 
-# "mm valgrind-art-host" to build and run all host tests under valgrind.
-.PHONY: valgrind-art-host
-valgrind-art-host: $(ART_HOST_TEST_DEPENDENCIES)
-	$(call run-host-tests-with,valgrind --leak-check=full)
-	@echo valgrind-art-host PASSED
+.PHONY: test-art-host-gtest
+test-art-host-gtest: $(ART_HOST_TEST_TARGETS)
+	@echo test-art-host-gtest PASSED
 
-# "mm tsan-art-host" to build and run all host tests under tsan.
-.PHONY: tsan-art-host
-tsan-art-host: $(ART_HOST_TEST_DEPENDENCIES)
-	$(call run-host-tests-with,"tsan")
-	@echo tsan-art-host PASSED
+define run-host-gtests-with
+  $(foreach file,$(sort $(ART_HOST_TEST_EXECUTABLES)),$(1) $(file) &&) true
+endef
+
+# "mm valgrind-test-art-host-gtest" to build and run the host gtests under valgrind.
+.PHONY: valgrind-test-art-host-gtest
+valgrind-test-art-host-gtest: $(ART_HOST_TEST_DEPENDENCIES)
+	$(call run-host-gtests-with,valgrind --leak-check=full)
+	@echo valgrind-test-art-host-gtest PASSED
+
+# "mm tsan-test-art-host-gtest" to build and run the host gtests under tsan.
+.PHONY: tsan-test-art-host-gtest
+tsan-test-art-host-gtest: $(ART_HOST_TEST_DEPENDENCIES)
+	$(call run-host-gtests-with,"tsan")
+	@echo tsan-test-art-host-gtest PASSED
+
+.PHONY: test-art-host-oat
+test-art-host-oat: $(ART_TEST_HOST_OAT_TARGETS)
+	@echo test-art-host-oat PASSED
 
 ########################################################################
 # target test targets
@@ -113,7 +130,7 @@ test-art-target-sync: $(ART_TARGET_TEST_DEPENDENCIES) $(ART_TEST_OUT)/libarttest
 test-art-target-gtest: $(ART_TARGET_TEST_TARGETS)
 
 .PHONY: test-art-target-oat
-test-art-target-oat: $(ART_TEST_OAT_TARGETS)
+test-art-target-oat: $(ART_TEST_TARGET_OAT_TARGETS)
 	@echo test-art-target-oat PASSED
 
 define declare-test-art-target-run-test
