@@ -123,31 +123,31 @@ const int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA | DF_NULL_CHK_0 | DF_CORE_A,
 
     // 1F CHK_CAST vAA, type@BBBB
-    DF_UA | DF_CORE_A,
+    DF_UA | DF_CORE_A | DF_UMS,
 
     // 20 INSTANCE_OF vA, vB, type@CCCC
-    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
+    DF_DA | DF_UB | DF_CORE_A | DF_CORE_B | DF_UMS,
 
     // 21 ARRAY_LENGTH vA, vB
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_A | DF_CORE_B,
 
     // 22 NEW_INSTANCE vAA, type@BBBB
-    DF_DA | DF_NON_NULL_DST | DF_CORE_A,
+    DF_DA | DF_NON_NULL_DST | DF_CORE_A | DF_UMS,
 
     // 23 NEW_ARRAY vA, vB, type@CCCC
-    DF_DA | DF_UB | DF_NON_NULL_DST | DF_CORE_A | DF_CORE_B,
+    DF_DA | DF_UB | DF_NON_NULL_DST | DF_CORE_A | DF_CORE_B | DF_UMS,
 
     // 24 FILLED_NEW_ARRAY {vD, vE, vF, vG, vA}
-    DF_FORMAT_35C | DF_NON_NULL_RET,
+    DF_FORMAT_35C | DF_NON_NULL_RET | DF_UMS,
 
     // 25 FILLED_NEW_ARRAY_RANGE {vCCCC .. vNNNN}, type@BBBB
-    DF_FORMAT_3RC | DF_NON_NULL_RET,
+    DF_FORMAT_3RC | DF_NON_NULL_RET | DF_UMS,
 
     // 26 FILL_ARRAY_DATA vAA, +BBBBBBBB
-    DF_UA | DF_CORE_A,
+    DF_UA | DF_CORE_A | DF_UMS,
 
     // 27 THROW vAA
-    DF_UA | DF_CORE_A,
+    DF_UA | DF_CORE_A | DF_UMS,
 
     // 28 GOTO
     DF_NOP,
@@ -235,163 +235,163 @@ const int oatDataFlowAttributes[kMirOpLast] = {
     DF_NOP,
 
     // 44 AGET vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
 
     // 45 AGET_WIDE vAA, vBB, vCC
-    DF_DA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
+    DF_DA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
 
     // 46 AGET_OBJECT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
 
     // 47 AGET_BOOLEAN vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
 
     // 48 AGET_BYTE vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
 
     // 49 AGET_CHAR vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
 
     // 4A AGET_SHORT vAA, vBB, vCC
-    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_IS_GETTER | DF_CORE_B | DF_CORE_C,
+    DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
 
     // 4B APUT vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_CORE_B | DF_CORE_C,
 
     // 4C APUT_WIDE vAA, vBB, vCC
-    DF_UA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_2 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
+    DF_UA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_2 | DF_RANGE_CHK_3 | DF_CORE_B | DF_CORE_C,
 
     // 4D APUT_OBJECT vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_CORE_B | DF_CORE_C,
 
     // 4E APUT_BOOLEAN vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_CORE_B | DF_CORE_C,
 
     // 4F APUT_BYTE vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_CORE_B | DF_CORE_C,
 
     // 50 APUT_CHAR vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_CORE_B | DF_CORE_C,
 
     // 51 APUT_SHORT vAA, vBB, vCC
-    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_IS_SETTER | DF_CORE_B | DF_CORE_C,
+    DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_CORE_B | DF_CORE_C,
 
     // 52 IGET vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
 
     // 53 IGET_WIDE vA, vB, field@CCCC
-    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
+    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
 
     // 54 IGET_OBJECT vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
 
     // 55 IGET_BOOLEAN vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
 
     // 56 IGET_BYTE vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
 
     // 57 IGET_CHAR vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
 
     // 58 IGET_SHORT vA, vB, field@CCCC
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER | DF_CORE_B,
+    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
 
     // 59 IPUT vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
 
     // 5A IPUT_WIDE vA, vB, field@CCCC
-    DF_UA_WIDE | DF_UB | DF_NULL_CHK_2 | DF_IS_SETTER | DF_CORE_B,
+    DF_UA_WIDE | DF_UB | DF_NULL_CHK_2 | DF_CORE_B,
 
     // 5B IPUT_OBJECT vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
 
     // 5C IPUT_BOOLEAN vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
 
     // 5D IPUT_BYTE vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
 
     // 5E IPUT_CHAR vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
 
     // 5F IPUT_SHORT vA, vB, field@CCCC
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER | DF_CORE_B,
+    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
 
     // 60 SGET vAA, field@BBBB
-    DF_DA | DF_IS_GETTER,
+    DF_DA | DF_UMS,
 
     // 61 SGET_WIDE vAA, field@BBBB
-    DF_DA_WIDE | DF_IS_GETTER,
+    DF_DA_WIDE | DF_UMS,
 
     // 62 SGET_OBJECT vAA, field@BBBB
-    DF_DA | DF_IS_GETTER | DF_CORE_A,
+    DF_DA | DF_CORE_A | DF_UMS,
 
     // 63 SGET_BOOLEAN vAA, field@BBBB
-    DF_DA | DF_IS_GETTER,
+    DF_DA | DF_UMS,
 
     // 64 SGET_BYTE vAA, field@BBBB
-    DF_DA | DF_IS_GETTER,
+    DF_DA | DF_UMS,
 
     // 65 SGET_CHAR vAA, field@BBBB
-    DF_DA | DF_IS_GETTER,
+    DF_DA | DF_UMS,
 
     // 66 SGET_SHORT vAA, field@BBBB
-    DF_DA | DF_IS_GETTER,
+    DF_DA | DF_UMS,
 
     // 67 SPUT vAA, field@BBBB
-    DF_UA | DF_IS_SETTER,
+    DF_UA | DF_UMS,
 
     // 68 SPUT_WIDE vAA, field@BBBB
-    DF_UA_WIDE | DF_IS_SETTER,
+    DF_UA_WIDE | DF_UMS,
 
     // 69 SPUT_OBJECT vAA, field@BBBB
-    DF_UA | DF_IS_SETTER | DF_CORE_A,
+    DF_UA | DF_CORE_A | DF_UMS,
 
     // 6A SPUT_BOOLEAN vAA, field@BBBB
-    DF_UA | DF_IS_SETTER,
+    DF_UA | DF_UMS,
 
     // 6B SPUT_BYTE vAA, field@BBBB
-    DF_UA | DF_IS_SETTER,
+    DF_UA | DF_UMS,
 
     // 6C SPUT_CHAR vAA, field@BBBB
-    DF_UA | DF_IS_SETTER,
+    DF_UA | DF_UMS,
 
     // 6D SPUT_SHORT vAA, field@BBBB
-    DF_UA | DF_IS_SETTER,
+    DF_UA | DF_UMS,
 
     // 6E INVOKE_VIRTUAL {vD, vE, vF, vG, vA}
-    DF_FORMAT_35C | DF_NULL_CHK_OUT0,
+    DF_FORMAT_35C | DF_NULL_CHK_OUT0 | DF_UMS,
 
     // 6F INVOKE_SUPER {vD, vE, vF, vG, vA}
-    DF_FORMAT_35C | DF_NULL_CHK_OUT0,
+    DF_FORMAT_35C | DF_NULL_CHK_OUT0 | DF_UMS,
 
     // 70 INVOKE_DIRECT {vD, vE, vF, vG, vA}
-    DF_FORMAT_35C | DF_NULL_CHK_OUT0,
+    DF_FORMAT_35C | DF_NULL_CHK_OUT0 | DF_UMS,
 
     // 71 INVOKE_STATIC {vD, vE, vF, vG, vA}
-    DF_FORMAT_35C,
+    DF_FORMAT_35C | DF_UMS,
 
     // 72 INVOKE_INTERFACE {vD, vE, vF, vG, vA}
-    DF_FORMAT_35C,
+    DF_FORMAT_35C | DF_UMS,
 
     // 73 UNUSED_73
     DF_NOP,
 
     // 74 INVOKE_VIRTUAL_RANGE {vCCCC .. vNNNN}
-    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0 | DF_UMS,
 
     // 75 INVOKE_SUPER_RANGE {vCCCC .. vNNNN}
-    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0 | DF_UMS,
 
     // 76 INVOKE_DIRECT_RANGE {vCCCC .. vNNNN}
-    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0 | DF_UMS,
 
     // 77 INVOKE_STATIC_RANGE {vCCCC .. vNNNN}
-    DF_FORMAT_3RC,
+    DF_FORMAT_3RC | DF_UMS,
 
     // 78 INVOKE_INTERFACE_RANGE {vCCCC .. vNNNN}
-    DF_FORMAT_3RC,
+    DF_FORMAT_3RC | DF_UMS,
 
     // 79 UNUSED_79
     DF_NOP,
@@ -718,10 +718,10 @@ const int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
 
     // E5 SGET_VOLATILE
-    DF_DA,
+    DF_DA | DF_UMS,
 
     // E6 SPUT_VOLATILE
-    DF_UA,
+    DF_UA | DF_UMS,
 
     // E7 IGET_OBJECT_VOLATILE
     DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_A | DF_CORE_B,
@@ -733,16 +733,16 @@ const int oatDataFlowAttributes[kMirOpLast] = {
     DF_UA_WIDE | DF_UB | DF_NULL_CHK_2 | DF_CORE_B,
 
     // EA SGET_WIDE_VOLATILE
-    DF_DA_WIDE,
+    DF_DA_WIDE | DF_UMS,
 
     // EB SPUT_WIDE_VOLATILE
-    DF_UA_WIDE,
+    DF_UA_WIDE | DF_UMS,
 
     // EC BREAKPOINT
     DF_NOP,
 
     // ED THROW_VERIFICATION_ERROR
-    DF_NOP,
+    DF_NOP | DF_UMS,
 
     // EE EXECUTE_INLINE
     DF_FORMAT_35C,
@@ -757,43 +757,43 @@ const int oatDataFlowAttributes[kMirOpLast] = {
     DF_NOP,
 
     // F2 IGET_QUICK
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0,
 
     // F3 IGET_WIDE_QUICK
-    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
+    DF_DA_WIDE | DF_UB | DF_NULL_CHK_0,
 
     // F4 IGET_OBJECT_QUICK
-    DF_DA | DF_UB | DF_NULL_CHK_0 | DF_IS_GETTER,
+    DF_DA | DF_UB | DF_NULL_CHK_0,
 
     // F5 IPUT_QUICK
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1,
 
     // F6 IPUT_WIDE_QUICK
-    DF_UA_WIDE | DF_UB | DF_NULL_CHK_2 |DF_IS_SETTER,
+    DF_UA_WIDE | DF_UB | DF_NULL_CHK_2,
 
     // F7 IPUT_OBJECT_QUICK
-    DF_UA | DF_UB | DF_NULL_CHK_1 | DF_IS_SETTER,
+    DF_UA | DF_UB | DF_NULL_CHK_1,
 
     // F8 INVOKE_VIRTUAL_QUICK
-    DF_FORMAT_35C | DF_NULL_CHK_OUT0,
+    DF_FORMAT_35C | DF_NULL_CHK_OUT0 | DF_UMS,
 
     // F9 INVOKE_VIRTUAL_QUICK_RANGE
-    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0 | DF_UMS,
 
     // FA INVOKE_SUPER_QUICK
-    DF_FORMAT_35C | DF_NULL_CHK_OUT0,
+    DF_FORMAT_35C | DF_NULL_CHK_OUT0 | DF_UMS,
 
     // FB INVOKE_SUPER_QUICK_RANGE
-    DF_FORMAT_3RC | DF_NULL_CHK_OUT0,
+    DF_FORMAT_3RC | DF_NULL_CHK_OUT0 | DF_UMS,
 
     // FC IPUT_OBJECT_VOLATILE
     DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_A | DF_CORE_B,
 
     // FD SGET_OBJECT_VOLATILE
-    DF_DA | DF_CORE_A,
+    DF_DA | DF_CORE_A | DF_UMS,
 
     // FE SPUT_OBJECT_VOLATILE
-    DF_UA | DF_CORE_A,
+    DF_UA | DF_CORE_A | DF_UMS,
 
     // FF UNUSED_FF
     DF_NOP,
@@ -1655,38 +1655,6 @@ MIR* advanceMIR(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir, ArenaBitVect
     return mir;
 }
 
-/*
- * For the rest of the extended run, replace uses of rOld with rNew.
- */
-void replaceOperands(CompilationUnit* cUnit, BasicBlock** pBp, MIR* mir,
-                     int rOld, int rNew)
-{
-    while (true) {
-       mir = advanceMIR(cUnit, pBp, mir, NULL, false);
-       if (mir == NULL) {
-           break;
-       }
-       if (mir->ssaRep == NULL) {
-           continue;
-       }
-       if (mir->optimizationFlags & MIR_MARK) {
-           LOG(INFO) << "recursive replace";
-           mir->dalvikInsn.opcode = (Instruction::Code)kMirOpCopy;
-           mir->ssaRep->uses[0] = rNew;
-           mir->ssaRep->numUses = 1;
-           replaceOperands(cUnit, pBp, mir, mir->ssaRep->defs[0], rNew);
-           mir->optimizationFlags &= ~MIR_MARK;
-       } else {
-           for (int i = 0; i < mir->ssaRep->numUses; i++) {
-               if (mir->ssaRep->uses[i] == rOld) {
-                   mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
-                   mir->ssaRep->uses[i] = rNew;
-               }
-           }
-       }
-    }
-}
-
 void squashDupRangeChecks(CompilationUnit* cUnit, BasicBlock** pBp, MIR* mir,
                           int arraySreg, int indexSreg)
 {
@@ -1825,66 +1793,6 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
                     squashDupRangeChecks(cUnit, &tbb, mir, arrSreg, idxSreg);
                 }
                 break;
-#if 0
-            // Probably not worthwhile.
-            case Instruction::IGET_OBJECT: {
-                // TODO: look for CSE
-                    if (mir->optimizationFlags & MIR_DUP) {
-                        break;
-                    }
-                    ArenaBitVector* tempBlockV = cUnit->tempBlockV;
-                    oatClearAllBits(tempBlockV);
-                    oatSetBit(cUnit, tempBlockV, bb->id);
-                    int objSreg = mir->ssaRep->uses[0];
-                    int dstSreg = mir->ssaRep->defs[0];
-                    uint32_t fieldIdx = mir->dalvikInsn.vC;
-                    int matches = 0;
-                    BasicBlock* tbb = bb;
-                    MIR* tm = mir;
-                    while (true) {
-                        tm = advanceMIR(cUnit, &tbb, tm, tempBlockV, true);
-                        if ((tm == NULL) || (tm == mir)) {
-                            break;
-                        }
-                        Instruction::Code opcode = tm->dalvikInsn.opcode;
-                        if ((opcode == Instruction::IGET_OBJECT)
-                            && (tm->ssaRep->uses[0] == objSreg)
-                            && (tm->dalvikInsn.vC == fieldIdx)) {
-                            if (cUnit->printMe) {
-                                LOG(INFO) << "Got DUP IGET_OBJECT @ 0x"
-                                          << std::hex << tm->offset
-                                          << ", from 0x" << std::hex
-                                          << mir->offset;
-                            }
-                            tm->optimizationFlags |= MIR_MARK;
-                            matches++;
-                        } else if ((opcode == Instruction::IPUT_OBJECT)
-                            && (tm->ssaRep->uses[0] == objSreg)
-                            && (tm->dalvikInsn.vC == fieldIdx)) {
-                            if (cUnit->printMe) {
-                                LOG(INFO) << "Clobbered IGET_OBJECT @ 0x"
-                                          << std::hex << tm->offset;
-                            }
-                            break;
-                        }
-                    }
-                    if (matches >= 2) {
-                        // Allocate compiler temp, redirect 1st load to temp,
-                        // insert copy to real target. Convert all dups to
-                        // copies and rename all uses.
-                        int tmpSreg = allocCompilerTempSreg(cUnit, tempBlockV);
-                        MIR* newMir = rawMIR(cUnit, (Instruction::Code)kMirOpCopy, 1, 1);
-                        newMir->ssaRep->defs[0] = dstSreg;
-                        newMir->ssaRep->uses[0] = tmpSreg;
-                        mir->ssaRep->defs[0] = tmpSreg;
-                        mir->optimizationFlags &= ~MIR_MARK;
-                        oatInsertMIRAfter(bb, mir, newMir);
-                        BasicBlock* tbb = bb;
-                        replaceOperands(cUnit, &tbb, mir, dstSreg, tmpSreg);
-                    }
-                }
-                break;
-#endif
             case Instruction::CMPL_FLOAT:
             case Instruction::CMPL_DOUBLE:
             case Instruction::CMPG_FLOAT:
@@ -2224,6 +2132,58 @@ void oatMethodLoopDetection(CompilationUnit *cUnit)
 }
 
 /*
+ * This function will make a best guess at whether the invoke will
+ * end up using Method*.  It isn't critical to get it exactly right,
+ * and attempting to do would involve more complexity than it's
+ * worth.
+ */
+bool invokeUsesMethodStar(CompilationUnit* cUnit, MIR* mir)
+{
+    InvokeType type;
+    Instruction::Code opcode = mir->dalvikInsn.opcode;
+    switch(opcode) {
+        case Instruction::INVOKE_STATIC:
+        case Instruction::INVOKE_STATIC_RANGE:
+            type = kStatic;
+            break;
+        case Instruction::INVOKE_DIRECT:
+        case Instruction::INVOKE_DIRECT_RANGE:
+            type = kDirect;
+            break;
+        case Instruction::INVOKE_VIRTUAL:
+        case Instruction::INVOKE_VIRTUAL_RANGE:
+            type = kVirtual;
+            break;
+        case Instruction::INVOKE_INTERFACE:
+        case Instruction::INVOKE_INTERFACE_RANGE:
+            return false;
+        case Instruction::INVOKE_SUPER_RANGE:
+        case Instruction::INVOKE_SUPER:
+            type = kSuper;
+            break;
+        default:
+            LOG(WARNING) << "Unexpected invoke op: " << (int)opcode;
+            return false;
+    }
+    OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
+                             *cUnit->dex_file, *cUnit->dex_cache,
+                             cUnit->code_item, cUnit->method_idx,
+                             cUnit->access_flags);
+    // TODO: add a flag so we don't counts the stats for this twice
+    uint32_t dexMethodIdx = mir->dalvikInsn.vB;
+    int vtableIdx;
+    uintptr_t directCode;
+    uintptr_t directMethod;
+    bool fastPath =
+        cUnit->compiler->ComputeInvokeInfo(dexMethodIdx, &mUnit, type,
+                                           vtableIdx, directCode,
+                                           directMethod) &&
+        !SLOW_INVOKE_PATH;
+    return (((type == kDirect) || (type == kStatic)) &&
+            fastPath && ((directCode == 0) || (directMethod == 0)));
+}
+
+/*
  * Count uses, weighting by loop nesting depth.  This code only
  * counts explicitly used sRegs.  A later phase will add implicit
  * counts for things such as Method*, null-checked references, etc.
@@ -2237,11 +2197,31 @@ bool countUses(struct CompilationUnit* cUnit, struct BasicBlock* bb)
         if (mir->ssaRep == NULL) {
             continue;
         }
+        uint32_t weight = std::min(16U, (uint32_t)bb->nestingDepth);
         for (int i = 0; i < mir->ssaRep->numUses; i++) {
             int sReg = mir->ssaRep->uses[i];
-            uint32_t weight = std::min(16U, (uint32_t)bb->nestingDepth);
             DCHECK_LT(sReg, (int)cUnit->useCounts.numUsed);
             cUnit->useCounts.elemList[sReg] += (1 << weight);
+        }
+        if (!(cUnit->disableOpt & (1 << kPromoteCompilerTemps))) {
+            int dfAttributes = oatDataFlowAttributes[mir->dalvikInsn.opcode];
+            // Implicit use of Method* ? */
+            if (dfAttributes & DF_UMS) {
+                /*
+                 * Some invokes will not use Method* - need to perform test similar
+                 * to that found in genInvoke() to decide whether to count refs
+                 * for Method* on invoke-class opcodes.
+                 * TODO: refactor for common test here, save results for genInvoke
+                 */
+                int usesMethodStar = true;
+                if ((dfAttributes & (DF_FORMAT_35C | DF_FORMAT_3RC)) &&
+                    !(dfAttributes & DF_NON_NULL_RET)) {
+                    usesMethodStar &= invokeUsesMethodStar(cUnit, mir);
+                }
+                if (usesMethodStar) {
+                    cUnit->useCounts.elemList[cUnit->methodSReg] += (1 << weight);
+                }
+            }
         }
     }
     return false;

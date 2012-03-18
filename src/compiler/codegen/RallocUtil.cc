@@ -153,17 +153,28 @@ extern void oatClobberSReg(CompilationUnit* cUnit, int sReg)
                     sReg);
 }
 
-/* Sanity check */
-bool validSreg(CompilationUnit* cUnit, int sReg)
+/*
+ * SSA names associated with the initial definitions of Dalvik
+ * registers are the same as the Dalvik register number (and
+ * thus take the same position in the promotionMap.  However,
+ * the special Method* and compiler temp resisters use negative
+ * vReg numbers to distinquish them and can have an arbitrary
+ * ssa name (above the last original Dalvik register).  This function
+ * maps SSA names to positions in the promotionMap array.
+ */
+int SRegToPMap(CompilationUnit* cUnit, int sReg)
 {
-    bool res = ((-(cUnit->numCompilerTemps + 1) <= sReg) &&
-                (sReg < cUnit->numDalvikRegisters));
-    if (!res) {
-        LOG(WARNING) << "Bad sreg: " << sReg;
-        LOG(WARNING) << "  low = " << -(cUnit->numCompilerTemps + 1);
-        LOG(WARNING) << "  high = " << cUnit->numRegs;
+    DCHECK_LT(sReg, cUnit->numSSARegs);
+    DCHECK_GE(sReg, 0);
+    int vReg = SRegToVReg(cUnit, sReg);
+    if (vReg >= 0) {
+        DCHECK_LT(vReg, cUnit->numDalvikRegisters);
+        return vReg;
+    } else {
+        int pos = std::abs(vReg) - std::abs(SSA_METHOD_BASEREG);
+        DCHECK_LE(pos, cUnit->numCompilerTemps);
+        return cUnit->numDalvikRegisters + pos;
     }
-    return res;
 }
 
 /* Reserve a callee-save register.  Return -1 if none available */
@@ -173,16 +184,15 @@ extern int oatAllocPreservedCoreReg(CompilationUnit* cUnit, int sReg)
     RegisterInfo* coreRegs = cUnit->regPool->coreRegs;
     for (int i = 0; i < cUnit->regPool->numCoreRegs; i++) {
         if (!coreRegs[i].isTemp && !coreRegs[i].inUse) {
+            int vReg = SRegToVReg(cUnit, sReg);
+            int pMapIdx = SRegToPMap(cUnit, sReg);
             res = coreRegs[i].reg;
             coreRegs[i].inUse = true;
             cUnit->coreSpillMask |= (1 << res);
-            cUnit->coreVmapTable.push_back(sReg);
+            cUnit->coreVmapTable.push_back(vReg);
             cUnit->numCoreSpills++;
-            //  Should be promoting based on initial sReg set
-            DCHECK_EQ(sReg, SRegToVReg(cUnit, sReg));
-            DCHECK(validSreg(cUnit,sReg));
-            cUnit->promotionMap[sReg].coreLocation = kLocPhysReg;
-            cUnit->promotionMap[sReg].coreReg = res;
+            cUnit->promotionMap[pMapIdx].coreLocation = kLocPhysReg;
+            cUnit->promotionMap[pMapIdx].coreReg = res;
             break;
         }
     }
@@ -201,14 +211,13 @@ int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
     for (int i = 0; i < cUnit->regPool->numFPRegs; i++) {
         if (!FPRegs[i].isTemp && !FPRegs[i].inUse &&
             ((FPRegs[i].reg & 0x1) == 0) == even) {
+            int vReg = SRegToVReg(cUnit, sReg);
+            int pMapIdx = SRegToPMap(cUnit, sReg);
             res = FPRegs[i].reg;
             FPRegs[i].inUse = true;
-            //  Should be promoting based on initial sReg set
-            DCHECK_EQ(sReg, SRegToVReg(cUnit, sReg));
-            oatMarkPreservedSingle(cUnit, sReg, res);
-            DCHECK(validSreg(cUnit,sReg));
-            cUnit->promotionMap[sReg].fpLocation = kLocPhysReg;
-            cUnit->promotionMap[sReg].fpReg = res;
+            oatMarkPreservedSingle(cUnit, vReg, res);
+            cUnit->promotionMap[pMapIdx].fpLocation = kLocPhysReg;
+            cUnit->promotionMap[pMapIdx].fpReg = res;
             break;
         }
     }
@@ -226,12 +235,11 @@ int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
 int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
 {
     int res = -1; // Assume failure
-    //  Should be promoting based on initial sReg set
-    DCHECK_EQ(sReg, SRegToVReg(cUnit, sReg));
-    DCHECK(validSreg(cUnit,sReg+1));
-    if (cUnit->promotionMap[sReg+1].fpLocation == kLocPhysReg) {
+    int vReg = SRegToVReg(cUnit, sReg);
+    int pMapIdx = SRegToPMap(cUnit, sReg);
+    if (cUnit->promotionMap[pMapIdx+1].fpLocation == kLocPhysReg) {
         // Upper reg is already allocated.  Can we fit?
-        int highReg = cUnit->promotionMap[sReg+1].fpReg;
+        int highReg = cUnit->promotionMap[pMapIdx+1].fpReg;
         if ((highReg & 1) == 0) {
             // High reg is even - fail.
             return res;
@@ -246,7 +254,7 @@ int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
         res = p->reg;
         p->inUse = true;
         DCHECK_EQ((res & 1), 0);
-        oatMarkPreservedSingle(cUnit, sReg, res);
+        oatMarkPreservedSingle(cUnit, vReg, res);
     } else {
         RegisterInfo* FPRegs = cUnit->regPool->FPRegs;
         for (int i = 0; i < cUnit->regPool->numFPRegs; i++) {
@@ -257,21 +265,19 @@ int allocPreservedDouble(CompilationUnit* cUnit, int sReg)
                 (FPRegs[i].reg + 1) == FPRegs[i+1].reg) {
                 res = FPRegs[i].reg;
                 FPRegs[i].inUse = true;
-                oatMarkPreservedSingle(cUnit, sReg, res);
+                oatMarkPreservedSingle(cUnit, vReg, res);
                 FPRegs[i+1].inUse = true;
                 DCHECK_EQ(res + 1, FPRegs[i+1].reg);
-                oatMarkPreservedSingle(cUnit, sReg+1, res+1);
+                oatMarkPreservedSingle(cUnit, vReg+1, res+1);
                 break;
             }
         }
     }
     if (res != -1) {
-        DCHECK(validSreg(cUnit,sReg));
-        cUnit->promotionMap[sReg].fpLocation = kLocPhysReg;
-        cUnit->promotionMap[sReg].fpReg = res;
-        DCHECK(validSreg(cUnit,sReg+1));
-        cUnit->promotionMap[sReg+1].fpLocation = kLocPhysReg;
-        cUnit->promotionMap[sReg+1].fpReg = res + 1;
+        cUnit->promotionMap[pMapIdx].fpLocation = kLocPhysReg;
+        cUnit->promotionMap[pMapIdx].fpReg = res;
+        cUnit->promotionMap[pMapIdx+1].fpLocation = kLocPhysReg;
+        cUnit->promotionMap[pMapIdx+1].fpReg = res + 1;
     }
     return res;
 }
@@ -1051,18 +1057,15 @@ void oatCountRefs(CompilationUnit *cUnit, BasicBlock* bb,
     for (int i = 0; i < cUnit->numSSARegs;) {
         RegLocation loc = cUnit->regLocation[i];
         RefCounts* counts = loc.fp ? fpCounts : coreCounts;
-        int vReg = SRegToVReg(cUnit, loc.sRegLow);
-        if (vReg < 0) {
-            vReg = cUnit->numDalvikRegisters - (vReg + 1);
-        }
+        int pMapIdx = SRegToPMap(cUnit, loc.sRegLow);
         if (loc.defined) {
-            counts[vReg].count += cUnit->useCounts.elemList[i];
+            counts[pMapIdx].count += cUnit->useCounts.elemList[i];
         }
         if (loc.wide) {
             if (loc.defined) {
                 if (loc.fp) {
-                    counts[vReg].doubleStart = true;
-                counts[vReg+1].count += cUnit->useCounts.elemList[i+1];
+                    counts[pMapIdx].doubleStart = true;
+                counts[pMapIdx+1].count += cUnit->useCounts.elemList[i+1];
                 }
             }
             i += 2;
@@ -1120,10 +1123,16 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
     for (int i = 0; i < dalvikRegs; i++) {
         coreRegs[i].sReg = fpRegs[i].sReg = i;
     }
-    // Set ssa names for Method* and compiler temps
-    for (int i = 0; i < regBias; i++) {
-        coreRegs[dalvikRegs + i].sReg = fpRegs[dalvikRegs + i].sReg = (-1 - i);
+    // Set ssa name for Method*
+    coreRegs[dalvikRegs].sReg = cUnit->methodSReg;
+    fpRegs[dalvikRegs].sReg = cUnit->methodSReg;  // For consistecy
+    // Set ssa names for compilerTemps
+    for (int i = 1; i <= cUnit->numCompilerTemps; i++) {
+        CompilerTemp* ct = (CompilerTemp*)cUnit->compilerTemps.elemList[i];
+        coreRegs[dalvikRegs + i].sReg = ct->sReg;
+        fpRegs[dalvikRegs + i].sReg = ct->sReg;
     }
+
     GrowableListIterator iterator;
     oatGrowableListIteratorInit(&cUnit->blockList, &iterator);
     while (true) {
@@ -1156,8 +1165,8 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
     if (!(cUnit->disableOpt & (1 << kPromoteRegs))) {
         // Promote fpRegs
         for (int i = 0; (i < numRegs) && (fpRegs[i].count > 0); i++) {
-            DCHECK(validSreg(cUnit,fpRegs[i].sReg));
-            if (cUnit->promotionMap[fpRegs[i].sReg].fpLocation != kLocPhysReg) {
+            int pMapIdx = SRegToPMap(cUnit, fpRegs[i].sReg);
+            if (cUnit->promotionMap[pMapIdx].fpLocation != kLocPhysReg) {
                 int reg = oatAllocPreservedFPReg(cUnit, fpRegs[i].sReg,
                     fpRegs[i].doubleStart);
                 if (reg < 0) {
@@ -1168,8 +1177,8 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
 
         // Promote core regs
         for (int i = 0; (i < numRegs) && (coreRegs[i].count > 0); i++) {
-            DCHECK(validSreg(cUnit,coreRegs[i].sReg));
-            if (cUnit->promotionMap[coreRegs[i].sReg].coreLocation !=
+            int pMapIdx = SRegToPMap(cUnit, coreRegs[i].sReg);
+            if (cUnit->promotionMap[pMapIdx].coreLocation !=
                     kLocPhysReg) {
                 int reg = oatAllocPreservedCoreReg(cUnit, coreRegs[i].sReg);
                 if (reg < 0) {
@@ -1182,20 +1191,18 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
     // Now, update SSA names to new home locations
     for (int i = 0; i < cUnit->numSSARegs; i++) {
         RegLocation *curr = &cUnit->regLocation[i];
-        int baseVReg = SRegToVReg(cUnit, curr->sRegLow);
+        int pMapIdx = SRegToPMap(cUnit, curr->sRegLow);
         if (!curr->wide) {
             if (curr->fp) {
-                DCHECK(validSreg(cUnit,baseVReg));
-                if (cUnit->promotionMap[baseVReg].fpLocation == kLocPhysReg) {
+                if (cUnit->promotionMap[pMapIdx].fpLocation == kLocPhysReg) {
                     curr->location = kLocPhysReg;
-                    curr->lowReg = cUnit->promotionMap[baseVReg].fpReg;
+                    curr->lowReg = cUnit->promotionMap[pMapIdx].fpReg;
                     curr->home = true;
                 }
             } else {
-                DCHECK(validSreg(cUnit,baseVReg));
-                if (cUnit->promotionMap[baseVReg].coreLocation == kLocPhysReg) {
+                if (cUnit->promotionMap[pMapIdx].coreLocation == kLocPhysReg) {
                     curr->location = kLocPhysReg;
-                    curr->lowReg = cUnit->promotionMap[baseVReg].coreReg;
+                    curr->lowReg = cUnit->promotionMap[pMapIdx].coreReg;
                     curr->home = true;
                 }
             }
@@ -1205,13 +1212,11 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
                 continue;
             }
             if (curr->fp) {
-                DCHECK(validSreg(cUnit,baseVReg));
-                DCHECK(validSreg(cUnit,baseVReg+1));
-                if ((cUnit->promotionMap[baseVReg].fpLocation == kLocPhysReg) &&
-                    (cUnit->promotionMap[baseVReg+1].fpLocation ==
+                if ((cUnit->promotionMap[pMapIdx].fpLocation == kLocPhysReg) &&
+                    (cUnit->promotionMap[pMapIdx+1].fpLocation ==
                     kLocPhysReg)) {
-                    int lowReg = cUnit->promotionMap[baseVReg].fpReg;
-                    int highReg = cUnit->promotionMap[baseVReg+1].fpReg;
+                    int lowReg = cUnit->promotionMap[pMapIdx].fpReg;
+                    int highReg = cUnit->promotionMap[pMapIdx+1].fpReg;
                     // Doubles require pair of singles starting at even reg
                     if (((lowReg & 0x1) == 0) && ((lowReg + 1) == highReg)) {
                         curr->location = kLocPhysReg;
@@ -1221,14 +1226,12 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
                     }
                 }
             } else {
-                DCHECK(validSreg(cUnit,baseVReg));
-                DCHECK(validSreg(cUnit,baseVReg+1));
-                if ((cUnit->promotionMap[baseVReg].coreLocation == kLocPhysReg)
-                     && (cUnit->promotionMap[baseVReg+1].coreLocation ==
+                if ((cUnit->promotionMap[pMapIdx].coreLocation == kLocPhysReg)
+                     && (cUnit->promotionMap[pMapIdx+1].coreLocation ==
                      kLocPhysReg)) {
                     curr->location = kLocPhysReg;
-                    curr->lowReg = cUnit->promotionMap[baseVReg].coreReg;
-                    curr->highReg = cUnit->promotionMap[baseVReg+1].coreReg;
+                    curr->lowReg = cUnit->promotionMap[pMapIdx].coreReg;
+                    curr->highReg = cUnit->promotionMap[pMapIdx+1].coreReg;
                     curr->home = true;
                 }
             }

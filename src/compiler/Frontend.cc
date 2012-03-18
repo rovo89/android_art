@@ -35,6 +35,7 @@ uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
      //(1 << kSkipLargeMethodOptimization) |
      //(1 << kSafeOptimizations) |
      //(1 << kBBOpt) |
+     //(1 << kPromoteCompilerTemps) |
      0;
 
 uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes

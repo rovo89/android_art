@@ -45,7 +45,7 @@ void oatAdjustSpillMask(CompilationUnit* cUnit)
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void oatMarkPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
+void oatMarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg)
 {
     DCHECK_GE(reg, FP_REG_MASK + FP_CALLEE_SAVE_BASE);
     reg = (reg & FP_REG_MASK) - FP_CALLEE_SAVE_BASE;
@@ -55,7 +55,7 @@ void oatMarkPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
         cUnit->fpVmapTable.push_back(INVALID_VREG);
     }
     // Add the current mapping
-    cUnit->fpVmapTable[reg] = sReg;
+    cUnit->fpVmapTable[reg] = vReg;
     // Size of fpVmapTable is high-water mark, use to set mask
     cUnit->numFPSpills = cUnit->fpVmapTable.size();
     cUnit->fpSpillMask = ((1 << cUnit->numFPSpills) - 1) << FP_CALLEE_SAVE_BASE;

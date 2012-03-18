@@ -107,9 +107,9 @@ struct RegisterPool {
 #define INVALID_OFFSET (-1)
 
 /* SSA encodings for special registers */
-#define SSA_METHOD_BASEREG (-1)
+#define SSA_METHOD_BASEREG (-2)
 /* First compiler temp basereg, grows smaller */
-#define SSA_CTEMP_BASEREG (-2)
+#define SSA_CTEMP_BASEREG (SSA_METHOD_BASEREG - 1)
 
 /*
  * Some code patterns cause the generation of excessively large
