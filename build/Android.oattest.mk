@@ -16,33 +16,46 @@
 
 ########################################################################
 
-ART_TEST_DEX_FILES :=
+ART_TEST_TARGET_DEX_FILES :=
+ART_TEST_HOST_DEX_FILES :=
 
 # $(1): module prefix
 # $(2): input test directory
-# $(3): output module path
+# $(3): target output module path (default module path is used on host)
 define build-art-test-dex
   include $(CLEAR_VARS)
   LOCAL_MODULE := $(1)-$(2)
   LOCAL_MODULE_TAGS := tests
   LOCAL_SRC_FILES := $(call all-java-files-under, test/$(2))
-  LOCAL_JAVA_LIBRARIES := core
+  LOCAL_JAVA_LIBRARIES := $(TARGET_CORE_JARS)
   LOCAL_NO_STANDARD_LIBRARIES := true
   LOCAL_MODULE_PATH := $(3)
   LOCAL_DEX_PREOPT_IMAGE := $(TARGET_CORE_IMG_OUT)
   include $(BUILD_JAVA_LIBRARY)
-  ART_TEST_DEX_FILES += $(3)/$$(LOCAL_MODULE).jar
+  ART_TEST_TARGET_DEX_FILES += $(3)/$$(LOCAL_MODULE).jar
+
+  include $(CLEAR_VARS)
+  LOCAL_MODULE := $(1)-$(2)
+  LOCAL_MODULE_TAGS := tests
+  LOCAL_SRC_FILES := $(call all-java-files-under, test/$(2))
+  LOCAL_JAVA_LIBRARIES := $(HOST_CORE_JARS)
+  LOCAL_NO_STANDARD_LIBRARIES := true
+  LOCAL_DEX_PREOPT_IMAGE := $(HOST_CORE_IMG_OUT)
+  LOCAL_BUILD_HOST_DEX := true
+  include $(BUILD_HOST_JAVA_LIBRARY)
+  ART_TEST_HOST_DEX_FILES += $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE).jar
 endef
 $(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-test-dex,$(dir),$(ART_NATIVETEST_OUT))))
 $(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test-dex,$(dir),$(ART_TEST_OUT))))
 
 ########################################################################
 
-ART_TEST_OAT_TARGETS :=
+ART_TEST_TARGET_OAT_TARGETS :=
+ART_TEST_HOST_OAT_TARGETS :=
 
 # $(1): directory
 # $(2): arguments
-define declare-test-art-target
+define declare-test-art-oat-targets
 .PHONY: test-art-target-oat-$(1)
 test-art-target-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-sync
 	adb shell touch $(ART_TEST_DIR)/test-art-target-oat-$(1)
@@ -51,8 +64,19 @@ test-art-target-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-
 	$(hide) (adb pull $(ART_TEST_DIR)/test-art-target-oat-$(1) /tmp/ && echo test-art-target-oat-$(1) PASSED) || (echo test-art-target-oat-$(1) FAILED && exit 1)
 	$(hide) rm /tmp/test-art-target-oat-$(1)
 
-ART_TEST_OAT_TARGETS += test-art-target-oat-$(1)
+.PHONY: test-art-host-oat-$(1)
+test-art-host-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar $(HOST_CORE_IMG_OUT)
+	mkdir -p /tmp/android-data/test-art-host-oat-$(1)
+	ANDROID_DATA=/tmp/android-data/test-art-host-oat-$(1) \
+	  ANDROID_ROOT=$(HOST_OUT) \
+	  LD_LIBRARY_PATH=$(HOST_OUT_SHARED_LIBRARIES) \
+	  oatexecd -Ximage:$(shell pwd)/$(HOST_CORE_IMG_OUT) -classpath $(ART_TEST_OUT)/oat-test-dex-$(1).jar -Djava.library.path=$(ART_TEST_OUT) $(1) $(2)
+	rm -r /tmp/android-data/test-art-host-oat-$(1)
+
+
+ART_TEST_TARGET_OAT_TARGETS += test-art-target-oat-$(1)
+ART_TEST_HOST_OAT_TARGETS += test-art-host-oat-$(1)
 endef
-$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call declare-test-art-target,$(dir))))
+$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call declare-test-art-oat-targets,$(dir))))
 
 ########################################################################
