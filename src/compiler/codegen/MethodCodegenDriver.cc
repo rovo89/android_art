@@ -892,6 +892,7 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
 
     oatDataFlowAnalysisDispatcher(cUnit, methodBlockCodeGen,
                                   kPreOrderDFSTraversal, false /* Iterative */);
+
     handleSuspendLaunchpads(cUnit);
 
     handleThrowLaunchpads(cUnit);

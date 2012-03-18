@@ -470,21 +470,12 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     int startOffset = oatSRegOffset(cUnit,
         cUnit->regLocation[mir->ssaRep->uses[3]].sRegLow);
     int outsOffset = 4 /* Method* */ + (3 * 4);
-#if defined(TARGET_MIPS)
+#if defined(TARGET_MIPS) || defined(TARGET_X86)
     // Generate memcpy
     opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
     opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
-    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pMemcpy));
-    loadConstant(cUnit, rARG2, (numArgs - 3) * 4);
-    callRuntimeHelper(cUnit, rTgt);
-    // Restore Method*
-    loadCurrMethodDirect(cUnit, rARG0);
-#elif defined(TARGET_X86)
-    // Generate memcpy
-    opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
-    opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
-    loadConstant(cUnit, rARG2, (numArgs - 3) * 4);
-    callRuntimeHelper(cUnit, OFFSETOF_MEMBER(Thread, pMemcpy));
+    callRuntimeHelperRegRegImm(cUnit, OFFSETOF_MEMBER(Thread, pMemcpy),
+                               rARG0, rARG1, (numArgs - 3) * 4);
     // Restore Method*
     loadCurrMethodDirect(cUnit, rARG0);
 #else
@@ -492,9 +483,8 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
         // Generate memcpy
         opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
         opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
-        int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pMemcpy));
-        loadConstant(cUnit, rARG2, (numArgs - 3) * 4);
-        callRuntimeHelper(cUnit, rTgt);
+        callRuntimeHelperRegRegImm(cUnit, OFFSETOF_MEMBER(Thread, pMemcpy),
+                                   rARG0, rARG1, (numArgs - 3) * 4);
         // Restore Method*
         loadCurrMethodDirect(cUnit, rARG0);
     } else {

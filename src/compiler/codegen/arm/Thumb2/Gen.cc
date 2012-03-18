@@ -210,7 +210,8 @@ void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
                  OFFSETOF_MEMBER(Thread, pHandleFillArrayDataFromCode), rLR);
     // Materialize a pointer to the fill data image
     newLIR3(cUnit, kThumb2Adr, r1, 0, (intptr_t)tabRec);
-    callRuntimeHelper(cUnit, rLR);
+    oatClobberCalleeSave(cUnit);
+    opReg(cUnit, kOpBlx, rLR);
 }
 
 void genNegFloat(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
@@ -282,7 +283,8 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     // Go expensive route - artLockObjectFromCode(self, obj);
     loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pLockObjectFromCode),
                  rLR);
-    callRuntimeHelper(cUnit, rLR);
+    oatClobberCalleeSave(cUnit);
+    opReg(cUnit, kOpBlx, rLR);
     oatGenMemBarrier(cUnit, kSY);
 }
 
@@ -312,7 +314,8 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     // Go expensive route - UnlockObjectFromCode(obj);
     loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pUnlockObjectFromCode),
                  rLR);
-    callRuntimeHelper(cUnit, rLR);
+    oatClobberCalleeSave(cUnit);
+    opReg(cUnit, kOpBlx, rLR);
     oatGenMemBarrier(cUnit, kSY);
 }
 
