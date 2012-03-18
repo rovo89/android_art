@@ -696,10 +696,6 @@ void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_t
   if (sharp_type != kStatic && sharp_type != kDirect) {
     return;
   }
-  bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
-  if (compiling_boot) {
-    return;
-  }
   bool method_code_in_boot = method->GetDeclaringClass()->GetClassLoader() == NULL;
   if (!method_code_in_boot) {
     return;
@@ -710,10 +706,22 @@ void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_t
   }
   stats_->DirectCallsToBoot(type);
   stats_->DirectMethodsToBoot(type);
-  if (Runtime::Current()->GetHeap()->GetImageSpace()->Contains(method)) {
-    direct_method = reinterpret_cast<uintptr_t>(method);
+  bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
+  if (compiling_boot) {
+    const bool kSupportBootImageFixup = false;
+    if (kSupportBootImageFixup) {
+      MethodHelper mh(method);
+      if (IsImageClass(mh.GetDeclaringClassDescriptor())) {
+        direct_method = -1;
+      }
+      direct_code = -1;
+    }
+  } else {
+    if (Runtime::Current()->GetHeap()->GetImageSpace()->Contains(method)) {
+      direct_method = reinterpret_cast<uintptr_t>(method);
+    }
+    direct_code = reinterpret_cast<uintptr_t>(method->GetCode());
   }
-  direct_code = reinterpret_cast<uintptr_t>(method->GetCode());
 }
 
 bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType& type,
@@ -783,6 +791,21 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
   }
   stats_->UnresolvedMethod(type);
   return false;  // Incomplete knowledge needs slow path.
+}
+
+void Compiler::AddCodePatch(DexCache* dex_cache, const DexFile* dex_file,
+                            uint32_t referrer_method_idx, uint32_t target_method_idx,
+                            size_t literal_offset) {
+  MutexLock mu(compiled_methods_lock_);
+  code_to_patch_.push_back(new PatchInformation(dex_cache, dex_file, referrer_method_idx,
+                                                target_method_idx, literal_offset));
+}
+void Compiler::AddMethodPatch(DexCache* dex_cache, const DexFile* dex_file,
+                              uint32_t referrer_method_idx, uint32_t target_method_idx,
+                              size_t literal_offset) {
+  MutexLock mu(compiled_methods_lock_);
+  methods_to_patch_.push_back(new PatchInformation(dex_cache, dex_file, referrer_method_idx,
+                                                   target_method_idx, literal_offset));
 }
 
 // Return true if the class should be skipped during compilation. We

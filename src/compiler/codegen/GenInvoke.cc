@@ -94,6 +94,25 @@ void flushIns(CompilationUnit* cUnit)
     }
 }
 
+void scanMethodLiteralPool(CompilationUnit* cUnit, LIR** methodTarget, LIR** codeTarget, const DexFile* dexFile, uint32_t dexMethodIdx)
+{
+    LIR* curTarget = cUnit->methodLiteralList;
+    LIR* nextTarget = curTarget != NULL ? curTarget->next : NULL;
+    while (curTarget != NULL && nextTarget != NULL) {
+      if (curTarget->operands[0] == (int)dexFile &&
+          nextTarget->operands[0] == (int)dexMethodIdx) {
+        *codeTarget = curTarget;
+        *methodTarget = nextTarget;
+        DCHECK((*codeTarget)->next == *methodTarget);
+        DCHECK_EQ((*codeTarget)->operands[0], (int)dexFile);
+        DCHECK_EQ((*methodTarget)->operands[0], (int)dexMethodIdx);
+        break;
+      }
+      curTarget = nextTarget->next;
+      nextTarget = curTarget != NULL ? curTarget->next : NULL;
+    }
+}
+
 /*
  * Bit of a hack here - in leiu of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
@@ -105,8 +124,36 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
     if (directCode != 0 && directMethod != 0) {
         switch(state) {
         case 0:  // Get the current Method* [sets rARG0]
-            loadConstant(cUnit, rINVOKE_TGT, directCode);
-            loadConstant(cUnit, rARG0, directMethod);
+            if (directCode != (uintptr_t)-1) {
+                loadConstant(cUnit, rINVOKE_TGT, directCode);
+            } else {
+                LIR* dataTarget = scanLiteralPool(cUnit->codeLiteralList, dexIdx, 0);
+                if (dataTarget == NULL) {
+                    dataTarget = addWordData(cUnit, &cUnit->codeLiteralList, dexIdx);
+                }
+#if defined(TARGET_ARM)
+                LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
+                                        kThumb2LdrPcRel12, rINVOKE_TGT, 0, 0, 0, 0, dataTarget);
+                oatAppendLIR(cUnit, loadPcRel);
+#else
+                UNIMPLEMENTED(FATAL) << (void*)dataTarget;
+#endif
+            }
+            if (directMethod != (uintptr_t)-1) {
+                loadConstant(cUnit, rARG0, directMethod);
+            } else {
+                LIR* dataTarget = scanLiteralPool(cUnit->methodLiteralList, dexIdx, 0);
+                if (dataTarget == NULL) {
+                    dataTarget = addWordData(cUnit, &cUnit->methodLiteralList, dexIdx);
+                }
+#if defined(TARGET_ARM)
+                LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
+                                        kThumb2LdrPcRel12, rARG0, 0, 0, 0, 0, dataTarget);
+                oatAppendLIR(cUnit, loadPcRel);
+#else
+                UNIMPLEMENTED(FATAL) << (void*)dataTarget;
+#endif
+            }
             break;
         default:
             return -1;
@@ -122,7 +169,21 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
                 rARG0);
             // Set up direct code if known.
             if (directCode != 0) {
-                loadConstant(cUnit, rINVOKE_TGT, directCode);
+                if (directCode != (uintptr_t)-1) {
+                    loadConstant(cUnit, rINVOKE_TGT, directCode);
+                } else {
+                    LIR* dataTarget = scanLiteralPool(cUnit->codeLiteralList, dexIdx, 0);
+                    if (dataTarget == NULL) {
+                        dataTarget = addWordData(cUnit, &cUnit->codeLiteralList, dexIdx);
+                    }
+#if defined(TARGET_ARM)
+                    LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
+                                            kThumb2LdrPcRel12, rINVOKE_TGT, 0, 0, 0, 0, dataTarget);
+                    oatAppendLIR(cUnit, loadPcRel);
+#else
+                    UNIMPLEMENTED(FATAL) << (void*)dataTarget;
+#endif
+                }
             }
             break;
         case 2:  // Grab target method*
