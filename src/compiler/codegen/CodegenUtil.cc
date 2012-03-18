@@ -553,8 +553,7 @@ LIR* scanLiteralPoolWide(LIR* dataTarget, int valLo, int valHi)
  */
 
 /* Add a 32-bit constant either in the constant pool */
-LIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP,
-                           int value)
+LIR* addWordData(CompilationUnit* cUnit, LIR* *constantListP, int value)
 {
     /* Add the constant to the literal pool */
     if (constantListP) {
@@ -595,11 +594,33 @@ void alignBuffer(std::vector<uint8_t>&buf, size_t offset) {
 void installLiteralPools(CompilationUnit* cUnit)
 {
     alignBuffer(cUnit->codeBuffer, cUnit->dataOffset);
-    LIR* dataLIR = (LIR*) cUnit->literalList;
+    LIR* dataLIR = cUnit->literalList;
     while (dataLIR != NULL) {
         pushWord(cUnit->codeBuffer, dataLIR->operands[0]);
         dataLIR = NEXT_LIR(dataLIR);
     }
+    // Push code and method literals, record offsets for the compiler to patch.
+    dataLIR = cUnit->codeLiteralList;
+    if (dataLIR != NULL) {
+        while (dataLIR != NULL) {
+            cUnit->compiler->AddCodePatch(cUnit->dex_cache, cUnit->dex_file,
+                                          cUnit->method_idx,
+                                          dataLIR->operands[0],
+                                          cUnit->codeBuffer.size());
+            pushWord(cUnit->codeBuffer, 0xEBAD9A7C); // value to be patched
+            dataLIR = NEXT_LIR(dataLIR);
+        }
+        dataLIR = cUnit->methodLiteralList;
+        while (dataLIR != NULL) {
+            cUnit->compiler->AddMethodPatch(cUnit->dex_cache, cUnit->dex_file,
+                                            cUnit->method_idx,
+                                            dataLIR->operands[0],
+                                            cUnit->codeBuffer.size());
+            pushWord(cUnit->codeBuffer, 0xEBAD9A7D);  // value to be patched
+            dataLIR = NEXT_LIR(dataLIR);
+        }
+    }
+
 }
 
 /* Write the switch tables to the output stream */
@@ -702,6 +723,8 @@ void createMappingTable(CompilationUnit* cUnit)
 int assignLiteralOffset(CompilationUnit* cUnit, int offset)
 {
     offset = assignLiteralOffsetCommon(cUnit->literalList, offset);
+    offset = assignLiteralOffsetCommon(cUnit->codeLiteralList, offset);
+    offset = assignLiteralOffsetCommon(cUnit->methodLiteralList, offset);
     return offset;
 }
 

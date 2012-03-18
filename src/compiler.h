@@ -117,6 +117,14 @@ class Compiler {
   bool ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType& type,
                          int& vtable_idx, uintptr_t& direct_code, uintptr_t& direct_method);
 
+  // Record patch information for later fix up
+  void AddCodePatch(DexCache* dex_cache, const DexFile* dex_file,
+                    uint32_t referrer_method_idx, uint32_t target_method_idx,
+                    size_t literal_offset);
+  void AddMethodPatch(DexCache* dex_cache, const DexFile* dex_file,
+                      uint32_t referrer_method_idx, uint32_t target_method_idx,
+                      size_t literal_offset);
+
 #if defined(ART_USE_LLVM_COMPILER)
   void SetElfFileName(std::string const& filename);
   void SetBitcodeFileName(std::string const& filename);
@@ -172,6 +180,25 @@ class Compiler {
 
   void InsertInvokeStub(bool is_static, const char* shorty,
                         const CompiledInvokeStub* compiled_invoke_stub);
+
+  class PatchInformation {
+   public:
+    PatchInformation(DexCache* dex_cache, const DexFile* dex_file,
+                     uint32_t referrer_method_idx, uint32_t target_method_idx,
+                     size_t literal_offset) :
+                       dex_cache_(dex_cache), dex_file_(dex_file),
+                       referrer_method_idx_(referrer_method_idx),
+                       target_method_idx_(target_method_idx),
+                       literal_offset_(literal_offset) {}
+   private:
+    DexCache* dex_cache_;
+    const DexFile* dex_file_;
+    uint32_t referrer_method_idx_;
+    uint32_t target_method_idx_;
+    size_t literal_offset_;
+  };
+  std::vector<PatchInformation*> code_to_patch_;
+  std::vector<PatchInformation*> methods_to_patch_;
 
   InstructionSet instruction_set_;
 

@@ -298,6 +298,8 @@ struct CompilationUnit {
     LIR* firstLIRInsn;
     LIR* lastLIRInsn;
     LIR* literalList;                   // Constants
+    LIR* methodLiteralList;             // Method literals requiring patching
+    LIR* codeLiteralList;               // Code literals requiring patching
     LIR* classPointerList;              // Relocatable
     int numClassPointers;
     LIR* chainCellOffsetLIR;
