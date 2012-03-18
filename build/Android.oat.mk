@@ -57,7 +57,7 @@ TARGET_CORE_IMG_OUT := $(ART_TEST_OUT)/core.art
 $(HOST_CORE_IMG_OUT): $(HOST_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@echo "host dex2oat: $@ ($?)"
 	@mkdir -p $(dir $@)
-	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(HOST_CORE_DEX_FILES)) $(addprefix --dex-location=,$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$(HOST_CORE_OAT_OUT) --oat-location=$(HOST_CORE_OAT) --image=$(HOST_CORE_IMG_OUT) --base=$(IMG_HOST_BASE_ADDRESS)
+	$(hide) $(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --image-classes=$(PRELOADED_CLASSES) $(addprefix --dex-file=,$(HOST_CORE_DEX_FILES)) $(addprefix --dex-location=,$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$(HOST_CORE_OAT_OUT) --oat-location=$(HOST_CORE_OAT) --image=$(HOST_CORE_IMG_OUT) --base=$(IMG_HOST_BASE_ADDRESS) # --instruction-set=X86
 
 $(TARGET_CORE_IMG_OUT): $(TARGET_CORE_DEX_FILES) $(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $@ ($?)"
