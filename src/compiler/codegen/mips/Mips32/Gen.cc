@@ -250,7 +250,8 @@ void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     newLIR4(cUnit, kMipsDelta, rARG1, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
 
     // And go...
-    callRuntimeHelper(cUnit, rTgt);  // ( array*, fill_data* )
+    oatClobberCalleeSave(cUnit);
+    opReg(cUnit, kOpBlx, rTgt); // ( array*, fill_data* )
 }
 
 void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
@@ -285,7 +286,8 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
     // Go expensive route - artLockObjectFromCode(self, obj);
     int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pLockObjectFromCode));
-    callRuntimeHelper(cUnit, rTgt);
+    oatClobberCalleeSave(cUnit);
+    opReg(cUnit, kOpBlx, rTgt);
 }
 
 /*
@@ -299,7 +301,8 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
     // Go expensive route - UnlockObjectFromCode(obj);
     int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pUnlockObjectFromCode));
-    callRuntimeHelper(cUnit, rTgt);
+    oatClobberCalleeSave(cUnit);
+    opReg(cUnit, kOpBlx, rTgt);
 }
 
 /*

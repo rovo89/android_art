@@ -52,7 +52,6 @@ bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
 bool genConversionPortable(CompilationUnit* cUnit, MIR* mir);
 
 int loadHelper(CompilationUnit* cUnit, int offset);
-LIR* callRuntimeHelper(CompilationUnit* cUnit, int reg);
 LIR* loadConstant(CompilationUnit* cUnit, int reg, int immVal);
 void opRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
                    int srcLo, int srcHi);

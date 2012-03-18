@@ -59,15 +59,15 @@ LIR* storeWordDisp(CompilationUnit* cUnit, int rBase, int displacement,
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.
  */
-void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int reg1)
+void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int rDest)
 {
     rlSrc = oatUpdateLoc(cUnit, rlSrc);
     if (rlSrc.location == kLocPhysReg) {
-        opRegCopy(cUnit, reg1, rlSrc.lowReg);
+        opRegCopy(cUnit, rDest, rlSrc.lowReg);
     } else {
         DCHECK((rlSrc.location == kLocDalvikFrame) ||
                (rlSrc.location == kLocCompilerTemp));
-        loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, rlSrc.sRegLow), reg1);
+        loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, rlSrc.sRegLow), rDest);
     }
 }
 
@@ -76,11 +76,11 @@ void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int reg1)
  * register.  Should be used when loading to a fixed register (for example,
  * loading arguments to an out of line call.
  */
-void loadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc, int reg1)
+void loadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc, int rDest)
 {
-    oatClobber(cUnit, reg1);
-    oatMarkInUse(cUnit, reg1);
-    loadValueDirect(cUnit, rlSrc, reg1);
+    oatClobber(cUnit, rDest);
+    oatMarkInUse(cUnit, rDest);
+    loadValueDirect(cUnit, rlSrc, rDest);
 }
 
 /*
