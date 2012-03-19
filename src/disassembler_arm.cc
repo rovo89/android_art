@@ -94,6 +94,11 @@ static const char* kDataProcessingOperations[] = {
   "tst", "teq", "cmp", "cmn", "orr", "mov", "bic", "mvn",
 };
 
+static const char* kThumbDataProcessingOperations[] = {
+  "and", "eor", "lsl", "lsr", "asr", "adc", "sbc", "ror",
+  "tst", "rsb", "cmp", "cmn", "orr", "mul", "bic", "mvn",
+};
+
 struct ArmRegister {
   ArmRegister(uint32_t r) : r(r) { CHECK_LE(r, 15U); }
   uint32_t r;
@@ -691,6 +696,15 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
         default:
           break;
       }
+    } else if (opcode1 == 0x10) {
+      // Data-processing
+      uint16_t opcode2 = (instr >> 6) & 0xF;
+      uint16_t rm = (instr >> 3) & 0x7;
+      uint16_t rdn = instr & 7;
+      opcode << kThumbDataProcessingOperations[opcode2];
+      DumpReg(args, rdn);
+      args << ", ";
+      DumpReg(args, rm);
     } else if (opcode1 == 0x11) {
       // Special data instructions and branch and exchange
       uint16_t opcode2 = (instr >> 6) & 0x0F;
