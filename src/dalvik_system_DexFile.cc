@@ -19,9 +19,11 @@
 #include "class_loader.h"
 #include "class_linker.h"
 #include "dex_file.h"
+#include "image.h"
 #include "logging.h"
 #include "os.h"
 #include "runtime.h"
+#include "space.h"
 #include "zip_archive.h"
 #include "toStringArray.h"
 #include "ScopedLocalRef.h"
@@ -179,7 +181,8 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
   // Always treat elements of the bootclasspath as up-to-date.  The
   // fact that code is running at all means that this should be true.
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
   const std::vector<const DexFile*>& boot_class_path = class_linker->GetBootClassPath();
   for (size_t i = 0; i < boot_class_path.size(); i++) {
     if (boot_class_path[i]->GetLocation() == filename.c_str()) {
@@ -208,6 +211,14 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
   if (oat_file == NULL) {
     LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
               << " does not exist for " << filename.c_str();
+    return JNI_TRUE;
+  }
+
+  const ImageHeader& image_header = runtime->GetHeap()->GetImageSpace()->GetImageHeader();
+  if (oat_file->GetOatHeader().GetImageFileLocationChecksum() != image_header.GetOatChecksum()) {
+    LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
+              << " has out-of-date checksum compared to "
+              << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
     return JNI_TRUE;
   }
 

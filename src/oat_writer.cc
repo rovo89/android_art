@@ -20,6 +20,7 @@
 #include "class_loader.h"
 #include "file.h"
 #include "os.h"
+#include "space.h"
 #include "stl_util.h"
 
 namespace art {
@@ -27,21 +28,31 @@ namespace art {
 bool OatWriter::Create(File* file,
                        const ClassLoader* class_loader,
                        const std::vector<const DexFile*>& dex_files,
+                       uint32_t image_file_location_checksum,
+                       const std::string& image_file_location,
                        const Compiler& compiler) {
-  OatWriter oat_writer(dex_files, class_loader, compiler);
+  OatWriter oat_writer(dex_files,
+                       image_file_location_checksum,
+                       image_file_location,
+                       class_loader,
+                       compiler);
   return oat_writer.Write(file);
 }
 
 OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
+                     uint32_t image_file_location_checksum,
+                     const std::string& image_file_location,
                      const ClassLoader* class_loader,
                      const Compiler& compiler) {
   compiler_ = &compiler;
   class_loader_ = class_loader;
+  image_file_location_checksum_ = image_file_location_checksum;
+  image_file_location_ = image_file_location;
   dex_files_ = &dex_files;
   oat_header_ = NULL;
   executable_offset_padding_length_ = 0;
 
-  size_t offset = InitOatHeader(compiler.GetInstructionSet());
+  size_t offset = InitOatHeader();
   offset = InitOatDexFiles(offset);
   offset = InitDexFiles(offset);
   offset = InitOatClasses(offset);
@@ -57,10 +68,14 @@ OatWriter::~OatWriter() {
   STLDeleteElements(&oat_classes_);
 }
 
-size_t OatWriter::InitOatHeader(InstructionSet instruction_set) {
+size_t OatWriter::InitOatHeader() {
   // create the OatHeader
-  oat_header_ = new OatHeader(instruction_set, dex_files_);
+  oat_header_ = new OatHeader(compiler_->GetInstructionSet(),
+                              dex_files_,
+                              image_file_location_checksum_,
+                              image_file_location_);
   size_t offset = sizeof(*oat_header_);
+  offset += image_file_location_.size();
   return offset;
 }
 
@@ -358,6 +373,12 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 bool OatWriter::Write(File* file) {
   if (!file->WriteFully(oat_header_, sizeof(*oat_header_))) {
     PLOG(ERROR) << "Failed to write oat header to " << file->name();
+    return false;
+  }
+
+  if (!file->WriteFully(image_file_location_.data(),
+                        image_file_location_.size())) {
+    PLOG(ERROR) << "Failed to write oat header image file location to " << file->name();
     return false;
   }
 

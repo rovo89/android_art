@@ -34,7 +34,7 @@ TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_oat;
   std::vector<const DexFile*> dex_files;
   dex_files.push_back(java_lang_dex_file_);
-  bool success_oat = OatWriter::Create(tmp_oat.GetFile(), NULL, dex_files, *compiler_.get());
+  bool success_oat = OatWriter::Create(tmp_oat.GetFile(), NULL, dex_files, 0, "", *compiler_.get());
   ASSERT_TRUE(success_oat);
 
   // Force all system classes into memory
