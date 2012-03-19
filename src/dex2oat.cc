@@ -199,6 +199,7 @@ class Dex2Oat {
   }
 
   bool CreateOatFile(const std::string& boot_image_option,
+                     const std::string& host_prefix,
                      const std::vector<const DexFile*>& dex_files,
                      File* oat_file,
 #if defined(ART_USE_LLVM_COMPILER)
@@ -233,7 +234,24 @@ class Dex2Oat {
 
     compiler.CompileAll(class_loader->get(), dex_files);
 
-    if (!OatWriter::Create(oat_file, class_loader->get(), dex_files, compiler)) {
+    std::string image_file_location;
+    uint32_t image_file_location_checksum = 0;
+    Heap* heap = Runtime::Current()->GetHeap();
+    if (heap->GetSpaces().size() > 1) {
+      ImageSpace* image_space = heap->GetImageSpace();
+      image_file_location_checksum = image_space->GetImageHeader().GetOatChecksum();
+      image_file_location = image_space->GetImageFilename();
+      if (!host_prefix.empty() && StartsWith(image_file_location, host_prefix.c_str())) {
+        image_file_location = image_file_location.substr(host_prefix.size());
+      }
+    }
+
+    if (!OatWriter::Create(oat_file,
+                           class_loader->get(),
+                           dex_files,
+                           image_file_location_checksum,
+                           image_file_location,
+                           compiler)) {
       LOG(ERROR) << "Failed to create oat file " << oat_file->name();
       return false;
     }
@@ -687,6 +705,7 @@ int dex2oat(int argc, char** argv) {
   }
 
   if (!dex2oat->CreateOatFile(boot_image_option,
+                              host_prefix,
                               dex_files,
                               oat_file.get(),
 #if defined(ART_USE_LLVM_COMPILER)

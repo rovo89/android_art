@@ -65,7 +65,12 @@ TEST_F(OatTest, WriteRead) {
   }
 
   ScratchFile tmp;
-  bool success = OatWriter::Create(tmp.GetFile(), class_loader.get(), class_linker->GetBootClassPath(), *compiler_.get());
+  bool success = OatWriter::Create(tmp.GetFile(),
+                                   class_loader.get(),
+                                   class_linker->GetBootClassPath(),
+                                   42U,
+                                   "lue.art",
+                                   *compiler_.get());
   ASSERT_TRUE(success);
 
   if (compile) {  // OatWriter strips the code, regenerate to compare
@@ -75,6 +80,8 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_TRUE(oat_file.get() != NULL);
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_EQ(1U, oat_header.GetDexFileCount());
+  ASSERT_EQ(42U, oat_header.GetImageFileLocationChecksum());
+  ASSERT_EQ("lue.art", oat_header.GetImageFileLocation());
 
   const DexFile* dex_file = java_lang_dex_file_;
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file->GetLocation());

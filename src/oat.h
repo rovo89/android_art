@@ -28,7 +28,10 @@ namespace art {
 class PACKED OatHeader {
  public:
   OatHeader();
-  OatHeader(InstructionSet instruction_set, const std::vector<const DexFile*>* dex_files);
+  OatHeader(InstructionSet instruction_set,
+            const std::vector<const DexFile*>* dex_files,
+            uint32_t image_file_location_checksum,
+            const std::string& image_file_location);
 
   bool IsValid() const;
   const char* GetMagic() const;
@@ -38,6 +41,10 @@ class PACKED OatHeader {
   uint32_t GetExecutableOffset() const;
   InstructionSet GetInstructionSet() const;
   void SetExecutableOffset(uint32_t executable_offset);
+  uint32_t GetImageFileLocationChecksum() const;
+  uint32_t GetImageFileLocationSize() const;
+  const uint8_t* GetImageFileLocationData() const;
+  std::string GetImageFileLocation() const;
 
  private:
   static const uint8_t kOatMagic[4];
@@ -50,6 +57,10 @@ class PACKED OatHeader {
   InstructionSet instruction_set_;
   uint32_t dex_file_count_;
   uint32_t executable_offset_;
+
+  uint32_t image_file_location_checksum_;
+  uint32_t image_file_location_size_;
+  uint8_t image_file_location_data_[0];  // note variable width data at end
 
   DISALLOW_COPY_AND_ASSIGN(OatHeader);
 };

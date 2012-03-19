@@ -85,7 +85,9 @@ const char* image_roots_descriptions_[] = {
 
 class OatDumper {
  public:
-  explicit OatDumper(const OatFile& oat_file) : oat_file_(oat_file),
+  explicit OatDumper(const std::string& host_prefix, const OatFile& oat_file)
+    : host_prefix_(host_prefix),
+      oat_file_(oat_file),
       oat_dex_files_(oat_file.GetOatDexFiles()),
       disassembler_(Disassembler::Create(oat_file_.GetOatHeader().GetInstructionSet())) {
     AddAllOffsets();
@@ -108,6 +110,17 @@ class OatDumper {
 
     os << "EXECUTABLE OFFSET:\n";
     os << StringPrintf("0x%08x\n\n", oat_header.GetExecutableOffset());
+
+    os << "IMAGE FILE LOCATION CHECKSUM:\n";
+    os << StringPrintf("0x%08x\n\n", oat_header.GetImageFileLocationChecksum());
+
+    os << "IMAGE FILE LOCATION:\n";
+    const std::string image_file_location(oat_header.GetImageFileLocation());
+    os << image_file_location;
+    if (!image_file_location.empty() && !host_prefix_.empty()) {
+      os << " (" << host_prefix_ << image_file_location << ")";
+    }
+    os << "\n\n";
 
     os << "BEGIN:\n";
     os << reinterpret_cast<const void*>(oat_file_.Begin()) << "\n\n";
@@ -470,6 +483,7 @@ class OatDumper {
     }
   }
 
+  const std::string host_prefix_;
   const OatFile& oat_file_;
   std::vector<const OatFile::OatDexFile*> oat_dex_files_;
   std::set<uint32_t> offsets_;
@@ -548,7 +562,7 @@ class ImageDumper {
 
     stats_.oat_file_bytes = oat_file->Size();
 
-    oat_dumper_.reset(new OatDumper(*oat_file));
+    oat_dumper_.reset(new OatDumper(host_prefix_, *oat_file));
 
     os_ << "OBJECTS:\n" << std::flush;
     HeapBitmap* heap_bitmap = Runtime::Current()->GetHeap()->GetLiveBits();
@@ -1110,13 +1124,20 @@ int oatdump(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  if (host_prefix.empty()) {
+    const char* android_product_out = getenv("ANDROID_PRODUCT_OUT");
+    if (android_product_out != NULL) {
+        host_prefix = android_product_out;
+    }
+  }
+
   if (oat_filename != NULL) {
     OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, NULL);
     if (oat_file == NULL) {
       fprintf(stderr, "Failed to open oat file from %s\n", oat_filename);
       return EXIT_FAILURE;
     }
-    OatDumper oat_dumper(*oat_file);
+    OatDumper oat_dumper(host_prefix, *oat_file);
     oat_dumper.Dump(*os);
     return EXIT_SUCCESS;
   }
@@ -1137,12 +1158,6 @@ int oatdump(int argc, char** argv) {
     options.push_back(std::make_pair(image_option.c_str(), reinterpret_cast<void*>(NULL)));
   }
 
-  if (host_prefix.empty()) {
-    const char* android_product_out = getenv("ANDROID_PRODUCT_OUT");
-    if (android_product_out != NULL) {
-        host_prefix = android_product_out;
-    }
-  }
   if (!host_prefix.empty()) {
     options.push_back(std::make_pair("host-prefix", host_prefix.c_str()));
   }
