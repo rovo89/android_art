@@ -1285,6 +1285,8 @@ StackIndirectReferenceTable* Thread::PopSirt() {
   return sirt;
 }
 
+#if !defined(ART_USE_LLVM_COMPILER) // LLVM use ShadowFrame
+
 void Thread::WalkStack(StackVisitor* visitor, bool include_upcalls) const {
   Frame frame = GetTopOfStack();
   uintptr_t pc = ManglePc(top_of_managed_stack_pc_);
@@ -1329,6 +1331,60 @@ void Thread::WalkStack(StackVisitor* visitor, bool include_upcalls) const {
     record = record->link_;
   }
 }
+
+#else // defined(ART_USE_LLVM_COMPILER) // LLVM uses ShadowFrame
+
+void Thread::WalkStack(StackVisitor* visitor, bool /*include_upcalls*/) const {
+  for (ShadowFrame* cur = top_shadow_frame_; cur; cur = cur->GetLink()) {
+    Frame frame;
+    frame.SetSP(reinterpret_cast<Method**>(reinterpret_cast<byte*>(cur) +
+                                           ShadowFrame::MethodOffset()));
+    bool should_continue = visitor->VisitFrame(frame, 0);
+    if (!should_continue) {
+      return;
+    }
+  }
+}
+
+/*
+ *                                |                        |
+ *                                |                        |
+ *                                |                        |
+ *                                |      .                 |
+ *                                |      .                 |
+ *                                |      .                 |
+ *                                |      .                 |
+ *                                | Method*                |
+ *                                |      .                 |
+ *                                |      .                 | <-- top_shadow_frame_   (ShadowFrame*)
+ *                              / +------------------------+
+ *                              ->|      .                 |
+ *                              . |      .                 |
+ *                              . |      .                 |
+ *                               /+------------------------+
+ *                              / |      .                 |
+ *                             /  |      .                 |
+ *     ---                     |  |      .                 |
+ *      |                      |  |      .                 |
+ *                             |  | Method*                | <-- frame.GetSP() (Method**)
+ *  ShadowFrame                \  |      .                 |
+ *      |                       ->|      .                 | <-- cur           (ShadowFrame*)
+ *     ---                       /+------------------------+
+ *                              / |      .                 |
+ *                             /  |      .                 |
+ *     ---                     |  |      .                 |
+ *      |       cur->GetLink() |  |      .                 |
+ *                             |  | Method*                |
+ *   ShadowFrame               \  |      .                 |
+ *      |                       ->|      .                 |
+ *     ---                        +------------------------+
+ *                                |      .                 |
+ *                                |      .                 |
+ *                                |      .                 |
+ *                                +========================+
+ */
+
+#endif
 
 jobject Thread::CreateInternalStackTrace(JNIEnv* env) const {
   // Compute depth of stack

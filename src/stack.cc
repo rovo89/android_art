@@ -28,6 +28,9 @@ bool Frame::HasMethod() const {
 }
 
 void Frame::Next() {
+#if defined(ART_USE_LLVM_COMPILER)
+  LOG(FATAL) << "LLVM compiler don't support this function";
+#else
   size_t frame_size = GetMethod()->GetFrameSizeInBytes();
   DCHECK_NE(frame_size, 0u);
   DCHECK_LT(frame_size, 1024u);
@@ -37,16 +40,26 @@ void Frame::Next() {
     DCHECK((*sp_)->GetClass() == Method::GetMethodClass() ||
         (*sp_)->GetClass() == Method::GetConstructorClass());
   }
+#endif
 }
 
 uintptr_t Frame::GetReturnPC() const {
+#if defined(ART_USE_LLVM_COMPILER)
+  LOG(FATAL) << "LLVM compiler don't support this function";
+  return 0;
+#else
   byte* pc_addr = reinterpret_cast<byte*>(sp_) + GetMethod()->GetReturnPcOffsetInBytes();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
+#endif
 }
 
 void Frame::SetReturnPC(uintptr_t pc) {
+#if defined(ART_USE_LLVM_COMPILER)
+  LOG(FATAL) << "LLVM compiler don't support this function";
+#else
   byte* pc_addr = reinterpret_cast<byte*>(sp_) + GetMethod()->GetReturnPcOffsetInBytes();
   *reinterpret_cast<uintptr_t*>(pc_addr) = pc;
+#endif
 }
 
 /*
@@ -91,6 +104,10 @@ int Frame::GetVRegOffset(const DexFile::CodeItem* code_item,
                          uint32_t core_spills, uint32_t fp_spills,
                          size_t frame_size, int reg)
 {
+#if defined(ART_USE_LLVM_COMPILER)
+  LOG(FATAL) << "LLVM compiler don't support this function";
+  return 0;
+#else
   DCHECK_EQ( frame_size & (kStackAlignment - 1), 0U);
   int num_spills = __builtin_popcount(core_spills) + __builtin_popcount(fp_spills) + 1 /* filler */;
   int num_ins = code_item->ins_size_;
@@ -105,16 +122,26 @@ int Frame::GetVRegOffset(const DexFile::CodeItem* code_item,
   } else {
     return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + sizeof(uint32_t); // Dalvik in
   }
+#endif
 }
 
 uint32_t Frame::GetVReg(const DexFile::CodeItem* code_item, uint32_t core_spills,
                         uint32_t fp_spills, size_t frame_size, int vreg) const {
+#if defined(ART_USE_LLVM_COMPILER)
+  LOG(FATAL) << "LLVM compiler don't support this function";
+  return 0;
+#else
   int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
   byte* vreg_addr = reinterpret_cast<byte*>(sp_) + offset;
   return *reinterpret_cast<uint32_t*>(vreg_addr);
+#endif
 }
 
 uint32_t Frame::GetVReg(Method* m, int vreg) const {
+#if defined(ART_USE_LLVM_COMPILER)
+  LOG(FATAL) << "LLVM compiler don't support this function";
+  return 0;
+#else
   DCHECK(m == GetMethod());
   const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
   DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
@@ -122,9 +149,13 @@ uint32_t Frame::GetVReg(Method* m, int vreg) const {
   uint32_t fp_spills = m->GetFpSpillMask();
   size_t frame_size = m->GetFrameSizeInBytes();
   return GetVReg(code_item, core_spills, fp_spills, frame_size, vreg);
+#endif
 }
 
 void Frame::SetVReg(Method* m, int vreg, uint32_t new_value) {
+#if defined(ART_USE_LLVM_COMPILER)
+  LOG(FATAL) << "LLVM compiler don't support this function";
+#else
   DCHECK(m == GetMethod());
   const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
   DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
@@ -134,9 +165,14 @@ void Frame::SetVReg(Method* m, int vreg, uint32_t new_value) {
   int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
   byte* vreg_addr = reinterpret_cast<byte*>(sp_) + offset;
   *reinterpret_cast<uint32_t*>(vreg_addr) = new_value;
+#endif
 }
 
 uintptr_t Frame::LoadCalleeSave(int num) const {
+#if defined(ART_USE_LLVM_COMPILER)
+  LOG(FATAL) << "LLVM compiler don't support this function";
+  return 0;
+#else
   // Callee saves are held at the top of the frame
   Method* method = GetMethod();
   DCHECK(method != NULL);
@@ -146,11 +182,17 @@ uintptr_t Frame::LoadCalleeSave(int num) const {
   save_addr -= kPointerSize;  // account for return address
 #endif
   return *reinterpret_cast<uintptr_t*>(save_addr);
+#endif
 }
 
 Method* Frame::NextMethod() const {
+#if defined(ART_USE_LLVM_COMPILER)
+  LOG(FATAL) << "LLVM compiler don't support this function";
+  return NULL;
+#else
   byte* next_sp = reinterpret_cast<byte*>(sp_) + GetMethod()->GetFrameSizeInBytes();
   return *reinterpret_cast<Method**>(next_sp);
+#endif
 }
 
 class StackGetter {
