@@ -68,6 +68,14 @@ class CompilerLLVM {
     return insn_set_;
   }
 
+  size_t GetNumCompilationUnits() const {
+    return cunits_.size();
+  }
+
+  const CompilationUnit* GetCompilationUnit(size_t i) const {
+    return cunits_[i];
+  }
+
   void SetElfFileName(std::string const& filename) {
     elf_filename_ = filename;
   }
