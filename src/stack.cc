@@ -52,8 +52,8 @@ void Frame::SetReturnPC(uintptr_t pc) {
 /*
  * Return sp-relative offset for a Dalvik virtual register, compiler
  * spill or Method* in bytes using Method*.
- * Note that (reg >= 0) refers to a Dalvik register, (reg == -1)
- * denotes Method* and (reg <= -2) denotes a compiler temp.
+ * Note that (reg >= 0) refers to a Dalvik register, (reg == -2)
+ * denotes Method* and (reg <= -3) denotes a compiler temp.
  *
  *     +------------------------+
  *     | IN[ins-1]              |  {Note: resides in caller's frame}
@@ -96,9 +96,9 @@ int Frame::GetVRegOffset(const DexFile::CodeItem* code_item,
   int num_ins = code_item->ins_size_;
   int num_regs = code_item->registers_size_ - num_ins;
   int locals_start = frame_size - ((num_spills + num_regs) * sizeof(uint32_t));
-  if (reg == -1) {
+  if (reg == -2) {
     return 0;  // Method*
-  } else if (reg <= -2) {
+  } else if (reg <= -3) {
     return locals_start - ((reg + 1) * sizeof(uint32_t));  // Compiler temp
   } else if (reg < num_regs) {
     return locals_start + (reg * sizeof(uint32_t));        // Dalvik local reg

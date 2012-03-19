@@ -62,6 +62,18 @@ class VmapTable {
     return table_[0];
   }
 
+  /*
+   * WARNING: This code should be changed or renamed.  The "reg"
+   * argument is a Dalvik virtual register number, but the way
+   * the vmap and register promotion works a Dalvik vReg can have
+   * neither, one or both of core register and floating point register
+   * identities. The "INVALID_VREG" marker of 0xffff below separates the
+   * core promoted registers from the floating point promoted registers,
+   * and thus terminates the search before reaching the fp section.
+   * This is likely the desired behavior for GC, as references won't
+   * ever be promoted to float registers - but we'll probably want to
+   * rework this shared code to make it useful for the debugger as well.
+   */
   // Is register 'reg' in the context or on the stack?
   bool IsInContext(size_t reg, uint32_t& vmap_offset) const {
     vmap_offset = 0xEBAD0FF5;

@@ -185,7 +185,7 @@ void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
         opRegImm(cUnit, kOpSub, rSP,
                  cUnit->frameSize - (spillCount * 4));
     }
-    storeBaseDisp(cUnit, rSP, 0, rARG0, kWord);
+
     flushIns(cUnit);
 
     if (cUnit->genDebugger) {

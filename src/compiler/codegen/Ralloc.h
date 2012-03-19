@@ -233,7 +233,7 @@ extern void oatNopLIR(LIR* lir);
 extern bool oatIsFPReg(int reg);
 extern uint32_t oatFPRegMask(void);
 extern void oatAdjustSpillMask(CompilationUnit* cUnit);
-void oatMarkPreservedSingle(CompilationUnit* cUnit, int sReg, int reg);
+void oatMarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg);
 void oatRegCopy(CompilationUnit* cUnit, int rDest, int rSrc);
 
 }  // namespace art

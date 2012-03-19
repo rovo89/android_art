@@ -164,8 +164,7 @@ void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
         // Remember branch target - will process later
         oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
     }
-    /* Spill Method* */
-    storeBaseDisp(cUnit, rSP, 0, rARG0, kWord);
+
     flushIns(cUnit);
 
     if (cUnit->genDebugger) {

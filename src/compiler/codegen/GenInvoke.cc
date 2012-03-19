@@ -33,6 +33,23 @@ typedef int (*NextCallInsn)(CompilationUnit*, MIR*, int, uint32_t dexIdx,
  */
 void flushIns(CompilationUnit* cUnit)
 {
+    /*
+     * Dummy up a RegLocation for the incoming Method*
+     * It will attempt to keep rARG0 live (or copy it to home location
+     * if promoted).
+     */
+    RegLocation rlSrc = cUnit->regLocation[cUnit->methodSReg];
+    RegLocation rlMethod = cUnit->regLocation[cUnit->methodSReg];
+    rlSrc.location = kLocPhysReg;
+    rlSrc.lowReg = rARG0;
+    rlSrc.home = false;
+    oatMarkLive(cUnit, rlSrc.lowReg, rlSrc.sRegLow);
+    storeValue(cUnit, rlMethod, rlSrc);
+    // If Method* has been promoted, explicitly flush
+    if (rlMethod.location == kLocPhysReg) {
+        storeWordDisp(cUnit, rSP, 0, rARG0);
+    }
+
     if (cUnit->numIns == 0)
         return;
     int firstArgReg = rARG1;
@@ -161,6 +178,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
     } else {
         switch(state) {
         case 0:  // Get the current Method* [sets rARG0]
+            // TUNING: we can save a reg copy if Method* has been promoted
             loadCurrMethodDirect(cUnit, rARG0);
             break;
         case 1:  // Get method->dex_cache_resolved_methods_
@@ -537,8 +555,6 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
     callRuntimeHelperRegRegImm(cUnit, OFFSETOF_MEMBER(Thread, pMemcpy),
                                rARG0, rARG1, (numArgs - 3) * 4);
-    // Restore Method*
-    loadCurrMethodDirect(cUnit, rARG0);
 #else
     if (numArgs >= 20) {
         // Generate memcpy
@@ -546,8 +562,6 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
         opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
         callRuntimeHelperRegRegImm(cUnit, OFFSETOF_MEMBER(Thread, pMemcpy),
                                    rARG0, rARG1, (numArgs - 3) * 4);
-        // Restore Method*
-        loadCurrMethodDirect(cUnit, rARG0);
     } else {
         // Use vldm/vstm pair using rARG3 as a temp
         int regsLeft = std::min(numArgs - 3, 16);

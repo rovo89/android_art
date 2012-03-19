@@ -47,14 +47,14 @@ enum DataFlowAttributePos {
     kNullTransferSrcN,     // Phi null check state transfer
     kRangeCheckSrc1,       // Range check of uses[1]
     kRangeCheckSrc2,       // Range check of uses[2]
+    kRangeCheckSrc3,       // Range check of uses[3]
     kFPA,
     kFPB,
     kFPC,
     kCoreA,
     kCoreB,
     kCoreC,
-    kGetter,
-    kSetter,
+    kUsesMethodStar,       // Implicit use of Method*
 };
 
 #define DF_NOP                  0
@@ -82,14 +82,14 @@ enum DataFlowAttributePos {
 #define DF_NULL_TRANSFER_N      (1 << kNullTransferSrcN)
 #define DF_RANGE_CHK_1          (1 << kRangeCheckSrc1)
 #define DF_RANGE_CHK_2          (1 << kRangeCheckSrc2)
+#define DF_RANGE_CHK_3          (1 << kRangeCheckSrc3)
 #define DF_FP_A                 (1 << kFPA)
 #define DF_FP_B                 (1 << kFPB)
 #define DF_FP_C                 (1 << kFPC)
 #define DF_CORE_A               (1 << kCoreA)
 #define DF_CORE_B               (1 << kCoreB)
 #define DF_CORE_C               (1 << kCoreC)
-#define DF_IS_GETTER            (1 << kGetter)
-#define DF_IS_SETTER            (1 << kSetter)
+#define DF_UMS                  (1 << kUsesMethodStar)
 
 #define DF_HAS_USES             (DF_UA | DF_UB | DF_UC | DF_UA_WIDE | \
                                  DF_UB_WIDE | DF_UC_WIDE)

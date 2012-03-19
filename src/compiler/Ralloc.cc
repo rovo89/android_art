@@ -323,21 +323,21 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
 
     /* Patch up the locations for Method* and the compiler temps */
     loc[cUnit->methodSReg].location = kLocCompilerTemp;
+    loc[cUnit->methodSReg].defined = true;
     for (i = 0; i < cUnit->numCompilerTemps; i++) {
         CompilerTemp* ct = (CompilerTemp*)cUnit->compilerTemps.elemList[i];
         loc[ct->sReg].location = kLocCompilerTemp;
+        loc[ct->sReg].defined = true;
     }
 
     cUnit->regLocation = loc;
 
     /* Allocation the promotion map */
     int numRegs = cUnit->numDalvikRegisters;
-    PromotionMap* tMap =
+    cUnit->promotionMap =
         (PromotionMap*)oatNew(cUnit, (numRegs + cUnit->numCompilerTemps + 1) *
                               sizeof(cUnit->promotionMap[0]), true,
                               kAllocRegAlloc);
-    // Bias the promotion map
-    cUnit->promotionMap = &tMap[cUnit->numCompilerTemps + 1];
 
     /* Add types of incoming arguments based on signature */
     int numIns = cUnit->numIns;

@@ -39,7 +39,7 @@ void oatAdjustSpillMask(CompilationUnit* cUnit) {
  * include any holes in the mask.  Associate holes with
  * Dalvik register INVALID_VREG (0xFFFFU).
  */
-void oatMarkPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
+void oatMarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg)
 {
     UNIMPLEMENTED(WARNING) << "oatMarkPreservedSingle";
 #if 0

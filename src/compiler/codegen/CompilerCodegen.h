@@ -39,7 +39,6 @@ int oatAssignInsnOffsets(CompilationUnit* cUnit);
 /* Implemented in the codegen/<target>/ArchUtility.c */
 void oatCodegenDump(CompilationUnit* cUnit);
 void oatDumpPromotionMap(CompilationUnit* cUnit);
-void oatDumpFullPromotionMap(CompilationUnit* cUnit);
 std::string buildInsnString(const char* fmt, LIR* lir,
                             unsigned char* baseAddr);
 

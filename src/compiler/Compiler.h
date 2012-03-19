@@ -51,6 +51,7 @@ enum optControlVector {
     kSkipLargeMethodOptimization,
     kSafeOptimizations,
     kBBOpt,
+    kPromoteCompilerTemps,
 };
 
 /* Type of allocation for memory tuning */
