@@ -1734,8 +1734,8 @@ void VerifyObject(const Object* obj, void*) {
 }
 
 void Thread::VerifyStack() {
-  Context* context = GetLongJumpContext();
-  ReferenceMapVisitor mapper(context, VerifyObject, NULL);
+  UniquePtr<Context> context(Context::Create());
+  ReferenceMapVisitor mapper(context.get(), VerifyObject, NULL);
   WalkStack(&mapper);
 }
 #endif
