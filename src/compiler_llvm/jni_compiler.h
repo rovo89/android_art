@@ -66,8 +66,7 @@ class JniCompiler {
  private:
   llvm::Value* LoadFromObjectOffset(llvm::Value* object_addr, int32_t offset, llvm::Type* type);
 
-  void StoreToObjectOffset(llvm::Value* object_addr, int32_t offset,
-                           llvm::Type* type, llvm::Value* value);
+  void StoreToObjectOffset(llvm::Value* object_addr, int32_t offset, llvm::Value* new_value);
 
   CompilationUnit* cunit_;
   Compiler const* compiler_;

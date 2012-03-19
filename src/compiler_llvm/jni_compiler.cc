@@ -27,6 +27,7 @@
 #include "object.h"
 #include "runtime.h"
 #include "runtime_support_func.h"
+#include "shadow_frame.h"
 #include "utils_llvm.h"
 
 #include <llvm/Analysis/Verifier.h>
@@ -90,6 +91,7 @@ CompiledMethod* JniCompiler::Compile() {
   // Start to build IR
   irb_.SetInsertPoint(basic_block_);
 
+  // Get thread object
   llvm::Value* thread_object_addr =
     irb_.CreateCall(irb_.GetRuntime(runtime_support::GetCurrentThread));
 
@@ -100,35 +102,28 @@ CompiledMethod* JniCompiler::Compile() {
   // Zero-initialization of the shadow frame
   llvm::ConstantAggregateZero* zero_initializer =
     llvm::ConstantAggregateZero::get(shadow_frame_type);
-
   irb_.CreateStore(zero_initializer, shadow_frame_);
 
-  // Variables for GetElementPtr
-  llvm::Constant* zero = irb_.getInt32(0);
-  llvm::Value* gep_index[] = {
-    zero, // No displacement for shadow frame pointer
-    zero, // Get the %ArtFrame data structure
-    NULL,
-  };
-
   // Store the method pointer
-  gep_index[2] = irb_.getInt32(2);
-  llvm::Value* method_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
+  llvm::Value* method_field_addr =
+    irb_.CreatePtrDisp(shadow_frame_,
+                       irb_.getPtrEquivInt(ShadowFrame::MethodOffset()),
+                       irb_.getJObjectTy()->getPointerTo());
   irb_.CreateStore(method_object_addr, method_field_addr);
 
   // Store the number of the pointer slots
-  gep_index[2] = irb_.getInt32(0);
-  llvm::Value* size_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
-  llvm::ConstantInt* sirt_size_value = irb_.getInt32(sirt_size);
-  irb_.CreateStore(sirt_size_value, size_field_addr);
+  StoreToObjectOffset(shadow_frame_,
+                      ShadowFrame::NumberOfReferencesOffset(),
+                      irb_.getInt32(sirt_size));
 
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
   irb_.CreateCall(irb_.GetRuntime(runtime_support::PushShadowFrame), shadow_frame_upcast);
 
   // Set top of managed stack to the method field in the SIRT
-  StoreToObjectOffset(thread_object_addr, Thread::TopOfManagedStackOffset().Int32Value(),
-                      method_field_addr->getType(), method_field_addr);
+  StoreToObjectOffset(thread_object_addr,
+                      Thread::TopOfManagedStackOffset().Int32Value(),
+                      method_field_addr);
 
   // Get JNIEnv
   llvm::Value* jni_env_object_addr = LoadFromObjectOffset(thread_object_addr,
@@ -136,8 +131,9 @@ CompiledMethod* JniCompiler::Compile() {
                                                           irb_.getJObjectTy());
 
   // Set thread state to kNative
-  StoreToObjectOffset(thread_object_addr, Thread::StateOffset().Int32Value(),
-                      irb_.getInt32Ty(), irb_.getInt32(Thread::kNative));
+  StoreToObjectOffset(thread_object_addr,
+                      Thread::StateOffset().Int32Value(),
+                      irb_.getInt32(Thread::kNative));
 
   // Get callee code_addr
   llvm::Value* code_addr =
@@ -149,26 +145,35 @@ CompiledMethod* JniCompiler::Compile() {
   // Load actual parameters
   std::vector<llvm::Value*> args;
 
+  // The 1st parameter: JNIEnv*
   args.push_back(jni_env_object_addr);
-  //args.push_back(method_object_addr); // method object for callee
 
-  // Store arguments to SIRT, and push back to args
-  gep_index[1] = irb_.getInt32(1); // SIRT
+  // Variables for GetElementPtr
+  llvm::Value* gep_index[] = {
+    irb_.getInt32(0), // No displacement for shadow frame pointer
+    irb_.getInt32(1), // SIRT
+    NULL,
+  };
+
   size_t sirt_member_index = 0;
 
   // Push class argument if this method is static
   if (is_static) {
+    // Load class object
     llvm::Value* class_object_addr =
         LoadFromObjectOffset(method_object_addr,
                              Method::DeclaringClassOffset().Int32Value(),
                              irb_.getJObjectTy());
     gep_index[2] = irb_.getInt32(sirt_member_index++);
+    // Store the class argument to SIRT
     llvm::Value* sirt_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
     irb_.CreateStore(class_object_addr, sirt_field_addr);
     args.push_back(irb_.CreateBitCast(sirt_field_addr, irb_.getJObjectTy()));
   }
+  // Store arguments to SIRT, and push back to args
   for (arg_iter = arg_begin; arg_iter != arg_end; ++arg_iter) {
     if (arg_iter->getType() == irb_.getJObjectTy()) {
+      // Store the reference type arguments to SIRT
       gep_index[2] = irb_.getInt32(sirt_member_index++);
       llvm::Value* sirt_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
       irb_.CreateStore(arg_iter, sirt_field_addr);
@@ -199,7 +204,6 @@ CompiledMethod* JniCompiler::Compile() {
                            irb_.getInt32Ty());
   StoreToObjectOffset(jni_env_object_addr,
                       JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                      irb_.getInt32Ty(),
                       segment_state);
 
 
@@ -208,8 +212,9 @@ CompiledMethod* JniCompiler::Compile() {
 
 
   // Set thread state to kRunnable
-  StoreToObjectOffset(thread_object_addr, Thread::StateOffset().Int32Value(),
-                      irb_.getInt32Ty(), irb_.getInt32(Thread::kRunnable));
+  StoreToObjectOffset(thread_object_addr,
+                      Thread::StateOffset().Int32Value(),
+                      irb_.getInt32(Thread::kRunnable));
 
   // Get return shorty
   DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx_);
@@ -220,7 +225,8 @@ CompiledMethod* JniCompiler::Compile() {
   if (ret_shorty == 'L') {
     // If the return value is reference, it may point to SIRT, we should decode it.
     retval = irb_.CreateCall2(irb_.GetRuntime(runtime_support::DecodeJObjectInThread),
-                              thread_object_addr, retval);
+                              thread_object_addr,
+                              retval);
   }
 
   // env->locals.segment_state = env->local_ref_cookie
@@ -230,12 +236,12 @@ CompiledMethod* JniCompiler::Compile() {
                            irb_.getInt32Ty());
   StoreToObjectOffset(jni_env_object_addr,
                       JNIEnvExt::SegmentStateOffset().Int32Value(),
-                      irb_.getInt32Ty(),
                       local_ref_cookie);
 
   // env->local_ref_cookie = saved_local_ref_cookie
-  StoreToObjectOffset(jni_env_object_addr, JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                      irb_.getInt32Ty(), saved_local_ref_cookie);
+  StoreToObjectOffset(jni_env_object_addr,
+                      JNIEnvExt::LocalRefCookieOffset().Int32Value(),
+                      saved_local_ref_cookie);
 
   // Pop the shadow frame
   irb_.CreateCall(irb_.GetRuntime(runtime_support::PopShadowFrame));
@@ -305,7 +311,8 @@ llvm::FunctionType* JniCompiler::GetFunctionType(uint32_t method_idx,
   return llvm::FunctionType::get(ret_type, args_type, false);
 }
 
-llvm::Value* JniCompiler::LoadFromObjectOffset(llvm::Value* object_addr, int32_t offset,
+llvm::Value* JniCompiler::LoadFromObjectOffset(llvm::Value* object_addr,
+                                               int32_t offset,
                                                llvm::Type* type) {
   // Convert offset to llvm::value
   llvm::Value* llvm_offset = irb_.getPtrEquivInt(offset);
@@ -315,14 +322,17 @@ llvm::Value* JniCompiler::LoadFromObjectOffset(llvm::Value* object_addr, int32_t
   return irb_.CreateLoad(value_addr);
 }
 
-void JniCompiler::StoreToObjectOffset(llvm::Value* object_addr, int32_t offset,
-                                      llvm::Type* type, llvm::Value* value) {
+void JniCompiler::StoreToObjectOffset(llvm::Value* object_addr,
+                                      int32_t offset,
+                                      llvm::Value* new_value) {
   // Convert offset to llvm::value
   llvm::Value* llvm_offset = irb_.getPtrEquivInt(offset);
   // Calculate the value's address
-  llvm::Value* value_addr = irb_.CreatePtrDisp(object_addr, llvm_offset, type->getPointerTo());
+  llvm::Value* value_addr = irb_.CreatePtrDisp(object_addr,
+                                               llvm_offset,
+                                               new_value->getType()->getPointerTo());
   // Store
-  irb_.CreateStore(value, value_addr);
+  irb_.CreateStore(new_value, value_addr);
 }
 
 } // namespace compiler_llvm
