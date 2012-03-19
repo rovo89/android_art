@@ -795,6 +795,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
             (1 << kLoadHoisting) |
             (1 << kSuppressLoads) |
             (1 << kPromoteRegs) |
+            (1 << kBBOpt) |
             (1 << kTrackLiveTemps));
     }
 
@@ -947,6 +948,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
             // Disable optimization which require dataflow/ssa
             cUnit->disableOpt |=
                 (1 << kNullCheckElimination) |
+                (1 << kBBOpt) |
                 (1 << kPromoteRegs);
             if (cUnit->printMe) {
                 LOG(INFO) << "Compiler: " << PrettyMethod(method_idx, dex_file)
