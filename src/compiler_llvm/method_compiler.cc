@@ -3580,7 +3580,8 @@ CompiledMethod *MethodCompiler::Compile() {
   // Dex file.  Besides, we have to convert the code unit into bytes.
   // Thus, we got our magic number 9.
 
-  return new CompiledMethod(cunit_->GetInstructionSet(), func_);
+  return new CompiledMethod(cunit_->GetInstructionSet(),
+                            cunit_->GetElfIndex());
 }
 
 

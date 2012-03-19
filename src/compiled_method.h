@@ -30,11 +30,6 @@ namespace art {
 
 class CompiledMethod {
  public:
-#if defined(ART_USE_LLVM_COMPILER)
-  // Constructs a CompiledMethod for the LLVM compiler.
-  CompiledMethod(InstructionSet instruction_set, llvm::Function* func);
-#endif
-
   // Constructs a CompiledMethod for the non-LLVM compilers.
   CompiledMethod(InstructionSet instruction_set,
                  const std::vector<uint8_t>& code,
@@ -53,6 +48,9 @@ class CompiledMethod {
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask);
+
+  // Constructs a CompiledMethod for the LLVM compiler.
+  CompiledMethod(InstructionSet instruction_set, size_t elf_idx);
 
   ~CompiledMethod();
 
@@ -81,11 +79,17 @@ class CompiledMethod {
   static const void* CodePointer(const void* code_pointer,
                                  InstructionSet instruction_set);
 
+  size_t GetElfIndex() const {
+    return elf_idx_;
+  }
+
+  bool IsExecutableInElf() const {
+    return (elf_idx_ != static_cast<size_t>(-1));
+  }
+
  private:
+  // For non-LLVM
   const InstructionSet instruction_set_;
-#if defined(ART_USE_LLVM_COMPILER)
-  llvm::Function* func_;
-#endif
   std::vector<uint8_t> code_;
   const size_t frame_size_in_bytes_;
   const uint32_t core_spill_mask_;
@@ -93,23 +97,31 @@ class CompiledMethod {
   std::vector<uint32_t> mapping_table_;
   std::vector<uint16_t> vmap_table_;
   std::vector<uint8_t> gc_map_;
+  // For LLVM
+  size_t elf_idx_;
 };
 
 class CompiledInvokeStub {
  public:
-#if defined(ART_USE_LLVM_COMPILER)
-  explicit CompiledInvokeStub(llvm::Function* func);
-#endif
   explicit CompiledInvokeStub(std::vector<uint8_t>& code);
-  ~CompiledInvokeStub();
-  const std::vector<uint8_t>& GetCode() const;
- private:
 #if defined(ART_USE_LLVM_COMPILER)
-  llvm::Function* func_;
+  explicit CompiledInvokeStub(size_t elf_idx);
 #endif
-  // TODO: Change the line above from #endif to #else, after oat_writer is
-  // changed.
+  ~CompiledInvokeStub();
+
+  const std::vector<uint8_t>& GetCode() const;
+
+  size_t GetElfIndex() const {
+    return elf_idx_;
+  }
+
+  bool IsExecutableInElf() const {
+    return (elf_idx_ != static_cast<size_t>(-1));
+  }
+
+ private:
   std::vector<uint8_t> code_;
+  size_t elf_idx_;
 };
 
 }  // namespace art

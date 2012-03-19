@@ -179,7 +179,7 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
   // store ret_addr, and ret_void.  Beside, we guess that we have to use
   // 50 bytes to represent one LLVM instruction.
 
-  return new CompiledInvokeStub(func);
+  return new CompiledInvokeStub(cunit_->GetElfIndex());
 }
 
 

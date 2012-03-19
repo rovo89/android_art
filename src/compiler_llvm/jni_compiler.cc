@@ -253,7 +253,8 @@ CompiledMethod* JniCompiler::Compile() {
   // Verify the generated bitcode
   llvm::verifyFunction(*func_, llvm::PrintMessageAction);
 
-  return new CompiledMethod(cunit_->GetInstructionSet(), func_);
+  return new CompiledMethod(cunit_->GetInstructionSet(),
+                            cunit_->GetElfIndex());
 }
 
 

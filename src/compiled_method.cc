@@ -18,13 +18,6 @@
 
 namespace art {
 
-#if defined(ART_USE_LLVM_COMPILER)
-CompiledMethod::CompiledMethod(art::InstructionSet instruction_set,
-                               llvm::Function *func)
-    : instruction_set_(instruction_set), func_(func), frame_size_in_bytes_(0),
-      core_spill_mask_(0), fp_spill_mask_(0) {
-}
-#endif
 CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                const std::vector<uint8_t>& code,
                                const size_t frame_size_in_bytes,
@@ -33,7 +26,9 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                const std::vector<uint32_t>& mapping_table,
                                const std::vector<uint16_t>& vmap_table)
     : instruction_set_(instruction_set), frame_size_in_bytes_(frame_size_in_bytes),
-      core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask) {
+      core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
+      elf_idx_(-1)
+{
   CHECK_NE(code.size(), 0U);
   CHECK_GE(vmap_table.size(), 1U);  // should always contain an entry for LR
   DCHECK_EQ(vmap_table.size(),
@@ -85,8 +80,15 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask)
     : instruction_set_(instruction_set), code_(code), frame_size_in_bytes_(frame_size_in_bytes),
-      core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask) {
+      core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
+      elf_idx_(-1)
+{
   CHECK_NE(code.size(), 0U);
+}
+
+CompiledMethod::CompiledMethod(InstructionSet instruction_set, size_t elf_idx)
+    : instruction_set_(instruction_set), frame_size_in_bytes_(0),
+      core_spill_mask_(0), fp_spill_mask_(0), elf_idx_(elf_idx) {
 }
 
 CompiledMethod::~CompiledMethod() {}
@@ -174,11 +176,12 @@ const void* CompiledMethod::CodePointer(const void* code_pointer,
 }
 
 #if defined(ART_USE_LLVM_COMPILER)
-CompiledInvokeStub::CompiledInvokeStub(llvm::Function* func) : func_(func) {
-  CHECK_NE(func, static_cast<llvm::Function*>(NULL));
+CompiledInvokeStub::CompiledInvokeStub(size_t elf_idx) : elf_idx_(elf_idx) {
 }
 #endif
-CompiledInvokeStub::CompiledInvokeStub(std::vector<uint8_t>& code) {
+
+CompiledInvokeStub::CompiledInvokeStub(std::vector<uint8_t>& code)
+    : elf_idx_(-1) {
   CHECK_NE(code.size(), 0U);
   code_ = code;
 }
