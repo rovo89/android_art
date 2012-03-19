@@ -45,17 +45,24 @@ typedef void (*ThrowAme)(Method*, Thread*);
 ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
-  // Pad stack to ensure 16-byte alignment
+  // return address
+  __ pushl(EDI);
+  __ pushl(ESI);
+  __ pushl(EBP);
+  __ pushl(EBX);
   __ pushl(Immediate(0));
+  __ pushl(Immediate(0));
+  __ pushl(Immediate(0));  // <-- callee save Method* to go here
+  __ movl(ECX, ESP);       // save ESP
+  __ pushl(Immediate(0));  // align frame
+  __ pushl(ECX);           // pass ESP for Method*
   __ fs()->pushl(Address::Absolute(Thread::SelfOffset()));  // Thread*
-  __ pushl(EAX); // Method*
+  __ pushl(EAX);           // pass Method*
 
-  // Call to throw AbstractMethodError
+  // Call to throw AbstractMethodError.
   __ Call(ThreadOffset(OFFSETOF_MEMBER(Thread, pThrowAbstractMethodErrorFromCode)),
           X86ManagedRegister::FromCpuRegister(ECX));
-
-  // Because the call above never returns, we do not need to do ESP+=16 here.
-
+  // Call never returns.
   __ int3();
 
   assembler->EmitSlowPaths();

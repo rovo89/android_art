@@ -567,10 +567,6 @@ void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result
   const Method::InvokeStub* stub = GetInvokeStub();
 
   bool have_executable_code = (GetCode() != NULL);
-#if !defined(__arm__)
-  // Currently we can only compile non-native methods for ARM.
-  have_executable_code = IsNative();
-#endif
 
   if (Runtime::Current()->IsStarted() && have_executable_code && stub != NULL) {
     bool log = false;

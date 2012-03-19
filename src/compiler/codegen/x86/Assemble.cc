@@ -29,100 +29,100 @@ X86EncodingMap EncodingMap[kX86Last] = {
   { kX86Bkpt,      kNullary, NO_OPERAND | IS_BRANCH, { 0, 0, 0xCC, 0, 0, 0, 0, 4 }, "int 3", "" },
   { kX86Nop,       kNop,     IS_UNARY_OP,            { 0, 0, 0x90, 0, 0, 0, 0, 0 }, "nop",   "" },
 
-#define ENCODING_MAP(opname, \
+#define ENCODING_MAP(opname, is_store, \
                      rm8_r8, rm32_r32, \
                      r8_rm8, r32_rm32, \
                      ax8_i8, ax32_i32, \
                      rm8_i8, rm8_i8_modrm, \
                      rm32_i32, rm32_i32_modrm, \
                      rm32_i8, rm32_i8_modrm) \
-{ kX86 ## opname ## 8MR, kMemReg,   IS_STORE | IS_TERTIARY_OP | SETS_CCODES, { 0, 0,             rm8_r8, 0, 0, 0,            0,      0 }, #opname "8MR", "[!0r+!1d],!2r" }, \
-{ kX86 ## opname ## 8AR, kArrayReg, IS_STORE | IS_QUIN_OP     | SETS_CCODES, { 0, 0,             rm8_r8, 0, 0, 0,            0,      0 }, #opname "8AR", "[!0r+!1r<<!2d+!3d],!4r" }, \
-{ kX86 ## opname ## 8TR, kThreadReg,IS_STORE | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0, rm8_r8, 0, 0, 0,            0,      0 }, #opname "8TR", "fs:[!0d],!1r" }, \
+{ kX86 ## opname ## 8MR, kMemReg,   is_store | IS_TERTIARY_OP | SETS_CCODES, { 0, 0,             rm8_r8, 0, 0, 0,            0,      0 }, #opname "8MR", "[!0r+!1d],!2r" }, \
+{ kX86 ## opname ## 8AR, kArrayReg, is_store | IS_QUIN_OP     | SETS_CCODES, { 0, 0,             rm8_r8, 0, 0, 0,            0,      0 }, #opname "8AR", "[!0r+!1r<<!2d+!3d],!4r" }, \
+{ kX86 ## opname ## 8TR, kThreadReg,is_store | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0, rm8_r8, 0, 0, 0,            0,      0 }, #opname "8TR", "fs:[!0d],!1r" }, \
 { kX86 ## opname ## 8RR, kRegReg,              IS_BINARY_OP   | SETS_CCODES, { 0, 0,             r8_rm8, 0, 0, 0,            0,      0 }, #opname "8RR", "!0r,!1r" }, \
 { kX86 ## opname ## 8RM, kRegMem,    IS_LOAD | IS_TERTIARY_OP | SETS_CCODES, { 0, 0,             r8_rm8, 0, 0, 0,            0,      0 }, #opname "8RM", "!0r,[!1r+!2d]" }, \
 { kX86 ## opname ## 8RA, kRegArray,  IS_LOAD | IS_QUIN_OP     | SETS_CCODES, { 0, 0,             r8_rm8, 0, 0, 0,            0,      0 }, #opname "8RA", "!0r,[!1r+!2r<<!3d+!4d]" }, \
 { kX86 ## opname ## 8RT, kRegThread, IS_LOAD | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0, r8_rm8, 0, 0, 0,            0,      0 }, #opname "8RT", "!0r,fs:[!1d]" }, \
 { kX86 ## opname ## 8RI, kRegImm,              IS_BINARY_OP   | SETS_CCODES, { 0, 0,             rm8_i8, 0, 0, rm8_i8_modrm, ax8_i8, 1 }, #opname "8RI", "!0r,!1d" }, \
-{ kX86 ## opname ## 8MI, kMemImm,   IS_STORE | IS_TERTIARY_OP | SETS_CCODES, { 0, 0,             rm8_i8, 0, 0, rm8_i8_modrm, 0,      1 }, #opname "8MI", "[!0r+!1d],!2r" }, \
-{ kX86 ## opname ## 8AI, kArrayImm, IS_STORE | IS_QUIN_OP     | SETS_CCODES, { 0, 0,             rm8_i8, 0, 0, rm8_i8_modrm, 0,      1 }, #opname "8AI", "[!0r+!1r<<!2d+!3d],!4r" }, \
-{ kX86 ## opname ## 8TI, kThreadImm,IS_STORE | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0, rm8_i8, 0, 0, rm8_i8_modrm, 0,      1 }, #opname "8TI", "fs:[!0d],!1r" }, \
+{ kX86 ## opname ## 8MI, kMemImm,   is_store | IS_TERTIARY_OP | SETS_CCODES, { 0, 0,             rm8_i8, 0, 0, rm8_i8_modrm, 0,      1 }, #opname "8MI", "[!0r+!1d],!2r" }, \
+{ kX86 ## opname ## 8AI, kArrayImm, is_store | IS_QUIN_OP     | SETS_CCODES, { 0, 0,             rm8_i8, 0, 0, rm8_i8_modrm, 0,      1 }, #opname "8AI", "[!0r+!1r<<!2d+!3d],!4r" }, \
+{ kX86 ## opname ## 8TI, kThreadImm,is_store | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0, rm8_i8, 0, 0, rm8_i8_modrm, 0,      1 }, #opname "8TI", "fs:[!0d],!1r" }, \
   \
-{ kX86 ## opname ## 16MR,  kMemReg,   IS_STORE | IS_TERTIARY_OP | SETS_CCODES, { 0x66, 0,             rm32_r32, 0, 0, 0,              0,        0 }, #opname "16MR", "[!0r+!1d],!2r" }, \
-{ kX86 ## opname ## 16AR,  kArrayReg, IS_STORE | IS_QUIN_OP     | SETS_CCODES, { 0x66, 0,             rm32_r32, 0, 0, 0,              0,        0 }, #opname "16AR", "[!0r+!1r<<!2d+!3d],!4r" }, \
-{ kX86 ## opname ## 16TR,  kThreadReg,IS_STORE | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0x66, rm32_r32, 0, 0, 0,              0,        0 }, #opname "16TR", "fs:[!0d],!1r" }, \
+{ kX86 ## opname ## 16MR,  kMemReg,   is_store | IS_TERTIARY_OP | SETS_CCODES, { 0x66, 0,             rm32_r32, 0, 0, 0,              0,        0 }, #opname "16MR", "[!0r+!1d],!2r" }, \
+{ kX86 ## opname ## 16AR,  kArrayReg, is_store | IS_QUIN_OP     | SETS_CCODES, { 0x66, 0,             rm32_r32, 0, 0, 0,              0,        0 }, #opname "16AR", "[!0r+!1r<<!2d+!3d],!4r" }, \
+{ kX86 ## opname ## 16TR,  kThreadReg,is_store | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0x66, rm32_r32, 0, 0, 0,              0,        0 }, #opname "16TR", "fs:[!0d],!1r" }, \
 { kX86 ## opname ## 16RR,  kRegReg,              IS_BINARY_OP   | SETS_CCODES, { 0x66, 0,             r32_rm32, 0, 0, 0,              0,        0 }, #opname "16RR", "!0r,!1r" }, \
 { kX86 ## opname ## 16RM,  kRegMem,    IS_LOAD | IS_TERTIARY_OP | SETS_CCODES, { 0x66, 0,             r32_rm32, 0, 0, 0,              0,        0 }, #opname "16RM", "!0r,[!1r+!2d]" }, \
 { kX86 ## opname ## 16RA,  kRegArray,  IS_LOAD | IS_QUIN_OP     | SETS_CCODES, { 0x66, 0,             r32_rm32, 0, 0, 0,              0,        0 }, #opname "16RA", "!0r,[!1r+!2r<<!3d+!4d]" }, \
 { kX86 ## opname ## 16RT,  kRegThread, IS_LOAD | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0x66, r32_rm32, 0, 0, 0,              0,        0 }, #opname "16RT", "!0r,fs:[!1d]" }, \
 { kX86 ## opname ## 16RI,  kRegImm,              IS_BINARY_OP   | SETS_CCODES, { 0x66, 0,             rm32_i32, 0, 0, rm32_i32_modrm, ax32_i32, 2 }, #opname "16RI", "!0r,!1d" }, \
-{ kX86 ## opname ## 16MI,  kMemImm,   IS_STORE | IS_TERTIARY_OP | SETS_CCODES, { 0x66, 0,             rm32_i32, 0, 0, rm32_i32_modrm, 0,        2 }, #opname "16MI", "[!0r+!1d],!2d" }, \
-{ kX86 ## opname ## 16AI,  kArrayImm, IS_STORE | IS_QUIN_OP     | SETS_CCODES, { 0x66, 0,             rm32_i32, 0, 0, rm32_i32_modrm, 0,        2 }, #opname "16AI", "[!0r+!1r<<!2d+!3d],!4d" }, \
-{ kX86 ## opname ## 16TI,  kThreadImm,IS_STORE | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0x66, rm32_i32, 0, 0, rm32_i32_modrm, 0,        2 }, #opname "16TI", "fs:[!0d],!1d" }, \
+{ kX86 ## opname ## 16MI,  kMemImm,   is_store | IS_TERTIARY_OP | SETS_CCODES, { 0x66, 0,             rm32_i32, 0, 0, rm32_i32_modrm, 0,        2 }, #opname "16MI", "[!0r+!1d],!2d" }, \
+{ kX86 ## opname ## 16AI,  kArrayImm, is_store | IS_QUIN_OP     | SETS_CCODES, { 0x66, 0,             rm32_i32, 0, 0, rm32_i32_modrm, 0,        2 }, #opname "16AI", "[!0r+!1r<<!2d+!3d],!4d" }, \
+{ kX86 ## opname ## 16TI,  kThreadImm,is_store | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0x66, rm32_i32, 0, 0, rm32_i32_modrm, 0,        2 }, #opname "16TI", "fs:[!0d],!1d" }, \
 { kX86 ## opname ## 16RI8, kRegImm,              IS_BINARY_OP   | SETS_CCODES, { 0x66, 0,             rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "16RI8", "!0r,!1d" }, \
-{ kX86 ## opname ## 16MI8, kMemImm,   IS_STORE | IS_TERTIARY_OP | SETS_CCODES, { 0x66, 0,             rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "16MI8", "[!0r+!1d],!2d" }, \
-{ kX86 ## opname ## 16AI8, kArrayImm, IS_STORE | IS_QUIN_OP     | SETS_CCODES, { 0x66, 0,             rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "16AI8", "[!0r+!1r<<!2d+!3d],!4d" }, \
-{ kX86 ## opname ## 16TI8, kThreadImm,IS_STORE | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0x66, rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "16TI8", "fs:[!0d],!1d" }, \
+{ kX86 ## opname ## 16MI8, kMemImm,   is_store | IS_TERTIARY_OP | SETS_CCODES, { 0x66, 0,             rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "16MI8", "[!0r+!1d],!2d" }, \
+{ kX86 ## opname ## 16AI8, kArrayImm, is_store | IS_QUIN_OP     | SETS_CCODES, { 0x66, 0,             rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "16AI8", "[!0r+!1r<<!2d+!3d],!4d" }, \
+{ kX86 ## opname ## 16TI8, kThreadImm,is_store | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0x66, rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "16TI8", "fs:[!0d],!1d" }, \
   \
-{ kX86 ## opname ## 32MR,  kMemReg,   IS_STORE | IS_TERTIARY_OP | SETS_CCODES, { 0, 0,             rm32_r32, 0, 0, 0,              0,        0 }, #opname "32MR", "[!0r+!1d],!2r" }, \
-{ kX86 ## opname ## 32AR,  kArrayReg, IS_STORE | IS_QUIN_OP     | SETS_CCODES, { 0, 0,             rm32_r32, 0, 0, 0,              0,        0 }, #opname "32AR", "[!0r+!1r<<!2d+!3d],!4r" }, \
-{ kX86 ## opname ## 32TR,  kThreadReg,IS_STORE | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0, rm32_r32, 0, 0, 0,              0,        0 }, #opname "32TR", "fs:[!0d],!1r" }, \
+{ kX86 ## opname ## 32MR,  kMemReg,   is_store | IS_TERTIARY_OP | SETS_CCODES, { 0, 0,             rm32_r32, 0, 0, 0,              0,        0 }, #opname "32MR", "[!0r+!1d],!2r" }, \
+{ kX86 ## opname ## 32AR,  kArrayReg, is_store | IS_QUIN_OP     | SETS_CCODES, { 0, 0,             rm32_r32, 0, 0, 0,              0,        0 }, #opname "32AR", "[!0r+!1r<<!2d+!3d],!4r" }, \
+{ kX86 ## opname ## 32TR,  kThreadReg,is_store | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0, rm32_r32, 0, 0, 0,              0,        0 }, #opname "32TR", "fs:[!0d],!1r" }, \
 { kX86 ## opname ## 32RR,  kRegReg,              IS_BINARY_OP   | SETS_CCODES, { 0, 0,             r32_rm32, 0, 0, 0,              0,        0 }, #opname "32RR", "!0r,!1r" }, \
 { kX86 ## opname ## 32RM,  kRegMem,    IS_LOAD | IS_TERTIARY_OP | SETS_CCODES, { 0, 0,             r32_rm32, 0, 0, 0,              0,        0 }, #opname "32RM", "!0r,[!1r+!2d]" }, \
 { kX86 ## opname ## 32RA,  kRegArray,  IS_LOAD | IS_QUIN_OP     | SETS_CCODES, { 0, 0,             r32_rm32, 0, 0, 0,              0,        0 }, #opname "32RA", "!0r,[!1r+!2r<<!3d+!4d]" }, \
 { kX86 ## opname ## 32RT,  kRegThread, IS_LOAD | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0, r32_rm32, 0, 0, 0,              0,        0 }, #opname "32RT", "!0r,fs:[!1d]" }, \
 { kX86 ## opname ## 32RI,  kRegImm,              IS_BINARY_OP   | SETS_CCODES, { 0, 0,             rm32_i32, 0, 0, rm32_i32_modrm, ax32_i32, 4 }, #opname "32RI", "!0r,!1d" }, \
-{ kX86 ## opname ## 32MI,  kMemImm,   IS_STORE | IS_TERTIARY_OP | SETS_CCODES, { 0, 0,             rm32_i32, 0, 0, rm32_i32_modrm, 0,        4 }, #opname "32MI", "[!0r+!1d],!2r" }, \
-{ kX86 ## opname ## 32AI,  kArrayImm, IS_STORE | IS_QUIN_OP     | SETS_CCODES, { 0, 0,             rm32_i32, 0, 0, rm32_i32_modrm, 0,        4 }, #opname "32AI", "[!0r+!1r<<!2d+!3d],!4d" }, \
-{ kX86 ## opname ## 32TI,  kThreadImm,IS_STORE | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0, rm32_i32, 0, 0, rm32_i32_modrm, 0,        4 }, #opname "32TI", "fs:[!0d],!1d" }, \
+{ kX86 ## opname ## 32MI,  kMemImm,   is_store | IS_TERTIARY_OP | SETS_CCODES, { 0, 0,             rm32_i32, 0, 0, rm32_i32_modrm, 0,        4 }, #opname "32MI", "[!0r+!1d],!2r" }, \
+{ kX86 ## opname ## 32AI,  kArrayImm, is_store | IS_QUIN_OP     | SETS_CCODES, { 0, 0,             rm32_i32, 0, 0, rm32_i32_modrm, 0,        4 }, #opname "32AI", "[!0r+!1r<<!2d+!3d],!4d" }, \
+{ kX86 ## opname ## 32TI,  kThreadImm,is_store | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0, rm32_i32, 0, 0, rm32_i32_modrm, 0,        4 }, #opname "32TI", "fs:[!0d],!1d" }, \
 { kX86 ## opname ## 32RI8, kRegImm,              IS_BINARY_OP   | SETS_CCODES, { 0, 0,             rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "32RI8", "!0r,!1d" }, \
-{ kX86 ## opname ## 32MI8, kMemImm,   IS_STORE | IS_TERTIARY_OP | SETS_CCODES, { 0, 0,             rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "32MI8", "[!0r+!1d],!2d" }, \
-{ kX86 ## opname ## 32AI8, kArrayImm, IS_STORE | IS_QUIN_OP     | SETS_CCODES, { 0, 0,             rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "32AI8", "[!0r+!1r<<!2d+!3d],!4d" }, \
-{ kX86 ## opname ## 32TI8, kThreadImm,IS_STORE | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0, rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "32TI8", "fs:[!0d],!1d" }
+{ kX86 ## opname ## 32MI8, kMemImm,   is_store | IS_TERTIARY_OP | SETS_CCODES, { 0, 0,             rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "32MI8", "[!0r+!1d],!2d" }, \
+{ kX86 ## opname ## 32AI8, kArrayImm, is_store | IS_QUIN_OP     | SETS_CCODES, { 0, 0,             rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "32AI8", "[!0r+!1r<<!2d+!3d],!4d" }, \
+{ kX86 ## opname ## 32TI8, kThreadImm,is_store | IS_BINARY_OP   | SETS_CCODES, { THREAD_PREFIX, 0, rm32_i8,  0, 0, rm32_i8_modrm,  0,        1 }, #opname "32TI8", "fs:[!0d],!1d" }
 
-ENCODING_MAP(Add,
+ENCODING_MAP(Add, IS_STORE,
   0x00 /* RegMem8/Reg8 */,     0x01 /* RegMem32/Reg32 */,
   0x02 /* Reg8/RegMem8 */,     0x03 /* Reg32/RegMem32 */,
   0x04 /* Rax8/imm8 opcode */, 0x05 /* Rax32/imm32 */,
   0x80, 0x0 /* RegMem8/imm8 */,
   0x81, 0x0 /* RegMem32/imm32 */, 0x83, 0x0 /* RegMem32/imm8 */),
-ENCODING_MAP(Or,
+ENCODING_MAP(Or, IS_STORE,
   0x08 /* RegMem8/Reg8 */,     0x09 /* RegMem32/Reg32 */,
   0x0A /* Reg8/RegMem8 */,     0x0B /* Reg32/RegMem32 */,
   0x0C /* Rax8/imm8 opcode */, 0x0D /* Rax32/imm32 */,
   0x80, 0x1 /* RegMem8/imm8 */,
   0x81, 0x1 /* RegMem32/imm32 */, 0x83, 0x1 /* RegMem32/imm8 */),
-ENCODING_MAP(Adc,
+ENCODING_MAP(Adc, IS_STORE,
   0x10 /* RegMem8/Reg8 */,     0x11 /* RegMem32/Reg32 */,
   0x12 /* Reg8/RegMem8 */,     0x13 /* Reg32/RegMem32 */,
   0x14 /* Rax8/imm8 opcode */, 0x15 /* Rax32/imm32 */,
   0x80, 0x2 /* RegMem8/imm8 */,
   0x81, 0x2 /* RegMem32/imm32 */, 0x83, 0x2 /* RegMem32/imm8 */),
-ENCODING_MAP(Sbb,
+ENCODING_MAP(Sbb, IS_STORE,
   0x18 /* RegMem8/Reg8 */,     0x19 /* RegMem32/Reg32 */,
   0x1A /* Reg8/RegMem8 */,     0x1B /* Reg32/RegMem32 */,
   0x1C /* Rax8/imm8 opcode */, 0x1D /* Rax32/imm32 */,
   0x80, 0x3 /* RegMem8/imm8 */,
   0x81, 0x3 /* RegMem32/imm32 */, 0x83, 0x3 /* RegMem32/imm8 */),
-ENCODING_MAP(And,
+ENCODING_MAP(And, IS_STORE,
   0x20 /* RegMem8/Reg8 */,     0x21 /* RegMem32/Reg32 */,
   0x22 /* Reg8/RegMem8 */,     0x23 /* Reg32/RegMem32 */,
   0x24 /* Rax8/imm8 opcode */, 0x25 /* Rax32/imm32 */,
   0x80, 0x4 /* RegMem8/imm8 */,
   0x81, 0x4 /* RegMem32/imm32 */, 0x83, 0x4 /* RegMem32/imm8 */),
-ENCODING_MAP(Sub,
+ENCODING_MAP(Sub, IS_STORE,
   0x28 /* RegMem8/Reg8 */,     0x29 /* RegMem32/Reg32 */,
   0x2A /* Reg8/RegMem8 */,     0x2B /* Reg32/RegMem32 */,
   0x2C /* Rax8/imm8 opcode */, 0x2D /* Rax32/imm32 */,
   0x80, 0x5 /* RegMem8/imm8 */,
   0x81, 0x5 /* RegMem32/imm32 */, 0x83, 0x5 /* RegMem32/imm8 */),
-ENCODING_MAP(Xor,
+ENCODING_MAP(Xor, IS_STORE,
   0x30 /* RegMem8/Reg8 */,     0x31 /* RegMem32/Reg32 */,
   0x32 /* Reg8/RegMem8 */,     0x33 /* Reg32/RegMem32 */,
   0x34 /* Rax8/imm8 opcode */, 0x35 /* Rax32/imm32 */,
   0x80, 0x6 /* RegMem8/imm8 */,
   0x81, 0x6 /* RegMem32/imm32 */, 0x83, 0x6 /* RegMem32/imm8 */),
-ENCODING_MAP(Cmp,
+ENCODING_MAP(Cmp, IS_LOAD,
   0x38 /* RegMem8/Reg8 */,     0x39 /* RegMem32/Reg32 */,
   0x3A /* Reg8/RegMem8 */,     0x3B /* Reg32/RegMem32 */,
   0x3C /* Rax8/imm8 opcode */, 0x3D /* Rax32/imm32 */,
@@ -283,8 +283,8 @@ ENCODING_MAP(Cmp,
   EXT_0F_ENCODING_MAP(Movsx16, 0x00, 0xBF),
 #undef EXT_0F_ENCODING_MAP
 
-  { kX86Jcc,   kJcc,  IS_BINARY_OP | IS_BRANCH | NEEDS_FIXUP, { 0,             0, 0x70, 0, 0, 0, 0, 0 }, "Jcc", "!1c" },
-  { kX86Jmp,   kJmp,  IS_UNARY_OP  | IS_BRANCH | NEEDS_FIXUP, { 0,             0, 0xE9, 0, 0, 0, 0, 0 }, "Jmp", "" },
+  { kX86Jcc,   kJcc,  IS_BINARY_OP | IS_BRANCH | NEEDS_FIXUP, { 0,             0, 0x70, 0, 0, 0, 0, 0 }, "Jcc", "!1c !0t" },
+  { kX86Jmp,   kJmp,  IS_UNARY_OP  | IS_BRANCH | NEEDS_FIXUP, { 0,             0, 0xE9, 0, 0, 0, 0, 0 }, "Jmp", "!0t" },
   { kX86CallR, kCall, IS_UNARY_OP  | IS_BRANCH,               { 0,             0, 0xE8, 0, 0, 0, 0, 0 }, "CallR", "!0r" },
   { kX86CallM, kCall, IS_BINARY_OP | IS_BRANCH | IS_LOAD,     { 0,             0, 0xFF, 0, 0, 2, 0, 0 }, "CallM", "[!0r+!1d]" },
   { kX86CallA, kCall, IS_QUAD_OP   | IS_BRANCH | IS_LOAD,     { 0,             0, 0xFF, 0, 0, 2, 0, 0 }, "CallA", "[!0r+!1r<<!2d+!3d]" },
@@ -357,7 +357,7 @@ int oatGetInsnSize(LIR* lir) {
     case kRegArray:  // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: disp
       return computeSize(entry, lir->operands[4], true);
     case kRegThread:  // lir operands - 0: reg, 1: disp
-      return computeSize(entry, lir->operands[1], false);
+      return computeSize(entry, 0x12345678, false);  // displacement size is always 32bit
     case kRegImm: {  // lir operands - 0: reg, 1: immediate
       int reg = lir->operands[0];
       // AX opcodes don't require the modrm byte.
@@ -369,7 +369,7 @@ int oatGetInsnSize(LIR* lir) {
     case kArrayImm:  // lir operands - 0: base, 1: index, 2: scale, 3: disp 4: immediate
       return computeSize(entry, lir->operands[3], true);
     case kThreadImm:  // lir operands - 0: disp, 1: imm
-      return computeSize(entry, lir->operands[0], false);
+      return computeSize(entry, 0x12345678, false);  // displacement size is always 32bit
     case kRegRegImm:  // lir operands - 0: reg, 1: reg, 2: imm
       return computeSize(entry, 0, false);
     case kRegMemImm:  // lir operands - 0: reg, 1: base, 2: disp, 3: imm
@@ -415,7 +415,7 @@ int oatGetInsnSize(LIR* lir) {
         case kX86CallA:  // lir operands - 0: base, 1: index, 2: scale, 3: disp
           return computeSize(entry, lir->operands[3], true);
         case kX86CallT:  // lir operands - 0: disp
-          return computeSize(entry, lir->operands[0], true);
+          return computeSize(entry, 0x12345678, false);  // displacement size is always 32bit
         default:
           break;
       }
@@ -586,6 +586,40 @@ static void emitRegArray(CompilationUnit* cUnit, const X86EncodingMap* entry, ui
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
+static void emitRegThread(CompilationUnit* cUnit, const X86EncodingMap* entry,
+                          uint8_t reg, int disp) {
+  DCHECK_NE(entry->skeleton.prefix1, 0);
+  cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
+  if (entry->skeleton.prefix2 != 0) {
+    cUnit->codeBuffer.push_back(entry->skeleton.prefix2);
+  }
+  cUnit->codeBuffer.push_back(entry->skeleton.opcode);
+  if (entry->skeleton.opcode == 0x0F) {
+    cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode1);
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+      cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode2);
+    } else {
+      DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+    }
+  } else {
+    DCHECK_EQ(0, entry->skeleton.extra_opcode1);
+    DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+  }
+  if (FPREG(reg)) {
+    reg = reg & FP_REG_MASK;
+  }
+  DCHECK_LT(reg, 8);
+  uint8_t modrm = (0 << 6) | (reg << 3) | rBP;
+  cUnit->codeBuffer.push_back(modrm);
+  cUnit->codeBuffer.push_back(disp & 0xFF);
+  cUnit->codeBuffer.push_back((disp >> 8) & 0xFF);
+  cUnit->codeBuffer.push_back((disp >> 16) & 0xFF);
+  cUnit->codeBuffer.push_back((disp >> 24) & 0xFF);
+  DCHECK_EQ(0, entry->skeleton.modrm_opcode);
+  DCHECK_EQ(0, entry->skeleton.ax_opcode);
+  DCHECK_EQ(0, entry->skeleton.immediate_bytes);
+}
+
 static void emitRegReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
                        uint8_t reg1, uint8_t reg2) {
   if (entry->skeleton.prefix1 != 0) {
@@ -674,8 +708,160 @@ static void emitRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
   }
 }
 
+static void emitThreadImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
+                          int disp, int imm) {
+  if (entry->skeleton.prefix1 != 0) {
+    cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
+    if (entry->skeleton.prefix2 != 0) {
+      cUnit->codeBuffer.push_back(entry->skeleton.prefix2);
+    }
+  } else {
+    DCHECK_EQ(0, entry->skeleton.prefix2);
+  }
+  cUnit->codeBuffer.push_back(entry->skeleton.opcode);
+  if (entry->skeleton.opcode == 0x0F) {
+    cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode1);
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+      cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode2);
+    } else {
+      DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+    }
+  } else {
+    DCHECK_EQ(0, entry->skeleton.extra_opcode1);
+    DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+  }
+  uint8_t modrm = (0 << 6) | (entry->skeleton.modrm_opcode << 3) | rBP;
+  cUnit->codeBuffer.push_back(modrm);
+  cUnit->codeBuffer.push_back(disp & 0xFF);
+  cUnit->codeBuffer.push_back((disp >> 8) & 0xFF);
+  cUnit->codeBuffer.push_back((disp >> 16) & 0xFF);
+  cUnit->codeBuffer.push_back((disp >> 24) & 0xFF);
+  switch (entry->skeleton.immediate_bytes) {
+    case 1:
+      DCHECK(IS_SIMM8(imm));
+      cUnit->codeBuffer.push_back(imm & 0xFF);
+      break;
+    case 2:
+      DCHECK(IS_SIMM16(imm));
+      cUnit->codeBuffer.push_back(imm & 0xFF);
+      cUnit->codeBuffer.push_back((imm >> 8) & 0xFF);
+      break;
+    case 4:
+      cUnit->codeBuffer.push_back(imm & 0xFF);
+      cUnit->codeBuffer.push_back((imm >> 8) & 0xFF);
+      cUnit->codeBuffer.push_back((imm >> 16) & 0xFF);
+      cUnit->codeBuffer.push_back((imm >> 24) & 0xFF);
+      break;
+    default:
+      LOG(FATAL) << "Unexpected immediate bytes (" << entry->skeleton.immediate_bytes
+          << ") for instruction: " << entry->name;
+      break;
+  }
+  DCHECK_EQ(entry->skeleton.ax_opcode, 0);
+}
+
+static void emitMovRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
+                       uint8_t reg, int imm) {
+  DCHECK_LT(reg, 8);
+  cUnit->codeBuffer.push_back(0xB8 + reg);
+  cUnit->codeBuffer.push_back(imm & 0xFF);
+  cUnit->codeBuffer.push_back((imm >> 8) & 0xFF);
+  cUnit->codeBuffer.push_back((imm >> 16) & 0xFF);
+  cUnit->codeBuffer.push_back((imm >> 24) & 0xFF);
+}
+
+static void emitJmp(CompilationUnit* cUnit, const X86EncodingMap* entry, int rel) {
+  if (IS_SIMM8(rel)) {
+    cUnit->codeBuffer.push_back(0xEB);
+    cUnit->codeBuffer.push_back(rel & 0xFF);
+  } else {
+    cUnit->codeBuffer.push_back(0xE9);
+    cUnit->codeBuffer.push_back(rel & 0xFF);
+    cUnit->codeBuffer.push_back((rel >> 8) & 0xFF);
+    cUnit->codeBuffer.push_back((rel >> 16) & 0xFF);
+    cUnit->codeBuffer.push_back((rel >> 24) & 0xFF);
+  }
+}
+
+static void emitJcc(CompilationUnit* cUnit, const X86EncodingMap* entry,
+                    int rel, uint8_t cc) {
+  DCHECK_LT(cc, 16);
+  if (IS_SIMM8(rel)) {
+    cUnit->codeBuffer.push_back(0x70 | cc);
+    cUnit->codeBuffer.push_back(rel & 0xFF);
+  } else {
+    cUnit->codeBuffer.push_back(0x0F);
+    cUnit->codeBuffer.push_back(0x80 | cc);
+    cUnit->codeBuffer.push_back(rel & 0xFF);
+    cUnit->codeBuffer.push_back((rel >> 8) & 0xFF);
+    cUnit->codeBuffer.push_back((rel >> 16) & 0xFF);
+    cUnit->codeBuffer.push_back((rel >> 24) & 0xFF);
+  }
+}
+
+static void emitCallMem(CompilationUnit* cUnit, const X86EncodingMap* entry,
+                        uint8_t base, int disp) {
+  if (entry->skeleton.prefix1 != 0) {
+    cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
+    if (entry->skeleton.prefix2 != 0) {
+      cUnit->codeBuffer.push_back(entry->skeleton.prefix2);
+    }
+  } else {
+    DCHECK_EQ(0, entry->skeleton.prefix2);
+  }
+  cUnit->codeBuffer.push_back(entry->skeleton.opcode);
+  if (entry->skeleton.opcode == 0x0F) {
+    cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode1);
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+      cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode2);
+    } else {
+      DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+    }
+  } else {
+    DCHECK_EQ(0, entry->skeleton.extra_opcode1);
+    DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+  }
+  uint8_t modrm = (modrmForDisp(disp) << 6) | (entry->skeleton.modrm_opcode << 3) | base;
+  cUnit->codeBuffer.push_back(modrm);
+  if (base == rSP) {
+    // Special SIB for SP base
+    cUnit->codeBuffer.push_back(0 << 6 | (rSP << 3) | rSP);
+  }
+  emitDisp(cUnit, disp);
+  DCHECK_EQ(0, entry->skeleton.ax_opcode);
+  DCHECK_EQ(0, entry->skeleton.immediate_bytes);
+}
+
+static void emitCallThread(CompilationUnit* cUnit, const X86EncodingMap* entry, int disp) {
+  DCHECK_NE(entry->skeleton.prefix1, 0);
+  cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
+  if (entry->skeleton.prefix2 != 0) {
+    cUnit->codeBuffer.push_back(entry->skeleton.prefix2);
+  }
+  cUnit->codeBuffer.push_back(entry->skeleton.opcode);
+  if (entry->skeleton.opcode == 0x0F) {
+    cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode1);
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+      cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode2);
+    } else {
+      DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+    }
+  } else {
+    DCHECK_EQ(0, entry->skeleton.extra_opcode1);
+    DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+  }
+  uint8_t modrm = (0 << 6) | (entry->skeleton.modrm_opcode << 3) | rBP;
+  cUnit->codeBuffer.push_back(modrm);
+  cUnit->codeBuffer.push_back(disp & 0xFF);
+  cUnit->codeBuffer.push_back((disp >> 8) & 0xFF);
+  cUnit->codeBuffer.push_back((disp >> 16) & 0xFF);
+  cUnit->codeBuffer.push_back((disp >> 24) & 0xFF);
+  DCHECK_EQ(0, entry->skeleton.ax_opcode);
+  DCHECK_EQ(0, entry->skeleton.immediate_bytes);
+}
+
 void emitUnimplemented(CompilationUnit* cUnit, const X86EncodingMap* entry, LIR* lir) {
-  UNIMPLEMENTED(WARNING) << "Unimplemented encoding for: " << entry->name;
+  UNIMPLEMENTED(WARNING) << "encoding for: " << entry->name;
   for (int i = 0; i < oatGetInsnSize(lir); ++i) {
     cUnit->codeBuffer.push_back(0xCC);  // push breakpoint instruction - int 3
   }
@@ -687,8 +873,7 @@ void emitUnimplemented(CompilationUnit* cUnit, const X86EncodingMap* entry, LIR*
  * instruction.  In those cases we will try to substitute a new code
  * sequence or request that the trace be shortened and retried.
  */
-AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
-                                        intptr_t startAddr) {
+AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAddr) {
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
@@ -703,7 +888,50 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
     }
 
     if (lir->flags.pcRelFixup) {
-      UNIMPLEMENTED(WARNING) << "PC relative fix up";
+      switch (lir->opcode) {
+        case kX86Jcc: {
+            LIR *targetLIR = lir->target;
+            DCHECK(targetLIR != NULL);
+            int delta = 0;
+            intptr_t pc;
+            if (IS_SIMM8(lir->operands[0])) {
+              pc = lir->offset + 2 /* opcode + rel8 */;
+            } else {
+              pc = lir->offset + 6 /* 2 byte opcode + rel32 */;
+            }
+            intptr_t target = targetLIR->offset;
+            delta = target - pc;
+            if (IS_SIMM8(delta) != IS_SIMM8(lir->operands[0])) {
+              res = kRetryAll;
+            }
+            lir->operands[0] = delta;
+            break;
+        }
+        case kX86Jmp: {
+            LIR *targetLIR = lir->target;
+            DCHECK(targetLIR != NULL);
+            int delta = 0;
+            intptr_t pc;
+            if (IS_SIMM8(lir->operands[0])) {
+              pc = lir->offset + 2 /* opcode + rel8 */;
+            } else {
+              pc = lir->offset + 5 /* opcode + rel32 */;
+            }
+            intptr_t target = targetLIR->offset;
+            delta = target - pc;
+            if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) && lir->operands[0] == 0) {
+              // Useless branch
+              lir->flags.isNop = true;
+              res = kRetryAll;
+            } else if (IS_SIMM8(delta) != IS_SIMM8(lir->operands[0])) {
+              res = kRetryAll;
+            }
+            lir->operands[0] = delta;
+            break;
+        }
+        default:
+          break;
+      }
     }
 
     /*
@@ -746,18 +974,48 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
         emitRegArray(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2],
                      lir->operands[3], lir->operands[4]);
         break;
+      case kRegThread:  // lir operands - 0: reg, 1: disp
+        emitRegThread(cUnit, entry, lir->operands[0], lir->operands[1]);
+        break;
       case kRegReg:  // lir operands - 0: reg1, 1: reg2
         emitRegReg(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kRegImm:  // lir operands - 0: reg, 1: immediate
         emitRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
+      case kThreadImm:  // lir operands - 0: disp, 1: immediate
+        emitThreadImm(cUnit, entry, lir->operands[0], lir->operands[1]);
+        break;
+      case kMovRegImm:  // lir operands - 0: reg, 1: immediate
+        emitMovRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
+        break;
+      case kJmp:  // lir operands - 0: rel
+        emitJmp(cUnit, entry, lir->operands[0]);
+        break;
+      case kJcc:  // lir operands - 0: rel, 1: CC, target assigned
+        emitJcc(cUnit, entry, lir->operands[0], lir->operands[1]);
+        break;
+      case kCall:
+        switch(entry->opcode) {
+          case kX86CallM:  // lir operands - 0: base, 1: disp
+            emitCallMem(cUnit, entry, lir->operands[0], lir->operands[1]);
+            break;
+          case kX86CallT:  // lir operands - 0: disp
+            emitCallThread(cUnit, entry, lir->operands[0]);
+            break;
+          default:
+            emitUnimplemented(cUnit, entry, lir);
+            break;
+        }
+        break;
       default:
         emitUnimplemented(cUnit, entry, lir);
         break;
     }
     CHECK_EQ(static_cast<size_t>(oatGetInsnSize(lir)),
-             cUnit->codeBuffer.size() - starting_cbuf_size);
+             cUnit->codeBuffer.size() - starting_cbuf_size)
+        << "Instruction size mismatch for entry: " << EncodingMap[lir->opcode].name;
+
   }
   return res;
 }
