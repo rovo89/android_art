@@ -1100,6 +1100,7 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
     int regBias = cUnit->numCompilerTemps + 1;
     int dalvikRegs = cUnit->numDalvikRegisters;
     int numRegs = dalvikRegs + regBias;
+    const int promotionThreshold = 2;
 
     // Allow target code to add any special registers
     oatAdjustSpillMask(cUnit);
@@ -1164,7 +1165,8 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
 
     if (!(cUnit->disableOpt & (1 << kPromoteRegs))) {
         // Promote fpRegs
-        for (int i = 0; (i < numRegs) && (fpRegs[i].count > 0); i++) {
+        for (int i = 0; (i < numRegs) &&
+                        (fpRegs[i].count >= promotionThreshold ); i++) {
             int pMapIdx = SRegToPMap(cUnit, fpRegs[i].sReg);
             if (cUnit->promotionMap[pMapIdx].fpLocation != kLocPhysReg) {
                 int reg = oatAllocPreservedFPReg(cUnit, fpRegs[i].sReg,
@@ -1176,7 +1178,8 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
         }
 
         // Promote core regs
-        for (int i = 0; (i < numRegs) && (coreRegs[i].count > 0); i++) {
+        for (int i = 0; (i < numRegs) &&
+                        (coreRegs[i].count > promotionThreshold); i++) {
             int pMapIdx = SRegToPMap(cUnit, coreRegs[i].sReg);
             if (cUnit->promotionMap[pMapIdx].coreLocation !=
                     kLocPhysReg) {
@@ -1186,7 +1189,16 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
                 }
             }
         }
+    } else if (cUnit->qdMode) {
+        oatAllocPreservedCoreReg(cUnit, cUnit->methodSReg);
+        for (int i = 0; i < numRegs; i++) {
+            int reg = oatAllocPreservedCoreReg(cUnit, i);
+            if (reg < 0) {
+               break;  // No more left
+            }
+        }
     }
+
 
     // Now, update SSA names to new home locations
     for (int i = 0; i < cUnit->numSSARegs; i++) {

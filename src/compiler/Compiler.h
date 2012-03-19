@@ -127,6 +127,7 @@ enum debugControlVector {
     kDebugVerifyDataflow,
     kDebugShowMemoryUsage,
     kDebugShowNops,
+    kDebugCountOpcodes,
 };
 
 extern uint32_t compilerDebugFlags;
