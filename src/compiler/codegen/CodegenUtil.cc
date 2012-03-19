@@ -291,16 +291,16 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
             break;
         case kPseudoTargetLabel:
         case kPseudoNormalBlockLabel:
-            LOG(INFO) << "L" << (intptr_t)lir << ":";
+            LOG(INFO) << "L" << (void*)lir << ":";
             break;
         case kPseudoThrowTarget:
-            LOG(INFO) << "LT" << (intptr_t)lir << ":";
+            LOG(INFO) << "LT" << (void*)lir << ":";
             break;
         case kPseudoSuspendTarget:
-            LOG(INFO) << "LS" << (intptr_t)lir << ":";
+            LOG(INFO) << "LS" << (void*)lir << ":";
             break;
         case kPseudoCaseLabel:
-            LOG(INFO) << "LC" << (intptr_t)lir << ": Case target 0x" <<
+            LOG(INFO) << "LC" << (void*)lir << ": Case target 0x" <<
                 std::hex << lir->operands[0] << "|" << std::dec <<
                 lir->operands[0];
             break;

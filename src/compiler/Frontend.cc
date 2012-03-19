@@ -786,6 +786,10 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
         cUnit->enableDebug = compilerDebugFlags;
         cUnit->printMe = VLOG_IS_ON(compiler) || (cUnit->enableDebug & (1 << kDebugVerbose));
     }
+    if (cUnit->instructionSet == kX86) {
+        // Disable optimizations on X86 for now
+        cUnit->disableOpt = -1;
+    }
     /* Are we generating code for the debugger? */
     if (compiler.IsDebuggingSupported()) {
         cUnit->genDebugger = true;

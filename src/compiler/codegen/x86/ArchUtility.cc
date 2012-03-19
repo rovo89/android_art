@@ -72,6 +72,10 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
         DCHECK_LT(i, fmt_len);
         int operand = lir->operands[operand_number];
         switch(fmt[i]) {
+          case 'c':
+            DCHECK_LT(static_cast<size_t>(operand), sizeof(x86CondName));
+            buf += x86CondName[operand];
+            break;
           case 'd':
             buf += StringPrintf("%d", operand);
             break;
@@ -84,9 +88,10 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
               buf += x86RegName[operand];
             }
             break;
-          case 'c':
-            DCHECK_LT(static_cast<size_t>(operand), sizeof(x86CondName));
-            buf += x86CondName[operand];
+          case 't':
+            buf += StringPrintf("0x%08x (L%p)",
+                                (intptr_t)baseAddr + lir->offset + operand,
+                                lir->target);
             break;
           default:
             buf += StringPrintf("DecodeError '%c'", fmt[i]);

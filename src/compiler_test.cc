@@ -126,7 +126,6 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
 }
 
 TEST_F(CompilerTest, AbstractMethodErrorStub) {
-#if defined(__arm__)
   CompileVirtualMethod(NULL, "java.lang.Class", "isFinalizable", "()Z");
   CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
 
@@ -146,7 +145,6 @@ TEST_F(CompilerTest, AbstractMethodErrorStub) {
   EXPECT_TRUE(Thread::Current()->IsExceptionPending());
   EXPECT_TRUE(Thread::Current()->GetException()->InstanceOf(jlame));
   Thread::Current()->ClearException();
-#endif  // __arm__
 }
 
 // TODO: need check-cast test (when stub complete & we can throw/catch

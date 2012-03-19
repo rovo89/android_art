@@ -52,11 +52,12 @@ void flushIns(CompilationUnit* cUnit)
 
     if (cUnit->numIns == 0)
         return;
-    int firstArgReg = rARG1;
 #if !defined(TARGET_X86)
-    int lastArgReg = rARG3;
+    const int numArgRegs = 3;
+    static int argRegs[] = {rARG1, rARG2, rARG3};
 #else
-    int lastArgReg = rARG2;
+    const int numArgRegs = 2;
+    static int argRegs[] = {rARG1, rARG2};
 #endif
     int startVReg = cUnit->numDalvikRegisters - cUnit->numIns;
     /*
@@ -73,15 +74,15 @@ void flushIns(CompilationUnit* cUnit)
      */
     for (int i = 0; i < cUnit->numIns; i++) {
         PromotionMap* vMap = &cUnit->promotionMap[startVReg + i];
-        if (i <= (lastArgReg - firstArgReg)) {
+        if (i < numArgRegs) {
             // If arriving in register
             bool needFlush = true;
             RegLocation* tLoc = &cUnit->regLocation[startVReg + i];
             if ((vMap->coreLocation == kLocPhysReg) && !tLoc->fp) {
-                opRegCopy(cUnit, vMap->coreReg, firstArgReg + i);
+                opRegCopy(cUnit, vMap->coreReg, argRegs[i]);
                 needFlush = false;
             } else if ((vMap->fpLocation == kLocPhysReg) && tLoc->fp) {
-                opRegCopy(cUnit, vMap->fpReg, firstArgReg + i);
+                opRegCopy(cUnit, vMap->fpReg, argRegs[i]);
                 needFlush = false;
             } else {
                 needFlush = true;
@@ -95,7 +96,7 @@ void flushIns(CompilationUnit* cUnit)
             }
             if (needFlush) {
                 storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, startVReg + i),
-                              firstArgReg + i, kWord);
+                              argRegs[i], kWord);
             }
         } else {
             // If arriving in frame & promoted
