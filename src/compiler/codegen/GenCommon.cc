@@ -1049,6 +1049,9 @@ void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size, RegLocation rlSrc,
             if (isVolatile) {
                 oatGenMemBarrier(cUnit, kSY);
             }
+            if (isObject) {
+                markGCCard(cUnit, rlSrc.lowReg, rlObj.lowReg);
+            }
         }
     } else {
         int setterOffset = isLongOrDouble ? OFFSETOF_MEMBER(Thread, pSet64Instance) :
@@ -1434,6 +1437,7 @@ void genArrayObjPut(CompilationUnit* cUnit, MIR* mir, RegLocation rlArray,
     }
     storeBaseIndexed(cUnit, regPtr, rlIndex.lowReg, rlSrc.lowReg,
                      scale, kWord);
+    markGCCard(cUnit, rlSrc.lowReg, rlArray.lowReg);
 }
 
 /*

@@ -320,6 +320,7 @@ struct CompilationUnit {
     bool hasLoop;                       // Contains a loop
     bool hasInvoke;                     // Contains an invoke instruction
     bool heapMemOp;                     // Mark mem ops for self verification
+    bool qdMode;                        // Compile for code size/compile time
     bool usesLinkRegister;              // For self-verification only
     bool methodTraceSupport;            // For TraceView profiling
     struct RegisterPool* regPool;
@@ -425,6 +426,7 @@ struct CompilationUnit {
      struct ArenaMemBlock* currentArena;
      int numArenaBlocks;
      struct Memstats* mstats;
+     int* opcodeCount;    // Count Dalvik opcodes for tuning
 #ifndef NDEBUG
     /*
      * Sanity checking for the register temp tracking.  The same ssa

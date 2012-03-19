@@ -51,6 +51,7 @@ uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
      //(1 << kDebugVerifyDataflow) |
      //(1 << kDebugShowMemoryUsage) |
      //(1 << kDebugShowNops) |
+     //(1 << kDebugCountOpcodes) |
      0;
 
 inline bool contentIsInsn(const u2* codePtr) {
@@ -803,6 +804,12 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
             (1 << kTrackLiveTemps));
     }
 
+    /* Gathering opcode stats? */
+    if (compilerDebugFlags & (1 << kDebugCountOpcodes)) {
+        cUnit->opcodeCount = (int*)oatNew(cUnit.get(),
+            kNumPackedOpcodes * sizeof(int), true, kAllocMisc);
+    }
+
     /* Assume non-throwing leaf */
     cUnit->attrs = (METHOD_IS_LEAF | METHOD_IS_THROW_FREE);
 
@@ -867,6 +874,9 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
         insn->offset = curOffset;
         int width = parseInsn(cUnit.get(), codePtr, &insn->dalvikInsn, false);
         insn->width = width;
+        if (cUnit->opcodeCount != NULL) {
+            cUnit->opcodeCount[static_cast<int>(insn->dalvikInsn.opcode)]++;
+        }
 
         /* Terminate when the data section is seen */
         if (width == 0)
@@ -948,16 +958,21 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
               ((cUnit->numBlocks > MANY_BLOCKS_INITIALIZER) &&
                PrettyMethod(method_idx, dex_file).find("init>") !=
                std::string::npos)) {
-            cUnit->disableDataflow = true;
-            // Disable optimization which require dataflow/ssa
-            cUnit->disableOpt |=
-                (1 << kNullCheckElimination) |
-                (1 << kBBOpt) |
-                (1 << kPromoteRegs);
-            if (cUnit->printMe) {
-                LOG(INFO) << "Compiler: " << PrettyMethod(method_idx, dex_file)
-                          << " too big: " << cUnit->numBlocks;
-            }
+            cUnit->qdMode = true;
+        }
+    }
+
+    if (cUnit->qdMode) {
+        cUnit->disableDataflow = true;
+        // Disable optimization which require dataflow/ssa
+        cUnit->disableOpt |=
+            (1 << kNullCheckElimination) |
+            (1 << kBBOpt) |
+            (1 << kPromoteRegs);
+        if (cUnit->printMe) {
+            LOG(INFO) << "QD mode enabled: "
+                      << PrettyMethod(method_idx, dex_file)
+                      << " too big: " << cUnit->numBlocks;
         }
     }
 
@@ -1010,6 +1025,17 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
 
         if (cUnit->printMe) {
             oatCodegenDump(cUnit.get());
+        }
+
+        if (cUnit->opcodeCount != NULL) {
+            LOG(INFO) << "Opcode Count";
+            for (int i = 0; i < kNumPackedOpcodes; i++) {
+                if (cUnit->opcodeCount[i] != 0) {
+                    LOG(INFO) << "-C- "
+                              <<Instruction::Name(static_cast<Instruction::Code>(i))
+                              << " " << cUnit->opcodeCount[i];
+                }
+            }
         }
     }
 
