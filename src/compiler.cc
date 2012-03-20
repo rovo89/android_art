@@ -742,13 +742,15 @@ void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_t
   stats_->DirectMethodsToBoot(type);
   bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
   if (compiling_boot) {
-    const bool kSupportBootImageFixup = false;
+    const bool kSupportBootImageFixup = true;
     if (kSupportBootImageFixup) {
       MethodHelper mh(method);
       if (IsImageClass(mh.GetDeclaringClassDescriptor())) {
+        // We can only branch directly to Methods that are resolved in the DexCache.
+        // Otherwise we won't invoke the resolution trampoline.
         direct_method = -1;
+        direct_code = -1;
       }
-      direct_code = -1;
     }
   } else {
     if (Runtime::Current()->GetHeap()->GetImageSpace()->Contains(method)) {

@@ -361,7 +361,7 @@ class CommonTest : public testing::Test {
       }
     }
     class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
-    compiler_.reset(new Compiler(instruction_set, false, 2, false, NULL));
+    compiler_.reset(new Compiler(instruction_set, true, 2, false, new std::set<std::string>));
 #if defined(ART_USE_LLVM_COMPILER)
     compiler_->SetElfFileName("gtest");
     compiler_->EnableAutoElfLoading();
