@@ -55,6 +55,7 @@ RegLocation oatGetReturn(CompilationUnit* cUnit, bool isFloat)
 void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
 {
     DecodedInstruction* dInsn = &mir->dalvikInsn;
+    InvokeType originalType = type;  // avoiding mutation by ComputeInvokeInfo
     int callState = 0;
     LIR* nullCk;
     LIR** pNullCk = NULL;
@@ -103,16 +104,19 @@ void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
     if (!isRange) {
         callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pNullCk,
                                          nextCallInsn, dexMethodIdx,
-                                         vtableIdx, directCode, directMethod, skipThis);
+                                         vtableIdx, directCode, directMethod,
+                                         originalType, skipThis);
     } else {
         callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, pNullCk,
                                        nextCallInsn, dexMethodIdx, vtableIdx,
-                                       directCode, directMethod, skipThis);
+                                       directCode, directMethod, originalType,
+                                       skipThis);
     }
     // Finish up any of the call sequence not interleaved in arg loading
     while (callState >= 0) {
         callState = nextCallInsn(cUnit, mir, callState, dexMethodIdx,
-                                 vtableIdx, directCode, directMethod);
+                                 vtableIdx, directCode, directMethod,
+                                 originalType);
     }
     if (DISPLAY_MISSING_TARGETS) {
         genShowTarget(cUnit);

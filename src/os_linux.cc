@@ -25,10 +25,15 @@
 
 namespace art {
 
-File* OS::OpenFile(const char* name, bool writable) {
-  int flags = O_RDONLY;
+File* OS::OpenFile(const char* name, bool writable, bool create) {
+  int flags = 0;
   if (writable) {
-    flags = (O_RDWR | O_CREAT | O_TRUNC);
+    flags |= O_RDWR;
+    if (create) {
+      flags |= (O_CREAT | O_TRUNC);
+    }
+  } else {
+    flags |= O_RDONLY;
   }
   int fd = open(name, flags, 0666);
   if (fd < 0) {

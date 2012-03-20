@@ -590,6 +590,11 @@ void alignBuffer(std::vector<uint8_t>&buf, size_t offset) {
     }
 }
 
+bool IsDirect(int invokeType) {
+  InvokeType type = static_cast<InvokeType>(invokeType);
+  return type == kStatic || type == kDirect;
+}
+
 /* Write the literal pool to the output stream */
 void installLiteralPools(CompilationUnit* cUnit)
 {
@@ -603,20 +608,32 @@ void installLiteralPools(CompilationUnit* cUnit)
     dataLIR = cUnit->codeLiteralList;
     if (dataLIR != NULL) {
         while (dataLIR != NULL) {
+            uint32_t target = dataLIR->operands[0];
             cUnit->compiler->AddCodePatch(cUnit->dex_cache, cUnit->dex_file,
                                           cUnit->method_idx,
-                                          dataLIR->operands[0],
+                                          cUnit->access_flags,
+                                          target,
+                                          IsDirect(dataLIR->operands[1]),
                                           cUnit->codeBuffer.size());
-            pushWord(cUnit->codeBuffer, 0xEBAD9A7C); // value to be patched
+            const DexFile::MethodId& id = cUnit->dex_file->GetMethodId(target);
+            // unique based on target to ensure code deduplication works
+            uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
+            pushWord(cUnit->codeBuffer, unique_patch_value);
             dataLIR = NEXT_LIR(dataLIR);
         }
         dataLIR = cUnit->methodLiteralList;
         while (dataLIR != NULL) {
+            uint32_t target = dataLIR->operands[0];
             cUnit->compiler->AddMethodPatch(cUnit->dex_cache, cUnit->dex_file,
                                             cUnit->method_idx,
-                                            dataLIR->operands[0],
+                                            cUnit->access_flags,
+                                            target,
+                                            IsDirect(dataLIR->operands[1]),
                                             cUnit->codeBuffer.size());
-            pushWord(cUnit->codeBuffer, 0xEBAD9A7D);  // value to be patched
+            const DexFile::MethodId& id = cUnit->dex_file->GetMethodId(target);
+            // unique based on target to ensure code deduplication works
+            uint32_t unique_patch_value = reinterpret_cast<uint32_t>(&id);
+            pushWord(cUnit->codeBuffer, unique_patch_value);
             dataLIR = NEXT_LIR(dataLIR);
         }
     }

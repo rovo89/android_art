@@ -118,11 +118,19 @@ class Compiler {
                          int& vtable_idx, uintptr_t& direct_code, uintptr_t& direct_method);
 
   // Record patch information for later fix up
-  void AddCodePatch(DexCache* dex_cache, const DexFile* dex_file,
-                    uint32_t referrer_method_idx, uint32_t target_method_idx,
+  void AddCodePatch(DexCache* dex_cache,
+                    const DexFile* dex_file,
+                    uint32_t referrer_method_idx,
+                    uint32_t referrer_access_flags,
+                    uint32_t target_method_idx,
+                    bool target_is_direct,
                     size_t literal_offset);
-  void AddMethodPatch(DexCache* dex_cache, const DexFile* dex_file,
-                      uint32_t referrer_method_idx, uint32_t target_method_idx,
+  void AddMethodPatch(DexCache* dex_cache,
+                      const DexFile* dex_file,
+                      uint32_t referrer_method_idx,
+                      uint32_t referrer_access_flags,
+                      uint32_t target_method_idx,
+                      bool target_is_direct,
                       size_t literal_offset);
 
 #if defined(ART_USE_LLVM_COMPILER)
@@ -138,6 +146,66 @@ class Compiler {
 
   void* GetCompilerContext() const {
     return compiler_context_;
+  }
+
+  class PatchInformation {
+   public:
+    DexCache* GetDexCache() const {
+      return dex_cache_;
+    }
+    const DexFile& GetDexFile() const {
+      return *dex_file_;
+    }
+    uint32_t GetReferrerMethodIdx() const {
+      return referrer_method_idx_;
+    }
+    bool GetReferrerIsDirect() const {
+      return referrer_is_direct_;
+    }
+    uint32_t GetTargetMethodIdx() const {
+      return target_method_idx_;
+    }
+    bool GetTargetIsDirect() const {
+      return target_is_direct_;
+    }
+    size_t GetLiteralOffset() const {;
+      return literal_offset_;
+    }
+
+   private:
+    PatchInformation(DexCache* dex_cache,
+                     const DexFile* dex_file,
+                     uint32_t referrer_method_idx,
+                     uint32_t referrer_access_flags,
+                     uint32_t target_method_idx,
+                     uint32_t target_is_direct,
+                     size_t literal_offset)
+      : dex_cache_(dex_cache),
+        dex_file_(dex_file),
+        referrer_method_idx_(referrer_method_idx),
+        referrer_is_direct_(Method::IsDirect(referrer_access_flags)),
+        target_method_idx_(target_method_idx),
+        target_is_direct_(target_is_direct),
+        literal_offset_(literal_offset) {
+      CHECK(dex_file_ != NULL);
+    }
+
+    DexCache* dex_cache_;
+    const DexFile* dex_file_;
+    uint32_t referrer_method_idx_;
+    bool referrer_is_direct_;
+    uint32_t target_method_idx_;
+    bool target_is_direct_;
+    size_t literal_offset_;
+
+    friend class Compiler;
+  };
+
+  const std::vector<const PatchInformation*>& GetCodeToPatch() const {
+    return code_to_patch_;
+  }
+  const std::vector<const PatchInformation*>& GetMethodsToPatch() const {
+    return methods_to_patch_;
   }
 
  private:
@@ -181,24 +249,8 @@ class Compiler {
   void InsertInvokeStub(bool is_static, const char* shorty,
                         const CompiledInvokeStub* compiled_invoke_stub);
 
-  class PatchInformation {
-   public:
-    PatchInformation(DexCache* dex_cache, const DexFile* dex_file,
-                     uint32_t referrer_method_idx, uint32_t target_method_idx,
-                     size_t literal_offset) :
-                       dex_cache_(dex_cache), dex_file_(dex_file),
-                       referrer_method_idx_(referrer_method_idx),
-                       target_method_idx_(target_method_idx),
-                       literal_offset_(literal_offset) {}
-   private:
-    DexCache* dex_cache_;
-    const DexFile* dex_file_;
-    uint32_t referrer_method_idx_;
-    uint32_t target_method_idx_;
-    size_t literal_offset_;
-  };
-  std::vector<PatchInformation*> code_to_patch_;
-  std::vector<PatchInformation*> methods_to_patch_;
+  std::vector<const PatchInformation*> code_to_patch_;
+  std::vector<const PatchInformation*> methods_to_patch_;
 
   InstructionSet instruction_set_;
 

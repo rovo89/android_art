@@ -22,10 +22,9 @@ namespace art {
  * and "op" calls may be used here.
  */
 
-
 typedef int (*NextCallInsn)(CompilationUnit*, MIR*, int, uint32_t dexIdx,
                             uint32_t methodIdx, uintptr_t directCode,
-                            uintptr_t directMethod);
+                            uintptr_t directMethod, InvokeType type);
 /*
  * If there are any ins passed in registers that have not been promoted
  * to a callee-save register, flush them to the frame.  Perform intial
@@ -137,8 +136,13 @@ void scanMethodLiteralPool(CompilationUnit* cUnit, LIR** methodTarget, LIR** cod
  */
 int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
                    int state, uint32_t dexIdx, uint32_t unused,
-                   uintptr_t directCode, uintptr_t directMethod)
+                   uintptr_t directCode, uintptr_t directMethod,
+                   InvokeType type)
 {
+#if !defined(TARGET_ARM)
+    directCode = 0;
+    directMethod = 0;
+#endif
     if (directCode != 0 && directMethod != 0) {
         switch(state) {
         case 0:  // Get the current Method* [sets rARG0]
@@ -148,6 +152,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
                 LIR* dataTarget = scanLiteralPool(cUnit->codeLiteralList, dexIdx, 0);
                 if (dataTarget == NULL) {
                     dataTarget = addWordData(cUnit, &cUnit->codeLiteralList, dexIdx);
+                    dataTarget->operands[1] = type;
                 }
 #if defined(TARGET_ARM)
                 LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
@@ -163,6 +168,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
                 LIR* dataTarget = scanLiteralPool(cUnit->methodLiteralList, dexIdx, 0);
                 if (dataTarget == NULL) {
                     dataTarget = addWordData(cUnit, &cUnit->methodLiteralList, dexIdx);
+                    dataTarget->operands[1] = type;
                 }
 #if defined(TARGET_ARM)
                 LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
@@ -194,6 +200,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
                     LIR* dataTarget = scanLiteralPool(cUnit->codeLiteralList, dexIdx, 0);
                     if (dataTarget == NULL) {
                         dataTarget = addWordData(cUnit, &cUnit->codeLiteralList, dexIdx);
+                        dataTarget->operands[1] = type;
                     }
 #if defined(TARGET_ARM)
                     LIR* loadPcRel = rawLIR(cUnit, cUnit->currentDalvikOffset,
@@ -234,7 +241,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
  */
 int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
                   int state, uint32_t dexIdx, uint32_t methodIdx,
-                  uintptr_t unused, uintptr_t unused2)
+                  uintptr_t unused, uintptr_t unused2, InvokeType unused3)
 {
     RegLocation rlArg;
     /*
@@ -294,7 +301,8 @@ int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir, int trampoline,
 
 int nextStaticCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                          int state, uint32_t dexIdx, uint32_t methodIdx,
-                         uintptr_t unused, uintptr_t unused2)
+                         uintptr_t unused, uintptr_t unused2,
+                         InvokeType unused3)
 {
   int trampoline = OFFSETOF_MEMBER(Thread, pInvokeStaticTrampolineWithAccessCheck);
   return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
@@ -302,7 +310,7 @@ int nextStaticCallInsnSP(CompilationUnit* cUnit, MIR* mir,
 
 int nextDirectCallInsnSP(CompilationUnit* cUnit, MIR* mir, int state,
                          uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
-                         uintptr_t unused2)
+                         uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = OFFSETOF_MEMBER(Thread, pInvokeDirectTrampolineWithAccessCheck);
   return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
@@ -310,7 +318,7 @@ int nextDirectCallInsnSP(CompilationUnit* cUnit, MIR* mir, int state,
 
 int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir, int state,
                         uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
-                        uintptr_t unused2)
+                        uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = OFFSETOF_MEMBER(Thread, pInvokeSuperTrampolineWithAccessCheck);
   return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
@@ -318,7 +326,7 @@ int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir, int state,
 
 int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir, int state,
                     uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
-                    uintptr_t unused2)
+                    uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = OFFSETOF_MEMBER(Thread, pInvokeVirtualTrampolineWithAccessCheck);
   return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
@@ -330,7 +338,7 @@ int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir, int state,
  */
 int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir, int state,
                           uint32_t dexIdx, uint32_t unused, uintptr_t unused2,
-                          uintptr_t unused3)
+                          uintptr_t unused3, InvokeType unused4)
 {
   int trampoline = OFFSETOF_MEMBER(Thread, pInvokeInterfaceTrampoline);
   return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
@@ -339,7 +347,7 @@ int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir, int state,
 int nextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit, MIR* mir,
                                          int state, uint32_t dexIdx,
                                          uint32_t unused, uintptr_t unused2,
-                                         uintptr_t unused3)
+                                         uintptr_t unused3, InvokeType unused4)
 {
   int trampoline = OFFSETOF_MEMBER(Thread, pInvokeInterfaceTrampolineWithAccessCheck);
   return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
@@ -348,7 +356,7 @@ int nextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit, MIR* mir,
 int loadArgRegs(CompilationUnit* cUnit, MIR* mir, DecodedInstruction* dInsn,
                 int callState, NextCallInsn nextCallInsn, uint32_t dexIdx,
                 uint32_t methodIdx, uintptr_t directCode,
-                uintptr_t directMethod, bool skipThis)
+                uintptr_t directMethod, InvokeType type, bool skipThis)
 {
 #if !defined(TARGET_X86)
     int lastArgReg = rARG3;
@@ -373,7 +381,7 @@ int loadArgRegs(CompilationUnit* cUnit, MIR* mir, DecodedInstruction* dInsn,
             loadValueDirectFixed(cUnit, rlArg, nextReg);
         }
         callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
-                                 directCode, directMethod);
+                                 directCode, directMethod, type);
     }
     return callState;
 }
@@ -390,7 +398,7 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                          LIR** pcrLabel, NextCallInsn nextCallInsn,
                          uint32_t dexIdx, uint32_t methodIdx,
                          uintptr_t directCode, uintptr_t directMethod,
-                         bool skipThis)
+                         InvokeType type, bool skipThis)
 {
     RegLocation rlArg;
 
@@ -399,7 +407,7 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
         return callState;
 
     callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
-                             directCode, directMethod);
+                             directCode, directMethod, type);
 
     DCHECK_LE(dInsn->vA, 5U);
     if (dInsn->vA > 3) {
@@ -425,12 +433,13 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                 loadWordDisp(cUnit, rSP,
                              oatSRegOffset(cUnit, rlArg.sRegLow) + 4, reg);
                 callState = nextCallInsn(cUnit, mir, callState, dexIdx,
-                                         methodIdx, directCode, directMethod);
+                                         methodIdx, directCode, directMethod,
+                                         type);
             }
             storeBaseDisp(cUnit, rSP, (nextUse + 1) * 4, reg, kWord);
             storeBaseDisp(cUnit, rSP, 16 /* (3+1)*4 */, reg, kWord);
             callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
-                                     directCode, directMethod);
+                                     directCode, directMethod, type);
             nextUse++;
         }
         // Loop through the rest
@@ -455,7 +464,8 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                     loadValueDirectFixed(cUnit, rlArg, lowReg);
                 }
                 callState = nextCallInsn(cUnit, mir, callState, dexIdx,
-                                         methodIdx, directCode, directMethod);
+                                         methodIdx, directCode, directMethod,
+                                         type);
             }
             int outsOffset = (nextUse + 1) * 4;
             if (rlArg.wide) {
@@ -466,13 +476,13 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                 nextUse++;
             }
             callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
-                                     directCode, directMethod);
+                                     directCode, directMethod, type);
         }
     }
 
     callState = loadArgRegs(cUnit, mir, dInsn, callState, nextCallInsn,
                             dexIdx, methodIdx, directCode, directMethod,
-                            skipThis);
+                            type, skipThis);
 
     if (pcrLabel) {
         *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), rARG1, mir);
@@ -500,7 +510,7 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
                        LIR** pcrLabel, NextCallInsn nextCallInsn,
                        uint32_t dexIdx, uint32_t methodIdx,
                        uintptr_t directCode, uintptr_t directMethod,
-                       bool skipThis)
+                       InvokeType type, bool skipThis)
 {
     int firstArg = dInsn->vC;
     int numArgs = dInsn->vA;
@@ -509,7 +519,7 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     if (numArgs <= 5)
         return genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pcrLabel,
                                     nextCallInsn, dexIdx, methodIdx,
-                                    directCode, directMethod, skipThis);
+                                    directCode, directMethod, type, skipThis);
     /*
      * Make sure range list doesn't span the break between in normal
      * Dalvik vRegs and the ins.
@@ -567,32 +577,32 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
         // Use vldm/vstm pair using rARG3 as a temp
         int regsLeft = std::min(numArgs - 3, 16);
         callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
-                                 directCode, directMethod);
+                                 directCode, directMethod, type);
         opRegRegImm(cUnit, kOpAdd, rARG3, rSP, startOffset);
         LIR* ld = newLIR3(cUnit, kThumb2Vldms, rARG3, fr0, regsLeft);
         //TUNING: loosen barrier
         ld->defMask = ENCODE_ALL;
         setMemRefType(ld, true /* isLoad */, kDalvikReg);
         callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
-                                 directCode, directMethod);
+                                 directCode, directMethod, type);
         opRegRegImm(cUnit, kOpAdd, rARG3, rSP, 4 /* Method* */ + (3 * 4));
         callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
-                                 directCode, directMethod);
+                                 directCode, directMethod, type);
         LIR* st = newLIR3(cUnit, kThumb2Vstms, rARG3, fr0, regsLeft);
         setMemRefType(st, false /* isLoad */, kDalvikReg);
         st->defMask = ENCODE_ALL;
         callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
-                                 directCode, directMethod);
+                                 directCode, directMethod, type);
 
     }
 #endif
 
     callState = loadArgRegs(cUnit, mir, dInsn, callState, nextCallInsn,
                             dexIdx, methodIdx, directCode, directMethod,
-                            skipThis);
+                            type, skipThis);
 
     callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
-                             directCode, directMethod);
+                             directCode, directMethod, type);
     if (pcrLabel) {
         *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), rARG1, mir);
     }

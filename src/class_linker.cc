@@ -1339,9 +1339,6 @@ size_t ClassLinker::SizeOfClass(const DexFile& dex_file,
 
 const OatFile::OatClass* ClassLinker::GetOatClass(const DexFile& dex_file, const char* descriptor) {
   DCHECK(descriptor != NULL);
-  if (!Runtime::Current()->IsStarted() || Runtime::Current()->UseCompileTimeClassPath()) {
-    return NULL;
-  }
   const OatFile* oat_file = FindOpenedOatFileForDexFile(dex_file);
   CHECK(oat_file != NULL) << dex_file.GetLocation() << " " << descriptor;
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation());
@@ -1354,9 +1351,9 @@ const OatFile::OatClass* ClassLinker::GetOatClass(const DexFile& dex_file, const
   return oat_class;
 }
 
+// Special case to get oat code without overwriting a trampoline.
 const void* ClassLinker::GetOatCodeFor(const Method* method) {
-  // Special case to get oat code without overwriting a trampoline.
-  CHECK(method->GetDeclaringClass()->IsInitializing());
+  CHECK(Runtime::Current()->IsCompiler() || method->GetDeclaringClass()->IsInitializing());
   // Although we overwrite the trampoline of non-static methods, we may get here via the resolution
   // method for direct methods (or virtual methods made direct).
   Class* declaring_class = method->GetDeclaringClass();
@@ -1381,6 +1378,7 @@ const void* ClassLinker::GetOatCodeFor(const Method* method) {
   }
   ClassHelper kh(declaring_class);
   UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(kh.GetDexFile(), kh.GetDescriptor()));
+  CHECK(oat_class.get() != NULL);
   return oat_class->GetOatMethod(oat_method_index).GetCode();
 }
 
@@ -1393,11 +1391,12 @@ void ClassLinker::FixupStaticTrampolines(Class* klass) {
   if (class_data == NULL) {
     return;  // no fields or methods - for example a marker interface
   }
-  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, kh.GetDescriptor()));
-  if (oat_class.get() == NULL) {
+  if (!Runtime::Current()->IsStarted() || Runtime::Current()->UseCompileTimeClassPath()) {
     // OAT file unavailable
     return;
   }
+  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, kh.GetDescriptor()));
+  CHECK(oat_class.get() != NULL);
   ClassDataItemIterator it(dex_file, class_data);
   // Skip fields
   while (it.HasNextStaticField()) {
@@ -1499,7 +1498,10 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
     LoadField(dex_file, it, klass, ifield);
   }
 
-  UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(dex_file, descriptor));
+  UniquePtr<const OatFile::OatClass> oat_class;
+  if (Runtime::Current()->IsStarted() && !Runtime::Current()->UseCompileTimeClassPath()) {
+    oat_class.reset(GetOatClass(dex_file, descriptor));
+  }
 
   // Load methods.
   if (it.NumDirectMethods() != 0) {

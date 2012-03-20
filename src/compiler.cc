@@ -355,6 +355,14 @@ Compiler::~Compiler() {
     MutexLock mu(compiled_invoke_stubs_lock_);
     STLDeleteValues(&compiled_invoke_stubs_);
   }
+  {
+    MutexLock mu(compiled_methods_lock_);
+    STLDeleteElements(&code_to_patch_);
+  }
+  {
+    MutexLock mu(compiled_methods_lock_);
+    STLDeleteElements(&methods_to_patch_);
+  }
 #if defined(ART_USE_LLVM_COMPILER)
   CompilerCallbackFn f = FindFunction<CompilerCallbackFn>(MakeCompilerSoName(instruction_set_),
                                                           compiler_library_,
@@ -793,19 +801,37 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
   return false;  // Incomplete knowledge needs slow path.
 }
 
-void Compiler::AddCodePatch(DexCache* dex_cache, const DexFile* dex_file,
-                            uint32_t referrer_method_idx, uint32_t target_method_idx,
+void Compiler::AddCodePatch(DexCache* dex_cache,
+                            const DexFile* dex_file,
+                            uint32_t referrer_method_idx,
+                            uint32_t referrer_access_flags,
+                            uint32_t target_method_idx,
+                            bool target_is_direct,
                             size_t literal_offset) {
   MutexLock mu(compiled_methods_lock_);
-  code_to_patch_.push_back(new PatchInformation(dex_cache, dex_file, referrer_method_idx,
-                                                target_method_idx, literal_offset));
+  code_to_patch_.push_back(new PatchInformation(dex_cache,
+                                                dex_file,
+                                                referrer_method_idx,
+                                                referrer_access_flags,
+                                                target_method_idx,
+                                                target_is_direct,
+                                                literal_offset));
 }
-void Compiler::AddMethodPatch(DexCache* dex_cache, const DexFile* dex_file,
-                              uint32_t referrer_method_idx, uint32_t target_method_idx,
+void Compiler::AddMethodPatch(DexCache* dex_cache,
+                              const DexFile* dex_file,
+                              uint32_t referrer_method_idx,
+                              uint32_t referrer_access_flags,
+                              uint32_t target_method_idx,
+                              bool target_is_direct,
                               size_t literal_offset) {
   MutexLock mu(compiled_methods_lock_);
-  methods_to_patch_.push_back(new PatchInformation(dex_cache, dex_file, referrer_method_idx,
-                                                   target_method_idx, literal_offset));
+  methods_to_patch_.push_back(new PatchInformation(dex_cache,
+                                                   dex_file,
+                                                   referrer_method_idx,
+                                                   referrer_access_flags,
+                                                   target_method_idx,
+                                                   target_is_direct,
+                                                   literal_offset));
 }
 
 // Return true if the class should be skipped during compilation. We

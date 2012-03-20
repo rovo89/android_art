@@ -33,20 +33,22 @@ std::string OatFile::DexFilenameToOatFilename(const std::string& location) {
 
 OatFile* OatFile::Open(const std::string& filename,
                        const std::string& location,
-                       byte* requested_base) {
+                       byte* requested_base,
+                       bool writable) {
   CHECK(!location.empty()) << filename;
-  UniquePtr<File> file(OS::OpenFile(filename.c_str(), false));
+  UniquePtr<File> file(OS::OpenFile(filename.c_str(), writable, false));
   if (file.get() == NULL) {
-    return false;
+    return NULL;
   }
-  return Open(*file.get(), location, requested_base);
+  return Open(*file.get(), location, requested_base, writable);
 }
 
 OatFile* OatFile::Open(File& file,
                        const std::string& location,
-                       byte* requested_base) {
+                       byte* requested_base,
+                       bool writable) {
   UniquePtr<OatFile> oat_file(new OatFile(location));
-  bool success = oat_file->Read(file, requested_base);
+  bool success = oat_file->Map(file, requested_base, writable);
   if (!success) {
     return NULL;
   }
@@ -61,7 +63,7 @@ OatFile::~OatFile() {
   STLDeleteValues(&oat_dex_files_);
 }
 
-bool OatFile::Read(File& file, byte* requested_base) {
+bool OatFile::Map(File& file, byte* requested_base, bool writable) {
 
   OatHeader oat_header;
   bool success = file.ReadFully(&oat_header, sizeof(oat_header));
@@ -70,10 +72,21 @@ bool OatFile::Read(File& file, byte* requested_base) {
     return false;
   }
 
-  int flags = MAP_PRIVATE | ((requested_base != NULL) ? MAP_FIXED : 0);
+  int flags = 0;
+  int prot = 0;
+  if (writable) {
+    flags |= MAP_SHARED;  // So changes will write through to file
+    prot |= (PROT_READ | PROT_WRITE);
+  } else {
+    flags |= MAP_PRIVATE;
+    prot |= PROT_READ;
+  }
+  if (requested_base != NULL) {
+    flags |= MAP_FIXED;
+  }
   UniquePtr<MemMap> map(MemMap::MapFileAtAddress(requested_base,
                                                  file.Length(),
-                                                 PROT_READ,
+                                                 prot,
                                                  flags,
                                                  file.Fd(),
                                                  0));
@@ -89,7 +102,7 @@ bool OatFile::Read(File& file, byte* requested_base) {
   if (code_offset < file.Length()) {
     byte* code_address = map->Begin() + code_offset;
     size_t code_length = file.Length() - code_offset;
-    if (mprotect(code_address, code_length, PROT_READ | PROT_EXEC) != 0) {
+    if (mprotect(code_address, code_length, prot | PROT_EXEC) != 0) {
       PLOG(ERROR) << "Failed to make oat code executable in " << GetLocation();
       return false;
     }

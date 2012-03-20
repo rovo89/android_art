@@ -24,6 +24,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "compiled_method.h"
+#include "compiler.h"
 #include "dex_cache.h"
 #include "file.h"
 #include "globals.h"
@@ -42,7 +43,8 @@ namespace art {
 bool ImageWriter::Write(const std::string& image_filename,
                         uintptr_t image_begin,
                         const std::string& oat_filename,
-                        const std::string& oat_location) {
+                        const std::string& oat_location,
+                        const Compiler& compiler) {
   CHECK(!image_filename.empty());
 
   CHECK_NE(image_begin, 0U);
@@ -60,11 +62,12 @@ bool ImageWriter::Write(const std::string& image_filename,
     }
   }
 
-  oat_file_.reset(OatFile::Open(oat_filename, oat_location, NULL));
-  if (oat_file_.get() == NULL) {
+  oat_file_ = OatFile::Open(oat_filename, oat_location, NULL, true);
+  if (oat_file_ == NULL) {
     LOG(ERROR) << "Failed to open oat file " << oat_filename;
     return false;
   }
+   class_linker->RegisterOatFile(*oat_file_);
 
   PruneNonImageClasses();  // Remove junk
   ComputeLazyFieldsForImageClasses();  // Add useful information
@@ -80,6 +83,7 @@ bool ImageWriter::Write(const std::string& image_filename,
   heap->DisableCardMarking();
   CalculateNewObjectOffsets();
   CopyAndFixupObjects();
+  PatchOatCodeAndMethods(compiler);
 
   UniquePtr<File> file(OS::OpenFile(image_filename.c_str(), true));
   if (file.get() == NULL) {
@@ -527,6 +531,72 @@ void ImageWriter::FixupFields(const Object* orig,
       }
     }
   }
+}
+
+static Method* GetReferrerMethod(const Compiler::PatchInformation* patch) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Method* method = class_linker->ResolveMethod(patch->GetDexFile(),
+                                               patch->GetReferrerMethodIdx(),
+                                               patch->GetDexCache(),
+                                               NULL,
+                                               patch->GetReferrerIsDirect());
+  CHECK(method != NULL)
+    << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx();
+  return method;
+}
+
+static Method* GetTargetMethod(const Compiler::PatchInformation* patch) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Method* method = class_linker->ResolveMethod(patch->GetDexFile(),
+                                               patch->GetTargetMethodIdx(),
+                                               patch->GetDexCache(),
+                                               NULL,
+                                               patch->GetTargetIsDirect());
+  CHECK(method != NULL)
+    << patch->GetDexFile().GetLocation() << " " << patch->GetTargetMethodIdx();
+  return method;
+}
+
+void ImageWriter::PatchOatCodeAndMethods(const Compiler& compiler) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+
+  const std::vector<const Compiler::PatchInformation*>& code_to_patch = compiler.GetCodeToPatch();
+  for (size_t i = 0; i < code_to_patch.size(); i++) {
+    const Compiler::PatchInformation* patch = code_to_patch[i];
+    Method* target = GetTargetMethod(patch);
+    uint32_t code = reinterpret_cast<uint32_t>(class_linker->GetOatCodeFor(target));
+    uint32_t code_base = reinterpret_cast<uint32_t>(&oat_file_->GetOatHeader());
+    uint32_t code_offset = code - code_base;
+    SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetOatAddress(code_offset)));
+  }
+
+  const std::vector<const Compiler::PatchInformation*>& methods_to_patch
+      = compiler.GetMethodsToPatch();
+  for (size_t i = 0; i < methods_to_patch.size(); i++) {
+    const Compiler::PatchInformation* patch = methods_to_patch[i];
+    Method* target = GetTargetMethod(patch);
+    SetPatchLocation(patch, reinterpret_cast<uint32_t>(GetImageAddress(target)));
+  }
+}
+
+void ImageWriter::SetPatchLocation(const Compiler::PatchInformation* patch, uint32_t value) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Method* method = GetReferrerMethod(patch);
+  // Goodbye const, we are about to modify some code.
+  void* code = const_cast<void*>(class_linker->GetOatCodeFor(method));
+  // TODO: make this Thumb2 specific
+  uint8_t* base = reinterpret_cast<uint8_t*>(reinterpret_cast<uint32_t>(code) & ~0x1);
+  uint32_t* patch_location = reinterpret_cast<uint32_t*>(base + patch->GetLiteralOffset());
+#ifndef NDEBUG
+  const DexFile::MethodId& id = patch->GetDexFile().GetMethodId(patch->GetTargetMethodIdx());
+  uint32_t expected = reinterpret_cast<uint32_t>(&id);
+  uint32_t actual = *patch_location;
+  CHECK(actual == expected || actual == value) << std::hex
+    << "actual=" << actual
+    << "expected=" << expected
+    << "value=" << value;
+#endif
+   *patch_location = value;
 }
 
 }  // namespace art
