@@ -198,16 +198,16 @@ class Dex2Oat {
     return image_classes.release();
   }
 
-  bool CreateOatFile(const std::string& boot_image_option,
-                     const std::string& host_prefix,
-                     const std::vector<const DexFile*>& dex_files,
-                     File* oat_file,
+  const Compiler* CreateOatFile(const std::string& boot_image_option,
+                                const std::string& host_prefix,
+                                const std::vector<const DexFile*>& dex_files,
+                                File* oat_file,
 #if defined(ART_USE_LLVM_COMPILER)
-                     std::string const& elf_filename,
-                     std::string const& bitcode_filename,
+                                std::string const& elf_filename,
+                                std::string const& bitcode_filename,
 #endif
-                     bool image,
-                     const std::set<std::string>* image_classes) {
+                                bool image,
+                                const std::set<std::string>* image_classes) {
     // SirtRef and ClassLoader creation needs to come after Runtime::Create
     UniquePtr<SirtRef<ClassLoader> > class_loader(new SirtRef<ClassLoader>(NULL));
     if (class_loader.get() == NULL) {
@@ -225,14 +225,18 @@ class Dex2Oat {
       class_loader.get()->reset(PathClassLoader::AllocCompileTime(class_path_files));
     }
 
-    Compiler compiler(instruction_set_, image, thread_count_, support_debugging_, image_classes);
+    UniquePtr<Compiler> compiler(new Compiler(instruction_set_,
+                                              image,
+                                              thread_count_,
+                                              support_debugging_,
+                                              image_classes));
 
 #if defined(ART_USE_LLVM_COMPILER)
-    compiler.SetElfFileName(elf_filename);
-    compiler.SetBitcodeFileName(bitcode_filename);
+    compiler->SetElfFileName(elf_filename);
+    compiler->SetBitcodeFileName(bitcode_filename);
 #endif
 
-    compiler.CompileAll(class_loader->get(), dex_files);
+    compiler->CompileAll(class_loader->get(), dex_files);
 
     std::string image_file_location;
     uint32_t image_file_location_checksum = 0;
@@ -251,20 +255,21 @@ class Dex2Oat {
                            dex_files,
                            image_file_location_checksum,
                            image_file_location,
-                           compiler)) {
+                           *compiler.get())) {
       LOG(ERROR) << "Failed to create oat file " << oat_file->name();
-      return false;
+      return NULL;
     }
-    return true;
+    return compiler.release();
   }
 
   bool CreateImageFile(const std::string& image_filename,
                        uintptr_t image_base,
                        const std::set<std::string>* image_classes,
                        const std::string& oat_filename,
-                       const std::string& oat_location) {
+                       const std::string& oat_location,
+                       const Compiler& compiler) {
     ImageWriter image_writer(image_classes);
-    if (!image_writer.Write(image_filename, image_base, oat_filename, oat_location)) {
+    if (!image_writer.Write(image_filename, image_base, oat_filename, oat_location, compiler)) {
       LOG(ERROR) << "Failed to create image file " << image_filename;
       return false;
     }
@@ -704,16 +709,18 @@ int dex2oat(int argc, char** argv) {
     }
   }
 
-  if (!dex2oat->CreateOatFile(boot_image_option,
-                              host_prefix,
-                              dex_files,
-                              oat_file.get(),
+  UniquePtr<const Compiler> compiler(dex2oat->CreateOatFile(boot_image_option,
+                                                            host_prefix,
+                                                            dex_files,
+                                                            oat_file.get(),
 #if defined(ART_USE_LLVM_COMPILER)
-                              elf_filename,
-                              bitcode_filename,
+                                                            elf_filename,
+                                                            bitcode_filename,
 #endif
-                              image,
-                              image_classes.get())) {
+                                                            image,
+                                                            image_classes.get()));
+
+  if (compiler.get() == NULL) {
     LOG(ERROR) << "Failed to create oat file: " << oat_location;
     return EXIT_FAILURE;
   }
@@ -730,7 +737,8 @@ int dex2oat(int argc, char** argv) {
                                 image_base,
                                 image_classes.get(),
                                 oat_filename,
-                                oat_location)) {
+                                oat_location,
+                                *compiler.get())) {
     return EXIT_FAILURE;
   }
 

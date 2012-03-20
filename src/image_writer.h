@@ -24,6 +24,7 @@
 #include <set>
 #include <string>
 
+#include "compiler.h"
 #include "dex_cache.h"
 #include "mem_map.h"
 #include "oat_file.h"
@@ -46,7 +47,8 @@ class ImageWriter {
   bool Write(const std::string& image_filename,
              uintptr_t image_begin,
              const std::string& oat_filename,
-             const std::string& oat_location);
+             const std::string& oat_location,
+             const Compiler& compiler);
  private:
 
   bool AllocMemory();
@@ -137,10 +139,13 @@ class ImageWriter {
   void FixupStaticFields(const Class* orig, Class* copy);
   void FixupFields(const Object* orig, Object* copy, uint32_t ref_offsets, bool is_static);
 
+  void PatchOatCodeAndMethods(const Compiler& compiler);
+  void SetPatchLocation(const Compiler::PatchInformation* patch, uint32_t value);
+
   std::map<const Object*, size_t> offsets_;
 
   // oat file with code for this image
-  UniquePtr<OatFile> oat_file_;
+  OatFile* oat_file_;
 
   // Space we are writing objects from
   const Space* source_space_;

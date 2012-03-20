@@ -49,7 +49,8 @@ TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_image;
   const uintptr_t requested_image_base = 0x60000000;
   bool success_image = writer.Write(tmp_image.GetFilename(), requested_image_base,
-                                    tmp_oat.GetFilename(), tmp_oat.GetFilename());
+                                    tmp_oat.GetFilename(), tmp_oat.GetFilename(),
+                                    *compiler_.get());
   ASSERT_TRUE(success_image);
 
   {

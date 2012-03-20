@@ -529,7 +529,11 @@ class MANAGED Method : public Object {
 
   // Returns true if the method is static, private, or a constructor.
   bool IsDirect() const {
-    return IsStatic() || IsPrivate() || IsConstructor();
+    return IsDirect(GetAccessFlags());
+  }
+
+  static bool IsDirect(uint32_t access_flags) {
+    return (access_flags & (kAccStatic | kAccPrivate | kAccConstructor)) != 0;
   }
 
   // Returns true if the method is declared synchronized.

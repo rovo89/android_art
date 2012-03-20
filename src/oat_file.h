@@ -37,12 +37,14 @@ class OatFile {
   // optionally be used to request where the file should be loaded.
   static OatFile* Open(const std::string& filename,
                        const std::string& location,
-                       byte* requested_base);
+                       byte* requested_base,
+                       bool writable=false);
 
   // Open an oat file from an already opened File with the given location.
   static OatFile* Open(File& file,
                        const std::string& location,
-                       byte* requested_base);
+                       byte* requested_base,
+                       bool writable=false);
 
   ~OatFile();
 
@@ -219,7 +221,7 @@ class OatFile {
 
  private:
   explicit OatFile(const std::string& filename);
-  bool Read(File& file, byte* requested_base);
+  bool Map(File& file, byte* requested_base, bool writable);
 
   const byte* Begin() const;
   const byte* End() const;
