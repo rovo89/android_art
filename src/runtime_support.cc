@@ -203,10 +203,14 @@ extern "C" void artThrowArrayBoundsFromCode(int index, int limit, Thread* thread
 
 // Called by the AbstractMethodError stub (not runtime support)
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp) {
+#if !defined(ART_USE_LLVM_COMPILER)
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
+#endif
   thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
                              "abstract method \"%s\"", PrettyMethod(method).c_str());
+#if !defined(ART_USE_LLVM_COMPILER)
   thread->DeliverException();
+#endif
 }
 
 extern "C" void artThrowStackOverflowFromCode(Method* /*method*/, Thread* thread, Method** sp) {
