@@ -217,6 +217,7 @@ class Compiler {
     size_t literal_offset_;
 
     friend class Compiler;
+    DISALLOW_COPY_AND_ASSIGN(PatchInformation);
   };
 
   const std::vector<const PatchInformation*>& GetCodeToPatch() const {
