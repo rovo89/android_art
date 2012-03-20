@@ -131,7 +131,7 @@ void scanMethodLiteralPool(CompilationUnit* cUnit, LIR** methodTarget, LIR** cod
 }
 
 /*
- * Bit of a hack here - in leiu of a real scheduling pass,
+ * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
 int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
@@ -233,7 +233,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
 }
 
 /*
- * Bit of a hack here - in leiu of a real scheduling pass,
+ * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in a virtual invoke sequence.
  * We can use rLR as a temp prior to target address loading
  * Note also that we'll load the first argument ("this") into
