@@ -61,6 +61,7 @@ OatFile::OatFile(const std::string& location) : location_(location) {
 
 OatFile::~OatFile() {
   STLDeleteValues(&oat_dex_files_);
+  STLDeleteElements(&oat_elf_images_);
 }
 
 bool OatFile::Map(File& file, byte* requested_base, bool writable) {
@@ -158,6 +159,20 @@ bool OatFile::Map(File& file, byte* requested_base, bool writable) {
                                                        dex_file_checksum,
                                                        dex_file_pointer,
                                                        methods_offsets_pointer);
+  }
+
+  oat = map->Begin() + oat_header.GetElfImageTableOffset();
+  CHECK((reinterpret_cast<uintptr_t>(oat) & 0x3) == 0);
+
+  for (uint32_t i = 0, end = oat_header.GetElfImageCount(); i < end; ++i) {
+    uint32_t elf_offset = *reinterpret_cast<const uint32_t*>(oat);
+    oat += sizeof(uint32_t);
+
+    uint32_t elf_size = *reinterpret_cast<const uint32_t*>(oat);
+    oat += sizeof(uint32_t);
+
+    oat_elf_images_.push_back(
+        new OatElfImage(this, map->Begin() + elf_offset, elf_size));
   }
 
   mem_map_.reset(map.release());
@@ -312,6 +327,12 @@ void OatFile::OatMethod::LinkMethodOffsets(Method* method) const {
   method->SetOatVmapTableOffset(GetVmapTableOffset());
   method->SetOatGcMapOffset(GetGcMapOffset());
   method->SetOatInvokeStubOffset(GetInvokeStubOffset());
+}
+
+OatFile::OatElfImage::OatElfImage(const OatFile* oat_file,
+                                  const byte* addr,
+                                  uint32_t size)
+    : oat_file_(oat_file), elf_addr_(addr), elf_size_(size) {
 }
 
 }  // namespace art
