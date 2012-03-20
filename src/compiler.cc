@@ -1423,17 +1423,6 @@ void Compiler::SetGcMapsMethod(const DexFile& dex_file, Method* method) {
 }
 
 #if defined(ART_USE_LLVM_COMPILER)
-void Compiler::SetElfFileName(std::string const& filename) {
-  typedef void (*SetElfFileNameFn)(Compiler&, std::string const&);
-
-  SetElfFileNameFn set_elf_file_name =
-    FindFunction<SetElfFileNameFn>(MakeCompilerSoName(instruction_set_),
-                                   compiler_library_,
-                                   "compilerLLVMSetElfFileName");
-
-  set_elf_file_name(*this, filename);
-}
-
 void Compiler::SetBitcodeFileName(std::string const& filename) {
   typedef void (*SetBitcodeFileNameFn)(Compiler&, std::string const&);
 

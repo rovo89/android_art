@@ -61,16 +61,8 @@ class CompilationUnit {
     return irb_.get();
   }
 
-  std::string const& GetElfFileName() const {
-    return elf_filename_;
-  }
-
   std::string const& GetBitcodeFileName() const {
     return bitcode_filename_;
-  }
-
-  void SetElfFileName(std::string const& filename) {
-    elf_filename_ = filename;
   }
 
   void SetBitcodeFileName(std::string const& filename) {
@@ -106,7 +98,6 @@ class CompilationUnit {
   llvm::Module* module_;
 
   std::string elf_image_;
-  std::string elf_filename_;
   std::string bitcode_filename_;
 
   size_t mem_usage_;

@@ -125,10 +125,7 @@ void CompilerLLVM::EnsureCompilationUnit() {
 
   curr_cunit_ = new CompilationUnit(insn_set_, cunit_idx);
 
-  // Setup output filename
-  curr_cunit_->SetElfFileName(
-    StringPrintf("%s-%zu", elf_filename_.c_str(), cunit_idx));
-
+  // Setup bitcode output filename
   if (IsBitcodeFileNameAvailable()) {
     curr_cunit_->SetBitcodeFileName(
       StringPrintf("%s-%zu", bitcode_filename_.c_str(), cunit_idx));
@@ -335,11 +332,6 @@ extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
 extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(art::Compiler& compiler, bool is_static,
                                                         const char* shorty, uint32_t shorty_len) {
   return ContextOf(compiler)->CreateInvokeStub(is_static, shorty);
-}
-
-extern "C" void compilerLLVMSetElfFileName(art::Compiler& compiler,
-                                           std::string const& filename) {
-  ContextOf(compiler)->SetElfFileName(filename);
 }
 
 extern "C" void compilerLLVMSetBitcodeFileName(art::Compiler& compiler,

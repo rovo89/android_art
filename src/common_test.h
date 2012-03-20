@@ -369,7 +369,6 @@ class CommonTest : public testing::Test {
     compiler_.reset(new Compiler(instruction_set, true, 2, false, new std::set<std::string>,
                                  true, true));
 #if defined(ART_USE_LLVM_COMPILER)
-    compiler_->SetElfFileName("gtest");
     compiler_->EnableAutoElfLoading();
 #endif
 

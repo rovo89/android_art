@@ -83,10 +83,6 @@ class CompilerLLVM {
     return cunits_[i];
   }
 
-  void SetElfFileName(std::string const& filename) {
-    elf_filename_ = filename;
-  }
-
   void SetBitcodeFileName(std::string const& filename) {
     bitcode_filename_ = filename;
   }
@@ -134,8 +130,6 @@ class CompilerLLVM {
   CompilationUnit* curr_cunit_;
 
   std::vector<CompilationUnit*> cunits_;
-
-  std::string elf_filename_;
 
   std::string bitcode_filename_;
 

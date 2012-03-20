@@ -79,9 +79,6 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --oat-location=/data/art-cache/system@app@Calculator.apk.oat");
   UsageError("");
 #if defined(ART_USE_LLVM_COMPILER)
-  UsageError("  --elf-file=<file.elf>: specifies the required elf filename.");
-  UsageError("      Example: --elf-file=/system/framework/boot.elf");
-  UsageError("");
   UsageError("  --bitcode=<file.bc>: specifies the optional bitcode filename.");
   UsageError("      Example: --bitcode=/system/framework/boot.bc");
   UsageError("");
@@ -203,8 +200,7 @@ class Dex2Oat {
                                 const std::vector<const DexFile*>& dex_files,
                                 File* oat_file,
 #if defined(ART_USE_LLVM_COMPILER)
-                                std::string const& elf_filename,
-                                std::string const& bitcode_filename,
+                                const std::string& bitcode_filename,
 #endif
                                 bool image,
                                 const std::set<std::string>* image_classes,
@@ -236,7 +232,6 @@ class Dex2Oat {
                                               dump_timings));
 
 #if defined(ART_USE_LLVM_COMPILER)
-    compiler->SetElfFileName(elf_filename);
     compiler->SetBitcodeFileName(bitcode_filename);
 #endif
 
@@ -465,7 +460,6 @@ int dex2oat(int argc, char** argv) {
   std::string oat_location;
   int oat_fd = -1;
 #if defined(ART_USE_LLVM_COMPILER)
-  std::string elf_filename;
   std::string bitcode_filename;
 #endif
   const char* image_classes_filename = NULL;
@@ -514,8 +508,6 @@ int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--oat-location=")) {
       oat_location = option.substr(strlen("--oat-location=")).data();
 #if defined(ART_USE_LLVM_COMPILER)
-    } else if (option.starts_with("--elf-file=")) {
-      elf_filename = option.substr(strlen("--elf-file=")).data();
     } else if (option.starts_with("--bitcode=")) {
       bitcode_filename = option.substr(strlen("--bitcode=")).data();
 #endif
@@ -650,21 +642,6 @@ int dex2oat(int argc, char** argv) {
 
   LOG(INFO) << "dex2oat: " << oat_location;
 
-#if defined(ART_USE_LLVM_COMPILER)
-  if (elf_filename.empty()) {
-    if (oat_filename.empty()) {
-      LOG(FATAL) << "Both --oat-file and --elf-file are not specified";
-    }
-
-    StringPiece elf_filename_sp(oat_filename);
-    if (elf_filename_sp.ends_with(".oat")) {
-      elf_filename_sp.remove_suffix(strlen(".oat"));
-    }
-
-    elf_filename = elf_filename_sp.ToString() + ".elf";
-  }
-#endif
-
   Runtime::Options options;
   options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
   std::vector<const DexFile*> boot_class_path;
@@ -720,7 +697,6 @@ int dex2oat(int argc, char** argv) {
                                                             dex_files,
                                                             oat_file.get(),
 #if defined(ART_USE_LLVM_COMPILER)
-                                                            elf_filename,
                                                             bitcode_filename,
 #endif
                                                             image,
@@ -733,9 +709,6 @@ int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-#if defined(ART_USE_LLVM_COMPILER)
-  LOG(INFO) << "oat=" << oat_location << " elf=" << elf_filename;
-#endif
   if (!image) {
     LOG(INFO) << "Oat file written successfully: " << oat_location;
     return EXIT_SUCCESS;
