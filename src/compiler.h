@@ -136,7 +136,6 @@ class Compiler {
                       size_t literal_offset);
 
 #if defined(ART_USE_LLVM_COMPILER)
-  void SetElfFileName(std::string const& filename);
   void SetBitcodeFileName(std::string const& filename);
 
   void EnableAutoElfLoading();
