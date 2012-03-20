@@ -542,6 +542,12 @@ static Method* GetReferrerMethod(const Compiler::PatchInformation* patch) {
                                                patch->GetReferrerIsDirect());
   CHECK(method != NULL)
     << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx();
+  CHECK(!method->IsRuntimeMethod())
+    << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx();
+  CHECK(patch->GetDexCache()->GetResolvedMethods()->Get(patch->GetReferrerMethodIdx()) == method)
+    << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx() << " "
+    << PrettyMethod(patch->GetDexCache()->GetResolvedMethods()->Get(patch->GetReferrerMethodIdx())) << " "
+    << PrettyMethod(method);
   return method;
 }
 
@@ -554,6 +560,12 @@ static Method* GetTargetMethod(const Compiler::PatchInformation* patch) {
                                                patch->GetTargetIsDirect());
   CHECK(method != NULL)
     << patch->GetDexFile().GetLocation() << " " << patch->GetTargetMethodIdx();
+  CHECK(!method->IsRuntimeMethod())
+    << patch->GetDexFile().GetLocation() << " " << patch->GetTargetMethodIdx();
+  CHECK(patch->GetDexCache()->GetResolvedMethods()->Get(patch->GetTargetMethodIdx()) == method)
+    << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx() << " "
+    << PrettyMethod(patch->GetDexCache()->GetResolvedMethods()->Get(patch->GetTargetMethodIdx())) << " "
+    << PrettyMethod(method);
   return method;
 }
 
