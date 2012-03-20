@@ -1458,6 +1458,17 @@ const Method::InvokeStub* Compiler::GetMethodInvokeStubAddr(const CompiledInvoke
                                                             const Method* method) const {
   return compiler_get_method_invoke_stub_addr_(*this, cm, method);
 }
+
+std::vector<ElfImage> Compiler::GetElfImages() const {
+  typedef std::vector<ElfImage> (*GetElfImagesFn)(const Compiler&);
+
+  GetElfImagesFn get_elf_images =
+    FindFunction<GetElfImagesFn>(MakeCompilerSoName(instruction_set_),
+                                 compiler_library_,
+                                 "compilerLLVMGetElfImages");
+
+  return get_elf_images(*this);
+}
 #endif
 
 }  // namespace art

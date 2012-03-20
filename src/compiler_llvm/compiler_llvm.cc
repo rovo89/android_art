@@ -225,6 +225,17 @@ GetMethodInvokeStubAddr(const CompiledInvokeStub* cm, const Method* method) cons
 }
 
 
+std::vector<ElfImage> CompilerLLVM::GetElfImages() const {
+  std::vector<ElfImage> result;
+
+  for (size_t i = 0; i < cunits_.size(); ++i) {
+    result.push_back(cunits_[i]->GetElfImage());
+  }
+
+  return result;
+}
+
+
 CompiledMethod* CompilerLLVM::
 CompileDexMethod(OatCompilationUnit* oat_compilation_unit) {
   MutexLock GUARD(compiler_lock_);
@@ -360,6 +371,10 @@ extern "C" const art::Method::InvokeStub* compilerLLVMGetMethodInvokeStubAddr(co
   const art::compiler_llvm::CompilerLLVM* compiler_llvm =
       reinterpret_cast<const art::compiler_llvm::CompilerLLVM*>(compiler.GetCompilerContext());
   return compiler_llvm->GetMethodInvokeStubAddr(cm, method);
+}
+
+extern "C" std::vector<art::ElfImage> compilerLLVMGetElfImages(const art::Compiler& compiler) {
+  return ContextOf(compiler)->GetElfImages();
 }
 
 // Note: Using this function carefully!!! This is temporary solution, we will remove it.
