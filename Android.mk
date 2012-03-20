@@ -215,6 +215,7 @@ clean-oat:
 	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.oat
 	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.art
 	rm -f $(TARGET_OUT_APPS)/*.oat
+	adb remount
 	adb shell rm $(ART_NATIVETEST_DIR)/*.oat
 	adb shell rm $(ART_NATIVETEST_DIR)/*.art
 	adb shell rm $(ART_TEST_DIR)/*.oat
