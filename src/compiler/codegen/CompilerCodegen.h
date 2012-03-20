@@ -29,6 +29,9 @@ int oatGetInsnSize(LIR* lir);
 /* Lower middle-level IR to low-level IR for the whole method */
 void oatMethodMIR2LIR(CompilationUnit* cUnit);
 
+/* Lower middle-level IR to low-level IR for the simple methods */
+void oatSpecialMIR2LIR(CompilationUnit* cUnit, SpecialCaseHandler specialCase );
+
 /* Assemble LIR into machine code */
 void oatAssembleLIR(CompilationUnit* cUnit);
 AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,

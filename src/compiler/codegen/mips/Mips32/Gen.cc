@@ -24,6 +24,12 @@
 
 namespace art {
 
+void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                    SpecialCaseHandler specialCase)
+{
+    // TODO
+}
+
 /*
  * The lack of pc-relative loads on Mips presents somewhat of a challenge
  * for our PIC switch table strategy.  To materialize the current location

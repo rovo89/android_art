@@ -782,9 +782,6 @@ class MANAGED Method : public Object {
 
   void SetFrameSizeInBytes(size_t new_frame_size_in_bytes) {
     DCHECK_EQ(sizeof(size_t), sizeof(uint32_t));
-#if !defined(ART_USE_LLVM_COMPILER)  // LLVM uses shadow stack instead.
-    DCHECK_LE(static_cast<size_t>(kStackAlignment), new_frame_size_in_bytes);
-#endif
     SetField32(OFFSET_OF_OBJECT_MEMBER(Method, frame_size_in_bytes_),
                new_frame_size_in_bytes, false);
   }

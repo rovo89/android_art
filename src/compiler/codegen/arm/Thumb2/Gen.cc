@@ -26,6 +26,196 @@
 
 namespace art {
 
+/* Return a RegLocation that describes an in-register argument */
+RegLocation argLoc(CompilationUnit* cUnit, RegLocation loc, int sReg)
+{
+    loc.location = kLocPhysReg;
+    int base = SRegToVReg(cUnit, sReg) - cUnit->numRegs;
+    loc.sRegLow = sReg;
+    loc.lowReg = rARG1 + base;
+    loc.home = true;
+    if (loc.wide) {
+        loc.highReg = loc.lowReg + 1;
+        oatLockTemp(cUnit, loc.lowReg);
+        oatLockTemp(cUnit, loc.highReg);
+    } else {
+        oatLockTemp(cUnit, loc.lowReg);
+    }
+    return loc;
+}
+
+/* Find the next MIR, which may be in a following basic block */
+MIR* getNextMir(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir)
+{
+    BasicBlock* bb = *pBb;
+    MIR* origMir = mir;
+    while (bb != NULL) {
+        if (mir != NULL) {
+            mir = mir->next;
+        }
+        if (mir != NULL) {
+            return mir;
+        } else {
+            bb = bb->fallThrough;
+            *pBb = bb;
+            if (bb) {
+               mir = bb->firstMIRInsn;
+               if (mir != NULL) {
+                   return mir;
+               }
+            }
+        }
+    }
+    return origMir;
+}
+
+/* Used for the "printMe" listing */
+void genPrintLabel(CompilationUnit *cUnit, MIR* mir)
+{
+    LIR* boundaryLIR;
+    /* Mark the beginning of a Dalvik instruction for line tracking */
+    char* instStr = cUnit->printMe ?
+       oatGetDalvikDisassembly(cUnit, mir->dalvikInsn, "") : NULL;
+    boundaryLIR = newLIR1(cUnit, kPseudoDalvikByteCodeBoundary,
+                          (intptr_t) instStr);
+    cUnit->boundaryMap.insert(std::make_pair(mir->offset,
+                             (LIR*)boundaryLIR));
+    /* Don't generate the SSA annotation unless verbose mode is on */
+    if (cUnit->printMe && mir->ssaRep) {
+        char* ssaString = oatGetSSAString(cUnit, mir->ssaRep);
+        newLIR1(cUnit, kPseudoSSARep, (int) ssaString);
+    }
+}
+
+MIR* specialIGet(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
+                 OpSize size, bool longOrDouble, bool isObject)
+{
+    int fieldOffset;
+    bool isVolatile;
+    uint32_t fieldIdx = mir->dalvikInsn.vC;
+    bool fastPath = fastInstance(cUnit, fieldIdx, fieldOffset, isVolatile,
+                                 false);
+    if (!fastPath) {
+        return NULL;
+    }
+    mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
+    genPrintLabel(cUnit, mir);
+    RegLocation rlObj = oatGetSrc(cUnit, mir, 0);
+    rlObj = argLoc(cUnit, rlObj, mir->ssaRep->uses[0]);
+    RegLocation rlDest;
+    if (longOrDouble) {
+        rlDest = oatGetReturnWide(cUnit, false);
+    } else {
+        rlDest = oatGetReturn(cUnit, false);
+    }
+    genIGet(cUnit, mir, size, rlDest, rlObj, longOrDouble, isObject);
+    return getNextMir(cUnit, bb, mir);
+}
+
+MIR* specialIPut(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
+                 OpSize size, bool longOrDouble, bool isObject)
+{
+    int fieldOffset;
+    bool isVolatile;
+    uint32_t fieldIdx = mir->dalvikInsn.vC;
+    bool fastPath = fastInstance(cUnit, fieldIdx, fieldOffset, isVolatile,
+                                 false);
+    if (!fastPath) {
+        return NULL;
+    }
+    mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
+    genPrintLabel(cUnit, mir);
+    RegLocation rlSrc;
+    RegLocation rlObj;
+    int sSreg = mir->ssaRep->uses[0];
+    int oSreg;
+    if (longOrDouble) {
+        rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+        rlObj = oatGetSrc(cUnit, mir, 2);
+        oSreg = mir->ssaRep->uses[2];
+    } else {
+        rlSrc = oatGetSrc(cUnit, mir, 0);
+        rlObj = oatGetSrc(cUnit, mir, 1);
+        oSreg = mir->ssaRep->uses[1];
+    }
+    rlSrc = argLoc(cUnit, rlSrc, sSreg);
+    rlObj = argLoc(cUnit, rlObj, oSreg);
+    genIPut(cUnit, mir, size, rlSrc, rlObj, longOrDouble, isObject);
+    return getNextMir(cUnit, bb, mir);
+}
+
+/*
+ * Special-case code genration for simple non-throwing leaf methods.
+ */
+void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                    SpecialCaseHandler specialCase)
+{
+   cUnit->currentDalvikOffset = mir->offset;
+   MIR* nextMir = NULL;
+   switch(specialCase) {
+       case kNullMethod:
+           DCHECK(mir->dalvikInsn.opcode == Instruction::RETURN_VOID);
+           nextMir = mir;
+           break;
+       case kConstFunction:
+           genPrintLabel(cUnit, mir);
+           loadConstant(cUnit, rRET0, mir->dalvikInsn.vB);
+           nextMir = getNextMir(cUnit, &bb, mir);
+           break;
+       case kIGet:
+           nextMir = specialIGet(cUnit, &bb, mir, kWord, false, false);
+           break;;
+       case kIGetBoolean:
+       case kIGetByte:
+           nextMir = specialIGet(cUnit, &bb, mir, kUnsignedByte, false, false);
+           break;;
+       case kIGetObject:
+           nextMir = specialIGet(cUnit, &bb, mir, kWord, false, true);
+           break;;
+       case kIGetChar:
+           nextMir = specialIGet(cUnit, &bb, mir, kUnsignedHalf, false, false);
+           break;;
+       case kIGetShort:
+           nextMir = specialIGet(cUnit, &bb, mir, kSignedHalf, false, false);
+           break;;
+       case kIGetWide:
+           nextMir = specialIGet(cUnit, &bb, mir, kLong, true, false);
+           break;;
+       case kIPut:
+           nextMir = specialIPut(cUnit, &bb, mir, kWord, false, false);
+           break;;
+       case kIPutBoolean:
+       case kIPutByte:
+           nextMir = specialIPut(cUnit, &bb, mir, kUnsignedByte, false, false);
+           break;;
+       case kIPutObject:
+           nextMir = specialIPut(cUnit, &bb, mir, kWord, false, true);
+           break;;
+       case kIPutChar:
+           nextMir = specialIPut(cUnit, &bb, mir, kUnsignedHalf, false, false);
+           break;;
+       case kIPutShort:
+           nextMir = specialIPut(cUnit, &bb, mir, kSignedHalf, false, false);
+           break;;
+       case kIPutWide:
+           nextMir = specialIPut(cUnit, &bb, mir, kLong, true, false);
+           break;;
+       default:
+           return;
+   }
+   if (nextMir != NULL) {
+        cUnit->currentDalvikOffset = nextMir->offset;
+        genPrintLabel(cUnit, nextMir);
+        newLIR1(cUnit, kThumbBx, rLR);
+        cUnit->coreSpillMask = 0;
+        cUnit->numCoreSpills = 0;
+        cUnit->fpSpillMask = 0;
+        cUnit->numFPSpills = 0;
+        cUnit->frameSize = 0;
+        cUnit->coreVmapTable.clear();
+        cUnit->fpVmapTable.clear();
+    }
+}
 
 /*
  * Generate a Thumb2 IT instruction, which can nullify up to

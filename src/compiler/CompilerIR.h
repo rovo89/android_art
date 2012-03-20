@@ -533,6 +533,53 @@ struct FillArrayData {
     int vaddr;                 // Dalvik offset of FILL_ARRAY_DATA opcode
 };
 
+#define MAX_PATTERN_LEN 5
+
+enum SpecialCaseHandler {
+    kNoHandler,
+    kNullMethod,
+    kConstFunction,
+    kIGet,
+    kIGetBoolean,
+    kIGetObject,
+    kIGetByte,
+    kIGetChar,
+    kIGetShort,
+    kIGetWide,
+    kIPut,
+    kIPutBoolean,
+    kIPutObject,
+    kIPutByte,
+    kIPutChar,
+    kIPutShort,
+    kIPutWide,
+};
+
+struct CodePattern {
+    const Instruction::Code opcodes[MAX_PATTERN_LEN];
+    const SpecialCaseHandler handlerCode;
+};
+
+static const CodePattern specialPatterns[] = {
+    {{Instruction::RETURN_VOID}, kNullMethod},
+    {{Instruction::CONST, Instruction::RETURN}, kConstFunction},
+    {{Instruction::CONST_4, Instruction::RETURN}, kConstFunction},
+    {{Instruction::CONST_16, Instruction::RETURN}, kConstFunction},
+    {{Instruction::IGET, Instruction:: RETURN}, kIGet},
+    {{Instruction::IGET_BOOLEAN, Instruction:: RETURN}, kIGetBoolean},
+    {{Instruction::IGET_OBJECT, Instruction:: RETURN}, kIGetObject},
+    {{Instruction::IGET_BYTE, Instruction:: RETURN}, kIGetByte},
+    {{Instruction::IGET_CHAR, Instruction:: RETURN}, kIGetChar},
+    {{Instruction::IGET_SHORT, Instruction:: RETURN}, kIGetShort},
+    {{Instruction::IGET_WIDE, Instruction:: RETURN_WIDE}, kIGetWide},
+    {{Instruction::IPUT, Instruction:: RETURN}, kIPut},
+    {{Instruction::IPUT_BOOLEAN, Instruction:: RETURN}, kIPutBoolean},
+    {{Instruction::IPUT_OBJECT, Instruction:: RETURN}, kIPutObject},
+    {{Instruction::IPUT_BYTE, Instruction:: RETURN}, kIPutByte},
+    {{Instruction::IPUT_CHAR, Instruction:: RETURN}, kIPutChar},
+    {{Instruction::IPUT_SHORT, Instruction:: RETURN}, kIPutShort},
+    {{Instruction::IPUT_WIDE, Instruction:: RETURN_WIDE}, kIPutWide},
+};
 
 BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId);
 

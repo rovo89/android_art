@@ -887,6 +887,50 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
     return false;
 }
 
+/* Set basic block labels */
+bool labelBlocks(CompilationUnit* cUnit, BasicBlock* bb)
+{
+    LIR* labelList = (LIR*) cUnit->blockLabelList;
+    int blockId = bb->id;
+
+    cUnit->curBlock = bb;
+    labelList[blockId].operands[0] = bb->startOffset;
+
+    /* Insert the block label */
+    labelList[blockId].opcode = kPseudoNormalBlockLabel;
+    return false;
+}
+
+void oatSpecialMIR2LIR(CompilationUnit* cUnit, SpecialCaseHandler specialCase)
+{
+    /* Find the first DalvikByteCode block */
+    int numReachableBlocks = cUnit->numReachableBlocks;
+    const GrowableList *blockList = &cUnit->blockList;
+    BasicBlock*bb = NULL;
+    for (int idx = 0; idx < numReachableBlocks; idx++) {
+        int dfsIndex = cUnit->dfsOrder.elemList[idx];
+        bb = (BasicBlock*)oatGrowableListGetElement(blockList, dfsIndex);
+        if (bb->blockType == kDalvikByteCode) {
+            break;
+        }
+    }
+    if (bb == NULL) {
+        return;
+    }
+    DCHECK_EQ(bb->startOffset, 0);
+    DCHECK(bb->firstMIRInsn != 0);
+
+    /* Get the first instruction */
+    MIR* mir = bb->firstMIRInsn;
+
+    /* Free temp registers and reset redundant store tracking */
+    oatResetRegPool(cUnit);
+    oatResetDefTracking(cUnit);
+    oatClobberAllRegs(cUnit);
+
+    genSpecialCase(cUnit, bb, mir, specialCase);
+}
+
 void oatMethodMIR2LIR(CompilationUnit* cUnit)
 {
     /* Used to hold the labels of each block */
