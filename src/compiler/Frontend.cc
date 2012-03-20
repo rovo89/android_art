@@ -35,6 +35,7 @@ uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
      //(1 << kSkipLargeMethodOptimization) |
      //(1 << kSafeOptimizations) |
      //(1 << kBBOpt) |
+     //(1 << kMatch) |
      //(1 << kPromoteCompilerTemps) |
      0;
 
@@ -801,6 +802,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
             (1 << kSuppressLoads) |
             (1 << kPromoteRegs) |
             (1 << kBBOpt) |
+            (1 << kMatch) |
             (1 << kTrackLiveTemps));
     }
 
@@ -868,19 +870,45 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     /* Identify code range in try blocks and set up the empty catch blocks */
     processTryCatchBlocks(cUnit.get());
 
+    /* Set up for simple method detection */
+    int numPatterns = sizeof(specialPatterns)/sizeof(specialPatterns[0]);
+    bool livePattern = (numPatterns > 0) && !(cUnit->disableOpt & (1 << kMatch));
+    bool* deadPattern = (bool*)oatNew(cUnit.get(), sizeof(bool) * numPatterns,
+                                       kAllocMisc);
+    SpecialCaseHandler specialCase = kNoHandler;
+    int patternPos = 0;
+
     /* Parse all instructions and put them into containing basic blocks */
     while (codePtr < codeEnd) {
         MIR *insn = (MIR *) oatNew(cUnit.get(), sizeof(MIR), true, kAllocMIR);
         insn->offset = curOffset;
         int width = parseInsn(cUnit.get(), codePtr, &insn->dalvikInsn, false);
         insn->width = width;
+        Instruction::Code opcode = insn->dalvikInsn.opcode;
         if (cUnit->opcodeCount != NULL) {
-            cUnit->opcodeCount[static_cast<int>(insn->dalvikInsn.opcode)]++;
+            cUnit->opcodeCount[static_cast<int>(opcode)]++;
         }
 
         /* Terminate when the data section is seen */
         if (width == 0)
             break;
+
+        /* Possible simple method? */
+        if (livePattern) {
+            livePattern = false;
+            specialCase = kNoHandler;
+            for (int i = 0; i < numPatterns; i++) {
+                if (!deadPattern[i]) {
+                    if (specialPatterns[i].opcodes[patternPos] == opcode) {
+                        livePattern = true;
+                        specialCase = specialPatterns[i].handlerCode;
+                    } else {
+                        deadPattern[i] = true;
+                    }
+                }
+            }
+            patternPos++;
+        }
 
         oatAppendMIR(curBlock, insn);
 
@@ -1006,8 +1034,19 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     /* Allocate Registers using simple local allocation scheme */
     oatSimpleRegAlloc(cUnit.get());
 
+    if (specialCase != kNoHandler) {
+        /*
+         * Custom codegen for special cases.  If for any reason the
+         * special codegen doesn't success, cUnit->firstLIRInsn will
+         * set to NULL;
+         */
+        oatSpecialMIR2LIR(cUnit.get(), specialCase);
+    }
+
     /* Convert MIR to LIR, etc. */
-    oatMethodMIR2LIR(cUnit.get());
+    if (cUnit->firstLIRInsn == NULL) {
+        oatMethodMIR2LIR(cUnit.get());
+    }
 
     // Debugging only
     if (cUnit->enableDebug & (1 << kDebugDumpCFG)) {
@@ -1044,8 +1083,13 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     for (size_t i = 0 ; i < cUnit->coreVmapTable.size(); i++) {
         vmapTable.push_back(cUnit->coreVmapTable[i]);
     }
-    // Add a marker to take place of lr
-    vmapTable.push_back(INVALID_VREG);
+    // If we have a frame, push a marker to take place of lr
+    if (cUnit->frameSize > 0) {
+        vmapTable.push_back(INVALID_VREG);
+    } else {
+        DCHECK_EQ(__builtin_popcount(cUnit->coreSpillMask), 0);
+        DCHECK_EQ(__builtin_popcount(cUnit->fpSpillMask), 0);
+    }
     // Combine vmap tables - core regs, then fp regs
     for (uint32_t i = 0; i < cUnit->fpVmapTable.size(); i++) {
         vmapTable.push_back(cUnit->fpVmapTable[i]);

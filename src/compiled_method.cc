@@ -35,7 +35,6 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
     : instruction_set_(instruction_set), frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask) {
   CHECK_NE(code.size(), 0U);
-  CHECK_GE(vmap_table.size(), 1U);  // should always contain an entry for LR
   DCHECK_EQ(vmap_table.size(),
             static_cast<uint32_t>(__builtin_popcount(core_spill_mask)
                                   + __builtin_popcount(fp_spill_mask)));
@@ -63,7 +62,6 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
   code_ = byte_code;
   mapping_table_ = length_prefixed_mapping_table;
   vmap_table_ = length_prefixed_vmap_table;
-
   DCHECK_EQ(vmap_table_[0], static_cast<uint32_t>(__builtin_popcount(core_spill_mask) + __builtin_popcount(fp_spill_mask)));
 }
 
@@ -73,7 +71,6 @@ void CompiledMethod::SetGcMap(const std::vector<uint8_t>& gc_map) {
 #if !defined(ART_USE_LLVM_COMPILER)
   // Should only be used with CompiledMethods created with the non-LLVM compilers.
   CHECK_NE(mapping_table_.size(), 0U);
-  CHECK_NE(vmap_table_.size(), 0U);
 #endif
 
   gc_map_ = gc_map;

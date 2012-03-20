@@ -51,6 +51,7 @@ enum optControlVector {
     kSkipLargeMethodOptimization,
     kSafeOptimizations,
     kBBOpt,
+    kMatch,
     kPromoteCompilerTemps,
 };
 

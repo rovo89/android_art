@@ -24,6 +24,12 @@
 
 namespace art {
 
+void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                    SpecialCaseHandler specialCase)
+{
+    // TODO
+}
+
 /*
  * Perform register memory operation.
  */

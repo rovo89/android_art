@@ -931,6 +931,17 @@ void oatSetupResourceMasks(LIR* lir)
     setupResourceMasks(lir);
 }
 
+bool fastInstance(CompilationUnit* cUnit,  uint32_t fieldIdx,
+                  int& fieldOffset, bool& isVolatile, bool isPut)
+{
+    OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
+                             *cUnit->dex_file, *cUnit->dex_cache,
+                             cUnit->code_item, cUnit->method_idx,
+                             cUnit->access_flags);
+    return cUnit->compiler->ComputeInstanceFieldInfo(fieldIdx, &mUnit,
+                     fieldOffset, isVolatile, isPut);
+}
+
 void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
              RegLocation rlDest, RegLocation rlObj,
                     bool isLongOrDouble, bool isObject)
@@ -939,13 +950,8 @@ void genIGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
     bool isVolatile;
     uint32_t fieldIdx = mir->dalvikInsn.vC;
 
-    OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
-                             *cUnit->dex_file, *cUnit->dex_cache,
-                             cUnit->code_item, cUnit->method_idx,
-                             cUnit->access_flags);
-
-    bool fastPath = cUnit->compiler->ComputeInstanceFieldInfo(fieldIdx, &mUnit,
-                    fieldOffset, isVolatile, false);
+    bool fastPath = fastInstance(cUnit, fieldIdx, fieldOffset, isVolatile,
+                                 false);
 
     if (fastPath && !SLOW_FIELD_PATH) {
         RegLocation rlResult;
@@ -1006,13 +1012,8 @@ void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size, RegLocation rlSrc,
     bool isVolatile;
     uint32_t fieldIdx = mir->dalvikInsn.vC;
 
-    OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
-                             *cUnit->dex_file, *cUnit->dex_cache,
-                             cUnit->code_item, cUnit->method_idx,
-                             cUnit->access_flags);
-
-    bool fastPath = cUnit->compiler->ComputeInstanceFieldInfo(fieldIdx, &mUnit,
-                    fieldOffset, isVolatile, true);
+    bool fastPath = fastInstance(cUnit, fieldIdx, fieldOffset, isVolatile,
+                                 true);
     if (fastPath && !SLOW_FIELD_PATH) {
         RegisterClass regClass = oatRegClassBySize(size);
         DCHECK_GE(fieldOffset, 0);
