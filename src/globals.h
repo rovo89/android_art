@@ -46,6 +46,9 @@ const int kObjectAlignment = 8;
 // Required ARM instruction alignment
 const int kArmAlignment = 4;
 
+// Required X86 instruction alignment
+const int kX86Alignment = 16;
+
 // System page size.  Normally you're expected to get this from
 // sysconf(_SC_PAGESIZE) or some system-specific define (usually
 // PAGESIZE or PAGE_SIZE).  If we use a simple compile-time constant

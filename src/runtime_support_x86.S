@@ -18,7 +18,7 @@ art_deliver_exception_from_code:
     pushl %edi  // Save callee saves
     pushl %esi
     pushl %ebp
-    pushl %ebx
+    pushl $0
     pushl $0
     pushl $0
     pushl $0   // Will be clobbered to be Method*

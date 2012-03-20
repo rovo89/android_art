@@ -42,26 +42,27 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
   UniquePtr<X86Assembler> assembler(down_cast<X86Assembler*>(Assembler::Create(kX86)));
 #define __ assembler->
   size_t num_arg_array_bytes = NumArgArrayBytes(shorty, shorty_len);
-  // Size of frame = return address + Method* + possible receiver + arg array size
+  // Size of frame = return address + saved EBX + Method* + possible receiver + arg array size
   // Note, space is left in the frame to flush arguments in registers back to out locations.
-  size_t frame_size = 2 * kPointerSize + (is_static ? 0 : kPointerSize) + num_arg_array_bytes;
+  size_t frame_size = 3 * kPointerSize + (is_static ? 0 : kPointerSize) + num_arg_array_bytes;
   size_t pad_size = RoundUp(frame_size, kStackAlignment) - frame_size;
 
   Register rMethod = EAX;
   __ movl(rMethod,   Address(ESP, 4));     // EAX = method
-  Register rReceiver = EDX;
+  Register rReceiver = ECX;
   if (!is_static) {
-    __ movl(rReceiver, Address(ESP, 8));   // EDX = receiver
+    __ movl(rReceiver, Address(ESP, 8));   // ECX = receiver
   }
-  Register rArgArray = ECX;
-  __ movl(rArgArray, Address(ESP, 16));    // ECX = arg array
+  // Save EBX
+  __ pushl(EBX);
+  Register rArgArray = EBX;
+  __ movl(rArgArray, Address(ESP, 20));    // EBX = arg array
 
   // TODO: optimize the frame set up to avoid excessive SP math
   // Push padding
   if (pad_size != 0) {
     __ subl(ESP, Immediate(pad_size));
   }
-
   // Push/copy arguments.
   size_t arg_count = (shorty_len - 1);
   size_t dst_offset = num_arg_array_bytes;
@@ -87,33 +88,48 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
     }
   }
 
-  // Backing space for receiver
+  // Backing space for receiver.
   if (!is_static) {
     __ pushl(Immediate(0));
   }
-  // Push 0 as NULL Method* thereby terminating managed stack crawls
+  // Push 0 as NULL Method* thereby terminating managed stack crawls.
   __ pushl(Immediate(0));
   if (!is_static) {
-    if (num_arg_array_bytes >= static_cast<size_t>(kPointerSize)) {
-      // Receiver already in EDX, pass 1st arg in ECX.
-      __ movl(ECX, Address(rArgArray, 0));
+    if (shorty_len > 1) {
+      // Receiver already in ECX, pass remaining 2 args in EDX and EBX.
+      __ movl(EDX, Address(rArgArray, 0));
+      if (shorty[1] == 'D' || shorty[1] == 'J') {
+        __ movl(EBX, Address(rArgArray, sizeof(JValue) / 2));
+      } else if (shorty_len > 2) {
+        __ movl(EBX, Address(rArgArray, sizeof(JValue)));
+      }
     }
   } else {
-    if (num_arg_array_bytes >= static_cast<size_t>(kPointerSize)) {
-      // Pass 1st arg in EDX.
-      __ movl(EDX, Address(rArgArray, 0));
-      if (num_arg_array_bytes >= static_cast<size_t>(2* kPointerSize)) {
-        // Pass 2nd arg (or second 32-bit chunk of a wide 1st arg) in ECX.
-        bool is_wide = (shorty[1] == 'D' || shorty[1] == 'J');
-        __ movl(ECX, Address(rArgArray, is_wide ? kPointerSize : 2 * kPointerSize));
+    if (shorty_len > 1) {
+      // Pass remaining 3 args in ECX, EDX and EBX.
+      __ movl(ECX, Address(rArgArray, 0));
+      if (shorty[1] == 'D' || shorty[1] == 'J') {
+        __ movl(EDX, Address(rArgArray, sizeof(JValue) / 2));
+        if (shorty_len > 2) {
+           __ movl(EBX, Address(rArgArray, sizeof(JValue)));
+        }
+      } else if (shorty_len > 2) {
+        __ movl(EDX, Address(rArgArray, sizeof(JValue)));
+        if (shorty[2] == 'D' || shorty[2] == 'J') {
+          __ movl(EBX, Address(rArgArray, sizeof(JValue) + (sizeof(JValue) / 2)));
+        } else {
+          __ movl(EBX, Address(rArgArray, sizeof(JValue) + sizeof(JValue)));
+        }
       }
     }
   }
 
   __ call(Address(EAX, Method::GetCodeOffset()));  // Call code off of method
 
-  // pop arguments up to the return address
-  __ addl(ESP, Immediate(frame_size + pad_size - kPointerSize));
+  // Pop arguments up to EBX and the return address.
+  __ addl(ESP, Immediate(frame_size + pad_size - (2 * kPointerSize)));
+  // Restore EBX.
+  __ popl(EBX);
   char ch = shorty[0];
   if (ch != 'V') {
     // Load the result JValue pointer.

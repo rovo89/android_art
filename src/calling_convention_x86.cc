@@ -91,9 +91,12 @@ const std::vector<ManagedRegister>& X86ManagedRuntimeCallingConvention::EntrySpi
   if (entry_spills_.size() == 0) {
     size_t num_spills = NumArgs() + NumLongOrDoubleArgs();
     if (num_spills > 0) {
-      entry_spills_.push_back(X86ManagedRegister::FromCpuRegister(EDX));
+      entry_spills_.push_back(X86ManagedRegister::FromCpuRegister(ECX));
       if (num_spills > 1) {
-        entry_spills_.push_back(X86ManagedRegister::FromCpuRegister(ECX));
+        entry_spills_.push_back(X86ManagedRegister::FromCpuRegister(EDX));
+        if (num_spills > 2) {
+          entry_spills_.push_back(X86ManagedRegister::FromCpuRegister(EBX));
+        }
       }
     }
   }

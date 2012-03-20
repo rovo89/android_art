@@ -135,7 +135,7 @@ uint32_t CompiledMethod::AlignCode(uint32_t offset, InstructionSet instruction_s
     case kThumb2:
       return RoundUp(offset, kArmAlignment);
     case kX86:
-      return offset;
+      return RoundUp(offset, kX86Alignment);
     default:
       LOG(FATAL) << "Unknown InstructionSet: " << static_cast<int>(instruction_set);
       return 0;

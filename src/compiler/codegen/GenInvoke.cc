@@ -51,13 +51,8 @@ void flushIns(CompilationUnit* cUnit)
 
     if (cUnit->numIns == 0)
         return;
-#if !defined(TARGET_X86)
     const int numArgRegs = 3;
     static int argRegs[] = {rARG1, rARG2, rARG3};
-#else
-    const int numArgRegs = 2;
-    static int argRegs[] = {rARG1, rARG2};
-#endif
     int startVReg = cUnit->numDalvikRegisters - cUnit->numIns;
     /*
      * Copy incoming arguments to their proper home locations.
@@ -425,11 +420,7 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                 reg = rlArg.highReg;
             } else {
                 // rARG2 & rARG3 can safely be used here
-#if defined(TARGET_X86)
-                UNIMPLEMENTED(FATAL);
-#else
                 reg = rARG3;
-#endif
                 loadWordDisp(cUnit, rSP,
                              oatSRegOffset(cUnit, rlArg.sRegLow) + 4, reg);
                 callState = nextCallInsn(cUnit, mir, callState, dexIdx,
@@ -453,12 +444,8 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                 highReg = rlArg.highReg;
             } else {
                 lowReg = rARG2;
-#if defined(TARGET_X86)
-                UNIMPLEMENTED(FATAL);
-#else
-                highReg = rARG3;
-#endif
                 if (rlArg.wide) {
+                    highReg = rARG3;
                     loadValueDirectWideFixed(cUnit, rlArg, lowReg, highReg);
                 } else {
                     loadValueDirectFixed(cUnit, rlArg, lowReg);

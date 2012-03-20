@@ -406,7 +406,7 @@ LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1, int src2,
 {
   newLIR2(cUnit, kX86Cmp32RR, src1, src2);
   X86ConditionCode cc = oatX86ConditionEncoding(cond);
-  LIR* branch = newLIR2(cUnit, kX86Jcc, 0 /* lir operand for Jcc offset */ , cc);
+  LIR* branch = newLIR2(cUnit, kX86Jcc8, 0 /* lir operand for Jcc offset */ , cc);
   branch->target = target;
   return branch;
 }
@@ -417,7 +417,7 @@ LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
   // TODO: when checkValue == 0 and reg is rCX, use the jcxz/nz opcode
   newLIR2(cUnit, kX86Cmp32RI, reg, checkValue);
   X86ConditionCode cc = oatX86ConditionEncoding(cond);
-  LIR* branch = newLIR2(cUnit, kX86Jcc, 0 /* lir operand for Jcc offset */ , cc);
+  LIR* branch = newLIR2(cUnit, kX86Jcc8, 0 /* lir operand for Jcc offset */ , cc);
   branch->target = target;
   return branch;
 }

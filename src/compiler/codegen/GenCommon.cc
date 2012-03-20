@@ -178,11 +178,7 @@ void callRuntimeHelperRegLocationRegLocation(CompilationUnit* cUnit,
         if (arg1.wide == 0) {
             loadValueDirectFixed(cUnit, arg1, rARG2);
         } else {
-#if defined(TARGET_X86)
-            UNIMPLEMENTED(FATAL);
-#else
             loadValueDirectWideFixed(cUnit, arg1, rARG2, rARG3);
-#endif
         }
     }
     oatClobberCalleeSave(cUnit);
@@ -274,11 +270,7 @@ void callRuntimeHelperImmRegLocationRegLocation(CompilationUnit* cUnit,
     if (arg2.wide == 0) {
         loadValueDirectFixed(cUnit, arg2, rARG2);
     } else {
-#if defined(TARGET_X86)
-        UNIMPLEMENTED(FATAL);
-#else
         loadValueDirectWideFixed(cUnit, arg2, rARG2, rARG3);
-#endif
     }
     loadConstant(cUnit, rARG0, arg0);
     oatClobberCalleeSave(cUnit);
@@ -1406,10 +1398,21 @@ void genArrayObjPut(CompilationUnit* cUnit, MIR* mir, RegLocation rlArray,
 
     // Now, redo loadValues in case they didn't survive the call
 
-    int regPtr;
     rlArray = loadValue(cUnit, rlArray, kCoreReg);
     rlIndex = loadValue(cUnit, rlIndex, kCoreReg);
 
+#if defined(TARGET_X86)
+    if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
+        /* if (rlIndex >= [rlArray + lenOffset]) goto kThrowArrayBounds */
+        genRegMemCheck(cUnit, kCondUge, rlIndex.lowReg, rlArray.lowReg,
+                       lenOffset, mir, kThrowArrayBounds);
+    }
+    rlSrc = loadValue(cUnit, rlSrc, regClass);
+    storeBaseIndexedDisp(cUnit, NULL, rlArray.lowReg, rlIndex.lowReg, scale,
+                         dataOffset, rlSrc.lowReg, INVALID_REG, kWord,
+                         INVALID_SREG);
+#else
+    int regPtr;
     if (oatIsTemp(cUnit, rlArray.lowReg)) {
         oatClobber(cUnit, rlArray.lowReg);
         regPtr = rlArray.lowReg;
@@ -1437,6 +1440,7 @@ void genArrayObjPut(CompilationUnit* cUnit, MIR* mir, RegLocation rlArray,
     }
     storeBaseIndexed(cUnit, regPtr, rlIndex.lowReg, rlSrc.lowReg,
                      scale, kWord);
+#endif
     markGCCard(cUnit, rlSrc.lowReg, rlArray.lowReg);
 }
 
@@ -1555,10 +1559,10 @@ void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
       dataOffset = Array::DataOffset(sizeof(int32_t)).Int32Value();
     }
 
-    int regPtr;
     rlArray = loadValue(cUnit, rlArray, kCoreReg);
     rlIndex = loadValue(cUnit, rlIndex, kCoreReg);
-
+#if !defined(TARGET_X86)
+    int regPtr;
     if (oatIsTemp(cUnit, rlArray.lowReg)) {
         oatClobber(cUnit, rlArray.lowReg);
         regPtr = rlArray.lowReg;
@@ -1566,10 +1570,21 @@ void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
         regPtr = oatAllocTemp(cUnit);
         opRegCopy(cUnit, regPtr, rlArray.lowReg);
     }
+#endif
 
     /* null object? */
     genNullCheck(cUnit, rlArray.sRegLow, rlArray.lowReg, mir);
 
+#if defined(TARGET_X86)
+    if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
+        /* if (rlIndex >= [rlArray + lenOffset]) goto kThrowArrayBounds */
+        genRegMemCheck(cUnit, kCondUge, rlIndex.lowReg, rlArray.lowReg,
+                       lenOffset, mir, kThrowArrayBounds);
+    }
+    rlSrc = loadValue(cUnit, rlSrc, regClass);
+    storeBaseIndexedDisp(cUnit, NULL, rlArray.lowReg, rlIndex.lowReg, scale, dataOffset,
+                         rlSrc.lowReg, rlSrc.highReg, size, INVALID_SREG);
+#else
     bool needsRangeCheck = (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK));
     int regLen = INVALID_REG;
     if (needsRangeCheck) {
@@ -1612,6 +1627,7 @@ void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
         storeBaseIndexed(cUnit, regPtr, rlIndex.lowReg, rlSrc.lowReg,
                          scale, size);
     }
+#endif
 }
 
 void genLong3Addr(CompilationUnit* cUnit, MIR* mir, OpKind firstOp,
@@ -1893,20 +1909,18 @@ bool handleEasyDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
             opRegRegImm(cUnit, kOpAsr, rlResult.lowReg, tReg, k);
         }
     } else {
-        int cReg = oatAllocTemp(cUnit);
-        loadConstant(cUnit, cReg, lit - 1);
         int tReg1 = oatAllocTemp(cUnit);
         int tReg2 = oatAllocTemp(cUnit);
         if (lit == 2) {
             opRegRegImm(cUnit, kOpLsr, tReg1, rlSrc.lowReg, 32 - k);
             opRegRegReg(cUnit, kOpAdd, tReg2, tReg1, rlSrc.lowReg);
-            opRegRegReg(cUnit, kOpAnd, tReg2, tReg2, cReg);
+            opRegRegImm(cUnit, kOpAnd, tReg2, tReg2, lit -1);
             opRegRegReg(cUnit, kOpSub, rlResult.lowReg, tReg2, tReg1);
         } else {
             opRegRegImm(cUnit, kOpAsr, tReg1, rlSrc.lowReg, 31);
             opRegRegImm(cUnit, kOpLsr, tReg1, tReg1, 32 - k);
             opRegRegReg(cUnit, kOpAdd, tReg2, tReg1, rlSrc.lowReg);
-            opRegRegReg(cUnit, kOpAnd, tReg2, tReg2, cReg);
+            opRegRegImm(cUnit, kOpAnd, tReg2, tReg2, lit - 1);
             opRegRegReg(cUnit, kOpSub, rlResult.lowReg, tReg2, tReg1);
         }
     }
