@@ -213,7 +213,7 @@ static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
   }
   LIR* branch = NULL;
   if (unorderedGt) {
-    branch = newLIR2(cUnit, kX86Jcc, 0, kX86CondPE);
+    branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
   }
   newLIR2(cUnit, kX86Set8R, rlResult.lowReg, kX86CondA /* above - unsigned > */);
   newLIR2(cUnit, kX86Sbb32RI, rlResult.lowReg, 0);

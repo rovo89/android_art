@@ -32,14 +32,16 @@ namespace art {
  * caller save places a burden on up-calls to save/restore the callee save register, however, there
  * are few registers that are callee save in the ABI. Changing something that is caller save and
  * making it callee save places a burden on down-calls to save/restore the callee save register.
- * For these reasons we aim to match native conventions for caller and callee save
+ * For these reasons we aim to match native conventions for caller and callee save. The first 4
+ * registers can be used for byte operations, for this reason they are preferred for temporary
+ * scratch registers.
  *
  * General Purpose Register:
  *  Native: x86         | x86-64 / x32      | ART
  *  r0/eax: caller save | caller save       | caller, Method*, scratch, return value
- *  r1/ecx: caller save | caller save, arg4 | caller, arg2, scratch
- *  r2/edx: caller save | caller save, arg3 | caller, arg1, scratch, high half of long return
- *  r3/ebx: callee save | callee save       | callee, available for dalvik register promotion
+ *  r1/ecx: caller save | caller save, arg4 | caller, arg1, scratch
+ *  r2/edx: caller save | caller save, arg3 | caller, arg2, scratch, high half of long return
+ *  r3/ebx: callEE save | callEE save       | callER, arg3, scratch
  *  r4/esp: stack pointer
  *  r5/ebp: callee save | callee save       | callee, available for dalvik register promotion
  *  r6/esi: callEE save | callER save, arg2 | callee, available for dalvik register promotion
@@ -228,8 +230,9 @@ enum NativeRegisterPool {
  */
 
 #define rARG0 rAX
-#define rARG1 rDX
-#define rARG2 rCX
+#define rARG1 rCX
+#define rARG2 rDX
+#define rARG3 rBX
 #define rRET0 rAX
 #define rRET1 rDX
 #define rINVOKE_TGT rAX
@@ -417,6 +420,8 @@ enum X86OpCode {
     Binary0fOpCode(kX86Ucomiss),    // unordered float compare
     Binary0fOpCode(kX86Comisd),     // double compare
     Binary0fOpCode(kX86Comiss),     // float compare
+    Binary0fOpCode(kX86Orps),       // or of floating point registers
+    Binary0fOpCode(kX86Xorps),      // xor of floating point registers
     Binary0fOpCode(kX86Addsd),      // double add
     Binary0fOpCode(kX86Addss),      // float add
     Binary0fOpCode(kX86Mulsd),      // double multiply
@@ -425,8 +430,9 @@ enum X86OpCode {
     Binary0fOpCode(kX86Cvtsd2ss),   // double to float
     Binary0fOpCode(kX86Subsd),      // double subtract
     Binary0fOpCode(kX86Subss),      // float subtract
-    Binary0fOpCode(kX86Divsd),      // double subtract
-    Binary0fOpCode(kX86Divss),      // float subtract
+    Binary0fOpCode(kX86Divsd),      // double divide
+    Binary0fOpCode(kX86Divss),      // float divide
+    kX86PsllqRI,                    // shift of floating point registers
     Binary0fOpCode(kX86Movdxr),     // move into xmm from gpr
     Binary0fOpCode(kX86Movdrx),     // move into reg from xmm
     kX86Set8R, kX86Set8M, kX86Set8A,// set byte depending on condition operand
@@ -437,8 +443,8 @@ enum X86OpCode {
     Binary0fOpCode(kX86Movsx8),     // sign-extend 8-bit value
     Binary0fOpCode(kX86Movsx16),    // sign-extend 16-bit value
 #undef Binary0fOpCode
-    kX86Jcc,    // jCC rel; lir operands - 0: rel, 1: CC, target assigned
-    kX86Jmp,    // jmp rel; lir operands - 0: rel, target assigned
+    kX86Jcc8, kX86Jcc32,  // jCC rel8/32; lir operands - 0: rel, 1: CC, target assigned
+    kX86Jmp8, kX86Jmp32,  // jmp rel8/32; lir operands - 0: rel, target assigned
     kX86CallR,  // call reg; lir operands - 0: reg
     kX86CallM,  // call [base + disp]; lir operands - 0: base, 1: disp
     kX86CallA,  // call [base + index * scale + disp]

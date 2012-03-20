@@ -819,7 +819,8 @@ void oatAssembleLIR(CompilationUnit* cUnit)
         } else {
             cUnit->assemblerRetries++;
             if (cUnit->assemblerRetries > MAX_ASSEMBLER_RETRIES) {
-                LOG(FATAL) << "Assembler error - too many retries";
+              oatCodegenDump(cUnit);
+              LOG(FATAL) << "Assembler error - too many retries";
             }
             // Redo offsets and try again
             oatAssignOffsets(cUnit);

@@ -257,6 +257,8 @@ ENCODING_MAP(Cmp, IS_LOAD,
   EXT_0F_ENCODING_MAP(Ucomiss,   0x00, 0x2E),
   EXT_0F_ENCODING_MAP(Comisd,    0x66, 0x2F),
   EXT_0F_ENCODING_MAP(Comiss,    0x00, 0x2F),
+  EXT_0F_ENCODING_MAP(Orps,      0x00, 0x56),
+  EXT_0F_ENCODING_MAP(Xorps,     0x00, 0x57),
   EXT_0F_ENCODING_MAP(Addsd,     0xF2, 0x58),
   EXT_0F_ENCODING_MAP(Addss,     0xF3, 0x58),
   EXT_0F_ENCODING_MAP(Mulsd,     0xF2, 0x59),
@@ -267,6 +269,8 @@ ENCODING_MAP(Cmp, IS_LOAD,
   EXT_0F_ENCODING_MAP(Subss,     0xF3, 0x5C),
   EXT_0F_ENCODING_MAP(Divsd,     0xF2, 0x5E),
   EXT_0F_ENCODING_MAP(Divss,     0xF3, 0x5E),
+
+  { kX86PsllqRI, kRegImm, IS_BINARY_OP, { 0, 0, 0x0F, 0x73, 0, 7, 0, 1 }, "PsllqRI", "!0r, !1d" },
 
   EXT_0F_ENCODING_MAP(Movdxr,    0x66, 0x6E),
   EXT_0F_ENCODING_MAP(Movdrx,    0x66, 0x7E),
@@ -283,8 +287,10 @@ ENCODING_MAP(Cmp, IS_LOAD,
   EXT_0F_ENCODING_MAP(Movsx16, 0x00, 0xBF),
 #undef EXT_0F_ENCODING_MAP
 
-  { kX86Jcc,   kJcc,  IS_BINARY_OP | IS_BRANCH | NEEDS_FIXUP, { 0,             0, 0x70, 0, 0, 0, 0, 0 }, "Jcc", "!1c !0t" },
-  { kX86Jmp,   kJmp,  IS_UNARY_OP  | IS_BRANCH | NEEDS_FIXUP, { 0,             0, 0xE9, 0, 0, 0, 0, 0 }, "Jmp", "!0t" },
+  { kX86Jcc8,  kJcc,  IS_BINARY_OP | IS_BRANCH | NEEDS_FIXUP, { 0,             0, 0x70, 0,    0, 0, 0, 0 }, "Jcc8",  "!1c !0t" },
+  { kX86Jcc32, kJcc,  IS_BINARY_OP | IS_BRANCH | NEEDS_FIXUP, { 0,             0, 0x0F, 0x80, 0, 0, 0, 0 }, "Jcc32", "!1c !0t" },
+  { kX86Jmp8,  kJmp,  IS_UNARY_OP  | IS_BRANCH | NEEDS_FIXUP, { 0,             0, 0xEB, 0,    0, 0, 0, 0 }, "Jmp8",  "!0t" },
+  { kX86Jmp32, kJmp,  IS_UNARY_OP  | IS_BRANCH | NEEDS_FIXUP, { 0,             0, 0xE9, 0,    0, 0, 0, 0 }, "Jmp32", "!0t" },
   { kX86CallR, kCall, IS_UNARY_OP  | IS_BRANCH,               { 0,             0, 0xE8, 0, 0, 0, 0, 0 }, "CallR", "!0r" },
   { kX86CallM, kCall, IS_BINARY_OP | IS_BRANCH | IS_LOAD,     { 0,             0, 0xFF, 0, 0, 2, 0, 0 }, "CallM", "[!0r+!1d]" },
   { kX86CallA, kCall, IS_QUAD_OP   | IS_BRANCH | IS_LOAD,     { 0,             0, 0xFF, 0, 0, 2, 0, 0 }, "CallA", "[!0r+!1r<<!2d+!3d]" },
@@ -359,9 +365,14 @@ int oatGetInsnSize(LIR* lir) {
     case kRegThread:  // lir operands - 0: reg, 1: disp
       return computeSize(entry, 0x12345678, false);  // displacement size is always 32bit
     case kRegImm: {  // lir operands - 0: reg, 1: immediate
-      int reg = lir->operands[0];
-      // AX opcodes don't require the modrm byte.
-      return computeSize(entry, 0, false) - (reg == rAX ? 1 : 0);
+      size_t size = computeSize(entry, 0, false);
+      if (entry->skeleton.ax_opcode == 0) {
+        return size;
+      } else {
+        // AX opcodes don't require the modrm byte.
+        int reg = lir->operands[0];
+        return size - (reg == rAX ? 1 : 0);
+      }
     }
     case kMemImm:  // lir operands - 0: base, 1: disp, 2: immediate
       CHECK_NE(lir->operands[0], static_cast<int>(rSP));  // TODO: add extra SIB byte
@@ -403,10 +414,20 @@ int oatGetInsnSize(LIR* lir) {
       return computeSize(entry, lir->operands[1], false);
     case kArrayCond:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: cond
       return computeSize(entry, lir->operands[3], true);
-    case kJcc: case kJmp:
-      // Jumps only return the short form length, the correct length will be assigned to LIR
-      // flags.size during assembly.
-      return 2;
+    case kJcc:
+      if (lir->opcode == kX86Jcc8) {
+        return 2;  // opcode + rel8
+      } else {
+        DCHECK(lir->opcode == kX86Jcc32);
+        return 6;  // 2 byte opcode + rel32
+      }
+    case kJmp:
+      if (lir->opcode == kX86Jmp8) {
+        return 2;  // opcode + rel8
+      } else {
+        DCHECK(lir->opcode == kX86Jmp32);
+        return 5;  // opcode + rel32
+      }
     case kCall:
       switch(lir->opcode) {
         case kX86CallR: return 2;  // opcode modrm
@@ -584,6 +605,12 @@ static void emitRegArray(CompilationUnit* cUnit, const X86EncodingMap* entry, ui
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
+}
+
+static void emitArrayReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
+                         uint8_t base, uint8_t index, int scale, int disp, uint8_t reg) {
+  // Opcode will flip operands.
+  emitRegArray(cUnit, entry, reg, base, index, scale, disp);
 }
 
 static void emitRegThread(CompilationUnit* cUnit, const X86EncodingMap* entry,
@@ -770,11 +797,50 @@ static void emitMovRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
   cUnit->codeBuffer.push_back((imm >> 24) & 0xFF);
 }
 
+static void emitShiftRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
+                       uint8_t reg, int imm) {
+  if (entry->skeleton.prefix1 != 0) {
+    cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
+    if (entry->skeleton.prefix2 != 0) {
+      cUnit->codeBuffer.push_back(entry->skeleton.prefix2);
+    }
+  } else {
+    DCHECK_EQ(0, entry->skeleton.prefix2);
+  }
+  if (imm != 1) {
+    cUnit->codeBuffer.push_back(entry->skeleton.opcode);
+  } else {
+    // Shorter encoding for 1 bit shift
+    cUnit->codeBuffer.push_back(entry->skeleton.ax_opcode);
+  }
+  if (entry->skeleton.opcode == 0x0F) {
+    cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode1);
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+      cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode2);
+    } else {
+      DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+    }
+  } else {
+    DCHECK_EQ(0, entry->skeleton.extra_opcode1);
+    DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+  }
+  DCHECK_LT(reg, 8);
+  uint8_t modrm = (0 << 6) | (entry->skeleton.modrm_opcode << 3) | reg;
+  cUnit->codeBuffer.push_back(modrm);
+  if (imm != 1) {
+    DCHECK_EQ(entry->skeleton.immediate_bytes, 1);
+    DCHECK(IS_SIMM8(imm));
+    cUnit->codeBuffer.push_back(imm & 0xFF);
+  }
+}
+
 static void emitJmp(CompilationUnit* cUnit, const X86EncodingMap* entry, int rel) {
-  if (IS_SIMM8(rel)) {
+  if (entry->opcode == kX86Jmp8) {
+    DCHECK(IS_SIMM8(rel));
     cUnit->codeBuffer.push_back(0xEB);
     cUnit->codeBuffer.push_back(rel & 0xFF);
   } else {
+    DCHECK(entry->opcode == kX86Jmp32);
     cUnit->codeBuffer.push_back(0xE9);
     cUnit->codeBuffer.push_back(rel & 0xFF);
     cUnit->codeBuffer.push_back((rel >> 8) & 0xFF);
@@ -786,10 +852,12 @@ static void emitJmp(CompilationUnit* cUnit, const X86EncodingMap* entry, int rel
 static void emitJcc(CompilationUnit* cUnit, const X86EncodingMap* entry,
                     int rel, uint8_t cc) {
   DCHECK_LT(cc, 16);
-  if (IS_SIMM8(rel)) {
+  if (entry->opcode == kX86Jcc8) {
+    DCHECK(IS_SIMM8(rel));
     cUnit->codeBuffer.push_back(0x70 | cc);
     cUnit->codeBuffer.push_back(rel & 0xFF);
   } else {
+    DCHECK(entry->opcode == kX86Jcc32);
     cUnit->codeBuffer.push_back(0x0F);
     cUnit->codeBuffer.push_back(0x80 | cc);
     cUnit->codeBuffer.push_back(rel & 0xFF);
@@ -889,45 +957,53 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
 
     if (lir->flags.pcRelFixup) {
       switch (lir->opcode) {
-        case kX86Jcc: {
-            LIR *targetLIR = lir->target;
-            DCHECK(targetLIR != NULL);
-            int delta = 0;
-            intptr_t pc;
-            if (IS_SIMM8(lir->operands[0])) {
-              pc = lir->offset + 2 /* opcode + rel8 */;
-            } else {
-              pc = lir->offset + 6 /* 2 byte opcode + rel32 */;
-            }
-            intptr_t target = targetLIR->offset;
-            delta = target - pc;
-            if (IS_SIMM8(delta) != IS_SIMM8(lir->operands[0])) {
-              res = kRetryAll;
-            }
-            lir->operands[0] = delta;
-            break;
+        case kX86Jcc8: {
+          LIR *targetLIR = lir->target;
+          DCHECK(targetLIR != NULL);
+          int delta = 0;
+          intptr_t pc;
+          if (IS_SIMM8(lir->operands[0])) {
+            pc = lir->offset + 2 /* opcode + rel8 */;
+          } else {
+            pc = lir->offset + 6 /* 2 byte opcode + rel32 */;
+          }
+          intptr_t target = targetLIR->offset;
+          delta = target - pc;
+          if (IS_SIMM8(delta) != IS_SIMM8(lir->operands[0])) {
+            LOG(INFO) << "Retry for JCC growth at " << lir->offset
+                << " delta: " << delta << " old delta: " << lir->operands[0];
+            lir->opcode = kX86Jcc32;
+            oatSetupResourceMasks(lir);
+            res = kRetryAll;
+          }
+          lir->operands[0] = delta;
+          break;
         }
-        case kX86Jmp: {
-            LIR *targetLIR = lir->target;
-            DCHECK(targetLIR != NULL);
-            int delta = 0;
-            intptr_t pc;
-            if (IS_SIMM8(lir->operands[0])) {
-              pc = lir->offset + 2 /* opcode + rel8 */;
-            } else {
-              pc = lir->offset + 5 /* opcode + rel32 */;
-            }
-            intptr_t target = targetLIR->offset;
-            delta = target - pc;
-            if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) && lir->operands[0] == 0) {
-              // Useless branch
-              lir->flags.isNop = true;
-              res = kRetryAll;
-            } else if (IS_SIMM8(delta) != IS_SIMM8(lir->operands[0])) {
-              res = kRetryAll;
-            }
-            lir->operands[0] = delta;
-            break;
+        case kX86Jmp8: {
+          LIR *targetLIR = lir->target;
+          DCHECK(targetLIR != NULL);
+          int delta = 0;
+          intptr_t pc;
+          if (IS_SIMM8(lir->operands[0])) {
+            pc = lir->offset + 2 /* opcode + rel8 */;
+          } else {
+            pc = lir->offset + 5 /* opcode + rel32 */;
+          }
+          intptr_t target = targetLIR->offset;
+          delta = target - pc;
+          if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) && lir->operands[0] == 0) {
+            // Useless branch
+            lir->flags.isNop = true;
+            LOG(INFO) << "Retry for useless branch at " << lir->offset;
+            res = kRetryAll;
+          } else if (IS_SIMM8(delta) != IS_SIMM8(lir->operands[0])) {
+            LOG(INFO) << "Retry for JMP growth at " << lir->offset;
+            lir->opcode = kX86Jmp32;
+            oatSetupResourceMasks(lir);
+            res = kRetryAll;
+          }
+          lir->operands[0] = delta;
+          break;
         }
         default:
           break;
@@ -967,6 +1043,10 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
       case kMemReg:  // lir operands - 0: base, 1: disp, 2: reg
         emitMemReg(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
+      case kArrayReg:  // lir operands - 0: base, 1: index, 2: scale, 3: disp, 4: reg
+        emitArrayReg(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2],
+                     lir->operands[3], lir->operands[4]);
+        break;
       case kRegMem:  // lir operands - 0: reg, 1: base, 2: disp
         emitRegMem(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
@@ -988,6 +1068,9 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
         break;
       case kMovRegImm:  // lir operands - 0: reg, 1: immediate
         emitMovRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
+        break;
+      case kShiftRegImm:  // lir operands - 0: reg, 1: immediate
+        emitShiftRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kJmp:  // lir operands - 0: rel
         emitJmp(cUnit, entry, lir->operands[0]);
@@ -1012,10 +1095,11 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
         emitUnimplemented(cUnit, entry, lir);
         break;
     }
-    CHECK_EQ(static_cast<size_t>(oatGetInsnSize(lir)),
-             cUnit->codeBuffer.size() - starting_cbuf_size)
-        << "Instruction size mismatch for entry: " << EncodingMap[lir->opcode].name;
-
+    if (entry->kind != kJcc && entry->kind != kJmp) {
+      CHECK_EQ(static_cast<size_t>(oatGetInsnSize(lir)),
+               cUnit->codeBuffer.size() - starting_cbuf_size)
+          << "Instruction size mismatch for entry: " << EncodingMap[lir->opcode].name;
+    }
   }
   return res;
 }

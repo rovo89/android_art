@@ -968,8 +968,7 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSa
     method->SetFpSpillMask(fp_spills);
   } else if (instruction_set == kX86) {
     method->SetFrameSizeInBytes(32);
-    method->SetCoreSpillMask((1 << art::x86::EBX) | (1 << art::x86::EBP) | (1 << art::x86::ESI) |
-                             (1 << art::x86::EDI));
+    method->SetCoreSpillMask((1 << art::x86::EBP) | (1 << art::x86::ESI) | (1 << art::x86::EDI));
     method->SetFpSpillMask(0);
   } else {
     UNIMPLEMENTED(FATAL);

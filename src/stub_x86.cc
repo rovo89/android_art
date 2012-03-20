@@ -49,7 +49,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
   __ pushl(EDI);
   __ pushl(ESI);
   __ pushl(EBP);
-  __ pushl(EBX);
+  __ pushl(Immediate(0));
   __ pushl(Immediate(0));
   __ pushl(Immediate(0));
   __ pushl(Immediate(0));  // <-- callee save Method* to go here

@@ -214,7 +214,7 @@ void removeRedundantBranches(CompilationUnit* cUnit) {
       thisLIR = NEXT_LIR(thisLIR)) {
 
     /* Branch to the next instruction */
-    if (thisLIR->opcode == kX86Jmp) {
+    if (thisLIR->opcode == kX86Jmp8 || thisLIR->opcode == kX86Jmp32) {
       LIR* nextLIR = thisLIR;
 
       while (true) {
