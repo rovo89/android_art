@@ -326,33 +326,29 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
     }
 }
 
-#define BSZ 100
 void oatDumpPromotionMap(CompilationUnit *cUnit)
 {
     int numRegs = cUnit->numDalvikRegisters + cUnit->numCompilerTemps + 1;
     for (int i = 0; i < numRegs; i++) {
         PromotionMap vRegMap = cUnit->promotionMap[i];
-        char buf[BSZ];
+        std::string buf;
         if (vRegMap.fpLocation == kLocPhysReg) {
-            snprintf(buf, 100, " : s%d", vRegMap.fpReg & FP_REG_MASK);
-        } else {
-            buf[0] = 0;
-        }
-        char buf2[BSZ];
-        char buf3[BSZ];
-        if (i < cUnit->numDalvikRegisters) {
-            snprintf(buf3, BSZ, "%02d", i);
-        } else if (i == cUnit->methodSReg) {
-            strncpy(buf3, "Method*", BSZ);
-        } else {
-            snprintf(buf3, BSZ, "ct%d", i - cUnit->numDalvikRegisters);
+            StringAppendF(&buf, " : s%d", vRegMap.fpReg & FP_REG_MASK);
         }
 
-        snprintf(buf2, BSZ, "V[%s] -> %s%d%s", buf3,
+        std::string buf3;
+        if (i < cUnit->numDalvikRegisters) {
+            StringAppendF(&buf3, "%02d", i);
+        } else if (i == cUnit->methodSReg) {
+            buf3 = "Method*";
+        } else {
+            StringAppendF(&buf3, "ct%d", i - cUnit->numDalvikRegisters);
+        }
+
+        LOG(INFO) << StringPrintf("V[%s] -> %s%d%s", buf3.c_str(),
                  vRegMap.coreLocation == kLocPhysReg ?
                  "r" : "SP+", vRegMap.coreLocation == kLocPhysReg ?
-                 vRegMap.coreReg : oatSRegOffset(cUnit, i), buf);
-        LOG(INFO) << buf2;
+                 vRegMap.coreReg : oatSRegOffset(cUnit, i), buf.c_str());
     }
 }
 

@@ -322,14 +322,12 @@ void oatDumpCompilationUnit(CompilationUnit* cUnit)
     while (true) {
         bb = (BasicBlock *) oatGrowableListIteratorNext(&iterator);
         if (bb == NULL) break;
-        char buf[100];
-        snprintf(buf, 100, "Block %d (%s) (insn %04x - %04x%s)",
+        LOG(INFO) << StringPrintf("Block %d (%s) (insn %04x - %04x%s)",
              bb->id,
              blockTypeNames[bb->blockType],
              bb->startOffset,
              bb->lastMIRInsn ? bb->lastMIRInsn->offset : bb->startOffset,
              bb->lastMIRInsn ? "" : " empty");
-        LOG(INFO) << buf;
         if (bb->taken) {
             LOG(INFO) << "  Taken branch: block " << bb->taken->id <<
                  "(0x" << std::hex << bb->taken->startOffset << ")";

@@ -78,16 +78,13 @@ extern void oatInitPool(RegisterInfo* regs, int* regNums, int num)
 
 void dumpRegPool(RegisterInfo* p, int numRegs)
 {
-    int i;
     LOG(INFO) << "================================================";
-    for (i=0; i < numRegs; i++ ){
-        char buf[100];
-        snprintf(buf, 100,
+    for (int i = 0; i < numRegs; i++){
+        LOG(INFO) << StringPrintf(
             "R[%d]: T:%d, U:%d, P:%d, p:%d, LV:%d, D:%d, SR:%d, ST:%x, EN:%x",
             p[i].reg, p[i].isTemp, p[i].inUse, p[i].pair, p[i].partner,
             p[i].live, p[i].dirty, p[i].sReg,(int)p[i].defStart,
             (int)p[i].defEnd);
-    LOG(INFO) << buf;
     }
     LOG(INFO) << "================================================";
 }
@@ -158,7 +155,7 @@ extern void oatClobberSReg(CompilationUnit* cUnit, int sReg)
  * registers are the same as the Dalvik register number (and
  * thus take the same position in the promotionMap.  However,
  * the special Method* and compiler temp resisters use negative
- * vReg numbers to distinquish them and can have an arbitrary
+ * vReg numbers to distinguish them and can have an arbitrary
  * ssa name (above the last original Dalvik register).  This function
  * maps SSA names to positions in the promotionMap array.
  */

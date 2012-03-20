@@ -286,8 +286,7 @@ static const char* storageName[] = {" Frame ", "PhysReg", " Spill "};
 void oatDumpRegLocTable(RegLocation* table, int count)
 {
     for (int i = 0; i < count; i++) {
-        char buf[100];
-        snprintf(buf, 100, "Loc[%02d] : %s, %c %c %c %c %c %c%d %c%d S%d",
+        LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c%d %c%d S%d",
              i, storageName[table[i].location], table[i].wide ? 'W' : 'N',
              table[i].defined ? 'D' : 'U', table[i].fp ? 'F' : 'C',
              table[i].highWord ? 'H' : 'L', table[i].home ? 'h' : 't',
@@ -295,7 +294,6 @@ void oatDumpRegLocTable(RegLocation* table, int count)
              table[i].lowReg & oatFpRegMask(),
              oatIsFpReg(table[i].highReg) ? 's' : 'r',
              table[i].highReg & oatFpRegMask(), table[i].sRegLow);
-        LOG(INFO) << buf;
     }
 }
 
