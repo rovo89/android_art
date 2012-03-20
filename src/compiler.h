@@ -20,12 +20,14 @@
 #include <map>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "compiled_class.h"
 #include "compiled_method.h"
 #include "constants.h"
 #include "dex_cache.h"
 #include "dex_file.h"
+#include "elf_image.h"
 #include "oat_file.h"
 #include "object.h"
 #include "runtime.h"
@@ -144,6 +146,8 @@ class Compiler {
 
   const Method::InvokeStub* GetMethodInvokeStubAddr(const CompiledInvokeStub* cm,
                                                     const Method* method) const;
+
+  std::vector<ElfImage> GetElfImages() const;
 #else
   void EnableAutoElfLoader() { }
 
@@ -155,6 +159,10 @@ class Compiler {
   const Method::InvokeStub* GetMethodInvokeStubAddr(const CompiledInvokeStub*,
                                                     const Method*) const {
     return NULL;
+  }
+
+  std::vector<ElfImage> GetElfImages() const {
+    return std::vector<ElfImage>();
   }
 #endif
 

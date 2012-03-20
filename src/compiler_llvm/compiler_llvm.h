@@ -17,6 +17,7 @@
 #ifndef ART_SRC_COMPILER_LLVM_COMPILER_LLVM_H_
 #define ART_SRC_COMPILER_LLVM_COMPILER_LLVM_H_
 
+#include "compiler.h"
 #include "constants.h"
 #include "dex_file.h"
 #include "elf_image.h"
@@ -26,6 +27,8 @@
 #include <UniquePtr.h>
 
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace art {
   class ClassLoader;
@@ -100,6 +103,8 @@ class CompilerLLVM {
   const Method::InvokeStub* GetMethodInvokeStubAddr(
                                 const CompiledInvokeStub* cm,
                                 const Method* method) const;
+
+  std::vector<ElfImage> GetElfImages() const;
 
   CompiledMethod* CompileDexMethod(OatCompilationUnit* oat_compilation_unit);
 
