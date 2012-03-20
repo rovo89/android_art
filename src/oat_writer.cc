@@ -18,10 +18,13 @@
 
 #include "class_linker.h"
 #include "class_loader.h"
+#include "elf_image.h"
 #include "file.h"
 #include "os.h"
 #include "space.h"
 #include "stl_util.h"
+
+#include <zlib.h>
 
 namespace art {
 
@@ -49,12 +52,15 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
   image_file_location_checksum_ = image_file_location_checksum;
   image_file_location_ = image_file_location;
   dex_files_ = &dex_files;
+  elf_images_ = compiler_->GetElfImages();
   oat_header_ = NULL;
   executable_offset_padding_length_ = 0;
 
   size_t offset = InitOatHeader();
   offset = InitOatDexFiles(offset);
   offset = InitDexFiles(offset);
+  offset = InitOatElfImages(offset);
+  offset = InitElfImages(offset);
   offset = InitOatClasses(offset);
   offset = InitOatCode(offset);
   offset = InitOatCodeDexFiles(offset);
@@ -65,6 +71,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
 OatWriter::~OatWriter() {
   delete oat_header_;
   STLDeleteElements(&oat_dex_files_);
+  STLDeleteElements(&oat_elf_images_);
   STLDeleteElements(&oat_classes_);
 }
 
@@ -72,6 +79,7 @@ size_t OatWriter::InitOatHeader() {
   // create the OatHeader
   oat_header_ = new OatHeader(compiler_->GetInstructionSet(),
                               dex_files_,
+                              elf_images_.size(),
                               image_file_location_checksum_,
                               image_file_location_);
   size_t offset = sizeof(*oat_header_);
@@ -102,6 +110,29 @@ size_t OatWriter::InitDexFiles(size_t offset) {
 
     const DexFile* dex_file = (*dex_files_)[i];
     offset += dex_file->GetHeader().file_size_;
+  }
+  return offset;
+}
+
+size_t OatWriter::InitOatElfImages(size_t offset) {
+  // Offset to ELF image table should be rounded up to 4-byte aligned, so that
+  // we can read the uint32_t directly.
+  offset = RoundUp(offset, 4);
+  oat_header_->SetElfImageTableOffset(offset);
+
+  for (size_t i = 0, n = elf_images_.size(); i < n; ++i) {
+    OatElfImage* oat_elf_image = new OatElfImage(elf_images_[i]);
+    oat_elf_images_.push_back(oat_elf_image);
+    offset += oat_elf_image->SizeOf();
+  }
+  return offset;
+}
+
+size_t OatWriter::InitElfImages(size_t offset) {
+  for (size_t i = 0; i < oat_elf_images_.size(); ++i) {
+    offset = RoundUp(offset, 4);
+    oat_elf_images_[i]->SetElfOffset(offset);
+    offset += oat_elf_images_[i]->GetElfSize();
   }
   return offset;
 }
@@ -421,6 +452,25 @@ bool OatWriter::WriteTables(File* file) {
     const DexFile* dex_file = (*dex_files_)[i];
     if (!file->WriteFully(&dex_file->GetHeader(), dex_file->GetHeader().file_size_)) {
       PLOG(ERROR) << "Failed to write dex file " << dex_file->GetLocation() << " to " << file->name();
+      return false;
+    }
+  }
+  for (size_t i = 0; i != oat_elf_images_.size(); ++i) {
+    if (!oat_elf_images_[i]->Write(file)) {
+      PLOG(ERROR) << "Failed to write oat elf information to " << file->name();
+      return false;
+    }
+  }
+  for (size_t i = 0; i != oat_elf_images_.size(); ++i) {
+    uint32_t expected_offset = oat_elf_images_[i]->GetElfOffset();
+    off_t actual_offset = lseek(file->Fd(), expected_offset, SEEK_SET);
+    if (static_cast<uint32_t>(actual_offset) != expected_offset) {
+      PLOG(ERROR) << "Failed to seek to dex file section."
+                  << " Actual: " << actual_offset
+                  << " Expected: " << expected_offset;
+      return false;
+    }
+    if (!oat_elf_images_[i]->WriteElfImage(file)) {
       return false;
     }
   }
@@ -767,6 +817,50 @@ bool OatWriter::OatClass::Write(File* file) const {
   if (!file->WriteFully(&method_offsets_[0],
                         sizeof(method_offsets_[0]) * method_offsets_.size())) {
     PLOG(ERROR) << "Failed to write method offsets to " << file->name();
+    return false;
+  }
+  return true;
+}
+
+OatWriter::OatElfImage::OatElfImage(const ElfImage& image)
+    : elf_offset_(0), elf_size_(image.size()), elf_addr_(image.begin()) {
+}
+
+size_t OatWriter::OatElfImage::SizeOf() const {
+  return (sizeof(elf_offset_) + sizeof(elf_size_));
+}
+
+uint32_t OatWriter::OatElfImage::GetElfSize() const {
+  return elf_size_;
+}
+
+uint32_t OatWriter::OatElfImage::GetElfOffset() const {
+  DCHECK_NE(elf_offset_, 0U);
+  return elf_offset_;
+}
+
+void OatWriter::OatElfImage::SetElfOffset(uint32_t offset) {
+  DCHECK_NE(offset, 0U);
+  DCHECK((offset & 0x3LU) == 0);
+  elf_offset_ = offset;
+}
+
+bool OatWriter::OatElfImage::Write(File* file) const {
+  DCHECK_NE(elf_offset_, 0U);
+  if (!file->WriteFully(&elf_offset_, sizeof(elf_offset_))) {
+    PLOG(ERROR) << "Failed to write ELF offset to " << file->name();
+    return false;
+  }
+  if (!file->WriteFully(&elf_size_, sizeof(elf_size_))) {
+    PLOG(ERROR) << "Failed to write ELF size to " << file->name();
+    return false;
+  }
+  return true;
+}
+
+bool OatWriter::OatElfImage::WriteElfImage(File* file) const {
+  if (!file->WriteFully(elf_addr_, elf_size_)) {
+    PLOG(ERROR) << "Failed to write ELF image to " << file->name();
     return false;
   }
   return true;

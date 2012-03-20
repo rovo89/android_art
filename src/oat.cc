@@ -29,6 +29,7 @@ OatHeader::OatHeader() {
 
 OatHeader::OatHeader(InstructionSet instruction_set,
                      const std::vector<const DexFile*>* dex_files,
+                     uint32_t elf_image_count,
                      uint32_t image_file_location_checksum,
                      const std::string& image_file_location) {
   memcpy(magic_, kOatMagic, sizeof(kOatMagic));
@@ -42,6 +43,9 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   dex_file_count_ = dex_files->size();
   UpdateChecksum(&dex_file_count_, sizeof(dex_file_count_));
 
+  elf_image_count_ = elf_image_count;
+  UpdateChecksum(&elf_image_count_, sizeof(elf_image_count_));
+
   image_file_location_checksum_ = image_file_location_checksum;
   UpdateChecksum(&image_file_location_checksum_, sizeof(image_file_location_checksum_));
 
@@ -49,6 +53,7 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   UpdateChecksum(&image_file_location_size_, sizeof(image_file_location_size_));
   UpdateChecksum(image_file_location.data(), image_file_location_size_);
 
+  elf_image_table_offset_ = 0;
   executable_offset_ = 0;
 }
 
@@ -70,6 +75,16 @@ const char* OatHeader::GetMagic() const {
 uint32_t OatHeader::GetDexFileCount() const {
   DCHECK(IsValid());
   return dex_file_count_;
+}
+
+uint32_t OatHeader::GetElfImageCount() const {
+  DCHECK(IsValid());
+  return elf_image_count_;
+}
+
+uint32_t OatHeader::GetElfImageTableOffset() const {
+  DCHECK(IsValid());
+  return elf_image_table_offset_;
 }
 
 uint32_t OatHeader::GetChecksum() const {
@@ -114,6 +129,12 @@ std::string OatHeader::GetImageFileLocation() const {
   CHECK(IsValid());
   return std::string(reinterpret_cast<const char*>(GetImageFileLocationData()),
                      GetImageFileLocationSize());
+}
+
+void OatHeader::SetElfImageTableOffset(uint32_t elf_image_table_offset) {
+  DCHECK(IsValid());
+  elf_image_table_offset_ = elf_image_table_offset;
+  UpdateChecksum(&elf_image_table_offset_, sizeof(elf_image_table_offset_));
 }
 
 void OatHeader::SetExecutableOffset(uint32_t executable_offset) {

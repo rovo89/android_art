@@ -30,6 +30,7 @@ class PACKED OatHeader {
   OatHeader();
   OatHeader(InstructionSet instruction_set,
             const std::vector<const DexFile*>* dex_files,
+            uint32_t elf_image_count,
             uint32_t image_file_location_checksum,
             const std::string& image_file_location);
 
@@ -38,8 +39,11 @@ class PACKED OatHeader {
   uint32_t GetChecksum() const;
   void UpdateChecksum(const void* data, size_t length);
   uint32_t GetDexFileCount() const;
+  uint32_t GetElfImageCount() const;
+  uint32_t GetElfImageTableOffset() const;
   uint32_t GetExecutableOffset() const;
   InstructionSet GetInstructionSet() const;
+  void SetElfImageTableOffset(uint32_t elf_image_offset);
   void SetExecutableOffset(uint32_t executable_offset);
   uint32_t GetImageFileLocationChecksum() const;
   uint32_t GetImageFileLocationSize() const;
@@ -56,6 +60,8 @@ class PACKED OatHeader {
 
   InstructionSet instruction_set_;
   uint32_t dex_file_count_;
+  uint32_t elf_image_count_;
+  uint32_t elf_image_table_offset_;
   uint32_t executable_offset_;
 
   uint32_t image_file_location_checksum_;

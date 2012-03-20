@@ -48,6 +48,16 @@ namespace art {
 // ...
 // OatClass[C]
 //
+// OatElfImage[0]    one OatElfImage for each ELF image
+// OatElfImage[1]    contains the size, checksum, and offset to the ELF image.
+// ...
+// OatElfImage[E]
+//
+// ELF[0]
+// ELF[1]
+// ...
+// ELF[E]
+//
 // padding           if necessary so that the following code will be page aligned
 //
 // CompiledMethod    one variable sized blob with the contents of each CompiledMethod
@@ -82,6 +92,8 @@ class OatWriter {
   size_t InitOatDexFiles(size_t offset);
   size_t InitDexFiles(size_t offset);
   size_t InitOatClasses(size_t offset);
+  size_t InitOatElfImages(size_t offset);
+  size_t InitElfImages(size_t offset);
   size_t InitOatCode(size_t offset);
   size_t InitOatCodeDexFiles(size_t offset);
   size_t InitOatCodeDexFile(size_t offset,
@@ -143,6 +155,25 @@ class OatWriter {
     DISALLOW_COPY_AND_ASSIGN(OatClass);
   };
 
+  class OatElfImage {
+   public:
+    explicit OatElfImage(const ElfImage& elf_image);
+    size_t SizeOf() const;
+    uint32_t GetElfSize() const;
+    uint32_t GetElfOffset() const;
+    void SetElfOffset(uint32_t offset);
+    bool Write(File* file) const;
+    bool WriteElfImage(File* file) const;
+
+   private:
+    // data to write
+    uint32_t elf_offset_;
+    const uint32_t elf_size_;
+
+    const byte* const elf_addr_;
+    DISALLOW_COPY_AND_ASSIGN(OatElfImage);
+  };
+
   const Compiler* compiler_;
 
   // TODO: remove the ClassLoader when the code storage moves out of Method
@@ -150,6 +181,8 @@ class OatWriter {
 
   // note OatFile does not take ownership of the DexFiles
   const std::vector<const DexFile*>* dex_files_;
+
+  std::vector<ElfImage> elf_images_;
 
   // dependency on the image
   uint32_t image_file_location_checksum_;
@@ -159,6 +192,7 @@ class OatWriter {
   OatHeader* oat_header_;
   std::vector<OatDexFile*> oat_dex_files_;
   std::vector<OatClass*> oat_classes_;
+  std::vector<OatElfImage*> oat_elf_images_;
   uint32_t executable_offset_padding_length_;
 
   template <class T> struct MapCompare {
