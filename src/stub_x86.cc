@@ -62,8 +62,19 @@ ByteArray* CreateAbstractMethodErrorStub() {
   // Call to throw AbstractMethodError.
   __ Call(ThreadOffset(OFFSETOF_MEMBER(Thread, pThrowAbstractMethodErrorFromCode)),
           X86ManagedRegister::FromCpuRegister(ECX));
+
+#if defined(ART_USE_LLVM_COMPILER)
+  // Return to caller who will handle pending exception.
+  __ addl(ESP, Immediate(28));
+  __ popl(EBX);
+  __ popl(EBP);
+  __ popl(ESI);
+  __ popl(EDI);
+  __ ret();
+#else
   // Call never returns.
   __ int3();
+#endif
 
   assembler->EmitSlowPaths();
 
