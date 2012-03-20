@@ -211,9 +211,38 @@ class OatFile {
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);
   };
 
+  class OatElfImage {
+   public:
+    const byte* begin() const {
+      return elf_addr_;
+    }
+
+    const byte* end() const {
+      return (elf_addr_ + elf_size_);
+    }
+
+    size_t size() const {
+      return elf_size_;
+    }
+
+   private:
+    OatElfImage(const OatFile* oat_file, const byte* addr, uint32_t size);
+
+    const OatFile* oat_file_;
+    const byte* elf_addr_;
+    uint32_t elf_size_;
+
+    friend class OatFile;
+    DISALLOW_COPY_AND_ASSIGN(OatElfImage);
+  };
+
   const OatDexFile* GetOatDexFile(const std::string& dex_file_location,
                                   bool warn_if_not_found = true) const;
   std::vector<const OatDexFile*> GetOatDexFiles() const;
+
+  const OatElfImage* GetOatElfImage(size_t i) const {
+    return oat_elf_images_[i];
+  }
 
   size_t Size() const {
     return End() - Begin();
@@ -236,6 +265,8 @@ class OatFile {
 
   typedef std::map<std::string, const OatDexFile*> Table;
   Table oat_dex_files_;
+
+  std::vector<OatElfImage*> oat_elf_images_;
 
   friend class OatClass;
   friend class OatDexFile;

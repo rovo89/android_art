@@ -57,6 +57,11 @@ static void usage() {
           "      Example: --boot-image=/system/framework/boot.art\n"
           "\n");
   fprintf(stderr,
+          "  --extract-elf-to=<file.elf>: provide the prefix of the filename for\n"
+          "      the output ELF files.\n"
+          "      Example: --extract-elf-to=output.elf\n"
+          "\n");
+  fprintf(stderr,
           "  --host-prefix may be used to translate host paths to target paths during\n"
           "      cross compilation.\n"
           "      Example: --host-prefix=out/target/product/crespo\n"
@@ -107,6 +112,9 @@ class OatDumper {
 
     os << "DEX FILE COUNT:\n";
     os << oat_header.GetDexFileCount() << "\n\n";
+
+    os << "ELF IMAGE COUNT:\n";
+    os << oat_header.GetElfImageCount() << "\n\n";
 
     os << "EXECUTABLE OFFSET:\n";
     os << StringPrintf("0x%08x\n\n", oat_header.GetExecutableOffset());
@@ -1086,6 +1094,7 @@ int oatdump(int argc, char** argv) {
   const char* oat_filename = NULL;
   const char* image_filename = NULL;
   const char* boot_image_filename = NULL;
+  std::string elf_filename_prefix;
   UniquePtr<std::string> host_prefix;
   std::ostream* os = &std::cout;
   UniquePtr<std::ofstream> out;
@@ -1098,6 +1107,8 @@ int oatdump(int argc, char** argv) {
       image_filename = option.substr(strlen("--image=")).data();
     } else if (option.starts_with("--boot-image=")) {
       boot_image_filename = option.substr(strlen("--boot-image=")).data();
+    } else if (option.starts_with("--extract-elf-to=")) {
+      elf_filename_prefix = option.substr(strlen("--extract-elf-to=")).data();
     } else if (option.starts_with("--host-prefix=")) {
       host_prefix.reset(new std::string(option.substr(strlen("--host-prefix=")).data()));
     } else if (option.starts_with("--output=")) {
@@ -1141,6 +1152,23 @@ int oatdump(int argc, char** argv) {
     }
     OatDumper oat_dumper(*host_prefix.get(), *oat_file);
     oat_dumper.Dump(*os);
+
+    if (!elf_filename_prefix.empty()) {
+      uint32_t elf_image_count = oat_file->GetOatHeader().GetElfImageCount();
+      for (uint32_t i = 0; i < elf_image_count; ++i) {
+        const OatFile::OatElfImage* elf_image = oat_file->GetOatElfImage(i);
+
+        std::string elf_filename(
+            StringPrintf("%s-%u", elf_filename_prefix.c_str(), i));
+
+        UniquePtr<File> elf_file(OS::OpenFile(elf_filename.c_str(), true));
+
+        if (!elf_file->WriteFully(elf_image->begin(), elf_image->size())) {
+          fprintf(stderr, "Failed to write ELF image to: %s\n",
+                  elf_filename.c_str());
+        }
+      }
+    }
     return EXIT_SUCCESS;
   }
 

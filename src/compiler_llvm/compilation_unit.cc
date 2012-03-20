@@ -200,7 +200,7 @@ bool CompilationUnit::Materialize() {
   llvm::OwningPtr<llvm::tool_output_file> out_file(
     new llvm::tool_output_file(elf_filename_.c_str(), errmsg,
                                llvm::raw_fd_ostream::F_Binary));
-  out_file->os().write(reinterpret_cast<const char*>(GetElfImage()), GetElfSize());
+  out_file->os().write(elf_image_.data(), elf_image_.size());
   out_file->keep();
 
   LOG(INFO) << "ELF: " << elf_filename_ << " (done)";
