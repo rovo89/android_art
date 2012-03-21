@@ -1224,7 +1224,14 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     if (result_ref != NULL) {
       JValue result_unboxed;
       bool unboxed_okay = UnboxPrimitive(result_ref, proxy_mh.GetReturnType(), result_unboxed, "result");
-      CHECK(unboxed_okay);
+      if (!unboxed_okay) {
+        self->ClearException();
+        self->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
+                                 "Couldn't convert result of type %s to %s",
+                                 PrettyTypeOf(result_ref).c_str(),
+                                 PrettyDescriptor(proxy_mh.GetReturnType()).c_str());
+        return;
+      }
       *reinterpret_cast<JValue*>(stack_args) = result_unboxed;
     } else {
       *reinterpret_cast<jobject*>(stack_args) = NULL;
