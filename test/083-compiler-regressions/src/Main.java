@@ -20,6 +20,14 @@ import java.util.concurrent.*;
  * Test for Jit regressions.
  */
 public class Main {
+    public static int const0x1234() {
+        return 0x1234;
+    }
+
+    public static long const0x123443211234() {
+        return 0x123443211234L;
+    }
+
     public static void main(String args[]) throws Exception {
         b2296099Test();
         b2302318Test();
@@ -27,6 +35,106 @@ public class Main {
         b5884080Test();
         largeFrameTest();
         largeFrameTestFloat();
+        getterSetterTest();
+        identityTest();
+        wideGetterSetterTest();
+        wideIdentityTest();
+        returnConstantTest();
+    }
+
+    public static void returnConstantTest() {
+        long res = const0x1234();
+        res += const0x123443211234();
+        Foo foo = new Foo();
+        res += foo.iConst0x1234();
+        res += foo.iConst0x123443211234();
+        if (res == 40031347689680L) {
+            System.out.println("returnConstantTest passes");
+        }
+        else {
+            System.out.println("returnConstantTest fails: " + res +
+                               " (expecting 40031347689680)");
+        }
+    }
+
+    static void wideIdentityTest() {
+        Foo foo = new Foo();
+        long i = 1;
+        i += foo.wideIdent0(i);
+        i += foo.wideIdent1(0,i);
+        i += foo.wideIdent2(0,0,i);
+        i += foo.wideIdent3(0,0,0,i);
+        i += foo.wideIdent4(0,0,0,0,i);
+        i += foo.wideIdent5(0,0,0,0,0,i);
+        if (i == 64) {
+            System.out.println("wideIdentityTest passes");
+        }
+        else {
+            System.out.println("wideIdentityTest fails: " + i +
+                               " (expecting 64)");
+        }
+    }
+
+    static void wideGetterSetterTest() {
+        Foo foo = new Foo();
+        long sum = foo.wideGetBar0();
+        sum += foo.wideGetBar1(1);
+        foo.wideSetBar1(sum);
+        sum += foo.wideGetBar2(1,2);
+        foo.wideSetBar2(0,sum);
+        sum += foo.wideGetBar3(1,2,3);
+        foo.wideSetBar3(0,0,sum);
+        sum += foo.wideGetBar4(1,2,3,4);
+        foo.wideSetBar4(0,0,0,sum);
+        sum += foo.wideGetBar5(1,2,3,4,5);
+        foo.wideSetBar5(0,0,0,0,sum);
+        if (foo.wideGetBar0() == 39488) {
+            System.out.println("wideGetterSetterTest passes");
+        }
+        else {
+            System.out.println("wideGetterSetterTest fails: " +
+                                foo.wideGetBar0() + " (expecting 39488)");
+        }
+    }
+
+    static void identityTest() {
+        Foo foo = new Foo();
+        int i = 1;
+        i += foo.ident0(i);
+        i += foo.ident1(0,i);
+        i += foo.ident2(0,0,i);
+        i += foo.ident3(0,0,0,i);
+        i += foo.ident4(0,0,0,0,i);
+        i += foo.ident5(0,0,0,0,0,i);
+        if (i == 64) {
+            System.out.println("identityTest passes");
+        }
+        else {
+            System.out.println("identityTest fails: " + i +
+                               " (expecting 64)");
+        }
+    }
+
+    static void getterSetterTest() {
+        Foo foo = new Foo();
+        int sum = foo.getBar0();
+        sum += foo.getBar1(1);
+        foo.setBar1(sum);
+        sum += foo.getBar2(1,2);
+        foo.setBar2(0,sum);
+        sum += foo.getBar3(1,2,3);
+        foo.setBar3(0,0,sum);
+        sum += foo.getBar4(1,2,3,4);
+        foo.setBar4(0,0,0,sum);
+        sum += foo.getBar5(1,2,3,4,5);
+        foo.setBar5(0,0,0,0,sum);
+        if (foo.getBar0() == 39488) {
+            System.out.println("getterSetterTest passes");
+        }
+        else {
+            System.out.println("getterSetterTest fails: " + foo.getBar0() +
+                               " (expecting 39488)");
+        }
     }
 
     static void b2296099Test() throws Exception {
@@ -8164,4 +8272,135 @@ class SpinThread extends Thread {
         setPriority(mPriority);
         while (true) {}
     }
+}
+
+class Foo {
+    private int bar = 1234;
+    private long lbar = 1234;
+
+    public int iConst0x1234() {
+        return 0x1234;
+    }
+
+    public long iConst0x123443211234() {
+        return 0x123443211234L;
+    }
+
+    public void setBar1(int a1) {
+        bar = a1;
+    }
+    public void setBar2(int a1, int a2) {
+        bar = a2;
+    }
+    public void setBar3(int a1, int a2, int a3) {
+        bar = a3;
+    }
+    public void setBar4(int a1, int a2, int a3, int a4) {
+        bar = a4;
+    }
+    public void setBar5(int a1, int a2, int a3, int a4, int a5) {
+        bar = a5;
+    }
+    public int getBar0() {
+        return bar;
+    }
+    public int getBar1(int a1) {
+        return bar;
+    }
+    public int getBar2(int a1, int a2) {
+        return bar;
+    }
+    public int getBar3(int a1, int a2, int a3) {
+        return bar;
+    }
+    public int getBar4(int a1, int a2, int a3, int a4) {
+        return bar;
+    }
+    public int getBar5(int a1, int a2, int a3, int a4, int a5) {
+        return bar;
+    }
+
+    public int ident0(int a1) {
+        return a1;
+    }
+
+    public int ident1(int a2, int a1) {
+        return a1;
+    }
+
+    public int ident2(int a3, int a2, int a1) {
+        return a1;
+    }
+
+    public int ident3(int a4, int a3, int a2, int a1) {
+        return a1;
+    }
+
+    public int ident4(int a5, int a4, int a3, int a2, int a1) {
+        return a1;
+    }
+
+    public int ident5(int a6, int a5, int a4, int a3, int a2, int a1) {
+        return a1;
+    }
+
+
+    public void wideSetBar1(long a1) {
+        lbar = a1;
+    }
+    public void wideSetBar2(long a1, long a2) {
+        lbar = a2;
+    }
+    public void wideSetBar3(long a1, long a2, long a3) {
+        lbar = a3;
+    }
+    public void wideSetBar4(long a1, long a2, long a3, long a4) {
+        lbar = a4;
+    }
+    public void wideSetBar5(long a1, long a2, long a3, long a4, long a5) {
+        lbar = a5;
+    }
+    public long wideGetBar0() {
+        return lbar;
+    }
+    public long wideGetBar1(long a1) {
+        return lbar;
+    }
+    public long wideGetBar2(long a1, long a2) {
+        return lbar;
+    }
+    public long wideGetBar3(long a1, long a2, long a3) {
+        return lbar;
+    }
+    public long wideGetBar4(long a1, long a2, long a3, long a4) {
+        return lbar;
+    }
+    public long wideGetBar5(long a1, long a2, long a3, long a4, long a5) {
+        return lbar;
+    }
+
+    public long wideIdent0(long a1) {
+        return a1;
+    }
+
+    public long wideIdent1(int a2, long a1) {
+        return a1;
+    }
+
+    public long wideIdent2(int a3, int a2, long a1) {
+        return a1;
+    }
+
+    public long wideIdent3(int a4, int a3, int a2, long a1) {
+        return a1;
+    }
+
+    public long wideIdent4(int a5, int a4, int a3, int a2, long a1) {
+        return a1;
+    }
+
+    public long wideIdent5(int a6, int a5, int a4, int a3, int a2, long a1) {
+        return a1;
+  }
+
 }

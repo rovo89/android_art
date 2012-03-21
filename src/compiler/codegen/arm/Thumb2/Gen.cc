@@ -26,22 +26,76 @@
 
 namespace art {
 
-/* Return a RegLocation that describes an in-register argument */
-RegLocation argLoc(CompilationUnit* cUnit, RegLocation loc, int sReg)
+
+/* Return the position of an ssa name within the argument list */
+int inPosition(CompilationUnit* cUnit, int sReg)
 {
-    loc.location = kLocPhysReg;
-    int base = SRegToVReg(cUnit, sReg) - cUnit->numRegs;
-    loc.sRegLow = sReg;
-    loc.lowReg = rARG1 + base;
-    loc.home = true;
+    int vReg = SRegToVReg(cUnit, sReg);
+    return vReg - cUnit->numRegs;
+}
+
+/*
+ * Describe an argument.  If it's already in an arg register, just leave it
+ * there.  NOTE: all live arg registers must be locked prior to this call
+ * to avoid having them allocated as a temp by downstream utilities.
+ */
+RegLocation argLoc(CompilationUnit* cUnit, RegLocation loc)
+{
+    int argNum = inPosition(cUnit, loc.sRegLow);
     if (loc.wide) {
-        loc.highReg = loc.lowReg + 1;
-        oatLockTemp(cUnit, loc.lowReg);
-        oatLockTemp(cUnit, loc.highReg);
+        if (argNum == 2) {
+            // Bad case - half in register, half in frame.  Just punt
+            loc.location = kLocInvalid;
+        } else if (argNum < 2) {
+            loc.lowReg = rARG1 + argNum;
+            loc.highReg = loc.lowReg + 1;
+            loc.location = kLocPhysReg;
+        } else {
+            loc.location = kLocDalvikFrame;
+        }
     } else {
-        oatLockTemp(cUnit, loc.lowReg);
+        if (argNum < 3) {
+            loc.lowReg = rARG1 + argNum;
+            loc.location = kLocPhysReg;
+        } else {
+            loc.location = kLocDalvikFrame;
+        }
     }
     return loc;
+}
+
+/*
+ * Load an argument.  If already in a register, just return.  If in
+ * the frame, we can't use the normal loadValue() because it assumed
+ * a proper frame - and we're frameless.
+ */
+RegLocation loadArg(CompilationUnit* cUnit, RegLocation loc)
+{
+    if (loc.location == kLocDalvikFrame) {
+        int start = (inPosition(cUnit, loc.sRegLow) + 1) * sizeof(uint32_t);
+        loc.lowReg = oatAllocTemp(cUnit);
+        loadWordDisp(cUnit, rSP, start, loc.lowReg);
+        if (loc.wide) {
+            loc.highReg = oatAllocTemp(cUnit);
+            loadWordDisp(cUnit, rSP, start + sizeof(uint32_t), loc.highReg);
+        }
+        loc.location = kLocPhysReg;
+    }
+    return loc;
+}
+
+/* Lock any referenced arguments that arrive in registers */
+void lockLiveArgs(CompilationUnit* cUnit, MIR* mir)
+{
+    int firstIn = cUnit->numRegs;
+    const int numArgRegs = 3;  // TODO: generalize & move to RegUtil.cc
+    for (int i = 0; i < mir->ssaRep->numUses; i++) {
+        int vReg = SRegToVReg(cUnit, mir->ssaRep->uses[i]);
+        int inPosition = vReg - firstIn;
+        if (inPosition < numArgRegs) {
+            oatLockTemp(cUnit, rARG1 + inPosition);
+        }
+    }
 }
 
 /* Find the next MIR, which may be in a following basic block */
@@ -98,16 +152,25 @@ MIR* specialIGet(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
     if (!fastPath) {
         return NULL;
     }
-    mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
-    genPrintLabel(cUnit, mir);
     RegLocation rlObj = oatGetSrc(cUnit, mir, 0);
-    rlObj = argLoc(cUnit, rlObj, mir->ssaRep->uses[0]);
+    lockLiveArgs(cUnit, mir);
+    rlObj = argLoc(cUnit, rlObj);
+    // Reject if object reference is not "this"
+    if ((rlObj.location == kLocInvalid) ||
+        (inPosition(cUnit, rlObj.sRegLow) != 0)) {
+        oatResetRegPool(cUnit);
+        return NULL;
+    }
     RegLocation rlDest;
     if (longOrDouble) {
         rlDest = oatGetReturnWide(cUnit, false);
     } else {
         rlDest = oatGetReturn(cUnit, false);
     }
+    // Point of no return - no aborts after this
+    mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
+    genPrintLabel(cUnit, mir);
+    rlObj = loadArg(cUnit, rlObj);
     genIGet(cUnit, mir, size, rlDest, rlObj, longOrDouble, isObject);
     return getNextMir(cUnit, bb, mir);
 }
@@ -118,33 +181,66 @@ MIR* specialIPut(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
     int fieldOffset;
     bool isVolatile;
     uint32_t fieldIdx = mir->dalvikInsn.vC;
-    if (cUnit->numIns > 3) {
-      return NULL;  // TODO: fix register allocation for many in arguments
-    }
     bool fastPath = fastInstance(cUnit, fieldIdx, fieldOffset, isVolatile,
                                  false);
     if (!fastPath) {
         return NULL;
     }
-    mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
-    genPrintLabel(cUnit, mir);
     RegLocation rlSrc;
     RegLocation rlObj;
-    int sSreg = mir->ssaRep->uses[0];
-    int oSreg;
+    lockLiveArgs(cUnit, mir);
     if (longOrDouble) {
         rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
         rlObj = oatGetSrc(cUnit, mir, 2);
-        oSreg = mir->ssaRep->uses[2];
     } else {
         rlSrc = oatGetSrc(cUnit, mir, 0);
         rlObj = oatGetSrc(cUnit, mir, 1);
-        oSreg = mir->ssaRep->uses[1];
     }
-    rlSrc = argLoc(cUnit, rlSrc, sSreg);
-    rlObj = argLoc(cUnit, rlObj, oSreg);
+    rlSrc = argLoc(cUnit, rlSrc);
+    rlObj = argLoc(cUnit, rlObj);
+    // Reject if object reference is not "this"
+    if ((rlObj.location == kLocInvalid) ||
+        (inPosition(cUnit, rlObj.sRegLow) != 0) ||
+        (rlSrc.location == kLocInvalid)) {
+        oatResetRegPool(cUnit);
+        return NULL;
+    }
+    // Point of no return - no aborts after this
+    mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
+    genPrintLabel(cUnit, mir);
+    rlObj = loadArg(cUnit, rlObj);
+    rlSrc = loadArg(cUnit, rlSrc);
     genIPut(cUnit, mir, size, rlSrc, rlObj, longOrDouble, isObject);
     return getNextMir(cUnit, bb, mir);
+}
+
+MIR* specialIdentity(CompilationUnit* cUnit, MIR* mir)
+{
+    RegLocation rlSrc;
+    RegLocation rlDest;
+    bool wide = (mir->ssaRep->numUses == 2);
+    if (wide) {
+        rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+        rlDest = oatGetReturnWide(cUnit, false);
+    } else {
+        rlSrc = oatGetSrc(cUnit, mir, 0);
+        rlDest = oatGetReturn(cUnit, false);
+    }
+    lockLiveArgs(cUnit, mir);
+    rlSrc = argLoc(cUnit, rlSrc);
+    if (rlSrc.location == kLocInvalid) {
+        oatResetRegPool(cUnit);
+        return NULL;
+    }
+    // Point of no return - no aborts after this
+    genPrintLabel(cUnit, mir);
+    rlSrc = loadArg(cUnit, rlSrc);
+    if (wide) {
+        storeValueWide(cUnit, rlDest, rlSrc);
+    } else {
+        storeValue(cUnit, rlDest, rlSrc);
+    }
+    return mir;
 }
 
 /*
@@ -167,48 +263,53 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
            break;
        case kIGet:
            nextMir = specialIGet(cUnit, &bb, mir, kWord, false, false);
-           break;;
+           break;
        case kIGetBoolean:
        case kIGetByte:
            nextMir = specialIGet(cUnit, &bb, mir, kUnsignedByte, false, false);
-           break;;
+           break;
        case kIGetObject:
            nextMir = specialIGet(cUnit, &bb, mir, kWord, false, true);
-           break;;
+           break;
        case kIGetChar:
            nextMir = specialIGet(cUnit, &bb, mir, kUnsignedHalf, false, false);
-           break;;
+           break;
        case kIGetShort:
            nextMir = specialIGet(cUnit, &bb, mir, kSignedHalf, false, false);
-           break;;
+           break;
        case kIGetWide:
            nextMir = specialIGet(cUnit, &bb, mir, kLong, true, false);
-           break;;
+           break;
        case kIPut:
            nextMir = specialIPut(cUnit, &bb, mir, kWord, false, false);
-           break;;
+           break;
        case kIPutBoolean:
        case kIPutByte:
            nextMir = specialIPut(cUnit, &bb, mir, kUnsignedByte, false, false);
-           break;;
+           break;
        case kIPutObject:
            nextMir = specialIPut(cUnit, &bb, mir, kWord, false, true);
-           break;;
+           break;
        case kIPutChar:
            nextMir = specialIPut(cUnit, &bb, mir, kUnsignedHalf, false, false);
-           break;;
+           break;
        case kIPutShort:
            nextMir = specialIPut(cUnit, &bb, mir, kSignedHalf, false, false);
-           break;;
+           break;
        case kIPutWide:
            nextMir = specialIPut(cUnit, &bb, mir, kLong, true, false);
-           break;;
+           break;
+       case kIdentity:
+           nextMir = specialIdentity(cUnit, mir);
+           break;
        default:
            return;
    }
    if (nextMir != NULL) {
         cUnit->currentDalvikOffset = nextMir->offset;
-        genPrintLabel(cUnit, nextMir);
+        if (specialCase != kIdentity) {
+            genPrintLabel(cUnit, nextMir);
+        }
         newLIR1(cUnit, kThumbBx, rLR);
         cUnit->coreSpillMask = 0;
         cUnit->numCoreSpills = 0;
