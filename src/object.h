@@ -2508,10 +2508,16 @@ class MANAGED InterfaceEntry : public ObjectArray<Object> {
 
 class MANAGED SynthesizedProxyClass : public Class {
  public:
+  ObjectArray<Class>* GetInterfaces() {
+    return interfaces_;
+  }
+
   ObjectArray<ObjectArray<Class> >* GetThrows() {
     return throws_;
   }
+
  private:
+  ObjectArray<Class>* interfaces_;
   ObjectArray<ObjectArray<Class> >* throws_;
   DISALLOW_IMPLICIT_CONSTRUCTORS(SynthesizedProxyClass);
 };

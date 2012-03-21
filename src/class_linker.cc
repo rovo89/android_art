@@ -2166,13 +2166,21 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
 
   klass->SetDexTypeIndex(DexFile::kDexNoIndex16);
 
-  // Create static field that holds throws, instance fields are inherited
-  klass->SetSFields(AllocObjectArray<Field>(1));
-  SirtRef<Field> sfield(AllocField());
-  klass->SetStaticField(0, sfield.get());
-  sfield->SetDexFieldIndex(-1);
-  sfield->SetDeclaringClass(klass.get());
-  sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
+  // Instance fields are inherited, but we add a couple of static fields...
+  klass->SetSFields(AllocObjectArray<Field>(2));
+  // 1. Create a static field 'interfaces' that holds the _declared_ interfaces implemented by
+  // our proxy, so Class.getInterfaces doesn't return the flattened set.
+  SirtRef<Field> interfaces_sfield(AllocField());
+  klass->SetStaticField(0, interfaces_sfield.get());
+  interfaces_sfield->SetDexFieldIndex(0);
+  interfaces_sfield->SetDeclaringClass(klass.get());
+  interfaces_sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
+  // 2. Create a static field 'throws' that holds exceptions thrown by our methods.
+  SirtRef<Field> throws_sfield(AllocField());
+  klass->SetStaticField(1, throws_sfield.get());
+  throws_sfield->SetDexFieldIndex(1);
+  throws_sfield->SetDeclaringClass(klass.get());
+  throws_sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
 
   // Proxies have 1 direct method, the constructor
   klass->SetDirectMethods(AllocObjectArray<Method>(1));
@@ -2195,7 +2203,8 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
     klass->SetStatus(Class::kStatusError);
     return NULL;
   }
-  sfield->SetObject(NULL, throws);    // initialize throws field
+  interfaces_sfield->SetObject(NULL, interfaces);
+  throws_sfield->SetObject(NULL, throws);
   klass->SetStatus(Class::kStatusInitialized);
 
   // sanity checks
@@ -2211,12 +2220,17 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
       SirtRef<Method> prototype(methods->Get(i));
       CheckProxyMethod(klass->GetVirtualMethod(i), prototype);
     }
-    std::string throws_field_name("java.lang.Class[][] ");
-    throws_field_name += name->ToModifiedUtf8();
-    throws_field_name += ".throws";
-    CHECK(PrettyField(klass->GetStaticField(0)) == throws_field_name);
+
+    std::string interfaces_field_name(StringPrintf("java.lang.Class[] %s.interfaces",
+                                                   name->ToModifiedUtf8().c_str()));
+    CHECK_EQ(PrettyField(klass->GetStaticField(0)), interfaces_field_name);
+
+    std::string throws_field_name(StringPrintf("java.lang.Class[][] %s.throws",
+                                               name->ToModifiedUtf8().c_str()));
+    CHECK_EQ(PrettyField(klass->GetStaticField(1)), throws_field_name);
 
     SynthesizedProxyClass* synth_proxy_class = down_cast<SynthesizedProxyClass*>(klass.get());
+    CHECK_EQ(synth_proxy_class->GetInterfaces(), interfaces);
     CHECK_EQ(synth_proxy_class->GetThrows(), throws);
   }
   return klass.get();
