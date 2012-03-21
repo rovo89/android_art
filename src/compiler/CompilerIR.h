@@ -45,6 +45,7 @@ enum RegLocationType {
     kLocDalvikFrame = 0, // Normal Dalvik register
     kLocPhysReg,
     kLocCompilerTemp,
+    kLocInvalid
 };
 
 struct PromotionMap {
@@ -553,6 +554,7 @@ enum SpecialCaseHandler {
     kIPutChar,
     kIPutShort,
     kIPutWide,
+    kIdentity,
 };
 
 struct CodePattern {
@@ -580,6 +582,9 @@ static const CodePattern specialPatterns[] = {
     {{Instruction::IPUT_CHAR, Instruction::RETURN_VOID}, kIPutChar},
     {{Instruction::IPUT_SHORT, Instruction::RETURN_VOID}, kIPutShort},
     {{Instruction::IPUT_WIDE, Instruction::RETURN_VOID}, kIPutWide},
+    {{Instruction::RETURN}, kIdentity},
+    {{Instruction::RETURN_OBJECT}, kIdentity},
+    {{Instruction::RETURN_WIDE}, kIdentity},
 };
 
 BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId);
