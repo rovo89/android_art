@@ -118,6 +118,9 @@ MIR* specialIPut(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
     int fieldOffset;
     bool isVolatile;
     uint32_t fieldIdx = mir->dalvikInsn.vC;
+    if (cUnit->numIns > 3) {
+      return NULL;  // TODO: fix register allocation for many in arguments
+    }
     bool fastPath = fastInstance(cUnit, fieldIdx, fieldOffset, isVolatile,
                                  false);
     if (!fastPath) {
