@@ -336,6 +336,81 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           }
           break;
         }
+        case 0x20: case 0x21: case 0x22: case 0x23:  // 01xxxxx
+        case 0x24: case 0x25: case 0x26: case 0x27:
+        case 0x28: case 0x29: case 0x2A: case 0x2B:
+        case 0x2C: case 0x2D: case 0x2E: case 0x2F:
+        case 0x30: case 0x31: case 0x32: case 0x33:
+        case 0x34: case 0x35: case 0x36: case 0x37:
+        case 0x38: case 0x39: case 0x3A: case 0x3B:
+        case 0x3C: case 0x3D: case 0x3E: case 0x3F: {
+          // Data-processing (shifted register)
+          // |111|1110|0000|0|0000|1111|1100|0000|0000|
+          // |5 3|2109|8765|4|3  0|5   |10 8|7 5 |3  0|
+          // |---|----|----|-|----|----|----|----|----|
+          // |332|2222|2222|2|1111|1111|1100|0000|0000|
+          // |1 9|8765|4321|0|9  6|5   |10 8|7 5 |3  0|
+          // |---|----|----|-|----|----|----|----|----|
+          // |111|0101| op3|S| Rn |    | Rd |    | Rm |
+          uint32_t op3 = (instr >> 21) & 0xF;
+          uint32_t S = (instr >> 20) & 1;
+          uint32_t Rn = (instr >> 16) & 0xF;
+          uint32_t Rd = (instr >> 8) & 0xF;
+          uint32_t Rm = instr & 0xF;
+          switch (op3) {
+            case 0x0:
+              if (Rn != 0xF) {
+                opcode << "and";
+              } else {
+                opcode << "tst";
+                S = 0;  // don't print 's'
+              }
+              break;
+            case 0x1: opcode << "bic"; break;
+            case 0x2:
+              if (Rn != 0xF) {
+                opcode << "orr";
+              } else {
+                opcode << "mov";
+              }
+              break;
+            case 0x3:
+              if (Rn != 0xF) {
+                opcode << "orn";
+              } else {
+                opcode << "mvn";
+              }
+              break;
+            case 0x4:
+              if (Rn != 0xF) {
+                opcode << "eor";
+              } else {
+                opcode << "teq";
+                S = 0;  // don't print 's'
+              }
+              break;
+            case 0x6: opcode << "pkh"; break;
+            case 0x8:
+              if (Rn != 0xF) {
+                opcode << "add";
+              } else {
+                opcode << "cmn";
+                S = 0;  // don't print 's'
+              }
+              break;
+            case 0xA: opcode << "adc"; break;
+            case 0xB: opcode << "sbc"; break;
+          }
+
+          if (S == 1) {
+            opcode << "s";
+          }
+          opcode << ".w";
+          DumpReg(args, Rd);
+          args << ", ";
+          DumpReg(args, Rm);
+          break;
+        }
         default:
           break;
       }
@@ -503,10 +578,36 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           // |1 9|87|654|321|0|9  6|5  2|10   6|5    0|
           // |---|--|---|---|-|----|----|------|------|
           // |111|11|000|op3|0|    |    |  op4 |      |
-
           uint32_t op3 = (instr >> 21) & 7;
           //uint32_t op4 = (instr >> 6) & 0x3F;
           switch (op3) {
+            case 0x0: case 0x4: {
+              // STRB Rt,[Rn,#+/-imm8]     - 111 11 00 0 0 00 0 nnnn tttt 1 PUWii ii iiii
+              // STRB Rt,[Rn,Rm,lsl #imm2] - 111 11 00 0 0 00 0 nnnn tttt 0 00000 ii mmmm
+              uint32_t Rn = (instr >> 16) & 0xF;
+              uint32_t Rt = (instr >> 12) & 0xF;
+              opcode << "strb";
+              if ((instr & 0x800) != 0) {
+                uint32_t imm8 = instr & 0xFF;
+                DumpReg(args, Rt);
+                args << ", [";
+                DumpReg(args, Rn);
+                args << ",#" << imm8 << "]";
+              } else {
+                uint32_t imm2 = (instr >> 4) & 3;
+                uint32_t Rm = instr & 0xF;
+                DumpReg(args, Rt);
+                args << ", [";
+                DumpReg(args, Rn);
+                args << ", ";
+                DumpReg(args, Rm);
+                if (imm2 != 0) {
+                  args << ", " << "lsl #" << imm2;
+                }
+                args << "]";
+              }
+              break;
+            }
             case 0x2: case 0x6: {
               // STR.W Rt, [Rn, #imm12] - 111 11 000 110 0 nnnn tttt iiiiiiiiiiii
               // STR Rt, [Rn, #imm8]    - 111 11 000 010 0 nnnn tttt 1PUWiiiiiiii
@@ -776,6 +877,20 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
             opcode << "sub";
           }
           args << "sp, sp, #" << (imm7 << 2);
+          break;
+        }
+        case 0x08: case 0x09: case 0x0A: case 0x0B:  // 0001xxx
+        case 0x0C: case 0x0D: case 0x0E: case 0x0F: {
+          // CBNZ, CBZ
+          uint16_t op = (instr >> 11) & 1;
+          uint16_t i = (instr >> 9) & 1;
+          uint16_t imm5 = (instr >> 3) & 0x1F;
+          uint16_t Rn = instr & 7;
+          opcode << (op != 0 ? "cbnz" : "cbz");
+          uint32_t imm32 = (i << 7) | (imm5 << 1);
+          DumpReg(args, Rn);
+          args << ", ";
+          DumpBranchTarget(args, instr_ptr + 4, imm32);
           break;
         }
         case 0x78: case 0x79: case 0x7A: case 0x7B:  // 1111xxx
