@@ -767,19 +767,16 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
         bool can_sharpen = type == kVirtual && (resolved_method->IsFinal() ||
                                                 methods_class->IsFinal());
         // ensure the vtable index will be correct to dispatch in the vtable of the super class
-        can_sharpen = can_sharpen || (type == kSuper &&
+        can_sharpen = can_sharpen || (type == kSuper && referrer_class != methods_class &&
                                       referrer_class->IsSubClass(methods_class) &&
-                                      vtable_idx < methods_class->GetVTable()->GetLength());
+                                      vtable_idx < methods_class->GetVTable()->GetLength() &&
+                                      methods_class->GetVTable()->Get(vtable_idx) == resolved_method);
         if (kEnableSharpening && can_sharpen) {
           stats_->ResolvedMethod(type);
           // Sharpen a virtual call into a direct call. The method_idx is into referrer's
           // dex cache, check that this resolved method is where we expect it.
           CHECK(referrer_class->GetDexCache()->GetResolvedMethod(method_idx) == resolved_method)
             << PrettyMethod(resolved_method);
-          if (type == kSuper) {
-            CHECK(methods_class->GetVTable()->Get(vtable_idx) == resolved_method)
-              << PrettyMethod(resolved_method);
-          }
           stats_->VirtualMadeDirect(type);
           GetCodeAndMethodForDirectCall(type, kDirect, resolved_method, direct_code, direct_method);
           type = kDirect;
