@@ -86,14 +86,15 @@ String* InternTable::Insert(String* s, bool is_strong) {
   uint32_t hash_code = s->GetHashCode();
 
   if (is_strong) {
-    // Check the strong tables for a match.
+    // Check the strong table for a match.
     String* strong = Lookup(strong_interns_, s, hash_code);
     if (strong != NULL) {
       return strong;
     }
-    strong = Lookup(image_strong_interns_, s, hash_code);
-    if (strong != NULL) {
-      return strong;
+    // Check the image table for a match.
+    String* image = Lookup(image_strong_interns_, s, hash_code);
+    if (image != NULL) {
+      return image;
     }
 
     // There is no match in the strong table, check the weak table.
@@ -112,6 +113,11 @@ String* InternTable::Insert(String* s, bool is_strong) {
   String* strong = Lookup(strong_interns_, s, hash_code);
   if (strong != NULL) {
     return strong;
+  }
+  // Check the image table for a match.
+  String* image = Lookup(image_strong_interns_, s, hash_code);
+  if (image != NULL) {
+    return image;
   }
   // Check the weak table for a match.
   String* weak = Lookup(weak_interns_, s, hash_code);
