@@ -70,45 +70,6 @@ static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
   return countDiff;
 }
 
-static jboolean String_equals(JNIEnv* env, jobject javaThis, jobject javaRhs) {
-  String* lhs = Decode<String*>(env, javaThis);
-  String* rhs = Decode<String*>(env, javaRhs);
-
-  // Quick test for comparison of a string with itself.
-  if (lhs == rhs) {
-    return JNI_TRUE;
-  }
-
-  // if (!(rhs instanceof String)) return false.
-  if (rhs == NULL || lhs->GetClass() != rhs->GetClass()) {
-    return JNI_FALSE;
-  }
-
-  // Quick length check.
-  int lhsCount = lhs->GetLength();
-  int rhsCount = rhs->GetLength();
-  if (lhsCount != rhsCount) {
-    return JNI_FALSE;
-  }
-
-  // You may, at this point, be tempted to pull out the hashCode fields
-  // and compare them.  If both fields have been initialized, and they
-  // are not equal, we can return false immediately.
-  //
-  // However, the hashCode field is often not set.  If it is set,
-  // there's an excellent chance that the String is being used as a key
-  // in a hashed data structure (e.g. HashMap).  That data structure has
-  // already made the comparison and determined that the hashes are equal,
-  // making a check here redundant.
-  //
-  // It's not clear that checking the hashes will be a win in "typical"
-  // use cases.  We err on the side of simplicity and ignore them.
-
-  const uint16_t* lhsChars = lhs->GetCharArray()->GetData() + lhs->GetOffset();
-  const uint16_t* rhsChars = rhs->GetCharArray()->GetData() + rhs->GetOffset();
-  return (MemCmp16(lhsChars, rhsChars, lhsCount) == 0) ? JNI_TRUE : JNI_FALSE;
-}
-
 /*
  * public int indexOf(int c, int start)
  *
@@ -154,7 +115,6 @@ static jstring String_intern(JNIEnv* env, jobject javaThis) {
 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(String, compareTo, "(Ljava/lang/String;)I"),
-  NATIVE_METHOD(String, equals, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(String, fastIndexOf, "(II)I"),
   NATIVE_METHOD(String, intern, "()Ljava/lang/String;"),
 };
