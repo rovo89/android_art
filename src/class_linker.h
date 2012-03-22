@@ -277,7 +277,8 @@ class ClassLinker {
   ObjectArray<StackTraceElement>* AllocStackTraceElementArray(size_t length);
 
   void VerifyClass(Class* klass);
-  bool VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass);
+  bool VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass,
+                               Class::Status& oat_file_class_status);
   void ResolveClassExceptionHandlerTypes(const DexFile& dex_file, Class* klass);
   void ResolveMethodExceptionHandlerTypes(const DexFile& dex_file, Method* klass);
 

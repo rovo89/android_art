@@ -2037,10 +2037,16 @@ void ClassLinker::VerifyClass(Class* klass) {
     }
   }
 
-  // Try to use verification information from oat file, otherwise do runtime verification
+  // Try to use verification information from the oat file, otherwise do runtime verification.
   const DexFile& dex_file = FindDexFile(klass->GetDexCache());
-  if (VerifyClassUsingOatFile(dex_file, klass) ||
-      verifier::DexVerifier::VerifyClass(klass, error_msg)) {
+  Class::Status oat_file_class_status(Class::kStatusNotReady);
+  bool preverified = VerifyClassUsingOatFile(dex_file, klass, oat_file_class_status);
+  bool verified = preverified || verifier::DexVerifier::VerifyClass(klass, error_msg);
+  if (verified) {
+    if (!preverified && oat_file_class_status == Class::kStatusError) {
+      LOG(FATAL) << "Verification failed hard on class " << PrettyDescriptor(klass)
+                 << " at compile time, but succeeded at runtime! The verifier must be broken.";
+    }
     DCHECK(!Thread::Current()->IsExceptionPending());
     // Make sure all classes referenced by catch blocks are resolved
     ResolveClassExceptionHandlerTypes(dex_file, klass);
@@ -2059,7 +2065,8 @@ void ClassLinker::VerifyClass(Class* klass) {
   }
 }
 
-bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass) {
+bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass,
+                                          Class::Status& oat_file_class_status) {
   if (!Runtime::Current()->IsStarted()) {
     return false;
   }
@@ -2077,11 +2084,11 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass)
   UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(class_def_index));
   CHECK(oat_class.get() != NULL)
           << dex_file.GetLocation() << " " << PrettyClass(klass) << " " << descriptor;
-  Class::Status status = oat_class->GetStatus();
-  if (status == Class::kStatusVerified || status == Class::kStatusInitialized) {
+  oat_file_class_status = oat_class->GetStatus();
+  if (oat_file_class_status == Class::kStatusVerified || oat_file_class_status == Class::kStatusInitialized) {
     return true;
   }
-  if (status == Class::kStatusError) {
+  if (oat_file_class_status == Class::kStatusError) {
     // Compile time verification failed. Compile time verification can fail because we have
     // incomplete type information. Consider the following:
     // class ... {
@@ -2101,14 +2108,14 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass)
     // at compile time).
     return false;
   }
-  if (status == Class::kStatusNotReady) {
+  if (oat_file_class_status == Class::kStatusNotReady) {
     // Status is uninitialized if we couldn't determine the status at compile time, for example,
     // not loading the class.
     // TODO: when the verifier doesn't rely on Class-es failing to resolve/load the type hierarchy
     // isn't a problem and this case shouldn't occur
     return false;
   }
-  LOG(FATAL) << "Unexpected class status: " << status
+  LOG(FATAL) << "Unexpected class status: " << oat_file_class_status
              << " " << dex_file.GetLocation() << " " << PrettyClass(klass) << " " << descriptor;
 
   return false;
@@ -2610,9 +2617,6 @@ bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit) {
 }
 
 bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit) {
-  if (PrettyClass(c).find("TestClass") != std::string::npos) {
-    LOG(INFO) << "ClassLinker::EnsureInitialized " << PrettyClass(c);
-  }
   CHECK(c != NULL);
   if (c->IsInitialized()) {
     return true;
