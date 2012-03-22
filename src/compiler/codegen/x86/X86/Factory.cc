@@ -147,6 +147,7 @@ LIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc) {
 LIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int value) {
   X86OpCode opcode = kX86Bkpt;
   bool byteImm = IS_SIMM8(value);
+  DCHECK(!FPREG(rDestSrc1));
   switch (op) {
     case kOpLsl: opcode = kX86Sal32RI; break;
     case kOpLsr: opcode = kX86Shr32RI; break;
@@ -159,15 +160,7 @@ LIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int value) {
     case kOpSub: opcode = byteImm ? kX86Sub32RI8 : kX86Sub32RI; break;
     case kOpXor: opcode = byteImm ? kX86Xor32RI8 : kX86Xor32RI; break;
     case kOpCmp: opcode = byteImm ? kX86Cmp32RI8 : kX86Cmp32RI; break;
-    case kOpMov: {
-      if (value == 0) {  // turn "mov reg, 0" into "xor reg, reg"
-        opcode = kX86Xor32RR;
-        value = rDestSrc1;
-      } else {
-        opcode = kX86Mov32RI;
-      }
-      break;
-    }
+    case kOpMov: return loadConstantNoClobber(cUnit, rDestSrc1, value);
     case kOpMul:
       opcode = byteImm ? kX86Imul32RRI8 : kX86Imul32RRI;
       return newLIR3(cUnit, opcode, rDestSrc1, rDestSrc1, value);
@@ -410,59 +403,6 @@ LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
 #endif
 }
 
-/* store value base base + scaled index. */
-LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
-                                int rIndex, int rSrc, int scale, OpSize size)
-{
-    UNIMPLEMENTED(WARNING) << "storeBaseIndexed";
-    return NULL;
-#if 0
-    LIR *first = NULL;
-    LIR *res;
-    X86OpCode opcode = kX86Nop;
-    int rNewIndex = rIndex;
-    int tReg = oatAllocTemp(cUnit);
-
-    if (FPREG(rSrc)) {
-        DCHECK(SINGLEREG(rSrc));
-        DCHECK((size == kWord) || (size == kSingle));
-        size = kSingle;
-    } else {
-        if (size == kSingle)
-            size = kWord;
-    }
-
-    if (!scale) {
-        first = newLIR3(cUnit, kX86Addu, tReg , rBase, rIndex);
-    } else {
-        first = opRegRegImm(cUnit, kOpLsl, tReg, rIndex, scale);
-        newLIR3(cUnit, kX86Addu, tReg , rBase, tReg);
-    }
-
-    switch (size) {
-        case kSingle:
-            opcode = kX86Fswc1;
-            break;
-        case kWord:
-            opcode = kX86Sw;
-            break;
-        case kUnsignedHalf:
-        case kSignedHalf:
-            opcode = kX86Sh;
-            break;
-        case kUnsignedByte:
-        case kSignedByte:
-            opcode = kX86Sb;
-            break;
-        default:
-            LOG(FATAL) << "Bad case in storeBaseIndexed";
-    }
-    res = newLIR3(cUnit, opcode, rSrc, 0, tReg);
-    oatFreeTemp(cUnit, rNewIndex);
-    return first;
-#endif
-}
-
 LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
     UNIMPLEMENTED(WARNING) << "loadMultiple";
@@ -684,6 +624,14 @@ LIR* storeBaseIndexedDisp(CompilationUnit *cUnit, MIR *mir,
   }
 
   return store;
+}
+
+/* store value base base + scaled index. */
+LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase, int rIndex, int rSrc, int scale,
+                      OpSize size)
+{
+  return storeBaseIndexedDisp(cUnit, NULL, rBase, rIndex, scale, 0,
+                              rSrc, INVALID_REG, size, INVALID_SREG);
 }
 
 LIR *storeBaseDisp(CompilationUnit *cUnit, int rBase, int displacement, int rSrc, OpSize size) {

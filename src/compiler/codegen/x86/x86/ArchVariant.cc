@@ -49,13 +49,11 @@ int dvmCompilerTargetOptHint(int key)
     return res;
 }
 
-void oatGenMemBarrier(CompilationUnit *cUnit, int barrierKind)
+void oatGenMemBarrier(CompilationUnit *cUnit, int /* barrierKind */)
 {
 #if ANDROID_SMP != 0
-    UNIMPLEMENTED(WARNING) << "oatGenMemBarrier";
-#if 0
-    newLIR1(cUnit, kX86Sync, barrierKind);
-#endif
+    // TODO: optimize fences
+    newLIR0(cUnit, kX86Mfence);
 #endif
 }
 

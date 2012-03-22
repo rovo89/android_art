@@ -122,6 +122,11 @@ void Thread::InitFunctionPointers() {
   pDdiv = __aeabi_ddiv;
   pDmul = __aeabi_dmul;
   pFmod = fmod;
+  pLadd = NULL;
+  pLsub = NULL;
+  pLand = NULL;
+  pLor = NULL;
+  pLxor = NULL;
   pLdivmod = __aeabi_ldivmod;
   pLmul = __aeabi_lmul;
   pAllocArrayFromCode = art_alloc_array_from_code;
@@ -190,6 +195,11 @@ void Thread::InitFunctionPointers() {
   pDdiv = NULL;
   pDmul = NULL;
   pFmod = NULL;
+  pLadd = NULL;
+  pLsub = NULL;
+  pLand = NULL;
+  pLor = NULL;
+  pLxor = NULL;
   pLdivmod = NULL;
   pLmul = NULL;
   pAllocArrayFromCode = NULL;
