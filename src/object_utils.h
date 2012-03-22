@@ -249,32 +249,28 @@ class FieldHelper {
   }
   const char* GetName() {
     uint32_t field_index = field_->GetDexFieldIndex();
-    if (field_index != DexFile::kDexNoIndex) {
+    if (!field_->GetDeclaringClass()->IsProxyClass()) {
       const DexFile& dex_file = GetDexFile();
       return dex_file.GetFieldName(dex_file.GetFieldId(field_index));
     } else {
-      // Proxy classes have a single static field called "throws"
-      CHECK(field_->GetDeclaringClass()->IsProxyClass());
       DCHECK(field_->IsStatic());
-      return "throws";
+      DCHECK_LT(field_index, 2U);
+      return field_index == 0 ? "interfaces" : "throws";
     }
   }
   String* GetNameAsString() {
     uint32_t field_index = field_->GetDexFieldIndex();
-    if (field_index != DexFile::kDexNoIndex) {
+    if (!field_->GetDeclaringClass()->IsProxyClass()) {
       const DexFile& dex_file = GetDexFile();
       const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
       return GetClassLinker()->ResolveString(dex_file, field_id.name_idx_, GetDexCache());
     } else {
-      // Proxy classes have a single static field called "throws"
-      CHECK(field_->GetDeclaringClass()->IsProxyClass());
-      DCHECK(field_->IsStatic());
-      return Runtime::Current()->GetInternTable()->InternStrong("throws");
+      return Runtime::Current()->GetInternTable()->InternStrong(GetName());
     }
   }
   Class* GetType() {
     uint32_t field_index = field_->GetDexFieldIndex();
-    if (field_index != DexFile::kDexNoIndex) {
+    if (!field_->GetDeclaringClass()->IsProxyClass()) {
       const DexFile& dex_file = GetDexFile();
       const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
       Class* type = GetDexCache()->GetResolvedType(field_id.type_idx_);
@@ -284,23 +280,20 @@ class FieldHelper {
       }
       return type;
     } else {
-      // Proxy classes have a single static field called "throws" whose type is Class[][]
-      CHECK(field_->GetDeclaringClass()->IsProxyClass());
-      DCHECK(field_->IsStatic());
-      return GetClassLinker()->FindSystemClass("[[Ljava/lang/Class;");
+      return GetClassLinker()->FindSystemClass(GetTypeDescriptor());
     }
   }
   const char* GetTypeDescriptor() {
     uint32_t field_index = field_->GetDexFieldIndex();
-    if (field_index != DexFile::kDexNoIndex) {
+    if (!field_->GetDeclaringClass()->IsProxyClass()) {
       const DexFile& dex_file = GetDexFile();
       const DexFile::FieldId& field_id = dex_file.GetFieldId(field_index);
       return dex_file.GetFieldTypeDescriptor(field_id);
     } else {
-      // Proxy classes have a single static field called "throws" whose type is Class[][]
-      CHECK(field_->GetDeclaringClass()->IsProxyClass());
       DCHECK(field_->IsStatic());
-      return "[[Ljava/lang/Class;";
+      DCHECK_LT(field_index, 2U);
+      // 0 == Class[] interfaces; 1 == Class[][] throws;
+      return field_index == 0 ? "[Ljava/lang/Class;" : "[[Ljava/lang/Class;";
     }
   }
   Primitive::Type GetTypeAsPrimitiveType() {

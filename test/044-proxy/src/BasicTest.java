@@ -80,6 +80,8 @@ public class BasicTest {
             return o1.getReturnType().getName().compareTo(o2.getReturnType().getName());
           }
         });
+        System.out.println("Proxy interfaces: " +
+            Arrays.deepToString(proxy.getClass().getInterfaces()));
         System.out.println("Proxy methods: " + Arrays.deepToString(methods));
         Method meth = methods[methods.length -1];
         System.out.println("Decl annos: " + Arrays.deepToString(meth.getDeclaredAnnotations()));
