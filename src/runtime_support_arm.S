@@ -175,7 +175,7 @@ art_throw_verification_error_from_code:
      * as usual - except instead of loading arg0/r0 with the target Method*, arg0/r0 will contain
      * the method_idx.  This wrapper will save arg1-arg3, load the caller's Method*, align the
      * stack and call the appropriate C helper.
-     * NOTE: "this" is first visable argument of the target, and so can be found in arg1/r1.
+     * NOTE: "this" is first visible argument of the target, and so can be found in arg1/r1.
      *
      * The helper will attempt to locate the target and return a 64-bit result in r0/r1 consisting
      * of the target Method* in r0 and method->code_ in r1.
@@ -195,7 +195,7 @@ art_throw_verification_error_from_code:
     mov    r3, r9                         @ pass Thread::Current
     str    sp, [sp, #0]                   @ pass SP
     bl     \cxx_name                      @ (method_idx, this, caller, Thread*, SP)
-    mov    r12, r1                        @ save r0->code_
+    mov    r12, r1                        @ save Method*->code_
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     cmp    r0, #0                         @ did we find the target?
     bxne   r12                            @ tail call to target if so

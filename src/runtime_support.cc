@@ -1013,6 +1013,9 @@ static uint64_t artInvokeCommon(uint32_t method_idx, Object* this_object, Method
   DCHECK(!self->IsExceptionPending());
   const void* code = method->GetCode();
 
+  // When we return, the caller will branch to this address, so it had better not be 0!
+  CHECK(code != NULL) << PrettyMethod(method);
+
   uint32_t method_uint = reinterpret_cast<uint32_t>(method);
   uint64_t code_uint = reinterpret_cast<uint32_t>(code);
   uint64_t result = ((code_uint << 32) | method_uint);
