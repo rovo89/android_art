@@ -1164,7 +1164,10 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
   // reset index, will index into param type array which doesn't include the receiver
   param_index = 0;
   ObjectArray<Class>* param_types = proxy_mh.GetParameterTypes();
-  DCHECK(param_types != NULL);
+  if (param_types == NULL) {
+    CHECK(self->IsExceptionPending());
+    return;
+  }
   // Check number of parameter types agrees with number from the Method - less 1 for the receiver.
   DCHECK_EQ(static_cast<size_t>(param_types->GetLength()), num_params - 1);
   while (cur_arg < args_in_regs && param_index < (num_params - 1)) {
