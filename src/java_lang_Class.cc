@@ -136,9 +136,15 @@ static jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass javaClass, jbool
   }
 
   std::vector<Field*> fields;
+  FieldHelper fh;
   for (size_t i = 0; i < c->NumInstanceFields(); ++i) {
     Field* f = c->GetInstanceField(i);
+    fh.ChangeField(f);
     if (IsVisibleField(f, publicOnly)) {
+      if (fh.GetType() == NULL) {
+        DCHECK(env->ExceptionOccurred());
+        return NULL;
+      }
       fields.push_back(f);
     }
     if (env->ExceptionOccurred()) {
@@ -147,7 +153,12 @@ static jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass javaClass, jbool
   }
   for (size_t i = 0; i < c->NumStaticFields(); ++i) {
     Field* f = c->GetStaticField(i);
+    fh.ChangeField(f);
     if (IsVisibleField(f, publicOnly)) {
+      if (fh.GetType() == NULL) {
+        DCHECK(env->ExceptionOccurred());
+        return NULL;
+      }
       fields.push_back(f);
     }
     if (env->ExceptionOccurred()) {
@@ -172,15 +183,22 @@ static bool IsVisibleMethod(Method* m, bool public_only) {
 }
 
 static jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Class* c = DecodeInitializedClass(env, javaClass);
   if (c == NULL) {
     return NULL;
   }
 
   std::vector<Method*> methods;
+  MethodHelper mh;
   for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
     Method* m = c->GetVirtualMethod(i);
+    mh.ChangeMethod(m);
     if (IsVisibleMethod(m, publicOnly)) {
+      if (mh.GetReturnType() == NULL || mh.GetParameterTypes() == NULL) {
+        DCHECK(env->ExceptionOccurred());
+        return NULL;
+      }
       methods.push_back(m);
     }
     if (env->ExceptionOccurred()) {
@@ -189,7 +207,12 @@ static jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboo
   }
   for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
     Method* m = c->GetDirectMethod(i);
+    mh.ChangeMethod(m);
     if (IsVisibleMethod(m, publicOnly)) {
+      if (mh.GetReturnType() == NULL || mh.GetParameterTypes() == NULL) {
+        DCHECK(env->ExceptionOccurred());
+        return NULL;
+      }
       methods.push_back(m);
     }
     if (env->ExceptionOccurred()) {
@@ -281,6 +304,7 @@ static jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClas
 }
 
 static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass java_class, jobject jname) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Class* c = DecodeInitializedClass(env, java_class);
   if (c == NULL) {
     return NULL;
@@ -294,6 +318,10 @@ static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass java_class, jobj
     Field* f = c->GetInstanceField(i);
     fh.ChangeField(f);
     if (name->Equals(fh.GetName())) {
+      if (fh.GetType() == NULL) {
+        DCHECK(env->ExceptionOccurred());
+        return NULL;
+      }
       return AddLocalReference<jclass>(env, f);
     }
   }
@@ -301,6 +329,10 @@ static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass java_class, jobj
     Field* f = c->GetStaticField(i);
     fh.ChangeField(f);
     if (name->Equals(fh.GetName())) {
+      if (fh.GetType() == NULL) {
+        DCHECK(env->ExceptionOccurred());
+        return NULL;
+      }
       return AddLocalReference<jclass>(env, f);
     }
   }

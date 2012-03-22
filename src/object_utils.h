@@ -456,6 +456,10 @@ class MethodHelper {
     ObjectArray<Class>* result = ObjectArray<Class>::Alloc(array_class, num_params);
     for (uint32_t i = 0; i < num_params; i++) {
       Class* param_type = GetClassFromTypeIdx(params->GetTypeItem(i).type_idx_);
+      if (param_type == NULL) {
+        DCHECK(Thread::Current()->IsExceptionPending());
+        return NULL;
+      }
       result->Set(i, param_type);
     }
     return result;
