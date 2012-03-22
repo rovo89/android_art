@@ -637,6 +637,9 @@ void genSput(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
             rBase = oatAllocTemp(cUnit);
             loadWordDisp(cUnit, rlMethod.lowReg,
                          Method::DeclaringClassOffset().Int32Value(), rBase);
+            if (oatIsTemp(cUnit, rlMethod.lowReg)) {
+                oatFreeTemp(cUnit, rlMethod.lowReg);
+            }
         } else {
             // Medium path, static storage base in a different class which
             // requires checks that the other class is initialized.
@@ -1412,6 +1415,9 @@ void genArrayObjPut(CompilationUnit* cUnit, MIR* mir, RegLocation rlArray,
     storeBaseIndexedDisp(cUnit, NULL, rlArray.lowReg, rlIndex.lowReg, scale,
                          dataOffset, rlSrc.lowReg, INVALID_REG, kWord,
                          INVALID_SREG);
+    if (oatIsTemp(cUnit, rlIndex.lowReg)) {
+        oatFreeTemp(cUnit, rlIndex.lowReg);
+    }
 #else
     int regPtr;
     if (oatIsTemp(cUnit, rlArray.lowReg)) {
@@ -1582,7 +1588,11 @@ void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
         genRegMemCheck(cUnit, kCondUge, rlIndex.lowReg, rlArray.lowReg,
                        lenOffset, mir, kThrowArrayBounds);
     }
-    rlSrc = loadValue(cUnit, rlSrc, regClass);
+    if ((size == kLong) || (size == kDouble)) {
+      rlSrc = loadValueWide(cUnit, rlSrc, regClass);
+    } else {
+      rlSrc = loadValue(cUnit, rlSrc, regClass);
+    }
     storeBaseIndexedDisp(cUnit, NULL, rlArray.lowReg, rlIndex.lowReg, scale, dataOffset,
                          rlSrc.lowReg, rlSrc.highReg, size, INVALID_SREG);
 #else
@@ -2136,6 +2146,10 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         case Instruction::ADD_LONG_2ADDR:
 #if defined(TARGET_MIPS)
             return genAddLong(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+#elif defined(TARGET_X86)
+            callOut = true;
+            retReg = rRET0;
+            funcOffset = OFFSETOF_MEMBER(Thread, pLadd);
 #else
             firstOp = kOpAdd;
             secondOp = kOpAdc;
@@ -2145,11 +2159,14 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         case Instruction::SUB_LONG_2ADDR:
 #if defined(TARGET_MIPS)
             return genSubLong(cUnit, mir, rlDest, rlSrc1, rlSrc2);
-#else
+#elif defined(TARGET_X86)
+            callOut = true;
+            retReg = rRET0;
+            funcOffset = OFFSETOF_MEMBER(Thread, pLsub);
+#endif
             firstOp = kOpSub;
             secondOp = kOpSbc;
             break;
-#endif
         case Instruction::MUL_LONG:
         case Instruction::MUL_LONG_2ADDR:
             callOut = true;
@@ -2174,16 +2191,31 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             break;
         case Instruction::AND_LONG_2ADDR:
         case Instruction::AND_LONG:
+#if defined(TARGET_X86)
+            callOut = true;
+            retReg = rRET0;
+            funcOffset = OFFSETOF_MEMBER(Thread, pLand);
+#endif
             firstOp = kOpAnd;
             secondOp = kOpAnd;
             break;
         case Instruction::OR_LONG:
         case Instruction::OR_LONG_2ADDR:
+#if defined(TARGET_X86)
+            callOut = true;
+            retReg = rRET0;
+            funcOffset = OFFSETOF_MEMBER(Thread, pLor);
+#endif
             firstOp = kOpOr;
             secondOp = kOpOr;
             break;
         case Instruction::XOR_LONG:
         case Instruction::XOR_LONG_2ADDR:
+#if defined(TARGET_X86)
+            callOut = true;
+            retReg = rRET0;
+            funcOffset = OFFSETOF_MEMBER(Thread, pLxor);
+#endif
             firstOp = kOpXor;
             secondOp = kOpXor;
             break;
@@ -2198,30 +2230,26 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     } else {
         oatFlushAllRegs(cUnit);   /* Send everything to home location */
         if (checkZero) {
-#if defined(TARGET_X86)
-            UNIMPLEMENTED(FATAL);
-#else
             loadValueDirectWideFixed(cUnit, rlSrc2, rARG2, rARG3);
+#if !defined(TARGET_X86)
             int rTgt = loadHelper(cUnit, funcOffset);
 #endif
-            loadValueDirectWideFixed(cUnit, rlSrc1, rARG0, rARG1);
             int tReg = oatAllocTemp(cUnit);
 #if defined(TARGET_ARM)
             newLIR4(cUnit, kThumb2OrrRRRs, tReg, rARG2, rARG3, 0);
             oatFreeTemp(cUnit, tReg);
             genCheck(cUnit, kCondEq, mir, kThrowDivZero);
 #else
-#if defined(TARGET_X86)
-            UNIMPLEMENTED(FATAL);
-#else
             opRegRegReg(cUnit, kOpOr, tReg, rARG2, rARG3);
 #endif
             genImmedCheck(cUnit, kCondEq, tReg, 0, mir, kThrowDivZero);
             oatFreeTemp(cUnit, tReg);
-#endif
+            loadValueDirectWideFixed(cUnit, rlSrc1, rARG0, rARG1);
 #if !defined(TARGET_X86)
             opReg(cUnit, kOpBlx, rTgt);
             oatFreeTemp(cUnit, rTgt);
+#else
+            opThreadMem(cUnit, kOpBlx, funcOffset);
 #endif
         } else {
             callRuntimeHelperRegLocationRegLocation(cUnit, funcOffset,

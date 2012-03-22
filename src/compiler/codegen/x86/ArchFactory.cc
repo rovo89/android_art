@@ -24,42 +24,6 @@
 
 namespace art {
 
-bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
-                RegLocation rlSrc1, RegLocation rlSrc2)
-{
-    rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
-    rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
-    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    /*
-     *  [v1 v0] =  [a1 a0] + [a3 a2];
-     *    add v0,a2,a0
-     *    adc v1,a3,a1
-     */
-
-    opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc2.lowReg, rlSrc1.lowReg);
-    opRegRegReg(cUnit, kOpAdc, rlResult.highReg, rlSrc2.highReg, rlSrc1.highReg);
-    storeValueWide(cUnit, rlDest, rlResult);
-    return false;
-}
-
-bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
-                RegLocation rlSrc1, RegLocation rlSrc2)
-{
-    rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
-    rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
-    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    /*
-     *  [v1 v0] =  [a1 a0] - [a3 a2];
-     *    sub    v0,a0,a2
-     *    sbb    v1,a1,a3
-     */
-
-    opRegRegReg(cUnit, kOpSub, rlResult.lowReg, rlSrc1.lowReg, rlSrc2.lowReg);
-    opRegRegReg(cUnit, kOpSbc, rlResult.highReg, rlSrc1.highReg, rlSrc2.highReg);
-    storeValueWide(cUnit, rlDest, rlResult);
-    return false;
-}
-
 bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                 RegLocation rlSrc)
 {

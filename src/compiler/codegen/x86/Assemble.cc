@@ -279,6 +279,10 @@ ENCODING_MAP(Cmp, IS_LOAD,
   { kX86Set8M, kMemCond,   IS_STORE | IS_TERTIARY_OP, { 0, 0, 0x0F, 0x90, 0, 0, 0, 0 }, "Set8M", "!2c [!0r+!1d]" },
   { kX86Set8A, kArrayCond, IS_STORE | IS_QUIN_OP,     { 0, 0, 0x0F, 0x90, 0, 0, 0, 0 }, "Set8A", "!4c [!0r+!1r<<!2d+!3d]" },
 
+  // TODO: load/store?
+  // Encode the modrm opcode as an extra opcode byte to avoid computation during assembly.
+  { kX86Mfence, kReg,                 NO_OPERAND,     { 0, 0, 0x0F, 0xAE, 0, 6, 0, 0 }, "Mfence", "" },
+
   EXT_0F_ENCODING_MAP(Imul16,  0x66, 0xAF),
   EXT_0F_ENCODING_MAP(Imul32,  0x00, 0xAF),
   EXT_0F_ENCODING_MAP(Movzx8,  0x00, 0xB6),
@@ -945,11 +949,11 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
+  const bool kVerbosePcFixup = false;
   for (lir = (LIR *) cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
     if (lir->opcode < 0) {
       continue;
     }
-
 
     if (lir->flags.isNop) {
       continue;
@@ -970,8 +974,10 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
           intptr_t target = targetLIR->offset;
           delta = target - pc;
           if (IS_SIMM8(delta) != IS_SIMM8(lir->operands[0])) {
-            LOG(INFO) << "Retry for JCC growth at " << lir->offset
-                << " delta: " << delta << " old delta: " << lir->operands[0];
+            if (kVerbosePcFixup) {
+              LOG(INFO) << "Retry for JCC growth at " << lir->offset
+                  << " delta: " << delta << " old delta: " << lir->operands[0];
+            }
             lir->opcode = kX86Jcc32;
             oatSetupResourceMasks(lir);
             res = kRetryAll;
@@ -994,10 +1000,14 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
           if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) && lir->operands[0] == 0) {
             // Useless branch
             lir->flags.isNop = true;
-            LOG(INFO) << "Retry for useless branch at " << lir->offset;
+            if (kVerbosePcFixup) {
+              LOG(INFO) << "Retry for useless branch at " << lir->offset;
+            }
             res = kRetryAll;
           } else if (IS_SIMM8(delta) != IS_SIMM8(lir->operands[0])) {
-            LOG(INFO) << "Retry for JMP growth at " << lir->offset;
+            if (kVerbosePcFixup) {
+              LOG(INFO) << "Retry for JMP growth at " << lir->offset;
+            }
             lir->opcode = kX86Jmp32;
             oatSetupResourceMasks(lir);
             res = kRetryAll;
@@ -1028,8 +1038,14 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
         DCHECK_EQ(0, entry->skeleton.prefix1);
         DCHECK_EQ(0, entry->skeleton.prefix2);
         cUnit->codeBuffer.push_back(entry->skeleton.opcode);
-        DCHECK_EQ(0, entry->skeleton.extra_opcode1);
-        DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+        if (entry->skeleton.extra_opcode1 != 0) {
+          cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode1);
+          if (entry->skeleton.extra_opcode2 != 0) {
+            cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode2);
+          }
+        } else {
+          DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+        }
         DCHECK_EQ(0, entry->skeleton.modrm_opcode);
         DCHECK_EQ(0, entry->skeleton.ax_opcode);
         DCHECK_EQ(0, entry->skeleton.immediate_bytes);

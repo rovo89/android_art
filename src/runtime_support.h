@@ -43,10 +43,10 @@ uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class);
 void ObjectInitFromCode(Object* o);
 extern void LockObjectFromCode(Thread* thread, Object* obj);
 uint32_t TraceMethodUnwindFromCode(Thread* self);
-extern int CmpgDouble(double a, double b);
-extern int CmplDouble(double a, double b);
-extern int CmpgFloat(float a, float b);
-extern int CmplFloat(float a, float b);
+extern int32_t CmpgDouble(double a, double b);
+extern int32_t CmplDouble(double a, double b);
+extern int32_t CmpgFloat(float a, float b);
+extern int32_t CmplFloat(float a, float b);
 extern int64_t D2L(double d);
 extern int64_t F2L(float f);
 
@@ -106,14 +106,14 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" void art_work_around_app_jni_bugs();
 
   /* Conversions */
-  extern "C" float __aeabi_i2f(int op1);             // INT_TO_FLOAT
-  extern "C" int __aeabi_f2iz(float op1);            // FLOAT_TO_INT
+  extern "C" float __aeabi_i2f(int32_t op1);         // INT_TO_FLOAT
+  extern "C" int32_t __aeabi_f2iz(float op1);        // FLOAT_TO_INT
   extern "C" float __aeabi_d2f(double op1);          // DOUBLE_TO_FLOAT
   extern "C" double __aeabi_f2d(float op1);          // FLOAT_TO_DOUBLE
-  extern "C" double __aeabi_i2d(int op1);            // INT_TO_DOUBLE
-  extern "C" int __aeabi_d2iz(double op1);           // DOUBLE_TO_INT
-  extern "C" float __aeabi_l2f(long op1);            // LONG_TO_FLOAT
-  extern "C" double __aeabi_l2d(long op1);           // LONG_TO_DOUBLE
+  extern "C" double __aeabi_i2d(int32_t op1);        // INT_TO_DOUBLE
+  extern "C" int32_t __aeabi_d2iz(double op1);       // DOUBLE_TO_INT
+  extern "C" float __aeabi_l2f(int64_t op1);         // LONG_TO_FLOAT
+  extern "C" double __aeabi_l2d(int64_t op1);        // LONG_TO_DOUBLE
 
   /* Single-precision FP arithmetics */
   extern "C" float __aeabi_fadd(float a, float b);   // ADD_FLOAT[_2ADDR]
@@ -130,8 +130,8 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" double fmod(double a, double b);         // REM_DOUBLE[_2ADDR]
 
   /* Integer arithmetics */
-  extern "C" int __aeabi_idivmod(int op1, int op2);  // REM_INT[_2ADDR|_LIT8|_LIT16]
-  extern "C" int __aeabi_idiv(int op1, int op2);     // DIV_INT[_2ADDR|_LIT8|_LIT16]
+  extern "C" int __aeabi_idivmod(int32_t op1, int32_t op2);  // REM_INT[_2ADDR|_LIT8|_LIT16]
+  extern "C" int __aeabi_idiv(int32_t op1, int32_t op2);     // DIV_INT[_2ADDR|_LIT8|_LIT16]
 
   /* Long long arithmetics - REM_LONG[_2ADDR] and DIV_LONG[_2ADDR] */
   extern "C" long long __aeabi_ldivmod(long long op1, long long op2);
@@ -144,16 +144,16 @@ extern "C" void art_proxy_invoke_handler();
 
 #if defined(__mips__)
   /* Conversions */
-  extern "C" float __floatsisf(int op1);             // INT_TO_FLOAT
-  extern "C" int __fixsfsi(float op1);               // FLOAT_TO_INT
-  extern "C" float __truncdfsf2(double op1);         // DOUBLE_TO_FLOAT
-  extern "C" double __extendsfdf2(float op1);        // FLOAT_TO_DOUBLE
-  extern "C" double __floatsidf(int op1);            // INT_TO_DOUBLE
-  extern "C" int __fixdfsi(double op1);              // DOUBLE_TO_INT
-  extern "C" float __floatdisf(long long op1);       // LONG_TO_FLOAT
-  extern "C" double __floatdidf(long long op1);      // LONG_TO_DOUBLE
-  extern "C" long long __fixsfdi(float op1);         // FLOAT_TO_LONG
-  extern "C" long long __fixdfdi(double op1);        // DOUBLE_TO_LONG
+  extern "C" float __floatsisf(int op1);        // INT_TO_FLOAT
+  extern "C" int32_t __fixsfsi(float op1);      // FLOAT_TO_INT
+  extern "C" float __truncdfsf2(double op1);    // DOUBLE_TO_FLOAT
+  extern "C" double __extendsfdf2(float op1);   // FLOAT_TO_DOUBLE
+  extern "C" double __floatsidf(int op1);       // INT_TO_DOUBLE
+  extern "C" int32_t __fixdfsi(double op1);     // DOUBLE_TO_INT
+  extern "C" float __floatdisf(int64_t op1);    // LONG_TO_FLOAT
+  extern "C" double __floatdidf(int64_t op1);   // LONG_TO_DOUBLE
+  extern "C" int64_t __fixsfdi(float op1);      // FLOAT_TO_LONG
+  extern "C" int64_t __fixdfdi(double op1);     // DOUBLE_TO_LONG
 
   /* Single-precision FP arithmetics */
   extern "C" float __addsf3(float a, float b);   // ADD_FLOAT[_2ADDR]
@@ -170,8 +170,8 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" double fmod(double a, double b);     // REM_DOUBLE[_2ADDR]
 
   /* Long long arithmetics - REM_LONG[_2ADDR] and DIV_LONG[_2ADDR] */
-  extern "C" long long __divdi3(long long op1, long long op2);
-  extern "C" long long __moddi3(long long op1, long long op2);
+  extern "C" long long __divdi3(int64_t op1, int64_t op2);
+  extern "C" long long __moddi3(int64_t op1, int64_t op2);
 #endif
 
 #endif  // ART_SRC_RUNTIME_SUPPORT_H_
