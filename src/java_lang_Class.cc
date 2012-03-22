@@ -26,6 +26,14 @@
 
 namespace art {
 
+static Class* DecodeInitializedClass(JNIEnv* env, jclass java_class) {
+  Class* c = Decode<Class*>(env, java_class);
+  DCHECK(c != NULL);
+  DCHECK(c->IsClass());
+  bool initialized = Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true);
+  return initialized ? c : NULL;
+}
+
 // "name" is in "binary name" format, e.g. "dalvik.system.Debug$1".
 static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initialize, jobject javaLoader) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
@@ -98,7 +106,10 @@ static bool IsVisibleConstructor(Method* m, bool public_only) {
 }
 
 static jobjectArray Class_getDeclaredConstructors(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
-  Class* c = Decode<Class*>(env, javaClass);
+  Class* c = DecodeInitializedClass(env, javaClass);
+  if (c == NULL) {
+    return NULL;
+  }
 
   std::vector<Method*> constructors;
   for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
@@ -119,7 +130,10 @@ static bool IsVisibleField(Field* f, bool public_only) {
 }
 
 static jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
-  Class* c = Decode<Class*>(env, javaClass);
+  Class* c = DecodeInitializedClass(env, javaClass);
+  if (c == NULL) {
+    return NULL;
+  }
 
   std::vector<Field*> fields;
   for (size_t i = 0; i < c->NumInstanceFields(); ++i) {
@@ -158,7 +172,11 @@ static bool IsVisibleMethod(Method* m, bool public_only) {
 }
 
 static jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
-  Class* c = Decode<Class*>(env, javaClass);
+  Class* c = DecodeInitializedClass(env, javaClass);
+  if (c == NULL) {
+    return NULL;
+  }
+
   std::vector<Method*> methods;
   for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
     Method* m = c->GetVirtualMethod(i);
@@ -214,7 +232,7 @@ static bool MethodMatches(MethodHelper* mh, const std::string& name, ObjectArray
 }
 
 static Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, const std::string& name,
-                                       ObjectArray<Class>* arg_array) {
+                                              ObjectArray<Class>* arg_array) {
   if (methods == NULL) {
     return NULL;
   }
@@ -242,7 +260,11 @@ static Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, cons
 
 static jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClass, jstring javaName,
                                                     jobjectArray javaArgs) {
-  Class* c = Decode<Class*>(env, javaClass);
+  Class* c = DecodeInitializedClass(env, javaClass);
+  if (c == NULL) {
+    return NULL;
+  }
+
   std::string name(Decode<String*>(env, javaName)->ToModifiedUtf8());
   ObjectArray<Class>* arg_array = Decode<ObjectArray<Class>*>(env, javaArgs);
 
@@ -258,22 +280,25 @@ static jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClas
   }
 }
 
-static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass jklass, jobject jname) {
-  Class* klass = Decode<Class*>(env, jklass);
-  DCHECK(klass->IsClass());
+static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass java_class, jobject jname) {
+  Class* c = DecodeInitializedClass(env, java_class);
+  if (c == NULL) {
+    return NULL;
+  }
+
   String* name = Decode<String*>(env, jname);
   DCHECK(name->GetClass()->IsStringClass());
 
   FieldHelper fh;
-  for (size_t i = 0; i < klass->NumInstanceFields(); ++i) {
-    Field* f = klass->GetInstanceField(i);
+  for (size_t i = 0; i < c->NumInstanceFields(); ++i) {
+    Field* f = c->GetInstanceField(i);
     fh.ChangeField(f);
     if (name->Equals(fh.GetName())) {
       return AddLocalReference<jclass>(env, f);
     }
   }
-  for (size_t i = 0; i < klass->NumStaticFields(); ++i) {
-    Field* f = klass->GetStaticField(i);
+  for (size_t i = 0; i < c->NumStaticFields(); ++i) {
+    Field* f = c->GetStaticField(i);
     fh.ChangeField(f);
     if (name->Equals(fh.GetName())) {
       return AddLocalReference<jclass>(env, f);
@@ -401,9 +426,9 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
   }
 
   // invoke constructor; unlike reflection calls, we don't wrap exceptions
-  jclass jklass = AddLocalReference<jclass>(env, c);
+  jclass java_class = AddLocalReference<jclass>(env, c);
   jmethodID mid = EncodeMethod(init);
-  return env->NewObject(jklass, mid);
+  return env->NewObject(java_class, mid);
 }
 
 static JNINativeMethod gMethods[] = {
