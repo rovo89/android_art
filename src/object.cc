@@ -830,7 +830,7 @@ bool Class::Implements(const Class* klass) const {
   return false;
 }
 
-// Determine whether "this" is assignable from "klazz", where both of these
+// Determine whether "this" is assignable from "src", where both of these
 // are array classes.
 //
 // Consider an array class, e.g. Y[][], where Y is a subclass of X.

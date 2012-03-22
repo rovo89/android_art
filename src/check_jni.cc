@@ -310,13 +310,13 @@ class ScopedCheck {
   }
 
   /*
-   * Verify that "mid" is appropriate for "clazz".
+   * Verify that "mid" is appropriate for "java_class".
    *
    * A mismatch isn't dangerous, because the jmethodID defines the class.  In
-   * fact, jclazz is unused in the implementation.  It's best if we don't
+   * fact, java_class is unused in the implementation.  It's best if we don't
    * allow bad code in the system though.
    *
-   * Instances of "jclazz" must be instances of the method's declaring class.
+   * Instances of "java_class" must be instances of the method's declaring class.
    */
   void CheckStaticMethod(jclass java_class, jmethodID mid) {
     ScopedJniThreadState ts(env_);
@@ -1170,14 +1170,14 @@ class CheckJNI {
     return CHECK_JNI_EXIT("c", baseEnv(env)->FindClass(env, name));
   }
 
-  static jclass GetSuperclass(JNIEnv* env, jclass clazz) {
-    CHECK_JNI_ENTRY(kFlag_Default, "Ec", env, clazz);
-    return CHECK_JNI_EXIT("c", baseEnv(env)->GetSuperclass(env, clazz));
+  static jclass GetSuperclass(JNIEnv* env, jclass c) {
+    CHECK_JNI_ENTRY(kFlag_Default, "Ec", env, c);
+    return CHECK_JNI_EXIT("c", baseEnv(env)->GetSuperclass(env, c));
   }
 
-  static jboolean IsAssignableFrom(JNIEnv* env, jclass clazz1, jclass clazz2) {
-    CHECK_JNI_ENTRY(kFlag_Default, "Ecc", env, clazz1, clazz2);
-    return CHECK_JNI_EXIT("b", baseEnv(env)->IsAssignableFrom(env, clazz1, clazz2));
+  static jboolean IsAssignableFrom(JNIEnv* env, jclass c1, jclass c2) {
+    CHECK_JNI_ENTRY(kFlag_Default, "Ecc", env, c1, c2);
+    return CHECK_JNI_EXIT("b", baseEnv(env)->IsAssignableFrom(env, c1, c2));
   }
 
   static jmethodID FromReflectedMethod(JNIEnv* env, jobject method) {
@@ -1208,9 +1208,9 @@ class CheckJNI {
     return CHECK_JNI_EXIT("I", baseEnv(env)->Throw(env, obj));
   }
 
-  static jint ThrowNew(JNIEnv* env, jclass clazz, const char* message) {
-    CHECK_JNI_ENTRY(kFlag_NullableUtf, "Ecu", env, clazz, message);
-    return CHECK_JNI_EXIT("I", baseEnv(env)->ThrowNew(env, clazz, message));
+  static jint ThrowNew(JNIEnv* env, jclass c, const char* message) {
+    CHECK_JNI_ENTRY(kFlag_NullableUtf, "Ecu", env, c, message);
+    return CHECK_JNI_EXIT("I", baseEnv(env)->ThrowNew(env, c, message));
   }
 
   static jthrowable ExceptionOccurred(JNIEnv* env) {
@@ -1299,28 +1299,28 @@ class CheckJNI {
     return CHECK_JNI_EXIT("b", baseEnv(env)->IsSameObject(env, ref1, ref2));
   }
 
-  static jobject AllocObject(JNIEnv* env, jclass clazz) {
-    CHECK_JNI_ENTRY(kFlag_Default, "Ec", env, clazz);
-    return CHECK_JNI_EXIT("L", baseEnv(env)->AllocObject(env, clazz));
+  static jobject AllocObject(JNIEnv* env, jclass c) {
+    CHECK_JNI_ENTRY(kFlag_Default, "Ec", env, c);
+    return CHECK_JNI_EXIT("L", baseEnv(env)->AllocObject(env, c));
   }
 
-  static jobject NewObject(JNIEnv* env, jclass clazz, jmethodID mid, ...) {
-    CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, clazz, mid);
+  static jobject NewObject(JNIEnv* env, jclass c, jmethodID mid, ...) {
+    CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, c, mid);
     va_list args;
     va_start(args, mid);
-    jobject result = baseEnv(env)->NewObjectV(env, clazz, mid, args);
+    jobject result = baseEnv(env)->NewObjectV(env, c, mid, args);
     va_end(args);
     return CHECK_JNI_EXIT("L", result);
   }
 
-  static jobject NewObjectV(JNIEnv* env, jclass clazz, jmethodID mid, va_list args) {
-    CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, clazz, mid);
-    return CHECK_JNI_EXIT("L", baseEnv(env)->NewObjectV(env, clazz, mid, args));
+  static jobject NewObjectV(JNIEnv* env, jclass c, jmethodID mid, va_list args) {
+    CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, c, mid);
+    return CHECK_JNI_EXIT("L", baseEnv(env)->NewObjectV(env, c, mid, args));
   }
 
-  static jobject NewObjectA(JNIEnv* env, jclass clazz, jmethodID mid, jvalue* args) {
-    CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, clazz, mid);
-    return CHECK_JNI_EXIT("L", baseEnv(env)->NewObjectA(env, clazz, mid, args));
+  static jobject NewObjectA(JNIEnv* env, jclass c, jmethodID mid, jvalue* args) {
+    CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, c, mid);
+    return CHECK_JNI_EXIT("L", baseEnv(env)->NewObjectA(env, c, mid, args));
   }
 
   static jclass GetObjectClass(JNIEnv* env, jobject obj) {
@@ -1328,48 +1328,48 @@ class CheckJNI {
     return CHECK_JNI_EXIT("c", baseEnv(env)->GetObjectClass(env, obj));
   }
 
-  static jboolean IsInstanceOf(JNIEnv* env, jobject obj, jclass clazz) {
-    CHECK_JNI_ENTRY(kFlag_Default, "ELc", env, obj, clazz);
-    return CHECK_JNI_EXIT("b", baseEnv(env)->IsInstanceOf(env, obj, clazz));
+  static jboolean IsInstanceOf(JNIEnv* env, jobject obj, jclass c) {
+    CHECK_JNI_ENTRY(kFlag_Default, "ELc", env, obj, c);
+    return CHECK_JNI_EXIT("b", baseEnv(env)->IsInstanceOf(env, obj, c));
   }
 
-  static jmethodID GetMethodID(JNIEnv* env, jclass clazz, const char* name, const char* sig) {
-    CHECK_JNI_ENTRY(kFlag_Default, "Ecuu", env, clazz, name, sig);
-    return CHECK_JNI_EXIT("m", baseEnv(env)->GetMethodID(env, clazz, name, sig));
+  static jmethodID GetMethodID(JNIEnv* env, jclass c, const char* name, const char* sig) {
+    CHECK_JNI_ENTRY(kFlag_Default, "Ecuu", env, c, name, sig);
+    return CHECK_JNI_EXIT("m", baseEnv(env)->GetMethodID(env, c, name, sig));
   }
 
-  static jfieldID GetFieldID(JNIEnv* env, jclass clazz, const char* name, const char* sig) {
-    CHECK_JNI_ENTRY(kFlag_Default, "Ecuu", env, clazz, name, sig);
-    return CHECK_JNI_EXIT("f", baseEnv(env)->GetFieldID(env, clazz, name, sig));
+  static jfieldID GetFieldID(JNIEnv* env, jclass c, const char* name, const char* sig) {
+    CHECK_JNI_ENTRY(kFlag_Default, "Ecuu", env, c, name, sig);
+    return CHECK_JNI_EXIT("f", baseEnv(env)->GetFieldID(env, c, name, sig));
   }
 
-  static jmethodID GetStaticMethodID(JNIEnv* env, jclass clazz, const char* name, const char* sig) {
-    CHECK_JNI_ENTRY(kFlag_Default, "Ecuu", env, clazz, name, sig);
-    return CHECK_JNI_EXIT("m", baseEnv(env)->GetStaticMethodID(env, clazz, name, sig));
+  static jmethodID GetStaticMethodID(JNIEnv* env, jclass c, const char* name, const char* sig) {
+    CHECK_JNI_ENTRY(kFlag_Default, "Ecuu", env, c, name, sig);
+    return CHECK_JNI_EXIT("m", baseEnv(env)->GetStaticMethodID(env, c, name, sig));
   }
 
-  static jfieldID GetStaticFieldID(JNIEnv* env, jclass clazz, const char* name, const char* sig) {
-    CHECK_JNI_ENTRY(kFlag_Default, "Ecuu", env, clazz, name, sig);
-    return CHECK_JNI_EXIT("f", baseEnv(env)->GetStaticFieldID(env, clazz, name, sig));
+  static jfieldID GetStaticFieldID(JNIEnv* env, jclass c, const char* name, const char* sig) {
+    CHECK_JNI_ENTRY(kFlag_Default, "Ecuu", env, c, name, sig);
+    return CHECK_JNI_EXIT("f", baseEnv(env)->GetStaticFieldID(env, c, name, sig));
   }
 
 #define FIELD_ACCESSORS(_ctype, _jname, _type) \
-    static _ctype GetStatic##_jname##Field(JNIEnv* env, jclass clazz, jfieldID fid) { \
-        CHECK_JNI_ENTRY(kFlag_Default, "Ecf", env, clazz, fid); \
-        sc.CheckStaticFieldID(clazz, fid); \
-        return CHECK_JNI_EXIT(_type, baseEnv(env)->GetStatic##_jname##Field(env, clazz, fid)); \
+    static _ctype GetStatic##_jname##Field(JNIEnv* env, jclass c, jfieldID fid) { \
+        CHECK_JNI_ENTRY(kFlag_Default, "Ecf", env, c, fid); \
+        sc.CheckStaticFieldID(c, fid); \
+        return CHECK_JNI_EXIT(_type, baseEnv(env)->GetStatic##_jname##Field(env, c, fid)); \
     } \
     static _ctype Get##_jname##Field(JNIEnv* env, jobject obj, jfieldID fid) { \
         CHECK_JNI_ENTRY(kFlag_Default, "ELf", env, obj, fid); \
         sc.CheckInstanceFieldID(obj, fid); \
         return CHECK_JNI_EXIT(_type, baseEnv(env)->Get##_jname##Field(env, obj, fid)); \
     } \
-    static void SetStatic##_jname##Field(JNIEnv* env, jclass clazz, jfieldID fid, _ctype value) { \
-        CHECK_JNI_ENTRY(kFlag_Default, "Ecf" _type, env, clazz, fid, value); \
-        sc.CheckStaticFieldID(clazz, fid); \
+    static void SetStatic##_jname##Field(JNIEnv* env, jclass c, jfieldID fid, _ctype value) { \
+        CHECK_JNI_ENTRY(kFlag_Default, "Ecf" _type, env, c, fid, value); \
+        sc.CheckStaticFieldID(c, fid); \
         /* "value" arg only used when type == ref */ \
         sc.CheckFieldType((jobject)(uint32_t)value, fid, _type[0], true); \
-        baseEnv(env)->SetStatic##_jname##Field(env, clazz, fid, value); \
+        baseEnv(env)->SetStatic##_jname##Field(env, c, fid, value); \
         CHECK_JNI_EXIT_VOID(); \
     } \
     static void Set##_jname##Field(JNIEnv* env, jobject obj, jfieldID fid, _ctype value) { \
@@ -1428,70 +1428,67 @@ FIELD_ACCESSORS(jdouble, Double, "D");
     } \
     /* Non-virtual... */ \
     static _ctype CallNonvirtual##_jname##Method(JNIEnv* env, \
-        jobject obj, jclass clazz, jmethodID mid, ...) \
+        jobject obj, jclass c, jmethodID mid, ...) \
     { \
-        CHECK_JNI_ENTRY(kFlag_Default, "ELcm.", env, obj, clazz, mid); /* TODO: args! */ \
+        CHECK_JNI_ENTRY(kFlag_Default, "ELcm.", env, obj, c, mid); /* TODO: args! */ \
         sc.CheckSig(mid, _retsig, false); \
         sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
         va_list args; \
         va_start(args, mid); \
-        _retasgn(baseEnv(env)->CallNonvirtual##_jname##MethodV(env, obj, clazz, mid, args)); \
+        _retasgn(baseEnv(env)->CallNonvirtual##_jname##MethodV(env, obj, c, mid, args)); \
         va_end(args); \
         _retok; \
     } \
     static _ctype CallNonvirtual##_jname##MethodV(JNIEnv* env, \
-        jobject obj, jclass clazz, jmethodID mid, va_list args) \
+        jobject obj, jclass c, jmethodID mid, va_list args) \
     { \
-        CHECK_JNI_ENTRY(kFlag_Default, "ELcm.", env, obj, clazz, mid); /* TODO: args! */ \
+        CHECK_JNI_ENTRY(kFlag_Default, "ELcm.", env, obj, c, mid); /* TODO: args! */ \
         sc.CheckSig(mid, _retsig, false); \
         sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
-        _retasgn(baseEnv(env)->CallNonvirtual##_jname##MethodV(env, obj, clazz, mid, args)); \
+        _retasgn(baseEnv(env)->CallNonvirtual##_jname##MethodV(env, obj, c, mid, args)); \
         _retok; \
     } \
     static _ctype CallNonvirtual##_jname##MethodA(JNIEnv* env, \
-        jobject obj, jclass clazz, jmethodID mid, jvalue* args) \
+        jobject obj, jclass c, jmethodID mid, jvalue* args) \
     { \
-        CHECK_JNI_ENTRY(kFlag_Default, "ELcm.", env, obj, clazz, mid); /* TODO: args! */ \
+        CHECK_JNI_ENTRY(kFlag_Default, "ELcm.", env, obj, c, mid); /* TODO: args! */ \
         sc.CheckSig(mid, _retsig, false); \
         sc.CheckVirtualMethod(obj, mid); \
         _retdecl; \
-        _retasgn(baseEnv(env)->CallNonvirtual##_jname##MethodA(env, obj, clazz, mid, args)); \
+        _retasgn(baseEnv(env)->CallNonvirtual##_jname##MethodA(env, obj, c, mid, args)); \
         _retok; \
     } \
     /* Static... */ \
-    static _ctype CallStatic##_jname##Method(JNIEnv* env, \
-        jclass clazz, jmethodID mid, ...) \
+    static _ctype CallStatic##_jname##Method(JNIEnv* env, jclass c, jmethodID mid, ...) \
     { \
-        CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, clazz, mid); /* TODO: args! */ \
+        CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, c, mid); /* TODO: args! */ \
         sc.CheckSig(mid, _retsig, true); \
-        sc.CheckStaticMethod(clazz, mid); \
+        sc.CheckStaticMethod(c, mid); \
         _retdecl; \
         va_list args; \
         va_start(args, mid); \
-        _retasgn(baseEnv(env)->CallStatic##_jname##MethodV(env, clazz, mid, args)); \
+        _retasgn(baseEnv(env)->CallStatic##_jname##MethodV(env, c, mid, args)); \
         va_end(args); \
         _retok; \
     } \
-    static _ctype CallStatic##_jname##MethodV(JNIEnv* env, \
-        jclass clazz, jmethodID mid, va_list args) \
+    static _ctype CallStatic##_jname##MethodV(JNIEnv* env, jclass c, jmethodID mid, va_list args) \
     { \
-        CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, clazz, mid); /* TODO: args! */ \
+        CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, c, mid); /* TODO: args! */ \
         sc.CheckSig(mid, _retsig, true); \
-        sc.CheckStaticMethod(clazz, mid); \
+        sc.CheckStaticMethod(c, mid); \
         _retdecl; \
-         _retasgn(baseEnv(env)->CallStatic##_jname##MethodV(env, clazz, mid, args)); \
+         _retasgn(baseEnv(env)->CallStatic##_jname##MethodV(env, c, mid, args)); \
         _retok; \
     } \
-    static _ctype CallStatic##_jname##MethodA(JNIEnv* env, \
-        jclass clazz, jmethodID mid, jvalue* args) \
+    static _ctype CallStatic##_jname##MethodA(JNIEnv* env, jclass c, jmethodID mid, jvalue* args) \
     { \
-        CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, clazz, mid); /* TODO: args! */ \
+        CHECK_JNI_ENTRY(kFlag_Default, "Ecm.", env, c, mid); /* TODO: args! */ \
         sc.CheckSig(mid, _retsig, true); \
-        sc.CheckStaticMethod(clazz, mid); \
+        sc.CheckStaticMethod(c, mid); \
         _retdecl; \
-        _retasgn(baseEnv(env)->CallStatic##_jname##MethodA(env, clazz, mid, args)); \
+        _retasgn(baseEnv(env)->CallStatic##_jname##MethodA(env, c, mid, args)); \
         _retok; \
     }
 
@@ -1685,14 +1682,14 @@ PRIMITIVE_ARRAY_FUNCTIONS(jlong, Long, 'J');
 PRIMITIVE_ARRAY_FUNCTIONS(jfloat, Float, 'F');
 PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
 
-  static jint RegisterNatives(JNIEnv* env, jclass clazz, const JNINativeMethod* methods, jint nMethods) {
-    CHECK_JNI_ENTRY(kFlag_Default, "EcpI", env, clazz, methods, nMethods);
-    return CHECK_JNI_EXIT("I", baseEnv(env)->RegisterNatives(env, clazz, methods, nMethods));
+  static jint RegisterNatives(JNIEnv* env, jclass c, const JNINativeMethod* methods, jint nMethods) {
+    CHECK_JNI_ENTRY(kFlag_Default, "EcpI", env, c, methods, nMethods);
+    return CHECK_JNI_EXIT("I", baseEnv(env)->RegisterNatives(env, c, methods, nMethods));
   }
 
-  static jint UnregisterNatives(JNIEnv* env, jclass clazz) {
-    CHECK_JNI_ENTRY(kFlag_Default, "Ec", env, clazz);
-    return CHECK_JNI_EXIT("I", baseEnv(env)->UnregisterNatives(env, clazz));
+  static jint UnregisterNatives(JNIEnv* env, jclass c) {
+    CHECK_JNI_ENTRY(kFlag_Default, "Ec", env, c);
+    return CHECK_JNI_EXIT("I", baseEnv(env)->UnregisterNatives(env, c));
   }
 
   static jint MonitorEnter(JNIEnv* env, jobject obj) {

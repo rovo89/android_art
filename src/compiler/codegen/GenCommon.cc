@@ -1258,10 +1258,10 @@ void genInstanceof(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     }
     /* rARG0 is ref, rARG2 is class. If ref==null, use directly as bool result */
     LIR* branch1 = opCmpImmBranch(cUnit, kCondEq, rARG0, 0, NULL);
-    /* load object->clazz */
+    /* load object->klass_ */
     DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
     loadWordDisp(cUnit, rARG0,  Object::ClassOffset().Int32Value(), rARG1);
-    /* rARG0 is ref, rARG1 is ref->clazz, rARG2 is class */
+    /* rARG0 is ref, rARG1 is ref->klass_, rARG2 is class */
 #if defined(TARGET_ARM)
     /* Uses conditional nullification */
     int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
@@ -1348,10 +1348,10 @@ void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     loadValueDirectFixed(cUnit, rlSrc, rARG0);  // rARG0 <= ref
     /* Null is OK - continue */
     LIR* branch1 = opCmpImmBranch(cUnit, kCondEq, rARG0, 0, NULL);
-    /* load object->clazz */
+    /* load object->klass_ */
     DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
     loadWordDisp(cUnit, rARG0,  Object::ClassOffset().Int32Value(), rARG1);
-    /* rARG1 now contains object->clazz */
+    /* rARG1 now contains object->klass_ */
 #if defined(TARGET_MIPS) || defined(TARGET_X86)
     LIR* branch2 = opCmpBranch(cUnit, kCondEq, rARG1, classReg, NULL);
     callRuntimeHelperRegReg(cUnit, OFFSETOF_MEMBER(Thread,
@@ -1392,7 +1392,7 @@ void genArrayObjPut(CompilationUnit* cUnit, MIR* mir, RegLocation rlArray,
 
     /* null array object? */
     genNullCheck(cUnit, rlArray.sRegLow, rARG1, mir);
-    /* Get the array's clazz */
+    /* Get the array's class */
     loadWordDisp(cUnit, rARG1, Object::ClassOffset().Int32Value(), rARG1);
     callRuntimeHelperRegReg(cUnit, OFFSETOF_MEMBER(Thread,
                                                   pCanPutArrayElementFromCode),

@@ -31,8 +31,8 @@
 namespace art {
 
 // Determine whether or not the specified method is public.
-static bool IsMethodPublic(JNIEnv* env, jclass clazz, jmethodID method_id) {
-  ScopedLocalRef<jobject> reflected(env, env->ToReflectedMethod(clazz, method_id, JNI_FALSE));
+static bool IsMethodPublic(JNIEnv* env, jclass c, jmethodID method_id) {
+  ScopedLocalRef<jobject> reflected(env, env->ToReflectedMethod(c, method_id, JNI_FALSE));
   if (reflected.get() == NULL) {
     fprintf(stderr, "Failed to get reflected method\n");
     return false;

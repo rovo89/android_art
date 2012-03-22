@@ -1208,9 +1208,9 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
       break;
     case MK_CLASS_ONLY:     /* for ClassPrepare, MethodEntry */
       {
-        RefTypeId clazzId = ReadRefTypeId(&buf);
-        VLOG(jdwp) << StringPrintf("    ClassOnly: %#llx (%s)", clazzId, Dbg::GetClassName(clazzId).c_str());
-        mod.classOnly.refTypeId = clazzId;
+        RefTypeId classId = ReadRefTypeId(&buf);
+        VLOG(jdwp) << StringPrintf("    ClassOnly: %#llx (%s)", classId, Dbg::GetClassName(classId).c_str());
+        mod.classOnly.refTypeId = classId;
       }
       break;
     case MK_CLASS_MATCH:    /* restrict events to matching classes */

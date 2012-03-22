@@ -146,7 +146,7 @@ int Hprof::FlushCurrentRecord() {
 // for class static overhead.
 #define STATIC_OVERHEAD_NAME    "$staticOverhead"
 // The ID for the synthetic object generated to account for class static overhead.
-#define CLASS_STATICS_ID(clazz) ((HprofObjectId)(((uint32_t)(clazz)) | 1))
+#define CLASS_STATICS_ID(c) ((HprofObjectId)(((uint32_t)(c)) | 1))
 
 HprofBasicType Hprof::SignatureToBasicTypeAndSize(const char* sig, size_t* sizeOut) {
   char c = sig[0];
@@ -319,8 +319,8 @@ int Hprof::DumpHeapObject(const Object* obj) {
     current_heap_ = desiredHeap;
   }
 
-  Class* clazz = obj->GetClass();
-  if (clazz == NULL) {
+  Class* c = obj->GetClass();
+  if (c == NULL) {
     // This object will bother HprofReader, because it has a NULL
     // class, so just don't dump it. It could be
     // gDvm.unlinkedJavaLangClass or it could be an object just
@@ -408,7 +408,7 @@ int Hprof::DumpHeapObject(const Object* obj) {
         rec->AddId(LookupStringId(fh.GetName()));
         rec->AddU1(t);
       }
-    } else if (clazz->IsArrayClass()) {
+    } else if (c->IsArrayClass()) {
       Array *aobj = (Array *)obj;
       uint32_t length = aobj->GetLength();
 
@@ -419,13 +419,13 @@ int Hprof::DumpHeapObject(const Object* obj) {
         rec->AddId((HprofObjectId)obj);
         rec->AddU4(StackTraceSerialNumber(obj));
         rec->AddU4(length);
-        rec->AddId(LookupClassId(clazz));
+        rec->AddId(LookupClassId(c));
 
         // Dump the elements, which are always objects or NULL.
         rec->AddIdList((const HprofObjectId *)aobj->GetRawData(sizeof(Object*)), length);
       } else {
         size_t size;
-        HprofBasicType t = PrimitiveToBasicTypeAndSize(clazz->GetComponentType()->GetPrimitiveType(), &size);
+        HprofBasicType t = PrimitiveToBasicTypeAndSize(c->GetComponentType()->GetPrimitiveType(), &size);
 
         // obj is a primitive array.
 #if DUMP_PRIM_DATA
@@ -458,7 +458,7 @@ int Hprof::DumpHeapObject(const Object* obj) {
       rec->AddU1(HPROF_INSTANCE_DUMP);
       rec->AddId((HprofObjectId)obj);
       rec->AddU4(StackTraceSerialNumber(obj));
-      rec->AddId(LookupClassId(clazz));
+      rec->AddId(LookupClassId(c));
 
       // Reserve some space for the length of the instance data, which we won't
       // know until we're done writing it.
@@ -467,7 +467,7 @@ int Hprof::DumpHeapObject(const Object* obj) {
 
       // Write the instance data;  fields for this class, followed by super class fields,
       // and so on. Don't write the klass or monitor fields of Object.class.
-      const Class* sclass = clazz;
+      const Class* sclass = c;
       FieldHelper fh;
       while (!sclass->IsObjectClass()) {
         int ifieldCount = sclass->NumInstanceFields();
@@ -684,23 +684,23 @@ int Hprof::DumpStrings() {
   return 0;
 }
 
-HprofStringId Hprof::LookupClassNameId(Class* clazz) {
-  return LookupStringId(PrettyDescriptor(clazz));
+HprofStringId Hprof::LookupClassNameId(Class* c) {
+  return LookupStringId(PrettyDescriptor(c));
 }
 
-HprofClassObjectId Hprof::LookupClassId(Class* clazz) {
-  if (clazz == NULL) {
-    // clazz is the superclass of java.lang.Object or a primitive
+HprofClassObjectId Hprof::LookupClassId(Class* c) {
+  if (c == NULL) {
+    // c is the superclass of java.lang.Object or a primitive
     return (HprofClassObjectId)0;
   }
 
-  std::pair<ClassSetIterator, bool> result = classes_.insert(clazz);
+  std::pair<ClassSetIterator, bool> result = classes_.insert(c);
   Class* present = *result.first;
 
   // Make sure that we've assigned a string ID for this class' name
-  LookupClassNameId(clazz);
+  LookupClassNameId(c);
 
-  CHECK_EQ(present, clazz);
+  CHECK_EQ(present, c);
   return (HprofStringId) present;
 }
 
@@ -709,8 +709,8 @@ int Hprof::DumpClasses() {
   uint32_t nextSerialNumber = 1;
 
   for (ClassSetIterator it = classes_.begin(); it != classes_.end(); ++it) {
-    Class* clazz = *it;
-    CHECK(clazz != NULL);
+    Class* c = *it;
+    CHECK(c != NULL);
 
     int err = StartNewRecord(HPROF_TAG_LOAD_CLASS, HPROF_TIME);
     if (err != 0) {
@@ -723,9 +723,9 @@ int Hprof::DumpClasses() {
     // U4: stack trace serial number
     // ID: class name string ID
     rec->AddU4(nextSerialNumber++);
-    rec->AddId((HprofClassObjectId) clazz);
+    rec->AddId((HprofClassObjectId) c);
     rec->AddU4(HPROF_NULL_STACK_TRACE);
-    rec->AddId(LookupClassNameId(clazz));
+    rec->AddId(LookupClassNameId(c));
   }
 
   return 0;
