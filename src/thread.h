@@ -586,10 +586,10 @@ class PACKED Thread {
   double (*pF2d)(float);
   double (*pI2d)(int);
   int (*pD2iz)(double);
-  float (*pL2f)(long);
-  double (*pL2d)(long);
-  long long (*pF2l)(float);
-  long long (*pD2l)(double);
+  float (*pL2f)(int64_t);
+  double (*pL2d)(int64_t);
+  int64_t (*pF2l)(float);
+  int64_t (*pD2l)(double);
   float (*pFadd)(float, float);
   float (*pFsub)(float, float);
   float (*pFdiv)(float, float);
@@ -602,8 +602,13 @@ class PACKED Thread {
   double (*pFmod)(double, double);
   int (*pIdivmod)(int, int);
   int (*pIdiv)(int, int);
-  long long (*pLmul)(long long, long long);
-  long long (*pLdivmod)(long long, long long);
+  int64_t (*pLadd)(int64_t, int64_t);
+  int64_t (*pLsub)(int64_t, int64_t);
+  int64_t (*pLand)(int64_t, int64_t);
+  int64_t (*pLor)(int64_t, int64_t);
+  int64_t (*pLxor)(int64_t, int64_t);
+  int64_t (*pLmul)(int64_t, int64_t);
+  int64_t (*pLdivmod)(int64_t, int64_t);
   void (*pCheckSuspendFromCode)(Thread*);  // Stub that is called when the suspend count is non-zero
   void (*pTestSuspendFromCode)();  // Stub that is periodically called to test the suspend count
   void* (*pAllocObjectFromCode)(uint32_t, void*);

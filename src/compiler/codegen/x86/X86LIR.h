@@ -436,6 +436,7 @@ enum X86OpCode {
     Binary0fOpCode(kX86Movdxr),     // move into xmm from gpr
     Binary0fOpCode(kX86Movdrx),     // move into reg from xmm
     kX86Set8R, kX86Set8M, kX86Set8A,// set byte depending on condition operand
+    kX86Mfence,                     // memory barrier
     Binary0fOpCode(kX86Imul16),     // 16bit multiply
     Binary0fOpCode(kX86Imul32),     // 32bit multiply
     Binary0fOpCode(kX86Movzx8),     // zero-extend 8-bit value

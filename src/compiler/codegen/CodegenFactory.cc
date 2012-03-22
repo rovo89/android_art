@@ -273,14 +273,16 @@ void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
  */
 void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 {
-#if defined(TARGET_X86)
-    UNIMPLEMENTED(WARNING) << "markGCCard";
-#else
     int regCardBase = oatAllocTemp(cUnit);
     int regCardNo = oatAllocTemp(cUnit);
     LIR* branchOver = opCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
+#if !defined(TARGET_X86)
     loadWordDisp(cUnit, rSELF, Thread::CardTableOffset().Int32Value(),
                  regCardBase);
+#else
+    newLIR2(cUnit, kX86Mov32RT, regCardBase,
+            Thread::CardTableOffset().Int32Value());
+#endif
     opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, GC_CARD_SHIFT);
     storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
                      kUnsignedByte);
@@ -288,7 +290,6 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
     branchOver->target = (LIR*)target;
     oatFreeTemp(cUnit, regCardBase);
     oatFreeTemp(cUnit, regCardNo);
-#endif
 }
 
 /* Utilities to load the current Method* */

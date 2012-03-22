@@ -204,8 +204,8 @@ static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
     srcReg2 = S2D(rlSrc2.lowReg, rlSrc2.highReg);
   }
   rlDest = oatGetDest(cUnit, mir, 0);
-  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-  opRegImm(cUnit, kOpMov, rlResult.lowReg, unorderedGt ? 1 : 0);
+  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+  loadConstantNoClobber(cUnit, rlResult.lowReg, unorderedGt ? 1 : 0);
   if (single) {
     newLIR2(cUnit, kX86UcomissRR, srcReg1, srcReg2);
   } else {
