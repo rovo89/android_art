@@ -748,16 +748,16 @@ class JNI {
     return c1->IsAssignableFrom(c2) ? JNI_TRUE : JNI_FALSE;
   }
 
-  static jboolean IsInstanceOf(JNIEnv* env, jobject jobj, jclass clazz) {
+  static jboolean IsInstanceOf(JNIEnv* env, jobject jobj, jclass java_class) {
     ScopedJniThreadState ts(env);
-    CHECK_NE(static_cast<jclass>(NULL), clazz); // TODO: ReportJniError
+    CHECK_NE(static_cast<jclass>(NULL), java_class); // TODO: ReportJniError
     if (jobj == NULL) {
       // Note: JNI is different from regular Java instanceof in this respect
       return JNI_TRUE;
     } else {
       Object* obj = Decode<Object*>(ts, jobj);
-      Class* klass = Decode<Class*>(ts, clazz);
-      return obj->InstanceOf(klass) ? JNI_TRUE : JNI_FALSE;
+      Class* c = Decode<Class*>(ts, java_class);
+      return obj->InstanceOf(c) ? JNI_TRUE : JNI_FALSE;
     }
   }
 
@@ -992,11 +992,11 @@ class JNI {
     return AddLocalReference<jobject>(env, c->AllocObject());
   }
 
-  static jobject NewObject(JNIEnv* env, jclass clazz, jmethodID mid, ...) {
+  static jobject NewObject(JNIEnv* env, jclass c, jmethodID mid, ...) {
     ScopedJniThreadState ts(env);
     va_list args;
     va_start(args, mid);
-    jobject result = NewObjectV(env, clazz, mid, args);
+    jobject result = NewObjectV(env, c, mid, args);
     va_end(args);
     return result;
   }

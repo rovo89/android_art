@@ -193,11 +193,11 @@ class Hprof {
   int StartNewRecord(uint8_t tag, uint32_t time);
   int FlushCurrentRecord();
   int MarkRootObject(const Object *obj, jobject jniObj);
-  HprofClassObjectId LookupClassId(Class* clazz);
+  HprofClassObjectId LookupClassId(Class* c);
   HprofStringId LookupStringId(String* string);
   HprofStringId LookupStringId(const char* string);
   HprofStringId LookupStringId(std::string string);
-  HprofStringId LookupClassNameId(Class* clazz);
+  HprofStringId LookupClassNameId(Class* c);
   static HprofBasicType SignatureToBasicTypeAndSize(const char* sig, size_t* sizeOut);
   static HprofBasicType PrimitiveToBasicTypeAndSize(Primitive::Type prim, size_t* sizeOut);
   static int StackTraceSerialNumber(const void *obj);

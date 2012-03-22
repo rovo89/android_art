@@ -259,9 +259,7 @@ class IndirectReferenceTable {
   ~IndirectReferenceTable();
 
   /*
-   * Add a new entry.  "obj" must be a valid non-NULL object reference
-   * (though it's okay if it's not fully-formed, e.g. the result from
-   * dvmMalloc doesn't have obj->clazz set).
+   * Add a new entry.  "obj" must be a valid non-NULL object reference.
    *
    * Returns NULL if the table is full (max entries reached, or alloc
    * failed during expansion).
