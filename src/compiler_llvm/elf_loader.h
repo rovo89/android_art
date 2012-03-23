@@ -17,6 +17,7 @@
 #ifndef ART_SRC_COMPILER_LLVM_ELF_LOADER_H_
 #define ART_SRC_COMPILER_LLVM_ELF_LOADER_H_
 
+#include "elf_image.h"
 #include "globals.h"
 #include "object.h"
 
@@ -34,7 +35,7 @@ class ElfLoader {
  public:
   ~ElfLoader();
 
-  bool LoadElfAt(size_t elf_idx, const byte* addr, size_t size);
+  bool LoadElfAt(size_t elf_idx, const ElfImage& elf_image);
 
   const void* GetMethodCodeAddr(size_t elf_idx, const Method* method) const;
 

@@ -18,6 +18,7 @@
 #define ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
 
 #include "constants.h"
+#include "elf_image.h"
 #include "globals.h"
 #include "logging.h"
 
@@ -76,12 +77,8 @@ class CompilationUnit {
     bitcode_filename_ = filename;
   }
 
-  const byte* GetElfImage() const {
-    return reinterpret_cast<const byte*>(&*elf_image_.begin());
-  }
-
-  size_t GetElfSize() const {
-    return elf_image_.size();
+  ElfImage GetElfImage() const {
+    return ElfImage(elf_image_);
   }
 
   bool WriteBitcodeToFile();

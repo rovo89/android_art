@@ -17,6 +17,7 @@
 #include "elf_loader.h"
 
 #include "compiled_method.h"
+#include "elf_image.h"
 #include "logging.h"
 #include "object.h"
 #include "runtime_support_llvm.h"
@@ -36,7 +37,7 @@ ElfLoader::~ElfLoader() {
 }
 
 
-bool ElfLoader::LoadElfAt(size_t elf_idx, const byte* image, size_t size) {
+bool ElfLoader::LoadElfAt(size_t elf_idx, const ElfImage& elf_image) {
   if (elf_idx < executables_.size() && executables_[elf_idx] != NULL) {
     return false;
   }
@@ -46,11 +47,13 @@ bool ElfLoader::LoadElfAt(size_t elf_idx, const byte* image, size_t size) {
   }
 
   RSExecRef executable =
-    rsloaderCreateExec(reinterpret_cast<const unsigned char*>(image),
-                       size, art_find_runtime_support_func, NULL);
+    rsloaderCreateExec(elf_image.begin(), elf_image.size(),
+                       art_find_runtime_support_func, NULL);
 
   if (executable == NULL) {
-    LOG(WARNING) << "Failed to load ELF image: " << image << " size: " << size;
+    LOG(WARNING) << "Failed to load ELF"
+                 << " image: " << elf_image.begin()
+                 << " size: " << elf_image.size();
     return false;
   }
 
