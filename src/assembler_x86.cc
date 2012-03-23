@@ -91,8 +91,13 @@ void X86Assembler::pushl(const Address& address) {
 
 void X86Assembler::pushl(const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitUint8(0x68);
-  EmitImmediate(imm);
+  if (imm.is_int8()) {
+    EmitUint8(0x6A);
+    EmitUint8(imm.value() & 0xFF);
+  } else {
+    EmitUint8(0x68);
+    EmitImmediate(imm);
+  }
 }
 
 
@@ -1308,14 +1313,14 @@ void X86Assembler::Stop(const char* message) {
 }
 
 
-void X86Assembler::EmitOperand(int rm, const Operand& operand) {
-  CHECK_GE(rm, 0);
-  CHECK_LT(rm, 8);
+void X86Assembler::EmitOperand(int reg_or_opcode, const Operand& operand) {
+  CHECK_GE(reg_or_opcode, 0);
+  CHECK_LT(reg_or_opcode, 8);
   const int length = operand.length_;
   CHECK_GT(length, 0);
-  // Emit the ModRM byte updated with the given RM value.
+  // Emit the ModRM byte updated with the given reg value.
   CHECK_EQ(operand.encoding_[0] & 0x38, 0);
-  EmitUint8(operand.encoding_[0] + (rm << 3));
+  EmitUint8(operand.encoding_[0] + (reg_or_opcode << 3));
   // Emit the rest of the encoded operand.
   for (int i = 1; i < length; i++) {
     EmitUint8(operand.encoding_[i]);
@@ -1328,23 +1333,23 @@ void X86Assembler::EmitImmediate(const Immediate& imm) {
 }
 
 
-void X86Assembler::EmitComplex(int rm,
+void X86Assembler::EmitComplex(int reg_or_opcode,
                                const Operand& operand,
                                const Immediate& immediate) {
-  CHECK_GE(rm, 0);
-  CHECK_LT(rm, 8);
+  CHECK_GE(reg_or_opcode, 0);
+  CHECK_LT(reg_or_opcode, 8);
   if (immediate.is_int8()) {
     // Use sign-extended 8-bit immediate.
     EmitUint8(0x83);
-    EmitOperand(rm, operand);
+    EmitOperand(reg_or_opcode, operand);
     EmitUint8(immediate.value() & 0xFF);
   } else if (operand.IsRegister(EAX)) {
     // Use short form if the destination is eax.
-    EmitUint8(0x05 + (rm << 3));
+    EmitUint8(0x05 + (reg_or_opcode << 3));
     EmitImmediate(immediate);
   } else {
     EmitUint8(0x81);
-    EmitOperand(rm, operand);
+    EmitOperand(reg_or_opcode, operand);
     EmitImmediate(immediate);
   }
 }
@@ -1369,29 +1374,29 @@ void X86Assembler::EmitLabelLink(Label* label) {
 }
 
 
-void X86Assembler::EmitGenericShift(int rm,
+void X86Assembler::EmitGenericShift(int reg_or_opcode,
                                     Register reg,
                                     const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK(imm.is_int8());
   if (imm.value() == 1) {
     EmitUint8(0xD1);
-    EmitOperand(rm, Operand(reg));
+    EmitOperand(reg_or_opcode, Operand(reg));
   } else {
     EmitUint8(0xC1);
-    EmitOperand(rm, Operand(reg));
+    EmitOperand(reg_or_opcode, Operand(reg));
     EmitUint8(imm.value() & 0xFF);
   }
 }
 
 
-void X86Assembler::EmitGenericShift(int rm,
+void X86Assembler::EmitGenericShift(int reg_or_opcode,
                                     Register operand,
                                     Register shifter) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK_EQ(shifter, ECX);
   EmitUint8(0xD3);
-  EmitOperand(rm, Operand(operand));
+  EmitOperand(reg_or_opcode, Operand(operand));
 }
 
 void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
