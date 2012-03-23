@@ -183,12 +183,20 @@ oat-target-sync: oat-target
 dump-oat: dump-oat-core dump-oat-boot dump-oat-Calculator
 
 .PHONY: dump-oat-core
-dump-oat-core: $(TARGET_CORE_OAT_OUT) $(OATDUMP)
-	$(OATDUMP) --image=$(TARGET_CORE_IMG_OUT) --output=/tmp/core.oatdump.txt
-	@echo Output in /tmp/core.oatdump.txt
+dump-oat-core: dump-oat-core-host dump-oat-core-target
+
+.PHONY: dump-oat-core-host
+dump-oat-core-host: $(HOST_CORE_IMG_OUT) $(OATDUMP)
+	$(OATDUMP) --image=$(HOST_CORE_IMG_OUT) --output=/tmp/core.host.oatdump.txt --host-prefix=""
+	@echo Output in /tmp/core.host.oatdump.txt
+
+.PHONY: dump-oat-core-target
+dump-oat-core-target: $(TARGET_CORE_IMG_OUT) $(OATDUMP)
+	$(OATDUMP) --image=$(TARGET_CORE_IMG_OUT) --output=/tmp/core.target.oatdump.txt
+	@echo Output in /tmp/core.target.oatdump.txt
 
 .PHONY: dump-oat-boot
-dump-oat-boot: $(TARGET_BOOT_OAT_OUT) $(OATDUMP)
+dump-oat-boot: $(TARGET_BOOT_IMG_OUT) $(OATDUMP)
 	$(OATDUMP) --image=$(TARGET_BOOT_IMG_OUT) --output=/tmp/boot.oatdump.txt
 	@echo Output in /tmp/boot.oatdump.txt
 

@@ -1086,7 +1086,7 @@ int oatdump(int argc, char** argv) {
   const char* oat_filename = NULL;
   const char* image_filename = NULL;
   const char* boot_image_filename = NULL;
-  std::string host_prefix;
+  UniquePtr<std::string> host_prefix;
   std::ostream* os = &std::cout;
   UniquePtr<std::ofstream> out;
 
@@ -1099,7 +1099,7 @@ int oatdump(int argc, char** argv) {
     } else if (option.starts_with("--boot-image=")) {
       boot_image_filename = option.substr(strlen("--boot-image=")).data();
     } else if (option.starts_with("--host-prefix=")) {
-      host_prefix = option.substr(strlen("--host-prefix=")).data();
+      host_prefix.reset(new std::string(option.substr(strlen("--host-prefix=")).data()));
     } else if (option.starts_with("--output=")) {
       const char* filename = option.substr(strlen("--output=")).data();
       out.reset(new std::ofstream(filename));
@@ -1124,10 +1124,12 @@ int oatdump(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  if (host_prefix.empty()) {
+  if (host_prefix.get() == NULL) {
     const char* android_product_out = getenv("ANDROID_PRODUCT_OUT");
     if (android_product_out != NULL) {
-        host_prefix = android_product_out;
+        host_prefix.reset(new std::string(android_product_out));
+    } else {
+        host_prefix.reset(new std::string(""));
     }
   }
 
@@ -1137,7 +1139,7 @@ int oatdump(int argc, char** argv) {
       fprintf(stderr, "Failed to open oat file from %s\n", oat_filename);
       return EXIT_FAILURE;
     }
-    OatDumper oat_dumper(host_prefix, *oat_file);
+    OatDumper oat_dumper(*host_prefix.get(), *oat_file);
     oat_dumper.Dump(*os);
     return EXIT_SUCCESS;
   }
@@ -1158,8 +1160,8 @@ int oatdump(int argc, char** argv) {
     options.push_back(std::make_pair(image_option.c_str(), reinterpret_cast<void*>(NULL)));
   }
 
-  if (!host_prefix.empty()) {
-    options.push_back(std::make_pair("host-prefix", host_prefix.c_str()));
+  if (!host_prefix->empty()) {
+    options.push_back(std::make_pair("host-prefix", host_prefix->c_str()));
   }
 
   UniquePtr<Runtime> runtime(Runtime::Create(options, false));
@@ -1176,7 +1178,7 @@ int oatdump(int argc, char** argv) {
     fprintf(stderr, "Invalid image header %s\n", image_filename);
     return EXIT_FAILURE;
   }
-  ImageDumper image_dumper(*os, image_filename, host_prefix, *image_space, image_header);
+  ImageDumper image_dumper(*os, image_filename, *host_prefix.get(), *image_space, image_header);
   image_dumper.Dump();
   return EXIT_SUCCESS;
 }
