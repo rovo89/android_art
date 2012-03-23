@@ -543,21 +543,26 @@ enum TypeCategory {
 
 /*
  * An enumeration of problems that can turn up during verification.
- * VERIFY_ERROR_GENERIC denotes a failure that causes the entire class to be rejected. Other errors
- * denote verification errors that cause bytecode to be rewritten to fail at runtime.
+ * Both VERIFY_ERROR_BAD_CLASS_SOFT and VERIFY_ERROR_BAD_CLASS_HARD denote failures that cause
+ * the entire class to be rejected. However, VERIFY_ERROR_BAD_CLASS_SOFT denotes a soft failure
+ * that can potentially be corrected, and the verifier will try again at runtime.
+ * VERIFY_ERROR_BAD_CLASS_HARD denotes a hard failure that can't be corrected, and will cause
+ * the class to remain uncompiled. Other errors denote verification errors that cause bytecode
+ * to be rewritten to fail at runtime.
  */
 enum VerifyError {
-  VERIFY_ERROR_NONE = 0,      /* no error; must be zero */
-  VERIFY_ERROR_GENERIC,       /* VerifyError */
+  VERIFY_ERROR_NONE = 0,       /* no error; must be zero */
+  VERIFY_ERROR_BAD_CLASS_HARD, /* VerifyError; hard error that skips compilation */
+  VERIFY_ERROR_BAD_CLASS_SOFT, /* VerifyError; soft error that verifies again at runtime */
 
-  VERIFY_ERROR_NO_CLASS,      /* NoClassDefFoundError */
-  VERIFY_ERROR_NO_FIELD,      /* NoSuchFieldError */
-  VERIFY_ERROR_NO_METHOD,     /* NoSuchMethodError */
-  VERIFY_ERROR_ACCESS_CLASS,  /* IllegalAccessError */
-  VERIFY_ERROR_ACCESS_FIELD,  /* IllegalAccessError */
-  VERIFY_ERROR_ACCESS_METHOD, /* IllegalAccessError */
-  VERIFY_ERROR_CLASS_CHANGE,  /* IncompatibleClassChangeError */
-  VERIFY_ERROR_INSTANTIATION, /* InstantiationError */
+  VERIFY_ERROR_NO_CLASS,       /* NoClassDefFoundError */
+  VERIFY_ERROR_NO_FIELD,       /* NoSuchFieldError */
+  VERIFY_ERROR_NO_METHOD,      /* NoSuchMethodError */
+  VERIFY_ERROR_ACCESS_CLASS,   /* IllegalAccessError */
+  VERIFY_ERROR_ACCESS_FIELD,   /* IllegalAccessError */
+  VERIFY_ERROR_ACCESS_METHOD,  /* IllegalAccessError */
+  VERIFY_ERROR_CLASS_CHANGE,   /* IncompatibleClassChangeError */
+  VERIFY_ERROR_INSTANTIATION,  /* InstantiationError */
 };
 std::ostream& operator<<(std::ostream& os, const VerifyError& rhs);
 
@@ -1249,7 +1254,7 @@ class DexVerifier {
    * to execute a move-exception is as the first instruction of an exception handler.
    * Returns "true" if all is well, "false" if the target instruction is move-exception.
    */
-  bool CheckMoveException(const uint16_t* insns, int insn_idx);
+  bool CheckNotMoveException(const uint16_t* insns, int insn_idx);
 
   /*
    * Replace an instruction with "throw-verification-error". This allows us to

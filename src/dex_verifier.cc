@@ -46,7 +46,8 @@ static const bool gDebugVerify = false;
 std::ostream& operator<<(std::ostream& os, const VerifyError& rhs) {
   switch (rhs) {
   case VERIFY_ERROR_NONE: os << "VERIFY_ERROR_NONE"; break;
-  case VERIFY_ERROR_GENERIC: os << "VERIFY_ERROR_GENERIC"; break;
+  case VERIFY_ERROR_BAD_CLASS_HARD: os << "VERIFY_ERROR_BAD_CLASS_HARD"; break;
+  case VERIFY_ERROR_BAD_CLASS_SOFT: os << "VERIFY_ERROR_BAD_CLASS_SOFT"; break;
   case VERIFY_ERROR_NO_CLASS: os << "VERIFY_ERROR_NO_CLASS"; break;
   case VERIFY_ERROR_NO_FIELD: os << "VERIFY_ERROR_NO_FIELD"; break;
   case VERIFY_ERROR_NO_METHOD: os << "VERIFY_ERROR_NO_METHOD"; break;
@@ -573,7 +574,7 @@ const RegType& RegTypeCache::GetComponentType(const RegType& array, const ClassL
 bool RegisterLine::CheckConstructorReturn() const {
   for (size_t i = 0; i < num_regs_; i++) {
     if (GetRegisterType(i).IsUninitializedThisReference()) {
-      verifier_->Fail(VERIFY_ERROR_GENERIC)
+      verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT)
           << "Constructor returning without calling superclass constructor";
       return false;
     }
@@ -588,10 +589,10 @@ bool RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
     line_[vdst + 1] = new_type.HighHalf(verifier_->GetRegTypeCache()).GetId();
   } else if (new_type.IsHighHalf()) {
     /* should never set these explicitly */
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "Explicit set of high register type";
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Explicit set of high register type";
     return false;
   } else if (new_type.IsConflict()) {  // should only be set during a merge
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "Set register to unknown type " << new_type;
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Set register to unknown type " << new_type;
     return false;
   } else {
     line_[vdst] = new_type.GetId();
@@ -625,14 +626,14 @@ const RegType& RegisterLine::GetRegisterType(uint32_t vsrc) const {
 
 const RegType& RegisterLine::GetInvocationThis(const DecodedInstruction& dec_insn) {
   if (dec_insn.vA < 1) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "invoke lacks 'this'";
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke lacks 'this'";
     return verifier_->GetRegTypeCache()->Unknown();
   }
   /* get the element type of the array held in vsrc */
   const RegType& this_type = GetRegisterType(dec_insn.vC);
   if (!this_type.IsReferenceTypes()) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "tried to get class from non-reference register v"
-                                          << dec_insn.vC << " (type=" << this_type << ")";
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "tried to get class from non-reference register v"
+                                                 << dec_insn.vC << " (type=" << this_type << ")";
     return verifier_->GetRegTypeCache()->Unknown();
   }
   return this_type;
@@ -642,15 +643,15 @@ bool RegisterLine::VerifyRegisterType(uint32_t vsrc, const RegType& check_type) 
   // Verify the src register type against the check type refining the type of the register
   const RegType& src_type = GetRegisterType(vsrc);
   if (!check_type.IsAssignableFrom(src_type)) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "register v" << vsrc << " has type " << src_type
-                                          << " but expected " << check_type;
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "register v" << vsrc << " has type " << src_type
+                                                 << " but expected " << check_type;
     return false;
   }
   if (check_type.IsLowHalf()) {
     const RegType& src_type_h = GetRegisterType(vsrc + 1);
     if (!src_type.CheckWidePair(src_type_h)) {
-      verifier_->Fail(VERIFY_ERROR_GENERIC) << "wide register v" << vsrc << " has type "
-                                            << src_type << "/" << src_type_h;
+      verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "wide register v" << vsrc << " has type "
+                                                   << src_type << "/" << src_type_h;
       return false;
     }
   }
@@ -691,8 +692,8 @@ void RegisterLine::CopyRegister1(uint32_t vdst, uint32_t vsrc, TypeCategory cat)
   }
   if ((cat == kTypeCategory1nr && !type.IsCategory1Types()) ||
       (cat == kTypeCategoryRef && !type.IsReferenceTypes())) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "copy1 v" << vdst << "<-v" << vsrc << " type=" << type
-                                          << " cat=" << static_cast<int>(cat);
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "copy1 v" << vdst << "<-v" << vsrc << " type=" << type
+                                                 << " cat=" << static_cast<int>(cat);
   } else if (cat == kTypeCategoryRef) {
     CopyRegToLockDepth(vdst, vsrc);
   }
@@ -703,8 +704,8 @@ void RegisterLine::CopyRegister2(uint32_t vdst, uint32_t vsrc) {
   const RegType& type_h = GetRegisterType(vsrc + 1);
 
   if (!type_l.CheckWidePair(type_h)) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "copy2 v" << vdst << "<-v" << vsrc
-                                         << " type=" << type_l << "/" << type_h;
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "copy2 v" << vdst << "<-v" << vsrc
+                                                 << " type=" << type_l << "/" << type_h;
   } else {
     SetRegisterType(vdst, type_l);  // implicitly sets the second half
   }
@@ -714,7 +715,7 @@ void RegisterLine::CopyResultRegister1(uint32_t vdst, bool is_reference) {
   const RegType& type = verifier_->GetRegTypeCache()->GetFromId(result_[0]);
   if ((!is_reference && !type.IsCategory1Types()) ||
       (is_reference && !type.IsReferenceTypes())) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC)
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD)
         << "copyRes1 v" << vdst << "<- result0"  << " type=" << type;
   } else {
     DCHECK(verifier_->GetRegTypeCache()->GetFromId(result_[1]).IsUnknown());
@@ -731,7 +732,7 @@ void RegisterLine::CopyResultRegister2(uint32_t vdst) {
   const RegType& type_l = verifier_->GetRegTypeCache()->GetFromId(result_[0]);
   const RegType& type_h = verifier_->GetRegTypeCache()->GetFromId(result_[1]);
   if (!type_l.IsCategory2Types()) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC)
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD)
         << "copyRes2 v" << vdst << "<- result0"  << " type=" << type_l;
   } else {
     DCHECK(type_l.CheckWidePair(type_h));  // Set should never allow this case
@@ -803,9 +804,9 @@ void RegisterLine::CheckLiteralOp(const DecodedInstruction& dec_insn,
 void RegisterLine::PushMonitor(uint32_t reg_idx, int32_t insn_idx) {
   const RegType& reg_type = GetRegisterType(reg_idx);
   if (!reg_type.IsReferenceTypes()) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "monitor-enter on non-object (" << reg_type << ")";
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-enter on non-object (" << reg_type << ")";
   } else if (monitors_.size() >= 32) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "monitor-enter stack overflow: " << monitors_.size();
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-enter stack overflow: " << monitors_.size();
   } else {
     SetRegToLockDepth(reg_idx, monitors_.size());
     monitors_.push_back(insn_idx);
@@ -815,16 +816,16 @@ void RegisterLine::PushMonitor(uint32_t reg_idx, int32_t insn_idx) {
 void RegisterLine::PopMonitor(uint32_t reg_idx) {
   const RegType& reg_type = GetRegisterType(reg_idx);
   if (!reg_type.IsReferenceTypes()) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "monitor-exit on non-object (" << reg_type << ")";
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-exit on non-object (" << reg_type << ")";
   } else if (monitors_.empty()) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "monitor-exit stack underflow";
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-exit stack underflow";
   } else {
     monitors_.pop_back();
     if(!IsSetLockDepth(reg_idx, monitors_.size())) {
       // Bug 3215458: Locks and unlocks are on objects, if that object is a literal then before
       // format "036" the constant collector may create unlocks on the same object but referenced
       // via different registers.
-      ((verifier_->DexFileVersion() >= 36) ? verifier_->Fail(VERIFY_ERROR_GENERIC)
+      ((verifier_->DexFileVersion() >= 36) ? verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT)
                                            : verifier_->LogVerifyInfo())
             << "monitor-exit not unlocking the top of the monitor stack";
     } else {
@@ -836,7 +837,7 @@ void RegisterLine::PopMonitor(uint32_t reg_idx) {
 
 bool RegisterLine::VerifyMonitorStackEmpty() {
   if (MonitorStackDepth() != 0) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "expected empty monitor stack";
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected empty monitor stack";
     return false;
   } else {
     return true;
@@ -855,7 +856,7 @@ bool RegisterLine::MergeRegisters(const RegisterLine* incoming_line) {
     }
   }
   if(monitors_.size() != incoming_line->monitors_.size()) {
-    verifier_->Fail(VERIFY_ERROR_GENERIC) << "mismatched stack depths (depth="
+    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "mismatched stack depths (depth="
         << MonitorStackDepth() << ", incoming depth=" << incoming_line->MonitorStackDepth() << ")";
   } else if (reg_to_lock_depths_ != incoming_line->reg_to_lock_depths_) {
     for (uint32_t idx = 0; idx < num_regs_; idx++) {
@@ -865,8 +866,8 @@ bool RegisterLine::MergeRegisters(const RegisterLine* incoming_line) {
         if (depths == 0 || incoming_depths == 0) {
           reg_to_lock_depths_.erase(idx);
         } else {
-          verifier_->Fail(VERIFY_ERROR_GENERIC) << "mismatched stack depths for register v" << idx
-                                                << ": " << depths  << " != " << incoming_depths;
+          verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "mismatched stack depths for register v" << idx
+                                                       << ": " << depths  << " != " << incoming_depths;
           break;
         }
       }
@@ -985,7 +986,8 @@ bool DexVerifier::VerifyMethod(Method* method) {
       std::cout << std::endl << verifier.info_messages_.str();
       verifier.Dump(std::cout);
     }
-    DCHECK_EQ(verifier.failure_, VERIFY_ERROR_GENERIC);
+    DCHECK((verifier.failure_ == VERIFY_ERROR_BAD_CLASS_SOFT) ||
+           (verifier.failure_ == VERIFY_ERROR_BAD_CLASS_HARD)) << verifier.failure_;
   }
   return success;
 }
@@ -1056,7 +1058,8 @@ bool DexVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file, Dex
       std::cout << std::endl << verifier.info_messages_.str();
       verifier.Dump(std::cout);
     }
-    DCHECK_EQ(verifier.failure_, VERIFY_ERROR_GENERIC);
+    DCHECK((verifier.failure_ == VERIFY_ERROR_BAD_CLASS_SOFT) ||
+           (verifier.failure_ == VERIFY_ERROR_BAD_CLASS_HARD)) << verifier.failure_;
   }
   return success;
 }
@@ -1096,7 +1099,7 @@ bool DexVerifier::VerifyAll() {
   // If there aren't any instructions, make sure that's expected, then exit successfully.
   if (code_item_ == NULL) {
     if (!method_->IsNative() && !method_->IsAbstract()) {
-      Fail(VERIFY_ERROR_GENERIC) << "zero-length code in concrete non-native method";
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "zero-length code in concrete non-native method";
       return false;
     } else {
       return true;
@@ -1111,8 +1114,8 @@ bool DexVerifier::VerifyStructure() {
   }
   // Sanity-check the register counts. ins + locals = registers, so make sure that ins <= registers.
   if (code_item_->ins_size_ > code_item_->registers_size_) {
-    Fail(VERIFY_ERROR_GENERIC) << "bad register counts (ins=" << code_item_->ins_size_
-                               << " regs=" << code_item_->registers_size_;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad register counts (ins=" << code_item_->ins_size_
+                                      << " regs=" << code_item_->registers_size_;
     return false;
   }
   // Allocate and initialize an array to hold instruction data.
@@ -1131,20 +1134,20 @@ std::ostream& DexVerifier::Fail(VerifyError error) {
   if (Runtime::Current()->IsCompiler()) {
     switch (error) {
       // If we're optimistically running verification at compile time, turn NO_xxx and ACCESS_xxx
-      // errors into generic errors so that we re-verify at runtime. We may fail to find or to agree
-      // on access because of not yet available class loaders, or class loaders that will differ at
-      // runtime.
+      // errors into soft verification errors so that we re-verify at runtime. We may fail to find
+      // or to agree on access because of not yet available class loaders, or class loaders that
+      // will differ at runtime.
       case VERIFY_ERROR_NO_CLASS:
       case VERIFY_ERROR_NO_FIELD:
       case VERIFY_ERROR_NO_METHOD:
       case VERIFY_ERROR_ACCESS_CLASS:
       case VERIFY_ERROR_ACCESS_FIELD:
       case VERIFY_ERROR_ACCESS_METHOD:
-        error = VERIFY_ERROR_GENERIC;
+        error = VERIFY_ERROR_BAD_CLASS_SOFT;
         break;
-      // Generic failures at compile time will still fail at runtime, so the class is marked as
-      // rejected to prevent it from being compiled.
-      case VERIFY_ERROR_GENERIC: {
+      // Hard verification failures at compile time will still fail at runtime, so the class is
+      // marked as rejected to prevent it from being compiled.
+      case VERIFY_ERROR_BAD_CLASS_HARD: {
         Compiler::ClassReference ref(dex_file_, class_def_idx_);
         AddRejectedClass(ref);
         break;
@@ -1180,8 +1183,8 @@ bool DexVerifier::ComputeWidthsAndCountOps() {
   }
 
   if (dex_pc != insns_size) {
-    Fail(VERIFY_ERROR_GENERIC) << "code did not end where expected ("
-        << dex_pc << " vs. " << insns_size << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "code did not end where expected ("
+                                      << dex_pc << " vs. " << insns_size << ")";
     return false;
   }
 
@@ -1203,12 +1206,12 @@ bool DexVerifier::ScanTryCatchBlocks() {
     uint32_t start = try_item->start_addr_;
     uint32_t end = start + try_item->insn_count_;
     if ((start >= end) || (start >= insns_size) || (end > insns_size)) {
-      Fail(VERIFY_ERROR_GENERIC) << "bad exception entry: startAddr=" << start
-                                 << " endAddr=" << end << " (size=" << insns_size << ")";
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad exception entry: startAddr=" << start
+                                        << " endAddr=" << end << " (size=" << insns_size << ")";
       return false;
     }
     if (!insn_flags_[start].IsOpcode()) {
-      Fail(VERIFY_ERROR_GENERIC) << "'try' block starts inside an instruction (" << start << ")";
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "'try' block starts inside an instruction (" << start << ")";
       return false;
     }
     for (uint32_t dex_pc = start; dex_pc < end;
@@ -1225,12 +1228,12 @@ bool DexVerifier::ScanTryCatchBlocks() {
     for (; iterator.HasNext(); iterator.Next()) {
       uint32_t dex_pc= iterator.GetHandlerAddress();
       if (!insn_flags_[dex_pc].IsOpcode()) {
-        Fail(VERIFY_ERROR_GENERIC) << "exception handler starts at bad address (" << dex_pc << ")";
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "exception handler starts at bad address (" << dex_pc << ")";
         return false;
       }
       const Instruction* inst = Instruction::At(code_item_->insns_ + dex_pc);
       if (inst->Opcode() != Instruction::MOVE_EXCEPTION) {
-        Fail(VERIFY_ERROR_GENERIC) << "exception handler doesn't start with move-exception ("
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "exception handler doesn't start with move-exception ("
                                    << dex_pc << ")";
         return false;
       }
@@ -1342,7 +1345,7 @@ bool DexVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_offse
       result = result && CheckVarArgRangeRegs(dec_insn.vA, dec_insn.vC);
       break;
     case Instruction::kVerifyError:
-      Fail(VERIFY_ERROR_GENERIC) << "unexpected opcode " << inst->Name();
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected opcode " << inst->Name();
       result = false;
       break;
   }
@@ -1351,8 +1354,8 @@ bool DexVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_offse
 
 bool DexVerifier::CheckRegisterIndex(uint32_t idx) {
   if (idx >= code_item_->registers_size_) {
-    Fail(VERIFY_ERROR_GENERIC) << "register index out of range (" << idx << " >= "
-                               << code_item_->registers_size_ << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "register index out of range (" << idx << " >= "
+                                      << code_item_->registers_size_ << ")";
     return false;
   }
   return true;
@@ -1360,8 +1363,8 @@ bool DexVerifier::CheckRegisterIndex(uint32_t idx) {
 
 bool DexVerifier::CheckWideRegisterIndex(uint32_t idx) {
   if (idx + 1 >= code_item_->registers_size_) {
-    Fail(VERIFY_ERROR_GENERIC) << "wide register index out of range (" << idx
-                               << "+1 >= " << code_item_->registers_size_ << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "wide register index out of range (" << idx
+                                      << "+1 >= " << code_item_->registers_size_ << ")";
     return false;
   }
   return true;
@@ -1369,8 +1372,8 @@ bool DexVerifier::CheckWideRegisterIndex(uint32_t idx) {
 
 bool DexVerifier::CheckFieldIndex(uint32_t idx) {
   if (idx >= dex_file_->GetHeader().field_ids_size_) {
-    Fail(VERIFY_ERROR_GENERIC) << "bad field index " << idx << " (max "
-                               << dex_file_->GetHeader().field_ids_size_ << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad field index " << idx << " (max "
+                                      << dex_file_->GetHeader().field_ids_size_ << ")";
     return false;
   }
   return true;
@@ -1378,8 +1381,8 @@ bool DexVerifier::CheckFieldIndex(uint32_t idx) {
 
 bool DexVerifier::CheckMethodIndex(uint32_t idx) {
   if (idx >= dex_file_->GetHeader().method_ids_size_) {
-    Fail(VERIFY_ERROR_GENERIC) << "bad method index " << idx << " (max "
-                               << dex_file_->GetHeader().method_ids_size_ << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad method index " << idx << " (max "
+                                      << dex_file_->GetHeader().method_ids_size_ << ")";
     return false;
   }
   return true;
@@ -1387,14 +1390,14 @@ bool DexVerifier::CheckMethodIndex(uint32_t idx) {
 
 bool DexVerifier::CheckNewInstance(uint32_t idx) {
   if (idx >= dex_file_->GetHeader().type_ids_size_) {
-    Fail(VERIFY_ERROR_GENERIC) << "bad type index " << idx << " (max "
-                               << dex_file_->GetHeader().type_ids_size_ << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx << " (max "
+                                      << dex_file_->GetHeader().type_ids_size_ << ")";
     return false;
   }
   // We don't need the actual class, just a pointer to the class name.
   const char* descriptor = dex_file_->StringByTypeIdx(idx);
   if (descriptor[0] != 'L') {
-    Fail(VERIFY_ERROR_GENERIC) << "can't call new-instance on type '" << descriptor << "'";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "can't call new-instance on type '" << descriptor << "'";
     return false;
   }
   return true;
@@ -1402,8 +1405,8 @@ bool DexVerifier::CheckNewInstance(uint32_t idx) {
 
 bool DexVerifier::CheckStringIndex(uint32_t idx) {
   if (idx >= dex_file_->GetHeader().string_ids_size_) {
-    Fail(VERIFY_ERROR_GENERIC) << "bad string index " << idx << " (max "
-                               << dex_file_->GetHeader().string_ids_size_ << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad string index " << idx << " (max "
+                                      << dex_file_->GetHeader().string_ids_size_ << ")";
     return false;
   }
   return true;
@@ -1411,8 +1414,8 @@ bool DexVerifier::CheckStringIndex(uint32_t idx) {
 
 bool DexVerifier::CheckTypeIndex(uint32_t idx) {
   if (idx >= dex_file_->GetHeader().type_ids_size_) {
-    Fail(VERIFY_ERROR_GENERIC) << "bad type index " << idx << " (max "
-                               << dex_file_->GetHeader().type_ids_size_ << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx << " (max "
+                                      << dex_file_->GetHeader().type_ids_size_ << ")";
     return false;
   }
   return true;
@@ -1420,8 +1423,8 @@ bool DexVerifier::CheckTypeIndex(uint32_t idx) {
 
 bool DexVerifier::CheckNewArray(uint32_t idx) {
   if (idx >= dex_file_->GetHeader().type_ids_size_) {
-    Fail(VERIFY_ERROR_GENERIC) << "bad type index " << idx << " (max "
-                               << dex_file_->GetHeader().type_ids_size_ << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx << " (max "
+                                      << dex_file_->GetHeader().type_ids_size_ << ")";
     return false;
   }
   int bracket_count = 0;
@@ -1432,11 +1435,11 @@ bool DexVerifier::CheckNewArray(uint32_t idx) {
   }
   if (bracket_count == 0) {
     /* The given class must be an array type. */
-    Fail(VERIFY_ERROR_GENERIC) << "can't new-array class '" << descriptor << "' (not an array)";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "can't new-array class '" << descriptor << "' (not an array)";
     return false;
   } else if (bracket_count > 255) {
     /* It is illegal to create an array of more than 255 dimensions. */
-    Fail(VERIFY_ERROR_GENERIC) << "can't new-array class '" << descriptor << "' (exceeds limit)";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "can't new-array class '" << descriptor << "' (exceeds limit)";
     return false;
   }
   return true;
@@ -1453,16 +1456,16 @@ bool DexVerifier::CheckArrayData(uint32_t cur_offset) {
   array_data_offset = insns[1] | (((int32_t) insns[2]) << 16);
   if ((int32_t) cur_offset + array_data_offset < 0 ||
       cur_offset + array_data_offset + 2 >= insn_count) {
-    Fail(VERIFY_ERROR_GENERIC) << "invalid array data start: at " << cur_offset
-                               << ", data offset " << array_data_offset << ", count " << insn_count;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid array data start: at " << cur_offset
+                                      << ", data offset " << array_data_offset << ", count " << insn_count;
     return false;
   }
   /* offset to array data table is a relative branch-style offset */
   array_data = insns + array_data_offset;
   /* make sure the table is 32-bit aligned */
   if ((((uint32_t) array_data) & 0x03) != 0) {
-    Fail(VERIFY_ERROR_GENERIC) << "unaligned array data table: at " << cur_offset
-                               << ", data offset " << array_data_offset;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unaligned array data table: at " << cur_offset
+                                      << ", data offset " << array_data_offset;
     return false;
   }
   uint32_t value_width = array_data[1];
@@ -1470,10 +1473,10 @@ bool DexVerifier::CheckArrayData(uint32_t cur_offset) {
   uint32_t table_size = 4 + (value_width * value_count + 1) / 2;
   /* make sure the end of the switch is in range */
   if (cur_offset + array_data_offset + table_size > insn_count) {
-    Fail(VERIFY_ERROR_GENERIC) << "invalid array data end: at " << cur_offset
-                               << ", data offset " << array_data_offset << ", end "
-                               << cur_offset + array_data_offset + table_size
-                               << ", count " << insn_count;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid array data end: at " << cur_offset
+                                      << ", data offset " << array_data_offset << ", end "
+                                      << cur_offset + array_data_offset + table_size
+                                      << ", count " << insn_count;
     return false;
   }
   return true;
@@ -1486,20 +1489,20 @@ bool DexVerifier::CheckBranchTarget(uint32_t cur_offset) {
     return false;
   }
   if (!selfOkay && offset == 0) {
-    Fail(VERIFY_ERROR_GENERIC) << "branch offset of zero not allowed at" << (void*) cur_offset;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "branch offset of zero not allowed at" << (void*) cur_offset;
     return false;
   }
   // Check for 32-bit overflow. This isn't strictly necessary if we can depend on the runtime
   // to have identical "wrap-around" behavior, but it's unwise to depend on that.
   if (((int64_t) cur_offset + (int64_t) offset) != (int64_t) (cur_offset + offset)) {
-    Fail(VERIFY_ERROR_GENERIC) << "branch target overflow " << (void*) cur_offset << " +" << offset;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "branch target overflow " << (void*) cur_offset << " +" << offset;
     return false;
   }
   const uint32_t insn_count = code_item_->insns_size_in_code_units_;
   int32_t abs_offset = cur_offset + offset;
   if (abs_offset < 0 || (uint32_t) abs_offset >= insn_count || !insn_flags_[abs_offset].IsOpcode()) {
-    Fail(VERIFY_ERROR_GENERIC) << "invalid branch target " << offset << " (-> "
-                               << (void*) abs_offset << ") at " << (void*) cur_offset;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid branch target " << offset << " (-> "
+                                      << (void*) abs_offset << ") at " << (void*) cur_offset;
     return false;
   }
   insn_flags_[abs_offset].SetBranchTarget();
@@ -1551,16 +1554,16 @@ bool DexVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   /* make sure the start of the switch is in range */
   int32_t switch_offset = insns[1] | ((int32_t) insns[2]) << 16;
   if ((int32_t) cur_offset + switch_offset < 0 || cur_offset + switch_offset + 2 >= insn_count) {
-    Fail(VERIFY_ERROR_GENERIC) << "invalid switch start: at " << cur_offset
-                               << ", switch offset " << switch_offset << ", count " << insn_count;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid switch start: at " << cur_offset
+                                      << ", switch offset " << switch_offset << ", count " << insn_count;
     return false;
   }
   /* offset to switch table is a relative branch-style offset */
   const uint16_t* switch_insns = insns + switch_offset;
   /* make sure the table is 32-bit aligned */
   if ((((uint32_t) switch_insns) & 0x03) != 0) {
-    Fail(VERIFY_ERROR_GENERIC) << "unaligned switch table: at " << cur_offset
-                               << ", switch offset " << switch_offset;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unaligned switch table: at " << cur_offset
+                                      << ", switch offset " << switch_offset;
     return false;
   }
   uint32_t switch_count = switch_insns[1];
@@ -1579,16 +1582,16 @@ bool DexVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   }
   uint32_t table_size = targets_offset + switch_count * 2;
   if (switch_insns[0] != expected_signature) {
-    Fail(VERIFY_ERROR_GENERIC) << StringPrintf("wrong signature for switch table (%x, wanted %x)",
-                                               switch_insns[0], expected_signature);
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << StringPrintf("wrong signature for switch table (%x, wanted %x)",
+                                                      switch_insns[0], expected_signature);
     return false;
   }
   /* make sure the end of the switch is in range */
   if (cur_offset + switch_offset + table_size > (uint32_t) insn_count) {
-    Fail(VERIFY_ERROR_GENERIC) << "invalid switch end: at " << cur_offset << ", switch offset "
-                               << switch_offset << ", end "
-                               << (cur_offset + switch_offset + table_size)
-                               << ", count " << insn_count;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid switch end: at " << cur_offset << ", switch offset "
+                                      << switch_offset << ", end "
+                                      << (cur_offset + switch_offset + table_size)
+                                      << ", count " << insn_count;
     return false;
   }
   /* for a sparse switch, verify the keys are in ascending order */
@@ -1598,8 +1601,8 @@ bool DexVerifier::CheckSwitchTargets(uint32_t cur_offset) {
       int32_t key = (int32_t) switch_insns[keys_offset + targ * 2] |
                     (int32_t) (switch_insns[keys_offset + targ * 2 + 1] << 16);
       if (key <= last_key) {
-        Fail(VERIFY_ERROR_GENERIC) << "invalid packed switch: last key=" << last_key
-                                   << ", this=" << key;
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid packed switch: last key=" << last_key
+                                          << ", this=" << key;
         return false;
       }
       last_key = key;
@@ -1611,9 +1614,9 @@ bool DexVerifier::CheckSwitchTargets(uint32_t cur_offset) {
                      (int32_t) (switch_insns[targets_offset + targ * 2 + 1] << 16);
     int32_t abs_offset = cur_offset + offset;
     if (abs_offset < 0 || abs_offset >= (int32_t) insn_count || !insn_flags_[abs_offset].IsOpcode()) {
-      Fail(VERIFY_ERROR_GENERIC) << "invalid switch target " << offset << " (-> "
-                                 << (void*) abs_offset << ") at "
-                                 << (void*) cur_offset << "[" << targ << "]";
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid switch target " << offset << " (-> "
+                                        << (void*) abs_offset << ") at "
+                                        << (void*) cur_offset << "[" << targ << "]";
       return false;
     }
     insn_flags_[abs_offset].SetBranchTarget();
@@ -1623,14 +1626,14 @@ bool DexVerifier::CheckSwitchTargets(uint32_t cur_offset) {
 
 bool DexVerifier::CheckVarArgRegs(uint32_t vA, uint32_t arg[]) {
   if (vA > 5) {
-    Fail(VERIFY_ERROR_GENERIC) << "invalid arg count (" << vA << ") in non-range invoke)";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid arg count (" << vA << ") in non-range invoke)";
     return false;
   }
   uint16_t registers_size = code_item_->registers_size_;
   for (uint32_t idx = 0; idx < vA; idx++) {
     if (arg[idx] >= registers_size) {
-      Fail(VERIFY_ERROR_GENERIC) << "invalid reg index (" << arg[idx]
-                                 << ") in non-range invoke (>= " << registers_size << ")";
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid reg index (" << arg[idx]
+                                        << ") in non-range invoke (>= " << registers_size << ")";
       return false;
     }
   }
@@ -1643,8 +1646,8 @@ bool DexVerifier::CheckVarArgRangeRegs(uint32_t vA, uint32_t vC) {
   // vA/vC are unsigned 8-bit/16-bit quantities for /range instructions, so there's no risk of
   // integer overflow when adding them here.
   if (vA + vC > registers_size) {
-    Fail(VERIFY_ERROR_GENERIC) << "invalid reg index " << vA << "+" << vC << " in range invoke (> "
-                               << registers_size << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid reg index " << vA << "+" << vC << " in range invoke (> "
+                                      << registers_size << ")";
     return false;
   }
   return true;
@@ -1786,8 +1789,8 @@ bool DexVerifier::SetTypesFromSignature() {
       LOG(FATAL) << "Null descriptor";
     }
     if (cur_arg >= expected_args) {
-      Fail(VERIFY_ERROR_GENERIC) << "expected " << expected_args
-                                 << " args, found more (" << descriptor << ")";
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected " << expected_args
+                                        << " args, found more (" << descriptor << ")";
       return false;
     }
     switch (descriptor[0]) {
@@ -1829,13 +1832,13 @@ bool DexVerifier::SetTypesFromSignature() {
         break;
       }
       default:
-        Fail(VERIFY_ERROR_GENERIC) << "unexpected signature type char '" << descriptor << "'";
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected signature type char '" << descriptor << "'";
         return false;
     }
     cur_arg++;
   }
   if (cur_arg != expected_args) {
-    Fail(VERIFY_ERROR_GENERIC) << "expected " << expected_args << " arguments, found " << cur_arg;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected " << expected_args << " arguments, found " << cur_arg;
     return false;
   }
   const char* descriptor = dex_file_->GetReturnTypeDescriptor(proto_id);
@@ -1868,8 +1871,8 @@ bool DexVerifier::SetTypesFromSignature() {
     result = false;
   }
   if (!result) {
-    Fail(VERIFY_ERROR_GENERIC) << "unexpected char in return type descriptor '"
-                               << descriptor << "'";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected char in return type descriptor '"
+                                      << descriptor << "'";
   }
   return result;
 }
@@ -2041,7 +2044,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
        * the course of executing code then we have a problem.
        */
       if (dec_insn.vA != 0) {
-        Fail(VERIFY_ERROR_GENERIC) << "encountered data table in instruction stream";
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "encountered data table in instruction stream";
       }
       break;
 
@@ -2094,7 +2097,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::RETURN_VOID:
       if (!method_->IsConstructor() || work_line_->CheckConstructorReturn()) {
         if (!GetMethodReturnType().IsUnknown()) {
-          Fail(VERIFY_ERROR_GENERIC) << "return-void not expected";
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-void not expected";
         }
       }
       break;
@@ -2103,7 +2106,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         /* check the method signature */
         const RegType& return_type = GetMethodReturnType();
         if (!return_type.IsCategory1Types()) {
-          Fail(VERIFY_ERROR_GENERIC) << "unexpected non-category 1 return type " << return_type;
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected non-category 1 return type " << return_type;
         } else {
           // Compilers may generate synthetic functions that write byte values into boolean fields.
           // Also, it may use integer values for boolean, byte, short, and character return types.
@@ -2125,7 +2128,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         /* check the method signature */
         const RegType& return_type = GetMethodReturnType();
         if (!return_type.IsCategory2Types()) {
-          Fail(VERIFY_ERROR_GENERIC) << "return-wide not expected";
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-wide not expected";
         } else {
           /* check the register contents */
           work_line_->VerifyRegisterType(dec_insn.vA, return_type);
@@ -2139,7 +2142,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (!method_->IsConstructor() || work_line_->CheckConstructorReturn()) {
         const RegType& return_type = GetMethodReturnType();
         if (!return_type.IsReferenceTypes()) {
-          Fail(VERIFY_ERROR_GENERIC) << "return-object not expected";
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-object not expected";
         } else {
           /* return_type is the *expected* return type, not register value */
           DCHECK(!return_type.IsZero());
@@ -2148,9 +2151,9 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           // Disallow returning uninitialized values and verify that the reference in vAA is an
           // instance of the "return_type"
           if (reg_type.IsUninitializedTypes()) {
-            Fail(VERIFY_ERROR_GENERIC) << "returning uninitialized object '" << reg_type << "'";
+            Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "returning uninitialized object '" << reg_type << "'";
           } else if (!return_type.IsAssignableFrom(reg_type)) {
-            Fail(VERIFY_ERROR_GENERIC) << "returning '" << reg_type
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning '" << reg_type
                 << "', but expected from declaration '" << return_type << "'";
           }
         }
@@ -2236,9 +2239,9 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       const RegType& orig_type =
           work_line_->GetRegisterType(is_checkcast ? dec_insn.vA : dec_insn.vB);
       if (!res_type.IsNonZeroReferenceTypes()) {
-        Fail(VERIFY_ERROR_GENERIC) << "check-cast on unexpected class " << res_type;
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "check-cast on unexpected class " << res_type;
       } else if (!orig_type.IsReferenceTypes()) {
-        Fail(VERIFY_ERROR_GENERIC) << "check-cast on non-reference in v" << dec_insn.vA;
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "check-cast on non-reference in v" << dec_insn.vA;
       } else {
         if (is_checkcast) {
           work_line_->SetRegisterType(dec_insn.vA, res_type);
@@ -2252,7 +2255,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       const RegType& res_type = work_line_->GetRegisterType(dec_insn.vB);
       if (res_type.IsReferenceTypes()) {
         if (!res_type.IsArrayTypes() && !res_type.IsZero()) {  // ie not an array or null
-          Fail(VERIFY_ERROR_GENERIC) << "array-length on non-array " << res_type;
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array-length on non-array " << res_type;
         } else {
           work_line_->SetRegisterType(dec_insn.vA, reg_types_.Integer());
         }
@@ -2323,7 +2326,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::THROW: {
       const RegType& res_type = work_line_->GetRegisterType(dec_insn.vA);
       if (!reg_types_.JavaLangThrowable().IsAssignableFrom(res_type)) {
-        Fail(VERIFY_ERROR_GENERIC) << "thrown class " << res_type << " not instanceof Throwable";
+        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "thrown class " << res_type << " not instanceof Throwable";
       }
       break;
     }
@@ -2345,27 +2348,27 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       /* array_type can be null if the reg type is Zero */
       if (!array_type.IsZero()) {
         if (!array_type.IsArrayTypes()) {
-          Fail(VERIFY_ERROR_GENERIC) << "invalid fill-array-data with array type " << array_type;
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid fill-array-data with array type " << array_type;
         } else {
           const RegType& component_type = reg_types_.GetComponentType(array_type,
                                                     method_->GetDeclaringClass()->GetClassLoader());
           DCHECK(!component_type.IsUnknown());
           if (component_type.IsNonZeroReferenceTypes()) {
-            Fail(VERIFY_ERROR_GENERIC) << "invalid fill-array-data with component type "
-                                       << component_type;
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid fill-array-data with component type "
+                                              << component_type;
           } else {
             // Now verify if the element width in the table matches the element width declared in
             // the array
             const uint16_t* array_data = insns + (insns[1] | (((int32_t) insns[2]) << 16));
             if (array_data[0] != Instruction::kArrayDataSignature) {
-              Fail(VERIFY_ERROR_GENERIC) << "invalid magic for array-data";
+              Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid magic for array-data";
             } else {
               size_t elem_width = Primitive::ComponentSize(component_type.GetPrimitiveType());
               // Since we don't compress the data in Dex, expect to see equal width of data stored
               // in the table and expected from the array class.
               if (array_data[1] != elem_width) {
-                Fail(VERIFY_ERROR_GENERIC) << "array-data size mismatch (" << array_data[1]
-                                           << " vs " << elem_width << ")";
+                Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array-data size mismatch (" << array_data[1]
+                                                  << " vs " << elem_width << ")";
               }
             }
           }
@@ -2386,8 +2389,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         mismatch = !reg_type1.IsIntegralTypes() || !reg_type2.IsIntegralTypes();
       }
       if (mismatch) {
-        Fail(VERIFY_ERROR_GENERIC) << "args to if-eq/if-ne (" << reg_type1 << "," << reg_type2
-                                   << ") must both be references or integral";
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "args to if-eq/if-ne (" << reg_type1 << "," << reg_type2
+                                          << ") must both be references or integral";
       }
       break;
     }
@@ -2398,8 +2401,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       const RegType& reg_type1 = work_line_->GetRegisterType(dec_insn.vA);
       const RegType& reg_type2 = work_line_->GetRegisterType(dec_insn.vB);
       if (!reg_type1.IsIntegralTypes() || !reg_type2.IsIntegralTypes()) {
-        Fail(VERIFY_ERROR_GENERIC) << "args to 'if' (" << reg_type1 << ","
-                                   << reg_type2 << ") must be integral";
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "args to 'if' (" << reg_type1 << ","
+                                          << reg_type2 << ") must be integral";
       }
       break;
     }
@@ -2407,7 +2410,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::IF_NEZ: {
       const RegType& reg_type = work_line_->GetRegisterType(dec_insn.vA);
       if (!reg_type.IsReferenceTypes() && !reg_type.IsIntegralTypes()) {
-        Fail(VERIFY_ERROR_GENERIC) << "type " << reg_type << " unexpected as arg to if-eqz/if-nez";
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "type " << reg_type << " unexpected as arg to if-eqz/if-nez";
       }
       break;
     }
@@ -2417,8 +2420,8 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::IF_LEZ: {
       const RegType& reg_type = work_line_->GetRegisterType(dec_insn.vA);
       if (!reg_type.IsIntegralTypes()) {
-        Fail(VERIFY_ERROR_GENERIC) << "type " << reg_type
-                                   << " unexpected as arg to if-ltz/if-gez/if-gtz/if-lez";
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "type " << reg_type
+                                          << " unexpected as arg to if-ltz/if-gez/if-gtz/if-lez";
       }
       break;
     }
@@ -2608,7 +2611,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
           /* no null refs allowed (?) */
           if (this_type.IsZero()) {
-            Fail(VERIFY_ERROR_GENERIC) << "unable to initialize null ref";
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unable to initialize null ref";
             break;
           }
           if (called_method != NULL) {
@@ -2617,19 +2620,19 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             /* must be in same class or in superclass */
             if (called_method->GetDeclaringClass() == this_class->GetSuperClass()) {
               if (this_class != method_->GetDeclaringClass()) {
-                Fail(VERIFY_ERROR_GENERIC)
+                Fail(VERIFY_ERROR_BAD_CLASS_HARD)
                     << "invoke-direct <init> on super only allowed for 'this' in <init>";
                 break;
               }
             }  else if (called_method->GetDeclaringClass() != this_class) {
-              Fail(VERIFY_ERROR_GENERIC) << "invoke-direct <init> must be on current class or super";
+              Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke-direct <init> must be on current class or super";
               break;
             }
           }
 
           /* arg must be an uninitialized reference */
           if (!this_type.IsUninitializedTypes()) {
-            Fail(VERIFY_ERROR_GENERIC) << "Expected initialization on uninitialized reference "
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Expected initialization on uninitialized reference "
                 << this_type;
             break;
           }
@@ -2701,7 +2704,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             /* null pointer always passes (and always fails at runtime) */
           } else {
             if (this_type.IsUninitializedTypes()) {
-              Fail(VERIFY_ERROR_GENERIC) << "interface call on uninitialized object "
+              Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interface call on uninitialized object "
                   << this_type;
               break;
             }
@@ -2960,7 +2963,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::UNUSED_7A:
     case Instruction::UNUSED_EC:
     case Instruction::UNUSED_FF:
-      Fail(VERIFY_ERROR_GENERIC) << "Unexpected opcode " << inst->DumpString(dex_file_);
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Unexpected opcode " << inst->DumpString(dex_file_);
       break;
 
     /*
@@ -2970,7 +2973,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   }  // end - switch (dec_insn.opcode)
 
   if (failure_ != VERIFY_ERROR_NONE) {
-    if (failure_ == VERIFY_ERROR_GENERIC) {
+    if (failure_ == VERIFY_ERROR_BAD_CLASS_HARD || failure_ == VERIFY_ERROR_BAD_CLASS_SOFT) {
       /* immediate failure, reject class */
       fail_messages_ << std::endl << "Rejecting opcode " << inst->DumpString(dex_file_);
       return false;
@@ -2998,12 +3001,12 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   if ((opcode_flags & Instruction::kContinue) != 0) {
     uint32_t next_insn_idx = work_insn_idx_ + CurrentInsnFlags().GetLengthInCodeUnits();
     if (next_insn_idx >= code_item_->insns_size_in_code_units_) {
-      Fail(VERIFY_ERROR_GENERIC) << "Execution can walk off end of code area";
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Execution can walk off end of code area";
       return false;
     }
     // The only way to get to a move-exception instruction is to get thrown there. Make sure the
     // next instruction isn't one.
-    if (!CheckMoveException(code_item_->insns_, next_insn_idx)) {
+    if (!CheckNotMoveException(code_item_->insns_, next_insn_idx)) {
       return false;
     }
     RegisterLine* next_line = reg_table_.GetLine(next_insn_idx);
@@ -3038,11 +3041,11 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     bool isConditional, selfOkay;
     if (!GetBranchOffset(work_insn_idx_, &branch_target, &isConditional, &selfOkay)) {
       /* should never happen after static verification */
-      Fail(VERIFY_ERROR_GENERIC) << "bad branch";
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad branch";
       return false;
     }
     DCHECK_EQ(isConditional, (opcode_flags & Instruction::kContinue) != 0);
-    if (!CheckMoveException(code_item_->insns_, work_insn_idx_ + branch_target)) {
+    if (!CheckNotMoveException(code_item_->insns_, work_insn_idx_ + branch_target)) {
       return false;
     }
     /* update branch target, set "changed" if appropriate */
@@ -3082,7 +3085,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
          (((int32_t) switch_insns[offset_to_targets + targ * 2 + 1]) << 16);
       abs_offset = work_insn_idx_ + offset;
       DCHECK_LT(abs_offset, code_item_->insns_size_in_code_units_);
-      if (!CheckMoveException(code_item_->insns_, abs_offset)) {
+      if (!CheckNotMoveException(code_item_->insns_, abs_offset)) {
         return false;
       }
       if (!UpdateRegisters(abs_offset, work_line_.get()))
@@ -3123,7 +3126,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
        * it will do so before grabbing the lock).
        */
       if (dec_insn.opcode != Instruction::MONITOR_ENTER || work_line_->MonitorStackDepth() != 1) {
-        Fail(VERIFY_ERROR_GENERIC)
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD)
             << "expected to be within a catch-all for an instruction where a monitor is held";
         return false;
       }
@@ -3167,7 +3170,7 @@ const RegType& DexVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
     method_->GetDexCacheResolvedTypes()->Set(class_idx, result.GetClass());
   }
   if (result.IsUnknown()) {
-    Fail(VERIFY_ERROR_GENERIC) << "accessing unknown class in " << PrettyDescriptor(referrer);
+    Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "accessing unknown class in " << PrettyDescriptor(referrer);
     return result;
   }
   // Check if access is allowed. Unresolved types use AllocObjectFromCodeWithAccessCheck to
@@ -3202,7 +3205,7 @@ const RegType& DexVerifier::GetCaughtExceptionType() {
             } else if(!reg_types_.JavaLangThrowable().IsAssignableFrom(exception)) {
               // We don't know enough about the type and the common path merge will result in
               // Conflict. Fail here knowing the correct thing can be done at runtime.
-              Fail(VERIFY_ERROR_GENERIC) << "unexpected non-exception class " << exception;
+              Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class " << exception;
               return reg_types_.Unknown();
             } else if (common_super->Equals(exception)) {
               // odd case, but nothing to do
@@ -3218,7 +3221,7 @@ const RegType& DexVerifier::GetCaughtExceptionType() {
   }
   if (common_super == NULL) {
     /* no catch blocks, or no catches with classes we can find */
-    Fail(VERIFY_ERROR_GENERIC) << "unable to find exception handler";
+    Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unable to find exception handler";
     return reg_types_.Unknown();
   }
   return *common_super;
@@ -3269,14 +3272,14 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType
   // Make sure calls to constructors are "direct". There are additional restrictions but we don't
   // enforce them here.
   if (res_method->IsConstructor() && method_type != METHOD_DIRECT) {
-    Fail(VERIFY_ERROR_GENERIC) << "rejecting non-direct call to constructor "
-                               << PrettyMethod(res_method);
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "rejecting non-direct call to constructor "
+                                      << PrettyMethod(res_method);
     return NULL;
   }
   // Disallow any calls to class initializers.
   if (MethodHelper(res_method).IsClassInitializer()) {
-    Fail(VERIFY_ERROR_GENERIC) << "rejecting call to class initializer "
-                               << PrettyMethod(res_method);
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "rejecting call to class initializer "
+                                      << PrettyMethod(res_method);
     return NULL;
   }
   // Check if access is allowed.
@@ -3287,8 +3290,8 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType
   }
   // Check that invoke-virtual and invoke-super are not used on private methods of the same class.
   if (res_method->IsPrivate() && method_type == METHOD_VIRTUAL) {
-    Fail(VERIFY_ERROR_GENERIC) << "invoke-super/virtual can't be used on private method "
-                               << PrettyMethod(res_method);
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke-super/virtual can't be used on private method "
+                                      << PrettyMethod(res_method);
     return NULL;
   }
   // Check that interface methods match interface classes.
@@ -3349,7 +3352,7 @@ Method* DexVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
   /* caught by static verifier */
   DCHECK(is_range || expected_args <= 5);
   if (expected_args > code_item_->outs_size_) {
-    Fail(VERIFY_ERROR_GENERIC) << "invalid argument count (" << expected_args
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid argument count (" << expected_args
         << ") exceeds outsSize (" << code_item_->outs_size_ << ")";
     return NULL;
   }
@@ -3367,13 +3370,13 @@ Method* DexVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
       return NULL;
     }
     if (actual_arg_type.IsUninitializedReference() && !res_method->IsConstructor()) {
-      Fail(VERIFY_ERROR_GENERIC) << "'this' arg must be initialized";
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "'this' arg must be initialized";
       return NULL;
     }
     if (method_type != METHOD_INTERFACE && !actual_arg_type.IsZero()) {
       const RegType& res_method_class = reg_types_.FromClass(res_method->GetDeclaringClass());
       if (!res_method_class.IsAssignableFrom(actual_arg_type)) {
-        Fail(VERIFY_ERROR_GENERIC) << "'this' argument '" << actual_arg_type
+        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "'this' argument '" << actual_arg_type
             << "' not instance of '" << res_method_class << "'";
         return NULL;
       }
@@ -3389,7 +3392,7 @@ Method* DexVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
   size_t params_size = params == NULL ? 0 : params->Size();
   for (size_t param_index = 0; param_index < params_size; param_index++) {
     if (actual_args >= expected_args) {
-      Fail(VERIFY_ERROR_GENERIC) << "Rejecting invalid call to '" << PrettyMethod(res_method)
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invalid call to '" << PrettyMethod(res_method)
           << "'. Expected " << expected_args << " arguments, processing argument " << actual_args
           << " (where longs/doubles count twice).";
       return NULL;
@@ -3397,7 +3400,7 @@ Method* DexVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
     const char* descriptor =
         mh.GetTypeDescriptorFromTypeIdx(params->GetTypeItem(param_index).type_idx_);
     if (descriptor == NULL) {
-      Fail(VERIFY_ERROR_GENERIC) << "Rejecting invocation of " << PrettyMethod(res_method)
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation of " << PrettyMethod(res_method)
           << " missing signature component";
       return NULL;
     }
@@ -3410,7 +3413,7 @@ Method* DexVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
     actual_args = reg_type.IsLongOrDoubleTypes() ? actual_args + 2 : actual_args + 1;
   }
   if (actual_args != expected_args) {
-    Fail(VERIFY_ERROR_GENERIC) << "Rejecting invocation of " << PrettyMethod(res_method)
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Rejecting invocation of " << PrettyMethod(res_method)
         << " expected " << expected_args << " arguments, found " << actual_args;
     return NULL;
   } else {
@@ -3431,7 +3434,7 @@ void DexVerifier::VerifyNewArray(const DecodedInstruction& dec_insn, bool is_fil
   } else {
     // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
     if (!res_type.IsArrayTypes()) {
-      Fail(VERIFY_ERROR_GENERIC) << "new-array on non-array class " << res_type;
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "new-array on non-array class " << res_type;
     } else if (!is_filled) {
       /* make sure "size" register is valid type */
       work_line_->VerifyRegisterType(dec_insn.vB, reg_types_.Integer());
@@ -3460,7 +3463,7 @@ void DexVerifier::VerifyAGet(const DecodedInstruction& dec_insn,
                              const RegType& insn_type, bool is_primitive) {
   const RegType& index_type = work_line_->GetRegisterType(dec_insn.vC);
   if (!index_type.IsArrayIndexTypes()) {
-    Fail(VERIFY_ERROR_GENERIC) << "Invalid reg type for array index (" << index_type << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Invalid reg type for array index (" << index_type << ")";
   } else {
     const RegType& array_type = work_line_->GetRegisterType(dec_insn.vB);
     if (array_type.IsZero()) {
@@ -3474,21 +3477,21 @@ void DexVerifier::VerifyAGet(const DecodedInstruction& dec_insn,
         work_line_->SetRegisterType(dec_insn.vA, reg_types_.ConstLo());
       }
     } else if (!array_type.IsArrayTypes()) {
-      Fail(VERIFY_ERROR_GENERIC) << "not array type " << array_type << " with aget";
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aget";
     } else {
       /* verify the class */
       const RegType& component_type = reg_types_.GetComponentType(array_type,
                                                     method_->GetDeclaringClass()->GetClassLoader());
       if (!component_type.IsReferenceTypes() && !is_primitive) {
-        Fail(VERIFY_ERROR_GENERIC) << "primitive array type " << array_type
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "primitive array type " << array_type
             << " source for aget-object";
       } else if (component_type.IsNonZeroReferenceTypes() && is_primitive) {
-        Fail(VERIFY_ERROR_GENERIC) << "reference array type " << array_type
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "reference array type " << array_type
             << " source for category 1 aget";
       } else if (is_primitive && !insn_type.Equals(component_type) &&
                  !((insn_type.IsInteger() && component_type.IsFloat()) ||
                    (insn_type.IsLong() && component_type.IsDouble()))) {
-          Fail(VERIFY_ERROR_GENERIC) << "array type " << array_type
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array type " << array_type
               << " incompatible with aget of type " << insn_type;
       } else {
           // Use knowledge of the field type which is stronger than the type inferred from the
@@ -3504,28 +3507,28 @@ void DexVerifier::VerifyAPut(const DecodedInstruction& dec_insn,
                              const RegType& insn_type, bool is_primitive) {
   const RegType& index_type = work_line_->GetRegisterType(dec_insn.vC);
   if (!index_type.IsArrayIndexTypes()) {
-    Fail(VERIFY_ERROR_GENERIC) << "Invalid reg type for array index (" << index_type << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Invalid reg type for array index (" << index_type << ")";
   } else {
     const RegType& array_type = work_line_->GetRegisterType(dec_insn.vB);
     if (array_type.IsZero()) {
       // Null array type; this code path will fail at runtime. Infer a merge-able type from the
       // instruction type.
     } else if (!array_type.IsArrayTypes()) {
-      Fail(VERIFY_ERROR_GENERIC) << "not array type " << array_type << " with aput";
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aput";
     } else {
       /* verify the class */
       const RegType& component_type = reg_types_.GetComponentType(array_type,
                                                     method_->GetDeclaringClass()->GetClassLoader());
       if (!component_type.IsReferenceTypes() && !is_primitive) {
-        Fail(VERIFY_ERROR_GENERIC) << "primitive array type " << array_type
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "primitive array type " << array_type
             << " source for aput-object";
       } else if (component_type.IsNonZeroReferenceTypes() && is_primitive) {
-        Fail(VERIFY_ERROR_GENERIC) << "reference array type " << array_type
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "reference array type " << array_type
             << " source for category 1 aput";
       } else if (is_primitive && !insn_type.Equals(component_type) &&
                  !((insn_type.IsInteger() && component_type.IsFloat()) ||
                    (insn_type.IsLong() && component_type.IsDouble()))) {
-        Fail(VERIFY_ERROR_GENERIC) << "array type " << array_type
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "array type " << array_type
             << " incompatible with aput of type " << insn_type;
       } else {
         // The instruction agrees with the type of array, confirm the value to be stored does too
@@ -3609,9 +3612,9 @@ Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
              field->GetDeclaringClass() != method_->GetDeclaringClass())) {
     // Field accesses through uninitialized references are only allowable for constructors where
     // the field is declared in this class
-    Fail(VERIFY_ERROR_GENERIC) << "cannot access instance field " << PrettyField(field)
-                               << " of a not fully initialized object within the context of "
-                               << PrettyMethod(method_);
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access instance field " << PrettyField(field)
+                                      << " of a not fully initialized object within the context of "
+                                      << PrettyMethod(method_);
     return NULL;
   } else if(!field->GetDeclaringClass()->IsAssignableFrom(obj_type.GetClass())) {
     // Trying to access C1.field1 using reference of type C2, which is neither C1 or a sub-class
@@ -3659,17 +3662,17 @@ void DexVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
         // This is a global failure rather than a class change failure as the instructions and
         // the descriptors for the type should have been consistent within the same file at
         // compile time
-        Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                   << " to be of type '" << insn_type
-                                   << "' but found type '" << field_type << "' in get";
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
+                                          << " to be of type '" << insn_type
+                                          << "' but found type '" << field_type << "' in get";
         return;
       }
     } else {
       if (!insn_type.IsAssignableFrom(field_type)) {
-        Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                   << " to be compatible with type '" << insn_type
-                                   << "' but found type '" << field_type
-                                   << "' in get-object";
+        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
+                                          << " to be compatible with type '" << insn_type
+                                          << "' but found type '" << field_type
+                                          << "' in get-object";
         return;
       }
     }
@@ -3733,25 +3736,25 @@ void DexVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
         // This is a global failure rather than a class change failure as the instructions and
         // the descriptors for the type should have been consistent within the same file at
         // compile time
-        Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                   << " to be of type '" << insn_type
-                                   << "' but found type '" << field_type
-                                   << "' in put";
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
+                                          << " to be of type '" << insn_type
+                                          << "' but found type '" << field_type
+                                          << "' in put";
         return;
       }
       if (!value_compatible) {
-        Fail(VERIFY_ERROR_GENERIC) << "unexpected value in v" << dec_insn.vA
-                                   << " of type " << value_type
-                                   << " but expected " << field_type
-                                   << " for store to " << PrettyField(field) << " in put";
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected value in v" << dec_insn.vA
+                                          << " of type " << value_type
+                                          << " but expected " << field_type
+                                          << " for store to " << PrettyField(field) << " in put";
         return;
       }
     } else {
       if (!insn_type.IsAssignableFrom(field_type)) {
-        Fail(VERIFY_ERROR_GENERIC) << "expected field " << PrettyField(field)
-                                  << " to be compatible with type '" << insn_type
-                                  << "' but found type '" << field_type
-                                  << "' in put-object";
+        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
+                                          << " to be compatible with type '" << insn_type
+                                          << "' but found type '" << field_type
+                                          << "' in put-object";
         return;
       }
       work_line_->VerifyRegisterType(dec_insn.vA, field_type);
@@ -3759,9 +3762,9 @@ void DexVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
   }
 }
 
-bool DexVerifier::CheckMoveException(const uint16_t* insns, int insn_idx) {
+bool DexVerifier::CheckNotMoveException(const uint16_t* insns, int insn_idx) {
   if ((insns[insn_idx] & 0xff) == Instruction::MOVE_EXCEPTION) {
-    Fail(VERIFY_ERROR_GENERIC) << "invalid use of move-exception";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid use of move-exception";
     return false;
   }
   return true;
@@ -3918,7 +3921,7 @@ const std::vector<uint8_t>* DexVerifier::GenerateGcMap() {
   // There's a single byte to encode the size of each bitmap
   if (ref_bitmap_bits >= (8 /* bits per byte */ * 8192 /* 13-bit size */ )) {
     // TODO: either a better GC map format or per method failures
-    Fail(VERIFY_ERROR_GENERIC) << "Cannot encode GC map for method with "
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot encode GC map for method with "
        << ref_bitmap_bits << " registers";
     return NULL;
   }
@@ -3926,7 +3929,7 @@ const std::vector<uint8_t>* DexVerifier::GenerateGcMap() {
   // There are 2 bytes to encode the number of entries
   if (num_entries >= 65536) {
     // TODO: either a better GC map format or per method failures
-    Fail(VERIFY_ERROR_GENERIC) << "Cannot encode GC map for method with "
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot encode GC map for method with "
        << num_entries << " entries";
     return NULL;
   }
@@ -3940,14 +3943,14 @@ const std::vector<uint8_t>* DexVerifier::GenerateGcMap() {
     pc_bytes = 2;
   } else {
     // TODO: either a better GC map format or per method failures
-    Fail(VERIFY_ERROR_GENERIC) << "Cannot encode GC map for method with "
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot encode GC map for method with "
        << (1 << pc_bits) << " instructions (number is rounded up to nearest power of 2)";
     return NULL;
   }
   size_t table_size = ((pc_bytes + ref_bitmap_bytes) * num_entries ) + 4;
   std::vector<uint8_t>* table = new std::vector<uint8_t>;
   if (table == NULL) {
-    Fail(VERIFY_ERROR_GENERIC) << "Failed to encode GC map (size=" << table_size << ")";
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Failed to encode GC map (size=" << table_size << ")";
     return NULL;
   }
   // Write table header
