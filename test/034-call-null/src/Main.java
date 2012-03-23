@@ -17,12 +17,12 @@
 public class Main {
     int mFoo = 27;
 
-    private void doStuff() {
+    private void doStuff(int i, int[][] is, String s, String[][] ss) {
         System.out.println("mFoo is " + mFoo);
     }
 
     public static void main(String[] args) {
         Main instance = null;
-        instance.doStuff();
+        instance.doStuff(0, null, null, null);
     }
 }
