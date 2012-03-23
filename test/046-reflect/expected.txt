@@ -94,11 +94,21 @@ ReflectTest done!
 public method
 checkType invoking null
 checkType got expected exception
-calling const-class NoisyInitUser.class
-called const-class NoisyInitUser.class
+calling const-class FieldNoisyInitUser.class
+called const-class FieldNoisyInitUser.class
+got fields
+got field
+FieldNoisyInitUser is initializing
+read field value
+FieldNoisyInit is initializing
+
+calling const-class MethodNoisyInitUser.class
+called const-class MethodNoisyInitUser.class
 got methods
-NoisyInitUser is initializing
-NoisyInit is initializing
+got method
+MethodNoisyInitUser is initializing
+invoked method
+MethodNoisyInit is initializing
 
 generic field: java.util.List<java.lang.String>
 generic method fancyMethod params='[1] java.util.ArrayList<java.lang.String>' ret='java.util.Map<java.lang.Integer, java.lang.String>'
