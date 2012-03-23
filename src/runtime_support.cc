@@ -348,7 +348,8 @@ extern "C" void artThrowVerificationErrorFromCode(int32_t kind, int32_t ref, Thr
     exception_class = "Ljava/lang/InstantiationError;";
     msg = ClassNameFromIndex(method, ref, ref_type, false);
     break;
-  case verifier::VERIFY_ERROR_GENERIC:
+  case verifier::VERIFY_ERROR_BAD_CLASS_SOFT:
+  case verifier::VERIFY_ERROR_BAD_CLASS_HARD:
     // Generic VerifyError; use default exception, no message.
     break;
   case verifier::VERIFY_ERROR_NONE:
