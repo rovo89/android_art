@@ -831,6 +831,11 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     oatInitGrowableList(cUnit.get(), &cUnit->throwLaunchpads, cUnit->insnsSize,
                         kListThrowLaunchPads);
 
+    /* Intialize the instrinsicLaunchpads list */
+    oatInitGrowableList(cUnit.get(), &cUnit->intrinsicLaunchpads, 4,
+                        kListMisc);
+
+
     /* Intialize the suspendLaunchpads list */
     oatInitGrowableList(cUnit.get(), &cUnit->suspendLaunchpads, 2048,
                         kListSuspendLaunchPads);
@@ -984,7 +989,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     if (!(cUnit->disableOpt & (1 << kSkipLargeMethodOptimization))) {
         if ((cUnit->numBlocks > MANY_BLOCKS) ||
               ((cUnit->numBlocks > MANY_BLOCKS_INITIALIZER) &&
-               PrettyMethod(method_idx, dex_file).find("init>") !=
+               PrettyMethod(method_idx, dex_file, false).find("init>") !=
                std::string::npos)) {
             cUnit->qdMode = true;
         }

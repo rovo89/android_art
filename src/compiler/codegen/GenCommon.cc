@@ -21,7 +21,8 @@ namespace art {
  * be applicable to most targets.  Only mid-level support utilities
  * and "op" calls may be used here.
  */
-
+void genInvoke(CompilationUnit* cUnit, BasicBlock* bb,  MIR* mir,
+               InvokeType type, bool isRange);
 #if defined(TARGET_ARM)
 LIR* opIT(CompilationUnit* cUnit, ArmConditionCode cond, const char* guide);
 #endif
@@ -835,6 +836,7 @@ void handleSuspendLaunchpads(CompilationUnit *cUnit)
     int numElems = cUnit->suspendLaunchpads.numUsed;
     for (int i = 0; i < numElems; i++) {
         oatResetRegPool(cUnit);
+        oatResetDefTracking(cUnit);
         LIR* lab = suspendLabel[i];
         LIR* resumeLab = (LIR*)lab->operands[0];
         cUnit->currentDalvikOffset = lab->operands[1];
@@ -851,12 +853,34 @@ void handleSuspendLaunchpads(CompilationUnit *cUnit)
     }
 }
 
+void handleIntrinsicLaunchpads(CompilationUnit *cUnit)
+{
+    LIR** intrinsicLabel = (LIR **)cUnit->intrinsicLaunchpads.elemList;
+    int numElems = cUnit->intrinsicLaunchpads.numUsed;
+    for (int i = 0; i < numElems; i++) {
+        oatResetRegPool(cUnit);
+        oatResetDefTracking(cUnit);
+        LIR* lab = intrinsicLabel[i];
+        MIR* mir = (MIR*)lab->operands[0];
+        InvokeType type = (InvokeType)lab->operands[1];
+        BasicBlock* bb = (BasicBlock*)lab->operands[3];
+        cUnit->currentDalvikOffset = mir->offset;
+        oatAppendLIR(cUnit, lab);
+        genInvoke(cUnit, bb, mir, type, false /* isRange */);
+        LIR* resumeLab = (LIR*)lab->operands[2];
+        if (resumeLab != NULL) {
+            opUnconditionalBranch(cUnit, resumeLab);
+        }
+    }
+}
+
 void handleThrowLaunchpads(CompilationUnit *cUnit)
 {
     LIR** throwLabel = (LIR **)cUnit->throwLaunchpads.elemList;
     int numElems = cUnit->throwLaunchpads.numUsed;
     for (int i = 0; i < numElems; i++) {
         oatResetRegPool(cUnit);
+        oatResetDefTracking(cUnit);
         LIR* lab = throwLabel[i];
         cUnit->currentDalvikOffset = lab->operands[1];
         oatAppendLIR(cUnit, lab);

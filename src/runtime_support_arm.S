@@ -804,3 +804,234 @@ art_ushr_long:
     movpl   r0, r1, lsr ip              @  if r2 >= 32, r0<-r1 >>> (r2-32)
     mov     r1, r1, lsr r2              @  r1<- r1 >>> r2
     bx      lr
+
+    .balign 4
+    .global art_indexof
+art_indexof:
+    /*
+     * String's indexOf.
+     *
+     * On entry:
+     *    r0:   string object (known non-null)
+     *    r1:   char to match
+     *    r2:   Starting offset in string data
+     */
+
+    push {r4, r10-r11, lr} @ 4 words of callee saves
+    ldr   r3, [r0, #STRING_COUNT_OFFSET]
+    ldr   r12, [r0, #STRING_OFFSET_OFFSET]
+    ldr   r0, [r0, #STRING_VALUE_OFFSET]
+
+    /* Clamp start to [0..count] */
+    cmp   r2, #0
+    movlt r2, #0
+    cmp   r2, r3
+    movgt r2, r3
+
+    /* Build a pointer to the start of string data */
+    add   r0, #STRING_DATA_OFFSET
+    add   r0, r0, r12, lsl #1
+
+    /* Save a copy in r12 to later compute result */
+    mov   r12, r0
+
+    /* Build pointer to start of data to compare and pre-bias */
+    add   r0, r0, r2, lsl #1
+    sub   r0, #2
+
+    /* Compute iteration count */
+    sub   r2, r3, r2
+
+    /*
+     * At this point we have:
+     *   r0: start of data to test
+     *   r1: char to compare
+     *   r2: iteration count
+     *   r12: original start of string data
+     *   r3, r4, r10, r11 available for loading string data
+     */
+
+    subs  r2, #4
+    blt   indexof_remainder
+
+indexof_loop4:
+    ldrh  r3, [r0, #2]!
+    ldrh  r4, [r0, #2]!
+    ldrh  r10, [r0, #2]!
+    ldrh  r11, [r0, #2]!
+    cmp   r3, r1
+    beq   match_0
+    cmp   r4, r1
+    beq   match_1
+    cmp   r10, r1
+    beq   match_2
+    cmp   r11, r1
+    beq   match_3
+    subs  r2, #4
+    bge   indexof_loop4
+
+indexof_remainder:
+    adds    r2, #4
+    beq     indexof_nomatch
+
+indexof_loop1:
+    ldrh  r3, [r0, #2]!
+    cmp   r3, r1
+    beq   match_3
+    subs  r2, #1
+    bne   indexof_loop1
+
+indexof_nomatch:
+    mov   r0, #-1
+    pop {r4, r10-r11, pc}
+
+match_0:
+    sub   r0, #6
+    sub   r0, r12
+    asr   r0, r0, #1
+    pop {r4, r10-r11, pc}
+match_1:
+    sub   r0, #4
+    sub   r0, r12
+    asr   r0, r0, #1
+    pop {r4, r10-r11, pc}
+match_2:
+    sub   r0, #2
+    sub   r0, r12
+    asr   r0, r0, #1
+    pop {r4, r10-r11, pc}
+match_3:
+    sub   r0, r12
+    asr   r0, r0, #1
+    pop {r4, r10-r11, pc}
+
+
+   /*
+     * String's compareTo.
+     *
+     * Requires rARG0/rARG1 to have been previously checked for null.  Will
+     * return negative if this's string is < comp, 0 if they are the
+     * same and positive if >.
+     *
+     * On entry:
+     *    r0:   this object pointer
+     *    r1:   comp object pointer
+     *
+     */
+
+    .balign 4
+    .global art_string_compareto
+    .extern __memcmp16
+art_string_compareto:
+    mov    r2, r0         @ this to r2, opening up r0 for return value
+    subs   r0, r2, r1     @ Same?
+    bxeq   lr
+
+    push {r4, r7-r12, lr} @ 8 words - keep alignment
+
+    ldr    r4, [r2, #STRING_OFFSET_OFFSET]
+    ldr    r9, [r1, #STRING_OFFSET_OFFSET]
+    ldr    r7, [r2, #STRING_COUNT_OFFSET]
+    ldr    r10, [r1, #STRING_COUNT_OFFSET]
+    ldr    r2, [r2, #STRING_VALUE_OFFSET]
+    ldr    r1, [r1, #STRING_VALUE_OFFSET]
+
+    /*
+     * At this point, we have:
+     *    value:  r2/r1
+     *    offset: r4/r9
+     *    count:  r7/r10
+     * We're going to compute
+     *    r11 <- countDiff
+     *    r10 <- minCount
+     */
+     subs  r11, r7, r10
+     movls r10, r7
+
+     /* Now, build pointers to the string data */
+     add   r2, r2, r4, lsl #1
+     add   r1, r1, r9, lsl #1
+     /*
+      * Note: data pointers point to previous element so we can use pre-index
+      * mode with base writeback.
+      */
+     add   r2, #STRING_DATA_OFFSET-2   @ offset to contents[-1]
+     add   r1, #STRING_DATA_OFFSET-2   @ offset to contents[-1]
+
+     /*
+      * At this point we have:
+      *   r2: *this string data
+      *   r1: *comp string data
+      *   r10: iteration count for comparison
+      *   r11: value to return if the first part of the string is equal
+      *   r0: reserved for result
+      *   r3, r4, r7, r8, r9, r12 available for loading string data
+      */
+
+    subs  r10, #2
+    blt   do_remainder2
+
+      /*
+       * Unroll the first two checks so we can quickly catch early mismatch
+       * on long strings (but preserve incoming alignment)
+       */
+
+    ldrh  r3, [r2, #2]!
+    ldrh  r4, [r1, #2]!
+    ldrh  r7, [r2, #2]!
+    ldrh  r8, [r1, #2]!
+    subs  r0, r3, r4
+    subeqs  r0, r7, r8
+    bne   done
+    cmp   r10, #28
+    bgt   do_memcmp16
+    subs  r10, #3
+    blt   do_remainder
+
+loopback_triple:
+    ldrh  r3, [r2, #2]!
+    ldrh  r4, [r1, #2]!
+    ldrh  r7, [r2, #2]!
+    ldrh  r8, [r1, #2]!
+    ldrh  r9, [r2, #2]!
+    ldrh  r12,[r1, #2]!
+    subs  r0, r3, r4
+    subeqs  r0, r7, r8
+    subeqs  r0, r9, r12
+    bne   done
+    subs  r10, #3
+    bge   loopback_triple
+
+do_remainder:
+    adds  r10, #3
+    beq   returnDiff
+
+loopback_single:
+    ldrh  r3, [r2, #2]!
+    ldrh  r4, [r1, #2]!
+    subs  r0, r3, r4
+    bne   done
+    subs  r10, #1
+    bne     loopback_single
+
+returnDiff:
+    mov   r0, r11
+    pop   {r4, r7-r12, pc}
+
+do_remainder2:
+    adds  r10, #2
+    bne   loopback_single
+    mov   r0, r11
+    pop   {r4, r7-r12, pc}
+
+    /* Long string case */
+do_memcmp16:
+    mov   r7, r11
+    add   r0, r2, #2
+    add   r1, r1, #2
+    mov   r2, r10
+    bl    __memcmp16
+    cmp   r0, #0
+    moveq r0, r7
+done:
+    pop   {r4, r7-r12, pc}

@@ -2179,16 +2179,28 @@ class MANAGED PrimitiveArray : public Array {
 // C++ mirror of java.lang.String
 class MANAGED String : public Object {
  public:
+
+  static MemberOffset CountOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(String, count_);
+  }
+
+  static MemberOffset ValueOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(String, array_);
+  }
+
+  static MemberOffset OffsetOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(String, offset_);
+  }
+
   const CharArray* GetCharArray() const {
     const CharArray* result = GetFieldObject<const CharArray*>(
-        OFFSET_OF_OBJECT_MEMBER(String, array_), false);
+        ValueOffset(), false);
     DCHECK(result != NULL);
     return result;
   }
 
   int32_t GetOffset() const {
-    int32_t result = GetField32(
-        OFFSET_OF_OBJECT_MEMBER(String, offset_), false);
+    int32_t result = GetField32(OffsetOffset(), false);
     DCHECK_LE(0, result);
     return result;
   }

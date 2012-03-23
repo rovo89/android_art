@@ -296,6 +296,9 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
         case kPseudoThrowTarget:
             LOG(INFO) << "LT" << (void*)lir << ":";
             break;
+        case kPseudoIntrinsicRetry:
+            LOG(INFO) << "IR" << (void*)lir << ":";
+            break;
         case kPseudoSuspendTarget:
             LOG(INFO) << "LS" << (void*)lir << ":";
             break;

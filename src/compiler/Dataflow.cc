@@ -1655,6 +1655,35 @@ MIR* advanceMIR(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir, ArenaBitVect
     return mir;
 }
 
+/*
+ * To be used at an invoke mir.  If the logically next mir node represents
+ * a move-result, return it.  Else, return NULL.  If a move-result exists,
+ * it is required to immediately follow the invoke with no intervening
+ * opcodes or incoming arcs.  However, if the result of the invoke is not
+ * used, a move-result may not be present.
+ */
+MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                       bool wide)
+{
+    BasicBlock* tbb = bb;
+    mir = advanceMIR(cUnit, &tbb, mir, NULL, false);
+    while (mir != NULL) {
+        if (!wide && mir->dalvikInsn.opcode == Instruction::MOVE_RESULT) {
+            break;
+        }
+        if (wide && mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_WIDE) {
+            break;
+        }
+        // Keep going if pseudo op, otherwise terminate
+        if (mir->dalvikInsn.opcode < static_cast<Instruction::Code>(kNumPackedOpcodes)) {
+            mir = NULL;
+        } else {
+            mir = advanceMIR(cUnit, &tbb, mir, NULL, false);
+        }
+    }
+    return mir;
+}
+
 void squashDupRangeChecks(CompilationUnit* cUnit, BasicBlock** pBp, MIR* mir,
                           int arraySreg, int indexSreg)
 {

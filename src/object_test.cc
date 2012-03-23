@@ -25,6 +25,7 @@
 #include "dex_file.h"
 #include "heap.h"
 #include "runtime_support.h"
+#include "asm_support.h"
 
 namespace art {
 
@@ -53,6 +54,14 @@ class ObjectTest : public CommonTest {
     EXPECT_EQ(expected_hash, string->GetHashCode());
   }
 };
+
+// Keep the assembly code in sync
+TEST_F(ObjectTest, AsmConstants) {
+  ASSERT_EQ(STRING_VALUE_OFFSET, String::ValueOffset().Int32Value());
+  ASSERT_EQ(STRING_COUNT_OFFSET, String::CountOffset().Int32Value());
+  ASSERT_EQ(STRING_OFFSET_OFFSET, String::OffsetOffset().Int32Value());
+  ASSERT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
+}
 
 TEST_F(ObjectTest, IsInSamePackage) {
   // Matches

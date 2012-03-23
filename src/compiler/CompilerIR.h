@@ -375,6 +375,7 @@ struct CompilationUnit {
     GrowableList domPostOrderTraversal;
     GrowableList throwLaunchpads;
     GrowableList suspendLaunchpads;
+    GrowableList intrinsicLaunchpads;
     GrowableList compilerTemps;
     int* iDomList;
     ArenaBitVector* tryBlockAddr;
@@ -601,6 +602,8 @@ void oatInsertLIRBefore(LIR* currentLIR, LIR* newLIR);
 
 void oatInsertLIRAfter(LIR* currentLIR, LIR* newLIR);
 
+MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                       bool wide);
 /* Debug Utilities */
 void oatDumpCompilationUnit(CompilationUnit* cUnit);
 

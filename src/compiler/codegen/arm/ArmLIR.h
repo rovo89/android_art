@@ -290,6 +290,7 @@ enum ArmConditionCode {
  * Assemble.cc.
  */
 enum ArmOpcode {
+    kPseudoIntrinsicRetry = -16,
     kPseudoSuspendTarget = -15,
     kPseudoThrowTarget = -14,
     kPseudoCaseLabel = -13,
