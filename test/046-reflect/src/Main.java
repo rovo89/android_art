@@ -402,19 +402,48 @@ public class Main {
         }
     }
 
-    public static void checkInit() {
-      System.out.println("calling const-class NoisyInitUser.class");
-      Class niuClass = NoisyInitUser.class;
-      System.out.println("called const-class NoisyInitUser.class");
-      Method[] methods;
+    public static void checkClinitForFields() throws Exception {
+      // Loading a class constant shouldn't run <clinit>.
+      System.out.println("calling const-class FieldNoisyInitUser.class");
+      Class niuClass = FieldNoisyInitUser.class;
+      System.out.println("called const-class FieldNoisyInitUser.class");
 
-        methods = niuClass.getDeclaredMethods();
-        System.out.println("got methods");
-        /* neither NoisyInit nor NoisyInitUser should be initialized yet */
-        NoisyInitUser niu = new NoisyInitUser();
-        NoisyInit ni = new NoisyInit();
+      // Getting the declared fields doesn't run <clinit>.
+      Field[] fields = niuClass.getDeclaredFields();
+      System.out.println("got fields");
 
-        System.out.println("");
+      Field field = niuClass.getField("staticField");
+      System.out.println("got field");
+      field.get(null);
+      System.out.println("read field value");
+
+      // FieldNoisyInitUser should now be initialized, but FieldNoisyInit shouldn't be initialized yet.
+      FieldNoisyInitUser niu = new FieldNoisyInitUser();
+      FieldNoisyInit ni = new FieldNoisyInit();
+
+      System.out.println("");
+    }
+
+    public static void checkClinitForMethods() throws Exception {
+      // Loading a class constant shouldn't run <clinit>.
+      System.out.println("calling const-class MethodNoisyInitUser.class");
+      Class niuClass = MethodNoisyInitUser.class;
+      System.out.println("called const-class MethodNoisyInitUser.class");
+
+      // Getting the declared methods doesn't run <clinit>.
+      Method[] methods = niuClass.getDeclaredMethods();
+      System.out.println("got methods");
+
+      Method method = niuClass.getMethod("staticMethod", (Class[]) null);
+      System.out.println("got method");
+      method.invoke(null);
+      System.out.println("invoked method");
+
+      // MethodNoisyInitUser should now be initialized, but MethodNoisyInit shouldn't be initialized yet.
+      MethodNoisyInitUser niu = new MethodNoisyInitUser();
+      MethodNoisyInit ni = new MethodNoisyInit();
+
+      System.out.println("");
     }
 
 
@@ -479,13 +508,14 @@ public class Main {
     }
 
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         Main test = new Main();
         test.run();
 
         checkAccess();
         checkType();
-        checkInit();
+        checkClinitForFields();
+        checkClinitForMethods();
         checkGeneric();
     }
 }
@@ -557,17 +587,34 @@ class Target extends SuperTarget {
     public static double staticDouble = 3.3;
 }
 
-class NoisyInit {
-    static {
-        System.out.println("NoisyInit is initializing");
-        //Throwable th = new Throwable();
-        //th.printStackTrace();
-    }
+class FieldNoisyInit {
+  static {
+    System.out.println("FieldNoisyInit is initializing");
+    //Throwable th = new Throwable();
+    //th.printStackTrace();
+  }
 }
 
-class NoisyInitUser {
-    static {
-        System.out.println("NoisyInitUser is initializing");
-    }
-    public void createNoisyInit(NoisyInit ni) {}
+class FieldNoisyInitUser {
+  static {
+    System.out.println("FieldNoisyInitUser is initializing");
+  }
+  public static int staticField;
+  public static FieldNoisyInit noisy;
+}
+
+class MethodNoisyInit {
+  static {
+    System.out.println("MethodNoisyInit is initializing");
+    //Throwable th = new Throwable();
+    //th.printStackTrace();
+  }
+}
+
+class MethodNoisyInitUser {
+  static {
+    System.out.println("MethodNoisyInitUser is initializing");
+  }
+  public static void staticMethod() {}
+  public void createMethodNoisyInit(MethodNoisyInit ni) {}
 }
