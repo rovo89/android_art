@@ -65,8 +65,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
 
 #if defined(ART_USE_LLVM_COMPILER)
   // Return to caller who will handle pending exception.
-  __ addl(ESP, Immediate(28));
-  __ popl(EBX);
+  __ addl(ESP, Immediate(32));
   __ popl(EBP);
   __ popl(ESI);
   __ popl(EDI);
