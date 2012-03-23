@@ -184,6 +184,7 @@ std::string PrettyDescriptor(const std::string& descriptor) {
     case 'J': c = "long;"; break;
     case 'S': c = "short;"; break;
     case 'Z': c = "boolean;"; break;
+    case 'V': c = "void;"; break; // Used when decoding return types.
     default: return descriptor;
     }
   }
@@ -227,6 +228,41 @@ std::string PrettyField(const Field* f, bool with_type) {
   return result;
 }
 
+std::string PrettyArguments(const char* signature) {
+  std::string result;
+  result += '(';
+  CHECK_EQ(*signature, '(');
+  ++signature; // Skip the '('.
+  while (*signature != ')') {
+    size_t argument_length = 0;
+    while (signature[argument_length] == '[') {
+      ++argument_length;
+    }
+    if (signature[argument_length] == 'L') {
+      argument_length = (strchr(signature, ';') - signature + 1);
+    } else {
+      ++argument_length;
+    }
+    std::string argument_descriptor(signature, argument_length);
+    result += PrettyDescriptor(argument_descriptor);
+    if (signature[argument_length] != ')') {
+      result += ", ";
+    }
+    signature += argument_length;
+  }
+  CHECK_EQ(*signature, ')');
+  ++signature; // Skip the ')'.
+  result += ')';
+  return result;
+}
+
+std::string PrettyReturnType(const char* signature) {
+  const char* return_type = strchr(signature, ')');
+  CHECK(return_type != NULL);
+  ++return_type; // Skip ')'.
+  return PrettyDescriptor(return_type);
+}
+
 std::string PrettyMethod(const Method* m, bool with_signature) {
   if (m == NULL) {
     return "null";
@@ -236,9 +272,8 @@ std::string PrettyMethod(const Method* m, bool with_signature) {
   result += '.';
   result += mh.GetName();
   if (with_signature) {
-    // TODO: iterate over the signature's elements and pass them all to
-    // PrettyDescriptor? We'd need to pull out the return type specially, too.
-    result += mh.GetSignature();
+    std::string signature(mh.GetSignature());
+    result = PrettyReturnType(signature.c_str()) + " " + result + PrettyArguments(signature.c_str());
   }
   return result;
 }
@@ -249,9 +284,8 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
   result += '.';
   result += dex_file.GetMethodName(method_id);
   if (with_signature) {
-    // TODO: iterate over the signature's elements and pass them all to
-    // PrettyDescriptor? We'd need to pull out the return type specially, too.
-    result += dex_file.GetMethodSignature(method_id);
+    std::string signature(dex_file.GetMethodSignature(method_id));
+    result = PrettyReturnType(signature.c_str()) + " " + result + PrettyArguments(signature.c_str());
   }
   return result;
 }
