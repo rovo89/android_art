@@ -19,6 +19,7 @@
 
 #include "constants.h"
 #include "dex_file.h"
+#include "elf_image.h"
 #include "macros.h"
 #include "object.h"
 

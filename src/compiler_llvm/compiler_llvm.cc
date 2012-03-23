@@ -21,6 +21,7 @@
 #include "compiled_method.h"
 #include "compiler.h"
 #include "dex_cache.h"
+#include "elf_image.h"
 #include "elf_loader.h"
 #include "ir_builder.h"
 #include "jni_compiler.h"
@@ -205,9 +206,7 @@ void CompilerLLVM::LoadElfFromCompilationUnit(const CompilationUnit* cunit) {
   compiler_lock_.AssertHeld();
   DCHECK(cunit->IsMaterialized()) << cunit->GetElfIndex();
 
-  if (!elf_loader_->LoadElfAt(cunit->GetElfIndex(),
-                              cunit->GetElfImage(),
-                              cunit->GetElfSize())) {
+  if (!elf_loader_->LoadElfAt(cunit->GetElfIndex(), cunit->GetElfImage())) {
     LOG(ERROR) << "Failed to load ELF from compilation unit "
                << cunit->GetElfIndex();
   }
