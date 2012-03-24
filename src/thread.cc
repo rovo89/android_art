@@ -53,6 +53,7 @@ namespace art {
 
 pthread_key_t Thread::pthread_key_self_;
 
+static Class* gThreadGroup = NULL;
 static Class* gThreadLock = NULL;
 static Field* gThread_daemon = NULL;
 static Field* gThread_group = NULL;
@@ -61,6 +62,8 @@ static Field* gThread_name = NULL;
 static Field* gThread_priority = NULL;
 static Field* gThread_uncaughtHandler = NULL;
 static Field* gThread_vmData = NULL;
+static Field* gThreadGroup_mMain = NULL;
+static Field* gThreadGroup_mSystem = NULL;
 static Field* gThreadGroup_name = NULL;
 static Field* gThreadLock_thread = NULL;
 static Method* gThread_run = NULL;
@@ -278,12 +281,11 @@ void Thread::InitAfterFork() {
 
 void* Thread::CreateCallback(void* arg) {
   Thread* self = reinterpret_cast<Thread*>(arg);
-  Runtime* runtime = Runtime::Current();
-
-  self->Attach(runtime);
+  self->Init();
 
   // Wait until it's safe to start running code. (There may have been a suspend-all
   // in progress while we were starting up.)
+  Runtime* runtime = Runtime::Current();
   runtime->GetThreadList()->WaitForGo();
 
   {
@@ -367,14 +369,21 @@ void Thread::Create(Object* peer, size_t stack_size) {
   Runtime::Current()->GetThreadList()->SignalGo(native_thread);
 }
 
-void Thread::Attach(const Runtime* runtime) {
+void Thread::Init() {
+  // This function does all the initialization that must be run by the native thread it applies to.
+  // (When we create a new thread from managed code, we allocate the Thread* in Thread::Create so
+  // we can handshake with the corresponding native thread when it's ready.) Check this native
+  // thread hasn't been through here already...
   CHECK(Thread::Current() == NULL);
 
   InitCpu();
   InitFunctionPointers();
   InitCardTable();
 
-  thin_lock_id_ = Runtime::Current()->GetThreadList()->AllocThreadId();
+  Runtime* runtime = Runtime::Current();
+  CHECK(runtime != NULL);
+
+  thin_lock_id_ = runtime->GetThreadList()->AllocThreadId();
 
   InitTid();
   InitStackHwm();
@@ -386,9 +395,9 @@ void Thread::Attach(const Runtime* runtime) {
   runtime->GetThreadList()->Register();
 }
 
-Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon) {
+Thread* Thread::Attach(const char* thread_name, bool as_daemon, Object* thread_group) {
   Thread* self = new Thread;
-  self->Attach(runtime);
+  self->Init();
 
   self->SetState(Thread::kNative);
 
@@ -397,29 +406,39 @@ Thread* Thread::Attach(const Runtime* runtime, const char* name, bool as_daemon)
   // In the compiler, all threads need this hack, because no-one's going to be getting
   // a native peer!
   if (self->thin_lock_id_ != ThreadList::kMainId && !Runtime::Current()->IsCompiler()) {
-    self->CreatePeer(name, as_daemon);
+    self->CreatePeer(thread_name, as_daemon, thread_group);
   } else {
     // These aren't necessary, but they improve diagnostics for unit tests & command-line tools.
-    self->name_->assign(name);
-    ::art::SetThreadName(name);
+    self->name_->assign(thread_name);
+    ::art::SetThreadName(thread_name);
   }
 
   self->GetJniEnv()->locals.AssertEmpty();
   return self;
 }
 
-jobject GetWellKnownThreadGroup(JNIEnv* env, const char* field_name) {
-  ScopedLocalRef<jclass> thread_group_class(env, env->FindClass("java/lang/ThreadGroup"));
-  jfieldID fid = env->GetStaticFieldID(thread_group_class.get(), field_name, "Ljava/lang/ThreadGroup;");
-  return env->GetStaticObjectField(thread_group_class.get(), fid);
+Object* Thread::GetMainThreadGroup() {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(gThreadGroup, true)) {
+    return NULL;
+  }
+  return gThreadGroup_mMain->GetObject(NULL);
 }
 
-void Thread::CreatePeer(const char* name, bool as_daemon) {
+Object* Thread::GetSystemThreadGroup() {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(gThreadGroup, true)) {
+    return NULL;
+  }
+  return gThreadGroup_mSystem->GetObject(NULL);
+}
+
+void Thread::CreatePeer(const char* name, bool as_daemon, Object* thread_group) {
   CHECK(Runtime::Current()->IsStarted());
   JNIEnv* env = jni_env_;
 
-  const char* field_name = (GetThinLockId() == ThreadList::kMainId) ? "mMain" : "mSystem";
-  ScopedLocalRef<jobject> thread_group(env, GetWellKnownThreadGroup(env, field_name));
+  if (thread_group == NULL) {
+    thread_group = Thread::GetMainThreadGroup();
+  }
+  ScopedLocalRef<jobject> java_thread_group(env, AddLocalReference<jobject>(env, thread_group));
   ScopedLocalRef<jobject> thread_name(env, env->NewStringUTF(name));
   jint thread_priority = GetNativePriority();
   jboolean thread_is_daemon = as_daemon;
@@ -432,7 +451,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
     return;
   }
   jmethodID mid = env->GetMethodID(c.get(), "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
-  env->CallNonvirtualVoidMethod(peer.get(), c.get(), mid, thread_group.get(), thread_name.get(), thread_priority, thread_is_daemon);
+  env->CallNonvirtualVoidMethod(peer.get(), c.get(), mid, java_thread_group.get(), thread_name.get(), thread_priority, thread_is_daemon);
   CHECK(!IsExceptionPending()) << " " << PrettyTypeOf(GetException());
   SetVmData(peer_, Thread::Current());
 
@@ -443,7 +462,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon) {
     // available (in the compiler, in tests), we manually assign the
     // fields the constructor should have set.
     gThread_daemon->SetBoolean(peer_, thread_is_daemon);
-    gThread_group->SetObject(peer_, Decode<Object*>(env, thread_group.get()));
+    gThread_group->SetObject(peer_, thread_group);
     gThread_name->SetObject(peer_, Decode<Object*>(env, thread_name.get()));
     gThread_priority->SetInt(peer_, thread_priority);
     peer_thread_name.reset(GetThreadName());
@@ -848,6 +867,13 @@ Method* FindMethodOrDie(Class* c, const char* name, const char* signature) {
   return m;
 }
 
+// TODO: make more accessible?
+Field* FindStaticFieldOrDie(Class* c, const char* name, const char* descriptor) {
+  Field* f = c->FindDeclaredStaticField(name, descriptor);
+  CHECK(f != NULL) << PrettyClass(c) << " " << name << " " << descriptor;
+  return f;
+}
+
 void Thread::FinishStartup() {
   CHECK(Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
@@ -859,8 +885,8 @@ void Thread::FinishStartup() {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
   Class* Thread_class = FindClassOrDie(class_linker, "Ljava/lang/Thread;");
-  Class* ThreadGroup_class = FindClassOrDie(class_linker, "Ljava/lang/ThreadGroup;");
   Class* UncaughtExceptionHandler_class = FindClassOrDie(class_linker, "Ljava/lang/Thread$UncaughtExceptionHandler;");
+  gThreadGroup = FindClassOrDie(class_linker, "Ljava/lang/ThreadGroup;");
   gThreadLock = FindClassOrDie(class_linker, "Ljava/lang/ThreadLock;");
 
   gThread_daemon = FindFieldOrDie(Thread_class, "daemon", "Z");
@@ -870,16 +896,18 @@ void Thread::FinishStartup() {
   gThread_priority = FindFieldOrDie(Thread_class, "priority", "I");
   gThread_uncaughtHandler = FindFieldOrDie(Thread_class, "uncaughtHandler", "Ljava/lang/Thread$UncaughtExceptionHandler;");
   gThread_vmData = FindFieldOrDie(Thread_class, "vmData", "I");
-  gThreadGroup_name = FindFieldOrDie(ThreadGroup_class, "name", "Ljava/lang/String;");
+  gThreadGroup_name = FindFieldOrDie(gThreadGroup, "name", "Ljava/lang/String;");
+  gThreadGroup_mMain = FindStaticFieldOrDie(gThreadGroup, "mMain", "Ljava/lang/ThreadGroup;");
+  gThreadGroup_mSystem = FindStaticFieldOrDie(gThreadGroup, "mSystem", "Ljava/lang/ThreadGroup;");
   gThreadLock_thread = FindFieldOrDie(gThreadLock, "thread", "Ljava/lang/Thread;");
 
   gThread_run = FindMethodOrDie(Thread_class, "run", "()V");
-  gThreadGroup_removeThread = FindMethodOrDie(ThreadGroup_class, "removeThread", "(Ljava/lang/Thread;)V");
+  gThreadGroup_removeThread = FindMethodOrDie(gThreadGroup, "removeThread", "(Ljava/lang/Thread;)V");
   gUncaughtExceptionHandler_uncaughtException = FindMethodOrDie(UncaughtExceptionHandler_class,
       "uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
 
   // Finish attaching the main thread.
-  Thread::Current()->CreatePeer("main", false);
+  Thread::Current()->CreatePeer("main", false, Thread::GetMainThreadGroup());
 
   InitBoxingMethods();
   class_linker->RunRootClinits();

@@ -123,8 +123,8 @@ class Runtime {
   // that the native stack trace we get may point at the wrong call site.
   static void Abort(const char* file, int line);
 
-  // Attaches the current native thread to the runtime.
-  void AttachCurrentThread(const char* name, bool as_daemon);
+  // Attaches the calling native thread to the runtime.
+  void AttachCurrentThread(const char* thread_name, bool as_daemon, Object* thread_group);
 
   void CallExitHook(jint status);
 

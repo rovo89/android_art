@@ -96,11 +96,13 @@ class PACKED Thread {
     virtual bool VisitFrame(const Frame& frame, uintptr_t pc) = 0;
   };
 
-  // Creates a new thread.
+  // Creates a new native thread corresponding to the given managed peer.
+  // Used to implement Thread.start.
   static void Create(Object* peer, size_t stack_size);
 
-  // Creates a new thread from the calling thread.
-  static Thread* Attach(const Runtime* runtime, const char* name, bool as_daemon);
+  // Attaches the calling native thread to the runtime, returning the new native peer.
+  // Used to implement JNI AttachCurrentThread and AttachCurrentThreadAsDaemon calls.
+  static Thread* Attach(const char* thread_name, bool as_daemon, Object* thread_group);
 
   // Reset internal state of child thread after fork.
   void InitAfterFork();
@@ -147,6 +149,11 @@ class PACKED Thread {
    * Returns a value from 1 to 10 (compatible with java.lang.Thread values).
    */
   static int GetNativePriority();
+
+  // Returns the "main" ThreadGroup, used when attaching user threads.
+  static Object* GetMainThreadGroup();
+  // Returns the "system" ThreadGroup, used when attaching our internal threads.
+  static Object* GetSystemThreadGroup();
 
   bool CanAccessDirectReferences() const {
 #ifdef MOVING_GARBAGE_COLLECTOR
@@ -438,7 +445,7 @@ class PACKED Thread {
   ~Thread();
   friend class ThreadList;  // For ~Thread.
 
-  void CreatePeer(const char* name, bool as_daemon);
+  void CreatePeer(const char* name, bool as_daemon, Object* thread_group);
   friend class Runtime; // For CreatePeer.
 
   void DumpState(std::ostream& os) const;
@@ -449,12 +456,12 @@ class PACKED Thread {
   static Thread* CurrentFromGdb(); // Like Thread::Current.
   void DumpFromGdb() const; // Like Thread::Dump(std::cerr).
 
-  void Attach(const Runtime* runtime);
   static void* CreateCallback(void* arg);
 
   void HandleUncaughtExceptions();
   void RemoveFromThreadGroup();
 
+  void Init();
   void InitCardTable();
   void InitCpu();
   void InitFunctionPointers();

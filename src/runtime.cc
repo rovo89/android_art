@@ -651,8 +651,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   Thread::Startup();
 
   // ClassLinker needs an attached thread, but we can't fully attach a thread
-  // without creating objects.
-  Thread::Attach(this, "main", false);
+  // without creating objects. We can't supply a thread group yet; it will be fixed later.
+  Thread::Attach("main", false, NULL);
 
   // Set us to runnable so tools using a runtime can allocate and GC by default
   Thread::Current()->SetState(Thread::kRunnable);
@@ -824,8 +824,8 @@ void Runtime::BlockSignals() {
   CHECK_EQ(sigprocmask(SIG_BLOCK, &sigset, NULL), 0);
 }
 
-void Runtime::AttachCurrentThread(const char* name, bool as_daemon) {
-  Thread::Attach(instance_, name, as_daemon);
+void Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, Object* thread_group) {
+  Thread::Attach(thread_name, as_daemon, thread_group);
 }
 
 void Runtime::DetachCurrentThread() {
