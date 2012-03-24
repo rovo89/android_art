@@ -33,9 +33,11 @@ class OatTest : public CommonTest {
     if (compiled_method == NULL) {
       EXPECT_TRUE(oat_method.GetCode() == NULL) << PrettyMethod(method) << " "
                                                 << oat_method.GetCode();
+#if !defined(ART_USE_LLVM_COMPILER)
       EXPECT_EQ(oat_method.GetFrameSizeInBytes(), static_cast<uint32_t>(kStackAlignment));
       EXPECT_EQ(oat_method.GetCoreSpillMask(), 0U);
       EXPECT_EQ(oat_method.GetFpSpillMask(), 0U);
+#endif
     } else {
       const void* oat_code = oat_method.GetCode();
       EXPECT_TRUE(oat_code != NULL) << PrettyMethod(method);
@@ -47,9 +49,11 @@ class OatTest : public CommonTest {
       EXPECT_EQ(0, memcmp(oat_code, &code[0], code_size))
           << PrettyMethod(method) << " " << code_size;
       CHECK_EQ(0, memcmp(oat_code, &code[0], code_size));
+#if !defined(ART_USE_LLVM_COMPILER)
       EXPECT_EQ(oat_method.GetFrameSizeInBytes(), compiled_method->GetFrameSizeInBytes());
       EXPECT_EQ(oat_method.GetCoreSpillMask(), compiled_method->GetCoreSpillMask());
       EXPECT_EQ(oat_method.GetFpSpillMask(), compiled_method->GetFpSpillMask());
+#endif
     }
   }
 };
