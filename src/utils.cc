@@ -273,6 +273,9 @@ std::string PrettyMethod(const Method* m, bool with_signature) {
   result += mh.GetName();
   if (with_signature) {
     std::string signature(mh.GetSignature());
+    if (signature == "<no signature>") {
+      return result + signature;
+    }
     result = PrettyReturnType(signature.c_str()) + " " + result + PrettyArguments(signature.c_str());
   }
   return result;
@@ -285,6 +288,9 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
   result += dex_file.GetMethodName(method_id);
   if (with_signature) {
     std::string signature(dex_file.GetMethodSignature(method_id));
+    if (signature == "<no signature>") {
+      return result + signature;
+    }
     result = PrettyReturnType(signature.c_str()) + " " + result + PrettyArguments(signature.c_str());
   }
   return result;
