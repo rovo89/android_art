@@ -85,9 +85,6 @@ class JniCompiler {
   DexFile const* dex_file_;
   Method* method_;
 
-  llvm::BasicBlock* basic_block_;
-  llvm::AllocaInst* shadow_frame_;
-
   llvm::Function* func_;
 };
 
