@@ -837,7 +837,7 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
     if (image_check && dex_check) {
       return oat_file->GetOatDexFile(dex_location)->OpenDexFile();
     }
-    if (image_check) {
+    if (!image_check) {
       std::string image_file(image_header.GetImageRoot(
           ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8());
       LOG(WARNING) << ".oat file " << oat_file->GetLocation()
@@ -845,14 +845,14 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
                    << ") mismatch with " << image_file
                    << " (" << std::hex << image_checksum << ")--- regenerating";
     }
-    if (dex_check) {
+    if (!dex_check) {
       LOG(WARNING) << ".oat file " << oat_file->GetLocation()
                    << " checksum ( " << std::hex << oat_dex_file->GetDexFileLocationChecksum()
                    << ") mismatch with " << dex_location
                    << " (" << std::hex << dex_location_checksum << ")--- regenerating";
     }
     if (TEMP_FAILURE_RETRY(unlink(oat_file->GetLocation().c_str())) != 0) {
-      PLOG(FATAL) << "Couldn't remove obsolete .oat file " << oat_file->GetLocation();
+      PLOG(FATAL) << "Failed to remove obsolete .oat file " << oat_file->GetLocation();
     }
   }
   LOG(INFO) << "Failed to open oat file from " << oat_filename << " or " << cache_location << ".";
