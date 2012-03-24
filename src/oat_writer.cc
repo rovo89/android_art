@@ -115,12 +115,17 @@ size_t OatWriter::InitDexFiles(size_t offset) {
 }
 
 size_t OatWriter::InitOatElfImages(size_t offset) {
-  // Offset to ELF image table should be rounded up to 4-byte aligned, so that
-  // we can read the uint32_t directly.
-  offset = RoundUp(offset, 4);
-  oat_header_->SetElfImageTableOffset(offset);
+  size_t n = elf_images_.size();
+  if (n != 0) {
+    // Offset to ELF image table should be rounded up to 4-byte aligned, so that
+    // we can read the uint32_t directly.
+    offset = RoundUp(offset, 4);
+    oat_header_->SetElfImageTableOffset(offset);
+  } else {
+    oat_header_->SetElfImageTableOffset(0);
+  }
 
-  for (size_t i = 0, n = elf_images_.size(); i < n; ++i) {
+  for (size_t i = 0; i < n; ++i) {
     OatElfImage* oat_elf_image = new OatElfImage(elf_images_[i]);
     oat_elf_images_.push_back(oat_elf_image);
     offset += oat_elf_image->SizeOf();
