@@ -63,7 +63,11 @@ JniCompiler::JniCompiler(CompilationUnit* cunit,
 
 
 CompiledMethod* JniCompiler::Compile() {
-  bool is_static = method_->IsStatic();
+  const bool is_static = (access_flags_ & kAccStatic) != 0;
+  const bool is_synchronized = (access_flags_ & kAccSynchronized) != 0;
+  DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx_);
+  char const return_shorty = dex_file_->GetMethodShorty(method_id)[0];
+  llvm::Value* this_object_or_class_object;
 
   CreateFunction();
 
@@ -76,11 +80,23 @@ CompiledMethod* JniCompiler::Compile() {
   arg_iter->setName("method");
   llvm::Value* method_object_addr = arg_iter++;
 
-  // Actual argument (ignore method)
+  if (!is_static) {
+    // Non-static, the second argument is "this object"
+    this_object_or_class_object = arg_iter++;
+  } else {
+    // Load class object
+    this_object_or_class_object =
+        LoadFromObjectOffset(method_object_addr,
+                             Method::DeclaringClassOffset().Int32Value(),
+                             irb_.getJObjectTy());
+  }
+  // Actual argument (ignore method and this object)
   arg_begin = arg_iter;
 
   // Count the number of Object* arguments
-  uint32_t sirt_size = (is_static ? 1 : 0); // Class object for static function
+  uint32_t sirt_size = 1;
+  // "this" object pointer for non-static
+  // "class" object pointer for static
   for (unsigned i = 0; arg_iter != arg_end; ++i, ++arg_iter) {
     arg_iter->setName(StringPrintf("a%u", i));
     if (arg_iter->getType() == irb_.getJObjectTy()) {
@@ -88,16 +104,13 @@ CompiledMethod* JniCompiler::Compile() {
     }
   }
 
-  // Start to build IR
-  irb_.SetInsertPoint(basic_block_);
-
   // Get thread object
   llvm::Value* thread_object_addr =
     irb_.CreateCall(irb_.GetRuntime(runtime_support::GetCurrentThread));
 
   // Shadow stack
   llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
-  shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
+  llvm::AllocaInst* shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
   // Zero-initialization of the shadow frame
   llvm::ConstantAggregateZero* zero_initializer =
@@ -157,19 +170,12 @@ CompiledMethod* JniCompiler::Compile() {
 
   size_t sirt_member_index = 0;
 
-  // Push class argument if this method is static
-  if (is_static) {
-    // Load class object
-    llvm::Value* class_object_addr =
-        LoadFromObjectOffset(method_object_addr,
-                             Method::DeclaringClassOffset().Int32Value(),
-                             irb_.getJObjectTy());
-    gep_index[2] = irb_.getInt32(sirt_member_index++);
-    // Store the class argument to SIRT
-    llvm::Value* sirt_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
-    irb_.CreateStore(class_object_addr, sirt_field_addr);
-    args.push_back(irb_.CreateBitCast(sirt_field_addr, irb_.getJObjectTy()));
-  }
+  // Store the "this object or class object" to SIRT
+  gep_index[2] = irb_.getInt32(sirt_member_index++);
+  llvm::Value* sirt_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
+  irb_.CreateStore(this_object_or_class_object, sirt_field_addr);
+  // Push the "this object or class object" to out args
+  args.push_back(irb_.CreateBitCast(sirt_field_addr, irb_.getJObjectTy()));
   // Store arguments to SIRT, and push back to args
   for (arg_iter = arg_begin; arg_iter != arg_end; ++arg_iter) {
     if (arg_iter->getType() == irb_.getJObjectTy()) {
@@ -190,6 +196,38 @@ CompiledMethod* JniCompiler::Compile() {
     }
   }
 
+  // Acquire lock for synchronized methods.
+  if (is_synchronized) {
+    // Acquire lock
+    irb_.CreateCall(irb_.GetRuntime(runtime_support::LockObject), this_object_or_class_object);
+
+    // Check exception pending
+    llvm::Value* exception_pending =
+        irb_.CreateCall(irb_.GetRuntime(runtime_support::IsExceptionPending));
+
+    // Create two basic block for branch
+    llvm::BasicBlock* block_cont = llvm::BasicBlock::Create(*context_, "B.cont", func_);
+    llvm::BasicBlock* block_exception_ = llvm::BasicBlock::Create(*context_, "B.exception", func_);
+
+    // Branch by exception_pending
+    irb_.CreateCondBr(exception_pending, block_exception_, block_cont);
+
+
+    // If exception pending
+    irb_.SetInsertPoint(block_exception_);
+    // TODO: Set thread state?
+    // Pop the shadow frame
+    irb_.CreateCall(irb_.GetRuntime(runtime_support::PopShadowFrame));
+    // Unwind
+    if (return_shorty != 'V') {
+      irb_.CreateRet(irb_.getJZero(return_shorty));
+    } else {
+      irb_.CreateRetVoid();
+    }
+
+    // If no exception pending
+    irb_.SetInsertPoint(block_cont);
+  }
 
   // saved_local_ref_cookie = env->local_ref_cookie
   llvm::Value* saved_local_ref_cookie =
@@ -211,18 +249,17 @@ CompiledMethod* JniCompiler::Compile() {
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
 
 
+  // Release lock for synchronized methods.
+  if (is_synchronized) {
+    irb_.CreateCall(irb_.GetRuntime(runtime_support::UnlockObject), this_object_or_class_object);
+  }
+
   // Set thread state to kRunnable
   StoreToObjectOffset(thread_object_addr,
                       Thread::StateOffset().Int32Value(),
                       irb_.getInt32(Thread::kRunnable));
 
-  // Get return shorty
-  DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx_);
-  uint32_t shorty_size;
-  char ret_shorty = dex_file_->GetMethodShorty(method_id, &shorty_size)[0];
-  CHECK_GE(shorty_size, 1u);
-
-  if (ret_shorty == 'L') {
+  if (return_shorty == 'L') {
     // If the return value is reference, it may point to SIRT, we should decode it.
     retval = irb_.CreateCall2(irb_.GetRuntime(runtime_support::DecodeJObjectInThread),
                               thread_object_addr,
@@ -247,14 +284,11 @@ CompiledMethod* JniCompiler::Compile() {
   irb_.CreateCall(irb_.GetRuntime(runtime_support::PopShadowFrame));
 
   // Return!
-  if (ret_shorty != 'V') {
+  if (return_shorty != 'V') {
     irb_.CreateRet(retval);
   } else {
     irb_.CreateRetVoid();
   }
-
-  // For debug
-  //func_->dump();
 
   // Verify the generated bitcode
   llvm::verifyFunction(*func_, llvm::PrintMessageAction);
@@ -277,12 +311,15 @@ void JniCompiler::CreateFunction() {
                                  func_name, module_);
 
   // Create basic block
-  basic_block_ = llvm::BasicBlock::Create(*context_, "B0", func_);
+  llvm::BasicBlock* basic_block = llvm::BasicBlock::Create(*context_, "B0", func_);
+
+  // Set insert point
+  irb_.SetInsertPoint(basic_block);
 }
 
 
 llvm::FunctionType* JniCompiler::GetFunctionType(uint32_t method_idx,
-                                                 bool is_static, bool is_target_function) {
+                                                 bool is_static, bool is_native_function) {
   // Get method signature
   DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx);
 
@@ -298,9 +335,9 @@ llvm::FunctionType* JniCompiler::GetFunctionType(uint32_t method_idx,
 
   args_type.push_back(irb_.getJObjectTy()); // method object pointer
 
-  if (!is_static || is_target_function) {
+  if (!is_static || is_native_function) {
     // "this" object pointer for non-static
-    // "class" object pointer for static
+    // "class" object pointer for static naitve
     args_type.push_back(irb_.getJType('L', kAccurate));
   }
 
