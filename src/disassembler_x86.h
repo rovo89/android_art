@@ -14,25 +14,24 @@
  * limitations under the License.
  */
 
+#ifndef ART_SRC_DISASSEMBLER_X86_H_
+#define ART_SRC_DISASSEMBLER_X86_H_
+
 #include "disassembler.h"
 
-#include <iostream>
-
-#include "disassembler_arm.h"
-#include "disassembler_x86.h"
-#include "logging.h"
-
 namespace art {
+namespace x86 {
 
-Disassembler* Disassembler::Create(InstructionSet instruction_set) {
-  if (instruction_set == kArm || instruction_set == kThumb2) {
-    return new arm::DisassemblerArm();
-  } else if (instruction_set == kX86) {
-    return new x86::DisassemblerX86();
-  } else {
-    UNIMPLEMENTED(FATAL) << "no disassembler for " << instruction_set;
-    return NULL;
-  }
-}
+class DisassemblerX86 : public Disassembler {
+ public:
+  DisassemblerX86();
 
+  virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end);
+ private:
+  size_t DumpInstruction(std::ostream& os, const uint8_t* instr);
+};
+
+}  // namespace x86
 }  // namespace art
+
+#endif  // ART_SRC_DISASSEMBLER_X86_H_
