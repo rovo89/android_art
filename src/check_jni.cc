@@ -122,15 +122,15 @@ bool ShouldTrace(JavaVMExt* vm, const Method* method) {
   // such as NewByteArray.
   // If -verbose:third-party-jni is on, we want to log any JNI function calls
   // made by a third-party native method.
-  std::string className(MethodHelper(method).GetDeclaringClassDescriptor());
-  if (!vm->trace.empty() && className.find(vm->trace) != std::string::npos) {
+  std::string class_name(MethodHelper(method).GetDeclaringClassDescriptor());
+  if (!vm->trace.empty() && class_name.find(vm->trace) != std::string::npos) {
     return true;
   }
   if (VLOG_IS_ON(third_party_jni)) {
     // Return true if we're trying to log all third-party JNI activity and 'method' doesn't look
     // like part of Android.
     for (size_t i = 0; gBuiltInPrefixes[i] != NULL; ++i) {
-      if (StartsWith(className, gBuiltInPrefixes[i])) {
+      if (StartsWith(class_name, gBuiltInPrefixes[i])) {
         return false;
       }
     }
@@ -148,30 +148,21 @@ class ScopedCheck {
   }
 
   // For JavaVM* functions.
-  explicit ScopedCheck(JavaVM* vm, bool hasMethod, const char* functionName) {
-    Init(NULL, vm, kFlag_Invocation, functionName, hasMethod);
+  explicit ScopedCheck(JavaVM* vm, bool has_method, const char* functionName) {
+    Init(NULL, vm, kFlag_Invocation, functionName, has_method);
   }
 
   bool ForceCopy() {
     return Runtime::Current()->GetJavaVM()->force_copy;
   }
 
-  /*
-   * In some circumstances the VM will screen class names, but it doesn't
-   * for class lookup.  When things get bounced through a class loader, they
-   * can actually get normalized a couple of times; as a result, passing in
-   * a class name like "java.lang.Thread" instead of "java/lang/Thread" will
-   * work in some circumstances.
-   *
-   * This is incorrect and could cause strange behavior or compatibility
-   * problems, so we want to screen that out here.
-   *
-   * We expect "fully-qualified" class names, like "java/lang/Thread" or
-   * "[Ljava/lang/Object;".
-   */
-  void CheckClassName(const char* className) {
-    if (!IsValidJniClassName(className)) {
-      LOG(ERROR) << "JNI ERROR: illegal class name '" << className << "' (" << function_name_ << ")\n"
+  // Checks that 'class_name' is a valid "fully-qualified" JNI class name, like "java/lang/Thread"
+  // or "[Ljava/lang/Object;". A ClassLoader can actually normalize class names a couple of
+  // times, so using "java.lang.Thread" instead of "java/lang/Thread" might work in some
+  // circumstances, but this is incorrect.
+  void CheckClassName(const char* class_name) {
+    if (!IsValidJniClassName(class_name)) {
+      LOG(ERROR) << "JNI ERROR: illegal class name '" << class_name << "' (" << function_name_ << ")\n"
                  << "           (should be of the form 'java/lang/String', [Ljava/lang/String;' or '[[B')\n";
       JniAbort();
     }
@@ -653,16 +644,15 @@ class ScopedCheck {
   }
 
  private:
-  void Init(JNIEnv* env, JavaVM* vm, int flags, const char* functionName, bool hasMethod) {
+  // Set "has_method" to true if we have a valid thread with a method pointer.
+  // We won't have one before attaching a thread, after detaching a thread, or
+  // when shutting down the runtime.
+  void Init(JNIEnv* env, JavaVM* vm, int flags, const char* functionName, bool has_method) {
     env_ = reinterpret_cast<JNIEnvExt*>(env);
     vm_ = reinterpret_cast<JavaVMExt*>(vm);
     flags_ = flags;
     function_name_ = functionName;
-
-    // Set "hasMethod" to true if we have a valid thread with a method pointer.
-    // We won't have one before attaching a thread, after detaching a thread, or
-    // after destroying the VM.
-    has_method_ = hasMethod;
+    has_method_ = has_method;
   }
 
   /*
@@ -760,7 +750,7 @@ class ScopedCheck {
   void CheckThread(int flags) {
     Thread* self = Thread::Current();
     if (self == NULL) {
-      LOG(ERROR) << "JNI ERROR: non-VM thread making JNI calls";
+      LOG(ERROR) << "JNI ERROR: a thread is making JNI calls without being attached";
       JniAbort();
       return;
     }
@@ -1124,7 +1114,7 @@ void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean* isCopy
 
 /*
  * Perform the array "release" operation, which may or may not copy data
- * back into the VM, and may or may not release the underlying storage.
+ * back into the managed heap, and may or may not release the underlying storage.
  */
 void ReleaseGuardedPACopy(JNIEnv* env, jarray java_array, void* dataBuf, int mode) {
   if (reinterpret_cast<uintptr_t>(dataBuf) == kNoCopyMagic) {

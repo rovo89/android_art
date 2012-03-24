@@ -1243,7 +1243,7 @@ Array* Array::Alloc(Class* array_class, int32_t component_count, size_t componen
   size_t component_shift = sizeof(size_t) * 8 - 1 - CLZ(component_size);
   if (data_size >> component_shift != size_t(component_count) || size < data_size) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/OutOfMemoryError;",
-        "%s of length %d exceeds the VM limit",
+        "%s of length %d would overflow",
         PrettyDescriptor(array_class).c_str(), component_count);
     return NULL;
   }

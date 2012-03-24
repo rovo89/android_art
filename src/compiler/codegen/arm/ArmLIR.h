@@ -171,7 +171,6 @@ enum ResourceEncodingPos {
 
 /*
  * Annotate special-purpose core registers:
- *   - VM: r6SELF
  *   - ARM architecture: r13sp, r14lr, and r15pc
  *
  * rPC, rFP, and rSELF are for architecture-independent code to use.

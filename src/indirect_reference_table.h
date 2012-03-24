@@ -35,8 +35,8 @@ class Object;
  * The table contains object references that are part of the GC root set.
  * When an object is added we return an IndirectRef that is not a valid
  * pointer but can be used to find the original value in O(1) time.
- * Conversions to and from indirect refs are performed on JNI method calls
- * in and out of the VM, so they need to be very fast.
+ * Conversions to and from indirect references are performed on upcalls
+ * and downcalls, so they need to be very fast.
  *
  * To be efficient for JNI local variable storage, we need to provide
  * operations that allow us to operate on segments of the table, where
@@ -156,8 +156,7 @@ static const uint32_t IRT_FIRST_SEGMENT = 0;
  *
  * To get the desired behavior for JNI locals, we need to know the bottom
  * and top of the current "segment".  The top is managed internally, and
- * the bottom is passed in as a function argument (the VM keeps it in a
- * slot in the interpreted stack frame).  When we call a native method or
+ * the bottom is passed in as a function argument.  When we call a native method or
  * push a local frame, the current top index gets pushed on, and serves
  * as the new bottom.  When we pop a frame off, the value from the stack
  * becomes the new top index, and the value stored in the previous frame
@@ -168,12 +167,6 @@ static const uint32_t IRT_FIRST_SEGMENT = 0;
  * cap, we can combine the two into a single unsigned 32-bit value.
  * Instead of a "bottom" argument we take a "cookie", which includes the
  * bottom index and the count of holes below the bottom.
- *
- * We need to minimize method call/return overhead.  If we store the
- * "cookie" externally, on the interpreted call stack, the VM can handle
- * pushes and pops with a single 4-byte load and store.  (We could also
- * store it internally in a public structure, but the local JNI refs are
- * logically tied to interpreted stack frames anyway.)
  *
  * Common alternative implementation: make IndirectRef a pointer to the
  * actual reference slot.  Instead of getting a table and doing a lookup,

@@ -482,11 +482,9 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
     return ptr;
   }
 
-  // Most allocations should have succeeded by now, so the heap is
-  // really full, really fragmented, or the requested size is really
-  // big.  Do another GC, collecting SoftReferences this time.  The VM
-  // spec requires that all SoftReferences have been collected and
-  // cleared before throwing an OOME.
+  // Most allocations should have succeeded by now, so the heap is really full, really fragmented,
+  // or the requested size is really big. Do another GC, collecting SoftReferences this time. The
+  // VM spec requires that all SoftReferences have been collected and cleared before throwing OOME.
 
   // OLD-TODO: wait for the finalizers from the previous GC to finish
   VLOG(gc) << "Forcing collection of SoftReferences for " << PrettySize(alloc_size) << " allocation";

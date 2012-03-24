@@ -398,15 +398,15 @@ class MethodHelper {
     } else {
       Runtime* runtime = Runtime::Current();
       if (method_ == runtime->GetResolutionMethod()) {
-        return "<VM internal resolution method>";
+        return "<runtime internal resolution method>";
       } else if (method_ == runtime->GetCalleeSaveMethod(Runtime::kSaveAll)) {
-        return "<VM internal callee-save all registers method>";
+        return "<runtime internal callee-save all registers method>";
       } else if (method_ == runtime->GetCalleeSaveMethod(Runtime::kRefsOnly)) {
-        return "<VM internal callee-save reference registers method>";
+        return "<runtime internal callee-save reference registers method>";
       } else if (method_ == runtime->GetCalleeSaveMethod(Runtime::kRefsAndArgs)) {
-        return "<VM internal callee-save reference and argument registers method>";
+        return "<runtime internal callee-save reference and argument registers method>";
       } else {
-        return "<unknown VM internal method>";
+        return "<unknown runtime internal method>";
       }
     }
   }

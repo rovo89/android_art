@@ -613,12 +613,9 @@ retry:
         Inflate(self, obj);
       }
     } else if (LW_LOCK_OWNER(thin) == 0) {
-      /*
-       * The lock is unowned.  Install the thread id of the
-       * calling thread into the owner field.  This is the
-       * common case.  In performance critical code the JIT
-       * will have tried this before calling out to the VM.
-       */
+      // The lock is unowned. Install the thread id of the calling thread into the owner field.
+      // This is the common case: compiled code will have tried this before calling back into
+      // the runtime.
       newThin = thin | (threadId << LW_LOCK_OWNER_SHIFT);
       if (android_atomic_acquire_cas(thin, newThin, thinp) != 0) {
         // The acquire failed. Try again.
@@ -626,8 +623,8 @@ retry:
       }
     } else {
       VLOG(monitor) << StringPrintf("monitor: thread %d spin on lock %p (a %s) owned by %d",
-          threadId, thinp, PrettyTypeOf(obj).c_str(), LW_LOCK_OWNER(thin));
-      // The lock is owned by another thread. Notify the VM that we are about to wait.
+                                    threadId, thinp, PrettyTypeOf(obj).c_str(), LW_LOCK_OWNER(thin));
+      // The lock is owned by another thread. Notify the runtime that we are about to wait.
       self->monitor_enter_object_ = obj;
       Thread::State oldStatus = self->SetState(Thread::kBlocked);
       // Spin until the thin lock is released or inflated.
@@ -663,7 +660,7 @@ retry:
             }
           }
         } else {
-          // The thin lock was inflated by another thread. Let the VM know we are no longer
+          // The thin lock was inflated by another thread. Let the runtime know we are no longer
           // waiting and try again.
           VLOG(monitor) << "monitor: thread " << threadId
                         << " found lock " << (void*) thinp << " surprise-fattened by another thread";
@@ -673,7 +670,7 @@ retry:
         }
       }
       VLOG(monitor) << StringPrintf("monitor: thread %d spin on lock %p done", threadId, thinp);
-      // We have acquired the thin lock. Let the VM know that we are no longer waiting.
+      // We have acquired the thin lock. Let the runtime know that we are no longer waiting.
       self->monitor_enter_object_ = NULL;
       self->SetState(oldStatus);
       // Fatten the lock.
