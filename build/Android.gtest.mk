@@ -57,7 +57,7 @@ define build-art-test
 
   ifeq ($(ART_USE_LLVM_COMPILER),true)
     LOCAL_C_INCLUDES += frameworks/compile/linkloader
-    LOCAL_STATIC_LIBRARIES += librsloader libcutils
+    LOCAL_STATIC_LIBRARIES += librsloader
   endif
 
   # Mac OS linker doesn't understand --export-dynamic.
