@@ -467,7 +467,7 @@ void convertShortToLongBranch(CompilationUnit* cUnit, LIR* lir)
     bool unconditional = false;
     int opcode = lir->opcode;
     int dalvikOffset = lir->dalvikOffset;
-    switch(opcode) {
+    switch (opcode) {
         case kMipsBal:
             LOG(FATAL) << "long branch and link unsupported";
         case kMipsB:
@@ -656,7 +656,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
             u4 operand;
             u4 value;
             operand = lir->operands[i];
-            switch(encoder->fieldLoc[i].kind) {
+            switch (encoder->fieldLoc[i].kind) {
                 case kFmtUnused:
                     break;
                 case kFmtBitBlt:

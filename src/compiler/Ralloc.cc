@@ -193,7 +193,7 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                 if (strlen(shorty) > 1) {
                     for (int i = next; i < numUses;) {
                         DCHECK_LT(cpos, strlen(shorty));
-                        switch(shorty[cpos++]) {
+                        switch (shorty[cpos++]) {
                             case 'D':
                                 ssaRep->fpUse[i] = true;
                                 ssaRep->fpUse[i+1] = true;
@@ -350,7 +350,7 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
         const char* shorty = cUnit->shorty;
         int shorty_len = strlen(shorty);
         for (int i = 1; i < shorty_len; i++) {
-            switch(shorty[i]) {
+            switch (shorty[i]) {
                 case 'D':
                     cUnit->regLocation[sReg].wide = true;
                     cUnit->regLocation[sReg+1].highWord = true;

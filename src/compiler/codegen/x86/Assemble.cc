@@ -433,7 +433,7 @@ int oatGetInsnSize(LIR* lir) {
         return 5;  // opcode + rel32
       }
     case kCall:
-      switch(lir->opcode) {
+      switch (lir->opcode) {
         case kX86CallR: return 2;  // opcode modrm
         case kX86CallM:  // lir operands - 0: base, 1: disp
           return computeSize(entry, lir->operands[1], false);
@@ -1030,7 +1030,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
     }
     const X86EncodingMap *entry = &EncodingMap[lir->opcode];
     size_t starting_cbuf_size = cUnit->codeBuffer.size();
-    switch(entry->kind) {
+    switch (entry->kind) {
       case kData:  // 4 bytes of data
         cUnit->codeBuffer.push_back(lir->operands[0]);
         break;
@@ -1095,7 +1095,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
         emitJcc(cUnit, entry, lir->operands[0], lir->operands[1]);
         break;
       case kCall:
-        switch(entry->opcode) {
+        switch (entry->opcode) {
           case kX86CallM:  // lir operands - 0: base, 1: disp
             emitCallMem(cUnit, entry, lir->operands[0], lir->operands[1]);
             break;

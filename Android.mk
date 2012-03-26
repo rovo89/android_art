@@ -242,7 +242,7 @@ clean-oat:
 .PHONY: cpplint-art
 cpplint-art:
 	./art/tools/cpplint.py \
-	    --filter=-whitespace/comments,-whitespace/line_length,-build/include,-build/header_guard,-readability/streams,-readability/todo,-runtime/references \
+	    --filter=-whitespace/comments,-whitespace/line_length,-build/include,-build/header_guard,-readability/function,-readability/streams,-readability/todo,-runtime/references \
 	    $(ANDROID_BUILD_TOP)/art/src/*.h $(ANDROID_BUILD_TOP)/art/src/*.cc
 
 ########################################################################

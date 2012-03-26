@@ -189,8 +189,8 @@ DISASSEMBLER_ENTRY(cmp,
   case 0x70: case 0x71: case 0x72: case 0x73: case 0x74: case 0x75: case 0x76: case 0x77:
   case 0x78: case 0x79: case 0x7A: case 0x7B: case 0x7C: case 0x7D: case 0x7E: case 0x7F:
     static const char* condition_codes[] =
-    {"o", "no", "b/nae/c", "nb/ae/nc", "z/eq", "nz/ne", "be/na", "nbe/a",
-     "s", "ns", "p/pe",    "np/po",    "l/nge","nl/ge", "le/ng", "nle/g"
+    {"o", "no", "b/nae/c", "nb/ae/nc", "z/eq",  "nz/ne", "be/na", "nbe/a",
+     "s", "ns", "p/pe",    "np/po",    "l/nge", "nl/ge", "le/ng", "nle/g"
     };
     opcode << "j" << condition_codes[*instr & 0xF];
     branch_bytes = 1;

@@ -251,7 +251,7 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 {
    cUnit->currentDalvikOffset = mir->offset;
    MIR* nextMir = NULL;
-   switch(specialCase) {
+   switch (specialCase) {
        case kNullMethod:
            DCHECK(mir->dalvikInsn.opcode == Instruction::RETURN_VOID);
            nextMir = mir;
@@ -341,7 +341,7 @@ LIR* opIT(CompilationUnit* cUnit, ArmConditionCode code, const char* guide)
     int mask1 = 0;
 
     //Note: case fallthroughs intentional
-    switch(strlen(guide)) {
+    switch (strlen(guide)) {
         case 3:
             mask1 = (guide[2] == 'T') ? condBit : altBit;
         case 2:

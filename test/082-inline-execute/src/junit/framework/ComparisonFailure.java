@@ -34,7 +34,7 @@ public class ComparisonFailure extends AssertionFailedError {
         int end= Math.min(fExpected.length(), fActual.length());
 
         int i= 0;
-        for(; i < end; i++) {
+        for (; i < end; i++) {
             if (fExpected.charAt(i) != fActual.charAt(i))
                 break;
         }

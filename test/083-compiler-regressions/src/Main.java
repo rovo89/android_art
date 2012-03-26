@@ -226,8 +226,8 @@ public class Main {
             int k = 0;
             do
                 vA += 1;
-            while(++k < 100);
-        } while(++l < 1000);
+            while (++k < 100);
+        } while (++l < 1000);
         if (vA == 100001) {
             System.out.println("b5884080 passes");
         }

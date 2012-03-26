@@ -186,7 +186,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
         rlDest = oatGetDestWide(cUnit, mir, 0, 1);
     }
 
-    switch(opcode) {
+    switch (opcode) {
         case Instruction::NOP:
             break;
 

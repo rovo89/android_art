@@ -367,7 +367,7 @@ void genCompareAndBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
     rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
     Instruction::Code opcode = mir->dalvikInsn.opcode;
-    switch(opcode) {
+    switch (opcode) {
         case Instruction::IF_EQ:
             cond = kCondEq;
             break;
@@ -406,7 +406,7 @@ void genCompareZeroAndBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     ConditionCode cond;
     rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
     Instruction::Code opcode = mir->dalvikInsn.opcode;
-    switch(opcode) {
+    switch (opcode) {
         case Instruction::IF_EQZ:
             cond = kCondEq;
             break;
@@ -458,7 +458,7 @@ void genIntNarrowing(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
      rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
      RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
      OpKind op = kOpInvalid;
-     switch(mir->dalvikInsn.opcode) {
+     switch (mir->dalvikInsn.opcode) {
          case Instruction::INT_TO_BYTE:
              op = kOp2Byte;
              break;
@@ -887,7 +887,7 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
         int funcOffset = 0;
         int v1 = lab->operands[2];
         int v2 = lab->operands[3];
-        switch(lab->operands[0]) {
+        switch (lab->operands[0]) {
             case kThrowNullPointer:
                 funcOffset = OFFSETOF_MEMBER(Thread, pThrowNullPointerFromCode);
                 break;
@@ -1722,7 +1722,7 @@ bool genShiftOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 {
     int funcOffset;
 
-    switch( mir->dalvikInsn.opcode) {
+    switch (mir->dalvikInsn.opcode) {
         case Instruction::SHL_LONG:
         case Instruction::SHL_LONG_2ADDR:
             funcOffset = OFFSETOF_MEMBER(Thread, pShlLong);

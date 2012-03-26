@@ -29,7 +29,7 @@ void setMemRefType(LIR* lir, bool isLoad, int memType)
     /* Clear out the memref flags */
     *maskPtr &= ~mask;
     /* ..and then add back the one we need */
-    switch(memType) {
+    switch (memType) {
         case kLiteral:
             DCHECK(isLoad);
             *maskPtr |= ENCODE_LITERAL;
@@ -255,7 +255,7 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
     const bool dumpNop = (cUnit->enableDebug & (1 << kDebugShowNops));
 
     /* Handle pseudo-ops individually, and all regular insns as a group */
-    switch(lir->opcode) {
+    switch (lir->opcode) {
         case kPseudoMethodEntry:
             LOG(INFO) << "-------- method entry " <<
                 PrettyMethod(cUnit->method_idx, *cUnit->dex_file);

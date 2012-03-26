@@ -1245,7 +1245,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
 
-  String* GetName() const ; // Returns the cached name
+  String* GetName() const; // Returns the cached name
   void SetName(String* name);  // Sets the cached name
   String* ComputeName();  // Computes the name, then sets the cached value
 

@@ -64,7 +64,6 @@ OatFile::~OatFile() {
 }
 
 bool OatFile::Map(File& file, byte* requested_base, bool writable) {
-
   OatHeader oat_header;
   bool success = file.ReadFully(&oat_header, sizeof(oat_header));
   if (!success || !oat_header.IsValid()) {

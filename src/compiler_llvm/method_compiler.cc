@@ -1134,7 +1134,7 @@ void MethodCompiler::EmitInsn_Nop(uint32_t dex_pc,
       insn_signature == Instruction::kSparseSwitchSignature ||
       insn_signature == Instruction::kArrayDataSignature) {
     irb_.CreateUnreachable();
-  } else{
+  } else {
     irb_.CreateBr(GetNextBasicBlock(dex_pc));
   }
 }

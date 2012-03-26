@@ -189,7 +189,7 @@ bool genCmpFP(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     int defaultResult;
     RegLocation rlResult;
 
-    switch(mir->dalvikInsn.opcode) {
+    switch (mir->dalvikInsn.opcode) {
         case Instruction::CMPL_FLOAT:
             isDouble = false;
             defaultResult = -1;

@@ -149,8 +149,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       reference_pendingNext_offset_(0),
       finalizer_reference_zombie_offset_(0),
       target_utilization_(0.5),
-      verify_objects_(false)
-{
+      verify_objects_(false) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }

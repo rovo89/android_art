@@ -78,7 +78,7 @@ class AOTCompilationStats {
       virtual_made_direct_[i] = 0;
       direct_calls_to_boot_[i] = 0;
       direct_methods_to_boot_[i] = 0;
-   }
+    }
   }
 
   void Dump() {
@@ -161,7 +161,7 @@ class AOTCompilationStats {
     resolved_instance_fields_++;
   }
 
-  void UnresolvedInstanceField(){
+  void UnresolvedInstanceField() {
     STATS_LOCK();
     unresolved_instance_fields_++;
   }
@@ -236,7 +236,7 @@ class AOTCompilationStats {
   size_t direct_calls_to_boot_[kMaxInvokeType + 1];
   size_t direct_methods_to_boot_[kMaxInvokeType + 1];
 
-  DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);;
+  DISALLOW_COPY_AND_ASSIGN(AOTCompilationStats);
 };
 
 static std::string MakeCompilerSoName(InstructionSet instruction_set) {
@@ -322,8 +322,7 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       compiler_(NULL),
       compiler_context_(NULL),
       jni_compiler_(NULL),
-      create_invoke_stub_(NULL)
-{
+      create_invoke_stub_(NULL) {
   std::string compiler_so_name(MakeCompilerSoName(instruction_set_));
   compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
   if (compiler_library_ == NULL) {
@@ -676,7 +675,7 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mU
           if (string_id != NULL) {
             const DexFile::TypeId* type_id =
                mUnit->dex_file_->FindTypeId(mUnit->dex_file_->GetIndexForStringId(*string_id));
-            if(type_id != NULL) {
+            if (type_id != NULL) {
               // medium path, needs check of static storage base being initialized
               ssb_index = mUnit->dex_file_->GetIndexForTypeId(*type_id);
               field_offset = resolved_field->GetOffset().Int32Value();
@@ -757,7 +756,6 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
             mUnit->class_linker_->ResolveType(dex_file,
                                               dex_file.GetMethodId(method_idx).class_idx_,
                                               referrer_class);
-
       }
       if (referrer_class->CanAccess(methods_class) &&
           referrer_class->CanAccessMember(methods_class,

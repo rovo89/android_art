@@ -82,7 +82,7 @@ public class Array {
     /*
      * Try bad range values, 32 bit get/put.
      */
-    static void checkRange32(int[] ints, int[] empty, int negVal1, int negVal2){
+    static void checkRange32(int[] ints, int[] empty, int negVal1, int negVal2) {
         System.out.println("Array.checkRange32");
         int i = 0;
 

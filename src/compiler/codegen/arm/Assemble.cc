@@ -1256,7 +1256,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
             u4 operand;
             u4 value;
             operand = lir->operands[i];
-            switch(encoder->fieldLoc[i].kind) {
+            switch (encoder->fieldLoc[i].kind) {
                 case kFmtUnused:
                     break;
                 case kFmtFPImm:

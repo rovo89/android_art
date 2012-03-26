@@ -121,26 +121,26 @@ TEST_F(SpaceTest, AllocAndFreeList) {
 
   // Succeeds, fits without adjusting the max allowed footprint.
   Object* lots_of_objects[1024];
-  for(size_t i = 0; i < arraysize(lots_of_objects); i++) {
+  for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     lots_of_objects[i] = space->AllocWithoutGrowth(16);
     EXPECT_TRUE(lots_of_objects[i] != NULL);
   }
 
   // Release memory and check pointers are NULL
   space->FreeList(arraysize(lots_of_objects), lots_of_objects);
-  for(size_t i = 0; i < arraysize(lots_of_objects); i++) {
+  for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     EXPECT_TRUE(lots_of_objects[i] == NULL);
   }
 
   // Succeeds, fits by adjusting the max allowed footprint.
-  for(size_t i = 0; i < arraysize(lots_of_objects); i++) {
+  for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     lots_of_objects[i] = space->AllocWithGrowth(1024);
     EXPECT_TRUE(lots_of_objects[i] != NULL);
   }
 
   // Release memory and check pointers are NULL
   space->FreeList(arraysize(lots_of_objects), lots_of_objects);
-  for(size_t i = 0; i < arraysize(lots_of_objects); i++) {
+  for (size_t i = 0; i < arraysize(lots_of_objects); i++) {
     EXPECT_TRUE(lots_of_objects[i] == NULL);
   }
 }
@@ -181,7 +181,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t 
   UniquePtr<Object*[]> lots_of_objects(new Object*[max_objects]);
   size_t last_object = 0;  // last object for which allocation succeeded
   size_t amount_allocated = 0;  // amount of space allocated
-  for(size_t i = 0; i < max_objects; i++) {
+  for (size_t i = 0; i < max_objects; i++) {
     size_t alloc_fails = 0;  // number of failed allocations
     size_t max_fails = 30;  // number of times we fail allocation before giving up
     for (; alloc_fails < max_fails; alloc_fails++) {
@@ -202,7 +202,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t 
       }
       footprint = mspace_footprint(mspace);
       EXPECT_GE(space->Size(), footprint);  // invariant
-      if(object != NULL) {  // allocation succeeded
+      if (object != NULL) {  // allocation succeeded
         lots_of_objects.get()[i] = object;
         size_t allocation_size = space->AllocationSize(object);
         if (object_size > 0) {
@@ -233,7 +233,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t 
 
   // Release storage in a semi-adhoc manner
   size_t free_increment = 96;
-  while(true) {
+  while (true) {
     // Give the space a haircut
     space->Trim();
 
@@ -250,7 +250,7 @@ void SpaceTest::SizeFootPrintGrowthLimitAndTrimBody(AllocSpace* space, intptr_t 
     }
 
     // Free some objects
-    for(size_t i = 0; i < last_object; i += free_increment) {
+    for (size_t i = 0; i < last_object; i += free_increment) {
       Object* object = lots_of_objects.get()[i];
       if (object == NULL) {
         continue;

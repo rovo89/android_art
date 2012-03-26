@@ -34,7 +34,7 @@ namespace art {
     int t_size = sizeof(t) / sizeof(*t);      \
     for (int i = 0; i < t_size; ++i)          \
       CHECK(REG(mh, reg_bitmap, t[i])) << "Error: Reg " << i << " is not in RegisterMap";  \
-  } while(false)
+  } while (false)
 
 static int gJava_StackWalk_refmap_calls = 0;
 

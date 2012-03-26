@@ -54,7 +54,7 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr)
                DCHECK_LT(fmt, fmtEnd);
                DCHECK_LT((unsigned)(nc-'0'), 4u);
                operand = lir->operands[nc-'0'];
-               switch(*fmt++) {
+               switch (*fmt++) {
                    case 'b':
                        strcpy(tbuf,"0000");
                        for (i=3; i>= 0; i--) {

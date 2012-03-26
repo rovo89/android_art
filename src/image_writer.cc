@@ -67,7 +67,7 @@ bool ImageWriter::Write(const std::string& image_filename,
     LOG(ERROR) << "Failed to open oat file " << oat_filename;
     return false;
   }
-   class_linker->RegisterOatFile(*oat_file_);
+  class_linker->RegisterOatFile(*oat_file_);
 
   PruneNonImageClasses();  // Remove junk
   ComputeLazyFieldsForImageClasses();  // Add useful information
@@ -114,7 +114,6 @@ void ImageWriter::ComputeLazyFieldsForImageClasses() {
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
   class_linker->VisitClasses(ComputeLazyFieldsForClassesVisitor, NULL);
-
 }
 
 bool ImageWriter::ComputeLazyFieldsForClassesVisitor(Class* c, void* /*arg*/) {
@@ -608,7 +607,7 @@ void ImageWriter::SetPatchLocation(const Compiler::PatchInformation* patch, uint
     << "expected=" << expected
     << "value=" << value;
 #endif
-   *patch_location = value;
+  *patch_location = value;
 }
 
 }  // namespace art

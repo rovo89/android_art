@@ -618,7 +618,7 @@ class ImageDumper {
       StringAppendF(&summary, "%f (%a)\n", field->GetDouble(obj), field->GetDouble(obj));
     } else if (type->IsPrimitiveFloat()) {
       StringAppendF(&summary, "%f (%a)\n", field->GetFloat(obj), field->GetFloat(obj));
-    } else if (type->IsPrimitive()){
+    } else if (type->IsPrimitive()) {
       StringAppendF(&summary, "%d (0x%x)\n", field->Get32(obj), field->Get32(obj));
     } else {
       Object* value = field->GetObj(obj);

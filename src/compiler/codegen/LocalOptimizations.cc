@@ -147,7 +147,7 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
                              IS_STORE));
                     /* Same value && same register type */
                     if (checkLIR->aliasInfo == thisLIR->aliasInfo &&
-                        REGTYPE(checkLIR->operands[0]) == REGTYPE(nativeRegId)){
+                        REGTYPE(checkLIR->operands[0]) == REGTYPE(nativeRegId)) {
                         /*
                          * Different destination register - insert
                          * a move

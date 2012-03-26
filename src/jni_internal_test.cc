@@ -738,21 +738,21 @@ TEST_F(JniInternalTest, RegisterNatives) {
   // Check that registering to a non-existent java.lang.Object.foo() causes a
   // NoSuchMethodError
   {
-    JNINativeMethod methods[] = {{"foo", "()V", NULL}};
+    JNINativeMethod methods[] = { { "foo", "()V", NULL } };
     env_->RegisterNatives(jlobject, methods, 1);
   }
   EXPECT_EXCEPTION(jlnsme);
 
   // Check that registering non-native methods causes a NoSuchMethodError
   {
-    JNINativeMethod methods[] = {{"equals", "(Ljava/lang/Object;)Z", NULL}};
+    JNINativeMethod methods[] = { { "equals", "(Ljava/lang/Object;)Z", NULL } };
     env_->RegisterNatives(jlobject, methods, 1);
   }
   EXPECT_EXCEPTION(jlnsme);
 
   // Check that registering native methods is successful
   {
-    JNINativeMethod methods[] = {{"notify", "()V", reinterpret_cast<void*>(BogusMethod)}};
+    JNINativeMethod methods[] = { { "notify", "()V", reinterpret_cast<void*>(BogusMethod) } };
     env_->RegisterNatives(jlobject, methods, 1);
   }
   EXPECT_FALSE(env_->ExceptionCheck());
