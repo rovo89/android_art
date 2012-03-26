@@ -237,11 +237,11 @@ LIBART_HOST_SRC_FILES := \
 	src/runtime_linux.cc \
 	src/thread_linux.cc
 
-ifeq ($(TARGET_ARCH),x86)
+ifeq ($(HOST_ARCH),x86)
 LIBART_HOST_SRC_FILES += src/runtime_support_x86.S src/thread_x86.cc
-else # TARGET_ARCH != x86
+else # HOST_ARCH != x86
 $(error unsupported HOST_ARCH=$(HOST_ARCH))
-endif # TARGET_ARCH != x86
+endif # HOST_ARCH != x86
 
 LIBARTTEST_COMMON_SRC_FILES := \
 	test/StackWalk/stack_walk_jni.cc \
