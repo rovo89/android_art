@@ -2088,9 +2088,9 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass,
   if (oat_file_class_status == Class::kStatusVerified || oat_file_class_status == Class::kStatusInitialized) {
     return true;
   }
-  if (oat_file_class_status == Class::kStatusError) {
-    // Compile time verification failed. Compile time verification can fail because we have
-    // incomplete type information. Consider the following:
+  if (oat_file_class_status == Class::kStatusResolved) {
+    // Compile time verification failed with a soft error. Compile time verification can fail
+    // because we have incomplete type information. Consider the following:
     // class ... {
     //   Foo x;
     //   .... () {
@@ -2106,6 +2106,11 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass,
     // allowing an unsafe assignment to the field x in the iput (javac may have compiled this as
     // it knew Bar was a sub-class of Foo, but for us this may have been moved into a separate apk
     // at compile time).
+    return false;
+  }
+  if (oat_file_class_status == Class::kStatusError) {
+    // Compile time verification failed with a hard error. This is caused by invalid instructions
+    // in the class. These errors are unrecoverable.
     return false;
   }
   if (oat_file_class_status == Class::kStatusNotReady) {
