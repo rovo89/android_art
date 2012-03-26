@@ -77,11 +77,10 @@ class PACKED Thread {
     kBlocked      = 3,        // TS_MONITOR on a monitor
     kWaiting      = 4,        // TS_WAIT in Object.wait()
     // Non-JDWP states.
-    kInitializing = 5,        // allocated, not yet running --- TODO: unnecessary?
-    kStarting     = 6,        // native thread started, not yet ready to run managed code
-    kNative       = 7,        // off in a JNI native method
-    kVmWait       = 8,        // waiting on an internal runtime resource
-    kSuspended    = 9,        // suspended, usually by GC or debugger
+    kStarting     = 5,        // native thread started, not yet ready to run managed code
+    kNative       = 6,        // off in a JNI native method
+    kVmWait       = 7,        // waiting on an internal runtime resource
+    kSuspended    = 8,        // suspended, usually by GC or debugger
   };
 
   // Space to throw a StackOverflowError in.
@@ -419,6 +418,8 @@ class PACKED Thread {
     return debug_invoke_req_;
   }
 
+  void SetDebuggerUpdatesEnabled(bool enabled);
+
   bool IsTraceStackEmpty() const {
     return trace_stack_->empty();
   }
@@ -443,7 +444,8 @@ class PACKED Thread {
  private:
   Thread();
   ~Thread();
-  friend class ThreadList;  // For ~Thread.
+  void Destroy();
+  friend class ThreadList;  // For ~Thread and Destroy.
 
   void CreatePeer(const char* name, bool as_daemon, Object* thread_group);
   friend class Runtime; // For CreatePeer.

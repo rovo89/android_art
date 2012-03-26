@@ -96,7 +96,7 @@ static void VMRuntime_clearGrowthLimit(JNIEnv*, jobject) {
 }
 
 static jboolean VMRuntime_isDebuggerActive(JNIEnv*, jobject) {
-  return Dbg::IsDebuggerConnected();
+  return Dbg::IsDebuggerActive();
 }
 
 static jobjectArray VMRuntime_properties(JNIEnv* env, jobject) {
@@ -125,7 +125,6 @@ static jstring VMRuntime_vmVersion(JNIEnv* env, jobject) {
 }
 
 static void DisableCheckJniCallback(Thread* t, void*) {
-  LOG(INFO) << "Disabling CheckJNI for " << *t;
   t->GetJniEnv()->SetCheckJniEnabled(false);
 }
 
