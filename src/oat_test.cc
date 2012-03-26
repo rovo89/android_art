@@ -64,7 +64,7 @@ TEST_F(OatTest, WriteRead) {
 
   SirtRef<ClassLoader> class_loader(NULL);
   if (compile) {
-    compiler_.reset(new Compiler(kThumb2, false, 2, false, NULL));
+    compiler_.reset(new Compiler(kThumb2, false, 2, false, NULL, true, true));
     compiler_->CompileAll(class_loader.get(), class_linker->GetBootClassPath());
   }
 

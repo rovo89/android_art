@@ -309,7 +309,8 @@ static Fn FindFunction(const std::string& compiler_so_name, void* library, const
 }
 
 Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_count,
-                   bool support_debugging, const std::set<std::string>* image_classes)
+                   bool support_debugging, const std::set<std::string>* image_classes,
+                   bool dump_stats, bool dump_timings)
     : instruction_set_(instruction_set),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
@@ -318,6 +319,8 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       thread_count_(thread_count),
       support_debugging_(support_debugging),
       stats_(new AOTCompilationStats),
+      dump_stats_(dump_stats),
+      dump_timings_(dump_timings),
       image_classes_(image_classes),
       compiler_library_(NULL),
       compiler_(NULL),
@@ -449,11 +452,13 @@ void Compiler::CompileAll(const ClassLoader* class_loader,
   PostCompile(class_loader, dex_files);
   timings.AddSplit("PostCompile");
 
-  if (timings.GetTotalNs() > MsToNs(1000)) {
+  if (dump_timings_ && timings.GetTotalNs() > MsToNs(1000)) {
     timings.Dump();
   }
 
-  stats_->Dump();
+  if (dump_stats_) {
+    stats_->Dump();
+  }
 }
 
 void Compiler::CompileOne(const Method* method) {

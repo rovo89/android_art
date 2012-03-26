@@ -47,7 +47,8 @@ class Compiler {
   // can assume will be in the image, with NULL implying all available
   // classes.
   explicit Compiler(InstructionSet instruction_set, bool image, size_t thread_count,
-                    bool support_debugging, const std::set<std::string>* image_classes);
+                    bool support_debugging, const std::set<std::string>* image_classes,
+                    bool dump_stats, bool dump_timings);
 
   ~Compiler();
 
@@ -301,6 +302,9 @@ class Compiler {
   uint64_t start_ns_;
 
   UniquePtr<AOTCompilationStats> stats_;
+
+  bool dump_stats_;
+  bool dump_timings_;
 
   const std::set<std::string>* image_classes_;
 
