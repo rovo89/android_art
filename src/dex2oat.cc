@@ -207,7 +207,9 @@ class Dex2Oat {
                                 std::string const& bitcode_filename,
 #endif
                                 bool image,
-                                const std::set<std::string>* image_classes) {
+                                const std::set<std::string>* image_classes,
+                                bool dump_stats,
+                                bool dump_timings) {
     // SirtRef and ClassLoader creation needs to come after Runtime::Create
     UniquePtr<SirtRef<ClassLoader> > class_loader(new SirtRef<ClassLoader>(NULL));
     if (class_loader.get() == NULL) {
@@ -229,7 +231,9 @@ class Dex2Oat {
                                               image,
                                               thread_count_,
                                               support_debugging_,
-                                              image_classes));
+                                              image_classes,
+                                              dump_stats,
+                                              dump_timings));
 
 #if defined(ART_USE_LLVM_COMPILER)
     compiler->SetElfFileName(elf_filename);
@@ -473,6 +477,13 @@ int dex2oat(int argc, char** argv) {
   int thread_count = 2;
   bool support_debugging = false;
   InstructionSet instruction_set = kThumb2;
+#ifndef NDEBUG
+  bool dump_stats = true;
+  bool dump_timings = true;
+#else
+  bool dump_stats = false;
+  bool dump_timings = false;
+#endif
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -718,7 +729,9 @@ int dex2oat(int argc, char** argv) {
                                                             bitcode_filename,
 #endif
                                                             image,
-                                                            image_classes.get()));
+                                                            image_classes.get(),
+                                                            dump_stats,
+                                                            dump_timings));
 
   if (compiler.get() == NULL) {
     LOG(ERROR) << "Failed to create oat file: " << oat_location;
