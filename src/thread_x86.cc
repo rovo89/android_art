@@ -30,6 +30,11 @@
 #include <asm/ldt.h>
 #endif
 
+// TODO: add SYS_modify_ldt definition to bionic
+#ifndef SYS_modify_ldt
+#define SYS_modify_ldt __NR_modify_ldt
+#endif
+
 namespace art {
 
 void Thread::InitCpu() {

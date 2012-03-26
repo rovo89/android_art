@@ -214,18 +214,34 @@ LIBART_TARGET_SRC_FILES := \
 	src/logging_android.cc \
 	src/monitor_android.cc \
 	src/runtime_android.cc \
-	src/thread_android.cc \
-	src/thread_arm.cc \
-	src/runtime_support_arm.S
+	src/thread_android.cc
+
+ifeq ($(TARGET_ARCH),arm)
+LIBART_TARGET_SRC_FILES += src/runtime_support_arm.S src/thread_arm.cc
+else # TARGET_ARCH != arm
+ifeq ($(TARGET_ARCH),x86)
+LIBART_TARGET_SRC_FILES += src/runtime_support_x86.S src/thread_x86.cc
+else # TARGET_ARCH != x86
+ifeq ($(TARGET_ARCH),mips)
+LIBART_TARGET_SRC_FILES += src/runtime_support_mips.S src/thread_mips.cc
+else # TARGET_ARCH != mips
+$(error unsupported TARGET_ARCH=$(TARGET_ARCH))
+endif # TARGET_ARCH != mips
+endif # TARGET_ARCH != x86
+endif # TARGET_ARCH != arm
 
 LIBART_HOST_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
 	src/logging_linux.cc \
 	src/monitor_linux.cc \
 	src/runtime_linux.cc \
-	src/thread_linux.cc \
-	src/thread_x86.cc \
-	src/runtime_support_x86.S
+	src/thread_linux.cc
+
+ifeq ($(HOST_ARCH),x86)
+LIBART_HOST_SRC_FILES += src/runtime_support_x86.S src/thread_x86.cc
+else # HOST_ARCH != x86
+$(error unsupported HOST_ARCH=$(HOST_ARCH))
+endif # HOST_ARCH != x86
 
 LIBARTTEST_COMMON_SRC_FILES := \
 	test/StackWalk/stack_walk_jni.cc \

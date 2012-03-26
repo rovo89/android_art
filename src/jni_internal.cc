@@ -115,6 +115,12 @@ T AddLocalReference(JNIEnv* public_env, const Object* const_obj) {
 
   return reinterpret_cast<T>(ref);
 }
+// Explicit instantiations
+template jclass AddLocalReference<jclass>(JNIEnv* public_env, const Object* const_obj);
+template jobject AddLocalReference<jobject>(JNIEnv* public_env, const Object* const_obj);
+template jobjectArray AddLocalReference<jobjectArray>(JNIEnv* public_env, const Object* const_obj);
+template jstring AddLocalReference<jstring>(JNIEnv* public_env, const Object* const_obj);
+template jthrowable AddLocalReference<jthrowable>(JNIEnv* public_env, const Object* const_obj);
 
 // For external use.
 template<typename T>
