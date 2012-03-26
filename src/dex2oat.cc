@@ -477,13 +477,8 @@ int dex2oat(int argc, char** argv) {
   int thread_count = 2;
   bool support_debugging = false;
   InstructionSet instruction_set = kThumb2;
-#ifndef NDEBUG
-  bool dump_stats = true;
-  bool dump_timings = true;
-#else
-  bool dump_stats = false;
-  bool dump_timings = false;
-#endif
+  bool dump_stats = kIsDebugBuild;
+  bool dump_timings = kIsDebugBuild;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);

@@ -280,13 +280,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   if (class_path_string != NULL) {
     parsed->class_path_string_ = class_path_string;
   }
-#ifdef NDEBUG
-  // -Xcheck:jni is off by default for regular builds...
-  parsed->check_jni_ = false;
-#else
-  // ...but on by default in debug builds.
-  parsed->check_jni_ = true;
-#endif
+  // -Xcheck:jni is off by default for regular builds but on by default in debug builds.
+  parsed->check_jni_ = kIsDebugBuild;
 
   parsed->heap_initial_size_ = Heap::kInitialSize;
   parsed->heap_maximum_size_ = Heap::kMaximumSize;
@@ -435,10 +430,11 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (StartsWith(option, "-Xlockprofthreshold:")) {
       parsed->lock_profiling_threshold_ = ParseIntegerOrDie(option);
     } else if (StartsWith(option, "-Xstacktracefile:")) {
-// always show stack traces in debug builds
-#ifdef NDEBUG
-      parsed->stack_trace_file_ = option.substr(strlen("-Xstacktracefile:"));
-#endif
+      if (kIsDebugBuild) {
+        // Ignore the zygote and always show stack traces in debug builds.
+      } else {
+        parsed->stack_trace_file_ = option.substr(strlen("-Xstacktracefile:"));
+      }
     } else if (option == "sensitiveThread") {
       parsed->hook_is_sensitive_thread_ = reinterpret_cast<bool (*)()>(options[i].second);
     } else if (option == "vfprintf") {
@@ -476,11 +472,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   }
 
   LOG(INFO) << "Build type: "
-#ifndef NDEBUG
-            << "debug"
-#else
-            << "optimized"
-#endif
+            << (kIsDebugBuild ? "debug" : "optimized")
             << "; CheckJNI: " << (parsed->check_jni_ ? "on" : "off");
 
   return parsed.release();
