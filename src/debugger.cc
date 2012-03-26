@@ -433,11 +433,11 @@ void Dbg::StopJdwp() {
 
 void Dbg::GcDidFinish() {
   if (gDdmHpifWhen != HPIF_WHEN_NEVER) {
-    LOG(DEBUG) << "Sending VM heap info to DDM";
+    LOG(DEBUG) << "Sending heap info to DDM";
     DdmSendHeapInfo(gDdmHpifWhen);
   }
   if (gDdmHpsgWhen != HPSG_WHEN_NEVER) {
-    LOG(DEBUG) << "Dumping VM heap to DDM";
+    LOG(DEBUG) << "Dumping heap to DDM";
     DdmSendHeapSegments(false);
   }
   if (gDdmNhsgWhen != HPSG_WHEN_NEVER) {
@@ -2167,7 +2167,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
   {
     /*
      * We change our (JDWP thread) status, which should be THREAD_RUNNING,
-     * so the VM can suspend for a GC if the invoke request causes us to
+     * so we can suspend for a GC if the invoke request causes us to
      * run out of memory.  It's also a good idea to change it before locking
      * the invokeReq mutex, although that should never be held for long.
      */
@@ -2225,7 +2225,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
 void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   Thread* self = Thread::Current();
 
-  // We can be called while an exception is pending in the VM.  We need
+  // We can be called while an exception is pending. We need
   // to preserve that across the method invocation.
   SirtRef<Throwable> old_exception(self->GetException());
   self->ClearException();
@@ -2358,7 +2358,7 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
    *
    * We could avoid this by returning type/data/offset/length and having
    * the caller be aware of the object lifetime issues, but that
-   * integrates the JDWP code more tightly into the VM, and doesn't work
+   * integrates the JDWP code more tightly into the rest of the runtime, and doesn't work
    * if we have responses for multiple chunks.
    *
    * So we're pretty much stuck with copying data around multiple times.

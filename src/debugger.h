@@ -123,7 +123,6 @@ class Dbg {
 
   static void UndoDebuggerSuspensions();
 
-  // The debugger wants the VM to exit.
   static void Exit(int status);
 
   static void VisitRoots(Heap::RootVisitor* visitor, void* arg);

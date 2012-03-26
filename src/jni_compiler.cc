@@ -45,7 +45,7 @@ static void ChangeThreadState(Assembler* jni_asm, Thread::State new_state,
   if (new_state == Thread::kRunnable) {
     /*
      * Change our status to Thread::kRunnable.  The transition requires
-     * that we check for pending suspension, because the VM considers
+     * that we check for pending suspension, because the runtime considers
      * us to be "asleep" in all other states, and another thread could
      * be performing a GC now.
      */

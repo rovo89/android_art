@@ -29,10 +29,6 @@
 
 namespace art {
 
-/*
- * Return a set of strings describing available VM features (this is chiefly
- * of interest to DDMS).
- */
 static jobjectArray VMDebug_getVmFeatureList(JNIEnv* env, jclass) {
   std::vector<std::string> features;
   features.push_back("method-trace-profiling");
@@ -211,18 +207,10 @@ static void VMDebug_dumpReferenceTables(JNIEnv* env, jclass) {
   LOG(INFO) << "---";
 }
 
-/*
- * Dump the current thread's interpreted stack and abort the VM.  Useful
- * for seeing both interpreted and native stack traces.
- */
 static void VMDebug_crash(JNIEnv*, jclass) {
-  LOG(FATAL) << "Crashing VM on request";
+  LOG(FATAL) << "Crashing runtime on request";
 }
 
-/*
- * Provide a hook for gdb to hang to so that the VM can be stopped when
- * user-tagged source locations are being executed.
- */
 static void VMDebug_infopoint(JNIEnv*, jclass, jint id) {
   LOG(INFO) << "VMDebug infopoint " << id << " hit";
 }

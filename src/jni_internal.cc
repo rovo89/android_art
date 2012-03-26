@@ -841,22 +841,7 @@ class JNI {
   static jthrowable ExceptionOccurred(JNIEnv* env) {
     ScopedJniThreadState ts(env);
     Object* exception = ts.Self()->GetException();
-    if (exception == NULL) {
-      return NULL;
-    } else {
-      // TODO: if adding a local reference failing causes the VM to abort
-      // then the following check will never occur.
-      jthrowable localException = AddLocalReference<jthrowable>(env, exception);
-      if (localException == NULL) {
-        // We were unable to add a new local reference, and threw a new
-        // exception.  We can't return "exception", because it's not a
-        // local reference.  So we have to return NULL, indicating that
-        // there was no exception, even though it's pretty much raining
-        // exceptions in here.
-        LOG(WARNING) << "JNI WARNING: addLocal/exception combo";
-      }
-      return localException;
-    }
+    return (exception != NULL) ? AddLocalReference<jthrowable>(env, exception) : NULL;
   }
 
   static void FatalError(JNIEnv* env, const char* msg) {

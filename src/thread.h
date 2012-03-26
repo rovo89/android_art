@@ -81,7 +81,7 @@ class PACKED Thread {
     kInitializing = 5,        // allocated, not yet running --- TODO: unnecessary?
     kStarting     = 6,        // native thread started, not yet ready to run managed code
     kNative       = 7,        // off in a JNI native method
-    kVmWait       = 8,        // waiting on a VM resource
+    kVmWait       = 8,        // waiting on an internal runtime resource
     kSuspended    = 9,        // suspended, usually by GC or debugger
   };
 
@@ -591,7 +591,7 @@ class PACKED Thread {
   // JDWP invoke-during-breakpoint support.
   DebugInvokeReq* debug_invoke_req_;
 
-  // TLS key used to retrieve the VM thread object.
+  // TLS key used to retrieve the Thread*.
   static pthread_key_t pthread_key_self_;
 
   // Additional stack used by method tracer to store method and return pc values.

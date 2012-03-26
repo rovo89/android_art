@@ -1489,8 +1489,8 @@ bool DexVerifier::CheckBranchTarget(uint32_t cur_offset) {
     Fail(VERIFY_ERROR_GENERIC) << "branch offset of zero not allowed at" << (void*) cur_offset;
     return false;
   }
-  // Check for 32-bit overflow. This isn't strictly necessary if we can depend on the VM to have
-  // identical "wrap-around" behavior, but it's unwise to depend on that.
+  // Check for 32-bit overflow. This isn't strictly necessary if we can depend on the runtime
+  // to have identical "wrap-around" behavior, but it's unwise to depend on that.
   if (((int64_t) cur_offset + (int64_t) offset) != (int64_t) (cur_offset + offset)) {
     Fail(VERIFY_ERROR_GENERIC) << "branch target overflow " << (void*) cur_offset << " +" << offset;
     return false;

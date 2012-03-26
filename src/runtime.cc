@@ -166,7 +166,7 @@ void Runtime::Abort(const char* file, int line) {
   // thread, whether or not that was the thread that failed.  By
   // stuffing a value into a bogus address, we cause a segmentation
   // fault in the current thread, and get a useful log from debuggerd.
-  // We can also trivially tell the difference between a VM crash and
+  // We can also trivially tell the difference between a crash and
   // a deliberate abort by looking at the fault address.
   *reinterpret_cast<char*>(0xdeadd00d) = 38;
   abort();
