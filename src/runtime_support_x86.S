@@ -4,6 +4,7 @@
     // Mac OS X mangles the functions with an underscore prefix
     #define art_deliver_exception_from_code _art_deliver_exception_from_code
     #define art_proxy_invoke_handler _art_proxy_invoke_handler
+    #define art_update_debugger _art_update_debugger
     #define artDeliverExceptionFromCode _artDeliverExceptionFromCode
 #endif
 
@@ -34,4 +35,9 @@ art_deliver_exception_from_code:
     // TODO
     .globl art_proxy_invoke_handler
 art_proxy_invoke_handler:
+    int3
+
+    // TODO
+    .globl art_update_debugger
+art_update_debugger:
     int3

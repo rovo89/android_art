@@ -104,11 +104,11 @@ static void VMDebug_stopEmulatorTracing(JNIEnv*, jclass) {
 }
 
 static jboolean VMDebug_isDebuggerConnected(JNIEnv*, jclass) {
-  return Dbg::IsDebuggerConnected();
+  return Dbg::IsDebuggerActive();
 }
 
 static jboolean VMDebug_isDebuggingEnabled(JNIEnv*, jclass) {
-  return Dbg::IsDebuggingEnabled();
+  return Dbg::IsJdwpConfigured();
 }
 
 static jlong VMDebug_lastDebuggerActivity(JNIEnv*, jclass) {

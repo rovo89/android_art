@@ -326,31 +326,23 @@ void ThreadList::Unregister() {
 
   VLOG(threads) << "ThreadList::Unregister() " << *self;
 
-  if (self->GetPeer() != NULL) {
-      self->SetState(Thread::kRunnable);
+  // Any time-consuming destruction, plus anything that can call back into managed code or
+  // suspend and so on, must happen at this point, and not in ~Thread.
+  self->Destroy();
 
-      // This may need to call user-supplied managed code. Make sure we do this before we start tearing
-      // down the Thread* and removing it from the thread list (or start taking any locks).
-      self->HandleUncaughtExceptions();
+  {
+    // Remove this thread from the list.
+    ScopedThreadListLock thread_list_lock;
+    CHECK(Contains(self));
+    list_.remove(self);
 
-      // Make sure we remove from ThreadGroup before taking the
-      // thread_list_lock_ since it allocates an Iterator which can cause
-      // a GC which will want to suspend.
-      self->RemoveFromThreadGroup();
+    // Delete the Thread* and release the thin lock id.
+    uint32_t thin_lock_id = self->thin_lock_id_;
+    delete self;
+    ReleaseThreadId(thin_lock_id);
   }
 
-  ScopedThreadListLock thread_list_lock;
-
-  // Remove this thread from the list.
-  CHECK(Contains(self));
-  list_.remove(self);
-
-  // Delete the Thread* and release the thin lock id.
-  uint32_t thin_lock_id = self->thin_lock_id_;
-  delete self;
-  ReleaseThreadId(thin_lock_id);
-
-  // Clear the TLS data, so that thread is recognizably detached.
+  // Clear the TLS data, so that the underlying native thread is recognizably detached.
   // (It may wish to reattach later.)
   CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, NULL), "detach self");
 

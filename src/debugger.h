@@ -95,13 +95,12 @@ class Dbg {
   static void Disconnected();
   static void Disposed();
 
-  /*
-   * Returns "true" if a debugger is connected.  Returns "false" if it's
-   * just DDM.
-   */
-  static bool IsDebuggerConnected();
+  // Returns true if we're actually debugging with a real debugger, false if it's
+  // just DDMS (or nothing at all).
+  static bool IsDebuggerActive();
 
-  static bool IsDebuggingEnabled();
+  // Returns true if we had -Xrunjdwp or -agentlib:jdwp= on the command line.
+  static bool IsJdwpConfigured();
 
   static bool IsDisposed();
 

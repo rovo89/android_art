@@ -149,10 +149,10 @@ struct SingleStepControl {
 // JDWP is allowed unless the Zygote forbids it.
 static bool gJdwpAllowed = true;
 
-// Was there a -Xrunjdwp or -agent argument on the command-line?
+// Was there a -Xrunjdwp or -agentlib:jdwp= argument on the command line?
 static bool gJdwpConfigured = false;
 
-// Broken-down JDWP options. (Only valid if gJdwpConfigured is true.)
+// Broken-down JDWP options. (Only valid if IsJdwpConfigured() is true.)
 static JDWP::JdwpOptions gJdwpOptions;
 
 // Runtime JDWP state.
@@ -396,7 +396,7 @@ bool Dbg::ParseJdwpOptions(const std::string& options) {
 }
 
 void Dbg::StartJdwp() {
-  if (!gJdwpAllowed || !gJdwpConfigured) {
+  if (!gJdwpAllowed || !IsJdwpConfigured()) {
     // No JDWP for you!
     return;
   }
@@ -477,6 +477,16 @@ bool Dbg::IsDisposed() {
   return gDisposed;
 }
 
+static void SetDebuggerUpdatesEnabledCallback(Thread* t, void* user_data) {
+  t->SetDebuggerUpdatesEnabled(*reinterpret_cast<bool*>(user_data));
+}
+
+static void SetDebuggerUpdatesEnabled(bool enabled) {
+  Runtime* runtime = Runtime::Current();
+  ScopedThreadListLock thread_list_lock;
+  runtime->GetThreadList()->ForEach(SetDebuggerUpdatesEnabledCallback, &enabled);
+}
+
 void Dbg::GoActive() {
   // Enable all debugging features, including scans for breakpoints.
   // This is a no-op if we're already active.
@@ -487,29 +497,33 @@ void Dbg::GoActive() {
 
   LOG(INFO) << "Debugger is active";
 
-  // TODO: CHECK we don't have any outstanding breakpoints.
+  {
+    // TODO: dalvik only warned if there were breakpoints left over. clear in Dbg::Disconnected?
+    MutexLock mu(gBreakpointsLock);
+    CHECK_EQ(gBreakpoints.size(), 0U);
+  }
 
   gDebuggerActive = true;
-
-  //dvmEnableAllSubMode(kSubModeDebuggerActive);
+  SetDebuggerUpdatesEnabled(true);
 }
 
 void Dbg::Disconnected() {
   CHECK(gDebuggerConnected);
 
-  gDebuggerActive = false;
+  LOG(INFO) << "Debugger is no longer active";
 
-  //dvmDisableAllSubMode(kSubModeDebuggerActive);
+  gDebuggerActive = false;
+  SetDebuggerUpdatesEnabled(false);
 
   gRegistry->Clear();
   gDebuggerConnected = false;
 }
 
-bool Dbg::IsDebuggerConnected() {
+bool Dbg::IsDebuggerActive() {
   return gDebuggerActive;
 }
 
-bool Dbg::IsDebuggingEnabled() {
+bool Dbg::IsJdwpConfigured() {
   return gJdwpConfigured;
 }
 
@@ -1379,7 +1393,6 @@ bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThre
   case Thread::kTimedWaiting: *pThreadStatus = JDWP::TS_WAIT;     break;
   case Thread::kBlocked:      *pThreadStatus = JDWP::TS_MONITOR;  break;
   case Thread::kWaiting:      *pThreadStatus = JDWP::TS_WAIT;     break;
-  case Thread::kInitializing: *pThreadStatus = JDWP::TS_ZOMBIE;   break;
   case Thread::kStarting:     *pThreadStatus = JDWP::TS_ZOMBIE;   break;
   case Thread::kNative:       *pThreadStatus = JDWP::TS_RUNNING;  break;
   case Thread::kVmWait:       *pThreadStatus = JDWP::TS_WAIT;     break;
@@ -1736,7 +1749,7 @@ void Dbg::PostLocationEvent(const Method* m, int dex_pc, Object* this_object, in
 }
 
 void Dbg::PostException(Method** sp, Method* throwMethod, uintptr_t throwNativePc, Method* catchMethod, uintptr_t catchNativePc, Object* exception) {
-  if (!gDebuggerActive) {
+  if (!IsDebuggerActive()) {
     return;
   }
 
@@ -1765,7 +1778,7 @@ void Dbg::PostException(Method** sp, Method* throwMethod, uintptr_t throwNativeP
 }
 
 void Dbg::PostClassPrepare(Class* c) {
-  if (!gDebuggerActive) {
+  if (!IsDebuggerActive()) {
     return;
   }
 
@@ -1778,7 +1791,7 @@ void Dbg::PostClassPrepare(Class* c) {
 }
 
 void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
-  if (!gDebuggerActive || dex_pc == -2 /* fake method exit */) {
+  if (!IsDebuggerActive() || dex_pc == -2 /* fake method exit */) {
     return;
   }
 
@@ -2461,9 +2474,12 @@ void Dbg::DdmSetThreadNotification(bool enable) {
 }
 
 void Dbg::PostThreadStartOrStop(Thread* t, uint32_t type) {
-  if (gDebuggerActive) {
+  if (IsDebuggerActive()) {
     JDWP::ObjectId id = gRegistry->Add(t->GetPeer());
     gJdwpState->PostThreadChange(id, type == CHUNK_TYPE("THCR"));
+    // If this thread's just joined the party while we're already debugging, make sure it knows
+    // to give us updates when it's running.
+    t->SetDebuggerUpdatesEnabled(true);
   }
   Dbg::DdmSendThreadNotification(t, type);
 }
