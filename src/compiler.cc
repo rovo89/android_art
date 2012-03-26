@@ -1109,11 +1109,15 @@ static void VerifyClass(Context* context, size_t class_def_index) {
     // ClassLinker::VerifyClass throws, which isn't useful in the compiler.
     CHECK(Thread::Current()->IsExceptionPending());
     Thread::Current()->ClearException();
-    // We want to try verification again at run-time, so move back into the resolved state.
-    klass->SetStatus(Class::kStatusResolved);
+    art::Compiler::ClassReference ref(context->GetDexFile(), class_def_index);
+    if (!verifier::DexVerifier::IsClassRejected(ref)) {
+      // If the erroneous class wasn't rejected by the verifier, it was a soft error. We want
+      // to try verification again at run-time, so move back into the resolved state.
+      klass->SetStatus(Class::kStatusResolved);
+    }
   }
 
-  CHECK(klass->IsVerified() || klass->IsResolved()) << PrettyClass(klass);
+  CHECK(klass->IsVerified() || klass->IsResolved() || klass->IsErroneous()) << PrettyClass(klass);
   CHECK(!Thread::Current()->IsExceptionPending()) << PrettyTypeOf(Thread::Current()->GetException());
 }
 
@@ -1143,7 +1147,10 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
     const char* descriptor = dex_file.GetClassDescriptor(class_def);
     Class* klass = class_linker->FindClass(descriptor, class_loader);
     if (klass != NULL) {
-      class_linker->EnsureInitialized(klass, false);
+      if (klass->IsVerified()) {
+        // Only try to initialize classes that were successfully verified.
+        class_linker->EnsureInitialized(klass, false);
+      }
       // record the final class status if necessary
       Class::Status status = klass->GetStatus();
       ClassReference ref(&dex_file, class_def_index);
