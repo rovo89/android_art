@@ -43,19 +43,14 @@ const int kStackAlignment = 16;
 // Required object alignment
 const int kObjectAlignment = 8;
 
-// Required ARM instruction alignment
+// ARM instruction alignment. ARM processors require code to be 4-byte aligned.
 const int kArmAlignment = 4;
 
-// Required X86 instruction alignment
+// X86 instruction alignment. This is the recommended alignment for maximum performance.
 const int kX86Alignment = 16;
 
-// System page size.  Normally you're expected to get this from
-// sysconf(_SC_PAGESIZE) or some system-specific define (usually
-// PAGESIZE or PAGE_SIZE).  If we use a simple compile-time constant
-// the compiler can generate appropriate masks directly, so we define
-// it here and verify it as the runtime is starting up.
-//
-// Must be a power of 2.
+// System page size. We check this against sysconf(_SC_PAGE_SIZE) at runtime, but use a simple
+// compile-time constant so the compiler can generate better code.
 const int kPageSize = 4096;
 
 }  // namespace art

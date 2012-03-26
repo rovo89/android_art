@@ -30,11 +30,6 @@
 #include <asm/ldt.h>
 #endif
 
-// TODO: add SYS_modify_ldt definition to bionic
-#ifndef SYS_modify_ldt
-#define SYS_modify_ldt __NR_modify_ldt
-#endif
-
 namespace art {
 
 void Thread::InitCpu() {
@@ -49,7 +44,7 @@ void Thread::InitCpu() {
   std::vector<uint64_t> ldt(LDT_ENTRIES);
   size_t ldt_size(sizeof(uint64_t) * ldt.size());
   memset(&ldt[0], 0, ldt_size);
-  syscall(SYS_modify_ldt, 0, &ldt[0], ldt_size);
+  syscall(__NR_modify_ldt, 0, &ldt[0], ldt_size);
   // Create empty slot to point at current Thread*
   user_desc ldt_entry;
   memset(&ldt_entry, 0, sizeof(ldt_entry));
@@ -72,7 +67,7 @@ void Thread::InitCpu() {
     LOG(FATAL) << "Failed to find available LDT slot";
   }
   // Update LDT
-  CHECK_EQ(0, syscall(SYS_modify_ldt, 1, &ldt_entry, sizeof(ldt_entry)));
+  CHECK_EQ(0, syscall(__NR_modify_ldt, 1, &ldt_entry, sizeof(ldt_entry)));
   // Change FS to be new LDT entry
   uint16_t table_indicator = 1 << 2;  // LDT
   uint16_t rpl = 3;  // Requested privilege level
