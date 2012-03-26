@@ -51,10 +51,11 @@ extern int64_t D2L(double d);
 extern int64_t F2L(float f);
 
 }  // namespace art
-/* Helper for both JNI and regular compiled code */
-extern "C" void art_deliver_exception_from_code(void*);
 
+// Helpers for both compiled code and libart.
+extern "C" void art_deliver_exception_from_code(void*);
 extern "C" void art_proxy_invoke_handler();
+extern "C" void art_update_debugger(void*, void*, int32_t, void*);
 
 #if defined(__arm__)
   /* Compiler helpers */
@@ -102,7 +103,6 @@ extern "C" void art_proxy_invoke_handler();
   extern "C" void art_trace_entry_from_code(void*);
   extern "C" void art_trace_exit_from_code();
   extern "C" void* art_resolve_string_from_code(void*, uint32_t);
-  extern "C" void art_update_debugger(void*, void*, int32_t, void*);
   extern "C" void art_work_around_app_jni_bugs();
 
   /* Conversions */

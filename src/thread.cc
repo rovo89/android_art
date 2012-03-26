@@ -101,8 +101,7 @@ void Thread::InitFunctionPointers() {
   pCmplFloat = CmplFloat;
   pCmpgDouble = CmpgDouble;
   pCmplDouble = CmplDouble;
-#endif
-#if defined(__arm__)
+#elif defined(__arm__)
   pShlLong = art_shl_long;
   pShrLong = art_shr_long;
   pUshrLong = art_ushr_long;
@@ -173,9 +172,7 @@ void Thread::InitFunctionPointers() {
   pThrowStackOverflowFromCode = art_throw_stack_overflow_from_code;
   pThrowVerificationErrorFromCode = art_throw_verification_error_from_code;
   pUnlockObjectFromCode = art_unlock_object_from_code;
-  pUpdateDebuggerFromCode = NULL;  // To enable, set to art_update_debugger
-#endif
-#if defined(__i386__)
+#elif defined(__i386__)
   pShlLong = NULL;
   pShrLong = NULL;
   pUshrLong = NULL;
@@ -246,7 +243,6 @@ void Thread::InitFunctionPointers() {
   pThrowStackOverflowFromCode = NULL;
   pThrowVerificationErrorFromCode = NULL;
   pUnlockObjectFromCode = NULL;
-  pUpdateDebuggerFromCode = NULL;  // To enable, set to art_update_debugger
 #endif
   pF2l = F2L;
   pD2l = D2L;
@@ -259,6 +255,12 @@ void Thread::InitFunctionPointers() {
   pInstanceofNonTrivialFromCode = IsAssignableFromCode;
   pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
   pUnresolvedDirectMethodTrampolineFromCode = UnresolvedDirectMethodTrampolineFromCode;
+  pUpdateDebuggerFromCode = NULL; // Controlled by SetDebuggerUpdatesEnabled.
+}
+
+void Thread::SetDebuggerUpdatesEnabled(bool enabled) {
+  LOG(INFO) << "Turning debugger updates " << (enabled ? "on" : "off") << " for " << *this;
+  pUpdateDebuggerFromCode = (enabled ? art_update_debugger : NULL);
 }
 
 void Thread::InitTid() {
@@ -974,22 +976,22 @@ void MonitorExitVisitor(const Object* object, void*) {
   entered_monitor->MonitorExit(Thread::Current());
 }
 
-Thread::~Thread() {
+void Thread::Destroy() {
   // On thread detach, all monitors entered with JNI MonitorEnter are automatically exited.
   if (jni_env_ != NULL) {
     jni_env_->monitors.VisitRoots(MonitorExitVisitor, NULL);
   }
 
   if (peer_ != NULL) {
+    Thread* self = this;
 
     // this.vmData = 0;
     SetVmData(peer_, NULL);
 
-    Dbg::PostThreadDeath(this);
+    Dbg::PostThreadDeath(self);
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock
     // object. Signal anyone who is waiting.
-    Thread* self = Thread::Current();
     Object* lock = gThread_lock->GetObject(peer_);
     // (This conditional is only needed for tests, where Thread.lock won't have been set.)
     if (lock != NULL) {
@@ -998,7 +1000,9 @@ Thread::~Thread() {
       lock->MonitorExit(self);
     }
   }
+}
 
+Thread::~Thread() {
   delete jni_env_;
   jni_env_ = NULL;
 
