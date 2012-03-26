@@ -1355,22 +1355,12 @@ JDWP::ObjectId Dbg::GetThreadGroupParent(JDWP::ObjectId threadGroupId) {
   return gRegistry->Add(parent);
 }
 
-static Object* GetStaticThreadGroup(const char* field_name) {
-  Class* c = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/ThreadGroup;");
-  CHECK(c != NULL);
-  Field* f = c->FindStaticField(field_name, "Ljava/lang/ThreadGroup;");
-  CHECK(f != NULL);
-  Object* group = f->GetObject(NULL);
-  CHECK(group != NULL);
-  return group;
-}
-
 JDWP::ObjectId Dbg::GetSystemThreadGroupId() {
-  return gRegistry->Add(GetStaticThreadGroup("mSystem"));
+  return gRegistry->Add(Thread::GetSystemThreadGroup());
 }
 
 JDWP::ObjectId Dbg::GetMainThreadGroupId() {
-  return gRegistry->Add(GetStaticThreadGroup("mMain"));
+  return gRegistry->Add(Thread::GetMainThreadGroup());
 }
 
 bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus) {

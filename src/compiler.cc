@@ -947,7 +947,7 @@ class WorkerThread {
     WorkerThread* worker = reinterpret_cast<WorkerThread*>(arg);
     Runtime* runtime = Runtime::Current();
     if (worker->spawn_) {
-      runtime->AttachCurrentThread("Compiler Worker", true);
+      runtime->AttachCurrentThread("Compiler Worker", true, NULL);
     }
     Thread::Current()->SetState(Thread::kRunnable);
     worker->Run();

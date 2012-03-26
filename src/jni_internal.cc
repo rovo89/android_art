@@ -485,12 +485,12 @@ static jclass GetDirectByteBufferClass(JNIEnv* env) {
   return buffer_class;
 }
 
-static jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args, bool as_daemon) {
+static jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* raw_args, bool as_daemon) {
   if (vm == NULL || p_env == NULL) {
     return JNI_ERR;
   }
 
-  // Return immediately if we're already one with the VM.
+  // Return immediately if we're already attached.
   Thread* self = Thread::Current();
   if (self != NULL) {
     *p_env = self->GetJniEnv();
@@ -505,26 +505,16 @@ static jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args, 
     return JNI_ERR;
   }
 
-  JavaVMAttachArgs* in_args = static_cast<JavaVMAttachArgs*>(thr_args);
-  JavaVMAttachArgs args;
-  if (thr_args == NULL) {
-    // Allow the v1.1 calling convention.
-    args.version = JNI_VERSION_1_2;
-    args.name = NULL;
-    args.group = NULL; // TODO: get "main" thread group
-  } else {
-    args.version = in_args->version;
-    args.name = in_args->name;
-    if (in_args->group != NULL) {
-      UNIMPLEMENTED(WARNING) << "thr_args->group != NULL";
-      args.group = NULL; // TODO: decode in_args->group
-    } else {
-      args.group = NULL; // TODO: get "main" thread group
-    }
+  JavaVMAttachArgs* args = static_cast<JavaVMAttachArgs*>(raw_args);
+  const char* thread_name = NULL;
+  Object* thread_group = NULL;
+  if (args != NULL) {
+    CHECK_GE(args->version, JNI_VERSION_1_2);
+    thread_name = args->name;
+    thread_group = static_cast<Thread*>(NULL)->DecodeJObject(args->group);
   }
-  CHECK_GE(args.version, JNI_VERSION_1_2);
 
-  runtime->AttachCurrentThread(args.name, as_daemon);
+  runtime->AttachCurrentThread(thread_name, as_daemon, thread_group);
   *p_env = Thread::Current()->GetJniEnv();
   return JNI_OK;
 }
