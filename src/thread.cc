@@ -1384,7 +1384,7 @@ void Thread::WalkStack(StackVisitor* visitor, bool /*include_upcalls*/) const {
     Frame frame;
     frame.SetSP(reinterpret_cast<Method**>(reinterpret_cast<byte*>(cur) +
                                            ShadowFrame::MethodOffset()));
-    bool should_continue = visitor->VisitFrame(frame, 0);
+    bool should_continue = visitor->VisitFrame(frame, cur->GetLineNumber());
     if (!should_continue) {
       return;
     }
@@ -1490,7 +1490,11 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     Method* method = down_cast<Method*>(method_trace->Get(i));
     mh.ChangeMethod(method);
     uint32_t native_pc = pc_trace->Get(i);
+#if !defined(ART_USE_LLVM_COMPILER)
     int32_t line_number = mh.GetLineNumFromNativePC(native_pc);
+#else
+    int32_t line_number = native_pc; // LLVM stored line_number in the ShadowFrame
+#endif
     // Allocate element, potentially triggering GC
     // TODO: reuse class_name_object via Class::name_?
     const char* descriptor = mh.GetDeclaringClassDescriptor();

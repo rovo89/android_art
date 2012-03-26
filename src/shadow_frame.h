@@ -31,6 +31,11 @@ class ShadowFrame {
     return number_of_references_;
   }
 
+  // Caller line number
+  uint32_t GetLineNumber() const {
+    return line_num_;
+  }
+
   // Link to previous shadow frame or NULL
   ShadowFrame* GetLink() const {
     return link_;

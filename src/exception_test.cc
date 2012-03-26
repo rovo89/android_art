@@ -118,6 +118,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   ASSERT_EQ(kStackAlignment, 16);
   ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
 
+#if !defined(ART_USE_LLVM_COMPILER)
   // Create two fake stack frames with mapping data created in SetUp. We map offset 3 in the code
   // to dex pc 3, however, we set the return pc to 5 as the stack walker always subtracts two
   // from a return pc.
@@ -141,6 +142,25 @@ TEST_F(ExceptionTest, StackTraceElement) {
   // Set up thread to appear as if we called out of method_g_ at pc 3
   Thread* thread = Thread::Current();
   thread->SetTopOfStack(&fake_stack[0], reinterpret_cast<uintptr_t>(method_g_->GetCode()) + pc_offset);  // return pc
+#else
+  // Create/push fake 20-byte shadow frame for method g
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
+  fake_stack.push_back(37);
+  fake_stack.push_back(0);
+
+  // Create/push fake 20-byte shadow frame for method f
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
+  fake_stack.push_back(22);
+  fake_stack.push_back(0);
+
+  Thread* thread = Thread::Current();
+  thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[5]));
+  thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[0]));
+#endif
 
   JNIEnv* env = thread->GetJniEnv();
   jobject internal = thread->CreateInternalStackTrace(env);
