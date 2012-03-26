@@ -27,8 +27,10 @@
 
 namespace art {
 
-#if !defined(NDBEUG)
 static inline void CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
+  if (!kIsDebugBuild) {
+    return;
+  }
   if (rank == -1) {
     return;
   }
@@ -37,20 +39,16 @@ static inline void CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
     self->CheckSafeToLockOrUnlock(rank, is_locking);
   }
 }
-#else
-static inline void CheckSafeToLockOrUnlock(MutexRank, bool) {}
-#endif
 
-#if !defined(NDEBUG)
 static inline void CheckSafeToWait(MutexRank rank) {
+  if (!kIsDebugBuild) {
+    return;
+  }
   Thread* self = Thread::Current();
   if (self != NULL) {
     self->CheckSafeToWait(rank);
   }
 }
-#else
-static inline void CheckSafeToWait(MutexRank) {}
-#endif
 
 Mutex::Mutex(const char* name, MutexRank rank) : name_(name), rank_(rank) {
   // Like Java, we use recursive mutexes.

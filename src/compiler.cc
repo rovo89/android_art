@@ -256,11 +256,7 @@ static std::string MakeCompilerSoName(InstructionSet instruction_set) {
 
   // Bad things happen if we pull in the libartd-compiler to a libart dex2oat or vice versa,
   // because we end up with both libart and libartd in the same address space!
-#ifndef NDEBUG
-  const char* suffix = "d";
-#else
-  const char* suffix = "";
-#endif
+  const char* suffix = (kIsDebugBuild ? "d" : "");
 
   // Work out the filename for the compiler library.
 #if !defined(ART_USE_LLVM_COMPILER)

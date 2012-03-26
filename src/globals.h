@@ -53,6 +53,13 @@ const int kX86Alignment = 16;
 // compile-time constant so the compiler can generate better code.
 const int kPageSize = 4096;
 
+// Whether or not this is a debug build. Useful in conditionals where NDEBUG isn't.
+#if defined(NDEBUG)
+const bool kIsDebugBuild = false;
+#else
+const bool kIsDebugBuild = true;
+#endif
+
 }  // namespace art
 
 #endif  // ART_SRC_GLOBALS_H_

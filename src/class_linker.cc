@@ -556,10 +556,7 @@ bool ClassLinker::GenerateOatFile(const std::string& dex_filename,
                                   int oat_fd,
                                   const std::string& oat_cache_filename) {
   std::string dex2oat_string(GetAndroidRoot());
-  dex2oat_string += "/bin/dex2oat";
-#ifndef NDEBUG
-  dex2oat_string += 'd';
-#endif
+  dex2oat_string += (kIsDebugBuild ? "/bin/dex2oatd" : "/bin/dex2oat");
   const char* dex2oat = dex2oat_string.c_str();
 
   const char* class_path = Runtime::Current()->GetClassPathString().c_str();
@@ -2227,12 +2224,7 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
   klass->SetStatus(Class::kStatusInitialized);
 
   // sanity checks
-#ifndef NDEBUG
-  bool debug = true;
-#else
-  bool debug = false;
-#endif
-  if (debug) {
+  if (kIsDebugBuild) {
     CHECK(klass->GetIFields() == NULL);
     CheckProxyConstructor(klass->GetDirectMethod(0));
     for (size_t i = 0; i < num_virtual_methods; ++i) {

@@ -53,11 +53,7 @@ class RegTypeCache;
  * changes to the verifier (to make sure we're not skipping over stuff). The only reason not to do
  * it is that it slightly increases the time required to perform verification.
  */
-#ifndef NDEBUG
-# define DEAD_CODE_SCAN  true
-#else
-# define DEAD_CODE_SCAN  false
-#endif
+#define DEAD_CODE_SCAN kIsDebugBuild
 
 /*
  * RegType holds information about the "type" of data held in a register.
