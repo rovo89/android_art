@@ -59,6 +59,9 @@ extern "C" void art_update_debugger(void*, void*, int32_t, void*);
 
 #if defined(__arm__)
   /* Compiler helpers */
+  extern "C" int32_t __memcmp16(void*, void*, int32_t);
+  extern "C" int32_t art_indexof(void*, uint32_t, uint32_t, uint32_t);
+  extern "C" int32_t art_string_compareto(void*, void*);
   extern "C" int32_t art_get32_static_from_code(uint32_t);
   extern "C" int64_t art_get64_static_from_code(uint32_t);
   extern "C" void* art_get_obj_static_from_code(uint32_t);

@@ -52,8 +52,12 @@ RegLocation oatGetReturn(CompilationUnit* cUnit, bool isFloat)
     return res;
 }
 
-void genInvoke(CompilationUnit* cUnit, MIR* mir, InvokeType type, bool isRange)
+void genInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+               InvokeType type, bool isRange)
 {
+    if (genIntrinsic(cUnit, bb, mir, type, isRange)) {
+        return;
+    }
     DecodedInstruction* dInsn = &mir->dalvikInsn;
     InvokeType originalType = type;  // avoiding mutation by ComputeInvokeInfo
     int callState = 0;
@@ -543,38 +547,38 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             break;
 
         case Instruction::INVOKE_STATIC_RANGE:
-            genInvoke(cUnit, mir, kStatic, true /*range*/);
+            genInvoke(cUnit, bb, mir, kStatic, true /*range*/);
             break;
         case Instruction::INVOKE_STATIC:
-            genInvoke(cUnit, mir, kStatic, false /*range*/);
+            genInvoke(cUnit, bb, mir, kStatic, false /*range*/);
             break;
 
         case Instruction::INVOKE_DIRECT:
-            genInvoke(cUnit, mir, kDirect, false /*range*/);
+            genInvoke(cUnit, bb,  mir, kDirect, false /*range*/);
             break;
         case Instruction::INVOKE_DIRECT_RANGE:
-            genInvoke(cUnit, mir, kDirect, true /*range*/);
+            genInvoke(cUnit, bb, mir, kDirect, true /*range*/);
             break;
 
         case Instruction::INVOKE_VIRTUAL:
-            genInvoke(cUnit, mir, kVirtual, false /*range*/);
+            genInvoke(cUnit, bb, mir, kVirtual, false /*range*/);
             break;
         case Instruction::INVOKE_VIRTUAL_RANGE:
-            genInvoke(cUnit, mir, kVirtual, true /*range*/);
+            genInvoke(cUnit, bb, mir, kVirtual, true /*range*/);
             break;
 
         case Instruction::INVOKE_SUPER:
-            genInvoke(cUnit, mir, kSuper, false /*range*/);
+            genInvoke(cUnit, bb, mir, kSuper, false /*range*/);
             break;
         case Instruction::INVOKE_SUPER_RANGE:
-            genInvoke(cUnit, mir, kSuper, true /*range*/);
+            genInvoke(cUnit, bb, mir, kSuper, true /*range*/);
             break;
 
         case Instruction::INVOKE_INTERFACE:
-            genInvoke(cUnit, mir, kInterface, false /*range*/);
+            genInvoke(cUnit, bb, mir, kInterface, false /*range*/);
             break;
         case Instruction::INVOKE_INTERFACE_RANGE:
-            genInvoke(cUnit, mir, kInterface, true /*range*/);
+            genInvoke(cUnit, bb, mir, kInterface, true /*range*/);
             break;
 
         case Instruction::NEG_INT:
@@ -944,6 +948,8 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
     handleSuspendLaunchpads(cUnit);
 
     handleThrowLaunchpads(cUnit);
+
+    handleIntrinsicLaunchpads(cUnit);
 
     if (!(cUnit->disableOpt & (1 << kSafeOptimizations))) {
         removeRedundantBranches(cUnit);

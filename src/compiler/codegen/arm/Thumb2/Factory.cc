@@ -681,6 +681,7 @@ LIR* loadBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rDest,
                 opRegRegReg(cUnit, kOpAdd, regPtr, rBase, rIndex);
             }
             load = newLIR3(cUnit, opcode, rDest, regPtr, 0);
+            oatFreeTemp(cUnit, regPtr);
             return load;
         case kWord:
             opcode = (thumbForm) ? kThumbLdrRRR : kThumb2LdrRRR;
@@ -745,6 +746,7 @@ LIR* storeBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rSrc,
                 opRegRegReg(cUnit, kOpAdd, regPtr, rBase, rIndex);
             }
             store = newLIR3(cUnit, opcode, rSrc, regPtr, 0);
+            oatFreeTemp(cUnit, regPtr);
             return store;
         case kWord:
             opcode = (thumbForm) ? kThumbStrRRR : kThumb2StrRRR;

@@ -703,6 +703,9 @@ class PACKED Thread {
   bool (*pCmpgFloat)(float, float);
   bool (*pCmplDouble)(double, double);
   bool (*pCmpgDouble)(double, double);
+  int (*pIndexOf)(void*, uint32_t, uint32_t, uint32_t);
+  int (*pStringCompareTo)(void*, void*);
+  int (*pMemcmp16)(void*, void*, int32_t);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Thread);

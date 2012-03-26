@@ -292,6 +292,7 @@ enum X86ConditionCode {
  * Assemble.cc.
  */
 enum X86OpCode {
+    kPseudoIntrinsicRetry = -16,
     kPseudoSuspendTarget = -15,
     kPseudoThrowTarget = -14,
     kPseudoCaseLabel = -13,

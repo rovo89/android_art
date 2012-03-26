@@ -25,6 +25,8 @@ namespace art {
 typedef int (*NextCallInsn)(CompilationUnit*, MIR*, int, uint32_t dexIdx,
                             uint32_t methodIdx, uintptr_t directCode,
                             uintptr_t directMethod, InvokeType type);
+LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target);
+
 /*
  * If there are any ins passed in registers that have not been promoted
  * to a callee-save register, flush them to the frame.  Perform intial
@@ -595,5 +597,340 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     }
     return callState;
 }
+
+RegLocation inlineTarget(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
+{
+    RegLocation res;
+    mir = oatFindMoveResult(cUnit, bb, mir, false);
+    if (mir == NULL) {
+        res = oatGetReturn(cUnit, false);
+    } else {
+        res = oatGetDest(cUnit, mir, 0);
+        mir->dalvikInsn.opcode = Instruction::NOP;
+    }
+    return res;
+}
+
+RegLocation inlineTargetWide(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
+{
+    RegLocation res;
+    mir = oatFindMoveResult(cUnit, bb, mir, true);
+    if (mir == NULL) {
+        res = oatGetReturnWide(cUnit, false);
+    } else {
+        res = oatGetDestWide(cUnit, mir, 0, 1);
+        mir->dalvikInsn.opcode = Instruction::NOP;
+    }
+    return res;
+}
+
+bool genInlinedCharAt(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                      InvokeType type, bool isRange)
+{
+#if defined(TARGET_ARM)
+    // Location of reference to data array
+    int valueOffset = String::ValueOffset().Int32Value();
+    // Location of count
+    int countOffset = String::CountOffset().Int32Value();
+    // Starting offset within data array
+    int offsetOffset = String::OffsetOffset().Int32Value();
+    // Start of char data with array_
+    int dataOffset = Array::DataOffset(sizeof(uint16_t)).Int32Value();
+
+    RegLocation rlObj = oatGetSrc(cUnit, mir, 0);
+    RegLocation rlIdx = oatGetSrc(cUnit, mir, 1);
+    rlObj = loadValue(cUnit, rlObj, kCoreReg);
+    rlIdx = loadValue(cUnit, rlIdx, kCoreReg);
+    int regMax;
+    int regOff = oatAllocTemp(cUnit);
+    int regPtr = oatAllocTemp(cUnit);
+    genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);
+    bool rangeCheck = (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK));
+    if (rangeCheck) {
+        regMax = oatAllocTemp(cUnit);
+        loadWordDisp(cUnit, rlObj.lowReg, countOffset, regMax);
+    }
+    loadWordDisp(cUnit, rlObj.lowReg, offsetOffset, regOff);
+    loadWordDisp(cUnit, rlObj.lowReg, valueOffset, regPtr);
+    LIR* launchPad = NULL;
+    if (rangeCheck) {
+        // Set up a launch pad to allow retry in case of bounds violation */
+        launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (int)mir, type);
+        oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
+                              (intptr_t)launchPad);
+        opRegReg(cUnit, kOpCmp, rlIdx.lowReg, regMax);
+        oatFreeTemp(cUnit, regMax);
+        opCondBranch(cUnit, kCondCs, launchPad);
+    }
+    opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
+    opRegReg(cUnit, kOpAdd, regOff, rlIdx.lowReg);
+    RegLocation rlDest = inlineTarget(cUnit, bb, mir);
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    loadBaseIndexed(cUnit, regPtr, regOff, rlResult.lowReg, 1, kUnsignedHalf);
+    oatFreeTemp(cUnit, regOff);
+    oatFreeTemp(cUnit, regPtr);
+    storeValue(cUnit, rlDest, rlResult);
+    if (rangeCheck) {
+        launchPad->operands[2] = NULL;  // no resumption
+        launchPad->operands[3] = (uintptr_t)bb;
+    }
+    // Record that we've already inlined & null checked
+    mir->optimizationFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool genInlinedMinMaxInt(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir,
+                         bool isMin)
+{
+#if defined(TARGET_ARM)
+    RegLocation rlSrc1 = oatGetSrc(cUnit, mir, 0);
+    RegLocation rlSrc2 = oatGetSrc(cUnit, mir, 1);
+    rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
+    rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
+    RegLocation rlDest = inlineTarget(cUnit, bb, mir);
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
+    opIT(cUnit, (isMin) ? kArmCondGt : kArmCondLt, "E");
+    opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc2.lowReg);
+    opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc1.lowReg);
+    genBarrier(cUnit);
+    storeValue(cUnit, rlDest, rlResult);
+    return true;
+#else
+    return false;
+#endif
+}
+
+// Generates an inlined String.isEmpty or String.length.
+bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit,
+                                            BasicBlock* bb, MIR* mir,
+                                            bool isEmpty)
+{
+#if defined(TARGET_ARM)
+    // dst = src.length();
+    RegLocation rlObj = oatGetSrc(cUnit, mir, 0);
+    rlObj = loadValue(cUnit, rlObj, kCoreReg);
+    RegLocation rlDest = inlineTarget(cUnit, bb, mir);
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);
+    loadWordDisp(cUnit, rlObj.lowReg, String::CountOffset().Int32Value(),
+                 rlResult.lowReg);
+    if (isEmpty) {
+        // dst = (dst == 0);
+        int tReg = oatAllocTemp(cUnit);
+        opRegReg(cUnit, kOpNeg, tReg, rlResult.lowReg);
+        opRegRegReg(cUnit, kOpAdc, rlResult.lowReg, rlResult.lowReg, tReg);
+    }
+    storeValue(cUnit, rlDest, rlResult);
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool genInlinedAbsInt(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir)
+{
+#if defined(TARGET_ARM)
+    RegLocation rlSrc = oatGetSrc(cUnit, mir, 0);
+    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+    RegLocation rlDest = inlineTarget(cUnit, bb, mir);
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    int signReg = oatAllocTemp(cUnit);
+    // abs(x) = y<=x>>31, (x+y)^y.
+    opRegRegImm(cUnit, kOpAsr, signReg, rlSrc.lowReg, 31);
+    opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, signReg);
+    opRegReg(cUnit, kOpXor, rlResult.lowReg, signReg);
+    storeValue(cUnit, rlDest, rlResult);
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool genInlinedAbsLong(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir)
+{
+#if defined(TARGET_ARM)
+    RegLocation rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+    rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
+    RegLocation rlDest = inlineTargetWide(cUnit, bb, mir);
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    int signReg = oatAllocTemp(cUnit);
+    // abs(x) = y<=x>>31, (x+y)^y.
+    opRegRegImm(cUnit, kOpAsr, signReg, rlSrc.highReg, 31);
+    opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, signReg);
+    opRegRegReg(cUnit, kOpAdc, rlResult.highReg, rlSrc.highReg, signReg);
+    opRegReg(cUnit, kOpXor, rlResult.lowReg, signReg);
+    opRegReg(cUnit, kOpXor, rlResult.highReg, signReg);
+    storeValueWide(cUnit, rlDest, rlResult);
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool genInlinedFloatCvt(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir)
+{
+#if defined(TARGET_ARM)
+    RegLocation rlSrc = oatGetSrc(cUnit, mir, 0);
+    RegLocation rlDest = inlineTarget(cUnit, bb, mir);
+    storeValue(cUnit, rlDest, rlSrc);
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool genInlinedDoubleCvt(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir)
+{
+#if defined(TARGET_ARM)
+    RegLocation rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+    RegLocation rlDest = inlineTargetWide(cUnit, bb, mir);
+    storeValueWide(cUnit, rlDest, rlSrc);
+    return true;
+#else
+    return false;
+#endif
+}
+
+/*
+ * Fast string.indexOf(I) & (II).  Tests for simple case of char <= 0xffff,
+ * otherwise bails to standard library code.
+ */
+bool genInlinedIndexOf(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                       InvokeType type, bool zeroBased)
+{
+#if defined(TARGET_ARM)
+
+    oatClobberCalleeSave(cUnit);
+    oatLockCallTemps(cUnit);  // Using fixed registers
+    int regPtr = rARG0;
+    int regChar = rARG1;
+    int regStart = rARG2;
+
+    RegLocation rlObj = oatGetSrc(cUnit, mir, 0);
+    RegLocation rlChar = oatGetSrc(cUnit, mir, 1);
+    RegLocation rlStart = oatGetSrc(cUnit, mir, 2);
+    loadValueDirectFixed(cUnit, rlObj, regPtr);
+    loadValueDirectFixed(cUnit, rlChar, regChar);
+    if (zeroBased) {
+        loadConstant(cUnit, regStart, 0);
+    } else {
+        loadValueDirectFixed(cUnit, rlStart, regStart);
+    }
+    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pIndexOf));
+    genNullCheck(cUnit, rlObj.sRegLow, regPtr, mir);
+    LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (int)mir, type);
+    oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
+                          (intptr_t)launchPad);
+    opCmpImmBranch(cUnit, kCondGt, regChar, 0xFFFF, launchPad);
+    opReg(cUnit, kOpBlx, rTgt);
+    LIR* resumeTgt = newLIR0(cUnit, kPseudoTargetLabel);
+    launchPad->operands[2] = (uintptr_t)resumeTgt;
+    launchPad->operands[3] = (uintptr_t)bb;
+    // Record that we've already inlined & null checked
+    mir->optimizationFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
+    return true;
+#else
+    return false;
+#endif
+}
+
+/* Fast string.compareTo(Ljava/lang/string;)I. */
+bool genInlinedStringCompareTo(CompilationUnit* cUnit, BasicBlock* bb,
+                               MIR* mir, InvokeType type)
+{
+#if defined(TARGET_ARM)
+    oatClobberCalleeSave(cUnit);
+    oatLockCallTemps(cUnit);  // Using fixed registers
+    int regThis = rARG0;
+    int regCmp = rARG1;
+
+    RegLocation rlThis = oatGetSrc(cUnit, mir, 0);
+    RegLocation rlCmp = oatGetSrc(cUnit, mir, 1);
+    loadValueDirectFixed(cUnit, rlThis, regThis);
+    loadValueDirectFixed(cUnit, rlCmp, regCmp);
+    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pStringCompareTo));
+    genNullCheck(cUnit, rlThis.sRegLow, regThis, mir);
+    //TUNING: check if rlCmp.sRegLow is already null checked
+    LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (int)mir, type);
+    oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
+                          (intptr_t)launchPad);
+    opCmpImmBranch(cUnit, kCondEq, regCmp, 0, launchPad);
+    opReg(cUnit, kOpBlx, rTgt);
+    launchPad->operands[2] = NULL;  // No return possible
+    launchPad->operands[3] = (uintptr_t)bb;
+    // Record that we've already inlined & null checked
+    mir->optimizationFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool genIntrinsic(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                  InvokeType type, bool isRange)
+{
+    if ((mir->optimizationFlags & MIR_INLINED) || isRange)  {
+        return false;
+    }
+    /*
+     * TODO: move these to a target-specific structured constant array
+     * and use a generic match function.  The list of intrinsics may be
+     * slightly different depending on target.
+     * TODO: Fold this into a matching function that runs during
+     * basic block building.  This should be part of the action for
+     * small method inlining and recognition of the special object init
+     * method.  By doing this during basic block construction, we can also
+     * take advantage of/generate new useful dataflow info.
+     */
+    std::string tgtMethod = PrettyMethod(mir->dalvikInsn.vB, *cUnit->dex_file);
+    if (tgtMethod.compare("char java.lang.String.charAt(int)") == 0) {
+        return genInlinedCharAt(cUnit, bb, mir, type, isRange);
+    }
+    if (tgtMethod.compare("int java.lang.Math.min(int, int)") == 0) {
+        return genInlinedMinMaxInt(cUnit, bb, mir, true /* isMin */);
+    }
+    if (tgtMethod.compare("int java.lang.Math.max(int, int)") == 0) {
+        return genInlinedMinMaxInt(cUnit, bb, mir, false /* isMin */);
+    }
+    if (tgtMethod.compare("int java.lang.String.length()") == 0) {
+        return genInlinedStringIsEmptyOrLength(cUnit, bb, mir, false /* isEmpty */);
+    }
+    if (tgtMethod.compare("boolean java.lang.String.isEmpty()") == 0) {
+        return genInlinedStringIsEmptyOrLength(cUnit, bb, mir, true /* isEmpty */);
+    }
+    if (tgtMethod.compare("int java.lang.Math.abs(int)") == 0) {
+        return genInlinedAbsInt(cUnit, bb, mir);
+    }
+    if (tgtMethod.compare("long java.lang.Math.abs(long)") == 0) {
+        return genInlinedAbsLong(cUnit, bb, mir);
+    }
+    if (tgtMethod.compare("int java.lang.Float.floatToRawIntBits(float)") == 0) {
+        return genInlinedFloatCvt(cUnit, bb, mir);
+    }
+    if (tgtMethod.compare("float java.lang.Float.intBitsToFloat(int)") == 0) {
+        return genInlinedFloatCvt(cUnit, bb, mir);
+    }
+    if (tgtMethod.compare("long java.lang.Double.doubleToRawLongBits(double)") == 0) {
+        return genInlinedDoubleCvt(cUnit, bb, mir);
+    }
+    if (tgtMethod.compare("double java.lang.Double.longBitsToDouble(long)") == 0) {
+        return genInlinedDoubleCvt(cUnit, bb, mir);
+    }
+    if (tgtMethod.compare("int java.lang.String.indexOf(int, int)") == 0) {
+        return genInlinedIndexOf(cUnit, bb, mir, type, false /* base 0 */);
+    }
+    if (tgtMethod.compare("int java.lang.String.indexOf(int)") == 0) {
+        return genInlinedIndexOf(cUnit, bb, mir, type, true /* base 0 */);
+    }
+    if (tgtMethod.compare("int java.lang.String.compareTo(java.lang.String)") == 0) {
+        return genInlinedStringCompareTo(cUnit, bb, mir, type);
+    }
+    return false;
+}
+
 
 }  // namespace art

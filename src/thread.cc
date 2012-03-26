@@ -102,6 +102,9 @@ void Thread::InitFunctionPointers() {
   pCmpgDouble = CmpgDouble;
   pCmplDouble = CmplDouble;
 #elif defined(__arm__)
+  pMemcmp16 = __memcmp16;
+  pIndexOf = art_indexof;
+  pStringCompareTo = art_string_compareto;
   pShlLong = art_shl_long;
   pShrLong = art_shr_long;
   pUshrLong = art_ushr_long;

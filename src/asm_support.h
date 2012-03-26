@@ -19,6 +19,11 @@
 
 #define SUSPEND_CHECK_INTERVAL (1000)
 
+#define STRING_VALUE_OFFSET 8
+#define STRING_COUNT_OFFSET 12
+#define STRING_OFFSET_OFFSET 20
+#define STRING_DATA_OFFSET 12
+
 #if defined(__arm__)
 #define rSUSPEND r4
 #define rSELF r9
