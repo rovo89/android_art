@@ -79,10 +79,12 @@ byte* DecodeBase64(const char* src, size_t* dst_size) {
       c = 0;
       // prevent g < 0 which would potentially allow an overflow later
       if (--g < 0) {
+        *dst_size = 0;
         return NULL;
       }
     } else if (g != 3) {
       // we only allow = to be at the end
+      *dst_size = 0;
       return NULL;
     }
     t = (t << 6) | c;
@@ -98,11 +100,14 @@ byte* DecodeBase64(const char* src, size_t* dst_size) {
     }
   }
   if (y != 0) {
+    *dst_size = 0;
     return NULL;
   }
   UniquePtr<byte[]> dst(new byte[tmp.size()]);
   if (dst_size != NULL) {
     *dst_size = tmp.size();
+  } else {
+    *dst_size = 0;
   }
   std::copy(tmp.begin(), tmp.end(), dst.get());
   return dst.release();
