@@ -740,12 +740,12 @@ bool StartsWith(const std::string& s, const char* prefix) {
   return s.compare(0, strlen(prefix), prefix) == 0;
 }
 
-void SetThreadName(const char* threadName) {
-  ANNOTATE_THREAD_NAME(threadName); // For tsan.
+void SetThreadName(const char* thread_name) {
+  ANNOTATE_THREAD_NAME(thread_name); // For tsan.
 
   int hasAt = 0;
   int hasDot = 0;
-  const char* s = threadName;
+  const char* s = thread_name;
   while (*s) {
     if (*s == '.') {
       hasDot = 1;
@@ -754,11 +754,11 @@ void SetThreadName(const char* threadName) {
     }
     s++;
   }
-  int len = s - threadName;
+  int len = s - thread_name;
   if (len < 15 || hasAt || !hasDot) {
-    s = threadName;
+    s = thread_name;
   } else {
-    s = threadName + len - 15;
+    s = thread_name + len - 15;
   }
 #if defined(HAVE_ANDROID_PTHREAD_SETNAME_NP)
   // pthread_setname_np fails rather than truncating long strings.
@@ -770,11 +770,11 @@ void SetThreadName(const char* threadName) {
     PLOG(WARNING) << "Unable to set the name of current thread to '" << buf << "'";
   }
 #elif defined(__APPLE__) && MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-  pthread_setname_np(threadName);
+  pthread_setname_np(thread_name);
 #elif defined(HAVE_PRCTL)
   prctl(PR_SET_NAME, (unsigned long) s, 0, 0, 0);  // NOLINT (unsigned long)
 #else
-  UNIMPLEMENTED(WARNING) << threadName;
+  UNIMPLEMENTED(WARNING) << thread_name;
 #endif
 }
 

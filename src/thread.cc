@@ -415,8 +415,10 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, Object* thread_g
     self->CreatePeer(thread_name, as_daemon, thread_group);
   } else {
     // These aren't necessary, but they improve diagnostics for unit tests & command-line tools.
-    self->name_->assign(thread_name);
-    ::art::SetThreadName(thread_name);
+    if (thread_name != NULL) {
+      self->name_->assign(thread_name);
+      ::art::SetThreadName(thread_name);
+    }
   }
 
   self->GetJniEnv()->locals.AssertEmpty();
