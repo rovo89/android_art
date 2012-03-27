@@ -79,7 +79,7 @@ extern void oatInitPool(RegisterInfo* regs, int* regNums, int num)
 void dumpRegPool(RegisterInfo* p, int numRegs)
 {
     LOG(INFO) << "================================================";
-    for (int i = 0; i < numRegs; i++){
+    for (int i = 0; i < numRegs; i++) {
         LOG(INFO) << StringPrintf(
             "R[%d]: T:%d, U:%d, P:%d, p:%d, LV:%d, D:%d, SR:%d, ST:%x, EN:%x",
             p[i].reg, p[i].isTemp, p[i].inUse, p[i].pair, p[i].partner,
@@ -434,7 +434,7 @@ RegisterInfo* allocLiveBody(RegisterInfo* p, int numRegs, int sReg)
 RegisterInfo* allocLive(CompilationUnit* cUnit, int sReg, int regClass)
 {
     RegisterInfo* res = NULL;
-    switch(regClass) {
+    switch (regClass) {
         case kAnyReg:
             res = allocLiveBody(cUnit->regPool->FPRegs,
                                 cUnit->regPool->numFPRegs, sReg);

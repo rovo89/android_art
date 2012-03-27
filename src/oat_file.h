@@ -38,13 +38,13 @@ class OatFile {
   static OatFile* Open(const std::string& filename,
                        const std::string& location,
                        byte* requested_base,
-                       bool writable=false);
+                       bool writable = false);
 
   // Open an oat file from an already opened File with the given location.
   static OatFile* Open(File& file,
                        const std::string& location,
                        byte* requested_base,
-                       bool writable=false);
+                       bool writable = false);
 
   ~OatFile();
 

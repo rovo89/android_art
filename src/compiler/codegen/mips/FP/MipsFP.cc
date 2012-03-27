@@ -189,7 +189,7 @@ static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
     bool wide = true;
     int offset;
 
-    switch(mir->dalvikInsn.opcode) {
+    switch (mir->dalvikInsn.opcode) {
         case Instruction::CMPL_FLOAT:
             offset = OFFSETOF_MEMBER(Thread, pCmplFloat);
             wide = false;

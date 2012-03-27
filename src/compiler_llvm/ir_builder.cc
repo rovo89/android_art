@@ -73,7 +73,7 @@ void IRBuilder::InitRuntimeSupportFuncDecl() {
 llvm::Function* IRBuilder::GetRuntime(runtime_support::RuntimeId rt) const {
   using namespace runtime_support;
 
-  if (rt >= 0 && rt < MAX_ID){
+  if (rt >= 0 && rt < MAX_ID) {
     return runtime_support_func_decls_[rt];
   } else {
     LOG(ERROR) << "Unknown runtime function id: " << rt;

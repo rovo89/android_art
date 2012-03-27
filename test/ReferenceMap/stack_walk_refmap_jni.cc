@@ -37,7 +37,7 @@ namespace art {
     for (int i = 0; i < t_size; ++i)          \
       CHECK(IS_IN_REF_BITMAP(mh, ref_bitmap, t[i])) \
           << "Error: Reg @ " << i << "-th argument is not in GC map"; \
-  } while(false)
+  } while (false)
 
 struct ReferenceMap2Visitor : public Thread::StackVisitor {
   ReferenceMap2Visitor() {

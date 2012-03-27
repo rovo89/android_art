@@ -55,7 +55,7 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
   std::string buf;
   size_t i = 0;
   size_t fmt_len = strlen(fmt);
-  while(i < fmt_len) {
+  while (i < fmt_len) {
     if (fmt[i] != '!') {
       buf += fmt[i];
       i++;
@@ -71,7 +71,7 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
         DCHECK_LT(operand_number, 6);  // Expect upto 6 LIR operands.
         DCHECK_LT(i, fmt_len);
         int operand = lir->operands[operand_number];
-        switch(fmt[i]) {
+        switch (fmt[i]) {
           case 'c':
             DCHECK_LT(static_cast<size_t>(operand), sizeof(x86CondName));
             buf += x86CondName[operand];

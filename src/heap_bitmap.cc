@@ -290,9 +290,9 @@ static void WalkFieldsInOrder(HeapBitmap* visited, HeapBitmap::Callback* callbac
 // Visits set bits with an in order traversal.  The callback is not permitted to change the bitmap
 // bits or max during the traversal.
 void HeapBitmap::InOrderWalk(HeapBitmap::Callback* callback, void* arg) {
-  UniquePtr<HeapBitmap> visited (Create("bitmap for in-order walk",
-                                        reinterpret_cast<byte*>(heap_begin_),
-                                        HB_INDEX_TO_OFFSET(bitmap_size_ / kWordSize)));
+  UniquePtr<HeapBitmap> visited(Create("bitmap for in-order walk",
+                                       reinterpret_cast<byte*>(heap_begin_),
+                                       HB_INDEX_TO_OFFSET(bitmap_size_ / kWordSize)));
   CHECK(bitmap_begin_ != NULL);
   CHECK(callback != NULL);
   uintptr_t end = HB_OFFSET_TO_INDEX(heap_end_ - heap_begin_);

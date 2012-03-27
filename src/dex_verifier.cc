@@ -94,7 +94,7 @@ std::string RegType::Dump() const {
     if (val == 0) {
       result = "Zero";
     } else {
-      if(IsConstantShort()) {
+      if (IsConstantShort()) {
         result = StringPrintf("32-bit Constant: %d", val);
       } else {
         result = StringPrintf("32-bit Constant: 0x%x", val);
@@ -243,7 +243,7 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
     return incoming_type;  // * MERGE Conflict => Conflict
   } else if (IsUnknown() || incoming_type.IsUnknown()) {
     return reg_types->Conflict();  // Unknown MERGE * => Conflict
-  } else if(IsConstant() && incoming_type.IsConstant()) {
+  } else if (IsConstant() && incoming_type.IsConstant()) {
     int32_t val1 = ConstantValue();
     int32_t val2 = incoming_type.ConstantValue();
     if (val1 >= 0 && val2 >= 0) {
@@ -361,7 +361,7 @@ static RegType::Type RegTypeFromDescriptor(const std::string& descriptor) {
       case 'V':
       default:  return RegType::kRegTypeUnknown;
     }
-  } else if(descriptor[0] == 'L' || descriptor[0] == '[') {
+  } else if (descriptor[0] == 'L' || descriptor[0] == '[') {
     return RegType::kRegTypeReference;
   } else {
     return RegType::kRegTypeUnknown;
@@ -394,7 +394,7 @@ const RegType& RegTypeCache::From(RegType::Type type, const ClassLoader* loader,
     }
     return *entry;
   } else {
-    DCHECK (type == RegType::kRegTypeReference);
+    DCHECK(type == RegType::kRegTypeReference);
     ClassHelper kh;
     for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
       RegType* cur_entry = entries_[i];
@@ -610,7 +610,7 @@ void RegisterLine::SetResultTypeToUnknown() {
 
 void RegisterLine::SetResultRegisterType(const RegType& new_type) {
   result_[0] = new_type.GetId();
-  if(new_type.IsLowHalf()) {
+  if (new_type.IsLowHalf()) {
     DCHECK_EQ(new_type.HighHalf(verifier_->GetRegTypeCache()).GetId(), new_type.GetId() + 1);
     result_[1] = new_type.GetId() + 1;
   } else {
@@ -821,7 +821,7 @@ void RegisterLine::PopMonitor(uint32_t reg_idx) {
     verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-exit stack underflow";
   } else {
     monitors_.pop_back();
-    if(!IsSetLockDepth(reg_idx, monitors_.size())) {
+    if (!IsSetLockDepth(reg_idx, monitors_.size())) {
       // Bug 3215458: Locks and unlocks are on objects, if that object is a literal then before
       // format "036" the constant collector may create unlocks on the same object but referenced
       // via different registers.
@@ -855,7 +855,7 @@ bool RegisterLine::MergeRegisters(const RegisterLine* incoming_line) {
       line_[idx] = new_type.GetId();
     }
   }
-  if(monitors_.size() != incoming_line->monitors_.size()) {
+  if (monitors_.size() != incoming_line->monitors_.size()) {
     verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "mismatched stack depths (depth="
         << MonitorStackDepth() << ", incoming depth=" << incoming_line->MonitorStackDepth() << ")";
   } else if (reg_to_lock_depths_ != incoming_line->reg_to_lock_depths_) {
@@ -1261,7 +1261,7 @@ bool DexVerifier::VerifyInstructions() {
   insn_flags_[0].SetBranchTarget();
 
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
-  for(uint32_t dex_pc = 0; dex_pc < insns_size;) {
+  for (uint32_t dex_pc = 0; dex_pc < insns_size;) {
     if (!VerifyInstruction(inst, dex_pc)) {
       DCHECK_NE(failure_, VERIFY_ERROR_NONE);
       fail_messages_ << "Rejecting opcode " << inst->Name() << " at " << dex_pc;
@@ -3135,7 +3135,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
   /* If we're returning from the method, make sure monitor stack is empty. */
   if ((opcode_flags & Instruction::kReturn) != 0) {
-    if(!work_line_->VerifyMonitorStackEmpty()) {
+    if (!work_line_->VerifyMonitorStackEmpty()) {
       return false;
     }
   }
@@ -3202,7 +3202,7 @@ const RegType& DexVerifier::GetCaughtExceptionType() {
               // Unconditionally assign for the first handler. We don't assert this is a Throwable
               // as that is caught at runtime
               common_super = &exception;
-            } else if(!reg_types_.JavaLangThrowable().IsAssignableFrom(exception)) {
+            } else if (!reg_types_.JavaLangThrowable().IsAssignableFrom(exception)) {
               // We don't know enough about the type and the common path merge will result in
               // Conflict. Fail here knowing the correct thing can be done at runtime.
               Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class " << exception;
@@ -3550,7 +3550,7 @@ Field* DexVerifier::GetStaticField(int field_idx) {
               << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
     return NULL;
   }
-  if(klass_type.IsUnresolvedTypes()) {
+  if (klass_type.IsUnresolvedTypes()) {
     return NULL;  // Can't resolve Class so no more to do here
   }
   Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(field_idx, method_);
@@ -3607,16 +3607,16 @@ Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
   } else if (obj_type.IsZero()) {
     // Cannot infer and check type, however, access will cause null pointer exception
     return field;
-  } else if(obj_type.IsUninitializedTypes() &&
-            (!method_->IsConstructor() || method_->GetDeclaringClass() != obj_type.GetClass() ||
-             field->GetDeclaringClass() != method_->GetDeclaringClass())) {
+  } else if (obj_type.IsUninitializedTypes() &&
+      (!method_->IsConstructor() || method_->GetDeclaringClass() != obj_type.GetClass() ||
+          field->GetDeclaringClass() != method_->GetDeclaringClass())) {
     // Field accesses through uninitialized references are only allowable for constructors where
     // the field is declared in this class
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access instance field " << PrettyField(field)
                                       << " of a not fully initialized object within the context of "
                                       << PrettyMethod(method_);
     return NULL;
-  } else if(!field->GetDeclaringClass()->IsAssignableFrom(obj_type.GetClass())) {
+  } else if (!field->GetDeclaringClass()->IsAssignableFrom(obj_type.GetClass())) {
     // Trying to access C1.field1 using reference of type C2, which is neither C1 or a sub-class
     // of C1. For resolution to occur the declared class of the field must be compatible with
     // obj_type, we've discovered this wasn't so, so report the field didn't exist.
@@ -3947,7 +3947,7 @@ const std::vector<uint8_t>* DexVerifier::GenerateGcMap() {
        << (1 << pc_bits) << " instructions (number is rounded up to nearest power of 2)";
     return NULL;
   }
-  size_t table_size = ((pc_bytes + ref_bitmap_bytes) * num_entries ) + 4;
+  size_t table_size = ((pc_bytes + ref_bitmap_bytes) * num_entries) + 4;
   std::vector<uint8_t>* table = new std::vector<uint8_t>;
   if (table == NULL) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Failed to encode GC map (size=" << table_size << ")";
@@ -3978,7 +3978,7 @@ void DexVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
   // that the table data is well formed and all references are marked (or not) in the bitmap
   PcToReferenceMap map(&data[0], data.size());
   size_t map_index = 0;
-  for(size_t i = 0; i < code_item_->insns_size_in_code_units_; i++) {
+  for (size_t i = 0; i < code_item_->insns_size_in_code_units_; i++) {
     const uint8_t* reg_bitmap = map.FindBitMap(i, false);
     if (insn_flags_[i].IsGcPoint()) {
       CHECK_LT(map_index, map.NumEntries());
@@ -3986,7 +3986,7 @@ void DexVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
       CHECK_EQ(map.GetBitMap(map_index), reg_bitmap);
       map_index++;
       RegisterLine* line = reg_table_.GetLine(i);
-      for(size_t j = 0; j < code_item_->registers_size_; j++) {
+      for (size_t j = 0; j < code_item_->registers_size_; j++) {
         if (line->GetRegisterType(j).IsNonZeroReferenceTypes()) {
           CHECK_LT(j / 8, map.RegWidth());
           CHECK_EQ((reg_bitmap[j / 8] >> (j % 8)) & 1, 1);

@@ -25,7 +25,7 @@ namespace art {
 ArmConditionCode oatArmConditionEncoding(ConditionCode code)
 {
     ArmConditionCode res;
-    switch(code) {
+    switch (code) {
         case kCondEq: res = kArmCondEq; break;
         case kCondNe: res = kArmCondNe; break;
         case kCondCs: res = kArmCondCs; break;
@@ -113,7 +113,7 @@ int expandImmediate(int value)
 {
     int mode = (value & 0xf00) >> 8;
     u4 bits = value & 0xff;
-    switch(mode) {
+    switch (mode) {
         case 0:
             return bits;
        case 1:
@@ -156,7 +156,7 @@ std::string buildInsnString(const char* fmt, LIR* lir,
                DCHECK_LT(fmt, fmtEnd);
                DCHECK_LT((unsigned)(nc-'0'), 4U);
                operand = lir->operands[nc-'0'];
-               switch(*fmt++) {
+               switch (*fmt++) {
                    case 'H':
                        if (operand != 0) {
                            sprintf(tbuf, ", %s %d",shiftNames[operand & 0x3],

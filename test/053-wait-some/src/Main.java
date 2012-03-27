@@ -42,7 +42,7 @@ public class Main {
                 ie.printStackTrace();
             }
 
-            for(long delay : DELAYS) {
+            for (long delay : DELAYS) {
                 System.out.println("Waiting for " + delay + "ms...");
 
                 start = System.currentTimeMillis();

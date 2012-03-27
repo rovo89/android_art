@@ -141,7 +141,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
     directMethod = 0;
 #endif
     if (directCode != 0 && directMethod != 0) {
-        switch(state) {
+        switch (state) {
         case 0:  // Get the current Method* [sets rARG0]
             if (directCode != (uintptr_t)-1) {
                 loadConstant(cUnit, rINVOKE_TGT, directCode);
@@ -180,7 +180,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
             return -1;
       }
     } else {
-        switch(state) {
+        switch (state) {
         case 0:  // Get the current Method* [sets rARG0]
             // TUNING: we can save a reg copy if Method* has been promoted
             loadCurrMethodDirect(cUnit, rARG0);
@@ -245,7 +245,7 @@ int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
      * This is the fast path in which the target virtual method is
      * fully resolved at compile time.
      */
-    switch(state) {
+    switch (state) {
         case 0:  // Get "this" [set rARG1]
             rlArg = oatGetSrc(cUnit, mir, 0);
             loadValueDirectFixed(cUnit, rlArg, rARG1);

@@ -144,7 +144,7 @@ void MarkSweep::RecursiveMark() {
     uintptr_t end = reinterpret_cast<uintptr_t>(spaces[i]->End());
     if (!spaces[i]->IsImageSpace()) {
       mark_bitmap_->ScanWalk(begin, end, &MarkSweep::ScanBitmapCallback, arg);
-    } else{
+    } else {
       mark_bitmap_->ScanWalk(begin, end, &MarkSweep::CheckBitmapCallback, arg);
     }
 #else
@@ -297,7 +297,7 @@ inline void MarkSweep::CheckReference(const Object* obj, const Object* ref, Memb
   AllocSpace* alloc_space = heap_->GetAllocSpace();
   if (alloc_space->Contains(ref)) {
     bool is_marked = mark_bitmap_->Test(ref);
-    if(!is_marked) {
+    if (!is_marked) {
       LOG(INFO) << *alloc_space;
       LOG(WARNING) << (is_static ? "Static ref'" : "Instance ref'") << PrettyTypeOf(ref)
           << "' (" << (void*)ref << ") in '" << PrettyTypeOf(obj)

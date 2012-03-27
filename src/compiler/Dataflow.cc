@@ -1698,7 +1698,7 @@ void squashDupRangeChecks(CompilationUnit* cUnit, BasicBlock** pBp, MIR* mir,
        }
        int checkArray = INVALID_SREG;
        int checkIndex = INVALID_SREG;
-       switch(mir->dalvikInsn.opcode) {
+       switch (mir->dalvikInsn.opcode) {
             case Instruction::AGET:
             case Instruction::AGET_OBJECT:
             case Instruction::AGET_BOOLEAN:
@@ -1792,7 +1792,7 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
     for (MIR* mir = bb->firstMIRInsn; mir; mir = mir->next) {
         // Look for interesting opcodes, skip otherwise
         Instruction::Code opcode = mir->dalvikInsn.opcode;
-        switch(opcode) {
+        switch (opcode) {
             case Instruction::AGET:
             case Instruction::AGET_OBJECT:
             case Instruction::AGET_BOOLEAN:
@@ -1917,7 +1917,7 @@ bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
                     // Look in next basic block
                     struct BasicBlock* nextBB = bb->fallThrough;
                     for (MIR* tmir = nextBB->firstMIRInsn; tmir;
-                         tmir =tmir->next){
+                         tmir =tmir->next) {
                        if ((int)tmir->dalvikInsn.opcode >= (int)kMirOpFirst) {
                            continue;
                        }
@@ -2170,7 +2170,7 @@ bool invokeUsesMethodStar(CompilationUnit* cUnit, MIR* mir)
 {
     InvokeType type;
     Instruction::Code opcode = mir->dalvikInsn.opcode;
-    switch(opcode) {
+    switch (opcode) {
         case Instruction::INVOKE_STATIC:
         case Instruction::INVOKE_STATIC_RANGE:
             type = kStatic;

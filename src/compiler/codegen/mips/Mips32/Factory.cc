@@ -235,7 +235,7 @@ LIR *opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest,
     MipsOpCode opcode = kMipsNop;
     bool shortForm = true;
 
-    switch(op) {
+    switch (op) {
         case kOpAdd:
             if (IS_SIMM16(value)) {
                 opcode = kMipsAddiu;

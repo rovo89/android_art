@@ -23,8 +23,7 @@
 namespace art {
 
 static void DdmServer_nativeSendChunk(JNIEnv* env, jclass, jint type,
-                                      jbyteArray javaData, jint offset, jint length)
-{
+                                      jbyteArray javaData, jint offset, jint length) {
   ScopedByteArrayRO data(env, javaData);
   DCHECK_LE(offset + length, static_cast<int32_t>(data.size()));
   Dbg::DdmSendChunk(type, length, reinterpret_cast<const uint8_t*>(&data[offset]));

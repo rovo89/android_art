@@ -418,7 +418,7 @@ LIR* opRegRegImm(CompilationUnit* cUnit, OpKind op, int rDest, int rSrc1,
     int modImm = modifiedImmediate(value);
     int modImmNeg = modifiedImmediate(-value);
 
-    switch(op) {
+    switch (op) {
         case kOpLsl:
             if (allLowRegs)
                 return newLIR3(cUnit, kThumbLslRRI5, rDest, rSrc1, value);

@@ -81,7 +81,7 @@ class JniCompilerTest : public CommonTest {
     ASSERT_TRUE(jmethod_ != NULL);
 
     if (native_fnptr != NULL) {
-      JNINativeMethod methods[] = {{method_name, method_sig, native_fnptr}};
+      JNINativeMethod methods[] = { { method_name, method_sig, native_fnptr } };
       ASSERT_EQ(JNI_OK, env_->RegisterNatives(jklass_, methods, 1));
     } else {
       env_->UnregisterNatives(jklass_);
@@ -579,7 +579,7 @@ TEST_F(JniCompilerTest, LocalReferenceTableClearingTest) {
   SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
   SetupForTest(class_loader.get(), false, "fooI", "(I)I", reinterpret_cast<void*>(&local_ref_test));
   // 1000 invocations of a method that adds 10 local references
-  for (int i=0; i < 1000; i++) {
+  for (int i = 0; i < 1000; i++) {
     jint result = env_->CallIntMethod(jobj_, jmethod_, i);
     EXPECT_TRUE(result == i + 1);
   }

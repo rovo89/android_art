@@ -102,13 +102,8 @@ void Frame::SetReturnPC(uintptr_t pc) {
  */
 int Frame::GetVRegOffset(const DexFile::CodeItem* code_item,
                          uint32_t core_spills, uint32_t fp_spills,
-                         size_t frame_size, int reg)
-{
-#if defined(ART_USE_LLVM_COMPILER)
-  LOG(FATAL) << "LLVM compiler don't support this function";
-  return 0;
-#else
-  DCHECK_EQ( frame_size & (kStackAlignment - 1), 0U);
+                         size_t frame_size, int reg) {
+  DCHECK_EQ(frame_size & (kStackAlignment - 1), 0U);
   int num_spills = __builtin_popcount(core_spills) + __builtin_popcount(fp_spills) + 1 /* filler */;
   int num_ins = code_item->ins_size_;
   int num_regs = code_item->registers_size_ - num_ins;

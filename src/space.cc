@@ -164,7 +164,7 @@ void AllocSpace::FreeList(size_t num_ptrs, Object** ptrs) {
   CHECK(ptrs != NULL);
   size_t num_broken_ptrs = 0;
   for (size_t i = 0; i < num_ptrs; i++) {
-    if(!Contains(ptrs[i])) {
+    if (!Contains(ptrs[i])) {
       num_broken_ptrs++;
       LOG(ERROR) << "FreeList[" << i << "] (" << ptrs[i] << ") not in bounds of heap " << *this;
     }

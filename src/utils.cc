@@ -363,11 +363,11 @@ std::string PrettyDuration(uint64_t nano_duration) {
       unit = "s";
       divisor = one_sec;
       zero_fill = 9;
-    } else if(nano_duration >= one_ms) {
+    } else if (nano_duration >= one_ms) {
       unit = "ms";
       divisor = one_ms;
       zero_fill = 6;
-    } else if(nano_duration >= one_us) {
+    } else if (nano_duration >= one_us) {
       unit = "us";
       divisor = one_us;
       zero_fill = 3;
@@ -563,7 +563,7 @@ bool IsValidPartOfMemberNameUtf8(const char** pUtf8Ptr) {
 bool IsValidMemberName(const char* s) {
   bool angle_name = false;
 
-  switch(*s) {
+  switch (*s) {
     case '\0':
       // The empty string is not a valid name.
       return false;

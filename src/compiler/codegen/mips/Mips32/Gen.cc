@@ -357,7 +357,7 @@ LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
     MipsOpCode brOp;
     bool cmpZero = false;
     bool swapped = false;
-    switch(cond) {
+    switch (cond) {
         case kCondEq:
             brOp = kMipsBeq;
             cmpZero = true;
@@ -430,7 +430,7 @@ LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
         return branch;
     }
     MipsOpCode opc;
-    switch(cond) {
+    switch (cond) {
         case kCondEq: opc = kMipsBeqz; break;
         case kCondGe: opc = kMipsBgez; break;
         case kCondGt: opc = kMipsBgtz; break;

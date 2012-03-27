@@ -387,7 +387,7 @@ void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 }
 
 X86ConditionCode oatX86ConditionEncoding(ConditionCode cond) {
-  switch(cond) {
+  switch (cond) {
     case kCondEq: return kX86CondEq;
     case kCondNe: return kX86CondNe;
     case kCondCs: return kX86CondC;

@@ -204,7 +204,7 @@ Object* art_check_and_alloc_array_from_code_with_access_check(uint32_t type_idx,
 }
 
 static Method* FindMethodHelper(uint32_t method_idx, Object* this_object, Method* caller_method,
-                                bool access_check, InvokeType type){
+                                bool access_check, InvokeType type) {
   Method* method = FindMethodFast(method_idx, this_object, caller_method, access_check, type);
   if (UNLIKELY(method == NULL)) {
     method = FindMethodFromCode(method_idx, this_object, caller_method,
