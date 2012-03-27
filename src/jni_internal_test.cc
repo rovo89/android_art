@@ -783,29 +783,29 @@ TEST_F(JniInternalTest, RegisterNatives) {
   env_->set_region_fn(a, size - 1, size, NULL); \
   EXPECT_EXCEPTION(aioobe_); \
   /* Prepare a couple of buffers. */ \
-  scalar_type src_buf[size]; \
-  scalar_type dst_buf[size]; \
+  UniquePtr<scalar_type[]> src_buf(new scalar_type[size]); \
+  UniquePtr<scalar_type[]> dst_buf(new scalar_type[size]); \
   for (jsize i = 0; i < size; ++i) { src_buf[i] = scalar_type(i); } \
   for (jsize i = 0; i < size; ++i) { dst_buf[i] = scalar_type(-1); } \
   /* Copy all of src_buf onto the heap. */ \
-  env_->set_region_fn(a, 0, size, src_buf); \
+  env_->set_region_fn(a, 0, size, &src_buf[0]); \
   /* Copy back only part. */ \
   env_->get_region_fn(a, 1, size - 2, &dst_buf[1]); \
-  EXPECT_NE(memcmp(src_buf, dst_buf, sizeof(src_buf)), 0) << "short copy equal"; \
+  EXPECT_NE(memcmp(&src_buf[0], &dst_buf[0], size * sizeof(scalar_type)), 0) << "short copy equal"; \
   /* Copy the missing pieces. */ \
-  env_->get_region_fn(a, 0, 1, dst_buf); \
+  env_->get_region_fn(a, 0, 1, &dst_buf[0]); \
   env_->get_region_fn(a, size - 1, 1, &dst_buf[size - 1]); \
-  EXPECT_EQ(memcmp(src_buf, dst_buf, sizeof(src_buf)), 0) << "fixed copy not equal"; \
+  EXPECT_EQ(memcmp(&src_buf[0], &dst_buf[0], size * sizeof(scalar_type)), 0) << "fixed copy not equal"; \
   /* Copy back the whole array. */ \
-  env_->get_region_fn(a, 0, size, dst_buf); \
-  EXPECT_EQ(memcmp(src_buf, dst_buf, sizeof(src_buf)), 0) << "full copy not equal"; \
+  env_->get_region_fn(a, 0, size, &dst_buf[0]); \
+  EXPECT_EQ(memcmp(&src_buf[0], &dst_buf[0], size * sizeof(scalar_type)), 0) << "full copy not equal"; \
   /* GetPrimitiveArrayCritical */ \
   void* v = env_->GetPrimitiveArrayCritical(a, NULL); \
-  EXPECT_EQ(memcmp(src_buf, v, sizeof(src_buf)), 0) << "GetPrimitiveArrayCritical not equal"; \
+  EXPECT_EQ(memcmp(&src_buf[0], v, size * sizeof(scalar_type)), 0) << "GetPrimitiveArrayCritical not equal"; \
   env_->ReleasePrimitiveArrayCritical(a, v, 0); \
   /* GetXArrayElements */ \
   scalar_type* xs = env_->get_elements_fn(a, NULL); \
-  EXPECT_EQ(memcmp(src_buf, xs, sizeof(src_buf)), 0) << # get_elements_fn " not equal"; \
+  EXPECT_EQ(memcmp(&src_buf[0], xs, size * sizeof(scalar_type)), 0) << # get_elements_fn " not equal"; \
   env_->release_elements_fn(a, xs, 0); \
   EXPECT_EQ(reinterpret_cast<uintptr_t>(v), reinterpret_cast<uintptr_t>(xs))
 

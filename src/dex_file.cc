@@ -789,13 +789,12 @@ void DexFile::DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_
                               DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
                               void* context) const {
   const byte* stream = GetDebugInfoStream(code_item);
-  LocalInfo local_in_reg[code_item->registers_size_];
-
+  UniquePtr<LocalInfo[]> local_in_reg(local_cb != NULL ? new LocalInfo[code_item->registers_size_] : NULL);
   if (stream != NULL) {
-    DecodeDebugInfo0(code_item, is_static, method_idx, position_cb, local_cb, context, stream, local_in_reg);
+    DecodeDebugInfo0(code_item, is_static, method_idx, position_cb, local_cb, context, stream, &local_in_reg[0]);
   }
   for (int reg = 0; reg < code_item->registers_size_; reg++) {
-    InvokeLocalCbIfLive(context, reg, code_item->insns_size_in_code_units_, local_in_reg, local_cb);
+    InvokeLocalCbIfLive(context, reg, code_item->insns_size_in_code_units_, &local_in_reg[0], local_cb);
   }
 }
 
