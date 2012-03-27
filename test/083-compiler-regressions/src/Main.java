@@ -128,12 +128,19 @@ public class Main {
         foo.setBar4(0,0,0,sum);
         sum += foo.getBar5(1,2,3,4,5);
         foo.setBar5(0,0,0,0,sum);
-        if (foo.getBar0() == 39488) {
+        Foo nullFoo = null;
+        try {
+            sum += Foo.barBar(nullFoo);
+        } catch(NullPointerException npe) {
+            sum += 404;
+        }
+        foo.setBar1(sum);
+        if (foo.getBar0() == 39892) {
             System.out.println("getterSetterTest passes");
         }
         else {
             System.out.println("getterSetterTest fails: " + foo.getBar0() +
-                               " (expecting 39488)");
+                               " (expecting 39892)");
         }
     }
 
@@ -8277,6 +8284,11 @@ class SpinThread extends Thread {
 class Foo {
     private int bar = 1234;
     private long lbar = 1234;
+
+    // Looks similar to a direct method, make sure we're null checking
+    static int barBar(Foo foo) {
+        return foo.bar;
+    }
 
     public int iConst0x1234() {
         return 0x1234;
