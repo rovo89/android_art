@@ -187,6 +187,7 @@ LIBART_COMMON_SRC_FILES := \
 
 ifeq ($(ART_USE_LLVM_COMPILER),true)
 LIBART_COMMON_SRC_FILES += \
+	src/compiler_llvm/elf_loader.cc \
 	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/compiler_llvm/runtime_support_llvm.cc \
 	src/compiler_llvm/utils_llvm.cc
