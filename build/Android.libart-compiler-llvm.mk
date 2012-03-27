@@ -88,7 +88,7 @@ define build-libart-compiler-llvm
     libLLVMMipsInfo \
     libLLVMMipsCodeGen \
     libLLVMMipsDesc \
-    libLLVMMipsAsmPrinter \
+    libLLVMMipsAsmPrinter
 
   libart_compiler_llvm_x86_STATIC_LIBRARIES := \
     libLLVMX86Info \
@@ -117,6 +117,7 @@ define build-libart-compiler-llvm
     libLLVMAsmPrinter \
     libLLVMSelectionDAG \
     libLLVMCodeGen \
+    libLLVMVectorize \
     libLLVMScalarOpts \
     libLLVMInstCombine \
     libLLVMInstrumentation \
