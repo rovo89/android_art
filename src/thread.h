@@ -64,12 +64,15 @@ typedef PrimitiveArray<int32_t> IntArray;
 
 class PACKED Thread {
  public:
-  /* thread priorities, from java.lang.Thread */
+  // Thread priorities. These must match the Thread.MIN_PRIORITY,
+  // Thread.NORM_PRIORITY, and Thread.MAX_PRIORITY constants.
   enum Priority {
     kMinPriority = 1,
     kNormPriority = 5,
     kMaxPriority = 10,
   };
+
+  // Thread states. These must match Thread.STATE_MAP.
   enum State {
     // These correspond to JDWP states (but needn't share the same values).
     kTerminated   = 0,        // TS_ZOMBIE
