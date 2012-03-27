@@ -985,6 +985,12 @@ void Thread::Destroy() {
   if (peer_ != NULL) {
     Thread* self = this;
 
+    // We may need to call user-supplied managed code.
+    SetState(Thread::kRunnable);
+
+    HandleUncaughtExceptions();
+    RemoveFromThreadGroup();
+
     // this.vmData = 0;
     SetVmData(peer_, NULL);
 
