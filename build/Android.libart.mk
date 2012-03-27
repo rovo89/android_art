@@ -79,59 +79,7 @@ define build-libart
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   ifeq ($(ART_USE_LLVM_COMPILER),true)
     LOCAL_C_INCLUDES += frameworks/compile/linkloader
-    LOCAL_STATIC_LIBRARIES += librsloader
-    libart_arm_STATIC_LIBRARIES := \
-      libLLVMARMInfo \
-      libLLVMARMDisassembler \
-      libLLVMARMAsmParser \
-      libLLVMARMAsmPrinter \
-      libLLVMARMCodeGen \
-      libLLVMARMDesc
-
-    libart_mips_STATIC_LIBRARIES := \
-      libLLVMMipsInfo \
-      libLLVMMipsCodeGen \
-      libLLVMMipsDesc \
-      libLLVMMipsAsmPrinter \
-
-    libart_x86_STATIC_LIBRARIES := \
-      libLLVMX86Info \
-      libLLVMX86AsmParser \
-      libLLVMX86CodeGen \
-      libLLVMX86Disassembler \
-      libLLVMX86Desc \
-      libLLVMX86AsmPrinter \
-      libLLVMX86Utils
-
-    ifeq ($$(art_target_or_host),target)
-      LOCAL_STATIC_LIBRARIES += \
-        $$(libart_arm_STATIC_LIBRARIES)
-    else
-      LOCAL_STATIC_LIBRARIES += \
-        $$(libart_arm_STATIC_LIBRARIES) \
-        $$(libart_mips_STATIC_LIBRARIES) \
-        $$(libart_x86_STATIC_LIBRARIES)
-    endif
-
-    LOCAL_STATIC_LIBRARIES += \
-      libLLVMLinker \
-      libLLVMipo \
-      libLLVMBitWriter \
-      libLLVMBitReader \
-      libLLVMAsmPrinter \
-      libLLVMSelectionDAG \
-      libLLVMCodeGen \
-      libLLVMScalarOpts \
-      libLLVMInstCombine \
-      libLLVMInstrumentation \
-      libLLVMTransformUtils \
-      libLLVMipa \
-      libLLVMAnalysis \
-      libLLVMTarget \
-      libLLVMMC \
-      libLLVMMCParser \
-      libLLVMCore \
-      libLLVMSupport
+    LOCAL_STATIC_LIBRARIES += librsloader libLLVMSupport
   endif
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
   ifeq ($$(art_target_or_host),target)
