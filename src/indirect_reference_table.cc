@@ -41,9 +41,7 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
 
   table_ = reinterpret_cast<const Object**>(malloc(initialCount * sizeof(const Object*)));
   CHECK(table_ != NULL);
-#ifndef NDEBUG
   memset(table_, 0xd1, initialCount * sizeof(const Object*));
-#endif
 
   slot_data_ = reinterpret_cast<IndirectRefSlot*>(calloc(initialCount, sizeof(IndirectRefSlot)));
   CHECK(slot_data_ != NULL);
