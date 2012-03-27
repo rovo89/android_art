@@ -861,8 +861,17 @@ class MANAGED Method : public Object {
     SetField32(OFFSET_OF_OBJECT_MEMBER(Method, fp_spill_mask_), fp_spill_mask, false);
   }
 
+  // Is this a CalleSaveMethod or ResolutionMethod and therefore doesn't adhere to normal
+  // conventions for a method of managed code.
+  bool IsRuntimeMethod() const {
+    return GetDexMethodIndex() == DexFile::kDexNoIndex16;
+  }
+
   // Is this a hand crafted method used for something like describing callee saves?
   bool IsCalleeSaveMethod() const {
+    if (!IsRuntimeMethod()) {
+      return false;
+    }
     Runtime* runtime = Runtime::Current();
     bool result = false;
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
@@ -871,8 +880,6 @@ class MANAGED Method : public Object {
         break;
       }
     }
-    // Check that if we do think it is phony it looks like the callee save method
-    DCHECK(!result || GetDexMethodIndex() == DexFile::kDexNoIndex16);
     return result;
   }
 
@@ -881,12 +888,6 @@ class MANAGED Method : public Object {
     // Check that if we do think it is phony it looks like the resolution method
     DCHECK(!result || GetDexMethodIndex() == DexFile::kDexNoIndex16);
     return result;
-  }
-
-  // Is this a CalleSaveMethod or ResolutionMethod and therefore doesn't adhere to normal
-  // conventions for a method of managed code.
-  bool IsRuntimeMethod() const {
-    return GetDexMethodIndex() == DexFile::kDexNoIndex16;
   }
 
   // Converts a native PC to a dex PC.  TODO: this is a no-op

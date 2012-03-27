@@ -24,12 +24,12 @@
 #include <vector>
 
 #include "class_linker.h"
-#include "context.h"
 #include "dex_instruction.h"
 #include "dex_verifier.h"
 #include "disassembler.h"
 #include "file.h"
 #include "image.h"
+#include "oat/runtime/context.h"  // For VmapTable
 #include "object_utils.h"
 #include "os.h"
 #include "runtime.h"

@@ -22,7 +22,6 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#include "assembler.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "dex_cache.h"
@@ -1276,7 +1275,7 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
   uint64_t start_ns = NanoTime();
 
   if ((access_flags & kAccNative) != 0) {
-    compiled_method = (*jni_compiler_)(*this, access_flags, method_idx, class_loader, dex_file);
+    compiled_method = (*jni_compiler_)(*this, access_flags, method_idx, dex_file);
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {

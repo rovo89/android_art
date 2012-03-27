@@ -32,6 +32,7 @@
 #include "macros.h"
 #include "mutex.h"
 #include "mem_map.h"
+#include "oat/runtime/oat_support_entrypoints.h"
 #include "offsets.h"
 #include "runtime_stats.h"
 #include "stack.h"
@@ -615,98 +616,7 @@ class PACKED Thread {
 
  public:
   // Runtime support function pointers
-  void (*pDebugMe)(Method*, uint32_t);
-  void* (*pMemcpy)(void*, const void*, size_t);
-  uint64_t (*pShlLong)(uint64_t, uint32_t);
-  uint64_t (*pShrLong)(uint64_t, uint32_t);
-  uint64_t (*pUshrLong)(uint64_t, uint32_t);
-  float (*pI2f)(int);
-  int (*pF2iz)(float);
-  float (*pD2f)(double);
-  double (*pF2d)(float);
-  double (*pI2d)(int);
-  int (*pD2iz)(double);
-  float (*pL2f)(int64_t);
-  double (*pL2d)(int64_t);
-  int64_t (*pF2l)(float);
-  int64_t (*pD2l)(double);
-  float (*pFadd)(float, float);
-  float (*pFsub)(float, float);
-  float (*pFdiv)(float, float);
-  float (*pFmul)(float, float);
-  float (*pFmodf)(float, float);
-  double (*pDadd)(double, double);
-  double (*pDsub)(double, double);
-  double (*pDdiv)(double, double);
-  double (*pDmul)(double, double);
-  double (*pFmod)(double, double);
-  int (*pIdivmod)(int, int);
-  int (*pIdiv)(int, int);
-  int64_t (*pLadd)(int64_t, int64_t);
-  int64_t (*pLsub)(int64_t, int64_t);
-  int64_t (*pLand)(int64_t, int64_t);
-  int64_t (*pLor)(int64_t, int64_t);
-  int64_t (*pLxor)(int64_t, int64_t);
-  int64_t (*pLmul)(int64_t, int64_t);
-  int64_t (*pLdivmod)(int64_t, int64_t);
-  void (*pCheckSuspendFromCode)(Thread*);  // Stub that is called when the suspend count is non-zero
-  void (*pTestSuspendFromCode)();  // Stub that is periodically called to test the suspend count
-  void* (*pAllocObjectFromCode)(uint32_t, void*);
-  void* (*pAllocObjectFromCodeWithAccessCheck)(uint32_t, void*);
-  void* (*pAllocArrayFromCode)(uint32_t, void*, int32_t);
-  void* (*pAllocArrayFromCodeWithAccessCheck)(uint32_t, void*, int32_t);
-  void (*pCanPutArrayElementFromCode)(void*, void*);
-  void* (*pCheckAndAllocArrayFromCode)(uint32_t, void*, int32_t);
-  void* (*pCheckAndAllocArrayFromCodeWithAccessCheck)(uint32_t, void*, int32_t);
-  void (*pCheckCastFromCode)(void*, void*);
-  Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
-  void (*pDeliverException)(void*);
-  Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
-  void* (*pFindNativeMethod)(Thread* thread);
-  int32_t (*pGet32Instance)(uint32_t, void*);
-  int64_t (*pGet64Instance)(uint32_t, void*);
-  void* (*pGetObjInstance)(uint32_t, void*);
-  int32_t (*pGet32Static)(uint32_t);
-  int64_t (*pGet64Static)(uint32_t);
-  void* (*pGetObjStatic)(uint32_t);
-  void (*pHandleFillArrayDataFromCode)(void*, void*);
-  void* (*pInitializeStaticStorage)(uint32_t, void*);
-  uint32_t (*pInstanceofNonTrivialFromCode)(const Class*, const Class*);
-  void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);
-  void (*pInvokeInterfaceTrampoline)(uint32_t, void*);
-  void (*pInvokeInterfaceTrampolineWithAccessCheck)(uint32_t, void*);
-  void (*pInvokeStaticTrampolineWithAccessCheck)(uint32_t, void*);
-  void (*pInvokeSuperTrampolineWithAccessCheck)(uint32_t, void*);
-  void (*pInvokeVirtualTrampolineWithAccessCheck)(uint32_t, void*);
-  void* (*pInitializeTypeFromCode)(uint32_t, void*);
-  void* (*pInitializeTypeAndVerifyAccessFromCode)(uint32_t, void*);
-  void (*pLockObjectFromCode)(void*);
-  void* (*pResolveStringFromCode)(void*, uint32_t);
-  int (*pSet32Instance)(uint32_t, void*, int32_t);  // field_idx, obj, src
-  int (*pSet64Instance)(uint32_t, void*, int64_t);
-  int (*pSetObjInstance)(uint32_t, void*, void*);
-  int (*pSet32Static)(uint32_t, int32_t);
-  int (*pSet64Static)(uint32_t, int64_t);
-  int (*pSetObjStatic)(uint32_t, void*);
-  void (*pThrowStackOverflowFromCode)(void*);
-  void (*pThrowNullPointerFromCode)();
-  void (*pThrowArrayBoundsFromCode)(int32_t, int32_t);
-  void (*pThrowDivZeroFromCode)();
-  void (*pThrowVerificationErrorFromCode)(int32_t, int32_t);
-  void (*pThrowNegArraySizeFromCode)(int32_t);
-  void (*pThrowNoSuchMethodFromCode)(int32_t);
-  void (*pThrowAbstractMethodErrorFromCode)(Method* method, Thread* thread, Method** sp);
-  void (*pUnlockObjectFromCode)(void*);
-  const void* (*pUnresolvedDirectMethodTrampolineFromCode)(Method*, Method**, Thread*,
-                                                           Runtime::TrampolineType);
-  void (*pUpdateDebuggerFromCode)(void*, void*, int32_t, void*);
-  bool (*pCmplFloat)(float, float);
-  bool (*pCmpgFloat)(float, float);
-  bool (*pCmplDouble)(double, double);
-  bool (*pCmpgDouble)(double, double);
-  int (*pIndexOf)(void*, uint32_t, uint32_t, uint32_t);
-  int (*pStringCompareTo)(void*, void*);
-  int (*pMemcmp16)(void*, void*, int32_t);
+  EntryPoints entrypoints_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Thread);

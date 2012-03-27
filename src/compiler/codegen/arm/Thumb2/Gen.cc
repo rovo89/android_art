@@ -23,6 +23,7 @@
  */
 
 #include "oat_compilation_unit.h"
+#include "oat/runtime/oat_support_entrypoints.h"
 
 namespace art {
 
@@ -491,7 +492,7 @@ void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     oatFlushAllRegs(cUnit);   /* Everything to home location */
     loadValueDirectFixed(cUnit, rlSrc, r0);
     loadWordDisp(cUnit, rSELF,
-                 OFFSETOF_MEMBER(Thread, pHandleFillArrayDataFromCode), rLR);
+                 ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode), rLR);
     // Materialize a pointer to the fill data image
     newLIR3(cUnit, kThumb2Adr, r1, 0, (intptr_t)tabRec);
     oatClobberCalleeSave(cUnit);
@@ -565,7 +566,7 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     opRegImm(cUnit, kOpCmp, r1, 0);
     opIT(cUnit, kArmCondNe, "T");
     // Go expensive route - artLockObjectFromCode(self, obj);
-    loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pLockObjectFromCode),
+    loadWordDisp(cUnit, rSELF, ENTRYPOINT_OFFSET(pLockObjectFromCode),
                  rLR);
     oatClobberCalleeSave(cUnit);
     opReg(cUnit, kOpBlx, rLR);
@@ -596,7 +597,7 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     opIT(cUnit, kArmCondEq, "EE");
     storeWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r3);
     // Go expensive route - UnlockObjectFromCode(obj);
-    loadWordDisp(cUnit, rSELF, OFFSETOF_MEMBER(Thread, pUnlockObjectFromCode),
+    loadWordDisp(cUnit, rSELF, ENTRYPOINT_OFFSET(pUnlockObjectFromCode),
                  rLR);
     oatClobberCalleeSave(cUnit);
     opReg(cUnit, kOpBlx, rLR);

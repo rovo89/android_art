@@ -21,12 +21,12 @@
 #include "class_linker.h"
 #include "debugger.h"
 #include "dex_cache.h"
+#include "oat/runtime/oat_support_entrypoints.h"
 #include "object_utils.h"
 #include "os.h"
-#include "runtime_support.h"
 #include "scoped_thread_list_lock.h"
 #include "thread.h"
-
+#include "thread_list.h"
 
 namespace art {
 
@@ -145,10 +145,7 @@ static bool UninstallStubsClassVisitor(Class* klass, void*) {
   return true;
 }
 
-#if defined(__arm__)
 static void TraceRestoreStack(Thread* t, void*) {
-  uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
-
   Frame frame = t->GetTopOfStack();
   if (frame.GetSP() != 0) {
     for ( ; frame.GetMethod() != 0; frame.Next()) {
@@ -157,7 +154,7 @@ static void TraceRestoreStack(Thread* t, void*) {
       }
       uintptr_t pc = frame.GetReturnPC();
       Method* method = frame.GetMethod();
-      if (trace_exit == pc) {
+      if (IsTraceExitPc(pc)) {
         TraceStackFrame trace_frame = t->PopTraceStackFrame();
         frame.SetReturnPC(trace_frame.return_pc_);
         CHECK(method == trace_frame.method_);
@@ -165,11 +162,6 @@ static void TraceRestoreStack(Thread* t, void*) {
     }
   }
 }
-#else
-static void TraceRestoreStack(Thread*, void*) {
-  UNIMPLEMENTED(WARNING);
-}
-#endif
 
 void Trace::AddSavedCodeToMap(const Method* method, const void* code) {
   saved_code_map_.insert(std::make_pair(method, code));
@@ -189,18 +181,12 @@ const void* Trace::GetSavedCodeFromMap(const Method* method) {
   }
 }
 
-#if defined(__arm__)
 void Trace::SaveAndUpdateCode(Method* method) {
-  void* trace_stub = reinterpret_cast<void*>(art_trace_entry_from_code);
+  void* trace_stub = GetLogTraceEntryPoint();
   CHECK(GetSavedCodeFromMap(method) == NULL);
   AddSavedCodeToMap(method, method->GetCode());
   method->SetCode(trace_stub);
 }
-#else
-void Trace::SaveAndUpdateCode(Method*) {
-  UNIMPLEMENTED(WARNING);
-}
-#endif
 
 void Trace::ResetSavedCode(Method* method) {
   CHECK(GetSavedCodeFromMap(method) != NULL);
@@ -443,6 +429,17 @@ void Trace::UninstallStubs() {
     ScopedThreadListLock thread_list_lock;
     Runtime::Current()->GetThreadList()->ForEach(TraceRestoreStack, NULL);
   }
+}
+
+uint32_t TraceMethodUnwindFromCode(Thread* self) {
+  Trace* tracer = Runtime::Current()->GetTracer();
+  TraceStackFrame trace_frame = self->PopTraceStackFrame();
+  Method* method = trace_frame.method_;
+  uint32_t lr = trace_frame.return_pc_;
+
+  tracer->LogMethodTraceEvent(self, method, Trace::kMethodTraceUnwind);
+
+  return lr;
 }
 
 }  // namespace art

@@ -515,7 +515,6 @@ enum ThrowKind {
     kThrowDivZero,
     kThrowArrayBounds,
     kThrowVerificationError,
-    kThrowNegArraySize,
     kThrowNoSuchMethod,
     kThrowStackOverflow,
 };

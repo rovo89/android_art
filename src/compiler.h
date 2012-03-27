@@ -326,7 +326,6 @@ class Compiler {
 
   typedef CompiledMethod* (*JniCompilerFn)(Compiler& compiler,
                                            uint32_t access_flags, uint32_t method_idx,
-                                           const ClassLoader* class_loader,
                                            const DexFile& dex_file);
   JniCompilerFn jni_compiler_;
   typedef CompiledInvokeStub* (*CreateInvokeStubFn)(Compiler& compiler, bool is_static,

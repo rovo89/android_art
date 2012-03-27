@@ -32,6 +32,8 @@ namespace art {
 class Method;
 class Thread;
 
+uint32_t TraceMethodUnwindFromCode(Thread* self);
+
 struct TraceStackFrame {
   TraceStackFrame(Method* method, uintptr_t return_pc)
       : method_(method), return_pc_(return_pc) {

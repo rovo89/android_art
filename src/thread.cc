@@ -31,11 +31,11 @@
 #include "debugger.h"
 #include "class_linker.h"
 #include "class_loader.h"
-#include "context.h"
 #include "dex_verifier.h"
 #include "heap.h"
 #include "jni_internal.h"
 #include "monitor.h"
+#include "oat/runtime/context.h"
 #include "object.h"
 #include "object_utils.h"
 #include "reflection.h"
@@ -76,194 +76,12 @@ void Thread::InitCardTable() {
 }
 
 void Thread::InitFunctionPointers() {
-#if defined(__mips)
-  pShlLong = art_shl_long;
-  pShrLong = art_shr_long;
-  pUshrLong = art_ushr_long;
-  pI2f = __floatsisf;
-  pF2iz = __fixsfi;
-  pD2f = __truncdfsf2;
-  pF2d = __extendsfdfs;
-  pD2iz = __fixdfsi;
-  pL2f = __floatdisf;
-  pL2d = __floatdidf;
-  pFadd = __addsf3;
-  pFsub = __subsf3;
-  pFdiv = divsf3;
-  pFmul = __mulsf3;
-  pFmodf = fmodf;
-  pDadd = __adddf3;
-  pDsub = __subdf3;
-  pDdiv = __divdf3;
-  pDmul = muldf3;
-  pFmod = fmod;
-  pCmpgFloat = CmpgFloat;
-  pCmplFloat = CmplFloat;
-  pCmpgDouble = CmpgDouble;
-  pCmplDouble = CmplDouble;
-#elif defined(__arm__)
-  pMemcmp16 = __memcmp16;
-  pIndexOf = art_indexof;
-  pStringCompareTo = art_string_compareto;
-  pShlLong = art_shl_long;
-  pShrLong = art_shr_long;
-  pUshrLong = art_ushr_long;
-  pIdiv = __aeabi_idiv;
-  pIdivmod = __aeabi_idivmod;
-  pI2f = __aeabi_i2f;
-  pF2iz = __aeabi_f2iz;
-  pD2f = __aeabi_d2f;
-  pF2d = __aeabi_f2d;
-  pD2iz = __aeabi_d2iz;
-  pL2f = __aeabi_l2f;
-  pL2d = __aeabi_l2d;
-  pFadd = __aeabi_fadd;
-  pFsub = __aeabi_fsub;
-  pFdiv = __aeabi_fdiv;
-  pFmul = __aeabi_fmul;
-  pFmodf = fmodf;
-  pDadd = __aeabi_dadd;
-  pDsub = __aeabi_dsub;
-  pDdiv = __aeabi_ddiv;
-  pDmul = __aeabi_dmul;
-  pFmod = fmod;
-  pLadd = NULL;
-  pLsub = NULL;
-  pLand = NULL;
-  pLor = NULL;
-  pLxor = NULL;
-  pLdivmod = __aeabi_ldivmod;
-  pLmul = __aeabi_lmul;
-  pAllocArrayFromCode = art_alloc_array_from_code;
-  pAllocArrayFromCodeWithAccessCheck = art_alloc_array_from_code_with_access_check;
-  pAllocObjectFromCode = art_alloc_object_from_code;
-  pAllocObjectFromCodeWithAccessCheck = art_alloc_object_from_code_with_access_check;
-  pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
-  pCheckAndAllocArrayFromCode = art_check_and_alloc_array_from_code;
-  pCheckAndAllocArrayFromCodeWithAccessCheck = art_check_and_alloc_array_from_code_with_access_check;
-  pCheckCastFromCode = art_check_cast_from_code;
-  pGet32Instance = art_get32_instance_from_code;
-  pGet64Instance = art_get64_instance_from_code;
-  pGetObjInstance = art_get_obj_instance_from_code;
-  pGet32Static = art_get32_static_from_code;
-  pGet64Static = art_get64_static_from_code;
-  pGetObjStatic = art_get_obj_static_from_code;
-  pHandleFillArrayDataFromCode = art_handle_fill_data_from_code;
-  pInitializeStaticStorage = art_initialize_static_storage_from_code;
-  pInitializeTypeFromCode = art_initialize_type_from_code;
-  pInitializeTypeAndVerifyAccessFromCode = art_initialize_type_and_verify_access_from_code;
-  pInvokeDirectTrampolineWithAccessCheck = art_invoke_direct_trampoline_with_access_check;
-  pInvokeInterfaceTrampoline = art_invoke_interface_trampoline;
-  pInvokeInterfaceTrampolineWithAccessCheck = art_invoke_interface_trampoline_with_access_check;
-  pInvokeStaticTrampolineWithAccessCheck = art_invoke_static_trampoline_with_access_check;
-  pInvokeSuperTrampolineWithAccessCheck = art_invoke_super_trampoline_with_access_check;
-  pInvokeVirtualTrampolineWithAccessCheck = art_invoke_virtual_trampoline_with_access_check;
-  pLockObjectFromCode = art_lock_object_from_code;
-  pResolveStringFromCode = art_resolve_string_from_code;
-  pSet32Instance = art_set32_instance_from_code;
-  pSet64Instance = art_set64_instance_from_code;
-  pSetObjInstance = art_set_obj_instance_from_code;
-  pSet32Static = art_set32_static_from_code;
-  pSet64Static = art_set64_static_from_code;
-  pSetObjStatic = art_set_obj_static_from_code;
-  pTestSuspendFromCode = art_test_suspend;
-  pThrowArrayBoundsFromCode = art_throw_array_bounds_from_code;
-  pThrowDivZeroFromCode = art_throw_div_zero_from_code;
-  pThrowNegArraySizeFromCode = art_throw_neg_array_size_from_code;
-  pThrowNoSuchMethodFromCode = art_throw_no_such_method_from_code;
-  pThrowNullPointerFromCode = art_throw_null_pointer_exception_from_code;
-  pThrowStackOverflowFromCode = art_throw_stack_overflow_from_code;
-  pThrowVerificationErrorFromCode = art_throw_verification_error_from_code;
-  pUnlockObjectFromCode = art_unlock_object_from_code;
-#elif defined(__i386__)
-  pShlLong = NULL;
-  pShrLong = NULL;
-  pUshrLong = NULL;
-  pIdiv = NULL;
-  pIdivmod = NULL;
-  pI2f = NULL;
-  pF2iz = NULL;
-  pD2f = NULL;
-  pF2d = NULL;
-  pD2iz = NULL;
-  pL2f = NULL;
-  pL2d = NULL;
-  pFadd = NULL;
-  pFsub = NULL;
-  pFdiv = NULL;
-  pFmul = NULL;
-  pFmodf = NULL;
-  pDadd = NULL;
-  pDsub = NULL;
-  pDdiv = NULL;
-  pDmul = NULL;
-  pFmod = NULL;
-  pLadd = NULL;
-  pLsub = NULL;
-  pLand = NULL;
-  pLor = NULL;
-  pLxor = NULL;
-  pLdivmod = NULL;
-  pLmul = NULL;
-  pAllocArrayFromCode = NULL;
-  pAllocArrayFromCodeWithAccessCheck = NULL;
-  pAllocObjectFromCode = NULL;
-  pAllocObjectFromCodeWithAccessCheck = NULL;
-  pCanPutArrayElementFromCode = NULL;
-  pCheckAndAllocArrayFromCode = NULL;
-  pCheckAndAllocArrayFromCodeWithAccessCheck = NULL;
-  pCheckCastFromCode = NULL;
-  pGet32Instance = NULL;
-  pGet64Instance = NULL;
-  pGetObjInstance = NULL;
-  pGet32Static = NULL;
-  pGet64Static = NULL;
-  pGetObjStatic = NULL;
-  pHandleFillArrayDataFromCode = NULL;
-  pInitializeStaticStorage = NULL;
-  pInitializeTypeFromCode = NULL;
-  pInitializeTypeAndVerifyAccessFromCode = NULL;
-  pInvokeDirectTrampolineWithAccessCheck = NULL;
-  pInvokeInterfaceTrampoline = NULL;
-  pInvokeInterfaceTrampolineWithAccessCheck = NULL;
-  pInvokeStaticTrampolineWithAccessCheck = NULL;
-  pInvokeSuperTrampolineWithAccessCheck = NULL;
-  pInvokeVirtualTrampolineWithAccessCheck = NULL;
-  pLockObjectFromCode = NULL;
-  pResolveStringFromCode = NULL;
-  pSet32Instance = NULL;
-  pSet64Instance = NULL;
-  pSetObjInstance = NULL;
-  pSet32Static = NULL;
-  pSet64Static = NULL;
-  pSetObjStatic = NULL;
-  pTestSuspendFromCode = NULL;
-  pThrowArrayBoundsFromCode = NULL;
-  pThrowDivZeroFromCode = NULL;
-  pThrowNegArraySizeFromCode = NULL;
-  pThrowNoSuchMethodFromCode = NULL;
-  pThrowNullPointerFromCode = NULL;
-  pThrowStackOverflowFromCode = NULL;
-  pThrowVerificationErrorFromCode = NULL;
-  pUnlockObjectFromCode = NULL;
-#endif
-  pF2l = F2L;
-  pD2l = D2L;
-  pMemcpy = memcpy;
-  pCheckSuspendFromCode = CheckSuspendFromCode;
-  pDebugMe = DebugMe;
-  pDecodeJObjectInThread = DecodeJObjectInThread;
-  pDeliverException = art_deliver_exception_from_code;
-  pFindNativeMethod = FindNativeMethod;
-  pInstanceofNonTrivialFromCode = IsAssignableFromCode;
-  pThrowAbstractMethodErrorFromCode = ThrowAbstractMethodErrorFromCode;
-  pUnresolvedDirectMethodTrampolineFromCode = UnresolvedDirectMethodTrampolineFromCode;
-  pUpdateDebuggerFromCode = NULL; // Controlled by SetDebuggerUpdatesEnabled.
+  InitEntryPoints(&entrypoints_);
 }
 
 void Thread::SetDebuggerUpdatesEnabled(bool enabled) {
   LOG(INFO) << "Turning debugger updates " << (enabled ? "on" : "off") << " for " << *this;
-  pUpdateDebuggerFromCode = (enabled ? art_update_debugger : NULL);
+  ChangeDebuggerEntryPoint(&entrypoints_, enabled);
 }
 
 void Thread::InitTid() {
@@ -1338,30 +1156,29 @@ StackIndirectReferenceTable* Thread::PopSirt() {
 void Thread::WalkStack(StackVisitor* visitor, bool include_upcalls) const {
   Frame frame = GetTopOfStack();
   uintptr_t pc = ManglePc(top_of_managed_stack_pc_);
-#if defined(__arm__)
   uint32_t trace_stack_depth = 0;
-#endif
   // TODO: enable this CHECK after native_to_managed_record_ is initialized during startup.
   // CHECK(native_to_managed_record_ != NULL);
   NativeToManagedRecord* record = native_to_managed_record_;
-
+  bool method_tracing_active = Runtime::Current()->IsMethodTracingActive();
   while (frame.GetSP() != NULL) {
     for ( ; frame.GetMethod() != NULL; frame.Next()) {
       frame.GetMethod()->AssertPcIsWithinCode(pc);
       bool should_continue = visitor->VisitFrame(frame, pc);
-      if (!should_continue) {
+      if (UNLIKELY(!should_continue)) {
         return;
       }
-      pc = ManglePc(frame.GetReturnPC());
-      if (Runtime::Current()->IsMethodTracingActive()) {
-#if defined(__arm__)
-        uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
-        if (ManglePc(trace_exit) == pc) {
+      uintptr_t return_pc = frame.GetReturnPC();
+      if (LIKELY(!method_tracing_active)) {
+        pc = ManglePc(return_pc);
+      } else {
+        if (IsTraceExitPc(return_pc)) {
           TraceStackFrame trace_frame = GetTraceStackFrame(trace_stack_depth++);
           CHECK(trace_frame.method_ == frame.GetMethod());
           pc = ManglePc(trace_frame.return_pc_);
+        } else {
+          pc = ManglePc(return_pc);
         }
-#endif
       }
     }
     if (include_upcalls) {
@@ -1626,7 +1443,8 @@ void Thread::DumpFromGdb() const {
 class CatchBlockStackVisitor : public Thread::StackVisitor {
  public:
   CatchBlockStackVisitor(Class* to_find, Context* ljc)
-      : to_find_(to_find), long_jump_context_(ljc), native_method_count_(0) {
+      : to_find_(to_find), long_jump_context_(ljc), native_method_count_(0),
+        method_tracing_active_(Runtime::Current()->IsMethodTracingActive()) {
 #ifndef NDEBUG
     handler_pc_ = 0xEBADC0DE;
     handler_frame_.SetSP(reinterpret_cast<Method**>(0xEBADF00D));
@@ -1640,24 +1458,20 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
       // long jump to them
       handler_pc_ = DemanglePc(pc);
       handler_frame_ = fr;
-      return false;
+      return false;  // End stack walk.
     }
     uint32_t dex_pc = DexFile::kDexNoIndex;
-    if (method->IsCalleeSaveMethod()) {
+    if (method->IsRuntimeMethod()) {
       // ignore callee save method
+      DCHECK(method->IsCalleeSaveMethod());
     } else if (method->IsNative()) {
       native_method_count_++;
     } else {
       // Unwind stack during method tracing
-      if (Runtime::Current()->IsMethodTracingActive()) {
-#if defined(__arm__)
-        uintptr_t trace_exit = reinterpret_cast<uintptr_t>(art_trace_exit_from_code);
-        if (ManglePc(trace_exit) == pc) {
+      if (UNLIKELY(method_tracing_active_)) {
+        if (IsTraceExitPc(DemanglePc(pc))) {
           pc = ManglePc(TraceMethodUnwindFromCode(Thread::Current()));
         }
-#else
-        UNIMPLEMENTED(WARNING);
-#endif
       }
       dex_pc = method->ToDexPC(pc);
     }
@@ -1666,12 +1480,12 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
       if (found_dex_pc != DexFile::kDexNoIndex) {
         handler_pc_ = method->ToNativePC(found_dex_pc);
         handler_frame_ = fr;
-        return false;
+        return false;  // End stack walk.
       }
     }
     // Caller may be handler, fill in callee saves in context
     long_jump_context_->FillCalleeSaves(fr);
-    return true;
+    return true;  // Continue stack walk.
   }
 
   // The type of the exception catch block to find
@@ -1684,6 +1498,8 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
   Context* long_jump_context_;
   // Number of native methods passed in crawl (equates to number of SIRTs to pop)
   uint32_t native_method_count_;
+  // Is method tracing active?
+  const bool method_tracing_active_;
 };
 
 void Thread::DeliverException() {

@@ -22,6 +22,8 @@
  *
  */
 
+#include "oat/runtime/oat_support_entrypoints.h"
+
 namespace art {
 
 void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset);
@@ -112,7 +114,7 @@ void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
     if (cUnit->genDebugger) {
         // Refresh update debugger callout
         loadWordDisp(cUnit, rSELF,
-                     OFFSETOF_MEMBER(Thread, pUpdateDebuggerFromCode), rSUSPEND);
+                     ENTRYPOINT_OFFSET(pUpdateDebuggerFromCode), rSUSPEND);
         genDebuggerUpdate(cUnit, DEBUGGER_METHOD_ENTRY);
     }
 

@@ -22,6 +22,8 @@
  *
  */
 
+#include "oat/runtime/oat_support_entrypoints.h"
+
 namespace art {
 
 void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
@@ -245,8 +247,7 @@ void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     genBarrier(cUnit);
     newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
     // Now, fill the branch delay slot with the helper load
-    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
-                          pHandleFillArrayDataFromCode));
+    int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode));
     genBarrier(cUnit);  // Scheduling barrier
 
     // Construct BaseLabel and set up table base register
@@ -291,7 +292,7 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
     genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
     // Go expensive route - artLockObjectFromCode(self, obj);
-    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pLockObjectFromCode));
+    int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode));
     oatClobberCalleeSave(cUnit);
     opReg(cUnit, kOpBlx, rTgt);
 }
@@ -306,7 +307,7 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
     genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
     // Go expensive route - UnlockObjectFromCode(obj);
-    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pUnlockObjectFromCode));
+    int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode));
     oatClobberCalleeSave(cUnit);
     opReg(cUnit, kOpBlx, rTgt);
 }

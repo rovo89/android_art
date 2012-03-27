@@ -64,35 +64,6 @@ void art_pop_shadow_frame_from_code() {
 // Exception
 //----------------------------------------------------------------------------
 
-static std::string MethodNameFromIndex(const Method* method,
-                                       uint32_t ref,
-                                       verifier::VerifyErrorRefType ref_type,
-                                       bool access) {
-  CHECK_EQ(static_cast<int>(ref_type),
-           static_cast<int>(verifier::VERIFY_ERROR_REF_METHOD));
-
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  const DexFile& dex_file =
-      class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
-
-  const DexFile::MethodId& id = dex_file.GetMethodId(ref);
-  std::string class_name(
-      PrettyDescriptor(dex_file.GetMethodDeclaringClassDescriptor(id))
-                         );
-  const char* method_name = dex_file.StringDataByIdx(id.name_idx_);
-  if (!access) {
-    return class_name + "." + method_name;
-  }
-
-  std::string result;
-  result += "tried to access method ";
-  result += class_name + "." + method_name + ":" +
-      dex_file.CreateMethodSignature(id.proto_idx_, NULL);
-  result += " from class ";
-  result += PrettyDescriptor(method->GetDeclaringClass());
-  return result;
-}
-
 bool art_is_exception_pending_from_code() {
   return Thread::Current()->IsExceptionPending();
 }
