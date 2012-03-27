@@ -199,8 +199,8 @@ size_t ParseMemoryOption(const char* s, size_t div) {
   // strtoul accepts a leading [+-], which we don't want,
   // so make sure our string starts with a decimal digit.
   if (isdigit(*s)) {
-    const char* s2;
-    size_t val = strtoul(s, (char**)&s2, 10);
+    char* s2;
+    size_t val = strtoul(s, &s2, 10);
     if (s2 != s) {
       // s2 should be pointing just after the number.
       // If this is the end of the string, the user
@@ -785,7 +785,7 @@ int32_t Runtime::GetStat(int kind) {
     return stats->class_init_count;
   case KIND_CLASS_INIT_TIME:
     // Convert ns to us, reduce to 32 bits.
-    return (int) (stats->class_init_time_ns / 1000);
+    return static_cast<int>(stats->class_init_time_ns / 1000);
   case KIND_EXT_ALLOCATED_OBJECTS:
   case KIND_EXT_ALLOCATED_BYTES:
   case KIND_EXT_FREED_OBJECTS:

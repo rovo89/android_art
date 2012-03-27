@@ -39,7 +39,7 @@ class ThreadList {
   void FullSuspendCheck(Thread* thread);
   void ResumeAll(bool for_debugger = false);
   void Resume(Thread* thread, bool for_debugger = false);
-  void RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg);
+  void RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg);  // NOLINT
   void SuspendAll(bool for_debugger = false);
   void SuspendSelfForDebugger();
   void Suspend(Thread* thread, bool for_debugger = false);

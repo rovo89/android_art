@@ -1470,7 +1470,7 @@ bool String::Equals(const StringPiece& modified_utf8) const {
 std::string String::ToModifiedUtf8() const {
   const uint16_t* chars = GetCharArray()->GetData() + GetOffset();
   size_t byte_count(CountUtf8Bytes(chars, GetLength()));
-  std::string result(byte_count, char(0));
+  std::string result(byte_count, static_cast<char>(0));
   ConvertUtf16ToModifiedUtf8(&result[0], chars, GetLength());
   return result;
 }

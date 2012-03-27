@@ -85,7 +85,7 @@ class CardTable {
   void* AddrFromCard(const byte *cardAddr) const {
     DCHECK(IsValidCard(cardAddr));
     uintptr_t offset = cardAddr - biased_begin_;
-    return (void *)(offset << GC_CARD_SHIFT);
+    return reinterpret_cast<void*>(offset << GC_CARD_SHIFT);
   }
 
   // Returns true iff the card table address is within the bounds of the card table.

@@ -79,7 +79,7 @@ void HexDump(const void* address, size_t byte_count, bool show_actual_address) {
   unsigned int offset;    /* offset to show while printing */
 
   if (show_actual_address) {
-    offset = (int) addr;
+    offset = reinterpret_cast<int>(addr);
   } else {
     offset = 0;
   }
@@ -87,22 +87,21 @@ void HexDump(const void* address, size_t byte_count, bool show_actual_address) {
   out[8] = ':';
   out[sizeof(out)-1] = '\0';
 
-  int gap = (int) offset & 0x0f;
+  int gap = static_cast<int>(offset & 0x0f);
   while (byte_count) {
     unsigned int lineOffset = offset & ~0x0f;
-    int i, count;
 
     char* hex = out;
     char* asc = out + 59;
 
-    for (i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++) {
       *hex++ = gHexDigit[lineOffset >> 28];
       lineOffset <<= 4;
     }
     hex++;
     hex++;
 
-    count = ((int)byte_count > 16-gap) ? 16-gap : (int)byte_count; /* cap length */
+    int count = std::min(static_cast<int>(byte_count), 16 - gap);
     CHECK_NE(count, 0);
     CHECK_LE(count + gap, 16);
 
@@ -112,17 +111,19 @@ void HexDump(const void* address, size_t byte_count, bool show_actual_address) {
       asc += gap;
     }
 
+    int i;
     for (i = gap ; i < count+gap; i++) {
       *hex++ = gHexDigit[*addr >> 4];
       *hex++ = gHexDigit[*addr & 0x0f];
       hex++;
-      if (*addr >= 0x20 && *addr < 0x7f /*isprint(*addr)*/)
-      *asc++ = *addr;
-      else
-      *asc++ = '.';
+      if (*addr >= 0x20 && *addr < 0x7f /*isprint(*addr)*/) {
+        *asc++ = *addr;
+      } else {
+        *asc++ = '.';
+      }
       addr++;
     }
-    for ( ; i < 16; i++) {
+    for (; i < 16; i++) {
       /* erase extra stuff; only happens on last line */
       *hex++ = ' ';
       *hex++ = ' ';

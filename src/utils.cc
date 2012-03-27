@@ -772,7 +772,7 @@ void SetThreadName(const char* threadName) {
 #elif defined(__APPLE__) && MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
   pthread_setname_np(threadName);
 #elif defined(HAVE_PRCTL)
-  prctl(PR_SET_NAME, (unsigned long) s, 0, 0, 0);
+  prctl(PR_SET_NAME, (unsigned long) s, 0, 0, 0);  // NOLINT (unsigned long)
 #else
   UNIMPLEMENTED(WARNING) << threadName;
 #endif

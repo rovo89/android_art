@@ -32,7 +32,7 @@ void StringAppendV(std::string* dst, const char* format, va_list ap) {
   int result = vsnprintf(space, sizeof(space), format, backup_ap);
   va_end(backup_ap);
 
-  if (result < int(sizeof(space))) {
+  if (result < static_cast<int>(sizeof(space))) {
     if (result >= 0) {
       // Normal case -- everything fit.
       dst->append(space, result);

@@ -300,13 +300,14 @@ inline void MarkSweep::CheckReference(const Object* obj, const Object* ref, Memb
     if (!is_marked) {
       LOG(INFO) << *alloc_space;
       LOG(WARNING) << (is_static ? "Static ref'" : "Instance ref'") << PrettyTypeOf(ref)
-          << "' (" << (void*)ref << ") in '" << PrettyTypeOf(obj)
-          << "' (" << (void*)obj << ") at offset "
-          << (void*)offset.Int32Value() << " wasn't marked";
+                   << "' (" << reinterpret_cast<const void*>(ref) << ") in '" << PrettyTypeOf(obj)
+                   << "' (" << reinterpret_cast<const void*>(obj) << ") at offset "
+                   << reinterpret_cast<void*>(offset.Int32Value()) << " wasn't marked";
       bool obj_marked = heap_->GetCardTable()->IsDirty(obj);
       if (!obj_marked) {
-        LOG(WARNING) << "Object '" << PrettyTypeOf(obj) << "' (" << (void*)obj
-            << ") contains references to the alloc space, but wasn't card marked";
+        LOG(WARNING) << "Object '" << PrettyTypeOf(obj) << "' "
+                     << "(" << reinterpret_cast<const void*>(obj) << ") contains references to "
+                     << "the alloc space, but wasn't card marked";
       }
     }
   }

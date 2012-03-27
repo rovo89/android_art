@@ -1469,7 +1469,7 @@ bool DexVerifier::CheckArrayData(uint32_t cur_offset) {
     return false;
   }
   uint32_t value_width = array_data[1];
-  uint32_t value_count = *(uint32_t*) (&array_data[2]);
+  uint32_t value_count = *reinterpret_cast<const uint32_t*>(&array_data[2]);
   uint32_t table_size = 4 + (value_width * value_count + 1) / 2;
   /* make sure the end of the switch is in range */
   if (cur_offset + array_data_offset + table_size > insn_count) {
@@ -1489,20 +1489,21 @@ bool DexVerifier::CheckBranchTarget(uint32_t cur_offset) {
     return false;
   }
   if (!selfOkay && offset == 0) {
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "branch offset of zero not allowed at" << (void*) cur_offset;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "branch offset of zero not allowed at" << reinterpret_cast<void*>(cur_offset);
     return false;
   }
   // Check for 32-bit overflow. This isn't strictly necessary if we can depend on the runtime
   // to have identical "wrap-around" behavior, but it's unwise to depend on that.
   if (((int64_t) cur_offset + (int64_t) offset) != (int64_t) (cur_offset + offset)) {
-    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "branch target overflow " << (void*) cur_offset << " +" << offset;
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "branch target overflow " << reinterpret_cast<void*>(cur_offset) << " +" << offset;
     return false;
   }
   const uint32_t insn_count = code_item_->insns_size_in_code_units_;
   int32_t abs_offset = cur_offset + offset;
   if (abs_offset < 0 || (uint32_t) abs_offset >= insn_count || !insn_flags_[abs_offset].IsOpcode()) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid branch target " << offset << " (-> "
-                                      << (void*) abs_offset << ") at " << (void*) cur_offset;
+                                      << reinterpret_cast<void*>(abs_offset) << ") at "
+                                      << reinterpret_cast<void*>(cur_offset);
     return false;
   }
   insn_flags_[abs_offset].SetBranchTarget();
@@ -1615,8 +1616,8 @@ bool DexVerifier::CheckSwitchTargets(uint32_t cur_offset) {
     int32_t abs_offset = cur_offset + offset;
     if (abs_offset < 0 || abs_offset >= (int32_t) insn_count || !insn_flags_[abs_offset].IsOpcode()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid switch target " << offset << " (-> "
-                                        << (void*) abs_offset << ") at "
-                                        << (void*) cur_offset << "[" << targ << "]";
+                                        << reinterpret_cast<void*>(abs_offset) << ") at "
+                                        << reinterpret_cast<void*>(cur_offset) << "[" << targ << "]";
       return false;
     }
     insn_flags_[abs_offset].SetBranchTarget();
@@ -1924,9 +1925,9 @@ bool DexVerifier::CodeFlowVerifyMethod() {
           Dump(std::cout);
           std::cout << info_messages_.str();
           LOG(FATAL) << "work_line diverged in " << PrettyMethod(method_)
-              << "@" << (void*)work_insn_idx_ << std::endl
-              << " work_line=" << *work_line_ << std::endl
-              << "  expected=" << *register_line;
+                     << "@" << reinterpret_cast<void*>(work_insn_idx_) << std::endl
+                     << " work_line=" << *work_line_ << std::endl
+                     << "  expected=" << *register_line;
         }
       }
 #endif
@@ -1970,12 +1971,12 @@ bool DexVerifier::CodeFlowVerifyMethod() {
         if (dead_start < 0)
           dead_start = insn_idx;
       } else if (dead_start >= 0) {
-        LogVerifyInfo() << "dead code " << (void*) dead_start << "-" << (void*) (insn_idx - 1);
+        LogVerifyInfo() << "dead code " << reinterpret_cast<void*>(dead_start) << "-" << reinterpret_cast<void*>(insn_idx - 1);
         dead_start = -1;
       }
     }
     if (dead_start >= 0) {
-      LogVerifyInfo() << "dead code " << (void*) dead_start << "-" << (void*) (insn_idx - 1);
+      LogVerifyInfo() << "dead code " << reinterpret_cast<void*>(dead_start) << "-" << reinterpret_cast<void*>(insn_idx - 1);
     }
   }
   return true;
@@ -3880,8 +3881,8 @@ bool DexVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_
       return false;
     }
     if (gDebugVerify && changed) {
-      LogVerifyInfo() << "Merging at [" << (void*)work_insn_idx_ << "]"
-                         " to [" <<(void*)next_insn << "]: " << std::endl
+      LogVerifyInfo() << "Merging at [" << reinterpret_cast<void*>(work_insn_idx_) << "]"
+                      << " to [" << reinterpret_cast<void*>(next_insn) << "]: " << std::endl
                       << *copy.get() << "  MERGE" << std::endl
                       << *merge_line << "  ==" << std::endl
                       << *target_line << std::endl;

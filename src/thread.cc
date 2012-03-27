@@ -514,7 +514,7 @@ void Thread::InitStackHwm() {
 
   // Sanity check.
   int stack_variable;
-  CHECK_GT(&stack_variable, (void*) stack_end_);
+  CHECK_GT(&stack_variable, reinterpret_cast<void*>(stack_end_));
 
   CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
 #endif

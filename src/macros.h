@@ -41,7 +41,7 @@ struct CompileAssert {
 };
 
 #define COMPILE_ASSERT(expr, msg) \
-  typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1]
+  typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1] // NOLINT
 
 // DISALLOW_COPY_AND_ASSIGN disallows the copy and operator= functions.
 // It goes in the private: declarations in a class.
@@ -120,10 +120,10 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define SIZEOF_MEMBER(t, f) sizeof((reinterpret_cast<t*>(4096))->f)
 
 #define OFFSETOF_MEMBER(t, f) \
-  (reinterpret_cast<char*>(&reinterpret_cast<t*>(16)->f) - reinterpret_cast<char*>(16))
+  (reinterpret_cast<char*>(&reinterpret_cast<t*>(16)->f) - reinterpret_cast<char*>(16)) // NOLINT
 
 #define OFFSETOF_VOLATILE_MEMBER(t, f) \
-  (reinterpret_cast<volatile char*>(&reinterpret_cast<t*>(16)->f) - reinterpret_cast<volatile char*>(16))
+  (reinterpret_cast<volatile char*>(&reinterpret_cast<t*>(16)->f) - reinterpret_cast<volatile char*>(16)) // NOLINT
 
 #define PACKED __attribute__ ((__packed__))
 
@@ -133,7 +133,7 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 // bionic and glibc both have TEMP_FAILURE_RETRY, but Mac OS' libc doesn't.
 #ifndef TEMP_FAILURE_RETRY
 #define TEMP_FAILURE_RETRY(exp) ({ \
-  typeof (exp) _rc; \
+  typeof(exp) _rc; \
   do { \
     _rc = (exp); \
   } while (_rc == -1 && errno == EINTR); \
