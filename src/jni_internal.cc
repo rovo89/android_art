@@ -2224,14 +2224,24 @@ class JNI {
 
   static jint MonitorEnter(JNIEnv* env, jobject java_object) {
     ScopedJniThreadState ts(env);
-    Decode<Object*>(ts, java_object)->MonitorEnter(ts.Self());
-    return ts.Self()->IsExceptionPending() ? JNI_ERR : JNI_OK;
+    Object* o = Decode<Object*>(ts, java_object);
+    o->MonitorEnter(ts.Self());
+    if (ts.Self()->IsExceptionPending()) {
+      return JNI_ERR;
+    }
+    ts.Env()->monitors.Add(o);
+    return JNI_OK;
   }
 
   static jint MonitorExit(JNIEnv* env, jobject java_object) {
     ScopedJniThreadState ts(env);
-    Decode<Object*>(ts, java_object)->MonitorExit(ts.Self());
-    return ts.Self()->IsExceptionPending() ? JNI_ERR : JNI_OK;
+    Object* o = Decode<Object*>(ts, java_object);
+    o->MonitorExit(ts.Self());
+    if (ts.Self()->IsExceptionPending()) {
+      return JNI_ERR;
+    }
+    ts.Env()->monitors.Remove(o);
+    return JNI_OK;
   }
 
   static jint GetJavaVM(JNIEnv* env, JavaVM** vm) {

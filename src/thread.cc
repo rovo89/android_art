@@ -314,7 +314,7 @@ void* Thread::CreateCallback(void* arg) {
   return NULL;
 }
 
-void SetVmData(Object* managed_thread, Thread* native_thread) {
+static void SetVmData(Object* managed_thread, Thread* native_thread) {
   gThread_vmData->SetInt(managed_thread, reinterpret_cast<uintptr_t>(native_thread));
 }
 
@@ -326,7 +326,7 @@ Thread* Thread::FromManagedThread(JNIEnv* env, jobject java_thread) {
   return FromManagedThread(Decode<Object*>(env, java_thread));
 }
 
-size_t FixStackSize(size_t stack_size) {
+static size_t FixStackSize(size_t stack_size) {
   // A stack size of zero means "use the default".
   if (stack_size == 0) {
     stack_size = Runtime::Current()->GetDefaultStackSize();
@@ -846,35 +846,28 @@ void Thread::Startup() {
 }
 
 // TODO: make more accessible?
-Class* FindPrimitiveClassOrDie(ClassLinker* class_linker, char descriptor) {
-  Class* c = class_linker->FindPrimitiveClass(descriptor);
-  CHECK(c != NULL) << descriptor;
-  return c;
-}
-
-// TODO: make more accessible?
-Class* FindClassOrDie(ClassLinker* class_linker, const char* descriptor) {
+static Class* FindClassOrDie(ClassLinker* class_linker, const char* descriptor) {
   Class* c = class_linker->FindSystemClass(descriptor);
   CHECK(c != NULL) << descriptor;
   return c;
 }
 
 // TODO: make more accessible?
-Field* FindFieldOrDie(Class* c, const char* name, const char* descriptor) {
+static Field* FindFieldOrDie(Class* c, const char* name, const char* descriptor) {
   Field* f = c->FindDeclaredInstanceField(name, descriptor);
   CHECK(f != NULL) << PrettyClass(c) << " " << name << " " << descriptor;
   return f;
 }
 
 // TODO: make more accessible?
-Method* FindMethodOrDie(Class* c, const char* name, const char* signature) {
+static Method* FindMethodOrDie(Class* c, const char* name, const char* signature) {
   Method* m = c->FindVirtualMethod(name, signature);
   CHECK(m != NULL) << PrettyClass(c) << " " << name << " " << signature;
   return m;
 }
 
 // TODO: make more accessible?
-Field* FindStaticFieldOrDie(Class* c, const char* name, const char* descriptor) {
+static Field* FindStaticFieldOrDie(Class* c, const char* name, const char* descriptor) {
   Field* f = c->FindDeclaredStaticField(name, descriptor);
   CHECK(f != NULL) << PrettyClass(c) << " " << name << " " << descriptor;
   return f;
@@ -974,8 +967,10 @@ Thread::Thread()
   memset(&held_mutexes_[0], 0, sizeof(held_mutexes_));
 }
 
-void MonitorExitVisitor(const Object* object, void*) {
+static void MonitorExitVisitor(const Object* object, void*) {
   Object* entered_monitor = const_cast<Object*>(object);
+  LOG(WARNING) << "Calling MonitorExit on object " << object << " (" << PrettyTypeOf(object) << ")"
+               << " left locked by native thread " << *Thread::Current() << " which is detaching";
   entered_monitor->MonitorExit(Thread::Current());
 }
 
@@ -1290,7 +1285,7 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
 };
 
 // TODO: remove this.
-uintptr_t ManglePc(uintptr_t pc) {
+static uintptr_t ManglePc(uintptr_t pc) {
   // Move the PC back 2 bytes as a call will frequently terminate the
   // decoding of a particular instruction and we want to make sure we
   // get the Dex PC of the instruction with the call and not the
@@ -1300,7 +1295,7 @@ uintptr_t ManglePc(uintptr_t pc) {
 }
 
 // TODO: remove this.
-uintptr_t DemanglePc(uintptr_t pc) {
+static uintptr_t DemanglePc(uintptr_t pc) {
   // Revert mangling for the case where we need the PC to return to the upcall
   if (pc > 0) { pc +=  2; }
   return pc;
@@ -1873,7 +1868,7 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
 }
 
 #if VERIFY_OBJECT_ENABLED
-void VerifyObject(const Object* obj, void*) {
+static void VerifyObject(const Object* obj, void*) {
   Runtime::Current()->GetHeap()->VerifyObject(obj);
 }
 
