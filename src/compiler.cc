@@ -964,8 +964,10 @@ class WorkerThread {
   }
 
   void Run() {
+    Thread* self = Thread::Current();
     for (size_t i = begin_; i < end_; i += stripe_) {
       callback_(context_, i);
+      CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException()) << " " << i;
     }
   }
 
@@ -982,6 +984,8 @@ class WorkerThread {
 };
 
 void ForAll(Context* context, size_t begin, size_t end, Callback callback, size_t thread_count) {
+  Thread* self = Thread::Current();
+  CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
   CHECK_GT(thread_count, 0U);
 
   std::vector<WorkerThread*> threads;
@@ -991,7 +995,7 @@ void ForAll(Context* context, size_t begin, size_t end, Callback callback, size_
   threads[0]->Go();
 
   // Switch to kVmWait while we're blocked waiting for the other threads to finish.
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+  ScopedThreadStateChange tsc(self, Thread::kVmWait);
   STLDeleteElements(&threads);
 }
 

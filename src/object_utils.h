@@ -71,7 +71,7 @@ class ClassHelper {
   }
 
   void ChangeClass(const Class* new_c) {
-    DCHECK(new_c != NULL);
+    CHECK(new_c != NULL);
     if (dex_cache_ != NULL) {
       DexCache* new_c_dex_cache = new_c->GetDexCache();
       if (new_c_dex_cache != dex_cache_) {
