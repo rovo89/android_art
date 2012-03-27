@@ -283,7 +283,7 @@ std::string GetSchedulerGroupName(pid_t tid);
 
 // Sets the name of the current thread. The name may be truncated to an
 // implementation-defined limit.
-void SetThreadName(const char* name);
+void SetThreadName(const char* thread_name);
 
 // Find $ANDROID_ROOT, /system, or abort
 const char* GetAndroidRoot();

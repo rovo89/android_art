@@ -818,11 +818,15 @@ void Runtime::BlockSignals() {
 
 void Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, Object* thread_group) {
   Thread::Attach(thread_name, as_daemon, thread_group);
+  if (thread_name == NULL) {
+    LOG(WARNING) << *Thread::Current() << " attached without supplying a name";
+  }
 }
 
 void Runtime::DetachCurrentThread() {
-  // TODO: check we're not calling DetachCurrentThread from a call stack that
-  // includes managed frames. (It's only valid if the stack is all-native.)
+  if (Thread::Current()->GetTopOfStack().GetSP() != NULL) {
+    LOG(FATAL) << *Thread::Current() << " attempting to detach while still running code";
+  }
   thread_list_->Unregister();
 }
 
