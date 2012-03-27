@@ -117,7 +117,6 @@ int Frame::GetVRegOffset(const DexFile::CodeItem* code_item,
   } else {
     return frame_size + ((reg - num_regs) * sizeof(uint32_t)) + sizeof(uint32_t); // Dalvik in
   }
-#endif
 }
 
 uint32_t Frame::GetVReg(const DexFile::CodeItem* code_item, uint32_t core_spills,
