@@ -90,7 +90,7 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
             break;
           case 't':
             buf += StringPrintf("0x%08x (L%p)",
-                                (intptr_t)baseAddr + lir->offset + operand,
+                                reinterpret_cast<uint32_t>(baseAddr) + lir->offset + operand,
                                 lir->target);
             break;
           default:
