@@ -132,6 +132,7 @@ static bool IsVisibleField(Field* f, bool public_only) {
 }
 
 static jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
+  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Class* c = DecodeClass(env, javaClass);
   if (c == NULL) {
     return NULL;
