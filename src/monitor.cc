@@ -237,6 +237,12 @@ static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   Thread::Current()->ThrowNewExceptionV("Ljava/lang/IllegalMonitorStateException;", fmt, args);
+  if (!Runtime::Current()->IsStarted()) {
+    std::ostringstream ss;
+    Thread::Current()->Dump(ss);
+    std::string str(ss.str());
+    LOG(ERROR) << "IllegalMonitorStateException: " << str;
+  }
   va_end(args);
 }
 
