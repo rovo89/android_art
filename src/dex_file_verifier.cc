@@ -642,8 +642,8 @@ bool DexFileVerifier::CheckIntraCodeItem() {
     return false;
   }
 
-  uint32_t handler_offsets[handlers_size];
-  if (!CheckAndGetHandlerOffsets(code_item, handler_offsets, handlers_size)) {
+  UniquePtr<uint32_t[]> handler_offsets(new uint32_t[handlers_size]);
+  if (!CheckAndGetHandlerOffsets(code_item, &handler_offsets[0], handlers_size)) {
     return false;
   }
 

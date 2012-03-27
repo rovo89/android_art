@@ -1041,7 +1041,8 @@ class ClassDataItemIterator {
     ClassDataField() :  field_idx_delta_(0), access_flags_(0) {}
    private:
     DISALLOW_COPY_AND_ASSIGN(ClassDataField);
-  } field_;
+  };
+  ClassDataField field_;
 
   // Read and decode a field from a class_data_item stream into field
   void ReadClassDataField();
@@ -1054,7 +1055,8 @@ class ClassDataItemIterator {
     ClassDataMethod() : method_idx_delta_(0), access_flags_(0), code_off_(0) {}
    private:
     DISALLOW_COPY_AND_ASSIGN(ClassDataMethod);
-  } method_;
+  };
+  ClassDataMethod method_;
 
   // Read and decode a method from a class_data_item stream into method
   void ReadClassDataMethod();
