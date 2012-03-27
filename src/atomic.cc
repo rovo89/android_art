@@ -148,10 +148,10 @@ int64_t QuasiAtomicRead64(volatile const int64_t* addr) {
 
 #include <pthread.h>
 
-#define  SWAP_LOCK_COUNT  32U
+#define SWAP_LOCK_COUNT  32U
 static pthread_mutex_t  _swap_locks[SWAP_LOCK_COUNT];
 
-#define  SWAP_LOCK(addr) &_swap_locks[((unsigned)(void*)(addr) >> 3U) % SWAP_LOCK_COUNT]
+#define SWAP_LOCK(addr) &_swap_locks[(reinterpret_cast<unsigned>(reinterpret_cast<void*>(addr)) >> 3U) % SWAP_LOCK_COUNT]
 
 int64_t QuasiAtomicSwap64(int64_t value, volatile int64_t* addr) {
   pthread_mutex_t*  lock = SWAP_LOCK(addr);

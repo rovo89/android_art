@@ -86,7 +86,7 @@ namespace art {
  * lock.  Performs no error checking.
  */
 #define LW_MONITOR(x) \
-  ((Monitor*)((x) & ~((LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT) | LW_SHAPE_MASK)))
+  (reinterpret_cast<Monitor*>((x) & ~((LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT) | LW_SHAPE_MASK)))
 
 /*
  * Lock recursion count field.  Contains a count of the number of times
@@ -583,9 +583,9 @@ void Monitor::Inflate(Thread* self, Object* obj) {
 void Monitor::MonitorEnter(Thread* self, Object* obj) {
   volatile int32_t* thinp = obj->GetRawLockWordAddress();
   struct timespec tm;
-  long sleepDelayNs;
-  long minSleepDelayNs = 1000000;  /* 1 millisecond */
-  long maxSleepDelayNs = 1000000000;  /* 1 second */
+  uint32_t sleepDelayNs;
+  uint32_t minSleepDelayNs = 1000000;  /* 1 millisecond */
+  uint32_t maxSleepDelayNs = 1000000000;  /* 1 second */
   uint32_t thin, newThin;
 
   DCHECK(self != NULL);
@@ -662,8 +662,7 @@ retry:
         } else {
           // The thin lock was inflated by another thread. Let the runtime know we are no longer
           // waiting and try again.
-          VLOG(monitor) << "monitor: thread " << threadId
-                        << " found lock " << (void*) thinp << " surprise-fattened by another thread";
+          VLOG(monitor) << StringPrintf("monitor: thread %d found lock %p surprise-fattened by another thread", threadId, thinp);
           self->monitor_enter_object_ = NULL;
           self->SetState(oldStatus);
           goto retry;
@@ -680,7 +679,8 @@ retry:
   } else {
     // The lock is a fat lock.
     VLOG(monitor) << StringPrintf("monitor: thread %d locking fat lock %p (%p) %p on a %s",
-          threadId, thinp, LW_MONITOR(*thinp), (void*)*thinp, PrettyTypeOf(obj).c_str());
+                                  threadId, thinp, LW_MONITOR(*thinp),
+                                  reinterpret_cast<void*>(*thinp), PrettyTypeOf(obj).c_str());
     DCHECK(LW_MONITOR(*thinp) != NULL);
     LW_MONITOR(*thinp)->Lock(self);
   }

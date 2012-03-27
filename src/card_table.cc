@@ -68,7 +68,8 @@ CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   // We allocated up to a bytes worth of extra space to allow biased_begin's byte value to equal
   // GC_CARD_DIRTY, compute a offset value to make this the case
   size_t offset = 0;
-  byte* biased_begin = (byte *)((uintptr_t)cardtable_begin -((uintptr_t)heap_begin >> GC_CARD_SHIFT));
+  byte* biased_begin = reinterpret_cast<byte*>(reinterpret_cast<uintptr_t>(cardtable_begin) -
+      (reinterpret_cast<uintptr_t>(heap_begin) >> GC_CARD_SHIFT));
   if (((uintptr_t)biased_begin & 0xff) != GC_CARD_DIRTY) {
     int delta = GC_CARD_DIRTY - (reinterpret_cast<int>(biased_begin) & 0xff);
     offset = delta + (delta < 0 ? 0x100 : 0);

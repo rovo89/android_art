@@ -54,7 +54,7 @@ namespace x86 {
 }
 
 static double Percentage(size_t x, size_t y) {
-  return 100.0 * ((double)x) / ((double)(x + y));
+  return 100.0 * (static_cast<double>(x)) / (static_cast<double>(x + y));
 }
 
 static void DumpStat(size_t x, size_t y, const char* str) {

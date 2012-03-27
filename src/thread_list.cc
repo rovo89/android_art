@@ -274,7 +274,7 @@ void ThreadList::Resume(Thread* thread, bool for_debugger) {
   VLOG(threads) << "Resume(" << *thread << ") complete";
 }
 
-void ThreadList::RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg) {
+void ThreadList::RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg) {  // NOLINT
   DCHECK(thread != NULL);
   Thread* self = Thread::Current();
   if (thread != self) {

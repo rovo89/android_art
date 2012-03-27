@@ -37,14 +37,14 @@ static void Set4LE(uint8_t* buf, uint32_t val) {
 
 static char* EventLogWriteInt(char* dst, int value) {
   *dst++ = EVENT_TYPE_INT;
-  Set4LE((uint8_t*) dst, value);
+  Set4LE(reinterpret_cast<uint8_t*>(dst), value);
   return dst + 4;
 }
 
 static char* EventLogWriteString(char* dst, const char* value, size_t len) {
   *dst++ = EVENT_TYPE_STRING;
   len = len < 32 ? len : 32;
-  Set4LE((uint8_t*) dst, len);
+  Set4LE(reinterpret_cast<uint8_t*>(dst), len);
   dst += 4;
   memcpy(dst, value, len);
   return dst + len;
