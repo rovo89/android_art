@@ -20,14 +20,27 @@
 #include <vector>
 
 #include "dex_file.h"
+#include "invoke_type.h"
 #include "mem_map.h"
 #include "oat.h"
 #include "object.h"
+
+#if defined(ART_USE_LLVM_COMPILER)
+namespace art {
+  namespace compiler_llvm {
+    class ElfLoader;
+  }
+}
+#endif
 
 namespace art {
 
 class OatFile {
  public:
+  enum RelocationBehavior {
+    kRelocNone,
+    kRelocAll,
+  };
 
   // Returns an OatFile name based on a DexFile location
   static std::string DexFilenameToOatFilename(const std::string& location);
@@ -37,12 +50,14 @@ class OatFile {
   static OatFile* Open(const std::string& filename,
                        const std::string& location,
                        byte* requested_base,
+                       RelocationBehavior reloc,
                        bool writable = false);
 
   // Open an oat file from an already opened File with the given location.
   static OatFile* Open(File& file,
                        const std::string& location,
                        byte* requested_base,
+                       RelocationBehavior reloc,
                        bool writable = false);
 
   ~OatFile();
@@ -88,18 +103,34 @@ class OatFile {
       return invoke_stub_offset_;
     }
 
-    const void* GetCode() const {
-      return GetOatPointer<const void*>(code_offset_);
+#if defined(ART_USE_LLVM_COMPILER)
+    uint32_t GetCodeElfIndex() const {
+      return code_elf_idx_;
     }
-    uint32_t GetCodeSize() const {
-      uintptr_t code = reinterpret_cast<uint32_t>(GetCode());
-      if (code == 0) {
-        return 0;
-      }
-      // TODO: make this Thumb2 specific
-      code &= ~0x1;
-      return reinterpret_cast<uint32_t*>(code)[-1];
+    uint32_t GetInvokeStubElfIndex() const {
+      return invoke_stub_elf_idx_;
     }
+#endif
+
+    bool IsCodeInElf() const {
+#if defined(ART_USE_LLVM_COMPILER)
+      return (code_elf_idx_ != -1u);
+#else
+      return false;
+#endif
+    }
+
+    bool IsInvokeStubInElf() const {
+#if defined(ART_USE_LLVM_COMPILER)
+      return (invoke_stub_elf_idx_ != -1u);
+#else
+      return false;
+#endif
+    }
+
+    const void* GetCode() const;
+    uint32_t GetCodeSize() const;
+
     const uint32_t* GetMappingTable() const {
       return GetOatPointer<const uint32_t*>(mapping_table_offset_);
     }
@@ -109,16 +140,9 @@ class OatFile {
     const uint8_t* GetGcMap() const {
       return GetOatPointer<const uint8_t*>(gc_map_offset_);
     }
-    const Method::InvokeStub* GetInvokeStub() const {
-      return GetOatPointer<const Method::InvokeStub*>(invoke_stub_offset_);
-    }
-    uint32_t GetInvokeStubSize() const {
-      uintptr_t code = reinterpret_cast<uint32_t>(GetInvokeStub());
-      if (code == 0) {
-        return 0;
-      }
-      return reinterpret_cast<uint32_t*>(code)[-1];
-    }
+
+    const Method::InvokeStub* GetInvokeStub() const;
+    uint32_t GetInvokeStubSize() const;
 
     ~OatMethod();
 
@@ -131,7 +155,13 @@ class OatFile {
               const uint32_t mapping_table_offset,
               const uint32_t vmap_table_offset,
               const uint32_t gc_map_offset,
-              const uint32_t invoke_stub_offset);
+              const uint32_t invoke_stub_offset
+#if defined(ART_USE_LLVM_COMPILER)
+            , const compiler_llvm::ElfLoader* elf_loader,
+              const uint32_t code_elf_idx,
+              const uint32_t invoke_stub_elf_idx
+#endif
+              );
 
    private:
     template<class T>
@@ -152,6 +182,13 @@ class OatFile {
     uint32_t vmap_table_offset_;
     uint32_t gc_map_offset_;
     uint32_t invoke_stub_offset_;
+
+#if defined(ART_USE_LLVM_COMPILER)
+    const compiler_llvm::ElfLoader* elf_loader_;
+
+    uint32_t code_elf_idx_;
+    uint32_t invoke_stub_elf_idx_;
+#endif
 
     friend class OatClass;
   };
@@ -239,17 +276,21 @@ class OatFile {
                                   bool warn_if_not_found = true) const;
   std::vector<const OatDexFile*> GetOatDexFiles() const;
 
+#if defined(ART_USE_LLVM_COMPILER)
   const OatElfImage* GetOatElfImage(size_t i) const {
     return oat_elf_images_[i];
   }
+#endif
 
   size_t Size() const {
     return End() - Begin();
   }
 
+  void RelocateExecutable();
+
  private:
   explicit OatFile(const std::string& filename);
-  bool Map(File& file, byte* requested_base, bool writable);
+  bool Map(File& file, byte* requested_base, RelocationBehavior reloc, bool writable);
 
   const byte* Begin() const;
   const byte* End() const;
@@ -265,7 +306,10 @@ class OatFile {
   typedef std::map<std::string, const OatDexFile*> Table;
   Table oat_dex_files_;
 
+#if defined(ART_USE_LLVM_COMPILER)
   std::vector<OatElfImage*> oat_elf_images_;
+  UniquePtr<compiler_llvm::ElfLoader> elf_loader_;
+#endif
 
   friend class OatClass;
   friend class OatDexFile;

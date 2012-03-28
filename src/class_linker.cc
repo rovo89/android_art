@@ -645,7 +645,9 @@ OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
   std::string oat_filename;
   oat_filename += runtime->GetHostPrefix();
   oat_filename += oat_location->ToModifiedUtf8();
-  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatBegin());
+  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename,
+                                    image_header.GetOatBegin(),
+                                    OatFile::kRelocNone);
   VLOG(startup) << "ClassLinker::OpenOat entering oat_filename=" << oat_filename;
   if (oat_file == NULL) {
     LOG(ERROR) << "Failed to open oat file " << oat_filename << " referenced from image.";
@@ -729,7 +731,8 @@ class LockedFd {
 static const DexFile* FindDexFileInOatLocation(const std::string& dex_location,
                                                uint32_t dex_location_checksum,
                                                const std::string& oat_location) {
-  UniquePtr<OatFile> oat_file(OatFile::Open(oat_location, oat_location, NULL));
+  UniquePtr<OatFile> oat_file(
+      OatFile::Open(oat_location, oat_location, NULL, OatFile::kRelocAll));
   if (oat_file.get() == NULL) {
     return NULL;
   }
@@ -781,7 +784,8 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const std::string&
     LOG(ERROR) << "Failed to seek to start of generated oat file: " << oat_location;
     return NULL;
   }
-  const OatFile* oat_file = OatFile::Open(*file.get(), oat_location, NULL);
+  const OatFile* oat_file =
+      OatFile::Open(*file.get(), oat_location, NULL, OatFile::kRelocAll);
   if (oat_file == NULL) {
     LOG(ERROR) << "Failed to open generated oat file: " << oat_location;
     return NULL;
@@ -877,7 +881,8 @@ const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_lo
     return oat_file;
   }
 
-  oat_file = OatFile::Open(oat_location, oat_location, NULL);
+  oat_file = OatFile::Open(oat_location, oat_location, NULL,
+                           OatFile::kRelocAll);
   if (oat_file == NULL) {
     return NULL;
   }
@@ -3511,6 +3516,12 @@ void ClassLinker::SetClassRoot(ClassRoot class_root, Class* klass) {
   DCHECK(class_roots_ != NULL);
   DCHECK(class_roots_->Get(class_root) == NULL);
   class_roots_->Set(class_root, klass);
+}
+
+void ClassLinker::RelocateExecutable() {
+  for (size_t i = 0; i < oat_files_.size(); ++i) {
+    const_cast<OatFile*>(oat_files_[i])->RelocateExecutable();
+  }
 }
 
 }  // namespace art

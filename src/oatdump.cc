@@ -1257,7 +1257,8 @@ int oatdump(int argc, char** argv) {
   }
 
   if (oat_filename != NULL) {
-    OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, NULL);
+    OatFile* oat_file =
+        OatFile::Open(oat_filename, oat_filename, NULL, OatFile::kRelocNone);
     if (oat_file == NULL) {
       fprintf(stderr, "Failed to open oat file from %s\n", oat_filename);
       return EXIT_FAILURE;
@@ -1265,6 +1266,7 @@ int oatdump(int argc, char** argv) {
     OatDumper oat_dumper(*host_prefix.get(), *oat_file);
     oat_dumper.Dump(*os);
 
+#if defined(ART_USE_LLVM_COMPILER)
     if (!elf_filename_prefix.empty()) {
       uint32_t elf_image_count = oat_file->GetOatHeader().GetElfImageCount();
       for (uint32_t i = 0; i < elf_image_count; ++i) {
@@ -1281,6 +1283,7 @@ int oatdump(int argc, char** argv) {
         }
       }
     }
+#endif
     return EXIT_SUCCESS;
   }
 

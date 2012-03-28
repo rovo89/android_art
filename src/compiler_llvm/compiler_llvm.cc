@@ -27,6 +27,7 @@
 #include "jni_compiler.h"
 #include "method_compiler.h"
 #include "oat_compilation_unit.h"
+#include "oat_file.h"
 #include "stl_util.h"
 #include "upcall_compiler.h"
 
@@ -203,7 +204,9 @@ void CompilerLLVM::LoadElfFromCompilationUnit(const CompilationUnit* cunit) {
   compiler_lock_.AssertHeld();
   DCHECK(cunit->IsMaterialized()) << cunit->GetElfIndex();
 
-  if (!elf_loader_->LoadElfAt(cunit->GetElfIndex(), cunit->GetElfImage())) {
+  if (!elf_loader_->LoadElfAt(cunit->GetElfIndex(),
+                              cunit->GetElfImage(),
+                              OatFile::kRelocAll)) {
     LOG(ERROR) << "Failed to load ELF from compilation unit "
                << cunit->GetElfIndex();
   }

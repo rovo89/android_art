@@ -529,6 +529,9 @@ void Runtime::Start() {
 
   CHECK(host_prefix_.empty()) << host_prefix_;
 
+  // Relocate the OatFiles (ELF images)
+  class_linker_->RelocateExecutable();
+
   // Restore main thread state to kNative as expected by native code
   Thread::Current()->SetState(Thread::kNative);
 
