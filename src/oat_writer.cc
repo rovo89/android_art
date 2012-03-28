@@ -255,9 +255,9 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                                     bool __attribute__((unused)) is_native,
                                     bool is_static, bool is_direct,
                                     uint32_t method_idx, const DexFile* dex_file) {
-#if !defined(ART_USE_LLVM_COMPILER)
   // derived from CompiledMethod if available
   uint32_t code_offset = 0;
+  uint32_t code_elf_idx = -1u;
   uint32_t frame_size_in_bytes = kStackAlignment;
   uint32_t core_spill_mask = 0;
   uint32_t fp_spill_mask = 0;
@@ -266,104 +266,113 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   uint32_t gc_map_offset = 0;
   // derived from CompiledInvokeStub if available
   uint32_t invoke_stub_offset = 0;
+  uint32_t invoke_stub_elf_idx = -1u;
 
   CompiledMethod* compiled_method =
       compiler_->GetCompiledMethod(Compiler::MethodReference(dex_file, method_idx));
   if (compiled_method != NULL) {
-    offset = compiled_method->AlignCode(offset);
-    DCHECK_ALIGNED(offset, kArmAlignment);
-    const std::vector<uint8_t>& code = compiled_method->GetCode();
-    uint32_t code_size = code.size() * sizeof(code[0]);
-    CHECK_NE(code_size, 0U);
-    uint32_t thumb_offset = compiled_method->CodeDelta();
-    code_offset = offset + sizeof(code_size) + thumb_offset;
-
-    // Deduplicate code arrays
-    std::map<const std::vector<uint8_t>*, uint32_t>::iterator code_iter = code_offsets_.find(&code);
-    if (code_iter != code_offsets_.end()) {
-      code_offset = code_iter->second;
+    if (compiled_method->IsExecutableInElf()) {
+      code_elf_idx = compiled_method->GetElfIndex();
     } else {
-      code_offsets_.insert(std::pair<const std::vector<uint8_t>*, uint32_t>(&code, code_offset));
-      offset += sizeof(code_size);  // code size is prepended before code
-      offset += code_size;
-      oat_header_->UpdateChecksum(&code[0], code_size);
-    }
-    frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
-    core_spill_mask = compiled_method->GetCoreSpillMask();
-    fp_spill_mask = compiled_method->GetFpSpillMask();
+      offset = compiled_method->AlignCode(offset);
+      DCHECK_ALIGNED(offset, kArmAlignment);
+      const std::vector<uint8_t>& code = compiled_method->GetCode();
+      uint32_t code_size = code.size() * sizeof(code[0]);
+      CHECK_NE(code_size, 0U);
+      uint32_t thumb_offset = compiled_method->CodeDelta();
+      code_offset = offset + sizeof(code_size) + thumb_offset;
 
-    const std::vector<uint32_t>& mapping_table = compiled_method->GetMappingTable();
-    size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);
-    mapping_table_offset = (mapping_table_size == 0) ? 0 : offset;
+      // Deduplicate code arrays
+      std::map<const std::vector<uint8_t>*, uint32_t>::iterator code_iter = code_offsets_.find(&code);
+      if (code_iter != code_offsets_.end()) {
+        code_offset = code_iter->second;
+      } else {
+        code_offsets_.insert(std::pair<const std::vector<uint8_t>*, uint32_t>(&code, code_offset));
+        offset += sizeof(code_size);  // code size is prepended before code
+        offset += code_size;
+        oat_header_->UpdateChecksum(&code[0], code_size);
+      }
+      frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
+      core_spill_mask = compiled_method->GetCoreSpillMask();
+      fp_spill_mask = compiled_method->GetFpSpillMask();
 
-    // Deduplicate mapping tables
-    std::map<const std::vector<uint32_t>*, uint32_t>::iterator mapping_iter = mapping_table_offsets_.find(&mapping_table);
-    if (mapping_iter != mapping_table_offsets_.end()) {
-      mapping_table_offset = mapping_iter->second;
-    } else {
-      mapping_table_offsets_.insert(std::pair<const std::vector<uint32_t>*, uint32_t>(&mapping_table, mapping_table_offset));
-      offset += mapping_table_size;
-      oat_header_->UpdateChecksum(&mapping_table[0], mapping_table_size);
-    }
+      const std::vector<uint32_t>& mapping_table = compiled_method->GetMappingTable();
+      size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);
+      mapping_table_offset = (mapping_table_size == 0) ? 0 : offset;
 
-    const std::vector<uint16_t>& vmap_table = compiled_method->GetVmapTable();
-    size_t vmap_table_size = vmap_table.size() * sizeof(vmap_table[0]);
-    vmap_table_offset = (vmap_table_size == 0) ? 0 : offset;
+      // Deduplicate mapping tables
+      std::map<const std::vector<uint32_t>*, uint32_t>::iterator mapping_iter = mapping_table_offsets_.find(&mapping_table);
+      if (mapping_iter != mapping_table_offsets_.end()) {
+        mapping_table_offset = mapping_iter->second;
+      } else {
+        mapping_table_offsets_.insert(std::pair<const std::vector<uint32_t>*, uint32_t>(&mapping_table, mapping_table_offset));
+        offset += mapping_table_size;
+        oat_header_->UpdateChecksum(&mapping_table[0], mapping_table_size);
+      }
 
-    // Deduplicate vmap tables
-    std::map<const std::vector<uint16_t>*, uint32_t>::iterator vmap_iter = vmap_table_offsets_.find(&vmap_table);
-    if (vmap_iter != vmap_table_offsets_.end()) {
-      vmap_table_offset = vmap_iter->second;
-    } else {
-      vmap_table_offsets_.insert(std::pair<const std::vector<uint16_t>*, uint32_t>(&vmap_table, vmap_table_offset));
-      offset += vmap_table_size;
-      oat_header_->UpdateChecksum(&vmap_table[0], vmap_table_size);
-    }
+      const std::vector<uint16_t>& vmap_table = compiled_method->GetVmapTable();
+      size_t vmap_table_size = vmap_table.size() * sizeof(vmap_table[0]);
+      vmap_table_offset = (vmap_table_size == 0) ? 0 : offset;
 
-    const std::vector<uint8_t>& gc_map = compiled_method->GetGcMap();
-    size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
-    gc_map_offset = (gc_map_size == 0) ? 0 : offset;
+      // Deduplicate vmap tables
+      std::map<const std::vector<uint16_t>*, uint32_t>::iterator vmap_iter = vmap_table_offsets_.find(&vmap_table);
+      if (vmap_iter != vmap_table_offsets_.end()) {
+        vmap_table_offset = vmap_iter->second;
+      } else {
+        vmap_table_offsets_.insert(std::pair<const std::vector<uint16_t>*, uint32_t>(&vmap_table, vmap_table_offset));
+        offset += vmap_table_size;
+        oat_header_->UpdateChecksum(&vmap_table[0], vmap_table_size);
+      }
+
+      const std::vector<uint8_t>& gc_map = compiled_method->GetGcMap();
+      size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
+      gc_map_offset = (gc_map_size == 0) ? 0 : offset;
 
 #ifndef NDEBUG
-    // We expect GC maps except when the class hasn't been verified or the method is native
-    CompiledClass* compiled_class =
-        compiler_->GetCompiledClass(Compiler::MethodReference(dex_file, class_def_index));
-    Class::Status status =
-        (compiled_class != NULL) ? compiled_class->GetStatus() : Class::kStatusNotReady;
-    CHECK(gc_map_size != 0 || is_native || status < Class::kStatusVerified)
-        << &gc_map << " " << gc_map_size << " " << (is_native ? "true" : "false") << " " << (status < Class::kStatusVerified) << " " << status << " " << PrettyMethod(method_idx, *dex_file);
+      // We expect GC maps except when the class hasn't been verified or the method is native
+      CompiledClass* compiled_class =
+          compiler_->GetCompiledClass(Compiler::MethodReference(dex_file, class_def_index));
+      Class::Status status =
+          (compiled_class != NULL) ? compiled_class->GetStatus() : Class::kStatusNotReady;
+      CHECK(gc_map_size != 0 || is_native || status < Class::kStatusVerified)
+          << &gc_map << " " << gc_map_size << " " << (is_native ? "true" : "false") << " " << (status < Class::kStatusVerified) << " " << status << " " << PrettyMethod(method_idx, *dex_file);
 #endif
 
-    // Deduplicate GC maps
-    std::map<const std::vector<uint8_t>*, uint32_t>::iterator gc_map_iter = gc_map_offsets_.find(&gc_map);
-    if (gc_map_iter != gc_map_offsets_.end()) {
-      gc_map_offset = gc_map_iter->second;
-    } else {
-      gc_map_offsets_.insert(std::pair<const std::vector<uint8_t>*, uint32_t>(&gc_map, gc_map_offset));
-      offset += gc_map_size;
-      oat_header_->UpdateChecksum(&gc_map[0], gc_map_size);
+      // Deduplicate GC maps
+      std::map<const std::vector<uint8_t>*, uint32_t>::iterator gc_map_iter = gc_map_offsets_.find(&gc_map);
+      if (gc_map_iter != gc_map_offsets_.end()) {
+        gc_map_offset = gc_map_iter->second;
+      } else {
+        gc_map_offsets_.insert(std::pair<const std::vector<uint8_t>*, uint32_t>(&gc_map, gc_map_offset));
+        offset += gc_map_size;
+        oat_header_->UpdateChecksum(&gc_map[0], gc_map_size);
+      }
     }
   }
 
   const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(method_idx));
   const CompiledInvokeStub* compiled_invoke_stub = compiler_->FindInvokeStub(is_static, shorty);
   if (compiled_invoke_stub != NULL) {
-    offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
-    DCHECK_ALIGNED(offset, kArmAlignment);
-    const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
-    uint32_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
-    CHECK_NE(invoke_stub_size, 0U);
-    invoke_stub_offset = offset + sizeof(invoke_stub_size);
-
-    // Deduplicate invoke stubs
-    std::map<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter = code_offsets_.find(&invoke_stub);
-    if (stub_iter != code_offsets_.end()) {
-      invoke_stub_offset = stub_iter->second;
+    if (compiled_invoke_stub->IsExecutableInElf()) {
+      invoke_stub_elf_idx = compiled_invoke_stub->GetElfIndex();
     } else {
-      code_offsets_.insert(std::pair<const std::vector<uint8_t>*, uint32_t>(&invoke_stub, invoke_stub_offset));
-      offset += sizeof(invoke_stub_size);  // invoke stub size is prepended before code
-      offset += invoke_stub_size;
-      oat_header_->UpdateChecksum(&invoke_stub[0], invoke_stub_size);
+      offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
+      DCHECK_ALIGNED(offset, kArmAlignment);
+      const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
+      uint32_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
+      CHECK_NE(invoke_stub_size, 0U);
+      invoke_stub_offset = offset + sizeof(invoke_stub_size);
+
+      // Deduplicate invoke stubs
+      std::map<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter = code_offsets_.find(&invoke_stub);
+      if (stub_iter != code_offsets_.end()) {
+        invoke_stub_offset = stub_iter->second;
+      } else {
+        code_offsets_.insert(std::pair<const std::vector<uint8_t>*, uint32_t>(&invoke_stub, invoke_stub_offset));
+        offset += sizeof(invoke_stub_size);  // invoke stub size is prepended before code
+        offset += invoke_stub_size;
+        oat_header_->UpdateChecksum(&invoke_stub[0], invoke_stub_size);
+      }
     }
   }
 
@@ -375,7 +384,12 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                          mapping_table_offset,
                          vmap_table_offset,
                          gc_map_offset,
-                         invoke_stub_offset);
+                         invoke_stub_offset
+#if defined(ART_USE_LLVM_COMPILER)
+                       , code_elf_idx,
+                         invoke_stub_elf_idx
+#endif
+                         );
 
   if (compiler_->IsImage()) {
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
@@ -398,7 +412,6 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     method->SetOatGcMapOffset(gc_map_offset);
     method->SetOatInvokeStubOffset(invoke_stub_offset);
   }
-#endif
 
   return offset;
 }
@@ -576,7 +589,6 @@ size_t OatWriter::WriteCodeClassDef(File* file,
 size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_class_index,
                                   size_t class_def_method_index, bool is_static,
                                   uint32_t method_idx, const DexFile& dex_file) {
-#if !defined(ART_USE_LLVM_COMPILER)
   const CompiledMethod* compiled_method =
       compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file, method_idx));
 
@@ -589,160 +601,163 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
 
 
   if (compiled_method != NULL) {  // ie. not an abstract method
-    uint32_t aligned_code_offset = compiled_method->AlignCode(code_offset);
-    uint32_t aligned_code_delta = aligned_code_offset - code_offset;
-    if (aligned_code_delta != 0) {
-      off_t new_offset = lseek(file->Fd(), aligned_code_delta, SEEK_CUR);
-      if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
-        PLOG(ERROR) << "Failed to seek to align oat code. Actual: " << new_offset
-                    << " Expected: " << aligned_code_offset << " File: " << file->name();
-        return 0;
+    if (!compiled_method->IsExecutableInElf()) {
+      uint32_t aligned_code_offset = compiled_method->AlignCode(code_offset);
+      uint32_t aligned_code_delta = aligned_code_offset - code_offset;
+      if (aligned_code_delta != 0) {
+        off_t new_offset = lseek(file->Fd(), aligned_code_delta, SEEK_CUR);
+        if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
+          PLOG(ERROR) << "Failed to seek to align oat code. Actual: " << new_offset
+                      << " Expected: " << aligned_code_offset << " File: " << file->name();
+          return 0;
+        }
+        code_offset += aligned_code_delta;
+        DCHECK_CODE_OFFSET();
       }
-      code_offset += aligned_code_delta;
+      DCHECK_ALIGNED(code_offset, kArmAlignment);
+      const std::vector<uint8_t>& code = compiled_method->GetCode();
+      uint32_t code_size = code.size() * sizeof(code[0]);
+      CHECK_NE(code_size, 0U);
+
+      // Deduplicate code arrays
+      size_t offset = code_offset + sizeof(code_size) + compiled_method->CodeDelta();
+      std::map<const std::vector<uint8_t>*, uint32_t>::iterator code_iter = code_offsets_.find(&code);
+      if (code_iter != code_offsets_.end() && offset != method_offsets.code_offset_) {
+        DCHECK(code_iter->second == method_offsets.code_offset_) << PrettyMethod(method_idx, dex_file);
+      } else {
+        DCHECK(offset == method_offsets.code_offset_) << PrettyMethod(method_idx, dex_file);
+        if (!file->WriteFully(&code_size, sizeof(code_size))) {
+          ReportWriteFailure("method code size", method_idx, dex_file, file);
+          return 0;
+        }
+        code_offset += sizeof(code_size);
+        DCHECK_CODE_OFFSET();
+        if (!file->WriteFully(&code[0], code_size)) {
+          ReportWriteFailure("method code", method_idx, dex_file, file);
+          return 0;
+        }
+        code_offset += code_size;
+      }
+      DCHECK_CODE_OFFSET();
+      frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
+      core_spill_mask = compiled_method->GetCoreSpillMask();
+      fp_spill_mask = compiled_method->GetFpSpillMask();
+
+      const std::vector<uint32_t>& mapping_table = compiled_method->GetMappingTable();
+      size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);
+
+      // Deduplicate mapping tables
+      std::map<const std::vector<uint32_t>*, uint32_t>::iterator mapping_iter =
+          mapping_table_offsets_.find(&mapping_table);
+      if (mapping_iter != mapping_table_offsets_.end() &&
+          code_offset != method_offsets.mapping_table_offset_) {
+        DCHECK((mapping_table_size == 0 && method_offsets.mapping_table_offset_ == 0)
+            || mapping_iter->second == method_offsets.mapping_table_offset_)
+            << PrettyMethod(method_idx, dex_file);
+      } else {
+        DCHECK((mapping_table_size == 0 && method_offsets.mapping_table_offset_ == 0)
+            || code_offset == method_offsets.mapping_table_offset_)
+            << PrettyMethod(method_idx, dex_file);
+        if (!file->WriteFully(&mapping_table[0], mapping_table_size)) {
+          ReportWriteFailure("mapping table", method_idx, dex_file, file);
+          return 0;
+        }
+        code_offset += mapping_table_size;
+      }
+      DCHECK_CODE_OFFSET();
+
+      const std::vector<uint16_t>& vmap_table = compiled_method->GetVmapTable();
+      size_t vmap_table_size = vmap_table.size() * sizeof(vmap_table[0]);
+
+      // Deduplicate vmap tables
+      std::map<const std::vector<uint16_t>*, uint32_t>::iterator vmap_iter =
+          vmap_table_offsets_.find(&vmap_table);
+      if (vmap_iter != vmap_table_offsets_.end() &&
+          code_offset != method_offsets.vmap_table_offset_) {
+        DCHECK((vmap_table_size == 0 && method_offsets.vmap_table_offset_ == 0)
+            || vmap_iter->second == method_offsets.vmap_table_offset_)
+            << PrettyMethod(method_idx, dex_file);
+      } else {
+        DCHECK((vmap_table_size == 0 && method_offsets.vmap_table_offset_ == 0)
+            || code_offset == method_offsets.vmap_table_offset_)
+            << PrettyMethod(method_idx, dex_file);
+        if (!file->WriteFully(&vmap_table[0], vmap_table_size)) {
+          ReportWriteFailure("vmap table", method_idx, dex_file, file);
+          return 0;
+        }
+        code_offset += vmap_table_size;
+      }
+      DCHECK_CODE_OFFSET();
+
+      const std::vector<uint8_t>& gc_map = compiled_method->GetGcMap();
+      size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
+
+      // Deduplicate GC maps
+      std::map<const std::vector<uint8_t>*, uint32_t>::iterator gc_map_iter =
+          gc_map_offsets_.find(&gc_map);
+      if (gc_map_iter != gc_map_offsets_.end() &&
+          code_offset != method_offsets.gc_map_offset_) {
+        DCHECK((gc_map_size == 0 && method_offsets.gc_map_offset_ == 0)
+            || gc_map_iter->second == method_offsets.gc_map_offset_)
+            << PrettyMethod(method_idx, dex_file);
+      } else {
+        DCHECK((gc_map_size == 0 && method_offsets.gc_map_offset_ == 0)
+            || code_offset == method_offsets.gc_map_offset_)
+            << PrettyMethod(method_idx, dex_file);
+        if (!file->WriteFully(&gc_map[0], gc_map_size)) {
+          ReportWriteFailure("GC map", method_idx, dex_file, file);
+          return 0;
+        }
+        code_offset += gc_map_size;
+      }
       DCHECK_CODE_OFFSET();
     }
-    DCHECK_ALIGNED(code_offset, kArmAlignment);
-    const std::vector<uint8_t>& code = compiled_method->GetCode();
-    uint32_t code_size = code.size() * sizeof(code[0]);
-    CHECK_NE(code_size, 0U);
-
-    // Deduplicate code arrays
-    size_t offset = code_offset + sizeof(code_size) + compiled_method->CodeDelta();
-    std::map<const std::vector<uint8_t>*, uint32_t>::iterator code_iter = code_offsets_.find(&code);
-    if (code_iter != code_offsets_.end() && offset != method_offsets.code_offset_) {
-      DCHECK(code_iter->second == method_offsets.code_offset_) << PrettyMethod(method_idx, dex_file);
-    } else {
-      DCHECK(offset == method_offsets.code_offset_) << PrettyMethod(method_idx, dex_file);
-      if (!file->WriteFully(&code_size, sizeof(code_size))) {
-        ReportWriteFailure("method code size", method_idx, dex_file, file);
-        return 0;
-      }
-      code_offset += sizeof(code_size);
-      DCHECK_CODE_OFFSET();
-      if (!file->WriteFully(&code[0], code_size)) {
-        ReportWriteFailure("method code", method_idx, dex_file, file);
-        return 0;
-      }
-      code_offset += code_size;
-    }
-    DCHECK_CODE_OFFSET();
-    frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
-    core_spill_mask = compiled_method->GetCoreSpillMask();
-    fp_spill_mask = compiled_method->GetFpSpillMask();
-
-    const std::vector<uint32_t>& mapping_table = compiled_method->GetMappingTable();
-    size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);
-
-    // Deduplicate mapping tables
-    std::map<const std::vector<uint32_t>*, uint32_t>::iterator mapping_iter =
-        mapping_table_offsets_.find(&mapping_table);
-    if (mapping_iter != mapping_table_offsets_.end() &&
-        code_offset != method_offsets.mapping_table_offset_) {
-      DCHECK((mapping_table_size == 0 && method_offsets.mapping_table_offset_ == 0)
-          || mapping_iter->second == method_offsets.mapping_table_offset_)
-          << PrettyMethod(method_idx, dex_file);
-    } else {
-      DCHECK((mapping_table_size == 0 && method_offsets.mapping_table_offset_ == 0)
-          || code_offset == method_offsets.mapping_table_offset_)
-          << PrettyMethod(method_idx, dex_file);
-      if (!file->WriteFully(&mapping_table[0], mapping_table_size)) {
-        ReportWriteFailure("mapping table", method_idx, dex_file, file);
-        return 0;
-      }
-      code_offset += mapping_table_size;
-    }
-    DCHECK_CODE_OFFSET();
-
-    const std::vector<uint16_t>& vmap_table = compiled_method->GetVmapTable();
-    size_t vmap_table_size = vmap_table.size() * sizeof(vmap_table[0]);
-
-    // Deduplicate vmap tables
-    std::map<const std::vector<uint16_t>*, uint32_t>::iterator vmap_iter =
-        vmap_table_offsets_.find(&vmap_table);
-    if (vmap_iter != vmap_table_offsets_.end() &&
-        code_offset != method_offsets.vmap_table_offset_) {
-      DCHECK((vmap_table_size == 0 && method_offsets.vmap_table_offset_ == 0)
-          || vmap_iter->second == method_offsets.vmap_table_offset_)
-          << PrettyMethod(method_idx, dex_file);
-    } else {
-      DCHECK((vmap_table_size == 0 && method_offsets.vmap_table_offset_ == 0)
-          || code_offset == method_offsets.vmap_table_offset_)
-          << PrettyMethod(method_idx, dex_file);
-      if (!file->WriteFully(&vmap_table[0], vmap_table_size)) {
-        ReportWriteFailure("vmap table", method_idx, dex_file, file);
-        return 0;
-      }
-      code_offset += vmap_table_size;
-    }
-    DCHECK_CODE_OFFSET();
-
-    const std::vector<uint8_t>& gc_map = compiled_method->GetGcMap();
-    size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
-
-    // Deduplicate GC maps
-    std::map<const std::vector<uint8_t>*, uint32_t>::iterator gc_map_iter =
-        gc_map_offsets_.find(&gc_map);
-    if (gc_map_iter != gc_map_offsets_.end() &&
-        code_offset != method_offsets.gc_map_offset_) {
-      DCHECK((gc_map_size == 0 && method_offsets.gc_map_offset_ == 0)
-          || gc_map_iter->second == method_offsets.gc_map_offset_)
-          << PrettyMethod(method_idx, dex_file);
-    } else {
-      DCHECK((gc_map_size == 0 && method_offsets.gc_map_offset_ == 0)
-          || code_offset == method_offsets.gc_map_offset_)
-          << PrettyMethod(method_idx, dex_file);
-      if (!file->WriteFully(&gc_map[0], gc_map_size)) {
-        ReportWriteFailure("GC map", method_idx, dex_file, file);
-        return 0;
-      }
-      code_offset += gc_map_size;
-    }
-    DCHECK_CODE_OFFSET();
   }
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
   const CompiledInvokeStub* compiled_invoke_stub = compiler_->FindInvokeStub(is_static, shorty);
   if (compiled_invoke_stub != NULL) {
-    uint32_t aligned_code_offset = CompiledMethod::AlignCode(code_offset,
-                                                             compiler_->GetInstructionSet());
-    uint32_t aligned_code_delta = aligned_code_offset - code_offset;
-    if (aligned_code_delta != 0) {
-      off_t new_offset = lseek(file->Fd(), aligned_code_delta, SEEK_CUR);
-      if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
-        PLOG(ERROR) << "Failed to seek to align invoke stub code. Actual: " << new_offset
-                    << " Expected: " << aligned_code_offset;
-        return 0;
+    if (!compiled_invoke_stub->IsExecutableInElf()) {
+      uint32_t aligned_code_offset = CompiledMethod::AlignCode(code_offset,
+                                                               compiler_->GetInstructionSet());
+      uint32_t aligned_code_delta = aligned_code_offset - code_offset;
+      if (aligned_code_delta != 0) {
+        off_t new_offset = lseek(file->Fd(), aligned_code_delta, SEEK_CUR);
+        if (static_cast<uint32_t>(new_offset) != aligned_code_offset) {
+          PLOG(ERROR) << "Failed to seek to align invoke stub code. Actual: " << new_offset
+                      << " Expected: " << aligned_code_offset;
+          return 0;
+        }
+        code_offset += aligned_code_delta;
+        DCHECK_CODE_OFFSET();
       }
-      code_offset += aligned_code_delta;
-      DCHECK_CODE_OFFSET();
-    }
-    DCHECK_ALIGNED(code_offset, kArmAlignment);
-    const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
-    uint32_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
-    CHECK_NE(invoke_stub_size, 0U);
+      DCHECK_ALIGNED(code_offset, kArmAlignment);
+      const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
+      uint32_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
+      CHECK_NE(invoke_stub_size, 0U);
 
-    // Deduplicate invoke stubs
-    size_t offset = code_offset + sizeof(invoke_stub_size);
-    std::map<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter =
-        code_offsets_.find(&invoke_stub);
-    if (stub_iter != code_offsets_.end() && offset != method_offsets.invoke_stub_offset_) {
-      DCHECK(stub_iter->second == method_offsets.invoke_stub_offset_) << PrettyMethod(method_idx, dex_file);
-    } else {
-      DCHECK(offset == method_offsets.invoke_stub_offset_) << PrettyMethod(method_idx, dex_file);
-      if (!file->WriteFully(&invoke_stub_size, sizeof(invoke_stub_size))) {
-        ReportWriteFailure("invoke stub code size", method_idx, dex_file, file);
-        return 0;
+      // Deduplicate invoke stubs
+      size_t offset = code_offset + sizeof(invoke_stub_size);
+      std::map<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter =
+          code_offsets_.find(&invoke_stub);
+      if (stub_iter != code_offsets_.end() && offset != method_offsets.invoke_stub_offset_) {
+        DCHECK(stub_iter->second == method_offsets.invoke_stub_offset_) << PrettyMethod(method_idx, dex_file);
+      } else {
+        DCHECK(offset == method_offsets.invoke_stub_offset_) << PrettyMethod(method_idx, dex_file);
+        if (!file->WriteFully(&invoke_stub_size, sizeof(invoke_stub_size))) {
+          ReportWriteFailure("invoke stub code size", method_idx, dex_file, file);
+          return 0;
+        }
+        code_offset += sizeof(invoke_stub_size);
+        DCHECK_CODE_OFFSET();
+        if (!file->WriteFully(&invoke_stub[0], invoke_stub_size)) {
+          ReportWriteFailure("invoke stub code", method_idx, dex_file, file);
+          return 0;
+        }
+        code_offset += invoke_stub_size;
       }
-      code_offset += sizeof(invoke_stub_size);
       DCHECK_CODE_OFFSET();
-      if (!file->WriteFully(&invoke_stub[0], invoke_stub_size)) {
-        ReportWriteFailure("invoke stub code", method_idx, dex_file, file);
-        return 0;
-      }
-      code_offset += invoke_stub_size;
     }
-    DCHECK_CODE_OFFSET();
   }
-#endif
 
   return code_offset;
 }
