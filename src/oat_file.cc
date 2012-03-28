@@ -35,7 +35,7 @@ OatFile* OatFile::Open(const std::string& filename,
                        const std::string& location,
                        byte* requested_base,
                        bool writable) {
-  CHECK(!location.empty()) << filename;
+  CHECK(!filename.empty()) << location;
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), writable, false));
   if (file.get() == NULL) {
     return NULL;
@@ -47,6 +47,10 @@ OatFile* OatFile::Open(File& file,
                        const std::string& location,
                        byte* requested_base,
                        bool writable) {
+  CHECK(!location.empty());
+  if (!IsValidOatFilename(location)) {
+    LOG(WARNING) << "Attempting to open dex file with unknown extension '" << location << "'";
+  }
   UniquePtr<OatFile> oat_file(new OatFile(location));
   bool success = oat_file->Map(file, requested_base, writable);
   if (!success) {
