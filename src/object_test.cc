@@ -293,6 +293,18 @@ TEST_F(ObjectTest, StringEquals) {
   EXPECT_FALSE(empty->Equals("a"));
 }
 
+TEST_F(ObjectTest, StringLength) {
+  SirtRef<String> string(String::AllocFromModifiedUtf8("android"));
+  EXPECT_EQ(string->GetLength(), 7);
+  EXPECT_EQ(string->GetUtfLength(), 7);
+
+  string->SetOffset(2);
+  string->SetCount(5);
+  EXPECT_TRUE(string->Equals("droid"));
+  EXPECT_EQ(string->GetLength(), 5);
+  EXPECT_EQ(string->GetUtfLength(), 5);
+}
+
 TEST_F(ObjectTest, DescriptorCompare) {
   ClassLinker* linker = class_linker_;
 

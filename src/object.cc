@@ -1469,7 +1469,7 @@ bool String::Equals(const StringPiece& modified_utf8) const {
 // Create a modified UTF-8 encoded std::string from a java/lang/String object.
 std::string String::ToModifiedUtf8() const {
   const uint16_t* chars = GetCharArray()->GetData() + GetOffset();
-  size_t byte_count(CountUtf8Bytes(chars, GetLength()));
+  size_t byte_count = GetUtfLength();
   std::string result(byte_count, static_cast<char>(0));
   ConvertUtf16ToModifiedUtf8(&result[0], chars, GetLength());
   return result;
