@@ -2216,7 +2216,7 @@ class MANAGED String : public Object {
   }
 
   int32_t GetUtfLength() const {
-    return CountUtf8Bytes(GetCharArray()->GetData(), GetLength());
+    return CountUtf8Bytes(GetCharArray()->GetData() + GetOffset(), GetLength());
   }
 
   uint16_t CharAt(int32_t index) const;
@@ -2297,6 +2297,7 @@ class MANAGED String : public Object {
   static Class* java_lang_String_;
 
   friend struct StringOffsets;  // for verifying offset information
+  FRIEND_TEST(ObjectTest, StringLength);  // for SetOffset and SetCount
   DISALLOW_IMPLICIT_CONSTRUCTORS(String);
 };
 
