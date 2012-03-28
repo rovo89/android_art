@@ -740,6 +740,16 @@ bool StartsWith(const std::string& s, const char* prefix) {
   return s.compare(0, strlen(prefix), prefix) == 0;
 }
 
+bool EndsWith(const std::string& s, const char* suffix) {
+  size_t suffix_length = strlen(suffix);
+  size_t string_length = s.size();
+  if (suffix_length > string_length) {
+    return false;
+  }
+  size_t offset = string_length - suffix_length;
+  return s.compare(offset, suffix_length, suffix) == 0;
+}
+
 void SetThreadName(const char* thread_name) {
   ANNOTATE_THREAD_NAME(thread_name); // For tsan.
 
@@ -888,11 +898,11 @@ bool IsValidZipFilename(const std::string& filename) {
 }
 
 bool IsValidDexFilename(const std::string& filename) {
-  if (filename.size() < 4) {
-    return false;
-  }
-  std::string suffix(filename.substr(filename.size() - 4));
-  return (suffix == ".dex");
+  return EndsWith(filename, ".dex");
+}
+
+bool IsValidOatFilename(const std::string& filename) {
+  return EndsWith(filename, ".oat");
 }
 
 }  // namespace art

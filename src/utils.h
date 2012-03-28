@@ -168,6 +168,9 @@ static inline std::string PrintableString(const StringT& s) {
 // Tests whether 's' starts with 'prefix'.
 bool StartsWith(const std::string& s, const char* prefix);
 
+// Tests whether 's' starts with 'suffix'.
+bool EndsWith(const std::string& s, const char* suffix);
+
 // Used to implement PrettyClass, PrettyField, PrettyMethod, and PrettyTypeOf,
 // one of which is probably more useful to you.
 // Returns a human-readable equivalent of 'descriptor'. So "I" would be "int",
@@ -297,9 +300,10 @@ std::string GetArtCacheOrDie();
 // Returns the art-cache location for a DexFile or OatFile, or dies trying.
 std::string GetArtCacheFilenameOrDie(const std::string& location);
 
-// Check whether the given filename has a valid zip or dex extension
+// Check whether the given filename has a valid extension
 bool IsValidZipFilename(const std::string& filename);
 bool IsValidDexFilename(const std::string& filename);
+bool IsValidOatFilename(const std::string& filename);
 
 }  // namespace art
 
