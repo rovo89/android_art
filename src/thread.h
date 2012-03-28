@@ -72,19 +72,17 @@ class PACKED Thread {
     kMaxPriority = 10,
   };
 
-  // Thread states. These must match Thread.STATE_MAP.
+  // Thread states.
   enum State {
-    // These correspond to JDWP states (but needn't share the same values).
-    kTerminated   = 0,        // TS_ZOMBIE
-    kRunnable     = 1,        // TS_RUNNING
-    kTimedWaiting = 2,        // TS_WAIT in Object.wait() with a timeout
-    kBlocked      = 3,        // TS_MONITOR on a monitor
-    kWaiting      = 4,        // TS_WAIT in Object.wait()
-    // Non-JDWP states.
-    kStarting     = 5,        // native thread started, not yet ready to run managed code
-    kNative       = 6,        // off in a JNI native method
-    kVmWait       = 7,        // waiting on an internal runtime resource
-    kSuspended    = 8,        // suspended, usually by GC or debugger
+    kTerminated   = 0, // Thread.TERMINATED     JDWP TS_ZOMBIE
+    kRunnable     = 1, // Thread.RUNNABLE       JDWP TS_RUNNING
+    kTimedWaiting = 2, // Thread.TIMED_WAITING  JDWP TS_WAIT    - in Object.wait() with a timeout
+    kBlocked      = 3, // Thread.BLOCKED        JDWP TS_MONITOR - blocked on a monitor
+    kWaiting      = 4, // Thread.WAITING        JDWP TS_WAIT    - in Object.wait()
+    kStarting     = 5, // Thread.NEW                            - native thread started, not yet ready to run managed code
+    kNative       = 6, //                                       - running in a JNI native method
+    kVmWait       = 7, //                                       - waiting on an internal runtime resource
+    kSuspended    = 8, //                                       - suspended by GC or debugger
   };
 
   // Space to throw a StackOverflowError in.
