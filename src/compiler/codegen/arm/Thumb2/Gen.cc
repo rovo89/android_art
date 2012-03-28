@@ -149,18 +149,12 @@ MIR* specialIGet(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
     uint32_t fieldIdx = mir->dalvikInsn.vC;
     bool fastPath = fastInstance(cUnit, fieldIdx, fieldOffset, isVolatile,
                                  false);
-    if (!fastPath) {
+    if (!fastPath || !(mir->optimizationFlags & MIR_IGNORE_NULL_CHECK)) {
         return NULL;
     }
     RegLocation rlObj = oatGetSrc(cUnit, mir, 0);
     lockLiveArgs(cUnit, mir);
     rlObj = argLoc(cUnit, rlObj);
-    // Reject if object reference is not "this"
-    if ((rlObj.location == kLocInvalid) ||
-        (inPosition(cUnit, rlObj.sRegLow) != 0)) {
-        oatResetRegPool(cUnit);
-        return NULL;
-    }
     RegLocation rlDest;
     if (longOrDouble) {
         rlDest = oatGetReturnWide(cUnit, false);
@@ -168,7 +162,6 @@ MIR* specialIGet(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
         rlDest = oatGetReturn(cUnit, false);
     }
     // Point of no return - no aborts after this
-    mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
     genPrintLabel(cUnit, mir);
     rlObj = loadArg(cUnit, rlObj);
     genIGet(cUnit, mir, size, rlDest, rlObj, longOrDouble, isObject);
@@ -183,7 +176,7 @@ MIR* specialIPut(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
     uint32_t fieldIdx = mir->dalvikInsn.vC;
     bool fastPath = fastInstance(cUnit, fieldIdx, fieldOffset, isVolatile,
                                  false);
-    if (!fastPath) {
+    if (!fastPath || !(mir->optimizationFlags & MIR_IGNORE_NULL_CHECK)) {
         return NULL;
     }
     RegLocation rlSrc;
@@ -198,15 +191,12 @@ MIR* specialIPut(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
     }
     rlSrc = argLoc(cUnit, rlSrc);
     rlObj = argLoc(cUnit, rlObj);
-    // Reject if object reference is not "this"
-    if ((rlObj.location == kLocInvalid) ||
-        (inPosition(cUnit, rlObj.sRegLow) != 0) ||
-        (rlSrc.location == kLocInvalid)) {
+    // Reject if source is split across registers & frame
+    if (rlObj.location == kLocInvalid) {
         oatResetRegPool(cUnit);
         return NULL;
     }
     // Point of no return - no aborts after this
-    mir->optimizationFlags |= MIR_IGNORE_NULL_CHECK;
     genPrintLabel(cUnit, mir);
     rlObj = loadArg(cUnit, rlObj);
     rlSrc = loadArg(cUnit, rlSrc);
