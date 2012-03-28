@@ -45,13 +45,34 @@ static void Thread_nativeCreate(JNIEnv* env, jclass, jobject javaThread, jlong s
   Thread::Create(managedThread, stackSize);
 }
 
-static jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread) {
+static jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread, jboolean hasBeenStarted) {
+  // Ordinals from Java's Thread.State.
+  const jint kJavaNew = 0;
+  const jint kJavaRunnable = 1;
+  const jint kJavaBlocked = 2;
+  const jint kJavaWaiting = 3;
+  const jint kJavaTimedWaiting = 4;
+  const jint kJavaTerminated = 5;
+
+  Thread::State internal_thread_state = (hasBeenStarted ? Thread::kTerminated : Thread::kStarting);
   ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
-  if (thread == NULL) {
-    return -1;
+  if (thread != NULL) {
+    internal_thread_state = thread->GetState();
   }
-  return static_cast<jint>(thread->GetState());
+  switch (internal_thread_state) {
+    case Thread::kTerminated:   return kJavaTerminated;
+    case Thread::kRunnable:     return kJavaRunnable;
+    case Thread::kTimedWaiting: return kJavaTimedWaiting;
+    case Thread::kBlocked:      return kJavaBlocked;
+    case Thread::kWaiting:      return kJavaWaiting;
+    case Thread::kStarting:     return kJavaNew;
+    case Thread::kNative:       return kJavaRunnable;
+    case Thread::kVmWait:       return kJavaWaiting;
+    case Thread::kSuspended:    return kJavaRunnable;
+    // Don't add a 'default' here so the compiler can spot incompatible enum changes.
+  }
+  return -1; // Unreachable.
 }
 
 static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject javaThread, jobject javaObject) {
@@ -115,7 +136,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Thread, interrupted, "()Z"),
   NATIVE_METHOD(Thread, isInterrupted, "()Z"),
   NATIVE_METHOD(Thread, nativeCreate, "(Ljava/lang/Thread;J)V"),
-  NATIVE_METHOD(Thread, nativeGetStatus, "()I"),
+  NATIVE_METHOD(Thread, nativeGetStatus, "(Z)I"),
   NATIVE_METHOD(Thread, nativeHoldsLock, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(Thread, nativeInterrupt, "()V"),
   NATIVE_METHOD(Thread, nativeSetName, "(Ljava/lang/String;)V"),
