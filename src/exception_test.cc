@@ -184,6 +184,10 @@ TEST_F(ExceptionTest, StackTraceElement) {
   EXPECT_STREQ("ExceptionHandle.java", trace_array->Get(1)->GetFileName()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("f", trace_array->Get(1)->GetMethodName()->ToModifiedUtf8().c_str());
   EXPECT_EQ(22, trace_array->Get(1)->GetLineNumber());
+
+#if !defined(ART_USE_LLVM_COMPILER)
+  thread->SetTopOfStack(NULL, 0); // Disarm the assertion that no code is running when we detach.
+#endif
 }
 
 }  // namespace art
