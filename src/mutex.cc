@@ -112,6 +112,13 @@ void Mutex::Unlock() {
 }
 
 #if !defined(NDEBUG)
+#if defined(__APPLE__) && MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+// Mac OS 10.5 didn't have anything we could implement GetTid() with. One thing we could try would
+// be using pthread_t instead of the actual tid; this would be acceptable in most places, and more
+// portable. 10.5 is already obsolete, though, so doing so would probably be all pain for no gain.
+void Mutex::AssertHeld() {}
+void Mutex::AssertNotHeld() {}
+#else
 void Mutex::AssertHeld() {
   DCHECK_EQ(GetOwner(), static_cast<uint64_t>(GetTid()));
 }
@@ -119,6 +126,7 @@ void Mutex::AssertHeld() {
 void Mutex::AssertNotHeld() {
   DCHECK_NE(GetOwner(), static_cast<uint64_t>(GetTid()));
 }
+#endif
 #endif
 
 uint64_t Mutex::GetOwner() {
