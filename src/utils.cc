@@ -40,6 +40,7 @@
 
 #if defined(__APPLE__)
 #include "AvailabilityMacros.h"
+#include <sys/syscall.h>
 #endif
 
 #if defined(__linux__)
@@ -50,8 +51,9 @@ namespace art {
 
 pid_t GetTid() {
 #if defined(__APPLE__)
-  // Mac OS doesn't have gettid(2).
-  return getpid();
+  // gettid(2) returns -1 on Darwin, but thread_selfid(2) works, and seems to be what their
+  // pthreads implementation uses.
+  return syscall(SYS_thread_selfid);
 #else
   // Neither bionic nor glibc exposes gettid(2).
   return syscall(__NR_gettid);

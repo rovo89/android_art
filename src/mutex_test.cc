@@ -20,10 +20,16 @@
 
 namespace art {
 
-#if !defined(__APPLE__)
 struct MutexTester {
   static void AssertDepth(Mutex& mu, uint32_t expected_depth) {
     ASSERT_EQ(expected_depth, mu.GetDepth());
+
+    // This test is single-threaded, so we also know _who_ should hold the lock.
+    if (expected_depth == 0) {
+      mu.AssertNotHeld();
+    } else {
+      mu.AssertHeld();
+    }
   }
 };
 
@@ -70,6 +76,5 @@ TEST(Mutex, RecursiveTryLockUnlock) {
   mu.Unlock();
   MutexTester::AssertDepth(mu, 0U);
 }
-#endif
 
 }  // namespace art

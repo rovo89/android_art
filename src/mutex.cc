@@ -27,6 +27,22 @@
 
 namespace art {
 
+// This works on Mac OS 10.7, but hasn't been tested on older releases.
+struct __attribute__((__may_alias__)) darwin_pthread_mutex_t {
+  uint32_t padding0[2];
+  uint32_t value;
+  uint32_t padding1[5];
+  uint64_t owner_tid;
+  // ...other stuff we don't care about.
+};
+
+struct __attribute__((__may_alias__)) glibc_pthread_mutex_t {
+  int lock;
+  unsigned int count;
+  int owner;
+  // ...other stuff we don't care about.
+};
+
 static inline void CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
   if (!kIsDebugBuild) {
     return;
@@ -95,28 +111,30 @@ void Mutex::Unlock() {
   CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
 }
 
-pid_t Mutex::GetOwner() {
+#if !defined(NDEBUG)
+void Mutex::AssertHeld() {
+  DCHECK_EQ(GetOwner(), static_cast<uint64_t>(GetTid()));
+}
+
+void Mutex::AssertNotHeld() {
+  DCHECK_NE(GetOwner(), static_cast<uint64_t>(GetTid()));
+}
+#endif
+
+uint64_t Mutex::GetOwner() {
 #if defined(__BIONIC__)
-  return static_cast<pid_t>((mutex_.value >> 16) & 0xffff);
+  return static_cast<uint64_t>((mutex_.value >> 16) & 0xffff);
 #elif defined(__GLIBC__)
-  struct __attribute__((__may_alias__)) glibc_pthread_t {
-    int lock;
-    unsigned int count;
-    int owner;
-    // ...other stuff we don't care about.
-  };
-  return reinterpret_cast<glibc_pthread_t*>(&mutex_)->owner;
+  return reinterpret_cast<glibc_pthread_mutex_t*>(&mutex_)->owner;
 #elif defined(__APPLE__)
-  // We don't know a way to implement this for Mac OS.
-  return 0;
+  return reinterpret_cast<darwin_pthread_mutex_t*>(&mutex_)->owner_tid;
 #else
-  UNIMPLEMENTED(FATAL);
-  return 0;
+#error unsupported C library
 #endif
 }
 
 uint32_t Mutex::GetDepth() {
-  bool held = (GetOwner() == GetTid());
+  bool held = (GetOwner() == static_cast<uint64_t>(GetTid()));
   if (!held) {
     return 0;
   }
@@ -124,26 +142,15 @@ uint32_t Mutex::GetDepth() {
 #if defined(__BIONIC__)
   depth = static_cast<uint32_t>((mutex_.value >> 2) & 0x7ff) + 1;
 #elif defined(__GLIBC__)
-  struct __attribute__((__may_alias__)) glibc_pthread_t {
-    int lock;
-    unsigned int count;
-    int owner;
-    // ...other stuff we don't care about.
-  };
-  depth = reinterpret_cast<glibc_pthread_t*>(&mutex_)->count;
+  depth = reinterpret_cast<glibc_pthread_mutex_t*>(&mutex_)->count;
 #elif defined(__APPLE__)
-  // We don't know a way to implement this for Mac OS.
-  return 0;
+  darwin_pthread_mutex_t* darwin_mutex = reinterpret_cast<darwin_pthread_mutex_t*>(&mutex_);
+  depth = ((darwin_mutex->value >> 16) & 0xffff);
 #else
-  UNIMPLEMENTED(FATAL);
-  return 0;
+#error unsupported C library
 #endif
-  CHECK_NE(0U, depth) << "owner=" << GetOwner() << " tid=" << GetTid();
+  CHECK_NE(depth, 0U) << "owner=" << GetOwner() << " tid=" << GetTid();
   return depth;
-}
-
-pid_t Mutex::GetTid() {
-  return ::art::GetTid();
 }
 
 ConditionVariable::ConditionVariable(const std::string& name) : name_(name) {
@@ -163,8 +170,8 @@ void ConditionVariable::Signal() {
 }
 
 void ConditionVariable::Wait(Mutex& mutex) {
-  CheckSafeToWait(mutex.GetRank());
-  CHECK_MUTEX_CALL(pthread_cond_wait, (&cond_, mutex.GetImpl()));
+  CheckSafeToWait(mutex.rank_);
+  CHECK_MUTEX_CALL(pthread_cond_wait, (&cond_, &mutex.mutex_));
 }
 
 void ConditionVariable::TimedWait(Mutex& mutex, const timespec& ts) {
@@ -173,8 +180,8 @@ void ConditionVariable::TimedWait(Mutex& mutex, const timespec& ts) {
 #else
 #define TIMEDWAIT pthread_cond_timedwait
 #endif
-  CheckSafeToWait(mutex.GetRank());
-  int rc = TIMEDWAIT(&cond_, mutex.GetImpl(), &ts);
+  CheckSafeToWait(mutex.rank_);
+  int rc = TIMEDWAIT(&cond_, &mutex.mutex_, &ts);
   if (rc != 0 && rc != ETIMEDOUT) {
     errno = rc;
     PLOG(FATAL) << "TimedWait failed for " << name_;
