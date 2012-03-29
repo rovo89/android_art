@@ -161,10 +161,16 @@ struct LIR {
 enum ExtendedMIROpcode {
     kMirOpFirst = kNumPackedOpcodes,
     kMirOpPhi = kMirOpFirst,
+    kMirOpCopy,
+    kMirOpFusedCmplFloat,
+    kMirOpFusedCmpgFloat,
+    kMirOpFusedCmplDouble,
+    kMirOpFusedCmpgDouble,
+    kMirOpFusedCmpLong,
+    kMirOpNop,
     kMirOpNullNRangeUpCheck,
     kMirOpNullNRangeDownCheck,
     kMirOpLowerBound,
-    kMirOpCopy,
     kMirOpLast,
 };
 
@@ -343,7 +349,8 @@ struct CompilationUnit {
     MIR* phiList;
 
     /* Use counts of ssa names */
-    GrowableList useCounts;
+    GrowableList useCounts;             // Weighted by nesting depth
+    GrowableList rawUseCounts;          // Not weighted
 
     /* Optimization support */
     GrowableList loopHeaders;
