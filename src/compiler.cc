@@ -270,15 +270,10 @@ static std::string MakeCompilerSoName(InstructionSet instruction_set) {
   // On Linux, dex2oat will have been built with an RPATH of $ORIGIN/../lib, so dlopen(3) will find
   // the .so by itself. On Mac OS, there isn't really an equivalent, so we have to manually do the
   // same work.
-  std::vector<char> executable_path(1);
   uint32_t executable_path_length = 0;
-  _NSGetExecutablePath(&executable_path[0], &executable_path_length);
-  while (_NSGetExecutablePath(&executable_path[0], &executable_path_length) == -1) {
-    executable_path.resize(executable_path_length);
-  }
-
-  executable_path.resize(executable_path.size() - 1); // Strip trailing NUL.
-  std::string path(&executable_path[0]);
+  _NSGetExecutablePath(NULL, &executable_path_length);
+  std::string path(executable_path_length, static_cast<char>(0));
+  CHECK_EQ(_NSGetExecutablePath(&path[0], &executable_path_length), 0);
 
   // Strip the "/dex2oat".
   size_t last_slash = path.find_last_of('/');

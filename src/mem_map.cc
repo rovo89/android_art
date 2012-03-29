@@ -87,8 +87,8 @@ void CheckMapRequest(byte* addr, size_t length) {
       continue;
     }
 
-    std::string start_str(line.substr(22, 8));
-    std::string end_str(line.substr(31, 8));
+    std::string start_str(line.substr(23, 8));
+    std::string end_str(line.substr(32, 8));
     uint32_t start = ParseHex(start_str);
     uint32_t end = ParseHex(end_str);
     CheckMapRegion(base, limit, start, end, maps);
