@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "oat/runtime/oat_support_entrypoints.h"
+
 namespace art {
 
 /*
@@ -301,7 +303,7 @@ int nextStaticCallInsnSP(CompilationUnit* cUnit, MIR* mir,
                          uintptr_t unused, uintptr_t unused2,
                          InvokeType unused3)
 {
-  int trampoline = OFFSETOF_MEMBER(Thread, pInvokeStaticTrampolineWithAccessCheck);
+  int trampoline = ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
   return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
 }
 
@@ -309,7 +311,7 @@ int nextDirectCallInsnSP(CompilationUnit* cUnit, MIR* mir, int state,
                          uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
                          uintptr_t unused2, InvokeType unused3)
 {
-  int trampoline = OFFSETOF_MEMBER(Thread, pInvokeDirectTrampolineWithAccessCheck);
+  int trampoline = ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
   return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
 }
 
@@ -317,7 +319,7 @@ int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir, int state,
                         uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
                         uintptr_t unused2, InvokeType unused3)
 {
-  int trampoline = OFFSETOF_MEMBER(Thread, pInvokeSuperTrampolineWithAccessCheck);
+  int trampoline = ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
   return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
 }
 
@@ -325,7 +327,7 @@ int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir, int state,
                     uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
                     uintptr_t unused2, InvokeType unused3)
 {
-  int trampoline = OFFSETOF_MEMBER(Thread, pInvokeVirtualTrampolineWithAccessCheck);
+  int trampoline = ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
   return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
 }
 
@@ -337,7 +339,7 @@ int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir, int state,
                           uint32_t dexIdx, uint32_t unused, uintptr_t unused2,
                           uintptr_t unused3, InvokeType unused4)
 {
-  int trampoline = OFFSETOF_MEMBER(Thread, pInvokeInterfaceTrampoline);
+  int trampoline = ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline);
   return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
 }
 
@@ -346,7 +348,7 @@ int nextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit, MIR* mir,
                                          uint32_t unused, uintptr_t unused2,
                                          uintptr_t unused3, InvokeType unused4)
 {
-  int trampoline = OFFSETOF_MEMBER(Thread, pInvokeInterfaceTrampolineWithAccessCheck);
+  int trampoline = ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
   return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
 }
 
@@ -553,14 +555,14 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     // Generate memcpy
     opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
     opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
-    callRuntimeHelperRegRegImm(cUnit, OFFSETOF_MEMBER(Thread, pMemcpy),
+    callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy),
                                rARG0, rARG1, (numArgs - 3) * 4);
 #else
     if (numArgs >= 20) {
         // Generate memcpy
         opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
         opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
-        callRuntimeHelperRegRegImm(cUnit, OFFSETOF_MEMBER(Thread, pMemcpy),
+        callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy),
                                    rARG0, rARG1, (numArgs - 3) * 4);
     } else {
         // Use vldm/vstm pair using rARG3 as a temp
@@ -820,7 +822,7 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     } else {
         loadValueDirectFixed(cUnit, rlStart, regStart);
     }
-    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pIndexOf));
+    int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pIndexOf));
     genNullCheck(cUnit, rlObj.sRegLow, regPtr, mir);
     LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (int)mir, type);
     oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
@@ -852,7 +854,7 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, BasicBlock* bb,
     RegLocation rlCmp = oatGetSrc(cUnit, mir, 1);
     loadValueDirectFixed(cUnit, rlThis, regThis);
     loadValueDirectFixed(cUnit, rlCmp, regCmp);
-    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pStringCompareTo));
+    int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pStringCompareTo));
     genNullCheck(cUnit, rlThis.sRegLow, regThis, mir);
     //TUNING: check if rlCmp.sRegLow is already null checked
     LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (int)mir, type);

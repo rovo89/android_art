@@ -26,7 +26,6 @@
 
 #include "ScopedLocalRef.h"
 #include "UniquePtr.h"
-#include "assembler.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "jni.h"

@@ -22,15 +22,18 @@ LIBART_COMPILER_COMMON_SRC_FILES += \
 	src/compiler/SSATransformation.cc \
 	src/compiler/Utility.cc \
 	src/compiler/codegen/RallocUtil.cc \
-	src/jni_compiler.cc
+	src/oat/jni/calling_convention.cc \
+	src/oat/jni/jni_compiler.cc \
+	src/oat/jni/arm/calling_convention_arm.cc \
+	src/oat/jni/x86/calling_convention_x86.cc
 
 LIBART_COMPILER_ARM_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
-	src/jni_internal_arm.cc \
 	src/compiler/codegen/arm/ArchUtility.cc \
 	src/compiler/codegen/arm/ArmRallocUtil.cc \
 	src/compiler/codegen/arm/Assemble.cc \
-	src/compiler/codegen/arm/armv7-a/Codegen.cc
+	src/compiler/codegen/arm/armv7-a/Codegen.cc \
+	src/oat/jni/arm/jni_internal_arm.cc
 
 LIBART_COMPILER_MIPS_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
@@ -41,11 +44,11 @@ LIBART_COMPILER_MIPS_SRC_FILES += \
 
 LIBART_COMPILER_X86_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
-	src/jni_internal_x86.cc \
 	src/compiler/codegen/x86/ArchUtility.cc \
 	src/compiler/codegen/x86/X86RallocUtil.cc \
 	src/compiler/codegen/x86/Assemble.cc \
-	src/compiler/codegen/x86/x86/Codegen.cc
+	src/compiler/codegen/x86/x86/Codegen.cc \
+	src/oat/jni/x86/jni_internal_x86.cc
 
 # $(1): target or host
 # $(2): ndebug or debug

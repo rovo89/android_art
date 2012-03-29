@@ -23,7 +23,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "dex_verifier.h" // For Instruction.
-#include "context.h"
+#include "oat/runtime/context.h"
 #include "object_utils.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"

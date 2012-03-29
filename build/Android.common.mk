@@ -102,18 +102,9 @@ OATEXEC_SRC_FILES := \
 	src/oatexec.cc
 
 LIBART_COMMON_SRC_FILES := \
-	src/assembler.cc \
-	src/assembler_arm.cc \
-	src/assembler_x86.cc \
 	src/atomic.cc.arm \
-	src/calling_convention.cc \
-	src/calling_convention_arm.cc \
-	src/calling_convention_x86.cc \
 	src/card_table.cc \
 	src/constants.cc \
-	src/context.cc \
-	src/context_arm.cc.arm \
-	src/context_x86.cc \
 	src/check_jni.cc \
 	src/class_linker.cc \
 	src/class_loader.cc \
@@ -165,8 +156,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/logging.cc \
 	src/mark_stack.cc \
 	src/mark_sweep.cc \
-	src/managed_register_arm.cc \
-	src/managed_register_x86.cc \
 	src/mem_map.cc \
 	src/memory_region.cc \
 	src/monitor.cc \
@@ -184,15 +173,12 @@ LIBART_COMMON_SRC_FILES := \
 	src/reflection.cc \
 	src/runtime.cc \
 	src/runtime_support.cc \
-	src/runtime_support_common.cc \
 	src/scoped_thread_list_lock.cc \
 	src/signal_catcher.cc \
 	src/space.cc \
 	src/stack.cc \
 	src/stringpiece.cc \
 	src/stringprintf.cc \
-	src/stub_arm.cc \
-	src/stub_x86.cc \
 	src/sun_misc_Unsafe.cc \
 	src/thread.cc \
 	src/thread_list.cc \
@@ -206,6 +192,31 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/compiler_llvm/runtime_support_llvm.cc \
 	src/compiler_llvm/utils_llvm.cc
+else
+LIBART_COMMON_SRC_FILES += \
+	src/oat/runtime/arm/stub_arm.cc \
+	src/oat/runtime/context.cc \
+	src/oat/runtime/support_alloc.cc \
+	src/oat/runtime/support_cast.cc \
+	src/oat/runtime/support_debug.cc \
+	src/oat/runtime/support_dexcache.cc \
+	src/oat/runtime/support_field.cc \
+	src/oat/runtime/support_fillarray.cc \
+	src/oat/runtime/support_invoke.cc \
+	src/oat/runtime/support_jni.cc \
+	src/oat/runtime/support_locks.cc \
+	src/oat/runtime/support_math.cc \
+	src/oat/runtime/support_proxy.cc \
+	src/oat/runtime/support_stubs.cc \
+	src/oat/runtime/support_thread.cc \
+	src/oat/runtime/support_throw.cc \
+	src/oat/runtime/support_trace.cc \
+	src/oat/runtime/x86/stub_x86.cc \
+	src/oat/utils/arm/assembler_arm.cc \
+	src/oat/utils/arm/managed_register_arm.cc \
+	src/oat/utils/assembler.cc \
+	src/oat/utils/x86/assembler_x86.cc \
+	src/oat/utils/x86/managed_register_x86.cc
 endif
 
 LIBART_TARGET_SRC_FILES := \
@@ -217,13 +228,24 @@ LIBART_TARGET_SRC_FILES := \
 	src/thread_android.cc
 
 ifeq ($(TARGET_ARCH),arm)
-LIBART_TARGET_SRC_FILES += src/runtime_support_arm.S src/thread_arm.cc
+LIBART_TARGET_SRC_FILES += \
+	src/oat/runtime/arm/context_arm.cc.arm \
+	src/oat/runtime/arm/oat_support_entrypoints_arm.cc \
+	src/oat/runtime/arm/runtime_support_arm.S \
+	src/thread_arm.cc
 else # TARGET_ARCH != arm
 ifeq ($(TARGET_ARCH),x86)
-LIBART_TARGET_SRC_FILES += src/runtime_support_x86.S src/thread_x86.cc
+LIBART_TARGET_SRC_FILES += \
+	src/oat/runtime/x86/context_x86.cc \
+	src/oat/runtime/x86/oat_support_entrypoints_x86.cc \
+	src/oat/runtime/x86/runtime_support_x86.S \
+	src/thread_x86.cc
 else # TARGET_ARCH != x86
 ifeq ($(TARGET_ARCH),mips)
-LIBART_TARGET_SRC_FILES += src/runtime_support_mips.S src/thread_mips.cc
+LIBART_TARGET_SRC_FILES += \
+	src/oat/runtime/mips/oat_support_entrypoints_mips.cc \
+	src/oat/runtime/mips/runtime_support_mips.S \
+	src/thread_mips.cc
 else # TARGET_ARCH != mips
 $(error unsupported TARGET_ARCH=$(TARGET_ARCH))
 endif # TARGET_ARCH != mips
@@ -238,7 +260,11 @@ LIBART_HOST_SRC_FILES := \
 	src/thread_linux.cc
 
 ifeq ($(HOST_ARCH),x86)
-LIBART_HOST_SRC_FILES += src/runtime_support_x86.S src/thread_x86.cc
+LIBART_HOST_SRC_FILES += \
+	src/oat/runtime/x86/oat_support_entrypoints_x86.cc \
+	src/oat/runtime/x86/context_x86.cc \
+	src/oat/runtime/x86/runtime_support_x86.S \
+	src/thread_x86.cc
 else # HOST_ARCH != x86
 $(error unsupported HOST_ARCH=$(HOST_ARCH))
 endif # HOST_ARCH != x86
@@ -262,8 +288,8 @@ TEST_COMMON_SRC_FILES := \
 	src/intern_table_test.cc \
 	src/jni_internal_test.cc \
 	src/jni_compiler_test.cc \
-	src/managed_register_arm_test.cc \
-	src/managed_register_x86_test.cc \
+	src/oat/utils/arm/managed_register_arm_test.cc \
+	src/oat/utils/x86/managed_register_x86_test.cc \
 	src/mutex_test.cc \
 	src/oat_test.cc \
 	src/object_test.cc \
@@ -283,7 +309,7 @@ TEST_TARGET_SRC_FILES := \
 
 TEST_HOST_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES) \
-	src/assembler_x86_test.cc
+	src/oat/utils/x86/assembler_x86_test.cc
 
 # subdirectories of test/ which are used as inputs for gtests
 TEST_DEX_DIRECTORIES := \

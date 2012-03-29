@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "oat/runtime/oat_support_entrypoints.h"
+
 namespace art {
 
 bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
@@ -191,18 +193,18 @@ static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
 
     switch (mir->dalvikInsn.opcode) {
         case Instruction::CMPL_FLOAT:
-            offset = OFFSETOF_MEMBER(Thread, pCmplFloat);
+            offset = ENTRYPOINT_OFFSET(pCmplFloat);
             wide = false;
             break;
         case Instruction::CMPG_FLOAT:
-            offset = OFFSETOF_MEMBER(Thread, pCmpgFloat);
+            offset = ENTRYPOINT_OFFSET(pCmpgFloat);
             wide = false;
             break;
         case Instruction::CMPL_DOUBLE:
-            offset = OFFSETOF_MEMBER(Thread, pCmplDouble);
+            offset = ENTRYPOINT_OFFSET(pCmplDouble);
             break;
         case Instruction::CMPG_DOUBLE:
-            offset = OFFSETOF_MEMBER(Thread, pCmpgDouble);
+            offset = ENTRYPOINT_OFFSET(pCmpgDouble);
             break;
         default:
             return true;
