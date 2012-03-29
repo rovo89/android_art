@@ -7,11 +7,6 @@
     #define artDeliverExceptionFromCode _artDeliverExceptionFromCode
 #endif
 
-    /* Deliver the given exception */
-    .extern artDeliverExceptionFromCode
-    /* Deliver an exception pending on a thread */
-    .extern artDeliverPendingException
-
     /* Cache alignment for function entry */
 .macro ALIGN_FUNCTION_ENTRY
     .balign 16
@@ -72,8 +67,7 @@
 .endm
 
 .macro NO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
-    .global \c_name
-    .extern \cxx_name
+    .globl \c_name
     ALIGN_FUNCTION_ENTRY
 \c_name:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
@@ -87,8 +81,7 @@
 .endm
 
 .macro ONE_ARG_RUNTIME_EXCEPTION c_name, cxx_name
-    .global \c_name
-    .extern \cxx_name
+    .globl \c_name
     ALIGN_FUNCTION_ENTRY
 \c_name:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
@@ -103,8 +96,7 @@
 .endm
 
 .macro TWO_ARG_RUNTIME_EXCEPTION c_name, cxx_name
-    .global \c_name
-    .extern \cxx_name
+    .globl \c_name
     ALIGN_FUNCTION_ENTRY
 \c_name:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
@@ -172,8 +164,7 @@ TWO_ARG_RUNTIME_EXCEPTION art_throw_verification_error_from_code, artThrowVerifi
      * pointing back to the original caller.
      */
 .macro INVOKE_TRAMPOLINE c_name, cxx_name
-    .global \c_name
-    .extern \cxx_name
+    .globl \c_name
     ALIGN_FUNCTION_ENTRY
 \c_name:
     int3
