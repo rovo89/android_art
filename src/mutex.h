@@ -49,41 +49,24 @@ class Mutex {
 
   void Unlock();
 
-  const char* GetName() {
-    return name_.c_str();
-  }
-
-  pthread_mutex_t* GetImpl() {
-    return &mutex_;
-  }
-
-  MutexRank GetRank() const {
-    return rank_;
-  }
-
-  void AssertHeld() {
-#if !defined(__APPLE__)
-    DCHECK_EQ(GetOwner(), GetTid());
+#if !defined(NDEBUG)
+  void AssertHeld();
+  void AssertNotHeld();
+#else
+  void AssertHeld() {}
+  void AssertNotHeld() {}
 #endif
-  }
 
-  void AssertNotHeld() {
-#if !defined(__APPLE__)
-    DCHECK_NE(GetOwner(), GetTid());
-#endif
-  }
-
-  pid_t GetOwner();
+  uint64_t GetOwner();
 
  private:
-  static pid_t GetTid();
-
   uint32_t GetDepth();
 
   pthread_mutex_t mutex_;
   std::string name_;
   MutexRank rank_;
 
+  friend class ConditionVariable;
   friend class MutexTester;
   DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
