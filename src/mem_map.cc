@@ -73,7 +73,8 @@ void CheckMapRequest(byte* addr, size_t length) {
   // __LINKEDIT             00047000-0004a000 [   12K    12K     0K] r--/rwx SM=COW          out/host/darwin-x86/obj/lib/libnativehelper.dylib
   // ...
 
-  std::string command(StringPrintf("vmmap -v -interleaved %d", getpid()));
+  // TODO: the -v option replaces "-w -resident -dirty -purge -submap -allSplitLibs -noCoalesce" >= 10.6.
+  std::string command(StringPrintf("vmmap -w -resident -dirty -purge -submap -allSplitLibs -noCoalesce -interleaved %d", getpid()));
   FILE* fp = popen(command.c_str(), "r");
   if (fp == NULL) {
     PLOG(FATAL) << "popen failed";
