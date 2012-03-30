@@ -19,7 +19,7 @@
 
 #include <vector>
 
-#include "constants.h"
+#include "instruction_set.h"
 #include "utils.h"
 
 namespace llvm {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 The Android Open Source Project
+ * Copyright (C) 2011 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,23 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_OAT_RUNTIME_CALLEE_SAVE_FRAME_H_
-#define ART_SRC_OAT_RUNTIME_CALLEE_SAVE_FRAME_H_
+#ifndef ART_SRC_INVOKE_TYPE_H_
+#define ART_SRC_INVOKE_TYPE_H_
 
-#include "thread.h"
+#include <iosfwd>
 
 namespace art {
 
-class Method;
+enum InvokeType {
+  kStatic, kDirect, kVirtual, kSuper, kInterface,
+  kMaxInvokeType = kInterface
+};
 
-// Place a special frame at the TOS that will save the callee saves for the given type
-static void  FinishCalleeSaveFrameSetup(Thread* self, Method** sp, Runtime::CalleeSaveType type) {
-  // Be aware the store below may well stomp on an incoming argument
-  *sp = Runtime::Current()->GetCalleeSaveMethod(type);
-  self->SetTopOfStack(sp, 0);
-  self->VerifyStack();
-}
+std::ostream& operator<<(std::ostream& os, const InvokeType& rhs);
 
 }  // namespace art
 
-#endif  // ART_SRC_OAT_RUNTIME_CALLEE_SAVE_FRAME_H_
+#endif  // ART_SRC_INVOKE_TYPE_H_

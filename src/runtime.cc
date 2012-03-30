@@ -25,6 +25,8 @@
 
 #include "class_linker.h"
 #include "class_loader.h"
+#include "constants_arm.h"
+#include "constants_x86.h"
 #include "debugger.h"
 #include "dex_verifier.h"
 #include "heap.h"

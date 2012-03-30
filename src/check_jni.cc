@@ -567,10 +567,10 @@ class ScopedCheck {
 
   enum InstanceKind {
     kClass,
-        kDirectByteBuffer,
-        kObject,
-        kString,
-        kThrowable,
+    kDirectByteBuffer,
+    kObject,
+    kString,
+    kThrowable,
   };
 
   /*

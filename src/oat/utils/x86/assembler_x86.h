@@ -18,7 +18,7 @@
 #define ART_SRC_OAT_UTILS_X86_ASSEMBLER_X86_H_
 
 #include <vector>
-#include "constants.h"
+#include "constants_x86.h"
 #include "globals.h"
 #include "managed_register_x86.h"
 #include "macros.h"

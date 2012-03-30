@@ -21,7 +21,6 @@
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "compiler.h"
-#include "constants.h"
 #include "jni_internal.h"
 #include "logging.h"
 #include "macros.h"

@@ -19,7 +19,6 @@
 
 #include <vector>
 
-#include "constants.h"
 #include "dex_file.h"
 #include "mem_map.h"
 #include "oat.h"

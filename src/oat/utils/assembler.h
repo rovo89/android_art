@@ -19,7 +19,9 @@
 
 #include <vector>
 
-#include "constants.h"
+#include "constants_arm.h"
+#include "constants_x86.h"
+#include "instruction_set.h"
 #include "logging.h"
 #include "macros.h"
 #include "managed_register.h"

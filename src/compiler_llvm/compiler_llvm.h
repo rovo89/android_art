@@ -18,9 +18,9 @@
 #define ART_SRC_COMPILER_LLVM_COMPILER_LLVM_H_
 
 #include "compiler.h"
-#include "constants.h"
 #include "dex_file.h"
 #include "elf_image.h"
+#include "instruction_set.h"
 #include "macros.h"
 #include "object.h"
 

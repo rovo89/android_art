@@ -27,8 +27,8 @@
 
 #include <jni.h>
 
-#include "constants.h"
 #include "heap.h"
+#include "instruction_set.h"
 #include "globals.h"
 #include "macros.h"
 #include "runtime_stats.h"

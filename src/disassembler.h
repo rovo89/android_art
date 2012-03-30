@@ -17,7 +17,11 @@
 #ifndef ART_SRC_DISASSEMBLER_H_
 #define ART_SRC_DISASSEMBLER_H_
 
-#include "constants.h"
+#include <stdint.h>
+
+#include <iosfwd>
+
+#include "instruction_set.h"
 
 namespace art {
 

@@ -16,7 +16,7 @@
 
 #include "compilation_unit.h"
 
-#include "constants.h"
+#include "instruction_set.h"
 #include "ir_builder.h"
 #include "logging.h"
 
