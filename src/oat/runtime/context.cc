@@ -16,8 +16,11 @@
 
 #include "context.h"
 
+#if defined(__arm__)
 #include "arm/context_arm.h"
+#else
 #include "x86/context_x86.h"
+#endif
 
 namespace art {
 
