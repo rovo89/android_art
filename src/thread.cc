@@ -1740,11 +1740,11 @@ void Thread::CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
           bad_mutexes_held = true;
         }
       }
-      CHECK(!bad_mutexes_held);
+      CHECK(!bad_mutexes_held) << rank;
     }
     ++held_mutexes_[rank];
   } else {
-    CHECK_GT(held_mutexes_[rank], 0U);
+    CHECK_GT(held_mutexes_[rank], 0U) << rank;
     --held_mutexes_[rank];
   }
 }
