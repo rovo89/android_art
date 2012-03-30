@@ -74,7 +74,7 @@ void CheckMapRequest(byte* addr, size_t length) {
   // ...
 
   // TODO: the -v option replaces "-w -resident -dirty -purge -submap -allSplitLibs -noCoalesce" >= 10.6.
-  std::string command(StringPrintf("vmmap -w -resident -dirty -purge -submap -allSplitLibs -noCoalesce -interleaved %d", getpid()));
+  std::string command(StringPrintf("vmmap -w -resident -submap -allSplitLibs -noCoalesce -interleaved %d", getpid()));
   FILE* fp = popen(command.c_str(), "r");
   if (fp == NULL) {
     PLOG(FATAL) << "popen failed";
