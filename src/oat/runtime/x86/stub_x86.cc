@@ -25,11 +25,40 @@
 namespace art {
 namespace x86 {
 
-ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType) {
+ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
-  // TODO: unimplemented
-  __ int3();
+  // Set up the callee save frame to conform with Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
+  // return address
+  __ pushl(EDI);
+  __ pushl(ESI);
+  __ pushl(EBP);
+  __ pushl(EBX);
+  __ pushl(EDX);
+  __ pushl(ECX);
+  __ pushl(EAX);  // <-- callee save Method* to go here
+  __ movl(ECX, ESP);          // save ESP
+  __ pushl(Immediate(type));  // pass is_static
+  __ fs()->pushl(Address::Absolute(Thread::SelfOffset()));  // Thread*
+  __ pushl(ECX);              // pass ESP for Method*
+  __ pushl(EAX);              // pass Method*
+
+  // Call to resolve method.
+  __ Call(ThreadOffset(ENTRYPOINT_OFFSET(pUnresolvedDirectMethodTrampolineFromCode)),
+          X86ManagedRegister::FromCpuRegister(ECX));
+
+  __ movl(EDI, EAX);  // save code pointer in EDI
+  __ addl(ESP, Immediate(16));  // Pop arguments
+  __ popl(EAX);  // Restore args.
+  __ popl(ECX);
+  __ popl(EDX);
+  __ popl(EBX);
+  __ popl(EBP);  // Restore callee saves.
+  __ popl(ESI);
+  // Swap EDI callee save with code pointer
+  __ xchgl(EDI, Address(ESP,0));
+  // Tail call to intended method.
+  __ ret();
 
   assembler->EmitSlowPaths();
   size_t cs = assembler->CodeSize();
@@ -45,6 +74,8 @@ typedef void (*ThrowAme)(Method*, Thread*);
 
 ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
+
+  // Set up the callee save frame to conform with Runtime::CreateCalleeSaveMethod(kSaveAll)
 
   // return address
   __ pushl(EDI);
@@ -66,6 +97,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
 
 #if defined(ART_USE_LLVM_COMPILER)
   // Return to caller who will handle pending exception.
+  // TODO: The callee save set up is unnecessary for LLVM as it uses shadow stacks.
   __ addl(ESP, Immediate(32));
   __ popl(EBP);
   __ popl(ESI);

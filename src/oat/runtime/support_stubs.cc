@@ -27,7 +27,7 @@ namespace art {
 // Lazily resolve a method. Called by stub code.
 const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp, Thread* thread,
                                                      Runtime::TrampolineType type) {
-  // TODO: this code is specific to ARM
+#if defined(__arm__)
   // On entry the stack pointed by sp is:
   // | argN       |  |
   // | ...        |  |
@@ -43,10 +43,35 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
   // | R1         |    arg1
   // | R0         |
   // | Method*    |  <- sp
-  uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) + kPointerSize);
   DCHECK_EQ(48U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
   Method** caller_sp = reinterpret_cast<Method**>(reinterpret_cast<byte*>(sp) + 48);
+  uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) + kPointerSize);
   uintptr_t caller_pc = regs[10];
+#elif defined(__i386__)
+  // On entry the stack pointed by sp is:
+  // | argN        |  |
+  // | ...         |  |
+  // | arg4        |  |
+  // | arg3 spill  |  |  Caller's frame
+  // | arg2 spill  |  |
+  // | arg1 spill  |  |
+  // | Method*     | ---
+  // | Return      |
+  // | EBP,ESI,EDI |    callee saves
+  // | EBX         |    arg3
+  // | EDX         |    arg2
+  // | ECX         |    arg1
+  // | EAX/Method* |  <- sp
+  DCHECK_EQ(32U, Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes());
+  Method** caller_sp = reinterpret_cast<Method**>(reinterpret_cast<byte*>(sp) + 32);
+  uintptr_t* regs = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp));
+  uintptr_t caller_pc = regs[7];
+#else
+  UNIMPLEMENTED(FATAL);
+  Method** caller_sp = NULL;
+  uintptr_t* regs = NULL;
+  uintptr_t caller_pc = 0;
+#endif
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsAndArgs);
   // Start new JNI local reference state
   JNIEnvExt* env = thread->GetJniEnv();
@@ -88,6 +113,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
     shorty = mh.GetShorty();
     shorty_len = mh.GetShortyLength();
   }
+#if !defined(__i386__)
   // Discover shorty (avoid GCs)
   size_t args_in_regs = 0;
   for (size_t i = 1; i < shorty_len; i++) {
@@ -132,6 +158,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
     }
     cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
   }
+#endif
   // Resolve method filling in dex cache
   if (type == Runtime::kUnknownMethod) {
     called = linker->ResolveMethod(dex_method_idx, caller, !is_virtual);

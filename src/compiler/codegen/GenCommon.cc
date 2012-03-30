@@ -43,6 +43,20 @@ void callRuntimeHelperImm(CompilationUnit* cUnit, int helperOffset, int arg0) {
 #endif
 }
 
+void callRuntimeHelperReg(CompilationUnit* cUnit, int helperOffset, int arg0) {
+#if !defined(TARGET_X86)
+    int rTgt = loadHelper(cUnit, helperOffset);
+#endif
+    opRegCopy(cUnit, rARG0, arg0);
+    oatClobberCalleeSave(cUnit);
+#if !defined(TARGET_X86)
+    opReg(cUnit, kOpBlx, rTgt);
+    oatFreeTemp(cUnit, rTgt);
+#else
+    opThreadMem(cUnit, kOpBlx, helperOffset);
+#endif
+}
+
 void callRuntimeHelperRegLocation(CompilationUnit* cUnit, int helperOffset,
                                   RegLocation arg0) {
 #if !defined(TARGET_X86)
@@ -431,7 +445,7 @@ void genCompareZeroAndBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
             cond = (ConditionCode)0;
             LOG(FATAL) << "Unexpected opcode " << (int)opcode;
     }
-#if defined(TARGET_MIPS)
+#if defined(TARGET_MIPS) || defined(TARGET_X86)
     opCmpImmBranch(cUnit, cond, rlSrc.lowReg, 0, &labelList[bb->taken->id]);
 #else
     opRegImm(cUnit, kOpCmp, rlSrc.lowReg, 0);
@@ -1811,31 +1825,34 @@ bool genArithOpInt(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                 (int)mir->dalvikInsn.opcode;
     }
     if (!callOut) {
-        rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
         if (unary) {
+            rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
             rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
             opRegReg(cUnit, op, rlResult.lowReg,
                      rlSrc1.lowReg);
         } else {
-            rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
-#if defined(TARGET_X86)
-            rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-            opRegRegReg(cUnit, op, rlResult.lowReg,
-                        rlSrc1.lowReg, rlSrc2.lowReg);
-#else
             if (shiftOp) {
+#if !defined(TARGET_X86)
+                rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
                 int tReg = oatAllocTemp(cUnit);
                 opRegRegImm(cUnit, kOpAnd, tReg, rlSrc2.lowReg, 31);
+#else
+                // X86 doesn't require masking and must use ECX
+                loadValueDirectFixed(cUnit, rlSrc2, rCX);
+                int tReg = rCX;
+#endif
+                rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
                 rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
                 opRegRegReg(cUnit, op, rlResult.lowReg,
                             rlSrc1.lowReg, tReg);
                 oatFreeTemp(cUnit, tReg);
             } else {
+                rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
+                rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
                 rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
                 opRegRegReg(cUnit, op, rlResult.lowReg,
                             rlSrc1.lowReg, rlSrc2.lowReg);
             }
-#endif
         }
         storeValue(cUnit, rlDest, rlResult);
     } else {
@@ -2151,12 +2168,8 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             break;
         case Instruction::ADD_LONG:
         case Instruction::ADD_LONG_2ADDR:
-#if defined(TARGET_MIPS)
+#if defined(TARGET_MIPS) || defined(TARGET_X86)
             return genAddLong(cUnit, mir, rlDest, rlSrc1, rlSrc2);
-#elif defined(TARGET_X86)
-            callOut = true;
-            retReg = rRET0;
-            funcOffset = ENTRYPOINT_OFFSET(pLadd);
 #else
             firstOp = kOpAdd;
             secondOp = kOpAdc;
@@ -2164,16 +2177,13 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
 #endif
         case Instruction::SUB_LONG:
         case Instruction::SUB_LONG_2ADDR:
-#if defined(TARGET_MIPS)
+#if defined(TARGET_MIPS) || defined(TARGET_X86)
             return genSubLong(cUnit, mir, rlDest, rlSrc1, rlSrc2);
-#elif defined(TARGET_X86)
-            callOut = true;
-            retReg = rRET0;
-            funcOffset = ENTRYPOINT_OFFSET(pLsub);
-#endif
+#else
             firstOp = kOpSub;
             secondOp = kOpSbc;
             break;
+#endif
         case Instruction::MUL_LONG:
         case Instruction::MUL_LONG_2ADDR:
             callOut = true;
@@ -2199,33 +2209,30 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
         case Instruction::AND_LONG_2ADDR:
         case Instruction::AND_LONG:
 #if defined(TARGET_X86)
-            callOut = true;
-            retReg = rRET0;
-            funcOffset = ENTRYPOINT_OFFSET(pLand);
-#endif
+            return genAndLong(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+#else
             firstOp = kOpAnd;
             secondOp = kOpAnd;
             break;
+#endif
         case Instruction::OR_LONG:
         case Instruction::OR_LONG_2ADDR:
 #if defined(TARGET_X86)
-            callOut = true;
-            retReg = rRET0;
-            funcOffset = ENTRYPOINT_OFFSET(pLor);
-#endif
+            return genOrLong(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+#else
             firstOp = kOpOr;
             secondOp = kOpOr;
             break;
+#endif
         case Instruction::XOR_LONG:
         case Instruction::XOR_LONG_2ADDR:
 #if defined(TARGET_X86)
-            callOut = true;
-            retReg = rRET0;
-            funcOffset = ENTRYPOINT_OFFSET(pLxor);
-#endif
+            return genXorLong(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+#else
             firstOp = kOpXor;
             secondOp = kOpXor;
             break;
+#endif
         case Instruction::NEG_LONG: {
             return genNegLong(cUnit, mir, rlDest, rlSrc2);
         }
