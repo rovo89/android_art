@@ -211,7 +211,11 @@ class HexDump {
   const void* address_;
   size_t byte_count_;
   bool show_actual_addresses_;
+
+  // TODO: Remove the #if when Mac OS build server no longer uses GCC 4.2.*.
+#if GCC_VERSION >= 40300
   DISALLOW_COPY_AND_ASSIGN(HexDump);
+#endif
 };
 std::ostream& operator<<(std::ostream& os, const HexDump& rhs);
 
