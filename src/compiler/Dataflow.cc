@@ -801,10 +801,36 @@ const int oatDataFlowAttributes[kMirOpLast] = {
     // Beginning of extended MIR opcodes
     // 100 MIR_PHI
     DF_PHI | DF_DA | DF_NULL_TRANSFER_N,
-    /*
-     * For extended MIR inserted at the MIR2LIR stage, it is okay to have
-     * undefined values here.
-     */
+
+    // 101 MIR_COPY
+    DF_DA | DF_UB | DF_IS_MOVE,
+
+    // 102 MIR_FUSED_CMPL_FLOAT
+    DF_UA | DF_UB | DF_FP_A | DF_FP_B,
+
+    // 103 MIR_FUSED_CMPG_FLOAT
+    DF_UA | DF_UB | DF_FP_A | DF_FP_B,
+
+    // 104 MIR_FUSED_CMPL_DOUBLE
+    DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
+
+    // 105 MIR_FUSED_CMPG_DOUBLE
+    DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
+
+    // 106 MIR_FUSED_CMP_LONG
+    DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+
+    // 107 MIR_NOP
+    DF_NOP,
+
+    // 108 MIR_NULL_RANGE_UP_CHECK
+    0,
+
+    // 109 MIR_NULL_RANGE_DOWN_CHECK
+    0,
+
+    // 110 MIR_LOWER_BOUND
+    0,
 };
 
 /* Return the base virtual register for a SSA name */
@@ -819,6 +845,13 @@ int SRegToSubscript(const CompilationUnit* cUnit, int ssaReg)
     DCHECK(ssaReg < (int)cUnit->ssaSubscripts->numUsed);
     return GET_ELEM_N(cUnit->ssaSubscripts, int, ssaReg);
 }
+
+int getSSAUseCount(CompilationUnit* cUnit, int sReg)
+{
+    DCHECK(sReg < (int)cUnit->rawUseCounts.numUsed);
+    return cUnit->rawUseCounts.elemList[sReg];
+}
+
 
 char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
                               const DecodedInstruction& insn, const char* note)
@@ -1827,7 +1860,69 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
             case Instruction::CMPG_FLOAT:
             case Instruction::CMPG_DOUBLE:
             case Instruction::CMP_LONG:
-                // TODO: Check for and fuse preceeding comparison
+                if (mir->next != NULL) {
+                    MIR* mirNext = mir->next;
+                    Instruction::Code brOpcode = mirNext->dalvikInsn.opcode;
+                    ConditionCode ccode = kCondNv;
+                    switch(brOpcode) {
+                        case Instruction::IF_EQZ:
+                            ccode = kCondEq;
+                            break;
+                        case Instruction::IF_NEZ:
+                           // ccode = kCondNe;
+                            break;
+                        case Instruction::IF_LTZ:
+                            // ccode = kCondLt;
+                            break;
+                        case Instruction::IF_GEZ:
+                            // ccode = kCondGe;
+                            break;
+                        case Instruction::IF_GTZ:
+                            // ccode = kCondGt;
+                            break;
+                        case Instruction::IF_LEZ:
+                            // ccode = kCondLe;
+                            break;
+                        default:
+                            break;
+                    }
+                    // Make sure result of cmp is used by next insn and nowhere else
+                    if ((ccode != kCondNv) &&
+                        (mir->ssaRep->defs[0] == mirNext->ssaRep->uses[0]) &&
+                        (getSSAUseCount(cUnit, mir->ssaRep->defs[0]) == 1)) {
+                        mirNext->dalvikInsn.arg[0] = ccode;
+                        switch(opcode) {
+                            case Instruction::CMPL_FLOAT:
+                                mirNext->dalvikInsn.opcode =
+                                    static_cast<Instruction::Code>(kMirOpFusedCmplFloat);
+                                break;
+                            case Instruction::CMPL_DOUBLE:
+                                mirNext->dalvikInsn.opcode =
+                                    static_cast<Instruction::Code>(kMirOpFusedCmplDouble);
+                                break;
+                            case Instruction::CMPG_FLOAT:
+                                mirNext->dalvikInsn.opcode =
+                                    static_cast<Instruction::Code>(kMirOpFusedCmpgFloat);
+                                break;
+                            case Instruction::CMPG_DOUBLE:
+                                mirNext->dalvikInsn.opcode =
+                                    static_cast<Instruction::Code>(kMirOpFusedCmpgDouble);
+                                break;
+                            case Instruction::CMP_LONG:
+                                mirNext->dalvikInsn.opcode =
+                                    static_cast<Instruction::Code>(kMirOpFusedCmpLong);
+                                break;
+                            default: LOG(ERROR) << "Unexpected opcode: " << (int)opcode;
+                        }
+                        mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+                        mirNext->ssaRep->numUses = mir->ssaRep->numUses;
+                        mirNext->ssaRep->uses = mir->ssaRep->uses;
+                        mirNext->ssaRep->fpUse = mir->ssaRep->fpUse;
+                        mirNext->ssaRep->numDefs = 0;
+                        mir->ssaRep->numUses = 0;
+                        mir->ssaRep->numDefs = 0;
+                    }
+                }
                 break;
             default:
                 break;
@@ -2230,6 +2325,7 @@ bool countUses(struct CompilationUnit* cUnit, struct BasicBlock* bb)
         for (int i = 0; i < mir->ssaRep->numUses; i++) {
             int sReg = mir->ssaRep->uses[i];
             DCHECK_LT(sReg, (int)cUnit->useCounts.numUsed);
+            cUnit->rawUseCounts.elemList[sReg]++;
             cUnit->useCounts.elemList[sReg] += (1 << weight);
         }
         if (!(cUnit->disableOpt & (1 << kPromoteCompilerTemps))) {
@@ -2248,6 +2344,7 @@ bool countUses(struct CompilationUnit* cUnit, struct BasicBlock* bb)
                     usesMethodStar &= invokeUsesMethodStar(cUnit, mir);
                 }
                 if (usesMethodStar) {
+                    cUnit->rawUseCounts.elemList[cUnit->methodSReg]++;
                     cUnit->useCounts.elemList[cUnit->methodSReg] += (1 << weight);
                 }
             }
@@ -2258,14 +2355,17 @@ bool countUses(struct CompilationUnit* cUnit, struct BasicBlock* bb)
 
 void oatMethodUseCount(CompilationUnit *cUnit)
 {
-    if (cUnit->disableOpt & (1 << kPromoteRegs)) {
-        return;
-    }
     oatInitGrowableList(cUnit, &cUnit->useCounts, cUnit->numSSARegs + 32,
+                        kListMisc);
+    oatInitGrowableList(cUnit, &cUnit->rawUseCounts, cUnit->numSSARegs + 32,
                         kListMisc);
     // Initialize list
     for (int i = 0; i < cUnit->numSSARegs; i++) {
         oatInsertGrowableList(cUnit, &cUnit->useCounts, 0);
+        oatInsertGrowableList(cUnit, &cUnit->rawUseCounts, 0);
+    }
+    if (cUnit->disableOpt & (1 << kPromoteRegs)) {
+        return;
     }
     oatDataFlowAnalysisDispatcher(cUnit, countUses,
                                   kAllNodes, false /* isIterative */);
