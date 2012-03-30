@@ -658,12 +658,12 @@ void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
 {
     LIR* labelList = (LIR*)cUnit->blockLabelList;
     LIR* taken = &labelList[bb->taken->id];
+    LIR* notTaken = &labelList[bb->fallThrough->id];
     RegLocation rlSrc1 = oatGetSrcWide(cUnit, mir, 0, 1);
     RegLocation rlSrc2 = oatGetSrcWide(cUnit, mir, 2, 3);
     rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
     ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
-    LIR* notTaken = rawLIR(cUnit, mir->offset, kPseudoTargetLabel);
     opRegReg(cUnit, kOpCmp, rlSrc1.highReg, rlSrc2.highReg);
     switch(ccode) {
         case kCondEq:
@@ -675,25 +675,28 @@ void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
         case kCondLt:
             opCondBranch(cUnit, kCondLt, taken);
             opCondBranch(cUnit, kCondGt, notTaken);
+            ccode = kCondCc;
             break;
         case kCondLe:
             opCondBranch(cUnit, kCondLt, taken);
             opCondBranch(cUnit, kCondGt, notTaken);
+            ccode = kCondLs;
             break;
         case kCondGt:
             opCondBranch(cUnit, kCondGt, taken);
             opCondBranch(cUnit, kCondLt, notTaken);
+            ccode = kCondHi;
             break;
         case kCondGe:
             opCondBranch(cUnit, kCondGt, taken);
             opCondBranch(cUnit, kCondLt, notTaken);
+            ccode = kCondCs;
             break;
         default:
             LOG(FATAL) << "Unexpected ccode: " << (int)ccode;
     }
     opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
     opCondBranch(cUnit, ccode, taken);
-    oatAppendLIR(cUnit, notTaken);
 }
 
 /*

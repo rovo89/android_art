@@ -737,9 +737,6 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
 
 const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
     "kMirOpPhi",
-    "kMirOpNullNRangeUpCheck",
-    "kMirOpNullNRangeDownCheck",
-    "kMirOpLowerBound",
     "kMirOpCopy",
     "kMirFusedCmplFloat",
     "kMirFusedCmpgFloat",
@@ -747,6 +744,9 @@ const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
     "kMirFusedCmpgDouble",
     "kMirFusedCmpLong",
     "kMirNop",
+    "kMirOpNullNRangeUpCheck",
+    "kMirOpNullNRangeDownCheck",
+    "kMirOpLowerBound",
 };
 
 /* Extended MIR instructions like PHI */
