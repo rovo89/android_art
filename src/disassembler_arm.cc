@@ -16,9 +16,10 @@
 
 #include "disassembler_arm.h"
 
-#include "stringprintf.h"
-
 #include <iostream>
+
+#include "logging.h"
+#include "stringprintf.h"
 
 namespace art {
 namespace arm {

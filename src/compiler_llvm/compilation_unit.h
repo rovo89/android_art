@@ -17,9 +17,9 @@
 #ifndef ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
 #define ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
 
-#include "constants.h"
 #include "elf_image.h"
 #include "globals.h"
+#include "instruction_set.h"
 #include "logging.h"
 
 #include <UniquePtr.h>

@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Google Inc. All Rights Reserved.
+ * Copyright (C) 2011 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,6 @@
  */
 import java.lang.reflect.*;
 
-/**
- * @author irogers@google.com (Ian Rogers)
- */
 public class ReturnsAndArgPassing {
 
   public static final String testName = "ReturnsAndArgPassing";

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_CONSTANTS_H_
-#define ART_SRC_CONSTANTS_H_
+#ifndef ART_SRC_INSTRUCTION_SET_H_
+#define ART_SRC_INSTRUCTION_SET_H_
 
 #include <iosfwd>
 
@@ -31,16 +31,6 @@ enum InstructionSet {
 
 std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs);
 
-enum InvokeType {
-  kStatic, kDirect, kVirtual, kSuper, kInterface,
-  kMaxInvokeType = kInterface
-};
-
-std::ostream& operator<<(std::ostream& os, const InvokeType& rhs);
-
 }  // namespace art
 
-#include "constants_x86.h"
-#include "constants_arm.h"
-
-#endif  // ART_SRC_CONSTANTS_H_
+#endif  // ART_SRC_INSTRUCTION_SET_H_

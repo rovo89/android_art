@@ -20,15 +20,14 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "UniquePtr.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "compiler.h"
-#include "constants.h"
 #include "dex_file.h"
 #include "file.h"
 #include "gtest/gtest.h"
 #include "heap.h"
+#include "instruction_set.h"
 #include "macros.h"
 #include "oat_file.h"
 #include "object_utils.h"
@@ -39,6 +38,7 @@
 #include "thread.h"
 #include "unicode/uclean.h"
 #include "unicode/uvernum.h"
+#include "UniquePtr.h"
 
 namespace art {
 

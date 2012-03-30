@@ -17,8 +17,6 @@
 #ifndef ART_SRC_COMPILER_LLVM_UPCALL_COMPILER_H_
 #define ART_SRC_COMPILER_LLVM_UPCALL_COMPILER_H_
 
-#include "constants.h"
-
 #include <stdint.h>
 
 namespace art {
