@@ -314,13 +314,12 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
 
 extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
                                                     uint32_t access_flags, uint32_t method_idx,
-                                                    const art::ClassLoader* class_loader,
                                                     const art::DexFile& dex_file) {
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
   art::DexCache *dex_cache = class_linker->FindDexCache(dex_file);
 
   art::OatCompilationUnit oat_compilation_unit(
-    class_loader, class_linker, dex_file, *dex_cache, NULL,
+    NULL, class_linker, dex_file, *dex_cache, NULL,
     method_idx, access_flags);
 
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);

@@ -192,7 +192,7 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/compiler_llvm/runtime_support_llvm.cc \
 	src/compiler_llvm/utils_llvm.cc
-else
+endif
 LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/arm/stub_arm.cc \
 	src/oat/runtime/context.cc \
@@ -217,7 +217,6 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/utils/assembler.cc \
 	src/oat/utils/x86/assembler_x86.cc \
 	src/oat/utils/x86/managed_register_x86.cc
-endif
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
