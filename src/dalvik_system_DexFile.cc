@@ -197,8 +197,8 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
   // A user build looks like this, and it will have no classes.dex in
   // the input for checksum validation.
   std::string oat_filename(OatFile::DexFilenameToOatFilename(filename.c_str()));
-  const OatFile* oat_file = class_linker->FindOatFileFromOatLocation(oat_filename);
-  if (oat_file != NULL && oat_file->GetOatDexFile(filename.c_str()) != NULL) {
+  UniquePtr<const OatFile> oat_file(OatFile::Open(oat_filename, oat_filename, NULL));
+  if (oat_file.get() != NULL && oat_file->GetOatDexFile(filename.c_str()) != NULL) {
     if (debug_logging) {
       LOG(INFO) << "DexFile_isDexOptNeeded ignoring precompiled file: " << filename.c_str();
     }
@@ -207,8 +207,8 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
   // Check if we have an oat file in the cache
   std::string cache_location(GetArtCacheFilenameOrDie(oat_filename));
-  oat_file = class_linker->FindOatFileFromOatLocation(cache_location);
-  if (oat_file == NULL) {
+  oat_file.reset(OatFile::Open(cache_location, oat_filename, NULL));
+  if (oat_file.get() == NULL) {
     LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
               << " does not exist for " << filename.c_str();
     return JNI_TRUE;
