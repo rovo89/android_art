@@ -65,20 +65,21 @@ std::ostream& LogMessage::stream() {
   return data_->buffer;
 }
 
-/*
- * Print a hex dump in this format:
- *
- * 01234567: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff  0123456789abcdef
- *
- * Does not use printf() or other string-formatting calls.
- */
-void HexDump(const void* address, size_t byte_count, bool show_actual_address) {
+HexDump::HexDump(const void* address, size_t byte_count, bool show_actual_addresses)
+    : address_(address), byte_count_(byte_count), show_actual_addresses_(show_actual_addresses) {
+}
+
+void HexDump::Dump(std::ostream& os) const {
+  if (byte_count_ == 0) {
+    return;
+  }
+
   static const char gHexDigit[] = "0123456789abcdef";
-  const unsigned char* addr = reinterpret_cast<const unsigned char*>(address);
+  const unsigned char* addr = reinterpret_cast<const unsigned char*>(address_);
   char out[76];           /* exact fit */
   unsigned int offset;    /* offset to show while printing */
 
-  if (show_actual_address) {
+  if (show_actual_addresses_) {
     offset = reinterpret_cast<int>(addr);
   } else {
     offset = 0;
@@ -87,6 +88,7 @@ void HexDump(const void* address, size_t byte_count, bool show_actual_address) {
   out[8] = ':';
   out[sizeof(out)-1] = '\0';
 
+  size_t byte_count = byte_count_;
   int gap = static_cast<int>(offset & 0x0f);
   while (byte_count) {
     unsigned int lineOffset = offset & ~0x0f;
@@ -131,12 +133,17 @@ void HexDump(const void* address, size_t byte_count, bool show_actual_address) {
       *asc++ = ' ';
     }
 
-    LOG(INFO) << out;
+    os << out;
 
     gap = 0;
     byte_count -= count;
     offset += count;
   }
+}
+
+std::ostream& operator<<(std::ostream& os, const HexDump& rhs) {
+  rhs.Dump(os);
+  return os;
 }
 
 }  // namespace art

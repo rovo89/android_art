@@ -1667,11 +1667,8 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
     }
   }
   if (i == arraysize(gHandlerMap)) {
-    LOG(ERROR) << DescribeCommand(pHeader, dataLen);
-    if (dataLen > 0) {
-      HexDump(buf, dataLen);
-    }
-    LOG(ERROR) << "command not implemented";
+    LOG(ERROR) << "Command not implemented: " << DescribeCommand(pHeader, dataLen);
+    LOG(ERROR) << HexDump(buf, dataLen);
     result = ERR_NOT_IMPLEMENTED;
   }
 
@@ -1693,9 +1690,7 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
   size_t respLen = expandBufGetLength(pReply) - kJDWPHeaderLen;
   if (false) {
     LOG(INFO) << "reply: dataLen=" << respLen << " err=" << result << (result != ERR_NONE ? " **FAILED**" : "");
-    if (respLen > 0) {
-      HexDump(expandBufGetBuffer(pReply) + kJDWPHeaderLen, respLen);
-    }
+    LOG(INFO) << HexDump(expandBufGetBuffer(pReply) + kJDWPHeaderLen, respLen);
   }
 
   /*
