@@ -544,10 +544,8 @@ static void dumpPacket(const unsigned char* packetBuf) {
   dataLen = length - (buf - packetBuf);
 
   VLOG(jdwp) << StringPrintf("--- %s: dataLen=%u id=0x%08x flags=0x%02x cmd=%d/%d",
-      reply ? "reply" : "req", dataLen, id, flags, cmdSet, cmd);
-  if (dataLen > 0) {
-    HexDump(buf, dataLen);
-  }
+                             reply ? "reply" : "req", dataLen, id, flags, cmdSet, cmd);
+  VLOG(jdwp) << HexDump(buf, dataLen);
 }
 #endif
 
