@@ -1869,19 +1869,19 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
                             ccode = kCondEq;
                             break;
                         case Instruction::IF_NEZ:
-                           // ccode = kCondNe;
+                            ccode = kCondNe;
                             break;
                         case Instruction::IF_LTZ:
-                            // ccode = kCondLt;
+                            ccode = kCondLt;
                             break;
                         case Instruction::IF_GEZ:
-                            // ccode = kCondGe;
+                            ccode = kCondGe;
                             break;
                         case Instruction::IF_GTZ:
-                            // ccode = kCondGt;
+                            ccode = kCondGt;
                             break;
                         case Instruction::IF_LEZ:
-                            // ccode = kCondLe;
+                            ccode = kCondLe;
                             break;
                         default:
                             break;
