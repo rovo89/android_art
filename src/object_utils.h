@@ -71,7 +71,7 @@ class ClassHelper {
   }
 
   void ChangeClass(const Class* new_c) {
-    CHECK(new_c != NULL);
+    CHECK(new_c != NULL) << "klass_=" << HexDump(klass_, sizeof(Class), true);
     if (dex_cache_ != NULL) {
       DexCache* new_c_dex_cache = new_c->GetDexCache();
       if (new_c_dex_cache != dex_cache_) {
@@ -87,6 +87,7 @@ class ClassHelper {
   // The returned const char* is only guaranteed to be valid for the lifetime of the ClassHelper.
   // If you need it longer, copy it into a std::string.
   const char* GetDescriptor() {
+    CHECK(klass_ != NULL);
     if (UNLIKELY(klass_->IsArrayClass())) {
       return GetArrayDescriptor();
     } else if (UNLIKELY(klass_->IsPrimitive())) {
@@ -104,6 +105,7 @@ class ClassHelper {
   const char* GetArrayDescriptor() {
     std::string result("[");
     const Class* saved_klass = klass_;
+    CHECK(saved_klass != NULL);
     ChangeClass(klass_->GetComponentType());
     result += GetDescriptor();
     ChangeClass(saved_klass);
@@ -121,6 +123,7 @@ class ClassHelper {
   }
 
   uint32_t NumInterfaces() {
+    DCHECK(klass_ != NULL);
     if (klass_->IsPrimitive()) {
       return 0;
     } else if (klass_->IsArrayClass()) {
@@ -138,12 +141,14 @@ class ClassHelper {
   }
 
   uint16_t GetInterfaceTypeIdx(uint32_t idx) {
+    DCHECK(klass_ != NULL);
     DCHECK(!klass_->IsPrimitive());
     DCHECK(!klass_->IsArrayClass());
     return GetInterfaceTypeList()->GetTypeItem(idx).type_idx_;
   }
 
   Class* GetInterface(uint32_t idx) {
+    DCHECK(klass_ != NULL);
     DCHECK(!klass_->IsPrimitive());
     if (klass_->IsArrayClass()) {
       if (idx == 0) {
@@ -203,6 +208,7 @@ class ClassHelper {
   DexCache* GetDexCache() {
     DexCache* result = dex_cache_;
     if (result == NULL) {
+      DCHECK(klass_ != NULL);
       result = klass_->GetDexCache();
       dex_cache_ = result;
     }

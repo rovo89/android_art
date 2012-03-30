@@ -74,6 +74,11 @@ void HexDump::Dump(std::ostream& os) const {
     return;
   }
 
+  if (address_ == NULL) {
+    os << "00000000:";
+    return;
+  }
+
   static const char gHexDigit[] = "0123456789abcdef";
   const unsigned char* addr = reinterpret_cast<const unsigned char*>(address_);
   char out[76];           /* exact fit */
