@@ -741,10 +741,16 @@ const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
     "kMirOpNullNRangeDownCheck",
     "kMirOpLowerBound",
     "kMirOpCopy",
+    "kMirFusedCmplFloat",
+    "kMirFusedCmpgFloat",
+    "kMirFusedCmplDouble",
+    "kMirFusedCmpgDouble",
+    "kMirFusedCmpLong",
+    "kMirNop",
 };
 
 /* Extended MIR instructions like PHI */
-void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
+void handleExtendedMethodMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
 {
     int opOffset = mir->dalvikInsn.opcode - kMirOpFirst;
     char* msg = NULL;
@@ -771,6 +777,23 @@ void handleExtendedMethodMIR(CompilationUnit* cUnit, MIR* mir)
             storeValue(cUnit, rlDest, rlSrc);
             break;
         }
+#if defined(TARGET_ARM)
+        case kMirOpFusedCmplFloat:
+            genFusedFPCmpBranch(cUnit, bb, mir, false /*gt bias*/, false /*double*/);
+            break;
+        case kMirOpFusedCmpgFloat:
+            genFusedFPCmpBranch(cUnit, bb, mir, true /*gt bias*/, false /*double*/);
+            break;
+        case kMirOpFusedCmplDouble:
+            genFusedFPCmpBranch(cUnit, bb, mir, false /*gt bias*/, true /*double*/);
+            break;
+        case kMirOpFusedCmpgDouble:
+            genFusedFPCmpBranch(cUnit, bb, mir, true /*gt bias*/, true /*double*/);
+            break;
+        case kMirOpFusedCmpLong:
+            genFusedLongCmpBranch(cUnit, bb, mir);
+            break;
+#endif
         default:
             break;
     }
@@ -827,11 +850,6 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
         cUnit->liveSReg = INVALID_SREG;
 #endif
 
-        if ((int)mir->dalvikInsn.opcode >= (int)kMirOpFirst) {
-            handleExtendedMethodMIR(cUnit, mir);
-            continue;
-        }
-
         cUnit->currentDalvikOffset = mir->offset;
 
         Instruction::Code dalvikOpcode = mir->dalvikInsn.opcode;
@@ -862,6 +880,11 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
         if (cUnit->printMe && mir->ssaRep) {
             char* ssaString = oatGetSSAString(cUnit, mir->ssaRep);
             newLIR1(cUnit, kPseudoSSARep, (int) ssaString);
+        }
+
+        if ((int)mir->dalvikInsn.opcode >= (int)kMirOpFirst) {
+            handleExtendedMethodMIR(cUnit, bb, mir);
+            continue;
         }
 
         bool notHandled = compileDalvikInstruction(cUnit, mir, bb, labelList);

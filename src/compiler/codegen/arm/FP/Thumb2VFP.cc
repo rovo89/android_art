@@ -182,6 +182,60 @@ bool genConversion(CompilationUnit* cUnit, MIR* mir)
     return false;
 }
 
+void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                         bool gtBias, bool isDouble)
+{
+    LIR* labelList = (LIR*)cUnit->blockLabelList;
+    LIR* target = &labelList[bb->taken->id];
+    RegLocation rlSrc1;
+    RegLocation rlSrc2;
+    if (isDouble) {
+        rlSrc1 = oatGetSrcWide(cUnit, mir, 0, 1);
+        rlSrc2 = oatGetSrcWide(cUnit, mir, 2, 3);
+        rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
+        rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
+        newLIR2(cUnit, kThumb2Vcmpd, S2D(rlSrc1.lowReg, r1Src2.highReg),
+                S2D(rlSrc2.lowReg, rlSrc2.highReg));
+    } else {
+        rlSrc1 = oatGetSrc(cUnit, mir, 0);
+        rlSrc2 = oatGetSrc(cUnit, mir, 1);
+        rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
+        rlSrc2 = loadValue(cUnit, rlSrc2, kFPReg);
+        newLIR2(cUnit, kThumb2Vcmps, rlSrc1.lowReg, rlSrc2.lowReg);
+    }
+    newLIR0(cUnit, kThumb2Fmstat);
+    ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
+    switch(ccode) {
+        case kCondEq:
+        case kCondNe:
+            break;
+        case kCondLt:
+            if (gtBias) {
+                ccode = kCondMi;
+            }
+            break;
+        case kCondLe:
+            if (gtBias) {
+                ccode = kCondLs;
+            }
+            break;
+        case kCondGt:
+            if (gtBias) {
+                ccode = kCondHi;
+            }
+            break;
+        case kCondGe:
+            if (gtBias) {
+                ccode = kCondCs;
+            }
+            break;
+        default:
+            LOG(FATAL) << "Unexpected ccode: " << (int)ccode;
+    }
+    opCondBranch(cUnit, ccode, target);
+}
+
+
 bool genCmpFP(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
               RegLocation rlSrc1, RegLocation rlSrc2)
 {

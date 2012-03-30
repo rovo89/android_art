@@ -26,6 +26,11 @@ LIR* rawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0 = 0,
 
 int oatGetInsnSize(LIR* lir);
 
+void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir);
+void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                         bool gtBias, bool isDouble);
+
+
 /* Lower middle-level IR to low-level IR for the whole method */
 void oatMethodMIR2LIR(CompilationUnit* cUnit);
 

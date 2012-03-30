@@ -654,6 +654,48 @@ void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     branch3->target = branch1->target;
 }
 
+void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
+{
+    LIR* labelList = (LIR*)cUnit->blockLabelList;
+    LIR* taken = &labelList[bb->taken->id];
+    RegLocation rlSrc1 = oatGetSrcWide(cUnit, mir, 0, 1);
+    RegLocation rlSrc2 = oatGetSrcWide(cUnit, mir, 2, 3);
+    rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
+    rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
+    ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
+    LIR* notTaken = rawLIR(cUnit, mir->offset, kPseudoTargetLabel);
+    opRegReg(cUnit, kOpCmp, rlSrc1.highReg, rlSrc2.highReg);
+    switch(ccode) {
+        case kCondEq:
+            opCondBranch(cUnit, kCondNe, notTaken);
+            break;
+        case kCondNe:
+            opCondBranch(cUnit, kCondNe, taken);
+            break;
+        case kCondLt:
+            opCondBranch(cUnit, kCondLt, taken);
+            opCondBranch(cUnit, kCondGt, notTaken);
+            break;
+        case kCondLe:
+            opCondBranch(cUnit, kCondLt, taken);
+            opCondBranch(cUnit, kCondGt, notTaken);
+            break;
+        case kCondGt:
+            opCondBranch(cUnit, kCondGt, taken);
+            opCondBranch(cUnit, kCondLt, notTaken);
+            break;
+        case kCondGe:
+            opCondBranch(cUnit, kCondGt, taken);
+            opCondBranch(cUnit, kCondLt, notTaken);
+            break;
+        default:
+            LOG(FATAL) << "Unexpected ccode: " << (int)ccode;
+    }
+    opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
+    opCondBranch(cUnit, ccode, taken);
+    oatAppendLIR(cUnit, notTaken);
+}
+
 /*
  * Generate a register comparison to an immediate and branch.  Caller
  * is responsible for setting branch target field.
