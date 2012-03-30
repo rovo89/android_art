@@ -1251,12 +1251,10 @@ Class* ClassLinker::DefineClass(const StringPiece& descriptor,
   ObjectLock lock(klass.get());
   klass->SetClinitThreadId(self->GetTid());
   // Add the newly loaded class to the loaded classes table.
-  Class* existing = InsertClass(descriptor, klass.get(), false);
-  if (existing != NULL) {
+  SirtRef<Class> existing(InsertClass(descriptor, klass.get(), false));
+  if (existing.get() != NULL) {
     // We failed to insert because we raced with another thread.
-    klass->SetClinitThreadId(0);
-    klass.reset(existing);
-    return EnsureResolved(klass.get());
+    return EnsureResolved(existing.get());
   }
   // Finish loading (if necessary) by finding parents
   CHECK(!klass->IsLoaded());
