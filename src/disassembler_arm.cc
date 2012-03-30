@@ -256,130 +256,166 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
     case 0:
       break;
     case 1:
-      switch (op2) {
-        case 0x00: case 0x01: case 0x02: case 0x03: case 0x08: case 0x09: case 0x0A: case 0x0B:
-        case 0x10: case 0x11: case 0x12: case 0x13: case 0x18: case 0x19: case 0x1A: case 0x1B: {
-          // |111|11|10|00|0|00|0000|1111110000000000|
-          // |5 3|21|09|87|6|54|3  0|5    0    5    0|
-          // |---|--|--|--|-|--|----|----------------|
-          // |332|22|22|22|2|22|1111|1111110000000000|
-          // |1 9|87|65|43|2|10|9  6|5    0    5    0|
-          // |---|--|--|--|-|--|----|----------------|
-          // |111|01|00|op|0|WL| Rn |                |
-          // |111|01| op2      |    |                |
-          // STM - 111 01 00-01-0-W0 nnnn rrrrrrrrrrrrrrrr
-          // LDM - 111 01 00-01-0-W1 nnnn rrrrrrrrrrrrrrrr
-          // PUSH- 111 01 00-01-0-10 1101 0M0rrrrrrrrrrrrr
-          // POP - 111 01 00-01-0-11 1101 PM0rrrrrrrrrrrrr
-          uint32_t op = (instr >> 23) & 3;
-          uint32_t W = (instr >> 21) & 1;
-          uint32_t L = (instr >> 20) & 1;
-          ArmRegister Rn(instr, 16);
-          if (op == 1 || op == 2) {
-            if (op == 1) {
-              if (L == 0) {
-                opcode << "stm";
-                args << Rn << (W == 0 ? "" : "!") << ", ";
-              } else {
-                if (Rn.r != 13) {
-                  opcode << "ldm";
-                  args << Rn << (W == 0 ? "" : "!") << ", ";
-                } else {
-                  opcode << "pop";
-                }
-              }
+      if ((op2 & 0x64) == 0) {  // 00x x0xx
+        // |111|11|10|00|0|00|0000|1111110000000000|
+        // |5 3|21|09|87|6|54|3  0|5    0    5    0|
+        // |---|--|--|--|-|--|----|----------------|
+        // |332|22|22|22|2|22|1111|1111110000000000|
+        // |1 9|87|65|43|2|10|9  6|5    0    5    0|
+        // |---|--|--|--|-|--|----|----------------|
+        // |111|01|00|op|0|WL| Rn |                |
+        // |111|01| op2      |    |                |
+        // STM - 111 01 00-01-0-W0 nnnn rrrrrrrrrrrrrrrr
+        // LDM - 111 01 00-01-0-W1 nnnn rrrrrrrrrrrrrrrr
+        // PUSH- 111 01 00-01-0-10 1101 0M0rrrrrrrrrrrrr
+        // POP - 111 01 00-01-0-11 1101 PM0rrrrrrrrrrrrr
+        uint32_t op = (instr >> 23) & 3;
+        uint32_t W = (instr >> 21) & 1;
+        uint32_t L = (instr >> 20) & 1;
+        ArmRegister Rn(instr, 16);
+        if (op == 1 || op == 2) {
+          if (op == 1) {
+            if (L == 0) {
+              opcode << "stm";
+              args << Rn << (W == 0 ? "" : "!") << ", ";
             } else {
-              if (L == 0) {
-                if (Rn.r != 13) {
-                  opcode << "stmdb";
-                  args << Rn << (W == 0 ? "" : "!") << ", ";
-                } else {
-                  opcode << "push";
-                }
-              } else {
-                opcode << "ldmdb";
+              if (Rn.r != 13) {
+                opcode << "ldm";
                 args << Rn << (W == 0 ? "" : "!") << ", ";
+              } else {
+                opcode << "pop";
               }
             }
-            args << RegisterList(instr);
+          } else {
+            if (L == 0) {
+              if (Rn.r != 13) {
+                opcode << "stmdb";
+                args << Rn << (W == 0 ? "" : "!") << ", ";
+              } else {
+                opcode << "push";
+              }
+            } else {
+              opcode << "ldmdb";
+              args << Rn << (W == 0 ? "" : "!") << ", ";
+            }
           }
-          break;
+          args << RegisterList(instr);
         }
-        case 0x20: case 0x21: case 0x22: case 0x23:  // 01xxxxx
-        case 0x24: case 0x25: case 0x26: case 0x27:
-        case 0x28: case 0x29: case 0x2A: case 0x2B:
-        case 0x2C: case 0x2D: case 0x2E: case 0x2F:
-        case 0x30: case 0x31: case 0x32: case 0x33:
-        case 0x34: case 0x35: case 0x36: case 0x37:
-        case 0x38: case 0x39: case 0x3A: case 0x3B:
-        case 0x3C: case 0x3D: case 0x3E: case 0x3F: {
-          // Data-processing (shifted register)
-          // |111|1110|0000|0|0000|1111|1100|0000|0000|
-          // |5 3|2109|8765|4|3  0|5   |10 8|7 5 |3  0|
-          // |---|----|----|-|----|----|----|----|----|
-          // |332|2222|2222|2|1111|1111|1100|0000|0000|
-          // |1 9|8765|4321|0|9  6|5   |10 8|7 5 |3  0|
-          // |---|----|----|-|----|----|----|----|----|
-          // |111|0101| op3|S| Rn |    | Rd |    | Rm |
-          uint32_t op3 = (instr >> 21) & 0xF;
-          uint32_t S = (instr >> 20) & 1;
-          uint32_t Rn = (instr >> 16) & 0xF;
-          ArmRegister Rd(instr, 8);
-          ArmRegister Rm(instr, 0);
-          switch (op3) {
-            case 0x0:
-              if (Rn != 0xF) {
-                opcode << "and";
-              } else {
-                opcode << "tst";
-                S = 0;  // don't print 's'
-              }
-              break;
-            case 0x1: opcode << "bic"; break;
-            case 0x2:
-              if (Rn != 0xF) {
-                opcode << "orr";
-              } else {
-                opcode << "mov";
-              }
-              break;
-            case 0x3:
-              if (Rn != 0xF) {
-                opcode << "orn";
-              } else {
-                opcode << "mvn";
-              }
-              break;
-            case 0x4:
-              if (Rn != 0xF) {
-                opcode << "eor";
-              } else {
-                opcode << "teq";
-                S = 0;  // don't print 's'
-              }
-              break;
-            case 0x6: opcode << "pkh"; break;
-            case 0x8:
-              if (Rn != 0xF) {
-                opcode << "add";
-              } else {
-                opcode << "cmn";
-                S = 0;  // don't print 's'
-              }
-              break;
-            case 0xA: opcode << "adc"; break;
-            case 0xB: opcode << "sbc"; break;
-          }
+      } else if ((op2 & 0x60) == 0x20) {  // 01x xxxx
+        // Data-processing (shifted register)
+        // |111|1110|0000|0|0000|1111|1100|0000|0000|
+        // |5 3|2109|8765|4|3  0|5   |10 8|7 5 |3  0|
+        // |---|----|----|-|----|----|----|----|----|
+        // |332|2222|2222|2|1111|1111|1100|0000|0000|
+        // |1 9|8765|4321|0|9  6|5   |10 8|7 5 |3  0|
+        // |---|----|----|-|----|----|----|----|----|
+        // |111|0101| op3|S| Rn |    | Rd |    | Rm |
+        uint32_t op3 = (instr >> 21) & 0xF;
+        uint32_t S = (instr >> 20) & 1;
+        uint32_t Rn = (instr >> 16) & 0xF;
+        ArmRegister Rd(instr, 8);
+        ArmRegister Rm(instr, 0);
+        switch (op3) {
+          case 0x0:
+            if (Rn != 0xF) {
+              opcode << "and";
+            } else {
+              opcode << "tst";
+              S = 0;  // don't print 's'
+            }
+            break;
+          case 0x1: opcode << "bic"; break;
+          case 0x2:
+            if (Rn != 0xF) {
+              opcode << "orr";
+            } else {
+              opcode << "mov";
+            }
+            break;
+          case 0x3:
+            if (Rn != 0xF) {
+              opcode << "orn";
+            } else {
+              opcode << "mvn";
+            }
+            break;
+          case 0x4:
+            if (Rn != 0xF) {
+              opcode << "eor";
+            } else {
+              opcode << "teq";
+              S = 0;  // don't print 's'
+            }
+            break;
+          case 0x6: opcode << "pkh"; break;
+          case 0x8:
+            if (Rn != 0xF) {
+              opcode << "add";
+            } else {
+              opcode << "cmn";
+              S = 0;  // don't print 's'
+            }
+            break;
+          case 0xA: opcode << "adc"; break;
+          case 0xB: opcode << "sbc"; break;
+        }
 
-          if (S == 1) {
-            opcode << "s";
-          }
-          opcode << ".w";
-          args << Rd << ", " << Rm;
-          break;
+        if (S == 1) {
+          opcode << "s";
         }
-        default:
-          break;
+        opcode << ".w";
+        args << Rd << ", " << Rm;
+      } else if ((op2 & 0x40) == 0x40) {  // 1xx xxxx
+        // Co-processor instructions
+        // |111|1|11|000000|0000|1111|1100|000|0  |0000|
+        // |5 3|2|10|987654|3  0|54 2|10 8|7 5|4  |   0|
+        // |---|-|--|------|----|----|----|---|---|----|
+        // |332|2|22|222222|1111|1111|1100|000|0  |0000|
+        // |1 9|8|76|543210|9  6|54 2|10 8|7 5|4  |   0|
+        // |---|-|--|------|----|----|----|---|---|----|
+        // |111| |11| op3  | Rn |    |copr|   |op4|    |
+        uint32_t op3 = (instr >> 20) & 0x3F;
+        uint32_t coproc = (instr >> 8) & 0xF;
+        uint32_t op4 = (instr >> 4) & 0x1;
+        if ((op3 & 0x30) == 0x20 && op4 == 0) {  // 10 xxxx ... 0
+          if ((coproc & 0xE) == 0xA) {
+            // VFP data-processing instructions
+            // |111|1|1100|0000|0000|1111|110|0|00  |0|0|0000|
+            // |5 3|2|1098|7654|3  0|54 2|10 |8|76  |5|4|3  0|
+            // |---|-|----|----|----|----|---|-|----|-|-|----|
+            // |332|2|2222|2222|1111|1111|110|0|00  |0|0|0000|
+            // |1 9|8|7654|3210|9  6|54 2|109|8|76  |5|4|3  0|
+            // |---|-|----|----|----|----|---|-|----|-|-|----|
+            // |111|T|1110|opc1|opc2|    |101| |opc3| | |    |
+            //  111 0 1110|1111 0100 1110 101 0 01   1 0 1001 - eef4ea69
+            uint32_t opc1 = (instr >> 20) & 0xF;
+            uint32_t opc2 = (instr >> 16) & 0xF;
+            //uint32_t opc3 = (instr >> 6) & 0x3;
+            if ((opc1 & 0xB) == 0xB) {  // 1x11
+              // Other VFP data-processing instructions.
+              switch (opc2) {
+                case 0x4: case 0x5:  { // Vector compare
+                  // 1110 11101 D 11 0100 dddd 101 sE1M0 mmmm
+                  uint32_t D  = (instr >> 22) & 0x1;
+                  uint32_t Vd = (instr >> 12) & 0xF;
+                  uint32_t sz = (instr >> 8) & 1;
+                  uint32_t E  = (instr >> 7) & 1;
+                  uint32_t M  = (instr >> 5) & 1;
+                  uint32_t Vm = instr & 0xF;
+                  bool dp_operation = sz == 1;
+                  opcode << (E == 0 ? "vcmp" : "vcmpe");
+                  opcode << (dp_operation ? ".f64" : ".f32");
+                  if (dp_operation) {
+                    args << "f" << ((D << 4) | Vd) << ", " << "f" << ((M << 4) | Vm);
+                  } else {
+                    args << "f" << ((Vd << 1) | D) << ", " << "f" << ((Vm << 1) | M);
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        }
       }
       break;
     case 2:
@@ -393,7 +429,6 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         // |---|--|--|----|-|----|-|---|----|--------|
         // |111|10|i0| op3|S| Rn |0|iii| Rd |iiiiiiii|
         //  111 10 x0 xxxx x xxxx opxxx xxxx xxxxxxxx
-        //  111 10 00 0110 0 0000 1 000 0000 10101101 - f0c080ad
         uint32_t i = (instr >> 26) & 1;
         uint32_t op3 = (instr >> 21) & 0xF;
         uint32_t S = (instr >> 20) & 1;
