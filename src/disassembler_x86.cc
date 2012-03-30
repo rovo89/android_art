@@ -16,10 +16,10 @@
 
 #include "disassembler_x86.h"
 
-#include "stringprintf.h"
-
-#include <stdint.h>
 #include <iostream>
+
+#include "logging.h"
+#include "stringprintf.h"
 
 namespace art {
 namespace x86 {

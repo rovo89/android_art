@@ -18,10 +18,10 @@
 #define ART_SRC_COMPILER_LLVM_METHOD_COMPILER_H_
 
 #include "backend_types.h"
-#include "constants.h"
 #include "dalvik_reg.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
+#include "invoke_type.h"
 #include "object_utils.h"
 
 #include <llvm/Support/IRBuilder.h>

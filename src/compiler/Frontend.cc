@@ -17,7 +17,6 @@
 #include "Dalvik.h"
 #include "CompilerInternals.h"
 #include "Dataflow.h"
-#include "constants.h"
 #include "leb128.h"
 #include "object.h"
 #include "runtime.h"

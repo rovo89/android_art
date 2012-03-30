@@ -23,7 +23,6 @@
 #include "UniquePtr.h"
 #include "atomic.h"
 #include "casts.h"
-#include "constants.h"
 #include "globals.h"
 #include "heap.h"
 #include "logging.h"

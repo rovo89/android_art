@@ -17,7 +17,7 @@
 #ifndef ART_SRC_OAT_UTILS_ARM_MANAGED_REGISTER_ARM_H_
 #define ART_SRC_OAT_UTILS_ARM_MANAGED_REGISTER_ARM_H_
 
-#include "constants.h"
+#include "constants_arm.h"
 #include "logging.h"
 #include "oat/utils/managed_register.h"
 
