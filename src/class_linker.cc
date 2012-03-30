@@ -1139,9 +1139,6 @@ Class* ClassLinker::FindSystemClass(const char* descriptor) {
 }
 
 Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_loader) {
-  if (strstr(descriptor, "TestClass") != NULL) {
-    LOG(INFO) << "ClassLinker::FindClass " << descriptor;
-  }
   DCHECK_NE(*descriptor, '\0') << "descriptor is empty string";
   Thread* self = Thread::Current();
   DCHECK(self != NULL);
@@ -1221,10 +1218,6 @@ Class* ClassLinker::DefineClass(const StringPiece& descriptor,
                                 const ClassLoader* class_loader,
                                 const DexFile& dex_file,
                                 const DexFile::ClassDef& dex_class_def) {
-  if (strstr(descriptor.ToString().c_str(), "TestClass") != NULL) {
-    LOG(INFO) << "ClassLinker::DefineClass " << descriptor;
-    Thread::Current()->Dump(LOG(INFO));
-  }
   SirtRef<Class> klass(NULL);
   // Load the class from the dex file.
   if (!init_done_) {
