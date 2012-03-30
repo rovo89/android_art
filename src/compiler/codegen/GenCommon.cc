@@ -2503,4 +2503,34 @@ void genSuspendTest(CompilationUnit* cUnit, MIR* mir)
     }
 }
 
+/* Check if we need to check for pending suspend request */
+void genSuspendTestAndBranch(CompilationUnit* cUnit, MIR* mir, LIR* target)
+{
+    if (NO_SUSPEND || (mir->optimizationFlags & MIR_IGNORE_SUSPEND_CHECK)) {
+        opUnconditionalBranch(cUnit, target);
+        return;
+    }
+    if (cUnit->genDebugger) {
+        genSuspendTest(cUnit, mir);
+        opUnconditionalBranch(cUnit, target);
+    } else {
+#if defined(TARGET_ARM)
+        // In non-debug case, only check periodically
+        newLIR2(cUnit, kThumbSubRI8, rSUSPEND, 1);
+        opCondBranch(cUnit, kCondNe, target);
+#elif defined(TARGET_X86)
+        newLIR2(cUnit, kX86Cmp32TI, Thread::SuspendCountOffset().Int32Value(), 0);
+        opCondBranch(cUnit, kCondEq, target);
+#else
+        opRegImm(cUnit, kOpSub, rSUSPEND, 1);
+        opCmpImmBranch(cUnit, kCondNe, rSUSPEND, 0, target);
+#endif
+        LIR* launchPad = rawLIR(cUnit, cUnit->currentDalvikOffset,
+                                kPseudoSuspendTarget, (intptr_t)target, mir->offset);
+        oatFlushAllRegs(cUnit);
+        opUnconditionalBranch(cUnit, launchPad);
+        oatInsertGrowableList(cUnit, &cUnit->suspendLaunchpads, (intptr_t)launchPad);
+    }
+}
+
 }  // namespace art

@@ -364,9 +364,10 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
         case Instruction::GOTO_16:
         case Instruction::GOTO_32:
             if (bb->taken->startOffset <= mir->offset) {
-                genSuspendTest(cUnit, mir);
+                genSuspendTestAndBranch(cUnit, mir, &labelList[bb->taken->id]);
+            } else {
+                opUnconditionalBranch(cUnit, &labelList[bb->taken->id]);
             }
-            opUnconditionalBranch(cUnit, &labelList[bb->taken->id]);
             break;
 
         case Instruction::PACKED_SWITCH:
