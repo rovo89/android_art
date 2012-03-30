@@ -139,7 +139,6 @@ bool CompilationUnit::Materialize() {
   target_options.NoFramePointerElim = true;
   target_options.NoFramePointerElimNonLeaf = true;
   target_options.UseSoftFloat = false;
-  target_options.EnableFastISel = true;
 
   // Create the llvm::TargetMachine
   llvm::TargetMachine* target_machine =
