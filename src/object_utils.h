@@ -67,11 +67,15 @@ class ClassHelper {
         dex_cache_(NULL),
         dex_file_(NULL),
         interface_type_list_(NULL),
-        klass_(c) {
+        klass_(NULL) {
+    if (c != NULL) {
+      ChangeClass(c);
+    }
   }
 
   void ChangeClass(const Class* new_c) {
-    CHECK(new_c != NULL) << "klass_=" << HexDump(klass_, sizeof(Class), true);
+    CHECK(new_c != NULL) << "klass_=" << klass_ << " " << HexDump(klass_, sizeof(Class), true);
+    CHECK(new_c->IsClass()) << "klass_=" << klass_ << " " << HexDump(klass_, sizeof(Class), true);
     if (dex_cache_ != NULL) {
       DexCache* new_c_dex_cache = new_c->GetDexCache();
       if (new_c_dex_cache != dex_cache_) {
