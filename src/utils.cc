@@ -57,7 +57,9 @@ pid_t GetTid() {
   return syscall(SYS_thread_selfid);
 #elif defined(__APPLE__)
   // On Mac OS 10.5 (which the build servers are still running) there was nothing usable.
-  return getpid();
+  // We know we build 32-bit binaries and that the pthread_t is a pointer that uniquely identifies
+  // the calling thread.
+  return reinterpret_cast<pid_t>(pthread_self());
 #else
   // Neither bionic nor glibc exposes gettid(2).
   return syscall(__NR_gettid);
