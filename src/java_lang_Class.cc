@@ -365,15 +365,6 @@ static jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass java
   return lhs->IsAssignableFrom(rhs) ? JNI_TRUE : JNI_FALSE;
 }
 
-static jboolean Class_isInstance(JNIEnv* env, jobject javaClass, jobject javaObject) {
-  Class* c = DecodeClass(env, javaClass);
-  Object* o = Decode<Object*>(env, javaObject);
-  if (o == NULL) {
-    return JNI_FALSE;
-  }
-  return o->InstanceOf(c) ? JNI_TRUE : JNI_FALSE;
-}
-
 // Validate method/field access.
 static bool CheckMemberAccess(const Class* access_from, Class* access_to, uint32_t member_flags) {
   // quick accept for public access */
@@ -478,7 +469,6 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Class, getNameNative, "()Ljava/lang/String;"),
   NATIVE_METHOD(Class, getProxyInterfaces, "()[Ljava/lang/Class;"),
   NATIVE_METHOD(Class, isAssignableFrom, "(Ljava/lang/Class;)Z"),
-  NATIVE_METHOD(Class, isInstance, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(Class, newInstanceImpl, "()Ljava/lang/Object;"),
 };
 
