@@ -70,6 +70,81 @@ public class ClassAttrs {
             System.err.println("FAILED: " + re);
             re.printStackTrace();
         }
+
+        test_isAssignableFrom();
+        test_isInstance();
+    }
+
+    private static void test_isAssignableFrom() {
+        // Can always assign to things of the same type.
+        assertTrue(String.class.isAssignableFrom(String.class));
+
+        // Can assign any reference to java.lang.Object.
+        assertTrue(Object.class.isAssignableFrom(Object.class));
+        assertTrue(Object.class.isAssignableFrom(Class.class));
+        assertTrue(Object.class.isAssignableFrom(String.class));
+        assertFalse(Object.class.isAssignableFrom(int.class));
+        assertFalse(Object.class.isAssignableFrom(long.class));
+
+        // Interfaces.
+        assertTrue(CharSequence.class.isAssignableFrom(String.class));
+        assertFalse(CharSequence.class.isAssignableFrom(Object.class));
+
+        // Superclasses.
+        assertTrue(AccessibleObject.class.isAssignableFrom(Method.class));
+        assertFalse(Method.class.isAssignableFrom(AccessibleObject.class));
+
+        // Arrays.
+        assertTrue(int[].class.isAssignableFrom(int[].class));
+        assertFalse(int[].class.isAssignableFrom(char[].class));
+        assertFalse(char[].class.isAssignableFrom(int[].class));
+        assertTrue(Object.class.isAssignableFrom(int[].class));
+        assertFalse(int[].class.isAssignableFrom(Object.class));
+
+        try {
+            assertFalse(Object.class.isAssignableFrom(null));
+            fail();
+        } catch (NullPointerException expected) {
+        }
+    }
+
+    private static void test_isInstance() {
+        // Can always assign to things of the same type.
+        assertTrue(String.class.isInstance("hello"));
+
+        // Can assign any reference to java.lang.Object.
+        assertTrue(Object.class.isInstance(new Object()));
+        assertTrue(Object.class.isInstance(Class.class));
+        assertTrue(Object.class.isInstance("hello"));
+
+        // Interfaces.
+        assertTrue(CharSequence.class.isInstance("hello"));
+        assertFalse(CharSequence.class.isInstance(new Object()));
+
+        // Superclasses.
+        assertTrue(AccessibleObject.class.isInstance(Method.class.getDeclaredMethods()[0]));
+        assertFalse(Method.class.isInstance(Method.class.getDeclaredFields()[0]));
+
+        // Arrays.
+        assertTrue(int[].class.isInstance(new int[0]));
+        assertFalse(int[].class.isInstance(new char[0]));
+        assertFalse(char[].class.isInstance(new int[0]));
+        assertTrue(Object.class.isInstance(new int[0]));
+        assertFalse(int[].class.isInstance(new Object()));
+
+        assertFalse(Object.class.isInstance(null));
+    }
+
+    private static void assertTrue(boolean b) {
+        if (!b) throw new RuntimeException();
+    }
+
+    private static void assertFalse(boolean b) {
+        if (b) throw new RuntimeException();
+    }
+
+    private static void fail() {
+        throw new RuntimeException();
     }
 
     /* to call the (out-of-scope) <code>getSignatureAttribute</code> methods */
