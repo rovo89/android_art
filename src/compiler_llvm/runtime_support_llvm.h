@@ -46,7 +46,7 @@ void art_throw_stack_overflow_from_code(void*);
 
 void art_throw_exception_from_code(Object* exception);
 
-int32_t art_find_catch_block_from_code(Object* exception, int32_t dex_pc);
+int32_t art_find_catch_block_from_code(Method* current_method, int32_t dex_pc);
 
 
 void art_test_suspend_from_code();
