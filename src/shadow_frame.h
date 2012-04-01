@@ -56,6 +56,11 @@ class ShadowFrame {
     references_[i] = object;
   }
 
+  Method* GetMethod() const {
+    DCHECK_NE(method_, static_cast<void*>(NULL));
+    return method_;
+  }
+
   bool Contains(Object** shadow_frame_entry) const {
     // A ShadowFrame should at least contain a reference. Even if a
     // native method has no argument, we put jobject or jclass as a
@@ -98,7 +103,7 @@ class ShadowFrame {
 
   uint32_t number_of_references_;
   ShadowFrame* link_;
-  Object* method_;
+  Method* method_;
   uint32_t line_num_;
   Object* references_[];
 

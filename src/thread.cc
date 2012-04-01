@@ -433,6 +433,7 @@ void Thread::DumpState(std::ostream& os) const {
      << " HZ=" << sysconf(_SC_CLK_TCK) << "\n";
 }
 
+#if !defined(ART_USE_LLVM_COMPILER)
 void Thread::PushNativeToManagedRecord(NativeToManagedRecord* record) {
   Method **sp = top_of_managed_stack_.GetSP();
 #ifndef NDEBUG
@@ -448,12 +449,23 @@ void Thread::PushNativeToManagedRecord(NativeToManagedRecord* record) {
   native_to_managed_record_ = record;
   top_of_managed_stack_.SetSP(NULL);
 }
+#else
+void Thread::PushNativeToManagedRecord(NativeToManagedRecord*) {
+  LOG(FATAL) << "Called non-LLVM method with LLVM";
+}
+#endif
 
+#if !defined(ART_USE_LLVM_COMPILER)
 void Thread::PopNativeToManagedRecord(const NativeToManagedRecord& record) {
   native_to_managed_record_ = record.link_;
   top_of_managed_stack_.SetSP(reinterpret_cast<Method**>(record.last_top_of_managed_stack_));
   top_of_managed_stack_pc_ = record.last_top_of_managed_stack_pc_;
 }
+#else
+void Thread::PopNativeToManagedRecord(const NativeToManagedRecord&) {
+  LOG(FATAL) << "Called non-LLVM method with LLVM";
+}
+#endif
 
 struct StackDumpVisitor : public Thread::StackVisitor {
   StackDumpVisitor(std::ostream& os, const Thread* thread)
@@ -1556,6 +1568,7 @@ Context* Thread::GetLongJumpContext() {
   return result;
 }
 
+#if !defined(ART_USE_LLVM_COMPILER)
 Method* Thread::GetCurrentMethod(uintptr_t* pc, Method*** sp) const {
   Frame f = top_of_managed_stack_;
   Method* m = f.GetMethod();
@@ -1578,6 +1591,15 @@ Method* Thread::GetCurrentMethod(uintptr_t* pc, Method*** sp) const {
   }
   return m;
 }
+#else
+Method* Thread::GetCurrentMethod(uintptr_t*, Method***) const {
+  ShadowFrame* frame = top_shadow_frame_;
+  while(frame->GetMethod()->IsNative()) {
+    frame = frame->GetLink();
+  }
+  return frame->GetMethod();
+}
+#endif
 
 bool Thread::HoldsLock(Object* object) {
   if (object == NULL) {
