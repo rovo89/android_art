@@ -194,6 +194,16 @@ class MethodCompiler {
   void EmitInsn_SPut(GEN_INSN_ARGS, JType field_jty);
 
   // INVOKE instructions
+  llvm::Value* EmitEnsureInitialized(llvm::Value* callee_method_object_addr,
+                                     uint32_t method_idx,
+                                     bool is_static,
+                                     llvm::Value* code_addr);
+  llvm::Value* EmitEnsureResolved(llvm::Value* callee,
+                                  llvm::Value* caller,
+                                  uint32_t dex_method_idx,
+                                  Instruction::Code instr_code);
+  void EmitEnsureLink(llvm::Value*);
+
   void EmitInsn_InvokeVirtual(GEN_INSN_ARGS, bool is_range);
   void EmitInsn_InvokeSuper(GEN_INSN_ARGS, bool is_range);
   void EmitInsn_InvokeVirtualSuperSlow(uint32_t dex_pc,

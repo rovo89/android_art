@@ -40,6 +40,7 @@
 
 #if defined(ART_USE_LLVM_COMPILER)
 #include "compiler_llvm/inferred_reg_category_map.h"
+#include "compiler_llvm/runtime_support_llvm.h"
 using art::compiler_llvm::InferredRegCategoryMap;
 #endif
 
@@ -559,6 +560,7 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
 void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const {
   // Push a transition back into managed code onto the linked list in thread.
   CHECK_EQ(Thread::kRunnable, self->GetState());
+
 #if !defined(ART_USE_LLVM_COMPILER)
   NativeToManagedRecord record;
   self->PushNativeToManagedRecord(&record);
@@ -569,6 +571,14 @@ void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result
   const Method::InvokeStub* stub = GetInvokeStub();
 
   bool have_executable_code = (GetCode() != NULL);
+
+#if defined(ART_USE_LLVM_COMPILER)
+  if (stub == NULL && !have_executable_code) {
+    art_ensure_link_from_code(const_cast<Method*>(this));
+    stub = GetInvokeStub();
+    have_executable_code = (GetCode() != NULL);
+  }
+#endif
 
   if (Runtime::Current()->IsStarted() && have_executable_code && stub != NULL) {
     bool log = false;

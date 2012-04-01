@@ -46,9 +46,9 @@ StructTy_ShadowFrame = StructType::create(mod->getContext(), "ShadowFrame");
 std::vector<Type*>StructTy_ShadowFrame_fields;
 PointerType* PointerTy_2 = PointerType::get(StructTy_ShadowFrame, 0);
 
-StructTy_ShadowFrame_fields.push_back(IntegerType::get(mod->getContext(), 32));
 StructTy_ShadowFrame_fields.push_back(PointerTy_2);
 StructTy_ShadowFrame_fields.push_back(PointerTy_1);
+StructTy_ShadowFrame_fields.push_back(IntegerType::get(mod->getContext(), 32));
 StructTy_ShadowFrame_fields.push_back(IntegerType::get(mod->getContext(), 32));
 if (StructTy_ShadowFrame->isOpaque()) {
 StructTy_ShadowFrame->setBody(StructTy_ShadowFrame_fields, /*isPacked=*/false);
@@ -244,7 +244,7 @@ std::vector<Type*>FuncTy_25_args;
 FuncTy_25_args.push_back(PointerTy_1);
 FuncTy_25_args.push_back(PointerTy_1);
 FunctionType* FuncTy_25 = FunctionType::get(
- /*Result=*/IntegerType::get(mod->getContext(), 32),
+ /*Result=*/PointerTy_1,
  /*Params=*/FuncTy_25_args,
  /*isVarArg=*/false);
 
@@ -252,7 +252,7 @@ std::vector<Type*>FuncTy_26_args;
 FuncTy_26_args.push_back(PointerTy_1);
 FuncTy_26_args.push_back(PointerTy_1);
 FunctionType* FuncTy_26 = FunctionType::get(
- /*Result=*/Type::getVoidTy(mod->getContext()),
+ /*Result=*/IntegerType::get(mod->getContext(), 32),
  /*Params=*/FuncTy_26_args,
  /*isVarArg=*/false);
 
@@ -260,8 +260,18 @@ std::vector<Type*>FuncTy_27_args;
 FuncTy_27_args.push_back(PointerTy_1);
 FuncTy_27_args.push_back(PointerTy_1);
 FunctionType* FuncTy_27 = FunctionType::get(
- /*Result=*/PointerTy_1,
+ /*Result=*/Type::getVoidTy(mod->getContext()),
  /*Params=*/FuncTy_27_args,
+ /*isVarArg=*/false);
+
+std::vector<Type*>FuncTy_28_args;
+FuncTy_28_args.push_back(PointerTy_1);
+FuncTy_28_args.push_back(PointerTy_1);
+FuncTy_28_args.push_back(IntegerType::get(mod->getContext(), 32));
+FuncTy_28_args.push_back(IntegerType::get(mod->getContext(), 32));
+FunctionType* FuncTy_28 = FunctionType::get(
+ /*Result=*/PointerTy_1,
+ /*Params=*/FuncTy_28_args,
  /*isVarArg=*/false);
 
 
@@ -743,7 +753,7 @@ func_art_get_obj_instance_from_code->setAttributes(func_art_get_obj_instance_fro
 Function* func_art_decode_jobject_in_thread = mod->getFunction("art_decode_jobject_in_thread");
 if (!func_art_decode_jobject_in_thread) {
 func_art_decode_jobject_in_thread = Function::Create(
- /*Type=*/FuncTy_27,
+ /*Type=*/FuncTy_25,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_decode_jobject_in_thread", mod); // (external, no body)
 func_art_decode_jobject_in_thread->setCallingConv(CallingConv::C);
@@ -754,7 +764,7 @@ func_art_decode_jobject_in_thread->setAttributes(func_art_decode_jobject_in_thre
 Function* func_art_is_assignable_from_code = mod->getFunction("art_is_assignable_from_code");
 if (!func_art_is_assignable_from_code) {
 func_art_is_assignable_from_code = Function::Create(
- /*Type=*/FuncTy_25,
+ /*Type=*/FuncTy_26,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_is_assignable_from_code", mod); // (external, no body)
 func_art_is_assignable_from_code->setCallingConv(CallingConv::C);
@@ -765,7 +775,7 @@ func_art_is_assignable_from_code->setAttributes(func_art_is_assignable_from_code
 Function* func_art_check_cast_from_code = mod->getFunction("art_check_cast_from_code");
 if (!func_art_check_cast_from_code) {
 func_art_check_cast_from_code = Function::Create(
- /*Type=*/FuncTy_26,
+ /*Type=*/FuncTy_27,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_check_cast_from_code", mod); // (external, no body)
 func_art_check_cast_from_code->setCallingConv(CallingConv::C);
@@ -783,6 +793,39 @@ func_art_check_put_array_element_from_code->setCallingConv(CallingConv::C);
 }
 AttrListPtr func_art_check_put_array_element_from_code_PAL;
 func_art_check_put_array_element_from_code->setAttributes(func_art_check_put_array_element_from_code_PAL);
+
+Function* func_art_ensure_link_from_code = mod->getFunction("art_ensure_link_from_code");
+if (!func_art_ensure_link_from_code) {
+func_art_ensure_link_from_code = Function::Create(
+ /*Type=*/FuncTy_4,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_ensure_link_from_code", mod); // (external, no body)
+func_art_ensure_link_from_code->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_ensure_link_from_code_PAL;
+func_art_ensure_link_from_code->setAttributes(func_art_ensure_link_from_code_PAL);
+
+Function* func_art_ensure_resolved_from_code = mod->getFunction("art_ensure_resolved_from_code");
+if (!func_art_ensure_resolved_from_code) {
+func_art_ensure_resolved_from_code = Function::Create(
+ /*Type=*/FuncTy_28,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_ensure_resolved_from_code", mod); // (external, no body)
+func_art_ensure_resolved_from_code->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_ensure_resolved_from_code_PAL;
+func_art_ensure_resolved_from_code->setAttributes(func_art_ensure_resolved_from_code_PAL);
+
+Function* func_art_ensure_initialized_from_code = mod->getFunction("art_ensure_initialized_from_code");
+if (!func_art_ensure_initialized_from_code) {
+func_art_ensure_initialized_from_code = Function::Create(
+ /*Type=*/FuncTy_25,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_ensure_initialized_from_code", mod); // (external, no body)
+func_art_ensure_initialized_from_code->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_ensure_initialized_from_code_PAL;
+func_art_ensure_initialized_from_code->setAttributes(func_art_ensure_initialized_from_code_PAL);
 
 // Global Variable Declarations
 

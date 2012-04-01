@@ -151,7 +151,15 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
     irb_.CreatePtrDisp(method_object_addr, code_field_offset_value,
                        accurate_func_type->getPointerTo()->getPointerTo());
 
-  llvm::Value* code_addr = irb_.CreateLoad(code_field_addr);
+  llvm::Value* code_addr_ = irb_.CreateLoad(code_field_addr);
+  llvm::Value* code_addr;
+  // TODO: Inline check
+  llvm::Value* runtime_func = irb_.GetRuntime(runtime_support::EnsureInitialized);
+  llvm::Value* result = irb_.CreateCall2(runtime_func,
+                                         method_object_addr,
+                                         irb_.CreatePointerCast(code_addr_,
+                                                                irb_.getJObjectTy()));
+  code_addr = irb_.CreatePointerCast(result, accurate_func_type->getPointerTo());
 
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
 
