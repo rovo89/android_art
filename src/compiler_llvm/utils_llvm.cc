@@ -50,6 +50,9 @@ std::string MangleForLLVM(const std::string& s) {
       case '[':
         result += "_3";
         break;
+      case ')':
+        result += "_4";
+        break;
       case '/':
         result += "_";
         break;
@@ -88,7 +91,6 @@ std::string LLVMLongName(const Method* m) {
 
   std::string signature(MethodHelper(m).GetSignature());
   signature.erase(0, 1);
-  signature.erase(signature.begin() + signature.find(')'), signature.end());
 
   long_name += MangleForLLVM(signature);
 
