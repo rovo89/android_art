@@ -1954,7 +1954,7 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<Class*>& cla
   }
 }
 
-#ifndef NDEBUG
+#if !defined(NDEBUG) && !defined(ART_USE_LLVM_COMPILER)
 static void CheckMethodsHaveGcMaps(Class* klass) {
   if (!Runtime::Current()->IsStarted()) {
     return;
