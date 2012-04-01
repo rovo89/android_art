@@ -222,7 +222,7 @@ class ClassLinker {
   // Returns true on success, false if there's an exception pending.
   // can_run_clinit=false allows the compiler to attempt to init a class,
   // given the restriction that no <clinit> execution is possible.
-  bool EnsureInitialized(Class* c, bool can_run_clinit);
+  bool EnsureInitialized(Class* c, bool can_run_clinit, bool can_init_fields);
 
   // Initializes classes that have instances in the image but that have
   // <clinit> methods so they could not be initialized by the compiler.
@@ -365,11 +365,12 @@ class ClassLinker {
   bool IsDexFileRegisteredLocked(const DexFile& dex_file) const;
   void RegisterOatFileLocked(const OatFile& oat_file);
 
-  bool InitializeClass(Class* klass, bool can_run_clinit);
+  bool InitializeClass(Class* klass, bool can_run_clinit, bool can_init_statics);
   bool WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock);
   bool ValidateSuperClassDescriptors(const Class* klass);
-  bool InitializeSuperClass(Class* klass, bool can_run_clinit);
-  void InitializeStaticFields(Class* klass);
+  bool InitializeSuperClass(Class* klass, bool can_run_clinit, bool can_init_fields);
+  // Initialize static fields, returns true if fields were initialized.
+  bool InitializeStaticFields(Class* klass);
 
   bool IsSameDescriptorInDifferentClassContexts(const char* descriptor,
                                                 const Class* klass1,

@@ -229,7 +229,7 @@ Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* sel
         // we'd still be waiting for the lock.
         if (fields_class->IsInitializing()) {
           return resolved_field;
-        } else if (Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true)) {
+        } else if (Runtime::Current()->GetClassLinker()->EnsureInitialized(fields_class, true, true)) {
           return resolved_field;
         } else {
           DCHECK(self->IsExceptionPending());  // Throw exception and unwind
@@ -367,7 +367,7 @@ Class* ResolveVerifyAndClinit(uint32_t type_idx, const Method* referrer, Thread*
   if (klass == referring_class && MethodHelper(referrer).IsClassInitializer()) {
     return klass;
   }
-  if (!class_linker->EnsureInitialized(klass, true)) {
+  if (!class_linker->EnsureInitialized(klass, true, true)) {
     CHECK(self->IsExceptionPending());
     return NULL;  // Failure - Indicate to caller to deliver exception
   }

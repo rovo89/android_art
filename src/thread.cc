@@ -244,14 +244,14 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, Object* thread_g
 }
 
 Object* Thread::GetMainThreadGroup() {
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(gThreadGroup, true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(gThreadGroup, true, true)) {
     return NULL;
   }
   return gThreadGroup_mMain->GetObject(NULL);
 }
 
 Object* Thread::GetSystemThreadGroup() {
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(gThreadGroup, true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(gThreadGroup, true, true)) {
     return NULL;
   }
   return gThreadGroup_mSystem->GetObject(NULL);

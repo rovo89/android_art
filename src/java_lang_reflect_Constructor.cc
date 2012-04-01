@@ -41,7 +41,7 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
     return NULL;
   }
 
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }

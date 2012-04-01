@@ -1173,7 +1173,10 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
     if (klass != NULL) {
       if (klass->IsVerified()) {
         // Only try to initialize classes that were successfully verified.
-        class_linker->EnsureInitialized(klass, false);
+        bool compiling_boot = Runtime::Current()->GetHeap()->GetSpaces().size() == 1;
+        bool can_init_static_fields = compiling_boot &&
+            IsImageClass(descriptor);
+        class_linker->EnsureInitialized(klass, false, can_init_static_fields);
       }
       // record the final class status if necessary
       Class::Status status = klass->GetStatus();
