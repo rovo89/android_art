@@ -835,7 +835,7 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
 TEST_F(ClassLinkerTest, StaticFields) {
   SirtRef<ClassLoader> class_loader(LoadDex("Statics"));
   Class* statics = class_linker_->FindClass("LStatics;", class_loader.get());
-  class_linker_->EnsureInitialized(statics, true);
+  class_linker_->EnsureInitialized(statics, true, true);
 
   // Static final primitives that are initialized by a compile-time constant
   // expression resolve to a copy of a constant value from the constant pool.

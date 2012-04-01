@@ -141,7 +141,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
     if (LIKELY(called->IsDirect() == !is_virtual)) {
       // Ensure that the called method's class is initialized.
       Class* called_class = called->GetDeclaringClass();
-      linker->EnsureInitialized(called_class, true);
+      linker->EnsureInitialized(called_class, true, true);
       if (LIKELY(called_class->IsInitialized())) {
         code = called->GetCode();
       } else if (called_class->IsInitializing()) {

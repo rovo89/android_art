@@ -54,7 +54,7 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
   Method* m = reinterpret_cast<Method*>(mid);
 
   Class* declaring_class = m->GetDeclaringClass();
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaring_class, true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaring_class, true, true)) {
     return NULL;
   }
 

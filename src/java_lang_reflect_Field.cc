@@ -26,7 +26,7 @@ namespace art {
 
 static bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(), true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(), true, true)) {
     return false;
   }
   switch (FieldHelper(f).GetTypeAsPrimitiveType()) {
@@ -157,7 +157,7 @@ static jshort Field_getShort(JNIEnv* env, jobject javaField, jobject javaObj) {
 }
 
 static void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_references) {
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(), true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(), true, true)) {
     return;
   }
   switch (FieldHelper(f).GetTypeAsPrimitiveType()) {

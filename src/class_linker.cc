@@ -546,7 +546,7 @@ void ClassLinker::RunRootClinits() {
   for (size_t i = 0; i < ClassLinker::kClassRootsMax; ++i) {
     Class* c = GetClassRoot(ClassRoot(i));
     if (!c->IsArrayClass() && !c->IsPrimitive()) {
-      EnsureInitialized(GetClassRoot(ClassRoot(i)), true);
+      EnsureInitialized(GetClassRoot(ClassRoot(i)), true, true);
       CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
     }
   }
@@ -2338,7 +2338,7 @@ static void CheckProxyMethod(Method* method, SirtRef<Method>& prototype) {
   CHECK_EQ(mh.GetReturnType(), mh2.GetReturnType());
 }
 
-bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
+bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit, bool can_init_statics) {
   CHECK(klass->IsResolved() || klass->IsErroneous())
       << PrettyClass(klass) << " is " << klass->GetStatus();
 
@@ -2404,7 +2404,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
 
   uint64_t t0 = NanoTime();
 
-  if (!InitializeSuperClass(klass, can_run_clinit)) {
+  if (!InitializeSuperClass(klass, can_run_clinit, can_init_statics)) {
     // Super class initialization failed, this can be because we can't run
     // super-class class initializers in which case we'll be verified.
     // Otherwise this class is erroneous.
@@ -2416,7 +2416,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
     return false;
   }
 
-  InitializeStaticFields(klass);
+  bool has_static_field_initializers = InitializeStaticFields(klass);
 
   if (clinit != NULL) {
     clinit->Invoke(self, NULL, NULL, NULL);
@@ -2441,7 +2441,14 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit) {
       ++thread_stats->class_init_count;
       global_stats->class_init_time_ns += (t1 - t0);
       thread_stats->class_init_time_ns += (t1 - t0);
-      klass->SetStatus(Class::kStatusInitialized);
+      // Set the class as initialized except if we can't initialize static fields and static field
+      // initialization is necessary.
+      if (!can_init_statics && has_static_field_initializers) {
+        klass->SetStatus(Class::kStatusVerified);  // Don't leave class in initializing state.
+        success = false;
+      } else {
+        klass->SetStatus(Class::kStatusInitialized);
+      }
       if (VLOG_IS_ON(class_linker)) {
         ClassHelper kh(klass);
         LOG(INFO) << "Initialized class " << kh.GetDescriptor() << " from " << kh.GetLocation();
@@ -2577,7 +2584,7 @@ bool ClassLinker::IsSameDescriptorInDifferentClassContexts(const char* descripto
   return found1 == found2;
 }
 
-bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit) {
+bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit, bool can_init_fields) {
   CHECK(klass != NULL);
   if (!klass->IsInterface() && klass->HasSuperClass()) {
     Class* super_class = klass->GetSuperClass();
@@ -2585,7 +2592,7 @@ bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit) {
       CHECK(!super_class->IsInterface());
       Thread* self = Thread::Current();
       klass->MonitorEnter(self);
-      bool super_initialized = InitializeClass(super_class, can_run_clinit);
+      bool super_initialized = InitializeClass(super_class, can_run_clinit, can_init_fields);
       klass->MonitorExit(self);
       // TODO: check for a pending exception
       if (!super_initialized) {
@@ -2604,7 +2611,7 @@ bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit) {
   return true;
 }
 
-bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit) {
+bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit, bool can_init_fields) {
   CHECK(c != NULL);
   if (c->IsInitialized()) {
     return true;
@@ -2612,7 +2619,7 @@ bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit) {
 
   Thread* self = Thread::Current();
   ScopedThreadStateChange tsc(self, Thread::kRunnable);
-  bool success = InitializeClass(c, can_run_clinit);
+  bool success = InitializeClass(c, can_run_clinit, can_init_fields);
   if (!success) {
     CHECK(self->IsExceptionPending() || !can_run_clinit) << PrettyClass(c);
   }
@@ -2629,15 +2636,15 @@ void ClassLinker::ConstructFieldMap(const DexFile& dex_file, const DexFile::Clas
   }
 }
 
-void ClassLinker::InitializeStaticFields(Class* klass) {
+bool ClassLinker::InitializeStaticFields(Class* klass) {
   size_t num_static_fields = klass->NumStaticFields();
   if (num_static_fields == 0) {
-    return;
+    return false;
   }
   DexCache* dex_cache = klass->GetDexCache();
   // TODO: this seems like the wrong check. do we really want !IsPrimitive && !IsArray?
   if (dex_cache == NULL) {
-    return;
+    return false;
   }
   ClassHelper kh(klass);
   const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
@@ -2652,7 +2659,9 @@ void ClassLinker::InitializeStaticFields(Class* klass) {
     for (size_t i = 0; it.HasNext(); i++, it.Next()) {
       it.ReadValueToField(field_map[i]);
     }
+    return true;
   }
+  return false;
 }
 
 bool ClassLinker::LinkClass(SirtRef<Class>& klass, ObjectArray<Class>* interfaces) {

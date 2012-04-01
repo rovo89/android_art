@@ -331,7 +331,7 @@ static void ThrowNoSuchMethodError(ScopedJniThreadState& ts, Class* c, const cha
 
 static jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
   Class* c = Decode<Class*>(ts, jni_class);
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
     return NULL;
   }
 
@@ -366,7 +366,7 @@ static const ClassLoader* GetClassLoader(Thread* self) {
 
 static jfieldID FindFieldID(ScopedJniThreadState& ts, jclass jni_class, const char* name, const char* sig, bool is_static) {
   Class* c = Decode<Class*>(ts, jni_class);
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
     return NULL;
   }
 
@@ -966,7 +966,7 @@ class JNI {
   static jobject AllocObject(JNIEnv* env, jclass java_class) {
     ScopedJniThreadState ts(env);
     Class* c = Decode<Class*>(ts, java_class);
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
       return NULL;
     }
     return AddLocalReference<jobject>(env, c->AllocObject());
@@ -984,7 +984,7 @@ class JNI {
   static jobject NewObjectV(JNIEnv* env, jclass java_class, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
     Class* c = Decode<Class*>(ts, java_class);
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
       return NULL;
     }
     Object* result = c->AllocObject();
@@ -1003,7 +1003,7 @@ class JNI {
   static jobject NewObjectA(JNIEnv* env, jclass java_class, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
     Class* c = Decode<Class*>(ts, java_class);
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
       return NULL;
     }
     Object* result = c->AllocObject();
@@ -2898,7 +2898,7 @@ void* JavaVMExt::FindCodeForNativeMethod(Method* m) {
   // If this is a static method, it could be called before the class
   // has been initialized.
   if (m->IsStatic()) {
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
       return NULL;
     }
   } else {

@@ -68,7 +68,7 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
     return NULL;
   }
   if (initialize) {
-    class_linker->EnsureInitialized(c, true);
+    class_linker->EnsureInitialized(c, true, true);
   }
   return AddLocalReference<jclass>(env, c);
 }
@@ -403,7 +403,7 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
     return NULL;
   }
 
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
     return NULL;
   }
 
