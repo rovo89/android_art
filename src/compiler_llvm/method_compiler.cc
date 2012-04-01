@@ -1321,7 +1321,7 @@ void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
     // Test: Is the string resolved and in the dex cache?
     llvm::Value* equal_null = irb_.CreateICmpEQ(string_addr, irb_.getJNull());
 
-    irb_.CreateCondBr(equal_null, block_str_exist, block_str_resolve);
+    irb_.CreateCondBr(equal_null, block_str_resolve, block_str_exist);
 
     // String is resolved, go to next basic block.
     irb_.SetInsertPoint(block_str_exist);
@@ -1677,21 +1677,23 @@ llvm::Value* MethodCompiler::EmitAllocNewArray(uint32_t dex_pc,
     compiler_->CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
                                           *dex_file_, type_idx);
 
+  llvm::Value* array_length_value;
+
   if (is_filled_new_array) {
     runtime_func = skip_access_check ?
       irb_.GetRuntime(CheckAndAllocArray) :
       irb_.GetRuntime(CheckAndAllocArrayWithAccessCheck);
+    array_length_value = irb_.getInt32(length);
   } else {
     runtime_func = skip_access_check ?
       irb_.GetRuntime(AllocArray) :
       irb_.GetRuntime(AllocArrayWithAccessCheck);
+    array_length_value = EmitLoadDalvikReg(length, kInt, kAccurate);
   }
 
   llvm::Constant* type_index_value = irb_.getInt32(type_idx);
 
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
-
-  llvm::Value* array_length_value = irb_.getInt32(length);
 
   EmitUpdateLineNumFromDexPC(dex_pc);
 
