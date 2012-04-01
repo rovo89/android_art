@@ -312,7 +312,9 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
 #if defined(ART_USE_LLVM_COMPILER)
     , oat_file_->elf_loader_.get(),
       oat_method_offsets.code_elf_idx_,
-      oat_method_offsets.invoke_stub_elf_idx_
+      oat_method_offsets.code_elf_func_idx_,
+      oat_method_offsets.invoke_stub_elf_idx_,
+      oat_method_offsets.invoke_stub_elf_func_idx_
 #endif
       );
 }
@@ -328,8 +330,10 @@ OatFile::OatMethod::OatMethod(const byte* base,
                               const uint32_t invoke_stub_offset
 #if defined(ART_USE_LLVM_COMPILER)
                             , const compiler_llvm::ElfLoader* elf_loader,
-                              const uint32_t code_elf_idx,
-                              const uint32_t invoke_stub_elf_idx
+                              const uint16_t code_elf_idx,
+                              const uint16_t code_elf_func_idx,
+                              const uint16_t invoke_stub_elf_idx,
+                              const uint16_t invoke_stub_elf_func_idx
 #endif
                               )
   : begin_(base),
@@ -344,7 +348,9 @@ OatFile::OatMethod::OatMethod(const byte* base,
 #if defined(ART_USE_LLVM_COMPILER)
   , elf_loader_(elf_loader),
     code_elf_idx_(code_elf_idx),
-    invoke_stub_elf_idx_(invoke_stub_elf_idx)
+    code_elf_func_idx_(code_elf_func_idx),
+    invoke_stub_elf_idx_(invoke_stub_elf_idx),
+    invoke_stub_elf_func_idx_(invoke_stub_elf_func_idx)
 #endif
 {
 #ifndef NDEBUG
@@ -363,7 +369,6 @@ OatFile::OatMethod::OatMethod(const byte* base,
 
 OatFile::OatMethod::~OatMethod() {}
 
-
 const void* OatFile::OatMethod::GetCode() const {
   if (!IsCodeInElf()) {
     return GetOatPointer<const void*>(code_offset_);
@@ -373,7 +378,8 @@ const void* OatFile::OatMethod::GetCode() const {
     return NULL;
 #else
     CHECK(elf_loader_ != NULL);
-    const void* code = elf_loader_->GetMethodCodeAddr(code_elf_idx_, method);
+    const void* code =
+        elf_loader_->GetMethodCodeAddr(code_elf_idx_, code_elf_func_idx_);
     CHECK(code != NULL);
     return code;
 #endif
@@ -405,7 +411,9 @@ const Method::InvokeStub* OatFile::OatMethod::GetInvokeStub() const {
     return NULL;
 #else
     CHECK(elf_loader_ != NULL);
-    const Method::InvokeStub* stub = elf_loader_->GetMethodInvokeStubAddr(invoke_stub_elf_idx_, method);
+    const Method::InvokeStub* stub =
+        elf_loader_->GetMethodInvokeStubAddr(invoke_stub_elf_idx_,
+                                             invoke_stub_elf_func_idx_);
     CHECK(stub != NULL);
     return stub;
 #endif
@@ -420,7 +428,7 @@ uint32_t OatFile::OatMethod::GetInvokeStubSize() const {
     }
     return reinterpret_cast<uint32_t*>(code)[-1];
   } else {
-    UNIMPLEMENTED(ERROR);
+    UNIMPLEMENTED(WARNING);
     return 0;
   }
 }
@@ -449,10 +457,12 @@ void OatFile::OatMethod::LinkMethodOffsets(Method* method) const {
   method->SetOatInvokeStubOffset(GetInvokeStubOffset());
 }
 
+#if defined(ART_USE_LLVM_COMPILER)
 OatFile::OatElfImage::OatElfImage(const OatFile* oat_file,
                                   const byte* addr,
                                   uint32_t size)
     : oat_file_(oat_file), elf_addr_(addr), elf_size_(size) {
 }
+#endif
 
 }  // namespace art

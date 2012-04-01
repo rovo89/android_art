@@ -157,8 +157,10 @@ OatMethodOffsets::OatMethodOffsets()
     gc_map_offset_(0),
     invoke_stub_offset_(0)
 #if defined(ART_USE_LLVM_COMPILER)
-  , code_elf_idx_(-1u),
-    invoke_stub_elf_idx_(-1u)
+  , code_elf_idx_(static_cast<uint16_t>(-1u)),
+    code_elf_func_idx_(static_cast<uint16_t>(-1u)),
+    invoke_stub_elf_idx_(static_cast<uint16_t>(-1u)),
+    invoke_stub_elf_func_idx_(static_cast<uint16_t>(-1u))
 #endif
 {}
 
@@ -171,8 +173,10 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
                                    uint32_t gc_map_offset,
                                    uint32_t invoke_stub_offset
 #if defined(ART_USE_LLVM_COMPILER)
-                                 , uint32_t code_elf_idx,
-                                   uint32_t invoke_stub_elf_idx
+                                 , uint16_t code_elf_idx,
+                                   uint16_t code_elf_func_idx,
+                                   uint16_t invoke_stub_elf_idx,
+                                   uint16_t invoke_stub_elf_func_idx
 #endif
                                    )
   : code_offset_(code_offset),
@@ -185,7 +189,9 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
     invoke_stub_offset_(invoke_stub_offset)
 #if defined(ART_USE_LLVM_COMPILER)
   , code_elf_idx_(code_elf_idx),
-    invoke_stub_elf_idx_(invoke_stub_elf_idx)
+    code_elf_func_idx_(code_elf_func_idx),
+    invoke_stub_elf_idx_(invoke_stub_elf_idx),
+    invoke_stub_elf_func_idx_(invoke_stub_elf_func_idx)
 #endif
 {}
 

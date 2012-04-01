@@ -84,6 +84,7 @@ class JniCompiler {
   Method* method_;
 
   llvm::Function* func_;
+  uint16_t elf_func_idx_;
 };
 
 

@@ -83,9 +83,12 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
   CHECK_NE(code.size(), 0U);
 }
 
-CompiledMethod::CompiledMethod(InstructionSet instruction_set, size_t elf_idx)
+CompiledMethod::CompiledMethod(InstructionSet instruction_set,
+                               const uint16_t elf_idx,
+                               const uint16_t elf_func_idx)
     : instruction_set_(instruction_set), frame_size_in_bytes_(0),
-      core_spill_mask_(0), fp_spill_mask_(0), elf_idx_(elf_idx) {
+      core_spill_mask_(0), fp_spill_mask_(0), elf_idx_(elf_idx),
+      elf_func_idx_(elf_func_idx) {
 }
 
 CompiledMethod::~CompiledMethod() {}
@@ -173,7 +176,8 @@ const void* CompiledMethod::CodePointer(const void* code_pointer,
 }
 
 #if defined(ART_USE_LLVM_COMPILER)
-CompiledInvokeStub::CompiledInvokeStub(size_t elf_idx) : elf_idx_(elf_idx) {
+CompiledInvokeStub::CompiledInvokeStub(uint16_t elf_idx, uint16_t elf_func_idx)
+    : elf_idx_(elf_idx), elf_func_idx_(elf_func_idx) {
 }
 #endif
 
