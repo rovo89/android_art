@@ -54,20 +54,14 @@ static inline void CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
   if (rank == -1) {
     return;
   }
-  Thread* self = Thread::Current();
-  if (self != NULL) {
-    self->CheckSafeToLockOrUnlock(rank, is_locking);
-  }
+  Thread::Current()->CheckSafeToLockOrUnlock(rank, is_locking);
 }
 
 static inline void CheckSafeToWait(MutexRank rank) {
   if (!kIsDebugBuild) {
     return;
   }
-  Thread* self = Thread::Current();
-  if (self != NULL) {
-    self->CheckSafeToWait(rank);
-  }
+  Thread::Current()->CheckSafeToWait(rank);
 }
 
 Mutex::Mutex(const char* name, MutexRank rank) : name_(name), rank_(rank) {

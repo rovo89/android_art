@@ -366,7 +366,8 @@ class CommonTest : public testing::Test {
       }
     }
     class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
-    compiler_.reset(new Compiler(instruction_set, true, 2, false, new std::set<std::string>,
+    image_classes_.reset(new std::set<std::string>);
+    compiler_.reset(new Compiler(instruction_set, true, 2, false, image_classes_.get(),
                                  true, true));
 #if defined(ART_USE_LLVM_COMPILER)
     compiler_->EnableAutoElfLoading();
@@ -413,6 +414,7 @@ class CommonTest : public testing::Test {
     (*icu_cleanup_fn)();
 
     compiler_.reset();
+    image_classes_.reset();
     STLDeleteElements(&opened_dex_files_);
 
     Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
@@ -512,6 +514,7 @@ class CommonTest : public testing::Test {
   // Owned by the runtime
   ClassLinker* class_linker_;
   UniquePtr<Compiler> compiler_;
+  UniquePtr<std::set<std::string> > image_classes_;
 
  private:
   std::vector<const DexFile*> opened_dex_files_;

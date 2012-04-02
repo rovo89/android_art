@@ -88,11 +88,9 @@ Runtime::~Runtime() {
     Trace::Shutdown();
   }
 
-  Dbg::StopJdwp();
-
   // Make sure our internal threads are dead before we start tearing down things they're using.
+  Dbg::StopJdwp();
   delete signal_catcher_;
-  // TODO: GC thread.
 
   // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
   delete thread_list_;
