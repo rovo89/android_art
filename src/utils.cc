@@ -39,7 +39,7 @@
 #endif
 
 #if defined(__APPLE__)
-#include "AvailabilityMacros.h"
+#include "AvailabilityMacros.h" // For MAC_OS_X_VERSION_MAX_ALLOWED
 #include <sys/syscall.h>
 #endif
 
