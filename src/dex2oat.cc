@@ -478,10 +478,6 @@ int dex2oat(int argc, char** argv) {
   bool dump_stats = kIsDebugBuild;
   bool dump_timings = kIsDebugBuild;
 
-#if defined(__APPLE__) && MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-  thread_count = 1;
-#endif
-
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
     bool log_options = false;
@@ -555,6 +551,12 @@ int dex2oat(int argc, char** argv) {
       Usage("unknown argument %s", option.data());
     }
   }
+
+#if defined(__APPLE__) && MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+  // Something is broken on Mac OS 10.5, and we don't have direct access to any machines running it.
+  // Restricting dex2oat to a single thread on Mac OS 10.5 appears to be a workaround.
+  thread_count = 1;
+#endif
 
   if (oat_filename.empty() && oat_fd == -1) {
     Usage("Output must be supplied with either --oat-file or --oat-fd");
