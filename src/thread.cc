@@ -1594,7 +1594,7 @@ Method* Thread::GetCurrentMethod(uintptr_t* pc, Method*** sp) const {
 #else
 Method* Thread::GetCurrentMethod(uintptr_t*, Method***) const {
   ShadowFrame* frame = top_shadow_frame_;
-  while(frame->GetMethod()->IsNative()) {
+  while (frame->GetMethod()->IsNative()) {
     frame = frame->GetLink();
   }
   return frame->GetMethod();

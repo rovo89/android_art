@@ -550,6 +550,7 @@ class OatDumper {
     os << "}" << std::endl << std::flush;
   }
 
+#if !defined(ART_USE_LLVM_COMPILER)
   void DumpCode(std::ostream& os, const void* code, const uint32_t* raw_mapping_table,
                 const DexFile& dex_file, const DexFile::CodeItem* code_item) {
     if (code == NULL) {
@@ -597,6 +598,12 @@ class OatDumper {
       disassembler_->Dump(os, native_pc, end_native_pc);
     }
   }
+#else
+  void DumpCode(std::ostream&, const void*, const uint32_t*,
+                const DexFile&, const DexFile::CodeItem*) {
+    // TODO: Dump code for the LLVM side.
+  }
+#endif
 
   const std::string host_prefix_;
   const OatFile& oat_file_;
@@ -882,8 +889,10 @@ class ImageDumper {
         DCHECK_EQ(0U, method->GetGcMapLength()) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == NULL) << PrettyMethod(method);
       } else {
+#if !defined(ART_USE_LLVM_COMPILER)
         DCHECK(method->GetGcMap() != NULL) << PrettyMethod(method);
         DCHECK_NE(0U, method->GetGcMapLength()) << PrettyMethod(method);
+#endif
 
         const DexFile::CodeItem* code_item = MethodHelper(method).GetCodeItem();
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
