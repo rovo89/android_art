@@ -112,6 +112,9 @@ class MethodCompiler {
     kIntArithm_And,
     kIntArithm_Or,
     kIntArithm_Xor,
+  };
+
+  enum IntShiftArithmKind {
     kIntArithm_Shl,
     kIntArithm_Shr,
     kIntArithm_UShr,
@@ -222,6 +225,12 @@ class MethodCompiler {
 
   void EmitInsn_IntArithmImmediate(GEN_INSN_ARGS, IntArithmKind arithm);
 
+  void EmitInsn_IntShiftArithm(GEN_INSN_ARGS, IntShiftArithmKind arithm,
+                               JType op_jty, bool is_2addr);
+
+  void EmitInsn_IntShiftArithmImmediate(GEN_INSN_ARGS,
+                                        IntShiftArithmKind arithm);
+
   void EmitInsn_RSubImmediate(GEN_INSN_ARGS);
 
 
@@ -274,6 +283,12 @@ class MethodCompiler {
                                               llvm::Value* rhs,
                                               IntArithmKind arithm,
                                               JType op_jty);
+
+  llvm::Value* EmitIntShiftArithmResultComputation(uint32_t dex_pc,
+                                                   llvm::Value* lhs,
+                                                   llvm::Value* rhs,
+                                                   IntShiftArithmKind arithm,
+                                                   JType op_jty);
 
   llvm::Value* EmitFPArithmResultComputation(uint32_t dex_pc,
                                              llvm::Value* lhs,
