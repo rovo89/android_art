@@ -543,9 +543,9 @@ struct StackTraceElementOffsets : public CheckOffsets<StackTraceElement> {
 struct ClassLoaderOffsets : public CheckOffsets<ClassLoader> {
   ClassLoaderOffsets() : CheckOffsets<ClassLoader>(false, "Ljava/lang/ClassLoader;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, packages_), "packages"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, parent_),   "parent"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, proxyCache_),   "proxyCache"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, packages_),   "packages"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, parent_),     "parent"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(ClassLoader, proxyCache_), "proxyCache"));
   };
 };
 
@@ -553,8 +553,9 @@ struct BaseDexClassLoaderOffsets : public CheckOffsets<BaseDexClassLoader> {
   BaseDexClassLoaderOffsets()
     : CheckOffsets<BaseDexClassLoader>(false, "Ldalvik/system/BaseDexClassLoader;") {
     // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, original_path_), "originalPath"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, path_list_),     "pathList"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, original_library_path_), "originalLibraryPath"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, original_path_),         "originalPath"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, path_list_),             "pathList"));
   };
 };
 

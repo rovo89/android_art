@@ -40,6 +40,7 @@ class MANAGED ClassLoader : public Object {
 class MANAGED BaseDexClassLoader : public ClassLoader {
  private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
+  String* original_library_path_;
   String* original_path_;
   Object* path_list_;
 
