@@ -133,11 +133,6 @@ CompiledMethod* JniCompiler::Compile() {
   llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
   irb_.CreateCall(irb_.GetRuntime(runtime_support::PushShadowFrame), shadow_frame_upcast);
 
-  // Set top of managed stack to the method field in the SIRT
-  StoreToObjectOffset(thread_object_addr,
-                      Thread::TopOfManagedStackOffset().Int32Value(),
-                      method_field_addr);
-
   // Get JNIEnv
   llvm::Value* jni_env_object_addr = LoadFromObjectOffset(thread_object_addr,
                                                           Thread::JniEnvOffset().Int32Value(),

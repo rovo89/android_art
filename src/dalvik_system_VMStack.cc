@@ -19,6 +19,7 @@
 #include "object.h"
 #include "scoped_heap_lock.h"
 #include "scoped_thread_list_lock.h"
+#include "shadow_frame.h"
 #include "thread_list.h"
 
 #include "JniConstants.h" // Last to avoid problems with LOG redefinition.
@@ -45,10 +46,17 @@ static jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThre
 static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
   // Returns the defining class loader of the caller's caller.
   // TODO: need SmartFrame (Thread::WalkStack-like iterator).
+#if !defined(ART_USE_LLVM_COMPILER)
   Frame frame = Thread::Current()->GetTopOfStack();
   frame.Next();
   frame.Next();
   Method* callerCaller = frame.GetMethod();
+#else
+  ShadowFrame* frame = Thread::Current()->GetTopOfShadowFrame();
+  frame = frame->GetLink();
+  frame = frame->GetLink();
+  Method* callerCaller = frame->GetMethod();
+#endif
   DCHECK(callerCaller != NULL);
   const Object* cl = callerCaller->GetDeclaringClass()->GetClassLoader();
   return AddLocalReference<jobject>(env, cl);
