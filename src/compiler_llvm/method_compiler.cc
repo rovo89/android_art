@@ -3284,12 +3284,8 @@ MethodCompiler::EmitIntArithmResultComputation(uint32_t dex_pc,
     return irb_.CreateMul(lhs, rhs);
 
   case kIntArithm_Div:
-    EmitGuard_DivZeroException(dex_pc, rhs, op_jty);
-    return irb_.CreateSDiv(lhs, rhs);
-
   case kIntArithm_Rem:
-    EmitGuard_DivZeroException(dex_pc, rhs, op_jty);
-    return irb_.CreateSRem(lhs, rhs);
+    return EmitIntDivRemResultComputation(dex_pc, lhs, rhs, arithm, op_jty);
 
   case kIntArithm_And:
     return irb_.CreateAnd(lhs, rhs);
@@ -3304,6 +3300,67 @@ MethodCompiler::EmitIntArithmResultComputation(uint32_t dex_pc,
     LOG(FATAL) << "Unknown integer arithmetic kind: " << arithm;
     return NULL;
   }
+}
+
+
+llvm::Value*
+MethodCompiler::EmitIntDivRemResultComputation(uint32_t dex_pc,
+                                               llvm::Value* dividend,
+                                               llvm::Value* divisor,
+                                               IntArithmKind arithm,
+                                               JType op_jty) {
+  // Throw exception if the divisor is 0.
+  EmitGuard_DivZeroException(dex_pc, divisor, op_jty);
+
+  // Check the special case: MININT / -1 = MININT
+  // That case will cause overflow, which is undefined behavior in llvm.
+  // So we check the divisor is -1 or not, if the divisor is -1, we do
+  // the special path to avoid undefined behavior.
+  llvm::Type* op_type = irb_.getJType(op_jty, kAccurate);
+  llvm::Value* zero = irb_.getJZero(op_jty);
+  llvm::Value* neg_one = llvm::ConstantInt::getSigned(op_type, -1);
+  llvm::Value* result = irb_.CreateAlloca(op_type);
+
+  llvm::BasicBlock* eq_neg_one = CreateBasicBlockWithDexPC(dex_pc, "eq_neg_one");
+  llvm::BasicBlock* ne_neg_one = CreateBasicBlockWithDexPC(dex_pc, "ne_neg_one");
+  llvm::BasicBlock* neg_one_cont = CreateBasicBlockWithDexPC(dex_pc, "neg_one_cont");
+
+  llvm::Value* is_equal_neg_one = EmitConditionResult(divisor, neg_one, kCondBranch_EQ);
+  irb_.CreateCondBr(is_equal_neg_one, eq_neg_one, ne_neg_one);
+
+  // If divisor == -1
+  irb_.SetInsertPoint(eq_neg_one);
+  llvm::Value* eq_result;
+  if (arithm == kIntArithm_Div) {
+    // We can just change from "dividend div -1" to "neg dividend".
+    // The sub don't care the sign/unsigned because of two's complement representation.
+    // And the behavior is what we want:
+    //  -(2^n)        (2^n)-1
+    //  MININT  < k <= MAXINT    ->     mul k -1  =  -k
+    //  MININT == k              ->     mul k -1  =   k
+    //
+    // LLVM use sub to represent 'neg'
+    eq_result = irb_.CreateSub(zero, dividend);
+  } else {
+    // Everything modulo -1 will be 0.
+    eq_result = zero;
+  }
+  irb_.CreateStore(eq_result, result);
+  irb_.CreateBr(neg_one_cont);
+
+  // If divisor != -1, just do the division.
+  irb_.SetInsertPoint(ne_neg_one);
+  llvm::Value* ne_result;
+  if (arithm == kIntArithm_Div) {
+    ne_result = irb_.CreateSDiv(dividend, divisor);
+  } else {
+    ne_result = irb_.CreateSRem(dividend, divisor);
+  }
+  irb_.CreateStore(ne_result, result);
+  irb_.CreateBr(neg_one_cont);
+
+  irb_.SetInsertPoint(neg_one_cont);
+  return irb_.CreateLoad(result);
 }
 
 

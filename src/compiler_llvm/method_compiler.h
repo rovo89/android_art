@@ -284,6 +284,12 @@ class MethodCompiler {
                                               IntArithmKind arithm,
                                               JType op_jty);
 
+  llvm::Value* EmitIntDivRemResultComputation(uint32_t dex_pc,
+                                              llvm::Value* dividend,
+                                              llvm::Value* divisor,
+                                              IntArithmKind arithm,
+                                              JType op_jty);
+
   llvm::Value* EmitIntShiftArithmResultComputation(uint32_t dex_pc,
                                                    llvm::Value* lhs,
                                                    llvm::Value* rhs,
