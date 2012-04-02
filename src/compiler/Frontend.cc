@@ -24,7 +24,7 @@
 namespace art {
 
 /* Default optimizer/debug setting for the compiler. */
-uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
+static uint32_t kCompilerOptimizerDisableFlags = 0 | // Disable specific optimizations
      //(1 << kLoadStoreElimination) |
      //(1 << kLoadHoisting) |
      //(1 << kSuppressLoads) |
@@ -38,7 +38,7 @@ uint32_t compilerOptimizerDisableFlags = 0 | // Disable specific optimizations
      //(1 << kPromoteCompilerTemps) |
      0;
 
-uint32_t compilerDebugFlags = 0 |     // Enable debug/testing modes
+static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
      //(1 << kDebugDisplayMissingTargets) |
      //(1 << kDebugVerbose) |
      //(1 << kDebugDumpCFG) |
@@ -751,7 +751,6 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
 
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     UniquePtr<CompilationUnit> cUnit(new CompilationUnit);
-    memset(cUnit.get(), 0, sizeof(*cUnit));
 
     oatInit(cUnit.get(), compiler);
 
@@ -771,20 +770,14 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     cUnit->numOuts = code_item->outs_size_;
     /* Adjust this value accordingly once inlining is performed */
     cUnit->numDalvikRegisters = code_item->registers_size_;
-    cUnit->blockMap = std::map<unsigned int, BasicBlock*>();
-    cUnit->blockMap.clear();
-    cUnit->boundaryMap = std::map<unsigned int, LIR*>();
-    cUnit->boundaryMap.clear();
-    // TODO: set these from command line
-    cUnit->compilerMethodMatch = new std::string("");
+    // TODO: set this from command line
     cUnit->compilerFlipMatch = false;
-    bool useMatch = cUnit->compilerMethodMatch->length() != 0;
+    bool useMatch = !cUnit->compilerMethodMatch.empty();
     bool match = useMatch && (cUnit->compilerFlipMatch ^
-        (PrettyMethod(method_idx, dex_file).find(*cUnit->compilerMethodMatch)
-        != std::string::npos));
+        (PrettyMethod(method_idx, dex_file).find(cUnit->compilerMethodMatch) != std::string::npos));
     if (!useMatch || match) {
-        cUnit->disableOpt = compilerOptimizerDisableFlags;
-        cUnit->enableDebug = compilerDebugFlags;
+        cUnit->disableOpt = kCompilerOptimizerDisableFlags;
+        cUnit->enableDebug = kCompilerDebugFlags;
         cUnit->printMe = VLOG_IS_ON(compiler) || (cUnit->enableDebug & (1 << kDebugVerbose));
     }
     if (cUnit->instructionSet == kX86) {
@@ -806,7 +799,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     }
 
     /* Gathering opcode stats? */
-    if (compilerDebugFlags & (1 << kDebugCountOpcodes)) {
+    if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
         cUnit->opcodeCount = (int*)oatNew(cUnit.get(),
             kNumPackedOpcodes * sizeof(int), true, kAllocMisc);
     }

@@ -290,7 +290,100 @@ enum AssemblerStatus {
 #define NOTVISITED (-1)
 
 struct CompilationUnit {
-    int numInsts;
+  CompilationUnit()
+      : numBlocks(0),
+        compiler(NULL),
+        class_linker(NULL),
+        dex_file(NULL),
+        dex_cache(NULL),
+        class_loader(NULL),
+        method_idx(0),
+        code_item(NULL),
+        access_flags(0),
+        shorty(NULL),
+        firstLIRInsn(NULL),
+        lastLIRInsn(NULL),
+        literalList(NULL),
+        methodLiteralList(NULL),
+        codeLiteralList(NULL),
+        classPointerList(NULL),
+        numClassPointers(0),
+        chainCellOffsetLIR(NULL),
+        disableOpt(0),
+        enableDebug(0),
+        headerSize(0),
+        dataOffset(0),
+        totalSize(0),
+        assemblerStatus(kSuccess),
+        assemblerRetries(0),
+        genDebugger(false),
+        printMe(false),
+        hasClassLiterals(false),
+        hasLoop(false),
+        hasInvoke(false),
+        heapMemOp(false),
+        qdMode(false),
+        usesLinkRegister(false),
+        methodTraceSupport(false),
+        regPool(NULL),
+        optRound(0),
+        instructionSet(kNone),
+        numSSARegs(0),
+        ssaBaseVRegs(NULL),
+        ssaSubscripts(NULL),
+        vRegToSSAMap(NULL),
+        SSALastDefs(NULL),
+        isConstantV(NULL),
+        constantValues(NULL),
+        phiAliasMap(NULL),
+        phiList(NULL),
+        regLocation(NULL),
+        sequenceNumber(0),
+        promotionMap(NULL),
+        methodSReg(0),
+        switchOverflowPad(NULL),
+        numReachableBlocks(0),
+        numDalvikRegisters(0),
+        entryBlock(NULL),
+        exitBlock(NULL),
+        curBlock(NULL),
+        nextCodegenBlock(NULL),
+        iDomList(NULL),
+        tryBlockAddr(NULL),
+        defBlockMatrix(NULL),
+        tempBlockV(NULL),
+        tempDalvikRegisterV(NULL),
+        tempSSARegisterV(NULL),
+        printSSANames(false),
+        blockLabelList(NULL),
+        quitLoopMode(false),
+        preservedRegsUsed(0),
+        numIns(0),
+        numOuts(0),
+        numRegs(0),
+        numCoreSpills(0),
+        numFPSpills(0),
+        numCompilerTemps(0),
+        frameSize(0),
+        coreSpillMask(0U),
+        fpSpillMask(0U),
+        attrs(0U),
+        currentDalvikOffset(0),
+        insns(NULL),
+        insnsSize(0U),
+        disableDataflow(false),
+        defCount(0),
+        compilerFlipMatch(false),
+        arenaHead(NULL),
+        currentArena(NULL),
+        numArenaBlocks(0),
+        mstats(NULL),
+        opcodeCount(NULL) {
+#if !defined(NDEBUG)
+      liveSReg = 0;
+#endif
+    }
+
     int numBlocks;
     GrowableList blockList;
     Compiler* compiler;            // Compiler driving this compiler
@@ -420,22 +513,25 @@ struct CompilationUnit {
      * The low-level LIR creation utilites will pull it from here.  Should
      * be rewritten.
      */
-     int currentDalvikOffset;
-     GrowableList switchTables;
-     GrowableList fillArrayData;
-     const u2* insns;
-     u4 insnsSize;
-     bool disableDataflow; // Skip dataflow analysis if possible
-     std::map<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
-     std::map<unsigned int, LIR*> boundaryMap; // boundary lookup cache
-     int defCount;         // Used to estimate number of SSA names
-     std::string* compilerMethodMatch;
-     bool compilerFlipMatch;
-     struct ArenaMemBlock* arenaHead;
-     struct ArenaMemBlock* currentArena;
-     int numArenaBlocks;
-     struct Memstats* mstats;
-     int* opcodeCount;    // Count Dalvik opcodes for tuning
+    int currentDalvikOffset;
+    GrowableList switchTables;
+    GrowableList fillArrayData;
+    const u2* insns;
+    u4 insnsSize;
+    bool disableDataflow; // Skip dataflow analysis if possible
+    std::map<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
+    std::map<unsigned int, LIR*> boundaryMap; // boundary lookup cache
+    int defCount;         // Used to estimate number of SSA names
+
+    // If non-empty, apply optimizer/debug flags only to matching methods.
+    std::string compilerMethodMatch;
+    // Flips sense of compilerMethodMatch - apply flags if doesn't match.
+    bool compilerFlipMatch;
+    struct ArenaMemBlock* arenaHead;
+    struct ArenaMemBlock* currentArena;
+    int numArenaBlocks;
+    struct Memstats* mstats;
+    int* opcodeCount;    // Count Dalvik opcodes for tuning
 #ifndef NDEBUG
     /*
      * Sanity checking for the register temp tracking.  The same ssa

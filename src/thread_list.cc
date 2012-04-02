@@ -25,7 +25,8 @@
 namespace art {
 
 ThreadList::ThreadList()
-    : thread_list_lock_("thread list lock", kThreadListLock),
+    : allocated_ids_lock_("allocated thread ids lock"),
+      thread_list_lock_("thread list lock", kThreadListLock),
       thread_start_cond_("thread_start_cond_"),
       thread_exit_cond_("thread_exit_cond_"),
       thread_suspend_count_lock_("thread suspend count lock", kThreadSuspendCountLock),
@@ -34,13 +35,15 @@ ThreadList::ThreadList()
 }
 
 ThreadList::~ThreadList() {
-  // Detach the current thread if necessary.
+  WaitForOtherNonDaemonThreadsToExit();
+  SuspendAllDaemonThreads();
+
+  // Detach the current thread if necessary. If we failed to start, there might not be any threads.
+  // We don't deal with the current thread before this point because the thread/thread-list
+  // diagnostics and debugging machinery requires the current thread to be attached.
   if (Contains(Thread::Current())) {
     Runtime::Current()->DetachCurrentThread();
   }
-
-  WaitForNonDaemonThreadsToExit();
-  SuspendAllDaemonThreads();
 }
 
 bool ThreadList::Contains(Thread* thread) {
@@ -335,12 +338,12 @@ void ThreadList::Unregister() {
     ScopedThreadListLock thread_list_lock;
     CHECK(Contains(self));
     list_.remove(self);
-
-    // Delete the Thread* and release the thin lock id.
-    uint32_t thin_lock_id = self->thin_lock_id_;
-    delete self;
-    ReleaseThreadId(thin_lock_id);
   }
+
+  // Delete the Thread* and release the thin lock id.
+  uint32_t thin_lock_id = self->thin_lock_id_;
+  delete self;
+  ReleaseThreadId(thin_lock_id);
 
   // Clear the TLS data, so that the underlying native thread is recognizably detached.
   // (It may wish to reattach later.)
@@ -432,20 +435,21 @@ void ThreadList::WaitForGo() {
   self->SetState(Thread::kRunnable);
 }
 
-bool ThreadList::AllThreadsAreDaemons() {
+bool ThreadList::AllOtherThreadsAreDaemons() {
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     // TODO: there's a race here with thread exit that's being worked around by checking if the peer
     // is null.
-    if ((*it)->GetPeer() != NULL && !(*it)->IsDaemon()) {
+    Thread* thread = *it;
+    if (thread != Thread::Current() && thread->GetPeer() != NULL && !thread->IsDaemon()) {
       return false;
     }
   }
   return true;
 }
 
-void ThreadList::WaitForNonDaemonThreadsToExit() {
+void ThreadList::WaitForOtherNonDaemonThreadsToExit() {
   ScopedThreadListLock thread_list_lock;
-  while (!AllThreadsAreDaemons()) {
+  while (!AllOtherThreadsAreDaemons()) {
     thread_exit_cond_.Wait(thread_list_lock_);
   }
 }
@@ -453,13 +457,14 @@ void ThreadList::WaitForNonDaemonThreadsToExit() {
 void ThreadList::SuspendAllDaemonThreads() {
   ScopedThreadListLock thread_list_lock;
 
-  // Tell all the daemons it's time to suspend. (At this point, we know
-  // all threads are daemons.)
+  // Tell all the daemons it's time to suspend.
   {
     MutexLock mu(thread_suspend_count_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
-      ++thread->suspend_count_;
+      if (thread != Thread::Current()) {
+        ++thread->suspend_count_;
+      }
     }
   }
 
@@ -470,7 +475,7 @@ void ThreadList::SuspendAllDaemonThreads() {
     bool all_suspended = true;
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
-      if (thread->GetState() == Thread::kRunnable) {
+      if (thread != Thread::Current() && thread->GetState() == Thread::kRunnable) {
         if (!have_complained) {
           LOG(WARNING) << "daemon thread not yet suspended: " << *thread;
           have_complained = true;
@@ -485,7 +490,8 @@ void ThreadList::SuspendAllDaemonThreads() {
 }
 
 uint32_t ThreadList::AllocThreadId() {
-  ScopedThreadListLock thread_list_lock;
+  MutexLock mu(allocated_ids_lock_);
+  //ScopedThreadListLock thread_list_lock;
   for (size_t i = 0; i < allocated_ids_.size(); ++i) {
     if (!allocated_ids_[i]) {
       allocated_ids_.set(i);
@@ -497,7 +503,7 @@ uint32_t ThreadList::AllocThreadId() {
 }
 
 void ThreadList::ReleaseThreadId(uint32_t id) {
-  thread_list_lock_.AssertHeld();
+  MutexLock mu(allocated_ids_lock_);
   --id; // Zero is reserved to mean "invalid".
   DCHECK(allocated_ids_[id]) << id;
   allocated_ids_.reset(id);
