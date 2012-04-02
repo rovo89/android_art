@@ -338,6 +338,7 @@ class IntMath extends IntMathBase {
         int negOne = -results[5];
         int plusOne = 1;
         int result = (((minInt + plusOne) - plusOne) / negOne) / negOne;
+        int shouldBeZero = minInt % negOne;
 
         if (result != minInt) { return 1;};
         if (results[0] != 69997) { return 2;};
@@ -350,6 +351,7 @@ class IntMath extends IntMathBase {
         if (results[7] != -3) { return 9;};
         if (results[8] != -70003) { return 10;};
         if (results[9] != 70000) { return 11;};
+        if (shouldBeZero != 0) { return 12;};
 
         return 0;
     }
