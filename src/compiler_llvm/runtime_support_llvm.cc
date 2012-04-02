@@ -24,6 +24,7 @@
 #include "thread.h"
 #include "thread_list.h"
 
+#include <algorithm>
 #include <stdint.h>
 
 namespace art {
@@ -432,6 +433,50 @@ void art_check_cast_from_code(Object* dest_type, Object* src_type) {
 // Runtime Support Function Lookup Callback
 //----------------------------------------------------------------------------
 
+class CStringComparator {
+ public:
+  bool operator()(const char* lhs, const char* rhs) const {
+    return (strcmp(lhs, rhs) <= 0);
+  }
+};
+
+#define EXTERNAL_LINKAGE(NAME) \
+extern "C" void NAME(...);
+
+#include "compiler_runtime_func_list.h"
+COMPILER_RUNTIME_FUNC_LIST(EXTERNAL_LINKAGE)
+#undef COMPILER_RUNTIME_FUNC_LIST
+#undef EXTERNAL_LINKAGE
+
+static void* art_find_compiler_runtime_func(char const* name) {
+  static const char* const names[] = {
+#define DEFINE_ENTRY(NAME) #NAME ,
+#include "compiler_runtime_func_list.h"
+    COMPILER_RUNTIME_FUNC_LIST(DEFINE_ENTRY)
+#undef COMPILER_RUNTIME_FUNC_LIST
+#undef DEFINE_ENTRY
+  };
+
+  static void* const funcs[] = {
+#define DEFINE_ENTRY(NAME) reinterpret_cast<void*>(NAME) ,
+#include "compiler_runtime_func_list.h"
+    COMPILER_RUNTIME_FUNC_LIST(DEFINE_ENTRY)
+#undef COMPILER_RUNTIME_FUNC_LIST
+#undef DEFINE_ENTRY
+  };
+
+  static const size_t num_entries = sizeof(names) / sizeof(const char* const);
+
+  const char* const* matched_name_ptr =
+      std::lower_bound(names, names + num_entries, name, CStringComparator());
+
+  if (matched_name_ptr == names + num_entries) {
+    return NULL;
+  } else {
+    return funcs[matched_name_ptr - names];
+  }
+}
+
 void* art_find_runtime_support_func(void* context, char const* name) {
   struct func_entry_t {
     char const* name;
@@ -450,6 +495,12 @@ void* art_find_runtime_support_func(void* context, char const* name) {
   };
 
   static size_t const tab_size = sizeof(tab) / sizeof(struct func_entry_t);
+
+  // Search the compiler runtime (such as __divdi3)
+  void* result = art_find_compiler_runtime_func(name);
+  if (result != NULL) {
+    return result;
+  }
 
   // Note: Since our table is small, we are using trivial O(n) searching
   // function.  For bigger table, it will be better to use binary
