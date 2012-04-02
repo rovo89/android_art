@@ -136,6 +136,113 @@ class OatDumper {
     os << "END:\n";
     os << reinterpret_cast<const void*>(oat_file_.End()) << "\n\n";
 
+    os << "THREAD ENTRY POINTS:\n";
+    uintptr_t start_offset = OFFSETOF_MEMBER(Thread, entrypoints_);
+    uintptr_t last_offset = start_offset - sizeof(uintptr_t);
+
+#define DUMP_ENTRY_POINT(x) { \
+      uintptr_t offset = ENTRYPOINT_OFFSET(x); \
+      CHECK_EQ(last_offset + sizeof(uintptr_t), offset); \
+      os << #x << ": " << offset << "\n"; \
+      last_offset = offset; \
+    }
+
+    DUMP_ENTRY_POINT(pAllocArrayFromCode);
+    DUMP_ENTRY_POINT(pAllocArrayFromCodeWithAccessCheck);
+    DUMP_ENTRY_POINT(pAllocObjectFromCode);
+    DUMP_ENTRY_POINT(pAllocObjectFromCodeWithAccessCheck);
+    DUMP_ENTRY_POINT(pCheckAndAllocArrayFromCode);
+    DUMP_ENTRY_POINT(pCheckAndAllocArrayFromCodeWithAccessCheck);
+    DUMP_ENTRY_POINT(pInstanceofNonTrivialFromCode);
+    DUMP_ENTRY_POINT(pCanPutArrayElementFromCode);
+    DUMP_ENTRY_POINT(pCheckCastFromCode);
+    DUMP_ENTRY_POINT(pDebugMe);
+    DUMP_ENTRY_POINT(pUpdateDebuggerFromCode);
+    DUMP_ENTRY_POINT(pInitializeStaticStorage);
+    DUMP_ENTRY_POINT(pInitializeTypeAndVerifyAccessFromCode);
+    DUMP_ENTRY_POINT(pInitializeTypeFromCode);
+    DUMP_ENTRY_POINT(pResolveStringFromCode);
+    DUMP_ENTRY_POINT(pSet32Instance);
+    DUMP_ENTRY_POINT(pSet32Static);
+    DUMP_ENTRY_POINT(pSet64Instance);
+    DUMP_ENTRY_POINT(pSet64Static);
+    DUMP_ENTRY_POINT(pSetObjInstance);
+    DUMP_ENTRY_POINT(pSetObjStatic);
+    DUMP_ENTRY_POINT(pGet32Instance);
+    DUMP_ENTRY_POINT(pGet32Static);
+    DUMP_ENTRY_POINT(pGet64Instance);
+    DUMP_ENTRY_POINT(pGet64Static);
+    DUMP_ENTRY_POINT(pGetObjInstance);
+    DUMP_ENTRY_POINT(pGetObjStatic);
+    DUMP_ENTRY_POINT(pHandleFillArrayDataFromCode);
+    DUMP_ENTRY_POINT(pDecodeJObjectInThread);
+    DUMP_ENTRY_POINT(pFindNativeMethod);
+    DUMP_ENTRY_POINT(pLockObjectFromCode);
+    DUMP_ENTRY_POINT(pUnlockObjectFromCode);
+    DUMP_ENTRY_POINT(pCmpgDouble);
+    DUMP_ENTRY_POINT(pCmpgFloat);
+    DUMP_ENTRY_POINT(pCmplDouble);
+    DUMP_ENTRY_POINT(pCmplFloat);
+    DUMP_ENTRY_POINT(pDadd);
+    DUMP_ENTRY_POINT(pDdiv);
+    DUMP_ENTRY_POINT(pDmul);
+    DUMP_ENTRY_POINT(pDsub);
+    DUMP_ENTRY_POINT(pF2d);
+    DUMP_ENTRY_POINT(pFmod);
+    DUMP_ENTRY_POINT(pI2d);
+    DUMP_ENTRY_POINT(pL2d);
+    DUMP_ENTRY_POINT(pD2f);
+    DUMP_ENTRY_POINT(pFadd);
+    DUMP_ENTRY_POINT(pFdiv);
+    DUMP_ENTRY_POINT(pFmodf);
+    DUMP_ENTRY_POINT(pFmul);
+    DUMP_ENTRY_POINT(pFsub);
+    DUMP_ENTRY_POINT(pI2f);
+    DUMP_ENTRY_POINT(pL2f);
+    DUMP_ENTRY_POINT(pD2iz);
+    DUMP_ENTRY_POINT(pF2iz);
+    DUMP_ENTRY_POINT(pIdiv);
+    DUMP_ENTRY_POINT(pIdivmod);
+    DUMP_ENTRY_POINT(pD2l);
+    DUMP_ENTRY_POINT(pF2l);
+    DUMP_ENTRY_POINT(pLadd);
+    DUMP_ENTRY_POINT(pLand);
+    DUMP_ENTRY_POINT(pLdivmod);
+    DUMP_ENTRY_POINT(pLmul);
+    DUMP_ENTRY_POINT(pLor);
+    DUMP_ENTRY_POINT(pLsub);
+    DUMP_ENTRY_POINT(pLxor);
+    DUMP_ENTRY_POINT(pShlLong);
+    DUMP_ENTRY_POINT(pShrLong);
+    DUMP_ENTRY_POINT(pUshrLong);
+    DUMP_ENTRY_POINT(pIndexOf);
+    DUMP_ENTRY_POINT(pMemcmp16);
+    DUMP_ENTRY_POINT(pStringCompareTo);
+    DUMP_ENTRY_POINT(pMemcpy);
+    DUMP_ENTRY_POINT(pFindInterfaceMethodInCache);
+    DUMP_ENTRY_POINT(pUnresolvedDirectMethodTrampolineFromCode);
+    DUMP_ENTRY_POINT(pInvokeDirectTrampolineWithAccessCheck);
+    DUMP_ENTRY_POINT(pInvokeInterfaceTrampoline);
+    DUMP_ENTRY_POINT(pInvokeInterfaceTrampolineWithAccessCheck);
+    DUMP_ENTRY_POINT(pInvokeStaticTrampolineWithAccessCheck);
+    DUMP_ENTRY_POINT(pInvokeSuperTrampolineWithAccessCheck);
+    DUMP_ENTRY_POINT(pInvokeVirtualTrampolineWithAccessCheck);
+    DUMP_ENTRY_POINT(pCheckSuspendFromCode);
+    DUMP_ENTRY_POINT(pTestSuspendFromCode);
+    DUMP_ENTRY_POINT(pDeliverException);
+    DUMP_ENTRY_POINT(pThrowAbstractMethodErrorFromCode);
+    DUMP_ENTRY_POINT(pThrowArrayBoundsFromCode);
+    DUMP_ENTRY_POINT(pThrowDivZeroFromCode);
+    DUMP_ENTRY_POINT(pThrowNoSuchMethodFromCode);
+    DUMP_ENTRY_POINT(pThrowNullPointerFromCode);
+    DUMP_ENTRY_POINT(pThrowStackOverflowFromCode);
+    DUMP_ENTRY_POINT(pThrowVerificationErrorFromCode);
+
+#undef DUMP_ENTRY_POINT
+
+    CHECK_EQ(start_offset + sizeof(EntryPoints), last_offset + sizeof(uintptr_t));
+    os << "\n";
+
     os << std::flush;
 
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
