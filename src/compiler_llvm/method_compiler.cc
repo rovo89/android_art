@@ -804,15 +804,15 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::SHL_INT:
-    EmitInsn_IntArithm(ARGS, kIntArithm_Shl, kInt, false);
+    EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shl, kInt, false);
     break;
 
   case Instruction::SHR_INT:
-    EmitInsn_IntArithm(ARGS, kIntArithm_Shr, kInt, false);
+    EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shr, kInt, false);
     break;
 
   case Instruction::USHR_INT:
-    EmitInsn_IntArithm(ARGS, kIntArithm_UShr, kInt, false);
+    EmitInsn_IntShiftArithm(ARGS, kIntArithm_UShr, kInt, false);
     break;
 
   case Instruction::ADD_LONG:
@@ -848,15 +848,15 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::SHL_LONG:
-    EmitInsn_IntArithm(ARGS, kIntArithm_Shl, kLong, false);
+    EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shl, kLong, false);
     break;
 
   case Instruction::SHR_LONG:
-    EmitInsn_IntArithm(ARGS, kIntArithm_Shr, kLong, false);
+    EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shr, kLong, false);
     break;
 
   case Instruction::USHR_LONG:
-    EmitInsn_IntArithm(ARGS, kIntArithm_UShr, kLong, false);
+    EmitInsn_IntShiftArithm(ARGS, kIntArithm_UShr, kLong, false);
     break;
 
   case Instruction::ADD_FLOAT:
@@ -932,15 +932,15 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::SHL_INT_2ADDR:
-    EmitInsn_IntArithm(ARGS, kIntArithm_Shl, kInt, true);
+    EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shl, kInt, true);
     break;
 
   case Instruction::SHR_INT_2ADDR:
-    EmitInsn_IntArithm(ARGS, kIntArithm_Shr, kInt, true);
+    EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shr, kInt, true);
     break;
 
   case Instruction::USHR_INT_2ADDR:
-    EmitInsn_IntArithm(ARGS, kIntArithm_UShr, kInt, true);
+    EmitInsn_IntShiftArithm(ARGS, kIntArithm_UShr, kInt, true);
     break;
 
   case Instruction::ADD_LONG_2ADDR:
@@ -976,15 +976,15 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::SHL_LONG_2ADDR:
-    EmitInsn_IntArithm(ARGS, kIntArithm_Shl, kLong, true);
+    EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shl, kLong, true);
     break;
 
   case Instruction::SHR_LONG_2ADDR:
-    EmitInsn_IntArithm(ARGS, kIntArithm_Shr, kLong, true);
+    EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shr, kLong, true);
     break;
 
   case Instruction::USHR_LONG_2ADDR:
-    EmitInsn_IntArithm(ARGS, kIntArithm_UShr, kLong, true);
+    EmitInsn_IntShiftArithm(ARGS, kIntArithm_UShr, kLong, true);
     break;
 
   case Instruction::ADD_FLOAT_2ADDR:
@@ -1068,15 +1068,15 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::SHL_INT_LIT8:
-    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_Shl);
+    EmitInsn_IntShiftArithmImmediate(ARGS, kIntArithm_Shl);
     break;
 
   case Instruction::SHR_INT_LIT8:
-    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_Shr);
+    EmitInsn_IntShiftArithmImmediate(ARGS, kIntArithm_Shr);
     break;
 
   case Instruction::USHR_INT_LIT8:
-    EmitInsn_IntArithmImmediate(ARGS, kIntArithm_UShr);
+    EmitInsn_IntShiftArithmImmediate(ARGS, kIntArithm_UShr);
     break;
 
   case Instruction::UNUSED_3E:
@@ -3300,29 +3300,94 @@ MethodCompiler::EmitIntArithmResultComputation(uint32_t dex_pc,
   case kIntArithm_Xor:
     return irb_.CreateXor(lhs, rhs);
 
-  case kIntArithm_Shl:
-    if (op_jty == kLong) {
-      return irb_.CreateShl(lhs, irb_.CreateAnd(rhs, 0x3f));
-    } else {
-      return irb_.CreateShl(lhs, irb_.CreateAnd(rhs, 0x1f));
-    }
-
-  case kIntArithm_Shr:
-    if (op_jty == kLong) {
-      return irb_.CreateAShr(lhs, irb_.CreateAnd(rhs, 0x3f));
-    } else {
-      return irb_.CreateAShr(lhs, irb_.CreateAnd(rhs, 0x1f));
-    }
-
-  case kIntArithm_UShr:
-    if (op_jty == kLong) {
-      return irb_.CreateLShr(lhs, irb_.CreateAnd(rhs, 0x3f));
-    } else {
-      return irb_.CreateLShr(lhs, irb_.CreateAnd(rhs, 0x1f));
-    }
-
   default:
     LOG(FATAL) << "Unknown integer arithmetic kind: " << arithm;
+    return NULL;
+  }
+}
+
+
+void MethodCompiler::EmitInsn_IntShiftArithm(uint32_t dex_pc,
+                                             Instruction const* insn,
+                                             IntShiftArithmKind arithm,
+                                             JType op_jty,
+                                             bool is_2addr) {
+
+  DecodedInstruction dec_insn(insn);
+
+  DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
+
+  llvm::Value* src1_value;
+  llvm::Value* src2_value;
+
+  // NOTE: The 2nd operand of the shift arithmetic instruction is
+  // 32-bit integer regardless of the 1st operand.
+  if (is_2addr) {
+    src1_value = EmitLoadDalvikReg(dec_insn.vA, op_jty, kAccurate);
+    src2_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
+  } else {
+    src1_value = EmitLoadDalvikReg(dec_insn.vB, op_jty, kAccurate);
+    src2_value = EmitLoadDalvikReg(dec_insn.vC, kInt, kAccurate);
+  }
+
+  llvm::Value* result_value =
+    EmitIntShiftArithmResultComputation(dex_pc, src1_value, src2_value,
+                                        arithm, op_jty);
+
+  EmitStoreDalvikReg(dec_insn.vA, op_jty, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+void MethodCompiler::
+EmitInsn_IntShiftArithmImmediate(uint32_t dex_pc,
+                                 Instruction const* insn,
+                                 IntShiftArithmKind arithm) {
+
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
+
+  llvm::Value* imm_value = irb_.getInt32(dec_insn.vC);
+
+  llvm::Value* result_value =
+    EmitIntShiftArithmResultComputation(dex_pc, src_value, imm_value,
+                                        arithm, kInt);
+
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+}
+
+
+llvm::Value*
+MethodCompiler::EmitIntShiftArithmResultComputation(uint32_t dex_pc,
+                                                    llvm::Value* lhs,
+                                                    llvm::Value* rhs,
+                                                    IntShiftArithmKind arithm,
+                                                    JType op_jty) {
+  DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
+
+  if (op_jty == kInt) {
+    rhs = irb_.CreateAnd(rhs, 0x1f);
+  } else {
+    llvm::Value* masked_rhs = irb_.CreateAnd(rhs, 0x3f);
+    rhs = irb_.CreateZExt(masked_rhs, irb_.getJLongTy());
+  }
+
+  switch (arithm) {
+  case kIntArithm_Shl:
+    return irb_.CreateShl(lhs, rhs);
+
+  case kIntArithm_Shr:
+    return irb_.CreateAShr(lhs, rhs);
+
+  case kIntArithm_UShr:
+    return irb_.CreateLShr(lhs, rhs);
+
+  default:
+    LOG(FATAL) << "Unknown integer shift arithmetic kind: " << arithm;
     return NULL;
   }
 }
