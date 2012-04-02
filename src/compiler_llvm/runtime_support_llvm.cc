@@ -422,11 +422,21 @@ Object* art_decode_jobject_in_thread(Thread* thread, jobject obj) {
 // RTTI
 //----------------------------------------------------------------------------
 
-int32_t art_is_assignable_from_code(Object* dest_type, Object* src_type) {
-  return 0;
+int32_t art_is_assignable_from_code(const Class* dest_type, const Class* src_type) {
+  DCHECK(dest_type != NULL);
+  DCHECK(src_type != NULL);
+  return dest_type->IsAssignableFrom(src_type) ? 1 : 0;
 }
 
-void art_check_cast_from_code(Object* dest_type, Object* src_type) {
+void art_check_cast_from_code(const Class* dest_type, const Class* src_type) {
+  DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
+  DCHECK(src_type->IsClass()) << PrettyClass(src_type);
+  if (UNLIKELY(!dest_type->IsAssignableFrom(src_type))) {
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
+        "%s cannot be cast to %s",
+        PrettyDescriptor(dest_type).c_str(),
+        PrettyDescriptor(src_type).c_str());
+  }
 }
 
 //----------------------------------------------------------------------------
