@@ -43,11 +43,14 @@ void* oatNew(CompilationUnit* cUnit, size_t size, bool zero,
 void oatArenaReset(CompilationUnit *cUnit);
 
 struct GrowableList {
-    size_t numAllocated;
-    size_t numUsed;
-    intptr_t *elemList;
+  GrowableList() : numAllocated(0), numUsed(0), elemList(NULL) {
+  }
+
+  size_t numAllocated;
+  size_t numUsed;
+  intptr_t* elemList;
 #ifdef WITH_MEMSTATS
-    oatListKind kind;
+  oatListKind kind;
 #endif
 };
 

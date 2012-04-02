@@ -111,8 +111,6 @@ enum oatBitMapKind {
     kNumBitMapKinds
 };
 
-extern uint32_t compilerOptimizerDisableFlags;
-
 /* Force code generation paths for testing */
 enum debugControlVector {
     kDebugDisplayMissingTargets,
@@ -130,14 +128,6 @@ enum debugControlVector {
     kDebugShowNops,
     kDebugCountOpcodes,
 };
-
-extern uint32_t compilerDebugFlags;
-
-/* If non-empty, apply optimizer/debug flags only to matching methods */
-extern std::string compilerMethodMatch;
-
-/* Flips sense of compilerMethodMatch - apply flags if doesn't match */
-extern bool compilerFlipMatch;
 
 enum OatMethodAttributes {
     kIsCallee = 0,      /* Code is part of a callee (invoked by a hot trace) */
