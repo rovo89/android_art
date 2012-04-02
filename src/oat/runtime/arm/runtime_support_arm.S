@@ -504,13 +504,16 @@ art_set32_static_from_code:
     DELIVER_PENDING_EXCEPTION
 
     .global art_set64_static_from_code
-    .extern artSet32StaticFromCode
+    .extern artSet64StaticFromCode
     /*
      * Called by managed code to resolve a static field and store a 64-bit primitive value.
+     * On entry r0 holds field index, r1:r2 hold new_val
      */
     ALIGN_FUNCTION_ENTRY
 art_set64_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
+    mov    r3, r2                        @ pass one half of wide argument
+    mov    r2, r1                        @ pass other half of wide argument
     ldr    r1, [sp, #32]                 @ pass referrer
     mov    r12, sp                       @ save SP
     sub    sp, #8                        @ grow frame for alignment with stack args
