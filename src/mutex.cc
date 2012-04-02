@@ -23,6 +23,10 @@
 #include "thread.h"
 #include "utils.h"
 
+#if defined(__APPLE__)
+#include "AvailabilityMacros.h" // For MAC_OS_X_VERSION_MAX_ALLOWED
+#endif
+
 #define CHECK_MUTEX_CALL(call, args) CHECK_PTHREAD_CALL(call, args, name_)
 
 namespace art {

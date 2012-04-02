@@ -37,6 +37,10 @@
 #include "timing_logger.h"
 #include "zip_archive.h"
 
+#if defined(__APPLE__)
+#include "AvailabilityMacros.h" // For MAC_OS_X_VERSION_MAX_ALLOWED
+#endif
+
 namespace art {
 
 static void UsageErrorV(const char* fmt, va_list ap) {
@@ -473,6 +477,10 @@ int dex2oat(int argc, char** argv) {
   InstructionSet instruction_set = kThumb2;
   bool dump_stats = kIsDebugBuild;
   bool dump_timings = kIsDebugBuild;
+
+#if defined(__APPLE__) && MAC_OS_X_VERSION_MAX_ALLOWED < 1060
+  thread_count = 1;
+#endif
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
