@@ -125,9 +125,9 @@ void art_throw_exception_from_code(Object* exception) {
   thread->SetException(static_cast<Throwable*>(exception));
 }
 
-int32_t art_find_catch_block_from_code(Object* exception, int32_t dex_pc) {
-  Class* exception_type = exception->GetClass();
-  Method* current_method = Thread::Current()->GetCurrentMethod();
+int32_t art_find_catch_block_from_code(Method* current_method, int32_t dex_pc) {
+  Thread* thread = Thread::Current();
+  Class* exception_type = thread->GetException()->GetClass();
   MethodHelper mh(current_method);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
   int iter_index = 0;
