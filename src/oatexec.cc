@@ -172,10 +172,14 @@ int oatexec(int argc, char** argv) {
 
   int rc = InvokeMain(env, &argv[arg_idx]);
 
+#if defined(NDEBUG)
+  // The DestroyJavaVM call will detach this thread for us. In debug builds, we don't want to
+  // detach because detaching disables the CheckSafeToLockOrUnlock checking.
   if (vm->DetachCurrentThread() != JNI_OK) {
     fprintf(stderr, "Warning: unable to detach main thread\n");
     rc = EXIT_FAILURE;
   }
+#endif
 
   if (vm->DestroyJavaVM() != 0) {
     fprintf(stderr, "Warning: runtime did not shut down cleanly\n");
