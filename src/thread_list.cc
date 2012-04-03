@@ -35,15 +35,15 @@ ThreadList::ThreadList()
 }
 
 ThreadList::~ThreadList() {
-  WaitForOtherNonDaemonThreadsToExit();
-  SuspendAllDaemonThreads();
-
   // Detach the current thread if necessary. If we failed to start, there might not be any threads.
-  // We don't deal with the current thread before this point because the thread/thread-list
-  // diagnostics and debugging machinery requires the current thread to be attached.
+  // We need to detach the current thread here in case there's another thread waiting to join with
+  // us.
   if (Contains(Thread::Current())) {
     Runtime::Current()->DetachCurrentThread();
   }
+
+  WaitForOtherNonDaemonThreadsToExit();
+  SuspendAllDaemonThreads();
 }
 
 bool ThreadList::Contains(Thread* thread) {
