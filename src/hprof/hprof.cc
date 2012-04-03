@@ -593,7 +593,7 @@ bool Hprof::Finish() {
   }
 
   // throw out a log message for the benefit of "runhat"
-  LOG(INFO) << "hprof: heap dump completed (" << ((headCtx.file_data_size_ + file_data_size_ + 1023) / KB) << "KiB)";
+  LOG(INFO) << "hprof: heap dump completed (" << PrettySize(headCtx.file_data_size_ + file_data_size_ + 1023) << ")";
 
   return true;
 }
