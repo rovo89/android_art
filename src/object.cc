@@ -559,8 +559,10 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
 void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const {
   // Push a transition back into managed code onto the linked list in thread.
   CHECK_EQ(Thread::kRunnable, self->GetState());
+#if !defined(ART_USE_LLVM_COMPILER)
   NativeToManagedRecord record;
   self->PushNativeToManagedRecord(&record);
+#endif
 
   // Call the invoke stub associated with the method.
   // Pass everything as arguments.
@@ -588,8 +590,10 @@ void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result
     }
   }
 
+#if !defined(ART_USE_LLVM_COMPILER)
   // Pop transition.
   self->PopNativeToManagedRecord(record);
+#endif
 }
 
 bool Method::IsRegistered() const {
