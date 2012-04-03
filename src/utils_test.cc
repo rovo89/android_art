@@ -138,9 +138,9 @@ TEST_F(UtilsTest, PrettySize) {
   EXPECT_EQ("1MB", PrettySize(1 * MB));
   EXPECT_EQ("10MB", PrettySize(10 * MB));
   EXPECT_EQ("100MB", PrettySize(100 * MB));
-  EXPECT_EQ("1KiB", PrettySize(1 * KB));
-  EXPECT_EQ("10KiB", PrettySize(10 * KB));
-  EXPECT_EQ("100KiB", PrettySize(100 * KB));
+  EXPECT_EQ("1KB", PrettySize(1 * KB));
+  EXPECT_EQ("10KB", PrettySize(10 * KB));
+  EXPECT_EQ("100KB", PrettySize(100 * KB));
   EXPECT_EQ("1B", PrettySize(1));
   EXPECT_EQ("10B", PrettySize(10));
   EXPECT_EQ("100B", PrettySize(100));

@@ -351,7 +351,7 @@ std::string PrettySize(size_t size_in_bytes) {
   } else if ((size_in_bytes / MB) * MB == size_in_bytes) {
     return StringPrintf("%zdMB", size_in_bytes / MB);
   } else if ((size_in_bytes / KB) * KB == size_in_bytes) {
-    return StringPrintf("%zdKiB", size_in_bytes / KB);
+    return StringPrintf("%zdKB", size_in_bytes / KB);
   } else {
     return StringPrintf("%zdB", size_in_bytes);
   }
