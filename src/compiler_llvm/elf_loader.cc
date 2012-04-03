@@ -99,6 +99,14 @@ GetMethodInvokeStubAddr(uint16_t elf_idx, uint16_t elf_func_idx) const {
 }
 
 
+size_t ElfLoader::GetCodeSize(uint16_t elf_idx, uint16_t elf_func_idx) const {
+  CHECK_LT(elf_idx, executables_.size());
+  CHECK(executables_[elf_idx] != NULL);
+  return rsloaderGetSymbolSize(executables_[elf_idx],
+                               ElfFuncName(elf_func_idx).c_str());
+}
+
+
 const void* ElfLoader::GetAddr(size_t elf_idx, const char* sym_name) const {
   CHECK_LT(elf_idx, executables_.size());
   CHECK(executables_[elf_idx] != NULL);

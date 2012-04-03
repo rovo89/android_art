@@ -423,16 +423,34 @@ class OatDumper {
     os << StringPrintf("\t\tgc_map: %p (offset=0x%08x)\n",
                        oat_method.GetGcMap(), oat_method.GetGcMapOffset());
     DumpGcMap(os, oat_method.GetGcMap());
-    os << StringPrintf("\t\tCODE: %p (offset=0x%08x size=%d)%s\n",
+    os << StringPrintf(
+#if defined(ART_USE_LLVM_COMPILER)
+                       "\t\tCODE: %p (offset=0x%08x size=%d elf_idx=%d elf_func_idx=%d)%s\n",
+#else
+                       "\t\tCODE: %p (offset=0x%08x size=%d)%s\n",
+#endif
                        oat_method.GetCode(),
                        oat_method.GetCodeOffset(),
                        oat_method.GetCodeSize(),
+#if defined(ART_USE_LLVM_COMPILER)
+                       static_cast<int>(oat_method.GetCodeElfIndex()),
+                       static_cast<int>(oat_method.GetCodeElfFuncIndex()),
+#endif
                        oat_method.GetCode() != NULL ? "..." : "");
     DumpCode(os, oat_method.GetCode(), oat_method.GetMappingTable(), dex_file, code_item);
-    os << StringPrintf("\t\tINVOKE STUB: %p (offset=0x%08x size=%d)%s\n",
+    os << StringPrintf(
+#if defined(ART_USE_LLVM_COMPILER)
+                       "\t\tINVOKE STUB: %p (offset=0x%08x size=%d elf_idx=%d elf_func_idx=%d)%s\n",
+#else
+                       "\t\tINVOKE STUB: %p (offset=0x%08x size=%d)%s\n",
+#endif
                        oat_method.GetInvokeStub(),
                        oat_method.GetInvokeStubOffset(),
                        oat_method.GetInvokeStubSize(),
+#if defined(ART_USE_LLVM_COMPILER)
+                       static_cast<int>(oat_method.GetInvokeStubElfIndex()),
+                       static_cast<int>(oat_method.GetInvokeStubElfFuncIndex()),
+#endif
                        oat_method.GetInvokeStub() != NULL ? "..." : "");
     DumpCode(os, reinterpret_cast<const void*>(oat_method.GetInvokeStub()), NULL, dex_file, NULL);
   }
