@@ -1753,6 +1753,10 @@ std::ostream& operator<<(std::ostream& os, const Thread& thread) {
 }
 
 void Thread::CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
+  if (this == NULL) {
+    CHECK(Runtime::Current()->IsShuttingDown());
+    return;
+  }
   if (is_locking) {
     if (held_mutexes_[rank] == 0) {
       bool bad_mutexes_held = false;
@@ -1772,6 +1776,10 @@ void Thread::CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
 }
 
 void Thread::CheckSafeToWait(MutexRank rank) {
+  if (this == NULL) {
+    CHECK(Runtime::Current()->IsShuttingDown());
+    return;
+  }
   bool bad_mutexes_held = false;
   for (int i = kMaxMutexRank; i >= 0; --i) {
     if (i != rank && held_mutexes_[i] != 0) {
