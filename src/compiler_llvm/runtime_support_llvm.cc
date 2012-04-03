@@ -419,7 +419,7 @@ Object* art_decode_jobject_in_thread(Thread* thread, jobject obj) {
 }
 
 //----------------------------------------------------------------------------
-// RTTI
+// Type checking, in the nature of casting
 //----------------------------------------------------------------------------
 
 int32_t art_is_assignable_from_code(const Class* dest_type, const Class* src_type) {
@@ -429,7 +429,7 @@ int32_t art_is_assignable_from_code(const Class* dest_type, const Class* src_typ
 }
 
 void art_check_cast_from_code(const Class* dest_type, const Class* src_type) {
-  DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
+DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
   DCHECK(src_type->IsClass()) << PrettyClass(src_type);
   if (UNLIKELY(!dest_type->IsAssignableFrom(src_type))) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
