@@ -809,7 +809,7 @@ void Runtime::BlockSignals() {
   if (sigaddset(&sigset, SIGQUIT) == -1) {
     PLOG(ERROR) << "sigaddset SIGQUIT failed";
   }
-  // SIGUSR1 is used to initiate a heap dump.
+  // SIGUSR1 is used to initiate a GC.
   if (sigaddset(&sigset, SIGUSR1) == -1) {
     PLOG(ERROR) << "sigaddset SIGUSR1 failed";
   }
