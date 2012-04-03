@@ -356,8 +356,7 @@ static jmethodID FindMethodID(ScopedJniThreadState& ts, jclass jni_class, const 
 }
 
 static const ClassLoader* GetClassLoader(Thread* self) {
-  Frame frame = self->GetTopOfStack();
-  Method* method = frame.GetMethod();
+  Method* method = self->GetCurrentMethod();
   if (method == NULL || PrettyMethod(method, false) == "java.lang.Runtime.nativeLoad") {
     return self->GetClassLoaderOverride();
   }
@@ -2655,11 +2654,10 @@ class JII {
   static jint DestroyJavaVM(JavaVM* vm) {
     if (vm == NULL) {
       return JNI_ERR;
-    } else {
-      JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
-      delete raw_vm->runtime;
-      return JNI_OK;
     }
+    JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
+    delete raw_vm->runtime;
+    return JNI_OK;
   }
 
   static jint AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* thr_args) {
@@ -2673,12 +2671,11 @@ class JII {
   static jint DetachCurrentThread(JavaVM* vm) {
     if (vm == NULL) {
       return JNI_ERR;
-    } else {
-      JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
-      Runtime* runtime = raw_vm->runtime;
-      runtime->DetachCurrentThread();
-      return JNI_OK;
     }
+    JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
+    Runtime* runtime = raw_vm->runtime;
+    runtime->DetachCurrentThread();
+    return JNI_OK;
   }
 
   static jint GetEnv(JavaVM* vm, void** env, jint version) {

@@ -17,6 +17,7 @@
 #include "jni_internal.h"
 #include "class_linker.h"
 #include "class_loader.h"
+#include "nth_caller_visitor.h"
 #include "object.h"
 #include "object_utils.h"
 #include "ScopedLocalRef.h"
@@ -422,12 +423,10 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
   // Second, make sure it has permission to invoke the constructor.  The
   // constructor must be public or, if the caller is in the same package,
   // have package scope.
-  // TODO: need SmartFrame (Thread::WalkStack-like iterator).
-  Frame frame = Thread::Current()->GetTopOfStack();
-  frame.Next();
-  frame.Next();
-  Method* caller_caller = frame.GetMethod();
-  Class* caller_class = caller_caller->GetDeclaringClass();
+
+  NthCallerVisitor visitor(2);
+  Thread::Current()->WalkStack(&visitor);
+  Class* caller_class = visitor.declaring_class;
 
   ClassHelper caller_ch(caller_class);
   if (!caller_class->CanAccess(c)) {

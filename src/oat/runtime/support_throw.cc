@@ -50,10 +50,10 @@ extern "C" void artDeliverExceptionFromCode(Throwable* exception, Thread* thread
 // Called by generated call to throw a NPE exception.
 extern "C" void artThrowNullPointerExceptionFromCode(Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
-  Frame fr = self->GetTopOfStack();
-  uintptr_t throw_native_pc = fr.GetReturnPC();
-  fr.Next();
-  Method* throw_method = fr.GetMethod();
+  Frame frame = self->GetTopOfStack();
+  uintptr_t throw_native_pc = frame.GetReturnPC();
+  frame.Next();
+  Method* throw_method = frame.GetMethod();
   uint32_t dex_pc = throw_method->ToDexPC(throw_native_pc - 2);
   const DexFile::CodeItem* code = MethodHelper(throw_method).GetCodeItem();
   CHECK_LT(dex_pc, code->insns_size_in_code_units_);

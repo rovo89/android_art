@@ -228,10 +228,6 @@ class PACKED Thread {
     return top_of_managed_stack_;
   }
 
-  ShadowFrame* GetTopOfShadowFrame() const {
-    return top_shadow_frame_;
-  }
-
   // TODO: this is here for testing, remove when we have exception unit tests
   // that use the real stack
   void SetTopOfStack(void* stack, uintptr_t pc) {
