@@ -87,8 +87,8 @@ bool operator!=(const JdwpLocation& lhs, const JdwpLocation& rhs);
  */
 enum JdwpTransportType {
   kJdwpTransportUnknown = 0,
-  kJdwpTransportSocket,       /* transport=dt_socket */
-  kJdwpTransportAndroidAdb,   /* transport=dt_android_adb */
+  kJdwpTransportSocket,       // transport=dt_socket
+  kJdwpTransportAndroidAdb,   // transport=dt_android_adb
 };
 std::ostream& operator<<(std::ostream& os, const JdwpTransportType& rhs);
 

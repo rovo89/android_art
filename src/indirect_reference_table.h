@@ -106,12 +106,12 @@ static Object* const kClearedJniWeakGlobal = reinterpret_cast<Object*>(0xdead123
  * For convenience these match up with enum jobjectRefType from jni.h.
  */
 enum IndirectRefKind {
-    kSirtOrInvalid = 0,
-    kLocal         = 1,
-    kGlobal        = 2,
-    kWeakGlobal    = 3
+  kSirtOrInvalid = 0, // <<stack indirect reference table or invalid reference>>
+  kLocal         = 1, // <<local reference>>
+  kGlobal        = 2, // <<global reference>>
+  kWeakGlobal    = 3  // <<weak global reference>>
 };
-std::ostream& operator<<(std::ostream& os, IndirectRefKind rhs);
+std::ostream& operator<<(std::ostream& os, const IndirectRefKind& rhs);
 
 /*
  * Determine what kind of indirect reference this is.
