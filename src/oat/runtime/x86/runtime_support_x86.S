@@ -26,7 +26,8 @@
     // Mac OS' as(1) uses $0, $1, and so on for macro arguments, and function names
     // are mangled with an extra underscore prefix. The use of $x for arguments
     // mean that literals need to be represented with $$x in macros.
-    #define VAR(name,index) _$index
+    #define SYMBOL(name) _ # name
+    #define VAR(name,index) SYMBOL($index)
     #define LITERAL(value) $$value
 #else
     // Regular gas(1) lets you name macro parameters.
@@ -40,6 +41,7 @@
     // will screw us by inserting a space between the \ and the name. Even in this mode there's
     // no special meaning to $, so literals are still just $x.
     .altmacro
+    #define SYMBOL(name) name
     #define VAR(name,index) name&
     #define LITERAL(value) $value
 #endif
@@ -110,7 +112,7 @@ MACRO0(DELIVER_PENDING_EXCEPTION)
     subl  LITERAL(8), %esp                   // Alignment padding
     pushl %ecx                               // pass SP
     pushl %fs:THREAD_SELF_OFFSET             // pass Thread::Current()
-    call artDeliverPendingExceptionFromCode  // artDeliverExceptionFromCode(Thread*, SP)
+    call SYMBOL(artDeliverPendingExceptionFromCode)  // artDeliverExceptionFromCode(Thread*, SP)
     int3
 END_MACRO
 
@@ -322,7 +324,7 @@ art_lock_object_from_code:
     pushl %edx                    // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %eax                    // pass arg1
-    call artLockObjectFromCode    // (Object*, Thread*, SP)
+    call SYMBOL(artLockObjectFromCode)    // (Object*, Thread*, SP)
     addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     ret
@@ -337,7 +339,7 @@ art_unlock_object_from_code:
     pushl %edx                    // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %eax                    // pass arg1
-    call artUnlockObjectFromCode  // (Object*, Thread*, SP)
+    call SYMBOL(artUnlockObjectFromCode)  // (Object*, Thread*, SP)
     addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     testl %eax, %eax               // eax == 0 ?
@@ -356,7 +358,7 @@ art_handle_fill_data_from_code:
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
-    call artHandleFillArrayDataFromCode  // (Array* array, const uint16_t* table, Thread*, SP)
+    call SYMBOL(artHandleFillArrayDataFromCode)  // (Array* array, const uint16_t* table, Thread*, SP)
     addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     testl %eax, %eax               // eax == 0 ?
@@ -371,7 +373,7 @@ art_is_assignable_from_code:
     pushl %eax                    // alignment padding
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
-    call artIsAssignableFromCode  // (Class* a, Class* b, Thread*, SP)
+    call SYMBOL(artIsAssignableFromCode)  // (Class* a, Class* b, Thread*, SP)
     addl LITERAL(12), %esp        // pop arguments
     ret
 
@@ -381,7 +383,7 @@ art_memcpy:
     pushl %edx                    // pass arg3
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
-    call memcpy                   // (void*, const void*, size_t)
+    call SYMBOL(memcpy)           // (void*, const void*, size_t)
     addl LITERAL(12), %esp        // pop arguments
     ret
 
@@ -395,7 +397,7 @@ art_check_cast_from_code:
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
-    call artCheckCastFromCode     // (Class* a, Class* b, Thread*, SP)
+    call SYMBOL(artCheckCastFromCode)     // (Class* a, Class* b, Thread*, SP)
     addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     testl %eax, %eax               // eax == 0 ?
@@ -431,7 +433,7 @@ art_can_put_array_element_from_code:
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
-    call artCanPutArrayElementFromCode  // (Object* element, Class* array_class, Thread*, SP)
+    call SYMBOL(artCanPutArrayElementFromCode)  // (Object* element, Class* array_class, Thread*, SP)
     addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     testl %eax, %eax               // eax == 0 ?
