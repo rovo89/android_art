@@ -112,6 +112,21 @@ tsan-test-art-host-gtest: $(ART_HOST_TEST_DEPENDENCIES)
 test-art-host-oat: $(ART_TEST_HOST_OAT_TARGETS)
 	@echo test-art-host-oat PASSED
 
+define declare-test-art-host-run-test
+.PHONY: test-art-host-run-test-$(1)
+test-art-host-run-test-$(1): $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBRARIES)/libarttest.so
+	art/test/run-test --host $(1)
+	@echo test-art-host-run-test-$(1) PASSED
+
+TEST_ART_HOST_RUN_TEST_TARGETS += test-art-host-run-test-$(1)
+endef
+
+$(foreach test, $(wildcard art/test/0*), $(eval $(call declare-test-art-host-run-test,$(notdir $(test)))))
+
+.PHONY: test-art-host-run-test
+test-art-host-run-test: $(TEST_ART_HOST_RUN_TEST_TARGETS)
+	@echo test-art-host-run-test PASSED
+
 ########################################################################
 # target test targets
 
