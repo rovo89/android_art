@@ -30,7 +30,7 @@ bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   oatFlushAllRegs(cUnit);
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
   loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  loadValueDirectWideFixed(cUnit, rlSrc1, r2, r3);
+  loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
   opRegReg(cUnit, kOpAdd, r0, r2);  // r0 = r0 + r2
   opRegReg(cUnit, kOpAdc, r1, r3);  // r1 = r1 + r3 + CF
@@ -45,7 +45,7 @@ bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   oatFlushAllRegs(cUnit);
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
   loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  loadValueDirectWideFixed(cUnit, rlSrc1, r2, r3);
+  loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
   opRegReg(cUnit, kOpSub, r0, r2);  // r0 = r0 - r2
   opRegReg(cUnit, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
@@ -60,7 +60,7 @@ bool genAndLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   oatFlushAllRegs(cUnit);
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
   loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  loadValueDirectWideFixed(cUnit, rlSrc1, r2, r3);
+  loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
   opRegReg(cUnit, kOpAnd, r0, r2);  // r0 = r0 - r2
   opRegReg(cUnit, kOpAnd, r1, r3);  // r1 = r1 - r3 - CF
@@ -75,7 +75,7 @@ bool genOrLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   oatFlushAllRegs(cUnit);
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
   loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  loadValueDirectWideFixed(cUnit, rlSrc1, r2, r3);
+  loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
   opRegReg(cUnit, kOpOr, r0, r2);  // r0 = r0 - r2
   opRegReg(cUnit, kOpOr, r1, r3);  // r1 = r1 - r3 - CF
@@ -90,7 +90,7 @@ bool genXorLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   oatFlushAllRegs(cUnit);
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
   loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  loadValueDirectWideFixed(cUnit, rlSrc1, r2, r3);
+  loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
   opRegReg(cUnit, kOpXor, r0, r2);  // r0 = r0 - r2
   opRegReg(cUnit, kOpXor, r1, r3);  // r1 = r1 - r3 - CF
