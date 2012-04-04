@@ -200,11 +200,6 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
     return;
   }
 
-  // TODO: implement alloc counting.
-  if (flags != 0) {
-    UNIMPLEMENTED(FATAL) << "trace flags";
-  }
-
   ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
   Runtime::Current()->GetThreadList()->SuspendAll(false);
 
@@ -226,7 +221,13 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
   }
 
   // Create Trace object.
-  Trace* tracer(new Trace(trace_file, buffer_size));
+  Trace* tracer(new Trace(trace_file, buffer_size, flags));
+
+  // Enable count of allocs if specified in the flags.
+  if ((flags && kTraceCountAllocs) != 0) {
+    Runtime::Current()->SetStatsEnabled(true);
+  }
+
   Runtime::Current()->EnableMethodTracing(tracer);
   tracer->BeginTracing();
 
@@ -297,6 +298,10 @@ void Trace::FinishTracing() {
   size_t final_offset = cur_offset_;
   uint32_t clock_overhead = GetClockOverhead();
 
+  if ((flags_ & kTraceCountAllocs) != 0) {
+    Runtime::Current()->SetStatsEnabled(false);
+  }
+
   GetVisitedMethods(final_offset);
 
   std::ostringstream os;
@@ -317,6 +322,11 @@ void Trace::FinishTracing() {
   os << StringPrintf("num-method-calls=%zd\n", (final_offset - kTraceHeaderLength) / record_size_);
   os << StringPrintf("clock-call-overhead-nsec=%d\n", clock_overhead);
   os << StringPrintf("vm=art\n");
+  if ((flags_ & kTraceCountAllocs) != 0) {
+    os << StringPrintf("alloc-count=%d\n", Runtime::Current()->GetStat(KIND_ALLOCATED_OBJECTS));
+    os << StringPrintf("alloc-size=%d\n", Runtime::Current()->GetStat(KIND_ALLOCATED_BYTES));
+    os << StringPrintf("gc-count=%d\n", Runtime::Current()->GetStat(KIND_GC_INVOCATIONS));
+  }
   os << StringPrintf("%cthreads\n", kTraceTokenChar);
   DumpThreadList(os);
   os << StringPrintf("%cmethods\n", kTraceTokenChar);

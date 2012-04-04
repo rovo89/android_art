@@ -1189,7 +1189,9 @@ void Thread::WalkStack(StackVisitor* visitor, bool include_upcalls) const {
       if (LIKELY(!method_tracing_active)) {
         pc = ManglePc(return_pc);
       } else {
-        if (IsTraceExitPc(return_pc)) {
+        // While profiling, the return pc is restored from the side stack, except when walking
+        // the stack for an exception where the side stack will be unwound in VisitFrame.
+        if (IsTraceExitPc(return_pc) && !include_upcalls) {
           TraceStackFrame trace_frame = GetTraceStackFrame(trace_stack_depth++);
           CHECK(trace_frame.method_ == frame.GetMethod());
           pc = ManglePc(trace_frame.return_pc_);
@@ -1484,7 +1486,7 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
     } else if (method->IsNative()) {
       native_method_count_++;
     } else {
-      // Unwind stack during method tracing
+      // Unwind stack when an exception occurs during method tracing
       if (UNLIKELY(method_tracing_active_)) {
         if (IsTraceExitPc(DemanglePc(pc))) {
           pc = ManglePc(TraceMethodUnwindFromCode(Thread::Current()));

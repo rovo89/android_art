@@ -759,9 +759,11 @@ art_proxy_invoke_handler:
     DELIVER_PENDING_EXCEPTION
 
     .global art_trace_entry_from_code
+    .global art_trace_exit_from_code
     .extern artTraceMethodEntryFromCode
+    .extern artTraceMethodExitFromCode
     /*
-     * Routine that intercepts method calls.
+     * Routine that intercepts method calls and returns.
      */
     ALIGN_FUNCTION_ENTRY
 art_trace_entry_from_code:
@@ -772,14 +774,6 @@ art_trace_entry_from_code:
     mov   r12, r0        @ r12 holds reference to code
     pop   {r0-r3}        @ restore arguments
     blx   r12            @ call method
-    /* intentional fallthrough */
-
-    .global art_trace_exit_from_code
-    .extern artTraceMethodExitFromCode
-    /*
-     * Routine that intercepts method returns.
-     */
-    ALIGN_FUNCTION_ENTRY
 art_trace_exit_from_code:
     push  {r0-r1}        @ save return value
     blx   artTraceMethodExitFromCode  @ ()
