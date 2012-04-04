@@ -329,27 +329,6 @@ void IndirectReferenceTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   }
 }
 
-std::ostream& operator<<(std::ostream& os, IndirectRefKind rhs) {
-  switch (rhs) {
-  case kSirtOrInvalid:
-    os << "stack indirect reference table or invalid reference";
-    break;
-  case kLocal:
-    os << "local reference";
-    break;
-  case kGlobal:
-    os << "global reference";
-    break;
-  case kWeakGlobal:
-    os << "weak global reference";
-    break;
-  default:
-    os << "IndirectRefKind[" << static_cast<int>(rhs) << "]";
-    break;
-  }
-  return os;
-}
-
 void IndirectReferenceTable::Dump() const {
   LOG(WARNING) << kind_ << " table dump:";
   std::vector<const Object*> entries(table_, table_ + Capacity());

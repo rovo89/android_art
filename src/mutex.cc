@@ -194,14 +194,4 @@ void ConditionVariable::TimedWait(Mutex& mutex, const timespec& ts) {
   }
 }
 
-std::ostream& operator<<(std::ostream& os, const MutexRank& rhs) {
-  switch (rhs) {
-    case kHeapLock: os << "HeapLock"; break;
-    case kThreadListLock: os << "ThreadListLock"; break;
-    case kThreadSuspendCountLock: os << "ThreadSuspendCountLock"; break;
-    default: os << "MutexRank[" << static_cast<int>(rhs) << "]"; break;
-  }
-  return os;
-}
-
 }  // namespace
