@@ -123,6 +123,9 @@ def main():
   print
 
   for header_file in header_files:
+    # Make gives us paths relative to the top of the tree, but our -I is art/.
+    # We also have -I art/src/, but icu4c is higher on the include path and has a "mutex.h" too.
+    header_file = header_file.replace('art/', '')
     print '#include "%s"' % header_file
 
   print
