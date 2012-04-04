@@ -27,7 +27,7 @@ extern "C" void* art_check_and_alloc_array_from_code(uint32_t, void*, int32_t);
 extern "C" void* art_check_and_alloc_array_from_code_with_access_check(uint32_t, void*, int32_t);
 
 // Cast entrypoints.
-extern uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class);
+extern "C" uint32_t art_is_assignable_from_code(const Class* klass, const Class* ref_class);
 extern "C" void art_can_put_array_element_from_code(void*, void*);
 extern "C" void art_check_cast_from_code(void*, void*);
 
@@ -72,11 +72,14 @@ extern int32_t CmpgFloat(float a, float b);
 extern int32_t CmplFloat(float a, float b);
 extern int64_t D2L(double d);
 extern int64_t F2L(float f);
+extern "C" int32_t art_idiv_from_code(int32_t, int32_t);
+extern "C" int32_t art_idivmod_from_code(int32_t, int32_t);
 
 // Intrinsic entrypoints.
-extern "C" int32_t __memcmp16(void*, void*, int32_t);
+extern "C" int32_t art_memcmp16(void*, void*, int32_t);
 extern "C" int32_t art_indexof(void*, uint32_t, uint32_t, uint32_t);
 extern "C" int32_t art_string_compareto(void*, void*);
+extern "C" void* art_memcpy(void*, const void*, size_t);
 
 // Invoke entrypoints.
 const void* UnresolvedDirectMethodTrampolineFromCode(Method*, Method**, Thread*,
@@ -112,7 +115,7 @@ void InitEntryPoints(EntryPoints* points) {
   points->pCheckAndAllocArrayFromCodeWithAccessCheck = art_check_and_alloc_array_from_code_with_access_check;
 
   // Cast
-  points->pInstanceofNonTrivialFromCode = IsAssignableFromCode;
+  points->pInstanceofNonTrivialFromCode = art_is_assignable_from_code;
   points->pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
   points->pCheckCastFromCode = art_check_cast_from_code;
 
@@ -174,8 +177,8 @@ void InitEntryPoints(EntryPoints* points) {
   points->pL2f = NULL;
   points->pD2iz = NULL;
   points->pF2iz = NULL;
-  points->pIdiv = NULL;
-  points->pIdivmod = NULL;
+  points->pIdiv = art_idiv_from_code;
+  points->pIdivmod = art_idivmod_from_code;
   points->pD2l = D2L;
   points->pF2l = F2L;
   points->pLadd = NULL;
@@ -191,9 +194,9 @@ void InitEntryPoints(EntryPoints* points) {
 
   // Intrinsics
   points->pIndexOf = art_indexof;
-  points->pMemcmp16 = __memcmp16;
+  points->pMemcmp16 = art_memcmp16;
   points->pStringCompareTo = art_string_compareto;
-  points->pMemcpy = memcpy;
+  points->pMemcpy = art_memcpy;
 
   // Invocation
   points->pUnresolvedDirectMethodTrampolineFromCode = UnresolvedDirectMethodTrampolineFromCode;

@@ -27,7 +27,7 @@ extern "C" void* art_check_and_alloc_array_from_code(uint32_t, void*, int32_t);
 extern "C" void* art_check_and_alloc_array_from_code_with_access_check(uint32_t, void*, int32_t);
 
 // Cast entrypoints.
-extern uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class);
+extern "C" uint32_t artIsAssignableFromCode(const Class* klass, const Class* ref_class);
 extern "C" void art_can_put_array_element_from_code(void*, void*);
 extern "C" void art_check_cast_from_code(void*, void*);
 
@@ -152,7 +152,7 @@ void InitEntryPoints(EntryPoints* points) {
   points->pCheckAndAllocArrayFromCodeWithAccessCheck = art_check_and_alloc_array_from_code_with_access_check;
 
   // Cast
-  points->pInstanceofNonTrivialFromCode = IsAssignableFromCode;
+  points->pInstanceofNonTrivialFromCode = artIsAssignableFromCode;
   points->pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
   points->pCheckCastFromCode = art_check_cast_from_code;
 

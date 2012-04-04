@@ -344,6 +344,7 @@ class X86Assembler : public Assembler {
   void fptan();
 
   void xchgl(Register dst, Register src);
+  void xchgl(Register reg, const Address& address);
 
   void cmpl(Register reg, const Immediate& imm);
   void cmpl(Register reg0, Register reg1);
@@ -426,6 +427,7 @@ class X86Assembler : public Assembler {
   void j(Condition condition, Label* label);
 
   void jmp(Register reg);
+  void jmp(const Address& address);
   void jmp(Label* label);
 
   X86Assembler* lock();

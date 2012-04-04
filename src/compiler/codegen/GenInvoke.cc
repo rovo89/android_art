@@ -286,15 +286,15 @@ int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir, int trampoline,
      * This handles the case in which the base method is not fully
      * resolved at compile time, we bail to a runtime helper.
      */
-#if !defined(TARGET_X86)
     if (state == 0) {
+#if !defined(TARGET_X86)
         // Load trampoline target
         loadWordDisp(cUnit, rSELF, trampoline, rINVOKE_TGT);
+#endif
         // Load rARG0 with method index
         loadConstant(cUnit, rARG0, dexIdx);
         return 1;
     }
-#endif
     return -1;
 }
 
@@ -357,11 +357,7 @@ int loadArgRegs(CompilationUnit* cUnit, MIR* mir, DecodedInstruction* dInsn,
                 uint32_t methodIdx, uintptr_t directCode,
                 uintptr_t directMethod, InvokeType type, bool skipThis)
 {
-#if !defined(TARGET_X86)
     int lastArgReg = rARG3;
-#else
-    int lastArgReg = rARG2;
-#endif
     int nextReg = rARG1;
     int nextArg = 0;
     if (skipThis) {

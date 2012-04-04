@@ -964,8 +964,14 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSa
     method->SetCoreSpillMask(core_spills);
     method->SetFpSpillMask(fp_spills);
   } else if (instruction_set == kX86) {
-    method->SetFrameSizeInBytes(32);
-    method->SetCoreSpillMask((1 << art::x86::EBP) | (1 << art::x86::ESI) | (1 << art::x86::EDI));
+    uint32_t ref_spills = (1 << art::x86::EBP) | (1 << art::x86::ESI) | (1 << art::x86::EDI);
+    uint32_t arg_spills = (1 << art::x86::ECX) | (1 << art::x86::EDX) | (1 << art::x86::EBX);
+    uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills : 0) |
+                         (1 << art::x86::kNumberOfCpuRegisters);  // fake return address callee save
+    size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
+                                 1 /* Method* */) * kPointerSize, kStackAlignment);
+    method->SetFrameSizeInBytes(frame_size);
+    method->SetCoreSpillMask(core_spills);
     method->SetFpSpillMask(0);
   } else {
     UNIMPLEMENTED(FATAL);

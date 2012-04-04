@@ -57,16 +57,14 @@ static void DumpReg(std::ostream& os, uint8_t rex, uint8_t reg,
   DumpReg0(os, rex, reg_num, byte_operand, size_override);
 }
 
-static void DumpBaseReg(std::ostream& os, uint8_t rex, uint8_t reg,
-                        bool byte_operand, uint8_t size_override) {
+static void DumpBaseReg(std::ostream& os, uint8_t rex, uint8_t reg) {
   size_t reg_num = reg;  // TODO: combine with REX.B on 64bit
-  DumpReg0(os, rex, reg_num, byte_operand, size_override);
+  DumpReg0(os, rex, reg_num, false, 0);
 }
 
-static void DumpIndexReg(std::ostream& os, uint8_t rex, uint8_t reg,
-                         bool byte_operand, uint8_t size_override) {
+static void DumpIndexReg(std::ostream& os, uint8_t rex, uint8_t reg) {
   int reg_num = reg;  // TODO: combine with REX.X on 64bit
-  DumpReg0(os, rex, reg_num, byte_operand, size_override);
+  DumpReg0(os, rex, reg_num, false, 0);
 }
 
 static void DumpSegmentOverride(std::ostream& os, uint8_t segment_prefix) {
@@ -88,7 +86,7 @@ size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) 
   const char** modrm_opcodes = NULL;
   do {
     switch (*instr) {
-      // Group 1 - lock and repeat prefixes:
+        // Group 1 - lock and repeat prefixes:
       case 0xF0:
       case 0xF2:
       case 0xF3:
@@ -203,6 +201,20 @@ DISASSEMBLER_ENTRY(cmp,
   case 0x0F:  // 2 byte extended opcode
     instr++;
     switch (*instr) {
+      case 0x10: case 0x11:
+        if (prefix[0] == 0xF2) {
+          opcode << "movsd";
+        } else if (prefix[0] == 0xF3) {
+          opcode << "movss";
+        } else if (prefix[2] == 0x66) {
+          opcode << "movupd";
+        } else {
+          opcode << "movups";
+        }
+        has_modrm = true;
+        load = *instr == 0x10;
+        store = !load;
+        break;
       case 0x38:  // 3 byte extended opcode
         opcode << StringPrintf("unknown opcode '0F 38 %02X'", *instr);
         break;
@@ -214,6 +226,16 @@ DISASSEMBLER_ENTRY(cmp,
         opcode << "j" << condition_codes[*instr & 0xF];
         branch_bytes = 4;
         break;
+      case 0x90: case 0x91: case 0x92: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97:
+      case 0x98: case 0x99: case 0x9A: case 0x9B: case 0x9C: case 0x9D: case 0x9E: case 0x9F:
+        opcode << "set" << condition_codes[*instr & 0xF];
+        modrm_opcodes = NULL;
+        reg_is_opcode = true;
+        has_modrm = true;
+        store = true;
+        break;
+      case 0xB6: opcode << "movzxb"; has_modrm = true; load = true; break;
+      case 0xB7: opcode << "movzxw"; has_modrm = true; load = true; break;
       default:
         opcode << StringPrintf("unknown opcode '0F %02X'", *instr);
         break;
@@ -228,6 +250,11 @@ DISASSEMBLER_ENTRY(cmp,
     byte_operand = (*instr & 1) == 0;
     immediate_bytes = *instr == 0x81 ? 4 : 1;
     break;
+  case 0x8D:
+    opcode << "lea";
+    has_modrm = true;
+    load = true;
+    break;
   case 0xB0: case 0xB1: case 0xB2: case 0xB3: case 0xB4: case 0xB5: case 0xB6: case 0xB7:
     opcode << "mov";
     immediate_bytes = 1;
@@ -238,7 +265,19 @@ DISASSEMBLER_ENTRY(cmp,
     immediate_bytes = 4;
     reg_in_opcode = true;
     break;
+  case 0xC0: case 0xC1:
+    static const char* shift_opcodes[] =
+        {"rol", "ror", "rcl", "rcr", "shl", "shr", "unknown-shift", "sar"};
+    modrm_opcodes = shift_opcodes;
+    has_modrm = true;
+    reg_is_opcode = true;
+    store = true;
+    immediate_bytes = 1;
+    byte_operand = *instr == 0xC0;
+    break;
   case 0xC3: opcode << "ret"; break;
+  case 0xCC: opcode << "int 3"; break;
+  case 0xE8: opcode << "call"; branch_bytes = 4; break;
   case 0xE9: opcode << "jmp"; branch_bytes = 4; break;
   case 0xEB: opcode << "jmp"; branch_bytes = 1; break;
   case 0xFF:
@@ -276,13 +315,13 @@ DISASSEMBLER_ENTRY(cmp,
       uint8_t base = sib & 7;
       address << "[";
       if (base != 5 || mod != 0) {
-        DumpBaseReg(address, rex, base, byte_operand, prefix[2]);
+        DumpBaseReg(address, rex, base);
         if (index != 4) {
           address << " + ";
         }
       }
       if (index != 4) {
-        DumpIndexReg(address, rex, index, byte_operand, prefix[2]);
+        DumpIndexReg(address, rex, index);
         if (ss != 0) {
           address << StringPrintf(" * %d", 1 << ss);
         }
@@ -299,7 +338,7 @@ DISASSEMBLER_ENTRY(cmp,
       if (mod != 3) {
         address << "[";
       }
-      DumpBaseReg(address, rex, rm, byte_operand, prefix[2]);
+      DumpBaseReg(address, rex, rm);
       if (mod == 1) {
         address << StringPrintf(" + %d", *reinterpret_cast<const int8_t*>(instr));
         instr++;
@@ -312,7 +351,7 @@ DISASSEMBLER_ENTRY(cmp,
       }
     }
 
-    if (reg_is_opcode) {
+    if (reg_is_opcode && modrm_opcodes != NULL) {
       opcode << modrm_opcodes[reg_or_opcode];
     }
     if (load) {

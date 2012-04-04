@@ -758,6 +758,12 @@ void X86Assembler::xchgl(Register dst, Register src) {
   EmitRegisterOperand(dst, src);
 }
 
+void X86Assembler::xchgl(Register reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x87);
+  EmitOperand(reg, address);
+}
+
 
 void X86Assembler::cmpl(Register reg, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
@@ -1172,6 +1178,11 @@ void X86Assembler::jmp(Register reg) {
   EmitRegisterOperand(4, reg);
 }
 
+void X86Assembler::jmp(const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xFF);
+  EmitOperand(4, address);
+}
 
 void X86Assembler::jmp(Label* label) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);

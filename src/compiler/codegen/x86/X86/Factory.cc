@@ -231,6 +231,7 @@ LIR* opRegRegReg(CompilationUnit *cUnit, OpKind op, int rDest, int rSrc1, int rS
   if (rDest != rSrc1 && rDest != rSrc2) {
     if (op == kOpAdd) { // lea special case, except can't encode rbp as base
       if (rSrc1 == rSrc2) {
+        opRegCopy(cUnit, rDest, rSrc1);
         return opRegImm(cUnit, kOpLsl, rDest, 1);
       } else if (rSrc1 != rBP) {
         return newLIR5(cUnit, kX86Lea32RA, rDest, rSrc1 /* base */,
@@ -285,9 +286,10 @@ LIR* opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest, int rSrc, int val
     }
   }
   if (rDest != rSrc) {
-    if (op == kOpLsl && value >= 0 && value <= 3) { // lea shift special case
-      return newLIR5(cUnit, kX86Lea32RA, rDest, rSrc /* base */,
-                     r4sib_no_index /* index */, value /* scale */, value /* disp */);
+    if (false && op == kOpLsl && value >= 0 && value <= 3) { // lea shift special case
+      // TODO: fix bug in LEA encoding when disp == 0
+      return newLIR5(cUnit, kX86Lea32RA, rDest,  r5sib_no_base /* base */,
+                     rSrc /* index */, value /* scale */, 0 /* disp */);
     } else if (op == kOpAdd) { // lea add special case
       return newLIR5(cUnit, kX86Lea32RA, rDest, rSrc /* base */,
                      r4sib_no_index /* index */, 0 /* scale */, value /* disp */);
@@ -351,6 +353,7 @@ LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
                                int rIndex, int rDest, int scale, OpSize size)
 {
     UNIMPLEMENTED(WARNING) << "loadBaseIndexed";
+    newLIR0(cUnit, kX86Bkpt);
     return NULL;
 #if 0
     LIR *first = NULL;
@@ -406,6 +409,7 @@ LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
 LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
     UNIMPLEMENTED(WARNING) << "loadMultiple";
+    newLIR0(cUnit, kX86Bkpt);
     return NULL;
 #if 0
     int i;
@@ -432,6 +436,7 @@ LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 LIR *storeMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
     UNIMPLEMENTED(WARNING) << "storeMultiple";
+    newLIR0(cUnit, kX86Bkpt);
     return NULL;
 #if 0
     int i;

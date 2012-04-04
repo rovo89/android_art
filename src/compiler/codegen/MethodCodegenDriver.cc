@@ -128,11 +128,31 @@ void genInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 #if !defined(TARGET_X86)
     opReg(cUnit, kOpBlx, rINVOKE_TGT);
 #else
-    if (fastPath) {
+    if (fastPath && type != kInterface) {
       opMem(cUnit, kOpBlx, rARG0, Method::GetCodeOffset().Int32Value());
     } else {
-      UNIMPLEMENTED(FATAL) << "compute trampoline";
-      opThreadMem(cUnit, kOpBlx, 0);
+      int trampoline = 0;
+      switch (type) {
+        case kInterface:
+          trampoline = fastPath ? ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline)
+                                : ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
+          break;
+        case kDirect:
+          trampoline = ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
+          break;
+        case kStatic:
+          trampoline = ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
+          break;
+        case kSuper:
+          trampoline = ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
+          break;
+        case kVirtual:
+          trampoline = ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
+          break;
+        default:
+          LOG(FATAL) << "Unexpected invoke type";
+      }
+      opThreadMem(cUnit, kOpBlx, trampoline);
     }
 #endif
 

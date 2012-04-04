@@ -657,6 +657,8 @@ void installSwitchTables(CompilationUnit* cUnit)
          */
 #if defined(TARGET_ARM)
         int bxOffset = tabRec->anchor->offset + 4;
+#elif defined(TARGET_X86)
+        int bxOffset = 0;
 #else
         int bxOffset = tabRec->anchor->offset;
 #endif

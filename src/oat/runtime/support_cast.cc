@@ -20,7 +20,7 @@
 namespace art {
 
 // Assignable test for code, won't throw.  Null and equality tests already performed
-uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class) {
+extern "C" uint32_t artIsAssignableFromCode(const Class* klass, const Class* ref_class) {
   DCHECK(klass != NULL);
   DCHECK(ref_class != NULL);
   return klass->IsAssignableFrom(ref_class) ? 1 : 0;
