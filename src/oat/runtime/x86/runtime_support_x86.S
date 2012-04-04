@@ -26,7 +26,7 @@
     // Mac OS' as(1) uses $0, $1, and so on for macro arguments, and function names
     // are mangled with an extra underscore prefix. The use of $x for arguments
     // mean that literals need to be represented with $$x in macros.
-    #define SYMBOL(name) _ # name
+    #define SYMBOL(name) _ ## name
     #define VAR(name,index) SYMBOL($index)
     #define LITERAL(value) $$value
 #else
