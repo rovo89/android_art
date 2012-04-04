@@ -51,6 +51,12 @@ MACRO0(ALIGN_FUNCTION_ENTRY)
     .balign 16
 END_MACRO
 
+MACRO1(DEFINE_FUNCTION,c_name)
+    .globl VAR(c_name, 0)
+    ALIGN_FUNCTION_ENTRY
+VAR(c_name, 0):
+END_MACRO
+
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveAll)
@@ -314,9 +320,7 @@ THREE_ARG_ALLOC art_check_and_alloc_array_from_code_with_access_check, artCheckA
 TWO_ARG_ALLOC art_resolve_string_from_code, artResolveStringFromCode
 TWO_ARG_ALLOC art_initialize_static_storage_from_code, artInitializeStaticStorageFromCode
 
-    .globl art_lock_object_from_code
-    ALIGN_FUNCTION_ENTRY
-art_lock_object_from_code:
+DEFINE_FUNCTION art_lock_object_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     // Outgoing argument set up
@@ -325,13 +329,11 @@ art_lock_object_from_code:
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %eax                    // pass arg1
     call SYMBOL(artLockObjectFromCode)    // (Object*, Thread*, SP)
-    addl LITERAL(16), %esp        // pop arguments
+    addl 16, %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     ret
 
-    .globl art_unlock_object_from_code
-    ALIGN_FUNCTION_ENTRY
-art_unlock_object_from_code:
+DEFINE_FUNCTION art_unlock_object_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     // Outgoing argument set up
@@ -340,17 +342,15 @@ art_unlock_object_from_code:
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %eax                    // pass arg1
     call SYMBOL(artUnlockObjectFromCode)  // (Object*, Thread*, SP)
-    addl LITERAL(16), %esp        // pop arguments
+    addl 16, %esp                 // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    testl %eax, %eax               // eax == 0 ?
+    testl %eax, %eax              // eax == 0 ?
     jnz 1f
     ret
 1:
     DELIVER_PENDING_EXCEPTION
 
-    .globl art_handle_fill_data_from_code
-    ALIGN_FUNCTION_ENTRY
-art_handle_fill_data_from_code:
+DEFINE_FUNCTION art_handle_fill_data_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     // Outgoing argument set up
@@ -359,7 +359,7 @@ art_handle_fill_data_from_code:
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
     call SYMBOL(artHandleFillArrayDataFromCode)  // (Array* array, const uint16_t* table, Thread*, SP)
-    addl LITERAL(16), %esp        // pop arguments
+    addl 16, %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     testl %eax, %eax               // eax == 0 ?
     jnz 1f
@@ -367,29 +367,23 @@ art_handle_fill_data_from_code:
 1:
     DELIVER_PENDING_EXCEPTION
 
-    .globl art_is_assignable_from_code
-    ALIGN_FUNCTION_ENTRY
-art_is_assignable_from_code:
+DEFINE_FUNCTION art_is_assignable_from_code
     pushl %eax                    // alignment padding
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
     call SYMBOL(artIsAssignableFromCode)  // (Class* a, Class* b, Thread*, SP)
-    addl LITERAL(12), %esp        // pop arguments
+    addl 12, %esp                 // pop arguments
     ret
 
-    .globl art_memcpy
-    ALIGN_FUNCTION_ENTRY
-art_memcpy:
+DEFINE_FUNCTION art_memcpy
     pushl %edx                    // pass arg3
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
     call SYMBOL(memcpy)           // (void*, const void*, size_t)
-    addl LITERAL(12), %esp        // pop arguments
+    addl 12, %esp                 // pop arguments
     ret
 
-    .globl art_check_cast_from_code
-    ALIGN_FUNCTION_ENTRY
-art_check_cast_from_code:
+DEFINE_FUNCTION art_check_cast_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %edx                // remember SP
     // Outgoing argument set up
@@ -397,33 +391,27 @@ art_check_cast_from_code:
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
-    call SYMBOL(artCheckCastFromCode)     // (Class* a, Class* b, Thread*, SP)
-    addl LITERAL(16), %esp        // pop arguments
+    call SYMBOL(artCheckCastFromCode)  // (Class* a, Class* b, Thread*, SP)
+    addl 16, %esp                 // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    testl %eax, %eax               // eax == 0 ?
+    testl %eax, %eax              // eax == 0 ?
     jnz 1f
     ret
 1:
     DELIVER_PENDING_EXCEPTION
 
-    .globl art_idiv_from_code
-    ALIGN_FUNCTION_ENTRY
-art_idiv_from_code:
+DEFINE_FUNCTION art_idiv_from_code
     cdq         // edx:eax = sign extend eax
     idiv %ecx   // (edx,eax) = (edx:eax % ecx, edx:eax / ecx)
     ret
 
-    .globl art_idivmod_from_code
-    ALIGN_FUNCTION_ENTRY
-art_idivmod_from_code:
+DEFINE_FUNCTION art_idivmod_from_code
     cdq         // edx:eax = sign extend eax
     idiv %ecx   // (edx,eax) = (edx:eax % ecx, edx:eax / ecx)
     movl %eax, %edx
     ret
 
-    .globl art_can_put_array_element_from_code
-    ALIGN_FUNCTION_ENTRY
-art_can_put_array_element_from_code:
+DEFINE_FUNCTION art_can_put_array_element_from_code
     test %eax, %eax               // Null is trivially storable
     jz   1f
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
@@ -434,9 +422,9 @@ art_can_put_array_element_from_code:
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
     call SYMBOL(artCanPutArrayElementFromCode)  // (Object* element, Class* array_class, Thread*, SP)
-    addl LITERAL(16), %esp        // pop arguments
+    addl 16, %esp                 // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    testl %eax, %eax               // eax == 0 ?
+    testl %eax, %eax              // eax == 0 ?
     jnz 2f
 1:
     ret
