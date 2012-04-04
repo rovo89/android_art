@@ -31,6 +31,12 @@ bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2);
 bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2);
+bool genAndLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2);
+bool genOrLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2);
+bool genXorLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+                RegLocation rlSrc1, RegLocation rlSrc2);
 bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                 RegLocation rlSrc);
 LIR *opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int value);

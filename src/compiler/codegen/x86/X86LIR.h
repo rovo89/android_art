@@ -194,6 +194,7 @@ enum NativeRegisterPool {
   r4sib_no_index = r4sp,
   r5     = 5,
   rBP    = r5,
+  r5sib_no_base = r5,
   r6     = 6,
   rSI    = r6,
   r7     = 7,
@@ -277,7 +278,7 @@ enum X86ConditionCode {
     kX86CondNge = kX86CondL,  // not-greater-equal
 
     kX86CondNl  = 0xD,        // not-less-than
-    kX86CondGe  = kX86CondL,  // not-greater-equal
+    kX86CondGe  = kX86CondNl, // not-greater-equal
 
     kX86CondLe  = 0xE,        // less-than-equal
     kX86CondNg  = kX86CondLe, // not-greater
@@ -387,7 +388,6 @@ enum X86OpCode {
     BinaryShiftOpCode(kX86Rcl),
     BinaryShiftOpCode(kX86Rcr),
     BinaryShiftOpCode(kX86Sal),
-    BinaryShiftOpCode(kX86Shl),
     BinaryShiftOpCode(kX86Shr),
     BinaryShiftOpCode(kX86Sar),
 #undef BinaryShiftOpcode
@@ -447,12 +447,18 @@ enum X86OpCode {
 #undef Binary0fOpCode
     kX86Jcc8, kX86Jcc32,  // jCC rel8/32; lir operands - 0: rel, 1: CC, target assigned
     kX86Jmp8, kX86Jmp32,  // jmp rel8/32; lir operands - 0: rel, target assigned
+    kX86JmpR,   // jmp reg; lir operands - 0: reg
     kX86CallR,  // call reg; lir operands - 0: reg
     kX86CallM,  // call [base + disp]; lir operands - 0: base, 1: disp
     kX86CallA,  // call [base + index * scale + disp]
                 // lir operands - 0: base, 1: index, 2: scale, 3: disp
     kX86CallT,  // call fs:[disp]; fs: is equal to Thread::Current(); lir operands - 0: disp
     kX86Ret,    // ret; no lir operands
+    kX86StartOfMethod,    // call 0; pop reg; sub reg, # - generate start of method into reg
+                          // lir operands - 0: reg
+    kX86PcRelLoadRA, // mov reg, [base + index * scale + PC relative displacement]
+                     // lir operands - 0: reg, 1: base, 2: index, 3: scale, 4: table
+    kX86PcRelAdr, // mov reg, PC relative displacement; lir operands - 0: reg, 1: table
     kX86Last
 };
 
@@ -472,6 +478,8 @@ enum X86EncodingKind {
   kRegRegReg, kRegRegMem, kRegRegArray,    // RRR, RRM, RRA instruction kinds.
   kRegCond, kMemCond, kArrayCond,          // R, M, A instruction kinds following by a condition.
   kJmp, kJcc, kCall,           // Branch instruction kinds.
+  kPcRel,                      // Operation with displacement that is PC relative
+  kMacro,                      // An instruction composing multiple others
   kUnimplemented               // Encoding used when an instruction isn't yet implemented.
 };
 

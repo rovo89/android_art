@@ -23,7 +23,7 @@ namespace x86 {
 
 X86Context::X86Context() {
 #ifndef NDEBUG
-  // Initialize registers with easy to spot debug values
+  // Initialize registers with easy to spot debug values.
   for (int i = 0; i < 8; i++) {
     gprs_[i] = 0xEBAD6070+i;
   }
@@ -37,8 +37,8 @@ void X86Context::FillCalleeSaves(const Frame& fr) {
   size_t spill_count = __builtin_popcount(core_spills);
   CHECK_EQ(method->GetFpSpillMask(), 0u);
   if (spill_count > 0) {
-    // Lowest number spill is furthest away, walk registers and fill into context
-    int j = 1;
+    // Lowest number spill is furthest away, walk registers and fill into context.
+    int j = 2;  // Offset j to skip return address spill.
     for (int i = 0; i < 8; i++) {
       if (((core_spills >> i) & 1) != 0) {
         gprs_[i] = fr.LoadCalleeSave(spill_count - j);
@@ -50,8 +50,11 @@ void X86Context::FillCalleeSaves(const Frame& fr) {
 
 void X86Context::DoLongJump() {
 #if defined(__i386__)
-  // Load ESP and EIP
-  gprs_[ESP] -= 4;  // push EIP for return
+  // We push all the registers using memory-memory pushes, we then pop-all to get the registers
+  // set up, we then pop esp which will move us down the stack to the delivery address. At the frame
+  // where the exception will be delivered, we push EIP so that the return will take us to the
+  // correct delivery instruction.
+  gprs_[ESP] -= 4;
   *(reinterpret_cast<uintptr_t*>(gprs_[ESP])) = eip_;
   asm volatile(
       "pushl %4\n\t"

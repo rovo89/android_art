@@ -96,9 +96,9 @@ uint32_t oatFpRegMask() {
 /* Clobber all regs that might be used by an external C call */
 extern void oatClobberCalleeSave(CompilationUnit *cUnit)
 {
-    oatClobber(cUnit, rBP);
-    oatClobber(cUnit, rSI);
-    oatClobber(cUnit, rDI);
+    oatClobber(cUnit, rAX);
+    oatClobber(cUnit, rCX);
+    oatClobber(cUnit, rDX);
 }
 
 extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit) {

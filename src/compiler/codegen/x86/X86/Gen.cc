@@ -79,6 +79,7 @@ LIR* genRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
 void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
     UNIMPLEMENTED(WARNING) << "genSparseSwitch";
+    newLIR0(cUnit, kX86Bkpt);
     return;
 #if 0
     const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
@@ -158,82 +159,55 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  *   jr    r_RA
  * done:
  */
-void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
-{
-    UNIMPLEMENTED(WARNING) << "genPackedSwitch";
-#if 0
-    const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
-    if (cUnit->printMe) {
-        dumpPackedSwitchTable(table);
-    }
-    // Add the table to the list - we'll process it later
-    SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
-                                                true, kAllocData);
-    tabRec->table = table;
-    tabRec->vaddr = mir->offset;
-    int size = table[1];
-    tabRec->targets = (LIR* *)oatNew(cUnit, size * sizeof(LIR*), true,
-                                        kAllocLIR);
-    oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
+void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc) {
+  const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
+  if (cUnit->printMe) {
+    dumpPackedSwitchTable(table);
+  }
+  // Add the table to the list - we'll process it later
+  SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
+                                              true, kAllocData);
+  tabRec->table = table;
+  tabRec->vaddr = mir->offset;
+  int size = table[1];
+  tabRec->targets = (LIR* *)oatNew(cUnit, size * sizeof(LIR*), true,
+                                   kAllocLIR);
+  oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
 
-    // Get the switch value
-    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+  // Get the switch value
+  rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+  int startOfMethodReg = oatAllocTemp(cUnit);
+  // Materialize a pointer to the switch table
+  //newLIR0(cUnit, kX86Bkpt);
+  newLIR1(cUnit, kX86StartOfMethod, startOfMethodReg);
+  int lowKey = s4FromSwitchData(&table[2]);
+  int keyReg;
+  // Remove the bias, if necessary
+  if (lowKey == 0) {
+    keyReg = rlSrc.lowReg;
+  } else {
+    keyReg = oatAllocTemp(cUnit);
+    opRegRegImm(cUnit, kOpSub, keyReg, rlSrc.lowReg, lowKey);
+  }
+  // Bounds check - if < 0 or >= size continue following switch
+  opRegImm(cUnit, kOpCmp, keyReg, size-1);
+  LIR* branchOver = opCondBranch(cUnit, kCondHi, NULL);
 
-    // Prepare the bias.  If too big, handle 1st stage here
-    int lowKey = s4FromSwitchData(&table[2]);
-    bool largeBias = false;
-    int rKey;
-    if (lowKey == 0) {
-        rKey = rlSrc.lowReg;
-    } else if ((lowKey & 0xffff) != lowKey) {
-        rKey = oatAllocTemp(cUnit);
-        loadConstant(cUnit, rKey, lowKey);
-        largeBias = true;
-    } else {
-        rKey = oatAllocTemp(cUnit);
-    }
+  // Load the displacement from the switch table
+  int dispReg = oatAllocTemp(cUnit);
+  newLIR5(cUnit, kX86PcRelLoadRA, dispReg, startOfMethodReg, keyReg, 2, (intptr_t)tabRec);
+  // Add displacement to start of method
+  opRegReg(cUnit, kOpAdd, startOfMethodReg, dispReg);
+  // ..and go!
+  LIR* switchBranch = newLIR1(cUnit, kX86JmpR, startOfMethodReg);
+  tabRec->anchor = switchBranch;
 
-    // Must prevent code motion for the curr pc pair
-    genBarrier(cUnit);
-    newLIR0(cUnit, kX86CurrPC);  // Really a jal to .+8
-    // Now, fill the branch delay slot with bias strip
-    if (lowKey == 0) {
-        newLIR0(cUnit, kX86Nop);
-    } else {
-        if (largeBias) {
-            opRegRegReg(cUnit, kOpSub, rKey, rlSrc.lowReg, rKey);
-        } else {
-            opRegRegImm(cUnit, kOpSub, rKey, rlSrc.lowReg, lowKey);
-        }
-    }
-    genBarrier(cUnit);  // Scheduling barrier
-
-    // Construct BaseLabel and set up table base register
-    LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
-    // Remember base label so offsets can be computed later
-    tabRec->anchor = baseLabel;
-
-    // Bounds check - if < 0 or >= size continue following switch
-    LIR* branchOver = opCmpImmBranch(cUnit, kCondHi, rKey, size-1, NULL);
-
-    // Materialize the table base pointer
-    int rBase = oatAllocTemp(cUnit);
-    newLIR4(cUnit, kX86Delta, rBase, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
-
-    // Load the displacement from the switch table
-    int rDisp = oatAllocTemp(cUnit);
-    loadBaseIndexed(cUnit, rBase, rKey, rDisp, 2, kWord);
-
-    // Add to r_AP and go
-    opRegRegReg(cUnit, kOpAdd, r_RA, r_RA, rDisp);
-    opReg(cUnit, kOpBx, r_RA);
-
-    /* branchOver target here */
-    LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    branchOver->target = (LIR*)target;
-#endif
+  /* branchOver target here */
+  LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
+  branchOver->target = (LIR*)target;
 }
 
+void callRuntimeHelperRegReg(CompilationUnit* cUnit, int helperOffset, int arg0, int arg1);
 /*
  * Array data table format:
  *  ushort ident = 0x0300   magic value
@@ -246,47 +220,31 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  */
 void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    UNIMPLEMENTED(WARNING) << "genFillArrayData";
-#if 0
-    const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
-    // Add the table to the list - we'll process it later
-    FillArrayData *tabRec = (FillArrayData *)
-         oatNew(cUnit, sizeof(FillArrayData), true, kAllocData);
-    tabRec->table = table;
-    tabRec->vaddr = mir->offset;
-    u2 width = tabRec->table[1];
-    u4 size = tabRec->table[2] | (((u4)tabRec->table[3]) << 16);
-    tabRec->size = (size * width) + 8;
+  const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
+  // Add the table to the list - we'll process it later
+  FillArrayData *tabRec = (FillArrayData *)oatNew(cUnit, sizeof(FillArrayData), true, kAllocData);
+  tabRec->table = table;
+  tabRec->vaddr = mir->offset;
+  u2 width = tabRec->table[1];
+  u4 size = tabRec->table[2] | (((u4)tabRec->table[3]) << 16);
+  tabRec->size = (size * width) + 8;
 
-    oatInsertGrowableList(cUnit, &cUnit->fillArrayData, (intptr_t)tabRec);
+  oatInsertGrowableList(cUnit, &cUnit->fillArrayData, (intptr_t)tabRec);
 
-    // Making a call - use explicit registers
-    oatFlushAllRegs(cUnit);   /* Everything to home location */
-    oatLockCallTemps(cUnit);
-    loadValueDirectFixed(cUnit, rlSrc, rARG0);
-
-    // Must prevent code motion for the curr pc pair
-    genBarrier(cUnit);
-    newLIR0(cUnit, kX86CurrPC);  // Really a jal to .+8
-    // Now, fill the branch delay slot with the helper load
-    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread,
-                          pHandleFillArrayDataFromCode));
-    genBarrier(cUnit);  // Scheduling barrier
-
-    // Construct BaseLabel and set up table base register
-    LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
-
-    // Materialize a pointer to the fill data image
-    newLIR4(cUnit, kX86Delta, rARG1, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
-
-    // And go...
-    callRuntimeHelper(cUnit, rTgt);  // ( array*, fill_data* )
-#endif
+  // Making a call - use explicit registers
+  oatFlushAllRegs(cUnit);   /* Everything to home location */
+  loadValueDirectFixed(cUnit, rlSrc, rARG0);
+  // Materialize a pointer to the fill data image
+  newLIR1(cUnit, kX86StartOfMethod, rARG2);
+  newLIR2(cUnit, kX86PcRelAdr, rARG1, (intptr_t)tabRec);
+  newLIR2(cUnit, kX86Add32RR, rARG1, rARG2);
+  callRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode), rARG0, rARG1);
 }
 
 void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
     UNIMPLEMENTED(WARNING) << "genNegFloat";
+    newLIR0(cUnit, kX86Bkpt);
 #if 0
     RegLocation rlResult;
     rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
@@ -300,6 +258,7 @@ void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
     UNIMPLEMENTED(WARNING) << "genNegDouble";
+    newLIR0(cUnit, kX86Bkpt);
 #if 0
     RegLocation rlResult;
     rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
@@ -311,21 +270,20 @@ void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 #endif
 }
 
+LIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg, MIR* mir);
+void callRuntimeHelperReg(CompilationUnit* cUnit, int helperOffset, int arg0);
+
 /*
  * TODO: implement fast path to short-circuit thin-lock case
  */
 void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    UNIMPLEMENTED(WARNING) << "genMonitorEnter";
-#if 0
     oatFlushAllRegs(cUnit);
     loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
     genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
     // Go expensive route - artLockObjectFromCode(self, obj);
-    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pLockObjectFromCode));
-    callRuntimeHelper(cUnit, rTgt);
-#endif
+    callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode), rARG0);
 }
 
 /*
@@ -333,16 +291,12 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  */
 void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    UNIMPLEMENTED(WARNING) << "genMonitor";
-#if 0
     oatFlushAllRegs(cUnit);
     loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
     oatLockCallTemps(cUnit);  // Prepare for explicit register usage
     genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
     // Go expensive route - UnlockObjectFromCode(obj);
-    int rTgt = loadHelper(cUnit, OFFSETOF_MEMBER(Thread, pUnlockObjectFromCode));
-    callRuntimeHelper(cUnit, rTgt);
-#endif
+    callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARG0);
 }
 
 /*
@@ -364,26 +318,20 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2)
 {
-    UNIMPLEMENTED(WARNING) << "genCmpLong";
-#if 0
-    rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
-    rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
-    int t0 = oatAllocTemp(cUnit);
-    int t1 = oatAllocTemp(cUnit);
-    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    newLIR3(cUnit, kX86Slt, t0, rlSrc1.highReg, rlSrc2.highReg);
-    newLIR3(cUnit, kX86Slt, t1, rlSrc2.highReg, rlSrc1.highReg);
-    newLIR3(cUnit, kX86Subu, rlResult.lowReg, t1, t0);
-    LIR* branch = opCmpImmBranch(cUnit, kCondNe, rlResult.lowReg, 0, NULL);
-    newLIR3(cUnit, kX86Sltu, t0, rlSrc1.lowReg, rlSrc2.lowReg);
-    newLIR3(cUnit, kX86Sltu, t1, rlSrc2.lowReg, rlSrc1.lowReg);
-    newLIR3(cUnit, kX86Subu, rlResult.lowReg, t1, t0);
-    oatFreeTemp(cUnit, t0);
-    oatFreeTemp(cUnit, t1);
-    LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    branch->target = (LIR*)target;
+    oatFlushAllRegs(cUnit);
+    oatLockCallTemps(cUnit);  // Prepare for explicit register usage
+    loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
+    loadValueDirectWideFixed(cUnit, rlSrc1, r2, r3);
+    // Compute (r1:r0) = (r1:r0) - (r2:r3)
+    opRegReg(cUnit, kOpSub, r0, r2);  // r0 = r0 - r2
+    opRegReg(cUnit, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
+    opRegReg(cUnit, kOpOr, r0, r1);   // r0 = high | low - sets ZF
+    newLIR2(cUnit, kX86Set8R, r0, kX86CondNz);  // r0 = (r1:r0) != (r2:r3) ? 1 : 0
+    newLIR2(cUnit, kX86Movzx8RR, r0, r0);
+    opRegImm(cUnit, kOpAsr, r1, 31);  // r1 = high >> 31
+    opRegReg(cUnit, kOpOr, r0, r1);   // r0 holds result
+    RegLocation rlResult = LOC_C_RETURN;
     storeValue(cUnit, rlDest, rlResult);
-#endif
 }
 
 X86ConditionCode oatX86ConditionEncoding(ConditionCode cond) {
@@ -420,8 +368,12 @@ LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1, int src2,
 LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
                     int checkValue, LIR* target)
 {
-  // TODO: when checkValue == 0 and reg is rCX, use the jcxz/nz opcode
-  newLIR2(cUnit, kX86Cmp32RI, reg, checkValue);
+  if (false && (checkValue == 0) && (cond == kCondEq || cond == kCondNe)) {
+    // TODO: when checkValue == 0 and reg is rCX, use the jcxz/nz opcode
+    // newLIR2(cUnit, kX86Test32RR, reg, reg);
+  } else {
+    newLIR2(cUnit, kX86Cmp32RI, reg, checkValue);
+  }
   X86ConditionCode cc = oatX86ConditionEncoding(cond);
   LIR* branch = newLIR2(cUnit, kX86Jcc8, 0 /* lir operand for Jcc offset */ , cc);
   branch->target = target;
@@ -458,10 +410,12 @@ void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
       opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
     } else {
       UNIMPLEMENTED(WARNING);
+      newLIR0(cUnit, kX86Bkpt);
     }
   } else {
     if (srcFP) {
       UNIMPLEMENTED(WARNING);
+      newLIR0(cUnit, kX86Bkpt);
     } else {
       // Handle overlap
       if (srcHi == destLo) {

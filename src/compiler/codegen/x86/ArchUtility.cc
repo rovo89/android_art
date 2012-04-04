@@ -49,7 +49,7 @@ static const char* x86CondName[] = {
 
 /*
  * Interpret a format string and build a string no longer than size
- * See format key in Assemble.c.
+ * See format key in Assemble.cc.
  */
 std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) {
   std::string buf;
@@ -79,6 +79,11 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
           case 'd':
             buf += StringPrintf("%d", operand);
             break;
+          case 'p': {
+            SwitchTable *tabRec = reinterpret_cast<SwitchTable*>(operand);
+            buf += StringPrintf("0x%08x", tabRec->offset);
+            break;
+          }
           case 'r':
             if (FPREG(operand) || DOUBLEREG(operand)) {
               int fp_reg = operand & FP_REG_MASK;
