@@ -446,7 +446,7 @@ DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
 class CStringComparator {
  public:
   bool operator()(const char* lhs, const char* rhs) const {
-    return (strcmp(lhs, rhs) <= 0);
+    return (strcmp(lhs, rhs) < 0);
   }
 };
 
@@ -477,13 +477,16 @@ static void* art_find_compiler_runtime_func(char const* name) {
 
   static const size_t num_entries = sizeof(names) / sizeof(const char* const);
 
-  const char* const* matched_name_ptr =
-      std::lower_bound(names, names + num_entries, name, CStringComparator());
+  const char* const* const names_begin = names;
+  const char* const* const names_end = names + num_entries;
 
-  if (matched_name_ptr == names + num_entries) {
-    return NULL;
+  const char* const* name_lbound_ptr =
+      std::lower_bound(names_begin, names_end, name, CStringComparator());
+
+  if (name_lbound_ptr < names_end && strcmp(*name_lbound_ptr, name) == 0) {
+    return funcs[name_lbound_ptr - names_begin];
   } else {
-    return funcs[matched_name_ptr - names];
+    return NULL;
   }
 }
 
