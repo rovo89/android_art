@@ -22,7 +22,11 @@
 namespace art {
 
 enum InvokeType {
-  kStatic, kDirect, kVirtual, kSuper, kInterface,
+  kStatic,    // <<static>>
+  kDirect,    // <<direct>>
+  kVirtual,   // <<virtual>>
+  kSuper,     // <<super>>
+  kInterface, // <<interface>>
   kMaxInvokeType = kInterface
 };
 

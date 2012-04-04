@@ -104,7 +104,6 @@ OATEXEC_SRC_FILES := \
 LIBART_COMMON_SRC_FILES := \
 	src/atomic.cc.arm \
 	src/card_table.cc \
-	src/constants.cc \
 	src/check_jni.cc \
 	src/class_linker.cc \
 	src/class_loader.cc \
@@ -267,6 +266,12 @@ LIBART_HOST_SRC_FILES += \
 else # HOST_ARCH != x86
 $(error unsupported HOST_ARCH=$(HOST_ARCH))
 endif # HOST_ARCH != x86
+
+LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
+	src/indirect_reference_table.h \
+	src/instruction_set.h \
+	src/invoke_type.h \
+	src/mutex.h
 
 LIBARTTEST_COMMON_SRC_FILES := \
 	test/StackWalk/stack_walk_jni.cc \

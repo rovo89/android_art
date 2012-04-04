@@ -54,7 +54,19 @@ define build-libart
     LOCAL_SRC_FILES := $(LIBART_TARGET_SRC_FILES)
   else # host
     LOCAL_SRC_FILES := $(LIBART_HOST_SRC_FILES)
+    LOCAL_IS_HOST_MODULE := true
   endif
+
+  GENERATED_SRC_DIR := $$(call intermediates-dir-for,$$(LOCAL_MODULE_CLASS),$$(LOCAL_MODULE),$$(LOCAL_IS_HOST_MODULE),)
+  ENUM_OPERATOR_OUT_CC_FILES := $$(patsubst %.h,%_operator_out.cc,$$(LIBART_ENUM_OPERATOR_OUT_HEADER_FILES))
+  ENUM_OPERATOR_OUT_GEN := $$(addprefix $$(GENERATED_SRC_DIR)/,$$(ENUM_OPERATOR_OUT_CC_FILES))
+
+$$(ENUM_OPERATOR_OUT_GEN): art/tools/generate-operator-out.py
+$$(ENUM_OPERATOR_OUT_GEN): PRIVATE_CUSTOM_TOOL = art/tools/generate-operator-out.py $$< > $$@
+$$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PATH)/%.h
+	$$(transform-generated-source)
+
+  LOCAL_GENERATED_SOURCES += $$(ENUM_OPERATOR_OUT_GEN)
 
   LOCAL_CFLAGS := $(LIBART_CFLAGS)
   ifeq ($$(art_target_or_host),target)
@@ -102,7 +114,6 @@ define build-libart
     endif
     include $(BUILD_SHARED_LIBRARY)
   else # host
-    LOCAL_IS_HOST_MODULE := true
     ifeq ($(ART_USE_LLVM_COMPILER),true)
       include $(LLVM_GEN_INTRINSICS_MK)
       include $(LLVM_HOST_BUILD_MK)
