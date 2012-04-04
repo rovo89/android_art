@@ -139,6 +139,7 @@ void MarkSweep::RecursiveMark() {
   void* arg = reinterpret_cast<void*>(this);
   const std::vector<Space*>& spaces = heap_->GetSpaces();
   for (size_t i = 0; i < spaces.size(); ++i) {
+#if !defined(ART_USE_LLVM_COMPILER)
 #ifndef NDEBUG
     uintptr_t begin = reinterpret_cast<uintptr_t>(spaces[i]->Begin());
     uintptr_t end = reinterpret_cast<uintptr_t>(spaces[i]->End());
@@ -153,6 +154,12 @@ void MarkSweep::RecursiveMark() {
       uintptr_t end = reinterpret_cast<uintptr_t>(spaces[i]->End());
       mark_bitmap_->ScanWalk(begin, end, &MarkSweep::ScanBitmapCallback, arg);
     }
+#endif
+#else
+    // TODO: Implement card marking.
+    uintptr_t begin = reinterpret_cast<uintptr_t>(spaces[i]->Begin());
+    uintptr_t end = reinterpret_cast<uintptr_t>(spaces[i]->End());
+    mark_bitmap_->ScanWalk(begin, end, &MarkSweep::ScanBitmapCallback, arg);
 #endif
   }
   finger_ = reinterpret_cast<Object*>(~0);

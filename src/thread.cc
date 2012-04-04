@@ -482,6 +482,7 @@ struct StackDumpVisitor : public Thread::StackVisitor {
     }
     const int kMaxRepetition = 3;
     Method* m = frame.GetMethod();
+#if !defined(ART_USE_LLVM_COMPILER)
     Class* c = m->GetDeclaringClass();
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     const DexCache* dex_cache = c->GetDexCache();
@@ -490,6 +491,10 @@ struct StackDumpVisitor : public Thread::StackVisitor {
       const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
       line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
     }
+#else
+    // Compiler_LLVM stores line_number in the ShadowFrame, and passes it to visitor.
+    int line_number = static_cast<int>(pc);
+#endif
     if (line_number == last_line_number && last_method == m) {
       repetition_count++;
     } else {
@@ -1705,12 +1710,14 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   SirtVisitRoots(visitor, arg);
   ShadowFrameVisitRoots(visitor, arg);
 
+#if !defined(ART_USE_LLVM_COMPILER)
   // Cheat and steal the long jump context. Assume that we are not doing a GC during exception
   // delivery.
   Context* context = GetLongJumpContext();
   // Visit roots on this thread's stack
   ReferenceMapVisitor mapper(context, visitor, arg);
   WalkStack(&mapper);
+#endif
 }
 
 #if VERIFY_OBJECT_ENABLED
@@ -1719,9 +1726,11 @@ static void VerifyObject(const Object* obj, void*) {
 }
 
 void Thread::VerifyStack() {
+#if !defined(ART_USE_LLVM_COMPILER)
   UniquePtr<Context> context(Context::Create());
   ReferenceMapVisitor mapper(context.get(), VerifyObject, NULL);
   WalkStack(&mapper);
+#endif
 }
 #endif
 

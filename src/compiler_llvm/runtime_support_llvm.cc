@@ -128,7 +128,11 @@ void art_throw_stack_overflow_from_code() {
 
 void art_throw_exception_from_code(Object* exception) {
   Thread* thread = Thread::Current();
-  thread->SetException(static_cast<Throwable*>(exception));
+  if (exception == NULL) {
+    thread->ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
+  } else {
+    thread->SetException(static_cast<Throwable*>(exception));
+  }
 }
 
 int32_t art_find_catch_block_from_code(Method* current_method, int32_t dex_pc) {
