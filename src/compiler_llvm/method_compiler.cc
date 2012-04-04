@@ -139,6 +139,9 @@ llvm::FunctionType* MethodCompiler::GetFunctionType(uint32_t method_idx,
 
 void MethodCompiler::EmitPrologue() {
   // Create basic blocks for prologue
+  basic_block_stack_overflow_ =
+    llvm::BasicBlock::Create(*context_, "prologue.stack_overflow_check", func_);
+
   basic_block_reg_alloca_ =
     llvm::BasicBlock::Create(*context_, "prologue.alloca", func_);
 
@@ -150,6 +153,9 @@ void MethodCompiler::EmitPrologue() {
 
   basic_block_reg_arg_init_ =
     llvm::BasicBlock::Create(*context_, "prologue.arginit", func_);
+
+  // Before alloca, check stack overflow.
+  EmitStackOverflowCheck();
 
   // Create register array
   for (uint16_t r = 0; r < code_item_->registers_size_; ++r) {
@@ -170,7 +176,61 @@ void MethodCompiler::EmitPrologue() {
 }
 
 
+void MethodCompiler::EmitStackOverflowCheck() {
+  irb_.SetInsertPoint(basic_block_stack_overflow_);
+
+  // Call llvm intrinsic function to get frame address.
+  llvm::Function* frameaddress =
+      llvm::Intrinsic::getDeclaration(module_, llvm::Intrinsic::frameaddress);
+
+  // The type of llvm::frameaddress is: i8* @llvm.frameaddress(i32)
+  llvm::Value* frame_address = irb_.CreateCall(frameaddress, irb_.getInt32(0));
+
+  // Cast i8* to int
+  frame_address = irb_.CreatePtrToInt(frame_address, irb_.getPtrEquivIntTy());
+
+  // Get thread.stack_end_
+  llvm::Value* thread_object_addr =
+    irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+
+  llvm::Value* stack_end_addr =
+    irb_.CreatePtrDisp(thread_object_addr,
+                       irb_.getPtrEquivInt(Thread::StackEndOffset().Int32Value()),
+                       irb_.getPtrEquivIntTy()->getPointerTo());
+
+  llvm::Value* stack_end = irb_.CreateLoad(stack_end_addr);
+
+  // Check the frame address < thread.stack_end_ ?
+  llvm::Value* is_stack_overflow = irb_.CreateICmpULT(frame_address, stack_end);
+
+  llvm::BasicBlock* block_exception =
+      llvm::BasicBlock::Create(*context_, "stack_overflow", func_);
+
+  llvm::BasicBlock* block_continue =
+      llvm::BasicBlock::Create(*context_, "stack_overflow_cont", func_);
+
+  irb_.CreateCondBr(is_stack_overflow, block_exception, block_continue);
+
+  // If stack overflow, throw exception.
+  irb_.SetInsertPoint(block_exception);
+  irb_.CreateCall(irb_.GetRuntime(ThrowStackOverflowException));
+
+  // Unwind.
+  char ret_shorty = method_helper_.GetShorty()[0];
+  if (ret_shorty == 'V') {
+    irb_.CreateRetVoid();
+  } else {
+    irb_.CreateRet(irb_.getJZero(ret_shorty));
+  }
+
+  basic_block_stack_overflow_ = block_continue;
+}
+
+
 void MethodCompiler::EmitPrologueLastBranch() {
+  irb_.SetInsertPoint(basic_block_stack_overflow_);
+  irb_.CreateBr(basic_block_reg_alloca_);
+
   irb_.SetInsertPoint(basic_block_reg_alloca_);
   irb_.CreateBr(basic_block_shadow_frame_alloca_);
 

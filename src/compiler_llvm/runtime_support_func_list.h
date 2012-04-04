@@ -23,6 +23,7 @@
   V(PopShadowFrame, art_pop_shadow_frame_from_code) \
   V(TestSuspend, art_test_suspend_from_code) \
   V(ThrowException, art_throw_exception_from_code) \
+  V(ThrowStackOverflowException, art_throw_stack_overflow_from_code) \
   V(ThrowNullPointerException, art_throw_null_pointer_exception_from_code) \
   V(ThrowDivZeroException, art_throw_div_zero_from_code) \
   V(ThrowIndexOutOfBounds, art_throw_array_bounds_from_code) \

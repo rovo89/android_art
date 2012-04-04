@@ -88,6 +88,7 @@ class MethodCompiler {
  private:
   void CreateFunction();
   void EmitPrologue();
+  void EmitStackOverflowCheck();
   void EmitPrologueLastBranch();
   void EmitPrologueAllocShadowFrame();
   void EmitPrologueAssignArgRegister();
@@ -447,6 +448,7 @@ class MethodCompiler {
   std::vector<DalvikReg*> regs_;
   UniquePtr<DalvikReg> retval_reg_;
 
+  llvm::BasicBlock* basic_block_stack_overflow_;
   llvm::BasicBlock* basic_block_reg_alloca_;
   llvm::BasicBlock* basic_block_shadow_frame_alloca_;
   llvm::BasicBlock* basic_block_reg_zero_init_;

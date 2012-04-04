@@ -42,7 +42,7 @@ void art_throw_no_such_method_from_code(int32_t method_idx);
 
 void art_throw_null_pointer_exception_from_code();
 
-void art_throw_stack_overflow_from_code(void*);
+void art_throw_stack_overflow_from_code();
 
 void art_throw_exception_from_code(Object* exception);
 
