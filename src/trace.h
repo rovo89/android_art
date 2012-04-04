@@ -52,6 +52,10 @@ class Trace {
     kMethodTraceUnwind = 2,
   };
 
+  enum TraceFlag {
+    kTraceCountAllocs = 1,
+  };
+
   static void Start(const char* trace_filename, int trace_fd, int buffer_size, int flags, bool direct_to_ddms);
   static void Stop();
   static void Shutdown();
@@ -66,9 +70,9 @@ class Trace {
   void ResetSavedCode(Method* method);
 
  private:
-  explicit Trace(File* trace_file, int buffer_size)
-      : trace_file_(trace_file), buf_(new uint8_t[buffer_size]()), overflow_(false), buffer_size_(buffer_size),
-        start_time_(0), trace_version_(0), record_size_(0), cur_offset_(0) {
+  explicit Trace(File* trace_file, int buffer_size, int flags)
+      : trace_file_(trace_file), buf_(new uint8_t[buffer_size]()), flags_(flags), overflow_(false),
+        buffer_size_(buffer_size), start_time_(0), trace_version_(0), record_size_(0), cur_offset_(0) {
   }
 
   void BeginTracing();
@@ -99,6 +103,9 @@ class Trace {
 
   // Buffer to store trace data.
   UniquePtr<uint8_t> buf_;
+
+  // Flags enabling extra tracing of things such as alloc counts.
+  int flags_;
 
   bool overflow_;
   int buffer_size_;
