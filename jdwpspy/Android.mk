@@ -5,8 +5,7 @@ include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES:= \
 	Main.cpp \
-	Net.cpp \
-	find_JdwpConstants.cpp
+	Net.cpp
 
 LOCAL_C_INCLUDES += \
 	art/src
@@ -14,4 +13,3 @@ LOCAL_C_INCLUDES += \
 LOCAL_MODULE := jdwpspy
 
 include $(BUILD_HOST_EXECUTABLE)
-

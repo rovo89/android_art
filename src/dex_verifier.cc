@@ -43,26 +43,6 @@ namespace verifier {
 
 static const bool gDebugVerify = false;
 
-std::ostream& operator<<(std::ostream& os, const VerifyError& rhs) {
-  switch (rhs) {
-  case VERIFY_ERROR_NONE: os << "VERIFY_ERROR_NONE"; break;
-  case VERIFY_ERROR_BAD_CLASS_HARD: os << "VERIFY_ERROR_BAD_CLASS_HARD"; break;
-  case VERIFY_ERROR_BAD_CLASS_SOFT: os << "VERIFY_ERROR_BAD_CLASS_SOFT"; break;
-  case VERIFY_ERROR_NO_CLASS: os << "VERIFY_ERROR_NO_CLASS"; break;
-  case VERIFY_ERROR_NO_FIELD: os << "VERIFY_ERROR_NO_FIELD"; break;
-  case VERIFY_ERROR_NO_METHOD: os << "VERIFY_ERROR_NO_METHOD"; break;
-  case VERIFY_ERROR_ACCESS_CLASS: os << "VERIFY_ERROR_ACCESS_CLASS"; break;
-  case VERIFY_ERROR_ACCESS_FIELD: os << "VERIFY_ERROR_ACCESS_FIELD"; break;
-  case VERIFY_ERROR_ACCESS_METHOD: os << "VERIFY_ERROR_ACCESS_METHOD"; break;
-  case VERIFY_ERROR_CLASS_CHANGE: os << "VERIFY_ERROR_CLASS_CHANGE"; break;
-  case VERIFY_ERROR_INSTANTIATION: os << "VERIFY_ERROR_INSTANTIATION"; break;
-  default:
-    os << "VerifyError[" << static_cast<int>(rhs) << "]";
-    break;
-  }
-  return os;
-}
-
 static const char* type_strings[] = {
     "Unknown",
     "Conflict",
@@ -1681,8 +1661,7 @@ bool DexVerifier::VerifyCodeFlow() {
                  << " insns_size=" << insns_size << ")";
   }
   /* Create and initialize table holding register status */
-  reg_table_.Init(PcToRegisterLineTable::kTrackRegsGcPoints, insn_flags_.get(), insns_size,
-                  registers_size, this);
+  reg_table_.Init(kTrackRegsGcPoints, insn_flags_.get(), insns_size, registers_size, this);
 
   work_line_.reset(new RegisterLine(registers_size, this));
   saved_line_.reset(new RegisterLine(registers_size, this));
