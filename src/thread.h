@@ -87,7 +87,11 @@ class PACKED Thread {
   };
 
   // Space to throw a StackOverflowError in.
+#if !defined(ART_USE_LLVM_COMPILER)
   static const size_t kStackOverflowReservedBytes = 4 * KB;
+#else  // LLVM_x86 requires more memory to throw stack overflow exception.
+  static const size_t kStackOverflowReservedBytes = 8 * KB;
+#endif
 
   static const size_t kDefaultStackSize = 96 * KB;
 

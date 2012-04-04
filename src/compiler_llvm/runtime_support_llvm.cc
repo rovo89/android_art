@@ -113,12 +113,17 @@ void art_throw_null_pointer_exception_from_code() {
   thread->ThrowNewException("Ljava/lang/NullPointerException;", NULL);
 }
 
-void art_throw_stack_overflow_from_code(void*) {
+void art_throw_stack_overflow_from_code() {
   Thread* thread = Thread::Current();
+  if (Runtime::Current()->IsMethodTracingActive()) {
+    TraceMethodUnwindFromCode(thread);
+  }
+  thread->SetStackEndForStackOverflow();  // Allow space on the stack for constructor to execute
   thread->ThrowNewExceptionF("Ljava/lang/StackOverflowError;",
       "stack size %zdkb; default stack size: %zdkb",
       thread->GetStackSize() / KB,
       Runtime::Current()->GetDefaultStackSize() / KB);
+  thread->ResetDefaultStackEnd();  // Return to default stack size
 }
 
 void art_throw_exception_from_code(Object* exception) {
