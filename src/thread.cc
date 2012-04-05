@@ -1562,6 +1562,7 @@ void Thread::DeliverException() {
   CHECK_NE(catch_native_pc, 0u);
   long_jump_context->SetSP(reinterpret_cast<uintptr_t>(catch_finder.handler_frame_.GetSP()));
   long_jump_context->SetPC(catch_native_pc);
+  long_jump_context->SmashCallerSaves();
   long_jump_context->DoLongJump();
   LOG(FATAL) << "UNREACHABLE";
 }

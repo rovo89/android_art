@@ -44,6 +44,7 @@ class ArmContext : public Context {
     return gprs_[reg];
   }
 
+  virtual void SmashCallerSaves();
   virtual void DoLongJump();
 
  private:
