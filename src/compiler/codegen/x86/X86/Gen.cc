@@ -46,117 +46,42 @@ LIR* genRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
 }
 
 /*
- * The lack of pc-relative loads on X86 presents somewhat of a challenge
- * for our PIC switch table strategy.  To materialize the current location
- * we'll do a dummy JAL and reference our tables using r_RA as the
- * base register.  Note that r_RA will be used both as the base to
- * locate the switch table data and as the reference base for the switch
- * target offsets stored in the table.  We'll use a special pseudo-instruction
- * to represent the jal and trigger the construction of the
- * switch table offsets (which will happen after final assembly and all
- * labels are fixed).
- *
- * The test loop will look something like:
- *
- *   ori   rEnd, r_ZERO, #tableSize  ; size in bytes
- *   jal   BaseLabel         ; stores "return address" (BaseLabel) in r_RA
- *   nop                     ; opportunistically fill
- * BaseLabel:
- *   addiu rBase, r_RA, <table> - <BaseLabel>  ; table relative to BaseLabel
-     addu  rEnd, rEnd, rBase                   ; end of table
- *   lw    rVal, [rSP, vRegOff]                ; Test Value
- * loop:
- *   beq   rBase, rEnd, done
- *   lw    rKey, 0(rBase)
- *   addu  rBase, 8
- *   bne   rVal, rKey, loop
- *   lw    rDisp, -4(rBase)
- *   addu  r_RA, rDisp
- *   jr    r_RA
- * done:
- *
+ * The sparse table in the literal pool is an array of <key,displacement>
+ * pairs.
  */
-void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
-{
-    UNIMPLEMENTED(WARNING) << "genSparseSwitch";
-    newLIR0(cUnit, kX86Bkpt);
-    return;
-#if 0
-    const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
-    if (cUnit->printMe) {
-        dumpSparseSwitchTable(table);
-    }
-    // Add the table to the list - we'll process it later
-    SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
-                         true, kAllocData);
-    tabRec->table = table;
-    tabRec->vaddr = mir->offset;
-    int elements = table[1];
-    tabRec->targets = (LIR* *)oatNew(cUnit, elements * sizeof(LIR*), true,
-                                     kAllocLIR);
-    oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
-
-    // The table is composed of 8-byte key/disp pairs
-    int byteSize = elements * 8;
-
-    int sizeHi = byteSize >> 16;
-    int sizeLo = byteSize & 0xffff;
-
-    int rEnd = oatAllocTemp(cUnit);
-    if (sizeHi) {
-        newLIR2(cUnit, kX86Lui, rEnd, sizeHi);
-    }
-    // Must prevent code motion for the curr pc pair
-    genBarrier(cUnit);  // Scheduling barrier
-    newLIR0(cUnit, kX86CurrPC);  // Really a jal to .+8
-    // Now, fill the branch delay slot
-    if (sizeHi) {
-        newLIR3(cUnit, kX86Ori, rEnd, rEnd, sizeLo);
-    } else {
-        newLIR3(cUnit, kX86Ori, rEnd, r_ZERO, sizeLo);
-    }
-    genBarrier(cUnit);  // Scheduling barrier
-
-    // Construct BaseLabel and set up table base register
-    LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
-    // Remember base label so offsets can be computed later
-    tabRec->anchor = baseLabel;
-    int rBase = oatAllocTemp(cUnit);
-    newLIR4(cUnit, kX86Delta, rBase, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
-    opRegRegReg(cUnit, kOpAdd, rEnd, rEnd, rBase);
-
-    // Grab switch test value
-    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
-
-    // Test loop
-    int rKey = oatAllocTemp(cUnit);
-    LIR* loopLabel = newLIR0(cUnit, kPseudoTargetLabel);
-    LIR* exitBranch = opCmpBranch(cUnit , kCondEq, rBase, rEnd, NULL);
-    loadWordDisp(cUnit, rBase, 0, rKey);
-    opRegImm(cUnit, kOpAdd, rBase, 8);
-    opCmpBranch(cUnit, kCondNe, rlSrc.lowReg, rKey, loopLabel);
-    int rDisp = oatAllocTemp(cUnit);
-    loadWordDisp(cUnit, rBase, -4, rDisp);
-    opRegRegReg(cUnit, kOpAdd, r_RA, r_RA, rDisp);
-    opReg(cUnit, kOpBx, r_RA);
-
-    // Loop exit
-    LIR* exitLabel = newLIR0(cUnit, kPseudoTargetLabel);
-    exitBranch->target = exitLabel;
-#endif
+BasicBlock *findBlock(CompilationUnit* cUnit, unsigned int codeOffset,
+                      bool split, bool create, BasicBlock** immedPredBlockP);
+void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc, LIR* labelList) {
+  const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
+  if (cUnit->printMe) {
+    dumpSparseSwitchTable(table);
+  }
+  int entries = table[1];
+  int* keys = (int*)&table[2];
+  int* targets = &keys[entries];
+  rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+  for (int i = 0; i < entries; i++) {
+    int key = keys[i];
+    BasicBlock* case_block = findBlock(cUnit, mir->offset + targets[i],
+                                       false, false, NULL);
+    opCmpImmBranch(cUnit, kCondEq, rlSrc.lowReg, key, &labelList[case_block->id]);
+  }
 }
 
 /*
  * Code pattern will look something like:
  *
- *   lw    rVal
- *   jal   BaseLabel         ; stores "return address" (BaseLabel) in r_RA
- *   nop                     ; opportunistically fill
- *   [subiu rVal, bias]      ; Remove bias if lowVal != 0
- *   bound check -> done
- *   lw    rDisp, [r_RA, rVal]
- *   addu  r_RA, rDisp
- *   jr    r_RA
+ * mov  rVal, ..
+ * call 0
+ * pop  rStartOfMethod
+ * sub  rStartOfMethod, ..
+ * mov  rKeyReg, rVal
+ * sub  rKeyReg, lowKey
+ * cmp  rKeyReg, size-1  ; bound check
+ * ja   done
+ * mov  rDisp, [rStartOfMethod + rKeyReg * 4 + tableOffset]
+ * add  rStartOfMethod, rDisp
+ * jmp  rStartOfMethod
  * done:
  */
 void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc) {

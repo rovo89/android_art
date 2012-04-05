@@ -220,7 +220,8 @@ void InitEntryPoints(EntryPoints* points) {
   points->pF2l = F2L;
   points->pLadd = NULL;
   points->pLand = NULL;
-  points->pLdivmod = __aeabi_ldivmod;
+  points->pLdiv = __aeabi_ldivmod;
+  points->pLdivmod = __aeabi_ldivmod;  // result returned in r2:r3
   points->pLmul = __aeabi_lmul;
   points->pLor = NULL;
   points->pLsub = NULL;

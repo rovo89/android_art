@@ -94,4 +94,12 @@ int64_t F2L(float f) {
   }
 }
 
+extern "C" int64_t artLdivFromCode(int64_t a, int64_t b) {
+  return a / b;
+}
+
+extern "C" int64_t artLdivmodFromCode(int64_t a, int64_t b) {
+  return a % b;
+}
+
 }  // namespace art
