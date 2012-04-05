@@ -39,7 +39,7 @@ struct ReferenceMap2Visitor;
 #if defined(ART_USE_LLVM_COMPILER)
 namespace compiler_llvm {
   class InferredRegCategoryMap;
-}
+}  // namespace compiler_llvm
 #endif
 
 namespace verifier {
@@ -61,31 +61,31 @@ class RegTypeCache;
 class RegType {
  public:
   enum Type {
-    kRegTypeUnknown = 0,    /* initial state */
-    kRegTypeConflict,       /* merge clash makes this reg's type unknowable */
-    kRegTypeBoolean,        /* Z */
+    kRegTypeUnknown = 0,    // Initial state.
+    kRegTypeConflict,       // Merge clash makes this reg's type unknowable.
+    kRegTypeBoolean,        // Z.
     kRegType1nrSTART = kRegTypeBoolean,
     kRegTypeIntegralSTART = kRegTypeBoolean,
-    kRegTypeByte,           /* B */
-    kRegTypeShort,          /* S */
-    kRegTypeChar,           /* C */
-    kRegTypeInteger,        /* I */
+    kRegTypeByte,           // B.
+    kRegTypeShort,          // S.
+    kRegTypeChar,           // C.
+    kRegTypeInteger,        // I.
     kRegTypeIntegralEND = kRegTypeInteger,
-    kRegTypeFloat,          /* F */
+    kRegTypeFloat,          // F.
     kRegType1nrEND = kRegTypeFloat,
-    kRegTypeLongLo,         /* J - lower-numbered register; endian-independent */
+    kRegTypeLongLo,         // J - lower-numbered register; endian-independent.
     kRegTypeLongHi,
-    kRegTypeDoubleLo,       /* D */
+    kRegTypeDoubleLo,       // D.
     kRegTypeDoubleHi,
-    kRegTypeConstLo,        /* const derived wide, lower half - could be long or double */
-    kRegTypeConstHi,        /* const derived wide, upper half - could be long or double */
+    kRegTypeConstLo,        // Const derived wide, lower half - could be long or double.
+    kRegTypeConstHi,        // Const derived wide, upper half - could be long or double.
     kRegTypeLastFixedLocation = kRegTypeConstHi,
-    kRegTypeConst,          /* 32-bit constant derived value - could be float or int */
-    kRegTypeUnresolvedReference,        // Reference type that couldn't be resolved
-    kRegTypeUninitializedReference,     // Freshly allocated reference type
-    kRegTypeUninitializedThisReference, // Freshly allocated reference passed as "this"
-    kRegTypeUnresolvedAndUninitializedReference, // Freshly allocated unresolved reference type
-    kRegTypeReference,                  // Reference type
+    kRegTypeConst,          // 32-bit constant derived value - could be float or int.
+    kRegTypeUnresolvedReference,        // Reference type that couldn't be resolved.
+    kRegTypeUninitializedReference,     // Freshly allocated reference type.
+    kRegTypeUninitializedThisReference, // Freshly allocated reference passed as "this".
+    kRegTypeUnresolvedAndUninitializedReference, // Freshly allocated unresolved reference type.
+    kRegTypeReference,                  // Reference type.
   };
 
   Type GetType() const {
@@ -422,53 +422,53 @@ class InsnFlags {
   }
 
   void SetInTry() {
-    flags_ |= 1 << kInsnFlagInTry;
+    flags_ |= 1 << kInTry;
   }
   void ClearInTry() {
-    flags_ &= ~(1 << kInsnFlagInTry);
+    flags_ &= ~(1 << kInTry);
   }
   bool IsInTry() const {
-    return (flags_ & (1 << kInsnFlagInTry)) != 0;
+    return (flags_ & (1 << kInTry)) != 0;
   }
 
   void SetBranchTarget() {
-    flags_ |= 1 << kInsnFlagBranchTarget;
+    flags_ |= 1 << kBranchTarget;
   }
   void ClearBranchTarget() {
-    flags_ &= ~(1 << kInsnFlagBranchTarget);
+    flags_ &= ~(1 << kBranchTarget);
   }
   bool IsBranchTarget() const {
-    return (flags_ & (1 << kInsnFlagBranchTarget)) != 0;
+    return (flags_ & (1 << kBranchTarget)) != 0;
   }
 
   void SetGcPoint() {
-    flags_ |= 1 << kInsnFlagGcPoint;
+    flags_ |= 1 << kGcPoint;
   }
   void ClearGcPoint() {
-    flags_ &= ~(1 << kInsnFlagGcPoint);
+    flags_ &= ~(1 << kGcPoint);
   }
   bool IsGcPoint() const {
-    return (flags_ & (1 << kInsnFlagGcPoint)) != 0;
+    return (flags_ & (1 << kGcPoint)) != 0;
   }
 
   void SetVisited() {
-    flags_ |= 1 << kInsnFlagVisited;
+    flags_ |= 1 << kVisited;
   }
   void ClearVisited() {
-    flags_ &= ~(1 << kInsnFlagVisited);
+    flags_ &= ~(1 << kVisited);
   }
   bool IsVisited() const {
-    return (flags_ & (1 << kInsnFlagVisited)) != 0;
+    return (flags_ & (1 << kVisited)) != 0;
   }
 
   void SetChanged() {
-    flags_ |= 1 << kInsnFlagChanged;
+    flags_ |= 1 << kChanged;
   }
   void ClearChanged() {
-    flags_ &= ~(1 << kInsnFlagChanged);
+    flags_ &= ~(1 << kChanged);
   }
   bool IsChanged() const {
-    return (flags_ & (1 << kInsnFlagChanged)) != 0;
+    return (flags_ & (1 << kChanged)) != 0;
   }
 
   bool IsVisitedOrChanged() const {
@@ -481,21 +481,21 @@ class InsnFlags {
       strncpy(encoding, "XXXXX", sizeof(encoding));
     } else {
       strncpy(encoding, "-----", sizeof(encoding));
-      if (IsInTry())        encoding[kInsnFlagInTry] = 'T';
-      if (IsBranchTarget()) encoding[kInsnFlagBranchTarget] = 'B';
-      if (IsGcPoint())      encoding[kInsnFlagGcPoint] = 'G';
-      if (IsVisited())      encoding[kInsnFlagVisited] = 'V';
-      if (IsChanged())      encoding[kInsnFlagChanged] = 'C';
+      if (IsInTry())        encoding[kInTry] = 'T';
+      if (IsBranchTarget()) encoding[kBranchTarget] = 'B';
+      if (IsGcPoint())      encoding[kGcPoint] = 'G';
+      if (IsVisited())      encoding[kVisited] = 'V';
+      if (IsChanged())      encoding[kChanged] = 'C';
     }
     return std::string(encoding);
   }
  private:
-  enum InsnFlag {
-    kInsnFlagInTry,
-    kInsnFlagBranchTarget,
-    kInsnFlagGcPoint,
-    kInsnFlagVisited,
-    kInsnFlagChanged,
+  enum {
+    kInTry,
+    kBranchTarget,
+    kGcPoint,
+    kVisited,
+    kChanged,
   };
 
   // Size of instruction in code units
@@ -547,18 +547,18 @@ enum TypeCategory {
  * to be rewritten to fail at runtime.
  */
 enum VerifyError {
-  VERIFY_ERROR_NONE = 0,       /* no error; must be zero */
-  VERIFY_ERROR_BAD_CLASS_HARD, /* VerifyError; hard error that skips compilation */
-  VERIFY_ERROR_BAD_CLASS_SOFT, /* VerifyError; soft error that verifies again at runtime */
+  VERIFY_ERROR_NONE = 0,       // No error; must be zero.
+  VERIFY_ERROR_BAD_CLASS_HARD, // VerifyError; hard error that skips compilation.
+  VERIFY_ERROR_BAD_CLASS_SOFT, // VerifyError; soft error that verifies again at runtime.
 
-  VERIFY_ERROR_NO_CLASS,       /* NoClassDefFoundError */
-  VERIFY_ERROR_NO_FIELD,       /* NoSuchFieldError */
-  VERIFY_ERROR_NO_METHOD,      /* NoSuchMethodError */
-  VERIFY_ERROR_ACCESS_CLASS,   /* IllegalAccessError */
-  VERIFY_ERROR_ACCESS_FIELD,   /* IllegalAccessError */
-  VERIFY_ERROR_ACCESS_METHOD,  /* IllegalAccessError */
-  VERIFY_ERROR_CLASS_CHANGE,   /* IncompatibleClassChangeError */
-  VERIFY_ERROR_INSTANTIATION,  /* InstantiationError */
+  VERIFY_ERROR_NO_CLASS,       // NoClassDefFoundError.
+  VERIFY_ERROR_NO_FIELD,       // NoSuchFieldError.
+  VERIFY_ERROR_NO_METHOD,      // NoSuchMethodError.
+  VERIFY_ERROR_ACCESS_CLASS,   // IllegalAccessError.
+  VERIFY_ERROR_ACCESS_FIELD,   // IllegalAccessError.
+  VERIFY_ERROR_ACCESS_METHOD,  // IllegalAccessError.
+  VERIFY_ERROR_CLASS_CHANGE,   // IncompatibleClassChangeError.
+  VERIFY_ERROR_INSTANTIATION,  // InstantiationError.
 };
 std::ostream& operator<<(std::ostream& os, const VerifyError& rhs);
 
@@ -580,9 +580,9 @@ const int kVerifyErrorRefTypeShift = 6;
  */
 enum RegisterMapFormat {
   kRegMapFormatUnknown = 0,
-  kRegMapFormatNone = 1,      /* indicates no map data follows */
-  kRegMapFormatCompact8 = 2,  /* compact layout, 8-bit addresses */
-  kRegMapFormatCompact16 = 3, /* compact layout, 16-bit addresses */
+  kRegMapFormatNone = 1,      // Indicates no map data follows.
+  kRegMapFormatCompact8 = 2,  // Compact layout, 8-bit addresses.
+  kRegMapFormatCompact16 = 3, // Compact layout, 16-bit addresses.
 };
 const int kRegMapFormatShift = 5;
 const uint8_t kRegMapFormatMask = 0x7;
@@ -838,16 +838,17 @@ class RegisterLine {
 };
 std::ostream& operator<<(std::ostream& os, const RegisterLine& rhs);
 
+// We don't need to store the register data for many instructions, because we either only need
+// it at branch points (for verification) or GC points and branches (for verification +
+// type-precise register analysis).
+enum RegisterTrackingMode {
+  kTrackRegsBranches,
+  kTrackRegsGcPoints,
+  kTrackRegsAll,
+};
+
 class PcToRegisterLineTable {
  public:
-  // We don't need to store the register data for many instructions, because we either only need
-  // it at branch points (for verification) or GC points and branches (for verification +
-  // type-precise register analysis).
-  enum RegisterTrackingMode {
-    kTrackRegsBranches,
-    kTrackRegsGcPoints,
-    kTrackRegsAll,
-  };
   PcToRegisterLineTable() {}
   ~PcToRegisterLineTable() {
     STLDeleteValues(&pc_to_register_line_);

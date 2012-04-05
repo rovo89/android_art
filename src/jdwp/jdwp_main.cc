@@ -435,21 +435,6 @@ int64_t JdwpState::LastDebuggerActivity() {
   return now - last;
 }
 
-static const char* kTransportNames[] = {
-  "Unknown",
-  "Socket",
-  "AndroidAdb",
-};
-std::ostream& operator<<(std::ostream& os, const JdwpTransportType& value) {
-  int32_t int_value = static_cast<int32_t>(value);
-  if (value >= kJdwpTransportUnknown && value <= kJdwpTransportAndroidAdb) {
-    os << kTransportNames[int_value];
-  } else {
-    os << "JdwpTransportType[" << int_value << "]";
-  }
-  return os;
-}
-
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs) {
   os << "JdwpLocation["
      << Dbg::GetClassName(rhs.classId) << "." << Dbg::GetMethodName(rhs.classId, rhs.methodId)
@@ -464,41 +449,6 @@ bool operator==(const JdwpLocation& lhs, const JdwpLocation& rhs) {
 
 bool operator!=(const JdwpLocation& lhs, const JdwpLocation& rhs) {
   return !(lhs == rhs);
-}
-
-std::ostream& operator<<(std::ostream& os, const JdwpTag& value) {
-  switch (value) {
-  case JT_ARRAY: os << "JT_ARRAY"; break;
-  case JT_BYTE: os << "JT_BYTE"; break;
-  case JT_CHAR: os << "JT_CHAR"; break;
-  case JT_OBJECT: os << "JT_OBJECT"; break;
-  case JT_FLOAT: os << "JT_FLOAT"; break;
-  case JT_DOUBLE: os << "JT_DOUBLE"; break;
-  case JT_INT: os << "JT_INT"; break;
-  case JT_LONG: os << "JT_LONG"; break;
-  case JT_SHORT: os << "JT_SHORT"; break;
-  case JT_VOID: os << "JT_VOID"; break;
-  case JT_BOOLEAN: os << "JT_BOOLEAN"; break;
-  case JT_STRING: os << "JT_STRING"; break;
-  case JT_THREAD: os << "JT_THREAD"; break;
-  case JT_THREAD_GROUP: os << "JT_THREAD_GROUP"; break;
-  case JT_CLASS_LOADER: os << "JT_CLASS_LOADER"; break;
-  case JT_CLASS_OBJECT: os << "JT_CLASS_OBJECT"; break;
-  default:
-    os << "JdwpTag[" << static_cast<int32_t>(value) << "]";
-  }
-  return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const JdwpTypeTag& value) {
-  switch (value) {
-  case TT_CLASS: os << "TT_CLASS"; break;
-  case TT_INTERFACE: os << "TT_INTERFACE"; break;
-  case TT_ARRAY: os << "TT_ARRAY"; break;
-  default:
-    os << "JdwpTypeTag[" << static_cast<int32_t>(value) << "]";
-  }
-  return os;
 }
 
 }  // namespace JDWP
