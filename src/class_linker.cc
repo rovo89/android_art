@@ -1194,6 +1194,7 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
       return NULL;
     }
     ScopedLocalRef<jobject> class_loader_object(env, AddLocalReference<jobject>(env, class_loader));
+    CHECK(class_loader_object.get() != NULL);
     ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(), mid,
                                                               class_name_object.get()));
     if (env->ExceptionCheck()) {

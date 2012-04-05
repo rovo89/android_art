@@ -25,10 +25,10 @@ ArmContext::ArmContext() {
 #ifndef NDEBUG
   // Initialize registers with easy to spot debug values
   for (int i = 0; i < 16; i++) {
-    gprs_[i] = 0xEBAD6070+i;
+    gprs_[i] = kBadGprBase + i;
   }
   for (int i = 0; i < 32; i++) {
-    fprs_[i] = 0xEBAD8070+i;
+    fprs_[i] = kBadFprBase + i;
   }
 #endif
 }
@@ -59,6 +59,15 @@ void ArmContext::FillCalleeSaves(const Frame& fr) {
       }
     }
   }
+}
+
+void ArmContext::SmashCallerSaves() {
+  gprs_[0] = 0; // This needs to be 0 because we want a null/zero return value.
+  gprs_[1] = kBadGprBase + 1;
+  gprs_[2] = kBadGprBase + 2;
+  gprs_[3] = kBadGprBase + 3;
+  gprs_[IP] = kBadGprBase + IP;
+  gprs_[LR] = kBadGprBase + LR;
 }
 
 extern "C" void art_do_long_jump(uint32_t*, uint32_t*);

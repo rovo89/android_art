@@ -25,7 +25,7 @@ X86Context::X86Context() {
 #ifndef NDEBUG
   // Initialize registers with easy to spot debug values.
   for (int i = 0; i < 8; i++) {
-    gprs_[i] = 0xEBAD6070+i;
+    gprs_[i] = kBadGprBase + i;
   }
   eip_ = 0xEBAD601F;
 #endif
@@ -46,6 +46,13 @@ void X86Context::FillCalleeSaves(const Frame& fr) {
       }
     }
   }
+}
+
+void X86Context::SmashCallerSaves() {
+  gprs_[EAX] = 0; // This needs to be 0 because we want a null/zero return value.
+  gprs_[ECX] = kBadGprBase + ECX;
+  gprs_[EDX] = kBadGprBase + EDX;
+  gprs_[EBX] = kBadGprBase + EBX;
 }
 
 void X86Context::DoLongJump() {
