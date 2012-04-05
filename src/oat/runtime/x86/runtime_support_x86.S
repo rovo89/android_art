@@ -28,7 +28,8 @@
     // mean that literals need to be represented with $$x in macros.
     #define SYMBOL(name) _ ## name
     #define VAR(name,index) SYMBOL($index)
-    #define LITERAL(value) $$value
+    #define LITERAL(value) $value
+    #define MACRO_LITERAL(value) $$value
 #else
     // Regular gas(1) lets you name macro parameters.
     #define MACRO0(macro_name) .macro macro_name
@@ -44,6 +45,7 @@
     #define SYMBOL(name) name
     #define VAR(name,index) name&
     #define LITERAL(value) $value
+    #define MACRO_LITERAL(value) $value
 #endif
 
     /* Cache alignment for function entry */
@@ -65,7 +67,7 @@ MACRO0(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME)
     pushl %edi  // Save callee saves (ebx is saved/restored by the upcall)
     pushl %esi
     pushl %ebp
-    subl  LITERAL(16), %esp  // Grow stack by 4 words, bottom word will hold Method*
+    subl  MACRO_LITERAL(16), %esp  // Grow stack by 4 words, bottom word will hold Method*
 END_MACRO
 
     /*
@@ -76,11 +78,11 @@ MACRO0(SETUP_REF_ONLY_CALLEE_SAVE_FRAME)
     pushl %edi  // Save callee saves (ebx is saved/restored by the upcall)
     pushl %esi
     pushl %ebp
-    subl  LITERAL(16), %esp  // Grow stack by 4 words, bottom word will hold Method*
+    subl  MACRO_LITERAL(16), %esp  // Grow stack by 4 words, bottom word will hold Method*
 END_MACRO
 
 MACRO0(RESTORE_REF_ONLY_CALLEE_SAVE_FRAME)
-    addl LITERAL(28), %esp  // Unwind stack up to return address
+    addl MACRO_LITERAL(28), %esp  // Unwind stack up to return address
 END_MACRO
 
     /*
@@ -98,7 +100,7 @@ MACRO0(SETUP_REF_AND_ARG_CALLEE_SAVE_FRAME)
 END_MACRO
 
 MACRO0(RESTORE_REF_AND_ARG_CALLEE_SAVE_FRAME)
-    addl LITERAL(4), %esp  // Remove padding
+    addl MACRO_LITERAL(4), %esp  // Remove padding
     popl %ecx  // Restore args except eax
     popl %edx
     popl %ebx
@@ -115,7 +117,7 @@ MACRO0(DELIVER_PENDING_EXCEPTION)
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME         // save callee saves for throw
     mov %esp, %ecx
     // Outgoing argument set up
-    subl  LITERAL(8), %esp                   // Alignment padding
+    subl  MACRO_LITERAL(8), %esp             // Alignment padding
     pushl %ecx                               // pass SP
     pushl %fs:THREAD_SELF_OFFSET             // pass Thread::Current()
     call SYMBOL(artDeliverPendingExceptionFromCode)  // artDeliverExceptionFromCode(Thread*, SP)
@@ -129,7 +131,7 @@ VAR(c_name, 0):
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov %esp, %ecx
     // Outgoing argument set up
-    subl  LITERAL(8), %esp        // alignment padding
+    subl  MACRO_LITERAL(8), %esp  // alignment padding
     pushl %ecx                    // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     call VAR(cxx_name, 1)         // cxx_name(Thread*, SP)
@@ -234,7 +236,7 @@ VAR(c_name, 0):
     pushl %eax  // <-- callee save Method* to go here
     movl %esp, %edx  // remember SP
     // Outgoing argument set up
-    subl LITERAL(12), %esp        // alignment padding
+    subl MACRO_LITERAL(12), %esp  // alignment padding
     pushl %edx                    // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl 32(%edx)                // pass caller Method*
@@ -242,7 +244,7 @@ VAR(c_name, 0):
     pushl %eax                    // pass arg1
     call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, arg3, Thread*, SP)
     movl %edx, %edi               // save code pointer in EDI
-    addl LITERAL(36), %esp        // Pop arguments skip eax
+    addl MACRO_LITERAL(36), %esp  // Pop arguments skip eax
     popl %ecx                     // Restore args
     popl %edx
     popl %ebx
@@ -278,9 +280,9 @@ VAR(c_name, 0):
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
     call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, arg3, Thread*, SP)
-    addl LITERAL(16), %esp        // pop arguments
+    addl MACRO_LITERAL(16), %esp  // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    testl %eax, %eax               // eax == 0 ?
+    testl %eax, %eax              // eax == 0 ?
     jz  1f
     ret
 1:
@@ -294,14 +296,14 @@ VAR(c_name, 0):
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
     mov %esp, %ebx                // remember SP
     // Outgoing argument set up
-    subl LITERAL(12), %esp        // alignment padding
+    subl MACRO_LITERAL(12), %esp  // alignment padding
     pushl %ebx                    // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %edx                    // pass arg3
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
     call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, Thread*, SP)
-    addl LITERAL(32), %esp        // pop arguments
+    addl MACRO_LITERAL(32), %esp  // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     testl %eax, %eax               // eax == 0 ?
     jz  1f
