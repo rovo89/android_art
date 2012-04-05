@@ -163,9 +163,9 @@ std::ostream& operator<<(std::ostream& os, const JdwpInvokeOptions& value);
  * StepDepth constants.
  */
 enum JdwpStepDepth {
-  SD_INTO                 = 0,    /* step into method calls */
-  SD_OVER                 = 1,    /* step over method calls */
-  SD_OUT                  = 2,    /* step out of current method */
+  SD_INTO                 = 0,    // Step into method calls.
+  SD_OVER                 = 1,    // Step over method calls.
+  SD_OUT                  = 2,    // Step out of current method.
 };
 std::ostream& operator<<(std::ostream& os, const JdwpStepDepth& value);
 
@@ -173,8 +173,8 @@ std::ostream& operator<<(std::ostream& os, const JdwpStepDepth& value);
  * StepSize constants.
  */
 enum JdwpStepSize {
-  SS_MIN                  = 0,    /* step by minimum (e.g. 1 bytecode inst) */
-  SS_LINE                 = 1,    /* if possible, step to next line */
+  SS_MIN                  = 0,    // Step by minimum (for example, one bytecode).
+  SS_LINE                 = 1,    // If possible, step to next line.
 };
 std::ostream& operator<<(std::ostream& os, const JdwpStepSize& value);
 
@@ -182,9 +182,9 @@ std::ostream& operator<<(std::ostream& os, const JdwpStepSize& value);
  * SuspendPolicy constants.
  */
 enum JdwpSuspendPolicy {
-  SP_NONE                 = 0,    /* suspend no threads */
-  SP_EVENT_THREAD         = 1,    /* suspend event thread */
-  SP_ALL                  = 2,    /* suspend all threads */
+  SP_NONE                 = 0,    // Suspend no threads.
+  SP_EVENT_THREAD         = 1,    // Suspend event thread.
+  SP_ALL                  = 2,    // Suspend all threads.
 };
 std::ostream& operator<<(std::ostream& os, const JdwpSuspendPolicy& value);
 

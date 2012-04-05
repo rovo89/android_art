@@ -145,7 +145,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/java_lang_reflect_Method.cc \
 	src/java_lang_reflect_Proxy.cc \
 	src/java_util_concurrent_atomic_AtomicLong.cc \
-	src/jdwp/jdwp_constants.cc \
 	src/jdwp/jdwp_event.cc \
 	src/jdwp/jdwp_expand_buf.cc \
 	src/jdwp/jdwp_handler.cc \
@@ -268,9 +267,12 @@ $(error unsupported HOST_ARCH=$(HOST_ARCH))
 endif # HOST_ARCH != x86
 
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
+	src/dex_verifier.h \
 	src/indirect_reference_table.h \
 	src/instruction_set.h \
 	src/invoke_type.h \
+	src/jdwp/jdwp.h \
+	src/jdwp/jdwp_constants.h \
 	src/mutex.h
 
 LIBARTTEST_COMMON_SRC_FILES := \
