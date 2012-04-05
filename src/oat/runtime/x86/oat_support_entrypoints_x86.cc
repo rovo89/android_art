@@ -76,6 +76,9 @@ extern "C" int32_t art_idiv_from_code(int32_t, int32_t);
 extern "C" int32_t art_idivmod_from_code(int32_t, int32_t);
 extern "C" int64_t art_ldiv_from_code(int64_t, int64_t);
 extern "C" int64_t art_ldivmod_from_code(int64_t, int64_t);
+extern "C" uint64_t art_lshl_from_code(uint64_t, uint32_t);
+extern "C" uint64_t art_lshr_from_code(uint64_t, uint32_t);
+extern "C" uint64_t art_lushr_from_code(uint64_t, uint32_t);
 
 // Intrinsic entrypoints.
 extern "C" int32_t art_memcmp16(void*, void*, int32_t);
@@ -183,17 +186,12 @@ void InitEntryPoints(EntryPoints* points) {
   points->pIdivmod = art_idivmod_from_code;
   points->pD2l = D2L;
   points->pF2l = F2L;
-  points->pLadd = NULL;
-  points->pLand = NULL;
   points->pLdiv = art_ldiv_from_code;
   points->pLdivmod = art_ldivmod_from_code;
   points->pLmul = NULL;
-  points->pLor = NULL;
-  points->pLsub = NULL;
-  points->pLxor = NULL;
-  points->pShlLong = NULL;
-  points->pShrLong = NULL;
-  points->pUshrLong = NULL;
+  points->pShlLong = art_lshl_from_code;
+  points->pShrLong = art_lshr_from_code;
+  points->pUshrLong = art_lushr_from_code;
 
   // Intrinsics
   points->pIndexOf = art_indexof;

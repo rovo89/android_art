@@ -1079,7 +1079,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 
-  const bool kVerbosePcFixup = cUnit->method_idx == 9703;
+  const bool kVerbosePcFixup = false;
   for (lir = (LIR *) cUnit->firstLIRInsn; lir; lir = NEXT_LIR(lir)) {
     if (lir->opcode < 0) {
       continue;
