@@ -130,8 +130,8 @@ VAR(c_name, 0):
     mov %esp, %ecx
     // Outgoing argument set up
     subl  LITERAL(8), %esp        // alignment padding
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %ecx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     call VAR(cxx_name, 1)         // cxx_name(Thread*, SP)
     int3                          // unreached
 END_MACRO
@@ -143,7 +143,7 @@ VAR(c_name, 0):
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME  // save all registers as basis for long jump context
     mov %esp, %ecx
     // Outgoing argument set up
-    pushl LITERAL(0)              // alignment padding
+    pushl %eax                    // alignment padding
     pushl %ecx                    // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %eax                    // pass arg1
@@ -329,7 +329,7 @@ DEFINE_FUNCTION art_lock_object_from_code
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %eax                    // pass arg1
     call SYMBOL(artLockObjectFromCode)    // (Object*, Thread*, SP)
-    addl 16, %esp        // pop arguments
+    addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     ret
 
@@ -342,7 +342,7 @@ DEFINE_FUNCTION art_unlock_object_from_code
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %eax                    // pass arg1
     call SYMBOL(artUnlockObjectFromCode)  // (Object*, Thread*, SP)
-    addl 16, %esp                 // pop arguments
+    addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     testl %eax, %eax              // eax == 0 ?
     jnz 1f
@@ -359,9 +359,9 @@ DEFINE_FUNCTION art_handle_fill_data_from_code
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
     call SYMBOL(artHandleFillArrayDataFromCode)  // (Array* array, const uint16_t* table, Thread*, SP)
-    addl 16, %esp        // pop arguments
+    addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    testl %eax, %eax               // eax == 0 ?
+    testl %eax, %eax              // eax == 0 ?
     jnz 1f
     ret
 1:
@@ -372,7 +372,7 @@ DEFINE_FUNCTION art_is_assignable_from_code
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
     call SYMBOL(artIsAssignableFromCode)  // (Class* a, Class* b, Thread*, SP)
-    addl 12, %esp                 // pop arguments
+    addl LITERAL(12), %esp        // pop arguments
     ret
 
 DEFINE_FUNCTION art_memcpy
@@ -380,7 +380,7 @@ DEFINE_FUNCTION art_memcpy
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
     call SYMBOL(memcpy)           // (void*, const void*, size_t)
-    addl 12, %esp                 // pop arguments
+    addl LITERAL(12), %esp        // pop arguments
     ret
 
 DEFINE_FUNCTION art_check_cast_from_code
@@ -392,7 +392,7 @@ DEFINE_FUNCTION art_check_cast_from_code
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
     call SYMBOL(artCheckCastFromCode)  // (Class* a, Class* b, Thread*, SP)
-    addl 16, %esp                 // pop arguments
+    addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     testl %eax, %eax              // eax == 0 ?
     jnz 1f
@@ -411,6 +411,26 @@ DEFINE_FUNCTION art_idivmod_from_code
     movl %eax, %edx
     ret
 
+DEFINE_FUNCTION art_ldiv_from_code
+    addl LITERAL(12), %esp        // alignment padding
+    pushl %ebx                    // pass arg4
+    pushl %edx                    // pass arg3
+    pushl %ecx                    // pass arg2
+    pushl %eax                    // pass arg1
+    call SYMBOL(artLdivFromCode)  // (jlong a, jlong b, Thread*, SP)
+    addl LITERAL(28), %esp        // pop arguments
+    ret
+
+DEFINE_FUNCTION art_ldivmod_from_code
+    addl LITERAL(12), %esp        // alignment padding
+    pushl %ebx                    // pass arg4
+    pushl %edx                    // pass arg3
+    pushl %ecx                    // pass arg2
+    pushl %eax                    // pass arg1
+    call SYMBOL(artLdivmodFromCode) // (jlong a, jlong b, Thread*, SP)
+    addl LITERAL(28), %esp        // pop arguments
+    ret
+
 DEFINE_FUNCTION art_can_put_array_element_from_code
     test %eax, %eax               // Null is trivially storable
     jz   1f
@@ -422,7 +442,7 @@ DEFINE_FUNCTION art_can_put_array_element_from_code
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
     call SYMBOL(artCanPutArrayElementFromCode)  // (Object* element, Class* array_class, Thread*, SP)
-    addl 16, %esp                 // pop arguments
+    addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     testl %eax, %eax              // eax == 0 ?
     jnz 2f

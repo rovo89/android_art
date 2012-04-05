@@ -395,7 +395,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
             break;
 
         case Instruction::SPARSE_SWITCH:
-            genSparseSwitch(cUnit, mir, rlSrc[0]);
+            genSparseSwitch(cUnit, mir, rlSrc[0], labelList);
             break;
 
         case Instruction::CMPL_FLOAT:

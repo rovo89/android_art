@@ -218,6 +218,7 @@ void InitEntryPoints(EntryPoints* points) {
   points->pF2l = F2L;
   points->pLadd = NULL;
   points->pLand = NULL;
+  points->pLdiv = NULL;
   points->pLdivmod = NULL;
   points->pLmul = NULL;
   points->pLor = NULL;

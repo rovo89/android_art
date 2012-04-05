@@ -74,6 +74,8 @@ extern int64_t D2L(double d);
 extern int64_t F2L(float f);
 extern "C" int32_t art_idiv_from_code(int32_t, int32_t);
 extern "C" int32_t art_idivmod_from_code(int32_t, int32_t);
+extern "C" int64_t art_ldiv_from_code(int64_t, int64_t);
+extern "C" int64_t art_ldivmod_from_code(int64_t, int64_t);
 
 // Intrinsic entrypoints.
 extern "C" int32_t art_memcmp16(void*, void*, int32_t);
@@ -183,7 +185,8 @@ void InitEntryPoints(EntryPoints* points) {
   points->pF2l = F2L;
   points->pLadd = NULL;
   points->pLand = NULL;
-  points->pLdivmod = NULL;
+  points->pLdiv = art_ldiv_from_code;
+  points->pLdivmod = art_ldivmod_from_code;
   points->pLmul = NULL;
   points->pLor = NULL;
   points->pLsub = NULL;

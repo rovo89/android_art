@@ -1858,7 +1858,7 @@ bool genArithOpInt(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     } else {
         RegLocation rlResult;
         oatFlushAllRegs(cUnit);   /* Send everything to home location */
-        loadValueDirectFixed(cUnit, rlSrc2, rRET1);
+        loadValueDirectFixed(cUnit, rlSrc2, rARG1);
 #if !defined(TARGET_X86)
         int rTgt = loadHelper(cUnit, funcOffset);
 #endif
@@ -2197,14 +2197,17 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             retReg = rRET0;
             funcOffset = ENTRYPOINT_OFFSET(pLdivmod);
             break;
-        /* NOTE - result is in rARG2/rARG3 instead of rRET0/rRET1 */
-        // FIXME: is true, or could be made true, or other targets?
         case Instruction::REM_LONG:
         case Instruction::REM_LONG_2ADDR:
             callOut = true;
             checkZero = true;
-            funcOffset = ENTRYPOINT_OFFSET(pLdivmod);
+            funcOffset = ENTRYPOINT_OFFSET(pLdiv);
+#if defined(TARGET_ARM)
+            /* NOTE - result is in rARG2/rARG3 instead of rRET0/rRET1 */
             retReg = rARG2;
+#else
+            retReg = rRET0;
+#endif
             break;
         case Instruction::AND_LONG_2ADDR:
         case Instruction::AND_LONG:

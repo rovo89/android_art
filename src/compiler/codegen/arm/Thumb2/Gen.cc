@@ -369,7 +369,8 @@ LIR* opIT(CompilationUnit* cUnit, ArmConditionCode code, const char* guide)
  *   add   rPC, rDisp   ; This is the branch from which we compute displacement
  *   cbnz  rIdx, lp
  */
-void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
+                     LIR* labelList)
 {
     const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
     if (cUnit->printMe) {

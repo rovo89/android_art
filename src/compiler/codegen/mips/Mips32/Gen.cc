@@ -63,7 +63,8 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
  * done:
  *
  */
-void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
+                     LIR* labelList)
 {
     const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
     if (cUnit->printMe) {
