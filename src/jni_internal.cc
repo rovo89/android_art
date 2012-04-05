@@ -83,6 +83,8 @@ T AddLocalReference(JNIEnv* public_env, const Object* const_obj) {
     return NULL;
   }
 
+  DCHECK((reinterpret_cast<uintptr_t>(obj) & 0xffff0000) != 0xebad0000);
+
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
   IndirectReferenceTable& locals = env->locals;
 

@@ -45,8 +45,16 @@ class Context {
   // Read the given GPR
   virtual uintptr_t GetGPR(uint32_t reg) = 0;
 
+  // Smash the caller save registers. If we're throwing, we don't want to return bogus values.
+  virtual void SmashCallerSaves() = 0;
+
   // Switch execution of the executing context to this context
   virtual void DoLongJump() = 0;
+
+  enum {
+    kBadGprBase = 0xebad6070,
+    kBadFprBase = 0xebad8070,
+  };
 };
 
 class VmapTable {
