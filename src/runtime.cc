@@ -634,7 +634,6 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                    options->heap_growth_limit_,
                    options->heap_maximum_size_,
                    options->image_);
-  heap_->EnableObjectValidation();
 
   BlockSignals();
 
@@ -648,6 +647,9 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   // Set us to runnable so tools using a runtime can allocate and GC by default
   Thread::Current()->SetState(Thread::kRunnable);
+
+  // Now we're attached, we can take the heap lock and validate the heap.
+  GetHeap()->EnableObjectValidation();
 
   CHECK_GE(GetHeap()->GetSpaces().size(), 1U);
   if (GetHeap()->GetSpaces()[0]->IsImageSpace()) {

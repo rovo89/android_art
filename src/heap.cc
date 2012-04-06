@@ -313,6 +313,7 @@ bool Heap::IsLiveObjectLocked(const Object* obj) {
 #if VERIFY_OBJECT_ENABLED
 void Heap::VerifyObject(const Object* obj) {
   if (this == NULL || !verify_objects_ || Runtime::Current()->IsShuttingDown() ||
+      Thread::Current() == NULL ||
       Runtime::Current()->GetThreadList()->GetLockOwner() == Thread::Current()->GetTid()) {
     return;
   }

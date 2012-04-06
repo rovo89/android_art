@@ -105,14 +105,9 @@ struct PACKED EntryPoints {
   int32_t (*pIdivmod)(int32_t, int32_t);
   int64_t (*pD2l)(double);
   int64_t (*pF2l)(float);
-  int64_t (*pLadd)(int64_t, int64_t);
-  int64_t (*pLand)(int64_t, int64_t);
   int64_t (*pLdiv)(int64_t, int64_t);
   int64_t (*pLdivmod)(int64_t, int64_t);
   int64_t (*pLmul)(int64_t, int64_t);
-  int64_t (*pLor)(int64_t, int64_t);
-  int64_t (*pLsub)(int64_t, int64_t);
-  int64_t (*pLxor)(int64_t, int64_t);
   uint64_t (*pShlLong)(uint64_t, uint32_t);
   uint64_t (*pShrLong)(uint64_t, uint32_t);
   uint64_t (*pUshrLong)(uint64_t, uint32_t);

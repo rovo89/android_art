@@ -216,14 +216,9 @@ void InitEntryPoints(EntryPoints* points) {
   points->pIdivmod = NULL;
   points->pD2l = D2L;
   points->pF2l = F2L;
-  points->pLadd = NULL;
-  points->pLand = NULL;
   points->pLdiv = NULL;
   points->pLdivmod = NULL;
   points->pLmul = NULL;
-  points->pLor = NULL;
-  points->pLsub = NULL;
-  points->pLxor = NULL;
   points->pShlLong = art_shl_long;
   points->pShrLong = art_shr_long;
   points->pUshrLong = art_ushr_long;

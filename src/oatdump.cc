@@ -205,14 +205,9 @@ class OatDumper {
     DUMP_ENTRY_POINT(pIdivmod);
     DUMP_ENTRY_POINT(pD2l);
     DUMP_ENTRY_POINT(pF2l);
-    DUMP_ENTRY_POINT(pLadd);
-    DUMP_ENTRY_POINT(pLand);
     DUMP_ENTRY_POINT(pLdiv);
     DUMP_ENTRY_POINT(pLdivmod);
     DUMP_ENTRY_POINT(pLmul);
-    DUMP_ENTRY_POINT(pLor);
-    DUMP_ENTRY_POINT(pLsub);
-    DUMP_ENTRY_POINT(pLxor);
     DUMP_ENTRY_POINT(pShlLong);
     DUMP_ENTRY_POINT(pShrLong);
     DUMP_ENTRY_POINT(pUshrLong);
