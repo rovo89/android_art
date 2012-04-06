@@ -31,6 +31,7 @@
   V(InitializeType, art_initialize_type_from_code) \
   V(IsAssignable, art_is_assignable_from_code) \
   V(CheckCast, art_check_cast_from_code) \
+  V(CheckPutArrayElement, art_check_put_array_element_from_code) \
   V(AllocObject, art_alloc_object_from_code) \
   V(AllocObjectWithAccessCheck, art_alloc_object_from_code_with_access_check) \
   V(AllocArray, art_alloc_array_from_code) \

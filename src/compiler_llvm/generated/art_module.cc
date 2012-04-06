@@ -773,6 +773,17 @@ func_art_check_cast_from_code->setCallingConv(CallingConv::C);
 AttrListPtr func_art_check_cast_from_code_PAL;
 func_art_check_cast_from_code->setAttributes(func_art_check_cast_from_code_PAL);
 
+Function* func_art_check_put_array_element_from_code = mod->getFunction("art_check_put_array_element_from_code");
+if (!func_art_check_put_array_element_from_code) {
+func_art_check_put_array_element_from_code = Function::Create(
+ /*Type=*/FuncTy_27,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_check_put_array_element_from_code", mod); // (external, no body)
+func_art_check_put_array_element_from_code->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_check_put_array_element_from_code_PAL;
+func_art_check_put_array_element_from_code->setAttributes(func_art_check_put_array_element_from_code_PAL);
+
 // Global Variable Declarations
 
 
