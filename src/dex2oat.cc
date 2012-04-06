@@ -200,7 +200,7 @@ class Dex2Oat {
   }
 
   const Compiler* CreateOatFile(const std::string& boot_image_option,
-                                const std::string& host_prefix,
+                                const std::string* host_prefix,
                                 const std::vector<const DexFile*>& dex_files,
                                 File* oat_file,
 #if defined(ART_USE_LLVM_COMPILER)
@@ -248,8 +248,8 @@ class Dex2Oat {
       ImageSpace* image_space = heap->GetImageSpace();
       image_file_location_checksum = image_space->GetImageHeader().GetOatChecksum();
       image_file_location = image_space->GetImageFilename();
-      if (!host_prefix.empty() && StartsWith(image_file_location, host_prefix.c_str())) {
-        image_file_location = image_file_location.substr(host_prefix.size());
+      if (host_prefix != NULL && StartsWith(image_file_location, host_prefix->c_str())) {
+        image_file_location = image_file_location.substr(host_prefix->size());
       }
     }
 
@@ -470,7 +470,7 @@ int dex2oat(int argc, char** argv) {
   std::string image_filename;
   std::string boot_image_filename;
   uintptr_t image_base = 0;
-  std::string host_prefix;
+  UniquePtr<std::string> host_prefix;
   std::vector<const char*> runtime_args;
   int thread_count = 2;
   bool support_debugging = false;
@@ -529,7 +529,7 @@ int dex2oat(int argc, char** argv) {
     } else if (option.starts_with("--boot-image=")) {
       boot_image_filename = option.substr(strlen("--boot-image=")).data();
     } else if (option.starts_with("--host-prefix=")) {
-      host_prefix = option.substr(strlen("--host-prefix=")).data();
+      host_prefix.reset(new std::string(option.substr(strlen("--host-prefix=")).data()));
     } else if (option.starts_with("--instruction-set=")) {
       StringPiece instruction_set_str = option.substr(strlen("--instruction-set=")).data();
       if (instruction_set_str == "Thumb2" || instruction_set_str == "ARM") {
@@ -574,19 +574,19 @@ int dex2oat(int argc, char** argv) {
     Usage("--oat-fd should not be used with --image");
   }
 
-  if (host_prefix.empty()) {
+  if (host_prefix.get() == NULL) {
     const char* android_product_out = getenv("ANDROID_PRODUCT_OUT");
     if (android_product_out != NULL) {
-        host_prefix = android_product_out;
+        host_prefix.reset(new std::string(android_product_out));
     }
   }
 
   bool image = (!image_filename.empty());
   if (!image && boot_image_filename.empty()) {
-    if (host_prefix.empty()) {
+    if (host_prefix.get() == NULL) {
       boot_image_filename += GetAndroidRoot();
     } else {
-      boot_image_filename += host_prefix;
+      boot_image_filename += *host_prefix.get();
       boot_image_filename += "/system";
     }
     boot_image_filename += "/framework/boot.art";
@@ -661,8 +661,8 @@ int dex2oat(int argc, char** argv) {
   } else {
     options.push_back(std::make_pair(boot_image_option.c_str(), reinterpret_cast<void*>(NULL)));
   }
-  if (!host_prefix.empty()) {
-    options.push_back(std::make_pair("host-prefix", host_prefix.c_str()));
+  if (host_prefix.get() != NULL) {
+    options.push_back(std::make_pair("host-prefix", host_prefix->c_str()));
   }
   for (size_t i = 0; i < runtime_args.size(); i++) {
     options.push_back(std::make_pair(runtime_args[i], reinterpret_cast<void*>(NULL)));
@@ -703,7 +703,7 @@ int dex2oat(int argc, char** argv) {
   }
 
   UniquePtr<const Compiler> compiler(dex2oat->CreateOatFile(boot_image_option,
-                                                            host_prefix,
+                                                            host_prefix.get(),
                                                             dex_files,
                                                             oat_file.get(),
 #if defined(ART_USE_LLVM_COMPILER)
