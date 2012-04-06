@@ -171,7 +171,11 @@
   V(__aeabi_uidiv) \
   V(__aeabi_ul2d) \
   V(__aeabi_ul2f) \
-  V(__aeabi_uldivmod)
+  V(__aeabi_uldivmod) \
+  V(__moddi3) \
+  V(__modsi3) \
+  V(__umoddi3) \
+  V(__umodsi3)
 
 #else
 
