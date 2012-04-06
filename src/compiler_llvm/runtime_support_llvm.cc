@@ -39,7 +39,7 @@ Thread* art_get_current_thread_from_code() {
 
 void art_set_current_thread_from_code(void* thread_object_addr) {
   // TODO: LLVM IR generating something like "r9 = thread_object_addr"
-  UNIMPLEMENTED(WARNING);
+  // UNIMPLEMENTED(WARNING);
 }
 
 void art_lock_object_from_code(Object* obj) {
@@ -438,7 +438,7 @@ int32_t art_is_assignable_from_code(const Class* dest_type, const Class* src_typ
 }
 
 void art_check_cast_from_code(const Class* dest_type, const Class* src_type) {
-DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
+  DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
   DCHECK(src_type->IsClass()) << PrettyClass(src_type);
   if (UNLIKELY(!dest_type->IsAssignableFrom(src_type))) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
@@ -446,6 +446,24 @@ DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
         PrettyDescriptor(dest_type).c_str(),
         PrettyDescriptor(src_type).c_str());
   }
+}
+
+void art_check_put_array_element_from_code(const Object* element, const Object* array) {
+  if (element == NULL) {
+    return;
+  }
+  DCHECK(array != NULL);
+  Class* array_class = array->GetClass();
+  DCHECK(array_class != NULL);
+  Class* component_type = array_class->GetComponentType();
+  Class* element_class = element->GetClass();
+  if (UNLIKELY(!component_type->IsAssignableFrom(element_class))) {
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
+        "%s cannot be stored in an array of type %s",
+        PrettyDescriptor(element_class).c_str(),
+        PrettyDescriptor(array_class).c_str());
+  }
+  return;
 }
 
 //----------------------------------------------------------------------------

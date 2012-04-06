@@ -2328,6 +2328,14 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
 
   llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA, elem_jty, kArray);
 
+  if (elem_jty == kObject) { // If put an object, check the type.
+    llvm::Function* runtime_func = irb_.GetRuntime(CheckPutArrayElement);
+
+    irb_.CreateCall2(runtime_func, new_value, array_addr);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+  }
+
   irb_.CreateStore(new_value, array_elem_addr);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));

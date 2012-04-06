@@ -135,8 +135,9 @@ declare %JavaObject* @art_decode_jobject_in_thread(%JavaObject*,
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; RTTI
+; Type Checking, in the nature of casting
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 declare i32 @art_is_assignable_from_code(%JavaObject*, %JavaObject*)
 declare void @art_check_cast_from_code(%JavaObject*, %JavaObject*)
+declare void @art_check_put_array_element_from_code(%JavaObject*, %JavaObject*)
