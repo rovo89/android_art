@@ -204,7 +204,13 @@ class CommonTest : public testing::Test {
                                 reinterpret_cast<uint32_t>(mapping_table),
                                 reinterpret_cast<uint32_t>(vmap_table),
                                 reinterpret_cast<uint32_t>(gc_map),
-                                reinterpret_cast<uint32_t>(invoke_stub));
+                                reinterpret_cast<uint32_t>(invoke_stub)
+#if defined(ART_USE_LLVM_COMPILER)
+                              , NULL,
+                                -1u,
+                                -1u
+#endif
+                                );
   }
 
   void MakeExecutable(Method* method) {

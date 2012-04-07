@@ -19,6 +19,7 @@
 #include "compiled_method.h"
 #include "elf_image.h"
 #include "logging.h"
+#include "oat_file.h"
 #include "object.h"
 #include "runtime_support_llvm.h"
 #include "utils_llvm.h"
@@ -37,7 +38,9 @@ ElfLoader::~ElfLoader() {
 }
 
 
-bool ElfLoader::LoadElfAt(size_t elf_idx, const ElfImage& elf_image) {
+bool ElfLoader::LoadElfAt(size_t elf_idx,
+                          const ElfImage& elf_image,
+                          OatFile::RelocationBehavior reloc) {
   if (elf_idx < executables_.size() && executables_[elf_idx] != NULL) {
     return false;
   }
@@ -46,9 +49,8 @@ bool ElfLoader::LoadElfAt(size_t elf_idx, const ElfImage& elf_image) {
     executables_.resize(elf_idx + 1);
   }
 
-  RSExecRef executable =
-    rsloaderCreateExec(elf_image.begin(), elf_image.size(),
-                       art_find_runtime_support_func, NULL);
+  RSExecRef executable = rsloaderLoadExecutable(elf_image.begin(),
+                                                elf_image.size());
 
   if (executable == NULL) {
     LOG(WARNING) << "Failed to load ELF"
@@ -57,8 +59,28 @@ bool ElfLoader::LoadElfAt(size_t elf_idx, const ElfImage& elf_image) {
     return false;
   }
 
+  if (reloc == OatFile::kRelocAll) {
+    if (!rsloaderRelocateExecutable(executable,
+                                    art_find_runtime_support_func, NULL)) {
+      LOG(ERROR) << "Failed to relocate the ELF image";
+      rsloaderDisposeExec(executable);
+      return false;
+    }
+  }
+
   executables_[elf_idx] = executable;
   return true;
+}
+
+
+void ElfLoader::RelocateExecutable() {
+  for (size_t i = 0; i < executables_.size(); ++i) {
+    if (executables_[i] != NULL &&
+        !rsloaderRelocateExecutable(executables_[i],
+                                    art_find_runtime_support_func, NULL)) {
+      LOG(FATAL) << "Failed to relocate ELF image " << i;
+    }
+  }
 }
 
 

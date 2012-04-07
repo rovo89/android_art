@@ -22,6 +22,10 @@
 #include "os.h"
 #include "stl_util.h"
 
+#if defined(ART_USE_LLVM_COMPILER)
+#include "compiler_llvm/elf_loader.h"
+#endif
+
 namespace art {
 
 std::string OatFile::DexFilenameToOatFilename(const std::string& location) {
@@ -34,41 +38,57 @@ std::string OatFile::DexFilenameToOatFilename(const std::string& location) {
 OatFile* OatFile::Open(const std::string& filename,
                        const std::string& location,
                        byte* requested_base,
+                       RelocationBehavior reloc,
                        bool writable) {
   CHECK(!filename.empty()) << location;
   UniquePtr<File> file(OS::OpenFile(filename.c_str(), writable, false));
   if (file.get() == NULL) {
     return NULL;
   }
-  return Open(*file.get(), location, requested_base, writable);
+  return Open(*file.get(), location, requested_base, reloc, writable);
 }
 
 OatFile* OatFile::Open(File& file,
                        const std::string& location,
                        byte* requested_base,
+                       RelocationBehavior reloc,
                        bool writable) {
   CHECK(!location.empty());
   if (!IsValidOatFilename(location)) {
     LOG(WARNING) << "Attempting to open dex file with unknown extension '" << location << "'";
   }
   UniquePtr<OatFile> oat_file(new OatFile(location));
-  bool success = oat_file->Map(file, requested_base, writable);
+  bool success = oat_file->Map(file, requested_base, reloc, writable);
   if (!success) {
     return NULL;
   }
   return oat_file.release();
 }
 
-OatFile::OatFile(const std::string& location) : location_(location) {
+OatFile::OatFile(const std::string& location)
+    : location_(location)
+#if defined(ART_USE_LLVM_COMPILER)
+    , elf_loader_(new compiler_llvm::ElfLoader())
+#endif
+{
   CHECK(!location_.empty());
 }
 
 OatFile::~OatFile() {
   STLDeleteValues(&oat_dex_files_);
+#if defined(ART_USE_LLVM_COMPILER)
   STLDeleteElements(&oat_elf_images_);
+#endif
 }
 
-bool OatFile::Map(File& file, byte* requested_base, bool writable) {
+bool OatFile::Map(File& file,
+                  byte* requested_base,
+#if defined(ART_USE_LLVM_COMPILER)
+                  RelocationBehavior reloc,
+#else
+                  RelocationBehavior /*UNUSED*/,
+#endif
+                  bool writable) {
   OatHeader oat_header;
   bool success = file.ReadFully(&oat_header, sizeof(oat_header));
   if (!success || !oat_header.IsValid()) {
@@ -164,6 +184,11 @@ bool OatFile::Map(File& file, byte* requested_base, bool writable) {
                                                        methods_offsets_pointer);
   }
 
+#if !defined(ART_USE_LLVM_COMPILER)
+  CHECK_EQ(oat_header.GetElfImageTableOffset(), 0u);
+  CHECK_EQ(oat_header.GetElfImageCount(), 0u);
+
+#else
   oat = map->Begin() + oat_header.GetElfImageTableOffset();
   CHECK((reinterpret_cast<uintptr_t>(oat) & 0x3) == 0);
 
@@ -174,9 +199,15 @@ bool OatFile::Map(File& file, byte* requested_base, bool writable) {
     uint32_t elf_size = *reinterpret_cast<const uint32_t*>(oat);
     oat += sizeof(uint32_t);
 
-    oat_elf_images_.push_back(
-        new OatElfImage(this, map->Begin() + elf_offset, elf_size));
+    const byte* elf_begin = map->Begin() + elf_offset;
+
+    oat_elf_images_.push_back(new OatElfImage(this, elf_begin, elf_size));
+
+    if (!elf_loader_->LoadElfAt(i, ElfImage(elf_begin, elf_size), reloc)) {
+      LOG(ERROR) << "Failed to load ELF image.  index: " << i;
+    }
   }
+#endif
 
   mem_map_.reset(map.release());
   return true;
@@ -214,6 +245,12 @@ std::vector<const OatFile::OatDexFile*> OatFile::GetOatDexFiles() const {
     result.push_back(it->second);
   }
   return result;
+}
+
+void OatFile::RelocateExecutable() {
+#if defined(ART_USE_LLVM_COMPILER)
+  elf_loader_->RelocateExecutable();
+#endif
 }
 
 OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
@@ -271,7 +308,13 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
       oat_method_offsets.mapping_table_offset_,
       oat_method_offsets.vmap_table_offset_,
       oat_method_offsets.gc_map_offset_,
-      oat_method_offsets.invoke_stub_offset_);
+      oat_method_offsets.invoke_stub_offset_
+#if defined(ART_USE_LLVM_COMPILER)
+    , oat_file_->elf_loader_.get(),
+      oat_method_offsets.code_elf_idx_,
+      oat_method_offsets.invoke_stub_elf_idx_
+#endif
+      );
 }
 
 OatFile::OatMethod::OatMethod(const byte* base,
@@ -282,7 +325,13 @@ OatFile::OatMethod::OatMethod(const byte* base,
                               const uint32_t mapping_table_offset,
                               const uint32_t vmap_table_offset,
                               const uint32_t gc_map_offset,
-                              const uint32_t invoke_stub_offset)
+                              const uint32_t invoke_stub_offset
+#if defined(ART_USE_LLVM_COMPILER)
+                            , const compiler_llvm::ElfLoader* elf_loader,
+                              const uint32_t code_elf_idx,
+                              const uint32_t invoke_stub_elf_idx
+#endif
+                              )
   : begin_(base),
     code_offset_(code_offset),
     frame_size_in_bytes_(frame_size_in_bytes),
@@ -291,7 +340,13 @@ OatFile::OatMethod::OatMethod(const byte* base,
     mapping_table_offset_(mapping_table_offset),
     vmap_table_offset_(vmap_table_offset),
     gc_map_offset_(gc_map_offset),
-    invoke_stub_offset_(invoke_stub_offset) {
+    invoke_stub_offset_(invoke_stub_offset)
+#if defined(ART_USE_LLVM_COMPILER)
+  , elf_loader_(elf_loader),
+    code_elf_idx_(code_elf_idx),
+    invoke_stub_elf_idx_(invoke_stub_elf_idx)
+#endif
+{
 #ifndef NDEBUG
   if (mapping_table_offset_ != 0) {  // implies non-native, non-stub code
     if (vmap_table_offset_ == 0) {
@@ -307,6 +362,68 @@ OatFile::OatMethod::OatMethod(const byte* base,
 }
 
 OatFile::OatMethod::~OatMethod() {}
+
+
+const void* OatFile::OatMethod::GetCode() const {
+  if (!IsCodeInElf()) {
+    return GetOatPointer<const void*>(code_offset_);
+  } else {
+#if !defined(ART_USE_LLVM_COMPILER)
+    UNIMPLEMENTED(FATAL);
+    return NULL;
+#else
+    CHECK(elf_loader_ != NULL);
+    const void* code = elf_loader_->GetMethodCodeAddr(code_elf_idx_, method);
+    CHECK(code != NULL);
+    return code;
+#endif
+  }
+}
+
+uint32_t OatFile::OatMethod::GetCodeSize() const {
+  if (!IsCodeInElf()) {
+    uintptr_t code = reinterpret_cast<uint32_t>(GetCode());
+
+    if (code == 0) {
+      return 0;
+    }
+    // TODO: make this Thumb2 specific
+    code &= ~0x1;
+    return reinterpret_cast<uint32_t*>(code)[-1];
+  } else {
+    UNIMPLEMENTED(ERROR);
+    return 0;
+  }
+}
+
+const Method::InvokeStub* OatFile::OatMethod::GetInvokeStub() const {
+  if (!IsInvokeStubInElf()) {
+    return GetOatPointer<const Method::InvokeStub*>(invoke_stub_offset_);
+  } else {
+#if !defined(ART_USE_LLVM_COMPILER)
+    UNIMPLEMENTED(FATAL);
+    return NULL;
+#else
+    CHECK(elf_loader_ != NULL);
+    const Method::InvokeStub* stub = elf_loader_->GetMethodInvokeStubAddr(invoke_stub_elf_idx_, method);
+    CHECK(stub != NULL);
+    return stub;
+#endif
+  }
+}
+
+uint32_t OatFile::OatMethod::GetInvokeStubSize() const {
+  if (!IsInvokeStubInElf()) {
+    uintptr_t code = reinterpret_cast<uint32_t>(GetInvokeStub());
+    if (code == 0) {
+      return 0;
+    }
+    return reinterpret_cast<uint32_t*>(code)[-1];
+  } else {
+    UNIMPLEMENTED(ERROR);
+    return 0;
+  }
+}
 
 void OatFile::OatMethod::LinkMethodPointers(Method* method) const {
   CHECK(method != NULL);
