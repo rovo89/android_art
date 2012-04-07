@@ -155,7 +155,12 @@ OatMethodOffsets::OatMethodOffsets()
     mapping_table_offset_(0),
     vmap_table_offset_(0),
     gc_map_offset_(0),
-    invoke_stub_offset_(0) {}
+    invoke_stub_offset_(0)
+#if defined(ART_USE_LLVM_COMPILER)
+  , code_elf_idx_(-1u),
+    invoke_stub_elf_idx_(-1u)
+#endif
+{}
 
 OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
                                    uint32_t frame_size_in_bytes,
@@ -164,7 +169,12 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
                                    uint32_t mapping_table_offset,
                                    uint32_t vmap_table_offset,
                                    uint32_t gc_map_offset,
-                                   uint32_t invoke_stub_offset)
+                                   uint32_t invoke_stub_offset
+#if defined(ART_USE_LLVM_COMPILER)
+                                 , uint32_t code_elf_idx,
+                                   uint32_t invoke_stub_elf_idx
+#endif
+                                   )
   : code_offset_(code_offset),
     frame_size_in_bytes_(frame_size_in_bytes),
     core_spill_mask_(core_spill_mask),
@@ -172,7 +182,12 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
     mapping_table_offset_(mapping_table_offset),
     vmap_table_offset_(vmap_table_offset),
     gc_map_offset_(gc_map_offset),
-    invoke_stub_offset_(invoke_stub_offset) {}
+    invoke_stub_offset_(invoke_stub_offset)
+#if defined(ART_USE_LLVM_COMPILER)
+  , code_elf_idx_(code_elf_idx),
+    invoke_stub_elf_idx_(invoke_stub_elf_idx)
+#endif
+{}
 
 OatMethodOffsets::~OatMethodOffsets() {}
 
