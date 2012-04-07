@@ -262,7 +262,36 @@ static T Decode(ScopedJniThreadState& ts, jobject obj) {
   return reinterpret_cast<T>(ts.Self()->DecodeJObject(obj));
 }
 
+// TODO: can we make this available in non-debug builds if CheckJNI is on, or is it too expensive?
+#if !defined(NDEBUG)
+static void CheckMethodArguments(Method* m, JValue* args) {
+  MethodHelper mh(m);
+  ObjectArray<Class>* parameter_types = mh.GetParameterTypes();
+  CHECK(parameter_types != NULL);
+  size_t error_count = 0;
+  for (int i = 0; i < parameter_types->GetLength(); ++i) {
+    Class* parameter_type = parameter_types->Get(i);
+    if (!parameter_type->IsPrimitive()) {
+      Object* argument = args[i].l;
+      if (argument != NULL && !argument->InstanceOf(parameter_type)) {
+        LOG(ERROR) << "JNI ERROR (app bug): attempt to pass an instance of "
+                   << PrettyTypeOf(argument) << " as argument " << (i + 1) << " to " << PrettyMethod(m);
+        ++error_count;
+      }
+    }
+  }
+  if (error_count > 0) {
+    // TODO: pass the JNI function name (such as "CallVoidMethodV") through so we can call JniAbort
+    // with an argument.
+    JniAbort(NULL);
+  }
+}
+#else
+static void CheckMethodArguments(Method*, JValue*) { }
+#endif
+
 static JValue InvokeWithArgArray(JNIEnv* public_env, Object* receiver, Method* method, JValue* args) {
+  CheckMethodArguments(method, args);
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
   JValue result = { 0 };
   method->Invoke(env->self, receiver, args, &result);
@@ -2711,6 +2740,7 @@ const JNIInvokeInterface gJniInvokeInterface = {
 JavaVMExt::JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options)
     : runtime(runtime),
       check_jni_abort_hook(NULL),
+      check_jni_abort_hook_data(NULL),
       check_jni(false),
       force_copy(false), // TODO: add a way to enable this
       trace(options->jni_trace_),
