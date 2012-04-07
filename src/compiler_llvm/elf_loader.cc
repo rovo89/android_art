@@ -84,20 +84,18 @@ void ElfLoader::RelocateExecutable() {
 }
 
 
-const void* ElfLoader::GetMethodCodeAddr(size_t elf_idx,
-                                         const Method* method) const {
+const void* ElfLoader::GetMethodCodeAddr(uint16_t elf_idx,
+                                         uint16_t elf_func_idx) const {
   CHECK_LT(elf_idx, executables_.size());
-  CHECK(method != NULL);
-  return GetAddr(elf_idx, LLVMLongName(method).c_str());
+  return GetAddr(elf_idx, ElfFuncName(elf_func_idx).c_str());
 }
 
 
 const Method::InvokeStub* ElfLoader::
-GetMethodInvokeStubAddr(size_t elf_idx, const Method* method) const {
+GetMethodInvokeStubAddr(uint16_t elf_idx, uint16_t elf_func_idx) const {
   CHECK_LT(elf_idx, executables_.size());
-  CHECK(method != NULL);
   return reinterpret_cast<const Method::InvokeStub*>(
-      GetAddr(elf_idx, LLVMStubName(method).c_str()));
+      GetAddr(elf_idx, ElfFuncName(elf_func_idx).c_str()));
 }
 
 

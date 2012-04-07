@@ -24,6 +24,7 @@
 #include "logging.h"
 #include "object.h"
 #include "runtime_support_func.h"
+#include "utils_llvm.h"
 
 #include <llvm/Analysis/Verifier.h>
 #include <llvm/BasicBlock.h>
@@ -42,7 +43,8 @@ using namespace runtime_support;
 
 UpcallCompiler::UpcallCompiler(CompilationUnit* cunit, Compiler& compiler)
 : cunit_(cunit), compiler_(&compiler), module_(cunit_->GetModule()),
-  context_(cunit_->GetLLVMContext()), irb_(*cunit_->GetIRBuilder()) {
+  context_(cunit_->GetLLVMContext()), irb_(*cunit_->GetIRBuilder()),
+  elf_func_idx_(cunit_->AcquireUniqueElfFuncIndex()) {
 }
 
 
@@ -53,13 +55,7 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
   size_t shorty_size = strlen(shorty);
 
   // Function name
-  std::string func_name;
-
-  if (is_static) {
-    StringAppendF(&func_name, "ArtSUpcall_%s", shorty);
-  } else {
-    StringAppendF(&func_name, "ArtUpcall_%s", shorty);
-  }
+  std::string func_name(ElfFuncName(elf_func_idx_));
 
   // Get argument types
   llvm::Type* arg_types[] = {
@@ -179,7 +175,7 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
   // store ret_addr, and ret_void.  Beside, we guess that we have to use
   // 50 bytes to represent one LLVM instruction.
 
-  return new CompiledInvokeStub(cunit_->GetElfIndex());
+  return new CompiledInvokeStub(cunit_->GetElfIndex(), elf_func_idx_);
 }
 
 

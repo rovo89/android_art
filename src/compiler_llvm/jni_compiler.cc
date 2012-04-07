@@ -52,7 +52,8 @@ JniCompiler::JniCompiler(CompilationUnit* cunit,
   class_loader_(oat_compilation_unit->class_loader_),
   dex_cache_(oat_compilation_unit->dex_cache_),
   dex_file_(oat_compilation_unit->dex_file_),
-  method_(dex_cache_->GetResolvedMethod(method_idx_)) {
+  method_(dex_cache_->GetResolvedMethod(method_idx_)),
+  elf_func_idx_(cunit_->AcquireUniqueElfFuncIndex()) {
 
   // Check: Ensure that the method is resolved
   CHECK_NE(method_, static_cast<art::Method*>(NULL));
@@ -289,13 +290,14 @@ CompiledMethod* JniCompiler::Compile() {
   llvm::verifyFunction(*func_, llvm::PrintMessageAction);
 
   return new CompiledMethod(cunit_->GetInstructionSet(),
-                            cunit_->GetElfIndex());
+                            cunit_->GetElfIndex(),
+                            elf_func_idx_);
 }
 
 
 void JniCompiler::CreateFunction() {
   // LLVM function name
-  std::string func_name(LLVMLongName(method_));
+  std::string func_name(ElfFuncName(elf_func_idx_));
 
   // Get function type
   llvm::FunctionType* func_type =

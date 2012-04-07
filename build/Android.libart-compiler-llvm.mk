@@ -28,8 +28,7 @@ LIBART_COMPILER_LLVM_SRC_FILES += \
 	src/compiler_llvm/jni_compiler.cc \
 	src/compiler_llvm/method_compiler.cc \
 	src/compiler_llvm/runtime_support_llvm.cc \
-	src/compiler_llvm/upcall_compiler.cc \
-	src/compiler_llvm/utils_llvm.cc
+	src/compiler_llvm/upcall_compiler.cc
 
 # $(1): target or host
 # $(2): ndebug or debug

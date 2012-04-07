@@ -257,7 +257,8 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                                     uint32_t method_idx, const DexFile* dex_file) {
   // derived from CompiledMethod if available
   uint32_t code_offset = 0;
-  uint32_t code_elf_idx = -1u;
+  uint16_t code_elf_idx = static_cast<uint16_t>(-1u);
+  uint16_t code_elf_func_idx = static_cast<uint16_t>(-1u);
   uint32_t frame_size_in_bytes = kStackAlignment;
   uint32_t core_spill_mask = 0;
   uint32_t fp_spill_mask = 0;
@@ -266,13 +267,15 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   uint32_t gc_map_offset = 0;
   // derived from CompiledInvokeStub if available
   uint32_t invoke_stub_offset = 0;
-  uint32_t invoke_stub_elf_idx = -1u;
+  uint16_t invoke_stub_elf_idx = static_cast<uint16_t>(-1u);
+  uint16_t invoke_stub_elf_func_idx = static_cast<uint16_t>(-1u);
 
   CompiledMethod* compiled_method =
       compiler_->GetCompiledMethod(Compiler::MethodReference(dex_file, method_idx));
   if (compiled_method != NULL) {
     if (compiled_method->IsExecutableInElf()) {
       code_elf_idx = compiled_method->GetElfIndex();
+      code_elf_func_idx = compiled_method->GetElfFuncIndex();
     } else {
       offset = compiled_method->AlignCode(offset);
       DCHECK_ALIGNED(offset, kArmAlignment);
@@ -355,6 +358,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   if (compiled_invoke_stub != NULL) {
     if (compiled_invoke_stub->IsExecutableInElf()) {
       invoke_stub_elf_idx = compiled_invoke_stub->GetElfIndex();
+      invoke_stub_elf_func_idx = compiled_invoke_stub->GetElfFuncIndex();
     } else {
       offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
       DCHECK_ALIGNED(offset, kArmAlignment);
@@ -387,7 +391,9 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                          invoke_stub_offset
 #if defined(ART_USE_LLVM_COMPILER)
                        , code_elf_idx,
-                         invoke_stub_elf_idx
+                         code_elf_func_idx,
+                         invoke_stub_elf_idx,
+                         invoke_stub_elf_func_idx
 #endif
                          );
 

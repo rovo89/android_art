@@ -213,15 +213,16 @@ void CompilerLLVM::LoadElfFromCompilationUnit(const CompilationUnit* cunit) {
 }
 
 
-const void* CompilerLLVM::GetMethodCodeAddr(const CompiledMethod* cm,
-                                            const Method* method) const {
-  return elf_loader_->GetMethodCodeAddr(cm->GetElfIndex(), method);
+const void* CompilerLLVM::GetMethodCodeAddr(const CompiledMethod* cm) const {
+  return elf_loader_->GetMethodCodeAddr(cm->GetElfIndex(),
+                                        cm->GetElfFuncIndex());
 }
 
 
 const Method::InvokeStub* CompilerLLVM::
-GetMethodInvokeStubAddr(const CompiledInvokeStub* cm, const Method* method) const {
-  return elf_loader_->GetMethodInvokeStubAddr(cm->GetElfIndex(), method);
+GetMethodInvokeStubAddr(const CompiledInvokeStub* cm) const {
+  return elf_loader_->GetMethodInvokeStubAddr(cm->GetElfIndex(),
+                                              cm->GetElfFuncIndex());
 }
 
 
@@ -353,18 +354,18 @@ extern "C" void compilerLLVMEnableAutoElfLoading(art::Compiler& compiler) {
 
 extern "C" const void* compilerLLVMGetMethodCodeAddr(const art::Compiler& compiler,
                                                      const art::CompiledMethod* cm,
-                                                     const art::Method* method) {
+                                                     const art::Method*) {
   const art::compiler_llvm::CompilerLLVM* compiler_llvm =
       reinterpret_cast<const art::compiler_llvm::CompilerLLVM*>(compiler.GetCompilerContext());
-  return compiler_llvm->GetMethodCodeAddr(cm, method);
+  return compiler_llvm->GetMethodCodeAddr(cm);
 }
 
 extern "C" const art::Method::InvokeStub* compilerLLVMGetMethodInvokeStubAddr(const art::Compiler& compiler,
                                                                               const art::CompiledInvokeStub* cm,
-                                                                              const art::Method* method) {
+                                                                              const art::Method*) {
   const art::compiler_llvm::CompilerLLVM* compiler_llvm =
       reinterpret_cast<const art::compiler_llvm::CompilerLLVM*>(compiler.GetCompilerContext());
-  return compiler_llvm->GetMethodInvokeStubAddr(cm, method);
+  return compiler_llvm->GetMethodInvokeStubAddr(cm);
 }
 
 extern "C" std::vector<art::ElfImage> compilerLLVMGetElfImages(const art::Compiler& compiler) {

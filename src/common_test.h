@@ -207,8 +207,10 @@ class CommonTest : public testing::Test {
                                 reinterpret_cast<uint32_t>(invoke_stub)
 #if defined(ART_USE_LLVM_COMPILER)
                               , NULL,
-                                -1u,
-                                -1u
+                                static_cast<uint16_t>(-1u),
+                                static_cast<uint16_t>(-1u),
+                                static_cast<uint16_t>(-1u),
+                                static_cast<uint16_t>(-1u)
 #endif
                                 );
   }

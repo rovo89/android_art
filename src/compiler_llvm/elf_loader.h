@@ -26,10 +26,6 @@
 #include <vector>
 
 namespace art {
-  class Method;
-}
-
-namespace art {
 namespace compiler_llvm {
 
 class ElfLoader {
@@ -41,10 +37,11 @@ class ElfLoader {
 
   void RelocateExecutable();
 
-  const void* GetMethodCodeAddr(size_t elf_idx, const Method* method) const;
+  const void* GetMethodCodeAddr(uint16_t elf_idx,
+                                uint16_t elf_func_idx) const;
 
-  const Method::InvokeStub* GetMethodInvokeStubAddr(size_t elf_idx,
-                                                    const Method* method) const;
+  const Method::InvokeStub* GetMethodInvokeStubAddr(uint16_t elf_idx,
+                                                    uint16_t elf_func_idx) const;
 
  private:
   const void* GetAddr(size_t elf_idx, const char* sym_name) const;

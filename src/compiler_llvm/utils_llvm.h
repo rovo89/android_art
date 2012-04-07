@@ -17,26 +17,17 @@
 #ifndef ART_SRC_UTILS_LLVM_H_
 #define ART_SRC_UTILS_LLVM_H_
 
-#include "object.h"
+#include "stringprintf.h"
 
+#include <stdint.h>
 #include <string>
 
 namespace art {
 
-// Performs LLVM name mangling (similar to MangleForJni with additional '<' and
-// '>' being mangled).
-std::string MangleForLLVM(const std::string& s);
+inline static std::string ElfFuncName(uint16_t elf_func_idx) {
+  return StringPrintf("Art%u", static_cast<unsigned int>(elf_func_idx));
+}
 
-// Returns the LLVM function name for the non-overloaded method 'm'.
-std::string LLVMShortName(const Method* m);
-
-// Returns the LLVM function name for the overloaded method 'm'.
-std::string LLVMLongName(const Method* m);
-
-// Returns the LLVM stub function name for the overloaded method 'm'.
-std::string LLVMStubName(const Method* m);
-
-void LLVMLinkLoadMethod(const std::string& file_name, Method* method);
 }  // namespace art
 
 #endif  // ART_SRC_UTILS_LLVM_H_
