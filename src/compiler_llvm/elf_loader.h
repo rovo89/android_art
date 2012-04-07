@@ -19,6 +19,7 @@
 
 #include "elf_image.h"
 #include "globals.h"
+#include "oat_file.h"
 #include "object.h"
 
 #include <android/librsloader.h>
@@ -35,7 +36,10 @@ class ElfLoader {
  public:
   ~ElfLoader();
 
-  bool LoadElfAt(size_t elf_idx, const ElfImage& elf_image);
+  bool LoadElfAt(size_t elf_idx, const ElfImage& elf_image,
+                 OatFile::RelocationBehavior reloc);
+
+  void RelocateExecutable();
 
   const void* GetMethodCodeAddr(size_t elf_idx, const Method* method) const;
 

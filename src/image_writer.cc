@@ -32,6 +32,7 @@
 #include "image.h"
 #include "intern_table.h"
 #include "logging.h"
+#include "oat_file.h"
 #include "object.h"
 #include "object_utils.h"
 #include "runtime.h"
@@ -62,7 +63,8 @@ bool ImageWriter::Write(const std::string& image_filename,
     }
   }
 
-  oat_file_ = OatFile::Open(oat_filename, oat_location, NULL, true);
+  oat_file_ = OatFile::Open(oat_filename, oat_location, NULL,
+                            OatFile::kRelocNone, true);
   if (oat_file_ == NULL) {
     LOG(ERROR) << "Failed to open oat file " << oat_filename;
     return false;
