@@ -104,17 +104,23 @@ class OatFile {
     }
 
 #if defined(ART_USE_LLVM_COMPILER)
-    uint32_t GetCodeElfIndex() const {
+    uint16_t GetCodeElfIndex() const {
       return code_elf_idx_;
     }
-    uint32_t GetInvokeStubElfIndex() const {
+    uint16_t GetCodeElfFuncIndex() const {
+      return code_elf_func_idx_;
+    }
+    uint16_t GetInvokeStubElfIndex() const {
       return invoke_stub_elf_idx_;
+    }
+    uint16_t GetInvokeStubElfFuncIndex() const {
+      return invoke_stub_elf_func_idx_;
     }
 #endif
 
     bool IsCodeInElf() const {
 #if defined(ART_USE_LLVM_COMPILER)
-      return (code_elf_idx_ != -1u);
+      return (code_elf_idx_ != static_cast<uint16_t>(-1));
 #else
       return false;
 #endif
@@ -122,7 +128,7 @@ class OatFile {
 
     bool IsInvokeStubInElf() const {
 #if defined(ART_USE_LLVM_COMPILER)
-      return (invoke_stub_elf_idx_ != -1u);
+      return (invoke_stub_elf_idx_ != static_cast<uint16_t>(-1));
 #else
       return false;
 #endif
@@ -158,8 +164,10 @@ class OatFile {
               const uint32_t invoke_stub_offset
 #if defined(ART_USE_LLVM_COMPILER)
             , const compiler_llvm::ElfLoader* elf_loader,
-              const uint32_t code_elf_idx,
-              const uint32_t invoke_stub_elf_idx
+              const uint16_t code_elf_idx,
+              const uint16_t code_elf_func_idx,
+              const uint16_t invoke_stub_elf_idx,
+              const uint16_t invoke_stub_elf_func_idx
 #endif
               );
 
@@ -186,8 +194,10 @@ class OatFile {
 #if defined(ART_USE_LLVM_COMPILER)
     const compiler_llvm::ElfLoader* elf_loader_;
 
-    uint32_t code_elf_idx_;
-    uint32_t invoke_stub_elf_idx_;
+    uint16_t code_elf_idx_;
+    uint16_t code_elf_func_idx_;
+    uint16_t invoke_stub_elf_idx_;
+    uint16_t invoke_stub_elf_func_idx_;
 #endif
 
     friend class OatClass;
@@ -247,6 +257,7 @@ class OatFile {
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);
   };
 
+#if defined(ART_USE_LLVM_COMPILER)
   class OatElfImage {
    public:
     const byte* begin() const {
@@ -271,6 +282,7 @@ class OatFile {
     friend class OatFile;
     DISALLOW_COPY_AND_ASSIGN(OatElfImage);
   };
+#endif
 
   const OatDexFile* GetOatDexFile(const std::string& dex_file_location,
                                   bool warn_if_not_found = true) const;

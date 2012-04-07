@@ -93,12 +93,10 @@ class CompilerLLVM {
     return (elf_loader_.get() != NULL);
   }
 
-  const void* GetMethodCodeAddr(const CompiledMethod* cm,
-                                const Method* method) const;
+  const void* GetMethodCodeAddr(const CompiledMethod* cm) const;
 
   const Method::InvokeStub* GetMethodInvokeStubAddr(
-                                const CompiledInvokeStub* cm,
-                                const Method* method) const;
+                                const CompiledInvokeStub* cm) const;
 
   std::vector<ElfImage> GetElfImages() const;
 

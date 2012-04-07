@@ -73,6 +73,11 @@ class CompilationUnit {
     return ElfImage(elf_image_);
   }
 
+  uint16_t AcquireUniqueElfFuncIndex() {
+    CHECK(num_elf_funcs_ < UINT16_MAX);
+    return num_elf_funcs_++;
+  }
+
   bool WriteBitcodeToFile();
 
   bool Materialize();
@@ -101,6 +106,7 @@ class CompilationUnit {
   std::string bitcode_filename_;
 
   size_t mem_usage_;
+  uint16_t num_elf_funcs_;
 };
 
 } // namespace compiler_llvm

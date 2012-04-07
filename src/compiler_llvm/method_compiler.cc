@@ -67,7 +67,7 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     basic_blocks_(code_item_->insns_size_in_code_units_),
     basic_block_landing_pads_(code_item_->tries_size_, NULL),
     basic_block_unwind_(NULL), basic_block_unreachable_(NULL),
-    shadow_frame_(NULL) {
+    shadow_frame_(NULL), elf_func_idx_(cunit_->AcquireUniqueElfFuncIndex()) {
 }
 
 
@@ -78,7 +78,7 @@ MethodCompiler::~MethodCompiler() {
 
 void MethodCompiler::CreateFunction() {
   // LLVM function name
-  std::string func_name(LLVMLongName(method_));
+  std::string func_name(ElfFuncName(elf_func_idx_));
 
   // Get function type
   llvm::FunctionType* func_type =
@@ -3773,7 +3773,8 @@ CompiledMethod *MethodCompiler::Compile() {
   // Thus, we got our magic number 9.
 
   return new CompiledMethod(cunit_->GetInstructionSet(),
-                            cunit_->GetElfIndex());
+                            cunit_->GetElfIndex(),
+                            elf_func_idx_);
 }
 
 

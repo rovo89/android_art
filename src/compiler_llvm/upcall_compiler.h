@@ -48,6 +48,7 @@ class UpcallCompiler {
   llvm::Module* module_;
   llvm::LLVMContext* context_;
   IRBuilder& irb_;
+  uint16_t elf_func_idx_;
 };
 
 

@@ -50,7 +50,9 @@ class CompiledMethod {
                  const uint32_t fp_spill_mask);
 
   // Constructs a CompiledMethod for the LLVM compiler.
-  CompiledMethod(InstructionSet instruction_set, size_t elf_idx);
+  CompiledMethod(InstructionSet instruction_set,
+                 const uint16_t elf_idx,
+                 const uint16_t elf_func_idx);
 
   ~CompiledMethod();
 
@@ -79,12 +81,18 @@ class CompiledMethod {
   static const void* CodePointer(const void* code_pointer,
                                  InstructionSet instruction_set);
 
-  size_t GetElfIndex() const {
+  uint16_t GetElfIndex() const {
+    DCHECK(IsExecutableInElf());
     return elf_idx_;
   }
 
+  uint16_t GetElfFuncIndex() const {
+    DCHECK(IsExecutableInElf());
+    return elf_func_idx_;
+  }
+
   bool IsExecutableInElf() const {
-    return (elf_idx_ != static_cast<size_t>(-1));
+    return (elf_idx_ != static_cast<uint16_t>(-1u));
   }
 
  private:
@@ -98,30 +106,38 @@ class CompiledMethod {
   std::vector<uint16_t> vmap_table_;
   std::vector<uint8_t> gc_map_;
   // For LLVM
-  size_t elf_idx_;
+  uint16_t elf_idx_;
+  uint16_t elf_func_idx_;
 };
 
 class CompiledInvokeStub {
  public:
   explicit CompiledInvokeStub(std::vector<uint8_t>& code);
 #if defined(ART_USE_LLVM_COMPILER)
-  explicit CompiledInvokeStub(size_t elf_idx);
+  explicit CompiledInvokeStub(uint16_t elf_idx, uint16_t elf_func_idx);
 #endif
   ~CompiledInvokeStub();
 
   const std::vector<uint8_t>& GetCode() const;
 
-  size_t GetElfIndex() const {
+  uint16_t GetElfIndex() const {
+    DCHECK(IsExecutableInElf());
     return elf_idx_;
   }
 
+  uint16_t GetElfFuncIndex() const {
+    DCHECK(IsExecutableInElf());
+    return elf_func_idx_;
+  }
+
   bool IsExecutableInElf() const {
-    return (elf_idx_ != static_cast<size_t>(-1));
+    return (elf_idx_ != static_cast<uint16_t>(-1u));
   }
 
  private:
   std::vector<uint8_t> code_;
-  size_t elf_idx_;
+  uint16_t elf_idx_;
+  uint16_t elf_func_idx_;
 };
 
 }  // namespace art

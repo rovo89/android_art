@@ -460,6 +460,8 @@ class MethodCompiler {
   llvm::BasicBlock* basic_block_unreachable_;
 
   llvm::AllocaInst* shadow_frame_;
+
+  uint16_t elf_func_idx_;
 };
 
 

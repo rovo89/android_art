@@ -83,8 +83,10 @@ class PACKED OatMethodOffsets {
                    uint32_t gc_map_offset,
                    uint32_t invoke_stub_offset
 #if defined(ART_USE_LLVM_COMPILER)
-                 , uint32_t code_elf_idx,
-                   uint32_t invoke_stub_elf_idx
+                 , uint16_t code_elf_idx,
+                   uint16_t code_elf_func_idx,
+                   uint16_t invoke_stub_elf_idx,
+                   uint16_t invoke_stub_elf_func_idx
 #endif
                    );
   ~OatMethodOffsets();
@@ -99,8 +101,10 @@ class PACKED OatMethodOffsets {
   uint32_t invoke_stub_offset_;
 
 #if defined(ART_USE_LLVM_COMPILER)
-  uint32_t code_elf_idx_;
-  uint32_t invoke_stub_elf_idx_;
+  uint16_t code_elf_idx_;
+  uint16_t code_elf_func_idx_;
+  uint16_t invoke_stub_elf_idx_;
+  uint16_t invoke_stub_elf_func_idx_;
 #endif
 };
 

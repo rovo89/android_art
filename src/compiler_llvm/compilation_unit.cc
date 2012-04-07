@@ -62,7 +62,7 @@ llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
 CompilationUnit::CompilationUnit(InstructionSet insn_set, size_t elf_idx)
 : insn_set_(insn_set), elf_idx_(elf_idx), context_(new llvm::LLVMContext()),
-  mem_usage_(0) {
+  mem_usage_(0), num_elf_funcs_(0) {
 
   // Create the module and include the runtime function declaration
   module_ = new llvm::Module("art", *context_);
