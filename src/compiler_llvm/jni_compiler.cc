@@ -145,11 +145,20 @@ CompiledMethod* JniCompiler::Compile() {
                       irb_.getInt32(Thread::kNative));
 
   // Get callee code_addr
-  llvm::Value* code_addr =
+  llvm::Value* code_addr_ =
       LoadFromObjectOffset(method_object_addr,
                            Method::NativeMethodOffset().Int32Value(),
                            GetFunctionType(method_idx_, is_static, true)->getPointerTo());
+  llvm::Value* code_addr;
+  llvm::FunctionType* method_type = GetFunctionType(method_idx_, is_static, true);
 
+  // TODO: Inline check
+  llvm::Value* runtime_func = irb_.GetRuntime(runtime_support::EnsureInitialized);
+  llvm::Value* result = irb_.CreateCall2(runtime_func,
+                                         method_object_addr,
+                                         irb_.CreatePointerCast(code_addr_,
+                                                                irb_.getJObjectTy()));
+  code_addr = irb_.CreatePointerCast(result, method_type->getPointerTo());
 
   // Load actual parameters
   std::vector<llvm::Value*> args;

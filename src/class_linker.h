@@ -290,6 +290,8 @@ class ClassLinker {
   // Get the oat code for a method when its class isn't yet initialized
   const void* GetOatCodeFor(const Method* method);
 
+  void LinkOatCodeFor(Method* method);
+
   // Relocate the OatFiles (ELF images)
   void RelocateExecutable();
 
@@ -298,6 +300,8 @@ class ClassLinker {
 
  private:
   explicit ClassLinker(InternTable*);
+
+  const OatFile::OatMethod GetOatMethodFor(const Method* method);
 
   // Initialize class linker by bootstraping from dex files
   void InitFromCompiler(const std::vector<const DexFile*>& boot_class_path);

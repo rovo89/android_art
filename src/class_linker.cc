@@ -1352,8 +1352,7 @@ const OatFile::OatClass* ClassLinker::GetOatClass(const DexFile& dex_file, const
   return oat_class;
 }
 
-// Special case to get oat code without overwriting a trampoline.
-const void* ClassLinker::GetOatCodeFor(const Method* method) {
+const OatFile::OatMethod ClassLinker::GetOatMethodFor(const Method* method) {
   CHECK(Runtime::Current()->IsCompiler() || method->GetDeclaringClass()->IsInitializing());
   // Although we overwrite the trampoline of non-static methods, we may get here via the resolution
   // method for direct methods (or virtual methods made direct).
@@ -1380,7 +1379,28 @@ const void* ClassLinker::GetOatCodeFor(const Method* method) {
   ClassHelper kh(declaring_class);
   UniquePtr<const OatFile::OatClass> oat_class(GetOatClass(kh.GetDexFile(), kh.GetDescriptor()));
   CHECK(oat_class.get() != NULL);
-  return oat_class->GetOatMethod(oat_method_index).GetCode();
+  return oat_class->GetOatMethod(oat_method_index);
+}
+
+// Special case to get oat code without overwriting a trampoline.
+const void* ClassLinker::GetOatCodeFor(const Method* method) {
+  return GetOatMethodFor(method).GetCode();
+}
+
+void ClassLinker::LinkOatCodeFor(Method* method) {
+  Class* declaring_class = method->GetDeclaringClass();
+  ClassHelper kh(declaring_class);
+  const OatFile* oat_file = FindOpenedOatFileForDexFile(kh.GetDexFile());
+  if (oat_file != NULL) {
+    // NOTE: We have to check the availability of OatFile first.  Because
+    // GetOatMethodFor(...) will try to find the OatFile and there's
+    // an assert in GetOatMethodFor(...).  Besides, due to the return
+    // type of OatClass::GetOatMethod(...), we can't return a failure value
+    // back.
+
+    // TODO: Remove this workaround.
+    GetOatMethodFor(method).LinkMethodPointers(method);
+  }
 }
 
 void ClassLinker::FixupStaticTrampolines(Class* klass) {

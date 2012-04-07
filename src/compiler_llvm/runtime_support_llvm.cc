@@ -517,6 +517,94 @@ static void* art_find_compiler_runtime_func(char const* name) {
   }
 }
 
+const void* art_ensure_initialized_from_code(Method* called,
+                                             void* code) {
+  if (LIKELY(code != Runtime::Current()->GetResolutionStubArray(Runtime::kStaticMethod)->GetData())) {
+    return code;
+  }
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  Class* called_class = called->GetDeclaringClass();
+  linker->EnsureInitialized(called_class, true, true);
+  if (LIKELY(called_class->IsInitialized())) {
+    return called->GetCode();
+  } else if (called_class->IsInitializing()) {
+    return linker->GetOatCodeFor(called);
+  } else {
+    DCHECK(called_class->IsErroneous());
+    return code;
+  }
+}
+
+Method* art_ensure_resolved_from_code(Method* called,
+                                      Method* caller,
+                                      uint32_t dex_method_idx,
+                                      Instruction::Code instr_code) {
+  if (LIKELY(!called->IsResolutionMethod())) {
+    return called;
+  }
+  // Compute details about the called method (avoid GCs)
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  bool is_static = (instr_code == Instruction::INVOKE_STATIC) ||
+                   (instr_code == Instruction::INVOKE_STATIC_RANGE);
+
+  bool is_virtual = (instr_code == Instruction::INVOKE_VIRTUAL) ||
+                    (instr_code == Instruction::INVOKE_VIRTUAL_RANGE) ||
+                    (instr_code == Instruction::INVOKE_SUPER) ||
+                    (instr_code == Instruction::INVOKE_SUPER_RANGE);
+
+  DCHECK(is_static || is_virtual ||
+         (instr_code == Instruction::INVOKE_DIRECT) ||
+         (instr_code == Instruction::INVOKE_DIRECT_RANGE));
+
+  called = linker->ResolveMethod(dex_method_idx, caller, !is_virtual);
+
+  const void* code = NULL;
+  Thread* thread = art_get_current_thread_from_code();
+  if (LIKELY(!thread->IsExceptionPending())) {
+    if (LIKELY(called->IsDirect() == !is_virtual)) {
+      // Ensure that the called method's class is initialized.
+      Class* called_class = called->GetDeclaringClass();
+      linker->EnsureInitialized(called_class, true, true);
+      if (LIKELY(called_class->IsInitialized())) {
+        code = called->GetCode();
+      } else if (called_class->IsInitializing()) {
+        if (is_static) {
+          // Class is still initializing, go to oat and grab code (trampoline must be left in place
+          // until class is initialized to stop races between threads).
+          code = linker->GetOatCodeFor(called);
+          LOG(FATAL) << "Is static";
+        } else {
+          // No trampoline for non-static methods.
+          code = called->GetCode();
+        }
+      } else {
+        DCHECK(called_class->IsErroneous());
+        LOG(FATAL) << "Is erroneous";
+      }
+    } else {
+      // Direct method has been made virtual
+      thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+                                 "Expected direct method but found virtual: %s",
+                                 PrettyMethod(called, true).c_str());
+    }
+  }
+
+  if (code != NULL) {
+    // Expect class to at least be initializing.
+    DCHECK(called->GetDeclaringClass()->IsInitializing());
+    // Don't want infinite recursion.
+    DCHECK(code != Runtime::Current()->GetResolutionStubArray(Runtime::kUnknownMethod)->GetData());
+  }
+
+  return called;
+}
+
+void art_ensure_link_from_code(Method* method) {
+  if (method->GetInvokeStub() == NULL && method->GetCode() == NULL) {
+    Runtime::Current()->GetClassLinker()->LinkOatCodeFor(method);
+  }
+}
+
 void* art_find_runtime_support_func(void* context, char const* name) {
   struct func_entry_t {
     char const* name;

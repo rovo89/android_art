@@ -141,3 +141,13 @@ declare %JavaObject* @art_decode_jobject_in_thread(%JavaObject*,
 declare i32 @art_is_assignable_from_code(%JavaObject*, %JavaObject*)
 declare void @art_check_cast_from_code(%JavaObject*, %JavaObject*)
 declare void @art_check_put_array_element_from_code(%JavaObject*, %JavaObject*)
+
+declare void @art_ensure_link_from_code(%JavaObject*)
+
+declare %JavaObject* @art_ensure_resolved_from_code(%JavaObject*,
+                                                    %JavaObject*,
+                                                    i32,
+                                                    i32)
+
+declare %JavaObject* @art_ensure_initialized_from_code(%JavaObject*,
+                                                       %JavaObject*)

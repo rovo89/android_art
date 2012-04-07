@@ -2785,6 +2785,39 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
     << PrettyMethod(callee_method_idx, *dex_file_);
 }
 
+llvm::Value* MethodCompiler::EmitEnsureInitialized(llvm::Value* callee_method_object_addr,
+                                                   uint32_t method_idx,
+                                                   bool is_static,
+                                                   llvm::Value* code_addr) {
+  llvm::FunctionType* method_type = GetFunctionType(method_idx, is_static);
+
+  // TODO: Inline check
+  llvm::Value* runtime_func = irb_.GetRuntime(EnsureInitialized);
+  llvm::Value* result = irb_.CreateCall2(runtime_func,
+                                         callee_method_object_addr,
+                                         irb_.CreatePointerCast(code_addr,
+                                                                irb_.getJObjectTy()));
+  return irb_.CreatePointerCast(result, method_type->getPointerTo());
+}
+
+llvm::Value* MethodCompiler::EmitEnsureResolved(llvm::Value* callee,
+                                                llvm::Value* caller,
+                                                uint32_t dex_method_idx,
+                                                Instruction::Code instr_code) {
+  // TODO: Inline check
+  llvm::Value* runtime_func = irb_.GetRuntime(EnsureResolved);
+  return irb_.CreateCall4(runtime_func,
+                          callee,
+                          caller,
+                          irb_.getInt32(dex_method_idx),
+                          irb_.getInt32(instr_code));
+}
+
+void MethodCompiler::EmitEnsureLink(llvm::Value* method_object_addr) {
+  // TODO: Inline check
+  llvm::Value* runtime_func = irb_.GetRuntime(EnsureLink);
+  irb_.CreateCall(runtime_func, method_object_addr);
+}
 
 void MethodCompiler::EmitInsn_InvokeVirtualSuperSlow(uint32_t dex_pc,
                                                      DecodedInstruction &dec_insn,
@@ -2812,14 +2845,28 @@ void MethodCompiler::EmitInsn_InvokeVirtualSuperSlow(uint32_t dex_pc,
 
   EmitUpdateLineNumFromDexPC(dex_pc);
 
-  llvm::Value* callee_method_object_addr =
+  llvm::Value* callee_method_object_addr_ =
       irb_.CreateCall3(runtime_func,
                        callee_method_idx_value, this_addr, method_object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
 
-  llvm::Value* code_addr =
+  llvm::Value* callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr_,
+                                                              method_object_addr,
+                                                              callee_method_idx,
+                                                              (is_virtual ?
+                                                               Instruction::INVOKE_VIRTUAL :
+                                                               Instruction::INVOKE_SUPER));
+
+  EmitEnsureLink(callee_method_object_addr);
+
+  llvm::Value* code_addr_ =
       EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, false);
+
+  llvm::Value* code_addr = EmitEnsureInitialized(callee_method_object_addr,
+                                                 callee_method_idx,
+                                                 false,
+                                                 code_addr_);
   // Load the actual parameter
   std::vector<llvm::Value*> args;
   args.push_back(callee_method_object_addr);
@@ -2864,12 +2911,24 @@ void MethodCompiler::EmitInsn_InvokeVirtual(uint32_t dex_pc,
     // Load callee method code address (branch destination)
     llvm::Value* vtable_addr = EmitLoadVTableAddr(class_object_addr);
 
-    llvm::Value* method_object_addr =
+    llvm::Value* method_object_addr_ =
       EmitLoadMethodObjectAddrFromVTable(vtable_addr,
                                          callee_method->GetMethodIndex());
 
-    llvm::Value* code_addr =
+    llvm::Value* method_object_addr = EmitEnsureResolved(method_object_addr_,
+                                                         EmitLoadMethodObjectAddr(),
+                                                         callee_method_idx,
+                                                         Instruction::INVOKE_VIRTUAL);
+
+    EmitEnsureLink(method_object_addr);
+
+    llvm::Value* code_addr_ =
       EmitLoadCodeAddr(method_object_addr, callee_method_idx, false);
+
+    llvm::Value* code_addr = EmitEnsureInitialized(method_object_addr,
+                                                   callee_method_idx,
+                                                   false,
+                                                   code_addr_);
 
     // Load actual parameters
     std::vector<llvm::Value*> args;
@@ -2953,13 +3012,25 @@ void MethodCompiler::EmitInsn_InvokeSuper(uint32_t dex_pc,
     // Load method object from virtual table
     llvm::Value* vtable_addr = EmitLoadVTableAddr(super_class_addr);
 
-    llvm::Value* callee_method_object_addr =
+    llvm::Value* callee_method_object_addr_ =
       EmitLoadMethodObjectAddrFromVTable(vtable_addr,
                                          callee_method->GetMethodIndex());
 
-    llvm::Value* code_addr =
+    llvm::Value* callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr_,
+                                                                method_object_addr,
+                                                                callee_method_idx,
+                                                                Instruction::INVOKE_SUPER);
+
+    EmitEnsureLink(callee_method_object_addr);
+
+    llvm::Value* code_addr_ =
       EmitLoadCodeAddr(callee_method_object_addr,
                        callee_method_idx, false);
+
+    llvm::Value* code_addr = EmitEnsureInitialized(callee_method_object_addr,
+                                                   callee_method_idx,
+                                                   false,
+                                                   code_addr_);
 
     // Load actual parameters
     std::vector<llvm::Value*> args;
@@ -3019,11 +3090,24 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
   llvm::Value* callee_method_object_field_addr =
     EmitLoadDexCacheResolvedMethodFieldAddr(callee_method_idx);
 
-  llvm::Value* callee_method_object_addr =
+  llvm::Value* callee_method_object_addr_ =
     irb_.CreateLoad(callee_method_object_field_addr);
 
-  llvm::Value* code_addr =
+  llvm::Value* callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr_,
+                                                              EmitLoadMethodObjectAddr(),
+                                                              callee_method_idx,
+                                                              Instruction::INVOKE_DIRECT);
+
+  EmitEnsureLink(callee_method_object_addr);
+
+  llvm::Value* code_addr_ =
     EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, is_static);
+
+  llvm::Value* code_addr = EmitEnsureInitialized(callee_method_object_addr,
+                                                 callee_method_idx,
+                                                 is_static,
+                                                 code_addr_);
+  EmitGuard_ExceptionLandingPad(dex_pc);
 
   // Load the actual parameter
   std::vector<llvm::Value*> args;
@@ -3075,14 +3159,26 @@ void MethodCompiler::EmitInsn_InvokeInterface(uint32_t dex_pc,
 
   EmitUpdateLineNumFromDexPC(dex_pc);
 
-  llvm::Value* callee_method_object_addr =
+  llvm::Value* callee_method_object_addr_ =
     irb_.CreateCall3(runtime_func,
                      callee_method_idx_value, this_addr, method_object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
 
-  llvm::Value* code_addr =
+  llvm::Value* callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr_,
+                                                              method_object_addr,
+                                                              callee_method_idx,
+                                                              Instruction::INVOKE_INTERFACE);
+
+  EmitEnsureLink(callee_method_object_addr);
+
+  llvm::Value* code_addr_ =
     EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, false);
+
+  llvm::Value* code_addr = EmitEnsureInitialized(callee_method_object_addr,
+                                                 callee_method_idx,
+                                                 false,
+                                                 code_addr_);
 
   // Load the actual parameter
   std::vector<llvm::Value*> args;
