@@ -1883,12 +1883,9 @@ void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
 
     EmitGuard_ArrayIndexOutOfBoundsException(dex_pc, array_addr, last_index);
 
-    // TODO: currently FillArray doesn't support I, J, D and L, [ so computing the component
-    // size using int alignment is safe. This code should determine the width of the FillArray
-    // component.
     // Get array data field
     llvm::Value* data_field_offset_value =
-      irb_.getPtrEquivInt(Array::DataOffset(sizeof(int32_t)).Int32Value());
+      irb_.getPtrEquivInt(Array::DataOffset(payload->elem_width_).Int32Value());
 
     llvm::Value* data_field_addr =
       irb_.CreatePtrDisp(array_addr, data_field_offset_value,
