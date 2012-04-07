@@ -52,7 +52,7 @@ bool ElfLoader::LoadElfAt(size_t elf_idx, const ElfImage& elf_image) {
 
   if (executable == NULL) {
     LOG(WARNING) << "Failed to load ELF"
-                 << " image: " << elf_image.begin()
+                 << " image: " << static_cast<const void*>(elf_image.begin())
                  << " size: " << elf_image.size();
     return false;
   }
