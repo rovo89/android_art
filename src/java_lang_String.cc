@@ -70,37 +70,25 @@ static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
   return countDiff;
 }
 
-/*
- * public int indexOf(int c, int start)
- *
- * Scan forward through the string for a matching character.
- * The character must be <= 0xffff; this method does not handle supplementary
- * characters.
- *
- * Determine the index of the first character matching "ch".  The string
- * to search is described by "chars", "offset", and "count".
- *
- * The character must be <= 0xffff. Supplementary characters are handled in
- * Java.
- *
- * The "start" parameter must be clamped to [0..count].
- *
- * Returns -1 if no match is found.
- */
-static jint String_fastIndexOf(JNIEnv* env, jobject javaThis, jint ch, jint start) {
-  String* s = Decode<String*>(env, javaThis);
-  const uint16_t* chars = s->GetCharArray()->GetData() + s->GetOffset();
+static jint String_fastIndexOf(JNIEnv* env, jobject java_this, jint ch, jint start) {
+  // This method does not handle supplementary characters. They're dealt with in managed code.
+  DCHECK_LE(ch, 0xffff);
 
+  String* s = Decode<String*>(env, java_this);
+
+  jint count = s->GetLength();
   if (start < 0) {
     start = 0;
+  } else if (start > count) {
+    start = count;
   }
 
-  /* 16-bit loop, slightly better on ARM */
-  const uint16_t* ptr = chars + start;
-  const uint16_t* endPtr = chars + s->GetLength();
-  while (ptr < endPtr) {
-    if (*ptr++ == ch) {
-      return (ptr-1) - chars;
+  const uint16_t* chars = s->GetCharArray()->GetData() + s->GetOffset();
+  const uint16_t* p = chars + start;
+  const uint16_t* end = chars + count;
+  while (p < end) {
+    if (*p++ == ch) {
+      return (p - 1) - chars;
     }
   }
 
