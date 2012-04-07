@@ -397,8 +397,13 @@ uint32_t OatFile::OatMethod::GetCodeSize() const {
     code &= ~0x1;
     return reinterpret_cast<uint32_t*>(code)[-1];
   } else {
+#if !defined(ART_USE_LLVM_COMPILER)
     UNIMPLEMENTED(ERROR);
     return 0;
+#else
+    CHECK(elf_loader_ != NULL);
+    return elf_loader_->GetCodeSize(code_elf_idx_, code_elf_func_idx_);
+#endif
   }
 }
 
@@ -428,8 +433,14 @@ uint32_t OatFile::OatMethod::GetInvokeStubSize() const {
     }
     return reinterpret_cast<uint32_t*>(code)[-1];
   } else {
+#if !defined(ART_USE_LLVM_COMPILER)
     UNIMPLEMENTED(WARNING);
     return 0;
+#else
+    CHECK(elf_loader_ != NULL);
+    return elf_loader_->GetCodeSize(invoke_stub_elf_idx_,
+                                    invoke_stub_elf_func_idx_);
+#endif
   }
 }
 

@@ -43,6 +43,8 @@ class ElfLoader {
   const Method::InvokeStub* GetMethodInvokeStubAddr(uint16_t elf_idx,
                                                     uint16_t elf_func_idx) const;
 
+  size_t GetCodeSize(uint16_t elf_idx, uint16_t elf_func_idx) const;
+
  private:
   const void* GetAddr(size_t elf_idx, const char* sym_name) const;
 
