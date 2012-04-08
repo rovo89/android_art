@@ -103,15 +103,19 @@ done
 
 # wait for all the tests, collecting the failures
 failure_count=0
+succeeded_count=0
 failed_test_names=""
 for pid in ${test_pids[@]}; do
   wait $pid
   if [ "$?" != "0" ]; then
     let failure_count+=1
-    failed_test_names="$failed_test_names $test_names[$pid]"
+    failed_test_names="$failed_test_names ${test_names[$pid]}[pid=$pid]"
+  else
+    let succeeded_count+=1
   fi
 done
 
+echo "succeeded tests: $succeeded_count"
 echo "failed tests: $failure_count"
 
 for i in $failed_test_names; do
