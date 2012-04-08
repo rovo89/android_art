@@ -57,7 +57,7 @@ declare i1 @art_is_exception_pending_from_code()
 declare void @art_throw_div_zero_from_code()
 declare void @art_throw_array_bounds_from_code(i32, i32)
 declare void @art_throw_no_such_method_from_code(i32)
-declare void @art_throw_null_pointer_exception_from_code()
+declare void @art_throw_null_pointer_exception_from_code(i32)
 declare void @art_throw_stack_overflow_from_code()
 declare void @art_throw_exception_from_code(%JavaObject*)
 

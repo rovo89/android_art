@@ -16,6 +16,7 @@
 
 #include "class_linker.h"
 #include "dex_verifier.h"
+#include "nth_caller_visitor.h"
 #include "object.h"
 #include "object_utils.h"
 #include "runtime_support.h"
@@ -108,9 +109,12 @@ void art_throw_no_such_method_from_code(int32_t method_idx) {
                                                 false).c_str());
 }
 
-void art_throw_null_pointer_exception_from_code() {
+void art_throw_null_pointer_exception_from_code(uint32_t dex_pc) {
   Thread* thread = Thread::Current();
-  thread->ThrowNewException("Ljava/lang/NullPointerException;", NULL);
+  NthCallerVisitor visitor(0);
+  thread->WalkStack(&visitor);
+  Method* throw_method = visitor.caller;
+  ThrowNullPointerExceptionFromDexPC(thread, throw_method, dex_pc);
 }
 
 void art_throw_stack_overflow_from_code() {

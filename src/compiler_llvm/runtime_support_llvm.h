@@ -43,7 +43,7 @@ void art_throw_array_bounds_from_code(int32_t length, int32_t index);
 
 void art_throw_no_such_method_from_code(int32_t method_idx);
 
-void art_throw_null_pointer_exception_from_code();
+void art_throw_null_pointer_exception_from_code(uint32_t dex_pc);
 
 void art_throw_stack_overflow_from_code();
 
