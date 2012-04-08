@@ -49,15 +49,15 @@ ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES
 # test targets
 
 include $(build_path)/Android.oattest.mk
+include $(build_path)/Android.gtest.mk
 
 # The ART_*_TEST_DEPENDENCIES definitions:
 # - depend on Android.oattest.mk above for ART_TEST_*_DEX_FILES
-# - are needed by Android.gtest.mk below
+# - depend on Android.gtest.mk above for ART_*_TEST_EXECUTABLES
 ART_HOST_TEST_DEPENDENCIES   := $(ART_HOST_DEPENDENCIES)   $(ART_HOST_TEST_EXECUTABLES)   $(ART_TEST_HOST_DEX_FILES)   $(HOST_CORE_IMG_OUT)
 ART_TARGET_TEST_DEPENDENCIES := $(ART_TARGET_DEPENDENCIES) $(ART_TARGET_TEST_EXECUTABLES) $(ART_TEST_TARGET_DEX_FILES) $(TARGET_CORE_IMG_OUT)
 
 include $(build_path)/Android.libarttest.mk
-include $(build_path)/Android.gtest.mk
 
 # "m build-art" for quick minimal build
 .PHONY: build-art
@@ -88,6 +88,9 @@ test-art-oat: test-art-target-oat # test-art-host-oat
 test-art-host: test-art-host-gtest # test-art-host-oat # test-art-host-run-test
 	@echo test-art-host PASSED
 
+.PHONY: test-art-host-dependencies
+test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBRARIES)/libarttest.so
+
 .PHONY: test-art-host-gtest
 test-art-host-gtest: $(ART_HOST_TEST_TARGETS)
 	@echo test-art-host-gtest PASSED
@@ -98,13 +101,13 @@ endef
 
 # "mm valgrind-test-art-host-gtest" to build and run the host gtests under valgrind.
 .PHONY: valgrind-test-art-host-gtest
-valgrind-test-art-host-gtest: $(ART_HOST_TEST_DEPENDENCIES)
+valgrind-test-art-host-gtest: test-art-host-dependencies
 	$(call run-host-gtests-with,valgrind --leak-check=full)
 	@echo valgrind-test-art-host-gtest PASSED
 
 # "mm tsan-test-art-host-gtest" to build and run the host gtests under tsan.
 .PHONY: tsan-test-art-host-gtest
-tsan-test-art-host-gtest: $(ART_HOST_TEST_DEPENDENCIES)
+tsan-test-art-host-gtest: test-art-host-dependencies
 	$(call run-host-gtests-with,"tsan")
 	@echo tsan-test-art-host-gtest PASSED
 
@@ -114,7 +117,7 @@ test-art-host-oat: $(ART_TEST_HOST_OAT_TARGETS)
 
 define declare-test-art-host-run-test
 .PHONY: test-art-host-run-test-$(1)
-test-art-host-run-test-$(1): $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBRARIES)/libarttest.so
+test-art-host-run-test-$(1): test-art-host-dependencies
 	art/test/run-test --host $(1)
 	@echo test-art-host-run-test-$(1) PASSED
 
@@ -135,8 +138,11 @@ test-art-host-run-test: $(TEST_ART_HOST_RUN_TEST_TARGETS)
 test-art-target: test-art-target-gtest test-art-target-oat test-art-target-run-test
 	@echo test-art-target PASSED
 
+.PHONY: test-art-target-dependencies
+test-art-target-dependencies: $(ART_TARGET_TEST_DEPENDENCIES) $(ART_TEST_OUT)/libarttest.so
+
 .PHONY: test-art-target-sync
-test-art-target-sync: $(ART_TARGET_TEST_DEPENDENCIES) $(ART_TEST_OUT)/libarttest.so
+test-art-target-sync: test-art-target-dependencies
 	adb remount
 	adb sync
 	adb shell mkdir -p $(ART_TEST_DIR)
