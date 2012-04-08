@@ -1353,7 +1353,6 @@ const OatFile::OatClass* ClassLinker::GetOatClass(const DexFile& dex_file, const
 }
 
 const OatFile::OatMethod ClassLinker::GetOatMethodFor(const Method* method) {
-  CHECK(Runtime::Current()->IsCompiler() || method->GetDeclaringClass()->IsInitializing());
   // Although we overwrite the trampoline of non-static methods, we may get here via the resolution
   // method for direct methods (or virtual methods made direct).
   Class* declaring_class = method->GetDeclaringClass();
@@ -1384,6 +1383,7 @@ const OatFile::OatMethod ClassLinker::GetOatMethodFor(const Method* method) {
 
 // Special case to get oat code without overwriting a trampoline.
 const void* ClassLinker::GetOatCodeFor(const Method* method) {
+  CHECK(Runtime::Current()->IsCompiler() || method->GetDeclaringClass()->IsInitializing());
   return GetOatMethodFor(method).GetCode();
 }
 

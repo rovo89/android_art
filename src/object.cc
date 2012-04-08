@@ -573,7 +573,7 @@ void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result
   bool have_executable_code = (GetCode() != NULL);
 
 #if defined(ART_USE_LLVM_COMPILER)
-  if (stub == NULL && !have_executable_code) {
+  if (stub == NULL || !have_executable_code) {
     art_ensure_link_from_code(const_cast<Method*>(this));
     stub = GetInvokeStub();
     have_executable_code = (GetCode() != NULL);
