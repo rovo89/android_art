@@ -840,8 +840,8 @@ class ImageDumper {
       StringAppendF(&summary, "%p: java.lang.reflect.Method %s\n", obj,
                     PrettyMethod(obj->AsMethod()).c_str());
     } else if (obj_class->IsStringClass()) {
-      StringAppendF(&summary, "%p: java.lang.String \"%s\"\n", obj,
-                    obj->AsString()->ToModifiedUtf8().c_str());
+      StringAppendF(&summary, "%p: java.lang.String %s\n", obj,
+                    PrintableString(obj->AsString()->ToModifiedUtf8()).c_str());
     } else {
       StringAppendF(&summary, "%p: %s\n", obj, PrettyDescriptor(obj_class).c_str());
     }
