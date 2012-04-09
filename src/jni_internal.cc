@@ -555,7 +555,7 @@ class SharedLibrary {
         handle_(handle),
         class_loader_(class_loader),
         jni_on_load_lock_("JNI_OnLoad lock"),
-        jni_on_load_cond_("JNI_OnLoad"),
+        jni_on_load_cond_("JNI_OnLoad condition variable"),
         jni_on_load_thread_id_(Thread::Current()->GetThinLockId()),
         jni_on_load_result_(kPending) {
   }

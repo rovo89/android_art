@@ -74,6 +74,8 @@ Mutex::Mutex(const char* name, MutexRank rank) : name_(name), rank_(rank) {
 }
 
 Mutex::~Mutex() {
+  // We can't use CHECK_MUTEX_CALL here because on shutdown a suspended daemon thread
+  // may still be using locks.
   int rc = pthread_mutex_destroy(&mutex_);
   if (rc != 0) {
     errno = rc;
@@ -164,7 +166,14 @@ ConditionVariable::ConditionVariable(const std::string& name) : name_(name) {
 }
 
 ConditionVariable::~ConditionVariable() {
-  CHECK_MUTEX_CALL(pthread_cond_destroy, (&cond_));
+  // We can't use CHECK_MUTEX_CALL here because on shutdown a suspended daemon thread
+  // may still be using condition variables.
+  int rc = pthread_cond_destroy(&cond_);
+  if (rc != 0) {
+    errno = rc;
+    bool shutting_down = Runtime::Current()->IsShuttingDown();
+    PLOG(shutting_down ? WARNING : FATAL) << "pthread_cond_destroy failed for " << name_;
+  }
 }
 
 void ConditionVariable::Broadcast() {
@@ -194,4 +203,4 @@ void ConditionVariable::TimedWait(Mutex& mutex, const timespec& ts) {
   }
 }
 
-}  // namespace
+}  // namespace art

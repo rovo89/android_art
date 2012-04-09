@@ -27,10 +27,10 @@ namespace art {
 ThreadList::ThreadList()
     : allocated_ids_lock_("allocated thread ids lock"),
       thread_list_lock_("thread list lock", kThreadListLock),
-      thread_start_cond_("thread_start_cond_"),
-      thread_exit_cond_("thread_exit_cond_"),
+      thread_start_cond_("thread start condition variable"),
+      thread_exit_cond_("thread exit condition variable"),
       thread_suspend_count_lock_("thread suspend count lock", kThreadSuspendCountLock),
-      thread_suspend_count_cond_("thread_suspend_count_cond_") {
+      thread_suspend_count_cond_("thread suspend count condition variable") {
   VLOG(threads) << "Default stack size: " << PrettySize(Runtime::Current()->GetDefaultStackSize());
 }
 
