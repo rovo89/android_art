@@ -48,7 +48,7 @@ void InitBoxingMethods() {
 
 jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobject javaArgs) {
   Thread* self = Thread::Current();
-  ScopedThreadStateChange tsc(self, Thread::kRunnable);
+  ScopedThreadStateChange tsc(self, kRunnable);
 
   jmethodID mid = env->FromReflectedMethod(javaMethod);
   Method* m = reinterpret_cast<Method*>(mid);
@@ -269,7 +269,7 @@ void BoxPrimitive(Primitive::Type src_class, JValue& value) {
   }
 
   Thread* self = Thread::Current();
-  ScopedThreadStateChange tsc(self, Thread::kRunnable);
+  ScopedThreadStateChange tsc(self, kRunnable);
   JValue args[1] = { value };
   m->Invoke(self, NULL, args, &value);
 }

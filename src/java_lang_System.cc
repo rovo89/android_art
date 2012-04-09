@@ -109,7 +109,7 @@ static void ThrowArrayStoreException_NotAnArray(const char* identifier, Object* 
 }
 
 static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject javaDst, jint dstPos, jint length) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Thread* self = Thread::Current();
 
   // Null pointer checks.

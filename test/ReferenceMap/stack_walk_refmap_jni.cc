@@ -63,7 +63,7 @@ struct ReferenceMap2Visitor : public Thread::StackVisitor {
 
     // Enable this to dump reference map to LOG(INFO)
     if (false) {
-      ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+      ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
       art::verifier::DexVerifier::VerifyMethodAndDump(m);
     }
     const uint8_t* ref_bitmap = NULL;

@@ -37,7 +37,7 @@ uint32_t MemCmp16(const uint16_t* s0, const uint16_t* s1, size_t count) {
 namespace art {
 
 static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   String* lhs = Decode<String*>(env, javaThis);
   String* rhs = Decode<String*>(env, javaRhs);
 

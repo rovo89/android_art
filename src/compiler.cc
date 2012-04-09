@@ -944,10 +944,10 @@ class WorkerThread {
     if (worker->spawn_) {
       runtime->AttachCurrentThread("Compiler Worker", true, NULL);
     }
-    Thread::Current()->SetState(Thread::kRunnable);
+    Thread::Current()->SetState(kRunnable);
     worker->Run();
     if (worker->spawn_) {
-      Thread::Current()->SetState(Thread::kNative);
+      Thread::Current()->SetState(kNative);
       runtime->DetachCurrentThread();
     }
     return NULL;
@@ -989,7 +989,7 @@ void ForAll(Context* context, size_t begin, size_t end, Callback callback, size_
   threads[0]->Go();
 
   // Switch to kVmWait while we're blocked waiting for the other threads to finish.
-  ScopedThreadStateChange tsc(self, Thread::kVmWait);
+  ScopedThreadStateChange tsc(self, kVmWait);
   STLDeleteElements(&threads);
 }
 

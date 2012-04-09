@@ -273,7 +273,8 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/invoke_type.h \
 	src/jdwp/jdwp.h \
 	src/jdwp/jdwp_constants.h \
-	src/mutex.h
+	src/mutex.h \
+	src/thread.h
 
 LIBARTTEST_COMMON_SRC_FILES := \
 	test/StackWalk/stack_walk_jni.cc \

@@ -34,7 +34,7 @@
 
 namespace art {
 
-static void ChangeThreadState(Assembler* jni_asm, Thread::State new_state,
+static void ChangeThreadState(Assembler* jni_asm, ThreadState new_state,
                               ManagedRegister scratch, ManagedRegister return_reg,
                               FrameOffset return_save_location,
                               size_t return_size) {
@@ -42,19 +42,19 @@ static void ChangeThreadState(Assembler* jni_asm, Thread::State new_state,
    * This code mirrors that of Thread::SetState where detail is given on why
    * barriers occur when they do.
    */
-  if (new_state == Thread::kRunnable) {
+  if (new_state == kRunnable) {
     /*
-     * Change our status to Thread::kRunnable.  The transition requires
+     * Change our status to kRunnable.  The transition requires
      * that we check for pending suspension, because the runtime considers
      * us to be "asleep" in all other states, and another thread could
      * be performing a GC now.
      */
-    __ StoreImmediateToThread(Thread::StateOffset(), Thread::kRunnable, scratch);
+    __ StoreImmediateToThread(Thread::StateOffset(), kRunnable, scratch);
     __ MemoryBarrier(scratch);
     __ SuspendPoll(scratch, return_reg, return_save_location, return_size);
   } else {
     /*
-     * Not changing to Thread::kRunnable. No additional work required.
+     * Not changing to kRunnable. No additional work required.
      */
     __ MemoryBarrier(scratch);
     __ StoreImmediateToThread(Thread::StateOffset(), new_state, scratch);
@@ -264,7 +264,7 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
   __ StoreStackPointerToThread(Thread::TopOfManagedStackOffset());
   __ StoreImmediateToThread(Thread::TopOfManagedStackPcOffset(), 0,
                             mr_conv->InterproceduralScratchRegister());
-  ChangeThreadState(jni_asm.get(), Thread::kNative,
+  ChangeThreadState(jni_asm.get(), kNative,
                     mr_conv->InterproceduralScratchRegister(),
                     ManagedRegister::NoRegister(), FrameOffset(0), 0);
 
@@ -483,7 +483,7 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
   FrameOffset return_save_location = jni_conv->ReturnValueSaveLocation();
   CHECK(return_save_location.Uint32Value() < frame_size ||
         jni_conv->SizeOfReturnValue() == 0);
-  ChangeThreadState(jni_asm.get(), Thread::kRunnable,
+  ChangeThreadState(jni_asm.get(), kRunnable,
                     jni_conv->InterproceduralScratchRegister(),
                     jni_conv->ReturnRegister(), return_save_location,
                     jni_conv->SizeOfReturnValue());

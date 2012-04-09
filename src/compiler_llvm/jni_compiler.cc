@@ -142,7 +142,7 @@ CompiledMethod* JniCompiler::Compile() {
   // Set thread state to kNative
   StoreToObjectOffset(thread_object_addr,
                       Thread::StateOffset().Int32Value(),
-                      irb_.getInt32(Thread::kNative));
+                      irb_.getInt32(kNative));
 
   // Get callee code_addr
   llvm::Value* code_addr_ =
@@ -262,7 +262,7 @@ CompiledMethod* JniCompiler::Compile() {
   // Set thread state to kRunnable
   StoreToObjectOffset(thread_object_addr,
                       Thread::StateOffset().Int32Value(),
-                      irb_.getInt32(Thread::kRunnable));
+                      irb_.getInt32(kRunnable));
 
   if (return_shorty == 'L') {
     // If the return value is reference, it may point to SIRT, we should decode it.

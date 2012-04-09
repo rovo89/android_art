@@ -1187,7 +1187,7 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
 
   } else {
     std::string class_name_string(DescriptorToDot(descriptor));
-    ScopedThreadStateChange tsc(self, Thread::kNative);
+    ScopedThreadStateChange tsc(self, kNative);
     JNIEnv* env = self->GetJniEnv();
     ScopedLocalRef<jclass> c(env, AddLocalReference<jclass>(env, GetClassRoot(kJavaLangClassLoader)));
     CHECK(c.get() != NULL);
@@ -2644,7 +2644,7 @@ bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit, bool can_init
   }
 
   Thread* self = Thread::Current();
-  ScopedThreadStateChange tsc(self, Thread::kRunnable);
+  ScopedThreadStateChange tsc(self, kRunnable);
   bool success = InitializeClass(c, can_run_clinit, can_init_fields);
   if (!success) {
     CHECK(self->IsExceptionPending() || !can_run_clinit) << PrettyClass(c);

@@ -175,7 +175,7 @@ void Runtime::Abort(const char* file, int line) {
 
 void Runtime::CallExitHook(jint status) {
   if (exit_ != NULL) {
-    ScopedThreadStateChange tsc(Thread::Current(), Thread::kNative);
+    ScopedThreadStateChange tsc(Thread::Current(), kNative);
     exit_(status);
     LOG(WARNING) << "Exit hook returned instead of exiting!";
   }
@@ -499,7 +499,7 @@ void CreateSystemClassLoader() {
   Thread* self = Thread::Current();
 
   // Must be in the kNative state for calling native methods.
-  CHECK_EQ(self->GetState(), Thread::kNative);
+  CHECK_EQ(self->GetState(), kNative);
 
   JNIEnv* env = self->GetJniEnv();
   ScopedLocalRef<jclass> ClassLoader_class(env, env->FindClass("java/lang/ClassLoader"));
@@ -533,7 +533,7 @@ void Runtime::Start() {
   class_linker_->RelocateExecutable();
 
   // Restore main thread state to kNative as expected by native code
-  Thread::Current()->SetState(Thread::kNative);
+  Thread::Current()->SetState(kNative);
 
   started_ = true;
 
@@ -578,7 +578,7 @@ void Runtime::StartDaemonThreads() {
   Thread* self = Thread::Current();
 
   // Must be in the kNative state for calling native methods.
-  CHECK_EQ(self->GetState(), Thread::kNative);
+  CHECK_EQ(self->GetState(), kNative);
 
   JNIEnv* env = self->GetJniEnv();
   ScopedLocalRef<jclass> c(env, env->FindClass("java/lang/Daemons"));
@@ -649,7 +649,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   Thread::Attach("main", false, NULL);
 
   // Set us to runnable so tools using a runtime can allocate and GC by default
-  Thread::Current()->SetState(Thread::kRunnable);
+  Thread::Current()->SetState(kRunnable);
 
   // Now we're attached, we can take the heap lock and validate the heap.
   GetHeap()->EnableObjectValidation();
@@ -682,7 +682,7 @@ void Runtime::InitNativeMethods() {
   JNIEnv* env = self->GetJniEnv();
 
   // Must be in the kNative state for calling native methods (JNI_OnLoad code).
-  CHECK_EQ(self->GetState(), Thread::kNative);
+  CHECK_EQ(self->GetState(), kNative);
 
   // First set up JniConstants, which is used by both the runtime's built-in native
   // methods and libcore.

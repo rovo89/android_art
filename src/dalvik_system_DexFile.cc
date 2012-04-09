@@ -126,7 +126,7 @@ static void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
 
 static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
                                         jint cookie) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   const DexFile* dex_file = toDexFile(env, cookie);
   if (dex_file == NULL) {
     return NULL;

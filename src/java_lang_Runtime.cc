@@ -28,7 +28,7 @@
 namespace art {
 
 static void Runtime_gc(JNIEnv*, jclass) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 

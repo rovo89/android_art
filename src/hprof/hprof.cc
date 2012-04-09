@@ -759,7 +759,7 @@ void HprofBitmapCallback(Object *obj, void *arg) {
 int DumpHeap(const char* fileName, int fd, bool directToDdms) {
   CHECK(fileName != NULL);
   ScopedHeapLock heap_lock;
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
 
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   thread_list->SuspendAll();
