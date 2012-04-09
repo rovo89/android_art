@@ -21,6 +21,7 @@
     #define MACRO0(macro_name) .macro macro_name
     #define MACRO1(macro_name, macro_arg1) .macro macro_name
     #define MACRO2(macro_name, macro_arg1, macro_args2) .macro macro_name
+    #define MACRO3(macro_name, macro_arg1, macro_args2, macro_args3) .macro macro_name
     #define END_MACRO .endmacro
 
     // Mac OS' as(1) uses $0, $1, and so on for macro arguments, and function names
@@ -35,6 +36,7 @@
     #define MACRO0(macro_name) .macro macro_name
     #define MACRO1(macro_name, macro_arg1) .macro macro_name macro_arg1
     #define MACRO2(macro_name, macro_arg1, macro_arg2) .macro macro_name macro_arg1, macro_arg2
+    #define MACRO3(macro_name, macro_arg1, macro_arg2, macro_arg3) .macro macro_name macro_arg1, macro_arg2, macro_arg3
     #define END_MACRO .endm
 
     // Regular gas(1) uses \argument_name for macro arguments.
@@ -268,7 +270,40 @@ INVOKE_TRAMPOLINE art_invoke_direct_trampoline_with_access_check, artInvokeDirec
 INVOKE_TRAMPOLINE art_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
 INVOKE_TRAMPOLINE art_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
-MACRO2(TWO_ARG_ALLOC, c_name, cxx_name)
+MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
+    .globl VAR(c_name, 0)
+    ALIGN_FUNCTION_ENTRY
+VAR(c_name, 0):
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
+    mov %esp, %edx                // remember SP
+    // Outgoing argument set up
+    subl MACRO_LITERAL(8), %esp   // push padding
+    pushl %edx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    call VAR(cxx_name, 1)         // cxx_name(Thread*, SP)
+    addl MACRO_LITERAL(16), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    VAR(return_macro, 2)          // return or deliver exception
+END_MACRO
+
+MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
+    .globl VAR(c_name, 0)
+    ALIGN_FUNCTION_ENTRY
+VAR(c_name, 0):
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
+    mov %esp, %edx                // remember SP
+    // Outgoing argument set up
+    pushl %eax                    // push padding
+    pushl %edx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %eax                    // pass arg1
+    call VAR(cxx_name, 1)         // cxx_name(arg1, Thread*, SP)
+    addl MACRO_LITERAL(16), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    VAR(return_macro, 2)          // return or deliver exception
+END_MACRO
+
+MACRO3(TWO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     .globl VAR(c_name, 0)
     ALIGN_FUNCTION_ENTRY
 VAR(c_name, 0):
@@ -279,17 +314,13 @@ VAR(c_name, 0):
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
-    call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, arg3, Thread*, SP)
+    call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, Thread*, SP)
     addl MACRO_LITERAL(16), %esp  // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    testl %eax, %eax              // eax == 0 ?
-    jz  1f
-    ret
-1:
-    DELIVER_PENDING_EXCEPTION
+    VAR(return_macro, 2)          // return or deliver exception
 END_MACRO
 
-MACRO2(THREE_ARG_ALLOC, c_name, cxx_name)
+MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     .globl VAR(c_name, 0)
     ALIGN_FUNCTION_ENTRY
 VAR(c_name, 0):
@@ -302,72 +333,42 @@ VAR(c_name, 0):
     pushl %edx                    // pass arg3
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
-    call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, Thread*, SP)
+    call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, arg3, Thread*, SP)
     addl MACRO_LITERAL(32), %esp  // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    VAR(return_macro, 2)          // return or deliver exception
+END_MACRO
+
+MACRO0(RETURN_IF_EAX_NOT_ZERO)
     testl %eax, %eax               // eax == 0 ?
-    jz  1f
-    ret
-1:
+    jz  1f                         // if eax == 0 goto 1
+    ret                            // return
+1:                                 // deliver exception on current thread
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 
-TWO_ARG_ALLOC art_alloc_object_from_code, artAllocObjectFromCode
-TWO_ARG_ALLOC art_alloc_object_from_code_with_access_check, artAllocObjectFromCodeWithAccessCheck
-THREE_ARG_ALLOC art_alloc_array_from_code, artAllocArrayFromCode
-THREE_ARG_ALLOC art_alloc_array_from_code_with_access_check, artAllocArrayFromCodeWithAccessCheck
-THREE_ARG_ALLOC art_check_and_alloc_array_from_code, artCheckAndAllocArrayFromCode
-THREE_ARG_ALLOC art_check_and_alloc_array_from_code_with_access_check, artCheckAndAllocArrayFromCodeWithAccessCheck
-
-TWO_ARG_ALLOC art_resolve_string_from_code, artResolveStringFromCode
-TWO_ARG_ALLOC art_initialize_static_storage_from_code, artInitializeStaticStorageFromCode
-
-DEFINE_FUNCTION art_lock_object_from_code
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
-    mov %esp, %edx                // remember SP
-    // Outgoing argument set up
-    pushl %eax                    // alignment padding
-    pushl %edx                    // pass SP
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %eax                    // pass arg1
-    call SYMBOL(artLockObjectFromCode)    // (Object*, Thread*, SP)
-    addl LITERAL(16), %esp        // pop arguments
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    ret
-
-DEFINE_FUNCTION art_unlock_object_from_code
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
-    mov %esp, %edx                // remember SP
-    // Outgoing argument set up
-    pushl %eax                    // alignment padding
-    pushl %edx                    // pass SP
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %eax                    // pass arg1
-    call SYMBOL(artUnlockObjectFromCode)  // (Object*, Thread*, SP)
-    addl LITERAL(16), %esp        // pop arguments
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    testl %eax, %eax              // eax == 0 ?
-    jnz 1f
-    ret
-1:
+MACRO0(RETURN_IF_EAX_ZERO)
+    testl %eax, %eax               // eax == 0 ?
+    jnz  1f                        // if eax != 0 goto 1
+    ret                            // return
+1:                                 // deliver exception on current thread
     DELIVER_PENDING_EXCEPTION
+END_MACRO
 
-DEFINE_FUNCTION art_handle_fill_data_from_code
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
-    mov %esp, %edx                // remember SP
-    // Outgoing argument set up
-    pushl %edx                    // pass SP
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %ecx                    // pass arg2
-    pushl %eax                    // pass arg1
-    call SYMBOL(artHandleFillArrayDataFromCode)  // (Array* array, const uint16_t* table, Thread*, SP)
-    addl LITERAL(16), %esp        // pop arguments
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    testl %eax, %eax              // eax == 0 ?
-    jnz 1f
-    ret
-1:
-    DELIVER_PENDING_EXCEPTION
+TWO_ARG_DOWNCALL art_alloc_object_from_code, artAllocObjectFromCode, RETURN_IF_EAX_NOT_ZERO
+TWO_ARG_DOWNCALL art_alloc_object_from_code_with_access_check, artAllocObjectFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
+THREE_ARG_DOWNCALL art_alloc_array_from_code, artAllocArrayFromCode, RETURN_IF_EAX_NOT_ZERO
+THREE_ARG_DOWNCALL art_alloc_array_from_code_with_access_check, artAllocArrayFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
+THREE_ARG_DOWNCALL art_check_and_alloc_array_from_code, artCheckAndAllocArrayFromCode, RETURN_IF_EAX_NOT_ZERO
+THREE_ARG_DOWNCALL art_check_and_alloc_array_from_code_with_access_check, artCheckAndAllocArrayFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
+
+TWO_ARG_DOWNCALL art_resolve_string_from_code, artResolveStringFromCode, RETURN_IF_EAX_NOT_ZERO
+TWO_ARG_DOWNCALL art_initialize_static_storage_from_code, artInitializeStaticStorageFromCode, RETURN_IF_EAX_NOT_ZERO
+
+ONE_ARG_DOWNCALL art_lock_object_from_code, artLockObjectFromCode, ret
+ONE_ARG_DOWNCALL art_unlock_object_from_code, artUnlockObjectFromCode, RETURN_IF_EAX_ZERO
+
+TWO_ARG_DOWNCALL art_handle_fill_data_from_code, artHandleFillArrayDataFromCode, RETURN_IF_EAX_ZERO
 
 DEFINE_FUNCTION art_is_assignable_from_code
     pushl %eax                    // alignment padding
@@ -385,22 +386,10 @@ DEFINE_FUNCTION art_memcpy
     addl LITERAL(12), %esp        // pop arguments
     ret
 
-DEFINE_FUNCTION art_check_cast_from_code
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
-    mov %esp, %edx                // remember SP
-    // Outgoing argument set up
-    pushl %edx                    // pass SP
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %ecx                    // pass arg2
-    pushl %eax                    // pass arg1
-    call SYMBOL(artCheckCastFromCode)  // (Class* a, Class* b, Thread*, SP)
-    addl LITERAL(16), %esp        // pop arguments
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    testl %eax, %eax              // eax == 0 ?
-    jnz 1f
-    ret
-1:
-    DELIVER_PENDING_EXCEPTION
+TWO_ARG_DOWNCALL art_check_cast_from_code, artCheckCastFromCode, RETURN_IF_EAX_ZERO
+TWO_ARG_DOWNCALL art_can_put_array_element_from_code, artCanPutArrayElementFromCode, RETURN_IF_EAX_ZERO
+
+NO_ARG_DOWNCALL art_test_suspend, artTestSuspendFromCode, ret
 
 DEFINE_FUNCTION art_idiv_from_code
     cdq         // edx:eax = sign extend eax
@@ -469,26 +458,6 @@ DEFINE_FUNCTION art_lushr_from_code
 1:
     ret
 
-DEFINE_FUNCTION art_can_put_array_element_from_code
-    test %eax, %eax               // Null is trivially storable
-    jz   1f
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // save ref containing registers for GC
-    mov %esp, %edx                // remember SP
-    // Outgoing argument set up
-    pushl %edx                    // pass SP
-    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
-    pushl %ecx                    // pass arg2
-    pushl %eax                    // pass arg1
-    call SYMBOL(artCanPutArrayElementFromCode)  // (Object* element, Class* array_class, Thread*, SP)
-    addl LITERAL(16), %esp        // pop arguments
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    testl %eax, %eax              // eax == 0 ?
-    jnz 2f
-1:
-    ret
-2:
-    DELIVER_PENDING_EXCEPTION
-
 MACRO1(UNIMPLEMENTED,name)
     .globl VAR(name, 0)
     ALIGN_FUNCTION_ENTRY
@@ -499,7 +468,6 @@ END_MACRO
     // TODO: implement these!
 UNIMPLEMENTED art_proxy_invoke_handler
 UNIMPLEMENTED art_update_debugger
-UNIMPLEMENTED art_test_suspend
 UNIMPLEMENTED art_initialize_type_and_verify_access_from_code
 UNIMPLEMENTED art_initialize_type_from_code
 UNIMPLEMENTED art_set32_instance_from_code

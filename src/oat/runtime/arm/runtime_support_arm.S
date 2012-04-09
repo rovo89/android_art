@@ -313,8 +313,6 @@ art_check_cast_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_can_put_array_element_from_code:
-    cmp    r0, #0                         @ return if element == NULL
-    bxeq   lr
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME    @ save callee saves in case exception allocation triggers GC
     mov    r2, r9                         @ pass Thread::Current
     mov    r3, sp                         @ pass SP

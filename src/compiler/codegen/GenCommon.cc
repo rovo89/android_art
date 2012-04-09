@@ -1392,8 +1392,8 @@ void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 #endif
     /* branch target here */
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    branch1->target = (LIR*)target;
-    branch2->target = (LIR*)target;
+    branch1->target = target;
+    branch2->target = target;
 }
 
 /*
@@ -1403,73 +1403,70 @@ void genCheckCast(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 void genArrayObjPut(CompilationUnit* cUnit, MIR* mir, RegLocation rlArray,
                     RegLocation rlIndex, RegLocation rlSrc, int scale)
 {
-    RegisterClass regClass = oatRegClassBySize(kWord);
     int lenOffset = Array::LengthOffset().Int32Value();
     int dataOffset = Array::DataOffset(sizeof(Object*)).Int32Value();
 
-    oatFlushAllRegs(cUnit);
-    /* Make sure it's a legal object Put. Use direct regs at first */
-    loadValueDirectFixed(cUnit, rlArray, rARG1);
-    loadValueDirectFixed(cUnit, rlSrc, rARG0);
+    oatFlushAllRegs(cUnit);  // Use explicit registers
+    oatLockCallTemps(cUnit);
 
-    /* null array object? */
-    genNullCheck(cUnit, rlArray.sRegLow, rARG1, mir);
-    /* Get the array's class */
-    loadWordDisp(cUnit, rARG1, Object::ClassOffset().Int32Value(), rARG1);
+    int rValue = rARG0;  // Register holding value
+    int rArrayClass = rARG1;  // Register holding array's Class
+    int rArray = rARG2;  // Register holding array
+    int rIndex = rARG3;  // Register holding index into array
+
+    loadValueDirectFixed(cUnit, rlArray, rArray);  // Grab array
+    loadValueDirectFixed(cUnit, rlSrc, rValue);    // Grab value
+    loadValueDirectFixed(cUnit, rlIndex, rIndex);  // Grab index
+
+    genNullCheck(cUnit, rlArray.sRegLow, rArray, mir);  // NPE?
+
+    // Store of null?
+    LIR* null_value_check = opCmpImmBranch(cUnit, kCondEq, rValue, 0, NULL);
+
+    // Get the array's class.
+    loadWordDisp(cUnit, rArray, Object::ClassOffset().Int32Value(), rArrayClass);
     callRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pCanPutArrayElementFromCode),
-                            rARG0, rARG1);
-    oatFreeTemp(cUnit, rARG0);
-    oatFreeTemp(cUnit, rARG1);
+                            rValue, rArrayClass);
+    // Redo loadValues in case they didn't survive the call.
+    loadValueDirectFixed(cUnit, rlArray, rArray);  // Reload array
+    loadValueDirectFixed(cUnit, rlIndex, rIndex);  // Reload index
+    loadValueDirectFixed(cUnit, rlSrc, rValue);    // Reload value
+    rArrayClass = INVALID_REG;
 
-    // Now, redo loadValues in case they didn't survive the call
-
-    rlArray = loadValue(cUnit, rlArray, kCoreReg);
-    rlIndex = loadValue(cUnit, rlIndex, kCoreReg);
+    // Branch here if value to be stored == null
+    LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
+    null_value_check->target = target;
 
 #if defined(TARGET_X86)
+    // make an extra temp available for card mark below
+    oatFreeTemp(cUnit, rARG1);
     if (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK)) {
         /* if (rlIndex >= [rlArray + lenOffset]) goto kThrowArrayBounds */
-        genRegMemCheck(cUnit, kCondUge, rlIndex.lowReg, rlArray.lowReg,
+        genRegMemCheck(cUnit, kCondUge, rIndex, rArray,
                        lenOffset, mir, kThrowArrayBounds);
     }
-    rlSrc = loadValue(cUnit, rlSrc, regClass);
-    storeBaseIndexedDisp(cUnit, NULL, rlArray.lowReg, rlIndex.lowReg, scale,
-                         dataOffset, rlSrc.lowReg, INVALID_REG, kWord,
+    storeBaseIndexedDisp(cUnit, NULL, rArray, rIndex, scale,
+                         dataOffset, rValue, INVALID_REG, kWord,
                          INVALID_SREG);
-    if (oatIsTemp(cUnit, rlIndex.lowReg)) {
-        oatFreeTemp(cUnit, rlIndex.lowReg);
-    }
 #else
-    int regPtr;
-    if (oatIsTemp(cUnit, rlArray.lowReg)) {
-        oatClobber(cUnit, rlArray.lowReg);
-        regPtr = rlArray.lowReg;
-    } else {
-        regPtr = oatAllocTemp(cUnit);
-        opRegCopy(cUnit, regPtr, rlArray.lowReg);
-    }
-
     bool needsRangeCheck = (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK));
     int regLen = INVALID_REG;
     if (needsRangeCheck) {
-        regLen = oatAllocTemp(cUnit);
-        //NOTE: max live temps(4) here.
-        /* Get len */
-        loadWordDisp(cUnit, rlArray.lowReg, lenOffset, regLen);
+        regLen = rARG1;
+        loadWordDisp(cUnit, rlArray.lowReg, lenOffset, regLen);  // Get len
     }
-    /* regPtr -> array data */
-    opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
-    /* at this point, regPtr points to array, 2 live temps */
-    rlSrc = loadValue(cUnit, rlSrc, regClass);
+    /* rPtr -> array data */
+    int rPtr = oatAllocTemp(cUnit);
+    opRegRegImm(cUnit, kOpAdd, rPtr, rArray, dataOffset);
     if (needsRangeCheck) {
-        genRegRegCheck(cUnit, kCondCs, rlIndex.lowReg, regLen, mir,
+        genRegRegCheck(cUnit, kCondCs, rIndex, regLen, mir,
                        kThrowArrayBounds);
-        oatFreeTemp(cUnit, regLen);
     }
-    storeBaseIndexed(cUnit, regPtr, rlIndex.lowReg, rlSrc.lowReg,
-                     scale, kWord);
+    storeBaseIndexed(cUnit, rPtr, rIndex, rValue, scale, kWord);
+    oatFreeTemp(cUnit, rPtr);
 #endif
-    markGCCard(cUnit, rlSrc.lowReg, rlArray.lowReg);
+    oatFreeTemp(cUnit, rIndex);
+    markGCCard(cUnit, rValue, rArray);
 }
 
 /*
