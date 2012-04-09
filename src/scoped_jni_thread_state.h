@@ -51,12 +51,13 @@ class ScopedJniThreadState {
  private:
   static Thread* ThreadForEnv(JNIEnv* env) {
     JNIEnvExt* full_env(reinterpret_cast<JNIEnvExt*>(env));
+    bool work_around_app_jni_bugs = full_env->vm->work_around_app_jni_bugs;
     Thread* env_self = full_env->self;
-    Thread* self = full_env->vm->work_around_app_jni_bugs ? Thread::Current() : env_self;
-    if (self != env_self) {
-      LOG(ERROR) << "JNI ERROR: JNIEnv for " << *env_self
+    Thread* self = work_around_app_jni_bugs ? Thread::Current() : env_self;
+    if (!work_around_app_jni_bugs && self != env_self) {
+      LOG(FATAL) << "JNI ERROR (app bug): JNIEnv for " << *env_self
                  << " used on " << *self;
-      // TODO: dump stack
+      // TODO: pass JNI function through so we can call JniAbort(function_name) instead.
     }
     return self;
   }

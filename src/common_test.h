@@ -528,6 +528,37 @@ class CommonTest : public testing::Test {
   std::vector<const DexFile*> opened_dex_files_;
 };
 
+// Sets a CheckJni abort hook to catch failures. Note that this will cause CheckJNI to carry on
+// rather than aborting, so be careful!
+class CheckJniAbortCatcher {
+ public:
+  CheckJniAbortCatcher() : vm_(Runtime::Current()->GetJavaVM()) {
+    vm_->check_jni_abort_hook = Hook;
+    vm_->check_jni_abort_hook_data = &actual_;
+  }
+
+  ~CheckJniAbortCatcher() {
+    vm_->check_jni_abort_hook = NULL;
+    vm_->check_jni_abort_hook_data = NULL;
+  }
+
+  void Check(const char* expected_text) {
+    EXPECT_TRUE(actual_.find(expected_text) != std::string::npos) << "\n"
+        << "Expected to find: " << expected_text << "\n"
+        << "In the output   : " << actual_;
+  }
+
+ private:
+  static void Hook(void* data, const std::string& reason) {
+    *reinterpret_cast<std::string*>(data) = reason;
+  }
+
+  JavaVMExt* vm_;
+  std::string actual_;
+
+  DISALLOW_COPY_AND_ASSIGN(CheckJniAbortCatcher);
+};
+
 }  // namespace art
 
 namespace std {

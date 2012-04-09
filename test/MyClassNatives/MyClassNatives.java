@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-class MyClass {
+class MyClassNatives {
     native void throwException();
     native void foo();
     native int bar(int count);
@@ -32,4 +32,10 @@ class MyClass {
     static native void arraycopy(Object src, int src_pos, Object dst, int dst_pos, int length);
     native boolean compareAndSwapInt(Object obj, long offset, int expected, int newval);
     static native int getText(long val1, Object obj1, long val2, Object obj2);
-}
+
+    native Class instanceMethodThatShouldReturnClass();
+    static native Class staticMethodThatShouldReturnClass();
+
+    native void instanceMethodThatShouldTakeClass(int i, Class c);
+    static native void staticMethodThatShouldTakeClass(int i, Class c);
+  }

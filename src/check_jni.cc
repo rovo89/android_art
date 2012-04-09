@@ -52,7 +52,7 @@ void JniAbort(const char* jni_function_name) {
 
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   if (vm->check_jni_abort_hook != NULL) {
-    vm->check_jni_abort_hook(os.str());
+    vm->check_jni_abort_hook(vm->check_jni_abort_hook_data, os.str());
   } else {
     self->SetState(Thread::kNative); // Ensure that we get a native stack trace for this thread.
     LOG(FATAL) << os.str();

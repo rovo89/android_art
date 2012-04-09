@@ -106,7 +106,8 @@ struct JavaVMExt : public JavaVM {
   Runtime* runtime;
 
   // Used for testing. By default, we'll LOG(FATAL) the reason.
-  void (*check_jni_abort_hook)(const std::string& reason);
+  void (*check_jni_abort_hook)(void* data, const std::string& reason);
+  void* check_jni_abort_hook_data;
 
   // Extra checking.
   bool check_jni;
