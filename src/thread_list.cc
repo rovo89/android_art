@@ -74,8 +74,10 @@ void ThreadList::ModifySuspendCount(Thread* thread, int delta, bool for_debugger
   DCHECK_GE(thread->suspend_count_, thread->debug_suspend_count_) << *thread;
 #endif
   if (delta == -1 && thread->suspend_count_ <= 0) {
-    // This can happen if you attach a thread during a GC.
-    LOG(WARNING) << *thread << " suspend count already zero";
+    // This is expected if you attach a thread during a GC.
+    if (thread->GetState() != kStarting) {
+      LOG(FATAL) << *thread << " suspend count already zero";
+    }
     return;
   }
   thread->suspend_count_ += delta;
@@ -95,7 +97,7 @@ void ThreadList::FullSuspendCheck(Thread* thread) {
 
   VLOG(threads) << *thread << " self-suspending";
   {
-    ScopedThreadStateChange tsc(thread, Thread::kSuspended);
+    ScopedThreadStateChange tsc(thread, kSuspended);
     while (thread->suspend_count_ != 0) {
       /*
        * Wait for wakeup signal, releasing lock.  The act of releasing
@@ -114,7 +116,7 @@ void ThreadList::SuspendAll(bool for_debugger) {
 
   VLOG(threads) << *self << " SuspendAll starting..." << (for_debugger ? " (debugger)" : "");
 
-  CHECK_EQ(self->GetState(), Thread::kRunnable);
+  CHECK_EQ(self->GetState(), kRunnable);
   ScopedThreadListLock thread_list_lock;
   Thread* debug_thread = Dbg::GetDebugThread();
 
@@ -195,7 +197,7 @@ void ThreadList::SuspendSelfForDebugger() {
 
   // Suspend ourselves.
   CHECK_GT(self->suspend_count_, 0);
-  self->SetState(Thread::kSuspended);
+  self->SetState(kSuspended);
   VLOG(threads) << *self << " self-suspending (debugger)";
 
   // Tell JDWP that we've completed suspension. The JDWP thread can't
@@ -215,7 +217,7 @@ void ThreadList::SuspendSelfForDebugger() {
     }
   }
   CHECK_EQ(self->suspend_count_, 0);
-  self->SetState(Thread::kRunnable);
+  self->SetState(kRunnable);
   VLOG(threads) << *self << " self-reviving (debugger)";
 }
 
@@ -387,19 +389,19 @@ void ThreadList::SignalGo(Thread* child) {
     VLOG(threads) << *self << " waiting for child " << *child << " to be in thread list...";
 
     // We wait for the child to tell us that it's in the thread list.
-    while (child->GetState() != Thread::kStarting) {
+    while (child->GetState() != kStarting) {
       thread_start_cond_.Wait(thread_list_lock_);
     }
   }
 
   // If we switch out of runnable and then back in, we know there's no pending suspend.
-  self->SetState(Thread::kVmWait);
-  self->SetState(Thread::kRunnable);
+  self->SetState(kVmWait);
+  self->SetState(kRunnable);
 
   // Tell the child that it's safe: it will see any future suspend request.
   ScopedThreadListLock thread_list_lock;
   VLOG(threads) << *self << " telling child " << *child << " it's safe to proceed...";
-  child->SetState(Thread::kVmWait);
+  child->SetState(kVmWait);
   thread_start_cond_.Broadcast();
 }
 
@@ -412,13 +414,13 @@ void ThreadList::WaitForGo() {
 
     // Tell our parent that we're in the thread list.
     VLOG(threads) << *self << " telling parent that we're now in thread list...";
-    self->SetState(Thread::kStarting);
+    self->SetState(kStarting);
     thread_start_cond_.Broadcast();
 
     // Wait until our parent tells us there's no suspend still pending
     // from before we were on the thread list.
     VLOG(threads) << *self << " waiting for parent's go-ahead...";
-    while (self->GetState() != Thread::kVmWait) {
+    while (self->GetState() != kVmWait) {
       thread_start_cond_.Wait(thread_list_lock_);
     }
   }
@@ -432,7 +434,7 @@ void ThreadList::WaitForGo() {
   {
     ScopedHeapLock heap_lock;
   }
-  self->SetState(Thread::kRunnable);
+  self->SetState(kRunnable);
 }
 
 bool ThreadList::AllOtherThreadsAreDaemons() {
@@ -475,7 +477,7 @@ void ThreadList::SuspendAllDaemonThreads() {
     bool all_suspended = true;
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
-      if (thread != Thread::Current() && thread->GetState() == Thread::kRunnable) {
+      if (thread != Thread::Current() && thread->GetState() == kRunnable) {
         if (!have_complained) {
           LOG(WARNING) << "daemon thread not yet suspended: " << *thread;
           have_complained = true;

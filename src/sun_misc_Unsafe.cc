@@ -30,7 +30,7 @@ static jlong Unsafe_objectFieldOffset0(JNIEnv* env, jclass, jobject javaField) {
 
 static jint Unsafe_arrayBaseOffset0(JNIEnv* env, jclass, jclass javaArrayClass) {
   // TODO: move to Java code
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Class* array_class = Decode<Class*>(env, javaArrayClass);
   return Array::DataOffset(array_class->GetComponentSize()).Int32Value();
 }

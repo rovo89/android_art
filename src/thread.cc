@@ -113,7 +113,7 @@ void* Thread::CreateCallback(void* arg) {
   runtime->GetThreadList()->WaitForGo();
 
   {
-    CHECK_EQ(self->GetState(), Thread::kRunnable);
+    CHECK_EQ(self->GetState(), kRunnable);
     SirtRef<String> thread_name(self->GetThreadName());
     self->SetThreadName(thread_name->ToModifiedUtf8().c_str());
   }
@@ -179,7 +179,7 @@ void Thread::Create(Object* peer, size_t stack_size) {
   SetVmData(peer, native_thread);
 
   {
-    ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+    ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
     pthread_t new_pthread;
     pthread_attr_t attr;
     CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new thread");
@@ -223,7 +223,7 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, Object* thread_g
   Thread* self = new Thread;
   self->Init();
 
-  self->SetState(Thread::kNative);
+  self->SetState(kNative);
 
   // If we're the main thread, ClassLinker won't be created until after we're attached,
   // so that thread needs a two-stage attach. Regular threads don't need this hack.
@@ -534,21 +534,21 @@ struct StackDumpVisitor : public Thread::StackVisitor {
 
 void Thread::DumpStack(std::ostream& os) const {
   // If we're currently in native code, dump that stack before dumping the managed stack.
-  if (GetState() == Thread::kNative || GetState() == Thread::kVmWait) {
+  if (GetState() == kNative || GetState() == kVmWait) {
     DumpNativeStack(os);
   }
   StackDumpVisitor dumper(os, this);
   WalkStack(&dumper);
 }
 
-void Thread::SetStateWithoutSuspendCheck(Thread::State new_state) {
+void Thread::SetStateWithoutSuspendCheck(ThreadState new_state) {
   volatile void* raw = reinterpret_cast<volatile void*>(&state_);
   volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw);
   android_atomic_release_store(new_state, addr);
 }
 
-Thread::State Thread::SetState(Thread::State new_state) {
-  Thread::State old_state = state_;
+ThreadState Thread::SetState(ThreadState new_state) {
+  ThreadState old_state = state_;
   if (old_state == new_state) {
     return old_state;
   }
@@ -556,9 +556,9 @@ Thread::State Thread::SetState(Thread::State new_state) {
   volatile void* raw = reinterpret_cast<volatile void*>(&state_);
   volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw);
 
-  if (new_state == Thread::kRunnable) {
+  if (new_state == kRunnable) {
     /*
-     * Change our status to Thread::kRunnable.  The transition requires
+     * Change our status to kRunnable.  The transition requires
      * that we check for pending suspension, because the runtime considers
      * us to be "asleep" in all other states, and another thread could
      * be performing a GC now.
@@ -616,7 +616,7 @@ Thread::State Thread::SetState(Thread::State new_state) {
     }
   } else {
     /*
-     * Not changing to Thread::kRunnable. No additional work required.
+     * Not changing to kRunnable. No additional work required.
      *
      * We use a releasing store to ensure that, if we were runnable,
      * any updates we previously made to objects on the managed heap
@@ -632,7 +632,7 @@ bool Thread::IsSuspended() {
   ANNOTATE_IGNORE_READS_BEGIN();
   int suspend_count = suspend_count_;
   ANNOTATE_IGNORE_READS_END();
-  return suspend_count != 0 && GetState() != Thread::kRunnable;
+  return suspend_count != 0 && GetState() != kRunnable;
 }
 
 static void ReportThreadSuspendTimeout(Thread* waiting_thread) {
@@ -650,7 +650,7 @@ void Thread::WaitUntilSuspended() {
 
   useconds_t total_delay = 0;
   useconds_t delay = 0;
-  while (GetState() == Thread::kRunnable) {
+  while (GetState() == kRunnable) {
     if (total_delay >= kTimeoutUs) {
       ReportThreadSuspendTimeout(this);
     }
@@ -715,7 +715,7 @@ void Thread::FinishStartup() {
   Thread* self = Thread::Current();
 
   // Need to be kRunnable for FindClass
-  ScopedThreadStateChange tsc(self, Thread::kRunnable);
+  ScopedThreadStateChange tsc(self, kRunnable);
 
   // Now the ClassLinker is ready, we can find the various Class*, Field*, and Method*s we need.
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -787,7 +787,7 @@ Thread::Thread()
       top_sirt_(NULL),
       top_shadow_frame_(NULL),
       jni_env_(NULL),
-      state_(Thread::kNative),
+      state_(kNative),
       self_(NULL),
       runtime_(NULL),
       exception_(NULL),
@@ -821,7 +821,7 @@ void Thread::Destroy() {
     Thread* self = this;
 
     // We may need to call user-supplied managed code.
-    SetState(Thread::kRunnable);
+    SetState(kRunnable);
 
     HandleUncaughtExceptions();
     RemoveFromThreadGroup();
@@ -847,7 +847,7 @@ Thread::~Thread() {
   delete jni_env_;
   jni_env_ = NULL;
 
-  SetState(Thread::kTerminated);
+  SetState(kTerminated);
 
   delete wait_cond_;
   delete wait_mutex_;
@@ -1736,28 +1736,6 @@ void Thread::VerifyStack() {
 #endif
 }
 #endif
-
-static const char* kStateNames[] = {
-  "Terminated",
-  "Runnable",
-  "TimedWaiting",
-  "Blocked",
-  "Waiting",
-  "Initializing",
-  "Starting",
-  "Native",
-  "VmWait",
-  "Suspended",
-};
-std::ostream& operator<<(std::ostream& os, const Thread::State& state) {
-  int32_t int_state = static_cast<int32_t>(state);
-  if (state >= Thread::kTerminated && state <= Thread::kSuspended) {
-    os << kStateNames[int_state];
-  } else {
-    os << "State[" << int_state << "]";
-  }
-  return os;
-}
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread) {
   thread.Dump(os, false);

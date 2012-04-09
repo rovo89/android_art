@@ -27,7 +27,7 @@ void Thread::SetNativePriority(int) {
 }
 
 int Thread::GetNativePriority() {
-  return Thread::kNormPriority;
+  return kNormThreadPriority;
 }
 
 }  // namespace art

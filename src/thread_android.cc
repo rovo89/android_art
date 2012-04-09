@@ -73,18 +73,18 @@ int Thread::GetNativePriority() {
   int native_priority = getpriority(PRIO_PROCESS, 0);
   if (native_priority == -1 && errno != 0) {
     PLOG(WARNING) << "getpriority failed";
-    return Thread::kNormPriority;
+    return kNormThreadPriority;
   }
 
-  int managed_priority = Thread::kMinPriority;
+  int managed_priority = kMinThreadPriority;
   for (size_t i = 0; i < arraysize(kNiceValues); i++) {
     if (native_priority >= kNiceValues[i]) {
       break;
     }
     managed_priority++;
   }
-  if (managed_priority > Thread::kMaxPriority) {
-    managed_priority = Thread::kMaxPriority;
+  if (managed_priority > kMaxThreadPriority) {
+    managed_priority = kMaxThreadPriority;
   }
   return managed_priority;
 }

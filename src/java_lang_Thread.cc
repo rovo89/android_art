@@ -54,22 +54,22 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread, jboolean has
   const jint kJavaTimedWaiting = 4;
   const jint kJavaTerminated = 5;
 
-  Thread::State internal_thread_state = (hasBeenStarted ? Thread::kTerminated : Thread::kStarting);
+  ThreadState internal_thread_state = (hasBeenStarted ? kTerminated : kStarting);
   ScopedThreadListLock thread_list_lock;
   Thread* thread = Thread::FromManagedThread(env, javaThread);
   if (thread != NULL) {
     internal_thread_state = thread->GetState();
   }
   switch (internal_thread_state) {
-    case Thread::kTerminated:   return kJavaTerminated;
-    case Thread::kRunnable:     return kJavaRunnable;
-    case Thread::kTimedWaiting: return kJavaTimedWaiting;
-    case Thread::kBlocked:      return kJavaBlocked;
-    case Thread::kWaiting:      return kJavaWaiting;
-    case Thread::kStarting:     return kJavaNew;
-    case Thread::kNative:       return kJavaRunnable;
-    case Thread::kVmWait:       return kJavaWaiting;
-    case Thread::kSuspended:    return kJavaRunnable;
+    case kTerminated:   return kJavaTerminated;
+    case kRunnable:     return kJavaRunnable;
+    case kTimedWaiting: return kJavaTimedWaiting;
+    case kBlocked:      return kJavaBlocked;
+    case kWaiting:      return kJavaWaiting;
+    case kStarting:     return kJavaNew;
+    case kNative:       return kJavaRunnable;
+    case kVmWait:       return kJavaWaiting;
+    case kSuspended:    return kJavaRunnable;
     // Don't add a 'default' here so the compiler can spot incompatible enum changes.
   }
   return -1; // Unreachable.
@@ -78,7 +78,7 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread, jboolean has
 static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject javaThread, jobject javaObject) {
   Object* object = Decode<Object*>(env, javaObject);
   if (object == NULL) {
-    ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+    ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
     Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "object == null");
     return JNI_FALSE;
   }

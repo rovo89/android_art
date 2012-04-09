@@ -170,7 +170,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
    */
   if (options->suspend) {
     {
-      ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+      ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
 
       state->attach_cond_.Wait(state->attach_lock_);
       state->attach_lock_.Unlock();
@@ -327,7 +327,7 @@ void JdwpState::Run() {
     bool first = true;
     while (!Dbg::IsDisposed()) {
       // sanity check -- shouldn't happen?
-      if (Thread::Current()->GetState() != Thread::kVmWait) {
+      if (Thread::Current()->GetState() != kVmWait) {
         LOG(ERROR) << "JDWP thread no longer in VMWAIT (now " << Thread::Current()->GetState() << "); resetting";
         Dbg::ThreadWaiting();
       }

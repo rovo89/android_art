@@ -32,7 +32,7 @@ ScopedThreadListLock::ScopedThreadListLock() {
       // Self may be null during shutdown, but in that case there's no point going to kVmWait.
       thread_list->thread_list_lock_.Lock();
     } else {
-      Thread::State old_thread_state = self->SetState(Thread::kVmWait);
+      ThreadState old_thread_state = self->SetState(kVmWait);
       thread_list->thread_list_lock_.Lock();
       // If we have the lock, by definition there's no GC in progress (though we
       // might be taking the lock in order to start one). We avoid the suspend

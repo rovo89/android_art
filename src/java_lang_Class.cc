@@ -39,7 +39,7 @@ static Class* DecodeClass(JNIEnv* env, jobject java_class) {
 
 // "name" is in "binary name" format, e.g. "dalvik.system.Debug$1".
 static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initialize, jobject javaLoader) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == NULL) {
     return NULL;
@@ -133,7 +133,7 @@ static bool IsVisibleField(Field* f, bool public_only) {
 }
 
 static jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Class* c = DecodeClass(env, javaClass);
   if (c == NULL) {
     return NULL;
@@ -187,7 +187,7 @@ static bool IsVisibleMethod(Method* m, bool public_only) {
 }
 
 static jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Class* c = DecodeClass(env, javaClass);
   if (c == NULL) {
     return NULL;
@@ -308,7 +308,7 @@ static jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClas
 }
 
 static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass java_class, jobject jname) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Class* c = DecodeClass(env, java_class);
   if (c == NULL) {
     return NULL;
@@ -344,19 +344,19 @@ static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass java_class, jobj
 }
 
 static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Class* c = DecodeClass(env, javaThis);
   return AddLocalReference<jstring>(env, c->ComputeName());
 }
 
 static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   SynthesizedProxyClass* c = down_cast<SynthesizedProxyClass*>(DecodeClass(env, javaThis));
   return AddLocalReference<jobjectArray>(env, c->GetInterfaces()->Clone());
 }
 
 static jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass javaRhs) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Class* lhs = DecodeClass(env, javaLhs);
   Class* rhs = Decode<Class*>(env, javaRhs); // Can be null.
   if (rhs == NULL) {
@@ -396,7 +396,7 @@ static bool CheckMemberAccess(const Class* access_from, Class* access_to, uint32
 }
 
 static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Class* c = DecodeClass(env, javaThis);
   if (c->IsPrimitive() || c->IsInterface() || c->IsArrayClass() || c->IsAbstract()) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",

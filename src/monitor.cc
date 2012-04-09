@@ -190,7 +190,7 @@ void Monitor::Lock(Thread* self) {
     const Method* current_locking_method = NULL;
     uintptr_t current_locking_pc = 0;
     {
-      ScopedThreadStateChange tsc(self, Thread::kBlocked);
+      ScopedThreadStateChange tsc(self, kBlocked);
       if (wait_threshold != 0) {
         waitStart = NanoTime() / 1000;
       }
@@ -441,9 +441,9 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
    * our suspend mode before we transition out.
    */
   if (timed) {
-    self->SetState(Thread::kTimedWaiting);
+    self->SetState(kTimedWaiting);
   } else {
-    self->SetState(Thread::kWaiting);
+    self->SetState(kWaiting);
   }
 
   self->wait_mutex_->Lock();
@@ -503,8 +503,8 @@ done:
   locking_pc_ = savedPc;
   RemoveFromWaitSet(self);
 
-  /* set self->status back to Thread::kRunnable, and self-suspend if needed */
-  self->SetState(Thread::kRunnable);
+  /* set self->status back to kRunnable, and self-suspend if needed */
+  self->SetState(kRunnable);
 
   if (wasInterrupted) {
     /*
@@ -632,7 +632,7 @@ retry:
                                     threadId, thinp, PrettyTypeOf(obj).c_str(), LW_LOCK_OWNER(thin));
       // The lock is owned by another thread. Notify the runtime that we are about to wait.
       self->monitor_enter_object_ = obj;
-      Thread::State oldStatus = self->SetState(Thread::kBlocked);
+      ThreadState oldStatus = self->SetState(kBlocked);
       // Spin until the thin lock is released or inflated.
       sleepDelayNs = 0;
       for (;;) {
@@ -696,7 +696,7 @@ bool Monitor::MonitorExit(Thread* self, Object* obj) {
   volatile int32_t* thinp = obj->GetRawLockWordAddress();
 
   DCHECK(self != NULL);
-  //DCHECK_EQ(self->GetState(), Thread::kRunnable);
+  //DCHECK_EQ(self->GetState(), kRunnable);
   DCHECK(obj != NULL);
 
   /*
@@ -823,18 +823,18 @@ uint32_t Monitor::GetThinLockId(uint32_t raw_lock_word) {
 }
 
 void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
-  Thread::State state = thread->GetState();
+  ThreadState state = thread->GetState();
 
   Object* object = NULL;
   uint32_t lock_owner = ThreadList::kInvalidId;
-  if (state == Thread::kWaiting || state == Thread::kTimedWaiting) {
+  if (state == kWaiting || state == kTimedWaiting) {
     os << "  - waiting on ";
     Monitor* monitor = thread->wait_monitor_;
     if (monitor != NULL) {
       object = monitor->obj_;
     }
     lock_owner = Thread::LockOwnerFromThreadLock(object);
-  } else if (state == Thread::kBlocked) {
+  } else if (state == kBlocked) {
     os << "  - waiting to lock ";
     object = thread->monitor_enter_object_;
     if (object != NULL) {

@@ -32,7 +32,7 @@ namespace art {
  * with an interface, array, or primitive class.
  */
 static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Method* m = Decode<Object*>(env, javaMethod)->AsMethod();
   Class* c = m->GetDeclaringClass();
   if (c->IsAbstract()) {

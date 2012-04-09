@@ -24,7 +24,7 @@ namespace art {
 
 static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring javaName, jobjectArray javaInterfaces, jobject javaLoader, jobjectArray javaMethods, jobjectArray javaThrows) {
   // Allocates Class so transition thread state to runnable
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   String* name = Decode<String*>(env, javaName);
   ObjectArray<Class>* interfaces = Decode<ObjectArray<Class>*>(env, javaInterfaces);
   ClassLoader* loader = Decode<ClassLoader*>(env, javaLoader);

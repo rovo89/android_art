@@ -586,7 +586,7 @@ class SharedLibrary {
     while (jni_on_load_result_ == kPending) {
       VLOG(jni) << "[" << *self << " waiting for \"" << path_ << "\" "
                 << "JNI_OnLoad...]";
-      ScopedThreadStateChange tsc(self, Thread::kVmWait);
+      ScopedThreadStateChange tsc(self, kVmWait);
       jni_on_load_cond_.Wait(jni_on_load_lock_);
     }
 
@@ -2847,7 +2847,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
   Thread* self = Thread::Current();
   void* handle = NULL;
   {
-    ScopedThreadStateChange tsc(self, Thread::kVmWait);
+    ScopedThreadStateChange tsc(self, kVmWait);
     handle = dlopen(path.empty() ? NULL : path.c_str(), RTLD_LAZY);
   }
 
@@ -2890,7 +2890,7 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path, ClassLoader* class_lo
 
     int version = 0;
     {
-      ScopedThreadStateChange tsc(self, Thread::kNative);
+      ScopedThreadStateChange tsc(self, kNative);
       VLOG(jni) << "[Calling JNI_OnLoad in \"" << path << "\"]";
       version = (*jni_on_load)(this, NULL);
     }

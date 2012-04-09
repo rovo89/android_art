@@ -22,7 +22,7 @@
 namespace art {
 
 static jobject Object_internalClone(JNIEnv* env, jobject javaThis) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Object* o = Decode<Object*>(env, javaThis);
   return AddLocalReference<jobject>(env, o->Clone());
 }

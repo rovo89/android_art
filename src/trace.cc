@@ -200,7 +200,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
     return;
   }
 
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Runtime::Current()->GetThreadList()->SuspendAll(false);
 
   // Open trace file if not going directly to ddms.
@@ -240,7 +240,7 @@ void Trace::Stop() {
     return;
   }
 
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Runtime::Current()->GetThreadList()->SuspendAll(false);
 
   Runtime::Current()->GetTracer()->FinishTracing();

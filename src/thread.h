@@ -63,29 +63,28 @@ template<class T> class ObjectArray;
 template<class T> class PrimitiveArray;
 typedef PrimitiveArray<int32_t> IntArray;
 
+// Thread priorities. These must match the Thread.MIN_PRIORITY,
+// Thread.NORM_PRIORITY, and Thread.MAX_PRIORITY constants.
+enum ThreadPriority {
+  kMinThreadPriority = 1,
+  kNormThreadPriority = 5,
+  kMaxThreadPriority = 10,
+};
+
+enum ThreadState {
+  kTerminated   = 0, // Thread.TERMINATED     JDWP TS_ZOMBIE
+  kRunnable     = 1, // Thread.RUNNABLE       JDWP TS_RUNNING
+  kTimedWaiting = 2, // Thread.TIMED_WAITING  JDWP TS_WAIT    - in Object.wait() with a timeout
+  kBlocked      = 3, // Thread.BLOCKED        JDWP TS_MONITOR - blocked on a monitor
+  kWaiting      = 4, // Thread.WAITING        JDWP TS_WAIT    - in Object.wait()
+  kStarting     = 5, // Thread.NEW                            - native thread started, not yet ready to run managed code
+  kNative       = 6, //                                       - running in a JNI native method
+  kVmWait       = 7, //                                       - waiting on an internal runtime resource
+  kSuspended    = 8, //                                       - suspended by GC or debugger
+};
+
 class PACKED Thread {
  public:
-  // Thread priorities. These must match the Thread.MIN_PRIORITY,
-  // Thread.NORM_PRIORITY, and Thread.MAX_PRIORITY constants.
-  enum Priority {
-    kMinPriority = 1,
-    kNormPriority = 5,
-    kMaxPriority = 10,
-  };
-
-  // Thread states.
-  enum State {
-    kTerminated   = 0, // Thread.TERMINATED     JDWP TS_ZOMBIE
-    kRunnable     = 1, // Thread.RUNNABLE       JDWP TS_RUNNING
-    kTimedWaiting = 2, // Thread.TIMED_WAITING  JDWP TS_WAIT    - in Object.wait() with a timeout
-    kBlocked      = 3, // Thread.BLOCKED        JDWP TS_MONITOR - blocked on a monitor
-    kWaiting      = 4, // Thread.WAITING        JDWP TS_WAIT    - in Object.wait()
-    kStarting     = 5, // Thread.NEW                            - native thread started, not yet ready to run managed code
-    kNative       = 6, //                                       - running in a JNI native method
-    kVmWait       = 7, //                                       - waiting on an internal runtime resource
-    kSuspended    = 8, //                                       - suspended by GC or debugger
-  };
-
   // Space to throw a StackOverflowError in.
 #if !defined(ART_USE_LLVM_COMPILER)
   static const size_t kStackOverflowReservedBytes = 4 * KB;
@@ -126,12 +125,12 @@ class PACKED Thread {
   // When full == false, dumps a one-line summary of thread state (used for operator<<).
   void Dump(std::ostream& os, bool full = true) const;
 
-  State GetState() const {
+  ThreadState GetState() const {
     return state_;
   }
 
-  State SetState(State new_state);
-  void SetStateWithoutSuspendCheck(State new_state);
+  ThreadState SetState(ThreadState new_state);
+  void SetStateWithoutSuspendCheck(ThreadState new_state);
 
   bool IsDaemon();
   bool IsSuspended();
@@ -572,7 +571,7 @@ class PACKED Thread {
   // Every thread may have an associated JNI environment
   JNIEnvExt* jni_env_;
 
-  volatile State state_;
+  volatile ThreadState state_;
 
   // Initialized to "this". On certain architectures (such as x86) reading
   // off of Thread::Current is easy but getting the address of Thread::Current
@@ -627,11 +626,11 @@ class PACKED Thread {
 };
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread);
-std::ostream& operator<<(std::ostream& os, const Thread::State& state);
+std::ostream& operator<<(std::ostream& os, const ThreadState& state);
 
 class ScopedThreadStateChange {
  public:
-  ScopedThreadStateChange(Thread* thread, Thread::State new_state) : thread_(thread) {
+  ScopedThreadStateChange(Thread* thread, ThreadState new_state) : thread_(thread) {
     old_thread_state_ = thread_->SetState(new_state);
   }
 
@@ -641,7 +640,7 @@ class ScopedThreadStateChange {
 
  private:
   Thread* thread_;
-  Thread::State old_thread_state_;
+  ThreadState old_thread_state_;
   DISALLOW_COPY_AND_ASSIGN(ScopedThreadStateChange);
 };
 

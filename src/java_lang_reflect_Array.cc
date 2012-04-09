@@ -70,7 +70,7 @@ static Array* CreateMultiArray(Class* array_class, int current_dimension, IntArr
 // subtract pieces off.  Besides, we want to start with the outermost
 // piece and work our way in.
 static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, jobject javaDimArray) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   DCHECK(javaElementClass != NULL);
   Class* element_class = Decode<Class*>(env, javaElementClass);
   DCHECK(element_class->IsClass());
@@ -118,7 +118,7 @@ static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementCla
 }
 
 static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementClass, jint length) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   DCHECK(javaElementClass != NULL);
   Class* element_class = Decode<Class*>(env, javaElementClass);
   if (length < 0) {

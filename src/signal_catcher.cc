@@ -77,7 +77,7 @@ void SignalCatcher::Output(const std::string& s) {
     return;
   }
 
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+  ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
   int fd = open(stack_trace_file_.c_str(), O_APPEND | O_CREAT | O_WRONLY, 0666);
   if (fd == -1) {
     PLOG(ERROR) << "Unable to open stack trace file '" << stack_trace_file_ << "'";
@@ -136,7 +136,7 @@ void SignalCatcher::HandleSigUsr1() {
 }
 
 int SignalCatcher::WaitForSignal(sigset_t& mask) {
-  ScopedThreadStateChange tsc(thread_, Thread::kVmWait);
+  ScopedThreadStateChange tsc(thread_, kVmWait);
 
   // Signals for sigwait() must be blocked but not ignored.  We
   // block signals like SIGQUIT for all threads, so the condition
@@ -168,7 +168,7 @@ void* SignalCatcher::Run(void* arg) {
 
   Runtime* runtime = Runtime::Current();
   runtime->AttachCurrentThread("Signal Catcher", true, Thread::GetSystemThreadGroup());
-  Thread::Current()->SetState(Thread::kRunnable);
+  Thread::Current()->SetState(kRunnable);
 
   {
     MutexLock mu(signal_catcher->lock_);

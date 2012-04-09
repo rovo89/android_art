@@ -559,7 +559,7 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
 
 void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const {
   // Push a transition back into managed code onto the linked list in thread.
-  CHECK_EQ(Thread::kRunnable, self->GetState());
+  CHECK_EQ(kRunnable, self->GetState());
 
 #if !defined(ART_USE_LLVM_COMPILER)
   NativeToManagedRecord record;

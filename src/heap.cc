@@ -427,7 +427,7 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
 
   // Since allocation can cause a GC which will need to SuspendAll,
   // make sure all allocators are in the kRunnable state.
-  CHECK_EQ(Thread::Current()->GetState(), Thread::kRunnable);
+  CHECK_EQ(Thread::Current()->GetState(), kRunnable);
 
   // Fail impossible allocations
   if (alloc_size > space->Capacity()) {
@@ -687,13 +687,13 @@ pid_t Heap::GetLockOwner() {
 }
 
 void Heap::Lock() {
-  // Grab the lock, but put ourselves into Thread::kVmWait if it looks
+  // Grab the lock, but put ourselves into kVmWait if it looks
   // like we're going to have to wait on the mutex. This prevents
   // deadlock if another thread is calling CollectGarbageInternal,
   // since they will have the heap lock and be waiting for mutators to
   // suspend.
   if (!lock_->TryLock()) {
-    ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+    ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
     lock_->Lock();
   }
 }
@@ -786,7 +786,7 @@ Object* Heap::DequeuePendingReference(Object** list) {
 }
 
 void Heap::AddFinalizerReference(Thread* self, Object* object) {
-  ScopedThreadStateChange tsc(self, Thread::kRunnable);
+  ScopedThreadStateChange tsc(self, kRunnable);
   static Method* FinalizerReference_add =
       java_lang_ref_FinalizerReference_->FindDirectMethod("add", "(Ljava/lang/Object;)V");
   DCHECK(FinalizerReference_add != NULL);
@@ -803,7 +803,7 @@ void Heap::EnqueueClearedReferences(Object** cleared) {
     DCHECK(ReferenceQueue_add != NULL);
 
     Thread* self = Thread::Current();
-    ScopedThreadStateChange tsc(self, Thread::kRunnable);
+    ScopedThreadStateChange tsc(self, kRunnable);
     JValue args[1];
     args[0].l = *cleared;
     ReferenceQueue_add->Invoke(self, NULL, args, NULL);

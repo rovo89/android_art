@@ -25,7 +25,7 @@
 namespace art {
 
 static bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(), true, true)) {
     return false;
   }
@@ -206,7 +206,7 @@ static void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool all
 }
 
 static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject javaValue) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Field* f = DecodeField(env->FromReflectedField(javaField));
 
   // Unbox the value, if necessary.
@@ -227,7 +227,7 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
 
 static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char src_descriptor,
                               const JValue& new_value) {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   Field* f = DecodeField(env->FromReflectedField(javaField));
   Object* o = NULL;
   if (!CheckReceiver(env, javaObj, f, o)) {

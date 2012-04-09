@@ -418,7 +418,7 @@ void Dbg::StartJdwp() {
   // If a debugger has already attached, send the "welcome" message.
   // This may cause us to suspend all threads.
   if (gJdwpState->IsActive()) {
-    //ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable);
+    //ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
     if (!gJdwpState->PostVMStart()) {
       LOG(WARNING) << "Failed to post 'start' message to debugger";
     }
@@ -532,15 +532,15 @@ int64_t Dbg::LastDebuggerActivity() {
 }
 
 int Dbg::ThreadRunning() {
-  return static_cast<int>(Thread::Current()->SetState(Thread::kRunnable));
+  return static_cast<int>(Thread::Current()->SetState(kRunnable));
 }
 
 int Dbg::ThreadWaiting() {
-  return static_cast<int>(Thread::Current()->SetState(Thread::kVmWait));
+  return static_cast<int>(Thread::Current()->SetState(kVmWait));
 }
 
 int Dbg::ThreadContinuing(int new_state) {
-  return static_cast<int>(Thread::Current()->SetState(static_cast<Thread::State>(new_state)));
+  return static_cast<int>(Thread::Current()->SetState(static_cast<ThreadState>(new_state)));
 }
 
 void Dbg::UndoDebuggerSuspensions() {
@@ -1388,15 +1388,15 @@ bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThre
   // TODO: if we're in Thread.sleep(long), we should return TS_SLEEPING,
   // even if it's implemented using Object.wait(long).
   switch (thread->GetState()) {
-    case Thread::kTerminated:   *pThreadStatus = JDWP::TS_ZOMBIE;   break;
-    case Thread::kRunnable:     *pThreadStatus = JDWP::TS_RUNNING;  break;
-    case Thread::kTimedWaiting: *pThreadStatus = JDWP::TS_WAIT;     break;
-    case Thread::kBlocked:      *pThreadStatus = JDWP::TS_MONITOR;  break;
-    case Thread::kWaiting:      *pThreadStatus = JDWP::TS_WAIT;     break;
-    case Thread::kStarting:     *pThreadStatus = JDWP::TS_ZOMBIE;   break;
-    case Thread::kNative:       *pThreadStatus = JDWP::TS_RUNNING;  break;
-    case Thread::kVmWait:       *pThreadStatus = JDWP::TS_WAIT;     break;
-    case Thread::kSuspended:    *pThreadStatus = JDWP::TS_RUNNING;  break;
+    case kTerminated:   *pThreadStatus = JDWP::TS_ZOMBIE;   break;
+    case kRunnable:     *pThreadStatus = JDWP::TS_RUNNING;  break;
+    case kTimedWaiting: *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kBlocked:      *pThreadStatus = JDWP::TS_MONITOR;  break;
+    case kWaiting:      *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kStarting:     *pThreadStatus = JDWP::TS_ZOMBIE;   break;
+    case kNative:       *pThreadStatus = JDWP::TS_RUNNING;  break;
+    case kVmWait:       *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kSuspended:    *pThreadStatus = JDWP::TS_RUNNING;  break;
     // Don't add a 'default' here so the compiler can spot incompatible enum changes.
   }
 
@@ -1524,7 +1524,7 @@ JDWP::ObjectId Dbg::GetThreadSelfId() {
 }
 
 void Dbg::SuspendVM() {
-  ScopedThreadStateChange tsc(Thread::Current(), Thread::kRunnable); // TODO: do we really want to change back? should the JDWP thread be Runnable usually?
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable); // TODO: do we really want to change back? should the JDWP thread be Runnable usually?
   Runtime::Current()->GetThreadList()->SuspendAll(true);
 }
 
@@ -2173,7 +2173,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
      * run out of memory.  It's also a good idea to change it before locking
      * the invokeReq mutex, although that should never be held for long.
      */
-    ScopedThreadStateChange tsc(Thread::Current(), Thread::kVmWait);
+    ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
 
     VLOG(jdwp) << "    Transferring control to event thread";
     {
@@ -2232,7 +2232,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   SirtRef<Throwable> old_exception(self->GetException());
   self->ClearException();
 
-  ScopedThreadStateChange tsc(self, Thread::kRunnable);
+  ScopedThreadStateChange tsc(self, kRunnable);
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
   Method* m = pReq->method_;
@@ -2401,7 +2401,7 @@ void Dbg::DdmBroadcast(bool connect) {
   VLOG(jdwp) << "Broadcasting DDM " << (connect ? "connect" : "disconnect") << "...";
 
   Thread* self = Thread::Current();
-  if (self->GetState() != Thread::kRunnable) {
+  if (self->GetState() != kRunnable) {
     LOG(ERROR) << "DDM broadcast in thread state " << self->GetState();
     /* try anyway? */
   }
