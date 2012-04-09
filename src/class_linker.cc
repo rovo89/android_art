@@ -1216,7 +1216,7 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
     }
   }
 
-  ThrowNoClassDefFoundError("Class %s not found", PrintableString(StringPiece(descriptor)).c_str());
+  ThrowNoClassDefFoundError("Class %s not found", PrintableString(descriptor).c_str());
   return NULL;
 }
 

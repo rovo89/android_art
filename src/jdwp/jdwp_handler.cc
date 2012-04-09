@@ -849,7 +849,7 @@ static JdwpError handleSR_Value(JdwpState*, const uint8_t* buf, int, ExpandBuf* 
   ObjectId stringObject = ReadObjectId(&buf);
   std::string str(Dbg::StringToUtf8(stringObject));
 
-  VLOG(jdwp) << StringPrintf("  Req for str %#llx --> '%s'", stringObject, PrintableString(str).c_str());
+  VLOG(jdwp) << StringPrintf("  Req for str %#llx --> %s", stringObject, PrintableString(str).c_str());
 
   expandBufAddUtf8String(pReply, str);
 

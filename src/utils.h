@@ -148,22 +148,9 @@ static inline std::string PrintableChar(uint16_t ch) {
   return result;
 }
 
-// TODO: assume the content is UTF-8, and show code point escapes?
-template<typename StringT>
-static inline std::string PrintableString(const StringT& s) {
-  std::string result;
-  result += '"';
-  for (typename StringT::const_iterator it = s.begin(); it != s.end(); ++it) {
-    char ch = *it;
-    if (NeedsEscaping(ch)) {
-      StringAppendF(&result, "\\x%02x", ch & 0xff);
-    } else {
-      result += ch;
-    }
-  }
-  result += '"';
-  return result;
-}
+// Returns an ASCII string corresponding to the given UTF-8 string.
+// Java escapes are used for non-ASCII characters.
+std::string PrintableString(const std::string& utf8);
 
 // Tests whether 's' starts with 'prefix'.
 bool StartsWith(const std::string& s, const char* prefix);

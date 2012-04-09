@@ -404,6 +404,31 @@ std::string PrettyDuration(uint64_t nano_duration) {
   }
 }
 
+std::string PrintableString(const std::string& utf) {
+  std::string result;
+  result += '"';
+  const char* p = utf.c_str();
+  size_t char_count = CountModifiedUtf8Chars(p);
+  for (size_t i = 0; i < char_count; ++i) {
+    uint16_t ch = GetUtf16FromUtf8(&p);
+    if (ch == '\\') {
+      result += "\\\\";
+    } else if (ch == '\n') {
+      result += "\\n";
+    } else if (ch == '\r') {
+      result += "\\r";
+    } else if (ch == '\t') {
+      result += "\\t";
+    } else if (NeedsEscaping(ch)) {
+      StringAppendF(&result, "\\u%04x", ch);
+    } else {
+      result += ch;
+    }
+  }
+  result += '"';
+  return result;
+}
+
 // See http://java.sun.com/j2se/1.5.0/docs/guide/jni/spec/design.html#wp615 for the full rules.
 std::string MangleForJni(const std::string& s) {
   std::string result;
