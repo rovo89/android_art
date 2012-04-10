@@ -400,11 +400,9 @@ class OatDumper {
   void DumpOatMethod(std::ostream& os, uint32_t class_method_index,
                      const OatFile::OatMethod& oat_method, const DexFile& dex_file,
                      uint32_t dex_method_idx, const DexFile::CodeItem* code_item) {
-    const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
-    const char* name = dex_file.GetMethodName(method_id);
-    std::string signature(dex_file.GetMethodSignature(method_id));
-    os << StringPrintf("\t%d: %s %s (dex_method_idx=%d)\n",
-                       class_method_index, name, signature.c_str(), dex_method_idx);
+    os << StringPrintf("\t%d: %s (dex_method_idx=%d)\n",
+                       class_method_index, PrettyMethod(dex_method_idx, dex_file, true).c_str(),
+                       dex_method_idx);
     os << StringPrintf("\t\tframe_size_in_bytes: %zd\n",
                        oat_method.GetFrameSizeInBytes());
     os << StringPrintf("\t\tcore_spill_mask: 0x%08x",
@@ -608,8 +606,8 @@ class OatDumper {
         CHECK(it != offsets_.end());
         end_native_pc = reinterpret_cast<const uint8_t*>(oat_begin) + *it;
       }
-      CHECK(native_pc < end_native_pc);
-      disassembler_->Dump(os, native_pc, end_native_pc);
+      CHECK(cur_pc < cur_pc_end);
+      disassembler_->Dump(os, cur_pc, cur_pc_end);
     }
   }
 #else
@@ -890,9 +888,10 @@ class ImageDumper {
           state->stats_.managed_to_native_code_bytes += invoke_stub_size;
         }
         const void* oat_code = state->GetOatCodeBegin(method);
-        size_t code_size = state->ComputeOatSize(oat_code, &first_occurrence);
+        uint32_t oat_code_size = state->GetOatCodeSize(method);
+        state->ComputeOatSize(oat_code, &first_occurrence);
         if (first_occurrence) {
-          state->stats_.native_to_managed_code_bytes += code_size;
+          state->stats_.native_to_managed_code_bytes += oat_code_size;
         }
         if (oat_code != method->GetCode()) {
           StringAppendF(&summary, "\t\tOAT CODE: %p\n", oat_code);
@@ -930,6 +929,7 @@ class ImageDumper {
           state->stats_.vmap_table_bytes += vmap_table_bytes;
         }
 
+        // TODO: compute invoke stub using length from oat file.
         size_t invoke_stub_size = state->ComputeOatSize(
             reinterpret_cast<const void*>(method->GetInvokeStub()), &first_occurance);
         if (first_occurance) {
@@ -937,23 +937,22 @@ class ImageDumper {
         }
         const void* oat_code_begin = state->GetOatCodeBegin(method);
         const void* oat_code_end = state->GetOatCodeEnd(method);
-        // TODO: use oat_code_size and remove code_size based on offsets
-        // uint32_t oat_code_size = state->GetOatCodeSize(method);
-        size_t code_size = state->ComputeOatSize(oat_code_begin, &first_occurance);
+        uint32_t oat_code_size = state->GetOatCodeSize(method);
+        state->ComputeOatSize(oat_code_begin, &first_occurance);
         if (first_occurance) {
-          state->stats_.managed_code_bytes += code_size;
+          state->stats_.managed_code_bytes += oat_code_size;
         }
-        state->stats_.managed_code_bytes_ignoring_deduplication += code_size;
+        state->stats_.managed_code_bytes_ignoring_deduplication += oat_code_size;
 
         StringAppendF(&summary, "\t\tOAT CODE: %p-%p\n", oat_code_begin, oat_code_end);
         StringAppendF(&summary, "\t\tSIZE: Dex Instructions=%zd GC=%zd Mapping=%zd\n",
                       dex_instruction_bytes, gc_map_bytes, pc_mapping_table_bytes);
 
         size_t total_size = dex_instruction_bytes + gc_map_bytes + pc_mapping_table_bytes +
-            vmap_table_bytes + invoke_stub_size + code_size + object_bytes;
+            vmap_table_bytes + invoke_stub_size + oat_code_size + object_bytes;
 
         double expansion =
-            static_cast<double>(code_size) / static_cast<double>(dex_instruction_bytes);
+            static_cast<double>(oat_code_size) / static_cast<double>(dex_instruction_bytes);
         state->stats_.ComputeOutliers(total_size, expansion, method);
       }
     }
