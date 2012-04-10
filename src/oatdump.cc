@@ -435,7 +435,8 @@ class OatDumper {
                        static_cast<int>(oat_method.GetCodeElfFuncIndex()),
 #endif
                        oat_method.GetCode() != NULL ? "..." : "");
-    DumpCode(os, oat_method.GetCode(), oat_method.GetMappingTable(), dex_file, code_item);
+    DumpCode(os, oat_method.GetCode(), oat_method.GetCodeSize(), oat_method.GetMappingTable(),
+             dex_file, code_item);
     os << StringPrintf(
 #if defined(ART_USE_LLVM_COMPILER)
                        "\t\tINVOKE STUB: %p (offset=0x%08x size=%d elf_idx=%d elf_func_idx=%d)%s\n",
@@ -450,7 +451,8 @@ class OatDumper {
                        static_cast<int>(oat_method.GetInvokeStubElfFuncIndex()),
 #endif
                        oat_method.GetInvokeStub() != NULL ? "..." : "");
-    DumpCode(os, reinterpret_cast<const void*>(oat_method.GetInvokeStub()), NULL, dex_file, NULL);
+    DumpCode(os, reinterpret_cast<const void*>(oat_method.GetInvokeStub()),
+             oat_method.GetInvokeStubSize(), NULL, dex_file, NULL);
   }
 
   void DumpSpillMask(std::ostream& os, uint32_t spill_mask, bool is_float) {
@@ -563,24 +565,18 @@ class OatDumper {
   }
 
 #if !defined(ART_USE_LLVM_COMPILER)
-  void DumpCode(std::ostream& os, const void* code, const uint32_t* raw_mapping_table,
+  void DumpCode(std::ostream& os, const void* code, int code_size,
+                const uint32_t* raw_mapping_table,
                 const DexFile& dex_file, const DexFile::CodeItem* code_item) {
-    if (code == NULL) {
+    if (code == NULL || code_size == 0) {
       return;
     }
 
+    const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code);
+    const uint8_t* end_native_pc = native_pc + code_size;
+
     if (raw_mapping_table == NULL) {
       // code but no mapping table is most likely caused by code created by the JNI compiler
-      const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code);
-      const uint8_t* oat_begin = reinterpret_cast<const uint8_t*>(oat_file_.Begin());
-      uint32_t last_offset = static_cast<uint32_t>(native_pc - oat_begin);
-
-      typedef std::set<uint32_t>::iterator It;
-      It it = offsets_.upper_bound(last_offset);
-      CHECK(it != offsets_.end());
-      const uint8_t* end_native_pc = reinterpret_cast<const uint8_t*>(oat_begin) + *it;
-      CHECK(native_pc < end_native_pc);
-
       disassembler_->Dump(os, native_pc, end_native_pc);
       return;
     }
@@ -593,18 +589,12 @@ class OatDumper {
       const Instruction* instruction = Instruction::At(&code_item->insns_[dex_pc]);
       os << StringPrintf("\t\t0x%04x: %s\n", dex_pc, instruction->DumpString(&dex_file).c_str());
 
-      const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code) + raw_mapping_table[i];
-      const uint8_t* end_native_pc = NULL;
+      const uint8_t* cur_pc = reinterpret_cast<const uint8_t*>(code) + raw_mapping_table[i];
+      const uint8_t* cur_pc_end = NULL;
       if (i + 2 < length) {
-        end_native_pc = reinterpret_cast<const uint8_t*>(code) + raw_mapping_table[i + 2];
+        cur_pc_end = reinterpret_cast<const uint8_t*>(code) + raw_mapping_table[i + 2];
       } else {
-        const uint8_t* oat_begin = reinterpret_cast<const uint8_t*>(oat_file_.Begin());
-        uint32_t last_offset = static_cast<uint32_t>(native_pc - oat_begin);
-
-        typedef std::set<uint32_t>::iterator It;
-        It it = offsets_.upper_bound(last_offset);
-        CHECK(it != offsets_.end());
-        end_native_pc = reinterpret_cast<const uint8_t*>(oat_begin) + *it;
+        cur_pc_end = end_native_pc;
       }
       CHECK(cur_pc < cur_pc_end);
       disassembler_->Dump(os, cur_pc, cur_pc_end);
