@@ -115,9 +115,6 @@ JdwpState::JdwpState(const JdwpOptions* options)
  * the thread is accepting network connections.
  */
 JdwpState* JdwpState::Create(const JdwpOptions* options) {
-  /* comment this out when debugging JDWP itself */
-  //android_setMinPriority(LOG_TAG, ANDROID_LOG_DEBUG);
-
   UniquePtr<JdwpState> state(new JdwpState(options));
   switch (options->transport) {
   case kJdwpTransportSocket:
