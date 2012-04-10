@@ -62,7 +62,7 @@ void art_set_current_thread_from_code(void* thread_object_addr);
 
 void* art_find_runtime_support_func(void* context, char const* name);
 
-void art_ensure_link_from_code(Method* method);
+const void* art_fix_stub_from_code(Method* called);
 
 }  // namespace art
 

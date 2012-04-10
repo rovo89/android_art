@@ -57,7 +57,6 @@
   V(InitializeStaticStorage, art_initialize_static_storage_from_code) \
   V(IsExceptionPending, art_is_exception_pending_from_code) \
   V(FindCatchBlock, art_find_catch_block_from_code) \
-  V(EnsureInitialized, art_ensure_initialized_from_code) \
-  V(EnsureLink, art_ensure_link_from_code) \
   V(EnsureResolved, art_ensure_resolved_from_code) \
+  V(FixStub, art_fix_stub_from_code) \
   V(DecodeJObjectInThread, art_decode_jobject_in_thread)

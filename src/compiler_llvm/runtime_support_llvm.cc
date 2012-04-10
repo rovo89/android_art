@@ -521,92 +521,87 @@ static void* art_find_compiler_runtime_func(char const* name) {
   }
 }
 
-const void* art_ensure_initialized_from_code(Method* called,
-                                             void* code) {
-  if (LIKELY(code != Runtime::Current()->GetResolutionStubArray(Runtime::kStaticMethod)->GetData())) {
-    return code;
-  }
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  Class* called_class = called->GetDeclaringClass();
-  linker->EnsureInitialized(called_class, true, true);
-  if (LIKELY(called_class->IsInitialized())) {
-    return called->GetCode();
-  } else if (called_class->IsInitializing()) {
-    return linker->GetOatCodeFor(called);
-  } else {
-    DCHECK(called_class->IsErroneous());
-    return code;
-  }
-}
-
+// TODO: This runtime support function is the temporary solution for the stubs. Because now the
+// stubs and runtime support functions in the LLVM part and the non-LLVM part is different.
+// After deal these problems, we should remove this function, and will save a function call before
+// every method invocation.
 Method* art_ensure_resolved_from_code(Method* called,
                                       Method* caller,
                                       uint32_t dex_method_idx,
-                                      Instruction::Code instr_code) {
+                                      bool is_virtual) {
   if (LIKELY(!called->IsResolutionMethod())) {
     return called;
   }
-  // Compute details about the called method (avoid GCs)
+
+  // If the called method is ResolutionMethod.  -> ResolutionTrampoline(kUnknownMethod)
+  //                                               Resolve method.
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  bool is_static = (instr_code == Instruction::INVOKE_STATIC) ||
-                   (instr_code == Instruction::INVOKE_STATIC_RANGE);
-
-  bool is_virtual = (instr_code == Instruction::INVOKE_VIRTUAL) ||
-                    (instr_code == Instruction::INVOKE_VIRTUAL_RANGE) ||
-                    (instr_code == Instruction::INVOKE_SUPER) ||
-                    (instr_code == Instruction::INVOKE_SUPER_RANGE);
-
-  DCHECK(is_static || is_virtual ||
-         (instr_code == Instruction::INVOKE_DIRECT) ||
-         (instr_code == Instruction::INVOKE_DIRECT_RANGE));
-
   called = linker->ResolveMethod(dex_method_idx, caller, !is_virtual);
+  if (UNLIKELY(Thread::Current()->IsExceptionPending())) {
+    return NULL;
+  }
+  if (LIKELY(called->IsDirect() == !is_virtual)) {
+    // Ensure that the called method's class is initialized.
+    Class* called_class = called->GetDeclaringClass();
+    linker->EnsureInitialized(called_class, true, true);
+    return called;
+  } else {
+    // Direct method has been made virtual
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+                                          "Expected direct method but found virtual: %s",
+                                          PrettyMethod(called, true).c_str());
+    return NULL;
+  }
+}
 
-  const void* code = NULL;
-  Thread* thread = art_get_current_thread_from_code();
-  if (LIKELY(!thread->IsExceptionPending())) {
-    if (LIKELY(called->IsDirect() == !is_virtual)) {
-      // Ensure that the called method's class is initialized.
-      Class* called_class = called->GetDeclaringClass();
-      linker->EnsureInitialized(called_class, true, true);
-      if (LIKELY(called_class->IsInitialized())) {
-        code = called->GetCode();
-      } else if (called_class->IsInitializing()) {
-        if (is_static) {
-          // Class is still initializing, go to oat and grab code (trampoline must be left in place
-          // until class is initialized to stop races between threads).
-          code = linker->GetOatCodeFor(called);
-          LOG(FATAL) << "Is static";
-        } else {
-          // No trampoline for non-static methods.
-          code = called->GetCode();
-        }
-      } else {
-        DCHECK(called_class->IsErroneous());
-        LOG(FATAL) << "Is erroneous";
-      }
+
+// TODO: This runtime support function is the temporary solution for the stubs. Because now the
+// stubs and runtime support functions in the LLVM part and the non-LLVM part is different.
+// After deal these problems, we should remove this function, and will save a function call before
+// every method invocation.
+// It calls to this function before invoking any function, and this function will check:
+// 1. The code address is ResolutionStub.          -> ResolutionTrampoline(kStaticMethod)
+//                                                    Initialize class.
+// 2. The code address is AbstractMethodErrorStub. -> AbstractMethodErrorStub
+// 3. The code address is 0.                       -> Link the code by ELFLoader
+// The item 3 will solved by in-place linking at image loading.
+const void* art_fix_stub_from_code(Method* called) {
+  if (UNLIKELY(called->IsResolutionMethod())) {
+    LOG(FATAL) << "is ResolutionMethod!!";
+  }
+  Runtime* runtime = Runtime::Current();
+  const void* code = called->GetCode();
+
+  // 1. The code address is ResolutionStub.          -> ResolutionTrampoline(kStaticMethod)
+  if (UNLIKELY(code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData())) {
+    ClassLinker* linker = runtime->GetClassLinker();
+    Class* called_class = called->GetDeclaringClass();
+    linker->EnsureInitialized(called_class, true, true);
+    if (LIKELY(called_class->IsInitialized())) {
+      return called->GetCode();
+    } else if (called_class->IsInitializing()) {
+      return linker->GetOatCodeFor(called);
     } else {
-      // Direct method has been made virtual
-      thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-                                 "Expected direct method but found virtual: %s",
-                                 PrettyMethod(called, true).c_str());
+      DCHECK(Thread::Current()->IsExceptionPending());
+      DCHECK(called_class->IsErroneous());
+      return NULL;
     }
   }
 
-  if (code != NULL) {
-    // Expect class to at least be initializing.
-    DCHECK(called->GetDeclaringClass()->IsInitializing());
-    // Don't want infinite recursion.
-    DCHECK(code != Runtime::Current()->GetResolutionStubArray(Runtime::kUnknownMethod)->GetData());
+  // 2. The code address is AbstractMethodErrorStub. -> AbstractMethodErrorStub
+  if (UNLIKELY(code == runtime->GetAbstractMethodErrorStubArray()->GetData())) {
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
+                                          "abstract method \"%s\"", PrettyMethod(called).c_str());
+    return NULL;
   }
 
-  return called;
-}
-
-void art_ensure_link_from_code(Method* method) {
-  if (method->GetInvokeStub() == NULL || method->GetCode() == NULL) {
-    Runtime::Current()->GetClassLinker()->LinkOatCodeFor(method);
+  // 3. The code address is 0.                       -> Link the code by ELFLoader
+  if (UNLIKELY(called->GetInvokeStub() == NULL || code == NULL)) {
+    runtime->GetClassLinker()->LinkOatCodeFor(called);
+    return called->GetCode();
   }
+
+  return code;
 }
 
 void* art_find_runtime_support_func(void* context, char const* name) {
