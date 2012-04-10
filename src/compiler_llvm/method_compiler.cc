@@ -3776,7 +3776,7 @@ void MethodCompiler::EmitGuard_NullPointerException(uint32_t dex_pc,
 
   irb_.SetInsertPoint(block_exception);
   EmitUpdateLineNumFromDexPC(dex_pc);
-  irb_.CreateCall(irb_.GetRuntime(ThrowNullPointerException));
+  irb_.CreateCall(irb_.GetRuntime(ThrowNullPointerException), irb_.getInt32(dex_pc));
   EmitBranchExceptionLandingPad(dex_pc);
 
   irb_.SetInsertPoint(block_continue);

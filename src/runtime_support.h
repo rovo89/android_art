@@ -54,6 +54,7 @@ void ThrowNewIllegalAccessErrorMethod(Thread* self, Class* referrer, Method* acc
 void ThrowNullPointerExceptionForFieldAccess(Thread* self, Field* field, bool is_read);
 void ThrowNullPointerExceptionForMethodAccess(Thread* self, Method* caller, uint32_t method_idx,
                                               InvokeType type);
+void ThrowNullPointerExceptionFromDexPC(Thread* self, Method* caller, uint32_t dex_pc);
 
 std::string FieldNameFromIndex(const Method* method, uint32_t ref,
                                verifier::VerifyErrorRefType ref_type, bool access);

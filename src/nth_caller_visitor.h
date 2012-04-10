@@ -24,21 +24,18 @@ namespace art {
 
 // Walks up the stack 'n' callers, when used with Thread::WalkStack.
 struct NthCallerVisitor : public Thread::StackVisitor {
-  NthCallerVisitor(size_t n) : n(n), count(0), declaring_class(NULL), class_loader(NULL) {}
+  NthCallerVisitor(size_t n) : n(n), count(0), caller(NULL) {}
   bool VisitFrame(const Frame& f, uintptr_t) {
-    DCHECK(class_loader == NULL);
+    DCHECK(caller == NULL);
     if (count++ == n) {
-      Method* m = f.GetMethod();
-      declaring_class = m->GetDeclaringClass();
-      class_loader = declaring_class->GetClassLoader();
+      caller = f.GetMethod();
       return false;
     }
     return true;
   }
   size_t n;
   size_t count;
-  Class* declaring_class;
-  Object* class_loader;
+  Method* caller;
 };
 
 }  // namespace art

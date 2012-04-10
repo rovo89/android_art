@@ -426,7 +426,7 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
 
   NthCallerVisitor visitor(2);
   Thread::Current()->WalkStack(&visitor);
-  Class* caller_class = visitor.declaring_class;
+  Class* caller_class = visitor.caller->GetDeclaringClass();
 
   ClassHelper caller_ch(caller_class);
   if (!caller_class->CanAccess(c)) {

@@ -47,7 +47,7 @@ static jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThre
 static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
   NthCallerVisitor visitor(2);
   Thread::Current()->WalkStack(&visitor);
-  return AddLocalReference<jobject>(env, visitor.class_loader);
+  return AddLocalReference<jobject>(env, visitor.caller->GetDeclaringClass()->GetClassLoader());
 }
 
 static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap, jobject javaSystem) {
@@ -79,7 +79,7 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject ja
 static jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
   NthCallerVisitor visitor(3);
   Thread::Current()->WalkStack(&visitor);
-  return AddLocalReference<jclass>(env, visitor.declaring_class);
+  return AddLocalReference<jclass>(env, visitor.caller->GetDeclaringClass());
 }
 
 static jobjectArray VMStack_getThreadStackTrace(JNIEnv* env, jclass, jobject javaThread) {

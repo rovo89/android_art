@@ -412,7 +412,7 @@ func_art_throw_no_such_method_from_code->setAttributes(func_art_throw_no_such_me
 Function* func_art_throw_null_pointer_exception_from_code = mod->getFunction("art_throw_null_pointer_exception_from_code");
 if (!func_art_throw_null_pointer_exception_from_code) {
 func_art_throw_null_pointer_exception_from_code = Function::Create(
- /*Type=*/FuncTy_5,
+ /*Type=*/FuncTy_9,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_throw_null_pointer_exception_from_code", mod); // (external, no body)
 func_art_throw_null_pointer_exception_from_code->setCallingConv(CallingConv::C);
