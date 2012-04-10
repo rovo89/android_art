@@ -696,6 +696,10 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             if (Rn.r == 9) {
               args << "  ; ";
               Thread::DumpThreadOffset(args, imm12, 4);
+            } else if (Rn.r == 15) {
+              intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
+              lit_adr = RoundDown(lit_adr, 4) + 4 + imm12;
+              args << "  ; " << reinterpret_cast<void*>(*reinterpret_cast<int32_t*>(lit_adr));
             }
           } else if (op4 == 0) {
             // LDR.W Rt, [Rn, Rm{, LSL #imm2}] - 111 11 00 00 101 nnnn tttt 000000iimmmm
