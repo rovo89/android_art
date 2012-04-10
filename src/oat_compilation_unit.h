@@ -46,6 +46,30 @@ class OatCompilationUnit {
                                   callee_access_flags);
   }
 
+  const ClassLoader* GetClassLoader() const {
+    return class_loader_;
+  }
+
+  ClassLinker* GetClassLinker() const {
+    return class_linker_;
+  }
+
+  const DexFile* GetDexFile() const {
+    return dex_file_;
+  }
+
+  DexCache* GetDexCache() const {
+    return dex_cache_;
+  }
+
+  uint32_t GetDexMethodIndex() const {
+    return method_idx_;
+  }
+
+  const DexFile::CodeItem* GetCodeItem() const {
+    return code_item_;
+  }
+
   const char* GetShorty() const {
     const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx_);
     return dex_file_->GetMethodShorty(method_id);
@@ -54,6 +78,10 @@ class OatCompilationUnit {
   const char* GetShorty(uint32_t* shorty_len) const {
     const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx_);
     return dex_file_->GetMethodShorty(method_id, shorty_len);
+  }
+
+  bool IsStatic() const {
+    return ((access_flags_ & kAccStatic) != 0);
   }
 
  public:

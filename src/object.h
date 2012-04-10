@@ -760,16 +760,6 @@ class MANAGED Method : public Object {
     SetGcMap(reinterpret_cast<uint8_t*>(gc_map_offset));
   }
 
-#if defined(ART_USE_LLVM_COMPILER)
-  // NOTE: In order not to change the Oat file format, we are reusing the
-  // gc_map_ field, so be careful while altering the GC map related code.
-
-  const compiler_llvm::InferredRegCategoryMap* GetInferredRegCategoryMap() const;
-
-  void SetInferredRegCategoryMap(const compiler_llvm::InferredRegCategoryMap* map);
-  void ResetInferredRegCategoryMap();
-#endif
-
   size_t GetFrameSizeInBytes() const {
     DCHECK_EQ(sizeof(size_t), sizeof(uint32_t));
     size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Method, frame_size_in_bytes_), false);

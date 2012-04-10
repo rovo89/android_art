@@ -922,6 +922,12 @@ class DexVerifier {
   static void InitGcMaps();
   static void DeleteGcMaps();
 
+#if defined(ART_USE_LLVM_COMPILER)
+  static const compiler_llvm::InferredRegCategoryMap* GetInferredRegCategoryMap(Compiler::MethodReference ref);
+  static void InitInferredRegCategoryMaps();
+  static void DeleteInferredRegCategoryMaps();
+#endif
+
   static bool IsClassRejected(Compiler::ClassReference ref);
 
  private:
@@ -1304,6 +1310,16 @@ class DexVerifier {
   static Mutex* gc_maps_lock_;
   static GcMapTable* gc_maps_;
   static void SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map);
+
+#if defined(ART_USE_LLVM_COMPILER)
+  // All the inferred register category maps that the verifier has created
+  typedef std::map<const Compiler::MethodReference,
+                   const compiler_llvm::InferredRegCategoryMap*> InferredRegCategoryMapTable;
+  static Mutex* inferred_reg_category_maps_lock_;
+  static InferredRegCategoryMapTable* inferred_reg_category_maps_;
+  static void SetInferredRegCategoryMap(Compiler::MethodReference ref,
+                                        const compiler_llvm::InferredRegCategoryMap& m);
+#endif
 
   static void AddRejectedClass(Compiler::ClassReference ref);
 

@@ -99,6 +99,9 @@ Runtime::~Runtime() {
 
   delete class_linker_;
   delete heap_;
+#if defined(ART_USE_LLVM_COMPILER)
+  verifier::DexVerifier::DeleteInferredRegCategoryMaps();
+#endif
   verifier::DexVerifier::DeleteGcMaps();
   delete intern_table_;
   delete java_vm_;
@@ -642,6 +645,10 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   intern_table_ = new InternTable;
 
   verifier::DexVerifier::InitGcMaps();
+
+#if defined(ART_USE_LLVM_COMPILER)
+  verifier::DexVerifier::InitInferredRegCategoryMaps();
+#endif
 
   heap_ = new Heap(options->heap_initial_size_,
                    options->heap_growth_limit_,

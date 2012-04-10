@@ -580,7 +580,6 @@ std::string DexFile::CreateMethodSignature(uint32_t proto_idx, int32_t* unicode_
   return descriptor;
 }
 
-
 int32_t DexFile::GetLineNumFromPC(const Method* method, uint32_t rel_pc) const {
   // For native method, lineno should be -2 to indicate it is native. Note that
   // "line number == -2" is how libcore tells from StackTraceElement.
@@ -588,12 +587,18 @@ int32_t DexFile::GetLineNumFromPC(const Method* method, uint32_t rel_pc) const {
     return -2;
   }
 
-  const CodeItem* code_item = GetCodeItem(method->GetCodeItemOffset());
+  return GetLineNumFromPC(method->IsStatic(), method->GetDexMethodIndex(),
+                          GetCodeItem(method->GetCodeItemOffset()), rel_pc);
+}
+
+int32_t DexFile::GetLineNumFromPC(bool is_static, uint32_t method_idx,
+                                  const CodeItem* code_item,
+                                  uint32_t rel_pc) const {
   DCHECK(code_item != NULL) << GetLocation();
 
   // A method with no line number info should return -1
   LineNumFromPcContext context(rel_pc, -1);
-  DecodeDebugInfo(code_item, method->IsStatic(), method->GetDexMethodIndex(), LineNumForPcCb,
+  DecodeDebugInfo(code_item, is_static, method_idx, LineNumForPcCb,
                   NULL, &context);
   return context.line_num_;
 }
