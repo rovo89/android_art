@@ -399,11 +399,11 @@ DISASSEMBLER_ENTRY(cmp,
     }
     args << StringPrintf("%d (%p)", displacement, instr + displacement);
   }
-  os << StringPrintf("\t\t\t%p: ", begin_instr);
+  std::stringstream hex;
   for (size_t i = 0; begin_instr + i < instr; ++i) {
-    os << StringPrintf("%02X", begin_instr[i]);
+    hex << StringPrintf("%02X", begin_instr[i]);
   }
-  os << StringPrintf("\t%-7s ", opcode.str().c_str()) << args.str() << std::endl;
+  os << StringPrintf("\t\t\t%p: %22s    \t%-7s ", begin_instr, hex.str().c_str(), opcode.str().c_str()) << args.str() << '\n';
   return instr - begin_instr;
 }
 

@@ -121,6 +121,9 @@ class PACKED Thread {
   static Thread* FromManagedThread(JNIEnv* env, jobject thread);
   static uint32_t LockOwnerFromThreadLock(Object* thread_lock);
 
+  // Translates 172 to pAllocArrayFromCode and so on.
+  static void DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_pointers);
+
   // When full == true, dumps the detailed thread state and the thread stack (used for SIGQUIT).
   // When full == false, dumps a one-line summary of thread state (used for operator<<).
   void Dump(std::ostream& os, bool full = true) const;
