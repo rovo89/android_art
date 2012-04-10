@@ -473,11 +473,6 @@ art_check_cast_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_can_put_array_element_from_code:
-    bnez   a0, 1f                       @ return if element == NULL
-    nop
-    jr     ra
-    nop
-1:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME    @ save callee saves in case exception allocation triggers GC
     move    a2, rSELF                      @ pass Thread::Current
     jal     artCanPutArrayElementFromCode  @ (Object* element, Class* array_class, Thread*, SP)
