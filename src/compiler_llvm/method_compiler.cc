@@ -708,43 +708,43 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
 
 
   case Instruction::INVOKE_VIRTUAL:
-    EmitInsn_InvokeVirtual(ARGS, false);
+    EmitInsn_Invoke(ARGS, kVirtual, kArgReg);
     break;
 
   case Instruction::INVOKE_SUPER:
-    EmitInsn_InvokeSuper(ARGS, false);
+    EmitInsn_Invoke(ARGS, kSuper, kArgReg);
     break;
 
   case Instruction::INVOKE_DIRECT:
-    EmitInsn_InvokeStaticDirect(ARGS, kDirect, /* is_range */ false);
+    EmitInsn_Invoke(ARGS, kDirect, kArgReg);
     break;
 
   case Instruction::INVOKE_STATIC:
-    EmitInsn_InvokeStaticDirect(ARGS, kStatic, /* is_range */ false);
+    EmitInsn_Invoke(ARGS, kStatic, kArgReg);
     break;
 
   case Instruction::INVOKE_INTERFACE:
-    EmitInsn_InvokeInterface(ARGS, false);
+    EmitInsn_Invoke(ARGS, kInterface, kArgReg);
     break;
 
   case Instruction::INVOKE_VIRTUAL_RANGE:
-    EmitInsn_InvokeVirtual(ARGS, true);
+    EmitInsn_Invoke(ARGS, kVirtual, kArgRange);
     break;
 
   case Instruction::INVOKE_SUPER_RANGE:
-    EmitInsn_InvokeSuper(ARGS, true);
+    EmitInsn_Invoke(ARGS, kSuper, kArgRange);
     break;
 
   case Instruction::INVOKE_DIRECT_RANGE:
-    EmitInsn_InvokeStaticDirect(ARGS, kDirect, true);
+    EmitInsn_Invoke(ARGS, kDirect, kArgRange);
     break;
 
   case Instruction::INVOKE_STATIC_RANGE:
-    EmitInsn_InvokeStaticDirect(ARGS, kStatic, true);
+    EmitInsn_Invoke(ARGS, kStatic, kArgRange);
     break;
 
   case Instruction::INVOKE_INTERFACE_RANGE:
-    EmitInsn_InvokeInterface(ARGS, true);
+    EmitInsn_Invoke(ARGS, kInterface, kArgRange);
     break;
 
   case Instruction::NEG_INT:
@@ -2488,35 +2488,6 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
 }
 
 
-Method* MethodCompiler::ResolveMethod(uint32_t method_idx) {
-  Thread* thread = Thread::Current();
-
-  // Save the exception state
-  Throwable* old_exception = NULL;
-  if (thread->IsExceptionPending()) {
-    old_exception = thread->GetException();
-    thread->ClearException();
-  }
-
-  // Resolve the method through the class linker
-  Method* method = class_linker_->ResolveMethod(*dex_file_, method_idx,
-                                                dex_cache_, class_loader_,
-                                                /* is_direct= */ false);
-
-  if (method == NULL) {
-    // Ignore the exception raised during the method resolution
-    thread->ClearException();
-  }
-
-  // Restore the exception state
-  if (old_exception != NULL) {
-    thread->SetException(old_exception);
-  }
-
-  return method;
-}
-
-
 Field* MethodCompiler::ResolveField(uint32_t field_idx) {
   Thread* thread = Thread::Current();
 
@@ -2753,20 +2724,11 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
 }
 
 
-llvm::Value* MethodCompiler::EmitLoadCalleeThis(DecodedInstruction const& dec_insn, bool is_range) {
-  if (is_range) {
-    return EmitLoadDalvikReg(dec_insn.vC, kObject, kAccurate);
-  } else {
-    return EmitLoadDalvikReg(dec_insn.arg[0], kObject, kAccurate);
-  }
-}
-
-
 void MethodCompiler::
 EmitLoadActualParameters(std::vector<llvm::Value*>& args,
                          uint32_t callee_method_idx,
                          DecodedInstruction const& dec_insn,
-                         bool is_range,
+                         InvokeArgFmt arg_fmt,
                          bool is_static) {
 
   // Get method signature
@@ -2783,6 +2745,8 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
   if (!is_static) {
     ++reg_count; // skip the "this" pointer
   }
+
+  bool is_range = (arg_fmt == kArgRange);
 
   for (uint32_t i = 1; i < shorty_size; ++i) {
     uint32_t reg_idx = (is_range) ? (dec_insn.vC + reg_count)
@@ -2826,293 +2790,101 @@ llvm::Value* MethodCompiler::EmitFixStub(llvm::Value* callee_method_object_addr,
   return irb_.CreatePointerCast(code_addr, method_type->getPointerTo());
 }
 
-void MethodCompiler::EmitInsn_InvokeVirtualSuperSlow(uint32_t dex_pc,
-                                                     DecodedInstruction &dec_insn,
-                                                     bool is_range,
-                                                     uint32_t callee_method_idx,
-                                                     bool is_virtual) {
-  // Callee method can't be resolved at compile time.  Emit the runtime
-  // method resolution code.
 
-  // Test: Is "this" pointer equal to null?
-  llvm::Value* this_addr = EmitLoadCalleeThis(dec_insn, is_range);
-  EmitGuard_NullPointerException(dex_pc, this_addr);
-
-  // Resolve the callee method object address at runtime
-  llvm::Value* runtime_func;
-  if (is_virtual) {
-    runtime_func = irb_.GetRuntime(FindVirtualMethod);
-  } else {
-    runtime_func = irb_.GetRuntime(FindSuperMethod);
-  }
-
-  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
-
-  llvm::Value* callee_method_idx_value = irb_.getInt32(callee_method_idx);
-
-  EmitUpdateLineNumFromDexPC(dex_pc);
-
-  llvm::Value* callee_method_object_addr =
-      irb_.CreateCall3(runtime_func,
-                       callee_method_idx_value, this_addr, method_object_addr);
-
-  EmitGuard_ExceptionLandingPad(dex_pc);
-
-#if 0
-  llvm::Value* code_addr =
-      EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, false);
-#else
-  // TODO: Remove this after we solve the link and trampoline related problems.
-  llvm::Value* code_addr = EmitFixStub(callee_method_object_addr,
-                                       callee_method_idx,
-                                       false);
-  EmitGuard_ExceptionLandingPad(dex_pc);
-#endif
-
-  // Load the actual parameter
-  std::vector<llvm::Value*> args;
-  args.push_back(callee_method_object_addr);
-  args.push_back(this_addr);
-  EmitLoadActualParameters(args, callee_method_idx, dec_insn, is_range, false);
-
-  // Invoke callee
-  EmitUpdateLineNumFromDexPC(dex_pc);
-  llvm::Value* retval = irb_.CreateCall(code_addr, args);
-  EmitGuard_ExceptionLandingPad(dex_pc);
-
-  UniquePtr<OatCompilationUnit>
-      callee(oat_compilation_unit_->GetCallee(callee_method_idx, /* access flags */ 0));
-  char ret_shorty = callee->GetShorty()[0];
-  if (ret_shorty != 'V') {
-    EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
-  }
-}
-
-void MethodCompiler::EmitInsn_InvokeVirtual(uint32_t dex_pc,
-                                            Instruction const* insn,
-                                            bool is_range) {
-
+void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
+                                     Instruction const* insn,
+                                     InvokeType invoke_type,
+                                     InvokeArgFmt arg_fmt) {
   DecodedInstruction dec_insn(insn);
-
-  uint32_t callee_method_idx = dec_insn.vB;
-
-  // Find the method object at compile time
-  Method* callee_method = ResolveMethod(callee_method_idx);
-
-  if (callee_method == NULL) {
-    EmitInsn_InvokeVirtualSuperSlow(dex_pc, dec_insn, is_range,
-                                    callee_method_idx, /*is_virtual*/ true);
-  } else {
-    // Test: Is *this* parameter equal to null?
-    llvm::Value* this_addr = EmitLoadCalleeThis(dec_insn, is_range);
-    EmitGuard_NullPointerException(dex_pc, this_addr);
-
-    // Load class object of *this* pointer
-    llvm::Value* class_object_addr = EmitLoadClassObjectAddr(this_addr);
-
-    // Load callee method code address (branch destination)
-    llvm::Value* vtable_addr = EmitLoadVTableAddr(class_object_addr);
-
-    llvm::Value* method_object_addr =
-      EmitLoadMethodObjectAddrFromVTable(vtable_addr,
-                                         callee_method->GetMethodIndex());
-
-#if 0
-    llvm::Value* code_addr =
-        EmitLoadCodeAddr(method_object_addr, callee_method_idx, false);
-#else
-    // TODO: Remove this after we solve the link and trampoline related problems.
-    method_object_addr = EmitEnsureResolved(method_object_addr,
-                                            EmitLoadMethodObjectAddr(),
-                                            callee_method_idx,
-                                            true);
-    EmitGuard_ExceptionLandingPad(dex_pc);
-
-    llvm::Value* code_addr = EmitFixStub(method_object_addr,
-                                         callee_method_idx,
-                                         false);
-    EmitGuard_ExceptionLandingPad(dex_pc);
-#endif
-    // Load actual parameters
-    std::vector<llvm::Value*> args;
-    args.push_back(method_object_addr);
-    args.push_back(this_addr);
-    EmitLoadActualParameters(args, callee_method_idx, dec_insn,
-                             is_range, false);
-
-    // Invoke callee
-    EmitUpdateLineNumFromDexPC(dex_pc);
-    llvm::Value* retval = irb_.CreateCall(code_addr, args);
-    EmitGuard_ExceptionLandingPad(dex_pc);
-
-    MethodHelper method_helper(callee_method);
-    char ret_shorty = method_helper.GetShorty()[0];
-    if (ret_shorty != 'V') {
-      EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
-    }
-  }
-
-  irb_.CreateBr(GetNextBasicBlock(dex_pc));
-}
-
-
-void MethodCompiler::EmitInsn_InvokeSuper(uint32_t dex_pc,
-                                          Instruction const* insn,
-                                          bool is_range) {
-
-  DecodedInstruction dec_insn(insn);
-
-  uint32_t callee_method_idx = dec_insn.vB;
-
-  // Find the method object at compile time
-  Method* callee_overiding_method = ResolveMethod(callee_method_idx);
-
-  if (callee_overiding_method == NULL) {
-    EmitInsn_InvokeVirtualSuperSlow(dex_pc, dec_insn, is_range,
-                                    callee_method_idx, /*is_virtual*/ false);
-  } else {
-    // CHECK: Is the instruction well-encoded or is the class hierarchy correct?
-    Class* declaring_class = method_->GetDeclaringClass();
-    CHECK_NE(declaring_class, static_cast<Class*>(NULL));
-
-    Class* super_class = declaring_class->GetSuperClass();
-    CHECK_NE(super_class, static_cast<Class*>(NULL));
-
-    uint16_t callee_method_index = callee_overiding_method->GetMethodIndex();
-    CHECK_GT(super_class->GetVTable()->GetLength(), callee_method_index);
-
-    Method* callee_method = super_class->GetVTable()->Get(callee_method_index);
-    CHECK_NE(callee_method, static_cast<Method*>(NULL));
-
-    // Test: Is *this* parameter equal to null?
-    llvm::Value* this_addr = EmitLoadCalleeThis(dec_insn, is_range);
-    EmitGuard_NullPointerException(dex_pc, this_addr);
-
-    // Load declaring class of the caller method
-    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
-
-    llvm::ConstantInt* declaring_class_offset_value =
-      irb_.getPtrEquivInt(Method::DeclaringClassOffset().Int32Value());
-
-    llvm::Value* declaring_class_field_addr =
-      irb_.CreatePtrDisp(method_object_addr, declaring_class_offset_value,
-                         irb_.getJObjectTy()->getPointerTo());
-
-    llvm::Value* declaring_class_addr =
-      irb_.CreateLoad(declaring_class_field_addr);
-
-    // Load the super class of the declaring class
-    llvm::Value* super_class_offset_value =
-      irb_.getPtrEquivInt(Class::SuperClassOffset().Int32Value());
-
-    llvm::Value* super_class_field_addr =
-      irb_.CreatePtrDisp(declaring_class_addr, super_class_offset_value,
-                         irb_.getJObjectTy()->getPointerTo());
-
-    llvm::Value* super_class_addr =
-      irb_.CreateLoad(super_class_field_addr);
-
-    // Load method object from virtual table
-    llvm::Value* vtable_addr = EmitLoadVTableAddr(super_class_addr);
-
-    llvm::Value* callee_method_object_addr =
-      EmitLoadMethodObjectAddrFromVTable(vtable_addr,
-                                         callee_method->GetMethodIndex());
-
-#if 0
-    llvm::Value* code_addr =
-        EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, false);
-#else
-    // TODO: Remove this after we solve the link and trampoline related problems.
-    callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr,
-                                                   method_object_addr,
-                                                   callee_method_idx,
-                                                   true);
-    EmitGuard_ExceptionLandingPad(dex_pc);
-
-    llvm::Value* code_addr = EmitFixStub(callee_method_object_addr,
-                                         callee_method_idx,
-                                         false);
-    EmitGuard_ExceptionLandingPad(dex_pc);
-#endif
-
-    // Load actual parameters
-    std::vector<llvm::Value*> args;
-    args.push_back(callee_method_object_addr);
-    args.push_back(this_addr);
-    EmitLoadActualParameters(args, callee_method_idx, dec_insn,
-                             is_range, false);
-
-    // Invoke callee
-    EmitUpdateLineNumFromDexPC(dex_pc);
-    llvm::Value* retval = irb_.CreateCall(code_addr, args);
-    EmitGuard_ExceptionLandingPad(dex_pc);
-
-    MethodHelper method_helper(callee_method);
-    char ret_shorty = method_helper.GetShorty()[0];
-    if (ret_shorty != 'V') {
-      EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
-    }
-  }
-
-  irb_.CreateBr(GetNextBasicBlock(dex_pc));
-}
-
-
-void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
-                                                 Instruction const* insn,
-                                                 InvokeType invoke_type,
-                                                 bool is_range) {
-
-  DecodedInstruction dec_insn(insn);
-
-  uint32_t callee_method_idx = dec_insn.vB;
 
   bool is_static = (invoke_type == kStatic);
+  uint32_t callee_method_idx = dec_insn.vB;
 
-  UniquePtr<OatCompilationUnit> callee_oatcompilation_unit(
-      oat_compilation_unit_->GetCallee(callee_method_idx, is_static ? kAccStatic : 0));
-
-  int vtable_idx = -1; // Currently unused
+  // Compute invoke related information for compiler decision
+  int vtable_idx = -1;
   uintptr_t direct_code = 0; // Currently unused
   uintptr_t direct_method = 0; // Currently unused
   bool is_fast_path = compiler_->
-    ComputeInvokeInfo(callee_method_idx, callee_oatcompilation_unit.get(),
+    ComputeInvokeInfo(callee_method_idx, oat_compilation_unit_,
                       invoke_type, vtable_idx, direct_code, direct_method);
 
-  CHECK(is_fast_path) << "Slow path for invoke static/direct is unimplemented";
-
+  // Load *this* actual parameter
   llvm::Value* this_addr = NULL;
 
   if (!is_static) {
     // Test: Is *this* parameter equal to null?
-    this_addr = EmitLoadCalleeThis(dec_insn, is_range);
+    this_addr = (arg_fmt == kArgReg) ?
+      EmitLoadDalvikReg(dec_insn.arg[0], kObject, kAccurate):
+      EmitLoadDalvikReg(dec_insn.vC + 0, kObject, kAccurate);
+
     EmitGuard_NullPointerException(dex_pc, this_addr);
   }
 
-  // Load method function pointers
-  llvm::Value* callee_method_object_field_addr =
-    EmitLoadDexCacheResolvedMethodFieldAddr(callee_method_idx);
+  // Load the method object
+  llvm::Value* callee_method_object_addr_ = NULL;
+
+  if (!is_fast_path) {
+    callee_method_object_addr_ =
+      EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx, invoke_type,
+                                               this_addr, dex_pc, is_fast_path);
+  } else {
+    switch (invoke_type) {
+    case kStatic:
+    case kDirect:
+      callee_method_object_addr_ =
+        EmitLoadSDCalleeMethodObjectAddr(callee_method_idx);
+      break;
+
+    case kVirtual:
+      DCHECK(vtable_idx != -1);
+      callee_method_object_addr_ =
+        EmitLoadVirtualCalleeMethodObjectAddr(vtable_idx, this_addr);
+      break;
+
+    case kSuper:
+      LOG(FATAL) << "invoke-super should be promoted to invoke-direct in "
+                    "the fast path.";
+      break;
+
+    case kInterface:
+      callee_method_object_addr_ =
+        EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx,
+                                                 invoke_type, this_addr,
+                                                 dex_pc, is_fast_path);
+      break;
+    }
+  }
+
+  // Ensure the callee method object is resolved, linked, and its declaring
+  // class is initialized.
+  bool is_virtual = (dec_insn.opcode == Instruction::INVOKE_VIRTUAL) ||
+                    (dec_insn.opcode == Instruction::INVOKE_VIRTUAL_RANGE) ||
+                    (dec_insn.opcode == Instruction::INVOKE_SUPER) ||
+                    (dec_insn.opcode == Instruction::INVOKE_SUPER_RANGE);
+
+  llvm::Value* caller_method_object_addr = EmitLoadMethodObjectAddr();
 
   llvm::Value* callee_method_object_addr =
-    irb_.CreateLoad(callee_method_object_field_addr);
+    EmitEnsureResolved(callee_method_object_addr_,
+                       caller_method_object_addr,
+                       callee_method_idx,
+                       is_virtual);
 
 #if 0
-    llvm::Value* code_addr =
-        EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, is_static);
-#else
-    // TODO: Remove this after we solve the link and trampoline related problems.
-    callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr,
-                                                   EmitLoadMethodObjectAddr(),
-                                                   callee_method_idx,
-                                                   false);
-    EmitGuard_ExceptionLandingPad(dex_pc);
+  llvm::Value* code_field_offset_value =
+    irb_.getPtrEquivInt(Method::GetCodeOffset().Int32Value());
 
-    llvm::Value* code_addr = EmitFixStub(callee_method_object_addr,
-                                         callee_method_idx,
-                                         is_static);
-    EmitGuard_ExceptionLandingPad(dex_pc);
-    // FixStub may resolve method, so we need to reload method.
+  llvm::Value* code_field_addr =
+    irb_.CreatePtrDisp(callee_method_object_addr, code_field_offset_value,
+                       irb_.getInt8Ty()->getPointerTo()->getPointerTo());
+
+  llvm::Value* code_addr = irb_.CreateLoad(code_field_addr);
+#else
+  // TODO: Remove this after we solve the link and trampoline related problems.
+  llvm::Value* code_addr =
+    EmitFixStub(callee_method_object_addr, callee_method_idx, is_static);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
 #endif
 
   // Load the actual parameter
@@ -3121,18 +2893,23 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
   args.push_back(callee_method_object_addr); // method object for callee
 
   if (!is_static) {
+    DCHECK(this_addr != NULL);
     args.push_back(this_addr); // "this" object for callee
   }
 
   EmitLoadActualParameters(args, callee_method_idx, dec_insn,
-                           is_range, is_static);
+                           arg_fmt, is_static);
 
   // Invoke callee
   EmitUpdateLineNumFromDexPC(dex_pc);
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
   EmitGuard_ExceptionLandingPad(dex_pc);
 
-  char ret_shorty = callee_oatcompilation_unit->GetShorty()[0];
+  uint32_t callee_access_flags = is_static ? kAccStatic : 0;
+  UniquePtr<OatCompilationUnit> callee_oat_compilation_unit(
+    oat_compilation_unit_->GetCallee(callee_method_idx, callee_access_flags));
+
+  char ret_shorty = callee_oat_compilation_unit->GetShorty()[0];
   if (ret_shorty != 'V') {
     EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
   }
@@ -3141,65 +2918,104 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
 }
 
 
-void MethodCompiler::EmitInsn_InvokeInterface(uint32_t dex_pc,
-                                              Instruction const* insn,
-                                              bool is_range) {
+llvm::Value* MethodCompiler::
+EmitLoadSDCalleeMethodObjectAddr(uint32_t callee_method_idx) {
+  llvm::Value* callee_method_object_field_addr =
+    EmitLoadDexCacheResolvedMethodFieldAddr(callee_method_idx);
 
-  DecodedInstruction dec_insn(insn);
+  return irb_.CreateLoad(callee_method_object_field_addr);
+}
 
-  uint32_t callee_method_idx = dec_insn.vB;
 
-  // Resolve callee method
-  Method* callee_method = ResolveMethod(callee_method_idx);
+llvm::Value* MethodCompiler::
+EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx,
+                                      llvm::Value* this_addr) {
+  // Load class object of *this* pointer
+  llvm::Constant* class_field_offset_value =
+    irb_.getPtrEquivInt(Object::ClassOffset().Int32Value());
 
-  // Test: Is "this" pointer equal to null?
-  llvm::Value* this_addr = EmitLoadCalleeThis(dec_insn, is_range);
-  EmitGuard_NullPointerException(dex_pc, this_addr);
+  llvm::Value* class_field_addr =
+    irb_.CreatePtrDisp(this_addr, class_field_offset_value,
+                       irb_.getJObjectTy()->getPointerTo());
 
-  // Resolve the callee method object address at runtime
-  llvm::Value* runtime_func = irb_.GetRuntime(FindInterfaceMethod);
+  llvm::Value* class_object_addr = irb_.CreateLoad(class_field_addr);
 
-  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+  // Load vtable address
+  llvm::Constant* vtable_offset_value =
+    irb_.getPtrEquivInt(Class::VTableOffset().Int32Value());
+
+  llvm::Value* vtable_field_addr =
+    irb_.CreatePtrDisp(class_object_addr, vtable_offset_value,
+                       irb_.getJObjectTy()->getPointerTo());
+
+  llvm::Value* vtable_addr = irb_.CreateLoad(vtable_field_addr);
+
+  // Load callee method object
+  llvm::Value* vtable_idx_value =
+    irb_.getPtrEquivInt(static_cast<uint64_t>(vtable_idx));
+
+  llvm::Value* method_field_addr =
+    EmitArrayGEP(vtable_addr, vtable_idx_value, irb_.getJObjectTy(), kObject);
+
+  return irb_.CreateLoad(method_field_addr);
+}
+
+
+llvm::Value* MethodCompiler::
+EmitCallRuntimeForCalleeMethodObjectAddr(uint32_t callee_method_idx,
+                                         InvokeType invoke_type,
+                                         llvm::Value* this_addr,
+                                         uint32_t dex_pc,
+                                         bool is_fast_path) {
+
+  llvm::Function* runtime_func = NULL;
+
+  switch (invoke_type) {
+  case kStatic:
+    runtime_func = irb_.GetRuntime(FindStaticMethodWithAccessCheck);
+    break;
+
+  case kDirect:
+    runtime_func = irb_.GetRuntime(FindDirectMethodWithAccessCheck);
+    break;
+
+  case kVirtual:
+    runtime_func = irb_.GetRuntime(FindVirtualMethodWithAccessCheck);
+    break;
+
+  case kSuper:
+    runtime_func = irb_.GetRuntime(FindSuperMethodWithAccessCheck);
+    break;
+
+  case kInterface:
+    if (is_fast_path) {
+      runtime_func = irb_.GetRuntime(FindInterfaceMethod);
+    } else {
+      runtime_func = irb_.GetRuntime(FindInterfaceMethodWithAccessCheck);
+    }
+    break;
+  }
 
   llvm::Value* callee_method_idx_value = irb_.getInt32(callee_method_idx);
+
+  if (this_addr == NULL) {
+    DCHECK_EQ(invoke_type, kStatic);
+    this_addr = irb_.getJNull();
+  }
+
+  llvm::Value* caller_method_object_addr = EmitLoadMethodObjectAddr();
 
   EmitUpdateLineNumFromDexPC(dex_pc);
 
   llvm::Value* callee_method_object_addr =
     irb_.CreateCall3(runtime_func,
-                     callee_method_idx_value, this_addr, method_object_addr);
+                     callee_method_idx_value,
+                     this_addr,
+                     caller_method_object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
 
-#if 0
-  llvm::Value* code_addr =
-    EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, false);
-#else
-  // TODO: Remove this after we solve the link and trampoline related problems.
-  llvm::Value* code_addr = EmitFixStub(callee_method_object_addr,
-                                       callee_method_idx,
-                                       false);
-  EmitGuard_ExceptionLandingPad(dex_pc);
-#endif
-
-  // Load the actual parameter
-  std::vector<llvm::Value*> args;
-  args.push_back(callee_method_object_addr);
-  args.push_back(this_addr);
-  EmitLoadActualParameters(args, callee_method_idx, dec_insn, is_range, false);
-
-  // Invoke callee
-  EmitUpdateLineNumFromDexPC(dex_pc);
-  llvm::Value* retval = irb_.CreateCall(code_addr, args);
-  EmitGuard_ExceptionLandingPad(dex_pc);
-
-  MethodHelper method_helper(callee_method);
-  char ret_shorty = method_helper.GetShorty()[0];
-  if (ret_shorty != 'V') {
-    EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
-  }
-
-  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return callee_method_object_addr;
 }
 
 
@@ -3709,61 +3525,6 @@ void MethodCompiler::EmitGuard_DivZeroException(uint32_t dex_pc,
   EmitBranchExceptionLandingPad(dex_pc);
 
   irb_.SetInsertPoint(block_continue);
-}
-
-
-llvm::Value* MethodCompiler::EmitLoadClassObjectAddr(llvm::Value* this_addr) {
-  llvm::Constant* class_field_offset_value =
-    irb_.getPtrEquivInt(Object::ClassOffset().Int32Value());
-
-  llvm::Value* class_field_addr =
-    irb_.CreatePtrDisp(this_addr, class_field_offset_value,
-                       irb_.getJObjectTy()->getPointerTo());
-
-  return irb_.CreateLoad(class_field_addr);
-}
-
-
-llvm::Value*
-MethodCompiler::EmitLoadVTableAddr(llvm::Value* class_object_addr) {
-  llvm::Constant* vtable_offset_value =
-    irb_.getPtrEquivInt(Class::VTableOffset().Int32Value());
-
-  llvm::Value* vtable_field_addr =
-    irb_.CreatePtrDisp(class_object_addr, vtable_offset_value,
-                       irb_.getJObjectTy()->getPointerTo());
-
-  return irb_.CreateLoad(vtable_field_addr);
-}
-
-
-llvm::Value* MethodCompiler::
-EmitLoadMethodObjectAddrFromVTable(llvm::Value* vtable_addr,
-                                   uint16_t vtable_index) {
-  llvm::Value* vtable_index_value =
-    irb_.getPtrEquivInt(static_cast<uint64_t>(vtable_index));
-
-  llvm::Value* method_field_addr =
-    EmitArrayGEP(vtable_addr, vtable_index_value, irb_.getJObjectTy(), kObject);
-
-  return irb_.CreateLoad(method_field_addr);
-}
-
-
-llvm::Value* MethodCompiler::EmitLoadCodeAddr(llvm::Value* method_object_addr,
-                                              uint32_t method_idx,
-                                              bool is_static) {
-
-  llvm::Value* code_field_offset_value =
-    irb_.getPtrEquivInt(Method::GetCodeOffset().Int32Value());
-
-  llvm::FunctionType* method_type = GetFunctionType(method_idx, is_static);
-
-  llvm::Value* code_field_addr =
-    irb_.CreatePtrDisp(method_object_addr, code_field_offset_value,
-                       method_type->getPointerTo()->getPointerTo());
-
-  return irb_.CreateLoad(code_field_addr);
 }
 
 

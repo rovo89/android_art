@@ -129,6 +129,11 @@ class MethodCompiler {
     kFPArithm_Rem,
   };
 
+  enum InvokeArgFmt {
+    kArgReg,
+    kArgRange,
+  };
+
 #define GEN_INSN_ARGS uint32_t dex_pc, Instruction const* insn
 
   // NOP, PAYLOAD (unreachable) instructions
@@ -203,17 +208,20 @@ class MethodCompiler {
                                   uint32_t dex_method_idx,
                                   bool is_virtual);
 
-  void EmitInsn_InvokeVirtual(GEN_INSN_ARGS, bool is_range);
-  void EmitInsn_InvokeSuper(GEN_INSN_ARGS, bool is_range);
-  void EmitInsn_InvokeVirtualSuperSlow(uint32_t dex_pc,
-                                       DecodedInstruction &dec_insn,
-                                       bool is_range,
-                                       uint32_t callee_method_idx,
-                                       bool is_virtual);
-  void EmitInsn_InvokeStaticDirect(GEN_INSN_ARGS,
-                                   InvokeType invoke_type,
-                                   bool is_range);
-  void EmitInsn_InvokeInterface(GEN_INSN_ARGS, bool is_range);
+  void EmitInsn_Invoke(GEN_INSN_ARGS,
+                       InvokeType invoke_type,
+                       InvokeArgFmt arg_fmt);
+
+  llvm::Value* EmitLoadSDCalleeMethodObjectAddr(uint32_t callee_method_idx);
+
+  llvm::Value* EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx,
+                                                     llvm::Value* this_addr);
+
+  llvm::Value* EmitCallRuntimeForCalleeMethodObjectAddr(uint32_t callee_method_idx,
+                                                        InvokeType invoke_type,
+                                                        llvm::Value* this_addr,
+                                                        uint32_t dex_pc,
+                                                        bool is_fast_path);
 
   // Unary instructions
   void EmitInsn_Neg(GEN_INSN_ARGS, JType op_jty);
@@ -338,12 +346,10 @@ class MethodCompiler {
 
   llvm::Value* EmitLoadStaticStorage(uint32_t dex_pc, uint32_t type_idx);
 
-  llvm::Value* EmitLoadCalleeThis(DecodedInstruction const& di, bool is_range);
-
   void EmitLoadActualParameters(std::vector<llvm::Value*>& args,
                                 uint32_t callee_method_idx,
                                 DecodedInstruction const& di,
-                                bool is_range,
+                                InvokeArgFmt arg_fmt,
                                 bool is_static);
 
   void EmitGuard_DivZeroException(uint32_t dex_pc,
@@ -362,8 +368,6 @@ class MethodCompiler {
                                 llvm::Value* index);
 
   RegCategory GetInferredRegCategory(uint32_t dex_pc, uint16_t reg);
-
-  Method* ResolveMethod(uint32_t method_idx);
 
   Field* ResolveField(uint32_t field_idx);
 

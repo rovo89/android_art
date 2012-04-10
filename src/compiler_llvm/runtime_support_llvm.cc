@@ -223,22 +223,41 @@ static Method* FindMethodHelper(uint32_t method_idx, Object* this_object, Method
   return method;
 }
 
-Object* art_find_interface_method_from_code(uint32_t method_idx,
-                                            Object* this_object,
-                                            Method* referrer) {
-  return FindMethodHelper(method_idx, this_object, referrer, true, kInterface);
+Object* art_find_static_method_from_code_with_access_check(uint32_t method_idx,
+                                                           Object* this_object,
+                                                           Method* referrer) {
+  return FindMethodHelper(method_idx, this_object, referrer, true, kStatic);
 }
 
-Object* art_find_virtual_method_from_code(uint32_t method_idx,
-                                          Object* this_object,
-                                          Method* referrer) {
+Object* art_find_direct_method_from_code_with_access_check(uint32_t method_idx,
+                                                           Object* this_object,
+                                                           Method* referrer) {
+  return FindMethodHelper(method_idx, this_object, referrer, true, kDirect);
+}
+
+Object* art_find_virtual_method_from_code_with_access_check(uint32_t method_idx,
+                                                            Object* this_object,
+                                                            Method* referrer) {
   return FindMethodHelper(method_idx, this_object, referrer, true, kVirtual);
 }
 
-Object* art_find_super_method_from_code(uint32_t method_idx,
-                                        Object* this_object,
-                                        Method* referrer) {
+Object* art_find_super_method_from_code_with_access_check(uint32_t method_idx,
+                                                          Object* this_object,
+                                                          Method* referrer) {
   return FindMethodHelper(method_idx, this_object, referrer, true, kSuper);
+}
+
+Object*
+art_find_interface_method_from_code_with_access_check(uint32_t method_idx,
+                                                      Object* this_object,
+                                                      Method* referrer) {
+  return FindMethodHelper(method_idx, this_object, referrer, true, kInterface);
+}
+
+Object* art_find_interface_method_from_code(uint32_t method_idx,
+                                            Object* this_object,
+                                            Method* referrer) {
+  return FindMethodHelper(method_idx, this_object, referrer, false, kInterface);
 }
 
 Object* art_initialize_static_storage_from_code(uint32_t type_idx, Method* referrer) {
