@@ -55,6 +55,7 @@ void ThrowNullPointerExceptionForFieldAccess(Thread* self, Field* field, bool is
 void ThrowNullPointerExceptionForMethodAccess(Thread* self, Method* caller, uint32_t method_idx,
                                               InvokeType type);
 void ThrowNullPointerExceptionFromDexPC(Thread* self, Method* caller, uint32_t dex_pc);
+void ThrowVerificationError(Thread* self, const Method* method, int32_t kind, int32_t ref);
 
 std::string FieldNameFromIndex(const Method* method, uint32_t ref,
                                verifier::VerifyErrorRefType ref_type, bool access);
