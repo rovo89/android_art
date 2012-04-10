@@ -467,6 +467,23 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         // |111|10|x1| op3 | Rn |0|xxxxxxxxxxxxxxx|
         uint32_t op3 = (instr >> 20) & 0x1F;
         switch (op3) {
+          case 0x00: {
+            ArmRegister Rd(instr, 8);
+            ArmRegister Rn(instr, 16);
+            uint32_t i = (instr >> 26) & 1;
+            uint32_t imm3 = (instr >> 12) & 0x7;
+            uint32_t imm8 = instr & 0xFF;
+            uint32_t imm12 = (i << 11) | (imm3 << 8) | imm8;
+            if (Rn.r != 0xF) {
+              opcode << "addw";
+              args << Rd << ", " << Rn << ", #" << imm12;
+            } else {
+              opcode << "adr";
+              args << Rd << ", ";
+              DumpBranchTarget(args, instr_ptr + 4, imm12);
+            }
+            break;
+          }
           case 0x04: {
             // MOVW Rd, #imm16     - 111 10 i0 0010 0 iiii 0 iii dddd iiiiiiii
             ArmRegister Rd(instr, 8);
@@ -600,38 +617,52 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               break;
             }
             case 0x2: case 0x6: {
-              // STR.W Rt, [Rn, #imm12] - 111 11 000 110 0 nnnn tttt iiiiiiiiiiii
-              // STR Rt, [Rn, #imm8]    - 111 11 000 010 0 nnnn tttt 1PUWiiiiiiii
               ArmRegister Rn(instr, 16);
               ArmRegister Rt(instr, 12);
               if (op3 == 2) {
-                uint32_t P = (instr >> 10) & 1;
-                uint32_t U = (instr >> 9) & 1;
-                uint32_t W = (instr >> 8) & 1;
-                uint32_t imm8 = instr & 0xFF;
-                int32_t imm32 = (imm8 << 24) >> 24;  // sign-extend imm8
-                if (Rn.r == 13 && P == 1 && U == 0 && W == 1) {
-                  opcode << "push";
-                  args << Rt;
-                } else if (Rn.r == 15 || (P == 0 && W == 0)) {
-                  opcode << "UNDEFINED";
-                } else {
-                  if (P == 1 && U == 1 && W == 0) {
-                    opcode << "strt";
+                if ((instr & 0x800) != 0) {
+                  // STR Rt, [Rn, #imm8] - 111 11 000 010 0 nnnn tttt 1PUWiiiiiiii
+                  uint32_t P = (instr >> 10) & 1;
+                  uint32_t U = (instr >> 9) & 1;
+                  uint32_t W = (instr >> 8) & 1;
+                  uint32_t imm8 = instr & 0xFF;
+                  int32_t imm32 = (imm8 << 24) >> 24;  // sign-extend imm8
+                  if (Rn.r == 13 && P == 1 && U == 0 && W == 1 && imm32 == 4) {
+                    opcode << "push";
+                    args << Rt;
+                  } else if (Rn.r == 15 || (P == 0 && W == 0)) {
+                    opcode << "UNDEFINED";
                   } else {
-                    opcode << "str";
-                  }
-                  args << Rt << ", [" << Rn;
-                  if (P == 0 && W == 1) {
-                    args << "], #" << imm32;
-                  } else {
-                    args << ", #" << imm32 << "]";
-                    if (W == 1) {
-                      args << "!";
+                    if (P == 1 && U == 1 && W == 0) {
+                      opcode << "strt";
+                    } else {
+                      opcode << "str";
+                    }
+                    args << Rt << ", [" << Rn;
+                    if (P == 0 && W == 1) {
+                      args << "], #" << imm32;
+                    } else {
+                      args << ", #" << imm32 << "]";
+                      if (W == 1) {
+                        args << "!";
+                      }
                     }
                   }
+                } else {
+                  // STR Rt, [Rn, Rm, LSL #imm2] - 111 11 000 010 0 nnnn tttt 000000iimmmm
+                  ArmRegister Rn(instr, 16);
+                  ArmRegister Rt(instr, 12);
+                  ArmRegister Rm(instr, 0);
+                  uint32_t imm2 = (instr >> 4) & 3;
+                  opcode << "str.w";
+                  args << Rt << ", [" << Rn << ", " << Rm;
+                  if (imm2 != 0) {
+                    args << ", lsl #" << imm2;
+                  }
+                  args << "]";
                 }
               } else if (op3 == 6) {
+                // STR.W Rt, [Rn, #imm12] - 111 11 000 110 0 nnnn tttt iiiiiiiiiiii
                 uint32_t imm12 = instr & 0xFFF;
                 opcode << "str.w";
                 args << Rt << ", [" << Rn << ", #" << imm12 << "]";
