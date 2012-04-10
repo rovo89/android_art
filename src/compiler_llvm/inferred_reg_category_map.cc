@@ -37,18 +37,22 @@ InferredRegCategoryMap::~InferredRegCategoryMap() {
 
 RegCategory InferredRegCategoryMap::GetRegCategory(uint32_t dex_pc,
                                                    uint16_t reg_idx) const {
-  CHECK_NE(lines_[dex_pc], static_cast<RegCategoryLine*>(NULL));
-  return static_cast<RegCategory>((*lines_[dex_pc])[reg_idx]);
+  if (lines_[dex_pc] == NULL) {
+    return kRegUnknown;
+  }
+  return lines_[dex_pc]->GetRegCategory(reg_idx);
 }
 
 void InferredRegCategoryMap::SetRegCategory(uint32_t dex_pc,
                                             uint16_t reg_idx,
                                             RegCategory cat) {
-  if (lines_[dex_pc] == NULL) {
-    lines_[dex_pc] = new RegCategoryLine(registers_size_, kRegUnknown);
-  }
+  if (cat != kRegUnknown) {
+    if (lines_[dex_pc] == NULL) {
+      lines_[dex_pc] = new RegCategoryLine();
+    }
 
-  (*lines_[dex_pc])[reg_idx] = cat;
+    (*lines_[dex_pc]).SetRegCategory(reg_idx, cat);
+  }
 }
 
 bool InferredRegCategoryMap::
