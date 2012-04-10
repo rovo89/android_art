@@ -141,6 +141,7 @@ class MethodCompiler {
   // MOVE_EXCEPTION, THROW instructions
   void EmitInsn_MoveException(GEN_INSN_ARGS);
   void EmitInsn_ThrowException(GEN_INSN_ARGS);
+  void EmitInsn_ThrowVerificationError(GEN_INSN_ARGS);
 
   // RETURN instructions
   void EmitInsn_ReturnVoid(GEN_INSN_ARGS);

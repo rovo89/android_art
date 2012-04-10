@@ -139,6 +139,12 @@ void art_throw_exception_from_code(Object* exception) {
   }
 }
 
+void art_throw_verification_error_from_code(Method* current_method,
+                                            int32_t kind,
+                                            int32_t ref) {
+  ThrowVerificationError(Thread::Current(), current_method, kind, ref);
+}
+
 int32_t art_find_catch_block_from_code(Method* current_method, int32_t dex_pc) {
   Thread* thread = Thread::Current();
   Class* exception_type = thread->GetException()->GetClass();
