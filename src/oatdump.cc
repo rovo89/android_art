@@ -601,8 +601,8 @@ class OatDumper {
     }
   }
 #else
-  void DumpCode(std::ostream&, const void*, const uint32_t*,
-                const DexFile&, const DexFile::CodeItem*) {
+  void DumpCode(std::ostream&, const void*, int, const uint32_t*, const
+                DexFile&, const DexFile::CodeItem*) {
     // TODO: Dump code for the LLVM side.
   }
 #endif
