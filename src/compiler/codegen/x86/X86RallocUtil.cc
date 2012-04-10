@@ -134,6 +134,7 @@ extern void oatLockCallTemps(CompilationUnit* cUnit)
     oatLockTemp(cUnit, rARG0);
     oatLockTemp(cUnit, rARG1);
     oatLockTemp(cUnit, rARG2);
+    oatLockTemp(cUnit, rARG3);
 }
 
 /* To be used when explicitly managing register use */
@@ -142,6 +143,7 @@ extern void oatFreeCallTemps(CompilationUnit* cUnit)
     oatFreeTemp(cUnit, rARG0);
     oatFreeTemp(cUnit, rARG1);
     oatFreeTemp(cUnit, rARG2);
+    oatFreeTemp(cUnit, rARG3);
 }
 
 /* Convert an instruction to a NOP */

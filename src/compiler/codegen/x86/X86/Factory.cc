@@ -173,6 +173,7 @@ LIR *opRegImm(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int value) {
 LIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int rSrc2)
 {
     X86OpCode opcode = kX86Nop;
+    bool src2_must_be_cx = false;
     switch (op) {
         // X86 unary opcodes
       case kOpMvn:
@@ -184,9 +185,9 @@ LIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int rSrc2)
         // X86 binary opcodes
       case kOpSub: opcode = kX86Sub32RR; break;
       case kOpSbc: opcode = kX86Sbb32RR; break;
-      case kOpLsl: opcode = kX86Sal32RC; break;
-      case kOpLsr: opcode = kX86Shr32RC; break;
-      case kOpAsr: opcode = kX86Sar32RC; break;
+      case kOpLsl: opcode = kX86Sal32RC; src2_must_be_cx = true; break;
+      case kOpLsr: opcode = kX86Shr32RC; src2_must_be_cx = true; break;
+      case kOpAsr: opcode = kX86Sar32RC; src2_must_be_cx = true; break;
       case kOpMov: opcode = kX86Mov32RR; break;
       case kOpCmp: opcode = kX86Cmp32RR; break;
       case kOpAdd: opcode = kX86Add32RR; break;
@@ -202,6 +203,7 @@ LIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int rSrc2)
         LOG(FATAL) << "Bad case in opRegReg " << op;
         break;
     }
+    CHECK(!src2_must_be_cx || rSrc2 == rCX);
     return newLIR2(cUnit, opcode, rDestSrc1, rSrc2);
 }
 
