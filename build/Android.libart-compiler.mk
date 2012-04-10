@@ -77,15 +77,15 @@ define build-libart-compiler
   endif
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   ifeq ($$(art_ndebug_or_debug),ndebug)
-    LOCAL_MODULE := libart-compiler-$(libart_compiler_arch)
+    LOCAL_MODULE := libart-compiler-$$(libart_compiler_arch)
   else # debug
-    LOCAL_MODULE := libartd-compiler-$(libart_compiler_arch)
+    LOCAL_MODULE := libartd-compiler-$$(libart_compiler_arch)
   endif
 
   LOCAL_MODULE_TAGS := optional
   LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 
-  LOCAL_SRC_FILES := $(libart_compiler_src_files)
+  LOCAL_SRC_FILES := $$(libart_compiler_src_files)
   ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
   else # host
@@ -113,7 +113,7 @@ define build-libart-compiler
   endif
 
   # TODO: temporary hack for testing.
-  ifeq ($(libart_compiler_arch),MIPS)
+  ifeq ($$(libart_compiler_arch),MIPS)
     LOCAL_CFLAGS += -D__mips_hard_float
   endif
 
