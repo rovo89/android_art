@@ -17,6 +17,8 @@
 #ifndef ART_SRC_DISASSEMBLER_ARM_H_
 #define ART_SRC_DISASSEMBLER_ARM_H_
 
+#include <vector>
+
 #include "disassembler.h"
 
 namespace art {
@@ -36,6 +38,10 @@ class DisassemblerArm : public Disassembler {
 
   void DumpBranchTarget(std::ostream& os, const uint8_t* instr_ptr, int32_t imm32);
   void DumpCond(std::ostream& os, uint32_t cond);
+
+  std::vector<const char*> it_conditions_;
+
+  DISALLOW_COPY_AND_ASSIGN(DisassemblerArm);
 };
 
 }  // namespace arm

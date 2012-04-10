@@ -131,6 +131,7 @@ static inline int CountOneBits(uint32_t x) {
 }
 
 #define CLZ(x) __builtin_clz(x)
+#define CTZ(x) __builtin_ctz(x)
 
 static inline bool NeedsEscaping(uint16_t ch) {
   return (ch < ' ' || ch > '~');
