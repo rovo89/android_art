@@ -861,12 +861,19 @@ class PcToRegisterLineTable {
             uint16_t registers_size, DexVerifier* verifier);
 
   RegisterLine* GetLine(size_t idx) {
-    return pc_to_register_line_[idx];
+    Table::iterator result = pc_to_register_line_.find(idx);  // TODO: C++0x auto
+    if (result == pc_to_register_line_.end()) {
+      return NULL;
+    } else {
+      return result->second;
+    }
   }
 
  private:
+  // TODO: Use hashmap (unordered_map).
+  typedef std::map<int32_t, RegisterLine*> Table;
   // Map from a dex pc to the register status associated with it
-  std::map<int32_t, RegisterLine*> pc_to_register_line_;
+  Table pc_to_register_line_;
 
   // Number of registers we track for each instruction. This is equal to the method's declared
   // "registersSize" plus kExtraRegs (2).

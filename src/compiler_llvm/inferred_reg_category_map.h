@@ -21,6 +21,7 @@
 
 #include <stdint.h>
 #include <vector>
+#include <map>
 
 namespace art {
 namespace compiler_llvm {
@@ -28,7 +29,35 @@ namespace compiler_llvm {
 
 class InferredRegCategoryMap {
  private:
-  typedef std::vector<uint8_t> RegCategoryLine;
+  class RegCategoryLine {
+   private:
+    // TODO: Use hashmap (unordered_map).
+    typedef std::map<uint16_t, uint8_t> Table;
+    Table reg_category_line_;
+
+   public:
+    RegCategory GetRegCategory(uint16_t reg_idx) const {
+      // TODO: C++0x auto
+      Table::const_iterator result = reg_category_line_.find(reg_idx);
+      if (result == reg_category_line_.end()) {
+        return kRegUnknown;
+      }
+      return static_cast<RegCategory>(result->second);
+    }
+
+    void SetRegCategory(uint16_t reg_idx, RegCategory cat) {
+      if (cat != kRegUnknown) {
+        reg_category_line_[reg_idx] = cat;
+      }
+    }
+
+    bool operator==(RegCategoryLine const& rhs) const {
+      return reg_category_line_ == rhs.reg_category_line_;
+    }
+    bool operator!=(RegCategoryLine const& rhs) const {
+      return reg_category_line_ != rhs.reg_category_line_;
+    }
+  };
 
  public:
   InferredRegCategoryMap(uint32_t insns_size_in_code_units, uint8_t regs_size);
