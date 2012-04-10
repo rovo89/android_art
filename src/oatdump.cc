@@ -931,6 +931,15 @@ class ImageDumper {
         state->ComputeOatSize(oat_code_begin, &first_occurance);
         if (first_occurance) {
           state->stats_.managed_code_bytes += oat_code_size;
+          if (method->IsConstructor()) {
+            if (method->IsStatic()) {
+              state->stats_.class_initializer_code_bytes += oat_code_size;
+            } else if (dex_instruction_bytes > kLargeConstructorDexBytes) {
+              state->stats_.large_initializer_code_bytes += oat_code_size;
+            }
+          } else if (dex_instruction_bytes > kLargeMethodDexBytes) {
+            state->stats_.large_method_code_bytes += oat_code_size;
+          }
         }
         state->stats_.managed_code_bytes_ignoring_deduplication += oat_code_size;
 
@@ -979,6 +988,9 @@ class ImageDumper {
     size_t managed_code_bytes_ignoring_deduplication;
     size_t managed_to_native_code_bytes;
     size_t native_to_managed_code_bytes;
+    size_t class_initializer_code_bytes;
+    size_t large_initializer_code_bytes;
+    size_t large_method_code_bytes;
 
     size_t gc_map_bytes;
     size_t pc_mapping_table_bytes;
@@ -1000,6 +1012,9 @@ class ImageDumper {
           managed_code_bytes_ignoring_deduplication(0),
           managed_to_native_code_bytes(0),
           native_to_managed_code_bytes(0),
+          class_initializer_code_bytes(0),
+          large_initializer_code_bytes(0),
+          large_method_code_bytes(0),
           gc_map_bytes(0),
           pc_mapping_table_bytes(0),
           vmap_table_bytes(0),
@@ -1164,10 +1179,16 @@ class ImageDumper {
 
       os << StringPrintf("\tmanaged_code_bytes           = %8zd (%2.0f%% of oat file bytes)\n"
                          "\tmanaged_to_native_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
-                         "\tnative_to_managed_code_bytes = %8zd (%2.0f%% of oat file bytes)\n",
+                         "\tnative_to_managed_code_bytes = %8zd (%2.0f%% of oat file bytes)\n\n"
+                         "\tclass_initializer_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
+                         "\tlarge_initializer_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
+                         "\tlarge_method_code_bytes      = %8zd (%2.0f%% of oat file bytes)\n",
                          managed_code_bytes, PercentOfOatBytes(managed_code_bytes),
                          managed_to_native_code_bytes, PercentOfOatBytes(managed_to_native_code_bytes),
-                         native_to_managed_code_bytes, PercentOfOatBytes(native_to_managed_code_bytes))
+                         native_to_managed_code_bytes, PercentOfOatBytes(native_to_managed_code_bytes),
+                         class_initializer_code_bytes, PercentOfOatBytes(class_initializer_code_bytes),
+                         large_initializer_code_bytes, PercentOfOatBytes(large_initializer_code_bytes),
+                         large_method_code_bytes, PercentOfOatBytes(large_method_code_bytes))
          << std::endl << std::flush;
 
       os << StringPrintf("\tgc_map_bytes           = %7zd (%2.0f%% of oat file_bytes)\n"
@@ -1190,6 +1211,14 @@ class ImageDumper {
   } stats_;
 
  private:
+  enum {
+    // Number of bytes for a constructor to be considered large. Based on the 1000 basic block
+    // threshold, we assume 2 bytes per instruction and 2 instructions per block.
+    kLargeConstructorDexBytes = 4000,
+    // Number of bytes for a method to be considered large. Based on the 4000 basic block
+    // threshold, we assume 2 bytes per instruction and 2 instructions per block.
+    kLargeMethodDexBytes = 16000
+  };
   UniquePtr<OatDumper> oat_dumper_;
   std::ostream& os_;
   const std::string image_filename_;
