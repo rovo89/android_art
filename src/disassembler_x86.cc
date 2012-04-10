@@ -276,6 +276,14 @@ DISASSEMBLER_ENTRY(cmp,
     byte_operand = *instr == 0xC0;
     break;
   case 0xC3: opcode << "ret"; break;
+  case 0xC7:
+    static const char* c7_opcodes[] = {"mov", "unknown-c7", "unknown-c7", "unknown-c7", "unknown-c7", "unknown-c7", "unknown-c7", "unknown-c7"};
+    modrm_opcodes = c7_opcodes;
+    store = true;
+    immediate_bytes = 4;
+    has_modrm = true;
+    reg_is_opcode = true;
+    break;
   case 0xCC: opcode << "int 3"; break;
   case 0xE8: opcode << "call"; branch_bytes = 4; break;
   case 0xE9: opcode << "jmp"; branch_bytes = 4; break;
