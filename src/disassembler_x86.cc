@@ -20,6 +20,7 @@
 
 #include "logging.h"
 #include "stringprintf.h"
+#include "thread.h"
 
 namespace art {
 namespace x86 {
@@ -67,14 +68,23 @@ static void DumpIndexReg(std::ostream& os, uint8_t rex, uint8_t reg) {
   DumpReg0(os, rex, reg_num, false, 0);
 }
 
+enum SegmentPrefix {
+  kCs = 0x2e,
+  kSs = 0x36,
+  kDs = 0x3e,
+  kEs = 0x26,
+  kFs = 0x64,
+  kGs = 0x65,
+};
+
 static void DumpSegmentOverride(std::ostream& os, uint8_t segment_prefix) {
   switch (segment_prefix) {
-    case 0x2E: os << "cs:"; break;
-    case 0x36: os << "ss:"; break;
-    case 0x3E: os << "ds:"; break;
-    case 0x26: os << "es:"; break;
-    case 0x64: os << "fs:"; break;
-    case 0x65: os << "gs:"; break;
+    case kCs: os << "cs:"; break;
+    case kSs: os << "ss:"; break;
+    case kDs: os << "ds:"; break;
+    case kEs: os << "es:"; break;
+    case kFs: os << "fs:"; break;
+    case kGs: os << "gs:"; break;
     default: break;
   }
 }
@@ -93,12 +103,12 @@ size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) 
         prefix[0] = *instr;
         break;
         // Group 2 - segment override prefixes:
-      case 0x2E:
-      case 0x36:
-      case 0x3E:
-      case 0x26:
-      case 0x64:
-      case 0x65:
+      case kCs:
+      case kSs:
+      case kDs:
+      case kEs:
+      case kFs:
+      case kGs:
         prefix[1] = *instr;
         break;
         // Group 3 - operand size override:
@@ -305,6 +315,7 @@ DISASSEMBLER_ENTRY(cmp,
     DumpReg(args, rex, *instr & 0x7, false, prefix[2]);
   }
   instr++;
+  uint32_t address_bits = 0;
   if (has_modrm) {
     uint8_t modrm = *instr;
     instr++;
@@ -313,7 +324,8 @@ DISASSEMBLER_ENTRY(cmp,
     uint8_t rm = modrm & 7;
     std::ostringstream address;
     if (mod == 0 && rm == 5) {  // fixed address
-      address << StringPrintf("[0x%X]", *reinterpret_cast<const uint32_t*>(instr));
+      address_bits = *reinterpret_cast<const uint32_t*>(instr);
+      address << StringPrintf("[0x%x]", address_bits);
       instr += 4;
     } else if (rm == 4 && mod != 3) {  // SIB
       uint8_t sib = *instr;
@@ -406,6 +418,10 @@ DISASSEMBLER_ENTRY(cmp,
       instr += 4;
     }
     args << StringPrintf("%d (%p)", displacement, instr + displacement);
+  }
+  if (prefix[1] == kFs) {
+    args << "  ; ";
+    Thread::DumpThreadOffset(args, address_bits, 4);
   }
   std::stringstream hex;
   for (size_t i = 0; begin_instr + i < instr; ++i) {
