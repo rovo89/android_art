@@ -20,6 +20,7 @@
 
 #include "logging.h"
 #include "stringprintf.h"
+#include "thread.h"
 
 namespace art {
 namespace arm {
@@ -661,6 +662,10 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
             uint32_t imm12 = instr & 0xFFF;
             opcode << "ldr.w";
             args << Rt << ", [" << Rn << ", #" << imm12 << "]";
+            if (Rn.r == 9) {
+              args << "  ; ";
+              Thread::DumpThreadOffset(args, imm12, 4);
+            }
           } else if (op4 == 0) {
             // LDR.W Rt, [Rn, Rm{, LSL #imm2}] - 111 11 00 00 101 nnnn tttt 000000iimmmm
             uint32_t imm2 = (instr >> 4) & 0xF;
@@ -875,11 +880,11 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
       //uint16_t opB = (instr >> 9) & 7;
       switch (opA) {
         case 0x6: {
-          // STR Rt, Rn, #imm - 01100 iiiii nnn ttt
-          // LDR Rt, Rn, #imm - 01101 iiiii nnn ttt
+          // STR Rt, [Rn, #imm] - 01100 iiiii nnn ttt
+          // LDR Rt, [Rn, #imm] - 01101 iiiii nnn ttt
           uint16_t imm5 = (instr >> 6) & 0x1F;
           ThumbRegister Rn(instr, 3);
-          ThumbRegister Rt(instr, 7);
+          ThumbRegister Rt(instr, 0);
           opcode << ((instr & 0x800) == 0 ? "str" : "ldr");
           args << Rt << ", [" << Rn << ", #" << (imm5 << 2) << "]";
           break;
