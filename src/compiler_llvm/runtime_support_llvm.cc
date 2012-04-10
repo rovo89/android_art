@@ -604,7 +604,7 @@ Method* art_ensure_resolved_from_code(Method* called,
 }
 
 void art_ensure_link_from_code(Method* method) {
-  if (method->GetInvokeStub() == NULL && method->GetCode() == NULL) {
+  if (method->GetInvokeStub() == NULL || method->GetCode() == NULL) {
     Runtime::Current()->GetClassLinker()->LinkOatCodeFor(method);
   }
 }
