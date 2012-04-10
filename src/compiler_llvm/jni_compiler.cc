@@ -39,6 +39,7 @@
 namespace art {
 namespace compiler_llvm {
 
+using namespace runtime_support;
 
 JniCompiler::JniCompiler(CompilationUnit* cunit,
                          Compiler const& compiler,
@@ -106,8 +107,7 @@ CompiledMethod* JniCompiler::Compile() {
   }
 
   // Get thread object
-  llvm::Value* thread_object_addr =
-    irb_.CreateCall(irb_.GetRuntime(runtime_support::GetCurrentThread));
+  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
 
   // Shadow stack
   llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
@@ -132,7 +132,7 @@ CompiledMethod* JniCompiler::Compile() {
 
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
-  irb_.CreateCall(irb_.GetRuntime(runtime_support::PushShadowFrame), shadow_frame_upcast);
+  irb_.CreateCall(irb_.GetRuntime(PushShadowFrame), shadow_frame_upcast);
 
   // Get JNIEnv
   llvm::Value* jni_env_object_addr = LoadFromObjectOffset(thread_object_addr,
@@ -145,20 +145,10 @@ CompiledMethod* JniCompiler::Compile() {
                       irb_.getInt32(kNative));
 
   // Get callee code_addr
-  llvm::Value* code_addr_ =
+  llvm::Value* code_addr =
       LoadFromObjectOffset(method_object_addr,
                            Method::NativeMethodOffset().Int32Value(),
                            GetFunctionType(method_idx_, is_static, true)->getPointerTo());
-  llvm::Value* code_addr;
-  llvm::FunctionType* method_type = GetFunctionType(method_idx_, is_static, true);
-
-  // TODO: Inline check
-  llvm::Value* runtime_func = irb_.GetRuntime(runtime_support::EnsureInitialized);
-  llvm::Value* result = irb_.CreateCall2(runtime_func,
-                                         method_object_addr,
-                                         irb_.CreatePointerCast(code_addr_,
-                                                                irb_.getJObjectTy()));
-  code_addr = irb_.CreatePointerCast(result, method_type->getPointerTo());
 
   // Load actual parameters
   std::vector<llvm::Value*> args;
@@ -204,11 +194,10 @@ CompiledMethod* JniCompiler::Compile() {
   // Acquire lock for synchronized methods.
   if (is_synchronized) {
     // Acquire lock
-    irb_.CreateCall(irb_.GetRuntime(runtime_support::LockObject), this_object_or_class_object);
+    irb_.CreateCall(irb_.GetRuntime(LockObject), this_object_or_class_object);
 
     // Check exception pending
-    llvm::Value* exception_pending =
-        irb_.CreateCall(irb_.GetRuntime(runtime_support::IsExceptionPending));
+    llvm::Value* exception_pending = irb_.CreateCall(irb_.GetRuntime(IsExceptionPending));
 
     // Create two basic block for branch
     llvm::BasicBlock* block_cont = llvm::BasicBlock::Create(*context_, "B.cont", func_);
@@ -222,7 +211,7 @@ CompiledMethod* JniCompiler::Compile() {
     irb_.SetInsertPoint(block_exception_);
     // TODO: Set thread state?
     // Pop the shadow frame
-    irb_.CreateCall(irb_.GetRuntime(runtime_support::PopShadowFrame));
+    irb_.CreateCall(irb_.GetRuntime(PopShadowFrame));
     // Unwind
     if (return_shorty != 'V') {
       irb_.CreateRet(irb_.getJZero(return_shorty));
@@ -256,7 +245,7 @@ CompiledMethod* JniCompiler::Compile() {
 
   // Release lock for synchronized methods.
   if (is_synchronized) {
-    irb_.CreateCall(irb_.GetRuntime(runtime_support::UnlockObject), this_object_or_class_object);
+    irb_.CreateCall(irb_.GetRuntime(UnlockObject), this_object_or_class_object);
   }
 
   // Set thread state to kRunnable
@@ -266,7 +255,7 @@ CompiledMethod* JniCompiler::Compile() {
 
   if (return_shorty == 'L') {
     // If the return value is reference, it may point to SIRT, we should decode it.
-    retval = irb_.CreateCall2(irb_.GetRuntime(runtime_support::DecodeJObjectInThread),
+    retval = irb_.CreateCall2(irb_.GetRuntime(DecodeJObjectInThread),
                               thread_object_addr,
                               retval);
   }
@@ -286,7 +275,7 @@ CompiledMethod* JniCompiler::Compile() {
                       saved_local_ref_cookie);
 
   // Pop the shadow frame
-  irb_.CreateCall(irb_.GetRuntime(runtime_support::PopShadowFrame));
+  irb_.CreateCall(irb_.GetRuntime(PopShadowFrame));
 
   // Return!
   if (return_shorty != 'V') {

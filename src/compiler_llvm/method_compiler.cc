@@ -2782,38 +2782,27 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
     << PrettyMethod(callee_method_idx, *dex_file_);
 }
 
-llvm::Value* MethodCompiler::EmitEnsureInitialized(llvm::Value* callee_method_object_addr,
-                                                   uint32_t method_idx,
-                                                   bool is_static,
-                                                   llvm::Value* code_addr) {
-  llvm::FunctionType* method_type = GetFunctionType(method_idx, is_static);
-
-  // TODO: Inline check
-  llvm::Value* runtime_func = irb_.GetRuntime(EnsureInitialized);
-  llvm::Value* result = irb_.CreateCall2(runtime_func,
-                                         callee_method_object_addr,
-                                         irb_.CreatePointerCast(code_addr,
-                                                                irb_.getJObjectTy()));
-  return irb_.CreatePointerCast(result, method_type->getPointerTo());
-}
-
 llvm::Value* MethodCompiler::EmitEnsureResolved(llvm::Value* callee,
                                                 llvm::Value* caller,
                                                 uint32_t dex_method_idx,
-                                                Instruction::Code instr_code) {
-  // TODO: Inline check
-  llvm::Value* runtime_func = irb_.GetRuntime(EnsureResolved);
-  return irb_.CreateCall4(runtime_func,
-                          callee,
-                          caller,
-                          irb_.getInt32(dex_method_idx),
-                          irb_.getInt32(instr_code));
+                                                bool is_virtual) {
+  // TODO: Remove this after we solve the trampoline related problems.
+  return  irb_.CreateCall4(irb_.GetRuntime(EnsureResolved),
+                           callee,
+                           caller,
+                           irb_.getInt32(dex_method_idx),
+                           irb_.getInt1(is_virtual));
 }
 
-void MethodCompiler::EmitEnsureLink(llvm::Value* method_object_addr) {
-  // TODO: Inline check
-  llvm::Value* runtime_func = irb_.GetRuntime(EnsureLink);
-  irb_.CreateCall(runtime_func, method_object_addr);
+llvm::Value* MethodCompiler::EmitFixStub(llvm::Value* callee_method_object_addr,
+                                         uint32_t method_idx,
+                                         bool is_static) {
+  // TODO: Remove this after we solve the link and trampoline related problems.
+  llvm::Value* code_addr =  irb_.CreateCall(irb_.GetRuntime(FixStub), callee_method_object_addr);
+
+  llvm::FunctionType* method_type = GetFunctionType(method_idx, is_static);
+
+  return irb_.CreatePointerCast(code_addr, method_type->getPointerTo());
 }
 
 void MethodCompiler::EmitInsn_InvokeVirtualSuperSlow(uint32_t dex_pc,
@@ -2842,28 +2831,23 @@ void MethodCompiler::EmitInsn_InvokeVirtualSuperSlow(uint32_t dex_pc,
 
   EmitUpdateLineNumFromDexPC(dex_pc);
 
-  llvm::Value* callee_method_object_addr_ =
+  llvm::Value* callee_method_object_addr =
       irb_.CreateCall3(runtime_func,
                        callee_method_idx_value, this_addr, method_object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
 
-  llvm::Value* callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr_,
-                                                              method_object_addr,
-                                                              callee_method_idx,
-                                                              (is_virtual ?
-                                                               Instruction::INVOKE_VIRTUAL :
-                                                               Instruction::INVOKE_SUPER));
-
-  EmitEnsureLink(callee_method_object_addr);
-
-  llvm::Value* code_addr_ =
+#if 0
+  llvm::Value* code_addr =
       EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, false);
+#else
+  // TODO: Remove this after we solve the link and trampoline related problems.
+  llvm::Value* code_addr = EmitFixStub(callee_method_object_addr,
+                                       callee_method_idx,
+                                       false);
+  EmitGuard_ExceptionLandingPad(dex_pc);
+#endif
 
-  llvm::Value* code_addr = EmitEnsureInitialized(callee_method_object_addr,
-                                                 callee_method_idx,
-                                                 false,
-                                                 code_addr_);
   // Load the actual parameter
   std::vector<llvm::Value*> args;
   args.push_back(callee_method_object_addr);
@@ -2908,25 +2892,26 @@ void MethodCompiler::EmitInsn_InvokeVirtual(uint32_t dex_pc,
     // Load callee method code address (branch destination)
     llvm::Value* vtable_addr = EmitLoadVTableAddr(class_object_addr);
 
-    llvm::Value* method_object_addr_ =
+    llvm::Value* method_object_addr =
       EmitLoadMethodObjectAddrFromVTable(vtable_addr,
                                          callee_method->GetMethodIndex());
 
-    llvm::Value* method_object_addr = EmitEnsureResolved(method_object_addr_,
-                                                         EmitLoadMethodObjectAddr(),
-                                                         callee_method_idx,
-                                                         Instruction::INVOKE_VIRTUAL);
+#if 0
+    llvm::Value* code_addr =
+        EmitLoadCodeAddr(method_object_addr, callee_method_idx, false);
+#else
+    // TODO: Remove this after we solve the link and trampoline related problems.
+    method_object_addr = EmitEnsureResolved(method_object_addr,
+                                            EmitLoadMethodObjectAddr(),
+                                            callee_method_idx,
+                                            true);
+    EmitGuard_ExceptionLandingPad(dex_pc);
 
-    EmitEnsureLink(method_object_addr);
-
-    llvm::Value* code_addr_ =
-      EmitLoadCodeAddr(method_object_addr, callee_method_idx, false);
-
-    llvm::Value* code_addr = EmitEnsureInitialized(method_object_addr,
-                                                   callee_method_idx,
-                                                   false,
-                                                   code_addr_);
-
+    llvm::Value* code_addr = EmitFixStub(method_object_addr,
+                                         callee_method_idx,
+                                         false);
+    EmitGuard_ExceptionLandingPad(dex_pc);
+#endif
     // Load actual parameters
     std::vector<llvm::Value*> args;
     args.push_back(method_object_addr);
@@ -3009,25 +2994,26 @@ void MethodCompiler::EmitInsn_InvokeSuper(uint32_t dex_pc,
     // Load method object from virtual table
     llvm::Value* vtable_addr = EmitLoadVTableAddr(super_class_addr);
 
-    llvm::Value* callee_method_object_addr_ =
+    llvm::Value* callee_method_object_addr =
       EmitLoadMethodObjectAddrFromVTable(vtable_addr,
                                          callee_method->GetMethodIndex());
 
-    llvm::Value* callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr_,
-                                                                method_object_addr,
-                                                                callee_method_idx,
-                                                                Instruction::INVOKE_SUPER);
-
-    EmitEnsureLink(callee_method_object_addr);
-
-    llvm::Value* code_addr_ =
-      EmitLoadCodeAddr(callee_method_object_addr,
-                       callee_method_idx, false);
-
-    llvm::Value* code_addr = EmitEnsureInitialized(callee_method_object_addr,
+#if 0
+    llvm::Value* code_addr =
+        EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, false);
+#else
+    // TODO: Remove this after we solve the link and trampoline related problems.
+    callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr,
+                                                   method_object_addr,
                                                    callee_method_idx,
-                                                   false,
-                                                   code_addr_);
+                                                   true);
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+    llvm::Value* code_addr = EmitFixStub(callee_method_object_addr,
+                                         callee_method_idx,
+                                         false);
+    EmitGuard_ExceptionLandingPad(dex_pc);
+#endif
 
     // Load actual parameters
     std::vector<llvm::Value*> args;
@@ -3087,24 +3073,26 @@ void MethodCompiler::EmitInsn_InvokeStaticDirect(uint32_t dex_pc,
   llvm::Value* callee_method_object_field_addr =
     EmitLoadDexCacheResolvedMethodFieldAddr(callee_method_idx);
 
-  llvm::Value* callee_method_object_addr_ =
+  llvm::Value* callee_method_object_addr =
     irb_.CreateLoad(callee_method_object_field_addr);
 
-  llvm::Value* callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr_,
-                                                              EmitLoadMethodObjectAddr(),
-                                                              callee_method_idx,
-                                                              Instruction::INVOKE_DIRECT);
+#if 0
+    llvm::Value* code_addr =
+        EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, is_static);
+#else
+    // TODO: Remove this after we solve the link and trampoline related problems.
+    callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr,
+                                                   EmitLoadMethodObjectAddr(),
+                                                   callee_method_idx,
+                                                   false);
+    EmitGuard_ExceptionLandingPad(dex_pc);
 
-  EmitEnsureLink(callee_method_object_addr);
-
-  llvm::Value* code_addr_ =
-    EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, is_static);
-
-  llvm::Value* code_addr = EmitEnsureInitialized(callee_method_object_addr,
-                                                 callee_method_idx,
-                                                 is_static,
-                                                 code_addr_);
-  EmitGuard_ExceptionLandingPad(dex_pc);
+    llvm::Value* code_addr = EmitFixStub(callee_method_object_addr,
+                                         callee_method_idx,
+                                         is_static);
+    EmitGuard_ExceptionLandingPad(dex_pc);
+    // FixStub may resolve method, so we need to reload method.
+#endif
 
   // Load the actual parameter
   std::vector<llvm::Value*> args;
@@ -3156,26 +3144,22 @@ void MethodCompiler::EmitInsn_InvokeInterface(uint32_t dex_pc,
 
   EmitUpdateLineNumFromDexPC(dex_pc);
 
-  llvm::Value* callee_method_object_addr_ =
+  llvm::Value* callee_method_object_addr =
     irb_.CreateCall3(runtime_func,
                      callee_method_idx_value, this_addr, method_object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
 
-  llvm::Value* callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr_,
-                                                              method_object_addr,
-                                                              callee_method_idx,
-                                                              Instruction::INVOKE_INTERFACE);
-
-  EmitEnsureLink(callee_method_object_addr);
-
-  llvm::Value* code_addr_ =
+#if 0
+  llvm::Value* code_addr =
     EmitLoadCodeAddr(callee_method_object_addr, callee_method_idx, false);
-
-  llvm::Value* code_addr = EmitEnsureInitialized(callee_method_object_addr,
-                                                 callee_method_idx,
-                                                 false,
-                                                 code_addr_);
+#else
+  // TODO: Remove this after we solve the link and trampoline related problems.
+  llvm::Value* code_addr = EmitFixStub(callee_method_object_addr,
+                                       callee_method_idx,
+                                       false);
+  EmitGuard_ExceptionLandingPad(dex_pc);
+#endif
 
   // Load the actual parameter
   std::vector<llvm::Value*> args;
