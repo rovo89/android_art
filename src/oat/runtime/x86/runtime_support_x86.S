@@ -29,6 +29,7 @@
     // mean that literals need to be represented with $$x in macros.
     #define SYMBOL(name) _ ## name
     #define VAR(name,index) SYMBOL($index)
+    #define CALL_MACRO(name,index) $index
     #define LITERAL(value) $value
     #define MACRO_LITERAL(value) $$value
 #else
@@ -46,6 +47,7 @@
     .altmacro
     #define SYMBOL(name) name
     #define VAR(name,index) name&
+    #define CALL_MACRO(name,index) name&
     #define LITERAL(value) $value
     #define MACRO_LITERAL(value) $value
 #endif
@@ -283,7 +285,7 @@ VAR(c_name, 0):
     call VAR(cxx_name, 1)         // cxx_name(Thread*, SP)
     addl MACRO_LITERAL(16), %esp  // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    VAR(return_macro, 2)          // return or deliver exception
+    CALL_MACRO(return_macro, 2)   // return or deliver exception
 END_MACRO
 
 MACRO3(ONE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
@@ -300,7 +302,7 @@ VAR(c_name, 0):
     call VAR(cxx_name, 1)         // cxx_name(arg1, Thread*, SP)
     addl MACRO_LITERAL(16), %esp  // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    VAR(return_macro, 2)          // return or deliver exception
+    CALL_MACRO(return_macro, 2)   // return or deliver exception
 END_MACRO
 
 MACRO3(TWO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
@@ -317,7 +319,7 @@ VAR(c_name, 0):
     call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, Thread*, SP)
     addl MACRO_LITERAL(16), %esp  // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    VAR(return_macro, 2)          // return or deliver exception
+    CALL_MACRO(return_macro, 2)   // return or deliver exception
 END_MACRO
 
 MACRO3(THREE_ARG_DOWNCALL, c_name, cxx_name, return_macro)
@@ -336,7 +338,7 @@ VAR(c_name, 0):
     call VAR(cxx_name, 1)         // cxx_name(arg1, arg2, arg3, Thread*, SP)
     addl MACRO_LITERAL(32), %esp  // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
-    VAR(return_macro, 2)          // return or deliver exception
+    CALL_MACRO(return_macro, 2)   // return or deliver exception
 END_MACRO
 
 MACRO0(RETURN_IF_EAX_NOT_ZERO)
