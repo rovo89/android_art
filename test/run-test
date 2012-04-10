@@ -32,10 +32,14 @@ progdir=`dirname "${prog}"`
 cd "${progdir}"
 progdir=`pwd`
 prog="${progdir}"/`basename "${prog}"`
+tmp_dir="/tmp/test-$$"
 
 export JAVA="java"
 export JAVAC="javac -g -target 1.5"
 export RUN="${progdir}/etc/push-and-run-test-jar"
+export IMAGE=${ANDROID_PRODUCT_OUT}/data/art-test/core.art
+export DEX_LOCATION=/data/run-test
+export DEX2OAT_ARGS=""
 
 info="info.txt"
 build="build"
@@ -53,6 +57,9 @@ usage="no"
 while true; do
     if [ "x$1" = "x--host" ]; then
         RUN="${progdir}/etc/host-run-test-jar"
+        IMAGE=${ANDROID_BUILD_TOP}/out/host/linux-x86/framework/core.art
+        DEX_LOCATION=$tmp_dir
+        DEX2OAT_ARGS="--instruction-set=X86 --host-prefix=$ANDROID_BUILD_TOP/"
         shift
     elif [ "x$1" = "x--jvm" ]; then
         RUN="${progdir}/etc/reference-run-test-classes"
@@ -163,8 +170,6 @@ test_dir=`pwd`
 
 td_info="${test_dir}/${info}"
 td_expected="${test_dir}/${expected}"
-
-tmp_dir="/tmp/test-$$"
 
 if [ '!' '(' -r "$td_info" -a -r "$td_expected" ')' ]; then
     echo "${test_dir}: missing files" 1>&2

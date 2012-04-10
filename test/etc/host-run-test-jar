@@ -61,7 +61,7 @@ msg "------------------------------"
 
 HOSTBASE="${ANDROID_BUILD_TOP}/out/host"
 DATA_DIR=/tmp
-DEBUG_OPTS="-Xcheck:jni -Xrunjdwp:transport=dt_socket,address=8000,server=y,suspend=n"
+DEBUG_OPTS="-Xcheck:jni"
 
 if [ ! -d $DATA_DIR/art-cache ]; then
     mkdir -p $DATA_DIR/art-cache
@@ -84,7 +84,10 @@ exe="${ANDROID_ROOT}/bin/oatexecd"
 if [ "$DEBUG" = "y" ]; then
     PORT=8000
     msg "Waiting for debugger to connect on localhost:$PORT"
-    DEX_DEBUG="-agentlib:jdwp=transport=dt_socket,addres=$PORT,server=y,suspend=y"
+	# This is for jdb:
+    DEX_DEBUG="-agentlib:jdwp=transport=dt_socket,address=$PORT,server=y,suspend=y"
+	# Connect thus:
+	#   jdb -attach localhost:12345
 fi
 
 if [ "$GDB" = "y" ]; then
@@ -94,5 +97,5 @@ fi
 
 cd $ANDROID_BUILD_TOP
 $INVOKE_WITH $gdb $exe $gdbargs -Ximage:$ANDROID_ROOT/framework/core.art \
-    $DEX_DEBUG ${DEBUG_OPTS} \
-    -cp test.jar Main "$@"
+    $DEBUG_OPTS $DEX_DEBUG -verbose:log-to=$DEX_LOCATION/log.txt\
+    -cp $DEX_LOCATION/$TEST_NAME.jar Main "$@"

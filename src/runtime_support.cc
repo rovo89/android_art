@@ -221,8 +221,8 @@ std::string MethodNameFromIndex(const Method* method, uint32_t ref,
   return result;
 }
 
-static inline std::string ClassNameFromIndex(const Method* method, uint32_t ref,
-                                             verifier::VerifyErrorRefType ref_type, bool access) {
+static std::string ClassNameFromIndex(const Method* method, uint32_t ref,
+                                      verifier::VerifyErrorRefType ref_type, bool access) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
 
