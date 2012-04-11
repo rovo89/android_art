@@ -43,6 +43,9 @@
 #include "os.h"
 #include "runtime.h"
 #include "runtime_support.h"
+#if defined(ART_USE_LLVM_COMPILER)
+#include "compiler_llvm/runtime_support_llvm.h"
+#endif
 #include "ScopedLocalRef.h"
 #include "space.h"
 #include "stack_indirect_reference_table.h"
@@ -2299,6 +2302,11 @@ Method* ClassLinker::CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_
   ObjectArray<Method>* proxy_direct_methods = proxy_class->GetDirectMethods();
   CHECK_EQ(proxy_direct_methods->GetLength(), 15);
   Method* proxy_constructor = proxy_direct_methods->Get(2);
+#if defined(ART_USE_LLVM_COMPILER)
+  // Ensure link.
+  // TODO: Remove this after fixing the link problem by in-place linking.
+  art_fix_stub_from_code(proxy_constructor);
+#endif
   // Clone the existing constructor of Proxy (our constructor would just invoke it so steal its
   // code_ too)
   Method* constructor = down_cast<Method*>(proxy_constructor->Clone());
@@ -2336,7 +2344,12 @@ Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& p
   method->SetCoreSpillMask(refs_and_args->GetCoreSpillMask());
   method->SetFpSpillMask(refs_and_args->GetFpSpillMask());
   method->SetFrameSizeInBytes(refs_and_args->GetFrameSizeInBytes());
+#if !defined(ART_USE_LLVM_COMPILER)
   method->SetCode(reinterpret_cast<void*>(art_proxy_invoke_handler));
+#else
+  method->SetCode(reinterpret_cast<const void*>(
+      static_cast<uintptr_t>(compiler_llvm::special_stub::kProxyStub)));
+#endif
 
   return method;
 }

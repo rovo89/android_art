@@ -19,13 +19,16 @@
 #include "nth_caller_visitor.h"
 #include "object.h"
 #include "object_utils.h"
+#include "reflection.h"
 #include "runtime_support.h"
 #include "runtime_support_llvm.h"
+#include "ScopedLocalRef.h"
 #include "shadow_frame.h"
 #include "thread.h"
 #include "thread_list.h"
 
 #include <algorithm>
+#include <cstdarg>
 #include <stdint.h>
 
 namespace art {
@@ -627,6 +630,157 @@ const void* art_fix_stub_from_code(Method* called) {
   }
 
   return code;
+}
+
+// Handler for invocation on proxy methods. We create a boxed argument array. And we invoke
+// the invocation handler which is a field within the proxy object receiver.
+void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
+  va_list ap;
+  va_start(ap, proxy_method);
+
+  Object* receiver = va_arg(ap, Object*);
+  Thread* thread = Thread::Current();
+  MethodHelper proxy_mh(proxy_method);
+  const size_t num_params = proxy_mh.NumArgs();
+
+  // Start new JNI local reference state
+  JNIEnvExt* env = thread->GetJniEnv();
+  ScopedJniEnvLocalRefState env_state(env);
+
+  // Create local ref. copies of proxy method and the receiver
+  jobject rcvr_jobj = AddLocalReference<jobject>(env, receiver);
+
+  // Convert proxy method into expected interface method
+  Method* interface_method = proxy_method->FindOverriddenMethod();
+  DCHECK(interface_method != NULL);
+  DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
+
+  // Set up arguments array and place in local IRT during boxing (which may allocate/GC)
+  jvalue args_jobj[3];
+  args_jobj[0].l = rcvr_jobj;
+  args_jobj[1].l = AddLocalReference<jobject>(env, interface_method);
+  // Args array, if no arguments then NULL (don't include receiver in argument count)
+  args_jobj[2].l = NULL;
+  ObjectArray<Object>* args = NULL;
+  if ((num_params - 1) > 0) {
+    args = Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(num_params - 1);
+    if (args == NULL) {
+      CHECK(thread->IsExceptionPending());
+      return;
+    }
+    args_jobj[2].l = AddLocalReference<jobjectArray>(env, args);
+  }
+
+  // Get parameter types.
+  const char* shorty = proxy_mh.GetShorty();
+  ObjectArray<Class>* param_types = proxy_mh.GetParameterTypes();
+  if (param_types == NULL) {
+    CHECK(thread->IsExceptionPending());
+    return;
+  }
+
+  // Box arguments.
+  for (size_t i = 0; i < (num_params - 1);++i) {
+    JValue val;
+    switch (shorty[i+1]) {
+      case 'Z':
+      case 'B':
+      case 'C':
+      case 'S':
+      case 'I':
+      case 'F':
+        val.i = va_arg(ap, jint);
+        break;
+      case 'L':
+        val.l = va_arg(ap, Object*);
+        break;
+      case 'D':
+      case 'J':
+        val.j = va_arg(ap, jlong);
+        break;
+    }
+    Class* param_type = param_types->Get(i);
+    if (param_type->IsPrimitive()) {
+      BoxPrimitive(param_type->GetPrimitiveType(), val);
+      if (thread->IsExceptionPending()) {
+        return;
+      }
+    }
+    args->Set(i, val.l);
+  }
+
+  // Get the InvocationHandler method and the field that holds it within the Proxy object
+  static jmethodID inv_hand_invoke_mid = NULL;
+  static jfieldID proxy_inv_hand_fid = NULL;
+  if (proxy_inv_hand_fid == NULL) {
+    ScopedLocalRef<jclass> proxy(env, env->FindClass("java/lang/reflect/Proxy"));
+    proxy_inv_hand_fid = env->GetFieldID(proxy.get(), "h", "Ljava/lang/reflect/InvocationHandler;");
+    ScopedLocalRef<jclass> inv_hand_class(env, env->FindClass("java/lang/reflect/InvocationHandler"));
+    inv_hand_invoke_mid = env->GetMethodID(inv_hand_class.get(), "invoke",
+        "(Ljava/lang/Object;Ljava/lang/reflect/Method;[Ljava/lang/Object;)Ljava/lang/Object;");
+  }
+
+  DCHECK(env->IsInstanceOf(rcvr_jobj, env->FindClass("java/lang/reflect/Proxy")));
+
+  jobject inv_hand = env->GetObjectField(rcvr_jobj, proxy_inv_hand_fid);
+  // Call InvocationHandler.invoke
+  jobject result = env->CallObjectMethodA(inv_hand, inv_hand_invoke_mid, args_jobj);
+
+  // Place result in stack args
+  if (!thread->IsExceptionPending()) {
+    if (shorty[0] == 'V') {
+      return;
+    }
+    Object* result_ref = thread->DecodeJObject(result);
+    JValue* result_unboxed = va_arg(ap, JValue*);
+    if (result_ref == NULL) {
+      result_unboxed->l = NULL;
+    } else {
+      bool unboxed_okay = UnboxPrimitive(result_ref, proxy_mh.GetReturnType(), *result_unboxed, "result");
+      if (!unboxed_okay) {
+        thread->ClearException();
+        thread->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
+                                 "Couldn't convert result of type %s to %s",
+                                 PrettyTypeOf(result_ref).c_str(),
+                                 PrettyDescriptor(proxy_mh.GetReturnType()).c_str());
+        return;
+      }
+    }
+  } else {
+    // In the case of checked exceptions that aren't declared, the exception must be wrapped by
+    // a UndeclaredThrowableException.
+    Throwable* exception = thread->GetException();
+    thread->ClearException();
+    if (!exception->IsCheckedException()) {
+      thread->SetException(exception);
+    } else {
+      SynthesizedProxyClass* proxy_class =
+          down_cast<SynthesizedProxyClass*>(proxy_method->GetDeclaringClass());
+      int throws_index = -1;
+      size_t num_virt_methods = proxy_class->NumVirtualMethods();
+      for (size_t i = 0; i < num_virt_methods; i++) {
+        if (proxy_class->GetVirtualMethod(i) == proxy_method) {
+          throws_index = i;
+          break;
+        }
+      }
+      CHECK_NE(throws_index, -1);
+      ObjectArray<Class>* declared_exceptions = proxy_class->GetThrows()->Get(throws_index);
+      Class* exception_class = exception->GetClass();
+      bool declares_exception = false;
+      for (int i = 0; i < declared_exceptions->GetLength() && !declares_exception; i++) {
+        Class* declared_exception = declared_exceptions->Get(i);
+        declares_exception = declared_exception->IsAssignableFrom(exception_class);
+      }
+      if (declares_exception) {
+        thread->SetException(exception);
+      } else {
+        ThrowNewUndeclaredThrowableException(thread, env, exception);
+      }
+    }
+  }
+
+  va_end(ap);
 }
 
 void* art_find_runtime_support_func(void* context, char const* name) {

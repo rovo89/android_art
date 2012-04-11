@@ -17,31 +17,12 @@
 #include "object.h"
 #include "object_utils.h"
 #include "reflection.h"
+#include "runtime_support.h"
 #include "thread.h"
 
 #include "ScopedLocalRef.h"
 
 namespace art {
-
-static void ThrowNewUndeclaredThrowableException(Thread* self, JNIEnv* env, Throwable* exception) {
-  ScopedLocalRef<jclass> jlr_UTE_class(env,
-      env->FindClass("java/lang/reflect/UndeclaredThrowableException"));
-  if (jlr_UTE_class.get() == NULL) {
-    LOG(ERROR) << "Couldn't throw new \"java/lang/reflect/UndeclaredThrowableException\"";
-  } else {
-    jmethodID jlre_UTE_constructor = env->GetMethodID(jlr_UTE_class.get(), "<init>",
-                                                      "(Ljava/lang/Throwable;)V");
-    jthrowable jexception = AddLocalReference<jthrowable>(env, exception);
-    ScopedLocalRef<jthrowable> jlr_UTE(env,
-        reinterpret_cast<jthrowable>(env->NewObject(jlr_UTE_class.get(), jlre_UTE_constructor,
-                                                    jexception)));
-    int rc = env->Throw(jlr_UTE.get());
-    if (rc != JNI_OK) {
-      LOG(ERROR) << "Couldn't throw new \"java/lang/reflect/UndeclaredThrowableException\"";
-    }
-  }
-  CHECK(self->IsExceptionPending());
-}
 
 // Handler for invocation on proxy methods. On entry a frame will exist for the proxy object method
 // which is responsible for recording callee save registers. We explicitly handlerize incoming
