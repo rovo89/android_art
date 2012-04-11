@@ -1813,7 +1813,7 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
 
   if (dec_insn.vA > 0) {
     // Resolve the element type
-    Class* klass = dex_cache_->GetResolvedType(dec_insn.vB);
+    Class* klass = dex_cache_->GetResolvedType(dec_insn.vB)->GetComponentType();
     // TODO: Avoid the usage of the dex_cache_.  Try to figure out a better
     // way to distinguish [I and [L.
     CHECK_NE(klass, static_cast<Class*>(NULL));
