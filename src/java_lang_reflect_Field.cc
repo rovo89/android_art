@@ -95,7 +95,7 @@ static jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
   }
 
   // Get the field's value, boxing if necessary.
-  JValue value = { 0 };
+  JValue value;
   if (!GetFieldValue(o, f, value, true)) {
     return NULL;
   }
@@ -112,7 +112,7 @@ static JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj,
   }
 
   // Read the value.
-  JValue field_value = { 0 };
+  JValue field_value;
   if (!GetFieldValue(o, f, field_value, false)) {
     return JValue();
   }
@@ -256,49 +256,49 @@ static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, c
 }
 
 static void Field_setBoolean(JNIEnv* env, jobject javaField, jobject javaObj, jboolean value) {
-  JValue v = { 0 };
+  JValue v;
   v.z = value;
   SetPrimitiveField(env, javaField, javaObj, 'Z', v);
 }
 
 static void Field_setByte(JNIEnv* env, jobject javaField, jobject javaObj, jbyte value) {
-  JValue v = { 0 };
+  JValue v;
   v.b = value;
   SetPrimitiveField(env, javaField, javaObj, 'B', v);
 }
 
 static void Field_setChar(JNIEnv* env, jobject javaField, jobject javaObj, jchar value) {
-  JValue v = { 0 };
+  JValue v;
   v.c = value;
   SetPrimitiveField(env, javaField, javaObj, 'C', v);
 }
 
 static void Field_setDouble(JNIEnv* env, jobject javaField, jobject javaObj, jdouble value) {
-  JValue v = { 0 };
+  JValue v;
   v.d = value;
   SetPrimitiveField(env, javaField, javaObj, 'D', v);
 }
 
 static void Field_setFloat(JNIEnv* env, jobject javaField, jobject javaObj, jfloat value) {
-  JValue v = { 0 };
+  JValue v;
   v.f = value;
   SetPrimitiveField(env, javaField, javaObj, 'F', v);
 }
 
 static void Field_setInt(JNIEnv* env, jobject javaField, jobject javaObj, jint value) {
-  JValue v = { 0 };
+  JValue v;
   v.i = value;
   SetPrimitiveField(env, javaField, javaObj, 'I', v);
 }
 
 static void Field_setLong(JNIEnv* env, jobject javaField, jobject javaObj, jlong value) {
-  JValue v = { 0 };
+  JValue v;
   v.j = value;
   SetPrimitiveField(env, javaField, javaObj, 'J', v);
 }
 
 static void Field_setShort(JNIEnv* env, jobject javaField, jobject javaObj, jshort value) {
-  JValue v = { 0 };
+  JValue v;
   v.s = value;
   SetPrimitiveField(env, javaField, javaObj, 'S', v);
 }

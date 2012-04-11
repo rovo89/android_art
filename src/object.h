@@ -60,6 +60,9 @@ typedef PrimitiveArray<int64_t> LongArray;
 typedef PrimitiveArray<int16_t> ShortArray;
 
 union JValue {
+  // We default initialize JValue instances to all-zeros.
+  JValue() : j(0) {}
+
   uint8_t z;
   int8_t b;
   uint16_t c;
