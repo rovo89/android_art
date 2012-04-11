@@ -964,6 +964,16 @@ const ArmEncodingMap EncodingMap[kArmLast] = {
                  kFmtUnused, -1, -1,
                  IS_UNARY_OP | REG_DEF_SP | REG_USE_SP | REG_DEF0
                  | IS_LOAD, "pop1", "!0C", 4),
+    ENCODING_MAP(kThumb2RsubRRR,  0xebd00000, /* setflags encoding */
+                 kFmtBitBlt, 11, 8, kFmtBitBlt, 19, 16, kFmtBitBlt, 3, 0,
+                 kFmtShift, -1, -1,
+                 IS_QUAD_OP | REG_DEF0_USE12 | SETS_CCODES,
+                 "rsbs", "!0C, !1C, !2C!3H", 4),
+    ENCODING_MAP(kThumb2Smull,  0xfb800000,
+                 kFmtBitBlt, 15, 12, kFmtBitBlt, 11, 8, kFmtBitBlt, 19, 16,
+                 kFmtBitBlt, 3, 0,
+                 IS_QUAD_OP | REG_DEF0 | REG_DEF1 | REG_USE2 | REG_USE3,
+                 "smull", "!0C, !1C, !2C, !3C", 4),
 
 };
 

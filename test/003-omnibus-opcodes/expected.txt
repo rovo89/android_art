@@ -15,6 +15,7 @@ IntMath.longOperTest
 IntMath.longOperCheck
 IntMath.lit16Test
 IntMath.lit8Test
+IntMath.divLiteralTest
 IntMath.intShiftTest
 IntMath.intShiftCheck
 IntMath.longShiftTest
