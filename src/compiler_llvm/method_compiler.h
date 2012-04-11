@@ -369,15 +369,6 @@ class MethodCompiler {
 
   RegCategory GetInferredRegCategory(uint32_t dex_pc, uint16_t reg);
 
-  Field* ResolveField(uint32_t field_idx);
-
-  Field* FindFieldAndDeclaringTypeIdx(uint32_t field_idx,
-                                      uint32_t &resolved_type_idx);
-
-
-  // Diagnostics helper function
-  void PrintUnresolvedFieldWarning(int32_t field_idx);
-
 
   // Basic block helper functions
   llvm::BasicBlock* GetBasicBlock(uint32_t dex_pc);
