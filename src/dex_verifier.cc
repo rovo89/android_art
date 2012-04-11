@@ -1691,12 +1691,12 @@ bool DexVerifier::VerifyCodeFlow() {
   Compiler::MethodReference ref(dex_file_, method_->GetDexMethodIndex());
   verifier::DexVerifier::SetGcMap(ref, *gc_map);
 
-#if !defined(ART_USE_LLVM_COMPILER)
   method_->SetGcMap(&gc_map->at(0));
-#else
+
+#if defined(ART_USE_LLVM_COMPILER)
   /* Generate Inferred Register Category for LLVM-based Code Generator */
   const InferredRegCategoryMap* table = GenerateInferredRegCategoryMap();
-  method_->SetInferredRegCategoryMap(table);
+  verifier::DexVerifier::SetInferredRegCategoryMap(ref, *table);
 #endif
 
   return true;
@@ -4077,7 +4077,7 @@ bool DexVerifier::IsClassRejected(Compiler::ClassReference ref) {
 }
 
 #if defined(ART_USE_LLVM_COMPILER)
-InferredRegCategoryMap const* DexVerifier::GenerateInferredRegCategoryMap() {
+const InferredRegCategoryMap* DexVerifier::GenerateInferredRegCategoryMap() {
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
   uint16_t regs_size = code_item_->registers_size_;
 
@@ -4087,7 +4087,7 @@ InferredRegCategoryMap const* DexVerifier::GenerateInferredRegCategoryMap() {
   for (size_t i = 0; i < insns_size; ++i) {
     if (RegisterLine* line = reg_table_.GetLine(i)) {
       for (size_t r = 0; r < regs_size; ++r) {
-        RegType const &rt = line->GetRegisterType(r);
+        const RegType &rt = line->GetRegisterType(r);
 
         if (rt.IsZero()) {
           table->SetRegCategory(i, r, kRegZero);
@@ -4105,6 +4105,56 @@ InferredRegCategoryMap const* DexVerifier::GenerateInferredRegCategoryMap() {
   }
 
   return table.release();
+}
+
+Mutex* DexVerifier::inferred_reg_category_maps_lock_ = NULL;
+DexVerifier::InferredRegCategoryMapTable* DexVerifier::inferred_reg_category_maps_ = NULL;
+
+void DexVerifier::InitInferredRegCategoryMaps() {
+  inferred_reg_category_maps_lock_ = new Mutex("verifier GC maps lock");
+  MutexLock mu(*inferred_reg_category_maps_lock_);
+  inferred_reg_category_maps_ = new DexVerifier::InferredRegCategoryMapTable;
+}
+
+void DexVerifier::DeleteInferredRegCategoryMaps() {
+  {
+    MutexLock mu(*inferred_reg_category_maps_lock_);
+    STLDeleteValues(inferred_reg_category_maps_);
+    delete inferred_reg_category_maps_;
+    inferred_reg_category_maps_ = NULL;
+  }
+  delete inferred_reg_category_maps_lock_;
+  inferred_reg_category_maps_lock_ = NULL;
+}
+
+
+void DexVerifier::SetInferredRegCategoryMap(Compiler::MethodReference ref,
+                                            const InferredRegCategoryMap& inferred_reg_category_map) {
+  MutexLock mu(*inferred_reg_category_maps_lock_);
+  const InferredRegCategoryMap* existing_inferred_reg_category_map =
+    GetInferredRegCategoryMap(ref);
+
+  if (existing_inferred_reg_category_map != NULL) {
+    CHECK(*existing_inferred_reg_category_map == inferred_reg_category_map);
+    delete existing_inferred_reg_category_map;
+  }
+
+  (*inferred_reg_category_maps_)[ref] = &inferred_reg_category_map;
+  CHECK(GetInferredRegCategoryMap(ref) != NULL);
+}
+
+const InferredRegCategoryMap*
+DexVerifier::GetInferredRegCategoryMap(Compiler::MethodReference ref) {
+  MutexLock mu(*inferred_reg_category_maps_lock_);
+
+  InferredRegCategoryMapTable::const_iterator it =
+      inferred_reg_category_maps_->find(ref);
+
+  if (it == inferred_reg_category_maps_->end()) {
+    return NULL;
+  }
+  CHECK(it->second != NULL);
+  return it->second;
 }
 #endif
 

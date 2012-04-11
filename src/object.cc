@@ -384,35 +384,6 @@ void Method::SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>*
       new_value, false);
 }
 
-#if defined(ART_USE_LLVM_COMPILER)
-
-const InferredRegCategoryMap* Method::GetInferredRegCategoryMap() const {
-  const InferredRegCategoryMap* map = GetFieldPtr<const InferredRegCategoryMap*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), false);
-  DCHECK(map != NULL) << PrettyMethod(this);
-  return map;
-}
-
-void Method::SetInferredRegCategoryMap(const InferredRegCategoryMap* map) {
-  const InferredRegCategoryMap* existing_map = GetFieldPtr<const InferredRegCategoryMap*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), false);
-
-  DCHECK(existing_map == NULL) << PrettyMethod(this);
-  DCHECK(map != NULL) << PrettyMethod(this);
-
-  // TODO: Remove if we won't find any use of InferredRegCategoryMap at runtime.
-  SetFieldPtr<const InferredRegCategoryMap*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), map, false);
-}
-
-void Method::ResetInferredRegCategoryMap() {
-  delete GetInferredRegCategoryMap();
-  SetFieldPtr<const InferredRegCategoryMap*>(
-      OFFSET_OF_OBJECT_MEMBER(Method, gc_map_), NULL, false);
-}
-
-#endif
-
 size_t Method::NumArgRegisters(const StringPiece& shorty) {
   CHECK_LE(1, shorty.length());
   uint32_t num_registers = 0;
