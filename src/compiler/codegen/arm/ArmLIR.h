@@ -617,6 +617,10 @@ enum ArmOpcode {
                                    [0000] rm[3..0] */
     kThumb2Push1,        /* t3 encoding of push */
     kThumb2Pop1,         /* t3 encoding of pop */
+    kThumb2RsubRRR,      /* rsb [111010111101] rn[19..16] [0000] rd[11..8]
+                                [0000] rm[3..0] */
+    kThumb2Smull,        /* smull [111110111000] rn[19-16], rdlo[15-12]
+                                  rdhi[11-8] [0000] rm[3-0] */
     kArmLast,
 };
 

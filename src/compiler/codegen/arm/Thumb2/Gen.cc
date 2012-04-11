@@ -788,5 +788,83 @@ void opRegCopyWide(CompilationUnit* cUnit, int destLo, int destHi,
     }
 }
 
+// Table of magic divisors
+enum DividePattern {
+    DivideNone,
+    Divide3,
+    Divide5,
+    Divide7,
+};
+
+struct MagicTable {
+    uint32_t magic;
+    uint32_t shift;
+    DividePattern pattern;
+};
+
+static const MagicTable magicTable[] = {
+    {0, 0, DivideNone},        // 0
+    {0, 0, DivideNone},        // 1
+    {0, 0, DivideNone},        // 2
+    {0x55555556, 0, Divide3},  // 3
+    {0, 0, DivideNone},        // 4
+    {0x66666667, 1, Divide5},  // 5
+    {0x2AAAAAAB, 0, Divide3},  // 6
+    {0x92492493, 2, Divide7},  // 7
+    {0, 0, DivideNone},        // 8
+    {0x38E38E39, 1, Divide5},  // 9
+    {0x66666667, 2, Divide5},  // 10
+    {0x2E8BA2E9, 1, Divide5},  // 11
+    {0x2AAAAAAB, 1, Divide5},  // 12
+    {0x4EC4EC4F, 2, Divide5},  // 13
+    {0x92492493, 3, Divide7},  // 14
+    {0x88888889, 3, Divide7},  // 15
+};
+
+// Integer division by constant via reciprocal multiply (Hacker's Delight, 10-4)
+bool smallLiteralDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
+                        RegLocation rlSrc, RegLocation rlDest, int lit)
+{
+    if ((lit < 0) || (lit >= (int)(sizeof(magicTable)/sizeof(magicTable[0])))) {
+        return false;
+    }
+    DividePattern pattern = magicTable[lit].pattern;
+    if (pattern == DivideNone) {
+        return false;
+    }
+    // Tuning: add rem patterns
+    if (dalvikOpcode != Instruction::DIV_INT_LIT8) {
+        return false;
+    }
+
+    int rMagic = oatAllocTemp(cUnit);
+    loadConstant(cUnit, rMagic, magicTable[lit].magic);
+    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+    int rHi = oatAllocTemp(cUnit);
+    int rLo = oatAllocTemp(cUnit);
+    newLIR4(cUnit, kThumb2Smull, rLo, rHi, rMagic, rlSrc.lowReg);
+    switch(pattern) {
+        case Divide3:
+            opRegRegRegShift(cUnit, kOpSub, rlResult.lowReg, rHi,
+                             rlSrc.lowReg, encodeShift(kArmAsr, 31));
+            break;
+        case Divide5:
+            opRegRegImm(cUnit, kOpAsr, rLo, rlSrc.lowReg, 31);
+            opRegRegRegShift(cUnit, kOpRsub, rlResult.lowReg, rLo, rHi,
+                             encodeShift(kArmAsr, magicTable[lit].shift));
+            break;
+        case Divide7:
+            opRegReg(cUnit, kOpAdd, rHi, rlSrc.lowReg);
+            opRegRegImm(cUnit, kOpAsr, rLo, rlSrc.lowReg, 31);
+            opRegRegRegShift(cUnit, kOpRsub, rlResult.lowReg, rLo, rHi,
+                             encodeShift(kArmAsr, magicTable[lit].shift));
+            break;
+        default:
+            LOG(FATAL) << "Unexpected pattern: " << (int)pattern;
+    }
+    storeValue(cUnit, rlDest, rlResult);
+    return true;
+}
 
 }  // namespace art

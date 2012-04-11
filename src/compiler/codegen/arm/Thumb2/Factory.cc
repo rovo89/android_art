@@ -349,6 +349,9 @@ LIR* opRegRegRegShift(CompilationUnit* cUnit, OpKind op, int rDest, int rSrc1,
         case kOpSub:
             opcode = (thumbForm) ? kThumbSubRRR : kThumb2SubRRR;
             break;
+        case kOpRsub:
+            opcode = kThumb2RsubRRR;
+            break;
         case kOpAdc:
             opcode = kThumb2AdcRRR;
             break;
