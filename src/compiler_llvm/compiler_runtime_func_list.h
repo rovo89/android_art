@@ -176,7 +176,8 @@
   V(__modsi3) \
   V(__umoddi3) \
   V(__umodsi3) \
-  V(fmod)
+  V(fmod) \
+  V(fmodf)
 
 #else
 
