@@ -447,8 +447,6 @@ class MethodCompiler {
   DexFile::CodeItem const* code_item_;
 
   OatCompilationUnit* oat_compilation_unit_;
-  Method* method_;
-  MethodHelper method_helper_;
 
   uint32_t method_idx_;
   uint32_t access_flags_;

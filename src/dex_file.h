@@ -755,6 +755,9 @@ class DexFile {
   // This is used by runtime; therefore use art::Method not art::DexFile::Method.
   int32_t GetLineNumFromPC(const Method* method, uint32_t rel_pc) const;
 
+  int32_t GetLineNumFromPC(bool is_static, uint32_t method_idx,
+                           const CodeItem* code_item, uint32_t rel_pc) const;
+
   void DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
                        DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
                        void* context) const;

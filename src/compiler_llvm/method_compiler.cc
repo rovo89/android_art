@@ -19,6 +19,7 @@
 #include "backend_types.h"
 #include "compilation_unit.h"
 #include "compiler.h"
+#include "dex_verifier.h"
 #include "inferred_reg_category_map.h"
 #include "ir_builder.h"
 #include "logging.h"
@@ -55,8 +56,6 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     dex_cache_(oat_compilation_unit->dex_cache_),
     code_item_(oat_compilation_unit->code_item_),
     oat_compilation_unit_(oat_compilation_unit),
-    method_(dex_cache_->GetResolvedMethod(oat_compilation_unit->method_idx_)),
-    method_helper_(method_),
     method_idx_(oat_compilation_unit->method_idx_),
     access_flags_(oat_compilation_unit->access_flags_),
     module_(cunit->GetModule()),
@@ -82,7 +81,7 @@ void MethodCompiler::CreateFunction() {
 
   // Get function type
   llvm::FunctionType* func_type =
-    GetFunctionType(method_idx_, method_->IsStatic());
+    GetFunctionType(method_idx_, oat_compilation_unit_->IsStatic());
 
   // Create function
   func_ = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage,
@@ -96,7 +95,7 @@ void MethodCompiler::CreateFunction() {
   arg_iter->setName("method");
   ++arg_iter;
 
-  if (!method_->IsStatic()) {
+  if (!oat_compilation_unit_->IsStatic()) {
     DCHECK_NE(arg_iter, arg_end);
     arg_iter->setName("this");
     ++arg_iter;
@@ -216,7 +215,7 @@ void MethodCompiler::EmitStackOverflowCheck() {
   irb_.CreateCall(irb_.GetRuntime(ThrowStackOverflowException));
 
   // Unwind.
-  char ret_shorty = method_helper_.GetShorty()[0];
+  char ret_shorty = oat_compilation_unit_->GetShorty()[0];
   if (ret_shorty == 'V') {
     irb_.CreateRetVoid();
   } else {
@@ -294,19 +293,19 @@ void MethodCompiler::EmitPrologueAssignArgRegister() {
   llvm::Function::arg_iterator arg_iter(func_->arg_begin());
   llvm::Function::arg_iterator arg_end(func_->arg_end());
 
-  char const* shorty = method_helper_.GetShorty();
-  int32_t shorty_size = method_helper_.GetShortyLength();
-  CHECK_LE(1, shorty_size);
+  uint32_t shorty_size = 0;
+  char const* shorty = oat_compilation_unit_->GetShorty(&shorty_size);
+  CHECK_GE(shorty_size, 1u);
 
   ++arg_iter; // skip method object
 
-  if (!method_->IsStatic()) {
+  if (!oat_compilation_unit_->IsStatic()) {
     EmitStoreDalvikReg(arg_reg, kObject, kAccurate, arg_iter);
     ++arg_iter;
     ++arg_reg;
   }
 
-  for (int32_t i = 1; i < shorty_size; ++i, ++arg_iter) {
+  for (uint32_t i = 1; i < shorty_size; ++i, ++arg_iter) {
     EmitStoreDalvikReg(arg_reg, shorty[i], kAccurate, arg_iter);
 
     ++arg_reg;
@@ -1319,7 +1318,7 @@ void MethodCompiler::EmitInsn_Return(uint32_t dex_pc,
   // the return value might be collected since the shadow stack is popped.
 
   // Return!
-  char ret_shorty = method_helper_.GetShorty()[0];
+  char ret_shorty = oat_compilation_unit_->GetShorty()[0];
   llvm::Value* retval = EmitLoadDalvikReg(dec_insn.vA, ret_shorty, kAccurate);
 
   irb_.CreateRet(retval);
@@ -1812,40 +1811,41 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
     EmitAllocNewArray(dex_pc, dec_insn.vA, dec_insn.vB, true);
 
   if (dec_insn.vA > 0) {
-    llvm::Value* object_addr_int =
-      irb_.CreatePtrToInt(object_addr, irb_.getPtrEquivIntTy());
-
-    // TODO: currently FilledNewArray doesn't support I, J, D and L, [ so computing the component
-    // size using int alignment is safe. This code should determine the width of the FilledNewArray
-    // component.
-    llvm::Value* data_field_offset =
-      irb_.getPtrEquivInt(Array::DataOffset(sizeof(int32_t)).Int32Value());
-
-    llvm::Value* data_field_addr_int =
-      irb_.CreateAdd(object_addr_int, data_field_offset);
-
-    Class* klass = method_->GetDexCacheResolvedTypes()->Get(dec_insn.vB);
+    // Resolve the element type
+    Class* klass = dex_cache_->GetResolvedType(dec_insn.vB);
+    // TODO: Avoid the usage of the dex_cache_.  Try to figure out a better
+    // way to distinguish [I and [L.
     CHECK_NE(klass, static_cast<Class*>(NULL));
-    // Moved this below already: CHECK(!klass->IsPrimitive() || klass->IsPrimitiveInt());
 
-    llvm::Constant* word_size = irb_.getSizeOfPtrEquivIntValue();
+    uint32_t alignment;
+    llvm::Constant* elem_size;
+    llvm::PointerType* field_type;
 
-    llvm::Type* field_type;
+    // NOTE: Currently filled-new-array only supports 'L', '[', and 'I'
+    // as the element, thus we are only checking 2 cases: primitive int and
+    // non-primitive type.
     if (klass->IsPrimitiveInt()) {
+      alignment = sizeof(int32_t);
+      elem_size = irb_.getPtrEquivInt(sizeof(int32_t));
       field_type = irb_.getJIntTy()->getPointerTo();
     } else {
       CHECK(!klass->IsPrimitive());
+      alignment = irb_.getSizeOfPtrEquivInt();
+      elem_size = irb_.getSizeOfPtrEquivIntValue();
       field_type = irb_.getJObjectTy()->getPointerTo();
     }
+
+    llvm::Value* data_field_offset =
+      irb_.getPtrEquivInt(Array::DataOffset(alignment).Int32Value());
+
+    llvm::Value* data_field_addr =
+      irb_.CreatePtrDisp(object_addr, data_field_offset, field_type);
 
     // TODO: Tune this code.  Currently we are generating one instruction for
     // one element which may be very space consuming.  Maybe changing to use
     // memcpy may help; however, since we can't guarantee that the alloca of
     // dalvik register are continuous, we can't perform such optimization yet.
     for (uint32_t i = 0; i < dec_insn.vA; ++i) {
-      llvm::Value* data_field_addr =
-        irb_.CreateIntToPtr(data_field_addr_int, field_type);
-
       int reg_index;
       if (is_range) {
         reg_index = dec_insn.vC + i;
@@ -1862,7 +1862,8 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
 
       irb_.CreateStore(reg_value, data_field_addr);
 
-      data_field_addr_int = irb_.CreateAdd(data_field_addr_int, word_size);
+      data_field_addr =
+        irb_.CreatePtrDisp(data_field_addr, elem_size, field_type);
     }
   }
 
@@ -2209,7 +2210,12 @@ void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
 
 RegCategory MethodCompiler::GetInferredRegCategory(uint32_t dex_pc,
                                                    uint16_t reg_idx) {
-  InferredRegCategoryMap const* map = method_->GetInferredRegCategoryMap();
+
+  Compiler::MethodReference mref(dex_file_, method_idx_);
+
+  InferredRegCategoryMap const* map =
+    verifier::DexVerifier::GetInferredRegCategoryMap(mref);
+
   CHECK_NE(map, static_cast<InferredRegCategoryMap*>(NULL));
 
   return map->GetRegCategory(dex_pc, reg_idx);
@@ -2361,12 +2367,11 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
 
 
 void MethodCompiler::PrintUnresolvedFieldWarning(int32_t field_idx) {
-  DexFile const& dex_file = method_helper_.GetDexFile();
-  DexFile::FieldId const& field_id = dex_file.GetFieldId(field_idx);
+  DexFile::FieldId const& field_id = dex_file_->GetFieldId(field_idx);
 
   LOG(WARNING) << "unable to resolve static field " << field_idx << " ("
-               << dex_file.GetFieldName(field_id) << ") in "
-               << dex_file.GetFieldDeclaringClassDescriptor(field_id);
+               << dex_file_->GetFieldName(field_id) << ") in "
+               << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
 }
 
 
@@ -3622,9 +3627,6 @@ CompiledMethod *MethodCompiler::Compile() {
   // Verify the generated bitcode
   llvm::verifyFunction(*func_, llvm::PrintMessageAction);
 
-  // Delete the inferred register category map (won't be used anymore)
-  method_->ResetInferredRegCategoryMap();
-
   // Add the memory usage approximation of the compilation unit
   cunit_->AddMemUsageApproximation(code_item_->insns_size_in_code_units_ * 900);
   // NOTE: From statistic, the bitcode size is 4.5 times bigger than the
@@ -3823,7 +3825,7 @@ llvm::BasicBlock* MethodCompiler::GetUnwindBasicBlock() {
   EmitPopShadowFrame();
 
   // Emit the code to return default value (zero) for the given return type.
-  char ret_shorty = method_helper_.GetShorty()[0];
+  char ret_shorty = oat_compilation_unit_->GetShorty()[0];
   if (ret_shorty == 'V') {
     irb_.CreateRetVoid();
   } else {
@@ -3947,7 +3949,9 @@ void MethodCompiler::EmitUpdateLineNum(int32_t line_num) {
 
 
 void MethodCompiler::EmitUpdateLineNumFromDexPC(uint32_t dex_pc) {
-  EmitUpdateLineNum(dex_file_->GetLineNumFromPC(method_, dex_pc));
+  EmitUpdateLineNum(
+    dex_file_->GetLineNumFromPC(oat_compilation_unit_->IsStatic(),
+                                method_idx_, code_item_, dex_pc));
 }
 
 
