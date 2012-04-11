@@ -2226,6 +2226,14 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
   size_t num_virtual_methods = methods->GetLength();
   klass->SetVirtualMethods(AllocObjectArray<Method>(num_virtual_methods));
   for (size_t i = 0; i < num_virtual_methods; ++i) {
+#if defined(ART_USE_LLVM_COMPILER)
+    Method* method = methods->Get(i);
+    // Ensure link.
+    // TODO: Remove this after fixing the link problem by in-place linking.
+    if (method->GetCode() == NULL || method->GetInvokeStub() == NULL) {
+      Runtime::Current()->GetClassLinker()->LinkOatCodeFor(methods->Get(i));
+    }
+#endif
     SirtRef<Method> prototype(methods->Get(i));
     klass->SetVirtualMethod(i, CreateProxyMethod(klass, prototype));
   }
