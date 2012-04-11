@@ -594,9 +594,7 @@ Method* art_ensure_resolved_from_code(Method* called,
 // 3. The code address is 0.                       -> Link the code by ELFLoader
 // The item 3 will solved by in-place linking at image loading.
 const void* art_fix_stub_from_code(Method* called) {
-  if (UNLIKELY(called->IsResolutionMethod())) {
-    LOG(FATAL) << "is ResolutionMethod!!";
-  }
+  DCHECK(!called->IsResolutionMethod()) << PrettyMethod(called);
   Runtime* runtime = Runtime::Current();
   const void* code = called->GetCode();
 
@@ -647,7 +645,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
   JNIEnvExt* env = thread->GetJniEnv();
   ScopedJniEnvLocalRefState env_state(env);
 
-  // Create local ref. copies of proxy method and the receiver
+  // Create local ref. copies of the receiver
   jobject rcvr_jobj = AddLocalReference<jobject>(env, receiver);
 
   // Convert proxy method into expected interface method
