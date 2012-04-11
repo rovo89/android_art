@@ -2366,15 +2366,6 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
 }
 
 
-void MethodCompiler::PrintUnresolvedFieldWarning(int32_t field_idx) {
-  DexFile::FieldId const& field_id = dex_file_->GetFieldId(field_idx);
-
-  LOG(WARNING) << "unable to resolve static field " << field_idx << " ("
-               << dex_file_->GetFieldName(field_id) << ") in "
-               << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
-}
-
-
 void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
                                    Instruction const* insn,
                                    JType field_jty) {
@@ -2384,17 +2375,18 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
   uint32_t reg_idx = dec_insn.vB;
   uint32_t field_idx = dec_insn.vC;
 
-  Field* field = dex_cache_->GetResolvedField(field_idx);
-
   llvm::Value* object_addr = EmitLoadDalvikReg(reg_idx, kObject, kAccurate);
 
   EmitGuard_NullPointerException(dex_pc, object_addr);
 
   llvm::Value* field_value;
 
-  if (field == NULL) {
-    PrintUnresolvedFieldWarning(field_idx);
+  int field_offset;
+  bool is_volatile;
+  bool is_fast_path = compiler_->ComputeInstanceFieldInfo(
+    field_idx, oat_compilation_unit_, field_offset, is_volatile, false);
 
+  if (!is_fast_path) {
     llvm::Function* runtime_func;
 
     if (field_jty == kObject) {
@@ -2417,15 +2409,18 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
     EmitGuard_ExceptionLandingPad(dex_pc);
 
   } else {
+    DCHECK_GE(field_offset, 0);
+
     llvm::PointerType* field_type =
       irb_.getJType(field_jty, kField)->getPointerTo();
 
-    llvm::ConstantInt* field_offset =
-      irb_.getPtrEquivInt(field->GetOffset().Int32Value());
+    llvm::ConstantInt* field_offset_value = irb_.getPtrEquivInt(field_offset);
 
     llvm::Value* field_addr =
-      irb_.CreatePtrDisp(object_addr, field_offset, field_type);
+      irb_.CreatePtrDisp(object_addr, field_offset_value, field_type);
 
+    // TODO: Check is_volatile.  We need to generate atomic load instruction
+    // when is_volatile is true.
     field_value = irb_.CreateLoad(field_addr);
   }
 
@@ -2444,17 +2439,18 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
   uint32_t reg_idx = dec_insn.vB;
   uint32_t field_idx = dec_insn.vC;
 
-  Field* field = dex_cache_->GetResolvedField(field_idx);
-
   llvm::Value* object_addr = EmitLoadDalvikReg(reg_idx, kObject, kAccurate);
 
   EmitGuard_NullPointerException(dex_pc, object_addr);
 
   llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA, field_jty, kField);
 
-  if (field == NULL) {
-    PrintUnresolvedFieldWarning(field_idx);
+  int field_offset;
+  bool is_volatile;
+  bool is_fast_path = compiler_->ComputeInstanceFieldInfo(
+    field_idx, oat_compilation_unit_, field_offset, is_volatile, true);
 
+  if (!is_fast_path) {
     llvm::Function* runtime_func;
 
     if (field_jty == kObject) {
@@ -2477,95 +2473,22 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
     EmitGuard_ExceptionLandingPad(dex_pc);
 
   } else {
+    DCHECK_GE(field_offset, 0);
+
     llvm::PointerType* field_type =
       irb_.getJType(field_jty, kField)->getPointerTo();
 
-    llvm::Value* field_offset =
-      irb_.getPtrEquivInt(field->GetOffset().Int32Value());
+    llvm::Value* field_offset_value = irb_.getPtrEquivInt(field_offset);
 
     llvm::Value* field_addr =
-      irb_.CreatePtrDisp(object_addr, field_offset, field_type);
+      irb_.CreatePtrDisp(object_addr, field_offset_value, field_type);
 
+    // TODO: Check is_volatile.  We need to generate atomic store instruction
+    // when is_volatile is true.
     irb_.CreateStore(new_value, field_addr);
   }
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
-}
-
-
-Field* MethodCompiler::ResolveField(uint32_t field_idx) {
-  Thread* thread = Thread::Current();
-
-  // Save the exception state
-  Throwable* old_exception = NULL;
-  if (thread->IsExceptionPending()) {
-    old_exception = thread->GetException();
-    thread->ClearException();
-  }
-
-  // Resolve the fields through the class linker
-  Field* field = class_linker_->ResolveField(*dex_file_, field_idx,
-                                             dex_cache_, class_loader_,
-                                             /* is_static= */ true);
-
-  if (field == NULL) {
-    // Ignore the exception raised during the field resolution
-    thread->ClearException();
-  }
-
-  // Restore the exception state
-  if (old_exception != NULL) {
-    thread->SetException(old_exception);
-  }
-
-  return field;
-}
-
-
-Field* MethodCompiler::
-FindFieldAndDeclaringTypeIdx(uint32_t field_idx,
-                             uint32_t &resolved_type_idx) {
-
-  // Resolve the field through the class linker
-  Field* field = ResolveField(field_idx);
-  if (field == NULL) {
-    return NULL;
-  }
-
-  DexFile::FieldId const& field_id = dex_file_->GetFieldId(field_idx);
-
-  // Search for the type_idx of the declaring class
-  uint16_t type_idx = field_id.class_idx_;
-  Class* klass = dex_cache_->GetResolvedTypes()->Get(type_idx);
-
-  // Test: Is referring_class equal to declaring_class?
-
-  // If true, then return the type_idx; otherwise, this field must be declared
-  // in super class or interfaces, we have to search for declaring class.
-
-  if (field->GetDeclaringClass() == klass) {
-    resolved_type_idx = type_idx;
-    return field;
-  }
-
-  // Search for the type_idx of the super class or interfaces
-  std::string desc(FieldHelper(field).GetDeclaringClassDescriptor());
-
-  DexFile::StringId const* string_id = dex_file_->FindStringId(desc);
-
-  if (string_id == NULL) {
-    return NULL;
-  }
-
-  DexFile::TypeId const* type_id =
-    dex_file_->FindTypeId(dex_file_->GetIndexForStringId(*string_id));
-
-  if (type_id == NULL) {
-    return NULL;
-  }
-
-  resolved_type_idx = dex_file_->GetIndexForTypeId(*type_id);
-  return field;
 }
 
 
@@ -2629,13 +2552,20 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
 
   DecodedInstruction dec_insn(insn);
 
-  uint32_t declaring_type_idx = DexFile::kDexNoIndex;
+  uint32_t field_idx = dec_insn.vB;
 
-  Field* field = FindFieldAndDeclaringTypeIdx(dec_insn.vB, declaring_type_idx);
+  int field_offset;
+  int ssb_index;
+  bool is_referrers_class;
+  bool is_volatile;
+
+  bool is_fast_path = compiler_->ComputeStaticFieldInfo(
+    field_idx, oat_compilation_unit_, field_offset, ssb_index,
+    is_referrers_class, is_volatile, false);
 
   llvm::Value* static_field_value;
 
-  if (field == NULL) {
+  if (!is_fast_path) {
     llvm::Function* runtime_func;
 
     if (field_jty == kObject) {
@@ -2658,16 +2588,37 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
     EmitGuard_ExceptionLandingPad(dex_pc);
 
   } else {
-    llvm::Value* static_storage_addr =
-      EmitLoadStaticStorage(dex_pc, declaring_type_idx);
+    DCHECK_GE(field_offset, 0);
 
-    llvm::Value* static_field_offset_value =
-      irb_.getPtrEquivInt(field->GetOffset().Int32Value());
+    llvm::Value* static_storage_addr = NULL;
+
+    if (is_referrers_class) {
+      // Fast path, static storage base is this method's class
+      llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+      llvm::Constant* declaring_class_offset_value =
+        irb_.getPtrEquivInt(Method::DeclaringClassOffset().Int32Value());
+
+      llvm::Value* static_storage_field_addr =
+        irb_.CreatePtrDisp(method_object_addr, declaring_class_offset_value,
+                           irb_.getJObjectTy()->getPointerTo());
+
+      static_storage_addr = irb_.CreateLoad(static_storage_field_addr);
+    } else {
+      // Medium path, static storage base in a different class which
+      // requires checks that the other class is initialized
+      DCHECK_GE(ssb_index, 0);
+      static_storage_addr = EmitLoadStaticStorage(dex_pc, ssb_index);
+    }
+
+    llvm::Value* static_field_offset_value = irb_.getPtrEquivInt(field_offset);
 
     llvm::Value* static_field_addr =
       irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
                          irb_.getJType(field_jty, kField)->getPointerTo());
 
+    // TODO: Check is_volatile.  We need to generate atomic load instruction
+    // when is_volatile is true.
     static_field_value = irb_.CreateLoad(static_field_addr);
   }
 
@@ -2683,13 +2634,20 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
 
   DecodedInstruction dec_insn(insn);
 
-  uint32_t declaring_type_idx = DexFile::kDexNoIndex;
-
-  Field* field = FindFieldAndDeclaringTypeIdx(dec_insn.vB, declaring_type_idx);
+  uint32_t field_idx = dec_insn.vB;
 
   llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA, field_jty, kField);
 
-  if (field == NULL) {
+  int field_offset;
+  int ssb_index;
+  bool is_referrers_class;
+  bool is_volatile;
+
+  bool is_fast_path = compiler_->ComputeStaticFieldInfo(
+    field_idx, oat_compilation_unit_, field_offset, ssb_index,
+    is_referrers_class, is_volatile, true);
+
+  if (!is_fast_path) {
     llvm::Function* runtime_func;
 
     if (field_jty == kObject) {
@@ -2712,16 +2670,37 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
     EmitGuard_ExceptionLandingPad(dex_pc);
 
   } else {
-    llvm::Value* static_storage_addr =
-      EmitLoadStaticStorage(dex_pc, declaring_type_idx);
+    DCHECK_GE(field_offset, 0);
 
-    llvm::Value* static_field_offset_value =
-      irb_.getPtrEquivInt(field->GetOffset().Int32Value());
+    llvm::Value* static_storage_addr = NULL;
+
+    if (is_referrers_class) {
+      // Fast path, static storage base is this method's class
+      llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+      llvm::Constant* declaring_class_offset_value =
+        irb_.getPtrEquivInt(Method::DeclaringClassOffset().Int32Value());
+
+      llvm::Value* static_storage_field_addr =
+        irb_.CreatePtrDisp(method_object_addr, declaring_class_offset_value,
+                           irb_.getJObjectTy()->getPointerTo());
+
+      static_storage_addr = irb_.CreateLoad(static_storage_field_addr);
+    } else {
+      // Medium path, static storage base in a different class which
+      // requires checks that the other class is initialized
+      DCHECK_GE(ssb_index, 0);
+      static_storage_addr = EmitLoadStaticStorage(dex_pc, ssb_index);
+    }
+
+    llvm::Value* static_field_offset_value = irb_.getPtrEquivInt(field_offset);
 
     llvm::Value* static_field_addr =
       irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
                          irb_.getJType(field_jty, kField)->getPointerTo());
 
+    // TODO: Check is_volatile.  We need to generate atomic store instruction
+    // when is_volatile is true.
     irb_.CreateStore(new_value, static_field_addr);
   }
 
