@@ -293,7 +293,7 @@ static void CheckMethodArguments(Method*, JValue*) { }
 static JValue InvokeWithArgArray(JNIEnv* public_env, Object* receiver, Method* method, JValue* args) {
   CheckMethodArguments(method, args);
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
-  JValue result = { 0 };
+  JValue result;
   method->Invoke(env->self, receiver, args, &result);
   return result;
 }
@@ -1063,20 +1063,20 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return AddLocalReference<jobject>(env, result.l);
   }
 
   static jobject CallObjectMethodV(JNIEnv* env, jobject obj, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
-    JValue result = InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, args);
+    JValue result(InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, args));
     return AddLocalReference<jobject>(env, result.l);
   }
 
   static jobject CallObjectMethodA(JNIEnv* env, jobject obj, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
-    JValue result = InvokeVirtualOrInterfaceWithJValues(env, obj, mid, args);
+    JValue result(InvokeVirtualOrInterfaceWithJValues(env, obj, mid, args));
     return AddLocalReference<jobject>(env, result.l);
   }
 
@@ -1084,7 +1084,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.z;
   }
@@ -1103,7 +1103,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.b;
   }
@@ -1122,7 +1122,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.c;
   }
@@ -1141,7 +1141,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.d;
   }
@@ -1160,7 +1160,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.f;
   }
@@ -1179,7 +1179,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.i;
   }
@@ -1198,7 +1198,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.j;
   }
@@ -1217,7 +1217,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.s;
   }
@@ -1236,7 +1236,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeVirtualOrInterfaceWithVarArgs(env, obj, mid, ap));
     va_end(ap);
   }
 
@@ -1254,7 +1254,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeWithVarArgs(env, obj, mid, ap));
     jobject local_result = AddLocalReference<jobject>(env, result.l);
     va_end(ap);
     return local_result;
@@ -1263,14 +1263,14 @@ class JNI {
   static jobject CallNonvirtualObjectMethodV(JNIEnv* env,
       jobject obj, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
-    JValue result = InvokeWithVarArgs(env, obj, mid, args);
+    JValue result(InvokeWithVarArgs(env, obj, mid, args));
     return AddLocalReference<jobject>(env, result.l);
   }
 
   static jobject CallNonvirtualObjectMethodA(JNIEnv* env,
       jobject obj, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
-    JValue result = InvokeWithJValues(env, obj, mid, args);
+    JValue result(InvokeWithJValues(env, obj, mid, args));
     return AddLocalReference<jobject>(env, result.l);
   }
 
@@ -1279,7 +1279,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.z;
   }
@@ -1300,7 +1300,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.b;
   }
@@ -1321,7 +1321,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.c;
   }
@@ -1342,7 +1342,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.s;
   }
@@ -1363,7 +1363,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.i;
   }
@@ -1384,7 +1384,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.j;
   }
@@ -1405,7 +1405,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.f;
   }
@@ -1426,7 +1426,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, obj, mid, ap);
+    JValue result(InvokeWithVarArgs(env, obj, mid, ap));
     va_end(ap);
     return result.d;
   }
@@ -1646,7 +1646,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, NULL, mid, ap);
+    JValue result(InvokeWithVarArgs(env, NULL, mid, ap));
     jobject local_result = AddLocalReference<jobject>(env, result.l);
     va_end(ap);
     return local_result;
@@ -1654,13 +1654,13 @@ class JNI {
 
   static jobject CallStaticObjectMethodV(JNIEnv* env, jclass, jmethodID mid, va_list args) {
     ScopedJniThreadState ts(env);
-    JValue result = InvokeWithVarArgs(env, NULL, mid, args);
+    JValue result(InvokeWithVarArgs(env, NULL, mid, args));
     return AddLocalReference<jobject>(env, result.l);
   }
 
   static jobject CallStaticObjectMethodA(JNIEnv* env, jclass, jmethodID mid, jvalue* args) {
     ScopedJniThreadState ts(env);
-    JValue result = InvokeWithJValues(env, NULL, mid, args);
+    JValue result(InvokeWithJValues(env, NULL, mid, args));
     return AddLocalReference<jobject>(env, result.l);
   }
 
@@ -1668,7 +1668,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, NULL, mid, ap);
+    JValue result(InvokeWithVarArgs(env, NULL, mid, ap));
     va_end(ap);
     return result.z;
   }
@@ -1687,7 +1687,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, NULL, mid, ap);
+    JValue result(InvokeWithVarArgs(env, NULL, mid, ap));
     va_end(ap);
     return result.b;
   }
@@ -1706,7 +1706,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, NULL, mid, ap);
+    JValue result(InvokeWithVarArgs(env, NULL, mid, ap));
     va_end(ap);
     return result.c;
   }
@@ -1725,7 +1725,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, NULL, mid, ap);
+    JValue result(InvokeWithVarArgs(env, NULL, mid, ap));
     va_end(ap);
     return result.s;
   }
@@ -1744,7 +1744,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, NULL, mid, ap);
+    JValue result(InvokeWithVarArgs(env, NULL, mid, ap));
     va_end(ap);
     return result.i;
   }
@@ -1763,7 +1763,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, NULL, mid, ap);
+    JValue result(InvokeWithVarArgs(env, NULL, mid, ap));
     va_end(ap);
     return result.j;
   }
@@ -1782,7 +1782,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, NULL, mid, ap);
+    JValue result(InvokeWithVarArgs(env, NULL, mid, ap));
     va_end(ap);
     return result.f;
   }
@@ -1801,7 +1801,7 @@ class JNI {
     ScopedJniThreadState ts(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result = InvokeWithVarArgs(env, NULL, mid, ap);
+    JValue result(InvokeWithVarArgs(env, NULL, mid, ap));
     va_end(ap);
     return result.d;
   }

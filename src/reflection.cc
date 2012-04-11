@@ -101,7 +101,7 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
   }
 
   // Invoke the method.
-  JValue value = InvokeWithJValues(env, javaReceiver, mid, args.get());
+  JValue value(InvokeWithJValues(env, javaReceiver, mid, args.get()));
 
   // Wrap any exception with "Ljava/lang/reflect/InvocationTargetException;" and return early.
   if (self->IsExceptionPending()) {
@@ -301,7 +301,7 @@ bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, const ch
     return false;
   }
 
-  JValue boxed_value = { 0 };
+  JValue boxed_value;
   std::string src_descriptor(ClassHelper(o->GetClass()).GetDescriptor());
   Class* src_class = NULL;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();

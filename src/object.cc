@@ -248,36 +248,43 @@ void Field::SetLong(Object* object, int64_t j) const {
   Set64(object, j);
 }
 
+union Bits {
+  jdouble d;
+  jfloat f;
+  jint i;
+  jlong j;
+};
+
 float Field::GetFloat(const Object* object) const {
   DCHECK_EQ(Primitive::kPrimFloat, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
-  JValue float_bits;
-  float_bits.i = Get32(object);
-  return float_bits.f;
+  Bits bits;
+  bits.i = Get32(object);
+  return bits.f;
 }
 
 void Field::SetFloat(Object* object, float f) const {
   DCHECK_EQ(Primitive::kPrimFloat, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
-  JValue float_bits;
-  float_bits.f = f;
-  Set32(object, float_bits.i);
+  Bits bits;
+  bits.f = f;
+  Set32(object, bits.i);
 }
 
 double Field::GetDouble(const Object* object) const {
   DCHECK_EQ(Primitive::kPrimDouble, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
-  JValue double_bits;
-  double_bits.j = Get64(object);
-  return double_bits.d;
+  Bits bits;
+  bits.j = Get64(object);
+  return bits.d;
 }
 
 void Field::SetDouble(Object* object, double d) const {
   DCHECK_EQ(Primitive::kPrimDouble, FieldHelper(this).GetTypeAsPrimitiveType())
        << PrettyField(this);
-  JValue double_bits;
-  double_bits.d = d;
-  Set64(object, double_bits.j);
+  Bits bits;
+  bits.d = d;
+  Set64(object, bits.j);
 }
 
 Object* Field::GetObject(const Object* object) const {
