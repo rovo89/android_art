@@ -251,7 +251,8 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
       {
         bool bl = (instruction & (1 << 24)) != 0;
         opcode = (bl ? "bl" : "b");
-        uint32_t imm32 = (instruction & 0xffffff) << 2;
+        int32_t imm26 = (instruction & 0xffffff) << 2;
+        int32_t imm32 = (imm26 << 6) >> 6; // Sign extend.
         DumpBranchTarget(args, instr_ptr + 8, imm32);
       }
       break;
