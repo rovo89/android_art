@@ -63,4 +63,5 @@
   V(FindCatchBlock, art_find_catch_block_from_code) \
   V(EnsureResolved, art_ensure_resolved_from_code) \
   V(FixStub, art_fix_stub_from_code) \
+  V(ProxyInvokeHandler, art_proxy_invoke_handler_from_code) \
   V(DecodeJObjectInThread, art_decode_jobject_in_thread)

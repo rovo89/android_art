@@ -19,6 +19,16 @@
 
 namespace art {
 
+namespace compiler_llvm {
+namespace special_stub {
+  enum SpecialStub {
+    kProxyStub = 16,
+    kMaxSpecialStub
+  };
+}
+}  // namespace compiler_llvm
+
+
 class Method;
 class Object;
 

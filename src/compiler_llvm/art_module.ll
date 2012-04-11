@@ -158,3 +158,5 @@ declare %JavaObject* @art_ensure_resolved_from_code(%JavaObject*,
                                                     i1)
 
 declare %JavaObject* @art_fix_stub_from_code(%JavaObject*)
+
+declare void @art_proxy_invoke_handler_from_code(%JavaObject*, ...)

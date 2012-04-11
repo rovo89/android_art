@@ -290,6 +290,13 @@ FunctionType* FuncTy_30 = FunctionType::get(
  /*Params=*/FuncTy_30_args,
  /*isVarArg=*/false);
 
+std::vector<Type*>FuncTy_31_args;
+FuncTy_31_args.push_back(PointerTy_1);
+FunctionType* FuncTy_31 = FunctionType::get(
+ /*Result=*/Type::getVoidTy(mod->getContext()),
+ /*Params=*/FuncTy_31_args,
+ /*isVarArg=*/true);
+
 
 // Function Declarations
 
@@ -875,6 +882,17 @@ func_art_fix_stub_from_code->setCallingConv(CallingConv::C);
 }
 AttrListPtr func_art_fix_stub_from_code_PAL;
 func_art_fix_stub_from_code->setAttributes(func_art_fix_stub_from_code_PAL);
+
+Function* func_art_proxy_invoke_handler_from_code = mod->getFunction("art_proxy_invoke_handler_from_code");
+if (!func_art_proxy_invoke_handler_from_code) {
+func_art_proxy_invoke_handler_from_code = Function::Create(
+ /*Type=*/FuncTy_31,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_proxy_invoke_handler_from_code", mod); // (external, no body)
+func_art_proxy_invoke_handler_from_code->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_proxy_invoke_handler_from_code_PAL;
+func_art_proxy_invoke_handler_from_code->setAttributes(func_art_proxy_invoke_handler_from_code_PAL);
 
 // Global Variable Declarations
 

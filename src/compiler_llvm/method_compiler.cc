@@ -27,6 +27,7 @@
 #include "object.h"
 #include "object_utils.h"
 #include "runtime_support_func.h"
+#include "runtime_support_llvm.h"
 #include "shadow_frame.h"
 #include "stl_util.h"
 #include "stringprintf.h"
@@ -2884,6 +2885,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   EmitLoadActualParameters(args, callee_method_idx, dec_insn,
                            arg_fmt, is_static);
 
+#if 0
   // Invoke callee
   EmitUpdateLineNumFromDexPC(dex_pc);
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
@@ -2897,6 +2899,72 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   if (ret_shorty != 'V') {
     EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
   }
+#else
+  uint32_t callee_access_flags = is_static ? kAccStatic : 0;
+  UniquePtr<OatCompilationUnit> callee_oat_compilation_unit(
+    oat_compilation_unit_->GetCallee(callee_method_idx, callee_access_flags));
+
+  char ret_shorty = callee_oat_compilation_unit->GetShorty()[0];
+
+
+  EmitUpdateLineNumFromDexPC(dex_pc);
+
+
+  llvm::BasicBlock* block_normal = CreateBasicBlockWithDexPC(dex_pc, "normal");
+  llvm::BasicBlock* block_proxy_stub = CreateBasicBlockWithDexPC(dex_pc, "proxy");
+  llvm::BasicBlock* block_continue = CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+  llvm::Type* accurate_ret_type = irb_.getJType(ret_shorty, kAccurate);
+  llvm::Value* retval_addr = NULL;
+  if (ret_shorty != 'V') {
+    retval_addr = irb_.CreateAlloca(accurate_ret_type);
+  }
+
+
+  // TODO: Remove this after we solve the proxy trampoline calling convention problem.
+  llvm::Value* code_addr_int = irb_.CreatePtrToInt(code_addr, irb_.getPtrEquivIntTy());
+  llvm::Value* proxy_stub_int = irb_.getPtrEquivInt(special_stub::kProxyStub);
+  llvm::Value* is_proxy_stub = irb_.CreateICmpEQ(code_addr_int, proxy_stub_int);
+  irb_.CreateCondBr(is_proxy_stub, block_proxy_stub, block_normal);
+
+
+  irb_.SetInsertPoint(block_normal);
+  {
+    // Invoke callee
+    llvm::Value* result = irb_.CreateCall(code_addr, args);
+    if (ret_shorty != 'V') {
+      irb_.CreateStore(result, retval_addr);
+    }
+  }
+  irb_.CreateBr(block_continue);
+
+
+  irb_.SetInsertPoint(block_proxy_stub);
+  {
+    llvm::Value* temp_space_addr;
+    if (ret_shorty != 'V') {
+      temp_space_addr = irb_.CreateAlloca(irb_.getJValueTy());
+      args.push_back(temp_space_addr);
+    }
+    irb_.CreateCall(irb_.GetRuntime(ProxyInvokeHandler), args);
+    if (ret_shorty != 'V') {
+      llvm::Value* result_addr =
+          irb_.CreateBitCast(temp_space_addr, accurate_ret_type->getPointerTo());
+      llvm::Value* retval = irb_.CreateLoad(result_addr);
+      irb_.CreateStore(retval, retval_addr);
+    }
+  }
+  irb_.CreateBr(block_continue);
+
+
+  irb_.SetInsertPoint(block_continue);
+
+  if (ret_shorty != 'V') {
+    llvm::Value* retval = irb_.CreateLoad(retval_addr);
+    EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
+  }
+  EmitGuard_ExceptionLandingPad(dex_pc);
+#endif
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
