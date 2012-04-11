@@ -114,7 +114,7 @@ uint64_t MicroTime() {
 #else
   struct timeval now;
   gettimeofday(&now, NULL);
-  return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_usec * 1000LL;
+  return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_usec;
 #endif
 }
 
