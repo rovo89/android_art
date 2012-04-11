@@ -899,9 +899,29 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
               default: break;
             }
           } else {
+            uint32_t first_cond = opA;
+            uint32_t mask = opB;
             opcode << "it";
-            args << reinterpret_cast<void*>(opB) << " ";
-            DumpCond(args, opA);
+
+            // Flesh out the base "it" opcode with the specific collection of 't's and 'e's,
+            // and store up the actual condition codes we'll want to add to the next few opcodes.
+            size_t count = 3 - CTZ(mask);
+            it_conditions_.resize(count + 2); // Plus the implicit 't', plus the "" for the IT itself.
+            for (size_t i = 0; i < count; ++i) {
+              bool positive_cond = ((first_cond & 1) != 0);
+              bool positive_mask = ((mask & (1 << (3 - i))) != 0);
+              if (positive_mask == positive_cond) {
+                opcode << 't';
+                it_conditions_[i] = kConditionCodeNames[first_cond];
+              } else {
+                opcode << 'e';
+                it_conditions_[i] = kConditionCodeNames[first_cond ^ 1];
+              }
+            }
+            it_conditions_[count] = kConditionCodeNames[first_cond]; // The implicit 't'.
+
+            it_conditions_[count + 1] = ""; // No condition code for the IT itself...
+            DumpCond(args, first_cond); // ...because it's considered an argument.
           }
           break;
         }
@@ -943,6 +963,13 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
       opcode << "b";
       DumpBranchTarget(args, instr_ptr + 4, imm32);
     }
+
+    // Apply any IT-block conditions to the opcode if necessary.
+    if (!it_conditions_.empty()) {
+      opcode << it_conditions_.back();
+      it_conditions_.pop_back();
+    }
+
     os << StringPrintf("\t\t\t%p: %04x    \t%-7s ", instr_ptr, instr, opcode.str().c_str()) << args.str() << '\n';
   }
   return 2;

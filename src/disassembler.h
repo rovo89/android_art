@@ -22,6 +22,7 @@
 #include <iosfwd>
 
 #include "instruction_set.h"
+#include "macros.h"
 
 namespace art {
 
@@ -31,6 +32,12 @@ class Disassembler {
   virtual ~Disassembler() {}
 
   virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) = 0;
+
+ protected:
+  Disassembler() {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(Disassembler);
 };
 
 }  // namespace art
