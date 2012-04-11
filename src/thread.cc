@@ -1461,13 +1461,14 @@ void Thread::DumpFromGdb() const {
 
 void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_pointers) {
   CHECK_EQ(size_of_pointers, 4U); // TODO: support 64-bit targets.
-#define DO_THREAD_OFFSET(x) if (offset == static_cast<uint32_t>(OFFSETOF_MEMBER(Thread, x))) { os << # x; } else
+#define DO_THREAD_OFFSET(x) if (offset == static_cast<uint32_t>(OFFSETOF_VOLATILE_MEMBER(Thread, x))) { os << # x; } else
 #define DO_THREAD_ENTRY_POINT_OFFSET(x) if (offset == ENTRYPOINT_OFFSET(x)) { os << # x; } else
   DO_THREAD_OFFSET(card_table_)
   DO_THREAD_OFFSET(exception_)
   DO_THREAD_OFFSET(jni_env_)
   DO_THREAD_OFFSET(self_)
   DO_THREAD_OFFSET(stack_end_)
+  DO_THREAD_OFFSET(state_)
   DO_THREAD_OFFSET(suspend_count_)
   DO_THREAD_OFFSET(thin_lock_id_)
   DO_THREAD_OFFSET(top_of_managed_stack_)

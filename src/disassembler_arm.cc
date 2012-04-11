@@ -128,13 +128,15 @@ std::ostream& operator<<(std::ostream& os, const Rm& r) {
 }
 
 struct Imm12 {
-  Imm12(uint32_t instruction) : rotate((instruction >> 8) & 0xf), imm(instruction & 0xff) {}
-  uint32_t rotate;
-  uint32_t imm;
+  Imm12(uint32_t instruction) {
+    uint32_t rotate = ((instruction >> 8) & 0xf);
+    uint32_t imm = (instruction & 0xff);
+    value = (imm >> (2 * rotate)) | (imm << (32 - (2 * rotate)));
+  }
+  uint32_t value;
 };
 std::ostream& operator<<(std::ostream& os, const Imm12& rhs) {
-  uint32_t imm = (rhs.imm >> (2 * rhs.rotate)) | (rhs.imm << (32 - (2 * rhs.rotate)));
-  os << "#" << imm;
+  os << "#" << rhs.value;
   return os;
 }
 
@@ -167,23 +169,38 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
   uint32_t instruction = ReadU32(instr_ptr);
   uint32_t cond = (instruction >> 28) & 0xf;
   uint32_t op1 = (instruction >> 25) & 0x7;
-  std::ostringstream opcode;
+  std::string opcode;
+  std::string suffixes;
   std::ostringstream args;
   switch (op1) {
     case 0:
     case 1: // Data processing instructions.
       {
+        if ((instruction & 0x0ff000f0) == 0x01200070) { // BKPT
+          opcode = "bkpt";
+          uint32_t imm12 = (instruction >> 8) & 0xfff;
+          uint32_t imm4 = (instruction & 0xf);
+          args << '#' << ((imm12 << 4) | imm4);
+          break;
+        }
         if ((instruction & 0x0fffffd0) == 0x012fff10) { // BX and BLX (register)
-          opcode << (((instruction >> 5) & 1) ? "blx" : "bx");
+          opcode = (((instruction >> 5) & 1) ? "blx" : "bx");
           args << ArmRegister(instruction & 0xf);
           break;
         }
         bool i = (instruction & (1 << 25)) != 0;
         bool s = (instruction & (1 << 20)) != 0;
-        opcode << kDataProcessingOperations[(instruction >> 21) & 0xf]
-               << kConditionCodeNames[cond]
-               << (s ? "s" : "");
-        args << ArmRegister(instruction, 12) << ", ";
+        uint32_t op = (instruction >> 21) & 0xf;
+        opcode = kDataProcessingOperations[op];
+        bool implicit_s = ((op & ~3) == 8); // TST, TEQ, CMP, and CMN.
+        if (implicit_s) {
+          // Rd is unused (and not shown), and we don't show the 's' suffix either.
+        } else {
+          if (s) {
+            suffixes += 's';
+          }
+          args << ArmRegister(instruction, 12) << ", ";
+        }
         if (i) {
           args << ArmRegister(instruction, 16) << ", " << Imm12(instruction);
         } else {
@@ -197,7 +214,7 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
         bool b = (instruction & (1 << 22)) != 0;
         bool w = (instruction & (1 << 21)) != 0;
         bool l = (instruction & (1 << 20)) != 0;
-        opcode << (l ? "ldr" : "str") << (b ? "b" : "") << kConditionCodeNames[cond];
+        opcode = StringPrintf("%s%s", (l ? "ldr" : "str"), (b ? "b" : ""));
         args << ArmRegister(instruction, 12) << ", ";
         ArmRegister rn(instruction, 16);
         if (rn.r == 0xf) {
@@ -213,6 +230,10 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
           } else {
             LOG(FATAL) << p << " " << w;
           }
+          if (rn.r == 9) {
+            args << "  ; ";
+            Thread::DumpThreadOffset(args, Imm12(instruction).value, 4);
+          }
         }
       }
       break;
@@ -222,19 +243,26 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
         bool u = (instruction & (1 << 23)) != 0;
         bool w = (instruction & (1 << 21)) != 0;
         bool l = (instruction & (1 << 20)) != 0;
-        opcode << (l ? "ldm" : "stm")
-               << (u ? 'i' : 'd')
-               << (p ? 'b' : 'a')
-               << kConditionCodeNames[cond];
+        opcode = StringPrintf("%s%c%c", (l ? "ldm" : "stm"), (u ? 'i' : 'd'), (p ? 'b' : 'a'));
         args << ArmRegister(instruction, 16) << (w ? "!" : "") << ", " << RegisterList(instruction);
       }
       break;
+    case 5: // Branch/branch with link.
+      {
+        bool bl = (instruction & (1 << 24)) != 0;
+        opcode = (bl ? "bl" : "b");
+        uint32_t imm32 = (instruction & 0xffffff) << 2;
+        DumpBranchTarget(args, instr_ptr + 8, imm32);
+      }
+      break;
     default:
-      opcode << "???";
+      opcode = "???";
       break;
     }
+    opcode += kConditionCodeNames[cond];
+    opcode += suffixes;
     // TODO: a more complete ARM disassembler could generate wider opcodes.
-    os << StringPrintf("\t\t\t%p: %08x\t%-7s ", instr_ptr, instruction, opcode.str().c_str()) << args.str() << '\n';
+    os << StringPrintf("\t\t\t%p: %08x\t%-7s ", instr_ptr, instruction, opcode.c_str()) << args.str() << '\n';
 }
 
 size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) {
