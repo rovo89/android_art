@@ -22,8 +22,8 @@ import java.lang.reflect.Constructor;
  * DexFile tests (Dalvik-specific).
  */
 public class Main {
-    private static final String CLASS_PATH = "/data/run-test/071-dexfile-ex.jar";
-    private static final String ODEX_DIR = "/data/run-test";
+    private static final String CLASS_PATH = System.getenv("DEX_LOCATION") + "/071-dexfile-ex.jar";
+    private static final String ODEX_DIR = System.getenv("DEX_LOCATION");
     //private static final String ODEX_DIR = ".";
     private static final String ODEX_ALT = "/tmp";
     private static final String LIB_DIR = "/nowhere/nothing/";

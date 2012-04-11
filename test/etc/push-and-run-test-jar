@@ -116,7 +116,7 @@ if [ "$DEBUG" = "y" ]; then
   #   jdb -attach localhost:12345
 fi
 
-cmdline="cd /data; $INVOKE_WITH $OATEXEC $DEX_DEBUG $ZYGOTE -Xjnigreflimit:256 \
+cmdline="cd /data; export DEX_LOCATION=$DEX_LOCATION; $INVOKE_WITH $OATEXEC $DEX_DEBUG $ZYGOTE -Xjnigreflimit:256 \
     -Ximage:/data/art-test/core.art \
     -cp /data/run-test/$TEST_NAME.jar \
     Main"
