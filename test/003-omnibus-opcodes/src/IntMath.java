@@ -272,6 +272,80 @@ public class IntMath {
         Main.assertTrue(results[7] == 55563);
     }
 
+    /*
+     * Make sure special-cased literal division matches
+     * normal division.
+     */
+    static void divLiteralTestBody(int start, int count) {
+       int normal = 0;
+       int special = 0;
+       for (int i = 0; i < count; i++) {
+           for (int j = 3; j < 16; j++) {
+               switch(j) {
+                   case 3:
+                       normal = (start+i) / j;
+                       special = (start+i) / 3;
+                       break;
+                   case 4:
+                       normal = (start+i) / j;
+                       special = (start+i) / 4;
+                       break;
+                   case 5:
+                       normal = (start+i) / j;
+                       special = (start+i) / 5;
+                       break;
+                   case 6:
+                       normal = (start+i) / j;
+                       special = (start+i) / 6;
+                       break;
+                   case 7:
+                       normal = (start+i) / j;
+                       special = (start+i) / 7;
+                       break;
+                   case 8:
+                       normal = (start+i) / j;
+                       special = (start+i) / 8;
+                       break;
+                   case 9:
+                       normal = (start+i) / j;
+                       special = (start+i) / 9;
+                       break;
+                   case 10:
+                       normal = (start+i) / j;
+                       special = (start+i) / 10;
+                       break;
+                   case 11:
+                       normal = (start+i) / j;
+                       special = (start+i) / 11;
+                       break;
+                   case 12:
+                       normal = (start+i) / j;
+                       special = (start+i) / 12;
+                       break;
+                   case 13:
+                       normal = (start+i) / j;
+                       special = (start+i) / 13;
+                       break;
+                   case 14:
+                       normal = (start+i) / j;
+                       special = (start+i) / 14;
+                       break;
+                   case 15:
+                       normal = (start+i) / j;
+                       special = (start+i) / 15;
+                       break;
+               }
+           }
+           Main.assertTrue(normal == special);
+       }
+    }
+
+    static void divLiteralTest() {
+       System.out.println("IntMath.divLiteralTest");
+       divLiteralTestBody(-1000, 2000);
+       divLiteralTestBody(0x7fffffff-2000, 2000);
+       divLiteralTestBody(0xfff0ffff, 2000);
+    }
 
     /*
      * Shift some data.  (value=0xff00aa01, dist=8)
@@ -518,6 +592,7 @@ public class IntMath {
         lit16Check(intResults);
         intResults = lit8Test(-55555);
         lit8Check(intResults);
+        divLiteralTest();
 
         intResults = intShiftTest(0xff00aa01, 8);
         intShiftCheck(intResults);

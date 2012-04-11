@@ -27,6 +27,8 @@ void genInvoke(CompilationUnit* cUnit, BasicBlock* bb,  MIR* mir,
                InvokeType type, bool isRange);
 #if defined(TARGET_ARM)
 LIR* opIT(CompilationUnit* cUnit, ArmConditionCode cond, const char* guide);
+bool smallLiteralDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
+                        RegLocation rlSrc, RegLocation rlDest, int lit);
 #endif
 
 void callRuntimeHelperImm(CompilationUnit* cUnit, int helperOffset, int arg0) {
@@ -1915,9 +1917,19 @@ int lowestSetBit(unsigned int x) {
 bool handleEasyDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
                       RegLocation rlSrc, RegLocation rlDest, int lit)
 {
+#if defined(TARGET_ARM)
+    // No divide instruction for Arm, so check for more special cases
+    if (lit < 2) {
+        return false;
+    }
+    if (!isPowerOfTwo(lit)) {
+        return smallLiteralDivide(cUnit, dalvikOpcode, rlSrc, rlDest, lit);
+    }
+#else
     if (lit < 2 || !isPowerOfTwo(lit)) {
         return false;
     }
+#endif
     int k = lowestSetBit(lit);
     if (k >= 30) {
         // Avoid special cases.
