@@ -207,6 +207,8 @@ static inline String* ResolveStringFromCode(const Method* referrer, uint32_t str
   return class_linker->ResolveString(string_idx, referrer);
 }
 
+extern void ThrowNewUndeclaredThrowableException(Thread* self, JNIEnv* env, Throwable* exception);
+
 }  // namespace art
 
 #endif  // ART_SRC_RUNTIME_SUPPORT_H_

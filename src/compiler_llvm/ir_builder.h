@@ -89,6 +89,26 @@ class IRBuilder : public LLVMIRBuilder {
     return CreatePtrDisp(base, total_offset, ret_ty);
   }
 
+  llvm::Value* LoadFromObjectOffset(llvm::Value* object_addr, int32_t offset, llvm::Type* type) {
+    // Convert offset to llvm::value
+    llvm::Value* llvm_offset = getPtrEquivInt(offset);
+    // Calculate the value's address
+    llvm::Value* value_addr = CreatePtrDisp(object_addr, llvm_offset, type->getPointerTo());
+    // Load
+    return CreateLoad(value_addr);
+  }
+
+  void StoreToObjectOffset(llvm::Value* object_addr, int32_t offset, llvm::Value* new_value) {
+    // Convert offset to llvm::value
+    llvm::Value* llvm_offset = getPtrEquivInt(offset);
+    // Calculate the value's address
+    llvm::Value* value_addr = CreatePtrDisp(object_addr,
+                                            llvm_offset,
+                                            new_value->getType()->getPointerTo());
+    // Store
+    CreateStore(new_value, value_addr);
+  }
+
 
   //--------------------------------------------------------------------------
   // Runtime Helper Function

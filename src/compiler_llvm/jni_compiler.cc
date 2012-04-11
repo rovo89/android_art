@@ -88,9 +88,9 @@ CompiledMethod* JniCompiler::Compile() {
   } else {
     // Load class object
     this_object_or_class_object =
-        LoadFromObjectOffset(method_object_addr,
-                             Method::DeclaringClassOffset().Int32Value(),
-                             irb_.getJObjectTy());
+        irb_.LoadFromObjectOffset(method_object_addr,
+                                  Method::DeclaringClassOffset().Int32Value(),
+                                  irb_.getJObjectTy());
   }
   // Actual argument (ignore method and this object)
   arg_begin = arg_iter;
@@ -126,34 +126,35 @@ CompiledMethod* JniCompiler::Compile() {
   irb_.CreateStore(method_object_addr, method_field_addr);
 
   // Store the line number
-  StoreToObjectOffset(shadow_frame_,
-                      ShadowFrame::LineNumOffset(),
-                      irb_.getInt32(dex_file_->GetLineNumFromPC(method_, 0)));
+  irb_.StoreToObjectOffset(shadow_frame_,
+                           ShadowFrame::LineNumOffset(),
+                           irb_.getInt32(dex_file_->GetLineNumFromPC(method_, 0)));
 
   // Store the number of the pointer slots
-  StoreToObjectOffset(shadow_frame_,
-                      ShadowFrame::NumberOfReferencesOffset(),
-                      irb_.getInt32(sirt_size));
+  irb_.StoreToObjectOffset(shadow_frame_,
+                           ShadowFrame::NumberOfReferencesOffset(),
+                           irb_.getInt32(sirt_size));
 
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
   irb_.CreateCall(irb_.GetRuntime(PushShadowFrame), shadow_frame_upcast);
 
   // Get JNIEnv
-  llvm::Value* jni_env_object_addr = LoadFromObjectOffset(thread_object_addr,
-                                                          Thread::JniEnvOffset().Int32Value(),
-                                                          irb_.getJObjectTy());
+  llvm::Value* jni_env_object_addr =
+      irb_.LoadFromObjectOffset(thread_object_addr,
+                                Thread::JniEnvOffset().Int32Value(),
+                                irb_.getJObjectTy());
 
   // Set thread state to kNative
-  StoreToObjectOffset(thread_object_addr,
-                      Thread::StateOffset().Int32Value(),
-                      irb_.getInt32(kNative));
+  irb_.StoreToObjectOffset(thread_object_addr,
+                           Thread::StateOffset().Int32Value(),
+                           irb_.getInt32(kNative));
 
   // Get callee code_addr
   llvm::Value* code_addr =
-      LoadFromObjectOffset(method_object_addr,
-                           Method::NativeMethodOffset().Int32Value(),
-                           GetFunctionType(method_idx_, is_static, true)->getPointerTo());
+      irb_.LoadFromObjectOffset(method_object_addr,
+                                Method::NativeMethodOffset().Int32Value(),
+                                GetFunctionType(method_idx_, is_static, true)->getPointerTo());
 
   // Load actual parameters
   std::vector<llvm::Value*> args;
@@ -230,18 +231,18 @@ CompiledMethod* JniCompiler::Compile() {
 
   // saved_local_ref_cookie = env->local_ref_cookie
   llvm::Value* saved_local_ref_cookie =
-      LoadFromObjectOffset(jni_env_object_addr,
-                           JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                           irb_.getInt32Ty());
+      irb_.LoadFromObjectOffset(jni_env_object_addr,
+                                JNIEnvExt::LocalRefCookieOffset().Int32Value(),
+                                irb_.getInt32Ty());
 
   // env->local_ref_cookie = env->locals.segment_state
   llvm::Value* segment_state =
-      LoadFromObjectOffset(jni_env_object_addr,
-                           JNIEnvExt::SegmentStateOffset().Int32Value(),
-                           irb_.getInt32Ty());
-  StoreToObjectOffset(jni_env_object_addr,
-                      JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                      segment_state);
+      irb_.LoadFromObjectOffset(jni_env_object_addr,
+                                JNIEnvExt::SegmentStateOffset().Int32Value(),
+                                irb_.getInt32Ty());
+  irb_.StoreToObjectOffset(jni_env_object_addr,
+                           JNIEnvExt::LocalRefCookieOffset().Int32Value(),
+                           segment_state);
 
 
   // Call!!!
@@ -254,9 +255,9 @@ CompiledMethod* JniCompiler::Compile() {
   }
 
   // Set thread state to kRunnable
-  StoreToObjectOffset(thread_object_addr,
-                      Thread::StateOffset().Int32Value(),
-                      irb_.getInt32(kRunnable));
+  irb_.StoreToObjectOffset(thread_object_addr,
+                           Thread::StateOffset().Int32Value(),
+                           irb_.getInt32(kRunnable));
 
   if (return_shorty == 'L') {
     // If the return value is reference, it may point to SIRT, we should decode it.
@@ -267,17 +268,17 @@ CompiledMethod* JniCompiler::Compile() {
 
   // env->locals.segment_state = env->local_ref_cookie
   llvm::Value* local_ref_cookie =
-      LoadFromObjectOffset(jni_env_object_addr,
-                           JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                           irb_.getInt32Ty());
-  StoreToObjectOffset(jni_env_object_addr,
-                      JNIEnvExt::SegmentStateOffset().Int32Value(),
-                      local_ref_cookie);
+      irb_.LoadFromObjectOffset(jni_env_object_addr,
+                                JNIEnvExt::LocalRefCookieOffset().Int32Value(),
+                                irb_.getInt32Ty());
+  irb_.StoreToObjectOffset(jni_env_object_addr,
+                           JNIEnvExt::SegmentStateOffset().Int32Value(),
+                           local_ref_cookie);
 
   // env->local_ref_cookie = saved_local_ref_cookie
-  StoreToObjectOffset(jni_env_object_addr,
-                      JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                      saved_local_ref_cookie);
+  irb_.StoreToObjectOffset(jni_env_object_addr,
+                           JNIEnvExt::LocalRefCookieOffset().Int32Value(),
+                           saved_local_ref_cookie);
 
   // Pop the shadow frame
   irb_.CreateCall(irb_.GetRuntime(PopShadowFrame));
@@ -346,30 +347,6 @@ llvm::FunctionType* JniCompiler::GetFunctionType(uint32_t method_idx,
   }
 
   return llvm::FunctionType::get(ret_type, args_type, false);
-}
-
-llvm::Value* JniCompiler::LoadFromObjectOffset(llvm::Value* object_addr,
-                                               int32_t offset,
-                                               llvm::Type* type) {
-  // Convert offset to llvm::value
-  llvm::Value* llvm_offset = irb_.getPtrEquivInt(offset);
-  // Calculate the value's address
-  llvm::Value* value_addr = irb_.CreatePtrDisp(object_addr, llvm_offset, type->getPointerTo());
-  // Load
-  return irb_.CreateLoad(value_addr);
-}
-
-void JniCompiler::StoreToObjectOffset(llvm::Value* object_addr,
-                                      int32_t offset,
-                                      llvm::Value* new_value) {
-  // Convert offset to llvm::value
-  llvm::Value* llvm_offset = irb_.getPtrEquivInt(offset);
-  // Calculate the value's address
-  llvm::Value* value_addr = irb_.CreatePtrDisp(object_addr,
-                                               llvm_offset,
-                                               new_value->getType()->getPointerTo());
-  // Store
-  irb_.CreateStore(new_value, value_addr);
 }
 
 } // namespace compiler_llvm
