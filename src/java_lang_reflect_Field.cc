@@ -25,6 +25,7 @@
 namespace art {
 
 static bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
+  DCHECK_EQ(value.j, 0LL);
   ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(), true, true)) {
     return false;
@@ -34,7 +35,8 @@ static bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_referen
     value.z = f->GetBoolean(o);
     return true;
   case Primitive::kPrimByte:
-    value.b = f->GetByte(o);
+    // Read byte and ensure it is fully sign-extended to an int.
+    value.i = ((int32_t)f->GetByte(o) << 24) >> 24;
     return true;
   case Primitive::kPrimChar:
     value.c = f->GetChar(o);
@@ -52,7 +54,8 @@ static bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_referen
     value.j = f->GetLong(o);
     return true;
   case Primitive::kPrimShort:
-    value.s = f->GetShort(o);
+    // Read short and ensure it is fully sign-extended to an int.
+    value.i = ((int32_t)f->GetShort(o) << 16) >> 16;
     return true;
   case Primitive::kPrimNot:
     if (allow_references) {
