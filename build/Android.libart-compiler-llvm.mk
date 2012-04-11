@@ -32,8 +32,6 @@ LIBART_COMPILER_LLVM_SRC_FILES += \
 
 # $(1): target or host
 # $(2): ndebug or debug
-# $(3): architecture name
-# $(4): list of source files
 define build-libart-compiler-llvm
   ifneq ($(1),target)
     ifneq ($(1),host)
@@ -48,7 +46,6 @@ define build-libart-compiler-llvm
 
   art_target_or_host := $(1)
   art_ndebug_or_debug := $(2)
-  libart_compiler_llvm_src_files := $(3)
 
   include $(CLEAR_VARS)
   ifeq ($$(art_target_or_host),target)
@@ -64,7 +61,7 @@ define build-libart-compiler-llvm
   LOCAL_MODULE_TAGS := optional
   LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 
-  LOCAL_SRC_FILES := $(libart_compiler_llvm_src_files)
+  LOCAL_SRC_FILES := $(LIBART_COMPILER_LLVM_SRC_FILES)
   LOCAL_CFLAGS := $(LIBART_COMPILER_LLVM_CFLAGS)
   ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
@@ -185,14 +182,14 @@ define build-libart-compiler-llvm
 endef
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-libart-compiler-llvm,target,ndebug,$(LIBART_COMPILER_LLVM_SRC_FILES)))
+  $(eval $(call build-libart-compiler-llvm,target,ndebug))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-libart-compiler-llvm,target,debug,$(LIBART_COMPILER_LLVM_SRC_FILES)))
+  $(eval $(call build-libart-compiler-llvm,target,debug))
 endif
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
-  $(eval $(call build-libart-compiler-llvm,host,ndebug,$(LIBART_COMPILER_LLVM_SRC_FILES)))
+  $(eval $(call build-libart-compiler-llvm,host,ndebug))
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
-  $(eval $(call build-libart-compiler-llvm,host,debug,$(LIBART_COMPILER_LLVM_SRC_FILES)))
+  $(eval $(call build-libart-compiler-llvm,host,debug))
 endif
