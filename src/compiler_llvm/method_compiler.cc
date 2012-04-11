@@ -2826,23 +2826,23 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   }
 
   // Load the method object
-  llvm::Value* callee_method_object_addr_ = NULL;
+  llvm::Value* callee_method_object_addr = NULL;
 
   if (!is_fast_path) {
-    callee_method_object_addr_ =
+    callee_method_object_addr =
       EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx, invoke_type,
                                                this_addr, dex_pc, is_fast_path);
   } else {
     switch (invoke_type) {
     case kStatic:
     case kDirect:
-      callee_method_object_addr_ =
+      callee_method_object_addr =
         EmitLoadSDCalleeMethodObjectAddr(callee_method_idx);
       break;
 
     case kVirtual:
       DCHECK(vtable_idx != -1);
-      callee_method_object_addr_ =
+      callee_method_object_addr =
         EmitLoadVirtualCalleeMethodObjectAddr(vtable_idx, this_addr);
       break;
 
@@ -2852,28 +2852,28 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
       break;
 
     case kInterface:
-      callee_method_object_addr_ =
+      callee_method_object_addr =
         EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx,
                                                  invoke_type, this_addr,
                                                  dex_pc, is_fast_path);
       break;
     }
+
+    // Ensure the callee method object is resolved.
+    bool is_virtual = (dec_insn.opcode == Instruction::INVOKE_VIRTUAL) ||
+                      (dec_insn.opcode == Instruction::INVOKE_VIRTUAL_RANGE) ||
+                      (dec_insn.opcode == Instruction::INVOKE_SUPER) ||
+                      (dec_insn.opcode == Instruction::INVOKE_SUPER_RANGE);
+
+    llvm::Value* caller_method_object_addr = EmitLoadMethodObjectAddr();
+
+    callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr,
+                                                   caller_method_object_addr,
+                                                   callee_method_idx,
+                                                   is_virtual);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
   }
-
-  // Ensure the callee method object is resolved, linked, and its declaring
-  // class is initialized.
-  bool is_virtual = (dec_insn.opcode == Instruction::INVOKE_VIRTUAL) ||
-                    (dec_insn.opcode == Instruction::INVOKE_VIRTUAL_RANGE) ||
-                    (dec_insn.opcode == Instruction::INVOKE_SUPER) ||
-                    (dec_insn.opcode == Instruction::INVOKE_SUPER_RANGE);
-
-  llvm::Value* caller_method_object_addr = EmitLoadMethodObjectAddr();
-
-  llvm::Value* callee_method_object_addr =
-    EmitEnsureResolved(callee_method_object_addr_,
-                       caller_method_object_addr,
-                       callee_method_idx,
-                       is_virtual);
 
 #if 0
   llvm::Value* code_field_offset_value =
