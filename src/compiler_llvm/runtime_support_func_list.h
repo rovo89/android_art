@@ -39,9 +39,12 @@
   V(AllocArrayWithAccessCheck, art_alloc_array_from_code_with_access_check) \
   V(CheckAndAllocArray, art_check_and_alloc_array_from_code) \
   V(CheckAndAllocArrayWithAccessCheck, art_check_and_alloc_array_from_code_with_access_check) \
+  V(FindStaticMethodWithAccessCheck, art_find_static_method_from_code_with_access_check) \
+  V(FindDirectMethodWithAccessCheck, art_find_direct_method_from_code_with_access_check) \
+  V(FindVirtualMethodWithAccessCheck, art_find_virtual_method_from_code_with_access_check) \
+  V(FindSuperMethodWithAccessCheck, art_find_super_method_from_code_with_access_check) \
+  V(FindInterfaceMethodWithAccessCheck, art_find_interface_method_from_code_with_access_check) \
   V(FindInterfaceMethod, art_find_interface_method_from_code) \
-  V(FindVirtualMethod, art_find_virtual_method_from_code) \
-  V(FindSuperMethod, art_find_super_method_from_code) \
   V(ResolveString, art_resolve_string_from_code) \
   V(Set32Static, art_set32_static_from_code) \
   V(Set64Static, art_set64_static_from_code) \

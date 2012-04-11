@@ -568,6 +568,61 @@ func_art_find_static_field_from_code->setCallingConv(CallingConv::C);
 AttrListPtr func_art_find_static_field_from_code_PAL;
 func_art_find_static_field_from_code->setAttributes(func_art_find_static_field_from_code_PAL);
 
+Function* func_art_find_static_method_from_code_with_access_check = mod->getFunction("art_find_static_method_from_code_with_access_check");
+if (!func_art_find_static_method_from_code_with_access_check) {
+func_art_find_static_method_from_code_with_access_check = Function::Create(
+ /*Type=*/FuncTy_15,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_find_static_method_from_code_with_access_check", mod); // (external, no body)
+func_art_find_static_method_from_code_with_access_check->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_find_static_method_from_code_with_access_check_PAL;
+func_art_find_static_method_from_code_with_access_check->setAttributes(func_art_find_static_method_from_code_with_access_check_PAL);
+
+Function* func_art_find_direct_method_from_code_with_access_check = mod->getFunction("art_find_direct_method_from_code_with_access_check");
+if (!func_art_find_direct_method_from_code_with_access_check) {
+func_art_find_direct_method_from_code_with_access_check = Function::Create(
+ /*Type=*/FuncTy_15,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_find_direct_method_from_code_with_access_check", mod); // (external, no body)
+func_art_find_direct_method_from_code_with_access_check->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_find_direct_method_from_code_with_access_check_PAL;
+func_art_find_direct_method_from_code_with_access_check->setAttributes(func_art_find_direct_method_from_code_with_access_check_PAL);
+
+Function* func_art_find_virtual_method_from_code_with_access_check = mod->getFunction("art_find_virtual_method_from_code_with_access_check");
+if (!func_art_find_virtual_method_from_code_with_access_check) {
+func_art_find_virtual_method_from_code_with_access_check = Function::Create(
+ /*Type=*/FuncTy_15,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_find_virtual_method_from_code_with_access_check", mod); // (external, no body)
+func_art_find_virtual_method_from_code_with_access_check->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_find_virtual_method_from_code_with_access_check_PAL;
+func_art_find_virtual_method_from_code_with_access_check->setAttributes(func_art_find_virtual_method_from_code_with_access_check_PAL);
+
+Function* func_art_find_super_method_from_code_with_access_check = mod->getFunction("art_find_super_method_from_code_with_access_check");
+if (!func_art_find_super_method_from_code_with_access_check) {
+func_art_find_super_method_from_code_with_access_check = Function::Create(
+ /*Type=*/FuncTy_15,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_find_super_method_from_code_with_access_check", mod); // (external, no body)
+func_art_find_super_method_from_code_with_access_check->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_find_super_method_from_code_with_access_check_PAL;
+func_art_find_super_method_from_code_with_access_check->setAttributes(func_art_find_super_method_from_code_with_access_check_PAL);
+
+Function* func_art_find_interface_method_from_code_with_access_check = mod->getFunction("art_find_interface_method_from_code_with_access_check");
+if (!func_art_find_interface_method_from_code_with_access_check) {
+func_art_find_interface_method_from_code_with_access_check = Function::Create(
+ /*Type=*/FuncTy_15,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_find_interface_method_from_code_with_access_check", mod); // (external, no body)
+func_art_find_interface_method_from_code_with_access_check->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_find_interface_method_from_code_with_access_check_PAL;
+func_art_find_interface_method_from_code_with_access_check->setAttributes(func_art_find_interface_method_from_code_with_access_check_PAL);
+
 Function* func_art_find_interface_method_from_code = mod->getFunction("art_find_interface_method_from_code");
 if (!func_art_find_interface_method_from_code) {
 func_art_find_interface_method_from_code = Function::Create(
@@ -578,28 +633,6 @@ func_art_find_interface_method_from_code->setCallingConv(CallingConv::C);
 }
 AttrListPtr func_art_find_interface_method_from_code_PAL;
 func_art_find_interface_method_from_code->setAttributes(func_art_find_interface_method_from_code_PAL);
-
-Function* func_art_find_virtual_method_from_code = mod->getFunction("art_find_virtual_method_from_code");
-if (!func_art_find_virtual_method_from_code) {
-func_art_find_virtual_method_from_code = Function::Create(
- /*Type=*/FuncTy_15,
- /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_find_virtual_method_from_code", mod); // (external, no body)
-func_art_find_virtual_method_from_code->setCallingConv(CallingConv::C);
-}
-AttrListPtr func_art_find_virtual_method_from_code_PAL;
-func_art_find_virtual_method_from_code->setAttributes(func_art_find_virtual_method_from_code_PAL);
-
-Function* func_art_find_super_method_from_code = mod->getFunction("art_find_super_method_from_code");
-if (!func_art_find_super_method_from_code) {
-func_art_find_super_method_from_code = Function::Create(
- /*Type=*/FuncTy_15,
- /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_find_super_method_from_code", mod); // (external, no body)
-func_art_find_super_method_from_code->setCallingConv(CallingConv::C);
-}
-AttrListPtr func_art_find_super_method_from_code_PAL;
-func_art_find_super_method_from_code->setAttributes(func_art_find_super_method_from_code_PAL);
 
 Function* func_art_initialize_static_storage_from_code = mod->getFunction("art_initialize_static_storage_from_code");
 if (!func_art_initialize_static_storage_from_code) {
