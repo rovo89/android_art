@@ -1723,8 +1723,8 @@ void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
   DecodedInstruction dec_insn(insn);
 
   llvm::Function* runtime_func;
-  if (compiler_->CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
-                                            *dex_file_, dec_insn.vB)) {
+  if (compiler_->CanAccessInstantiableTypeWithoutChecks(
+        method_idx_, dex_cache_, *dex_file_, dec_insn.vB)) {
     runtime_func = irb_.GetRuntime(AllocObject);
   } else {
     runtime_func = irb_.GetRuntime(AllocObjectWithAccessCheck);
