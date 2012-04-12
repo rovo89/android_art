@@ -278,8 +278,6 @@ static T Decode(ScopedJniThreadState& ts, jobject obj) {
   return reinterpret_cast<T>(ts.Self()->DecodeJObject(obj));
 }
 
-// TODO: can we make this available in non-debug builds if CheckJNI is on, or is it too expensive?
-#if !defined(NDEBUG)
 static void CheckMethodArguments(Method* m, JValue* args) {
   MethodHelper mh(m);
   ObjectArray<Class>* parameter_types = mh.GetParameterTypes();
@@ -287,6 +285,7 @@ static void CheckMethodArguments(Method* m, JValue* args) {
   size_t error_count = 0;
   for (int i = 0; i < parameter_types->GetLength(); ++i) {
     Class* parameter_type = parameter_types->Get(i);
+    // TODO: check primitives are in range.
     if (!parameter_type->IsPrimitive()) {
       Object* argument = args[i].GetL();
       if (argument != NULL && !argument->InstanceOf(parameter_type)) {
@@ -302,13 +301,12 @@ static void CheckMethodArguments(Method* m, JValue* args) {
     JniAbort(NULL);
   }
 }
-#else
-static void CheckMethodArguments(Method*, JValue*) { }
-#endif
 
 static JValue InvokeWithArgArray(JNIEnv* public_env, Object* receiver, Method* method, JValue* args) {
-  CheckMethodArguments(method, args);
   JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(public_env);
+  if (UNLIKELY(env->check_jni)) {
+    CheckMethodArguments(method, args);
+  }
   JValue result;
   method->Invoke(env->self, receiver, args, &result);
   return result;
