@@ -878,8 +878,8 @@ void Thread::HandleUncaughtExceptions() {
   // Call the handler.
   Method* m = handler->GetClass()->FindVirtualMethodForVirtualOrInterface(gUncaughtExceptionHandler_uncaughtException);
   JValue args[2];
-  args[0].l = peer_;
-  args[1].l = exception;
+  args[0].SetL(peer_);
+  args[1].SetL(exception);
   m->Invoke(this, handler, args, NULL);
 
   // If the handler threw, clear that exception too.
@@ -897,7 +897,7 @@ void Thread::RemoveFromThreadGroup() {
   if (group != NULL) {
     Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(gThreadGroup_removeThread);
     JValue args[1];
-    args[0].l = peer_;
+    args[0].SetL(peer_);
     m->Invoke(this, group, args, NULL);
   }
 }

@@ -63,6 +63,38 @@ union JValue {
   // We default initialize JValue instances to all-zeros.
   JValue() : j(0) {}
 
+  int8_t GetB() const { return b; }
+  void SetB(int8_t new_b) {
+    i = ((static_cast<int32_t>(new_b) << 24) >> 24); // Sign-extend.
+  }
+
+  uint16_t GetC() const { return c; }
+  void SetC(uint16_t new_c) { c = new_c; }
+
+  double GetD() const { return d; }
+  void SetD(double new_d) { d = new_d; }
+
+  float GetF() const { return f; }
+  void SetF(float new_f) { f = new_f; }
+
+  int32_t GetI() const { return i; }
+  void SetI(int32_t new_i) { i = new_i; }
+
+  int64_t GetJ() const { return j; }
+  void SetJ(int64_t new_j) { j = new_j; }
+
+  Object* GetL() const { return l; }
+  void SetL(Object* new_l) { l = new_l; }
+
+  int16_t GetS() const { return s; }
+  void SetS(int16_t new_s) {
+    i = ((static_cast<int32_t>(new_s) << 16) >> 16); // Sign-extend.
+  }
+
+  uint8_t GetZ() const { return z; }
+  void SetZ(uint8_t new_z) { z = new_z; }
+
+ private:
   uint8_t z;
   int8_t b;
   uint16_t c;

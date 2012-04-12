@@ -116,7 +116,7 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
 
   // Box if necessary and return.
   BoxPrimitive(mh.GetReturnType()->GetPrimitiveType(), value);
-  return AddLocalReference<jobject>(env, value.l);
+  return AddLocalReference<jobject>(env, value.GetL());
 }
 
 bool VerifyObjectInClass(JNIEnv* env, Object* o, Class* c) {
@@ -136,86 +136,77 @@ bool VerifyObjectInClass(JNIEnv* env, Object* o, Class* c) {
   return true;
 }
 
-/*
- * Convert primitive, boxed data from "srcPtr" to "dstPtr".
- *
- * Section v2 2.6 lists the various conversions and promotions.  We
- * allow the "widening" and "identity" conversions, but don't allow the
- * "narrowing" conversions.
- *
- * Allowed:
- *  byte to short, int, long, float, double
- *  short to int, long, float double
- *  char to int, long, float, double
- *  int to long, float, double
- *  long to float, double
- *  float to double
- * Values of types byte, char, and short are "internally" widened to int.
- *
- * Returns the width in 32-bit words of the destination primitive, or
- * -1 if the conversion is not allowed.
- */
 bool ConvertPrimitiveValue(Primitive::Type srcType, Primitive::Type dstType,
                            const JValue& src, JValue& dst) {
   CHECK(srcType != Primitive::kPrimNot && dstType != Primitive::kPrimNot);
   switch (dstType) {
   case Primitive::kPrimBoolean:
+    if (srcType == Primitive::kPrimBoolean) {
+      dst.SetZ(src.GetZ());
+      return true;
+    }
+    break;
   case Primitive::kPrimChar:
+    if (srcType == Primitive::kPrimChar) {
+      dst.SetC(src.GetC());
+      return true;
+    }
+    break;
   case Primitive::kPrimByte:
-    if (srcType == dstType) {
-      dst.i = src.i;
+    if (srcType == Primitive::kPrimByte) {
+      dst.SetB(src.GetB());
       return true;
     }
     break;
   case Primitive::kPrimShort:
     if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimShort) {
-      dst.i = src.i;
+      dst.SetS(src.GetI());
       return true;
     }
     break;
   case Primitive::kPrimInt:
     if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
         srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst.i = src.i;
+      dst.SetI(src.GetI());
       return true;
     }
     break;
   case Primitive::kPrimLong:
     if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
         srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst.j = src.i;
+      dst.SetJ(src.GetI());
       return true;
     } else if (srcType == Primitive::kPrimLong) {
-      dst.j = src.j;
+      dst.SetJ(src.GetJ());
       return true;
     }
     break;
   case Primitive::kPrimFloat:
     if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
         srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst.f = src.i;
+      dst.SetF(src.GetI());
       return true;
     } else if (srcType == Primitive::kPrimLong) {
-      dst.f = src.j;
+      dst.SetF(src.GetJ());
       return true;
     } else if (srcType == Primitive::kPrimFloat) {
-      dst.i = src.i;
+      dst.SetF(src.GetF());
       return true;
     }
     break;
   case Primitive::kPrimDouble:
     if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
         srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst.d = src.i;
+      dst.SetD(src.GetI());
       return true;
     } else if (srcType == Primitive::kPrimLong) {
-      dst.d = src.j;
+      dst.SetD(src.GetJ());
       return true;
     } else if (srcType == Primitive::kPrimFloat) {
-      dst.d = src.f;
+      dst.SetD(src.GetF());
       return true;
     } else if (srcType == Primitive::kPrimDouble) {
-      dst.j = src.j;
+      dst.SetJ(src.GetJ());
       return true;
     }
     break;
@@ -262,7 +253,7 @@ void BoxPrimitive(Primitive::Type src_class, JValue& value) {
     break;
   case Primitive::kPrimVoid:
     // There's no such thing as a void field, and void methods invoked via reflection return null.
-    value.l = NULL;
+    value.SetL(NULL);
     return;
   default:
     LOG(FATAL) << static_cast<int>(src_class);
@@ -284,7 +275,7 @@ bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, const ch
                                             PrettyTypeOf(o).c_str());
       return false;
     }
-    unboxed_value.l = o;
+    unboxed_value.SetL(o);
     return true;
   } else if (dst_class->GetPrimitiveType() == Primitive::kPrimVoid) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
@@ -308,28 +299,28 @@ bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, const ch
   Field* primitive_field = o->GetClass()->GetIFields()->Get(0);
   if (src_descriptor == "Ljava/lang/Boolean;") {
     src_class = class_linker->FindPrimitiveClass('Z');
-    boxed_value.i = primitive_field->GetBoolean(o);  // and extend read value to 32bits
+    boxed_value.SetZ(primitive_field->GetBoolean(o));
   } else if (src_descriptor == "Ljava/lang/Byte;") {
     src_class = class_linker->FindPrimitiveClass('B');
-    boxed_value.i = primitive_field->GetByte(o);  // and extend read value to 32bits
+    boxed_value.SetB(primitive_field->GetByte(o));
   } else if (src_descriptor == "Ljava/lang/Character;") {
     src_class = class_linker->FindPrimitiveClass('C');
-    boxed_value.i = primitive_field->GetChar(o);  // and extend read value to 32bits
+    boxed_value.SetC(primitive_field->GetChar(o));
   } else if (src_descriptor == "Ljava/lang/Float;") {
     src_class = class_linker->FindPrimitiveClass('F');
-    boxed_value.f = primitive_field->GetFloat(o);
+    boxed_value.SetF(primitive_field->GetFloat(o));
   } else if (src_descriptor == "Ljava/lang/Double;") {
     src_class = class_linker->FindPrimitiveClass('D');
-    boxed_value.d = primitive_field->GetDouble(o);
+    boxed_value.SetD(primitive_field->GetDouble(o));
   } else if (src_descriptor == "Ljava/lang/Integer;") {
     src_class = class_linker->FindPrimitiveClass('I');
-    boxed_value.i = primitive_field->GetInt(o);
+    boxed_value.SetI(primitive_field->GetInt(o));
   } else if (src_descriptor == "Ljava/lang/Long;") {
     src_class = class_linker->FindPrimitiveClass('J');
-    boxed_value.j = primitive_field->GetLong(o);
+    boxed_value.SetJ(primitive_field->GetLong(o));
   } else if (src_descriptor == "Ljava/lang/Short;") {
     src_class = class_linker->FindPrimitiveClass('S');
-    boxed_value.i = primitive_field->GetShort(o);  // and extend read value to 32bits
+    boxed_value.SetS(primitive_field->GetShort(o));
   } else {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
                                           "%s should have type %s, got %s",

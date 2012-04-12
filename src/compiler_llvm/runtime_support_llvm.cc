@@ -682,19 +682,29 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
     JValue val;
     switch (shorty[i+1]) {
       case 'Z':
+        val.SetZ(va_arg(ap, jint));
+        break;
       case 'B':
+        val.SetB(va_arg(ap, jint));
+        break;
       case 'C':
+        val.SetC(va_arg(ap, jint));
+        break;
       case 'S':
+        val.SetS(va_arg(ap, jint));
+        break;
       case 'I':
+        val.SetI(va_arg(ap, jint));
+        break;
       case 'F':
-        val.i = va_arg(ap, jint);
+        val.SetI(va_arg(ap, jint)); // TODO: is this right?
         break;
       case 'L':
-        val.l = va_arg(ap, Object*);
+        val.SetL(va_arg(ap, Object*));
         break;
       case 'D':
       case 'J':
-        val.j = va_arg(ap, jlong);
+        val.SetJ(va_arg(ap, jlong)); // TODO: is this right for double?
         break;
     }
     Class* param_type = param_types->Get(i);

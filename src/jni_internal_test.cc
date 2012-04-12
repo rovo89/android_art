@@ -97,25 +97,25 @@ class JniInternalTest : public CommonTest {
     JValue args[1];
     JValue result;
 
-    args[0].i = 0;
-    result.b = -1;
+    args[0].SetB(0);
+    result.SetB(-1);
     (*stub)(method, receiver, Thread::Current(), args, &result);
-    EXPECT_EQ(0, result.b);
+    EXPECT_EQ(0, result.GetB());
 
-    args[0].i = -1;
-    result.b = 0;
+    args[0].SetB(-1);
+    result.SetB(0);
     (*stub)(method, receiver, Thread::Current(), args, &result);
-    EXPECT_EQ(-1, result.b);
+    EXPECT_EQ(-1, result.GetB());
 
-    args[0].i = SCHAR_MAX;
-    result.b = 0;
+    args[0].SetB(SCHAR_MAX);
+    result.SetB(0);
     (*stub)(method, receiver, Thread::Current(), args, &result);
-    EXPECT_EQ(SCHAR_MAX, result.b);
+    EXPECT_EQ(SCHAR_MAX, result.GetB());
 
-    args[0].i = SCHAR_MIN;
-    result.b = 0;
+    args[0].SetB(SCHAR_MIN);
+    result.SetB(0);
     (*stub)(method, receiver, Thread::Current(), args, &result);
-    EXPECT_EQ(SCHAR_MIN, result.b);
+    EXPECT_EQ(SCHAR_MIN, result.GetB());
   }
 
   void InvokeIdentityIntMethod(bool is_static) {
@@ -126,25 +126,25 @@ class JniInternalTest : public CommonTest {
     JValue args[1];
     JValue result;
 
-    args[0].i = 0;
-    result.i = -1;
+    args[0].SetI(0);
+    result.SetI(-1);
     (*stub)(method, receiver, Thread::Current(), args, &result);
-    EXPECT_EQ(0, result.i);
+    EXPECT_EQ(0, result.GetI());
 
-    args[0].i = -1;
-    result.i = 0;
+    args[0].SetI(-1);
+    result.SetI(0);
     (*stub)(method, receiver, Thread::Current(), args, &result);
-    EXPECT_EQ(-1, result.i);
+    EXPECT_EQ(-1, result.GetI());
 
-    args[0].i = INT_MAX;
-    result.i = 0;
+    args[0].SetI(INT_MAX);
+    result.SetI(0);
     (*stub)(method, receiver, Thread::Current(), args, &result);
-    EXPECT_EQ(INT_MAX, result.i);
+    EXPECT_EQ(INT_MAX, result.GetI());
 
-    args[0].i = INT_MIN;
-    result.i = 0;
+    args[0].SetI(INT_MIN);
+    result.SetI(0);
     (*stub)(method, receiver, Thread::Current(), args, &result);
-    EXPECT_EQ(INT_MIN, result.i);
+    EXPECT_EQ(INT_MIN, result.GetI());
   }
 
   void InvokeIdentityDoubleMethod(bool is_static) {
@@ -155,25 +155,25 @@ class JniInternalTest : public CommonTest {
     JValue args[1];
     JValue result;
 
-    args[0].d = 0.0;
-    result.d = -1.0;
+    args[0].SetD(0.0);
+    result.SetD(-1.0);
     (*stub)(method, receiver, Thread::Current(), args, &result);
-    EXPECT_EQ(0.0, result.d);
+    EXPECT_EQ(0.0, result.GetD());
 
-    args[0].d = -1.0;
-    result.d = 0.0;
+    args[0].SetD(-1.0);
+    result.SetD(0.0);
     (*stub)(method, receiver, Thread::Current(), args, &result);
-    EXPECT_EQ(-1.0, result.d);
+    EXPECT_EQ(-1.0, result.GetD());
 
-    args[0].d = DBL_MAX;
-    result.d = 0.0;
+    args[0].SetD(DBL_MAX);
+    result.SetD(0.0);
     (*stub)(method, receiver, Thread::Current(), args, &result);
-    EXPECT_EQ(DBL_MAX, result.d);
+    EXPECT_EQ(DBL_MAX, result.GetD());
 
-    args[0].d = DBL_MIN;
-    result.d = 0.0;
+    args[0].SetD(DBL_MIN);
+    result.SetD(0.0);
     (*stub)(method, receiver, Thread::Current(), args, &result);
-    EXPECT_EQ(DBL_MIN, result.d);
+    EXPECT_EQ(DBL_MIN, result.GetD());
   }
 
   void InvokeSumIntIntMethod(bool is_static) {
@@ -182,36 +182,36 @@ class JniInternalTest : public CommonTest {
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(II)I");
 
     JValue result;
-    result.i = -1;
+    result.SetI(-1);
     JValue args[2];
-    args[0].i = 0;
-    args[1].i = 0;
+    args[0].SetI(0);
+    args[1].SetI(0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(0, result.i);
+    EXPECT_EQ(0, result.GetI());
 
-    result.i = 0;
-    args[0].i = 1;
-    args[1].i = 2;
+    result.SetI(0);
+    args[0].SetI(1);
+    args[1].SetI(2);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(3, result.i);
+    EXPECT_EQ(3, result.GetI());
 
-    result.i = 0;
-    args[0].i = -2;
-    args[1].i = 5;
+    result.SetI(0);
+    args[0].SetI(-2);
+    args[1].SetI(5);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(3, result.i);
+    EXPECT_EQ(3, result.GetI());
 
-    result.i = 1234;
-    args[0].i = INT_MAX;
-    args[1].i = INT_MIN;
+    result.SetI(1234);
+    args[0].SetI(INT_MAX);
+    args[1].SetI(INT_MIN);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(-1, result.i);
+    EXPECT_EQ(-1, result.GetI());
 
-    result.i = INT_MIN;
-    args[0].i = INT_MAX;
-    args[1].i = INT_MAX;
+    result.SetI(INT_MIN);
+    args[0].SetI(INT_MAX);
+    args[1].SetI(INT_MAX);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(-2, result.i);
+    EXPECT_EQ(-2, result.GetI());
   }
 
   void InvokeSumIntIntIntMethod(bool is_static) {
@@ -220,41 +220,41 @@ class JniInternalTest : public CommonTest {
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(III)I");
 
     JValue result;
-    result.i = -1;
+    result.SetI(-1);
     JValue args[3];
-    args[0].i = 0;
-    args[1].i = 0;
-    args[2].i = 0;
+    args[0].SetI(0);
+    args[1].SetI(0);
+    args[2].SetI(0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(0, result.i);
+    EXPECT_EQ(0, result.GetI());
 
-    result.i = 0;
-    args[0].i = 1;
-    args[1].i = 2;
-    args[2].i = 3;
+    result.SetI(0);
+    args[0].SetI(1);
+    args[1].SetI(2);
+    args[2].SetI(3);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(6, result.i);
+    EXPECT_EQ(6, result.GetI());
 
-    result.i = 0;
-    args[0].i = -1;
-    args[1].i = 2;
-    args[2].i = -3;
+    result.SetI(0);
+    args[0].SetI(-1);
+    args[1].SetI(2);
+    args[2].SetI(-3);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(-2, result.i);
+    EXPECT_EQ(-2, result.GetI());
 
-    result.i = 1234;
-    args[0].i = INT_MAX;
-    args[1].i = INT_MIN;
-    args[2].i = INT_MAX;
+    result.SetI(1234);
+    args[0].SetI(INT_MAX);
+    args[1].SetI(INT_MIN);
+    args[2].SetI(INT_MAX);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(2147483646, result.i);
+    EXPECT_EQ(2147483646, result.GetI());
 
-    result.i = INT_MIN;
-    args[0].i = INT_MAX;
-    args[1].i = INT_MAX;
-    args[2].i = INT_MAX;
+    result.SetI(INT_MIN);
+    args[0].SetI(INT_MAX);
+    args[1].SetI(INT_MAX);
+    args[2].SetI(INT_MAX);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(2147483645, result.i);
+    EXPECT_EQ(2147483645, result.GetI());
   }
 
   void InvokeSumIntIntIntIntMethod(bool is_static) {
@@ -263,46 +263,46 @@ class JniInternalTest : public CommonTest {
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIII)I");
 
     JValue result;
-    result.i = -1;
+    result.SetI(-1);
     JValue args[4];
-    args[0].i = 0;
-    args[1].i = 0;
-    args[2].i = 0;
-    args[3].i = 0;
+    args[0].SetI(0);
+    args[1].SetI(0);
+    args[2].SetI(0);
+    args[3].SetI(0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(0, result.i);
+    EXPECT_EQ(0, result.GetI());
 
-    result.i = 0;
-    args[0].i = 1;
-    args[1].i = 2;
-    args[2].i = 3;
-    args[3].i = 4;
+    result.SetI(0);
+    args[0].SetI(1);
+    args[1].SetI(2);
+    args[2].SetI(3);
+    args[3].SetI(4);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(10, result.i);
+    EXPECT_EQ(10, result.GetI());
 
-    result.i = 0;
-    args[0].i = -1;
-    args[1].i = 2;
-    args[2].i = -3;
-    args[3].i = 4;
+    result.SetI(0);
+    args[0].SetI(-1);
+    args[1].SetI(2);
+    args[2].SetI(-3);
+    args[3].SetI(4);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(2, result.i);
+    EXPECT_EQ(2, result.GetI());
 
-    result.i = 1234;
-    args[0].i = INT_MAX;
-    args[1].i = INT_MIN;
-    args[2].i = INT_MAX;
-    args[3].i = INT_MIN;
+    result.SetI(1234);
+    args[0].SetI(INT_MAX);
+    args[1].SetI(INT_MIN);
+    args[2].SetI(INT_MAX);
+    args[3].SetI(INT_MIN);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(-2, result.i);
+    EXPECT_EQ(-2, result.GetI());
 
-    result.i = INT_MIN;
-    args[0].i = INT_MAX;
-    args[1].i = INT_MAX;
-    args[2].i = INT_MAX;
-    args[3].i = INT_MAX;
+    result.SetI(INT_MIN);
+    args[0].SetI(INT_MAX);
+    args[1].SetI(INT_MAX);
+    args[2].SetI(INT_MAX);
+    args[3].SetI(INT_MAX);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(-4, result.i);
+    EXPECT_EQ(-4, result.GetI());
   }
 
   void InvokeSumIntIntIntIntIntMethod(bool is_static) {
@@ -311,51 +311,51 @@ class JniInternalTest : public CommonTest {
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIIII)I");
 
     JValue result;
-    result.i = -1.0;
+    result.SetI(-1.0);
     JValue args[5];
-    args[0].i = 0;
-    args[1].i = 0;
-    args[2].i = 0;
-    args[3].i = 0;
-    args[4].i = 0;
+    args[0].SetI(0);
+    args[1].SetI(0);
+    args[2].SetI(0);
+    args[3].SetI(0);
+    args[4].SetI(0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(0, result.i);
+    EXPECT_EQ(0, result.GetI());
 
-    result.i = 0;
-    args[0].i = 1;
-    args[1].i = 2;
-    args[2].i = 3;
-    args[3].i = 4;
-    args[4].i = 5;
+    result.SetI(0);
+    args[0].SetI(1);
+    args[1].SetI(2);
+    args[2].SetI(3);
+    args[3].SetI(4);
+    args[4].SetI(5);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(15, result.i);
+    EXPECT_EQ(15, result.GetI());
 
-    result.i = 0;
-    args[0].i = -1;
-    args[1].i = 2;
-    args[2].i = -3;
-    args[3].i = 4;
-    args[4].i = -5;
+    result.SetI(0);
+    args[0].SetI(-1);
+    args[1].SetI(2);
+    args[2].SetI(-3);
+    args[3].SetI(4);
+    args[4].SetI(-5);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(-3, result.i);
+    EXPECT_EQ(-3, result.GetI());
 
-    result.i = 1234;
-    args[0].i = INT_MAX;
-    args[1].i = INT_MIN;
-    args[2].i = INT_MAX;
-    args[3].i = INT_MIN;
-    args[4].i = INT_MAX;
+    result.SetI(1234);
+    args[0].SetI(INT_MAX);
+    args[1].SetI(INT_MIN);
+    args[2].SetI(INT_MAX);
+    args[3].SetI(INT_MIN);
+    args[4].SetI(INT_MAX);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(2147483645, result.i);
+    EXPECT_EQ(2147483645, result.GetI());
 
-    result.i = INT_MIN;
-    args[0].i = INT_MAX;
-    args[1].i = INT_MAX;
-    args[2].i = INT_MAX;
-    args[3].i = INT_MAX;
-    args[4].i = INT_MAX;
+    result.SetI(INT_MIN);
+    args[0].SetI(INT_MAX);
+    args[1].SetI(INT_MAX);
+    args[2].SetI(INT_MAX);
+    args[3].SetI(INT_MAX);
+    args[4].SetI(INT_MAX);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(2147483643, result.i);
+    EXPECT_EQ(2147483643, result.GetI());
   }
 
   void InvokeSumDoubleDoubleMethod(bool is_static) {
@@ -366,35 +366,35 @@ class JniInternalTest : public CommonTest {
     JValue args[2];
     JValue result;
 
-    args[0].d = 0.0;
-    args[1].d = 0.0;
-    result.d = -1.0;
+    args[0].SetD(0.0);
+    args[1].SetD(0.0);
+    result.SetD(-1.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(0.0, result.d);
+    EXPECT_EQ(0.0, result.GetD());
 
-    args[0].d = 1.0;
-    args[1].d = 2.0;
-    result.d = 0.0;
+    args[0].SetD(1.0);
+    args[1].SetD(2.0);
+    result.SetD(0.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(3.0, result.d);
+    EXPECT_EQ(3.0, result.GetD());
 
-    args[0].d = 1.0;
-    args[1].d = -2.0;
-    result.d = 0.0;
+    args[0].SetD(1.0);
+    args[1].SetD(-2.0);
+    result.SetD(0.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(-1.0, result.d);
+    EXPECT_EQ(-1.0, result.GetD());
 
-    args[0].d = DBL_MAX;
-    args[1].d = DBL_MIN;
-    result.d = 0.0;
+    args[0].SetD(DBL_MAX);
+    args[1].SetD(DBL_MIN);
+    result.SetD(0.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(1.7976931348623157e308, result.d);
+    EXPECT_EQ(1.7976931348623157e308, result.GetD());
 
-    args[0].d = DBL_MAX;
-    args[1].d = DBL_MAX;
-    result.d = 0.0;
+    args[0].SetD(DBL_MAX);
+    args[1].SetD(DBL_MAX);
+    result.SetD(0.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(INFINITY, result.d);
+    EXPECT_EQ(INFINITY, result.GetD());
   }
 
   void InvokeSumDoubleDoubleDoubleMethod(bool is_static) {
@@ -405,26 +405,26 @@ class JniInternalTest : public CommonTest {
     JValue args[3];
     JValue result;
 
-    args[0].d = 0.0;
-    args[1].d = 0.0;
-    args[2].d = 0.0;
-    result.d = -1.0;
+    args[0].SetD(0.0);
+    args[1].SetD(0.0);
+    args[2].SetD(0.0);
+    result.SetD(-1.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(0.0, result.d);
+    EXPECT_EQ(0.0, result.GetD());
 
-    args[0].d = 1.0;
-    args[1].d = 2.0;
-    args[2].d = 3.0;
-    result.d = 0.0;
+    args[0].SetD(1.0);
+    args[1].SetD(2.0);
+    args[2].SetD(3.0);
+    result.SetD(0.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(6.0, result.d);
+    EXPECT_EQ(6.0, result.GetD());
 
-    args[0].d = 1.0;
-    args[1].d = -2.0;
-    args[2].d = 3.0;
-    result.d = 0.0;
+    args[0].SetD(1.0);
+    args[1].SetD(-2.0);
+    args[2].SetD(3.0);
+    result.SetD(0.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(2.0, result.d);
+    EXPECT_EQ(2.0, result.GetD());
   }
 
   void InvokeSumDoubleDoubleDoubleDoubleMethod(bool is_static) {
@@ -435,29 +435,29 @@ class JniInternalTest : public CommonTest {
     JValue args[4];
     JValue result;
 
-    args[0].d = 0.0;
-    args[1].d = 0.0;
-    args[2].d = 0.0;
-    args[3].d = 0.0;
-    result.d = -1.0;
+    args[0].SetD(0.0);
+    args[1].SetD(0.0);
+    args[2].SetD(0.0);
+    args[3].SetD(0.0);
+    result.SetD(-1.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(0.0, result.d);
+    EXPECT_EQ(0.0, result.GetD());
 
-    args[0].d = 1.0;
-    args[1].d = 2.0;
-    args[2].d = 3.0;
-    args[3].d = 4.0;
-    result.d = 0.0;
+    args[0].SetD(1.0);
+    args[1].SetD(2.0);
+    args[2].SetD(3.0);
+    args[3].SetD(4.0);
+    result.SetD(0.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(10.0, result.d);
+    EXPECT_EQ(10.0, result.GetD());
 
-    args[0].d = 1.0;
-    args[1].d = -2.0;
-    args[2].d = 3.0;
-    args[3].d = -4.0;
-    result.d = 0.0;
+    args[0].SetD(1.0);
+    args[1].SetD(-2.0);
+    args[2].SetD(3.0);
+    args[3].SetD(-4.0);
+    result.SetD(0.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(-2.0, result.d);
+    EXPECT_EQ(-2.0, result.GetD());
   }
 
   void InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(bool is_static) {
@@ -468,32 +468,32 @@ class JniInternalTest : public CommonTest {
     JValue args[5];
     JValue result;
 
-    args[0].d = 0.0;
-    args[1].d = 0.0;
-    args[2].d = 0.0;
-    args[3].d = 0.0;
-    args[4].d = 0.0;
-    result.d = -1.0;
+    args[0].SetD(0.0);
+    args[1].SetD(0.0);
+    args[2].SetD(0.0);
+    args[3].SetD(0.0);
+    args[4].SetD(0.0);
+    result.SetD(-1.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(0.0, result.d);
+    EXPECT_EQ(0.0, result.GetD());
 
-    args[0].d = 1.0;
-    args[1].d = 2.0;
-    args[2].d = 3.0;
-    args[3].d = 4.0;
-    args[4].d = 5.0;
-    result.d = 0.0;
+    args[0].SetD(1.0);
+    args[1].SetD(2.0);
+    args[2].SetD(3.0);
+    args[3].SetD(4.0);
+    args[4].SetD(5.0);
+    result.SetD(0.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(15.0, result.d);
+    EXPECT_EQ(15.0, result.GetD());
 
-    args[0].d = 1.0;
-    args[1].d = -2.0;
-    args[2].d = 3.0;
-    args[3].d = -4.0;
-    args[4].d = 5.0;
-    result.d = 0.0;
+    args[0].SetD(1.0);
+    args[1].SetD(-2.0);
+    args[2].SetD(3.0);
+    args[3].SetD(-4.0);
+    args[4].SetD(5.0);
+    result.SetD(0.0);
     (*stub)(method, NULL, Thread::Current(), args, &result);
-    EXPECT_EQ(3.0, result.d);
+    EXPECT_EQ(3.0, result.GetD());
   }
 
   JavaVMExt* vm_;
@@ -1353,7 +1353,7 @@ TEST_F(JniInternalTest, StaticMainMethod) {
   Method::InvokeStub* stub = method->GetInvokeStub();
 
   JValue args[1];
-  args[0].l = NULL;
+  args[0].SetL(NULL);
 
   (*stub)(method, NULL, Thread::Current(), args, NULL);
 }

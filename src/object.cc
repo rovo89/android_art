@@ -570,7 +570,7 @@ void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result
                               PrettyMethod(this).c_str(), GetCode(), stub,
                               Runtime::Current()->IsStarted() ? "true" : "false");
     if (result != NULL) {
-      result->j = 0;
+      result->SetJ(0);
     }
   }
 
