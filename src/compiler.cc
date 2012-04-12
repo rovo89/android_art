@@ -629,17 +629,31 @@ bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilationUnit* 
   Field* resolved_field = ComputeReferrerField(mUnit, field_idx);
   if (resolved_field != NULL) {
     Class* referrer_class = ComputeReferrerClass(mUnit);
-    // Try to resolve referring class then access check, failure to pass the
-    Class* fields_class = resolved_field->GetDeclaringClass();
-    bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal() &&
-                                              fields_class != referrer_class;
-    if (referrer_class != NULL && referrer_class->CanAccess(fields_class) &&
-        referrer_class->CanAccessMember(fields_class, resolved_field->GetAccessFlags()) &&
-        !is_write_to_final_from_wrong_class) {
-      field_offset = resolved_field->GetOffset().Int32Value();
-      is_volatile = resolved_field->IsVolatile();
-      stats_->ResolvedInstanceField();
-      return true;  // Fast path.
+    if (referrer_class != NULL) {
+      Class* fields_class = resolved_field->GetDeclaringClass();
+      bool access_ok = referrer_class->CanAccess(fields_class) &&
+                       referrer_class->CanAccessMember(fields_class,
+                                                       resolved_field->GetAccessFlags());
+      if (!access_ok) {
+        // The referring class can't access the resolved field, this may occur as a result of a
+        // protected field being made public by a sub-class. Resort to the dex file to determine
+        // the correct class for the access check.
+        const DexFile& dex_file = mUnit->class_linker_->FindDexFile(referrer_class->GetDexCache());
+        Class* dex_fields_class = mUnit->class_linker_->ResolveType(dex_file,
+                                                         dex_file.GetFieldId(field_idx).class_idx_,
+                                                         referrer_class);
+        access_ok = referrer_class->CanAccess(dex_fields_class) &&
+                    referrer_class->CanAccessMember(dex_fields_class,
+                                                    resolved_field->GetAccessFlags());
+      }
+      bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal() &&
+          fields_class != referrer_class;
+      if (access_ok && !is_write_to_final_from_wrong_class) {
+        field_offset = resolved_field->GetOffset().Int32Value();
+        is_volatile = resolved_field->IsVolatile();
+        stats_->ResolvedInstanceField();
+        return true;  // Fast path.
+      }
     }
   }
   // Clean up any exception left by field/type resolution
@@ -673,10 +687,25 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mU
         stats_->ResolvedLocalStaticField();
         return true;  // fast path
       } else {
+        bool access_ok = referrer_class->CanAccess(fields_class) &&
+                         referrer_class->CanAccessMember(fields_class,
+                                                         resolved_field->GetAccessFlags());
+        if (!access_ok) {
+          // The referring class can't access the resolved field, this may occur as a result of a
+          // protected field being made public by a sub-class. Resort to the dex file to determine
+          // the correct class for the access check. Don't change the field's class as that is
+          // used to identify the SSB.
+          const DexFile& dex_file = mUnit->class_linker_->FindDexFile(referrer_class->GetDexCache());
+          Class* dex_fields_class =
+              mUnit->class_linker_->ResolveType(dex_file,
+                                                dex_file.GetFieldId(field_idx).class_idx_,
+                                                referrer_class);
+          access_ok = referrer_class->CanAccess(dex_fields_class) &&
+                      referrer_class->CanAccessMember(dex_fields_class,
+                                                      resolved_field->GetAccessFlags());
+        }
         bool is_write_to_final_from_wrong_class = is_put && resolved_field->IsFinal();
-        if (referrer_class->CanAccess(fields_class) &&
-            referrer_class->CanAccessMember(fields_class, resolved_field->GetAccessFlags()) &&
-            !is_write_to_final_from_wrong_class) {
+        if (access_ok && !is_write_to_final_from_wrong_class) {
           // We have the resolved field, we must make it into a ssbIndex for the referrer
           // in its static storage base (which may fail if it doesn't have a slot for it)
           // TODO: for images we can elide the static storage base null check
@@ -690,7 +719,8 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mU
             stats_->ResolvedStaticField();
             return true;
           }
-          // Search dex file for localized ssb index
+          // Search dex file for localized ssb index, may fail if field's class is a parent
+          // of the class mentioned in the dex file and there is no dex cache entry.
           std::string descriptor(FieldHelper(resolved_field).GetDeclaringClassDescriptor());
           const DexFile::StringId* string_id =
           mUnit->dex_file_->FindStringId(descriptor);

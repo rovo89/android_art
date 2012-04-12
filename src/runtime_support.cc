@@ -357,14 +357,26 @@ Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* sel
   } else {
     Class* fields_class = resolved_field->GetDeclaringClass();
     Class* referring_class = referrer->GetDeclaringClass();
-    if (UNLIKELY(!referring_class->CanAccess(fields_class))) {
-      ThrowNewIllegalAccessErrorClass(self, referring_class, fields_class);
-      return NULL;  // failure
-    } else if (UNLIKELY(!referring_class->CanAccessMember(fields_class,
-                                                          resolved_field->GetAccessFlags()))) {
-      ThrowNewIllegalAccessErrorField(self, referring_class, resolved_field);
-      return NULL;  // failure
-    } else if (UNLIKELY(is_set && resolved_field->IsFinal() && (fields_class != referring_class))) {
+    if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
+                 !referring_class->CanAccessMember(fields_class,
+                                                   resolved_field->GetAccessFlags()))) {
+      // The referring class can't access the resolved field, this may occur as a result of a
+      // protected field being made public by a sub-class. Resort to the dex file to determine
+      // the correct class for the access check.
+      const DexFile& dex_file = class_linker->FindDexFile(referring_class->GetDexCache());
+      fields_class = class_linker->ResolveType(dex_file,
+                                               dex_file.GetFieldId(field_idx).class_idx_,
+                                               referring_class);
+      if (UNLIKELY(!referring_class->CanAccess(fields_class))) {
+        ThrowNewIllegalAccessErrorClass(self, referring_class, fields_class);
+        return NULL;  // failure
+      } else if (UNLIKELY(!referring_class->CanAccessMember(fields_class,
+                                                            resolved_field->GetAccessFlags()))) {
+        ThrowNewIllegalAccessErrorField(self, referring_class, resolved_field);
+        return NULL;  // failure
+      }
+    }
+    if (UNLIKELY(is_set && resolved_field->IsFinal() && (fields_class != referring_class))) {
       ThrowNewIllegalAccessErrorFinalField(self, referrer, resolved_field);
       return NULL;  // failure
     } else {

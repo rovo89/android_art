@@ -21,13 +21,16 @@ namespace art {
 
 extern "C" Class* artInitializeStaticStorageFromCode(uint32_t type_idx, const Method* referrer,
                                                      Thread* self, Method** sp) {
+  // Called to ensure static storage base is initialized for direct static field reads and writes.
+  // A class may be accessing another class' fields when it doesn't have access, as access has been
+  // given by inheritance.
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  return ResolveVerifyAndClinit(type_idx, referrer, self, true, true);
+  return ResolveVerifyAndClinit(type_idx, referrer, self, true, false);
 }
 
 extern "C" Class* artInitializeTypeFromCode(uint32_t type_idx, const Method* referrer, Thread* self,
                                             Method** sp) {
-  // Called when method->dex_cache_resolved_types_[] misses
+  // Called when method->dex_cache_resolved_types_[] misses.
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   return ResolveVerifyAndClinit(type_idx, referrer, self, false, false);
 }
@@ -36,7 +39,7 @@ extern "C" Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx,
                                                            const Method* referrer, Thread* self,
                                                            Method** sp) {
   // Called when caller isn't guaranteed to have access to a type and the dex cache may be
-  // unpopulated
+  // unpopulated.
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   return ResolveVerifyAndClinit(type_idx, referrer, self, false, true);
 }
