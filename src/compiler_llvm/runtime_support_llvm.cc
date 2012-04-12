@@ -720,7 +720,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
         return;
       }
     }
-    args->Set(i, val.l);
+    args->Set(i, val.GetL());
   }
 
   // Get the InvocationHandler method and the field that holds it within the Proxy object
@@ -748,7 +748,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
     Object* result_ref = thread->DecodeJObject(result);
     JValue* result_unboxed = va_arg(ap, JValue*);
     if (result_ref == NULL) {
-      result_unboxed->l = NULL;
+      result_unboxed->SetL(NULL);
     } else {
       bool unboxed_okay = UnboxPrimitive(result_ref, proxy_mh.GetReturnType(), *result_unboxed, "result");
       if (!unboxed_okay) {
