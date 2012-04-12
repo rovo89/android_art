@@ -660,7 +660,8 @@ class Libraries {
   }
 
   SharedLibrary* Get(const std::string& path) {
-    return libraries_[path];
+    It it = libraries_.find(path);
+    return (it == libraries_.end()) ? NULL : it->second;
   }
 
   void Put(const std::string& path, SharedLibrary* library) {
