@@ -902,7 +902,9 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
           break;
         }
         case 0x08: case 0x09: case 0x0A: case 0x0B:  // 0001xxx
-        case 0x0C: case 0x0D: case 0x0E: case 0x0F: {
+        case 0x0C: case 0x0D: case 0x0E: case 0x0F:
+        case 0x48: case 0x49: case 0x4A: case 0x4B:  // 1001xxx
+        case 0x4C: case 0x4D: case 0x4E: case 0x4F: {
           // CBNZ, CBZ
           uint16_t op = (instr >> 11) & 1;
           uint16_t i = (instr >> 9) & 1;
