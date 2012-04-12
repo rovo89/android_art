@@ -2216,9 +2216,9 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
   // Copy the result.
   *pResultTag = req->result_tag;
   if (IsPrimitiveTag(req->result_tag)) {
-    *pResultValue = req->result_value.j;
+    *pResultValue = req->result_value.GetJ();
   } else {
-    *pResultValue = gRegistry->Add(req->result_value.l);
+    *pResultValue = gRegistry->Add(req->result_value.GetL());
   }
   *pExceptionId = req->exception;
   return req->error;
@@ -2257,10 +2257,10 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
     Object* exc = self->GetException();
     VLOG(jdwp) << "  JDWP invocation returning with exception=" << exc << " " << PrettyTypeOf(exc);
     self->ClearException();
-    pReq->result_value.j = 0;
+    pReq->result_value.SetJ(0);
   } else if (pReq->result_tag == JDWP::JT_OBJECT) {
     /* if no exception thrown, examine object result more closely */
-    JDWP::JdwpTag new_tag = TagFromObject(pReq->result_value.l);
+    JDWP::JdwpTag new_tag = TagFromObject(pReq->result_value.GetL());
     if (new_tag != pReq->result_tag) {
       VLOG(jdwp) << "  JDWP promoted result from " << pReq->result_tag << " to " << new_tag;
       pReq->result_tag = new_tag;
@@ -2275,7 +2275,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
      * We can't use the "tracked allocation" mechanism here because
      * the object is going to be handed off to a different thread.
      */
-    gRegistry->Add(pReq->result_value.l);
+    gRegistry->Add(pReq->result_value.GetL());
   }
 
   if (old_exception.get() != NULL) {

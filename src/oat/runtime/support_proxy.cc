@@ -118,13 +118,13 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
       if (cur_arg == 1 && (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble())) {
         // long/double split over regs and stack, mask in high half from stack arguments
         uint64_t high_half = *reinterpret_cast<uint32_t*>(stack_args + (13 * kPointerSize));
-        val.j = (val.j & 0xffffffffULL) | (high_half << 32);
+        val.SetJ((val.GetJ() & 0xffffffffULL) | (high_half << 32));
       }
       BoxPrimitive(param_type->GetPrimitiveType(), val);
       if (self->IsExceptionPending()) {
         return;
       }
-      obj = val.l;
+      obj = val.GetL();
     }
     args->Set(param_index, obj);
     cur_arg = cur_arg + (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble() ? 2 : 1);
@@ -143,7 +143,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
       if (self->IsExceptionPending()) {
         return;
       }
-      obj = val.l;
+      obj = val.GetL();
     }
     args->Set(param_index, obj);
     cur_arg = cur_arg + (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble() ? 2 : 1);

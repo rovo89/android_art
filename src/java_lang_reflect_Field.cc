@@ -25,41 +25,39 @@
 namespace art {
 
 static bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
-  DCHECK_EQ(value.j, 0LL);
+  DCHECK_EQ(value.GetJ(), 0LL);
   ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(), true, true)) {
     return false;
   }
   switch (FieldHelper(f).GetTypeAsPrimitiveType()) {
   case Primitive::kPrimBoolean:
-    value.z = f->GetBoolean(o);
+    value.SetZ(f->GetBoolean(o));
     return true;
   case Primitive::kPrimByte:
-    // Read byte and ensure it is fully sign-extended to an int.
-    value.i = ((int32_t)f->GetByte(o) << 24) >> 24;
+    value.SetB(f->GetByte(o));
     return true;
   case Primitive::kPrimChar:
-    value.c = f->GetChar(o);
+    value.SetC(f->GetChar(o));
     return true;
   case Primitive::kPrimDouble:
-    value.d = f->GetDouble(o);
+    value.SetD(f->GetDouble(o));
     return true;
   case Primitive::kPrimFloat:
-    value.f = f->GetFloat(o);
+    value.SetF(f->GetFloat(o));
     return true;
   case Primitive::kPrimInt:
-    value.i = f->GetInt(o);
+    value.SetI(f->GetInt(o));
     return true;
   case Primitive::kPrimLong:
-    value.j = f->GetLong(o);
+    value.SetJ(f->GetLong(o));
     return true;
   case Primitive::kPrimShort:
-    // Read short and ensure it is fully sign-extended to an int.
-    value.i = ((int32_t)f->GetShort(o) << 16) >> 16;
+    value.SetS(f->GetShort(o));
     return true;
   case Primitive::kPrimNot:
     if (allow_references) {
-      value.l = f->GetObject(o);
+      value.SetL(f->GetObject(o));
       return true;
     }
     // Else break to report an error.
@@ -101,7 +99,7 @@ static jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
   }
   BoxPrimitive(FieldHelper(f).GetTypeAsPrimitiveType(), value);
 
-  return AddLocalReference<jobject>(env, value.l);
+  return AddLocalReference<jobject>(env, value.GetL());
 }
 
 static JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char dst_descriptor) {
@@ -128,35 +126,35 @@ static JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj,
 }
 
 static jboolean Field_getBoolean(JNIEnv* env, jobject javaField, jobject javaObj) {
-  return GetPrimitiveField(env, javaField, javaObj, 'Z').z;
+  return GetPrimitiveField(env, javaField, javaObj, 'Z').GetZ();
 }
 
 static jbyte Field_getByte(JNIEnv* env, jobject javaField, jobject javaObj) {
-  return GetPrimitiveField(env, javaField, javaObj, 'B').b;
+  return GetPrimitiveField(env, javaField, javaObj, 'B').GetB();
 }
 
 static jchar Field_getChar(JNIEnv* env, jobject javaField, jobject javaObj) {
-  return GetPrimitiveField(env, javaField, javaObj, 'C').c;
+  return GetPrimitiveField(env, javaField, javaObj, 'C').GetC();
 }
 
 static jdouble Field_getDouble(JNIEnv* env, jobject javaField, jobject javaObj) {
-  return GetPrimitiveField(env, javaField, javaObj, 'D').d;
+  return GetPrimitiveField(env, javaField, javaObj, 'D').GetD();
 }
 
 static jfloat Field_getFloat(JNIEnv* env, jobject javaField, jobject javaObj) {
-  return GetPrimitiveField(env, javaField, javaObj, 'F').f;
+  return GetPrimitiveField(env, javaField, javaObj, 'F').GetF();
 }
 
 static jint Field_getInt(JNIEnv* env, jobject javaField, jobject javaObj) {
-  return GetPrimitiveField(env, javaField, javaObj, 'I').i;
+  return GetPrimitiveField(env, javaField, javaObj, 'I').GetI();
 }
 
 static jlong Field_getLong(JNIEnv* env, jobject javaField, jobject javaObj) {
-  return GetPrimitiveField(env, javaField, javaObj, 'J').j;
+  return GetPrimitiveField(env, javaField, javaObj, 'J').GetJ();
 }
 
 static jshort Field_getShort(JNIEnv* env, jobject javaField, jobject javaObj) {
-  return GetPrimitiveField(env, javaField, javaObj, 'S').s;
+  return GetPrimitiveField(env, javaField, javaObj, 'S').GetS();
 }
 
 static void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_references) {
@@ -165,32 +163,32 @@ static void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool all
   }
   switch (FieldHelper(f).GetTypeAsPrimitiveType()) {
   case Primitive::kPrimBoolean:
-    f->SetBoolean(o, new_value.z);
+    f->SetBoolean(o, new_value.GetZ());
     break;
   case Primitive::kPrimByte:
-    f->SetByte(o, new_value.b);
+    f->SetByte(o, new_value.GetB());
     break;
   case Primitive::kPrimChar:
-    f->SetChar(o, new_value.c);
+    f->SetChar(o, new_value.GetC());
     break;
   case Primitive::kPrimDouble:
-    f->SetDouble(o, new_value.d);
+    f->SetDouble(o, new_value.GetD());
     break;
   case Primitive::kPrimFloat:
-    f->SetFloat(o, new_value.f);
+    f->SetFloat(o, new_value.GetF());
     break;
   case Primitive::kPrimInt:
-    f->SetInt(o, new_value.i);
+    f->SetInt(o, new_value.GetI());
     break;
   case Primitive::kPrimLong:
-    f->SetLong(o, new_value.j);
+    f->SetLong(o, new_value.GetJ());
     break;
   case Primitive::kPrimShort:
-    f->SetShort(o, new_value.s);
+    f->SetShort(o, new_value.GetS());
     break;
   case Primitive::kPrimNot:
     if (allow_references) {
-      f->SetObject(o, new_value.l);
+      f->SetObject(o, new_value.GetL());
       break;
     }
     // Else fall through to report an error.
@@ -255,52 +253,52 @@ static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, c
   SetFieldValue(o, f, wide_value, false);
 }
 
-static void Field_setBoolean(JNIEnv* env, jobject javaField, jobject javaObj, jboolean value) {
-  JValue v;
-  v.z = value;
-  SetPrimitiveField(env, javaField, javaObj, 'Z', v);
+static void Field_setBoolean(JNIEnv* env, jobject javaField, jobject javaObj, jboolean z) {
+  JValue value;
+  value.SetZ(z);
+  SetPrimitiveField(env, javaField, javaObj, 'Z', value);
 }
 
-static void Field_setByte(JNIEnv* env, jobject javaField, jobject javaObj, jbyte value) {
-  JValue v;
-  v.b = value;
-  SetPrimitiveField(env, javaField, javaObj, 'B', v);
+static void Field_setByte(JNIEnv* env, jobject javaField, jobject javaObj, jbyte b) {
+  JValue value;
+  value.SetB(b);
+  SetPrimitiveField(env, javaField, javaObj, 'B', value);
 }
 
-static void Field_setChar(JNIEnv* env, jobject javaField, jobject javaObj, jchar value) {
-  JValue v;
-  v.c = value;
-  SetPrimitiveField(env, javaField, javaObj, 'C', v);
+static void Field_setChar(JNIEnv* env, jobject javaField, jobject javaObj, jchar c) {
+  JValue value;
+  value.SetC(c);
+  SetPrimitiveField(env, javaField, javaObj, 'C', value);
 }
 
-static void Field_setDouble(JNIEnv* env, jobject javaField, jobject javaObj, jdouble value) {
-  JValue v;
-  v.d = value;
-  SetPrimitiveField(env, javaField, javaObj, 'D', v);
+static void Field_setDouble(JNIEnv* env, jobject javaField, jobject javaObj, jdouble d) {
+  JValue value;
+  value.SetD(d);
+  SetPrimitiveField(env, javaField, javaObj, 'D', value);
 }
 
-static void Field_setFloat(JNIEnv* env, jobject javaField, jobject javaObj, jfloat value) {
-  JValue v;
-  v.f = value;
-  SetPrimitiveField(env, javaField, javaObj, 'F', v);
+static void Field_setFloat(JNIEnv* env, jobject javaField, jobject javaObj, jfloat f) {
+  JValue value;
+  value.SetF(f);
+  SetPrimitiveField(env, javaField, javaObj, 'F', value);
 }
 
-static void Field_setInt(JNIEnv* env, jobject javaField, jobject javaObj, jint value) {
-  JValue v;
-  v.i = value;
-  SetPrimitiveField(env, javaField, javaObj, 'I', v);
+static void Field_setInt(JNIEnv* env, jobject javaField, jobject javaObj, jint i) {
+  JValue value;
+  value.SetI(i);
+  SetPrimitiveField(env, javaField, javaObj, 'I', value);
 }
 
-static void Field_setLong(JNIEnv* env, jobject javaField, jobject javaObj, jlong value) {
-  JValue v;
-  v.j = value;
-  SetPrimitiveField(env, javaField, javaObj, 'J', v);
+static void Field_setLong(JNIEnv* env, jobject javaField, jobject javaObj, jlong j) {
+  JValue value;
+  value.SetJ(j);
+  SetPrimitiveField(env, javaField, javaObj, 'J', value);
 }
 
-static void Field_setShort(JNIEnv* env, jobject javaField, jobject javaObj, jshort value) {
-  JValue v;
-  v.s = value;
-  SetPrimitiveField(env, javaField, javaObj, 'S', v);
+static void Field_setShort(JNIEnv* env, jobject javaField, jobject javaObj, jshort s) {
+  JValue value;
+  value.SetS(s);
+  SetPrimitiveField(env, javaField, javaObj, 'S', value);
 }
 
 static JNINativeMethod gMethods[] = {
