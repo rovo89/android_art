@@ -95,11 +95,11 @@ int64_t F2L(float f) {
 }
 
 int32_t D2I(double d) {
-  static const double kMaxLong = (double) (int64_t) 0x7fffffffUL;
-  static const double kMinLong = (double) (int64_t) 0x80000000UL;
-  if (d >= kMaxLong) {
+  static const double kMaxInt = (double) (int32_t) 0x7fffffffUL;
+  static const double kMinInt = (double) (int32_t) 0x80000000UL;
+  if (d >= kMaxInt) {
     return (int32_t) 0x7fffffffUL;
-  } else if (d <= kMinLong) {
+  } else if (d <= kMinInt) {
     return (int32_t) 0x80000000UL;
   } else if (d != d)  { // NaN case
     return 0;
@@ -109,11 +109,11 @@ int32_t D2I(double d) {
 }
 
 int32_t F2I(float f) {
-  static const float kMaxLong = (float) (int64_t) 0x7fffffffUL;
-  static const float kMinLong = (float) (int64_t) 0x80000000UL;
-  if (f >= kMaxLong) {
+  static const float kMaxInt = (float) (int32_t) 0x7fffffffUL;
+  static const float kMinInt = (float) (int32_t) 0x80000000UL;
+  if (f >= kMaxInt) {
     return (int32_t) 0x7fffffffUL;
-  } else if (f <= kMinLong) {
+  } else if (f <= kMinInt) {
     return (int32_t) 0x80000000UL;
   } else if (f != f) { // NaN case
     return 0;
