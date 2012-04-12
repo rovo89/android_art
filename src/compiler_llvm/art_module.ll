@@ -152,6 +152,19 @@ declare i32 @art_is_assignable_from_code(%JavaObject*, %JavaObject*)
 declare void @art_check_cast_from_code(%JavaObject*, %JavaObject*)
 declare void @art_check_put_array_element_from_code(%JavaObject*, %JavaObject*)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Math
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+declare i64 @D2L(double)
+declare i32 @D2I(double)
+declare i64 @F2L(float)
+declare i32 @F2I(float)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Temporary runtime support, will be removed in the future
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 declare %JavaObject* @art_ensure_resolved_from_code(%JavaObject*,
                                                     %JavaObject*,
                                                     i32,
