@@ -33,6 +33,11 @@
 
 namespace art {
 
+extern int64_t D2L(double d);
+extern int32_t D2I(double d);
+extern int64_t F2L(float f);
+extern int32_t F2I(float f);
+
 //----------------------------------------------------------------------------
 // Thread
 //----------------------------------------------------------------------------
@@ -518,6 +523,7 @@ COMPILER_RUNTIME_FUNC_LIST(EXTERNAL_LINKAGE)
 #undef EXTERNAL_LINKAGE
 
 static void* art_find_compiler_runtime_func(char const* name) {
+// TODO: If target support some math func, use the target's version. (e.g. D2I -> __aeabi_d2iz)
   static const char* const names[] = {
 #define DEFINE_ENTRY(NAME) #NAME ,
 #include "compiler_runtime_func_list.h"

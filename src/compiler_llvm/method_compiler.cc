@@ -796,11 +796,11 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::FLOAT_TO_INT:
-    EmitInsn_FPToInt(ARGS, kFloat, kInt);
+    EmitInsn_FPToInt(ARGS, kFloat, kInt, F2I);
     break;
 
   case Instruction::FLOAT_TO_LONG:
-    EmitInsn_FPToInt(ARGS, kFloat, kLong);
+    EmitInsn_FPToInt(ARGS, kFloat, kLong, F2L);
     break;
 
   case Instruction::FLOAT_TO_DOUBLE:
@@ -808,11 +808,11 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::DOUBLE_TO_INT:
-    EmitInsn_FPToInt(ARGS, kDouble, kInt);
+    EmitInsn_FPToInt(ARGS, kDouble, kInt, D2I);
     break;
 
   case Instruction::DOUBLE_TO_LONG:
-    EmitInsn_FPToInt(ARGS, kDouble, kLong);
+    EmitInsn_FPToInt(ARGS, kDouble, kLong, D2L);
     break;
 
   case Instruction::DOUBLE_TO_FLOAT:
@@ -3207,7 +3207,8 @@ void MethodCompiler::EmitInsn_IntToFP(uint32_t dex_pc,
 void MethodCompiler::EmitInsn_FPToInt(uint32_t dex_pc,
                                       Instruction const* insn,
                                       JType src_jty,
-                                      JType dest_jty) {
+                                      JType dest_jty,
+                                      runtime_support::RuntimeId runtime_func_id) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -3215,8 +3216,7 @@ void MethodCompiler::EmitInsn_FPToInt(uint32_t dex_pc,
   DCHECK(dest_jty == kInt || dest_jty == kLong) << dest_jty;
 
   llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, src_jty, kAccurate);
-  llvm::Type* dest_type = irb_.getJType(dest_jty, kAccurate);
-  llvm::Value* dest_value = irb_.CreateFPToSI(src_value, dest_type);
+  llvm::Value* dest_value = irb_.CreateCall(irb_.GetRuntime(runtime_func_id), src_value);
   EmitStoreDalvikReg(dec_insn.vA, dest_jty, kAccurate, dest_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));

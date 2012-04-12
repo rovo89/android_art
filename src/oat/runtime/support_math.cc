@@ -94,6 +94,35 @@ int64_t F2L(float f) {
   }
 }
 
+int32_t D2I(double d) {
+  static const double kMaxLong = (double) (int64_t) 0x7fffffffUL;
+  static const double kMinLong = (double) (int64_t) 0x80000000UL;
+  if (d >= kMaxLong) {
+    return (int32_t) 0x7fffffffUL;
+  } else if (d <= kMinLong) {
+    return (int32_t) 0x80000000UL;
+  } else if (d != d)  { // NaN case
+    return 0;
+  } else {
+    return (int32_t) d;
+  }
+}
+
+int32_t F2I(float f) {
+  static const float kMaxLong = (float) (int64_t) 0x7fffffffUL;
+  static const float kMinLong = (float) (int64_t) 0x80000000UL;
+  if (f >= kMaxLong) {
+    return (int32_t) 0x7fffffffUL;
+  } else if (f <= kMinLong) {
+    return (int32_t) 0x80000000UL;
+  } else if (f != f) { // NaN case
+    return 0;
+  } else {
+    return (int32_t) f;
+  }
+}
+
+
 extern "C" int64_t artLdivFromCode(int64_t a, int64_t b) {
   return a / b;
 }

@@ -23,6 +23,7 @@
 #include "dex_instruction.h"
 #include "invoke_type.h"
 #include "object_utils.h"
+#include "runtime_support_func.h"
 
 #include <llvm/Support/IRBuilder.h>
 
@@ -233,7 +234,8 @@ class MethodCompiler {
 
   void EmitInsn_FNeg(GEN_INSN_ARGS, JType op_jty);
   void EmitInsn_IntToFP(GEN_INSN_ARGS, JType src_jty, JType dest_jty);
-  void EmitInsn_FPToInt(GEN_INSN_ARGS, JType src_jty, JType dest_jty);
+  void EmitInsn_FPToInt(GEN_INSN_ARGS, JType src_jty, JType dest_jty,
+                        runtime_support::RuntimeId runtime_func_id);
   void EmitInsn_FExt(GEN_INSN_ARGS);
   void EmitInsn_FTrunc(GEN_INSN_ARGS);
 
