@@ -21,6 +21,8 @@
 #include "globals.h"
 #include "instruction_set.h"
 #include "logging.h"
+#include "runtime_support_builder.h"
+#include "runtime_support_func.h"
 
 #include <UniquePtr.h>
 #include <string>
@@ -100,6 +102,7 @@ class CompilationUnit {
 
   UniquePtr<llvm::LLVMContext> context_;
   UniquePtr<IRBuilder> irb_;
+  UniquePtr<RuntimeSupportBuilder> runtime_support_;
   llvm::Module* module_;
 
   std::string elf_image_;

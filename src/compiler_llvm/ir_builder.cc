@@ -15,7 +15,6 @@
  */
 
 #include "ir_builder.h"
-#include "runtime_support_func.h"
 #include "stringprintf.h"
 
 #include <llvm/Module.h>
@@ -44,41 +43,7 @@ IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
   art_frame_type_ = module.getTypeByName("ShadowFrame");
   CHECK(art_frame_type_ != NULL);
 
-  // Load the runtime support function declaration from module
-  InitRuntimeSupportFuncDecl();
-}
-
-
-//----------------------------------------------------------------------------
-// Runtime Helper Function
-//----------------------------------------------------------------------------
-
-void IRBuilder::InitRuntimeSupportFuncDecl() {
-  using namespace runtime_support;
-
-#define GET_RUNTIME_SUPPORT_FUNC_DECL(ID, NAME) \
-  do { \
-    llvm::Function* fn = module_->getFunction(#NAME); \
-    DCHECK_NE(fn, (void*)NULL) << "Function not found: " << #NAME; \
-    runtime_support_func_decls_[ID] = fn; \
-  } while (0);
-
-#include "runtime_support_func_list.h"
-  RUNTIME_SUPPORT_FUNC_LIST(GET_RUNTIME_SUPPORT_FUNC_DECL)
-#undef RUNTIME_SUPPORT_FUNC_LIST
-#undef GET_RUNTIME_SUPPORT_FUNC_DECL
-}
-
-
-llvm::Function* IRBuilder::GetRuntime(runtime_support::RuntimeId rt) const {
-  using namespace runtime_support;
-
-  if (rt >= 0 && rt < MAX_ID) {
-    return runtime_support_func_decls_[rt];
-  } else {
-    LOG(ERROR) << "Unknown runtime function id: " << rt;
-    return NULL;
-  }
+  runtime_support_ = NULL;
 }
 
 

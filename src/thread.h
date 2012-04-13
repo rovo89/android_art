@@ -433,6 +433,10 @@ class PACKED Thread {
   void PushShadowFrame(ShadowFrame* frame);
   ShadowFrame* PopShadowFrame();
 
+  static ThreadOffset TopShadowFrameOffset() {
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_shadow_frame_));
+  }
+
   void PushSirt(StackIndirectReferenceTable* sirt);
   StackIndirectReferenceTable* PopSirt();
 
