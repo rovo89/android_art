@@ -71,7 +71,7 @@ void DisassemblerArm::DumpCond(std::ostream& os, uint32_t cond) {
 }
 
 void DisassemblerArm::DumpBranchTarget(std::ostream& os, const uint8_t* instr_ptr, int32_t imm32) {
-  os << imm32 << " (" << reinterpret_cast<const void*>(instr_ptr + imm32) << ")";
+  os << StringPrintf("%+d (%p)", imm32, instr_ptr + imm32);
 }
 
 static uint32_t ReadU16(const uint8_t* ptr) {
@@ -127,15 +127,15 @@ std::ostream& operator<<(std::ostream& os, const Rm& r) {
   return os;
 }
 
-struct Imm12 {
-  Imm12(uint32_t instruction) {
+struct ShiftedImmediate {
+  ShiftedImmediate(uint32_t instruction) {
     uint32_t rotate = ((instruction >> 8) & 0xf);
     uint32_t imm = (instruction & 0xff);
     value = (imm >> (2 * rotate)) | (imm << (32 - (2 * rotate)));
   }
   uint32_t value;
 };
-std::ostream& operator<<(std::ostream& os, const Imm12& rhs) {
+std::ostream& operator<<(std::ostream& os, const ShiftedImmediate& rhs) {
   os << "#" << rhs.value;
   return os;
 }
@@ -202,7 +202,7 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
           args << ArmRegister(instruction, 12) << ", ";
         }
         if (i) {
-          args << ArmRegister(instruction, 16) << ", " << Imm12(instruction);
+          args << ArmRegister(instruction, 16) << ", " << ShiftedImmediate(instruction);
         } else {
           args << Rm(instruction);
         }
@@ -221,18 +221,19 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
           UNIMPLEMENTED(FATAL) << "literals";
         } else {
           bool wback = !p || w;
+          uint32_t offset = (instruction & 0xfff);
           if (p && !wback) {
-            args << "[" << rn << ", " << Imm12(instruction) << "]";
+            args << "[" << rn << ", #" << offset << "]";
           } else if (p && wback) {
-            args << "[" << rn << ", " << Imm12(instruction) << "]!";
+            args << "[" << rn << ", #" << offset << "]!";
           } else if (!p && wback) {
-            args << "[" << rn << "], " << Imm12(instruction);
+            args << "[" << rn << "], #" << offset;
           } else {
             LOG(FATAL) << p << " " << w;
           }
           if (rn.r == 9) {
             args << "  ; ";
-            Thread::DumpThreadOffset(args, Imm12(instruction).value, 4);
+            Thread::DumpThreadOffset(args, offset, 4);
           }
         }
       }
