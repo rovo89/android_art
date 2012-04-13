@@ -17,7 +17,6 @@
 #ifndef ART_SRC_CLASS_LINKER_H_
 #define ART_SRC_CLASS_LINKER_H_
 
-#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -30,6 +29,7 @@
 #include "mutex.h"
 #include "oat_file.h"
 #include "object.h"
+#include "safe_map.h"
 #include "stack_indirect_reference_table.h"
 
 namespace art {
@@ -342,7 +342,7 @@ class ClassLinker {
   void AppendToBootClassPath(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
 
   void ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
-                         Class* c, std::map<uint32_t, Field*>& field_map);
+                         Class* c, SafeMap<uint32_t, Field*>& field_map);
 
   size_t SizeOfClass(const DexFile& dex_file,
                      const DexFile::ClassDef& dex_class_def);

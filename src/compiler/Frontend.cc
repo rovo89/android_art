@@ -136,8 +136,7 @@ BasicBlock *splitBlock(CompilationUnit* cUnit, unsigned int codeOffset,
     bottomBlock->lastMIRInsn = origBlock->lastMIRInsn;
 
     /* Add it to the quick lookup cache */
-    cUnit->blockMap.insert(std::make_pair(bottomBlock->startOffset,
-                                          bottomBlock));
+    cUnit->blockMap.Put(bottomBlock->startOffset, bottomBlock);
 
     /* Handle the taken path */
     bottomBlock->taken = origBlock->taken;
@@ -211,7 +210,7 @@ BasicBlock *findBlock(CompilationUnit* cUnit, unsigned int codeOffset,
     GrowableList* blockList = &cUnit->blockList;
     BasicBlock* bb;
     unsigned int i;
-    std::map<unsigned int, BasicBlock*>::iterator it;
+    SafeMap<unsigned int, BasicBlock*>::iterator it;
 
     it = cUnit->blockMap.find(codeOffset);
     if (it != cUnit->blockMap.end()) {
@@ -239,7 +238,7 @@ BasicBlock *findBlock(CompilationUnit* cUnit, unsigned int codeOffset,
     bb = oatNewBB(cUnit, kDalvikByteCode, cUnit->numBlocks++);
     oatInsertGrowableList(cUnit, &cUnit->blockList, (intptr_t) bb);
     bb->startOffset = codeOffset;
-    cUnit->blockMap.insert(std::make_pair(bb->startOffset, bb));
+    cUnit->blockMap.Put(bb->startOffset, bb);
     return bb;
 }
 
@@ -853,7 +852,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     curBlock->startOffset = 0;
     oatInsertGrowableList(cUnit.get(), &cUnit->blockList, (intptr_t) curBlock);
     /* Add first block to the fast lookup cache */
-    cUnit->blockMap.insert(std::make_pair(curBlock->startOffset, curBlock));
+    cUnit->blockMap.Put(curBlock->startOffset, curBlock);
     entryBlock->fallThrough = curBlock;
     oatInsertGrowableList(cUnit.get(), curBlock->predecessors,
                           (intptr_t)entryBlock);

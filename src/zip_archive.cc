@@ -466,10 +466,7 @@ bool ZipArchive::Parse() {
 
     // add the CDE filename to the hash table
     const char* name = reinterpret_cast<const char*>(ptr + kCDELen);
-    bool success = dir_entries_.insert(std::make_pair(StringPiece(name, filename_len), ptr)).second;
-    if (!success) {
-        return false;
-    }
+    dir_entries_.Put(StringPiece(name, filename_len), ptr);
     ptr += kCDELen + filename_len + extra_len + comment_len;
     if (ptr > cd_ptr + cd_length) {
       LOG(WARNING) << "Zip: bad CD advance "

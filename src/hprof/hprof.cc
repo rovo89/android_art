@@ -649,10 +649,13 @@ HprofStringId Hprof::LookupStringId(const char* string) {
 }
 
 HprofStringId Hprof::LookupStringId(std::string string) {
-  if (strings_.find(string) == strings_.end()) {
-    strings_[string] = next_string_id_++;
+  StringMapIterator it = strings_.find(string);
+  if (it != strings_.end()) {
+    return it->second;
   }
-  return strings_[string];
+  HprofStringId id = next_string_id_++;
+  strings_.Put(string, id);
+  return id;
 }
 
 int Hprof::DumpStrings() {

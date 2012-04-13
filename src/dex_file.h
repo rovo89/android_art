@@ -17,17 +17,17 @@
 #ifndef ART_SRC_DEX_FILE_H_
 #define ART_SRC_DEX_FILE_H_
 
-#include <map>
 #include <string>
 #include <vector>
 
-#include "UniquePtr.h"
 #include "globals.h"
 #include "jni.h"
 #include "logging.h"
 #include "mem_map.h"
 #include "mutex.h"
+#include "safe_map.h"
 #include "stringpiece.h"
+#include "UniquePtr.h"
 #include "utils.h"
 
 namespace art {
@@ -847,7 +847,7 @@ class DexFile {
       void* context, const byte* stream, LocalInfo* local_in_reg) const;
 
   // The index of descriptors to class definition indexes (as opposed to type id indexes)
-  typedef std::map<const StringPiece, uint32_t> Index;
+  typedef SafeMap<const StringPiece, uint32_t> Index;
   Index index_;
 
   // The base address of the memory mapping.

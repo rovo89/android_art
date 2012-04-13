@@ -857,7 +857,7 @@ void oatAssembleLIR(CompilationUnit* cUnit)
  */
 LIR* insertCaseLabel(CompilationUnit* cUnit, int vaddr, int keyVal)
 {
-    std::map<unsigned int, LIR*>::iterator it;
+    SafeMap<unsigned int, LIR*>::iterator it;
     it = cUnit->boundaryMap.find(vaddr);
     if (it == cUnit->boundaryMap.end()) {
         LOG(FATAL) << "Error: didn't find vaddr 0x" << std::hex << vaddr;

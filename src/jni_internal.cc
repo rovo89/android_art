@@ -20,12 +20,9 @@
 #include <sys/mman.h>
 
 #include <cstdarg>
-#include <map>
 #include <utility>
 #include <vector>
 
-#include "ScopedLocalRef.h"
-#include "UniquePtr.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "jni.h"
@@ -33,10 +30,13 @@
 #include "object.h"
 #include "object_utils.h"
 #include "runtime.h"
+#include "safe_map.h"
 #include "scoped_jni_thread_state.h"
+#include "ScopedLocalRef.h"
 #include "stl_util.h"
 #include "stringpiece.h"
 #include "thread.h"
+#include "UniquePtr.h"
 
 namespace art {
 
@@ -665,7 +665,7 @@ class Libraries {
   }
 
   void Put(const std::string& path, SharedLibrary* library) {
-    libraries_[path] = library;
+    libraries_.Put(path, library);
   }
 
   // See section 11.3 "Linking Native Methods" of the JNI spec.
@@ -698,9 +698,9 @@ class Libraries {
   }
 
  private:
-  typedef std::map<std::string, SharedLibrary*>::iterator It; // TODO: C++0x auto
+  typedef SafeMap<std::string, SharedLibrary*>::iterator It; // TODO: C++0x auto
 
-  std::map<std::string, SharedLibrary*> libraries_;
+  SafeMap<std::string, SharedLibrary*> libraries_;
 };
 
 JValue InvokeWithJValues(JNIEnv* public_env, jobject obj, jmethodID mid, jvalue* args) {

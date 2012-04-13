@@ -883,8 +883,7 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
            oatGetDalvikDisassembly(cUnit, mir->dalvikInsn, "") : NULL;
         boundaryLIR = newLIR1(cUnit, kPseudoDalvikByteCodeBoundary,
                               (intptr_t) instStr);
-        cUnit->boundaryMap.insert(std::make_pair(mir->offset,
-                                 (LIR*)boundaryLIR));
+        cUnit->boundaryMap.Overwrite(mir->offset, boundaryLIR);
         /* Remember the first LIR for this block */
         if (headLIR == NULL) {
             headLIR = boundaryLIR;

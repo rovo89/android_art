@@ -17,9 +17,8 @@
 #ifndef ART_SRC_DEX_FILE_VERIFIER_H_
 #define ART_SRC_DEX_FILE_VERIFIER_H_
 
-#include <map>
-
 #include "dex_file.h"
+#include "safe_map.h"
 
 namespace art {
 
@@ -88,7 +87,7 @@ class DexFileVerifier {
   size_t size_;
   const DexFile::Header* header_;
 
-  std::map<uint32_t, uint16_t> offset_to_type_map_;
+  SafeMap<uint32_t, uint16_t> offset_to_type_map_;
   const byte* ptr_;
   const void* previous_item_;
 };

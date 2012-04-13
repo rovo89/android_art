@@ -21,7 +21,8 @@
 
 #include <stdint.h>
 #include <vector>
-#include <map>
+
+#include "safe_map.h"
 
 namespace art {
 namespace compiler_llvm {
@@ -31,8 +32,7 @@ class InferredRegCategoryMap {
  private:
   class RegCategoryLine {
    private:
-    // TODO: Use hashmap (unordered_map).
-    typedef std::map<uint16_t, uint8_t> Table;
+    typedef SafeMap<uint16_t, uint8_t> Table;
     Table reg_category_line_;
 
    public:

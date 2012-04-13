@@ -25,9 +25,10 @@
 #include "dex_verifier.h" // For Instruction.
 #include "oat/runtime/context.h"
 #include "object_utils.h"
+#include "safe_map.h"
+#include "scoped_thread_list_lock.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
-#include "scoped_thread_list_lock.h"
 #include "space.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
@@ -58,7 +59,7 @@ class ObjectRegistry {
     }
     JDWP::ObjectId id = static_cast<JDWP::ObjectId>(reinterpret_cast<uintptr_t>(o));
     MutexLock mu(lock_);
-    map_[id] = o;
+    map_.Overwrite(id, o);
     return id;
   }
 
@@ -79,14 +80,14 @@ class ObjectRegistry {
     }
 
     MutexLock mu(lock_);
-    typedef std::map<JDWP::ObjectId, Object*>::iterator It; // C++0x auto
+    typedef SafeMap<JDWP::ObjectId, Object*>::iterator It; // C++0x auto
     It it = map_.find(id);
     return (it != map_.end()) ? reinterpret_cast<T>(it->second) : reinterpret_cast<T>(kInvalidId);
   }
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) {
     MutexLock mu(lock_);
-    typedef std::map<JDWP::ObjectId, Object*>::iterator It; // C++0x auto
+    typedef SafeMap<JDWP::ObjectId, Object*>::iterator It; // C++0x auto
     for (It it = map_.begin(); it != map_.end(); ++it) {
       visitor(it->second, arg);
     }
@@ -94,7 +95,7 @@ class ObjectRegistry {
 
  private:
   Mutex lock_;
-  std::map<JDWP::ObjectId, Object*> map_;
+  SafeMap<JDWP::ObjectId, Object*> map_;
 };
 
 struct AllocRecordStackTraceElement {

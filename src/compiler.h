@@ -17,7 +17,6 @@
 #ifndef ART_SRC_COMPILER_H_
 #define ART_SRC_COMPILER_H_
 
-#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -32,6 +31,7 @@
 #include "oat_file.h"
 #include "object.h"
 #include "runtime.h"
+#include "safe_map.h"
 
 namespace art {
 
@@ -92,6 +92,7 @@ class Compiler {
   CompiledMethod* GetCompiledMethod(MethodReference ref) const;
 
   const CompiledInvokeStub* FindInvokeStub(bool is_static, const char* shorty) const;
+  const CompiledInvokeStub* FindInvokeStub(const std::string& key) const;
 
   // Callbacks from OAT/ART compiler to see what runtime checks must be generated
 
@@ -274,25 +275,24 @@ class Compiler {
   void SetGcMapsDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
   void SetGcMapsMethod(const DexFile& dex_file, Method* method);
 
-  void InsertInvokeStub(bool is_static, const char* shorty,
-                        const CompiledInvokeStub* compiled_invoke_stub);
+  void InsertInvokeStub(const std::string& key, const CompiledInvokeStub* compiled_invoke_stub);
 
   std::vector<const PatchInformation*> code_to_patch_;
   std::vector<const PatchInformation*> methods_to_patch_;
 
   InstructionSet instruction_set_;
 
-  typedef std::map<const ClassReference, CompiledClass*> ClassTable;
+  typedef SafeMap<const ClassReference, CompiledClass*> ClassTable;
   // All class references that this compiler has compiled
   mutable Mutex compiled_classes_lock_;
   ClassTable compiled_classes_;
 
-  typedef std::map<const MethodReference, CompiledMethod*> MethodTable;
+  typedef SafeMap<const MethodReference, CompiledMethod*> MethodTable;
   // All method references that this compiler has compiled
   mutable Mutex compiled_methods_lock_;
   MethodTable compiled_methods_;
 
-  typedef std::map<std::string, const CompiledInvokeStub*> InvokeStubTable;
+  typedef SafeMap<std::string, const CompiledInvokeStub*> InvokeStubTable;
   // Invocation stubs created to allow invocation of the compiled methods
   mutable Mutex compiled_invoke_stubs_lock_;
   InvokeStubTable compiled_invoke_stubs_;
