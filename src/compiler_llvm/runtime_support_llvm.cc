@@ -269,7 +269,7 @@ Object* art_find_interface_method_from_code(uint32_t method_idx,
 }
 
 Object* art_initialize_static_storage_from_code(uint32_t type_idx, Method* referrer) {
-  return ResolveVerifyAndClinit(type_idx, referrer, Thread::Current(), true, true);
+  return ResolveVerifyAndClinit(type_idx, referrer, Thread::Current(), true, false);
 }
 
 Object* art_initialize_type_from_code(uint32_t type_idx, Method* referrer) {
