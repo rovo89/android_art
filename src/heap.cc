@@ -267,24 +267,49 @@ Heap::~Heap() {
   delete lock_;
 }
 
-Object* Heap::AllocObject(Class* klass, size_t byte_count) {
+static void MSpaceChunkCallback(void* start, void* end, size_t used_bytes, void* arg) {
+  size_t& max_contiguous_allocation = *reinterpret_cast<size_t*>(arg);
+
+  size_t chunk_size = static_cast<size_t>(reinterpret_cast<uint8_t*>(end) - reinterpret_cast<uint8_t*>(start));
+  size_t chunk_free_bytes = 0;
+  if (used_bytes < chunk_size) {
+    chunk_free_bytes = chunk_size - used_bytes;
+  }
+
+  if (chunk_free_bytes > max_contiguous_allocation) {
+    max_contiguous_allocation = chunk_free_bytes;
+  }
+}
+
+Object* Heap::AllocObject(Class* c, size_t byte_count) {
+  // Used in the detail message if we throw an OOME.
+  int64_t total_bytes_free;
+  size_t max_contiguous_allocation;
+
   {
     ScopedHeapLock heap_lock;
-    DCHECK(klass == NULL || (klass->IsClassClass() && byte_count >= sizeof(Class)) ||
-           (klass->IsVariableSize() || klass->GetObjectSize() == byte_count) ||
-           strlen(ClassHelper(klass).GetDescriptor()) == 0);
+    DCHECK(c == NULL || (c->IsClassClass() && byte_count >= sizeof(Class)) ||
+           (c->IsVariableSize() || c->GetObjectSize() == byte_count) ||
+           strlen(ClassHelper(c).GetDescriptor()) == 0);
     DCHECK_GE(byte_count, sizeof(Object));
     Object* obj = AllocateLocked(byte_count);
     if (obj != NULL) {
-      obj->SetClass(klass);
+      obj->SetClass(c);
       if (Dbg::IsAllocTrackingEnabled()) {
-        Dbg::RecordAllocation(klass, byte_count);
+        Dbg::RecordAllocation(c, byte_count);
       }
       return obj;
     }
+    total_bytes_free = GetFreeMemory();
+    max_contiguous_allocation = 0;
+    GetAllocSpace()->Walk(MSpaceChunkCallback, &max_contiguous_allocation);
   }
 
-  Thread::Current()->ThrowOutOfMemoryError(klass, byte_count);
+  std::string msg(StringPrintf("Failed to allocate a %zd-byte %s (%lld total bytes free; largest possible contiguous allocation %zd bytes)",
+                               byte_count,
+                               PrettyDescriptor(c).c_str(),
+                               total_bytes_free, max_contiguous_allocation));
+  Thread::Current()->ThrowOutOfMemoryError(msg.c_str());
   return NULL;
 }
 
@@ -490,11 +515,6 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
   if (ptr != NULL) {
     return ptr;
   }
-
-  LOG(ERROR) << "Out of memory on a " << PrettySize(alloc_size) << " allocation";
-
-  // TODO: tell the HeapSource to dump its state
-  // TODO: dump stack traces for all threads
 
   return NULL;
 }
