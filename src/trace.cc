@@ -21,7 +21,9 @@
 #include "class_linker.h"
 #include "debugger.h"
 #include "dex_cache.h"
+#if !defined(ART_USE_LLVM_COMPILER)
 #include "oat/runtime/oat_support_entrypoints.h"
+#endif
 #include "object_utils.h"
 #include "os.h"
 #include "scoped_thread_list_lock.h"
@@ -152,6 +154,9 @@ static void TraceRestoreStack(Thread* t, void*) {
       if (t->IsTraceStackEmpty()) {
         break;
       }
+#if defined(ART_USE_LLVM_COMPILER)
+      UNIMPLEMENTED(FATAL);
+#else
       uintptr_t pc = frame.GetReturnPC();
       Method* method = frame.GetMethod();
       if (IsTraceExitPc(pc)) {
@@ -159,6 +164,7 @@ static void TraceRestoreStack(Thread* t, void*) {
         frame.SetReturnPC(trace_frame.return_pc_);
         CHECK(method == trace_frame.method_);
       }
+#endif
     }
   }
 }
@@ -182,10 +188,14 @@ const void* Trace::GetSavedCodeFromMap(const Method* method) {
 }
 
 void Trace::SaveAndUpdateCode(Method* method) {
+#if defined(ART_USE_LLVM_COMPILER)
+  UNIMPLEMENTED(FATAL);
+#else
   void* trace_stub = GetLogTraceEntryPoint();
   CHECK(GetSavedCodeFromMap(method) == NULL);
   AddSavedCodeToMap(method, method->GetCode());
   method->SetCode(trace_stub);
+#endif
 }
 
 void Trace::ResetSavedCode(Method* method) {

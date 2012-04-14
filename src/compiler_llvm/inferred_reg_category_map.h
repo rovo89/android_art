@@ -47,7 +47,7 @@ class InferredRegCategoryMap {
 
     void SetRegCategory(uint16_t reg_idx, RegCategory cat) {
       if (cat != kRegUnknown) {
-        reg_category_line_[reg_idx] = cat;
+        reg_category_line_.Put(reg_idx, cat);
       }
     }
 

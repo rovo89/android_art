@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 The Android Open Source Project
+ * Copyright (C) 2012 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,53 +14,18 @@
  * limitations under the License.
  */
 
-#include "dex_verifier.h"
+#include "reg_type.h"
 
-#include <stdio.h>
+#include "reg_type_cache.h"
 
-#include "UniquePtr.h"
-#include "class_linker.h"
 #include "common_test.h"
-#include "dex_file.h"
 
 namespace art {
 namespace verifier {
 
-class DexVerifierTest : public CommonTest {
- protected:
-  void VerifyClass(const std::string& descriptor) {
-    ASSERT_TRUE(descriptor != NULL);
-    Class* klass = class_linker_->FindSystemClass(descriptor.c_str());
+class RegTypeTest : public CommonTest {};
 
-    // Verify the class
-    std::string error_msg;
-    ASSERT_TRUE(DexVerifier::VerifyClass(klass, error_msg)) << error_msg;
-  }
-
-  void VerifyDexFile(const DexFile* dex) {
-    ASSERT_TRUE(dex != NULL);
-
-    // Verify all the classes defined in this file
-    for (size_t i = 0; i < dex->NumClassDefs(); i++) {
-      const DexFile::ClassDef& class_def = dex->GetClassDef(i);
-      const char* descriptor = dex->GetClassDescriptor(class_def);
-      VerifyClass(descriptor);
-    }
-  }
-};
-
-TEST_F(DexVerifierTest, LibCore) {
-  VerifyDexFile(java_lang_dex_file_);
-}
-
-TEST_F(DexVerifierTest, IntMath) {
-  SirtRef<ClassLoader> class_loader(LoadDex("IntMath"));
-  Class* klass = class_linker_->FindClass("LIntMath;", class_loader.get());
-  std::string error_msg;
-  ASSERT_TRUE(DexVerifier::VerifyClass(klass, error_msg)) << error_msg;
-}
-
-TEST_F(DexVerifierTest, RegTypes_Primitives) {
+TEST_F(RegTypeTest, Primitives) {
   RegTypeCache cache;
 
   const RegType& bool_reg_type = cache.Boolean();

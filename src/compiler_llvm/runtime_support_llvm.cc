@@ -15,7 +15,6 @@
  */
 
 #include "class_linker.h"
-#include "dex_verifier.h"
 #include "nth_caller_visitor.h"
 #include "object.h"
 #include "object_utils.h"
@@ -26,17 +25,13 @@
 #include "shadow_frame.h"
 #include "thread.h"
 #include "thread_list.h"
+#include "verifier/method_verifier.h"
 
 #include <algorithm>
 #include <cstdarg>
 #include <stdint.h>
 
 namespace art {
-
-extern int64_t D2L(double d);
-extern int32_t D2I(double d);
-extern int64_t F2L(float f);
-extern int32_t F2I(float f);
 
 //----------------------------------------------------------------------------
 // Thread

@@ -119,7 +119,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/dex_file.cc \
 	src/dex_file_verifier.cc \
 	src/dex_instruction.cc \
-	src/dex_verifier.cc \
 	src/dlmalloc.c \
 	src/file.cc \
 	src/file_linux.cc \
@@ -158,6 +157,13 @@ LIBART_COMMON_SRC_FILES := \
 	src/memory_region.cc \
 	src/monitor.cc \
 	src/mutex.cc \
+	src/oat/runtime/arm/stub_arm.cc \
+	src/oat/runtime/x86/stub_x86.cc \
+	src/oat/utils/arm/assembler_arm.cc \
+	src/oat/utils/arm/managed_register_arm.cc \
+	src/oat/utils/assembler.cc \
+	src/oat/utils/x86/assembler_x86.cc \
+	src/oat/utils/x86/managed_register_x86.cc \
 	src/oat.cc \
 	src/oat_file.cc \
 	src/oat_writer.cc \
@@ -183,16 +189,20 @@ LIBART_COMMON_SRC_FILES := \
 	src/trace.cc \
 	src/utf.cc \
 	src/utils.cc \
-	src/zip_archive.cc
+	src/zip_archive.cc \
+	src/verifier/gc_map.cc \
+	src/verifier/method_verifier.cc \
+	src/verifier/reg_type.cc \
+	src/verifier/reg_type_cache.cc \
+	src/verifier/register_line.cc
 
 ifeq ($(ART_USE_LLVM_COMPILER),true)
 LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/elf_loader.cc \
 	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/compiler_llvm/runtime_support_llvm.cc
-endif
+else
 LIBART_COMMON_SRC_FILES += \
-	src/oat/runtime/arm/stub_arm.cc \
 	src/oat/runtime/context.cc \
 	src/oat/runtime/support_alloc.cc \
 	src/oat/runtime/support_cast.cc \
@@ -208,13 +218,8 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/support_stubs.cc \
 	src/oat/runtime/support_thread.cc \
 	src/oat/runtime/support_throw.cc \
-	src/oat/runtime/support_trace.cc \
-	src/oat/runtime/x86/stub_x86.cc \
-	src/oat/utils/arm/assembler_arm.cc \
-	src/oat/utils/arm/managed_register_arm.cc \
-	src/oat/utils/assembler.cc \
-	src/oat/utils/x86/assembler_x86.cc \
-	src/oat/utils/x86/managed_register_x86.cc
+	src/oat/runtime/support_trace.cc
+endif # ART_USE_LLVM_COMPILER == true
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -224,25 +229,38 @@ LIBART_TARGET_SRC_FILES := \
 	src/runtime_android.cc \
 	src/thread_android.cc
 
+ifeq ($(ART_USE_LLVM_COMPILER),false)
 ifeq ($(TARGET_ARCH),arm)
 LIBART_TARGET_SRC_FILES += \
 	src/oat/runtime/arm/context_arm.cc.arm \
 	src/oat/runtime/arm/oat_support_entrypoints_arm.cc \
-	src/oat/runtime/arm/runtime_support_arm.S \
-	src/thread_arm.cc
+	src/oat/runtime/arm/runtime_support_arm.S
 else # TARGET_ARCH != arm
 ifeq ($(TARGET_ARCH),x86)
 LIBART_TARGET_SRC_FILES += \
 	src/oat/runtime/x86/context_x86.cc \
 	src/oat/runtime/x86/oat_support_entrypoints_x86.cc \
-	src/oat/runtime/x86/runtime_support_x86.S \
-	src/thread_x86.cc
+	src/oat/runtime/x86/runtime_support_x86.S
 else # TARGET_ARCH != x86
 ifeq ($(TARGET_ARCH),mips)
 LIBART_TARGET_SRC_FILES += \
 	src/oat/runtime/mips/oat_support_entrypoints_mips.cc \
-	src/oat/runtime/mips/runtime_support_mips.S \
-	src/thread_mips.cc
+	src/oat/runtime/mips/runtime_support_mips.S
+else # TARGET_ARCH != mips
+$(error unsupported TARGET_ARCH=$(TARGET_ARCH))
+endif # TARGET_ARCH != mips
+endif # TARGET_ARCH != x86
+endif # TARGET_ARCH != arm
+endif # ART_USE_LLVM_COMPILER == false
+
+ifeq ($(TARGET_ARCH),arm)
+LIBART_TARGET_SRC_FILES += src/thread_arm.cc
+else # TARGET_ARCH != arm
+ifeq ($(TARGET_ARCH),x86)
+LIBART_TARGET_SRC_FILES += src/thread_x86.cc
+else # TARGET_ARCH != x86
+ifeq ($(TARGET_ARCH),mips)
+LIBART_TARGET_SRC_FILES += src/thread_mips.cc
 else # TARGET_ARCH != mips
 $(error unsupported TARGET_ARCH=$(TARGET_ARCH))
 endif # TARGET_ARCH != mips
@@ -256,25 +274,33 @@ LIBART_HOST_SRC_FILES := \
 	src/runtime_linux.cc \
 	src/thread_linux.cc
 
+ifeq ($(ART_USE_LLVM_COMPILER),false)
 ifeq ($(HOST_ARCH),x86)
 LIBART_HOST_SRC_FILES += \
 	src/oat/runtime/x86/oat_support_entrypoints_x86.cc \
 	src/oat/runtime/x86/context_x86.cc \
-	src/oat/runtime/x86/runtime_support_x86.S \
-	src/thread_x86.cc
+	src/oat/runtime/x86/runtime_support_x86.S
+else # HOST_ARCH != x86
+$(error unsupported HOST_ARCH=$(HOST_ARCH))
+endif # HOST_ARCH != x86
+endif # ART_USE_LLVM_COMPILER == false
+
+ifeq ($(HOST_ARCH),x86)
+LIBART_HOST_SRC_FILES += src/thread_x86.cc
 else # HOST_ARCH != x86
 $(error unsupported HOST_ARCH=$(HOST_ARCH))
 endif # HOST_ARCH != x86
 
+
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
-	src/dex_verifier.h \
 	src/indirect_reference_table.h \
 	src/instruction_set.h \
 	src/invoke_type.h \
 	src/jdwp/jdwp.h \
 	src/jdwp/jdwp_constants.h \
 	src/mutex.h \
-	src/thread.h
+	src/thread.h \
+	src/verifier/method_verifier.h
 
 LIBARTTEST_COMMON_SRC_FILES := \
 	test/StackWalk/stack_walk_jni.cc \
@@ -286,7 +312,6 @@ TEST_COMMON_SRC_FILES := \
 	src/dex_cache_test.cc \
 	src/dex_file_test.cc \
 	src/dex_instruction_visitor_test.cc \
-	src/dex_verifier_test.cc \
 	src/exception_test.cc \
 	src/file_test.cc \
 	src/heap_test.cc \
@@ -304,7 +329,9 @@ TEST_COMMON_SRC_FILES := \
 	src/runtime_test.cc \
 	src/space_test.cc \
 	src/utils_test.cc \
-	src/zip_archive_test.cc
+	src/zip_archive_test.cc \
+	src/verifier/method_verifier_test.cc \
+	src/verifier/reg_type_test.cc
 
 TEST_TARGET_SRC_FILES := \
 	$(TEST_COMMON_SRC_FILES)

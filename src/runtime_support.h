@@ -19,11 +19,11 @@
 
 #include "class_linker.h"
 #include "dex_file.h"
-#include "dex_verifier.h"
 #include "invoke_type.h"
 #include "object.h"
 #include "object_utils.h"
 #include "thread.h"
+#include "verifier/method_verifier.h"
 
 extern "C" void art_proxy_invoke_handler();
 extern "C" void art_work_around_app_jni_bugs();
@@ -35,6 +35,11 @@ class Class;
 class Field;
 class Method;
 class Object;
+
+int64_t D2L(double d);
+int32_t D2I(double d);
+int64_t F2L(float f);
+int32_t F2I(float f);
 
 // Helpers to give consistent descriptive exception messages
 void ThrowNewIllegalAccessErrorClass(Thread* self, Class* referrer, Class* accessed);

@@ -22,8 +22,10 @@
 
 #include "class_linker.h"
 #include "class_loader.h"
-#include "dex_verifier.h" // For Instruction.
-#include "oat/runtime/context.h"
+#include "dex_instruction.h"
+#if !defined(ART_USE_LLVM_COMPILER)
+#include "oat/runtime/context.h"  // For VmapTable
+#endif
 #include "object_utils.h"
 #include "safe_map.h"
 #include "scoped_thread_list_lock.h"
@@ -1582,11 +1584,15 @@ void Dbg::GetLocalValue(JDWP::ObjectId /*threadId*/, JDWP::FrameId frameId, int 
   Method* m = f.GetMethod();
   uint16_t reg = DemangleSlot(slot, m);
 
+#if defined(ART_USE_LLVM_COMPILER)
+  UNIMPLEMENTED(FATAL);
+#else
   const VmapTable vmap_table(m->GetVmapTableRaw());
   uint32_t vmap_offset;
   if (vmap_table.IsInContext(reg, vmap_offset)) {
     UNIMPLEMENTED(FATAL) << "Don't know how to pull locals from callee save frames: " << vmap_offset;
   }
+#endif
 
   // TODO: check that the tag is compatible with the actual type of the slot!
 
@@ -1679,11 +1685,15 @@ void Dbg::SetLocalValue(JDWP::ObjectId /*threadId*/, JDWP::FrameId frameId, int 
   Method* m = f.GetMethod();
   uint16_t reg = DemangleSlot(slot, m);
 
+#if defined(ART_USE_LLVM_COMPILER)
+  UNIMPLEMENTED(FATAL);
+#else
   const VmapTable vmap_table(m->GetVmapTableRaw());
   uint32_t vmap_offset;
   if (vmap_table.IsInContext(reg, vmap_offset)) {
     UNIMPLEMENTED(FATAL) << "Don't know how to pull locals from callee save frames: " << vmap_offset;
   }
+#endif
 
   // TODO: check that the tag is compatible with the actual type of the slot!
 

@@ -29,7 +29,6 @@
 #include "constants_arm.h"
 #include "constants_x86.h"
 #include "debugger.h"
-#include "dex_verifier.h"
 #include "heap.h"
 #include "image.h"
 #include "intern_table.h"
@@ -43,6 +42,7 @@
 #include "thread_list.h"
 #include "trace.h"
 #include "UniquePtr.h"
+#include "verifier/method_verifier.h"
 
 // TODO: this drags in cutil/log.h, which conflicts with our logging.h.
 #include "JniConstants.h"
@@ -72,6 +72,8 @@ Runtime::Runtime()
       exit_(NULL),
       abort_(NULL),
       stats_enabled_(false),
+      method_trace_(0),
+      method_trace_file_size_(0),
       tracer_(NULL),
       use_compile_time_class_path_(false) {
   for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
@@ -100,9 +102,9 @@ Runtime::~Runtime() {
   delete class_linker_;
   delete heap_;
 #if defined(ART_USE_LLVM_COMPILER)
-  verifier::DexVerifier::DeleteInferredRegCategoryMaps();
+  verifier::MethodVerifier::DeleteInferredRegCategoryMaps();
 #endif
-  verifier::DexVerifier::DeleteGcMaps();
+  verifier::MethodVerifier::DeleteGcMaps();
   delete intern_table_;
   delete java_vm_;
   Thread::Shutdown();
@@ -644,10 +646,10 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   thread_list_ = new ThreadList;
   intern_table_ = new InternTable;
 
-  verifier::DexVerifier::InitGcMaps();
+  verifier::MethodVerifier::InitGcMaps();
 
 #if defined(ART_USE_LLVM_COMPILER)
-  verifier::DexVerifier::InitInferredRegCategoryMaps();
+  verifier::MethodVerifier::InitInferredRegCategoryMaps();
 #endif
 
   heap_ = new Heap(options->heap_initial_size_,

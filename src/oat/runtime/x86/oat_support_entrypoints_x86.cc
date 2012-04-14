@@ -15,6 +15,7 @@
  */
 
 #include "oat/runtime/oat_support_entrypoints.h"
+#include "runtime_support.h"
 
 namespace art {
 
@@ -70,8 +71,6 @@ extern int32_t CmpgDouble(double a, double b);
 extern int32_t CmplDouble(double a, double b);
 extern int32_t CmpgFloat(float a, float b);
 extern int32_t CmplFloat(float a, float b);
-extern int64_t D2L(double d);
-extern int64_t F2L(float f);
 extern "C" int32_t art_idiv_from_code(int32_t, int32_t);
 extern "C" int32_t art_idivmod_from_code(int32_t, int32_t);
 extern "C" int64_t art_ldiv_from_code(int64_t, int64_t);

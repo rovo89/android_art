@@ -20,6 +20,66 @@
 
 namespace art {
 
+/*
+ * Float/double conversion requires clamping to min and max of integer form.  If
+ * target doesn't support this normally, use these.
+ */
+int64_t D2L(double d) {
+  static const double kMaxLong = (double) (int64_t) 0x7fffffffffffffffULL;
+  static const double kMinLong = (double) (int64_t) 0x8000000000000000ULL;
+  if (d >= kMaxLong) {
+    return (int64_t) 0x7fffffffffffffffULL;
+  } else if (d <= kMinLong) {
+    return (int64_t) 0x8000000000000000ULL;
+  } else if (d != d)  { // NaN case
+    return 0;
+  } else {
+    return (int64_t) d;
+  }
+}
+
+int64_t F2L(float f) {
+  static const float kMaxLong = (float) (int64_t) 0x7fffffffffffffffULL;
+  static const float kMinLong = (float) (int64_t) 0x8000000000000000ULL;
+  if (f >= kMaxLong) {
+    return (int64_t) 0x7fffffffffffffffULL;
+  } else if (f <= kMinLong) {
+    return (int64_t) 0x8000000000000000ULL;
+  } else if (f != f) { // NaN case
+    return 0;
+  } else {
+    return (int64_t) f;
+  }
+}
+
+int32_t D2I(double d) {
+  static const double kMaxInt = (double) (int32_t) 0x7fffffffUL;
+  static const double kMinInt = (double) (int32_t) 0x80000000UL;
+  if (d >= kMaxInt) {
+    return (int32_t) 0x7fffffffUL;
+  } else if (d <= kMinInt) {
+    return (int32_t) 0x80000000UL;
+  } else if (d != d)  { // NaN case
+    return 0;
+  } else {
+    return (int32_t) d;
+  }
+}
+
+int32_t F2I(float f) {
+  static const float kMaxInt = (float) (int32_t) 0x7fffffffUL;
+  static const float kMinInt = (float) (int32_t) 0x80000000UL;
+  if (f >= kMaxInt) {
+    return (int32_t) 0x7fffffffUL;
+  } else if (f <= kMinInt) {
+    return (int32_t) 0x80000000UL;
+  } else if (f != f) { // NaN case
+    return 0;
+  } else {
+    return (int32_t) f;
+  }
+}
+
 void ThrowNewIllegalAccessErrorClass(Thread* self,
                                      Class* referrer,
                                      Class* accessed) {

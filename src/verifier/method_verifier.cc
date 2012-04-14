@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "dex_verifier.h"
+#include "method_verifier.h"
 
 #include <iostream>
 
@@ -24,7 +24,7 @@
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "dex_instruction_visitor.h"
-#include "dex_verifier.h"
+#include "gc_map.h"
 #include "intern_table.h"
 #include "leb128.h"
 #include "logging.h"
@@ -43,846 +43,106 @@ namespace verifier {
 
 static const bool gDebugVerify = false;
 
-static const char* type_strings[] = {
-    "Unknown",
-    "Conflict",
-    "Boolean",
-    "Byte",
-    "Short",
-    "Char",
-    "Integer",
-    "Float",
-    "Long (Low Half)",
-    "Long (High Half)",
-    "Double (Low Half)",
-    "Double (High Half)",
-    "64-bit Constant (Low Half)",
-    "64-bit Constant (High Half)",
-    "32-bit Constant",
-    "Unresolved Reference",
-    "Uninitialized Reference",
-    "Uninitialized This Reference",
-    "Unresolved And Uninitialized Reference",
-    "Reference",
+class InsnFlags {
+ public:
+  InsnFlags() : length_(0), flags_(0) {}
+
+  void SetLengthInCodeUnits(size_t length) {
+    CHECK_LT(length, 65536u);
+    length_ = length;
+  }
+  size_t GetLengthInCodeUnits() {
+    return length_;
+  }
+  bool IsOpcode() const {
+    return length_ != 0;
+  }
+
+  void SetInTry() {
+    flags_ |= 1 << kInTry;
+  }
+  void ClearInTry() {
+    flags_ &= ~(1 << kInTry);
+  }
+  bool IsInTry() const {
+    return (flags_ & (1 << kInTry)) != 0;
+  }
+
+  void SetBranchTarget() {
+    flags_ |= 1 << kBranchTarget;
+  }
+  void ClearBranchTarget() {
+    flags_ &= ~(1 << kBranchTarget);
+  }
+  bool IsBranchTarget() const {
+    return (flags_ & (1 << kBranchTarget)) != 0;
+  }
+
+  void SetGcPoint() {
+    flags_ |= 1 << kGcPoint;
+  }
+  void ClearGcPoint() {
+    flags_ &= ~(1 << kGcPoint);
+  }
+  bool IsGcPoint() const {
+    return (flags_ & (1 << kGcPoint)) != 0;
+  }
+
+  void SetVisited() {
+    flags_ |= 1 << kVisited;
+  }
+  void ClearVisited() {
+    flags_ &= ~(1 << kVisited);
+  }
+  bool IsVisited() const {
+    return (flags_ & (1 << kVisited)) != 0;
+  }
+
+  void SetChanged() {
+    flags_ |= 1 << kChanged;
+  }
+  void ClearChanged() {
+    flags_ &= ~(1 << kChanged);
+  }
+  bool IsChanged() const {
+    return (flags_ & (1 << kChanged)) != 0;
+  }
+
+  bool IsVisitedOrChanged() const {
+    return IsVisited() || IsChanged();
+  }
+
+  std::string Dump() {
+    char encoding[6];
+    if (!IsOpcode()) {
+      strncpy(encoding, "XXXXX", sizeof(encoding));
+    } else {
+      strncpy(encoding, "-----", sizeof(encoding));
+      if (IsInTry())        encoding[kInTry] = 'T';
+      if (IsBranchTarget()) encoding[kBranchTarget] = 'B';
+      if (IsGcPoint())      encoding[kGcPoint] = 'G';
+      if (IsVisited())      encoding[kVisited] = 'V';
+      if (IsChanged())      encoding[kChanged] = 'C';
+    }
+    return std::string(encoding);
+  }
+ private:
+  enum {
+    kInTry,
+    kBranchTarget,
+    kGcPoint,
+    kVisited,
+    kChanged,
+  };
+
+  // Size of instruction in code units
+  uint16_t length_;
+  uint8_t flags_;
 };
-
-std::string RegType::Dump() const {
-  DCHECK(type_ >=  kRegTypeUnknown && type_ <= kRegTypeReference);
-  std::string result;
-  if (IsConstant()) {
-    uint32_t val = ConstantValue();
-    if (val == 0) {
-      result = "Zero";
-    } else {
-      if (IsConstantShort()) {
-        result = StringPrintf("32-bit Constant: %d", val);
-      } else {
-        result = StringPrintf("32-bit Constant: 0x%x", val);
-      }
-    }
-  } else {
-    result = type_strings[type_];
-    if (IsReferenceTypes()) {
-      result += ": ";
-      if (IsUnresolvedTypes()) {
-        result += PrettyDescriptor(GetDescriptor());
-      } else {
-        result += PrettyDescriptor(GetClass());
-      }
-    }
-  }
-  return result;
-}
-
-const RegType& RegType::HighHalf(RegTypeCache* cache) const {
-  CHECK(IsLowHalf());
-  if (type_ == kRegTypeLongLo) {
-    return cache->FromType(kRegTypeLongHi);
-  } else if (type_ == kRegTypeDoubleLo) {
-    return cache->FromType(kRegTypeDoubleHi);
-  } else {
-    return cache->FromType(kRegTypeConstHi);
-  }
-}
-
-/*
- * A basic Join operation on classes. For a pair of types S and T the Join, written S v T = J, is
- * S <: J, T <: J and for-all U such that S <: U, T <: U then J <: U. That is J is the parent of
- * S and T such that there isn't a parent of both S and T that isn't also the parent of J (ie J
- * is the deepest (lowest upper bound) parent of S and T).
- *
- * This operation applies for regular classes and arrays, however, for interface types there needn't
- * be a partial ordering on the types. We could solve the problem of a lack of a partial order by
- * introducing sets of types, however, the only operation permissible on an interface is
- * invoke-interface. In the tradition of Java verifiers we defer the verification of interface
- * types until an invoke-interface call on the interface typed reference at runtime and allow
- * the perversion of any Object being assignable to an interface type (note, however, that we don't
- * allow assignment of Object or Interface to any concrete subclass of Object and are therefore type
- * safe; further the Join on a Object cannot result in a sub-class by definition).
- */
-Class* RegType::ClassJoin(Class* s, Class* t) {
-  DCHECK(!s->IsPrimitive()) << PrettyClass(s);
-  DCHECK(!t->IsPrimitive()) << PrettyClass(t);
-  if (s == t) {
-    return s;
-  } else if (s->IsAssignableFrom(t)) {
-    return s;
-  } else if (t->IsAssignableFrom(s)) {
-    return t;
-  } else if (s->IsArrayClass() && t->IsArrayClass()) {
-    Class* s_ct = s->GetComponentType();
-    Class* t_ct = t->GetComponentType();
-    if (s_ct->IsPrimitive() || t_ct->IsPrimitive()) {
-      // Given the types aren't the same, if either array is of primitive types then the only
-      // common parent is java.lang.Object
-      Class* result = s->GetSuperClass();  // short-cut to java.lang.Object
-      DCHECK(result->IsObjectClass());
-      return result;
-    }
-    Class* common_elem = ClassJoin(s_ct, t_ct);
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    const ClassLoader* class_loader = s->GetClassLoader();
-    std::string descriptor("[");
-    descriptor += ClassHelper(common_elem).GetDescriptor();
-    Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
-    DCHECK(array_class != NULL);
-    return array_class;
-  } else {
-    size_t s_depth = s->Depth();
-    size_t t_depth = t->Depth();
-    // Get s and t to the same depth in the hierarchy
-    if (s_depth > t_depth) {
-      while (s_depth > t_depth) {
-        s = s->GetSuperClass();
-        s_depth--;
-      }
-    } else {
-      while (t_depth > s_depth) {
-        t = t->GetSuperClass();
-        t_depth--;
-      }
-    }
-    // Go up the hierarchy until we get to the common parent
-    while (s != t) {
-      s = s->GetSuperClass();
-      t = t->GetSuperClass();
-    }
-    return s;
-  }
-}
-
-bool RegType::IsAssignableFrom(const RegType& src) const {
-  if (Equals(src)) {
-    return true;
-  } else {
-    switch (GetType()) {
-      case RegType::kRegTypeBoolean:  return src.IsBooleanTypes();
-      case RegType::kRegTypeByte:     return src.IsByteTypes();
-      case RegType::kRegTypeShort:    return src.IsShortTypes();
-      case RegType::kRegTypeChar:     return src.IsCharTypes();
-      case RegType::kRegTypeInteger:  return src.IsIntegralTypes();
-      case RegType::kRegTypeFloat:    return src.IsFloatTypes();
-      case RegType::kRegTypeLongLo:   return src.IsLongTypes();
-      case RegType::kRegTypeDoubleLo: return src.IsDoubleTypes();
-      default:
-        if (!IsReferenceTypes()) {
-          LOG(FATAL) << "Unexpected register type in IsAssignableFrom: '" << src << "'";
-        }
-        if (src.IsZero()) {
-          return true;  // all reference types can be assigned null
-        } else if (!src.IsReferenceTypes()) {
-          return false;  // expect src to be a reference type
-        } else if (IsJavaLangObject()) {
-          return true;  // all reference types can be assigned to Object
-        } else if (!IsUnresolvedTypes() && GetClass()->IsInterface()) {
-          return true;  // We allow assignment to any interface, see comment in ClassJoin
-        } else if (IsJavaLangObjectArray()) {
-          return src.IsObjectArrayTypes();  // All reference arrays may be assigned to Object[]
-        } else if (!IsUnresolvedTypes() && !src.IsUnresolvedTypes() &&
-                   GetClass()->IsAssignableFrom(src.GetClass())) {
-          // We're assignable from the Class point-of-view
-          return true;
-        } else {
-          return false;
-        }
-    }
-  }
-}
-
-static const RegType& SelectNonConstant(const RegType& a, const RegType& b) {
-  return a.IsConstant() ? b : a;
-}
-
-const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_types) const {
-  DCHECK(!Equals(incoming_type));  // Trivial equality handled by caller
-  if (IsUnknown() && incoming_type.IsUnknown()) {
-    return *this;  // Unknown MERGE Unknown => Unknown
-  } else if (IsConflict()) {
-    return *this;  // Conflict MERGE * => Conflict
-  } else if (incoming_type.IsConflict()) {
-    return incoming_type;  // * MERGE Conflict => Conflict
-  } else if (IsUnknown() || incoming_type.IsUnknown()) {
-    return reg_types->Conflict();  // Unknown MERGE * => Conflict
-  } else if (IsConstant() && incoming_type.IsConstant()) {
-    int32_t val1 = ConstantValue();
-    int32_t val2 = incoming_type.ConstantValue();
-    if (val1 >= 0 && val2 >= 0) {
-      // +ve1 MERGE +ve2 => MAX(+ve1, +ve2)
-      if (val1 >= val2) {
-        return *this;
-      } else {
-        return incoming_type;
-      }
-    } else if (val1 < 0 && val2 < 0) {
-      // -ve1 MERGE -ve2 => MIN(-ve1, -ve2)
-      if (val1 <= val2) {
-        return *this;
-      } else {
-        return incoming_type;
-      }
-    } else {
-      // Values are +ve and -ve, choose smallest signed type in which they both fit
-      if (IsConstantByte()) {
-        if (incoming_type.IsConstantByte()) {
-          return reg_types->ByteConstant();
-        } else if (incoming_type.IsConstantShort()) {
-          return reg_types->ShortConstant();
-        } else {
-          return reg_types->IntConstant();
-        }
-      } else if (IsConstantShort()) {
-        if (incoming_type.IsConstantShort()) {
-          return reg_types->ShortConstant();
-        } else {
-          return reg_types->IntConstant();
-        }
-      } else {
-        return reg_types->IntConstant();
-      }
-    }
-  } else if (IsIntegralTypes() && incoming_type.IsIntegralTypes()) {
-    if (IsBooleanTypes() && incoming_type.IsBooleanTypes()) {
-      return reg_types->Boolean();  // boolean MERGE boolean => boolean
-    }
-    if (IsByteTypes() && incoming_type.IsByteTypes()) {
-      return reg_types->Byte();  // byte MERGE byte => byte
-    }
-    if (IsShortTypes() && incoming_type.IsShortTypes()) {
-      return reg_types->Short();  // short MERGE short => short
-    }
-    if (IsCharTypes() && incoming_type.IsCharTypes()) {
-      return reg_types->Char();  // char MERGE char => char
-    }
-    return reg_types->Integer();  // int MERGE * => int
-  } else if ((IsFloatTypes() && incoming_type.IsFloatTypes()) ||
-             (IsLongTypes() && incoming_type.IsLongTypes()) ||
-             (IsLongHighTypes() && incoming_type.IsLongHighTypes()) ||
-             (IsDoubleTypes() && incoming_type.IsDoubleTypes()) ||
-             (IsDoubleHighTypes() && incoming_type.IsDoubleHighTypes())) {
-    // check constant case was handled prior to entry
-    DCHECK(!IsConstant() || !incoming_type.IsConstant());
-    // float/long/double MERGE float/long/double_constant => float/long/double
-    return SelectNonConstant(*this, incoming_type);
-  } else if (IsReferenceTypes() && incoming_type.IsReferenceTypes()) {
-    if (IsZero() || incoming_type.IsZero()) {
-      return SelectNonConstant(*this, incoming_type);  // 0 MERGE ref => ref
-    } else if (IsJavaLangObject() || incoming_type.IsJavaLangObject()) {
-      return reg_types->JavaLangObject();  // Object MERGE ref => Object
-    } else if (IsUninitializedTypes() || incoming_type.IsUninitializedTypes() ||
-               IsUnresolvedTypes() || incoming_type.IsUnresolvedTypes()) {
-      // Can only merge an unresolved or uninitialized type with itself, 0 or Object, we've already
-      // checked these so => Conflict
-      return reg_types->Conflict();
-    } else {  // Two reference types, compute Join
-      Class* c1 = GetClass();
-      Class* c2 = incoming_type.GetClass();
-      DCHECK(c1 != NULL && !c1->IsPrimitive());
-      DCHECK(c2 != NULL && !c2->IsPrimitive());
-      Class* join_class = ClassJoin(c1, c2);
-      if (c1 == join_class) {
-        return *this;
-      } else if (c2 == join_class) {
-        return incoming_type;
-      } else {
-        return reg_types->FromClass(join_class);
-      }
-    }
-  } else {
-    return reg_types->Conflict();  // Unexpected types => Conflict
-  }
-}
-
-static RegType::Type RegTypeFromPrimitiveType(Primitive::Type prim_type) {
-  switch (prim_type) {
-    case Primitive::kPrimBoolean: return RegType::kRegTypeBoolean;
-    case Primitive::kPrimByte:    return RegType::kRegTypeByte;
-    case Primitive::kPrimShort:   return RegType::kRegTypeShort;
-    case Primitive::kPrimChar:    return RegType::kRegTypeChar;
-    case Primitive::kPrimInt:     return RegType::kRegTypeInteger;
-    case Primitive::kPrimLong:    return RegType::kRegTypeLongLo;
-    case Primitive::kPrimFloat:   return RegType::kRegTypeFloat;
-    case Primitive::kPrimDouble:  return RegType::kRegTypeDoubleLo;
-    case Primitive::kPrimVoid:
-    default:                      return RegType::kRegTypeUnknown;
-  }
-}
-
-static RegType::Type RegTypeFromDescriptor(const std::string& descriptor) {
-  if (descriptor.length() == 1) {
-    switch (descriptor[0]) {
-      case 'Z': return RegType::kRegTypeBoolean;
-      case 'B': return RegType::kRegTypeByte;
-      case 'S': return RegType::kRegTypeShort;
-      case 'C': return RegType::kRegTypeChar;
-      case 'I': return RegType::kRegTypeInteger;
-      case 'J': return RegType::kRegTypeLongLo;
-      case 'F': return RegType::kRegTypeFloat;
-      case 'D': return RegType::kRegTypeDoubleLo;
-      case 'V':
-      default:  return RegType::kRegTypeUnknown;
-    }
-  } else if (descriptor[0] == 'L' || descriptor[0] == '[') {
-    return RegType::kRegTypeReference;
-  } else {
-    return RegType::kRegTypeUnknown;
-  }
-}
-
-std::ostream& operator<<(std::ostream& os, const RegType& rhs) {
-  os << rhs.Dump();
-  return os;
-}
-
-const RegType& RegTypeCache::FromDescriptor(const ClassLoader* loader,
-                                            const char* descriptor) {
-  return From(RegTypeFromDescriptor(descriptor), loader, descriptor);
-}
-
-const RegType& RegTypeCache::From(RegType::Type type, const ClassLoader* loader,
-                                  const char* descriptor) {
-  if (type <= RegType::kRegTypeLastFixedLocation) {
-    // entries should be sized greater than primitive types
-    DCHECK_GT(entries_.size(), static_cast<size_t>(type));
-    RegType* entry = entries_[type];
-    if (entry == NULL) {
-      Class* klass = NULL;
-      if (strlen(descriptor) != 0) {
-        klass = Runtime::Current()->GetClassLinker()->FindSystemClass(descriptor);
-      }
-      entry = new RegType(type, klass, 0, type);
-      entries_[type] = entry;
-    }
-    return *entry;
-  } else {
-    DCHECK(type == RegType::kRegTypeReference);
-    ClassHelper kh;
-    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
-      RegType* cur_entry = entries_[i];
-      // check resolved and unresolved references, ignore uninitialized references
-      if (cur_entry->IsReference()) {
-        kh.ChangeClass(cur_entry->GetClass());
-        if (strcmp(descriptor, kh.GetDescriptor()) == 0) {
-          return *cur_entry;
-        }
-      } else if (cur_entry->IsUnresolvedReference() &&
-                 cur_entry->GetDescriptor()->Equals(descriptor)) {
-        return *cur_entry;
-      }
-    }
-    Class* klass = Runtime::Current()->GetClassLinker()->FindClass(descriptor, loader);
-    if (klass != NULL) {
-      // Able to resolve so create resolved register type
-      RegType* entry = new RegType(type, klass, 0, entries_.size());
-      entries_.push_back(entry);
-      return *entry;
-    } else {
-      // TODO: we assume unresolved, but we may be able to do better by validating whether the
-      // descriptor string is valid
-      // Unable to resolve so create unresolved register type
-      DCHECK(Thread::Current()->IsExceptionPending());
-      Thread::Current()->ClearException();
-      if (IsValidDescriptor(descriptor)) {
-        String* string_descriptor =
-            Runtime::Current()->GetInternTable()->InternStrong(descriptor);
-        RegType* entry = new RegType(RegType::kRegTypeUnresolvedReference, string_descriptor, 0,
-                                     entries_.size());
-        entries_.push_back(entry);
-        return *entry;
-      } else {
-        // The descriptor is broken return the unknown type as there's nothing sensible that
-        // could be done at runtime
-        return Unknown();
-      }
-    }
-  }
-}
-
-const RegType& RegTypeCache::FromClass(Class* klass) {
-  if (klass->IsPrimitive()) {
-    RegType::Type type = RegTypeFromPrimitiveType(klass->GetPrimitiveType());
-    // entries should be sized greater than primitive types
-    DCHECK_GT(entries_.size(), static_cast<size_t>(type));
-    RegType* entry = entries_[type];
-    if (entry == NULL) {
-      entry = new RegType(type, klass, 0, type);
-      entries_[type] = entry;
-    }
-    return *entry;
-  } else {
-    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
-      RegType* cur_entry = entries_[i];
-      if (cur_entry->IsReference() && cur_entry->GetClass() == klass) {
-        return *cur_entry;
-      }
-    }
-    RegType* entry = new RegType(RegType::kRegTypeReference, klass, 0, entries_.size());
-    entries_.push_back(entry);
-    return *entry;
-  }
-}
-
-const RegType& RegTypeCache::Uninitialized(const RegType& type, uint32_t allocation_pc) {
-  RegType* entry;
-  if (type.IsUnresolvedTypes()) {
-    String* descriptor = type.GetDescriptor();
-    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
-      RegType* cur_entry = entries_[i];
-      if (cur_entry->IsUnresolvedAndUninitializedReference() &&
-          cur_entry->GetAllocationPc() == allocation_pc &&
-          cur_entry->GetDescriptor() == descriptor) {
-        return *cur_entry;
-      }
-    }
-    entry = new RegType(RegType::kRegTypeUnresolvedAndUninitializedReference,
-                        descriptor, allocation_pc, entries_.size());
-  } else {
-    Class* klass = type.GetClass();
-    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
-      RegType* cur_entry = entries_[i];
-      if (cur_entry->IsUninitializedReference() &&
-          cur_entry->GetAllocationPc() == allocation_pc &&
-          cur_entry->GetClass() == klass) {
-        return *cur_entry;
-      }
-    }
-    entry = new RegType(RegType::kRegTypeUninitializedReference,
-                        klass, allocation_pc, entries_.size());
-  }
-  entries_.push_back(entry);
-  return *entry;
-}
-
-const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
-  RegType* entry;
-  if (uninit_type.IsUnresolvedTypes()) {
-    String* descriptor = uninit_type.GetDescriptor();
-    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
-      RegType* cur_entry = entries_[i];
-      if (cur_entry->IsUnresolvedReference() && cur_entry->GetDescriptor() == descriptor) {
-        return *cur_entry;
-      }
-    }
-    entry = new RegType(RegType::kRegTypeUnresolvedReference, descriptor, 0, entries_.size());
-  } else {
-    Class* klass = uninit_type.GetClass();
-    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
-      RegType* cur_entry = entries_[i];
-      if (cur_entry->IsReference() && cur_entry->GetClass() == klass) {
-        return *cur_entry;
-      }
-    }
-    entry = new RegType(RegType::kRegTypeReference, klass, 0, entries_.size());
-  }
-  entries_.push_back(entry);
-  return *entry;
-}
-
-const RegType& RegTypeCache::UninitializedThisArgument(Class* klass) {
-  for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
-    RegType* cur_entry = entries_[i];
-    if (cur_entry->IsUninitializedThisReference() && cur_entry->GetClass() == klass) {
-      return *cur_entry;
-    }
-  }
-  RegType* entry = new RegType(RegType::kRegTypeUninitializedThisReference, klass, 0,
-                               entries_.size());
-  entries_.push_back(entry);
-  return *entry;
-}
-
-const RegType& RegTypeCache::FromType(RegType::Type type) {
-  CHECK(type < RegType::kRegTypeReference);
-  switch (type) {
-    case RegType::kRegTypeBoolean:  return From(type, NULL, "Z");
-    case RegType::kRegTypeByte:     return From(type, NULL, "B");
-    case RegType::kRegTypeShort:    return From(type, NULL, "S");
-    case RegType::kRegTypeChar:     return From(type, NULL, "C");
-    case RegType::kRegTypeInteger:  return From(type, NULL, "I");
-    case RegType::kRegTypeFloat:    return From(type, NULL, "F");
-    case RegType::kRegTypeLongLo:
-    case RegType::kRegTypeLongHi:   return From(type, NULL, "J");
-    case RegType::kRegTypeDoubleLo:
-    case RegType::kRegTypeDoubleHi: return From(type, NULL, "D");
-    default:                        return From(type, NULL, "");
-  }
-}
-
-const RegType& RegTypeCache::FromCat1Const(int32_t value) {
-  for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
-    RegType* cur_entry = entries_[i];
-    if (cur_entry->IsConstant() && cur_entry->ConstantValue() == value) {
-      return *cur_entry;
-    }
-  }
-  RegType* entry = new RegType(RegType::kRegTypeConst, NULL, value, entries_.size());
-  entries_.push_back(entry);
-  return *entry;
-}
-
-const RegType& RegTypeCache::GetComponentType(const RegType& array, const ClassLoader* loader) {
-  CHECK(array.IsArrayTypes());
-  if (array.IsUnresolvedTypes()) {
-    std::string descriptor(array.GetDescriptor()->ToModifiedUtf8());
-    std::string component(descriptor.substr(1, descriptor.size() - 1));
-    return FromDescriptor(loader, component.c_str());
-  } else {
-    return FromClass(array.GetClass()->GetComponentType());
-  }
-}
-
-
-bool RegisterLine::CheckConstructorReturn() const {
-  for (size_t i = 0; i < num_regs_; i++) {
-    if (GetRegisterType(i).IsUninitializedThisReference()) {
-      verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT)
-          << "Constructor returning without calling superclass constructor";
-      return false;
-    }
-  }
-  return true;
-}
-
-bool RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
-  DCHECK(vdst < num_regs_);
-  if (new_type.IsLowHalf()) {
-    line_[vdst] = new_type.GetId();
-    line_[vdst + 1] = new_type.HighHalf(verifier_->GetRegTypeCache()).GetId();
-  } else if (new_type.IsHighHalf()) {
-    /* should never set these explicitly */
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Explicit set of high register type";
-    return false;
-  } else if (new_type.IsConflict()) {  // should only be set during a merge
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "Set register to unknown type " << new_type;
-    return false;
-  } else {
-    line_[vdst] = new_type.GetId();
-  }
-  // Clear the monitor entry bits for this register.
-  ClearAllRegToLockDepths(vdst);
-  return true;
-}
-
-void RegisterLine::SetResultTypeToUnknown() {
-  uint16_t unknown_id = verifier_->GetRegTypeCache()->Unknown().GetId();
-  result_[0] = unknown_id;
-  result_[1] = unknown_id;
-}
-
-void RegisterLine::SetResultRegisterType(const RegType& new_type) {
-  result_[0] = new_type.GetId();
-  if (new_type.IsLowHalf()) {
-    DCHECK_EQ(new_type.HighHalf(verifier_->GetRegTypeCache()).GetId(), new_type.GetId() + 1);
-    result_[1] = new_type.GetId() + 1;
-  } else {
-    result_[1] = verifier_->GetRegTypeCache()->Unknown().GetId();
-  }
-}
-
-const RegType& RegisterLine::GetRegisterType(uint32_t vsrc) const {
-  // The register index was validated during the static pass, so we don't need to check it here.
-  DCHECK_LT(vsrc, num_regs_);
-  return verifier_->GetRegTypeCache()->GetFromId(line_[vsrc]);
-}
-
-const RegType& RegisterLine::GetInvocationThis(const DecodedInstruction& dec_insn) {
-  if (dec_insn.vA < 1) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke lacks 'this'";
-    return verifier_->GetRegTypeCache()->Unknown();
-  }
-  /* get the element type of the array held in vsrc */
-  const RegType& this_type = GetRegisterType(dec_insn.vC);
-  if (!this_type.IsReferenceTypes()) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "tried to get class from non-reference register v"
-                                                 << dec_insn.vC << " (type=" << this_type << ")";
-    return verifier_->GetRegTypeCache()->Unknown();
-  }
-  return this_type;
-}
-
-bool RegisterLine::VerifyRegisterType(uint32_t vsrc, const RegType& check_type) {
-  // Verify the src register type against the check type refining the type of the register
-  const RegType& src_type = GetRegisterType(vsrc);
-  if (!check_type.IsAssignableFrom(src_type)) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "register v" << vsrc << " has type " << src_type
-                                                 << " but expected " << check_type;
-    return false;
-  }
-  if (check_type.IsLowHalf()) {
-    const RegType& src_type_h = GetRegisterType(vsrc + 1);
-    if (!src_type.CheckWidePair(src_type_h)) {
-      verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "wide register v" << vsrc << " has type "
-                                                   << src_type << "/" << src_type_h;
-      return false;
-    }
-  }
-  // The register at vsrc has a defined type, we know the lower-upper-bound, but this is less
-  // precise than the subtype in vsrc so leave it for reference types. For primitive types
-  // if they are a defined type then they are as precise as we can get, however, for constant
-  // types we may wish to refine them. Unfortunately constant propagation has rendered this useless.
-  return true;
-}
-
-void RegisterLine::MarkRefsAsInitialized(const RegType& uninit_type) {
-  DCHECK(uninit_type.IsUninitializedTypes());
-  const RegType& init_type = verifier_->GetRegTypeCache()->FromUninitialized(uninit_type);
-  size_t changed = 0;
-  for (size_t i = 0; i < num_regs_; i++) {
-    if (GetRegisterType(i).Equals(uninit_type)) {
-      line_[i] = init_type.GetId();
-      changed++;
-    }
-  }
-  DCHECK_GT(changed, 0u);
-}
-
-void RegisterLine::MarkUninitRefsAsInvalid(const RegType& uninit_type) {
-  for (size_t i = 0; i < num_regs_; i++) {
-    if (GetRegisterType(i).Equals(uninit_type)) {
-      line_[i] = verifier_->GetRegTypeCache()->Conflict().GetId();
-      ClearAllRegToLockDepths(i);
-    }
-  }
-}
-
-void RegisterLine::CopyRegister1(uint32_t vdst, uint32_t vsrc, TypeCategory cat) {
-  DCHECK(cat == kTypeCategory1nr || cat == kTypeCategoryRef);
-  const RegType& type = GetRegisterType(vsrc);
-  if (!SetRegisterType(vdst, type)) {
-    return;
-  }
-  if ((cat == kTypeCategory1nr && !type.IsCategory1Types()) ||
-      (cat == kTypeCategoryRef && !type.IsReferenceTypes())) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "copy1 v" << vdst << "<-v" << vsrc << " type=" << type
-                                                 << " cat=" << static_cast<int>(cat);
-  } else if (cat == kTypeCategoryRef) {
-    CopyRegToLockDepth(vdst, vsrc);
-  }
-}
-
-void RegisterLine::CopyRegister2(uint32_t vdst, uint32_t vsrc) {
-  const RegType& type_l = GetRegisterType(vsrc);
-  const RegType& type_h = GetRegisterType(vsrc + 1);
-
-  if (!type_l.CheckWidePair(type_h)) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "copy2 v" << vdst << "<-v" << vsrc
-                                                 << " type=" << type_l << "/" << type_h;
-  } else {
-    SetRegisterType(vdst, type_l);  // implicitly sets the second half
-  }
-}
-
-void RegisterLine::CopyResultRegister1(uint32_t vdst, bool is_reference) {
-  const RegType& type = verifier_->GetRegTypeCache()->GetFromId(result_[0]);
-  if ((!is_reference && !type.IsCategory1Types()) ||
-      (is_reference && !type.IsReferenceTypes())) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD)
-        << "copyRes1 v" << vdst << "<- result0"  << " type=" << type;
-  } else {
-    DCHECK(verifier_->GetRegTypeCache()->GetFromId(result_[1]).IsUnknown());
-    SetRegisterType(vdst, type);
-    result_[0] = verifier_->GetRegTypeCache()->Unknown().GetId();
-  }
-}
-
-/*
- * Implement "move-result-wide". Copy the category-2 value from the result
- * register to another register, and reset the result register.
- */
-void RegisterLine::CopyResultRegister2(uint32_t vdst) {
-  const RegType& type_l = verifier_->GetRegTypeCache()->GetFromId(result_[0]);
-  const RegType& type_h = verifier_->GetRegTypeCache()->GetFromId(result_[1]);
-  if (!type_l.IsCategory2Types()) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD)
-        << "copyRes2 v" << vdst << "<- result0"  << " type=" << type_l;
-  } else {
-    DCHECK(type_l.CheckWidePair(type_h));  // Set should never allow this case
-    SetRegisterType(vdst, type_l);  // also sets the high
-    result_[0] = verifier_->GetRegTypeCache()->Unknown().GetId();
-    result_[1] = verifier_->GetRegTypeCache()->Unknown().GetId();
-  }
-}
-
-void RegisterLine::CheckUnaryOp(const DecodedInstruction& dec_insn,
-                                const RegType& dst_type, const RegType& src_type) {
-  if (VerifyRegisterType(dec_insn.vB, src_type)) {
-    SetRegisterType(dec_insn.vA, dst_type);
-  }
-}
-
-void RegisterLine::CheckBinaryOp(const DecodedInstruction& dec_insn,
-                                 const RegType& dst_type,
-                                 const RegType& src_type1, const RegType& src_type2,
-                                 bool check_boolean_op) {
-  if (VerifyRegisterType(dec_insn.vB, src_type1) &&
-      VerifyRegisterType(dec_insn.vC, src_type2)) {
-    if (check_boolean_op) {
-      DCHECK(dst_type.IsInteger());
-      if (GetRegisterType(dec_insn.vB).IsBooleanTypes() &&
-          GetRegisterType(dec_insn.vC).IsBooleanTypes()) {
-        SetRegisterType(dec_insn.vA, verifier_->GetRegTypeCache()->Boolean());
-        return;
-      }
-    }
-    SetRegisterType(dec_insn.vA, dst_type);
-  }
-}
-
-void RegisterLine::CheckBinaryOp2addr(const DecodedInstruction& dec_insn,
-                                      const RegType& dst_type, const RegType& src_type1,
-                                      const RegType& src_type2, bool check_boolean_op) {
-  if (VerifyRegisterType(dec_insn.vA, src_type1) &&
-      VerifyRegisterType(dec_insn.vB, src_type2)) {
-    if (check_boolean_op) {
-      DCHECK(dst_type.IsInteger());
-      if (GetRegisterType(dec_insn.vA).IsBooleanTypes() &&
-          GetRegisterType(dec_insn.vB).IsBooleanTypes()) {
-        SetRegisterType(dec_insn.vA, verifier_->GetRegTypeCache()->Boolean());
-        return;
-      }
-    }
-    SetRegisterType(dec_insn.vA, dst_type);
-  }
-}
-
-void RegisterLine::CheckLiteralOp(const DecodedInstruction& dec_insn,
-                                  const RegType& dst_type, const RegType& src_type,
-                                  bool check_boolean_op) {
-  if (VerifyRegisterType(dec_insn.vB, src_type)) {
-    if (check_boolean_op) {
-      DCHECK(dst_type.IsInteger());
-      /* check vB with the call, then check the constant manually */
-      if (GetRegisterType(dec_insn.vB).IsBooleanTypes() &&
-          (dec_insn.vC == 0 || dec_insn.vC == 1)) {
-        SetRegisterType(dec_insn.vA, verifier_->GetRegTypeCache()->Boolean());
-        return;
-      }
-    }
-    SetRegisterType(dec_insn.vA, dst_type);
-  }
-}
-
-void RegisterLine::PushMonitor(uint32_t reg_idx, int32_t insn_idx) {
-  const RegType& reg_type = GetRegisterType(reg_idx);
-  if (!reg_type.IsReferenceTypes()) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-enter on non-object (" << reg_type << ")";
-  } else if (monitors_.size() >= 32) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-enter stack overflow: " << monitors_.size();
-  } else {
-    SetRegToLockDepth(reg_idx, monitors_.size());
-    monitors_.push_back(insn_idx);
-  }
-}
-
-void RegisterLine::PopMonitor(uint32_t reg_idx) {
-  const RegType& reg_type = GetRegisterType(reg_idx);
-  if (!reg_type.IsReferenceTypes()) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-exit on non-object (" << reg_type << ")";
-  } else if (monitors_.empty()) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "monitor-exit stack underflow";
-  } else {
-    monitors_.pop_back();
-    if (!IsSetLockDepth(reg_idx, monitors_.size())) {
-      // Bug 3215458: Locks and unlocks are on objects, if that object is a literal then before
-      // format "036" the constant collector may create unlocks on the same object but referenced
-      // via different registers.
-      ((verifier_->DexFileVersion() >= 36) ? verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT)
-                                           : verifier_->LogVerifyInfo())
-            << "monitor-exit not unlocking the top of the monitor stack";
-    } else {
-      // Record the register was unlocked
-      ClearRegToLockDepth(reg_idx, monitors_.size());
-    }
-  }
-}
-
-bool RegisterLine::VerifyMonitorStackEmpty() {
-  if (MonitorStackDepth() != 0) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected empty monitor stack";
-    return false;
-  } else {
-    return true;
-  }
-}
-
-bool RegisterLine::MergeRegisters(const RegisterLine* incoming_line) {
-  bool changed = false;
-  for (size_t idx = 0; idx < num_regs_; idx++) {
-    if (line_[idx] != incoming_line->line_[idx]) {
-      const RegType& incoming_reg_type = incoming_line->GetRegisterType(idx);
-      const RegType& cur_type = GetRegisterType(idx);
-      const RegType& new_type = cur_type.Merge(incoming_reg_type, verifier_->GetRegTypeCache());
-      changed = changed || !cur_type.Equals(new_type);
-      line_[idx] = new_type.GetId();
-    }
-  }
-  if (monitors_.size() != incoming_line->monitors_.size()) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "mismatched stack depths (depth="
-        << MonitorStackDepth() << ", incoming depth=" << incoming_line->MonitorStackDepth() << ")";
-  } else if (reg_to_lock_depths_ != incoming_line->reg_to_lock_depths_) {
-    for (uint32_t idx = 0; idx < num_regs_; idx++) {
-      size_t depths = reg_to_lock_depths_.count(idx);
-      size_t incoming_depths = incoming_line->reg_to_lock_depths_.count(idx);
-      if (depths != incoming_depths) {
-        if (depths == 0 || incoming_depths == 0) {
-          reg_to_lock_depths_.erase(idx);
-        } else {
-          verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "mismatched stack depths for register v" << idx
-                                                       << ": " << depths  << " != " << incoming_depths;
-          break;
-        }
-      }
-    }
-  }
-  return changed;
-}
-
-void RegisterLine::WriteReferenceBitMap(std::vector<uint8_t>& data, size_t max_bytes) {
-  for (size_t i = 0; i < num_regs_; i += 8) {
-    uint8_t val = 0;
-    for (size_t j = 0; j < 8 && (i + j) < num_regs_; j++) {
-      // Note: we write 1 for a Reference but not for Null
-      if (GetRegisterType(i + j).IsNonZeroReferenceTypes()) {
-        val |= 1 << j;
-      }
-    }
-    if ((i / 8) >= max_bytes) {
-      DCHECK_EQ(0, val);
-      continue;
-    }
-    DCHECK_LT(i / 8, max_bytes) << "val=" << static_cast<uint32_t>(val);
-    data.push_back(val);
-  }
-}
-
-std::ostream& operator<<(std::ostream& os, const RegisterLine& rhs) {
-  os << rhs.Dump();
-  return os;
-}
-
 
 void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InsnFlags* flags,
                                  uint32_t insns_size, uint16_t registers_size,
-                                 DexVerifier* verifier) {
+                                 MethodVerifier* verifier) {
   DCHECK_GT(insns_size, 0U);
 
   for (uint32_t i = 0; i < insns_size; i++) {
@@ -906,7 +166,7 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InsnFlags* flags,
   }
 }
 
-bool DexVerifier::VerifyClass(const Class* klass, std::string& error) {
+bool MethodVerifier::VerifyClass(const Class* klass, std::string& error) {
   if (klass->IsVerified()) {
     return true;
   }
@@ -947,8 +207,8 @@ bool DexVerifier::VerifyClass(const Class* klass, std::string& error) {
   return true;
 }
 
-bool DexVerifier::VerifyMethod(Method* method) {
-  DexVerifier verifier(method);
+bool MethodVerifier::VerifyMethod(Method* method) {
+  MethodVerifier verifier(method);
   bool success = verifier.VerifyAll();
   CHECK_EQ(success, verifier.failure_ == VERIFY_ERROR_NONE);
 
@@ -972,16 +232,16 @@ bool DexVerifier::VerifyMethod(Method* method) {
   return success;
 }
 
-void DexVerifier::VerifyMethodAndDump(Method* method) {
-  DexVerifier verifier(method);
+void MethodVerifier::VerifyMethodAndDump(Method* method) {
+  MethodVerifier verifier(method);
   verifier.VerifyAll();
 
   LOG(INFO) << "Dump of method " << PrettyMethod(method) << " "
             << verifier.fail_messages_.str() << std::endl
-            << verifier.info_messages_.str() << Dumpable<DexVerifier>(verifier);
+            << verifier.info_messages_.str() << Dumpable<MethodVerifier>(verifier);
 }
 
-bool DexVerifier::VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
+bool MethodVerifier::VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
     const ClassLoader* class_loader, uint32_t class_def_idx, std::string& error) {
   const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
   const byte* class_data = dex_file->GetClassData(class_def);
@@ -1016,11 +276,11 @@ bool DexVerifier::VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
   return true;
 }
 
-bool DexVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
+bool MethodVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
     const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item) {
-  DexVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item);
+  MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item);
 
-  // Without a method*, we can only verify the struture.
+  // Without a method*, we can only verify the structure.
   bool success = verifier.VerifyStructure();
   CHECK_EQ(success, verifier.failure_ == VERIFY_ERROR_NONE);
 
@@ -1044,7 +304,7 @@ bool DexVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file, Dex
   return success;
 }
 
-DexVerifier::DexVerifier(Method* method)
+MethodVerifier::MethodVerifier(Method* method)
     : work_insn_idx_(-1),
       method_(method),
       failure_(VERIFY_ERROR_NONE),
@@ -1060,7 +320,7 @@ DexVerifier::DexVerifier(Method* method)
   class_def_idx_ = dex_file_->GetIndexForClassDef(*class_def);
 }
 
-DexVerifier::DexVerifier(const DexFile* dex_file, DexCache* dex_cache,
+MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
     const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item)
     : work_insn_idx_(-1),
       method_(NULL),
@@ -1074,7 +334,7 @@ DexVerifier::DexVerifier(const DexFile* dex_file, DexCache* dex_cache,
       monitor_enter_count_(0) {
 }
 
-bool DexVerifier::VerifyAll() {
+bool MethodVerifier::VerifyAll() {
   CHECK(method_ != NULL);
   // If there aren't any instructions, make sure that's expected, then exit successfully.
   if (code_item_ == NULL) {
@@ -1088,7 +348,7 @@ bool DexVerifier::VerifyAll() {
   return VerifyStructure() && VerifyCodeFlow();
 }
 
-bool DexVerifier::VerifyStructure() {
+bool MethodVerifier::VerifyStructure() {
   if (code_item_ == NULL) {
     return true;
   }
@@ -1109,7 +369,7 @@ bool DexVerifier::VerifyStructure() {
   return result;
 }
 
-std::ostream& DexVerifier::Fail(VerifyError error) {
+std::ostream& MethodVerifier::Fail(VerifyError error) {
   CHECK_EQ(failure_, VERIFY_ERROR_NONE);
   if (Runtime::Current()->IsCompiler()) {
     switch (error) {
@@ -1141,7 +401,7 @@ std::ostream& DexVerifier::Fail(VerifyError error) {
                         << '[' << reinterpret_cast<void*>(work_insn_idx_) << "] : ";
 }
 
-bool DexVerifier::ComputeWidthsAndCountOps() {
+bool MethodVerifier::ComputeWidthsAndCountOps() {
   const uint16_t* insns = code_item_->insns_;
   size_t insns_size = code_item_->insns_size_in_code_units_;
   const Instruction* inst = Instruction::At(insns);
@@ -1173,7 +433,7 @@ bool DexVerifier::ComputeWidthsAndCountOps() {
   return true;
 }
 
-bool DexVerifier::ScanTryCatchBlocks() {
+bool MethodVerifier::ScanTryCatchBlocks() {
   uint32_t tries_size = code_item_->tries_size_;
   if (tries_size == 0) {
     return true;
@@ -1234,7 +494,7 @@ bool DexVerifier::ScanTryCatchBlocks() {
   return true;
 }
 
-bool DexVerifier::VerifyInstructions() {
+bool MethodVerifier::VerifyInstructions() {
   const Instruction* inst = Instruction::At(code_item_->insns_);
 
   /* Flag the start of the method as a branch target. */
@@ -1257,7 +517,7 @@ bool DexVerifier::VerifyInstructions() {
   return true;
 }
 
-bool DexVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_offset) {
+bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_offset) {
   DecodedInstruction dec_insn(inst);
   bool result = true;
   switch (inst->GetVerifyTypeArgumentA()) {
@@ -1332,7 +592,7 @@ bool DexVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_offse
   return result;
 }
 
-bool DexVerifier::CheckRegisterIndex(uint32_t idx) {
+bool MethodVerifier::CheckRegisterIndex(uint32_t idx) {
   if (idx >= code_item_->registers_size_) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "register index out of range (" << idx << " >= "
                                       << code_item_->registers_size_ << ")";
@@ -1341,7 +601,7 @@ bool DexVerifier::CheckRegisterIndex(uint32_t idx) {
   return true;
 }
 
-bool DexVerifier::CheckWideRegisterIndex(uint32_t idx) {
+bool MethodVerifier::CheckWideRegisterIndex(uint32_t idx) {
   if (idx + 1 >= code_item_->registers_size_) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "wide register index out of range (" << idx
                                       << "+1 >= " << code_item_->registers_size_ << ")";
@@ -1350,7 +610,7 @@ bool DexVerifier::CheckWideRegisterIndex(uint32_t idx) {
   return true;
 }
 
-bool DexVerifier::CheckFieldIndex(uint32_t idx) {
+bool MethodVerifier::CheckFieldIndex(uint32_t idx) {
   if (idx >= dex_file_->GetHeader().field_ids_size_) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad field index " << idx << " (max "
                                       << dex_file_->GetHeader().field_ids_size_ << ")";
@@ -1359,7 +619,7 @@ bool DexVerifier::CheckFieldIndex(uint32_t idx) {
   return true;
 }
 
-bool DexVerifier::CheckMethodIndex(uint32_t idx) {
+bool MethodVerifier::CheckMethodIndex(uint32_t idx) {
   if (idx >= dex_file_->GetHeader().method_ids_size_) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad method index " << idx << " (max "
                                       << dex_file_->GetHeader().method_ids_size_ << ")";
@@ -1368,7 +628,7 @@ bool DexVerifier::CheckMethodIndex(uint32_t idx) {
   return true;
 }
 
-bool DexVerifier::CheckNewInstance(uint32_t idx) {
+bool MethodVerifier::CheckNewInstance(uint32_t idx) {
   if (idx >= dex_file_->GetHeader().type_ids_size_) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx << " (max "
                                       << dex_file_->GetHeader().type_ids_size_ << ")";
@@ -1383,7 +643,7 @@ bool DexVerifier::CheckNewInstance(uint32_t idx) {
   return true;
 }
 
-bool DexVerifier::CheckStringIndex(uint32_t idx) {
+bool MethodVerifier::CheckStringIndex(uint32_t idx) {
   if (idx >= dex_file_->GetHeader().string_ids_size_) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad string index " << idx << " (max "
                                       << dex_file_->GetHeader().string_ids_size_ << ")";
@@ -1392,7 +652,7 @@ bool DexVerifier::CheckStringIndex(uint32_t idx) {
   return true;
 }
 
-bool DexVerifier::CheckTypeIndex(uint32_t idx) {
+bool MethodVerifier::CheckTypeIndex(uint32_t idx) {
   if (idx >= dex_file_->GetHeader().type_ids_size_) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx << " (max "
                                       << dex_file_->GetHeader().type_ids_size_ << ")";
@@ -1401,7 +661,7 @@ bool DexVerifier::CheckTypeIndex(uint32_t idx) {
   return true;
 }
 
-bool DexVerifier::CheckNewArray(uint32_t idx) {
+bool MethodVerifier::CheckNewArray(uint32_t idx) {
   if (idx >= dex_file_->GetHeader().type_ids_size_) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "bad type index " << idx << " (max "
                                       << dex_file_->GetHeader().type_ids_size_ << ")";
@@ -1425,7 +685,7 @@ bool DexVerifier::CheckNewArray(uint32_t idx) {
   return true;
 }
 
-bool DexVerifier::CheckArrayData(uint32_t cur_offset) {
+bool MethodVerifier::CheckArrayData(uint32_t cur_offset) {
   const uint32_t insn_count = code_item_->insns_size_in_code_units_;
   const uint16_t* insns = code_item_->insns_ + cur_offset;
   const uint16_t* array_data;
@@ -1462,7 +722,7 @@ bool DexVerifier::CheckArrayData(uint32_t cur_offset) {
   return true;
 }
 
-bool DexVerifier::CheckBranchTarget(uint32_t cur_offset) {
+bool MethodVerifier::CheckBranchTarget(uint32_t cur_offset) {
   int32_t offset;
   bool isConditional, selfOkay;
   if (!GetBranchOffset(cur_offset, &offset, &isConditional, &selfOkay)) {
@@ -1490,7 +750,7 @@ bool DexVerifier::CheckBranchTarget(uint32_t cur_offset) {
   return true;
 }
 
-bool DexVerifier::GetBranchOffset(uint32_t cur_offset, int32_t* pOffset, bool* pConditional,
+bool MethodVerifier::GetBranchOffset(uint32_t cur_offset, int32_t* pOffset, bool* pConditional,
                                   bool* selfOkay) {
   const uint16_t* insns = code_item_->insns_ + cur_offset;
   *pConditional = false;
@@ -1528,7 +788,7 @@ bool DexVerifier::GetBranchOffset(uint32_t cur_offset, int32_t* pOffset, bool* p
   return true;
 }
 
-bool DexVerifier::CheckSwitchTargets(uint32_t cur_offset) {
+bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   const uint32_t insn_count = code_item_->insns_size_in_code_units_;
   DCHECK_LT(cur_offset, insn_count);
   const uint16_t* insns = code_item_->insns_ + cur_offset;
@@ -1605,7 +865,7 @@ bool DexVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   return true;
 }
 
-bool DexVerifier::CheckVarArgRegs(uint32_t vA, uint32_t arg[]) {
+bool MethodVerifier::CheckVarArgRegs(uint32_t vA, uint32_t arg[]) {
   if (vA > 5) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid arg count (" << vA << ") in non-range invoke)";
     return false;
@@ -1622,7 +882,7 @@ bool DexVerifier::CheckVarArgRegs(uint32_t vA, uint32_t arg[]) {
   return true;
 }
 
-bool DexVerifier::CheckVarArgRangeRegs(uint32_t vA, uint32_t vC) {
+bool MethodVerifier::CheckVarArgRangeRegs(uint32_t vA, uint32_t vC) {
   uint16_t registers_size = code_item_->registers_size_;
   // vA/vC are unsigned 8-bit/16-bit quantities for /range instructions, so there's no risk of
   // integer overflow when adding them here.
@@ -1652,7 +912,7 @@ const std::vector<uint8_t>* CreateLengthPrefixedGcMap(const std::vector<uint8_t>
   return length_prefixed_gc_map;
 }
 
-bool DexVerifier::VerifyCodeFlow() {
+bool MethodVerifier::VerifyCodeFlow() {
   uint16_t registers_size = code_item_->registers_size_;
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
 
@@ -1689,20 +949,20 @@ bool DexVerifier::VerifyCodeFlow() {
 #endif
   const std::vector<uint8_t>* gc_map = CreateLengthPrefixedGcMap(*(map.get()));
   Compiler::MethodReference ref(dex_file_, method_->GetDexMethodIndex());
-  verifier::DexVerifier::SetGcMap(ref, *gc_map);
+  verifier::MethodVerifier::SetGcMap(ref, *gc_map);
 
   method_->SetGcMap(&gc_map->at(0));
 
 #if defined(ART_USE_LLVM_COMPILER)
   /* Generate Inferred Register Category for LLVM-based Code Generator */
   const InferredRegCategoryMap* table = GenerateInferredRegCategoryMap();
-  verifier::DexVerifier::SetInferredRegCategoryMap(ref, *table);
+  verifier::MethodVerifier::SetInferredRegCategoryMap(ref, *table);
 #endif
 
   return true;
 }
 
-void DexVerifier::Dump(std::ostream& os) {
+void MethodVerifier::Dump(std::ostream& os) {
   if (code_item_ == NULL) {
     os << "Native method" << std::endl;
     return;
@@ -1737,7 +997,7 @@ static bool IsPrimitiveDescriptor(char descriptor) {
   }
 }
 
-bool DexVerifier::SetTypesFromSignature() {
+bool MethodVerifier::SetTypesFromSignature() {
   RegisterLine* reg_line = reg_table_.GetLine(0);
   int arg_start = code_item_->registers_size_ - code_item_->ins_size_;
   size_t expected_args = code_item_->ins_size_;   /* long/double count as two */
@@ -1857,7 +1117,7 @@ bool DexVerifier::SetTypesFromSignature() {
   return result;
 }
 
-bool DexVerifier::CodeFlowVerifyMethod() {
+bool MethodVerifier::CodeFlowVerifyMethod() {
   const uint16_t* insns = code_item_->insns_;
   const uint32_t insns_size = code_item_->insns_size_in_code_units_;
 
@@ -1961,7 +1221,7 @@ bool DexVerifier::CodeFlowVerifyMethod() {
   return true;
 }
 
-bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
+bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 #ifdef VERIFIER_STATS
   if (CurrentInsnFlags().IsVisited()) {
     gDvm.verifierStats.instrsReexamined++;
@@ -2008,7 +1268,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
    * from the "successful" code path (e.g. a check-cast that "improves"
    * a type) to be visible to the exception handler.
    */
-  if ((opcode_flags & Instruction::kThrow) != 0 && CurrentInsnFlags().IsInTry()) {
+  if ((opcode_flags & Instruction::kThrow) != 0 && CurrentInsnFlags()->IsInTry()) {
     saved_line_->CopyFromLine(work_line_.get());
   } else {
 #ifndef NDEBUG
@@ -2979,7 +2239,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
   /* Handle "continue". Tag the next consecutive instruction. */
   if ((opcode_flags & Instruction::kContinue) != 0) {
-    uint32_t next_insn_idx = work_insn_idx_ + CurrentInsnFlags().GetLengthInCodeUnits();
+    uint32_t next_insn_idx = work_insn_idx_ + CurrentInsnFlags()->GetLengthInCodeUnits();
     if (next_insn_idx >= code_item_->insns_size_in_code_units_) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Execution can walk off end of code area";
       return false;
@@ -3139,7 +2399,7 @@ bool DexVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   return true;
 }
 
-const RegType& DexVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
+const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
   const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
   Class* referrer = method_->GetDeclaringClass();
   Class* klass = method_->GetDexCacheResolvedTypes()->Get(class_idx);
@@ -3165,7 +2425,7 @@ const RegType& DexVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
   }
 }
 
-const RegType& DexVerifier::GetCaughtExceptionType() {
+const RegType& MethodVerifier::GetCaughtExceptionType() {
   const RegType* common_super = NULL;
   if (code_item_->tries_size_ != 0) {
     const byte* handlers_ptr = DexFile::GetCatchHandlerData(*code_item_, 0);
@@ -3207,7 +2467,7 @@ const RegType& DexVerifier::GetCaughtExceptionType() {
   return *common_super;
 }
 
-Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type) {
+Method* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type) {
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
   const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
   if (failure_ != VERIFY_ERROR_NONE) {
@@ -3297,7 +2557,7 @@ Method* DexVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType
   return res_method;
 }
 
-Method* DexVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
+Method* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
                                           MethodType method_type, bool is_range, bool is_super) {
   // Resolve the method. This could be an abstract or concrete method depending on what sort of call
   // we're making.
@@ -3401,12 +2661,12 @@ Method* DexVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
   }
 }
 
-const RegType& DexVerifier::GetMethodReturnType() {
+const RegType& MethodVerifier::GetMethodReturnType() {
   return reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(),
                                    MethodHelper(method_).GetReturnTypeDescriptor());
 }
 
-void DexVerifier::VerifyNewArray(const DecodedInstruction& dec_insn, bool is_filled,
+void MethodVerifier::VerifyNewArray(const DecodedInstruction& dec_insn, bool is_filled,
                                  bool is_range) {
   const RegType& res_type = ResolveClassAndCheckAccess(is_filled ? dec_insn.vB : dec_insn.vC);
   if (res_type.IsUnknown()) {
@@ -3439,7 +2699,7 @@ void DexVerifier::VerifyNewArray(const DecodedInstruction& dec_insn, bool is_fil
   }
 }
 
-void DexVerifier::VerifyAGet(const DecodedInstruction& dec_insn,
+void MethodVerifier::VerifyAGet(const DecodedInstruction& dec_insn,
                              const RegType& insn_type, bool is_primitive) {
   const RegType& index_type = work_line_->GetRegisterType(dec_insn.vC);
   if (!index_type.IsArrayIndexTypes()) {
@@ -3483,7 +2743,7 @@ void DexVerifier::VerifyAGet(const DecodedInstruction& dec_insn,
   }
 }
 
-void DexVerifier::VerifyAPut(const DecodedInstruction& dec_insn,
+void MethodVerifier::VerifyAPut(const DecodedInstruction& dec_insn,
                              const RegType& insn_type, bool is_primitive) {
   const RegType& index_type = work_line_->GetRegisterType(dec_insn.vC);
   if (!index_type.IsArrayIndexTypes()) {
@@ -3520,7 +2780,7 @@ void DexVerifier::VerifyAPut(const DecodedInstruction& dec_insn,
   }
 }
 
-Field* DexVerifier::GetStaticField(int field_idx) {
+Field* MethodVerifier::GetStaticField(int field_idx) {
   const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
   // Check access to class
   const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
@@ -3554,7 +2814,7 @@ Field* DexVerifier::GetStaticField(int field_idx) {
   }
 }
 
-Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
+Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
   const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
   // Check access to class
   const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
@@ -3608,7 +2868,7 @@ Field* DexVerifier::GetInstanceField(const RegType& obj_type, int field_idx) {
   }
 }
 
-void DexVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
+void MethodVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
                               const RegType& insn_type, bool is_primitive, bool is_static) {
   uint32_t field_idx = is_static ? dec_insn.vB : dec_insn.vC;
   Field* field;
@@ -3660,7 +2920,7 @@ void DexVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
   }
 }
 
-void DexVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
+void MethodVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
                               const RegType& insn_type, bool is_primitive, bool is_static) {
   uint32_t field_idx = is_static ? dec_insn.vB : dec_insn.vC;
   Field* field;
@@ -3742,7 +3002,7 @@ void DexVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
   }
 }
 
-bool DexVerifier::CheckNotMoveException(const uint16_t* insns, int insn_idx) {
+bool MethodVerifier::CheckNotMoveException(const uint16_t* insns, int insn_idx) {
   if ((insns[insn_idx] & 0xff) == Instruction::MOVE_EXCEPTION) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid use of move-exception";
     return false;
@@ -3750,7 +3010,7 @@ bool DexVerifier::CheckNotMoveException(const uint16_t* insns, int insn_idx) {
   return true;
 }
 
-void DexVerifier::ReplaceFailingInstruction() {
+void MethodVerifier::ReplaceFailingInstruction() {
   if (Runtime::Current()->IsStarted()) {
     LOG(ERROR) << "Verification attempting to replace instructions in " << PrettyMethod(method_)
                << " " << fail_messages_.str();
@@ -3840,7 +3100,7 @@ void DexVerifier::ReplaceFailingInstruction() {
   }
 }
 
-bool DexVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_line) {
+bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_line) {
   bool changed = true;
   RegisterLine* target_line = reg_table_.GetLine(next_insn);
   if (!insn_flags_[next_insn].IsVisitedOrChanged()) {
@@ -3873,7 +3133,11 @@ bool DexVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_
   return true;
 }
 
-void DexVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits,
+InsnFlags* MethodVerifier::CurrentInsnFlags() {
+  return &insn_flags_[work_insn_idx_];
+}
+
+void MethodVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits,
                                     size_t* log2_max_gc_pc) {
   size_t local_gc_points = 0;
   size_t max_insn = 0;
@@ -3895,7 +3159,7 @@ void DexVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits,
   *log2_max_gc_pc = i;
 }
 
-const std::vector<uint8_t>* DexVerifier::GenerateGcMap() {
+const std::vector<uint8_t>* MethodVerifier::GenerateGcMap() {
   size_t num_entries, ref_bitmap_bits, pc_bits;
   ComputeGcMapSizes(&num_entries, &ref_bitmap_bits, &pc_bits);
   // There's a single byte to encode the size of each bitmap
@@ -3934,7 +3198,8 @@ const std::vector<uint8_t>* DexVerifier::GenerateGcMap() {
     return NULL;
   }
   // Write table header
-  table->push_back(format | ((ref_bitmap_bytes >> kRegMapFormatShift) & ~kRegMapFormatMask));
+  table->push_back(format | ((ref_bitmap_bytes >> PcToReferenceMap::kRegMapFormatShift) &
+                             ~PcToReferenceMap::kRegMapFormatMask));
   table->push_back(ref_bitmap_bytes & 0xFF);
   table->push_back(num_entries & 0xFF);
   table->push_back((num_entries >> 8) & 0xFF);
@@ -3953,7 +3218,7 @@ const std::vector<uint8_t>* DexVerifier::GenerateGcMap() {
   return table;
 }
 
-void DexVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
+void MethodVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
   // Check that for every GC point there is a map entry, there aren't entries for non-GC points,
   // that the table data is well formed and all references are marked (or not) in the bitmap
   PcToReferenceMap map(&data[0], data.size());
@@ -3982,47 +3247,16 @@ void DexVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
   }
 }
 
-const uint8_t* PcToReferenceMap::FindBitMap(uint16_t dex_pc, bool error_if_not_present) const {
-  size_t num_entries = NumEntries();
-  // Do linear or binary search?
-  static const size_t kSearchThreshold = 8;
-  if (num_entries < kSearchThreshold) {
-    for (size_t i = 0; i < num_entries; i++)  {
-      if (GetPC(i) == dex_pc) {
-        return GetBitMap(i);
-      }
-    }
-  } else {
-    int lo = 0;
-    int hi = num_entries -1;
-    while (hi >= lo) {
-      int mid = (hi + lo) / 2;
-      int mid_pc = GetPC(mid);
-      if (dex_pc > mid_pc) {
-        lo = mid + 1;
-      } else if (dex_pc < mid_pc) {
-        hi = mid - 1;
-      } else {
-        return GetBitMap(mid);
-      }
-    }
-  }
-  if (error_if_not_present) {
-    LOG(ERROR) << "Didn't find reference bit map for dex_pc " << dex_pc;
-  }
-  return NULL;
-}
+Mutex* MethodVerifier::gc_maps_lock_ = NULL;
+MethodVerifier::GcMapTable* MethodVerifier::gc_maps_ = NULL;
 
-Mutex* DexVerifier::gc_maps_lock_ = NULL;
-DexVerifier::GcMapTable* DexVerifier::gc_maps_ = NULL;
-
-void DexVerifier::InitGcMaps() {
+void MethodVerifier::InitGcMaps() {
   gc_maps_lock_ = new Mutex("verifier GC maps lock");
   MutexLock mu(*gc_maps_lock_);
-  gc_maps_ = new DexVerifier::GcMapTable;
+  gc_maps_ = new MethodVerifier::GcMapTable;
 }
 
-void DexVerifier::DeleteGcMaps() {
+void MethodVerifier::DeleteGcMaps() {
   {
     MutexLock mu(*gc_maps_lock_);
     STLDeleteValues(gc_maps_);
@@ -4033,7 +3267,7 @@ void DexVerifier::DeleteGcMaps() {
   gc_maps_lock_ = NULL;
 }
 
-void DexVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
+void MethodVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
   MutexLock mu(*gc_maps_lock_);
   GcMapTable::iterator it = gc_maps_->find(ref);
   if (it != gc_maps_->end()) {
@@ -4044,7 +3278,7 @@ void DexVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint
   CHECK(GetGcMap(ref) != NULL);
 }
 
-const std::vector<uint8_t>* DexVerifier::GetGcMap(Compiler::MethodReference ref) {
+const std::vector<uint8_t>* MethodVerifier::GetGcMap(Compiler::MethodReference ref) {
   MutexLock mu(*gc_maps_lock_);
   GcMapTable::const_iterator it = gc_maps_->find(ref);
   if (it == gc_maps_->end()) {
@@ -4064,20 +3298,20 @@ static std::set<Compiler::ClassReference>& GetRejectedClasses() {
   return rejected_classes;
 }
 
-void DexVerifier::AddRejectedClass(Compiler::ClassReference ref) {
+void MethodVerifier::AddRejectedClass(Compiler::ClassReference ref) {
   MutexLock mu(GetRejectedClassesLock());
   GetRejectedClasses().insert(ref);
   CHECK(IsClassRejected(ref));
 }
 
-bool DexVerifier::IsClassRejected(Compiler::ClassReference ref) {
+bool MethodVerifier::IsClassRejected(Compiler::ClassReference ref) {
   MutexLock mu(GetRejectedClassesLock());
   std::set<Compiler::ClassReference>& rejected_classes(GetRejectedClasses());
   return (rejected_classes.find(ref) != rejected_classes.end());
 }
 
 #if defined(ART_USE_LLVM_COMPILER)
-const InferredRegCategoryMap* DexVerifier::GenerateInferredRegCategoryMap() {
+const InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCategoryMap() {
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
   uint16_t regs_size = code_item_->registers_size_;
 
@@ -4107,16 +3341,16 @@ const InferredRegCategoryMap* DexVerifier::GenerateInferredRegCategoryMap() {
   return table.release();
 }
 
-Mutex* DexVerifier::inferred_reg_category_maps_lock_ = NULL;
-DexVerifier::InferredRegCategoryMapTable* DexVerifier::inferred_reg_category_maps_ = NULL;
+Mutex* MethodVerifier::inferred_reg_category_maps_lock_ = NULL;
+MethodVerifier::InferredRegCategoryMapTable* MethodVerifier::inferred_reg_category_maps_ = NULL;
 
-void DexVerifier::InitInferredRegCategoryMaps() {
+void MethodVerifier::InitInferredRegCategoryMaps() {
   inferred_reg_category_maps_lock_ = new Mutex("verifier GC maps lock");
   MutexLock mu(*inferred_reg_category_maps_lock_);
-  inferred_reg_category_maps_ = new DexVerifier::InferredRegCategoryMapTable;
+  inferred_reg_category_maps_ = new MethodVerifier::InferredRegCategoryMapTable;
 }
 
-void DexVerifier::DeleteInferredRegCategoryMaps() {
+void MethodVerifier::DeleteInferredRegCategoryMaps() {
   {
     MutexLock mu(*inferred_reg_category_maps_lock_);
     STLDeleteValues(inferred_reg_category_maps_);
@@ -4128,23 +3362,22 @@ void DexVerifier::DeleteInferredRegCategoryMaps() {
 }
 
 
-void DexVerifier::SetInferredRegCategoryMap(Compiler::MethodReference ref,
-                                            const InferredRegCategoryMap& inferred_reg_category_map) {
+void MethodVerifier::SetInferredRegCategoryMap(Compiler::MethodReference ref,
+                                          const InferredRegCategoryMap& inferred_reg_category_map) {
   MutexLock mu(*inferred_reg_category_maps_lock_);
-  const InferredRegCategoryMap* existing_inferred_reg_category_map =
-    GetInferredRegCategoryMap(ref);
+  const InferredRegCategoryMap* existing_inferred_reg_category_map = GetInferredRegCategoryMap(ref);
 
   if (existing_inferred_reg_category_map != NULL) {
     CHECK(*existing_inferred_reg_category_map == inferred_reg_category_map);
     delete existing_inferred_reg_category_map;
   }
 
-  (*inferred_reg_category_maps_)[ref] = &inferred_reg_category_map;
+  inferred_reg_category_maps_->Put(ref, &inferred_reg_category_map);
   CHECK(GetInferredRegCategoryMap(ref) != NULL);
 }
 
 const InferredRegCategoryMap*
-DexVerifier::GetInferredRegCategoryMap(Compiler::MethodReference ref) {
+MethodVerifier::GetInferredRegCategoryMap(Compiler::MethodReference ref) {
   MutexLock mu(*inferred_reg_category_maps_lock_);
 
   InferredRegCategoryMapTable::const_iterator it =
