@@ -2674,12 +2674,12 @@ bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit, bool can_init
 }
 
 void ClassLinker::ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
-                                    Class* c, std::map<uint32_t, Field*>& field_map) {
+                                    Class* c, SafeMap<uint32_t, Field*>& field_map) {
   const ClassLoader* cl = c->GetClassLoader();
   const byte* class_data = dex_file.GetClassData(dex_class_def);
   ClassDataItemIterator it(dex_file, class_data);
   for (size_t i = 0; it.HasNextStaticField(); i++, it.Next()) {
-    field_map[i] = ResolveField(dex_file, it.GetMemberIndex(), c->GetDexCache(), cl, true);
+    field_map.Put(i, ResolveField(dex_file, it.GetMemberIndex(), c->GetDexCache(), cl, true));
   }
 }
 
@@ -2701,10 +2701,10 @@ bool ClassLinker::InitializeStaticFields(Class* klass) {
 
   if (it.HasNext()) {
     // We reordered the fields, so we need to be able to map the field indexes to the right fields.
-    std::map<uint32_t, Field*> field_map;
+    SafeMap<uint32_t, Field*> field_map;
     ConstructFieldMap(dex_file, *dex_class_def, klass, field_map);
     for (size_t i = 0; it.HasNext(); i++, it.Next()) {
-      it.ReadValueToField(field_map[i]);
+      it.ReadValueToField(field_map.Get(i));
     }
     return true;
   }

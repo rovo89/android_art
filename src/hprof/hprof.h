@@ -18,12 +18,12 @@
 
 #include <stdio.h>
 
-#include <map>
 #include <set>
 
 #include "file.h"
 #include "globals.h"
 #include "object.h"
+#include "safe_map.h"
 #include "thread_list.h"
 
 namespace art {
@@ -80,8 +80,8 @@ typedef HprofId HprofObjectId;
 typedef HprofId HprofClassObjectId;
 typedef std::set<Class*> ClassSet;
 typedef std::set<Class*>::iterator ClassSetIterator;
-typedef std::map<std::string, size_t> StringMap;
-typedef std::map<std::string, size_t>::iterator StringMapIterator;
+typedef SafeMap<std::string, size_t> StringMap;
+typedef SafeMap<std::string, size_t>::iterator StringMapIterator;
 
 enum HprofBasicType {
   hprof_basic_object = 2,

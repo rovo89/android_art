@@ -901,7 +901,7 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InsnFlags* flags,
         break;
     }
     if (interesting) {
-      pc_to_register_line_[i] = new RegisterLine(registers_size, verifier);
+      pc_to_register_line_.Put(i, new RegisterLine(registers_size, verifier));
     }
   }
 }
@@ -4035,12 +4035,12 @@ void DexVerifier::DeleteGcMaps() {
 
 void DexVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
   MutexLock mu(*gc_maps_lock_);
-  const std::vector<uint8_t>* existing_gc_map = GetGcMap(ref);
-  if (existing_gc_map != NULL) {
-    CHECK(*existing_gc_map == gc_map);
-    delete existing_gc_map;
+  GcMapTable::iterator it = gc_maps_->find(ref);
+  if (it != gc_maps_->end()) {
+    delete it->second;
+    gc_maps_->erase(it);
   }
-  (*gc_maps_)[ref] = &gc_map;
+  gc_maps_->Put(ref, &gc_map);
   CHECK(GetGcMap(ref) != NULL);
 }
 
