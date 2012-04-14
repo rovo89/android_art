@@ -1424,12 +1424,6 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
   }
 }
 
-void Thread::ThrowOutOfMemoryError(Class* c, size_t byte_count) {
-  std::string msg(StringPrintf("Failed to allocate a %zd-byte %s", byte_count,
-      PrettyDescriptor(c).c_str()));
-  ThrowOutOfMemoryError(msg.c_str());
-}
-
 void Thread::ThrowOutOfMemoryError(const char* msg) {
   LOG(ERROR) << StringPrintf("Throwing OutOfMemoryError \"%s\"%s",
       msg, (throwing_OutOfMemoryError_ ? " (recursive case)" : ""));
