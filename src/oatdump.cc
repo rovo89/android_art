@@ -24,7 +24,6 @@
 
 #include "class_linker.h"
 #include "dex_instruction.h"
-#include "dex_verifier.h"
 #include "disassembler.h"
 #include "file.h"
 #include "image.h"
@@ -35,6 +34,7 @@
 #include "safe_map.h"
 #include "space.h"
 #include "stringpiece.h"
+#include "verifier/gc_map.h"
 
 namespace art {
 

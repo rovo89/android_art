@@ -25,7 +25,6 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "dex_cache.h"
-#include "dex_verifier.h"
 #include "jni_internal.h"
 #include "oat_compilation_unit.h"
 #include "oat_file.h"
@@ -34,6 +33,7 @@
 #include "space.h"
 #include "stl_util.h"
 #include "timing_logger.h"
+#include "verifier/method_verifier.h"
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -1148,7 +1148,7 @@ static void VerifyClass(Context* context, size_t class_def_index) {
      * will be rejected by the verifier and later skipped during compilation in the compiler.
      */
     std::string error_msg;
-    if (!verifier::DexVerifier::VerifyClass(context->GetDexFile(), context->GetDexCache(),
+    if (!verifier::MethodVerifier::VerifyClass(context->GetDexFile(), context->GetDexCache(),
         context->GetClassLoader(), class_def_index, error_msg)) {
       const DexFile::ClassDef& class_def = context->GetDexFile()->GetClassDef(class_def_index);
       LOG(ERROR) << "Verification failed on class "
@@ -1165,7 +1165,7 @@ static void VerifyClass(Context* context, size_t class_def_index) {
     CHECK(Thread::Current()->IsExceptionPending());
     Thread::Current()->ClearException();
     art::Compiler::ClassReference ref(context->GetDexFile(), class_def_index);
-    if (!verifier::DexVerifier::IsClassRejected(ref)) {
+    if (!verifier::MethodVerifier::IsClassRejected(ref)) {
       // If the erroneous class wasn't rejected by the verifier, it was a soft error. We want
       // to try verification again at run-time, so move back into the resolved state.
       klass->SetStatus(Class::kStatusResolved);
@@ -1266,7 +1266,7 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
   }
   ClassReference ref(&dex_file, class_def_index);
   // Skip compiling classes with generic verifier failures since they will still fail at runtime
-  if (verifier::DexVerifier::IsClassRejected(ref)) {
+  if (verifier::MethodVerifier::IsClassRejected(ref)) {
     return;
   }
   const byte* class_data = dex_file.GetClassData(class_def);
@@ -1457,7 +1457,7 @@ void Compiler::SetGcMapsMethod(const DexFile& dex_file, Method* method) {
   if (compiled_method == NULL) {
     return;
   }
-  const std::vector<uint8_t>* gc_map = verifier::DexVerifier::GetGcMap(ref);
+  const std::vector<uint8_t>* gc_map = verifier::MethodVerifier::GetGcMap(ref);
   if (gc_map == NULL) {
     return;
   }

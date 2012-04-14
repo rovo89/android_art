@@ -591,6 +591,10 @@ void Method::RegisterNative(Thread* self, const void* native_method) {
   DCHECK(Thread::Current() == self);
   CHECK(IsNative()) << PrettyMethod(this);
   CHECK(native_method != NULL) << PrettyMethod(this);
+#if defined(ART_USE_LLVM_COMPILER)
+  SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
+                           native_method, false);
+#else
   if (!self->GetJniEnv()->vm->work_around_app_jni_bugs) {
     SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, native_method_),
                              native_method, false);
@@ -608,6 +612,7 @@ void Method::RegisterNative(Thread* self, const void* native_method) {
     SetFieldPtr<const uint8_t*>(OFFSET_OF_OBJECT_MEMBER(Method, gc_map_),
         reinterpret_cast<const uint8_t*>(native_method), false);
   }
+#endif
 }
 
 void Method::UnregisterNative(Thread* self) {

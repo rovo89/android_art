@@ -32,7 +32,6 @@
 #include "debugger.h"
 #include "dex_cache.h"
 #include "dex_file.h"
-#include "dex_verifier.h"
 #include "heap.h"
 #include "intern_table.h"
 #include "leb128.h"
@@ -2058,7 +2057,7 @@ void ClassLinker::VerifyClass(Class* klass) {
   const DexFile& dex_file = FindDexFile(klass->GetDexCache());
   Class::Status oat_file_class_status(Class::kStatusNotReady);
   bool preverified = VerifyClassUsingOatFile(dex_file, klass, oat_file_class_status);
-  bool verified = preverified || verifier::DexVerifier::VerifyClass(klass, error_msg);
+  bool verified = preverified || verifier::MethodVerifier::VerifyClass(klass, error_msg);
   if (verified) {
     if (!preverified && oat_file_class_status == Class::kStatusError) {
       LOG(FATAL) << "Verification failed hard on class " << PrettyDescriptor(klass)

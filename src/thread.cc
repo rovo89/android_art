@@ -31,11 +31,12 @@
 #include "debugger.h"
 #include "class_linker.h"
 #include "class_loader.h"
-#include "dex_verifier.h"
 #include "heap.h"
 #include "jni_internal.h"
 #include "monitor.h"
+#if !defined(ART_USE_LLVM_COMPILER)
 #include "oat/runtime/context.h"
+#endif
 #include "object.h"
 #include "object_utils.h"
 #include "reflection.h"
@@ -49,6 +50,7 @@
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
 #include "utils.h"
+#include "verifier/gc_map.h"
 
 namespace art {
 
@@ -76,12 +78,20 @@ void Thread::InitCardTable() {
 }
 
 void Thread::InitFunctionPointers() {
+#if defined(ART_USE_LLVM_COMPILER)
+  memset(&entrypoints_, 0, sizeof(entrypoints_));
+#else
   InitEntryPoints(&entrypoints_);
+#endif
 }
 
 void Thread::SetDebuggerUpdatesEnabled(bool enabled) {
   LOG(INFO) << "Turning debugger updates " << (enabled ? "on" : "off") << " for " << *this;
+#if !defined(ART_USE_LLVM_COMPILER)
   ChangeDebuggerEntryPoint(&entrypoints_, enabled);
+#else
+  UNIMPLEMENTED(FATAL);
+#endif
 }
 
 void Thread::InitTid() {
@@ -852,7 +862,9 @@ Thread::~Thread() {
   delete wait_cond_;
   delete wait_mutex_;
 
+#if !defined(ART_USE_LLVM_COMPILER)
   delete long_jump_context_;
+#endif
 
   delete debug_invoke_req_;
   delete trace_stack_;
@@ -1127,6 +1139,7 @@ class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
   jobject local_ref_;
 };
 
+#if !defined(ART_USE_LLVM_COMPILER)
 // TODO: remove this.
 static uintptr_t ManglePc(uintptr_t pc) {
   // Move the PC back 2 bytes as a call will frequently terminate the
@@ -1136,6 +1149,7 @@ static uintptr_t ManglePc(uintptr_t pc) {
   if (pc > 0) { pc -= 2; }
   return pc;
 }
+#endif
 
 // TODO: remove this.
 static uintptr_t DemanglePc(uintptr_t pc) {
@@ -1590,9 +1604,13 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
     } else {
       // Unwind stack when an exception occurs during method tracing
       if (UNLIKELY(method_tracing_active_)) {
+#if !defined(ART_USE_LLVM_COMPILER)
         if (IsTraceExitPc(DemanglePc(pc))) {
           pc = ManglePc(TraceMethodUnwindFromCode(Thread::Current()));
         }
+#else
+        UNIMPLEMENTED(FATAL);
+#endif
       }
       dex_pc = method->ToDexPC(pc);
     }
@@ -1604,8 +1622,10 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
         return false;  // End stack walk.
       }
     }
+#if !defined(ART_USE_LLVM_COMPILER)
     // Caller may be handler, fill in callee saves in context
     long_jump_context_->FillCalleeSaves(fr);
+#endif
     return true;  // Continue stack walk.
   }
 
@@ -1624,6 +1644,7 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
 };
 
 void Thread::DeliverException() {
+#if !defined(ART_USE_LLVM_COMPILER)
   const bool kDebugExceptionDelivery = false;
   Throwable* exception = GetException();  // Get exception from thread
   CHECK(exception != NULL);
@@ -1666,15 +1687,18 @@ void Thread::DeliverException() {
   long_jump_context->SetPC(catch_native_pc);
   long_jump_context->SmashCallerSaves();
   long_jump_context->DoLongJump();
+#endif
   LOG(FATAL) << "UNREACHABLE";
 }
 
 Context* Thread::GetLongJumpContext() {
   Context* result = long_jump_context_;
+#if !defined(ART_USE_LLVM_COMPILER)
   if (result == NULL) {
     result = Context::Create();
     long_jump_context_ = result;
   }
+#endif
   return result;
 }
 
@@ -1722,6 +1746,7 @@ bool Thread::IsDaemon() {
   return gThread_daemon->GetBoolean(peer_);
 }
 
+#if !defined(ART_USE_LLVM_COMPILER)
 class ReferenceMapVisitor : public Thread::StackVisitor {
  public:
   ReferenceMapVisitor(Context* context, Heap::RootVisitor* root_visitor, void* arg) :
@@ -1795,6 +1820,7 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
   // Argument to call-back
   void* arg_;
 };
+#endif
 
 void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   if (exception_ != NULL) {

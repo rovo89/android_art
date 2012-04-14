@@ -18,10 +18,10 @@
 
 #include "UniquePtr.h"
 #include "class_linker.h"
-#include "dex_verifier.h"
 #include "object.h"
 #include "object_utils.h"
 #include "jni.h"
+#include "verifier/gc_map.h"
 
 namespace art {
 

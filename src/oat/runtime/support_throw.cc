@@ -15,7 +15,6 @@
  */
 
 #include "callee_save_frame.h"
-#include "dex_verifier.h"
 #include "object.h"
 #include "object_utils.h"
 #include "runtime_support.h"

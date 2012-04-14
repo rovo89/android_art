@@ -19,7 +19,6 @@
 #include "backend_types.h"
 #include "compilation_unit.h"
 #include "compiler.h"
-#include "dex_verifier.h"
 #include "inferred_reg_category_map.h"
 #include "ir_builder.h"
 #include "logging.h"
@@ -32,6 +31,7 @@
 #include "stl_util.h"
 #include "stringprintf.h"
 #include "utils_llvm.h"
+#include "verifier/method_verifier.h"
 
 #include <iomanip>
 
@@ -62,6 +62,7 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     module_(cunit->GetModule()),
     context_(cunit->GetLLVMContext()),
     irb_(*cunit->GetIRBuilder()), func_(NULL), retval_reg_(NULL),
+    basic_block_stack_overflow_(NULL),
     basic_block_reg_alloca_(NULL), basic_block_shadow_frame_alloca_(NULL),
     basic_block_reg_zero_init_(NULL), basic_block_reg_arg_init_(NULL),
     basic_blocks_(code_item_->insns_size_in_code_units_),
@@ -2215,7 +2216,7 @@ RegCategory MethodCompiler::GetInferredRegCategory(uint32_t dex_pc,
   Compiler::MethodReference mref(dex_file_, method_idx_);
 
   InferredRegCategoryMap const* map =
-    verifier::DexVerifier::GetInferredRegCategoryMap(mref);
+    verifier::MethodVerifier::GetInferredRegCategoryMap(mref);
 
   CHECK_NE(map, static_cast<InferredRegCategoryMap*>(NULL));
 

@@ -18,11 +18,12 @@
 
 #include "UniquePtr.h"
 #include "class_linker.h"
-#include "dex_verifier.h"
 #include "object.h"
 #include "object_utils.h"
 #include "thread.h"
 #include "jni.h"
+#include "verifier/gc_map.h"
+#include "verifier/method_verifier.h"
 
 namespace art {
 
@@ -64,7 +65,7 @@ struct ReferenceMap2Visitor : public Thread::StackVisitor {
     // Enable this to dump reference map to LOG(INFO)
     if (false) {
       ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
-      art::verifier::DexVerifier::VerifyMethodAndDump(m);
+      art::verifier::MethodVerifier::VerifyMethodAndDump(m);
     }
     const uint8_t* ref_bitmap = NULL;
     MethodHelper mh(m);
