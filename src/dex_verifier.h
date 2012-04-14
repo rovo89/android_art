@@ -19,7 +19,6 @@
 
 #include <deque>
 #include <limits>
-#include <map>
 #include <set>
 #include <vector>
 
@@ -29,6 +28,7 @@
 #include "dex_instruction.h"
 #include "macros.h"
 #include "object.h"
+#include "safe_map.h"
 #include "stl_util.h"
 #include "UniquePtr.h"
 
@@ -774,16 +774,16 @@ class RegisterLine {
  private:
 
   void CopyRegToLockDepth(size_t dst, size_t src) {
-    if (reg_to_lock_depths_.count(src) > 0) {
-      uint32_t depths = reg_to_lock_depths_[src];
-      reg_to_lock_depths_[dst] = depths;
+    SafeMap<uint32_t, uint32_t>::iterator it = reg_to_lock_depths_.find(src);
+    if (it != reg_to_lock_depths_.end()) {
+      reg_to_lock_depths_.Put(dst, it->second);
     }
   }
 
   bool IsSetLockDepth(size_t reg, size_t depth) {
-    if (reg_to_lock_depths_.count(reg) > 0) {
-      uint32_t depths = reg_to_lock_depths_[reg];
-      return (depths & (1 << depth)) != 0;
+    SafeMap<uint32_t, uint32_t>::iterator it = reg_to_lock_depths_.find(reg);
+    if (it != reg_to_lock_depths_.end()) {
+      return (it->second & (1 << depth)) != 0;
     } else {
       return false;
     }
@@ -792,25 +792,24 @@ class RegisterLine {
   void SetRegToLockDepth(size_t reg, size_t depth) {
     CHECK_LT(depth, 32u);
     DCHECK(!IsSetLockDepth(reg, depth));
-    uint32_t depths;
-    if (reg_to_lock_depths_.count(reg) > 0) {
-      depths = reg_to_lock_depths_[reg];
-      depths = depths | (1 << depth);
+    SafeMap<uint32_t, uint32_t>::iterator it = reg_to_lock_depths_.find(reg);
+    if (it == reg_to_lock_depths_.end()) {
+      reg_to_lock_depths_.Put(reg, 1 << depth);
     } else {
-      depths = 1 << depth;
+      it->second |= (1 << depth);
     }
-    reg_to_lock_depths_[reg] = depths;
   }
 
   void ClearRegToLockDepth(size_t reg, size_t depth) {
     CHECK_LT(depth, 32u);
     DCHECK(IsSetLockDepth(reg, depth));
-    uint32_t depths = reg_to_lock_depths_[reg];
-    depths = depths ^ (1 << depth);
+    SafeMap<uint32_t, uint32_t>::iterator it = reg_to_lock_depths_.find(reg);
+    DCHECK(it != reg_to_lock_depths_.end());
+    uint32_t depths = it->second ^ (1 << depth);
     if (depths != 0) {
-      reg_to_lock_depths_[reg] = depths;
+      it->second = depths;
     } else {
-      reg_to_lock_depths_.erase(reg);
+      reg_to_lock_depths_.erase(it);
     }
   }
 
@@ -834,7 +833,7 @@ class RegisterLine {
   // A map from register to a bit vector of indices into the monitors_ stack. As we pop the monitor
   // stack we verify that monitor-enter/exit are correctly nested. That is, if there was a
   // monitor-enter on v5 and then on v6, we expect the monitor-exit to be on v6 then on v5
-  std::map<uint32_t, uint32_t> reg_to_lock_depths_;
+  SafeMap<uint32_t, uint32_t> reg_to_lock_depths_;
 };
 std::ostream& operator<<(std::ostream& os, const RegisterLine& rhs);
 
@@ -870,9 +869,8 @@ class PcToRegisterLineTable {
   }
 
  private:
-  // TODO: Use hashmap (unordered_map).
-  typedef std::map<int32_t, RegisterLine*> Table;
   // Map from a dex pc to the register status associated with it
+  typedef SafeMap<int32_t, RegisterLine*> Table;
   Table pc_to_register_line_;
 
   // Number of registers we track for each instruction. This is equal to the method's declared
@@ -1306,15 +1304,15 @@ class DexVerifier {
   }
 
   // All the GC maps that the verifier has created
-  typedef std::map<const Compiler::MethodReference, const std::vector<uint8_t>*> GcMapTable;
+  typedef SafeMap<const Compiler::MethodReference, const std::vector<uint8_t>*> GcMapTable;
   static Mutex* gc_maps_lock_;
   static GcMapTable* gc_maps_;
   static void SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map);
 
 #if defined(ART_USE_LLVM_COMPILER)
   // All the inferred register category maps that the verifier has created
-  typedef std::map<const Compiler::MethodReference,
-                   const compiler_llvm::InferredRegCategoryMap*> InferredRegCategoryMapTable;
+  typedef SafeMap<const Compiler::MethodReference,
+                  const compiler_llvm::InferredRegCategoryMap*> InferredRegCategoryMapTable;
   static Mutex* inferred_reg_category_maps_lock_;
   static InferredRegCategoryMapTable* inferred_reg_category_maps_;
   static void SetInferredRegCategoryMap(Compiler::MethodReference ref,

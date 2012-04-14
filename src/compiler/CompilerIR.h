@@ -17,10 +17,12 @@
 #ifndef ART_SRC_COMPILER_COMPILER_IR_H_
 #define ART_SRC_COMPILER_COMPILER_IR_H_
 
+#include <vector>
+
 #include "codegen/Optimizer.h"
 #include "CompilerUtility.h"
-#include <vector>
 #include "oat_compilation_unit.h"
+#include "safe_map.h"
 
 namespace art {
 
@@ -519,8 +521,8 @@ struct CompilationUnit {
     const u2* insns;
     u4 insnsSize;
     bool disableDataflow; // Skip dataflow analysis if possible
-    std::map<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
-    std::map<unsigned int, LIR*> boundaryMap; // boundary lookup cache
+    SafeMap<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
+    SafeMap<unsigned int, LIR*> boundaryMap; // boundary lookup cache
     int defCount;         // Used to estimate number of SSA names
 
     // If non-empty, apply optimizer/debug flags only to matching methods.

@@ -16,12 +16,11 @@
 
 #include "dex_file_verifier.h"
 
-#include <map>
-
-#include "UniquePtr.h"
 #include "leb128.h"
 #include "object.h"
+#include "safe_map.h"
 #include "stringprintf.h"
+#include "UniquePtr.h"
 #include "zip_archive.h"
 
 namespace art {
@@ -1117,7 +1116,7 @@ bool DexFileVerifier::CheckIntraSectionIterate(uint32_t offset, uint32_t count, 
     }
 
     if (IsDataSectionType(type)) {
-      offset_to_type_map_.insert(std::make_pair(aligned_offset, type));
+      offset_to_type_map_.Put(aligned_offset, type);
     }
 
     aligned_offset = reinterpret_cast<uint32_t>(ptr_) - reinterpret_cast<uint32_t>(begin_);
@@ -1289,7 +1288,7 @@ bool DexFileVerifier::CheckIntraSection() {
 }
 
 bool DexFileVerifier::CheckOffsetToTypeMap(uint32_t offset, uint16_t type) {
-  typedef std::map<uint32_t, uint16_t>::iterator It; // TODO: C++0x auto
+  typedef SafeMap<uint32_t, uint16_t>::iterator It; // TODO: C++0x auto
   It it = offset_to_type_map_.find(offset);
   if (it == offset_to_type_map_.end()) {
     LOG(ERROR) << StringPrintf("No data map entry found @ %x; expected %x", offset, type);

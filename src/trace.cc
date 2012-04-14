@@ -164,7 +164,7 @@ static void TraceRestoreStack(Thread* t, void*) {
 }
 
 void Trace::AddSavedCodeToMap(const Method* method, const void* code) {
-  saved_code_map_.insert(std::make_pair(method, code));
+  saved_code_map_.Put(method, code);
 }
 
 void Trace::RemoveSavedCodeFromMap(const Method* method) {
@@ -172,7 +172,7 @@ void Trace::RemoveSavedCodeFromMap(const Method* method) {
 }
 
 const void* Trace::GetSavedCodeFromMap(const Method* method) {
-  typedef std::map<const Method*, const void*>::const_iterator It; // TODO: C++0x auto
+  typedef SafeMap<const Method*, const void*>::const_iterator It; // TODO: C++0x auto
   It it = saved_code_map_.find(method);
   if (it == saved_code_map_.end()) {
     return NULL;
@@ -355,7 +355,7 @@ void Trace::FinishTracing() {
 void Trace::LogMethodTraceEvent(Thread* self, const Method* method, Trace::TraceEvent event) {
   if (thread_clock_base_map_.find(self) == thread_clock_base_map_.end()) {
     uint64_t time = ThreadCpuMicroTime();
-    thread_clock_base_map_.insert(std::make_pair(self, time));
+    thread_clock_base_map_.Put(self, time);
   }
 
   // Advance cur_offset_ atomically.

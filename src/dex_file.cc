@@ -25,9 +25,6 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 
-#include <map>
-
-#include "UniquePtr.h"
 #include "class_linker.h"
 #include "dex_file_verifier.h"
 #include "globals.h"
@@ -35,8 +32,10 @@
 #include "logging.h"
 #include "object.h"
 #include "os.h"
+#include "safe_map.h"
 #include "stringprintf.h"
 #include "thread.h"
+#include "UniquePtr.h"
 #include "utf.h"
 #include "utils.h"
 #include "zip_archive.h"
@@ -331,7 +330,7 @@ void DexFile::InitIndex() {
   for (size_t i = 0; i < NumClassDefs(); ++i) {
     const ClassDef& class_def = GetClassDef(i);
     const char* descriptor = GetClassDescriptor(class_def);
-    index_[descriptor] = i;
+    index_.Put(descriptor, i);
   }
 }
 

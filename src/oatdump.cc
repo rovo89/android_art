@@ -19,7 +19,6 @@
 
 #include <fstream>
 #include <iostream>
-#include <map>
 #include <string>
 #include <vector>
 
@@ -33,6 +32,7 @@
 #include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
+#include "safe_map.h"
 #include "space.h"
 #include "stringpiece.h"
 
@@ -901,35 +901,35 @@ class ImageDumper {
         size_t dex_instruction_bytes = code_item->insns_size_in_code_units_ * 2;
         state->stats_.dex_instruction_bytes += dex_instruction_bytes;
 
-        bool first_occurance;
-        size_t gc_map_bytes = state->ComputeOatSize(method->GetGcMapRaw(), &first_occurance);
-        if (first_occurance) {
+        bool first_occurrence;
+        size_t gc_map_bytes = state->ComputeOatSize(method->GetGcMapRaw(), &first_occurrence);
+        if (first_occurrence) {
           state->stats_.gc_map_bytes += gc_map_bytes;
         }
 
         size_t pc_mapping_table_bytes =
-            state->ComputeOatSize(method->GetMappingTableRaw(), &first_occurance);
-        if (first_occurance) {
+            state->ComputeOatSize(method->GetMappingTableRaw(), &first_occurrence);
+        if (first_occurrence) {
           state->stats_.pc_mapping_table_bytes += pc_mapping_table_bytes;
         }
 
         size_t vmap_table_bytes =
-            state->ComputeOatSize(method->GetVmapTableRaw(), &first_occurance);
-        if (first_occurance) {
+            state->ComputeOatSize(method->GetVmapTableRaw(), &first_occurrence);
+        if (first_occurrence) {
           state->stats_.vmap_table_bytes += vmap_table_bytes;
         }
 
         // TODO: compute invoke stub using length from oat file.
         size_t invoke_stub_size = state->ComputeOatSize(
-            reinterpret_cast<const void*>(method->GetInvokeStub()), &first_occurance);
-        if (first_occurance) {
+            reinterpret_cast<const void*>(method->GetInvokeStub()), &first_occurrence);
+        if (first_occurrence) {
           state->stats_.native_to_managed_code_bytes += invoke_stub_size;
         }
         const void* oat_code_begin = state->GetOatCodeBegin(method);
         const void* oat_code_end = state->GetOatCodeEnd(method);
         uint32_t oat_code_size = state->GetOatCodeSize(method);
-        state->ComputeOatSize(oat_code_begin, &first_occurance);
-        if (first_occurance) {
+        state->ComputeOatSize(oat_code_begin, &first_occurrence);
+        if (first_occurrence) {
           state->stats_.managed_code_bytes += oat_code_size;
           if (method->IsConstructor()) {
             if (method->IsStatic()) {
@@ -955,9 +955,7 @@ class ImageDumper {
         state->stats_.ComputeOutliers(total_size, expansion, method);
       }
     }
-    std::string descriptor(ClassHelper(obj_class).GetDescriptor());
-    state->stats_.descriptor_to_bytes[descriptor] += object_bytes;
-    state->stats_.descriptor_to_count[descriptor] += 1;
+    state->stats_.Update(ClassHelper(obj_class).GetDescriptor(), object_bytes);
 
     state->os_ << summary << std::flush;
   }
@@ -965,12 +963,12 @@ class ImageDumper {
   std::set<const void*> already_seen_;
   // Compute the size of the given data within the oat file and whether this is the first time
   // this data has been requested
-  size_t ComputeOatSize(const void* oat_data, bool* first_occurance) {
+  size_t ComputeOatSize(const void* oat_data, bool* first_occurrence) {
     if (already_seen_.count(oat_data) == 0) {
-      *first_occurance = true;
+      *first_occurrence = true;
       already_seen_.insert(oat_data);
     } else {
-      *first_occurance = false;
+      *first_occurrence = false;
     }
     return oat_dumper_->ComputeSize(oat_data);
   }
@@ -1020,11 +1018,23 @@ class ImageDumper {
           vmap_table_bytes(0),
           dex_instruction_bytes(0) {}
 
-    typedef std::map<std::string, size_t> TableBytes;
-    TableBytes descriptor_to_bytes;
+    struct SizeAndCount {
+      SizeAndCount(size_t bytes, size_t count) : bytes(bytes), count(count) {}
+      size_t bytes;
+      size_t count;
+    };
+    typedef SafeMap<std::string, SizeAndCount> SizeAndCountTable;
+    SizeAndCountTable sizes_and_counts;
 
-    typedef std::map<std::string, size_t> TableCount;
-    TableCount descriptor_to_count;
+    void Update(const std::string& descriptor, size_t object_bytes) {
+      SizeAndCountTable::iterator it = sizes_and_counts.find(descriptor);
+      if (it != sizes_and_counts.end()) {
+        it->second.bytes += object_bytes;
+        it->second.count += 1;
+      } else {
+        sizes_and_counts.Put(descriptor, SizeAndCount(object_bytes, 1));
+      }
+    }
 
     double PercentOfOatBytes(size_t size) {
       return (static_cast<double>(size) / static_cast<double>(oat_file_bytes)) * 100;
@@ -1158,21 +1168,18 @@ class ImageDumper {
 
       CHECK_EQ(file_bytes, header_bytes + object_bytes + alignment_bytes);
 
-      os << "\tobject_bytes = sum of descriptor_to_bytes values below:\n";
+      os << "\tobject_bytes breakdown:\n";
       size_t object_bytes_total = 0;
-      typedef TableBytes::const_iterator It;  // TODO: C++0x auto
-      for (It it = descriptor_to_bytes.begin(), end = descriptor_to_bytes.end(); it != end; ++it) {
+      typedef SizeAndCountTable::const_iterator It;  // TODO: C++0x auto
+      for (It it = sizes_and_counts.begin(), end = sizes_and_counts.end(); it != end; ++it) {
         const std::string& descriptor(it->first);
-        size_t bytes = it->second;
-        size_t count = descriptor_to_count[descriptor];
-        double average = static_cast<double>(bytes) / static_cast<double>(count);
-        double percent = PercentOfObjectBytes(bytes);
+        double average = static_cast<double>(it->second.bytes) / static_cast<double>(it->second.count);
+        double percent = PercentOfObjectBytes(it->second.bytes);
         os << StringPrintf("\t%32s %8zd bytes %6zd instances "
-                           "(%3.0f bytes/instance) %2.0f%% of object_bytes\n",
-                           descriptor.c_str(), bytes, count,
+                           "(%4.0f bytes/instance) %2.0f%% of object_bytes\n",
+                           descriptor.c_str(), it->second.bytes, it->second.count,
                            average, percent);
-
-        object_bytes_total += bytes;
+        object_bytes_total += it->second.bytes;
       }
       os << std::endl << std::flush;
       CHECK_EQ(object_bytes, object_bytes_total);

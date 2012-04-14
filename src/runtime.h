@@ -17,21 +17,20 @@
 #ifndef ART_SRC_RUNTIME_H_
 #define ART_SRC_RUNTIME_H_
 
+#include <jni.h>
 #include <stdio.h>
 
 #include <iosfwd>
-#include <map>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include <jni.h>
-
+#include "globals.h"
 #include "heap.h"
 #include "instruction_set.h"
-#include "globals.h"
 #include "macros.h"
 #include "runtime_stats.h"
+#include "safe_map.h"
 #include "stringpiece.h"
 
 namespace art {
@@ -329,7 +328,7 @@ class Runtime {
   size_t method_trace_file_size_;
   Trace* tracer_;
 
-  typedef std::map<const ClassLoader*, std::vector<const DexFile*> > CompileTimeClassPaths;
+  typedef SafeMap<const ClassLoader*, std::vector<const DexFile*> > CompileTimeClassPaths;
   CompileTimeClassPaths compile_time_class_paths_;
   bool use_compile_time_class_path_;
 

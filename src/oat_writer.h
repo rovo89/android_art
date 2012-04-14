@@ -21,13 +21,14 @@
 
 #include <cstddef>
 
-#include "UniquePtr.h"
 #include "compiler.h"
 #include "dex_cache.h"
 #include "mem_map.h"
 #include "oat.h"
 #include "object.h"
 #include "os.h"
+#include "safe_map.h"
+#include "UniquePtr.h"
 
 namespace art {
 
@@ -203,10 +204,10 @@ class OatWriter {
   };
 
   // code mappings for deduplication
-  std::map<const std::vector<uint8_t>*, uint32_t, MapCompare<std::vector<uint8_t> > > code_offsets_;
-  std::map<const std::vector<uint16_t>*, uint32_t, MapCompare<std::vector<uint16_t> > > vmap_table_offsets_;
-  std::map<const std::vector<uint32_t>*, uint32_t, MapCompare<std::vector<uint32_t> > > mapping_table_offsets_;
-  std::map<const std::vector<uint8_t>*, uint32_t, MapCompare<std::vector<uint8_t> > > gc_map_offsets_;
+  SafeMap<const std::vector<uint8_t>*, uint32_t, MapCompare<std::vector<uint8_t> > > code_offsets_;
+  SafeMap<const std::vector<uint16_t>*, uint32_t, MapCompare<std::vector<uint16_t> > > vmap_table_offsets_;
+  SafeMap<const std::vector<uint32_t>*, uint32_t, MapCompare<std::vector<uint32_t> > > mapping_table_offsets_;
+  SafeMap<const std::vector<uint8_t>*, uint32_t, MapCompare<std::vector<uint8_t> > > gc_map_offsets_;
 
   DISALLOW_COPY_AND_ASSIGN(OatWriter);
 };

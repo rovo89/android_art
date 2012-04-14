@@ -20,7 +20,6 @@
 #include <stdint.h>
 
 #include <cstddef>
-#include <map>
 #include <set>
 #include <string>
 
@@ -30,6 +29,7 @@
 #include "oat_file.h"
 #include "object.h"
 #include "os.h"
+#include "safe_map.h"
 #include "space.h"
 #include "UniquePtr.h"
 
@@ -65,7 +65,7 @@ class ImageWriter {
     DCHECK(object != NULL);
     DCHECK_NE(offset, 0U);
     DCHECK(!IsImageOffsetAssigned(object));
-    offsets_[object] = offset;
+    offsets_.Put(object, offset);
   }
 
   size_t IsImageOffsetAssigned(const Object* object) const {
@@ -142,7 +142,7 @@ class ImageWriter {
   void PatchOatCodeAndMethods(const Compiler& compiler);
   void SetPatchLocation(const Compiler::PatchInformation* patch, uint32_t value);
 
-  std::map<const Object*, size_t> offsets_;
+  SafeMap<const Object*, size_t> offsets_;
 
   // oat file with code for this image
   OatFile* oat_file_;

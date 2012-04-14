@@ -133,8 +133,7 @@ void genPrintLabel(CompilationUnit *cUnit, MIR* mir)
        oatGetDalvikDisassembly(cUnit, mir->dalvikInsn, "") : NULL;
     boundaryLIR = newLIR1(cUnit, kPseudoDalvikByteCodeBoundary,
                           (intptr_t) instStr);
-    cUnit->boundaryMap.insert(std::make_pair(mir->offset,
-                             (LIR*)boundaryLIR));
+    cUnit->boundaryMap.Put(mir->offset, boundaryLIR);
     /* Don't generate the SSA annotation unless verbose mode is on */
     if (cUnit->printMe && mir->ssaRep) {
         char* ssaString = oatGetSSAString(cUnit, mir->ssaRep);

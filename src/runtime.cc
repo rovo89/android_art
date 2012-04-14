@@ -1049,7 +1049,7 @@ const std::vector<const DexFile*>& Runtime::GetCompileTimeClassPath(const ClassL
 void Runtime::SetCompileTimeClassPath(const ClassLoader* class_loader, std::vector<const DexFile*>& class_path) {
   CHECK(!IsStarted());
   use_compile_time_class_path_ = true;
-  compile_time_class_paths_[class_loader] = class_path;
+  compile_time_class_paths_.Put(class_loader, class_path);
 }
 
 }  // namespace art

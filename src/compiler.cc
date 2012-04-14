@@ -1215,7 +1215,7 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
       CompiledClass* compiled_class = GetCompiledClass(ref);
       if (compiled_class == NULL) {
         compiled_class = new CompiledClass(status);
-        compiled_classes_[ref] = compiled_class;
+        compiled_classes_.Put(ref, compiled_class);
       } else {
         DCHECK_EQ(status, compiled_class->GetStatus());
       }
@@ -1301,6 +1301,14 @@ void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& de
   ForAll(&context, 0, dex_file.NumClassDefs(), Compiler::CompileClass, thread_count_);
 }
 
+static std::string MakeInvokeStubKey(bool is_static, const char* shorty) {
+  std::string key(shorty);
+  if (is_static) {
+    key += "$";  // Must not be a shorty type character.
+  }
+  return key;
+}
+
 void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                              uint32_t method_idx, const ClassLoader* class_loader,
                              const DexFile& dex_file) {
@@ -1326,33 +1334,30 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
     MethodReference ref(&dex_file, method_idx);
     CHECK(GetCompiledMethod(ref) == NULL) << PrettyMethod(method_idx, dex_file);
     MutexLock mu(compiled_methods_lock_);
-    compiled_methods_[ref] = compiled_method;
+    compiled_methods_.Put(ref, compiled_method);
     DCHECK(GetCompiledMethod(ref) != NULL) << PrettyMethod(method_idx, dex_file);
   }
 
   uint32_t shorty_len;
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx), &shorty_len);
   bool is_static = (access_flags & kAccStatic) != 0;
-  const CompiledInvokeStub* compiled_invoke_stub = FindInvokeStub(is_static, shorty);
+  std::string key(MakeInvokeStubKey(is_static, shorty));
+  const CompiledInvokeStub* compiled_invoke_stub = FindInvokeStub(key);
   if (compiled_invoke_stub == NULL) {
     compiled_invoke_stub = (*create_invoke_stub_)(*this, is_static, shorty, shorty_len);
     CHECK(compiled_invoke_stub != NULL);
-    InsertInvokeStub(is_static, shorty, compiled_invoke_stub);
+    InsertInvokeStub(key, compiled_invoke_stub);
   }
   CHECK(!Thread::Current()->IsExceptionPending()) << PrettyMethod(method_idx, dex_file);
 }
 
-static std::string MakeInvokeStubKey(bool is_static, const char* shorty) {
-  std::string key(shorty);
-  if (is_static) {
-    key += "$";  // Must not be a shorty type character.
-  }
-  return key;
+const CompiledInvokeStub* Compiler::FindInvokeStub(bool is_static, const char* shorty) const {
+  const std::string key(MakeInvokeStubKey(is_static, shorty));
+  return FindInvokeStub(key);
 }
 
-const CompiledInvokeStub* Compiler::FindInvokeStub(bool is_static, const char* shorty) const {
+const CompiledInvokeStub* Compiler::FindInvokeStub(const std::string& key) const {
   MutexLock mu(compiled_invoke_stubs_lock_);
-  const std::string key(MakeInvokeStubKey(is_static, shorty));
   InvokeStubTable::const_iterator it = compiled_invoke_stubs_.find(key);
   if (it == compiled_invoke_stubs_.end()) {
     return NULL;
@@ -1362,11 +1367,16 @@ const CompiledInvokeStub* Compiler::FindInvokeStub(bool is_static, const char* s
   }
 }
 
-void Compiler::InsertInvokeStub(bool is_static, const char* shorty,
+void Compiler::InsertInvokeStub(const std::string& key,
                                 const CompiledInvokeStub* compiled_invoke_stub) {
   MutexLock mu(compiled_invoke_stubs_lock_);
-  std::string key(MakeInvokeStubKey(is_static, shorty));
-  compiled_invoke_stubs_[key] = compiled_invoke_stub;
+  InvokeStubTable::iterator it = compiled_invoke_stubs_.find(key);
+  if (it != compiled_invoke_stubs_.end()) {
+    // Someone else won the race.
+    delete compiled_invoke_stub;
+  } else {
+    compiled_invoke_stubs_.Put(key, compiled_invoke_stub);
+  }
 }
 
 CompiledClass* Compiler::GetCompiledClass(ClassReference ref) const {

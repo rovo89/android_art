@@ -177,11 +177,11 @@ bool OatFile::Map(File& file,
     oat += (sizeof(*methods_offsets_pointer) * header->class_defs_size_);
     CHECK_LE(oat, map->End()) << GetLocation();
 
-    oat_dex_files_[dex_file_location] = new OatDexFile(this,
-                                                       dex_file_location,
-                                                       dex_file_checksum,
-                                                       dex_file_pointer,
-                                                       methods_offsets_pointer);
+    oat_dex_files_.Put(dex_file_location, new OatDexFile(this,
+                                                         dex_file_location,
+                                                         dex_file_checksum,
+                                                         dex_file_pointer,
+                                                         methods_offsets_pointer));
   }
 
 #if !defined(ART_USE_LLVM_COMPILER)

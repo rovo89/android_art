@@ -17,7 +17,6 @@
 #ifndef ART_SRC_TRACE_H_
 #define ART_SRC_TRACE_H_
 
-#include <map>
 #include <ostream>
 #include <set>
 #include <string>
@@ -25,6 +24,7 @@
 #include "file.h"
 #include "globals.h"
 #include "macros.h"
+#include "safe_map.h"
 #include "UniquePtr.h"
 
 namespace art {
@@ -90,13 +90,13 @@ class Trace {
   void DumpThreadList(std::ostream& os);
 
   // Maps a method to its original code pointer.
-  std::map<const Method*, const void*> saved_code_map_;
+  SafeMap<const Method*, const void*> saved_code_map_;
 
   // Set of methods visited by the profiler.
   std::set<const Method*> visited_methods_;
 
   // Maps a thread to its clock base.
-  std::map<Thread*, uint64_t> thread_clock_base_map_;
+  SafeMap<Thread*, uint64_t> thread_clock_base_map_;
 
   // File to write trace data out to, NULL if direct to ddms.
   UniquePtr<File> trace_file_;

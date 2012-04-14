@@ -315,7 +315,7 @@ class OatFile {
   // backing memory map for oat file
   UniquePtr<MemMap> mem_map_;
 
-  typedef std::map<std::string, const OatDexFile*> Table;
+  typedef SafeMap<std::string, const OatDexFile*> Table;
   Table oat_dex_files_;
 
 #if defined(ART_USE_LLVM_COMPILER)

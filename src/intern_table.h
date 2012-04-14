@@ -18,11 +18,11 @@
 #define ART_SRC_INTERN_TABLE_H_
 
 #include <iosfwd>
-#include <map>
 
 #include "heap.h"
 #include "mutex.h"
 #include "object.h"
+#include "safe_map.h"
 
 namespace art {
 
