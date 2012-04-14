@@ -109,11 +109,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/class_loader.cc \
 	src/compiled_method.cc \
 	src/compiler.cc \
-	src/dalvik_system_DexFile.cc \
-	src/dalvik_system_VMDebug.cc \
-	src/dalvik_system_VMRuntime.cc \
-	src/dalvik_system_VMStack.cc \
-	src/dalvik_system_Zygote.cc \
 	src/debugger.cc \
 	src/dex_cache.cc \
 	src/dex_file.cc \
@@ -130,20 +125,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/image_writer.cc \
 	src/indirect_reference_table.cc \
 	src/intern_table.cc \
-	src/java_lang_Class.cc \
-	src/java_lang_Object.cc \
-	src/java_lang_Runtime.cc \
-	src/java_lang_String.cc \
-	src/java_lang_System.cc \
-	src/java_lang_Thread.cc \
-	src/java_lang_Throwable.cc \
-	src/java_lang_VMClassLoader.cc \
-	src/java_lang_reflect_Array.cc \
-	src/java_lang_reflect_Constructor.cc \
-	src/java_lang_reflect_Field.cc \
-	src/java_lang_reflect_Method.cc \
-	src/java_lang_reflect_Proxy.cc \
-	src/java_util_concurrent_atomic_AtomicLong.cc \
 	src/jdwp/jdwp_event.cc \
 	src/jdwp/jdwp_expand_buf.cc \
 	src/jdwp/jdwp_handler.cc \
@@ -157,6 +138,28 @@ LIBART_COMMON_SRC_FILES := \
 	src/memory_region.cc \
 	src/monitor.cc \
 	src/mutex.cc \
+	src/native/dalvik_system_DexFile.cc \
+	src/native/dalvik_system_VMDebug.cc \
+	src/native/dalvik_system_VMRuntime.cc \
+	src/native/dalvik_system_VMStack.cc \
+	src/native/dalvik_system_Zygote.cc \
+	src/native/java_lang_Class.cc \
+	src/native/java_lang_Object.cc \
+	src/native/java_lang_Runtime.cc \
+	src/native/java_lang_String.cc \
+	src/native/java_lang_System.cc \
+	src/native/java_lang_Thread.cc \
+	src/native/java_lang_Throwable.cc \
+	src/native/java_lang_VMClassLoader.cc \
+	src/native/java_lang_reflect_Array.cc \
+	src/native/java_lang_reflect_Constructor.cc \
+	src/native/java_lang_reflect_Field.cc \
+	src/native/java_lang_reflect_Method.cc \
+	src/native/java_lang_reflect_Proxy.cc \
+	src/native/java_util_concurrent_atomic_AtomicLong.cc \
+	src/native/org_apache_harmony_dalvik_ddmc_DdmServer.cc \
+	src/native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc \
+	src/native/sun_misc_Unsafe.cc \
 	src/oat/runtime/arm/stub_arm.cc \
 	src/oat/runtime/x86/stub_x86.cc \
 	src/oat/utils/arm/assembler_arm.cc \
@@ -169,8 +172,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/oat_writer.cc \
 	src/object.cc \
 	src/offsets.cc \
-	src/org_apache_harmony_dalvik_ddmc_DdmServer.cc \
-	src/org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc \
 	src/os_linux.cc \
 	src/primitive.cc \
 	src/reference_table.cc \
@@ -183,7 +184,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/stack.cc \
 	src/stringpiece.cc \
 	src/stringprintf.cc \
-	src/sun_misc_Unsafe.cc \
 	src/thread.cc \
 	src/thread_list.cc \
 	src/trace.cc \
