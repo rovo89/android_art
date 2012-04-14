@@ -92,7 +92,7 @@ class PACKED Thread {
   static const size_t kStackOverflowReservedBytes = 8 * KB;
 #endif
 
-  static const size_t kDefaultStackSize = 128 * KB;
+  static const size_t kDefaultStackSize = 16 * KB;
 
   class StackVisitor {
    public:
