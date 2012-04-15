@@ -42,6 +42,8 @@ namespace llvm {
   extern bool TimePassesIsEnabled;
 }
 
+extern llvm::cl::opt<bool> ReserveR9;
+// ReserveR9 is defined in llvm/lib/Target/ARM/ARMSubtarget.cpp
 extern llvm::cl::opt<bool> EnableARMLongCalls;
 // NOTE: Although EnableARMLongCalls is defined in llvm/lib/Target/ARM/
 // ARMISelLowering.cpp, however, it is not in the llvm namespace.
@@ -54,6 +56,9 @@ pthread_once_t llvm_initialized = PTHREAD_ONCE_INIT;
 void InitializeLLVM() {
   // NOTE: Uncomment following line to show the time consumption of LLVM passes
   //llvm::TimePassesIsEnabled = true;
+
+  // Enable -arm-reserve-r9
+  ReserveR9 = true;
 
   // Initialize LLVM target, MC subsystem, asm printer, and asm parser
   llvm::InitializeAllTargets();

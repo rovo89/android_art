@@ -18,6 +18,7 @@
 #define ART_SRC_COMPILER_LLVM_IR_BUILDER_H_
 
 #include "backend_types.h"
+#include "runtime_support_builder.h"
 #include "runtime_support_func.h"
 
 #include <llvm/Constants.h>
@@ -114,7 +115,17 @@ class IRBuilder : public LLVMIRBuilder {
   // Runtime Helper Function
   //--------------------------------------------------------------------------
 
-  llvm::Function* GetRuntime(runtime_support::RuntimeId rt) const;
+  llvm::Function* GetRuntime(runtime_support::RuntimeId rt) {
+    return runtime_support_->GetRuntimeSupportFunction(rt);
+  }
+
+  void SetRuntimeSupport(RuntimeSupportBuilder* runtime_support) {
+    // Can only set once. We can't do this on constructor, because RuntimeSupportBuilder needs
+    // IRBuilder.
+    if (runtime_support_ == NULL && runtime_support != NULL) {
+      runtime_support_ = runtime_support;
+    }
+  }
 
 
   //--------------------------------------------------------------------------
@@ -282,13 +293,6 @@ class IRBuilder : public LLVMIRBuilder {
 
  private:
   //--------------------------------------------------------------------------
-  // Runtime Helper Function (Private)
-  //--------------------------------------------------------------------------
-
-  void InitRuntimeSupportFuncDecl();
-
-
-  //--------------------------------------------------------------------------
   // Type Helper Function (Private)
   //--------------------------------------------------------------------------
 
@@ -306,7 +310,7 @@ class IRBuilder : public LLVMIRBuilder {
 
   llvm::StructType* art_frame_type_;
 
-  llvm::Function* runtime_support_func_decls_[runtime_support::MAX_ID];
+  RuntimeSupportBuilder* runtime_support_;
 
 };
 

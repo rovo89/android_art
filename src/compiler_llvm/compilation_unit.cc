@@ -20,6 +20,9 @@
 #include "ir_builder.h"
 #include "logging.h"
 
+#include "runtime_support_builder_arm.h"
+#include "runtime_support_builder_x86.h"
+
 #include <llvm/ADT/OwningPtr.h>
 #include <llvm/ADT/StringSet.h>
 #include <llvm/ADT/Triple.h>
@@ -70,6 +73,24 @@ CompilationUnit::CompilationUnit(InstructionSet insn_set, size_t elf_idx)
 
   // Create IRBuilder
   irb_.reset(new IRBuilder(*context_, *module_));
+
+  // We always need a switch case, so just use a normal function.
+  switch(insn_set_) {
+    default:
+      runtime_support_.reset(new RuntimeSupportBuilder(*context_, *module_, *irb_));
+      break;
+  case kArm:
+  case kThumb2:
+    runtime_support_.reset(new RuntimeSupportBuilderARM(*context_, *module_, *irb_));
+    break;
+  case kX86:
+    runtime_support_.reset(new RuntimeSupportBuilderX86(*context_, *module_, *irb_));
+    break;
+  }
+
+  runtime_support_->OptimizeRuntimeSupport();
+
+  irb_->SetRuntimeSupport(runtime_support_.get());
 }
 
 

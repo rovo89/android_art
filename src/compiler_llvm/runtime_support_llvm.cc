@@ -31,6 +31,8 @@
 #include <cstdarg>
 #include <stdint.h>
 
+#include "asm_support.h"
+
 namespace art {
 
 //----------------------------------------------------------------------------
@@ -38,16 +40,23 @@ namespace art {
 //----------------------------------------------------------------------------
 
 Thread* art_get_current_thread_from_code() {
+#if defined(__i386__)
+  Thread* ptr;
+  asm volatile("movl %%fs:(%1), %0"
+      : "=r"(ptr)  // output
+      : "r"(THREAD_SELF_OFFSET)  // input
+      :);  // clobber
+  return ptr;
+#else
   return Thread::Current();
+#endif
 }
 
 void art_set_current_thread_from_code(void* thread_object_addr) {
-  // TODO: LLVM IR generating something like "r9 = thread_object_addr"
-  // UNIMPLEMENTED(WARNING);
 }
 
 void art_lock_object_from_code(Object* obj) {
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   DCHECK(obj != NULL);        // Assumed to have been checked before entry
   obj->MonitorEnter(thread);  // May block
   DCHECK(thread->HoldsLock(obj));
@@ -56,24 +65,24 @@ void art_lock_object_from_code(Object* obj) {
 }
 
 void art_unlock_object_from_code(Object* obj) {
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   DCHECK(obj != NULL);  // Assumed to have been checked before entry
   // MonitorExit may throw exception
   obj->MonitorExit(thread);
 }
 
 void art_test_suspend_from_code() {
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
 }
 
 void art_push_shadow_frame_from_code(void* new_shadow_frame) {
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   thread->PushShadowFrame(static_cast<ShadowFrame*>(new_shadow_frame));
 }
 
 void art_pop_shadow_frame_from_code() {
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   thread->PopShadowFrame();
 }
 
@@ -84,23 +93,23 @@ void art_pop_shadow_frame_from_code() {
 //----------------------------------------------------------------------------
 
 bool art_is_exception_pending_from_code() {
-  return Thread::Current()->IsExceptionPending();
+  return art_get_current_thread_from_code()->IsExceptionPending();
 }
 
 void art_throw_div_zero_from_code() {
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   thread->ThrowNewException("Ljava/lang/ArithmeticException;",
                             "divide by zero");
 }
 
 void art_throw_array_bounds_from_code(int32_t length, int32_t index) {
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   thread->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
                              "length=%d; index=%d", length, index);
 }
 
 void art_throw_no_such_method_from_code(int32_t method_idx) {
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   // We need the calling method as context for the method_idx
   Frame frame = thread->GetTopOfStack();
   frame.Next();
@@ -113,7 +122,7 @@ void art_throw_no_such_method_from_code(int32_t method_idx) {
 }
 
 void art_throw_null_pointer_exception_from_code(uint32_t dex_pc) {
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   NthCallerVisitor visitor(0);
   thread->WalkStack(&visitor);
   Method* throw_method = visitor.caller;
@@ -121,7 +130,7 @@ void art_throw_null_pointer_exception_from_code(uint32_t dex_pc) {
 }
 
 void art_throw_stack_overflow_from_code() {
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   if (Runtime::Current()->IsMethodTracingActive()) {
     TraceMethodUnwindFromCode(thread);
   }
@@ -134,7 +143,7 @@ void art_throw_stack_overflow_from_code() {
 }
 
 void art_throw_exception_from_code(Object* exception) {
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   if (exception == NULL) {
     thread->ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
   } else {
@@ -145,11 +154,11 @@ void art_throw_exception_from_code(Object* exception) {
 void art_throw_verification_error_from_code(Method* current_method,
                                             int32_t kind,
                                             int32_t ref) {
-  ThrowVerificationError(Thread::Current(), current_method, kind, ref);
+  ThrowVerificationError(art_get_current_thread_from_code(), current_method, kind, ref);
 }
 
 int32_t art_find_catch_block_from_code(Method* current_method, int32_t dex_pc) {
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   Class* exception_type = thread->GetException()->GetClass();
   MethodHelper mh(current_method);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
@@ -182,33 +191,33 @@ int32_t art_find_catch_block_from_code(Method* current_method, int32_t dex_pc) {
 //----------------------------------------------------------------------------
 
 Object* art_alloc_object_from_code(uint32_t type_idx, Method* referrer) {
-  return AllocObjectFromCode(type_idx, referrer, Thread::Current(), false);
+  return AllocObjectFromCode(type_idx, referrer, art_get_current_thread_from_code(), false);
 }
 
 Object* art_alloc_object_from_code_with_access_check(uint32_t type_idx, Method* referrer) {
-  return AllocObjectFromCode(type_idx, referrer, Thread::Current(), true);
+  return AllocObjectFromCode(type_idx, referrer, art_get_current_thread_from_code(), true);
 }
 
 Object* art_alloc_array_from_code(uint32_t type_idx, Method* referrer, uint32_t length) {
-  return AllocArrayFromCode(type_idx, referrer, length, Thread::Current(), false);
+  return AllocArrayFromCode(type_idx, referrer, length, art_get_current_thread_from_code(), false);
 }
 
 Object* art_alloc_array_from_code_with_access_check(uint32_t type_idx,
                                                     Method* referrer,
                                                     uint32_t length) {
-  return AllocArrayFromCode(type_idx, referrer, length, Thread::Current(), true);
+  return AllocArrayFromCode(type_idx, referrer, length, art_get_current_thread_from_code(), true);
 }
 
 Object* art_check_and_alloc_array_from_code(uint32_t type_idx,
                                             Method* referrer,
                                             uint32_t length) {
-  return CheckAndAllocArrayFromCode(type_idx, referrer, length, Thread::Current(), false);
+  return CheckAndAllocArrayFromCode(type_idx, referrer, length, art_get_current_thread_from_code(), false);
 }
 
 Object* art_check_and_alloc_array_from_code_with_access_check(uint32_t type_idx,
                                                               Method* referrer,
                                                               uint32_t length) {
-  return CheckAndAllocArrayFromCode(type_idx, referrer, length, Thread::Current(), true);
+  return CheckAndAllocArrayFromCode(type_idx, referrer, length, art_get_current_thread_from_code(), true);
 }
 
 static Method* FindMethodHelper(uint32_t method_idx, Object* this_object, Method* caller_method,
@@ -216,13 +225,13 @@ static Method* FindMethodHelper(uint32_t method_idx, Object* this_object, Method
   Method* method = FindMethodFast(method_idx, this_object, caller_method, access_check, type);
   if (UNLIKELY(method == NULL)) {
     method = FindMethodFromCode(method_idx, this_object, caller_method,
-                                Thread::Current(), access_check, type);
+                                art_get_current_thread_from_code(), access_check, type);
     if (UNLIKELY(method == NULL)) {
-      CHECK(Thread::Current()->IsExceptionPending());
+      CHECK(art_get_current_thread_from_code()->IsExceptionPending());
       return 0;  // failure
     }
   }
-  DCHECK(!Thread::Current()->IsExceptionPending());
+  DCHECK(!art_get_current_thread_from_code()->IsExceptionPending());
   return method;
 }
 
@@ -264,17 +273,17 @@ Object* art_find_interface_method_from_code(uint32_t method_idx,
 }
 
 Object* art_initialize_static_storage_from_code(uint32_t type_idx, Method* referrer) {
-  return ResolveVerifyAndClinit(type_idx, referrer, Thread::Current(), true, false);
+  return ResolveVerifyAndClinit(type_idx, referrer, art_get_current_thread_from_code(), true, false);
 }
 
 Object* art_initialize_type_from_code(uint32_t type_idx, Method* referrer) {
-  return ResolveVerifyAndClinit(type_idx, referrer, Thread::Current(), false, false);
+  return ResolveVerifyAndClinit(type_idx, referrer, art_get_current_thread_from_code(), false, false);
 }
 
 Object* art_initialize_type_and_verify_access_from_code(uint32_t type_idx, Method* referrer) {
   // Called when caller isn't guaranteed to have access to a type and the dex cache may be
   // unpopulated
-  return ResolveVerifyAndClinit(type_idx, referrer, Thread::Current(), false, true);
+  return ResolveVerifyAndClinit(type_idx, referrer, art_get_current_thread_from_code(), false, true);
 }
 
 Object* art_resolve_string_from_code(Method* referrer, uint32_t string_idx) {
@@ -287,7 +296,7 @@ int32_t art_set32_static_from_code(uint32_t field_idx, Method* referrer, int32_t
     field->Set32(NULL, new_value);
     return 0;
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+  field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             true, true, true, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(NULL, new_value);
@@ -302,7 +311,7 @@ int32_t art_set64_static_from_code(uint32_t field_idx, Method* referrer, int64_t
     field->Set64(NULL, new_value);
     return 0;
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+  field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             true, true, true, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(NULL, new_value);
@@ -317,7 +326,7 @@ int32_t art_set_obj_static_from_code(uint32_t field_idx, Method* referrer, Objec
     field->SetObj(NULL, new_value);
     return 0;
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+  field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             true, false, true, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(NULL, new_value);
@@ -331,7 +340,7 @@ int32_t art_get32_static_from_code(uint32_t field_idx, Method* referrer) {
   if (LIKELY(field != NULL)) {
     return field->Get32(NULL);
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+  field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             true, true, false, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(NULL);
@@ -344,7 +353,7 @@ int64_t art_get64_static_from_code(uint32_t field_idx, Method* referrer) {
   if (LIKELY(field != NULL)) {
     return field->Get64(NULL);
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+  field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             true, true, false, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(NULL);
@@ -357,7 +366,7 @@ Object* art_get_obj_static_from_code(uint32_t field_idx, Method* referrer) {
   if (LIKELY(field != NULL)) {
     return field->GetObj(NULL);
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+  field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             true, false, false, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(NULL);
@@ -372,7 +381,7 @@ int32_t art_set32_instance_from_code(uint32_t field_idx, Method* referrer,
     field->Set32(obj, new_value);
     return 0;
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+  field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             false, true, true, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(obj, new_value);
@@ -388,7 +397,7 @@ int32_t art_set64_instance_from_code(uint32_t field_idx, Method* referrer,
     field->Set64(obj, new_value);
     return 0;
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+  field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             false, true, true, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(obj, new_value);
@@ -404,7 +413,7 @@ int32_t art_set_obj_instance_from_code(uint32_t field_idx, Method* referrer,
     field->SetObj(obj, new_value);
     return 0;
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+  field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             false, false, true, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(obj, new_value);
@@ -418,7 +427,7 @@ int32_t art_get32_instance_from_code(uint32_t field_idx, Method* referrer, Objec
   if (LIKELY(field != NULL)) {
     return field->Get32(obj);
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+  field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             false, true, false, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(obj);
@@ -431,7 +440,7 @@ int64_t art_get64_instance_from_code(uint32_t field_idx, Method* referrer, Objec
   if (LIKELY(field != NULL)) {
     return field->Get64(obj);
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+  field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             false, true, false, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(obj);
@@ -444,7 +453,7 @@ Object* art_get_obj_instance_from_code(uint32_t field_idx, Method* referrer, Obj
   if (LIKELY(field != NULL)) {
     return field->GetObj(obj);
   }
-  field = FindFieldFromCode(field_idx, referrer, Thread::Current(),
+  field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
                             false, false, false, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(obj);
@@ -473,10 +482,11 @@ void art_check_cast_from_code(const Class* dest_type, const Class* src_type) {
   DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
   DCHECK(src_type->IsClass()) << PrettyClass(src_type);
   if (UNLIKELY(!dest_type->IsAssignableFrom(src_type))) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
-        "%s cannot be cast to %s",
-        PrettyDescriptor(dest_type).c_str(),
-        PrettyDescriptor(src_type).c_str());
+    Thread* thread = art_get_current_thread_from_code();
+    thread->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
+                               "%s cannot be cast to %s",
+                               PrettyDescriptor(dest_type).c_str(),
+                               PrettyDescriptor(src_type).c_str());
   }
 }
 
@@ -490,10 +500,11 @@ void art_check_put_array_element_from_code(const Object* element, const Object* 
   Class* component_type = array_class->GetComponentType();
   Class* element_class = element->GetClass();
   if (UNLIKELY(!component_type->IsAssignableFrom(element_class))) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
-        "%s cannot be stored in an array of type %s",
-        PrettyDescriptor(element_class).c_str(),
-        PrettyDescriptor(array_class).c_str());
+    Thread* thread = art_get_current_thread_from_code();
+    thread->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
+                               "%s cannot be stored in an array of type %s",
+                               PrettyDescriptor(element_class).c_str(),
+                               PrettyDescriptor(array_class).c_str());
   }
   return;
 }
@@ -566,7 +577,7 @@ Method* art_ensure_resolved_from_code(Method* called,
   //                                               Resolve method.
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   called = linker->ResolveMethod(dex_method_idx, caller, !is_virtual);
-  if (UNLIKELY(Thread::Current()->IsExceptionPending())) {
+  if (UNLIKELY(art_get_current_thread_from_code()->IsExceptionPending())) {
     return NULL;
   }
   if (LIKELY(called->IsDirect() == !is_virtual)) {
@@ -575,10 +586,11 @@ Method* art_ensure_resolved_from_code(Method* called,
     linker->EnsureInitialized(called_class, true, true);
     return called;
   } else {
+    Thread* thread = art_get_current_thread_from_code();
     // Direct method has been made virtual
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-                                          "Expected direct method but found virtual: %s",
-                                          PrettyMethod(called, true).c_str());
+    thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+                               "Expected direct method but found virtual: %s",
+                               PrettyMethod(called, true).c_str());
     return NULL;
   }
 }
@@ -609,7 +621,7 @@ const void* art_fix_stub_from_code(Method* called) {
     } else if (called_class->IsInitializing()) {
       return linker->GetOatCodeFor(called);
     } else {
-      DCHECK(Thread::Current()->IsExceptionPending());
+      DCHECK(art_get_current_thread_from_code()->IsExceptionPending());
       DCHECK(called_class->IsErroneous());
       return NULL;
     }
@@ -617,8 +629,9 @@ const void* art_fix_stub_from_code(Method* called) {
 
   // 2. The code address is AbstractMethodErrorStub. -> AbstractMethodErrorStub
   if (UNLIKELY(code == runtime->GetAbstractMethodErrorStubArray()->GetData())) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
-                                          "abstract method \"%s\"", PrettyMethod(called).c_str());
+    art_get_current_thread_from_code()->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
+                                                           "abstract method \"%s\"",
+                                                           PrettyMethod(called).c_str());
     return NULL;
   }
 
@@ -638,7 +651,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
   va_start(ap, proxy_method);
 
   Object* receiver = va_arg(ap, Object*);
-  Thread* thread = Thread::Current();
+  Thread* thread = art_get_current_thread_from_code();
   MethodHelper proxy_mh(proxy_method);
   const size_t num_params = proxy_mh.NumArgs();
 

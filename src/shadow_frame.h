@@ -23,6 +23,7 @@
 namespace art {
 
 class Object;
+class Method;
 
 class ShadowFrame {
  public:

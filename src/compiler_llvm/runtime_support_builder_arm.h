@@ -14,25 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_FUNC_H_
-#define ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_FUNC_H_
+#ifndef ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_ARM_H_
+#define ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_ARM_H_
+
+#include "runtime_support_builder.h"
 
 namespace art {
 namespace compiler_llvm {
-namespace runtime_support {
 
-  enum RuntimeId {
-#define DEFINE_RUNTIME_SUPPORT_FUNC_ID(ID, NAME) ID,
-#include "runtime_support_func_list.h"
-    RUNTIME_SUPPORT_FUNC_LIST(DEFINE_RUNTIME_SUPPORT_FUNC_ID)
-#undef RUNTIME_SUPPORT_FUNC_LIST
-#undef DEFINE_RUNTIME_SUPPORT_FUNC_ID
+class RuntimeSupportBuilderARM : public RuntimeSupportBuilder {
+ public:
+  RuntimeSupportBuilderARM(llvm::LLVMContext& context, llvm::Module& module, IRBuilder& irb)
+    : RuntimeSupportBuilder(context, module, irb) {}
+ private:
+  virtual void TargetOptimizeRuntimeSupport();
+};
 
-    MAX_ID
-  };
-
-} // namespace runtime_support
 } // namespace compiler_llvm
 } // namespace art
 
-#endif // ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_FUNC_H_
+#endif // ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_ARM_H_
