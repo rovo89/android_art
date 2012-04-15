@@ -1248,18 +1248,6 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
   const ClassLoader* class_loader = context->GetClassLoader();
   const DexFile& dex_file = *context->GetDexFile();
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
-#if defined(ART_USE_LLVM_COMPILER)
-  // TODO: Remove this.  We should not lock the compiler_lock_ in CompileClass()
-  // However, without this mutex lock, we will get segmentation fault before
-  // LLVM becomes multithreaded.
-  Compiler* cmplr = context->GetCompiler();
-  CompilerMutexLockFn f =
-      FindFunction<CompilerMutexLockFn>(MakeCompilerSoName(cmplr->GetInstructionSet()),
-                                        cmplr->compiler_library_,
-                                        "compilerLLVMMutexLock");
-  UniquePtr<MutexLock> GUARD((*f)(*cmplr));
-#endif
-
   if (SkipClass(class_loader, dex_file, class_def)) {
     return;
   }

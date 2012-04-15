@@ -377,11 +377,6 @@ extern "C" std::vector<art::ElfImage> compilerLLVMGetElfImages(const art::Compil
   return ContextOf(compiler)->GetElfImages();
 }
 
-// Note: Using this function carefully!!! This is temporary solution, we will remove it.
-extern "C" art::MutexLock* compilerLLVMMutexLock(art::Compiler& compiler) {
-  return new art::MutexLock(ContextOf(compiler)->compiler_lock_);
-}
-
 extern "C" void compilerLLVMDispose(art::Compiler& compiler) {
   delete ContextOf(compiler);
 }
