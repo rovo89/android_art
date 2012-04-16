@@ -247,6 +247,7 @@ class Runtime {
 
  private:
   static void PlatformAbort(const char*, int);
+  static void InitPlatformSignalHandlers();
 
   Runtime();
 
