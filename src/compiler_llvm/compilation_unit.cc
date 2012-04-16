@@ -16,6 +16,7 @@
 
 #include "compilation_unit.h"
 
+#include "compiled_method.h"
 #include "instruction_set.h"
 #include "ir_builder.h"
 #include "logging.h"
@@ -34,6 +35,9 @@
 #include <llvm/Assembly/PrintModulePass.h>
 #include <llvm/Bitcode/ReaderWriter.h>
 #include <llvm/CallGraphSCCPass.h>
+#include <llvm/CodeGen/MachineFrameInfo.h>
+#include <llvm/CodeGen/MachineFunction.h>
+#include <llvm/CodeGen/MachineFunctionPass.h>
 #include <llvm/DerivedTypes.h>
 #include <llvm/LLVMContext.h>
 #include <llvm/Module.h>
@@ -56,6 +60,40 @@
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
 #include <string>
+
+namespace {
+
+class UpdateFrameSizePass : public llvm::MachineFunctionPass {
+ public:
+  static char ID;
+
+  UpdateFrameSizePass() : llvm::MachineFunctionPass(ID), cunit_(NULL) {
+    LOG(FATAL) << "Unexpected instantiation of UpdateFrameSizePass";
+    // NOTE: We have to declare this constructor for llvm::RegisterPass, but
+    // this constructor won't work because we have no information on
+    // CompilationUnit.  Thus, we should place a LOG(FATAL) here.
+  }
+
+  UpdateFrameSizePass(art::compiler_llvm::CompilationUnit* cunit)
+    : llvm::MachineFunctionPass(ID), cunit_(cunit) {
+  }
+
+  virtual bool runOnMachineFunction(llvm::MachineFunction &MF) {
+    cunit_->UpdateFrameSizeInBytes(MF.getFunction(),
+                                   MF.getFrameInfo()->getStackSize());
+    return false;
+  }
+
+ private:
+  art::compiler_llvm::CompilationUnit* cunit_;
+};
+
+char UpdateFrameSizePass::ID = 0;
+
+llvm::RegisterPass<UpdateFrameSizePass> reg_update_frame_size_pass_(
+  "update-frame-size", "Update frame size pass", false, false);
+
+} // end anonymous namespace
 
 namespace art {
 namespace compiler_llvm {
@@ -204,6 +242,9 @@ bool CompilationUnit::Materialize() {
       return false;
     }
 
+    // Add pass to update the frame_size_in_bytes_
+    pm.add(new ::UpdateFrameSizePass(this));
+
     // Run the per-function optimization
     fpm.doInitialization();
     for (llvm::Module::iterator F = module_->begin(), E = module_->end();
@@ -224,6 +265,30 @@ bool CompilationUnit::Materialize() {
   module_ = NULL;
 
   return true;
+}
+
+
+void CompilationUnit::RegisterCompiledMethod(const llvm::Function* func,
+                                             CompiledMethod* compiled_method) {
+  compiled_methods_map_.Put(func, compiled_method);
+}
+
+
+void CompilationUnit::UpdateFrameSizeInBytes(const llvm::Function* func,
+                                             size_t frame_size_in_bytes) {
+  SafeMap<const llvm::Function*, CompiledMethod*>::iterator iter =
+    compiled_methods_map_.find(func);
+
+  if (iter != compiled_methods_map_.end()) {
+    CompiledMethod* compiled_method = iter->second;
+    compiled_method->SetFrameSizeInBytes(frame_size_in_bytes);
+
+    if (frame_size_in_bytes > 1728u) {
+      LOG(WARNING) << "Huge frame size: " << frame_size_in_bytes
+                   << " elf_idx=" << compiled_method->GetElfIndex()
+                   << " elf_func_idx=" << compiled_method->GetElfFuncIndex();
+    }
+  }
 }
 
 

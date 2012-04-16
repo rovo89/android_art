@@ -23,11 +23,17 @@
 #include "logging.h"
 #include "runtime_support_builder.h"
 #include "runtime_support_func.h"
+#include "safe_map.h"
 
 #include <UniquePtr.h>
 #include <string>
 
+namespace art {
+  class CompiledMethod;
+}
+
 namespace llvm {
+  class Function;
   class LLVMContext;
   class Module;
 }
@@ -96,6 +102,10 @@ class CompilationUnit {
     mem_usage_ += usage;
   }
 
+  void RegisterCompiledMethod(const llvm::Function* func, CompiledMethod* cm);
+
+  void UpdateFrameSizeInBytes(const llvm::Function* func, size_t frame_size_in_bytes);
+
  private:
   InstructionSet insn_set_;
   const size_t elf_idx_;
@@ -107,6 +117,8 @@ class CompilationUnit {
 
   std::string elf_image_;
   std::string bitcode_filename_;
+
+  SafeMap<const llvm::Function*, CompiledMethod*> compiled_methods_map_;
 
   size_t mem_usage_;
   uint16_t num_elf_funcs_;

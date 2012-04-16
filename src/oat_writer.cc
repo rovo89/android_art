@@ -277,6 +277,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     if (compiled_method->IsExecutableInElf()) {
       code_elf_idx = compiled_method->GetElfIndex();
       code_elf_func_idx = compiled_method->GetElfFuncIndex();
+      frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
     } else {
       offset = compiled_method->AlignCode(offset);
       DCHECK_ALIGNED(offset, kArmAlignment);
