@@ -135,13 +135,19 @@ static const char* GetSignalCodeName(int signal_number, int signal_code) {
   // Then the other codes...
   switch (signal_code) {
     case SI_USER:     return "SI_USER";
+#if defined(SI_KERNEL)
     case SI_KERNEL:   return "SI_KERNEL";
+#endif
     case SI_QUEUE:    return "SI_QUEUE";
     case SI_TIMER:    return "SI_TIMER";
     case SI_MESGQ:    return "SI_MESGQ";
     case SI_ASYNCIO:  return "SI_ASYNCIO";
+#if defined(SI_SIGIO)
     case SI_SIGIO:    return "SI_SIGIO";
+#endif
+#if defined(SI_TKILL)
     case SI_TKILL:    return "SI_TKILL";
+#endif
   }
   // Then give up...
   return "?";
@@ -166,8 +172,10 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void*) {
   } else if (signal_number == SIGSEGV) {
     signal_name = "SIGSEGV";
     has_address = true;
+#if defined(SIGSTKFLT)
   } else if (signal_number == SIGSTKFLT) {
     signal_name = "SIGSTKFLT";
+#endif
   } else if (signal_number == SIGPIPE) {
     signal_name = "SIGPIPE";
   }
@@ -210,7 +218,9 @@ void Runtime::InitPlatformSignalHandlers() {
   rc += sigaction(SIGBUS, &action, NULL);
   rc += sigaction(SIGFPE, &action, NULL);
   rc += sigaction(SIGSEGV, &action, NULL);
+#if defined(SIGSTKFLT)
   rc += sigaction(SIGSTKFLT, &action, NULL);
+#endif
   rc += sigaction(SIGPIPE, &action, NULL);
   CHECK_EQ(rc, 0);
 }
