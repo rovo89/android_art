@@ -345,16 +345,26 @@ std::string PrettyClassAndClassLoader(const Class* c) {
   return result;
 }
 
-std::string PrettySize(size_t size_in_bytes) {
-  if ((size_in_bytes / GB) * GB == size_in_bytes) {
-    return StringPrintf("%zdGB", size_in_bytes / GB);
-  } else if ((size_in_bytes / MB) * MB == size_in_bytes) {
-    return StringPrintf("%zdMB", size_in_bytes / MB);
-  } else if ((size_in_bytes / KB) * KB == size_in_bytes) {
-    return StringPrintf("%zdKB", size_in_bytes / KB);
-  } else {
-    return StringPrintf("%zdB", size_in_bytes);
+std::string PrettySize(size_t byte_count) {
+  // The byte thresholds at which we display amounts.  A byte count is displayed
+  // in unit U when kUnitThresholds[U] <= bytes < kUnitThresholds[U+1].
+  static const size_t kUnitThresholds[] = {
+    0,              // B up to...
+    3*1024,         // KB up to...
+    2*1024*1024,    // MB up to...
+    1024*1024*1024  // GB from here.
+  };
+  static const size_t kBytesPerUnit[] = { 1, KB, MB, GB };
+  static const char* const kUnitStrings[] = { "B", "KB", "MB", "GB" };
+
+  int i = arraysize(kUnitThresholds);
+  while (--i > 0) {
+    if (byte_count >= kUnitThresholds[i]) {
+      break;
+    }
   }
+
+  return StringPrintf("%zd%s", byte_count / kBytesPerUnit[i], kUnitStrings[i]);
 }
 
 std::string PrettyDuration(uint64_t nano_duration) {

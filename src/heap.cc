@@ -641,16 +641,10 @@ void Heap::CollectGarbageInternal(bool clear_soft_references) {
   if (VLOG_IS_ON(gc) || gc_was_particularly_slow) {
     // TODO: somehow make the specific GC implementation (here MarkSweep) responsible for logging.
     size_t bytes_freed = initial_size - num_bytes_allocated_;
-    if (bytes_freed > KB) {  // ignore freed bytes in output if > 1KB
-      bytes_freed = RoundDown(bytes_freed, KB);
-    }
-    size_t bytes_allocated = RoundUp(num_bytes_allocated_, KB);
     // lose low nanoseconds in duration. TODO: make this part of PrettyDuration
     duration_ns = (duration_ns / 1000) * 1000;
-    size_t total = GetTotalMemory();
-    size_t percentFree = 100 - static_cast<size_t>(100.0f * static_cast<float>(num_bytes_allocated_) / total);
-    LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << percentFree << "% free, "
-              << PrettySize(bytes_allocated) << "/" << PrettySize(total) << ", "
+    LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
+              << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
               << "paused " << PrettyDuration(duration_ns);
   }
   Dbg::GcDidFinish();
@@ -661,6 +655,17 @@ void Heap::CollectGarbageInternal(bool clear_soft_references) {
 
 void Heap::WaitForConcurrentGcToComplete() {
   lock_->AssertHeld();
+}
+
+void Heap::DumpForSigQuit(std::ostream& os) {
+  os << "Heap: " << GetPercentFree() << "% free, "
+     << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory())
+     << "; " << num_objects_allocated_ << " objects";
+}
+
+size_t Heap::GetPercentFree() {
+  size_t total = GetTotalMemory();
+  return 100 - static_cast<size_t>(100.0f * static_cast<float>(num_bytes_allocated_) / total);
 }
 
 void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
