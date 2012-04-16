@@ -29,7 +29,7 @@ TEST_F(RegTypeTest, Primitives) {
   RegTypeCache cache;
 
   const RegType& bool_reg_type = cache.Boolean();
-  EXPECT_FALSE(bool_reg_type.IsUnknown());
+  EXPECT_FALSE(bool_reg_type.IsUndefined());
   EXPECT_FALSE(bool_reg_type.IsConflict());
   EXPECT_FALSE(bool_reg_type.IsZero());
   EXPECT_FALSE(bool_reg_type.IsOne());
@@ -60,7 +60,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(bool_reg_type.IsArrayIndexTypes());
 
   const RegType& byte_reg_type = cache.Byte();
-  EXPECT_FALSE(byte_reg_type.IsUnknown());
+  EXPECT_FALSE(byte_reg_type.IsUndefined());
   EXPECT_FALSE(byte_reg_type.IsConflict());
   EXPECT_FALSE(byte_reg_type.IsZero());
   EXPECT_FALSE(byte_reg_type.IsOne());
@@ -91,7 +91,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(byte_reg_type.IsArrayIndexTypes());
 
   const RegType& char_reg_type = cache.Char();
-  EXPECT_FALSE(char_reg_type.IsUnknown());
+  EXPECT_FALSE(char_reg_type.IsUndefined());
   EXPECT_FALSE(char_reg_type.IsConflict());
   EXPECT_FALSE(char_reg_type.IsZero());
   EXPECT_FALSE(char_reg_type.IsOne());
@@ -122,7 +122,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(char_reg_type.IsArrayIndexTypes());
 
   const RegType& short_reg_type = cache.Short();
-  EXPECT_FALSE(short_reg_type.IsUnknown());
+  EXPECT_FALSE(short_reg_type.IsUndefined());
   EXPECT_FALSE(short_reg_type.IsConflict());
   EXPECT_FALSE(short_reg_type.IsZero());
   EXPECT_FALSE(short_reg_type.IsOne());
@@ -153,7 +153,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(short_reg_type.IsArrayIndexTypes());
 
   const RegType& int_reg_type = cache.Integer();
-  EXPECT_FALSE(int_reg_type.IsUnknown());
+  EXPECT_FALSE(int_reg_type.IsUndefined());
   EXPECT_FALSE(int_reg_type.IsConflict());
   EXPECT_FALSE(int_reg_type.IsZero());
   EXPECT_FALSE(int_reg_type.IsOne());
@@ -184,7 +184,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(int_reg_type.IsArrayIndexTypes());
 
   const RegType& long_reg_type = cache.Long();
-  EXPECT_FALSE(long_reg_type.IsUnknown());
+  EXPECT_FALSE(long_reg_type.IsUndefined());
   EXPECT_FALSE(long_reg_type.IsConflict());
   EXPECT_FALSE(long_reg_type.IsZero());
   EXPECT_FALSE(long_reg_type.IsOne());
@@ -215,7 +215,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(long_reg_type.IsArrayIndexTypes());
 
   const RegType& float_reg_type = cache.Float();
-  EXPECT_FALSE(float_reg_type.IsUnknown());
+  EXPECT_FALSE(float_reg_type.IsUndefined());
   EXPECT_FALSE(float_reg_type.IsConflict());
   EXPECT_FALSE(float_reg_type.IsZero());
   EXPECT_FALSE(float_reg_type.IsOne());
@@ -246,7 +246,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(float_reg_type.IsArrayIndexTypes());
 
   const RegType& double_reg_type = cache.Double();
-  EXPECT_FALSE(double_reg_type.IsUnknown());
+  EXPECT_FALSE(double_reg_type.IsUndefined());
   EXPECT_FALSE(double_reg_type.IsConflict());
   EXPECT_FALSE(double_reg_type.IsZero());
   EXPECT_FALSE(double_reg_type.IsOne());
