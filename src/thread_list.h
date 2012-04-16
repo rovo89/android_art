@@ -31,7 +31,7 @@ class ThreadList {
   explicit ThreadList();
   ~ThreadList();
 
-  void Dump(std::ostream& os);
+  void DumpForSigQuit(std::ostream& os);
   void DumpLocked(std::ostream& os); // For thread suspend timeout dumps.
   pid_t GetLockOwner(); // For SignalCatcher.
 

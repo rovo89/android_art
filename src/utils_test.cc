@@ -135,15 +135,17 @@ TEST_F(UtilsTest, PrettySize) {
   if (sizeof(size_t) > sizeof(uint32_t)) {
     EXPECT_EQ("100GB", PrettySize(100 * GB));
   }
-  EXPECT_EQ("1MB", PrettySize(1 * MB));
+  EXPECT_EQ("1024KB", PrettySize(1 * MB));
   EXPECT_EQ("10MB", PrettySize(10 * MB));
   EXPECT_EQ("100MB", PrettySize(100 * MB));
-  EXPECT_EQ("1KB", PrettySize(1 * KB));
+  EXPECT_EQ("1024B", PrettySize(1 * KB));
   EXPECT_EQ("10KB", PrettySize(10 * KB));
   EXPECT_EQ("100KB", PrettySize(100 * KB));
+  EXPECT_EQ("0B", PrettySize(0));
   EXPECT_EQ("1B", PrettySize(1));
   EXPECT_EQ("10B", PrettySize(10));
   EXPECT_EQ("100B", PrettySize(100));
+  EXPECT_EQ("512B", PrettySize(512));
 }
 
 TEST_F(UtilsTest, PrettyDuration) {

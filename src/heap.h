@@ -17,6 +17,7 @@
 #ifndef ART_SRC_HEAP_H_
 #define ART_SRC_HEAP_H_
 
+#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -219,6 +220,8 @@ class Heap {
     return alloc_space_;
   }
 
+  void DumpForSigQuit(std::ostream& os);
+
  private:
   // Allocates uninitialized storage.
   Object* AllocateLocked(size_t num_bytes);
@@ -238,6 +241,8 @@ class Heap {
   // the target utilization ratio.  This should only be called immediately after a full garbage
   // collection.
   void GrowForUtilization();
+
+  size_t GetPercentFree();
 
   void AddSpace(Space* space);
 

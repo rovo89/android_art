@@ -745,13 +745,13 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
 #undef REGISTER
 }
 
-void Runtime::Dump(std::ostream& os) {
-  // TODO: dump other runtime statistics?
+void Runtime::DumpForSigQuit(std::ostream& os) {
   GetClassLinker()->DumpForSigQuit(os);
   GetInternTable()->DumpForSigQuit(os);
+  GetHeap()->DumpForSigQuit(os);
   os << "\n";
 
-  thread_list_->Dump(os);
+  thread_list_->DumpForSigQuit(os);
 }
 
 void Runtime::DumpLockHolders(std::ostream& os) {

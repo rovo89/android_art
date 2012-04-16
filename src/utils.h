@@ -191,7 +191,7 @@ std::string PrettyClass(const Class* c);
 // Returns a human-readable form of the name of the given class with its class loader.
 std::string PrettyClassAndClassLoader(const Class* c);
 
-// Returns a human-readable size string. e.g. "1MB"
+// Returns a human-readable size string such as "1MB".
 std::string PrettySize(size_t size_in_bytes);
 
 // Returns a human-readable time string which prints every nanosecond while trying to limit the

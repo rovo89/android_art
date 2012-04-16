@@ -54,7 +54,7 @@ pid_t ThreadList::GetLockOwner() {
   return thread_list_lock_.GetOwner();
 }
 
-void ThreadList::Dump(std::ostream& os) {
+void ThreadList::DumpForSigQuit(std::ostream& os) {
   ScopedThreadListLock thread_list_lock;
   DumpLocked(os);
 }

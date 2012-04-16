@@ -114,7 +114,7 @@ void SignalCatcher::HandleSigQuit() {
     os << "Cmd line: " << cmdline << "\n";
   }
 
-  runtime->Dump(os);
+  runtime->DumpForSigQuit(os);
 
   if (false) {
     std::string maps;

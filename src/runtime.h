@@ -130,7 +130,7 @@ class Runtime {
   // Detaches the current native thread from the runtime.
   void DetachCurrentThread();
 
-  void Dump(std::ostream& os);
+  void DumpForSigQuit(std::ostream& os);
   void DumpLockHolders(std::ostream& os);
 
   ~Runtime();
