@@ -52,10 +52,18 @@ static void DumpReg0(std::ostream& os, uint8_t /*rex*/, size_t reg,
   }
 }
 
+enum RegFile { GPR, MMX, SSE };
+
 static void DumpReg(std::ostream& os, uint8_t rex, uint8_t reg,
-                    bool byte_operand, uint8_t size_override) {
+                    bool byte_operand, uint8_t size_override, RegFile reg_file) {
   size_t reg_num = reg;  // TODO: combine with REX.R on 64bit
-  DumpReg0(os, rex, reg_num, byte_operand, size_override);
+  if (reg_file == GPR) {
+    DumpReg0(os, rex, reg_num, byte_operand, size_override);
+  } else if (reg_file == SSE) {
+    os << "xmm" << reg_num;
+  } else {
+    os << "mm" << reg_num;
+  }
 }
 
 static void DumpBaseReg(std::ostream& os, uint8_t rex, uint8_t reg) {
@@ -138,6 +146,8 @@ size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) 
   bool byte_operand = false;
   bool ax = false;  // implicit use of ax
   bool reg_in_opcode = false;  // low 3-bits of opcode encode register parameter
+  RegFile src_reg_file = GPR;
+  RegFile dst_reg_file = GPR;
   switch (*instr) {
 #define DISASSEMBLER_ENTRY(opname, \
                      rm8_r8, rm32_r32, \
@@ -222,6 +232,7 @@ DISASSEMBLER_ENTRY(cmp,
           opcode << "movups";
         }
         has_modrm = true;
+        src_reg_file = dst_reg_file = SSE;
         load = *instr == 0x10;
         store = !load;
         break;
@@ -230,6 +241,102 @@ DISASSEMBLER_ENTRY(cmp,
         break;
       case 0x3A:  // 3 byte extended opcode
         opcode << StringPrintf("unknown opcode '0F 3A %02X'", *instr);
+        break;
+      case 0x50: case 0x51: case 0x52: case 0x53: case 0x54: case 0x55: case 0x56: case 0x57:
+      case 0x58: case 0x59: case 0x5C: case 0x5D: case 0x5E: case 0x5F: {
+        switch (*instr) {
+          case 0x50: opcode << "movmsk"; break;
+          case 0x51: opcode << "sqrt"; break;
+          case 0x52: opcode << "rsqrt"; break;
+          case 0x53: opcode << "rcp"; break;
+          case 0x54: opcode << "and"; break;
+          case 0x55: opcode << "andn"; break;
+          case 0x56: opcode << "or"; break;
+          case 0x57: opcode << "xor"; break;
+          case 0x58: opcode << "add"; break;
+          case 0x59: opcode << "mul"; break;
+          case 0x5C: opcode << "sub"; break;
+          case 0x5D: opcode << "min"; break;
+          case 0x5E: opcode << "div"; break;
+          case 0x5F: opcode << "max"; break;
+          default: LOG(FATAL) << "Unreachable";
+        }
+        if (prefix[2] == 0x66) {
+          opcode << "pd";
+          prefix[2] = 0;  // clear prefix now its served its purpose as part of the opcode
+        } else if (prefix[0] == 0xF2) {
+          opcode << "sd";
+          prefix[0] = 0;  // clear prefix now its served its purpose as part of the opcode
+        } else if (prefix[0] == 0xF3) {
+          opcode << "ss";
+          prefix[0] = 0;  // clear prefix now its served its purpose as part of the opcode
+        } else {
+          opcode << "ps";
+        }
+        load = true;
+        has_modrm = true;
+        src_reg_file = dst_reg_file = SSE;
+        break;
+      }
+      case 0x5A:
+        if (prefix[2] == 0x66) {
+          opcode << "cvtpd2ps";
+          prefix[2] = 0;  // clear prefix now its served its purpose as part of the opcode
+        } else if (prefix[0] == 0xF2) {
+          opcode << "cvtsd2ss";
+          prefix[0] = 0;  // clear prefix now its served its purpose as part of the opcode
+        } else if (prefix[0] == 0xF3) {
+          opcode << "cvtss2sd";
+          prefix[0] = 0;  // clear prefix now its served its purpose as part of the opcode
+        } else {
+          opcode << "cvtps2pd";
+        }
+        load = true;
+        has_modrm = true;
+        src_reg_file = dst_reg_file = SSE;
+        break;
+      case 0x5B:
+        if (prefix[2] == 0x66) {
+          opcode << "cvtps2dq";
+          prefix[2] = 0;  // clear prefix now its served its purpose as part of the opcode
+        } else if (prefix[0] == 0xF2) {
+          opcode << "bad opcode F2 0F 5B";
+        } else if (prefix[0] == 0xF3) {
+          opcode << "cvttps2dq";
+          prefix[0] = 0;  // clear prefix now its served its purpose as part of the opcode
+        } else {
+          opcode << "cvtdq2ps";
+        }
+        load = true;
+        has_modrm = true;
+        src_reg_file = dst_reg_file = SSE;
+        break;
+      case 0x6E:
+        if (prefix[2] == 0x66) {
+          dst_reg_file = SSE;
+          opcode << "movq";
+          prefix[2] = 0;  // clear prefix now its served its purpose as part of the opcode
+        } else {
+          dst_reg_file = MMX;
+          opcode << "movd";
+        }
+        load = true;
+        has_modrm = true;
+        break;
+      case 0x6F:
+        if (prefix[2] == 0x66) {
+          dst_reg_file = SSE;
+          opcode << "movdqa";
+        } else if (prefix[0] == 0xF3) {
+          dst_reg_file = SSE;
+          opcode << "movdqu";
+          prefix[0] = 0;  // clear prefix now its served its purpose as part of the opcode
+        } else {
+          dst_reg_file = MMX;
+          opcode << "movq";
+        }
+        load = true;
+        has_modrm = true;
         break;
       case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87:
       case 0x88: case 0x89: case 0x8A: case 0x8B: case 0x8C: case 0x8D: case 0x8E: case 0x8F:
@@ -312,7 +419,7 @@ DISASSEMBLER_ENTRY(cmp,
   std::ostringstream args;
   if (reg_in_opcode) {
     DCHECK(!has_modrm);
-    DumpReg(args, rex, *instr & 0x7, false, prefix[2]);
+    DumpReg(args, rex, *instr & 0x7, false, prefix[2], GPR);
   }
   instr++;
   uint32_t address_bits = 0;
@@ -355,18 +462,18 @@ DISASSEMBLER_ENTRY(cmp,
       }
       address << "]";
     } else {
-      if (mod != 3) {
+      if (mod == 3) {
+        DumpReg(address, rex, rm, byte_operand, prefix[2], load ? src_reg_file : dst_reg_file);
+      } else {
         address << "[";
-      }
-      DumpBaseReg(address, rex, rm);
-      if (mod == 1) {
-        address << StringPrintf(" + %d", *reinterpret_cast<const int8_t*>(instr));
-        instr++;
-      } else if (mod == 2) {
-        address << StringPrintf(" + %d", *reinterpret_cast<const int32_t*>(instr));
-        instr += 4;
-      }
-      if (mod != 3) {
+        DumpBaseReg(address, rex, rm);
+        if (mod == 1) {
+          address << StringPrintf(" + %d", *reinterpret_cast<const int8_t*>(instr));
+          instr++;
+        } else if (mod == 2) {
+          address << StringPrintf(" + %d", *reinterpret_cast<const int32_t*>(instr));
+          instr += 4;
+        }
         address << "]";
       }
     }
@@ -376,7 +483,7 @@ DISASSEMBLER_ENTRY(cmp,
     }
     if (load) {
       if (!reg_is_opcode) {
-        DumpReg(args, rex, reg_or_opcode, byte_operand, prefix[2]);
+        DumpReg(args, rex, reg_or_opcode, byte_operand, prefix[2], dst_reg_file);
         args << ", ";
       }
       DumpSegmentOverride(args, prefix[1]);
@@ -387,12 +494,12 @@ DISASSEMBLER_ENTRY(cmp,
       args << address.str();
       if (!reg_is_opcode) {
         args << ", ";
-        DumpReg(args, rex, reg_or_opcode, byte_operand, prefix[2]);
+        DumpReg(args, rex, reg_or_opcode, byte_operand, prefix[2], src_reg_file);
       }
     }
   }
   if (ax) {
-    DumpReg(args, rex, 0 /* EAX */, byte_operand, prefix[2]);
+    DumpReg(args, rex, 0 /* EAX */, byte_operand, prefix[2], GPR);
   }
   if (immediate_bytes > 0) {
     if (has_modrm || reg_in_opcode || ax) {
