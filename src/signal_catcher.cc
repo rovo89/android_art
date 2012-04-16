@@ -31,6 +31,7 @@
 #include "os.h"
 #include "runtime.h"
 #include "scoped_heap_lock.h"
+#include "signal_set.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "utils.h"
@@ -135,21 +136,14 @@ void SignalCatcher::HandleSigUsr1() {
   Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
-int SignalCatcher::WaitForSignal(sigset_t& mask) {
+int SignalCatcher::WaitForSignal(SignalSet& signals) {
   ScopedThreadStateChange tsc(thread_, kVmWait);
 
   // Signals for sigwait() must be blocked but not ignored.  We
   // block signals like SIGQUIT for all threads, so the condition
   // is met.  When the signal hits, we wake up, without any signal
   // handlers being invoked.
-
-  // Sleep in sigwait() until a signal arrives. gdb causes EINTR failures.
-  int signal_number;
-  int rc = TEMP_FAILURE_RETRY(sigwait(&mask, &signal_number));
-  if (rc != 0) {
-    PLOG(FATAL) << "sigwait failed";
-  }
-
+  int signal_number = signals.Wait();
   if (!ShouldHalt()) {
     // Let the user know we got the signal, just in case the system's too screwed for us to
     // actually do what they want us to do...
@@ -177,13 +171,12 @@ void* SignalCatcher::Run(void* arg) {
   }
 
   // Set up mask with signals we want to handle.
-  sigset_t mask;
-  sigemptyset(&mask);
-  sigaddset(&mask, SIGQUIT);
-  sigaddset(&mask, SIGUSR1);
+  SignalSet signals;
+  signals.Add(SIGQUIT);
+  signals.Add(SIGUSR1);
 
   while (true) {
-    int signal_number = signal_catcher->WaitForSignal(mask);
+    int signal_number = signal_catcher->WaitForSignal(signals);
     if (signal_catcher->ShouldHalt()) {
       runtime->DetachCurrentThread();
       return NULL;

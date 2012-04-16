@@ -37,6 +37,7 @@
 #include "oat_file.h"
 #include "ScopedLocalRef.h"
 #include "signal_catcher.h"
+#include "signal_set.h"
 #include "space.h"
 #include "thread.h"
 #include "thread_list.h"
@@ -658,6 +659,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
                    options->image_);
 
   BlockSignals();
+  InitPlatformSignalHandlers();
 
   java_vm_ = new JavaVMExt(this, options.get());
 
@@ -822,22 +824,13 @@ int32_t Runtime::GetStat(int kind) {
 }
 
 void Runtime::BlockSignals() {
-  sigset_t sigset;
-  if (sigemptyset(&sigset) == -1) {
-    PLOG(FATAL) << "sigemptyset failed";
-  }
-  if (sigaddset(&sigset, SIGPIPE) == -1) {
-    PLOG(ERROR) << "sigaddset SIGPIPE failed";
-  }
+  SignalSet signals;
+  signals.Add(SIGPIPE);
   // SIGQUIT is used to dump the runtime's state (including stack traces).
-  if (sigaddset(&sigset, SIGQUIT) == -1) {
-    PLOG(ERROR) << "sigaddset SIGQUIT failed";
-  }
+  signals.Add(SIGQUIT);
   // SIGUSR1 is used to initiate a GC.
-  if (sigaddset(&sigset, SIGUSR1) == -1) {
-    PLOG(ERROR) << "sigaddset SIGUSR1 failed";
-  }
-  CHECK_EQ(sigprocmask(SIG_BLOCK, &sigset, NULL), 0);
+  signals.Add(SIGUSR1);
+  signals.Block();
 }
 
 void Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, Object* thread_group) {
