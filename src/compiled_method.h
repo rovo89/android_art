@@ -65,6 +65,12 @@ class CompiledMethod {
   const std::vector<uint16_t>& GetVmapTable() const;
   const std::vector<uint8_t>& GetGcMap() const;
 
+#if defined(ART_USE_LLVM_COMPILER)
+  void SetFrameSizeInBytes(size_t new_frame_size_in_bytes) {
+    frame_size_in_bytes_ = new_frame_size_in_bytes;
+  }
+#endif
+
   // Aligns an offset from a page aligned value to make it suitable
   // for code storage. important to ensure that PC relative value
   // computations work out as expected on ARM.
@@ -99,7 +105,7 @@ class CompiledMethod {
   // For non-LLVM
   const InstructionSet instruction_set_;
   std::vector<uint8_t> code_;
-  const size_t frame_size_in_bytes_;
+  size_t frame_size_in_bytes_;
   const uint32_t core_spill_mask_;
   const uint32_t fp_spill_mask_;
   std::vector<uint32_t> mapping_table_;
