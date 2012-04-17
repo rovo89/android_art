@@ -62,6 +62,10 @@ int CmplDouble(double a, double b) {
   return -1;
 }
 
+int64_t Lmul(int64_t a, int64_t b) {
+  return a * b;
+}
+
 extern "C" int64_t artLdivFromCode(int64_t a, int64_t b) {
   return a / b;
 }
