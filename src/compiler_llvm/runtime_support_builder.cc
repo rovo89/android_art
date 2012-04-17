@@ -16,6 +16,7 @@
 
 #include "runtime_support_builder.h"
 
+#include "card_table.h"
 #include "ir_builder.h"
 #include "shadow_frame.h"
 #include "thread.h"
@@ -38,6 +39,7 @@ RuntimeSupportBuilder::RuntimeSupportBuilder(llvm::LLVMContext& context,
                                              IRBuilder& irb)
     : context_(context), module_(module), irb_(irb)
 {
+  memset(target_runtime_support_func_, 0, sizeof(target_runtime_support_func_));
 #define GET_RUNTIME_SUPPORT_FUNC_DECL(ID, NAME) \
   do { \
     llvm::Function* fn = module_.getFunction(#NAME); \
@@ -161,6 +163,38 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     irb_.CreateRetVoid();
 
     OverrideRuntimeSupportFunction(TestSuspend, func);
+  }
+
+  if (!target_runtime_support_func_[MarkGCCard]) {
+    Function* func = GetRuntimeSupportFunction(MarkGCCard);
+    MakeFunctionInline(func);
+    BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
+    irb_.SetInsertPoint(basic_block);
+    Function::arg_iterator arg_iter = func->arg_begin();
+    Value* value = arg_iter++;
+    Value* target_addr = arg_iter++;
+
+    llvm::Value* is_value_null = irb_.CreateICmpEQ(value, irb_.getJNull());
+
+    llvm::BasicBlock* block_value_is_null = BasicBlock::Create(context_, "value_is_null", func);
+    llvm::BasicBlock* block_mark_gc_card = BasicBlock::Create(context_, "mark_gc_card", func);
+
+    irb_.CreateCondBr(is_value_null, block_value_is_null, block_mark_gc_card);
+
+    irb_.SetInsertPoint(block_value_is_null);
+    irb_.CreateRetVoid();
+
+    irb_.SetInsertPoint(block_mark_gc_card);
+    Function* get_thread = GetRuntimeSupportFunction(GetCurrentThread);
+    Value* thread = irb_.CreateCall(get_thread);
+    Value* card_table = irb_.LoadFromObjectOffset(thread,
+                                                  Thread::CardTableOffset().Int32Value(),
+                                                  irb_.getInt8Ty()->getPointerTo());
+    Value* target_addr_int = irb_.CreatePtrToInt(target_addr, irb_.getPtrEquivIntTy());
+    Value* card_no = irb_.CreateLShr(target_addr_int, irb_.getPtrEquivInt(GC_CARD_SHIFT));
+    Value* card_table_entry = irb_.CreateGEP(card_table, card_no);
+    irb_.CreateStore(irb_.getInt8(GC_CARD_DIRTY), card_table_entry);
+    irb_.CreateRetVoid();
   }
 }
 

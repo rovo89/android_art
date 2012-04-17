@@ -2252,6 +2252,12 @@ llvm::Value* MethodCompiler::EmitConditionResult(llvm::Value* lhs,
   }
 }
 
+void MethodCompiler::EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr) {
+  // Using runtime support, let the target can override by InlineAssembly.
+  llvm::Function* runtime_func = irb_.GetRuntime(MarkGCCard);
+
+  irb_.CreateCall2(runtime_func, value, target_addr);
+}
 
 void
 MethodCompiler::EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
@@ -2354,12 +2360,14 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
 
   llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA, elem_jty, kArray);
 
-  if (elem_jty == kObject) { // If put an object, check the type.
+  if (elem_jty == kObject) { // If put an object, check the type, and mark GC card table.
     llvm::Function* runtime_func = irb_.GetRuntime(CheckPutArrayElement);
 
     irb_.CreateCall2(runtime_func, new_value, array_addr);
 
     EmitGuard_ExceptionLandingPad(dex_pc);
+
+    EmitMarkGCCard(new_value, array_addr);
   }
 
   irb_.CreateStore(new_value, array_elem_addr);
@@ -2488,6 +2496,10 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
     // TODO: Check is_volatile.  We need to generate atomic store instruction
     // when is_volatile is true.
     irb_.CreateStore(new_value, field_addr);
+
+    if (field_jty == kObject) { // If put an object, mark the GC card table.
+      EmitMarkGCCard(new_value, object_addr);
+    }
   }
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
@@ -2704,6 +2716,10 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
     // TODO: Check is_volatile.  We need to generate atomic store instruction
     // when is_volatile is true.
     irb_.CreateStore(new_value, static_field_addr);
+
+    if (field_jty == kObject) { // If put an object, mark the GC card table.
+      EmitMarkGCCard(new_value, static_storage_addr);
+    }
   }
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));

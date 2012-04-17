@@ -260,6 +260,8 @@ class MethodCompiler {
 
 #undef GEN_INSN_ARGS
 
+  // GC card table helper function
+  void EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr);
 
   // Shadow frame helper function
   void EmitPopShadowFrame();

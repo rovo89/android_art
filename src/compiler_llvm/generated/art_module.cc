@@ -933,6 +933,17 @@ func_F2I->setCallingConv(CallingConv::C);
 AttrListPtr func_F2I_PAL;
 func_F2I->setAttributes(func_F2I_PAL);
 
+Function* func_art_mark_gc_card_from_code = mod->getFunction("art_mark_gc_card_from_code");
+if (!func_art_mark_gc_card_from_code) {
+func_art_mark_gc_card_from_code = Function::Create(
+ /*Type=*/FuncTy_28,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_mark_gc_card_from_code", mod); // (external, no body)
+func_art_mark_gc_card_from_code->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_mark_gc_card_from_code_PAL;
+func_art_mark_gc_card_from_code->setAttributes(func_art_mark_gc_card_from_code_PAL);
+
 Function* func_art_ensure_resolved_from_code = mod->getFunction("art_ensure_resolved_from_code");
 if (!func_art_ensure_resolved_from_code) {
 func_art_ensure_resolved_from_code = Function::Create(
