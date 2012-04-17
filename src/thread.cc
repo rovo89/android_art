@@ -18,6 +18,7 @@
 
 #include <dynamic_annotations.h>
 #include <pthread.h>
+#include <signal.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <sys/time.h>
