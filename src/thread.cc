@@ -189,6 +189,43 @@ static size_t FixStackSize(size_t stack_size) {
   return stack_size;
 }
 
+static void SigAltStack(stack_t* new_stack, stack_t* old_stack) {
+  if (sigaltstack(new_stack, old_stack) == -1) {
+    PLOG(FATAL) << "sigaltstack failed";
+  }
+}
+
+static void SetUpAlternateSignalStack() {
+  // Create and set an alternate signal stack.
+  stack_t ss;
+  ss.ss_sp = new uint8_t[SIGSTKSZ];
+  ss.ss_size = SIGSTKSZ;
+  ss.ss_flags = 0;
+  CHECK(ss.ss_sp != NULL);
+  SigAltStack(&ss, NULL);
+
+  // Double-check that it worked.
+  ss.ss_sp = NULL;
+  SigAltStack(NULL, &ss);
+  VLOG(threads) << "Alternate signal stack is " << PrettySize(ss.ss_size) << " at " << ss.ss_sp;
+}
+
+static void TearDownAlternateSignalStack() {
+  // Get the pointer so we can free the memory.
+  stack_t ss;
+  SigAltStack(NULL, &ss);
+  uint8_t* allocated_signal_stack = reinterpret_cast<uint8_t*>(ss.ss_sp);
+
+  // Tell the kernel to stop using it.
+  ss.ss_sp = NULL;
+  ss.ss_flags = SS_DISABLE;
+  ss.ss_size = 0;
+  SigAltStack(&ss, NULL);
+
+  // Free it.
+  delete[] allocated_signal_stack;
+}
+
 void Thread::Create(Object* peer, size_t stack_size) {
   CHECK(peer != NULL);
 
@@ -223,6 +260,7 @@ void Thread::Init() {
   // thread hasn't been through here already...
   CHECK(Thread::Current() == NULL);
 
+  SetUpAlternateSignalStack();
   InitCpu();
   InitFunctionPointers();
   InitCardTable();
@@ -882,6 +920,8 @@ Thread::~Thread() {
   delete debug_invoke_req_;
   delete trace_stack_;
   delete name_;
+
+  TearDownAlternateSignalStack();
 }
 
 void Thread::HandleUncaughtExceptions() {
