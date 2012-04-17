@@ -38,8 +38,8 @@ namespace art {
 
 static int gJava_StackWalk_refmap_calls = 0;
 
-struct ReferenceMapVisitor : public Thread::StackVisitor {
-  ReferenceMapVisitor() {
+struct TestReferenceMapVisitor : public Thread::StackVisitor {
+  TestReferenceMapVisitor() {
   }
 
   bool VisitFrame(const Frame& frame, uintptr_t pc) {
@@ -99,7 +99,7 @@ extern "C" JNIEXPORT jint JNICALL Java_StackWalk_refmap(JNIEnv*, jobject, jint c
   gJava_StackWalk_refmap_calls++;
 
   // Visitor
-  ReferenceMapVisitor mapper;
+  TestReferenceMapVisitor mapper;
   Thread::Current()->WalkStack(&mapper);
 
   return count + 1;
@@ -109,7 +109,7 @@ extern "C" JNIEXPORT jint JNICALL Java_StackWalk2_refmap2(JNIEnv*, jobject, jint
   gJava_StackWalk_refmap_calls++;
 
   // Visitor
-  ReferenceMapVisitor mapper;
+  TestReferenceMapVisitor mapper;
   Thread::Current()->WalkStack(&mapper);
 
   return count + 1;
