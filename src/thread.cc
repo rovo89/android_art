@@ -75,17 +75,21 @@ void Thread::InitCardTable() {
   card_table_ = Runtime::Current()->GetHeap()->GetCardTable()->GetBiasedBegin();
 }
 
+#if !defined(__APPLE__)
 static void UnimplementedEntryPoint() {
   UNIMPLEMENTED(FATAL);
 }
+#endif
 
 void Thread::InitFunctionPointers() {
+#if !defined(__APPLE__) // The Mac GCC is too old to accept this code.
   // Insert a placeholder so we can easily tell if we call an unimplemented entry point.
   uintptr_t* begin = reinterpret_cast<uintptr_t*>(&entrypoints_);
   uintptr_t* end = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(begin) + sizeof(entrypoints_));
   for (uintptr_t* it = begin; it != end; ++it) {
     *it = reinterpret_cast<uintptr_t>(UnimplementedEntryPoint);
   }
+#endif
   InitEntryPoints(&entrypoints_);
 }
 
