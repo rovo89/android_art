@@ -16,8 +16,8 @@
 
 namespace art {
 
-bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
-                     RegLocation rlSrc1, RegLocation rlSrc2) {
+static bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
+                            RegLocation rlSrc1, RegLocation rlSrc2) {
   X86OpCode op = kX86Nop;
   RegLocation rlResult;
 
@@ -149,7 +149,7 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir) {
       // These are easy to implement inline except when the src is > MAX_INT/LONG the result
       // needs to be changed from 0x80000000 to 0x7FFFFFF (requires an in memory float/double
       // literal constant to compare against).
-      UNIMPLEMENTED(WARNING) << "inline [df]2i";
+      UNIMPLEMENTED(WARNING) << "inline [df]2i " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
     case Instruction::LONG_TO_DOUBLE:
     case Instruction::FLOAT_TO_LONG:
     case Instruction::LONG_TO_FLOAT:
