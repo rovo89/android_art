@@ -77,10 +77,20 @@ void Thread::InitCardTable() {
   card_table_ = Runtime::Current()->GetHeap()->GetCardTable()->GetBiasedBegin();
 }
 
+static void UnimplementedEntryPoint() {
+  UNIMPLEMENTED(FATAL);
+}
+
 void Thread::InitFunctionPointers() {
 #if defined(ART_USE_LLVM_COMPILER)
   memset(&entrypoints_, 0, sizeof(entrypoints_));
 #else
+  // Insert a placeholder so we can easily tell if we call an unimplemented entry point.
+  uintptr_t* begin = reinterpret_cast<uintptr_t*>(&entrypoints_);
+  uintptr_t* end = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(begin) + sizeof(entrypoints_));
+  for (uintptr_t* it = begin; it != end; ++it) {
+    *it = reinterpret_cast<uintptr_t>(UnimplementedEntryPoint);
+  }
   InitEntryPoints(&entrypoints_);
 #endif
 }
