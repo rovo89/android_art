@@ -383,13 +383,14 @@ DISASSEMBLER_ENTRY(cmp,
     reg_in_opcode = true;
     break;
   case 0xC0: case 0xC1:
+  case 0xD0: case 0xD1:
     static const char* shift_opcodes[] =
         {"rol", "ror", "rcl", "rcr", "shl", "shr", "unknown-shift", "sar"};
     modrm_opcodes = shift_opcodes;
     has_modrm = true;
     reg_is_opcode = true;
     store = true;
-    immediate_bytes = 1;
+    immediate_bytes = ((*instr & 0xf0) == 0xc0) ? 1 : 0;
     byte_operand = *instr == 0xC0;
     break;
   case 0xC3: opcode << "ret"; break;

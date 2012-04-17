@@ -130,16 +130,16 @@ ENCODING_MAP(Cmp, IS_LOAD,
   0x81, 0x7 /* RegMem32/imm32 */, 0x83, 0x7 /* RegMem32/imm8 */),
 #undef ENCODING_MAP
 
-  { kX86Imul16RRI,   kRegRegImm,             IS_TERTIARY_OP | SETS_CCODES, { 0x66, 0, 0x69, 0, 0, 0, 0, 2 }, "Imul16RRI", "" },
-  { kX86Imul16RMI,   kRegMemImm,   IS_LOAD | IS_QUAD_OP     | SETS_CCODES, { 0x66, 0, 0x69, 0, 0, 0, 0, 2 }, "Imul16RMI", "" },
-  { kX86Imul16RAI,   kRegArrayImm, IS_LOAD | IS_SEXTUPLE_OP | SETS_CCODES, { 0x66, 0, 0x69, 0, 0, 0, 0, 2 }, "Imul16RAI", "" },
+  { kX86Imul16RRI,   kRegRegImm,             IS_TERTIARY_OP | SETS_CCODES, { 0x66, 0, 0x69, 0, 0, 0, 0, 2 }, "Imul16RRI", "!0r,!1r,!2d" },
+  { kX86Imul16RMI,   kRegMemImm,   IS_LOAD | IS_QUAD_OP     | SETS_CCODES, { 0x66, 0, 0x69, 0, 0, 0, 0, 2 }, "Imul16RMI", "!0r,[!1r+!2d],!3d" },
+  { kX86Imul16RAI,   kRegArrayImm, IS_LOAD | IS_SEXTUPLE_OP | SETS_CCODES, { 0x66, 0, 0x69, 0, 0, 0, 0, 2 }, "Imul16RAI", "!0r,[!1r+!2r<<!3d+!4d],!5d" },
 
-  { kX86Imul32RRI,   kRegRegImm,             IS_TERTIARY_OP | SETS_CCODES, { 0, 0, 0x69, 0, 0, 0, 0, 2 }, "Imul32RRI", "" },
-  { kX86Imul32RMI,   kRegMemImm,   IS_LOAD | IS_QUAD_OP     | SETS_CCODES, { 0, 0, 0x69, 0, 0, 0, 0, 2 }, "Imul32RMI", "" },
-  { kX86Imul32RAI,   kRegArrayImm, IS_LOAD | IS_SEXTUPLE_OP | SETS_CCODES, { 0, 0, 0x69, 0, 0, 0, 0, 2 }, "Imul32RAI", "" },
-  { kX86Imul32RRI8,  kRegRegImm,             IS_TERTIARY_OP | SETS_CCODES, { 0, 0, 0x6B, 0, 0, 0, 0, 1 }, "Imul32RRI8", "" },
-  { kX86Imul32RMI8,  kRegMemImm,   IS_LOAD | IS_QUAD_OP     | SETS_CCODES, { 0, 0, 0x6B, 0, 0, 0, 0, 1 }, "Imul32RMI8", "" },
-  { kX86Imul32RAI8,  kRegArrayImm, IS_LOAD | IS_SEXTUPLE_OP | SETS_CCODES, { 0, 0, 0x6B, 0, 0, 0, 0, 1 }, "Imul32RAI8", "" },
+  { kX86Imul32RRI,   kRegRegImm,             IS_TERTIARY_OP | SETS_CCODES, { 0, 0, 0x69, 0, 0, 0, 0, 2 }, "Imul32RRI", "!0r,!1r,!2d" },
+  { kX86Imul32RMI,   kRegMemImm,   IS_LOAD | IS_QUAD_OP     | SETS_CCODES, { 0, 0, 0x69, 0, 0, 0, 0, 2 }, "Imul32RMI", "!0r,[!1r+!2d],!3d" },
+  { kX86Imul32RAI,   kRegArrayImm, IS_LOAD | IS_SEXTUPLE_OP | SETS_CCODES, { 0, 0, 0x69, 0, 0, 0, 0, 2 }, "Imul32RAI", "!0r,[!1r+!2r<<!3d+!4d],!5d" },
+  { kX86Imul32RRI8,  kRegRegImm,             IS_TERTIARY_OP | SETS_CCODES, { 0, 0, 0x6B, 0, 0, 0, 0, 1 }, "Imul32RRI8", "!0r,!1r,!2d" },
+  { kX86Imul32RMI8,  kRegMemImm,   IS_LOAD | IS_QUAD_OP     | SETS_CCODES, { 0, 0, 0x6B, 0, 0, 0, 0, 1 }, "Imul32RMI8", "!0r,[!1r+!2d],!3d" },
+  { kX86Imul32RAI8,  kRegArrayImm, IS_LOAD | IS_SEXTUPLE_OP | SETS_CCODES, { 0, 0, 0x6B, 0, 0, 0, 0, 1 }, "Imul32RAI8", "!0r,[!1r+!2r<<!3d+!4d],!5d" },
 
   { kX86Mov8MR, kMemReg,    IS_STORE | IS_TERTIARY_OP, { 0, 0,             0x88, 0, 0, 0, 0, 0 }, "Mov8MR", "[!0r+!1d],!2r" },
   { kX86Mov8AR, kArrayReg,  IS_STORE | IS_QUIN_OP,     { 0, 0,             0x88, 0, 0, 0, 0, 0 }, "Mov8AR", "[!0r+!1r<<!2d+!3d],!4r" },
@@ -707,6 +707,63 @@ static void emitRegReg(CompilationUnit* cUnit, const X86EncodingMap* entry,
   DCHECK_EQ(0, entry->skeleton.immediate_bytes);
 }
 
+static void emitRegRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
+                          uint8_t reg1, uint8_t reg2, int32_t imm) {
+  if (entry->skeleton.prefix1 != 0) {
+    cUnit->codeBuffer.push_back(entry->skeleton.prefix1);
+    if (entry->skeleton.prefix2 != 0) {
+      cUnit->codeBuffer.push_back(entry->skeleton.prefix2);
+    }
+  } else {
+    DCHECK_EQ(0, entry->skeleton.prefix2);
+  }
+  cUnit->codeBuffer.push_back(entry->skeleton.opcode);
+  if (entry->skeleton.opcode == 0x0F) {
+    cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode1);
+    if (entry->skeleton.extra_opcode1 == 0x38 || entry->skeleton.extra_opcode2 == 0x3A) {
+      cUnit->codeBuffer.push_back(entry->skeleton.extra_opcode2);
+    } else {
+      DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+    }
+  } else {
+    DCHECK_EQ(0, entry->skeleton.extra_opcode1);
+    DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+  }
+  if (FPREG(reg1)) {
+    reg1 = reg1 & FP_REG_MASK;
+  }
+  if (FPREG(reg2)) {
+    reg2 = reg2 & FP_REG_MASK;
+  }
+  DCHECK_LT(reg1, 8);
+  DCHECK_LT(reg2, 8);
+  uint8_t modrm = (3 << 6) | (reg1 << 3) | reg2;
+  cUnit->codeBuffer.push_back(modrm);
+  DCHECK_EQ(0, entry->skeleton.modrm_opcode);
+  DCHECK_EQ(0, entry->skeleton.ax_opcode);
+  switch (entry->skeleton.immediate_bytes) {
+    case 1:
+      DCHECK(IS_SIMM8(imm));
+      cUnit->codeBuffer.push_back(imm & 0xFF);
+      break;
+    case 2:
+      DCHECK(IS_SIMM16(imm));
+      cUnit->codeBuffer.push_back(imm & 0xFF);
+      cUnit->codeBuffer.push_back((imm >> 8) & 0xFF);
+      break;
+    case 4:
+      cUnit->codeBuffer.push_back(imm & 0xFF);
+      cUnit->codeBuffer.push_back((imm >> 8) & 0xFF);
+      cUnit->codeBuffer.push_back((imm >> 16) & 0xFF);
+      cUnit->codeBuffer.push_back((imm >> 24) & 0xFF);
+      break;
+    default:
+      LOG(FATAL) << "Unexpected immediate bytes (" << entry->skeleton.immediate_bytes
+                 << ") for instruction: " << entry->name;
+      break;
+  }
+}
+
 static void emitRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
                        uint8_t reg, int imm) {
   if (entry->skeleton.prefix1 != 0) {
@@ -1063,7 +1120,7 @@ static void emitMacro(CompilationUnit* cUnit, const X86EncodingMap* entry,
 }
 
 void emitUnimplemented(CompilationUnit* cUnit, const X86EncodingMap* entry, LIR* lir) {
-  UNIMPLEMENTED(WARNING) << "encoding for: " << entry->name;
+  UNIMPLEMENTED(WARNING) << "encoding kind for " << entry->name << " " << buildInsnString(entry->fmt, lir, 0);
   for (int i = 0; i < oatGetInsnSize(lir); ++i) {
     cUnit->codeBuffer.push_back(0xCC);  // push breakpoint instruction - int 3
   }
@@ -1238,6 +1295,9 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
         break;
       case kRegReg:  // lir operands - 0: reg1, 1: reg2
         emitRegReg(cUnit, entry, lir->operands[0], lir->operands[1]);
+        break;
+      case kRegRegImm:
+        emitRegRegImm(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2]);
         break;
       case kRegImm:  // lir operands - 0: reg, 1: immediate
         emitRegImm(cUnit, entry, lir->operands[0], lir->operands[1]);
