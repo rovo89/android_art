@@ -369,7 +369,7 @@ art_initialize_type_and_verify_access_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
     mov    r2, r9                              @ pass Thread::Current
     mov    r3, sp                              @ pass SP
-    @ artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*, SP)
+    @ artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx, Method* referrer, Thread*, SP)
     bl     artInitializeTypeAndVerifyAccessFromCode
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                              @ success if result is non-null
