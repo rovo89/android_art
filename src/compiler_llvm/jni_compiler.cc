@@ -259,6 +259,9 @@ CompiledMethod* JniCompiler::Compile() {
                            Thread::StateOffset().Int32Value(),
                            irb_.getInt32(kRunnable));
 
+  // Do a suspend check
+  irb_.CreateCall(irb_.GetRuntime(TestSuspend));
+
   if (return_shorty == 'L') {
     // If the return value is reference, it may point to SIRT, we should decode it.
     retval = irb_.CreateCall2(irb_.GetRuntime(DecodeJObjectInThread),
