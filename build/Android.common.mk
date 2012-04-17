@@ -201,7 +201,8 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/elf_loader.cc \
 	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/compiler_llvm/runtime_support_llvm.cc
-else
+endif
+
 LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/context.cc \
 	src/oat/runtime/support_alloc.cc \
@@ -219,7 +220,6 @@ LIBART_COMMON_SRC_FILES += \
 	src/oat/runtime/support_thread.cc \
 	src/oat/runtime/support_throw.cc \
 	src/oat/runtime/support_trace.cc
-endif # ART_USE_LLVM_COMPILER == true
 
 LIBART_TARGET_SRC_FILES := \
 	$(LIBART_COMMON_SRC_FILES) \
@@ -229,7 +229,6 @@ LIBART_TARGET_SRC_FILES := \
 	src/runtime_android.cc \
 	src/thread_android.cc
 
-ifeq ($(ART_USE_LLVM_COMPILER),false)
 ifeq ($(TARGET_ARCH),arm)
 LIBART_TARGET_SRC_FILES += \
 	src/oat/runtime/arm/context_arm.cc.arm \
@@ -251,7 +250,6 @@ $(error unsupported TARGET_ARCH=$(TARGET_ARCH))
 endif # TARGET_ARCH != mips
 endif # TARGET_ARCH != x86
 endif # TARGET_ARCH != arm
-endif # ART_USE_LLVM_COMPILER == false
 
 ifeq ($(TARGET_ARCH),arm)
 LIBART_TARGET_SRC_FILES += src/thread_arm.cc
@@ -274,7 +272,6 @@ LIBART_HOST_SRC_FILES := \
 	src/runtime_linux.cc \
 	src/thread_linux.cc
 
-ifeq ($(ART_USE_LLVM_COMPILER),false)
 ifeq ($(HOST_ARCH),x86)
 LIBART_HOST_SRC_FILES += \
 	src/oat/runtime/x86/oat_support_entrypoints_x86.cc \
@@ -283,7 +280,6 @@ LIBART_HOST_SRC_FILES += \
 else # HOST_ARCH != x86
 $(error unsupported HOST_ARCH=$(HOST_ARCH))
 endif # HOST_ARCH != x86
-endif # ART_USE_LLVM_COMPILER == false
 
 ifeq ($(HOST_ARCH),x86)
 LIBART_HOST_SRC_FILES += src/thread_x86.cc

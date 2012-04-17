@@ -34,9 +34,7 @@
 #include "heap.h"
 #include "jni_internal.h"
 #include "monitor.h"
-#if !defined(ART_USE_LLVM_COMPILER)
 #include "oat/runtime/context.h"
-#endif
 #include "object.h"
 #include "object_utils.h"
 #include "reflection.h"
@@ -82,9 +80,6 @@ static void UnimplementedEntryPoint() {
 }
 
 void Thread::InitFunctionPointers() {
-#if defined(ART_USE_LLVM_COMPILER)
-  memset(&entrypoints_, 0, sizeof(entrypoints_));
-#else
   // Insert a placeholder so we can easily tell if we call an unimplemented entry point.
   uintptr_t* begin = reinterpret_cast<uintptr_t*>(&entrypoints_);
   uintptr_t* end = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(begin) + sizeof(entrypoints_));
@@ -92,7 +87,6 @@ void Thread::InitFunctionPointers() {
     *it = reinterpret_cast<uintptr_t>(UnimplementedEntryPoint);
   }
   InitEntryPoints(&entrypoints_);
-#endif
 }
 
 void Thread::SetDebuggerUpdatesEnabled(bool enabled) {
