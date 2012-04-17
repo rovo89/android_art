@@ -592,7 +592,7 @@ JDWP::JdwpError Dbg::GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& supercla
   }
   if (c->IsInterface()) {
     // http://code.google.com/p/android/issues/detail?id=20856
-    superclassId = NULL;
+    superclassId = 0;
   } else {
     superclassId = gRegistry->Add(c->GetSuperClass());
   }
