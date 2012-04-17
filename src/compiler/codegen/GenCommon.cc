@@ -942,11 +942,13 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
                     ENTRYPOINT_OFFSET(pThrowNoSuchMethodFromCode);
                 break;
             case kThrowStackOverflow:
-                funcOffset =
-                    ENTRYPOINT_OFFSET(pThrowStackOverflowFromCode);
+                funcOffset = ENTRYPOINT_OFFSET(pThrowStackOverflowFromCode);
                 // Restore stack alignment
-                opRegImm(cUnit, kOpAdd, rSP,
-                         (cUnit->numCoreSpills + cUnit->numFPSpills) * 4);
+#if !defined(TARGET_X86)
+                opRegImm(cUnit, kOpAdd, rSP, (cUnit->numCoreSpills + cUnit->numFPSpills) * 4);
+#else
+                opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize);
+#endif
                 break;
             default:
                 LOG(FATAL) << "Unexpected throw kind: " << lab->operands[0];
