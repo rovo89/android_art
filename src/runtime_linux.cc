@@ -209,7 +209,7 @@ void Runtime::InitPlatformSignalHandlers() {
   memset(&action, 0, sizeof(action));
   sigemptyset(&action.sa_mask);
   action.sa_sigaction = HandleUnexpectedSignal;
-  action.sa_flags = SA_RESTART | SA_SIGINFO;
+  action.sa_flags = SA_RESTART | SA_SIGINFO | SA_ONSTACK;
 
   int rc = 0;
   rc += sigaction(SIGILL, &action, NULL);
