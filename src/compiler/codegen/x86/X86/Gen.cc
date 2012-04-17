@@ -168,7 +168,7 @@ void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 
 void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
-    UNIMPLEMENTED(WARNING) << "genNegFloat";
+    UNIMPLEMENTED(WARNING) << "genNegFloat " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
     newLIR0(cUnit, kX86Bkpt);
 #if 0
     RegLocation rlResult;
@@ -182,7 +182,7 @@ void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 
 void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
-    UNIMPLEMENTED(WARNING) << "genNegDouble";
+    UNIMPLEMENTED(WARNING) << "genNegDouble" << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
     newLIR0(cUnit, kX86Bkpt);
 #if 0
     RegLocation rlResult;
