@@ -524,7 +524,7 @@ DISASSEMBLER_ENTRY(cmp,
       displacement = *reinterpret_cast<const int32_t*>(instr);
       instr += 4;
     }
-    args << StringPrintf("%d (%p)", displacement, instr + displacement);
+    args << StringPrintf("%+d (%p)", displacement, instr + displacement);
   }
   if (prefix[1] == kFs) {
     args << "  ; ";
