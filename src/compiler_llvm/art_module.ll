@@ -165,6 +165,8 @@ declare i32 @F2I(float)
 ; Temporary runtime support, will be removed in the future
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+declare void @art_mark_gc_card_from_code(%JavaObject*, %JavaObject*)
+
 declare %JavaObject* @art_ensure_resolved_from_code(%JavaObject*,
                                                     %JavaObject*,
                                                     i32,

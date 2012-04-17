@@ -61,6 +61,7 @@
   V(InitializeStaticStorage, art_initialize_static_storage_from_code) \
   V(IsExceptionPending, art_is_exception_pending_from_code) \
   V(FindCatchBlock, art_find_catch_block_from_code) \
+  V(MarkGCCard, art_mark_gc_card_from_code) \
   V(EnsureResolved, art_ensure_resolved_from_code) \
   V(FixStub, art_fix_stub_from_code) \
   V(ProxyInvokeHandler, art_proxy_invoke_handler_from_code) \

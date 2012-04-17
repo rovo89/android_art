@@ -39,6 +39,9 @@ namespace art {
 // Thread
 //----------------------------------------------------------------------------
 
+// This is used by other runtime support functions, NOT FROM CODE. The REAL GetCurrentThread is
+// implemented by IRBuilder. (So, ARM can't return R9 in this function.)
+// TODO: Maybe remove these which are implemented by IRBuilder after refactor runtime support.
 Thread* art_get_current_thread_from_code() {
 #if defined(__i386__)
   Thread* ptr;
@@ -53,6 +56,7 @@ Thread* art_get_current_thread_from_code() {
 }
 
 void art_set_current_thread_from_code(void* thread_object_addr) {
+  LOG(FATAL) << "Implemented by IRBuilder.";
 }
 
 void art_lock_object_from_code(Object* obj) {
@@ -77,23 +81,24 @@ void art_test_suspend_from_code() {
 }
 
 void art_push_shadow_frame_from_code(void* new_shadow_frame) {
-  Thread* thread = art_get_current_thread_from_code();
-  thread->PushShadowFrame(static_cast<ShadowFrame*>(new_shadow_frame));
+  LOG(FATAL) << "Implemented by IRBuilder.";
 }
 
 void art_pop_shadow_frame_from_code() {
-  Thread* thread = art_get_current_thread_from_code();
-  thread->PopShadowFrame();
+  LOG(FATAL) << "Implemented by IRBuilder.";
 }
 
-
+void art_mark_gc_card_from_code(void *, void*) {
+  LOG(FATAL) << "Implemented by IRBuilder.";
+}
 
 //----------------------------------------------------------------------------
 // Exception
 //----------------------------------------------------------------------------
 
 bool art_is_exception_pending_from_code() {
-  return art_get_current_thread_from_code()->IsExceptionPending();
+  LOG(FATAL) << "Implemented by IRBuilder.";
+  return false;
 }
 
 void art_throw_div_zero_from_code() {
