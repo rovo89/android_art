@@ -95,7 +95,7 @@ class CompilationUnit {
   }
 
   bool IsMaterializeThresholdReached() const {
-    return (mem_usage_ > 300000000u); // (threshold: 300 MB)
+    return (mem_usage_ > 100000000u); // (threshold: 100 MB)
   }
 
   void AddMemUsageApproximation(size_t usage) {
