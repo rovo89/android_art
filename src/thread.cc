@@ -387,8 +387,40 @@ void Thread::InitStackHwm() {
                      __FUNCTION__);
   stack_begin_ = reinterpret_cast<byte*>(temp_stack_base);
 
+  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
+
+  // TODO: include this in the thread dumps; potentially useful in SIGQUIT output?
+  VLOG(threads) << "Native stack is at " << temp_stack_base << " (" << PrettySize(stack_size_) << ")";
+
   if (stack_size_ <= kStackOverflowReservedBytes) {
     LOG(FATAL) << "Attempt to attach a thread with a too-small stack (" << stack_size_ << " bytes)";
+  }
+
+  // If we're the main thread, check whether we were run with an unlimited stack. In that case,
+  // glibc will have reported a 2GB stack for our 32-bit process, and our stack overflow detection
+  // will be broken because we'll die long before we get close to 2GB.
+  if (thin_lock_id_ == 1) {
+    rlimit stack_limit;
+    if (getrlimit(RLIMIT_STACK, &stack_limit) == -1) {
+      PLOG(FATAL) << "getrlimit(RLIMIT_STACK) failed";
+    }
+    if (stack_limit.rlim_cur == RLIM_INFINITY) {
+      // Find the default stack size for new threads...
+      pthread_attr_t default_attributes;
+      size_t default_stack_size;
+      CHECK_PTHREAD_CALL(pthread_attr_init, (&default_attributes), "default stack size query");
+      CHECK_PTHREAD_CALL(pthread_attr_getstacksize, (&default_attributes, &default_stack_size),
+                         "default stack size query");
+      CHECK_PTHREAD_CALL(pthread_attr_destroy, (&default_attributes), "default stack size query");
+
+      // ...and use that as our limit.
+      size_t old_stack_size = stack_size_;
+      stack_size_ = default_stack_size;
+      stack_begin_ += (old_stack_size - stack_size_);
+      LOG(WARNING) << "Limiting unlimited stack (reported as " << PrettySize(old_stack_size) << ");"
+                   << " to " << PrettySize(stack_size_)
+                   << " with base " << reinterpret_cast<void*>(stack_begin_);
+    }
   }
 
   // Set stack_end_ to the bottom of the stack saving space of stack overflows
@@ -397,8 +429,6 @@ void Thread::InitStackHwm() {
   // Sanity check.
   int stack_variable;
   CHECK_GT(&stack_variable, reinterpret_cast<void*>(stack_end_));
-
-  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
 #endif
 }
 
