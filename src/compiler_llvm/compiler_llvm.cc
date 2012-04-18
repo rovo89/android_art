@@ -318,8 +318,10 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
   art::OatCompilationUnit oat_compilation_unit(
     class_loader, class_linker, dex_file, *dex_cache, code_item,
     method_idx, access_flags);
-
-  return ContextOf(compiler)->CompileDexMethod(&oat_compilation_unit);
+  art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
+  art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&oat_compilation_unit);
+  compiler_llvm->MaterializeIfThresholdReached();
+  return result;
 }
 
 extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
@@ -340,7 +342,10 @@ extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
 
 extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(art::Compiler& compiler, bool is_static,
                                                         const char* shorty, uint32_t shorty_len) {
-  return ContextOf(compiler)->CreateInvokeStub(is_static, shorty);
+  art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
+  art::CompiledInvokeStub* result = compiler_llvm->CreateInvokeStub(is_static, shorty);
+  compiler_llvm->MaterializeIfThresholdReached();
+  return result;
 }
 
 extern "C" void compilerLLVMSetBitcodeFileName(art::Compiler& compiler,

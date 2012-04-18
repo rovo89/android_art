@@ -184,7 +184,7 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
   llvm::verifyFunction(*func, llvm::PrintMessageAction);
 
   // Add the memory usage approximation of the compilation unit
-  cunit_->AddMemUsageApproximation((shorty_size * 3 + 8) * 500);
+  cunit_->AddMemUsageApproximation((shorty_size * 3 + 8) * 50);
   // NOTE: We will emit 3 LLVM instructions per shorty for the argument,
   // plus 3 for pointer arithmetic, and 5 for code_addr, retval, ret_addr,
   // store ret_addr, and ret_void.  Beside, we guess that we have to use
