@@ -195,86 +195,102 @@ int32_t art_find_catch_block_from_code(Method* current_method, int32_t dex_pc) {
 // Object Space
 //----------------------------------------------------------------------------
 
-Object* art_alloc_object_from_code(uint32_t type_idx, Method* referrer) {
-  return AllocObjectFromCode(type_idx, referrer, art_get_current_thread_from_code(), false);
+Object* art_alloc_object_from_code(uint32_t type_idx,
+                                   Method* referrer,
+                                   Thread* thread) {
+  return AllocObjectFromCode(type_idx, referrer, thread, false);
 }
 
-Object* art_alloc_object_from_code_with_access_check(uint32_t type_idx, Method* referrer) {
-  return AllocObjectFromCode(type_idx, referrer, art_get_current_thread_from_code(), true);
+Object* art_alloc_object_from_code_with_access_check(uint32_t type_idx,
+                                                     Method* referrer,
+                                                     Thread* thread) {
+  return AllocObjectFromCode(type_idx, referrer, thread, true);
 }
 
-Object* art_alloc_array_from_code(uint32_t type_idx, Method* referrer, uint32_t length) {
-  return AllocArrayFromCode(type_idx, referrer, length, art_get_current_thread_from_code(), false);
+Object* art_alloc_array_from_code(uint32_t type_idx,
+                                  Method* referrer,
+                                  uint32_t length,
+                                  Thread* thread) {
+  return AllocArrayFromCode(type_idx, referrer, length, thread, false);
 }
 
 Object* art_alloc_array_from_code_with_access_check(uint32_t type_idx,
                                                     Method* referrer,
-                                                    uint32_t length) {
-  return AllocArrayFromCode(type_idx, referrer, length, art_get_current_thread_from_code(), true);
+                                                    uint32_t length,
+                                                    Thread* thread) {
+  return AllocArrayFromCode(type_idx, referrer, length, thread, true);
 }
 
 Object* art_check_and_alloc_array_from_code(uint32_t type_idx,
                                             Method* referrer,
-                                            uint32_t length) {
-  return CheckAndAllocArrayFromCode(type_idx, referrer, length, art_get_current_thread_from_code(), false);
+                                            uint32_t length,
+                                            Thread* thread) {
+  return CheckAndAllocArrayFromCode(type_idx, referrer, length, thread, false);
 }
 
 Object* art_check_and_alloc_array_from_code_with_access_check(uint32_t type_idx,
                                                               Method* referrer,
-                                                              uint32_t length) {
-  return CheckAndAllocArrayFromCode(type_idx, referrer, length, art_get_current_thread_from_code(), true);
+                                                              uint32_t length,
+                                                              Thread* thread) {
+  return CheckAndAllocArrayFromCode(type_idx, referrer, length, thread, true);
 }
 
 static Method* FindMethodHelper(uint32_t method_idx, Object* this_object, Method* caller_method,
-                                bool access_check, InvokeType type) {
+                                bool access_check, InvokeType type, Thread* thread) {
   Method* method = FindMethodFast(method_idx, this_object, caller_method, access_check, type);
   if (UNLIKELY(method == NULL)) {
     method = FindMethodFromCode(method_idx, this_object, caller_method,
-                                art_get_current_thread_from_code(), access_check, type);
+                                thread, access_check, type);
     if (UNLIKELY(method == NULL)) {
-      CHECK(art_get_current_thread_from_code()->IsExceptionPending());
+      CHECK(thread->IsExceptionPending());
       return 0;  // failure
     }
   }
-  DCHECK(!art_get_current_thread_from_code()->IsExceptionPending());
+  DCHECK(!thread->IsExceptionPending());
   return method;
 }
 
 Object* art_find_static_method_from_code_with_access_check(uint32_t method_idx,
                                                            Object* this_object,
-                                                           Method* referrer) {
-  return FindMethodHelper(method_idx, this_object, referrer, true, kStatic);
+                                                           Method* referrer,
+                                                           Thread* thread) {
+  return FindMethodHelper(method_idx, this_object, referrer, true, kStatic, thread);
 }
 
 Object* art_find_direct_method_from_code_with_access_check(uint32_t method_idx,
                                                            Object* this_object,
-                                                           Method* referrer) {
-  return FindMethodHelper(method_idx, this_object, referrer, true, kDirect);
+                                                           Method* referrer,
+                                                           Thread* thread) {
+  return FindMethodHelper(method_idx, this_object, referrer, true, kDirect, thread);
 }
 
 Object* art_find_virtual_method_from_code_with_access_check(uint32_t method_idx,
                                                             Object* this_object,
-                                                            Method* referrer) {
-  return FindMethodHelper(method_idx, this_object, referrer, true, kVirtual);
+                                                            Method* referrer,
+                                                            Thread* thread) {
+  return FindMethodHelper(method_idx, this_object, referrer, true, kVirtual, thread);
 }
 
 Object* art_find_super_method_from_code_with_access_check(uint32_t method_idx,
                                                           Object* this_object,
-                                                          Method* referrer) {
-  return FindMethodHelper(method_idx, this_object, referrer, true, kSuper);
+                                                          Method* referrer,
+                                                          Thread* thread) {
+  return FindMethodHelper(method_idx, this_object, referrer, true, kSuper, thread);
 }
 
 Object*
 art_find_interface_method_from_code_with_access_check(uint32_t method_idx,
                                                       Object* this_object,
-                                                      Method* referrer) {
-  return FindMethodHelper(method_idx, this_object, referrer, true, kInterface);
+                                                      Method* referrer,
+                                                      Thread* thread) {
+  return FindMethodHelper(method_idx, this_object, referrer, true, kInterface, thread);
 }
 
 Object* art_find_interface_method_from_code(uint32_t method_idx,
                                             Object* this_object,
-                                            Method* referrer) {
-  return FindMethodHelper(method_idx, this_object, referrer, false, kInterface);
+                                            Method* referrer,
+                                            Thread* thread) {
+  return FindMethodHelper(method_idx, this_object, referrer, false, kInterface, thread);
 }
 
 Object* art_initialize_static_storage_from_code(uint32_t type_idx, Method* referrer) {

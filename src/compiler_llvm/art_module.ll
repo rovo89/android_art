@@ -70,33 +70,33 @@ declare i32 @art_find_catch_block_from_code(%JavaObject*, i32)
 ; Object Space
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-declare %JavaObject* @art_alloc_object_from_code(i32, %JavaObject*)
+declare %JavaObject* @art_alloc_object_from_code(i32, %JavaObject*, %JavaObject*)
 declare %JavaObject* @art_alloc_object_from_code_with_access_check(
-  i32, %JavaObject*)
+  i32, %JavaObject*, %JavaObject*)
 
-declare %JavaObject* @art_alloc_array_from_code(i32, %JavaObject*, i32)
+declare %JavaObject* @art_alloc_array_from_code(i32, %JavaObject*, i32, %JavaObject*)
 declare %JavaObject* @art_alloc_array_from_code_with_access_check(
-  i32, %JavaObject*, i32)
+  i32, %JavaObject*, i32, %JavaObject*)
 declare %JavaObject* @art_check_and_alloc_array_from_code(
-  i32, %JavaObject*, i32)
+  i32, %JavaObject*, i32, %JavaObject*)
 declare %JavaObject* @art_check_and_alloc_array_from_code_with_access_check(
-  i32, %JavaObject*, i32)
+  i32, %JavaObject*, i32, %JavaObject*)
 
 declare void @art_find_instance_field_from_code(i32, %JavaObject*)
 declare void @art_find_static_field_from_code(i32, %JavaObject*)
 
 declare %JavaObject* @art_find_static_method_from_code_with_access_check(
-  i32, %JavaObject*, %JavaObject*)
+  i32, %JavaObject*, %JavaObject*, %JavaObject*)
 declare %JavaObject* @art_find_direct_method_from_code_with_access_check(
-  i32, %JavaObject*, %JavaObject*)
+  i32, %JavaObject*, %JavaObject*, %JavaObject*)
 declare %JavaObject* @art_find_virtual_method_from_code_with_access_check(
-  i32, %JavaObject*, %JavaObject*)
+  i32, %JavaObject*, %JavaObject*, %JavaObject*)
 declare %JavaObject* @art_find_super_method_from_code_with_access_check(
-  i32, %JavaObject*, %JavaObject*)
+  i32, %JavaObject*, %JavaObject*, %JavaObject*)
 declare %JavaObject* @art_find_interface_method_from_code_with_access_check(
-  i32, %JavaObject*, %JavaObject*)
+  i32, %JavaObject*, %JavaObject*, %JavaObject*)
 declare %JavaObject* @art_find_interface_method_from_code(
-  i32, %JavaObject*, %JavaObject*)
+  i32, %JavaObject*, %JavaObject*, %JavaObject*)
 
 declare %JavaObject* @art_initialize_static_storage_from_code(i32, %JavaObject*)
 declare %JavaObject* @art_initialize_type_from_code(i32, %JavaObject*)
