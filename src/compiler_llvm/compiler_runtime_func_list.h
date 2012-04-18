@@ -177,7 +177,10 @@
   V(__umoddi3) \
   V(__umodsi3) \
   V(fmod) \
-  V(fmodf)
+  V(fmodf) \
+  V(memcpy) \
+  V(memmove) \
+  V(memset)
 
 #else
 
