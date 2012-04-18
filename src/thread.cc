@@ -220,7 +220,7 @@ static void TearDownAlternateSignalStack() {
   // Tell the kernel to stop using it.
   ss.ss_sp = NULL;
   ss.ss_flags = SS_DISABLE;
-  ss.ss_size = 0;
+  ss.ss_size = SIGSTKSZ; // Avoid ENOMEM failure with Mac OS' buggy libc.
   SigAltStack(&ss, NULL);
 
   // Free it.
