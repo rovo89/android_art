@@ -136,6 +136,7 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersio
     Runtime* runtime = Runtime::Current();
     JavaVMExt* vm = runtime->GetJavaVM();
 
+#if !defined(ART_USE_LLVM_COMPILER)
     if (vm->check_jni) {
       LOG(WARNING) << "Turning off CheckJNI so we can turn on JNI app bug workarounds...";
       ScopedThreadListLock thread_list_lock;
@@ -145,7 +146,12 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersio
 
     LOG(INFO) << "Turning on JNI app bug workarounds for target SDK version "
               << targetSdkVersion << "...";
+
     vm->work_around_app_jni_bugs = true;
+#else
+    LOG(WARNING) << "LLVM does not work-around app jni bugs.";
+    vm->work_around_app_jni_bugs = false;
+#endif
   }
 }
 
