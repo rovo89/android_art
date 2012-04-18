@@ -203,7 +203,7 @@ bool CompilationUnit::Materialize() {
   llvm::TargetMachine* target_machine =
     target->createTargetMachine(target_triple, "", target_attr, target_options,
                                 llvm::Reloc::Static, llvm::CodeModel::Small,
-                                llvm::CodeGenOpt::None);
+                                llvm::CodeGenOpt::Less);
 
   CHECK(target_machine != NULL) << "Failed to create target machine";
 
@@ -218,6 +218,14 @@ bool CompilationUnit::Materialize() {
   // FunctionPassManager for optimization pass
   llvm::FunctionPassManager fpm(module_);
   fpm.add(new llvm::TargetData(*target_data));
+
+  // Add optimization pass
+  llvm::PassManagerBuilder pm_builder;
+  pm_builder.Inliner = NULL; // TODO: add some inline in the future
+  pm_builder.OptLevel = 1;
+  pm_builder.DisableSimplifyLibCalls = 1;
+  pm_builder.populateModulePassManager(pm);
+  pm_builder.populateFunctionPassManager(fpm);
 
   // Add passes to emit ELF image
   {
@@ -235,6 +243,14 @@ bool CompilationUnit::Materialize() {
 
     // Add pass to update the frame_size_in_bytes_
     pm.add(new ::UpdateFrameSizePass(this));
+
+    // Run the per-function optimization
+    fpm.doInitialization();
+    for (llvm::Module::iterator F = module_->begin(), E = module_->end();
+         F != E; ++F) {
+      fpm.run(*F);
+    }
+    fpm.doFinalization();
 
     // Run the code generation passes
     pm.run(*module_);

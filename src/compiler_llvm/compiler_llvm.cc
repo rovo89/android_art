@@ -42,11 +42,12 @@ namespace llvm {
   extern bool TimePassesIsEnabled;
 }
 
-extern llvm::cl::opt<bool> ReserveR9;
-// ReserveR9 is defined in llvm/lib/Target/ARM/ARMSubtarget.cpp
-extern llvm::cl::opt<bool> EnableARMLongCalls;
 // NOTE: Although EnableARMLongCalls is defined in llvm/lib/Target/ARM/
 // ARMISelLowering.cpp, however, it is not in the llvm namespace.
+extern llvm::cl::opt<bool> EnableARMLongCalls;
+
+// ReserveR9 is defined in llvm/lib/Target/ARM/ARMSubtarget.cpp
+extern llvm::cl::opt<bool> ReserveR9;
 
 
 namespace {
@@ -68,7 +69,7 @@ void InitializeLLVM() {
   // TODO: Maybe we don't have to initialize "all" targets.
 
   // Enable -arm-long-calls
-  EnableARMLongCalls = true;
+  EnableARMLongCalls = false;
 
   // Initialize LLVM optimization passes
   llvm::PassRegistry &registry = *llvm::PassRegistry::getPassRegistry();
