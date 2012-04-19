@@ -359,6 +359,9 @@ void ThrowVerificationError(Thread* self, const Method* method,
   case verifier::VERIFY_ERROR_BAD_CLASS_HARD:
     // Generic VerifyError; use default exception, no message.
     break;
+  case verifier::VERIFY_ERROR_NONE:
+    CHECK(false);
+    break;
   }
 
   self->ThrowNewException(exception_class, msg.c_str());
