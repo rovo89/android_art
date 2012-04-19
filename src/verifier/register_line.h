@@ -56,8 +56,8 @@ class RegisterLine {
   RegisterLine(size_t num_regs, MethodVerifier* verifier) :
     line_(new uint16_t[num_regs]), verifier_(verifier), num_regs_(num_regs) {
     memset(line_.get(), 0, num_regs_ * sizeof(uint16_t));
-    result_[0] = RegType::kRegTypeUndefined;
-    result_[1] = RegType::kRegTypeUndefined;
+    result_[0] = RegType::kRegTypeUnknown;
+    result_[1] = RegType::kRegTypeUnknown;
   }
 
   // Implement category-1 "move" instructions. Copy a 32-bit value from "vsrc" to "vdst".
@@ -285,7 +285,7 @@ class RegisterLine {
   MethodVerifier* verifier_;
 
   // Length of reg_types_
-  const uint32_t num_regs_;
+  const size_t num_regs_;
   // A stack of monitor enter locations
   std::deque<uint32_t> monitors_;
   // A map from register to a bit vector of indices into the monitors_ stack. As we pop the monitor

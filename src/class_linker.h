@@ -194,6 +194,19 @@ class ClassLinker {
                       const ClassLoader* class_loader,
                       bool is_static);
 
+  Field* ResolveFieldJLS(uint32_t field_idx, const Method* referrer) {
+    Field* resolved_field =
+        referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
+    if (UNLIKELY(resolved_field == NULL)) {
+      Class* declaring_class = referrer->GetDeclaringClass();
+      DexCache* dex_cache = declaring_class->GetDexCache();
+      const ClassLoader* class_loader = declaring_class->GetClassLoader();
+      const DexFile& dex_file = FindDexFile(dex_cache);
+      resolved_field = ResolveFieldJLS(dex_file, field_idx, dex_cache, class_loader);
+    }
+    return resolved_field;
+  }
+
   // Resolve a field with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
   // in ResolveType. No is_static argument is provided so that Java

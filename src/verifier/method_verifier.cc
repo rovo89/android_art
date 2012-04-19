@@ -184,144 +184,173 @@ bool MethodVerifier::VerifyClass(const Class* klass, std::string& error) {
     error += PrettyDescriptor(super);
     return false;
   }
-  ClassHelper kh(klass);
-  const DexFile& dex_file = kh.GetDexFile();
-  uint32_t class_def_idx;
-  if (!dex_file.FindClassDefIndex(kh.GetDescriptor(), class_def_idx)) {
-    error = "Verifier rejected class ";
-    error += PrettyDescriptor(klass);
-    error += " that isn't present in dex file ";
-    error += dex_file.GetLocation();
-    return false;
+  for (size_t i = 0; i < klass->NumDirectMethods(); ++i) {
+    Method* method = klass->GetDirectMethod(i);
+    if (!VerifyMethod(method)) {
+      error = "Verifier rejected class ";
+      error += PrettyDescriptor(klass);
+      error += " due to bad method ";
+      error += PrettyMethod(method, true);
+      return false;
+    }
   }
-  return VerifyClass(&dex_file, kh.GetDexCache(), klass->GetClassLoader(), class_def_idx, error);
+  for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
+    Method* method = klass->GetVirtualMethod(i);
+    if (!VerifyMethod(method)) {
+      error = "Verifier rejected class ";
+      error += PrettyDescriptor(klass);
+      error += " due to bad method ";
+      error += PrettyMethod(method, true);
+      return false;
+    }
+  }
+  return true;
+}
+
+bool MethodVerifier::VerifyMethod(Method* method) {
+  MethodVerifier verifier(method);
+  bool success = verifier.VerifyAll();
+  CHECK_EQ(success, verifier.failure_ == VERIFY_ERROR_NONE);
+
+  // We expect either success and no verification error, or failure and a generic failure to
+  // reject the class.
+  if (success) {
+    if (verifier.failure_ != VERIFY_ERROR_NONE) {
+      LOG(FATAL) << "Unhandled failure in verification of " << PrettyMethod(method) << std::endl
+                 << verifier.fail_messages_;
+    }
+  } else {
+    LOG(INFO) << "Verification error in " << PrettyMethod(method) << " "
+               << verifier.fail_messages_.str();
+    if (gDebugVerify) {
+      std::cout << std::endl << verifier.info_messages_.str();
+      verifier.Dump(std::cout);
+    }
+    DCHECK((verifier.failure_ == VERIFY_ERROR_BAD_CLASS_SOFT) ||
+           (verifier.failure_ == VERIFY_ERROR_BAD_CLASS_HARD)) << verifier.failure_;
+  }
+  return success;
+}
+
+void MethodVerifier::VerifyMethodAndDump(Method* method) {
+  MethodVerifier verifier(method);
+  verifier.VerifyAll();
+
+  LOG(INFO) << "Dump of method " << PrettyMethod(method) << " "
+            << verifier.fail_messages_.str() << std::endl
+            << verifier.info_messages_.str() << Dumpable<MethodVerifier>(verifier);
 }
 
 bool MethodVerifier::VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
     const ClassLoader* class_loader, uint32_t class_def_idx, std::string& error) {
   const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
   const byte* class_data = dex_file->GetClassData(class_def);
-  if (class_data == NULL) {
-    // empty class, probably a marker interface
-    return true;
-  }
   ClassDataItemIterator it(*dex_file, class_data);
   while (it.HasNextStaticField() || it.HasNextInstanceField()) {
     it.Next();
   }
-  size_t error_count = 0;
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
   while (it.HasNextDirectMethod()) {
     uint32_t method_idx = it.GetMemberIndex();
-    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, true);
-    if (method == NULL) {
-      DCHECK(Thread::Current()->IsExceptionPending());
-      // We couldn't resolve the method, but continue regardless.
-      Thread::Current()->ClearException();
-    }
     if (!VerifyMethod(method_idx, dex_file, dex_cache, class_loader, class_def_idx,
-        it.GetMethodCodeItem(), method, it.GetMemberAccessFlags())) {
-      if (error_count > 0) {
-        error += "\n";
-      }
-      error = "Verifier rejected class ";
+        it.GetMethodCodeItem())) {
+      error = "Verifier rejected class";
       error += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
       error += " due to bad method ";
       error += PrettyMethod(method_idx, *dex_file);
-      ++error_count;
+      return false;
     }
     it.Next();
   }
   while (it.HasNextVirtualMethod()) {
     uint32_t method_idx = it.GetMemberIndex();
-    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, false);
-    if (method == NULL) {
-      DCHECK(Thread::Current()->IsExceptionPending());
-      // We couldn't resolve the method, but continue regardless.
-      Thread::Current()->ClearException();
-    }
     if (!VerifyMethod(method_idx, dex_file, dex_cache, class_loader, class_def_idx,
-        it.GetMethodCodeItem(), method, it.GetMemberAccessFlags())) {
-      if (error_count > 0) {
-        error += "\n";
-      }
-      error = "Verifier rejected class ";
+        it.GetMethodCodeItem())) {
+      error = "Verifier rejected class";
       error += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
       error += " due to bad method ";
       error += PrettyMethod(method_idx, *dex_file);
-      ++error_count;
+      return false;
     }
     it.Next();
   }
-  return error_count == 0;
+  return true;
 }
 
 bool MethodVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
-    const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
-    Method* method, uint32_t method_access_flags) {
-  MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item, method_idx,
-                          method, method_access_flags);
-  bool success = verifier.Verify();
+    const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item) {
+  MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item);
+
+  // Without a method*, we can only verify the structure.
+  bool success = verifier.VerifyStructure();
+  CHECK_EQ(success, verifier.failure_ == VERIFY_ERROR_NONE);
+
+  // We expect either success and no verification error, or failure and a generic failure to
+  // reject the class.
   if (success) {
-    // Verification completed, however failures may be pending that didn't cause the verification
-    // to hard fail.
-    if (verifier.failures_.size() != 0) {
-      verifier.DumpFailures(LOG(INFO) << "Soft verification failures in "
-                            << PrettyMethod(method_idx, *dex_file) << std::endl);
-      success = false;
+    if (verifier.failure_ != VERIFY_ERROR_NONE) {
+      LOG(FATAL) << "Unhandled failure in verification of " << PrettyMethod(method_idx, *dex_file)
+                 << std::endl << verifier.fail_messages_;
     }
   } else {
-    // Bad method data.
-    CHECK_NE(verifier.failures_.size(), 0U);
-    CHECK(verifier.have_pending_hard_failure_);
-    verifier.DumpFailures(LOG(INFO) << "Verification error in "
-                          << PrettyMethod(method_idx, *dex_file) << std::endl);
+    LOG(INFO) << "Verification error in " << PrettyMethod(method_idx, *dex_file) << " "
+               << verifier.fail_messages_.str();
     if (gDebugVerify) {
       std::cout << std::endl << verifier.info_messages_.str();
       verifier.Dump(std::cout);
     }
+    DCHECK((verifier.failure_ == VERIFY_ERROR_BAD_CLASS_SOFT) ||
+           (verifier.failure_ == VERIFY_ERROR_BAD_CLASS_HARD)) << verifier.failure_;
   }
   return success;
 }
 
-void MethodVerifier::VerifyMethodAndDump(Method* method) {
+MethodVerifier::MethodVerifier(Method* method)
+    : work_insn_idx_(-1),
+      method_(method),
+      failure_(VERIFY_ERROR_NONE),
+      new_instance_count_(0),
+      monitor_enter_count_(0) {
   CHECK(method != NULL);
-  MethodHelper mh(method);
-  MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
-                          mh.GetClassDefIndex(), mh.GetCodeItem(), method->GetDexMethodIndex(),
-                          method, method->GetAccessFlags());
-  verifier.Verify();
-  verifier.DumpFailures(LOG(INFO) << "Dump of method " << PrettyMethod(method) << std::endl)
-      << verifier.info_messages_.str() << Dumpable<MethodVerifier>(verifier);
+  dex_cache_ = method->GetDeclaringClass()->GetDexCache();
+  class_loader_ = method->GetDeclaringClass()->GetClassLoader();
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  dex_file_ = &class_linker->FindDexFile(dex_cache_);
+  code_item_ = dex_file_->GetCodeItem(method->GetCodeItemOffset());
+  const DexFile::ClassDef* class_def = ClassHelper(method_->GetDeclaringClass()).GetClassDef();
+  class_def_idx_ = dex_file_->GetIndexForClassDef(*class_def);
 }
 
 MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
-    const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
-    uint32_t method_idx, Method* method, uint32_t method_access_flags)
+    const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item)
     : work_insn_idx_(-1),
-      method_idx_(method_idx),
-      foo_method_(method),
-      method_access_flags_(method_access_flags),
+      method_(NULL),
       dex_file_(dex_file),
       dex_cache_(dex_cache),
       class_loader_(class_loader),
       class_def_idx_(class_def_idx),
       code_item_(code_item),
-      have_pending_hard_failure_(false),
-      have_pending_rewrite_failure_(false),
+      failure_(VERIFY_ERROR_NONE),
       new_instance_count_(0),
       monitor_enter_count_(0) {
 }
 
-bool MethodVerifier::Verify() {
+bool MethodVerifier::VerifyAll() {
+  CHECK(method_ != NULL);
   // If there aren't any instructions, make sure that's expected, then exit successfully.
   if (code_item_ == NULL) {
-    if ((method_access_flags_ & (kAccNative | kAccAbstract)) == 0) {
+    if (!method_->IsNative() && !method_->IsAbstract()) {
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "zero-length code in concrete non-native method";
       return false;
     } else {
       return true;
     }
+  }
+  return VerifyStructure() && VerifyCodeFlow();
+}
+
+bool MethodVerifier::VerifyStructure() {
+  if (code_item_ == NULL) {
+    return true;
   }
   // Sanity-check the register counts. ins + locals = registers, so make sure that ins <= registers.
   if (code_item_->ins_size_ > code_item_->registers_size_) {
@@ -337,73 +366,39 @@ bool MethodVerifier::Verify() {
   result = result && ScanTryCatchBlocks();
   // Perform static instruction verification.
   result = result && VerifyInstructions();
-  // Perform code-flow analysis and return.
-  return result && VerifyCodeFlow();
+  return result;
 }
 
 std::ostream& MethodVerifier::Fail(VerifyError error) {
-  switch (error) {
-    case VERIFY_ERROR_NO_CLASS:
-    case VERIFY_ERROR_NO_FIELD:
-    case VERIFY_ERROR_NO_METHOD:
-    case VERIFY_ERROR_ACCESS_CLASS:
-    case VERIFY_ERROR_ACCESS_FIELD:
-    case VERIFY_ERROR_ACCESS_METHOD:
-      if (Runtime::Current()->IsCompiler()) {
-        // If we're optimistically running verification at compile time, turn NO_xxx and ACCESS_xxx
-        // errors into soft verification errors so that we re-verify at runtime. We may fail to find
-        // or to agree on access because of not yet available class loaders, or class loaders that
-        // will differ at runtime.
+  CHECK_EQ(failure_, VERIFY_ERROR_NONE);
+  if (Runtime::Current()->IsCompiler()) {
+    switch (error) {
+      // If we're optimistically running verification at compile time, turn NO_xxx and ACCESS_xxx
+      // errors into soft verification errors so that we re-verify at runtime. We may fail to find
+      // or to agree on access because of not yet available class loaders, or class loaders that
+      // will differ at runtime.
+      case VERIFY_ERROR_NO_CLASS:
+      case VERIFY_ERROR_NO_FIELD:
+      case VERIFY_ERROR_NO_METHOD:
+      case VERIFY_ERROR_ACCESS_CLASS:
+      case VERIFY_ERROR_ACCESS_FIELD:
+      case VERIFY_ERROR_ACCESS_METHOD:
         error = VERIFY_ERROR_BAD_CLASS_SOFT;
-      } else {
-        have_pending_rewrite_failure_ = true;
-      }
-      break;
-      // Errors that are bad at both compile and runtime, but don't cause rejection of the class.
-    case VERIFY_ERROR_CLASS_CHANGE:
-    case VERIFY_ERROR_INSTANTIATION:
-      have_pending_rewrite_failure_ = true;
-      break;
-      // Indication that verification should be retried at runtime.
-    case VERIFY_ERROR_BAD_CLASS_SOFT:
-      if (!Runtime::Current()->IsCompiler()) {
-        // It is runtime so hard fail.
-        have_pending_hard_failure_ = true;
-      }
-      break;
+        break;
       // Hard verification failures at compile time will still fail at runtime, so the class is
       // marked as rejected to prevent it from being compiled.
-    case VERIFY_ERROR_BAD_CLASS_HARD: {
-      if (Runtime::Current()->IsCompiler()) {
+      case VERIFY_ERROR_BAD_CLASS_HARD: {
         Compiler::ClassReference ref(dex_file_, class_def_idx_);
         AddRejectedClass(ref);
+        break;
       }
-      have_pending_hard_failure_ = true;
-      break;
+      default:
+        break;
     }
   }
-  failures_.push_back(error);
-  std::string location(StringPrintf("%s: [0x%X]", PrettyMethod(method_idx_, *dex_file_).c_str(),
-                                    work_insn_idx_));
-  std::ostringstream* failure_message = new std::ostringstream(location);
-  failure_messages_.push_back(failure_message);
-  return *failure_message;
-}
-
-void MethodVerifier::PrependToLastFailMessage(std::string prepend) {
-  size_t failure_num = failure_messages_.size();
-  DCHECK_NE(failure_num, 0U);
-  std::ostringstream* last_fail_message = failure_messages_[failure_num - 1];
-  prepend += last_fail_message->str();
-  failure_messages_[failure_num - 1] = new std::ostringstream(prepend);
-  delete last_fail_message;
-}
-
-void MethodVerifier::AppendToLastFailMessage(std::string append) {
-  size_t failure_num = failure_messages_.size();
-  DCHECK_NE(failure_num, 0U);
-  std::ostringstream* last_fail_message = failure_messages_[failure_num - 1];
-  (*last_fail_message) << append;
+  failure_ = error;
+  return fail_messages_ << "VFY: " << PrettyMethod(method_)
+                        << '[' << reinterpret_cast<void*>(work_insn_idx_) << "] : ";
 }
 
 bool MethodVerifier::ComputeWidthsAndCountOps() {
@@ -508,7 +503,8 @@ bool MethodVerifier::VerifyInstructions() {
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
   for (uint32_t dex_pc = 0; dex_pc < insns_size;) {
     if (!VerifyInstruction(inst, dex_pc)) {
-      DCHECK_NE(failures_.size(), 0U);
+      DCHECK_NE(failure_, VERIFY_ERROR_NONE);
+      fail_messages_ << "Rejecting opcode " << inst->Name() << " at " << dex_pc;
       return false;
     }
     /* Flag instructions that are garbage collection points */
@@ -932,34 +928,30 @@ bool MethodVerifier::VerifyCodeFlow() {
 
   /* Initialize register types of method arguments. */
   if (!SetTypesFromSignature()) {
-    DCHECK_NE(failures_.size(), 0U);
-    std::string prepend("Bad signature in ");
-    prepend += PrettyMethod(method_idx_, *dex_file_);
-    PrependToLastFailMessage(prepend);
+    DCHECK_NE(failure_, VERIFY_ERROR_NONE);
+    fail_messages_ << "Bad signature in " << PrettyMethod(method_);
     return false;
   }
   /* Perform code flow verification. */
   if (!CodeFlowVerifyMethod()) {
-    DCHECK_NE(failures_.size(), 0U);
+    DCHECK_NE(failure_, VERIFY_ERROR_NONE);
     return false;
   }
 
   /* Generate a register map and add it to the method. */
   UniquePtr<const std::vector<uint8_t> > map(GenerateGcMap());
   if (map.get() == NULL) {
-    DCHECK_NE(failures_.size(), 0U);
+    DCHECK_NE(failure_, VERIFY_ERROR_NONE);
     return false;  // Not a real failure, but a failure to encode
   }
 #ifndef NDEBUG
   VerifyGcMap(*map);
 #endif
   const std::vector<uint8_t>* gc_map = CreateLengthPrefixedGcMap(*(map.get()));
-  Compiler::MethodReference ref(dex_file_, method_idx_);
+  Compiler::MethodReference ref(dex_file_, method_->GetDexMethodIndex());
   verifier::MethodVerifier::SetGcMap(ref, *gc_map);
 
-  if (foo_method_ != NULL) {
-    foo_method_->SetGcMap(&gc_map->at(0));
-  }
+  method_->SetGcMap(&gc_map->at(0));
 
 #if defined(ART_USE_LLVM_COMPILER)
   /* Generate Inferred Register Category for LLVM-based Code Generator */
@@ -968,18 +960,6 @@ bool MethodVerifier::VerifyCodeFlow() {
 #endif
 
   return true;
-}
-
-std::ostream& MethodVerifier::DumpFailures(std::ostream& os) {
-  DCHECK_EQ(failures_.size(), failure_messages_.size());
-  for (size_t i = 0; i < failures_.size(); ++i) {
-    os << failure_messages_[i]->str() << std::endl;
-  }
-  return os;
-}
-
-extern "C" void MethodVerifierGdbDump(MethodVerifier* v) {
-  v->Dump(std::cerr);
 }
 
 void MethodVerifier::Dump(std::ostream& os) {
@@ -1025,22 +1005,22 @@ bool MethodVerifier::SetTypesFromSignature() {
   DCHECK_GE(arg_start, 0);      /* should have been verified earlier */
   //Include the "this" pointer.
   size_t cur_arg = 0;
-  if (!IsStatic()) {
+  if (!method_->IsStatic()) {
     // If this is a constructor for a class other than java.lang.Object, mark the first ("this")
     // argument as uninitialized. This restricts field access until the superclass constructor is
     // called.
-    const RegType& declaring_class = GetDeclaringClass();
-    if (IsConstructor() && !declaring_class.IsJavaLangObject()) {
+    Class* declaring_class = method_->GetDeclaringClass();
+    if (method_->IsConstructor() && !declaring_class->IsObjectClass()) {
       reg_line->SetRegisterType(arg_start + cur_arg,
                                 reg_types_.UninitializedThisArgument(declaring_class));
     } else {
-      reg_line->SetRegisterType(arg_start + cur_arg, declaring_class);
+      reg_line->SetRegisterType(arg_start + cur_arg, reg_types_.FromClass(declaring_class));
     }
     cur_arg++;
   }
 
   const DexFile::ProtoId& proto_id =
-      dex_file_->GetMethodPrototype(dex_file_->GetMethodId(method_idx_));
+      dex_file_->GetMethodPrototype(dex_file_->GetMethodId(method_->GetDexMethodIndex()));
   DexFileParameterIterator iterator(*dex_file_, proto_id);
 
   for (; iterator.HasNext(); iterator.Next()) {
@@ -1061,7 +1041,8 @@ bool MethodVerifier::SetTypesFromSignature() {
         // it's effectively considered initialized the instant we reach here (in the sense that we
         // can return without doing anything or call virtual methods).
         {
-          const RegType& reg_type = reg_types_.FromDescriptor(class_loader_, descriptor);
+          const RegType& reg_type =
+              reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
           reg_line->SetRegisterType(arg_start + cur_arg, reg_type);
         }
         break;
@@ -1182,7 +1163,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
         if (work_line_->CompareLine(register_line) != 0) {
           Dump(std::cout);
           std::cout << info_messages_.str();
-          LOG(FATAL) << "work_line diverged in " << PrettyMethod(method_idx_, *dex_file_)
+          LOG(FATAL) << "work_line diverged in " << PrettyMethod(method_)
                      << "@" << reinterpret_cast<void*>(work_insn_idx_) << std::endl
                      << " work_line=" << *work_line_ << std::endl
                      << "  expected=" << *register_line;
@@ -1191,9 +1172,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
 #endif
     }
     if (!CodeFlowVerifyInstruction(&start_guess)) {
-      std::string prepend(PrettyMethod(method_idx_, *dex_file_));
-      prepend += " failed to verify: ";
-      PrependToLastFailMessage(prepend);
+      fail_messages_ << std::endl << PrettyMethod(method_) << " failed to verify";
       return false;
     }
     /* Clear "changed" and mark as visited. */
@@ -1201,7 +1180,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
     insn_flags_[insn_idx].ClearChanged();
   }
 
-  if (DEAD_CODE_SCAN && ((method_access_flags_ & kAccWritable) == 0)) {
+  if (DEAD_CODE_SCAN && ((method_->GetAccessFlags() & kAccWritable) == 0)) {
     /*
      * Scan for dead code. There's nothing "evil" about dead code
      * (besides the wasted space), but it indicates a flaw somewhere
@@ -1356,14 +1335,14 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
     }
     case Instruction::RETURN_VOID:
-      if (!IsConstructor() || work_line_->CheckConstructorReturn()) {
-        if (!GetMethodReturnType().IsConflict()) {
+      if (!method_->IsConstructor() || work_line_->CheckConstructorReturn()) {
+        if (!GetMethodReturnType().IsUnknown()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-void not expected";
         }
       }
       break;
     case Instruction::RETURN:
-      if (!IsConstructor() || work_line_->CheckConstructorReturn()) {
+      if (!method_->IsConstructor() || work_line_->CheckConstructorReturn()) {
         /* check the method signature */
         const RegType& return_type = GetMethodReturnType();
         if (!return_type.IsCategory1Types()) {
@@ -1377,31 +1356,30 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
                            return_type.IsShort() || return_type.IsChar()) &&
                            src_type.IsInteger()));
           /* check the register contents */
-          bool success =
-              work_line_->VerifyRegisterType(dec_insn.vA, use_src ? src_type : return_type);
-          if (!success) {
-            AppendToLastFailMessage(StringPrintf(" return-1nr on invalid register v%d", dec_insn.vA));
+          work_line_->VerifyRegisterType(dec_insn.vA, use_src ? src_type : return_type);
+          if (failure_ != VERIFY_ERROR_NONE) {
+            fail_messages_ << " return-1nr on invalid register v" << dec_insn.vA;
           }
         }
       }
       break;
     case Instruction::RETURN_WIDE:
-      if (!IsConstructor() || work_line_->CheckConstructorReturn()) {
+      if (!method_->IsConstructor() || work_line_->CheckConstructorReturn()) {
         /* check the method signature */
         const RegType& return_type = GetMethodReturnType();
         if (!return_type.IsCategory2Types()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-wide not expected";
         } else {
           /* check the register contents */
-          bool success = work_line_->VerifyRegisterType(dec_insn.vA, return_type);
-          if (!success) {
-            AppendToLastFailMessage(StringPrintf(" return-wide on invalid register v%d", dec_insn.vA));
+          work_line_->VerifyRegisterType(dec_insn.vA, return_type);
+          if (failure_ != VERIFY_ERROR_NONE) {
+            fail_messages_ << " return-wide on invalid register pair v" << dec_insn.vA;
           }
         }
       }
       break;
     case Instruction::RETURN_OBJECT:
-      if (!IsConstructor() || work_line_->CheckConstructorReturn()) {
+      if (!method_->IsConstructor() || work_line_->CheckConstructorReturn()) {
         const RegType& return_type = GetMethodReturnType();
         if (!return_type.IsReferenceTypes()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-object not expected";
@@ -1448,9 +1426,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       // Get type from instruction if unresolved then we need an access check
       // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
       const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB);
-      // Register holds class, ie its type is class, on error it will hold Conflict.
+      // Register holds class, ie its type is class, but on error we keep it Unknown
       work_line_->SetRegisterType(dec_insn.vA,
-                                  res_type.IsConflict() ? res_type : reg_types_.JavaLangClass());
+                                  res_type.IsUnknown() ? res_type : reg_types_.JavaLangClass());
       break;
     }
     case Instruction::MONITOR_ENTER:
@@ -1493,9 +1471,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       bool is_checkcast = dec_insn.opcode == Instruction::CHECK_CAST;
       const RegType& res_type =
           ResolveClassAndCheckAccess(is_checkcast ? dec_insn.vB : dec_insn.vC);
-      if (res_type.IsConflict()) {
-        DCHECK_NE(failures_.size(), 0U);
-        break;  // bad class
+      if (res_type.IsUnknown()) {
+        CHECK_NE(failure_, VERIFY_ERROR_NONE);
+        break;  // couldn't resolve class
       }
       // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
       const RegType& orig_type =
@@ -1526,9 +1504,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
     case Instruction::NEW_INSTANCE: {
       const RegType& res_type = ResolveClassAndCheckAccess(dec_insn.vB);
-      if (res_type.IsConflict()) {
-        DCHECK_NE(failures_.size(), 0U);
-        break;  // bad class
+      if (res_type.IsUnknown()) {
+        CHECK_NE(failure_, VERIFY_ERROR_NONE);
+        break;  // couldn't resolve class
       }
       // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
       // can't create an instance of an interface or abstract class */
@@ -1612,8 +1590,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         if (!array_type.IsArrayTypes()) {
           Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid fill-array-data with array type " << array_type;
         } else {
-          const RegType& component_type = reg_types_.GetComponentType(array_type, class_loader_);
-          DCHECK(!component_type.IsConflict());
+          const RegType& component_type = reg_types_.GetComponentType(array_type,
+                                                    method_->GetDeclaringClass()->GetClassLoader());
+          DCHECK(!component_type.IsUnknown());
           if (component_type.IsNonZeroReferenceTypes()) {
             Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid fill-array-data with component type "
                                               << component_type;
@@ -1827,25 +1806,28 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       bool is_super =  (dec_insn.opcode == Instruction::INVOKE_SUPER ||
                         dec_insn.opcode == Instruction::INVOKE_SUPER_RANGE);
       Method* called_method = VerifyInvocationArgs(dec_insn, METHOD_VIRTUAL, is_range, is_super);
-      const char* descriptor;
-      if (called_method == NULL) {
-        uint32_t method_idx = dec_insn.vB;
-        const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-        uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
-        descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
-      } else {
-        descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
+      if (failure_ == VERIFY_ERROR_NONE) {
+        const char* descriptor;
+        if (called_method == NULL) {
+          uint32_t method_idx = dec_insn.vB;
+          const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+          uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+          descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
+        } else {
+          descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
+        }
+        const RegType& return_type =
+            reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
+        work_line_->SetResultRegisterType(return_type);
+        just_set_result = true;
       }
-      const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor);
-      work_line_->SetResultRegisterType(return_type);
-      just_set_result = true;
       break;
     }
     case Instruction::INVOKE_DIRECT:
     case Instruction::INVOKE_DIRECT_RANGE: {
       bool is_range = (dec_insn.opcode == Instruction::INVOKE_DIRECT_RANGE);
       Method* called_method = VerifyInvocationArgs(dec_insn, METHOD_DIRECT, is_range, false);
-      if (called_method != NULL) {
+      if (failure_ == VERIFY_ERROR_NONE) {
         /*
          * Some additional checks when calling a constructor. We know from the invocation arg check
          * that the "this" argument is an instance of called_method->klass. Now we further restrict
@@ -1853,9 +1835,18 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
          * allowing the latter only if the "this" argument is the same as the "this" argument to
          * this method (which implies that we're in a constructor ourselves).
          */
-        if (called_method->IsConstructor()) {
+        bool is_constructor;
+        if (called_method != NULL) {
+          is_constructor = called_method->IsConstructor();
+        } else {
+          uint32_t method_idx = dec_insn.vB;
+          const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+          const char* name = dex_file_->GetMethodName(method_id);
+          is_constructor = strcmp(name, "<init>") == 0;
+        }
+        if (is_constructor) {
           const RegType& this_type = work_line_->GetInvocationThis(dec_insn);
-          if (this_type.IsConflict())  // failure.
+          if (failure_ != VERIFY_ERROR_NONE)
             break;
 
           /* no null refs allowed (?) */
@@ -1864,29 +1855,18 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             break;
           }
           if (called_method != NULL) {
+            Class* this_class = this_type.GetClass();
+            DCHECK(this_class != NULL);
             /* must be in same class or in superclass */
-            const RegType& this_super_klass = this_type.GetSuperClass(&reg_types_);
-            if (this_super_klass.IsConflict()) {
-              // Unknown super class, fail so we re-check at runtime.
-              Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "super class unknown for '" << this_type << "'";
-              break;
-            } else {
-              if (!this_super_klass.IsZero() &&
-                  called_method->GetDeclaringClass() == this_super_klass.GetClass()) {
-                if (this_type.GetClass() != GetDeclaringClass().GetClass()) {
-                  Fail(VERIFY_ERROR_BAD_CLASS_HARD)
-                        << "invoke-direct <init> on super only allowed for 'this' in <init>"
-                        << " (this class '" << this_type << "', called class '"
-                        << PrettyDescriptor(called_method->GetDeclaringClass()) << "')";
-                  break;
-                }
-              } else if (this_type.GetClass() != called_method->GetDeclaringClass()) {
+            if (called_method->GetDeclaringClass() == this_class->GetSuperClass()) {
+              if (this_class != method_->GetDeclaringClass()) {
                 Fail(VERIFY_ERROR_BAD_CLASS_HARD)
-                      << "invoke-direct <init> must be on current class or super"
-                      << " (current class '" << this_type << "', called class '"
-                      << PrettyDescriptor(called_method->GetDeclaringClass()) << "')";
+                    << "invoke-direct <init> on super only allowed for 'this' in <init>";
                 break;
               }
+            }  else if (called_method->GetDeclaringClass() != this_class) {
+              Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke-direct <init> must be on current class or super";
+              break;
             }
           }
 
@@ -1902,6 +1882,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
            * registers that have the same object instance in them, not just the "this" register.
            */
           work_line_->MarkRefsAsInitialized(this_type);
+          if (failure_ != VERIFY_ERROR_NONE)
+            break;
         }
         const char* descriptor;
         if (called_method == NULL) {
@@ -1912,7 +1894,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         } else {
           descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
         }
-        const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor);
+        const RegType& return_type =
+            reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
         work_line_->SetResultRegisterType(return_type);
         just_set_result = true;
       }
@@ -1922,69 +1905,77 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_STATIC_RANGE: {
         bool is_range = (dec_insn.opcode == Instruction::INVOKE_STATIC_RANGE);
         Method* called_method = VerifyInvocationArgs(dec_insn, METHOD_STATIC, is_range, false);
-        const char* descriptor;
-        if (called_method == NULL) {
-          uint32_t method_idx = dec_insn.vB;
-          const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-          uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
-          descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
-        } else {
-          descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
+        if (failure_ == VERIFY_ERROR_NONE) {
+          const char* descriptor;
+          if (called_method == NULL) {
+            uint32_t method_idx = dec_insn.vB;
+            const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+            uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+            descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
+          } else {
+            descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
+          }
+          const RegType& return_type =
+              reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
+          work_line_->SetResultRegisterType(return_type);
+          just_set_result = true;
         }
-        const RegType& return_type =  reg_types_.FromDescriptor(class_loader_, descriptor);
-        work_line_->SetResultRegisterType(return_type);
-        just_set_result = true;
       }
       break;
     case Instruction::INVOKE_INTERFACE:
     case Instruction::INVOKE_INTERFACE_RANGE: {
       bool is_range =  (dec_insn.opcode == Instruction::INVOKE_INTERFACE_RANGE);
       Method* abs_method = VerifyInvocationArgs(dec_insn, METHOD_INTERFACE, is_range, false);
-      if (abs_method != NULL) {
-        Class* called_interface = abs_method->GetDeclaringClass();
-        if (!called_interface->IsInterface() && !called_interface->IsObjectClass()) {
-          Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected interface class in invoke-interface '"
-              << PrettyMethod(abs_method) << "'";
-          break;
+      if (failure_ == VERIFY_ERROR_NONE) {
+        if (abs_method != NULL) {
+          Class* called_interface = abs_method->GetDeclaringClass();
+          if (!called_interface->IsInterface() && !called_interface->IsObjectClass()) {
+            Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected interface class in invoke-interface '"
+                                            << PrettyMethod(abs_method) << "'";
+            break;
+          }
         }
-      }
-      /* Get the type of the "this" arg, which should either be a sub-interface of called
-       * interface or Object (see comments in RegType::JoinClass).
-       */
-      const RegType& this_type = work_line_->GetInvocationThis(dec_insn);
-      if (this_type.IsZero()) {
-        /* null pointer always passes (and always fails at runtime) */
-      } else {
-        if (this_type.IsUninitializedTypes()) {
-          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interface call on uninitialized object "
-              << this_type;
-          break;
+        /* Get the type of the "this" arg, which should either be a sub-interface of called
+         * interface or Object (see comments in RegType::JoinClass).
+         */
+        const RegType& this_type = work_line_->GetInvocationThis(dec_insn);
+        if (failure_ == VERIFY_ERROR_NONE) {
+          if (this_type.IsZero()) {
+            /* null pointer always passes (and always fails at runtime) */
+          } else {
+            if (this_type.IsUninitializedTypes()) {
+              Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "interface call on uninitialized object "
+                  << this_type;
+              break;
+            }
+            // In the past we have tried to assert that "called_interface" is assignable
+            // from "this_type.GetClass()", however, as we do an imprecise Join
+            // (RegType::JoinClass) we don't have full information on what interfaces are
+            // implemented by "this_type". For example, two classes may implement the same
+            // interfaces and have a common parent that doesn't implement the interface. The
+            // join will set "this_type" to the parent class and a test that this implements
+            // the interface will incorrectly fail.
+          }
         }
-        // In the past we have tried to assert that "called_interface" is assignable
-        // from "this_type.GetClass()", however, as we do an imprecise Join
-        // (RegType::JoinClass) we don't have full information on what interfaces are
-        // implemented by "this_type". For example, two classes may implement the same
-        // interfaces and have a common parent that doesn't implement the interface. The
-        // join will set "this_type" to the parent class and a test that this implements
-        // the interface will incorrectly fail.
+        /*
+         * We don't have an object instance, so we can't find the concrete method. However, all of
+         * the type information is in the abstract method, so we're good.
+         */
+        const char* descriptor;
+        if (abs_method == NULL) {
+          uint32_t method_idx = dec_insn.vB;
+          const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+          uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+          descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
+        } else {
+          descriptor = MethodHelper(abs_method).GetReturnTypeDescriptor();
+        }
+        const RegType& return_type =
+            reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
+        work_line_->SetResultRegisterType(return_type);
+        work_line_->SetResultRegisterType(return_type);
+        just_set_result = true;
       }
-      /*
-       * We don't have an object instance, so we can't find the concrete method. However, all of
-       * the type information is in the abstract method, so we're good.
-       */
-      const char* descriptor;
-      if (abs_method == NULL) {
-        uint32_t method_idx = dec_insn.vB;
-        const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-        uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
-        descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
-      } else {
-        descriptor = MethodHelper(abs_method).GetReturnTypeDescriptor();
-      }
-      const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor);
-      work_line_->SetResultRegisterType(return_type);
-      work_line_->SetResultRegisterType(return_type);
-      just_set_result = true;
       break;
     }
     case Instruction::NEG_INT:
@@ -2221,21 +2212,21 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
      */
   }  // end - switch (dec_insn.opcode)
 
-  if (have_pending_hard_failure_) {
-    CHECK_EQ(failures_[failures_.size() - 1], VERIFY_ERROR_BAD_CLASS_HARD);
-    /* immediate failure, reject class */
-    info_messages_ << "Rejecting opcode " << inst->DumpString(dex_file_);
-    return false;
-  } else if (have_pending_rewrite_failure_) {
-    /* replace opcode and continue on */
-    std::string append("Replacing opcode ");
-    append += inst->DumpString(dex_file_);
-    AppendToLastFailMessage(append);
-    ReplaceFailingInstruction();
-    /* IMPORTANT: method->insns may have been changed */
-    insns = code_item_->insns_ + work_insn_idx_;
-    /* continue on as if we just handled a throw-verification-error */
-    opcode_flags = Instruction::kThrow;
+  if (failure_ != VERIFY_ERROR_NONE) {
+    if (failure_ == VERIFY_ERROR_BAD_CLASS_HARD || failure_ == VERIFY_ERROR_BAD_CLASS_SOFT) {
+      /* immediate failure, reject class */
+      fail_messages_ << std::endl << "Rejecting opcode " << inst->DumpString(dex_file_);
+      return false;
+    } else {
+      /* replace opcode and continue on */
+      fail_messages_ << std::endl << "Replacing opcode " << inst->DumpString(dex_file_);
+      ReplaceFailingInstruction();
+      /* IMPORTANT: method->insns may have been changed */
+      insns = code_item_->insns_ + work_insn_idx_;
+      /* continue on as if we just handled a throw-verification-error */
+      failure_ = VERIFY_ERROR_NONE;
+      opcode_flags = Instruction::kThrow;
+    }
   }
   /*
    * If we didn't just set the result register, clear it out. This ensures that you can only use
@@ -2410,25 +2401,25 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
 const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
   const char* descriptor = dex_file_->StringByTypeIdx(class_idx);
-  const RegType& referrer = GetDeclaringClass();
-  Class* klass = dex_cache_->GetResolvedType(class_idx);
+  Class* referrer = method_->GetDeclaringClass();
+  Class* klass = method_->GetDexCacheResolvedTypes()->Get(class_idx);
   const RegType& result =
       klass != NULL ? reg_types_.FromClass(klass)
-                    : reg_types_.FromDescriptor(class_loader_, descriptor);
-  if (result.IsConflict()) {
-    Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "accessing broken descriptor '" << descriptor
-        << "' in " << referrer;
+                    : reg_types_.FromDescriptor(referrer->GetClassLoader(), descriptor);
+  if (klass == NULL && !result.IsUnresolvedTypes()) {
+    method_->GetDexCacheResolvedTypes()->Set(class_idx, result.GetClass());
+  }
+  if (result.IsUnknown()) {
+    Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "accessing unknown class in " << PrettyDescriptor(referrer);
     return result;
   }
-  if (klass == NULL && !result.IsUnresolvedTypes()) {
-    dex_cache_->SetResolvedType(class_idx, result.GetClass());
-  }
-  // Check if access is allowed. Unresolved types use xxxWithAccessCheck to
+  // Check if access is allowed. Unresolved types use AllocObjectFromCodeWithAccessCheck to
   // check at runtime if access is allowed and so pass here.
-  if (!result.IsUnresolvedTypes() && !referrer.IsUnresolvedTypes() && !referrer.CanAccess(result)) {
+  if (!result.IsUnresolvedTypes() && !referrer->CanAccess(result.GetClass())) {
     Fail(VERIFY_ERROR_ACCESS_CLASS) << "illegal class access: '"
-                                    << referrer << "' -> '" << result << "'";
-    return reg_types_.Conflict();
+                                    << PrettyDescriptor(referrer) << "' -> '"
+                                    << result << "'";
+    return reg_types_.Unknown();
   } else {
     return result;
   }
@@ -2455,7 +2446,7 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
               // We don't know enough about the type and the common path merge will result in
               // Conflict. Fail here knowing the correct thing can be done at runtime.
               Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unexpected non-exception class " << exception;
-              return reg_types_.Conflict();
+              return reg_types_.Unknown();
             } else if (common_super->Equals(exception)) {
               // odd case, but nothing to do
             } else {
@@ -2471,26 +2462,25 @@ const RegType& MethodVerifier::GetCaughtExceptionType() {
   if (common_super == NULL) {
     /* no catch blocks, or no catches with classes we can find */
     Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "unable to find exception handler";
-    return reg_types_.Conflict();
+    return reg_types_.Unknown();
   }
   return *common_super;
 }
 
-Method* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_idx, MethodType method_type) {
-  const DexFile::MethodId& method_id = dex_file_->GetMethodId(dex_method_idx);
+Method* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type) {
+  const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
   const RegType& klass_type = ResolveClassAndCheckAccess(method_id.class_idx_);
-  if (klass_type.IsConflict()) {
-    std::string append(" in attempt to access method ");
-    append += dex_file_->GetMethodName(method_id);
-    AppendToLastFailMessage(append);
+  if (failure_ != VERIFY_ERROR_NONE) {
+    fail_messages_ << " in attempt to access method " << dex_file_->GetMethodName(method_id);
     return NULL;
   }
   if (klass_type.IsUnresolvedTypes()) {
     return NULL;  // Can't resolve Class so no more to do here
   }
   Class* klass = klass_type.GetClass();
-  const RegType& referrer = GetDeclaringClass();
-  Method* res_method = dex_cache_->GetResolvedMethod(dex_method_idx);
+  Class* referrer = method_->GetDeclaringClass();
+  DexCache* dex_cache = referrer->GetDexCache();
+  Method* res_method = dex_cache->GetResolvedMethod(method_idx);
   if (res_method == NULL) {
     const char* name = dex_file_->GetMethodName(method_id);
     std::string signature(dex_file_->CreateMethodSignature(method_id.proto_idx_, NULL));
@@ -2503,7 +2493,7 @@ Method* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_idx, Met
       res_method = klass->FindVirtualMethod(name, signature);
     }
     if (res_method != NULL) {
-      dex_cache_->SetResolvedMethod(dex_method_idx, res_method);
+      dex_cache->SetResolvedMethod(method_idx, res_method);
     } else {
       // If a virtual or interface method wasn't found with the expected type, look in
       // the direct methods. This can happen when the wrong invoke type is used or when
@@ -2533,9 +2523,9 @@ Method* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_idx, Met
     return NULL;
   }
   // Check if access is allowed.
-  if (!referrer.CanAccessMember(res_method->GetDeclaringClass(), res_method->GetAccessFlags())) {
+  if (!referrer->CanAccessMember(res_method->GetDeclaringClass(), res_method->GetAccessFlags())) {
     Fail(VERIFY_ERROR_ACCESS_METHOD) << "illegal method access (call " << PrettyMethod(res_method)
-                                  << " from " << referrer << ")";
+                                  << " from " << PrettyDescriptor(referrer) << ")";
     return NULL;
   }
   // Check that invoke-virtual and invoke-super are not used on private methods of the same class.
@@ -2580,18 +2570,15 @@ Method* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
   // has a vtable entry for the target method.
   if (is_super) {
     DCHECK(method_type == METHOD_VIRTUAL);
-    const RegType& super = GetDeclaringClass().GetSuperClass(&reg_types_);
-    Class* super_klass = super.GetClass();
-    if (res_method->GetMethodIndex() >= super_klass->GetVTable()->GetLength()) {
-      if (super.IsConflict()) {  // Only Object has no super class
-        Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
-                                     << PrettyMethod(method_idx_, *dex_file_)
+    Class* super = method_->GetDeclaringClass()->GetSuperClass();
+    if (super == NULL || res_method->GetMethodIndex() >= super->GetVTable()->GetLength()) {
+      if (super == NULL) {  // Only Object has no super class
+        Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from " << PrettyMethod(method_)
                                      << " to super " << PrettyMethod(res_method);
       } else {
         MethodHelper mh(res_method);
-        Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
-                                     << PrettyMethod(method_idx_, *dex_file_)
-                                     << " to super " << super
+        Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from " << PrettyMethod(method_)
+                                     << " to super " << PrettyDescriptor(super)
                                      << "." << mh.GetName()
                                      << mh.GetSignature();
       }
@@ -2611,14 +2598,15 @@ Method* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
   }
 
   /*
-   * Check the "this" argument, which must be an instance of the class that declared the method.
-   * For an interface class, we don't do the full interface merge (see JoinClass), so we can't do a
-   * rigorous check here (which is okay since we have to do it at runtime).
+   * Check the "this" argument, which must be an instance of the class
+   * that declared the method. For an interface class, we don't do the
+   * full interface merge, so we can't do a rigorous check here (which
+   * is okay since we have to do it at runtime).
    */
   size_t actual_args = 0;
   if (!res_method->IsStatic()) {
     const RegType& actual_arg_type = work_line_->GetInvocationThis(dec_insn);
-    if (actual_arg_type.IsConflict()) {  // GetInvocationThis failed.
+    if (failure_ != VERIFY_ERROR_NONE) {
       return NULL;
     }
     if (actual_arg_type.IsUninitializedReference() && !res_method->IsConstructor()) {
@@ -2656,7 +2644,8 @@ Method* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
           << " missing signature component";
       return NULL;
     }
-    const RegType& reg_type = reg_types_.FromDescriptor(class_loader_, descriptor);
+    const RegType& reg_type =
+        reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(), descriptor);
     uint32_t get_reg = is_range ? dec_insn.vC + actual_args : dec_insn.arg[actual_args];
     if (!work_line_->VerifyRegisterType(get_reg, reg_type)) {
       return NULL;
@@ -2672,11 +2661,16 @@ Method* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
   }
 }
 
+const RegType& MethodVerifier::GetMethodReturnType() {
+  return reg_types_.FromDescriptor(method_->GetDeclaringClass()->GetClassLoader(),
+                                   MethodHelper(method_).GetReturnTypeDescriptor());
+}
+
 void MethodVerifier::VerifyNewArray(const DecodedInstruction& dec_insn, bool is_filled,
                                  bool is_range) {
   const RegType& res_type = ResolveClassAndCheckAccess(is_filled ? dec_insn.vB : dec_insn.vC);
-  if (res_type.IsConflict()) {  // bad class
-    DCHECK_NE(failures_.size(), 0U);
+  if (res_type.IsUnknown()) {
+    CHECK_NE(failure_, VERIFY_ERROR_NONE);
   } else {
     // TODO: check Compiler::CanAccessTypeWithoutChecks returns false when res_type is unresolved
     if (!res_type.IsArrayTypes()) {
@@ -2689,12 +2683,13 @@ void MethodVerifier::VerifyNewArray(const DecodedInstruction& dec_insn, bool is_
     } else {
       // Verify each register. If "arg_count" is bad, VerifyRegisterType() will run off the end of
       // the list and fail. It's legal, if silly, for arg_count to be zero.
-      const RegType& expected_type = reg_types_.GetComponentType(res_type, class_loader_);
+      const RegType& expected_type = reg_types_.GetComponentType(res_type,
+                                                    method_->GetDeclaringClass()->GetClassLoader());
       uint32_t arg_count = dec_insn.vA;
       for (size_t ui = 0; ui < arg_count; ui++) {
         uint32_t get_reg = is_range ? dec_insn.vC + ui : dec_insn.arg[ui];
         if (!work_line_->VerifyRegisterType(get_reg, expected_type)) {
-          work_line_->SetResultRegisterType(reg_types_.Conflict());
+          work_line_->SetResultRegisterType(reg_types_.Unknown());
           return;
         }
       }
@@ -2725,7 +2720,8 @@ void MethodVerifier::VerifyAGet(const DecodedInstruction& dec_insn,
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aget";
     } else {
       /* verify the class */
-      const RegType& component_type = reg_types_.GetComponentType(array_type, class_loader_);
+      const RegType& component_type = reg_types_.GetComponentType(array_type,
+                                                    method_->GetDeclaringClass()->GetClassLoader());
       if (!component_type.IsReferenceTypes() && !is_primitive) {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "primitive array type " << array_type
             << " source for aget-object";
@@ -2761,7 +2757,8 @@ void MethodVerifier::VerifyAPut(const DecodedInstruction& dec_insn,
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "not array type " << array_type << " with aput";
     } else {
       /* verify the class */
-      const RegType& component_type = reg_types_.GetComponentType(array_type, class_loader_);
+      const RegType& component_type = reg_types_.GetComponentType(array_type,
+                                                    method_->GetDeclaringClass()->GetClassLoader());
       if (!component_type.IsReferenceTypes() && !is_primitive) {
         Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "primitive array type " << array_type
             << " source for aput-object";
@@ -2787,17 +2784,16 @@ Field* MethodVerifier::GetStaticField(int field_idx) {
   const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
   // Check access to class
   const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
-  if (klass_type.IsConflict()) { // bad class
-    AppendToLastFailMessage(StringPrintf(" in attempt to access static field %d (%s) in %s",
-                                         field_idx, dex_file_->GetFieldName(field_id),
-                                         dex_file_->GetFieldDeclaringClassDescriptor(field_id)));
+  if (failure_ != VERIFY_ERROR_NONE) {
+    fail_messages_ << " in attempt to access static field " << field_idx << " ("
+              << dex_file_->GetFieldName(field_id) << ") in "
+              << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
     return NULL;
   }
   if (klass_type.IsUnresolvedTypes()) {
-    return NULL;  // Can't resolve Class so no more to do here, will do checking at runtime.
+    return NULL;  // Can't resolve Class so no more to do here
   }
-  Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(*dex_file_, field_idx,
-                                                                       dex_cache_, class_loader_);
+  Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(field_idx, method_);
   if (field == NULL) {
     LOG(INFO) << "unable to resolve static field " << field_idx << " ("
               << dex_file_->GetFieldName(field_id) << ") in "
@@ -2805,10 +2801,10 @@ Field* MethodVerifier::GetStaticField(int field_idx) {
     DCHECK(Thread::Current()->IsExceptionPending());
     Thread::Current()->ClearException();
     return NULL;
-  } else if (!GetDeclaringClass().CanAccessMember(field->GetDeclaringClass(),
-                                                  field->GetAccessFlags())) {
+  } else if (!method_->GetDeclaringClass()->CanAccessMember(field->GetDeclaringClass(),
+                                                            field->GetAccessFlags())) {
     Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot access static field " << PrettyField(field)
-                                   << " from " << GetDeclaringClass();
+                                   << " from " << PrettyClass(method_->GetDeclaringClass());
     return NULL;
   } else if (!field->IsStatic()) {
     Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected field " << PrettyField(field) << " to be static";
@@ -2822,17 +2818,16 @@ Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) 
   const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
   // Check access to class
   const RegType& klass_type = ResolveClassAndCheckAccess(field_id.class_idx_);
-  if (klass_type.IsConflict()) {
-    AppendToLastFailMessage(StringPrintf(" in attempt to access instance field %d (%s) in %s",
-                                         field_idx, dex_file_->GetFieldName(field_id),
-                                         dex_file_->GetFieldDeclaringClassDescriptor(field_id)));
+  if (failure_ != VERIFY_ERROR_NONE) {
+    fail_messages_ << " in attempt to access instance field " << field_idx << " ("
+              << dex_file_->GetFieldName(field_id) << ") in "
+              << dex_file_->GetFieldDeclaringClassDescriptor(field_id);
     return NULL;
   }
   if (klass_type.IsUnresolvedTypes()) {
     return NULL;  // Can't resolve Class so no more to do here
   }
-  Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(*dex_file_, field_idx,
-                                                                       dex_cache_, class_loader_);
+  Field* field = Runtime::Current()->GetClassLinker()->ResolveFieldJLS(field_idx, method_);
   if (field == NULL) {
     LOG(INFO) << "unable to resolve instance field " << field_idx << " ("
               << dex_file_->GetFieldName(field_id) << ") in "
@@ -2840,10 +2835,10 @@ Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) 
     DCHECK(Thread::Current()->IsExceptionPending());
     Thread::Current()->ClearException();
     return NULL;
-  } else if (!GetDeclaringClass().CanAccessMember(field->GetDeclaringClass(),
-                                                  field->GetAccessFlags())) {
+  } else if (!method_->GetDeclaringClass()->CanAccessMember(field->GetDeclaringClass(),
+                                                            field->GetAccessFlags())) {
     Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot access instance field " << PrettyField(field)
-                                    << " from " << GetDeclaringClass();
+                                    << " from " << PrettyClass(method_->GetDeclaringClass());
     return NULL;
   } else if (field->IsStatic()) {
     Fail(VERIFY_ERROR_CLASS_CHANGE) << "expected field " << PrettyField(field)
@@ -2852,27 +2847,24 @@ Field* MethodVerifier::GetInstanceField(const RegType& obj_type, int field_idx) 
   } else if (obj_type.IsZero()) {
     // Cannot infer and check type, however, access will cause null pointer exception
     return field;
-  } else {
-    const RegType& field_klass = reg_types_.FromClass(field->GetDeclaringClass());
-    if (obj_type.IsUninitializedTypes() &&
-        (!IsConstructor() || GetDeclaringClass().Equals(obj_type) ||
-            !field_klass.Equals(GetDeclaringClass()))) {
-      // Field accesses through uninitialized references are only allowable for constructors where
-      // the field is declared in this class
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access instance field " << PrettyField(field)
+  } else if (obj_type.IsUninitializedTypes() &&
+      (!method_->IsConstructor() || method_->GetDeclaringClass() != obj_type.GetClass() ||
+          field->GetDeclaringClass() != method_->GetDeclaringClass())) {
+    // Field accesses through uninitialized references are only allowable for constructors where
+    // the field is declared in this class
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "cannot access instance field " << PrettyField(field)
                                       << " of a not fully initialized object within the context of "
-                                      << PrettyMethod(method_idx_, *dex_file_);
-      return NULL;
-    } else if (!field_klass.IsAssignableFrom(obj_type)) {
-      // Trying to access C1.field1 using reference of type C2, which is neither C1 or a sub-class
-      // of C1. For resolution to occur the declared class of the field must be compatible with
-      // obj_type, we've discovered this wasn't so, so report the field didn't exist.
-      Fail(VERIFY_ERROR_NO_FIELD) << "cannot access instance field " << PrettyField(field)
-                                  << " from object of type " << obj_type;
-      return NULL;
-    } else {
-      return field;
-    }
+                                      << PrettyMethod(method_);
+    return NULL;
+  } else if (!field->GetDeclaringClass()->IsAssignableFrom(obj_type.GetClass())) {
+    // Trying to access C1.field1 using reference of type C2, which is neither C1 or a sub-class
+    // of C1. For resolution to occur the declared class of the field must be compatible with
+    // obj_type, we've discovered this wasn't so, so report the field didn't exist.
+    Fail(VERIFY_ERROR_NO_FIELD) << "cannot access instance field " << PrettyField(field)
+                                << " from object of type " << PrettyClass(obj_type.GetClass());
+    return NULL;
+  } else {
+    return field;
   }
 }
 
@@ -2886,44 +2878,46 @@ void MethodVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
     const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB);
     field = GetInstanceField(object_type, field_idx);
   }
-  const char* descriptor;
-  const ClassLoader* loader;
-  if (field != NULL) {
-    descriptor = FieldHelper(field).GetTypeDescriptor();
-    loader = field->GetDeclaringClass()->GetClassLoader();
+  if (failure_ != VERIFY_ERROR_NONE) {
+    work_line_->SetRegisterType(dec_insn.vA, reg_types_.Unknown());
   } else {
-    const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
-    descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
-    loader = class_loader_;
-  }
-  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor);
-  if (is_primitive) {
-    if (field_type.Equals(insn_type) ||
-        (field_type.IsFloat() && insn_type.IsIntegralTypes()) ||
-        (field_type.IsDouble() && insn_type.IsLongTypes())) {
-      // expected that read is of the correct primitive type or that int reads are reading
-      // floats or long reads are reading doubles
+    const char* descriptor;
+    const ClassLoader* loader;
+    if (field != NULL) {
+      descriptor = FieldHelper(field).GetTypeDescriptor();
+      loader = field->GetDeclaringClass()->GetClassLoader();
     } else {
-      // This is a global failure rather than a class change failure as the instructions and
-      // the descriptors for the type should have been consistent within the same file at
-      // compile time
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
-                                        << " to be of type '" << insn_type
-                                        << "' but found type '" << field_type << "' in get";
-      work_line_->SetRegisterType(dec_insn.vA, reg_types_.Conflict());
-      return;
+      const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
+      descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
+      loader = method_->GetDeclaringClass()->GetClassLoader();
     }
-  } else {
-    if (!insn_type.IsAssignableFrom(field_type)) {
-      Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
-                                        << " to be compatible with type '" << insn_type
-                                        << "' but found type '" << field_type
-                                        << "' in get-object";
-      work_line_->SetRegisterType(dec_insn.vA, reg_types_.Conflict());
-      return;
+    const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor);
+    if (is_primitive) {
+      if (field_type.Equals(insn_type) ||
+          (field_type.IsFloat() && insn_type.IsIntegralTypes()) ||
+          (field_type.IsDouble() && insn_type.IsLongTypes())) {
+        // expected that read is of the correct primitive type or that int reads are reading
+        // floats or long reads are reading doubles
+      } else {
+        // This is a global failure rather than a class change failure as the instructions and
+        // the descriptors for the type should have been consistent within the same file at
+        // compile time
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
+                                          << " to be of type '" << insn_type
+                                          << "' but found type '" << field_type << "' in get";
+        return;
+      }
+    } else {
+      if (!insn_type.IsAssignableFrom(field_type)) {
+        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
+                                          << " to be compatible with type '" << insn_type
+                                          << "' but found type '" << field_type
+                                          << "' in get-object";
+        return;
+      }
     }
+    work_line_->SetRegisterType(dec_insn.vA, field_type);
   }
-  work_line_->SetRegisterType(dec_insn.vA, field_type);
 }
 
 void MethodVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
@@ -2936,71 +2930,75 @@ void MethodVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
     const RegType& object_type = work_line_->GetRegisterType(dec_insn.vB);
     field = GetInstanceField(object_type, field_idx);
   }
-  const char* descriptor;
-  const ClassLoader* loader;
-  if (field != NULL) {
-    descriptor = FieldHelper(field).GetTypeDescriptor();
-    loader = field->GetDeclaringClass()->GetClassLoader();
+  if (failure_ != VERIFY_ERROR_NONE) {
+    work_line_->SetRegisterType(dec_insn.vA, reg_types_.Unknown());
   } else {
-    const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
-    descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
-    loader = class_loader_;
-  }
-  const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor);
-  if (field != NULL) {
-    if (field->IsFinal() && field->GetDeclaringClass() != GetDeclaringClass().GetClass()) {
-      Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
-                                      << " from other class " << GetDeclaringClass();
-      return;
-    }
-  }
-  if (is_primitive) {
-    // Primitive field assignability rules are weaker than regular assignability rules
-    bool instruction_compatible;
-    bool value_compatible;
-    const RegType& value_type = work_line_->GetRegisterType(dec_insn.vA);
-    if (field_type.IsIntegralTypes()) {
-      instruction_compatible = insn_type.IsIntegralTypes();
-      value_compatible = value_type.IsIntegralTypes();
-    } else if (field_type.IsFloat()) {
-      instruction_compatible = insn_type.IsInteger();  // no [is]put-float, so expect [is]put-int
-      value_compatible = value_type.IsFloatTypes();
-    } else if (field_type.IsLong()) {
-      instruction_compatible = insn_type.IsLong();
-      value_compatible = value_type.IsLongTypes();
-    } else if (field_type.IsDouble()) {
-      instruction_compatible = insn_type.IsLong();  // no [is]put-double, so expect [is]put-long
-      value_compatible = value_type.IsDoubleTypes();
+    const char* descriptor;
+    const ClassLoader* loader;
+    if (field != NULL) {
+      descriptor = FieldHelper(field).GetTypeDescriptor();
+      loader = field->GetDeclaringClass()->GetClassLoader();
     } else {
-      instruction_compatible = false;  // reference field with primitive store
-      value_compatible = false;  // unused
+      const DexFile::FieldId& field_id = dex_file_->GetFieldId(field_idx);
+      descriptor = dex_file_->GetFieldTypeDescriptor(field_id);
+      loader = method_->GetDeclaringClass()->GetClassLoader();
     }
-    if (!instruction_compatible) {
-      // This is a global failure rather than a class change failure as the instructions and
-      // the descriptors for the type should have been consistent within the same file at
-      // compile time
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
-                                        << " to be of type '" << insn_type
-                                        << "' but found type '" << field_type
-                                        << "' in put";
-      return;
+    const RegType& field_type = reg_types_.FromDescriptor(loader, descriptor);
+    if (field != NULL) {
+      if (field->IsFinal() && field->GetDeclaringClass() != method_->GetDeclaringClass()) {
+        Fail(VERIFY_ERROR_ACCESS_FIELD) << "cannot modify final field " << PrettyField(field)
+                               << " from other class " << PrettyClass(method_->GetDeclaringClass());
+        return;
+      }
     }
-    if (!value_compatible) {
-      Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected value in v" << dec_insn.vA
-          << " of type " << value_type
-          << " but expected " << field_type
-          << " for store to " << PrettyField(field) << " in put";
-      return;
+    if (is_primitive) {
+      // Primitive field assignability rules are weaker than regular assignability rules
+      bool instruction_compatible;
+      bool value_compatible;
+      const RegType& value_type = work_line_->GetRegisterType(dec_insn.vA);
+      if (field_type.IsIntegralTypes()) {
+        instruction_compatible = insn_type.IsIntegralTypes();
+        value_compatible = value_type.IsIntegralTypes();
+      } else if (field_type.IsFloat()) {
+        instruction_compatible = insn_type.IsInteger();  // no [is]put-float, so expect [is]put-int
+        value_compatible = value_type.IsFloatTypes();
+      } else if (field_type.IsLong()) {
+        instruction_compatible = insn_type.IsLong();
+        value_compatible = value_type.IsLongTypes();
+      } else if (field_type.IsDouble()) {
+        instruction_compatible = insn_type.IsLong();  // no [is]put-double, so expect [is]put-long
+        value_compatible = value_type.IsDoubleTypes();
+      } else {
+        instruction_compatible = false;  // reference field with primitive store
+        value_compatible = false;  // unused
+      }
+      if (!instruction_compatible) {
+        // This is a global failure rather than a class change failure as the instructions and
+        // the descriptors for the type should have been consistent within the same file at
+        // compile time
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
+                                          << " to be of type '" << insn_type
+                                          << "' but found type '" << field_type
+                                          << "' in put";
+        return;
+      }
+      if (!value_compatible) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unexpected value in v" << dec_insn.vA
+                                          << " of type " << value_type
+                                          << " but expected " << field_type
+                                          << " for store to " << PrettyField(field) << " in put";
+        return;
+      }
+    } else {
+      if (!insn_type.IsAssignableFrom(field_type)) {
+        Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
+                                          << " to be compatible with type '" << insn_type
+                                          << "' but found type '" << field_type
+                                          << "' in put-object";
+        return;
+      }
+      work_line_->VerifyRegisterType(dec_insn.vA, field_type);
     }
-  } else {
-    if (!insn_type.IsAssignableFrom(field_type)) {
-      Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "expected field " << PrettyField(field)
-                                        << " to be compatible with type '" << insn_type
-                                        << "' but found type '" << field_type
-                                        << "' in put-object";
-      return;
-    }
-    work_line_->VerifyRegisterType(dec_insn.vA, field_type);
   }
 }
 
@@ -3013,19 +3011,9 @@ bool MethodVerifier::CheckNotMoveException(const uint16_t* insns, int insn_idx) 
 }
 
 void MethodVerifier::ReplaceFailingInstruction() {
-  // Pop the failure and clear the need for rewriting.
-  size_t failure_number = failures_.size();
-  CHECK_NE(failure_number, 0U);
-  DCHECK_EQ(failure_messages_.size(), failure_number);
-  std::ostringstream* failure_message = failure_messages_[failure_number - 1];
-  VerifyError failure = failures_[failure_number - 1];
-  failures_.pop_back();
-  failure_messages_.pop_back();
-  have_pending_rewrite_failure_ = false;
-
   if (Runtime::Current()->IsStarted()) {
-    LOG(ERROR) << "Verification attempting to replace instructions at runtime in "
-               << PrettyMethod(method_idx_, *dex_file_) << " " << failure_message->str();
+    LOG(ERROR) << "Verification attempting to replace instructions in " << PrettyMethod(method_)
+               << " " << fail_messages_.str();
     return;
   }
   const Instruction* inst = Instruction::At(code_item_->insns_ + work_insn_idx_);
@@ -3099,14 +3087,13 @@ void MethodVerifier::ReplaceFailingInstruction() {
   }
   // Encode the opcode, with the failure code in the high byte
   uint16_t new_instruction = Instruction::THROW_VERIFICATION_ERROR |
-                             (failure << 8) |  // AA - component
+                             (failure_ << 8) |  // AA - component
                              (ref_type << (8 + kVerifyErrorRefTypeShift));
   insns[work_insn_idx_] = new_instruction;
   // The 2nd code unit (higher in memory) with the reference in, comes from the instruction we
   // rewrote, so nothing to do here.
-  LOG(INFO) << "Verification error, replacing instructions in "
-            << PrettyMethod(method_idx_, *dex_file_) << " "
-            << failure_message->str();
+  LOG(INFO) << "Verification error, replacing instructions in " << PrettyMethod(method_) << " "
+            << fail_messages_.str();
   if (gDebugVerify) {
     std::cout << std::endl << info_messages_.str();
     Dump(std::cout);
@@ -3129,7 +3116,7 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* mer
       copy->CopyFromLine(target_line);
     }
     changed = target_line->MergeRegisters(merge_line);
-    if (have_pending_hard_failure_) {
+    if (failure_ != VERIFY_ERROR_NONE) {
       return false;
     }
     if (gDebugVerify && changed) {
@@ -3148,24 +3135,6 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* mer
 
 InsnFlags* MethodVerifier::CurrentInsnFlags() {
   return &insn_flags_[work_insn_idx_];
-}
-
-const RegType& MethodVerifier::GetMethodReturnType() {
-  const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx_);
-  const DexFile::ProtoId& proto_id = dex_file_->GetMethodPrototype(method_id);
-  uint16_t return_type_idx = proto_id.return_type_idx_;
-  const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(return_type_idx));
-  return reg_types_.FromDescriptor(class_loader_, descriptor);
-}
-
-const RegType& MethodVerifier::GetDeclaringClass() {
-  if (foo_method_ != NULL) {
-    return reg_types_.FromClass(foo_method_->GetDeclaringClass());
-  } else {
-    const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx_);
-    const char* descriptor = dex_file_->GetTypeDescriptor(dex_file_->GetTypeId(method_id.class_idx_));
-    return reg_types_.FromDescriptor(class_loader_, descriptor);
-  }
 }
 
 void MethodVerifier::ComputeGcMapSizes(size_t* gc_points, size_t* ref_bitmap_bits,

@@ -27,7 +27,7 @@ namespace verifier {
 class RegTypeCache {
  public:
   explicit RegTypeCache() : entries_(RegType::kRegTypeLastFixedLocation + 1) {
-    Undefined();  // ensure Undefined is initialized
+    Unknown();  // ensure Unknown is initialized
   }
   ~RegTypeCache() {
     STLDeleteElements(&entries_);
@@ -60,14 +60,13 @@ class RegTypeCache {
   const RegType& JavaLangString() { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/String;"); }
   const RegType& JavaLangThrowable() { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Throwable;"); }
 
-  const RegType& Undefined(){ return FromType(RegType::kRegTypeUndefined); }
+  const RegType& Unknown()  { return FromType(RegType::kRegTypeUnknown); }
   const RegType& Conflict() { return FromType(RegType::kRegTypeConflict); }
   const RegType& ConstLo()  { return FromType(RegType::kRegTypeConstLo); }
   const RegType& Zero()     { return FromCat1Const(0); }
 
   const RegType& Uninitialized(const RegType& type, uint32_t allocation_pc);
-  // Create an uninitialized 'this' argument for the given type.
-  const RegType& UninitializedThisArgument(const RegType& type);
+  const RegType& UninitializedThisArgument(Class* klass);
   const RegType& FromUninitialized(const RegType& uninit_type);
 
   // Representatives of various constant types. When merging constants we can't infer a type,
