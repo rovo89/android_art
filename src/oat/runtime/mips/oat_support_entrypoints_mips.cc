@@ -212,7 +212,6 @@ void InitEntryPoints(EntryPoints* points) {
   points->pL2f = __floatdisf;
   points->pD2iz = __fixdfsi;
   points->pF2iz = __fixsfi;
-  points->pIdiv = NULL;
   points->pIdivmod = NULL;
   points->pD2l = D2L;
   points->pF2l = F2L;

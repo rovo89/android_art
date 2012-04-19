@@ -406,6 +406,14 @@ DISASSEMBLER_ENTRY(cmp,
   case 0xE8: opcode << "call"; branch_bytes = 4; break;
   case 0xE9: opcode << "jmp"; branch_bytes = 4; break;
   case 0xEB: opcode << "jmp"; branch_bytes = 1; break;
+  case 0xF6: case 0xF7:
+    static const char* f7_opcodes[] = {"test", "unknown-f7", "not", "neg", "mul edx:eax, eax *", "imul edx:eax, eax *", "div edx:eax, edx:eax /", "idiv edx:eax, edx:eax /"};
+    modrm_opcodes = f7_opcodes;
+    has_modrm = true;
+    reg_is_opcode = true;
+    store = true;
+    immediate_bytes = ((instr[1] & 0x38) == 0) ? 1 : 0;
+    break;
   case 0xFF:
     static const char* ff_opcodes[] = {"inc", "dec", "call", "call", "jmp", "jmp", "push", "unknown-ff"};
     modrm_opcodes = ff_opcodes;

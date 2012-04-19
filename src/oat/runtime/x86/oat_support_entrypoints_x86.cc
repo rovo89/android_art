@@ -72,7 +72,6 @@ extern int32_t CmplDouble(double a, double b);
 extern int32_t CmpgFloat(float a, float b);
 extern int32_t CmplFloat(float a, float b);
 extern int64_t Lmul(int64_t a, int64_t b);
-extern "C" int32_t art_idiv_from_code(int32_t, int32_t);
 extern "C" int32_t art_idivmod_from_code(int32_t, int32_t);
 extern "C" int64_t art_ldiv_from_code(int64_t, int64_t);
 extern "C" int64_t art_ldivmod_from_code(int64_t, int64_t);
@@ -182,7 +181,6 @@ void InitEntryPoints(EntryPoints* points) {
   //points->pL2f = NULL;
   points->pD2iz = D2I;
   points->pF2iz = F2I;
-  points->pIdiv = art_idiv_from_code;
   points->pIdivmod = art_idivmod_from_code;
   points->pD2l = D2L;
   points->pF2l = F2L;
