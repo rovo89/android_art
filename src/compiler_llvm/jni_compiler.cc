@@ -296,6 +296,12 @@ CompiledMethod* JniCompiler::Compile() {
   // Verify the generated bitcode
   llvm::verifyFunction(*func_, llvm::PrintMessageAction);
 
+  // Add the memory usage approximation of the compilation unit
+  cunit_->AddMemUsageApproximation((sirt_size * 4 + 50) * 50);
+  // NOTE: We will emit 4 LLVM instructions per object argument,
+  // And about 50 instructions for other operations. (Some runtime support will be inlined.)
+  // Beside, we guess that we have to use 50 bytes to represent one LLVM instruction.
+
   CompiledMethod* compiled_method =
       new CompiledMethod(cunit_->GetInstructionSet(),
                          cunit_->GetElfIndex(),
