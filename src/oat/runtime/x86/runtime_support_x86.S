@@ -395,16 +395,18 @@ TWO_ARG_DOWNCALL art_can_put_array_element_from_code, artCanPutArrayElementFromC
 
 NO_ARG_DOWNCALL art_test_suspend, artTestSuspendFromCode, ret
 
-DEFINE_FUNCTION art_idiv_from_code
-    cdq         // edx:eax = sign extend eax
-    idiv %ecx   // (edx,eax) = (edx:eax % ecx, edx:eax / ecx)
-    ret
-
 DEFINE_FUNCTION art_idivmod_from_code
+    cmpl LITERAL(0x80000000), %eax
+    je check_arg2  // special case
+args_ok:
     cdq         // edx:eax = sign extend eax
     idiv %ecx   // (edx,eax) = (edx:eax % ecx, edx:eax / ecx)
-    movl %eax, %edx
     ret
+check_arg2:
+    cmpl LITERAL(-1), %ecx
+    jne args_ok
+    xorl %edx, %edx
+    ret         // eax already holds min int
 
 DEFINE_FUNCTION art_ldiv_from_code
     subl LITERAL(12), %esp        // alignment padding

@@ -101,7 +101,6 @@ struct PACKED EntryPoints {
   float (*pL2f)(int64_t);
   int32_t (*pD2iz)(double);
   int32_t (*pF2iz)(float);
-  int32_t (*pIdiv)(int32_t, int32_t);
   int32_t (*pIdivmod)(int32_t, int32_t);
   int64_t (*pD2l)(double);
   int64_t (*pF2l)(float);

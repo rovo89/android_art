@@ -582,20 +582,18 @@ void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
         int rIdx = oatAllocTemp(cUnit);
 #if defined(TARGET_ARM)
         int rVal = rLR;  // Using a lot of temps, rLR is known free here
+#elif defined(TARGET_X86)
+        int rVal = rSrc;
 #else
         int rVal = oatAllocTemp(cUnit);
 #endif
         // Set up source pointer
         RegLocation rlFirst = oatGetSrc(cUnit, mir, 0);
-#if defined(TARGET_X86)
-        UNIMPLEMENTED(FATAL);
-#else
         opRegRegImm(cUnit, kOpAdd, rSrc, rSP,
                     oatSRegOffset(cUnit, rlFirst.sRegLow));
         // Set up the target pointer
         opRegRegImm(cUnit, kOpAdd, rDst, rRET0,
                     Array::DataOffset(component_size).Int32Value());
-#endif
         // Set up the loop counter (known to be > 0)
         loadConstant(cUnit, rIdx, dInsn->vA - 1);
         // Generate the copy loop.  Going backwards for convenience
@@ -1782,7 +1780,7 @@ bool genArithOpInt(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             checkZero = true;
             op = kOpDiv;
             callOut = true;
-            funcOffset = ENTRYPOINT_OFFSET(pIdiv);
+            funcOffset = ENTRYPOINT_OFFSET(pIdivmod);
             retReg = rRET0;
             break;
         /* NOTE: returns in rARG1 */
@@ -2117,12 +2115,11 @@ bool genArithOpIntLit(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
             oatFlushAllRegs(cUnit);   /* Everything to home location */
             loadValueDirectFixed(cUnit, rlSrc, rARG0);
             oatClobber(cUnit, rARG0);
+            funcOffset = ENTRYPOINT_OFFSET(pIdivmod);
             if ((dalvikOpcode == Instruction::DIV_INT_LIT8) ||
                 (dalvikOpcode == Instruction::DIV_INT_LIT16)) {
-                funcOffset = ENTRYPOINT_OFFSET(pIdiv);
                 isDiv = true;
             } else {
-                funcOffset = ENTRYPOINT_OFFSET(pIdivmod);
                 isDiv = false;
             }
             callRuntimeHelperRegImm(cUnit, funcOffset, rARG0, lit);
