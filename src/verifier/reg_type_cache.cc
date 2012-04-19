@@ -32,7 +32,7 @@ static RegType::Type RegTypeFromPrimitiveType(Primitive::Type prim_type) {
     case Primitive::kPrimFloat:   return RegType::kRegTypeFloat;
     case Primitive::kPrimDouble:  return RegType::kRegTypeDoubleLo;
     case Primitive::kPrimVoid:
-    default:                      return RegType::kRegTypeConflict;
+    default:                      return RegType::kRegTypeUnknown;
   }
 }
 
@@ -48,12 +48,12 @@ static RegType::Type RegTypeFromDescriptor(const std::string& descriptor) {
       case 'F': return RegType::kRegTypeFloat;
       case 'D': return RegType::kRegTypeDoubleLo;
       case 'V':
-      default:  return RegType::kRegTypeConflict;
+      default:  return RegType::kRegTypeUnknown;
     }
   } else if (descriptor[0] == 'L' || descriptor[0] == '[') {
     return RegType::kRegTypeReference;
   } else {
-    return RegType::kRegTypeConflict;
+    return RegType::kRegTypeUnknown;
   }
 }
 
@@ -115,7 +115,7 @@ const RegType& RegTypeCache::From(RegType::Type type, const ClassLoader* loader,
       } else {
         // The descriptor is broken return the unknown type as there's nothing sensible that
         // could be done at runtime
-        return Conflict();
+        return Unknown();
       }
     }
   }
@@ -201,30 +201,15 @@ const RegType& RegTypeCache::FromUninitialized(const RegType& uninit_type) {
   return *entry;
 }
 
-const RegType& RegTypeCache::UninitializedThisArgument(const RegType& type) {
-  // TODO: implement descriptor version.
-  RegType* entry;
-  if (type.IsUnresolvedTypes()) {
-    String* descriptor = type.GetDescriptor();
-    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
-      RegType* cur_entry = entries_[i];
-      if (cur_entry->IsUnresolvedAndUninitializedThisReference() &&
-          cur_entry->GetDescriptor() == descriptor) {
-        return *cur_entry;
-      }
+const RegType& RegTypeCache::UninitializedThisArgument(Class* klass) {
+  for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
+    RegType* cur_entry = entries_[i];
+    if (cur_entry->IsUninitializedThisReference() && cur_entry->GetClass() == klass) {
+      return *cur_entry;
     }
-    entry = new RegType(RegType::kRegTypeUnresolvedAndUninitializedThisReference, descriptor, 0,
-                        entries_.size());
-  } else {
-    Class* klass = type.GetClass();
-    for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
-      RegType* cur_entry = entries_[i];
-      if (cur_entry->IsUninitializedThisReference() && cur_entry->GetClass() == klass) {
-        return *cur_entry;
-      }
-    }
-    entry = new RegType(RegType::kRegTypeUninitializedThisReference, klass, 0, entries_.size());
   }
+  RegType* entry = new RegType(RegType::kRegTypeUninitializedThisReference, klass, 0,
+                               entries_.size());
   entries_.push_back(entry);
   return *entry;
 }
