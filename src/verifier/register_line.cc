@@ -23,7 +23,8 @@ namespace verifier {
 
 bool RegisterLine::CheckConstructorReturn() const {
   for (size_t i = 0; i < num_regs_; i++) {
-    if (GetRegisterType(i).IsUninitializedThisReference()) {
+    if (GetRegisterType(i).IsUninitializedThisReference() ||
+        GetRegisterType(i).IsUnresolvedAndUninitializedThisReference()) {
       verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT)
           << "Constructor returning without calling superclass constructor";
       return false;
@@ -33,7 +34,7 @@ bool RegisterLine::CheckConstructorReturn() const {
 }
 
 bool RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
-  DCHECK(vdst < num_regs_);
+  DCHECK_LT(vdst, num_regs_);
   if (new_type.IsLowHalf()) {
     line_[vdst] = new_type.GetId();
     line_[vdst + 1] = new_type.HighHalf(verifier_->GetRegTypeCache()).GetId();
@@ -53,9 +54,8 @@ bool RegisterLine::SetRegisterType(uint32_t vdst, const RegType& new_type) {
 }
 
 void RegisterLine::SetResultTypeToUnknown() {
-  uint16_t unknown_id = verifier_->GetRegTypeCache()->Unknown().GetId();
-  result_[0] = unknown_id;
-  result_[1] = unknown_id;
+  result_[0] = RegType::kRegTypeUndefined;
+  result_[1] = RegType::kRegTypeUndefined;
 }
 
 void RegisterLine::SetResultRegisterType(const RegType& new_type) {
@@ -64,7 +64,7 @@ void RegisterLine::SetResultRegisterType(const RegType& new_type) {
     DCHECK_EQ(new_type.HighHalf(verifier_->GetRegTypeCache()).GetId(), new_type.GetId() + 1);
     result_[1] = new_type.GetId() + 1;
   } else {
-    result_[1] = verifier_->GetRegTypeCache()->Unknown().GetId();
+    result_[1] = RegType::kRegTypeUndefined;
   }
 }
 
@@ -77,14 +77,14 @@ const RegType& RegisterLine::GetRegisterType(uint32_t vsrc) const {
 const RegType& RegisterLine::GetInvocationThis(const DecodedInstruction& dec_insn) {
   if (dec_insn.vA < 1) {
     verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke lacks 'this'";
-    return verifier_->GetRegTypeCache()->Unknown();
+    return verifier_->GetRegTypeCache()->Conflict();
   }
   /* get the element type of the array held in vsrc */
   const RegType& this_type = GetRegisterType(dec_insn.vC);
   if (!this_type.IsReferenceTypes()) {
     verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "tried to get class from non-reference register v"
                                                  << dec_insn.vC << " (type=" << this_type << ")";
-    return verifier_->GetRegTypeCache()->Unknown();
+    return verifier_->GetRegTypeCache()->Conflict();
   }
   return this_type;
 }
@@ -168,9 +168,9 @@ void RegisterLine::CopyResultRegister1(uint32_t vdst, bool is_reference) {
     verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD)
         << "copyRes1 v" << vdst << "<- result0"  << " type=" << type;
   } else {
-    DCHECK(verifier_->GetRegTypeCache()->GetFromId(result_[1]).IsUnknown());
+    DCHECK(verifier_->GetRegTypeCache()->GetFromId(result_[1]).IsUndefined());
     SetRegisterType(vdst, type);
-    result_[0] = verifier_->GetRegTypeCache()->Unknown().GetId();
+    result_[0] = RegType::kRegTypeUndefined;
   }
 }
 
@@ -187,8 +187,8 @@ void RegisterLine::CopyResultRegister2(uint32_t vdst) {
   } else {
     DCHECK(type_l.CheckWidePair(type_h));  // Set should never allow this case
     SetRegisterType(vdst, type_l);  // also sets the high
-    result_[0] = verifier_->GetRegTypeCache()->Unknown().GetId();
-    result_[1] = verifier_->GetRegTypeCache()->Unknown().GetId();
+    result_[0] = RegType::kRegTypeUndefined;
+    result_[1] = RegType::kRegTypeUndefined;
   }
 }
 

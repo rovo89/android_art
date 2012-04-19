@@ -83,7 +83,6 @@ enum MethodType {
  * to be rewritten to fail at runtime.
  */
 enum VerifyError {
-  VERIFY_ERROR_NONE = 0,       // No error; must be zero.
   VERIFY_ERROR_BAD_CLASS_HARD, // VerifyError; hard error that skips compilation.
   VERIFY_ERROR_BAD_CLASS_SOFT, // VerifyError; soft error that verifies again at runtime.
 
@@ -153,11 +152,6 @@ class MethodVerifier {
  public:
   /* Verify a class. Returns "true" on success. */
   static bool VerifyClass(const Class* klass, std::string& error);
-
-  /*
-   * Structurally verify a class. Returns "true" on success. Used at compile time
-   * when the pointer for the method or declaring class can't be resolved.
-   */
   static bool VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
       const ClassLoader* class_loader, uint32_t class_def_idx, std::string& error);
 
@@ -171,14 +165,17 @@ class MethodVerifier {
     return &reg_types_;
   }
 
-  // Verification failed
+  // Log a verification failure.
   std::ostream& Fail(VerifyError error);
 
-  // Log for verification information
+  // Log for verification information.
   std::ostream& LogVerifyInfo() {
-    return info_messages_ << "VFY: " << PrettyMethod(method_)
+    return info_messages_ << "VFY: " << PrettyMethod(method_idx_, *dex_file_)
                           << '[' << reinterpret_cast<void*>(work_insn_idx_) << "] : ";
   }
+
+  // Dump the failures encountered by the verifier.
+  std::ostream& DumpFailures(std::ostream& os);
 
   // Dump the state of the verifier, namely each instruction, what flags are set on it, register
   // information
@@ -198,9 +195,15 @@ class MethodVerifier {
 
  private:
 
-  explicit MethodVerifier(Method* method);
   explicit MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
-      const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item);
+      const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
+      uint32_t method_idx, Method* method, uint32_t access_flags);
+
+  // Adds the given string to the beginning of the last failure message.
+  void PrependToLastFailMessage(std::string);
+
+  // Adds the given string to the end of the last failure message.
+  void AppendToLastFailMessage(std::string);
 
   /*
    * Perform verification on a single method.
@@ -212,42 +215,15 @@ class MethodVerifier {
    *      operands.
    *  (3) Iterate through the method, checking type safety and looking
    *      for code flow problems.
-   *
-   * Some checks may be bypassed depending on the verification mode. We can't
-   * turn this stuff off completely if we want to do "exact" GC.
-   *
-   * Confirmed here:
-   * - code array must not be empty
-   * Confirmed by ComputeWidthsAndCountOps():
-   * - opcode of first instruction begins at index 0
-   * - only documented instructions may appear
-   * - each instruction follows the last
-   * - last byte of last instruction is at (code_length-1)
-   */
-  static bool VerifyMethod(Method* method);
-  static void VerifyMethodAndDump(Method* method);
-
-  /*
-   * Perform structural verification on a single method. Used at compile time
-   * when the pointer for the method or declaring class can't be resolved.
-   *
-   * We do this in two passes:
-   *  (1) Walk through all code units, determining instruction locations,
-   *      widths, and other characteristics.
-   *  (2) Walk through all code units, performing static checks on
-   *      operands.
-   *
-   * Code flow verification is skipped since a resolved method and class are
-   * necessary to perform all the checks.
    */
   static bool VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
-      const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item);
+      const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
+      Method* method, uint32_t method_access_flags);
+  static void VerifyMethodAndDump(Method* method);
 
-  /* Run both structural and code flow verification on the method. */
-  bool VerifyAll();
-
-  /* Perform structural verification on a single method. */
-  bool VerifyStructure();
+  // Run verification on the method. Returns true if verification completes and false if the input
+  // has an irrecoverable corruption.
+  bool Verify();
 
   /*
    * Compute the width of the instruction at each address in the instruction stream, and store it in
@@ -519,13 +495,6 @@ class MethodVerifier {
                                MethodType method_type, bool is_range, bool is_super);
 
   /*
-   * Return the register type for the method. We can't just use the already-computed
-   * DalvikJniReturnType, because if it's a reference type we need to do the class lookup.
-   * Returned references are assumed to be initialized. Returns kRegTypeUnknown for "void".
-   */
-  const RegType& GetMethodReturnType();
-
-  /*
    * Verify that the target instruction is not "move-exception". It's important that the only way
    * to execute a move-exception is as the first instruction of an exception handler.
    * Returns "true" if all is well, "false" if the target instruction is move-exception.
@@ -544,6 +513,22 @@ class MethodVerifier {
   * Returns "false" if an error is encountered.
   */
   bool UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_line);
+
+  // Is the method being verified a constructor?
+  bool IsConstructor() const {
+    return (method_access_flags_ & kAccConstructor) != 0;
+  }
+
+  // Is the method verified static?
+  bool IsStatic() const {
+    return (method_access_flags_ & kAccStatic) != 0;
+  }
+
+  // Return the register type for the method.
+  const RegType& GetMethodReturnType();
+
+  // Get a type representing the declaring class of the method.
+  const RegType& GetDeclaringClass();
 
 #if defined(ART_USE_LLVM_COMPILER)
   /*
@@ -601,7 +586,9 @@ class MethodVerifier {
   // Storage for the register status we're saving for later.
   UniquePtr<RegisterLine> saved_line_;
 
-  Method* method_;  // The method we're working on.
+  uint32_t method_idx_;  // The method we're working on.
+  Method* foo_method_;  // Its object representation if known.
+  uint32_t method_access_flags_;  // Method's access flags.
   const DexFile* dex_file_;  // The dex file containing the method.
   DexCache* dex_cache_;  // The dex_cache for the declaring class of the method.
   const ClassLoader* class_loader_;  // The class loader for the declaring class of the method.
@@ -609,12 +596,16 @@ class MethodVerifier {
   const DexFile::CodeItem* code_item_;  // The code item containing the code for the method.
   UniquePtr<InsnFlags[]> insn_flags_;  // Instruction widths and flags, one entry per code unit.
 
-  // The type of any error that occurs
-  VerifyError failure_;
+  // The types of any error that occurs.
+  std::vector<VerifyError> failures_;
+  // Error messages associated with failures.
+  std::vector<std::ostringstream*> failure_messages_;
+  // Is there a pending hard failure?
+  bool have_pending_hard_failure_;
+  // Is there a pending failure that will cause dex opcodes to be rewritten.
+  bool have_pending_rewrite_failure_;
 
-  // Failure message log
-  std::ostringstream fail_messages_;
-  // Info message log
+  // Info message log use primarily for verifier diagnostics.
   std::ostringstream info_messages_;
 
   // The number of occurrences of specific opcodes.
