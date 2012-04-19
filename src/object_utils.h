@@ -183,7 +183,13 @@ class ClassHelper {
   }
 
   std::string GetLocation() {
-    return GetDexCache()->GetLocation()->ToModifiedUtf8();
+    DexCache* dex_cache = GetDexCache();
+    if (dex_cache != NULL && !klass_->IsProxyClass()) {
+      return dex_cache->GetLocation()->ToModifiedUtf8();
+    } else {
+      // Arrays and proxies are generated and have no corresponding dex file location.
+      return "generated class";
+    }
   }
 
   const DexFile& GetDexFile() {
@@ -196,6 +202,16 @@ class ClassHelper {
     return *result;
   }
 
+  DexCache* GetDexCache() {
+    DexCache* result = dex_cache_;
+    if (result == NULL) {
+      DCHECK(klass_ != NULL);
+      result = klass_->GetDexCache();
+      dex_cache_ = result;
+    }
+    return result;
+  }
+
  private:
   const DexFile::TypeList* GetInterfaceTypeList() {
     const DexFile::TypeList* result = interface_type_list_;
@@ -205,16 +221,6 @@ class ClassHelper {
         result =  GetDexFile().GetInterfacesList(*class_def);
         interface_type_list_ = result;
       }
-    }
-    return result;
-  }
-
-  DexCache* GetDexCache() {
-    DexCache* result = dex_cache_;
-    if (result == NULL) {
-      DCHECK(klass_ != NULL);
-      result = klass_->GetDexCache();
-      dex_cache_ = result;
     }
     return result;
   }
@@ -400,6 +406,7 @@ class MethodHelper {
     SetMethod(new_m);
     shorty_ = NULL;
   }
+
   const char* GetName() {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();
@@ -420,12 +427,14 @@ class MethodHelper {
       }
     }
   }
+
   String* GetNameAsString() {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();
     const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
     return GetClassLinker()->ResolveString(dex_file, method_id.name_idx_, GetDexCache());
   }
+
   const char* GetShorty() {
     const char* result = shorty_;
     if (result == NULL) {
@@ -436,12 +445,14 @@ class MethodHelper {
     }
     return result;
   }
+
   uint32_t GetShortyLength() {
     if (shorty_ == NULL) {
       GetShorty();
     }
     return shorty_len_;
   }
+
   const std::string GetSignature() {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();
@@ -451,14 +462,17 @@ class MethodHelper {
       return "<no signature>";
     }
   }
+
   const DexFile::ProtoId& GetPrototype() {
     const DexFile& dex_file = GetDexFile();
     return dex_file.GetMethodPrototype(dex_file.GetMethodId(method_->GetDexMethodIndex()));
   }
+
   const DexFile::TypeList* GetParameterTypeList() {
     const DexFile::ProtoId& proto = GetPrototype();
     return GetDexFile().GetProtoParameters(proto);
   }
+
   ObjectArray<Class>* GetParameterTypes() {
     const DexFile::TypeList* params = GetParameterTypeList();
     Class* array_class = GetClassLinker()->FindSystemClass("[Ljava/lang/Class;");
@@ -474,6 +488,7 @@ class MethodHelper {
     }
     return result;
   }
+
   Class* GetReturnType() {
     const DexFile& dex_file = GetDexFile();
     const DexFile::MethodId& method_id = dex_file.GetMethodId(method_->GetDexMethodIndex());
@@ -481,6 +496,7 @@ class MethodHelper {
     uint16_t return_type_idx = proto_id.return_type_idx_;
     return GetClassFromTypeIdx(return_type_idx);
   }
+
   const char* GetReturnTypeDescriptor() {
     const DexFile& dex_file = GetDexFile();
     const DexFile::MethodId& method_id = dex_file.GetMethodId(method_->GetDexMethodIndex());
@@ -488,10 +504,12 @@ class MethodHelper {
     uint16_t return_type_idx = proto_id.return_type_idx_;
     return dex_file.GetTypeDescriptor(dex_file.GetTypeId(return_type_idx));
   }
+
   int32_t GetLineNumFromNativePC(uintptr_t raw_pc) {
     const DexFile& dex_file = GetDexFile();
     return dex_file.GetLineNumFromPC(method_, method_->ToDexPC(raw_pc));
   }
+
   const char* GetDeclaringClassDescriptor() {
     Class* klass = method_->GetDeclaringClass();
     DCHECK(!klass->IsProxyClass());
@@ -499,6 +517,7 @@ class MethodHelper {
     const DexFile& dex_file = GetDexFile();
     return dex_file.GetTypeDescriptor(dex_file.GetTypeId(type_idx));
   }
+
   const char* GetDeclaringClassSourceFile() {
     const char* descriptor = GetDeclaringClassDescriptor();
     const DexFile& dex_file = GetDexFile();
@@ -506,17 +525,33 @@ class MethodHelper {
     CHECK(dex_class_def != NULL);
     return dex_file.GetSourceFile(*dex_class_def);
   }
+
+  uint32_t GetClassDefIndex() {
+    const char* descriptor = GetDeclaringClassDescriptor();
+    const DexFile& dex_file = GetDexFile();
+    uint32_t index;
+    CHECK(dex_file.FindClassDefIndex(descriptor, index));
+    return index;
+  }
+
+  ClassLoader* GetClassLoader() {
+    return method_->GetDeclaringClass()->GetClassLoader();
+  }
+
   bool IsStatic() {
     return method_->IsStatic();
   }
+
   bool IsClassInitializer() {
     return IsStatic() && StringPiece(GetName()) == "<clinit>";
   }
+
   size_t NumArgs() {
     // "1 +" because the first in Args is the receiver.
     // "- 1" because we don't count the return type.
     return (IsStatic() ? 0 : 1) + GetShortyLength() - 1;
   }
+
   // Is the specified parameter a long or double, where parameter 0 is 'this' for instance methods
   bool IsParamALongOrDouble(size_t param) {
     CHECK_LT(param, NumArgs());
@@ -528,6 +563,7 @@ class MethodHelper {
     char ch = GetShorty()[param];
     return (ch == 'J' || ch == 'D');
   }
+
   // Is the specified parameter a reference, where parameter 0 is 'this' for instance methods
   bool IsParamAReference(size_t param) {
     CHECK_LT(param, NumArgs());
@@ -538,6 +574,7 @@ class MethodHelper {
     }
     return GetShorty()[param] == 'L';  // An array also has a shorty character of 'L' (not '[')
   }
+
   bool HasSameNameAndSignature(MethodHelper* other) {
     if (GetDexCache() == other->GetDexCache()) {
       const DexFile& dex_file = GetDexFile();
@@ -550,12 +587,15 @@ class MethodHelper {
     StringPiece other_name(other->GetName());
     return name == other_name && GetSignature() == other->GetSignature();
   }
+
   const DexFile::CodeItem* GetCodeItem() {
     return GetDexFile().GetCodeItem(method_->GetCodeItemOffset());
   }
+
   bool IsResolvedTypeIdx(uint16_t type_idx) const {
     return method_->GetDexCacheResolvedTypes()->Get(type_idx) != NULL;
   }
+
   Class* GetClassFromTypeIdx(uint16_t type_idx) {
     Class* type = method_->GetDexCacheResolvedTypes()->Get(type_idx);
     if (type == NULL) {
@@ -564,13 +604,16 @@ class MethodHelper {
     }
     return type;
   }
+
   const char* GetTypeDescriptorFromTypeIdx(uint16_t type_idx) {
     const DexFile& dex_file = GetDexFile();
     return dex_file.GetTypeDescriptor(dex_file.GetTypeId(type_idx));
   }
+
   Class* GetDexCacheResolvedType(uint16_t type_idx) {
     return GetDexCache()->GetResolvedType(type_idx);
   }
+
   const DexFile& GetDexFile() {
     const DexFile* result = dex_file_;
     if (result == NULL) {
@@ -579,6 +622,16 @@ class MethodHelper {
       dex_file_ = result;
     }
     return *result;
+  }
+
+  DexCache* GetDexCache() {
+    DexCache* result = dex_cache_;
+    if (result == NULL) {
+      Class* klass = method_->GetDeclaringClass();
+      result = klass->GetDexCache();
+      dex_cache_ = result;
+    }
+    return result;
   }
  private:
   // Set the method_ field, for proxy methods looking up the interface method via the resolved
@@ -596,15 +649,7 @@ class MethodHelper {
     }
     method_ = method;
   }
-  DexCache* GetDexCache() {
-    DexCache* result = dex_cache_;
-    if (result == NULL) {
-      Class* klass = method_->GetDeclaringClass();
-      result = klass->GetDexCache();
-      dex_cache_ = result;
-    }
-    return result;
-  }
+
   ClassLinker* GetClassLinker() {
     ClassLinker* result = class_linker_;
     if (result == NULL) {

@@ -23,7 +23,7 @@ namespace art {
 namespace verifier {
 
 static const char* type_strings[] = {
-    "Unknown",
+    "Undefined",
     "Conflict",
     "Boolean",
     "Byte",
@@ -42,11 +42,12 @@ static const char* type_strings[] = {
     "Uninitialized Reference",
     "Uninitialized This Reference",
     "Unresolved And Uninitialized Reference",
+    "Unresolved And Uninitialized This Reference",
     "Reference",
 };
 
 std::string RegType::Dump() const {
-  DCHECK(type_ >=  kRegTypeUnknown && type_ <= kRegTypeReference);
+  DCHECK(type_ >=  kRegTypeUndefined && type_ <= kRegTypeReference);
   std::string result;
   if (IsConstant()) {
     uint32_t val = ConstantValue();
@@ -84,69 +85,44 @@ const RegType& RegType::HighHalf(RegTypeCache* cache) const {
   }
 }
 
-/*
- * A basic Join operation on classes. For a pair of types S and T the Join, written S v T = J, is
- * S <: J, T <: J and for-all U such that S <: U, T <: U then J <: U. That is J is the parent of
- * S and T such that there isn't a parent of both S and T that isn't also the parent of J (ie J
- * is the deepest (lowest upper bound) parent of S and T).
- *
- * This operation applies for regular classes and arrays, however, for interface types there needn't
- * be a partial ordering on the types. We could solve the problem of a lack of a partial order by
- * introducing sets of types, however, the only operation permissible on an interface is
- * invoke-interface. In the tradition of Java verifiers we defer the verification of interface
- * types until an invoke-interface call on the interface typed reference at runtime and allow
- * the perversion of any Object being assignable to an interface type (note, however, that we don't
- * allow assignment of Object or Interface to any concrete subclass of Object and are therefore type
- * safe; further the Join on a Object cannot result in a sub-class by definition).
- */
-Class* RegType::ClassJoin(Class* s, Class* t) {
-  DCHECK(!s->IsPrimitive()) << PrettyClass(s);
-  DCHECK(!t->IsPrimitive()) << PrettyClass(t);
-  if (s == t) {
-    return s;
-  } else if (s->IsAssignableFrom(t)) {
-    return s;
-  } else if (t->IsAssignableFrom(s)) {
-    return t;
-  } else if (s->IsArrayClass() && t->IsArrayClass()) {
-    Class* s_ct = s->GetComponentType();
-    Class* t_ct = t->GetComponentType();
-    if (s_ct->IsPrimitive() || t_ct->IsPrimitive()) {
-      // Given the types aren't the same, if either array is of primitive types then the only
-      // common parent is java.lang.Object
-      Class* result = s->GetSuperClass();  // short-cut to java.lang.Object
-      DCHECK(result->IsObjectClass());
-      return result;
-    }
-    Class* common_elem = ClassJoin(s_ct, t_ct);
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    const ClassLoader* class_loader = s->GetClassLoader();
-    std::string descriptor("[");
-    descriptor += ClassHelper(common_elem).GetDescriptor();
-    Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
-    DCHECK(array_class != NULL);
-    return array_class;
-  } else {
-    size_t s_depth = s->Depth();
-    size_t t_depth = t->Depth();
-    // Get s and t to the same depth in the hierarchy
-    if (s_depth > t_depth) {
-      while (s_depth > t_depth) {
-        s = s->GetSuperClass();
-        s_depth--;
-      }
+const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
+  if (!IsUnresolvedTypes()) {
+    Class* super_klass = GetClass()->GetSuperClass();
+    if (super_klass != NULL) {
+      return cache->FromClass(super_klass);
     } else {
-      while (t_depth > s_depth) {
-        t = t->GetSuperClass();
-        t_depth--;
-      }
+      return cache->Zero();
     }
-    // Go up the hierarchy until we get to the common parent
-    while (s != t) {
-      s = s->GetSuperClass();
-      t = t->GetSuperClass();
+  } else {
+    // TODO: handle unresolved type cases better?
+    return cache->Conflict();
+  }
+}
+
+bool RegType::CanAccess(const RegType& other) const {
+  if (Equals(other)) {
+    return true;  // Trivial accessibility.
+  } else {
+    bool this_unresolved = IsUnresolvedTypes();
+    bool other_unresolved = other.IsUnresolvedTypes();
+    if (!this_unresolved && !other_unresolved) {
+      return GetClass()->CanAccess(other.GetClass());
+    } else if (!other_unresolved) {
+      return other.GetClass()->IsPublic();  // Be conservative, only allow if other is public.
+    } else {
+      return false; // More complicated test not possible on unresolved types, be conservative.
     }
-    return s;
+  }
+}
+
+bool RegType::CanAccessMember(Class* klass, uint32_t access_flags) const {
+  if (access_flags & kAccPublic) {
+    return true;
+  }
+  if (!IsUnresolvedTypes()) {
+    return GetClass()->CanAccessMember(klass, access_flags);
+  } else {
+    return false;  // More complicated test not possible on unresolved types, be conservative.
   }
 }
 
@@ -181,6 +157,11 @@ bool RegType::IsAssignableFrom(const RegType& src) const {
                    GetClass()->IsAssignableFrom(src.GetClass())) {
           // We're assignable from the Class point-of-view
           return true;
+        } else if (IsUnresolvedTypes() && src.IsUnresolvedTypes() &&
+                   GetDescriptor() == src.GetDescriptor()) {
+          // Two unresolved types (maybe one is uninitialized), we're clearly assignable if the
+          // descriptor is the same.
+          return true;
         } else {
           return false;
         }
@@ -194,13 +175,13 @@ static const RegType& SelectNonConstant(const RegType& a, const RegType& b) {
 
 const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_types) const {
   DCHECK(!Equals(incoming_type));  // Trivial equality handled by caller
-  if (IsUnknown() && incoming_type.IsUnknown()) {
-    return *this;  // Unknown MERGE Unknown => Unknown
+  if (IsUndefined() && incoming_type.IsUndefined()) {
+    return *this;  // Undefined MERGE Undefined => Undefined
   } else if (IsConflict()) {
     return *this;  // Conflict MERGE * => Conflict
   } else if (incoming_type.IsConflict()) {
     return incoming_type;  // * MERGE Conflict => Conflict
-  } else if (IsUnknown() || incoming_type.IsUnknown()) {
+  } else if (IsUndefined() || incoming_type.IsUndefined()) {
     return reg_types->Conflict();  // Unknown MERGE * => Conflict
   } else if (IsConstant() && incoming_type.IsConstant()) {
     int32_t val1 = ConstantValue();
@@ -288,6 +269,58 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
     }
   } else {
     return reg_types->Conflict();  // Unexpected types => Conflict
+  }
+}
+
+// See comment in reg_type.h
+Class* RegType::ClassJoin(Class* s, Class* t) {
+  DCHECK(!s->IsPrimitive()) << PrettyClass(s);
+  DCHECK(!t->IsPrimitive()) << PrettyClass(t);
+  if (s == t) {
+    return s;
+  } else if (s->IsAssignableFrom(t)) {
+    return s;
+  } else if (t->IsAssignableFrom(s)) {
+    return t;
+  } else if (s->IsArrayClass() && t->IsArrayClass()) {
+    Class* s_ct = s->GetComponentType();
+    Class* t_ct = t->GetComponentType();
+    if (s_ct->IsPrimitive() || t_ct->IsPrimitive()) {
+      // Given the types aren't the same, if either array is of primitive types then the only
+      // common parent is java.lang.Object
+      Class* result = s->GetSuperClass();  // short-cut to java.lang.Object
+      DCHECK(result->IsObjectClass());
+      return result;
+    }
+    Class* common_elem = ClassJoin(s_ct, t_ct);
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    const ClassLoader* class_loader = s->GetClassLoader();
+    std::string descriptor("[");
+    descriptor += ClassHelper(common_elem).GetDescriptor();
+    Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);
+    DCHECK(array_class != NULL);
+    return array_class;
+  } else {
+    size_t s_depth = s->Depth();
+    size_t t_depth = t->Depth();
+    // Get s and t to the same depth in the hierarchy
+    if (s_depth > t_depth) {
+      while (s_depth > t_depth) {
+        s = s->GetSuperClass();
+        s_depth--;
+      }
+    } else {
+      while (t_depth > s_depth) {
+        t = t->GetSuperClass();
+        t_depth--;
+      }
+    }
+    // Go up the hierarchy until we get to the common parent
+    while (s != t) {
+      s = s->GetSuperClass();
+      t = t->GetSuperClass();
+    }
+    return s;
   }
 }
 

@@ -33,8 +33,11 @@ class RegTypeCache;
 class RegType {
  public:
   enum Type {
-    kRegTypeUnknown = 0,    // Initial state.
-    kRegTypeConflict,       // Merge clash makes this reg's type unknowable.
+    // A special state that identifies a register as undefined.
+    kRegTypeUndefined = 0,
+    // The bottom type, used to denote the type of operations such as returning a void, throwing
+    // an exception or merging incompatible types, such as an int and a long.
+    kRegTypeConflict,
     kRegTypeBoolean,        // Z.
     kRegType1nrSTART = kRegTypeBoolean,
     kRegTypeIntegralSTART = kRegTypeBoolean,
@@ -57,6 +60,8 @@ class RegType {
     kRegTypeUninitializedReference,     // Freshly allocated reference type.
     kRegTypeUninitializedThisReference, // Freshly allocated reference passed as "this".
     kRegTypeUnresolvedAndUninitializedReference, // Freshly allocated unresolved reference type.
+                                        // Freshly allocated unresolved reference passed as "this".
+    kRegTypeUnresolvedAndUninitializedThisReference,
     kRegTypeReference,                  // Reference type.
   };
 
@@ -64,7 +69,7 @@ class RegType {
     return type_;
   }
 
-  bool IsUnknown() const { return type_ == kRegTypeUnknown; }
+  bool IsUndefined() const { return type_ == kRegTypeUndefined; }
   bool IsConflict() const { return type_ == kRegTypeConflict; }
   bool IsBoolean() const { return type_ == kRegTypeBoolean; }
   bool IsByte()    const { return type_ == kRegTypeByte; }
@@ -80,13 +85,17 @@ class RegType {
   bool IsUnresolvedAndUninitializedReference() const {
     return type_ == kRegTypeUnresolvedAndUninitializedReference;
   }
+  bool IsUnresolvedAndUninitializedThisReference() const {
+    return type_ == kRegTypeUnresolvedAndUninitializedThisReference;
+  }
   bool IsReference() const { return type_ == kRegTypeReference; }
   bool IsUninitializedTypes() const {
     return IsUninitializedReference() || IsUninitializedThisReference() ||
-        IsUnresolvedAndUninitializedReference();
+        IsUnresolvedAndUninitializedReference() || IsUnresolvedAndUninitializedThisReference();
   }
   bool IsUnresolvedTypes() const {
-    return IsUnresolvedReference() || IsUnresolvedAndUninitializedReference();
+    return IsUnresolvedReference() || IsUnresolvedAndUninitializedReference() ||
+        IsUnresolvedAndUninitializedThisReference();
   }
   bool IsLowHalf() const { return type_ == kRegTypeLongLo ||
                                   type_ == kRegTypeDoubleLo ||
@@ -135,12 +144,14 @@ class RegType {
   }
 
   bool IsReferenceTypes() const {
-    return IsReference() || IsUnresolvedReference() || IsUninitializedReference() ||
-        IsUninitializedThisReference() || IsUnresolvedAndUninitializedReference() || IsZero();
+    return IsReference() || IsUnresolvedReference() ||  IsZero() ||
+        IsUninitializedReference() ||  IsUninitializedThisReference() ||
+        IsUnresolvedAndUninitializedReference() || IsUnresolvedAndUninitializedThisReference();
   }
   bool IsNonZeroReferenceTypes() const {
-    return IsReference() || IsUnresolvedReference() || IsUninitializedReference() ||
-        IsUninitializedThisReference();
+    return IsReference() || IsUnresolvedReference() ||  IsZero() ||
+        IsUninitializedReference() ||  IsUninitializedThisReference() ||
+        IsUnresolvedAndUninitializedReference() || IsUnresolvedAndUninitializedThisReference();
   }
   bool IsCategory1Types() const {
     return (type_ >= kRegType1nrSTART && type_ <= kRegType1nrEND) || IsConstant();
@@ -259,13 +270,22 @@ class RegType {
     return cache_id_;
   }
 
+  const RegType& GetSuperClass(RegTypeCache* cache) const;
+
   std::string Dump() const;
 
+  // Can this type access other?
+  bool CanAccess(const RegType& other) const;
+  // Can this type access a member with the given properties?
+  bool CanAccessMember(Class* klass, uint32_t access_flags) const;
+
+  // Can this type be assigned by src?
   bool IsAssignableFrom(const RegType& src) const;
 
-  const RegType& Merge(const RegType& incoming_type, RegTypeCache* reg_types) const;
-
   bool Equals(const RegType& other) const { return GetId() == other.GetId(); }
+
+  // Compute the merge of this register from one edge (path) with incoming_type from another.
+  const RegType& Merge(const RegType& incoming_type, RegTypeCache* reg_types) const;
 
   /*
    * A basic Join operation on classes. For a pair of types S and T the Join, written S v T = J, is
@@ -292,7 +312,7 @@ class RegType {
     type_(type), klass_or_descriptor_(klass_or_descriptor), allocation_pc_or_constant_(allocation_pc_or_constant),
     cache_id_(cache_id) {
     DCHECK(IsConstant() || IsUninitializedTypes() || allocation_pc_or_constant == 0);
-    if (!IsConstant() && !IsLongConstant() && !IsLongConstantHigh() && !IsUnknown() &&
+    if (!IsConstant() && !IsLongConstant() && !IsLongConstantHigh() && !IsUndefined() &&
         !IsConflict()) {
       DCHECK(klass_or_descriptor != NULL);
       DCHECK(IsUnresolvedTypes() || klass_or_descriptor_->IsClass());
