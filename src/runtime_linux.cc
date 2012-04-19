@@ -188,13 +188,15 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void*) {
                       << (has_address ? StringPrintf(" fault addr %p", info->si_addr) : "");
   Backtrace();
 
-  // TODO: make this part optional, like it is on the device?
-  // Wait for debugger to attach.
-  LOG(INTERNAL_FATAL) << "********************************************************\n"
-                      << "* Process " << getpid() << " has been suspended while crashing. Attach gdb:\n"
-                      << "*     gdb -p " << getpid() << "\n"
-                      << "********************************************************\n";
-  while (true) {
+  // TODO: instead, get debuggerd running on the host, try to connect, and hang around on success.
+  if (getenv("debug_db_uid") != NULL) {
+    LOG(INTERNAL_FATAL) << "********************************************************\n"
+                        << "* Process " << getpid() << " has been suspended while crashing. Attach gdb:\n"
+                        << "*     gdb -p " << getpid() << "\n"
+                        << "********************************************************\n";
+    // Wait for debugger to attach.
+    while (true) {
+    }
   }
 }
 
