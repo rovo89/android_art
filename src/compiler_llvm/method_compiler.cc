@@ -1736,10 +1736,12 @@ void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
 
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
+  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+
   EmitUpdateLineNumFromDexPC(dex_pc);
 
   llvm::Value* object_addr =
-    irb_.CreateCall2(runtime_func, type_index_value, method_object_addr);
+    irb_.CreateCall3(runtime_func, type_index_value, method_object_addr, thread_object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
 
@@ -1777,11 +1779,13 @@ llvm::Value* MethodCompiler::EmitAllocNewArray(uint32_t dex_pc,
 
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
+  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+
   EmitUpdateLineNumFromDexPC(dex_pc);
 
   llvm::Value* object_addr =
-    irb_.CreateCall3(runtime_func, type_index_value, method_object_addr,
-                     array_length_value);
+    irb_.CreateCall4(runtime_func, type_index_value, method_object_addr,
+                     array_length_value, thread_object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
 
@@ -3074,13 +3078,16 @@ EmitCallRuntimeForCalleeMethodObjectAddr(uint32_t callee_method_idx,
 
   llvm::Value* caller_method_object_addr = EmitLoadMethodObjectAddr();
 
+  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+
   EmitUpdateLineNumFromDexPC(dex_pc);
 
   llvm::Value* callee_method_object_addr =
-    irb_.CreateCall3(runtime_func,
+    irb_.CreateCall4(runtime_func,
                      callee_method_idx_value,
                      this_addr,
-                     caller_method_object_addr);
+                     caller_method_object_addr,
+                     thread_object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
 
