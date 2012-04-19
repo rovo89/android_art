@@ -200,7 +200,9 @@ CompiledMethod* JniCompiler::Compile() {
   // Acquire lock for synchronized methods.
   if (is_synchronized) {
     // Acquire lock
-    irb_.CreateCall(irb_.GetRuntime(LockObject), this_object_or_class_object);
+    irb_.CreateCall2(irb_.GetRuntime(LockObject),
+                     this_object_or_class_object,
+                     thread_object_addr);
 
     // Check exception pending
     llvm::Value* exception_pending = irb_.CreateCall(irb_.GetRuntime(IsExceptionPending));
@@ -251,7 +253,9 @@ CompiledMethod* JniCompiler::Compile() {
 
   // Release lock for synchronized methods.
   if (is_synchronized) {
-    irb_.CreateCall(irb_.GetRuntime(UnlockObject), this_object_or_class_object);
+    irb_.CreateCall2(irb_.GetRuntime(UnlockObject),
+                     this_object_or_class_object,
+                     thread_object_addr);
   }
 
   // Set thread state to kRunnable

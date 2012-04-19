@@ -62,7 +62,7 @@ void art_throw_exception_from_code(Object* exception);
 int32_t art_find_catch_block_from_code(Method* current_method, int32_t dex_pc);
 
 
-void art_test_suspend_from_code();
+void art_test_suspend_from_code(Thread* thread);
 
 void art_set_current_thread_from_code(void* thread_object_addr);
 

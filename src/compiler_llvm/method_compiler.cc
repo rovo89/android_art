@@ -1442,13 +1442,15 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
+    llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+
     llvm::Function* runtime_func =
       irb_.GetRuntime(InitializeTypeAndVerifyAccess);
 
     EmitUpdateDexPC(dex_pc);
 
     llvm::Value* type_object_addr =
-      irb_.CreateCall2(runtime_func, type_idx_value, method_object_addr);
+      irb_.CreateCall3(runtime_func, type_idx_value, method_object_addr, thread_object_addr);
 
     EmitGuard_ExceptionLandingPad(dex_pc);
 
@@ -1488,10 +1490,12 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
+    llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+
     EmitUpdateDexPC(dex_pc);
 
     llvm::Value* loaded_type_object_addr =
-      irb_.CreateCall2(runtime_func, type_idx_value, method_object_addr);
+      irb_.CreateCall3(runtime_func, type_idx_value, method_object_addr, thread_object_addr);
 
     EmitGuard_ExceptionLandingPad(dex_pc);
 
@@ -1537,7 +1541,9 @@ void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
 
   EmitUpdateDexPC(dex_pc);
 
-  irb_.CreateCall(irb_.GetRuntime(LockObject), object_addr);
+  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+
+  irb_.CreateCall2(irb_.GetRuntime(LockObject), object_addr, thread_object_addr);
   EmitGuard_ExceptionLandingPad(dex_pc);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
@@ -1556,7 +1562,9 @@ void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
 
   EmitUpdateDexPC(dex_pc);
 
-  irb_.CreateCall(irb_.GetRuntime(UnlockObject), object_addr);
+  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+
+  irb_.CreateCall2(irb_.GetRuntime(UnlockObject), object_addr, thread_object_addr);
   EmitGuard_ExceptionLandingPad(dex_pc);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
@@ -2541,10 +2549,12 @@ llvm::Value* MethodCompiler::EmitLoadStaticStorage(uint32_t dex_pc,
 
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
+  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+
   EmitUpdateDexPC(dex_pc);
 
   llvm::Value* loaded_storage_object_addr =
-    irb_.CreateCall2(runtime_func, type_idx_value, method_object_addr);
+    irb_.CreateCall3(runtime_func, type_idx_value, method_object_addr, thread_object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
 

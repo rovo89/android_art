@@ -38,8 +38,8 @@ declare void @__art_type_list(%JavaObject*, %ShadowFrame*)
 declare %JavaObject* @art_get_current_thread_from_code()
 declare void @art_set_current_thread_from_code(%JavaObject*)
 
-declare void @art_lock_object_from_code(%JavaObject*)
-declare void @art_unlock_object_from_code(%JavaObject*)
+declare void @art_lock_object_from_code(%JavaObject*, %JavaObject*)
+declare void @art_unlock_object_from_code(%JavaObject*, %JavaObject*)
 
 declare void @art_test_suspend_from_code()
 
@@ -98,10 +98,10 @@ declare %JavaObject* @art_find_interface_method_from_code_with_access_check(
 declare %JavaObject* @art_find_interface_method_from_code(
   i32, %JavaObject*, %JavaObject*, %JavaObject*)
 
-declare %JavaObject* @art_initialize_static_storage_from_code(i32, %JavaObject*)
-declare %JavaObject* @art_initialize_type_from_code(i32, %JavaObject*)
+declare %JavaObject* @art_initialize_static_storage_from_code(i32, %JavaObject*, %JavaObject*)
+declare %JavaObject* @art_initialize_type_from_code(i32, %JavaObject*, %JavaObject*)
 declare %JavaObject* @art_initialize_type_and_verify_access_from_code(
-  i32, %JavaObject*)
+  i32, %JavaObject*, %JavaObject*)
 
 declare %JavaObject* @art_resolve_string_from_code(%JavaObject*, i32)
 
