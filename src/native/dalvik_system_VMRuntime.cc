@@ -124,9 +124,11 @@ static jstring VMRuntime_vmVersion(JNIEnv* env, jobject) {
   return env->NewStringUTF(Runtime::Current()->GetVersion());
 }
 
+#if !defined(ART_USE_LLVM_COMPILER)
 static void DisableCheckJniCallback(Thread* t, void*) {
   t->GetJniEnv()->SetCheckJniEnabled(false);
 }
+#endif
 
 static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersion) {
   // This is the target SDK version of the app we're about to run.
