@@ -32,9 +32,9 @@ class ShadowFrame {
     return number_of_references_;
   }
 
-  // Caller line number
-  uint32_t GetLineNumber() const {
-    return line_num_;
+  // Caller dex pc
+  uint32_t GetDexPC() const {
+    return dex_pc_;
   }
 
   // Link to previous shadow frame or NULL
@@ -82,9 +82,9 @@ class ShadowFrame {
     return OFFSETOF_MEMBER(ShadowFrame, method_);
   }
 
-  // Offset of line number within shadow frame
-  static size_t LineNumOffset() {
-    return OFFSETOF_MEMBER(ShadowFrame, line_num_);
+  // Offset of dex pc within shadow frame
+  static size_t DexPCOffset() {
+    return OFFSETOF_MEMBER(ShadowFrame, dex_pc_);
   }
 
   // Offset of length within shadow frame
@@ -105,7 +105,7 @@ class ShadowFrame {
   uint32_t number_of_references_;
   ShadowFrame* link_;
   Method* method_;
-  uint32_t line_num_;
+  uint32_t dex_pc_;
   Object* references_[];
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ShadowFrame);

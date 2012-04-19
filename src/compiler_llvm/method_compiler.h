@@ -265,8 +265,7 @@ class MethodCompiler {
 
   // Shadow frame helper function
   void EmitPopShadowFrame();
-  void EmitUpdateLineNum(int32_t line_number);
-  void EmitUpdateLineNumFromDexPC(uint32_t dex_pc);
+  void EmitUpdateDexPC(uint32_t dex_pc);
 
 
   // Dex cache code generation helper function

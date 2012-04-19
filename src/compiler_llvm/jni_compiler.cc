@@ -125,10 +125,10 @@ CompiledMethod* JniCompiler::Compile() {
                        irb_.getJObjectTy()->getPointerTo());
   irb_.CreateStore(method_object_addr, method_field_addr);
 
-  // Store the line number
+  // Store the dex pc
   irb_.StoreToObjectOffset(shadow_frame_,
-                           ShadowFrame::LineNumOffset(),
-                           irb_.getInt32(dex_file_->GetLineNumFromPC(method_, 0)));
+                           ShadowFrame::DexPCOffset(),
+                           irb_.getInt32(0));
 
   // Store the number of the pointer slots
   irb_.StoreToObjectOffset(shadow_frame_,

@@ -1267,7 +1267,7 @@ void MethodCompiler::EmitInsn_ThrowException(uint32_t dex_pc,
   llvm::Value* exception_addr =
     EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
 
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
 
   irb_.CreateCall(irb_.GetRuntime(ThrowException), exception_addr);
 
@@ -1280,7 +1280,7 @@ void MethodCompiler::EmitInsn_ThrowVerificationError(uint32_t dex_pc,
 
   DecodedInstruction dec_insn(insn);
 
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
 
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
   llvm::Value* kind_value = irb_.getInt32(dec_insn.vA);
@@ -1419,7 +1419,7 @@ void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
 
     llvm::Value* string_idx_value = irb_.getInt32(string_idx);
 
-    EmitUpdateLineNumFromDexPC(dex_pc);
+    EmitUpdateDexPC(dex_pc);
 
     string_addr = irb_.CreateCall2(runtime_func, method_object_addr,
                                    string_idx_value);
@@ -1445,7 +1445,7 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
     llvm::Function* runtime_func =
       irb_.GetRuntime(InitializeTypeAndVerifyAccess);
 
-    EmitUpdateLineNumFromDexPC(dex_pc);
+    EmitUpdateDexPC(dex_pc);
 
     llvm::Value* type_object_addr =
       irb_.CreateCall2(runtime_func, type_idx_value, method_object_addr);
@@ -1488,7 +1488,7 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-    EmitUpdateLineNumFromDexPC(dex_pc);
+    EmitUpdateDexPC(dex_pc);
 
     llvm::Value* loaded_type_object_addr =
       irb_.CreateCall2(runtime_func, type_idx_value, method_object_addr);
@@ -1535,7 +1535,7 @@ void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
   // TODO: Slow path always. May not need NullPointerException check.
   EmitGuard_NullPointerException(dex_pc, object_addr);
 
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
 
   irb_.CreateCall(irb_.GetRuntime(LockObject), object_addr);
   EmitGuard_ExceptionLandingPad(dex_pc);
@@ -1554,7 +1554,7 @@ void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
 
   EmitGuard_NullPointerException(dex_pc, object_addr);
 
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
 
   irb_.CreateCall(irb_.GetRuntime(UnlockObject), object_addr);
   EmitGuard_ExceptionLandingPad(dex_pc);
@@ -1607,7 +1607,7 @@ void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
   // Test: Is the object instantiated from the subclass of the given class?
   irb_.SetInsertPoint(block_test_sub_class);
 
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
 
   irb_.CreateCall2(irb_.GetRuntime(CheckCast),
                    type_object_addr, object_type_object_addr);
@@ -1738,7 +1738,7 @@ void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
 
   llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
 
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
 
   llvm::Value* object_addr =
     irb_.CreateCall3(runtime_func, type_index_value, method_object_addr, thread_object_addr);
@@ -1781,7 +1781,7 @@ llvm::Value* MethodCompiler::EmitAllocNewArray(uint32_t dex_pc,
 
   llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
 
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
 
   llvm::Value* object_addr =
     irb_.CreateCall4(runtime_func, type_index_value, method_object_addr,
@@ -2281,7 +2281,7 @@ MethodCompiler::EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
 
   irb_.SetInsertPoint(block_exception);
 
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
   irb_.CreateCall2(irb_.GetRuntime(ThrowIndexOutOfBounds), index, array_len);
   EmitBranchExceptionLandingPad(dex_pc);
 
@@ -2415,7 +2415,7 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-    EmitUpdateLineNumFromDexPC(dex_pc);
+    EmitUpdateDexPC(dex_pc);
 
     field_value = irb_.CreateCall3(runtime_func, field_idx_value,
                                    method_object_addr, object_addr);
@@ -2479,7 +2479,7 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-    EmitUpdateLineNumFromDexPC(dex_pc);
+    EmitUpdateDexPC(dex_pc);
 
     irb_.CreateCall4(runtime_func, field_idx_value,
                      method_object_addr, object_addr, new_value);
@@ -2541,7 +2541,7 @@ llvm::Value* MethodCompiler::EmitLoadStaticStorage(uint32_t dex_pc,
 
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
 
   llvm::Value* loaded_storage_object_addr =
     irb_.CreateCall2(runtime_func, type_idx_value, method_object_addr);
@@ -2598,7 +2598,7 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-    EmitUpdateLineNumFromDexPC(dex_pc);
+    EmitUpdateDexPC(dex_pc);
 
     static_field_value =
       irb_.CreateCall2(runtime_func, field_idx_value, method_object_addr);
@@ -2680,7 +2680,7 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-    EmitUpdateLineNumFromDexPC(dex_pc);
+    EmitUpdateDexPC(dex_pc);
 
     irb_.CreateCall3(runtime_func, field_idx_value,
                      method_object_addr, new_value);
@@ -2908,7 +2908,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
 
 #if 0
   // Invoke callee
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
   EmitGuard_ExceptionLandingPad(dex_pc);
 
@@ -2928,7 +2928,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   char ret_shorty = callee_oat_compilation_unit->GetShorty()[0];
 
 
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
 
 
   llvm::BasicBlock* block_normal = CreateBasicBlockWithDexPC(dex_pc, "normal");
@@ -3080,7 +3080,7 @@ EmitCallRuntimeForCalleeMethodObjectAddr(uint32_t callee_method_idx,
 
   llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
 
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
 
   llvm::Value* callee_method_object_addr =
     irb_.CreateCall4(runtime_func,
@@ -3596,7 +3596,7 @@ void MethodCompiler::EmitGuard_DivZeroException(uint32_t dex_pc,
   irb_.CreateCondBr(equal_zero, block_exception, block_continue);
 
   irb_.SetInsertPoint(block_exception);
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
   irb_.CreateCall(irb_.GetRuntime(ThrowDivZeroException));
   EmitBranchExceptionLandingPad(dex_pc);
 
@@ -3617,7 +3617,7 @@ void MethodCompiler::EmitGuard_NullPointerException(uint32_t dex_pc,
   irb_.CreateCondBr(equal_null, block_exception, block_continue);
 
   irb_.SetInsertPoint(block_exception);
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
   irb_.CreateCall(irb_.GetRuntime(ThrowNullPointerException), irb_.getInt32(dex_pc));
   EmitBranchExceptionLandingPad(dex_pc);
 
@@ -3747,7 +3747,7 @@ void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
 
 void MethodCompiler::EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc) {
   llvm::Value* runtime_func = irb_.GetRuntime(TestSuspend);
-  EmitUpdateLineNumFromDexPC(dex_pc);
+  EmitUpdateDexPC(dex_pc);
   irb_.CreateCall(runtime_func);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
@@ -4013,21 +4013,10 @@ void MethodCompiler::EmitPopShadowFrame() {
 }
 
 
-void MethodCompiler::EmitUpdateLineNum(int32_t line_num) {
-  llvm::Value* line_num_field_addr =
-    irb_.CreatePtrDisp(shadow_frame_,
-                       irb_.getPtrEquivInt(ShadowFrame::LineNumOffset()),
-                       irb_.getJIntTy()->getPointerTo());
-
-  llvm::ConstantInt* line_num_value = irb_.getInt32(line_num);
-  irb_.CreateStore(line_num_value, line_num_field_addr);
-}
-
-
-void MethodCompiler::EmitUpdateLineNumFromDexPC(uint32_t dex_pc) {
-  EmitUpdateLineNum(
-    dex_file_->GetLineNumFromPC(oat_compilation_unit_->IsStatic(),
-                                method_idx_, code_item_, dex_pc));
+void MethodCompiler::EmitUpdateDexPC(uint32_t dex_pc) {
+  irb_.StoreToObjectOffset(shadow_frame_,
+                           ShadowFrame::DexPCOffset(),
+                           irb_.getInt32(dex_pc));
 }
 
 

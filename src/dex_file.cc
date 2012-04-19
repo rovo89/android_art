@@ -586,18 +586,12 @@ int32_t DexFile::GetLineNumFromPC(const Method* method, uint32_t rel_pc) const {
     return -2;
   }
 
-  return GetLineNumFromPC(method->IsStatic(), method->GetDexMethodIndex(),
-                          GetCodeItem(method->GetCodeItemOffset()), rel_pc);
-}
-
-int32_t DexFile::GetLineNumFromPC(bool is_static, uint32_t method_idx,
-                                  const CodeItem* code_item,
-                                  uint32_t rel_pc) const {
+  const CodeItem* code_item = GetCodeItem(method->GetCodeItemOffset());
   DCHECK(code_item != NULL) << GetLocation();
 
   // A method with no line number info should return -1
   LineNumFromPcContext context(rel_pc, -1);
-  DecodeDebugInfo(code_item, is_static, method_idx, LineNumForPcCb,
+  DecodeDebugInfo(code_item, method->IsStatic(), method->GetDexMethodIndex(), LineNumForPcCb,
                   NULL, &context);
   return context.line_num_;
 }

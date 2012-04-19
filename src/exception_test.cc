@@ -146,15 +146,14 @@ TEST_F(ExceptionTest, StackTraceElement) {
   fake_stack.push_back(0);
   fake_stack.push_back(0);
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
-  // LLVM compiler will do this in the MethodCompiler
-  fake_stack.push_back(dex_->GetLineNumFromPC(method_g_, 3));
+  fake_stack.push_back(3);
   fake_stack.push_back(0);
 
   // Create/push fake 20-byte shadow frame for method f
   fake_stack.push_back(0);
   fake_stack.push_back(0);
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
-  fake_stack.push_back(dex_->GetLineNumFromPC(method_f_, 3));
+  fake_stack.push_back(3);
   fake_stack.push_back(0);
 
   Thread* thread = Thread::Current();
