@@ -17,9 +17,11 @@
 #include "compilation_unit.h"
 
 #include "compiled_method.h"
+#include "file.h"
 #include "instruction_set.h"
 #include "ir_builder.h"
 #include "logging.h"
+#include "os.h"
 
 #include "runtime_support_builder_arm.h"
 #include "runtime_support_builder_x86.h"
@@ -45,6 +47,7 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/FormattedStream.h>
 #include <llvm/Support/ManagedStatic.h>
+#include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/PassNameParser.h>
 #include <llvm/Support/PluginLoader.h>
 #include <llvm/Support/PrettyStackTrace.h>
@@ -54,11 +57,16 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/ToolOutputFile.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/system_error.h>
 #include <llvm/Target/TargetData.h>
 #include <llvm/Target/TargetLibraryInfo.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
+
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include <string>
 
@@ -156,113 +164,112 @@ bool CompilationUnit::WriteBitcodeToFile(const std::string& bitcode_filename) {
   return true;
 }
 
-
-bool CompilationUnit::Materialize() {
-  // Lookup the LLVM target
-  char const* target_triple = NULL;
-  char const* target_attr = NULL;
-
-  switch (insn_set_) {
-  case kThumb2:
-    target_triple = "thumb-none-linux-gnueabi";
-    target_attr = "+thumb2,+neon,+neonfp,+vfp3";
-    break;
-
-  case kArm:
-    target_triple = "armv7-none-linux-gnueabi";
-    target_attr = "+v7,+neon,+neonfp,+vfp3";
-    break;
-
-  case kX86:
-    target_triple = "i386-pc-linux-gnu";
-    target_attr = "";
-    break;
-
-  case kMips:
-    target_triple = "mipsel-unknown-linux";
-    target_attr = "mips32r2";
-    break;
-
-  default:
-    LOG(FATAL) << "Unknown instruction set: " << insn_set_;
+// TODO: Move to scoped_temp_file.h
+class ScopedTempFile {
+ public:
+  ScopedTempFile(const std::string& filename_template)
+      : filename_(filename_template), file_(NULL) {
+    int fd = mkstemp(&filename_[0]);
+    CHECK_NE(-1, fd);
+    file_ = OS::FileFromFd(filename_.c_str(), fd);
   }
 
-  std::string errmsg;
-  llvm::Target const* target =
-    llvm::TargetRegistry::lookupTarget(target_triple, errmsg);
+  ~ScopedTempFile() {
+    delete file_;
+    TEMP_FAILURE_RETRY(unlink(filename_.c_str()));
+  }
 
-  CHECK(target != NULL) << errmsg;
+  int GetFd() {
+    return file_->Fd();
+  }
 
-  // Target options
-  llvm::TargetOptions target_options;
-  target_options.FloatABIType = llvm::FloatABI::Soft;
-  target_options.NoFramePointerElim = true;
-  target_options.NoFramePointerElimNonLeaf = true;
-  target_options.UseSoftFloat = false;
+  const std::string &GetName() const {
+    return filename_;
+  }
 
-  // Create the llvm::TargetMachine
-  llvm::TargetMachine* target_machine =
-    target->createTargetMachine(target_triple, "", target_attr, target_options,
-                                llvm::Reloc::Static, llvm::CodeModel::Small,
-                                llvm::CodeGenOpt::Less);
+  bool ReadToString(std::string &buffer) {
+    off_t file_size = file_->Length();
+    if (file_size <= 0) {
+      buffer.clear();
+      return true;
+    }
 
-  CHECK(target_machine != NULL) << "Failed to create target machine";
+    buffer.reserve(file_size);
+    buffer.resize(file_size);
+    return file_->ReadFully(&buffer[0], file_size);
+  }
 
+ private:
+  std::string filename_;
+  File *file_;
+};
 
-  // Add target data
-  llvm::TargetData const* target_data = target_machine->getTargetData();
+bool CompilationUnit::Materialize() {
+  const std::string tmp_file = "/tmp/art-llvm-XXXXXX";
 
-  // PassManager for code generation passes
-  llvm::PassManager pm;
-  pm.add(new llvm::TargetData(*target_data));
+  // Prepare the input
+  ScopedTempFile input(tmp_file);
+  if (input.GetFd() < 0) {
+    PLOG(ERROR) << "Failed to save the module to the file " << tmp_file;
+    return false;
+  }
 
-  // FunctionPassManager for optimization pass
-  llvm::FunctionPassManager fpm(module_);
-  fpm.add(new llvm::TargetData(*target_data));
+  // Write the bitcode to the file
+  if (!WriteBitcodeToFile(input.GetName())) {
+    return false;
+  }
 
-  // Add optimization pass
-  llvm::PassManagerBuilder pm_builder;
-  pm_builder.Inliner = llvm::createAlwaysInlinerPass();
-  pm_builder.OptLevel = 1;
-  pm_builder.DisableSimplifyLibCalls = 1;
-  pm_builder.populateModulePassManager(pm);
-  pm_builder.populateFunctionPassManager(fpm);
+  // Prepare the output
+  ScopedTempFile output(tmp_file);
+  if (output.GetFd() < 0) {
+    PLOG(ERROR) << "Failed to prepare the output file " << tmp_file;
+    return false;
+  }
 
-  // Add passes to emit ELF image
-  {
-    llvm::formatted_raw_ostream formatted_os(
-      *(new llvm::raw_string_ostream(elf_image_)), true);
+  // Fork a process to do the compilation
+  pid_t pid = fork();
+  if (pid == 0) {
+    // change process groups, so we don't get ripped by ProcessManager
+    setpgid(0, 0);
 
-    // Ask the target to add backend passes as necessary.
-    if (target_machine->addPassesToEmitFile(pm,
-                                            formatted_os,
-                                            llvm::TargetMachine::CGFT_ObjectFile,
-                                            true)) {
-      LOG(FATAL) << "Unable to generate ELF for this target";
+    // TODO: Should use exec* family instead of invoking a function.
+    // Forward our compilation request to bcc.
+    exit(static_cast<int>(!MaterializeFile(input.GetFd(), output.GetFd(),
+                                           insn_set_)));
+  } else {
+    if (pid < 0) {
+      LOG(FATAL) << "Failed to fork a process to do the compilation: "
+                 << strerror(errno);
+    }
+
+    // Free the resources
+    context_.reset(NULL);
+    irb_.reset(NULL);
+    module_ = NULL;
+
+    int status;
+
+    // Wait for child to finish
+    pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
+    if (got_pid != pid) {
+      PLOG(ERROR) << "waitpid failed: wanted " << pid << ", got " << got_pid;
       return false;
     }
 
-    // Add pass to update the frame_size_in_bytes_
-    pm.add(new ::UpdateFrameSizePass(this));
-
-    // Run the per-function optimization
-    fpm.doInitialization();
-    for (llvm::Module::iterator F = module_->begin(), E = module_->end();
-         F != E; ++F) {
-      fpm.run(*F);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+      LOG(ERROR) << "Failed to compile the bitcode: " << WEXITSTATUS(status);
+      return false;
     }
-    fpm.doFinalization();
+  }
 
-    // Run the code generation passes
-    pm.run(*module_);
+  // Read the result out from the output file
+  TEMP_FAILURE_RETRY(lseek(output.GetFd(), 0, SEEK_SET));
+  if (!output.ReadToString(elf_image_)) {
+    LOG(ERROR) << "Failed to read the result file";
+    return false;
   }
 
   LOG(INFO) << "Compilation Unit: " << elf_idx_ << " (done)";
-
-  // Free the resources
-  context_.reset(NULL);
-  irb_.reset(NULL);
-  module_ = NULL;
 
   return true;
 }
@@ -291,6 +298,140 @@ void CompilationUnit::UpdateFrameSizeInBytes(const llvm::Function* func,
   }
 }
 
+bool CompilationUnit::MaterializeFile(int input_fd, int output_fd,
+                                      InstructionSet insn_set) {
+  // Initialize the LLVM first
+  llvm::InitializeAllTargets();
+  llvm::InitializeAllTargetMCs();
+  llvm::InitializeAllAsmPrinters();
+  llvm::InitializeAllAsmParsers();
+
+  // Read the LLVM module from input_fd
+  llvm::OwningPtr<llvm::MemoryBuffer> memory_buffer;
+  llvm::error_code load_input_err =
+      llvm::MemoryBuffer::getOpenFile(input_fd, "<art-llvm-module>",
+                                      memory_buffer);
+
+  if (load_input_err) {
+    LOG(ERROR) << "Failed to load input for compiler into memory: "
+               << load_input_err.message();
+    return false;
+  }
+
+  // It's safe to use the global context now
+  std::string load_module_errmsg;
+  llvm::Module *module = ParseBitcodeFile(memory_buffer.get(),
+                                          llvm::getGlobalContext(),
+                                          &load_module_errmsg);
+  if (module == NULL) {
+    LOG(ERROR) << "Failed to load LLVM module to compiler: "
+               << load_module_errmsg;
+    return false;
+  }
+
+  // Lookup the LLVM target
+  char const* target_triple = NULL;
+  char const* target_attr = NULL;
+
+  switch (insn_set) {
+  case kThumb2:
+    target_triple = "thumb-none-linux-gnueabi";
+    target_attr = "+thumb2,+neon,+neonfp,+vfp3";
+    break;
+
+  case kArm:
+    target_triple = "armv7-none-linux-gnueabi";
+    // TODO: Fix for Xoom.
+    target_attr = "+v7,+neon,+neonfp,+vfp3";
+    break;
+
+  case kX86:
+    target_triple = "i386-pc-linux-gnu";
+    target_attr = "";
+    break;
+
+  case kMips:
+    target_triple = "mipsel-unknown-linux";
+    target_attr = "mips32r2";
+    break;
+
+  default:
+    LOG(FATAL) << "Unknown instruction set: " << insn_set;
+  }
+
+  std::string errmsg;
+  llvm::Target const* target =
+    llvm::TargetRegistry::lookupTarget(target_triple, errmsg);
+
+  CHECK(target != NULL) << errmsg;
+
+  // Target options
+  llvm::TargetOptions target_options;
+  target_options.FloatABIType = llvm::FloatABI::Soft;
+  target_options.NoFramePointerElim = true;
+  target_options.NoFramePointerElimNonLeaf = true;
+  target_options.UseSoftFloat = false;
+
+  // Create the llvm::TargetMachine
+  llvm::TargetMachine* target_machine =
+    target->createTargetMachine(target_triple, "", target_attr, target_options,
+                                llvm::Reloc::Static, llvm::CodeModel::Small,
+                                llvm::CodeGenOpt::Less);
+
+  CHECK(target_machine != NULL) << "Failed to create target machine";
+
+  // Add target data
+  llvm::TargetData const* target_data = target_machine->getTargetData();
+
+  // PassManager for code generation passes
+  llvm::PassManager pm;
+  pm.add(new llvm::TargetData(*target_data));
+
+  // FunctionPassManager for optimization pass
+  llvm::FunctionPassManager fpm(module);
+  fpm.add(new llvm::TargetData(*target_data));
+
+  // Add optimization pass
+  llvm::PassManagerBuilder pm_builder;
+  pm_builder.Inliner = llvm::createAlwaysInlinerPass();
+  pm_builder.OptLevel = 1;
+  pm_builder.DisableSimplifyLibCalls = 1;
+  pm_builder.populateModulePassManager(pm);
+  pm_builder.populateFunctionPassManager(fpm);
+
+  // Add passes to emit ELF image
+  {
+    llvm::formatted_raw_ostream formatted_os(
+      *(new llvm::raw_fd_ostream(output_fd, /* shouldClose */false)), true);
+
+    // Ask the target to add backend passes as necessary.
+    if (target_machine->addPassesToEmitFile(pm,
+                                            formatted_os,
+                                            llvm::TargetMachine::CGFT_ObjectFile,
+                                            true)) {
+      LOG(FATAL) << "Unable to generate ELF for this target";
+      return false;
+    }
+
+    // FIXME: Unable to run the UpdateFrameSizePass pass since it tries to
+    //        update the value reside in the different address space.
+    // Add pass to update the frame_size_in_bytes_
+    //pm.add(new ::UpdateFrameSizePass(this));
+
+    // Run the per-function optimization
+    fpm.doInitialization();
+    for (llvm::Module::iterator F = module->begin(), E = module->end();
+         F != E; ++F) {
+      fpm.run(*F);
+    }
+    fpm.doFinalization();
+
+    // Run the code generation passes
+    pm.run(*module);
+  }
+
+  return true;
+}
 
 } // namespace compiler_llvm
 } // namespace art

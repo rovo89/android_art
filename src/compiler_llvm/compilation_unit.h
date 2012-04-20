@@ -113,6 +113,8 @@ class CompilationUnit {
 
   size_t mem_usage_;
   uint16_t num_elf_funcs_;
+
+  static bool MaterializeFile(int input_fd, int output_fd, InstructionSet insn_set);
 };
 
 } // namespace compiler_llvm
