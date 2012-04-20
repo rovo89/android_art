@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-# TODO: move the LLVM compiler out into a separate .so too...
+# TODO: move the LLVM compiler out into a separate shared library too...
 # Use llvm as the backend
 ifneq ($(wildcard art/USE_LLVM_COMPILER),)
 ART_USE_LLVM_COMPILER := true
