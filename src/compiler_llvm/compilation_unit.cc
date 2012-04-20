@@ -57,6 +57,7 @@
 #include <llvm/Target/TargetData.h>
 #include <llvm/Target/TargetLibraryInfo.h>
 #include <llvm/Target/TargetMachine.h>
+#include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 
 #include <string>
@@ -221,7 +222,7 @@ bool CompilationUnit::Materialize() {
 
   // Add optimization pass
   llvm::PassManagerBuilder pm_builder;
-  pm_builder.Inliner = NULL; // TODO: add some inline in the future
+  pm_builder.Inliner = llvm::createAlwaysInlinerPass();
   pm_builder.OptLevel = 1;
   pm_builder.DisableSimplifyLibCalls = 1;
   pm_builder.populateModulePassManager(pm);
