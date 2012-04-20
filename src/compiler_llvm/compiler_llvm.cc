@@ -129,14 +129,7 @@ void CompilerLLVM::EnsureCompilationUnit() {
 
   // Allocate compilation unit
   size_t cunit_idx = cunits_.size();
-
   curr_cunit_ = new CompilationUnit(insn_set_, cunit_idx);
-
-  // Setup bitcode output filename
-  if (IsBitcodeFileNameAvailable()) {
-    curr_cunit_->SetBitcodeFileName(
-      StringPrintf("%s-%zu", bitcode_filename_.c_str(), cunit_idx));
-  }
 
   // Register compilation unit
   cunits_.push_back(curr_cunit_);
@@ -167,7 +160,9 @@ void CompilerLLVM::Materialize() {
 
   // Write bitcode to file when filename is set
   if (IsBitcodeFileNameAvailable()) {
-    curr_cunit_->WriteBitcodeToFile();
+    const size_t cunit_idx = cunits_.size();
+    curr_cunit_->WriteBitcodeToFile(
+      StringPrintf("%s-%zu", bitcode_filename_.c_str(), cunit_idx));
   }
 
   // Materialize the llvm::Module into ELF object file
