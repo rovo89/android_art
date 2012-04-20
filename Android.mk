@@ -23,6 +23,9 @@ ART_BUILD_TARGET_DEBUG ?= true
 ART_BUILD_HOST_NDEBUG ?= true
 ART_BUILD_HOST_DEBUG ?= true
 
+ART_HOST_SHLIB_EXTENSION := $(HOST_SHLIB_SUFFIX)
+ART_HOST_SHLIB_EXTENSION ?= .so
+
 build_path := $(LOCAL_PATH)/build
 include $(build_path)/Android.common.mk
 
@@ -38,11 +41,7 @@ include $(build_path)/Android.oat.mk
 
 # ART_HOST_DEPENDENCIES depends on Android.executable.mk above for ART_HOST_EXECUTABLES
 ART_HOST_DEPENDENCIES := $(ART_HOST_EXECUTABLES) $(HOST_OUT_JAVA_LIBRARIES)/core-hostdex.jar
-ifeq ($(HOST_OS),linux)
-  ART_HOST_DEPENDENCIES += $(HOST_OUT_SHARED_LIBRARIES)/libjavacore.so
-else
-  ART_HOST_DEPENDENCIES += $(HOST_OUT_SHARED_LIBRARIES)/libjavacore.dylib
-endif
+ART_HOST_DEPENDENCIES += $(HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
 ART_TARGET_DEPENDENCIES := $(ART_TARGET_EXECUTABLES) $(TARGET_OUT_JAVA_LIBRARIES)/core.jar $(TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
 
 ########################################################################
@@ -89,7 +88,7 @@ test-art-host: test-art-host-gtest # test-art-host-oat # test-art-host-run-test
 	@echo test-art-host PASSED
 
 .PHONY: test-art-host-dependencies
-test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBRARIES)/libarttest.so
+test-art-host-dependencies: $(ART_HOST_TEST_DEPENDENCIES) $(HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION)
 
 .PHONY: test-art-host-gtest
 test-art-host-gtest: $(ART_HOST_TEST_TARGETS)
