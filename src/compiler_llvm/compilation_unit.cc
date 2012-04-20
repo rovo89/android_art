@@ -137,11 +137,11 @@ CompilationUnit::~CompilationUnit() {
 }
 
 
-bool CompilationUnit::WriteBitcodeToFile() {
+bool CompilationUnit::WriteBitcodeToFile(const std::string& bitcode_filename) {
   std::string errmsg;
 
   llvm::OwningPtr<llvm::tool_output_file> out_file(
-    new llvm::tool_output_file(bitcode_filename_.c_str(), errmsg,
+    new llvm::tool_output_file(bitcode_filename.c_str(), errmsg,
                                llvm::raw_fd_ostream::F_Binary));
 
 

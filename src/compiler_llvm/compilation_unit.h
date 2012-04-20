@@ -69,14 +69,6 @@ class CompilationUnit {
     return irb_.get();
   }
 
-  std::string const& GetBitcodeFileName() const {
-    return bitcode_filename_;
-  }
-
-  void SetBitcodeFileName(std::string const& filename) {
-    bitcode_filename_ = filename;
-  }
-
   ElfImage GetElfImage() const {
     return ElfImage(elf_image_);
   }
@@ -86,7 +78,7 @@ class CompilationUnit {
     return num_elf_funcs_++;
   }
 
-  bool WriteBitcodeToFile();
+  bool WriteBitcodeToFile(const std::string& bitcode_filename);
 
   bool Materialize();
 
@@ -116,7 +108,6 @@ class CompilationUnit {
   llvm::Module* module_;
 
   std::string elf_image_;
-  std::string bitcode_filename_;
 
   SafeMap<const llvm::Function*, CompiledMethod*> compiled_methods_map_;
 
