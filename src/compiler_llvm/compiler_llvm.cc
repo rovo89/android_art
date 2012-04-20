@@ -137,44 +137,58 @@ void CompilerLLVM::EnsureCompilationUnit() {
 
 
 void CompilerLLVM::MaterializeRemainder() {
-  MutexLock GUARD(compiler_lock_);
-  if (curr_cunit_ != NULL) {
-    Materialize();
+  compiler_lock_.Lock();
+  // Localize
+  CompilationUnit* cunit = curr_cunit_;
+  // Reset the curr_cuit_
+  curr_cunit_ = NULL;
+  compiler_lock_.Unlock();
+
+  if (cunit != NULL) {
+    Materialize(cunit);
   }
 }
 
 
 void CompilerLLVM::MaterializeIfThresholdReached() {
-  MutexLock GUARD(compiler_lock_);
+  compiler_lock_.Lock();
+  // Localize
+  CompilationUnit* cunit = curr_cunit_;
+
   if (curr_cunit_ != NULL && curr_cunit_->IsMaterializeThresholdReached()) {
-    Materialize();
+    // Delete the compilation unit
+    curr_cunit_ = NULL;
+  } else {
+    // Reset cunit such that Materialize() won't be invoked
+    cunit = NULL;
+  }
+
+  compiler_lock_.Unlock();
+
+  if (cunit != NULL) {
+    Materialize(cunit);
   }
 }
 
 
-void CompilerLLVM::Materialize() {
-  compiler_lock_.AssertHeld();
-
-  DCHECK(curr_cunit_ != NULL);
-  DCHECK(!curr_cunit_->IsMaterialized());
+void CompilerLLVM::Materialize(CompilationUnit* cunit) {
+  DCHECK(cunit != NULL);
+  DCHECK(!cunit->IsMaterialized());
 
   // Write bitcode to file when filename is set
   if (IsBitcodeFileNameAvailable()) {
     const size_t cunit_idx = cunits_.size();
-    curr_cunit_->WriteBitcodeToFile(
+    cunit->WriteBitcodeToFile(
       StringPrintf("%s-%zu", bitcode_filename_.c_str(), cunit_idx));
   }
 
   // Materialize the llvm::Module into ELF object file
-  curr_cunit_->Materialize();
+  cunit->Materialize();
 
   // Load ELF image when automatic ELF loading is enabled
   if (IsAutoElfLoadingEnabled()) {
-    LoadElfFromCompilationUnit(curr_cunit_);
+    LoadElfFromCompilationUnit(cunit);
   }
-
-  // Delete the compilation unit
-  curr_cunit_ = NULL;
 }
 
 
