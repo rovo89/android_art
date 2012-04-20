@@ -109,7 +109,7 @@ class CompilerLLVM {
  private:
   void EnsureCompilationUnit();
 
-  void Materialize();
+  void Materialize(CompilationUnit* cunit);
 
   void LoadElfFromCompilationUnit(const CompilationUnit* cunit);
 
