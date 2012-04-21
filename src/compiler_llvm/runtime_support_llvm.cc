@@ -59,8 +59,7 @@ void art_set_current_thread_from_code(void* thread_object_addr) {
   LOG(FATAL) << "Implemented by IRBuilder.";
 }
 
-void art_lock_object_from_code(Object* obj) {
-  Thread* thread = art_get_current_thread_from_code();
+void art_lock_object_from_code(Object* obj, Thread* thread) {
   DCHECK(obj != NULL);        // Assumed to have been checked before entry
   obj->MonitorEnter(thread);  // May block
   DCHECK(thread->HoldsLock(obj));
@@ -68,15 +67,13 @@ void art_lock_object_from_code(Object* obj) {
   DCHECK(!thread->IsExceptionPending());
 }
 
-void art_unlock_object_from_code(Object* obj) {
-  Thread* thread = art_get_current_thread_from_code();
+void art_unlock_object_from_code(Object* obj, Thread* thread) {
   DCHECK(obj != NULL);  // Assumed to have been checked before entry
   // MonitorExit may throw exception
   obj->MonitorExit(thread);
 }
 
-void art_test_suspend_from_code() {
-  Thread* thread = art_get_current_thread_from_code();
+void art_test_suspend_from_code(Thread* thread) {
   Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
 }
 
@@ -293,18 +290,24 @@ Object* art_find_interface_method_from_code(uint32_t method_idx,
   return FindMethodHelper(method_idx, this_object, referrer, false, kInterface, thread);
 }
 
-Object* art_initialize_static_storage_from_code(uint32_t type_idx, Method* referrer) {
-  return ResolveVerifyAndClinit(type_idx, referrer, art_get_current_thread_from_code(), true, false);
+Object* art_initialize_static_storage_from_code(uint32_t type_idx,
+                                                Method* referrer,
+                                                Thread* thread) {
+  return ResolveVerifyAndClinit(type_idx, referrer, thread, true, false);
 }
 
-Object* art_initialize_type_from_code(uint32_t type_idx, Method* referrer) {
-  return ResolveVerifyAndClinit(type_idx, referrer, art_get_current_thread_from_code(), false, false);
+Object* art_initialize_type_from_code(uint32_t type_idx,
+                                      Method* referrer,
+                                      Thread* thread) {
+  return ResolveVerifyAndClinit(type_idx, referrer, thread, false, false);
 }
 
-Object* art_initialize_type_and_verify_access_from_code(uint32_t type_idx, Method* referrer) {
+Object* art_initialize_type_and_verify_access_from_code(uint32_t type_idx,
+                                                        Method* referrer,
+                                                        Thread* thread) {
   // Called when caller isn't guaranteed to have access to a type and the dex cache may be
   // unpopulated
-  return ResolveVerifyAndClinit(type_idx, referrer, art_get_current_thread_from_code(), false, true);
+  return ResolveVerifyAndClinit(type_idx, referrer, thread, false, true);
 }
 
 Object* art_resolve_string_from_code(Method* referrer, uint32_t string_idx) {
