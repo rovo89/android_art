@@ -1686,7 +1686,7 @@ const DexFile& ClassLinker::FindDexFile(const DexCache* dex_cache) const {
       return *dex_files_[i];
     }
   }
-  CHECK(false) << "Failed to find DexFile for DexCache " << dex_cache->GetLocation()->ToModifiedUtf8();
+  LOG(FATAL) << "Failed to find DexFile for DexCache " << dex_cache->GetLocation()->ToModifiedUtf8();
   return *dex_files_[-1];
 }
 
@@ -1697,7 +1697,7 @@ DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) const {
       return dex_caches_[i];
     }
   }
-  CHECK(false) << "Failed to find DexCache for DexFile " << dex_file.GetLocation();
+  LOG(FATAL) << "Failed to find DexCache for DexFile " << dex_file.GetLocation();
   return NULL;
 }
 

@@ -345,7 +345,7 @@ void Trace::FinishTracing() {
 
   std::string header(os.str());
   if (trace_file_.get() == NULL) {
-    struct iovec iov[2];
+    iovec iov[2];
     iov[0].iov_base = reinterpret_cast<void*>(const_cast<char*>(header.c_str()));
     iov[0].iov_len = header.length();
     iov[1].iov_base = buf_.get();
@@ -354,10 +354,9 @@ void Trace::FinishTracing() {
   } else {
     if (!trace_file_->WriteFully(header.c_str(), header.length()) ||
         !trace_file_->WriteFully(buf_.get(), final_offset)) {
-      int err = errno;
-      LOG(ERROR) << "Trace data write failed: " << strerror(err);
-      Thread::Current()->ThrowNewException("Ljava/lang/RuntimeException;",
-          StringPrintf("Trace data write failed: %s", strerror(err)).c_str());
+      std::string detail(StringPrintf("Trace data write failed: %s", strerror(errno)));
+      PLOG(ERROR) << detail;
+      Thread::Current()->ThrowNewException("Ljava/lang/RuntimeException;", detail.c_str());
     }
   }
 }

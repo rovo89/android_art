@@ -95,7 +95,7 @@ extern void oatResetDef(CompilationUnit* cUnit, int reg);
 extern void oatResetDefLoc(CompilationUnit* cUnit, RegLocation rl);
 
 /* Set up temp & preserved register pools specialized by target */
-extern void oatInitPool(struct RegisterInfo* regs, int* regNums, int num);
+extern void oatInitPool(RegisterInfo* regs, int* regNums, int num);
 
 /*
  * Mark the beginning and end LIR of a def sequence.  Note that

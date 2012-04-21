@@ -91,8 +91,8 @@ struct RegisterInfo {
     bool live;                  // Is there an associated SSA name?
     bool dirty;                 // If live, is it dirty?
     int sReg;                   // Name of live value
-    struct LIR *defStart;       // Starting inst in last def sequence
-    struct LIR *defEnd;         // Ending inst in last def sequence
+    LIR *defStart;              // Starting inst in last def sequence
+    LIR *defEnd;                // Ending inst in last def sequence
 };
 
 struct RegisterPool {
@@ -143,9 +143,9 @@ enum BBType {
 struct LIR {
     int offset;                        // Offset of this instruction
     int dalvikOffset;                  // Offset of Dalvik opcode
-    struct LIR* next;
-    struct LIR* prev;
-    struct LIR* target;
+    LIR* next;
+    LIR* prev;
+    LIR* target;
     int opcode;
     int operands[5];            // [0..4] = [dest, src1, src2, extra, extra2]
     struct {
@@ -213,9 +213,9 @@ struct MIR {
     DecodedInstruction dalvikInsn;
     unsigned int width;
     unsigned int offset;
-    struct MIR* prev;
-    struct MIR* next;
-    struct SSARepresentation* ssaRep;
+    MIR* prev;
+    MIR* next;
+    SSARepresentation* ssaRep;
     int optimizationFlags;
     int seqNum;
     union {
@@ -224,7 +224,7 @@ struct MIR {
         // Used by the inlined invoke to find the class and method pointers
         CallsiteInfo* callsiteInfo;
         // Used to quickly locate all Phi opcodes
-        struct MIR* phiNext;
+        MIR* phiNext;
     } meta;
 };
 
@@ -253,10 +253,10 @@ struct BasicBlock {
     bool isFallThroughFromInvoke;       // True means the block needs alignment
     MIR* firstMIRInsn;
     MIR* lastMIRInsn;
-    struct BasicBlock* fallThrough;
-    struct BasicBlock* taken;
-    struct BasicBlock* iDom;            // Immediate dominator
-    struct BasicBlockDataFlow* dataFlowInfo;
+    BasicBlock* fallThrough;
+    BasicBlock* taken;
+    BasicBlock* iDom;            // Immediate dominator
+    BasicBlockDataFlow* dataFlowInfo;
     GrowableList* predecessors;
     ArenaBitVector* dominators;
     ArenaBitVector* iDominated;         // Set nodes being immediately dominated
@@ -425,7 +425,7 @@ struct CompilationUnit {
     bool qdMode;                        // Compile for code size/compile time
     bool usesLinkRegister;              // For self-verification only
     bool methodTraceSupport;            // For TraceView profiling
-    struct RegisterPool* regPool;
+    RegisterPool* regPool;
     int optRound;                       // round number to tell an LIR's age
     InstructionSet instructionSet;
     /* Number of total regs used in the whole cUnit after SSA transformation */
@@ -529,10 +529,10 @@ struct CompilationUnit {
     std::string compilerMethodMatch;
     // Flips sense of compilerMethodMatch - apply flags if doesn't match.
     bool compilerFlipMatch;
-    struct ArenaMemBlock* arenaHead;
-    struct ArenaMemBlock* currentArena;
+    ArenaMemBlock* arenaHead;
+    ArenaMemBlock* currentArena;
     int numArenaBlocks;
-    struct Memstats* mstats;
+    Memstats* mstats;
     int* opcodeCount;    // Count Dalvik opcodes for tuning
 #ifndef NDEBUG
     /*

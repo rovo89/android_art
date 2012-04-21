@@ -205,7 +205,7 @@ class ScopedTempFile {
 };
 
 bool CompilationUnit::Materialize() {
-  const std::string tmp_file = "/tmp/art-llvm-XXXXXX";
+  const std::string tmp_file("/tmp/art-llvm-XXXXXX");
 
   // Prepare the input
   ScopedTempFile input(tmp_file);
@@ -238,8 +238,7 @@ bool CompilationUnit::Materialize() {
                                            insn_set_)));
   } else {
     if (pid < 0) {
-      LOG(FATAL) << "Failed to fork a process to do the compilation: "
-                 << strerror(errno);
+      PLOG(FATAL) << "Failed to fork a process to do the compilation";
     }
 
     // Free the resources

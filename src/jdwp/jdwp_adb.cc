@@ -69,8 +69,8 @@ struct JdwpNetState : public JdwpNetStateBase {
 
   socklen_t           controlAddrLen;
   union {
-    struct sockaddr_un  controlAddrUn;
-    struct sockaddr     controlAddrPlain;
+    sockaddr_un  controlAddrUn;
+    sockaddr     controlAddrPlain;
   } controlAddr;
 
   JdwpNetState() {
@@ -138,12 +138,12 @@ static bool startup(JdwpState* state, const JdwpOptions*) {
  * closes netState->controlSock.
  */
 static int  receiveClientFd(JdwpNetState*  netState) {
-  struct msghdr    msg;
-  struct cmsghdr*  cmsg;
+  msghdr    msg;
+  cmsghdr*  cmsg;
   iovec     iov;
   char             dummy = '!';
   union {
-    struct cmsghdr cm;
+    cmsghdr cm;
     char buffer[CMSG_SPACE(sizeof(int))];
   } cm_un;
   int              ret;

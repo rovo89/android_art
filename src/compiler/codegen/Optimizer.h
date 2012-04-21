@@ -25,8 +25,7 @@ namespace art {
 struct CompilationUnit;
 struct LIR;
 
-void oatApplyLocalOptimizations(struct CompilationUnit* cUnit,
-                                struct LIR* head, struct LIR* tail);
+void oatApplyLocalOptimizations(CompilationUnit* cUnit, LIR* head, LIR* tail);
 
 }  // namespace art
 

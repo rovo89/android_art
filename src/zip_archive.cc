@@ -378,12 +378,12 @@ bool ZipArchive::MapCentralDirectory() {
   off_t search_start = file_length - read_amount;
 
   if (lseek(fd_, search_start, SEEK_SET) != search_start) {
-    LOG(WARNING) << "Zip: seek " << search_start << " failed: " << strerror(errno);
+    PLOG(WARNING) << "Zip: seek " << search_start << " failed";
     return false;
   }
   ssize_t actual = TEMP_FAILURE_RETRY(read(fd_, scan_buf.get(), read_amount));
   if (actual == -1) {
-    LOG(WARNING) << "Zip: read " << read_amount << " failed: " << strerror(errno);
+    PLOG(WARNING) << "Zip: read " << read_amount << " failed";
     return false;
   }
 

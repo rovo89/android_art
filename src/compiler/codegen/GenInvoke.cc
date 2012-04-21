@@ -884,7 +884,7 @@ bool genIntrinsic(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
      * method.  By doing this during basic block construction, we can also
      * take advantage of/generate new useful dataflow info.
      */
-    std::string tgtMethod = PrettyMethod(mir->dalvikInsn.vB, *cUnit->dex_file);
+    std::string tgtMethod(PrettyMethod(mir->dalvikInsn.vB, *cUnit->dex_file));
     if (tgtMethod.compare("char java.lang.String.charAt(int)") == 0) {
         return genInlinedCharAt(cUnit, bb, mir, type, isRange);
     }
