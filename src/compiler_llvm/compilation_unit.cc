@@ -205,7 +205,8 @@ class ScopedTempFile {
 };
 
 bool CompilationUnit::Materialize() {
-  const std::string tmp_file("/tmp/art-llvm-XXXXXX");
+  std::string tmp_file = GetArtCacheOrDie();
+  tmp_file += "/art-llvm-XXXXXX";
 
   // Prepare the input
   ScopedTempFile input(tmp_file);
