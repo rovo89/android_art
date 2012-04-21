@@ -1633,7 +1633,6 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
   DO_THREAD_ENTRY_POINT_OFFSET(pMemcmp16)
   DO_THREAD_ENTRY_POINT_OFFSET(pStringCompareTo)
   DO_THREAD_ENTRY_POINT_OFFSET(pMemcpy)
-  DO_THREAD_ENTRY_POINT_OFFSET(pFindInterfaceMethodInCache)
   DO_THREAD_ENTRY_POINT_OFFSET(pUnresolvedDirectMethodTrampolineFromCode)
   DO_THREAD_ENTRY_POINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck)
   DO_THREAD_ENTRY_POINT_OFFSET(pInvokeInterfaceTrampoline)

@@ -33,7 +33,7 @@ bool oatHeapInit(CompilationUnit* cUnit);
 struct ArenaMemBlock {
     size_t blockSize;
     size_t bytesAllocated;
-    struct ArenaMemBlock *next;
+    ArenaMemBlock *next;
     char ptr[0];
 };
 
@@ -87,9 +87,10 @@ struct ArenaBitVectorIterator {
 #define BLOCK_NAME_LEN 80
 
 /* Forward declarations */
-struct LIR;
 struct BasicBlock;
 struct CompilationUnit;
+struct LIR;
+struct RegLocation;
 
 void oatInitGrowableList(CompilationUnit* cUnit,GrowableList* gList,
                          size_t initLength, oatListKind kind = kListMisc);
@@ -124,14 +125,13 @@ bool oatCompareBitVectors(const ArenaBitVector* src1,
 bool oatTestBitVectors(const ArenaBitVector* src1, const ArenaBitVector* src2);
 int oatCountSetBits(const ArenaBitVector* pBits);
 
-void oatDumpLIRInsn(CompilationUnit* cUnit, struct LIR* lir,
-                    unsigned char* baseAddr);
-void oatDumpResourceMask(struct LIR* lir, u8 mask, const char* prefix);
+void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* lir, unsigned char* baseAddr);
+void oatDumpResourceMask(LIR* lir, u8 mask, const char* prefix);
 void oatDumpBlockBitVector(const GrowableList* blocks, char* msg,
                            const ArenaBitVector* bv, int length);
-void oatGetBlockName(struct BasicBlock* bb, char* name);
+void oatGetBlockName(BasicBlock* bb, char* name);
 const char* oatGetShortyFromTargetIdx(CompilationUnit*, int);
-void oatDumpRegLocTable(struct RegLocation*, int);
+void oatDumpRegLocTable(RegLocation*, int);
 void oatDumpMemStats(CompilationUnit* cUnit);
 
 }  // namespace art

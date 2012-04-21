@@ -818,7 +818,7 @@ int32_t Runtime::GetStat(int kind) {
   case KIND_EXT_FREED_BYTES:
     return 0;  // backward compatibility
   default:
-    CHECK(false);
+    LOG(FATAL) << "Unknown statistic " << kind;
     return -1; // unreachable
   }
 }

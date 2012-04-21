@@ -59,7 +59,7 @@ struct JdwpNetState : public JdwpNetStateBase {
     int     listenSock;         /* listen for connection from debugger */
     int     wakePipe[2];        /* break out of select */
 
-    struct in_addr remoteAddr;
+    in_addr remoteAddr;
     uint16_t remotePort;
 
     bool    awaitingHandshake;  /* waiting for "JDWP-Handshake" */
@@ -159,8 +159,8 @@ static JdwpNetState* netStartup(uint16_t port, bool probe) {
   }
 
   union {
-    struct sockaddr_in  addrInet;
-    struct sockaddr     addrPlain;
+    sockaddr_in  addrInet;
+    sockaddr     addrPlain;
   } addr;
   addr.addrInet.sin_family = AF_INET;
   addr.addrInet.sin_port = htons(port);
@@ -271,7 +271,7 @@ static bool isConnected(JdwpState* state) {
 static bool isFdReadable(int sock)
 {
     fd_set readfds;
-    struct timeval tv;
+    timeval tv;
     int count;
 
     FD_ZERO(&readfds);
@@ -332,8 +332,8 @@ static bool acceptConnection(JdwpState* state)
 {
   JdwpNetState* netState = state->netState;
   union {
-    struct sockaddr_in  addrInet;
-    struct sockaddr     addrPlain;
+    sockaddr_in  addrInet;
+    sockaddr     addrPlain;
   } addr;
   socklen_t addrlen;
   int sock;
@@ -385,10 +385,10 @@ static bool acceptConnection(JdwpState* state)
  */
 static bool establishConnection(JdwpState* state) {
   union {
-    struct sockaddr_in  addrInet;
-    struct sockaddr     addrPlain;
+    sockaddr_in  addrInet;
+    sockaddr     addrPlain;
   } addr;
-  struct hostent* pEntry;
+  hostent* pEntry;
 
   CHECK(state != NULL && state->netState != NULL);
   CHECK(!state->options_->server);
@@ -401,7 +401,7 @@ static bool establishConnection(JdwpState* state) {
 //#undef HAVE_GETHOSTBYNAME_R
 //#warning "forcing non-R"
 #ifdef HAVE_GETHOSTBYNAME_R
-  struct hostent he;
+  hostent he;
   char auxBuf[128];
   int error;
   int cc = gethostbyname_r(state->options_->host.c_str(), &he, auxBuf, sizeof(auxBuf), &pEntry, &error);
@@ -705,8 +705,8 @@ static bool processIncoming(JdwpState* state) {
       if (netState->listenSock >= 0 && FD_ISSET(netState->listenSock, &readfds)) {
         LOG(INFO) << "Ignoring second debugger -- accepting and dropping";
         union {
-          struct sockaddr_in   addrInet;
-          struct sockaddr      addrPlain;
+          sockaddr_in   addrInet;
+          sockaddr      addrPlain;
         } addr;
         socklen_t addrlen;
         int tmpSock;

@@ -87,8 +87,8 @@ bool ReadFileToString(const std::string& file_name, std::string* result) {
 
 std::string GetIsoDate() {
   time_t now = time(NULL);
-  struct tm tmbuf;
-  struct tm* ptm = localtime_r(&now, &tmbuf);
+  tm tmbuf;
+  tm* ptm = localtime_r(&now, &tmbuf);
   return StringPrintf("%04d-%02d-%02d %02d:%02d:%02d",
       ptm->tm_year + 1900, ptm->tm_mon+1, ptm->tm_mday,
       ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
@@ -96,11 +96,11 @@ std::string GetIsoDate() {
 
 uint64_t MilliTime() {
 #if defined(HAVE_POSIX_CLOCKS)
-  struct timespec now;
+  timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * 1000LL + now.tv_nsec / 1000000LL;
 #else
-  struct timeval now;
+  timeval now;
   gettimeofday(&now, NULL);
   return static_cast<uint64_t>(now.tv_sec) * 1000LL + now.tv_usec / 1000LL;
 #endif
@@ -108,11 +108,11 @@ uint64_t MilliTime() {
 
 uint64_t MicroTime() {
 #if defined(HAVE_POSIX_CLOCKS)
-  struct timespec now;
+  timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_nsec / 1000LL;
 #else
-  struct timeval now;
+  timeval now;
   gettimeofday(&now, NULL);
   return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_usec;
 #endif
@@ -120,11 +120,11 @@ uint64_t MicroTime() {
 
 uint64_t NanoTime() {
 #if defined(HAVE_POSIX_CLOCKS)
-  struct timespec now;
+  timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * 1000000000LL + now.tv_nsec;
 #else
-  struct timeval now;
+  timeval now;
   gettimeofday(&now, NULL);
   return static_cast<uint64_t>(now.tv_sec) * 1000000000LL + now.tv_usec * 1000LL;
 #endif
@@ -132,7 +132,7 @@ uint64_t NanoTime() {
 
 uint64_t ThreadCpuMicroTime() {
 #if defined(HAVE_POSIX_CLOCKS)
-  struct timespec now;
+  timespec now;
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
   return static_cast<uint64_t>(now.tv_sec) * 1000000LL + now.tv_nsec / 1000LL;
 #else
@@ -143,7 +143,7 @@ uint64_t ThreadCpuMicroTime() {
 
 uint64_t ThreadCpuNanoTime() {
 #if defined(HAVE_POSIX_CLOCKS)
-  struct timespec now;
+  timespec now;
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
   return static_cast<uint64_t>(now.tv_sec) * 1000000000LL + now.tv_nsec;
 #else

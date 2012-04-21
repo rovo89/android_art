@@ -52,7 +52,7 @@ struct NetState {
     int     listenSock;
 
     /* connect here to contact VM */
-    struct in_addr vmAddr;
+    in_addr vmAddr;
     uint16_t vmPort;
 
     Peer    dbg;
@@ -258,12 +258,12 @@ NetState* jdwpNetStartup(uint16_t listenPort, const char* connectHost, uint16_t 
         }
     }
 
-    struct sockaddr_in addr;
+    sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_port = htons(listenPort);
     addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(netState->listenSock, (struct sockaddr*) &addr, sizeof(addr)) != 0)
+    if (bind(netState->listenSock, (sockaddr*) &addr, sizeof(addr)) != 0)
     {
         fprintf(stderr, "attempt to bind to port %u failed: %s\n",
             listenPort, strerror(errno));
@@ -280,7 +280,7 @@ NetState* jdwpNetStartup(uint16_t listenPort, const char* connectHost, uint16_t 
     /*
      * Do the hostname lookup for the VM.
      */
-    struct hostent* pHost;
+    hostent* pHost;
 
     pHost = gethostbyname(connectHost);
     if (pHost == NULL) {
@@ -289,7 +289,7 @@ NetState* jdwpNetStartup(uint16_t listenPort, const char* connectHost, uint16_t 
         goto fail;
     }
 
-    netState->vmAddr = *((struct in_addr*) pHost->h_addr_list[0]);
+    netState->vmAddr = *((in_addr*) pHost->h_addr_list[0]);
     netState->vmPort = connectPort;
 
     fprintf(stderr, "+++ connect host resolved to %s\n",
@@ -362,7 +362,7 @@ static int setNoDelay(int fd)
  */
 bool jdwpAcceptConnection(NetState* netState)
 {
-    struct sockaddr_in addr;
+    sockaddr_in addr;
     socklen_t addrlen;
     int sock;
 
@@ -373,7 +373,7 @@ bool jdwpAcceptConnection(NetState* netState)
 
     addrlen = sizeof(addr);
     do {
-        sock = accept(netState->listenSock, (struct sockaddr*) &addr, &addrlen);
+        sock = accept(netState->listenSock, (sockaddr*) &addr, &addrlen);
         if (sock < 0 && errno != EINTR) {
             fprintf(stderr, "accept failed: %s\n", strerror(errno));
             return false;
@@ -455,7 +455,7 @@ static void consumeBytes(Peer* pPeer, int count)
 static void getCurrentTime(int* pMin, int* pSec)
 {
     time_t now;
-    struct tm* ptm;
+    tm* ptm;
 
     now = time(NULL);
     ptm = localtime(&now);
@@ -683,7 +683,7 @@ fail:
  */
 bool jdwpConnectToVm(NetState* netState)
 {
-    struct sockaddr_in addr;
+    sockaddr_in addr;
     int sock = -1;
 
     sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
