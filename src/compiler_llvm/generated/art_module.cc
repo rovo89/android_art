@@ -314,9 +314,6 @@ FunctionType* FuncTy_33 = FunctionType::get(
 
 std::vector<Type*>FuncTy_34_args;
 FuncTy_34_args.push_back(PointerTy_1);
-FuncTy_34_args.push_back(PointerTy_1);
-FuncTy_34_args.push_back(IntegerType::get(mod->getContext(), 32));
-FuncTy_34_args.push_back(IntegerType::get(mod->getContext(), 1));
 FunctionType* FuncTy_34 = FunctionType::get(
  /*Result=*/PointerTy_1,
  /*Params=*/FuncTy_34_args,
@@ -325,15 +322,8 @@ FunctionType* FuncTy_34 = FunctionType::get(
 std::vector<Type*>FuncTy_35_args;
 FuncTy_35_args.push_back(PointerTy_1);
 FunctionType* FuncTy_35 = FunctionType::get(
- /*Result=*/PointerTy_1,
- /*Params=*/FuncTy_35_args,
- /*isVarArg=*/false);
-
-std::vector<Type*>FuncTy_36_args;
-FuncTy_36_args.push_back(PointerTy_1);
-FunctionType* FuncTy_36 = FunctionType::get(
  /*Result=*/Type::getVoidTy(mod->getContext()),
- /*Params=*/FuncTy_36_args,
+ /*Params=*/FuncTy_35_args,
  /*isVarArg=*/true);
 
 
@@ -955,21 +945,10 @@ func_art_mark_gc_card_from_code->setCallingConv(CallingConv::C);
 AttrListPtr func_art_mark_gc_card_from_code_PAL;
 func_art_mark_gc_card_from_code->setAttributes(func_art_mark_gc_card_from_code_PAL);
 
-Function* func_art_ensure_resolved_from_code = mod->getFunction("art_ensure_resolved_from_code");
-if (!func_art_ensure_resolved_from_code) {
-func_art_ensure_resolved_from_code = Function::Create(
- /*Type=*/FuncTy_34,
- /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_ensure_resolved_from_code", mod); // (external, no body)
-func_art_ensure_resolved_from_code->setCallingConv(CallingConv::C);
-}
-AttrListPtr func_art_ensure_resolved_from_code_PAL;
-func_art_ensure_resolved_from_code->setAttributes(func_art_ensure_resolved_from_code_PAL);
-
 Function* func_art_fix_stub_from_code = mod->getFunction("art_fix_stub_from_code");
 if (!func_art_fix_stub_from_code) {
 func_art_fix_stub_from_code = Function::Create(
- /*Type=*/FuncTy_35,
+ /*Type=*/FuncTy_34,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_fix_stub_from_code", mod); // (external, no body)
 func_art_fix_stub_from_code->setCallingConv(CallingConv::C);
@@ -980,7 +959,7 @@ func_art_fix_stub_from_code->setAttributes(func_art_fix_stub_from_code_PAL);
 Function* func_art_proxy_invoke_handler_from_code = mod->getFunction("art_proxy_invoke_handler_from_code");
 if (!func_art_proxy_invoke_handler_from_code) {
 func_art_proxy_invoke_handler_from_code = Function::Create(
- /*Type=*/FuncTy_36,
+ /*Type=*/FuncTy_35,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_proxy_invoke_handler_from_code", mod); // (external, no body)
 func_art_proxy_invoke_handler_from_code->setCallingConv(CallingConv::C);

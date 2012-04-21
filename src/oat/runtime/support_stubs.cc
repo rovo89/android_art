@@ -14,16 +14,22 @@
  * limitations under the License.
  */
 
+#if !defined(ART_USE_LLVM_COMPILER)
 #include "callee_save_frame.h"
+#endif
 #include "dex_instruction.h"
 #include "object.h"
 #include "object_utils.h"
+#if defined(ART_USE_LLVM_COMPILER)
+#include "nth_caller_visitor.h"
+#endif
 
 // Architecture specific assembler helper to deliver exception.
 extern "C" void art_deliver_exception_from_code(void*);
 
 namespace art {
 
+#if !defined(ART_USE_LLVM_COMPILER)
 // Lazily resolve a method. Called by stub code.
 const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp, Thread* thread,
                                                      Runtime::TrampolineType type) {
@@ -206,7 +212,96 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
   }
   return code;
 }
+#else // ART_USE_LLVM_COMPILER
+const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** called_addr,
+                                                     Thread* thread, Runtime::TrampolineType type) {
+  NthCallerVisitor visitor(0);
+  thread->WalkStack(&visitor);
+  Method* caller = visitor.caller;
 
+  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  bool is_static;
+  bool is_virtual;
+  uint32_t dex_method_idx;
+  if (type == Runtime::kUnknownMethod) {
+    DCHECK(called->IsRuntimeMethod());
+    // less two as return address may span into next dex instruction
+    uint32_t dex_pc = static_cast<uint32_t>(visitor.pc);
+    const DexFile::CodeItem* code = MethodHelper(caller).GetCodeItem();
+    CHECK_LT(dex_pc, code->insns_size_in_code_units_);
+    const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
+    Instruction::Code instr_code = instr->Opcode();
+    is_static = (instr_code == Instruction::INVOKE_STATIC) ||
+                (instr_code == Instruction::INVOKE_STATIC_RANGE);
+    is_virtual = (instr_code == Instruction::INVOKE_VIRTUAL) ||
+                 (instr_code == Instruction::INVOKE_VIRTUAL_RANGE) ||
+                 (instr_code == Instruction::INVOKE_SUPER) ||
+                 (instr_code == Instruction::INVOKE_SUPER_RANGE);
+    DCHECK(is_static || is_virtual || (instr_code == Instruction::INVOKE_DIRECT) ||
+           (instr_code == Instruction::INVOKE_DIRECT_RANGE));
+    DecodedInstruction dec_insn(instr);
+    dex_method_idx = dec_insn.vB;
+  } else {
+    DCHECK(!called->IsRuntimeMethod());
+    is_static = type == Runtime::kStaticMethod;
+    is_virtual = false;
+    dex_method_idx = called->GetDexMethodIndex();
+  }
+  if (type == Runtime::kUnknownMethod) {
+    called = linker->ResolveMethod(dex_method_idx, caller, !is_virtual);
+  }
+  const void* code = NULL;
+  if (LIKELY(!thread->IsExceptionPending())) {
+    if (LIKELY(called->IsDirect() == !is_virtual)) {
+      // Ensure that the called method's class is initialized.
+      Class* called_class = called->GetDeclaringClass();
+      linker->EnsureInitialized(called_class, true, true);
+      if (LIKELY(called_class->IsInitialized())) {
+        code = called->GetCode();
+        // TODO: remove this after we solve the link issue.
+        { // for lazy link.
+          if (code == NULL) {
+            code = linker->GetOatCodeFor(called);
+          }
+        }
+      } else if (called_class->IsInitializing()) {
+        if (is_static) {
+          // Class is still initializing, go to oat and grab code (trampoline must be left in place
+          // until class is initialized to stop races between threads).
+          code = linker->GetOatCodeFor(called);
+        } else {
+          // No trampoline for non-static methods.
+          code = called->GetCode();
+          // TODO: remove this after we solve the link issue.
+          { // for lazy link.
+            if (code == NULL) {
+              code = linker->GetOatCodeFor(called);
+            }
+          }
+        }
+      } else {
+        DCHECK(called_class->IsErroneous());
+      }
+    } else {
+      // Direct method has been made virtual
+      thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+                                 "Expected direct method but found virtual: %s",
+                                 PrettyMethod(called, true).c_str());
+    }
+  }
+  if (LIKELY(code != NULL)) {
+    // Expect class to at least be initializing.
+    DCHECK(called->GetDeclaringClass()->IsInitializing());
+    // Don't want infinite recursion.
+    DCHECK(code != Runtime::Current()->GetResolutionStubArray(Runtime::kUnknownMethod)->GetData());
+    // Set up entry into main method
+    *called_addr = called;
+  }
+  return code;
+}
+#endif // ART_USE_LLVM_COMPILER
+
+#if !defined(ART_USE_LLVM_COMPILER)
 // Called by the AbstractMethodError. Called by stub code.
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
@@ -214,5 +309,11 @@ extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Met
                              "abstract method \"%s\"", PrettyMethod(method).c_str());
   thread->DeliverException();
 }
+#else // ART_USE_LLVM_COMPILER
+extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method**) {
+  thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
+                             "abstract method \"%s\"", PrettyMethod(method).c_str());
+}
+#endif // ART_USE_LLVM_COMPILER
 
 }  // namespace art

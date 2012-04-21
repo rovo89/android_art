@@ -167,11 +167,6 @@ declare i32 @F2I(float)
 
 declare void @art_mark_gc_card_from_code(%JavaObject*, %JavaObject*)
 
-declare %JavaObject* @art_ensure_resolved_from_code(%JavaObject*,
-                                                    %JavaObject*,
-                                                    i32,
-                                                    i1)
-
 declare %JavaObject* @art_fix_stub_from_code(%JavaObject*)
 
 declare void @art_proxy_invoke_handler_from_code(%JavaObject*, ...)
