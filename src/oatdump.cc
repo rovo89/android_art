@@ -214,7 +214,6 @@ class OatDumper {
     DUMP_ENTRY_POINT(pMemcmp16);
     DUMP_ENTRY_POINT(pStringCompareTo);
     DUMP_ENTRY_POINT(pMemcpy);
-    DUMP_ENTRY_POINT(pFindInterfaceMethodInCache);
     DUMP_ENTRY_POINT(pUnresolvedDirectMethodTrampolineFromCode);
     DUMP_ENTRY_POINT(pInvokeDirectTrampolineWithAccessCheck);
     DUMP_ENTRY_POINT(pInvokeInterfaceTrampoline);

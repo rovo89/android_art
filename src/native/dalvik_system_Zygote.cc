@@ -153,7 +153,7 @@ static int SetRLimits(JNIEnv* env, jobjectArray javaRlimits) {
     return 0;
   }
 
-  struct rlimit rlim;
+  rlimit rlim;
   memset(&rlim, 0, sizeof(rlim));
 
   for (int i = 0; i < env->GetArrayLength(javaRlimits); i++) {
@@ -177,8 +177,8 @@ static int SetRLimits(JNIEnv* env, jobjectArray javaRlimits) {
 
 #if defined(HAVE_ANDROID_OS)
 static void SetCapabilities(int64_t permitted, int64_t effective) {
-  struct __user_cap_header_struct capheader;
-  struct __user_cap_data_struct capdata;
+  __user_cap_header_struct capheader;
+  __user_cap_data_struct capdata;
 
   memset(&capheader, 0, sizeof(capheader));
   memset(&capdata, 0, sizeof(capdata));
@@ -238,7 +238,7 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
     if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) < 0) {
       PLOG(ERROR) << "could not set dumpable bit flag for pid " << getpid();
     } else {
-      struct rlimit rl;
+      rlimit rl;
       rl.rlim_cur = 0;
       rl.rlim_max = RLIM_INFINITY;
       if (setrlimit(RLIMIT_CORE, &rl) < 0) {

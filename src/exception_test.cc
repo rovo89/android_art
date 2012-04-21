@@ -83,7 +83,7 @@ TEST_F(ExceptionTest, FindCatchHandler) {
   ASSERT_EQ(2u, code_item->tries_size_);
   ASSERT_NE(0u, code_item->insns_size_in_code_units_);
 
-  const struct DexFile::TryItem *t0, *t1;
+  const DexFile::TryItem *t0, *t1;
   t0 = dex_->GetTryItems(*code_item, 0);
   t1 = dex_->GetTryItems(*code_item, 1);
   EXPECT_LE(t0->start_addr_, t1->start_addr_);

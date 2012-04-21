@@ -26,6 +26,7 @@
 namespace art {
 
 class Class;
+class DvmDex;
 class Method;
 class Thread;
 
@@ -118,7 +119,6 @@ struct PACKED EntryPoints {
   void* (*pMemcpy)(void*, const void*, size_t);
 
   // Invocation
-  Method* (*pFindInterfaceMethodInCache)(Class*, uint32_t, const Method*, struct DvmDex*);
   const void* (*pUnresolvedDirectMethodTrampolineFromCode)(Method*, Method**, Thread*,
                                                            Runtime::TrampolineType);
   void (*pInvokeDirectTrampolineWithAccessCheck)(uint32_t, void*);

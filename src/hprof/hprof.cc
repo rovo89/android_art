@@ -70,8 +70,7 @@ Hprof::Hprof(const char* outputFileName, int fd, bool writeHeader, bool directTo
   FILE *fp = open_memstream(&file_data_ptr_, &file_data_size_);
   if (fp == NULL) {
     // not expected
-    LOG(ERROR) << StringPrintf("hprof: open_memstream failed: %s", strerror(errno));
-    CHECK(false);
+    PLOG(FATAL) << "open_memstream failed";
   }
 
   direct_to_ddms_ = directToDdms;
@@ -95,7 +94,7 @@ Hprof::Hprof(const char* outputFileName, int fd, bool writeHeader, bool directTo
     fwrite(buf, 1, sizeof(uint32_t), fp);
 
     // The current time, in milliseconds since 0:00 GMT, 1/1/70.
-    struct timeval now;
+    timeval now;
     uint64_t nowMs;
     if (gettimeofday(&now, NULL) < 0) {
       nowMs = 0;
@@ -512,7 +511,7 @@ int sysWriteFully(int fd, const void* buf, size_t count, const char* logMsg) {
     ssize_t actual = TEMP_FAILURE_RETRY(write(fd, buf, count));
     if (actual < 0) {
       int err = errno;
-      LOG(ERROR) << StringPrintf("%s: write failed: %s", logMsg, strerror(err));
+      PLOG(ERROR) << StringPrintf("%s: write failed", logMsg);
       return err;
     } else if (actual != (ssize_t) count) {
       LOG(DEBUG) << StringPrintf("%s: partial write (will retry): (%d of %zd)",
@@ -555,7 +554,7 @@ bool Hprof::Finish() {
 
   if (direct_to_ddms_) {
     // send the data off to DDMS
-    struct iovec iov[2];
+    iovec iov[2];
     iov[0].iov_base = headCtx.file_data_ptr_;
     iov[0].iov_len = headCtx.file_data_size_;
     iov[1].iov_base = file_data_ptr_;
@@ -569,13 +568,13 @@ bool Hprof::Finish() {
     if (headCtx.fd_ >= 0) {
       outFd = dup(headCtx.fd_);
       if (outFd < 0) {
-        LOG(ERROR) << StringPrintf("dup(%d) failed: %s", headCtx.fd_, strerror(errno));
+        PLOG(ERROR) << StringPrintf("dup(%d) failed", headCtx.fd_);
         // continue to fail-handler below
       }
     } else {
       outFd = open(file_name_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
       if (outFd < 0) {
-        LOG(ERROR) << StringPrintf("can't open %s: %s", headCtx.file_name_.c_str(), strerror(errno));
+        PLOG(ERROR) << StringPrintf("can't open \"%s\"", headCtx.file_name_.c_str());
         // continue to fail-handler below
       }
     }

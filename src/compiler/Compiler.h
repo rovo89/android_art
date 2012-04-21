@@ -170,34 +170,26 @@ bool oatArchInit(void);
 bool oatStartup(void);
 void oatShutdown(void);
 void oatScanAllClassPointers(void (*callback)(void* ptr));
-void oatInitializeSSAConversion(struct CompilationUnit* cUnit);
-int SRegToVReg(const struct CompilationUnit* cUnit, int ssaReg);
-int SRegToSubscript(const struct CompilationUnit* cUnit, int ssaReg);
-bool oatFindLocalLiveIn(struct CompilationUnit* cUnit,
-                                struct BasicBlock* bb);
-bool oatDoSSAConversion(struct CompilationUnit* cUnit,
-                                struct BasicBlock* bb);
-bool oatDoConstantPropagation(struct CompilationUnit* cUnit,
-                                      struct BasicBlock* bb);
-bool oatFindInductionVariables(struct CompilationUnit* cUnit,
-                                       struct BasicBlock* bb);
+void oatInitializeSSAConversion(CompilationUnit* cUnit);
+int SRegToVReg(const CompilationUnit* cUnit, int ssaReg);
+int SRegToSubscript(const CompilationUnit* cUnit, int ssaReg);
+bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb);
+bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb);
+bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb);
+bool oatFindInductionVariables(CompilationUnit* cUnit, BasicBlock* bb);
 /* Clear the visited flag for each BB */
-bool oatClearVisitedFlag(struct CompilationUnit* cUnit,
-                                 struct BasicBlock* bb);
-char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
-                              const DecodedInstruction& insn,
+bool oatClearVisitedFlag(CompilationUnit* cUnit, BasicBlock* bb);
+char* oatGetDalvikDisassembly(CompilationUnit* cUnit, const DecodedInstruction& insn,
                               const char* note);
-char* oatFullDisassembler(struct CompilationUnit* cUnit,
-                          const struct MIR* mir);
-char* oatGetSSAString(struct CompilationUnit* cUnit,
-                              struct SSARepresentation* ssaRep);
-void oatDataFlowAnalysisDispatcher(struct CompilationUnit* cUnit,
-                bool (*func)(struct CompilationUnit* , struct BasicBlock*),
+char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir);
+char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep);
+void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
+                bool (*func)(CompilationUnit* , BasicBlock*),
                 DataFlowAnalysisMode dfaMode,
                 bool isIterative);
-void oatMethodSSATransformation(struct CompilationUnit* cUnit);
+void oatMethodSSATransformation(CompilationUnit* cUnit);
 u8 oatGetRegResourceMask(int reg);
-void oatDumpCFG(struct CompilationUnit* cUnit, const char* dirPrefix);
+void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix);
 void oatProcessSwitchTables(CompilationUnit* cUnit);
 bool oatIsFpReg(int reg);
 uint32_t oatFpRegMask(void);

@@ -390,8 +390,8 @@ class CommonTest : public testing::Test {
     DIR* dir = opendir(art_cache_.c_str());
     ASSERT_TRUE(dir != NULL);
     while (true) {
-      struct dirent entry;
-      struct dirent* entry_ptr;
+      dirent entry;
+      dirent* entry_ptr;
       int readdir_result = readdir_r(dir, &entry, &entry_ptr);
       ASSERT_EQ(0, readdir_result);
       if (entry_ptr == NULL) {

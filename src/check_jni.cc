@@ -599,7 +599,7 @@ class ScopedCheck {
       what = "jthrowable";
       break;
     default:
-      CHECK(false) << static_cast<int>(kind);
+      LOG(FATAL) << "Unknown kind " << static_cast<int>(kind);
     }
 
     if (java_object == NULL) {
@@ -1074,7 +1074,7 @@ struct GuardedCopy {
     // TODO: we could mprotect instead, and keep the allocation around for a while.
     // This would be even more expensive, but it might catch more errors.
     // if (mprotect(fullBuf, totalByteCount, PROT_NONE) != 0) {
-    //     LOGW("mprotect(PROT_NONE) failed: %s", strerror(errno));
+    //     PLOG(WARNING) << "mprotect(PROT_NONE) failed";
     // }
     if (munmap(fullBuf, totalByteCount) != 0) {
       PLOG(FATAL) << "munmap(" << reinterpret_cast<void*>(fullBuf) << ", " << totalByteCount << ") failed";

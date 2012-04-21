@@ -348,7 +348,7 @@ static void ToAbsoluteTime(int64_t ms, int32_t ns, struct timespec *ts) {
   clock_gettime(CLOCK_MONOTONIC, ts);
 #else
   {
-    struct timeval tv;
+    timeval tv;
     gettimeofday(&tv, NULL);
     ts->tv_sec = tv.tv_sec;
     ts->tv_nsec = tv.tv_usec * 1000;
@@ -409,7 +409,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
   }
 
   // Compute absolute wakeup time, if necessary.
-  struct timespec ts;
+  timespec ts;
   bool timed = false;
   if (ms != 0 || ns != 0) {
     ToAbsoluteTime(ms, ns, &ts);
@@ -588,7 +588,7 @@ void Monitor::Inflate(Thread* self, Object* obj) {
 
 void Monitor::MonitorEnter(Thread* self, Object* obj) {
   volatile int32_t* thinp = obj->GetRawLockWordAddress();
-  struct timespec tm;
+  timespec tm;
   uint32_t sleepDelayNs;
   uint32_t minSleepDelayNs = 1000000;  /* 1 millisecond */
   uint32_t maxSleepDelayNs = 1000000000;  /* 1 second */
