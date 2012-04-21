@@ -468,6 +468,7 @@ static const void* GetOatCode(const Method* m) {
 }
 
 uint32_t Method::ToDexPC(const uintptr_t pc) const {
+#if !defined(ART_USE_LLVM_COMPILER)
   const uint32_t* mapping_table = GetMappingTable();
   if (mapping_table == NULL) {
     DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
@@ -491,6 +492,10 @@ uint32_t Method::ToDexPC(const uintptr_t pc) const {
     }
   }
   return best_dex_offset;
+#else
+  // Compiler LLVM doesn't use the machine pc, we just use dex pc instead.
+  return static_cast<uint32_t>(pc);
+#endif
 }
 
 uintptr_t Method::ToNativePC(const uint32_t dex_pc) const {

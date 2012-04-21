@@ -574,7 +574,6 @@ struct StackDumpVisitor : public Thread::StackVisitor {
     }
     const int kMaxRepetition = 3;
     Method* m = frame.GetMethod();
-#if !defined(ART_USE_LLVM_COMPILER)
     Class* c = m->GetDeclaringClass();
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     const DexCache* dex_cache = c->GetDexCache();
@@ -583,10 +582,6 @@ struct StackDumpVisitor : public Thread::StackVisitor {
       const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
       line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
     }
-#else
-    // Compiler_LLVM stores line_number in the ShadowFrame, and passes it to visitor.
-    int line_number = static_cast<int>(pc);
-#endif
     if (line_number == last_line_number && last_method == m) {
       repetition_count++;
     } else {
@@ -1321,7 +1316,7 @@ void Thread::WalkStack(StackVisitor* visitor, bool /*include_upcalls*/) const {
     Frame frame;
     frame.SetSP(reinterpret_cast<Method**>(reinterpret_cast<byte*>(cur) +
                                            ShadowFrame::MethodOffset()));
-    bool should_continue = visitor->VisitFrame(frame, cur->GetLineNumber());
+    bool should_continue = visitor->VisitFrame(frame, cur->GetDexPC());
     if (!should_continue) {
       return;
     }
@@ -1427,11 +1422,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     Method* method = down_cast<Method*>(method_trace->Get(i));
     mh.ChangeMethod(method);
     uint32_t native_pc = pc_trace->Get(i);
-#if !defined(ART_USE_LLVM_COMPILER)
     int32_t line_number = mh.GetLineNumFromNativePC(native_pc);
-#else
-    int32_t line_number = native_pc; // LLVM stored line_number in the ShadowFrame
-#endif
     // Allocate element, potentially triggering GC
     // TODO: reuse class_name_object via Class::name_?
     const char* descriptor = mh.GetDeclaringClassDescriptor();
