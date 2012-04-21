@@ -283,7 +283,7 @@ const char* GetAndroidRoot();
 const char* GetAndroidData();
 
 // Returns the art-cache location, or dies trying.
-std::string GetArtCacheOrDie();
+std::string GetArtCacheOrDie(const char* android_data);
 
 // Returns the art-cache location for a DexFile or OatFile, or dies trying.
 std::string GetArtCacheFilenameOrDie(const std::string& location);

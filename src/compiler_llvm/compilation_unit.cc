@@ -205,13 +205,22 @@ class ScopedTempFile {
 };
 
 bool CompilationUnit::Materialize() {
-  std::string tmp_file = GetArtCacheOrDie();
-  tmp_file += "/art-llvm-XXXXXX";
+  const char* android_data = getenv("ANDROID_DATA");
+  if (android_data == NULL) {
+    if (OS::DirectoryExists("/data")) {
+      android_data = "/data";
+    } else {
+      android_data = "/tmp";
+    }
+  }
+
+  std::string art_cache = GetArtCacheOrDie(android_data);
+  art_cache += "/art-llvm-XXXXXX";
 
   // Prepare the input
-  ScopedTempFile input(tmp_file);
+  ScopedTempFile input(art_cache);
   if (input.GetFd() < 0) {
-    PLOG(ERROR) << "Failed to save the module to the file " << tmp_file;
+    PLOG(ERROR) << "Failed to save the module to the file " << art_cache;
     return false;
   }
 
@@ -221,9 +230,9 @@ bool CompilationUnit::Materialize() {
   }
 
   // Prepare the output
-  ScopedTempFile output(tmp_file);
+  ScopedTempFile output(art_cache);
   if (output.GetFd() < 0) {
-    PLOG(ERROR) << "Failed to prepare the output file " << tmp_file;
+    PLOG(ERROR) << "Failed to prepare the output file " << art_cache;
     return false;
   }
 

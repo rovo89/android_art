@@ -906,8 +906,8 @@ const char* GetAndroidData() {
   return android_data;
 }
 
-std::string GetArtCacheOrDie() {
-  std::string art_cache(StringPrintf("%s/art-cache", GetAndroidData()));
+std::string GetArtCacheOrDie(const char* android_data) {
+  std::string art_cache(StringPrintf("%s/art-cache", android_data));
 
   if (!OS::DirectoryExists(art_cache.c_str())) {
     if (StartsWith(art_cache, "/tmp/")) {
@@ -925,7 +925,7 @@ std::string GetArtCacheOrDie() {
 }
 
 std::string GetArtCacheFilenameOrDie(const std::string& location) {
-  std::string art_cache(GetArtCacheOrDie());
+  std::string art_cache(GetArtCacheOrDie(GetAndroidData()));
   CHECK_EQ(location[0], '/') << location;
   std::string cache_file(location, 1); // skip leading slash
   std::replace(cache_file.begin(), cache_file.end(), '/', '@');
