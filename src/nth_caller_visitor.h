@@ -24,17 +24,19 @@ namespace art {
 
 // Walks up the stack 'n' callers, when used with Thread::WalkStack.
 struct NthCallerVisitor : public Thread::StackVisitor {
-  NthCallerVisitor(size_t n) : n(n), count(0), caller(NULL) {}
-  bool VisitFrame(const Frame& f, uintptr_t) {
+  NthCallerVisitor(size_t n) : n(n), count(0), pc(0), caller(NULL) {}
+  bool VisitFrame(const Frame& f, uintptr_t fpc) {
     DCHECK(caller == NULL);
     if (count++ == n) {
       caller = f.GetMethod();
+      pc = fpc;
       return false;
     }
     return true;
   }
   size_t n;
   size_t count;
+  uintptr_t pc;
   Method* caller;
 };
 

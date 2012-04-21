@@ -1401,7 +1401,13 @@ void ClassLinker::LinkOatCodeFor(Method* method) {
     // back.
 
     // TODO: Remove this workaround.
-    GetOatMethodFor(method).LinkMethodPointers(method);
+    OatFile::OatMethod oat_method = GetOatMethodFor(method);
+    if (method->GetCode() == NULL) {
+      method->SetCode(oat_method.GetCode());
+    }
+    if (method->GetInvokeStub() == NULL) {
+      method->SetInvokeStub(oat_method.GetInvokeStub());
+    }
   }
 }
 

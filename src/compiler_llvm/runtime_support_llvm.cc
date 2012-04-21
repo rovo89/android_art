@@ -585,83 +585,15 @@ static void* art_find_compiler_runtime_func(char const* name) {
   }
 }
 
-// TODO: This runtime support function is the temporary solution for the stubs. Because now the
-// stubs and runtime support functions in the LLVM part and the non-LLVM part is different.
-// After deal these problems, we should remove this function, and will save a function call before
-// every method invocation.
-Method* art_ensure_resolved_from_code(Method* called,
-                                      Method* caller,
-                                      uint32_t dex_method_idx,
-                                      bool is_virtual) {
-  if (LIKELY(!called->IsResolutionMethod())) {
-    return called;
-  }
-
-  // If the called method is ResolutionMethod.  -> ResolutionTrampoline(kUnknownMethod)
-  //                                               Resolve method.
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  called = linker->ResolveMethod(dex_method_idx, caller, !is_virtual);
-  if (UNLIKELY(art_get_current_thread_from_code()->IsExceptionPending())) {
-    return NULL;
-  }
-  if (LIKELY(called->IsDirect() == !is_virtual)) {
-    // Ensure that the called method's class is initialized.
-    Class* called_class = called->GetDeclaringClass();
-    linker->EnsureInitialized(called_class, true, true);
-    return called;
-  } else {
-    Thread* thread = art_get_current_thread_from_code();
-    // Direct method has been made virtual
-    thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-                               "Expected direct method but found virtual: %s",
-                               PrettyMethod(called, true).c_str());
-    return NULL;
-  }
-}
-
-
-// TODO: This runtime support function is the temporary solution for the stubs. Because now the
-// stubs and runtime support functions in the LLVM part and the non-LLVM part is different.
-// After deal these problems, we should remove this function, and will save a function call before
-// every method invocation.
+// TODO: This runtime support function is the temporary solution for the link issue.
 // It calls to this function before invoking any function, and this function will check:
-// 1. The code address is ResolutionStub.          -> ResolutionTrampoline(kStaticMethod)
-//                                                    Initialize class.
-// 2. The code address is AbstractMethodErrorStub. -> AbstractMethodErrorStub
-// 3. The code address is 0.                       -> Link the code by ELFLoader
-// The item 3 will solved by in-place linking at image loading.
+// 1. The code address is 0.                       -> Link the code by ELFLoader
+// That will solved by in-place linking at image loading.
 const void* art_fix_stub_from_code(Method* called) {
-  DCHECK(!called->IsResolutionMethod()) << PrettyMethod(called);
-  Runtime* runtime = Runtime::Current();
   const void* code = called->GetCode();
-
-  // 1. The code address is ResolutionStub.          -> ResolutionTrampoline(kStaticMethod)
-  if (UNLIKELY(code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData())) {
-    ClassLinker* linker = runtime->GetClassLinker();
-    Class* called_class = called->GetDeclaringClass();
-    linker->EnsureInitialized(called_class, true, true);
-    if (LIKELY(called_class->IsInitialized())) {
-      return called->GetCode();
-    } else if (called_class->IsInitializing()) {
-      return linker->GetOatCodeFor(called);
-    } else {
-      DCHECK(art_get_current_thread_from_code()->IsExceptionPending());
-      DCHECK(called_class->IsErroneous());
-      return NULL;
-    }
-  }
-
-  // 2. The code address is AbstractMethodErrorStub. -> AbstractMethodErrorStub
-  if (UNLIKELY(code == runtime->GetAbstractMethodErrorStubArray()->GetData())) {
-    art_get_current_thread_from_code()->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
-                                                           "abstract method \"%s\"",
-                                                           PrettyMethod(called).c_str());
-    return NULL;
-  }
-
-  // 3. The code address is 0.                       -> Link the code by ELFLoader
-  if (UNLIKELY(called->GetInvokeStub() == NULL || code == NULL)) {
-    runtime->GetClassLinker()->LinkOatCodeFor(called);
+  // 1. The code address is 0.                       -> Link the code by ELFLoader
+  if (UNLIKELY(code == NULL)) {
+    Runtime::Current()->GetClassLinker()->LinkOatCodeFor(called);
     return called->GetCode();
   }
 

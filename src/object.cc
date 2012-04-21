@@ -549,15 +549,19 @@ void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result
   self->PushNativeToManagedRecord(&record);
 #endif
 
-#if defined(ART_USE_LLVM_COMPILER)
-  art_fix_stub_from_code(const_cast<Method*>(this));
-#endif
-
   // Call the invoke stub associated with the method.
   // Pass everything as arguments.
   const Method::InvokeStub* stub = GetInvokeStub();
 
   bool have_executable_code = (GetCode() != NULL);
+
+#if defined(ART_USE_LLVM_COMPILER)
+  if (stub == NULL || !have_executable_code) {
+    Runtime::Current()->GetClassLinker()->LinkOatCodeFor(const_cast<Method*>(this));
+    stub = GetInvokeStub();
+    have_executable_code = (GetCode() != NULL);
+  }
+#endif
 
   if (Runtime::Current()->IsStarted() && have_executable_code && stub != NULL) {
     bool log = false;

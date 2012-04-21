@@ -2783,18 +2783,6 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
     << PrettyMethod(callee_method_idx, *dex_file_);
 }
 
-llvm::Value* MethodCompiler::EmitEnsureResolved(llvm::Value* callee,
-                                                llvm::Value* caller,
-                                                uint32_t dex_method_idx,
-                                                bool is_virtual) {
-  // TODO: Remove this after we solve the trampoline related problems.
-  return  irb_.CreateCall4(irb_.GetRuntime(EnsureResolved),
-                           callee,
-                           caller,
-                           irb_.getInt32(dex_method_idx),
-                           irb_.getInt1(is_virtual));
-}
-
 llvm::Value* MethodCompiler::EmitFixStub(llvm::Value* callee_method_object_addr,
                                          uint32_t method_idx,
                                          bool is_static) {
@@ -2869,21 +2857,6 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
                                                  dex_pc, is_fast_path);
       break;
     }
-
-    // Ensure the callee method object is resolved.
-    bool is_virtual = (dec_insn.opcode == Instruction::INVOKE_VIRTUAL) ||
-                      (dec_insn.opcode == Instruction::INVOKE_VIRTUAL_RANGE) ||
-                      (dec_insn.opcode == Instruction::INVOKE_SUPER) ||
-                      (dec_insn.opcode == Instruction::INVOKE_SUPER_RANGE);
-
-    llvm::Value* caller_method_object_addr = EmitLoadMethodObjectAddr();
-
-    callee_method_object_addr = EmitEnsureResolved(callee_method_object_addr,
-                                                   caller_method_object_addr,
-                                                   callee_method_idx,
-                                                   is_virtual);
-
-    EmitGuard_ExceptionLandingPad(dex_pc);
   }
 
 #if 0

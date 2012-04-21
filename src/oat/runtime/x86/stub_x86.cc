@@ -28,6 +28,7 @@ namespace x86 {
 ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
+#if !defined(ART_USE_LLVM_COMPILER)
   // Set up the callee save frame to conform with Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
   // return address
   __ pushl(EDI);
@@ -59,6 +60,32 @@ ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
   __ xchgl(EDI, Address(ESP,0));
   // Tail call to intended method.
   __ ret();
+#else // ART_USE_LLVM_COMPILER
+  __ pushl(EBP);
+  __ movl(EBP, ESP);          // save ESP
+  __ movl(EAX, Address(EBP,8));  // Method* called
+  __ leal(EDX, Address(EBP,8));  // Method** called_addr
+  __ pushl(Immediate(type));  // pass is_static
+  __ fs()->pushl(Address::Absolute(Thread::SelfOffset()));  // pass thread
+  __ pushl(EDX);  // pass called_addr
+  __ pushl(EAX);  // pass called
+
+  // Call to resolve method.
+  __ Call(ThreadOffset(ENTRYPOINT_OFFSET(pUnresolvedDirectMethodTrampolineFromCode)),
+          X86ManagedRegister::FromCpuRegister(ECX));
+
+  __ leave();
+
+  Label resolve_fail;  // forward declaration
+  __ cmpl(EAX, Immediate(0));
+  __ j(kEqual, &resolve_fail);
+
+  __ jmp(EAX);
+  // Tail call to intended method.
+
+  __ Bind(&resolve_fail);
+  __ ret();
+#endif // ART_USE_LLVM_COMPILER
 
   assembler->EmitSlowPaths();
   size_t cs = assembler->CodeSize();
@@ -75,6 +102,7 @@ typedef void (*ThrowAme)(Method*, Thread*);
 ByteArray* CreateAbstractMethodErrorStub() {
   UniquePtr<X86Assembler> assembler(static_cast<X86Assembler*>(Assembler::Create(kX86)));
 
+#if !defined(ART_USE_LLVM_COMPILER)
   // Set up the callee save frame to conform with Runtime::CreateCalleeSaveMethod(kSaveAll)
 
   // return address
@@ -95,18 +123,21 @@ ByteArray* CreateAbstractMethodErrorStub() {
   __ Call(ThreadOffset(ENTRYPOINT_OFFSET(pThrowAbstractMethodErrorFromCode)),
           X86ManagedRegister::FromCpuRegister(ECX));
 
-#if defined(ART_USE_LLVM_COMPILER)
-  // Return to caller who will handle pending exception.
-  // TODO: The callee save set up is unnecessary for LLVM as it uses shadow stacks.
-  __ addl(ESP, Immediate(32));
-  __ popl(EBP);
-  __ popl(ESI);
-  __ popl(EDI);
-  __ ret();
-#else
   // Call never returns.
   __ int3();
-#endif
+#else // ART_USE_LLVM_COMPILER
+  __ pushl(EBP);
+  __ movl(EBP, ESP);          // save ESP
+  __ pushl(ESP);  // pass sp (not use)
+  __ fs()->pushl(Address::Absolute(Thread::SelfOffset()));  // pass thread*
+  __ pushl(Address(EBP,8));  // pass method
+  // Call to throw AbstractMethodError.
+  __ Call(ThreadOffset(ENTRYPOINT_OFFSET(pThrowAbstractMethodErrorFromCode)),
+          X86ManagedRegister::FromCpuRegister(ECX));
+  __ leave();
+  // Return to caller who will handle pending exception.
+  __ ret();
+#endif // ART_USE_LLVM_COMPILER
 
   assembler->EmitSlowPaths();
 
