@@ -216,7 +216,7 @@ void CompilerLLVM::EnableAutoElfLoading() {
 
 
 void CompilerLLVM::LoadElfFromCompilationUnit(const CompilationUnit* cunit) {
-  compiler_lock_.AssertHeld();
+  MutexLock GUARD(compiler_lock_);
   DCHECK(cunit->IsMaterialized()) << cunit->GetElfIndex();
 
   if (!elf_loader_->LoadElfAt(cunit->GetElfIndex(),
