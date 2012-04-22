@@ -83,13 +83,13 @@ FunctionType* FuncTy_5 = FunctionType::get(
  /*isVarArg=*/false);
 
 std::vector<Type*>FuncTy_6_args;
+FuncTy_6_args.push_back(PointerTy_2);
 FunctionType* FuncTy_6 = FunctionType::get(
  /*Result=*/Type::getVoidTy(mod->getContext()),
  /*Params=*/FuncTy_6_args,
  /*isVarArg=*/false);
 
 std::vector<Type*>FuncTy_7_args;
-FuncTy_7_args.push_back(PointerTy_2);
 FunctionType* FuncTy_7 = FunctionType::get(
  /*Result=*/Type::getVoidTy(mod->getContext()),
  /*Params=*/FuncTy_7_args,
@@ -387,7 +387,7 @@ func_art_unlock_object_from_code->setAttributes(func_art_unlock_object_from_code
 Function* func_art_test_suspend_from_code = mod->getFunction("art_test_suspend_from_code");
 if (!func_art_test_suspend_from_code) {
 func_art_test_suspend_from_code = Function::Create(
- /*Type=*/FuncTy_6,
+ /*Type=*/FuncTy_4,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_test_suspend_from_code", mod); // (external, no body)
 func_art_test_suspend_from_code->setCallingConv(CallingConv::C);
@@ -398,7 +398,7 @@ func_art_test_suspend_from_code->setAttributes(func_art_test_suspend_from_code_P
 Function* func_art_push_shadow_frame_from_code = mod->getFunction("art_push_shadow_frame_from_code");
 if (!func_art_push_shadow_frame_from_code) {
 func_art_push_shadow_frame_from_code = Function::Create(
- /*Type=*/FuncTy_7,
+ /*Type=*/FuncTy_6,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_push_shadow_frame_from_code", mod); // (external, no body)
 func_art_push_shadow_frame_from_code->setCallingConv(CallingConv::C);
@@ -409,7 +409,7 @@ func_art_push_shadow_frame_from_code->setAttributes(func_art_push_shadow_frame_f
 Function* func_art_pop_shadow_frame_from_code = mod->getFunction("art_pop_shadow_frame_from_code");
 if (!func_art_pop_shadow_frame_from_code) {
 func_art_pop_shadow_frame_from_code = Function::Create(
- /*Type=*/FuncTy_6,
+ /*Type=*/FuncTy_7,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_pop_shadow_frame_from_code", mod); // (external, no body)
 func_art_pop_shadow_frame_from_code->setCallingConv(CallingConv::C);
@@ -431,7 +431,7 @@ func_art_is_exception_pending_from_code->setAttributes(func_art_is_exception_pen
 Function* func_art_throw_div_zero_from_code = mod->getFunction("art_throw_div_zero_from_code");
 if (!func_art_throw_div_zero_from_code) {
 func_art_throw_div_zero_from_code = Function::Create(
- /*Type=*/FuncTy_6,
+ /*Type=*/FuncTy_7,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_throw_div_zero_from_code", mod); // (external, no body)
 func_art_throw_div_zero_from_code->setCallingConv(CallingConv::C);
@@ -475,7 +475,7 @@ func_art_throw_null_pointer_exception_from_code->setAttributes(func_art_throw_nu
 Function* func_art_throw_stack_overflow_from_code = mod->getFunction("art_throw_stack_overflow_from_code");
 if (!func_art_throw_stack_overflow_from_code) {
 func_art_throw_stack_overflow_from_code = Function::Create(
- /*Type=*/FuncTy_6,
+ /*Type=*/FuncTy_7,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_throw_stack_overflow_from_code", mod); // (external, no body)
 func_art_throw_stack_overflow_from_code->setCallingConv(CallingConv::C);

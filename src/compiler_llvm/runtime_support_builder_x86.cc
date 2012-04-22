@@ -18,6 +18,7 @@
 
 #include "ir_builder.h"
 #include "thread.h"
+#include "utils_llvm.h"
 
 #include <llvm/DerivedTypes.h>
 #include <llvm/Function.h>
@@ -50,6 +51,8 @@ void RuntimeSupportBuilderX86::TargetOptimizeRuntimeSupport() {
     InlineAsm* get_fp = InlineAsm::get(func_ty, "movl %fs:($1), $0", "=r,r", false);
     Value* fp = irb_.CreateCall(get_fp, irb_.getPtrEquivInt(Thread::SelfOffset().Int32Value()));
     irb_.CreateRet(fp);
+
+    VERIFY_LLVM_FUNCTION(*func);
   }
 
   {
@@ -58,6 +61,8 @@ void RuntimeSupportBuilderX86::TargetOptimizeRuntimeSupport() {
     BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
     irb_.SetInsertPoint(basic_block);
     irb_.CreateRetVoid();
+
+    VERIFY_LLVM_FUNCTION(*func);
   }
 }
 
