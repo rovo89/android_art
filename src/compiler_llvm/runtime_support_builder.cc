@@ -20,6 +20,7 @@
 #include "ir_builder.h"
 #include "shadow_frame.h"
 #include "thread.h"
+#include "utils_llvm.h"
 
 #include <llvm/DerivedTypes.h>
 #include <llvm/Function.h>
@@ -98,6 +99,8 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
                              Thread::TopShadowFrameOffset().Int32Value(),
                              new_shadow_frame);
     irb_.CreateRetVoid();
+
+    VERIFY_LLVM_FUNCTION(*func);
   }
 
   if (!target_runtime_support_func_[PopShadowFrame]) {
@@ -118,6 +121,8 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
                              Thread::TopShadowFrameOffset().Int32Value(),
                              old_shadow_frame);
     irb_.CreateRetVoid();
+
+    VERIFY_LLVM_FUNCTION(*func);
   }
 
   if (!target_runtime_support_func_[IsExceptionPending]) {
@@ -133,6 +138,8 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
                                                  irb_.getJObjectTy());
     Value* is_exception_not_null = irb_.CreateICmpNE(exception, irb_.getJNull());
     irb_.CreateRet(is_exception_not_null);
+
+    VERIFY_LLVM_FUNCTION(*func);
   }
 
   if (!target_runtime_support_func_[TestSuspend]) {
@@ -146,8 +153,7 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
     irb_.SetInsertPoint(basic_block);
 
-    Function* get_thread = GetRuntimeSupportFunction(GetCurrentThread);
-    Value* thread = irb_.CreateCall(get_thread);
+    Value* thread = func->arg_begin();
     Value* suspend_count = irb_.LoadFromObjectOffset(thread,
                                                      Thread::SuspendCountOffset().Int32Value(),
                                                      irb_.getJIntTy());
@@ -165,6 +171,8 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     irb_.CreateRetVoid();
 
     OverrideRuntimeSupportFunction(TestSuspend, func);
+
+    VERIFY_LLVM_FUNCTION(*func);
   }
 
   if (!target_runtime_support_func_[MarkGCCard]) {
@@ -197,6 +205,8 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* card_table_entry = irb_.CreateGEP(card_table, card_no);
     irb_.CreateStore(irb_.getInt8(GC_CARD_DIRTY), card_table_entry);
     irb_.CreateRetVoid();
+
+    VERIFY_LLVM_FUNCTION(*func);
   }
 }
 

@@ -35,7 +35,6 @@
 
 #include <iomanip>
 
-#include <llvm/Analysis/Verifier.h>
 #include <llvm/BasicBlock.h>
 #include <llvm/Function.h>
 #include <llvm/GlobalVariable.h>
@@ -3687,7 +3686,7 @@ CompiledMethod *MethodCompiler::Compile() {
   EmitPrologueLastBranch();
 
   // Verify the generated bitcode
-  llvm::verifyFunction(*func_, llvm::PrintMessageAction);
+  VERIFY_LLVM_FUNCTION(*func_);
 
   // Add the memory usage approximation of the compilation unit
   cunit_->AddMemUsageApproximation(code_item_->insns_size_in_code_units_ * 900);
@@ -3738,8 +3737,12 @@ void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
 
 void MethodCompiler::EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc) {
   llvm::Value* runtime_func = irb_.GetRuntime(TestSuspend);
+
+  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+
   EmitUpdateDexPC(dex_pc);
-  irb_.CreateCall(runtime_func);
+
+  irb_.CreateCall(runtime_func, thread_object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc);
 }
