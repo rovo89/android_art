@@ -18,10 +18,6 @@
 
 namespace art {
 
-void Runtime::PlatformAbort(const char*, int) {
-  // On a device, debuggerd will give us a stack trace. Nothing to do here.
-}
-
 void Runtime::InitPlatformSignalHandlers() {
   // On a device, debuggerd will give us a stack trace. Nothing to do here.
 }
