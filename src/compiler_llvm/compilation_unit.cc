@@ -164,123 +164,83 @@ bool CompilationUnit::WriteBitcodeToFile(const std::string& bitcode_filename) {
   return true;
 }
 
-// TODO: Move to scoped_temp_file.h
-class ScopedTempFile {
- public:
-  ScopedTempFile(const std::string& filename_template)
-      : filename_(filename_template), file_(NULL) {
-    int fd = mkstemp(&filename_[0]);
-    CHECK_NE(-1, fd);
-    file_ = OS::FileFromFd(filename_.c_str(), fd);
-  }
-
-  ~ScopedTempFile() {
-    delete file_;
-    TEMP_FAILURE_RETRY(unlink(filename_.c_str()));
-  }
-
-  int GetFd() {
-    return file_->Fd();
-  }
-
-  const std::string &GetName() const {
-    return filename_;
-  }
-
-  bool ReadToString(std::string &buffer) {
-    off_t file_size = file_->Length();
-    if (file_size <= 0) {
-      buffer.clear();
-      return true;
-    }
-
-    buffer.reserve(file_size);
-    buffer.resize(file_size);
-    return file_->ReadFully(&buffer[0], file_size);
-  }
-
- private:
-  std::string filename_;
-  File *file_;
-};
 
 bool CompilationUnit::Materialize() {
-  const char* android_data = getenv("ANDROID_DATA");
-  if (android_data == NULL) {
-    if (OS::DirectoryExists("/data")) {
-      android_data = "/data";
-    } else {
-      android_data = "/tmp";
-    }
-  }
-
-  std::string art_cache = GetArtCacheOrDie(android_data);
-  art_cache += "/art-llvm-XXXXXX";
-
-  // Prepare the input
-  ScopedTempFile input(art_cache);
-  if (input.GetFd() < 0) {
-    PLOG(ERROR) << "Failed to save the module to the file " << art_cache;
-    return false;
-  }
-
-  // Write the bitcode to the file
-  if (!WriteBitcodeToFile(input.GetName())) {
-    return false;
-  }
-
-  // Prepare the output
-  ScopedTempFile output(art_cache);
-  if (output.GetFd() < 0) {
-    PLOG(ERROR) << "Failed to prepare the output file " << art_cache;
+  // Prepare the pipe between parent process and child process
+  int pipe_fd[2];
+  if (pipe(pipe_fd) == -1) {
+    LOG(FATAL) << "Failed to create pipe for CompilerWorker";
     return false;
   }
 
   // Fork a process to do the compilation
   pid_t pid = fork();
-  if (pid == 0) {
-    // change process groups, so we don't get ripped by ProcessManager
+  if (pid < 0) {
+    close(pipe_fd[0]);
+    close(pipe_fd[1]);
+    PLOG(FATAL) << "Failed to fork a process to do the compilation";
+    return false;
+
+  } else if (pid == 0) { // Child process
+    // Close the unused pipe read end
+    close(pipe_fd[0]);
+
+    // Change process groups, so we don't get ripped by ProcessManager
     setpgid(0, 0);
 
     // TODO: Should use exec* family instead of invoking a function.
     // Forward our compilation request to bcc.
-    exit(static_cast<int>(!MaterializeFile(input.GetFd(), output.GetFd(),
-                                           insn_set_)));
-  } else {
-    if (pid < 0) {
-      PLOG(FATAL) << "Failed to fork a process to do the compilation";
-    }
+    exit(static_cast<int>(!MaterializeToFile(pipe_fd[1], insn_set_)));
+
+  } else { // Parent process
+    // Close the unused pipe write end
+    close(pipe_fd[1]);
 
     // Free the resources
     context_.reset(NULL);
     irb_.reset(NULL);
     module_ = NULL;
 
-    int status;
+    // Read the result out from the pipe read end (until failure)
+    const size_t buf_size = 1024;
+    std::vector<uint8_t> buf(buf_size);
+    while (true) {
+      // Read from the pipe
+      ssize_t nread = read(pipe_fd[0], &*buf.begin(), buf_size);
+      if (nread < 0) {
+        if (errno == EAGAIN || errno == EINTR) {
+          continue;
+        } else {
+          LOG(ERROR) << "Unexpected error during IPC: " << strerror(errno);
+        }
+      }
+
+      // Append to the end of the elf_image_
+      elf_image_.insert(elf_image_.end(), buf.begin(), buf.begin() + nread);
+
+      if (nread < static_cast<ssize_t>(buf_size)) { // EOF reached!
+        break;
+      }
+    }
 
     // Wait for child to finish
+    int status;
     pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
     if (got_pid != pid) {
       PLOG(ERROR) << "waitpid failed: wanted " << pid << ", got " << got_pid;
+      elf_image_.clear();
       return false;
     }
 
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
       LOG(ERROR) << "Failed to compile the bitcode: " << WEXITSTATUS(status);
+      elf_image_.clear();
       return false;
     }
+
+    LOG(INFO) << "Compilation Unit: " << elf_idx_ << " (done)";
+    return true;
   }
-
-  // Read the result out from the output file
-  TEMP_FAILURE_RETRY(lseek(output.GetFd(), 0, SEEK_SET));
-  if (!output.ReadToString(elf_image_)) {
-    LOG(ERROR) << "Failed to read the result file";
-    return false;
-  }
-
-  LOG(INFO) << "Compilation Unit: " << elf_idx_ << " (done)";
-
-  return true;
 }
 
 
@@ -307,36 +267,13 @@ void CompilationUnit::UpdateFrameSizeInBytes(const llvm::Function* func,
   }
 }
 
-bool CompilationUnit::MaterializeFile(int input_fd, int output_fd,
-                                      InstructionSet insn_set) {
+bool CompilationUnit::MaterializeToFile(int output_fd,
+                                        InstructionSet insn_set) {
   // Initialize the LLVM first
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
   llvm::InitializeAllAsmPrinters();
   llvm::InitializeAllAsmParsers();
-
-  // Read the LLVM module from input_fd
-  llvm::OwningPtr<llvm::MemoryBuffer> memory_buffer;
-  llvm::error_code load_input_err =
-      llvm::MemoryBuffer::getOpenFile(input_fd, "<art-llvm-module>",
-                                      memory_buffer);
-
-  if (load_input_err) {
-    LOG(ERROR) << "Failed to load input for compiler into memory: "
-               << load_input_err.message();
-    return false;
-  }
-
-  // It's safe to use the global context now
-  std::string load_module_errmsg;
-  llvm::Module *module = ParseBitcodeFile(memory_buffer.get(),
-                                          llvm::getGlobalContext(),
-                                          &load_module_errmsg);
-  if (module == NULL) {
-    LOG(ERROR) << "Failed to load LLVM module to compiler: "
-               << load_module_errmsg;
-    return false;
-  }
 
   // Lookup the LLVM target
   char const* target_triple = NULL;
@@ -398,7 +335,7 @@ bool CompilationUnit::MaterializeFile(int input_fd, int output_fd,
   pm.add(new llvm::TargetData(*target_data));
 
   // FunctionPassManager for optimization pass
-  llvm::FunctionPassManager fpm(module);
+  llvm::FunctionPassManager fpm(module_);
   fpm.add(new llvm::TargetData(*target_data));
 
   // Add optimization pass
@@ -430,14 +367,14 @@ bool CompilationUnit::MaterializeFile(int input_fd, int output_fd,
 
     // Run the per-function optimization
     fpm.doInitialization();
-    for (llvm::Module::iterator F = module->begin(), E = module->end();
+    for (llvm::Module::iterator F = module_->begin(), E = module_->end();
          F != E; ++F) {
       fpm.run(*F);
     }
     fpm.doFinalization();
 
     // Run the code generation passes
-    pm.run(*module);
+    pm.run(*module_);
   }
 
   return true;
