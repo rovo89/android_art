@@ -146,7 +146,7 @@ static Mutex& GetAbortLock() {
   return abort_lock;
 }
 
-void Runtime::Abort(const char* file, int line) {
+void Runtime::Abort() {
   // Ensure that we don't have multiple threads trying to abort at once,
   // which would result in significantly worse diagnostics.
   MutexLock mu(GetAbortLock());
@@ -159,10 +159,7 @@ void Runtime::Abort(const char* file, int line) {
   AbortState state;
   LOG(INTERNAL_FATAL) << Dumpable<AbortState>(state);
 
-  // Perform any platform-specific pre-abort actions.
-  PlatformAbort(file, line);
-
-  // use abort hook if we have one
+  // Call the abort hook if we have one.
   if (Runtime::Current() != NULL && Runtime::Current()->abort_ != NULL) {
     Runtime::Current()->abort_();
     // notreached

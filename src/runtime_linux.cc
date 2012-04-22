@@ -56,11 +56,11 @@ static void Backtrace() {
   }
 
   // backtrace_symbols(3) gives us lines like this:
-  // "/usr/local/google/home/enh/a1/out/host/linux-x86/bin/../lib/libartd.so(_ZN3art7Runtime13PlatformAbortEPKci+0x15b) [0xf76c5af3]"
+  // "/usr/local/google/home/enh/a1/out/host/linux-x86/bin/../lib/libartd.so(_ZN3art7Runtime5AbortEPKci+0x15b) [0xf76c5af3]"
   // "[0xf7b62057]"
 
   // We extract the pieces and demangle, so we can produce output like this:
-  // libartd.so:-1]    #00 art::Runtime::PlatformAbort(char const*, int) +0x15b [0xf770dd51]
+  // libartd.so:-1]    #00 art::Runtime::Abort(char const*, int) +0x15b [0xf770dd51]
 
   for (size_t i = 0; i < frame_count; ++i) {
     std::string text(symbols[i]);
@@ -180,6 +180,9 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void*) {
     signal_name = "SIGPIPE";
   }
 
+  // Remove ourselves as signal handler for this signal, in case of recursion.
+  signal(signal_number, SIG_DFL);
+
   LOG(INTERNAL_FATAL) << "*** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***\n"
                       << StringPrintf("Fatal signal %d (%s), code %d (%s)",
                                       signal_number, signal_name,
@@ -198,11 +201,6 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void*) {
     while (true) {
     }
   }
-}
-
-void Runtime::PlatformAbort(const char* /*file*/, int /*line_number*/) {
-  // On the host, we don't have debuggerd to dump a stack for us when we LOG(FATAL).
-  Backtrace();
 }
 
 void Runtime::InitPlatformSignalHandlers() {

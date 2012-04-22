@@ -55,7 +55,7 @@ LogMessage::~LogMessage() {
 
   // Abort if necessary.
   if (data_->severity == FATAL) {
-    Runtime::Abort(data_->file, data_->line_number);
+    Runtime::Abort();
   }
 
   delete data_;

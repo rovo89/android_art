@@ -120,7 +120,7 @@ class Runtime {
   // This isn't marked ((noreturn)) because then gcc will merge multiple calls
   // in a single function together. This reduces code size slightly, but means
   // that the native stack trace we get may point at the wrong call site.
-  static void Abort(const char* file, int line);
+  static void Abort();
 
   // Attaches the calling native thread to the runtime.
   void AttachCurrentThread(const char* thread_name, bool as_daemon, Object* thread_group);
@@ -246,7 +246,6 @@ class Runtime {
   void SetCompileTimeClassPath(const ClassLoader* class_loader, std::vector<const DexFile*>& class_path);
 
  private:
-  static void PlatformAbort(const char*, int);
   static void InitPlatformSignalHandlers();
 
   Runtime();
