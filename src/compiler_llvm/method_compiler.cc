@@ -2859,22 +2859,10 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
     }
   }
 
-#if 0
-  llvm::Value* code_field_offset_value =
-    irb_.getPtrEquivInt(Method::GetCodeOffset().Int32Value());
-
-  llvm::Value* code_field_addr =
-    irb_.CreatePtrDisp(callee_method_object_addr, code_field_offset_value,
-                       irb_.getInt8Ty()->getPointerTo()->getPointerTo());
-
-  llvm::Value* code_addr = irb_.CreateLoad(code_field_addr);
-#else
-  // TODO: Remove this after we solve the link and trampoline related problems.
   llvm::Value* code_addr =
-    EmitFixStub(callee_method_object_addr, callee_method_idx, is_static);
-
-  EmitGuard_ExceptionLandingPad(dex_pc);
-#endif
+      irb_.LoadFromObjectOffset(callee_method_object_addr,
+                                Method::GetCodeOffset().Int32Value(),
+                                GetFunctionType(callee_method_idx, is_static)->getPointerTo());
 
   // Load the actual parameter
   std::vector<llvm::Value*> args;
@@ -2915,7 +2903,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
 
 
   llvm::BasicBlock* block_normal = CreateBasicBlockWithDexPC(dex_pc, "normal");
-  llvm::BasicBlock* block_proxy_stub = CreateBasicBlockWithDexPC(dex_pc, "proxy");
+  llvm::BasicBlock* block_stub = CreateBasicBlockWithDexPC(dex_pc, "stub");
   llvm::BasicBlock* block_continue = CreateBasicBlockWithDexPC(dex_pc, "cont");
 
   llvm::Type* accurate_ret_type = irb_.getJType(ret_shorty, kAccurate);
@@ -2925,37 +2913,61 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   }
 
 
-  // TODO: Remove this after we solve the proxy trampoline calling convention problem.
   llvm::Value* code_addr_int = irb_.CreatePtrToInt(code_addr, irb_.getPtrEquivIntTy());
-  llvm::Value* proxy_stub_int = irb_.getPtrEquivInt(special_stub::kProxyStub);
-  llvm::Value* is_proxy_stub = irb_.CreateICmpEQ(code_addr_int, proxy_stub_int);
-  irb_.CreateCondBr(is_proxy_stub, block_proxy_stub, block_normal);
+  llvm::Value* max_stub_int = irb_.getPtrEquivInt(special_stub::kMaxSpecialStub);
+  llvm::Value* is_stub = irb_.CreateICmpULT(code_addr_int, max_stub_int);
+  irb_.CreateCondBr(is_stub, block_stub, block_normal);
 
 
   irb_.SetInsertPoint(block_normal);
   {
     // Invoke callee
-    llvm::Value* result = irb_.CreateCall(code_addr, args);
+    llvm::Value* retval = irb_.CreateCall(code_addr, args);
     if (ret_shorty != 'V') {
-      irb_.CreateStore(result, retval_addr);
+      EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
     }
   }
   irb_.CreateBr(block_continue);
 
 
-  irb_.SetInsertPoint(block_proxy_stub);
+  irb_.SetInsertPoint(block_stub);
   {
-    llvm::Value* temp_space_addr;
-    if (ret_shorty != 'V') {
-      temp_space_addr = irb_.CreateAlloca(irb_.getJValueTy());
-      args.push_back(temp_space_addr);
+    { // lazy link
+      // TODO: Remove this after we solve the link problem.
+      llvm::BasicBlock* block_proxy_stub = CreateBasicBlockWithDexPC(dex_pc, "proxy");
+      llvm::BasicBlock* block_link = CreateBasicBlockWithDexPC(dex_pc, "link");
+
+      irb_.CreateCondBr(irb_.CreateIsNull(code_addr), block_link, block_proxy_stub);
+
+
+      irb_.SetInsertPoint(block_link);
+      code_addr = EmitFixStub(callee_method_object_addr, callee_method_idx, is_static);
+
+      EmitGuard_ExceptionLandingPad(dex_pc);
+
+      llvm::Value* retval = irb_.CreateCall(code_addr, args);
+      if (ret_shorty != 'V') {
+        EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
+      }
+      irb_.CreateBr(block_continue);
+
+
+      irb_.SetInsertPoint(block_proxy_stub);
     }
-    irb_.CreateCall(irb_.GetRuntime(ProxyInvokeHandler), args);
-    if (ret_shorty != 'V') {
-      llvm::Value* result_addr =
-          irb_.CreateBitCast(temp_space_addr, accurate_ret_type->getPointerTo());
-      llvm::Value* retval = irb_.CreateLoad(result_addr);
-      irb_.CreateStore(retval, retval_addr);
+    { // proxy stub
+      llvm::Value* temp_space_addr;
+      if (ret_shorty != 'V') {
+        temp_space_addr = irb_.CreateAlloca(irb_.getJValueTy());
+        args.push_back(temp_space_addr);
+      }
+      // TODO: Remove this after we solve the proxy trampoline calling convention problem.
+      irb_.CreateCall(irb_.GetRuntime(ProxyInvokeHandler), args);
+      if (ret_shorty != 'V') {
+        llvm::Value* result_addr =
+            irb_.CreateBitCast(temp_space_addr, accurate_ret_type->getPointerTo());
+        llvm::Value* retval = irb_.CreateLoad(result_addr);
+        EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
+      }
     }
   }
   irb_.CreateBr(block_continue);
@@ -2963,10 +2975,6 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
 
   irb_.SetInsertPoint(block_continue);
 
-  if (ret_shorty != 'V') {
-    llvm::Value* retval = irb_.CreateLoad(retval_addr);
-    EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
-  }
   EmitGuard_ExceptionLandingPad(dex_pc);
 #endif
 
