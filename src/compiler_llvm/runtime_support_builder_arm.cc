@@ -18,6 +18,7 @@
 
 #include "ir_builder.h"
 #include "thread.h"
+#include "utils_llvm.h"
 
 #include <llvm/DerivedTypes.h>
 #include <llvm/Function.h>
@@ -45,6 +46,8 @@ void RuntimeSupportBuilderARM::TargetOptimizeRuntimeSupport() {
     InlineAsm* get_r9 = InlineAsm::get(func->getFunctionType(), "mov $0, r9", "=r", false);
     Value* r9 = irb_.CreateCall(get_r9);
     irb_.CreateRet(r9);
+
+    VERIFY_LLVM_FUNCTION(*func);
   }
 
   {
@@ -57,6 +60,8 @@ void RuntimeSupportBuilderARM::TargetOptimizeRuntimeSupport() {
     Value* thread = func->arg_begin();
     irb_.CreateCall(set_r9, thread);
     irb_.CreateRetVoid();
+
+    VERIFY_LLVM_FUNCTION(*func);
   }
 }
 

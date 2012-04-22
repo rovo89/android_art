@@ -30,7 +30,6 @@
 #include "shadow_frame.h"
 #include "utils_llvm.h"
 
-#include <llvm/Analysis/Verifier.h>
 #include <llvm/BasicBlock.h>
 #include <llvm/DerivedTypes.h>
 #include <llvm/Function.h>
@@ -264,7 +263,7 @@ CompiledMethod* JniCompiler::Compile() {
                            irb_.getInt32(kRunnable));
 
   // Do a suspend check
-  irb_.CreateCall(irb_.GetRuntime(TestSuspend));
+  irb_.CreateCall(irb_.GetRuntime(TestSuspend), thread_object_addr);
 
   if (return_shorty == 'L') {
     // If the return value is reference, it may point to SIRT, we should decode it.
@@ -298,7 +297,7 @@ CompiledMethod* JniCompiler::Compile() {
   }
 
   // Verify the generated bitcode
-  llvm::verifyFunction(*func_, llvm::PrintMessageAction);
+  VERIFY_LLVM_FUNCTION(*func_);
 
   // Add the memory usage approximation of the compilation unit
   cunit_->AddMemUsageApproximation((sirt_size * 4 + 50) * 50);

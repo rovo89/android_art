@@ -19,10 +19,18 @@
 
 #include "stringprintf.h"
 
+#include <llvm/Analysis/Verifier.h>
+
 #include <stdint.h>
 #include <string>
 
 namespace art {
+
+#ifndef NDEBUG
+#define VERIFY_LLVM_FUNCTION(func) llvm::verifyFunction(func, llvm::PrintMessageAction)
+#else
+#define VERIFY_LLVM_FUNCTION(func)
+#endif
 
 inline static std::string ElfFuncName(uint16_t elf_func_idx) {
   return StringPrintf("Art%u", static_cast<unsigned int>(elf_func_idx));

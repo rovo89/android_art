@@ -26,7 +26,6 @@
 #include "runtime_support_func.h"
 #include "utils_llvm.h"
 
-#include <llvm/Analysis/Verifier.h>
 #include <llvm/BasicBlock.h>
 #include <llvm/Function.h>
 #include <llvm/GlobalVariable.h>
@@ -181,7 +180,7 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
   irb_.CreateRetVoid();
 
   // Verify the generated function
-  llvm::verifyFunction(*func, llvm::PrintMessageAction);
+  VERIFY_LLVM_FUNCTION(*func);
 
   // Add the memory usage approximation of the compilation unit
   cunit_->AddMemUsageApproximation((shorty_size * 3 + 8) * 50);
