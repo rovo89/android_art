@@ -330,7 +330,7 @@ bool CompilationUnit::MaterializeToFile(int output_fd,
   llvm::TargetMachine* target_machine =
     target->createTargetMachine(target_triple, "", target_attr, target_options,
                                 llvm::Reloc::Static, llvm::CodeModel::Small,
-                                llvm::CodeGenOpt::Less);
+                                llvm::CodeGenOpt::Aggressive);
 
   CHECK(target_machine != NULL) << "Failed to create target machine";
 
@@ -347,8 +347,10 @@ bool CompilationUnit::MaterializeToFile(int output_fd,
 
   // Add optimization pass
   llvm::PassManagerBuilder pm_builder;
-  pm_builder.Inliner = llvm::createAlwaysInlinerPass();
-  pm_builder.OptLevel = 1;
+  pm_builder.Inliner = llvm::createFunctionInliningPass();
+  //pm_builder.Inliner = llvm::createAlwaysInlinerPass();
+  //pm_builder.Inliner = llvm::createPartialInliningPass();
+  pm_builder.OptLevel = 3;
   pm_builder.DisableSimplifyLibCalls = 1;
   pm_builder.populateModulePassManager(pm);
   pm_builder.populateFunctionPassManager(fpm);
