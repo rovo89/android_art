@@ -797,6 +797,15 @@ void* art_find_runtime_support_func(void* context, char const* name) {
     }
   }
 
+  // Fixed method object address
+  const char method_object_prefix[] = "ArtMethodObject_";
+  const size_t method_object_prefix_len = sizeof(method_object_prefix) - 1;
+  if (strncmp(name, method_object_prefix, method_object_prefix_len) == 0) {
+    const char* addr_str = name + method_object_prefix_len;
+    unsigned long addr_int = strtoul(addr_str, NULL, 16);
+    return reinterpret_cast<void*>(addr_int);
+  }
+
   LOG(FATAL) << "Error: Can't find symbol " << name;
   return 0;
 }
