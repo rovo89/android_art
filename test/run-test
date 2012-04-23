@@ -57,7 +57,7 @@ usage="no"
 while true; do
     if [ "x$1" = "x--host" ]; then
         RUN="${progdir}/etc/host-run-test-jar"
-        IMAGE=${ANDROID_BUILD_TOP}/out/host/linux-x86/framework/core.art
+        IMAGE=${ANDROID_HOST_OUT}/framework/core.art
         DEX_LOCATION=$tmp_dir
         DEX2OAT_ARGS="--instruction-set=X86 --host-prefix=$ANDROID_BUILD_TOP/"
         shift
