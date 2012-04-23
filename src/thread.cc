@@ -518,6 +518,9 @@ void Thread::DumpState(std::ostream& os) const {
      << " stm=" << stime
      << " core=" << task_cpu
      << " HZ=" << sysconf(_SC_CLK_TCK) << "\n";
+
+  os << "  | stackSize=" << PrettySize(stack_size_)
+     << " stack=" << reinterpret_cast<void*>(stack_begin_) << "-" << reinterpret_cast<void*>(stack_end_) << "\n";
 }
 
 #if !defined(ART_USE_LLVM_COMPILER)
