@@ -258,6 +258,8 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit) {
 
   EnsureCompilationUnit();
 
+  MutexLock GUARD_CUNIT(curr_cunit_->cunit_lock_);
+
   UniquePtr<MethodCompiler> method_compiler(
       new MethodCompiler(curr_cunit_, compiler_, oat_compilation_unit));
 
@@ -271,6 +273,8 @@ CompileNativeMethod(OatCompilationUnit* oat_compilation_unit) {
 
   EnsureCompilationUnit();
 
+  MutexLock GUARD_CUNIT(curr_cunit_->cunit_lock_);
+
   UniquePtr<JniCompiler> jni_compiler(
       new JniCompiler(curr_cunit_, *compiler_, oat_compilation_unit));
 
@@ -283,6 +287,8 @@ CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
   MutexLock GUARD(compiler_lock_);
 
   EnsureCompilationUnit();
+
+  MutexLock GUARD_CUNIT(curr_cunit_->cunit_lock_);
 
   UniquePtr<UpcallCompiler> upcall_compiler(
     new UpcallCompiler(curr_cunit_, *compiler_));
