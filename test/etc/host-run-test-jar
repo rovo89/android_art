@@ -59,7 +59,6 @@ done
 
 msg "------------------------------"
 
-HOSTBASE="${ANDROID_BUILD_TOP}/out/host"
 DATA_DIR=/tmp
 DEBUG_OPTS="-Xcheck:jni"
 
@@ -75,7 +74,7 @@ else
     export ANDROID_LOG_TAGS='*:s'
 fi
 export ANDROID_DATA="$DATA_DIR"
-export ANDROID_ROOT="${HOSTBASE}/linux-x86"
+export ANDROID_ROOT="${ANDROID_HOST_OUT}"
 export LD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
 export DYLD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
 
