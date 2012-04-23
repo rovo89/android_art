@@ -1235,13 +1235,157 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
   }
 }
 
+// TODO: This class shares some implementation with WorkerThread. We don't want
+// to perturb the non-LLVM side at the same time. Staging the refactoring for
+// the future.
+class DexFilesWorkerThread {
+ public:
+  DexFilesWorkerThread(Context *worker_context, Callback class_callback,
+                       const std::vector<const DexFile*>& dex_files,
+                       volatile int32_t* shared_class_index, bool spawn)
+      : spawn_(spawn), worker_context_(worker_context),
+        class_callback_(class_callback), dex_files_(dex_files),
+        context_(NULL), shared_class_index_(shared_class_index) {
+    if (spawn_) {
+      CHECK_PTHREAD_CALL(pthread_create, (&pthread_, NULL, &Go, this), "compiler worker thread");
+    }
+  }
+
+  ~DexFilesWorkerThread() {
+    if (spawn_) {
+      CHECK_PTHREAD_CALL(pthread_join, (pthread_, NULL), "compiler worker shutdown");
+    }
+    delete context_;
+  }
+
+ private:
+  static void* Go(void* arg) {
+    DexFilesWorkerThread* worker = reinterpret_cast<DexFilesWorkerThread*>(arg);
+    Runtime* runtime = Runtime::Current();
+    if (worker->spawn_) {
+      runtime->AttachCurrentThread("Compiler Worker", true, NULL);
+    }
+    Thread::Current()->SetState(kRunnable);
+    worker->Run();
+    if (worker->spawn_) {
+      Thread::Current()->SetState(kNative);
+      runtime->DetachCurrentThread();
+    }
+    return NULL;
+  }
+
+  void Go() {
+    Go(this);
+  }
+
+  void SwitchToDexFile(size_t dex_file_index) {
+    CHECK (dex_file_index < dex_files_.size());
+
+    const DexFile* dex_file = dex_files_[dex_file_index];
+    CHECK(dex_file != NULL);
+
+    // Destroy the old context
+    delete context_;
+
+    // TODO: Add a callback to let the client specify the class_linker and
+    //       dex_cache in the context for the current working dex file.
+    context_ = new Context(/* class_linker */NULL,
+                           worker_context_->GetClassLoader(),
+                           worker_context_->GetCompiler(),
+                           /* dex_cache */NULL, dex_file);
+
+    CHECK(context_ != NULL);
+  }
+
+  void Run() {
+    Thread* self = Thread::Current();
+    size_t cur_dex_file_index = 0;
+    size_t class_index_base = 0;
+
+    SwitchToDexFile(0);
+
+    while (true) {
+      size_t class_index =
+          static_cast<size_t>(android_atomic_inc(shared_class_index_));
+
+      const DexFile* dex_file;
+      do {
+        dex_file = dex_files_[cur_dex_file_index];
+
+        if (class_index < (class_index_base + dex_file->NumClassDefs())) {
+          break;
+        }
+        class_index_base += dex_file->NumClassDefs();
+
+        cur_dex_file_index++;
+      } while (cur_dex_file_index < dex_files_.size());
+
+      if (cur_dex_file_index >= dex_files_.size()) {
+        return;
+      }
+
+      if (dex_file != context_->GetDexFile()) {
+        SwitchToDexFile(cur_dex_file_index);
+      }
+
+      class_index -= class_index_base;
+      class_callback_(context_, class_index);
+      CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
+    }
+  }
+
+  pthread_t pthread_;
+  bool spawn_;
+
+  Context* worker_context_;
+  Callback* class_callback_;
+  const std::vector<const DexFile*>& dex_files_;
+
+  Context* context_;
+  volatile int32_t* shared_class_index_;
+
+  friend void ForClassesInAllDexFiles(Context*,
+                                      const std::vector<const DexFile*>&,
+                                      Callback, size_t);
+};
+
+void ForClassesInAllDexFiles(Context* worker_context,
+                             const std::vector<const DexFile*>& dex_files,
+                             Callback class_callback, size_t thread_count) {
+  Thread* self = Thread::Current();
+  CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
+  CHECK_GT(thread_count, 0U);
+
+  std::vector<DexFilesWorkerThread*> threads;
+  volatile int32_t shared_class_index = 0;
+
+  for (size_t i = 0; i < thread_count; ++i) {
+    threads.push_back(new DexFilesWorkerThread(worker_context, class_callback,
+                                               dex_files, &shared_class_index,
+                                               /* spawn */ (i != 0)));
+  }
+  threads[0]->Go();
+
+  // Switch to kVmWait while we're blocked waiting for the other threads to finish.
+  ScopedThreadStateChange tsc(self, kVmWait);
+  STLDeleteElements(&threads);
+}
+
 void Compiler::Compile(const ClassLoader* class_loader,
                        const std::vector<const DexFile*>& dex_files) {
+#if defined(ART_USE_LLVM_COMPILER)
+  if (dex_files.size() <= 0) {
+    return;  // No dex file
+  }
+  Context context(NULL, class_loader, this, NULL, NULL);
+  ForClassesInAllDexFiles(&context, dex_files, Compiler::CompileClass, thread_count_);
+#else
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
     CompileDexFile(class_loader, *dex_file);
   }
+#endif
 }
 
 void Compiler::CompileClass(Context* context, size_t class_def_index) {
