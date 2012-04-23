@@ -172,7 +172,7 @@ bool CompilationUnit::Materialize() {
   // Prepare the pipe between parent process and child process
   int pipe_fd[2];
   if (pipe(pipe_fd) == -1) {
-    LOG(FATAL) << "Failed to create pipe for CompilerWorker";
+    PLOG(FATAL) << "Failed to create pipe for CompilerWorker";
     return false;
   }
 
@@ -225,6 +225,8 @@ bool CompilationUnit::Materialize() {
         break;
       }
     }
+
+    close(pipe_fd[0]);
 
     // Wait for child to finish
     int status;
