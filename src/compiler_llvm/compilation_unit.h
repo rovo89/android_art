@@ -17,6 +17,7 @@
 #ifndef ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
 #define ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
 
+#include "../mutex.h"
 #include "elf_image.h"
 #include "globals.h"
 #include "instruction_set.h"
@@ -55,26 +56,33 @@ class CompilationUnit {
   }
 
   InstructionSet GetInstructionSet() const {
+    cunit_lock_.AssertHeld();
     return insn_set_;
   }
 
   llvm::LLVMContext* GetLLVMContext() const {
+    cunit_lock_.AssertHeld();
     return context_.get();
   }
 
   llvm::Module* GetModule() const {
+    cunit_lock_.AssertHeld();
     return module_;
   }
 
   IRBuilder* GetIRBuilder() const {
+    cunit_lock_.AssertHeld();
     return irb_.get();
   }
 
   ElfImage GetElfImage() const {
+    MutexLock GUARD(cunit_lock_);
+    CHECK_GT(elf_image_.size(), 0u);
     return ElfImage(elf_image_);
   }
 
   uint16_t AcquireUniqueElfFuncIndex() {
+    cunit_lock_.AssertHeld();
     CHECK(num_elf_funcs_ < UINT16_MAX);
     return num_elf_funcs_++;
   }
@@ -84,20 +92,25 @@ class CompilationUnit {
   bool Materialize();
 
   bool IsMaterialized() const {
+    MutexLock GUARD(cunit_lock_);
     return (context_.get() == NULL);
   }
 
   bool IsMaterializeThresholdReached() const {
+    MutexLock GUARD(cunit_lock_);
     return (mem_usage_ > 100000000u); // (threshold: 100 MB)
   }
 
   void AddMemUsageApproximation(size_t usage) {
+    MutexLock GUARD(cunit_lock_);
     mem_usage_ += usage;
   }
 
   void RegisterCompiledMethod(const llvm::Function* func, CompiledMethod* cm);
 
   void UpdateFrameSizeInBytes(const llvm::Function* func, size_t frame_size_in_bytes);
+
+  mutable Mutex cunit_lock_;
 
  private:
   InstructionSet insn_set_;
