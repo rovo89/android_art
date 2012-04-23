@@ -266,6 +266,9 @@ template <typename StringT> std::string Join(std::vector<StringT>& strings, char
 // Returns the calling thread's tid. (The C libraries don't expose this.)
 pid_t GetTid();
 
+// Returns details of the calling thread's stack.
+void GetThreadStack(void*& stack_base, size_t& stack_size);
+
 // Reads data from "/proc/self/task/${tid}/stat".
 void GetTaskStats(pid_t tid, int& utime, int& stime, int& task_cpu);
 

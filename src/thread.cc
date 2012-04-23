@@ -375,27 +375,22 @@ void Thread::SetThreadName(const char* name) {
 }
 
 void Thread::InitStackHwm() {
-#if defined(__APPLE__)
-  // Only needed to run code. Try implementing this with pthread_get_stacksize_np and pthread_get_stackaddr_np.
-  UNIMPLEMENTED(WARNING);
-#else
-  pthread_attr_t attributes;
-  CHECK_PTHREAD_CALL(pthread_getattr_np, (pthread_self(), &attributes), __FUNCTION__);
-
-  void* temp_stack_base;
-  CHECK_PTHREAD_CALL(pthread_attr_getstack, (&attributes, &temp_stack_base, &stack_size_),
-                     __FUNCTION__);
-  stack_begin_ = reinterpret_cast<byte*>(temp_stack_base);
-
-  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attributes), __FUNCTION__);
+  void* stack_base;
+  size_t stack_size;
+  GetThreadStack(stack_base, stack_size);
 
   // TODO: include this in the thread dumps; potentially useful in SIGQUIT output?
-  VLOG(threads) << "Native stack is at " << temp_stack_base << " (" << PrettySize(stack_size_) << ")";
+  VLOG(threads) << StringPrintf("Native stack is at %p (%s)", stack_base, PrettySize(stack_size).c_str());
+
+  stack_begin_ = reinterpret_cast<byte*>(stack_base);
+  stack_size_ = stack_size;
 
   if (stack_size_ <= kStackOverflowReservedBytes) {
     LOG(FATAL) << "Attempt to attach a thread with a too-small stack (" << stack_size_ << " bytes)";
   }
 
+  // TODO: move this into the Linux GetThreadStack implementation.
+#if !defined(__APPLE__)
   // If we're the main thread, check whether we were run with an unlimited stack. In that case,
   // glibc will have reported a 2GB stack for our 32-bit process, and our stack overflow detection
   // will be broken because we'll die long before we get close to 2GB.
@@ -417,11 +412,12 @@ void Thread::InitStackHwm() {
       size_t old_stack_size = stack_size_;
       stack_size_ = default_stack_size;
       stack_begin_ += (old_stack_size - stack_size_);
-      LOG(WARNING) << "Limiting unlimited stack (reported as " << PrettySize(old_stack_size) << ");"
+      LOG(WARNING) << "Limiting unlimited stack (reported as " << PrettySize(old_stack_size) << ")"
                    << " to " << PrettySize(stack_size_)
                    << " with base " << reinterpret_cast<void*>(stack_begin_);
     }
   }
+#endif
 
   // Set stack_end_ to the bottom of the stack saving space of stack overflows
   ResetDefaultStackEnd();
@@ -429,7 +425,6 @@ void Thread::InitStackHwm() {
   // Sanity check.
   int stack_variable;
   CHECK_GT(&stack_variable, reinterpret_cast<void*>(stack_end_));
-#endif
 }
 
 void Thread::Dump(std::ostream& os, bool full) const {
