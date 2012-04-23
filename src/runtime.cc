@@ -161,11 +161,15 @@ void Runtime::Abort() {
 
   // Call the abort hook if we have one.
   if (Runtime::Current() != NULL && Runtime::Current()->abort_ != NULL) {
+    LOG(INTERNAL_FATAL) << "Calling abort hook...";
     Runtime::Current()->abort_();
     // notreached
+    LOG(INTERNAL_FATAL) << "Unexpectedly returned from abort hook!";
   }
 
-  // If we call abort(3) on a device, all threads in the process
+  // TODO: finish merging patches to fix abort(3) in bionic, then lose this!
+  // Bionic doesn't implement POSIX semantics for abort(3) in a multi-threaded
+  // process, so if we call abort(3) on a device, all threads in the process
   // receive SIGABRT.  debuggerd dumps the stack trace of the main
   // thread, whether or not that was the thread that failed.  By
   // stuffing a value into a bogus address, we cause a segmentation
@@ -301,7 +305,10 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 
   parsed->hook_vfprintf_ = vfprintf;
   parsed->hook_exit_ = exit;
-  parsed->hook_abort_ = abort;
+  parsed->hook_abort_ = NULL; // We don't call abort(3) by default; see Runtime::Abort.
+#if defined(__APPLE__)
+  parsed->hook_abort_ = abort; // On the Mac, abort(3) gives better results; see Runtime::InitPlatformSignalHandlers.
+#endif
 
 //  gLogVerbosity.class_linker = true; // TODO: don't check this in!
 //  gLogVerbosity.compiler = true; // TODO: don't check this in!
