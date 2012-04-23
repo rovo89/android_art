@@ -27,6 +27,7 @@
 
 #include <UniquePtr.h>
 #include <string>
+#include <vector>
 
 namespace art {
   class CompiledMethod;
@@ -107,14 +108,14 @@ class CompilationUnit {
   UniquePtr<RuntimeSupportBuilder> runtime_support_;
   llvm::Module* module_;
 
-  std::string elf_image_;
+  std::vector<uint8_t> elf_image_;
 
   SafeMap<const llvm::Function*, CompiledMethod*> compiled_methods_map_;
 
   size_t mem_usage_;
   uint16_t num_elf_funcs_;
 
-  static bool MaterializeFile(int input_fd, int output_fd, InstructionSet insn_set);
+  bool MaterializeToFile(int output_fd, InstructionSet insn_set);
 };
 
 } // namespace compiler_llvm
