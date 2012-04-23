@@ -96,8 +96,7 @@ static void ensureSpace(ExpandBuf* pBuf, int newCount) {
 
   uint8_t* newPtr = (uint8_t*) realloc(pBuf->storage, pBuf->maxLen);
   if (newPtr == NULL) {
-    LOG(ERROR) << "realloc(" << pBuf->maxLen << ") failed";
-    abort();
+    LOG(FATAL) << "realloc(" << pBuf->maxLen << ") failed";
   }
 
   pBuf->storage = newPtr;
