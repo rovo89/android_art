@@ -63,6 +63,7 @@ ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
 #else // ART_USE_LLVM_COMPILER
   __ pushl(EBP);
   __ movl(EBP, ESP);          // save ESP
+  __ subl(ESP, Immediate(8));  // Align stack
   __ movl(EAX, Address(EBP,8));  // Method* called
   __ leal(EDX, Address(EBP,8));  // Method** called_addr
   __ pushl(Immediate(type));  // pass is_static
@@ -128,6 +129,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
 #else // ART_USE_LLVM_COMPILER
   __ pushl(EBP);
   __ movl(EBP, ESP);          // save ESP
+  __ subl(ESP, Immediate(12));  // Align stack
   __ pushl(ESP);  // pass sp (not use)
   __ fs()->pushl(Address::Absolute(Thread::SelfOffset()));  // pass thread*
   __ pushl(Address(EBP,8));  // pass method
