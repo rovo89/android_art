@@ -1,4 +1,4 @@
-// Generated with tools/gen_art_module_cc.sh
+// Generated with ../tools/gen_art_module_cc.sh
 
 
 #pragma GCC diagnostic ignored "-Wframe-larger-than="
@@ -278,52 +278,62 @@ FunctionType* FuncTy_28 = FunctionType::get(
 
 std::vector<Type*>FuncTy_29_args;
 FuncTy_29_args.push_back(PointerTy_1);
+FuncTy_29_args.push_back(IntegerType::get(mod->getContext(), 32));
 FuncTy_29_args.push_back(PointerTy_1);
+FuncTy_29_args.push_back(IntegerType::get(mod->getContext(), 32));
 FunctionType* FuncTy_29 = FunctionType::get(
- /*Result=*/IntegerType::get(mod->getContext(), 32),
+ /*Result=*/Type::getVoidTy(mod->getContext()),
  /*Params=*/FuncTy_29_args,
  /*isVarArg=*/false);
 
 std::vector<Type*>FuncTy_30_args;
-FuncTy_30_args.push_back(Type::getDoubleTy(mod->getContext()));
+FuncTy_30_args.push_back(PointerTy_1);
+FuncTy_30_args.push_back(PointerTy_1);
 FunctionType* FuncTy_30 = FunctionType::get(
- /*Result=*/IntegerType::get(mod->getContext(), 64),
+ /*Result=*/IntegerType::get(mod->getContext(), 32),
  /*Params=*/FuncTy_30_args,
  /*isVarArg=*/false);
 
 std::vector<Type*>FuncTy_31_args;
 FuncTy_31_args.push_back(Type::getDoubleTy(mod->getContext()));
 FunctionType* FuncTy_31 = FunctionType::get(
- /*Result=*/IntegerType::get(mod->getContext(), 32),
+ /*Result=*/IntegerType::get(mod->getContext(), 64),
  /*Params=*/FuncTy_31_args,
  /*isVarArg=*/false);
 
 std::vector<Type*>FuncTy_32_args;
-FuncTy_32_args.push_back(Type::getFloatTy(mod->getContext()));
+FuncTy_32_args.push_back(Type::getDoubleTy(mod->getContext()));
 FunctionType* FuncTy_32 = FunctionType::get(
- /*Result=*/IntegerType::get(mod->getContext(), 64),
+ /*Result=*/IntegerType::get(mod->getContext(), 32),
  /*Params=*/FuncTy_32_args,
  /*isVarArg=*/false);
 
 std::vector<Type*>FuncTy_33_args;
 FuncTy_33_args.push_back(Type::getFloatTy(mod->getContext()));
 FunctionType* FuncTy_33 = FunctionType::get(
- /*Result=*/IntegerType::get(mod->getContext(), 32),
+ /*Result=*/IntegerType::get(mod->getContext(), 64),
  /*Params=*/FuncTy_33_args,
  /*isVarArg=*/false);
 
 std::vector<Type*>FuncTy_34_args;
-FuncTy_34_args.push_back(PointerTy_1);
+FuncTy_34_args.push_back(Type::getFloatTy(mod->getContext()));
 FunctionType* FuncTy_34 = FunctionType::get(
- /*Result=*/PointerTy_1,
+ /*Result=*/IntegerType::get(mod->getContext(), 32),
  /*Params=*/FuncTy_34_args,
  /*isVarArg=*/false);
 
 std::vector<Type*>FuncTy_35_args;
 FuncTy_35_args.push_back(PointerTy_1);
 FunctionType* FuncTy_35 = FunctionType::get(
- /*Result=*/Type::getVoidTy(mod->getContext()),
+ /*Result=*/PointerTy_1,
  /*Params=*/FuncTy_35_args,
+ /*isVarArg=*/false);
+
+std::vector<Type*>FuncTy_36_args;
+FuncTy_36_args.push_back(PointerTy_1);
+FunctionType* FuncTy_36 = FunctionType::get(
+ /*Result=*/Type::getVoidTy(mod->getContext()),
+ /*Params=*/FuncTy_36_args,
  /*isVarArg=*/true);
 
 
@@ -857,10 +867,21 @@ func_art_decode_jobject_in_thread->setCallingConv(CallingConv::C);
 AttrListPtr func_art_decode_jobject_in_thread_PAL;
 func_art_decode_jobject_in_thread->setAttributes(func_art_decode_jobject_in_thread_PAL);
 
+Function* func_art_fill_array_data_from_code = mod->getFunction("art_fill_array_data_from_code");
+if (!func_art_fill_array_data_from_code) {
+func_art_fill_array_data_from_code = Function::Create(
+ /*Type=*/FuncTy_29,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_fill_array_data_from_code", mod); // (external, no body)
+func_art_fill_array_data_from_code->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_fill_array_data_from_code_PAL;
+func_art_fill_array_data_from_code->setAttributes(func_art_fill_array_data_from_code_PAL);
+
 Function* func_art_is_assignable_from_code = mod->getFunction("art_is_assignable_from_code");
 if (!func_art_is_assignable_from_code) {
 func_art_is_assignable_from_code = Function::Create(
- /*Type=*/FuncTy_29,
+ /*Type=*/FuncTy_30,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_is_assignable_from_code", mod); // (external, no body)
 func_art_is_assignable_from_code->setCallingConv(CallingConv::C);
@@ -893,7 +914,7 @@ func_art_check_put_array_element_from_code->setAttributes(func_art_check_put_arr
 Function* func_D2L = mod->getFunction("D2L");
 if (!func_D2L) {
 func_D2L = Function::Create(
- /*Type=*/FuncTy_30,
+ /*Type=*/FuncTy_31,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"D2L", mod); // (external, no body)
 func_D2L->setCallingConv(CallingConv::C);
@@ -904,7 +925,7 @@ func_D2L->setAttributes(func_D2L_PAL);
 Function* func_D2I = mod->getFunction("D2I");
 if (!func_D2I) {
 func_D2I = Function::Create(
- /*Type=*/FuncTy_31,
+ /*Type=*/FuncTy_32,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"D2I", mod); // (external, no body)
 func_D2I->setCallingConv(CallingConv::C);
@@ -915,7 +936,7 @@ func_D2I->setAttributes(func_D2I_PAL);
 Function* func_F2L = mod->getFunction("F2L");
 if (!func_F2L) {
 func_F2L = Function::Create(
- /*Type=*/FuncTy_32,
+ /*Type=*/FuncTy_33,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"F2L", mod); // (external, no body)
 func_F2L->setCallingConv(CallingConv::C);
@@ -926,7 +947,7 @@ func_F2L->setAttributes(func_F2L_PAL);
 Function* func_F2I = mod->getFunction("F2I");
 if (!func_F2I) {
 func_F2I = Function::Create(
- /*Type=*/FuncTy_33,
+ /*Type=*/FuncTy_34,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"F2I", mod); // (external, no body)
 func_F2I->setCallingConv(CallingConv::C);
@@ -948,7 +969,7 @@ func_art_mark_gc_card_from_code->setAttributes(func_art_mark_gc_card_from_code_P
 Function* func_art_fix_stub_from_code = mod->getFunction("art_fix_stub_from_code");
 if (!func_art_fix_stub_from_code) {
 func_art_fix_stub_from_code = Function::Create(
- /*Type=*/FuncTy_34,
+ /*Type=*/FuncTy_35,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_fix_stub_from_code", mod); // (external, no body)
 func_art_fix_stub_from_code->setCallingConv(CallingConv::C);
@@ -959,7 +980,7 @@ func_art_fix_stub_from_code->setAttributes(func_art_fix_stub_from_code_PAL);
 Function* func_art_proxy_invoke_handler_from_code = mod->getFunction("art_proxy_invoke_handler_from_code");
 if (!func_art_proxy_invoke_handler_from_code) {
 func_art_proxy_invoke_handler_from_code = Function::Create(
- /*Type=*/FuncTy_35,
+ /*Type=*/FuncTy_36,
  /*Linkage=*/GlobalValue::ExternalLinkage,
  /*Name=*/"art_proxy_invoke_handler_from_code", mod); // (external, no body)
 func_art_proxy_invoke_handler_from_code->setCallingConv(CallingConv::C);
