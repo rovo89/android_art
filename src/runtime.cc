@@ -491,10 +491,6 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     parsed->heap_growth_limit_ = parsed->heap_maximum_size_;
   }
 
-  LOG(INFO) << "Build type: "
-            << (kIsDebugBuild ? "debug" : "optimized")
-            << "; CheckJNI: " << (parsed->check_jni_ ? "on" : "off");
-
   return parsed.release();
 }
 
@@ -754,6 +750,7 @@ void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
 void Runtime::DumpForSigQuit(std::ostream& os) {
   GetClassLinker()->DumpForSigQuit(os);
   GetInternTable()->DumpForSigQuit(os);
+  GetJavaVM()->DumpForSigQuit(os);
   GetHeap()->DumpForSigQuit(os);
   os << "\n";
 

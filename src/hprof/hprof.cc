@@ -647,7 +647,7 @@ HprofStringId Hprof::LookupStringId(const char* string) {
   return LookupStringId(std::string(string));
 }
 
-HprofStringId Hprof::LookupStringId(std::string string) {
+HprofStringId Hprof::LookupStringId(const std::string& string) {
   StringMapIterator it = strings_.find(string);
   if (it != strings_.end()) {
     return it->second;

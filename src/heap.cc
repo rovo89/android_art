@@ -51,7 +51,7 @@ static void UpdateFirstAndLastSpace(Space** first_space, Space** last_space, Spa
   }
 }
 
-static bool GenerateImage(const std::string image_file_name) {
+static bool GenerateImage(const std::string& image_file_name) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
   std::vector<std::string> boot_class_path;
   Split(boot_class_path_string, ':', boot_class_path);
@@ -660,7 +660,7 @@ void Heap::WaitForConcurrentGcToComplete() {
 void Heap::DumpForSigQuit(std::ostream& os) {
   os << "Heap: " << GetPercentFree() << "% free, "
      << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory())
-     << "; " << num_objects_allocated_ << " objects";
+     << "; " << num_objects_allocated_ << " objects\n";
 }
 
 size_t Heap::GetPercentFree() {

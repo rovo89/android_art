@@ -26,6 +26,7 @@
 #include "reference_table.h"
 #include "runtime.h"
 
+#include <iosfwd>
 #include <string>
 
 namespace art {
@@ -96,6 +97,8 @@ struct JavaVMExt : public JavaVM {
    * using dlsym(3) on every native library that's been loaded so far.
    */
   void* FindCodeForNativeMethod(Method* m);
+
+  void DumpForSigQuit(std::ostream& os);
 
   void DumpReferenceTables();
 
