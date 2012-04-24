@@ -456,7 +456,6 @@ class MethodCompiler {
   llvm::BasicBlock* basic_block_stack_overflow_;
   llvm::BasicBlock* basic_block_reg_alloca_;
   llvm::BasicBlock* basic_block_shadow_frame_alloca_;
-  llvm::BasicBlock* basic_block_reg_zero_init_;
   llvm::BasicBlock* basic_block_reg_arg_init_;
   std::vector<llvm::BasicBlock*> basic_blocks_;
 

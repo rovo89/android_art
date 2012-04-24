@@ -63,7 +63,7 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     irb_(*cunit->GetIRBuilder()), func_(NULL), retval_reg_(NULL),
     basic_block_stack_overflow_(NULL),
     basic_block_reg_alloca_(NULL), basic_block_shadow_frame_alloca_(NULL),
-    basic_block_reg_zero_init_(NULL), basic_block_reg_arg_init_(NULL),
+    basic_block_reg_arg_init_(NULL),
     basic_blocks_(code_item_->insns_size_in_code_units_),
     basic_block_landing_pads_(code_item_->tries_size_, NULL),
     basic_block_unwind_(NULL), basic_block_unreachable_(NULL),
@@ -147,9 +147,6 @@ void MethodCompiler::EmitPrologue() {
 
   basic_block_shadow_frame_alloca_ =
     llvm::BasicBlock::Create(*context_, "prologue.shadowframe", func_);
-
-  basic_block_reg_zero_init_ =
-    llvm::BasicBlock::Create(*context_, "prologue.zeroinit", func_);
 
   basic_block_reg_arg_init_ =
     llvm::BasicBlock::Create(*context_, "prologue.arginit", func_);
@@ -235,9 +232,6 @@ void MethodCompiler::EmitPrologueLastBranch() {
   irb_.CreateBr(basic_block_shadow_frame_alloca_);
 
   irb_.SetInsertPoint(basic_block_shadow_frame_alloca_);
-  irb_.CreateBr(basic_block_reg_zero_init_);
-
-  irb_.SetInsertPoint(basic_block_reg_zero_init_);
   irb_.CreateBr(basic_block_reg_arg_init_);
 }
 
@@ -3926,18 +3920,12 @@ llvm::Value* MethodCompiler::AllocDalvikLocalVarReg(RegCategory cat,
     irb_.SetInsertPoint(basic_block_reg_alloca_);
     reg_addr = irb_.CreateAlloca(irb_.getJIntTy(), 0,
                                  StringPrintf("r%u", reg_idx));
-
-    irb_.SetInsertPoint(basic_block_reg_zero_init_);
-    irb_.CreateStore(irb_.getJInt(0), reg_addr);
     break;
 
   case kRegCat2:
     irb_.SetInsertPoint(basic_block_reg_alloca_);
     reg_addr = irb_.CreateAlloca(irb_.getJLongTy(), 0,
                                  StringPrintf("w%u", reg_idx));
-
-    irb_.SetInsertPoint(basic_block_reg_zero_init_);
-    irb_.CreateStore(irb_.getJLong(0), reg_addr);
     break;
 
   case kRegObject:
@@ -3952,9 +3940,6 @@ llvm::Value* MethodCompiler::AllocDalvikLocalVarReg(RegCategory cat,
 
       reg_addr = irb_.CreateGEP(shadow_frame_, gep_index,
                                 StringPrintf("p%u", reg_idx));
-
-      irb_.SetInsertPoint(basic_block_reg_zero_init_);
-      irb_.CreateStore(irb_.getJNull(), reg_addr);
     }
     break;
 
