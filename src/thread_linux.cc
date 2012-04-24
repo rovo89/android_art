@@ -19,7 +19,7 @@
 namespace art {
 
 void Thread::DumpNativeStack(std::ostream&) const {
-  // TODO: use glibc backtrace(3).
+  // TODO: use libcorkscrew; backtrace(3) only works for the calling thread.
 }
 
 void Thread::SetNativePriority(int) {

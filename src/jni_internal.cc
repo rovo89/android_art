@@ -659,6 +659,21 @@ class Libraries {
     STLDeleteValues(&libraries_);
   }
 
+  void Dump(std::ostream& os) const {
+    bool first = true;
+    for (It it = libraries_.begin(); it != libraries_.end(); ++it) {
+      if (!first) {
+        os << ' ';
+      }
+      first = false;
+      os << it->first;
+    }
+  }
+
+  size_t size() const {
+    return libraries_.size();
+  }
+
   SharedLibrary* Get(const std::string& path) {
     It it = libraries_.find(path);
     return (it == libraries_.end()) ? NULL : it->second;
@@ -698,7 +713,7 @@ class Libraries {
   }
 
  private:
-  typedef SafeMap<std::string, SharedLibrary*>::iterator It; // TODO: C++0x auto
+  typedef SafeMap<std::string, SharedLibrary*>::const_iterator It; // TODO: C++0x auto
 
   SafeMap<std::string, SharedLibrary*> libraries_;
 };
@@ -2781,6 +2796,34 @@ JavaVMExt::~JavaVMExt() {
 void JavaVMExt::SetCheckJniEnabled(bool enabled) {
   check_jni = enabled;
   functions = enabled ? GetCheckJniInvokeInterface() : &gJniInvokeInterface;
+}
+
+void JavaVMExt::DumpForSigQuit(std::ostream& os) {
+  os << "JNI: CheckJNI is " << (check_jni ? "on" : "off");
+  if (force_copy) {
+    os << " (with forcecopy)";
+  }
+  os << "; workarounds are " << (work_around_app_jni_bugs ? "on" : "off");
+  {
+    MutexLock mu(pins_lock);
+    os << "; pins=" << pin_table.Size();
+  }
+  {
+    MutexLock mu(globals_lock);
+    os << "; globals=" << globals.Capacity();
+  }
+  {
+    MutexLock mu(weak_globals_lock);
+    if (weak_globals.Capacity() > 0) {
+      os << " (plus " << weak_globals.Capacity() << " weak)";
+    }
+  }
+  os << '\n';
+
+  {
+    MutexLock mu(libraries_lock);
+    os << "Libraries: " << Dumpable<Libraries>(*libraries) << " (" << libraries->size() << ")\n";
+  }
 }
 
 void JavaVMExt::DumpReferenceTables() {

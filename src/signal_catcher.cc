@@ -38,12 +38,24 @@
 
 namespace art {
 
+static bool ReadCmdLine(std::string& result) {
+  if (!ReadFileToString("/proc/self/cmdline", &result)) {
+    return false;
+  }
+  std::replace(result.begin(), result.end(), '\0', ' ');
+  return true;
+}
+
 SignalCatcher::SignalCatcher(const std::string& stack_trace_file)
     : stack_trace_file_(stack_trace_file),
       lock_("SignalCatcher lock"),
       cond_("SignalCatcher::cond_"),
       thread_(NULL) {
   SetHaltFlag(false);
+
+  // Stash the original command line for SIGQUIT reporting.
+  // By then, /proc/self/cmdline will have been rewritten to something like "system_server".
+  CHECK(ReadCmdLine(cmd_line_));
 
   // Create a raw pthread; its start routine will attach to the runtime.
   CHECK_PTHREAD_CALL(pthread_create, (&pthread_, NULL, &Run, this), "signal catcher thread");
@@ -109,11 +121,17 @@ void SignalCatcher::HandleSigQuit() {
   os << "\n"
      << "----- pid " << getpid() << " at " << GetIsoDate() << " -----\n";
 
-  std::string cmdline;
-  if (ReadFileToString("/proc/self/cmdline", &cmdline)) {
-    std::replace(cmdline.begin(), cmdline.end(), '\0', ' ');
-    os << "Cmd line: " << cmdline << "\n";
+  std::string current_cmd_line;
+  if (ReadCmdLine(current_cmd_line) && current_cmd_line != cmd_line_) {
+    os << "Cmdline: " << current_cmd_line;
   }
+  os << "\n";
+
+  if (current_cmd_line != cmd_line_) {
+    os << "Original command line: " << cmd_line_ << "\n";
+  }
+
+  os << "Build type: " << (kIsDebugBuild ? "debug" : "optimized") << "\n";
 
   runtime->DumpForSigQuit(os);
 
