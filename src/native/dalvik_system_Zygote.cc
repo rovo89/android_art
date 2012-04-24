@@ -22,6 +22,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "cutils/sched_policy.h"
 #include "debugger.h"
 #include "jni_internal.h"
 #include "JniConstants.h"
@@ -316,6 +317,16 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
     }
 
     SetCapabilities(permittedCapabilities, effectiveCapabilities);
+
+#if 1
+    UNIMPLEMENTED(WARNING) << "enable this code when cutils/sched_policy.h has SP_DEFAULT";
+#else
+    err = set_sched_policy(0, SP_DEFAULT);
+    if (err < 0) {
+      errno = -err;
+      PLOG(FATAL) << "set_sched_policy(0, SP_DEFAULT) failed";
+    }
+#endif
 
     // Our system thread ID, etc, has changed so reset Thread state.
     self->InitAfterFork();
