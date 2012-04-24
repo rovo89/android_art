@@ -2128,15 +2128,13 @@ void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
     EmitGuard_GarbageCollectionSuspend(dex_pc);
   }
 
-  if (src1_reg_cat == kRegZero && src2_reg_cat == kRegZero) {
-    irb_.CreateBr(GetBasicBlock(dex_pc + branch_offset));
-    return;
-  }
-
   llvm::Value* src1_value;
   llvm::Value* src2_value;
 
-  if (src1_reg_cat != kRegZero && src2_reg_cat != kRegZero) {
+  if (src1_reg_cat == kRegZero && src2_reg_cat == kRegZero) {
+    src1_value = irb_.getInt32(0);
+    src2_value = irb_.getInt32(0);
+  } else if (src1_reg_cat != kRegZero && src2_reg_cat != kRegZero) {
     CHECK_EQ(src1_reg_cat, src2_reg_cat);
 
     if (src1_reg_cat == kRegCat1nr) {
@@ -2196,15 +2194,13 @@ void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
     EmitGuard_GarbageCollectionSuspend(dex_pc);
   }
 
-  if (src_reg_cat == kRegZero) {
-    irb_.CreateBr(GetBasicBlock(dex_pc + branch_offset));
-    return;
-  }
-
   llvm::Value* src1_value;
   llvm::Value* src2_value;
 
-  if (src_reg_cat == kRegCat1nr) {
+  if (src_reg_cat == kRegZero) {
+    src1_value = irb_.getInt32(0);
+    src2_value = irb_.getInt32(0);
+  } else if (src_reg_cat == kRegCat1nr) {
     src1_value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
     src2_value = irb_.getInt32(0);
   } else {
