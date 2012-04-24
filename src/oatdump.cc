@@ -1234,7 +1234,9 @@ class ImageDumper {
   DISALLOW_COPY_AND_ASSIGN(ImageDumper);
 };
 
-int oatdump(int argc, char** argv) {
+static int oatdump(int argc, char** argv) {
+  InitLogging();
+
   // Skip over argv[0].
   argv++;
   argc--;

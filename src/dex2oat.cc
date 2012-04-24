@@ -422,7 +422,7 @@ class Dex2Oat {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };
 
-bool ParseInt(const char* in, int* out) {
+static bool ParseInt(const char* in, int* out) {
   char* end;
   int result = strtol(in, &end, 10);
   if (in == end || *end != '\0') {
@@ -432,9 +432,9 @@ bool ParseInt(const char* in, int* out) {
   return true;
 }
 
-void OpenDexFiles(const std::vector<const char*>& dex_filenames,
-                  const std::vector<const char*>& dex_locations,
-                  std::vector<const DexFile*>& dex_files) {
+static void OpenDexFiles(const std::vector<const char*>& dex_filenames,
+                         const std::vector<const char*>& dex_locations,
+                         std::vector<const DexFile*>& dex_files) {
   for (size_t i = 0; i < dex_filenames.size(); i++) {
     const char* dex_filename = dex_filenames[i];
     const char* dex_location = dex_locations[i];
@@ -447,7 +447,9 @@ void OpenDexFiles(const std::vector<const char*>& dex_filenames,
   }
 }
 
-int dex2oat(int argc, char** argv) {
+static int dex2oat(int argc, char** argv) {
+  InitLogging();
+
   // Skip over argv[0].
   argv++;
   argc--;

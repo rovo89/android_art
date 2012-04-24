@@ -24,12 +24,55 @@ namespace art {
 
 LogVerbosity gLogVerbosity;
 
+static bool gInitLoggingCalled = false;
+static LogSeverity gMinimumLogSeverity = INFO;
+
 static Mutex& GetLoggingLock() {
   static Mutex logging_lock("LogMessage lock");
   return logging_lock;
 }
 
+// Configure logging based on ANDROID_LOG_TAGS environment variable.
+// We need to parse a string that looks like
+//
+//      *:v jdwp:d dalvikvm:d dalvikvm-gc:i dalvikvmi:i
+//
+// The tag (or '*' for the global level) comes first, followed by a colon
+// and a letter indicating the minimum priority level we're expected to log.
+// This can be used to reveal or conceal logs with specific tags.
+void InitLogging() {
+  gInitLoggingCalled = true;
+  const char* tags = getenv("ANDROID_LOG_TAGS");
+  if (tags == NULL) {
+    return;
+  }
+
+  std::vector<std::string> specs;
+  Split(tags, ' ', specs);
+  for (size_t i = 0; i < specs.size(); ++i) {
+    // "tag-pattern:[vdiwefs]"
+    std::string spec(specs[i]);
+    if (spec.size() == 3 && StartsWith(spec, "*:")) {
+      switch (spec[2]) {
+        case 'v': gMinimumLogSeverity = VERBOSE; continue;
+        case 'd': gMinimumLogSeverity = DEBUG; continue;
+        case 'i': gMinimumLogSeverity = INFO; continue;
+        case 'w': gMinimumLogSeverity = WARNING; continue;
+        case 'e': gMinimumLogSeverity = ERROR; continue;
+        case 'f': gMinimumLogSeverity = FATAL; continue;
+        // liblog will even suppress FATAL if you say 's' for silent, but that's crazy!
+        case 's': gMinimumLogSeverity = FATAL; continue;
+      }
+    }
+    LOG(FATAL) << "unsupported '" << spec << "' in ANDROID_LOG_TAGS (" << tags << ")";
+  }
+}
+
 LogMessage::~LogMessage() {
+  if (data_->severity < gMinimumLogSeverity) {
+    return; // No need to format something we're not going to output.
+  }
+
   // Finish constructing the message.
   if (data_->error != -1) {
     data_->buffer << ": " << strerror(data_->error);
