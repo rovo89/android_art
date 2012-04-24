@@ -112,11 +112,6 @@ CompiledMethod* JniCompiler::Compile() {
   llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
   llvm::AllocaInst* shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
-  // Zero-initialization of the shadow frame
-  llvm::ConstantAggregateZero* zero_initializer =
-    llvm::ConstantAggregateZero::get(shadow_frame_type);
-  irb_.CreateStore(zero_initializer, shadow_frame_);
-
   // Store the method pointer
   llvm::Value* method_field_addr =
     irb_.CreatePtrDisp(shadow_frame_,
