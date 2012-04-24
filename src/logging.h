@@ -262,18 +262,10 @@ struct LogVerbosity {
   bool startup;
   bool third_party_jni; // Enabled with "-verbose:third-party-jni".
   bool threads;
-  std::ostream* logging_stream;
-
-  void SetLoggingStream(std::ostream* new_logging_stream) {
-    DCHECK(new_logging_stream->good());
-    if (logging_stream != NULL) {
-      delete logging_stream;
-    }
-    logging_stream = new_logging_stream;
-  }
 };
 
 extern LogVerbosity gLogVerbosity;
+extern void InitLogging();
 
 }  // namespace art
 

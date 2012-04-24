@@ -105,18 +105,21 @@ else
 fi
 
 if [ "$DEBUG" = "y" ]; then
-  # This is for ddms:
-  #DEX_DEBUG="-agentlib:jdwp=transport=dt_android_adb,server=y,suspend=y"
-  # Connect by running 'ddms'.
+  # Use this instead for ddms and connect by running 'ddms':
+  # DEBUG_OPTS="-agentlib:jdwp=transport=dt_android_adb,server=y,suspend=y"
+  # TODO: add a separate --ddms option?
 
-  # This is for jdb:
-  DEX_DEBUG="-agentlib:jdwp=transport=dt_socket,address=12345,server=y,suspend=y"
-  # Connect thus:
-  #   adb forward tcp:12345 tcp:12345
-  #   jdb -attach localhost:12345
+  PORT=12345
+  msg "Waiting for jdb to connect:"
+  msg "    adb forward tcp:$PORT tcp:$PORT"
+  msg "    jdb -attach localhost:$PORT"
+  DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,address=$PORT,server=y,suspend=y"
 fi
 
-cmdline="cd /data; export DEX_LOCATION=$DEX_LOCATION; $INVOKE_WITH $OATEXEC $DEX_DEBUG $ZYGOTE -Xjnigreflimit:256 \
+JNI_OPTS="-Xjnigreflimit:256 -Xcheck:jni"
+
+cmdline="cd /data; export DEX_LOCATION=$DEX_LOCATION; $INVOKE_WITH $OATEXEC $ZYGOTE \
+    $JNI_OPTS $DEBUG_OPTS \
     -Ximage:/data/art-test/core.art \
     -cp /data/run-test/$TEST_NAME.jar \
     Main"

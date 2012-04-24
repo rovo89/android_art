@@ -53,7 +53,8 @@ fi
 
 if [ "$DEBUG" = "y" ]; then
     PORT=8000
-    msg "Waiting for debugger to connect on localhost:$PORT"
+    msg "Waiting for jdb to connect:"
+    msg "    jdb -attach localhost:$PORT"
     DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,address=$PORT,server=y,suspend=y"
 fi
 

@@ -22,7 +22,6 @@
 #include <cstdlib>
 #include <limits>
 #include <vector>
-#include <fstream>
 
 #include "class_linker.h"
 #include "class_loader.h"
@@ -432,15 +431,6 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
           gLogVerbosity.third_party_jni = true;
         } else if (verbose_options[i] == "threads") {
           gLogVerbosity.threads = true;
-        } else if (StartsWith(verbose_options[i], "log-to=")) {
-          std::string log_file_name(verbose_options[i].substr(strlen("log-to=")));
-          std::ofstream* log_file = new std::ofstream(log_file_name.c_str());
-          if (log_file->is_open() && log_file->good()) {
-            gLogVerbosity.SetLoggingStream(log_file);
-          } else {
-            LOG(ERROR) << "Fail to open log file: \"" << log_file_name << "\","
-                       << " use default logging stream.";
-          }
         } else {
           LOG(WARNING) << "Ignoring unknown -verbose option: " << verbose_options[i];
         }
