@@ -1540,110 +1540,128 @@ void Thread::DumpFromGdb() const {
 #endif
 }
 
+struct EntryPointInfo {
+  uint32_t offset;
+  const char* name;
+};
+#define ENTRY_POINT_INFO(x) { ENTRYPOINT_OFFSET(x), #x }
+static const EntryPointInfo gThreadEntryPointInfo[] = {
+  ENTRY_POINT_INFO(pAllocArrayFromCode),
+  ENTRY_POINT_INFO(pAllocArrayFromCodeWithAccessCheck),
+  ENTRY_POINT_INFO(pAllocObjectFromCode),
+  ENTRY_POINT_INFO(pAllocObjectFromCodeWithAccessCheck),
+  ENTRY_POINT_INFO(pCheckAndAllocArrayFromCode),
+  ENTRY_POINT_INFO(pCheckAndAllocArrayFromCodeWithAccessCheck),
+  ENTRY_POINT_INFO(pInstanceofNonTrivialFromCode),
+  ENTRY_POINT_INFO(pCanPutArrayElementFromCode),
+  ENTRY_POINT_INFO(pCheckCastFromCode),
+  ENTRY_POINT_INFO(pDebugMe),
+  ENTRY_POINT_INFO(pUpdateDebuggerFromCode),
+  ENTRY_POINT_INFO(pInitializeStaticStorage),
+  ENTRY_POINT_INFO(pInitializeTypeAndVerifyAccessFromCode),
+  ENTRY_POINT_INFO(pInitializeTypeFromCode),
+  ENTRY_POINT_INFO(pResolveStringFromCode),
+  ENTRY_POINT_INFO(pSet32Instance),
+  ENTRY_POINT_INFO(pSet32Static),
+  ENTRY_POINT_INFO(pSet64Instance),
+  ENTRY_POINT_INFO(pSet64Static),
+  ENTRY_POINT_INFO(pSetObjInstance),
+  ENTRY_POINT_INFO(pSetObjStatic),
+  ENTRY_POINT_INFO(pGet32Instance),
+  ENTRY_POINT_INFO(pGet32Static),
+  ENTRY_POINT_INFO(pGet64Instance),
+  ENTRY_POINT_INFO(pGet64Static),
+  ENTRY_POINT_INFO(pGetObjInstance),
+  ENTRY_POINT_INFO(pGetObjStatic),
+  ENTRY_POINT_INFO(pHandleFillArrayDataFromCode),
+  ENTRY_POINT_INFO(pDecodeJObjectInThread),
+  ENTRY_POINT_INFO(pFindNativeMethod),
+  ENTRY_POINT_INFO(pLockObjectFromCode),
+  ENTRY_POINT_INFO(pUnlockObjectFromCode),
+  ENTRY_POINT_INFO(pCmpgDouble),
+  ENTRY_POINT_INFO(pCmpgFloat),
+  ENTRY_POINT_INFO(pCmplDouble),
+  ENTRY_POINT_INFO(pCmplFloat),
+  ENTRY_POINT_INFO(pDadd),
+  ENTRY_POINT_INFO(pDdiv),
+  ENTRY_POINT_INFO(pDmul),
+  ENTRY_POINT_INFO(pDsub),
+  ENTRY_POINT_INFO(pF2d),
+  ENTRY_POINT_INFO(pFmod),
+  ENTRY_POINT_INFO(pI2d),
+  ENTRY_POINT_INFO(pL2d),
+  ENTRY_POINT_INFO(pD2f),
+  ENTRY_POINT_INFO(pFadd),
+  ENTRY_POINT_INFO(pFdiv),
+  ENTRY_POINT_INFO(pFmodf),
+  ENTRY_POINT_INFO(pFmul),
+  ENTRY_POINT_INFO(pFsub),
+  ENTRY_POINT_INFO(pI2f),
+  ENTRY_POINT_INFO(pL2f),
+  ENTRY_POINT_INFO(pD2iz),
+  ENTRY_POINT_INFO(pF2iz),
+  ENTRY_POINT_INFO(pIdivmod),
+  ENTRY_POINT_INFO(pD2l),
+  ENTRY_POINT_INFO(pF2l),
+  ENTRY_POINT_INFO(pLdiv),
+  ENTRY_POINT_INFO(pLdivmod),
+  ENTRY_POINT_INFO(pLmul),
+  ENTRY_POINT_INFO(pShlLong),
+  ENTRY_POINT_INFO(pShrLong),
+  ENTRY_POINT_INFO(pUshrLong),
+  ENTRY_POINT_INFO(pIndexOf),
+  ENTRY_POINT_INFO(pMemcmp16),
+  ENTRY_POINT_INFO(pStringCompareTo),
+  ENTRY_POINT_INFO(pMemcpy),
+  ENTRY_POINT_INFO(pUnresolvedDirectMethodTrampolineFromCode),
+  ENTRY_POINT_INFO(pInvokeDirectTrampolineWithAccessCheck),
+  ENTRY_POINT_INFO(pInvokeInterfaceTrampoline),
+  ENTRY_POINT_INFO(pInvokeInterfaceTrampolineWithAccessCheck),
+  ENTRY_POINT_INFO(pInvokeStaticTrampolineWithAccessCheck),
+  ENTRY_POINT_INFO(pInvokeSuperTrampolineWithAccessCheck),
+  ENTRY_POINT_INFO(pInvokeVirtualTrampolineWithAccessCheck),
+  ENTRY_POINT_INFO(pCheckSuspendFromCode),
+  ENTRY_POINT_INFO(pTestSuspendFromCode),
+  ENTRY_POINT_INFO(pDeliverException),
+  ENTRY_POINT_INFO(pThrowAbstractMethodErrorFromCode),
+  ENTRY_POINT_INFO(pThrowArrayBoundsFromCode),
+  ENTRY_POINT_INFO(pThrowDivZeroFromCode),
+  ENTRY_POINT_INFO(pThrowNoSuchMethodFromCode),
+  ENTRY_POINT_INFO(pThrowNullPointerFromCode),
+  ENTRY_POINT_INFO(pThrowStackOverflowFromCode),
+  ENTRY_POINT_INFO(pThrowVerificationErrorFromCode),
+};
+#undef ENTRY_POINT_INFO
+
 void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_pointers) {
   CHECK_EQ(size_of_pointers, 4U); // TODO: support 64-bit targets.
-#define DO_THREAD_OFFSET(x) if (offset == static_cast<uint32_t>(OFFSETOF_VOLATILE_MEMBER(Thread, x))) { os << # x; } else
-#define DO_THREAD_ENTRY_POINT_OFFSET(x) if (offset == ENTRYPOINT_OFFSET(x)) { os << # x; } else
-  DO_THREAD_OFFSET(card_table_)
-  DO_THREAD_OFFSET(exception_)
-  DO_THREAD_OFFSET(jni_env_)
-  DO_THREAD_OFFSET(self_)
-  DO_THREAD_OFFSET(stack_end_)
-  DO_THREAD_OFFSET(state_)
-  DO_THREAD_OFFSET(suspend_count_)
-  DO_THREAD_OFFSET(thin_lock_id_)
-  DO_THREAD_OFFSET(top_of_managed_stack_)
-  DO_THREAD_OFFSET(top_of_managed_stack_pc_)
-  DO_THREAD_OFFSET(top_sirt_)
-  DO_THREAD_ENTRY_POINT_OFFSET(pAllocArrayFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pAllocArrayFromCodeWithAccessCheck)
-  DO_THREAD_ENTRY_POINT_OFFSET(pAllocObjectFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pAllocObjectFromCodeWithAccessCheck)
-  DO_THREAD_ENTRY_POINT_OFFSET(pCheckAndAllocArrayFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pCheckAndAllocArrayFromCodeWithAccessCheck)
-  DO_THREAD_ENTRY_POINT_OFFSET(pInstanceofNonTrivialFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pCanPutArrayElementFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pCheckCastFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pDebugMe)
-  DO_THREAD_ENTRY_POINT_OFFSET(pUpdateDebuggerFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pInitializeStaticStorage)
-  DO_THREAD_ENTRY_POINT_OFFSET(pInitializeTypeAndVerifyAccessFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pInitializeTypeFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pResolveStringFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pSet32Instance)
-  DO_THREAD_ENTRY_POINT_OFFSET(pSet32Static)
-  DO_THREAD_ENTRY_POINT_OFFSET(pSet64Instance)
-  DO_THREAD_ENTRY_POINT_OFFSET(pSet64Static)
-  DO_THREAD_ENTRY_POINT_OFFSET(pSetObjInstance)
-  DO_THREAD_ENTRY_POINT_OFFSET(pSetObjStatic)
-  DO_THREAD_ENTRY_POINT_OFFSET(pGet32Instance)
-  DO_THREAD_ENTRY_POINT_OFFSET(pGet32Static)
-  DO_THREAD_ENTRY_POINT_OFFSET(pGet64Instance)
-  DO_THREAD_ENTRY_POINT_OFFSET(pGet64Static)
-  DO_THREAD_ENTRY_POINT_OFFSET(pGetObjInstance)
-  DO_THREAD_ENTRY_POINT_OFFSET(pGetObjStatic)
-  DO_THREAD_ENTRY_POINT_OFFSET(pHandleFillArrayDataFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pDecodeJObjectInThread)
-  DO_THREAD_ENTRY_POINT_OFFSET(pFindNativeMethod)
-  DO_THREAD_ENTRY_POINT_OFFSET(pLockObjectFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pUnlockObjectFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pCmpgDouble)
-  DO_THREAD_ENTRY_POINT_OFFSET(pCmpgFloat)
-  DO_THREAD_ENTRY_POINT_OFFSET(pCmplDouble)
-  DO_THREAD_ENTRY_POINT_OFFSET(pCmplFloat)
-  DO_THREAD_ENTRY_POINT_OFFSET(pDadd)
-  DO_THREAD_ENTRY_POINT_OFFSET(pDdiv)
-  DO_THREAD_ENTRY_POINT_OFFSET(pDmul)
-  DO_THREAD_ENTRY_POINT_OFFSET(pDsub)
-  DO_THREAD_ENTRY_POINT_OFFSET(pF2d)
-  DO_THREAD_ENTRY_POINT_OFFSET(pFmod)
-  DO_THREAD_ENTRY_POINT_OFFSET(pI2d)
-  DO_THREAD_ENTRY_POINT_OFFSET(pL2d)
-  DO_THREAD_ENTRY_POINT_OFFSET(pD2f)
-  DO_THREAD_ENTRY_POINT_OFFSET(pFadd)
-  DO_THREAD_ENTRY_POINT_OFFSET(pFdiv)
-  DO_THREAD_ENTRY_POINT_OFFSET(pFmodf)
-  DO_THREAD_ENTRY_POINT_OFFSET(pFmul)
-  DO_THREAD_ENTRY_POINT_OFFSET(pFsub)
-  DO_THREAD_ENTRY_POINT_OFFSET(pI2f)
-  DO_THREAD_ENTRY_POINT_OFFSET(pL2f)
-  DO_THREAD_ENTRY_POINT_OFFSET(pD2iz)
-  DO_THREAD_ENTRY_POINT_OFFSET(pF2iz)
-  DO_THREAD_ENTRY_POINT_OFFSET(pIdivmod)
-  DO_THREAD_ENTRY_POINT_OFFSET(pD2l)
-  DO_THREAD_ENTRY_POINT_OFFSET(pF2l)
-  DO_THREAD_ENTRY_POINT_OFFSET(pLdiv)
-  DO_THREAD_ENTRY_POINT_OFFSET(pLdivmod)
-  DO_THREAD_ENTRY_POINT_OFFSET(pLmul)
-  DO_THREAD_ENTRY_POINT_OFFSET(pShlLong)
-  DO_THREAD_ENTRY_POINT_OFFSET(pShrLong)
-  DO_THREAD_ENTRY_POINT_OFFSET(pUshrLong)
-  DO_THREAD_ENTRY_POINT_OFFSET(pIndexOf)
-  DO_THREAD_ENTRY_POINT_OFFSET(pMemcmp16)
-  DO_THREAD_ENTRY_POINT_OFFSET(pStringCompareTo)
-  DO_THREAD_ENTRY_POINT_OFFSET(pMemcpy)
-  DO_THREAD_ENTRY_POINT_OFFSET(pUnresolvedDirectMethodTrampolineFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck)
-  DO_THREAD_ENTRY_POINT_OFFSET(pInvokeInterfaceTrampoline)
-  DO_THREAD_ENTRY_POINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck)
-  DO_THREAD_ENTRY_POINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck)
-  DO_THREAD_ENTRY_POINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck)
-  DO_THREAD_ENTRY_POINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck)
-  DO_THREAD_ENTRY_POINT_OFFSET(pCheckSuspendFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pTestSuspendFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pDeliverException)
-  DO_THREAD_ENTRY_POINT_OFFSET(pThrowAbstractMethodErrorFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pThrowArrayBoundsFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pThrowDivZeroFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pThrowNoSuchMethodFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pThrowNullPointerFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pThrowStackOverflowFromCode)
-  DO_THREAD_ENTRY_POINT_OFFSET(pThrowVerificationErrorFromCode)
-  {
-    os << offset;
-  }
+
+#define DO_THREAD_OFFSET(x) if (offset == static_cast<uint32_t>(OFFSETOF_VOLATILE_MEMBER(Thread, x))) { os << # x; return; }
+  DO_THREAD_OFFSET(card_table_);
+  DO_THREAD_OFFSET(exception_);
+  DO_THREAD_OFFSET(jni_env_);
+  DO_THREAD_OFFSET(self_);
+  DO_THREAD_OFFSET(stack_end_);
+  DO_THREAD_OFFSET(state_);
+  DO_THREAD_OFFSET(suspend_count_);
+  DO_THREAD_OFFSET(thin_lock_id_);
+  DO_THREAD_OFFSET(top_of_managed_stack_);
+  DO_THREAD_OFFSET(top_of_managed_stack_pc_);
+  DO_THREAD_OFFSET(top_sirt_);
 #undef DO_THREAD_OFFSET
-#undef DO_THREAD_ENTRY_POINT_OFFSET
+
+  size_t entry_point_count = arraysize(gThreadEntryPointInfo);
+  CHECK_EQ(entry_point_count * size_of_pointers, sizeof(EntryPoints));
+  uint32_t expected_offset = OFFSETOF_MEMBER(Thread, entrypoints_);
+  for (size_t i = 0; i < entry_point_count; ++i) {
+    CHECK_EQ(gThreadEntryPointInfo[i].offset, expected_offset);
+    expected_offset += size_of_pointers;
+    if (gThreadEntryPointInfo[i].offset == offset) {
+      os << gThreadEntryPointInfo[i].name;
+      return;
+    }
+  }
+  os << offset;
 }
 
 class CatchBlockStackVisitor : public Thread::StackVisitor {
