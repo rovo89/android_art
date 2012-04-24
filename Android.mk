@@ -177,7 +177,7 @@ OAT_TARGET_TARGETS :=
 define declare-oat-target-target
 .PHONY: oat-target-$(1)
 oat-target-$(1): $(PRODUCT_OUT)/$(1) $(TARGET_BOOT_IMG_OUT) $(DEX2OAT_DEPENDENCY)
-	$(DEX2OAT) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(TARGET_BOOT_IMG_OUT) --dex-file=$(PRODUCT_OUT)/$(1) --dex-location=/$(1) --oat-file=$(call art-cache-out,$(1).oat) --host-prefix=$(PRODUCT_OUT)
+	$(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(TARGET_BOOT_IMG_OUT) --dex-file=$(PRODUCT_OUT)/$(1) --dex-location=/$(1) --oat-file=$(call art-cache-out,$(1).oat) --host-prefix=$(PRODUCT_OUT)
 
 OAT_TARGET_TARGETS += oat-target-$(1)
 endef
