@@ -14,28 +14,26 @@
  * limitations under the License.
  */
 
+#ifndef ART_SRC_DISASSEMBLER_MIPS_H_
+#define ART_SRC_DISASSEMBLER_MIPS_H_
+
+#include <vector>
+
 #include "disassembler.h"
 
-#include <iostream>
-
-#include "disassembler_arm.h"
-#include "disassembler_mips.h"
-#include "disassembler_x86.h"
-#include "logging.h"
-
 namespace art {
+namespace mips {
 
-Disassembler* Disassembler::Create(InstructionSet instruction_set) {
-  if (instruction_set == kArm || instruction_set == kThumb2) {
-    return new arm::DisassemblerArm();
-  } else if (instruction_set == kMips) {
-    return new mips::DisassemblerMips();
-  } else if (instruction_set == kX86) {
-    return new x86::DisassemblerX86();
-  } else {
-    UNIMPLEMENTED(FATAL) << "no disassembler for " << instruction_set;
-    return NULL;
-  }
-}
+class DisassemblerMips : public Disassembler {
+ public:
+  DisassemblerMips();
+  virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end);
 
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DisassemblerMips);
+};
+
+}  // namespace mips
 }  // namespace art
+
+#endif  // ART_SRC_DISASSEMBLER_MIPS_H_
