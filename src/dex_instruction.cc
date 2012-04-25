@@ -299,7 +299,17 @@ std::string Instruction::DumpString(const DexFile* file) const {
     case k22x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA, insn.vB); break;
     case k21t:  os << StringPrintf("%s v%d, %+d", opcode, insn.vA, insn.vB); break;
     case k21s:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA, insn.vB); break;
-    case k21h:  os << StringPrintf("%s v%d, #%+d00000[00000000]", opcode, insn.vA, insn.vB); break;
+    case k21h: {
+        // op vAA, #+BBBB0000[00000000]
+        if (insn.opcode == CONST_HIGH16) {
+          uint32_t value = insn.vB << 16;
+          os << StringPrintf("%s v%d, #int %+d // 0x%x", opcode, insn.vA, value, value);
+        } else {
+          uint64_t value = static_cast<uint64_t>(insn.vB) << 48;
+          os << StringPrintf("%s v%d, #long %+lld // 0x%llx", opcode, insn.vA, value, value);
+        }
+      }
+      break;
     case k21c:  os << StringPrintf("%s v%d, thing@%d", opcode, insn.vA, insn.vB); break;
     case k23x:  os << StringPrintf("%s v%d, v%d, v%d", opcode, insn.vA, insn.vB, insn.vC); break;
     case k22b:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, insn.vA, insn.vB, insn.vC); break;
