@@ -509,8 +509,8 @@ void art_check_cast_from_code(const Class* dest_type, const Class* src_type) {
     Thread* thread = art_get_current_thread_from_code();
     thread->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
                                "%s cannot be cast to %s",
-                               PrettyDescriptor(dest_type).c_str(),
-                               PrettyDescriptor(src_type).c_str());
+                               PrettyDescriptor(src_type).c_str(),
+                               PrettyDescriptor(dest_type).c_str());
   }
 }
 
