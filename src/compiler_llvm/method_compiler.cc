@@ -36,12 +36,9 @@
 #include <iomanip>
 
 #include <llvm/BasicBlock.h>
-#include <llvm/DerivedTypes.h>
 #include <llvm/Function.h>
 #include <llvm/GlobalVariable.h>
 #include <llvm/Intrinsics.h>
-#include <llvm/Module.h>
-#include <llvm/Type.h>
 
 namespace art {
 namespace compiler_llvm {
@@ -2840,8 +2837,8 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
       if (direct_method != 0u &&
           direct_method != static_cast<uintptr_t>(-1)) {
         callee_method_object_addr =
-          EmitLoadSDCalleeDirectMethodObjectAddr(callee_method_idx,
-                                                 direct_method);
+          irb_.CreateIntToPtr(irb_.getPtrEquivInt(direct_method),
+                              irb_.getJObjectTy());
       } else {
         callee_method_object_addr =
           EmitLoadSDCalleeMethodObjectAddr(callee_method_idx);
@@ -2988,27 +2985,6 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
 #endif
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
-}
-
-
-llvm::Value* MethodCompiler::
-EmitLoadSDCalleeDirectMethodObjectAddr(uint32_t callee_method_idx,
-                                       uintptr_t direct_method) {
-  std::string direct_method_name(
-    StringPrintf("ArtMethodObject_%08lx",
-                 static_cast<unsigned long>(direct_method)));
-
-  llvm::GlobalVariable* direct_method_addr =
-    module_->getGlobalVariable(direct_method_name);
-
-  if (direct_method_addr == NULL) {
-    direct_method_addr =
-      new llvm::GlobalVariable(*module_, irb_.getJObjectTy()->getElementType(),
-                               false, llvm::GlobalVariable::ExternalLinkage,
-                               NULL, direct_method_name);
-  }
-
-  return direct_method_addr;
 }
 
 

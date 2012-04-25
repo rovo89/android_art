@@ -215,9 +215,6 @@ class MethodCompiler {
 
   llvm::Value* EmitLoadSDCalleeMethodObjectAddr(uint32_t callee_method_idx);
 
-  llvm::Value* EmitLoadSDCalleeDirectMethodObjectAddr(uint32_t callee_method_idx,
-                                                      uintptr_t direct_method);
-
   llvm::Value* EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx,
                                                      llvm::Value* this_addr);
 
