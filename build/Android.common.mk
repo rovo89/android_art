@@ -89,6 +89,10 @@ endif
 
 ART_TARGET_DEBUG_CFLAGS := $(art_debug_cflags)
 
+ifeq ($(ART_USE_LLVM_COMPILER),true)
+PARALLEL_ART_COMPILE_JOBS := -j8
+endif
+
 DEX2OAT_SRC_FILES := \
 	src/dex2oat.cc
 
