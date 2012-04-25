@@ -46,6 +46,9 @@ const int kObjectAlignment = 8;
 // ARM instruction alignment. ARM processors require code to be 4-byte aligned.
 const int kArmAlignment = 4;
 
+// MIPS instruction alignment.  MIPS processors require code to be 4-byte aligned.
+const int kMipsAlignment = 4;
+
 // X86 instruction alignment. This is the recommended alignment for maximum performance.
 const int kX86Alignment = 16;
 
