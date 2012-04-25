@@ -2585,20 +2585,20 @@ Method* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
   if (is_super) {
     DCHECK(method_type == METHOD_VIRTUAL);
     const RegType& super = GetDeclaringClass().GetSuperClass(&reg_types_);
+    if (super.IsConflict()) {  // unknown super class
+      Fail(VERIFY_ERROR_NO_METHOD) << "unknown super class in invoke-super from "
+                                   << PrettyMethod(method_idx_, *dex_file_)
+                                   << " to super " << PrettyMethod(res_method);
+      return NULL;
+    }
     Class* super_klass = super.GetClass();
     if (res_method->GetMethodIndex() >= super_klass->GetVTable()->GetLength()) {
-      if (super.IsConflict()) {  // Only Object has no super class
-        Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
-                                     << PrettyMethod(method_idx_, *dex_file_)
-                                     << " to super " << PrettyMethod(res_method);
-      } else {
-        MethodHelper mh(res_method);
-        Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
-                                     << PrettyMethod(method_idx_, *dex_file_)
-                                     << " to super " << super
-                                     << "." << mh.GetName()
-                                     << mh.GetSignature();
-      }
+      MethodHelper mh(res_method);
+      Fail(VERIFY_ERROR_NO_METHOD) << "invalid invoke-super from "
+                                   << PrettyMethod(method_idx_, *dex_file_)
+                                   << " to super " << super
+                                   << "." << mh.GetName()
+                                   << mh.GetSignature();
       return NULL;
     }
   }
