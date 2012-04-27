@@ -1848,7 +1848,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_DIRECT_RANGE: {
       bool is_range = (dec_insn.opcode == Instruction::INVOKE_DIRECT_RANGE);
       Method* called_method = VerifyInvocationArgs(dec_insn, METHOD_DIRECT, is_range, false);
-      if (called_method != NULL) {
+      if (called_method != NULL && called_method->IsConstructor()) {
         /*
          * Some additional checks when calling a constructor. We know from the invocation arg check
          * that the "this" argument is an instance of called_method->klass. Now we further restrict
@@ -1856,56 +1856,36 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
          * allowing the latter only if the "this" argument is the same as the "this" argument to
          * this method (which implies that we're in a constructor ourselves).
          */
-        if (called_method->IsConstructor()) {
-          const RegType& this_type = work_line_->GetInvocationThis(dec_insn);
-          if (this_type.IsConflict())  // failure.
-            break;
+        const RegType& this_type = work_line_->GetInvocationThis(dec_insn);
+        if (this_type.IsConflict())  // failure.
+          break;
 
-          /* no null refs allowed (?) */
-          if (this_type.IsZero()) {
-            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unable to initialize null ref";
-            break;
-          }
-          if (called_method != NULL) {
-            /* must be in same class or in superclass */
-            const RegType& this_super_klass = this_type.GetSuperClass(&reg_types_);
-            if (this_super_klass.IsConflict()) {
-              // Unknown super class, fail so we re-check at runtime.
-              Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "super class unknown for '" << this_type << "'";
-              break;
-            } else {
-              if (!this_super_klass.IsZero() &&
-                  called_method->GetDeclaringClass() == this_super_klass.GetClass()) {
-                if (this_type.GetClass() != GetDeclaringClass().GetClass()) {
-                  Fail(VERIFY_ERROR_BAD_CLASS_HARD)
-                        << "invoke-direct <init> on super only allowed for 'this' in <init>"
-                        << " (this class '" << this_type << "', called class '"
-                        << PrettyDescriptor(called_method->GetDeclaringClass()) << "')";
-                  break;
-                }
-              } else if (this_type.GetClass() != called_method->GetDeclaringClass()) {
-                Fail(VERIFY_ERROR_BAD_CLASS_HARD)
-                      << "invoke-direct <init> must be on current class or super"
-                      << " (current class '" << this_type << "', called class '"
-                      << PrettyDescriptor(called_method->GetDeclaringClass()) << "')";
-                break;
-              }
-            }
-          }
-
-          /* arg must be an uninitialized reference */
-          if (!this_type.IsUninitializedTypes()) {
-            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Expected initialization on uninitialized reference "
-                << this_type;
-            break;
-          }
-
-          /*
-           * Replace the uninitialized reference with an initialized one. We need to do this for all
-           * registers that have the same object instance in them, not just the "this" register.
-           */
-          work_line_->MarkRefsAsInitialized(this_type);
+        /* no null refs allowed (?) */
+        if (this_type.IsZero()) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "unable to initialize null ref";
+          break;
         }
+
+        /* must be in same class or in superclass */
+        const RegType& this_super_klass = this_type.GetSuperClass(&reg_types_);
+        if (this_super_klass.IsConflict()) {
+          // Unknown super class, fail so we re-check at runtime.
+          Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "super class unknown for '" << this_type << "'";
+          break;
+        }
+
+        /* arg must be an uninitialized reference */
+        if (!this_type.IsUninitializedTypes()) {
+          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Expected initialization on uninitialized reference "
+              << this_type;
+          break;
+        }
+
+        /*
+         * Replace the uninitialized reference with an initialized one. We need to do this for all
+         * registers that have the same object instance in them, not just the "this" register.
+         */
+        work_line_->MarkRefsAsInitialized(this_type);
       }
       const char* descriptor;
       if (called_method == NULL) {
@@ -2226,7 +2206,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
 
   if (have_pending_hard_failure_) {
     if (!Runtime::Current()->IsStarted()) {
-      /* When compiling, check that the first failure is a hard failure */
+      /* When compiling, check that the last failure is a hard failure */
       CHECK_EQ(failures_[failures_.size() - 1], VERIFY_ERROR_BAD_CLASS_HARD);
     }
     /* immediate failure, reject class */
@@ -2540,7 +2520,7 @@ Method* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_idx, Met
   if (!referrer.CanAccessMember(res_method->GetDeclaringClass(), res_method->GetAccessFlags())) {
     Fail(VERIFY_ERROR_ACCESS_METHOD) << "illegal method access (call " << PrettyMethod(res_method)
                                      << " from " << referrer << ")";
-    return NULL;
+    return res_method;
   }
   // Check that invoke-virtual and invoke-super are not used on private methods of the same class.
   if (res_method->IsPrivate() && method_type == METHOD_VIRTUAL) {
@@ -2663,7 +2643,7 @@ Method* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
     const RegType& reg_type = reg_types_.FromDescriptor(class_loader_, descriptor);
     uint32_t get_reg = is_range ? dec_insn.vC + actual_args : dec_insn.arg[actual_args];
     if (!work_line_->VerifyRegisterType(get_reg, reg_type)) {
-      return NULL;
+      return res_method;
     }
     actual_args = reg_type.IsLongOrDoubleTypes() ? actual_args + 2 : actual_args + 1;
   }
@@ -2914,7 +2894,6 @@ void MethodVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "expected field " << PrettyField(field)
                                         << " to be of type '" << insn_type
                                         << "' but found type '" << field_type << "' in get";
-      work_line_->SetRegisterType(dec_insn.vA, reg_types_.Conflict());
       return;
     }
   } else {
@@ -3021,10 +3000,10 @@ void MethodVerifier::ReplaceFailingInstruction() {
   size_t failure_number = failures_.size();
   CHECK_NE(failure_number, 0U);
   DCHECK_EQ(failure_messages_.size(), failure_number);
-  std::ostringstream* failure_message = failure_messages_[failure_number - 1];
-  VerifyError failure = failures_[failure_number - 1];
-  failures_.pop_back();
-  failure_messages_.pop_back();
+  std::ostringstream* failure_message = failure_messages_[0];
+  VerifyError failure = failures_[0];
+  failures_.clear();
+  failure_messages_.clear();
   have_pending_rewrite_failure_ = false;
 
   if (Runtime::Current()->IsStarted()) {
