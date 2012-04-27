@@ -3841,16 +3841,11 @@ llvm::BasicBlock* MethodCompiler::GetLandingPadBasicBlock(uint32_t dex_pc) {
   // Find catch block with matching type
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-  // TODO: Maybe passing try item offset will be a better idea?  For now,
-  // we are passing dex_pc, so that we can use existing runtime support
-  // function directly.  However, in the runtime supporting function we
-  // have to search for try item with binary search which can be
-  // eliminated.
-  llvm::Value* dex_pc_value = irb_.getInt32(ti->start_addr_);
+  llvm::Value* ti_offset_value = irb_.getInt32(ti_offset);
 
   llvm::Value* catch_handler_index_value =
     irb_.CreateCall2(irb_.GetRuntime(FindCatchBlock),
-                     method_object_addr, dex_pc_value);
+                     method_object_addr, ti_offset_value);
 
   // Switch instruction (Go to unwind basic block by default)
   llvm::SwitchInst* sw =

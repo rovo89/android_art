@@ -1128,6 +1128,10 @@ class EncodedStaticFieldValueIterator {
 class CatchHandlerIterator {
   public:
     CatchHandlerIterator(const DexFile::CodeItem& code_item, uint32_t address);
+
+    CatchHandlerIterator(const DexFile::CodeItem& code_item,
+                         const DexFile::TryItem& try_item);
+
     explicit CatchHandlerIterator(const byte* handler_data) {
       Init(handler_data);
     }
@@ -1148,6 +1152,7 @@ class CatchHandlerIterator {
       return current_data_;
     }
   private:
+    void Init(const DexFile::CodeItem& code_item, int32_t offset);
     void Init(const byte* handler_data);
 
     struct CatchHandlerItem {

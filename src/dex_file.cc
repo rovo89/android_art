@@ -1001,9 +1001,19 @@ CatchHandlerIterator::CatchHandlerIterator(const DexFile::CodeItem& code_item, u
     default:
       offset = DexFile::FindCatchHandlerOffset(code_item, code_item.tries_size_, address);
   }
+  Init(code_item, offset);
+}
+
+CatchHandlerIterator::CatchHandlerIterator(const DexFile::CodeItem& code_item,
+                                           const DexFile::TryItem& try_item) {
+  handler_.address_ = -1;
+  Init(code_item, try_item.handler_off_);
+}
+
+void CatchHandlerIterator::Init(const DexFile::CodeItem& code_item,
+                                int32_t offset) {
   if (offset >= 0) {
-    const byte* handler_data = DexFile::GetCatchHandlerData(code_item, offset);
-    Init(handler_data);
+    Init(DexFile::GetCatchHandlerData(code_item, offset));
   } else {
     // Not found, initialize as empty
     current_data_ = NULL;
