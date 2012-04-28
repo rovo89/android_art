@@ -193,7 +193,8 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
   // store ret_addr, and ret_void.  Beside, we guess that we have to use
   // 50 bytes to represent one LLVM instruction.
 
-  return new CompiledInvokeStub(cunit_->GetElfIndex(), elf_func_idx);
+  return new CompiledInvokeStub(cunit_->GetInstructionSet(),
+                                cunit_->GetElfIndex(), elf_func_idx);
 }
 
 
@@ -268,7 +269,8 @@ CompiledInvokeStub* StubCompiler::CreateProxyStub(char const* shorty) {
   // Add the memory usage approximation of the compilation unit
   cunit_->AddMemUsageApproximation((shorty_size + 2) * 50);
 
-  return new CompiledInvokeStub(cunit_->GetElfIndex(), elf_func_idx);
+  return new CompiledInvokeStub(cunit_->GetInstructionSet(),
+                                cunit_->GetElfIndex(), elf_func_idx);
 }
 
 
