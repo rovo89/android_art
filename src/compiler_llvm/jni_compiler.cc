@@ -197,32 +197,6 @@ CompiledMethod* JniCompiler::Compile() {
     irb_.CreateCall2(irb_.GetRuntime(LockObject),
                      this_object_or_class_object,
                      thread_object_addr);
-
-    // Check exception pending
-    llvm::Value* exception_pending = irb_.CreateCall(irb_.GetRuntime(IsExceptionPending));
-
-    // Create two basic block for branch
-    llvm::BasicBlock* block_cont = llvm::BasicBlock::Create(*context_, "B.cont", func_);
-    llvm::BasicBlock* block_exception_ = llvm::BasicBlock::Create(*context_, "B.exception", func_);
-
-    // Branch by exception_pending
-    irb_.CreateCondBr(exception_pending, block_exception_, block_cont);
-
-
-    // If exception pending
-    irb_.SetInsertPoint(block_exception_);
-    // TODO: Set thread state?
-    // Pop the shadow frame
-    irb_.CreateCall(irb_.GetRuntime(PopShadowFrame));
-    // Unwind
-    if (return_shorty != 'V') {
-      irb_.CreateRet(irb_.getJZero(return_shorty));
-    } else {
-      irb_.CreateRetVoid();
-    }
-
-    // If no exception pending
-    irb_.SetInsertPoint(block_cont);
   }
 
   // saved_local_ref_cookie = env->local_ref_cookie
