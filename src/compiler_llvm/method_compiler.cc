@@ -139,6 +139,11 @@ llvm::FunctionType* MethodCompiler::GetFunctionType(uint32_t method_idx,
 
 void MethodCompiler::EmitPrologue() {
   // Create basic blocks for prologue
+#if !defined(NDEBUG)
+  // Add a BasicBlock named as PrettyMethod for debugging.
+  llvm::BasicBlock* entry =
+    llvm::BasicBlock::Create(*context_, PrettyMethod(method_idx_, *dex_file_), func_);
+#endif
   basic_block_reg_alloca_ =
     llvm::BasicBlock::Create(*context_, "prologue.alloca", func_);
 
@@ -150,6 +155,11 @@ void MethodCompiler::EmitPrologue() {
 
   basic_block_reg_arg_init_ =
     llvm::BasicBlock::Create(*context_, "prologue.arginit", func_);
+
+#if !defined(NDEBUG)
+  irb_.SetInsertPoint(entry);
+  irb_.CreateBr(basic_block_reg_alloca_);
+#endif
 
   // Create register array
   for (uint16_t r = 0; r < code_item_->registers_size_; ++r) {
@@ -3660,9 +3670,9 @@ CreateBasicBlockWithDexPC(uint32_t dex_pc, char const* postfix) {
   std::string name;
 
   if (postfix) {
-    StringAppendF(&name, "B%u.%s", dex_pc, postfix);
+    StringAppendF(&name, "B%04x.%s", dex_pc, postfix);
   } else {
-    StringAppendF(&name, "B%u", dex_pc);
+    StringAppendF(&name, "B%04x", dex_pc);
   }
 
   return llvm::BasicBlock::Create(*context_, name, func_);
