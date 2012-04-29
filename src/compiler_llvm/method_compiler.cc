@@ -3841,23 +3841,37 @@ llvm::Value* MethodCompiler::AllocDalvikLocalVarReg(RegCategory cat,
     break;
 
   case kRegObject:
-    {
-      irb_.SetInsertPoint(basic_block_shadow_frame_alloca_);
-
-      llvm::Value* gep_index[] = {
-        irb_.getInt32(0), // No pointer displacement
-        irb_.getInt32(1), // SIRT
-        irb_.getInt32(reg_idx) // Pointer field
-      };
-
-      reg_addr = irb_.CreateGEP(shadow_frame_, gep_index,
-                                StringPrintf("p%u", reg_idx));
-    }
+    irb_.SetInsertPoint(basic_block_reg_alloca_);
+    reg_addr = irb_.CreateAlloca(irb_.getJObjectTy(), 0,
+                                 StringPrintf("o%u", reg_idx));
     break;
 
   default:
     LOG(FATAL) << "Unknown register category for allocation: " << cat;
   }
+
+  // Restore IRBuilder insert point
+  irb_.restoreIP(irb_ip_original);
+
+  DCHECK_NE(reg_addr, static_cast<llvm::Value*>(NULL));
+  return reg_addr;
+}
+
+
+llvm::Value* MethodCompiler::AllocShadowFrameEntry(uint32_t reg_idx) {
+  // Save current IR builder insert point
+  llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
+
+  irb_.SetInsertPoint(basic_block_shadow_frame_alloca_);
+
+  llvm::Value* gep_index[] = {
+    irb_.getInt32(0), // No pointer displacement
+    irb_.getInt32(1), // SIRT
+    irb_.getInt32(reg_idx) // Pointer field
+  };
+
+  llvm::Value* reg_addr =
+    irb_.CreateGEP(shadow_frame_, gep_index, StringPrintf("p%u", reg_idx));
 
   // Restore IRBuilder insert point
   irb_.restoreIP(irb_ip_original);

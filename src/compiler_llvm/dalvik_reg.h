@@ -47,7 +47,7 @@ class DalvikReg {
     return GetValue(GetJTypeFromShorty(shorty), space);
   }
 
-  void SetValue(JType jty, JTypeSpace space, llvm::Value* value);
+  virtual void SetValue(JType jty, JTypeSpace space, llvm::Value* value);
 
   void SetValue(char shorty, JTypeSpace space, llvm::Value* value) {
     return SetValue(GetJTypeFromShorty(shorty), space, value);
