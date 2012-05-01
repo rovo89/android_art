@@ -35,7 +35,8 @@ namespace art {
  *  ubyte  data[size*width] table of data values (may contain a single-byte
  *                          padding at the end)
  */
-extern "C" int artHandleFillArrayDataFromCode(Array* array, const DexFile::Payload* payload,
+extern "C" int artHandleFillArrayDataFromCode(Array* array,
+                                              const Instruction::ArrayDataPayload* payload,
                                               Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK_EQ(payload->ident, static_cast<uint16_t>(Instruction::kArrayDataSignature));
