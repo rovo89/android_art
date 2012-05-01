@@ -855,7 +855,7 @@ void SetThreadName(const char* thread_name) {
 void GetTaskStats(pid_t tid, int& utime, int& stime, int& task_cpu) {
   utime = stime = task_cpu = 0;
   std::string stats;
-  if (!ReadFileToString(StringPrintf("/proc/self/task/%d/stat", tid).c_str(), &stats)) {
+  if (!ReadFileToString(StringPrintf("/proc/self/task/%d/stat", tid), &stats)) {
     return;
   }
   // Skip the command, which may contain spaces.
