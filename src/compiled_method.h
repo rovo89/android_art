@@ -32,20 +32,12 @@ namespace art {
 class CompiledCode {
  public:
   CompiledCode(InstructionSet instruction_set)
-      : instruction_set_(instruction_set), elf_idx_(-1), elf_func_idx_(-1) {
+      : instruction_set_(instruction_set) {
   }
 
   CompiledCode(InstructionSet instruction_set, const std::vector<uint8_t>& code)
-      : instruction_set_(instruction_set), code_(code), elf_idx_(-1),
-        elf_func_idx_(-1) {
+      : instruction_set_(instruction_set), code_(code) {
     CHECK_NE(code.size(), 0U);
-  }
-
-  CompiledCode(InstructionSet instruction_set,
-               uint16_t elf_idx,
-               uint16_t elf_func_idx)
-      : instruction_set_(instruction_set), elf_idx_(elf_idx),
-        elf_func_idx_(elf_func_idx) {
   }
 
   InstructionSet GetInstructionSet() const {
@@ -57,23 +49,12 @@ class CompiledCode {
   }
 
   void SetCode(const std::vector<uint8_t>& code) {
+    CHECK_NE(code.size(), 0U);
     code_ = code;
   }
 
   bool operator==(const CompiledCode& rhs) const {
     return (code_ == rhs.code_);
-  }
-
-  bool IsExecutableInElf() const {
-    return (elf_idx_ != static_cast<uint16_t>(-1u));
-  }
-
-  uint16_t GetElfIndex() const {
-    return elf_idx_;
-  }
-
-  uint16_t GetElfFuncIndex() const {
-    return elf_func_idx_;
   }
 
   // To align an offset from a page-aligned value to make it suitable
@@ -95,10 +76,6 @@ class CompiledCode {
  private:
   const InstructionSet instruction_set_;
   std::vector<uint8_t> code_;
-
-  // LLVM-specific fields
-  uint16_t elf_idx_;
-  uint16_t elf_func_idx_;
 };
 
 class CompiledMethod : public CompiledCode {
@@ -124,9 +101,8 @@ class CompiledMethod : public CompiledCode {
 
   // Constructs a CompiledMethod for the LLVM compiler.
   CompiledMethod(InstructionSet instruction_set,
-                 uint16_t elf_idx,
-                 uint16_t elf_func_idx)
-      : CompiledCode(instruction_set, elf_idx, elf_func_idx),
+                 const std::vector<uint8_t>& code)
+      : CompiledCode(instruction_set, code),
         frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
         fp_spill_mask_(0) {
   }
@@ -161,12 +137,6 @@ class CompiledInvokeStub : public CompiledCode {
 
   explicit CompiledInvokeStub(InstructionSet instruction_set,
                               const std::vector<uint8_t>& code);
-
-  explicit CompiledInvokeStub(InstructionSet instruction_set,
-                              uint16_t elf_idx,
-                              uint16_t elf_func_idx)
-      : CompiledCode(instruction_set, elf_idx, elf_func_idx) {
-  }
 
   ~CompiledInvokeStub();
 };

@@ -48,13 +48,11 @@ StubCompiler::StubCompiler(CompilationUnit* cunit, Compiler& compiler)
 
 CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
                                                    char const* shorty) {
-  uint16_t elf_func_idx = cunit_->AcquireUniqueElfFuncIndex();
-
   CHECK(shorty != NULL);
   size_t shorty_size = strlen(shorty);
 
   // Function name
-  std::string func_name(ElfFuncName(elf_func_idx));
+  std::string func_name(ElfFuncName(cunit_->GetIndex()));
 
   // Get argument types
   llvm::Type* arg_types[] = {
@@ -186,15 +184,10 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
   // Verify the generated function
   VERIFY_LLVM_FUNCTION(*func);
 
-  // Add the memory usage approximation of the compilation unit
-  cunit_->AddMemUsageApproximation((shorty_size * 3 + 8) * 50);
-  // NOTE: We will emit 3 LLVM instructions per shorty for the argument,
-  // plus 3 for pointer arithmetic, and 5 for code_addr, retval, ret_addr,
-  // store ret_addr, and ret_void.  Beside, we guess that we have to use
-  // 50 bytes to represent one LLVM instruction.
+  cunit_->Materialize();
 
   return new CompiledInvokeStub(cunit_->GetInstructionSet(),
-                                cunit_->GetElfIndex(), elf_func_idx);
+                                cunit_->GetCompiledCode());
 }
 
 
@@ -202,10 +195,8 @@ CompiledInvokeStub* StubCompiler::CreateProxyStub(char const* shorty) {
   CHECK(shorty != NULL);
   size_t shorty_size = strlen(shorty);
 
-  uint16_t elf_func_idx = cunit_->AcquireUniqueElfFuncIndex();
-
   // Function name
-  std::string func_name(ElfFuncName(elf_func_idx));
+  std::string func_name(ElfFuncName(cunit_->GetIndex()));
 
   // Accurate function type
   llvm::Type* accurate_ret_type = irb_.getJType(shorty[0], kAccurate);
@@ -266,11 +257,10 @@ CompiledInvokeStub* StubCompiler::CreateProxyStub(char const* shorty) {
   // Verify the generated function
   VERIFY_LLVM_FUNCTION(*func);
 
-  // Add the memory usage approximation of the compilation unit
-  cunit_->AddMemUsageApproximation((shorty_size + 2) * 50);
+  cunit_->Materialize();
 
   return new CompiledInvokeStub(cunit_->GetInstructionSet(),
-                                cunit_->GetElfIndex(), elf_func_idx);
+                                cunit_->GetCompiledCode());
 }
 
 

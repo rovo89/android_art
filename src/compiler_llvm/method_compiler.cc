@@ -72,8 +72,7 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     basic_block_landing_pads_(code_item_->tries_size_, NULL),
     basic_block_unwind_(NULL), basic_block_unreachable_(NULL),
     shadow_frame_(NULL), old_shadow_frame_(NULL),
-    already_pushed_shadow_frame_(NULL), shadow_frame_size_(0),
-    elf_func_idx_(cunit_->AcquireUniqueElfFuncIndex()) {
+    already_pushed_shadow_frame_(NULL), shadow_frame_size_(0) {
 }
 
 
@@ -84,7 +83,7 @@ MethodCompiler::~MethodCompiler() {
 
 void MethodCompiler::CreateFunction() {
   // LLVM function name
-  std::string func_name(ElfFuncName(elf_func_idx_));
+  std::string func_name(ElfFuncName(cunit_->GetIndex()));
 
   // Get function type
   llvm::FunctionType* func_type =
@@ -3616,20 +3615,10 @@ CompiledMethod *MethodCompiler::Compile() {
   // Verify the generated bitcode
   VERIFY_LLVM_FUNCTION(*func_);
 
-  // Add the memory usage approximation of the compilation unit
-  cunit_->AddMemUsageApproximation(code_item_->insns_size_in_code_units_ * 900);
-  // NOTE: From statistics, the bitcode size is 4.5 times bigger than the
-  // Dex file.  Besides, we have to convert the code unit into bytes.
-  // Thus, we got our magic number 9.
+  cunit_->Materialize();
 
-  CompiledMethod* compiled_method =
-    new CompiledMethod(cunit_->GetInstructionSet(),
-                       cunit_->GetElfIndex(),
-                       elf_func_idx_);
-
-  cunit_->RegisterCompiledMethod(func_, compiled_method);
-
-  return compiled_method;
+  return new CompiledMethod(cunit_->GetInstructionSet(),
+                            cunit_->GetCompiledCode());
 }
 
 

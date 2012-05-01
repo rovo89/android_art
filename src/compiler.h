@@ -25,7 +25,6 @@
 #include "compiled_method.h"
 #include "dex_cache.h"
 #include "dex_file.h"
-#include "elf_image.h"
 #include "instruction_set.h"
 #include "invoke_type.h"
 #include "oat_file.h"
@@ -144,34 +143,6 @@ class Compiler {
 
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_QUICK_COMPILER)
   void SetBitcodeFileName(std::string const& filename);
-#endif
-
-#if defined(ART_USE_LLVM_COMPILER)
-  void EnableAutoElfLoading();
-
-  const void* GetMethodCodeAddr(const CompiledMethod* cm,
-                                const Method* method) const;
-
-  const Method::InvokeStub* GetMethodInvokeStubAddr(const CompiledInvokeStub* cm,
-                                                    const Method* method) const;
-
-  std::vector<ElfImage> GetElfImages() const;
-#else
-  void EnableAutoElfLoader() { }
-
-  const void* GetMethodCodeAddr(const CompiledMethod*,
-                                const Method*) const {
-    return NULL;
-  }
-
-  const Method::InvokeStub* GetMethodInvokeStubAddr(const CompiledInvokeStub*,
-                                                    const Method*) const {
-    return NULL;
-  }
-
-  std::vector<ElfImage> GetElfImages() const {
-    return std::vector<ElfImage>();
-  }
 #endif
 
   void SetCompilerContext(void* compiler_context) {

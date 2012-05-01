@@ -63,11 +63,6 @@ define build-art-test
     LOCAL_SHARED_LIBRARIES += libdynamic_annotations-host
   endif
 
-  ifeq ($(ART_USE_LLVM_COMPILER),true)
-    LOCAL_C_INCLUDES += frameworks/compile/linkloader
-    LOCAL_STATIC_LIBRARIES += librsloader
-  endif
-
   # Mac OS linker doesn't understand --export-dynamic.
   ifneq ($(HOST_OS)-$$(art_target_or_host),darwin-host)
     # Allow jni_compiler_test to find Java_MyClassNatives_bar within itself using dlopen(NULL, ...).

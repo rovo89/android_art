@@ -74,7 +74,7 @@ define build-libart-compiler-llvm
   endif
 
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
-  LOCAL_C_INCLUDES += frameworks/compile/linkloader
+
   libart_compiler_llvm_arm_STATIC_LIBRARIES := \
     libLLVMARMInfo \
     libLLVMARMDisassembler \
@@ -111,6 +111,7 @@ define build-libart-compiler-llvm
   endif
 
   LOCAL_STATIC_LIBRARIES += \
+    libLLVMObject \
     libLLVMLinker \
     libLLVMipo \
     libLLVMBitWriter \
@@ -129,8 +130,8 @@ define build-libart-compiler-llvm
     libLLVMMC \
     libLLVMMCParser \
     libLLVMCore \
-    libLLVMSupport \
-    librsloader
+    libLLVMSupport
+
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
   LOCAL_SHARED_LIBRARIES += libcorkscrew # native stack trace support
   ifeq ($$(art_target_or_host),target)

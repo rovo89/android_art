@@ -33,6 +33,10 @@
 #include "safe_map.h"
 #include "stringpiece.h"
 
+#if defined(ART_USE_LLVM_COMPILER)
+#include "compiler_llvm/procedure_linkage_table.h"
+#endif
+
 namespace art {
 
 template<class T> class PrimitiveArray;
@@ -422,6 +426,9 @@ class Runtime {
 
   jobject main_thread_group_;
   jobject system_thread_group_;
+#if defined(ART_USE_LLVM_COMPILER)
+  compiler_llvm::ProcedureLinkageTable plt_;
+#endif
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

@@ -319,14 +319,8 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       compiler_(NULL),
       compiler_context_(NULL),
       jni_compiler_(NULL),
-#if !defined(ART_USE_LLVM_COMPILER)
-      create_invoke_stub_(NULL) {
-#else
-      create_invoke_stub_(NULL),
-      compiler_enable_auto_elf_loading_(NULL),
-      compiler_get_method_code_addr_(NULL),
-      compiler_get_method_invoke_stub_addr_(NULL) {
-#endif
+      create_invoke_stub_(NULL)
+{
   std::string compiler_so_name(MakeCompilerSoName(instruction_set_));
   compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
   if (compiler_library_ == NULL) {
@@ -353,12 +347,6 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
 #if defined(ART_USE_LLVM_COMPILER)
   create_proxy_stub_ = FindFunction<CreateProxyStubFn>(
       compiler_so_name, compiler_library_, "ArtCreateProxyStub");
-  compiler_enable_auto_elf_loading_ = FindFunction<CompilerEnableAutoElfLoadingFn>(
-      compiler_so_name, compiler_library_, "compilerLLVMEnableAutoElfLoading");
-  compiler_get_method_code_addr_ = FindFunction<CompilerGetMethodCodeAddrFn>(
-      compiler_so_name, compiler_library_, "compilerLLVMGetMethodCodeAddr");
-  compiler_get_method_invoke_stub_addr_ = FindFunction<CompilerGetMethodInvokeStubAddrFn>(
-      compiler_so_name, compiler_library_, "compilerLLVMGetMethodInvokeStubAddr");
 #endif
 
   CHECK(!Runtime::Current()->IsStarted());
@@ -395,10 +383,17 @@ Compiler::~Compiler() {
     STLDeleteElements(&methods_to_patch_);
   }
 #if defined(ART_USE_LLVM_COMPILER)
-  CompilerCallbackFn f = FindFunction<CompilerCallbackFn>(MakeCompilerSoName(instruction_set_),
-                                                          compiler_library_,
-                                                          "compilerLLVMDispose");
-  (*f)(*this);
+  // Uninitialize compiler_context_
+  typedef void (*UninitCompilerContextFn)(Compiler&);
+
+  std::string compiler_so_name(MakeCompilerSoName(instruction_set_));
+
+  UninitCompilerContextFn uninit_compiler_context =
+    FindFunction<void (*)(Compiler&)>(compiler_so_name,
+                                      compiler_library_,
+                                      "ArtUnInitCompilerContext");
+
+  uninit_compiler_context(*this);
 #endif
   if (compiler_library_ != NULL) {
     VLOG(compiler) << "dlclose(" << compiler_library_ << ")";
@@ -511,12 +506,6 @@ void Compiler::PreCompile(ClassLoader* class_loader,
 void Compiler::PostCompile(ClassLoader* class_loader,
                            const std::vector<const DexFile*>& dex_files) {
   SetGcMaps(class_loader, dex_files);
-#if defined(ART_USE_LLVM_COMPILER)
-  CompilerCallbackFn f = FindFunction<CompilerCallbackFn>(MakeCompilerSoName(instruction_set_),
-                                                          compiler_library_,
-                                                          "compilerLLVMMaterializeRemainder");
-  (*f)(*this);
-#endif
 }
 
 bool Compiler::IsImageClass(const std::string& descriptor) const {
@@ -1680,33 +1669,6 @@ void Compiler::SetBitcodeFileName(std::string const& filename) {
                                        "compilerLLVMSetBitcodeFileName");
 
   set_bitcode_file_name(*this, filename);
-}
-#endif
-
-#if defined(ART_USE_LLVM_COMPILER)
-void Compiler::EnableAutoElfLoading() {
-  compiler_enable_auto_elf_loading_(*this);
-}
-
-const void* Compiler::GetMethodCodeAddr(const CompiledMethod* cm,
-                                        const Method* method) const {
-  return compiler_get_method_code_addr_(*this, cm, method);
-}
-
-const Method::InvokeStub* Compiler::GetMethodInvokeStubAddr(const CompiledInvokeStub* cm,
-                                                            const Method* method) const {
-  return compiler_get_method_invoke_stub_addr_(*this, cm, method);
-}
-
-std::vector<ElfImage> Compiler::GetElfImages() const {
-  typedef std::vector<ElfImage> (*GetElfImagesFn)(const Compiler&);
-
-  GetElfImagesFn get_elf_images =
-    FindFunction<GetElfImagesFn>(MakeCompilerSoName(instruction_set_),
-                                 compiler_library_,
-                                 "compilerLLVMGetElfImages");
-
-  return get_elf_images(*this);
 }
 #endif
 
