@@ -118,7 +118,7 @@ static const char* GetSignalName(int signal_number) {
     case SIGILL: return "SIGILL";
     case SIGPIPE: return "SIGPIPE";
     case SIGSEGV: return "SIGSEGV";
-#if defined(STIGSTLFKT)
+#if defined(SIGSTKFLT)
     case SIGSTKFLT: return "SIGSTKFLT";
 #endif
     case SIGTRAP: return "SIGTRAP";
