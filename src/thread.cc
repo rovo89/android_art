@@ -564,6 +564,9 @@ struct StackDumpVisitor : public Thread::StackVisitor {
   }
 
   virtual ~StackDumpVisitor() {
+    if (frame_count == 0) {
+      os << "  (no managed stack frames)\n";
+    }
   }
 
   bool VisitFrame(const Frame& frame, uintptr_t pc) {
@@ -620,10 +623,30 @@ struct StackDumpVisitor : public Thread::StackVisitor {
 void Thread::DumpStack(std::ostream& os) const {
   // If we're currently in native code, dump that stack before dumping the managed stack.
   if (GetState() == kNative || GetState() == kVmWait) {
+    DumpKernelStack(os);
     DumpNativeStack(os);
   }
   StackDumpVisitor dumper(os, this);
   WalkStack(&dumper);
+}
+
+void Thread::DumpKernelStack(std::ostream& os) const {
+#if !defined(__APPLE__)
+  std::string kernel_stack_filename(StringPrintf("/proc/self/task/%d/stack", GetTid()));
+  std::string kernel_stack;
+  if (!ReadFileToString(kernel_stack_filename, &kernel_stack)) {
+    os << "  (couldn't read " << kernel_stack_filename << ")";
+  }
+
+  std::vector<std::string> kernel_stack_frames;
+  Split(kernel_stack, '\n', kernel_stack_frames);
+  // We skip the last stack frame because it's always equivalent to "[<ffffffff>] 0xffffffff",
+  // which looking at the source appears to be the kernel's way of saying "that's all, folks!".
+  kernel_stack_frames.pop_back();
+  for (size_t i = 0; i < kernel_stack_frames.size(); ++i) {
+    os << "  kernel: " << kernel_stack_frames[i] << "\n";
+  }
+#endif
 }
 
 void Thread::SetStateWithoutSuspendCheck(ThreadState new_state) {
