@@ -484,6 +484,7 @@ class PACKED Thread {
 
   void DumpState(std::ostream& os) const;
   void DumpStack(std::ostream& os) const;
+  void DumpKernelStack(std::ostream& os) const;
   void DumpNativeStack(std::ostream& os) const;
 
   // Out-of-line conveniences for debugging in gdb.

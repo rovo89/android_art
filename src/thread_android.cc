@@ -97,6 +97,7 @@ void Thread::DumpNativeStack(std::ostream& os) const {
     os << "  (unwind_backtrace_thread failed for thread " << GetTid() << ".)";
     return;
   } else if (frame_count == 0) {
+    os << "  (no native stack frames)";
     return;
   }
 
