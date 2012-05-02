@@ -254,7 +254,7 @@ art_handle_fill_data_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
     mov    r2, r9                          @ pass Thread::Current
     mov    r3, sp                          @ pass SP
-    bl     artHandleFillArrayDataFromCode  @ (Array* array, const uint16_t* table, Thread*, SP)
+    bl     artHandleFillArrayDataFromCode  @ (Array*, const DexFile::Payload*, Thread*, SP)
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                          @ success?
     bxeq   lr                              @ return on success
