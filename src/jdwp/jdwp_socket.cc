@@ -558,7 +558,6 @@ static bool handlePacket(JdwpState* state) {
   JdwpReqHeader hdr;
   uint32_t length, id;
   uint8_t flags, cmdSet, cmd;
-  uint16_t error;
   bool reply;
   int dataLen;
 
@@ -571,7 +570,7 @@ static bool handlePacket(JdwpState* state) {
   flags = Read1(&buf);
   if ((flags & kJDWPFlagReply) != 0) {
     reply = true;
-    error = Read2BE(&buf);
+    Read2BE(&buf);  // error
   } else {
     reply = false;
     cmdSet = Read1(&buf);

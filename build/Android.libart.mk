@@ -79,6 +79,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : art/%.h
       LOCAL_CFLAGS += $(ART_TARGET_DEBUG_CFLAGS)
     else # host
       LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)
+      LOCAL_LDLIBS += $(ART_HOST_DEBUG_LDLIBS)
       LOCAL_STATIC_LIBRARIES := libgtest_host
     endif
   else
@@ -102,7 +103,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : art/%.h
     LOCAL_STATIC_LIBRARIES += libcutils
     LOCAL_SHARED_LIBRARIES += libz-host
     LOCAL_SHARED_LIBRARIES += libdynamic_annotations-host # tsan support
-    LOCAL_LDLIBS := -ldl -lpthread
+    LOCAL_LDLIBS += -ldl -lpthread
     ifeq ($(HOST_OS),linux)
       LOCAL_LDLIBS += -lrt
     endif

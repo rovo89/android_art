@@ -71,12 +71,7 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
 
   // Can either get 3 or 2 arguments into registers
   size_t reg_bytes = (is_static ? 3 : 2) * kPointerSize;
-  // Bytes passed by stack
-  size_t stack_bytes;
-  if (num_arg_array_bytes > reg_bytes) {
-    stack_bytes = num_arg_array_bytes - reg_bytes;
-  } else {
-    stack_bytes = 0;
+  if (num_arg_array_bytes <= reg_bytes) {
     reg_bytes = num_arg_array_bytes;
   }
 

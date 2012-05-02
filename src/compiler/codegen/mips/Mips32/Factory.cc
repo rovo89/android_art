@@ -434,7 +434,6 @@ LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
                                 int rIndex, int rSrc, int scale, OpSize size)
 {
     LIR *first = NULL;
-    LIR *res;
     MipsOpCode opcode = kMipsNop;
     int rNewIndex = rIndex;
     int tReg = oatAllocTemp(cUnit);
@@ -477,7 +476,7 @@ LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
         default:
             LOG(FATAL) << "Bad case in storeBaseIndexed";
     }
-    res = newLIR3(cUnit, opcode, rSrc, 0, tReg);
+    newLIR3(cUnit, opcode, rSrc, 0, tReg);
     oatFreeTemp(cUnit, rNewIndex);
     return first;
 }

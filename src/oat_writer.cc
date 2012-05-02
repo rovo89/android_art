@@ -258,8 +258,10 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                                     uint32_t method_idx, const DexFile* dex_file) {
   // derived from CompiledMethod if available
   uint32_t code_offset = 0;
+#if defined(ART_USE_LLVM_COMPILER)
   uint16_t code_elf_idx = static_cast<uint16_t>(-1u);
   uint16_t code_elf_func_idx = static_cast<uint16_t>(-1u);
+#endif
   uint32_t frame_size_in_bytes = kStackAlignment;
   uint32_t core_spill_mask = 0;
   uint32_t fp_spill_mask = 0;
@@ -268,15 +270,19 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   uint32_t gc_map_offset = 0;
   // derived from CompiledInvokeStub if available
   uint32_t invoke_stub_offset = 0;
+#if defined(ART_USE_LLVM_COMPILER)
   uint16_t invoke_stub_elf_idx = static_cast<uint16_t>(-1u);
   uint16_t invoke_stub_elf_func_idx = static_cast<uint16_t>(-1u);
+#endif
 
   CompiledMethod* compiled_method =
       compiler_->GetCompiledMethod(Compiler::MethodReference(dex_file, method_idx));
   if (compiled_method != NULL) {
     if (compiled_method->IsExecutableInElf()) {
+#if defined(ART_USE_LLVM_COMPILER)
       code_elf_idx = compiled_method->GetElfIndex();
       code_elf_func_idx = compiled_method->GetElfFuncIndex();
+#endif
       frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
     } else {
       offset = compiled_method->AlignCode(offset);
@@ -359,8 +365,10 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   const CompiledInvokeStub* compiled_invoke_stub = compiler_->FindInvokeStub(is_static, shorty);
   if (compiled_invoke_stub != NULL) {
     if (compiled_invoke_stub->IsExecutableInElf()) {
+#if defined(ART_USE_LLVM_COMPILER)
       invoke_stub_elf_idx = compiled_invoke_stub->GetElfIndex();
       invoke_stub_elf_func_idx = compiled_invoke_stub->GetElfFuncIndex();
+#endif
     } else {
       offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
       DCHECK_ALIGNED(offset, kArmAlignment);
@@ -600,10 +608,6 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
   const CompiledMethod* compiled_method =
       compiler_->GetCompiledMethod(Compiler::MethodReference(&dex_file, method_idx));
 
-  uint32_t frame_size_in_bytes = 0;
-  uint32_t core_spill_mask = 0;
-  uint32_t fp_spill_mask = 0;
-
   OatMethodOffsets method_offsets =
       oat_classes_[oat_class_index]->method_offsets_[class_def_method_index];
 
@@ -647,9 +651,6 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
         code_offset += code_size;
       }
       DCHECK_CODE_OFFSET();
-      frame_size_in_bytes = compiled_method->GetFrameSizeInBytes();
-      core_spill_mask = compiled_method->GetCoreSpillMask();
-      fp_spill_mask = compiled_method->GetFpSpillMask();
 
       const std::vector<uint32_t>& mapping_table = compiled_method->GetMappingTable();
       size_t mapping_table_size = mapping_table.size() * sizeof(mapping_table[0]);

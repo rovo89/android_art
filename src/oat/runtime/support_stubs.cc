@@ -89,8 +89,10 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
   bool is_static;
   bool is_virtual;
   uint32_t dex_method_idx;
+#if !defined(__i386__)
   const char* shorty;
   uint32_t shorty_len;
+#endif
   if (type == Runtime::kUnknownMethod) {
     DCHECK(called->IsRuntimeMethod());
     // less two as return address may span into next dex instruction
@@ -109,15 +111,19 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
            (instr_code == Instruction::INVOKE_DIRECT_RANGE));
     DecodedInstruction dec_insn(instr);
     dex_method_idx = dec_insn.vB;
+#if !defined(__i386__)
     shorty = linker->MethodShorty(dex_method_idx, caller, &shorty_len);
+#endif
   } else {
     DCHECK(!called->IsRuntimeMethod());
     is_static = type == Runtime::kStaticMethod;
     is_virtual = false;
     dex_method_idx = called->GetDexMethodIndex();
+#if !defined(__i386__)
     MethodHelper mh(called);
     shorty = mh.GetShorty();
     shorty_len = mh.GetShortyLength();
+#endif
   }
 #if !defined(__i386__)
   // Discover shorty (avoid GCs)
