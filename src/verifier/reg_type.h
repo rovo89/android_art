@@ -144,9 +144,7 @@ class RegType {
   }
 
   bool IsReferenceTypes() const {
-    return IsReference() || IsUnresolvedReference() || IsZero() ||
-        IsUninitializedReference() || IsUninitializedThisReference() ||
-        IsUnresolvedAndUninitializedReference() || IsUnresolvedAndUninitializedThisReference();
+    return IsNonZeroReferenceTypes() || IsZero();
   }
   bool IsNonZeroReferenceTypes() const {
     return IsReference() || IsUnresolvedReference() ||
