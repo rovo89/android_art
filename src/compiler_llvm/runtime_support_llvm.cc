@@ -159,14 +159,18 @@ void art_throw_verification_error_from_code(Method* current_method,
   ThrowVerificationError(art_get_current_thread_from_code(), current_method, kind, ref);
 }
 
-int32_t art_find_catch_block_from_code(Method* current_method, int32_t dex_pc) {
+int32_t art_find_catch_block_from_code(Method* current_method,
+                                       uint32_t ti_offset) {
   Thread* thread = art_get_current_thread_from_code();
   Class* exception_type = thread->GetException()->GetClass();
   MethodHelper mh(current_method);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
+  DCHECK_LT(ti_offset, code_item->tries_size_);
+  const DexFile::TryItem* try_item = DexFile::GetTryItems(*code_item, ti_offset);
+
   int iter_index = 0;
   // Iterate over the catch handlers associated with dex_pc
-  for (CatchHandlerIterator it(*code_item, dex_pc); it.HasNext(); it.Next()) {
+  for (CatchHandlerIterator it(*code_item, *try_item); it.HasNext(); it.Next()) {
     uint16_t iter_type_idx = it.GetHandlerTypeIndex();
     // Catch all case
     if (iter_type_idx == DexFile::kDexNoIndex16) {
