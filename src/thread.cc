@@ -630,8 +630,8 @@ void Thread::DumpStack(std::ostream& os) const {
   WalkStack(&dumper);
 }
 
-void Thread::DumpKernelStack(std::ostream& os) const {
 #if !defined(__APPLE__)
+void Thread::DumpKernelStack(std::ostream& os) const {
   std::string kernel_stack_filename(StringPrintf("/proc/self/task/%d/stack", GetTid()));
   std::string kernel_stack;
   if (!ReadFileToString(kernel_stack_filename, &kernel_stack)) {
@@ -646,8 +646,11 @@ void Thread::DumpKernelStack(std::ostream& os) const {
   for (size_t i = 0; i < kernel_stack_frames.size(); ++i) {
     os << "  kernel: " << kernel_stack_frames[i] << "\n";
   }
-#endif
 }
+#else
+// TODO: can we get the kernel stack on Mac OS?
+void Thread::DumpKernelStack(std::ostream&) const {}
+#endif
 
 void Thread::SetStateWithoutSuspendCheck(ThreadState new_state) {
   volatile void* raw = reinterpret_cast<volatile void*>(&state_);
