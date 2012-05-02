@@ -17,44 +17,46 @@
 #ifndef ART_SRC_ATOMIC_H_
 #define ART_SRC_ATOMIC_H_
 
-#include <cutils/atomic.h>          /* use common Android atomic ops */
-#include <cutils/atomic-inline.h>   /* and some uncommon ones */
+#include <stdint.h>
+
+#include "cutils/atomic.h"
+#include "cutils/atomic-inline.h"
+#include "macros.h"
 
 namespace art {
 
-/*
- * NOTE: Two "quasiatomic" operations on the exact same memory address
- * are guaranteed to operate atomically with respect to each other,
- * but no guarantees are made about quasiatomic operations mixed with
- * non-quasiatomic operations on the same address, nor about
- * quasiatomic operations that are performed on partially-overlapping
- * memory.
- *
- * Only the "Sync" functions provide a memory barrier.
- */
+// NOTE: Two "quasiatomic" operations on the exact same memory address
+// are guaranteed to operate atomically with respect to each other,
+// but no guarantees are made about quasiatomic operations mixed with
+// non-quasiatomic operations on the same address, nor about
+// quasiatomic operations that are performed on partially-overlapping
+// memory.
+//
+// Only the "Sync" functions provide a memory barrier.
+class QuasiAtomic {
+ public:
+  static void Startup();
 
-/*
- * Swap the 64-bit value at "addr" with "value".  Returns the previous
- * value. No memory barriers.
- */
-int64_t QuasiAtomicSwap64(int64_t value, volatile int64_t* addr);
+  static void Shutdown();
 
-/*
- * Swap the 64-bit value at "addr" with "value".  Returns the previous
- * value. Provides memory barriers.
- */
-int64_t QuasiAtomicSwap64Sync(int64_t value, volatile int64_t* addr);
+  // Swaps the 64-bit value at "addr" with "value".  Returns the previous
+  // value. No memory barriers.
+  static int64_t Swap64(int64_t value, volatile int64_t* addr);
 
-/*
- * Read the 64-bit value at "addr".
- */
-int64_t QuasiAtomicRead64(volatile const int64_t* addr);
+  // Swaps the 64-bit value at "addr" with "value".  Returns the previous
+  // value. Provides memory barriers.
+  static int64_t Swap64Sync(int64_t value, volatile int64_t* addr);
 
-/*
- * If the value at "addr" is equal to "old_value", replace it with "new_value"
- * and return 0.  Otherwise, don't swap, and return nonzero.
- */
-int QuasiAtomicCas64(int64_t old_value, int64_t new_value, volatile int64_t* addr);
+  // Reads the 64-bit value at "addr".
+  static int64_t Read64(volatile const int64_t* addr);
+
+  // If the value at "addr" is equal to "old_value", replace it with "new_value"
+  // and return 0. Otherwise, don't swap, and return nonzero.
+  static int Cas64(int64_t old_value, int64_t new_value, volatile int64_t* addr);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(QuasiAtomic);
+};
 
 }  // namespace art
 

@@ -54,7 +54,7 @@ static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj,
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   volatile int64_t* address = reinterpret_cast<volatile int64_t*>(raw_addr);
   // Note: android_atomic_cmpxchg() returns 0 on success, not failure.
-  int result = QuasiAtomicCas64(expectedValue, newValue, address);
+  int result = QuasiAtomic::Cas64(expectedValue, newValue, address);
   return (result == 0);
 }
 
