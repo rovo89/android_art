@@ -144,13 +144,13 @@ class RegType {
   }
 
   bool IsReferenceTypes() const {
-    return IsReference() || IsUnresolvedReference() ||  IsZero() ||
-        IsUninitializedReference() ||  IsUninitializedThisReference() ||
+    return IsReference() || IsUnresolvedReference() || IsZero() ||
+        IsUninitializedReference() || IsUninitializedThisReference() ||
         IsUnresolvedAndUninitializedReference() || IsUnresolvedAndUninitializedThisReference();
   }
   bool IsNonZeroReferenceTypes() const {
-    return IsReference() || IsUnresolvedReference() ||  IsZero() ||
-        IsUninitializedReference() ||  IsUninitializedThisReference() ||
+    return IsReference() || IsUnresolvedReference() ||
+        IsUninitializedReference() || IsUninitializedThisReference() ||
         IsUnresolvedAndUninitializedReference() || IsUnresolvedAndUninitializedThisReference();
   }
   bool IsCategory1Types() const {
