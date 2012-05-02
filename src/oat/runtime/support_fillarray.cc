@@ -15,6 +15,7 @@
  */
 
 #include "callee_save_frame.h"
+#include "dex_instruction.h"
 #include "object.h"
 
 namespace art {
@@ -34,25 +35,24 @@ namespace art {
  *  ubyte  data[size*width] table of data values (may contain a single-byte
  *                          padding at the end)
  */
-extern "C" int artHandleFillArrayDataFromCode(Array* array, const uint16_t* table,
+extern "C" int artHandleFillArrayDataFromCode(Array* array, const DexFile::Payload* payload,
                                               Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  DCHECK_EQ(table[0], 0x0300);
+  DCHECK_EQ(payload->ident, static_cast<uint16_t>(Instruction::kArrayDataSignature));
   if (UNLIKELY(array == NULL)) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
-        "null array in fill array");
+        "null array in FILL_ARRAY_DATA");
     return -1;  // Error
   }
   DCHECK(array->IsArrayInstance() && !array->IsObjectArray());
-  uint32_t size = (uint32_t)table[2] | (((uint32_t)table[3]) << 16);
-  if (UNLIKELY(static_cast<int32_t>(size) > array->GetLength())) {
+  if (UNLIKELY(static_cast<int32_t>(payload->element_count) > array->GetLength())) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
-        "failed array fill. length=%d; index=%d", array->GetLength(), size);
+                                          "failed FILL_ARRAY_DATA; length=%d, index=%d",
+                                          array->GetLength(), payload->element_count);
     return -1;  // Error
   }
-  uint16_t width = table[1];
-  uint32_t size_in_bytes = size * width;
-  memcpy((char*)array + Array::DataOffset(width).Int32Value(), (char*)&table[4], size_in_bytes);
+  uint32_t size_in_bytes = payload->element_count * payload->element_width;
+  memcpy(array->GetRawData(payload->element_width), payload->data, size_in_bytes);
   return 0;  // Success
 }
 

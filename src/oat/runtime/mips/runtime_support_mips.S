@@ -416,7 +416,7 @@ art_work_around_app_jni_bugs:
 art_handle_fill_data_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
     move    a2, rSELF                          @ pass Thread::Current
-    jal     artHandleFillArrayDataFromCode     @ (Array* array, const uint16_t* table, Thread*, SP)
+    jal     artHandleFillArrayDataFromCode     @ (Array*, const DexFile::Payload*, Thread*, SP)
     move    a3, sp                             @ pass SP
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     bnez    v0, 1f                             @ success?
