@@ -95,8 +95,9 @@ endif
 ART_HOST_NON_DEBUG_CFLAGS := $(art_non_debug_cflags)
 ART_TARGET_NON_DEBUG_CFLAGS := $(art_non_debug_cflags)
 
-# TODO: move -fkeep-inline-functions to art_debug_cflags when target gcc > 4.4
+# TODO: move -fkeep-inline-functions to art_debug_cflags when target gcc > 4.4 (and -lsupc++)
 ART_HOST_DEBUG_CFLAGS := $(art_debug_cflags) -fkeep-inline-functions
+ART_HOST_DEBUG_LDLIBS := -lsupc++
 
 ifneq ($(HOST_OS),linux)
   # Some Mac OS pthread header files are broken with -fkeep-inline-functions.

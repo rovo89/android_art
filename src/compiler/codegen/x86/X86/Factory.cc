@@ -530,15 +530,12 @@ LIR* storeBaseIndexedDisp(CompilationUnit *cUnit, MIR *mir,
                           int rSrc, int rSrcHi,
                           OpSize size, int sReg) {
   LIR *store = NULL;
-  LIR *store2 = NULL;
   bool isArray = rIndex != INVALID_REG;
   bool pair = false;
-  bool is64bit = false;
   X86OpCode opcode = kX86Nop;
   switch (size) {
     case kLong:
     case kDouble:
-      is64bit = true;
       if (FPREG(rSrc)) {
         opcode = isArray ? kX86MovsdAR : kX86MovsdMR;
         if (DOUBLEREG(rSrc)) {
@@ -582,18 +579,15 @@ LIR* storeBaseIndexedDisp(CompilationUnit *cUnit, MIR *mir,
       store = newLIR3(cUnit, opcode, rBase, displacement + LOWORD_OFFSET, rSrc);
     } else {
       store = newLIR3(cUnit, opcode, rBase, displacement + LOWORD_OFFSET, rSrc);
-      store2 = newLIR3(cUnit, opcode, rBase, displacement + HIWORD_OFFSET,
-                       rSrcHi);
+      newLIR3(cUnit, opcode, rBase, displacement + HIWORD_OFFSET, rSrcHi);
     }
   } else {
     if (!pair) {
       store = newLIR5(cUnit, opcode, rBase, rIndex, scale,
                       displacement + LOWORD_OFFSET, rSrc);
     } else {
-      store = newLIR5(cUnit, opcode, rBase, rIndex, scale,
-                      displacement + LOWORD_OFFSET, rSrc);
-      store2 = newLIR5(cUnit, opcode, rBase, rIndex, scale,
-                       displacement + HIWORD_OFFSET, rSrcHi);
+      store = newLIR5(cUnit, opcode, rBase, rIndex, scale, displacement + LOWORD_OFFSET, rSrc);
+      newLIR5(cUnit, opcode, rBase, rIndex, scale, displacement + HIWORD_OFFSET, rSrcHi);
     }
   }
 

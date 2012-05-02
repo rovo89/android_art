@@ -1016,9 +1016,7 @@ static JdwpError handleTR_FrameCount(JdwpState*, const uint8_t* buf, int, Expand
  * Get the monitor that the thread is waiting on.
  */
 static JdwpError handleTR_CurrentContendedMonitor(JdwpState*, const uint8_t* buf, int, ExpandBuf*) {
-  ObjectId threadId;
-
-  threadId = ReadObjectId(&buf);
+  ReadObjectId(&buf);  // threadId
 
   // TODO: create an Object to represent the monitor (we're currently
   // just using a raw Monitor struct in the VM)
@@ -1143,8 +1141,7 @@ static JdwpError handleAR_SetValues(JdwpState*, const uint8_t* buf, int, ExpandB
 }
 
 static JdwpError handleCLR_VisibleClasses(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply) {
-  ObjectId classLoaderObject;
-  classLoaderObject = ReadObjectId(&buf);
+  ReadObjectId(&buf);  // classLoaderObject
   // TODO: we should only return classes which have the given class loader as a defining or
   // initiating loader. The former would be easy; the latter is hard, because we don't have
   // any such notion.
