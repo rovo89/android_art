@@ -416,7 +416,7 @@ int64_t JdwpState::LastDebuggerActivity() {
     return -1;
   }
 
-  int64_t last = QuasiAtomicRead64(&lastActivityWhen);
+  int64_t last = QuasiAtomic::Read64(&lastActivityWhen);
 
   /* initializing or in the middle of something? */
   if (last == 0) {

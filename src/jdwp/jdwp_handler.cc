@@ -1629,7 +1629,7 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
      * so waitForDebugger() doesn't return if we stall for a bit here.
      */
     Dbg::GoActive();
-    QuasiAtomicSwap64(0, &lastActivityWhen);
+    QuasiAtomic::Swap64(0, &lastActivityWhen);
   }
 
   /*
@@ -1698,7 +1698,7 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
    * the initial setup.  Only update if this is a non-DDMS packet.
    */
   if (pHeader->cmdSet != kJDWPDdmCmdSet) {
-    QuasiAtomicSwap64(MilliTime(), &lastActivityWhen);
+    QuasiAtomic::Swap64(MilliTime(), &lastActivityWhen);
   }
 
   /* tell the VM that GC is okay again */
