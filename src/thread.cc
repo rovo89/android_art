@@ -412,9 +412,9 @@ void Thread::InitStackHwm() {
       size_t old_stack_size = stack_size_;
       stack_size_ = default_stack_size;
       stack_begin_ += (old_stack_size - stack_size_);
-      LOG(WARNING) << "Limiting unlimited stack (reported as " << PrettySize(old_stack_size) << ")"
-                   << " to " << PrettySize(stack_size_)
-                   << " with base " << reinterpret_cast<void*>(stack_begin_);
+      VLOG(threads) << "Limiting unlimited stack (reported as " << PrettySize(old_stack_size) << ")"
+                    << " to " << PrettySize(stack_size_)
+                    << " with base " << reinterpret_cast<void*>(stack_begin_);
     }
   }
 #endif

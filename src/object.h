@@ -361,7 +361,7 @@ class MANAGED Object {
     const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
     const int64_t* addr = reinterpret_cast<const int64_t*>(raw_addr);
     if (UNLIKELY(is_volatile)) {
-      uint64_t result = QuasiAtomicRead64(addr);
+      uint64_t result = QuasiAtomic::Read64(addr);
       ANDROID_MEMBAR_FULL();
       return result;
     } else {
@@ -375,7 +375,7 @@ class MANAGED Object {
     int64_t* addr = reinterpret_cast<int64_t*>(raw_addr);
     if (UNLIKELY(is_volatile)) {
       ANDROID_MEMBAR_STORE();
-      QuasiAtomicSwap64(new_value, addr);
+      QuasiAtomic::Swap64(new_value, addr);
       // Post-store barrier not required due to use of atomic op or mutex.
     } else {
       *addr = new_value;

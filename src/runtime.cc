@@ -108,6 +108,8 @@ Runtime::~Runtime() {
   delete intern_table_;
   delete java_vm_;
   Thread::Shutdown();
+  QuasiAtomic::Shutdown();
+
   // TODO: acquire a static mutex on Runtime to avoid racing.
   CHECK(instance_ == NULL || instance_ == this);
   instance_ = NULL;
@@ -614,6 +616,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
     return false;
   }
   VLOG(startup) << "Runtime::Init -verbose:startup enabled";
+
+  QuasiAtomic::Startup();
 
   SetJniGlobalsMax(options->jni_globals_max_);
   Monitor::Init(options->lock_profiling_threshold_, options->hook_is_sensitive_thread_);
