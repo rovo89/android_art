@@ -307,15 +307,6 @@ class DexFile {
     DISALLOW_COPY_AND_ASSIGN(AnnotationItem);
   };
 
-  struct PACKED Payload {
-    uint16_t ident; // kPackedSwitchSignature, kSparseSwitchSignature, or kArrayDataSignature.
-    uint16_t element_width;
-    uint32_t element_count;
-    uint8_t data[];
-   private:
-    DISALLOW_COPY_AND_ASSIGN(Payload);
-  };
-
   typedef std::pair<const DexFile*, const DexFile::ClassDef*> ClassPathEntry;
   typedef std::vector<const DexFile*> ClassPath;
 

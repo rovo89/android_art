@@ -1886,35 +1886,29 @@ void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
   DecodedInstruction dec_insn(insn);
 
   // Read the payload
-  struct PACKED Payload {
-    uint16_t ident_;
-    uint16_t elem_width_;
-    uint32_t num_elems_;
-    uint8_t data_[];
-  };
-
   int32_t payload_offset = static_cast<int32_t>(dex_pc) +
                            static_cast<int32_t>(dec_insn.vB);
 
-  Payload const* payload =
-    reinterpret_cast<Payload const*>(code_item_->insns_ + payload_offset);
+  const Instruction::ArrayDataPayload* payload =
+    reinterpret_cast<const Instruction::ArrayDataPayload*>(
+        code_item_->insns_ + payload_offset);
 
-  uint32_t size_in_bytes = payload->elem_width_ * payload->num_elems_;
+  uint32_t size_in_bytes = payload->element_width * payload->element_count;
 
   // Load and check the array
   llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
 
   EmitGuard_NullPointerException(dex_pc, array_addr);
 
-  if (payload->num_elems_ > 0) {
+  if (payload->element_count > 0) {
     // Test: Is array length big enough?
-    llvm::Constant* last_index = irb_.getJInt(payload->num_elems_ - 1);
+    llvm::Constant* last_index = irb_.getJInt(payload->element_count - 1);
 
     EmitGuard_ArrayIndexOutOfBoundsException(dex_pc, array_addr, last_index);
 
     // Get array data field
     llvm::Value* data_field_offset_value =
-      irb_.getPtrEquivInt(Array::DataOffset(payload->elem_width_).Int32Value());
+      irb_.getPtrEquivInt(Array::DataOffset(payload->element_width).Int32Value());
 
     llvm::Value* data_field_addr =
       irb_.CreatePtrDisp(array_addr, data_field_offset_value,
@@ -1923,7 +1917,7 @@ void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
     // Emit payload to bitcode constant pool
     std::vector<llvm::Constant*> const_pool_data;
     for (uint32_t i = 0; i < size_in_bytes; ++i) {
-      const_pool_data.push_back(irb_.getInt8(payload->data_[i]));
+      const_pool_data.push_back(irb_.getInt8(payload->data[i]));
     }
 
     llvm::Constant* const_pool_data_array_value = llvm::ConstantArray::get(
@@ -1985,27 +1979,21 @@ void MethodCompiler::EmitInsn_PackedSwitch(uint32_t dex_pc,
 
   DecodedInstruction dec_insn(insn);
 
-  struct PACKED Payload {
-    uint16_t ident_;
-    uint16_t num_cases_;
-    int32_t first_key_;
-    int32_t targets_[];
-  };
-
   int32_t payload_offset = static_cast<int32_t>(dex_pc) +
                            static_cast<int32_t>(dec_insn.vB);
 
-  Payload const* payload =
-    reinterpret_cast<Payload const*>(code_item_->insns_ + payload_offset);
+  const Instruction::PackedSwitchPayload* payload =
+    reinterpret_cast<const Instruction::PackedSwitchPayload*>(
+        code_item_->insns_ + payload_offset);
 
   llvm::Value* value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
 
   llvm::SwitchInst* sw =
-    irb_.CreateSwitch(value, GetNextBasicBlock(dex_pc), payload->num_cases_);
+    irb_.CreateSwitch(value, GetNextBasicBlock(dex_pc), payload->case_count);
 
-  for (uint16_t i = 0; i < payload->num_cases_; ++i) {
-    sw->addCase(irb_.getInt32(payload->first_key_ + i),
-                GetBasicBlock(dex_pc + payload->targets_[i]));
+  for (uint16_t i = 0; i < payload->case_count; ++i) {
+    sw->addCase(irb_.getInt32(payload->first_key + i),
+                GetBasicBlock(dex_pc + payload->targets[i]));
   }
 }
 
@@ -2015,27 +2003,22 @@ void MethodCompiler::EmitInsn_SparseSwitch(uint32_t dex_pc,
 
   DecodedInstruction dec_insn(insn);
 
-  struct PACKED Payload {
-    uint16_t ident_;
-    uint16_t num_cases_;
-    int32_t keys_and_targets_[];
-  };
-
   int32_t payload_offset = static_cast<int32_t>(dex_pc) +
                            static_cast<int32_t>(dec_insn.vB);
 
-  Payload const* payload =
-    reinterpret_cast<Payload const*>(code_item_->insns_ + payload_offset);
+  const Instruction::SparseSwitchPayload* payload =
+    reinterpret_cast<const Instruction::SparseSwitchPayload*>(
+        code_item_->insns_ + payload_offset);
 
-  int32_t const* keys = payload->keys_and_targets_;
-  int32_t const* targets = payload->keys_and_targets_ + payload->num_cases_;
+  const int32_t* keys = payload->GetKeys();
+  const int32_t* targets = payload->GetTargets();
 
   llvm::Value* value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
 
   llvm::SwitchInst* sw =
-    irb_.CreateSwitch(value, GetNextBasicBlock(dex_pc), payload->num_cases_);
+    irb_.CreateSwitch(value, GetNextBasicBlock(dex_pc), payload->case_count);
 
-  for (size_t i = 0; i < payload->num_cases_; ++i) {
+  for (size_t i = 0; i < payload->case_count; ++i) {
     sw->addCase(irb_.getInt32(keys[i]), GetBasicBlock(dex_pc + targets[i]));
   }
 }

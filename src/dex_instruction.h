@@ -38,6 +38,42 @@ class Instruction {
     kArrayDataSignature = 0x0300,
   };
 
+  struct PACKED PackedSwitchPayload {
+    const uint16_t ident;
+    const uint16_t case_count;
+    const int32_t first_key;
+    const int32_t targets[];
+   private:
+    DISALLOW_COPY_AND_ASSIGN(PackedSwitchPayload);
+  };
+
+  struct PACKED SparseSwitchPayload {
+    const uint16_t ident;
+    const uint16_t case_count;
+    const int32_t keys_and_targets[];
+
+   public:
+    const int32_t* GetKeys() const {
+      return keys_and_targets;
+    }
+
+    const int32_t* GetTargets() const {
+      return keys_and_targets + case_count;
+    }
+
+   private:
+    DISALLOW_COPY_AND_ASSIGN(SparseSwitchPayload);
+  };
+
+  struct PACKED ArrayDataPayload {
+    const uint16_t ident;
+    const uint16_t element_width;
+    const uint32_t element_count;
+    const uint8_t data[];
+   private:
+    DISALLOW_COPY_AND_ASSIGN(ArrayDataPayload);
+  };
+
   enum Code {
 #define INSTRUCTION_ENUM(opcode, cname, p, f, r, i, a, v) cname = opcode,
 #include "dex_instruction_list.h"
