@@ -1893,65 +1893,31 @@ void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
     reinterpret_cast<const Instruction::ArrayDataPayload*>(
         code_item_->insns_ + payload_offset);
 
-  uint32_t size_in_bytes = payload->element_width * payload->element_count;
-
-  // Load and check the array
+  // Load array object
   llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
 
-  EmitGuard_NullPointerException(dex_pc, array_addr);
+  if (payload->element_count == 0) {
+    // When the number of the elements in the payload is zero, we don't have
+    // to copy any numbers.  However, we should check whether the array object
+    // address is equal to null or not.
+    EmitGuard_NullPointerException(dex_pc, array_addr);
+  } else {
+    // To save the code size, we are going to call the runtime function to
+    // copy the content from DexFile.
 
-  if (payload->element_count > 0) {
-    // Test: Is array length big enough?
-    llvm::Constant* last_index = irb_.getJInt(payload->element_count - 1);
+    // NOTE: We will check for the NullPointerException in the runtime.
 
-    EmitGuard_ArrayIndexOutOfBoundsException(dex_pc, array_addr, last_index);
+    llvm::Function* runtime_func = irb_.GetRuntime(FillArrayData);
 
-    // Get array data field
-    llvm::Value* data_field_offset_value =
-      irb_.getPtrEquivInt(Array::DataOffset(payload->element_width).Int32Value());
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-    llvm::Value* data_field_addr =
-      irb_.CreatePtrDisp(array_addr, data_field_offset_value,
-                         irb_.getInt8Ty()->getPointerTo());
+    EmitUpdateDexPC(dex_pc);
 
-    // Emit payload to bitcode constant pool
-    std::vector<llvm::Constant*> const_pool_data;
-    for (uint32_t i = 0; i < size_in_bytes; ++i) {
-      const_pool_data.push_back(irb_.getInt8(payload->data[i]));
-    }
+    irb_.CreateCall4(runtime_func,
+                     method_object_addr, irb_.getInt32(dex_pc),
+                     array_addr, irb_.getInt32(payload_offset));
 
-    llvm::Constant* const_pool_data_array_value = llvm::ConstantArray::get(
-      llvm::ArrayType::get(irb_.getInt8Ty(), size_in_bytes), const_pool_data);
-
-    llvm::Value* const_pool_data_array_addr =
-      new llvm::GlobalVariable(*module_,
-                               const_pool_data_array_value->getType(),
-                               false, llvm::GlobalVariable::InternalLinkage,
-                               const_pool_data_array_value,
-                               "array_data_payload");
-
-    // Find the memcpy intrinsic
-    llvm::Type* memcpy_arg_types[] = {
-      llvm::Type::getInt8Ty(*context_)->getPointerTo(),
-      llvm::Type::getInt8Ty(*context_)->getPointerTo(),
-      llvm::Type::getInt32Ty(*context_)
-    };
-
-    llvm::Function* memcpy_intrinsic =
-      llvm::Intrinsic::getDeclaration(module_,
-                                      llvm::Intrinsic::memcpy,
-                                      memcpy_arg_types);
-
-    // Copy now!
-    llvm::Value *args[] = {
-      data_field_addr,
-      irb_.CreateConstGEP2_32(const_pool_data_array_addr, 0, 0),
-      irb_.getInt32(size_in_bytes),
-      irb_.getInt32(0), // alignment: no guarantee
-      irb_.getFalse() // is_volatile: false
-    };
-
-    irb_.CreateCall(memcpy_intrinsic, args);
+    EmitGuard_ExceptionLandingPad(dex_pc);
   }
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));

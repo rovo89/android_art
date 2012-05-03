@@ -59,6 +59,7 @@
   V(Get64Instance, art_get64_instance_from_code) \
   V(GetObjectInstance, art_get_obj_instance_from_code) \
   V(InitializeStaticStorage, art_initialize_static_storage_from_code) \
+  V(FillArrayData, art_fill_array_data_from_code) \
   V(IsExceptionPending, art_is_exception_pending_from_code) \
   V(FindCatchBlock, art_find_catch_block_from_code) \
   V(MarkGCCard, art_mark_gc_card_from_code) \

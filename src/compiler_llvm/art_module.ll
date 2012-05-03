@@ -144,6 +144,10 @@ declare %JavaObject* @art_decode_jobject_in_thread(%JavaObject*,
                                                    %JavaObject*)
 
 
+declare void @art_fill_array_data_from_code(%JavaObject*, i32,
+                                            %JavaObject*, i32)
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Type Checking, in the nature of casting
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -15,6 +15,8 @@
  */
 
 #include "class_linker.h"
+#include "dex_file.h"
+#include "dex_instruction.h"
 #include "nth_caller_visitor.h"
 #include "object.h"
 #include "object_utils.h"
@@ -495,6 +497,42 @@ Object* art_decode_jobject_in_thread(Thread* thread, jobject obj) {
   }
   return thread->DecodeJObject(obj);
 }
+
+void art_fill_array_data_from_code(Method* method, uint32_t dex_pc,
+                                   Array* array, uint32_t payload_offset) {
+  // Test: Is array equal to null? (Guard NullPointerException)
+  if (UNLIKELY(array == NULL)) {
+    art_throw_null_pointer_exception_from_code(dex_pc);
+    return;
+  }
+
+  // Find the payload from the CodeItem
+  MethodHelper mh(method);
+  const DexFile::CodeItem* code_item = mh.GetCodeItem();
+
+  DCHECK_GT(code_item->insns_size_in_code_units_, payload_offset);
+
+  const Instruction::ArrayDataPayload* payload =
+    reinterpret_cast<const Instruction::ArrayDataPayload*>(
+        code_item->insns_ + payload_offset);
+
+  DCHECK_EQ(payload->ident,
+            static_cast<uint16_t>(Instruction::kArrayDataSignature));
+
+  // Test: Is array big enough?
+  uint32_t array_len = static_cast<uint32_t>(array->GetLength());
+  if (UNLIKELY(array_len < payload->element_count)) {
+    int32_t last_index = payload->element_count - 1;
+    art_throw_array_bounds_from_code(array_len, last_index);
+    return;
+  }
+
+  // Copy the data
+  size_t size = payload->element_width * payload->element_count;
+  memcpy(array->GetRawData(payload->element_width), payload->data, size);
+}
+
+
 
 //----------------------------------------------------------------------------
 // Type checking, in the nature of casting
