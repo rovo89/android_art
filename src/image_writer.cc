@@ -92,6 +92,10 @@ bool ImageWriter::Write(const std::string& image_filename,
     LOG(ERROR) << "Failed to open image file " << image_filename;
     return false;
   }
+  if (fchmod(file->Fd(), 0644) != 0) {
+    PLOG(ERROR) << "Failed to make image file world readable: " << image_filename;
+    return EXIT_FAILURE;
+  }
   bool success = file->WriteFully(image_->Begin(), image_end_);
   if (!success) {
     PLOG(ERROR) << "Failed to write image file " << image_filename;
