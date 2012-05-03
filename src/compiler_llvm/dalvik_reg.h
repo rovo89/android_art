@@ -39,6 +39,10 @@ class DalvikReg {
 
   static DalvikReg* CreateRetValReg(MethodCompiler& method_compiler);
 
+  static llvm::Type* GetRegCategoryEquivSizeTy(IRBuilder& irb, RegCategory reg_cat);
+
+  static char GetRegCategoryNamePrefix(RegCategory reg_cat);
+
   virtual ~DalvikReg();
 
   llvm::Value* GetValue(JType jty, JTypeSpace space);

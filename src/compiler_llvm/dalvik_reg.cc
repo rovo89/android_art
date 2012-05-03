@@ -86,6 +86,30 @@ DalvikReg::~DalvikReg() {
 }
 
 
+llvm::Type* DalvikReg::GetRegCategoryEquivSizeTy(IRBuilder& irb, RegCategory reg_cat) {
+  switch (reg_cat) {
+  case kRegCat1nr:  return irb.getJIntTy();
+  case kRegCat2:    return irb.getJLongTy();
+  case kRegObject:  return irb.getJObjectTy();
+  default:
+    LOG(FATAL) << "Unknown register category: " << reg_cat;
+    return NULL;
+  }
+}
+
+
+char DalvikReg::GetRegCategoryNamePrefix(RegCategory reg_cat) {
+  switch (reg_cat) {
+  case kRegCat1nr:  return 'r';
+  case kRegCat2:    return 'w';
+  case kRegObject:  return 'p';
+  default:
+    LOG(FATAL) << "Unknown register category: " << reg_cat;
+    return '\0';
+  }
+}
+
+
 inline llvm::Value* DalvikReg::RegCat1SExt(llvm::Value* value) {
   return irb_.CreateSExt(value, irb_.getJIntTy());
 }
