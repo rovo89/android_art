@@ -684,52 +684,6 @@ const OatFile* ClassLinker::FindOpenedOatFileFromDexLocation(const std::string& 
   return NULL;
 }
 
-class LockedFd {
- public:
-  static LockedFd* CreateAndLock(std::string& name, mode_t mode) {
-    int fd = open(name.c_str(), O_CREAT | O_RDWR, mode);
-    if (fd == -1) {
-      PLOG(ERROR) << "Failed to open file '" << name << "'";
-      return NULL;
-    }
-    fchmod(fd, mode);
-
-    LOG(INFO) << "locking file " << name << " (fd=" << fd << ")";
-    // try to lock non-blocking so we can log if we need may need to block
-    int result = flock(fd, LOCK_EX | LOCK_NB);
-    if (result == -1) {
-        LOG(WARNING) << "sleeping while locking file " << name;
-        // retry blocking
-        result = flock(fd, LOCK_EX);
-    }
-    if (result == -1) {
-      PLOG(ERROR) << "Failed to lock file '" << name << "'";
-      close(fd);
-      return NULL;
-    }
-    return new LockedFd(fd);
-  }
-
-  int GetFd() const {
-    return fd_;
-  }
-
-  ~LockedFd() {
-    if (fd_ != -1) {
-      int result = flock(fd_, LOCK_UN);
-      if (result == -1) {
-        PLOG(WARNING) << "flock(" << fd_ << ", LOCK_UN) failed";
-      }
-      close(fd_);
-    }
-  }
-
- private:
-  explicit LockedFd(int fd) : fd_(fd) {}
-
-  int fd_;
-};
-
 static const DexFile* FindDexFileInOatLocation(const std::string& dex_location,
                                                uint32_t dex_location_checksum,
                                                const std::string& oat_location) {

@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 
 #include <iostream>
 #include <fstream>
@@ -639,7 +640,8 @@ static int dex2oat(int argc, char** argv) {
 
   // Check early that the result of compilation can be written
   UniquePtr<File> oat_file;
-  if (!oat_filename.empty()) {
+  bool create_file = !oat_filename.empty();  // as opposed to using open file descriptor
+  if (create_file) {
     oat_file.reset(OS::OpenFile(oat_filename.c_str(), true));
     if (oat_location.empty()) {
       oat_location = oat_filename;
@@ -648,7 +650,11 @@ static int dex2oat(int argc, char** argv) {
     oat_file.reset(OS::FileFromFd(oat_location.c_str(), oat_fd));
   }
   if (oat_file.get() == NULL) {
-    PLOG(ERROR) << "Unable to create oat file: " << oat_location;
+    PLOG(ERROR) << "Failed to create oat file: " << oat_location;
+    return EXIT_FAILURE;
+  }
+  if (create_file && fchmod(oat_file->Fd(), 0644) != 0) {
+    PLOG(ERROR) << "Failed to make oat file world readable: " << oat_location;
     return EXIT_FAILURE;
   }
 
