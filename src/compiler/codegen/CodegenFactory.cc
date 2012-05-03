@@ -33,25 +33,25 @@ namespace art {
  */
 LIR* loadConstant(CompilationUnit* cUnit, int rDest, int value)
 {
-    if (oatIsTemp(cUnit, rDest)) {
-        oatClobber(cUnit, rDest);
-        oatMarkInUse(cUnit, rDest);
-    }
-    return loadConstantNoClobber(cUnit, rDest, value);
+  if (oatIsTemp(cUnit, rDest)) {
+    oatClobber(cUnit, rDest);
+    oatMarkInUse(cUnit, rDest);
+  }
+  return loadConstantNoClobber(cUnit, rDest, value);
 }
 
 /* Load a word at base + displacement.  Displacement must be word multiple */
 LIR* loadWordDisp(CompilationUnit* cUnit, int rBase, int displacement,
                   int rDest)
 {
-    return loadBaseDisp(cUnit, NULL, rBase, displacement, rDest, kWord,
-                        INVALID_SREG);
+  return loadBaseDisp(cUnit, NULL, rBase, displacement, rDest, kWord,
+                      INVALID_SREG);
 }
 
 LIR* storeWordDisp(CompilationUnit* cUnit, int rBase, int displacement,
                    int rSrc)
 {
-    return storeBaseDisp(cUnit, rBase, displacement, rSrc, kWord);
+  return storeBaseDisp(cUnit, rBase, displacement, rSrc, kWord);
 }
 
 /*
@@ -61,14 +61,14 @@ LIR* storeWordDisp(CompilationUnit* cUnit, int rBase, int displacement,
  */
 void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int rDest)
 {
-    rlSrc = oatUpdateLoc(cUnit, rlSrc);
-    if (rlSrc.location == kLocPhysReg) {
-        opRegCopy(cUnit, rDest, rlSrc.lowReg);
-    } else {
-        DCHECK((rlSrc.location == kLocDalvikFrame) ||
-               (rlSrc.location == kLocCompilerTemp));
-        loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, rlSrc.sRegLow), rDest);
-    }
+  rlSrc = oatUpdateLoc(cUnit, rlSrc);
+  if (rlSrc.location == kLocPhysReg) {
+    opRegCopy(cUnit, rDest, rlSrc.lowReg);
+  } else {
+    DCHECK((rlSrc.location == kLocDalvikFrame) ||
+           (rlSrc.location == kLocCompilerTemp));
+    loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, rlSrc.sRegLow), rDest);
+  }
 }
 
 /*
@@ -78,9 +78,9 @@ void loadValueDirect(CompilationUnit* cUnit, RegLocation rlSrc, int rDest)
  */
 void loadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc, int rDest)
 {
-    oatClobber(cUnit, rDest);
-    oatMarkInUse(cUnit, rDest);
-    loadValueDirect(cUnit, rlSrc, rDest);
+  oatClobber(cUnit, rDest);
+  oatMarkInUse(cUnit, rDest);
+  loadValueDirect(cUnit, rlSrc, rDest);
 }
 
 /*
@@ -89,18 +89,17 @@ void loadValueDirectFixed(CompilationUnit* cUnit, RegLocation rlSrc, int rDest)
  * register liveness.  That is the responsibility of the caller.
  */
 void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc, int regLo,
-                         int regHi)
+             int regHi)
 {
-    rlSrc = oatUpdateLocWide(cUnit, rlSrc);
-    if (rlSrc.location == kLocPhysReg) {
-        opRegCopyWide(cUnit, regLo, regHi, rlSrc.lowReg, rlSrc.highReg);
-    } else {
-        DCHECK((rlSrc.location == kLocDalvikFrame) ||
-               (rlSrc.location == kLocCompilerTemp));
-        loadBaseDispWide(cUnit, NULL, rSP,
-                         oatSRegOffset(cUnit, rlSrc.sRegLow),
-                         regLo, regHi, INVALID_SREG);
-    }
+  rlSrc = oatUpdateLocWide(cUnit, rlSrc);
+  if (rlSrc.location == kLocPhysReg) {
+    opRegCopyWide(cUnit, regLo, regHi, rlSrc.lowReg, rlSrc.highReg);
+  } else {
+    DCHECK((rlSrc.location == kLocDalvikFrame) ||
+           (rlSrc.location == kLocCompilerTemp));
+    loadBaseDispWide(cUnit, NULL, rSP, oatSRegOffset(cUnit, rlSrc.sRegLow),
+                     regLo, regHi, INVALID_SREG);
+  }
 }
 
 /*
@@ -111,161 +110,159 @@ void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc, int regLo,
 void loadValueDirectWideFixed(CompilationUnit* cUnit, RegLocation rlSrc,
                               int regLo, int regHi)
 {
-    oatClobber(cUnit, regLo);
-    oatClobber(cUnit, regHi);
-    oatMarkInUse(cUnit, regLo);
-    oatMarkInUse(cUnit, regHi);
-    loadValueDirectWide(cUnit, rlSrc, regLo, regHi);
+  oatClobber(cUnit, regLo);
+  oatClobber(cUnit, regHi);
+  oatMarkInUse(cUnit, regLo);
+  oatMarkInUse(cUnit, regHi);
+  loadValueDirectWide(cUnit, rlSrc, regLo, regHi);
 }
 
 RegLocation loadValue(CompilationUnit* cUnit, RegLocation rlSrc,
                       RegisterClass opKind)
 {
-    rlSrc = oatEvalLoc(cUnit, rlSrc, opKind, false);
-    if (rlSrc.location != kLocPhysReg) {
-        DCHECK((rlSrc.location == kLocDalvikFrame) ||
-               (rlSrc.location == kLocCompilerTemp));
-        loadValueDirect(cUnit, rlSrc, rlSrc.lowReg);
-        rlSrc.location = kLocPhysReg;
-        oatMarkLive(cUnit, rlSrc.lowReg, rlSrc.sRegLow);
-    }
-    return rlSrc;
+  rlSrc = oatEvalLoc(cUnit, rlSrc, opKind, false);
+  if (rlSrc.location != kLocPhysReg) {
+    DCHECK((rlSrc.location == kLocDalvikFrame) ||
+           (rlSrc.location == kLocCompilerTemp));
+    loadValueDirect(cUnit, rlSrc, rlSrc.lowReg);
+    rlSrc.location = kLocPhysReg;
+    oatMarkLive(cUnit, rlSrc.lowReg, rlSrc.sRegLow);
+  }
+  return rlSrc;
 }
 
 void storeValue(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
 #ifndef NDEBUG
-    /*
-     * Sanity checking - should never try to store to the same
-     * ssa name during the compilation of a single instruction
-     * without an intervening oatClobberSReg().
-     */
-    DCHECK((cUnit->liveSReg == INVALID_SREG) ||
-           (rlDest.sRegLow != cUnit->liveSReg));
-    cUnit->liveSReg = rlDest.sRegLow;
+  /*
+   * Sanity checking - should never try to store to the same
+   * ssa name during the compilation of a single instruction
+   * without an intervening oatClobberSReg().
+   */
+  DCHECK((cUnit->liveSReg == INVALID_SREG) ||
+         (rlDest.sRegLow != cUnit->liveSReg));
+  cUnit->liveSReg = rlDest.sRegLow;
 #endif
-    LIR* defStart;
-    LIR* defEnd;
-    DCHECK(!rlDest.wide);
-    DCHECK(!rlSrc.wide);
-    rlSrc = oatUpdateLoc(cUnit, rlSrc);
-    rlDest = oatUpdateLoc(cUnit, rlDest);
-    if (rlSrc.location == kLocPhysReg) {
-        if (oatIsLive(cUnit, rlSrc.lowReg) ||
-            oatIsPromoted(cUnit, rlSrc.lowReg) ||
-            (rlDest.location == kLocPhysReg)) {
-            // Src is live/promoted or Dest has assigned reg.
-            rlDest = oatEvalLoc(cUnit, rlDest, kAnyReg, false);
-            opRegCopy(cUnit, rlDest.lowReg, rlSrc.lowReg);
-        } else {
-            // Just re-assign the registers.  Dest gets Src's regs
-            rlDest.lowReg = rlSrc.lowReg;
-            oatClobber(cUnit, rlSrc.lowReg);
-        }
+  LIR* defStart;
+  LIR* defEnd;
+  DCHECK(!rlDest.wide);
+  DCHECK(!rlSrc.wide);
+  rlSrc = oatUpdateLoc(cUnit, rlSrc);
+  rlDest = oatUpdateLoc(cUnit, rlDest);
+  if (rlSrc.location == kLocPhysReg) {
+    if (oatIsLive(cUnit, rlSrc.lowReg) ||
+      oatIsPromoted(cUnit, rlSrc.lowReg) ||
+      (rlDest.location == kLocPhysReg)) {
+      // Src is live/promoted or Dest has assigned reg.
+      rlDest = oatEvalLoc(cUnit, rlDest, kAnyReg, false);
+      opRegCopy(cUnit, rlDest.lowReg, rlSrc.lowReg);
     } else {
-        // Load Src either into promoted Dest or temps allocated for Dest
-        rlDest = oatEvalLoc(cUnit, rlDest, kAnyReg, false);
-        loadValueDirect(cUnit, rlSrc, rlDest.lowReg);
+      // Just re-assign the registers.  Dest gets Src's regs
+      rlDest.lowReg = rlSrc.lowReg;
+      oatClobber(cUnit, rlSrc.lowReg);
     }
+  } else {
+    // Load Src either into promoted Dest or temps allocated for Dest
+    rlDest = oatEvalLoc(cUnit, rlDest, kAnyReg, false);
+    loadValueDirect(cUnit, rlSrc, rlDest.lowReg);
+  }
 
-    // Dest is now live and dirty (until/if we flush it to home location)
-    oatMarkLive(cUnit, rlDest.lowReg, rlDest.sRegLow);
-    oatMarkDirty(cUnit, rlDest);
+  // Dest is now live and dirty (until/if we flush it to home location)
+  oatMarkLive(cUnit, rlDest.lowReg, rlDest.sRegLow);
+  oatMarkDirty(cUnit, rlDest);
 
 
-    oatResetDefLoc(cUnit, rlDest);
-    if (oatIsDirty(cUnit, rlDest.lowReg) &&
-        oatLiveOut(cUnit, rlDest.sRegLow)) {
-        defStart = (LIR* )cUnit->lastLIRInsn;
-        storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, rlDest.sRegLow),
-                      rlDest.lowReg, kWord);
-        oatMarkClean(cUnit, rlDest);
-        defEnd = (LIR* )cUnit->lastLIRInsn;
-        oatMarkDef(cUnit, rlDest, defStart, defEnd);
-    }
+  oatResetDefLoc(cUnit, rlDest);
+  if (oatIsDirty(cUnit, rlDest.lowReg) &&
+      oatLiveOut(cUnit, rlDest.sRegLow)) {
+    defStart = (LIR* )cUnit->lastLIRInsn;
+    storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, rlDest.sRegLow),
+                  rlDest.lowReg, kWord);
+    oatMarkClean(cUnit, rlDest);
+    defEnd = (LIR* )cUnit->lastLIRInsn;
+    oatMarkDef(cUnit, rlDest, defStart, defEnd);
+  }
 }
 
 RegLocation loadValueWide(CompilationUnit* cUnit, RegLocation rlSrc,
-                          RegisterClass opKind)
+              RegisterClass opKind)
 {
-    DCHECK(rlSrc.wide);
-    rlSrc = oatEvalLoc(cUnit, rlSrc, opKind, false);
-    if (rlSrc.location != kLocPhysReg) {
-        DCHECK((rlSrc.location == kLocDalvikFrame) ||
-               (rlSrc.location == kLocCompilerTemp));
-        loadValueDirectWide(cUnit, rlSrc, rlSrc.lowReg, rlSrc.highReg);
-        rlSrc.location = kLocPhysReg;
-        oatMarkLive(cUnit, rlSrc.lowReg, rlSrc.sRegLow);
-        oatMarkLive(cUnit, rlSrc.highReg,
-                            oatSRegHi(rlSrc.sRegLow));
-    }
-    return rlSrc;
+  DCHECK(rlSrc.wide);
+  rlSrc = oatEvalLoc(cUnit, rlSrc, opKind, false);
+  if (rlSrc.location != kLocPhysReg) {
+    DCHECK((rlSrc.location == kLocDalvikFrame) ||
+        (rlSrc.location == kLocCompilerTemp));
+    loadValueDirectWide(cUnit, rlSrc, rlSrc.lowReg, rlSrc.highReg);
+    rlSrc.location = kLocPhysReg;
+    oatMarkLive(cUnit, rlSrc.lowReg, rlSrc.sRegLow);
+    oatMarkLive(cUnit, rlSrc.highReg,
+                oatSRegHi(rlSrc.sRegLow));
+  }
+  return rlSrc;
 }
 
 void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
-                    RegLocation rlSrc)
+          RegLocation rlSrc)
 {
 #ifndef NDEBUG
-    /*
-     * Sanity checking - should never try to store to the same
-     * ssa name during the compilation of a single instruction
-     * without an intervening oatClobberSReg().
-     */
-    DCHECK((cUnit->liveSReg == INVALID_SREG) ||
-           (rlDest.sRegLow != cUnit->liveSReg));
-    cUnit->liveSReg = rlDest.sRegLow;
+  /*
+   * Sanity checking - should never try to store to the same
+   * ssa name during the compilation of a single instruction
+   * without an intervening oatClobberSReg().
+   */
+  DCHECK((cUnit->liveSReg == INVALID_SREG) ||
+      (rlDest.sRegLow != cUnit->liveSReg));
+  cUnit->liveSReg = rlDest.sRegLow;
 #endif
-    LIR* defStart;
-    LIR* defEnd;
-    DCHECK_EQ(FPREG(rlSrc.lowReg), FPREG(rlSrc.highReg));
-    DCHECK(rlDest.wide);
-    DCHECK(rlSrc.wide);
-    if (rlSrc.location == kLocPhysReg) {
-        if (oatIsLive(cUnit, rlSrc.lowReg) ||
-            oatIsLive(cUnit, rlSrc.highReg) ||
-            oatIsPromoted(cUnit, rlSrc.lowReg) ||
-            oatIsPromoted(cUnit, rlSrc.highReg) ||
-            (rlDest.location == kLocPhysReg)) {
-            // Src is live or promoted or Dest has assigned reg.
-            rlDest = oatEvalLoc(cUnit, rlDest, kAnyReg, false);
-            opRegCopyWide(cUnit, rlDest.lowReg, rlDest.highReg,
-                           rlSrc.lowReg, rlSrc.highReg);
-        } else {
-            // Just re-assign the registers.  Dest gets Src's regs
-            rlDest.lowReg = rlSrc.lowReg;
-            rlDest.highReg = rlSrc.highReg;
-            oatClobber(cUnit, rlSrc.lowReg);
-            oatClobber(cUnit, rlSrc.highReg);
-        }
+  LIR* defStart;
+  LIR* defEnd;
+  DCHECK_EQ(FPREG(rlSrc.lowReg), FPREG(rlSrc.highReg));
+  DCHECK(rlDest.wide);
+  DCHECK(rlSrc.wide);
+  if (rlSrc.location == kLocPhysReg) {
+    if (oatIsLive(cUnit, rlSrc.lowReg) ||
+        oatIsLive(cUnit, rlSrc.highReg) ||
+        oatIsPromoted(cUnit, rlSrc.lowReg) ||
+        oatIsPromoted(cUnit, rlSrc.highReg) ||
+        (rlDest.location == kLocPhysReg)) {
+      // Src is live or promoted or Dest has assigned reg.
+      rlDest = oatEvalLoc(cUnit, rlDest, kAnyReg, false);
+      opRegCopyWide(cUnit, rlDest.lowReg, rlDest.highReg,
+                    rlSrc.lowReg, rlSrc.highReg);
     } else {
-        // Load Src either into promoted Dest or temps allocated for Dest
-        rlDest = oatEvalLoc(cUnit, rlDest, kAnyReg, false);
-        loadValueDirectWide(cUnit, rlSrc, rlDest.lowReg,
-                            rlDest.highReg);
+      // Just re-assign the registers.  Dest gets Src's regs
+      rlDest.lowReg = rlSrc.lowReg;
+      rlDest.highReg = rlSrc.highReg;
+      oatClobber(cUnit, rlSrc.lowReg);
+      oatClobber(cUnit, rlSrc.highReg);
     }
+  } else {
+    // Load Src either into promoted Dest or temps allocated for Dest
+    rlDest = oatEvalLoc(cUnit, rlDest, kAnyReg, false);
+    loadValueDirectWide(cUnit, rlSrc, rlDest.lowReg, rlDest.highReg);
+  }
 
-    // Dest is now live and dirty (until/if we flush it to home location)
-    oatMarkLive(cUnit, rlDest.lowReg, rlDest.sRegLow);
-    oatMarkLive(cUnit, rlDest.highReg,
-                        oatSRegHi(rlDest.sRegLow));
-    oatMarkDirty(cUnit, rlDest);
-    oatMarkPair(cUnit, rlDest.lowReg, rlDest.highReg);
+  // Dest is now live and dirty (until/if we flush it to home location)
+  oatMarkLive(cUnit, rlDest.lowReg, rlDest.sRegLow);
+  oatMarkLive(cUnit, rlDest.highReg, oatSRegHi(rlDest.sRegLow));
+  oatMarkDirty(cUnit, rlDest);
+  oatMarkPair(cUnit, rlDest.lowReg, rlDest.highReg);
 
 
-    oatResetDefLocWide(cUnit, rlDest);
-    if ((oatIsDirty(cUnit, rlDest.lowReg) ||
-        oatIsDirty(cUnit, rlDest.highReg)) &&
-        (oatLiveOut(cUnit, rlDest.sRegLow) ||
-        oatLiveOut(cUnit, oatSRegHi(rlDest.sRegLow)))) {
-        defStart = (LIR*)cUnit->lastLIRInsn;
-        DCHECK_EQ((SRegToVReg(cUnit, rlDest.sRegLow)+1),
-                   SRegToVReg(cUnit, oatSRegHi(rlDest.sRegLow)));
-        storeBaseDispWide(cUnit, rSP, oatSRegOffset(cUnit, rlDest.sRegLow),
-                          rlDest.lowReg, rlDest.highReg);
-        oatMarkClean(cUnit, rlDest);
-        defEnd = (LIR*)cUnit->lastLIRInsn;
-        oatMarkDefWide(cUnit, rlDest, defStart, defEnd);
-    }
+  oatResetDefLocWide(cUnit, rlDest);
+  if ((oatIsDirty(cUnit, rlDest.lowReg) ||
+      oatIsDirty(cUnit, rlDest.highReg)) &&
+      (oatLiveOut(cUnit, rlDest.sRegLow) ||
+      oatLiveOut(cUnit, oatSRegHi(rlDest.sRegLow)))) {
+    defStart = (LIR*)cUnit->lastLIRInsn;
+    DCHECK_EQ((SRegToVReg(cUnit, rlDest.sRegLow)+1),
+              SRegToVReg(cUnit, oatSRegHi(rlDest.sRegLow)));
+    storeBaseDispWide(cUnit, rSP, oatSRegOffset(cUnit, rlDest.sRegLow),
+                      rlDest.lowReg, rlDest.highReg);
+    oatMarkClean(cUnit, rlDest);
+    defEnd = (LIR*)cUnit->lastLIRInsn;
+    oatMarkDefWide(cUnit, rlDest, defStart, defEnd);
+  }
 }
 
 /*
@@ -273,39 +270,39 @@ void storeValueWide(CompilationUnit* cUnit, RegLocation rlDest,
  */
 void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 {
-    int regCardBase = oatAllocTemp(cUnit);
-    int regCardNo = oatAllocTemp(cUnit);
-    LIR* branchOver = opCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
+  int regCardBase = oatAllocTemp(cUnit);
+  int regCardNo = oatAllocTemp(cUnit);
+  LIR* branchOver = opCmpImmBranch(cUnit, kCondEq, valReg, 0, NULL);
 #if !defined(TARGET_X86)
-    loadWordDisp(cUnit, rSELF, Thread::CardTableOffset().Int32Value(),
-                 regCardBase);
+  loadWordDisp(cUnit, rSELF, Thread::CardTableOffset().Int32Value(),
+               regCardBase);
 #else
-    newLIR2(cUnit, kX86Mov32RT, regCardBase,
-            Thread::CardTableOffset().Int32Value());
+  newLIR2(cUnit, kX86Mov32RT, regCardBase,
+          Thread::CardTableOffset().Int32Value());
 #endif
-    opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, GC_CARD_SHIFT);
-    storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
-                     kUnsignedByte);
-    LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    branchOver->target = (LIR*)target;
-    oatFreeTemp(cUnit, regCardBase);
-    oatFreeTemp(cUnit, regCardNo);
+  opRegRegImm(cUnit, kOpLsr, regCardNo, tgtAddrReg, GC_CARD_SHIFT);
+  storeBaseIndexed(cUnit, regCardBase, regCardNo, regCardBase, 0,
+                   kUnsignedByte);
+  LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
+  branchOver->target = (LIR*)target;
+  oatFreeTemp(cUnit, regCardBase);
+  oatFreeTemp(cUnit, regCardNo);
 }
 
 /* Utilities to load the current Method* */
 void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
 {
-    loadValueDirectFixed(cUnit, cUnit->regLocation[cUnit->methodSReg], rTgt);
+  loadValueDirectFixed(cUnit, cUnit->regLocation[cUnit->methodSReg], rTgt);
 }
 
 RegLocation loadCurrMethod(CompilationUnit *cUnit)
 {
-    return loadValue(cUnit, cUnit->regLocation[cUnit->methodSReg], kCoreReg);
+  return loadValue(cUnit, cUnit->regLocation[cUnit->methodSReg], kCoreReg);
 }
 
 bool methodStarInReg(CompilationUnit* cUnit)
 {
-     return (cUnit->regLocation[cUnit->methodSReg].location == kLocPhysReg);
+   return (cUnit->regLocation[cUnit->methodSReg].location == kLocPhysReg);
 }
 
 

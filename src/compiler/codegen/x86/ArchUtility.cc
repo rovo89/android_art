@@ -24,27 +24,27 @@ namespace art {
 
 /* For dumping instructions */
 static const char* x86RegName[] = {
-    "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
-    "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
+  "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
+  "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"
 };
 
 static const char* x86CondName[] = {
-    "O",
-    "NO",
-    "B/NAE/C",
-    "NB/AE/NC",
-    "Z/EQ",
-    "NZ/NE",
-    "BE/NA",
-    "NBE/A",
-    "S",
-    "NS",
-    "P/PE",
-    "NP/PO",
-    "L/NGE",
-    "NL/GE",
-    "LE/NG",
-    "NLE/G"
+  "O",
+  "NO",
+  "B/NAE/C",
+  "NB/AE/NC",
+  "Z/EQ",
+  "NZ/NE",
+  "BE/NA",
+  "NBE/A",
+  "S",
+  "NS",
+  "P/PE",
+  "NP/PO",
+  "L/NGE",
+  "NL/GE",
+  "LE/NG",
+  "NLE/G"
 };
 
 /*
@@ -95,8 +95,8 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
             break;
           case 't':
             buf += StringPrintf("0x%08x (L%p)",
-                                reinterpret_cast<uint32_t>(baseAddr) + lir->offset + operand,
-                                lir->target);
+                                reinterpret_cast<uint32_t>(baseAddr)
+                                + lir->offset + operand, lir->target);
             break;
           default:
             buf += StringPrintf("DecodeError '%c'", fmt[i]);
@@ -111,45 +111,45 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr) 
 
 void oatDumpResourceMask(LIR *lir, u8 mask, const char *prefix)
 {
-    char buf[256];
-    buf[0] = 0;
-    LIR *x86LIR = (LIR *) lir;
+  char buf[256];
+  buf[0] = 0;
+  LIR *x86LIR = (LIR *) lir;
 
-    if (mask == ENCODE_ALL) {
-        strcpy(buf, "all");
-    } else {
-        char num[8];
-        int i;
+  if (mask == ENCODE_ALL) {
+    strcpy(buf, "all");
+  } else {
+    char num[8];
+    int i;
 
-        for (i = 0; i < kRegEnd; i++) {
-            if (mask & (1ULL << i)) {
-                sprintf(num, "%d ", i);
-                strcat(buf, num);
-            }
-        }
-
-        if (mask & ENCODE_CCODE) {
-            strcat(buf, "cc ");
-        }
-        /* Memory bits */
-        if (x86LIR && (mask & ENCODE_DALVIK_REG)) {
-            sprintf(buf + strlen(buf), "dr%d%s", x86LIR->aliasInfo & 0xffff,
-                    (x86LIR->aliasInfo & 0x80000000) ? "(+1)" : "");
-        }
-        if (mask & ENCODE_LITERAL) {
-            strcat(buf, "lit ");
-        }
-
-        if (mask & ENCODE_HEAP_REF) {
-            strcat(buf, "heap ");
-        }
-        if (mask & ENCODE_MUST_NOT_ALIAS) {
-            strcat(buf, "noalias ");
-        }
+    for (i = 0; i < kRegEnd; i++) {
+      if (mask & (1ULL << i)) {
+        sprintf(num, "%d ", i);
+        strcat(buf, num);
+      }
     }
-    if (buf[0]) {
-        LOG(INFO) << prefix << ": " <<  buf;
+
+    if (mask & ENCODE_CCODE) {
+      strcat(buf, "cc ");
     }
+    /* Memory bits */
+    if (x86LIR && (mask & ENCODE_DALVIK_REG)) {
+      sprintf(buf + strlen(buf), "dr%d%s", x86LIR->aliasInfo & 0xffff,
+              (x86LIR->aliasInfo & 0x80000000) ? "(+1)" : "");
+    }
+    if (mask & ENCODE_LITERAL) {
+      strcat(buf, "lit ");
+    }
+
+    if (mask & ENCODE_HEAP_REF) {
+      strcat(buf, "heap ");
+    }
+    if (mask & ENCODE_MUST_NOT_ALIAS) {
+      strcat(buf, "noalias ");
+    }
+  }
+  if (buf[0]) {
+    LOG(INFO) << prefix << ": " <<  buf;
+  }
 }
 
 } // namespace art
