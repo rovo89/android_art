@@ -18,6 +18,7 @@
 #include <paths.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <sys/personality.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -314,6 +315,13 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
     err = setuid(uid);
     if (err < 0) {
       PLOG(FATAL) << "setuid(" << uid << ") failed";
+    }
+
+    // Work around ARM kernel ASLR lossage (http://b/5817320).
+    int old_personality = personality(0xffffffff);
+    int new_personality = personality(old_personality | ADDR_NO_RANDOMIZE);
+    if (new_personality == -1) {
+      PLOG(WARNING) << "personality(" << new_personality << ") failed";
     }
 
     SetCapabilities(permittedCapabilities, effectiveCapabilities);
