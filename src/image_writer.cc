@@ -17,6 +17,7 @@
 #include "image_writer.h"
 
 #include <sys/mman.h>
+#include <sys/stat.h>
 
 #include <vector>
 
