@@ -139,20 +139,17 @@ llvm::FunctionType* MethodCompiler::GetFunctionType(uint32_t method_idx,
 
 void MethodCompiler::EmitPrologue() {
   // Create basic blocks for prologue
-  basic_block_stack_overflow_ =
-    llvm::BasicBlock::Create(*context_, "prologue.stack_overflow_check", func_);
-
   basic_block_reg_alloca_ =
     llvm::BasicBlock::Create(*context_, "prologue.alloca", func_);
+
+  basic_block_stack_overflow_ =
+    llvm::BasicBlock::Create(*context_, "prologue.stack_overflow_check", func_);
 
   basic_block_shadow_frame_alloca_ =
     llvm::BasicBlock::Create(*context_, "prologue.shadowframe", func_);
 
   basic_block_reg_arg_init_ =
     llvm::BasicBlock::Create(*context_, "prologue.arginit", func_);
-
-  // Before alloca, check stack overflow.
-  EmitStackOverflowCheck();
 
   // Create register array
   for (uint16_t r = 0; r < code_item_->registers_size_; ++r) {
@@ -223,10 +220,12 @@ void MethodCompiler::EmitStackOverflowCheck() {
 
 
 void MethodCompiler::EmitPrologueLastBranch() {
-  irb_.SetInsertPoint(basic_block_stack_overflow_);
-  irb_.CreateBr(basic_block_reg_alloca_);
-
   irb_.SetInsertPoint(basic_block_reg_alloca_);
+  irb_.CreateBr(basic_block_stack_overflow_);
+
+  EmitStackOverflowCheck();
+
+  irb_.SetInsertPoint(basic_block_stack_overflow_);
   irb_.CreateBr(basic_block_shadow_frame_alloca_);
 
   irb_.SetInsertPoint(basic_block_shadow_frame_alloca_);
