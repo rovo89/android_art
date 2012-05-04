@@ -639,34 +639,32 @@ class IntMath extends IntMathBase {
      */
     static int testFloatCompare(float minus, float plus, float plus2,
                                 float nan) {
-
-        int res = 3333;
         if (minus > plus)
-            res = 1;
+            return 1;
         if (plus < minus)
-            res = 2;
+            return 2;
         if (plus == minus)
-            res = 3;
+            return 3;
         if (plus != plus2)
-            res = 4;
+            return 4;
 
         if (plus <= nan)
-            res = 5;
+            return 5;
         if (plus >= nan)
-            res = 6;
+            return 6;
         if (minus <= nan)
-            res = 7;
+            return 7;
         if (minus >= nan)
-            res = 8;
+            return 8;
         if (nan >= plus)
-            res = 9;
+            return 9;
         if (nan <= plus)
-            res = 10;
+            return 10;
 
         if (nan == nan)
-            res = 1212;
+            return 11;
 
-        return res;
+        return 3333;
     }
 
     static int testDoubleCompare(double minus, double plus, double plus2,

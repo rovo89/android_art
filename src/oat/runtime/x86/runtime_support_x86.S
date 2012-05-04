@@ -428,8 +428,18 @@ DEFINE_FUNCTION art_ldivmod_from_code
     addl LITERAL(28), %esp        // pop arguments
     ret
 
+DEFINE_FUNCTION art_lmul_from_code
+    subl LITERAL(12), %esp        // alignment padding
+    pushl %ebx                    // pass arg4
+    pushl %edx                    // pass arg3
+    pushl %ecx                    // pass arg2
+    pushl %eax                    // pass arg1
+    call SYMBOL(artLmulFromCode)  // (jlong a, jlong b, Thread*, SP)
+    addl LITERAL(28), %esp        // pop arguments
+    ret
+
 DEFINE_FUNCTION art_lshl_from_code
-    // eax:ecx << edx
+    // ecx:eax << edx
     xchg %edx, %ecx
     shld %cl,%eax,%edx
     shl  %cl,%eax
@@ -441,26 +451,26 @@ DEFINE_FUNCTION art_lshl_from_code
     ret
 
 DEFINE_FUNCTION art_lshr_from_code
-    // eax:ecx >> edx
+    // ecx:eax >> edx
     xchg %edx, %ecx
-    shrd %cl,%eax,%edx
-    sar  %cl,%eax
+    shrd %cl,%edx,%eax
+    sar  %cl,%edx
     test LITERAL(32),%cl
     jz  1f
-    mov %edx, %eax
-    sar LITERAL(31), %edx
+    mov %eax, %edx
+    sar LITERAL(31), %eax
 1:
     ret
 
 DEFINE_FUNCTION art_lushr_from_code
-    // eax:ecx >>> edx
+    // ecx:eax >>> edx
     xchg %edx, %ecx
-    shrd %cl,%eax,%edx
-    shr  %cl,%eax
-    test   $0x20,%cl
+    shrd %cl,%edx,%eax
+    shr  %cl,%edx
+    test LITERAL(32),%cl
     jz  1f
-    mov %edx, %eax
-    xor %edx, %edx
+    mov %eax, %edx
+    xor %eax, %eax
 1:
     ret
 

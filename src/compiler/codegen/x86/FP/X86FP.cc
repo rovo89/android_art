@@ -190,21 +190,16 @@ static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
   int srcReg1;
   int srcReg2;
   if (single) {
-    rlSrc1 = oatGetSrc(cUnit, mir, 0);
     rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
     srcReg1 = rlSrc1.lowReg;
-    rlSrc2 = oatGetSrc(cUnit, mir, 0);
-    rlSrc2 = loadValue(cUnit, rlSrc1, kFPReg);
-    srcReg2 = rlSrc1.lowReg;
+    rlSrc2 = loadValue(cUnit, rlSrc2, kFPReg);
+    srcReg2 = rlSrc2.lowReg;
   } else {
-    rlSrc1 = oatGetSrcWide(cUnit, mir, 0, 1);
     rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
     srcReg1 = S2D(rlSrc1.lowReg, rlSrc1.highReg);
-    rlSrc2 = oatGetSrcWide(cUnit, mir, 0, 1);
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
     srcReg2 = S2D(rlSrc2.lowReg, rlSrc2.highReg);
   }
-  rlDest = oatGetDest(cUnit, mir, 0);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   loadConstantNoClobber(cUnit, rlResult.lowReg, unorderedGt ? 1 : 0);
   if (single) {
@@ -221,6 +216,7 @@ static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
   if (unorderedGt) {
     branch->target = newLIR0(cUnit, kPseudoTargetLabel);
   }
+  storeValue(cUnit, rlDest, rlResult);
   return false;
 }
 
