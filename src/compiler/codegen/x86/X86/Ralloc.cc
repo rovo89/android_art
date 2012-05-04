@@ -29,7 +29,8 @@ namespace art {
  * high reg in next byte.
  */
 int oatAllocTypedTempPair(CompilationUnit *cUnit, bool fpHint,
-                          int regClass) {
+                          int regClass)
+{
   int highReg;
   int lowReg;
   int res = 0;
@@ -65,12 +66,12 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit) {
   cUnit->regPool = pool;
   pool->numCoreRegs = numRegs;
   pool->coreRegs = (RegisterInfo *)
-                oatNew(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs),
-                       true, kAllocRegAlloc);
+      oatNew(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs), true,
+             kAllocRegAlloc);
   pool->numFPRegs = numFPRegs;
   pool->FPRegs = (RegisterInfo *)
-                oatNew(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs), true,
-                       kAllocRegAlloc);
+      oatNew(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs), true,
+             kAllocRegAlloc);
   oatInitPool(pool->coreRegs, coreRegs, pool->numCoreRegs);
   oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
   // Keep special registers from being allocated
@@ -104,7 +105,8 @@ void oatInitializeRegAlloc(CompilationUnit* cUnit) {
 }
 
 void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
-                     RegLocation rlFree) {
+                     RegLocation rlFree)
+{
   if ((rlFree.lowReg != rlKeep.lowReg) && (rlFree.lowReg != rlKeep.highReg) &&
       (rlFree.highReg != rlKeep.lowReg) && (rlFree.highReg != rlKeep.highReg)) {
     // No overlap, free both

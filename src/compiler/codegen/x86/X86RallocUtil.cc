@@ -41,64 +41,60 @@ void oatAdjustSpillMask(CompilationUnit* cUnit) {
  */
 void oatMarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg)
 {
-    UNIMPLEMENTED(WARNING) << "oatMarkPreservedSingle";
+  UNIMPLEMENTED(WARNING) << "oatMarkPreservedSingle";
 #if 0
-    LOG(FATAL) << "No support yet for promoted FP regs";
+  LOG(FATAL) << "No support yet for promoted FP regs";
 #endif
 }
 
 void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
 {
-    RegisterInfo* info1 = oatGetRegInfo(cUnit, reg1);
-    RegisterInfo* info2 = oatGetRegInfo(cUnit, reg2);
-    DCHECK(info1 && info2 && info1->pair && info2->pair &&
-           (info1->partner == info2->reg) &&
-           (info2->partner == info1->reg));
-    if ((info1->live && info1->dirty) || (info2->live && info2->dirty)) {
-        if (!(info1->isTemp && info2->isTemp)) {
-            /* Should not happen.  If it does, there's a problem in evalLoc */
-            LOG(FATAL) << "Long half-temp, half-promoted";
-        }
-
-        info1->dirty = false;
-        info2->dirty = false;
-        if (SRegToVReg(cUnit, info2->sReg) <
-            SRegToVReg(cUnit, info1->sReg))
-            info1 = info2;
-        int vReg = SRegToVReg(cUnit, info1->sReg);
-        oatFlushRegWideImpl(cUnit, rSP,
-                                    oatVRegOffset(cUnit, vReg),
-                                    info1->reg, info1->partner);
+  RegisterInfo* info1 = oatGetRegInfo(cUnit, reg1);
+  RegisterInfo* info2 = oatGetRegInfo(cUnit, reg2);
+  DCHECK(info1 && info2 && info1->pair && info2->pair &&
+         (info1->partner == info2->reg) &&
+         (info2->partner == info1->reg));
+  if ((info1->live && info1->dirty) || (info2->live && info2->dirty)) {
+    if (!(info1->isTemp && info2->isTemp)) {
+      /* Should not happen.  If it does, there's a problem in evalLoc */
+      LOG(FATAL) << "Long half-temp, half-promoted";
     }
+
+    info1->dirty = false;
+    info2->dirty = false;
+    if (SRegToVReg(cUnit, info2->sReg) < SRegToVReg(cUnit, info1->sReg))
+      info1 = info2;
+    int vReg = SRegToVReg(cUnit, info1->sReg);
+    oatFlushRegWideImpl(cUnit, rSP, oatVRegOffset(cUnit, vReg),
+                        info1->reg, info1->partner);
+  }
 }
 
 void oatFlushReg(CompilationUnit* cUnit, int reg)
 {
-    RegisterInfo* info = oatGetRegInfo(cUnit, reg);
-    if (info->live && info->dirty) {
-        info->dirty = false;
-        int vReg = SRegToVReg(cUnit, info->sReg);
-        oatFlushRegImpl(cUnit, rSP,
-                                oatVRegOffset(cUnit, vReg),
-                                reg, kWord);
-    }
+  RegisterInfo* info = oatGetRegInfo(cUnit, reg);
+  if (info->live && info->dirty) {
+    info->dirty = false;
+    int vReg = SRegToVReg(cUnit, info->sReg);
+    oatFlushRegImpl(cUnit, rSP, oatVRegOffset(cUnit, vReg), reg, kWord);
+  }
 }
 
 /* Give access to the target-dependent FP register encoding to common code */
 bool oatIsFpReg(int reg) {
-    return FPREG(reg);
+  return FPREG(reg);
 }
 
 uint32_t oatFpRegMask() {
-    return FP_REG_MASK;
+  return FP_REG_MASK;
 }
 
 /* Clobber all regs that might be used by an external C call */
 extern void oatClobberCalleeSave(CompilationUnit *cUnit)
 {
-    oatClobber(cUnit, rAX);
-    oatClobber(cUnit, rCX);
-    oatClobber(cUnit, rDX);
+  oatClobber(cUnit, rAX);
+  oatClobber(cUnit, rCX);
+  oatClobber(cUnit, rDX);
 }
 
 extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit) {
@@ -115,41 +111,41 @@ extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit) {
 
 extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
 {
-    RegLocation res = LOC_C_RETURN;
-    res.lowReg = rDX;
-    oatClobber(cUnit, rDX);
-    oatMarkInUse(cUnit, rDX);
-    return res;
+  RegLocation res = LOC_C_RETURN;
+  res.lowReg = rDX;
+  oatClobber(cUnit, rDX);
+  oatMarkInUse(cUnit, rDX);
+  return res;
 }
 
 extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)
 {
-    return FPREG(reg) ? &cUnit->regPool->FPRegs[reg & FP_REG_MASK]
-                      : &cUnit->regPool->coreRegs[reg];
+  return FPREG(reg) ? &cUnit->regPool->FPRegs[reg & FP_REG_MASK]
+                    : &cUnit->regPool->coreRegs[reg];
 }
 
 /* To be used when explicitly managing register use */
 extern void oatLockCallTemps(CompilationUnit* cUnit)
 {
-    oatLockTemp(cUnit, rARG0);
-    oatLockTemp(cUnit, rARG1);
-    oatLockTemp(cUnit, rARG2);
-    oatLockTemp(cUnit, rARG3);
+  oatLockTemp(cUnit, rARG0);
+  oatLockTemp(cUnit, rARG1);
+  oatLockTemp(cUnit, rARG2);
+  oatLockTemp(cUnit, rARG3);
 }
 
 /* To be used when explicitly managing register use */
 extern void oatFreeCallTemps(CompilationUnit* cUnit)
 {
-    oatFreeTemp(cUnit, rARG0);
-    oatFreeTemp(cUnit, rARG1);
-    oatFreeTemp(cUnit, rARG2);
-    oatFreeTemp(cUnit, rARG3);
+  oatFreeTemp(cUnit, rARG0);
+  oatFreeTemp(cUnit, rARG1);
+  oatFreeTemp(cUnit, rARG2);
+  oatFreeTemp(cUnit, rARG3);
 }
 
 /* Convert an instruction to a NOP */
 void oatNopLIR( LIR* lir)
 {
-    ((LIR*)lir)->flags.isNop = true;
+  ((LIR*)lir)->flags.isNop = true;
 }
 
 }  // namespace art

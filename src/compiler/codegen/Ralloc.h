@@ -29,9 +29,9 @@ namespace art {
 
 /* Static register use counts */
 struct RefCounts {
-    int count;
-    int sReg;
-    bool doubleStart;   // Starting vReg for a double
+  int count;
+  int sReg;
+  bool doubleStart;   // Starting vReg for a double
 };
 
 
@@ -46,36 +46,32 @@ struct RefCounts {
  */
 
 inline int oatSRegHi(int lowSreg) {
-    return (lowSreg == INVALID_SREG) ? INVALID_SREG : lowSreg + 1;
+  return (lowSreg == INVALID_SREG) ? INVALID_SREG : lowSreg + 1;
 }
 
 
 inline bool oatLiveOut(CompilationUnit* cUnit, int sReg)
 {
-    //For now.
-    return true;
+  //For now.
+  return true;
 }
 
 inline int oatSSASrc(MIR* mir, int num)
 {
-    DCHECK_GT(mir->ssaRep->numUses, num);
-    return mir->ssaRep->uses[num];
+  DCHECK_GT(mir->ssaRep->numUses, num);
+  return mir->ssaRep->uses[num];
 }
 
 extern RegLocation oatEvalLoc(CompilationUnit* cUnit, RegLocation loc,
-                                      int regClass, bool update);
+                              int regClass, bool update);
 /* Mark a temp register as dead.  Does not affect allocation state. */
 extern void oatClobber(CompilationUnit* cUnit, int reg);
-
-extern RegLocation oatUpdateLoc(CompilationUnit* cUnit,
-                                        RegLocation loc);
+extern RegLocation oatUpdateLoc(CompilationUnit* cUnit, RegLocation loc);
 
 /* see comments for updateLoc */
-extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit,
-                                            RegLocation loc);
+extern RegLocation oatUpdateLocWide(CompilationUnit* cUnit, RegLocation loc);
 
-extern RegLocation oatUpdateRawLoc(CompilationUnit* cUnit,
-                                   RegLocation loc);
+extern RegLocation oatUpdateRawLoc(CompilationUnit* cUnit, RegLocation loc);
 
 extern void oatMarkLive(CompilationUnit* cUnit, int reg, int sReg);
 
@@ -85,8 +81,7 @@ extern void oatUnmarkTemp(CompilationUnit* cUnit, int reg);
 
 extern void oatMarkDirty(CompilationUnit* cUnit, RegLocation loc);
 
-extern void oatMarkPair(CompilationUnit* cUnit, int lowReg,
-                                int highReg);
+extern void oatMarkPair(CompilationUnit* cUnit, int lowReg, int highReg);
 
 extern void oatMarkClean(CompilationUnit* cUnit, RegLocation loc);
 
@@ -102,15 +97,15 @@ extern void oatInitPool(RegisterInfo* regs, int* regNums, int num);
  * on entry start points to the LIR prior to the beginning of the
  * sequence.
  */
-extern void oatMarkDef(CompilationUnit* cUnit, RegLocation rl,
-                               LIR* start, LIR* finish);
+extern void oatMarkDef(CompilationUnit* cUnit, RegLocation rl, LIR* start,
+                       LIR* finish);
 /*
  * Mark the beginning and end LIR of a def sequence.  Note that
  * on entry start points to the LIR prior to the beginning of the
  * sequence.
  */
 extern void oatMarkDefWide(CompilationUnit* cUnit, RegLocation rl,
-                                   LIR* start, LIR* finish);
+                           LIR* start, LIR* finish);
 
 extern RegLocation oatGetSrcWide(CompilationUnit* cUnit, MIR* mir,
                                  int low, int high);
@@ -183,8 +178,7 @@ extern int oatAllocPreservedFPReg(CompilationUnit* cUnit, int sReg,
  */
 extern void oatLockTemp(CompilationUnit* cUnit, int reg);
 
-extern RegLocation oatWideToNarrow(CompilationUnit* cUnit,
-                                   RegLocation rl);
+extern RegLocation oatWideToNarrow(CompilationUnit* cUnit, RegLocation rl);
 
 /*
  * Free all allocated temps in the temp pools.  Note that this does
@@ -213,8 +207,7 @@ extern void oatDumpCounts(const RefCounts* arr, int size, const char* msg);
 extern int oatAllocTypedTempPair(CompilationUnit* cUnit,
                                  bool fpHint, int regClass);
 
-extern int oatAllocTypedTemp(CompilationUnit* cUnit, bool fpHint,
-                             int regClass);
+extern int oatAllocTypedTemp(CompilationUnit* cUnit, bool fpHint, int regClass);
 
 extern void oatRegCopyWide(CompilationUnit* cUnit, int destLo,
                            int destHi, int srcLo, int srcHi);

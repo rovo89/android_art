@@ -31,49 +31,49 @@ namespace art {
 #define SLOW_STRING_PATH (cUnit->enableDebug & (1 << kDebugSlowStringPath))
 #define SLOW_TYPE_PATH (cUnit->enableDebug & (1 << kDebugSlowTypePath))
 #define EXERCISE_SLOWEST_FIELD_PATH (cUnit->enableDebug & \
-    (1 << kDebugSlowestFieldPath))
+  (1 << kDebugSlowestFieldPath))
 #define EXERCISE_SLOWEST_STRING_PATH (cUnit->enableDebug & \
-    (1 << kDebugSlowestStringPath))
+  (1 << kDebugSlowestStringPath))
 #define EXERCISE_RESOLVE_METHOD (cUnit->enableDebug & \
-    (1 << kDebugExerciseResolveMethod))
+  (1 << kDebugExerciseResolveMethod))
 
 enum RegisterClass {
-    kCoreReg,
-    kFPReg,
-    kAnyReg,
+  kCoreReg,
+  kFPReg,
+  kAnyReg,
 };
 
 enum RegLocationType {
-    kLocDalvikFrame = 0, // Normal Dalvik register
-    kLocPhysReg,
-    kLocCompilerTemp,
-    kLocInvalid
+  kLocDalvikFrame = 0, // Normal Dalvik register
+  kLocPhysReg,
+  kLocCompilerTemp,
+  kLocInvalid
 };
 
 struct PromotionMap {
-   RegLocationType coreLocation:3;
-   u1 coreReg;
-   RegLocationType fpLocation:3;
-   u1 fpReg;
-   bool firstInPair;
+  RegLocationType coreLocation:3;
+  u1 coreReg;
+  RegLocationType fpLocation:3;
+  u1 fpReg;
+  bool firstInPair;
 };
 
 struct RegLocation {
-    RegLocationType location:3;
-    unsigned wide:1;
-    unsigned defined:1;   // Do we know the type?
-    unsigned fp:1;        // Floating point?
-    unsigned core:1;      // Non-floating point?
-    unsigned highWord:1;  // High word of pair?
-    unsigned home:1;      // Does this represent the home location?
-    u1 lowReg;            // First physical register
-    u1 highReg;           // 2nd physical register (if wide)
-    int32_t sRegLow;      // SSA name for low Dalvik word
+  RegLocationType location:3;
+  unsigned wide:1;
+  unsigned defined:1;   // Do we know the type?
+  unsigned fp:1;        // Floating point?
+  unsigned core:1;      // Non-floating point?
+  unsigned highWord:1;  // High word of pair?
+  unsigned home:1;      // Does this represent the home location?
+  u1 lowReg;            // First physical register
+  u1 highReg;           // 2nd physical register (if wide)
+  int32_t sRegLow;      // SSA name for low Dalvik word
 };
 
 struct CompilerTemp {
-    int sReg;
-    ArenaBitVector* bv;
+  int sReg;
+  ArenaBitVector* bv;
 };
 
  /*
@@ -83,25 +83,25 @@ struct CompilerTemp {
  * possible.
  */
 struct RegisterInfo {
-    int reg;                    // Reg number
-    bool inUse;                 // Has it been allocated?
-    bool isTemp;                // Can allocate as temp?
-    bool pair;                  // Part of a register pair?
-    int partner;                // If pair, other reg of pair
-    bool live;                  // Is there an associated SSA name?
-    bool dirty;                 // If live, is it dirty?
-    int sReg;                   // Name of live value
-    LIR *defStart;              // Starting inst in last def sequence
-    LIR *defEnd;                // Ending inst in last def sequence
+  int reg;                    // Reg number
+  bool inUse;                 // Has it been allocated?
+  bool isTemp;                // Can allocate as temp?
+  bool pair;                  // Part of a register pair?
+  int partner;                // If pair, other reg of pair
+  bool live;                  // Is there an associated SSA name?
+  bool dirty;                 // If live, is it dirty?
+  int sReg;                   // Name of live value
+  LIR *defStart;              // Starting inst in last def sequence
+  LIR *defEnd;                // Ending inst in last def sequence
 };
 
 struct RegisterPool {
-    int numCoreRegs;
-    RegisterInfo *coreRegs;
-    int nextCoreReg;
-    int numFPRegs;
-    RegisterInfo *FPRegs;
-    int nextFPReg;
+  int numCoreRegs;
+  RegisterInfo *coreRegs;
+  int nextCoreReg;
+  int numFPRegs;
+  RegisterInfo *FPRegs;
+  int nextFPReg;
 };
 
 #define INVALID_SREG (-1)
@@ -126,11 +126,11 @@ struct RegisterPool {
 #define MANY_BLOCKS 4000 /* Non-initializer threshold */
 
 enum BBType {
-    kEntryBlock,
-    kDalvikByteCode,
-    kExitBlock,
-    kExceptionHandling,
-    kCatchEntry,
+  kEntryBlock,
+  kDalvikByteCode,
+  kExitBlock,
+  kExceptionHandling,
+  kCatchEntry,
 };
 
 /* Utility macros to traverse the LIR list */
@@ -141,54 +141,54 @@ enum BBType {
 #define PREV_LIR_LVALUE(lir) (lir)->prev
 
 struct LIR {
-    int offset;                        // Offset of this instruction
-    int dalvikOffset;                  // Offset of Dalvik opcode
-    LIR* next;
-    LIR* prev;
-    LIR* target;
-    int opcode;
-    int operands[5];            // [0..4] = [dest, src1, src2, extra, extra2]
-    struct {
-        bool isNop:1;           // LIR is optimized away
-        bool pcRelFixup:1;      // May need pc-relative fixup
-        unsigned int age:4;     // default is 0, set lazily by the optimizer
-        unsigned int size:5;    // in bytes
-        unsigned int unused:21;
-    } flags;
-    int aliasInfo;              // For Dalvik register & litpool disambiguation
-    u8 useMask;                 // Resource mask for use
-    u8 defMask;                 // Resource mask for def
+  int offset;                        // Offset of this instruction
+  int dalvikOffset;                  // Offset of Dalvik opcode
+  LIR* next;
+  LIR* prev;
+  LIR* target;
+  int opcode;
+  int operands[5];            // [0..4] = [dest, src1, src2, extra, extra2]
+  struct {
+    bool isNop:1;           // LIR is optimized away
+    bool pcRelFixup:1;      // May need pc-relative fixup
+    unsigned int age:4;     // default is 0, set lazily by the optimizer
+    unsigned int size:5;    // in bytes
+    unsigned int unused:21;
+  } flags;
+  int aliasInfo;              // For Dalvik register & litpool disambiguation
+  u8 useMask;                 // Resource mask for use
+  u8 defMask;                 // Resource mask for def
 };
 
 enum ExtendedMIROpcode {
-    kMirOpFirst = kNumPackedOpcodes,
-    kMirOpPhi = kMirOpFirst,
-    kMirOpCopy,
-    kMirOpFusedCmplFloat,
-    kMirOpFusedCmpgFloat,
-    kMirOpFusedCmplDouble,
-    kMirOpFusedCmpgDouble,
-    kMirOpFusedCmpLong,
-    kMirOpNop,
-    kMirOpNullNRangeUpCheck,
-    kMirOpNullNRangeDownCheck,
-    kMirOpLowerBound,
-    kMirOpLast,
+  kMirOpFirst = kNumPackedOpcodes,
+  kMirOpPhi = kMirOpFirst,
+  kMirOpCopy,
+  kMirOpFusedCmplFloat,
+  kMirOpFusedCmpgFloat,
+  kMirOpFusedCmplDouble,
+  kMirOpFusedCmpgDouble,
+  kMirOpFusedCmpLong,
+  kMirOpNop,
+  kMirOpNullNRangeUpCheck,
+  kMirOpNullNRangeDownCheck,
+  kMirOpLowerBound,
+  kMirOpLast,
 };
 
 struct SSARepresentation;
 
 enum MIROptimizationFlagPositons {
-    kMIRIgnoreNullCheck = 0,
-    kMIRNullCheckOnly,
-    kMIRIgnoreRangeCheck,
-    kMIRRangeCheckOnly,
-    kMIRInlined,                        // Invoke is inlined (ie dead)
-    kMIRInlinedPred,                    // Invoke is inlined via prediction
-    kMIRCallee,                         // Instruction is inlined from callee
-    kMIRIgnoreSuspendCheck,
-    kMIRDup,
-    kMIRMark,                           // Temporary node mark
+  kMIRIgnoreNullCheck = 0,
+  kMIRNullCheckOnly,
+  kMIRIgnoreRangeCheck,
+  kMIRRangeCheckOnly,
+  kMIRInlined,                        // Invoke is inlined (ie dead)
+  kMIRInlinedPred,                    // Invoke is inlined via prediction
+  kMIRCallee,                         // Instruction is inlined from callee
+  kMIRIgnoreSuspendCheck,
+  kMIRDup,
+  kMIRMark,                           // Temporary node mark
 };
 
 #define MIR_IGNORE_NULL_CHECK           (1 << kMIRIgnoreNullCheck)
@@ -203,68 +203,68 @@ enum MIROptimizationFlagPositons {
 #define MIR_MARK                        (1 << kMIRMark)
 
 struct CallsiteInfo {
-    const char* classDescriptor;
-    Object* classLoader;
-    const Method* method;
-    LIR* misPredBranchOver;
+  const char* classDescriptor;
+  Object* classLoader;
+  const Method* method;
+  LIR* misPredBranchOver;
 };
 
 struct MIR {
-    DecodedInstruction dalvikInsn;
-    unsigned int width;
-    unsigned int offset;
-    MIR* prev;
-    MIR* next;
-    SSARepresentation* ssaRep;
-    int optimizationFlags;
-    int seqNum;
-    union {
-        // Used by the inlined insn from the callee to find the mother method
-        const Method* calleeMethod;
-        // Used by the inlined invoke to find the class and method pointers
-        CallsiteInfo* callsiteInfo;
-        // Used to quickly locate all Phi opcodes
-        MIR* phiNext;
-    } meta;
+  DecodedInstruction dalvikInsn;
+  unsigned int width;
+  unsigned int offset;
+  MIR* prev;
+  MIR* next;
+  SSARepresentation* ssaRep;
+  int optimizationFlags;
+  int seqNum;
+  union {
+    // Used by the inlined insn from the callee to find the mother method
+    const Method* calleeMethod;
+    // Used by the inlined invoke to find the class and method pointers
+    CallsiteInfo* callsiteInfo;
+    // Used to quickly locate all Phi opcodes
+    MIR* phiNext;
+  } meta;
 };
 
 struct BasicBlockDataFlow;
 
 /* For successorBlockList */
 enum BlockListType {
-    kNotUsed = 0,
-    kCatch,
-    kPackedSwitch,
-    kSparseSwitch,
+  kNotUsed = 0,
+  kCatch,
+  kPackedSwitch,
+  kSparseSwitch,
 };
 
 struct BasicBlock {
-    int id;
-    int dfsId;
-    bool visited;
-    bool hidden;
-    bool catchEntry;
-    bool fallThroughTarget;             // Reached via fallthrough
-    uint16_t startOffset;
-    uint16_t nestingDepth;
-    const Method* containingMethod;     // For blocks from the callee
-    BBType blockType;
-    bool needFallThroughBranch;         // For blocks ended due to length limit
-    bool isFallThroughFromInvoke;       // True means the block needs alignment
-    MIR* firstMIRInsn;
-    MIR* lastMIRInsn;
-    BasicBlock* fallThrough;
-    BasicBlock* taken;
-    BasicBlock* iDom;            // Immediate dominator
-    BasicBlockDataFlow* dataFlowInfo;
-    GrowableList* predecessors;
-    ArenaBitVector* dominators;
-    ArenaBitVector* iDominated;         // Set nodes being immediately dominated
-    ArenaBitVector* domFrontier;        // Dominance frontier
-    struct {                            // For one-to-many successors like
-        BlockListType blockListType;    // switch and exception handling
-        GrowableList blocks;
-    } successorBlockList;
+  int id;
+  int dfsId;
+  bool visited;
+  bool hidden;
+  bool catchEntry;
+  bool fallThroughTarget;             // Reached via fallthrough
+  uint16_t startOffset;
+  uint16_t nestingDepth;
+  const Method* containingMethod;     // For blocks from the callee
+  BBType blockType;
+  bool needFallThroughBranch;         // For blocks ended due to length limit
+  bool isFallThroughFromInvoke;       // True means the block needs alignment
+  MIR* firstMIRInsn;
+  MIR* lastMIRInsn;
+  BasicBlock* fallThrough;
+  BasicBlock* taken;
+  BasicBlock* iDom;            // Immediate dominator
+  BasicBlockDataFlow* dataFlowInfo;
+  GrowableList* predecessors;
+  ArenaBitVector* dominators;
+  ArenaBitVector* iDominated;         // Set nodes being immediately dominated
+  ArenaBitVector* domFrontier;        // Dominance frontier
+  struct {                            // For one-to-many successors like
+    BlockListType blockListType;    // switch and exception handling
+    GrowableList blocks;
+  } successorBlockList;
 };
 
 /*
@@ -274,8 +274,8 @@ struct BasicBlock {
  * For swtich blocks, key is the case value.
  */
 struct SuccessorBlockInfo {
-    BasicBlock* block;
-    int key;
+  BasicBlock* block;
+  int key;
 };
 
 struct LoopAnalysis;
@@ -284,412 +284,412 @@ struct ArenaMemBlock;
 struct Memstats;
 
 enum AssemblerStatus {
-    kSuccess,
-    kRetryAll,
-    kRetryHalve
+  kSuccess,
+  kRetryAll,
+  kRetryHalve
 };
 
 #define NOTVISITED (-1)
 
 struct CompilationUnit {
   CompilationUnit()
-      : numBlocks(0),
-        compiler(NULL),
-        class_linker(NULL),
-        dex_file(NULL),
-        dex_cache(NULL),
-        class_loader(NULL),
-        method_idx(0),
-        code_item(NULL),
-        access_flags(0),
-        shorty(NULL),
-        firstLIRInsn(NULL),
-        lastLIRInsn(NULL),
-        literalList(NULL),
-        methodLiteralList(NULL),
-        codeLiteralList(NULL),
-        classPointerList(NULL),
-        numClassPointers(0),
-        chainCellOffsetLIR(NULL),
-        disableOpt(0),
-        enableDebug(0),
-        headerSize(0),
-        dataOffset(0),
-        totalSize(0),
-        assemblerStatus(kSuccess),
-        assemblerRetries(0),
-        genDebugger(false),
-        printMe(false),
-        hasClassLiterals(false),
-        hasLoop(false),
-        hasInvoke(false),
-        heapMemOp(false),
-        qdMode(false),
-        usesLinkRegister(false),
-        methodTraceSupport(false),
-        regPool(NULL),
-        optRound(0),
-        instructionSet(kNone),
-        numSSARegs(0),
-        ssaBaseVRegs(NULL),
-        ssaSubscripts(NULL),
-        vRegToSSAMap(NULL),
-        SSALastDefs(NULL),
-        isConstantV(NULL),
-        constantValues(NULL),
-        phiAliasMap(NULL),
-        phiList(NULL),
-        regLocation(NULL),
-        sequenceNumber(0),
-        promotionMap(NULL),
-        methodSReg(0),
-        switchOverflowPad(NULL),
-        numReachableBlocks(0),
-        numDalvikRegisters(0),
-        entryBlock(NULL),
-        exitBlock(NULL),
-        curBlock(NULL),
-        nextCodegenBlock(NULL),
-        iDomList(NULL),
-        tryBlockAddr(NULL),
-        defBlockMatrix(NULL),
-        tempBlockV(NULL),
-        tempDalvikRegisterV(NULL),
-        tempSSARegisterV(NULL),
-        printSSANames(false),
-        blockLabelList(NULL),
-        quitLoopMode(false),
-        preservedRegsUsed(0),
-        numIns(0),
-        numOuts(0),
-        numRegs(0),
-        numCoreSpills(0),
-        numFPSpills(0),
-        numCompilerTemps(0),
-        frameSize(0),
-        coreSpillMask(0U),
-        fpSpillMask(0U),
-        attrs(0U),
-        currentDalvikOffset(0),
-        insns(NULL),
-        insnsSize(0U),
-        disableDataflow(false),
-        defCount(0),
-        compilerFlipMatch(false),
-        arenaHead(NULL),
-        currentArena(NULL),
-        numArenaBlocks(0),
-        mstats(NULL),
-        opcodeCount(NULL) {
+    : numBlocks(0),
+      compiler(NULL),
+      class_linker(NULL),
+      dex_file(NULL),
+      dex_cache(NULL),
+      class_loader(NULL),
+      method_idx(0),
+      code_item(NULL),
+      access_flags(0),
+      shorty(NULL),
+      firstLIRInsn(NULL),
+      lastLIRInsn(NULL),
+      literalList(NULL),
+      methodLiteralList(NULL),
+      codeLiteralList(NULL),
+      classPointerList(NULL),
+      numClassPointers(0),
+      chainCellOffsetLIR(NULL),
+      disableOpt(0),
+      enableDebug(0),
+      headerSize(0),
+      dataOffset(0),
+      totalSize(0),
+      assemblerStatus(kSuccess),
+      assemblerRetries(0),
+      genDebugger(false),
+      printMe(false),
+      hasClassLiterals(false),
+      hasLoop(false),
+      hasInvoke(false),
+      heapMemOp(false),
+      qdMode(false),
+      usesLinkRegister(false),
+      methodTraceSupport(false),
+      regPool(NULL),
+      optRound(0),
+      instructionSet(kNone),
+      numSSARegs(0),
+      ssaBaseVRegs(NULL),
+      ssaSubscripts(NULL),
+      vRegToSSAMap(NULL),
+      SSALastDefs(NULL),
+      isConstantV(NULL),
+      constantValues(NULL),
+      phiAliasMap(NULL),
+      phiList(NULL),
+      regLocation(NULL),
+      sequenceNumber(0),
+      promotionMap(NULL),
+      methodSReg(0),
+      switchOverflowPad(NULL),
+      numReachableBlocks(0),
+      numDalvikRegisters(0),
+      entryBlock(NULL),
+      exitBlock(NULL),
+      curBlock(NULL),
+      nextCodegenBlock(NULL),
+      iDomList(NULL),
+      tryBlockAddr(NULL),
+      defBlockMatrix(NULL),
+      tempBlockV(NULL),
+      tempDalvikRegisterV(NULL),
+      tempSSARegisterV(NULL),
+      printSSANames(false),
+      blockLabelList(NULL),
+      quitLoopMode(false),
+      preservedRegsUsed(0),
+      numIns(0),
+      numOuts(0),
+      numRegs(0),
+      numCoreSpills(0),
+      numFPSpills(0),
+      numCompilerTemps(0),
+      frameSize(0),
+      coreSpillMask(0U),
+      fpSpillMask(0U),
+      attrs(0U),
+      currentDalvikOffset(0),
+      insns(NULL),
+      insnsSize(0U),
+      disableDataflow(false),
+      defCount(0),
+      compilerFlipMatch(false),
+      arenaHead(NULL),
+      currentArena(NULL),
+      numArenaBlocks(0),
+      mstats(NULL),
+      opcodeCount(NULL) {
 #if !defined(NDEBUG)
       liveSReg = 0;
 #endif
-    }
+  }
 
-    int numBlocks;
-    GrowableList blockList;
-    Compiler* compiler;            // Compiler driving this compiler
-    ClassLinker* class_linker;     // Linker to resolve fields and methods
-    const DexFile* dex_file;       // DexFile containing the method being compiled
-    DexCache* dex_cache;           // DexFile's corresponding cache
-    const ClassLoader* class_loader;  // compiling method's class loader
-    uint32_t method_idx;                // compiling method's index into method_ids of DexFile
-    const DexFile::CodeItem* code_item;  // compiling method's DexFile code_item
-    uint32_t access_flags;              // compiling method's access flags
-    const char* shorty;                 // compiling method's shorty
-    LIR* firstLIRInsn;
-    LIR* lastLIRInsn;
-    LIR* literalList;                   // Constants
-    LIR* methodLiteralList;             // Method literals requiring patching
-    LIR* codeLiteralList;               // Code literals requiring patching
-    LIR* classPointerList;              // Relocatable
-    int numClassPointers;
-    LIR* chainCellOffsetLIR;
-    uint32_t disableOpt;                // optControlVector flags
-    uint32_t enableDebug;               // debugControlVector flags
-    int headerSize;                     // bytes before the first code ptr
-    int dataOffset;                     // starting offset of literal pool
-    int totalSize;                      // header + code size
-    AssemblerStatus assemblerStatus;    // Success or fix and retry
-    int assemblerRetries;
-    std::vector<uint8_t> codeBuffer;
-    std::vector<uint32_t> mappingTable;
-    std::vector<uint16_t> coreVmapTable;
-    std::vector<uint16_t> fpVmapTable;
-    bool genDebugger;                   // Generate code for debugger
-    bool printMe;
-    bool hasClassLiterals;              // Contains class ptrs used as literals
-    bool hasLoop;                       // Contains a loop
-    bool hasInvoke;                     // Contains an invoke instruction
-    bool heapMemOp;                     // Mark mem ops for self verification
-    bool qdMode;                        // Compile for code size/compile time
-    bool usesLinkRegister;              // For self-verification only
-    bool methodTraceSupport;            // For TraceView profiling
-    RegisterPool* regPool;
-    int optRound;                       // round number to tell an LIR's age
-    InstructionSet instructionSet;
-    /* Number of total regs used in the whole cUnit after SSA transformation */
-    int numSSARegs;
-    /* Map SSA reg i to the base virtual register/subscript */
-    GrowableList* ssaBaseVRegs;
-    GrowableList* ssaSubscripts;
+  int numBlocks;
+  GrowableList blockList;
+  Compiler* compiler;            // Compiler driving this compiler
+  ClassLinker* class_linker;     // Linker to resolve fields and methods
+  const DexFile* dex_file;       // DexFile containing the method being compiled
+  DexCache* dex_cache;           // DexFile's corresponding cache
+  const ClassLoader* class_loader;  // compiling method's class loader
+  uint32_t method_idx;                // compiling method's index into method_ids of DexFile
+  const DexFile::CodeItem* code_item;  // compiling method's DexFile code_item
+  uint32_t access_flags;              // compiling method's access flags
+  const char* shorty;                 // compiling method's shorty
+  LIR* firstLIRInsn;
+  LIR* lastLIRInsn;
+  LIR* literalList;                   // Constants
+  LIR* methodLiteralList;             // Method literals requiring patching
+  LIR* codeLiteralList;               // Code literals requiring patching
+  LIR* classPointerList;              // Relocatable
+  int numClassPointers;
+  LIR* chainCellOffsetLIR;
+  uint32_t disableOpt;                // optControlVector flags
+  uint32_t enableDebug;               // debugControlVector flags
+  int headerSize;                     // bytes before the first code ptr
+  int dataOffset;                     // starting offset of literal pool
+  int totalSize;                      // header + code size
+  AssemblerStatus assemblerStatus;    // Success or fix and retry
+  int assemblerRetries;
+  std::vector<uint8_t> codeBuffer;
+  std::vector<uint32_t> mappingTable;
+  std::vector<uint16_t> coreVmapTable;
+  std::vector<uint16_t> fpVmapTable;
+  bool genDebugger;                   // Generate code for debugger
+  bool printMe;
+  bool hasClassLiterals;              // Contains class ptrs used as literals
+  bool hasLoop;                       // Contains a loop
+  bool hasInvoke;                     // Contains an invoke instruction
+  bool heapMemOp;                     // Mark mem ops for self verification
+  bool qdMode;                        // Compile for code size/compile time
+  bool usesLinkRegister;              // For self-verification only
+  bool methodTraceSupport;            // For TraceView profiling
+  RegisterPool* regPool;
+  int optRound;                       // round number to tell an LIR's age
+  InstructionSet instructionSet;
+  /* Number of total regs used in the whole cUnit after SSA transformation */
+  int numSSARegs;
+  /* Map SSA reg i to the base virtual register/subscript */
+  GrowableList* ssaBaseVRegs;
+  GrowableList* ssaSubscripts;
 
-    /* The following are new data structures to support SSA representations */
-    /* Map original Dalvik virtual reg i to the current SSA name */
-    int* vRegToSSAMap;                  // length == method->registersSize
-    int* SSALastDefs;                   // length == method->registersSize
-    ArenaBitVector* isConstantV;        // length == numSSAReg
-    int* constantValues;                // length == numSSAReg
-    int* phiAliasMap;                   // length == numSSAReg
-    MIR* phiList;
+  /* The following are new data structures to support SSA representations */
+  /* Map original Dalvik virtual reg i to the current SSA name */
+  int* vRegToSSAMap;                  // length == method->registersSize
+  int* SSALastDefs;                   // length == method->registersSize
+  ArenaBitVector* isConstantV;        // length == numSSAReg
+  int* constantValues;                // length == numSSAReg
+  int* phiAliasMap;                   // length == numSSAReg
+  MIR* phiList;
 
-    /* Use counts of ssa names */
-    GrowableList useCounts;             // Weighted by nesting depth
-    GrowableList rawUseCounts;          // Not weighted
+  /* Use counts of ssa names */
+  GrowableList useCounts;             // Weighted by nesting depth
+  GrowableList rawUseCounts;          // Not weighted
 
-    /* Optimization support */
-    GrowableList loopHeaders;
+  /* Optimization support */
+  GrowableList loopHeaders;
 
-    /* Map SSA names to location */
-    RegLocation* regLocation;
-    int sequenceNumber;
+  /* Map SSA names to location */
+  RegLocation* regLocation;
+  int sequenceNumber;
 
-    /* Keep track of Dalvik vReg to physical register mappings */
-    PromotionMap* promotionMap;
+  /* Keep track of Dalvik vReg to physical register mappings */
+  PromotionMap* promotionMap;
 
-    /* SSA name for Method* */
-    int methodSReg;
+  /* SSA name for Method* */
+  int methodSReg;
 
-    /*
-     * Set to the Dalvik PC of the switch instruction if it has more than
-     * MAX_CHAINED_SWITCH_CASES cases.
-     */
-    const u2* switchOverflowPad;
+  /*
+   * Set to the Dalvik PC of the switch instruction if it has more than
+   * MAX_CHAINED_SWITCH_CASES cases.
+   */
+  const u2* switchOverflowPad;
 
-    int numReachableBlocks;
-    int numDalvikRegisters;             // method->registersSize
-    BasicBlock* entryBlock;
-    BasicBlock* exitBlock;
-    BasicBlock* curBlock;
-    BasicBlock* nextCodegenBlock;       // for extended trace codegen
-    GrowableList dfsOrder;
-    GrowableList dfsPostOrder;
-    GrowableList domPostOrderTraversal;
-    GrowableList throwLaunchpads;
-    GrowableList suspendLaunchpads;
-    GrowableList intrinsicLaunchpads;
-    GrowableList compilerTemps;
-    int* iDomList;
-    ArenaBitVector* tryBlockAddr;
-    ArenaBitVector** defBlockMatrix;    // numDalvikRegister x numBlocks
-    ArenaBitVector* tempBlockV;
-    ArenaBitVector* tempDalvikRegisterV;
-    ArenaBitVector* tempSSARegisterV;   // numSSARegs
-    bool printSSANames;
-    void* blockLabelList;
-    bool quitLoopMode;                  // cold path/complex bytecode
-    int preservedRegsUsed;              // How many callee save regs used
-    /*
-     * Frame layout details.
-     * NOTE: for debug support it will be necessary to add a structure
-     * to map the Dalvik virtual registers to the promoted registers.
-     * NOTE: "num" fields are in 4-byte words, "Size" and "Offset" in bytes.
-     */
-    int numIns;
-    int numOuts;
-    int numRegs;            // Unlike numDalvikRegisters, does not include ins
-    int numCoreSpills;
-    int numFPSpills;
-    int numCompilerTemps;
-    int frameSize;
-    unsigned int coreSpillMask;
-    unsigned int fpSpillMask;
-    unsigned int attrs;
-    /*
-     * CLEANUP/RESTRUCTURE: The code generation utilities don't have a built-in
-     * mechanism to propagate the original Dalvik opcode address to the
-     * associated generated instructions.  For the trace compiler, this wasn't
-     * necessary because the interpreter handled all throws and debugging
-     * requests.  For now we'll handle this by placing the Dalvik offset
-     * in the CompilationUnit struct before codegen for each instruction.
-     * The low-level LIR creation utilites will pull it from here.  Should
-     * be rewritten.
-     */
-    int currentDalvikOffset;
-    GrowableList switchTables;
-    GrowableList fillArrayData;
-    const u2* insns;
-    u4 insnsSize;
-    bool disableDataflow; // Skip dataflow analysis if possible
-    SafeMap<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
-    SafeMap<unsigned int, LIR*> boundaryMap; // boundary lookup cache
-    int defCount;         // Used to estimate number of SSA names
+  int numReachableBlocks;
+  int numDalvikRegisters;             // method->registersSize
+  BasicBlock* entryBlock;
+  BasicBlock* exitBlock;
+  BasicBlock* curBlock;
+  BasicBlock* nextCodegenBlock;       // for extended trace codegen
+  GrowableList dfsOrder;
+  GrowableList dfsPostOrder;
+  GrowableList domPostOrderTraversal;
+  GrowableList throwLaunchpads;
+  GrowableList suspendLaunchpads;
+  GrowableList intrinsicLaunchpads;
+  GrowableList compilerTemps;
+  int* iDomList;
+  ArenaBitVector* tryBlockAddr;
+  ArenaBitVector** defBlockMatrix;    // numDalvikRegister x numBlocks
+  ArenaBitVector* tempBlockV;
+  ArenaBitVector* tempDalvikRegisterV;
+  ArenaBitVector* tempSSARegisterV;   // numSSARegs
+  bool printSSANames;
+  void* blockLabelList;
+  bool quitLoopMode;                  // cold path/complex bytecode
+  int preservedRegsUsed;              // How many callee save regs used
+  /*
+   * Frame layout details.
+   * NOTE: for debug support it will be necessary to add a structure
+   * to map the Dalvik virtual registers to the promoted registers.
+   * NOTE: "num" fields are in 4-byte words, "Size" and "Offset" in bytes.
+   */
+  int numIns;
+  int numOuts;
+  int numRegs;            // Unlike numDalvikRegisters, does not include ins
+  int numCoreSpills;
+  int numFPSpills;
+  int numCompilerTemps;
+  int frameSize;
+  unsigned int coreSpillMask;
+  unsigned int fpSpillMask;
+  unsigned int attrs;
+  /*
+   * CLEANUP/RESTRUCTURE: The code generation utilities don't have a built-in
+   * mechanism to propagate the original Dalvik opcode address to the
+   * associated generated instructions.  For the trace compiler, this wasn't
+   * necessary because the interpreter handled all throws and debugging
+   * requests.  For now we'll handle this by placing the Dalvik offset
+   * in the CompilationUnit struct before codegen for each instruction.
+   * The low-level LIR creation utilites will pull it from here.  Should
+   * be rewritten.
+   */
+  int currentDalvikOffset;
+  GrowableList switchTables;
+  GrowableList fillArrayData;
+  const u2* insns;
+  u4 insnsSize;
+  bool disableDataflow; // Skip dataflow analysis if possible
+  SafeMap<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
+  SafeMap<unsigned int, LIR*> boundaryMap; // boundary lookup cache
+  int defCount;         // Used to estimate number of SSA names
 
-    // If non-empty, apply optimizer/debug flags only to matching methods.
-    std::string compilerMethodMatch;
-    // Flips sense of compilerMethodMatch - apply flags if doesn't match.
-    bool compilerFlipMatch;
-    ArenaMemBlock* arenaHead;
-    ArenaMemBlock* currentArena;
-    int numArenaBlocks;
-    Memstats* mstats;
-    int* opcodeCount;    // Count Dalvik opcodes for tuning
+  // If non-empty, apply optimizer/debug flags only to matching methods.
+  std::string compilerMethodMatch;
+  // Flips sense of compilerMethodMatch - apply flags if doesn't match.
+  bool compilerFlipMatch;
+  ArenaMemBlock* arenaHead;
+  ArenaMemBlock* currentArena;
+  int numArenaBlocks;
+  Memstats* mstats;
+  int* opcodeCount;    // Count Dalvik opcodes for tuning
 #ifndef NDEBUG
-    /*
-     * Sanity checking for the register temp tracking.  The same ssa
-     * name should never be associated with one temp register per
-     * instruction compilation.
-     */
-    int liveSReg;
+  /*
+   * Sanity checking for the register temp tracking.  The same ssa
+   * name should never be associated with one temp register per
+   * instruction compilation.
+   */
+  int liveSReg;
 #endif
 };
 
 enum OpSize {
-    kWord,
-    kLong,
-    kSingle,
-    kDouble,
-    kUnsignedHalf,
-    kSignedHalf,
-    kUnsignedByte,
-    kSignedByte,
+  kWord,
+  kLong,
+  kSingle,
+  kDouble,
+  kUnsignedHalf,
+  kSignedHalf,
+  kUnsignedByte,
+  kSignedByte,
 };
 
 enum OpKind {
-    kOpMov,
-    kOpMvn,
-    kOpCmp,
-    kOpLsl,
-    kOpLsr,
-    kOpAsr,
-    kOpRor,
-    kOpNot,
-    kOpAnd,
-    kOpOr,
-    kOpXor,
-    kOpNeg,
-    kOpAdd,
-    kOpAdc,
-    kOpSub,
-    kOpSbc,
-    kOpRsub,
-    kOpMul,
-    kOpDiv,
-    kOpRem,
-    kOpBic,
-    kOpCmn,
-    kOpTst,
-    kOpBkpt,
-    kOpBlx,
-    kOpPush,
-    kOpPop,
-    kOp2Char,
-    kOp2Short,
-    kOp2Byte,
-    kOpCondBr,
-    kOpUncondBr,
-    kOpBx,
-    kOpInvalid,
+  kOpMov,
+  kOpMvn,
+  kOpCmp,
+  kOpLsl,
+  kOpLsr,
+  kOpAsr,
+  kOpRor,
+  kOpNot,
+  kOpAnd,
+  kOpOr,
+  kOpXor,
+  kOpNeg,
+  kOpAdd,
+  kOpAdc,
+  kOpSub,
+  kOpSbc,
+  kOpRsub,
+  kOpMul,
+  kOpDiv,
+  kOpRem,
+  kOpBic,
+  kOpCmn,
+  kOpTst,
+  kOpBkpt,
+  kOpBlx,
+  kOpPush,
+  kOpPop,
+  kOp2Char,
+  kOp2Short,
+  kOp2Byte,
+  kOpCondBr,
+  kOpUncondBr,
+  kOpBx,
+  kOpInvalid,
 };
 
 std::ostream& operator<<(std::ostream& os, const OpKind& kind);
 
 enum ConditionCode {
-    kCondEq,  // equal
-    kCondNe,  // not equal
-    kCondCs,  // carry set (unsigned less than)
-    kCondUlt = kCondCs,
-    kCondCc,  // carry clear (unsigned greater than or same)
-    kCondUge = kCondCc,
-    kCondMi,  // minus
-    kCondPl,  // plus, positive or zero
-    kCondVs,  // overflow
-    kCondVc,  // no overflow
-    kCondHi,  // unsigned greater than
-    kCondLs,  // unsigned lower or same
-    kCondGe,  // signed greater than or equal
-    kCondLt,  // signed less than
-    kCondGt,  // signed greater than
-    kCondLe,  // signed less than or equal
-    kCondAl,  // always
-    kCondNv,  // never
+  kCondEq,  // equal
+  kCondNe,  // not equal
+  kCondCs,  // carry set (unsigned less than)
+  kCondUlt = kCondCs,
+  kCondCc,  // carry clear (unsigned greater than or same)
+  kCondUge = kCondCc,
+  kCondMi,  // minus
+  kCondPl,  // plus, positive or zero
+  kCondVs,  // overflow
+  kCondVc,  // no overflow
+  kCondHi,  // unsigned greater than
+  kCondLs,  // unsigned lower or same
+  kCondGe,  // signed greater than or equal
+  kCondLt,  // signed less than
+  kCondGt,  // signed greater than
+  kCondLe,  // signed less than or equal
+  kCondAl,  // always
+  kCondNv,  // never
 };
 
 enum ThrowKind {
-    kThrowNullPointer,
-    kThrowDivZero,
-    kThrowArrayBounds,
-    kThrowVerificationError,
-    kThrowNoSuchMethod,
-    kThrowStackOverflow,
+  kThrowNullPointer,
+  kThrowDivZero,
+  kThrowArrayBounds,
+  kThrowVerificationError,
+  kThrowNoSuchMethod,
+  kThrowStackOverflow,
 };
 
 struct SwitchTable {
-    int offset;
-    const u2* table;            // Original dex table
-    int vaddr;                  // Dalvik offset of switch opcode
-    LIR* anchor;                // Reference instruction for relative offsets
-    LIR** targets;              // Array of case targets
+  int offset;
+  const u2* table;            // Original dex table
+  int vaddr;                  // Dalvik offset of switch opcode
+  LIR* anchor;                // Reference instruction for relative offsets
+  LIR** targets;              // Array of case targets
 };
 
 struct FillArrayData {
-    int offset;
-    const u2* table;           // Original dex table
-    int size;
-    int vaddr;                 // Dalvik offset of FILL_ARRAY_DATA opcode
+  int offset;
+  const u2* table;           // Original dex table
+  int size;
+  int vaddr;                 // Dalvik offset of FILL_ARRAY_DATA opcode
 };
 
 #define MAX_PATTERN_LEN 5
 
 enum SpecialCaseHandler {
-    kNoHandler,
-    kNullMethod,
-    kConstFunction,
-    kIGet,
-    kIGetBoolean,
-    kIGetObject,
-    kIGetByte,
-    kIGetChar,
-    kIGetShort,
-    kIGetWide,
-    kIPut,
-    kIPutBoolean,
-    kIPutObject,
-    kIPutByte,
-    kIPutChar,
-    kIPutShort,
-    kIPutWide,
-    kIdentity,
+  kNoHandler,
+  kNullMethod,
+  kConstFunction,
+  kIGet,
+  kIGetBoolean,
+  kIGetObject,
+  kIGetByte,
+  kIGetChar,
+  kIGetShort,
+  kIGetWide,
+  kIPut,
+  kIPutBoolean,
+  kIPutObject,
+  kIPutByte,
+  kIPutChar,
+  kIPutShort,
+  kIPutWide,
+  kIdentity,
 };
 
 struct CodePattern {
-    const Instruction::Code opcodes[MAX_PATTERN_LEN];
-    const SpecialCaseHandler handlerCode;
+  const Instruction::Code opcodes[MAX_PATTERN_LEN];
+  const SpecialCaseHandler handlerCode;
 };
 
 static const CodePattern specialPatterns[] = {
-    {{Instruction::RETURN_VOID}, kNullMethod},
-    {{Instruction::CONST, Instruction::RETURN}, kConstFunction},
-    {{Instruction::CONST_4, Instruction::RETURN}, kConstFunction},
-    {{Instruction::CONST_4, Instruction::RETURN_OBJECT}, kConstFunction},
-    {{Instruction::CONST_16, Instruction::RETURN}, kConstFunction},
-    {{Instruction::IGET, Instruction:: RETURN}, kIGet},
-    {{Instruction::IGET_BOOLEAN, Instruction::RETURN}, kIGetBoolean},
-    {{Instruction::IGET_OBJECT, Instruction::RETURN_OBJECT}, kIGetObject},
-    {{Instruction::IGET_BYTE, Instruction::RETURN}, kIGetByte},
-    {{Instruction::IGET_CHAR, Instruction::RETURN}, kIGetChar},
-    {{Instruction::IGET_SHORT, Instruction::RETURN}, kIGetShort},
-    {{Instruction::IGET_WIDE, Instruction::RETURN_WIDE}, kIGetWide},
-    {{Instruction::IPUT, Instruction::RETURN_VOID}, kIPut},
-    {{Instruction::IPUT_BOOLEAN, Instruction::RETURN_VOID}, kIPutBoolean},
-    {{Instruction::IPUT_OBJECT, Instruction::RETURN_VOID}, kIPutObject},
-    {{Instruction::IPUT_BYTE, Instruction::RETURN_VOID}, kIPutByte},
-    {{Instruction::IPUT_CHAR, Instruction::RETURN_VOID}, kIPutChar},
-    {{Instruction::IPUT_SHORT, Instruction::RETURN_VOID}, kIPutShort},
-    {{Instruction::IPUT_WIDE, Instruction::RETURN_VOID}, kIPutWide},
-    {{Instruction::RETURN}, kIdentity},
-    {{Instruction::RETURN_OBJECT}, kIdentity},
-    {{Instruction::RETURN_WIDE}, kIdentity},
+  {{Instruction::RETURN_VOID}, kNullMethod},
+  {{Instruction::CONST, Instruction::RETURN}, kConstFunction},
+  {{Instruction::CONST_4, Instruction::RETURN}, kConstFunction},
+  {{Instruction::CONST_4, Instruction::RETURN_OBJECT}, kConstFunction},
+  {{Instruction::CONST_16, Instruction::RETURN}, kConstFunction},
+  {{Instruction::IGET, Instruction:: RETURN}, kIGet},
+  {{Instruction::IGET_BOOLEAN, Instruction::RETURN}, kIGetBoolean},
+  {{Instruction::IGET_OBJECT, Instruction::RETURN_OBJECT}, kIGetObject},
+  {{Instruction::IGET_BYTE, Instruction::RETURN}, kIGetByte},
+  {{Instruction::IGET_CHAR, Instruction::RETURN}, kIGetChar},
+  {{Instruction::IGET_SHORT, Instruction::RETURN}, kIGetShort},
+  {{Instruction::IGET_WIDE, Instruction::RETURN_WIDE}, kIGetWide},
+  {{Instruction::IPUT, Instruction::RETURN_VOID}, kIPut},
+  {{Instruction::IPUT_BOOLEAN, Instruction::RETURN_VOID}, kIPutBoolean},
+  {{Instruction::IPUT_OBJECT, Instruction::RETURN_VOID}, kIPutObject},
+  {{Instruction::IPUT_BYTE, Instruction::RETURN_VOID}, kIPutByte},
+  {{Instruction::IPUT_CHAR, Instruction::RETURN_VOID}, kIPutChar},
+  {{Instruction::IPUT_SHORT, Instruction::RETURN_VOID}, kIPutShort},
+  {{Instruction::IPUT_WIDE, Instruction::RETURN_VOID}, kIPutWide},
+  {{Instruction::RETURN}, kIdentity},
+  {{Instruction::RETURN_OBJECT}, kIdentity},
+  {{Instruction::RETURN_WIDE}, kIdentity},
 };
 
 BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId);

@@ -20,40 +20,40 @@
 namespace art {
 
 static const char* gOpKindNames[kOpInvalid + 1] = {
-    "OpMov",
-    "OpMvn",
-    "OpCmp",
-    "OpLsl",
-    "OpLsr",
-    "OpAsr",
-    "OpRor",
-    "OpNot",
-    "OpAnd",
-    "OpOr",
-    "OpXor",
-    "OpNeg",
-    "OpAdd",
-    "OpAdc",
-    "OpSub",
-    "OpSbc",
-    "OpRsub",
-    "OpMul",
-    "OpDiv",
-    "OpRem",
-    "OpBic",
-    "OpCmn",
-    "OpTst",
-    "OpBkpt",
-    "OpBlx",
-    "OpPush",
-    "OpPop",
-    "Op2Char",
-    "Op2Short",
-    "Op2Byte",
-    "OpCondBr",
-    "OpUncondBr",
-    "OpBx",
-    "OpInvalid",
+  "OpMov",
+  "OpMvn",
+  "OpCmp",
+  "OpLsl",
+  "OpLsr",
+  "OpAsr",
+  "OpRor",
+  "OpNot",
+  "OpAnd",
+  "OpOr",
+  "OpXor",
+  "OpNeg",
+  "OpAdd",
+  "OpAdc",
+  "OpSub",
+  "OpSbc",
+  "OpRsub",
+  "OpMul",
+  "OpDiv",
+  "OpRem",
+  "OpBic",
+  "OpCmn",
+  "OpTst",
+  "OpBkpt",
+  "OpBlx",
+  "OpPush",
+  "OpPop",
+  "Op2Char",
+  "Op2Short",
+  "Op2Byte",
+  "OpCondBr",
+  "OpUncondBr",
+  "OpBx",
+  "OpInvalid",
 };
 
 std::ostream& operator<<(std::ostream& os, const OpKind& kind) {
@@ -68,62 +68,62 @@ std::ostream& operator<<(std::ostream& os, const OpKind& kind) {
 /* Allocate a new basic block */
 BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId)
 {
-    BasicBlock* bb = (BasicBlock* )oatNew(cUnit, sizeof(BasicBlock), true,
-                                          kAllocBB);
-    bb->blockType = blockType;
-    bb->id = blockId;
-    bb->predecessors = (GrowableList*) oatNew(cUnit, sizeof(GrowableList),
-                                              false, kAllocPredecessors);
-    oatInitGrowableList(cUnit, bb->predecessors,
-                        (blockType == kExitBlock) ? 2048 : 2,
-                        kListPredecessors);
-    return bb;
+  BasicBlock* bb = (BasicBlock* )oatNew(cUnit, sizeof(BasicBlock), true,
+                                        kAllocBB);
+  bb->blockType = blockType;
+  bb->id = blockId;
+  bb->predecessors = (GrowableList*) oatNew(cUnit, sizeof(GrowableList),
+                                            false, kAllocPredecessors);
+  oatInitGrowableList(cUnit, bb->predecessors,
+                      (blockType == kExitBlock) ? 2048 : 2,
+                      kListPredecessors);
+  return bb;
 }
 
 /* Insert an MIR instruction to the end of a basic block */
 void oatAppendMIR(BasicBlock* bb, MIR* mir)
 {
-    if (bb->firstMIRInsn == NULL) {
-        DCHECK(bb->lastMIRInsn == NULL);
-        bb->lastMIRInsn = bb->firstMIRInsn = mir;
-        mir->prev = mir->next = NULL;
-    } else {
-        bb->lastMIRInsn->next = mir;
-        mir->prev = bb->lastMIRInsn;
-        mir->next = NULL;
-        bb->lastMIRInsn = mir;
-    }
+  if (bb->firstMIRInsn == NULL) {
+    DCHECK(bb->lastMIRInsn == NULL);
+    bb->lastMIRInsn = bb->firstMIRInsn = mir;
+    mir->prev = mir->next = NULL;
+  } else {
+    bb->lastMIRInsn->next = mir;
+    mir->prev = bb->lastMIRInsn;
+    mir->next = NULL;
+    bb->lastMIRInsn = mir;
+  }
 }
 
 /* Insert an MIR instruction to the head of a basic block */
 void oatPrependMIR(BasicBlock* bb, MIR* mir)
 {
-    if (bb->firstMIRInsn == NULL) {
-        DCHECK(bb->lastMIRInsn == NULL);
-        bb->lastMIRInsn = bb->firstMIRInsn = mir;
-        mir->prev = mir->next = NULL;
-    } else {
-        bb->firstMIRInsn->prev = mir;
-        mir->next = bb->firstMIRInsn;
-        mir->prev = NULL;
-        bb->firstMIRInsn = mir;
-    }
+  if (bb->firstMIRInsn == NULL) {
+    DCHECK(bb->lastMIRInsn == NULL);
+    bb->lastMIRInsn = bb->firstMIRInsn = mir;
+    mir->prev = mir->next = NULL;
+  } else {
+    bb->firstMIRInsn->prev = mir;
+    mir->next = bb->firstMIRInsn;
+    mir->prev = NULL;
+    bb->firstMIRInsn = mir;
+  }
 }
 
 /* Insert a MIR instruction after the specified MIR */
 void oatInsertMIRAfter(BasicBlock* bb, MIR* currentMIR, MIR* newMIR)
 {
-    newMIR->prev = currentMIR;
-    newMIR->next = currentMIR->next;
-    currentMIR->next = newMIR;
+  newMIR->prev = currentMIR;
+  newMIR->next = currentMIR->next;
+  currentMIR->next = newMIR;
 
-    if (newMIR->next) {
-        /* Is not the last MIR in the block */
-        newMIR->next->prev = newMIR;
-    } else {
-        /* Is the last MIR in the block */
-        bb->lastMIRInsn = newMIR;
-    }
+  if (newMIR->next) {
+    /* Is not the last MIR in the block */
+    newMIR->next->prev = newMIR;
+  } else {
+    /* Is the last MIR in the block */
+    bb->lastMIRInsn = newMIR;
+  }
 }
 
 /*
@@ -132,16 +132,16 @@ void oatInsertMIRAfter(BasicBlock* bb, MIR* currentMIR, MIR* newMIR)
  */
 void oatAppendLIR(CompilationUnit *cUnit, LIR* lir)
 {
-    if (cUnit->firstLIRInsn == NULL) {
-        DCHECK(cUnit->lastLIRInsn == NULL);
-        cUnit->lastLIRInsn = cUnit->firstLIRInsn = lir;
-        lir->prev = lir->next = NULL;
-    } else {
-        cUnit->lastLIRInsn->next = lir;
-        lir->prev = cUnit->lastLIRInsn;
-        lir->next = NULL;
-        cUnit->lastLIRInsn = lir;
-    }
+  if (cUnit->firstLIRInsn == NULL) {
+    DCHECK(cUnit->lastLIRInsn == NULL);
+     cUnit->lastLIRInsn = cUnit->firstLIRInsn = lir;
+    lir->prev = lir->next = NULL;
+  } else {
+    cUnit->lastLIRInsn->next = lir;
+    lir->prev = cUnit->lastLIRInsn;
+    lir->next = NULL;
+    cUnit->lastLIRInsn = lir;
+  }
 }
 
 /*
@@ -152,13 +152,13 @@ void oatAppendLIR(CompilationUnit *cUnit, LIR* lir)
  */
 void oatInsertLIRBefore(LIR* currentLIR, LIR* newLIR)
 {
-    DCHECK(currentLIR->prev != NULL);
-    LIR *prevLIR = currentLIR->prev;
+  DCHECK(currentLIR->prev != NULL);
+  LIR *prevLIR = currentLIR->prev;
 
-    prevLIR->next = newLIR;
-    newLIR->prev = prevLIR;
-    newLIR->next = currentLIR;
-    currentLIR->prev = newLIR;
+  prevLIR->next = newLIR;
+  newLIR->prev = prevLIR;
+  newLIR->next = currentLIR;
+  currentLIR->prev = newLIR;
 }
 
 /*
@@ -169,10 +169,10 @@ void oatInsertLIRBefore(LIR* currentLIR, LIR* newLIR)
  */
 void oatInsertLIRAfter(LIR* currentLIR, LIR* newLIR)
 {
-    newLIR->prev = currentLIR;
-    newLIR->next = currentLIR->next;
-    currentLIR->next = newLIR;
-    newLIR->next->prev = newLIR;
+  newLIR->prev = currentLIR;
+  newLIR->next = currentLIR->next;
+  currentLIR->next = newLIR;
+  newLIR->next->prev = newLIR;
 }
 
 }  // namespace art

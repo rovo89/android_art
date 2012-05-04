@@ -27,7 +27,7 @@ namespace art {
 void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
                     SpecialCaseHandler specialCase)
 {
-    // TODO
+  // TODO
 }
 
 /*
@@ -36,13 +36,13 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 LIR* genRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
                     int reg1, int base, int offset, MIR* mir, ThrowKind kind)
 {
-    LIR* tgt = rawLIR(cUnit, 0, kPseudoThrowTarget, kind,
-                      mir ? mir->offset : 0, reg1, base, offset);
-    opRegMem(cUnit, kOpCmp, reg1, base, offset);
-    LIR* branch = opCondBranch(cUnit, cCode, tgt);
-    // Remember branch target - will process later
-    oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
-    return branch;
+  LIR* tgt = rawLIR(cUnit, 0, kPseudoThrowTarget, kind,
+                    mir ? mir->offset : 0, reg1, base, offset);
+  opRegMem(cUnit, kOpCmp, reg1, base, offset);
+  LIR* branch = opCondBranch(cUnit, cCode, tgt);
+  // Remember branch target - will process later
+  oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
+  return branch;
 }
 
 /*
@@ -51,7 +51,9 @@ LIR* genRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
  */
 BasicBlock *findBlock(CompilationUnit* cUnit, unsigned int codeOffset,
                       bool split, bool create, BasicBlock** immedPredBlockP);
-void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc, LIR* labelList) {
+void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
+                     LIR* labelList)
+{
   const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
   if (cUnit->printMe) {
     dumpSparseSwitchTable(table);
@@ -64,7 +66,8 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc, LIR* l
     int key = keys[i];
     BasicBlock* case_block = findBlock(cUnit, mir->offset + targets[i],
                                        false, false, NULL);
-    opCmpImmBranch(cUnit, kCondEq, rlSrc.lowReg, key, &labelList[case_block->id]);
+    opCmpImmBranch(cUnit, kCondEq, rlSrc.lowReg, key,
+                   &labelList[case_block->id]);
   }
 }
 
@@ -84,7 +87,8 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc, LIR* l
  * jmp  rStartOfMethod
  * done:
  */
-void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc) {
+void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+{
   const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
   if (cUnit->printMe) {
     dumpPackedSwitchTable(table);
@@ -120,7 +124,8 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc) {
 
   // Load the displacement from the switch table
   int dispReg = oatAllocTemp(cUnit);
-  newLIR5(cUnit, kX86PcRelLoadRA, dispReg, startOfMethodReg, keyReg, 2, (intptr_t)tabRec);
+  newLIR5(cUnit, kX86PcRelLoadRA, dispReg, startOfMethodReg, keyReg, 2,
+          (intptr_t)tabRec);
   // Add displacement to start of method
   opRegReg(cUnit, kOpAdd, startOfMethodReg, dispReg);
   // ..and go!
@@ -132,7 +137,8 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc) {
   branchOver->target = (LIR*)target;
 }
 
-void callRuntimeHelperRegReg(CompilationUnit* cUnit, int helperOffset, int arg0, int arg1);
+void callRuntimeHelperRegReg(CompilationUnit* cUnit, int helperOffset,
+                             int arg0, int arg1);
 /*
  * Array data table format:
  *  ushort ident = 0x0300   magic value
@@ -147,7 +153,8 @@ void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
   const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
   // Add the table to the list - we'll process it later
-  FillArrayData *tabRec = (FillArrayData *)oatNew(cUnit, sizeof(FillArrayData), true, kAllocData);
+  FillArrayData *tabRec = (FillArrayData *)oatNew(cUnit, sizeof(FillArrayData),
+      true, kAllocData);
   tabRec->table = table;
   tabRec->vaddr = mir->offset;
   u2 width = tabRec->table[1];
@@ -163,35 +170,37 @@ void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
   newLIR1(cUnit, kX86StartOfMethod, rARG2);
   newLIR2(cUnit, kX86PcRelAdr, rARG1, (intptr_t)tabRec);
   newLIR2(cUnit, kX86Add32RR, rARG1, rARG2);
-  callRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode), rARG0, rARG1);
+  callRuntimeHelperRegReg(cUnit,
+                          ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode),
+                          rARG0, rARG1);
 }
 
 void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
-    UNIMPLEMENTED(WARNING) << "genNegFloat " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
-    newLIR0(cUnit, kX86Bkpt);
+  UNIMPLEMENTED(WARNING) << "genNegFloat "
+                         << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+  newLIR0(cUnit, kX86Bkpt);
 #if 0
-    RegLocation rlResult;
-    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
-    rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    opRegRegImm(cUnit, kOpAdd, rlResult.lowReg,
-                rlSrc.lowReg, 0x80000000);
-    storeValue(cUnit, rlDest, rlResult);
+  RegLocation rlResult;
+  rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+  rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+  opRegRegImm(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, 0x80000000);
+  storeValue(cUnit, rlDest, rlResult);
 #endif
 }
 
 void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
-    UNIMPLEMENTED(WARNING) << "genNegDouble" << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
-    newLIR0(cUnit, kX86Bkpt);
+  UNIMPLEMENTED(WARNING) << "genNegDouble"
+                         << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+  newLIR0(cUnit, kX86Bkpt);
 #if 0
-    RegLocation rlResult;
-    rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
-    rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    opRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc.highReg,
-                        0x80000000);
-    opRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
-    storeValueWide(cUnit, rlDest, rlResult);
+  RegLocation rlResult;
+  rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
+  rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+  opRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc.highReg, 0x80000000);
+  opRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
+  storeValueWide(cUnit, rlDest, rlResult);
 #endif
 }
 
@@ -203,12 +212,12 @@ void callRuntimeHelperReg(CompilationUnit* cUnit, int helperOffset, int arg0);
  */
 void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    oatFlushAllRegs(cUnit);
-    loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
-    oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-    genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
-    // Go expensive route - artLockObjectFromCode(self, obj);
-    callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode), rARG0);
+  oatFlushAllRegs(cUnit);
+  loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
+  oatLockCallTemps(cUnit);  // Prepare for explicit register usage
+  genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
+  // Go expensive route - artLockObjectFromCode(self, obj);
+  callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode), rARG0);
 }
 
 /*
@@ -216,12 +225,12 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  */
 void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    oatFlushAllRegs(cUnit);
-    loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
-    oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-    genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
-    // Go expensive route - UnlockObjectFromCode(obj);
-    callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARG0);
+  oatFlushAllRegs(cUnit);
+  loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
+  oatLockCallTemps(cUnit);  // Prepare for explicit register usage
+  genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
+  // Go expensive route - UnlockObjectFromCode(obj);
+  callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARG0);
 }
 
 /*
@@ -243,20 +252,20 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2)
 {
-    oatFlushAllRegs(cUnit);
-    oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-    loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-    loadValueDirectWideFixed(cUnit, rlSrc1, r2, r3);
-    // Compute (r1:r0) = (r1:r0) - (r2:r3)
-    opRegReg(cUnit, kOpSub, r0, r2);  // r0 = r0 - r2
-    opRegReg(cUnit, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
-    opRegReg(cUnit, kOpOr, r0, r1);   // r0 = high | low - sets ZF
-    newLIR2(cUnit, kX86Set8R, r0, kX86CondNz);  // r0 = (r1:r0) != (r2:r3) ? 1 : 0
-    newLIR2(cUnit, kX86Movzx8RR, r0, r0);
-    opRegImm(cUnit, kOpAsr, r1, 31);  // r1 = high >> 31
-    opRegReg(cUnit, kOpOr, r0, r1);   // r0 holds result
-    RegLocation rlResult = LOC_C_RETURN;
-    storeValue(cUnit, rlDest, rlResult);
+  oatFlushAllRegs(cUnit);
+  oatLockCallTemps(cUnit);  // Prepare for explicit register usage
+  loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
+  loadValueDirectWideFixed(cUnit, rlSrc1, r2, r3);
+  // Compute (r1:r0) = (r1:r0) - (r2:r3)
+  opRegReg(cUnit, kOpSub, r0, r2);  // r0 = r0 - r2
+  opRegReg(cUnit, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
+  opRegReg(cUnit, kOpOr, r0, r1);   // r0 = high | low - sets ZF
+  newLIR2(cUnit, kX86Set8R, r0, kX86CondNz);  // r0 = (r1:r0) != (r2:r3) ? 1 : 0
+  newLIR2(cUnit, kX86Movzx8RR, r0, r0);
+  opRegImm(cUnit, kOpAsr, r1, 31);  // r1 = high >> 31
+  opRegReg(cUnit, kOpOr, r0, r1);   // r0 holds result
+  RegLocation rlResult = LOC_C_RETURN;
+  storeValue(cUnit, rlDest, rlResult);
 }
 
 X86ConditionCode oatX86ConditionEncoding(ConditionCode cond) {
@@ -281,11 +290,13 @@ X86ConditionCode oatX86ConditionEncoding(ConditionCode cond) {
   return kX86CondO;
 }
 
-LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1, int src2, LIR* target)
+LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
+                 int src2, LIR* target)
 {
   newLIR2(cUnit, kX86Cmp32RR, src1, src2);
   X86ConditionCode cc = oatX86ConditionEncoding(cond);
-  LIR* branch = newLIR2(cUnit, kX86Jcc8, 0 /* lir operand for Jcc offset */ , cc);
+  LIR* branch = newLIR2(cUnit, kX86Jcc8, 0 /* lir operand for Jcc offset */ ,
+                        cc);
   branch->target = target;
   return branch;
 }
@@ -307,25 +318,26 @@ LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
 
 LIR* opRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
 {
-    if (FPREG(rDest) || FPREG(rSrc))
-        return fpRegCopy(cUnit, rDest, rSrc);
-    LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, kX86Mov32RR,
-                      rDest, rSrc);
-    if (rDest == rSrc) {
-        res->flags.isNop = true;
-    }
-    return res;
+  if (FPREG(rDest) || FPREG(rSrc))
+    return fpRegCopy(cUnit, rDest, rSrc);
+  LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, kX86Mov32RR,
+                    rDest, rSrc);
+  if (rDest == rSrc) {
+    res->flags.isNop = true;
+  }
+  return res;
 }
 
 LIR* opRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
-    LIR *res = opRegCopyNoInsert(cUnit, rDest, rSrc);
-    oatAppendLIR(cUnit, res);
-    return res;
+  LIR *res = opRegCopyNoInsert(cUnit, rDest, rSrc);
+  oatAppendLIR(cUnit, res);
+  return res;
 }
 
 void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
-                   int srcLo, int srcHi) {
+                   int srcLo, int srcHi)
+{
   bool destFP = FPREG(destLo) && FPREG(destHi);
   bool srcFP = FPREG(srcLo) && FPREG(srcHi);
   assert(FPREG(srcLo) == FPREG(srcHi));

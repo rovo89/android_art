@@ -23,38 +23,38 @@
 namespace art {
 
 enum DataFlowAttributePos {
-    kUA = 0,
-    kUB,
-    kUC,
-    kUAWide,
-    kUBWide,
-    kUCWide,
-    kDA,
-    kDAWide,
-    kIsMove,
-    kIsLinear,
-    kSetsConst,
-    kFormat35c,
-    kFormat3rc,
-    kPhi,
-    kNullCheckSrc0,        // Null check of uses[0]
-    kNullCheckSrc1,        // Null check of uses[1]
-    kNullCheckSrc2,        // Null check of uses[2]
-    kNullCheckOut0,        // Null check out outgoing arg0
-    kDstNonNull,           // May assume dst is non-null
-    kRetNonNull,           // May assume retval is non-null
-    kNullTransferSrc0,     // Object copy src[0] -> dst
-    kNullTransferSrcN,     // Phi null check state transfer
-    kRangeCheckSrc1,       // Range check of uses[1]
-    kRangeCheckSrc2,       // Range check of uses[2]
-    kRangeCheckSrc3,       // Range check of uses[3]
-    kFPA,
-    kFPB,
-    kFPC,
-    kCoreA,
-    kCoreB,
-    kCoreC,
-    kUsesMethodStar,       // Implicit use of Method*
+  kUA = 0,
+  kUB,
+  kUC,
+  kUAWide,
+  kUBWide,
+  kUCWide,
+  kDA,
+  kDAWide,
+  kIsMove,
+  kIsLinear,
+  kSetsConst,
+  kFormat35c,
+  kFormat3rc,
+  kPhi,
+  kNullCheckSrc0,        // Null check of uses[0]
+  kNullCheckSrc1,        // Null check of uses[1]
+  kNullCheckSrc2,        // Null check of uses[2]
+  kNullCheckOut0,        // Null check out outgoing arg0
+  kDstNonNull,           // May assume dst is non-null
+  kRetNonNull,           // May assume retval is non-null
+  kNullTransferSrc0,     // Object copy src[0] -> dst
+  kNullTransferSrcN,     // Phi null check state transfer
+  kRangeCheckSrc1,       // Range check of uses[1]
+  kRangeCheckSrc2,       // Range check of uses[2]
+  kRangeCheckSrc3,       // Range check of uses[3]
+  kFPA,
+  kFPB,
+  kFPC,
+  kCoreA,
+  kCoreB,
+  kCoreC,
+  kUsesMethodStar,       // Implicit use of Method*
 };
 
 #define DF_NOP                  0
@@ -114,21 +114,21 @@ enum DataFlowAttributePos {
 extern const int oatDataFlowAttributes[kMirOpLast];
 
 struct BasicBlockDataFlow {
-    ArenaBitVector* useV;
-    ArenaBitVector* defV;
-    ArenaBitVector* liveInV;
-    ArenaBitVector* phiV;
-    int* vRegToSSAMap;
-    ArenaBitVector* endingNullCheckV;
+  ArenaBitVector* useV;
+  ArenaBitVector* defV;
+  ArenaBitVector* liveInV;
+  ArenaBitVector* phiV;
+  int* vRegToSSAMap;
+  ArenaBitVector* endingNullCheckV;
 };
 
 struct SSARepresentation {
-    int numUses;
-    int* uses;
-    bool* fpUse;
-    int numDefs;
-    int* defs;
-    bool* fpDef;
+  int numUses;
+  int* uses;
+  bool* fpUse;
+  int numDefs;
+  int* defs;
+  bool* fpDef;
 };
 
 /*
@@ -136,24 +136,24 @@ struct SSARepresentation {
  * induction variable.
  */
 struct InductionVariableInfo {
-    int ssaReg;
-    int basicSSAReg;
-    int m;      // multiplier
-    int c;      // constant
-    int inc;    // loop increment
+  int ssaReg;
+  int basicSSAReg;
+  int m;      // multiplier
+  int c;      // constant
+  int inc;    // loop increment
 };
 
 struct ArrayAccessInfo {
-    int arrayReg;
-    int ivReg;
-    int maxC;                   // For DIV - will affect upper bound checking
-    int minC;                   // For DIV - will affect lower bound checking
+  int arrayReg;
+  int ivReg;
+  int maxC;                   // For DIV - will affect upper bound checking
+  int minC;                   // For DIV - will affect lower bound checking
 };
 
 struct LoopInfo {
-    BasicBlock* header;
-    GrowableList incomingBackEdges;
-    ArenaBitVector* blocks;
+  BasicBlock* header;
+  GrowableList incomingBackEdges;
+  ArenaBitVector* blocks;
 };
 
 void oatMethodLoopDetection(CompilationUnit*);
