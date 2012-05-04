@@ -83,6 +83,8 @@ class MethodCompiler {
 
   llvm::Value* AllocDalvikLocalVarReg(RegCategory cat, uint32_t reg_idx);
 
+  llvm::Value* AllocShadowFrameEntry(uint32_t reg_idx);
+
   llvm::Value* AllocDalvikRetValReg(RegCategory cat);
 
 

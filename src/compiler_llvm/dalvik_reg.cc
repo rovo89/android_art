@@ -29,6 +29,8 @@ namespace {
    public:
     DalvikLocalVarReg(MethodCompiler& method_compiler, uint32_t reg_idx);
 
+    virtual void SetValue(JType jty, JTypeSpace space, llvm::Value* value);
+
     virtual ~DalvikLocalVarReg();
 
    private:
@@ -39,6 +41,7 @@ namespace {
     llvm::Value* reg_32_;
     llvm::Value* reg_64_;
     llvm::Value* reg_obj_;
+    llvm::Value* reg_shadow_frame_;
   };
 
   class DalvikRetValReg : public DalvikReg {
@@ -201,11 +204,22 @@ llvm::Value* DalvikReg::GetAddr(JType jty, JTypeSpace space) {
 DalvikLocalVarReg::DalvikLocalVarReg(MethodCompiler& method_compiler,
                                      uint32_t reg_idx)
 : DalvikReg(method_compiler), reg_idx_(reg_idx),
-  reg_32_(NULL), reg_64_(NULL), reg_obj_(NULL) {
+  reg_32_(NULL), reg_64_(NULL), reg_obj_(NULL), reg_shadow_frame_(NULL) {
 }
 
 
 DalvikLocalVarReg::~DalvikLocalVarReg() {
+}
+
+
+void DalvikLocalVarReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
+  DalvikReg::SetValue(jty, space, value);
+
+  if (jty == kObject) {
+    DCHECK_NE(reg_shadow_frame_, static_cast<llvm::Value*>(NULL))
+      << "Didn't allocate shadow frame entry.";
+    irb_.CreateStore(value, reg_shadow_frame_);
+  }
 }
 
 
@@ -226,6 +240,7 @@ llvm::Value* DalvikLocalVarReg::GetRawAddr(JType jty, JTypeSpace space) {
   case kRegObject:
     if (reg_obj_ == NULL) {
       reg_obj_ = method_compiler_->AllocDalvikLocalVarReg(kRegObject, reg_idx_);
+      reg_shadow_frame_ = method_compiler_->AllocShadowFrameEntry(reg_idx_);
     }
     return reg_obj_;
 
