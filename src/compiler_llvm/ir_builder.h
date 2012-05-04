@@ -63,7 +63,7 @@ class IRBuilder : public LLVMIRBuilder {
     return getPtrEquivInt(getSizeOfPtrEquivInt());
   }
 
-  llvm::ConstantInt* getPtrEquivInt(uint64_t i) {
+  llvm::ConstantInt* getPtrEquivInt(int64_t i) {
     return llvm::ConstantInt::get(getPtrEquivIntTy(), i);
   }
 
@@ -90,7 +90,7 @@ class IRBuilder : public LLVMIRBuilder {
     return CreatePtrDisp(base, total_offset, ret_ty);
   }
 
-  llvm::Value* LoadFromObjectOffset(llvm::Value* object_addr, int32_t offset, llvm::Type* type) {
+  llvm::Value* LoadFromObjectOffset(llvm::Value* object_addr, int64_t offset, llvm::Type* type) {
     // Convert offset to llvm::value
     llvm::Value* llvm_offset = getPtrEquivInt(offset);
     // Calculate the value's address
@@ -99,7 +99,7 @@ class IRBuilder : public LLVMIRBuilder {
     return CreateLoad(value_addr);
   }
 
-  void StoreToObjectOffset(llvm::Value* object_addr, int32_t offset, llvm::Value* new_value) {
+  void StoreToObjectOffset(llvm::Value* object_addr, int64_t offset, llvm::Value* new_value) {
     // Convert offset to llvm::value
     llvm::Value* llvm_offset = getPtrEquivInt(offset);
     // Calculate the value's address
