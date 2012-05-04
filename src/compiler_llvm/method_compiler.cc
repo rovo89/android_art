@@ -88,6 +88,7 @@ void MethodCompiler::CreateFunction() {
   func_ = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage,
                                  func_name, module_);
 
+#if !defined(NDEBUG)
   // Set argument name
   llvm::Function::arg_iterator arg_iter(func_->arg_begin());
   llvm::Function::arg_iterator arg_end(func_->arg_end());
@@ -105,6 +106,7 @@ void MethodCompiler::CreateFunction() {
   for (unsigned i = 0; arg_iter != arg_end; ++i, ++arg_iter) {
     arg_iter->setName(StringPrintf("a%u", i));
   }
+#endif
 }
 
 
@@ -3666,11 +3668,13 @@ llvm::BasicBlock* MethodCompiler::
 CreateBasicBlockWithDexPC(uint32_t dex_pc, char const* postfix) {
   std::string name;
 
+#if !defined(NDEBUG)
   if (postfix) {
     StringAppendF(&name, "B%04x.%s", dex_pc, postfix);
   } else {
     StringAppendF(&name, "B%04x", dex_pc);
   }
+#endif
 
   return llvm::BasicBlock::Create(*context_, name, func_);
 }
@@ -3746,10 +3750,14 @@ llvm::BasicBlock* MethodCompiler::GetLandingPadBasicBlock(uint32_t dex_pc) {
   // Get try item from code item
   DexFile::TryItem const* ti = DexFile::GetTryItems(*code_item_, ti_offset);
 
+  std::string lpadname;
+
+#if !defined(NDEBUG)
+  StringAppendF(&lpadname, "lpad%d_%04x_to_%04x", ti_offset, ti->start_addr_, ti->handler_off_);
+#endif
+
   // Create landing pad basic block
-  block_lpad = llvm::BasicBlock::Create(*context_,
-                                        StringPrintf("lpad%d", ti_offset),
-                                        func_);
+  block_lpad = llvm::BasicBlock::Create(*context_, lpadname, func_);
 
   // Change IRBuilder insert point
   llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
@@ -3820,35 +3828,20 @@ llvm::BasicBlock* MethodCompiler::GetUnwindBasicBlock() {
 
 llvm::Value* MethodCompiler::AllocDalvikLocalVarReg(RegCategory cat,
                                                     uint32_t reg_idx) {
+  // Get reg_type and reg_name from DalvikReg
+  llvm::Type* reg_type = DalvikReg::GetRegCategoryEquivSizeTy(irb_, cat);
+  std::string reg_name;
+
+#if !defined(NDEBUG)
+  StringAppendF(&reg_name, "%c%u", DalvikReg::GetRegCategoryNamePrefix(cat), reg_idx);
+#endif
 
   // Save current IR builder insert point
   llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
+  irb_.SetInsertPoint(basic_block_reg_alloca_);
 
   // Alloca
-  llvm::Value* reg_addr = NULL;
-
-  switch (cat) {
-  case kRegCat1nr:
-    irb_.SetInsertPoint(basic_block_reg_alloca_);
-    reg_addr = irb_.CreateAlloca(irb_.getJIntTy(), 0,
-                                 StringPrintf("r%u", reg_idx));
-    break;
-
-  case kRegCat2:
-    irb_.SetInsertPoint(basic_block_reg_alloca_);
-    reg_addr = irb_.CreateAlloca(irb_.getJLongTy(), 0,
-                                 StringPrintf("w%u", reg_idx));
-    break;
-
-  case kRegObject:
-    irb_.SetInsertPoint(basic_block_reg_alloca_);
-    reg_addr = irb_.CreateAlloca(irb_.getJObjectTy(), 0,
-                                 StringPrintf("o%u", reg_idx));
-    break;
-
-  default:
-    LOG(FATAL) << "Unknown register category for allocation: " << cat;
-  }
+  llvm::Value* reg_addr = irb_.CreateAlloca(reg_type, 0, reg_name);
 
   // Restore IRBuilder insert point
   irb_.restoreIP(irb_ip_original);
@@ -3859,6 +3852,12 @@ llvm::Value* MethodCompiler::AllocDalvikLocalVarReg(RegCategory cat,
 
 
 llvm::Value* MethodCompiler::AllocShadowFrameEntry(uint32_t reg_idx) {
+  std::string reg_name;
+
+#if !defined(NDEBUG)
+  StringAppendF(&reg_name, "o%u", reg_idx);
+#endif
+
   // Save current IR builder insert point
   llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
 
@@ -3870,8 +3869,7 @@ llvm::Value* MethodCompiler::AllocShadowFrameEntry(uint32_t reg_idx) {
     irb_.getInt32(reg_idx) // Pointer field
   };
 
-  llvm::Value* reg_addr =
-    irb_.CreateGEP(shadow_frame_, gep_index, StringPrintf("p%u", reg_idx));
+  llvm::Value* reg_addr = irb_.CreateGEP(shadow_frame_, gep_index, reg_name);
 
   // Restore IRBuilder insert point
   irb_.restoreIP(irb_ip_original);
@@ -3882,31 +3880,20 @@ llvm::Value* MethodCompiler::AllocShadowFrameEntry(uint32_t reg_idx) {
 
 
 llvm::Value* MethodCompiler::AllocDalvikRetValReg(RegCategory cat) {
+  // Get reg_type and reg_name from DalvikReg
+  llvm::Type* reg_type = DalvikReg::GetRegCategoryEquivSizeTy(irb_, cat);
+  std::string reg_name;
+
+#if !defined(NDEBUG)
+  StringAppendF(&reg_name, "%c_res", DalvikReg::GetRegCategoryNamePrefix(cat));
+#endif
+
   // Save current IR builder insert point
   llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
+  irb_.SetInsertPoint(basic_block_reg_alloca_);
 
   // Alloca
-  llvm::Value* reg_addr = NULL;
-
-  switch (cat) {
-  case kRegCat1nr:
-    irb_.SetInsertPoint(basic_block_reg_alloca_);
-    reg_addr = irb_.CreateAlloca(irb_.getJIntTy(), 0, "r_res");
-    break;
-
-  case kRegCat2:
-    irb_.SetInsertPoint(basic_block_reg_alloca_);
-    reg_addr = irb_.CreateAlloca(irb_.getJLongTy(), 0, "w_res");
-    break;
-
-  case kRegObject:
-    irb_.SetInsertPoint(basic_block_reg_alloca_);
-    reg_addr = irb_.CreateAlloca(irb_.getJObjectTy(), 0, "p_res");
-    break;
-
-  default:
-    LOG(FATAL) << "Unknown register category for allocation: " << cat;
-  }
+  llvm::Value* reg_addr = irb_.CreateAlloca(reg_type, 0, reg_name);
 
   // Restore IRBuilder insert point
   irb_.restoreIP(irb_ip_original);

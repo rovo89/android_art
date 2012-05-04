@@ -99,7 +99,9 @@ CompiledMethod* JniCompiler::Compile() {
   // "this" object pointer for non-static
   // "class" object pointer for static
   for (unsigned i = 0; arg_iter != arg_end; ++i, ++arg_iter) {
+#if !defined(NDEBUG)
     arg_iter->setName(StringPrintf("a%u", i));
+#endif
     if (arg_iter->getType() == irb_.getJObjectTy()) {
       ++sirt_size;
     }
