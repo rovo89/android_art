@@ -190,12 +190,10 @@ void MethodCompiler::EmitStackOverflowCheck() {
   llvm::Value* thread_object_addr =
     irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
 
-  llvm::Value* stack_end_addr =
-    irb_.CreatePtrDisp(thread_object_addr,
-                       irb_.getPtrEquivInt(Thread::StackEndOffset().Int32Value()),
-                       irb_.getPtrEquivIntTy()->getPointerTo());
-
-  llvm::Value* stack_end = irb_.CreateLoad(stack_end_addr);
+  llvm::Value* stack_end =
+    irb_.LoadFromObjectOffset(thread_object_addr,
+                              Thread::StackEndOffset().Int32Value(),
+                              irb_.getPtrEquivIntTy());
 
   // Check the frame address < thread.stack_end_ ?
   llvm::Value* is_stack_overflow = irb_.CreateICmpULT(frame_address, stack_end);
@@ -254,25 +252,18 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
 
   irb_.CreateStore(zero_initializer, shadow_frame_);
 
-  // Store the method pointer
-  llvm::Value* method_field_addr =
-    irb_.CreatePtrDisp(shadow_frame_,
-                       irb_.getPtrEquivInt(ShadowFrame::MethodOffset()),
-                       irb_.getJObjectTy()->getPointerTo());
-
+  // Get method object
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
-  irb_.CreateStore(method_object_addr, method_field_addr);
+
+  // Store the method pointer
+  irb_.StoreToObjectOffset(shadow_frame_,
+                           ShadowFrame::MethodOffset(),
+                           method_object_addr);
 
   // Store the number of the pointer slots
-  llvm::ConstantInt* num_of_refs_offset =
-    irb_.getPtrEquivInt(ShadowFrame::NumberOfReferencesOffset());
-
-  llvm::Value* num_of_refs_field_addr =
-    irb_.CreatePtrDisp(shadow_frame_, num_of_refs_offset,
-                       irb_.getJIntTy()->getPointerTo());
-
-  llvm::ConstantInt* num_of_refs_value = irb_.getJInt(sirt_size);
-  irb_.CreateStore(num_of_refs_value, num_of_refs_field_addr);
+  irb_.StoreToObjectOffset(shadow_frame_,
+                           ShadowFrame::NumberOfReferencesOffset(),
+                           irb_.getJInt(sirt_size));
 
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast =
@@ -1228,22 +1219,20 @@ void MethodCompiler::EmitInsn_MoveException(uint32_t dex_pc,
 
   DecodedInstruction dec_insn(insn);
 
-  // Get thread-local exception field address
-  llvm::Constant* exception_field_offset =
-    irb_.getPtrEquivInt(Thread::ExceptionOffset().Int32Value());
-
+  // Get thread
   llvm::Value* thread_object_addr =
     irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
 
-  llvm::Value* exception_field_addr =
-    irb_.CreatePtrDisp(thread_object_addr, exception_field_offset,
-                       irb_.getJObjectTy()->getPointerTo());
-
-  // Get exception object address
-  llvm::Value* exception_object_addr = irb_.CreateLoad(exception_field_addr);
+  // Get thread-local exception field address
+  llvm::Value* exception_object_addr =
+    irb_.LoadFromObjectOffset(thread_object_addr,
+                              Thread::ExceptionOffset().Int32Value(),
+                              irb_.getJObjectTy());
 
   // Set thread-local exception field address to NULL
-  irb_.CreateStore(irb_.getJNull(), exception_field_addr);
+  irb_.StoreToObjectOffset(thread_object_addr,
+                           Thread::ExceptionOffset().Int32Value(),
+                           irb_.getJNull());
 
   // Keep the exception object in the Dalvik register
   EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, exception_object_addr);
@@ -1690,16 +1679,10 @@ void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
 
 
 llvm::Value* MethodCompiler::EmitLoadArrayLength(llvm::Value* array) {
-  // Load array length field address
-  llvm::Constant* array_len_field_offset =
-    irb_.getPtrEquivInt(Array::LengthOffset().Int32Value());
-
-  llvm::Value* array_len_field_addr =
-    irb_.CreatePtrDisp(array, array_len_field_offset,
-                       irb_.getJIntTy()->getPointerTo());
-
   // Load array length
-  return irb_.CreateLoad(array_len_field_addr);
+  return irb_.LoadFromObjectOffset(array,
+                                   Array::LengthOffset().Int32Value(),
+                                   irb_.getJIntTy());
 }
 
 
@@ -2562,14 +2545,10 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
       // Fast path, static storage base is this method's class
       llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-      llvm::Constant* declaring_class_offset_value =
-        irb_.getPtrEquivInt(Method::DeclaringClassOffset().Int32Value());
-
-      llvm::Value* static_storage_field_addr =
-        irb_.CreatePtrDisp(method_object_addr, declaring_class_offset_value,
-                           irb_.getJObjectTy()->getPointerTo());
-
-      static_storage_addr = irb_.CreateLoad(static_storage_field_addr);
+      static_storage_addr =
+        irb_.LoadFromObjectOffset(method_object_addr,
+                                  Method::DeclaringClassOffset().Int32Value(),
+                                  irb_.getJObjectTy());
     } else {
       // Medium path, static storage base in a different class which
       // requires checks that the other class is initialized
@@ -2644,14 +2623,10 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
       // Fast path, static storage base is this method's class
       llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-      llvm::Constant* declaring_class_offset_value =
-        irb_.getPtrEquivInt(Method::DeclaringClassOffset().Int32Value());
-
-      llvm::Value* static_storage_field_addr =
-        irb_.CreatePtrDisp(method_object_addr, declaring_class_offset_value,
-                           irb_.getJObjectTy()->getPointerTo());
-
-      static_storage_addr = irb_.CreateLoad(static_storage_field_addr);
+      static_storage_addr =
+        irb_.LoadFromObjectOffset(method_object_addr,
+                                  Method::DeclaringClassOffset().Int32Value(),
+                                  irb_.getJObjectTy());
     } else {
       // Medium path, static storage base in a different class which
       // requires checks that the other class is initialized
@@ -2805,9 +2780,9 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   }
 
   llvm::Value* code_addr =
-      irb_.LoadFromObjectOffset(callee_method_object_addr,
-                                Method::GetCodeOffset().Int32Value(),
-                                GetFunctionType(callee_method_idx, is_static)->getPointerTo());
+    irb_.LoadFromObjectOffset(callee_method_object_addr,
+                              Method::GetCodeOffset().Int32Value(),
+                              GetFunctionType(callee_method_idx, is_static)->getPointerTo());
 
   // Load the actual parameter
   std::vector<llvm::Value*> args;
@@ -2940,24 +2915,16 @@ llvm::Value* MethodCompiler::
 EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx,
                                       llvm::Value* this_addr) {
   // Load class object of *this* pointer
-  llvm::Constant* class_field_offset_value =
-    irb_.getPtrEquivInt(Object::ClassOffset().Int32Value());
-
-  llvm::Value* class_field_addr =
-    irb_.CreatePtrDisp(this_addr, class_field_offset_value,
-                       irb_.getJObjectTy()->getPointerTo());
-
-  llvm::Value* class_object_addr = irb_.CreateLoad(class_field_addr);
+  llvm::Value* class_object_addr =
+    irb_.LoadFromObjectOffset(this_addr,
+                              Object::ClassOffset().Int32Value(),
+                              irb_.getJObjectTy());
 
   // Load vtable address
-  llvm::Constant* vtable_offset_value =
-    irb_.getPtrEquivInt(Class::VTableOffset().Int32Value());
-
-  llvm::Value* vtable_field_addr =
-    irb_.CreatePtrDisp(class_object_addr, vtable_offset_value,
-                       irb_.getJObjectTy()->getPointerTo());
-
-  llvm::Value* vtable_addr = irb_.CreateLoad(vtable_field_addr);
+  llvm::Value* vtable_addr =
+    irb_.LoadFromObjectOffset(class_object_addr,
+                              Class::VTableOffset().Int32Value(),
+                              irb_.getJObjectTy());
 
   // Load callee method object
   llvm::Value* vtable_idx_value =
@@ -3564,14 +3531,9 @@ void MethodCompiler::EmitGuard_NullPointerException(uint32_t dex_pc,
 llvm::Value* MethodCompiler::EmitLoadDexCacheAddr(MemberOffset offset) {
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-  llvm::Value* dex_cache_offset_value =
-    irb_.getPtrEquivInt(offset.Int32Value());
-
-  llvm::Value* dex_cache_field_addr =
-    irb_.CreatePtrDisp(method_object_addr, dex_cache_offset_value,
-                       irb_.getJObjectTy()->getPointerTo());
-
-  return irb_.CreateLoad(dex_cache_field_addr);
+  return irb_.LoadFromObjectOffset(method_object_addr,
+                                   offset.Int32Value(),
+                                   irb_.getJObjectTy());
 }
 
 
