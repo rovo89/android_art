@@ -35,8 +35,8 @@ namespace art {
 
 void oatAdjustSpillMask(CompilationUnit* cUnit)
 {
-    cUnit->coreSpillMask |= (1 << r_RA);
-    cUnit->numCoreSpills++;
+  cUnit->coreSpillMask |= (1 << r_RA);
+  cUnit->numCoreSpills++;
 }
 
 /*
@@ -47,145 +47,141 @@ void oatAdjustSpillMask(CompilationUnit* cUnit)
  */
 void oatMarkPreservedSingle(CompilationUnit* cUnit, int sReg, int reg)
 {
-    LOG(FATAL) << "No support yet for promoted FP regs";
+  LOG(FATAL) << "No support yet for promoted FP regs";
 }
 
 void oatFlushRegWide(CompilationUnit* cUnit, int reg1, int reg2)
 {
-    RegisterInfo* info1 = oatGetRegInfo(cUnit, reg1);
-    RegisterInfo* info2 = oatGetRegInfo(cUnit, reg2);
-    DCHECK(info1 && info2 && info1->pair && info2->pair &&
-           (info1->partner == info2->reg) &&
-           (info2->partner == info1->reg));
-    if ((info1->live && info1->dirty) || (info2->live && info2->dirty)) {
-        if (!(info1->isTemp && info2->isTemp)) {
-            /* Should not happen.  If it does, there's a problem in evalLoc */
-            LOG(FATAL) << "Long half-temp, half-promoted";
-        }
-
-        info1->dirty = false;
-        info2->dirty = false;
-        if (SRegToVReg(cUnit, info2->sReg) <
-            SRegToVReg(cUnit, info1->sReg))
-            info1 = info2;
-        int vReg = SRegToVReg(cUnit, info1->sReg);
-        oatFlushRegWideImpl(cUnit, rSP,
-                                    oatVRegOffset(cUnit, vReg),
-                                    info1->reg, info1->partner);
+  RegisterInfo* info1 = oatGetRegInfo(cUnit, reg1);
+  RegisterInfo* info2 = oatGetRegInfo(cUnit, reg2);
+  DCHECK(info1 && info2 && info1->pair && info2->pair &&
+         (info1->partner == info2->reg) &&
+         (info2->partner == info1->reg));
+  if ((info1->live && info1->dirty) || (info2->live && info2->dirty)) {
+    if (!(info1->isTemp && info2->isTemp)) {
+      /* Should not happen.  If it does, there's a problem in evalLoc */
+      LOG(FATAL) << "Long half-temp, half-promoted";
     }
+
+    info1->dirty = false;
+    info2->dirty = false;
+    if (SRegToVReg(cUnit, info2->sReg) < SRegToVReg(cUnit, info1->sReg))
+      info1 = info2;
+    int vReg = SRegToVReg(cUnit, info1->sReg);
+    oatFlushRegWideImpl(cUnit, rSP, oatVRegOffset(cUnit, vReg), info1->reg,
+                        info1->partner);
+  }
 }
 
 void oatFlushReg(CompilationUnit* cUnit, int reg)
 {
-    RegisterInfo* info = oatGetRegInfo(cUnit, reg);
-    if (info->live && info->dirty) {
-        info->dirty = false;
-        int vReg = SRegToVReg(cUnit, info->sReg);
-        oatFlushRegImpl(cUnit, rSP,
-                                oatVRegOffset(cUnit, vReg),
-                                reg, kWord);
-    }
+  RegisterInfo* info = oatGetRegInfo(cUnit, reg);
+  if (info->live && info->dirty) {
+    info->dirty = false;
+    int vReg = SRegToVReg(cUnit, info->sReg);
+    oatFlushRegImpl(cUnit, rSP, oatVRegOffset(cUnit, vReg), reg, kWord);
+  }
 }
 
 /* Give access to the target-dependent FP register encoding to common code */
 bool oatIsFpReg(int reg) {
-    return FPREG(reg);
+  return FPREG(reg);
 }
 
 uint32_t oatFpRegMask() {
-    return FP_REG_MASK;
+  return FP_REG_MASK;
 }
 
 /* Clobber all regs that might be used by an external C call */
 extern void oatClobberCalleeSave(CompilationUnit *cUnit)
 {
-    oatClobber(cUnit, r_ZERO);
-    oatClobber(cUnit, r_AT);
-    oatClobber(cUnit, r_V0);
-    oatClobber(cUnit, r_V1);
-    oatClobber(cUnit, r_A0);
-    oatClobber(cUnit, r_A1);
-    oatClobber(cUnit, r_A2);
-    oatClobber(cUnit, r_A3);
-    oatClobber(cUnit, r_T0);
-    oatClobber(cUnit, r_T1);
-    oatClobber(cUnit, r_T2);
-    oatClobber(cUnit, r_T3);
-    oatClobber(cUnit, r_T4);
-    oatClobber(cUnit, r_T5);
-    oatClobber(cUnit, r_T6);
-    oatClobber(cUnit, r_T7);
-    oatClobber(cUnit, r_T8);
-    oatClobber(cUnit, r_T9);
-    oatClobber(cUnit, r_K0);
-    oatClobber(cUnit, r_K1);
-    oatClobber(cUnit, r_GP);
-    oatClobber(cUnit, r_FP);
-    oatClobber(cUnit, r_RA);
-    oatClobber(cUnit, r_F0);
-    oatClobber(cUnit, r_F1);
-    oatClobber(cUnit, r_F2);
-    oatClobber(cUnit, r_F3);
-    oatClobber(cUnit, r_F4);
-    oatClobber(cUnit, r_F5);
-    oatClobber(cUnit, r_F6);
-    oatClobber(cUnit, r_F7);
-    oatClobber(cUnit, r_F8);
-    oatClobber(cUnit, r_F9);
-    oatClobber(cUnit, r_F10);
-    oatClobber(cUnit, r_F11);
-    oatClobber(cUnit, r_F12);
-    oatClobber(cUnit, r_F13);
-    oatClobber(cUnit, r_F14);
-    oatClobber(cUnit, r_F15);
+  oatClobber(cUnit, r_ZERO);
+  oatClobber(cUnit, r_AT);
+  oatClobber(cUnit, r_V0);
+  oatClobber(cUnit, r_V1);
+  oatClobber(cUnit, r_A0);
+  oatClobber(cUnit, r_A1);
+  oatClobber(cUnit, r_A2);
+  oatClobber(cUnit, r_A3);
+  oatClobber(cUnit, r_T0);
+  oatClobber(cUnit, r_T1);
+  oatClobber(cUnit, r_T2);
+  oatClobber(cUnit, r_T3);
+  oatClobber(cUnit, r_T4);
+  oatClobber(cUnit, r_T5);
+  oatClobber(cUnit, r_T6);
+  oatClobber(cUnit, r_T7);
+  oatClobber(cUnit, r_T8);
+  oatClobber(cUnit, r_T9);
+  oatClobber(cUnit, r_K0);
+  oatClobber(cUnit, r_K1);
+  oatClobber(cUnit, r_GP);
+  oatClobber(cUnit, r_FP);
+  oatClobber(cUnit, r_RA);
+  oatClobber(cUnit, r_F0);
+  oatClobber(cUnit, r_F1);
+  oatClobber(cUnit, r_F2);
+  oatClobber(cUnit, r_F3);
+  oatClobber(cUnit, r_F4);
+  oatClobber(cUnit, r_F5);
+  oatClobber(cUnit, r_F6);
+  oatClobber(cUnit, r_F7);
+  oatClobber(cUnit, r_F8);
+  oatClobber(cUnit, r_F9);
+  oatClobber(cUnit, r_F10);
+  oatClobber(cUnit, r_F11);
+  oatClobber(cUnit, r_F12);
+  oatClobber(cUnit, r_F13);
+  oatClobber(cUnit, r_F14);
+  oatClobber(cUnit, r_F15);
 }
 
 extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
 {
-    RegLocation res = LOC_C_RETURN_WIDE_ALT;
-    oatClobber(cUnit, res.lowReg);
-    oatClobber(cUnit, res.highReg);
-    oatMarkInUse(cUnit, res.lowReg);
-    oatMarkInUse(cUnit, res.highReg);
-    oatMarkPair(cUnit, res.lowReg, res.highReg);
-    return res;
+  RegLocation res = LOC_C_RETURN_WIDE_ALT;
+  oatClobber(cUnit, res.lowReg);
+  oatClobber(cUnit, res.highReg);
+  oatMarkInUse(cUnit, res.lowReg);
+  oatMarkInUse(cUnit, res.highReg);
+  oatMarkPair(cUnit, res.lowReg, res.highReg);
+  return res;
 }
 
 extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
 {
-    UNIMPLEMENTED(FATAL);
-    RegLocation res = LOC_C_RETURN;
-    return res;
+  UNIMPLEMENTED(FATAL);
+  RegLocation res = LOC_C_RETURN;
+  return res;
 }
 
 extern RegisterInfo* oatGetRegInfo(CompilationUnit* cUnit, int reg)
 {
-    return FPREG(reg) ? &cUnit->regPool->FPRegs[reg & FP_REG_MASK]
-                      : &cUnit->regPool->coreRegs[reg];
+  return FPREG(reg) ? &cUnit->regPool->FPRegs[reg & FP_REG_MASK]
+            : &cUnit->regPool->coreRegs[reg];
 }
 
 /* To be used when explicitly managing register use */
 extern void oatLockCallTemps(CompilationUnit* cUnit)
 {
-    oatLockTemp(cUnit, rARG0);
-    oatLockTemp(cUnit, rARG1);
-    oatLockTemp(cUnit, rARG2);
-    oatLockTemp(cUnit, rARG3);
+  oatLockTemp(cUnit, rARG0);
+  oatLockTemp(cUnit, rARG1);
+  oatLockTemp(cUnit, rARG2);
+  oatLockTemp(cUnit, rARG3);
 }
 
 /* To be used when explicitly managing register use */
 extern void oatFreeCallTemps(CompilationUnit* cUnit)
 {
-    oatFreeTemp(cUnit, rARG0);
-    oatFreeTemp(cUnit, rARG1);
-    oatFreeTemp(cUnit, rARG2);
-    oatFreeTemp(cUnit, rARG3);
+  oatFreeTemp(cUnit, rARG0);
+  oatFreeTemp(cUnit, rARG1);
+  oatFreeTemp(cUnit, rARG2);
+  oatFreeTemp(cUnit, rARG3);
 }
 
 /* Convert an instruction to a NOP */
 void oatNopLIR( LIR* lir)
 {
-    ((LIR*)lir)->flags.isNop = true;
+  ((LIR*)lir)->flags.isNop = true;
 }
 
 }  // namespace art

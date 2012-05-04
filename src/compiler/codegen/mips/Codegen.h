@@ -68,10 +68,10 @@ void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
  */
 inline RegisterClass oatRegClassBySize(OpSize size)
 {
-    return (size == kUnsignedHalf ||
-            size == kSignedHalf ||
-            size == kUnsignedByte ||
-            size == kSignedByte ) ? kCoreReg : kAnyReg;
+  return (size == kUnsignedHalf ||
+          size == kSignedHalf ||
+          size == kUnsignedByte ||
+          size == kSignedByte ) ? kCoreReg : kAnyReg;
 }
 
 /*
@@ -83,12 +83,12 @@ inline RegisterClass oatRegClassBySize(OpSize size)
  */
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 inline s4 s4FromSwitchData(const void* switchData) {
-    return *(s4*) switchData;
+  return *(s4*) switchData;
 }
 #else
 inline s4 s4FromSwitchData(const void* switchData) {
-    u2* data = switchData;
-    return data[0] | (((s4) data[1]) << 16);
+  u2* data = switchData;
+  return data[0] | (((s4) data[1]) << 16);
 }
 #endif
 
@@ -96,7 +96,6 @@ inline s4 s4FromSwitchData(const void* switchData) {
 
 extern void oatSetupResourceMasks(LIR* lir);
 
-extern LIR* oatRegCopyNoInsert(CompilationUnit* cUnit, int rDest,
-                                          int rSrc);
+extern LIR* oatRegCopyNoInsert(CompilationUnit* cUnit, int rDest, int rSrc);
 
 }  // namespace art

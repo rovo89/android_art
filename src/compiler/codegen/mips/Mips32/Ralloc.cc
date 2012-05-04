@@ -29,107 +29,107 @@ namespace art {
  * high reg in next byte.
  */
 int oatAllocTypedTempPair(CompilationUnit *cUnit, bool fpHint,
-                                  int regClass)
+                  int regClass)
 {
-    int highReg;
-    int lowReg;
-    int res = 0;
+  int highReg;
+  int lowReg;
+  int res = 0;
 
 #ifdef __mips_hard_float
-    if (((regClass == kAnyReg) && fpHint) || (regClass == kFPReg)) {
-        lowReg = oatAllocTempDouble(cUnit);
-        highReg = lowReg + 1;
-        res = (lowReg & 0xff) | ((highReg & 0xff) << 8);
-        return res;
-    }
-#endif
-
-    lowReg = oatAllocTemp(cUnit);
-    highReg = oatAllocTemp(cUnit);
+  if (((regClass == kAnyReg) && fpHint) || (regClass == kFPReg)) {
+    lowReg = oatAllocTempDouble(cUnit);
+    highReg = lowReg + 1;
     res = (lowReg & 0xff) | ((highReg & 0xff) << 8);
     return res;
+  }
+#endif
+
+  lowReg = oatAllocTemp(cUnit);
+  highReg = oatAllocTemp(cUnit);
+  res = (lowReg & 0xff) | ((highReg & 0xff) << 8);
+  return res;
 }
 
 int oatAllocTypedTemp(CompilationUnit *cUnit, bool fpHint, int regClass)
 {
 #ifdef __mips_hard_float
-    if (((regClass == kAnyReg) && fpHint) || (regClass == kFPReg))
+  if (((regClass == kAnyReg) && fpHint) || (regClass == kFPReg))
 {
-        return oatAllocTempFloat(cUnit);
+    return oatAllocTempFloat(cUnit);
 }
 #endif
-    return oatAllocTemp(cUnit);
+  return oatAllocTemp(cUnit);
 }
 
 void oatInitializeRegAlloc(CompilationUnit* cUnit)
 {
-    int numRegs = sizeof(coreRegs)/sizeof(*coreRegs);
-    int numReserved = sizeof(reservedRegs)/sizeof(*reservedRegs);
-    int numTemps = sizeof(coreTemps)/sizeof(*coreTemps);
+  int numRegs = sizeof(coreRegs)/sizeof(*coreRegs);
+  int numReserved = sizeof(reservedRegs)/sizeof(*reservedRegs);
+  int numTemps = sizeof(coreTemps)/sizeof(*coreTemps);
 #ifdef __mips_hard_float
-    int numFPRegs = sizeof(fpRegs)/sizeof(*fpRegs);
-    int numFPTemps = sizeof(fpTemps)/sizeof(*fpTemps);
+  int numFPRegs = sizeof(fpRegs)/sizeof(*fpRegs);
+  int numFPTemps = sizeof(fpTemps)/sizeof(*fpTemps);
 #else
-    int numFPRegs = 0;
-    int numFPTemps = 0;
+  int numFPRegs = 0;
+  int numFPTemps = 0;
 #endif
-    RegisterPool *pool = (RegisterPool *)oatNew(cUnit, sizeof(*pool), true,
-                                                kAllocRegAlloc);
-    cUnit->regPool = pool;
-    pool->numCoreRegs = numRegs;
-    pool->coreRegs = (RegisterInfo *)
-            oatNew(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs),
-                   true, kAllocRegAlloc);
-    pool->numFPRegs = numFPRegs;
-    pool->FPRegs = (RegisterInfo *)
-            oatNew(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs), true,
-                   kAllocRegAlloc);
-    oatInitPool(pool->coreRegs, coreRegs, pool->numCoreRegs);
-    oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
-    // Keep special registers from being allocated
-    for (int i = 0; i < numReserved; i++) {
-        if (NO_SUSPEND && !cUnit->genDebugger &&
-            (reservedRegs[i] == rSUSPEND)) {
-            //To measure cost of suspend check
-            continue;
-        }
-        oatMarkInUse(cUnit, reservedRegs[i]);
+  RegisterPool *pool = (RegisterPool *)oatNew(cUnit, sizeof(*pool), true,
+                        kAllocRegAlloc);
+  cUnit->regPool = pool;
+  pool->numCoreRegs = numRegs;
+  pool->coreRegs = (RegisterInfo *)
+      oatNew(cUnit, numRegs * sizeof(*cUnit->regPool->coreRegs),
+             true, kAllocRegAlloc);
+  pool->numFPRegs = numFPRegs;
+  pool->FPRegs = (RegisterInfo *)
+      oatNew(cUnit, numFPRegs * sizeof(*cUnit->regPool->FPRegs), true,
+             kAllocRegAlloc);
+  oatInitPool(pool->coreRegs, coreRegs, pool->numCoreRegs);
+  oatInitPool(pool->FPRegs, fpRegs, pool->numFPRegs);
+  // Keep special registers from being allocated
+  for (int i = 0; i < numReserved; i++) {
+    if (NO_SUSPEND && !cUnit->genDebugger &&
+      (reservedRegs[i] == rSUSPEND)) {
+      //To measure cost of suspend check
+      continue;
     }
-    // Mark temp regs - all others not in use can be used for promotion
-    for (int i = 0; i < numTemps; i++) {
-        oatMarkTemp(cUnit, coreTemps[i]);
+    oatMarkInUse(cUnit, reservedRegs[i]);
+  }
+  // Mark temp regs - all others not in use can be used for promotion
+  for (int i = 0; i < numTemps; i++) {
+    oatMarkTemp(cUnit, coreTemps[i]);
+  }
+  for (int i = 0; i < numFPTemps; i++) {
+    oatMarkTemp(cUnit, fpTemps[i]);
+  }
+  // Construct the alias map.
+  cUnit->phiAliasMap = (int*)oatNew(cUnit, cUnit->numSSARegs *
+                                    sizeof(cUnit->phiAliasMap[0]), false,
+                                    kAllocDFInfo);
+  for (int i = 0; i < cUnit->numSSARegs; i++) {
+    cUnit->phiAliasMap[i] = i;
+  }
+  for (MIR* phi = cUnit->phiList; phi; phi = phi->meta.phiNext) {
+    int defReg = phi->ssaRep->defs[0];
+    for (int i = 0; i < phi->ssaRep->numUses; i++) {
+       for (int j = 0; j < cUnit->numSSARegs; j++) {
+         if (cUnit->phiAliasMap[j] == phi->ssaRep->uses[i]) {
+           cUnit->phiAliasMap[j] = defReg;
+         }
+       }
     }
-    for (int i = 0; i < numFPTemps; i++) {
-        oatMarkTemp(cUnit, fpTemps[i]);
-    }
-    // Construct the alias map.
-    cUnit->phiAliasMap = (int*)oatNew(cUnit, cUnit->numSSARegs *
-                                      sizeof(cUnit->phiAliasMap[0]), false,
-                                      kAllocDFInfo);
-    for (int i = 0; i < cUnit->numSSARegs; i++) {
-        cUnit->phiAliasMap[i] = i;
-    }
-    for (MIR* phi = cUnit->phiList; phi; phi = phi->meta.phiNext) {
-        int defReg = phi->ssaRep->defs[0];
-        for (int i = 0; i < phi->ssaRep->numUses; i++) {
-           for (int j = 0; j < cUnit->numSSARegs; j++) {
-               if (cUnit->phiAliasMap[j] == phi->ssaRep->uses[i]) {
-                   cUnit->phiAliasMap[j] = defReg;
-               }
-           }
-        }
-    }
+  }
 }
 
 void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
-                     RegLocation rlFree)
+           RegLocation rlFree)
 {
-    if ((rlFree.lowReg != rlKeep.lowReg) && (rlFree.lowReg != rlKeep.highReg) &&
-        (rlFree.highReg != rlKeep.lowReg) && (rlFree.highReg != rlKeep.highReg)) {
-        // No overlap, free both
-        oatFreeTemp(cUnit, rlFree.lowReg);
-        oatFreeTemp(cUnit, rlFree.highReg);
-    }
+  if ((rlFree.lowReg != rlKeep.lowReg) && (rlFree.lowReg != rlKeep.highReg) &&
+    (rlFree.highReg != rlKeep.lowReg) && (rlFree.highReg != rlKeep.highReg)) {
+    // No overlap, free both
+    oatFreeTemp(cUnit, rlFree.lowReg);
+    oatFreeTemp(cUnit, rlFree.highReg);
+  }
 }
 
 

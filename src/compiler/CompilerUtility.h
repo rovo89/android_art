@@ -31,10 +31,10 @@ bool oatHeapInit(CompilationUnit* cUnit);
 //#define WITH_MEMSTATS
 
 struct ArenaMemBlock {
-    size_t blockSize;
-    size_t bytesAllocated;
-    ArenaMemBlock *next;
-    char ptr[0];
+  size_t blockSize;
+  size_t bytesAllocated;
+  ArenaMemBlock *next;
+  char ptr[0];
 };
 
 void* oatNew(CompilationUnit* cUnit, size_t size, bool zero,
@@ -55,9 +55,9 @@ struct GrowableList {
 };
 
 struct GrowableListIterator {
-    GrowableList* list;
-    size_t idx;
-    size_t size;
+  GrowableList* list;
+  size_t idx;
+  size_t size;
 };
 
 /*
@@ -67,19 +67,19 @@ struct GrowableListIterator {
  * All operations on a BitVector are unsynchronized.
  */
 struct ArenaBitVector {
-    bool    expandable;     /* expand bitmap if we run out? */
-    u4      storageSize;    /* current size, in 32-bit words */
-    u4*     storage;
+  bool    expandable;     /* expand bitmap if we run out? */
+  u4      storageSize;    /* current size, in 32-bit words */
+  u4*     storage;
 #ifdef WITH_MEMSTATS
-    oatBitMapKind kind;      /* for memory use tuning */
+  oatBitMapKind kind;      /* for memory use tuning */
 #endif
 };
 
 /* Handy iterator to walk through the bit positions set to 1 */
 struct ArenaBitVectorIterator {
-    ArenaBitVector* pBits;
-    u4 idx;
-    u4 bitSize;
+  ArenaBitVector* pBits;
+  u4 idx;
+  u4 bitSize;
 };
 
 #define GET_ELEM_N(LIST, TYPE, N) (((TYPE*) LIST->elemList)[N])

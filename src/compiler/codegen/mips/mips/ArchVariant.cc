@@ -27,32 +27,32 @@ namespace art {
  */
 InstructionSet oatInstructionSet()
 {
-    return kMips;
+  return kMips;
 }
 
 /* Architecture-specific initializations and checks go here */
 bool oatArchVariantInit(void)
 {
-    return true;
+  return true;
 }
 
 int dvmCompilerTargetOptHint(int key)
 {
-    int res;
-    switch (key) {
-        case kMaxHoistDistance:
-            res = 2;
-            break;
-        default:
-            LOG(FATAL) << "Unknown target optimization hint key: " << key;
-    }
-    return res;
+  int res;
+  switch (key) {
+    case kMaxHoistDistance:
+      res = 2;
+      break;
+    default:
+      LOG(FATAL) << "Unknown target optimization hint key: " << key;
+  }
+  return res;
 }
 
 void oatGenMemBarrier(CompilationUnit *cUnit, int barrierKind)
 {
 #if ANDROID_SMP != 0
-    newLIR1(cUnit, kMipsSync, barrierKind);
+  newLIR1(cUnit, kMipsSync, barrierKind);
 #endif
 }
 

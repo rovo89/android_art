@@ -64,69 +64,69 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
  *
  */
 void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
-                     LIR* labelList)
+           LIR* labelList)
 {
-    const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
-    if (cUnit->printMe) {
-        dumpSparseSwitchTable(table);
-    }
-    // Add the table to the list - we'll process it later
-    SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
-                         true, kAllocData);
-    tabRec->table = table;
-    tabRec->vaddr = mir->offset;
-    int elements = table[1];
-    tabRec->targets = (LIR* *)oatNew(cUnit, elements * sizeof(LIR*), true,
-                                     kAllocLIR);
-    oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
+  const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
+  if (cUnit->printMe) {
+    dumpSparseSwitchTable(table);
+  }
+  // Add the table to the list - we'll process it later
+  SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
+                                              true, kAllocData);
+  tabRec->table = table;
+  tabRec->vaddr = mir->offset;
+  int elements = table[1];
+  tabRec->targets = (LIR* *)oatNew(cUnit, elements * sizeof(LIR*), true,
+                                   kAllocLIR);
+  oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
 
-    // The table is composed of 8-byte key/disp pairs
-    int byteSize = elements * 8;
+  // The table is composed of 8-byte key/disp pairs
+  int byteSize = elements * 8;
 
-    int sizeHi = byteSize >> 16;
-    int sizeLo = byteSize & 0xffff;
+  int sizeHi = byteSize >> 16;
+  int sizeLo = byteSize & 0xffff;
 
-    int rEnd = oatAllocTemp(cUnit);
-    if (sizeHi) {
-        newLIR2(cUnit, kMipsLui, rEnd, sizeHi);
-    }
-    // Must prevent code motion for the curr pc pair
-    genBarrier(cUnit);  // Scheduling barrier
-    newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
-    // Now, fill the branch delay slot
-    if (sizeHi) {
-        newLIR3(cUnit, kMipsOri, rEnd, rEnd, sizeLo);
-    } else {
-        newLIR3(cUnit, kMipsOri, rEnd, r_ZERO, sizeLo);
-    }
-    genBarrier(cUnit);  // Scheduling barrier
+  int rEnd = oatAllocTemp(cUnit);
+  if (sizeHi) {
+    newLIR2(cUnit, kMipsLui, rEnd, sizeHi);
+  }
+  // Must prevent code motion for the curr pc pair
+  genBarrier(cUnit);  // Scheduling barrier
+  newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
+  // Now, fill the branch delay slot
+  if (sizeHi) {
+    newLIR3(cUnit, kMipsOri, rEnd, rEnd, sizeLo);
+  } else {
+    newLIR3(cUnit, kMipsOri, rEnd, r_ZERO, sizeLo);
+  }
+  genBarrier(cUnit);  // Scheduling barrier
 
-    // Construct BaseLabel and set up table base register
-    LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
-    // Remember base label so offsets can be computed later
-    tabRec->anchor = baseLabel;
-    int rBase = oatAllocTemp(cUnit);
-    newLIR4(cUnit, kMipsDelta, rBase, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
-    opRegRegReg(cUnit, kOpAdd, rEnd, rEnd, rBase);
+  // Construct BaseLabel and set up table base register
+  LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
+  // Remember base label so offsets can be computed later
+  tabRec->anchor = baseLabel;
+  int rBase = oatAllocTemp(cUnit);
+  newLIR4(cUnit, kMipsDelta, rBase, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
+  opRegRegReg(cUnit, kOpAdd, rEnd, rEnd, rBase);
 
-    // Grab switch test value
-    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+  // Grab switch test value
+  rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
 
-    // Test loop
-    int rKey = oatAllocTemp(cUnit);
-    LIR* loopLabel = newLIR0(cUnit, kPseudoTargetLabel);
-    LIR* exitBranch = opCmpBranch(cUnit , kCondEq, rBase, rEnd, NULL);
-    loadWordDisp(cUnit, rBase, 0, rKey);
-    opRegImm(cUnit, kOpAdd, rBase, 8);
-    opCmpBranch(cUnit, kCondNe, rlSrc.lowReg, rKey, loopLabel);
-    int rDisp = oatAllocTemp(cUnit);
-    loadWordDisp(cUnit, rBase, -4, rDisp);
-    opRegRegReg(cUnit, kOpAdd, r_RA, r_RA, rDisp);
-    opReg(cUnit, kOpBx, r_RA);
+  // Test loop
+  int rKey = oatAllocTemp(cUnit);
+  LIR* loopLabel = newLIR0(cUnit, kPseudoTargetLabel);
+  LIR* exitBranch = opCmpBranch(cUnit , kCondEq, rBase, rEnd, NULL);
+  loadWordDisp(cUnit, rBase, 0, rKey);
+  opRegImm(cUnit, kOpAdd, rBase, 8);
+  opCmpBranch(cUnit, kCondNe, rlSrc.lowReg, rKey, loopLabel);
+  int rDisp = oatAllocTemp(cUnit);
+  loadWordDisp(cUnit, rBase, -4, rDisp);
+  opRegRegReg(cUnit, kOpAdd, r_RA, r_RA, rDisp);
+  opReg(cUnit, kOpBx, r_RA);
 
-    // Loop exit
-    LIR* exitLabel = newLIR0(cUnit, kPseudoTargetLabel);
-    exitBranch->target = exitLabel;
+  // Loop exit
+  LIR* exitLabel = newLIR0(cUnit, kPseudoTargetLabel);
+  exitBranch->target = exitLabel;
 }
 
 /*
@@ -144,75 +144,75 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
  */
 void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
-    if (cUnit->printMe) {
-        dumpPackedSwitchTable(table);
-    }
-    // Add the table to the list - we'll process it later
-    SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
-                                                true, kAllocData);
-    tabRec->table = table;
-    tabRec->vaddr = mir->offset;
-    int size = table[1];
-    tabRec->targets = (LIR* *)oatNew(cUnit, size * sizeof(LIR*), true,
-                                        kAllocLIR);
-    oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
+  const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
+  if (cUnit->printMe) {
+    dumpPackedSwitchTable(table);
+  }
+  // Add the table to the list - we'll process it later
+  SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
+                        true, kAllocData);
+  tabRec->table = table;
+  tabRec->vaddr = mir->offset;
+  int size = table[1];
+  tabRec->targets = (LIR* *)oatNew(cUnit, size * sizeof(LIR*), true,
+                    kAllocLIR);
+  oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
 
-    // Get the switch value
-    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+  // Get the switch value
+  rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
 
-    // Prepare the bias.  If too big, handle 1st stage here
-    int lowKey = s4FromSwitchData(&table[2]);
-    bool largeBias = false;
-    int rKey;
-    if (lowKey == 0) {
-        rKey = rlSrc.lowReg;
-    } else if ((lowKey & 0xffff) != lowKey) {
-        rKey = oatAllocTemp(cUnit);
-        loadConstant(cUnit, rKey, lowKey);
-        largeBias = true;
+  // Prepare the bias.  If too big, handle 1st stage here
+  int lowKey = s4FromSwitchData(&table[2]);
+  bool largeBias = false;
+  int rKey;
+  if (lowKey == 0) {
+    rKey = rlSrc.lowReg;
+  } else if ((lowKey & 0xffff) != lowKey) {
+    rKey = oatAllocTemp(cUnit);
+    loadConstant(cUnit, rKey, lowKey);
+    largeBias = true;
+  } else {
+    rKey = oatAllocTemp(cUnit);
+  }
+
+  // Must prevent code motion for the curr pc pair
+  genBarrier(cUnit);
+  newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
+  // Now, fill the branch delay slot with bias strip
+  if (lowKey == 0) {
+    newLIR0(cUnit, kMipsNop);
+  } else {
+    if (largeBias) {
+      opRegRegReg(cUnit, kOpSub, rKey, rlSrc.lowReg, rKey);
     } else {
-        rKey = oatAllocTemp(cUnit);
+      opRegRegImm(cUnit, kOpSub, rKey, rlSrc.lowReg, lowKey);
     }
+  }
+  genBarrier(cUnit);  // Scheduling barrier
 
-    // Must prevent code motion for the curr pc pair
-    genBarrier(cUnit);
-    newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
-    // Now, fill the branch delay slot with bias strip
-    if (lowKey == 0) {
-        newLIR0(cUnit, kMipsNop);
-    } else {
-        if (largeBias) {
-            opRegRegReg(cUnit, kOpSub, rKey, rlSrc.lowReg, rKey);
-        } else {
-            opRegRegImm(cUnit, kOpSub, rKey, rlSrc.lowReg, lowKey);
-        }
-    }
-    genBarrier(cUnit);  // Scheduling barrier
+  // Construct BaseLabel and set up table base register
+  LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
+  // Remember base label so offsets can be computed later
+  tabRec->anchor = baseLabel;
 
-    // Construct BaseLabel and set up table base register
-    LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
-    // Remember base label so offsets can be computed later
-    tabRec->anchor = baseLabel;
+  // Bounds check - if < 0 or >= size continue following switch
+  LIR* branchOver = opCmpImmBranch(cUnit, kCondHi, rKey, size-1, NULL);
 
-    // Bounds check - if < 0 or >= size continue following switch
-    LIR* branchOver = opCmpImmBranch(cUnit, kCondHi, rKey, size-1, NULL);
+  // Materialize the table base pointer
+  int rBase = oatAllocTemp(cUnit);
+  newLIR4(cUnit, kMipsDelta, rBase, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
 
-    // Materialize the table base pointer
-    int rBase = oatAllocTemp(cUnit);
-    newLIR4(cUnit, kMipsDelta, rBase, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
+  // Load the displacement from the switch table
+  int rDisp = oatAllocTemp(cUnit);
+  loadBaseIndexed(cUnit, rBase, rKey, rDisp, 2, kWord);
 
-    // Load the displacement from the switch table
-    int rDisp = oatAllocTemp(cUnit);
-    loadBaseIndexed(cUnit, rBase, rKey, rDisp, 2, kWord);
+  // Add to r_AP and go
+  opRegRegReg(cUnit, kOpAdd, r_RA, r_RA, rDisp);
+  opReg(cUnit, kOpBx, r_RA);
 
-    // Add to r_AP and go
-    opRegRegReg(cUnit, kOpAdd, r_RA, r_RA, rDisp);
-    opReg(cUnit, kOpBx, r_RA);
-
-    /* branchOver target here */
-    LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    branchOver->target = (LIR*)target;
+  /* branchOver target here */
+  LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
+  branchOver->target = (LIR*)target;
 }
 
 /*
@@ -227,60 +227,58 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  */
 void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
-    // Add the table to the list - we'll process it later
-    FillArrayData *tabRec = (FillArrayData *)
-         oatNew(cUnit, sizeof(FillArrayData), true, kAllocData);
-    tabRec->table = table;
-    tabRec->vaddr = mir->offset;
-    u2 width = tabRec->table[1];
-    u4 size = tabRec->table[2] | (((u4)tabRec->table[3]) << 16);
-    tabRec->size = (size * width) + 8;
+  const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
+  // Add the table to the list - we'll process it later
+  FillArrayData *tabRec = (FillArrayData *)
+     oatNew(cUnit, sizeof(FillArrayData), true, kAllocData);
+  tabRec->table = table;
+  tabRec->vaddr = mir->offset;
+  u2 width = tabRec->table[1];
+  u4 size = tabRec->table[2] | (((u4)tabRec->table[3]) << 16);
+  tabRec->size = (size * width) + 8;
 
-    oatInsertGrowableList(cUnit, &cUnit->fillArrayData, (intptr_t)tabRec);
+  oatInsertGrowableList(cUnit, &cUnit->fillArrayData, (intptr_t)tabRec);
 
-    // Making a call - use explicit registers
-    oatFlushAllRegs(cUnit);   /* Everything to home location */
-    oatLockCallTemps(cUnit);
-    loadValueDirectFixed(cUnit, rlSrc, rARG0);
+  // Making a call - use explicit registers
+  oatFlushAllRegs(cUnit);   /* Everything to home location */
+  oatLockCallTemps(cUnit);
+  loadValueDirectFixed(cUnit, rlSrc, rARG0);
 
-    // Must prevent code motion for the curr pc pair
-    genBarrier(cUnit);
-    newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
-    // Now, fill the branch delay slot with the helper load
-    int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode));
-    genBarrier(cUnit);  // Scheduling barrier
+  // Must prevent code motion for the curr pc pair
+  genBarrier(cUnit);
+  newLIR0(cUnit, kMipsCurrPC);  // Really a jal to .+8
+  // Now, fill the branch delay slot with the helper load
+  int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode));
+  genBarrier(cUnit);  // Scheduling barrier
 
-    // Construct BaseLabel and set up table base register
-    LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
+  // Construct BaseLabel and set up table base register
+  LIR* baseLabel = newLIR0(cUnit, kPseudoTargetLabel);
 
-    // Materialize a pointer to the fill data image
-    newLIR4(cUnit, kMipsDelta, rARG1, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
+  // Materialize a pointer to the fill data image
+  newLIR4(cUnit, kMipsDelta, rARG1, 0, (intptr_t)baseLabel, (intptr_t)tabRec);
 
-    // And go...
-    oatClobberCalleeSave(cUnit);
-    opReg(cUnit, kOpBlx, rTgt); // ( array*, fill_data* )
+  // And go...
+  oatClobberCalleeSave(cUnit);
+  opReg(cUnit, kOpBlx, rTgt); // ( array*, fill_data* )
 }
 
 void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
-    RegLocation rlResult;
-    rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
-    rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    opRegRegImm(cUnit, kOpAdd, rlResult.lowReg,
-                rlSrc.lowReg, 0x80000000);
-    storeValue(cUnit, rlDest, rlResult);
+  RegLocation rlResult;
+  rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+  rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+  opRegRegImm(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, 0x80000000);
+  storeValue(cUnit, rlDest, rlResult);
 }
 
 void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
-    RegLocation rlResult;
-    rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
-    rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    opRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc.highReg,
-                        0x80000000);
-    opRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
-    storeValueWide(cUnit, rlDest, rlResult);
+  RegLocation rlResult;
+  rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
+  rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+  opRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc.highReg, 0x80000000);
+  opRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
+  storeValueWide(cUnit, rlDest, rlResult);
 }
 
 /*
@@ -288,14 +286,14 @@ void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
  */
 void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    oatFlushAllRegs(cUnit);
-    loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
-    oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-    genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
-    // Go expensive route - artLockObjectFromCode(self, obj);
-    int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode));
-    oatClobberCalleeSave(cUnit);
-    opReg(cUnit, kOpBlx, rTgt);
+  oatFlushAllRegs(cUnit);
+  loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
+  oatLockCallTemps(cUnit);  // Prepare for explicit register usage
+  genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
+  // Go expensive route - artLockObjectFromCode(self, obj);
+  int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode));
+  oatClobberCalleeSave(cUnit);
+  opReg(cUnit, kOpBlx, rTgt);
 }
 
 /*
@@ -303,14 +301,14 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  */
 void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 {
-    oatFlushAllRegs(cUnit);
-    loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
-    oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-    genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
-    // Go expensive route - UnlockObjectFromCode(obj);
-    int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode));
-    oatClobberCalleeSave(cUnit);
-    opReg(cUnit, kOpBlx, rTgt);
+  oatFlushAllRegs(cUnit);
+  loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
+  oatLockCallTemps(cUnit);  // Prepare for explicit register usage
+  genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
+  // Go expensive route - UnlockObjectFromCode(obj);
+  int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode));
+  oatClobberCalleeSave(cUnit);
+  opReg(cUnit, kOpBlx, rTgt);
 }
 
 /*
@@ -330,190 +328,190 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  *
  */
 void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
-                RegLocation rlSrc1, RegLocation rlSrc2)
+        RegLocation rlSrc1, RegLocation rlSrc2)
 {
-    rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
-    rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
-    int t0 = oatAllocTemp(cUnit);
-    int t1 = oatAllocTemp(cUnit);
-    RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-    newLIR3(cUnit, kMipsSlt, t0, rlSrc1.highReg, rlSrc2.highReg);
-    newLIR3(cUnit, kMipsSlt, t1, rlSrc2.highReg, rlSrc1.highReg);
-    newLIR3(cUnit, kMipsSubu, rlResult.lowReg, t1, t0);
-    LIR* branch = opCmpImmBranch(cUnit, kCondNe, rlResult.lowReg, 0, NULL);
-    newLIR3(cUnit, kMipsSltu, t0, rlSrc1.lowReg, rlSrc2.lowReg);
-    newLIR3(cUnit, kMipsSltu, t1, rlSrc2.lowReg, rlSrc1.lowReg);
-    newLIR3(cUnit, kMipsSubu, rlResult.lowReg, t1, t0);
-    oatFreeTemp(cUnit, t0);
-    oatFreeTemp(cUnit, t1);
-    LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
-    branch->target = (LIR*)target;
-    storeValue(cUnit, rlDest, rlResult);
+  rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
+  rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
+  int t0 = oatAllocTemp(cUnit);
+  int t1 = oatAllocTemp(cUnit);
+  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+  newLIR3(cUnit, kMipsSlt, t0, rlSrc1.highReg, rlSrc2.highReg);
+  newLIR3(cUnit, kMipsSlt, t1, rlSrc2.highReg, rlSrc1.highReg);
+  newLIR3(cUnit, kMipsSubu, rlResult.lowReg, t1, t0);
+  LIR* branch = opCmpImmBranch(cUnit, kCondNe, rlResult.lowReg, 0, NULL);
+  newLIR3(cUnit, kMipsSltu, t0, rlSrc1.lowReg, rlSrc2.lowReg);
+  newLIR3(cUnit, kMipsSltu, t1, rlSrc2.lowReg, rlSrc1.lowReg);
+  newLIR3(cUnit, kMipsSubu, rlResult.lowReg, t1, t0);
+  oatFreeTemp(cUnit, t0);
+  oatFreeTemp(cUnit, t1);
+  LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
+  branch->target = (LIR*)target;
+  storeValue(cUnit, rlDest, rlResult);
 }
 
 LIR* opCmpBranch(CompilationUnit* cUnit, ConditionCode cond, int src1,
-                 int src2, LIR* target)
+         int src2, LIR* target)
 {
-    LIR* branch;
-    MipsOpCode sltOp;
-    MipsOpCode brOp;
-    bool cmpZero = false;
-    bool swapped = false;
-    switch (cond) {
-        case kCondEq:
-            brOp = kMipsBeq;
-            cmpZero = true;
-            break;
-        case kCondNe:
-            brOp = kMipsBne;
-            cmpZero = true;
-            break;
-        case kCondCc:
-            sltOp = kMipsSltu;
-            brOp = kMipsBnez;
-            break;
-        case kCondCs:
-            sltOp = kMipsSltu;
-            brOp = kMipsBeqz;
-            break;
-        case kCondGe:
-            sltOp = kMipsSlt;
-            brOp = kMipsBeqz;
-            break;
-        case kCondGt:
-            sltOp = kMipsSlt;
-            brOp = kMipsBnez;
-            swapped = true;
-            break;
-        case kCondLe:
-            sltOp = kMipsSlt;
-            brOp = kMipsBeqz;
-            swapped = true;
-            break;
-        case kCondLt:
-            sltOp = kMipsSlt;
-            brOp = kMipsBnez;
-            break;
-        case kCondHi:  // Gtu
-            sltOp = kMipsSltu;
-            brOp = kMipsBnez;
-            swapped = true;
-            break;
-        default:
-            LOG(FATAL) << "No support for ConditionCode: " << (int) cond;
-            return NULL;
-    }
-    if (cmpZero) {
-        branch = newLIR2(cUnit, brOp, src1, src2);
+  LIR* branch;
+  MipsOpCode sltOp;
+  MipsOpCode brOp;
+  bool cmpZero = false;
+  bool swapped = false;
+  switch (cond) {
+    case kCondEq:
+      brOp = kMipsBeq;
+      cmpZero = true;
+      break;
+    case kCondNe:
+      brOp = kMipsBne;
+      cmpZero = true;
+      break;
+    case kCondCc:
+      sltOp = kMipsSltu;
+      brOp = kMipsBnez;
+      break;
+    case kCondCs:
+      sltOp = kMipsSltu;
+      brOp = kMipsBeqz;
+      break;
+    case kCondGe:
+      sltOp = kMipsSlt;
+      brOp = kMipsBeqz;
+      break;
+    case kCondGt:
+      sltOp = kMipsSlt;
+      brOp = kMipsBnez;
+      swapped = true;
+      break;
+    case kCondLe:
+      sltOp = kMipsSlt;
+      brOp = kMipsBeqz;
+      swapped = true;
+      break;
+    case kCondLt:
+      sltOp = kMipsSlt;
+      brOp = kMipsBnez;
+      break;
+    case kCondHi:  // Gtu
+      sltOp = kMipsSltu;
+      brOp = kMipsBnez;
+      swapped = true;
+      break;
+    default:
+      LOG(FATAL) << "No support for ConditionCode: " << (int) cond;
+      return NULL;
+  }
+  if (cmpZero) {
+    branch = newLIR2(cUnit, brOp, src1, src2);
+  } else {
+    int tReg = oatAllocTemp(cUnit);
+    if (swapped) {
+      newLIR3(cUnit, sltOp, tReg, src2, src1);
     } else {
-        int tReg = oatAllocTemp(cUnit);
-        if (swapped) {
-            newLIR3(cUnit, sltOp, tReg, src2, src1);
-        } else {
-            newLIR3(cUnit, sltOp, tReg, src1, src2);
-        }
-        branch = newLIR1(cUnit, brOp, tReg);
-        oatFreeTemp(cUnit, tReg);
+      newLIR3(cUnit, sltOp, tReg, src1, src2);
     }
-    branch->target = target;
-    return branch;
+    branch = newLIR1(cUnit, brOp, tReg);
+    oatFreeTemp(cUnit, tReg);
+  }
+  branch->target = target;
+  return branch;
 }
 
 LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
-                    int checkValue, LIR* target)
+          int checkValue, LIR* target)
 {
-    LIR* branch;
-    if (checkValue != 0) {
-        // TUNING: handle s16 & kCondLt/Mi case using slti
-        int tReg = oatAllocTemp(cUnit);
-        loadConstant(cUnit, tReg, checkValue);
-        branch = opCmpBranch(cUnit, cond, reg, tReg, target);
-        oatFreeTemp(cUnit, tReg);
-        return branch;
-    }
-    MipsOpCode opc;
-    switch (cond) {
-        case kCondEq: opc = kMipsBeqz; break;
-        case kCondGe: opc = kMipsBgez; break;
-        case kCondGt: opc = kMipsBgtz; break;
-        case kCondLe: opc = kMipsBlez; break;
-        //case KCondMi:
-        case kCondLt: opc = kMipsBltz; break;
-        case kCondNe: opc = kMipsBnez; break;
-        default:
-            // Tuning: use slti when applicable
-            int tReg = oatAllocTemp(cUnit);
-            loadConstant(cUnit, tReg, checkValue);
-            branch = opCmpBranch(cUnit, cond, reg, tReg, target);
-            oatFreeTemp(cUnit, tReg);
-            return branch;
-    }
-    branch = newLIR1(cUnit, opc, reg);
-    branch->target = target;
+  LIR* branch;
+  if (checkValue != 0) {
+    // TUNING: handle s16 & kCondLt/Mi case using slti
+    int tReg = oatAllocTemp(cUnit);
+    loadConstant(cUnit, tReg, checkValue);
+    branch = opCmpBranch(cUnit, cond, reg, tReg, target);
+    oatFreeTemp(cUnit, tReg);
     return branch;
+  }
+  MipsOpCode opc;
+  switch (cond) {
+    case kCondEq: opc = kMipsBeqz; break;
+    case kCondGe: opc = kMipsBgez; break;
+    case kCondGt: opc = kMipsBgtz; break;
+    case kCondLe: opc = kMipsBlez; break;
+    //case KCondMi:
+    case kCondLt: opc = kMipsBltz; break;
+    case kCondNe: opc = kMipsBnez; break;
+    default:
+      // Tuning: use slti when applicable
+      int tReg = oatAllocTemp(cUnit);
+      loadConstant(cUnit, tReg, checkValue);
+      branch = opCmpBranch(cUnit, cond, reg, tReg, target);
+      oatFreeTemp(cUnit, tReg);
+      return branch;
+  }
+  branch = newLIR1(cUnit, opc, reg);
+  branch->target = target;
+  return branch;
 }
 
 LIR* opRegCopyNoInsert(CompilationUnit *cUnit, int rDest, int rSrc)
 {
 #ifdef __mips_hard_float
-    if (FPREG(rDest) || FPREG(rSrc))
-        return fpRegCopy(cUnit, rDest, rSrc);
+  if (FPREG(rDest) || FPREG(rSrc))
+    return fpRegCopy(cUnit, rDest, rSrc);
 #endif
-    LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, kMipsMove,
-                      rDest, rSrc);
-    if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) && rDest == rSrc) {
-        res->flags.isNop = true;
-    }
-    return res;
+  LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, kMipsMove,
+            rDest, rSrc);
+  if (!(cUnit->disableOpt & (1 << kSafeOptimizations)) && rDest == rSrc) {
+    res->flags.isNop = true;
+  }
+  return res;
 }
 
 LIR* opRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
-    LIR *res = opRegCopyNoInsert(cUnit, rDest, rSrc);
-    oatAppendLIR(cUnit, (LIR*)res);
-    return res;
+  LIR *res = opRegCopyNoInsert(cUnit, rDest, rSrc);
+  oatAppendLIR(cUnit, (LIR*)res);
+  return res;
 }
 
 void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
-                    int srcLo, int srcHi)
+          int srcLo, int srcHi)
 {
 #ifdef __mips_hard_float
-    bool destFP = FPREG(destLo) && FPREG(destHi);
-    bool srcFP = FPREG(srcLo) && FPREG(srcHi);
-    assert(FPREG(srcLo) == FPREG(srcHi));
-    assert(FPREG(destLo) == FPREG(destHi));
-    if (destFP) {
-        if (srcFP) {
-            opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
-        } else {
-           /* note the operands are swapped for the mtc1 instr */
-            newLIR2(cUnit, kMipsMtc1, srcLo, destLo);
-            newLIR2(cUnit, kMipsMtc1, srcHi, destHi);
-        }
+  bool destFP = FPREG(destLo) && FPREG(destHi);
+  bool srcFP = FPREG(srcLo) && FPREG(srcHi);
+  assert(FPREG(srcLo) == FPREG(srcHi));
+  assert(FPREG(destLo) == FPREG(destHi));
+  if (destFP) {
+    if (srcFP) {
+      opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
     } else {
-        if (srcFP) {
-            newLIR2(cUnit, kMipsMfc1, destLo, srcLo);
-            newLIR2(cUnit, kMipsMfc1, destHi, srcHi);
-        } else {
-            // Handle overlap
-            if (srcHi == destLo) {
-                opRegCopy(cUnit, destHi, srcHi);
-                opRegCopy(cUnit, destLo, srcLo);
-            } else {
-                opRegCopy(cUnit, destLo, srcLo);
-                opRegCopy(cUnit, destHi, srcHi);
-            }
-        }
+       /* note the operands are swapped for the mtc1 instr */
+      newLIR2(cUnit, kMipsMtc1, srcLo, destLo);
+      newLIR2(cUnit, kMipsMtc1, srcHi, destHi);
     }
+  } else {
+    if (srcFP) {
+      newLIR2(cUnit, kMipsMfc1, destLo, srcLo);
+      newLIR2(cUnit, kMipsMfc1, destHi, srcHi);
+    } else {
+      // Handle overlap
+      if (srcHi == destLo) {
+        opRegCopy(cUnit, destHi, srcHi);
+        opRegCopy(cUnit, destLo, srcLo);
+      } else {
+        opRegCopy(cUnit, destLo, srcLo);
+        opRegCopy(cUnit, destHi, srcHi);
+      }
+    }
+  }
 #else
-    // Handle overlap
-    if (srcHi == destLo) {
-        opRegCopy(cUnit, destHi, srcHi);
-        opRegCopy(cUnit, destLo, srcLo);
-    } else {
-        opRegCopy(cUnit, destLo, srcLo);
-        opRegCopy(cUnit, destHi, srcHi);
-    }
+  // Handle overlap
+  if (srcHi == destLo) {
+    opRegCopy(cUnit, destHi, srcHi);
+    opRegCopy(cUnit, destLo, srcLo);
+  } else {
+    opRegCopy(cUnit, destLo, srcLo);
+    opRegCopy(cUnit, destHi, srcHi);
+  }
 #endif
 }
 

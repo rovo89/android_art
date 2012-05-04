@@ -16,8 +16,9 @@
 
 namespace art {
 
-static bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
-                            RegLocation rlSrc1, RegLocation rlSrc2) {
+static bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir,
+                            RegLocation rlDest, RegLocation rlSrc1,
+                            RegLocation rlSrc2) {
   X86OpCode op = kX86Nop;
   RegLocation rlResult;
 

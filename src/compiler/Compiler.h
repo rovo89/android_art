@@ -42,102 +42,102 @@ namespace art {
 
 /* Suppress optimization if corresponding bit set */
 enum optControlVector {
-    kLoadStoreElimination = 0,
-    kLoadHoisting,
-    kSuppressLoads,
-    kNullCheckElimination,
-    kPromoteRegs,
-    kTrackLiveTemps,
-    kSkipLargeMethodOptimization,
-    kSafeOptimizations,
-    kBBOpt,
-    kMatch,
-    kPromoteCompilerTemps,
+  kLoadStoreElimination = 0,
+  kLoadHoisting,
+  kSuppressLoads,
+  kNullCheckElimination,
+  kPromoteRegs,
+  kTrackLiveTemps,
+  kSkipLargeMethodOptimization,
+  kSafeOptimizations,
+  kBBOpt,
+  kMatch,
+  kPromoteCompilerTemps,
 };
 
 /* Type of allocation for memory tuning */
 enum oatAllocKind {
-    kAllocMisc,
-    kAllocBB,
-    kAllocLIR,
-    kAllocMIR,
-    kAllocDFInfo,
-    kAllocGrowableList,
-    kAllocGrowableBitMap,
-    kAllocDalvikToSSAMap,
-    kAllocDebugInfo,
-    kAllocSuccessor,
-    kAllocRegAlloc,
-    kAllocData,
-    kAllocPredecessors,
-    kNumAllocKinds
+  kAllocMisc,
+  kAllocBB,
+  kAllocLIR,
+  kAllocMIR,
+  kAllocDFInfo,
+  kAllocGrowableList,
+  kAllocGrowableBitMap,
+  kAllocDalvikToSSAMap,
+  kAllocDebugInfo,
+  kAllocSuccessor,
+  kAllocRegAlloc,
+  kAllocData,
+  kAllocPredecessors,
+  kNumAllocKinds
 };
 
 /* Type of growable list for memory tuning */
 enum oatListKind {
-    kListMisc = 0,
-    kListBlockList,
-    kListSSAtoDalvikMap,
-    kListDfsOrder,
-    kListDfsPostOrder,
-    kListDomPostOrderTraversal,
-    kListThrowLaunchPads,
-    kListSuspendLaunchPads,
-    kListSwitchTables,
-    kListFillArrayData,
-    kListSuccessorBlocks,
-    kListPredecessors,
-    kNumListKinds
+  kListMisc = 0,
+  kListBlockList,
+  kListSSAtoDalvikMap,
+  kListDfsOrder,
+  kListDfsPostOrder,
+  kListDomPostOrderTraversal,
+  kListThrowLaunchPads,
+  kListSuspendLaunchPads,
+  kListSwitchTables,
+  kListFillArrayData,
+  kListSuccessorBlocks,
+  kListPredecessors,
+  kNumListKinds
 };
 
 /* Type of growable bitmap for memory tuning */
 enum oatBitMapKind {
-    kBitMapMisc = 0,
-    kBitMapUse,
-    kBitMapDef,
-    kBitMapLiveIn,
-    kBitMapBMatrix,
-    kBitMapDominators,
-    kBitMapIDominated,
-    kBitMapDomFrontier,
-    kBitMapPhi,
-    kBitMapTmpBlocks,
-    kBitMapInputBlocks,
-    kBitMapRegisterV,
-    kBitMapTempSSARegisterV,
-    kBitMapNullCheck,
-    kBitMapTmpBlockV,
-    kBitMapPredecessors,
-    kNumBitMapKinds
+  kBitMapMisc = 0,
+  kBitMapUse,
+  kBitMapDef,
+  kBitMapLiveIn,
+  kBitMapBMatrix,
+  kBitMapDominators,
+  kBitMapIDominated,
+  kBitMapDomFrontier,
+  kBitMapPhi,
+  kBitMapTmpBlocks,
+  kBitMapInputBlocks,
+  kBitMapRegisterV,
+  kBitMapTempSSARegisterV,
+  kBitMapNullCheck,
+  kBitMapTmpBlockV,
+  kBitMapPredecessors,
+  kNumBitMapKinds
 };
 
 /* Force code generation paths for testing */
 enum debugControlVector {
-    kDebugDisplayMissingTargets,
-    kDebugVerbose,
-    kDebugDumpCFG,
-    kDebugSlowFieldPath,
-    kDebugSlowInvokePath,
-    kDebugSlowStringPath,
-    kDebugSlowTypePath,
-    kDebugSlowestFieldPath,
-    kDebugSlowestStringPath,
-    kDebugExerciseResolveMethod,
-    kDebugVerifyDataflow,
-    kDebugShowMemoryUsage,
-    kDebugShowNops,
-    kDebugCountOpcodes,
+  kDebugDisplayMissingTargets,
+  kDebugVerbose,
+  kDebugDumpCFG,
+  kDebugSlowFieldPath,
+  kDebugSlowInvokePath,
+  kDebugSlowStringPath,
+  kDebugSlowTypePath,
+  kDebugSlowestFieldPath,
+  kDebugSlowestStringPath,
+  kDebugExerciseResolveMethod,
+  kDebugVerifyDataflow,
+  kDebugShowMemoryUsage,
+  kDebugShowNops,
+  kDebugCountOpcodes,
 };
 
 enum OatMethodAttributes {
-    kIsCallee = 0,      /* Code is part of a callee (invoked by a hot trace) */
-    kIsHot,             /* Code is part of a hot trace */
-    kIsLeaf,            /* Method is leaf */
-    kIsEmpty,           /* Method is empty */
-    kIsThrowFree,       /* Method doesn't throw */
-    kIsGetter,          /* Method fits the getter pattern */
-    kIsSetter,          /* Method fits the setter pattern */
-    kCannotCompile,     /* Method cannot be compiled */
+  kIsCallee = 0,      /* Code is part of a callee (invoked by a hot trace) */
+  kIsHot,             /* Code is part of a hot trace */
+  kIsLeaf,            /* Method is leaf */
+  kIsEmpty,           /* Method is empty */
+  kIsThrowFree,       /* Method doesn't throw */
+  kIsGetter,          /* Method fits the getter pattern */
+  kIsSetter,          /* Method fits the setter pattern */
+  kCannotCompile,     /* Method cannot be compiled */
 };
 
 #define METHOD_IS_CALLEE        (1 << kIsCallee)
@@ -151,12 +151,12 @@ enum OatMethodAttributes {
 
 /* Customized node traversal orders for different needs */
 enum DataFlowAnalysisMode {
-    kAllNodes = 0,              // All nodes
-    kReachableNodes,            // All reachable nodes
-    kPreOrderDFSTraversal,      // Depth-First-Search / Pre-Order
-    kPostOrderDFSTraversal,     // Depth-First-Search / Post-Order
-    kPostOrderDOMTraversal,     // Dominator tree / Post-Order
-    kReversePostOrderTraversal, // Depth-First-Search / reverse Post-Order
+  kAllNodes = 0,              // All nodes
+  kReachableNodes,            // All reachable nodes
+  kPreOrderDFSTraversal,      // Depth-First-Search / Pre-Order
+  kPostOrderDFSTraversal,     // Depth-First-Search / Post-Order
+  kPostOrderDOMTraversal,     // Dominator tree / Post-Order
+  kReversePostOrderTraversal, // Depth-First-Search / reverse Post-Order
 };
 
 struct CompilationUnit;
@@ -184,9 +184,9 @@ char* oatGetDalvikDisassembly(CompilationUnit* cUnit, const DecodedInstruction& 
 char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir);
 char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep);
 void oatDataFlowAnalysisDispatcher(CompilationUnit* cUnit,
-                bool (*func)(CompilationUnit* , BasicBlock*),
-                DataFlowAnalysisMode dfaMode,
-                bool isIterative);
+                                   bool (*func)(CompilationUnit* , BasicBlock*),
+                                   DataFlowAnalysisMode dfaMode,
+                                   bool isIterative);
 void oatMethodSSATransformation(CompilationUnit* cUnit);
 u8 oatGetRegResourceMask(int reg);
 void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix);
