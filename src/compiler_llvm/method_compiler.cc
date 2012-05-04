@@ -1535,7 +1535,6 @@ void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
   llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
 
   irb_.CreateCall2(irb_.GetRuntime(LockObject), object_addr, thread_object_addr);
-  EmitGuard_ExceptionLandingPad(dex_pc);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -3660,8 +3659,6 @@ void MethodCompiler::EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc) {
   EmitUpdateDexPC(dex_pc);
 
   irb_.CreateCall(runtime_func, thread_object_addr);
-
-  EmitGuard_ExceptionLandingPad(dex_pc);
 }
 
 
