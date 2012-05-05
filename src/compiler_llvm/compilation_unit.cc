@@ -327,12 +327,12 @@ bool CompilationUnit::MaterializeToFile(int output_fd,
   target_options.EnableFastISel = true;
 
   // Create the llvm::TargetMachine
-  llvm::TargetMachine* target_machine =
+  llvm::OwningPtr<llvm::TargetMachine> target_machine(
     target->createTargetMachine(target_triple, "", target_attr, target_options,
                                 llvm::Reloc::Static, llvm::CodeModel::Small,
-                                llvm::CodeGenOpt::Aggressive);
+                                llvm::CodeGenOpt::Aggressive));
 
-  CHECK(target_machine != NULL) << "Failed to create target machine";
+  CHECK(target_machine.get() != NULL) << "Failed to create target machine";
 
   // Add target data
   llvm::TargetData const* target_data = target_machine->getTargetData();
