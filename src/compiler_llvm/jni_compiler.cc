@@ -89,7 +89,8 @@ CompiledMethod* JniCompiler::Compile() {
     this_object_or_class_object =
         irb_.LoadFromObjectOffset(method_object_addr,
                                   Method::DeclaringClassOffset().Int32Value(),
-                                  irb_.getJObjectTy());
+                                  irb_.getJObjectTy(),
+                                  kTBAARuntimeInfo);
   }
   // Actual argument (ignore method and this object)
   arg_begin = arg_iter;
@@ -119,17 +120,19 @@ CompiledMethod* JniCompiler::Compile() {
     irb_.CreatePtrDisp(shadow_frame_,
                        irb_.getPtrEquivInt(ShadowFrame::MethodOffset()),
                        irb_.getJObjectTy()->getPointerTo());
-  irb_.CreateStore(method_object_addr, method_field_addr);
+  irb_.CreateStore(method_object_addr, method_field_addr, kTBAARuntimeInfo);
 
   // Store the dex pc
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::DexPCOffset(),
-                           irb_.getInt32(0));
+                           irb_.getInt32(0),
+                           kTBAARuntimeInfo);
 
   // Store the number of the pointer slots
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::NumberOfReferencesOffset(),
-                           irb_.getInt32(sirt_size));
+                           irb_.getInt32(sirt_size),
+                           kTBAARuntimeInfo);
 
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
@@ -139,18 +142,21 @@ CompiledMethod* JniCompiler::Compile() {
   llvm::Value* jni_env_object_addr =
       irb_.LoadFromObjectOffset(thread_object_addr,
                                 Thread::JniEnvOffset().Int32Value(),
-                                irb_.getJObjectTy());
+                                irb_.getJObjectTy(),
+                                kTBAARuntimeInfo);
 
   // Set thread state to kNative
   irb_.StoreToObjectOffset(thread_object_addr,
                            Thread::StateOffset().Int32Value(),
-                           irb_.getInt32(kNative));
+                           irb_.getInt32(kNative),
+                           kTBAARuntimeInfo);
 
   // Get callee code_addr
   llvm::Value* code_addr =
       irb_.LoadFromObjectOffset(method_object_addr,
                                 Method::NativeMethodOffset().Int32Value(),
-                                GetFunctionType(method_idx_, is_static, true)->getPointerTo());
+                                GetFunctionType(method_idx_, is_static, true)->getPointerTo(),
+                                kTBAARuntimeInfo);
 
   // Load actual parameters
   std::vector<llvm::Value*> args;
@@ -170,7 +176,7 @@ CompiledMethod* JniCompiler::Compile() {
   // Store the "this object or class object" to SIRT
   gep_index[2] = irb_.getInt32(sirt_member_index++);
   llvm::Value* sirt_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
-  irb_.CreateStore(this_object_or_class_object, sirt_field_addr);
+  irb_.CreateStore(this_object_or_class_object, sirt_field_addr, kTBAARuntimeInfo);
   // Push the "this object or class object" to out args
   args.push_back(irb_.CreateBitCast(sirt_field_addr, irb_.getJObjectTy()));
   // Store arguments to SIRT, and push back to args
@@ -179,7 +185,7 @@ CompiledMethod* JniCompiler::Compile() {
       // Store the reference type arguments to SIRT
       gep_index[2] = irb_.getInt32(sirt_member_index++);
       llvm::Value* sirt_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
-      irb_.CreateStore(arg_iter, sirt_field_addr);
+      irb_.CreateStore(arg_iter, sirt_field_addr, kTBAARuntimeInfo);
       // Note null is placed in the SIRT but the jobject passed to the native code must be null
       // (not a pointer into the SIRT as with regular references).
       llvm::Value* equal_null = irb_.CreateICmpEQ(arg_iter, irb_.getJNull());
@@ -205,16 +211,19 @@ CompiledMethod* JniCompiler::Compile() {
   llvm::Value* saved_local_ref_cookie =
       irb_.LoadFromObjectOffset(jni_env_object_addr,
                                 JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                                irb_.getInt32Ty());
+                                irb_.getInt32Ty(),
+                                kTBAARuntimeInfo);
 
   // env->local_ref_cookie = env->locals.segment_state
   llvm::Value* segment_state =
       irb_.LoadFromObjectOffset(jni_env_object_addr,
                                 JNIEnvExt::SegmentStateOffset().Int32Value(),
-                                irb_.getInt32Ty());
+                                irb_.getInt32Ty(),
+                                kTBAARuntimeInfo);
   irb_.StoreToObjectOffset(jni_env_object_addr,
                            JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                           segment_state);
+                           segment_state,
+                           kTBAARuntimeInfo);
 
 
   // Call!!!
@@ -231,7 +240,8 @@ CompiledMethod* JniCompiler::Compile() {
   // Set thread state to kRunnable
   irb_.StoreToObjectOffset(thread_object_addr,
                            Thread::StateOffset().Int32Value(),
-                           irb_.getInt32(kRunnable));
+                           irb_.getInt32(kRunnable),
+                           kTBAARuntimeInfo);
 
   // Do a suspend check
   irb_.CreateCall(irb_.GetRuntime(TestSuspend), thread_object_addr);
@@ -247,15 +257,18 @@ CompiledMethod* JniCompiler::Compile() {
   llvm::Value* local_ref_cookie =
       irb_.LoadFromObjectOffset(jni_env_object_addr,
                                 JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                                irb_.getInt32Ty());
+                                irb_.getInt32Ty(),
+                                kTBAARuntimeInfo);
   irb_.StoreToObjectOffset(jni_env_object_addr,
                            JNIEnvExt::SegmentStateOffset().Int32Value(),
-                           local_ref_cookie);
+                           local_ref_cookie,
+                           kTBAARuntimeInfo);
 
   // env->local_ref_cookie = saved_local_ref_cookie
   irb_.StoreToObjectOffset(jni_env_object_addr,
                            JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                           saved_local_ref_cookie);
+                           saved_local_ref_cookie,
+                           kTBAARuntimeInfo);
 
   // Pop the shadow frame
   irb_.CreateCall(irb_.GetRuntime(PopShadowFrame));

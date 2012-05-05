@@ -91,13 +91,16 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* new_shadow_frame = func->arg_begin();
     Value* old_shadow_frame = irb_.LoadFromObjectOffset(thread,
                                                         Thread::TopShadowFrameOffset().Int32Value(),
-                                                        irb_.getJObjectTy());
+                                                        irb_.getJObjectTy(),
+                                                        kTBAARuntimeInfo);
     irb_.StoreToObjectOffset(new_shadow_frame,
                              ShadowFrame::LinkOffset(),
-                             old_shadow_frame);
+                             old_shadow_frame,
+                             kTBAARuntimeInfo);
     irb_.StoreToObjectOffset(thread,
                              Thread::TopShadowFrameOffset().Int32Value(),
-                             new_shadow_frame);
+                             new_shadow_frame,
+                             kTBAARuntimeInfo);
     irb_.CreateRetVoid();
 
     VERIFY_LLVM_FUNCTION(*func);
@@ -113,13 +116,16 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* thread = irb_.CreateCall(get_thread);
     Value* new_shadow_frame = irb_.LoadFromObjectOffset(thread,
                                                         Thread::TopShadowFrameOffset().Int32Value(),
-                                                        irb_.getJObjectTy());
+                                                        irb_.getJObjectTy(),
+                                                        kTBAARuntimeInfo);
     Value* old_shadow_frame = irb_.LoadFromObjectOffset(new_shadow_frame,
                                                         ShadowFrame::LinkOffset(),
-                                                        irb_.getJObjectTy());
+                                                        irb_.getJObjectTy(),
+                                                        kTBAARuntimeInfo);
     irb_.StoreToObjectOffset(thread,
                              Thread::TopShadowFrameOffset().Int32Value(),
-                             old_shadow_frame);
+                             old_shadow_frame,
+                             kTBAARuntimeInfo);
     irb_.CreateRetVoid();
 
     VERIFY_LLVM_FUNCTION(*func);
@@ -135,7 +141,8 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* thread = irb_.CreateCall(get_thread);
     Value* exception = irb_.LoadFromObjectOffset(thread,
                                                  Thread::ExceptionOffset().Int32Value(),
-                                                 irb_.getJObjectTy());
+                                                 irb_.getJObjectTy(),
+                                                 kTBAARuntimeInfo);
     Value* is_exception_not_null = irb_.CreateICmpNE(exception, irb_.getJNull());
     irb_.CreateRet(is_exception_not_null);
 
@@ -156,7 +163,8 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* thread = func->arg_begin();
     Value* suspend_count = irb_.LoadFromObjectOffset(thread,
                                                      Thread::SuspendCountOffset().Int32Value(),
-                                                     irb_.getJIntTy());
+                                                     irb_.getJIntTy(),
+                                                     kTBAARuntimeInfo);
     Value* is_suspend = irb_.CreateICmpNE(suspend_count, irb_.getJInt(0));
 
     BasicBlock* basic_block_suspend = BasicBlock::Create(context_, "suspend", func);
@@ -199,11 +207,12 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* thread = irb_.CreateCall(get_thread);
     Value* card_table = irb_.LoadFromObjectOffset(thread,
                                                   Thread::CardTableOffset().Int32Value(),
-                                                  irb_.getInt8Ty()->getPointerTo());
+                                                  irb_.getInt8Ty()->getPointerTo(),
+                                                  kTBAARuntimeInfo);
     Value* target_addr_int = irb_.CreatePtrToInt(target_addr, irb_.getPtrEquivIntTy());
     Value* card_no = irb_.CreateLShr(target_addr_int, irb_.getPtrEquivInt(GC_CARD_SHIFT));
     Value* card_table_entry = irb_.CreateGEP(card_table, card_no);
-    irb_.CreateStore(irb_.getInt8(GC_CARD_DIRTY), card_table_entry);
+    irb_.CreateStore(irb_.getInt8(GC_CARD_DIRTY), card_table_entry, kTBAARuntimeInfo);
     irb_.CreateRetVoid();
 
     VERIFY_LLVM_FUNCTION(*func);

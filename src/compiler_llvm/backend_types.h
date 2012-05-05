@@ -55,6 +55,16 @@ enum RegCategory {
 };
 
 
+enum TBAASpecialType {
+  kTBAARegister,
+  kTBAAStackTemp,
+  kTBAAMemory,
+  kTBAARuntimeInfo,
+  kTBAAConstJObject,
+  MAX_TBAA_SPECIAL_TYPE
+};
+
+
 inline JType GetJTypeFromShorty(char shorty_jty) {
   switch (shorty_jty) {
   case 'V':

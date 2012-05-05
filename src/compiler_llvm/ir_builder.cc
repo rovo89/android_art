@@ -28,7 +28,7 @@ namespace compiler_llvm {
 //----------------------------------------------------------------------------
 
 IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
-: LLVMIRBuilder(context), module_(&module) {
+: LLVMIRBuilder(context), module_(&module), tbaa_(context) {
 
   // Get java object type from module
   llvm::Type* jobject_struct_type = module.getTypeByName("JavaObject");

@@ -20,9 +20,11 @@
 #include "backend_types.h"
 #include "runtime_support_builder.h"
 #include "runtime_support_func.h"
+#include "tbaa_info.h"
 
 #include <llvm/Constants.h>
 #include <llvm/DerivedTypes.h>
+#include <llvm/LLVMContext.h>
 #include <llvm/Support/IRBuilder.h>
 #include <llvm/Type.h>
 
@@ -45,6 +47,53 @@ class IRBuilder : public LLVMIRBuilder {
   //--------------------------------------------------------------------------
 
   IRBuilder(llvm::LLVMContext& context, llvm::Module& module);
+
+
+  //--------------------------------------------------------------------------
+  // Extend load & store for TBAA
+  //--------------------------------------------------------------------------
+
+  llvm::LoadInst* CreateLoad(llvm::Value* ptr, llvm::MDNode* tbaa_info) {
+    llvm::LoadInst* inst = LLVMIRBuilder::CreateLoad(ptr);
+    inst->setMetadata(llvm::LLVMContext::MD_tbaa, tbaa_info);
+    return inst;
+  }
+
+  llvm::StoreInst* CreateStore(llvm::Value* val, llvm::Value* ptr, llvm::MDNode* tbaa_info) {
+    llvm::StoreInst* inst = LLVMIRBuilder::CreateStore(val, ptr);
+    inst->setMetadata(llvm::LLVMContext::MD_tbaa, tbaa_info);
+    return inst;
+  }
+
+
+  //--------------------------------------------------------------------------
+  // TBAA
+  //--------------------------------------------------------------------------
+
+  // TODO: After we design the non-special TBAA info, re-design the TBAA interface.
+  llvm::LoadInst* CreateLoad(llvm::Value* ptr, TBAASpecialType special_ty) {
+    return CreateLoad(ptr, tbaa_.GetSpecialType(special_ty));
+  }
+
+  llvm::StoreInst* CreateStore(llvm::Value* val, llvm::Value* ptr, TBAASpecialType special_ty) {
+    DCHECK_NE(special_ty, kTBAAConstJObject) << "ConstJObject is read only!";
+    return CreateStore(val, ptr, tbaa_.GetSpecialType(special_ty));
+  }
+
+  llvm::Value* LoadFromObjectOffset(llvm::Value* object_addr,
+                                    int64_t offset,
+                                    llvm::Type* type,
+                                    TBAASpecialType special_ty) {
+    return LoadFromObjectOffset(object_addr, offset, type, tbaa_.GetSpecialType(special_ty));
+  }
+
+  void StoreToObjectOffset(llvm::Value* object_addr,
+                           int64_t offset,
+                           llvm::Value* new_value,
+                           TBAASpecialType special_ty) {
+    DCHECK_NE(special_ty, kTBAAConstJObject) << "ConstJObject is read only!";
+    StoreToObjectOffset(object_addr, offset, new_value, tbaa_.GetSpecialType(special_ty));
+  }
 
 
   //--------------------------------------------------------------------------
@@ -90,16 +139,22 @@ class IRBuilder : public LLVMIRBuilder {
     return CreatePtrDisp(base, total_offset, ret_ty);
   }
 
-  llvm::Value* LoadFromObjectOffset(llvm::Value* object_addr, int64_t offset, llvm::Type* type) {
+  llvm::Value* LoadFromObjectOffset(llvm::Value* object_addr,
+                                    int64_t offset,
+                                    llvm::Type* type,
+                                    llvm::MDNode* tbaa_info) {
     // Convert offset to llvm::value
     llvm::Value* llvm_offset = getPtrEquivInt(offset);
     // Calculate the value's address
     llvm::Value* value_addr = CreatePtrDisp(object_addr, llvm_offset, type->getPointerTo());
     // Load
-    return CreateLoad(value_addr);
+    return CreateLoad(value_addr, tbaa_info);
   }
 
-  void StoreToObjectOffset(llvm::Value* object_addr, int64_t offset, llvm::Value* new_value) {
+  void StoreToObjectOffset(llvm::Value* object_addr,
+                           int64_t offset,
+                           llvm::Value* new_value,
+                           llvm::MDNode* tbaa_info) {
     // Convert offset to llvm::value
     llvm::Value* llvm_offset = getPtrEquivInt(offset);
     // Calculate the value's address
@@ -107,7 +162,7 @@ class IRBuilder : public LLVMIRBuilder {
                                             llvm_offset,
                                             new_value->getType()->getPointerTo());
     // Store
-    CreateStore(new_value, value_addr);
+    CreateStore(new_value, value_addr, tbaa_info);
   }
 
 
@@ -309,6 +364,8 @@ class IRBuilder : public LLVMIRBuilder {
   llvm::PointerType* jenv_type_;
 
   llvm::StructType* art_frame_type_;
+
+  TBAAInfo tbaa_;
 
   RuntimeSupportBuilder* runtime_support_;
 
