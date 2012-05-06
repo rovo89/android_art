@@ -132,7 +132,7 @@ llvm::Value* DalvikReg::GetValue(JType jty, JTypeSpace space) {
   switch (space) {
   case kReg:
   case kField:
-    return irb_.CreateLoad(GetAddr(jty, space));
+    return irb_.CreateLoad(GetAddr(jty, space), kTBAARegister);
 
   case kAccurate:
   case kArray:
@@ -148,7 +148,7 @@ llvm::Value* DalvikReg::GetValue(JType jty, JTypeSpace space) {
       // NOTE: In array type space, boolean is truncated from i32 to i8, while
       // in accurate type space, boolean is truncated from i32 to i1.
       // For the other cases, array type space is equal to accurate type space.
-      return RegCat1Trunc(irb_.CreateLoad(GetAddr(jty, space)),
+      return RegCat1Trunc(irb_.CreateLoad(GetAddr(jty, space), kTBAARegister),
                           irb_.getJType(jty, space));
 
     case kInt:
@@ -156,7 +156,7 @@ llvm::Value* DalvikReg::GetValue(JType jty, JTypeSpace space) {
     case kFloat:
     case kDouble:
     case kObject:
-      return irb_.CreateLoad(GetAddr(jty, space));
+      return irb_.CreateLoad(GetAddr(jty, space), kTBAARegister);
     }
   }
 
@@ -171,7 +171,7 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
   switch (space) {
   case kReg:
   case kField:
-    irb_.CreateStore(value, GetAddr(jty, space));
+    irb_.CreateStore(value, GetAddr(jty, space), kTBAARegister);
     return;
 
   case kAccurate:
@@ -185,7 +185,7 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
       // NOTE: In accurate type space, we have to zero extend boolean from
       // i1 to i32, and char from i16 to i32.  In array type space, we have
       // to zero extend boolean from i8 to i32, and char from i16 to i32.
-      irb_.CreateStore(RegCat1ZExt(value), GetAddr(jty, space));
+      irb_.CreateStore(RegCat1ZExt(value), GetAddr(jty, space), kTBAARegister);
       break;
 
     case kByte:
@@ -193,7 +193,7 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
       // NOTE: In accurate type space, we have to signed extend byte from
       // i8 to i32, and short from i16 to i32.  In array type space, we have
       // to sign extend byte from i8 to i32, and short from i16 to i32.
-      irb_.CreateStore(RegCat1SExt(value), GetAddr(jty, space));
+      irb_.CreateStore(RegCat1SExt(value), GetAddr(jty, space), kTBAARegister);
       break;
 
     case kInt:
@@ -201,7 +201,7 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
     case kFloat:
     case kDouble:
     case kObject:
-      irb_.CreateStore(value, GetAddr(jty, space));
+      irb_.CreateStore(value, GetAddr(jty, space), kTBAARegister);
       break;
     }
   }
@@ -242,7 +242,7 @@ void DalvikLocalVarReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value
   if (jty == kObject) {
     DCHECK_NE(reg_shadow_frame_, static_cast<llvm::Value*>(NULL))
       << "Didn't allocate shadow frame entry.";
-    irb_.CreateStore(value, reg_shadow_frame_);
+    irb_.CreateStore(value, reg_shadow_frame_, kTBAARuntimeInfo);
   }
 }
 

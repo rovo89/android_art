@@ -135,7 +135,7 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
 
       llvm::Value* arg_addr = irb_.CreateBitCast(arg_jvalue_addr, arg_type);
 
-      args.push_back(irb_.CreateLoad(arg_addr));
+      args.push_back(irb_.CreateLoad(arg_addr, kTBAAStackTemp));
 
     } else {
       LOG(FATAL) << "Unexpected arg shorty for invoke stub: " << shorty[i];
@@ -152,7 +152,7 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
     irb_.CreatePtrDisp(method_object_addr, code_field_offset_value,
                        accurate_func_type->getPointerTo()->getPointerTo());
 
-  llvm::Value* code_addr = irb_.CreateLoad(code_field_addr);
+  llvm::Value* code_addr = irb_.CreateLoad(code_field_addr, kTBAARuntimeInfo);
 #else
   llvm::Value* result = irb_.CreateCall(irb_.GetRuntime(FixStub), method_object_addr);
   llvm::Value* code_addr = irb_.CreatePointerCast(result, accurate_func_type->getPointerTo());
@@ -174,7 +174,7 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
     llvm::Value* ret_addr =
       irb_.CreateBitCast(retval_addr, accurate_ret_type->getPointerTo());
 
-    irb_.CreateStore(retval, ret_addr);
+    irb_.CreateStore(retval, ret_addr, kTBAAStackTemp);
   }
 
   irb_.CreateRetVoid();

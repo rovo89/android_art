@@ -202,7 +202,8 @@ void MethodCompiler::EmitStackOverflowCheck() {
   llvm::Value* stack_end =
     irb_.LoadFromObjectOffset(thread_object_addr,
                               Thread::StackEndOffset().Int32Value(),
-                              irb_.getPtrEquivIntTy());
+                              irb_.getPtrEquivIntTy(),
+                              kTBAARuntimeInfo);
 
   // Check the frame address < thread.stack_end_ ?
   llvm::Value* is_stack_overflow = irb_.CreateICmpULT(frame_address, stack_end);
@@ -261,7 +262,7 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
   llvm::ConstantAggregateZero* zero_initializer =
     llvm::ConstantAggregateZero::get(shadow_frame_type);
 
-  irb_.CreateStore(zero_initializer, shadow_frame_);
+  irb_.CreateStore(zero_initializer, shadow_frame_, kTBAARuntimeInfo);
 
   // Get method object
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
@@ -269,12 +270,14 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
   // Store the method pointer
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::MethodOffset(),
-                           method_object_addr);
+                           method_object_addr,
+                           kTBAARuntimeInfo);
 
   // Store the number of the pointer slots
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::NumberOfReferencesOffset(),
-                           irb_.getJInt(sirt_size));
+                           irb_.getJInt(sirt_size),
+                           kTBAARuntimeInfo);
 
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast =
@@ -1238,12 +1241,14 @@ void MethodCompiler::EmitInsn_MoveException(uint32_t dex_pc,
   llvm::Value* exception_object_addr =
     irb_.LoadFromObjectOffset(thread_object_addr,
                               Thread::ExceptionOffset().Int32Value(),
-                              irb_.getJObjectTy());
+                              irb_.getJObjectTy(),
+                              kTBAARuntimeInfo);
 
   // Set thread-local exception field address to NULL
   irb_.StoreToObjectOffset(thread_object_addr,
                            Thread::ExceptionOffset().Int32Value(),
-                           irb_.getJNull());
+                           irb_.getJNull(),
+                           kTBAARuntimeInfo);
 
   // Keep the exception object in the Dalvik register
   EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, exception_object_addr);
@@ -1384,7 +1389,7 @@ void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
 
   llvm::Value* string_field_addr = EmitLoadDexCacheStringFieldAddr(string_idx);
 
-  llvm::Value* string_addr = irb_.CreateLoad(string_field_addr);
+  llvm::Value* string_addr = irb_.CreateLoad(string_field_addr, kTBAARuntimeInfo);
 
   if (!compiler_->CanAssumeStringIsPresentInDexCache(dex_cache_, string_idx)) {
     llvm::BasicBlock* block_str_exist =
@@ -1454,7 +1459,7 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
     llvm::Value* type_field_addr =
       EmitLoadDexCacheResolvedTypeFieldAddr(type_idx);
 
-    llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr);
+    llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr, kTBAARuntimeInfo);
 
     if (compiler_->CanAssumeTypeIsPresentInDexCache(dex_cache_, type_idx)) {
       return type_object_addr;
@@ -1595,7 +1600,7 @@ void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
     irb_.CreateBitCast(object_addr, jobject_ptr_ty->getPointerTo());
 
   llvm::Value* object_type_object_addr =
-    irb_.CreateLoad(object_type_field_addr);
+    irb_.CreateLoad(object_type_field_addr, kTBAARuntimeInfo);
 
   llvm::Value* equal_class =
     irb_.CreateICmpEQ(type_object_addr, object_type_object_addr);
@@ -1664,7 +1669,7 @@ void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
     irb_.CreateBitCast(object_addr, jobject_ptr_ty->getPointerTo());
 
   llvm::Value* object_type_object_addr =
-    irb_.CreateLoad(object_type_field_addr);
+    irb_.CreateLoad(object_type_field_addr, kTBAARuntimeInfo);
 
   llvm::Value* equal_class =
     irb_.CreateICmpEQ(type_object_addr, object_type_object_addr);
@@ -1692,7 +1697,8 @@ llvm::Value* MethodCompiler::EmitLoadArrayLength(llvm::Value* array) {
   // Load array length
   return irb_.LoadFromObjectOffset(array,
                                    Array::LengthOffset().Int32Value(),
-                                   irb_.getJIntTy());
+                                   irb_.getJIntTy(),
+                                   kTBAARuntimeInfo);
 }
 
 
@@ -1860,7 +1866,7 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
         reg_value = EmitLoadDalvikReg(reg_index, kObject, kAccurate);
       }
 
-      irb_.CreateStore(reg_value, data_field_addr);
+      irb_.CreateStore(reg_value, data_field_addr, kTBAAMemory);
 
       data_field_addr =
         irb_.CreatePtrDisp(data_field_addr, elem_size, field_type);
@@ -2277,7 +2283,7 @@ void MethodCompiler::EmitInsn_AGet(uint32_t dex_pc,
   llvm::Value* array_elem_addr =
     EmitArrayGEP(array_addr, index_value, elem_type, elem_jty);
 
-  llvm::Value* array_elem_value = irb_.CreateLoad(array_elem_addr);
+  llvm::Value* array_elem_value = irb_.CreateLoad(array_elem_addr, kTBAAMemory);
 
   EmitStoreDalvikReg(dec_insn.vA, elem_jty, kArray, array_elem_value);
 
@@ -2313,7 +2319,7 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
     EmitMarkGCCard(new_value, array_addr);
   }
 
-  irb_.CreateStore(new_value, array_elem_addr);
+  irb_.CreateStore(new_value, array_elem_addr, kTBAAMemory);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -2374,7 +2380,7 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
 
     // TODO: Check is_volatile.  We need to generate atomic load instruction
     // when is_volatile is true.
-    field_value = irb_.CreateLoad(field_addr);
+    field_value = irb_.CreateLoad(field_addr, kTBAAMemory);
   }
 
   EmitStoreDalvikReg(dec_insn.vA, field_jty, kField, field_value);
@@ -2438,7 +2444,7 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
 
     // TODO: Check is_volatile.  We need to generate atomic store instruction
     // when is_volatile is true.
-    irb_.CreateStore(new_value, field_addr);
+    irb_.CreateStore(new_value, field_addr, kTBAAMemory);
 
     if (field_jty == kObject) { // If put an object, mark the GC card table.
       EmitMarkGCCard(new_value, object_addr);
@@ -2460,7 +2466,7 @@ llvm::Value* MethodCompiler::EmitLoadStaticStorage(uint32_t dex_pc,
   llvm::Value* storage_field_addr =
     EmitLoadDexCacheStaticStorageFieldAddr(type_idx);
 
-  llvm::Value* storage_object_addr = irb_.CreateLoad(storage_field_addr);
+  llvm::Value* storage_object_addr = irb_.CreateLoad(storage_field_addr, kTBAARuntimeInfo);
 
   llvm::BasicBlock* block_original = irb_.GetInsertBlock();
 
@@ -2558,7 +2564,8 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
       static_storage_addr =
         irb_.LoadFromObjectOffset(method_object_addr,
                                   Method::DeclaringClassOffset().Int32Value(),
-                                  irb_.getJObjectTy());
+                                  irb_.getJObjectTy(),
+                                  kTBAARuntimeInfo);
     } else {
       // Medium path, static storage base in a different class which
       // requires checks that the other class is initialized
@@ -2574,7 +2581,7 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
 
     // TODO: Check is_volatile.  We need to generate atomic load instruction
     // when is_volatile is true.
-    static_field_value = irb_.CreateLoad(static_field_addr);
+    static_field_value = irb_.CreateLoad(static_field_addr, kTBAAMemory);
   }
 
   EmitStoreDalvikReg(dec_insn.vA, field_jty, kField, static_field_value);
@@ -2636,7 +2643,8 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
       static_storage_addr =
         irb_.LoadFromObjectOffset(method_object_addr,
                                   Method::DeclaringClassOffset().Int32Value(),
-                                  irb_.getJObjectTy());
+                                  irb_.getJObjectTy(),
+                                  kTBAARuntimeInfo);
     } else {
       // Medium path, static storage base in a different class which
       // requires checks that the other class is initialized
@@ -2652,7 +2660,7 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
 
     // TODO: Check is_volatile.  We need to generate atomic store instruction
     // when is_volatile is true.
-    irb_.CreateStore(new_value, static_field_addr);
+    irb_.CreateStore(new_value, static_field_addr, kTBAAMemory);
 
     if (field_jty == kObject) { // If put an object, mark the GC card table.
       EmitMarkGCCard(new_value, static_storage_addr);
@@ -2792,7 +2800,8 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   llvm::Value* code_addr =
     irb_.LoadFromObjectOffset(callee_method_object_addr,
                               Method::GetCodeOffset().Int32Value(),
-                              GetFunctionType(callee_method_idx, is_static)->getPointerTo());
+                              GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
+                              kTBAARuntimeInfo);
 
   // Load the actual parameter
   std::vector<llvm::Value*> args;
@@ -2895,7 +2904,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
       if (ret_shorty != 'V') {
         llvm::Value* result_addr =
             irb_.CreateBitCast(temp_space_addr, accurate_ret_type->getPointerTo());
-        llvm::Value* retval = irb_.CreateLoad(result_addr);
+        llvm::Value* retval = irb_.CreateLoad(result_addr, kTBAAStackTemp);
         EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
       }
     }
@@ -2917,7 +2926,7 @@ EmitLoadSDCalleeMethodObjectAddr(uint32_t callee_method_idx) {
   llvm::Value* callee_method_object_field_addr =
     EmitLoadDexCacheResolvedMethodFieldAddr(callee_method_idx);
 
-  return irb_.CreateLoad(callee_method_object_field_addr);
+  return irb_.CreateLoad(callee_method_object_field_addr, kTBAARuntimeInfo);
 }
 
 
@@ -2928,13 +2937,15 @@ EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx,
   llvm::Value* class_object_addr =
     irb_.LoadFromObjectOffset(this_addr,
                               Object::ClassOffset().Int32Value(),
-                              irb_.getJObjectTy());
+                              irb_.getJObjectTy(),
+                              kTBAARuntimeInfo);
 
   // Load vtable address
   llvm::Value* vtable_addr =
     irb_.LoadFromObjectOffset(class_object_addr,
                               Class::VTableOffset().Int32Value(),
-                              irb_.getJObjectTy());
+                              irb_.getJObjectTy(),
+                              kTBAARuntimeInfo);
 
   // Load callee method object
   llvm::Value* vtable_idx_value =
@@ -2943,7 +2954,7 @@ EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx,
   llvm::Value* method_field_addr =
     EmitArrayGEP(vtable_addr, vtable_idx_value, irb_.getJObjectTy(), kObject);
 
-  return irb_.CreateLoad(method_field_addr);
+  return irb_.CreateLoad(method_field_addr, kTBAARuntimeInfo);
 }
 
 
@@ -3316,7 +3327,7 @@ MethodCompiler::EmitIntDivRemResultComputation(uint32_t dex_pc,
     // Everything modulo -1 will be 0.
     eq_result = zero;
   }
-  irb_.CreateStore(eq_result, result);
+  irb_.CreateStore(eq_result, result, kTBAAStackTemp);
   irb_.CreateBr(neg_one_cont);
 
   // If divisor != -1, just do the division.
@@ -3327,11 +3338,11 @@ MethodCompiler::EmitIntDivRemResultComputation(uint32_t dex_pc,
   } else {
     ne_result = irb_.CreateSRem(dividend, divisor);
   }
-  irb_.CreateStore(ne_result, result);
+  irb_.CreateStore(ne_result, result, kTBAAStackTemp);
   irb_.CreateBr(neg_one_cont);
 
   irb_.SetInsertPoint(neg_one_cont);
-  return irb_.CreateLoad(result);
+  return irb_.CreateLoad(result, kTBAAStackTemp);
 }
 
 
@@ -3543,7 +3554,8 @@ llvm::Value* MethodCompiler::EmitLoadDexCacheAddr(MemberOffset offset) {
 
   return irb_.LoadFromObjectOffset(method_object_addr,
                                    offset.Int32Value(),
-                                   irb_.getJObjectTy());
+                                   irb_.getJObjectTy(),
+                                   kTBAARuntimeInfo);
 }
 
 
@@ -3911,7 +3923,8 @@ void MethodCompiler::EmitPopShadowFrame() {
 void MethodCompiler::EmitUpdateDexPC(uint32_t dex_pc) {
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::DexPCOffset(),
-                           irb_.getInt32(dex_pc));
+                           irb_.getInt32(dex_pc),
+                           kTBAARuntimeInfo);
 }
 
 
