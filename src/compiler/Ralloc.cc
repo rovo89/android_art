@@ -47,6 +47,19 @@ bool setCore(CompilationUnit* cUnit, int index, bool isCore) {
   return change;
 }
 
+bool setRef(CompilationUnit* cUnit, int index, bool isRef) {
+  bool change = false;
+  if (cUnit->regLocation[index].highWord) {
+    return change;
+  }
+  if (isRef && !cUnit->regLocation[index].defined) {
+    cUnit->regLocation[index].ref = true;
+    cUnit->regLocation[index].defined = true;
+    change = true;
+  }
+  return change;
+}
+
 bool remapNames(CompilationUnit* cUnit, BasicBlock* bb)
 {
   if (bb->blockType != kDalvikByteCode && bb->blockType != kEntryBlock &&
@@ -101,11 +114,14 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
       int attrs = oatDataFlowAttributes[mir->dalvikInsn.opcode];
 
       // Handle defs
-      if (attrs & (DF_DA | DF_DA_WIDE)) {
+      if (attrs & DF_DA) {
         if (attrs & DF_CORE_A) {
           changed |= setCore(cUnit, ssaRep->defs[0], true);
         }
-        if (attrs & DF_DA_WIDE) {
+        if (attrs & DF_REF_A) {
+          changed |= setRef(cUnit, ssaRep->defs[0], true);
+        }
+        if (attrs & DF_A_WIDE) {
           cUnit->regLocation[ssaRep->defs[0]].wide = true;
           cUnit->regLocation[ssaRep->defs[1]].highWord = true;
           DCHECK_EQ(SRegToVReg(cUnit, ssaRep->defs[0])+1,
@@ -115,11 +131,14 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
 
       // Handles uses
       int next = 0;
-      if (attrs & (DF_UA | DF_UA_WIDE)) {
+      if (attrs & DF_UA) {
         if (attrs & DF_CORE_A) {
           changed |= setCore(cUnit, ssaRep->uses[next], true);
         }
-        if (attrs & DF_UA_WIDE) {
+        if (attrs & DF_REF_A) {
+          changed |= setRef(cUnit, ssaRep->uses[next], true);
+        }
+        if (attrs & DF_A_WIDE) {
           cUnit->regLocation[ssaRep->uses[next]].wide = true;
           cUnit->regLocation[ssaRep->uses[next + 1]].highWord = true;
           DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[next])+1,
@@ -129,11 +148,14 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
           next++;
         }
       }
-      if (attrs & (DF_UB | DF_UB_WIDE)) {
+      if (attrs & DF_UB) {
         if (attrs & DF_CORE_B) {
           changed |= setCore(cUnit, ssaRep->uses[next], true);
         }
-        if (attrs & DF_UB_WIDE) {
+        if (attrs & DF_REF_B) {
+          changed |= setRef(cUnit, ssaRep->uses[next], true);
+        }
+        if (attrs & DF_B_WIDE) {
           cUnit->regLocation[ssaRep->uses[next]].wide = true;
           cUnit->regLocation[ssaRep->uses[next + 1]].highWord = true;
           DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[next])+1,
@@ -143,11 +165,14 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
           next++;
         }
       }
-      if (attrs & (DF_UC | DF_UC_WIDE)) {
+      if (attrs & DF_UC) {
         if (attrs & DF_CORE_C) {
           changed |= setCore(cUnit, ssaRep->uses[next], true);
         }
-        if (attrs & DF_UC_WIDE) {
+        if (attrs & DF_REF_C) {
+          changed |= setRef(cUnit, ssaRep->uses[next], true);
+        }
+        if (attrs & DF_C_WIDE) {
           cUnit->regLocation[ssaRep->uses[next]].wide = true;
           cUnit->regLocation[ssaRep->uses[next + 1]].highWord = true;
           DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[next])+1,
@@ -183,11 +208,11 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
           }
         }
         int numUses = mir->dalvikInsn.vA;
-        // If this is a non-static invoke, skip implicit "this"
+        // If this is a non-static invoke, mark implicit "this"
         if (((mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC) &&
             (mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC_RANGE))) {
           cUnit->regLocation[ssaRep->uses[next]].defined = true;
-          cUnit->regLocation[ssaRep->uses[next]].core = true;
+          cUnit->regLocation[ssaRep->uses[next]].ref = true;
           next++;
         }
         uint32_t cpos = 1;
@@ -215,6 +240,9 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
               case 'F':
                 ssaRep->fpUse[i] = true;
                 break;
+              case 'L':
+                changed |= setRef(cUnit,ssaRep->uses[i], true);
+                break;
               default:
                 changed |= setCore(cUnit,ssaRep->uses[i], true);
                 break;
@@ -237,15 +265,20 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
         // If any of our inputs or outputs is defined, set all
         bool definedFP = false;
         bool definedCore = false;
+        bool definedRef = false;
         definedFP |= (cUnit->regLocation[ssaRep->defs[0]].defined &&
                       cUnit->regLocation[ssaRep->defs[0]].fp);
         definedCore |= (cUnit->regLocation[ssaRep->defs[0]].defined &&
                         cUnit->regLocation[ssaRep->defs[0]].core);
+        definedRef |= (cUnit->regLocation[ssaRep->defs[0]].defined &&
+                       cUnit->regLocation[ssaRep->defs[0]].ref);
         for (int i = 0; i < ssaRep->numUses; i++) {
           definedFP |= (cUnit->regLocation[ssaRep->uses[i]].defined &&
                         cUnit->regLocation[ssaRep->uses[i]].fp);
           definedCore |= (cUnit->regLocation[ssaRep->uses[i]].defined
                           && cUnit->regLocation[ssaRep->uses[i]].core);
+          definedRef |= (cUnit->regLocation[ssaRep->uses[i]].defined
+                         && cUnit->regLocation[ssaRep->uses[i]].ref);
         }
         /*
          * TODO: cleaner fix
@@ -261,18 +294,20 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
          * disable register promotion (which is the only thing that
          * relies on distinctions between core and fp usages.
          */
-        if ((definedFP && definedCore) &&
+        if ((definedFP && (definedCore | definedRef)) &&
             ((cUnit->disableOpt & (1 << kPromoteRegs)) == 0)) {
           LOG(WARNING) << PrettyMethod(cUnit->method_idx, *cUnit->dex_file)
                        << " op at block " << bb->id
-                       << " has both fp and core uses for same def.";
+                       << " has both fp and core/ref uses for same def.";
           cUnit->disableOpt |= (1 << kPromoteRegs);
         }
         changed |= setFp(cUnit, ssaRep->defs[0], definedFP);
         changed |= setCore(cUnit, ssaRep->defs[0], definedCore);
+        changed |= setRef(cUnit, ssaRep->defs[0], definedRef);
         for (int i = 0; i < ssaRep->numUses; i++) {
          changed |= setFp(cUnit, ssaRep->uses[i], definedFP);
          changed |= setCore(cUnit, ssaRep->uses[i], definedCore);
+         changed |= setRef(cUnit, ssaRep->uses[i], definedRef);
         }
       }
     }
@@ -296,7 +331,7 @@ void oatDumpRegLocTable(RegLocation* table, int count)
   }
 }
 
-static const RegLocation freshLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0,
+static const RegLocation freshLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0,
                                      INVALID_REG, INVALID_REG, INVALID_SREG};
 
 /*
@@ -343,7 +378,7 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
     if ((cUnit->access_flags & kAccStatic) == 0) {
       // For non-static, skip past "this"
       cUnit->regLocation[sReg].defined = true;
-      cUnit->regLocation[sReg].core = true;
+      cUnit->regLocation[sReg].ref = true;
       sReg++;
     }
     const char* shorty = cUnit->shorty;

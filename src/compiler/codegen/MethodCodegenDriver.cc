@@ -21,7 +21,7 @@ namespace art {
 #define DISPLAY_MISSING_TARGETS (cUnit->enableDebug & \
                                  (1 << kDebugDisplayMissingTargets))
 
-const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0,
+const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0,
                             INVALID_REG, INVALID_REG, INVALID_SREG};
 
 /* Mark register usage state and return long retloc */
@@ -179,30 +179,37 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
   int attrs = oatDataFlowAttributes[opcode];
   rlSrc[0] = rlSrc[1] = rlSrc[2] = badLoc;
   if (attrs & DF_UA) {
-    rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
-    nextSreg++;
-  } else if (attrs & DF_UA_WIDE) {
-    rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg, nextSreg + 1);
-    nextSreg+= 2;
+    if (attrs & DF_A_WIDE) {
+      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg, nextSreg + 1);
+      nextSreg+= 2;
+    } else {
+      rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
+      nextSreg++;
+    }
   }
   if (attrs & DF_UB) {
-    rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
-    nextSreg++;
-  } else if (attrs & DF_UB_WIDE) {
-    rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg, nextSreg + 1);
-    nextSreg+= 2;
+    if (attrs & DF_B_WIDE) {
+      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg, nextSreg + 1);
+      nextSreg+= 2;
+    } else {
+      rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
+      nextSreg++;
+    }
   }
   if (attrs & DF_UC) {
-    rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
-  } else if (attrs & DF_UC_WIDE) {
-    rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg, nextSreg + 1);
+    if (attrs & DF_C_WIDE) {
+      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg, nextSreg + 1);
+    } else {
+      rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
+    }
   }
   if (attrs & DF_DA) {
-    rlDest = oatGetDest(cUnit, mir, 0);
-  } else if (attrs & DF_DA_WIDE) {
-    rlDest = oatGetDestWide(cUnit, mir, 0, 1);
+    if (attrs & DF_A_WIDE) {
+      rlDest = oatGetDestWide(cUnit, mir, 0, 1);
+    } else {
+      rlDest = oatGetDest(cUnit, mir, 0);
+    }
   }
-
   switch (opcode) {
     case Instruction::NOP:
       break;

@@ -34,7 +34,7 @@ bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
   opRegReg(cUnit, kOpAdd, r0, r2);  // r0 = r0 + r2
   opRegReg(cUnit, kOpAdc, r1, r3);  // r1 = r1 + r3 + CF
-  RegLocation rlResult = {kLocPhysReg, 1, 0, 0,  0, 0, 1, r0, r1, INVALID_SREG};
+  RegLocation rlResult = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 1, r0, r1, INVALID_SREG};
   storeValueWide(cUnit, rlDest, rlResult);
   return false;
 }
@@ -49,7 +49,7 @@ bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
   opRegReg(cUnit, kOpSub, r0, r2);  // r0 = r0 - r2
   opRegReg(cUnit, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
-  RegLocation rlResult = {kLocPhysReg, 1, 0, 0,  0, 0, 1, r0, r1, INVALID_SREG};
+  RegLocation rlResult = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 1, r0, r1, INVALID_SREG};
   storeValueWide(cUnit, rlDest, rlResult);
   return false;
 }
@@ -64,7 +64,7 @@ bool genAndLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
   opRegReg(cUnit, kOpAnd, r0, r2);  // r0 = r0 - r2
   opRegReg(cUnit, kOpAnd, r1, r3);  // r1 = r1 - r3 - CF
-  RegLocation rlResult = {kLocPhysReg, 1, 0, 0,  0, 0, 1, r0, r1, INVALID_SREG};
+  RegLocation rlResult = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 1, r0, r1, INVALID_SREG};
   storeValueWide(cUnit, rlDest, rlResult);
   return false;
 }
@@ -79,7 +79,7 @@ bool genOrLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
   opRegReg(cUnit, kOpOr, r0, r2);  // r0 = r0 - r2
   opRegReg(cUnit, kOpOr, r1, r3);  // r1 = r1 - r3 - CF
-  RegLocation rlResult = {kLocPhysReg, 1, 0, 0,  0, 0, 1, r0, r1, INVALID_SREG};
+  RegLocation rlResult = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 1, r0, r1, INVALID_SREG};
   storeValueWide(cUnit, rlDest, rlResult);
   return false;
 }
@@ -94,7 +94,7 @@ bool genXorLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   // Compute (r1:r0) = (r1:r0) + (r2:r3)
   opRegReg(cUnit, kOpXor, r0, r2);  // r0 = r0 - r2
   opRegReg(cUnit, kOpXor, r1, r3);  // r1 = r1 - r3 - CF
-  RegLocation rlResult = {kLocPhysReg, 1, 0, 0,  0, 0, 1, r0, r1, INVALID_SREG};
+  RegLocation rlResult = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 1, r0, r1, INVALID_SREG};
   storeValueWide(cUnit, rlDest, rlResult);
   return false;
 }
@@ -109,7 +109,7 @@ bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   opRegReg(cUnit, kOpNeg, r0, r0);  // r0 = -r0
   opRegImm(cUnit, kOpAdc, r1, 0);   // r1 = r1 + CF
   opRegReg(cUnit, kOpNeg, r1, r1);  // r1 = -r1
-  RegLocation rlResult = {kLocPhysReg, 1, 0, 0,  0, 0, 1, r0, r1, INVALID_SREG};
+  RegLocation rlResult = {kLocPhysReg, 1, 0, 0, 0, 0, 0, 1, r0, r1, INVALID_SREG};
   storeValueWide(cUnit, rlDest, rlResult);
   return false;
 }
