@@ -61,7 +61,7 @@ llvm::MDNode* TBAAInfo::GetSpecialType(TBAASpecialType sty_id) {
 llvm::MDNode* TBAAInfo::GetMemoryJType(TBAASpecialType sty_id, JType jty_id) {
   DCHECK(sty_id == kTBAAHeapArray ||
          sty_id == kTBAAHeapInstance ||
-         sty_id == kTBAAHeapStatic) << "SpecialType must be array, identified, or static";
+         sty_id == kTBAAHeapStatic) << "SpecialType must be array, instance, or static";
 
   DCHECK_GE(jty_id, 0) << "Unknown JType: " << jty_id;
   DCHECK_LT(jty_id, MAX_JTYPE) << "Unknown JType: " << jty_id;
