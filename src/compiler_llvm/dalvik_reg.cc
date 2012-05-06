@@ -157,6 +157,10 @@ llvm::Value* DalvikReg::GetValue(JType jty, JTypeSpace space) {
     case kDouble:
     case kObject:
       return irb_.CreateLoad(GetAddr(jty, space), kTBAARegister);
+
+    default:
+      LOG(FATAL) << "Unknown java type: " << jty;
+      return NULL;
     }
   }
 
@@ -203,6 +207,9 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
     case kObject:
       irb_.CreateStore(value, GetAddr(jty, space), kTBAARegister);
       break;
+
+    default:
+      LOG(FATAL) << "Unknown java type: " << jty;
     }
   }
 }

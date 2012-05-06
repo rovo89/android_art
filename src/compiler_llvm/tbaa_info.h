@@ -35,11 +35,14 @@ class TBAAInfo {
  public:
   TBAAInfo(llvm::LLVMContext& context) : context_(context), root_(NULL) {
     std::memset(special_type_, 0, sizeof(special_type_));
+    std::memset(memory_jtype_, 0, sizeof(memory_jtype_));
   }
 
   llvm::MDNode* GetRootType();
 
   llvm::MDNode* GetSpecialType(TBAASpecialType special_ty);
+
+  llvm::MDNode* GetMemoryJType(TBAASpecialType special_ty, JType j_ty);
 
   llvm::MDNode* GenTBAANode(llvm::StringRef name,
                             llvm::MDNode* parent = NULL,
@@ -49,6 +52,9 @@ class TBAAInfo {
   llvm::LLVMContext& context_;
   llvm::MDNode* root_;
   llvm::MDNode* special_type_[MAX_TBAA_SPECIAL_TYPE];
+  // There are 3 categories of memory types will not alias: array element, identified field, and
+  // static field.
+  llvm::MDNode* memory_jtype_[3][MAX_JTYPE];
 };
 
 

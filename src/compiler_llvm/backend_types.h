@@ -35,6 +35,7 @@ enum JType {
   kFloat,
   kDouble,
   kObject,
+  MAX_JTYPE
 };
 
 
@@ -58,7 +59,9 @@ enum RegCategory {
 enum TBAASpecialType {
   kTBAARegister,
   kTBAAStackTemp,
-  kTBAAMemory,
+  kTBAAHeapArray,
+  kTBAAHeapInstance,
+  kTBAAHeapStatic,
   kTBAAJRuntime,
   kTBAARuntimeInfo,
   kTBAAConstJObject,
@@ -124,10 +127,11 @@ inline RegCategory GetRegCategoryFromJType(JType jty) {
 
   case kObject:
     return kRegObject;
-  }
 
-  LOG(FATAL) << "Unknown java type: " << jty;
-  return kRegUnknown;
+  default:
+    LOG(FATAL) << "Unknown java type: " << jty;
+    return kRegUnknown;
+  }
 }
 
 

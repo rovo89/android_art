@@ -82,10 +82,11 @@ llvm::Type* IRBuilder::getJTypeInAccurateSpace(JType jty) {
 
   case kObject:
     return getJObjectTy();
-  }
 
-  LOG(FATAL) << "Unknown java type: " << jty;
-  return NULL;
+  default:
+    LOG(FATAL) << "Unknown java type: " << jty;
+    return NULL;
+  }
 }
 
 
@@ -142,10 +143,11 @@ llvm::Type* IRBuilder::getJTypeInArraySpace(JType jty) {
 
   case kObject:
     return getJObjectTy();
-  }
 
-  LOG(FATAL) << "Unknown java type: " << jty;
-  return NULL;
+  default:
+    LOG(FATAL) << "Unknown java type: " << jty;
+    return NULL;
+  }
 }
 
 

@@ -1866,7 +1866,7 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
         reg_value = EmitLoadDalvikReg(reg_index, kObject, kAccurate);
       }
 
-      irb_.CreateStore(reg_value, data_field_addr, kTBAAMemory);
+      irb_.CreateStore(reg_value, data_field_addr, kTBAAHeapArray);
 
       data_field_addr =
         irb_.CreatePtrDisp(data_field_addr, elem_size, field_type);
@@ -2283,7 +2283,7 @@ void MethodCompiler::EmitInsn_AGet(uint32_t dex_pc,
   llvm::Value* array_elem_addr =
     EmitArrayGEP(array_addr, index_value, elem_type, elem_jty);
 
-  llvm::Value* array_elem_value = irb_.CreateLoad(array_elem_addr, kTBAAMemory);
+  llvm::Value* array_elem_value = irb_.CreateLoad(array_elem_addr, kTBAAHeapArray, elem_jty);
 
   EmitStoreDalvikReg(dec_insn.vA, elem_jty, kArray, array_elem_value);
 
@@ -2319,7 +2319,7 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
     EmitMarkGCCard(new_value, array_addr);
   }
 
-  irb_.CreateStore(new_value, array_elem_addr, kTBAAMemory);
+  irb_.CreateStore(new_value, array_elem_addr, kTBAAHeapArray, elem_jty);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -2380,7 +2380,7 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
 
     // TODO: Check is_volatile.  We need to generate atomic load instruction
     // when is_volatile is true.
-    field_value = irb_.CreateLoad(field_addr, kTBAAMemory);
+    field_value = irb_.CreateLoad(field_addr, kTBAAHeapInstance, field_jty);
   }
 
   EmitStoreDalvikReg(dec_insn.vA, field_jty, kField, field_value);
@@ -2444,7 +2444,7 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
 
     // TODO: Check is_volatile.  We need to generate atomic store instruction
     // when is_volatile is true.
-    irb_.CreateStore(new_value, field_addr, kTBAAMemory);
+    irb_.CreateStore(new_value, field_addr, kTBAAHeapInstance, field_jty);
 
     if (field_jty == kObject) { // If put an object, mark the GC card table.
       EmitMarkGCCard(new_value, object_addr);
@@ -2581,7 +2581,7 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
 
     // TODO: Check is_volatile.  We need to generate atomic load instruction
     // when is_volatile is true.
-    static_field_value = irb_.CreateLoad(static_field_addr, kTBAAMemory);
+    static_field_value = irb_.CreateLoad(static_field_addr, kTBAAHeapStatic, field_jty);
   }
 
   EmitStoreDalvikReg(dec_insn.vA, field_jty, kField, static_field_value);
@@ -2660,7 +2660,7 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
 
     // TODO: Check is_volatile.  We need to generate atomic store instruction
     // when is_volatile is true.
-    irb_.CreateStore(new_value, static_field_addr, kTBAAMemory);
+    irb_.CreateStore(new_value, static_field_addr, kTBAAHeapStatic, field_jty);
 
     if (field_jty == kObject) { // If put an object, mark the GC card table.
       EmitMarkGCCard(new_value, static_storage_addr);
