@@ -142,7 +142,7 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* exception = irb_.LoadFromObjectOffset(thread,
                                                  Thread::ExceptionOffset().Int32Value(),
                                                  irb_.getJObjectTy(),
-                                                 kTBAARuntimeInfo);
+                                                 kTBAAJRuntime);
     Value* is_exception_not_null = irb_.CreateICmpNE(exception, irb_.getJNull());
     irb_.CreateRet(is_exception_not_null);
 
@@ -164,7 +164,7 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* suspend_count = irb_.LoadFromObjectOffset(thread,
                                                      Thread::SuspendCountOffset().Int32Value(),
                                                      irb_.getJIntTy(),
-                                                     kTBAARuntimeInfo);
+                                                     kTBAAJRuntime);
     Value* is_suspend = irb_.CreateICmpNE(suspend_count, irb_.getJInt(0));
 
     BasicBlock* basic_block_suspend = BasicBlock::Create(context_, "suspend", func);
@@ -208,7 +208,7 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* card_table = irb_.LoadFromObjectOffset(thread,
                                                   Thread::CardTableOffset().Int32Value(),
                                                   irb_.getInt8Ty()->getPointerTo(),
-                                                  kTBAARuntimeInfo);
+                                                  kTBAAJRuntime);
     Value* target_addr_int = irb_.CreatePtrToInt(target_addr, irb_.getPtrEquivIntTy());
     Value* card_no = irb_.CreateLShr(target_addr_int, irb_.getPtrEquivInt(GC_CARD_SHIFT));
     Value* card_table_entry = irb_.CreateGEP(card_table, card_no);
