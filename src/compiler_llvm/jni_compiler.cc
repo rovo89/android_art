@@ -90,7 +90,7 @@ CompiledMethod* JniCompiler::Compile() {
         irb_.LoadFromObjectOffset(method_object_addr,
                                   Method::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
-                                  kTBAARuntimeInfo);
+                                  kTBAAJRuntime);
   }
   // Actual argument (ignore method and this object)
   arg_begin = arg_iter;
@@ -143,7 +143,7 @@ CompiledMethod* JniCompiler::Compile() {
       irb_.LoadFromObjectOffset(thread_object_addr,
                                 Thread::JniEnvOffset().Int32Value(),
                                 irb_.getJObjectTy(),
-                                kTBAARuntimeInfo);
+                                kTBAAJRuntime);
 
   // Set thread state to kNative
   irb_.StoreToObjectOffset(thread_object_addr,
@@ -156,7 +156,7 @@ CompiledMethod* JniCompiler::Compile() {
       irb_.LoadFromObjectOffset(method_object_addr,
                                 Method::NativeMethodOffset().Int32Value(),
                                 GetFunctionType(method_idx_, is_static, true)->getPointerTo(),
-                                kTBAARuntimeInfo);
+                                kTBAAJRuntime);
 
   // Load actual parameters
   std::vector<llvm::Value*> args;

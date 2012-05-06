@@ -59,6 +59,7 @@ enum TBAASpecialType {
   kTBAARegister,
   kTBAAStackTemp,
   kTBAAMemory,
+  kTBAAJRuntime,
   kTBAARuntimeInfo,
   kTBAAConstJObject,
   MAX_TBAA_SPECIAL_TYPE

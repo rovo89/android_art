@@ -48,6 +48,7 @@ llvm::MDNode* TBAAInfo::GetSpecialType(TBAASpecialType sty_id) {
     case kTBAAMemoryArray:      spec_ty = GenTBAANode("MemoryArray", GetRootType()); break;
     case kTBAAMemoryIdentified: spec_ty = GenTBAANode("MemoryIdentified", GetRootType()); break;
     case kTBAAMemoryStatic:     spec_ty = GenTBAANode("MemoryStatic", GetRootType()); break;
+    case kTBAAJRuntime:         spec_ty = GenTBAANode("JRuntime", GetRootType()); break;
     case kTBAARuntimeInfo:      spec_ty = GenTBAANode("RuntimeInfo", GetRootType()); break;
     case kTBAAConstJObject:     spec_ty = GenTBAANode("ConstJObject", GetRootType(), true); break;
     default:
