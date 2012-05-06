@@ -80,6 +80,16 @@ class IRBuilder : public LLVMIRBuilder {
     return CreateStore(val, ptr, tbaa_.GetSpecialType(special_ty));
   }
 
+  llvm::LoadInst* CreateLoad(llvm::Value* ptr, TBAASpecialType special_ty, JType j_ty) {
+    return CreateLoad(ptr, tbaa_.GetMemoryJType(special_ty, j_ty));
+  }
+
+  llvm::StoreInst* CreateStore(llvm::Value* val, llvm::Value* ptr,
+                               TBAASpecialType special_ty, JType j_ty) {
+    DCHECK_NE(special_ty, kTBAAConstJObject) << "ConstJObject is read only!";
+    return CreateStore(val, ptr, tbaa_.GetMemoryJType(special_ty, j_ty));
+  }
+
   llvm::Value* LoadFromObjectOffset(llvm::Value* object_addr,
                                     int64_t offset,
                                     llvm::Type* type,
@@ -339,10 +349,11 @@ class IRBuilder : public LLVMIRBuilder {
 
     case kObject:
       return getJNull();
-    }
 
-    LOG(FATAL) << "Unknown java type: " << jty;
-    return NULL;
+    default:
+      LOG(FATAL) << "Unknown java type: " << jty;
+      return NULL;
+    }
   }
 
 
