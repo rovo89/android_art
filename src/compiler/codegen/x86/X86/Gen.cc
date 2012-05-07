@@ -255,12 +255,12 @@ void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   oatFlushAllRegs(cUnit);
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
   loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
-  loadValueDirectWideFixed(cUnit, rlSrc1, r2, r3);
-  // Compute (r1:r0) = (r1:r0) - (r2:r3)
+  loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+  // Compute (r1:r0) = (r1:r0) - (r3:r2)
   opRegReg(cUnit, kOpSub, r0, r2);  // r0 = r0 - r2
   opRegReg(cUnit, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
   opRegReg(cUnit, kOpOr, r0, r1);   // r0 = high | low - sets ZF
-  newLIR2(cUnit, kX86Set8R, r0, kX86CondNz);  // r0 = (r1:r0) != (r2:r3) ? 1 : 0
+  newLIR2(cUnit, kX86Set8R, r0, kX86CondNz);  // r0 = (r1:r0) != (r3:r2) ? 1 : 0
   newLIR2(cUnit, kX86Movzx8RR, r0, r0);
   opRegImm(cUnit, kOpAsr, r1, 31);  // r1 = high >> 31
   opRegReg(cUnit, kOpOr, r0, r1);   // r0 holds result

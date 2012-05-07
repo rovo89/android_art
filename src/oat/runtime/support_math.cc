@@ -62,7 +62,7 @@ int CmplDouble(double a, double b) {
   return -1;
 }
 
-int64_t Lmul(int64_t a, int64_t b) {
+extern "C" int64_t artLmulFromCode(int64_t a, int64_t b) {
   return a * b;
 }
 

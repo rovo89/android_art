@@ -2193,13 +2193,13 @@ bool genArithOpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
       callOut = true;
       checkZero = true;
       retReg = rRET0;
-      funcOffset = ENTRYPOINT_OFFSET(pLdivmod);
+      funcOffset = ENTRYPOINT_OFFSET(pLdiv);
       break;
     case Instruction::REM_LONG:
     case Instruction::REM_LONG_2ADDR:
       callOut = true;
       checkZero = true;
-      funcOffset = ENTRYPOINT_OFFSET(pLdiv);
+      funcOffset = ENTRYPOINT_OFFSET(pLdivmod);
 #if defined(TARGET_ARM)
       /* NOTE - result is in rARG2/rARG3 instead of rRET0/rRET1 */
       retReg = rARG2;
