@@ -90,10 +90,10 @@ class IRBuilder : public LLVMIRBuilder {
     return CreateStore(val, ptr, tbaa_.GetMemoryJType(special_ty, j_ty));
   }
 
-  llvm::Value* LoadFromObjectOffset(llvm::Value* object_addr,
-                                    int64_t offset,
-                                    llvm::Type* type,
-                                    TBAASpecialType special_ty) {
+  llvm::LoadInst* LoadFromObjectOffset(llvm::Value* object_addr,
+                                       int64_t offset,
+                                       llvm::Type* type,
+                                       TBAASpecialType special_ty) {
     return LoadFromObjectOffset(object_addr, offset, type, tbaa_.GetSpecialType(special_ty));
   }
 
@@ -149,10 +149,10 @@ class IRBuilder : public LLVMIRBuilder {
     return CreatePtrDisp(base, total_offset, ret_ty);
   }
 
-  llvm::Value* LoadFromObjectOffset(llvm::Value* object_addr,
-                                    int64_t offset,
-                                    llvm::Type* type,
-                                    llvm::MDNode* tbaa_info) {
+  llvm::LoadInst* LoadFromObjectOffset(llvm::Value* object_addr,
+                                       int64_t offset,
+                                       llvm::Type* type,
+                                       llvm::MDNode* tbaa_info) {
     // Convert offset to llvm::value
     llvm::Value* llvm_offset = getPtrEquivInt(offset);
     // Calculate the value's address

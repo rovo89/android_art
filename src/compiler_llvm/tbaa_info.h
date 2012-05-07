@@ -52,7 +52,7 @@ class TBAAInfo {
   llvm::LLVMContext& context_;
   llvm::MDNode* root_;
   llvm::MDNode* special_type_[MAX_TBAA_SPECIAL_TYPE];
-  // There are 3 categories of memory types will not alias: array element, identified field, and
+  // There are 3 categories of memory types will not alias: array element, instance field, and
   // static field.
   llvm::MDNode* memory_jtype_[3][MAX_JTYPE];
 };
