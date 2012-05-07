@@ -913,7 +913,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     int dfFlags = oatDataFlowAttributes[insn->dalvikInsn.opcode];
 
     if (dfFlags & DF_HAS_DEFS) {
-      cUnit->defCount += (dfFlags & DF_DA_WIDE) ? 2 : 1;
+      cUnit->defCount += (dfFlags & DF_A_WIDE) ? 2 : 1;
     }
 
     if (flags & Instruction::kBranch) {

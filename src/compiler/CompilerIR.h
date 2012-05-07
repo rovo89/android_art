@@ -64,6 +64,7 @@ struct RegLocation {
   unsigned defined:1;   // Do we know the type?
   unsigned fp:1;        // Floating point?
   unsigned core:1;      // Non-floating point?
+  unsigned ref:1;       // Something GC cares about
   unsigned highWord:1;  // High word of pair?
   unsigned home:1;      // Does this represent the home location?
   u1 lowReg;            // First physical register
