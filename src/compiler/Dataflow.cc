@@ -42,31 +42,31 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_UB | DF_IS_MOVE,
 
   // 04 MOVE_WIDE vA, vB
-  DF_DA_WIDE | DF_UB_WIDE | DF_IS_MOVE,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_IS_MOVE,
 
   // 05 MOVE_WIDE_FROM16 vAA, vBBBB
-  DF_DA_WIDE | DF_UB_WIDE | DF_IS_MOVE,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_IS_MOVE,
 
   // 06 MOVE_WIDE_16 vAAAA, vBBBB
-  DF_DA_WIDE | DF_UB_WIDE | DF_IS_MOVE,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_IS_MOVE,
 
   // 07 MOVE_OBJECT vA, vB
-  DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE | DF_REF_A | DF_REF_B,
 
   // 08 MOVE_OBJECT_FROM16 vAA, vBBBB
-  DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE | DF_REF_A | DF_REF_B,
 
   // 09 MOVE_OBJECT_16 vAAAA, vBBBB
-  DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_UB | DF_NULL_TRANSFER_0 | DF_IS_MOVE | DF_REF_A | DF_REF_B,
 
   // 0A MOVE_RESULT vAA
   DF_DA,
 
   // 0B MOVE_RESULT_WIDE vAA
-  DF_DA_WIDE,
+  DF_DA | DF_A_WIDE,
 
   // 0C MOVE_RESULT_OBJECT vAA
-  DF_DA | DF_CORE_A,
+  DF_DA | DF_REF_A,
 
   // 0D MOVE_EXCEPTION vAA
   DF_DA | DF_CORE_A,
@@ -78,10 +78,10 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_UA,
 
   // 10 RETURN_WIDE vAA
-  DF_UA_WIDE,
+  DF_UA | DF_A_WIDE,
 
   // 11 RETURN_OBJECT vAA
-  DF_UA | DF_CORE_A,
+  DF_UA | DF_REF_A,
 
   // 12 CONST_4 vA, #+B
   DF_DA | DF_SETS_CONST,
@@ -96,46 +96,46 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_SETS_CONST,
 
   // 16 CONST_WIDE_16 vAA, #+BBBB
-  DF_DA_WIDE | DF_SETS_CONST,
+  DF_DA | DF_A_WIDE | DF_SETS_CONST,
 
   // 17 CONST_WIDE_32 vAA, #+BBBBBBBB
-  DF_DA_WIDE | DF_SETS_CONST,
+  DF_DA | DF_A_WIDE | DF_SETS_CONST,
 
   // 18 CONST_WIDE vAA, #+BBBBBBBBBBBBBBBB
-  DF_DA_WIDE | DF_SETS_CONST,
+  DF_DA | DF_A_WIDE | DF_SETS_CONST,
 
   // 19 CONST_WIDE_HIGH16 vAA, #+BBBB000000000000
-  DF_DA_WIDE | DF_SETS_CONST,
+  DF_DA | DF_A_WIDE | DF_SETS_CONST,
 
   // 1A CONST_STRING vAA, string@BBBB
-  DF_DA | DF_CORE_A,
+  DF_DA | DF_REF_A,
 
   // 1B CONST_STRING_JUMBO vAA, string@BBBBBBBB
-  DF_DA | DF_CORE_A,
+  DF_DA | DF_REF_A,
 
   // 1C CONST_CLASS vAA, type@BBBB
-  DF_DA | DF_CORE_A,
+  DF_DA | DF_REF_A,
 
   // 1D MONITOR_ENTER vAA
-  DF_UA | DF_NULL_CHK_0 | DF_CORE_A,
+  DF_UA | DF_NULL_CHK_0 | DF_REF_A,
 
   // 1E MONITOR_EXIT vAA
-  DF_UA | DF_NULL_CHK_0 | DF_CORE_A,
+  DF_UA | DF_NULL_CHK_0 | DF_REF_A,
 
   // 1F CHK_CAST vAA, type@BBBB
-  DF_UA | DF_CORE_A | DF_UMS,
+  DF_UA | DF_REF_A | DF_UMS,
 
   // 20 INSTANCE_OF vA, vB, type@CCCC
-  DF_DA | DF_UB | DF_CORE_A | DF_CORE_B | DF_UMS,
+  DF_DA | DF_UB | DF_CORE_A | DF_REF_B | DF_UMS,
 
   // 21 ARRAY_LENGTH vA, vB
-  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_A | DF_REF_B,
 
   // 22 NEW_INSTANCE vAA, type@BBBB
-  DF_DA | DF_NON_NULL_DST | DF_CORE_A | DF_UMS,
+  DF_DA | DF_NON_NULL_DST | DF_REF_A | DF_UMS,
 
   // 23 NEW_ARRAY vA, vB, type@CCCC
-  DF_DA | DF_UB | DF_NON_NULL_DST | DF_CORE_A | DF_CORE_B | DF_UMS,
+  DF_DA | DF_UB | DF_NON_NULL_DST | DF_REF_A | DF_CORE_B | DF_UMS,
 
   // 24 FILLED_NEW_ARRAY {vD, vE, vF, vG, vA}
   DF_FORMAT_35C | DF_NON_NULL_RET | DF_UMS,
@@ -144,10 +144,10 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_FORMAT_3RC | DF_NON_NULL_RET | DF_UMS,
 
   // 26 FILL_ARRAY_DATA vAA, +BBBBBBBB
-  DF_UA | DF_CORE_A | DF_UMS,
+  DF_UA | DF_REF_A | DF_UMS,
 
   // 27 THROW vAA
-  DF_UA | DF_CORE_A | DF_UMS,
+  DF_UA | DF_REF_A | DF_UMS,
 
   // 28 GOTO
   DF_NOP,
@@ -171,13 +171,13 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_UB | DF_UC | DF_FP_B | DF_FP_C | DF_CORE_A,
 
   // 2F CMPL_DOUBLE vAA, vBB, vCC
-  DF_DA | DF_UB_WIDE | DF_UC_WIDE | DF_FP_B | DF_FP_C | DF_CORE_A,
+  DF_DA | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_FP_B | DF_FP_C | DF_CORE_A,
 
   // 30 CMPG_DOUBLE vAA, vBB, vCC
-  DF_DA | DF_UB_WIDE | DF_UC_WIDE | DF_FP_B | DF_FP_C | DF_CORE_A,
+  DF_DA | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_FP_B | DF_FP_C | DF_CORE_A,
 
   // 31 CMP_LONG vAA, vBB, vCC
-  DF_DA | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // 32 IF_EQ vA, vB, +CCCC
   DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
@@ -235,97 +235,97 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_NOP,
 
   // 44 AGET vAA, vBB, vCC
-  DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_REF_B | DF_CORE_C,
 
   // 45 AGET_WIDE vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_REF_B | DF_CORE_C,
 
   // 46 AGET_OBJECT vAA, vBB, vCC
-  DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_REF_A | DF_REF_B | DF_CORE_C,
 
   // 47 AGET_BOOLEAN vAA, vBB, vCC
-  DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_REF_B | DF_CORE_C,
 
   // 48 AGET_BYTE vAA, vBB, vCC
-  DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_REF_B | DF_CORE_C,
 
   // 49 AGET_CHAR vAA, vBB, vCC
-  DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_REF_B | DF_CORE_C,
 
   // 4A AGET_SHORT vAA, vBB, vCC
-  DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_UB | DF_UC | DF_NULL_CHK_0 | DF_RANGE_CHK_1 | DF_REF_B | DF_CORE_C,
 
   // 4B APUT vAA, vBB, vCC
-  DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_CORE_B | DF_CORE_C,
+  DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_REF_B | DF_CORE_C,
 
   // 4C APUT_WIDE vAA, vBB, vCC
-  DF_UA_WIDE | DF_UB | DF_UC | DF_NULL_CHK_2 | DF_RANGE_CHK_3 | DF_CORE_B | DF_CORE_C,
+  DF_UA | DF_A_WIDE | DF_UB | DF_UC | DF_NULL_CHK_2 | DF_RANGE_CHK_3 | DF_REF_B | DF_CORE_C,
 
   // 4D APUT_OBJECT vAA, vBB, vCC
-  DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_CORE_B | DF_CORE_C,
+  DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_REF_A | DF_REF_B | DF_CORE_C,
 
   // 4E APUT_BOOLEAN vAA, vBB, vCC
-  DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_CORE_B | DF_CORE_C,
+  DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_REF_B | DF_CORE_C,
 
   // 4F APUT_BYTE vAA, vBB, vCC
-  DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_CORE_B | DF_CORE_C,
+  DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_REF_B | DF_CORE_C,
 
   // 50 APUT_CHAR vAA, vBB, vCC
-  DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_CORE_B | DF_CORE_C,
+  DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_REF_B | DF_CORE_C,
 
   // 51 APUT_SHORT vAA, vBB, vCC
-  DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_CORE_B | DF_CORE_C,
+  DF_UA | DF_UB | DF_UC | DF_NULL_CHK_1 | DF_RANGE_CHK_2 | DF_REF_B | DF_CORE_C,
 
   // 52 IGET vA, vB, field@CCCC
-  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
+  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_REF_B,
 
   // 53 IGET_WIDE vA, vB, field@CCCC
-  DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UB | DF_NULL_CHK_0 | DF_REF_B,
 
   // 54 IGET_OBJECT vA, vB, field@CCCC
-  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
+  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_REF_A | DF_REF_B,
 
   // 55 IGET_BOOLEAN vA, vB, field@CCCC
-  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
+  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_REF_B,
 
   // 56 IGET_BYTE vA, vB, field@CCCC
-  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
+  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_REF_B,
 
   // 57 IGET_CHAR vA, vB, field@CCCC
-  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
+  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_REF_B,
 
   // 58 IGET_SHORT vA, vB, field@CCCC
-  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
+  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_REF_B,
 
   // 59 IPUT vA, vB, field@CCCC
-  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
+  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_REF_B,
 
   // 5A IPUT_WIDE vA, vB, field@CCCC
-  DF_UA_WIDE | DF_UB | DF_NULL_CHK_2 | DF_CORE_B,
+  DF_UA | DF_A_WIDE | DF_UB | DF_NULL_CHK_2 | DF_REF_B,
 
   // 5B IPUT_OBJECT vA, vB, field@CCCC
-  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
+  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_REF_A | DF_REF_B,
 
   // 5C IPUT_BOOLEAN vA, vB, field@CCCC
-  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
+  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_REF_B,
 
   // 5D IPUT_BYTE vA, vB, field@CCCC
-  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
+  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_REF_B,
 
   // 5E IPUT_CHAR vA, vB, field@CCCC
-  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
+  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_REF_B,
 
   // 5F IPUT_SHORT vA, vB, field@CCCC
-  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
+  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_REF_B,
 
   // 60 SGET vAA, field@BBBB
   DF_DA | DF_UMS,
 
   // 61 SGET_WIDE vAA, field@BBBB
-  DF_DA_WIDE | DF_UMS,
+  DF_DA | DF_A_WIDE | DF_UMS,
 
   // 62 SGET_OBJECT vAA, field@BBBB
-  DF_DA | DF_CORE_A | DF_UMS,
+  DF_DA | DF_REF_A | DF_UMS,
 
   // 63 SGET_BOOLEAN vAA, field@BBBB
   DF_DA | DF_UMS,
@@ -343,10 +343,10 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_UA | DF_UMS,
 
   // 68 SPUT_WIDE vAA, field@BBBB
-  DF_UA_WIDE | DF_UMS,
+  DF_UA | DF_A_WIDE | DF_UMS,
 
   // 69 SPUT_OBJECT vAA, field@BBBB
-  DF_UA | DF_CORE_A | DF_UMS,
+  DF_UA | DF_REF_A | DF_UMS,
 
   // 6A SPUT_BOOLEAN vAA, field@BBBB
   DF_UA | DF_UMS,
@@ -406,52 +406,52 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
   // 7D NEG_LONG vA, vB
-  DF_DA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_CORE_A | DF_CORE_B,
 
   // 7E NOT_LONG vA, vB
-  DF_DA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_CORE_A | DF_CORE_B,
 
   // 7F NEG_FLOAT vA, vB
   DF_DA | DF_UB | DF_FP_A | DF_FP_B,
 
   // 80 NEG_DOUBLE vA, vB
-  DF_DA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_FP_A | DF_FP_B,
 
   // 81 INT_TO_LONG vA, vB
-  DF_DA_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
 
   // 82 INT_TO_FLOAT vA, vB
   DF_DA | DF_UB | DF_FP_A | DF_CORE_B,
 
   // 83 INT_TO_DOUBLE vA, vB
-  DF_DA_WIDE | DF_UB | DF_FP_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UB | DF_FP_A | DF_CORE_B,
 
   // 84 LONG_TO_INT vA, vB
-  DF_DA | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_UB | DF_B_WIDE | DF_CORE_A | DF_CORE_B,
 
   // 85 LONG_TO_FLOAT vA, vB
-  DF_DA | DF_UB_WIDE | DF_FP_A | DF_CORE_B,
+  DF_DA | DF_UB | DF_B_WIDE | DF_FP_A | DF_CORE_B,
 
   // 86 LONG_TO_DOUBLE vA, vB
-  DF_DA_WIDE | DF_UB_WIDE | DF_FP_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_FP_A | DF_CORE_B,
 
   // 87 FLOAT_TO_INT vA, vB
   DF_DA | DF_UB | DF_FP_B | DF_CORE_A,
 
   // 88 FLOAT_TO_LONG vA, vB
-  DF_DA_WIDE | DF_UB | DF_FP_B | DF_CORE_A,
+  DF_DA | DF_A_WIDE | DF_UB | DF_FP_B | DF_CORE_A,
 
   // 89 FLOAT_TO_DOUBLE vA, vB
-  DF_DA_WIDE | DF_UB | DF_FP_A | DF_FP_B,
+  DF_DA | DF_A_WIDE | DF_UB | DF_FP_A | DF_FP_B,
 
   // 8A DOUBLE_TO_INT vA, vB
-  DF_DA | DF_UB_WIDE | DF_FP_B | DF_CORE_A,
+  DF_DA | DF_UB | DF_B_WIDE | DF_FP_B | DF_CORE_A,
 
   // 8B DOUBLE_TO_LONG vA, vB
-  DF_DA_WIDE | DF_UB_WIDE | DF_FP_B | DF_CORE_A,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_FP_B | DF_CORE_A,
 
   // 8C DOUBLE_TO_FLOAT vA, vB
-  DF_DA | DF_UB_WIDE | DF_FP_A | DF_FP_B,
+  DF_DA | DF_UB | DF_B_WIDE | DF_FP_A | DF_FP_B,
 
   // 8D INT_TO_BYTE vA, vB
   DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
@@ -463,10 +463,10 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
   // 90 ADD_INT vAA, vBB, vCC
-  DF_DA | DF_UB | DF_UC | DF_IS_LINEAR | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // 91 SUB_INT vAA, vBB, vCC
-  DF_DA | DF_UB | DF_UC | DF_IS_LINEAR | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // 92 MUL_INT vAA, vBB, vCC
   DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
@@ -496,37 +496,37 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_UB | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // 9B ADD_LONG vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // 9C SUB_LONG vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // 9D MUL_LONG vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // 9E DIV_LONG vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // 9F REM_LONG vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // A0 AND_LONG vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // A1 OR_LONG vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // A2 XOR_LONG vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // A3 SHL_LONG vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // A4 SHR_LONG vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // A5 USHR_LONG vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // A6 ADD_FLOAT vAA, vBB, vCC
   DF_DA | DF_UB | DF_UC | DF_FP_A | DF_FP_B | DF_FP_C,
@@ -544,19 +544,19 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_UB | DF_UC | DF_FP_A | DF_FP_B | DF_FP_C,
 
   // AB ADD_DOUBLE vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
 
   // AC SUB_DOUBLE vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
 
   // AD MUL_DOUBLE vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
 
   // AE DIV_DOUBLE vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
 
   // AF REM_DOUBLE vAA, vBB, vCC
-  DF_DA_WIDE | DF_UB_WIDE | DF_UC_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
+  DF_DA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_FP_A | DF_FP_B | DF_FP_C,
 
   // B0 ADD_INT_2ADDR vA, vB
   DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
@@ -592,37 +592,37 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
   // BB ADD_LONG_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_CORE_A | DF_CORE_B,
 
   // BC SUB_LONG_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_CORE_A | DF_CORE_B,
 
   // BD MUL_LONG_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_CORE_A | DF_CORE_B,
 
   // BE DIV_LONG_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_CORE_A | DF_CORE_B,
 
   // BF REM_LONG_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_CORE_A | DF_CORE_B,
 
   // C0 AND_LONG_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_CORE_A | DF_CORE_B,
 
   // C1 OR_LONG_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_CORE_A | DF_CORE_B,
 
   // C2 XOR_LONG_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_CORE_A | DF_CORE_B,
 
   // C3 SHL_LONG_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
   // C4 SHR_LONG_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
   // C5 USHR_LONG_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
 
   // C6 ADD_FLOAT_2ADDR vA, vB
   DF_DA | DF_UA | DF_UB | DF_FP_A | DF_FP_B,
@@ -640,19 +640,19 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_UA | DF_UB | DF_FP_A | DF_FP_B,
 
   // CB ADD_DOUBLE_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_FP_A | DF_FP_B,
 
   // CC SUB_DOUBLE_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_FP_A | DF_FP_B,
 
   // CD MUL_DOUBLE_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_FP_A | DF_FP_B,
 
   // CE DIV_DOUBLE_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_FP_A | DF_FP_B,
 
   // CF REM_DOUBLE_2ADDR vA, vB
-  DF_DA_WIDE | DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
+  DF_DA | DF_A_WIDE | DF_UA | DF_UB | DF_B_WIDE | DF_FP_A | DF_FP_B,
 
   // D0 ADD_INT_LIT16 vA, vB, #+CCCC
   DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
@@ -679,7 +679,7 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
   // D8 ADD_INT_LIT8 vAA, vBB, #+CC
-  DF_DA | DF_UB | DF_IS_LINEAR | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
   // D9 RSUB_INT_LIT8 vAA, vBB, #+CC
   DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
@@ -712,10 +712,10 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_UB | DF_CORE_A | DF_CORE_B,
 
   // E3 IGET_VOLATILE
-  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
+  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_REF_B,
 
   // E4 IPUT_VOLATILE
-  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_B,
+  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_REF_B,
 
   // E5 SGET_VOLATILE
   DF_DA | DF_UMS,
@@ -724,19 +724,19 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_UA | DF_UMS,
 
   // E7 IGET_OBJECT_VOLATILE
-  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_CORE_A | DF_CORE_B,
+  DF_DA | DF_UB | DF_NULL_CHK_0 | DF_REF_A | DF_REF_B,
 
   // E8 IGET_WIDE_VOLATILE
-  DF_DA_WIDE | DF_UB | DF_NULL_CHK_0 | DF_CORE_B,
+  DF_DA | DF_A_WIDE | DF_UB | DF_NULL_CHK_0 | DF_REF_B,
 
   // E9 IPUT_WIDE_VOLATILE
-  DF_UA_WIDE | DF_UB | DF_NULL_CHK_2 | DF_CORE_B,
+  DF_UA | DF_A_WIDE | DF_UB | DF_NULL_CHK_2 | DF_REF_B,
 
   // EA SGET_WIDE_VOLATILE
-  DF_DA_WIDE | DF_UMS,
+  DF_DA | DF_A_WIDE | DF_UMS,
 
   // EB SPUT_WIDE_VOLATILE
-  DF_UA_WIDE | DF_UMS,
+  DF_UA | DF_A_WIDE | DF_UMS,
 
   // EC BREAKPOINT
   DF_NOP,
@@ -760,7 +760,7 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_UB | DF_NULL_CHK_0,
 
   // F3 IGET_WIDE_QUICK
-  DF_DA_WIDE | DF_UB | DF_NULL_CHK_0,
+  DF_DA | DF_A_WIDE | DF_UB | DF_NULL_CHK_0,
 
   // F4 IGET_OBJECT_QUICK
   DF_DA | DF_UB | DF_NULL_CHK_0,
@@ -769,7 +769,7 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_UA | DF_UB | DF_NULL_CHK_1,
 
   // F6 IPUT_WIDE_QUICK
-  DF_UA_WIDE | DF_UB | DF_NULL_CHK_2,
+  DF_UA | DF_A_WIDE | DF_UB | DF_NULL_CHK_2,
 
   // F7 IPUT_OBJECT_QUICK
   DF_UA | DF_UB | DF_NULL_CHK_1,
@@ -787,20 +787,20 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_FORMAT_3RC | DF_NULL_CHK_OUT0 | DF_UMS,
 
   // FC IPUT_OBJECT_VOLATILE
-  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_CORE_A | DF_CORE_B,
+  DF_UA | DF_UB | DF_NULL_CHK_1 | DF_REF_A | DF_REF_B,
 
   // FD SGET_OBJECT_VOLATILE
-  DF_DA | DF_CORE_A | DF_UMS,
+  DF_DA | DF_REF_A | DF_UMS,
 
   // FE SPUT_OBJECT_VOLATILE
-  DF_UA | DF_CORE_A | DF_UMS,
+  DF_UA | DF_REF_A | DF_UMS,
 
   // FF UNUSED_FF
   DF_NOP,
 
   // Beginning of extended MIR opcodes
   // 100 MIR_PHI
-  DF_PHI | DF_DA | DF_NULL_TRANSFER_N,
+  DF_DA | DF_NULL_TRANSFER_N,
 
   // 101 MIR_COPY
   DF_DA | DF_UB | DF_IS_MOVE,
@@ -812,13 +812,13 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_UA | DF_UB | DF_FP_A | DF_FP_B,
 
   // 104 MIR_FUSED_CMPL_DOUBLE
-  DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
+  DF_UA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_FP_A | DF_FP_B,
 
   // 105 MIR_FUSED_CMPG_DOUBLE
-  DF_UA_WIDE | DF_UB_WIDE | DF_FP_A | DF_FP_B,
+  DF_UA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_FP_A | DF_FP_B,
 
   // 106 MIR_FUSED_CMP_LONG
-  DF_UA_WIDE | DF_UB_WIDE | DF_CORE_A | DF_CORE_B,
+  DF_UA | DF_A_WIDE | DF_UB | DF_B_WIDE | DF_CORE_A | DF_CORE_B,
 
   // 107 MIR_NOP
   DF_NOP,
@@ -1140,21 +1140,21 @@ bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb)
     if (dfAttributes & DF_HAS_USES) {
       if (dfAttributes & DF_UA) {
         handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vA);
-      } else if (dfAttributes & DF_UA_WIDE) {
-        handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vA);
-        handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vA+1);
+        if (dfAttributes & DF_A_WIDE) {
+          handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vA+1);
+        }
       }
       if (dfAttributes & DF_UB) {
         handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vB);
-      } else if (dfAttributes & DF_UB_WIDE) {
-        handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vB);
-        handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vB+1);
+        if (dfAttributes & DF_B_WIDE) {
+          handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vB+1);
+        }
       }
       if (dfAttributes & DF_UC) {
         handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vC);
-      } else if (dfAttributes & DF_UC_WIDE) {
-        handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vC);
-        handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vC+1);
+        if (dfAttributes & DF_C_WIDE) {
+          handleLiveInUse(cUnit, useV, defV, liveInV, dInsn->vC+1);
+        }
       }
     }
     if (dfAttributes & DF_FORMAT_35C) {
@@ -1169,7 +1169,7 @@ bool oatFindLocalLiveIn(CompilationUnit* cUnit, BasicBlock* bb)
     }
     if (dfAttributes & DF_HAS_DEFS) {
       handleDef(cUnit, defV, dInsn->vA);
-      if (dfAttributes & DF_DA_WIDE) {
+      if (dfAttributes & DF_A_WIDE) {
         handleDef(cUnit, defV, dInsn->vA+1);
       }
     }
@@ -1286,18 +1286,21 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
     if (dfAttributes & DF_HAS_USES) {
       if (dfAttributes & DF_UA) {
         numUses++;
-      } else if (dfAttributes & DF_UA_WIDE) {
-        numUses += 2;
+        if (dfAttributes & DF_A_WIDE) {
+          numUses ++;
+        }
       }
       if (dfAttributes & DF_UB) {
         numUses++;
-      } else if (dfAttributes & DF_UB_WIDE) {
-        numUses += 2;
+        if (dfAttributes & DF_B_WIDE) {
+          numUses ++;
+        }
       }
       if (dfAttributes & DF_UC) {
         numUses++;
-      } else if (dfAttributes & DF_UC_WIDE) {
-        numUses += 2;
+        if (dfAttributes & DF_C_WIDE) {
+          numUses ++;
+        }
       }
     }
 
@@ -1313,7 +1316,7 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
 
     if (dfAttributes & DF_HAS_DEFS) {
       numDefs++;
-      if (dfAttributes & DF_DA_WIDE) {
+      if (dfAttributes & DF_A_WIDE) {
         numDefs++;
       }
     }
@@ -1333,35 +1336,32 @@ bool oatDoSSAConversion(CompilationUnit* cUnit, BasicBlock* bb)
       if (dfAttributes & DF_UA) {
         mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_A;
         handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vA, numUses++);
-      } else if (dfAttributes & DF_UA_WIDE) {
-        mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_A;
-        handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vA, numUses++);
-        mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_A;
-        handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vA+1, numUses++);
+        if (dfAttributes & DF_A_WIDE) {
+          mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_A;
+          handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vA+1, numUses++);
+        }
       }
       if (dfAttributes & DF_UB) {
         mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_B;
         handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vB, numUses++);
-      } else if (dfAttributes & DF_UB_WIDE) {
-        mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_B;
-        handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vB, numUses++);
-        mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_B;
-        handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vB+1, numUses++);
+        if (dfAttributes & DF_B_WIDE) {
+          mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_B;
+          handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vB+1, numUses++);
+        }
       }
       if (dfAttributes & DF_UC) {
         mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_C;
         handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC, numUses++);
-      } else if (dfAttributes & DF_UC_WIDE) {
-        mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_C;
-        handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC, numUses++);
-        mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_C;
-        handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC+1, numUses++);
+        if (dfAttributes & DF_C_WIDE) {
+          mir->ssaRep->fpUse[numUses] = dfAttributes & DF_FP_C;
+          handleSSAUse(cUnit, mir->ssaRep->uses, dInsn->vC+1, numUses++);
+        }
       }
     }
     if (dfAttributes & DF_HAS_DEFS) {
       mir->ssaRep->fpDef[0] = dfAttributes & DF_FP_A;
       handleSSADef(cUnit, mir->ssaRep->defs, dInsn->vA, 0);
-      if (dfAttributes & DF_DA_WIDE) {
+      if (dfAttributes & DF_A_WIDE) {
         mir->ssaRep->fpDef[1] = dfAttributes & DF_FP_A;
         handleSSADef(cUnit, mir->ssaRep->defs, dInsn->vA+1, 1);
       }
@@ -1415,29 +1415,24 @@ bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb)
           case Instruction::CONST_HIGH16:
             setConstant(cUnit, mir->ssaRep->defs[0], dInsn->vB << 16);
             break;
+          case Instruction::CONST_WIDE_16:
+          case Instruction::CONST_WIDE_32:
+            setConstant(cUnit, mir->ssaRep->defs[0], dInsn->vB);
+            setConstant(cUnit, mir->ssaRep->defs[1], 0);
+            break;
+          case Instruction::CONST_WIDE:
+            setConstant(cUnit, mir->ssaRep->defs[0], (int) dInsn->vB_wide);
+            setConstant(cUnit, mir->ssaRep->defs[1],
+                        (int) (dInsn->vB_wide >> 32));
+            break;
+          case Instruction::CONST_WIDE_HIGH16:
+            setConstant(cUnit, mir->ssaRep->defs[0], 0);
+            setConstant(cUnit, mir->ssaRep->defs[1], dInsn->vB << 16);
+            break;
           default:
             break;
-              }
-          } else if (dfAttributes & DF_DA_WIDE) {
-            switch (dInsn->opcode) {
-              case Instruction::CONST_WIDE_16:
-              case Instruction::CONST_WIDE_32:
-                setConstant(cUnit, mir->ssaRep->defs[0], dInsn->vB);
-                setConstant(cUnit, mir->ssaRep->defs[1], 0);
-                break;
-              case Instruction::CONST_WIDE:
-                setConstant(cUnit, mir->ssaRep->defs[0], (int) dInsn->vB_wide);
-                setConstant(cUnit, mir->ssaRep->defs[1],
-                            (int) (dInsn->vB_wide >> 32));
-                break;
-              case Instruction::CONST_WIDE_HIGH16:
-                setConstant(cUnit, mir->ssaRep->defs[0], 0);
-                setConstant(cUnit, mir->ssaRep->defs[1], dInsn->vB << 16);
-                break;
-              default:
-                break;
-            }
           }
+        }
       /* Handle instructions that set up constants directly */
       } else if (dfAttributes & DF_IS_MOVE) {
         int i;
@@ -1449,7 +1444,7 @@ bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb)
       if (i == mir->ssaRep->numUses) {
         setConstant(cUnit, mir->ssaRep->defs[0],
                     cUnit->constantValues[mir->ssaRep->uses[0]]);
-        if (dfAttributes & DF_DA_WIDE) {
+        if (dfAttributes & DF_A_WIDE) {
           setConstant(cUnit, mir->ssaRep->defs[1],
                       cUnit->constantValues[mir->ssaRep->uses[1]]);
         }

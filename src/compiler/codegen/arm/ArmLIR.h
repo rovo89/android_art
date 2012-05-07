@@ -125,9 +125,10 @@ namespace art {
 #define rNone   (-1)
 
 /* RegisterLocation templates return values (r0, or r0/r1) */
-#define LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 1, r0, INVALID_REG,\
+#define LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 1, r0, INVALID_REG,\
                       INVALID_SREG}
-#define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 1, r0, r1, INVALID_SREG}
+#define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 1, r0, r1, \
+                      INVALID_SREG}
 #define LOC_C_RETURN_FLOAT  LOC_C_RETURN
 #define LOC_C_RETURN_WIDE_DOUBLE  LOC_C_RETURN_WIDE
 

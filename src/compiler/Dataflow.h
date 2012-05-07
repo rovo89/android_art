@@ -26,17 +26,14 @@ enum DataFlowAttributePos {
   kUA = 0,
   kUB,
   kUC,
-  kUAWide,
-  kUBWide,
-  kUCWide,
+  kAWide,
+  kBWide,
+  kCWide,
   kDA,
-  kDAWide,
   kIsMove,
-  kIsLinear,
   kSetsConst,
   kFormat35c,
   kFormat3rc,
-  kPhi,
   kNullCheckSrc0,        // Null check of uses[0]
   kNullCheckSrc1,        // Null check of uses[1]
   kNullCheckSrc2,        // Null check of uses[2]
@@ -54,6 +51,9 @@ enum DataFlowAttributePos {
   kCoreA,
   kCoreB,
   kCoreC,
+  kRefA,
+  kRefB,
+  kRefC,
   kUsesMethodStar,       // Implicit use of Method*
 };
 
@@ -61,17 +61,14 @@ enum DataFlowAttributePos {
 #define DF_UA                   (1 << kUA)
 #define DF_UB                   (1 << kUB)
 #define DF_UC                   (1 << kUC)
-#define DF_UA_WIDE              (1 << kUAWide)
-#define DF_UB_WIDE              (1 << kUBWide)
-#define DF_UC_WIDE              (1 << kUCWide)
+#define DF_A_WIDE               (1 << kAWide)
+#define DF_B_WIDE               (1 << kBWide)
+#define DF_C_WIDE               (1 << kCWide)
 #define DF_DA                   (1 << kDA)
-#define DF_DA_WIDE              (1 << kDAWide)
 #define DF_IS_MOVE              (1 << kIsMove)
-#define DF_IS_LINEAR            (1 << kIsLinear)
 #define DF_SETS_CONST           (1 << kSetsConst)
 #define DF_FORMAT_35C           (1 << kFormat35c)
 #define DF_FORMAT_3RC           (1 << kFormat3rc)
-#define DF_PHI                  (1 << kPhi)
 #define DF_NULL_CHK_0           (1 << kNullCheckSrc0)
 #define DF_NULL_CHK_1           (1 << kNullCheckSrc1)
 #define DF_NULL_CHK_2           (1 << kNullCheckSrc2)
@@ -89,12 +86,14 @@ enum DataFlowAttributePos {
 #define DF_CORE_A               (1 << kCoreA)
 #define DF_CORE_B               (1 << kCoreB)
 #define DF_CORE_C               (1 << kCoreC)
+#define DF_REF_A                (1 << kRefA)
+#define DF_REF_B                (1 << kRefB)
+#define DF_REF_C                (1 << kRefC)
 #define DF_UMS                  (1 << kUsesMethodStar)
 
-#define DF_HAS_USES             (DF_UA | DF_UB | DF_UC | DF_UA_WIDE | \
-                                 DF_UB_WIDE | DF_UC_WIDE)
+#define DF_HAS_USES             (DF_UA | DF_UB | DF_UC)
 
-#define DF_HAS_DEFS             (DF_DA | DF_DA_WIDE)
+#define DF_HAS_DEFS             (DF_DA)
 
 #define DF_HAS_NULL_CHKS        (DF_NULL_CHK_0 | \
                                  DF_NULL_CHK_1 | \
@@ -105,9 +104,9 @@ enum DataFlowAttributePos {
                                  DF_RANGE_CHK_1 | \
                                  DF_RANGE_CHK_2)
 
-#define DF_A_IS_REG             (DF_UA | DF_UA_WIDE | DF_DA | DF_DA_WIDE)
-#define DF_B_IS_REG             (DF_UB | DF_UB_WIDE)
-#define DF_C_IS_REG             (DF_UC | DF_UC_WIDE)
+#define DF_A_IS_REG             (DF_UA | DF_DA)
+#define DF_B_IS_REG             (DF_UB)
+#define DF_C_IS_REG             (DF_UC)
 #define DF_IS_GETTER_OR_SETTER  (DF_IS_GETTER | DF_IS_SETTER)
 #define DF_USES_FP              (DF_FP_A | DF_FP_B | DF_FP_C)
 
