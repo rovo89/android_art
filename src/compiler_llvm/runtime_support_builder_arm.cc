@@ -44,7 +44,8 @@ void RuntimeSupportBuilderARM::TargetOptimizeRuntimeSupport() {
     irb_.SetInsertPoint(basic_block);
 
     InlineAsm* get_r9 = InlineAsm::get(func->getFunctionType(), "mov $0, r9", "=r", false);
-    Value* r9 = irb_.CreateCall(get_r9);
+    CallInst* r9 = irb_.CreateCall(get_r9);
+    r9->setOnlyReadsMemory();
     irb_.CreateRet(r9);
 
     VERIFY_LLVM_FUNCTION(*func);

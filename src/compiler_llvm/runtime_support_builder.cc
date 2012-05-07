@@ -56,15 +56,7 @@ RuntimeSupportBuilder::RuntimeSupportBuilder(llvm::LLVMContext& context,
 
 void RuntimeSupportBuilder::MakeFunctionInline(llvm::Function* func) {
   func->setLinkage(GlobalValue::LinkOnceODRLinkage);
-
-  SmallVector<AttributeWithIndex, 4> Attrs;
-  AttributeWithIndex PAWI;
-  PAWI.Index = ~0U;
-  PAWI.Attrs = Attribute::None | Attribute::NoUnwind | Attribute::AlwaysInline;
-  Attrs.push_back(PAWI);
-  AttrListPtr func_PAL = AttrListPtr::get(Attrs.begin(), Attrs.end());
-
-  func->setAttributes(func_PAL);
+  func->addFnAttr(Attribute::AlwaysInline);
 }
 
 void RuntimeSupportBuilder::OverrideRuntimeSupportFunction(RuntimeId id, llvm::Function* function) {
