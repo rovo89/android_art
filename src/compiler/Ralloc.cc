@@ -331,8 +331,9 @@ void oatDumpRegLocTable(RegLocation* table, int count)
   }
 }
 
-static const RegLocation freshLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0,
-                                     INVALID_REG, INVALID_REG, INVALID_SREG};
+static const RegLocation freshLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
+                                     INVALID_REG, INVALID_REG, INVALID_SREG,
+                                     INVALID_SREG};
 
 /*
  * Simple register allocation.  Some Dalvik virtual registers may
@@ -351,6 +352,7 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
   for (i=0; i< cUnit->numSSARegs; i++) {
     loc[i] = freshLoc;
     loc[i].sRegLow = i;
+    loc[i].isConst = oatIsBitSet(cUnit->isConstantV, i);
   }
 
   /* Patch up the locations for Method* and the compiler temps */
@@ -415,10 +417,19 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
       }
   }
 
+#if defined(ART_USE_QUICK_COMPILER)
+  if (!cUnit->genBitcode) {
+    /* Remap names */
+    oatDataFlowAnalysisDispatcher(cUnit, remapNames,
+                                  kPreOrderDFSTraversal,
+                                  false /* isIterative */);
+  }
+#else
   /* Remap names */
   oatDataFlowAnalysisDispatcher(cUnit, remapNames,
                                 kPreOrderDFSTraversal,
                                 false /* isIterative */);
+#endif
 
   /* Do type & size inference pass */
   oatDataFlowAnalysisDispatcher(cUnit, inferTypeAndSize,
@@ -432,7 +443,9 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
    */
   for (i=0; i < cUnit->numSSARegs; i++) {
     if (cUnit->regLocation[i].location != kLocCompilerTemp) {
-      cUnit->regLocation[i].sRegLow = SRegToVReg(cUnit, loc[i].sRegLow);
+      int origSReg = cUnit->regLocation[i].sRegLow;
+      cUnit->regLocation[i].origSReg = origSReg;
+      cUnit->regLocation[i].sRegLow = SRegToVReg(cUnit, origSReg);
     }
   }
 

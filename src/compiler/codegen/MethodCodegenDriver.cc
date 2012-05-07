@@ -21,8 +21,9 @@ namespace art {
 #define DISPLAY_MISSING_TARGETS (cUnit->enableDebug & \
                                  (1 << kDebugDisplayMissingTargets))
 
-const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0,
-                            INVALID_REG, INVALID_REG, INVALID_SREG};
+const RegLocation badLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
+                            INVALID_REG, INVALID_REG, INVALID_SREG,
+                            INVALID_SREG};
 
 /* Mark register usage state and return long retloc */
 RegLocation oatGetReturnWide(CompilationUnit* cUnit, bool isDouble)
@@ -851,9 +852,9 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
   LIR* headLIR = NULL;
 
   if (bb->blockType == kEntryBlock) {
-    genEntrySequence(cUnit, bb);
+    genEntrySequence(cUnit);
   } else if (bb->blockType == kExitBlock) {
-    genExitSequence(cUnit, bb);
+    genExitSequence(cUnit);
   }
 
   for (mir = bb->firstMIRInsn; mir; mir = mir->next) {

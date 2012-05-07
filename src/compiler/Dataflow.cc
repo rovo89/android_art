@@ -1184,6 +1184,8 @@ int addNewSReg(CompilationUnit* cUnit, int vReg)
   int ssaReg = cUnit->numSSARegs++;
   oatInsertGrowableList(cUnit, cUnit->ssaBaseVRegs, vReg);
   oatInsertGrowableList(cUnit, cUnit->ssaSubscripts, subscript);
+  char* name = (char*)oatNew(cUnit, SSA_NAME_MAX, true, kAllocDFInfo);
+  oatInsertGrowableList(cUnit, cUnit->ssaStrings, (intptr_t)getSSAName(cUnit, ssaReg, name));
   DCHECK_EQ(cUnit->ssaBaseVRegs->numUsed, cUnit->ssaSubscripts->numUsed);
   return ssaReg;
 }
@@ -1431,14 +1433,14 @@ bool oatDoConstantPropagation(CompilationUnit* cUnit, BasicBlock* bb)
             break;
           default:
             break;
-          }
         }
+      }
       /* Handle instructions that set up constants directly */
-      } else if (dfAttributes & DF_IS_MOVE) {
-        int i;
+    } else if (dfAttributes & DF_IS_MOVE) {
+      int i;
 
-        for (i = 0; i < mir->ssaRep->numUses; i++) {
-          if (!oatIsBitSet(isConstantV, mir->ssaRep->uses[i])) break;
+      for (i = 0; i < mir->ssaRep->numUses; i++) {
+        if (!oatIsBitSet(isConstantV, mir->ssaRep->uses[i])) break;
       }
       /* Move a register holding a constant to another register */
       if (i == mir->ssaRep->numUses) {
@@ -1465,11 +1467,16 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
                                                false, kAllocDFInfo);
   cUnit->ssaSubscripts = (GrowableList *)oatNew(cUnit, sizeof(GrowableList),
                                                 false, kAllocDFInfo);
+  cUnit->ssaStrings = (GrowableList *)oatNew(cUnit, sizeof(GrowableList),
+                                             false, kAllocDFInfo);
   // Create the ssa mappings, estimating the max size
   oatInitGrowableList(cUnit, cUnit->ssaBaseVRegs,
                       numDalvikReg + cUnit->defCount + 128,
                       kListSSAtoDalvikMap);
   oatInitGrowableList(cUnit, cUnit->ssaSubscripts,
+                      numDalvikReg + cUnit->defCount + 128,
+                      kListSSAtoDalvikMap);
+  oatInitGrowableList(cUnit, cUnit->ssaStrings,
                       numDalvikReg + cUnit->defCount + 128,
                       kListSSAtoDalvikMap);
   /*
@@ -1486,6 +1493,8 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
   for (i = 0; i < numDalvikReg; i++) {
     oatInsertGrowableList(cUnit, cUnit->ssaBaseVRegs, i);
     oatInsertGrowableList(cUnit, cUnit->ssaSubscripts, 0);
+    char* name = (char*)oatNew(cUnit, SSA_NAME_MAX, true, kAllocDFInfo);
+    oatInsertGrowableList(cUnit, cUnit->ssaStrings, (intptr_t)getSSAName(cUnit, i, name));
   }
 
   /*

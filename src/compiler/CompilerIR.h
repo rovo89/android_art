@@ -23,6 +23,10 @@
 #include "CompilerUtility.h"
 #include "oat_compilation_unit.h"
 #include "safe_map.h"
+#if defined(ART_USE_QUICK_COMPILER)
+#include "greenland/ir_builder.h"
+#include "llvm/Module.h"
+#endif
 
 namespace art {
 
@@ -62,6 +66,7 @@ struct RegLocation {
   RegLocationType location:3;
   unsigned wide:1;
   unsigned defined:1;   // Do we know the type?
+  unsigned isConst:1;   // Constant, value in cUnit->constantValues[]
   unsigned fp:1;        // Floating point?
   unsigned core:1;      // Non-floating point?
   unsigned ref:1;       // Something GC cares about
@@ -70,6 +75,8 @@ struct RegLocation {
   u1 lowReg;            // First physical register
   u1 highReg;           // 2nd physical register (if wide)
   int32_t sRegLow;      // SSA name for low Dalvik word
+  int32_t origSReg;     // TODO: remove after Bitcode gen complete
+                        // and consolodate usage w/ sRegLow
 };
 
 struct CompilerTemp {
@@ -114,6 +121,8 @@ struct RegisterPool {
 #define SSA_METHOD_BASEREG (-2)
 /* First compiler temp basereg, grows smaller */
 #define SSA_CTEMP_BASEREG (SSA_METHOD_BASEREG - 1)
+/* Max SSA name length */
+#define SSA_NAME_MAX 16
 
 /*
  * Some code patterns cause the generation of excessively large
@@ -246,6 +255,9 @@ struct BasicBlock {
   bool hidden;
   bool catchEntry;
   bool fallThroughTarget;             // Reached via fallthrough
+#if defined(ART_USE_QUICK_COMPILER)
+  bool hasReturn;
+#endif
   uint16_t startOffset;
   uint16_t nestingDepth;
   const Method* containingMethod;     // For blocks from the callee
@@ -334,6 +346,7 @@ struct CompilationUnit {
       numSSARegs(0),
       ssaBaseVRegs(NULL),
       ssaSubscripts(NULL),
+      ssaStrings(NULL),
       vRegToSSAMap(NULL),
       SSALastDefs(NULL),
       isConstantV(NULL),
@@ -357,6 +370,7 @@ struct CompilationUnit {
       tempBlockV(NULL),
       tempDalvikRegisterV(NULL),
       tempSSARegisterV(NULL),
+      tempSSABlockIdV(NULL),
       printSSANames(false),
       blockLabelList(NULL),
       quitLoopMode(false),
@@ -381,11 +395,21 @@ struct CompilationUnit {
       currentArena(NULL),
       numArenaBlocks(0),
       mstats(NULL),
-      opcodeCount(NULL) {
-#if !defined(NDEBUG)
-      liveSReg = 0;
+#if defined(ART_USE_QUICK_COMPILER)
+      genBitcode(false),
+      context(NULL),
+      module(NULL),
+      func(NULL),
+      intrinsic_helper(NULL),
+      irb(NULL),
+      placeholderBB(NULL),
+      entryBB(NULL),
+      tempName(0),
 #endif
-  }
+#ifndef NDEBUG
+      liveSReg(0),
+#endif
+      opcodeCount(NULL) {}
 
   int numBlocks;
   GrowableList blockList;
@@ -434,6 +458,7 @@ struct CompilationUnit {
   /* Map SSA reg i to the base virtual register/subscript */
   GrowableList* ssaBaseVRegs;
   GrowableList* ssaSubscripts;
+  GrowableList* ssaStrings;
 
   /* The following are new data structures to support SSA representations */
   /* Map original Dalvik virtual reg i to the current SSA name */
@@ -486,6 +511,7 @@ struct CompilationUnit {
   ArenaBitVector* tempBlockV;
   ArenaBitVector* tempDalvikRegisterV;
   ArenaBitVector* tempSSARegisterV;   // numSSARegs
+  int* tempSSABlockIdV;               // working storage for Phi labels
   bool printSSANames;
   void* blockLabelList;
   bool quitLoopMode;                  // cold path/complex bytecode
@@ -534,7 +560,22 @@ struct CompilationUnit {
   ArenaMemBlock* currentArena;
   int numArenaBlocks;
   Memstats* mstats;
-  int* opcodeCount;    // Count Dalvik opcodes for tuning
+#if defined(ART_USE_QUICK_COMPILER)
+  bool genBitcode;
+  llvm::LLVMContext* context;
+  llvm::Module* module;
+  llvm::Function* func;
+  greenland::IntrinsicHelper* intrinsic_helper;
+  greenland::IRBuilder* irb;
+  llvm::BasicBlock* placeholderBB;
+  llvm::BasicBlock* entryBB;
+  std::string bitcode_filename;
+  GrowableList llvmValues;
+  int32_t tempName;
+  SafeMap<llvm::BasicBlock*, LIR*> blockToLabelMap; // llvm bb -> LIR label
+  SafeMap<int32_t, llvm::BasicBlock*> idToBlockMap; // block id -> llvm bb
+  SafeMap<llvm::Value*, RegLocation> locMap; // llvm Value to loc rec
+#endif
 #ifndef NDEBUG
   /*
    * Sanity checking for the register temp tracking.  The same ssa
@@ -543,6 +584,7 @@ struct CompilationUnit {
    */
   int liveSReg;
 #endif
+  int* opcodeCount;    // Count Dalvik opcodes for tuning
 };
 
 enum OpSize {

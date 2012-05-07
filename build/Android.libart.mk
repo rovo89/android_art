@@ -23,6 +23,10 @@ ifeq ($(ART_USE_GREENLAND_COMPILER),true)
   LIBART_CFLAGS += -DART_USE_GREENLAND_COMPILER=1
 endif
 
+ifeq ($(ART_USE_QUICK_COMPILER),true)
+  LIBART_CFLAGS += -DART_USE_QUICK_COMPILER=1
+endif
+
 # $(1): target or host
 # $(2): ndebug or debug
 define build-libart

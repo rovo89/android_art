@@ -558,6 +558,13 @@ _EVAL_DEF_INTRINSICS_FUNC(TestSuspend,
                           kVoidTy,
                           _EXPAND_ARG1(kJavaThreadTy))
 
+// void dex_lang_check_suspend() /* Expands to GetCurrentThread/TestSuspend */
+_EVAL_DEF_INTRINSICS_FUNC(CheckSuspend,
+                          dex_lang_check_suspend,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG0())
+
 //----------------------------------------------------------------------------
 // Shadow Frame
 //----------------------------------------------------------------------------
@@ -589,6 +596,92 @@ _EVAL_DEF_INTRINSICS_FUNC(UpdateDexPC,
                           kAttrNoThrow,
                           kVoidTy,
                           _EXPAND_ARG1(kInt32ConstantTy))
+
+//----------------------------------------------------------------------------
+// Const intrinsics to assist MIR to Greenland_ir conversion.  Should not materialize
+// For simplicity, all use integer input
+//----------------------------------------------------------------------------
+// int const_int(int)
+_EVAL_DEF_INTRINSICS_FUNC(ConstInt,
+                          dex_lang_const_int,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// int const_obj(int)
+_EVAL_DEF_INTRINSICS_FUNC(ConstObj,
+                          dex_lang_const_obj,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kJavaObjectTy,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// int const_long(long)
+_EVAL_DEF_INTRINSICS_FUNC(ConstLong,
+                          dex_lang_const_long,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt64Ty,
+                          _EXPAND_ARG1(kInt64Ty))
+
+// int const_float(int)
+_EVAL_DEF_INTRINSICS_FUNC(ConstFloat,
+                          dex_lang_const_Float,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kFloatTy,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// int copy_double(long)
+_EVAL_DEF_INTRINSICS_FUNC(ConstDouble,
+                          dex_lang_const_Double,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kDoubleTy,
+                          _EXPAND_ARG1(kInt64Ty))
+
+
+//----------------------------------------------------------------------------
+// Copy intrinsics to assist MIR to Greenland_ir conversion.  Should not materialize
+//----------------------------------------------------------------------------
+
+// void method_info(void)
+_EVAL_DEF_INTRINSICS_FUNC(MethodInfo,
+                          dex_lang_method_info,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG0())
+
+// int copy_int(int)
+_EVAL_DEF_INTRINSICS_FUNC(CopyInt,
+                          dex_lang_copy_int,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// int copy_obj(obj)
+_EVAL_DEF_INTRINSICS_FUNC(CopyObj,
+                          dex_lang_copy_obj,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kJavaObjectTy,
+                          _EXPAND_ARG1(kJavaObjectTy))
+
+// int copy_long(long)
+_EVAL_DEF_INTRINSICS_FUNC(CopyLong,
+                          dex_lang_copy_long,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt64Ty,
+                          _EXPAND_ARG1(kInt64Ty))
+
+// int copy_float(float)
+_EVAL_DEF_INTRINSICS_FUNC(CopyFloat,
+                          dex_lang_copy_Float,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kFloatTy,
+                          _EXPAND_ARG1(kFloatTy))
+
+// int copy_double(double)
+_EVAL_DEF_INTRINSICS_FUNC(CopyDouble,
+                          dex_lang_copy_Double,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kDoubleTy,
+                          _EXPAND_ARG1(kDoubleTy))
 
 
 // Clean up all internal used macros

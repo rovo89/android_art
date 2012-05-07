@@ -1668,7 +1668,7 @@ void Compiler::SetGcMapsMethod(const DexFile& dex_file, Method* method) {
   compiled_method->SetGcMap(*gc_map);
 }
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_QUICK_COMPILER)
 void Compiler::SetBitcodeFileName(std::string const& filename) {
   typedef void (*SetBitcodeFileNameFn)(Compiler&, std::string const&);
 
@@ -1679,7 +1679,9 @@ void Compiler::SetBitcodeFileName(std::string const& filename) {
 
   set_bitcode_file_name(*this, filename);
 }
+#endif
 
+#if defined(ART_USE_LLVM_COMPILER)
 void Compiler::EnableAutoElfLoading() {
   compiler_enable_auto_elf_loading_(*this);
 }
