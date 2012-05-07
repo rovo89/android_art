@@ -105,6 +105,10 @@ class IRBuilder : public LLVMIRBuilder {
     StoreToObjectOffset(object_addr, offset, new_value, tbaa_.GetSpecialType(special_ty));
   }
 
+  void SetTBAACall(llvm::CallInst* call_inst, TBAASpecialType special_ty) {
+    call_inst->setMetadata(llvm::LLVMContext::MD_tbaa, tbaa_.GetSpecialType(special_ty));
+  }
+
 
   //--------------------------------------------------------------------------
   // Pointer Arithmetic Helper Function

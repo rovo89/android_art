@@ -156,7 +156,7 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* suspend_count = irb_.LoadFromObjectOffset(thread,
                                                      Thread::SuspendCountOffset().Int32Value(),
                                                      irb_.getJIntTy(),
-                                                     kTBAAJRuntime);
+                                                     kTBAARuntimeInfo);
     Value* is_suspend = irb_.CreateICmpNE(suspend_count, irb_.getJInt(0));
 
     BasicBlock* basic_block_suspend = BasicBlock::Create(context_, "suspend", func);
@@ -164,7 +164,8 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     irb_.CreateCondBr(is_suspend, basic_block_suspend, basic_block_else);
 
     irb_.SetInsertPoint(basic_block_suspend);
-    irb_.CreateCall(slow_func, thread);
+    CallInst* call_inst = irb_.CreateCall(slow_func, thread);
+    irb_.SetTBAACall(call_inst, kTBAARuntimeInfo);
     irb_.CreateBr(basic_block_else);
 
     irb_.SetInsertPoint(basic_block_else);
