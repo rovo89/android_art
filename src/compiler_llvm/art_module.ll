@@ -35,7 +35,7 @@ declare void @__art_type_list(%JavaObject*, %ShadowFrame*)
 ; Thread
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-declare %JavaObject* @art_get_current_thread_from_code() readonly
+declare %JavaObject* @art_get_current_thread_from_code()
 declare void @art_set_current_thread_from_code(%JavaObject*)
 
 declare void @art_lock_object_from_code(%JavaObject*, %JavaObject*)
@@ -52,7 +52,7 @@ declare void @art_pop_shadow_frame_from_code()
 ; Exception
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-declare i1 @art_is_exception_pending_from_code() readonly
+declare i1 @art_is_exception_pending_from_code()
 
 declare void @art_throw_div_zero_from_code()
 declare void @art_throw_array_bounds_from_code(i32, i32)

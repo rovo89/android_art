@@ -359,14 +359,6 @@ func_art_get_current_thread_from_code = Function::Create(
 func_art_get_current_thread_from_code->setCallingConv(CallingConv::C);
 }
 AttrListPtr func_art_get_current_thread_from_code_PAL;
-{
- SmallVector<AttributeWithIndex, 4> Attrs;
- AttributeWithIndex PAWI;
- PAWI.Index = 4294967295U; PAWI.Attrs = Attribute::None  | Attribute::ReadOnly;
- Attrs.push_back(PAWI);
- func_art_get_current_thread_from_code_PAL = AttrListPtr::get(Attrs.begin(), Attrs.end());
- 
-}
 func_art_get_current_thread_from_code->setAttributes(func_art_get_current_thread_from_code_PAL);
 
 Function* func_art_set_current_thread_from_code = mod->getFunction("art_set_current_thread_from_code");
@@ -444,14 +436,6 @@ func_art_is_exception_pending_from_code = Function::Create(
 func_art_is_exception_pending_from_code->setCallingConv(CallingConv::C);
 }
 AttrListPtr func_art_is_exception_pending_from_code_PAL;
-{
- SmallVector<AttributeWithIndex, 4> Attrs;
- AttributeWithIndex PAWI;
- PAWI.Index = 4294967295U; PAWI.Attrs = Attribute::None  | Attribute::ReadOnly;
- Attrs.push_back(PAWI);
- func_art_is_exception_pending_from_code_PAL = AttrListPtr::get(Attrs.begin(), Attrs.end());
- 
-}
 func_art_is_exception_pending_from_code->setAttributes(func_art_is_exception_pending_from_code_PAL);
 
 Function* func_art_throw_div_zero_from_code = mod->getFunction("art_throw_div_zero_from_code");
