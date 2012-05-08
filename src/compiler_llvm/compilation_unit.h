@@ -38,6 +38,7 @@ namespace llvm {
   class Function;
   class LLVMContext;
   class Module;
+  class raw_ostream;
 }
 
 namespace art {
@@ -89,7 +90,7 @@ class CompilationUnit {
 
   bool WriteBitcodeToFile(const std::string& bitcode_filename);
 
-  bool Materialize();
+  bool Materialize(size_t thread_count);
 
   bool IsMaterialized() const {
     MutexLock GUARD(cunit_lock_);
@@ -121,14 +122,15 @@ class CompilationUnit {
   UniquePtr<RuntimeSupportBuilder> runtime_support_;
   llvm::Module* module_;
 
-  std::vector<uint8_t> elf_image_;
+  std::string elf_image_;
 
   SafeMap<const llvm::Function*, CompiledMethod*> compiled_methods_map_;
 
   size_t mem_usage_;
   uint16_t num_elf_funcs_;
 
-  bool MaterializeToFile(int output_fd, InstructionSet insn_set);
+  bool MaterializeToFile(llvm::raw_ostream& out_stream,
+                         InstructionSet insn_set);
 };
 
 } // namespace compiler_llvm

@@ -561,6 +561,12 @@ static int dex2oat(int argc, char** argv) {
   thread_count = 1;
 #endif
 
+#if defined(ART_USE_LLVM_COMPILER) && defined(ART_TARGET)
+  // To avoid high memory usage, always run dex2oat in single thread mode when
+  // we are using LLVM-based compiler.
+  thread_count = 1;
+#endif
+
   if (oat_filename.empty() && oat_fd == -1) {
     Usage("Output must be supplied with either --oat-file or --oat-fd");
   }

@@ -166,8 +166,13 @@ bool CompilationUnit::WriteBitcodeToFile(const std::string& bitcode_filename) {
 }
 
 
-bool CompilationUnit::Materialize() {
+bool CompilationUnit::Materialize(size_t thread_count) {
   MutexLock GUARD(cunit_lock_);
+
+  if (thread_count == 1) {
+    llvm::raw_string_ostream str_os(elf_image_);
+    return MaterializeToFile(str_os, insn_set_);
+  }
 
   // Prepare the pipe between parent process and child process
   int pipe_fd[2];
@@ -191,9 +196,11 @@ bool CompilationUnit::Materialize() {
     // Change process groups, so we don't get ripped by ProcessManager
     setpgid(0, 0);
 
+    llvm::raw_fd_ostream fd_os(pipe_fd[1], /* shouldClose */true);
+
     // TODO: Should use exec* family instead of invoking a function.
     // Forward our compilation request to bcc.
-    exit(static_cast<int>(!MaterializeToFile(pipe_fd[1], insn_set_)));
+    exit(static_cast<int>(!MaterializeToFile(fd_os, insn_set_)));
 
   } else { // Parent process
     // Close the unused pipe write end
@@ -219,7 +226,7 @@ bool CompilationUnit::Materialize() {
       }
 
       // Append to the end of the elf_image_
-      elf_image_.insert(elf_image_.end(), buf.begin(), buf.begin() + nread);
+      elf_image_.append(buf.begin(), buf.begin() + nread);
 
       if (nread < static_cast<ssize_t>(buf_size)) { // EOF reached!
         break;
@@ -274,7 +281,7 @@ void CompilationUnit::UpdateFrameSizeInBytes(const llvm::Function* func,
   }
 }
 
-bool CompilationUnit::MaterializeToFile(int output_fd,
+bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream,
                                         InstructionSet insn_set) {
   // Initialize the LLVM first
   llvm::InitializeAllTargets();
@@ -357,8 +364,7 @@ bool CompilationUnit::MaterializeToFile(int output_fd,
 
   // Add passes to emit ELF image
   {
-    llvm::formatted_raw_ostream formatted_os(
-      *(new llvm::raw_fd_ostream(output_fd, /* shouldClose */false)), true);
+    llvm::formatted_raw_ostream formatted_os(out_stream, false);
 
     // Ask the target to add backend passes as necessary.
     if (target_machine->addPassesToEmitFile(pm,

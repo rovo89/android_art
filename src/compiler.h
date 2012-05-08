@@ -176,6 +176,10 @@ class Compiler {
     return compiler_context_;
   }
 
+  size_t GetThreadCount() const {
+    return thread_count_;
+  }
+
   class PatchInformation {
    public:
     DexCache* GetDexCache() const {
