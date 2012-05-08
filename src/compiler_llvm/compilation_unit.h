@@ -98,7 +98,7 @@ class CompilationUnit {
 
   bool IsMaterializeThresholdReached() const {
     MutexLock GUARD(cunit_lock_);
-    return (mem_usage_ > 10000000u); // (threshold: 10 MB)
+    return (mem_usage_ > 5000000u); // (threshold: 5 MB)
   }
 
   void AddMemUsageApproximation(size_t usage) {
