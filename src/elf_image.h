@@ -18,6 +18,7 @@
 #define ART_SRC_ELF_IMAGE_H_
 
 #include "globals.h"
+#include <string>
 #include <vector>
 
 namespace art {
@@ -26,6 +27,10 @@ class ElfImage {
  public:
   explicit ElfImage(const std::vector<uint8_t>& v)
       : begin_(&*v.begin()), size_(v.size()) {
+  }
+
+  explicit ElfImage(const std::string& s)
+      : begin_(reinterpret_cast<const uint8_t*>(s.data())), size_(s.size()) {
   }
 
   explicit ElfImage(const byte* begin, size_t size)

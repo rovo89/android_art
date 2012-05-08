@@ -66,7 +66,7 @@ art_debug_cflags := \
 
 ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1
 
-ART_TARGET_CFLAGS := $(art_cflags)
+ART_TARGET_CFLAGS := $(art_cflags) -DART_TARGET
 ifeq ($(TARGET_CPU_SMP),true)
   ART_TARGET_CFLAGS += -DANDROID_SMP=1
 else
