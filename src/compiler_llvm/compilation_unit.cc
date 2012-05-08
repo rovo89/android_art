@@ -347,8 +347,8 @@ bool CompilationUnit::MaterializeToFile(int output_fd,
 
   // Add optimization pass
   llvm::PassManagerBuilder pm_builder;
-  pm_builder.Inliner = llvm::createFunctionInliningPass();
-  //pm_builder.Inliner = llvm::createAlwaysInlinerPass();
+  //pm_builder.Inliner = llvm::createFunctionInliningPass();
+  pm_builder.Inliner = llvm::createAlwaysInlinerPass();
   //pm_builder.Inliner = llvm::createPartialInliningPass();
   pm_builder.OptLevel = 3;
   pm_builder.DisableSimplifyLibCalls = 1;
