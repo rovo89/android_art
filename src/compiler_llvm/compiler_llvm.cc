@@ -183,7 +183,7 @@ void CompilerLLVM::Materialize(CompilationUnit* cunit) {
   }
 
   // Materialize the llvm::Module into ELF object file
-  cunit->Materialize();
+  cunit->Materialize(compiler_->GetThreadCount());
 
   // Load ELF image when automatic ELF loading is enabled
   if (IsAutoElfLoadingEnabled()) {
