@@ -100,7 +100,7 @@ struct JavaVMExt : public JavaVM {
 
   void DumpForSigQuit(std::ostream& os);
 
-  void DumpReferenceTables();
+  void DumpReferenceTables(std::ostream& os);
 
   void SetCheckJniEnabled(bool enabled);
 
@@ -145,7 +145,7 @@ struct JNIEnvExt : public JNIEnv {
   JNIEnvExt(Thread* self, JavaVMExt* vm);
   ~JNIEnvExt();
 
-  void DumpReferenceTables();
+  void DumpReferenceTables(std::ostream& os);
 
   void SetCheckJniEnabled(bool enabled);
 

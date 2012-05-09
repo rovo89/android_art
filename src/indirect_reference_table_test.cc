@@ -52,7 +52,7 @@ TEST_F(IndirectReferenceTableTest, BasicTest) {
   IndirectRef iref2 = irt.Add(cookie, obj2);
   EXPECT_TRUE(iref2 != NULL);
 
-  irt.Dump();
+  irt.Dump(LOG(DEBUG));
 
   EXPECT_EQ(obj0, irt.Get(iref0));
   EXPECT_EQ(obj1, irt.Get(iref1));

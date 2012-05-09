@@ -90,21 +90,15 @@ T AddLocalReference(JNIEnv* public_env, const Object* const_obj) {
 
   uint32_t cookie = env->local_ref_cookie;
   IndirectRef ref = locals.Add(cookie, obj);
-  if (ref == NULL) {
-    // TODO: just change Add's DCHECK to CHECK and lose this?
-    locals.Dump();
-    LOG(FATAL) << "Failed adding to JNI local reference table "
-               << "(has " << locals.Capacity() << " entries)";
-  }
 
 #if 0 // TODO: fix this to understand PushLocalFrame, so we can turn it on.
   if (env->check_jni) {
     size_t entry_count = locals.Capacity();
     if (entry_count > 16) {
       LOG(WARNING) << "Warning: more than 16 JNI local references: "
-                   << entry_count << " (most recent was a " << PrettyTypeOf(obj) << ")";
-      locals.Dump();
-      // TODO: LOG(FATAL) instead.
+                   << entry_count << " (most recent was a " << PrettyTypeOf(obj) << ")\n"
+                   << Dumpable<IndirectReferenceTable>(locals);
+      // TODO: LOG(FATAL) in a later release?
     }
   }
 #endif
@@ -2654,9 +2648,9 @@ void JNIEnvExt::SetCheckJniEnabled(bool enabled) {
   functions = enabled ? GetCheckJniNativeInterface() : &gJniNativeInterface;
 }
 
-void JNIEnvExt::DumpReferenceTables() {
-  locals.Dump();
-  monitors.Dump();
+void JNIEnvExt::DumpReferenceTables(std::ostream& os) {
+  locals.Dump(os);
+  monitors.Dump(os);
 }
 
 void JNIEnvExt::PushFrame(int /*capacity*/) {
@@ -2826,18 +2820,18 @@ void JavaVMExt::DumpForSigQuit(std::ostream& os) {
   }
 }
 
-void JavaVMExt::DumpReferenceTables() {
+void JavaVMExt::DumpReferenceTables(std::ostream& os) {
   {
     MutexLock mu(globals_lock);
-    globals.Dump();
+    globals.Dump(os);
   }
   {
     MutexLock mu(weak_globals_lock);
-    weak_globals.Dump();
+    weak_globals.Dump(os);
   }
   {
     MutexLock mu(pins_lock);
-    pin_table.Dump();
+    pin_table.Dump(os);
   }
 }
 

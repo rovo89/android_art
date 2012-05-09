@@ -201,8 +201,8 @@ static void VMDebug_dumpReferenceTables(JNIEnv* env, jclass) {
   LOG(INFO) << "--- reference table dump ---";
 
   JNIEnvExt* e = reinterpret_cast<JNIEnvExt*>(env);
-  e->DumpReferenceTables();
-  e->vm->DumpReferenceTables();
+  e->DumpReferenceTables(LOG(INFO));
+  e->vm->DumpReferenceTables(LOG(INFO));
 
   LOG(INFO) << "---";
 }
