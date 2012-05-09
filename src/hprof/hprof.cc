@@ -201,8 +201,7 @@ HprofBasicType Hprof::PrimitiveToBasicTypeAndSize(Primitive::Type prim, size_t *
 // only true when marking the root set or unreachable
 // objects.  Used to add rootset references to obj.
 int Hprof::MarkRootObject(const Object *obj, jobject jniObj) {
-  HprofRecord *rec = &current_record_;
-  int err; // TODO: we may return this uninitialized
+  HprofRecord* rec = &current_record_;
   HprofHeapTag heapTag = (HprofHeapTag)gc_scan_state_;
 
   if (heapTag == 0) {
@@ -221,9 +220,7 @@ int Hprof::MarkRootObject(const Object *obj, jobject jniObj) {
   case HPROF_ROOT_STICKY_CLASS:
   case HPROF_ROOT_MONITOR_USED:
   case HPROF_ROOT_INTERNED_STRING:
-  case HPROF_ROOT_FINALIZING:
   case HPROF_ROOT_DEBUGGER:
-  case HPROF_ROOT_REFERENCE_CLEANUP:
   case HPROF_ROOT_VM_INTERNAL:
     rec->AddU1(heapTag);
     rec->AddId((HprofObjectId)obj);
@@ -268,13 +265,24 @@ int Hprof::MarkRootObject(const Object *obj, jobject jniObj) {
     rec->AddU4((uint32_t)-1);    //xxx
     break;
 
-  default:
-    err = 0;
+  case HPROF_CLASS_DUMP:
+  case HPROF_INSTANCE_DUMP:
+  case HPROF_OBJECT_ARRAY_DUMP:
+  case HPROF_PRIMITIVE_ARRAY_DUMP:
+  case HPROF_HEAP_DUMP_INFO:
+  case HPROF_PRIMITIVE_ARRAY_NODATA_DUMP:
+    // Ignored.
+    break;
+
+  case HPROF_ROOT_FINALIZING:
+  case HPROF_ROOT_REFERENCE_CLEANUP:
+  case HPROF_UNREACHABLE:
+    LOG(FATAL) << "obsolete tag " << static_cast<int>(heapTag);
     break;
   }
 
   objects_in_segment_++;
-  return err;
+  return 0;
 }
 
 int Hprof::StackTraceSerialNumber(const void* /*obj*/) {

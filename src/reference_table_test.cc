@@ -27,10 +27,10 @@ TEST_F(ReferenceTableTest, Basics) {
   Object* o1 = String::AllocFromModifiedUtf8("hello");
   Object* o2 = ShortArray::Alloc(0);
 
-  // TODO: rewrite Dump to take a std::ostream& so we can test it better.
-
   ReferenceTable rt("test", 0, 4);
-  rt.Dump();
+  std::ostringstream oss1;
+  rt.Dump(oss1);
+  EXPECT_TRUE(oss1.str().find("(empty)") != std::string::npos) << oss1.str();
   EXPECT_EQ(0U, rt.Size());
   rt.Remove(NULL);
   EXPECT_EQ(0U, rt.Size());
@@ -40,8 +40,16 @@ TEST_F(ReferenceTableTest, Basics) {
   EXPECT_EQ(1U, rt.Size());
   rt.Add(o2);
   EXPECT_EQ(2U, rt.Size());
-  rt.Dump();
+  rt.Add(o2);
+  EXPECT_EQ(3U, rt.Size());
+  std::ostringstream oss2;
+  rt.Dump(oss2);
+  EXPECT_TRUE(oss2.str().find("Last 3 entries (of 3):") != std::string::npos) << oss2.str();
+  EXPECT_TRUE(oss2.str().find("1 of java.lang.String") != std::string::npos) << oss2.str();
+  EXPECT_TRUE(oss2.str().find("2 of short[] (1 unique instances)") != std::string::npos) << oss2.str();
   rt.Remove(o1);
+  EXPECT_EQ(2U, rt.Size());
+  rt.Remove(o2);
   EXPECT_EQ(1U, rt.Size());
   rt.Remove(o2);
   EXPECT_EQ(0U, rt.Size());

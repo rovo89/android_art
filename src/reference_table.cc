@@ -52,7 +52,7 @@ void ReferenceTable::Remove(const Object* obj) {
 
 // If "obj" is an array, return the number of elements in the array.
 // Otherwise, return zero.
-size_t GetElementCount(const Object* obj) {
+static size_t GetElementCount(const Object* obj) {
   if (obj == NULL || obj == kClearedJniWeakGlobal || !obj->IsArrayInstance()) {
     return 0;
   }
@@ -97,13 +97,13 @@ struct ObjectComparator {
 // Pass in the number of elements in the array (or 0 if this is not an
 // array object), and the number of additional objects that are identical
 // or equivalent to the original.
-void LogSummaryLine(const Object* obj, size_t elems, int identical, int equiv) {
+static void DumpSummaryLine(std::ostream& os, const Object* obj, size_t element_count, int identical, int equiv) {
   if (obj == NULL) {
-    LOG(WARNING) << "    NULL reference (count=" << equiv << ")";
+    os << "    NULL reference (count=" << equiv << ")\n";
     return;
   }
   if (obj == kClearedJniWeakGlobal) {
-    LOG(WARNING) << "    cleared jweak (count=" << equiv << ")";
+    os << "    cleared jweak (count=" << equiv << ")\n";
     return;
   }
 
@@ -113,8 +113,8 @@ void LogSummaryLine(const Object* obj, size_t elems, int identical, int equiv) {
     // Class' type parameter here would be misleading.
     className = "java.lang.Class";
   }
-  if (elems != 0) {
-    StringAppendF(&className, " (%zd elements)", elems);
+  if (element_count != 0) {
+    StringAppendF(&className, " (%zd elements)", element_count);
   }
 
   size_t total = identical + equiv + 1;
@@ -122,21 +122,21 @@ void LogSummaryLine(const Object* obj, size_t elems, int identical, int equiv) {
   if (identical + equiv != 0) {
     StringAppendF(&msg, " (%d unique instances)", equiv + 1);
   }
-  LOG(WARNING) << "    " << msg;
+  os << "    " << msg << "\n";
 }
 
 size_t ReferenceTable::Size() const {
   return entries_.size();
 }
 
-void ReferenceTable::Dump() const {
-  LOG(WARNING) << name_ << " reference table dump:";
-  Dump(entries_);
+void ReferenceTable::Dump(std::ostream& os) const {
+  os << name_ << " reference table dump:\n";
+  Dump(os, entries_);
 }
 
-void ReferenceTable::Dump(const Table& entries) {
+void ReferenceTable::Dump(std::ostream& os, const Table& entries) {
   if (entries.empty()) {
-    LOG(WARNING) << "  (empty)";
+    os << "  (empty)\n";
     return;
   }
 
@@ -147,50 +147,39 @@ void ReferenceTable::Dump(const Table& entries) {
   if (first < 0) {
     first = 0;
   }
-  LOG(WARNING) << "  Last " << (count - first) << " entries (of " << count << "):";
+  os << "  Last " << (count - first) << " entries (of " << count << "):\n";
   for (int idx = count - 1; idx >= first; --idx) {
     const Object* ref = entries[idx];
     if (ref == NULL) {
       continue;
     }
     if (ref == kClearedJniWeakGlobal) {
-      LOG(WARNING) << StringPrintf("    %5d: cleared jweak", idx);
+      os << StringPrintf("    %5d: cleared jweak\n", idx);
       continue;
     }
     if (ref->GetClass() == NULL) {
       // should only be possible right after a plain dvmMalloc().
       size_t size = ref->SizeOf();
-      LOG(WARNING) << StringPrintf("    %5d: %p (raw) (%zd bytes)", idx, ref, size);
+      os << StringPrintf("    %5d: %p (raw) (%zd bytes)\n", idx, ref, size);
       continue;
     }
 
     std::string className(PrettyTypeOf(ref));
 
     std::string extras;
-    size_t elems = GetElementCount(ref);
-    if (elems != 0) {
-      StringAppendF(&extras, " (%zd elements)", elems);
-    }
-#if 0
-    // TODO: support dumping string data.
-    else if (ref->GetClass() == gDvm.classJavaLangString) {
-      const StringObject* str = reinterpret_cast<const StringObject*>(ref);
-      extras += " \"";
-      size_t count = 0;
-      char* s = dvmCreateCstrFromString(str);
-      char* p = s;
-      for (; *p && count < 16; ++p, ++count) {
-        extras += *p;
-      }
-      if (*p == 0) {
-        extras += "\"";
+    size_t element_count = GetElementCount(ref);
+    if (element_count != 0) {
+      StringAppendF(&extras, " (%zd elements)", element_count);
+    } else if (ref->GetClass()->IsStringClass()) {
+      String* s = const_cast<Object*>(ref)->AsString();
+      std::string utf8(s->ToModifiedUtf8());
+      if (s->GetLength() <= 16) {
+        StringAppendF(&extras, " \"%s\"", utf8.c_str());
       } else {
-        StringAppendF(&extras, "... (%d chars)", str->length());
+        StringAppendF(&extras, " \"%.16s... (%d chars)", utf8.c_str(), s->GetLength());
       }
-      free(s);
     }
-#endif
-    LOG(WARNING) << StringPrintf("    %5d: ", idx) << ref << " " << className << extras;
+    os << StringPrintf("    %5d: ", idx) << ref << " " << className << extras << "\n";
   }
 
   // Make a copy of the table and sort it.
@@ -209,27 +198,27 @@ void ReferenceTable::Dump(const Table& entries) {
   }
 
   // Dump a summary of the whole table.
-  LOG(WARNING) << "  Summary:";
+  os << "  Summary:\n";
   size_t equiv = 0;
   size_t identical = 0;
   for (size_t idx = 1; idx < count; idx++) {
     const Object* prev = sorted_entries[idx-1];
     const Object* current = sorted_entries[idx];
-    size_t elems = GetElementCount(prev);
+    size_t element_count = GetElementCount(prev);
     if (current == prev) {
       // Same reference, added more than once.
       identical++;
-    } else if (current->GetClass() == prev->GetClass() && GetElementCount(current) == elems) {
+    } else if (current->GetClass() == prev->GetClass() && GetElementCount(current) == element_count) {
       // Same class / element count, different object.
       equiv++;
     } else {
       // Different class.
-      LogSummaryLine(prev, elems, identical, equiv);
+      DumpSummaryLine(os, prev, element_count, identical, equiv);
       equiv = identical = 0;
     }
   }
   // Handle the last entry.
-  LogSummaryLine(sorted_entries.back(), GetElementCount(sorted_entries.back()), identical, equiv);
+  DumpSummaryLine(os, sorted_entries.back(), GetElementCount(sorted_entries.back()), identical, equiv);
 }
 
 void ReferenceTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) {

@@ -60,9 +60,7 @@ IndirectReferenceTable::~IndirectReferenceTable() {
   alloc_entries_ = max_entries_ = -1;
 }
 
-/*
- * Make sure that the entry at "idx" is correctly paired with "iref".
- */
+// Make sure that the entry at "idx" is correctly paired with "iref".
 bool IndirectReferenceTable::CheckEntry(const char* what, IndirectRef iref, int idx) const {
   const Object* obj = table_[idx];
   IndirectRef checkRef = ToIndirectRef(obj, idx);
@@ -89,12 +87,11 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
   DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);
 
   if (topIndex == alloc_entries_) {
-    /* reached end of allocated space; did we hit buffer max? */
+    // reached end of allocated space; did we hit buffer max?
     if (topIndex == max_entries_) {
-      LOG(ERROR) << "JNI ERROR (app bug): " << kind_ << " table overflow "
-                 << "(max=" << max_entries_ << ")";
-      Dump();
-      LOG(FATAL); // TODO: operator<< for IndirectReferenceTable
+      LOG(FATAL) << "JNI ERROR (app bug): " << kind_ << " table overflow "
+                 << "(max=" << max_entries_ << ")\n"
+                 << Dumpable<IndirectReferenceTable>(*this);
     }
 
     size_t newSize = alloc_entries_ * 2;
@@ -106,12 +103,11 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
     table_ = reinterpret_cast<const Object**>(realloc(table_, newSize * sizeof(const Object*)));
     slot_data_ = reinterpret_cast<IndirectRefSlot*>(realloc(slot_data_, newSize * sizeof(IndirectRefSlot)));
     if (table_ == NULL || slot_data_ == NULL) {
-      LOG(ERROR) << "JNI ERROR (app bug): unable to expand "
+      LOG(FATAL) << "JNI ERROR (app bug): unable to expand "
                  << kind_ << " table (from "
                  << alloc_entries_ << " to " << newSize
-                 << ", max=" << max_entries_ << ")";
-      Dump();
-      LOG(FATAL); // TODO: operator<< for IndirectReferenceTable
+                 << ", max=" << max_entries_ << ")\n"
+                 << Dumpable<IndirectReferenceTable>(*this);
     }
 
     // Clear the newly-allocated slot_data_ elements.
@@ -120,16 +116,14 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
     alloc_entries_ = newSize;
   }
 
-  /*
-   * We know there's enough room in the table.  Now we just need to find
-   * the right spot.  If there's a hole, find it and fill it; otherwise,
-   * add to the end of the list.
-   */
+  // We know there's enough room in the table.  Now we just need to find
+  // the right spot.  If there's a hole, find it and fill it; otherwise,
+  // add to the end of the list.
   IndirectRef result;
   int numHoles = segment_state_.parts.numHoles - prevState.parts.numHoles;
   if (numHoles > 0) {
     DCHECK_GT(topIndex, 1U);
-    /* find the first hole; likely to be near the end of the list */
+    // Find the first hole; likely to be near the end of the list.
     const Object** pScan = &table_[topIndex - 1];
     DCHECK(*pScan != NULL);
     while (*--pScan != NULL) {
@@ -140,7 +134,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
     *pScan = obj;
     segment_state_.parts.numHoles--;
   } else {
-    /* add to the end */
+    // Add to the end.
     UpdateSlotAdd(obj, topIndex);
     result = ToIndirectRef(obj, topIndex);
     table_[topIndex++] = obj;
@@ -157,16 +151,13 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
 
 void IndirectReferenceTable::AssertEmpty() {
   if (begin() != end()) {
-    Dump();
-    LOG(FATAL) << "Internal Error: non-empty local reference table";
+    LOG(FATAL) << "Internal Error: non-empty local reference table\n"
+               << Dumpable<IndirectReferenceTable>(*this);
   }
 }
 
-/*
- * Verify that the indirect table lookup is valid.
- *
- * Returns "false" if something looks bad.
- */
+// Verifies that the indirect table lookup is valid.
+// Returns "false" if something looks bad.
 bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
   if (iref == NULL) {
     LOG(WARNING) << "Attempt to look up NULL " << kind_;
@@ -181,7 +172,6 @@ bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
   int topIndex = segment_state_.parts.topIndex;
   int idx = ExtractIndex(iref);
   if (idx >= topIndex) {
-    /* bad -- stale reference? */
     LOG(ERROR) << "JNI ERROR (app bug): accessed stale " << kind_ << " "
                << iref << " (index " << idx << " in a table of size " << topIndex << ")";
     AbortMaybe();
@@ -214,19 +204,14 @@ bool IndirectReferenceTable::ContainsDirectPointer(Object* direct_pointer) const
   return Find(direct_pointer, 0, segment_state_.parts.topIndex, table_) != -1;
 }
 
-/*
- * Remove "obj" from "pRef".  We extract the table offset bits from "iref"
- * and zap the corresponding entry, leaving a hole if it's not at the top.
- *
- * If the entry is not between the current top index and the bottom index
- * specified by the cookie, we don't remove anything.  This is the behavior
- * required by JNI's DeleteLocalRef function.
- *
- * Note this is NOT called when a local frame is popped.  This is only used
- * for explicit single removals.
- *
- * Returns "false" if nothing was removed.
- */
+// Removes an object. We extract the table offset bits from "iref"
+// and zap the corresponding entry, leaving a hole if it's not at the top.
+// If the entry is not between the current top index and the bottom index
+// specified by the cookie, we don't remove anything. This is the behavior
+// required by JNI's DeleteLocalRef function.
+// This method is not called when a local frame is popped; this is only used
+// for explicit single removals.
+// Returns "false" if nothing was removed.
 bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   IRTSegmentState prevState;
   prevState.all = cookie;
@@ -299,11 +284,9 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
       }
     }
   } else {
-    /*
-     * Not the top-most entry.  This creates a hole.  We NULL out the
-     * entry to prevent somebody from deleting it twice and screwing up
-     * the hole count.
-     */
+    // Not the top-most entry.  This creates a hole.  We NULL out the
+    // entry to prevent somebody from deleting it twice and screwing up
+    // the hole count.
     if (table_[idx] == NULL) {
       LOG(INFO) << "--- WEIRD: removing null entry " << idx;
       return false;
@@ -329,10 +312,10 @@ void IndirectReferenceTable::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   }
 }
 
-void IndirectReferenceTable::Dump() const {
-  LOG(WARNING) << kind_ << " table dump:";
+void IndirectReferenceTable::Dump(std::ostream& os) const {
+  os << kind_ << " table dump:\n";
   std::vector<const Object*> entries(table_, table_ + Capacity());
-  ReferenceTable::Dump(entries);
+  ReferenceTable::Dump(os, entries);
 }
 
 }  // namespace art

@@ -38,15 +38,19 @@ class TimingLogger {
     labels_.push_back(label);
   }
 
-  void Dump() {
-    LOG(INFO) << name_ << ": begin";
-    for (size_t i = 1; i < times_.size(); ++i) {
-      LOG(INFO) << name_ << StringPrintf(": %8lld ms, ", NsToMs(times_[i] - times_[i-1])) << labels_[i];
-    }
-    LOG(INFO) << name_ << ": end, " << NsToMs(GetTotalNs()) << " ms";
+  void Dump() const {
+    Dump(LOG(INFO));
   }
 
-  uint64_t GetTotalNs() {
+  void Dump(std::ostream& os) const {
+    os << name_ << ": begin";
+    for (size_t i = 1; i < times_.size(); ++i) {
+      os << name_ << StringPrintf(": %8lld ms, ", NsToMs(times_[i] - times_[i-1])) << labels_[i];
+    }
+    os << name_ << ": end, " << NsToMs(GetTotalNs()) << " ms";
+  }
+
+  uint64_t GetTotalNs() const {
     return times_.back() - times_.front();
   }
 
