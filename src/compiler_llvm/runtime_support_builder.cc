@@ -201,7 +201,7 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* card_table = irb_.LoadFromObjectOffset(thread,
                                                   Thread::CardTableOffset().Int32Value(),
                                                   irb_.getInt8Ty()->getPointerTo(),
-                                                  kTBAAJRuntime);
+                                                  kTBAAConstJObject);
     Value* target_addr_int = irb_.CreatePtrToInt(target_addr, irb_.getPtrEquivIntTy());
     Value* card_no = irb_.CreateLShr(target_addr_int, irb_.getPtrEquivInt(GC_CARD_SHIFT));
     Value* card_table_entry = irb_.CreateGEP(card_table, card_no);

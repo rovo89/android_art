@@ -1600,7 +1600,7 @@ void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
     irb_.CreateBitCast(object_addr, jobject_ptr_ty->getPointerTo());
 
   llvm::Value* object_type_object_addr =
-    irb_.CreateLoad(object_type_field_addr, kTBAAJRuntime);
+    irb_.CreateLoad(object_type_field_addr, kTBAAConstJObject);
 
   llvm::Value* equal_class =
     irb_.CreateICmpEQ(type_object_addr, object_type_object_addr);
@@ -1669,7 +1669,7 @@ void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
     irb_.CreateBitCast(object_addr, jobject_ptr_ty->getPointerTo());
 
   llvm::Value* object_type_object_addr =
-    irb_.CreateLoad(object_type_field_addr, kTBAAJRuntime);
+    irb_.CreateLoad(object_type_field_addr, kTBAAConstJObject);
 
   llvm::Value* equal_class =
     irb_.CreateICmpEQ(type_object_addr, object_type_object_addr);
@@ -1698,7 +1698,7 @@ llvm::Value* MethodCompiler::EmitLoadArrayLength(llvm::Value* array) {
   return irb_.LoadFromObjectOffset(array,
                                    Array::LengthOffset().Int32Value(),
                                    irb_.getJIntTy(),
-                                   kTBAAJRuntime);
+                                   kTBAAConstJObject);
 }
 
 
@@ -2565,7 +2565,7 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
         irb_.LoadFromObjectOffset(method_object_addr,
                                   Method::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
-                                  kTBAAJRuntime);
+                                  kTBAAConstJObject);
     } else {
       // Medium path, static storage base in a different class which
       // requires checks that the other class is initialized
@@ -2644,7 +2644,7 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
         irb_.LoadFromObjectOffset(method_object_addr,
                                   Method::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
-                                  kTBAAJRuntime);
+                                  kTBAAConstJObject);
     } else {
       // Medium path, static storage base in a different class which
       // requires checks that the other class is initialized
@@ -2932,14 +2932,14 @@ EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx,
     irb_.LoadFromObjectOffset(this_addr,
                               Object::ClassOffset().Int32Value(),
                               irb_.getJObjectTy(),
-                              kTBAAJRuntime);
+                              kTBAAConstJObject);
 
   // Load vtable address
   llvm::Value* vtable_addr =
     irb_.LoadFromObjectOffset(class_object_addr,
                               Class::VTableOffset().Int32Value(),
                               irb_.getJObjectTy(),
-                              kTBAAJRuntime);
+                              kTBAAConstJObject);
 
   // Load callee method object
   llvm::Value* vtable_idx_value =
@@ -2948,7 +2948,7 @@ EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx,
   llvm::Value* method_field_addr =
     EmitArrayGEP(vtable_addr, vtable_idx_value, irb_.getJObjectTy(), kObject);
 
-  return irb_.CreateLoad(method_field_addr, kTBAAJRuntime);
+  return irb_.CreateLoad(method_field_addr, kTBAAConstJObject);
 }
 
 
@@ -3549,7 +3549,7 @@ llvm::Value* MethodCompiler::EmitLoadDexCacheAddr(MemberOffset offset) {
   return irb_.LoadFromObjectOffset(method_object_addr,
                                    offset.Int32Value(),
                                    irb_.getJObjectTy(),
-                                   kTBAAJRuntime);
+                                   kTBAAConstJObject);
 }
 
 
