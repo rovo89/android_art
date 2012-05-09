@@ -30,6 +30,7 @@ namespace compiler_llvm {
 
 class ElfLoader {
  public:
+  ElfLoader() : relocated(false) {}
   ~ElfLoader();
 
   bool LoadElfAt(size_t elf_idx, const ElfImage& elf_image,
@@ -48,6 +49,8 @@ class ElfLoader {
  private:
   const void* GetAddr(size_t elf_idx, const char* sym_name) const;
 
+  bool relocated;
+  std::vector<ElfImage> elf_images_;
   std::vector<RSExecRef> executables_;
 };
 

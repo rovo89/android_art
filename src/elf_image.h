@@ -37,6 +37,10 @@ class ElfImage {
       : begin_(begin), size_(size) {
   }
 
+  // TODO: Remove this after implement in-place linking.
+  ElfImage() : begin_(NULL), size_(0) {
+  }
+
   const byte* begin() const {
     return begin_;
   }
