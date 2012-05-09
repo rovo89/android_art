@@ -457,8 +457,8 @@ DEFINE_FUNCTION art_lshr_from_code
     sar  %cl,%edx
     test LITERAL(32),%cl
     jz  1f
-    mov %eax, %edx
-    sar LITERAL(31), %eax
+    mov %edx, %eax
+    sar LITERAL(31), %edx
 1:
     ret
 
@@ -469,8 +469,8 @@ DEFINE_FUNCTION art_lushr_from_code
     shr  %cl,%edx
     test LITERAL(32),%cl
     jz  1f
-    mov %eax, %edx
-    xor %eax, %eax
+    mov %edx, %eax
+    xor %edx, %edx
 1:
     ret
 
