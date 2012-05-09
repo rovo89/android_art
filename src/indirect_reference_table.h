@@ -287,7 +287,7 @@ class IndirectReferenceTable {
 
   void AssertEmpty();
 
-  void Dump() const;
+  void Dump(std::ostream& os) const;
 
   /*
    * Return the #of entries in the entire table.  This includes holes, and

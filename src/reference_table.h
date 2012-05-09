@@ -43,13 +43,13 @@ class ReferenceTable {
 
   size_t Size() const;
 
-  void Dump() const;
+  void Dump(std::ostream& os) const;
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg);
 
  private:
   typedef std::vector<const Object*> Table;
-  static void Dump(const Table& entries);
+  static void Dump(std::ostream& os, const Table& entries);
   friend class IndirectReferenceTable; // For Dump.
 
   std::string name_;
