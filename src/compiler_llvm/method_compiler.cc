@@ -2845,13 +2845,6 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   llvm::BasicBlock* block_stub = CreateBasicBlockWithDexPC(dex_pc, "stub");
   llvm::BasicBlock* block_continue = CreateBasicBlockWithDexPC(dex_pc, "cont");
 
-  llvm::Type* accurate_ret_type = irb_.getJType(ret_shorty, kAccurate);
-  llvm::Value* retval_addr = NULL;
-  if (ret_shorty != 'V') {
-    retval_addr = irb_.CreateAlloca(accurate_ret_type);
-  }
-
-
   llvm::Value* code_addr_int = irb_.CreatePtrToInt(code_addr, irb_.getPtrEquivIntTy());
   llvm::Value* max_stub_int = irb_.getPtrEquivInt(special_stub::kMaxSpecialStub);
   llvm::Value* is_stub = irb_.CreateICmpULT(code_addr_int, max_stub_int);
@@ -2902,6 +2895,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
       // TODO: Remove this after we solve the proxy trampoline calling convention problem.
       irb_.CreateCall(irb_.GetRuntime(ProxyInvokeHandler), args);
       if (ret_shorty != 'V') {
+        llvm::Type* accurate_ret_type = irb_.getJType(ret_shorty, kAccurate);
         llvm::Value* result_addr =
             irb_.CreateBitCast(temp_space_addr, accurate_ret_type->getPointerTo());
         llvm::Value* retval = irb_.CreateLoad(result_addr, kTBAAStackTemp);
