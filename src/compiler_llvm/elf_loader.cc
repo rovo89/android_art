@@ -47,10 +47,12 @@ bool ElfLoader::LoadElfAt(size_t elf_idx,
 
   if (elf_idx >= executables_.size()) {
     executables_.resize(elf_idx + 1);
+    elf_images_.resize(elf_idx + 1);
   }
 
   RSExecRef executable = rsloaderLoadExecutable(elf_image.begin(),
-                                                elf_image.size());
+                                                elf_image.size(),
+                                                reloc == OatFile::kRelocNone ? 1 : 0);
 
   if (executable == NULL) {
     LOG(WARNING) << "Failed to load ELF"
@@ -66,21 +68,35 @@ bool ElfLoader::LoadElfAt(size_t elf_idx,
       rsloaderDisposeExec(executable);
       return false;
     }
+    relocated = true;
   }
 
   executables_[elf_idx] = executable;
+  elf_images_[elf_idx] = elf_image;
   return true;
 }
 
 
 void ElfLoader::RelocateExecutable() {
+  if (relocated) {
+    return;
+  }
+  LOG(INFO) << "Reload ELF for relocate.";
   for (size_t i = 0; i < executables_.size(); ++i) {
-    if (executables_[i] != NULL &&
-        !rsloaderRelocateExecutable(executables_[i],
-                                    art_find_runtime_support_func, NULL)) {
-      LOG(FATAL) << "Failed to relocate ELF image " << i;
+    if (executables_[i] != NULL) {
+      // TODO: After implement in-place linking, we will no longer need to dispose and reload.
+      rsloaderDisposeExec(executables_[i]);
+      executables_[i] = rsloaderLoadExecutable(elf_images_[i].begin(), elf_images_[i].size(), 0);
+      if (executables_[i] == NULL) {
+        LOG(FATAL) << "Failed to reload ELF image " << i;
+      }
+      if (!rsloaderRelocateExecutable(executables_[i],
+                                      art_find_runtime_support_func, NULL)) {
+        LOG(FATAL) << "Failed to relocate ELF image " << i;
+      }
     }
   }
+  relocated = true;
 }
 
 
