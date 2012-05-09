@@ -90,7 +90,7 @@ CompiledMethod* JniCompiler::Compile() {
         irb_.LoadFromObjectOffset(method_object_addr,
                                   Method::DeclaringClassOffset().Int32Value(),
                                   irb_.getJObjectTy(),
-                                  kTBAAJRuntime);
+                                  kTBAAConstJObject);
   }
   // Actual argument (ignore method and this object)
   arg_begin = arg_iter;
