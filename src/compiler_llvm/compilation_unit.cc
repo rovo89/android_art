@@ -171,7 +171,9 @@ bool CompilationUnit::Materialize(size_t thread_count) {
 
   if (thread_count == 1) {
     llvm::raw_string_ostream str_os(elf_image_);
-    return MaterializeToFile(str_os, insn_set_);
+    bool success = MaterializeToFile(str_os, insn_set_);
+    LOG(INFO) << "Compilation Unit: " << elf_idx_ << (success ? " (done)" : " (failed)");
+    return success;
   }
 
   // Prepare the pipe between parent process and child process
