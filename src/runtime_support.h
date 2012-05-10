@@ -28,6 +28,13 @@
 extern "C" void art_proxy_invoke_handler();
 extern "C" void art_work_around_app_jni_bugs();
 
+extern "C" double art_l2d(int64_t l);
+extern "C" float art_l2f(int64_t l);
+extern "C" int64_t art_d2l(double d);
+extern "C" int32_t art_d2i(double d);
+extern "C" int64_t art_f2l(float f);
+extern "C" int32_t art_f2i(float f);
+
 namespace art {
 
 class Array;
@@ -35,11 +42,6 @@ class Class;
 class Field;
 class Method;
 class Object;
-
-int64_t D2L(double d);
-int32_t D2I(double d);
-int64_t F2L(float f);
-int32_t F2I(float f);
 
 // Helpers to give consistent descriptive exception messages
 void ThrowNewIllegalAccessErrorClass(Thread* self, Class* referrer, Class* accessed);

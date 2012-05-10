@@ -595,7 +595,7 @@ COMPILER_RUNTIME_FUNC_LIST(EXTERNAL_LINKAGE)
 #undef EXTERNAL_LINKAGE
 
 static void* art_find_compiler_runtime_func(char const* name) {
-// TODO: If target support some math func, use the target's version. (e.g. D2I -> __aeabi_d2iz)
+// TODO: If target support some math func, use the target's version. (e.g. art_d2i -> __aeabi_d2iz)
   static const char* const names[] = {
 #define DEFINE_ENTRY(NAME) #NAME ,
 #include "compiler_runtime_func_list.h"

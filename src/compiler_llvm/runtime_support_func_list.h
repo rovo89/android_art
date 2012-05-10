@@ -66,7 +66,7 @@
   V(FixStub, art_fix_stub_from_code) \
   V(ProxyInvokeHandler, art_proxy_invoke_handler_from_code) \
   V(DecodeJObjectInThread, art_decode_jobject_in_thread) \
-  V(D2L, D2L) \
-  V(D2I, D2I) \
-  V(F2L, F2L) \
-  V(F2I, F2I)
+  V(art_d2l, art_d2l) \
+  V(art_d2i, art_d2i) \
+  V(art_f2l, art_f2l) \
+  V(art_f2i, art_f2i)

@@ -40,8 +40,6 @@ static int fpTemps[] = {r_F0, r_F1, r_F2, r_F3, r_F4, r_F5, r_F6, r_F7,
 #endif
 
 void genBarrier(CompilationUnit *cUnit);
-void storePair(CompilationUnit *cUnit, int base, int lowReg,
-               int highReg);
 void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg);
 LIR *loadWordDisp(CompilationUnit *cUnit, int rBase, int displacement,
                       int rDest);
@@ -740,12 +738,6 @@ LIR *storeBaseDispWide(CompilationUnit *cUnit, int rBase,
                        int displacement, int rSrcLo, int rSrcHi)
 {
   return storeBaseDispBody(cUnit, rBase, displacement, rSrcLo, rSrcHi, kLong);
-}
-
-void storePair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
-{
-  storeWordDisp(cUnit, base, LOWORD_OFFSET, lowReg);
-  storeWordDisp(cUnit, base, HIWORD_OFFSET, highReg);
 }
 
 void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg)

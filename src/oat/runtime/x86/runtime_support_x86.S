@@ -395,6 +395,41 @@ TWO_ARG_DOWNCALL art_can_put_array_element_from_code, artCanPutArrayElementFromC
 
 NO_ARG_DOWNCALL art_test_suspend, artTestSuspendFromCode, ret
 
+DEFINE_FUNCTION art_l2d_from_code
+    pushl %eax                    // alignment padding
+    pushl %ecx                    // pass arg2
+    pushl %eax                    // pass arg1
+    call SYMBOL(art_l2d) // (jlong a, Thread*, SP)
+    fstpl (%esp)                  // get return value
+    movsd (%esp), %xmm0           // place into %xmm0
+    addl LITERAL(12), %esp        // pop arguments
+    ret
+
+DEFINE_FUNCTION art_l2f_from_code
+    pushl %eax                    // alignment padding
+    pushl %ecx                    // pass arg2
+    pushl %eax                    // pass arg1
+    call SYMBOL(art_l2f) // (jlong a, Thread*, SP)
+    fstp  (%esp)                  // get return value
+    movss (%esp), %xmm0           // place into %xmm0
+    addl LITERAL(12), %esp        // pop arguments
+    ret
+
+DEFINE_FUNCTION art_d2l_from_code
+    pushl %eax                    // alignment padding
+    pushl %ecx                    // pass arg2
+    pushl %eax                    // pass arg1
+    call SYMBOL(art_d2l) // (jdouble a, Thread*, SP)
+    addl LITERAL(12), %esp        // pop arguments
+    ret
+
+DEFINE_FUNCTION art_f2l_from_code
+    subl LITERAL(8), %esp         // alignment padding
+    pushl %eax                    // pass arg1
+    call SYMBOL(art_f2l) // (jfloat a, Thread*, SP)
+    addl LITERAL(12), %esp        // pop arguments
+    ret
+
 DEFINE_FUNCTION art_idivmod_from_code
     cmpl LITERAL(0x80000000), %eax
     je check_arg2  // special case

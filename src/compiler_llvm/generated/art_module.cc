@@ -911,49 +911,49 @@ func_art_check_put_array_element_from_code->setCallingConv(CallingConv::C);
 AttrListPtr func_art_check_put_array_element_from_code_PAL;
 func_art_check_put_array_element_from_code->setAttributes(func_art_check_put_array_element_from_code_PAL);
 
-Function* func_D2L = mod->getFunction("D2L");
-if (!func_D2L) {
-func_D2L = Function::Create(
+Function* func_art_d2l = mod->getFunction("art_d2l");
+if (!func_art_d2l) {
+func_art_d2l = Function::Create(
  /*Type=*/FuncTy_31,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"D2L", mod); // (external, no body)
-func_D2L->setCallingConv(CallingConv::C);
+ /*Name=*/"art_d2l", mod); // (external, no body)
+func_art_d2l->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_D2L_PAL;
-func_D2L->setAttributes(func_D2L_PAL);
+AttrListPtr func_art_d2l_PAL;
+func_art_d2l->setAttributes(func_art_d2l_PAL);
 
-Function* func_D2I = mod->getFunction("D2I");
-if (!func_D2I) {
-func_D2I = Function::Create(
+Function* func_art_d2i = mod->getFunction("art_d2i");
+if (!func_art_d2i) {
+func_art_d2i = Function::Create(
  /*Type=*/FuncTy_32,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"D2I", mod); // (external, no body)
-func_D2I->setCallingConv(CallingConv::C);
+ /*Name=*/"art_d2i", mod); // (external, no body)
+func_art_d2i->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_D2I_PAL;
-func_D2I->setAttributes(func_D2I_PAL);
+AttrListPtr func_art_d2i_PAL;
+func_art_d2i->setAttributes(func_art_d2i_PAL);
 
-Function* func_F2L = mod->getFunction("F2L");
-if (!func_F2L) {
-func_F2L = Function::Create(
+Function* func_art_f2l = mod->getFunction("art_f2l");
+if (!func_art_f2l) {
+func_art_f2l = Function::Create(
  /*Type=*/FuncTy_33,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"F2L", mod); // (external, no body)
-func_F2L->setCallingConv(CallingConv::C);
+ /*Name=*/"art_f2l", mod); // (external, no body)
+func_art_f2l->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_F2L_PAL;
-func_F2L->setAttributes(func_F2L_PAL);
+AttrListPtr func_art_f2l_PAL;
+func_art_f2l->setAttributes(func_art_f2l_PAL);
 
-Function* func_F2I = mod->getFunction("F2I");
-if (!func_F2I) {
-func_F2I = Function::Create(
+Function* func_art_f2i = mod->getFunction("art_f2i");
+if (!func_art_f2i) {
+func_art_f2i = Function::Create(
  /*Type=*/FuncTy_34,
  /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"F2I", mod); // (external, no body)
-func_F2I->setCallingConv(CallingConv::C);
+ /*Name=*/"art_f2i", mod); // (external, no body)
+func_art_f2i->setCallingConv(CallingConv::C);
 }
-AttrListPtr func_F2I_PAL;
-func_F2I->setAttributes(func_F2I_PAL);
+AttrListPtr func_art_f2i_PAL;
+func_art_f2i->setAttributes(func_art_f2i_PAL);
 
 Function* func_art_mark_gc_card_from_code = mod->getFunction("art_mark_gc_card_from_code");
 if (!func_art_mark_gc_card_from_code) {

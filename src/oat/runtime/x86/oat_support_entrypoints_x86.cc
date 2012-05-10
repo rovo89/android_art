@@ -67,10 +67,10 @@ extern "C" void art_lock_object_from_code(void*);
 extern "C" void art_unlock_object_from_code(void*);
 
 // Math entrypoints.
-extern int32_t CmpgDouble(double a, double b);
-extern int32_t CmplDouble(double a, double b);
-extern int32_t CmpgFloat(float a, float b);
-extern int32_t CmplFloat(float a, float b);
+extern "C" double art_l2d_from_code(int64_t);
+extern "C" float art_l2f_from_code(int64_t);
+extern "C" int64_t art_d2l_from_code(double);
+extern "C" int64_t art_f2l_from_code(float);
 extern "C" int32_t art_idivmod_from_code(int32_t, int32_t);
 extern "C" int64_t art_ldiv_from_code(int64_t, int64_t);
 extern "C" int64_t art_ldivmod_from_code(int64_t, int64_t);
@@ -159,10 +159,10 @@ void InitEntryPoints(EntryPoints* points) {
   points->pUnlockObjectFromCode = art_unlock_object_from_code;
 
   // Math
-  points->pCmpgDouble = CmpgDouble;
-  points->pCmpgFloat = CmpgFloat;
-  points->pCmplDouble = CmplDouble;
-  points->pCmplFloat = CmplFloat;
+  //points->pCmpgDouble = NULL; // Not needed on x86.
+  //points->pCmpgFloat = NULL; // Not needed on x86.
+  //points->pCmplDouble = NULL; // Not needed on x86.
+  //points->pCmplFloat = NULL; // Not needed on x86.
   //points->pDadd = NULL; // Not needed on x86.
   //points->pDdiv = NULL; // Not needed on x86.
   //points->pDmul = NULL; // Not needed on x86.
@@ -170,7 +170,7 @@ void InitEntryPoints(EntryPoints* points) {
   //points->pF2d = NULL;
   //points->pFmod = NULL;
   //points->pI2d = NULL;
-  //points->pL2d = NULL;
+  points->pL2d = art_l2d_from_code;
   //points->pD2f = NULL;
   //points->pFadd = NULL; // Not needed on x86.
   //points->pFdiv = NULL; // Not needed on x86.
@@ -178,12 +178,12 @@ void InitEntryPoints(EntryPoints* points) {
   //points->pFmul = NULL; // Not needed on x86.
   //points->pFsub = NULL; // Not needed on x86.
   //points->pI2f = NULL;
-  //points->pL2f = NULL;
-  points->pD2iz = D2I;
-  points->pF2iz = F2I;
+  points->pL2f = art_l2f_from_code;
+  //points->pD2iz = NULL; // Not needed on x86.
+  //points->pF2iz = NULL; // Not needed on x86.
   points->pIdivmod = art_idivmod_from_code;
-  points->pD2l = D2L;
-  points->pF2l = F2L;
+  points->pD2l = art_d2l_from_code;
+  points->pF2l = art_f2l_from_code;
   points->pLdiv = art_ldiv_from_code;
   points->pLdivmod = art_ldivmod_from_code;
   points->pLmul = art_lmul_from_code;
