@@ -173,6 +173,12 @@ bool CompilationUnit::Materialize(size_t thread_count) {
     llvm::raw_string_ostream str_os(elf_image_);
     bool success = MaterializeToFile(str_os, insn_set_);
     LOG(INFO) << "Compilation Unit: " << elf_idx_ << (success ? " (done)" : " (failed)");
+
+    // Free the resources
+    context_.reset(NULL);
+    irb_.reset(NULL);
+    module_ = NULL;
+
     return success;
   }
 
