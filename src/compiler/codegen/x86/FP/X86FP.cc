@@ -119,6 +119,7 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir) {
   Instruction::Code opcode = mir->dalvikInsn.opcode;
   bool longSrc = false;
   bool longDest = false;
+  RegisterClass rcSrc = kFPReg;
   RegLocation rlSrc;
   RegLocation rlDest;
   X86OpCode op = kX86Nop;
@@ -128,21 +129,25 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir) {
     case Instruction::INT_TO_FLOAT:
       longSrc = false;
       longDest = false;
+      rcSrc = kCoreReg;
       op = kX86Cvtsi2ssRR;
       break;
     case Instruction::DOUBLE_TO_FLOAT:
       longSrc = true;
       longDest = false;
+      rcSrc = kFPReg;
       op = kX86Cvtsd2ssRR;
       break;
     case Instruction::FLOAT_TO_DOUBLE:
       longSrc = false;
       longDest = true;
+      rcSrc = kFPReg;
       op = kX86Cvtss2sdRR;
       break;
     case Instruction::INT_TO_DOUBLE:
       longSrc = false;
       longDest = true;
+      rcSrc = kCoreReg;
       op = kX86Cvtsi2sdRR;
       break;
     case Instruction::FLOAT_TO_INT:
@@ -161,11 +166,11 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir) {
   }
   if (longSrc) {
     rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
-    rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
+    rlSrc = loadValueWide(cUnit, rlSrc, rcSrc);
     srcReg = S2D(rlSrc.lowReg, rlSrc.highReg);
   } else {
     rlSrc = oatGetSrc(cUnit, mir, 0);
-    rlSrc = loadValue(cUnit, rlSrc, kFPReg);
+    rlSrc = loadValue(cUnit, rlSrc, rcSrc);
     srcReg = rlSrc.lowReg;
   }
   if (longDest) {
