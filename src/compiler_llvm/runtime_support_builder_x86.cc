@@ -50,7 +50,7 @@ void RuntimeSupportBuilderX86::TargetOptimizeRuntimeSupport() {
                                               /*isVarArg=*/false);
     InlineAsm* get_fp = InlineAsm::get(func_ty, "movl %fs:($1), $0", "=r,r", false);
     CallInst* fp = irb_.CreateCall(get_fp, irb_.getPtrEquivInt(Thread::SelfOffset().Int32Value()));
-    fp->setOnlyReadsMemory();
+    fp->setDoesNotAccessMemory();
     irb_.CreateRet(fp);
 
     VERIFY_LLVM_FUNCTION(*func);
