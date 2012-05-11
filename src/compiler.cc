@@ -1414,15 +1414,33 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
     it.Next();
   }
   // Compile direct methods
+  uint32_t previous_direct_method_idx = 0;
   while (it.HasNextDirectMethod()) {
+    uint32_t method_idx = it.GetMemberIndex();
+    if (method_idx == previous_direct_method_idx) {
+      // smali can create dex files with two encoded_methods sharing the same method_idx
+      // http://code.google.com/p/smali/issues/detail?id=119
+      it.Next();
+      continue;
+    }
+    previous_direct_method_idx = method_idx;
     context->GetCompiler()->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
-                                          it.GetMemberIndex(), class_loader, dex_file);
+                                          method_idx, class_loader, dex_file);
     it.Next();
   }
   // Compile virtual methods
+  uint32_t previous_virtual_method_idx = 0;
   while (it.HasNextVirtualMethod()) {
+    uint32_t method_idx = it.GetMemberIndex();
+    if (method_idx == previous_virtual_method_idx) {
+      // smali can create dex files with two encoded_methods sharing the same method_idx
+      // http://code.google.com/p/smali/issues/detail?id=119
+      it.Next();
+      continue;
+    }
+    previous_virtual_method_idx = method_idx;
     context->GetCompiler()->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
-                                          it.GetMemberIndex(), class_loader, dex_file);
+                                          method_idx, class_loader, dex_file);
     it.Next();
   }
   DCHECK(!it.HasNext());

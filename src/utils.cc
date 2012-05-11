@@ -257,6 +257,19 @@ std::string PrettyField(const Field* f, bool with_type) {
   return result;
 }
 
+std::string PrettyField(uint32_t field_idx, const DexFile& dex_file, bool with_type) {
+  const DexFile::FieldId& field_id = dex_file.GetFieldId(field_idx);
+  std::string result;
+  if (with_type) {
+    result += dex_file.GetFieldTypeDescriptor(field_id);
+    result += ' ';
+  }
+  result += PrettyDescriptor(dex_file.GetFieldDeclaringClassDescriptor(field_id));
+  result += '.';
+  result += dex_file.GetFieldName(field_id);
+  return result;
+}
+
 std::string PrettyArguments(const char* signature) {
   std::string result;
   result += '(';
