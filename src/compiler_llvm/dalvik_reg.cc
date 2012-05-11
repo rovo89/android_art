@@ -249,7 +249,7 @@ void DalvikLocalVarReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value
   if (jty == kObject) {
     DCHECK_NE(reg_shadow_frame_, static_cast<llvm::Value*>(NULL))
       << "Didn't allocate shadow frame entry.";
-    irb_.CreateStore(value, reg_shadow_frame_, kTBAARuntimeInfo);
+    irb_.CreateStore(value, reg_shadow_frame_, kTBAAShadowFrame);
   }
 }
 

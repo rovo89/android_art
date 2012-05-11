@@ -120,19 +120,19 @@ CompiledMethod* JniCompiler::Compile() {
     irb_.CreatePtrDisp(shadow_frame_,
                        irb_.getPtrEquivInt(ShadowFrame::MethodOffset()),
                        irb_.getJObjectTy()->getPointerTo());
-  irb_.CreateStore(method_object_addr, method_field_addr, kTBAARuntimeInfo);
+  irb_.CreateStore(method_object_addr, method_field_addr, kTBAAShadowFrame);
 
   // Store the dex pc
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::DexPCOffset(),
                            irb_.getInt32(0),
-                           kTBAARuntimeInfo);
+                           kTBAAShadowFrame);
 
   // Store the number of the pointer slots
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::NumberOfReferencesOffset(),
                            irb_.getInt32(sirt_size),
-                           kTBAARuntimeInfo);
+                           kTBAAShadowFrame);
 
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
@@ -176,7 +176,7 @@ CompiledMethod* JniCompiler::Compile() {
   // Store the "this object or class object" to SIRT
   gep_index[2] = irb_.getInt32(sirt_member_index++);
   llvm::Value* sirt_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
-  irb_.CreateStore(this_object_or_class_object, sirt_field_addr, kTBAARuntimeInfo);
+  irb_.CreateStore(this_object_or_class_object, sirt_field_addr, kTBAAShadowFrame);
   // Push the "this object or class object" to out args
   args.push_back(irb_.CreateBitCast(sirt_field_addr, irb_.getJObjectTy()));
   // Store arguments to SIRT, and push back to args
@@ -185,7 +185,7 @@ CompiledMethod* JniCompiler::Compile() {
       // Store the reference type arguments to SIRT
       gep_index[2] = irb_.getInt32(sirt_member_index++);
       llvm::Value* sirt_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
-      irb_.CreateStore(arg_iter, sirt_field_addr, kTBAARuntimeInfo);
+      irb_.CreateStore(arg_iter, sirt_field_addr, kTBAAShadowFrame);
       // Note null is placed in the SIRT but the jobject passed to the native code must be null
       // (not a pointer into the SIRT as with regular references).
       llvm::Value* equal_null = irb_.CreateICmpEQ(arg_iter, irb_.getJNull());
