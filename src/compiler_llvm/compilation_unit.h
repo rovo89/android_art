@@ -133,8 +133,7 @@ class CompilationUnit {
   size_t mem_usage_;
   uint16_t num_elf_funcs_;
 
-  bool MaterializeToFile(llvm::raw_ostream& out_stream,
-                         InstructionSet insn_set);
+  bool MaterializeToFile(llvm::raw_ostream& out_stream);
 };
 
 } // namespace compiler_llvm

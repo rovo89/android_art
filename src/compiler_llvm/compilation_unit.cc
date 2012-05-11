@@ -207,7 +207,7 @@ bool CompilationUnit::Materialize(size_t thread_count) {
 
   if (thread_count == 1) {
     llvm::raw_string_ostream str_os(elf_image_);
-    bool success = MaterializeToFile(str_os, insn_set_);
+    bool success = MaterializeToFile(str_os);
     LOG(INFO) << "Compilation Unit: " << elf_idx_ << (success ? " (done)" : " (failed)");
 
     // Free the resources
@@ -244,7 +244,7 @@ bool CompilationUnit::Materialize(size_t thread_count) {
 
     // TODO: Should use exec* family instead of invoking a function.
     // Forward our compilation request to bcc.
-    exit(static_cast<int>(!MaterializeToFile(fd_os, insn_set_)));
+    exit(static_cast<int>(!MaterializeToFile(fd_os)));
 
   } else { // Parent process
     // Close the unused pipe write end
@@ -325,19 +325,12 @@ void CompilationUnit::UpdateFrameSizeInBytes(const llvm::Function* func,
   }
 }
 
-bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream,
-                                        InstructionSet insn_set) {
-  // Initialize the LLVM first
-  llvm::InitializeAllTargets();
-  llvm::InitializeAllTargetMCs();
-  llvm::InitializeAllAsmPrinters();
-  llvm::InitializeAllAsmParsers();
-
+bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream) {
   // Lookup the LLVM target
   char const* target_triple = NULL;
   char const* target_attr = NULL;
 
-  switch (insn_set) {
+  switch (insn_set_) {
   case kThumb2:
     target_triple = "thumb-none-linux-gnueabi";
     target_attr = "+thumb2,+neon,+neonfp,+vfp3";
@@ -360,7 +353,7 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream,
     break;
 
   default:
-    LOG(FATAL) << "Unknown instruction set: " << insn_set;
+    LOG(FATAL) << "Unknown instruction set: " << insn_set_;
   }
 
   std::string errmsg;
