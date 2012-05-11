@@ -84,8 +84,10 @@ define build-libart-compiler-llvm
 
   libart_compiler_llvm_mips_STATIC_LIBRARIES := \
     libLLVMMipsInfo \
+    libLLVMMipsDisassembler \
     libLLVMMipsCodeGen \
     libLLVMMipsDesc \
+    libLLVMMipsAsmParser \
     libLLVMMipsAsmPrinter
 
   libart_compiler_llvm_x86_STATIC_LIBRARIES := \
