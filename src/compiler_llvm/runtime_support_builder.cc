@@ -161,7 +161,7 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
 
     BasicBlock* basic_block_suspend = BasicBlock::Create(context_, "suspend", func);
     BasicBlock* basic_block_else = BasicBlock::Create(context_, "else", func);
-    irb_.CreateCondBr(is_suspend, basic_block_suspend, basic_block_else);
+    irb_.CreateCondBr(is_suspend, basic_block_suspend, basic_block_else, kUnlikely);
 
     irb_.SetInsertPoint(basic_block_suspend);
     CallInst* call_inst = irb_.CreateCall(slow_func, thread);
