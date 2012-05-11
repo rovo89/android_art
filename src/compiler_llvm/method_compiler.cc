@@ -1537,8 +1537,6 @@ void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
   // TODO: Slow path always. May not need NullPointerException check.
   EmitGuard_NullPointerException(dex_pc, object_addr);
 
-  EmitUpdateDexPC(dex_pc);
-
   llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
 
   irb_.CreateCall2(irb_.GetRuntime(LockObject), object_addr, thread_object_addr);
@@ -3663,8 +3661,6 @@ void MethodCompiler::EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc) {
   llvm::Value* runtime_func = irb_.GetRuntime(TestSuspend);
 
   llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
-
-  EmitUpdateDexPC(dex_pc);
 
   irb_.CreateCall(runtime_func, thread_object_addr);
 }
