@@ -824,7 +824,7 @@ void ClassDataItemIterator::ReadClassDataHeader() {
 void ClassDataItemIterator::ReadClassDataField() {
   field_.field_idx_delta_ = DecodeUnsignedLeb128(&ptr_pos_);
   field_.access_flags_ = DecodeUnsignedLeb128(&ptr_pos_);
-  if (field_.field_idx_delta_ == 0) {
+  if (last_idx_ != 0 && field_.field_idx_delta_ == 0) {
     LOG(WARNING) << "Duplicate field " << PrettyField(GetMemberIndex(), dex_file_)
                  << " in " << dex_file_.GetLocation();
   }
@@ -834,7 +834,7 @@ void ClassDataItemIterator::ReadClassDataMethod() {
   method_.method_idx_delta_ = DecodeUnsignedLeb128(&ptr_pos_);
   method_.access_flags_ = DecodeUnsignedLeb128(&ptr_pos_);
   method_.code_off_ = DecodeUnsignedLeb128(&ptr_pos_);
-  if (method_.method_idx_delta_ == 0) {
+  if (last_idx_ != 0 && method_.method_idx_delta_ == 0) {
     LOG(WARNING) << "Duplicate method " << PrettyMethod(GetMemberIndex(), dex_file_)
                  << " in " << dex_file_.GetLocation();
   }
