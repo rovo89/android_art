@@ -31,8 +31,11 @@
 #include <llvm/ADT/Triple.h>
 #include <llvm/Analysis/CallGraph.h>
 #include <llvm/Analysis/DebugInfo.h>
+#include <llvm/Analysis/Dominators.h>
+#include <llvm/Analysis/LoopInfo.h>
 #include <llvm/Analysis/LoopPass.h>
 #include <llvm/Analysis/RegionPass.h>
+#include <llvm/Analysis/ScalarEvolution.h>
 #include <llvm/Analysis/Verifier.h>
 #include <llvm/Assembly/PrintModulePass.h>
 #include <llvm/Bitcode/ReaderWriter.h>
@@ -63,6 +66,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
+#include <llvm/Transforms/Scalar.h>
 
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -101,6 +105,59 @@ char UpdateFrameSizePass::ID = 0;
 
 llvm::RegisterPass<UpdateFrameSizePass> reg_update_frame_size_pass_(
   "update-frame-size", "Update frame size pass", false, false);
+
+
+// TODO: We may need something to manage these passes.
+// TODO: We need high-level IR to analysis and do this at the IRBuilder level.
+class AddSuspendCheckToLoopLatchPass : public llvm::LoopPass {
+ public:
+  static char ID;
+
+  AddSuspendCheckToLoopLatchPass() : llvm::LoopPass(ID), irb_(NULL) {
+    LOG(FATAL) << "Unexpected instantiation of AddSuspendCheckToLoopLatchPass";
+    // NOTE: We have to declare this constructor for llvm::RegisterPass, but
+    // this constructor won't work because we have no information on
+    // IRBuilder.  Thus, we should place a LOG(FATAL) here.
+  }
+
+  AddSuspendCheckToLoopLatchPass(art::compiler_llvm::IRBuilder* irb)
+    : llvm::LoopPass(ID), irb_(irb) {
+  }
+
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+    AU.addRequiredID(llvm::LoopSimplifyID);
+
+    AU.addPreserved<llvm::DominatorTree>();
+    AU.addPreserved<llvm::LoopInfo>();
+    AU.addPreservedID(llvm::LoopSimplifyID);
+    AU.addPreserved<llvm::ScalarEvolution>();
+    AU.addPreservedID(llvm::BreakCriticalEdgesID);
+  }
+
+  virtual bool runOnLoop(llvm::Loop *loop, llvm::LPPassManager &lpm) {
+    CHECK_EQ(loop->getNumBackEdges(), 1U) << "Loop must be simplified!";
+    llvm::BasicBlock* bb = loop->getLoopLatch();
+    CHECK_NE(bb, static_cast<void*>(NULL)) << "A single loop latch must exist.";
+
+    irb_->SetInsertPoint(bb->getTerminator());
+
+    using namespace art::compiler_llvm::runtime_support;
+    llvm::Value* runtime_func = irb_->GetRuntime(TestSuspend);
+    llvm::Value* thread_object_addr = irb_->CreateCall(irb_->GetRuntime(GetCurrentThread));
+    irb_->CreateCall(runtime_func, thread_object_addr);
+
+    return true;
+  }
+
+ private:
+  art::compiler_llvm::IRBuilder* irb_;
+};
+
+char AddSuspendCheckToLoopLatchPass::ID = 0;
+
+llvm::RegisterPass<AddSuspendCheckToLoopLatchPass> reg_add_suspend_check_to_loop_latch_pass_(
+  "add-suspend-check-to-loop-latch", "Add suspend check to loop latch pass", false, false);
+
 
 } // end anonymous namespace
 
@@ -142,27 +199,6 @@ CompilationUnit::CompilationUnit(InstructionSet insn_set, size_t elf_idx)
 
 
 CompilationUnit::~CompilationUnit() {
-}
-
-
-bool CompilationUnit::WriteBitcodeToFile(const std::string& bitcode_filename) {
-  MutexLock GUARD(cunit_lock_);
-  std::string errmsg;
-
-  llvm::OwningPtr<llvm::tool_output_file> out_file(
-    new llvm::tool_output_file(bitcode_filename.c_str(), errmsg,
-                               llvm::raw_fd_ostream::F_Binary));
-
-
-  if (!errmsg.empty()) {
-    LOG(ERROR) << "Failed to create bitcode output file: " << errmsg;
-    return false;
-  }
-
-  llvm::WriteBitcodeToFile(module_, out_file->os());
-  out_file->keep();
-
-  return true;
 }
 
 
@@ -359,6 +395,39 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream,
   // FunctionPassManager for optimization pass
   llvm::FunctionPassManager fpm(module_);
   fpm.add(new llvm::TargetData(*target_data));
+
+  if (bitcode_filename_.empty()) {
+    // If we don't need write the bitcode to file, add the AddSuspendCheckToLoopLatchPass to the
+    // regular FunctionPass.
+    fpm.add(new ::AddSuspendCheckToLoopLatchPass(irb_.get()));
+  } else {
+    // Run AddSuspendCheckToLoopLatchPass before we write the bitcode to file.
+    llvm::FunctionPassManager fpm2(module_);
+    fpm2.add(new ::AddSuspendCheckToLoopLatchPass(irb_.get()));
+    fpm2.doInitialization();
+    for (llvm::Module::iterator F = module_->begin(), E = module_->end();
+         F != E; ++F) {
+      fpm2.run(*F);
+    }
+    fpm2.doFinalization();
+
+
+    // Write bitcode to file
+    std::string errmsg;
+
+    llvm::OwningPtr<llvm::tool_output_file> out_file(
+      new llvm::tool_output_file(bitcode_filename_.c_str(), errmsg,
+                                 llvm::raw_fd_ostream::F_Binary));
+
+
+    if (!errmsg.empty()) {
+      LOG(ERROR) << "Failed to create bitcode output file: " << errmsg;
+      return false;
+    }
+
+    llvm::WriteBitcodeToFile(module_, out_file->os());
+    out_file->keep();
+  }
 
   // Add optimization pass
   llvm::PassManagerBuilder pm_builder;

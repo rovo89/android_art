@@ -178,7 +178,7 @@ void CompilerLLVM::Materialize(CompilationUnit* cunit) {
   // Write bitcode to file when filename is set
   if (IsBitcodeFileNameAvailable()) {
     const size_t cunit_idx = cunits_.size();
-    cunit->WriteBitcodeToFile(
+    cunit->SetBitcodeFileName(
       StringPrintf("%s-%zu", bitcode_filename_.c_str(), cunit_idx));
   }
 
