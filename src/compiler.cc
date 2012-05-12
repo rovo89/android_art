@@ -1414,7 +1414,7 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
     it.Next();
   }
   // Compile direct methods
-  uint32_t previous_direct_method_idx = 0;
+  int64_t previous_direct_method_idx = -1;
   while (it.HasNextDirectMethod()) {
     uint32_t method_idx = it.GetMemberIndex();
     if (method_idx == previous_direct_method_idx) {
@@ -1429,7 +1429,7 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
     it.Next();
   }
   // Compile virtual methods
-  uint32_t previous_virtual_method_idx = 0;
+  int64_t previous_virtual_method_idx = -1;
   while (it.HasNextVirtualMethod()) {
     uint32_t method_idx = it.GetMemberIndex();
     if (method_idx == previous_virtual_method_idx) {
