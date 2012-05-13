@@ -67,6 +67,9 @@ class InferredRegCategoryMap {
   RegCategory GetRegCategory(uint32_t dex_pc, uint16_t reg_idx) const;
   void SetRegCategory(uint32_t dex_pc, uint16_t reg_idx, RegCategory cat);
 
+  bool IsRegCanBeObject(uint16_t reg_idx) const;
+  void SetRegCanBeObject(uint16_t reg_idx);
+
   bool operator==(InferredRegCategoryMap const& rhs) const;
   bool operator!=(InferredRegCategoryMap const& rhs) const;
 
@@ -74,6 +77,8 @@ class InferredRegCategoryMap {
   uint16_t registers_size_;
 
   std::vector<RegCategoryLine*> lines_;
+
+  std::vector<bool> can_be_object_;
 
   DISALLOW_COPY_AND_ASSIGN(InferredRegCategoryMap);
 };

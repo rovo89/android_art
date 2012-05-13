@@ -246,9 +246,7 @@ DalvikLocalVarReg::~DalvikLocalVarReg() {
 void DalvikLocalVarReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
   DalvikReg::SetValue(jty, space, value);
 
-  if (jty == kObject) {
-    DCHECK_NE(reg_shadow_frame_, static_cast<llvm::Value*>(NULL))
-      << "Didn't allocate shadow frame entry.";
+  if (jty == kObject && reg_shadow_frame_ != NULL) {
     irb_.CreateStore(value, reg_shadow_frame_, kTBAAShadowFrame);
   }
 }

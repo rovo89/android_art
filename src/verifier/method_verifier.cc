@@ -3345,6 +3345,7 @@ const InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCategoryMap() {
           table->SetRegCategory(i, r, kRegCat2);
         } else if (rt.IsReferenceTypes()) {
           table->SetRegCategory(i, r, kRegObject);
+          table->SetRegCanBeObject(r);
         } else {
           table->SetRegCategory(i, r, kRegUnknown);
         }

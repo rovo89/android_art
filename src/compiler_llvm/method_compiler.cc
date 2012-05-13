@@ -60,7 +60,11 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     access_flags_(oat_compilation_unit->access_flags_),
     module_(cunit->GetModule()),
     context_(cunit->GetLLVMContext()),
-    irb_(*cunit->GetIRBuilder()), func_(NULL), retval_reg_(NULL),
+    irb_(*cunit->GetIRBuilder()),
+    func_(NULL),
+    regs_(code_item_->registers_size_),
+    reg_to_shadow_frame_index_(code_item_->registers_size_, -1),
+    retval_reg_(NULL),
     basic_block_stack_overflow_(NULL),
     basic_block_reg_alloca_(NULL), basic_block_shadow_frame_alloca_(NULL),
     basic_block_reg_arg_init_(NULL),
@@ -165,7 +169,7 @@ void MethodCompiler::EmitPrologue() {
 
   // Create register array
   for (uint16_t r = 0; r < code_item_->registers_size_; ++r) {
-    regs_.push_back(DalvikReg::CreateLocalVarReg(*this, r));
+    regs_[r] = DalvikReg::CreateLocalVarReg(*this, r);
   }
 
   retval_reg_.reset(DalvikReg::CreateRetValReg(*this));
@@ -250,10 +254,12 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
   irb_.SetInsertPoint(basic_block_shadow_frame_alloca_);
 
   // Allocate the shadow frame now!
-  uint32_t sirt_size = code_item_->registers_size_;
-  // TODO: registers_size_ is a bad approximation.  Compute a
-  // tighter approximation at Dex verifier while performing data-flow
-  // analysis.
+  uint32_t sirt_size = 0;
+  for (uint32_t i = 0, num_of_regs = code_item_->registers_size_; i < num_of_regs; ++i) {
+    if (IsRegCanBeObject(i)) {
+      reg_to_shadow_frame_index_[i] = sirt_size++;
+    }
+  }
 
   llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
   shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
@@ -2141,10 +2147,7 @@ void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
                     GetNextBasicBlock(dex_pc));
 }
 
-
-RegCategory MethodCompiler::GetInferredRegCategory(uint32_t dex_pc,
-                                                   uint16_t reg_idx) {
-
+InferredRegCategoryMap const* MethodCompiler::GetInferredRegCategoryMap() {
   Compiler::MethodReference mref(dex_file_, method_idx_);
 
   InferredRegCategoryMap const* map =
@@ -2152,7 +2155,20 @@ RegCategory MethodCompiler::GetInferredRegCategory(uint32_t dex_pc,
 
   CHECK_NE(map, static_cast<InferredRegCategoryMap*>(NULL));
 
+  return map;
+}
+
+RegCategory MethodCompiler::GetInferredRegCategory(uint32_t dex_pc,
+                                                   uint16_t reg_idx) {
+  InferredRegCategoryMap const* map = GetInferredRegCategoryMap();
+
   return map->GetRegCategory(dex_pc, reg_idx);
+}
+
+bool MethodCompiler::IsRegCanBeObject(uint16_t reg_idx) {
+  InferredRegCategoryMap const* map = GetInferredRegCategoryMap();
+
+  return map->IsRegCanBeObject(reg_idx);
 }
 
 
@@ -3839,6 +3855,11 @@ llvm::Value* MethodCompiler::AllocDalvikLocalVarReg(RegCategory cat,
 
 
 llvm::Value* MethodCompiler::AllocShadowFrameEntry(uint32_t reg_idx) {
+  if (reg_to_shadow_frame_index_[reg_idx] == -1) {
+    // This register dosen't need ShadowFrame entry
+    return NULL;
+  }
+
   std::string reg_name;
 
 #if !defined(NDEBUG)
@@ -3853,7 +3874,7 @@ llvm::Value* MethodCompiler::AllocShadowFrameEntry(uint32_t reg_idx) {
   llvm::Value* gep_index[] = {
     irb_.getInt32(0), // No pointer displacement
     irb_.getInt32(1), // SIRT
-    irb_.getInt32(reg_idx) // Pointer field
+    irb_.getInt32(reg_to_shadow_frame_index_[reg_idx]) // Pointer field
   };
 
   llvm::Value* reg_addr = irb_.CreateGEP(shadow_frame_, gep_index, reg_name);
