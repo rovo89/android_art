@@ -19,6 +19,8 @@
 
 #include <llvm/Module.h>
 
+#include <algorithm>
+
 namespace art {
 namespace compiler_llvm {
 
@@ -44,6 +46,22 @@ IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module)
   CHECK(art_frame_type_ != NULL);
 
   runtime_support_ = NULL;
+
+
+  // Pre-generate the MDNode for static branch prediction
+  llvm::Type* int32ty = llvm::Type::getInt32Ty(context);
+  llvm::MDString* branch_weights = llvm::MDString::get(context, "branch_weights");
+  llvm::Constant* likely = llvm::ConstantInt::get(int32ty, 64);
+  llvm::Constant* unlikely = llvm::ConstantInt::get(int32ty, 4);
+  llvm::Value *opts[] = {
+    branch_weights,
+    likely,
+    unlikely
+  };
+
+  expect_cond_[kLikely] = llvm::MDNode::get(context, opts);
+  std::swap(opts[1], opts[2]);
+  expect_cond_[kUnlikely] = llvm::MDNode::get(context, opts);
 }
 
 
