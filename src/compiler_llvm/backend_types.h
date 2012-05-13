@@ -70,6 +70,13 @@ enum TBAASpecialType {
 };
 
 
+enum ExpectCond {
+  kLikely,
+  kUnlikely,
+  MAX_EXPECT
+};
+
+
 inline JType GetJTypeFromShorty(char shorty_jty) {
   switch (shorty_jty) {
   case 'V':

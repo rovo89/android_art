@@ -214,7 +214,7 @@ void MethodCompiler::EmitStackOverflowCheck() {
   llvm::BasicBlock* block_continue =
       llvm::BasicBlock::Create(*context_, "stack_overflow_cont", func_);
 
-  irb_.CreateCondBr(is_stack_overflow, block_exception, block_continue);
+  irb_.CreateCondBr(is_stack_overflow, block_exception, block_continue, kUnlikely);
 
   // If stack overflow, throw exception.
   irb_.SetInsertPoint(block_exception);
@@ -1401,7 +1401,7 @@ void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
     // Test: Is the string resolved and in the dex cache?
     llvm::Value* equal_null = irb_.CreateICmpEQ(string_addr, irb_.getJNull());
 
-    irb_.CreateCondBr(equal_null, block_str_resolve, block_str_exist);
+    irb_.CreateCondBr(equal_null, block_str_resolve, block_str_exist, kUnlikely);
 
     // String is resolved, go to next basic block.
     irb_.SetInsertPoint(block_str_exist);
@@ -1477,7 +1477,7 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
     llvm::BasicBlock* block_load_class =
       CreateBasicBlockWithDexPC(dex_pc, "load_class");
 
-    irb_.CreateCondBr(equal_null, block_load_class, block_cont);
+    irb_.CreateCondBr(equal_null, block_load_class, block_cont, kUnlikely);
 
     // Failback routine to load the class object
     irb_.SetInsertPoint(block_load_class);
@@ -2222,7 +2222,7 @@ MethodCompiler::EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
   llvm::BasicBlock* block_continue =
     CreateBasicBlockWithDexPC(dex_pc, "cont");
 
-  irb_.CreateCondBr(cmp, block_exception, block_continue);
+  irb_.CreateCondBr(cmp, block_exception, block_continue, kUnlikely);
 
   irb_.SetInsertPoint(block_exception);
 
@@ -2474,7 +2474,7 @@ llvm::Value* MethodCompiler::EmitLoadStaticStorage(uint32_t dex_pc,
   llvm::Value* equal_null =
     irb_.CreateICmpEQ(storage_object_addr, irb_.getJNull());
 
-  irb_.CreateCondBr(equal_null, block_load_static, block_cont);
+  irb_.CreateCondBr(equal_null, block_load_static, block_cont, kUnlikely);
 
   // Failback routine to load the class object
   irb_.SetInsertPoint(block_load_static);
@@ -2848,7 +2848,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   llvm::Value* code_addr_int = irb_.CreatePtrToInt(code_addr, irb_.getPtrEquivIntTy());
   llvm::Value* max_stub_int = irb_.getPtrEquivInt(special_stub::kMaxSpecialStub);
   llvm::Value* is_stub = irb_.CreateICmpULT(code_addr_int, max_stub_int);
-  irb_.CreateCondBr(is_stub, block_stub, block_normal);
+  irb_.CreateCondBr(is_stub, block_stub, block_normal, kUnlikely);
 
 
   irb_.SetInsertPoint(block_normal);
@@ -2869,7 +2869,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
       llvm::BasicBlock* block_proxy_stub = CreateBasicBlockWithDexPC(dex_pc, "proxy");
       llvm::BasicBlock* block_link = CreateBasicBlockWithDexPC(dex_pc, "link");
 
-      irb_.CreateCondBr(irb_.CreateIsNull(code_addr), block_link, block_proxy_stub);
+      irb_.CreateCondBr(irb_.CreateIsNull(code_addr), block_link, block_proxy_stub, kUnlikely);
 
 
       irb_.SetInsertPoint(block_link);
@@ -3302,7 +3302,7 @@ MethodCompiler::EmitIntDivRemResultComputation(uint32_t dex_pc,
   llvm::BasicBlock* neg_one_cont = CreateBasicBlockWithDexPC(dex_pc, "neg_one_cont");
 
   llvm::Value* is_equal_neg_one = EmitConditionResult(divisor, neg_one, kCondBranch_EQ);
-  irb_.CreateCondBr(is_equal_neg_one, eq_neg_one, ne_neg_one);
+  irb_.CreateCondBr(is_equal_neg_one, eq_neg_one, ne_neg_one, kUnlikely);
 
   // If divisor == -1
   irb_.SetInsertPoint(eq_neg_one);
@@ -3511,7 +3511,7 @@ void MethodCompiler::EmitGuard_DivZeroException(uint32_t dex_pc,
 
   llvm::BasicBlock* block_continue = CreateBasicBlockWithDexPC(dex_pc, "cont");
 
-  irb_.CreateCondBr(equal_zero, block_exception, block_continue);
+  irb_.CreateCondBr(equal_zero, block_exception, block_continue, kUnlikely);
 
   irb_.SetInsertPoint(block_exception);
   EmitUpdateDexPC(dex_pc);
@@ -3532,7 +3532,7 @@ void MethodCompiler::EmitGuard_NullPointerException(uint32_t dex_pc,
   llvm::BasicBlock* block_continue =
     CreateBasicBlockWithDexPC(dex_pc, "cont");
 
-  irb_.CreateCondBr(equal_null, block_exception, block_continue);
+  irb_.CreateCondBr(equal_null, block_exception, block_continue, kUnlikely);
 
   irb_.SetInsertPoint(block_exception);
   EmitUpdateDexPC(dex_pc);
@@ -3650,9 +3650,9 @@ void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
   llvm::BasicBlock* block_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
 
   if (llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc)) {
-    irb_.CreateCondBr(exception_pending, lpad, block_cont);
+    irb_.CreateCondBr(exception_pending, lpad, block_cont, kUnlikely);
   } else {
-    irb_.CreateCondBr(exception_pending, GetUnwindBasicBlock(), block_cont);
+    irb_.CreateCondBr(exception_pending, GetUnwindBasicBlock(), block_cont, kUnlikely);
   }
 
   irb_.SetInsertPoint(block_cont);

@@ -111,6 +111,24 @@ class IRBuilder : public LLVMIRBuilder {
 
 
   //--------------------------------------------------------------------------
+  // Static Branch Prediction
+  //--------------------------------------------------------------------------
+
+  // Import the orignal conditional branch
+  using LLVMIRBuilder::CreateCondBr;
+  llvm::BranchInst* CreateCondBr(llvm::Value *cond,
+                                 llvm::BasicBlock* true_bb,
+                                 llvm::BasicBlock* false_bb,
+                                 ExpectCond expect) {
+    DCHECK_NE(expect, MAX_EXPECT) << "MAX_EXPECT is not for branch weight";
+
+    llvm::BranchInst* branch_inst = LLVMIRBuilder::CreateCondBr(cond, true_bb, false_bb);
+    branch_inst->setMetadata(llvm::LLVMContext::MD_prof, expect_cond_[expect]);
+    return branch_inst;
+  }
+
+
+  //--------------------------------------------------------------------------
   // Pointer Arithmetic Helper Function
   //--------------------------------------------------------------------------
 
@@ -384,6 +402,7 @@ class IRBuilder : public LLVMIRBuilder {
 
   RuntimeSupportBuilder* runtime_support_;
 
+  llvm::MDNode* expect_cond_[MAX_EXPECT];
 };
 
 
