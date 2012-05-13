@@ -88,7 +88,7 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     irb_.StoreToObjectOffset(new_shadow_frame,
                              ShadowFrame::LinkOffset(),
                              old_shadow_frame,
-                             kTBAARuntimeInfo);
+                             kTBAAShadowFrame);
     irb_.StoreToObjectOffset(thread,
                              Thread::TopShadowFrameOffset().Int32Value(),
                              new_shadow_frame,
@@ -113,7 +113,7 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* old_shadow_frame = irb_.LoadFromObjectOffset(new_shadow_frame,
                                                         ShadowFrame::LinkOffset(),
                                                         irb_.getJObjectTy(),
-                                                        kTBAARuntimeInfo);
+                                                        kTBAAShadowFrame);
     irb_.StoreToObjectOffset(thread,
                              Thread::TopShadowFrameOffset().Int32Value(),
                              old_shadow_frame,

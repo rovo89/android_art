@@ -49,6 +49,7 @@ llvm::MDNode* TBAAInfo::GetSpecialType(TBAASpecialType sty_id) {
     case kTBAAHeapStatic:   spec_ty = GenTBAANode("HeapStatic", GetRootType()); break;
     case kTBAAJRuntime:     spec_ty = GenTBAANode("JRuntime", GetRootType()); break;
     case kTBAARuntimeInfo:  spec_ty = GenTBAANode("RuntimeInfo", GetRootType()); break;
+    case kTBAAShadowFrame:  spec_ty = GenTBAANode("ShadowFrame", GetRootType()); break;
     case kTBAAConstJObject: spec_ty = GenTBAANode("ConstJObject", GetRootType(), true); break;
     default:
       LOG(FATAL) << "Unknown TBAA special type: " << sty_id;

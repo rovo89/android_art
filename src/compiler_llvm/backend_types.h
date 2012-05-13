@@ -64,6 +64,7 @@ enum TBAASpecialType {
   kTBAAHeapStatic,
   kTBAAJRuntime,
   kTBAARuntimeInfo,
+  kTBAAShadowFrame,
   kTBAAConstJObject,
   MAX_TBAA_SPECIAL_TYPE
 };

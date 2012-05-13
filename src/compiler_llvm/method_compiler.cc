@@ -262,7 +262,7 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
   llvm::ConstantAggregateZero* zero_initializer =
     llvm::ConstantAggregateZero::get(shadow_frame_type);
 
-  irb_.CreateStore(zero_initializer, shadow_frame_, kTBAARuntimeInfo);
+  irb_.CreateStore(zero_initializer, shadow_frame_, kTBAAShadowFrame);
 
   // Get method object
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
@@ -271,13 +271,13 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::MethodOffset(),
                            method_object_addr,
-                           kTBAARuntimeInfo);
+                           kTBAAShadowFrame);
 
   // Store the number of the pointer slots
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::NumberOfReferencesOffset(),
                            irb_.getJInt(sirt_size),
-                           kTBAARuntimeInfo);
+                           kTBAAShadowFrame);
 
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast =
@@ -3918,7 +3918,7 @@ void MethodCompiler::EmitUpdateDexPC(uint32_t dex_pc) {
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::DexPCOffset(),
                            irb_.getInt32(dex_pc),
-                           kTBAARuntimeInfo);
+                           kTBAAShadowFrame);
 }
 
 
