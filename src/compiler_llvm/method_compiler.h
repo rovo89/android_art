@@ -374,6 +374,10 @@ class MethodCompiler {
 
   RegCategory GetInferredRegCategory(uint32_t dex_pc, uint16_t reg);
 
+  InferredRegCategoryMap const* GetInferredRegCategoryMap();
+
+  bool IsRegCanBeObject(uint16_t reg_idx);
+
 
   // Basic block helper functions
   llvm::BasicBlock* GetBasicBlock(uint32_t dex_pc);
@@ -453,6 +457,7 @@ class MethodCompiler {
   llvm::Function* func_;
 
   std::vector<DalvikReg*> regs_;
+  std::vector<int32_t> reg_to_shadow_frame_index_;
   UniquePtr<DalvikReg> retval_reg_;
 
   llvm::BasicBlock* basic_block_stack_overflow_;
