@@ -381,7 +381,7 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream,
   llvm::OwningPtr<llvm::TargetMachine> target_machine(
     target->createTargetMachine(target_triple, "", target_attr, target_options,
                                 llvm::Reloc::Static, llvm::CodeModel::Small,
-                                llvm::CodeGenOpt::Aggressive));
+                                llvm::CodeGenOpt::Less));
 
   CHECK(target_machine.get() != NULL) << "Failed to create target machine";
 
@@ -436,6 +436,7 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream,
   //pm_builder.Inliner = llvm::createPartialInliningPass();
   pm_builder.OptLevel = 3;
   pm_builder.DisableSimplifyLibCalls = 1;
+  pm_builder.DisableUnitAtATime = 1;
   pm_builder.populateModulePassManager(pm);
   pm_builder.populateFunctionPassManager(fpm);
 
