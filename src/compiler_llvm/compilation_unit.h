@@ -88,7 +88,10 @@ class CompilationUnit {
     return num_elf_funcs_++;
   }
 
-  bool WriteBitcodeToFile(const std::string& bitcode_filename);
+  void SetBitcodeFileName(const std::string& bitcode_filename) {
+    MutexLock GUARD(cunit_lock_);
+    bitcode_filename_ = bitcode_filename;
+  }
 
   bool Materialize(size_t thread_count);
 
@@ -122,6 +125,7 @@ class CompilationUnit {
   UniquePtr<RuntimeSupportBuilder> runtime_support_;
   llvm::Module* module_;
 
+  std::string bitcode_filename_;
   std::string elf_image_;
 
   SafeMap<const llvm::Function*, CompiledMethod*> compiled_methods_map_;

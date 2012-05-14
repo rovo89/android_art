@@ -1928,11 +1928,6 @@ void MethodCompiler::EmitInsn_UnconditionalBranch(uint32_t dex_pc,
 
   int32_t branch_offset = dec_insn.vA;
 
-  if (branch_offset <= 0) {
-    // Garbage collection safe-point on backward branch
-    EmitGuard_GarbageCollectionSuspend(dex_pc);
-  }
-
   irb_.CreateBr(GetBasicBlock(dex_pc + branch_offset));
 }
 
@@ -2063,11 +2058,6 @@ void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
 
   int32_t branch_offset = dec_insn.vC;
 
-  if (branch_offset <= 0) {
-    // Garbage collection safe-point on backward branch
-    EmitGuard_GarbageCollectionSuspend(dex_pc);
-  }
-
   llvm::Value* src1_value;
   llvm::Value* src2_value;
 
@@ -2128,11 +2118,6 @@ void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
   DCHECK_NE(kRegCat2, src_reg_cat);
 
   int32_t branch_offset = dec_insn.vB;
-
-  if (branch_offset <= 0) {
-    // Garbage collection safe-point on backward branch
-    EmitGuard_GarbageCollectionSuspend(dex_pc);
-  }
 
   llvm::Value* src1_value;
   llvm::Value* src2_value;
