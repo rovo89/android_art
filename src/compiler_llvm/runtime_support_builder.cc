@@ -153,10 +153,13 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     irb_.SetInsertPoint(basic_block);
 
     Value* thread = func->arg_begin();
-    Value* suspend_count = irb_.LoadFromObjectOffset(thread,
-                                                     Thread::SuspendCountOffset().Int32Value(),
-                                                     irb_.getJIntTy(),
-                                                     kTBAARuntimeInfo);
+    llvm::LoadInst* suspend_count =
+        irb_.LoadFromObjectOffset(thread,
+                                  Thread::SuspendCountOffset().Int32Value(),
+                                  irb_.getJIntTy(),
+                                  kTBAARuntimeInfo);
+    suspend_count->setAlignment(4U);
+    suspend_count->setAtomic(Unordered, CrossThread);
     Value* is_suspend = irb_.CreateICmpNE(suspend_count, irb_.getJInt(0));
 
     BasicBlock* basic_block_suspend = BasicBlock::Create(context_, "suspend", func);
