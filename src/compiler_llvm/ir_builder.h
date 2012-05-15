@@ -120,7 +120,7 @@ class IRBuilder : public LLVMIRBuilder {
                                  llvm::BasicBlock* true_bb,
                                  llvm::BasicBlock* false_bb,
                                  ExpectCond expect) {
-    DCHECK_NE(expect, MAX_EXPECT) << "MAX_EXPECT is not for branch weight";
+    DCHECK_LT(expect, MAX_EXPECT) << "MAX_EXPECT is not for branch weight";
 
     llvm::BranchInst* branch_inst = LLVMIRBuilder::CreateCondBr(cond, true_bb, false_bb);
     branch_inst->setMetadata(llvm::LLVMContext::MD_prof, expect_cond_[expect]);
