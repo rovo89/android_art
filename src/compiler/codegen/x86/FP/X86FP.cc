@@ -124,7 +124,9 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir) {
   RegLocation rlDest;
   X86OpCode op = kX86Nop;
   int srcReg;
+  int tempReg;
   RegLocation rlResult;
+  LIR* branch = NULL;
   switch (opcode) {
     case Instruction::INT_TO_FLOAT:
       longSrc = false;
@@ -151,14 +153,45 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir) {
       op = kX86Cvtsi2sdRR;
       break;
     case Instruction::FLOAT_TO_INT:
+      rlSrc = oatGetSrc(cUnit, mir, 0);
+      rlSrc = loadValue(cUnit, rlSrc, kFPReg);
+      srcReg = rlSrc.lowReg;
+      rlDest = oatGetDest(cUnit, mir, 0);
+      oatClobberSReg(cUnit, rlDest.sRegLow);
+      rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+      tempReg = oatAllocTempFloat(cUnit);
+
+      loadConstant(cUnit, rlResult.lowReg, 0x7fffffff);
+      newLIR2(cUnit, kX86Cvtsi2ssRR, tempReg, rlResult.lowReg);
+      newLIR2(cUnit, kX86ComissRR, srcReg, tempReg);
+      branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondA);
+      newLIR2(cUnit, kX86Cvtss2siRR, rlResult.lowReg, srcReg);
+      branch->target = newLIR0(cUnit, kPseudoTargetLabel);
+      storeValue(cUnit, rlDest, rlResult);
+      return false;
     case Instruction::DOUBLE_TO_INT:
-      // These are easy to implement inline except when the src is > MAX_INT/LONG the result
-      // needs to be changed from 0x80000000 to 0x7FFFFFF (requires an in memory float/double
-      // literal constant to compare against).
-      UNIMPLEMENTED(WARNING) << "inline [df]2i " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+      rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+      rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
+      srcReg = rlSrc.lowReg;
+      rlDest = oatGetDest(cUnit, mir, 0);
+      oatClobberSReg(cUnit, rlDest.sRegLow);
+      rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+      tempReg = oatAllocTempDouble(cUnit);
+
+      loadConstant(cUnit, rlResult.lowReg, 0x7fffffff);
+      newLIR2(cUnit, kX86Cvtsi2sdRR, tempReg, rlResult.lowReg);
+      newLIR2(cUnit, kX86ComisdRR, srcReg, tempReg);
+      branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondA);
+      newLIR2(cUnit, kX86Cvtsd2siRR, rlResult.lowReg, srcReg);
+      branch->target = newLIR0(cUnit, kPseudoTargetLabel);
+      storeValue(cUnit, rlDest, rlResult);
+      return false;
     case Instruction::LONG_TO_DOUBLE:
-    case Instruction::FLOAT_TO_LONG:
     case Instruction::LONG_TO_FLOAT:
+      // These can be implemented inline by using memory as a 64-bit source.
+      // However, this can't be done easily if the register has been promoted.
+      UNIMPLEMENTED(WARNING) << "inline l2[df] " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+    case Instruction::FLOAT_TO_LONG:
     case Instruction::DOUBLE_TO_LONG:
       return genConversionPortable(cUnit, mir);
     default:
@@ -205,6 +238,7 @@ static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
     srcReg2 = S2D(rlSrc2.lowReg, rlSrc2.highReg);
   }
+  oatClobberSReg(cUnit, rlDest.sRegLow);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   loadConstantNoClobber(cUnit, rlResult.lowReg, unorderedGt ? 1 : 0);
   if (single) {

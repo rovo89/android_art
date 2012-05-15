@@ -1009,11 +1009,6 @@ LIR* storeBaseDispWide(CompilationUnit* cUnit, int rBase, int displacement,
   return storeBaseDispBody(cUnit, rBase, displacement, rSrcLo, rSrcHi, kLong);
 }
 
-void storePair(CompilationUnit* cUnit, int base, int lowReg, int highReg)
-{
-  storeBaseDispWide(cUnit, base, 0, lowReg, highReg);
-}
-
 void loadPair(CompilationUnit* cUnit, int base, int lowReg, int highReg)
 {
   loadBaseDispWide(cUnit, NULL, base, 0, lowReg, highReg, INVALID_SREG);

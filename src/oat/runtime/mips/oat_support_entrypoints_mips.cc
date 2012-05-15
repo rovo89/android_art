@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "runtime_support.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 
 namespace art {
@@ -83,8 +84,6 @@ extern "C" float __floatdisf(int64_t op1);    // LONG_TO_FLOAT
 extern "C" double __floatdidf(int64_t op1);   // LONG_TO_DOUBLE
 extern "C" int64_t __fixsfdi(float op1);      // FLOAT_TO_LONG
 extern "C" int64_t __fixdfdi(double op1);     // DOUBLE_TO_LONG
-extern int64_t D2L(double d);
-extern int64_t F2L(float f);
 
 // Single-precision FP arithmetics.
 extern "C" float __addsf3(float a, float b);   // ADD_FLOAT[_2ADDR]
@@ -213,8 +212,8 @@ void InitEntryPoints(EntryPoints* points) {
   points->pD2iz = __fixdfsi;
   points->pF2iz = __fixsfi;
   points->pIdivmod = NULL;
-  points->pD2l = D2L;
-  points->pF2l = F2L;
+  points->pD2l = art_d2l;
+  points->pF2l = art_f2l;
   points->pLdiv = NULL;
   points->pLdivmod = NULL;
   points->pLmul = NULL;

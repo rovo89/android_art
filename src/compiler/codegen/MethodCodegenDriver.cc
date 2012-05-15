@@ -225,9 +225,9 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
       loadWordDisp(cUnit, rSELF, exOffset, rlResult.lowReg);
       loadConstant(cUnit, resetReg, 0);
       storeWordDisp(cUnit, rSELF, exOffset, resetReg);
-      storeValue(cUnit, rlDest, rlResult);
       oatFreeTemp(cUnit, resetReg);
 #endif
+      storeValue(cUnit, rlDest, rlResult);
       break;
     }
     case Instruction::RETURN_VOID:

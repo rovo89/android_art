@@ -1060,7 +1060,7 @@ void genIPut(CompilationUnit* cUnit, MIR* mir, OpSize size, RegLocation rlSrc,
       if (isVolatile) {
         oatGenMemBarrier(cUnit, kST);
       }
-      storePair(cUnit, regPtr, rlSrc.lowReg, rlSrc.highReg);
+      storeBaseDispWide(cUnit, regPtr, 0, rlSrc.lowReg, rlSrc.highReg);
       if (isVolatile) {
         oatGenMemBarrier(cUnit, kSY);
       }
@@ -1642,7 +1642,7 @@ void genArrayPut(CompilationUnit* cUnit, MIR* mir, OpSize size,
       oatFreeTemp(cUnit, regLen);
     }
 
-    storePair(cUnit, regPtr, rlSrc.lowReg, rlSrc.highReg);
+    storeBaseDispWide(cUnit, regPtr, 0, rlSrc.lowReg, rlSrc.highReg);
 
     oatFreeTemp(cUnit, regPtr);
   } else {
