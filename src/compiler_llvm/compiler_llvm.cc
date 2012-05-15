@@ -55,11 +55,17 @@ namespace {
 pthread_once_t llvm_initialized = PTHREAD_ONCE_INIT;
 
 void InitializeLLVM() {
+  // Initialize LLVM internal data structure for multithreading
+  llvm::llvm_start_multithreaded();
+
   // NOTE: Uncomment following line to show the time consumption of LLVM passes
   //llvm::TimePassesIsEnabled = true;
 
   // Enable -arm-reserve-r9
   ReserveR9 = true;
+
+  // Enable -arm-long-calls
+  EnableARMLongCalls = false;
 
   // Initialize LLVM target, MC subsystem, asm printer, and asm parser
   llvm::InitializeAllTargets();
@@ -67,9 +73,6 @@ void InitializeLLVM() {
   llvm::InitializeAllAsmPrinters();
   llvm::InitializeAllAsmParsers();
   // TODO: Maybe we don't have to initialize "all" targets.
-
-  // Enable -arm-long-calls
-  EnableARMLongCalls = false;
 
   // Initialize LLVM optimization passes
   llvm::PassRegistry &registry = *llvm::PassRegistry::getPassRegistry();
@@ -83,9 +86,6 @@ void InitializeLLVM() {
   llvm::initializeInstCombine(registry);
   llvm::initializeInstrumentation(registry);
   llvm::initializeTarget(registry);
-
-  // Initialize LLVM internal data structure for multithreading
-  llvm::llvm_start_multithreaded();
 }
 
 // The Guard to Shutdown LLVM
