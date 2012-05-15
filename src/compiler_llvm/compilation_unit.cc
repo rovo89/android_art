@@ -429,8 +429,9 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream) {
   pm_builder.OptLevel = 3;
   pm_builder.DisableSimplifyLibCalls = 1;
   pm_builder.DisableUnitAtATime = 1;
-  pm_builder.populateModulePassManager(pm);
   pm_builder.populateFunctionPassManager(fpm);
+  pm_builder.populateModulePassManager(pm);
+  pm.add(llvm::createStripDeadPrototypesPass());
 
   // Add passes to emit ELF image
   {
