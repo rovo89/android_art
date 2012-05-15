@@ -113,7 +113,7 @@ void Thread::InitCpu() {
   uint16_t rpl = 3;  // Requested privilege level
   uint16_t selector = (entry_number << 3) | table_indicator | rpl;
   // TODO: use our assembler to generate code
-  asm volatile("movw %w0, %%fs"
+  __asm__ __volatile__("movw %w0, %%fs"
       :    // output
       : "q"(selector)  // input
       :);  // clobber
@@ -125,7 +125,7 @@ void Thread::InitCpu() {
   Thread* self_check;
   // TODO: use our assembler to generate code
   CHECK_EQ(THREAD_SELF_OFFSET, OFFSETOF_MEMBER(Thread, self_));
-  asm volatile("movl %%fs:(%1), %0"
+  __asm__ __volatile__("movl %%fs:(%1), %0"
       : "=r"(self_check)  // output
       : "r"(THREAD_SELF_OFFSET)  // input
       :);  // clobber

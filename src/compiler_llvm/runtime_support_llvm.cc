@@ -47,7 +47,7 @@ namespace art {
 Thread* art_get_current_thread_from_code() {
 #if defined(__i386__)
   Thread* ptr;
-  asm volatile("movl %%fs:(%1), %0"
+  __asm__ __volatile__("movl %%fs:(%1), %0"
       : "=r"(ptr)  // output
       : "r"(THREAD_SELF_OFFSET)  // input
       :);  // clobber
