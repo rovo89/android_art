@@ -434,6 +434,18 @@ class MethodCompiler {
     EmitStoreDalvikRetValReg(GetJTypeFromShorty(shorty), space, new_value);
   }
 
+  // TODO: Use high-level IR to do this
+
+  struct MethodInfo {
+    int64_t this_reg_idx;
+    bool this_will_not_be_null;
+    bool has_invoke;
+    bool need_shadow_frame_entry;
+    bool need_shadow_frame;
+  };
+  MethodInfo method_info_;
+
+  void ComputeMethodInfo();
 
  private:
   CompilationUnit* cunit_;
