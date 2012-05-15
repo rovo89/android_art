@@ -160,10 +160,10 @@ declare void @art_check_put_array_element_from_code(%JavaObject*, %JavaObject*)
 ; Math
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-declare i64 @D2L(double)
-declare i32 @D2I(double)
-declare i64 @F2L(float)
-declare i32 @F2I(float)
+declare i64 @art_d2l(double)
+declare i32 @art_d2i(double)
+declare i64 @art_f2l(float)
+declare i32 @art_f2i(float)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Temporary runtime support, will be removed in the future

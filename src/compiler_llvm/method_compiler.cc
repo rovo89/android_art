@@ -801,11 +801,11 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::FLOAT_TO_INT:
-    EmitInsn_FPToInt(ARGS, kFloat, kInt, F2I);
+    EmitInsn_FPToInt(ARGS, kFloat, kInt, art_f2i);
     break;
 
   case Instruction::FLOAT_TO_LONG:
-    EmitInsn_FPToInt(ARGS, kFloat, kLong, F2L);
+    EmitInsn_FPToInt(ARGS, kFloat, kLong, art_f2l);
     break;
 
   case Instruction::FLOAT_TO_DOUBLE:
@@ -813,11 +813,11 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     break;
 
   case Instruction::DOUBLE_TO_INT:
-    EmitInsn_FPToInt(ARGS, kDouble, kInt, D2I);
+    EmitInsn_FPToInt(ARGS, kDouble, kInt, art_d2i);
     break;
 
   case Instruction::DOUBLE_TO_LONG:
-    EmitInsn_FPToInt(ARGS, kDouble, kLong, D2L);
+    EmitInsn_FPToInt(ARGS, kDouble, kLong, art_d2l);
     break;
 
   case Instruction::DOUBLE_TO_FLOAT:

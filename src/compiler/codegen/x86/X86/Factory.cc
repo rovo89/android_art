@@ -47,8 +47,6 @@ namespace art {
 };
 
 void genBarrier(CompilationUnit *cUnit);
-void storePair(CompilationUnit *cUnit, int base, int lowReg,
-               int highReg);
 void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg);
 LIR *loadWordDisp(CompilationUnit *cUnit, int rBase, int displacement,
                       int rDest);
@@ -670,12 +668,6 @@ LIR *storeBaseDispWide(CompilationUnit *cUnit, int rBase, int displacement,
 {
   return storeBaseIndexedDisp(cUnit, NULL, rBase, INVALID_REG, 0, displacement,
                               rSrcLo, rSrcHi, kLong, INVALID_SREG);
-}
-
-void storePair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
-{
-  storeWordDisp(cUnit, base, 0, lowReg);
-  storeWordDisp(cUnit, base, 4, highReg);
 }
 
 void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg)

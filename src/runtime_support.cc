@@ -18,13 +18,19 @@
 
 #include "ScopedLocalRef.h"
 
-namespace art {
+double art_l2d(int64_t l) {
+  return (double) l;
+}
+
+float art_l2f(int64_t l) {
+  return (float) l;
+}
 
 /*
  * Float/double conversion requires clamping to min and max of integer form.  If
  * target doesn't support this normally, use these.
  */
-int64_t D2L(double d) {
+int64_t art_d2l(double d) {
   static const double kMaxLong = (double) (int64_t) 0x7fffffffffffffffULL;
   static const double kMinLong = (double) (int64_t) 0x8000000000000000ULL;
   if (d >= kMaxLong) {
@@ -38,7 +44,7 @@ int64_t D2L(double d) {
   }
 }
 
-int64_t F2L(float f) {
+int64_t art_f2l(float f) {
   static const float kMaxLong = (float) (int64_t) 0x7fffffffffffffffULL;
   static const float kMinLong = (float) (int64_t) 0x8000000000000000ULL;
   if (f >= kMaxLong) {
@@ -52,7 +58,7 @@ int64_t F2L(float f) {
   }
 }
 
-int32_t D2I(double d) {
+int32_t art_d2i(double d) {
   static const double kMaxInt = (double) (int32_t) 0x7fffffffUL;
   static const double kMinInt = (double) (int32_t) 0x80000000UL;
   if (d >= kMaxInt) {
@@ -66,7 +72,7 @@ int32_t D2I(double d) {
   }
 }
 
-int32_t F2I(float f) {
+int32_t art_f2i(float f) {
   static const float kMaxInt = (float) (int32_t) 0x7fffffffUL;
   static const float kMinInt = (float) (int32_t) 0x80000000UL;
   if (f >= kMaxInt) {
@@ -79,6 +85,8 @@ int32_t F2I(float f) {
     return (int32_t) f;
   }
 }
+
+namespace art {
 
 void ThrowNewIllegalAccessErrorClass(Thread* self,
                                      Class* referrer,

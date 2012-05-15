@@ -76,7 +76,7 @@ test-art-gtest: test-art-host-gtest test-art-target-gtest
 	@echo test-art-gtest PASSED
 
 .PHONY: test-art-oat
-test-art-oat: test-art-target-oat # test-art-host-oat
+test-art-oat: test-art-target-oat test-art-host-oat
 	@echo test-art-oat PASSED
 
 ########################################################################
@@ -84,7 +84,7 @@ test-art-oat: test-art-target-oat # test-art-host-oat
 
 # "mm test-art-host" to build and run all host tests
 .PHONY: test-art-host
-test-art-host: test-art-host-gtest # test-art-host-oat # test-art-host-run-test
+test-art-host: test-art-host-gtest test-art-host-oat # test-art-host-run-test
 	@echo test-art-host PASSED
 
 .PHONY: test-art-host-dependencies
