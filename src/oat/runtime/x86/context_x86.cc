@@ -63,7 +63,7 @@ void X86Context::DoLongJump() {
   // correct delivery instruction.
   gprs_[ESP] -= 4;
   *(reinterpret_cast<uintptr_t*>(gprs_[ESP])) = eip_;
-  asm volatile(
+  __asm__ __volatile__(
       "pushl %4\n\t"
       "pushl %0\n\t"
       "pushl %1\n\t"
