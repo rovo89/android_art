@@ -2724,7 +2724,7 @@ class JII {
   }
 
   static jint DetachCurrentThread(JavaVM* vm) {
-    if (vm == NULL) {
+    if (vm == NULL || Thread::Current() == NULL) {
       return JNI_ERR;
     }
     JavaVMExt* raw_vm = reinterpret_cast<JavaVMExt*>(vm);
