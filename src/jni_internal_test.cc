@@ -35,7 +35,7 @@ class JniInternalTest : public CommonTest {
     // Turn on -verbose:jni for the JNI tests.
     gLogVerbosity.jni = true;
 
-    env_ = Thread::Current()->GetJniEnv();
+    vm_->AttachCurrentThread(&env_, NULL);
 
     ScopedLocalRef<jclass> aioobe(env_, env_->FindClass("java/lang/ArrayIndexOutOfBoundsException"));
     CHECK(aioobe.get() != NULL);
@@ -50,10 +50,23 @@ class JniInternalTest : public CommonTest {
     sioobe_ = reinterpret_cast<jclass>(env_->NewGlobalRef(sioobe.get()));
   }
 
+  void CleanUpJniEnv() {
+    if (aioobe_ != NULL) {
+      env_->DeleteGlobalRef(aioobe_);
+      aioobe_ = NULL;
+    }
+    if (ase_ != NULL) {
+      env_->DeleteGlobalRef(ase_);
+      ase_ = NULL;
+    }
+    if (sioobe_ != NULL) {
+      env_->DeleteGlobalRef(sioobe_);
+      sioobe_ = NULL;
+    }
+  }
+
   virtual void TearDown() {
-    env_->DeleteGlobalRef(aioobe_);
-    env_->DeleteGlobalRef(ase_);
-    env_->DeleteGlobalRef(sioobe_);
+    CleanUpJniEnv();
     CommonTest::TearDown();
   }
 
@@ -497,7 +510,7 @@ class JniInternalTest : public CommonTest {
   }
 
   JavaVMExt* vm_;
-  JNIEnvExt* env_;
+  JNIEnv* env_;
   jclass aioobe_;
   jclass ase_;
   jclass sioobe_;
@@ -1248,7 +1261,8 @@ TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
     // gets a new local reference...
     EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(inner2));
     // ...but the survivor should be in the local reference table.
-    EXPECT_TRUE(env_->locals.ContainsDirectPointer(inner2_direct_pointer));
+    JNIEnvExt* env = reinterpret_cast<JNIEnvExt*>(env_);
+    EXPECT_TRUE(env->locals.ContainsDirectPointer(inner2_direct_pointer));
 
     env_->PopLocalFrame(NULL);
   }
@@ -1561,6 +1575,16 @@ TEST_F(JniInternalTest, MonitorEnterExit) {
     env_->MonitorExit(NULL);
     check_jni_abort_catcher.Check("in call to MonitorExit");
   }
+}
+
+TEST_F(JniInternalTest, DetachCurrentThread) {
+  CleanUpJniEnv();  // cleanup now so TearDown won't have junk from wrong JNIEnv
+  jint ok = vm_->DetachCurrentThread();
+  EXPECT_EQ(JNI_OK, ok);
+
+  jint err = vm_->DetachCurrentThread();
+  EXPECT_EQ(JNI_ERR, err);
+  vm_->AttachCurrentThread(&env_, NULL);  // need attached thread for CommonTest::TearDown
 }
 
 }  // namespace art
