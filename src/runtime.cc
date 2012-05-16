@@ -836,7 +836,11 @@ void Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, Objec
 }
 
 void Runtime::DetachCurrentThread() {
-  if (Thread::Current()->GetTopOfStack().GetSP() != NULL) {
+  Thread* self = Thread::Current();
+  if (self == NULL) {
+    LOG(FATAL) << "attempting to detach thread that is not attached";
+  }
+  if (self->GetTopOfStack().GetSP() != NULL) {
     LOG(FATAL) << *Thread::Current() << " attempting to detach while still running code";
   }
   thread_list_->Unregister();
