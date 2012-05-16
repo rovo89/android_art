@@ -75,7 +75,7 @@ void ThreadList::ModifySuspendCount(Thread* thread, int delta, bool for_debugger
 #endif
   if (delta == -1 && thread->suspend_count_ <= 0) {
     // This is expected if you attach a thread during a GC.
-    if (thread->GetState() != kStarting && thread->GetPeer() != NULL) {
+    if (!thread->IsStillStarting()) {
       LOG(FATAL) << *thread << " suspend count already zero";
     }
     return;
