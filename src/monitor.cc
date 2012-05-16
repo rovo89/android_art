@@ -338,10 +338,8 @@ bool Monitor::Unlock(Thread* self) {
   return true;
 }
 
-/*
- * Converts the given relative waiting time into an absolute time.
- */
-static void ToAbsoluteTime(int64_t ms, int32_t ns, struct timespec *ts) {
+// Converts the given waiting time (relative to "now") into an absolute time in 'ts'.
+static void ToAbsoluteTime(int64_t ms, int32_t ns, timespec* ts) {
   int64_t endSec;
 
 #ifdef HAVE_TIMEDWAIT_MONOTONIC
@@ -356,7 +354,9 @@ static void ToAbsoluteTime(int64_t ms, int32_t ns, struct timespec *ts) {
 #endif
   endSec = ts->tv_sec + ms / 1000;
   if (endSec >= 0x7fffffff) {
-    LOG(INFO) << "Note: end time exceeds epoch";
+    std::ostringstream ss;
+    Thread::Current()->Dump(ss);
+    LOG(INFO) << "Note: end time exceeds epoch: " << ss.str();
     endSec = 0x7ffffffe;
   }
   ts->tv_sec = endSec;
