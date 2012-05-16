@@ -72,6 +72,8 @@ static Method* gThread_run = NULL;
 static Method* gThreadGroup_removeThread = NULL;
 static Method* gUncaughtExceptionHandler_uncaughtException = NULL;
 
+static const char* kThreadNameDuringStartup = "<native thread without managed peer>";
+
 void Thread::InitCardTable() {
   card_table_ = Runtime::Current()->GetHeap()->GetCardTable()->GetBiasedBegin();
 }
@@ -109,6 +111,7 @@ void Thread::InitTid() {
 
 void Thread::InitAfterFork() {
   InitTid();
+
 #if defined(__BIONIC__)
   // Work around a bionic bug.
   struct bionic_pthread_internal_t {
@@ -118,7 +121,12 @@ void Thread::InitAfterFork() {
     pid_t kernel_id;
     // et cetera. we just need 'kernel_id' so we can stop here.
   };
-  reinterpret_cast<bionic_pthread_internal_t*>(pthread_self())->kernel_id = tid_;
+  bionic_pthread_internal_t* self = reinterpret_cast<bionic_pthread_internal_t*>(pthread_self());
+  if (self->kernel_id == tid_) {
+    // TODO: if you see this logging, you can remove this code!
+    LOG(INFO) << "*** this tree doesn't have the bionic pthread kernel_id bug";
+  }
+  self->kernel_id = tid_;
 #endif
 }
 
@@ -910,9 +918,19 @@ Thread::Thread()
       pre_allocated_OutOfMemoryError_(NULL),
       debug_invoke_req_(new DebugInvokeReq),
       trace_stack_(new std::vector<TraceStackFrame>),
-      name_(new std::string("<native thread without managed peer>")) {
+      name_(new std::string(kThreadNameDuringStartup)) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
   memset(&held_mutexes_[0], 0, sizeof(held_mutexes_));
+}
+
+bool Thread::IsStillStarting() const {
+  // You might think you can check whether the state is kStarting, but for much of thread startup,
+  // the thread might also be in kVmWait.
+  // You might think you can check whether the peer is NULL, but the peer is actually created and
+  // assigned fairly early on, and needs to be.
+  // It turns out that the last thing to change is the thread name; that's a good proxy for "has
+  // this thread _ever_ entered kRunnable".
+  return (*name_ == kThreadNameDuringStartup);
 }
 
 static void MonitorExitVisitor(const Object* object, void*) {

@@ -202,6 +202,8 @@ class PACKED Thread {
     return suspend_count_;
   }
 
+  bool IsStillStarting() const;
+
   // Returns the current Method* and native PC (not dex PC) for this thread.
   Method* GetCurrentMethod(uintptr_t* pc = NULL, Method*** sp = NULL) const;
 
