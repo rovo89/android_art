@@ -141,7 +141,8 @@ class AddSuspendCheckToLoopLatchPass : public llvm::LoopPass {
 
     irb_->SetInsertPoint(bb->getTerminator());
 
-    using namespace art::compiler_llvm::runtime_support;
+    using art::compiler_llvm::runtime_support::TestSuspend;
+    using art::compiler_llvm::runtime_support::GetCurrentThread;
     llvm::Value* runtime_func = irb_->GetRuntime(TestSuspend);
     llvm::Value* thread_object_addr = irb_->CreateCall(irb_->GetRuntime(GetCurrentThread));
     irb_->CreateCall(runtime_func, thread_object_addr);
