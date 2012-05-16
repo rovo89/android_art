@@ -175,7 +175,9 @@ void MethodCompiler::EmitPrologue() {
   retval_reg_.reset(DalvikReg::CreateRetValReg(*this));
 
   // Create Shadow Frame
-  EmitPrologueAllocShadowFrame();
+  if (method_info_.need_shadow_frame) {
+    EmitPrologueAllocShadowFrame();
+  }
 
   // Store argument to dalvik register
   irb_.SetInsertPoint(basic_block_reg_arg_init_);
@@ -240,7 +242,13 @@ void MethodCompiler::EmitPrologueLastBranch() {
   irb_.SetInsertPoint(basic_block_reg_alloca_);
   irb_.CreateBr(basic_block_stack_overflow_);
 
-  EmitStackOverflowCheck();
+  // If a method will not call to other method, and the method is small, we can avoid stack overflow
+  // check.
+  if (method_info_.has_invoke ||
+      code_item_->registers_size_ > 32) {  // Small leaf function is OK given
+                                           // the 8KB reserved at Stack End
+    EmitStackOverflowCheck();
+  }
 
   irb_.SetInsertPoint(basic_block_stack_overflow_);
   irb_.CreateBr(basic_block_shadow_frame_alloca_);
@@ -1540,8 +1548,9 @@ void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
   llvm::Value* object_addr =
     EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
 
-  // TODO: Slow path always. May not need NullPointerException check.
-  EmitGuard_NullPointerException(dex_pc, object_addr);
+  if (!(method_info_.this_will_not_be_null && dec_insn.vA == method_info_.this_reg_idx)) {
+    EmitGuard_NullPointerException(dex_pc, object_addr);
+  }
 
   llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
 
@@ -1559,7 +1568,9 @@ void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
   llvm::Value* object_addr =
     EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
 
-  EmitGuard_NullPointerException(dex_pc, object_addr);
+  if (!(method_info_.this_will_not_be_null && dec_insn.vA == method_info_.this_reg_idx)) {
+    EmitGuard_NullPointerException(dex_pc, object_addr);
+  }
 
   EmitUpdateDexPC(dex_pc);
 
@@ -2335,7 +2346,9 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
 
   llvm::Value* object_addr = EmitLoadDalvikReg(reg_idx, kObject, kAccurate);
 
-  EmitGuard_NullPointerException(dex_pc, object_addr);
+  if (!(method_info_.this_will_not_be_null && reg_idx == method_info_.this_reg_idx)) {
+    EmitGuard_NullPointerException(dex_pc, object_addr);
+  }
 
   llvm::Value* field_value;
 
@@ -2399,7 +2412,9 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
 
   llvm::Value* object_addr = EmitLoadDalvikReg(reg_idx, kObject, kAccurate);
 
-  EmitGuard_NullPointerException(dex_pc, object_addr);
+  if (!(method_info_.this_will_not_be_null && reg_idx == method_info_.this_reg_idx)) {
+    EmitGuard_NullPointerException(dex_pc, object_addr);
+  }
 
   llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA, field_jty, kField);
 
@@ -2747,11 +2762,12 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
 
   if (!is_static) {
     // Test: Is *this* parameter equal to null?
-    this_addr = (arg_fmt == kArgReg) ?
-      EmitLoadDalvikReg(dec_insn.arg[0], kObject, kAccurate):
-      EmitLoadDalvikReg(dec_insn.vC + 0, kObject, kAccurate);
+    uint32_t reg_idx = (arg_fmt == kArgReg) ? dec_insn.arg[0] : (dec_insn.vC + 0);
+    this_addr = EmitLoadDalvikReg(reg_idx, kObject, kAccurate);
 
-    EmitGuard_NullPointerException(dex_pc, this_addr);
+    if (!(method_info_.this_will_not_be_null && reg_idx == method_info_.this_reg_idx)) {
+      EmitGuard_NullPointerException(dex_pc, this_addr);
+    }
   }
 
   // Load the method object
@@ -3601,6 +3617,10 @@ EmitLoadDexCacheStringFieldAddr(uint32_t string_idx) {
 
 
 CompiledMethod *MethodCompiler::Compile() {
+  // TODO: Use high-level IR to do this
+  // Compute method info
+  ComputeMethodInfo();
+
   // Code generation
   CreateFunction();
 
@@ -3613,7 +3633,7 @@ CompiledMethod *MethodCompiler::Compile() {
 
   // Add the memory usage approximation of the compilation unit
   cunit_->AddMemUsageApproximation(code_item_->insns_size_in_code_units_ * 900);
-  // NOTE: From statistic, the bitcode size is 4.5 times bigger than the
+  // NOTE: From statistics, the bitcode size is 4.5 times bigger than the
   // Dex file.  Besides, we have to convert the code unit into bytes.
   // Thus, we got our magic number 9.
 
@@ -3659,6 +3679,10 @@ void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
 
 
 void MethodCompiler::EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc) {
+  if (!method_info_.need_shadow_frame_entry) {
+    return;
+  }
+
   llvm::Value* runtime_func = irb_.GetRuntime(TestSuspend);
 
   llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
@@ -3860,6 +3884,10 @@ llvm::Value* MethodCompiler::AllocShadowFrameEntry(uint32_t reg_idx) {
     return NULL;
   }
 
+  if (!method_info_.need_shadow_frame_entry) {
+    return NULL;
+  }
+
   std::string reg_name;
 
 #if !defined(NDEBUG)
@@ -3912,16 +3940,553 @@ llvm::Value* MethodCompiler::AllocDalvikRetValReg(RegCategory cat) {
 
 
 void MethodCompiler::EmitPopShadowFrame() {
+  if (!method_info_.need_shadow_frame) {
+    return;
+  }
   irb_.CreateCall(irb_.GetRuntime(PopShadowFrame));
 }
 
 
 void MethodCompiler::EmitUpdateDexPC(uint32_t dex_pc) {
+  if (!method_info_.need_shadow_frame) {
+    return;
+  }
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::DexPCOffset(),
                            irb_.getInt32(dex_pc),
                            kTBAAShadowFrame);
 }
+
+
+// TODO: Use high-level IR to do this
+void MethodCompiler::ComputeMethodInfo() {
+  // If this method is static, we set the "this" register index to -1. So we don't worry about this
+  // method is static or not in the following comparison.
+  int64_t this_reg_idx = (oat_compilation_unit_->IsStatic()) ?
+                         (-1) :
+                         (code_item_->registers_size_ - code_item_->ins_size_);
+  bool has_invoke = false;
+  bool may_have_loop = false;
+  bool modify_this = false;
+  bool may_throw_exception = false;
+
+  Instruction const* insn;
+  for (uint32_t dex_pc = 0;
+       dex_pc < code_item_->insns_size_in_code_units_;
+       dex_pc += insn->SizeInCodeUnits()) {
+    insn = Instruction::At(code_item_->insns_ + dex_pc);
+    DecodedInstruction dec_insn(insn);
+
+    switch (insn->Opcode()) {
+    case Instruction::NOP:
+      break;
+
+    case Instruction::MOVE:
+    case Instruction::MOVE_FROM16:
+    case Instruction::MOVE_16:
+    case Instruction::MOVE_WIDE:
+    case Instruction::MOVE_WIDE_FROM16:
+    case Instruction::MOVE_WIDE_16:
+    case Instruction::MOVE_OBJECT:
+    case Instruction::MOVE_OBJECT_FROM16:
+    case Instruction::MOVE_OBJECT_16:
+    case Instruction::MOVE_RESULT:
+    case Instruction::MOVE_RESULT_WIDE:
+    case Instruction::MOVE_RESULT_OBJECT:
+    case Instruction::MOVE_EXCEPTION:
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::RETURN_VOID:
+    case Instruction::RETURN:
+    case Instruction::RETURN_WIDE:
+    case Instruction::RETURN_OBJECT:
+      break;
+
+    case Instruction::CONST_4:
+    case Instruction::CONST_16:
+    case Instruction::CONST:
+    case Instruction::CONST_HIGH16:
+    case Instruction::CONST_WIDE_16:
+    case Instruction::CONST_WIDE_32:
+    case Instruction::CONST_WIDE:
+    case Instruction::CONST_WIDE_HIGH16:
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::CONST_STRING:
+    case Instruction::CONST_STRING_JUMBO:
+      // TODO: Will the ResolveString throw exception?
+      if (!compiler_->CanAssumeStringIsPresentInDexCache(dex_cache_, dec_insn.vB)) {
+        may_throw_exception = true;
+      }
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::CONST_CLASS:
+      may_throw_exception = true;
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::MONITOR_ENTER:
+    case Instruction::MONITOR_EXIT:
+    case Instruction::CHECK_CAST:
+      may_throw_exception = true;
+      break;
+
+    case Instruction::INSTANCE_OF:
+      may_throw_exception = true;
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::ARRAY_LENGTH:
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::NEW_INSTANCE:
+    case Instruction::NEW_ARRAY:
+      may_throw_exception = true;
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::FILLED_NEW_ARRAY:
+    case Instruction::FILLED_NEW_ARRAY_RANGE:
+    case Instruction::FILL_ARRAY_DATA:
+    case Instruction::THROW:
+      may_throw_exception = true;
+      break;
+
+    case Instruction::GOTO:
+    case Instruction::GOTO_16:
+    case Instruction::GOTO_32:
+      {
+        int32_t branch_offset = dec_insn.vA;
+        if (branch_offset <= 0) {
+          Instruction const* target = Instruction::At(code_item_->insns_ + dex_pc + branch_offset);
+          // According to the statistics, there are a few methods have "fake" back edge, which means
+          // the backedge is not for a loop.
+          // The most "fake" edges in the small methods are just branches to a return instruction. So
+          // we can do an simple check to avoid false loop detection. After we have a high-level IR
+          // before IRBuilder, we should remove this trick.
+          switch (target->Opcode()) {
+          default:
+            may_have_loop = true;
+            break;
+          case Instruction::RETURN_VOID:
+          case Instruction::RETURN:
+          case Instruction::RETURN_WIDE:
+          case Instruction::RETURN_OBJECT:
+            break;
+          }
+        }
+      }
+      break;
+
+    case Instruction::PACKED_SWITCH:
+    case Instruction::SPARSE_SWITCH:
+      break;
+
+    case Instruction::CMPL_FLOAT:
+    case Instruction::CMPG_FLOAT:
+    case Instruction::CMPL_DOUBLE:
+    case Instruction::CMPG_DOUBLE:
+    case Instruction::CMP_LONG:
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::IF_EQ:
+    case Instruction::IF_NE:
+    case Instruction::IF_LT:
+    case Instruction::IF_GE:
+    case Instruction::IF_GT:
+    case Instruction::IF_LE:
+      {
+        int32_t branch_offset = dec_insn.vC;
+        if (branch_offset <= 0) {
+          Instruction const* target = Instruction::At(code_item_->insns_ + dex_pc + branch_offset);
+          switch (target->Opcode()) {
+          default:
+            may_have_loop = true;
+            break;
+          case Instruction::RETURN_VOID:
+          case Instruction::RETURN:
+          case Instruction::RETURN_WIDE:
+          case Instruction::RETURN_OBJECT:
+            break;
+          }
+        }
+      }
+      break;
+
+    case Instruction::IF_EQZ:
+    case Instruction::IF_NEZ:
+    case Instruction::IF_LTZ:
+    case Instruction::IF_GEZ:
+    case Instruction::IF_GTZ:
+    case Instruction::IF_LEZ:
+      {
+        int32_t branch_offset = dec_insn.vB;
+        if (branch_offset <= 0) {
+          Instruction const* target = Instruction::At(code_item_->insns_ + dex_pc + branch_offset);
+          switch (target->Opcode()) {
+          default:
+            may_have_loop = true;
+            break;
+          case Instruction::RETURN_VOID:
+          case Instruction::RETURN:
+          case Instruction::RETURN_WIDE:
+          case Instruction::RETURN_OBJECT:
+            break;
+          }
+        }
+      }
+      break;
+
+    case Instruction::AGET:
+    case Instruction::AGET_WIDE:
+    case Instruction::AGET_OBJECT:
+    case Instruction::AGET_BOOLEAN:
+    case Instruction::AGET_BYTE:
+    case Instruction::AGET_CHAR:
+    case Instruction::AGET_SHORT:
+      may_throw_exception = true;
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::APUT:
+    case Instruction::APUT_WIDE:
+    case Instruction::APUT_OBJECT:
+    case Instruction::APUT_BOOLEAN:
+    case Instruction::APUT_BYTE:
+    case Instruction::APUT_CHAR:
+    case Instruction::APUT_SHORT:
+      may_throw_exception = true;
+      break;
+
+    case Instruction::IGET:
+    case Instruction::IGET_WIDE:
+    case Instruction::IGET_OBJECT:
+    case Instruction::IGET_BOOLEAN:
+    case Instruction::IGET_BYTE:
+    case Instruction::IGET_CHAR:
+    case Instruction::IGET_SHORT:
+      {
+        if (dec_insn.vA == this_reg_idx) {
+          modify_this = true;
+        }
+        uint32_t reg_idx = dec_insn.vB;
+        uint32_t field_idx = dec_insn.vC;
+        int field_offset;
+        bool is_volatile;
+        bool is_fast_path = compiler_->ComputeInstanceFieldInfo(
+          field_idx, oat_compilation_unit_, field_offset, is_volatile, false);
+        if (!is_fast_path) {
+          may_throw_exception = true;
+        } else if (reg_idx != this_reg_idx) {
+          // NullPointerException
+          may_throw_exception = true;
+        }
+      }
+      break;
+
+    case Instruction::IPUT:
+    case Instruction::IPUT_WIDE:
+    case Instruction::IPUT_OBJECT:
+    case Instruction::IPUT_BOOLEAN:
+    case Instruction::IPUT_BYTE:
+    case Instruction::IPUT_CHAR:
+    case Instruction::IPUT_SHORT:
+      {
+        uint32_t reg_idx = dec_insn.vB;
+        uint32_t field_idx = dec_insn.vC;
+        int field_offset;
+        bool is_volatile;
+        bool is_fast_path = compiler_->ComputeInstanceFieldInfo(
+          field_idx, oat_compilation_unit_, field_offset, is_volatile, true);
+        if (!is_fast_path) {
+          may_throw_exception = true;
+        } else if (reg_idx != this_reg_idx) {
+          // NullPointerException
+          may_throw_exception = true;
+        }
+      }
+      break;
+
+    case Instruction::SGET:
+    case Instruction::SGET_WIDE:
+    case Instruction::SGET_OBJECT:
+    case Instruction::SGET_BOOLEAN:
+    case Instruction::SGET_BYTE:
+    case Instruction::SGET_CHAR:
+    case Instruction::SGET_SHORT:
+      {
+        if (dec_insn.vA == this_reg_idx) {
+          modify_this = true;
+        }
+        uint32_t field_idx = dec_insn.vB;
+
+        int field_offset;
+        int ssb_index;
+        bool is_referrers_class;
+        bool is_volatile;
+
+        bool is_fast_path = compiler_->ComputeStaticFieldInfo(
+          field_idx, oat_compilation_unit_, field_offset, ssb_index,
+          is_referrers_class, is_volatile, false);
+        if (!is_fast_path || !is_referrers_class) {
+          may_throw_exception = true;
+        }
+      }
+      break;
+
+    case Instruction::SPUT:
+    case Instruction::SPUT_WIDE:
+    case Instruction::SPUT_OBJECT:
+    case Instruction::SPUT_BOOLEAN:
+    case Instruction::SPUT_BYTE:
+    case Instruction::SPUT_CHAR:
+    case Instruction::SPUT_SHORT:
+      {
+        uint32_t field_idx = dec_insn.vB;
+
+        int field_offset;
+        int ssb_index;
+        bool is_referrers_class;
+        bool is_volatile;
+
+        bool is_fast_path = compiler_->ComputeStaticFieldInfo(
+          field_idx, oat_compilation_unit_, field_offset, ssb_index,
+          is_referrers_class, is_volatile, true);
+        if (!is_fast_path || !is_referrers_class) {
+          may_throw_exception = true;
+        }
+      }
+      break;
+
+
+    case Instruction::INVOKE_VIRTUAL:
+    case Instruction::INVOKE_SUPER:
+    case Instruction::INVOKE_DIRECT:
+    case Instruction::INVOKE_STATIC:
+    case Instruction::INVOKE_INTERFACE:
+    case Instruction::INVOKE_VIRTUAL_RANGE:
+    case Instruction::INVOKE_SUPER_RANGE:
+    case Instruction::INVOKE_DIRECT_RANGE:
+    case Instruction::INVOKE_STATIC_RANGE:
+    case Instruction::INVOKE_INTERFACE_RANGE:
+      has_invoke = true;
+      may_throw_exception = true;
+      break;
+
+    case Instruction::NEG_INT:
+    case Instruction::NOT_INT:
+    case Instruction::NEG_LONG:
+    case Instruction::NOT_LONG:
+    case Instruction::NEG_FLOAT:
+    case Instruction::NEG_DOUBLE:
+    case Instruction::INT_TO_LONG:
+    case Instruction::INT_TO_FLOAT:
+    case Instruction::INT_TO_DOUBLE:
+    case Instruction::LONG_TO_INT:
+    case Instruction::LONG_TO_FLOAT:
+    case Instruction::LONG_TO_DOUBLE:
+    case Instruction::FLOAT_TO_INT:
+    case Instruction::FLOAT_TO_LONG:
+    case Instruction::FLOAT_TO_DOUBLE:
+    case Instruction::DOUBLE_TO_INT:
+    case Instruction::DOUBLE_TO_LONG:
+    case Instruction::DOUBLE_TO_FLOAT:
+    case Instruction::INT_TO_BYTE:
+    case Instruction::INT_TO_CHAR:
+    case Instruction::INT_TO_SHORT:
+    case Instruction::ADD_INT:
+    case Instruction::SUB_INT:
+    case Instruction::MUL_INT:
+    case Instruction::AND_INT:
+    case Instruction::OR_INT:
+    case Instruction::XOR_INT:
+    case Instruction::SHL_INT:
+    case Instruction::SHR_INT:
+    case Instruction::USHR_INT:
+    case Instruction::ADD_LONG:
+    case Instruction::SUB_LONG:
+    case Instruction::MUL_LONG:
+    case Instruction::AND_LONG:
+    case Instruction::OR_LONG:
+    case Instruction::XOR_LONG:
+    case Instruction::SHL_LONG:
+    case Instruction::SHR_LONG:
+    case Instruction::USHR_LONG:
+    case Instruction::ADD_INT_2ADDR:
+    case Instruction::SUB_INT_2ADDR:
+    case Instruction::MUL_INT_2ADDR:
+    case Instruction::AND_INT_2ADDR:
+    case Instruction::OR_INT_2ADDR:
+    case Instruction::XOR_INT_2ADDR:
+    case Instruction::SHL_INT_2ADDR:
+    case Instruction::SHR_INT_2ADDR:
+    case Instruction::USHR_INT_2ADDR:
+    case Instruction::ADD_LONG_2ADDR:
+    case Instruction::SUB_LONG_2ADDR:
+    case Instruction::MUL_LONG_2ADDR:
+    case Instruction::AND_LONG_2ADDR:
+    case Instruction::OR_LONG_2ADDR:
+    case Instruction::XOR_LONG_2ADDR:
+    case Instruction::SHL_LONG_2ADDR:
+    case Instruction::SHR_LONG_2ADDR:
+    case Instruction::USHR_LONG_2ADDR:
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::DIV_INT:
+    case Instruction::REM_INT:
+    case Instruction::DIV_LONG:
+    case Instruction::REM_LONG:
+    case Instruction::DIV_INT_2ADDR:
+    case Instruction::REM_INT_2ADDR:
+    case Instruction::DIV_LONG_2ADDR:
+    case Instruction::REM_LONG_2ADDR:
+      may_throw_exception = true;
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::ADD_FLOAT:
+    case Instruction::SUB_FLOAT:
+    case Instruction::MUL_FLOAT:
+    case Instruction::DIV_FLOAT:
+    case Instruction::REM_FLOAT:
+    case Instruction::ADD_DOUBLE:
+    case Instruction::SUB_DOUBLE:
+    case Instruction::MUL_DOUBLE:
+    case Instruction::DIV_DOUBLE:
+    case Instruction::REM_DOUBLE:
+    case Instruction::ADD_FLOAT_2ADDR:
+    case Instruction::SUB_FLOAT_2ADDR:
+    case Instruction::MUL_FLOAT_2ADDR:
+    case Instruction::DIV_FLOAT_2ADDR:
+    case Instruction::REM_FLOAT_2ADDR:
+    case Instruction::ADD_DOUBLE_2ADDR:
+    case Instruction::SUB_DOUBLE_2ADDR:
+    case Instruction::MUL_DOUBLE_2ADDR:
+    case Instruction::DIV_DOUBLE_2ADDR:
+    case Instruction::REM_DOUBLE_2ADDR:
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::ADD_INT_LIT16:
+    case Instruction::ADD_INT_LIT8:
+    case Instruction::RSUB_INT:
+    case Instruction::RSUB_INT_LIT8:
+    case Instruction::MUL_INT_LIT16:
+    case Instruction::MUL_INT_LIT8:
+    case Instruction::AND_INT_LIT16:
+    case Instruction::AND_INT_LIT8:
+    case Instruction::OR_INT_LIT16:
+    case Instruction::OR_INT_LIT8:
+    case Instruction::XOR_INT_LIT16:
+    case Instruction::XOR_INT_LIT8:
+    case Instruction::SHL_INT_LIT8:
+    case Instruction::SHR_INT_LIT8:
+    case Instruction::USHR_INT_LIT8:
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+    case Instruction::DIV_INT_LIT16:
+    case Instruction::DIV_INT_LIT8:
+    case Instruction::REM_INT_LIT16:
+    case Instruction::REM_INT_LIT8:
+      if (dec_insn.vC == 0) {
+        may_throw_exception = true;
+      }
+      if (dec_insn.vA == this_reg_idx) {
+        modify_this = true;
+      }
+      break;
+
+    case Instruction::THROW_VERIFICATION_ERROR:
+      may_throw_exception = true;
+      break;
+
+    case Instruction::UNUSED_3E:
+    case Instruction::UNUSED_3F:
+    case Instruction::UNUSED_40:
+    case Instruction::UNUSED_41:
+    case Instruction::UNUSED_42:
+    case Instruction::UNUSED_43:
+    case Instruction::UNUSED_73:
+    case Instruction::UNUSED_79:
+    case Instruction::UNUSED_7A:
+    case Instruction::UNUSED_E3:
+    case Instruction::UNUSED_E4:
+    case Instruction::UNUSED_E5:
+    case Instruction::UNUSED_E6:
+    case Instruction::UNUSED_E7:
+    case Instruction::UNUSED_E8:
+    case Instruction::UNUSED_E9:
+    case Instruction::UNUSED_EA:
+    case Instruction::UNUSED_EB:
+    case Instruction::UNUSED_EC:
+    case Instruction::UNUSED_EE:
+    case Instruction::UNUSED_EF:
+    case Instruction::UNUSED_F0:
+    case Instruction::UNUSED_F1:
+    case Instruction::UNUSED_F2:
+    case Instruction::UNUSED_F3:
+    case Instruction::UNUSED_F4:
+    case Instruction::UNUSED_F5:
+    case Instruction::UNUSED_F6:
+    case Instruction::UNUSED_F7:
+    case Instruction::UNUSED_F8:
+    case Instruction::UNUSED_F9:
+    case Instruction::UNUSED_FA:
+    case Instruction::UNUSED_FB:
+    case Instruction::UNUSED_FC:
+    case Instruction::UNUSED_FD:
+    case Instruction::UNUSED_FE:
+    case Instruction::UNUSED_FF:
+      LOG(FATAL) << "Dex file contains UNUSED bytecode: " << insn->Opcode();
+      break;
+    }
+  }
+
+  method_info_.this_reg_idx = this_reg_idx;
+  // According to the statistics, there are few methods that modify the "this" pointer. So this is a
+  // simple way to avoid data flow analysis. After we have a high-level IR before IRBuilder, we
+  // should remove this trick.
+  method_info_.this_will_not_be_null = !modify_this;
+  method_info_.has_invoke = has_invoke;
+  // If this method has loop or invoke instruction, it may suspend. Thus we need a shadow frame entry
+  // for GC.
+  method_info_.need_shadow_frame_entry = has_invoke || may_have_loop;
+  // If this method may throw an exception, we need a shadow frame for stack trace (dexpc).
+  method_info_.need_shadow_frame = method_info_.need_shadow_frame_entry || may_throw_exception;
+}
+
 
 
 } // namespace compiler_llvm
