@@ -756,7 +756,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
     if (result_ref == NULL) {
       result_unboxed->SetL(NULL);
     } else {
-      bool unboxed_okay = UnboxPrimitive(result_ref, proxy_mh.GetReturnType(), *result_unboxed, "result");
+      bool unboxed_okay = UnboxPrimitiveForResult(result_ref, proxy_mh.GetReturnType(), *result_unboxed);
       if (!unboxed_okay) {
         thread->ClearException();
         thread->ThrowNewExceptionF("Ljava/lang/ClassCastException;",
