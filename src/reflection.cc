@@ -90,18 +90,13 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
   for (uint32_t i = 0; i < arg_count; ++i) {
     Object* arg = objects->Get(i);
     Class* dst_class = mh.GetClassFromTypeIdx(classes->GetTypeItem(i).type_idx_);
-    if (dst_class->IsPrimitive()) {
-      if (!UnboxPrimitiveForArgument(arg, dst_class, decoded_args[i], i)) {
+    if (dst_class->IsPrimitive() || (arg != NULL && !arg->InstanceOf(dst_class))) {
+      // We want to actually unbox primitives, but only reuse the error reporting for reference types.
+      if (!UnboxPrimitiveForArgument(arg, dst_class, decoded_args[i], m, i)) {
         return NULL;
       }
-    } else if (arg != NULL && !arg->InstanceOf(dst_class)) {
-      self->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
-                               "argument %d has type %s, got %s",
-                               i + 1,
-                               PrettyDescriptor(dst_class).c_str(),
-                               PrettyTypeOf(arg).c_str());
-      return NULL;
     } else {
+      // We already tested that these types are compatible.
       args[i].l = AddLocalReference<jobject>(env, arg);
     }
   }
@@ -271,9 +266,10 @@ void BoxPrimitive(Primitive::Type src_class, JValue& value) {
   m->Invoke(self, NULL, args, &value);
 }
 
-static std::string UnboxingFailureKind(int index, Field* f) {
-  if (index != -1) {
-    return StringPrintf("argument %d", index + 1); // Humans count from 1.
+static std::string UnboxingFailureKind(Method* m, int index, Field* f) {
+  if (m != NULL && index != -1) {
+    ++index; // Humans count from 1.
+    return StringPrintf("method %s argument %d", PrettyMethod(m, false).c_str(), index);
   }
   if (f != NULL) {
     return "field " + PrettyField(f, false);
@@ -281,12 +277,12 @@ static std::string UnboxingFailureKind(int index, Field* f) {
   return "result";
 }
 
-static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, int index, Field* f) {
+static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, Method* m, int index, Field* f) {
   if (!dst_class->IsPrimitive()) {
     if (o != NULL && !o->InstanceOf(dst_class)) {
       Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
                                             "%s has type %s, got %s",
-                                            UnboxingFailureKind(index, f).c_str(),
+                                            UnboxingFailureKind(m, index, f).c_str(),
                                             PrettyDescriptor(dst_class).c_str(),
                                             PrettyTypeOf(o).c_str());
       return false;
@@ -296,14 +292,14 @@ static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, i
   } else if (dst_class->GetPrimitiveType() == Primitive::kPrimVoid) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
                                           "can't unbox %s to void",
-                                          UnboxingFailureKind(index, f).c_str());
+                                          UnboxingFailureKind(m, index, f).c_str());
     return false;
   }
 
   if (o == NULL) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
                                           "%s has type %s, got null",
-                                          UnboxingFailureKind(index, f).c_str(),
+                                          UnboxingFailureKind(m, index, f).c_str(),
                                           PrettyDescriptor(dst_class).c_str());
     return false;
   }
@@ -340,7 +336,7 @@ static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, i
   } else {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
                                           "%s has type %s, got %s",
-                                          UnboxingFailureKind(index, f).c_str(),
+                                          UnboxingFailureKind(m, index, f).c_str(),
                                           PrettyDescriptor(dst_class).c_str(),
                                           PrettyDescriptor(src_descriptor.c_str()).c_str());
     return false;
@@ -350,17 +346,18 @@ static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, i
                                boxed_value, unboxed_value);
 }
 
-bool UnboxPrimitiveForArgument(Object* o, Class* dst_class, JValue& unboxed_value, size_t index) {
-  return UnboxPrimitive(o, dst_class, unboxed_value, index, NULL);
+bool UnboxPrimitiveForArgument(Object* o, Class* dst_class, JValue& unboxed_value, Method* m, size_t index) {
+  CHECK(m != NULL);
+  return UnboxPrimitive(o, dst_class, unboxed_value, m, index, NULL);
 }
 
 bool UnboxPrimitiveForField(Object* o, Class* dst_class, JValue& unboxed_value, Field* f) {
   CHECK(f != NULL);
-  return UnboxPrimitive(o, dst_class, unboxed_value, -1, f);
+  return UnboxPrimitive(o, dst_class, unboxed_value, NULL, -1, f);
 }
 
 bool UnboxPrimitiveForResult(Object* o, Class* dst_class, JValue& unboxed_value) {
-  return UnboxPrimitive(o, dst_class, unboxed_value, -1, NULL);
+  return UnboxPrimitive(o, dst_class, unboxed_value, NULL, -1, NULL);
 }
 
 }  // namespace art

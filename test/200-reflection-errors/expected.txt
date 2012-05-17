@@ -1,5 +1,5 @@
 field A.b has type java.lang.String, got java.lang.Integer
 field A.i has type int, got null
 field A.i has type int, got java.lang.String
-argument 2 has type java.lang.String, got java.lang.Integer
-argument 1 has type int, got null
+method A.m argument 2 has type java.lang.String, got java.lang.Integer
+method A.m argument 1 has type int, got null
