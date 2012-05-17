@@ -2257,7 +2257,6 @@ void MethodCompiler::EmitGuard_ArrayException(uint32_t dex_pc,
 // Emit Array GetElementPtr
 llvm::Value* MethodCompiler::EmitArrayGEP(llvm::Value* array_addr,
                                           llvm::Value* index_value,
-                                          llvm::Type* elem_type,
                                           JType elem_jty) {
 
   int data_offset;
@@ -2270,6 +2269,8 @@ llvm::Value* MethodCompiler::EmitArrayGEP(llvm::Value* array_addr,
 
   llvm::Constant* data_offset_value =
     irb_.getPtrEquivInt(data_offset);
+
+  llvm::Type* elem_type = irb_.getJType(elem_jty, kArray);
 
   llvm::Value* array_data_addr =
     irb_.CreatePtrDisp(array_addr, data_offset_value,
@@ -2290,10 +2291,7 @@ void MethodCompiler::EmitInsn_AGet(uint32_t dex_pc,
 
   EmitGuard_ArrayException(dex_pc, array_addr, index_value);
 
-  llvm::Type* elem_type = irb_.getJType(elem_jty, kArray);
-
-  llvm::Value* array_elem_addr =
-    EmitArrayGEP(array_addr, index_value, elem_type, elem_jty);
+  llvm::Value* array_elem_addr = EmitArrayGEP(array_addr, index_value, elem_jty);
 
   llvm::Value* array_elem_value = irb_.CreateLoad(array_elem_addr, kTBAAHeapArray, elem_jty);
 
@@ -2314,10 +2312,7 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
 
   EmitGuard_ArrayException(dex_pc, array_addr, index_value);
 
-  llvm::Type* elem_type = irb_.getJType(elem_jty, kArray);
-
-  llvm::Value* array_elem_addr =
-    EmitArrayGEP(array_addr, index_value, elem_type, elem_jty);
+  llvm::Value* array_elem_addr = EmitArrayGEP(array_addr, index_value, elem_jty);
 
   llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA, elem_jty, kArray);
 
@@ -2963,7 +2958,7 @@ EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx,
     irb_.getPtrEquivInt(static_cast<uint64_t>(vtable_idx));
 
   llvm::Value* method_field_addr =
-    EmitArrayGEP(vtable_addr, vtable_idx_value, irb_.getJObjectTy(), kObject);
+    EmitArrayGEP(vtable_addr, vtable_idx_value, kObject);
 
   return irb_.CreateLoad(method_field_addr, kTBAAConstJObject);
 }
@@ -3577,8 +3572,7 @@ EmitLoadDexCacheStaticStorageFieldAddr(uint32_t type_idx) {
 
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
-  return EmitArrayGEP(static_storage_dex_cache_addr, type_idx_value,
-                      irb_.getJObjectTy(), kObject);
+  return EmitArrayGEP(static_storage_dex_cache_addr, type_idx_value, kObject);
 }
 
 
@@ -3589,8 +3583,7 @@ EmitLoadDexCacheResolvedTypeFieldAddr(uint32_t type_idx) {
 
   llvm::Value* type_idx_value = irb_.getPtrEquivInt(type_idx);
 
-  return EmitArrayGEP(resolved_type_dex_cache_addr, type_idx_value,
-                      irb_.getJObjectTy(), kObject);
+  return EmitArrayGEP(resolved_type_dex_cache_addr, type_idx_value, kObject);
 }
 
 
@@ -3601,8 +3594,7 @@ EmitLoadDexCacheResolvedMethodFieldAddr(uint32_t method_idx) {
 
   llvm::Value* method_idx_value = irb_.getPtrEquivInt(method_idx);
 
-  return EmitArrayGEP(resolved_method_dex_cache_addr, method_idx_value,
-                      irb_.getJObjectTy(), kObject);
+  return EmitArrayGEP(resolved_method_dex_cache_addr, method_idx_value, kObject);
 }
 
 
@@ -3613,8 +3605,7 @@ EmitLoadDexCacheStringFieldAddr(uint32_t string_idx) {
 
   llvm::Value* string_idx_value = irb_.getPtrEquivInt(string_idx);
 
-  return EmitArrayGEP(string_dex_cache_addr, string_idx_value,
-                      irb_.getJObjectTy(), kObject);
+  return EmitArrayGEP(string_dex_cache_addr, string_idx_value, kObject);
 }
 
 
