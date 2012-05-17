@@ -434,6 +434,15 @@ class MethodCompiler {
   }
 
   // TODO: Use high-level IR to do this
+  bool EmitInlineJavaIntrinsic(const std::string& callee_method_name,
+                               const std::vector<llvm::Value*>& args,
+                               llvm::BasicBlock* after_invoke);
+
+  bool EmitInlinedStringCharAt(const std::vector<llvm::Value*>& args,
+                               llvm::BasicBlock* after_invoke);
+
+  bool EmitInlinedStringLength(const std::vector<llvm::Value*>& args,
+                               llvm::BasicBlock* after_invoke);
 
   struct MethodInfo {
     int64_t this_reg_idx;
