@@ -213,7 +213,7 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
   // Unbox the value, if necessary.
   Object* boxed_value = Decode<Object*>(env, javaValue);
   JValue unboxed_value;
-  if (!UnboxPrimitive(boxed_value, FieldHelper(f).GetType(), unboxed_value, "field")) {
+  if (!UnboxPrimitiveForField(boxed_value, FieldHelper(f).GetType(), unboxed_value, f)) {
     return;
   }
 

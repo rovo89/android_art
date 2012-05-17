@@ -168,7 +168,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     Object* result_ref = self->DecodeJObject(result);
     if (result_ref != NULL) {
       JValue result_unboxed;
-      bool unboxed_okay = UnboxPrimitive(result_ref, proxy_mh.GetReturnType(), result_unboxed, "result");
+      bool unboxed_okay = UnboxPrimitiveForResult(result_ref, proxy_mh.GetReturnType(), result_unboxed);
       if (!unboxed_okay) {
         self->ClearException();
         self->ThrowNewExceptionF("Ljava/lang/ClassCastException;",

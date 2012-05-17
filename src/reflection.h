@@ -23,12 +23,15 @@
 namespace art {
 
 class Class;
+class Field;
 union JValue;
 class Object;
 
 void InitBoxingMethods();
 void BoxPrimitive(Primitive::Type src_class, JValue& value);
-bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, const char* what);
+bool UnboxPrimitiveForArgument(Object* o, Class* dst_class, JValue& unboxed_value, size_t index);
+bool UnboxPrimitiveForField(Object* o, Class* dst_class, JValue& unboxed_value, Field* f);
+bool UnboxPrimitiveForResult(Object* o, Class* dst_class, JValue& unboxed_value);
 
 bool ConvertPrimitiveValue(Primitive::Type src_class, Primitive::Type dst_class, const JValue& src, JValue& dst);
 
