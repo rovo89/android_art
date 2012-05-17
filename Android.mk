@@ -123,7 +123,7 @@ test-art-host-run-test-$(1): test-art-host-dependencies
 TEST_ART_HOST_RUN_TEST_TARGETS += test-art-host-run-test-$(1)
 endef
 
-$(foreach test, $(wildcard art/test/0*), $(eval $(call declare-test-art-host-run-test,$(notdir $(test)))))
+$(foreach test, $(wildcard art/test/[0-9]*), $(eval $(call declare-test-art-host-run-test,$(notdir $(test)))))
 
 .PHONY: test-art-host-run-test
 test-art-host-run-test: $(TEST_ART_HOST_RUN_TEST_TARGETS)
@@ -162,7 +162,7 @@ test-art-target-run-test-$(1): test-art-target-sync
 TEST_ART_TARGET_RUN_TEST_TARGETS += test-art-target-run-test-$(1)
 endef
 
-$(foreach test, $(wildcard art/test/0*), $(eval $(call declare-test-art-target-run-test,$(notdir $(test)))))
+$(foreach test, $(wildcard art/test/[0-9]*), $(eval $(call declare-test-art-target-run-test,$(notdir $(test)))))
 
 .PHONY: test-art-target-run-test
 test-art-target-run-test: $(TEST_ART_TARGET_RUN_TEST_TARGETS)
