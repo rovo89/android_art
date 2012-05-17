@@ -67,6 +67,8 @@ extern "C" void art_lock_object_from_code(void*);
 extern "C" void art_unlock_object_from_code(void*);
 
 // Math entrypoints.
+extern "C" double art_fmod_from_code(double, double);
+extern "C" float art_fmodf_from_code(float, float);
 extern "C" double art_l2d_from_code(int64_t);
 extern "C" float art_l2f_from_code(int64_t);
 extern "C" int64_t art_d2l_from_code(double);
@@ -74,7 +76,7 @@ extern "C" int64_t art_f2l_from_code(float);
 extern "C" int32_t art_idivmod_from_code(int32_t, int32_t);
 extern "C" int64_t art_ldiv_from_code(int64_t, int64_t);
 extern "C" int64_t art_ldivmod_from_code(int64_t, int64_t);
-extern "C" int64_t art_lmul_from_code(int64_t a, int64_t b);
+extern "C" int64_t art_lmul_from_code(int64_t, int64_t);
 extern "C" uint64_t art_lshl_from_code(uint64_t, uint32_t);
 extern "C" uint64_t art_lshr_from_code(uint64_t, uint32_t);
 extern "C" uint64_t art_lushr_from_code(uint64_t, uint32_t);
@@ -168,13 +170,13 @@ void InitEntryPoints(EntryPoints* points) {
   //points->pDmul = NULL; // Not needed on x86.
   //points->pDsub = NULL; // Not needed on x86.
   //points->pF2d = NULL;
-  //points->pFmod = NULL;
+  points->pFmod = art_fmod_from_code;
   //points->pI2d = NULL;
   points->pL2d = art_l2d_from_code;
   //points->pD2f = NULL;
   //points->pFadd = NULL; // Not needed on x86.
   //points->pFdiv = NULL; // Not needed on x86.
-  //points->pFmodf = NULL;
+  points->pFmodf = art_fmodf_from_code;
   //points->pFmul = NULL; // Not needed on x86.
   //points->pFsub = NULL; // Not needed on x86.
   //points->pI2f = NULL;
