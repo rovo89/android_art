@@ -263,9 +263,11 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
 
   // Allocate the shadow frame now!
   uint32_t sirt_size = 0;
-  for (uint32_t i = 0, num_of_regs = code_item_->registers_size_; i < num_of_regs; ++i) {
-    if (IsRegCanBeObject(i)) {
-      reg_to_shadow_frame_index_[i] = sirt_size++;
+  if (method_info_.need_shadow_frame_entry) {
+    for (uint32_t i = 0, num_of_regs = code_item_->registers_size_; i < num_of_regs; ++i) {
+      if (IsRegCanBeObject(i)) {
+        reg_to_shadow_frame_index_[i] = sirt_size++;
+      }
     }
   }
 
