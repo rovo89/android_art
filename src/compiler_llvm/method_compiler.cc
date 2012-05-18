@@ -279,11 +279,14 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
 
   irb_.SetInsertPoint(basic_block_shadow_frame_);
 
-  // Zero-initialization of the shadow frame
-  llvm::ConstantAggregateZero* zero_initializer =
-    llvm::ConstantAggregateZero::get(shadow_frame_type);
+  // Zero-initialization of the shadow frame table
+  llvm::Value* shadow_frame_table = irb_.CreateConstGEP2_32(shadow_frame_, 0, 1);
+  llvm::Type* table_type = shadow_frame_type->getElementType(1);
 
-  irb_.CreateStore(zero_initializer, shadow_frame_, kTBAAShadowFrame);
+  llvm::ConstantAggregateZero* zero_initializer =
+    llvm::ConstantAggregateZero::get(table_type);
+
+  irb_.CreateStore(zero_initializer, shadow_frame_table, kTBAAShadowFrame);
 
   // Get method object
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
