@@ -2809,12 +2809,6 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
     }
   }
 
-  llvm::Value* code_addr =
-    irb_.LoadFromObjectOffset(callee_method_object_addr,
-                              Method::GetCodeOffset().Int32Value(),
-                              GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
-                              kTBAAJRuntime);
-
   // Load the actual parameter
   std::vector<llvm::Value*> args;
 
@@ -2827,6 +2821,21 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
 
   EmitLoadActualParameters(args, callee_method_idx, dec_insn,
                            arg_fmt, is_static);
+
+  if (is_fast_path && (invoke_type == kDirect || invoke_type == kStatic)) {
+    bool need_retry = EmitInlineJavaIntrinsic(PrettyMethod(callee_method_idx, *dex_file_),
+                                              args,
+                                              GetNextBasicBlock(dex_pc));
+    if (!need_retry) {
+      return;
+    }
+  }
+
+  llvm::Value* code_addr =
+    irb_.LoadFromObjectOffset(callee_method_object_addr,
+                              Method::GetCodeOffset().Int32Value(),
+                              GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
+                              kTBAAJRuntime);
 
 #if 0
   // Invoke callee
@@ -3948,6 +3957,79 @@ void MethodCompiler::EmitUpdateDexPC(uint32_t dex_pc) {
                            ShadowFrame::DexPCOffset(),
                            irb_.getInt32(dex_pc),
                            kTBAAShadowFrame);
+}
+
+
+// TODO: Use high-level IR to do this
+bool MethodCompiler::EmitInlineJavaIntrinsic(const std::string& callee_method_name,
+                                             const std::vector<llvm::Value*>& args,
+                                             llvm::BasicBlock* after_invoke) {
+  if (callee_method_name == "char java.lang.String.charAt(int)") {
+    return EmitInlinedStringCharAt(args, after_invoke);
+  }
+  if (callee_method_name == "int java.lang.String.length()") {
+    return EmitInlinedStringLength(args, after_invoke);
+  }
+  return true;
+}
+
+bool MethodCompiler::EmitInlinedStringCharAt(const std::vector<llvm::Value*>& args,
+                                             llvm::BasicBlock* after_invoke) {
+  DCHECK_EQ(args.size(), 3U) <<
+      "char java.lang.String.charAt(int) has 3 args: method, this, char_index";
+  llvm::Value* this_object = args[1];
+  llvm::Value* char_index = args[2];
+  llvm::BasicBlock* block_retry = llvm::BasicBlock::Create(*context_, "CharAtRetry", func_);
+  llvm::BasicBlock* block_cont = llvm::BasicBlock::Create(*context_, "CharAtCont", func_);
+
+  // TODO: Can we safely say the String.count is ConstJObject(constant memory)? (there are so many
+  // iput to String.count in the String.<init>(...))
+  llvm::Value* string_count = irb_.LoadFromObjectOffset(this_object,
+                                                        String::CountOffset().Int32Value(),
+                                                        irb_.getJIntTy(),
+                                                        kTBAAHeapInstance, kInt);
+  // Two's complement, so we can use only one "less than" to check "in bounds"
+  llvm::Value* in_bounds = irb_.CreateICmpULT(char_index, string_count);
+  irb_.CreateCondBr(in_bounds, block_cont, block_retry, kLikely);
+
+  irb_.SetInsertPoint(block_cont);
+  // TODO: Can we safely say the String.offset is ConstJObject(constant memory)?
+  llvm::Value* string_offset = irb_.LoadFromObjectOffset(this_object,
+                                                         String::OffsetOffset().Int32Value(),
+                                                         irb_.getJIntTy(),
+                                                         kTBAAHeapInstance, kInt);
+  llvm::Value* string_value = irb_.LoadFromObjectOffset(this_object,
+                                                        String::ValueOffset().Int32Value(),
+                                                        irb_.getJObjectTy(),
+                                                        kTBAAHeapInstance, kObject);
+
+  // index_value = string.offset + char_index
+  llvm::Value* index_value = irb_.CreateAdd(string_offset, char_index);
+
+  // array_elem_value = string.value[index_value]
+  llvm::Value* array_elem_addr = EmitArrayGEP(string_value, index_value, kChar);
+  llvm::Value* array_elem_value = irb_.CreateLoad(array_elem_addr, kTBAAHeapArray, kChar);
+
+  EmitStoreDalvikRetValReg(kChar, kArray, array_elem_value);
+  irb_.CreateBr(after_invoke);
+
+  irb_.SetInsertPoint(block_retry);
+  return true;
+}
+
+bool MethodCompiler::EmitInlinedStringLength(const std::vector<llvm::Value*>& args,
+                                             llvm::BasicBlock* after_invoke) {
+  DCHECK_EQ(args.size(), 2U) <<
+      "int java.lang.String.length() has 2 args: method, this";
+  llvm::Value* this_object = args[1];
+  // TODO: Can we safely say the String.count is ConstJObject(constant memory)?
+  llvm::Value* string_count = irb_.LoadFromObjectOffset(this_object,
+                                                        String::CountOffset().Int32Value(),
+                                                        irb_.getJIntTy(),
+                                                        kTBAAHeapInstance, kInt);
+  EmitStoreDalvikRetValReg(kInt, kAccurate, string_count);
+  irb_.CreateBr(after_invoke);
+  return false;
 }
 
 
