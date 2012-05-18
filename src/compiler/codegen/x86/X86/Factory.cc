@@ -360,64 +360,6 @@ LIR *loadConstantValueWide(CompilationUnit *cUnit, int rDestLo,
     return res;
 }
 
-/* Load value from base + scaled index. */
-LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
-                               int rIndex, int rDest, int scale, OpSize size)
-{
-  UNIMPLEMENTED(WARNING) << "loadBaseIndexed";
-  newLIR0(cUnit, kX86Bkpt);
-  return NULL;
-#if 0
-  LIR *first = NULL;
-  LIR *res;
-  X86OpCode opcode = kX86Nop;
-  int tReg = oatAllocTemp(cUnit);
-
-  if (FPREG(rDest)) {
-    DCHECK(SINGLEREG(rDest));
-    DCHECK((size == kWord) || (size == kSingle));
-    size = kSingle;
-  } else {
-    if (size == kSingle)
-      size = kWord;
-  }
-
-  if (!scale) {
-    first = newLIR3(cUnit, kX86Addu, tReg , rBase, rIndex);
-  } else {
-    first = opRegRegImm(cUnit, kOpLsl, tReg, rIndex, scale);
-    newLIR3(cUnit, kX86Addu, tReg , rBase, tReg);
-  }
-
-  switch (size) {
-    case kSingle:
-      opcode = kX86Flwc1;
-      break;
-    case kWord:
-      opcode = kX86Lw;
-      break;
-    case kUnsignedHalf:
-      opcode = kX86Lhu;
-      break;
-    case kSignedHalf:
-      opcode = kX86Lh;
-      break;
-    case kUnsignedByte:
-      opcode = kX86Lbu;
-      break;
-    case kSignedByte:
-      opcode = kX86Lb;
-      break;
-    default:
-      LOG(FATAL) << "Bad case in loadBaseIndexed";
-  }
-
-  res = newLIR3(cUnit, opcode, rDest, 0, tReg);
-  oatFreeTemp(cUnit, tReg);
-  return (first) ? first : res;
-#endif
-}
-
 LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 {
   UNIMPLEMENTED(WARNING) << "loadMultiple";
@@ -558,6 +500,13 @@ LIR* loadBaseIndexedDisp(CompilationUnit *cUnit, MIR *mir,
   }
 
   return load;
+}
+
+/* Load value from base + scaled index. */
+LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
+                     int rIndex, int rDest, int scale, OpSize size) {
+  return loadBaseIndexedDisp(cUnit, NULL, rBase, rIndex, scale, 0,
+                             rDest, INVALID_REG, size, INVALID_SREG);
 }
 
 LIR *loadBaseDisp(CompilationUnit *cUnit, MIR *mir,
