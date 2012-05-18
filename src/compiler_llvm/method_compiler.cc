@@ -66,7 +66,7 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     reg_to_shadow_frame_index_(code_item_->registers_size_, -1),
     retval_reg_(NULL),
     basic_block_stack_overflow_(NULL),
-    basic_block_reg_alloca_(NULL), basic_block_shadow_frame_alloca_(NULL),
+    basic_block_alloca_(NULL), basic_block_shadow_frame_(NULL),
     basic_block_reg_arg_init_(NULL),
     basic_blocks_(code_item_->insns_size_in_code_units_),
     basic_block_landing_pads_(code_item_->tries_size_, NULL),
@@ -150,13 +150,13 @@ void MethodCompiler::EmitPrologue() {
   llvm::BasicBlock* entry =
     llvm::BasicBlock::Create(*context_, PrettyMethod(method_idx_, *dex_file_), func_);
 #endif
-  basic_block_reg_alloca_ =
+  basic_block_alloca_ =
     llvm::BasicBlock::Create(*context_, "prologue.alloca", func_);
 
   basic_block_stack_overflow_ =
     llvm::BasicBlock::Create(*context_, "prologue.stack_overflow_check", func_);
 
-  basic_block_shadow_frame_alloca_ =
+  basic_block_shadow_frame_ =
     llvm::BasicBlock::Create(*context_, "prologue.shadowframe", func_);
 
   basic_block_reg_arg_init_ =
@@ -164,8 +164,11 @@ void MethodCompiler::EmitPrologue() {
 
 #if !defined(NDEBUG)
   irb_.SetInsertPoint(entry);
-  irb_.CreateBr(basic_block_reg_alloca_);
+  irb_.CreateBr(basic_block_alloca_);
 #endif
+
+  irb_.SetInsertPoint(basic_block_alloca_);
+  jvalue_temp_ = irb_.CreateAlloca(irb_.getJValueTy());
 
   // Create register array
   for (uint16_t r = 0; r < code_item_->registers_size_; ++r) {
@@ -239,7 +242,7 @@ void MethodCompiler::EmitStackOverflowCheck() {
 
 
 void MethodCompiler::EmitPrologueLastBranch() {
-  irb_.SetInsertPoint(basic_block_reg_alloca_);
+  irb_.SetInsertPoint(basic_block_alloca_);
   irb_.CreateBr(basic_block_stack_overflow_);
 
   // If a method will not call to other method, and the method is small, we can avoid stack overflow
@@ -251,15 +254,15 @@ void MethodCompiler::EmitPrologueLastBranch() {
   }
 
   irb_.SetInsertPoint(basic_block_stack_overflow_);
-  irb_.CreateBr(basic_block_shadow_frame_alloca_);
+  irb_.CreateBr(basic_block_shadow_frame_);
 
-  irb_.SetInsertPoint(basic_block_shadow_frame_alloca_);
+  irb_.SetInsertPoint(basic_block_shadow_frame_);
   irb_.CreateBr(basic_block_reg_arg_init_);
 }
 
 
 void MethodCompiler::EmitPrologueAllocShadowFrame() {
-  irb_.SetInsertPoint(basic_block_shadow_frame_alloca_);
+  irb_.SetInsertPoint(basic_block_alloca_);
 
   // Allocate the shadow frame now!
   uint32_t sirt_size = 0;
@@ -273,6 +276,8 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
 
   llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
   shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
+
+  irb_.SetInsertPoint(basic_block_shadow_frame_);
 
   // Zero-initialization of the shadow frame
   llvm::ConstantAggregateZero* zero_initializer =
@@ -2908,17 +2913,15 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
       irb_.SetInsertPoint(block_proxy_stub);
     }
     { // proxy stub
-      llvm::Value* temp_space_addr;
       if (ret_shorty != 'V') {
-        temp_space_addr = irb_.CreateAlloca(irb_.getJValueTy());
-        args.push_back(temp_space_addr);
+        args.push_back(jvalue_temp_);
       }
       // TODO: Remove this after we solve the proxy trampoline calling convention problem.
       irb_.CreateCall(irb_.GetRuntime(ProxyInvokeHandler), args);
       if (ret_shorty != 'V') {
         llvm::Type* accurate_ret_type = irb_.getJType(ret_shorty, kAccurate);
         llvm::Value* result_addr =
-            irb_.CreateBitCast(temp_space_addr, accurate_ret_type->getPointerTo());
+            irb_.CreateBitCast(jvalue_temp_, accurate_ret_type->getPointerTo());
         llvm::Value* retval = irb_.CreateLoad(result_addr, kTBAAStackTemp);
         EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
       }
@@ -3867,7 +3870,7 @@ llvm::Value* MethodCompiler::AllocDalvikLocalVarReg(RegCategory cat,
 
   // Save current IR builder insert point
   llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
-  irb_.SetInsertPoint(basic_block_reg_alloca_);
+  irb_.SetInsertPoint(basic_block_alloca_);
 
   // Alloca
   llvm::Value* reg_addr = irb_.CreateAlloca(reg_type, 0, reg_name);
@@ -3899,7 +3902,7 @@ llvm::Value* MethodCompiler::AllocShadowFrameEntry(uint32_t reg_idx) {
   // Save current IR builder insert point
   llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
 
-  irb_.SetInsertPoint(basic_block_shadow_frame_alloca_);
+  irb_.SetInsertPoint(basic_block_shadow_frame_);
 
   llvm::Value* gep_index[] = {
     irb_.getInt32(0), // No pointer displacement
@@ -3928,7 +3931,7 @@ llvm::Value* MethodCompiler::AllocDalvikRetValReg(RegCategory cat) {
 
   // Save current IR builder insert point
   llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
-  irb_.SetInsertPoint(basic_block_reg_alloca_);
+  irb_.SetInsertPoint(basic_block_alloca_);
 
   // Alloca
   llvm::Value* reg_addr = irb_.CreateAlloca(reg_type, 0, reg_name);
