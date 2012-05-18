@@ -427,8 +427,8 @@ enum X86OpCode {
   Binary0fOpCode(kX86Addss),    // float add
   Binary0fOpCode(kX86Mulsd),    // double multiply
   Binary0fOpCode(kX86Mulss),    // float multiply
-  Binary0fOpCode(kX86Cvtss2sd), // float to double
   Binary0fOpCode(kX86Cvtsd2ss), // double to float
+  Binary0fOpCode(kX86Cvtss2sd), // float to double
   Binary0fOpCode(kX86Subsd),    // double subtract
   Binary0fOpCode(kX86Subss),    // float subtract
   Binary0fOpCode(kX86Divsd),    // double divide

@@ -44,8 +44,12 @@ static bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir,
       op = kX86MulssRR;
       break;
     case Instruction::NEG_FLOAT:
-      UNIMPLEMENTED(WARNING) << "inline fneg"; // pxor xmm, [0x80000000]
-                                                             // fall-through
+      rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
+      rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
+      newLIR2(cUnit, kX86XorpsRR, rlResult.lowReg, rlResult.lowReg);
+      newLIR2(cUnit, kX86SubssRR, rlResult.lowReg, rlSrc1.lowReg);
+      storeValue(cUnit, rlDest, rlResult);
+      return false;
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT: {
       return genArithOpFloatPortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
@@ -91,6 +95,12 @@ static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
       op = kX86MulsdRR;
       break;
     case Instruction::NEG_DOUBLE:
+      rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
+      rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
+      newLIR2(cUnit, kX86XorpsRR, rlResult.lowReg, rlResult.lowReg);
+      newLIR2(cUnit, kX86SubsdRR, rlResult.lowReg, rlSrc1.lowReg);
+      storeValueWide(cUnit, rlDest, rlResult);
+      return false;
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE: {
       return genArithOpDoublePortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
@@ -124,9 +134,7 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir) {
   RegLocation rlDest;
   X86OpCode op = kX86Nop;
   int srcReg;
-  int tempReg;
   RegLocation rlResult;
-  LIR* branch = NULL;
   switch (opcode) {
     case Instruction::INT_TO_FLOAT:
       longSrc = false;
@@ -152,40 +160,52 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir) {
       rcSrc = kCoreReg;
       op = kX86Cvtsi2sdRR;
       break;
-    case Instruction::FLOAT_TO_INT:
+    case Instruction::FLOAT_TO_INT: {
       rlSrc = oatGetSrc(cUnit, mir, 0);
       rlSrc = loadValue(cUnit, rlSrc, kFPReg);
       srcReg = rlSrc.lowReg;
       rlDest = oatGetDest(cUnit, mir, 0);
       oatClobberSReg(cUnit, rlDest.sRegLow);
       rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-      tempReg = oatAllocTempFloat(cUnit);
+      int tempReg = oatAllocTempFloat(cUnit);
 
       loadConstant(cUnit, rlResult.lowReg, 0x7fffffff);
       newLIR2(cUnit, kX86Cvtsi2ssRR, tempReg, rlResult.lowReg);
       newLIR2(cUnit, kX86ComissRR, srcReg, tempReg);
-      branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondA);
-      newLIR2(cUnit, kX86Cvtss2siRR, rlResult.lowReg, srcReg);
-      branch->target = newLIR0(cUnit, kPseudoTargetLabel);
+      LIR* branchPosOverflow = newLIR2(cUnit, kX86Jcc8, 0, kX86CondA);
+      LIR* branchNaN = newLIR2(cUnit, kX86Jcc8, 0, kX86CondP);
+      newLIR2(cUnit, kX86Cvttss2siRR, rlResult.lowReg, srcReg);
+      LIR* branchNormal = newLIR1(cUnit, kX86Jmp8, 0);
+      branchNaN->target = newLIR0(cUnit, kPseudoTargetLabel);
+      newLIR2(cUnit, kX86Xor32RR, rlResult.lowReg, rlResult.lowReg);
+      branchPosOverflow->target = newLIR0(cUnit, kPseudoTargetLabel);
+      branchNormal->target = newLIR0(cUnit, kPseudoTargetLabel);
       storeValue(cUnit, rlDest, rlResult);
       return false;
-    case Instruction::DOUBLE_TO_INT:
+    }
+    case Instruction::DOUBLE_TO_INT: {
       rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
       rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
       srcReg = rlSrc.lowReg;
       rlDest = oatGetDest(cUnit, mir, 0);
       oatClobberSReg(cUnit, rlDest.sRegLow);
       rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-      tempReg = oatAllocTempDouble(cUnit);
+      int tempReg = oatAllocTempDouble(cUnit);
 
       loadConstant(cUnit, rlResult.lowReg, 0x7fffffff);
       newLIR2(cUnit, kX86Cvtsi2sdRR, tempReg, rlResult.lowReg);
       newLIR2(cUnit, kX86ComisdRR, srcReg, tempReg);
-      branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondA);
-      newLIR2(cUnit, kX86Cvtsd2siRR, rlResult.lowReg, srcReg);
-      branch->target = newLIR0(cUnit, kPseudoTargetLabel);
+      LIR* branchPosOverflow = newLIR2(cUnit, kX86Jcc8, 0, kX86CondA);
+      LIR* branchNaN = newLIR2(cUnit, kX86Jcc8, 0, kX86CondP);
+      newLIR2(cUnit, kX86Cvttsd2siRR, rlResult.lowReg, srcReg);
+      LIR* branchNormal = newLIR1(cUnit, kX86Jmp8, 0);
+      branchNaN->target = newLIR0(cUnit, kPseudoTargetLabel);
+      newLIR2(cUnit, kX86Xor32RR, rlResult.lowReg, rlResult.lowReg);
+      branchPosOverflow->target = newLIR0(cUnit, kPseudoTargetLabel);
+      branchNormal->target = newLIR0(cUnit, kPseudoTargetLabel);
       storeValue(cUnit, rlDest, rlResult);
       return false;
+    }
     case Instruction::LONG_TO_DOUBLE:
     case Instruction::LONG_TO_FLOAT:
       // These can be implemented inline by using memory as a 64-bit source.

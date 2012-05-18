@@ -395,12 +395,34 @@ TWO_ARG_DOWNCALL art_can_put_array_element_from_code, artCanPutArrayElementFromC
 
 NO_ARG_DOWNCALL art_test_suspend, artTestSuspendFromCode, ret
 
+DEFINE_FUNCTION art_fmod_from_code
+    movl  %ebx, -4(%esp)          // put hi arg2 into memory
+    movl  %edx, -8(%esp)          // put lo arg2 into memory
+    fldl  -8(%esp)                // push arg2 onto fp stack
+    movl  %ecx, -4(%esp)          // put hi arg1 into memory
+    movl  %eax, -8(%esp)          // put lo arg1 into memory
+    fldl  -8(%esp)                // push arg1 onto fp stack
+    fprem1                        // calculate IEEE remainder
+    fstpl -8(%esp)                // pop return value off fp stack
+    movsd -8(%esp), %xmm0         // place into %xmm0
+    ret
+
+DEFINE_FUNCTION art_fmodf_from_code
+    movl  %ecx, -4(%esp)          // put arg2 into memory
+    fld   -4(%esp)                // push arg2 onto fp stack
+    movl  %eax, -4(%esp)          // put arg1 into memory
+    fld   -4(%esp)                // push arg1 onto fp stack
+    fprem1                        // calculate IEEE remainder
+    fstp  -4(%esp)                // pop return value off fp stack
+    movss -4(%esp), %xmm0         // place into %xmm0
+    ret
+
 DEFINE_FUNCTION art_l2d_from_code
     pushl %eax                    // alignment padding
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
-    call SYMBOL(art_l2d) // (jlong a, Thread*, SP)
-    fstpl (%esp)                  // get return value
+    call SYMBOL(art_l2d)          // (jlong a, Thread*, SP)
+    fstpl (%esp)                  // pop return value off fp stack
     movsd (%esp), %xmm0           // place into %xmm0
     addl LITERAL(12), %esp        // pop arguments
     ret
@@ -409,8 +431,8 @@ DEFINE_FUNCTION art_l2f_from_code
     pushl %eax                    // alignment padding
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
-    call SYMBOL(art_l2f) // (jlong a, Thread*, SP)
-    fstp  (%esp)                  // get return value
+    call SYMBOL(art_l2f)          // (jlong a, Thread*, SP)
+    fstp  (%esp)                  // pop return value off fp stack
     movss (%esp), %xmm0           // place into %xmm0
     addl LITERAL(12), %esp        // pop arguments
     ret
@@ -419,14 +441,14 @@ DEFINE_FUNCTION art_d2l_from_code
     pushl %eax                    // alignment padding
     pushl %ecx                    // pass arg2
     pushl %eax                    // pass arg1
-    call SYMBOL(art_d2l) // (jdouble a, Thread*, SP)
+    call SYMBOL(art_d2l)          // (jdouble a, Thread*, SP)
     addl LITERAL(12), %esp        // pop arguments
     ret
 
 DEFINE_FUNCTION art_f2l_from_code
     subl LITERAL(8), %esp         // alignment padding
     pushl %eax                    // pass arg1
-    call SYMBOL(art_f2l) // (jfloat a, Thread*, SP)
+    call SYMBOL(art_f2l)          // (jfloat a, Thread*, SP)
     addl LITERAL(12), %esp        // pop arguments
     ret
 
