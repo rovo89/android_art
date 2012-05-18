@@ -105,6 +105,21 @@ class IRBuilder : public LLVMIRBuilder {
     StoreToObjectOffset(object_addr, offset, new_value, tbaa_.GetSpecialType(special_ty));
   }
 
+  llvm::LoadInst* LoadFromObjectOffset(llvm::Value* object_addr,
+                                       int64_t offset,
+                                       llvm::Type* type,
+                                       TBAASpecialType special_ty, JType j_ty) {
+    return LoadFromObjectOffset(object_addr, offset, type, tbaa_.GetMemoryJType(special_ty, j_ty));
+  }
+
+  void StoreToObjectOffset(llvm::Value* object_addr,
+                           int64_t offset,
+                           llvm::Value* new_value,
+                           TBAASpecialType special_ty, JType j_ty) {
+    DCHECK_NE(special_ty, kTBAAConstJObject) << "ConstJObject is read only!";
+    StoreToObjectOffset(object_addr, offset, new_value, tbaa_.GetMemoryJType(special_ty, j_ty));
+  }
+
   void SetTBAACall(llvm::CallInst* call_inst, TBAASpecialType special_ty) {
     call_inst->setMetadata(llvm::LLVMContext::MD_tbaa, tbaa_.GetSpecialType(special_ty));
   }
