@@ -582,7 +582,8 @@ void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
 #if defined(TARGET_ARM)
     int rVal = rLR;  // Using a lot of temps, rLR is known free here
 #elif defined(TARGET_X86)
-    int rVal = rSrc;
+    oatFreeTemp(cUnit, rRET0);
+    int rVal = oatAllocTemp(cUnit);
 #else
     int rVal = oatAllocTemp(cUnit);
 #endif
@@ -608,6 +609,11 @@ void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     oatFreeTemp(cUnit, rVal);
     opRegImm(cUnit, kOpSub, rIdx, 1);
     opCmpImmBranch(cUnit, kCondGe, rIdx, 0, target);
+#endif
+#if defined(TARGET_X86)
+    // Restore the target pointer
+    opRegRegImm(cUnit, kOpAdd, rRET0, rDst,
+                -Array::DataOffset(component_size).Int32Value());
 #endif
   } else if (!isRange) {
     // TUNING: interleave
