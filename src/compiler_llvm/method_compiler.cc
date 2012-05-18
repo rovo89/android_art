@@ -1842,11 +1842,14 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
     EmitAllocNewArray(dex_pc, dec_insn.vA, dec_insn.vB, true);
 
   if (dec_insn.vA > 0) {
-    // Resolve the element type
-    Class* klass = dex_cache_->GetResolvedType(dec_insn.vB)->GetComponentType();
-    // TODO: Avoid the usage of the dex_cache_.  Try to figure out a better
-    // way to distinguish [I and [L.
-    CHECK_NE(klass, static_cast<Class*>(NULL));
+    // Check for the element type
+    uint32_t type_desc_len = 0;
+    const char* type_desc =
+      dex_file_->StringByTypeIdx(dec_insn.vB, &type_desc_len);
+
+    DCHECK_GE(type_desc_len, 2u); // should be guaranteed by verifier
+    DCHECK_EQ(type_desc[0], '['); // should be guaranteed by verifier
+    bool is_elem_int_ty = (type_desc[1] == 'I');
 
     uint32_t alignment;
     llvm::Constant* elem_size;
@@ -1855,12 +1858,11 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
     // NOTE: Currently filled-new-array only supports 'L', '[', and 'I'
     // as the element, thus we are only checking 2 cases: primitive int and
     // non-primitive type.
-    if (klass->IsPrimitiveInt()) {
+    if (is_elem_int_ty) {
       alignment = sizeof(int32_t);
       elem_size = irb_.getPtrEquivInt(sizeof(int32_t));
       field_type = irb_.getJIntTy()->getPointerTo();
     } else {
-      CHECK(!klass->IsPrimitive());
       alignment = irb_.getSizeOfPtrEquivInt();
       elem_size = irb_.getSizeOfPtrEquivIntValue();
       field_type = irb_.getJObjectTy()->getPointerTo();
@@ -1885,7 +1887,7 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
       }
 
       llvm::Value* reg_value;
-      if (klass->IsPrimitiveInt()) {
+      if (is_elem_int_ty) {
         reg_value = EmitLoadDalvikReg(reg_index, kInt, kAccurate);
       } else {
         reg_value = EmitLoadDalvikReg(reg_index, kObject, kAccurate);
