@@ -206,98 +206,17 @@ CompilationUnit::~CompilationUnit() {
 bool CompilationUnit::Materialize(size_t thread_count) {
   MutexLock GUARD(cunit_lock_);
 
-  if (thread_count == 1) {
-    llvm::raw_string_ostream str_os(elf_image_);
-    bool success = MaterializeToFile(str_os);
-    LOG(INFO) << "Compilation Unit: " << elf_idx_ << (success ? " (done)" : " (failed)");
+  // Materialize the bitcode to elf_image_
+  llvm::raw_string_ostream str_os(elf_image_);
+  bool success = MaterializeToFile(str_os);
+  LOG(INFO) << "Compilation Unit: " << elf_idx_ << (success ? " (done)" : " (failed)");
 
-    // Free the resources
-    context_.reset(NULL);
-    irb_.reset(NULL);
-    module_ = NULL;
+  // Free the resources
+  context_.reset(NULL);
+  irb_.reset(NULL);
+  module_ = NULL;
 
-    return success;
-  }
-
-  // Prepare the pipe between parent process and child process
-  int pipe_fd[2];
-  if (pipe(pipe_fd) == -1) {
-    PLOG(FATAL) << "Failed to create pipe for CompilerWorker";
-    return false;
-  }
-
-  // Fork a process to do the compilation
-  pid_t pid = fork();
-  if (pid < 0) {
-    close(pipe_fd[0]);
-    close(pipe_fd[1]);
-    PLOG(FATAL) << "Failed to fork a process to do the compilation";
-    return false;
-
-  } else if (pid == 0) { // Child process
-    // Close the unused pipe read end
-    close(pipe_fd[0]);
-
-    // Change process groups, so we don't get ripped by ProcessManager
-    setpgid(0, 0);
-
-    llvm::raw_fd_ostream fd_os(pipe_fd[1], /* shouldClose */true);
-
-    // TODO: Should use exec* family instead of invoking a function.
-    // Forward our compilation request to bcc.
-    exit(static_cast<int>(!MaterializeToFile(fd_os)));
-
-  } else { // Parent process
-    // Close the unused pipe write end
-    close(pipe_fd[1]);
-
-    // Free the resources
-    context_.reset(NULL);
-    irb_.reset(NULL);
-    module_ = NULL;
-
-    // Read the result out from the pipe read end (until failure)
-    const size_t buf_size = 1024;
-    std::vector<uint8_t> buf(buf_size);
-    while (true) {
-      // Read from the pipe
-      ssize_t nread = read(pipe_fd[0], &*buf.begin(), buf_size);
-      if (nread < 0) {
-        if (errno == EAGAIN || errno == EINTR) {
-          continue;
-        } else {
-          LOG(ERROR) << "Unexpected error during IPC: " << strerror(errno);
-        }
-      }
-
-      // Append to the end of the elf_image_
-      elf_image_.append(buf.begin(), buf.begin() + nread);
-
-      if (nread < static_cast<ssize_t>(buf_size)) { // EOF reached!
-        break;
-      }
-    }
-
-    close(pipe_fd[0]);
-
-    // Wait for child to finish
-    int status;
-    pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
-    if (got_pid != pid) {
-      PLOG(ERROR) << "waitpid failed: wanted " << pid << ", got " << got_pid;
-      elf_image_.clear();
-      return false;
-    }
-
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-      LOG(ERROR) << "Failed to compile the bitcode: " << WEXITSTATUS(status);
-      elf_image_.clear();
-      return false;
-    }
-
-    LOG(INFO) << "Compilation Unit: " << elf_idx_ << " (done)";
-    return true;
-  }
+  return success;
 }
 
 
