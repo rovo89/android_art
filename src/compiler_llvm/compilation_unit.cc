@@ -288,6 +288,7 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream) {
   target_options.NoFramePointerElim = true;
   target_options.NoFramePointerElimNonLeaf = true;
   target_options.UseSoftFloat = false;
+  target_options.EnableFastISel = false;
 
   // Create the llvm::TargetMachine
   llvm::OwningPtr<llvm::TargetMachine> target_machine(
