@@ -93,7 +93,7 @@ END_MACRO
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kRefsAndArgs)
      */
-MACRO0(SETUP_REF_AND_ARG_CALLEE_SAVE_FRAME)
+MACRO0(SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     pushl %edi  // Save callee saves
     pushl %esi
     pushl %ebp
@@ -103,7 +103,7 @@ MACRO0(SETUP_REF_AND_ARG_CALLEE_SAVE_FRAME)
     pushl %eax  // Align stack, eax will be clobbered by Method*
 END_MACRO
 
-MACRO0(RESTORE_REF_AND_ARG_CALLEE_SAVE_FRAME)
+MACRO0(RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME)
     addl MACRO_LITERAL(4), %esp  // Remove padding
     popl %ecx  // Restore args except eax
     popl %edx
@@ -124,8 +124,8 @@ MACRO0(DELIVER_PENDING_EXCEPTION)
     subl  MACRO_LITERAL(8), %esp             // Alignment padding
     pushl %ecx                               // pass SP
     pushl %fs:THREAD_SELF_OFFSET             // pass Thread::Current()
-    call SYMBOL(artDeliverPendingExceptionFromCode)  // artDeliverExceptionFromCode(Thread*, SP)
-    int3
+    call SYMBOL(artDeliverPendingExceptionFromCode)  // artDeliverPendingExceptionFromCode(Thread*, SP)
+    int3                                     // unreached
 END_MACRO
 
 MACRO2(NO_ARG_RUNTIME_EXCEPTION, c_name, cxx_name)
@@ -531,6 +531,183 @@ DEFINE_FUNCTION art_lushr_from_code
 1:
     ret
 
+DEFINE_FUNCTION art_set32_instance_from_code
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    mov %esp, %ebx                // remember SP
+    subl MACRO_LITERAL(8), %esp   // alignment padding
+    pushl %ebx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    mov 32(%ebx), %ebx            // get referrer
+    pushl %ebx                    // pass referrer
+    pushl %edx                    // pass new_val
+    pushl %ecx                    // pass object
+    pushl %eax                    // pass field_idx
+    call SYMBOL(artSet32InstanceFromCode)  // (field_idx, Object*, new_val, referrer, Thread*, SP)
+    addl MACRO_LITERAL(32), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RETURN_IF_EAX_ZERO            // return or deliver exception
+
+DEFINE_FUNCTION art_set64_instance_from_code
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    subl MACRO_LITERAL(8), %esp   // alignment padding
+    pushl %esp                    // pass SP-8
+    addl MACRO_LITERAL(8), (%esp) // fix SP on stack by adding 8
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %ebx                    // pass high half of new_val
+    pushl %edx                    // pass low half of new_val
+    pushl %ecx                    // pass object
+    pushl %eax                    // pass field_idx
+    call SYMBOL(artSet64InstanceFromCode)  // (field_idx, Object*, new_val, Thread*, SP)
+    addl MACRO_LITERAL(32), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RETURN_IF_EAX_ZERO            // return or deliver exception
+
+DEFINE_FUNCTION art_set_obj_instance_from_code
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    mov %esp, %ebx                // remember SP
+    subl MACRO_LITERAL(8), %esp   // alignment padding
+    pushl %ebx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    mov 32(%ebx), %ebx            // get referrer
+    pushl %ebx                    // pass referrer
+    pushl %edx                    // pass new_val
+    pushl %ecx                    // pass object
+    pushl %eax                    // pass field_idx
+    call SYMBOL(artSetObjInstanceFromCode) // (field_idx, Object*, new_val, referrer, Thread*, SP)
+    addl MACRO_LITERAL(32), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RETURN_IF_EAX_ZERO            // return or deliver exception
+
+DEFINE_FUNCTION art_get32_instance_from_code
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    mov %esp, %ebx                // remember SP
+    mov 32(%esp), %edx            // get referrer
+    subl MACRO_LITERAL(12), %esp  // alignment padding
+    pushl %ebx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %edx                    // pass referrer
+    pushl %ecx                    // pass object
+    pushl %eax                    // pass field_idx
+    call SYMBOL(artGet32InstanceFromCode)  // (field_idx, Object*, referrer, Thread*, SP)
+    addl MACRO_LITERAL(32), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RETURN_IF_EAX_ZERO            // return or deliver exception
+
+DEFINE_FUNCTION art_get64_instance_from_code
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    mov %esp, %ebx                // remember SP
+    mov 32(%esp), %edx            // get referrer
+    subl MACRO_LITERAL(12), %esp  // alignment padding
+    pushl %ebx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %edx                    // pass referrer
+    pushl %ecx                    // pass object
+    pushl %eax                    // pass field_idx
+    call SYMBOL(artGet64InstanceFromCode)  // (field_idx, Object*, referrer, Thread*, SP)
+    addl MACRO_LITERAL(32), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RETURN_IF_EAX_ZERO            // return or deliver exception
+
+DEFINE_FUNCTION art_get_obj_instance_from_code
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    mov %esp, %ebx                // remember SP
+    mov 32(%esp), %edx            // get referrer
+    subl MACRO_LITERAL(12), %esp  // alignment padding
+    pushl %ebx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %edx                    // pass referrer
+    pushl %ecx                    // pass object
+    pushl %eax                    // pass field_idx
+    call SYMBOL(artGetObjInstanceFromCode) // (field_idx, Object*, referrer, Thread*, SP)
+    addl MACRO_LITERAL(32), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RETURN_IF_EAX_ZERO            // return or deliver exception
+
+DEFINE_FUNCTION art_set32_static_from_code
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    mov %esp, %ebx                // remember SP
+    mov 32(%esp), %edx            // get referrer
+    subl MACRO_LITERAL(12), %esp  // alignment padding
+    pushl %ebx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %edx                    // pass referrer
+    pushl %ecx                    // pass new_val
+    pushl %eax                    // pass field_idx
+    call SYMBOL(artSet32StaticFromCode)    // (field_idx, new_val, referrer, Thread*, SP)
+    addl MACRO_LITERAL(32), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RETURN_IF_EAX_ZERO            // return or deliver exception
+
+DEFINE_FUNCTION art_set64_static_from_code
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    mov %esp, %ebx                // remember SP
+    subl MACRO_LITERAL(8), %esp   // alignment padding
+    pushl %ebx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    mov 32(%ebx), %ebx            // get referrer
+    pushl %edx                    // pass high half of new_val
+    pushl %ecx                    // pass low half of new_val
+    pushl %ebx                    // pass referrer
+    pushl %eax                    // pass field_idx
+    call SYMBOL(artSet64StaticFromCode)    // (field_idx, referrer, new_val, Thread*, SP)
+    addl MACRO_LITERAL(32), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RETURN_IF_EAX_ZERO            // return or deliver exception
+
+DEFINE_FUNCTION art_set_obj_static_from_code
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    mov %esp, %ebx                // remember SP
+    mov 32(%esp), %edx            // get referrer
+    subl MACRO_LITERAL(12), %esp  // alignment padding
+    pushl %ebx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %edx                    // pass referrer
+    pushl %ecx                    // pass new_val
+    pushl %eax                    // pass field_idx
+    call SYMBOL(artSetObjStaticFromCode)   // (field_idx, new_val, referrer, Thread*, SP)
+    addl MACRO_LITERAL(32), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RETURN_IF_EAX_ZERO            // return or deliver exception
+
+DEFINE_FUNCTION art_get32_static_from_code
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    mov %esp, %edx                // remember SP
+    mov 32(%esp), %ecx            // get referrer
+    pushl %edx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %ecx                    // pass referrer
+    pushl %eax                    // pass field_idx
+    call SYMBOL(artGet32StaticFromCode)    // (field_idx, referrer, Thread*, SP)
+    addl MACRO_LITERAL(16), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RETURN_IF_EAX_ZERO            // return or deliver exception
+
+DEFINE_FUNCTION art_get64_static_from_code
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    mov %esp, %edx                // remember SP
+    mov 32(%esp), %ecx            // get referrer
+    pushl %edx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %ecx                    // pass referrer
+    pushl %eax                    // pass field_idx
+    call SYMBOL(artGet64StaticFromCode)    // (field_idx, referrer, Thread*, SP)
+    addl MACRO_LITERAL(16), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RETURN_IF_EAX_ZERO            // return or deliver exception
+
+DEFINE_FUNCTION art_get_obj_static_from_code
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
+    mov %esp, %edx                // remember SP
+    mov 32(%esp), %ecx            // get referrer
+    pushl %edx                    // pass SP
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %ecx                    // pass referrer
+    pushl %eax                    // pass field_idx
+    call SYMBOL(artGetObjStaticFromCode)   // (field_idx, referrer, Thread*, SP)
+    addl MACRO_LITERAL(16), %esp  // pop arguments
+    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
+    RETURN_IF_EAX_ZERO            // return or deliver exception
+
 MACRO1(UNIMPLEMENTED,name)
     .globl VAR(name, 0)
     ALIGN_FUNCTION_ENTRY
@@ -541,18 +718,6 @@ END_MACRO
     // TODO: implement these!
 UNIMPLEMENTED art_proxy_invoke_handler
 UNIMPLEMENTED art_update_debugger
-UNIMPLEMENTED art_set32_instance_from_code
-UNIMPLEMENTED art_set64_instance_from_code
-UNIMPLEMENTED art_set_obj_instance_from_code
-UNIMPLEMENTED art_get32_instance_from_code
-UNIMPLEMENTED art_get64_instance_from_code
-UNIMPLEMENTED art_get_obj_instance_from_code
-UNIMPLEMENTED art_set32_static_from_code
-UNIMPLEMENTED art_set64_static_from_code
-UNIMPLEMENTED art_set_obj_static_from_code
-UNIMPLEMENTED art_get32_static_from_code
-UNIMPLEMENTED art_get64_static_from_code
-UNIMPLEMENTED art_get_obj_static_from_code
 UNIMPLEMENTED art_indexof
 UNIMPLEMENTED art_memcmp16
 UNIMPLEMENTED art_string_compareto
