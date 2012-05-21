@@ -24,6 +24,7 @@ class MyClassNatives {
     native long fooJJ(long x, long y);
     native Object fooO(Object x);
     native double fooDD(double x, double y);
+    synchronized native long fooJJ_synchronized(long x, long y);
     native Object fooIOO(int x, Object y, Object z);
     static native Object fooSIOO(int x, Object y, Object z);
     static native int fooSII(int x, int y);
@@ -38,4 +39,4 @@ class MyClassNatives {
 
     native void instanceMethodThatShouldTakeClass(int i, Class c);
     static native void staticMethodThatShouldTakeClass(int i, Class c);
-  }
+}

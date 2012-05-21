@@ -261,6 +261,31 @@ TEST_F(JniCompilerTest, CompileAndRunDoubleDoubleMethod) {
   EXPECT_EQ(2, gJava_MyClassNatives_fooDD_calls);
 }
 
+int gJava_MyClassNatives_fooJJ_synchronized_calls = 0;
+jlong Java_MyClassNatives_fooJJ_synchronized(JNIEnv* env, jobject thisObj, jlong x, jlong y) {
+  // 2 = SirtRef<ClassLoader> + thisObj
+  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
+  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
+  EXPECT_TRUE(thisObj != NULL);
+  EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
+  gJava_MyClassNatives_fooJJ_synchronized_calls++;
+  return x | y;
+}
+
+TEST_F(JniCompilerTest, CompileAndRun_fooJJ_synchronized) {
+  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
+  SetUpForTest(class_loader.get(), false, "fooJJ_synchronized", "(JJ)J",
+               reinterpret_cast<void*>(&Java_MyClassNatives_fooJJ_synchronized));
+
+  EXPECT_EQ(0, gJava_MyClassNatives_fooJJ_synchronized_calls);
+  jlong a = 0x1000000020000000ULL;
+  jlong b = 0x00ff000000aa0000ULL;
+  jlong result = env_->CallNonvirtualLongMethod(jobj_, jklass_, jmethod_, a, b);
+  EXPECT_EQ(a | b, result);
+  EXPECT_EQ(1, gJava_MyClassNatives_fooJJ_synchronized_calls);
+}
+
 int gJava_MyClassNatives_fooIOO_calls = 0;
 jobject Java_MyClassNatives_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject y,
                             jobject z) {

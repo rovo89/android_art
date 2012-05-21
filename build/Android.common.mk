@@ -97,11 +97,7 @@ DEX2OAT_SRC_FILES := \
 	src/dex2oat.cc
 
 OATDUMP_SRC_FILES := \
-	src/oatdump.cc \
-	src/disassembler.cc \
-	src/disassembler_arm.cc \
-	src/disassembler_mips.cc \
-	src/disassembler_x86.cc
+	src/oatdump.cc
 
 OATEXEC_SRC_FILES := \
 	src/oatexec.cc
@@ -119,6 +115,10 @@ LIBART_COMMON_SRC_FILES := \
 	src/dex_file.cc \
 	src/dex_file_verifier.cc \
 	src/dex_instruction.cc \
+	src/disassembler.cc \
+	src/disassembler_arm.cc \
+	src/disassembler_mips.cc \
+	src/disassembler_x86.cc \
 	src/dlmalloc.c \
 	src/file.cc \
 	src/file_linux.cc \
