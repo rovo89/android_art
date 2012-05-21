@@ -261,6 +261,7 @@ VAR(c_name, 0):
     // Tail call to intended method.
     ret
 1:
+    addl MACRO_LITERAL(4), %esp   // Pop code pointer off stack
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 
