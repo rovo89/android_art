@@ -90,13 +90,10 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
   for (uint32_t i = 0; i < arg_count; ++i) {
     Object* arg = objects->Get(i);
     Class* dst_class = mh.GetClassFromTypeIdx(classes->GetTypeItem(i).type_idx_);
-    if (dst_class->IsPrimitive() || (arg != NULL && !arg->InstanceOf(dst_class))) {
-      // We want to actually unbox primitives, but only reuse the error reporting for reference types.
-      if (!UnboxPrimitiveForArgument(arg, dst_class, decoded_args[i], m, i)) {
-        return NULL;
-      }
-    } else {
-      // We already tested that these types are compatible.
+    if (!UnboxPrimitiveForArgument(arg, dst_class, decoded_args[i], m, i)) {
+      return NULL;
+    }
+    if (!dst_class->IsPrimitive()) {
       args[i].l = AddLocalReference<jobject>(env, arg);
     }
   }
