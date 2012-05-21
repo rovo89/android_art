@@ -1029,7 +1029,7 @@ void ArmAssembler::vmstat(Condition cond) {  // VMRS APSR_nzcv, FPSCR
 
 
 void ArmAssembler::svc(uint32_t imm24) {
-  CHECK(IsUint(24, imm24));
+  CHECK(IsUint(24, imm24)) << imm24;
   int32_t encoding = (AL << kConditionShift) | B27 | B26 | B25 | B24 | imm24;
   Emit(encoding);
 }
@@ -1107,7 +1107,7 @@ int32_t ArmAssembler::EncodeBranchOffset(int offset, int32_t inst) {
   // The offset is off by 8 due to the way the ARM CPUs read PC.
   offset -= 8;
   CHECK_ALIGNED(offset, 4);
-  CHECK(IsInt(CountOneBits(kBranchOffsetMask), offset));
+  CHECK(IsInt(CountOneBits(kBranchOffsetMask), offset)) << offset;
 
   // Properly preserve only the bits supported in the instruction.
   offset >>= 2;
@@ -1506,20 +1506,20 @@ void ArmAssembler::Store(FrameOffset dest, ManagedRegister msrc, size_t size) {
   } else if (src.IsSRegister()) {
     StoreSToOffset(src.AsSRegister(), SP, dest.Int32Value());
   } else {
-    CHECK(src.IsDRegister());
+    CHECK(src.IsDRegister()) << src;
     StoreDToOffset(src.AsDRegister(), SP, dest.Int32Value());
   }
 }
 
 void ArmAssembler::StoreRef(FrameOffset dest, ManagedRegister msrc) {
   ArmManagedRegister src = msrc.AsArm();
-  CHECK(src.IsCoreRegister());
+  CHECK(src.IsCoreRegister()) << src;
   StoreToOffset(kStoreWord, src.AsCoreRegister(), SP, dest.Int32Value());
 }
 
 void ArmAssembler::StoreRawPtr(FrameOffset dest, ManagedRegister msrc) {
   ArmManagedRegister src = msrc.AsArm();
-  CHECK(src.IsCoreRegister());
+  CHECK(src.IsCoreRegister()) << src;
   StoreToOffset(kStoreWord, src.AsCoreRegister(), SP, dest.Int32Value());
 }
 
@@ -1541,30 +1541,30 @@ void ArmAssembler::CopyRef(FrameOffset dest, FrameOffset src,
 
 void ArmAssembler::LoadRef(ManagedRegister mdest, ManagedRegister base,
                            MemberOffset offs) {
-  ArmManagedRegister dest = mdest.AsArm();
-  CHECK(dest.IsCoreRegister() && dest.IsCoreRegister());
-  LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
+  ArmManagedRegister dst = mdest.AsArm();
+  CHECK(dst.IsCoreRegister() && dst.IsCoreRegister()) << dst;
+  LoadFromOffset(kLoadWord, dst.AsCoreRegister(),
                  base.AsArm().AsCoreRegister(), offs.Int32Value());
 }
 
 void ArmAssembler::LoadRef(ManagedRegister mdest, FrameOffset  src) {
-  ArmManagedRegister dest = mdest.AsArm();
-  CHECK(dest.IsCoreRegister());
-  LoadFromOffset(kLoadWord, dest.AsCoreRegister(), SP, src.Int32Value());
+  ArmManagedRegister dst = mdest.AsArm();
+  CHECK(dst.IsCoreRegister()) << dst;
+  LoadFromOffset(kLoadWord, dst.AsCoreRegister(), SP, src.Int32Value());
 }
 
 void ArmAssembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base,
                            Offset offs) {
-  ArmManagedRegister dest = mdest.AsArm();
-  CHECK(dest.IsCoreRegister() && dest.IsCoreRegister());
-  LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
+  ArmManagedRegister dst = mdest.AsArm();
+  CHECK(dst.IsCoreRegister() && dst.IsCoreRegister()) << dst;
+  LoadFromOffset(kLoadWord, dst.AsCoreRegister(),
                  base.AsArm().AsCoreRegister(), offs.Int32Value());
 }
 
 void ArmAssembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
                                       ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
-  CHECK(scratch.IsCoreRegister());
+  CHECK(scratch.IsCoreRegister()) << scratch;
   LoadImmediate(scratch.AsCoreRegister(), imm);
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
 }
@@ -1572,62 +1572,50 @@ void ArmAssembler::StoreImmediateToFrame(FrameOffset dest, uint32_t imm,
 void ArmAssembler::StoreImmediateToThread(ThreadOffset dest, uint32_t imm,
                                        ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
-  CHECK(scratch.IsCoreRegister());
+  CHECK(scratch.IsCoreRegister()) << scratch;
   LoadImmediate(scratch.AsCoreRegister(), imm);
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(), TR, dest.Int32Value());
 }
 
-void ArmAssembler::Load(ManagedRegister mdest, FrameOffset src, size_t size) {
-  ArmManagedRegister dest = mdest.AsArm();
-  if (dest.IsNoRegister()) {
-    CHECK_EQ(0u, size);
-  } else if (dest.IsCoreRegister()) {
-    CHECK_EQ(4u, size);
-    LoadFromOffset(kLoadWord, dest.AsCoreRegister(), SP, src.Int32Value());
-  } else if (dest.IsRegisterPair()) {
-    CHECK_EQ(8u, size);
-    LoadFromOffset(kLoadWord, dest.AsRegisterPairLow(), SP, src.Int32Value());
-    LoadFromOffset(kLoadWord, dest.AsRegisterPairHigh(), SP, src.Int32Value() + 4);
-  } else if (dest.IsSRegister()) {
-    LoadSFromOffset(dest.AsSRegister(), SP, src.Int32Value());
+static void EmitLoad(ArmAssembler* assembler, ManagedRegister m_dst,
+                     Register src_register, int32_t src_offset, size_t size) {
+  ArmManagedRegister dst = m_dst.AsArm();
+  if (dst.IsNoRegister()) {
+    CHECK_EQ(0u, size) << dst;
+  } else if (dst.IsCoreRegister()) {
+    CHECK_EQ(4u, size) << dst;
+    assembler->LoadFromOffset(kLoadWord, dst.AsCoreRegister(), src_register, src_offset);
+  } else if (dst.IsRegisterPair()) {
+    CHECK_EQ(8u, size) << dst;
+    assembler->LoadFromOffset(kLoadWord, dst.AsRegisterPairLow(), src_register, src_offset);
+    assembler->LoadFromOffset(kLoadWord, dst.AsRegisterPairHigh(), src_register, src_offset + 4);
+  } else if (dst.IsSRegister()) {
+    assembler->LoadSFromOffset(dst.AsSRegister(), src_register, src_offset);
   } else {
-    CHECK(dest.IsDRegister());
-    LoadDFromOffset(dest.AsDRegister(), SP, src.Int32Value());
+    CHECK(dst.IsDRegister()) << dst;
+    assembler->LoadDFromOffset(dst.AsDRegister(), src_register, src_offset);
   }
 }
 
-void ArmAssembler::Load(ManagedRegister mdest, ThreadOffset src, size_t size) {
-  ArmManagedRegister dest = mdest.AsArm();
-  if (dest.IsNoRegister()) {
-    CHECK_EQ(0u, size);
-  } else if (dest.IsCoreRegister()) {
-    CHECK_EQ(4u, size);
-    LoadFromOffset(kLoadWord, dest.AsCoreRegister(), TR, src.Int32Value());
-  } else if (dest.IsRegisterPair()) {
-    CHECK_EQ(8u, size);
-    LoadFromOffset(kLoadWord, dest.AsRegisterPairLow(), TR, src.Int32Value());
-    LoadFromOffset(kLoadWord, dest.AsRegisterPairHigh(), TR, src.Int32Value() + 4);
-  } else if (dest.IsSRegister()) {
-    LoadSFromOffset(dest.AsSRegister(), TR, src.Int32Value());
-  } else {
-    CHECK(dest.IsDRegister());
-    LoadDFromOffset(dest.AsDRegister(), TR, src.Int32Value());
-  }
+void ArmAssembler::Load(ManagedRegister m_dst, FrameOffset src, size_t size) {
+  return EmitLoad(this, m_dst, SP, src.Int32Value(), size);
 }
 
-void ArmAssembler::LoadRawPtrFromThread(ManagedRegister mdest,
-                                        ThreadOffset offs) {
-  ArmManagedRegister dest = mdest.AsArm();
-  CHECK(dest.IsCoreRegister());
-  LoadFromOffset(kLoadWord, dest.AsCoreRegister(),
-                 TR, offs.Int32Value());
+void ArmAssembler::Load(ManagedRegister m_dst, ThreadOffset src, size_t size) {
+  return EmitLoad(this, m_dst, TR, src.Int32Value(), size);
+}
+
+void ArmAssembler::LoadRawPtrFromThread(ManagedRegister m_dst, ThreadOffset offs) {
+  ArmManagedRegister dst = m_dst.AsArm();
+  CHECK(dst.IsCoreRegister()) << dst;
+  LoadFromOffset(kLoadWord, dst.AsCoreRegister(), TR, offs.Int32Value());
 }
 
 void ArmAssembler::CopyRawPtrFromThread(FrameOffset fr_offs,
                                         ThreadOffset thr_offs,
                                         ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
-  CHECK(scratch.IsCoreRegister());
+  CHECK(scratch.IsCoreRegister()) << scratch;
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  TR, thr_offs.Int32Value());
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
@@ -1638,7 +1626,7 @@ void ArmAssembler::CopyRawPtrToThread(ThreadOffset thr_offs,
                                       FrameOffset fr_offs,
                                       ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
-  CHECK(scratch.IsCoreRegister());
+  CHECK(scratch.IsCoreRegister()) << scratch;
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  SP, fr_offs.Int32Value());
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
@@ -1649,7 +1637,7 @@ void ArmAssembler::StoreStackOffsetToThread(ThreadOffset thr_offs,
                                             FrameOffset fr_offs,
                                             ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
-  CHECK(scratch.IsCoreRegister());
+  CHECK(scratch.IsCoreRegister()) << scratch;
   AddConstant(scratch.AsCoreRegister(), SP, fr_offs.Int32Value(), AL);
   StoreToOffset(kStoreWord, scratch.AsCoreRegister(),
                 TR, thr_offs.Int32Value());
@@ -1659,29 +1647,29 @@ void ArmAssembler::StoreStackPointerToThread(ThreadOffset thr_offs) {
   StoreToOffset(kStoreWord, SP, TR, thr_offs.Int32Value());
 }
 
-void ArmAssembler::Move(ManagedRegister mdest, ManagedRegister msrc, size_t /*size*/) {
-  ArmManagedRegister dest = mdest.AsArm();
-  ArmManagedRegister src = msrc.AsArm();
-  if (!dest.Equals(src)) {
-    if (dest.IsCoreRegister()) {
-      CHECK(src.IsCoreRegister());
-      mov(dest.AsCoreRegister(), ShifterOperand(src.AsCoreRegister()));
-    } else if (dest.IsDRegister()) {
-      CHECK(src.IsDRegister());
-      vmovd(dest.AsDRegister(), src.AsDRegister());
-    } else if (dest.IsSRegister()) {
-      CHECK(src.IsSRegister());
-      vmovs(dest.AsSRegister(), src.AsSRegister());
+void ArmAssembler::Move(ManagedRegister m_dst, ManagedRegister m_src, size_t /*size*/) {
+  ArmManagedRegister dst = m_dst.AsArm();
+  ArmManagedRegister src = m_src.AsArm();
+  if (!dst.Equals(src)) {
+    if (dst.IsCoreRegister()) {
+      CHECK(src.IsCoreRegister()) << src;
+      mov(dst.AsCoreRegister(), ShifterOperand(src.AsCoreRegister()));
+    } else if (dst.IsDRegister()) {
+      CHECK(src.IsDRegister()) << src;
+      vmovd(dst.AsDRegister(), src.AsDRegister());
+    } else if (dst.IsSRegister()) {
+      CHECK(src.IsSRegister()) << src;
+      vmovs(dst.AsSRegister(), src.AsSRegister());
     } else {
-      CHECK(dest.IsRegisterPair());
-      CHECK(src.IsRegisterPair());
+      CHECK(dst.IsRegisterPair()) << dst;
+      CHECK(src.IsRegisterPair()) << src;
       // Ensure that the first move doesn't clobber the input of the second
-      if (src.AsRegisterPairHigh() != dest.AsRegisterPairLow()) {
-        mov(dest.AsRegisterPairLow(), ShifterOperand(src.AsRegisterPairLow()));
-        mov(dest.AsRegisterPairHigh(), ShifterOperand(src.AsRegisterPairHigh()));
+      if (src.AsRegisterPairHigh() != dst.AsRegisterPairLow()) {
+        mov(dst.AsRegisterPairLow(), ShifterOperand(src.AsRegisterPairLow()));
+        mov(dst.AsRegisterPairHigh(), ShifterOperand(src.AsRegisterPairHigh()));
       } else {
-        mov(dest.AsRegisterPairHigh(), ShifterOperand(src.AsRegisterPairHigh()));
-        mov(dest.AsRegisterPairLow(), ShifterOperand(src.AsRegisterPairLow()));
+        mov(dst.AsRegisterPairHigh(), ShifterOperand(src.AsRegisterPairHigh()));
+        mov(dst.AsRegisterPairLow(), ShifterOperand(src.AsRegisterPairLow()));
       }
     }
   }
@@ -1689,8 +1677,8 @@ void ArmAssembler::Move(ManagedRegister mdest, ManagedRegister msrc, size_t /*si
 
 void ArmAssembler::Copy(FrameOffset dest, FrameOffset src, ManagedRegister mscratch, size_t size) {
   ArmManagedRegister scratch = mscratch.AsArm();
-  CHECK(scratch.IsCoreRegister());
-  CHECK(size == 4 || size == 8);
+  CHECK(scratch.IsCoreRegister()) << scratch;
+  CHECK(size == 4 || size == 8) << size;
   if (size == 4) {
     LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP, src.Int32Value());
     StoreToOffset(kStoreWord, scratch.AsCoreRegister(), SP, dest.Int32Value());
@@ -1739,7 +1727,7 @@ void ArmAssembler::Copy(FrameOffset /*dst*/, Offset /*dest_offset*/, FrameOffset
 
 
 void ArmAssembler::MemoryBarrier(ManagedRegister mscratch) {
-  CHECK(mscratch.AsArm().AsCoreRegister() == R12);
+  CHECK_EQ(mscratch.AsArm().AsCoreRegister(), R12);
 #if ANDROID_SMP != 0
 #if defined(__ARM_HAVE_DMB)
   int32_t encoding = 0xf57ff05f;  // dmb
@@ -1760,8 +1748,8 @@ void ArmAssembler::CreateSirtEntry(ManagedRegister mout_reg,
                                    ManagedRegister min_reg, bool null_allowed) {
   ArmManagedRegister out_reg = mout_reg.AsArm();
   ArmManagedRegister in_reg = min_reg.AsArm();
-  CHECK(in_reg.IsNoRegister() || in_reg.IsCoreRegister());
-  CHECK(out_reg.IsCoreRegister());
+  CHECK(in_reg.IsNoRegister() || in_reg.IsCoreRegister()) << in_reg;
+  CHECK(out_reg.IsCoreRegister()) << out_reg;
   if (null_allowed) {
     // Null values get a SIRT entry value of 0.  Otherwise, the SIRT entry is
     // the address in the SIRT holding the reference.
@@ -1786,7 +1774,7 @@ void ArmAssembler::CreateSirtEntry(FrameOffset out_off,
                                    ManagedRegister mscratch,
                                    bool null_allowed) {
   ArmManagedRegister scratch = mscratch.AsArm();
-  CHECK(scratch.IsCoreRegister());
+  CHECK(scratch.IsCoreRegister()) << scratch;
   if (null_allowed) {
     LoadFromOffset(kLoadWord, scratch.AsCoreRegister(), SP,
                    sirt_offset.Int32Value());
@@ -1805,8 +1793,8 @@ void ArmAssembler::LoadReferenceFromSirt(ManagedRegister mout_reg,
                                          ManagedRegister min_reg) {
   ArmManagedRegister out_reg = mout_reg.AsArm();
   ArmManagedRegister in_reg = min_reg.AsArm();
-  CHECK(out_reg.IsCoreRegister());
-  CHECK(in_reg.IsCoreRegister());
+  CHECK(out_reg.IsCoreRegister()) << out_reg;
+  CHECK(in_reg.IsCoreRegister()) << in_reg;
   Label null_arg;
   if (!out_reg.Equals(in_reg)) {
     LoadImmediate(out_reg.AsCoreRegister(), 0, EQ);
@@ -1828,8 +1816,8 @@ void ArmAssembler::Call(ManagedRegister mbase, Offset offset,
                         ManagedRegister mscratch) {
   ArmManagedRegister base = mbase.AsArm();
   ArmManagedRegister scratch = mscratch.AsArm();
-  CHECK(base.IsCoreRegister());
-  CHECK(scratch.IsCoreRegister());
+  CHECK(base.IsCoreRegister()) << base;
+  CHECK(scratch.IsCoreRegister()) << scratch;
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  base.AsCoreRegister(), offset.Int32Value());
   blx(scratch.AsCoreRegister());
@@ -1839,7 +1827,7 @@ void ArmAssembler::Call(ManagedRegister mbase, Offset offset,
 void ArmAssembler::Call(FrameOffset base, Offset offset,
                         ManagedRegister mscratch) {
   ArmManagedRegister scratch = mscratch.AsArm();
-  CHECK(scratch.IsCoreRegister());
+  CHECK(scratch.IsCoreRegister()) << scratch;
   // Call *(*(SP + base) + offset)
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  SP, base.Int32Value());
