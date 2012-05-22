@@ -111,24 +111,9 @@ void Thread::InitTid() {
 }
 
 void Thread::InitAfterFork() {
+  // One thread (us) survived the fork, but we have a new tid so we need to
+  // update the value stashed in this Thread*.
   InitTid();
-
-#if defined(__BIONIC__)
-  // Work around a bionic bug.
-  struct bionic_pthread_internal_t {
-    void*  next;
-    void** pref;
-    pthread_attr_t attr;
-    pid_t kernel_id;
-    // et cetera. we just need 'kernel_id' so we can stop here.
-  };
-  bionic_pthread_internal_t* self = reinterpret_cast<bionic_pthread_internal_t*>(pthread_self());
-  if (self->kernel_id == tid_) {
-    // TODO: if you see this logging, you can remove this code!
-    LOG(INFO) << "*** this tree doesn't have the bionic pthread kernel_id bug";
-  }
-  self->kernel_id = tid_;
-#endif
 }
 
 void* Thread::CreateCallback(void* arg) {
