@@ -41,9 +41,16 @@
 #if defined(__APPLE__)
 #include "AvailabilityMacros.h" // For MAC_OS_X_VERSION_MAX_ALLOWED
 #include <sys/syscall.h>
+
+#include <cxxabi.h> // For DumpNativeStack.
+#include <execinfo.h> // For DumpNativeStack.
+
 #endif
 
 #if defined(__linux__)
+#include <corkscrew/backtrace.h> // For DumpNativeStack.
+#include <corkscrew/demangle.h> // For DumpNativeStack.
+
 #include <linux/unistd.h>
 #endif
 
@@ -905,6 +912,207 @@ std::string GetSchedulerGroupName(pid_t tid) {
   }
   return "";
 }
+
+#if defined(__APPLE__)
+
+static std::string Demangle(const std::string& mangled_name) {
+  if (mangled_name.empty()) {
+    return "??";
+  }
+
+  // http://gcc.gnu.org/onlinedocs/libstdc++/manual/ext_demangling.html
+  int status;
+  char* name(abi::__cxa_demangle(mangled_name.c_str(), NULL, NULL, &status));
+  if (name != NULL) {
+    std::string result(name);
+    free(name);
+    return result;
+  }
+
+  return mangled_name;
+}
+
+// TODO: port libcorkscrew to Mac OS (or find an equivalent).
+void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count) {
+  if (tid != GetTid()) {
+    // backtrace(3) only works for the current thread.
+    return;
+  }
+
+  // Get the raw stack frames.
+  size_t MAX_STACK_FRAMES = 128;
+  void* frames[MAX_STACK_FRAMES];
+  size_t frame_count = backtrace(frames, MAX_STACK_FRAMES);
+  if (frame_count == 0) {
+    os << prefix << "--- backtrace(3) returned no frames";
+    return;
+  }
+
+  // Turn them into something human-readable with symbols.
+  char** symbols = backtrace_symbols(frames, frame_count);
+  if (symbols == NULL) {
+    os << prefix << "--- backtrace_symbols(3) failed";
+    return;
+  }
+
+  // Parse the backtrace strings and demangle, so we can produce output like this:
+  // ]    #00 art::Runtime::Abort(char const*, int)+0x15b [0xf770dd51] (libartd.so)
+  for (size_t i = 0; i < frame_count; ++i) {
+    std::string text(symbols[i]);
+    std::string filename("???");
+    std::string function_name;
+
+    // backtrace_symbols(3) gives us lines like this on Mac OS:
+    // "0   libartd.dylib                       0x001cd29a _ZN3art9Backtrace4DumpERSo + 40>"
+    // "3   ???                                 0xffffffff 0x0 + 4294967295>"
+    text.erase(0, 4);
+    size_t index = text.find(' ');
+    filename = text.substr(0, index);
+    text.erase(0, 40 - 4);
+    index = text.find(' ');
+    std::string address(text.substr(0, index));
+    text.erase(0, index + 1);
+    index = text.find(' ');
+    function_name = Demangle(text.substr(0, index));
+    text.erase(0, index);
+    text += " [" + address + "]";
+
+    const char* last_slash = strrchr(filename.c_str(), '/');
+    const char* so_name = (last_slash == NULL) ? filename.c_str() : last_slash + 1;
+    os << prefix;
+    if (include_count) {
+      os << StringPrintf("\t#%02zd ", i);
+    }
+    os << function_name << text << " (" << so_name << ")\n";
+  }
+
+  free(symbols);
+}
+
+// TODO: is there any way to get the kernel stack on Mac OS?
+void DumpKernelStack(std::ostream&, pid_t, const char*, bool) {}
+
+#else
+
+static const char* CleanMapName(const backtrace_symbol_t* symbol) {
+  const char* map_name = symbol->map_name;
+  if (map_name == NULL) {
+    map_name = "???";
+  }
+  // Turn "/usr/local/google/home/enh/clean-dalvik-dev/out/host/linux-x86/lib/libartd.so"
+  // into "libartd.so".
+  const char* last_slash = strrchr(map_name, '/');
+  if (last_slash != NULL) {
+    map_name = last_slash + 1;
+  }
+  return map_name;
+}
+
+static void FindSymbolInElf(const backtrace_frame_t* frame, const backtrace_symbol_t* symbol,
+                            std::string& symbol_name, uint32_t& pc_offset) {
+  symbol_table_t* symbol_table = NULL;
+  if (symbol->map_name != NULL) {
+    symbol_table = load_symbol_table(symbol->map_name);
+  }
+  const symbol_t* elf_symbol = NULL;
+  if (symbol_table != NULL) {
+    elf_symbol = find_symbol(symbol_table, symbol->relative_pc);
+    if (elf_symbol == NULL) {
+      elf_symbol = find_symbol(symbol_table, frame->absolute_pc);
+    }
+  }
+  if (elf_symbol != NULL) {
+    const char* demangled_symbol_name = demangle_symbol_name(elf_symbol->name);
+    if (demangled_symbol_name != NULL) {
+      symbol_name = demangled_symbol_name;
+    } else {
+      symbol_name = elf_symbol->name;
+    }
+    pc_offset = frame->absolute_pc - elf_symbol->start;
+  } else {
+    symbol_name = "???";
+  }
+  free_symbol_table(symbol_table);
+}
+
+void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count) {
+  const size_t MAX_DEPTH = 32;
+  UniquePtr<backtrace_frame_t[]> frames(new backtrace_frame_t[MAX_DEPTH]);
+  ssize_t frame_count = unwind_backtrace_thread(tid, frames.get(), 0, MAX_DEPTH);
+  if (frame_count == -1) {
+    os << prefix << "(unwind_backtrace_thread failed for thread " << tid << ".)";
+    return;
+  } else if (frame_count == 0) {
+    os << prefix << "(no native stack frames)";
+    return;
+  }
+
+  UniquePtr<backtrace_symbol_t[]> backtrace_symbols(new backtrace_symbol_t[frame_count]);
+  get_backtrace_symbols(frames.get(), frame_count, backtrace_symbols.get());
+
+  for (size_t i = 0; i < static_cast<size_t>(frame_count); ++i) {
+    const backtrace_frame_t* frame = &frames[i];
+    const backtrace_symbol_t* symbol = &backtrace_symbols[i];
+
+    // We produce output like this:
+    // ]    #00 unwind_backtrace_thread+536 [0x55d75bb8] (libcorkscrew.so)
+
+    std::string symbol_name;
+    uint32_t pc_offset = 0;
+    if (symbol->demangled_name != NULL) {
+      symbol_name = symbol->demangled_name;
+      pc_offset = symbol->relative_pc - symbol->relative_symbol_addr;
+    } else if (symbol->symbol_name != NULL) {
+      symbol_name = symbol->symbol_name;
+      pc_offset = symbol->relative_pc - symbol->relative_symbol_addr;
+    } else {
+      // dladdr(3) didn't find a symbol; maybe it's static? Look in the ELF file...
+      FindSymbolInElf(frame, symbol, symbol_name, pc_offset);
+    }
+
+    os << prefix;
+    if (include_count) {
+      os << StringPrintf("#%02zd ", i);
+    }
+    os << symbol_name;
+    if (pc_offset != 0) {
+      os << "+" << pc_offset;
+    }
+    os << StringPrintf(" [%p] (%s)\n",
+                       reinterpret_cast<void*>(frame->absolute_pc), CleanMapName(symbol));
+  }
+
+  free_backtrace_symbols(backtrace_symbols.get(), frame_count);
+}
+
+void DumpKernelStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count) {
+  std::string kernel_stack_filename(StringPrintf("/proc/self/task/%d/stack", tid));
+  std::string kernel_stack;
+  if (!ReadFileToString(kernel_stack_filename, &kernel_stack)) {
+    os << "  (couldn't read " << kernel_stack_filename << ")";
+  }
+
+  std::vector<std::string> kernel_stack_frames;
+  Split(kernel_stack, '\n', kernel_stack_frames);
+  // We skip the last stack frame because it's always equivalent to "[<ffffffff>] 0xffffffff",
+  // which looking at the source appears to be the kernel's way of saying "that's all, folks!".
+  kernel_stack_frames.pop_back();
+  for (size_t i = 0; i < kernel_stack_frames.size(); ++i) {
+    // Turn "[<ffffffff8109156d>] futex_wait_queue_me+0xcd/0x110" into "futex_wait_queue_me+0xcd/0x110".
+    const char* text = kernel_stack_frames[i].c_str();
+    const char* close_bracket = strchr(text, ']');
+    if (close_bracket != NULL) {
+      text = close_bracket + 2;
+    }
+    os << prefix;
+    if (include_count) {
+      os << StringPrintf("#%02zd ", i);
+    }
+    os << text << "\n";
+  }
+}
+
+#endif
 
 const char* GetAndroidRoot() {
   const char* android_root = getenv("ANDROID_ROOT");
