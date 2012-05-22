@@ -16,97 +16,18 @@
 
 #include "runtime.h"
 
-#include <cxxabi.h>
-#include <execinfo.h>
 #include <signal.h>
 #include <string.h>
 
 #include "logging.h"
 #include "stringprintf.h"
+#include "utils.h"
 
 namespace art {
 
-static std::string Demangle(const std::string& mangled_name) {
-  if (mangled_name.empty()) {
-    return "??";
-  }
-
-  // http://gcc.gnu.org/onlinedocs/libstdc++/manual/ext_demangling.html
-  int status;
-  char* name(abi::__cxa_demangle(mangled_name.c_str(), NULL, NULL, &status));
-  if (name != NULL) {
-    std::string result(name);
-    free(name);
-    return result;
-  }
-
-  return mangled_name;
-}
-
 struct Backtrace {
   void Dump(std::ostream& os) {
-    // Get the raw stack frames.
-    size_t MAX_STACK_FRAMES = 128;
-    void* frames[MAX_STACK_FRAMES];
-    size_t frame_count = backtrace(frames, MAX_STACK_FRAMES);
-    if (frame_count == 0) {
-      os << "--- backtrace(3) returned no frames";
-      return;
-    }
-
-    // Turn them into something human-readable with symbols.
-    char** symbols = backtrace_symbols(frames, frame_count);
-    if (symbols == NULL) {
-      os << "--- backtrace_symbols(3) failed";
-      return;
-    }
-
-
-    // Parse the backtrace strings and demangle, so we can produce output like this:
-    // ]    #00 art::Runtime::Abort(char const*, int)+0x15b [0xf770dd51] (libartd.so)
-    for (size_t i = 0; i < frame_count; ++i) {
-      std::string text(symbols[i]);
-      std::string filename("???");
-      std::string function_name;
-
-#if defined(__APPLE__)
-      // backtrace_symbols(3) gives us lines like this on Mac OS:
-      // "0   libartd.dylib                       0x001cd29a _ZN3art9Backtrace4DumpERSo + 40>"
-      // "3   ???                                 0xffffffff 0x0 + 4294967295>"
-      text.erase(0, 4);
-      size_t index = text.find(' ');
-      filename = text.substr(0, index);
-      text.erase(0, 40 - 4);
-      index = text.find(' ');
-      std::string address(text.substr(0, index));
-      text.erase(0, index + 1);
-      index = text.find(' ');
-      function_name = Demangle(text.substr(0, index));
-      text.erase(0, index);
-      text += " [" + address + "]";
-#else
-      // backtrace_symbols(3) gives us lines like this on Linux:
-      // "/usr/local/google/home/enh/a1/out/host/linux-x86/bin/../lib/libartd.so(_ZN3art7Runtime5AbortEPKci+0x15b) [0xf76c5af3]"
-      // "[0xf7b62057]"
-      size_t index = text.find('(');
-      if (index != std::string::npos) {
-        filename = text.substr(0, index);
-        text.erase(0, index + 1);
-
-        index = text.find_first_of("+)");
-        function_name = Demangle(text.substr(0, index));
-        text.erase(0, index);
-        index = text.find(')');
-        text.erase(index, 1);
-      }
-#endif
-
-      const char* last_slash = strrchr(filename.c_str(), '/');
-      const char* so_name = (last_slash == NULL) ? filename.c_str() : last_slash + 1;
-      os << StringPrintf("\t#%02zd ", i) << function_name << text << " (" << so_name << ")\n";
-    }
-
-    free(symbols);
+    DumpNativeStack(os, GetTid(), "\t", true);
   }
 };
 
@@ -213,7 +134,9 @@ struct UContext {
     os << '\n';
 
     DumpRegister32(os, "eip", context->__ss.__eip);
+    os << "                   ";
     DumpRegister32(os, "eflags", context->__ss.__eflags);
+    DumpX86Flags(os, context->__ss.__eflags);
     os << '\n';
 
     DumpRegister32(os, "cs",  context->__ss.__cs);
@@ -237,7 +160,9 @@ struct UContext {
     os << '\n';
 
     DumpRegister32(os, "eip", context.gregs[REG_EIP]);
+    os << "                   ";
     DumpRegister32(os, "eflags", context.gregs[REG_EFL]);
+    DumpX86Flags(os, context.gregs[REG_EFL]);
     os << '\n';
 
     DumpRegister32(os, "cs",  context.gregs[REG_CS]);
@@ -252,6 +177,38 @@ struct UContext {
 
   void DumpRegister32(std::ostream& os, const char* name, uint32_t value) {
     os << StringPrintf(" %6s: 0x%08x", name, value);
+  }
+
+  void DumpX86Flags(std::ostream& os, uint32_t flags) {
+    os << " [";
+    if ((flags & (1 << 0)) != 0) {
+      os << " CF";
+    }
+    if ((flags & (1 << 2)) != 0) {
+      os << " PF";
+    }
+    if ((flags & (1 << 4)) != 0) {
+      os << " AF";
+    }
+    if ((flags & (1 << 6)) != 0) {
+      os << " ZF";
+    }
+    if ((flags & (1 << 7)) != 0) {
+      os << " SF";
+    }
+    if ((flags & (1 << 8)) != 0) {
+      os << " TF";
+    }
+    if ((flags & (1 << 9)) != 0) {
+      os << " IF";
+    }
+    if ((flags & (1 << 10)) != 0) {
+      os << " DF";
+    }
+    if ((flags & (1 << 11)) != 0) {
+      os << " OF";
+    }
+    os << " ]";
   }
 
   mcontext_t& context;
