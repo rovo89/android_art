@@ -21,12 +21,15 @@
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "compiler.h"
+#include "disassembler.h"
 #include "jni_internal.h"
 #include "logging.h"
 #include "macros.h"
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "oat/utils/assembler.h"
 #include "oat/utils/managed_register.h"
+#include "oat/utils/arm/managed_register_arm.h"
+#include "oat/utils/x86/managed_register_x86.h"
 #include "thread.h"
 #include "UniquePtr.h"
 
@@ -164,6 +167,11 @@ static void SetNativeParameter(Assembler* jni_asm,
   }
 }
 
+static bool IsRegisterPair(InstructionSet instruction_set, ManagedRegister r) {
+  return ((instruction_set == kArm && r.AsArm().IsRegisterPair()) ||
+          (instruction_set == kX86 && r.AsX86().IsRegisterPair()));
+}
+
 // Generate the JNI bridge for the given method, general contract:
 // - Arguments are in the managed runtime format, either on stack or in
 //   registers, a reference to the method object is supplied as part of this
@@ -188,6 +196,7 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
 
   // Assembler that holds generated instructions
   UniquePtr<Assembler> jni_asm(Assembler::Create(instruction_set));
+  bool should_disassemble = false;
 
   // Offsets into data structures
   // TODO: if cross compiling these offsets are for the host not the target
@@ -289,8 +298,18 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
 
     // Copy arguments to preserve to callee save registers
     CHECK_LE(live_argument_regs.size(), callee_save_regs.size());
-    for (size_t i = 0; i < live_argument_regs.size(); i++) {
-      __ Move(callee_save_regs.at(i), live_argument_regs.at(i), live_argument_regs_size.at(i));
+    for (size_t in = 0, out = 0; in < live_argument_regs.size(); ++in) {
+      size_t size = live_argument_regs_size.at(in);
+      if (IsRegisterPair(instruction_set, live_argument_regs.at(in))) {
+        CHECK_EQ(instruction_set, kArm);
+        arm::ArmManagedRegister pair(live_argument_regs.at(in).AsArm());
+        arm::Register lo(pair.AsRegisterPairLow());
+        arm::Register hi(pair.AsRegisterPairHigh());
+        __ Move(callee_save_regs.at(out++), arm::ArmManagedRegister::FromCoreRegister(lo), size / 2);
+        __ Move(callee_save_regs.at(out++), arm::ArmManagedRegister::FromCoreRegister(hi), size / 2);
+      } else {
+        __ Move(callee_save_regs.at(out++), live_argument_regs.at(in), size);
+      }
     }
 
     // Get SIRT entry for 1st argument (jclass or this) to be 1st argument to
@@ -331,8 +350,18 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
     __ ExceptionPoll(jni_conv->InterproceduralScratchRegister());
 
     // Restore live arguments
-    for (size_t i = 0; i < live_argument_regs.size(); i++) {
-      __ Move(live_argument_regs.at(i), callee_save_regs.at(i), live_argument_regs_size.at(i));
+    for (size_t in = 0, out = 0; out < live_argument_regs.size(); ++out) {
+      size_t size = live_argument_regs_size.at(out);
+      if (IsRegisterPair(instruction_set, live_argument_regs.at(out))) {
+        CHECK_EQ(instruction_set, kArm);
+        arm::ArmManagedRegister pair(live_argument_regs.at(out).AsArm());
+        arm::Register lo(pair.AsRegisterPairLow());
+        arm::Register hi(pair.AsRegisterPairHigh());
+        __ Move(arm::ArmManagedRegister::FromCoreRegister(lo), callee_save_regs.at(in++), size / 2);
+        __ Move(arm::ArmManagedRegister::FromCoreRegister(hi), callee_save_regs.at(in++), size / 2);
+      } else {
+        __ Move(live_argument_regs.at(out), callee_save_regs.at(in++), size);
+      }
     }
   }
 
@@ -553,6 +582,10 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
   std::vector<uint8_t> managed_code(cs);
   MemoryRegion code(&managed_code[0], managed_code.size());
   __ FinalizeInstructions(code);
+  if (should_disassemble) {
+    UniquePtr<Disassembler> disassembler(Disassembler::Create(instruction_set));
+    disassembler->Dump(LOG(INFO), &managed_code[0], &managed_code[managed_code.size()]);
+  }
   return new CompiledMethod(instruction_set,
                             managed_code,
                             frame_size,
