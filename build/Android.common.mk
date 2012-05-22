@@ -315,6 +315,7 @@ TEST_COMMON_SRC_FILES := \
 	src/dex_instruction_visitor_test.cc \
 	src/exception_test.cc \
 	src/file_test.cc \
+	src/gtest_test.cc \
 	src/heap_test.cc \
 	src/image_test.cc \
 	src/indirect_reference_table_test.cc \
