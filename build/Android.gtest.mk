@@ -24,6 +24,10 @@ ifeq ($(ART_USE_LLVM_COMPILER),true)
   ART_TEST_CFLAGS += -DART_USE_LLVM_COMPILER=1
 endif
 
+ifeq ($(ART_USE_GREENLAND_COMPILER),true)
+  ART_TEST_CFLAGS += -DART_USE_GREENLAND_COMPILER=1
+endif
+
 # $(1): target or host
 # $(2): file name
 define build-art-test

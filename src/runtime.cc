@@ -101,7 +101,7 @@ Runtime::~Runtime() {
 
   delete class_linker_;
   delete heap_;
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
   verifier::MethodVerifier::DeleteInferredRegCategoryMaps();
 #endif
   verifier::MethodVerifier::DeleteGcMaps();
@@ -641,7 +641,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   verifier::MethodVerifier::InitGcMaps();
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
   verifier::MethodVerifier::InitInferredRegCategoryMaps();
 #endif
 
