@@ -358,6 +358,15 @@ MACRO0(RETURN_IF_EAX_ZERO)
     DELIVER_PENDING_EXCEPTION
 END_MACRO
 
+MACRO0(RETURN_OR_DELIVER_PENDING_EXCEPTION)
+    mov %fs:THREAD_EXCEPTION_OFFSET, %ebx // get exception field
+    testl %ebx, %ebx               // ebx == 0 ?
+    jnz 1f                         // if ebx != 0 goto 1
+    ret                            // return
+1:                                 // deliver exception on current thread
+    DELIVER_PENDING_EXCEPTION
+END_MACRO
+
 TWO_ARG_DOWNCALL art_alloc_object_from_code, artAllocObjectFromCode, RETURN_IF_EAX_NOT_ZERO
 TWO_ARG_DOWNCALL art_alloc_object_from_code_with_access_check, artAllocObjectFromCodeWithAccessCheck, RETURN_IF_EAX_NOT_ZERO
 THREE_ARG_DOWNCALL art_alloc_array_from_code, artAllocArrayFromCode, RETURN_IF_EAX_NOT_ZERO
@@ -592,7 +601,7 @@ DEFINE_FUNCTION art_get32_instance_from_code
     call SYMBOL(artGet32InstanceFromCode)  // (field_idx, Object*, referrer, Thread*, SP)
     addl LITERAL(32), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
-    RETURN_IF_EAX_ZERO            // return or deliver exception
+    RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
 DEFINE_FUNCTION art_get64_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
@@ -607,7 +616,7 @@ DEFINE_FUNCTION art_get64_instance_from_code
     call SYMBOL(artGet64InstanceFromCode)  // (field_idx, Object*, referrer, Thread*, SP)
     addl LITERAL(32), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
-    RETURN_IF_EAX_ZERO            // return or deliver exception
+    RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
 DEFINE_FUNCTION art_get_obj_instance_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
@@ -622,7 +631,7 @@ DEFINE_FUNCTION art_get_obj_instance_from_code
     call SYMBOL(artGetObjInstanceFromCode) // (field_idx, Object*, referrer, Thread*, SP)
     addl LITERAL(32), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
-    RETURN_IF_EAX_ZERO            // return or deliver exception
+    RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
 DEFINE_FUNCTION art_set32_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
@@ -681,7 +690,7 @@ DEFINE_FUNCTION art_get32_static_from_code
     call SYMBOL(artGet32StaticFromCode)    // (field_idx, referrer, Thread*, SP)
     addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
-    RETURN_IF_EAX_ZERO            // return or deliver exception
+    RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
 DEFINE_FUNCTION art_get64_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
@@ -694,7 +703,7 @@ DEFINE_FUNCTION art_get64_static_from_code
     call SYMBOL(artGet64StaticFromCode)    // (field_idx, referrer, Thread*, SP)
     addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
-    RETURN_IF_EAX_ZERO            // return or deliver exception
+    RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
 DEFINE_FUNCTION art_get_obj_static_from_code
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME       // save ref containing registers for GC
@@ -707,7 +716,20 @@ DEFINE_FUNCTION art_get_obj_static_from_code
     call SYMBOL(artGetObjStaticFromCode)   // (field_idx, referrer, Thread*, SP)
     addl LITERAL(16), %esp        // pop arguments
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME     // restore frame up to return address
-    RETURN_IF_EAX_ZERO            // return or deliver exception
+    RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
+
+DEFINE_FUNCTION art_proxy_invoke_handler
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame
+    lea 8(%esp), %ebx             // pointer to r2/r3/LR/caller's Method**/out-args as second arg
+    pushl %ebx                    // pass args
+    pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
+    pushl %ecx                    // pass receiver
+    pushl %eax                    // pass proxy method
+    call SYMBOL(artProxyInvokeHandler)     // (proxy method, receiver, Thread*, args...)
+    mov 24(%esp), %eax            // get ret0 which was written into r2 on the stack
+    mov 28(%esp), %edx            // get ret1 which was written into r3 on the stack
+    addl LITERAL(44), %esp        // pop arguments
+    RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
 MACRO1(UNIMPLEMENTED,name)
     .globl VAR(name, 0)
@@ -717,7 +739,6 @@ VAR(name, 0):
 END_MACRO
 
     // TODO: implement these!
-UNIMPLEMENTED art_proxy_invoke_handler
 UNIMPLEMENTED art_update_debugger
 UNIMPLEMENTED art_indexof
 UNIMPLEMENTED art_memcmp16
