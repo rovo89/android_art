@@ -29,9 +29,9 @@
 #include <iostream>
 #include <list>
 
-#include "debugger.h"
 #include "class_linker.h"
 #include "class_loader.h"
+#include "debugger.h"
 #include "heap.h"
 #include "jni_internal.h"
 #include "monitor.h"
@@ -41,8 +41,8 @@
 #include "reflection.h"
 #include "runtime.h"
 #include "runtime_support.h"
-#include "ScopedLocalRef.h"
 #include "scoped_jni_thread_state.h"
+#include "ScopedLocalRef.h"
 #include "shadow_frame.h"
 #include "space.h"
 #include "stack.h"
@@ -616,34 +616,12 @@ struct StackDumpVisitor : public Thread::StackVisitor {
 void Thread::DumpStack(std::ostream& os) const {
   // If we're currently in native code, dump that stack before dumping the managed stack.
   if (GetState() == kNative || GetState() == kVmWait) {
-    DumpKernelStack(os);
-    DumpNativeStack(os);
+    DumpKernelStack(os, GetTid(), "  kernel: ", false);
+    DumpNativeStack(os, GetTid(), "  native: ", false);
   }
   StackDumpVisitor dumper(os, this);
   WalkStack(&dumper);
 }
-
-#if !defined(__APPLE__)
-void Thread::DumpKernelStack(std::ostream& os) const {
-  std::string kernel_stack_filename(StringPrintf("/proc/self/task/%d/stack", GetTid()));
-  std::string kernel_stack;
-  if (!ReadFileToString(kernel_stack_filename, &kernel_stack)) {
-    os << "  (couldn't read " << kernel_stack_filename << ")";
-  }
-
-  std::vector<std::string> kernel_stack_frames;
-  Split(kernel_stack, '\n', kernel_stack_frames);
-  // We skip the last stack frame because it's always equivalent to "[<ffffffff>] 0xffffffff",
-  // which looking at the source appears to be the kernel's way of saying "that's all, folks!".
-  kernel_stack_frames.pop_back();
-  for (size_t i = 0; i < kernel_stack_frames.size(); ++i) {
-    os << "  kernel: " << kernel_stack_frames[i] << "\n";
-  }
-}
-#else
-// TODO: can we get the kernel stack on Mac OS?
-void Thread::DumpKernelStack(std::ostream&) const {}
-#endif
 
 void Thread::SetStateWithoutSuspendCheck(ThreadState new_state) {
   volatile void* raw = reinterpret_cast<volatile void*>(&state_);

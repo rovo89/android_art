@@ -21,7 +21,6 @@
 #include <limits.h>
 #include <errno.h>
 
-#include <corkscrew/backtrace.h>
 #include <cutils/sched_policy.h>
 #include <utils/threads.h>
 
@@ -29,23 +28,22 @@
 
 namespace art {
 
-/*
- * Conversion map for "nice" values.
- *
- * We use Android thread priority constants to be consistent with the rest
- * of the system.  In some cases adjacent entries may overlap.
- */
+// Conversion map for "nice" values.
+//
+// We use Android thread priority constants to be consistent with the rest
+// of the system.  In some cases adjacent entries may overlap.
+//
 static const int kNiceValues[10] = {
-  ANDROID_PRIORITY_LOWEST,                /* 1 (MIN_PRIORITY) */
+  ANDROID_PRIORITY_LOWEST,                // 1 (MIN_PRIORITY)
   ANDROID_PRIORITY_BACKGROUND + 6,
   ANDROID_PRIORITY_BACKGROUND + 3,
   ANDROID_PRIORITY_BACKGROUND,
-  ANDROID_PRIORITY_NORMAL,                /* 5 (NORM_PRIORITY) */
+  ANDROID_PRIORITY_NORMAL,                // 5 (NORM_PRIORITY)
   ANDROID_PRIORITY_NORMAL - 2,
   ANDROID_PRIORITY_NORMAL - 4,
   ANDROID_PRIORITY_URGENT_DISPLAY + 3,
   ANDROID_PRIORITY_URGENT_DISPLAY + 2,
-  ANDROID_PRIORITY_URGENT_DISPLAY         /* 10 (MAX_PRIORITY) */
+  ANDROID_PRIORITY_URGENT_DISPLAY         // 10 (MAX_PRIORITY)
 };
 
 void Thread::SetNativePriority(int newPriority) {
@@ -87,31 +85,6 @@ int Thread::GetNativePriority() {
     managed_priority = kMaxThreadPriority;
   }
   return managed_priority;
-}
-
-void Thread::DumpNativeStack(std::ostream& os) const {
-  const size_t MAX_DEPTH = 32;
-  UniquePtr<backtrace_frame_t[]> backtrace(new backtrace_frame_t[MAX_DEPTH]);
-  ssize_t frame_count = unwind_backtrace_thread(GetTid(), backtrace.get(), 0, MAX_DEPTH);
-  if (frame_count == -1) {
-    os << "  (unwind_backtrace_thread failed for thread " << GetTid() << ".)";
-    return;
-  } else if (frame_count == 0) {
-    os << "  (no native stack frames)";
-    return;
-  }
-
-  UniquePtr<backtrace_symbol_t[]> backtrace_symbols(new backtrace_symbol_t[frame_count]);
-  get_backtrace_symbols(backtrace.get(), frame_count, backtrace_symbols.get());
-
-  for (size_t i = 0; i < static_cast<size_t>(frame_count); ++i) {
-    char line[MAX_BACKTRACE_LINE_LENGTH];
-    format_backtrace_line(i, &backtrace[i], &backtrace_symbols[i],
-                          line, MAX_BACKTRACE_LINE_LENGTH);
-    os << "  " << line << "\n";
-  }
-
-  free_backtrace_symbols(backtrace_symbols.get(), frame_count);
 }
 
 }  // namespace art
