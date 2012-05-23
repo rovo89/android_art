@@ -23,12 +23,15 @@
 #include "ScopedLocalRef.h"
 
 #if defined(__arm__)
-#define SP_OFFSET 12
+#define SP_OFFSET_IN_BYTES 12
 #define FRAME_SIZE_IN_BYTES 48u
+#define ARG2_OFFSET_IN_WORDS 11 // offset to 3rd arg; skip callee saves, LR, Method* and out arg spills for OUT0 to OUT2
 #elif defined(__i386__)
-#define SP_OFFSET 8
+#define SP_OFFSET_IN_BYTES 8
 #define FRAME_SIZE_IN_BYTES 32u
+#define ARG2_OFFSET_IN_WORDS 8 // offset to 3rd arg; skip callee saves, LR, Method* and out arg spills for OUT0 to OUT2
 #else
+#error "Unsupported architecture"
 #endif
 
 namespace art {
@@ -40,7 +43,7 @@ namespace art {
 extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
                                       Thread* self, byte* stack_args) {
   // Register the top of the managed stack
-  Method** proxy_sp = reinterpret_cast<Method**>(stack_args - SP_OFFSET);
+  Method** proxy_sp = reinterpret_cast<Method**>(stack_args - SP_OFFSET_IN_BYTES);
   DCHECK_EQ(*proxy_sp, proxy_method);
   self->SetTopOfStack(proxy_sp, 0);
   DCHECK_EQ(proxy_method->GetFrameSizeInBytes(), FRAME_SIZE_IN_BYTES);
@@ -75,7 +78,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     param_index++;
   }
   // Placing into local references incoming arguments from the caller's stack arguments
-  cur_arg += FRAME_SIZE_IN_BYTES / 4 - 1;  // skip callee saves, LR, Method* and out arg spills for R1 to R3
+  cur_arg += ARG2_OFFSET_IN_WORDS;
   while (param_index < num_params) {
     if (proxy_mh.IsParamAReference(param_index)) {
       Object* obj = *reinterpret_cast<Object**>(stack_args + (cur_arg * kPointerSize));
@@ -125,7 +128,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
       JValue val = *reinterpret_cast<JValue*>(stack_args + (cur_arg * kPointerSize));
       if (cur_arg == 1 && (param_type->IsPrimitiveLong() || param_type->IsPrimitiveDouble())) {
         // long/double split over regs and stack, mask in high half from stack arguments
-        uint64_t high_half = *reinterpret_cast<uint32_t*>(stack_args + ((FRAME_SIZE_IN_BYTES / 4 + 1) * kPointerSize));
+        uint64_t high_half = *reinterpret_cast<uint32_t*>(stack_args + ((ARG2_OFFSET_IN_WORDS + 2) * kPointerSize));
         val.SetJ((val.GetJ() & 0xffffffffULL) | (high_half << 32));
       }
       BoxPrimitive(param_type->GetPrimitiveType(), val);
@@ -139,7 +142,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
     param_index++;
   }
   // Placing into local references incoming arguments from the caller's stack arguments
-  cur_arg += FRAME_SIZE_IN_BYTES / 4 - 1;  // skip callee saves, LR, Method* and out arg spills for R1 to R3
+  cur_arg += ARG2_OFFSET_IN_WORDS;
   while (param_index < (num_params - 1)) {
     Class* param_type = param_types->Get(param_index);
     Object* obj;
