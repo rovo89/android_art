@@ -86,6 +86,8 @@ ART_HOST_DEBUG_LDLIBS := -lsupc++
 ifneq ($(HOST_OS),linux)
   # Some Mac OS pthread header files are broken with -fkeep-inline-functions.
   ART_HOST_DEBUG_CFLAGS := $(filter-out -fkeep-inline-functions,$(ART_HOST_DEBUG_CFLAGS))
+  # Mac OS doesn't have libsupc++.
+  ART_HOST_DEBUG_LDLIBS := $(filter-out -lsupc++,$(ART_HOST_DEBUG_LDLIBS))
 endif
 
 ART_TARGET_DEBUG_CFLAGS := $(art_debug_cflags)
