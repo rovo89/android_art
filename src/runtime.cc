@@ -465,6 +465,12 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->method_trace_file_ = option.substr(strlen("-Xmethod-trace-file:"));
     } else if (StartsWith(option, "-Xmethod-trace-file-size:")) {
       parsed->method_trace_file_size_ = ParseIntegerOrDie(option);
+    } else if (option == "-Xprofile:threadcpuclock") {
+      Trace::SetDefaultClockSource(kProfilerClockSourceThreadCpu);
+    } else if (option == "-Xprofile:wallclock") {
+      Trace::SetDefaultClockSource(kProfilerClockSourceWall);
+    } else if (option == "-Xprofile:dualclock") {
+      Trace::SetDefaultClockSource(kProfilerClockSourceDual);
     } else {
       if (!ignore_unrecognized) {
         // TODO: print usage via vfprintf
