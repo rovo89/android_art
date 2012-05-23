@@ -32,6 +32,40 @@
 
 namespace art {
 
+// File format:
+//     header
+//     record 0
+//     record 1
+//     ...
+//
+// Header format:
+//     u4  magic ('SLOW')
+//     u2  version
+//     u2  offset to data
+//     u8  start date/time in usec
+//     u2  record size in bytes (version >= 2 only)
+//     ... padding to 32 bytes
+//
+// Record format v1:
+//     u1  thread ID
+//     u4  method ID | method action
+//     u4  time delta since start, in usec
+//
+// Record format v2:
+//     u2  thread ID
+//     u4  method ID | method action
+//     u4  time delta since start, in usec
+//
+// Record format v3:
+//     u2  thread ID
+//     u4  method ID | method action
+//     u4  time delta since start, in usec
+//     u4  wall time since start, in usec (when clock == "dual" only)
+//
+// 32 bits of microseconds is 70 minutes.
+//
+// All values are stored in little-endian order.
+
 static const uint32_t kTraceMethodActionMask      = 0x03; // two bits
 static const char     kTraceTokenChar             = '*';
 static const uint16_t kTraceHeaderLength          = 32;
@@ -41,44 +75,57 @@ static const uint16_t kTraceVersionDualClock      = 3;
 static const uint16_t kTraceRecordSizeSingleClock = 10; // using v2
 static const uint16_t kTraceRecordSizeDualClock   = 14; // using v3 with two timestamps
 
+static ProfilerClockSource gDefaultTraceClockSource = kProfilerClockSourceDual;
+
 static inline uint32_t TraceMethodId(uint32_t methodValue) {
   return (methodValue & ~kTraceMethodActionMask);
 }
+
 static inline uint32_t TraceMethodCombine(uint32_t method, uint8_t traceEvent) {
   return (method | traceEvent);
 }
 
-static bool UseThreadCpuClock() {
-  // TODO: Allow control over which clock is used
-  return true;
+void Trace::SetDefaultClockSource(ProfilerClockSource clock_source) {
+  gDefaultTraceClockSource = clock_source;
 }
 
-static bool UseWallClock() {
-  // TODO: Allow control over which clock is used
-  return true;
+bool Trace::UseThreadCpuClock() {
+#if defined(HAVE_POSIX_CLOCKS)
+  return clock_source_ != kProfilerClockSourceWall;
+#else
+  return false;
+#endif
 }
 
-static void MeasureClockOverhead() {
-  if (UseThreadCpuClock()) {
+bool Trace::UseWallClock() {
+#if defined(HAVE_POSIX_CLOCKS)
+  return clock_source_ != kProfilerClockSourceThreadCpu;
+#else
+  return true;
+#endif
+}
+
+static void MeasureClockOverhead(Trace* trace) {
+  if (trace->UseThreadCpuClock()) {
     ThreadCpuMicroTime();
   }
-  if (UseWallClock()) {
+  if (trace->UseWallClock()) {
     MicroTime();
   }
 }
 
-static uint32_t GetClockOverhead() {
+static uint32_t GetClockOverhead(Trace* trace) {
   uint64_t start = ThreadCpuMicroTime();
 
   for (int i = 4000; i > 0; i--) {
-    MeasureClockOverhead();
-    MeasureClockOverhead();
-    MeasureClockOverhead();
-    MeasureClockOverhead();
-    MeasureClockOverhead();
-    MeasureClockOverhead();
-    MeasureClockOverhead();
-    MeasureClockOverhead();
+    MeasureClockOverhead(trace);
+    MeasureClockOverhead(trace);
+    MeasureClockOverhead(trace);
+    MeasureClockOverhead(trace);
+    MeasureClockOverhead(trace);
+    MeasureClockOverhead(trace);
+    MeasureClockOverhead(trace);
+    MeasureClockOverhead(trace);
   }
 
   uint64_t elapsed = ThreadCpuMicroTime() - start;
@@ -204,6 +251,12 @@ void Trace::ResetSavedCode(Method* method) {
   RemoveSavedCodeFromMap(method);
 }
 
+Trace::Trace(File* trace_file, int buffer_size, int flags)
+    : trace_file_(trace_file), buf_(new uint8_t[buffer_size]()), flags_(flags),
+      clock_source_(gDefaultTraceClockSource), overflow_(false),
+      buffer_size_(buffer_size), start_time_(0), trace_version_(0), record_size_(0), cur_offset_(0) {
+}
+
 void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int flags, bool direct_to_ddms) {
   if (Runtime::Current()->IsMethodTracingActive()) {
     LOG(INFO) << "Trace already in progress, ignoring this request";
@@ -306,7 +359,7 @@ void Trace::FinishTracing() {
   uint64_t elapsed = MicroTime() - start_time_;
 
   size_t final_offset = cur_offset_;
-  uint32_t clock_overhead = GetClockOverhead();
+  uint32_t clock_overhead = GetClockOverhead(this);
 
   if ((flags_ & kTraceCountAllocs) != 0) {
     Runtime::Current()->SetStatsEnabled(false);

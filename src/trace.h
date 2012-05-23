@@ -43,9 +43,14 @@ struct TraceStackFrame {
   uintptr_t return_pc_;
 };
 
+enum ProfilerClockSource {
+  kProfilerClockSourceThreadCpu,
+  kProfilerClockSourceWall,
+  kProfilerClockSourceDual,
+};
+
 class Trace {
  public:
-
   enum TraceEvent {
     kMethodTraceEnter = 0,
     kMethodTraceExit = 1,
@@ -56,9 +61,14 @@ class Trace {
     kTraceCountAllocs = 1,
   };
 
+  static void SetDefaultClockSource(ProfilerClockSource clock_source);
+
   static void Start(const char* trace_filename, int trace_fd, int buffer_size, int flags, bool direct_to_ddms);
   static void Stop();
   static void Shutdown();
+
+  bool UseWallClock();
+  bool UseThreadCpuClock();
 
   void LogMethodTraceEvent(Thread* self, const Method* method, TraceEvent event);
 
@@ -70,10 +80,7 @@ class Trace {
   void ResetSavedCode(Method* method);
 
  private:
-  explicit Trace(File* trace_file, int buffer_size, int flags)
-      : trace_file_(trace_file), buf_(new uint8_t[buffer_size]()), flags_(flags), overflow_(false),
-        buffer_size_(buffer_size), start_time_(0), trace_version_(0), record_size_(0), cur_offset_(0) {
-  }
+  explicit Trace(File* trace_file, int buffer_size, int flags);
 
   void BeginTracing();
   void FinishTracing();
@@ -106,6 +113,8 @@ class Trace {
 
   // Flags enabling extra tracing of things such as alloc counts.
   int flags_;
+
+  ProfilerClockSource clock_source_;
 
   bool overflow_;
   int buffer_size_;
