@@ -95,7 +95,9 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : art/%.h
     LOCAL_STATIC_LIBRARIES += librsloader libLLVMSupport
   endif
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
-  LOCAL_SHARED_LIBRARIES += libcorkscrew # native stack trace support
+  ifneq ($(HOST_OS),darwin)
+    LOCAL_SHARED_LIBRARIES += libcorkscrew # native stack trace support
+  endif
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils libstlport libz libdl
     LOCAL_SHARED_LIBRARIES += libdynamic_annotations # tsan support
