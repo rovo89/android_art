@@ -2765,16 +2765,13 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
                       invoke_type, vtable_idx, direct_code, direct_method);
 
   // Load *this* actual parameter
+  uint32_t this_reg = -1u;
   llvm::Value* this_addr = NULL;
 
   if (!is_static) {
     // Test: Is *this* parameter equal to null?
-    uint32_t reg_idx = (arg_fmt == kArgReg) ? dec_insn.arg[0] : (dec_insn.vC + 0);
-    this_addr = EmitLoadDalvikReg(reg_idx, kObject, kAccurate);
-
-    if (!(method_info_.this_will_not_be_null && reg_idx == method_info_.this_reg_idx)) {
-      EmitGuard_NullPointerException(dex_pc, this_addr);
-    }
+    this_reg = (arg_fmt == kArgReg) ? dec_insn.arg[0] : (dec_insn.vC + 0);
+    this_addr = EmitLoadDalvikReg(this_reg, kObject, kAccurate);
   }
 
   // Load the method object
@@ -2784,7 +2781,23 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
     callee_method_object_addr =
       EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx, invoke_type,
                                                this_addr, dex_pc, is_fast_path);
+
+    if (!is_static && (!method_info_.this_will_not_be_null ||
+                       this_reg != method_info_.this_reg_idx)) {
+      // NOTE: The null pointer test should come after the method resolution.
+      // So that the "NoSuchMethodError" can be thrown before the
+      // "NullPointerException".
+      EmitGuard_NullPointerException(dex_pc, this_addr);
+    }
+
   } else {
+    if (!is_static && (!method_info_.this_will_not_be_null ||
+                       this_reg != method_info_.this_reg_idx)) {
+      // NOTE: In the fast path, we should do the null pointer check
+      // before the access to the class object and/or direct invocation.
+      EmitGuard_NullPointerException(dex_pc, this_addr);
+    }
+
     switch (invoke_type) {
     case kStatic:
     case kDirect:
