@@ -398,6 +398,9 @@ class Assembler {
 
   virtual void MemoryBarrier(ManagedRegister scratch) = 0;
 
+  // Sign extension
+  virtual void SignExtend(ManagedRegister mreg, size_t size) = 0;
+
   // Exploit fast access in managed code to Thread::Current()
   virtual void GetCurrentThread(ManagedRegister tr) = 0;
   virtual void GetCurrentThread(FrameOffset dest_offset,

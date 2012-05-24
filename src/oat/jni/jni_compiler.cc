@@ -544,6 +544,9 @@ CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
 
     __ DecreaseFrameSize(out_arg_size);
     jni_conv->ResetIterator(FrameOffset(0));
+  } else if (instruction_set == kX86 && (jni_conv->GetReturnType() == Primitive::kPrimByte ||
+                                         jni_conv->GetReturnType() == Primitive::kPrimShort)) {
+    __ SignExtend(jni_conv->ReturnRegister(), Primitive::ComponentSize(jni_conv->GetReturnType()));
   }
   DCHECK_EQ(mr_conv->SizeOfReturnValue(), jni_conv->SizeOfReturnValue());
   __ Move(mr_conv->ReturnRegister(), jni_conv->ReturnRegister(), mr_conv->SizeOfReturnValue());
