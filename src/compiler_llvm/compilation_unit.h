@@ -102,7 +102,7 @@ class CompilationUnit {
 
   bool IsMaterializeThresholdReached() const {
     MutexLock GUARD(cunit_lock_);
-    return (mem_usage_ > 5000000u); // (threshold: 5 MB)
+    return (mem_usage_ > 1000000u); // (threshold: 1 MB)
   }
 
   void AddMemUsageApproximation(size_t usage) {
@@ -128,7 +128,8 @@ class CompilationUnit {
   std::string bitcode_filename_;
   std::string elf_image_;
 
-  SafeMap<const llvm::Function*, CompiledMethod*> compiled_methods_map_;
+  typedef SafeMap<const llvm::Function*, CompiledMethod*> CompiledMethodMap;
+  UniquePtr<CompiledMethodMap> compiled_methods_map_;
 
   size_t mem_usage_;
   uint16_t num_elf_funcs_;

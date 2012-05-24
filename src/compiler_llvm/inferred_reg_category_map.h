@@ -32,23 +32,19 @@ class InferredRegCategoryMap {
  private:
   class RegCategoryLine {
    private:
-    typedef SafeMap<uint16_t, uint8_t> Table;
+    typedef std::vector<uint8_t> Table;
     Table reg_category_line_;
 
    public:
+    RegCategoryLine(size_t num_regs) : reg_category_line_(num_regs, kRegUnknown) {}
     RegCategory GetRegCategory(uint16_t reg_idx) const {
-      // TODO: C++0x auto
-      Table::const_iterator result = reg_category_line_.find(reg_idx);
-      if (result == reg_category_line_.end()) {
-        return kRegUnknown;
-      }
-      return static_cast<RegCategory>(result->second);
+      DCHECK_LT(reg_idx, reg_category_line_.size());
+      return static_cast<RegCategory>(reg_category_line_[reg_idx]);
     }
 
     void SetRegCategory(uint16_t reg_idx, RegCategory cat) {
-      if (cat != kRegUnknown) {
-        reg_category_line_.Put(reg_idx, cat);
-      }
+      DCHECK_LT(reg_idx, reg_category_line_.size());
+      reg_category_line_[reg_idx] = cat;
     }
 
     bool operator==(RegCategoryLine const& rhs) const {
@@ -60,7 +56,7 @@ class InferredRegCategoryMap {
   };
 
  public:
-  InferredRegCategoryMap(uint32_t insns_size_in_code_units, uint8_t regs_size);
+  InferredRegCategoryMap(uint32_t insns_size_in_code_units, uint16_t regs_size);
 
   ~InferredRegCategoryMap();
 
@@ -76,7 +72,7 @@ class InferredRegCategoryMap {
  private:
   uint16_t registers_size_;
 
-  std::vector<RegCategoryLine*> lines_;
+  SafeMap<uint32_t, RegCategoryLine*> lines_;
 
   std::vector<bool> can_be_object_;
 

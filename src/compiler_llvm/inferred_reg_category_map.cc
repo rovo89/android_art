@@ -27,31 +27,31 @@ namespace compiler_llvm {
 
 
 InferredRegCategoryMap::InferredRegCategoryMap(uint32_t insns_size,
-                                               uint8_t regs_size)
-: registers_size_(regs_size), lines_(insns_size, NULL), can_be_object_(regs_size) {
+                                               uint16_t regs_size)
+: registers_size_(regs_size), can_be_object_(regs_size) {
 }
 
 InferredRegCategoryMap::~InferredRegCategoryMap() {
-  STLDeleteElements(&lines_);
+  STLDeleteValues(&lines_);
 }
 
 RegCategory InferredRegCategoryMap::GetRegCategory(uint32_t dex_pc,
                                                    uint16_t reg_idx) const {
-  if (lines_[dex_pc] == NULL) {
+  if (lines_.count(dex_pc) == 0) {
     return kRegUnknown;
   }
-  return lines_[dex_pc]->GetRegCategory(reg_idx);
+  return lines_.Get(dex_pc)->GetRegCategory(reg_idx);
 }
 
 void InferredRegCategoryMap::SetRegCategory(uint32_t dex_pc,
                                             uint16_t reg_idx,
                                             RegCategory cat) {
   if (cat != kRegUnknown) {
-    if (lines_[dex_pc] == NULL) {
-      lines_[dex_pc] = new RegCategoryLine();
+    if (lines_.count(dex_pc) == 0) {
+      lines_.Put(dex_pc, new RegCategoryLine(registers_size_));
     }
 
-    (*lines_[dex_pc]).SetRegCategory(reg_idx, cat);
+    lines_.Get(dex_pc)->SetRegCategory(reg_idx, cat);
   }
 }
 
@@ -75,16 +75,16 @@ operator==(InferredRegCategoryMap const& rhs) const {
   }
 
   for (size_t i = 0; i < lines_.size(); ++i) {
-    if (lines_[i] == NULL && rhs.lines_[i] == NULL) {
+    if (lines_.count(i) == 0 && rhs.lines_.count(i) == 0) {
       continue;
     }
 
-    if ((lines_[i] == NULL && rhs.lines_[i] != NULL) ||
-        (lines_[i] != NULL && rhs.lines_[i] == NULL)) {
+    if ((lines_.count(i) == 0 && rhs.lines_.count(i) != 0) ||
+        (lines_.count(i) != 0 && rhs.lines_.count(i) == 0)) {
       return false;
     }
 
-    if (*lines_[i] != *rhs.lines_[i]) {
+    if (*lines_.Get(i) != *rhs.lines_.Get(i)) {
       return false;
     }
   }
