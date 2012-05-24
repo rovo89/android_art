@@ -728,6 +728,7 @@ DEFINE_FUNCTION art_proxy_invoke_handler
     call SYMBOL(artProxyInvokeHandler)     // (proxy method, receiver, Thread*, args...)
     mov 24(%esp), %eax            // get ret0 which was written into r2 on the stack
     mov 28(%esp), %edx            // get ret1 which was written into r3 on the stack
+    movsd 24(%esp), %xmm0         // get ret0/ret1 from stack for floating point
     addl LITERAL(44), %esp        // pop arguments
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
