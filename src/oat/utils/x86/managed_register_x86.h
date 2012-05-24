@@ -87,6 +87,11 @@ const int kNumberOfAllocIds = kNumberOfCpuAllocIds + kNumberOfXmmAllocIds +
 // There is a one-to-one mapping between ManagedRegister and register id.
 class X86ManagedRegister : public ManagedRegister {
  public:
+  ByteRegister AsByteRegister() const {
+    CHECK(IsCpuRegister());
+    return static_cast<ByteRegister>(id_);
+  }
+
   Register AsCpuRegister() const {
     CHECK(IsCpuRegister());
     return static_cast<Register>(id_);

@@ -29,6 +29,10 @@ class CallingConvention {
  public:
   bool IsReturnAReference() const { return shorty_[0] == 'L'; }
 
+  Primitive::Type GetReturnType() const {
+    return Primitive::GetType(shorty_[0]);
+  }
+
   size_t SizeOfReturnValue() const {
     size_t result = Primitive::ComponentSize(Primitive::GetType(shorty_[0]));
     if (result >= 1 && result < 4) {

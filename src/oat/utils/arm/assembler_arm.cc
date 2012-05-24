@@ -1647,6 +1647,10 @@ void ArmAssembler::StoreStackPointerToThread(ThreadOffset thr_offs) {
   StoreToOffset(kStoreWord, SP, TR, thr_offs.Int32Value());
 }
 
+void ArmAssembler::SignExtend(ManagedRegister /*mreg*/, size_t /*size*/) {
+  UNIMPLEMENTED(FATAL) << "no sign extension necessary for arm";
+}
+
 void ArmAssembler::Move(ManagedRegister m_dst, ManagedRegister m_src, size_t /*size*/) {
   ArmManagedRegister dst = m_dst.AsArm();
   ArmManagedRegister src = m_src.AsArm();

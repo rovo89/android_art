@@ -516,6 +516,9 @@ class ArmAssembler : public Assembler {
 
   virtual void MemoryBarrier(ManagedRegister scratch);
 
+  // Sign extension
+  virtual void SignExtend(ManagedRegister mreg, size_t size);
+
   // Exploit fast access in managed code to Thread::Current()
   virtual void GetCurrentThread(ManagedRegister tr);
   virtual void GetCurrentThread(FrameOffset dest_offset,

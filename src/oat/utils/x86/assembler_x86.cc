@@ -1597,6 +1597,17 @@ void X86Assembler::LoadRawPtrFromThread(ManagedRegister mdest,
   fs()->movl(dest.AsCpuRegister(), Address::Absolute(offs));
 }
 
+void X86Assembler::SignExtend(ManagedRegister mreg, size_t size) {
+  X86ManagedRegister reg = mreg.AsX86();
+  CHECK(size == 1 || size == 2) << size;
+  CHECK(reg.IsCpuRegister()) << reg;
+  if (size == 1) {
+    movsxb(reg.AsCpuRegister(), reg.AsByteRegister());
+  } else {
+    movsxw(reg.AsCpuRegister(), reg.AsCpuRegister());
+  }
+}
+
 void X86Assembler::Move(ManagedRegister mdest, ManagedRegister msrc, size_t size) {
   X86ManagedRegister dest = mdest.AsX86();
   X86ManagedRegister src = msrc.AsX86();
