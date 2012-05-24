@@ -106,10 +106,10 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --host-prefix=out/target/product/crespo");
   UsageError("      Default: $ANDROID_PRODUCT_OUT");
   UsageError("");
-  UsageError("  --instruction-set=(ARM|Thumb2|MIPS|X86): compile for a particular instruction");
+  UsageError("  --instruction-set=(arm|mips|x86): compile for a particular instruction");
   UsageError("      set.");
-  UsageError("      Example: --instruction-set=X86");
-  UsageError("      Default: Thumb2");
+  UsageError("      Example: --instruction-set=x86");
+  UsageError("      Default: arm");
   UsageError("");
   UsageError("  --runtime-arg <argument>: used to specify various arguments for the runtime,");
   UsageError("      such as initial heap size, maximum heap size, and verbose output.");
@@ -535,11 +535,11 @@ static int dex2oat(int argc, char** argv) {
       host_prefix.reset(new std::string(option.substr(strlen("--host-prefix=")).data()));
     } else if (option.starts_with("--instruction-set=")) {
       StringPiece instruction_set_str = option.substr(strlen("--instruction-set=")).data();
-      if (instruction_set_str == "Thumb2" || instruction_set_str == "ARM") {
+      if (instruction_set_str == "arm") {
         instruction_set = kThumb2;
-      } else if (instruction_set_str == "MIPS") {
+      } else if (instruction_set_str == "mips") {
         instruction_set = kMips;
-      } else if (instruction_set_str == "X86") {
+      } else if (instruction_set_str == "x86") {
         instruction_set = kX86;
       }
     } else if (option == "--runtime-arg") {
