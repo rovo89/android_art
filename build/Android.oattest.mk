@@ -67,7 +67,7 @@ test-art-target-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-target-
 .PHONY: test-art-host-oat-$(1)
 test-art-host-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-host-dependencies
 	mkdir -p /tmp/android-data/test-art-host-oat-$(1)
-	$(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar --oat-file=$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar.oat --instruction-set=X86 --host-prefix=""
+	$(DEX2OAT) --runtime-arg -Xms16m --runtime-arg -Xmx16m --boot-image=$(HOST_CORE_IMG_OUT) --dex-file=$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar --oat-file=$(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar.oat --instruction-set=$(HOST_ARCH) --host-prefix=""
 	ANDROID_DATA=/tmp/android-data/test-art-host-oat-$(1) \
 	  ANDROID_ROOT=$(HOST_OUT) \
 	  LD_LIBRARY_PATH=$(HOST_OUT_SHARED_LIBRARIES) \
