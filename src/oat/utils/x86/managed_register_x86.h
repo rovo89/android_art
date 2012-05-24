@@ -89,6 +89,7 @@ class X86ManagedRegister : public ManagedRegister {
  public:
   ByteRegister AsByteRegister() const {
     CHECK(IsCpuRegister());
+    CHECK_LT(AsCpuRegister(), ESP);  // ESP, EBP, ESI and EDI cannot be encoded as byte registers.
     return static_cast<ByteRegister>(id_);
   }
 
