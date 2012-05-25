@@ -944,6 +944,10 @@ bool MethodVerifier::VerifyCodeFlow() {
     return false;
   }
 
+  Compiler::MethodReference ref(dex_file_, method_idx_);
+
+#if !defined(ART_USE_LLVM_COMPILER)
+
   /* Generate a register map and add it to the method. */
   UniquePtr<const std::vector<uint8_t> > map(GenerateGcMap());
   if (map.get() == NULL) {
@@ -954,17 +958,18 @@ bool MethodVerifier::VerifyCodeFlow() {
   VerifyGcMap(*map);
 #endif
   const std::vector<uint8_t>* gc_map = CreateLengthPrefixedGcMap(*(map.get()));
-  Compiler::MethodReference ref(dex_file_, method_idx_);
   verifier::MethodVerifier::SetGcMap(ref, *gc_map);
 
   if (foo_method_ != NULL) {
     foo_method_->SetGcMap(&gc_map->at(0));
   }
 
-#if defined(ART_USE_LLVM_COMPILER)
+#else  //defined(ART_USE_LLVM_COMPILER)
+
   /* Generate Inferred Register Category for LLVM-based Code Generator */
   const InferredRegCategoryMap* table = GenerateInferredRegCategoryMap();
   verifier::MethodVerifier::SetInferredRegCategoryMap(ref, *table);
+
 #endif
 
   return true;
@@ -3336,18 +3341,29 @@ const InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCategoryMap() {
     if (RegisterLine* line = reg_table_.GetLine(i)) {
       for (size_t r = 0; r < regs_size; ++r) {
         const RegType &rt = line->GetRegisterType(r);
-
-        if (rt.IsZero()) {
-          table->SetRegCategory(i, r, kRegZero);
-        } else if (rt.IsCategory1Types()) {
-          table->SetRegCategory(i, r, kRegCat1nr);
-        } else if (rt.IsCategory2Types()) {
-          table->SetRegCategory(i, r, kRegCat2);
-        } else if (rt.IsReferenceTypes()) {
-          table->SetRegCategory(i, r, kRegObject);
+        if (rt.IsNonZeroReferenceTypes()) {
           table->SetRegCanBeObject(r);
-        } else {
-          table->SetRegCategory(i, r, kRegUnknown);
+        }
+      }
+
+      const Instruction* inst = Instruction::At(code_item_->insns_ + i);
+
+      /* We only use InferredRegCategoryMap in two cases */
+      if (inst->IsBranch() || inst->IsReturn()) {
+        for (size_t r = 0; r < regs_size; ++r) {
+          const RegType &rt = line->GetRegisterType(r);
+
+          if (rt.IsZero()) {
+            table->SetRegCategory(i, r, kRegZero);
+          } else if (rt.IsCategory1Types()) {
+            table->SetRegCategory(i, r, kRegCat1nr);
+          } else if (rt.IsCategory2Types()) {
+            table->SetRegCategory(i, r, kRegCat2);
+          } else if (rt.IsReferenceTypes()) {
+            table->SetRegCategory(i, r, kRegObject);
+          } else {
+            table->SetRegCategory(i, r, kRegUnknown);
+          }
         }
       }
     }

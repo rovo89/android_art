@@ -40,8 +40,8 @@ class SafeMap {
   size_type count(const K& k) const { return map_.count(k); }
 
   // Note that unlike std::map's operator[], this doesn't return a reference to the value.
-  V Get(const K& k) {
-    iterator it = map_.find(k);
+  V Get(const K& k) const {
+    const_iterator it = map_.find(k);
     DCHECK(it != map_.end());
     return it->second;
   }

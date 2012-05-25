@@ -170,7 +170,8 @@ llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
 CompilationUnit::CompilationUnit(InstructionSet insn_set, size_t elf_idx)
 : cunit_lock_("compilation_unit_lock"), insn_set_(insn_set), elf_idx_(elf_idx),
-  context_(new llvm::LLVMContext()), mem_usage_(0), num_elf_funcs_(0) {
+  context_(new llvm::LLVMContext()), compiled_methods_map_(new CompiledMethodMap()),
+  mem_usage_(0), num_elf_funcs_(0) {
 
   // Create the module and include the runtime function declaration
   module_ = new llvm::Module("art", *context_);
@@ -215,6 +216,8 @@ bool CompilationUnit::Materialize(size_t thread_count) {
   context_.reset(NULL);
   irb_.reset(NULL);
   module_ = NULL;
+  runtime_support_.reset(NULL);
+  compiled_methods_map_.reset(NULL);
 
   return success;
 }
@@ -223,7 +226,7 @@ bool CompilationUnit::Materialize(size_t thread_count) {
 void CompilationUnit::RegisterCompiledMethod(const llvm::Function* func,
                                              CompiledMethod* compiled_method) {
   MutexLock GUARD(cunit_lock_);
-  compiled_methods_map_.Put(func, compiled_method);
+  compiled_methods_map_->Put(func, compiled_method);
 }
 
 
@@ -231,9 +234,9 @@ void CompilationUnit::UpdateFrameSizeInBytes(const llvm::Function* func,
                                              size_t frame_size_in_bytes) {
   MutexLock GUARD(cunit_lock_);
   SafeMap<const llvm::Function*, CompiledMethod*>::iterator iter =
-    compiled_methods_map_.find(func);
+    compiled_methods_map_->find(func);
 
-  if (iter != compiled_methods_map_.end()) {
+  if (iter != compiled_methods_map_->end()) {
     CompiledMethod* compiled_method = iter->second;
     compiled_method->SetFrameSizeInBytes(frame_size_in_bytes);
 
