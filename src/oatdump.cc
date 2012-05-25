@@ -1102,11 +1102,11 @@ class ImageDumper {
                          vmap_table_bytes, PercentOfOatBytes(vmap_table_bytes))
          << std::flush;
 
-      os << StringPrintf("\tdex_instruction_bytes = %zd\n", dex_instruction_bytes);
+      os << StringPrintf("\tdex_instruction_bytes = %zd\n", dex_instruction_bytes)
          << StringPrintf("\tmanaged_code_bytes expansion = %.2f (ignoring deduplication %.2f)\n\n",
                          static_cast<double>(managed_code_bytes) / static_cast<double>(dex_instruction_bytes),
                          static_cast<double>(managed_code_bytes_ignoring_deduplication) /
-                             static_cast<double>(dex_instruction_bytes));
+                             static_cast<double>(dex_instruction_bytes))
          << std::flush;
 
       DumpOutliers(os);
