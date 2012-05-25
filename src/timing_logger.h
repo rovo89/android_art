@@ -43,11 +43,11 @@ class TimingLogger {
   }
 
   void Dump(std::ostream& os) const {
-    os << name_ << ": begin";
+    os << name_ << ": begin\n";
     for (size_t i = 1; i < times_.size(); ++i) {
-      os << name_ << StringPrintf(": %8lld ms, ", NsToMs(times_[i] - times_[i-1])) << labels_[i];
+      os << name_ << StringPrintf(": %8lld ms, ", NsToMs(times_[i] - times_[i-1])) << labels_[i] << "\n";
     }
-    os << name_ << ": end, " << NsToMs(GetTotalNs()) << " ms";
+    os << name_ << ": end, " << NsToMs(GetTotalNs()) << " ms\n";
   }
 
   uint64_t GetTotalNs() const {
