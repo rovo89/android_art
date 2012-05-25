@@ -267,7 +267,7 @@ bool MethodVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file, 
     // to hard fail.
     if (verifier.failures_.size() != 0) {
       verifier.DumpFailures(LOG(INFO) << "Soft verification failures in "
-                            << PrettyMethod(method_idx, *dex_file) << std::endl);
+                                      << PrettyMethod(method_idx, *dex_file) << "\n");
       success = false;
     }
   } else {
@@ -275,9 +275,9 @@ bool MethodVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file, 
     CHECK_NE(verifier.failures_.size(), 0U);
     CHECK(verifier.have_pending_hard_failure_);
     verifier.DumpFailures(LOG(INFO) << "Verification error in "
-                          << PrettyMethod(method_idx, *dex_file) << std::endl);
+                                    << PrettyMethod(method_idx, *dex_file) << "\n");
     if (gDebugVerify) {
-      std::cout << std::endl << verifier.info_messages_.str();
+      std::cout << "\n" << verifier.info_messages_.str();
       verifier.Dump(std::cout);
     }
   }
@@ -291,7 +291,7 @@ void MethodVerifier::VerifyMethodAndDump(Method* method) {
                           mh.GetClassDefIndex(), mh.GetCodeItem(), method->GetDexMethodIndex(),
                           method, method->GetAccessFlags());
   verifier.Verify();
-  verifier.DumpFailures(LOG(INFO) << "Dump of method " << PrettyMethod(method) << std::endl)
+  verifier.DumpFailures(LOG(INFO) << "Dump of method " << PrettyMethod(method) << "\n")
       << verifier.info_messages_.str() << Dumpable<MethodVerifier>(verifier);
 }
 
@@ -973,7 +973,7 @@ bool MethodVerifier::VerifyCodeFlow() {
 std::ostream& MethodVerifier::DumpFailures(std::ostream& os) {
   DCHECK_EQ(failures_.size(), failure_messages_.size());
   for (size_t i = 0; i < failures_.size(); ++i) {
-    os << failure_messages_[i]->str() << std::endl;
+    os << failure_messages_[i]->str() << "\n";
   }
   return os;
 }
@@ -984,7 +984,7 @@ extern "C" void MethodVerifierGdbDump(MethodVerifier* v) {
 
 void MethodVerifier::Dump(std::ostream& os) {
   if (code_item_ == NULL) {
-    os << "Native method" << std::endl;
+    os << "Native method\n";
     return;
   }
   DCHECK(code_item_ != NULL);
@@ -992,10 +992,10 @@ void MethodVerifier::Dump(std::ostream& os) {
   for (size_t dex_pc = 0; dex_pc < code_item_->insns_size_in_code_units_;
       dex_pc += insn_flags_[dex_pc].GetLengthInCodeUnits()) {
     os << StringPrintf("0x%04zx", dex_pc) << ": " << insn_flags_[dex_pc].Dump()
-        << " " << inst->DumpHex(5) << " " << inst->DumpString(dex_file_) << std::endl;
+       << " " << inst->DumpHex(5) << " " << inst->DumpString(dex_file_) << "\n";
     RegisterLine* reg_line = reg_table_.GetLine(dex_pc);
     if (reg_line != NULL) {
-      os << reg_line->Dump() << std::endl;
+      os << reg_line->Dump() << "\n";
     }
     inst = inst->Next();
   }
@@ -1183,8 +1183,8 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
           Dump(std::cout);
           std::cout << info_messages_.str();
           LOG(FATAL) << "work_line diverged in " << PrettyMethod(method_idx_, *dex_file_)
-                     << "@" << reinterpret_cast<void*>(work_insn_idx_) << std::endl
-                     << " work_line=" << *work_line_ << std::endl
+                     << "@" << reinterpret_cast<void*>(work_insn_idx_) << "\n"
+                     << " work_line=" << *work_line_ << "\n"
                      << "  expected=" << *register_line;
         }
       }
@@ -1278,8 +1278,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   bool just_set_result = false;
   if (gDebugVerify) {
     // Generate processing back trace to debug verifier
-    LogVerifyInfo() << "Processing " << inst->DumpString(dex_file_) << std::endl
-                    << *work_line_.get() << std::endl;
+    LogVerifyInfo() << "Processing " << inst->DumpString(dex_file_) << "\n"
+                    << *work_line_.get() << "\n";
   }
 
   /*
@@ -3091,7 +3091,7 @@ void MethodVerifier::ReplaceFailingInstruction() {
             << PrettyMethod(method_idx_, *dex_file_) << " "
             << failure_message->str();
   if (gDebugVerify) {
-    std::cout << std::endl << info_messages_.str();
+    std::cout << "\n" << info_messages_.str();
     Dump(std::cout);
   }
 }
@@ -3117,10 +3117,10 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* mer
     }
     if (gDebugVerify && changed) {
       LogVerifyInfo() << "Merging at [" << reinterpret_cast<void*>(work_insn_idx_) << "]"
-                      << " to [" << reinterpret_cast<void*>(next_insn) << "]: " << std::endl
-                      << *copy.get() << "  MERGE" << std::endl
-                      << *merge_line << "  ==" << std::endl
-                      << *target_line << std::endl;
+                      << " to [" << reinterpret_cast<void*>(next_insn) << "]: " << "\n"
+                      << *copy.get() << "  MERGE\n"
+                      << *merge_line << "  ==\n"
+                      << *target_line << "\n";
     }
   }
   if (changed) {
