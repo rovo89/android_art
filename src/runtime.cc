@@ -307,9 +307,6 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   parsed->hook_vfprintf_ = vfprintf;
   parsed->hook_exit_ = exit;
   parsed->hook_abort_ = NULL; // We don't call abort(3) by default; see Runtime::Abort.
-#if defined(__APPLE__)
-  parsed->hook_abort_ = abort; // On the Mac, abort(3) gives better results; see Runtime::InitPlatformSignalHandlers.
-#endif
 
 //  gLogVerbosity.class_linker = true; // TODO: don't check this in!
 //  gLogVerbosity.compiler = true; // TODO: don't check this in!

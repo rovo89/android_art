@@ -41,16 +41,12 @@
 #if defined(__APPLE__)
 #include "AvailabilityMacros.h" // For MAC_OS_X_VERSION_MAX_ALLOWED
 #include <sys/syscall.h>
-
-#include <cxxabi.h> // For DumpNativeStack.
-#include <execinfo.h> // For DumpNativeStack.
-
 #endif
 
-#if defined(__linux__)
 #include <corkscrew/backtrace.h> // For DumpNativeStack.
 #include <corkscrew/demangle.h> // For DumpNativeStack.
 
+#if defined(__linux__)
 #include <linux/unistd.h>
 #endif
 
@@ -913,87 +909,6 @@ std::string GetSchedulerGroupName(pid_t tid) {
   return "";
 }
 
-#if defined(__APPLE__)
-
-static std::string Demangle(const std::string& mangled_name) {
-  if (mangled_name.empty()) {
-    return "??";
-  }
-
-  // http://gcc.gnu.org/onlinedocs/libstdc++/manual/ext_demangling.html
-  int status;
-  char* name(abi::__cxa_demangle(mangled_name.c_str(), NULL, NULL, &status));
-  if (name != NULL) {
-    std::string result(name);
-    free(name);
-    return result;
-  }
-
-  return mangled_name;
-}
-
-// TODO: port libcorkscrew to Mac OS (or find an equivalent).
-void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count) {
-  if (tid != GetTid()) {
-    // backtrace(3) only works for the current thread.
-    return;
-  }
-
-  // Get the raw stack frames.
-  size_t MAX_STACK_FRAMES = 128;
-  void* frames[MAX_STACK_FRAMES];
-  size_t frame_count = backtrace(frames, MAX_STACK_FRAMES);
-  if (frame_count == 0) {
-    os << prefix << "--- backtrace(3) returned no frames";
-    return;
-  }
-
-  // Turn them into something human-readable with symbols.
-  char** symbols = backtrace_symbols(frames, frame_count);
-  if (symbols == NULL) {
-    os << prefix << "--- backtrace_symbols(3) failed";
-    return;
-  }
-
-  // Parse the backtrace strings and demangle, so we can produce output like this:
-  // ]    #00 art::Runtime::Abort(char const*, int)+0x15b [0xf770dd51] (libartd.so)
-  for (size_t i = 0; i < frame_count; ++i) {
-    std::string text(symbols[i]);
-    std::string filename("???");
-    std::string function_name;
-
-    // backtrace_symbols(3) gives us lines like this on Mac OS:
-    // "0   libartd.dylib                       0x001cd29a _ZN3art9Backtrace4DumpERSo + 40>"
-    // "3   ???                                 0xffffffff 0x0 + 4294967295>"
-    text.erase(0, 4);
-    size_t index = text.find(' ');
-    filename = text.substr(0, index);
-    text.erase(0, 40 - 4);
-    index = text.find(' ');
-    std::string address(text.substr(0, index));
-    text.erase(0, index + 1);
-    index = text.find(' ');
-    function_name = Demangle(text.substr(0, index));
-    text.erase(0, index);
-    text += " [" + address + "]";
-
-    const char* last_slash = strrchr(filename.c_str(), '/');
-    const char* so_name = (last_slash == NULL) ? filename.c_str() : last_slash + 1;
-    os << prefix;
-    if (include_count) {
-      os << StringPrintf("\t#%02zd ", i);
-    }
-    os << function_name << text << " (" << so_name << ")\n";
-  }
-
-  free(symbols);
-}
-
-// TODO: is there any way to get the kernel stack on Mac OS?
-void DumpKernelStack(std::ostream&, pid_t, const char*, bool) {}
-
-#else
-
 static const char* CleanMapName(const backtrace_symbol_t* symbol) {
   const char* map_name = symbol->map_name;
   if (map_name == NULL) {
@@ -1040,10 +955,10 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
   UniquePtr<backtrace_frame_t[]> frames(new backtrace_frame_t[MAX_DEPTH]);
   ssize_t frame_count = unwind_backtrace_thread(tid, frames.get(), 0, MAX_DEPTH);
   if (frame_count == -1) {
-    os << prefix << "(unwind_backtrace_thread failed for thread " << tid << ".)";
+    os << prefix << "(unwind_backtrace_thread failed for thread " << tid << ")\n";
     return;
   } else if (frame_count == 0) {
-    os << prefix << "(no native stack frames)";
+    os << prefix << "(no native stack frames)\n";
     return;
   }
 
@@ -1085,11 +1000,18 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
   free_backtrace_symbols(backtrace_symbols.get(), frame_count);
 }
 
+#if defined(__APPLE__)
+
+// TODO: is there any way to get the kernel stack on Mac OS?
+void DumpKernelStack(std::ostream&, pid_t, const char*, bool) {}
+
+#else
+
 void DumpKernelStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count) {
   std::string kernel_stack_filename(StringPrintf("/proc/self/task/%d/stack", tid));
   std::string kernel_stack;
   if (!ReadFileToString(kernel_stack_filename, &kernel_stack)) {
-    os << "  (couldn't read " << kernel_stack_filename << ")";
+    os << prefix << "(couldn't read " << kernel_stack_filename << ")\n";
   }
 
   std::vector<std::string> kernel_stack_frames;
