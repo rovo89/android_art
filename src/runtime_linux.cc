@@ -18,6 +18,7 @@
 
 #include <signal.h>
 #include <string.h>
+#include <sys/utsname.h>
 
 #include "logging.h"
 #include "stringprintf.h"
@@ -28,6 +29,16 @@ namespace art {
 struct Backtrace {
   void Dump(std::ostream& os) {
     DumpNativeStack(os, GetTid(), "\t", true);
+  }
+};
+
+struct OS {
+  void Dump(std::ostream& os) {
+    utsname info;
+    uname(&info);
+    // Linux 2.6.38.8-gg784 (x86_64)
+    // Darwin 11.4.0 (x86_64)
+    os << info.sysname << " " << info.release << " (" << info.machine << ")";
   }
 };
 
@@ -221,6 +232,7 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw
   bool has_address = (signal_number == SIGILL || signal_number == SIGBUS ||
                       signal_number == SIGFPE || signal_number == SIGSEGV);
 
+  OS os_info;
   UContext thread_context(raw_context);
   Backtrace thread_backtrace;
 
@@ -230,6 +242,7 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw
                                       info->si_code,
                                       GetSignalCodeName(signal_number, info->si_code))
                       << (has_address ? StringPrintf(" fault addr %p", info->si_addr) : "") << "\n"
+                      << "OS: " << Dumpable<OS>(os_info) << "\n"
                       << "Registers:\n" << Dumpable<UContext>(thread_context) << "\n"
                       << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace);
 
@@ -262,29 +275,20 @@ void Runtime::InitPlatformSignalHandlers() {
   action.sa_sigaction = HandleUnexpectedSignal;
   // Use the three-argument sa_sigaction handler.
   action.sa_flags |= SA_SIGINFO;
-#if !defined(__APPLE__)
   // Use the alternate signal stack so we can catch stack overflows.
   action.sa_flags |= SA_ONSTACK;
-#endif
 
   int rc = 0;
-  rc += sigaction(SIGILL, &action, NULL);
-  rc += sigaction(SIGTRAP, &action, NULL);
   rc += sigaction(SIGABRT, &action, NULL);
   rc += sigaction(SIGBUS, &action, NULL);
   rc += sigaction(SIGFPE, &action, NULL);
+  rc += sigaction(SIGILL, &action, NULL);
+  rc += sigaction(SIGPIPE, &action, NULL);
+  rc += sigaction(SIGSEGV, &action, NULL);
 #if defined(SIGSTKFLT)
   rc += sigaction(SIGSTKFLT, &action, NULL);
 #endif
-  rc += sigaction(SIGPIPE, &action, NULL);
-
-  // Use the alternate signal stack so we can catch stack overflows.
-  // On Mac OS 10.7, backtrace(3) is broken and will return no frames when called from the alternate stack,
-  // so we only use the alternate stack for SIGSEGV so that we at least get backtraces for other signals.
-  // (glibc does the right thing, so we could use the alternate stack for all signals there.)
-  action.sa_flags |= SA_ONSTACK;
-  rc += sigaction(SIGSEGV, &action, NULL);
-
+  rc += sigaction(SIGTRAP, &action, NULL);
   CHECK_EQ(rc, 0);
 }
 
