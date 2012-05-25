@@ -43,9 +43,9 @@
 #include "trace.h"
 #include "UniquePtr.h"
 #include "verifier/method_verifier.h"
+#include "well_known_classes.h"
 
-// TODO: this drags in cutil/log.h, which conflicts with our logging.h.
-#include "JniConstants.h"
+#include "JniConstants.h" // Last to avoid LOG redefinition in ics-mr1-plus-art.
 
 namespace art {
 
@@ -513,21 +513,17 @@ void CreateSystemClassLoader() {
   CHECK_EQ(self->GetState(), kNative);
 
   JNIEnv* env = self->GetJniEnv();
-  ScopedLocalRef<jclass> ClassLoader_class(env, env->FindClass("java/lang/ClassLoader"));
-  CHECK(ClassLoader_class.get() != NULL);
-  jmethodID getSystemClassLoader = env->GetStaticMethodID(ClassLoader_class.get(),
+  jmethodID getSystemClassLoader = env->GetStaticMethodID(WellKnownClasses::java_lang_ClassLoader,
                                                           "getSystemClassLoader",
                                                           "()Ljava/lang/ClassLoader;");
   CHECK(getSystemClassLoader != NULL);
-  ScopedLocalRef<jobject> class_loader(env, env->CallStaticObjectMethod(ClassLoader_class.get(),
+  ScopedLocalRef<jobject> class_loader(env, env->CallStaticObjectMethod(WellKnownClasses::java_lang_ClassLoader,
                                                                         getSystemClassLoader));
   CHECK(class_loader.get() != NULL);
 
   Thread::Current()->SetClassLoaderOverride(Decode<ClassLoader*>(env, class_loader.get()));
 
-  ScopedLocalRef<jclass> Thread_class(env, env->FindClass("java/lang/Thread"));
-  CHECK(Thread_class.get() != NULL);
-  jfieldID contextClassLoader = env->GetFieldID(Thread_class.get(),
+  jfieldID contextClassLoader = env->GetFieldID(WellKnownClasses::java_lang_Thread,
                                                 "contextClassLoader",
                                                 "Ljava/lang/ClassLoader;");
   CHECK(contextClassLoader != NULL);
@@ -592,11 +588,7 @@ void Runtime::StartDaemonThreads() {
   CHECK_EQ(self->GetState(), kNative);
 
   JNIEnv* env = self->GetJniEnv();
-  ScopedLocalRef<jclass> c(env, env->FindClass("java/lang/Daemons"));
-  CHECK(c.get() != NULL);
-  jmethodID mid = env->GetStaticMethodID(c.get(), "start", "()V");
-  CHECK(mid != NULL);
-  env->CallStaticVoidMethod(c.get(), mid);
+  env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons, WellKnownClasses::java_lang_Daemons_start);
   CHECK(!env->ExceptionCheck());
 
   VLOG(startup) << "Runtime::StartDaemonThreads exiting";
@@ -705,6 +697,7 @@ void Runtime::InitNativeMethods() {
   // First set up JniConstants, which is used by both the runtime's built-in native
   // methods and libcore.
   JniConstants::init(env);
+  WellKnownClasses::Init(env);
 
   // Then set up the native methods provided by the runtime itself.
   RegisterRuntimeNativeMethods(env);

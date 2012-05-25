@@ -14,18 +14,16 @@
  * limitations under the License.
  */
 
-#include "class_linker.h"
-#include "debugger.h"
-#include "jni_internal.h"
-#include "trace.h"
-#include "hprof/hprof.h"
-#include "ScopedUtfChars.h"
-#include "toStringArray.h"
-
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
-
 #include <string.h>
 #include <unistd.h>
+
+#include "class_linker.h"
+#include "debugger.h"
+#include "hprof/hprof.h"
+#include "jni_internal.h"
+#include "ScopedUtfChars.h"
+#include "toStringArray.h"
+#include "trace.h"
 
 namespace art {
 
@@ -66,7 +64,7 @@ static void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceF
 
   int fd = dup(originalFd);
   if (fd < 0) {
-    jniThrowExceptionFmt(env, "java/lang/RuntimeException", "dup(%d) failed: %s", originalFd, strerror(errno));
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "dup(%d) failed: %s", originalFd, strerror(errno));
     return;
   }
 
@@ -115,20 +113,20 @@ static jlong VMDebug_lastDebuggerActivity(JNIEnv*, jclass) {
   return Dbg::LastDebuggerActivity();
 }
 
-static void VMDebug_startInstructionCounting(JNIEnv* env, jclass) {
-  jniThrowException(env, "java/lang/UnsupportedOperationException", NULL);
+static void VMDebug_startInstructionCounting(JNIEnv*, jclass) {
+  Thread::Current()->ThrowNewException("Ljava/lang/UnsupportedOperationException;", "");
 }
 
-static void VMDebug_stopInstructionCounting(JNIEnv* env, jclass) {
-  jniThrowException(env, "java/lang/UnsupportedOperationException", NULL);
+static void VMDebug_stopInstructionCounting(JNIEnv*, jclass) {
+  Thread::Current()->ThrowNewException("Ljava/lang/UnsupportedOperationException;", "");
 }
 
-static void VMDebug_getInstructionCount(JNIEnv* env, jclass, jintArray /*javaCounts*/) {
-  jniThrowException(env, "java/lang/UnsupportedOperationException", NULL);
+static void VMDebug_getInstructionCount(JNIEnv*, jclass, jintArray /*javaCounts*/) {
+  Thread::Current()->ThrowNewException("Ljava/lang/UnsupportedOperationException;", "");
 }
 
-static void VMDebug_resetInstructionCount(JNIEnv* env, jclass) {
-  jniThrowException(env, "java/lang/UnsupportedOperationException", NULL);
+static void VMDebug_resetInstructionCount(JNIEnv*, jclass) {
+  Thread::Current()->ThrowNewException("Ljava/lang/UnsupportedOperationException;", "");
 }
 
 static void VMDebug_printLoadedClasses(JNIEnv*, jclass, jint flags) {
@@ -156,7 +154,7 @@ static jlong VMDebug_threadCpuTimeNanos(JNIEnv*, jclass) {
 static void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, jobject javaFd) {
   // Only one of these may be NULL.
   if (javaFilename == NULL && javaFd == NULL) {
-    jniThrowNullPointerException(env, "fileName == null && fd == null");
+    Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "fileName == null && fd == null");
     return;
   }
 
@@ -175,7 +173,7 @@ static void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, job
   if (javaFd != NULL) {
     fd = jniGetFDFromFileDescriptor(env, javaFd);
     if (fd < 0) {
-      jniThrowException(env, "Ljava/lang/RuntimeException;", "Invalid file descriptor");
+      Thread::Current()->ThrowNewException("Ljava/lang/RuntimeException;", "Invalid file descriptor");
       return;
     }
   }
@@ -183,16 +181,16 @@ static void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, job
   int result = hprof::DumpHeap(filename.c_str(), fd, false);
   if (result != 0) {
     // TODO: ideally we'd throw something more specific based on actual failure
-    jniThrowException(env, "Ljava/lang/RuntimeException;", "Failure during heap dump; check log output for details");
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "Failure during heap dump; check log output for details: %d", result);
     return;
   }
 }
 
-static void VMDebug_dumpHprofDataDdms(JNIEnv* env, jclass) {
+static void VMDebug_dumpHprofDataDdms(JNIEnv*, jclass) {
   int result = hprof::DumpHeap("[DDMS]", -1, true);
   if (result != 0) {
     // TODO: ideally we'd throw something more specific based on actual failure
-    jniThrowException(env, "Ljava/lang/RuntimeException;", "Failure during heap dump; check log output for details");
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "Failure during heap dump; check log output for details: %d", result);
     return;
   }
 }
@@ -255,7 +253,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_dalvik_system_VMDebug(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "dalvik/system/VMDebug", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("dalvik/system/VMDebug");
 }
 
 }  // namespace art

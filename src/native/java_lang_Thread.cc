@@ -22,8 +22,6 @@
 #include "thread.h"
 #include "thread_list.h"
 
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
-
 namespace art {
 
 static jobject Thread_currentThread(JNIEnv* env, jclass) {
@@ -145,7 +143,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_java_lang_Thread(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "java/lang/Thread", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("java/lang/Thread");
 }
 
 }  // namespace art

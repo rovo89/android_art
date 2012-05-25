@@ -197,6 +197,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/trace.cc \
 	src/utf.cc \
 	src/utils.cc \
+	src/well_known_classes.cc \
 	src/zip_archive.cc \
 	src/verifier/gc_map.cc \
 	src/verifier/method_verifier.cc \

@@ -17,8 +17,6 @@
 #include "jni_internal.h"
 #include "object.h"
 
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
-
 #ifdef HAVE__MEMCMP16
 // "count" is in 16-bit units.
 extern "C" uint32_t __memcmp16(const uint16_t* s0, const uint16_t* s1, size_t count);
@@ -108,7 +106,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_java_lang_String(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "java/lang/String", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("java/lang/String");
 }
 
 }  // namespace art

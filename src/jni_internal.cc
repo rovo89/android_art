@@ -37,6 +37,7 @@
 #include "stringpiece.h"
 #include "thread.h"
 #include "UniquePtr.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -54,6 +55,16 @@ static size_t gGlobalsMax = 51200; // Arbitrary sanity check.
 
 static const size_t kWeakGlobalsInitial = 16; // Arbitrary.
 static const size_t kWeakGlobalsMax = 51200; // Arbitrary sanity check.
+
+void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINativeMethod* methods, size_t method_count) {
+  ScopedLocalRef<jclass> c(env, env->FindClass(jni_class_name));
+  if (c.get() == NULL) {
+    LOG(FATAL) << "Couldn't find class: " << jni_class_name;
+  }
+  if (env->RegisterNatives(c.get(), methods, method_count) != JNI_OK) {
+    LOG(FATAL) << "Failed to register natives methods: " << jni_class_name;
+  }
+}
 
 void SetJniGlobalsMax(size_t max) {
   if (max != 0) {
@@ -509,17 +520,6 @@ static void SetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_ar
     JavaT* data = array->GetData();
     memcpy(data + start, buf, length * sizeof(JavaT));
   }
-}
-
-static jclass InitDirectByteBufferClass(JNIEnv* env) {
-  ScopedLocalRef<jclass> buffer_class(env, env->FindClass("java/nio/ReadWriteDirectByteBuffer"));
-  CHECK(buffer_class.get() != NULL);
-  return reinterpret_cast<jclass>(env->NewGlobalRef(buffer_class.get()));
-}
-
-static jclass GetDirectByteBufferClass(JNIEnv* env) {
-  static jclass buffer_class = InitDirectByteBufferClass(env);
-  return buffer_class;
 }
 
 static jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* raw_args, bool as_daemon) {
@@ -2315,32 +2315,26 @@ class JNI {
     CHECK(address != NULL); // TODO: ReportJniError
     CHECK_GT(capacity, 0); // TODO: ReportJniError
 
-    jclass buffer_class = GetDirectByteBufferClass(env);
-    jmethodID mid = env->GetMethodID(buffer_class, "<init>", "(II)V");
-    if (mid == NULL) {
-      return NULL;
-    }
-
     // At the moment, the Java side is limited to 32 bits.
     CHECK_LE(reinterpret_cast<uintptr_t>(address), 0xffffffff);
     CHECK_LE(capacity, 0xffffffff);
     jint address_arg = reinterpret_cast<jint>(address);
     jint capacity_arg = static_cast<jint>(capacity);
 
-    jobject result = env->NewObject(buffer_class, mid, address_arg, capacity_arg);
+    jobject result = env->NewObject(WellKnownClasses::java_nio_ReadWriteDirectByteBuffer,
+                                    WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_init,
+                                    address_arg, capacity_arg);
     return ts.Self()->IsExceptionPending() ? NULL : result;
   }
 
   static void* GetDirectBufferAddress(JNIEnv* env, jobject java_buffer) {
     ScopedJniThreadState ts(env);
-    static jfieldID fid = env->GetFieldID(GetDirectByteBufferClass(env), "effectiveDirectAddress", "I");
-    return reinterpret_cast<void*>(env->GetIntField(java_buffer, fid));
+    return reinterpret_cast<void*>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress));
   }
 
   static jlong GetDirectBufferCapacity(JNIEnv* env, jobject java_buffer) {
     ScopedJniThreadState ts(env);
-    static jfieldID fid = env->GetFieldID(GetDirectByteBufferClass(env), "capacity", "I");
-    return static_cast<jlong>(env->GetIntField(java_buffer, fid));
+    return static_cast<jlong>(env->GetIntField(java_buffer, WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_capacity));
   }
 
   static jobjectRefType GetObjectRefType(JNIEnv* env, jobject java_object) {
@@ -3009,14 +3003,6 @@ void JavaVMExt::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
     pin_table.VisitRoots(visitor, arg);
   }
   // The weak_globals table is visited by the GC itself (because it mutates the table).
-}
-
-jclass CacheClass(JNIEnv* env, const char* jni_class_name) {
-  ScopedLocalRef<jclass> c(env, env->FindClass(jni_class_name));
-  if (c.get() == NULL) {
-    return NULL;
-  }
-  return reinterpret_cast<jclass>(env->NewGlobalRef(c.get()));
 }
 
 }  // namespace art

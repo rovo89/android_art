@@ -34,6 +34,7 @@
 #include "space.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
+#include "well_known_classes.h"
 
 extern "C" void dlmalloc_walk_heap(void(*)(const void*, size_t, const void*, size_t, void*), void*);
 #ifndef HAVE_ANDROID_OS
@@ -2322,14 +2323,6 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
 
-  static jclass Chunk_class = CacheClass(env, "org/apache/harmony/dalvik/ddmc/Chunk");
-  static jclass DdmServer_class = CacheClass(env, "org/apache/harmony/dalvik/ddmc/DdmServer");
-  static jmethodID dispatch_mid = env->GetStaticMethodID(DdmServer_class, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
-  static jfieldID data_fid = env->GetFieldID(Chunk_class, "data", "[B");
-  static jfieldID length_fid = env->GetFieldID(Chunk_class, "length", "I");
-  static jfieldID offset_fid = env->GetFieldID(Chunk_class, "offset", "I");
-  static jfieldID type_fid = env->GetFieldID(Chunk_class, "type", "I");
-
   // Create a byte[] corresponding to 'buf'.
   ScopedLocalRef<jbyteArray> dataArray(env, env->NewByteArray(dataLen));
   if (dataArray.get() == NULL) {
@@ -2352,7 +2345,9 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
   }
 
   // Call "private static Chunk dispatch(int type, byte[] data, int offset, int length)".
-  ScopedLocalRef<jobject> chunk(env, env->CallStaticObjectMethod(DdmServer_class, dispatch_mid, type, dataArray.get(), offset, length));
+  ScopedLocalRef<jobject> chunk(env, env->CallStaticObjectMethod(WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer,
+                                                                 WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch,
+                                                                 type, dataArray.get(), offset, length));
   if (env->ExceptionCheck()) {
     LOG(INFO) << StringPrintf("Exception thrown by dispatcher for 0x%08x", type);
     env->ExceptionDescribe();
@@ -2376,10 +2371,10 @@ bool Dbg::DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, 
    *
    * So we're pretty much stuck with copying data around multiple times.
    */
-  ScopedLocalRef<jbyteArray> replyData(env, reinterpret_cast<jbyteArray>(env->GetObjectField(chunk.get(), data_fid)));
-  length = env->GetIntField(chunk.get(), length_fid);
-  offset = env->GetIntField(chunk.get(), offset_fid);
-  type = env->GetIntField(chunk.get(), type_fid);
+  ScopedLocalRef<jbyteArray> replyData(env, reinterpret_cast<jbyteArray>(env->GetObjectField(chunk.get(), WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_data)));
+  length = env->GetIntField(chunk.get(), WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_length);
+  offset = env->GetIntField(chunk.get(), WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset);
+  type = env->GetIntField(chunk.get(), WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_type);
 
   VLOG(jdwp) << StringPrintf("DDM reply: type=0x%08x data=%p offset=%d length=%d", type, replyData.get(), offset, length);
   if (length == 0 || replyData.get() == NULL) {
@@ -2418,10 +2413,10 @@ void Dbg::DdmBroadcast(bool connect) {
   }
 
   JNIEnv* env = self->GetJniEnv();
-  static jclass DdmServer_class = CacheClass(env, "org/apache/harmony/dalvik/ddmc/DdmServer");
-  static jmethodID broadcast_mid = env->GetStaticMethodID(DdmServer_class, "broadcast", "(I)V");
   jint event = connect ? 1 /*DdmServer.CONNECTED*/ : 2 /*DdmServer.DISCONNECTED*/;
-  env->CallStaticVoidMethod(DdmServer_class, broadcast_mid, event);
+  env->CallStaticVoidMethod(WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer,
+                            WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast,
+                            event);
   if (env->ExceptionCheck()) {
     LOG(ERROR) << "DdmServer.broadcast " << event << " failed";
     env->ExceptionDescribe();

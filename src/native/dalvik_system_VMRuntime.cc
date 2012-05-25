@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <limits.h>
+
 #include "class_linker.h"
 #include "debugger.h"
 #include "jni_internal.h"
@@ -24,11 +26,7 @@
 #include "space.h"
 #include "thread.h"
 #include "thread_list.h"
-
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 #include "toStringArray.h"
-
-#include <limits.h>
 
 namespace art {
 
@@ -187,7 +185,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "dalvik/system/VMRuntime", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("dalvik/system/VMRuntime");
 }
 
 }  // namespace art

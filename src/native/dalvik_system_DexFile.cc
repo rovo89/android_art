@@ -16,20 +16,19 @@
 
 #include <unistd.h>
 
-#include "class_loader.h"
 #include "class_linker.h"
+#include "class_loader.h"
 #include "dex_file.h"
 #include "image.h"
+#include "jni_internal.h"
 #include "logging.h"
 #include "os.h"
 #include "runtime.h"
-#include "space.h"
-#include "zip_archive.h"
-#include "toStringArray.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
-
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
+#include "space.h"
+#include "toStringArray.h"
+#include "zip_archive.h"
 
 namespace art {
 
@@ -98,23 +97,23 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
   }
   if (dex_file == NULL) {
     LOG(WARNING) << "Failed to open dex file: " << source;
-    jniThrowExceptionFmt(env, "java/io/IOException", "unable to open dex file: %s",
-                         source.c_str());
+    Thread::Current()->ThrowNewExceptionF("Ljava/io/IOException;", "Unable to open dex file: %s",
+                                          source.c_str());
     return 0;
   }
   return static_cast<jint>(reinterpret_cast<uintptr_t>(dex_file));
 }
 
-static const DexFile* toDexFile(JNIEnv* env, int dex_file_address) {
+static const DexFile* toDexFile(int dex_file_address) {
   const DexFile* dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(dex_file_address));
   if (dex_file == NULL) {
-    jniThrowNullPointerException(env, "dex_file == null");
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NullPointerException;", "dex_file == null");
   }
   return dex_file;
 }
 
-static void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
-  const DexFile* dex_file = toDexFile(env, cookie);
+static void DexFile_closeDexFile(JNIEnv*, jclass, jint cookie) {
+  const DexFile* dex_file = toDexFile(cookie);
   if (dex_file == NULL) {
     return;
   }
@@ -127,7 +126,7 @@ static void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
 static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
                                         jint cookie) {
   ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
-  const DexFile* dex_file = toDexFile(env, cookie);
+  const DexFile* dex_file = toDexFile(cookie);
   if (dex_file == NULL) {
     return NULL;
   }
@@ -150,7 +149,7 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
 }
 
 static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
-  const DexFile* dex_file = toDexFile(env, cookie);
+  const DexFile* dex_file = toDexFile(cookie);
   if (dex_file == NULL) {
     return NULL;
   }
@@ -175,7 +174,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
   if (!OS::FileExists(filename.c_str())) {
     LOG(ERROR) << "DexFile_isDexOptNeeded file '" << filename.c_str() << "' does not exist";
-    jniThrowExceptionFmt(env, "java/io/FileNotFoundException", "%s", filename.c_str());
+    Thread::Current()->ThrowNewExceptionF("Ljava/io/FileNotFoundException;", "%s", filename.c_str());
     return JNI_TRUE;
   }
 
@@ -265,7 +264,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_dalvik_system_DexFile(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "dalvik/system/DexFile", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("dalvik/system/DexFile");
 }
 
 }  // namespace art

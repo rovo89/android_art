@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-#include "jni_internal.h"
 #include "class_linker.h"
 #include "class_loader.h"
+#include "jni_internal.h"
 #include "nth_caller_visitor.h"
 #include "object.h"
 #include "object_utils.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
-
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -62,9 +61,9 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   if (c == NULL) {
     ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
     env->ExceptionClear();
-    static jclass ClassNotFoundException_class = CacheClass(env, "java/lang/ClassNotFoundException");
-    static jmethodID ctor = env->GetMethodID(ClassNotFoundException_class, "<init>", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
-    jthrowable cnfe = reinterpret_cast<jthrowable>(env->NewObject(ClassNotFoundException_class, ctor, javaName, cause.get()));
+    jthrowable cnfe = reinterpret_cast<jthrowable>(env->NewObject(WellKnownClasses::java_lang_ClassNotFoundException,
+                                                                  WellKnownClasses::java_lang_ClassNotFoundException_init,
+                                                                  javaName, cause.get()));
     env->Throw(cnfe);
     return NULL;
   }
@@ -89,8 +88,8 @@ static jint Class_getAnnotationDirectoryOffset(JNIEnv* env, jclass javaClass) {
 
 template<typename T>
 static jobjectArray ToArray(JNIEnv* env, const char* array_class_name, const std::vector<T*>& objects) {
-  jclass array_class = env->FindClass(array_class_name);
-  jobjectArray result = env->NewObjectArray(objects.size(), array_class, NULL);
+  ScopedLocalRef<jclass> array_class(env, env->FindClass(array_class_name));
+  jobjectArray result = env->NewObjectArray(objects.size(), array_class.get(), NULL);
   for (size_t i = 0; i < objects.size(); ++i) {
     ScopedLocalRef<jobject> object(env, AddLocalReference<jobject>(env, objects[i]));
     env->SetObjectArrayElement(result, i, object.get());
@@ -472,7 +471,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_java_lang_Class(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "java/lang/Class", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("java/lang/Class");
 }
 
 }  // namespace art

@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
+#include "class_linker.h"
 #include "jni_internal.h"
 #include "object.h"
-#include "class_linker.h"
-
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 
 namespace art {
 
@@ -40,7 +38,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_java_lang_reflect_Proxy(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "java/lang/reflect/Proxy", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("java/lang/reflect/Proxy");
 }
 
 }  // namespace art

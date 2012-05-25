@@ -28,6 +28,7 @@
 #include "thread.h"
 #include "thread_list.h"
 #include "verifier/method_verifier.h"
+#include "well_known_classes.h"
 
 #include <algorithm>
 #include <cstdarg>
@@ -729,22 +730,11 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
     args->Set(i, val.GetL());
   }
 
-  // Get the InvocationHandler method and the field that holds it within the Proxy object
-  static jmethodID inv_hand_invoke_mid = NULL;
-  static jfieldID proxy_inv_hand_fid = NULL;
-  if (proxy_inv_hand_fid == NULL) {
-    ScopedLocalRef<jclass> proxy(env, env->FindClass("java/lang/reflect/Proxy"));
-    proxy_inv_hand_fid = env->GetFieldID(proxy.get(), "h", "Ljava/lang/reflect/InvocationHandler;");
-    ScopedLocalRef<jclass> inv_hand_class(env, env->FindClass("java/lang/reflect/InvocationHandler"));
-    inv_hand_invoke_mid = env->GetMethodID(inv_hand_class.get(), "invoke",
-        "(Ljava/lang/Object;Ljava/lang/reflect/Method;[Ljava/lang/Object;)Ljava/lang/Object;");
-  }
+  DCHECK(env->IsInstanceOf(rcvr_jobj, WellKnownClasses::java_lang_reflect_Proxy));
 
-  DCHECK(env->IsInstanceOf(rcvr_jobj, env->FindClass("java/lang/reflect/Proxy")));
-
-  jobject inv_hand = env->GetObjectField(rcvr_jobj, proxy_inv_hand_fid);
+  jobject inv_hand = env->GetObjectField(rcvr_jobj, WellKnownClasses::java_lang_reflect_Proxy_h);
   // Call InvocationHandler.invoke
-  jobject result = env->CallObjectMethodA(inv_hand, inv_hand_invoke_mid, args_jobj);
+  jobject result = env->CallObjectMethodA(inv_hand, WellKnownClasses::java_lang_reflect_InvocationHandler_invoke, args_jobj);
 
   // Place result in stack args
   if (!thread->IsExceptionPending()) {

@@ -17,8 +17,6 @@
 #include "jni_internal.h"
 #include "object.h"
 
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
-
 namespace art {
 
 static jobject Object_internalClone(JNIEnv* env, jobject javaThis) {
@@ -50,7 +48,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_java_lang_Object(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "java/lang/Object", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("java/lang/Object");
 }
 
 }  // namespace art

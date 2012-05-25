@@ -19,8 +19,6 @@
 #include "ScopedUtfChars.h"
 #include "zip_archive.h"
 
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
-
 namespace art {
 
 static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader, jstring javaName) {
@@ -91,7 +89,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_java_lang_VMClassLoader(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "java/lang/VMClassLoader", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("java/lang/VMClassLoader");
 }
 
 }  // namespace art

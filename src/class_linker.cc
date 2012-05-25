@@ -52,6 +52,7 @@
 #include "thread.h"
 #include "UniquePtr.h"
 #include "utils.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -141,24 +142,17 @@ static void WrapExceptionInInitializer() {
 
   env->ExceptionClear();
 
-  // TODO: add java.lang.Error to JniConstants?
-  ScopedLocalRef<jclass> error_class(env, env->FindClass("java/lang/Error"));
-  CHECK(error_class.get() != NULL);
-  if (env->IsInstanceOf(cause.get(), error_class.get())) {
+  if (env->IsInstanceOf(cause.get(), WellKnownClasses::java_lang_Error)) {
     // We only wrap non-Error exceptions; an Error can just be used as-is.
     env->Throw(cause.get());
     return;
   }
 
-  // TODO: add java.lang.ExceptionInInitializerError to JniConstants?
-  ScopedLocalRef<jclass> eiie_class(env, env->FindClass("java/lang/ExceptionInInitializerError"));
-  CHECK(eiie_class.get() != NULL);
-
-  jmethodID mid = env->GetMethodID(eiie_class.get(), "<init>" , "(Ljava/lang/Throwable;)V");
+  jmethodID mid = env->GetMethodID(WellKnownClasses::java_lang_ExceptionInInitializerError, "<init>" , "(Ljava/lang/Throwable;)V");
   CHECK(mid != NULL);
 
   ScopedLocalRef<jthrowable> eiie(env,
-      reinterpret_cast<jthrowable>(env->NewObject(eiie_class.get(), mid, cause.get())));
+      reinterpret_cast<jthrowable>(env->NewObject(WellKnownClasses::java_lang_ExceptionInInitializerError, mid, cause.get())));
   env->Throw(eiie.get());
 }
 
