@@ -645,6 +645,7 @@ void Thread::DumpKernelStack(std::ostream& os) const {
   std::string kernel_stack;
   if (!ReadFileToString(kernel_stack_filename, &kernel_stack)) {
     os << "  (couldn't read " << kernel_stack_filename << ")";
+    return;
   }
 
   std::vector<std::string> kernel_stack_frames;
