@@ -410,7 +410,7 @@ class OatDumper {
         first = false;
       }
     }
-    os << std::endl;
+    os << "\n";
   }
 
   void DumpGcMap(std::ostream& os, const uint8_t* gc_map_raw) {
@@ -435,7 +435,7 @@ class OatDumper {
           }
         }
       }
-      os << std::endl;
+      os << "\n";
     }
   }
 
@@ -458,7 +458,7 @@ class OatDumper {
         os << ", ";
       }
     }
-    os << "}" << std::endl << std::flush;
+    os << "}\n" << std::flush;
   }
 
 #if !defined(ART_USE_LLVM_COMPILER)
@@ -992,12 +992,11 @@ class ImageDumper {
                 }
               } else {
                 if (first) {
-                  os << "\nBig methods (size > " << i << " standard deviations the norm):"
-                     << std::endl;
+                  os << "\nBig methods (size > " << i << " standard deviations the norm):\n";
                   first = false;
                 }
                 os << "\t" << PrettyMethod(method_outlier[j]) << " requires storage of "
-                    << PrettySize(cur_size) << std::endl;
+                    << PrettySize(cur_size) << "\n";
                 method_outlier_size[j] = 0;  // don't consider this method again
                 dumped_values++;
               }
@@ -1007,9 +1006,9 @@ class ImageDumper {
       }
       if (skipped_values > 0) {
         os << "\t... skipped " << skipped_values
-           << " methods with size > 1 standard deviation from the norm" << std::endl;
+           << " methods with size > 1 standard deviation from the norm\n";
       }
-      os << std::endl << std::flush;
+      os << std::flush;
 
       // Dump methods whose expansion is a certain number of standard deviations from the mean
       dumped_values = 0;
@@ -1033,11 +1032,11 @@ class ImageDumper {
               } else {
                 if (first) {
                   os << "\nLarge expansion methods (size > " << i
-                      << " standard deviations the norm):" << std::endl;
+                      << " standard deviations the norm):\n";
                   first = false;
                 }
                 os << "\t" << PrettyMethod(method_outlier[j]) << " expanded code by "
-                    << cur_expansion << std::endl;
+                   << cur_expansion << "\n";
                 method_outlier_expansion[j] = 0.0;  // don't consider this method again
                 dumped_values++;
               }
@@ -1047,21 +1046,21 @@ class ImageDumper {
       }
       if (skipped_values > 0) {
         os << "\t... skipped " << skipped_values
-           << " methods with expansion > 1 standard deviation from the norm" << std::endl;
+           << " methods with expansion > 1 standard deviation from the norm\n";
       }
-      os << std::endl << std::flush;
+      os << "\n" << std::flush;
     }
 
     void Dump(std::ostream& os) {
-      os << "\tart_file_bytes = " << PrettySize(file_bytes) << std::endl << std::endl
-         << "\tart_file_bytes = header_bytes + object_bytes + alignment_bytes" << std::endl
+      os << "\tart_file_bytes = " << PrettySize(file_bytes) << "\n\n"
+         << "\tart_file_bytes = header_bytes + object_bytes + alignment_bytes\n"
          << StringPrintf("\theader_bytes    =  %8zd (%2.0f%% of art file bytes)\n"
                          "\tobject_bytes    =  %8zd (%2.0f%% of art file bytes)\n"
-                         "\talignment_bytes =  %8zd (%2.0f%% of art file bytes)\n",
+                         "\talignment_bytes =  %8zd (%2.0f%% of art file bytes)\n\n",
                          header_bytes, PercentOfFileBytes(header_bytes),
                          object_bytes, PercentOfFileBytes(object_bytes),
                          alignment_bytes, PercentOfFileBytes(alignment_bytes))
-         << std::endl << std::flush;
+         << std::flush;
 
       CHECK_EQ(file_bytes, header_bytes + object_bytes + alignment_bytes);
 
@@ -1078,7 +1077,7 @@ class ImageDumper {
                            average, percent);
         object_bytes_total += it->second.bytes;
       }
-      os << std::endl << std::flush;
+      os << "\n" << std::flush;
       CHECK_EQ(object_bytes, object_bytes_total);
 
       os << StringPrintf("\tmanaged_code_bytes           = %8zd (%2.0f%% of oat file bytes)\n"
@@ -1086,29 +1085,29 @@ class ImageDumper {
                          "\tnative_to_managed_code_bytes = %8zd (%2.0f%% of oat file bytes)\n\n"
                          "\tclass_initializer_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
                          "\tlarge_initializer_code_bytes = %8zd (%2.0f%% of oat file bytes)\n"
-                         "\tlarge_method_code_bytes      = %8zd (%2.0f%% of oat file bytes)\n",
+                         "\tlarge_method_code_bytes      = %8zd (%2.0f%% of oat file bytes)\n\n",
                          managed_code_bytes, PercentOfOatBytes(managed_code_bytes),
                          managed_to_native_code_bytes, PercentOfOatBytes(managed_to_native_code_bytes),
                          native_to_managed_code_bytes, PercentOfOatBytes(native_to_managed_code_bytes),
                          class_initializer_code_bytes, PercentOfOatBytes(class_initializer_code_bytes),
                          large_initializer_code_bytes, PercentOfOatBytes(large_initializer_code_bytes),
                          large_method_code_bytes, PercentOfOatBytes(large_method_code_bytes))
-         << std::endl << std::flush;
+         << std::flush;
 
       os << StringPrintf("\tgc_map_bytes           = %7zd (%2.0f%% of oat file_bytes)\n"
                          "\tpc_mapping_table_bytes = %7zd (%2.0f%% of oat file_bytes)\n"
-                         "\tvmap_table_bytes       = %7zd (%2.0f%% of oat file_bytes)\n",
+                         "\tvmap_table_bytes       = %7zd (%2.0f%% of oat file_bytes)\n\n",
                          gc_map_bytes, PercentOfOatBytes(gc_map_bytes),
                          pc_mapping_table_bytes, PercentOfOatBytes(pc_mapping_table_bytes),
                          vmap_table_bytes, PercentOfOatBytes(vmap_table_bytes))
-         << std::endl << std::flush;
+         << std::flush;
 
       os << StringPrintf("\tdex_instruction_bytes = %zd\n", dex_instruction_bytes);
-      os << StringPrintf("\tmanaged_code_bytes expansion = %.2f (ignoring deduplication %.2f)\n",
-          static_cast<double>(managed_code_bytes) / static_cast<double>(dex_instruction_bytes),
-          static_cast<double>(managed_code_bytes_ignoring_deduplication) /
-            static_cast<double>(dex_instruction_bytes));
-      os << std::endl << std::flush;
+         << StringPrintf("\tmanaged_code_bytes expansion = %.2f (ignoring deduplication %.2f)\n\n",
+                         static_cast<double>(managed_code_bytes) / static_cast<double>(dex_instruction_bytes),
+                         static_cast<double>(managed_code_bytes_ignoring_deduplication) /
+                             static_cast<double>(dex_instruction_bytes));
+         << std::flush;
 
       DumpOutliers(os);
     }
