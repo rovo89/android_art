@@ -1008,6 +1008,11 @@ void DumpKernelStack(std::ostream&, pid_t, const char*, bool) {}
 #else
 
 void DumpKernelStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count) {
+  if (tid == GetTid()) {
+    // There's no point showing that we're reading our stack out of /proc!
+    return;
+  }
+
   std::string kernel_stack_filename(StringPrintf("/proc/self/task/%d/stack", tid));
   std::string kernel_stack;
   if (!ReadFileToString(kernel_stack_filename, &kernel_stack)) {
