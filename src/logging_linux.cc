@@ -37,7 +37,7 @@ void LogMessage::LogLine(const char* message) {
   std::ostream& os(std::cerr);
   os << "VDIWEFF"[data_->severity] << ' '
      << StringPrintf("%5d %5d", getpid(), ::art::GetTid()) << ' '
-     << data_->file << ':' << data_->line_number << "] " << message << std::endl;
+     << data_->file << ':' << data_->line_number << "] " << message << "\n" << std::flush;
 }
 
 }  // namespace art

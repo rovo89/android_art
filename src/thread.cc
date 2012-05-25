@@ -1751,7 +1751,7 @@ void Thread::DeliverException() {
     String* msg = exception->GetDetailMessage();
     std::string str_msg(msg != NULL ? msg->ToModifiedUtf8() : "");
     DumpStack(LOG(INFO) << "Delivering exception: " << PrettyTypeOf(exception)
-                        << ": " << str_msg << std::endl);
+                        << ": " << str_msg << "\n");
   }
 
   Context* long_jump_context = GetLongJumpContext();
