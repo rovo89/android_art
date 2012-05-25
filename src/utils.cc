@@ -1017,6 +1017,7 @@ void DumpKernelStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
   std::string kernel_stack;
   if (!ReadFileToString(kernel_stack_filename, &kernel_stack)) {
     os << prefix << "(couldn't read " << kernel_stack_filename << ")\n";
+    return;
   }
 
   std::vector<std::string> kernel_stack_frames;
