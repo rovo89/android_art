@@ -38,10 +38,6 @@
 #include "timing_logger.h"
 #include "zip_archive.h"
 
-#if defined(__APPLE__)
-#include "AvailabilityMacros.h" // For MAC_OS_X_VERSION_MAX_ALLOWED
-#endif
-
 namespace art {
 
 static void UsageErrorV(const char* fmt, va_list ap) {
@@ -433,19 +429,22 @@ static bool ParseInt(const char* in, int* out) {
   return true;
 }
 
-static void OpenDexFiles(const std::vector<const char*>& dex_filenames,
-                         const std::vector<const char*>& dex_locations,
-                         std::vector<const DexFile*>& dex_files) {
+static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
+                           const std::vector<const char*>& dex_locations,
+                           std::vector<const DexFile*>& dex_files) {
+  size_t failure_count = 0;
   for (size_t i = 0; i < dex_filenames.size(); i++) {
     const char* dex_filename = dex_filenames[i];
     const char* dex_location = dex_locations[i];
     const DexFile* dex_file = DexFile::Open(dex_filename, dex_location);
     if (dex_file == NULL) {
       LOG(WARNING) << "could not open .dex from file " << dex_filename;
+      ++failure_count;
     } else {
       dex_files.push_back(dex_file);
     }
   }
+  return failure_count;
 }
 
 static int dex2oat(int argc, char** argv) {
@@ -555,12 +554,6 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
-#if defined(__APPLE__) && MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-  // Something is broken on Mac OS 10.5, and we don't have direct access to any machines running it.
-  // Restricting dex2oat to a single thread on Mac OS 10.5 appears to be a workaround.
-  thread_count = 1;
-#endif
-
   if (oat_filename.empty() && oat_fd == -1) {
     Usage("Output must be supplied with either --oat-file or --oat-fd");
   }
@@ -664,7 +657,11 @@ static int dex2oat(int argc, char** argv) {
   options.push_back(std::make_pair("compiler", reinterpret_cast<void*>(NULL)));
   std::vector<const DexFile*> boot_class_path;
   if (boot_image_option.empty()) {
-    OpenDexFiles(dex_filenames, dex_locations, boot_class_path);
+    size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, boot_class_path);
+    if (failure_count > 0) {
+      LOG(ERROR) << "Failed to open some dex files: " << failure_count;
+      return EXIT_FAILURE;
+    }
     options.push_back(std::make_pair("bootclasspath", &boot_class_path));
   } else {
     options.push_back(std::make_pair(boot_image_option.c_str(), reinterpret_cast<void*>(NULL)));
@@ -706,7 +703,11 @@ static int dex2oat(int argc, char** argv) {
       }
       dex_files.push_back(dex_file);
     } else {
-      OpenDexFiles(dex_filenames, dex_locations, dex_files);
+      size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, dex_files);
+      if (failure_count > 0) {
+        LOG(ERROR) << "Failed to open some dex files: " << failure_count;
+        return EXIT_FAILURE;
+      }
     }
   }
 
