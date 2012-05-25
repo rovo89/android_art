@@ -957,7 +957,12 @@ class WorkerThread {
   WorkerThread(Context* context, size_t begin, size_t end, Callback callback, size_t stripe, bool spawn)
       : spawn_(spawn), context_(context), begin_(begin), end_(end), callback_(callback), stripe_(stripe) {
     if (spawn_) {
-      CHECK_PTHREAD_CALL(pthread_create, (&pthread_, NULL, &Go, this), "compiler worker thread");
+      // Mac OS stacks are only 512KiB. Make sure we have the same stack size on all platforms.
+      pthread_attr_t attr;
+      CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new compiler worker thread");
+      CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, 1*MB), "new compiler worker thread");
+      CHECK_PTHREAD_CALL(pthread_create, (&pthread_, &attr, &Go, this), "new compiler worker thread");
+      CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new compiler worker thread");
     }
   }
 
