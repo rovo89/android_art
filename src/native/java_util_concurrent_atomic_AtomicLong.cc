@@ -17,8 +17,6 @@
 #include "jni_internal.h"
 #include "object.h"
 
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
-
 namespace art {
 
 static jboolean AtomicLong_VMSupportsCS8(JNIEnv*, jclass) {
@@ -30,7 +28,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_java_util_concurrent_atomic_AtomicLong(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "java/util/concurrent/atomic/AtomicLong", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("java/util/concurrent/atomic/AtomicLong");
 }
 
 }  // namespace art

@@ -35,6 +35,7 @@
 #include "thread_list.h"
 #include "timing_logger.h"
 #include "UniquePtr.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -854,9 +855,7 @@ void Heap::RequestHeapTrim() {
     return;
   }
   JNIEnv* env = Thread::Current()->GetJniEnv();
-  static jclass Daemons_class = CacheClass(env, "java/lang/Daemons");
-  static jmethodID Daemons_requestHeapTrim = env->GetStaticMethodID(Daemons_class, "requestHeapTrim", "()V");
-  env->CallStaticVoidMethod(Daemons_class, Daemons_requestHeapTrim);
+  env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons, WellKnownClasses::java_lang_Daemons_requestHeapTrim);
   CHECK(!env->ExceptionCheck());
 }
 

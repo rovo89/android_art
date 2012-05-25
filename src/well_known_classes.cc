@@ -1,0 +1,118 @@
+/*
+ * Copyright (C) 2012 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "well_known_classes.h"
+
+#include <stdlib.h>
+
+#include "logging.h"
+#include "ScopedLocalRef.h"
+
+namespace art {
+
+jclass WellKnownClasses::com_android_dex_Dex;
+jclass WellKnownClasses::java_lang_ClassLoader;
+jclass WellKnownClasses::java_lang_ClassNotFoundException;
+jclass WellKnownClasses::java_lang_Daemons;
+jclass WellKnownClasses::java_lang_Error;
+jclass WellKnownClasses::java_lang_ExceptionInInitializerError;
+jclass WellKnownClasses::java_lang_reflect_InvocationHandler;
+jclass WellKnownClasses::java_lang_reflect_Method;
+jclass WellKnownClasses::java_lang_reflect_Proxy;
+jclass WellKnownClasses::java_lang_reflect_UndeclaredThrowableException;
+jclass WellKnownClasses::java_lang_Thread;
+jclass WellKnownClasses::java_nio_ReadWriteDirectByteBuffer;
+jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk;
+jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer;
+
+jmethodID WellKnownClasses::com_android_dex_Dex_create;
+jmethodID WellKnownClasses::java_lang_ClassNotFoundException_init;
+jmethodID WellKnownClasses::java_lang_Daemons_requestHeapTrim;
+jmethodID WellKnownClasses::java_lang_Daemons_start;
+jmethodID WellKnownClasses::java_lang_reflect_InvocationHandler_invoke;
+jmethodID WellKnownClasses::java_lang_Thread_init;
+jmethodID WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_init;
+jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
+jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
+
+jfieldID WellKnownClasses::java_lang_reflect_Proxy_h;
+jfieldID WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_capacity;
+jfieldID WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress;
+jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_data;
+jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_length;
+jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_offset;
+jfieldID WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk_type;
+
+static jclass CacheClass(JNIEnv* env, const char* jni_class_name) {
+  ScopedLocalRef<jclass> c(env, env->FindClass(jni_class_name));
+  if (c.get() == NULL) {
+    LOG(FATAL) << "Couldn't find class: " << jni_class_name;
+  }
+  return reinterpret_cast<jclass>(env->NewGlobalRef(c.get()));
+}
+
+static jfieldID CacheField(JNIEnv* env, jclass c, const char* name, const char* signature) {
+  jfieldID fid = env->GetFieldID(c, name, signature);
+  if (fid == NULL) {
+    LOG(FATAL) << "Couldn't find field \"" << name << "\" with signature \"" << signature << "\"";
+  }
+  return fid;
+}
+
+static jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static, const char* name, const char* signature) {
+  jmethodID mid = is_static ? env->GetStaticMethodID(c, name, signature) : env->GetMethodID(c, name, signature);
+  if (mid == NULL) {
+    LOG(FATAL) << "Couldn't find method \"" << name << "\" with signature \"" << signature << "\"";
+  }
+  return mid;
+}
+
+void WellKnownClasses::Init(JNIEnv* env) {
+  com_android_dex_Dex = CacheClass(env, "com/android/dex/Dex");
+  java_lang_ClassLoader = CacheClass(env, "java/lang/ClassLoader");
+  java_lang_ClassNotFoundException = CacheClass(env, "java/lang/ClassNotFoundException");
+  java_lang_Daemons = CacheClass(env, "java/lang/Daemons");
+  java_lang_Error = CacheClass(env, "java/lang/Error");
+  java_lang_ExceptionInInitializerError = CacheClass(env, "java/lang/ExceptionInInitializerError");
+  java_lang_reflect_InvocationHandler = CacheClass(env, "java/lang/reflect/InvocationHandler");
+  java_lang_reflect_Method = CacheClass(env, "java/lang/reflect/Method");
+  java_lang_reflect_Proxy = CacheClass(env, "java/lang/reflect/Proxy");
+  java_lang_reflect_UndeclaredThrowableException = CacheClass(env, "java/lang/reflect/UndeclaredThrowableException");
+  java_lang_Thread = CacheClass(env, "java/lang/Thread");
+  java_nio_ReadWriteDirectByteBuffer = CacheClass(env, "java/nio/ReadWriteDirectByteBuffer");
+  org_apache_harmony_dalvik_ddmc_Chunk = CacheClass(env, "org/apache/harmony/dalvik/ddmc/Chunk");
+  org_apache_harmony_dalvik_ddmc_DdmServer = CacheClass(env, "org/apache/harmony/dalvik/ddmc/DdmServer");
+
+  com_android_dex_Dex_create = CacheMethod(env, com_android_dex_Dex, true, "create", "(Ljava/nio/ByteBuffer;)Lcom/android/dex/Dex;");
+  java_lang_ClassNotFoundException_init = CacheMethod(env, java_lang_ClassNotFoundException, false, "<init>", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
+  java_lang_Daemons_requestHeapTrim = CacheMethod(env, java_lang_Daemons, true, "requestHeapTrim", "()V");
+  java_lang_Daemons_start = CacheMethod(env, java_lang_Daemons, true, "start", "()V");
+  java_lang_reflect_InvocationHandler_invoke = CacheMethod(env, java_lang_reflect_InvocationHandler, false, "invoke", "(Ljava/lang/Object;Ljava/lang/reflect/Method;[Ljava/lang/Object;)Ljava/lang/Object;");
+  java_lang_Thread_init = CacheMethod(env, java_lang_Thread, false, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
+  java_nio_ReadWriteDirectByteBuffer_init = CacheMethod(env, java_nio_ReadWriteDirectByteBuffer, false, "<init>", "(II)V");
+  org_apache_harmony_dalvik_ddmc_DdmServer_broadcast = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "broadcast", "(I)V");
+  org_apache_harmony_dalvik_ddmc_DdmServer_dispatch = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
+
+  java_lang_reflect_Proxy_h = CacheField(env, java_lang_reflect_Proxy, "h", "Ljava/lang/reflect/InvocationHandler;");
+  java_nio_ReadWriteDirectByteBuffer_capacity = CacheField(env, java_nio_ReadWriteDirectByteBuffer, "capacity", "I");
+  java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress = CacheField(env, java_nio_ReadWriteDirectByteBuffer, "effectiveDirectAddress", "I");
+  org_apache_harmony_dalvik_ddmc_Chunk_data = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, "data", "[B");
+  org_apache_harmony_dalvik_ddmc_Chunk_length = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, "length", "I");
+  org_apache_harmony_dalvik_ddmc_Chunk_offset = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, "offset", "I");
+  org_apache_harmony_dalvik_ddmc_Chunk_type = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, "type", "I");
+}
+
+}  // namespace art

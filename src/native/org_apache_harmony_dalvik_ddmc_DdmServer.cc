@@ -16,9 +16,7 @@
 
 #include "debugger.h"
 #include "logging.h"
-
-#include "JniConstants.h"  // Last to avoid problems with LOG redefinition.
-#include "ScopedPrimitiveArray.h"  // Last to avoid problems with LOG redefinition.
+#include "ScopedPrimitiveArray.h"
 
 namespace art {
 
@@ -34,7 +32,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_org_apache_harmony_dalvik_ddmc_DdmServer(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "org/apache/harmony/dalvik/ddmc/DdmServer", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("org/apache/harmony/dalvik/ddmc/DdmServer");
 }
 
 }  // namespace art

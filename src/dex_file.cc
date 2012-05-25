@@ -38,6 +38,7 @@
 #include "UniquePtr.h"
 #include "utf.h"
 #include "utils.h"
+#include "well_known_classes.h"
 #include "zip_archive.h"
 
 namespace art {
@@ -234,19 +235,11 @@ jobject DexFile::GetDexObject(JNIEnv* env) const {
     return NULL;
   }
 
-  jclass c = env->FindClass("com/android/dex/Dex");
-  if (c == NULL) {
-    return NULL;
-  }
-
-  jmethodID mid = env->GetStaticMethodID(c, "create", "(Ljava/nio/ByteBuffer;)Lcom/android/dex/Dex;");
-  if (mid == NULL) {
-    return NULL;
-  }
-
   jvalue args[1];
   args[0].l = byte_buffer;
-  jobject local = env->CallStaticObjectMethodA(c, mid, args);
+  jobject local = env->CallStaticObjectMethodA(WellKnownClasses::com_android_dex_Dex,
+                                               WellKnownClasses::com_android_dex_Dex_create,
+                                               args);
   if (local == NULL) {
     return NULL;
   }

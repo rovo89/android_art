@@ -17,8 +17,6 @@
 #include "jni_internal.h"
 #include "thread.h"
 
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
-
 namespace art {
 
 static jobject Throwable_nativeFillInStackTrace(JNIEnv* env, jclass) {
@@ -39,7 +37,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_java_lang_Throwable(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "java/lang/Throwable", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("java/lang/Throwable");
 }
 
 }  // namespace art

@@ -25,7 +25,6 @@
 #include "cutils/sched_policy.h"
 #include "debugger.h"
 #include "jni_internal.h"
-#include "JniConstants.h"
 #include "JNIHelp.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
@@ -375,7 +374,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_dalvik_system_Zygote(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "dalvik/system/Zygote", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("dalvik/system/Zygote");
 }
 
 }  // namespace art

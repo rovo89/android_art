@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-#include "jni_internal.h"
 #include "class_loader.h"
+#include "jni_internal.h"
 #include "nth_caller_visitor.h"
 #include "object.h"
 #include "scoped_heap_lock.h"
 #include "scoped_thread_list_lock.h"
 #include "thread_list.h"
-
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 
 namespace art {
 
@@ -99,7 +97,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_dalvik_system_VMStack(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "dalvik/system/VMStack", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("dalvik/system/VMStack");
 }
 
 }  // namespace art
