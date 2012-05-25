@@ -1501,11 +1501,12 @@ void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
                    lenOffset, mir, kThrowArrayBounds);
   }
   if ((size == kLong) || (size == kDouble)) {
+    int regAddr = oatAllocTemp(cUnit);
+    newLIR5(cUnit, kX86Lea32RA, regAddr, rlArray.lowReg, rlIndex.lowReg, scale, dataOffset);
+    oatFreeTemp(cUnit, rlArray.lowReg);
+    oatFreeTemp(cUnit, rlIndex.lowReg);
     rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
-    loadBaseIndexedDisp(cUnit, NULL, rlArray.lowReg, rlIndex.lowReg, scale,
-                        dataOffset, rlResult.lowReg, rlResult.highReg, size,
-                        INVALID_SREG);
-
+    loadPair(cUnit, regAddr, rlResult.lowReg, rlResult.highReg);
     storeValueWide(cUnit, rlDest, rlResult);
   } else {
     rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
