@@ -129,10 +129,12 @@ inline llvm::Value* DalvikReg::RegCat1Trunc(llvm::Value* value,
 llvm::Value* DalvikReg::GetValue(JType jty, JTypeSpace space) {
   DCHECK_NE(jty, kVoid) << "Dalvik register will never be void type";
 
+  llvm::Value* value = NULL;
   switch (space) {
   case kReg:
   case kField:
-    return irb_.CreateLoad(GetAddr(jty, space), kTBAARegister);
+    value = irb_.CreateLoad(GetAddr(jty, space), kTBAARegister);
+    break;
 
   case kAccurate:
   case kArray:
@@ -148,29 +150,42 @@ llvm::Value* DalvikReg::GetValue(JType jty, JTypeSpace space) {
       // NOTE: In array type space, boolean is truncated from i32 to i8, while
       // in accurate type space, boolean is truncated from i32 to i1.
       // For the other cases, array type space is equal to accurate type space.
-      return RegCat1Trunc(irb_.CreateLoad(GetAddr(jty, space), kTBAARegister),
-                          irb_.getJType(jty, space));
+      value = RegCat1Trunc(irb_.CreateLoad(GetAddr(jty, space), kTBAARegister),
+                           irb_.getJType(jty, space));
+      break;
 
     case kInt:
     case kLong:
     case kFloat:
     case kDouble:
     case kObject:
-      return irb_.CreateLoad(GetAddr(jty, space), kTBAARegister);
+      value = irb_.CreateLoad(GetAddr(jty, space), kTBAARegister);
+      break;
 
     default:
       LOG(FATAL) << "Unknown java type: " << jty;
       return NULL;
     }
+    break;
+
+  default:
+    LOG(FATAL) << "Couldn't GetValue of JType " << jty;
+    return NULL;
   }
 
-  LOG(FATAL) << "Couldn't GetValue of JType " << jty;
-  return NULL;
+  if (jty == kFloat || jty == kDouble) {
+    value = irb_.CreateBitCast(value, irb_.getJType(jty, space));
+  }
+  return value;
 }
 
 
 void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
   DCHECK_NE(jty, kVoid) << "Dalvik register will never be void type";
+
+  if (jty == kFloat || jty == kDouble) {
+    value = irb_.CreateBitCast(value, irb_.getJType(jty, kReg));
+  }
 
   switch (space) {
   case kReg:
@@ -216,15 +231,7 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
 
 
 llvm::Value* DalvikReg::GetAddr(JType jty, JTypeSpace space) {
-  if (jty == kFloat) {
-    return irb_.CreateBitCast(GetRawAddr(jty, space),
-                              irb_.getJFloatTy()->getPointerTo());
-  } else if (jty == kDouble) {
-    return irb_.CreateBitCast(GetRawAddr(jty, space),
-                              irb_.getJDoubleTy()->getPointerTo());
-  } else {
-    return GetRawAddr(jty, space);
-  }
+  return GetRawAddr(jty, space);
 }
 
 
