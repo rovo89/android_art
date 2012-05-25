@@ -21,8 +21,6 @@
 #include "object.h"
 #include "object_utils.h"
 
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
-
 namespace art {
 
 Method* gBoolean_valueOf;
@@ -62,7 +60,7 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
   if (!m->IsStatic()) {
     // Check that the receiver is non-null and an instance of the field's declaring class.
     receiver = Decode<Object*>(env, javaReceiver);
-    if (!VerifyObjectInClass(env, receiver, declaring_class)) {
+    if (!VerifyObjectInClass(receiver, declaring_class)) {
       return NULL;
     }
 
@@ -117,18 +115,18 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
   return AddLocalReference<jobject>(env, value.GetL());
 }
 
-bool VerifyObjectInClass(JNIEnv* env, Object* o, Class* c) {
+bool VerifyObjectInClass(Object* o, Class* c) {
   const char* exception = NULL;
   if (o == NULL) {
-    exception = "java/lang/NullPointerException";
+    exception = "Ljava/lang/NullPointerException;";
   } else if (!o->InstanceOf(c)) {
-    exception = "java/lang/IllegalArgumentException";
+    exception = "Ljava/lang/IllegalArgumentException;";
   }
   if (exception != NULL) {
     std::string expected_class_name(PrettyDescriptor(c));
     std::string actual_class_name(PrettyTypeOf(o));
-    jniThrowExceptionFmt(env, exception, "expected receiver of type %s, but got %s",
-                         expected_class_name.c_str(), actual_class_name.c_str());
+    Thread::Current()->ThrowNewExceptionF(exception, "expected receiver of type %s, but got %s",
+                                          expected_class_name.c_str(), actual_class_name.c_str());
     return false;
   }
   return true;

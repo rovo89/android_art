@@ -50,6 +50,7 @@
 #include "thread_list.h"
 #include "utils.h"
 #include "verifier/gc_map.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -324,15 +325,16 @@ void Thread::CreatePeer(const char* name, bool as_daemon, Object* thread_group) 
   jint thread_priority = GetNativePriority();
   jboolean thread_is_daemon = as_daemon;
 
-  ScopedLocalRef<jclass> c(env, env->FindClass("java/lang/Thread"));
-  ScopedLocalRef<jobject> peer(env, env->AllocObject(c.get()));
+  ScopedLocalRef<jobject> peer(env, env->AllocObject(WellKnownClasses::java_lang_Thread));
   peer_ = DecodeJObject(peer.get());
   if (peer_ == NULL) {
     CHECK(IsExceptionPending());
     return;
   }
-  jmethodID mid = env->GetMethodID(c.get(), "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
-  env->CallNonvirtualVoidMethod(peer.get(), c.get(), mid, java_thread_group.get(), thread_name.get(), thread_priority, thread_is_daemon);
+  env->CallNonvirtualVoidMethod(peer.get(),
+                                WellKnownClasses::java_lang_Thread,
+                                WellKnownClasses::java_lang_Thread_init,
+                                java_thread_group.get(), thread_name.get(), thread_priority, thread_is_daemon);
   CHECK(!IsExceptionPending()) << " " << PrettyTypeOf(GetException());
   SetVmData(peer_, Thread::Current());
 
@@ -509,11 +511,10 @@ void Thread::DumpState(std::ostream& os) const {
   os << "  | schedstat=( " << scheduler_stats << " )"
      << " utm=" << utime
      << " stm=" << stime
-     << " core=" << task_cpu
-     << " HZ=" << sysconf(_SC_CLK_TCK) << "\n";
-
-  os << "  | stackSize=" << PrettySize(stack_size_)
-     << " stack=" << reinterpret_cast<void*>(stack_begin_) << "-" << reinterpret_cast<void*>(stack_end_) << "\n";
+     << " core=" << task_cpu;
+  os << " HZ=" << sysconf(_SC_CLK_TCK) << "\n"
+     << "  | stack=" << reinterpret_cast<void*>(stack_begin_) << "-" << reinterpret_cast<void*>(stack_end_)
+     << " stackSize=" << PrettySize(stack_size_) << "\n";
 }
 
 #if !defined(ART_USE_LLVM_COMPILER)

@@ -38,7 +38,7 @@ bool ConvertPrimitiveValue(Primitive::Type src_class, Primitive::Type dst_class,
 
 jobject InvokeMethod(JNIEnv* env, jobject method, jobject receiver, jobject args);
 
-bool VerifyObjectInClass(JNIEnv* env, Object* o, Class* c);
+bool VerifyObjectInClass(Object* o, Class* c);
 
 }  // namespace art
 

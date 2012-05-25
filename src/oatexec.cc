@@ -21,12 +21,13 @@
 #include <cstring>
 #include <string>
 
-#include "ScopedLocalRef.h"
-#include "UniquePtr.h"
 #include "jni.h"
 #include "logging.h"
-#include "toStringArray.h"
 #include "object.h"
+#include "ScopedLocalRef.h"
+#include "toStringArray.h"
+#include "UniquePtr.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -39,17 +40,12 @@ static bool IsMethodPublic(JNIEnv* env, jclass c, jmethodID method_id) {
   }
   // We now have a Method instance.  We need to call its
   // getModifiers() method.
-  ScopedLocalRef<jclass> method(env, env->FindClass("java/lang/reflect/Method"));
-  if (method.get() == NULL) {
-    fprintf(stderr, "Failed to find class Method\n");
+  jmethodID mid = env->GetMethodID(WellKnownClasses::java_lang_reflect_Method, "getModifiers", "()I");
+  if (mid == NULL) {
+    fprintf(stderr, "Failed to find java.lang.reflect.Method.getModifiers\n");
     return false;
   }
-  jmethodID get_modifiers = env->GetMethodID(method.get(), "getModifiers", "()I");
-  if (get_modifiers == NULL) {
-    fprintf(stderr, "Failed to find reflect.Method.getModifiers\n");
-    return false;
-  }
-  int modifiers = env->CallIntMethod(reflected.get(), get_modifiers);
+  int modifiers = env->CallIntMethod(reflected.get(), mid);
   if ((modifiers & kAccPublic) == 0) {
     return false;
   }

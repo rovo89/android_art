@@ -14,13 +14,11 @@
  * limitations under the License.
  */
 
-#include "jni_internal.h"
 #include "class_linker.h"
+#include "jni_internal.h"
 #include "object.h"
 #include "object_utils.h"
 #include "reflection.h"
-
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 
 namespace art {
 
@@ -63,7 +61,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_java_lang_reflect_Constructor(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "java/lang/reflect/Constructor", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("java/lang/reflect/Constructor");
 }
 
 }  // namespace art

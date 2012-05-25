@@ -17,6 +17,7 @@
 #include "runtime_support.h"
 
 #include "ScopedLocalRef.h"
+#include "well_known_classes.h"
 
 double art_l2d(int64_t l) {
   return (double) l;
@@ -609,21 +610,15 @@ Class* ResolveVerifyAndClinit(uint32_t type_idx, const Method* referrer, Thread*
 }
 
 void ThrowNewUndeclaredThrowableException(Thread* self, JNIEnv* env, Throwable* exception) {
-  ScopedLocalRef<jclass> jlr_UTE_class(env,
-      env->FindClass("java/lang/reflect/UndeclaredThrowableException"));
-  if (jlr_UTE_class.get() == NULL) {
+  jmethodID jlre_UTE_constructor = env->GetMethodID(WellKnownClasses::java_lang_reflect_UndeclaredThrowableException, "<init>",
+                                                    "(Ljava/lang/Throwable;)V");
+  jthrowable jexception = AddLocalReference<jthrowable>(env, exception);
+  ScopedLocalRef<jthrowable> jlr_UTE(env,
+      reinterpret_cast<jthrowable>(env->NewObject(WellKnownClasses::java_lang_reflect_UndeclaredThrowableException,
+      jlre_UTE_constructor, jexception)));
+  int rc = env->Throw(jlr_UTE.get());
+  if (rc != JNI_OK) {
     LOG(ERROR) << "Couldn't throw new \"java/lang/reflect/UndeclaredThrowableException\"";
-  } else {
-    jmethodID jlre_UTE_constructor = env->GetMethodID(jlr_UTE_class.get(), "<init>",
-                                                      "(Ljava/lang/Throwable;)V");
-    jthrowable jexception = AddLocalReference<jthrowable>(env, exception);
-    ScopedLocalRef<jthrowable> jlr_UTE(env,
-        reinterpret_cast<jthrowable>(env->NewObject(jlr_UTE_class.get(), jlre_UTE_constructor,
-                                                    jexception)));
-    int rc = env->Throw(jlr_UTE.get());
-    if (rc != JNI_OK) {
-      LOG(ERROR) << "Couldn't throw new \"java/lang/reflect/UndeclaredThrowableException\"";
-    }
   }
   CHECK(self->IsExceptionPending());
 }

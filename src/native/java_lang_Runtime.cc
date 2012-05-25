@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-#include <unistd.h>
 #include <limits.h>
+#include <unistd.h>
 
 #include "heap.h"
 #include "jni_internal.h"
 #include "object.h"
 #include "runtime.h"
-
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
 #include "ScopedUtfChars.h"
 
 namespace art {
@@ -74,16 +72,16 @@ static jlong Runtime_freeMemory(JNIEnv*, jclass) {
 }
 
 static JNINativeMethod gMethods[] = {
-    NATIVE_METHOD(Runtime, freeMemory, "()J"),
-    NATIVE_METHOD(Runtime, gc, "()V"),
-    NATIVE_METHOD(Runtime, maxMemory, "()J"),
-    NATIVE_METHOD(Runtime, nativeExit, "(I)V"),
-    NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;)Ljava/lang/String;"),
-    NATIVE_METHOD(Runtime, totalMemory, "()J"),
+  NATIVE_METHOD(Runtime, freeMemory, "()J"),
+  NATIVE_METHOD(Runtime, gc, "()V"),
+  NATIVE_METHOD(Runtime, maxMemory, "()J"),
+  NATIVE_METHOD(Runtime, nativeExit, "(I)V"),
+  NATIVE_METHOD(Runtime, nativeLoad, "(Ljava/lang/String;Ljava/lang/ClassLoader;)Ljava/lang/String;"),
+  NATIVE_METHOD(Runtime, totalMemory, "()J"),
 };
 
 void register_java_lang_Runtime(JNIEnv* env) {
-    jniRegisterNativeMethods(env, "java/lang/Runtime", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("java/lang/Runtime");
 }
 
 }  // namespace art

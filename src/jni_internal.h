@@ -29,6 +29,13 @@
 #include <iosfwd>
 #include <string>
 
+#ifndef NATIVE_METHOD
+#define NATIVE_METHOD(className, functionName, signature) \
+  { #functionName, signature, reinterpret_cast<void*>(className ## _ ## functionName) }
+#endif
+#define REGISTER_NATIVE_METHODS(jni_class_name) \
+  RegisterNativeMethods(env, jni_class_name, gMethods, arraysize(gMethods))
+
 namespace art {
 
 class ClassLoader;
@@ -41,7 +48,7 @@ class Thread;
 void SetJniGlobalsMax(size_t max);
 void JniAbort(const char* jni_function_name);
 void* FindNativeMethod(Thread* thread);
-jclass CacheClass(JNIEnv* env, const char* jni_class_name);
+void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINativeMethod* methods, size_t method_count);
 
 template<typename T> T Decode(JNIEnv*, jobject);
 template<typename T> T AddLocalReference(JNIEnv*, const Object*);

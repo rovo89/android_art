@@ -17,8 +17,6 @@
 #include "jni_internal.h"
 #include "object.h"
 
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
-
 /*
  * We make guarantees about the atomicity of accesses to primitive
  * variables.  These guarantees also apply to elements of arrays.
@@ -253,7 +251,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_java_lang_System(JNIEnv* env) {
-    jniRegisterNativeMethods(env, "java/lang/System", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("java/lang/System");
 }
 
 }  // namespace art

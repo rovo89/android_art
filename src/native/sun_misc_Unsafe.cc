@@ -17,8 +17,6 @@
 #include "jni_internal.h"
 #include "object.h"
 
-#include "JniConstants.h" // Last to avoid problems with LOG redefinition.
-
 namespace art {
 
 static jlong Unsafe_objectFieldOffset0(JNIEnv* env, jclass, jobject javaField) {
@@ -187,7 +185,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_sun_misc_Unsafe(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "sun/misc/Unsafe", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("sun/misc/Unsafe");
 }
 
 }  // namespace art

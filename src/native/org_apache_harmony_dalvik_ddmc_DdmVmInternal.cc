@@ -15,14 +15,13 @@
  */
 
 #include "debugger.h"
+#include "jni_internal.h"
 #include "logging.h"
 #include "scoped_heap_lock.h"
 #include "scoped_thread_list_lock.h"
+#include "ScopedPrimitiveArray.h"
 #include "stack.h"
 #include "thread_list.h"
-
-#include "JniConstants.h"  // Last to avoid problems with LOG redefinition.
-#include "ScopedPrimitiveArray.h"  // Last to avoid problems with LOG redefinition.
 
 namespace art {
 
@@ -162,7 +161,7 @@ static JNINativeMethod gMethods[] = {
 };
 
 void register_org_apache_harmony_dalvik_ddmc_DdmVmInternal(JNIEnv* env) {
-  jniRegisterNativeMethods(env, "org/apache/harmony/dalvik/ddmc/DdmVmInternal", gMethods, NELEM(gMethods));
+  REGISTER_NATIVE_METHODS("org/apache/harmony/dalvik/ddmc/DdmVmInternal");
 }
 
 }  // namespace art
