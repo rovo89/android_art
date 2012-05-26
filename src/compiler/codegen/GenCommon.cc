@@ -1506,7 +1506,8 @@ void genArrayGet(CompilationUnit* cUnit, MIR* mir, OpSize size,
     oatFreeTemp(cUnit, rlArray.lowReg);
     oatFreeTemp(cUnit, rlIndex.lowReg);
     rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
-    loadPair(cUnit, regAddr, rlResult.lowReg, rlResult.highReg);
+    loadBaseIndexedDisp(cUnit, NULL, regAddr, INVALID_REG, 0, 0, rlResult.lowReg,
+                        rlResult.highReg, size, INVALID_SREG);
     storeValueWide(cUnit, rlDest, rlResult);
   } else {
     rlResult = oatEvalLoc(cUnit, rlDest, regClass, true);
