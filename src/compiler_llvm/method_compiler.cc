@@ -67,7 +67,6 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     shadow_frame_entries_(code_item_->registers_size_),
     reg_to_shadow_frame_index_(code_item_->registers_size_, -1),
     retval_reg_(NULL),
-    basic_block_stack_overflow_(NULL),
     basic_block_alloca_(NULL), basic_block_shadow_frame_(NULL),
     basic_block_reg_arg_init_(NULL),
     basic_blocks_(code_item_->insns_size_in_code_units_),
@@ -156,9 +155,6 @@ void MethodCompiler::EmitPrologue() {
   basic_block_alloca_ =
     llvm::BasicBlock::Create(*context_, "prologue.alloca", func_);
 
-  basic_block_stack_overflow_ =
-    llvm::BasicBlock::Create(*context_, "prologue.stack_overflow_check", func_);
-
   basic_block_shadow_frame_ =
     llvm::BasicBlock::Create(*context_, "prologue.shadowframe", func_);
 
@@ -206,8 +202,6 @@ void MethodCompiler::EmitPrologue() {
 
 
 void MethodCompiler::EmitStackOverflowCheck() {
-  irb_.SetInsertPoint(basic_block_stack_overflow_);
-
   // Call llvm intrinsic function to get frame address.
   llvm::Function* frameaddress =
       llvm::Intrinsic::getDeclaration(module_, llvm::Intrinsic::frameaddress);
@@ -251,14 +245,18 @@ void MethodCompiler::EmitStackOverflowCheck() {
     irb_.CreateRet(irb_.getJZero(ret_shorty));
   }
 
-  basic_block_stack_overflow_ = block_continue;
+  irb_.SetInsertPoint(block_continue);
 }
 
 
 void MethodCompiler::EmitPrologueLastBranch() {
-  irb_.SetInsertPoint(basic_block_alloca_);
-  irb_.CreateBr(basic_block_stack_overflow_);
+  llvm::BasicBlock* basic_block_stack_overflow =
+    llvm::BasicBlock::Create(*context_, "prologue.stack_overflow_check", func_);
 
+  irb_.SetInsertPoint(basic_block_alloca_);
+  irb_.CreateBr(basic_block_stack_overflow);
+
+  irb_.SetInsertPoint(basic_block_stack_overflow);
   // If a method will not call to other method, and the method is small, we can avoid stack overflow
   // check.
   if (method_info_.has_invoke ||
@@ -266,8 +264,8 @@ void MethodCompiler::EmitPrologueLastBranch() {
                                            // the 8KB reserved at Stack End
     EmitStackOverflowCheck();
   }
-
-  irb_.SetInsertPoint(basic_block_stack_overflow_);
+  // Garbage collection safe-point
+  EmitGuard_GarbageCollectionSuspend();
   irb_.CreateBr(basic_block_shadow_frame_);
 
   irb_.SetInsertPoint(basic_block_shadow_frame_);
@@ -1331,9 +1329,6 @@ void MethodCompiler::EmitInsn_ThrowVerificationError(uint32_t dex_pc,
 
 void MethodCompiler::EmitInsn_ReturnVoid(uint32_t dex_pc,
                                          Instruction const* insn) {
-  // Garbage collection safe-point
-  EmitGuard_GarbageCollectionSuspend(dex_pc);
-
   // Pop the shadow frame
   EmitPopShadowFrame();
 
@@ -1346,9 +1341,6 @@ void MethodCompiler::EmitInsn_Return(uint32_t dex_pc,
                                      Instruction const* insn) {
 
   DecodedInstruction dec_insn(insn);
-
-  // Garbage collection safe-point
-  EmitGuard_GarbageCollectionSuspend(dex_pc);
 
   // Pop the shadow frame
   EmitPopShadowFrame();
@@ -1460,7 +1452,7 @@ void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
     string_addr = irb_.CreateCall2(runtime_func, method_object_addr,
                                    string_idx_value);
 
-    EmitGuard_ExceptionLandingPad(dex_pc);
+    EmitGuard_ExceptionLandingPad(dex_pc, true);
   }
 
   // Store the string object to the Dalvik register
@@ -1488,7 +1480,7 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
     llvm::Value* type_object_addr =
       irb_.CreateCall3(runtime_func, type_idx_value, method_object_addr, thread_object_addr);
 
-    EmitGuard_ExceptionLandingPad(dex_pc);
+    EmitGuard_ExceptionLandingPad(dex_pc, false);
 
     return type_object_addr;
 
@@ -1533,7 +1525,7 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
     llvm::Value* loaded_type_object_addr =
       irb_.CreateCall3(runtime_func, type_idx_value, method_object_addr, thread_object_addr);
 
-    EmitGuard_ExceptionLandingPad(dex_pc);
+    EmitGuard_ExceptionLandingPad(dex_pc, false);
 
     llvm::BasicBlock* block_after_load_class = irb_.GetInsertBlock();
 
@@ -1601,7 +1593,8 @@ void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
   llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
 
   irb_.CreateCall2(irb_.GetRuntime(UnlockObject), object_addr, thread_object_addr);
-  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  EmitGuard_ExceptionLandingPad(dex_pc, true);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1656,7 +1649,7 @@ void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
   irb_.CreateCall2(irb_.GetRuntime(CheckCast),
                    type_object_addr, object_type_object_addr);
 
-  EmitGuard_ExceptionLandingPad(dex_pc);
+  EmitGuard_ExceptionLandingPad(dex_pc, true);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1782,7 +1775,7 @@ void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
   llvm::Value* object_addr =
     irb_.CreateCall3(runtime_func, type_index_value, method_object_addr, thread_object_addr);
 
-  EmitGuard_ExceptionLandingPad(dex_pc);
+  EmitGuard_ExceptionLandingPad(dex_pc, true);
 
   EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, object_addr);
 
@@ -1826,7 +1819,7 @@ llvm::Value* MethodCompiler::EmitAllocNewArray(uint32_t dex_pc,
     irb_.CreateCall4(runtime_func, type_index_value, method_object_addr,
                      array_length_value, thread_object_addr);
 
-  EmitGuard_ExceptionLandingPad(dex_pc);
+  EmitGuard_ExceptionLandingPad(dex_pc, false);
 
   return object_addr;
 }
@@ -1957,7 +1950,7 @@ void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
                      method_object_addr, irb_.getInt32(dex_pc),
                      array_addr, irb_.getInt32(payload_offset));
 
-    EmitGuard_ExceptionLandingPad(dex_pc);
+    EmitGuard_ExceptionLandingPad(dex_pc, true);
   }
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
@@ -2345,7 +2338,7 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
 
     irb_.CreateCall2(runtime_func, new_value, array_addr);
 
-    EmitGuard_ExceptionLandingPad(dex_pc);
+    EmitGuard_ExceptionLandingPad(dex_pc, false);
 
     EmitMarkGCCard(new_value, array_addr);
   }
@@ -2398,7 +2391,7 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
     field_value = irb_.CreateCall3(runtime_func, field_idx_value,
                                    method_object_addr, object_addr);
 
-    EmitGuard_ExceptionLandingPad(dex_pc);
+    EmitGuard_ExceptionLandingPad(dex_pc, true);
 
   } else {
     DCHECK_GE(field_offset, 0);
@@ -2464,7 +2457,7 @@ void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
     irb_.CreateCall4(runtime_func, field_idx_value,
                      method_object_addr, object_addr, new_value);
 
-    EmitGuard_ExceptionLandingPad(dex_pc);
+    EmitGuard_ExceptionLandingPad(dex_pc, true);
 
   } else {
     DCHECK_GE(field_offset, 0);
@@ -2528,7 +2521,7 @@ llvm::Value* MethodCompiler::EmitLoadStaticStorage(uint32_t dex_pc,
   llvm::Value* loaded_storage_object_addr =
     irb_.CreateCall3(runtime_func, type_idx_value, method_object_addr, thread_object_addr);
 
-  EmitGuard_ExceptionLandingPad(dex_pc);
+  EmitGuard_ExceptionLandingPad(dex_pc, false);
 
   llvm::BasicBlock* block_after_load_static = irb_.GetInsertBlock();
 
@@ -2585,7 +2578,7 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
     static_field_value =
       irb_.CreateCall2(runtime_func, field_idx_value, method_object_addr);
 
-    EmitGuard_ExceptionLandingPad(dex_pc);
+    EmitGuard_ExceptionLandingPad(dex_pc, true);
 
   } else {
     DCHECK_GE(field_offset, 0);
@@ -2664,7 +2657,7 @@ void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
     irb_.CreateCall3(runtime_func, field_idx_value,
                      method_object_addr, new_value);
 
-    EmitGuard_ExceptionLandingPad(dex_pc);
+    EmitGuard_ExceptionLandingPad(dex_pc, true);
 
   } else {
     DCHECK_GE(field_offset, 0);
@@ -2878,7 +2871,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   // Invoke callee
   EmitUpdateDexPC(dex_pc);
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
-  EmitGuard_ExceptionLandingPad(dex_pc);
+  EmitGuard_ExceptionLandingPad(dex_pc, true);
 
   uint32_t callee_access_flags = is_static ? kAccStatic : 0;
   UniquePtr<OatCompilationUnit> callee_oat_compilation_unit(
@@ -2933,7 +2926,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
       irb_.SetInsertPoint(block_link);
       code_addr = EmitFixStub(callee_method_object_addr, callee_method_idx, is_static);
 
-      EmitGuard_ExceptionLandingPad(dex_pc);
+      EmitGuard_ExceptionLandingPad(dex_pc, false);
 
       llvm::Value* retval = irb_.CreateCall(code_addr, args);
       if (ret_shorty != 'V') {
@@ -2964,7 +2957,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
 
   irb_.SetInsertPoint(block_continue);
 
-  EmitGuard_ExceptionLandingPad(dex_pc);
+  EmitGuard_ExceptionLandingPad(dex_pc, true);
 #endif
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
@@ -3063,7 +3056,7 @@ EmitCallRuntimeForCalleeMethodObjectAddr(uint32_t callee_method_idx,
                      caller_method_object_addr,
                      thread_object_addr);
 
-  EmitGuard_ExceptionLandingPad(dex_pc);
+  EmitGuard_ExceptionLandingPad(dex_pc, false);
 
   return callee_method_object_addr;
 }
@@ -3699,13 +3692,20 @@ void MethodCompiler::EmitBranchExceptionLandingPad(uint32_t dex_pc) {
 }
 
 
-void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
+void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc, bool can_skip_unwind) {
+  llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc);
+  Instruction const* insn = Instruction::At(code_item_->insns_ + dex_pc);
+  if (lpad == NULL && can_skip_unwind &&
+      IsInstructionDirectToReturn(dex_pc + insn->SizeInCodeUnits())) {
+    return;
+  }
+
   llvm::Value* exception_pending =
     irb_.CreateCall(irb_.GetRuntime(IsExceptionPending));
 
   llvm::BasicBlock* block_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
 
-  if (llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc)) {
+  if (lpad) {
     irb_.CreateCondBr(exception_pending, lpad, block_cont, kUnlikely);
   } else {
     irb_.CreateCondBr(exception_pending, GetUnwindBasicBlock(), block_cont, kUnlikely);
@@ -3715,8 +3715,9 @@ void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
 }
 
 
-void MethodCompiler::EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc) {
-  if (!method_info_.need_shadow_frame_entry) {
+void MethodCompiler::EmitGuard_GarbageCollectionSuspend() {
+  // Loop suspend will be added by our llvm pass.
+  if (!method_info_.has_invoke) {
     return;
   }
 
@@ -4086,6 +4087,49 @@ bool MethodCompiler::EmitInlinedStringLength(const std::vector<llvm::Value*>& ar
 }
 
 
+bool MethodCompiler::IsInstructionDirectToReturn(uint32_t dex_pc) {
+  for (int i = 0; i < 8; ++i) {  // Trace at most 8 instructions.
+    if (dex_pc >= code_item_->insns_size_in_code_units_) {
+      return false;
+    }
+
+    Instruction const* insn = Instruction::At(code_item_->insns_ + dex_pc);
+
+    if (insn->IsReturn()) {
+      return true;
+    }
+
+    // Is throw, switch, invoke or conditional branch.
+    if (insn->IsThrow() || insn->IsSwitch() || insn->IsInvoke() ||
+        (insn->IsBranch() && !insn->IsUnconditional())) {
+      return false;
+    }
+
+    switch (insn->Opcode()) {
+    default:
+      dex_pc += insn->SizeInCodeUnits();
+      break;
+
+    // This instruction will remove the exception. Consider as a side effect.
+    case Instruction::MOVE_EXCEPTION:
+      return false;
+      break;
+
+    case Instruction::GOTO:
+    case Instruction::GOTO_16:
+    case Instruction::GOTO_32:
+      {
+        DecodedInstruction dec_insn(insn);
+        int32_t branch_offset = dec_insn.vA;
+        dex_pc += branch_offset;
+      }
+      break;
+    }
+  }
+  return false;
+}
+
+
 // TODO: Use high-level IR to do this
 void MethodCompiler::ComputeMethodInfo() {
   // If this method is static, we set the "this" register index to -1. So we don't worry about this
@@ -4192,23 +4236,8 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::GOTO_32:
       {
         int32_t branch_offset = dec_insn.vA;
-        if (branch_offset <= 0) {
-          Instruction const* target = Instruction::At(code_item_->insns_ + dex_pc + branch_offset);
-          // According to the statistics, there are a few methods have "fake" back edge, which means
-          // the backedge is not for a loop.
-          // The most "fake" edges in the small methods are just branches to a return instruction. So
-          // we can do an simple check to avoid false loop detection. After we have a high-level IR
-          // before IRBuilder, we should remove this trick.
-          switch (target->Opcode()) {
-          default:
-            may_have_loop = true;
-            break;
-          case Instruction::RETURN_VOID:
-          case Instruction::RETURN:
-          case Instruction::RETURN_WIDE:
-          case Instruction::RETURN_OBJECT:
-            break;
-          }
+        if (branch_offset <= 0 && !IsInstructionDirectToReturn(dex_pc + branch_offset)) {
+          may_have_loop = true;
         }
       }
       break;
@@ -4235,18 +4264,8 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::IF_LE:
       {
         int32_t branch_offset = dec_insn.vC;
-        if (branch_offset <= 0) {
-          Instruction const* target = Instruction::At(code_item_->insns_ + dex_pc + branch_offset);
-          switch (target->Opcode()) {
-          default:
-            may_have_loop = true;
-            break;
-          case Instruction::RETURN_VOID:
-          case Instruction::RETURN:
-          case Instruction::RETURN_WIDE:
-          case Instruction::RETURN_OBJECT:
-            break;
-          }
+        if (branch_offset <= 0 && !IsInstructionDirectToReturn(dex_pc + branch_offset)) {
+          may_have_loop = true;
         }
       }
       break;
@@ -4259,18 +4278,8 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::IF_LEZ:
       {
         int32_t branch_offset = dec_insn.vB;
-        if (branch_offset <= 0) {
-          Instruction const* target = Instruction::At(code_item_->insns_ + dex_pc + branch_offset);
-          switch (target->Opcode()) {
-          default:
-            may_have_loop = true;
-            break;
-          case Instruction::RETURN_VOID:
-          case Instruction::RETURN:
-          case Instruction::RETURN_WIDE:
-          case Instruction::RETURN_OBJECT:
-            break;
-          }
+        if (branch_offset <= 0 && !IsInstructionDirectToReturn(dex_pc + branch_offset)) {
+          may_have_loop = true;
         }
       }
       break;
