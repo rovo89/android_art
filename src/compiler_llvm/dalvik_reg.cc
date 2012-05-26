@@ -23,62 +23,13 @@ using namespace art;
 using namespace art::compiler_llvm;
 
 
-namespace {
-
-  class DalvikLocalVarReg : public DalvikReg {
-   public:
-    DalvikLocalVarReg(MethodCompiler& method_compiler, uint32_t reg_idx);
-
-    virtual void SetValue(JType jty, JTypeSpace space, llvm::Value* value);
-
-    virtual ~DalvikLocalVarReg();
-
-   private:
-    virtual llvm::Value* GetRawAddr(JType jty, JTypeSpace space);
-
-   private:
-    uint32_t reg_idx_;
-    llvm::Value* reg_32_;
-    llvm::Value* reg_64_;
-    llvm::Value* reg_obj_;
-    llvm::Value* reg_shadow_frame_;
-  };
-
-  class DalvikRetValReg : public DalvikReg {
-   public:
-    DalvikRetValReg(MethodCompiler& method_compiler);
-
-    virtual ~DalvikRetValReg();
-
-   private:
-    virtual llvm::Value* GetRawAddr(JType jty, JTypeSpace space);
-
-   private:
-    llvm::Value* reg_32_;
-    llvm::Value* reg_64_;
-    llvm::Value* reg_obj_;
-  };
-
-} // anonymous namespace
-
-
 //----------------------------------------------------------------------------
 // Dalvik Register
 //----------------------------------------------------------------------------
 
-DalvikReg* DalvikReg::CreateLocalVarReg(MethodCompiler& method_compiler,
-                                        uint32_t reg_idx) {
-  return new DalvikLocalVarReg(method_compiler, reg_idx);
-}
-
-
-DalvikReg* DalvikReg::CreateRetValReg(MethodCompiler& method_compiler) {
-  return new DalvikRetValReg(method_compiler);
-}
-
-
-DalvikReg::DalvikReg(MethodCompiler& method_compiler)
-: method_compiler_(&method_compiler), irb_(method_compiler.GetIRBuilder()) {
+DalvikReg::DalvikReg(MethodCompiler& method_compiler, const std::string& name)
+: method_compiler_(&method_compiler), irb_(method_compiler.GetIRBuilder()),
+  reg_name_(name), reg_32_(NULL), reg_64_(NULL), reg_obj_(NULL) {
 }
 
 
@@ -133,7 +84,7 @@ llvm::Value* DalvikReg::GetValue(JType jty, JTypeSpace space) {
   switch (space) {
   case kReg:
   case kField:
-    value = irb_.CreateLoad(GetAddr(jty, space), kTBAARegister);
+    value = irb_.CreateLoad(GetAddr(jty), kTBAARegister);
     break;
 
   case kAccurate:
@@ -150,7 +101,7 @@ llvm::Value* DalvikReg::GetValue(JType jty, JTypeSpace space) {
       // NOTE: In array type space, boolean is truncated from i32 to i8, while
       // in accurate type space, boolean is truncated from i32 to i1.
       // For the other cases, array type space is equal to accurate type space.
-      value = RegCat1Trunc(irb_.CreateLoad(GetAddr(jty, space), kTBAARegister),
+      value = RegCat1Trunc(irb_.CreateLoad(GetAddr(jty), kTBAARegister),
                            irb_.getJType(jty, space));
       break;
 
@@ -159,7 +110,7 @@ llvm::Value* DalvikReg::GetValue(JType jty, JTypeSpace space) {
     case kFloat:
     case kDouble:
     case kObject:
-      value = irb_.CreateLoad(GetAddr(jty, space), kTBAARegister);
+      value = irb_.CreateLoad(GetAddr(jty), kTBAARegister);
       break;
 
     default:
@@ -190,7 +141,7 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
   switch (space) {
   case kReg:
   case kField:
-    irb_.CreateStore(value, GetAddr(jty, space), kTBAARegister);
+    irb_.CreateStore(value, GetAddr(jty), kTBAARegister);
     return;
 
   case kAccurate:
@@ -204,7 +155,7 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
       // NOTE: In accurate type space, we have to zero extend boolean from
       // i1 to i32, and char from i16 to i32.  In array type space, we have
       // to zero extend boolean from i8 to i32, and char from i16 to i32.
-      irb_.CreateStore(RegCat1ZExt(value), GetAddr(jty, space), kTBAARegister);
+      irb_.CreateStore(RegCat1ZExt(value), GetAddr(jty), kTBAARegister);
       break;
 
     case kByte:
@@ -212,7 +163,7 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
       // NOTE: In accurate type space, we have to signed extend byte from
       // i8 to i32, and short from i16 to i32.  In array type space, we have
       // to sign extend byte from i8 to i32, and short from i16 to i32.
-      irb_.CreateStore(RegCat1SExt(value), GetAddr(jty, space), kTBAARegister);
+      irb_.CreateStore(RegCat1SExt(value), GetAddr(jty), kTBAARegister);
       break;
 
     case kInt:
@@ -220,7 +171,7 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
     case kFloat:
     case kDouble:
     case kObject:
-      irb_.CreateStore(value, GetAddr(jty, space), kTBAARegister);
+      irb_.CreateStore(value, GetAddr(jty), kTBAARegister);
       break;
 
     default:
@@ -230,94 +181,23 @@ void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
 }
 
 
-llvm::Value* DalvikReg::GetAddr(JType jty, JTypeSpace space) {
-  return GetRawAddr(jty, space);
-}
-
-
-//----------------------------------------------------------------------------
-// Dalvik Local Variable Register
-//----------------------------------------------------------------------------
-
-DalvikLocalVarReg::DalvikLocalVarReg(MethodCompiler& method_compiler,
-                                     uint32_t reg_idx)
-: DalvikReg(method_compiler), reg_idx_(reg_idx),
-  reg_32_(NULL), reg_64_(NULL), reg_obj_(NULL), reg_shadow_frame_(NULL) {
-}
-
-
-DalvikLocalVarReg::~DalvikLocalVarReg() {
-}
-
-
-void DalvikLocalVarReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
-  DalvikReg::SetValue(jty, space, value);
-
-  if (jty == kObject && reg_shadow_frame_ != NULL) {
-    irb_.CreateStore(value, reg_shadow_frame_, kTBAAShadowFrame);
-  }
-}
-
-
-llvm::Value* DalvikLocalVarReg::GetRawAddr(JType jty, JTypeSpace space) {
+llvm::Value* DalvikReg::GetAddr(JType jty) {
   switch (GetRegCategoryFromJType(jty)) {
   case kRegCat1nr:
     if (reg_32_ == NULL) {
-      reg_32_ = method_compiler_->AllocDalvikLocalVarReg(kRegCat1nr, reg_idx_);
+      reg_32_ = method_compiler_->AllocDalvikReg(kRegCat1nr, reg_name_);
     }
     return reg_32_;
 
   case kRegCat2:
     if (reg_64_ == NULL) {
-      reg_64_ = method_compiler_->AllocDalvikLocalVarReg(kRegCat2, reg_idx_);
+      reg_64_ = method_compiler_->AllocDalvikReg(kRegCat2, reg_name_);
     }
     return reg_64_;
 
   case kRegObject:
     if (reg_obj_ == NULL) {
-      reg_obj_ = method_compiler_->AllocDalvikLocalVarReg(kRegObject, reg_idx_);
-      reg_shadow_frame_ = method_compiler_->AllocShadowFrameEntry(reg_idx_);
-    }
-    return reg_obj_;
-
-  default:
-    LOG(FATAL) << "Unexpected register category: "
-               << GetRegCategoryFromJType(jty);
-    return NULL;
-  }
-}
-
-
-//----------------------------------------------------------------------------
-// Dalvik Returned Value Temporary Register
-//----------------------------------------------------------------------------
-
-DalvikRetValReg::DalvikRetValReg(MethodCompiler& method_compiler)
-: DalvikReg(method_compiler), reg_32_(NULL), reg_64_(NULL), reg_obj_(NULL) {
-}
-
-
-DalvikRetValReg::~DalvikRetValReg() {
-}
-
-
-llvm::Value* DalvikRetValReg::GetRawAddr(JType jty, JTypeSpace space) {
-  switch (GetRegCategoryFromJType(jty)) {
-  case kRegCat1nr:
-    if (reg_32_ == NULL) {
-      reg_32_ = method_compiler_->AllocDalvikRetValReg(kRegCat1nr);
-    }
-    return reg_32_;
-
-  case kRegCat2:
-    if (reg_64_ == NULL) {
-      reg_64_ = method_compiler_->AllocDalvikRetValReg(kRegCat2);
-    }
-    return reg_64_;
-
-  case kRegObject:
-    if (reg_obj_ == NULL) {
-      reg_obj_ = method_compiler_->AllocDalvikRetValReg(kRegObject);
+      reg_obj_ = method_compiler_->AllocDalvikReg(kRegObject, reg_name_);
     }
     return reg_obj_;
 
