@@ -83,17 +83,17 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Value* new_shadow_frame = func->arg_begin();
     Value* old_shadow_frame = irb_.LoadFromObjectOffset(thread,
                                                         Thread::TopShadowFrameOffset().Int32Value(),
-                                                        irb_.getJObjectTy(),
+                                                        irb_.getArtFrameTy()->getPointerTo(),
                                                         kTBAARuntimeInfo);
-    irb_.StoreToObjectOffset(new_shadow_frame,
-                             ShadowFrame::LinkOffset(),
-                             old_shadow_frame,
-                             kTBAAShadowFrame);
     irb_.StoreToObjectOffset(thread,
                              Thread::TopShadowFrameOffset().Int32Value(),
                              new_shadow_frame,
                              kTBAARuntimeInfo);
-    irb_.CreateRetVoid();
+    irb_.StoreToObjectOffset(new_shadow_frame,
+                             ShadowFrame::LinkOffset(),
+                             old_shadow_frame,
+                             kTBAAShadowFrame);
+    irb_.CreateRet(old_shadow_frame);
 
     VERIFY_LLVM_FUNCTION(*func);
   }
@@ -106,14 +106,7 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
 
     Function* get_thread = GetRuntimeSupportFunction(GetCurrentThread);
     Value* thread = irb_.CreateCall(get_thread);
-    Value* new_shadow_frame = irb_.LoadFromObjectOffset(thread,
-                                                        Thread::TopShadowFrameOffset().Int32Value(),
-                                                        irb_.getJObjectTy(),
-                                                        kTBAARuntimeInfo);
-    Value* old_shadow_frame = irb_.LoadFromObjectOffset(new_shadow_frame,
-                                                        ShadowFrame::LinkOffset(),
-                                                        irb_.getJObjectTy(),
-                                                        kTBAAShadowFrame);
+    Value* old_shadow_frame = func->arg_begin();
     irb_.StoreToObjectOffset(thread,
                              Thread::TopShadowFrameOffset().Int32Value(),
                              old_shadow_frame,

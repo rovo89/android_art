@@ -36,9 +36,9 @@ class Object;
 // Thread
 //----------------------------------------------------------------------------
 
-void art_push_shadow_frame_from_code(void* new_shadow_frame);
+void* art_push_shadow_frame_from_code(void* new_shadow_frame);
 
-void art_pop_shadow_frame_from_code();
+void art_pop_shadow_frame_from_code(void*);
 
 
 //----------------------------------------------------------------------------

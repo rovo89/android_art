@@ -43,8 +43,8 @@ declare void @art_unlock_object_from_code(%JavaObject*, %JavaObject*)
 
 declare void @art_test_suspend_from_code(%JavaObject*)
 
-declare void @art_push_shadow_frame_from_code(%ShadowFrame*)
-declare void @art_pop_shadow_frame_from_code()
+declare %ShadowFrame* @art_push_shadow_frame_from_code(%ShadowFrame*)
+declare void @art_pop_shadow_frame_from_code(%ShadowFrame*)
 
 
 
