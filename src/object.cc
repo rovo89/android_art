@@ -37,6 +37,7 @@
 #include "runtime_support.h"
 #include "stack.h"
 #include "utils.h"
+#include "well_known_classes.h"
 
 #if defined(ART_USE_LLVM_COMPILER)
 #include "compiler_llvm/inferred_reg_category_map.h"
@@ -932,8 +933,7 @@ bool Class::IsStringClass() const {
 }
 
 bool Class::IsThrowableClass() const {
-  Class* throwable = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/Throwable;");
-  return throwable->IsAssignableFrom(this);
+  return WellKnownClasses::ToClass(WellKnownClasses::java_lang_Throwable)->IsAssignableFrom(this);
 }
 
 ClassLoader* Class::GetClassLoader() const {
@@ -1485,12 +1485,10 @@ void Throwable::SetCause(Throwable* cause) {
 }
 
 bool Throwable::IsCheckedException() const {
-  Class* error = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/Error;");
-  if (InstanceOf(error)) {
+  if (InstanceOf(WellKnownClasses::ToClass(WellKnownClasses::java_lang_Error))) {
     return false;
   }
-  Class* jlre = Runtime::Current()->GetClassLinker()->FindSystemClass("Ljava/lang/RuntimeException;");
-  return !InstanceOf(jlre);
+  return !InstanceOf(WellKnownClasses::ToClass(WellKnownClasses::java_lang_RuntimeException));
 }
 
 std::string Throwable::Dump() const {

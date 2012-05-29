@@ -522,6 +522,47 @@ static void SetPrimitiveArrayRegion(ScopedJniThreadState& ts, JavaArrayT java_ar
   }
 }
 
+int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause) {
+    ScopedJniThreadState ts(env);
+
+    // Turn the const char* into a java.lang.String.
+    ScopedLocalRef<jstring> s(env, env->NewStringUTF(msg));
+    if (msg != NULL && s.get() == NULL) {
+      return JNI_ERR;
+    }
+
+    // Choose an appropriate constructor and set up the arguments.
+    jvalue args[2];
+    const char* signature;
+    if (msg == NULL && cause == NULL) {
+      signature = "()V";
+    } else if (msg != NULL && cause == NULL) {
+      signature = "(Ljava/lang/String;)V";
+      args[0].l = s.get();
+    } else if (msg == NULL && cause != NULL) {
+      signature = "(Ljava/lang/Throwable;)V";
+      args[0].l = cause;
+    } else {
+      signature = "(Ljava/lang/String;Ljava/lang/Throwable;)V";
+      args[0].l = s.get();
+      args[1].l = cause;
+    }
+    jmethodID mid = env->GetMethodID(exception_class, "<init>", signature);
+    if (mid == NULL) {
+      LOG(ERROR) << "No <init>" << signature << " in " << PrettyClass(Decode<Class*>(env, exception_class));
+      return JNI_ERR;
+    }
+
+    ScopedLocalRef<jthrowable> exception(env, reinterpret_cast<jthrowable>(env->NewObjectA(exception_class, mid, args)));
+    if (exception.get() == NULL) {
+      return JNI_ERR;
+    }
+
+    ts.Self()->SetException(Decode<Throwable*>(ts, exception.get()));
+
+    return JNI_OK;
+}
+
 static jint JII_AttachCurrentThread(JavaVM* vm, JNIEnv** p_env, void* raw_args, bool as_daemon) {
   if (vm == NULL || p_env == NULL) {
     return JNI_ERR;
@@ -821,29 +862,7 @@ class JNI {
   }
 
   static jint ThrowNew(JNIEnv* env, jclass c, const char* msg) {
-    ScopedJniThreadState ts(env);
-    // TODO: check for a pending exception to decide what constructor to call.
-    jmethodID mid = ((msg != NULL)
-                     ? env->GetMethodID(c, "<init>", "(Ljava/lang/String;)V")
-                     : env->GetMethodID(c, "<init>", "()V"));
-    if (mid == NULL) {
-      return JNI_ERR;
-    }
-    ScopedLocalRef<jstring> s(env, env->NewStringUTF(msg));
-    if (msg != NULL && s.get() == NULL) {
-      return JNI_ERR;
-    }
-
-    jvalue args[1];
-    args[0].l = s.get();
-    ScopedLocalRef<jthrowable> exception(env, reinterpret_cast<jthrowable>(env->NewObjectA(c, mid, args)));
-    if (exception.get() == NULL) {
-      return JNI_ERR;
-    }
-
-    ts.Self()->SetException(Decode<Throwable*>(ts, exception.get()));
-
-    return JNI_OK;
+    return ThrowNewException(env, c, msg, NULL);
   }
 
   static jboolean ExceptionCheck(JNIEnv* env) {

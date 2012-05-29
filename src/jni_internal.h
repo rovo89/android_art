@@ -87,6 +87,8 @@ size_t NumArgArrayBytes(const char* shorty, uint32_t shorty_len);
 JValue InvokeWithJValues(JNIEnv* env, jobject obj, jmethodID mid, jvalue* args);
 JValue InvokeWithJValues(Thread* self, Object* receiver, Method* m, JValue* args);
 
+int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause);
+
 struct JavaVMExt : public JavaVM {
   JavaVMExt(Runtime* runtime, Runtime::ParsedOptions* options);
   ~JavaVMExt();

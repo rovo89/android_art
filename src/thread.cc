@@ -1417,6 +1417,11 @@ void Thread::ThrowNewExceptionV(const char* exception_class_descriptor, const ch
 }
 
 void Thread::ThrowNewException(const char* exception_class_descriptor, const char* msg) {
+  CHECK(!IsExceptionPending()); // Callers should either clear or call ThrowNewWrappedException.
+  ThrowNewWrappedException(exception_class_descriptor, msg);
+}
+
+void Thread::ThrowNewWrappedException(const char* exception_class_descriptor, const char* msg) {
   // Convert "Ljava/lang/Exception;" into JNI-style "java/lang/Exception".
   CHECK_EQ('L', exception_class_descriptor[0]);
   std::string descriptor(exception_class_descriptor + 1);
@@ -1424,6 +1429,9 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
   descriptor.erase(descriptor.length() - 1);
 
   JNIEnv* env = GetJniEnv();
+  jobject cause = env->ExceptionOccurred();
+  env->ExceptionClear();
+
   ScopedLocalRef<jclass> exception_class(env, env->FindClass(descriptor.c_str()));
   if (exception_class.get() == NULL) {
     LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI FindClass failed: "
@@ -1450,7 +1458,7 @@ void Thread::ThrowNewException(const char* exception_class_descriptor, const cha
     }
     return;
   }
-  int rc = env->ThrowNew(exception_class.get(), msg);
+  int rc = ::art::ThrowNewException(env, exception_class.get(), msg, cause);
   if (rc != JNI_OK) {
     LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI ThrowNew failed: "
                << PrettyTypeOf(GetException());

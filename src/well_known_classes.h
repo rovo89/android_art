@@ -37,23 +37,26 @@ struct WellKnownClasses {
   static jclass java_lang_ClassNotFoundException;
   static jclass java_lang_Daemons;
   static jclass java_lang_Error;
-  static jclass java_lang_ExceptionInInitializerError;
   static jclass java_lang_reflect_InvocationHandler;
   static jclass java_lang_reflect_Method;
   static jclass java_lang_reflect_Proxy;
-  static jclass java_lang_reflect_UndeclaredThrowableException;
+  static jclass java_lang_RuntimeException;
   static jclass java_lang_Thread;
   static jclass java_lang_ThreadGroup;
   static jclass java_lang_ThreadLock;
   static jclass java_lang_Thread$UncaughtExceptionHandler;
+  static jclass java_lang_Throwable;
   static jclass java_nio_ReadWriteDirectByteBuffer;
   static jclass org_apache_harmony_dalvik_ddmc_Chunk;
   static jclass org_apache_harmony_dalvik_ddmc_DdmServer;
 
   static jmethodID com_android_dex_Dex_create;
+  static jmethodID java_lang_ClassLoader_loadClass;
   static jmethodID java_lang_ClassNotFoundException_init;
   static jmethodID java_lang_Daemons_requestHeapTrim;
   static jmethodID java_lang_Daemons_start;
+  static jmethodID java_lang_ref_FinalizerReference_add;
+  static jmethodID java_lang_ref_ReferenceQueue_add;
   static jmethodID java_lang_reflect_InvocationHandler_invoke;
   static jmethodID java_lang_Thread_init;
   static jmethodID java_lang_Thread_run;

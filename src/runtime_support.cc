@@ -609,18 +609,4 @@ Class* ResolveVerifyAndClinit(uint32_t type_idx, const Method* referrer, Thread*
   return klass;
 }
 
-void ThrowNewUndeclaredThrowableException(Thread* self, JNIEnv* env, Throwable* exception) {
-  jmethodID jlre_UTE_constructor = env->GetMethodID(WellKnownClasses::java_lang_reflect_UndeclaredThrowableException, "<init>",
-                                                    "(Ljava/lang/Throwable;)V");
-  jthrowable jexception = AddLocalReference<jthrowable>(env, exception);
-  ScopedLocalRef<jthrowable> jlr_UTE(env,
-      reinterpret_cast<jthrowable>(env->NewObject(WellKnownClasses::java_lang_reflect_UndeclaredThrowableException,
-      jlre_UTE_constructor, jexception)));
-  int rc = env->Throw(jlr_UTE.get());
-  if (rc != JNI_OK) {
-    LOG(ERROR) << "Couldn't throw new \"java/lang/reflect/UndeclaredThrowableException\"";
-  }
-  CHECK(self->IsExceptionPending());
-}
-
 }  // namespace art
