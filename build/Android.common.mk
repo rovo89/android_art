@@ -22,7 +22,23 @@ else
 ART_USE_LLVM_COMPILER := false
 endif
 
-ifeq ($(ART_USE_LLVM_COMPILER),true)
+ifneq ($(wildcard art/USE_GREENLAND_COMPILER),)
+ART_USE_GREENLAND_COMPILER := true
+else
+ART_USE_GREENLAND_COMPILER := false
+endif
+
+ifeq ($(filter-out true,$(ART_USE_LLVM_COMPILER) $(ART_USE_GREENLAND_COMPILER)),)
+$(error Cannot enable art-greenland and art-llvm compiler simultaneously!)
+endif
+
+ifeq ($(filter true,$(ART_USE_LLVM_COMPILER) $(ART_USE_GREENLAND_COMPILER)),true)
+ART_REQUIRE_LLVM := true
+else
+ART_REQUIRE_LLVM := false
+endif
+
+ifeq ($(ART_REQUIRE_LLVM),true)
 LLVM_ROOT_PATH := external/llvm
 include $(LLVM_ROOT_PATH)/llvm.mk
 endif
@@ -210,6 +226,11 @@ LIBART_COMMON_SRC_FILES += \
 	src/compiler_llvm/elf_loader.cc \
 	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/compiler_llvm/runtime_support_llvm.cc
+endif
+
+ifeq ($(ART_USE_GREENLAND_COMPILER),true)
+LIBART_COMMON_SRC_FILES += \
+       src/greenland/inferred_reg_category_map.cc
 endif
 
 LIBART_COMMON_SRC_FILES += \

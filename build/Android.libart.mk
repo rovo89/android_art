@@ -19,6 +19,10 @@ ifeq ($(ART_USE_LLVM_COMPILER),true)
   LIBART_CFLAGS += -DART_USE_LLVM_COMPILER=1
 endif
 
+ifeq ($(ART_USE_GREENLAND_COMPILER),true)
+  LIBART_CFLAGS += -DART_USE_GREENLAND_COMPILER=1
+endif
+
 # $(1): target or host
 # $(2): ndebug or debug
 define build-libart
@@ -92,7 +96,10 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : art/%.h
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   ifeq ($(ART_USE_LLVM_COMPILER),true)
     LOCAL_C_INCLUDES += frameworks/compile/linkloader
-    LOCAL_STATIC_LIBRARIES += librsloader libLLVMSupport
+    LOCAL_STATIC_LIBRARIES += librsloader
+  endif
+  ifeq ($(ART_REQUIRE_LLVM),true)
+    LOCAL_STATIC_LIBRARIES += libLLVMSupport
   endif
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
   LOCAL_SHARED_LIBRARIES += libcorkscrew # native stack trace support
@@ -109,13 +116,13 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : art/%.h
     endif
   endif
   ifeq ($$(art_target_or_host),target)
-    ifeq ($(ART_USE_LLVM_COMPILER),true)
+    ifeq ($(ART_REQUIRE_LLVM),true)
       include $(LLVM_GEN_INTRINSICS_MK)
       include $(LLVM_DEVICE_BUILD_MK)
     endif
     include $(BUILD_SHARED_LIBRARY)
   else # host
-    ifeq ($(ART_USE_LLVM_COMPILER),true)
+    ifeq ($(ART_REQUIRE_LLVM),true)
       include $(LLVM_GEN_INTRINSICS_MK)
       include $(LLVM_HOST_BUILD_MK)
     endif
