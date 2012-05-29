@@ -187,13 +187,13 @@ OUT_OAT_FILE := $(call art-cache-out,$(1).oat)
 ifeq ($(ONE_SHOT_MAKEFILE),)
 .PHONY: oat-target-$(1)
 oat-target-$(1): $(PRODUCT_OUT)/$(1) $(TARGET_BOOT_IMG_OUT) $(DEX2OAT_DEPENDENCY)
-	$(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(TARGET_BOOT_IMG_OUT) --dex-file=$(PRODUCT_OUT)/$(1) --dex-location=/$(1) --oat-file=$(OUT_OAT_FILE) --host-prefix=$(PRODUCT_OUT)
+	$(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(TARGET_BOOT_IMG_OUT) --dex-file=$(PRODUCT_OUT)/$(1) --dex-location=/$(1) --oat-file=$$(OUT_OAT_FILE) --host-prefix=$(PRODUCT_OUT)
 
 else
 .PHONY: oat-target-$(1)
-oat-target-$(1): $(OUT_OAT_FILE)
+oat-target-$(1): $$(OUT_OAT_FILE)
 
-$(OUT_OAT_FILE): $(PRODUCT_OUT)/$(1) $(TARGET_BOOT_IMG_OUT) $(DEX2OAT_DEPENDENCY)
+$$(OUT_OAT_FILE): $(PRODUCT_OUT)/$(1) $(TARGET_BOOT_IMG_OUT) $(DEX2OAT_DEPENDENCY)
 	$(DEX2OAT) $(PARALLEL_ART_COMPILE_JOBS) --runtime-arg -Xms64m --runtime-arg -Xmx64m --boot-image=$(TARGET_BOOT_IMG_OUT) --dex-file=$(PRODUCT_OUT)/$(1) --dex-location=/$(1) --oat-file=$$@ --host-prefix=$(PRODUCT_OUT)
 
 endif
