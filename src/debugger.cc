@@ -3049,8 +3049,8 @@ jbyteArray Dbg::GetRecentAllocations() {
     MethodHelper mh;
     for (size_t i = 0; i < kMaxAllocRecordStackDepth; i++) {
       Method* m = record->stack[i].method;
-      mh.ChangeMethod(m);
       if (m != NULL) {
+        mh.ChangeMethod(m);
         class_names.Add(mh.GetDeclaringClassDescriptor());
         method_names.Add(mh.GetName());
         filenames.Add(mh.GetDeclaringClassSourceFile());
