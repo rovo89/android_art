@@ -56,23 +56,6 @@ namespace art {
 
 pthread_key_t Thread::pthread_key_self_;
 
-static Class* gThreadGroup = NULL;
-static Class* gThreadLock = NULL;
-static Field* gThread_daemon = NULL;
-static Field* gThread_group = NULL;
-static Field* gThread_lock = NULL;
-static Field* gThread_name = NULL;
-static Field* gThread_priority = NULL;
-static Field* gThread_uncaughtHandler = NULL;
-static Field* gThread_vmData = NULL;
-static Field* gThreadGroup_mMain = NULL;
-static Field* gThreadGroup_mSystem = NULL;
-static Field* gThreadGroup_name = NULL;
-static Field* gThreadLock_thread = NULL;
-static Method* gThread_run = NULL;
-static Method* gThreadGroup_removeThread = NULL;
-static Method* gUncaughtExceptionHandler_uncaughtException = NULL;
-
 static const char* kThreadNameDuringStartup = "<native thread without managed peer>";
 
 void Thread::InitCardTable() {
@@ -136,7 +119,8 @@ void* Thread::CreateCallback(void* arg) {
   // Invoke the 'run' method of our java.lang.Thread.
   CHECK(self->peer_ != NULL);
   Object* receiver = self->peer_;
-  Method* m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(gThread_run);
+  jmethodID mid = WellKnownClasses::java_lang_Thread_run;
+  Method* m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(DecodeMethod(mid));
   m->Invoke(self, receiver, NULL, NULL);
 
   // Detach.
@@ -146,11 +130,13 @@ void* Thread::CreateCallback(void* arg) {
 }
 
 static void SetVmData(Object* managed_thread, Thread* native_thread) {
-  gThread_vmData->SetInt(managed_thread, reinterpret_cast<uintptr_t>(native_thread));
+  Field* f = DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+  f->SetInt(managed_thread, reinterpret_cast<uintptr_t>(native_thread));
 }
 
 Thread* Thread::FromManagedThread(Object* thread_peer) {
-  return reinterpret_cast<Thread*>(static_cast<uintptr_t>(gThread_vmData->GetInt(thread_peer)));
+  Field* f = DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+  return reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetInt(thread_peer)));
 }
 
 Thread* Thread::FromManagedThread(JNIEnv* env, jobject java_thread) {
@@ -299,18 +285,20 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, Object* thread_g
   return self;
 }
 
-Object* Thread::GetMainThreadGroup() {
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(gThreadGroup, true, true)) {
+static Object* GetWellKnownThreadGroup(jfieldID which) {
+  Class* c = WellKnownClasses::ToClass(WellKnownClasses::java_lang_ThreadGroup);
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
     return NULL;
   }
-  return gThreadGroup_mMain->GetObject(NULL);
+  return DecodeField(which)->GetObject(NULL);
+}
+
+Object* Thread::GetMainThreadGroup() {
+  return GetWellKnownThreadGroup(WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup);
 }
 
 Object* Thread::GetSystemThreadGroup() {
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(gThreadGroup, true, true)) {
-    return NULL;
-  }
-  return gThreadGroup_mSystem->GetObject(NULL);
+  return GetWellKnownThreadGroup(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup);
 }
 
 void Thread::CreatePeer(const char* name, bool as_daemon, Object* thread_group) {
@@ -344,10 +332,10 @@ void Thread::CreatePeer(const char* name, bool as_daemon, Object* thread_group) 
     // non-null value. However, because we can run without code
     // available (in the compiler, in tests), we manually assign the
     // fields the constructor should have set.
-    gThread_daemon->SetBoolean(peer_, thread_is_daemon);
-    gThread_group->SetObject(peer_, thread_group);
-    gThread_name->SetObject(peer_, Decode<Object*>(env, thread_name.get()));
-    gThread_priority->SetInt(peer_, thread_priority);
+    DecodeField(WellKnownClasses::java_lang_Thread_daemon)->SetBoolean(peer_, thread_is_daemon);
+    DecodeField(WellKnownClasses::java_lang_Thread_group)->SetObject(peer_, thread_group);
+    DecodeField(WellKnownClasses::java_lang_Thread_name)->SetObject(peer_, Decode<Object*>(env, thread_name.get()));
+    DecodeField(WellKnownClasses::java_lang_Thread_priority)->SetInt(peer_, thread_priority);
     peer_thread_name.reset(GetThreadName());
   }
   // thread_name may have been null, so don't trust this to be non-null
@@ -442,7 +430,8 @@ void Thread::Dump(std::ostream& os, bool full) const {
 }
 
 String* Thread::GetThreadName() const {
-  return (peer_ != NULL) ? reinterpret_cast<String*>(gThread_name->GetObject(peer_)) : NULL;
+  Field* f = DecodeField(WellKnownClasses::java_lang_Thread_name);
+  return (peer_ != NULL) ? reinterpret_cast<String*>(f->GetObject(peer_)) : NULL;
 }
 
 void Thread::GetThreadName(std::string& name) const {
@@ -455,12 +444,13 @@ void Thread::DumpState(std::ostream& os) const {
   bool is_daemon = false;
 
   if (peer_ != NULL) {
-    priority = gThread_priority->GetInt(peer_);
-    is_daemon = gThread_daemon->GetBoolean(peer_);
+    priority = DecodeField(WellKnownClasses::java_lang_Thread_priority)->GetInt(peer_);
+    is_daemon = DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(peer_);
 
     Object* thread_group = GetThreadGroup();
     if (thread_group != NULL) {
-      String* group_name_string = reinterpret_cast<String*>(gThreadGroup_name->GetObject(thread_group));
+      Field* group_name_field = DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
+      String* group_name_string = reinterpret_cast<String*>(group_name_field->GetObject(thread_group));
       group_name = (group_name_string != NULL) ? group_name_string->ToModifiedUtf8() : "<null>";
     }
   } else {
@@ -765,71 +755,16 @@ void Thread::Startup() {
   }
 }
 
-// TODO: make more accessible?
-static Class* FindClassOrDie(ClassLinker* class_linker, const char* descriptor) {
-  Class* c = class_linker->FindSystemClass(descriptor);
-  CHECK(c != NULL) << descriptor;
-  return c;
-}
-
-// TODO: make more accessible?
-static Field* FindFieldOrDie(Class* c, const char* name, const char* descriptor) {
-  Field* f = c->FindDeclaredInstanceField(name, descriptor);
-  CHECK(f != NULL) << PrettyClass(c) << " " << name << " " << descriptor;
-  return f;
-}
-
-// TODO: make more accessible?
-static Method* FindMethodOrDie(Class* c, const char* name, const char* signature) {
-  Method* m = c->FindVirtualMethod(name, signature);
-  CHECK(m != NULL) << PrettyClass(c) << " " << name << " " << signature;
-  return m;
-}
-
-// TODO: make more accessible?
-static Field* FindStaticFieldOrDie(Class* c, const char* name, const char* descriptor) {
-  Field* f = c->FindDeclaredStaticField(name, descriptor);
-  CHECK(f != NULL) << PrettyClass(c) << " " << name << " " << descriptor;
-  return f;
-}
-
 void Thread::FinishStartup() {
   CHECK(Runtime::Current()->IsStarted());
   Thread* self = Thread::Current();
 
-  // Need to be kRunnable for FindClass
-  ScopedThreadStateChange tsc(self, kRunnable);
-
-  // Now the ClassLinker is ready, we can find the various Class*, Field*, and Method*s we need.
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-
-  Class* Thread_class = FindClassOrDie(class_linker, "Ljava/lang/Thread;");
-  Class* UncaughtExceptionHandler_class = FindClassOrDie(class_linker, "Ljava/lang/Thread$UncaughtExceptionHandler;");
-  gThreadGroup = FindClassOrDie(class_linker, "Ljava/lang/ThreadGroup;");
-  gThreadLock = FindClassOrDie(class_linker, "Ljava/lang/ThreadLock;");
-
-  gThread_daemon = FindFieldOrDie(Thread_class, "daemon", "Z");
-  gThread_group = FindFieldOrDie(Thread_class, "group", "Ljava/lang/ThreadGroup;");
-  gThread_lock = FindFieldOrDie(Thread_class, "lock", "Ljava/lang/ThreadLock;");
-  gThread_name = FindFieldOrDie(Thread_class, "name", "Ljava/lang/String;");
-  gThread_priority = FindFieldOrDie(Thread_class, "priority", "I");
-  gThread_uncaughtHandler = FindFieldOrDie(Thread_class, "uncaughtHandler", "Ljava/lang/Thread$UncaughtExceptionHandler;");
-  gThread_vmData = FindFieldOrDie(Thread_class, "vmData", "I");
-  gThreadGroup_name = FindFieldOrDie(gThreadGroup, "name", "Ljava/lang/String;");
-  gThreadGroup_mMain = FindStaticFieldOrDie(gThreadGroup, "mMain", "Ljava/lang/ThreadGroup;");
-  gThreadGroup_mSystem = FindStaticFieldOrDie(gThreadGroup, "mSystem", "Ljava/lang/ThreadGroup;");
-  gThreadLock_thread = FindFieldOrDie(gThreadLock, "thread", "Ljava/lang/Thread;");
-
-  gThread_run = FindMethodOrDie(Thread_class, "run", "()V");
-  gThreadGroup_removeThread = FindMethodOrDie(gThreadGroup, "removeThread", "(Ljava/lang/Thread;)V");
-  gUncaughtExceptionHandler_uncaughtException = FindMethodOrDie(UncaughtExceptionHandler_class,
-      "uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
-
   // Finish attaching the main thread.
+  ScopedThreadStateChange tsc(self, kRunnable);
   Thread::Current()->CreatePeer("main", false, Thread::GetMainThreadGroup());
 
   InitBoxingMethods();
-  class_linker->RunRootClinits();
+  Runtime::Current()->GetClassLinker()->RunRootClinits();
 }
 
 void Thread::Shutdown() {
@@ -837,14 +772,16 @@ void Thread::Shutdown() {
 }
 
 uint32_t Thread::LockOwnerFromThreadLock(Object* thread_lock) {
-  if (thread_lock == NULL || thread_lock->GetClass() != gThreadLock) {
+  if (thread_lock == NULL || thread_lock->GetClass() != WellKnownClasses::ToClass(WellKnownClasses::java_lang_ThreadLock)) {
     return ThreadList::kInvalidId;
   }
-  Object* managed_thread = gThreadLock_thread->GetObject(thread_lock);
+  Field* thread_field = DecodeField(WellKnownClasses::java_lang_ThreadLock_thread);
+  Object* managed_thread = thread_field->GetObject(thread_lock);
   if (managed_thread == NULL) {
     return ThreadList::kInvalidId;
   }
-  uintptr_t vmData = static_cast<uintptr_t>(gThread_vmData->GetInt(managed_thread));
+  Field* vmData_field = DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+  uintptr_t vmData = static_cast<uintptr_t>(vmData_field->GetInt(managed_thread));
   Thread* thread = reinterpret_cast<Thread*>(vmData);
   if (thread == NULL) {
     return ThreadList::kInvalidId;
@@ -926,7 +863,7 @@ void Thread::Destroy() {
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock
     // object. Signal anyone who is waiting.
-    Object* lock = gThread_lock->GetObject(peer_);
+    Object* lock = DecodeField(WellKnownClasses::java_lang_Thread_lock)->GetObject(peer_);
     // (This conditional is only needed for tests, where Thread.lock won't have been set.)
     if (lock != NULL) {
       lock->MonitorEnter(self);
@@ -966,14 +903,15 @@ void Thread::HandleUncaughtExceptions() {
   ClearException();
 
   // If the thread has its own handler, use that.
-  Object* handler = gThread_uncaughtHandler->GetObject(peer_);
+  Object* handler = DecodeField(WellKnownClasses::java_lang_Thread_uncaughtHandler)->GetObject(peer_);
   if (handler == NULL) {
     // Otherwise use the thread group's default handler.
     handler = GetThreadGroup();
   }
 
   // Call the handler.
-  Method* m = handler->GetClass()->FindVirtualMethodForVirtualOrInterface(gUncaughtExceptionHandler_uncaughtException);
+  jmethodID mid = WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler_uncaughtException;
+  Method* m = handler->GetClass()->FindVirtualMethodForVirtualOrInterface(DecodeMethod(mid));
   JValue args[2];
   args[0].SetL(peer_);
   args[1].SetL(exception);
@@ -984,7 +922,7 @@ void Thread::HandleUncaughtExceptions() {
 }
 
 Object* Thread::GetThreadGroup() const {
-  return gThread_group->GetObject(peer_);
+  return DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(peer_);
 }
 
 void Thread::RemoveFromThreadGroup() {
@@ -992,7 +930,8 @@ void Thread::RemoveFromThreadGroup() {
   // group can be null if we're in the compiler or a test.
   Object* group = GetThreadGroup();
   if (group != NULL) {
-    Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(gThreadGroup_removeThread);
+    jmethodID mid = WellKnownClasses::java_lang_ThreadGroup_removeThread;
+    Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(DecodeMethod(mid));
     JValue args[1];
     args[0].SetL(peer_);
     m->Invoke(this, group, args, NULL);
@@ -1840,7 +1779,7 @@ bool Thread::HoldsLock(Object* object) {
 }
 
 bool Thread::IsDaemon() {
-  return gThread_daemon->GetBoolean(peer_);
+  return DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(peer_);
 }
 
 #if !defined(ART_USE_LLVM_COMPILER)
