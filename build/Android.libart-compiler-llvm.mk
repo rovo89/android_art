@@ -101,7 +101,7 @@ define build-libart-compiler-llvm
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_STATIC_LIBRARIES += \
-      $$(libart_compiler_llvm_arm_STATIC_LIBRARIES)
+      $$(libart_compiler_llvm_$(TARGET_ARCH)_STATIC_LIBRARIES)
   else
     LOCAL_STATIC_LIBRARIES += \
       $$(libart_compiler_llvm_arm_STATIC_LIBRARIES) \
