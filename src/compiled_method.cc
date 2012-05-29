@@ -63,7 +63,7 @@ CompiledMethod::CompiledMethod(InstructionSet instruction_set,
 void CompiledMethod::SetGcMap(const std::vector<uint8_t>& gc_map) {
   CHECK_NE(gc_map.size(), 0U);
 
-#if !defined(ART_USE_LLVM_COMPILER)
+#if !defined(ART_USE_LLVM_COMPILER) && !defined(ART_USE_GREENLAND_COMPILER)
   // Should only be used with CompiledMethods created with the non-LLVM compilers.
   CHECK_NE(mapping_table_.size(), 0U);
 #endif

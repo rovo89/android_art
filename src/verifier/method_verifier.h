@@ -45,6 +45,12 @@ namespace compiler_llvm {
 }  // namespace compiler_llvm
 #endif
 
+#if defined(ART_USE_GREENLAND_COMPILER)
+namespace greenland {
+  class InferredRegCategoryMap;
+}  // namespace greenland
+#endif
+
 namespace verifier {
 
 class MethodVerifier;
@@ -149,6 +155,11 @@ class PcToRegisterLineTable {
 
 // The verifier
 class MethodVerifier {
+#if defined(ART_USE_LLVM_COMPILER)
+  typedef compiler_llvm::InferredRegCategoryMap InferredRegCategoryMap;
+#elif defined(ART_USE_GREENLAND_COMPILER)
+  typedef greenland::InferredRegCategoryMap InferredRegCategoryMap;
+#endif
  public:
   /* Verify a class. Returns "true" on success. */
   static bool VerifyClass(const Class* klass, std::string& error);
@@ -185,8 +196,8 @@ class MethodVerifier {
   static void InitGcMaps();
   static void DeleteGcMaps();
 
-#if defined(ART_USE_LLVM_COMPILER)
-  static const compiler_llvm::InferredRegCategoryMap* GetInferredRegCategoryMap(Compiler::MethodReference ref);
+#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
+  static const InferredRegCategoryMap* GetInferredRegCategoryMap(Compiler::MethodReference ref);
   static void InitInferredRegCategoryMaps();
   static void DeleteInferredRegCategoryMaps();
 #endif
@@ -530,12 +541,12 @@ class MethodVerifier {
   // Get a type representing the declaring class of the method.
   const RegType& GetDeclaringClass();
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
   /*
    * Generate the inferred register category for LLVM-based code generator.
    * Returns a pointer to a two-dimension Class array, or NULL on failure.
    */
-  const compiler_llvm::InferredRegCategoryMap* GenerateInferredRegCategoryMap();
+  const InferredRegCategoryMap* GenerateInferredRegCategoryMap();
 #endif
 
   /*
@@ -560,14 +571,14 @@ class MethodVerifier {
   static GcMapTable* gc_maps_;
   static void SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map);
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
   // All the inferred register category maps that the verifier has created
   typedef SafeMap<const Compiler::MethodReference,
-                  const compiler_llvm::InferredRegCategoryMap*> InferredRegCategoryMapTable;
+                  const InferredRegCategoryMap*> InferredRegCategoryMapTable;
   static Mutex* inferred_reg_category_maps_lock_;
   static InferredRegCategoryMapTable* inferred_reg_category_maps_;
   static void SetInferredRegCategoryMap(Compiler::MethodReference ref,
-                                        const compiler_llvm::InferredRegCategoryMap& m);
+                                        const InferredRegCategoryMap& m);
 #endif
 
   static void AddRejectedClass(Compiler::ClassReference ref);

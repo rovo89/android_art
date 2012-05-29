@@ -258,10 +258,12 @@ static std::string MakeCompilerSoName(InstructionSet instruction_set) {
   const char* suffix = (kIsDebugBuild ? "d" : "");
 
   // Work out the filename for the compiler library.
-#if !defined(ART_USE_LLVM_COMPILER)
-  std::string library_name(StringPrintf("art%s-compiler-%s", suffix, instruction_set_name.c_str()));
-#else
+#if defined(ART_USE_LLVM_COMPILER)
   std::string library_name(StringPrintf("art%s-compiler-llvm", suffix));
+#elif defined(ART_USE_GREENLAND_COMPILER)
+  std::string library_name(StringPrintf("art%s-compiler-greenland", suffix));
+#else
+  std::string library_name(StringPrintf("art%s-compiler-%s", suffix, instruction_set_name.c_str()));
 #endif
   std::string filename(StringPrintf(OS_SHARED_LIB_FORMAT_STR, library_name.c_str()));
 
@@ -330,7 +332,7 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
   }
   VLOG(compiler) << "dlopen(\"" << compiler_so_name << "\", RTLD_LAZY) returned " << compiler_library_;
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
   // Initialize compiler_context_
   typedef void (*InitCompilerContextFn)(Compiler&);
 
