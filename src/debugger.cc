@@ -2691,7 +2691,7 @@ class HeapChunkContext {
         reinterpret_cast<const void*>(reinterpret_cast<const char*>(const_cast<void*>(start)) -
             (2 * sizeof(size_t)));
     // from malloc.c chunksize
-    size_t chunk_len = (*reinterpret_cast<size_t* const*>(chunk_ptr))[1] & ~7;
+    size_t chunk_len = (reinterpret_cast<size_t const*>(chunk_ptr))[1] & ~7;
 
 
     //size_t chunk_len = malloc_usable_size(user_ptr);
