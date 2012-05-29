@@ -115,29 +115,17 @@ CompiledMethod* JniCompiler::Compile() {
   llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
   llvm::AllocaInst* shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
 
-  // Store the method pointer
-  llvm::Value* method_field_addr =
-    irb_.CreatePtrDisp(shadow_frame_,
-                       irb_.getPtrEquivInt(ShadowFrame::MethodOffset()),
-                       irb_.getJObjectTy()->getPointerTo());
-  irb_.CreateStore(method_object_addr, method_field_addr, kTBAAShadowFrame);
-
   // Store the dex pc
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::DexPCOffset(),
                            irb_.getInt32(0),
                            kTBAAShadowFrame);
 
-  // Store the number of the pointer slots
-  irb_.StoreToObjectOffset(shadow_frame_,
-                           ShadowFrame::NumberOfReferencesOffset(),
-                           irb_.getInt32(sirt_size),
-                           kTBAAShadowFrame);
-
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
   llvm::Value* old_shadow_frame =
-      irb_.CreateCall(irb_.GetRuntime(PushShadowFrame), shadow_frame_upcast);
+      irb_.CreateCall3(irb_.GetRuntime(PushShadowFrame),
+                       shadow_frame_upcast, method_object_addr, irb_.getInt32(sirt_size));
 
   // Get JNIEnv
   llvm::Value* jni_env_object_addr =

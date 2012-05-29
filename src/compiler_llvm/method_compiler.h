@@ -264,6 +264,7 @@ class MethodCompiler {
   void EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr);
 
   // Shadow frame helper function
+  void EmitPushShadowFrame(bool is_inline);
   void EmitPopShadowFrame();
   void EmitUpdateDexPC(uint32_t dex_pc);
 
@@ -430,6 +431,7 @@ class MethodCompiler {
     bool has_invoke;
     bool need_shadow_frame_entry;
     bool need_shadow_frame;
+    bool lazy_push_shadow_frame;
   };
   MethodInfo method_info_;
 
@@ -473,6 +475,9 @@ class MethodCompiler {
   llvm::AllocaInst* shadow_frame_;
   llvm::AllocaInst* jvalue_temp_;
   llvm::Value* old_shadow_frame_;
+
+  llvm::Value* already_pushed_shadow_frame_;
+  uint32_t shadow_frame_size_;
 
   uint16_t elf_func_idx_;
 };
