@@ -247,8 +247,12 @@ class PACKED Thread {
     top_of_managed_stack_pc_ = pc;
   }
 
-  // 'msg' may be NULL.
+  // If 'msg' is NULL, no detail message is set.
   void ThrowNewException(const char* exception_class_descriptor, const char* msg);
+
+  // If 'msg' is NULL, no detail message is set. An exception must be pending, and will be
+  // used as the new exception's cause.
+  void ThrowNewWrappedException(const char* exception_class_descriptor, const char* msg);
 
   void ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...)
       __attribute__((format(printf, 3, 4)));

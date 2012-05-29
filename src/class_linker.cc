@@ -135,25 +135,20 @@ static void ThrowEarlierClassFailure(Class* c) {
 }
 
 static void WrapExceptionInInitializer() {
-  JNIEnv* env = Thread::Current()->GetJniEnv();
+  Thread* self = Thread::Current();
+  JNIEnv* env = self->GetJniEnv();
 
   ScopedLocalRef<jthrowable> cause(env, env->ExceptionOccurred());
   CHECK(cause.get() != NULL);
 
   env->ExceptionClear();
+  bool is_error = env->IsInstanceOf(cause.get(), WellKnownClasses::java_lang_Error);
+  env->Throw(cause.get());
 
-  if (env->IsInstanceOf(cause.get(), WellKnownClasses::java_lang_Error)) {
-    // We only wrap non-Error exceptions; an Error can just be used as-is.
-    env->Throw(cause.get());
-    return;
+  // We only wrap non-Error exceptions; an Error can just be used as-is.
+  if (!is_error) {
+    self->ThrowNewWrappedException("Ljava/lang/ExceptionInInitializerError;", NULL);
   }
-
-  jmethodID mid = env->GetMethodID(WellKnownClasses::java_lang_ExceptionInInitializerError, "<init>" , "(Ljava/lang/Throwable;)V");
-  CHECK(mid != NULL);
-
-  ScopedLocalRef<jthrowable> eiie(env,
-      reinterpret_cast<jthrowable>(env->NewObject(WellKnownClasses::java_lang_ExceptionInInitializerError, mid, cause.get())));
-  env->Throw(eiie.get());
 }
 
 static size_t Hash(const char* s) {
@@ -477,9 +472,6 @@ void ClassLinker::FinishInit() {
   Class* java_lang_ref_ReferenceQueue = FindSystemClass("Ljava/lang/ref/ReferenceQueue;");
   Class* java_lang_ref_FinalizerReference = FindSystemClass("Ljava/lang/ref/FinalizerReference;");
 
-  Heap* heap = Runtime::Current()->GetHeap();
-  heap->SetWellKnownClasses(java_lang_ref_FinalizerReference, java_lang_ref_ReferenceQueue);
-
   const DexFile& java_lang_dex = FindDexFile(java_lang_ref_Reference->GetDexCache());
 
   Field* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
@@ -512,6 +504,7 @@ void ClassLinker::FinishInit() {
   CHECK_EQ(java_lang_dex.GetFieldId(zombie->GetDexFieldIndex()).type_idx_,
            GetClassRoot(kJavaLangObject)->GetDexTypeIndex());
 
+  Heap* heap = Runtime::Current()->GetHeap();
   heap->SetReferenceOffsets(referent->GetOffset(),
                             queue->GetOffset(),
                             queueNext->GetOffset(),
@@ -1139,18 +1132,14 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
     std::string class_name_string(DescriptorToDot(descriptor));
     ScopedThreadStateChange tsc(self, kNative);
     JNIEnv* env = self->GetJniEnv();
-    ScopedLocalRef<jclass> c(env, AddLocalReference<jclass>(env, GetClassRoot(kJavaLangClassLoader)));
-    CHECK(c.get() != NULL);
-    // TODO: cache method?
-    jmethodID mid = env->GetMethodID(c.get(), "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
-    CHECK(mid != NULL);
     ScopedLocalRef<jobject> class_name_object(env, env->NewStringUTF(class_name_string.c_str()));
     if (class_name_object.get() == NULL) {
       return NULL;
     }
     ScopedLocalRef<jobject> class_loader_object(env, AddLocalReference<jobject>(env, class_loader));
     CHECK(class_loader_object.get() != NULL);
-    ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(), mid,
+    ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(),
+                                                              WellKnownClasses::java_lang_ClassLoader_loadClass,
                                                               class_name_object.get()));
     if (env->ExceptionCheck()) {
       // If the ClassLoader threw, pass that exception up.

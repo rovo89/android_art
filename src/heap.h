@@ -139,9 +139,6 @@ class Heap {
     return mark_bitmap_;
   }
 
-  void SetWellKnownClasses(Class* java_lang_ref_FinalizerReference,
-      Class* java_lang_ref_ReferenceQueue);
-
   void SetReferenceOffsets(MemberOffset reference_referent_offset,
                            MemberOffset reference_queue_offset,
                            MemberOffset reference_queueNext_offset,
@@ -279,9 +276,6 @@ class Heap {
 
   // Number of objects allocated.  Adjusted after each allocation and free.
   size_t num_objects_allocated_;
-
-  Class* java_lang_ref_FinalizerReference_;
-  Class* java_lang_ref_ReferenceQueue_;
 
   // offset of java.lang.ref.Reference.referent
   MemberOffset reference_referent_offset_;

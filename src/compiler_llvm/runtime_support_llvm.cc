@@ -760,10 +760,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
     // In the case of checked exceptions that aren't declared, the exception must be wrapped by
     // a UndeclaredThrowableException.
     Throwable* exception = thread->GetException();
-    thread->ClearException();
-    if (!exception->IsCheckedException()) {
-      thread->SetException(exception);
-    } else {
+    if (exception->IsCheckedException()) {
       SynthesizedProxyClass* proxy_class =
           down_cast<SynthesizedProxyClass*>(proxy_method->GetDeclaringClass());
       int throws_index = -1;
@@ -782,10 +779,8 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
         Class* declared_exception = declared_exceptions->Get(i);
         declares_exception = declared_exception->IsAssignableFrom(exception_class);
       }
-      if (declares_exception) {
-        thread->SetException(exception);
-      } else {
-        ThrowNewUndeclaredThrowableException(thread, env, exception);
+      if (!declares_exception) {
+        ThrowNewWrappedException("Ljava/lang/reflect/UndeclaredThrowableException;", NULL);
       }
     }
   }

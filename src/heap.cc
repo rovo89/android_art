@@ -142,8 +142,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       is_gc_running_(false),
       num_bytes_allocated_(0),
       num_objects_allocated_(0),
-      java_lang_ref_FinalizerReference_(NULL),
-      java_lang_ref_ReferenceQueue_(NULL),
       reference_referent_offset_(0),
       reference_queue_offset_(0),
       reference_queueNext_offset_(0),
@@ -728,14 +726,6 @@ void Heap::Unlock() {
   lock_->Unlock();
 }
 
-void Heap::SetWellKnownClasses(Class* java_lang_ref_FinalizerReference,
-    Class* java_lang_ref_ReferenceQueue) {
-  java_lang_ref_FinalizerReference_ = java_lang_ref_FinalizerReference;
-  java_lang_ref_ReferenceQueue_ = java_lang_ref_ReferenceQueue;
-  CHECK(java_lang_ref_FinalizerReference_ != NULL);
-  CHECK(java_lang_ref_ReferenceQueue_ != NULL);
-}
-
 void Heap::SetReferenceOffsets(MemberOffset reference_referent_offset,
     MemberOffset reference_queue_offset,
     MemberOffset reference_queueNext_offset,
@@ -813,26 +803,19 @@ Object* Heap::DequeuePendingReference(Object** list) {
 
 void Heap::AddFinalizerReference(Thread* self, Object* object) {
   ScopedThreadStateChange tsc(self, kRunnable);
-  static Method* FinalizerReference_add =
-      java_lang_ref_FinalizerReference_->FindDirectMethod("add", "(Ljava/lang/Object;)V");
-  DCHECK(FinalizerReference_add != NULL);
   JValue args[1];
   args[0].SetL(object);
-  FinalizerReference_add->Invoke(self, NULL, args, NULL);
+  DecodeMethod(WellKnownClasses::java_lang_ref_FinalizerReference_add)->Invoke(self, NULL, args, NULL);
 }
 
 void Heap::EnqueueClearedReferences(Object** cleared) {
   DCHECK(cleared != NULL);
   if (*cleared != NULL) {
-    static Method* ReferenceQueue_add =
-        java_lang_ref_ReferenceQueue_->FindDirectMethod("add", "(Ljava/lang/ref/Reference;)V");
-    DCHECK(ReferenceQueue_add != NULL);
-
     Thread* self = Thread::Current();
     ScopedThreadStateChange tsc(self, kRunnable);
     JValue args[1];
     args[0].SetL(*cleared);
-    ReferenceQueue_add->Invoke(self, NULL, args, NULL);
+    DecodeMethod(WellKnownClasses::java_lang_ref_ReferenceQueue_add)->Invoke(self, NULL, args, NULL);
     *cleared = NULL;
   }
 }
