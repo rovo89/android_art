@@ -21,12 +21,16 @@
 
 namespace art {
 
+class Class;
+
 // Various classes used in JNI. We cache them so we don't have to keep looking
 // them up. Similar to libcore's JniConstants (except there's no overlap, so
 // we keep them separate).
 
 struct WellKnownClasses {
   static void Init(JNIEnv* env);
+
+  static Class* ToClass(jclass global_jclass);
 
   static jclass com_android_dex_Dex;
   static jclass java_lang_ClassLoader;
@@ -39,6 +43,9 @@ struct WellKnownClasses {
   static jclass java_lang_reflect_Proxy;
   static jclass java_lang_reflect_UndeclaredThrowableException;
   static jclass java_lang_Thread;
+  static jclass java_lang_ThreadGroup;
+  static jclass java_lang_ThreadLock;
+  static jclass java_lang_Thread$UncaughtExceptionHandler;
   static jclass java_nio_ReadWriteDirectByteBuffer;
   static jclass org_apache_harmony_dalvik_ddmc_Chunk;
   static jclass org_apache_harmony_dalvik_ddmc_DdmServer;
@@ -49,11 +56,25 @@ struct WellKnownClasses {
   static jmethodID java_lang_Daemons_start;
   static jmethodID java_lang_reflect_InvocationHandler_invoke;
   static jmethodID java_lang_Thread_init;
+  static jmethodID java_lang_Thread_run;
+  static jmethodID java_lang_Thread$UncaughtExceptionHandler_uncaughtException;
+  static jmethodID java_lang_ThreadGroup_removeThread;
   static jmethodID java_nio_ReadWriteDirectByteBuffer_init;
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
   static jmethodID org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
   static jfieldID java_lang_reflect_Proxy_h;
+  static jfieldID java_lang_Thread_daemon;
+  static jfieldID java_lang_Thread_group;
+  static jfieldID java_lang_Thread_lock;
+  static jfieldID java_lang_Thread_name;
+  static jfieldID java_lang_Thread_priority;
+  static jfieldID java_lang_Thread_uncaughtHandler;
+  static jfieldID java_lang_Thread_vmData;
+  static jfieldID java_lang_ThreadGroup_mainThreadGroup;
+  static jfieldID java_lang_ThreadGroup_name;
+  static jfieldID java_lang_ThreadGroup_systemThreadGroup;
+  static jfieldID java_lang_ThreadLock_thread;
   static jfieldID java_nio_ReadWriteDirectByteBuffer_capacity;
   static jfieldID java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress;
   static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_data;

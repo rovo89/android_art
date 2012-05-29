@@ -20,6 +20,7 @@
 
 #include "logging.h"
 #include "ScopedLocalRef.h"
+#include "thread.h"
 
 namespace art {
 
@@ -34,6 +35,9 @@ jclass WellKnownClasses::java_lang_reflect_Method;
 jclass WellKnownClasses::java_lang_reflect_Proxy;
 jclass WellKnownClasses::java_lang_reflect_UndeclaredThrowableException;
 jclass WellKnownClasses::java_lang_Thread;
+jclass WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler;
+jclass WellKnownClasses::java_lang_ThreadGroup;
+jclass WellKnownClasses::java_lang_ThreadLock;
 jclass WellKnownClasses::java_nio_ReadWriteDirectByteBuffer;
 jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk;
 jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer;
@@ -44,10 +48,24 @@ jmethodID WellKnownClasses::java_lang_Daemons_requestHeapTrim;
 jmethodID WellKnownClasses::java_lang_Daemons_start;
 jmethodID WellKnownClasses::java_lang_reflect_InvocationHandler_invoke;
 jmethodID WellKnownClasses::java_lang_Thread_init;
+jmethodID WellKnownClasses::java_lang_Thread_run;
+jmethodID WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler_uncaughtException;
+jmethodID WellKnownClasses::java_lang_ThreadGroup_removeThread;
 jmethodID WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_init;
 jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
 jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
+jfieldID WellKnownClasses::java_lang_Thread_daemon;
+jfieldID WellKnownClasses::java_lang_Thread_group;
+jfieldID WellKnownClasses::java_lang_Thread_lock;
+jfieldID WellKnownClasses::java_lang_Thread_name;
+jfieldID WellKnownClasses::java_lang_Thread_priority;
+jfieldID WellKnownClasses::java_lang_Thread_uncaughtHandler;
+jfieldID WellKnownClasses::java_lang_Thread_vmData;
+jfieldID WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup;
+jfieldID WellKnownClasses::java_lang_ThreadGroup_name;
+jfieldID WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup;
+jfieldID WellKnownClasses::java_lang_ThreadLock_thread;
 jfieldID WellKnownClasses::java_lang_reflect_Proxy_h;
 jfieldID WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_capacity;
 jfieldID WellKnownClasses::java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress;
@@ -64,8 +82,8 @@ static jclass CacheClass(JNIEnv* env, const char* jni_class_name) {
   return reinterpret_cast<jclass>(env->NewGlobalRef(c.get()));
 }
 
-static jfieldID CacheField(JNIEnv* env, jclass c, const char* name, const char* signature) {
-  jfieldID fid = env->GetFieldID(c, name, signature);
+static jfieldID CacheField(JNIEnv* env, jclass c, bool is_static, const char* name, const char* signature) {
+  jfieldID fid = is_static ? env->GetStaticFieldID(c, name, signature) : env->GetFieldID(c, name, signature);
   if (fid == NULL) {
     LOG(FATAL) << "Couldn't find field \"" << name << "\" with signature \"" << signature << "\"";
   }
@@ -92,6 +110,9 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_reflect_Proxy = CacheClass(env, "java/lang/reflect/Proxy");
   java_lang_reflect_UndeclaredThrowableException = CacheClass(env, "java/lang/reflect/UndeclaredThrowableException");
   java_lang_Thread = CacheClass(env, "java/lang/Thread");
+  java_lang_Thread$UncaughtExceptionHandler = CacheClass(env, "java/lang/Thread$UncaughtExceptionHandler");
+  java_lang_ThreadGroup = CacheClass(env, "java/lang/ThreadGroup");
+  java_lang_ThreadLock = CacheClass(env, "java/lang/ThreadLock");
   java_nio_ReadWriteDirectByteBuffer = CacheClass(env, "java/nio/ReadWriteDirectByteBuffer");
   org_apache_harmony_dalvik_ddmc_Chunk = CacheClass(env, "org/apache/harmony/dalvik/ddmc/Chunk");
   org_apache_harmony_dalvik_ddmc_DdmServer = CacheClass(env, "org/apache/harmony/dalvik/ddmc/DdmServer");
@@ -102,17 +123,35 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Daemons_start = CacheMethod(env, java_lang_Daemons, true, "start", "()V");
   java_lang_reflect_InvocationHandler_invoke = CacheMethod(env, java_lang_reflect_InvocationHandler, false, "invoke", "(Ljava/lang/Object;Ljava/lang/reflect/Method;[Ljava/lang/Object;)Ljava/lang/Object;");
   java_lang_Thread_init = CacheMethod(env, java_lang_Thread, false, "<init>", "(Ljava/lang/ThreadGroup;Ljava/lang/String;IZ)V");
+  java_lang_Thread_run = CacheMethod(env, java_lang_Thread, false, "run", "()V");
+  java_lang_Thread$UncaughtExceptionHandler_uncaughtException = CacheMethod(env, java_lang_Thread$UncaughtExceptionHandler, false, "uncaughtException", "(Ljava/lang/Thread;Ljava/lang/Throwable;)V");
+  java_lang_ThreadGroup_removeThread = CacheMethod(env, java_lang_ThreadGroup, false, "removeThread", "(Ljava/lang/Thread;)V");
   java_nio_ReadWriteDirectByteBuffer_init = CacheMethod(env, java_nio_ReadWriteDirectByteBuffer, false, "<init>", "(II)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_broadcast = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "broadcast", "(I)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_dispatch = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
 
-  java_lang_reflect_Proxy_h = CacheField(env, java_lang_reflect_Proxy, "h", "Ljava/lang/reflect/InvocationHandler;");
-  java_nio_ReadWriteDirectByteBuffer_capacity = CacheField(env, java_nio_ReadWriteDirectByteBuffer, "capacity", "I");
-  java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress = CacheField(env, java_nio_ReadWriteDirectByteBuffer, "effectiveDirectAddress", "I");
-  org_apache_harmony_dalvik_ddmc_Chunk_data = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, "data", "[B");
-  org_apache_harmony_dalvik_ddmc_Chunk_length = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, "length", "I");
-  org_apache_harmony_dalvik_ddmc_Chunk_offset = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, "offset", "I");
-  org_apache_harmony_dalvik_ddmc_Chunk_type = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, "type", "I");
+  java_lang_Thread_daemon = CacheField(env, java_lang_Thread, false, "daemon", "Z");
+  java_lang_Thread_group = CacheField(env, java_lang_Thread, false, "group", "Ljava/lang/ThreadGroup;");
+  java_lang_Thread_lock = CacheField(env, java_lang_Thread, false, "lock", "Ljava/lang/ThreadLock;");
+  java_lang_Thread_name = CacheField(env, java_lang_Thread, false, "name", "Ljava/lang/String;");
+  java_lang_Thread_priority = CacheField(env, java_lang_Thread, false, "priority", "I");
+  java_lang_Thread_uncaughtHandler = CacheField(env, java_lang_Thread, false, "uncaughtHandler", "Ljava/lang/Thread$UncaughtExceptionHandler;");
+  java_lang_Thread_vmData = CacheField(env, java_lang_Thread, false, "vmData", "I");
+  java_lang_ThreadGroup_mainThreadGroup = CacheField(env, java_lang_ThreadGroup, true, "mainThreadGroup", "Ljava/lang/ThreadGroup;");
+  java_lang_ThreadGroup_name = CacheField(env, java_lang_ThreadGroup, false, "name", "Ljava/lang/String;");
+  java_lang_ThreadGroup_systemThreadGroup = CacheField(env, java_lang_ThreadGroup, true, "systemThreadGroup", "Ljava/lang/ThreadGroup;");
+  java_lang_ThreadLock_thread = CacheField(env, java_lang_ThreadLock, false, "thread", "Ljava/lang/Thread;");
+  java_lang_reflect_Proxy_h = CacheField(env, java_lang_reflect_Proxy, false, "h", "Ljava/lang/reflect/InvocationHandler;");
+  java_nio_ReadWriteDirectByteBuffer_capacity = CacheField(env, java_nio_ReadWriteDirectByteBuffer, false, "capacity", "I");
+  java_nio_ReadWriteDirectByteBuffer_effectiveDirectAddress = CacheField(env, java_nio_ReadWriteDirectByteBuffer, false, "effectiveDirectAddress", "I");
+  org_apache_harmony_dalvik_ddmc_Chunk_data = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "data", "[B");
+  org_apache_harmony_dalvik_ddmc_Chunk_length = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "length", "I");
+  org_apache_harmony_dalvik_ddmc_Chunk_offset = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "offset", "I");
+  org_apache_harmony_dalvik_ddmc_Chunk_type = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "type", "I");
+}
+
+Class* WellKnownClasses::ToClass(jclass global_jclass) {
+  return reinterpret_cast<Class*>(Thread::Current()->DecodeJObject(global_jclass));
 }
 
 }  // namespace art
