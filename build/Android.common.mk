@@ -393,6 +393,7 @@ TEST_OAT_DIRECTORIES := \
 	\
 	ExceptionTest \
 	GrowthLimit \
+	ConcurrentGC \
 	IntMath \
 	Invoke \
 	MemUsage \
