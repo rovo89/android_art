@@ -780,7 +780,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
         declares_exception = declared_exception->IsAssignableFrom(exception_class);
       }
       if (!declares_exception) {
-        ThrowNewWrappedException("Ljava/lang/reflect/UndeclaredThrowableException;", NULL);
+        thread->ThrowNewWrappedException("Ljava/lang/reflect/UndeclaredThrowableException;", NULL);
       }
     }
   }
