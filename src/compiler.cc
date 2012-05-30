@@ -1254,7 +1254,11 @@ class DexFilesWorkerThread {
         class_callback_(class_callback), dex_files_(dex_files),
         context_(NULL), shared_class_index_(shared_class_index) {
     if (spawn_) {
-      CHECK_PTHREAD_CALL(pthread_create, (&pthread_, NULL, &Go, this), "compiler worker thread");
+      pthread_attr_t attr;
+      CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new compiler worker thread");
+      CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, 4*MB), "new compiler worker thread");
+      CHECK_PTHREAD_CALL(pthread_create, (&pthread_, &attr, &Go, this), "new compiler worker thread");
+      CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new compiler worker thread");
     }
   }
 
