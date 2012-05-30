@@ -162,6 +162,7 @@ class Dex2Oat {
     // exceptions are resolved by the verifier when there is a catch block in an interested method.
     // Do this here so that exception classes appear to have been specified image classes.
     std::set<std::pair<uint16_t, const DexFile*> > unresolved_exception_types;
+    SirtRef<Class> java_lang_Throwable(class_linker->FindSystemClass("Ljava/lang/Throwable;"));
     do {
       unresolved_exception_types.clear();
       class_linker->VisitClasses(ResolveCatchBlockExceptionsClassVisitor,
@@ -181,7 +182,7 @@ class Dex2Oat {
           const char* descriptor = dex_file->GetTypeDescriptor(type_id);
           LOG(FATAL) << "Failed to resolve class " << descriptor;
         }
-        DCHECK(klass->IsThrowableClass());
+        DCHECK(java_lang_Throwable->IsAssignableFrom(klass.get()));
       }
       // Resolving exceptions may load classes that reference more exceptions, iterate until no
       // more are found
