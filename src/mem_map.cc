@@ -176,7 +176,8 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t length, int pr
 
   byte* actual = reinterpret_cast<byte*>(mmap(addr, page_aligned_size, prot, flags, fd.get(), 0));
   if (actual == MAP_FAILED) {
-    PLOG(ERROR) << "mmap failed (" << name << ")";
+    PLOG(ERROR) << "mmap(" << reinterpret_cast<void*>(addr) << ", " << page_aligned_size
+                << ", " << prot << ", " << flags << ", " << fd.get() << ", 0) failed for " << name;
     return NULL;
   }
   return new MemMap(actual, length, actual, page_aligned_size);
