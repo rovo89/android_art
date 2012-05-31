@@ -477,7 +477,15 @@ static int dex2oat(int argc, char** argv) {
   std::vector<const char*> runtime_args;
   int thread_count = 2;
   bool support_debugging = false;
+#if defined(__arm__)
   InstructionSet instruction_set = kThumb2;
+#elif defined(__i386__)
+  InstructionSet instruction_set = kX86;
+#elif defined(__mips__)
+  InstructionSet instruction_set = kMips;
+#else
+#error "Unsupported architecture"
+#endif
   bool dump_stats = kIsDebugBuild;
   bool dump_timings = kIsDebugBuild;
 
