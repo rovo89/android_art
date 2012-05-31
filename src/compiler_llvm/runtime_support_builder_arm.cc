@@ -33,37 +33,43 @@ using namespace llvm;
 namespace art {
 namespace compiler_llvm {
 
-using namespace runtime_support;
 
+llvm::Value* RuntimeSupportBuilderARM::EmitGetCurrentThread() {
+  Function* ori_func = GetRuntimeSupportFunction(runtime_support::GetCurrentThread);
+  InlineAsm* func = InlineAsm::get(ori_func->getFunctionType(), "mov $0, r9", "=r", false);
+  CallInst* thread = irb_.CreateCall(func);
+  thread->setDoesNotAccessMemory();
+  irb_.SetTBAA(thread, kTBAAConstJObject);
+  return thread;
+}
 
-void RuntimeSupportBuilderARM::TargetOptimizeRuntimeSupport() {
-  {
-    Function* func = GetRuntimeSupportFunction(GetCurrentThread);
-    MakeFunctionInline(func);
-    BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
-    irb_.SetInsertPoint(basic_block);
+llvm::Value* RuntimeSupportBuilderARM::EmitLoadFromThreadOffset(int64_t offset, llvm::Type* type,
+                                                                TBAASpecialType s_ty) {
+  FunctionType* func_ty = FunctionType::get(/*Result=*/type,
+                                            /*isVarArg=*/false);
+  std::string inline_asm(StringPrintf("ldr $0, [r9, #%d]", static_cast<int>(offset)));
+  InlineAsm* func = InlineAsm::get(func_ty, inline_asm, "=r", true);
+  CallInst* result = irb_.CreateCall(func);
+  result->setOnlyReadsMemory();
+  irb_.SetTBAA(result, s_ty);
+  return result;
+}
 
-    InlineAsm* get_r9 = InlineAsm::get(func->getFunctionType(), "mov $0, r9", "=r", false);
-    CallInst* r9 = irb_.CreateCall(get_r9);
-    r9->setOnlyReadsMemory();
-    irb_.CreateRet(r9);
+void RuntimeSupportBuilderARM::EmitStoreToThreadOffset(int64_t offset, llvm::Value* value,
+                                                       TBAASpecialType s_ty) {
+  FunctionType* func_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
+                                            /*Params=*/value->getType(),
+                                            /*isVarArg=*/false);
+  std::string inline_asm(StringPrintf("str $0, [r9, #%d]", static_cast<int>(offset)));
+  InlineAsm* func = InlineAsm::get(func_ty, inline_asm, "r", true);
+  CallInst* call_inst = irb_.CreateCall(func, value);
+  irb_.SetTBAA(call_inst, s_ty);
+}
 
-    VERIFY_LLVM_FUNCTION(*func);
-  }
-
-  {
-    Function* func = GetRuntimeSupportFunction(SetCurrentThread);
-    MakeFunctionInline(func);
-    BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
-    irb_.SetInsertPoint(basic_block);
-
-    InlineAsm* set_r9 = InlineAsm::get(func->getFunctionType(), "mov r9, $0", "r", true);
-    Value* thread = func->arg_begin();
-    irb_.CreateCall(set_r9, thread);
-    irb_.CreateRetVoid();
-
-    VERIFY_LLVM_FUNCTION(*func);
-  }
+void RuntimeSupportBuilderARM::EmitSetCurrentThread(llvm::Value* thread) {
+  Function* ori_func = GetRuntimeSupportFunction(runtime_support::SetCurrentThread);
+  InlineAsm* func = InlineAsm::get(ori_func->getFunctionType(), "mov r9, $0", "r", true);
+  irb_.CreateCall(func, thread);
 }
 
 

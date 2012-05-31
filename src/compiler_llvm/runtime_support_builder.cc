@@ -45,7 +45,7 @@ RuntimeSupportBuilder::RuntimeSupportBuilder(llvm::LLVMContext& context,
   do { \
     llvm::Function* fn = module_.getFunction(#NAME); \
     DCHECK_NE(fn, (void*)NULL) << "Function not found: " << #NAME; \
-    runtime_support_func_decls_[ID] = fn; \
+    runtime_support_func_decls_[runtime_support::ID] = fn; \
   } while (0);
 
 #include "runtime_support_func_list.h"
@@ -69,115 +69,120 @@ void RuntimeSupportBuilder::OverrideRuntimeSupportFunction(RuntimeId id, llvm::F
   }
 }
 
+
+/* Thread */
+
+llvm::Value* RuntimeSupportBuilder::EmitGetCurrentThread() {
+  Function* func = GetRuntimeSupportFunction(runtime_support::GetCurrentThread);
+  llvm::CallInst* call_inst = irb_.CreateCall(func);
+  call_inst->setOnlyReadsMemory();
+  irb_.SetTBAA(call_inst, kTBAAConstJObject);
+  return call_inst;
+}
+
+llvm::Value* RuntimeSupportBuilder::EmitLoadFromThreadOffset(int64_t offset, llvm::Type* type,
+                                                             TBAASpecialType s_ty) {
+  llvm::Value* thread = EmitGetCurrentThread();
+  return irb_.LoadFromObjectOffset(thread, offset, type, s_ty);
+}
+
+void RuntimeSupportBuilder::EmitStoreToThreadOffset(int64_t offset, llvm::Value* value,
+                                                    TBAASpecialType s_ty) {
+  llvm::Value* thread = EmitGetCurrentThread();
+  irb_.StoreToObjectOffset(thread, offset, value, s_ty);
+}
+
+void RuntimeSupportBuilder::EmitSetCurrentThread(llvm::Value* thread) {
+  Function* func = GetRuntimeSupportFunction(runtime_support::SetCurrentThread);
+  irb_.CreateCall(func, thread);
+}
+
+
+/* ShadowFrame */
+
+llvm::Value* RuntimeSupportBuilder::EmitPushShadowFrame(llvm::Value* new_shadow_frame,
+                                                        llvm::Value* method, uint32_t size) {
+  Value* old_shadow_frame = EmitLoadFromThreadOffset(Thread::TopShadowFrameOffset().Int32Value(),
+                                                     irb_.getArtFrameTy()->getPointerTo(),
+                                                     kTBAARuntimeInfo);
+  EmitStoreToThreadOffset(Thread::TopShadowFrameOffset().Int32Value(),
+                          new_shadow_frame,
+                          kTBAARuntimeInfo);
+
+  // Store the method pointer
+  irb_.StoreToObjectOffset(new_shadow_frame,
+                           ShadowFrame::MethodOffset(),
+                           method,
+                           kTBAAShadowFrame);
+
+  // Store the number of the pointer slots
+  irb_.StoreToObjectOffset(new_shadow_frame,
+                           ShadowFrame::NumberOfReferencesOffset(),
+                           irb_.getInt32(size),
+                           kTBAAShadowFrame);
+
+  // Store the link to previous shadow frame
+  irb_.StoreToObjectOffset(new_shadow_frame,
+                           ShadowFrame::LinkOffset(),
+                           old_shadow_frame,
+                           kTBAAShadowFrame);
+
+  return old_shadow_frame;
+}
+
+llvm::Value*
+RuntimeSupportBuilder::EmitPushShadowFrameNoInline(llvm::Value* new_shadow_frame,
+                                                   llvm::Value* method, uint32_t size) {
+  Function* func = GetRuntimeSupportFunction(runtime_support::PushShadowFrame);
+  llvm::CallInst* call_inst =
+      irb_.CreateCall4(func, EmitGetCurrentThread(), new_shadow_frame, method, irb_.getInt32(size));
+  irb_.SetTBAA(call_inst, kTBAARuntimeInfo);
+  return call_inst;
+}
+
+void RuntimeSupportBuilder::EmitPopShadowFrame(llvm::Value* old_shadow_frame) {
+  // Store old shadow frame to TopShadowFrame
+  EmitStoreToThreadOffset(Thread::TopShadowFrameOffset().Int32Value(),
+                          old_shadow_frame,
+                          kTBAARuntimeInfo);
+}
+
+
+/* Check */
+
+llvm::Value* RuntimeSupportBuilder::EmitIsExceptionPending() {
+  Value* exception = EmitLoadFromThreadOffset(Thread::ExceptionOffset().Int32Value(),
+                                              irb_.getJObjectTy(),
+                                              kTBAAJRuntime);
+  // If exception not null
+  return irb_.CreateICmpNE(exception, irb_.getJNull());
+}
+
+void RuntimeSupportBuilder::EmitTestSuspend() {
+  Function* slow_func = GetRuntimeSupportFunction(runtime_support::TestSuspend);
+  Value* suspend_count = EmitLoadFromThreadOffset(Thread::SuspendCountOffset().Int32Value(),
+                                                  irb_.getJIntTy(),
+                                                  kTBAARuntimeInfo);
+  Value* is_suspend = irb_.CreateICmpNE(suspend_count, irb_.getJInt(0));
+
+  llvm::Function* parent_func = irb_.GetInsertBlock()->getParent();
+  BasicBlock* basic_block_suspend = BasicBlock::Create(context_, "suspend", parent_func);
+  BasicBlock* basic_block_cont = BasicBlock::Create(context_, "suspend_cont", parent_func);
+  irb_.CreateCondBr(is_suspend, basic_block_suspend, basic_block_cont, kUnlikely);
+
+  irb_.SetInsertPoint(basic_block_suspend);
+  CallInst* call_inst = irb_.CreateCall(slow_func, EmitGetCurrentThread());
+  irb_.SetTBAA(call_inst, kTBAARuntimeInfo);
+  irb_.CreateBr(basic_block_cont);
+
+  irb_.SetInsertPoint(basic_block_cont);
+}
+
+
 void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
-  TargetOptimizeRuntimeSupport();
-
-  if (!target_runtime_support_func_[PushShadowFrame]) {
-    Function* func = GetRuntimeSupportFunction(PushShadowFrame);
-    MakeFunctionInline(func);
-    BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
-    irb_.SetInsertPoint(basic_block);
-
-    Function* get_thread = GetRuntimeSupportFunction(GetCurrentThread);
-    Value* thread = irb_.CreateCall(get_thread);
-    Function::arg_iterator arg_iter = func->arg_begin();
-    Value* new_shadow_frame = arg_iter++;
-    Value* method_object_addr = arg_iter++;
-    Value* shadow_frame_size = arg_iter++;
-    Value* old_shadow_frame = irb_.LoadFromObjectOffset(thread,
-                                                        Thread::TopShadowFrameOffset().Int32Value(),
-                                                        irb_.getArtFrameTy()->getPointerTo(),
-                                                        kTBAARuntimeInfo);
-    irb_.StoreToObjectOffset(thread,
-                             Thread::TopShadowFrameOffset().Int32Value(),
-                             new_shadow_frame,
-                             kTBAARuntimeInfo);
-
-    // Store the method pointer
-    irb_.StoreToObjectOffset(new_shadow_frame,
-                             ShadowFrame::MethodOffset(),
-                             method_object_addr,
-                             kTBAAShadowFrame);
-
-    // Store the number of the pointer slots
-    irb_.StoreToObjectOffset(new_shadow_frame,
-                             ShadowFrame::NumberOfReferencesOffset(),
-                             shadow_frame_size,
-                             kTBAAShadowFrame);
-
-    // Store the link to previous shadow frame
-    irb_.StoreToObjectOffset(new_shadow_frame,
-                             ShadowFrame::LinkOffset(),
-                             old_shadow_frame,
-                             kTBAAShadowFrame);
-
-    irb_.CreateRet(old_shadow_frame);
-
-    VERIFY_LLVM_FUNCTION(*func);
-  }
-
-  if (!target_runtime_support_func_[PushShadowFrameNoInline]) {
-    Function* func = GetRuntimeSupportFunction(PushShadowFrameNoInline);
-
-    func->setLinkage(GlobalValue::PrivateLinkage);
-    func->addFnAttr(Attribute::NoInline);
-
-    BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
-    irb_.SetInsertPoint(basic_block);
-
-    Function::arg_iterator arg_iter = func->arg_begin();
-    Value* new_shadow_frame = arg_iter++;
-    Value* method_object_addr = arg_iter++;
-    Value* shadow_frame_size = arg_iter++;
-
-    // Call inline version
-    Value* old_shadow_frame =
-      irb_.CreateCall3(GetRuntimeSupportFunction(PushShadowFrame),
-                       new_shadow_frame, method_object_addr, shadow_frame_size);
-    irb_.CreateRet(old_shadow_frame);
-
-    VERIFY_LLVM_FUNCTION(*func);
-  }
-
-  if (!target_runtime_support_func_[PopShadowFrame]) {
-    Function* func = GetRuntimeSupportFunction(PopShadowFrame);
-    MakeFunctionInline(func);
-    BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
-    irb_.SetInsertPoint(basic_block);
-
-    Function* get_thread = GetRuntimeSupportFunction(GetCurrentThread);
-    Value* thread = irb_.CreateCall(get_thread);
-    Value* old_shadow_frame = func->arg_begin();
-    irb_.StoreToObjectOffset(thread,
-                             Thread::TopShadowFrameOffset().Int32Value(),
-                             old_shadow_frame,
-                             kTBAARuntimeInfo);
-    irb_.CreateRetVoid();
-
-    VERIFY_LLVM_FUNCTION(*func);
-  }
-
-  if (!target_runtime_support_func_[IsExceptionPending]) {
-    Function* func = GetRuntimeSupportFunction(IsExceptionPending);
-    MakeFunctionInline(func);
-    BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
-    irb_.SetInsertPoint(basic_block);
-
-    Function* get_thread = GetRuntimeSupportFunction(GetCurrentThread);
-    Value* thread = irb_.CreateCall(get_thread);
-    Value* exception = irb_.LoadFromObjectOffset(thread,
-                                                 Thread::ExceptionOffset().Int32Value(),
-                                                 irb_.getJObjectTy(),
-                                                 kTBAAJRuntime);
-    Value* is_exception_not_null = irb_.CreateICmpNE(exception, irb_.getJNull());
-    irb_.CreateRet(is_exception_not_null);
-
-    VERIFY_LLVM_FUNCTION(*func);
-  }
-
-  if (!target_runtime_support_func_[TestSuspend]) {
-    Function* slow_func = GetRuntimeSupportFunction(TestSuspend);
-
+  // TODO: Remove this after we remove suspend loop pass.
+  if (!target_runtime_support_func_[runtime_support::TestSuspend]) {
+    Function* slow_func = GetRuntimeSupportFunction(runtime_support::TestSuspend);
     Function* func = Function::Create(slow_func->getFunctionType(),
                                       GlobalValue::LinkOnceODRLinkage,
                                       "test_suspend_fast",
@@ -186,29 +191,11 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
     irb_.SetInsertPoint(basic_block);
 
-    Value* thread = func->arg_begin();
-    llvm::LoadInst* suspend_count =
-        irb_.LoadFromObjectOffset(thread,
-                                  Thread::SuspendCountOffset().Int32Value(),
-                                  irb_.getJIntTy(),
-                                  kTBAARuntimeInfo);
-    suspend_count->setAlignment(4U);
-    suspend_count->setAtomic(Unordered, CrossThread);
-    Value* is_suspend = irb_.CreateICmpNE(suspend_count, irb_.getJInt(0));
+    EmitTestSuspend();
 
-    BasicBlock* basic_block_suspend = BasicBlock::Create(context_, "suspend", func);
-    BasicBlock* basic_block_else = BasicBlock::Create(context_, "else", func);
-    irb_.CreateCondBr(is_suspend, basic_block_suspend, basic_block_else, kUnlikely);
-
-    irb_.SetInsertPoint(basic_block_suspend);
-    CallInst* call_inst = irb_.CreateCall(slow_func, thread);
-    irb_.SetTBAACall(call_inst, kTBAARuntimeInfo);
-    irb_.CreateBr(basic_block_else);
-
-    irb_.SetInsertPoint(basic_block_else);
     irb_.CreateRetVoid();
 
-    OverrideRuntimeSupportFunction(TestSuspend, func);
+    OverrideRuntimeSupportFunction(runtime_support::TestSuspend, func);
 
     VERIFY_LLVM_FUNCTION(*func);
   }
@@ -233,12 +220,9 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     irb_.CreateRetVoid();
 
     irb_.SetInsertPoint(block_mark_gc_card);
-    Function* get_thread = GetRuntimeSupportFunction(GetCurrentThread);
-    Value* thread = irb_.CreateCall(get_thread);
-    Value* card_table = irb_.LoadFromObjectOffset(thread,
-                                                  Thread::CardTableOffset().Int32Value(),
-                                                  irb_.getInt8Ty()->getPointerTo(),
-                                                  kTBAAConstJObject);
+    Value* card_table = EmitLoadFromThreadOffset(Thread::CardTableOffset().Int32Value(),
+                                                 irb_.getInt8Ty()->getPointerTo(),
+                                                 kTBAAConstJObject);
     Value* target_addr_int = irb_.CreatePtrToInt(target_addr, irb_.getPtrEquivIntTy());
     Value* card_no = irb_.CreateLShr(target_addr_int, irb_.getPtrEquivInt(GC_CARD_SHIFT));
     Value* card_table_entry = irb_.CreateGEP(card_table, card_no);

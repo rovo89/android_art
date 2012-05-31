@@ -17,13 +17,18 @@
 #ifndef ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_H_
 #define ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_BUILDER_H_
 
+#include "backend_types.h"
 #include "logging.h"
 #include "runtime_support_func.h"
+
+#include <stdint.h>
 
 namespace llvm {
   class LLVMContext;
   class Module;
   class Function;
+  class Type;
+  class Value;
 }
 
 namespace art {
@@ -35,6 +40,25 @@ class IRBuilder;
 class RuntimeSupportBuilder {
  public:
   RuntimeSupportBuilder(llvm::LLVMContext& context, llvm::Module& module, IRBuilder& irb);
+
+  /* Thread */
+  virtual llvm::Value* EmitGetCurrentThread();
+  virtual llvm::Value* EmitLoadFromThreadOffset(int64_t offset, llvm::Type* type,
+                                                TBAASpecialType s_ty);
+  virtual void EmitStoreToThreadOffset(int64_t offset, llvm::Value* value,
+                                       TBAASpecialType s_ty);
+  virtual void EmitSetCurrentThread(llvm::Value* thread);
+
+  /* ShadowFrame */
+  virtual llvm::Value* EmitPushShadowFrame(llvm::Value* new_shadow_frame,
+                                       llvm::Value* method, uint32_t size);
+  virtual llvm::Value* EmitPushShadowFrameNoInline(llvm::Value* new_shadow_frame,
+                                               llvm::Value* method, uint32_t size);
+  virtual void EmitPopShadowFrame(llvm::Value* old_shadow_frame);
+
+  /* Check */
+  virtual llvm::Value* EmitIsExceptionPending();
+  virtual void EmitTestSuspend();
 
   llvm::Function* GetRuntimeSupportFunction(runtime_support::RuntimeId id) {
     if (id >= 0 && id < runtime_support::MAX_ID) {
@@ -55,10 +79,6 @@ class RuntimeSupportBuilder {
   void MakeFunctionInline(llvm::Function* function);
 
   void OverrideRuntimeSupportFunction(runtime_support::RuntimeId id, llvm::Function* function);
-
- private:
-  // Target can override this function to make some runtime support more efficient.
-  virtual void TargetOptimizeRuntimeSupport() {}
 
 
  protected:

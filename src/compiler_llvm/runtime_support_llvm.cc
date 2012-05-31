@@ -80,15 +80,12 @@ void art_test_suspend_from_code(Thread* thread) {
   Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
 }
 
-void* art_push_shadow_frame_from_code(void* new_shadow_frame, Object* method, uint32_t size) {
-  LOG(FATAL) << "Implemented by IRBuilder.";
-  return NULL;
-}
-
-void* art_push_shadow_frame_noinline_from_code(void* new_shadow_frame,
-                                               Object* method, uint32_t size) {
-  LOG(FATAL) << "Implemented by IRBuilder.";
-  return NULL;
+ShadowFrame* art_push_shadow_frame_from_code(Thread* thread, ShadowFrame* new_shadow_frame,
+                                             Method* method, uint32_t size) {
+  ShadowFrame* old_frame = thread->PushShadowFrame(new_shadow_frame);
+  new_shadow_frame->SetMethod(method);
+  new_shadow_frame->SetNumberOfReferences(size);
+  return old_frame;
 }
 
 void art_pop_shadow_frame_from_code(void*) {

@@ -26,8 +26,14 @@ class RuntimeSupportBuilderARM : public RuntimeSupportBuilder {
  public:
   RuntimeSupportBuilderARM(llvm::LLVMContext& context, llvm::Module& module, IRBuilder& irb)
     : RuntimeSupportBuilder(context, module, irb) {}
- private:
-  virtual void TargetOptimizeRuntimeSupport();
+
+  /* Thread */
+  virtual llvm::Value* EmitGetCurrentThread();
+  virtual llvm::Value* EmitLoadFromThreadOffset(int64_t offset, llvm::Type* type,
+                                                TBAASpecialType s_ty);
+  virtual void EmitStoreToThreadOffset(int64_t offset, llvm::Value* value,
+                                       TBAASpecialType s_ty);
+  virtual void EmitSetCurrentThread(llvm::Value* thread);
 };
 
 } // namespace compiler_llvm

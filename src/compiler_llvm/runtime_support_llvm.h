@@ -36,10 +36,8 @@ class Object;
 // Thread
 //----------------------------------------------------------------------------
 
-void* art_push_shadow_frame_from_code(void* new_shadow_frame, Object* method, uint32_t size);
-
-void* art_push_shadow_frame_noinline_from_code(void* new_shadow_frame,
-                                               Object* method, uint32_t size);
+ShadowFrame* art_push_shadow_frame_from_code(Thread* thread, ShadowFrame* new_shadow_frame,
+                                             Method* method, uint32_t size);
 
 void art_pop_shadow_frame_from_code(void*);
 

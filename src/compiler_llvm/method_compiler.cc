@@ -214,14 +214,10 @@ void MethodCompiler::EmitStackOverflowCheck() {
   frame_address = irb_.CreatePtrToInt(frame_address, irb_.getPtrEquivIntTy());
 
   // Get thread.stack_end_
-  llvm::Value* thread_object_addr =
-    irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
-
   llvm::Value* stack_end =
-    irb_.LoadFromObjectOffset(thread_object_addr,
-                              Thread::StackEndOffset().Int32Value(),
-                              irb_.getPtrEquivIntTy(),
-                              kTBAARuntimeInfo);
+    irb_.Runtime().EmitLoadFromThreadOffset(Thread::StackEndOffset().Int32Value(),
+                                            irb_.getPtrEquivIntTy(),
+                                            kTBAARuntimeInfo);
 
   // Check the frame address < thread.stack_end_ ?
   llvm::Value* is_stack_overflow = irb_.CreateICmpULT(frame_address, stack_end);
@@ -1263,22 +1259,16 @@ void MethodCompiler::EmitInsn_MoveException(uint32_t dex_pc,
 
   DecodedInstruction dec_insn(insn);
 
-  // Get thread
-  llvm::Value* thread_object_addr =
-    irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
-
   // Get thread-local exception field address
   llvm::Value* exception_object_addr =
-    irb_.LoadFromObjectOffset(thread_object_addr,
-                              Thread::ExceptionOffset().Int32Value(),
-                              irb_.getJObjectTy(),
-                              kTBAAJRuntime);
+    irb_.Runtime().EmitLoadFromThreadOffset(Thread::ExceptionOffset().Int32Value(),
+                                            irb_.getJObjectTy(),
+                                            kTBAAJRuntime);
 
   // Set thread-local exception field address to NULL
-  irb_.StoreToObjectOffset(thread_object_addr,
-                           Thread::ExceptionOffset().Int32Value(),
-                           irb_.getJNull(),
-                           kTBAAJRuntime);
+  irb_.Runtime().EmitStoreToThreadOffset(Thread::ExceptionOffset().Int32Value(),
+                                         irb_.getJNull(),
+                                         kTBAAJRuntime);
 
   // Keep the exception object in the Dalvik register
   EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, exception_object_addr);
@@ -1464,7 +1454,7 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-    llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+    llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
 
     llvm::Function* runtime_func =
       irb_.GetRuntime(InitializeTypeAndVerifyAccess);
@@ -1512,7 +1502,7 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-    llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+    llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
 
     EmitUpdateDexPC(dex_pc);
 
@@ -1562,7 +1552,7 @@ void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
     EmitGuard_NullPointerException(dex_pc, object_addr);
   }
 
-  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
 
   irb_.CreateCall2(irb_.GetRuntime(LockObject), object_addr, thread_object_addr);
 
@@ -1584,7 +1574,7 @@ void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
 
   EmitUpdateDexPC(dex_pc);
 
-  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
 
   irb_.CreateCall2(irb_.GetRuntime(UnlockObject), object_addr, thread_object_addr);
 
@@ -1762,7 +1752,7 @@ void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
 
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
 
   EmitUpdateDexPC(dex_pc);
 
@@ -1805,7 +1795,7 @@ llvm::Value* MethodCompiler::EmitAllocNewArray(uint32_t dex_pc,
 
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
 
   EmitUpdateDexPC(dex_pc);
 
@@ -2508,7 +2498,7 @@ llvm::Value* MethodCompiler::EmitLoadStaticStorage(uint32_t dex_pc,
 
   llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
-  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
 
   EmitUpdateDexPC(dex_pc);
 
@@ -3039,7 +3029,7 @@ EmitCallRuntimeForCalleeMethodObjectAddr(uint32_t callee_method_idx,
 
   llvm::Value* caller_method_object_addr = EmitLoadMethodObjectAddr();
 
-  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
 
   EmitUpdateDexPC(dex_pc);
 
@@ -3694,8 +3684,7 @@ void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc, bool can_ski
     return;
   }
 
-  llvm::Value* exception_pending =
-    irb_.CreateCall(irb_.GetRuntime(IsExceptionPending));
+  llvm::Value* exception_pending = irb_.Runtime().EmitIsExceptionPending();
 
   llvm::BasicBlock* block_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
 
@@ -3715,11 +3704,7 @@ void MethodCompiler::EmitGuard_GarbageCollectionSuspend() {
     return;
   }
 
-  llvm::Value* runtime_func = irb_.GetRuntime(TestSuspend);
-
-  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
-
-  irb_.CreateCall(runtime_func, thread_object_addr);
+  irb_.Runtime().EmitTestSuspend();
 }
 
 
@@ -3960,9 +3945,15 @@ void MethodCompiler::EmitPushShadowFrame(bool is_inline) {
   llvm::Value* shadow_frame_upcast =
     irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
 
-  llvm::Value* result =
-      irb_.CreateCall3(irb_.GetRuntime(is_inline ? PushShadowFrame : PushShadowFrameNoInline),
-                       shadow_frame_upcast, method_object_addr, irb_.getJInt(shadow_frame_size_));
+  llvm::Value* result;
+  if (is_inline) {
+    result = irb_.Runtime().EmitPushShadowFrame(shadow_frame_upcast, method_object_addr,
+                                                shadow_frame_size_);
+  } else {
+    DCHECK(shadow_frame_size_ == 0);
+    result = irb_.Runtime().EmitPushShadowFrameNoInline(shadow_frame_upcast, method_object_addr,
+                                                        shadow_frame_size_);
+  }
   irb_.CreateStore(result, old_shadow_frame_, kTBAARegister);
 }
 
@@ -3981,14 +3972,12 @@ void MethodCompiler::EmitPopShadowFrame() {
     irb_.CreateCondBr(need_pop, bb_pop, bb_cont, kUnlikely);
 
     irb_.SetInsertPoint(bb_pop);
-    irb_.CreateCall(irb_.GetRuntime(PopShadowFrame),
-                    irb_.CreateLoad(old_shadow_frame_, kTBAARegister));
+    irb_.Runtime().EmitPopShadowFrame(irb_.CreateLoad(old_shadow_frame_, kTBAARegister));
     irb_.CreateBr(bb_cont);
 
     irb_.SetInsertPoint(bb_cont);
   } else {
-    irb_.CreateCall(irb_.GetRuntime(PopShadowFrame),
-                    irb_.CreateLoad(old_shadow_frame_, kTBAARegister));
+    irb_.Runtime().EmitPopShadowFrame(irb_.CreateLoad(old_shadow_frame_, kTBAARegister));
   }
 }
 
