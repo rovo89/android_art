@@ -31,6 +31,7 @@ define build-art-test-dex
   LOCAL_NO_STANDARD_LIBRARIES := true
   LOCAL_MODULE_PATH := $(3)
   LOCAL_DEX_PREOPT_IMAGE := $(TARGET_CORE_IMG_OUT)
+  LOCAL_DEX_PREOPT := false
   include $(BUILD_JAVA_LIBRARY)
   ART_TEST_TARGET_DEX_FILES += $(3)/$$(LOCAL_MODULE).jar
 
@@ -45,9 +46,8 @@ define build-art-test-dex
   include $(BUILD_HOST_JAVA_LIBRARY)
   ART_TEST_HOST_DEX_FILES += $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE).jar
 endef
-#$(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-test-dex,$(dir),$(ART_NATIVETEST_OUT))))
-#$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test-dex,$(dir),$(ART_TEST_OUT))))
-$(foreach dir,HelloWorld, $(eval $(call build-art-test-dex,oat-test-dex,$(dir),$(ART_TEST_OUT))))
+$(foreach dir,$(TEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-test-dex,$(dir),$(ART_NATIVETEST_OUT))))
+$(foreach dir,$(TEST_OAT_DIRECTORIES), $(eval $(call build-art-test-dex,oat-test-dex,$(dir),$(ART_TEST_OUT))))
 
 ########################################################################
 
