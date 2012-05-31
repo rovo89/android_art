@@ -471,6 +471,7 @@ class MethodCompiler {
 
   llvm::AllocaInst* shadow_frame_;
   llvm::AllocaInst* jvalue_temp_;
+  llvm::Value* old_shadow_frame_;
 
   uint16_t elf_func_idx_;
 };

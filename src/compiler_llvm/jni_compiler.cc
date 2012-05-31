@@ -136,7 +136,8 @@ CompiledMethod* JniCompiler::Compile() {
 
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
-  irb_.CreateCall(irb_.GetRuntime(PushShadowFrame), shadow_frame_upcast);
+  llvm::Value* old_shadow_frame =
+      irb_.CreateCall(irb_.GetRuntime(PushShadowFrame), shadow_frame_upcast);
 
   // Get JNIEnv
   llvm::Value* jni_env_object_addr =
@@ -271,7 +272,7 @@ CompiledMethod* JniCompiler::Compile() {
                            kTBAARuntimeInfo);
 
   // Pop the shadow frame
-  irb_.CreateCall(irb_.GetRuntime(PopShadowFrame));
+  irb_.CreateCall(irb_.GetRuntime(PopShadowFrame), old_shadow_frame);
 
   // Return!
   if (return_shorty != 'V') {

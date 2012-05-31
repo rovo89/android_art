@@ -295,6 +295,10 @@ class IRBuilder : public LLVMIRBuilder {
     return jobject_type_;
   }
 
+  llvm::Type* getArtFrameTy() {
+    return art_frame_type_;
+  }
+
   llvm::PointerType* getJEnvTy() {
     return jenv_type_;
   }

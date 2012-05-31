@@ -73,7 +73,8 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     basic_blocks_(code_item_->insns_size_in_code_units_),
     basic_block_landing_pads_(code_item_->tries_size_, NULL),
     basic_block_unwind_(NULL), basic_block_unreachable_(NULL),
-    shadow_frame_(NULL), elf_func_idx_(cunit_->AcquireUniqueElfFuncIndex()) {
+    shadow_frame_(NULL), jvalue_temp_(NULL), old_shadow_frame_(NULL),
+    elf_func_idx_(cunit_->AcquireUniqueElfFuncIndex()) {
 }
 
 
@@ -320,7 +321,7 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
   llvm::Value* shadow_frame_upcast =
     irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
 
-  irb_.CreateCall(irb_.GetRuntime(PushShadowFrame), shadow_frame_upcast);
+  old_shadow_frame_ = irb_.CreateCall(irb_.GetRuntime(PushShadowFrame), shadow_frame_upcast);
 }
 
 
@@ -3954,7 +3955,8 @@ void MethodCompiler::EmitPopShadowFrame() {
   if (!method_info_.need_shadow_frame) {
     return;
   }
-  irb_.CreateCall(irb_.GetRuntime(PopShadowFrame));
+  DCHECK(old_shadow_frame_ != NULL);
+  irb_.CreateCall(irb_.GetRuntime(PopShadowFrame), old_shadow_frame_);
 }
 
 
