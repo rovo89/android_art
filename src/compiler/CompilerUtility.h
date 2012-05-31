@@ -27,7 +27,7 @@ namespace art {
 /* Allocate the initial memory block for arena-based allocation */
 bool oatHeapInit(CompilationUnit* cUnit);
 
-/* Collect memory usage statstics */
+/* Collect memory usage statistics */
 //#define WITH_MEMSTATS
 
 struct ArenaMemBlock {
@@ -37,8 +37,7 @@ struct ArenaMemBlock {
   char ptr[0];
 };
 
-void* oatNew(CompilationUnit* cUnit, size_t size, bool zero,
-             oatAllocKind kind = kAllocMisc);
+void* oatNew(CompilationUnit* cUnit, size_t size, bool zero, oatAllocKind kind);
 
 void oatArenaReset(CompilationUnit *cUnit);
 
