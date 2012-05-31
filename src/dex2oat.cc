@@ -563,6 +563,10 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 
+#if !defined(ART_USE_LLVM_COMPILER)
+  thread_count = 1;
+#endif
+
   if (oat_filename.empty() && oat_fd == -1) {
     Usage("Output must be supplied with either --oat-file or --oat-fd");
   }
