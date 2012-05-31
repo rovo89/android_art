@@ -19,6 +19,7 @@
 #include "backend_types.h"
 #include "compilation_unit.h"
 #include "compiler.h"
+#include "dalvik_reg.h"
 #include "inferred_reg_category_map.h"
 #include "ir_builder.h"
 #include "logging.h"
@@ -63,6 +64,7 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     irb_(*cunit->GetIRBuilder()),
     func_(NULL),
     regs_(code_item_->registers_size_),
+    shadow_frame_entries_(code_item_->registers_size_),
     reg_to_shadow_frame_index_(code_item_->registers_size_, -1),
     retval_reg_(NULL),
     basic_block_stack_overflow_(NULL),
@@ -170,17 +172,28 @@ void MethodCompiler::EmitPrologue() {
   irb_.SetInsertPoint(basic_block_alloca_);
   jvalue_temp_ = irb_.CreateAlloca(irb_.getJValueTy());
 
-  // Create register array
-  for (uint16_t r = 0; r < code_item_->registers_size_; ++r) {
-    regs_[r] = DalvikReg::CreateLocalVarReg(*this, r);
-  }
-
-  retval_reg_.reset(DalvikReg::CreateRetValReg(*this));
-
   // Create Shadow Frame
   if (method_info_.need_shadow_frame) {
     EmitPrologueAllocShadowFrame();
   }
+
+  // Create register array
+  for (uint16_t r = 0; r < code_item_->registers_size_; ++r) {
+    std::string name;
+#if !defined(NDEBUG)
+    name = StringPrintf("%u", r);
+#endif
+    regs_[r] = new DalvikReg(*this, name);
+
+    // Cache shadow frame entry address
+    shadow_frame_entries_[r] = GetShadowFrameEntry(r);
+  }
+
+  std::string name;
+#if !defined(NDEBUG)
+  name = "_res";
+#endif
+  retval_reg_.reset(new DalvikReg(*this, name));
 
   // Store argument to dalvik register
   irb_.SetInsertPoint(basic_block_reg_arg_init_);
@@ -324,13 +337,13 @@ void MethodCompiler::EmitPrologueAssignArgRegister() {
   ++arg_iter; // skip method object
 
   if (!oat_compilation_unit_->IsStatic()) {
-    EmitStoreDalvikReg(arg_reg, kObject, kAccurate, arg_iter);
+    regs_[arg_reg]->SetValue(kObject, kAccurate, arg_iter);
     ++arg_iter;
     ++arg_reg;
   }
 
   for (uint32_t i = 1; i < shorty_size; ++i, ++arg_iter) {
-    EmitStoreDalvikReg(arg_reg, shorty[i], kAccurate, arg_iter);
+    regs_[arg_reg]->SetValue(shorty[i], kAccurate, arg_iter);
 
     ++arg_reg;
     if (shorty[i] == 'J' || shorty[i] == 'D') {
@@ -3876,14 +3889,13 @@ llvm::BasicBlock* MethodCompiler::GetUnwindBasicBlock() {
 }
 
 
-llvm::Value* MethodCompiler::AllocDalvikLocalVarReg(RegCategory cat,
-                                                    uint32_t reg_idx) {
+llvm::Value* MethodCompiler::AllocDalvikReg(RegCategory cat, const std::string& name) {
   // Get reg_type and reg_name from DalvikReg
   llvm::Type* reg_type = DalvikReg::GetRegCategoryEquivSizeTy(irb_, cat);
   std::string reg_name;
 
 #if !defined(NDEBUG)
-  StringAppendF(&reg_name, "%c%u", DalvikReg::GetRegCategoryNamePrefix(cat), reg_idx);
+  StringAppendF(&reg_name, "%c%s", DalvikReg::GetRegCategoryNamePrefix(cat), name.c_str());
 #endif
 
   // Save current IR builder insert point
@@ -3901,7 +3913,7 @@ llvm::Value* MethodCompiler::AllocDalvikLocalVarReg(RegCategory cat,
 }
 
 
-llvm::Value* MethodCompiler::AllocShadowFrameEntry(uint32_t reg_idx) {
+llvm::Value* MethodCompiler::GetShadowFrameEntry(uint32_t reg_idx) {
   if (reg_to_shadow_frame_index_[reg_idx] == -1) {
     // This register dosen't need ShadowFrame entry
     return NULL;
@@ -3914,7 +3926,7 @@ llvm::Value* MethodCompiler::AllocShadowFrameEntry(uint32_t reg_idx) {
   std::string reg_name;
 
 #if !defined(NDEBUG)
-  StringAppendF(&reg_name, "o%u", reg_idx);
+  StringAppendF(&reg_name, "s%u", reg_idx);
 #endif
 
   // Save current IR builder insert point
@@ -3929,30 +3941,6 @@ llvm::Value* MethodCompiler::AllocShadowFrameEntry(uint32_t reg_idx) {
   };
 
   llvm::Value* reg_addr = irb_.CreateGEP(shadow_frame_, gep_index, reg_name);
-
-  // Restore IRBuilder insert point
-  irb_.restoreIP(irb_ip_original);
-
-  DCHECK_NE(reg_addr, static_cast<llvm::Value*>(NULL));
-  return reg_addr;
-}
-
-
-llvm::Value* MethodCompiler::AllocDalvikRetValReg(RegCategory cat) {
-  // Get reg_type and reg_name from DalvikReg
-  llvm::Type* reg_type = DalvikReg::GetRegCategoryEquivSizeTy(irb_, cat);
-  std::string reg_name;
-
-#if !defined(NDEBUG)
-  StringAppendF(&reg_name, "%c_res", DalvikReg::GetRegCategoryNamePrefix(cat));
-#endif
-
-  // Save current IR builder insert point
-  llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
-  irb_.SetInsertPoint(basic_block_alloca_);
-
-  // Alloca
-  llvm::Value* reg_addr = irb_.CreateAlloca(reg_type, 0, reg_name);
 
   // Restore IRBuilder insert point
   irb_.restoreIP(irb_ip_original);
@@ -3978,6 +3966,48 @@ void MethodCompiler::EmitUpdateDexPC(uint32_t dex_pc) {
                            ShadowFrame::DexPCOffset(),
                            irb_.getInt32(dex_pc),
                            kTBAAShadowFrame);
+}
+
+
+llvm::Value* MethodCompiler::EmitLoadDalvikReg(uint32_t reg_idx, JType jty,
+                                               JTypeSpace space) {
+  return regs_[reg_idx]->GetValue(jty, space);
+}
+
+llvm::Value* MethodCompiler::EmitLoadDalvikReg(uint32_t reg_idx, char shorty,
+                                               JTypeSpace space) {
+  return EmitLoadDalvikReg(reg_idx, GetJTypeFromShorty(shorty), space);
+}
+
+void MethodCompiler::EmitStoreDalvikReg(uint32_t reg_idx, JType jty,
+                                        JTypeSpace space, llvm::Value* new_value) {
+  regs_[reg_idx]->SetValue(jty, space, new_value);
+  if (jty == kObject && shadow_frame_entries_[reg_idx] != NULL) {
+    irb_.CreateStore(new_value, shadow_frame_entries_[reg_idx], kTBAAShadowFrame);
+  }
+}
+
+void MethodCompiler::EmitStoreDalvikReg(uint32_t reg_idx, char shorty,
+                                        JTypeSpace space, llvm::Value* new_value) {
+  EmitStoreDalvikReg(reg_idx, GetJTypeFromShorty(shorty), space, new_value);
+}
+
+llvm::Value* MethodCompiler::EmitLoadDalvikRetValReg(JType jty, JTypeSpace space) {
+  return retval_reg_->GetValue(jty, space);
+}
+
+llvm::Value* MethodCompiler::EmitLoadDalvikRetValReg(char shorty, JTypeSpace space) {
+  return EmitLoadDalvikRetValReg(GetJTypeFromShorty(shorty), space);
+}
+
+void MethodCompiler::EmitStoreDalvikRetValReg(JType jty, JTypeSpace space,
+                                              llvm::Value* new_value) {
+  retval_reg_->SetValue(jty, space, new_value);
+}
+
+void MethodCompiler::EmitStoreDalvikRetValReg(char shorty, JTypeSpace space,
+                                              llvm::Value* new_value) {
+  EmitStoreDalvikRetValReg(GetJTypeFromShorty(shorty), space, new_value);
 }
 
 
@@ -4139,18 +4169,7 @@ void MethodCompiler::ComputeMethodInfo() {
       break;
 
     case Instruction::INSTANCE_OF:
-      may_throw_exception = true;
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
-      }
-      break;
-
     case Instruction::ARRAY_LENGTH:
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
-      }
-      break;
-
     case Instruction::NEW_INSTANCE:
     case Instruction::NEW_ARRAY:
       may_throw_exception = true;
