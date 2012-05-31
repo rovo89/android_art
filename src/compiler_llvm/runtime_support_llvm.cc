@@ -80,11 +80,12 @@ void art_test_suspend_from_code(Thread* thread) {
   Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
 }
 
-void art_push_shadow_frame_from_code(void* new_shadow_frame) {
+void* art_push_shadow_frame_from_code(void* new_shadow_frame) {
   LOG(FATAL) << "Implemented by IRBuilder.";
+  return NULL;
 }
 
-void art_pop_shadow_frame_from_code() {
+void art_pop_shadow_frame_from_code(void*) {
   LOG(FATAL) << "Implemented by IRBuilder.";
 }
 
