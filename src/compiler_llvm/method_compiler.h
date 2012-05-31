@@ -18,7 +18,6 @@
 #define ART_SRC_COMPILER_LLVM_METHOD_COMPILER_H_
 
 #include "backend_types.h"
-#include "dalvik_reg.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "invoke_type.h"
@@ -59,6 +58,7 @@ namespace compiler_llvm {
 
 class CompilationUnit;
 class CompilerLLVM;
+class DalvikReg;
 class IRBuilder;
 
 class MethodCompiler {
@@ -81,11 +81,9 @@ class MethodCompiler {
 
   // Register helper function
 
-  llvm::Value* AllocDalvikLocalVarReg(RegCategory cat, uint32_t reg_idx);
+  llvm::Value* AllocDalvikReg(RegCategory cat, const std::string& name);
 
-  llvm::Value* AllocShadowFrameEntry(uint32_t reg_idx);
-
-  llvm::Value* AllocDalvikRetValReg(RegCategory cat);
+  llvm::Value* GetShadowFrameEntry(uint32_t reg_idx);
 
 
  private:
@@ -395,43 +393,23 @@ class MethodCompiler {
 
   // Register helper function
 
-  llvm::Value* EmitLoadDalvikReg(uint32_t reg_idx, JType jty,
-                                 JTypeSpace space) {
-    return regs_[reg_idx]->GetValue(jty, space);
-  }
+  llvm::Value* EmitLoadDalvikReg(uint32_t reg_idx, JType jty, JTypeSpace space);
 
-  llvm::Value* EmitLoadDalvikReg(uint32_t reg_idx, char shorty,
-                                 JTypeSpace space) {
-    return EmitLoadDalvikReg(reg_idx, GetJTypeFromShorty(shorty), space);
-  }
+  llvm::Value* EmitLoadDalvikReg(uint32_t reg_idx, char shorty, JTypeSpace space);
 
   void EmitStoreDalvikReg(uint32_t reg_idx, JType jty,
-                          JTypeSpace space, llvm::Value* new_value) {
-    regs_[reg_idx]->SetValue(jty, space, new_value);
-  }
+                          JTypeSpace space, llvm::Value* new_value);
 
   void EmitStoreDalvikReg(uint32_t reg_idx, char shorty,
-                          JTypeSpace space, llvm::Value* new_value) {
-    EmitStoreDalvikReg(reg_idx, GetJTypeFromShorty(shorty), space, new_value);
-  }
+                          JTypeSpace space, llvm::Value* new_value);
 
-  llvm::Value* EmitLoadDalvikRetValReg(JType jty, JTypeSpace space) {
-    return retval_reg_->GetValue(jty, space);
-  }
+  llvm::Value* EmitLoadDalvikRetValReg(JType jty, JTypeSpace space);
 
-  llvm::Value* EmitLoadDalvikRetValReg(char shorty, JTypeSpace space) {
-    return EmitLoadDalvikRetValReg(GetJTypeFromShorty(shorty), space);
-  }
+  llvm::Value* EmitLoadDalvikRetValReg(char shorty, JTypeSpace space);
 
-  void EmitStoreDalvikRetValReg(JType jty, JTypeSpace space,
-                                llvm::Value* new_value) {
-    retval_reg_->SetValue(jty, space, new_value);
-  }
+  void EmitStoreDalvikRetValReg(JType jty, JTypeSpace space, llvm::Value* new_value);
 
-  void EmitStoreDalvikRetValReg(char shorty, JTypeSpace space,
-                                llvm::Value* new_value) {
-    EmitStoreDalvikRetValReg(GetJTypeFromShorty(shorty), space, new_value);
-  }
+  void EmitStoreDalvikRetValReg(char shorty, JTypeSpace space, llvm::Value* new_value);
 
   // TODO: Use high-level IR to do this
   bool EmitInlineJavaIntrinsic(const std::string& callee_method_name,
@@ -477,6 +455,7 @@ class MethodCompiler {
   llvm::Function* func_;
 
   std::vector<DalvikReg*> regs_;
+  std::vector<llvm::Value*> shadow_frame_entries_;
   std::vector<int32_t> reg_to_shadow_frame_index_;
   UniquePtr<DalvikReg> retval_reg_;
 

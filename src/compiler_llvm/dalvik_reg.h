@@ -20,6 +20,7 @@
 #include "backend_types.h"
 
 #include <stdint.h>
+#include <string>
 
 namespace llvm {
   class Type;
@@ -34,16 +35,13 @@ class MethodCompiler;
 
 class DalvikReg {
  public:
-  static DalvikReg* CreateLocalVarReg(MethodCompiler& method_compiler,
-                                      uint32_t reg_idx);
-
-  static DalvikReg* CreateRetValReg(MethodCompiler& method_compiler);
-
   static llvm::Type* GetRegCategoryEquivSizeTy(IRBuilder& irb, RegCategory reg_cat);
 
   static char GetRegCategoryNamePrefix(RegCategory reg_cat);
 
-  virtual ~DalvikReg();
+  DalvikReg(MethodCompiler& method_compiler, const std::string& name);
+
+  ~DalvikReg();
 
   llvm::Value* GetValue(JType jty, JTypeSpace space);
 
@@ -51,28 +49,27 @@ class DalvikReg {
     return GetValue(GetJTypeFromShorty(shorty), space);
   }
 
-  virtual void SetValue(JType jty, JTypeSpace space, llvm::Value* value);
+  void SetValue(JType jty, JTypeSpace space, llvm::Value* value);
 
   void SetValue(char shorty, JTypeSpace space, llvm::Value* value) {
     return SetValue(GetJTypeFromShorty(shorty), space, value);
   }
 
- protected:
-  DalvikReg(MethodCompiler& method_compiler);
-
  private:
-  llvm::Value* GetAddr(JType jty, JTypeSpace space);
+  llvm::Value* GetAddr(JType jty);
 
   llvm::Value* RegCat1SExt(llvm::Value* value);
   llvm::Value* RegCat1ZExt(llvm::Value* value);
 
   llvm::Value* RegCat1Trunc(llvm::Value* value, llvm::Type* ty);
 
-  virtual llvm::Value* GetRawAddr(JType jty, JTypeSpace space) = 0;
-
- protected:
   MethodCompiler* method_compiler_;
   IRBuilder& irb_;
+
+  std::string reg_name_;
+  llvm::Value* reg_32_;
+  llvm::Value* reg_64_;
+  llvm::Value* reg_obj_;
 };
 
 } // namespace compiler_llvm
