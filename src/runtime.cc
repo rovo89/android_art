@@ -17,6 +17,7 @@
 #include "runtime.h"
 
 #include <signal.h>
+#include <sys/syscall.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -168,6 +169,7 @@ void Runtime::Abort() {
     LOG(INTERNAL_FATAL) << "Unexpectedly returned from abort hook!";
   }
 
+#if defined(__BIONIC__)
   // TODO: finish merging patches to fix abort(3) in bionic, then lose this!
   // Bionic doesn't implement POSIX semantics for abort(3) in a multi-threaded
   // process, so if we call abort(3) on a device, all threads in the process
@@ -178,7 +180,17 @@ void Runtime::Abort() {
   // We can also trivially tell the difference between a crash and
   // a deliberate abort by looking at the fault address.
   *reinterpret_cast<char*>(0xdeadd00d) = 38;
-  abort();
+#elif defined(__APPLE__)
+  // TODO: check that this actually gives good stack traces on the Mac!
+  pthread_kill(pthread_self(), SIGABRT);
+#else
+  // TODO: we ought to be able to use pthread_kill(3) here (or abort(3),
+  // which POSIX defines in terms of raise(3), which POSIX defines in terms
+  // of pthread_kill(3)). On Linux, though, libcorkscrew can't unwind through
+  // libpthread, which means the stacks we dump would be useless. Calling
+  // tgkill(2) directly avoids that.
+  syscall(__NR_tgkill, getpid(), GetTid(), SIGABRT);
+#endif
   // notreached
 }
 

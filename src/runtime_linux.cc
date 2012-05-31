@@ -226,6 +226,9 @@ struct UContext {
 };
 
 static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
+  static Mutex unexpected_signal_lock("unexpected signal lock");
+  MutexLock mu(unexpected_signal_lock);
+
   bool has_address = (signal_number == SIGILL || signal_number == SIGBUS ||
                       signal_number == SIGFPE || signal_number == SIGSEGV);
 
@@ -253,6 +256,15 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw
     while (true) {
     }
   }
+
+  // Remove our signal handler for this signal...
+  struct sigaction action;
+  memset(&action, 0, sizeof(action));
+  sigemptyset(&action.sa_mask);
+  action.sa_handler = SIG_DFL;
+  sigaction(signal_number, &action, NULL);
+  // ...and re-raise so we die with the appropriate status.
+  kill(getpid(), signal_number);
 }
 
 void Runtime::InitPlatformSignalHandlers() {
@@ -261,11 +273,8 @@ void Runtime::InitPlatformSignalHandlers() {
   memset(&action, 0, sizeof(action));
   sigemptyset(&action.sa_mask);
   action.sa_sigaction = HandleUnexpectedSignal;
-  action.sa_flags = SA_RESTART;
   // Use the three-argument sa_sigaction handler.
   action.sa_flags |= SA_SIGINFO;
-  // Remove ourselves as signal handler for this signal, in case of recursion.
-  action.sa_flags |= SA_RESETHAND;
   // Use the alternate signal stack so we can catch stack overflows.
   action.sa_flags |= SA_ONSTACK;
 
