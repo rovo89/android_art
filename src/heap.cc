@@ -239,6 +239,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   num_bytes_allocated_ = 0;
   num_objects_allocated_ = 0;
 
+  mark_stack_ = MarkStack::Create();
+
   // It's still too early to take a lock because there are no threads yet,
   // but we can create the heap lock now. We don't create it earlier to
   // make it clear that you can't use locks during heap initialization.
@@ -263,6 +265,7 @@ Heap::~Heap() {
   delete mark_bitmap_;
   delete live_bitmap_;
   delete card_table_;
+  delete mark_stack_;
   delete lock_;
 }
 
@@ -586,7 +589,7 @@ void Heap::CollectGarbageInternal(bool clear_soft_references) {
   uint64_t t0 = NanoTime();
   Object* cleared_references = NULL;
   {
-    MarkSweep mark_sweep;
+    MarkSweep mark_sweep(mark_stack_);
     timings.AddSplit("ctor");
 
     mark_sweep.Init();

@@ -41,9 +41,20 @@ void MarkStack::Init() {
   }
   byte* addr = mem_map_->Begin();
   CHECK(addr != NULL);
+
   begin_ = reinterpret_cast<const Object**>(addr);
   limit_ = reinterpret_cast<const Object**>(addr + length);
-  ptr_ = reinterpret_cast<Object const**>(addr);
+
+  Reset();
+}
+
+void MarkStack::Reset() {
+  DCHECK(mem_map_.get() != NULL);
+  DCHECK(begin_ != NULL);
+  DCHECK(limit_ != NULL);
+  byte* addr = const_cast<byte*>(reinterpret_cast<const byte*>(begin_));
+  const size_t length = limit_ - begin_;
+  ptr_ = reinterpret_cast<const Object**>(addr);
   int result = madvise(addr, length, MADV_DONTNEED);
   if (result == -1) {
     PLOG(WARNING) << "madvise failed";
