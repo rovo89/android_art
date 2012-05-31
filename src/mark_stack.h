@@ -50,6 +50,8 @@ class MarkStack {
     return ptr_ == begin_;
   }
 
+  void Reset();
+
  private:
   MarkStack() :
       begin_(NULL), limit_(NULL), ptr_(NULL) {
