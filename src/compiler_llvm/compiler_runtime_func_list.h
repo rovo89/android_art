@@ -65,49 +65,34 @@
   V(copysignl) \
   V(cos) \
   V(cosf) \
-  V(cosl) \
   V(exp) \
   V(exp2) \
   V(exp2f) \
-  V(exp2l) \
   V(expf) \
-  V(expl) \
   V(floor) \
   V(floorf) \
   V(floorl) \
   V(fma) \
   V(fmaf) \
-  V(fmal) \
   V(fmod) \
   V(fmodf) \
-  V(fmodl) \
   V(log) \
   V(log10) \
   V(log10f) \
-  V(log10l) \
-  V(log2) \
-  V(log2f) \
-  V(log2l) \
   V(logf) \
-  V(logl) \
   V(memcpy) \
   V(memmove) \
   V(memset) \
   V(nearbyint) \
   V(nearbyintf) \
-  V(nearbyintl) \
   V(pow) \
   V(powf) \
-  V(powl) \
   V(rint) \
   V(rintf) \
-  V(rintl) \
   V(sin) \
   V(sinf) \
-  V(sinl) \
   V(sqrt) \
   V(sqrtf) \
-  V(sqrtl) \
   V(trunc) \
   V(truncf) \
   V(truncl)

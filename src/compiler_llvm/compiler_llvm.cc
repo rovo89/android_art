@@ -16,6 +16,7 @@
 
 #include "compiler_llvm.h"
 
+#include "backend_options.h"
 #include "class_linker.h"
 #include "compilation_unit.h"
 #include "compiled_method.h"
@@ -33,7 +34,6 @@
 
 #include <llvm/LinkAllPasses.h>
 #include <llvm/LinkAllVMCore.h>
-#include <llvm/Support/CommandLine.h>
 #include <llvm/Support/ManagedStatic.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
@@ -41,14 +41,6 @@
 namespace llvm {
   extern bool TimePassesIsEnabled;
 }
-
-// NOTE: Although EnableARMLongCalls is defined in llvm/lib/Target/ARM/
-// ARMISelLowering.cpp, however, it is not in the llvm namespace.
-extern llvm::cl::opt<bool> EnableARMLongCalls;
-
-// ReserveR9 is defined in llvm/lib/Target/ARM/ARMSubtarget.cpp
-extern llvm::cl::opt<bool> ReserveR9;
-
 
 namespace {
 
@@ -61,11 +53,8 @@ void InitializeLLVM() {
   // NOTE: Uncomment following line to show the time consumption of LLVM passes
   //llvm::TimePassesIsEnabled = true;
 
-  // Enable -arm-reserve-r9
-  ReserveR9 = true;
-
-  // Enable -arm-long-calls
-  EnableARMLongCalls = false;
+  // Initialize LLVM target-specific options.
+  art::compiler_llvm::InitialBackendOptions();
 
   // Initialize LLVM target, MC subsystem, asm printer, and asm parser
   llvm::InitializeAllTargets();
