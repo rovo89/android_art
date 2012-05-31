@@ -868,7 +868,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   /* Set up for simple method detection */
   int numPatterns = sizeof(specialPatterns)/sizeof(specialPatterns[0]);
   bool livePattern = (numPatterns > 0) && !(cUnit->disableOpt & (1 << kMatch));
-  bool* deadPattern = (bool*)oatNew(cUnit.get(), sizeof(bool) * numPatterns,
+  bool* deadPattern = (bool*)oatNew(cUnit.get(), sizeof(bool) * numPatterns, true,
                                      kAllocMisc);
   SpecialCaseHandler specialCase = kNoHandler;
   int patternPos = 0;
