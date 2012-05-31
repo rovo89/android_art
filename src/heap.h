@@ -34,12 +34,13 @@ namespace art {
 
 class AllocSpace;
 class Class;
+class HeapBitmap;
 class ImageSpace;
+class MarkStack;
 class Object;
 class Space;
-class Thread;
-class HeapBitmap;
 class SpaceTest;
+class Thread;
 
 class Heap {
  public:
@@ -270,6 +271,9 @@ class Heap {
 
   // True while the garbage collector is running.
   bool is_gc_running_;
+
+  // Mark stack that we reuse to avoid re-allocating the mark stack
+  MarkStack* mark_stack_;
 
   // Number of bytes allocated.  Adjusted after each allocation and free.
   size_t num_bytes_allocated_;

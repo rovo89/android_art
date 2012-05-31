@@ -30,20 +30,7 @@ class Object;
 
 class MarkSweep {
  public:
-  MarkSweep() :
-      mark_stack_(NULL),
-      heap_(NULL),
-      mark_bitmap_(NULL),
-      live_bitmap_(NULL),
-      finger_(NULL),
-      condemned_(NULL),
-      soft_reference_list_(NULL),
-      weak_reference_list_(NULL),
-      finalizer_reference_list_(NULL),
-      phantom_reference_list_(NULL),
-      cleared_reference_list_(NULL),
-      class_count_(0), array_count_(0), other_count_(0) {
-  }
+  MarkSweep(MarkStack* mark_stack);
 
   ~MarkSweep();
 

@@ -36,12 +36,27 @@
 
 namespace art {
 
-void MarkSweep::Init() {
-  mark_stack_ = MarkStack::Create();
+MarkSweep::MarkSweep(MarkStack* mark_stack)
+    : mark_stack_(mark_stack),
+      heap_(NULL),
+      mark_bitmap_(NULL),
+      live_bitmap_(NULL),
+      finger_(NULL),
+      condemned_(NULL),
+      soft_reference_list_(NULL),
+      weak_reference_list_(NULL),
+      finalizer_reference_list_(NULL),
+      phantom_reference_list_(NULL),
+      cleared_reference_list_(NULL),
+      class_count_(0), array_count_(0), other_count_(0) {
+  DCHECK(mark_stack_ != NULL);
+}
 
+void MarkSweep::Init() {
   heap_ = Runtime::Current()->GetHeap();
   mark_bitmap_ = heap_->GetMarkBits();
   live_bitmap_ = heap_->GetLiveBits();
+  mark_stack_->Reset();
 
   // TODO: if concurrent, clear the card table.
 
@@ -598,8 +613,8 @@ MarkSweep::~MarkSweep() {
 #ifndef NDEBUG
   VLOG(heap) << "MarkSweep scanned classes=" << class_count_ << " arrays=" << array_count_ << " other=" << other_count_;
 #endif
-  delete mark_stack_;
   mark_bitmap_->Clear();
+  mark_stack_->Reset();
 }
 
 }  // namespace art
