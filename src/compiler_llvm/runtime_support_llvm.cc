@@ -27,6 +27,7 @@
 #include "shadow_frame.h"
 #include "thread.h"
 #include "thread_list.h"
+#include "utils_llvm.h"
 #include "verifier/method_verifier.h"
 #include "well_known_classes.h"
 
@@ -584,13 +585,6 @@ void art_check_put_array_element_from_code(const Object* element, const Object* 
 // Runtime Support Function Lookup Callback
 //----------------------------------------------------------------------------
 
-class CStringComparator {
- public:
-  bool operator()(const char* lhs, const char* rhs) const {
-    return (strcmp(lhs, rhs) < 0);
-  }
-};
-
 #define EXTERNAL_LINKAGE(NAME) \
 extern "C" void NAME(...);
 
@@ -623,7 +617,8 @@ static void* art_find_compiler_runtime_func(char const* name) {
   const char* const* const names_end = names + num_entries;
 
   const char* const* name_lbound_ptr =
-      std::lower_bound(names_begin, names_end, name, CStringComparator());
+      std::lower_bound(names_begin, names_end, name,
+                       CStringLessThanComparator());
 
   if (name_lbound_ptr < names_end && strcmp(*name_lbound_ptr, name) == 0) {
     return funcs[name_lbound_ptr - names_begin];
