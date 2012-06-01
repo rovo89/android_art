@@ -458,23 +458,23 @@ LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase,
       opcode = kMipsFswc1;
       break;
 #endif
-      case kWord:
-        opcode = kMipsSw;
-        break;
-      case kUnsignedHalf:
-      case kSignedHalf:
-        opcode = kMipsSh;
-        break;
-      case kUnsignedByte:
-      case kSignedByte:
-        opcode = kMipsSb;
-        break;
-      default:
-        LOG(FATAL) << "Bad case in storeBaseIndexed";
-    }
-    newLIR3(cUnit, opcode, rSrc, 0, tReg);
-    oatFreeTemp(cUnit, rNewIndex);
-    return first;
+    case kWord:
+      opcode = kMipsSw;
+      break;
+    case kUnsignedHalf:
+    case kSignedHalf:
+      opcode = kMipsSh;
+      break;
+    case kUnsignedByte:
+    case kSignedByte:
+      opcode = kMipsSb;
+      break;
+    default:
+      LOG(FATAL) << "Bad case in storeBaseIndexed";
+  }
+  newLIR3(cUnit, opcode, rSrc, 0, tReg);
+  oatFreeTemp(cUnit, rNewIndex);
+  return first;
 }
 
 LIR *loadMultiple(CompilationUnit *cUnit, int rBase, int rMask)
