@@ -35,6 +35,10 @@
 #include <sys/prctl.h>
 #endif
 
+#if defined(__linux__)
+#include <sys/personality.h>
+#endif
+
 namespace art {
 
 static pid_t gSystemServerPid = 0;
@@ -129,53 +133,77 @@ static void UnsetSigChldHandler() {
 
 // Calls POSIX setgroups() using the int[] object as an argument.
 // A NULL argument is tolerated.
-static int SetGids(JNIEnv* env, jintArray javaGids) {
+static void SetGids(JNIEnv* env, jintArray javaGids) {
   if (javaGids == NULL) {
-    return 0;
+    return;
   }
 
   COMPILE_ASSERT(sizeof(gid_t) == sizeof(jint), sizeof_gid_and_jint_are_differerent);
   ScopedIntArrayRO gids(env, javaGids);
-  if (gids.get() == NULL) {
-    return -1;
+  CHECK(gids.get() != NULL);
+  int rc = setgroups(gids.size(), reinterpret_cast<const gid_t*>(&gids[0]));
+  if (rc == -1) {
+    PLOG(FATAL) << "setgroups failed";
   }
-  return setgroups(gids.size(), (const gid_t *) &gids[0]);
 }
 
 // Sets the resource limits via setrlimit(2) for the values in the
 // two-dimensional array of integers that's passed in. The second dimension
 // contains a tuple of length 3: (resource, rlim_cur, rlim_max). NULL is
 // treated as an empty array.
-//
-// -1 is returned on error.
-static int SetRLimits(JNIEnv* env, jobjectArray javaRlimits) {
+static void SetRLimits(JNIEnv* env, jobjectArray javaRlimits) {
   if (javaRlimits == NULL) {
-    return 0;
+    return;
   }
 
   rlimit rlim;
   memset(&rlim, 0, sizeof(rlim));
 
-  for (int i = 0; i < env->GetArrayLength(javaRlimits); i++) {
+  for (int i = 0; i < env->GetArrayLength(javaRlimits); ++i) {
     ScopedLocalRef<jobject> javaRlimitObject(env, env->GetObjectArrayElement(javaRlimits, i));
     ScopedIntArrayRO javaRlimit(env, reinterpret_cast<jintArray>(javaRlimitObject.get()));
     if (javaRlimit.size() != 3) {
-      LOG(ERROR) << "rlimits array must have a second dimension of size 3";
-      return -1;
+      LOG(FATAL) << "rlimits array must have a second dimension of size 3";
     }
 
     rlim.rlim_cur = javaRlimit[1];
     rlim.rlim_max = javaRlimit[2];
 
-    int err = setrlimit(javaRlimit[0], &rlim);
-    if (err < 0) {
-      return -1;
+    int rc = setrlimit(javaRlimit[0], &rlim);
+    if (rc == -1) {
+      PLOG(FATAL) << "setrlimit(" << javaRlimit[0] << ", "
+                  << "{" << rlim.rlim_cur << ", " << rlim.rlim_max << "}) failed";
     }
   }
-  return 0;
 }
 
 #if defined(HAVE_ANDROID_OS)
+
+// The debug malloc library needs to know whether it's the zygote or a child.
+extern "C" int gMallocLeakZygoteChild;
+
+static void EnableDebugger() {
+  // To let a non-privileged gdbserver attach to this
+  // process, we must set our dumpable flag.
+  if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) == -1) {
+    PLOG(ERROR) << "prctl(PR_SET_DUMPABLE) failed for pid " << getpid();
+  }
+  // We don't want core dumps, though, so set the core dump size to 0.
+  rlimit rl;
+  rl.rlim_cur = 0;
+  rl.rlim_max = RLIM_INFINITY;
+  if (setrlimit(RLIMIT_CORE, &rl) == -1) {
+    PLOG(ERROR) << "setrlimit(RLIMIT_CORE) failed for pid " << getpid();
+  }
+}
+
+static void EnableKeepCapabilities() {
+  int rc = prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0);
+  if (rc == -1) {
+    PLOG(FATAL) << "prctl(PR_SET_KEEPCAPS) failed";
+  }
+}
+
 static void SetCapabilities(int64_t permitted, int64_t effective) {
   __user_cap_header_struct capheader;
   __user_cap_data_struct capdata;
@@ -193,8 +221,25 @@ static void SetCapabilities(int64_t permitted, int64_t effective) {
     PLOG(FATAL) << "capset(" << permitted << ", " << effective << ") failed";
   }
 }
+
+static void SetSchedulerPolicy() {
+#if 0 // SP_DEFAULT is not available in ics-mr1-plus-art.
+  errno = -set_sched_policy(0, SP_DEFAULT);
+  if (errno != 0) {
+    PLOG(FATAL) << "set_sched_policy(0, SP_DEFAULT) failed";
+  }
+#endif
+}
+
 #else
+
+static int gMallocLeakZygoteChild = 0;
+
+static void EnableDebugger() {}
+static void EnableKeepCapabilities() {}
 static void SetCapabilities(int64_t, int64_t) {}
+static void SetSchedulerPolicy() {}
+
 #endif
 
 static void EnableDebugFeatures(uint32_t debug_flags) {
@@ -227,26 +272,9 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
   }
 
   Dbg::SetJdwpAllowed((debug_flags & DEBUG_ENABLE_DEBUGGER) != 0);
-#ifdef HAVE_ANDROID_OS
   if ((debug_flags & DEBUG_ENABLE_DEBUGGER) != 0) {
-    /* To let a non-privileged gdbserver attach to this
-     * process, we must set its dumpable bit flag. However
-     * we are not interested in generating a coredump in
-     * case of a crash, so also set the coredump size to 0
-     * to disable that
-     */
-    if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) < 0) {
-      PLOG(ERROR) << "could not set dumpable bit flag for pid " << getpid();
-    } else {
-      rlimit rl;
-      rl.rlim_cur = 0;
-      rl.rlim_max = RLIM_INFINITY;
-      if (setrlimit(RLIMIT_CORE, &rl) < 0) {
-        PLOG(ERROR) << "could not disable core file generation for pid " << getpid();
-      }
-    }
+    EnableDebugger();
   }
-#endif
   debug_flags &= ~DEBUG_ENABLE_DEBUGGER;
 
   // These two are for backwards compatibility with Dalvik.
@@ -257,10 +285,6 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
     LOG(ERROR) << StringPrintf("Unknown bits set in debug_flags: %#x", debug_flags);
   }
 }
-
-#ifdef HAVE_ANDROID_OS
-extern "C" int gMallocLeakZygoteChild;
-#endif
 
 // Utility routine to fork zygote and specialize the child process.
 static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaGids,
@@ -281,51 +305,40 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
   pid_t pid = fork();
 
   if (pid == 0) {
-    // The child process
-
-#ifdef HAVE_ANDROID_OS
+    // The child process.
     gMallocLeakZygoteChild = 1;
 
-    // keep caps across UID change, unless we're staying root */
+    // Keep capabilities across UID change, unless we're staying root.
     if (uid != 0) {
-      int err = prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0);
-      if (err < 0) {
-        PLOG(FATAL) << "cannot PR_SET_KEEPCAPS";
-      }
-    }
-#endif // HAVE_ANDROID_OS
-
-    int err = SetGids(env, javaGids);
-    if (err < 0) {
-        PLOG(FATAL) << "setgroups failed";
+      EnableKeepCapabilities();
     }
 
-    err = SetRLimits(env, javaRlimits);
-    if (err < 0) {
-      PLOG(FATAL) << "setrlimit failed";
-    }
+    SetGids(env, javaGids);
 
-    err = setgid(gid);
-    if (err < 0) {
+    SetRLimits(env, javaRlimits);
+
+    int rc = setgid(gid);
+    if (rc == -1) {
       PLOG(FATAL) << "setgid(" << gid << ") failed";
     }
 
-    err = setuid(uid);
-    if (err < 0) {
+    rc = setuid(uid);
+    if (rc == -1) {
       PLOG(FATAL) << "setuid(" << uid << ") failed";
     }
 
-    SetCapabilities(permittedCapabilities, effectiveCapabilities);
-
-#if 1
-    UNIMPLEMENTED(WARNING) << "enable this code when cutils/sched_policy.h has SP_DEFAULT";
-#else
-    err = set_sched_policy(0, SP_DEFAULT);
-    if (err < 0) {
-      errno = -err;
-      PLOG(FATAL) << "set_sched_policy(0, SP_DEFAULT) failed";
+#if defined(__linux__)
+    // Work around ARM kernel ASLR lossage (http://b/5817320).
+    int old_personality = personality(0xffffffff);
+    int new_personality = personality(old_personality | ADDR_NO_RANDOMIZE);
+    if (new_personality == -1) {
+      PLOG(WARNING) << "personality(" << new_personality << ") failed";
     }
 #endif
+
+    SetCapabilities(permittedCapabilities, effectiveCapabilities);
+
+    SetSchedulerPolicy();
 
     // Our system thread ID, etc, has changed so reset Thread state.
     self->InitAfterFork();
