@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-// NOTE: COMPILER_RUNTIME_FUNC_LIST should be sorted!
+#ifndef ART_SRC_COMPILER_LLVM_COMPILER_RUNTIME_FUNC_LIST_H_
+#define ART_SRC_COMPILER_LLVM_COMPILER_RUNTIME_FUNC_LIST_H_
 
-#if defined(__i386__) || defined(__mips__)
+// NOTE: COMPILER_RUNTIME_FUNC_LIST_* should be sorted!
 
-#define COMPILER_RUNTIME_FUNC_LIST(V) \
+#define COMPILER_RUNTIME_FUNC_LIST_X86(V) \
   V(__ashldi3) \
   V(__ashrdi3) \
   V(__divdi3) \
@@ -97,9 +98,69 @@
   V(truncf) \
   V(truncl)
 
-#elif defined(__arm__)
+#define COMPILER_RUNTIME_FUNC_LIST_MIPS(V) \
+  V(__ashldi3) \
+  V(__ashrdi3) \
+  V(__divdi3) \
+  V(__fixdfdi) \
+  V(__fixsfdi) \
+  V(__fixunsdfdi) \
+  V(__fixunsdfsi) \
+  V(__fixunssfdi) \
+  V(__fixunssfsi) \
+  V(__floatdidf) \
+  V(__floatdisf) \
+  V(__floatundidf) \
+  V(__floatundisf) \
+  V(__lshrdi3) \
+  V(__moddi3) \
+  V(__muldi3) \
+  V(__negdi2) \
+  V(__powidf2) \
+  V(__powisf2) \
+  V(__udivdi3) \
+  V(__umoddi3) \
+  V(ceil) \
+  V(ceilf) \
+  V(ceill) \
+  V(copysign) \
+  V(copysignf) \
+  V(copysignl) \
+  V(cos) \
+  V(cosf) \
+  V(exp) \
+  V(exp2) \
+  V(exp2f) \
+  V(expf) \
+  V(floor) \
+  V(floorf) \
+  V(floorl) \
+  V(fma) \
+  V(fmaf) \
+  V(fmod) \
+  V(fmodf) \
+  V(log) \
+  V(log10) \
+  V(log10f) \
+  V(logf) \
+  V(memcpy) \
+  V(memmove) \
+  V(memset) \
+  V(nearbyint) \
+  V(nearbyintf) \
+  V(pow) \
+  V(powf) \
+  V(rint) \
+  V(rintf) \
+  V(sin) \
+  V(sinf) \
+  V(sqrt) \
+  V(sqrtf) \
+  V(trunc) \
+  V(truncf) \
+  V(truncl)
 
-#define COMPILER_RUNTIME_FUNC_LIST(V) \
+#define COMPILER_RUNTIME_FUNC_LIST_ARM(V) \
   V(__aeabi_d2f) \
   V(__aeabi_d2iz) \
   V(__aeabi_d2lz) \
@@ -167,8 +228,15 @@
   V(memmove) \
   V(memset)
 
+
+#if defined(__arm__)
+#define COMPILER_RUNTIME_FUNC_LIST_NATIVE(V) COMPILER_RUNTIME_FUNC_LIST_ARM(V)
+#elif defined(__mips__)
+#define COMPILER_RUNTIME_FUNC_LIST_NATIVE(V) COMPILER_RUNTIME_FUNC_LIST_MIPS(V)
+#elif defined(__i386__)
+#define COMPILER_RUNTIME_FUNC_LIST_NATIVE(V) COMPILER_RUNTIME_FUNC_LIST_X86(V)
 #else
-
 #error "Unknown target platform"
-
 #endif
+
+#endif // ART_SRC_COMPILER_LLVM_COMPILER_RUNTIME_FUNC_LIST_H_
