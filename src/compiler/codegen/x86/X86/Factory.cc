@@ -586,8 +586,10 @@ LIR* storeBaseIndexedDisp(CompilationUnit *cUnit, MIR *mir,
       store = newLIR5(cUnit, opcode, rBase, rIndex, scale,
                       displacement + LOWORD_OFFSET, rSrc);
     } else {
-      store = newLIR5(cUnit, opcode, rBase, rIndex, scale, displacement + LOWORD_OFFSET, rSrc);
-      newLIR5(cUnit, opcode, rBase, rIndex, scale, displacement + HIWORD_OFFSET, rSrcHi);
+      store = newLIR5(cUnit, opcode, rBase, rIndex, scale,
+                      displacement + LOWORD_OFFSET, rSrc);
+      newLIR5(cUnit, opcode, rBase, rIndex, scale,
+              displacement + HIWORD_OFFSET, rSrcHi);
     }
   }
 

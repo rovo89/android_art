@@ -212,7 +212,7 @@ class Dex2Oat {
     UniquePtr<SirtRef<ClassLoader> > class_loader(new SirtRef<ClassLoader>(NULL));
     if (class_loader.get() == NULL) {
       LOG(ERROR) << "Failed to create SirtRef for class loader";
-      return false;
+      return NULL;
     }
 
     if (!boot_image_option.empty()) {

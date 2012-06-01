@@ -667,7 +667,7 @@ bool genInlinedCharAt(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   oatFreeTemp(cUnit, regPtr);
   storeValue(cUnit, rlDest, rlResult);
   if (rangeCheck) {
-    launchPad->operands[2] = NULL;  // no resumption
+    launchPad->operands[2] = 0;  // no resumption
     launchPad->operands[3] = (uintptr_t)bb;
   }
   // Record that we've already inlined & null checked
@@ -852,10 +852,10 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, BasicBlock* bb,
   //TUNING: check if rlCmp.sRegLow is already null checked
   LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (int)mir, type);
   oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
-              (intptr_t)launchPad);
+                        (intptr_t)launchPad);
   opCmpImmBranch(cUnit, kCondEq, regCmp, 0, launchPad);
   opReg(cUnit, kOpBlx, rTgt);
-  launchPad->operands[2] = NULL;  // No return possible
+  launchPad->operands[2] = 0;  // No return possible
   launchPad->operands[3] = (uintptr_t)bb;
   // Record that we've already inlined & null checked
   mir->optimizationFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
