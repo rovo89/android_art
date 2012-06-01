@@ -117,7 +117,7 @@ class Instruction {
     kThrow    = 0x08,  // could cause an exception to be thrown
     kReturn   = 0x10,  // returns, no additional statements
     kInvoke   = 0x20,  // a flavor of invoke
-    // TODO: kUnconditional
+    kUnconditional = 0x40, // unconditional branch
   };
 
   enum VerifyFlag {
@@ -185,6 +185,11 @@ class Instruction {
   // Returns true if this instruction is a branch.
   bool IsBranch() const {
     return (kInstructionFlags[Opcode()] & kBranch) != 0;
+  }
+
+  // Returns true if this instruction is a unconditional branch.
+  bool IsUnconditional() const {
+    return (kInstructionFlags[Opcode()] & kUnconditional) != 0;
   }
 
   // Returns true if this instruction is a switch.

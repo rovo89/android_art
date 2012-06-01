@@ -3344,17 +3344,20 @@ const InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCategoryMap() {
 
   for (size_t i = 0; i < insns_size; ++i) {
     if (RegisterLine* line = reg_table_.GetLine(i)) {
-      for (size_t r = 0; r < regs_size; ++r) {
-        const RegType &rt = line->GetRegisterType(r);
-        if (rt.IsNonZeroReferenceTypes()) {
-          table->SetRegCanBeObject(r);
+      const Instruction* inst = Instruction::At(code_item_->insns_ + i);
+
+      // GC points
+      if (inst->IsBranch() || inst->IsInvoke()) {
+        for (size_t r = 0; r < regs_size; ++r) {
+          const RegType &rt = line->GetRegisterType(r);
+          if (rt.IsNonZeroReferenceTypes()) {
+            table->SetRegCanBeObject(r);
+          }
         }
       }
 
-      const Instruction* inst = Instruction::At(code_item_->insns_ + i);
-
-      /* We only use InferredRegCategoryMap in two cases */
-      if (inst->IsBranch() || inst->IsReturn()) {
+      /* We only use InferredRegCategoryMap in one case */
+      if (inst->IsBranch()) {
         for (size_t r = 0; r < regs_size; ++r) {
           const RegType &rt = line->GetRegisterType(r);
 

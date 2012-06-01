@@ -286,11 +286,11 @@ class MethodCompiler {
 
   llvm::FunctionType* GetFunctionType(uint32_t method_idx, bool is_static);
 
-  void EmitGuard_ExceptionLandingPad(uint32_t dex_pc);
+  void EmitGuard_ExceptionLandingPad(uint32_t dex_pc, bool can_skip_unwind);
 
   void EmitBranchExceptionLandingPad(uint32_t dex_pc);
 
-  void EmitGuard_GarbageCollectionSuspend(uint32_t dex_pc);
+  void EmitGuard_GarbageCollectionSuspend();
 
   llvm::Value* EmitCompareResultSelection(llvm::Value* cmp_eq,
                                           llvm::Value* cmp_lt);
@@ -422,6 +422,8 @@ class MethodCompiler {
   bool EmitInlinedStringLength(const std::vector<llvm::Value*>& args,
                                llvm::BasicBlock* after_invoke);
 
+  bool IsInstructionDirectToReturn(uint32_t dex_pc);
+
   struct MethodInfo {
     int64_t this_reg_idx;
     bool this_will_not_be_null;
@@ -459,7 +461,6 @@ class MethodCompiler {
   std::vector<int32_t> reg_to_shadow_frame_index_;
   UniquePtr<DalvikReg> retval_reg_;
 
-  llvm::BasicBlock* basic_block_stack_overflow_;
   llvm::BasicBlock* basic_block_alloca_;
   llvm::BasicBlock* basic_block_shadow_frame_;
   llvm::BasicBlock* basic_block_reg_arg_init_;

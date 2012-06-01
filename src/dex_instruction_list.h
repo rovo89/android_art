@@ -55,9 +55,9 @@
   V(0x25, FILLED_NEW_ARRAY_RANGE, "filled-new-array/range", k3rc, false, kTypeRef, kContinue | kThrow, kVerifyRegBType | kVerifyVarArgRange) \
   V(0x26, FILL_ARRAY_DATA, "fill-array-data", k31t, false, kNone, kContinue | kThrow, kVerifyRegA | kVerifyArrayData) \
   V(0x27, THROW, "throw", k11x, false, kNone, kThrow, kVerifyRegA) \
-  V(0x28, GOTO, "goto", k10t, false, kNone, kBranch, kVerifyBranchTarget) \
-  V(0x29, GOTO_16, "goto/16", k20t, false, kNone, kBranch, kVerifyBranchTarget) \
-  V(0x2A, GOTO_32, "goto/32", k30t, false, kNone, kBranch, kVerifyBranchTarget) \
+  V(0x28, GOTO, "goto", k10t, false, kNone, kBranch | kUnconditional, kVerifyBranchTarget) \
+  V(0x29, GOTO_16, "goto/16", k20t, false, kNone, kBranch | kUnconditional, kVerifyBranchTarget) \
+  V(0x2A, GOTO_32, "goto/32", k30t, false, kNone, kBranch | kUnconditional, kVerifyBranchTarget) \
   V(0x2B, PACKED_SWITCH, "packed-switch", k31t, false, kNone, kContinue | kSwitch, kVerifyRegA | kVerifySwitchTargets) \
   V(0x2C, SPARSE_SWITCH, "sparse-switch", k31t, false, kNone, kContinue | kSwitch, kVerifyRegA | kVerifySwitchTargets) \
   V(0x2D, CMPL_FLOAT, "cmpl-float", k23x, true, kNone, kContinue, kVerifyRegA | kVerifyRegB | kVerifyRegC) \
