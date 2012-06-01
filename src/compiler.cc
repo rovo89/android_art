@@ -318,13 +318,14 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       compiler_(NULL),
       compiler_context_(NULL),
       jni_compiler_(NULL),
-      create_invoke_stub_(NULL)
-#if defined(ART_USE_LLVM_COMPILER)
-    , compiler_enable_auto_elf_loading_(NULL),
+#if !defined(ART_USE_LLVM_COMPILER)
+      create_invoke_stub_(NULL) {
+#else
+      create_invoke_stub_(NULL),
+      compiler_enable_auto_elf_loading_(NULL),
       compiler_get_method_code_addr_(NULL),
-      compiler_get_method_invoke_stub_addr_(NULL)
+      compiler_get_method_invoke_stub_addr_(NULL) {
 #endif
-{
   std::string compiler_so_name(MakeCompilerSoName(instruction_set_));
   compiler_library_ = dlopen(compiler_so_name.c_str(), RTLD_LAZY);
   if (compiler_library_ == NULL) {
