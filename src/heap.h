@@ -233,7 +233,7 @@ class Heap {
   void RecordAllocationLocked(AllocSpace* space, const Object* object);
   void RecordImageAllocations(Space* space);
 
-  void CollectGarbageInternal(bool clear_soft_references);
+  void CollectGarbageInternal(bool concurrent, bool clear_soft_references);
 
   // Given the current contents of the alloc space, increase the allowed heap footprint to match
   // the target utilization ratio.  This should only be called immediately after a full garbage

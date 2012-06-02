@@ -459,7 +459,7 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
   // Fail impossible allocations
   if (alloc_size > space->Capacity()) {
     // On failure collect soft references
-    CollectGarbageInternal(true);
+    CollectGarbageInternal(false, true);
     return NULL;
   }
 
@@ -486,7 +486,7 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
     ++Runtime::Current()->GetStats()->gc_for_alloc_count;
     ++Thread::Current()->GetStats()->gc_for_alloc_count;
   }
-  CollectGarbageInternal(false);
+  CollectGarbageInternal(false, false);
   ptr = space->AllocWithoutGrowth(alloc_size);
   if (ptr != NULL) {
     return ptr;
@@ -512,7 +512,7 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
 
   // OLD-TODO: wait for the finalizers from the previous GC to finish
   VLOG(gc) << "Forcing collection of SoftReferences for " << PrettySize(alloc_size) << " allocation";
-  CollectGarbageInternal(true);
+  CollectGarbageInternal(false, true);
   ptr = space->AllocWithGrowth(alloc_size);
   if (ptr != NULL) {
     return ptr;
@@ -575,10 +575,10 @@ int64_t Heap::CountInstances(Class* c, bool count_assignable) {
 
 void Heap::CollectGarbage(bool clear_soft_references) {
   ScopedHeapLock heap_lock;
-  CollectGarbageInternal(clear_soft_references);
+  CollectGarbageInternal(false, clear_soft_references);
 }
 
-void Heap::CollectGarbageInternal(bool clear_soft_references) {
+void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
   lock_->AssertHeld();
 
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
@@ -598,31 +598,43 @@ void Heap::CollectGarbageInternal(bool clear_soft_references) {
     mark_sweep.MarkRoots();
     timings.AddSplit("MarkRoots");
 
-    mark_sweep.ScanDirtyImageRoots();
-    timings.AddSplit("DirtyImageRoots");
-
     // Roots are marked on the bitmap and the mark_stack is empty
     DCHECK(mark_sweep.IsMarkStackEmpty());
 
-    // TODO: if concurrent
-    //   unlock heap
-    //   thread_list->ResumeAll();
+    if (concurrent) {
+      Unlock();
+      thread_list->ResumeAll();
+    }
 
     // Recursively mark all bits set in the non-image mark bitmap
     mark_sweep.RecursiveMark();
     timings.AddSplit("RecursiveMark");
 
-    // TODO: if concurrent
-    //   lock heap
-    //   thread_list->SuspendAll();
-    //   re-mark root set
-    //   scan dirty objects
+    if (concurrent) {
+      Lock();
+      thread_list->SuspendAll();
+
+      // Re-mark root set.
+      mark_sweep.ReMarkRoots();
+      timings.AddSplit("ReMarkRoots");
+    }
+
+    // Scan dirty objects, this is required even if we are not doing a
+    // concurrent GC since we use the card table to locate image roots.
+    mark_sweep.RecursiveMarkDirtyObjects();
+    timings.AddSplit("RecursiveMarkDirtyObjects");
 
     mark_sweep.ProcessReferences(clear_soft_references);
     timings.AddSplit("ProcessReferences");
 
-    // TODO: if concurrent
-    //    swap bitmaps
+    // TODO: swap live and marked bitmaps
+    // Note: Need to be careful about image spaces if we do this since not
+    // everything image space will be marked, resulting in things not being
+    // marked as live anymore.
+
+    // Verify that we only reach marked objects from the image space
+    mark_sweep.VerifyImageRoots();
+    timings.AddSplit("VerifyImageRoots");
 
     mark_sweep.Sweep();
     timings.AddSplit("Sweep");

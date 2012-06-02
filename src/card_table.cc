@@ -22,6 +22,7 @@
 #include "heap_bitmap.h"
 #include "logging.h"
 #include "runtime.h"
+#include "space.h"
 #include "utils.h"
 
 namespace art {
@@ -80,6 +81,18 @@ CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   return new CardTable(mem_map.release(), biased_begin, offset);
 }
 
+void CardTable::ClearNonImageSpaceCards(Heap* heap) {
+  // TODO: clear just the range of the table that has been modified
+  const std::vector<Space*>& spaces = heap->GetSpaces();
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    if (!spaces[i]->IsImageSpace()) {
+      byte* card_start = CardFromAddr(spaces[i]->Begin());
+      byte* card_end = CardFromAddr(spaces[i]->End());
+      memset(reinterpret_cast<void*>(card_start), GC_CARD_CLEAN, card_end - card_start);
+    }
+  }
+}
+
 void CardTable::ClearCardTable() {
   // TODO: clear just the range of the table that has been modified
   memset(mem_map_->Begin(), GC_CARD_CLEAN, mem_map_->Size());
@@ -97,8 +110,7 @@ void CardTable::CheckAddrIsInCardTable(const byte* addr) const {
   }
 }
 
-void CardTable::Scan(byte* heap_begin, byte* heap_end, Callback* visitor, void* arg) const {
-  Heap* heap = Runtime::Current()->GetHeap();
+void CardTable::Scan(HeapBitmap* bitmap, byte* heap_begin, byte* heap_end, Callback* visitor, void* arg) const {
   byte* card_cur = CardFromAddr(heap_begin);
   byte* card_end = CardFromAddr(heap_end);
   while (card_cur < card_end) {
@@ -113,7 +125,7 @@ void CardTable::Scan(byte* heap_begin, byte* heap_end, Callback* visitor, void* 
     }
     if (run > 0) {
       byte* run_end = &card_cur[run];
-      heap->GetLiveBits()->VisitRange(reinterpret_cast<uintptr_t>(AddrFromCard(run_start)),
+      bitmap->VisitRange(reinterpret_cast<uintptr_t>(AddrFromCard(run_start)),
                                       reinterpret_cast<uintptr_t>(AddrFromCard(run_end)),
                                       visitor, arg);
     }

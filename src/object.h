@@ -1676,7 +1676,7 @@ class MANAGED Class : public StaticStorageBase {
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, iftable_), new_iftable, false);
   }
 
-  // Get instance fields
+  // Get instance fields of the class (See also GetSFields).
   ObjectArray<Field>* GetIFields() const {
     DCHECK(IsLoaded() || IsErroneous());
     return GetFieldObject<ObjectArray<Field>*>(OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false);
@@ -1751,6 +1751,7 @@ class MANAGED Class : public StaticStorageBase {
     SetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), new_num, false);
   }
 
+  // Gets the static fields of the class.
   ObjectArray<Field>* GetSFields() const {
     DCHECK(IsLoaded() || IsErroneous());
     return GetFieldObject<ObjectArray<Field>*>(OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false);
