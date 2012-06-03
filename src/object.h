@@ -861,6 +861,22 @@ class MANAGED Method : public Object {
     return OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_);
   }
 
+#if defined(ART_USE_LLVM_COMPILER)
+  // Proxy stub entry point
+  const void* GetProxyStub() const {
+    // NOTE: LLVM doesn't use vmap table, so we reuse it for proxy stub.
+    const void* result = GetFieldPtr<const void*>(
+        OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_), false);
+    // TODO: DCHECK(result != NULL);  should be ahead of time compiled
+    return result;
+  }
+
+  void SetProxyStub(const void* proxy_stub) {
+    SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, vmap_table_),
+                             proxy_stub, false);
+  }
+#endif
+
   static MemberOffset GetMethodIndexOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, method_index_);
   }

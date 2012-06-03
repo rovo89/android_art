@@ -72,7 +72,7 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     basic_blocks_(code_item_->insns_size_in_code_units_),
     basic_block_landing_pads_(code_item_->tries_size_, NULL),
     basic_block_unwind_(NULL), basic_block_unreachable_(NULL),
-    shadow_frame_(NULL), jvalue_temp_(NULL), old_shadow_frame_(NULL),
+    shadow_frame_(NULL), old_shadow_frame_(NULL),
     already_pushed_shadow_frame_(NULL), shadow_frame_size_(0),
     elf_func_idx_(cunit_->AcquireUniqueElfFuncIndex()) {
 }
@@ -168,7 +168,6 @@ void MethodCompiler::EmitPrologue() {
 #endif
 
   irb_.SetInsertPoint(basic_block_alloca_);
-  jvalue_temp_ = irb_.CreateAlloca(irb_.getJValueTy());
 
   // Create Shadow Frame
   if (method_info_.need_shadow_frame) {
@@ -2880,10 +2879,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   llvm::BasicBlock* block_stub = CreateBasicBlockWithDexPC(dex_pc, "stub");
   llvm::BasicBlock* block_continue = CreateBasicBlockWithDexPC(dex_pc, "cont");
 
-  llvm::Value* code_addr_int = irb_.CreatePtrToInt(code_addr, irb_.getPtrEquivIntTy());
-  llvm::Value* max_stub_int = irb_.getPtrEquivInt(special_stub::kMaxSpecialStub);
-  llvm::Value* is_stub = irb_.CreateICmpULT(code_addr_int, max_stub_int);
-  irb_.CreateCondBr(is_stub, block_stub, block_normal, kUnlikely);
+  irb_.CreateCondBr(irb_.CreateIsNull(code_addr), block_stub, block_normal, kUnlikely);
 
 
   irb_.SetInsertPoint(block_normal);
@@ -2898,42 +2894,15 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
 
 
   irb_.SetInsertPoint(block_stub);
-  {
-    { // lazy link
-      // TODO: Remove this after we solve the link problem.
-      llvm::BasicBlock* block_proxy_stub = CreateBasicBlockWithDexPC(dex_pc, "proxy");
-      llvm::BasicBlock* block_link = CreateBasicBlockWithDexPC(dex_pc, "link");
+  { // lazy link
+    // TODO: Remove this after we solve the link problem.
+    code_addr = EmitFixStub(callee_method_object_addr, callee_method_idx, is_static);
 
-      irb_.CreateCondBr(irb_.CreateIsNull(code_addr), block_link, block_proxy_stub, kUnlikely);
+    EmitGuard_ExceptionLandingPad(dex_pc, false);
 
-
-      irb_.SetInsertPoint(block_link);
-      code_addr = EmitFixStub(callee_method_object_addr, callee_method_idx, is_static);
-
-      EmitGuard_ExceptionLandingPad(dex_pc, false);
-
-      llvm::Value* retval = irb_.CreateCall(code_addr, args);
-      if (ret_shorty != 'V') {
-        EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
-      }
-      irb_.CreateBr(block_continue);
-
-
-      irb_.SetInsertPoint(block_proxy_stub);
-    }
-    { // proxy stub
-      if (ret_shorty != 'V') {
-        args.push_back(jvalue_temp_);
-      }
-      // TODO: Remove this after we solve the proxy trampoline calling convention problem.
-      irb_.CreateCall(irb_.GetRuntime(ProxyInvokeHandler), args);
-      if (ret_shorty != 'V') {
-        llvm::Type* accurate_ret_type = irb_.getJType(ret_shorty, kAccurate);
-        llvm::Value* result_addr =
-            irb_.CreateBitCast(jvalue_temp_, accurate_ret_type->getPointerTo());
-        llvm::Value* retval = irb_.CreateLoad(result_addr, kTBAAStackTemp);
-        EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
-      }
+    llvm::Value* retval = irb_.CreateCall(code_addr, args);
+    if (ret_shorty != 'V') {
+      EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
     }
   }
   irb_.CreateBr(block_continue);

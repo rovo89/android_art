@@ -314,7 +314,8 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
       oat_method_offsets.code_elf_idx_,
       oat_method_offsets.code_elf_func_idx_,
       oat_method_offsets.invoke_stub_elf_idx_,
-      oat_method_offsets.invoke_stub_elf_func_idx_
+      oat_method_offsets.invoke_stub_elf_func_idx_,
+      oat_method_offsets.proxy_stub_elf_func_idx_
 #endif
       );
 }
@@ -333,7 +334,8 @@ OatFile::OatMethod::OatMethod(const byte* base,
                               const uint16_t code_elf_idx,
                               const uint16_t code_elf_func_idx,
                               const uint16_t invoke_stub_elf_idx,
-                              const uint16_t invoke_stub_elf_func_idx
+                              const uint16_t invoke_stub_elf_func_idx,
+                              const uint16_t proxy_stub_elf_func_idx
 #endif
                               )
   : begin_(base),
@@ -350,7 +352,8 @@ OatFile::OatMethod::OatMethod(const byte* base,
     code_elf_idx_(code_elf_idx),
     code_elf_func_idx_(code_elf_func_idx),
     invoke_stub_elf_idx_(invoke_stub_elf_idx),
-    invoke_stub_elf_func_idx_(invoke_stub_elf_func_idx)
+    invoke_stub_elf_func_idx_(invoke_stub_elf_func_idx),
+    proxy_stub_elf_func_idx_(proxy_stub_elf_func_idx)
 #endif
 {
 #ifndef NDEBUG
@@ -444,6 +447,18 @@ uint32_t OatFile::OatMethod::GetInvokeStubSize() const {
   }
 }
 
+#if defined(ART_USE_LLVM_COMPILER)
+const void* OatFile::OatMethod::GetProxyStub() const {
+  CHECK(elf_loader_ != NULL);
+  const void* stub = NULL;
+  if (proxy_stub_elf_func_idx_ != static_cast<uint16_t>(-1)) {
+    stub = elf_loader_->GetMethodCodeAddr(invoke_stub_elf_idx_,
+                                          proxy_stub_elf_func_idx_);
+  }
+  return stub;
+}
+#endif
+
 void OatFile::OatMethod::LinkMethodPointers(Method* method) const {
   CHECK(method != NULL);
   method->SetCode(GetCode());
@@ -454,6 +469,9 @@ void OatFile::OatMethod::LinkMethodPointers(Method* method) const {
   method->SetVmapTable(GetVmapTable());
   method->SetGcMap(GetGcMap());  // Note, used by native methods in work around JNI mode.
   method->SetInvokeStub(GetInvokeStub());
+#if defined(ART_USE_LLVM_COMPILER)
+  method->SetProxyStub(GetProxyStub());
+#endif
 }
 
 void OatFile::OatMethod::LinkMethodOffsets(Method* method) const {

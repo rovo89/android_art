@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_LLVM_UPCALL_COMPILER_H_
-#define ART_SRC_COMPILER_LLVM_UPCALL_COMPILER_H_
+#ifndef ART_SRC_COMPILER_LLVM_STUB_COMPILER_H_
+#define ART_SRC_COMPILER_LLVM_STUB_COMPILER_H_
 
 #include <stdint.h>
 
 namespace art {
   class CompiledInvokeStub;
+  class CompiledProxyStub;
   class Compiler;
 }
 
@@ -36,11 +37,12 @@ class CompilationUnit;
 class CompilerLLVM;
 class IRBuilder;
 
-class UpcallCompiler {
+class StubCompiler {
  public:
-  UpcallCompiler(CompilationUnit* cunit, Compiler& compiler);
+  StubCompiler(CompilationUnit* cunit, Compiler& compiler);
 
-  CompiledInvokeStub* CreateStub(bool is_static, char const* shorty);
+  uint16_t CreateInvokeStub(bool is_static, char const* shorty);
+  uint16_t CreateProxyStub(bool is_static, char const* shorty);
 
  private:
   CompilationUnit* cunit_;
@@ -48,7 +50,6 @@ class UpcallCompiler {
   llvm::Module* module_;
   llvm::LLVMContext* context_;
   IRBuilder& irb_;
-  uint16_t elf_func_idx_;
 };
 
 
@@ -56,4 +57,4 @@ class UpcallCompiler {
 } // namespace art
 
 
-#endif // ART_SRC_COMPILER_LLVM_UPCALL_COMPILER_H_
+#endif // ART_SRC_COMPILER_LLVM_STUB_COMPILER_H_
