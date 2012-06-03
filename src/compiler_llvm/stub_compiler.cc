@@ -196,7 +196,7 @@ uint16_t StubCompiler::CreateProxyStub(bool is_static,
                                        char const* shorty) {
   // Static method dosen't need proxy stub.
   if (is_static) {
-    return NULL;
+    return 0;
   }
 
   CHECK_NE(shorty, static_cast<char const*>(NULL));
