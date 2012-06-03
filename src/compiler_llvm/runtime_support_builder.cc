@@ -80,7 +80,10 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
 
     Function* get_thread = GetRuntimeSupportFunction(GetCurrentThread);
     Value* thread = irb_.CreateCall(get_thread);
-    Value* new_shadow_frame = func->arg_begin();
+    Function::arg_iterator arg_iter = func->arg_begin();
+    Value* new_shadow_frame = arg_iter++;
+    Value* method_object_addr = arg_iter++;
+    Value* shadow_frame_size = arg_iter++;
     Value* old_shadow_frame = irb_.LoadFromObjectOffset(thread,
                                                         Thread::TopShadowFrameOffset().Int32Value(),
                                                         irb_.getArtFrameTy()->getPointerTo(),
@@ -89,10 +92,48 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
                              Thread::TopShadowFrameOffset().Int32Value(),
                              new_shadow_frame,
                              kTBAARuntimeInfo);
+
+    // Store the method pointer
+    irb_.StoreToObjectOffset(new_shadow_frame,
+                             ShadowFrame::MethodOffset(),
+                             method_object_addr,
+                             kTBAAShadowFrame);
+
+    // Store the number of the pointer slots
+    irb_.StoreToObjectOffset(new_shadow_frame,
+                             ShadowFrame::NumberOfReferencesOffset(),
+                             shadow_frame_size,
+                             kTBAAShadowFrame);
+
+    // Store the link to previous shadow frame
     irb_.StoreToObjectOffset(new_shadow_frame,
                              ShadowFrame::LinkOffset(),
                              old_shadow_frame,
                              kTBAAShadowFrame);
+
+    irb_.CreateRet(old_shadow_frame);
+
+    VERIFY_LLVM_FUNCTION(*func);
+  }
+
+  if (!target_runtime_support_func_[PushShadowFrameNoInline]) {
+    Function* func = GetRuntimeSupportFunction(PushShadowFrameNoInline);
+
+    func->setLinkage(GlobalValue::PrivateLinkage);
+    func->addFnAttr(Attribute::NoInline);
+
+    BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
+    irb_.SetInsertPoint(basic_block);
+
+    Function::arg_iterator arg_iter = func->arg_begin();
+    Value* new_shadow_frame = arg_iter++;
+    Value* method_object_addr = arg_iter++;
+    Value* shadow_frame_size = arg_iter++;
+
+    // Call inline version
+    Value* old_shadow_frame =
+      irb_.CreateCall3(GetRuntimeSupportFunction(PushShadowFrame),
+                       new_shadow_frame, method_object_addr, shadow_frame_size);
     irb_.CreateRet(old_shadow_frame);
 
     VERIFY_LLVM_FUNCTION(*func);

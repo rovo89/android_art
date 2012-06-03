@@ -84,6 +84,8 @@ FunctionType* FuncTy_5 = FunctionType::get(
 
 std::vector<Type*>FuncTy_6_args;
 FuncTy_6_args.push_back(PointerTy_2);
+FuncTy_6_args.push_back(PointerTy_1);
+FuncTy_6_args.push_back(IntegerType::get(mod->getContext(), 32));
 FunctionType* FuncTy_6 = FunctionType::get(
  /*Result=*/PointerTy_2,
  /*Params=*/FuncTy_6_args,
@@ -422,6 +424,17 @@ func_art_push_shadow_frame_from_code->setCallingConv(CallingConv::C);
 }
 AttrListPtr func_art_push_shadow_frame_from_code_PAL;
 func_art_push_shadow_frame_from_code->setAttributes(func_art_push_shadow_frame_from_code_PAL);
+
+Function* func_art_push_shadow_frame_noinline_from_code = mod->getFunction("art_push_shadow_frame_noinline_from_code");
+if (!func_art_push_shadow_frame_noinline_from_code) {
+func_art_push_shadow_frame_noinline_from_code = Function::Create(
+ /*Type=*/FuncTy_6,
+ /*Linkage=*/GlobalValue::ExternalLinkage,
+ /*Name=*/"art_push_shadow_frame_noinline_from_code", mod); // (external, no body)
+func_art_push_shadow_frame_noinline_from_code->setCallingConv(CallingConv::C);
+}
+AttrListPtr func_art_push_shadow_frame_noinline_from_code_PAL;
+func_art_push_shadow_frame_noinline_from_code->setAttributes(func_art_push_shadow_frame_noinline_from_code_PAL);
 
 Function* func_art_pop_shadow_frame_from_code = mod->getFunction("art_pop_shadow_frame_from_code");
 if (!func_art_pop_shadow_frame_from_code) {

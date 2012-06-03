@@ -73,6 +73,7 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     basic_block_landing_pads_(code_item_->tries_size_, NULL),
     basic_block_unwind_(NULL), basic_block_unreachable_(NULL),
     shadow_frame_(NULL), jvalue_temp_(NULL), old_shadow_frame_(NULL),
+    already_pushed_shadow_frame_(NULL), shadow_frame_size_(0),
     elf_func_idx_(cunit_->AcquireUniqueElfFuncIndex()) {
 }
 
@@ -277,17 +278,20 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
   irb_.SetInsertPoint(basic_block_alloca_);
 
   // Allocate the shadow frame now!
-  uint32_t sirt_size = 0;
+  shadow_frame_size_ = 0;
   if (method_info_.need_shadow_frame_entry) {
     for (uint32_t i = 0, num_of_regs = code_item_->registers_size_; i < num_of_regs; ++i) {
       if (IsRegCanBeObject(i)) {
-        reg_to_shadow_frame_index_[i] = sirt_size++;
+        reg_to_shadow_frame_index_[i] = shadow_frame_size_++;
       }
     }
   }
 
-  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
+  llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(shadow_frame_size_);
   shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
+
+  // Alloca a pointer to old shadow frame
+  old_shadow_frame_ = irb_.CreateAlloca(shadow_frame_type->getElementType(0)->getPointerTo());
 
   irb_.SetInsertPoint(basic_block_shadow_frame_);
 
@@ -300,26 +304,16 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
 
   irb_.CreateStore(zero_initializer, shadow_frame_table, kTBAAShadowFrame);
 
-  // Get method object
-  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+  // Lazy pushing shadow frame
+  if (method_info_.lazy_push_shadow_frame) {
+    irb_.SetInsertPoint(basic_block_alloca_);
+    already_pushed_shadow_frame_ = irb_.CreateAlloca(irb_.getInt1Ty());
+    irb_.SetInsertPoint(basic_block_shadow_frame_);
+    irb_.CreateStore(irb_.getFalse(), already_pushed_shadow_frame_, kTBAARegister);
+    return;
+  }
 
-  // Store the method pointer
-  irb_.StoreToObjectOffset(shadow_frame_,
-                           ShadowFrame::MethodOffset(),
-                           method_object_addr,
-                           kTBAAShadowFrame);
-
-  // Store the number of the pointer slots
-  irb_.StoreToObjectOffset(shadow_frame_,
-                           ShadowFrame::NumberOfReferencesOffset(),
-                           irb_.getJInt(sirt_size),
-                           kTBAAShadowFrame);
-
-  // Push the shadow frame
-  llvm::Value* shadow_frame_upcast =
-    irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
-
-  old_shadow_frame_ = irb_.CreateCall(irb_.GetRuntime(PushShadowFrame), shadow_frame_upcast);
+  EmitPushShadowFrame(true);
 }
 
 
@@ -3952,12 +3946,50 @@ llvm::Value* MethodCompiler::GetShadowFrameEntry(uint32_t reg_idx) {
 }
 
 
+void MethodCompiler::EmitPushShadowFrame(bool is_inline) {
+  if (!method_info_.need_shadow_frame) {
+    return;
+  }
+  DCHECK(shadow_frame_ != NULL);
+  DCHECK(old_shadow_frame_ != NULL);
+
+  // Get method object
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  // Push the shadow frame
+  llvm::Value* shadow_frame_upcast =
+    irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
+
+  llvm::Value* result =
+      irb_.CreateCall3(irb_.GetRuntime(is_inline ? PushShadowFrame : PushShadowFrameNoInline),
+                       shadow_frame_upcast, method_object_addr, irb_.getJInt(shadow_frame_size_));
+  irb_.CreateStore(result, old_shadow_frame_, kTBAARegister);
+}
+
+
 void MethodCompiler::EmitPopShadowFrame() {
   if (!method_info_.need_shadow_frame) {
     return;
   }
   DCHECK(old_shadow_frame_ != NULL);
-  irb_.CreateCall(irb_.GetRuntime(PopShadowFrame), old_shadow_frame_);
+
+  if (method_info_.lazy_push_shadow_frame) {
+    llvm::BasicBlock* bb_pop = llvm::BasicBlock::Create(*context_, "pop", func_);
+    llvm::BasicBlock* bb_cont = llvm::BasicBlock::Create(*context_, "cont", func_);
+
+    llvm::Value* need_pop = irb_.CreateLoad(already_pushed_shadow_frame_, kTBAARegister);
+    irb_.CreateCondBr(need_pop, bb_pop, bb_cont, kUnlikely);
+
+    irb_.SetInsertPoint(bb_pop);
+    irb_.CreateCall(irb_.GetRuntime(PopShadowFrame),
+                    irb_.CreateLoad(old_shadow_frame_, kTBAARegister));
+    irb_.CreateBr(bb_cont);
+
+    irb_.SetInsertPoint(bb_cont);
+  } else {
+    irb_.CreateCall(irb_.GetRuntime(PopShadowFrame),
+                    irb_.CreateLoad(old_shadow_frame_, kTBAARegister));
+  }
 }
 
 
@@ -3969,6 +4001,21 @@ void MethodCompiler::EmitUpdateDexPC(uint32_t dex_pc) {
                            ShadowFrame::DexPCOffset(),
                            irb_.getInt32(dex_pc),
                            kTBAAShadowFrame);
+  // Lazy pushing shadow frame
+  if (method_info_.lazy_push_shadow_frame) {
+    llvm::BasicBlock* bb_push = CreateBasicBlockWithDexPC(dex_pc, "push");
+    llvm::BasicBlock* bb_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+    llvm::Value* no_need_push = irb_.CreateLoad(already_pushed_shadow_frame_, kTBAARegister);
+    irb_.CreateCondBr(no_need_push, bb_cont, bb_push, kLikely);
+
+    irb_.SetInsertPoint(bb_push);
+    EmitPushShadowFrame(false);
+    irb_.CreateStore(irb_.getTrue(), already_pushed_shadow_frame_, kTBAARegister);
+    irb_.CreateBr(bb_cont);
+
+    irb_.SetInsertPoint(bb_cont);
+  }
 }
 
 
@@ -4611,6 +4658,10 @@ void MethodCompiler::ComputeMethodInfo() {
   method_info_.need_shadow_frame_entry = has_invoke || may_have_loop;
   // If this method may throw an exception, we need a shadow frame for stack trace (dexpc).
   method_info_.need_shadow_frame = method_info_.need_shadow_frame_entry || may_throw_exception;
+  // If can only throw exception, but can't suspend check (no loop, no invoke),
+  // then there is no shadow frame entry. Only Shadow frame is needed.
+  method_info_.lazy_push_shadow_frame =
+      method_info_.need_shadow_frame && !method_info_.need_shadow_frame_entry;
 }
 
 

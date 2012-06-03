@@ -20,6 +20,7 @@
   V(GetCurrentThread, art_get_current_thread_from_code) \
   V(SetCurrentThread, art_set_current_thread_from_code) \
   V(PushShadowFrame, art_push_shadow_frame_from_code) \
+  V(PushShadowFrameNoInline, art_push_shadow_frame_noinline_from_code) \
   V(PopShadowFrame, art_pop_shadow_frame_from_code) \
   V(TestSuspend, art_test_suspend_from_code) \
   V(ThrowException, art_throw_exception_from_code) \
