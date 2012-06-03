@@ -423,6 +423,13 @@ class MethodCompiler {
   bool EmitInlinedStringLength(const std::vector<llvm::Value*>& args,
                                llvm::BasicBlock* after_invoke);
 
+  bool EmitInlinedStringIndexOf(const std::vector<llvm::Value*>& args,
+                                llvm::BasicBlock* after_invoke,
+                                bool zero_based);
+
+  bool EmitInlinedStringCompareTo(const std::vector<llvm::Value*>& args,
+                                  llvm::BasicBlock* after_invoke);
+
   bool IsInstructionDirectToReturn(uint32_t dex_pc);
 
   struct MethodInfo {
