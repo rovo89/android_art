@@ -150,6 +150,10 @@ class OatFile {
     const Method::InvokeStub* GetInvokeStub() const;
     uint32_t GetInvokeStubSize() const;
 
+#if defined(ART_USE_LLVM_COMPILER)
+    const void* GetProxyStub() const;
+#endif
+
     ~OatMethod();
 
     // Create an OatMethod with offsets relative to the given base address
@@ -167,7 +171,8 @@ class OatFile {
               const uint16_t code_elf_idx,
               const uint16_t code_elf_func_idx,
               const uint16_t invoke_stub_elf_idx,
-              const uint16_t invoke_stub_elf_func_idx
+              const uint16_t invoke_stub_elf_func_idx,
+              const uint16_t proxy_stub_elf_func_idx
 #endif
               );
 
@@ -198,6 +203,7 @@ class OatFile {
     uint16_t code_elf_func_idx_;
     uint16_t invoke_stub_elf_idx_;
     uint16_t invoke_stub_elf_func_idx_;
+    uint16_t proxy_stub_elf_func_idx_;
 #endif
 
     friend class OatClass;

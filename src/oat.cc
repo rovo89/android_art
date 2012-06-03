@@ -176,7 +176,8 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
                                  , uint16_t code_elf_idx,
                                    uint16_t code_elf_func_idx,
                                    uint16_t invoke_stub_elf_idx,
-                                   uint16_t invoke_stub_elf_func_idx
+                                   uint16_t invoke_stub_elf_func_idx,
+                                   uint16_t proxy_stub_elf_func_idx
 #endif
                                    )
   : code_offset_(code_offset),
@@ -191,7 +192,8 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
   , code_elf_idx_(code_elf_idx),
     code_elf_func_idx_(code_elf_func_idx),
     invoke_stub_elf_idx_(invoke_stub_elf_idx),
-    invoke_stub_elf_func_idx_(invoke_stub_elf_func_idx)
+    invoke_stub_elf_func_idx_(invoke_stub_elf_func_idx),
+    proxy_stub_elf_func_idx_(proxy_stub_elf_func_idx)
 #endif
 {}
 

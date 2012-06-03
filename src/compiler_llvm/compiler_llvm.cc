@@ -30,7 +30,7 @@
 #include "oat_compilation_unit.h"
 #include "oat_file.h"
 #include "stl_util.h"
-#include "upcall_compiler.h"
+#include "stub_compiler.h"
 
 #include <llvm/LinkAllPasses.h>
 #include <llvm/LinkAllVMCore.h>
@@ -225,8 +225,8 @@ const void* CompilerLLVM::GetMethodCodeAddr(const CompiledMethod* cm) const {
 
 const Method::InvokeStub* CompilerLLVM::
 GetMethodInvokeStubAddr(const CompiledInvokeStub* cm) const {
-  return elf_loader_->GetMethodInvokeStubAddr(cm->GetElfIndex(),
-                                              cm->GetElfFuncIndex());
+  return elf_loader_->GetMethodInvokeStubAddr(cm->GetStubElfIndex(),
+                                              cm->GetInvokeStubElfFuncIndex());
 }
 
 
@@ -279,10 +279,15 @@ CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
 
   MutexLock GUARD_CUNIT(curr_cunit_->cunit_lock_);
 
-  UniquePtr<UpcallCompiler> upcall_compiler(
-    new UpcallCompiler(curr_cunit_, *compiler_));
+  UniquePtr<StubCompiler> stub_compiler(
+    new StubCompiler(curr_cunit_, *compiler_));
 
-  return upcall_compiler->CreateStub(is_static, shorty);
+  CompiledInvokeStub* compiled_stub = new CompiledInvokeStub(curr_cunit_->GetElfIndex());
+
+  compiled_stub->SetInvokeStub(stub_compiler->CreateInvokeStub(is_static, shorty));
+  compiled_stub->SetProxyStub(stub_compiler->CreateProxyStub(is_static, shorty));
+
+  return compiled_stub;
 }
 
 } // namespace compiler_llvm

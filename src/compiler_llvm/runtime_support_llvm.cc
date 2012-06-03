@@ -654,7 +654,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
   va_start(ap, proxy_method);
 
   Object* receiver = va_arg(ap, Object*);
-  Thread* thread = art_get_current_thread_from_code();
+  Thread* thread = va_arg(ap, Thread*);
   MethodHelper proxy_mh(proxy_method);
   const size_t num_params = proxy_mh.NumArgs();
 

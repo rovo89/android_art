@@ -30,8 +30,8 @@ LIBART_COMPILER_LLVM_SRC_FILES += \
 	src/compiler_llvm/runtime_support_builder_arm.cc \
 	src/compiler_llvm/runtime_support_builder_x86.cc \
 	src/compiler_llvm/runtime_support_llvm.cc \
-	src/compiler_llvm/tbaa_info.cc \
-	src/compiler_llvm/upcall_compiler.cc
+	src/compiler_llvm/stub_compiler.cc \
+	src/compiler_llvm/tbaa_info.cc
 
 # $(1): target or host
 # $(2): ndebug or debug

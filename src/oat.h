@@ -86,7 +86,8 @@ class PACKED OatMethodOffsets {
                  , uint16_t code_elf_idx,
                    uint16_t code_elf_func_idx,
                    uint16_t invoke_stub_elf_idx,
-                   uint16_t invoke_stub_elf_func_idx
+                   uint16_t invoke_stub_elf_func_idx,
+                   uint16_t proxy_stub_elf_func_idx
 #endif
                    );
   ~OatMethodOffsets();
@@ -105,6 +106,7 @@ class PACKED OatMethodOffsets {
   uint16_t code_elf_func_idx_;
   uint16_t invoke_stub_elf_idx_;
   uint16_t invoke_stub_elf_func_idx_;
+  uint16_t proxy_stub_elf_func_idx_;
 #endif
 };
 

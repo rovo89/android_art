@@ -473,7 +473,6 @@ class MethodCompiler {
   llvm::BasicBlock* basic_block_unreachable_;
 
   llvm::AllocaInst* shadow_frame_;
-  llvm::AllocaInst* jvalue_temp_;
   llvm::Value* old_shadow_frame_;
 
   llvm::Value* already_pushed_shadow_frame_;
