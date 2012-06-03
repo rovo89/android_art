@@ -4029,6 +4029,15 @@ bool MethodCompiler::EmitInlineJavaIntrinsic(const std::string& callee_method_na
   if (callee_method_name == "int java.lang.String.length()") {
     return EmitInlinedStringLength(args, after_invoke);
   }
+  if (callee_method_name == "int java.lang.String.indexOf(int, int)") {
+    return EmitInlinedStringIndexOf(args, after_invoke, false /* base 0 */);
+  }
+  if (callee_method_name == "int java.lang.String.indexOf(int)") {
+    return EmitInlinedStringIndexOf(args, after_invoke, true /* base 0 */);
+  }
+  if (callee_method_name == "int java.lang.String.compareTo(java.lang.String)") {
+    return EmitInlinedStringCompareTo(args, after_invoke);
+  }
   return true;
 }
 
@@ -4041,26 +4050,23 @@ bool MethodCompiler::EmitInlinedStringCharAt(const std::vector<llvm::Value*>& ar
   llvm::BasicBlock* block_retry = llvm::BasicBlock::Create(*context_, "CharAtRetry", func_);
   llvm::BasicBlock* block_cont = llvm::BasicBlock::Create(*context_, "CharAtCont", func_);
 
-  // TODO: Can we safely say the String.count is ConstJObject(constant memory)? (there are so many
-  // iput to String.count in the String.<init>(...))
   llvm::Value* string_count = irb_.LoadFromObjectOffset(this_object,
                                                         String::CountOffset().Int32Value(),
                                                         irb_.getJIntTy(),
-                                                        kTBAAHeapInstance, kInt);
+                                                        kTBAAConstJObject);
   // Two's complement, so we can use only one "less than" to check "in bounds"
   llvm::Value* in_bounds = irb_.CreateICmpULT(char_index, string_count);
   irb_.CreateCondBr(in_bounds, block_cont, block_retry, kLikely);
 
   irb_.SetInsertPoint(block_cont);
-  // TODO: Can we safely say the String.offset is ConstJObject(constant memory)?
   llvm::Value* string_offset = irb_.LoadFromObjectOffset(this_object,
                                                          String::OffsetOffset().Int32Value(),
                                                          irb_.getJIntTy(),
-                                                         kTBAAHeapInstance, kInt);
+                                                         kTBAAConstJObject);
   llvm::Value* string_value = irb_.LoadFromObjectOffset(this_object,
                                                         String::ValueOffset().Int32Value(),
                                                         irb_.getJObjectTy(),
-                                                        kTBAAHeapInstance, kObject);
+                                                        kTBAAConstJObject);
 
   // index_value = string.offset + char_index
   llvm::Value* index_value = irb_.CreateAdd(string_offset, char_index);
@@ -4081,14 +4087,77 @@ bool MethodCompiler::EmitInlinedStringLength(const std::vector<llvm::Value*>& ar
   DCHECK_EQ(args.size(), 2U) <<
       "int java.lang.String.length() has 2 args: method, this";
   llvm::Value* this_object = args[1];
-  // TODO: Can we safely say the String.count is ConstJObject(constant memory)?
   llvm::Value* string_count = irb_.LoadFromObjectOffset(this_object,
                                                         String::CountOffset().Int32Value(),
                                                         irb_.getJIntTy(),
-                                                        kTBAAHeapInstance, kInt);
+                                                        kTBAAConstJObject);
   EmitStoreDalvikRetValReg(kInt, kAccurate, string_count);
   irb_.CreateBr(after_invoke);
   return false;
+}
+
+bool MethodCompiler::EmitInlinedStringIndexOf(const std::vector<llvm::Value*>& args,
+                                              llvm::BasicBlock* after_invoke,
+                                              bool zero_based) {
+  // TODO: Don't generate target specific bitcode, using intrinsic to delay to codegen.
+  if (compiler_->GetInstructionSet() == kArm || compiler_->GetInstructionSet() == kThumb2) {
+    DCHECK_EQ(args.size(), (zero_based ? 3U : 4U)) <<
+        "int java.lang.String.indexOf(int, int = 0) has 3~4 args: method, this, char, start";
+    llvm::Value* this_object = args[1];
+    llvm::Value* char_target = args[2];
+    llvm::Value* start_index = (zero_based ? irb_.getJInt(0) : args[3]);
+    llvm::BasicBlock* block_retry = llvm::BasicBlock::Create(*context_, "IndexOfRetry", func_);
+    llvm::BasicBlock* block_cont = llvm::BasicBlock::Create(*context_, "IndexOfCont", func_);
+
+    llvm::Value* slowpath = irb_.CreateICmpSGT(char_target, irb_.getJInt(0xFFFF));
+    irb_.CreateCondBr(slowpath, block_retry, block_cont, kUnlikely);
+
+    irb_.SetInsertPoint(block_cont);
+
+    llvm::Type* args_type[] = { irb_.getJObjectTy(), irb_.getJIntTy(), irb_.getJIntTy() };
+    llvm::FunctionType* func_ty = llvm::FunctionType::get(irb_.getJIntTy(), args_type, false);
+    llvm::Value* func =
+        irb_.Runtime().EmitLoadFromThreadOffset(ENTRYPOINT_OFFSET(pIndexOf),
+                                                func_ty->getPointerTo(),
+                                                kTBAAConstJObject);
+    llvm::Value* result = irb_.CreateCall3(func, this_object, char_target, start_index);
+    EmitStoreDalvikRetValReg(kInt, kAccurate, result);
+    irb_.CreateBr(after_invoke);
+
+    irb_.SetInsertPoint(block_retry);
+  }
+  return true;
+}
+
+bool MethodCompiler::EmitInlinedStringCompareTo(const std::vector<llvm::Value*>& args,
+                                                llvm::BasicBlock* after_invoke) {
+  // TODO: Don't generate target specific bitcode, using intrinsic to delay to codegen.
+  if (compiler_->GetInstructionSet() == kArm || compiler_->GetInstructionSet() == kThumb2) {
+    DCHECK_EQ(args.size(), 3U) <<
+        "int java.lang.String.compareTo(java.lang.String) has 3 args: method, this, cmpto";
+    llvm::Value* this_object = args[1];
+    llvm::Value* cmp_object = args[2];
+    llvm::BasicBlock* block_retry = llvm::BasicBlock::Create(*context_, "CompareToRetry", func_);
+    llvm::BasicBlock* block_cont = llvm::BasicBlock::Create(*context_, "CompareToCont", func_);
+
+    llvm::Value* is_null = irb_.CreateICmpEQ(cmp_object, irb_.getJNull());
+    irb_.CreateCondBr(is_null, block_retry, block_cont, kUnlikely);
+
+    irb_.SetInsertPoint(block_cont);
+
+    llvm::Type* args_type[] = { irb_.getJObjectTy(), irb_.getJObjectTy() };
+    llvm::FunctionType* func_ty = llvm::FunctionType::get(irb_.getJIntTy(), args_type, false);
+    llvm::Value* func =
+        irb_.Runtime().EmitLoadFromThreadOffset(ENTRYPOINT_OFFSET(pStringCompareTo),
+                                                func_ty->getPointerTo(),
+                                                kTBAAConstJObject);
+    llvm::Value* result = irb_.CreateCall2(func, this_object, cmp_object);
+    EmitStoreDalvikRetValReg(kInt, kAccurate, result);
+    irb_.CreateBr(after_invoke);
+
+    irb_.SetInsertPoint(block_retry);
+  }
+  return true;
 }
 
 
