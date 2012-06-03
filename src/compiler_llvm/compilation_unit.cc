@@ -295,7 +295,7 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream) {
   llvm::OwningPtr<llvm::TargetMachine> target_machine(
     target->createTargetMachine(target_triple, "", target_attr, target_options,
                                 llvm::Reloc::Static, llvm::CodeModel::Small,
-                                llvm::CodeGenOpt::Less));
+                                llvm::CodeGenOpt::Aggressive));
 
   CHECK(target_machine.get() != NULL) << "Failed to create target machine";
 
