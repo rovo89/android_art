@@ -366,18 +366,13 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   const CompiledInvokeStub* compiled_invoke_stub = compiler_->FindInvokeStub(is_static, shorty);
   if (compiled_invoke_stub != NULL) {
     if (compiled_invoke_stub->IsExecutableInElf()) {
-<<<<<<< HEAD
 #if defined(ART_USE_LLVM_COMPILER)
-      invoke_stub_elf_idx = compiled_invoke_stub->GetElfIndex();
-      invoke_stub_elf_func_idx = compiled_invoke_stub->GetElfFuncIndex();
-#endif
-=======
       invoke_stub_elf_idx = compiled_invoke_stub->GetStubElfIndex();
       invoke_stub_elf_func_idx = compiled_invoke_stub->GetInvokeStubElfFuncIndex();
       if (!is_static) {
         proxy_stub_elf_func_idx = compiled_invoke_stub->GetProxyStubElfFuncIndex();
       }
->>>>>>> f3b0b35... Implement proxy stub for compiler_llvm.
+#endif
     } else {
       offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
       DCHECK_ALIGNED(offset, kArmAlignment);
