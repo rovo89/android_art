@@ -1182,18 +1182,6 @@ static uintptr_t DemanglePc(uintptr_t pc) {
   return pc;
 }
 
-void Thread::PushShadowFrame(ShadowFrame* frame) {
-  frame->SetLink(top_shadow_frame_);
-  top_shadow_frame_ = frame;
-}
-
-ShadowFrame* Thread::PopShadowFrame() {
-  CHECK(top_shadow_frame_ != NULL);
-  ShadowFrame* frame = top_shadow_frame_;
-  top_shadow_frame_ = frame->GetLink();
-  return frame;
-}
-
 void Thread::PushSirt(StackIndirectReferenceTable* sirt) {
   sirt->SetLink(top_sirt_);
   top_sirt_ = sirt;

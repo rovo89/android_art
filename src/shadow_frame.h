@@ -32,9 +32,17 @@ class ShadowFrame {
     return number_of_references_;
   }
 
+  void SetNumberOfReferences(uint32_t number_of_references) {
+    number_of_references_ = number_of_references;
+  }
+
   // Caller dex pc
   uint32_t GetDexPC() const {
     return dex_pc_;
+  }
+
+  void SetDexPC(uint32_t dex_pc) {
+    dex_pc_ = dex_pc;
   }
 
   // Link to previous shadow frame or NULL
@@ -60,6 +68,11 @@ class ShadowFrame {
   Method* GetMethod() const {
     DCHECK_NE(method_, static_cast<void*>(NULL));
     return method_;
+  }
+
+  void SetMethod(Method* method) {
+    DCHECK_NE(method, static_cast<void*>(NULL));
+    method_ = method;
   }
 
   bool Contains(Object** shadow_frame_entry) const {

@@ -120,8 +120,8 @@ class IRBuilder : public LLVMIRBuilder {
     StoreToObjectOffset(object_addr, offset, new_value, tbaa_.GetMemoryJType(special_ty, j_ty));
   }
 
-  void SetTBAACall(llvm::CallInst* call_inst, TBAASpecialType special_ty) {
-    call_inst->setMetadata(llvm::LLVMContext::MD_tbaa, tbaa_.GetSpecialType(special_ty));
+  void SetTBAA(llvm::Instruction* inst, TBAASpecialType special_ty) {
+    inst->setMetadata(llvm::LLVMContext::MD_tbaa, tbaa_.GetSpecialType(special_ty));
   }
 
 
@@ -217,10 +217,16 @@ class IRBuilder : public LLVMIRBuilder {
   // Runtime Helper Function
   //--------------------------------------------------------------------------
 
+  RuntimeSupportBuilder& Runtime() {
+    return *runtime_support_;
+  }
+
+  // TODO: Deprecate
   llvm::Function* GetRuntime(runtime_support::RuntimeId rt) {
     return runtime_support_->GetRuntimeSupportFunction(rt);
   }
 
+  // TODO: Deprecate
   void SetRuntimeSupport(RuntimeSupportBuilder* runtime_support) {
     // Can only set once. We can't do this on constructor, because RuntimeSupportBuilder needs
     // IRBuilder.

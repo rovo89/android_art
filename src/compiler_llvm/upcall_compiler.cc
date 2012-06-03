@@ -91,7 +91,7 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
   llvm::Value* retval_addr = arg_iter++;
 
   // Setup thread pointer
-  irb_.CreateCall(irb_.GetRuntime(SetCurrentThread), thread_object_addr);
+  irb_.Runtime().EmitSetCurrentThread(thread_object_addr);
 
   // Accurate function type
   llvm::Type* accurate_ret_type = irb_.getJType(shorty[0], kAccurate);
@@ -158,7 +158,7 @@ CompiledInvokeStub* UpcallCompiler::CreateStub(bool is_static,
   llvm::Value* code_addr = irb_.CreatePointerCast(result, accurate_func_type->getPointerTo());
 
   // Exception unwind.
-  llvm::Value* exception_pending = irb_.CreateCall(irb_.GetRuntime(IsExceptionPending));
+  llvm::Value* exception_pending = irb_.Runtime().EmitIsExceptionPending();
   llvm::BasicBlock* block_unwind = llvm::BasicBlock::Create(*context_, "exception_unwind", func);
   llvm::BasicBlock* block_cont = llvm::BasicBlock::Create(*context_, "cont", func);
   irb_.CreateCondBr(exception_pending, block_unwind, block_cont);

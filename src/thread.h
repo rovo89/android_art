@@ -35,6 +35,7 @@
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "offsets.h"
 #include "runtime_stats.h"
+#include "shadow_frame.h"
 #include "stack.h"
 #include "trace.h"
 #include "UniquePtr.h"
@@ -436,8 +437,19 @@ class PACKED Thread {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, top_of_managed_stack_pc_));
   }
 
-  void PushShadowFrame(ShadowFrame* frame);
-  ShadowFrame* PopShadowFrame();
+  ShadowFrame* PushShadowFrame(ShadowFrame* frame) {
+    ShadowFrame* old_frame = top_shadow_frame_;
+    top_shadow_frame_ = frame;
+    frame->SetLink(old_frame);
+    return old_frame;
+  }
+
+  ShadowFrame* PopShadowFrame() {
+    CHECK(top_shadow_frame_ != NULL);
+    ShadowFrame* frame = top_shadow_frame_;
+    top_shadow_frame_ = frame->GetLink();
+    return frame;
+  }
 
   static ThreadOffset TopShadowFrameOffset() {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, top_shadow_frame_));

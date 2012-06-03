@@ -109,7 +109,7 @@ CompiledMethod* JniCompiler::Compile() {
   }
 
   // Get thread object
-  llvm::Value* thread_object_addr = irb_.CreateCall(irb_.GetRuntime(GetCurrentThread));
+  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
 
   // Shadow stack
   llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
@@ -124,21 +124,18 @@ CompiledMethod* JniCompiler::Compile() {
   // Push the shadow frame
   llvm::Value* shadow_frame_upcast = irb_.CreateConstGEP2_32(shadow_frame_, 0, 0);
   llvm::Value* old_shadow_frame =
-      irb_.CreateCall3(irb_.GetRuntime(PushShadowFrame),
-                       shadow_frame_upcast, method_object_addr, irb_.getInt32(sirt_size));
+      irb_.Runtime().EmitPushShadowFrame(shadow_frame_upcast, method_object_addr, sirt_size);
 
   // Get JNIEnv
   llvm::Value* jni_env_object_addr =
-      irb_.LoadFromObjectOffset(thread_object_addr,
-                                Thread::JniEnvOffset().Int32Value(),
-                                irb_.getJObjectTy(),
-                                kTBAAJRuntime);
+      irb_.Runtime().EmitLoadFromThreadOffset(Thread::JniEnvOffset().Int32Value(),
+                                          irb_.getJObjectTy(),
+                                          kTBAAJRuntime);
 
   // Set thread state to kNative
-  irb_.StoreToObjectOffset(thread_object_addr,
-                           Thread::StateOffset().Int32Value(),
-                           irb_.getInt32(kNative),
-                           kTBAARuntimeInfo);
+  irb_.Runtime().EmitStoreToThreadOffset(Thread::StateOffset().Int32Value(),
+                                     irb_.getInt32(kNative),
+                                     kTBAARuntimeInfo);
 
   // Get callee code_addr
   llvm::Value* code_addr =
@@ -227,13 +224,12 @@ CompiledMethod* JniCompiler::Compile() {
   }
 
   // Set thread state to kRunnable
-  irb_.StoreToObjectOffset(thread_object_addr,
-                           Thread::StateOffset().Int32Value(),
-                           irb_.getInt32(kRunnable),
-                           kTBAARuntimeInfo);
+  irb_.Runtime().EmitStoreToThreadOffset(Thread::StateOffset().Int32Value(),
+                                     irb_.getInt32(kRunnable),
+                                     kTBAARuntimeInfo);
 
   // Do a suspend check
-  irb_.CreateCall(irb_.GetRuntime(TestSuspend), thread_object_addr);
+  irb_.Runtime().EmitTestSuspend();
 
   if (return_shorty == 'L') {
     // If the return value is reference, it may point to SIRT, we should decode it.
@@ -260,7 +256,7 @@ CompiledMethod* JniCompiler::Compile() {
                            kTBAARuntimeInfo);
 
   // Pop the shadow frame
-  irb_.CreateCall(irb_.GetRuntime(PopShadowFrame), old_shadow_frame);
+  irb_.Runtime().EmitPopShadowFrame(old_shadow_frame);
 
   // Return!
   if (return_shorty != 'V') {
