@@ -26,4 +26,3 @@ ${JAVAC} -source 1.4 -target 1.4 -d classes `find src -name '*.java'`
 dx --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes 2>/dev/null
 
 zip $TEST_NAME.jar classes.dex
-dex2oatd --boot-image=$IMAGE --dex-file=$TEST_NAME.jar --dex-location=$DEX_LOCATION/$TEST_NAME.jar --oat-file=$TEST_NAME.jar.oat $DEX2OAT_ARGS

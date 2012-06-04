@@ -27,8 +27,6 @@ fi
 dx -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes
 zip $TEST_NAME.jar classes.dex
 
-dex2oatd --boot-image=$IMAGE --dex-file=$TEST_NAME.jar --dex-location=$DEX_LOCATION/$TEST_NAME.jar --oat-file=$TEST_NAME.jar.oat $DEX2OAT_ARGS
-
 if [ -r src-ex ]; then
     mkdir classes-ex
     ${JAVAC} -d classes-ex -cp classes `find src-ex -name '*.java'`
@@ -38,7 +36,6 @@ if [ -r src-ex ]; then
     mv classes.dex classes-1.dex
     mv classes-ex.dex classes.dex
     zip $TEST_NAME-ex.jar classes.dex
-    dex2oatd --boot-image=$IMAGE --dex-file=$TEST_NAME-ex.jar --dex-location=$DEX_LOCATION/$TEST_NAME-ex.jar --oat-file=$TEST_NAME-ex.jar.oat $DEX2OAT_ARGS
     mv classes.dex classes-ex.dex
     mv classes-1.dex classes.dex
 fi

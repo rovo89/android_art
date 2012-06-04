@@ -21,4 +21,3 @@ set -e
 # issue when interfaces override methods in Object
 dx --debug --dex --dump-to=classes.lst --output=classes.dex classes
 zip $TEST_NAME.jar classes.dex
-dex2oatd --boot-image=$IMAGE --dex-file=$TEST_NAME.jar --dex-location=$DEX_LOCATION/$TEST_NAME.jar --oat-file=$TEST_NAME.jar.oat $DEX2OAT_ARGS
