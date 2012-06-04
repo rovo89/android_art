@@ -581,7 +581,7 @@ void MarkSweep::ProcessReferences(Object** soft_references, bool clear_soft,
 
   // Unless we are in the zygote or required to clear soft references
   // with white references, preserve some white referents.
-  if (clear_soft) {
+  if (!clear_soft && !Runtime::Current()->IsZygote()) {
     PreserveSomeSoftReferences(soft_references);
   }
 
