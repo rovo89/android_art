@@ -271,10 +271,10 @@ bool MethodVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file, 
   if (success) {
     // Verification completed, however failures may be pending that didn't cause the verification
     // to hard fail.
+    CHECK(!verifier.have_pending_hard_failure_);
     if (verifier.failures_.size() != 0) {
       verifier.DumpFailures(LOG(INFO) << "Soft verification failures in "
                                       << PrettyMethod(method_idx, *dex_file) << "\n");
-      success = false;
     }
   } else {
     // Bad method data.
