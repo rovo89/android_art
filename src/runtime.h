@@ -108,8 +108,13 @@ class Runtime {
   // Starts a runtime, which may cause threads to be started and code to run.
   void Start();
 
-  bool IsShuttingDown() const;
-  bool IsStarted() const;
+  bool IsShuttingDown() const {
+    return shutting_down_;
+  }
+
+  bool IsStarted() const {
+    return started_;
+  }
 
   static Runtime* Current() {
     return instance_;
@@ -181,12 +186,26 @@ class Runtime {
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
 
-  bool HasJniDlsymLookupStub() const;
-  ByteArray* GetJniDlsymLookupStub() const;
+  bool HasJniDlsymLookupStub() const {
+    return jni_stub_array_ != NULL;
+  }
+
+  ByteArray* GetJniDlsymLookupStub() const {
+    CHECK(HasJniDlsymLookupStub());
+    return jni_stub_array_;
+  }
+
   void SetJniDlsymLookupStub(ByteArray* jni_stub_array);
 
-  bool HasAbstractMethodErrorStubArray() const;
-  ByteArray* GetAbstractMethodErrorStubArray() const;
+  bool HasAbstractMethodErrorStubArray() const {
+    return abstract_method_error_stub_array_ != NULL;
+  }
+
+  ByteArray* GetAbstractMethodErrorStubArray() const {
+    CHECK(abstract_method_error_stub_array_ != NULL);
+    return abstract_method_error_stub_array_;
+  }
+
   void SetAbstractMethodErrorStubArray(ByteArray* abstract_method_error_stub_array);
 
   enum TrampolineType {
@@ -194,16 +213,34 @@ class Runtime {
     kUnknownMethod,
     kLastTrampolineMethodType  // Value used for iteration
   };
-  static TrampolineType GetTrampolineType(Method* method);
-  bool HasResolutionStubArray(TrampolineType type) const;
-  ByteArray* GetResolutionStubArray(TrampolineType type) const;
+
+  bool HasResolutionStubArray(TrampolineType type) const {
+    return resolution_stub_array_[type] != NULL;
+  }
+
+  ByteArray* GetResolutionStubArray(TrampolineType type) const {
+    CHECK(HasResolutionStubArray(type));
+    DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastTrampolineMethodType));
+    return resolution_stub_array_[type];
+  }
+
   void SetResolutionStubArray(ByteArray* resolution_stub_array, TrampolineType type);
 
-  // Returns a special method to trampoline into runtime resolution
+  // Returns a special method that calls into a trampoline for runtime method resolution
+  Method* GetResolutionMethod() const {
+    CHECK(HasResolutionMethod());
+    return resolution_method_;
+  }
+
+  bool HasResolutionMethod() const {
+    return resolution_method_ != NULL;
+  }
+
+  void SetResolutionMethod(Method* method) {
+    resolution_method_ = method;
+  }
+
   Method* CreateResolutionMethod();
-  bool HasResolutionMethod() const;
-  Method* GetResolutionMethod() const;
-  void SetResolutionMethod(Method* method);
 
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {
@@ -212,17 +249,28 @@ class Runtime {
     kRefsAndArgs,
     kLastCalleeSaveType  // Value used for iteration
   };
-  Method* CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type);
-  bool HasCalleeSaveMethod(CalleeSaveType type) const;
-  Method* GetCalleeSaveMethod(CalleeSaveType type) const;
+
+  bool HasCalleeSaveMethod(CalleeSaveType type) const {
+    return callee_save_method_[type] != NULL;
+  }
+
+  Method* GetCalleeSaveMethod(CalleeSaveType type) const {
+    CHECK(HasCalleeSaveMethod(type));
+    return callee_save_method_[type];
+  }
+
   void SetCalleeSaveMethod(Method* method, CalleeSaveType type);
+
+  Method* CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type);
 
   Method* CreateRefOnlyCalleeSaveMethod(InstructionSet instruction_set);
   Method* CreateRefAndArgsCalleeSaveMethod(InstructionSet instruction_set);
 
   int32_t GetStat(int kind);
 
-  RuntimeStats* GetStats();
+  RuntimeStats* GetStats() {
+    return &stats_;
+  }
 
   bool HasStatsEnabled() const {
     return stats_enabled_;
@@ -236,12 +284,20 @@ class Runtime {
 
   void EnableMethodTracing(Trace* tracer);
   void DisableMethodTracing();
-  bool IsMethodTracingActive() const;
-  Trace* GetTracer() const;
+
+  bool IsMethodTracingActive() const {
+    return tracer_ != NULL;
+  }
+
+  Trace* GetTracer() const {
+    CHECK(IsMethodTracingActive());
+    return tracer_;
+  }
 
   bool UseCompileTimeClassPath() const {
     return use_compile_time_class_path_;
   }
+
   const std::vector<const DexFile*>& GetCompileTimeClassPath(const ClassLoader* class_loader);
   void SetCompileTimeClassPath(const ClassLoader* class_loader, std::vector<const DexFile*>& class_path);
 
