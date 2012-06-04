@@ -1858,7 +1858,19 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::INVOKE_DIRECT_RANGE: {
       bool is_range = (dec_insn.opcode == Instruction::INVOKE_DIRECT_RANGE);
       Method* called_method = VerifyInvocationArgs(dec_insn, METHOD_DIRECT, is_range, false);
-      if (called_method != NULL && called_method->IsConstructor()) {
+      const char* return_type_descriptor;
+      bool is_constructor;
+      if (called_method == NULL) {
+        uint32_t method_idx = dec_insn.vB;
+        const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
+        is_constructor = StringPiece(dex_file_->GetMethodName(method_id)) == "<init>";
+        uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
+        return_type_descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
+      } else {
+        is_constructor = called_method->IsConstructor();
+        return_type_descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
+      }
+      if (is_constructor) {
         /*
          * Some additional checks when calling a constructor. We know from the invocation arg check
          * that the "this" argument is an instance of called_method->klass. Now we further restrict
@@ -1877,12 +1889,13 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         }
 
         /* must be in same class or in superclass */
-        const RegType& this_super_klass = this_type.GetSuperClass(&reg_types_);
-        if (this_super_klass.IsConflict()) {
+        // const RegType& this_super_klass = this_type.GetSuperClass(&reg_types_);
+        // TODO: re-enable constructor type verification
+        // if (this_super_klass.IsConflict()) {
           // Unknown super class, fail so we re-check at runtime.
-          Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "super class unknown for '" << this_type << "'";
-          break;
-        }
+          // Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "super class unknown for '" << this_type << "'";
+          // break;
+        // }
 
         /* arg must be an uninitialized reference */
         if (!this_type.IsUninitializedTypes()) {
@@ -1897,16 +1910,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
          */
         work_line_->MarkRefsAsInitialized(this_type);
       }
-      const char* descriptor;
-      if (called_method == NULL) {
-        uint32_t method_idx = dec_insn.vB;
-        const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
-        uint32_t return_type_idx = dex_file_->GetProtoId(method_id.proto_idx_).return_type_idx_;
-        descriptor =  dex_file_->StringByTypeIdx(return_type_idx);
-      } else {
-        descriptor = MethodHelper(called_method).GetReturnTypeDescriptor();
-      }
-      const RegType& return_type = reg_types_.FromDescriptor(class_loader_, descriptor);
+      const RegType& return_type = reg_types_.FromDescriptor(class_loader_, return_type_descriptor);
       work_line_->SetResultRegisterType(return_type);
       just_set_result = true;
       break;
@@ -2562,7 +2566,7 @@ Method* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_idx, Met
 }
 
 Method* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
-                                          MethodType method_type, bool is_range, bool is_super) {
+                                             MethodType method_type, bool is_range, bool is_super) {
   // Resolve the method. This could be an abstract or concrete method depending on what sort of call
   // we're making.
   Method* res_method = ResolveMethodAndCheckAccess(dec_insn.vB, method_type);
