@@ -606,14 +606,6 @@ void Runtime::StartDaemonThreads() {
   VLOG(startup) << "Runtime::StartDaemonThreads exiting";
 }
 
-bool Runtime::IsShuttingDown() const {
-  return shutting_down_;
-}
-
-bool Runtime::IsStarted() const {
-  return started_;
-}
-
 bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
 
@@ -787,10 +779,6 @@ void Runtime::ResetStats(int kinds) {
   Thread::Current()->GetStats()->Clear(kinds >> 16);
 }
 
-RuntimeStats* Runtime::GetStats() {
-  return &stats_;
-}
-
 int32_t Runtime::GetStat(int kind) {
   RuntimeStats* stats;
   if (kind < (1<<16)) {
@@ -871,15 +859,6 @@ void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   }
 }
 
-bool Runtime::HasJniDlsymLookupStub() const {
-  return jni_stub_array_ != NULL;
-}
-
-ByteArray* Runtime::GetJniDlsymLookupStub() const {
-  CHECK(jni_stub_array_ != NULL);
-  return jni_stub_array_;
-}
-
 void Runtime::SetJniDlsymLookupStub(ByteArray* jni_stub_array) {
   CHECK(jni_stub_array != NULL)  << " jni_stub_array=" << jni_stub_array;
   CHECK(jni_stub_array_ == NULL || jni_stub_array_ == jni_stub_array)
@@ -887,40 +866,10 @@ void Runtime::SetJniDlsymLookupStub(ByteArray* jni_stub_array) {
   jni_stub_array_ = jni_stub_array;
 }
 
-bool Runtime::HasAbstractMethodErrorStubArray() const {
-  return abstract_method_error_stub_array_ != NULL;
-}
-
-ByteArray* Runtime::GetAbstractMethodErrorStubArray() const {
-  CHECK(abstract_method_error_stub_array_ != NULL);
-  return abstract_method_error_stub_array_;
-}
-
 void Runtime::SetAbstractMethodErrorStubArray(ByteArray* abstract_method_error_stub_array) {
   CHECK(abstract_method_error_stub_array != NULL);
   CHECK(abstract_method_error_stub_array_ == NULL || abstract_method_error_stub_array_ == abstract_method_error_stub_array);
   abstract_method_error_stub_array_ = abstract_method_error_stub_array;
-}
-
-
-Runtime::TrampolineType Runtime::GetTrampolineType(Method* method) {
-  if (method == NULL) {
-    return Runtime::kUnknownMethod;
-  } else if (method->IsStatic()) {
-    return Runtime::kStaticMethod;
-  } else {
-    return Runtime::kUnknownMethod;
-  }
-}
-
-bool Runtime::HasResolutionStubArray(TrampolineType type) const {
-  return resolution_stub_array_[type] != NULL;
-}
-
-ByteArray* Runtime::GetResolutionStubArray(TrampolineType type) const {
-  CHECK(HasResolutionStubArray(type));
-  DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastTrampolineMethodType));
-  return resolution_stub_array_[type];
 }
 
 void Runtime::SetResolutionStubArray(ByteArray* resolution_stub_array, TrampolineType type) {
@@ -939,20 +888,6 @@ Method* Runtime::CreateResolutionMethod() {
   CHECK(unknown_resolution_stub != NULL);
   method->SetCode(unknown_resolution_stub->GetData());
   return method.get();
-}
-
-bool Runtime::HasResolutionMethod() const {
-  return resolution_method_ != NULL;
-}
-
-// Returns a special method that calls into a trampoline for runtime method resolution
-Method* Runtime::GetResolutionMethod() const {
-  CHECK(HasResolutionMethod());
-  return resolution_method_;
-}
-
-void Runtime::SetResolutionMethod(Method* method) {
-  resolution_method_ = method;
 }
 
 Method* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type) {
@@ -1003,16 +938,6 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSa
   return method.get();
 }
 
-bool Runtime::HasCalleeSaveMethod(CalleeSaveType type) const {
-  return callee_save_method_[type] != NULL;
-}
-
-// Returns a special method that describes all callee saves being spilled to the stack.
-Method* Runtime::GetCalleeSaveMethod(CalleeSaveType type) const {
-  CHECK(HasCalleeSaveMethod(type));
-  return callee_save_method_[type];
-}
-
 void Runtime::SetCalleeSaveMethod(Method* method, CalleeSaveType type) {
   DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
   callee_save_method_[type] = method;
@@ -1027,15 +952,6 @@ void Runtime::DisableMethodTracing() {
   CHECK(IsMethodTracingActive());
   delete tracer_;
   tracer_ = NULL;
-}
-
-bool Runtime::IsMethodTracingActive() const {
-  return (tracer_ != NULL);
-}
-
-Trace* Runtime::GetTracer() const {
-  CHECK(IsMethodTracingActive());
-  return tracer_;
 }
 
 const std::vector<const DexFile*>& Runtime::GetCompileTimeClassPath(const ClassLoader* class_loader) {
