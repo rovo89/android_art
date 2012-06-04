@@ -264,6 +264,7 @@ clean-oat:
 	rm -f $(TARGET_OUT_APPS)/*.oat
 	rm -f $(TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.jar.oat
 	rm -f $(TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/package.apk.oat
+	rm -rf /tmp/art-cache/*.oat
 	adb remount
 	adb shell rm $(ART_NATIVETEST_DIR)/*.oat
 	adb shell rm $(ART_NATIVETEST_DIR)/*.art
