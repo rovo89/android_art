@@ -36,11 +36,12 @@ LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int err
 }
 
 void LogMessage::LogLine(const char* message) {
+  const char* tag = ProgramInvocationShortName();
   int priority = kLogSeverityToAndroidLogPriority[data_->severity];
   if (priority == ANDROID_LOG_FATAL) {
-    LOG_PRI(priority, "art", "%s:%d] %s", data_->file, data_->line_number, message);
+    LOG_PRI(priority, tag, "%s:%d] %s", data_->file, data_->line_number, message);
   } else {
-    LOG_PRI(priority, "art", "%s", message);
+    LOG_PRI(priority, tag, "%s", message);
   }
 }
 
