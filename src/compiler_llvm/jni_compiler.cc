@@ -108,9 +108,6 @@ CompiledMethod* JniCompiler::Compile() {
     }
   }
 
-  // Get thread object
-  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
-
   // Shadow stack
   llvm::StructType* shadow_frame_type = irb_.getShadowFrameTy(sirt_size);
   llvm::AllocaInst* shadow_frame_ = irb_.CreateAlloca(shadow_frame_type);
@@ -187,10 +184,7 @@ CompiledMethod* JniCompiler::Compile() {
 
   // Acquire lock for synchronized methods.
   if (is_synchronized) {
-    // Acquire lock
-    irb_.CreateCall2(irb_.GetRuntime(LockObject),
-                     this_object_or_class_object,
-                     thread_object_addr);
+    irb_.Runtime().EmitLockObject(this_object_or_class_object);
   }
 
   // saved_local_ref_cookie = env->local_ref_cookie
@@ -218,9 +212,7 @@ CompiledMethod* JniCompiler::Compile() {
 
   // Release lock for synchronized methods.
   if (is_synchronized) {
-    irb_.CreateCall2(irb_.GetRuntime(UnlockObject),
-                     this_object_or_class_object,
-                     thread_object_addr);
+    irb_.Runtime().EmitUnlockObject(this_object_or_class_object);
   }
 
   // Set thread state to kRunnable
@@ -232,6 +224,9 @@ CompiledMethod* JniCompiler::Compile() {
   irb_.Runtime().EmitTestSuspend();
 
   if (return_shorty == 'L') {
+    // Get thread object
+    llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
+
     // If the return value is reference, it may point to SIRT, we should decode it.
     retval = irb_.CreateCall2(irb_.GetRuntime(DecodeJObjectInThread),
                               thread_object_addr,

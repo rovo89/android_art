@@ -60,6 +60,10 @@ class RuntimeSupportBuilder {
   virtual llvm::Value* EmitIsExceptionPending();
   virtual void EmitTestSuspend();
 
+  /* Monitor */
+  virtual void EmitLockObject(llvm::Value* object);
+  virtual void EmitUnlockObject(llvm::Value* object);
+
   llvm::Function* GetRuntimeSupportFunction(runtime_support::RuntimeId id) {
     if (id >= 0 && id < runtime_support::MAX_ID) {
       return runtime_support_func_decls_[id];

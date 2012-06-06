@@ -33,6 +33,7 @@ using namespace llvm;
 namespace art {
 namespace compiler_llvm {
 
+/* Thread */
 
 llvm::Value* RuntimeSupportBuilderARM::EmitGetCurrentThread() {
   Function* ori_func = GetRuntimeSupportFunction(runtime_support::GetCurrentThread);
@@ -72,6 +73,24 @@ void RuntimeSupportBuilderARM::EmitSetCurrentThread(llvm::Value* thread) {
   irb_.CreateCall(func, thread);
 }
 
+
+/* Monitor */
+
+void RuntimeSupportBuilderARM::EmitLockObject(llvm::Value* object) {
+  RuntimeSupportBuilder::EmitLockObject(object);
+  FunctionType* func_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
+                                            /*isVarArg=*/false);
+  InlineAsm* func = InlineAsm::get(func_ty, "dmb sy", "", true);
+  irb_.CreateCall(func);
+}
+
+void RuntimeSupportBuilderARM::EmitUnlockObject(llvm::Value* object) {
+  RuntimeSupportBuilder::EmitUnlockObject(object);
+  FunctionType* func_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
+                                            /*isVarArg=*/false);
+  InlineAsm* func = InlineAsm::get(func_ty, "dmb sy", "", true);
+  irb_.CreateCall(func);
+}
 
 } // namespace compiler_llvm
 } // namespace art

@@ -62,7 +62,7 @@ Thread* art_get_current_thread_from_code() {
 }
 
 void art_set_current_thread_from_code(void* thread_object_addr) {
-  LOG(FATAL) << "Implemented by IRBuilder.";
+  // Nothing to be done.
 }
 
 void art_lock_object_from_code(Object* obj, Thread* thread) {
