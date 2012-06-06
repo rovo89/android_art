@@ -581,12 +581,14 @@ void Heap::CollectGarbage(bool clear_soft_references) {
 void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
   lock_->AssertHeld();
 
+  TimingLogger timings("CollectGarbageInternal");
+  uint64_t t0 = NanoTime(), rootEnd = 0, dirtyBegin = 0, dirtyEnd = 0;
+
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   thread_list->SuspendAll();
+  timings.AddSplit("SuspendAll");
 
   size_t initial_size = num_bytes_allocated_;
-  TimingLogger timings("CollectGarbageInternal");
-  uint64_t t0 = NanoTime();
   Object* cleared_references = NULL;
   {
     MarkSweep mark_sweep(mark_stack_);
@@ -602,8 +604,10 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
     DCHECK(mark_sweep.IsMarkStackEmpty());
 
     if (concurrent) {
+      timings.AddSplit("RootEnd");
       Unlock();
       thread_list->ResumeAll();
+      rootEnd = NanoTime();
     }
 
     // Recursively mark all bits set in the non-image mark bitmap
@@ -611,8 +615,10 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
     timings.AddSplit("RecursiveMark");
 
     if (concurrent) {
+      dirtyBegin = NanoTime();
       Lock();
       thread_list->SuspendAll();
+      timings.AddSplit("ReSuspend");
 
       // Re-mark root set.
       mark_sweep.ReMarkRoots();
@@ -644,12 +650,14 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
 
   GrowForUtilization();
   timings.AddSplit("GrowForUtilization");
-  uint64_t t1 = NanoTime();
   thread_list->ResumeAll();
+  dirtyEnd = NanoTime();
 
   EnqueueClearedReferences(&cleared_references);
   RequestHeapTrim();
+  timings.AddSplit("Finish");
 
+  uint64_t t1 = NanoTime();
   uint64_t duration_ns = t1 - t0;
   bool gc_was_particularly_slow = duration_ns > MsToNs(50); // TODO: crank this down for concurrent.
   if (VLOG_IS_ON(gc) || gc_was_particularly_slow) {
@@ -657,9 +665,20 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
     size_t bytes_freed = initial_size - num_bytes_allocated_;
     // lose low nanoseconds in duration. TODO: make this part of PrettyDuration
     duration_ns = (duration_ns / 1000) * 1000;
-    LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
-              << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
-              << "paused " << PrettyDuration(duration_ns);
+    if (concurrent) {
+      uint64_t pauseRootsTime = (rootEnd - t0) / 1000 * 1000;
+      uint64_t pauseDirtyTime = (t1 - dirtyBegin) / 1000 * 1000;
+      LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
+                << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
+                << "paused " << PrettyDuration(pauseRootsTime) << "+" << PrettyDuration(pauseDirtyTime)
+                << ", total " << PrettyDuration(duration_ns);
+    } else {
+      uint64_t markSweepTime = (dirtyEnd - t0) / 1000 * 1000;
+      LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
+                << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
+                << "paused " << PrettyDuration(markSweepTime)
+                << ", total " << PrettyDuration(duration_ns);
+    }
   }
   Dbg::GcDidFinish();
   if (VLOG_IS_ON(heap)) {
