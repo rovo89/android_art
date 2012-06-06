@@ -939,7 +939,9 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       visitor(it->second, arg);
     }
-    // Note. we deliberately ignore the class roots in the image (held in image_classes_)
+
+    // We deliberately ignore the class roots in the image since we
+    // handle image roots by using the MS/CMS rescanning of dirty cards.
   }
 
   visitor(array_iftable_, arg);
