@@ -31,19 +31,20 @@ LIR *opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int value);
 LIR *opRegReg(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int rSrc2);
 LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
                     int checkValue, LIR* target);
-bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genNegLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc);
 
 /* Forward declaraton the portable versions due to circular dependency */
-bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
+bool genArithOpFloatPortable(CompilationUnit* cUnit, Instruction::Code opcode,
                              RegLocation rlDest, RegLocation rlSrc1,
                              RegLocation rlSrc2);
 
-bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
+bool genArithOpDoublePortable(CompilationUnit* cUnit, Instruction::Code opcode,
                               RegLocation rlDest, RegLocation rlSrc1,
                               RegLocation rlSrc2);
 
-bool genConversionPortable(CompilationUnit* cUnit, MIR* mir);
+bool genConversionPortable(CompilationUnit* cUnit, Instruction::Code opcode,
+                           RegLocation rlDest, RegLocation rlSrc);
 
 ArmConditionCode oatArmConditionEncoding(ConditionCode code);
 

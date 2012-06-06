@@ -34,10 +34,10 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
  * Perform register memory operation.
  */
 LIR* genRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
-                    int reg1, int base, int offset, MIR* mir, ThrowKind kind)
+                    int reg1, int base, int offset, ThrowKind kind)
 {
   LIR* tgt = rawLIR(cUnit, 0, kPseudoThrowTarget, kind,
-                    mir ? mir->offset : 0, reg1, base, offset);
+                    cUnit->currentDalvikOffset, reg1, base, offset);
   opRegMem(cUnit, kOpCmp, reg1, base, offset);
   LIR* branch = opCondBranch(cUnit, cCode, tgt);
   // Remember branch target - will process later
@@ -51,10 +51,10 @@ LIR* genRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
  */
 BasicBlock *findBlock(CompilationUnit* cUnit, unsigned int codeOffset,
                       bool split, bool create, BasicBlock** immedPredBlockP);
-void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
-                     LIR* labelList)
+void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
+                     RegLocation rlSrc, LIR* labelList)
 {
-  const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
+  const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   if (cUnit->printMe) {
     dumpSparseSwitchTable(table);
   }
@@ -64,7 +64,8 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
   rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
   for (int i = 0; i < entries; i++) {
     int key = keys[i];
-    BasicBlock* case_block = findBlock(cUnit, mir->offset + targets[i],
+    BasicBlock* case_block = findBlock(cUnit,
+                                       cUnit->currentDalvikOffset + targets[i],
                                        false, false, NULL);
     opCmpImmBranch(cUnit, kCondEq, rlSrc.lowReg, key,
                    &labelList[case_block->id]);
@@ -87,9 +88,10 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
  * jmp  rStartOfMethod
  * done:
  */
-void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+void genPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
+                     RegLocation rlSrc)
 {
-  const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
+  const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   if (cUnit->printMe) {
     dumpPackedSwitchTable(table);
   }
@@ -97,7 +99,7 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
   SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
                                               true, kAllocData);
   tabRec->table = table;
-  tabRec->vaddr = mir->offset;
+  tabRec->vaddr = cUnit->currentDalvikOffset;
   int size = table[1];
   tabRec->targets = (LIR* *)oatNew(cUnit, size * sizeof(LIR*), true,
                                    kAllocLIR);
@@ -149,14 +151,15 @@ void callRuntimeHelperRegReg(CompilationUnit* cUnit, int helperOffset,
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset,
+                      RegLocation rlSrc)
 {
-  const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
+  const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   // Add the table to the list - we'll process it later
   FillArrayData *tabRec = (FillArrayData *)oatNew(cUnit, sizeof(FillArrayData),
       true, kAllocData);
   tabRec->table = table;
-  tabRec->vaddr = mir->offset;
+  tabRec->vaddr = cUnit->currentDalvikOffset;
   u2 width = tabRec->table[1];
   u4 size = tabRec->table[2] | (((u4)tabRec->table[3]) << 16);
   tabRec->size = (size * width) + 8;
@@ -204,18 +207,18 @@ void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 #endif
 }
 
-LIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg, MIR* mir);
+LIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg, int optFlags);
 void callRuntimeHelperReg(CompilationUnit* cUnit, int helperOffset, int arg0);
 
 /*
  * TODO: implement fast path to short-circuit thin-lock case
  */
-void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
 {
   oatFlushAllRegs(cUnit);
   loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-  genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
+  genNullCheck(cUnit, rlSrc.sRegLow, rARG0, optFlags);
   // Go expensive route - artLockObjectFromCode(self, obj);
   callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode), rARG0);
 }
@@ -223,12 +226,12 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
 /*
  * TODO: implement fast path to short-circuit thin-lock case
  */
-void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+void genMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
 {
   oatFlushAllRegs(cUnit);
   loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-  genNullCheck(cUnit, rlSrc.sRegLow, rARG0, mir);
+  genNullCheck(cUnit, rlSrc.sRegLow, rARG0, optFlags);
   // Go expensive route - UnlockObjectFromCode(obj);
   callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARG0);
 }
@@ -249,7 +252,7 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  * finish:
  *
  */
-void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+void genCmpLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2)
 {
   oatFlushAllRegs(cUnit);

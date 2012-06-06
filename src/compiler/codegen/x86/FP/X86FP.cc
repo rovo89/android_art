@@ -16,7 +16,7 @@
 
 namespace art {
 
-static bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir,
+static bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
                             RegLocation rlDest, RegLocation rlSrc1,
                             RegLocation rlSrc2) {
   X86OpCode op = kX86Nop;
@@ -26,7 +26,7 @@ static bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir,
    * Don't attempt to optimize register usage since these opcodes call out to
    * the handlers.
    */
-  switch (mir->dalvikInsn.opcode) {
+  switch (opcode) {
     case Instruction::ADD_FLOAT_2ADDR:
     case Instruction::ADD_FLOAT:
       op = kX86AddssRR;
@@ -52,7 +52,7 @@ static bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir,
       return false;
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT: {
-      return genArithOpFloatPortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+      return genArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
     }
     default:
       return true;
@@ -71,13 +71,13 @@ static bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir,
   return false;
 }
 
-static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
+static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
                              RegLocation rlDest, RegLocation rlSrc1,
                              RegLocation rlSrc2) {
   X86OpCode op = kX86Nop;
   RegLocation rlResult;
 
-  switch (mir->dalvikInsn.opcode) {
+  switch (opcode) {
     case Instruction::ADD_DOUBLE_2ADDR:
     case Instruction::ADD_DOUBLE:
       op = kX86AddsdRR;
@@ -103,7 +103,7 @@ static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
       return false;
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE: {
-      return genArithOpDoublePortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+      return genArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
     }
     default:
       return true;
@@ -125,46 +125,32 @@ static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
   return false;
 }
 
-static bool genConversion(CompilationUnit *cUnit, MIR *mir) {
-  Instruction::Code opcode = mir->dalvikInsn.opcode;
-  bool longSrc = false;
-  bool longDest = false;
+static bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode,
+                          RegLocation rlDest, RegLocation rlSrc) {
   RegisterClass rcSrc = kFPReg;
-  RegLocation rlSrc;
-  RegLocation rlDest;
   X86OpCode op = kX86Nop;
   int srcReg;
   RegLocation rlResult;
   switch (opcode) {
     case Instruction::INT_TO_FLOAT:
-      longSrc = false;
-      longDest = false;
       rcSrc = kCoreReg;
       op = kX86Cvtsi2ssRR;
       break;
     case Instruction::DOUBLE_TO_FLOAT:
-      longSrc = true;
-      longDest = false;
       rcSrc = kFPReg;
       op = kX86Cvtsd2ssRR;
       break;
     case Instruction::FLOAT_TO_DOUBLE:
-      longSrc = false;
-      longDest = true;
       rcSrc = kFPReg;
       op = kX86Cvtss2sdRR;
       break;
     case Instruction::INT_TO_DOUBLE:
-      longSrc = false;
-      longDest = true;
       rcSrc = kCoreReg;
       op = kX86Cvtsi2sdRR;
       break;
     case Instruction::FLOAT_TO_INT: {
-      rlSrc = oatGetSrc(cUnit, mir, 0);
       rlSrc = loadValue(cUnit, rlSrc, kFPReg);
       srcReg = rlSrc.lowReg;
-      rlDest = oatGetDest(cUnit, mir, 0);
       oatClobberSReg(cUnit, rlDest.sRegLow);
       rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
       int tempReg = oatAllocTempFloat(cUnit);
@@ -184,10 +170,8 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir) {
       return false;
     }
     case Instruction::DOUBLE_TO_INT: {
-      rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
       rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
       srcReg = rlSrc.lowReg;
-      rlDest = oatGetDest(cUnit, mir, 0);
       oatClobberSReg(cUnit, rlDest.sRegLow);
       rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
       int tempReg = oatAllocTempDouble(cUnit);
@@ -213,26 +197,22 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir) {
       UNIMPLEMENTED(WARNING) << "inline l2[df] " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
     case Instruction::FLOAT_TO_LONG:
     case Instruction::DOUBLE_TO_LONG:
-      return genConversionPortable(cUnit, mir);
+      return genConversionPortable(cUnit, opcode, rlDest, rlSrc);
     default:
       return true;
   }
-  if (longSrc) {
-    rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+  if (rlSrc.wide) {
     rlSrc = loadValueWide(cUnit, rlSrc, rcSrc);
     srcReg = S2D(rlSrc.lowReg, rlSrc.highReg);
   } else {
-    rlSrc = oatGetSrc(cUnit, mir, 0);
     rlSrc = loadValue(cUnit, rlSrc, rcSrc);
     srcReg = rlSrc.lowReg;
   }
-  if (longDest) {
-    rlDest = oatGetDestWide(cUnit, mir, 0, 1);
+  if (rlDest.wide) {
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
     newLIR2(cUnit, op, S2D(rlResult.lowReg, rlResult.highReg), srcReg);
     storeValueWide(cUnit, rlDest, rlResult);
   } else {
-    rlDest = oatGetDest(cUnit, mir, 0);
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
     newLIR2(cUnit, op, rlResult.lowReg, srcReg);
     storeValue(cUnit, rlDest, rlResult);
@@ -240,9 +220,8 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir) {
   return false;
 }
 
-static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
+static bool genCmpFP(CompilationUnit *cUnit, Instruction::Code code, RegLocation rlDest,
                      RegLocation rlSrc1, RegLocation rlSrc2) {
-  Instruction::Code code = mir->dalvikInsn.opcode;
   bool single = (code == Instruction::CMPL_FLOAT) || (code == Instruction::CMPG_FLOAT);
   bool unorderedGt = (code == Instruction::CMPG_DOUBLE) || (code == Instruction::CMPG_FLOAT);
   int srcReg1;

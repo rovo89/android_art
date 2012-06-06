@@ -774,7 +774,7 @@ LIR* storeBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rSrc,
  * on base (which must have an associated sReg and MIR).  If not
  * performing null check, incoming MIR can be null.
  */
-LIR* loadBaseDispBody(CompilationUnit* cUnit, MIR* mir, int rBase,
+LIR* loadBaseDispBody(CompilationUnit* cUnit, int rBase,
                       int displacement, int rDest, int rDestHi, OpSize size,
                       int sReg)
 {
@@ -802,9 +802,9 @@ LIR* loadBaseDispBody(CompilationUnit* cUnit, MIR* mir, int rBase,
         }
         break;
       } else {
-        res = loadBaseDispBody(cUnit, mir, rBase, displacement, rDest,
+        res = loadBaseDispBody(cUnit, rBase, displacement, rDest,
                                -1, kWord, sReg);
-        loadBaseDispBody(cUnit, NULL, rBase, displacement + 4, rDestHi,
+        loadBaseDispBody(cUnit, rBase, displacement + 4, rDestHi,
                          -1, kWord, INVALID_SREG);
         return res;
       }
@@ -890,17 +890,17 @@ LIR* loadBaseDispBody(CompilationUnit* cUnit, MIR* mir, int rBase,
   return load;
 }
 
-LIR* loadBaseDisp(CompilationUnit* cUnit, MIR* mir, int rBase,
+LIR* loadBaseDisp(CompilationUnit* cUnit, int rBase,
                   int displacement, int rDest, OpSize size, int sReg)
 {
-  return loadBaseDispBody(cUnit, mir, rBase, displacement, rDest, -1, size,
+  return loadBaseDispBody(cUnit, rBase, displacement, rDest, -1, size,
                           sReg);
 }
 
- LIR* loadBaseDispWide(CompilationUnit* cUnit, MIR* mir, int rBase,
+ LIR* loadBaseDispWide(CompilationUnit* cUnit, int rBase,
                        int displacement, int rDestLo, int rDestHi, int sReg)
 {
-  return loadBaseDispBody(cUnit, mir, rBase, displacement, rDestLo, rDestHi,
+  return loadBaseDispBody(cUnit, rBase, displacement, rDestLo, rDestHi,
                           kLong, sReg);
 }
 
@@ -1011,7 +1011,7 @@ LIR* storeBaseDispWide(CompilationUnit* cUnit, int rBase, int displacement,
 
 void loadPair(CompilationUnit* cUnit, int base, int lowReg, int highReg)
 {
-  loadBaseDispWide(cUnit, NULL, base, 0, lowReg, highReg, INVALID_SREG);
+  loadBaseDispWide(cUnit, base, 0, lowReg, highReg, INVALID_SREG);
 }
 
 LIR* fpRegCopy(CompilationUnit* cUnit, int rDest, int rSrc)

@@ -44,7 +44,7 @@ LIR* loadConstant(CompilationUnit* cUnit, int rDest, int value)
 LIR* loadWordDisp(CompilationUnit* cUnit, int rBase, int displacement,
                   int rDest)
 {
-  return loadBaseDisp(cUnit, NULL, rBase, displacement, rDest, kWord,
+  return loadBaseDisp(cUnit, rBase, displacement, rDest, kWord,
                       INVALID_SREG);
 }
 
@@ -97,7 +97,7 @@ void loadValueDirectWide(CompilationUnit* cUnit, RegLocation rlSrc, int regLo,
   } else {
     DCHECK((rlSrc.location == kLocDalvikFrame) ||
            (rlSrc.location == kLocCompilerTemp));
-    loadBaseDispWide(cUnit, NULL, rSP, oatSRegOffset(cUnit, rlSrc.sRegLow),
+    loadBaseDispWide(cUnit, rSP, oatSRegOffset(cUnit, rlSrc.sRegLow),
                      regLo, regHi, INVALID_SREG);
   }
 }

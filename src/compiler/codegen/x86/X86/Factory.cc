@@ -414,7 +414,7 @@ LIR *storeMultiple(CompilationUnit *cUnit, int rBase, int rMask)
 #endif
 }
 
-LIR* loadBaseIndexedDisp(CompilationUnit *cUnit, MIR *mir,
+LIR* loadBaseIndexedDisp(CompilationUnit *cUnit,
                          int rBase, int rIndex, int scale, int displacement,
                          int rDest, int rDestHi,
                          OpSize size, int sReg) {
@@ -505,27 +505,27 @@ LIR* loadBaseIndexedDisp(CompilationUnit *cUnit, MIR *mir,
 /* Load value from base + scaled index. */
 LIR *loadBaseIndexed(CompilationUnit *cUnit, int rBase,
                      int rIndex, int rDest, int scale, OpSize size) {
-  return loadBaseIndexedDisp(cUnit, NULL, rBase, rIndex, scale, 0,
+  return loadBaseIndexedDisp(cUnit, rBase, rIndex, scale, 0,
                              rDest, INVALID_REG, size, INVALID_SREG);
 }
 
-LIR *loadBaseDisp(CompilationUnit *cUnit, MIR *mir,
+LIR *loadBaseDisp(CompilationUnit *cUnit,
                   int rBase, int displacement,
                   int rDest,
                   OpSize size, int sReg) {
-  return loadBaseIndexedDisp(cUnit, mir, rBase, INVALID_REG, 0, displacement,
+  return loadBaseIndexedDisp(cUnit, rBase, INVALID_REG, 0, displacement,
                              rDest, INVALID_REG, size, sReg);
 }
 
-LIR *loadBaseDispWide(CompilationUnit *cUnit, MIR *mir,
+LIR *loadBaseDispWide(CompilationUnit *cUnit,
                       int rBase, int displacement,
                       int rDestLo, int rDestHi,
                       int sReg) {
-  return loadBaseIndexedDisp(cUnit, mir, rBase, INVALID_REG, 0, displacement,
+  return loadBaseIndexedDisp(cUnit, rBase, INVALID_REG, 0, displacement,
                              rDestLo, rDestHi, kLong, sReg);
 }
 
-LIR* storeBaseIndexedDisp(CompilationUnit *cUnit, MIR *mir,
+LIR* storeBaseIndexedDisp(CompilationUnit *cUnit,
                           int rBase, int rIndex, int scale, int displacement,
                           int rSrc, int rSrcHi,
                           OpSize size, int sReg) {
@@ -600,14 +600,14 @@ LIR* storeBaseIndexedDisp(CompilationUnit *cUnit, MIR *mir,
 LIR *storeBaseIndexed(CompilationUnit *cUnit, int rBase, int rIndex, int rSrc,
                       int scale, OpSize size)
 {
-  return storeBaseIndexedDisp(cUnit, NULL, rBase, rIndex, scale, 0,
+  return storeBaseIndexedDisp(cUnit, rBase, rIndex, scale, 0,
                               rSrc, INVALID_REG, size, INVALID_SREG);
 }
 
 LIR *storeBaseDisp(CompilationUnit *cUnit, int rBase, int displacement,
                    int rSrc, OpSize size)
 {
-    return storeBaseIndexedDisp(cUnit, NULL, rBase, INVALID_REG, 0,
+    return storeBaseIndexedDisp(cUnit, rBase, INVALID_REG, 0,
                                 displacement, rSrc, INVALID_REG, size,
                                 INVALID_SREG);
 }
@@ -615,7 +615,7 @@ LIR *storeBaseDisp(CompilationUnit *cUnit, int rBase, int displacement,
 LIR *storeBaseDispWide(CompilationUnit *cUnit, int rBase, int displacement,
                        int rSrcLo, int rSrcHi)
 {
-  return storeBaseIndexedDisp(cUnit, NULL, rBase, INVALID_REG, 0, displacement,
+  return storeBaseIndexedDisp(cUnit, rBase, INVALID_REG, 0, displacement,
                               rSrcLo, rSrcHi, kLong, INVALID_SREG);
 }
 

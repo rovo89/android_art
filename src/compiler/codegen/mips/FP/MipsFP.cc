@@ -18,7 +18,7 @@
 
 namespace art {
 
-bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
+bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
                      RegLocation rlSrc1, RegLocation rlSrc2)
 {
 #ifdef __mips_hard_float
@@ -29,7 +29,7 @@ bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
    * Don't attempt to optimize register usage since these opcodes call out to
    * the handlers.
    */
-  switch (mir->dalvikInsn.opcode) {
+  switch (opcode) {
     case Instruction::ADD_FLOAT_2ADDR:
     case Instruction::ADD_FLOAT:
       op = kMipsFadds;
@@ -49,7 +49,7 @@ bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
     case Instruction::NEG_FLOAT: {
-      return genArithOpFloatPortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+      return genArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
     }
     default:
       return true;
@@ -63,11 +63,11 @@ bool genArithOpFloat(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
 
   return false;
 #else
-  return genArithOpFloatPortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+  return genArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
 #endif
 }
 
-static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
+static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
                              RegLocation rlDest, RegLocation rlSrc1,
                              RegLocation rlSrc2)
 {
@@ -75,7 +75,7 @@ static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
   int op = kMipsNop;
   RegLocation rlResult;
 
-  switch (mir->dalvikInsn.opcode) {
+  switch (opcode) {
     case Instruction::ADD_DOUBLE_2ADDR:
     case Instruction::ADD_DOUBLE:
       op = kMipsFaddd;
@@ -95,7 +95,7 @@ static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
     case Instruction::NEG_DOUBLE: {
-      return genArithOpDoublePortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+      return genArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
     }
     default:
       return true;
@@ -113,40 +113,28 @@ static bool genArithOpDouble(CompilationUnit *cUnit, MIR *mir,
   storeValueWide(cUnit, rlDest, rlResult);
   return false;
 #else
-  return genArithOpDoublePortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+  return genArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
 #endif
 }
 
-static bool genConversion(CompilationUnit *cUnit, MIR *mir)
+static bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode,
+                          RegLocation rlDest, RegLocation rlSrc)
 {
 #ifdef __mips_hard_float
-  Instruction::Code opcode = mir->dalvikInsn.opcode;
-  bool longSrc = false;
-  bool longDest = false;
-  RegLocation rlSrc;
-  RegLocation rlDest;
   int op = kMipsNop;
   int srcReg;
   RegLocation rlResult;
   switch (opcode) {
     case Instruction::INT_TO_FLOAT:
-      longSrc = false;
-      longDest = false;
       op = kMipsFcvtsw;
       break;
     case Instruction::DOUBLE_TO_FLOAT:
-      longSrc = true;
-      longDest = false;
       op = kMipsFcvtsd;
       break;
     case Instruction::FLOAT_TO_DOUBLE:
-      longSrc = false;
-      longDest = true;
       op = kMipsFcvtds;
       break;
     case Instruction::INT_TO_DOUBLE:
-      longSrc = false;
-      longDest = true;
       op = kMipsFcvtdw;
       break;
     case Instruction::FLOAT_TO_INT:
@@ -155,44 +143,40 @@ static bool genConversion(CompilationUnit *cUnit, MIR *mir)
     case Instruction::FLOAT_TO_LONG:
     case Instruction::LONG_TO_FLOAT:
     case Instruction::DOUBLE_TO_LONG:
-      return genConversionPortable(cUnit, mir);
+      return genConversionPortable(cUnit, opcode, rlDest, rlSrc);
     default:
       return true;
   }
-  if (longSrc) {
-    rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+  if (rlSrc.wide) {
     rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
     srcReg = S2D(rlSrc.lowReg, rlSrc.highReg);
   } else {
-    rlSrc = oatGetSrc(cUnit, mir, 0);
     rlSrc = loadValue(cUnit, rlSrc, kFPReg);
     srcReg = rlSrc.lowReg;
   }
-  if (longDest) {
-    rlDest = oatGetDestWide(cUnit, mir, 0, 1);
+  if (rlDest.wide) {
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
     newLIR2(cUnit, (MipsOpCode)op, S2D(rlResult.lowReg, rlResult.highReg),
             srcReg);
     storeValueWide(cUnit, rlDest, rlResult);
   } else {
-    rlDest = oatGetDest(cUnit, mir, 0);
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
     newLIR2(cUnit, (MipsOpCode)op, rlResult.lowReg, srcReg);
     storeValue(cUnit, rlDest, rlResult);
   }
   return false;
 #else
-  return genConversionPortable(cUnit, mir);
+  return genConversionPortable(cUnit, opcode, rlDest, rlSrc);
 #endif
 }
 
-static bool genCmpFP(CompilationUnit *cUnit, MIR *mir, RegLocation rlDest,
+static bool genCmpFP(CompilationUnit *cUnit, Instruction::Code opcode, RegLocation rlDest,
                      RegLocation rlSrc1, RegLocation rlSrc2)
 {
   bool wide = true;
   int offset;
 
-  switch (mir->dalvikInsn.opcode) {
+  switch (opcode) {
     case Instruction::CMPL_FLOAT:
       offset = ENTRYPOINT_OFFSET(pCmplFloat);
       wide = false;

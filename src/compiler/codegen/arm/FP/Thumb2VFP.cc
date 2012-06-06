@@ -16,7 +16,7 @@
 
 namespace art {
 
-bool genArithOpFloat(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genArithOpFloat(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDest,
                      RegLocation rlSrc1, RegLocation rlSrc2)
 {
   int op = kThumbBkpt;
@@ -26,7 +26,7 @@ bool genArithOpFloat(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
    * Don't attempt to optimize register usage since these opcodes call out to
    * the handlers.
    */
-  switch (mir->dalvikInsn.opcode) {
+  switch (opcode) {
     case Instruction::ADD_FLOAT_2ADDR:
     case Instruction::ADD_FLOAT:
       op = kThumb2Vadds;
@@ -46,7 +46,7 @@ bool genArithOpFloat(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT:
     case Instruction::NEG_FLOAT: {
-      return genArithOpFloatPortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+      return genArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
     }
     default:
       return true;
@@ -59,13 +59,13 @@ bool genArithOpFloat(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   return false;
 }
 
-bool genArithOpDouble(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
-                      RegLocation rlSrc1, RegLocation rlSrc2)
+bool genArithOpDouble(CompilationUnit* cUnit, Instruction::Code opcode,
+                      RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2)
 {
   int op = kThumbBkpt;
   RegLocation rlResult;
 
-  switch (mir->dalvikInsn.opcode) {
+  switch (opcode) {
     case Instruction::ADD_DOUBLE_2ADDR:
     case Instruction::ADD_DOUBLE:
       op = kThumb2Vaddd;
@@ -85,7 +85,7 @@ bool genArithOpDouble(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE:
     case Instruction::NEG_DOUBLE: {
-      return genArithOpDoublePortable(cUnit, mir, rlDest, rlSrc1, rlSrc2);
+      return genArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
     }
     default:
       return true;
@@ -105,73 +105,53 @@ bool genArithOpDouble(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   return false;
 }
 
-bool genConversion(CompilationUnit* cUnit, MIR* mir)
+bool genConversion(CompilationUnit* cUnit, Instruction::Code opcode,
+                   RegLocation rlDest, RegLocation rlSrc)
 {
-  Instruction::Code opcode = mir->dalvikInsn.opcode;
   int op = kThumbBkpt;
-  bool longSrc = false;
-  bool longDest = false;
   int srcReg;
-  RegLocation rlSrc;
-  RegLocation rlDest;
   RegLocation rlResult;
 
   switch (opcode) {
     case Instruction::INT_TO_FLOAT:
-      longSrc = false;
-      longDest = false;
       op = kThumb2VcvtIF;
       break;
     case Instruction::FLOAT_TO_INT:
-      longSrc = false;
-      longDest = false;
       op = kThumb2VcvtFI;
       break;
     case Instruction::DOUBLE_TO_FLOAT:
-      longSrc = true;
-      longDest = false;
       op = kThumb2VcvtDF;
       break;
     case Instruction::FLOAT_TO_DOUBLE:
-      longSrc = false;
-      longDest = true;
       op = kThumb2VcvtFd;
       break;
     case Instruction::INT_TO_DOUBLE:
-      longSrc = false;
-      longDest = true;
       op = kThumb2VcvtID;
       break;
     case Instruction::DOUBLE_TO_INT:
-      longSrc = true;
-      longDest = false;
       op = kThumb2VcvtDI;
       break;
     case Instruction::LONG_TO_DOUBLE:
     case Instruction::FLOAT_TO_LONG:
     case Instruction::LONG_TO_FLOAT:
     case Instruction::DOUBLE_TO_LONG:
-      return genConversionPortable(cUnit, mir);
+      return genConversionPortable(cUnit, opcode, rlDest, rlSrc);
     default:
       return true;
   }
-  if (longSrc) {
-    rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+  if (rlSrc.wide) {
     rlSrc = loadValueWide(cUnit, rlSrc, kFPReg);
     srcReg = S2D(rlSrc.lowReg, rlSrc.highReg);
   } else {
-    rlSrc = oatGetSrc(cUnit, mir, 0);
     rlSrc = loadValue(cUnit, rlSrc, kFPReg);
     srcReg = rlSrc.lowReg;
   }
-  if (longDest) {
-    rlDest = oatGetDestWide(cUnit, mir, 0, 1);
+  if (rlDest.wide) {
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
     newLIR2(cUnit, (ArmOpcode)op, S2D(rlResult.lowReg, rlResult.highReg),
             srcReg);
     storeValueWide(cUnit, rlDest, rlResult);
   } else {
-    rlDest = oatGetDest(cUnit, mir, 0);
     rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
     newLIR2(cUnit, (ArmOpcode)op, rlResult.lowReg, srcReg);
     storeValue(cUnit, rlDest, rlResult);
@@ -233,14 +213,14 @@ void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 }
 
 
-bool genCmpFP(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genCmpFP(CompilationUnit* cUnit, Instruction::Code opcode, RegLocation rlDest,
         RegLocation rlSrc1, RegLocation rlSrc2)
 {
   bool isDouble;
   int defaultResult;
   RegLocation rlResult;
 
-  switch (mir->dalvikInsn.opcode) {
+  switch (opcode) {
     case Instruction::CMPL_FLOAT:
       isDouble = false;
       defaultResult = -1;
