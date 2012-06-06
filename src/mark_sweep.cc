@@ -59,6 +59,7 @@ void MarkSweep::Init() {
   mark_stack_->Reset();
 
   // TODO: if concurrent, clear the card table.
+  heap_->GetCardTable()->ClearNonImageSpaceCards(heap_);
 
   // TODO: if concurrent, enable card marking in compiler
 
@@ -101,6 +102,13 @@ void MarkSweep::MarkObjectVisitor(const Object* root, void* arg) {
   mark_sweep->MarkObject0(root, false);
 }
 
+void MarkSweep::ReMarkObjectVisitor(const Object* root, void* arg) {
+  DCHECK(root != NULL);
+  DCHECK(arg != NULL);
+  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
+  mark_sweep->MarkObject0(root, true);
+}
+
 // Marks all objects in the root set.
 void MarkSweep::MarkRoots() {
   Runtime::Current()->VisitRoots(MarkObjectVisitor, this);
@@ -110,7 +118,7 @@ void MarkSweep::ScanImageRootVisitor(Object* root, void* arg) {
   DCHECK(root != NULL);
   DCHECK(arg != NULL);
   MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
-  DCHECK(mark_sweep->finger_ == NULL);  // no point to check finger if it is NULL
+  //DCHECK(mark_sweep->finger_ == NULL);  // no point to check finger if it is NULL
   mark_sweep->MarkObject0(root, false);
   mark_sweep->ScanObject(root);
 }
@@ -123,7 +131,7 @@ void MarkSweep::ScanDirtyImageRoots() {
     if (spaces[i]->IsImageSpace()) {
       byte* begin = spaces[i]->Begin();
       byte* end = spaces[i]->End();
-      card_table->Scan(begin, end, ScanImageRootVisitor, this);
+      card_table->Scan(heap_->GetLiveBits(), begin, end, ScanImageRootVisitor, this);
     }
   }
 }
@@ -140,6 +148,48 @@ void MarkSweep::ScanBitmapCallback(Object* obj, void* finger, void* arg) {
   mark_sweep->ScanObject(obj);
 }
 
+void MarkSweep::ScanDirtyCardCallback(Object* obj, void* arg) {
+  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
+  mark_sweep->ScanObject(obj);
+}
+
+void MarkSweep::ScanGrayObjects() {
+  const std::vector<Space*>& spaces = heap_->GetSpaces();
+  CardTable* card_table = heap_->GetCardTable();
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    byte* begin = spaces[i]->Begin();
+    byte* end = spaces[i]->End();
+    // Normally, we only need to scan the black dirty objects
+    // But for image spaces, the roots will not be black objects.
+    // To address this we just scan the live bits instead of the mark bits.
+    if (UNLIKELY(spaces[i]->IsImageSpace())) {
+      // Image roots may not be marked so we may need to mark them.
+      // TODO: optimize this by offsetting some of the work to init.
+      card_table->Scan(heap_->GetLiveBits(), begin, end, ScanImageRootVisitor, this);
+    } else {
+      card_table->Scan(heap_->GetMarkBits(), begin, end, ScanDirtyCardCallback, this);
+    }
+  }
+}
+
+void MarkSweep::VerifyImageRoots() {
+  // Verify roots ensures that all the references inside the image space point
+  // objects which are either in the image space or marked objects in the alloc
+  // space
+#ifndef NDEBUG
+  void* arg = reinterpret_cast<void*>(this);
+  const std::vector<Space*>& spaces = heap_->GetSpaces();
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    if (spaces[i]->IsImageSpace()) {
+      uintptr_t begin = reinterpret_cast<uintptr_t>(spaces[i]->Begin());
+      uintptr_t end = reinterpret_cast<uintptr_t>(spaces[i]->End());
+      mark_bitmap_->ScanWalk(begin, end, &MarkSweep::CheckBitmapCallback, arg);
+    }
+  }
+  finger_ = reinterpret_cast<Object*>(~0);
+#endif
+}
+
 // Populates the mark stack based on the set of marked objects and
 // recursively marks until the mark stack is emptied.
 void MarkSweep::RecursiveMark() {
@@ -154,29 +204,22 @@ void MarkSweep::RecursiveMark() {
   void* arg = reinterpret_cast<void*>(this);
   const std::vector<Space*>& spaces = heap_->GetSpaces();
   for (size_t i = 0; i < spaces.size(); ++i) {
-#ifndef NDEBUG
     uintptr_t begin = reinterpret_cast<uintptr_t>(spaces[i]->Begin());
     uintptr_t end = reinterpret_cast<uintptr_t>(spaces[i]->End());
-    if (!spaces[i]->IsImageSpace()) {
-      mark_bitmap_->ScanWalk(begin, end, &MarkSweep::ScanBitmapCallback, arg);
-    } else {
-      mark_bitmap_->ScanWalk(begin, end, &MarkSweep::CheckBitmapCallback, arg);
-    }
-#else
-    if (!spaces[i]->IsImageSpace()) {
-      uintptr_t begin = reinterpret_cast<uintptr_t>(spaces[i]->Begin());
-      uintptr_t end = reinterpret_cast<uintptr_t>(spaces[i]->End());
-      mark_bitmap_->ScanWalk(begin, end, &MarkSweep::ScanBitmapCallback, arg);
-    }
-#endif
+    mark_bitmap_->ScanWalk(begin, end, &MarkSweep::ScanBitmapCallback, arg);
   }
   finger_ = reinterpret_cast<Object*>(~0);
   // TODO: tune the frequency of emptying the mark stack
   ProcessMarkStack();
 }
 
+void MarkSweep::RecursiveMarkDirtyObjects() {
+  ScanGrayObjects();
+  ProcessMarkStack();
+}
+
 void MarkSweep::ReMarkRoots() {
-  UNIMPLEMENTED(FATAL);
+  Runtime::Current()->VisitRoots(ReMarkObjectVisitor, this);
 }
 
 void MarkSweep::SweepJniWeakGlobals() {
@@ -312,12 +355,31 @@ inline void MarkSweep::CheckReference(const Object* obj, const Object* ref, Memb
   AllocSpace* alloc_space = heap_->GetAllocSpace();
   if (alloc_space->Contains(ref)) {
     bool is_marked = mark_bitmap_->Test(ref);
+
     if (!is_marked) {
       LOG(INFO) << *alloc_space;
       LOG(WARNING) << (is_static ? "Static ref'" : "Instance ref'") << PrettyTypeOf(ref)
                    << "' (" << reinterpret_cast<const void*>(ref) << ") in '" << PrettyTypeOf(obj)
                    << "' (" << reinterpret_cast<const void*>(obj) << ") at offset "
                    << reinterpret_cast<void*>(offset.Int32Value()) << " wasn't marked";
+
+      const Class* klass = is_static ? obj->AsClass() : obj->GetClass();
+      DCHECK(klass != NULL);
+      const ObjectArray<Field>* fields = is_static ? klass->GetSFields() : klass->GetIFields();
+      DCHECK(fields != NULL);
+      bool found = false;
+      for (int32_t i = 0; i < fields->GetLength(); ++i) {
+        const Field* cur = fields->Get(i);
+        if (cur->GetOffset().Int32Value() == offset.Int32Value()) {
+          LOG(WARNING) << "Field referencing the alloc space was " << PrettyField(cur);
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        LOG(WARNING) << "Could not find field in object alloc space with offset " << offset.Int32Value();
+      }
+
       bool obj_marked = heap_->GetCardTable()->IsDirty(obj);
       if (!obj_marked) {
         LOG(WARNING) << "Object '" << PrettyTypeOf(obj) << "' "
@@ -486,10 +548,6 @@ void MarkSweep::ProcessMarkStack() {
       ScanObject(obj);
     }
   }
-}
-
-void MarkSweep::ScanDirtyObjects() {
-  ProcessMarkStack();
 }
 
 // Walks the reference list marking any references subject to the

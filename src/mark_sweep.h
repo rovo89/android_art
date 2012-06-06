@@ -40,8 +40,11 @@ class MarkSweep {
   // Marks the root set at the start of a garbage collection.
   void MarkRoots();
 
-  // Marks the roots in the image space on dirty cards
+  // Marks the roots in the image space on dirty cards.
   void ScanDirtyImageRoots();
+
+  // Verify that image roots point to only marked objects within the alloc space.
+  void VerifyImageRoots();
 
   bool IsMarkStackEmpty() const {
     return mark_stack_->IsEmpty();
@@ -49,6 +52,10 @@ class MarkSweep {
 
   // Builds a mark stack and recursively mark until it empties.
   void RecursiveMark();
+
+  // Builds a mark stack with objects on dirty cards and recursively mark
+  // until it empties.
+  void RecursiveMarkDirtyObjects();
 
   // Remarks the root set after completing the concurrent mark.
   void ReMarkRoots();
@@ -79,7 +86,11 @@ class MarkSweep {
 
   static void MarkObjectVisitor(const Object* root, void* arg);
 
+  static void ReMarkObjectVisitor(const Object* root, void* arg);
+
   static void ScanImageRootVisitor(Object* root, void* arg);
+
+  static void ScanDirtyCardCallback(Object* obj, void* arg);
 
   // Marks an object.
   void MarkObject(const Object* obj);
@@ -130,7 +141,7 @@ class MarkSweep {
   void CheckOther(const Object* obj);
 
   // Blackens objects grayed during a garbage collection.
-  void ScanDirtyObjects();
+  void ScanGrayObjects();
 
   // Schedules an unmarked object for reference processing.
   void DelayReferenceReferent(Object* reference);

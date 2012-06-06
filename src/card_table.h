@@ -24,6 +24,8 @@
 
 namespace art {
 
+class Heap;
+class HeapBitmap;
 class Object;
 
 #define GC_CARD_SHIFT 7
@@ -58,19 +60,21 @@ class CardTable {
 
   // For every dirty card between begin and end invoke the visitor with the specified argument
   typedef void Callback(Object* obj, void* arg);
-  void Scan(byte* begin, byte* end, Callback* visitor, void* arg) const;
+  void Scan(HeapBitmap* bitmap, byte* begin, byte* end, Callback* visitor, void* arg) const;
 
 
   // Assertion used to check the given address is covered by the card table
   void CheckAddrIsInCardTable(const byte* addr) const;
 
+  // Resets all of the bytes in the card table to clean.
+  void ClearCardTable();
+
+  // Resets all of the bytes in the card table to clean.
+  void ClearNonImageSpaceCards(Heap* heap);
  private:
 
   CardTable(MemMap* begin, byte* biased_begin, size_t offset) :
     mem_map_(begin), biased_begin_(biased_begin), offset_(offset) {}
-
-  // Resets all of the bytes in the card table to clean.
-  void ClearCardTable();
 
   // Returns the address of the relevant byte in the card table, given an address on the heap.
   byte* CardFromAddr(const void *addr) const {
