@@ -33,7 +33,7 @@ class MethodVerifierTest : public CommonTest {
 
     // Verify the class
     std::string error_msg;
-    ASSERT_TRUE(MethodVerifier::VerifyClass(klass, error_msg)) << error_msg;
+    ASSERT_TRUE(MethodVerifier::VerifyClass(klass, error_msg) == MethodVerifier::kNoFailure) << error_msg;
   }
 
   void VerifyDexFile(const DexFile* dex) {
@@ -56,7 +56,7 @@ TEST_F(MethodVerifierTest, IntMath) {
   SirtRef<ClassLoader> class_loader(LoadDex("IntMath"));
   Class* klass = class_linker_->FindClass("LIntMath;", class_loader.get());
   std::string error_msg;
-  ASSERT_TRUE(MethodVerifier::VerifyClass(klass, error_msg)) << error_msg;
+  ASSERT_TRUE(MethodVerifier::VerifyClass(klass, error_msg) == MethodVerifier::kNoFailure) << error_msg;
 }
 
 }  // namespace verifier

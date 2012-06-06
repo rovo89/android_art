@@ -161,9 +161,15 @@ class MethodVerifier {
   typedef greenland::InferredRegCategoryMap InferredRegCategoryMap;
 #endif
  public:
-  /* Verify a class. Returns "true" on success. */
-  static bool VerifyClass(const Class* klass, std::string& error);
-  static bool VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
+  enum FailureKind {
+    kNoFailure,
+    kSoftFailure,
+    kHardFailure,
+  };
+
+  /* Verify a class. Returns "kNoFailure" on success. */
+  static FailureKind VerifyClass(const Class* klass, std::string& error);
+  static FailureKind VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
       const ClassLoader* class_loader, uint32_t class_def_idx, std::string& error);
 
   uint8_t EncodePcToReferenceMapData() const;
@@ -227,7 +233,7 @@ class MethodVerifier {
    *  (3) Iterate through the method, checking type safety and looking
    *      for code flow problems.
    */
-  static bool VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
+  static FailureKind VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
       const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
       Method* method, uint32_t method_access_flags);
   static void VerifyMethodAndDump(Method* method);

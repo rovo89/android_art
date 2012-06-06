@@ -172,23 +172,23 @@ void PcToRegisterLineTable::Init(RegisterTrackingMode mode, InsnFlags* flags,
   }
 }
 
-bool MethodVerifier::VerifyClass(const Class* klass, std::string& error) {
+MethodVerifier::FailureKind MethodVerifier::VerifyClass(const Class* klass, std::string& error) {
   if (klass->IsVerified()) {
-    return true;
+    return kNoFailure;
   }
   Class* super = klass->GetSuperClass();
   if (super == NULL && StringPiece(ClassHelper(klass).GetDescriptor()) != "Ljava/lang/Object;") {
     error = "Verifier rejected class ";
     error += PrettyDescriptor(klass);
     error += " that has no super class";
-    return false;
+    return kHardFailure;
   }
   if (super != NULL && super->IsFinal()) {
     error = "Verifier rejected class ";
     error += PrettyDescriptor(klass);
     error += " that attempts to sub-class final class ";
     error += PrettyDescriptor(super);
-    return false;
+    return kHardFailure;
   }
   ClassHelper kh(klass);
   const DexFile& dex_file = kh.GetDexFile();
@@ -198,24 +198,25 @@ bool MethodVerifier::VerifyClass(const Class* klass, std::string& error) {
     error += PrettyDescriptor(klass);
     error += " that isn't present in dex file ";
     error += dex_file.GetLocation();
-    return false;
+    return kHardFailure;
   }
   return VerifyClass(&dex_file, kh.GetDexCache(), klass->GetClassLoader(), class_def_idx, error);
 }
 
-bool MethodVerifier::VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
+MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
     const ClassLoader* class_loader, uint32_t class_def_idx, std::string& error) {
   const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
   const byte* class_data = dex_file->GetClassData(class_def);
   if (class_data == NULL) {
     // empty class, probably a marker interface
-    return true;
+    return kNoFailure;
   }
   ClassDataItemIterator it(*dex_file, class_data);
   while (it.HasNextStaticField() || it.HasNextInstanceField()) {
     it.Next();
   }
   size_t error_count = 0;
+  bool hard_fail = false;
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   while (it.HasNextDirectMethod()) {
     uint32_t method_idx = it.GetMemberIndex();
@@ -225,15 +226,19 @@ bool MethodVerifier::VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
       // We couldn't resolve the method, but continue regardless.
       Thread::Current()->ClearException();
     }
-    if (!VerifyMethod(method_idx, dex_file, dex_cache, class_loader, class_def_idx,
-        it.GetMethodCodeItem(), method, it.GetMemberAccessFlags())) {
-      if (error_count > 0) {
-        error += "\n";
+    MethodVerifier::FailureKind result = VerifyMethod(method_idx, dex_file, dex_cache, class_loader,
+        class_def_idx, it.GetMethodCodeItem(), method, it.GetMemberAccessFlags());
+    if (result != kNoFailure) {
+      if (result == kHardFailure) {
+        hard_fail = true;
+        if (error_count > 0) {
+          error += "\n";
+        }
+        error = "Verifier rejected class ";
+        error += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
+        error += " due to bad method ";
+        error += PrettyMethod(method_idx, *dex_file);
       }
-      error = "Verifier rejected class ";
-      error += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
-      error += " due to bad method ";
-      error += PrettyMethod(method_idx, *dex_file);
       ++error_count;
     }
     it.Next();
@@ -246,35 +251,43 @@ bool MethodVerifier::VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
       // We couldn't resolve the method, but continue regardless.
       Thread::Current()->ClearException();
     }
-    if (!VerifyMethod(method_idx, dex_file, dex_cache, class_loader, class_def_idx,
-        it.GetMethodCodeItem(), method, it.GetMemberAccessFlags())) {
-      if (error_count > 0) {
-        error += "\n";
+    MethodVerifier::FailureKind result = VerifyMethod(method_idx, dex_file, dex_cache, class_loader,
+        class_def_idx, it.GetMethodCodeItem(), method, it.GetMemberAccessFlags());
+    if (result != kNoFailure) {
+      if (result == kHardFailure) {
+        hard_fail = true;
+        if (error_count > 0) {
+          error += "\n";
+        }
+        error = "Verifier rejected class ";
+        error += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
+        error += " due to bad method ";
+        error += PrettyMethod(method_idx, *dex_file);
       }
-      error = "Verifier rejected class ";
-      error += PrettyDescriptor(dex_file->GetClassDescriptor(class_def));
-      error += " due to bad method ";
-      error += PrettyMethod(method_idx, *dex_file);
       ++error_count;
     }
     it.Next();
   }
-  return error_count == 0;
+  if (error_count == 0) {
+    return kNoFailure;
+  } else {
+    return hard_fail ? kHardFailure : kSoftFailure;
+  }
 }
 
-bool MethodVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
-    const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
-    Method* method, uint32_t method_access_flags) {
+MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file,
+    DexCache* dex_cache, const ClassLoader* class_loader, uint32_t class_def_idx,
+    const DexFile::CodeItem* code_item, Method* method, uint32_t method_access_flags) {
   MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item, method_idx,
                           method, method_access_flags);
-  bool success = verifier.Verify();
-  if (success) {
+  if (verifier.Verify()) {
     // Verification completed, however failures may be pending that didn't cause the verification
     // to hard fail.
     CHECK(!verifier.have_pending_hard_failure_);
     if (verifier.failures_.size() != 0) {
       verifier.DumpFailures(LOG(INFO) << "Soft verification failures in "
                                       << PrettyMethod(method_idx, *dex_file) << "\n");
+      return kSoftFailure;
     }
   } else {
     // Bad method data.
@@ -286,8 +299,9 @@ bool MethodVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file, 
       std::cout << "\n" << verifier.info_messages_.str();
       verifier.Dump(std::cout);
     }
+    return kHardFailure;
   }
-  return success;
+  return kNoFailure;
 }
 
 void MethodVerifier::VerifyMethodAndDump(Method* method) {

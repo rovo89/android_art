@@ -1165,6 +1165,14 @@ class MANAGED Class : public StaticStorageBase {
   // it kStatusResolved. Java allows circularities of the form where a super
   // class has a field that is of the type of the sub class. We need to be able
   // to fully resolve super classes while resolving types for fields.
+  //
+  // kStatusRetryVerificationAtRuntime: The verifier sets a class to
+  // this state if it encounters a soft failure at compile time. This
+  // often happens when there are unresolved classes in other dex
+  // files, and this status marks a class as needing to be verified
+  // again at runtime.
+  //
+  // TODO: Explain the other states
 
   enum Status {
     kStatusError = -1,
@@ -1172,10 +1180,11 @@ class MANAGED Class : public StaticStorageBase {
     kStatusIdx = 1,  // loaded, DEX idx in super_class_type_idx_ and interfaces_type_idx_
     kStatusLoaded = 2,  // DEX idx values resolved
     kStatusResolved = 3,  // part of linking
-    kStatusVerifying = 4,  // in the process of being verified
-    kStatusVerified = 5,  // logically part of linking; done pre-init
-    kStatusInitializing = 6,  // class init in progress
-    kStatusInitialized = 7,  // ready to go
+    kStatusRetryVerificationAtRuntime = 4,  // compile time verification failed, retry at runtime
+    kStatusVerifying = 5,  // in the process of being verified
+    kStatusVerified = 6,  // logically part of linking; done pre-init
+    kStatusInitializing = 7,  // class init in progress
+    kStatusInitialized = 8,  // ready to go
   };
 
   Status GetStatus() const {
@@ -1203,6 +1212,11 @@ class MANAGED Class : public StaticStorageBase {
   // Returns true if the class has been linked.
   bool IsResolved() const {
     return GetStatus() >= kStatusResolved;
+  }
+
+  // Returns true if the class was compile-time verified.
+  bool IsCompileTimeVerified() const {
+    return GetStatus() >= kStatusRetryVerificationAtRuntime;
   }
 
   // Returns true if the class has been verified.
