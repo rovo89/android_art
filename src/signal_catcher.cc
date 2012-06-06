@@ -36,8 +36,13 @@
 #include "thread_list.h"
 #include "utils.h"
 
+#if !defined(__APPLE__)
+#define HAVE_PROC_CMDLINE
+#endif
+
 namespace art {
 
+#if defined(HAVE_PROC_CMDLINE)
 static bool ReadCmdLine(std::string& result) {
   if (!ReadFileToString("/proc/self/cmdline", &result)) {
     return false;
@@ -45,6 +50,7 @@ static bool ReadCmdLine(std::string& result) {
   std::replace(result.begin(), result.end(), '\0', ' ');
   return true;
 }
+#endif
 
 SignalCatcher::SignalCatcher(const std::string& stack_trace_file)
     : stack_trace_file_(stack_trace_file),
@@ -53,9 +59,11 @@ SignalCatcher::SignalCatcher(const std::string& stack_trace_file)
       thread_(NULL) {
   SetHaltFlag(false);
 
+#if defined(HAVE_PROC_CMDLINE)
   // Stash the original command line for SIGQUIT reporting.
   // By then, /proc/self/cmdline will have been rewritten to something like "system_server".
   CHECK(ReadCmdLine(cmd_line_));
+#endif
 
   // Create a raw pthread; its start routine will attach to the runtime.
   CHECK_PTHREAD_CALL(pthread_create, (&pthread_, NULL, &Run, this), "signal catcher thread");
@@ -121,6 +129,7 @@ void SignalCatcher::HandleSigQuit() {
   os << "\n"
      << "----- pid " << getpid() << " at " << GetIsoDate() << " -----\n";
 
+#if defined(HAVE_PROC_CMDLINE)
   std::string current_cmd_line;
   if (ReadCmdLine(current_cmd_line) && current_cmd_line != cmd_line_) {
     os << "Cmdline: " << current_cmd_line;
@@ -130,6 +139,7 @@ void SignalCatcher::HandleSigQuit() {
   if (current_cmd_line != cmd_line_) {
     os << "Original command line: " << cmd_line_ << "\n";
   }
+#endif
 
   os << "Build type: " << (kIsDebugBuild ? "debug" : "optimized") << "\n";
 

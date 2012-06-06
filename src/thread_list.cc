@@ -16,11 +16,14 @@
 
 #include "thread_list.h"
 
+#include <dirent.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include "debugger.h"
 #include "scoped_heap_lock.h"
 #include "scoped_thread_list_lock.h"
+#include "utils.h"
 
 namespace art {
 
@@ -50,6 +53,15 @@ bool ThreadList::Contains(Thread* thread) {
   return find(list_.begin(), list_.end(), thread) != list_.end();
 }
 
+bool ThreadList::Contains(pid_t tid) {
+  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+    if ((*it)->tid_ == tid) {
+      return true;
+    }
+  }
+  return false;
+}
+
 pid_t ThreadList::GetLockOwner() {
   return thread_list_lock_.GetOwner();
 }
@@ -57,6 +69,32 @@ pid_t ThreadList::GetLockOwner() {
 void ThreadList::DumpForSigQuit(std::ostream& os) {
   ScopedThreadListLock thread_list_lock;
   DumpLocked(os);
+  DumpUnattachedThreads(os);
+}
+
+static void DumpUnattachedThread(std::ostream& os, pid_t tid) {
+  Thread::DumpState(os, NULL, tid);
+  DumpKernelStack(os, tid, "  kernel: ", false);
+  DumpNativeStack(os, tid, "  native: ", false);
+  os << "\n";
+}
+
+void ThreadList::DumpUnattachedThreads(std::ostream& os) {
+  DIR* d = opendir("/proc/self/task");
+  if (!d) {
+    return;
+  }
+
+  dirent de;
+  dirent* result;
+  while (!readdir_r(d, &de, &result) && result != NULL) {
+    char* end;
+    pid_t tid = strtol(de.d_name, &end, 10);
+    if (!*end && !Contains(tid)) {
+      DumpUnattachedThread(os, tid);
+    }
+  }
+  closedir(d);
 }
 
 void ThreadList::DumpLocked(std::ostream& os) {
