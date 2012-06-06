@@ -438,16 +438,16 @@ void Thread::GetThreadName(std::string& name) const {
   name.assign(*name_);
 }
 
-void Thread::DumpState(std::ostream& os) const {
+void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   std::string group_name;
   int priority;
   bool is_daemon = false;
 
-  if (peer_ != NULL) {
-    priority = DecodeField(WellKnownClasses::java_lang_Thread_priority)->GetInt(peer_);
-    is_daemon = DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(peer_);
+  if (thread != NULL && thread->peer_ != NULL) {
+    priority = DecodeField(WellKnownClasses::java_lang_Thread_priority)->GetInt(thread->peer_);
+    is_daemon = DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(thread->peer_);
 
-    Object* thread_group = GetThreadGroup();
+    Object* thread_group = thread->GetThreadGroup();
     if (thread_group != NULL) {
       Field* group_name_field = DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
       String* group_name_string = reinterpret_cast<String*>(group_name_field->GetObject(thread_group));
@@ -461,33 +461,49 @@ void Thread::DumpState(std::ostream& os) const {
   sched_param sp;
   CHECK_PTHREAD_CALL(pthread_getschedparam, (pthread_self(), &policy, &sp), __FUNCTION__);
 
-  std::string scheduler_group_name(GetSchedulerGroupName(GetTid()));
+  std::string scheduler_group_name(GetSchedulerGroupName(tid));
   if (scheduler_group_name.empty()) {
     scheduler_group_name = "default";
   }
 
-  os << '"' << *name_ << '"';
-  if (is_daemon) {
-    os << " daemon";
+  if (thread != NULL) {
+    os << '"' << *thread->name_ << '"';
+    if (is_daemon) {
+      os << " daemon";
+    }
+    os << " prio=" << priority
+       << " tid=" << thread->GetThinLockId()
+       << " " << thread->GetState() << "\n";
+  } else {
+    std::string thread_name;
+    if (ReadFileToString(StringPrintf("/proc/self/task/%d/comm", tid), &thread_name)) {
+      thread_name.resize(thread_name.size() - 1); // Lose the trailing '\n'.
+    } else {
+      thread_name = "<unknown>";
+    }
+    os << '"' << thread_name << '"'
+       << " prio=" << priority
+       << " tid=?"
+       << " (not attached)\n";
   }
-  os << " prio=" << priority
-     << " tid=" << GetThinLockId()
-     << " " << GetState() << "\n";
 
-  os << "  | group=\"" << group_name << "\""
-     << " sCount=" << suspend_count_
-     << " dsCount=" << debug_suspend_count_
-     << " obj=" << reinterpret_cast<void*>(peer_)
-     << " self=" << reinterpret_cast<const void*>(this) << "\n";
-  os << "  | sysTid=" << GetTid()
-     << " nice=" << getpriority(PRIO_PROCESS, GetTid())
+  if (thread != NULL) {
+    os << "  | group=\"" << group_name << "\""
+       << " sCount=" << thread->suspend_count_
+       << " dsCount=" << thread->debug_suspend_count_
+       << " obj=" << reinterpret_cast<void*>(thread->peer_)
+       << " self=" << reinterpret_cast<const void*>(thread) << "\n";
+  }
+  os << "  | sysTid=" << tid
+     << " nice=" << getpriority(PRIO_PROCESS, tid)
      << " sched=" << policy << "/" << sp.sched_priority
-     << " cgrp=" << scheduler_group_name
-     << " handle=" << pthread_self() << "\n";
+     << " cgrp=" << scheduler_group_name << "\n";
+
+  // TODO: fix this; it's never worked in art! << " handle=" << pthread_self() << "\n";
 
   // Grab the scheduler stats for this thread.
   std::string scheduler_stats;
-  if (ReadFileToString(StringPrintf("/proc/self/task/%d/schedstat", GetTid()), &scheduler_stats)) {
+  if (ReadFileToString(StringPrintf("/proc/self/task/%d/schedstat", tid), &scheduler_stats)) {
     scheduler_stats.resize(scheduler_stats.size() - 1); // Lose the trailing '\n'.
   } else {
     scheduler_stats = "0 0 0";
@@ -496,15 +512,21 @@ void Thread::DumpState(std::ostream& os) const {
   int utime = 0;
   int stime = 0;
   int task_cpu = 0;
-  GetTaskStats(GetTid(), utime, stime, task_cpu);
+  GetTaskStats(tid, utime, stime, task_cpu);
 
   os << "  | schedstat=( " << scheduler_stats << " )"
      << " utm=" << utime
      << " stm=" << stime
-     << " core=" << task_cpu;
-  os << " HZ=" << sysconf(_SC_CLK_TCK) << "\n"
-     << "  | stack=" << reinterpret_cast<void*>(stack_begin_) << "-" << reinterpret_cast<void*>(stack_end_)
-     << " stackSize=" << PrettySize(stack_size_) << "\n";
+     << " core=" << task_cpu
+     << " HZ=" << sysconf(_SC_CLK_TCK) << "\n";
+  if (thread != NULL) {
+    os << "  | stack=" << reinterpret_cast<void*>(thread->stack_begin_) << "-" << reinterpret_cast<void*>(thread->stack_end_)
+       << " stackSize=" << PrettySize(thread->stack_size_) << "\n";
+  }
+}
+
+void Thread::DumpState(std::ostream& os) const {
+  Thread::DumpState(os, this, GetTid());
 }
 
 #if !defined(ART_USE_LLVM_COMPILER)

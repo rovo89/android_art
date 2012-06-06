@@ -64,6 +64,9 @@ class ThreadList {
   void ReleaseThreadId(uint32_t id);
 
   bool Contains(Thread* thread);
+  bool Contains(pid_t tid);
+
+  void DumpUnattachedThreads(std::ostream& os);
 
   bool AllOtherThreadsAreDaemons();
   void SuspendAllDaemonThreads();
