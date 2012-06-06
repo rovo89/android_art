@@ -223,4 +223,18 @@ MemMap::MemMap(byte* begin, size_t size, void* base_begin, size_t base_size)
   CHECK_NE(base_size_, 0U);
 };
 
+
+bool MemMap::Protect(int prot) {
+  if (base_begin_ == NULL && base_size_ == 0) {
+    return true;
+  }
+
+  if (mprotect(base_begin_, base_size_, prot) == 0) {
+    return true;
+  }
+
+  PLOG(ERROR) << "mprotect(" << base_begin_ << ", " << base_size_ << ", " << prot << ") failed";
+  return false;
+}
+
 }  // namespace art

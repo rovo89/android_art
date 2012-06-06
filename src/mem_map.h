@@ -57,6 +57,8 @@ class MemMap {
   // Releases the memory mapping
   ~MemMap();
 
+  bool Protect(int prot);
+
   byte* Begin() const {
     return begin_;
   }
