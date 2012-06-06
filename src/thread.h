@@ -129,6 +129,10 @@ class PACKED Thread {
   // When full == false, dumps a one-line summary of thread state (used for operator<<).
   void Dump(std::ostream& os, bool full = true) const;
 
+  // Dumps the SIGQUIT per-thread header. 'thread' can be NULL for a non-attached thread, in which
+  // case we use 'tid' to identify the thread, and we'll include as much information as we can.
+  static void DumpState(std::ostream& os, const Thread* thread, pid_t tid);
+
   ThreadState GetState() const {
     return state_;
   }
