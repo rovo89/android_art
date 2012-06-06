@@ -2357,7 +2357,8 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit, bool can_in
       return false;
     }
 
-    if (klass->GetStatus() == Class::kStatusResolved) {
+    if (klass->GetStatus() == Class::kStatusResolved ||
+        klass->GetStatus() == Class::kStatusRetryVerificationAtRuntime) {
       VerifyClass(klass);
       if (klass->GetStatus() != Class::kStatusVerified) {
         CHECK(self->IsExceptionPending());

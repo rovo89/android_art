@@ -1575,6 +1575,7 @@ static const char* kClassStatusNames[] = {
   "Idx",
   "Loaded",
   "Resolved",
+  "RetryVerificationAtRuntime",
   "Verifying",
   "Verified",
   "Initializing",
