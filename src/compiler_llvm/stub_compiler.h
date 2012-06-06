@@ -41,8 +41,8 @@ class StubCompiler {
  public:
   StubCompiler(CompilationUnit* cunit, Compiler& compiler);
 
-  uint16_t CreateInvokeStub(bool is_static, char const* shorty);
-  uint16_t CreateProxyStub(bool is_static, char const* shorty);
+  CompiledInvokeStub* CreateInvokeStub(bool is_static, char const* shorty);
+  CompiledInvokeStub* CreateProxyStub(char const* shorty);
 
  private:
   CompilationUnit* cunit_;

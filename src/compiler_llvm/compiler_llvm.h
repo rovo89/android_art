@@ -104,7 +104,9 @@ class CompilerLLVM {
 
   CompiledMethod* CompileNativeMethod(OatCompilationUnit* oat_compilation_unit);
 
-  CompiledInvokeStub* CreateInvokeStub(bool is_static, char const *shorty);
+  CompiledInvokeStub* CreateInvokeStub(bool is_static, const char *shorty);
+
+  CompiledInvokeStub* CreateProxyStub(const char *shorty);
 
  private:
   void EnsureCompilationUnit();

@@ -211,6 +211,7 @@ class CommonTest : public testing::Test {
                                 static_cast<uint16_t>(-1u),
                                 static_cast<uint16_t>(-1u),
                                 static_cast<uint16_t>(-1u),
+                                static_cast<uint16_t>(-1u),
                                 static_cast<uint16_t>(-1u)
 #endif
                                 );

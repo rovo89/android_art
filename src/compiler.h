@@ -94,6 +94,10 @@ class Compiler {
   const CompiledInvokeStub* FindInvokeStub(bool is_static, const char* shorty) const;
   const CompiledInvokeStub* FindInvokeStub(const std::string& key) const;
 
+#if defined(ART_USE_LLVM_COMPILER)
+  const CompiledInvokeStub* FindProxyStub(const char* shorty) const;
+#endif
+
   // Callbacks from OAT/ART compiler to see what runtime checks must be generated
 
   bool CanAssumeTypeIsPresentInDexCache(const DexCache* dex_cache, uint32_t type_idx);
@@ -281,6 +285,10 @@ class Compiler {
 
   void InsertInvokeStub(const std::string& key, const CompiledInvokeStub* compiled_invoke_stub);
 
+#if defined(ART_USE_LLVM_COMPILER)
+  void InsertProxyStub(const char* shorty, const CompiledInvokeStub* compiled_proxy_stub);
+#endif
+
   std::vector<const PatchInformation*> code_to_patch_;
   std::vector<const PatchInformation*> methods_to_patch_;
 
@@ -300,6 +308,13 @@ class Compiler {
   // Invocation stubs created to allow invocation of the compiled methods
   mutable Mutex compiled_invoke_stubs_lock_;
   InvokeStubTable compiled_invoke_stubs_;
+
+#if defined(ART_USE_LLVM_COMPILER)
+  typedef SafeMap<std::string, const CompiledInvokeStub*> ProxyStubTable;
+  // Proxy stubs created for proxy invocation delegation
+  mutable Mutex compiled_proxy_stubs_lock_;
+  ProxyStubTable compiled_proxy_stubs_;
+#endif
 
   bool image_;
   size_t thread_count_;
@@ -338,6 +353,10 @@ class Compiler {
   CreateInvokeStubFn create_invoke_stub_;
 
 #if defined(ART_USE_LLVM_COMPILER)
+  typedef CompiledInvokeStub* (*CreateProxyStubFn)
+      (Compiler& compiler, const char* shorty, uint32_t shorty_len);
+  CreateProxyStubFn create_proxy_stub_;
+
   typedef void (*CompilerEnableAutoElfLoadingFn)(Compiler& compiler);
   CompilerEnableAutoElfLoadingFn compiler_enable_auto_elf_loading_;
 
