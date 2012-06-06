@@ -1155,8 +1155,8 @@ static void VerifyClass(Context* context, size_t class_def_index) {
      * will be rejected by the verifier and later skipped during compilation in the compiler.
      */
     std::string error_msg;
-    if (!verifier::MethodVerifier::VerifyClass(context->GetDexFile(), context->GetDexCache(),
-        context->GetClassLoader(), class_def_index, error_msg)) {
+    if (verifier::MethodVerifier::VerifyClass(context->GetDexFile(), context->GetDexCache(),
+        context->GetClassLoader(), class_def_index, error_msg) == verifier::MethodVerifier::kHardFailure) {
       const DexFile::ClassDef& class_def = context->GetDexFile()->GetClassDef(class_def_index);
       LOG(ERROR) << "Verification failed on class "
                  << PrettyDescriptor(context->GetDexFile()->GetClassDescriptor(class_def))
@@ -1172,14 +1172,9 @@ static void VerifyClass(Context* context, size_t class_def_index) {
     CHECK(Thread::Current()->IsExceptionPending());
     Thread::Current()->ClearException();
     art::Compiler::ClassReference ref(context->GetDexFile(), class_def_index);
-    if (!verifier::MethodVerifier::IsClassRejected(ref)) {
-      // If the erroneous class wasn't rejected by the verifier, it was a soft error. We want
-      // to try verification again at run-time, so move back into the resolved state.
-      klass->SetStatus(Class::kStatusResolved);
-    }
   }
 
-  CHECK(klass->IsVerified() || klass->IsResolved() || klass->IsErroneous()) << PrettyClass(klass);
+  CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous()) << PrettyClass(klass);
   CHECK(!Thread::Current()->IsExceptionPending()) << PrettyTypeOf(Thread::Current()->GetException());
 }
 

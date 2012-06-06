@@ -1967,7 +1967,7 @@ void ClassLinker::VerifyClass(Class* klass) {
     return;
   }
 
-  CHECK_EQ(klass->GetStatus(), Class::kStatusResolved) << PrettyClass(klass);
+  CHECK(klass->IsResolved()) << PrettyClass(klass);
   klass->SetStatus(Class::kStatusVerifying);
 
   // Verify super class
@@ -1980,7 +1980,7 @@ void ClassLinker::VerifyClass(Class* klass) {
     if (!super->IsVerified() && !super->IsErroneous()) {
       Runtime::Current()->GetClassLinker()->VerifyClass(super);
     }
-    if (!super->IsVerified()) {
+    if (!super->IsCompileTimeVerified()) {
       error_msg = "Rejecting class ";
       error_msg += PrettyDescriptor(klass);
       error_msg += " that attempts to sub-class erroneous class ";
@@ -2005,16 +2005,22 @@ void ClassLinker::VerifyClass(Class* klass) {
   const DexFile& dex_file = FindDexFile(klass->GetDexCache());
   Class::Status oat_file_class_status(Class::kStatusNotReady);
   bool preverified = VerifyClassUsingOatFile(dex_file, klass, oat_file_class_status);
-  bool verified = preverified || verifier::MethodVerifier::VerifyClass(klass, error_msg);
-  if (verified) {
+  verifier::MethodVerifier::FailureKind verifier_failure = verifier::MethodVerifier::kNoFailure;
+  if (!preverified) {
+    verifier_failure = verifier::MethodVerifier::VerifyClass(klass, error_msg);
+  }
+  if (preverified || verifier_failure != verifier::MethodVerifier::kHardFailure) {
     if (!preverified && oat_file_class_status == Class::kStatusError) {
       LOG(FATAL) << "Verification failed hard on class " << PrettyDescriptor(klass)
                  << " at compile time, but succeeded at runtime! The verifier must be broken.";
     }
     DCHECK(!Thread::Current()->IsExceptionPending());
+    CHECK(verifier_failure == verifier::MethodVerifier::kNoFailure ||
+          Runtime::Current()->IsCompiler());
     // Make sure all classes referenced by catch blocks are resolved
     ResolveClassExceptionHandlerTypes(dex_file, klass);
-    klass->SetStatus(Class::kStatusVerified);
+    klass->SetStatus(verifier_failure == verifier::MethodVerifier::kNoFailure ?
+                     Class::kStatusVerified : Class::kStatusRetryVerificationAtRuntime);
     // Sanity check that a verified class has GC maps on all methods
     CheckMethodsHaveGcMaps(klass);
   } else {
@@ -2052,7 +2058,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass,
   if (oat_file_class_status == Class::kStatusVerified || oat_file_class_status == Class::kStatusInitialized) {
     return true;
   }
-  if (oat_file_class_status == Class::kStatusResolved) {
+  if (oat_file_class_status == Class::kStatusRetryVerificationAtRuntime) {
     // Compile time verification failed with a soft error. Compile time verification can fail
     // because we have incomplete type information. Consider the following:
     // class ... {
