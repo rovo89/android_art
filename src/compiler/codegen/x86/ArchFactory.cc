@@ -24,7 +24,7 @@
 
 namespace art {
 
-bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genAddLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2)
 {
   oatFlushAllRegs(cUnit);
@@ -39,7 +39,7 @@ bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   return false;
 }
 
-bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genSubLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2)
 {
   oatFlushAllRegs(cUnit);
@@ -54,7 +54,7 @@ bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   return false;
 }
 
-bool genAndLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genAndLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2)
 {
   oatFlushAllRegs(cUnit);
@@ -69,7 +69,7 @@ bool genAndLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   return false;
 }
 
-bool genOrLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genOrLong(CompilationUnit* cUnit, RegLocation rlDest,
                RegLocation rlSrc1, RegLocation rlSrc2)
 {
   oatFlushAllRegs(cUnit);
@@ -84,7 +84,7 @@ bool genOrLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   return false;
 }
 
-bool genXorLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genXorLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2)
 {
   oatFlushAllRegs(cUnit);
@@ -99,7 +99,7 @@ bool genXorLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   return false;
 }
 
-bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genNegLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc)
 {
   oatFlushAllRegs(cUnit);

@@ -27,17 +27,17 @@
 namespace art {
 
 #if defined(_CODEGEN_C)
-bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genAddLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2);
-bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genSubLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2);
-bool genAndLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genAndLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2);
-bool genOrLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genOrLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2);
-bool genXorLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genXorLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2);
-bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genNegLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc);
 LIR *opRegImm(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int value);
 LIR *opRegReg(CompilationUnit* cUnit, OpKind op, int rDestSrc1, int rSrc2);
@@ -47,15 +47,16 @@ LIR* opCmpImmBranch(CompilationUnit* cUnit, ConditionCode cond, int reg,
                     int checkValue, LIR* target);
 
 /* Forward declaration of the portable versions due to circular dependency */
-bool genArithOpFloatPortable(CompilationUnit* cUnit, MIR* mir,
+bool genArithOpFloatPortable(CompilationUnit* cUnit, Instruction::Code opcode,
                                     RegLocation rlDest, RegLocation rlSrc1,
                                     RegLocation rlSrc2);
 
-bool genArithOpDoublePortable(CompilationUnit* cUnit, MIR* mir,
+bool genArithOpDoublePortable(CompilationUnit* cUnit, Instruction::Code opcode,
                                      RegLocation rlDest, RegLocation rlSrc1,
                                      RegLocation rlSrc2);
 
-bool genConversionPortable(CompilationUnit* cUnit, MIR* mir);
+bool genConversionPortable(CompilationUnit* cUnit, Instruction::Code opcode,
+                           RegLocation rlDest, RegLocation rlSrc);
 
 int loadHelper(CompilationUnit* cUnit, int offset);
 LIR* loadConstant(CompilationUnit* cUnit, int reg, int immVal);

@@ -127,7 +127,7 @@ std::string buildInsnString(const char *fmt, LIR *lir, unsigned char* baseAddr)
   return buf;
 }
 
-// FIXME: need to redo resourse maps for MIPS - fix this at that time
+// FIXME: need to redo resource maps for MIPS - fix this at that time
 void oatDumpResourceMask(LIR *lir, u8 mask, const char *prefix)
 {
   char buf[256];

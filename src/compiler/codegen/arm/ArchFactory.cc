@@ -28,7 +28,7 @@ namespace art {
 
 void genDebuggerUpdate(CompilationUnit* cUnit, int32_t offset);
 
-bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genNegLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc)
 {
   rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
@@ -95,7 +95,7 @@ void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
   }
   if (!skipOverflowCheck) {
     opRegRegImm(cUnit, kOpSub, rLR, rSP, cUnit->frameSize - (spillCount * 4));
-    genRegRegCheck(cUnit, kCondCc, rLR, r12, NULL, kThrowStackOverflow);
+    genRegRegCheck(cUnit, kCondCc, rLR, r12, kThrowStackOverflow);
     opRegCopy(cUnit, rSP, rLR);     // Establish stack
   } else {
     opRegImm(cUnit, kOpSub, rSP, cUnit->frameSize - (spillCount * 4));
