@@ -36,6 +36,13 @@ inline static std::string ElfFuncName(uint16_t elf_func_idx) {
   return StringPrintf("Art%u", static_cast<unsigned int>(elf_func_idx));
 }
 
+class CStringLessThanComparator {
+ public:
+  bool operator()(const char* lhs, const char* rhs) const {
+    return (strcmp(lhs, rhs) < 0);
+  }
+};
+
 }  // namespace art
 
 #endif  // ART_SRC_UTILS_LLVM_H_
