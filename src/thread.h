@@ -643,6 +643,9 @@ class PACKED Thread {
   // A cached copy of the java.lang.Thread's name.
   std::string* name_;
 
+  // A cached pthread_t for the pthread underlying this Thread*.
+  pthread_t pthread_self_;
+
   uint32_t held_mutexes_[kMaxMutexRank + 1];
 
  public:

@@ -265,7 +265,11 @@ struct LogVerbosity {
 };
 
 extern LogVerbosity gLogVerbosity;
-extern void InitLogging();
+extern void InitLogging(char* argv[]);
+
+extern const char* GetCmdLine();
+extern const char* ProgramInvocationName();
+extern const char* ProgramInvocationShortName();
 
 }  // namespace art
 

@@ -35,7 +35,8 @@ LogMessage::LogMessage(const char* file, int line, LogSeverity severity, int err
 
 void LogMessage::LogLine(const char* message) {
   char severity = "VDIWEFF"[data_->severity];
-  fprintf(stderr, "%c %5d %5d %s:%d] %s\n", severity, getpid(), ::art::GetTid(),
+  fprintf(stderr, "%s %c %5d %5d %s:%d] %s\n",
+          ProgramInvocationShortName(), severity, getpid(), ::art::GetTid(),
           data_->file, data_->line_number, message);
 }
 

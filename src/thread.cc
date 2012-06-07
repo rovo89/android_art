@@ -250,6 +250,7 @@ void Thread::Init() {
   CHECK(runtime != NULL);
 
   thin_lock_id_ = runtime->GetThreadList()->AllocThreadId();
+  pthread_self_ = pthread_self();
 
   InitTid();
   InitStackHwm();
@@ -457,10 +458,6 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     priority = GetNativePriority();
   }
 
-  int policy;
-  sched_param sp;
-  CHECK_PTHREAD_CALL(pthread_getschedparam, (pthread_self(), &policy, &sp), __FUNCTION__);
-
   std::string scheduler_group_name(GetSchedulerGroupName(tid));
   if (scheduler_group_name.empty()) {
     scheduler_group_name = "default";
@@ -483,7 +480,6 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     }
     os << '"' << thread_name << '"'
        << " prio=" << priority
-       << " tid=?"
        << " (not attached)\n";
   }
 
@@ -494,12 +490,18 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
        << " obj=" << reinterpret_cast<void*>(thread->peer_)
        << " self=" << reinterpret_cast<const void*>(thread) << "\n";
   }
+
   os << "  | sysTid=" << tid
      << " nice=" << getpriority(PRIO_PROCESS, tid)
-     << " sched=" << policy << "/" << sp.sched_priority
-     << " cgrp=" << scheduler_group_name << "\n";
-
-  // TODO: fix this; it's never worked in art! << " handle=" << pthread_self() << "\n";
+     << " cgrp=" << scheduler_group_name;
+  if (thread != NULL) {
+    int policy;
+    sched_param sp;
+    CHECK_PTHREAD_CALL(pthread_getschedparam, (thread->pthread_self_, &policy, &sp), __FUNCTION__);
+    os << " sched=" << policy << "/" << sp.sched_priority
+       << " handle=" << reinterpret_cast<void*>(thread->pthread_self_);
+  }
+  os << "\n";
 
   // Grab the scheduler stats for this thread.
   std::string scheduler_stats;
