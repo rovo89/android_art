@@ -233,7 +233,8 @@ bool MemMap::Protect(int prot) {
     return true;
   }
 
-  PLOG(ERROR) << "mprotect(" << base_begin_ << ", " << base_size_ << ", " << prot << ") failed";
+  PLOG(ERROR) << "mprotect(" << reinterpret_cast<void*>(base_begin_) << ", " << base_size_ << ", "
+              << prot << ") failed";
   return false;
 }
 
