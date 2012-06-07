@@ -19,7 +19,10 @@
 #include <sys/mman.h>
 
 #include "ScopedFd.h"
+#include "stringprintf.h"
 #include "utils.h"
+
+#include <corkscrew/map_info.h>
 
 #define USE_ASHMEM 1
 
@@ -31,139 +34,46 @@ namespace art {
 
 #if !defined(NDEBUG)
 
-static size_t ParseHex(const std::string& string) {
-  CHECK_EQ(8U, string.size());
-  const char* str = string.c_str();
-  char* end;
-  size_t value = strtoul(str, &end, 16);
-  CHECK(end != str) << "Failed to parse hexadecimal value from " << string;
-  CHECK_EQ(*end, '\0') << "Failed to parse hexadecimal value from " << string;
-  return value;
+static std::ostream& operator<<(std::ostream& os, map_info_t* rhs) {
+  for (map_info_t* m = rhs; m != NULL; m = m->next) {
+    os << StringPrintf("%08x-%08x %c%c %s\n",m->start, m->end,
+                       m->is_readable ? 'r' : '-', m->is_executable ? 'x' : '-', m->name);
+  }
+  return os;
 }
 
-static void CheckMapRegion(uint32_t base, uint32_t limit, uint32_t start, uint32_t end, const std::string& maps) {
-  CHECK(!(base >= start && base < end)      // start of new within old
-        && !(limit > start && limit < end)  // end of new within old
-        && !(base <= start && limit > end)) // start/end of new includes all of old
-      << StringPrintf("Requested region %08x-%08x overlaps with existing map %08x-%08x\n",
-                      base, limit, start, end)
-      << maps;
-}
-
-void CheckMapRequest(byte* addr, size_t length) {
+void CheckMapRequest(byte* addr, size_t byte_count) {
   if (addr == NULL) {
     return;
   }
+
   uint32_t base = reinterpret_cast<size_t>(addr);
-  uint32_t limit = base + length;
+  uint32_t limit = base + byte_count;
 
-#if defined(__APPLE__)
-  // Mac OS vmmap(1) output currently looks something like this:
-
-  // Virtual Memory Map of process 51036 (dex2oatd)
-  // Output report format:  2.2  -- 32-bit process
-  //
-  // ==== regions for process 51036  (non-writable and writable regions are interleaved)
-  // __PAGEZERO             00000000-00001000 [    4K     0K     0K] ---/--- SM=NUL          out/host/darwin-x86/bin/dex2oatd
-  // __TEXT                 00001000-00015000 [   80K    80K     0K] r-x/rwx SM=COW          out/host/darwin-x86/bin/dex2oatd
-  // __DATA                 00015000-00016000 [    4K     4K     4K] rw-/rwx SM=PRV          out/host/darwin-x86/bin/dex2oatd
-  // __LINKEDIT             00016000-00044000 [  184K   184K     0K] r--/rwx SM=COW          out/host/darwin-x86/bin/dex2oatd
-  // __TEXT                 00044000-00046000 [    8K     8K     4K] r-x/rwx SM=COW          out/host/darwin-x86/obj/lib/libnativehelper.dylib
-  // __DATA                 00046000-00047000 [    4K     4K     4K] rw-/rwx SM=ZER          out/host/darwin-x86/obj/lib/libnativehelper.dylib
-  // __LINKEDIT             00047000-0004a000 [   12K    12K     0K] r--/rwx SM=COW          out/host/darwin-x86/obj/lib/libnativehelper.dylib
-  // ...
-
-  // TODO: the -v option replaces "-w -resident -dirty -purge -submap -allSplitLibs -noCoalesce" >= 10.6.
-  std::string command(StringPrintf("vmmap -w -resident -submap -allSplitLibs -interleaved %d", getpid()));
-  FILE* fp = popen(command.c_str(), "r");
-  if (fp == NULL) {
-    PLOG(FATAL) << "popen failed";
+  map_info_t* map_info_list = load_map_info_list(getpid());
+  for (map_info_t* m = map_info_list; m != NULL; m = m->next) {
+    CHECK(!(base >= m->start && base < m->end)      // start of new within old
+        && !(limit > m->start && limit < m->end)  // end of new within old
+        && !(base <= m->start && limit > m->end)) // start/end of new includes all of old
+        << StringPrintf("Requested region %08x-%08x overlaps with existing map %08x-%08x (%s)\n",
+                        base, limit, m->start, m->end, m->name)
+        << map_info_list;
   }
-  std::vector<char> chars(512);
-  std::string maps;
-  while (fgets(&chars[0], chars.size(), fp) != NULL) {
-    std::string line(&chars[0]);
-    maps += line;
-    if (line.size() < 40 || line[31] != '-') {
-      continue;
-    }
-
-    std::string start_str(line.substr(23, 8));
-    std::string end_str(line.substr(32, 8));
-    uint32_t start = ParseHex(start_str);
-    uint32_t end = ParseHex(end_str);
-    CheckMapRegion(base, limit, start, end, maps);
-  }
-  if (ferror(fp)) {
-    PLOG(FATAL) << "fgets failed";
-  }
-  if (pclose(fp) == -1) {
-    PLOG(FATAL) << "pclose failed";
-  }
-#else // Linux
-  std::string maps;
-  bool read = ReadFileToString("/proc/self/maps", &maps);
-  if (!read) {
-    PLOG(FATAL) << "Failed to read /proc/self/maps";
-  }
-  // Quick and dirty parse of output like shown below. We only focus
-  // on grabbing the two 32-bit hex values at the start of each line
-  // and will fail on wider addresses found on 64-bit systems.
-
-  // 00008000-0001f000 r-xp 00000000 b3:01 273        /system/bin/toolbox
-  // 0001f000-00021000 rw-p 00017000 b3:01 273        /system/bin/toolbox
-  // 00021000-00029000 rw-p 00000000 00:00 0          [heap]
-  // 40011000-40053000 r-xp 00000000 b3:01 1050       /system/lib/libc.so
-  // 40053000-40056000 rw-p 00042000 b3:01 1050       /system/lib/libc.so
-  // 40056000-40061000 rw-p 00000000 00:00 0
-  // 40061000-40063000 r-xp 00000000 b3:01 1107       /system/lib/libusbhost.so
-  // 40063000-40064000 rw-p 00002000 b3:01 1107       /system/lib/libusbhost.so
-  // 4009d000-400a0000 r-xp 00000000 b3:01 1022       /system/lib/liblog.so
-  // 400a0000-400a1000 rw-p 00003000 b3:01 1022       /system/lib/liblog.so
-  // 400b7000-400cc000 r-xp 00000000 b3:01 932        /system/lib/libm.so
-  // 400cc000-400cd000 rw-p 00015000 b3:01 932        /system/lib/libm.so
-  // 400cf000-400d0000 r--p 00000000 00:00 0
-  // 400e4000-400ec000 r--s 00000000 00:0b 388        /dev/__properties__ (deleted)
-  // 400ec000-400fa000 r-xp 00000000 b3:01 1101       /system/lib/libcutils.so
-  // 400fa000-400fb000 rw-p 0000e000 b3:01 1101       /system/lib/libcutils.so
-  // 400fb000-4010a000 rw-p 00000000 00:00 0
-  // 4010d000-4010e000 r-xp 00000000 b3:01 929        /system/lib/libstdc++.so
-  // 4010e000-4010f000 rw-p 00001000 b3:01 929        /system/lib/libstdc++.so
-  // b0001000-b0009000 r-xp 00001000 b3:01 1098       /system/bin/linker
-  // b0009000-b000a000 rw-p 00009000 b3:01 1098       /system/bin/linker
-  // b000a000-b0015000 rw-p 00000000 00:00 0
-  // bee35000-bee56000 rw-p 00000000 00:00 0          [stack]
-  // ffff0000-ffff1000 r-xp 00000000 00:00 0          [vectors]
-
-  for (size_t i = 0; i < maps.size(); i++) {
-    size_t remaining = maps.size() - i;
-    if (remaining < 8+1+8) {  // 00008000-0001f000
-      LOG(FATAL) << "Failed to parse at pos " << i << "\n" << maps;
-    }
-    std::string start_str(maps.substr(i, 8));
-    std::string end_str(maps.substr(i+1+8, 8));
-    uint32_t start = ParseHex(start_str);
-    uint32_t end = ParseHex(end_str);
-    CheckMapRegion(base, limit, start, end, maps);
-    i += 8+1+8;
-    i = maps.find('\n', i);
-    CHECK(i != std::string::npos) << "Failed to find newline from pos " << i << "\n" << maps;
-  }
-#endif
+  free_map_info_list(map_info_list);
 }
 
 #else
 static void CheckMapRequest(byte*, size_t) { }
 #endif
 
-MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t length, int prot) {
-  CHECK_NE(0U, length);
+MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t byte_count, int prot) {
+  CHECK_NE(0U, byte_count);
   CHECK_NE(0, prot);
-  size_t page_aligned_size = RoundUp(length, kPageSize);
-  CheckMapRequest(addr, page_aligned_size);
+  size_t page_aligned_byte_count = RoundUp(byte_count, kPageSize);
+  CheckMapRequest(addr, page_aligned_byte_count);
 
 #ifdef USE_ASHMEM
-  ScopedFd fd(ashmem_create_region(name, page_aligned_size));
+  ScopedFd fd(ashmem_create_region(name, page_aligned_byte_count));
   int flags = MAP_PRIVATE;
   if (fd.get() == -1) {
     PLOG(ERROR) << "ashmem_create_region failed (" << name << ")";
@@ -174,26 +84,26 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* addr, size_t length, int pr
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 #endif
 
-  byte* actual = reinterpret_cast<byte*>(mmap(addr, page_aligned_size, prot, flags, fd.get(), 0));
+  byte* actual = reinterpret_cast<byte*>(mmap(addr, page_aligned_byte_count, prot, flags, fd.get(), 0));
   if (actual == MAP_FAILED) {
-    PLOG(ERROR) << "mmap(" << reinterpret_cast<void*>(addr) << ", " << page_aligned_size
+    PLOG(ERROR) << "mmap(" << reinterpret_cast<void*>(addr) << ", " << page_aligned_byte_count
                 << ", " << prot << ", " << flags << ", " << fd.get() << ", 0) failed for " << name;
     return NULL;
   }
-  return new MemMap(actual, length, actual, page_aligned_size);
+  return new MemMap(actual, byte_count, actual, page_aligned_byte_count);
 }
 
-MemMap* MemMap::MapFileAtAddress(byte* addr, size_t length, int prot, int flags, int fd, off_t start) {
-  CHECK_NE(0U, length);
+MemMap* MemMap::MapFileAtAddress(byte* addr, size_t byte_count, int prot, int flags, int fd, off_t start) {
+  CHECK_NE(0U, byte_count);
   CHECK_NE(0, prot);
   CHECK_NE(0, flags & (MAP_SHARED | MAP_PRIVATE));
-  // adjust to be page-aligned
+  // Adjust 'offset' and 'byte_count' to be page-aligned.
   int page_offset = start % kPageSize;
   off_t page_aligned_offset = start - page_offset;
-  size_t page_aligned_size = RoundUp(length + page_offset, kPageSize);
-  CheckMapRequest(addr, page_aligned_size);
+  size_t page_aligned_byte_count = RoundUp(byte_count + page_offset, kPageSize);
+  CheckMapRequest(addr, page_aligned_byte_count);
   byte* actual = reinterpret_cast<byte*>(mmap(addr,
-                                              page_aligned_size,
+                                              page_aligned_byte_count,
                                               prot,
                                               flags,
                                               fd,
@@ -202,7 +112,7 @@ MemMap* MemMap::MapFileAtAddress(byte* addr, size_t length, int prot, int flags,
     PLOG(ERROR) << "mmap failed";
     return NULL;
   }
-  return new MemMap(actual + page_offset, length, actual, page_aligned_size);
+  return new MemMap(actual + page_offset, byte_count, actual, page_aligned_byte_count);
 }
 
 MemMap::~MemMap() {

@@ -28,7 +28,7 @@ namespace art {
 class MemMap {
  public:
 
-  // Request an anonymous region of a specified length and a requested base address.
+  // Request an anonymous region of length 'byte_count' and a requested base address.
   // Use NULL as the requested base address if you don't care.
   //
   // The word "anonymous" in this context means "not backed by a file". The supplied
@@ -36,14 +36,14 @@ class MemMap {
   // a name.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* MapAnonymous(const char* ashmem_name, byte* addr, size_t length, int prot);
+  static MemMap* MapAnonymous(const char* ashmem_name, byte* addr, size_t byte_count, int prot);
 
   // Map part of a file, taking care of non-page aligned offsets.  The
   // "start" offset is absolute, not relative.
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
-  static MemMap* MapFile(size_t length, int prot, int flags, int fd, off_t start) {
-    return MapFileAtAddress(NULL, length, prot, flags, fd, start);
+  static MemMap* MapFile(size_t byte_count, int prot, int flags, int fd, off_t start) {
+    return MapFileAtAddress(NULL, byte_count, prot, flags, fd, start);
   }
 
   // Map part of a file, taking care of non-page aligned offsets.  The
@@ -52,7 +52,7 @@ class MemMap {
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
   static MemMap* MapFileAtAddress(
-      byte* addr, size_t length, int prot, int flags, int fd, off_t start);
+      byte* addr, size_t byte_count, int prot, int flags, int fd, off_t start);
 
   // Releases the memory mapping
   ~MemMap();
