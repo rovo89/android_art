@@ -325,6 +325,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/jdwp/jdwp.h \
 	src/jdwp/jdwp_constants.h \
 	src/mutex.h \
+	src/object.h \
 	src/thread.h \
 	src/verifier/method_verifier.h
 
