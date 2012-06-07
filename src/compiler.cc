@@ -382,10 +382,12 @@ Compiler::~Compiler() {
     MutexLock mu(compiled_invoke_stubs_lock_);
     STLDeleteValues(&compiled_invoke_stubs_);
   }
+#if defined(ART_USE_LLVM_COMPILER)
   {
     MutexLock mu(compiled_proxy_stubs_lock_);
     STLDeleteValues(&compiled_proxy_stubs_);
   }
+#endif
   {
     MutexLock mu(compiled_methods_lock_);
     STLDeleteElements(&code_to_patch_);
