@@ -1080,10 +1080,10 @@ JDWP::JdwpError Dbg::OutputDeclaredInterfaces(JDWP::RefTypeId classId, JDWP::Exp
   }
 
   ClassHelper kh(c);
-  size_t interface_count = kh.NumInterfaces();
+  size_t interface_count = kh.NumDirectInterfaces();
   expandBufAdd4BE(pReply, interface_count);
   for (size_t i = 0; i < interface_count; ++i) {
-    expandBufAddRefTypeId(pReply, gRegistry->Add(kh.GetInterface(i)));
+    expandBufAddRefTypeId(pReply, gRegistry->Add(kh.GetDirectInterface(i)));
   }
   return JDWP::ERR_NONE;
 }

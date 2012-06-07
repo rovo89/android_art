@@ -19,6 +19,7 @@ class Interfaces {
         public void i();
     }
     interface J {
+        public String foo = "foo";
         public void j1();
         public void j2();
     }

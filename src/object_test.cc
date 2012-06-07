@@ -108,9 +108,9 @@ TEST_F(ObjectTest, AllocObjectArray) {
 
   ASSERT_TRUE(oa->GetClass() != NULL);
   ClassHelper oa_ch(oa->GetClass());
-  ASSERT_EQ(2U, oa_ch.NumInterfaces());
-  EXPECT_EQ(class_linker_->FindSystemClass("Ljava/lang/Cloneable;"), oa_ch.GetInterface(0));
-  EXPECT_EQ(class_linker_->FindSystemClass("Ljava/io/Serializable;"), oa_ch.GetInterface(1));
+  ASSERT_EQ(2U, oa_ch.NumDirectInterfaces());
+  EXPECT_EQ(class_linker_->FindSystemClass("Ljava/lang/Cloneable;"), oa_ch.GetDirectInterface(0));
+  EXPECT_EQ(class_linker_->FindSystemClass("Ljava/io/Serializable;"), oa_ch.GetDirectInterface(1));
 }
 
 TEST_F(ObjectTest, AllocArray) {

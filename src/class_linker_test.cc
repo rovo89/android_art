@@ -71,7 +71,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_EQ(0U, primitive->NumVirtualMethods());
     EXPECT_EQ(0U, primitive->NumInstanceFields());
     EXPECT_EQ(0U, primitive->NumStaticFields());
-    EXPECT_EQ(0U, primitive_ch.NumInterfaces());
+    EXPECT_EQ(0U, primitive_ch.NumDirectInterfaces());
     EXPECT_TRUE(primitive->GetVTable() == NULL);
     EXPECT_EQ(0, primitive->GetIfTableCount());
     EXPECT_TRUE(primitive->GetIfTable() == NULL);
@@ -118,15 +118,15 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_EQ(0U, array->NumInstanceFields());
     EXPECT_EQ(0U, array->NumStaticFields());
     kh.ChangeClass(array);
-    EXPECT_EQ(2U, kh.NumInterfaces());
+    EXPECT_EQ(2U, kh.NumDirectInterfaces());
     EXPECT_TRUE(array->GetVTable() != NULL);
     EXPECT_EQ(2, array->GetIfTableCount());
     ObjectArray<InterfaceEntry>* iftable = array->GetIfTable();
     ASSERT_TRUE(iftable != NULL);
-    kh.ChangeClass(kh.GetInterface(0));
+    kh.ChangeClass(kh.GetDirectInterface(0));
     EXPECT_STREQ(kh.GetDescriptor(), "Ljava/lang/Cloneable;");
     kh.ChangeClass(array);
-    kh.ChangeClass(kh.GetInterface(1));
+    kh.ChangeClass(kh.GetDirectInterface(1));
     EXPECT_STREQ(kh.GetDescriptor(), "Ljava/io/Serializable;");
   }
 
@@ -699,7 +699,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_STREQ(fh.GetName(), "shadow$_monitor_");
 
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
-  EXPECT_EQ(0U, kh.NumInterfaces());
+  EXPECT_EQ(0U, kh.NumDirectInterfaces());
 
   SirtRef<ClassLoader> class_loader(LoadDex("MyClass"));
   AssertNonExistentClass("LMyClass;");
@@ -731,7 +731,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, MyClass->NumVirtualMethods());
   EXPECT_EQ(0U, MyClass->NumInstanceFields());
   EXPECT_EQ(0U, MyClass->NumStaticFields());
-  EXPECT_EQ(0U, kh.NumInterfaces());
+  EXPECT_EQ(0U, kh.NumDirectInterfaces());
 
   EXPECT_EQ(JavaLangObject->GetClass()->GetClass(), MyClass->GetClass()->GetClass());
 
@@ -956,6 +956,15 @@ TEST_F(ClassLinkerTest, Interfaces) {
   EXPECT_EQ(Ai, A->FindVirtualMethodForVirtualOrInterface(Ii));
   EXPECT_EQ(Aj1, A->FindVirtualMethodForVirtualOrInterface(Jj1));
   EXPECT_EQ(Aj2, A->FindVirtualMethodForVirtualOrInterface(Jj2));
+
+  Field* Afoo = A->FindStaticField("foo", "Ljava/lang/String;");
+  Field* Bfoo = B->FindStaticField("foo", "Ljava/lang/String;");
+  Field* Jfoo = J->FindStaticField("foo", "Ljava/lang/String;");
+  Field* Kfoo = K->FindStaticField("foo", "Ljava/lang/String;");
+  ASSERT_TRUE(Afoo != NULL);
+  EXPECT_EQ(Afoo, Bfoo);
+  EXPECT_EQ(Afoo, Jfoo);
+  EXPECT_EQ(Afoo, Kfoo);
 }
 
 TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {

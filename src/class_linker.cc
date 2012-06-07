@@ -386,11 +386,11 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
 
   // Sanity check Class[] and Object[]'s interfaces
   ClassHelper kh(class_array_class.get(), this);
-  CHECK_EQ(java_lang_Cloneable, kh.GetInterface(0));
-  CHECK_EQ(java_io_Serializable, kh.GetInterface(1));
+  CHECK_EQ(java_lang_Cloneable, kh.GetDirectInterface(0));
+  CHECK_EQ(java_io_Serializable, kh.GetDirectInterface(1));
   kh.ChangeClass(object_array_class.get());
-  CHECK_EQ(java_lang_Cloneable, kh.GetInterface(0));
-  CHECK_EQ(java_io_Serializable, kh.GetInterface(1));
+  CHECK_EQ(java_lang_Cloneable, kh.GetDirectInterface(0));
+  CHECK_EQ(java_io_Serializable, kh.GetDirectInterface(1));
   // run Class, Constructor, Field, and Method through FindSystemClass.
   // this initializes their dex_cache_ fields and register them in classes_.
   Class* Class_class = FindSystemClass("Ljava/lang/Class;");
@@ -2889,10 +2889,10 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
   }
   size_t ifcount = super_ifcount;
   ClassHelper kh(klass.get(), this);
-  uint32_t num_interfaces = interfaces == NULL ? kh.NumInterfaces() : interfaces->GetLength();
+  uint32_t num_interfaces = interfaces == NULL ? kh.NumDirectInterfaces() : interfaces->GetLength();
   ifcount += num_interfaces;
   for (size_t i = 0; i < num_interfaces; i++) {
-    Class* interface = interfaces == NULL ? kh.GetInterface(i) : interfaces->Get(i);
+    Class* interface = interfaces == NULL ? kh.GetDirectInterface(i) : interfaces->Get(i);
     ifcount += interface->GetIfTableCount();
   }
   if (ifcount == 0) {
@@ -2912,7 +2912,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
   // Flatten the interface inheritance hierarchy.
   size_t idx = super_ifcount;
   for (size_t i = 0; i < num_interfaces; i++) {
-    Class* interface = interfaces == NULL ? kh.GetInterface(i) : interfaces->Get(i);
+    Class* interface = interfaces == NULL ? kh.GetDirectInterface(i) : interfaces->Get(i);
     DCHECK(interface != NULL);
     if (!interface->IsInterface()) {
       ClassHelper ih(interface);
