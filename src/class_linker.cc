@@ -1346,9 +1346,6 @@ void ClassLinker::LinkOatCodeFor(Method* method) {
     }
     if (method->GetInvokeStub() == NULL) {
       method->SetInvokeStub(oat_method.GetInvokeStub());
-#if defined(ART_USE_LLVM_COMPILER)
-      method->SetProxyStub(oat_method.GetProxyStub());
-#endif
     }
   }
 }
@@ -2309,7 +2306,8 @@ Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& p
 #if !defined(ART_USE_LLVM_COMPILER)
   method->SetCode(reinterpret_cast<void*>(art_proxy_invoke_handler));
 #else
-  method->SetCode(prototype->GetProxyStub());
+  OatFile::OatMethod oat_method = GetOatMethodFor(prototype.get());
+  method->SetCode(oat_method.GetProxyStub());
 #endif
 
   return method;

@@ -273,6 +273,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 #if defined(ART_USE_LLVM_COMPILER)
   uint16_t invoke_stub_elf_idx = static_cast<uint16_t>(-1u);
   uint16_t invoke_stub_elf_func_idx = static_cast<uint16_t>(-1u);
+  uint16_t proxy_stub_elf_idx = static_cast<uint16_t>(-1u);
   uint16_t proxy_stub_elf_func_idx = static_cast<uint16_t>(-1u);
 #endif
 
@@ -367,11 +368,8 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   if (compiled_invoke_stub != NULL) {
     if (compiled_invoke_stub->IsExecutableInElf()) {
 #if defined(ART_USE_LLVM_COMPILER)
-      invoke_stub_elf_idx = compiled_invoke_stub->GetStubElfIndex();
-      invoke_stub_elf_func_idx = compiled_invoke_stub->GetInvokeStubElfFuncIndex();
-      if (!is_static) {
-        proxy_stub_elf_func_idx = compiled_invoke_stub->GetProxyStubElfFuncIndex();
-      }
+      invoke_stub_elf_idx = compiled_invoke_stub->GetElfIndex();
+      invoke_stub_elf_func_idx = compiled_invoke_stub->GetElfFuncIndex();
 #endif
     } else {
       offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
@@ -394,6 +392,17 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     }
   }
 
+#if defined(ART_USE_LLVM_COMPILER)
+  if (!is_static) {
+    const CompiledInvokeStub* compiled_proxy_stub = compiler_->FindProxyStub(shorty);
+    if (compiled_proxy_stub != NULL) {
+      DCHECK(compiled_proxy_stub->IsExecutableInElf());
+      proxy_stub_elf_idx = compiled_proxy_stub->GetElfIndex();
+      proxy_stub_elf_func_idx = compiled_proxy_stub->GetElfFuncIndex();
+    }
+  }
+#endif
+
   oat_classes_[oat_class_index]->method_offsets_[class_def_method_index]
       = OatMethodOffsets(code_offset,
                          frame_size_in_bytes,
@@ -408,6 +417,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                          code_elf_func_idx,
                          invoke_stub_elf_idx,
                          invoke_stub_elf_func_idx,
+                         proxy_stub_elf_idx,
                          proxy_stub_elf_func_idx
 #endif
                          );

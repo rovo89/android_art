@@ -180,13 +180,13 @@ const void* CompiledMethod::CodePointer(const void* code_pointer,
 }
 
 #if defined(ART_USE_LLVM_COMPILER)
-CompiledInvokeStub::CompiledInvokeStub(uint16_t elf_idx)
-    : elf_idx_(elf_idx) {
+CompiledInvokeStub::CompiledInvokeStub(uint16_t elf_idx, uint16_t elf_func_idx)
+    : elf_idx_(elf_idx), elf_func_idx_(elf_func_idx) {
 }
 #endif
 
 CompiledInvokeStub::CompiledInvokeStub(std::vector<uint8_t>& code)
-    : elf_idx_(-1) {
+    : elf_idx_(-1), elf_func_idx_(-1) {
   CHECK_NE(code.size(), 0U);
   code_ = code;
 }

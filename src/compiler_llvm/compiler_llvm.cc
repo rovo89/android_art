@@ -225,8 +225,8 @@ const void* CompilerLLVM::GetMethodCodeAddr(const CompiledMethod* cm) const {
 
 const Method::InvokeStub* CompilerLLVM::
 GetMethodInvokeStubAddr(const CompiledInvokeStub* cm) const {
-  return elf_loader_->GetMethodInvokeStubAddr(cm->GetStubElfIndex(),
-                                              cm->GetInvokeStubElfFuncIndex());
+  return elf_loader_->GetMethodInvokeStubAddr(cm->GetElfIndex(),
+                                              cm->GetElfFuncIndex());
 }
 
 
@@ -282,12 +282,21 @@ CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
   UniquePtr<StubCompiler> stub_compiler(
     new StubCompiler(curr_cunit_, *compiler_));
 
-  CompiledInvokeStub* compiled_stub = new CompiledInvokeStub(curr_cunit_->GetElfIndex());
+  return stub_compiler->CreateInvokeStub(is_static, shorty);
+}
 
-  compiled_stub->SetInvokeStub(stub_compiler->CreateInvokeStub(is_static, shorty));
-  compiled_stub->SetProxyStub(stub_compiler->CreateProxyStub(is_static, shorty));
 
-  return compiled_stub;
+CompiledInvokeStub* CompilerLLVM::CreateProxyStub(char const *shorty) {
+  MutexLock GUARD(compiler_lock_);
+
+  EnsureCompilationUnit();
+
+  MutexLock GUARD_CUNIT(curr_cunit_->cunit_lock_);
+
+  UniquePtr<StubCompiler> stub_compiler(
+    new StubCompiler(curr_cunit_, *compiler_));
+
+  return stub_compiler->CreateProxyStub(shorty);
 }
 
 } // namespace compiler_llvm
@@ -349,10 +358,21 @@ extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
   return result;
 }
 
-extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(art::Compiler& compiler, bool is_static,
-                                                        const char* shorty, uint32_t shorty_len) {
+extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(art::Compiler& compiler,
+                                                        bool is_static,
+                                                        const char* shorty,
+                                                        uint32_t shorty_len) {
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
   art::CompiledInvokeStub* result = compiler_llvm->CreateInvokeStub(is_static, shorty);
+  compiler_llvm->MaterializeIfThresholdReached();
+  return result;
+}
+
+extern "C" art::CompiledInvokeStub* ArtCreateProxyStub(art::Compiler& compiler,
+                                                       const char* shorty,
+                                                       uint32_t shorty_len) {
+  art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
+  art::CompiledInvokeStub* result = compiler_llvm->CreateProxyStub(shorty);
   compiler_llvm->MaterializeIfThresholdReached();
   return result;
 }

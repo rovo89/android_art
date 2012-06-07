@@ -46,11 +46,11 @@ StubCompiler::StubCompiler(CompilationUnit* cunit, Compiler& compiler)
 }
 
 
-uint16_t StubCompiler::CreateInvokeStub(bool is_static,
-                                        char const* shorty) {
+CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
+                                                   char const* shorty) {
   uint16_t elf_func_idx = cunit_->AcquireUniqueElfFuncIndex();
 
-  CHECK_NE(shorty, static_cast<char const*>(NULL));
+  CHECK(shorty != NULL);
   size_t shorty_size = strlen(shorty);
 
   // Function name
@@ -189,17 +189,12 @@ uint16_t StubCompiler::CreateInvokeStub(bool is_static,
   // store ret_addr, and ret_void.  Beside, we guess that we have to use
   // 50 bytes to represent one LLVM instruction.
 
-  return elf_func_idx;
+  return new CompiledInvokeStub(cunit_->GetElfIndex(), elf_func_idx);
 }
 
-uint16_t StubCompiler::CreateProxyStub(bool is_static,
-                                       char const* shorty) {
-  // Static method dosen't need proxy stub.
-  if (is_static) {
-    return 0;
-  }
 
-  CHECK_NE(shorty, static_cast<char const*>(NULL));
+CompiledInvokeStub* StubCompiler::CreateProxyStub(char const* shorty) {
+  CHECK(shorty != NULL);
   size_t shorty_size = strlen(shorty);
 
   uint16_t elf_func_idx = cunit_->AcquireUniqueElfFuncIndex();
@@ -209,12 +204,15 @@ uint16_t StubCompiler::CreateProxyStub(bool is_static,
 
   // Accurate function type
   llvm::Type* accurate_ret_type = irb_.getJType(shorty[0], kAccurate);
+
   std::vector<llvm::Type*> accurate_arg_types;
   accurate_arg_types.push_back(irb_.getJObjectTy()); // method
   accurate_arg_types.push_back(irb_.getJObjectTy()); // this
+
   for (size_t i = 1; i < shorty_size; ++i) {
     accurate_arg_types.push_back(irb_.getJType(shorty[i], kAccurate));
   }
+
   llvm::FunctionType* accurate_func_type =
     llvm::FunctionType::get(accurate_ret_type, accurate_arg_types, false);
 
@@ -233,13 +231,16 @@ uint16_t StubCompiler::CreateProxyStub(bool is_static,
 
   // Load actual arguments
   llvm::Function::arg_iterator arg_iter = func->arg_begin();
+
   std::vector<llvm::Value*> args;
   args.push_back(arg_iter++); // method
   args.push_back(arg_iter++); // this
   args.push_back(irb_.Runtime().EmitGetCurrentThread()); // thread
+
   for (size_t i = 1; i < shorty_size; ++i) {
     args.push_back(arg_iter++);
   }
+
   if (shorty[0] != 'V') {
     args.push_back(jvalue_temp);
   }
@@ -247,6 +248,7 @@ uint16_t StubCompiler::CreateProxyStub(bool is_static,
   // Call ProxyInvokeHandler
   // TODO: Partial inline ProxyInvokeHandler, don't use VarArg.
   irb_.CreateCall(irb_.GetRuntime(ProxyInvokeHandler), args);
+
   if (shorty[0] != 'V') {
     llvm::Value* result_addr =
         irb_.CreateBitCast(jvalue_temp, accurate_ret_type->getPointerTo());
@@ -262,7 +264,7 @@ uint16_t StubCompiler::CreateProxyStub(bool is_static,
   // Add the memory usage approximation of the compilation unit
   cunit_->AddMemUsageApproximation((shorty_size + 2) * 50);
 
-  return elf_func_idx;
+  return new CompiledInvokeStub(cunit_->GetElfIndex(), elf_func_idx);
 }
 
 

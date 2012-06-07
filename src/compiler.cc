@@ -307,6 +307,9 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
       compiled_invoke_stubs_lock_("compiled invoke stubs lock"),
+#if defined(ART_USE_LLVM_COMPILER)
+      compiled_proxy_stubs_lock_("compiled proxy stubs lock"),
+#endif
       image_(image),
       thread_count_(thread_count),
       support_debugging_(support_debugging),
@@ -350,6 +353,8 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
   create_invoke_stub_ = FindFunction<CreateInvokeStubFn>(compiler_so_name, compiler_library_, "ArtCreateInvokeStub");
 
 #if defined(ART_USE_LLVM_COMPILER)
+  create_proxy_stub_ = FindFunction<CreateProxyStubFn>(
+      compiler_so_name, compiler_library_, "ArtCreateProxyStub");
   compiler_enable_auto_elf_loading_ = FindFunction<CompilerEnableAutoElfLoadingFn>(
       compiler_so_name, compiler_library_, "compilerLLVMEnableAutoElfLoading");
   compiler_get_method_code_addr_ = FindFunction<CompilerGetMethodCodeAddrFn>(
@@ -376,6 +381,10 @@ Compiler::~Compiler() {
   {
     MutexLock mu(compiled_invoke_stubs_lock_);
     STLDeleteValues(&compiled_invoke_stubs_);
+  }
+  {
+    MutexLock mu(compiled_proxy_stubs_lock_);
+    STLDeleteValues(&compiled_proxy_stubs_);
   }
   {
     MutexLock mu(compiled_methods_lock_);
@@ -1505,6 +1514,18 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
     CHECK(compiled_invoke_stub != NULL);
     InsertInvokeStub(key, compiled_invoke_stub);
   }
+
+#if defined(ART_USE_LLVM_COMPILER)
+  if (!is_static) {
+    const CompiledInvokeStub* compiled_proxy_stub = FindProxyStub(shorty);
+    if (compiled_proxy_stub == NULL) {
+      compiled_proxy_stub = (*create_proxy_stub_)(*this, shorty, shorty_len);
+      CHECK(compiled_proxy_stub != NULL);
+      InsertProxyStub(shorty, compiled_proxy_stub);
+    }
+  }
+#endif
+
   CHECK(!Thread::Current()->IsExceptionPending()) << PrettyMethod(method_idx, dex_file);
 }
 
@@ -1535,6 +1556,31 @@ void Compiler::InsertInvokeStub(const std::string& key,
     compiled_invoke_stubs_.Put(key, compiled_invoke_stub);
   }
 }
+
+#if defined(ART_USE_LLVM_COMPILER)
+const CompiledInvokeStub* Compiler::FindProxyStub(const char* shorty) const {
+  MutexLock mu(compiled_proxy_stubs_lock_);
+  ProxyStubTable::const_iterator it = compiled_proxy_stubs_.find(shorty);
+  if (it == compiled_proxy_stubs_.end()) {
+    return NULL;
+  } else {
+    DCHECK(it->second != NULL);
+    return it->second;
+  }
+}
+
+void Compiler::InsertProxyStub(const char* shorty,
+                               const CompiledInvokeStub* compiled_proxy_stub) {
+  MutexLock mu(compiled_proxy_stubs_lock_);
+  InvokeStubTable::iterator it = compiled_proxy_stubs_.find(shorty);
+  if (it != compiled_proxy_stubs_.end()) {
+    // Someone else won the race.
+    delete compiled_proxy_stub;
+  } else {
+    compiled_proxy_stubs_.Put(shorty, compiled_proxy_stub);
+  }
+}
+#endif
 
 CompiledClass* Compiler::GetCompiledClass(ClassReference ref) const {
   MutexLock mu(compiled_classes_lock_);

@@ -121,33 +121,20 @@ class CompiledInvokeStub {
  public:
   explicit CompiledInvokeStub(std::vector<uint8_t>& code);
 #if defined(ART_USE_LLVM_COMPILER)
-  explicit CompiledInvokeStub(uint16_t elf_idx);
+  explicit CompiledInvokeStub(uint16_t elf_idx, uint16_t elf_func_idx);
 #endif
   ~CompiledInvokeStub();
 
   const std::vector<uint8_t>& GetCode() const;
 
-  uint16_t GetStubElfIndex() const {
+  uint16_t GetElfIndex() const {
     DCHECK(IsExecutableInElf());
     return elf_idx_;
   }
 
-  uint16_t GetInvokeStubElfFuncIndex() const {
+  uint16_t GetElfFuncIndex() const {
     DCHECK(IsExecutableInElf());
-    return invoke_stub_elf_func_idx_;
-  }
-
-  uint16_t GetProxyStubElfFuncIndex() const {
-    DCHECK(IsExecutableInElf());
-    return proxy_stub_elf_func_idx_;
-  }
-
-  void SetInvokeStub(uint16_t invoke_stub_elf_func_idx) {
-    invoke_stub_elf_func_idx_ = invoke_stub_elf_func_idx;
-  }
-
-  void SetProxyStub(uint16_t proxy_stub_elf_func_idx) {
-    proxy_stub_elf_func_idx_ = proxy_stub_elf_func_idx;
+    return elf_func_idx_;
   }
 
   bool IsExecutableInElf() const {
@@ -157,8 +144,7 @@ class CompiledInvokeStub {
  private:
   std::vector<uint8_t> code_;
   uint16_t elf_idx_;
-  uint16_t invoke_stub_elf_func_idx_;
-  uint16_t proxy_stub_elf_func_idx_;
+  uint16_t elf_func_idx_;
 };
 
 }  // namespace art
