@@ -26,7 +26,7 @@
 
 namespace art {
 
-bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genAddLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc1, RegLocation rlSrc2)
 {
   rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
@@ -50,7 +50,7 @@ bool genAddLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   return false;
 }
 
-bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genSubLong(CompilationUnit* cUnit, RegLocation rlDest,
         RegLocation rlSrc1, RegLocation rlSrc2)
 {
   rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
@@ -74,7 +74,7 @@ bool genSubLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
   return false;
 }
 
-bool genNegLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+bool genNegLong(CompilationUnit* cUnit, RegLocation rlDest,
                 RegLocation rlSrc)
 {
   rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
@@ -177,7 +177,7 @@ void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
   DCHECK_EQ(cUnit->numFPSpills, 0);
   if (!skipOverflowCheck) {
     opRegRegImm(cUnit, kOpSub, newSP, rSP, cUnit->frameSize - (spillCount * 4));
-    genRegRegCheck(cUnit, kCondCc, newSP, checkReg, NULL, kThrowStackOverflow);
+    genRegRegCheck(cUnit, kCondCc, newSP, checkReg, kThrowStackOverflow);
     opRegCopy(cUnit, rSP, newSP);     // Establish stack
   } else {
     opRegImm(cUnit, kOpSub, rSP, cUnit->frameSize - (spillCount * 4));

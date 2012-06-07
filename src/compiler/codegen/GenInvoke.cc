@@ -256,7 +256,7 @@ int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
       loadValueDirectFixed(cUnit, rlArg, rARG1);
       break;
     case 1: // Is "this" null? [use rARG1]
-      genNullCheck(cUnit, oatSSASrc(mir,0), rARG1, mir);
+      genNullCheck(cUnit, oatSSASrc(mir,0), rARG1, mir->optimizationFlags);
       // get this->klass_ [use rARG1, set rINVOKE_TGT]
       loadWordDisp(cUnit, rARG1, Object::ClassOffset().Int32Value(),
                    rINVOKE_TGT);
@@ -471,7 +471,8 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
                           type, skipThis);
 
   if (pcrLabel) {
-    *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), rARG1, mir);
+    *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), rARG1,
+                             mir->optimizationFlags);
   }
   return callState;
 }
@@ -589,7 +590,8 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
   callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
                            directCode, directMethod, type);
   if (pcrLabel) {
-    *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), rARG1, mir);
+    *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), rARG1,
+                             mir->optimizationFlags);
   }
   return callState;
 }
@@ -640,7 +642,7 @@ bool genInlinedCharAt(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   int regMax;
   int regOff = oatAllocTemp(cUnit);
   int regPtr = oatAllocTemp(cUnit);
-  genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);
+  genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->optimizationFlags);
   bool rangeCheck = (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK));
   if (rangeCheck) {
     regMax = oatAllocTemp(cUnit);
@@ -710,7 +712,7 @@ bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit,
   rlObj = loadValue(cUnit, rlObj, kCoreReg);
   RegLocation rlDest = inlineTarget(cUnit, bb, mir);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-  genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir);
+  genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->optimizationFlags);
   loadWordDisp(cUnit, rlObj.lowReg, String::CountOffset().Int32Value(),
                rlResult.lowReg);
   if (isEmpty) {
@@ -816,7 +818,7 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     loadValueDirectFixed(cUnit, rlStart, regStart);
   }
   int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pIndexOf));
-  genNullCheck(cUnit, rlObj.sRegLow, regPtr, mir);
+  genNullCheck(cUnit, rlObj.sRegLow, regPtr, mir->optimizationFlags);
   LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (int)mir, type);
   oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
               (intptr_t)launchPad);
@@ -848,7 +850,7 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, BasicBlock* bb,
   loadValueDirectFixed(cUnit, rlThis, regThis);
   loadValueDirectFixed(cUnit, rlCmp, regCmp);
   int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pStringCompareTo));
-  genNullCheck(cUnit, rlThis.sRegLow, regThis, mir);
+  genNullCheck(cUnit, rlThis.sRegLow, regThis, mir->optimizationFlags);
   //TUNING: check if rlCmp.sRegLow is already null checked
   LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (int)mir, type);
   oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,

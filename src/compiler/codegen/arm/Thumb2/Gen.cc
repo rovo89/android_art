@@ -163,7 +163,8 @@ MIR* specialIGet(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
   // Point of no return - no aborts after this
   genPrintLabel(cUnit, mir);
   rlObj = loadArg(cUnit, rlObj);
-  genIGet(cUnit, mir, size, rlDest, rlObj, longOrDouble, isObject);
+  genIGet(cUnit, fieldIdx, mir->optimizationFlags, size, rlDest, rlObj,
+          longOrDouble, isObject);
   return getNextMir(cUnit, bb, mir);
 }
 
@@ -198,7 +199,8 @@ MIR* specialIPut(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
   genPrintLabel(cUnit, mir);
   rlObj = loadArg(cUnit, rlObj);
   rlSrc = loadArg(cUnit, rlSrc);
-  genIPut(cUnit, mir, size, rlSrc, rlObj, longOrDouble, isObject);
+  genIPut(cUnit, fieldIdx, mir->optimizationFlags, size, rlSrc, rlObj,
+          longOrDouble, isObject);
   return getNextMir(cUnit, bb, mir);
 }
 
@@ -366,10 +368,10 @@ LIR* opIT(CompilationUnit* cUnit, ArmConditionCode code, const char* guide)
  *   add   rPC, rDisp   ; This is the branch from which we compute displacement
  *   cbnz  rIdx, lp
  */
-void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
-                     LIR* labelList)
+void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
+                     RegLocation rlSrc, LIR* labelList)
 {
-  const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
+  const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   if (cUnit->printMe) {
     dumpSparseSwitchTable(table);
   }
@@ -377,7 +379,7 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
   SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
                                               true, kAllocData);
   tabRec->table = table;
-  tabRec->vaddr = mir->offset;
+  tabRec->vaddr = cUnit->currentDalvikOffset;
   int size = table[1];
   tabRec->targets = (LIR* *)oatNew(cUnit, size * sizeof(LIR*), true, kAllocLIR);
   oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
@@ -414,9 +416,10 @@ void genSparseSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc,
 }
 
 
-void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+void genPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
+                     RegLocation rlSrc)
 {
-  const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
+  const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   if (cUnit->printMe) {
     dumpPackedSwitchTable(table);
   }
@@ -424,7 +427,7 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
   SwitchTable *tabRec = (SwitchTable *)oatNew(cUnit, sizeof(SwitchTable),
                                               true, kAllocData);
   tabRec->table = table;
-  tabRec->vaddr = mir->offset;
+  tabRec->vaddr = cUnit->currentDalvikOffset;
   int size = table[1];
   tabRec->targets = (LIR* *)oatNew(cUnit, size * sizeof(LIR*), true, kAllocLIR);
   oatInsertGrowableList(cUnit, &cUnit->switchTables, (intptr_t)tabRec);
@@ -470,14 +473,14 @@ void genPackedSwitch(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  *
  * Total size is 4+(width * size + 1)/2 16-bit code units.
  */
-void genFillArrayData(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset, RegLocation rlSrc)
 {
-  const u2* table = cUnit->insns + mir->offset + mir->dalvikInsn.vB;
+  const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   // Add the table to the list - we'll process it later
   FillArrayData *tabRec = (FillArrayData *)
      oatNew(cUnit, sizeof(FillArrayData), true, kAllocData);
   tabRec->table = table;
-  tabRec->vaddr = mir->offset;
+  tabRec->vaddr = cUnit->currentDalvikOffset;
   u2 width = tabRec->table[1];
   u4 size = tabRec->table[2] | (((u4)tabRec->table[3]) << 16);
   tabRec->size = (size * width) + 8;
@@ -540,13 +543,13 @@ void genNegDouble(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
  * preserved.
  *
  */
-void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
 {
   oatFlushAllRegs(cUnit);
   DCHECK_EQ(LW_SHAPE_THIN, 0);
   loadValueDirectFixed(cUnit, rlSrc, r0);  // Get obj
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-  genNullCheck(cUnit, rlSrc.sRegLow, r0, mir);
+  genNullCheck(cUnit, rlSrc.sRegLow, r0, optFlags);
   loadWordDisp(cUnit, rSELF, Thread::ThinLockIdOffset().Int32Value(), r2);
   newLIR3(cUnit, kThumb2Ldrex, r1, r0,
           Object::MonitorOffset().Int32Value() >> 2); // Get object->lock
@@ -574,13 +577,13 @@ void genMonitorEnter(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  * a zero recursion count, it's safe to punch it back to the
  * initial, unlock thin state with a store word.
  */
-void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
+void genMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
 {
   DCHECK_EQ(LW_SHAPE_THIN, 0);
   oatFlushAllRegs(cUnit);
   loadValueDirectFixed(cUnit, rlSrc, r0);  // Get obj
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-  genNullCheck(cUnit, rlSrc.sRegLow, r0, mir);
+  genNullCheck(cUnit, rlSrc.sRegLow, r0, optFlags);
   loadWordDisp(cUnit, r0, Object::MonitorOffset().Int32Value(), r1); // Get lock
   loadWordDisp(cUnit, rSELF, Thread::ThinLockIdOffset().Int32Value(), r2);
   // Is lock unheld on lock or held by us (==threadId) on unlock?
@@ -614,7 +617,7 @@ void genMonitorExit(CompilationUnit* cUnit, MIR* mir, RegLocation rlSrc)
  *     neg   rX
  * done:
  */
-void genCmpLong(CompilationUnit* cUnit, MIR* mir, RegLocation rlDest,
+void genCmpLong(CompilationUnit* cUnit, RegLocation rlDest,
         RegLocation rlSrc1, RegLocation rlSrc2)
 {
   LIR* target1;

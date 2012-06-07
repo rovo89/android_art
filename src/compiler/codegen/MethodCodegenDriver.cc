@@ -172,6 +172,10 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
   RegLocation rlDest = badLoc;
   RegLocation rlResult = badLoc;
   Instruction::Code opcode = mir->dalvikInsn.opcode;
+  int optFlags = mir->optimizationFlags;
+  uint32_t vA = mir->dalvikInsn.vA;
+  uint32_t vB = mir->dalvikInsn.vB;
+  uint32_t vC = mir->dalvikInsn.vC;
 
   /* Prep Src and Dest locations */
   int nextSreg = 0;
@@ -232,35 +236,35 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     }
     case Instruction::RETURN_VOID:
       if (!cUnit->attrs & METHOD_IS_LEAF) {
-        genSuspendTest(cUnit, mir);
+        genSuspendTest(cUnit, optFlags);
       }
       break;
 
     case Instruction::RETURN:
     case Instruction::RETURN_OBJECT:
       if (!cUnit->attrs & METHOD_IS_LEAF) {
-        genSuspendTest(cUnit, mir);
+        genSuspendTest(cUnit, optFlags);
       }
       storeValue(cUnit, oatGetReturn(cUnit, cUnit->shorty[0] == 'F'), rlSrc[0]);
       break;
 
     case Instruction::RETURN_WIDE:
       if (!cUnit->attrs & METHOD_IS_LEAF) {
-        genSuspendTest(cUnit, mir);
+        genSuspendTest(cUnit, optFlags);
       }
       storeValueWide(cUnit, oatGetReturnWide(cUnit,
                        cUnit->shorty[0] == 'D'), rlSrc[0]);
       break;
 
     case Instruction::MOVE_RESULT_WIDE:
-      if (mir->optimizationFlags & MIR_INLINED)
+      if (optFlags & MIR_INLINED)
         break;  // Nop - combined w/ previous invoke
       storeValueWide(cUnit, rlDest, oatGetReturnWide(cUnit, rlDest.fp));
       break;
 
     case Instruction::MOVE_RESULT:
     case Instruction::MOVE_RESULT_OBJECT:
-      if (mir->optimizationFlags & MIR_INLINED)
+      if (optFlags & MIR_INLINED)
         break;  // Nop - combined w/ previous invoke
       storeValue(cUnit, rlDest, oatGetReturn(cUnit, rlDest.fp));
       break;
@@ -284,22 +288,21 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::CONST_4:
     case Instruction::CONST_16:
       rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-      loadConstantNoClobber(cUnit, rlResult.lowReg, mir->dalvikInsn.vB);
+      loadConstantNoClobber(cUnit, rlResult.lowReg, vB);
       storeValue(cUnit, rlDest, rlResult);
       break;
 
     case Instruction::CONST_HIGH16:
       rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-      loadConstantNoClobber(cUnit, rlResult.lowReg, mir->dalvikInsn.vB << 16);
+      loadConstantNoClobber(cUnit, rlResult.lowReg, vB << 16);
       storeValue(cUnit, rlDest, rlResult);
       break;
 
     case Instruction::CONST_WIDE_16:
     case Instruction::CONST_WIDE_32:
       rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
-      loadConstantValueWide(cUnit, rlResult.lowReg, rlResult.highReg,
-                            mir->dalvikInsn.vB,
-                            (mir->dalvikInsn.vB & 0x80000000) ? -1 : 0);
+      loadConstantValueWide(cUnit, rlResult.lowReg, rlResult.highReg, vB,
+                            (vB & 0x80000000) ? -1 : 0);
       storeValueWide(cUnit, rlDest, rlResult);
       break;
 
@@ -314,43 +317,43 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::CONST_WIDE_HIGH16:
       rlResult = oatEvalLoc(cUnit, rlDest, kAnyReg, true);
       loadConstantValueWide(cUnit, rlResult.lowReg, rlResult.highReg,
-                            0, mir->dalvikInsn.vB << 16);
+                            0, vB << 16);
       storeValueWide(cUnit, rlDest, rlResult);
       break;
 
     case Instruction::MONITOR_ENTER:
-      genMonitorEnter(cUnit, mir, rlSrc[0]);
+      genMonitorEnter(cUnit, optFlags, rlSrc[0]);
       break;
 
     case Instruction::MONITOR_EXIT:
-      genMonitorExit(cUnit, mir, rlSrc[0]);
+      genMonitorExit(cUnit, optFlags, rlSrc[0]);
       break;
 
     case Instruction::CHECK_CAST:
-      genCheckCast(cUnit, mir, rlSrc[0]);
+      genCheckCast(cUnit, vB, rlSrc[0]);
       break;
 
     case Instruction::INSTANCE_OF:
-      genInstanceof(cUnit, mir, rlDest, rlSrc[0]);
+      genInstanceof(cUnit, vC, rlDest, rlSrc[0]);
       break;
 
     case Instruction::NEW_INSTANCE:
-      genNewInstance(cUnit, mir, rlDest);
+      genNewInstance(cUnit, vB, rlDest);
       break;
 
     case Instruction::THROW:
-      genThrow(cUnit, mir, rlSrc[0]);
+      genThrow(cUnit, rlSrc[0]);
       break;
 
     case Instruction::THROW_VERIFICATION_ERROR:
-      genThrowVerificationError(cUnit, mir);
+      genThrowVerificationError(cUnit, vA, vB);
       break;
 
     case Instruction::ARRAY_LENGTH:
       int lenOffset;
       lenOffset = Array::LengthOffset().Int32Value();
       rlSrc[0] = loadValue(cUnit, rlSrc[0], kCoreReg);
-      genNullCheck(cUnit, rlSrc[0].sRegLow, rlSrc[0].lowReg, mir);
+      genNullCheck(cUnit, rlSrc[0].sRegLow, rlSrc[0].lowReg, optFlags);
       rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
       loadWordDisp(cUnit, rlSrc[0].lowReg, lenOffset, rlResult.lowReg);
       storeValue(cUnit, rlDest, rlResult);
@@ -358,15 +361,15 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
 
     case Instruction::CONST_STRING:
     case Instruction::CONST_STRING_JUMBO:
-      genConstString(cUnit, mir, rlDest, rlSrc[0]);
+      genConstString(cUnit, vB, rlDest, rlSrc[0]);
       break;
 
     case Instruction::CONST_CLASS:
-      genConstClass(cUnit, mir, rlDest, rlSrc[0]);
+      genConstClass(cUnit, vB, rlDest, rlSrc[0]);
       break;
 
     case Instruction::FILL_ARRAY_DATA:
-      genFillArrayData(cUnit, mir, rlSrc[0]);
+      genFillArrayData(cUnit, vB, rlSrc[0]);
       break;
 
     case Instruction::FILLED_NEW_ARRAY:
@@ -378,36 +381,36 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
       break;
 
     case Instruction::NEW_ARRAY:
-      genNewArray(cUnit, mir, rlDest, rlSrc[0]);
+      genNewArray(cUnit, vC, rlDest, rlSrc[0]);
       break;
 
     case Instruction::GOTO:
     case Instruction::GOTO_16:
     case Instruction::GOTO_32:
       if (bb->taken->startOffset <= mir->offset) {
-        genSuspendTestAndBranch(cUnit, mir, &labelList[bb->taken->id]);
+        genSuspendTestAndBranch(cUnit, optFlags, &labelList[bb->taken->id]);
       } else {
         opUnconditionalBranch(cUnit, &labelList[bb->taken->id]);
       }
       break;
 
     case Instruction::PACKED_SWITCH:
-      genPackedSwitch(cUnit, mir, rlSrc[0]);
+      genPackedSwitch(cUnit, vB, rlSrc[0]);
       break;
 
     case Instruction::SPARSE_SWITCH:
-      genSparseSwitch(cUnit, mir, rlSrc[0], labelList);
+      genSparseSwitch(cUnit, vB, rlSrc[0], labelList);
       break;
 
     case Instruction::CMPL_FLOAT:
     case Instruction::CMPG_FLOAT:
     case Instruction::CMPL_DOUBLE:
     case Instruction::CMPG_DOUBLE:
-      res = genCmpFP(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
+      res = genCmpFP(cUnit, opcode, rlDest, rlSrc[0], rlSrc[1]);
       break;
 
     case Instruction::CMP_LONG:
-      genCmpLong(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
+      genCmpLong(cUnit, rlDest, rlSrc[0], rlSrc[1]);
       break;
 
     case Instruction::IF_EQ:
@@ -419,9 +422,9 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
       bool backwardBranch;
       backwardBranch = (bb->taken->startOffset <= mir->offset);
       if (backwardBranch) {
-        genSuspendTest(cUnit, mir);
+        genSuspendTest(cUnit, optFlags);
       }
-      genCompareAndBranch(cUnit, bb, mir, rlSrc[0], rlSrc[1], labelList);
+      genCompareAndBranch(cUnit, bb, opcode, rlSrc[0], rlSrc[1], labelList);
       break;
       }
 
@@ -434,123 +437,123 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
       bool backwardBranch;
       backwardBranch = (bb->taken->startOffset <= mir->offset);
       if (backwardBranch) {
-        genSuspendTest(cUnit, mir);
+        genSuspendTest(cUnit, optFlags);
       }
-      genCompareZeroAndBranch(cUnit, bb, mir, rlSrc[0], labelList);
+      genCompareZeroAndBranch(cUnit, bb, opcode, rlSrc[0], labelList);
       break;
       }
 
     case Instruction::AGET_WIDE:
-      genArrayGet(cUnit, mir, kLong, rlSrc[0], rlSrc[1], rlDest, 3);
+      genArrayGet(cUnit, optFlags, kLong, rlSrc[0], rlSrc[1], rlDest, 3);
       break;
     case Instruction::AGET:
     case Instruction::AGET_OBJECT:
-      genArrayGet(cUnit, mir, kWord, rlSrc[0], rlSrc[1], rlDest, 2);
+      genArrayGet(cUnit, optFlags, kWord, rlSrc[0], rlSrc[1], rlDest, 2);
       break;
     case Instruction::AGET_BOOLEAN:
-      genArrayGet(cUnit, mir, kUnsignedByte, rlSrc[0], rlSrc[1], rlDest, 0);
+      genArrayGet(cUnit, optFlags, kUnsignedByte, rlSrc[0], rlSrc[1], rlDest, 0);
       break;
     case Instruction::AGET_BYTE:
-      genArrayGet(cUnit, mir, kSignedByte, rlSrc[0], rlSrc[1], rlDest, 0);
+      genArrayGet(cUnit, optFlags, kSignedByte, rlSrc[0], rlSrc[1], rlDest, 0);
       break;
     case Instruction::AGET_CHAR:
-      genArrayGet(cUnit, mir, kUnsignedHalf, rlSrc[0], rlSrc[1], rlDest, 1);
+      genArrayGet(cUnit, optFlags, kUnsignedHalf, rlSrc[0], rlSrc[1], rlDest, 1);
       break;
     case Instruction::AGET_SHORT:
-      genArrayGet(cUnit, mir, kSignedHalf, rlSrc[0], rlSrc[1], rlDest, 1);
+      genArrayGet(cUnit, optFlags, kSignedHalf, rlSrc[0], rlSrc[1], rlDest, 1);
       break;
     case Instruction::APUT_WIDE:
-      genArrayPut(cUnit, mir, kLong, rlSrc[1], rlSrc[2], rlSrc[0], 3);
+      genArrayPut(cUnit, optFlags, kLong, rlSrc[1], rlSrc[2], rlSrc[0], 3);
       break;
     case Instruction::APUT:
-      genArrayPut(cUnit, mir, kWord, rlSrc[1], rlSrc[2], rlSrc[0], 2);
+      genArrayPut(cUnit, optFlags, kWord, rlSrc[1], rlSrc[2], rlSrc[0], 2);
       break;
     case Instruction::APUT_OBJECT:
-      genArrayObjPut(cUnit, mir, rlSrc[1], rlSrc[2], rlSrc[0], 2);
+      genArrayObjPut(cUnit, optFlags, rlSrc[1], rlSrc[2], rlSrc[0], 2);
       break;
     case Instruction::APUT_SHORT:
     case Instruction::APUT_CHAR:
-      genArrayPut(cUnit, mir, kUnsignedHalf, rlSrc[1], rlSrc[2], rlSrc[0], 1);
+      genArrayPut(cUnit, optFlags, kUnsignedHalf, rlSrc[1], rlSrc[2], rlSrc[0], 1);
       break;
     case Instruction::APUT_BYTE:
     case Instruction::APUT_BOOLEAN:
-      genArrayPut(cUnit, mir, kUnsignedByte, rlSrc[1], rlSrc[2],
+      genArrayPut(cUnit, optFlags, kUnsignedByte, rlSrc[1], rlSrc[2],
             rlSrc[0], 0);
       break;
 
     case Instruction::IGET_OBJECT:
     //case Instruction::IGET_OBJECT_VOLATILE:
-      genIGet(cUnit, mir, kWord, rlDest, rlSrc[0], false, true);
+      genIGet(cUnit, vC, optFlags, kWord, rlDest, rlSrc[0], false, true);
       break;
 
     case Instruction::IGET_WIDE:
     //case Instruction::IGET_WIDE_VOLATILE:
-      genIGet(cUnit, mir, kLong, rlDest, rlSrc[0], true, false);
+      genIGet(cUnit, vC, optFlags, kLong, rlDest, rlSrc[0], true, false);
       break;
 
     case Instruction::IGET:
     //case Instruction::IGET_VOLATILE:
-      genIGet(cUnit, mir, kWord, rlDest, rlSrc[0], false, false);
+      genIGet(cUnit, vC, optFlags, kWord, rlDest, rlSrc[0], false, false);
       break;
 
     case Instruction::IGET_CHAR:
-      genIGet(cUnit, mir, kUnsignedHalf, rlDest, rlSrc[0], false, false);
+      genIGet(cUnit, vC, optFlags, kUnsignedHalf, rlDest, rlSrc[0], false, false);
       break;
 
     case Instruction::IGET_SHORT:
-      genIGet(cUnit, mir, kSignedHalf, rlDest, rlSrc[0], false, false);
+      genIGet(cUnit, vC, optFlags, kSignedHalf, rlDest, rlSrc[0], false, false);
       break;
 
     case Instruction::IGET_BOOLEAN:
     case Instruction::IGET_BYTE:
-      genIGet(cUnit, mir, kUnsignedByte, rlDest, rlSrc[0], false, false);
+      genIGet(cUnit, vC, optFlags, kUnsignedByte, rlDest, rlSrc[0], false, false);
       break;
 
     case Instruction::IPUT_WIDE:
     //case Instruction::IPUT_WIDE_VOLATILE:
-      genIPut(cUnit, mir, kLong, rlSrc[0], rlSrc[1], true, false);
+      genIPut(cUnit, vC, optFlags, kLong, rlSrc[0], rlSrc[1], true, false);
       break;
 
     case Instruction::IPUT_OBJECT:
     //case Instruction::IPUT_OBJECT_VOLATILE:
-      genIPut(cUnit, mir, kWord, rlSrc[0], rlSrc[1], false, true);
+      genIPut(cUnit, vC, optFlags, kWord, rlSrc[0], rlSrc[1], false, true);
       break;
 
     case Instruction::IPUT:
     //case Instruction::IPUT_VOLATILE:
-      genIPut(cUnit, mir, kWord, rlSrc[0], rlSrc[1], false, false);
+      genIPut(cUnit, vC, optFlags, kWord, rlSrc[0], rlSrc[1], false, false);
       break;
 
     case Instruction::IPUT_BOOLEAN:
     case Instruction::IPUT_BYTE:
-      genIPut(cUnit, mir, kUnsignedByte, rlSrc[0], rlSrc[1], false, false);
+      genIPut(cUnit, vC, optFlags, kUnsignedByte, rlSrc[0], rlSrc[1], false, false);
       break;
 
     case Instruction::IPUT_CHAR:
-      genIPut(cUnit, mir, kUnsignedHalf, rlSrc[0], rlSrc[1], false, false);
+      genIPut(cUnit, vC, optFlags, kUnsignedHalf, rlSrc[0], rlSrc[1], false, false);
       break;
 
     case Instruction::IPUT_SHORT:
-      genIPut(cUnit, mir, kSignedHalf, rlSrc[0], rlSrc[1], false, false);
+      genIPut(cUnit, vC, optFlags, kSignedHalf, rlSrc[0], rlSrc[1], false, false);
       break;
 
     case Instruction::SGET_OBJECT:
-      genSget(cUnit, mir, rlDest, false, true);
+      genSget(cUnit, vB, rlDest, false, true);
       break;
     case Instruction::SGET:
     case Instruction::SGET_BOOLEAN:
     case Instruction::SGET_BYTE:
     case Instruction::SGET_CHAR:
     case Instruction::SGET_SHORT:
-      genSget(cUnit, mir, rlDest, false, false);
+      genSget(cUnit, vB, rlDest, false, false);
       break;
 
     case Instruction::SGET_WIDE:
-      genSget(cUnit, mir, rlDest, true, false);
+      genSget(cUnit, vB, rlDest, true, false);
       break;
 
     case Instruction::SPUT_OBJECT:
-      genSput(cUnit, mir, rlSrc[0], false, true);
+      genSput(cUnit, vB, rlSrc[0], false, true);
       break;
 
     case Instruction::SPUT:
@@ -558,11 +561,11 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::SPUT_BYTE:
     case Instruction::SPUT_CHAR:
     case Instruction::SPUT_SHORT:
-      genSput(cUnit, mir, rlSrc[0], false, false);
+      genSput(cUnit, vB, rlSrc[0], false, false);
       break;
 
     case Instruction::SPUT_WIDE:
-      genSput(cUnit, mir, rlSrc[0], true, false);
+      genSput(cUnit, vB, rlSrc[0], true, false);
       break;
 
     case Instruction::INVOKE_STATIC_RANGE:
@@ -602,24 +605,24 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
 
     case Instruction::NEG_INT:
     case Instruction::NOT_INT:
-      res = genArithOpInt(cUnit, mir, rlDest, rlSrc[0], rlSrc[0]);
+      res = genArithOpInt(cUnit, opcode, rlDest, rlSrc[0], rlSrc[0]);
       break;
 
     case Instruction::NEG_LONG:
     case Instruction::NOT_LONG:
-      res = genArithOpLong(cUnit, mir, rlDest, rlSrc[0], rlSrc[0]);
+      res = genArithOpLong(cUnit, opcode, rlDest, rlSrc[0], rlSrc[0]);
       break;
 
     case Instruction::NEG_FLOAT:
-      res = genArithOpFloat(cUnit, mir, rlDest, rlSrc[0], rlSrc[0]);
+      res = genArithOpFloat(cUnit, opcode, rlDest, rlSrc[0], rlSrc[0]);
       break;
 
     case Instruction::NEG_DOUBLE:
-      res = genArithOpDouble(cUnit, mir, rlDest, rlSrc[0], rlSrc[0]);
+      res = genArithOpDouble(cUnit, opcode, rlDest, rlSrc[0], rlSrc[0]);
       break;
 
     case Instruction::INT_TO_LONG:
-      genIntToLong(cUnit, mir, rlDest, rlSrc[0]);
+      genIntToLong(cUnit, rlDest, rlSrc[0]);
       break;
 
     case Instruction::LONG_TO_INT:
@@ -631,7 +634,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::INT_TO_BYTE:
     case Instruction::INT_TO_SHORT:
     case Instruction::INT_TO_CHAR:
-      genIntNarrowing(cUnit, mir, rlDest, rlSrc[0]);
+      genIntNarrowing(cUnit, opcode, rlDest, rlSrc[0]);
       break;
 
     case Instruction::INT_TO_FLOAT:
@@ -644,7 +647,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::DOUBLE_TO_INT:
     case Instruction::DOUBLE_TO_LONG:
     case Instruction::DOUBLE_TO_FLOAT:
-      genConversion(cUnit, mir);
+      genConversion(cUnit, opcode, rlDest, rlSrc[0]);
       break;
 
     case Instruction::ADD_INT:
@@ -669,7 +672,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::SHL_INT_2ADDR:
     case Instruction::SHR_INT_2ADDR:
     case Instruction::USHR_INT_2ADDR:
-      genArithOpInt(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
+      genArithOpInt(cUnit, opcode, rlDest, rlSrc[0], rlSrc[1]);
       break;
 
     case Instruction::ADD_LONG:
@@ -688,7 +691,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::AND_LONG_2ADDR:
     case Instruction::OR_LONG_2ADDR:
     case Instruction::XOR_LONG_2ADDR:
-      genArithOpLong(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
+      genArithOpLong(cUnit, opcode, rlDest, rlSrc[0], rlSrc[1]);
       break;
 
     case Instruction::SHL_LONG:
@@ -697,7 +700,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::SHL_LONG_2ADDR:
     case Instruction::SHR_LONG_2ADDR:
     case Instruction::USHR_LONG_2ADDR:
-      genShiftOpLong(cUnit,mir, rlDest, rlSrc[0], rlSrc[1]);
+      genShiftOpLong(cUnit, opcode, rlDest, rlSrc[0], rlSrc[1]);
       break;
 
     case Instruction::ADD_FLOAT:
@@ -710,7 +713,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::MUL_FLOAT_2ADDR:
     case Instruction::DIV_FLOAT_2ADDR:
     case Instruction::REM_FLOAT_2ADDR:
-      genArithOpFloat(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
+      genArithOpFloat(cUnit, opcode, rlDest, rlSrc[0], rlSrc[1]);
       break;
 
     case Instruction::ADD_DOUBLE:
@@ -723,7 +726,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::MUL_DOUBLE_2ADDR:
     case Instruction::DIV_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE_2ADDR:
-      genArithOpDouble(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
+      genArithOpDouble(cUnit, opcode, rlDest, rlSrc[0], rlSrc[1]);
       break;
 
     case Instruction::RSUB_INT:
@@ -745,7 +748,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::SHL_INT_LIT8:
     case Instruction::SHR_INT_LIT8:
     case Instruction::USHR_INT_LIT8:
-      genArithOpIntLit(cUnit, mir, rlDest, rlSrc[0], mir->dalvikInsn.vC);
+      genArithOpIntLit(cUnit, opcode, rlDest, rlSrc[0], vC);
       break;
 
     default:
