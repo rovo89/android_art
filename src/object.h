@@ -109,7 +109,7 @@ union JValue {
 #if defined(ART_USE_LLVM_COMPILER)
 namespace compiler_llvm {
   class InferredRegCategoryMap;
-}
+} // namespace compiler_llvm
 #endif
 
 static const uint32_t kAccPublic = 0x0001;  // class, field, method, ic
@@ -1136,7 +1136,8 @@ ObjectArray<T>* ObjectArray<T>::CopyOf(int32_t new_length) {
 // provides the static storage. However, this might change to an Array
 // to improve image sharing, so we use this type to avoid assumptions
 // on the current storage.
-class MANAGED StaticStorageBase : public Object {};
+class MANAGED StaticStorageBase : public Object {
+};
 
 // C++ mirror of java.lang.Class
 class MANAGED Class : public StaticStorageBase {
@@ -2561,8 +2562,7 @@ class MANAGED InterfaceEntry : public ObjectArray<Object> {
   }
 
  private:
-
-  enum ArrayIndex {
+  enum {
     // Points to the interface class.
     kInterface   = 0,
     // Method pointers into the vtable, allow fast map from interface

@@ -45,6 +45,7 @@ _NAMESPACES = {}
 
 def Confused(filename, line_number, line):
   sys.stderr.write('%s:%d: confused by:\n%s\n' % (filename, line_number, line))
+  raise Exception("giving up!")
   sys.exit(1)
 
 
@@ -83,7 +84,7 @@ def ProcessFile(filename):
         continue
 
       # Is this the start or end of an enclosing class or struct?
-      m = re.compile(r'^(?:class|struct) (\S+) \{').search(raw_line)
+      m = re.compile(r'^(?:class|struct)(?: MANAGED)? (\S+).* \{').search(raw_line)
       if m:
         enclosing_classes.append(m.group(1))
         continue
@@ -102,8 +103,13 @@ def ProcessFile(filename):
       in_enum = False
       continue
 
-    # Whitespace?
-    line = raw_line.strip()
+    # Strip // comments.
+    line = re.sub(r'//.*', '', raw_line)
+
+    # Strip whitespace.
+    line = line.strip()
+
+    # Skip blank lines.
     if len(line) == 0:
       continue
 
