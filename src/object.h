@@ -1180,8 +1180,8 @@ class MANAGED Class : public StaticStorageBase {
     kStatusIdx = 1,  // loaded, DEX idx in super_class_type_idx_ and interfaces_type_idx_
     kStatusLoaded = 2,  // DEX idx values resolved
     kStatusResolved = 3,  // part of linking
-    kStatusRetryVerificationAtRuntime = 4,  // compile time verification failed, retry at runtime
-    kStatusVerifying = 5,  // in the process of being verified
+    kStatusVerifying = 4,  // in the process of being verified
+    kStatusRetryVerificationAtRuntime = 5,  // compile time verification failed, retry at runtime
     kStatusVerified = 6,  // logically part of linking; done pre-init
     kStatusInitializing = 7,  // class init in progress
     kStatusInitialized = 8,  // ready to go

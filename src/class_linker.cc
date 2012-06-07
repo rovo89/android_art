@@ -1967,7 +1967,8 @@ void ClassLinker::VerifyClass(Class* klass) {
     return;
   }
 
-  CHECK(klass->IsResolved()) << PrettyClass(klass);
+  CHECK(klass->GetStatus() == Class::kStatusResolved ||
+        klass->GetStatus() == Class::kStatusRetryVerificationAtRuntime) << PrettyClass(klass);
   klass->SetStatus(Class::kStatusVerifying);
 
   // Verify super class
@@ -2361,7 +2362,9 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit, bool can_in
         klass->GetStatus() == Class::kStatusRetryVerificationAtRuntime) {
       VerifyClass(klass);
       if (klass->GetStatus() != Class::kStatusVerified) {
-        CHECK(self->IsExceptionPending());
+        if (klass->GetStatus() == Class::kStatusError) {
+          CHECK(self->IsExceptionPending());
+        }
         return false;
       }
     }
