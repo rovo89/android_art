@@ -96,9 +96,7 @@ const DexFile* DexFile::Open(const std::string& filename,
 }
 
 void DexFile::ChangePermissions(int prot) const {
-  if (mprotect(mem_map_->Begin(), mem_map_->Size(), prot) != 0) {
-    PLOG(FATAL) << "Failed to change dex file permissions to " << prot << " for " << GetLocation();
-  }
+  mem_map_->Protect(prot);
 }
 
 const DexFile* DexFile::OpenFile(const std::string& filename,
