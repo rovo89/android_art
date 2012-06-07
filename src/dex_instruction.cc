@@ -310,12 +310,116 @@ std::string Instruction::DumpString(const DexFile* file) const {
         }
       }
       break;
-    case k21c:  os << StringPrintf("%s v%d, thing@%d", opcode, insn.vA, insn.vB); break;
+    case k21c: {
+      switch (insn.opcode) {
+        case CHECK_CAST:
+          if (file != NULL) {
+            os << StringPrintf("check-cast v%d, %s // type@%d", insn.vA,
+                               file->StringByTypeIdx(insn.vB), insn.vB);
+            break;
+          }  // else fall-through
+        case CONST_CLASS:
+          if (file != NULL) {
+            os << StringPrintf("const-class v%d, %s // type@%d", insn.vA,
+                               file->StringByTypeIdx(insn.vB), insn.vB);
+            break;
+          }  // else fall-through
+        case CONST_STRING:
+          if (file != NULL) {
+            os << StringPrintf("const-string v%d, \"%s\" // string@%d", insn.vA,
+                               file->StringDataByIdx(insn.vB), insn.vB);
+            break;
+          }  // else fall-through
+        case NEW_INSTANCE:
+          if (file != NULL) {
+            os << StringPrintf("new-instance v%d, %s // type@%d", insn.vA,
+                               file->StringByTypeIdx(insn.vB), insn.vB);
+            break;
+          }  // else fall-through
+        case SGET:
+        case SGET_WIDE:
+        case SGET_OBJECT:
+        case SGET_BOOLEAN:
+        case SGET_BYTE:
+        case SGET_CHAR:
+        case SGET_SHORT:
+          if (file != NULL) {
+            const DexFile::FieldId& field_id = file->GetFieldId(insn.vB);
+            os << StringPrintf("%s v%d, (%s) %s.%s // field@%d", opcode, insn.vA,
+                               file->GetFieldTypeDescriptor(field_id),
+                               file->GetFieldDeclaringClassDescriptor(field_id),
+                               file->GetFieldName(field_id), insn.vB);
+            break;
+          }  // else fall-through
+        case SPUT:
+        case SPUT_WIDE:
+        case SPUT_OBJECT:
+        case SPUT_BOOLEAN:
+        case SPUT_BYTE:
+        case SPUT_CHAR:
+        case SPUT_SHORT:
+          if (file != NULL) {
+            const DexFile::FieldId& field_id = file->GetFieldId(insn.vB);
+            os << StringPrintf("%s (%s) %s.%s, v%d // field@%d", opcode,
+                               file->GetFieldTypeDescriptor(field_id),
+                               file->GetFieldDeclaringClassDescriptor(field_id),
+                               file->GetFieldName(field_id), insn.vA, insn.vB);
+            break;
+          }  // else fall-through
+        default:
+          os << StringPrintf("%s v%d, thing@%d", opcode, insn.vA, insn.vB);
+          break;
+      }
+      break;
+    }
     case k23x:  os << StringPrintf("%s v%d, v%d, v%d", opcode, insn.vA, insn.vB, insn.vC); break;
     case k22b:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, insn.vA, insn.vB, insn.vC); break;
     case k22t:  os << StringPrintf("%s v%d, v%d, %+d", opcode, insn.vA, insn.vB, insn.vC); break;
     case k22s:  os << StringPrintf("%s v%d, v%d, #%+d", opcode, insn.vA, insn.vB, insn.vC); break;
-    case k22c:  os << StringPrintf("%s v%d, v%d, thing@%d", opcode, insn.vA, insn.vB, insn.vC); break;
+    case k22c: {
+      switch (insn.opcode) {
+        case IGET:
+        case IGET_WIDE:
+        case IGET_OBJECT:
+        case IGET_BOOLEAN:
+        case IGET_BYTE:
+        case IGET_CHAR:
+        case IGET_SHORT:
+          if (file != NULL) {
+            const DexFile::FieldId& field_id = file->GetFieldId(insn.vC);
+            os << StringPrintf("%s v%d, v%d, (%s) %s.%s // field@%d", opcode, insn.vA, insn.vB,
+                               file->GetFieldTypeDescriptor(field_id),
+                               file->GetFieldDeclaringClassDescriptor(field_id),
+                               file->GetFieldName(field_id), insn.vC);
+            break;
+          }  // else fall-through
+        case IPUT:
+        case IPUT_WIDE:
+        case IPUT_OBJECT:
+        case IPUT_BOOLEAN:
+        case IPUT_BYTE:
+        case IPUT_CHAR:
+        case IPUT_SHORT:
+          if (file != NULL) {
+            const DexFile::FieldId& field_id = file->GetFieldId(insn.vC);
+            os << StringPrintf("%s v%d, (%s) %s.%s, v%d // field@%d", opcode, insn.vA,
+                               file->GetFieldTypeDescriptor(field_id),
+                               file->GetFieldDeclaringClassDescriptor(field_id),
+                               file->GetFieldName(field_id), insn.vB, insn.vC);
+            break;
+          }  // else fall-through
+        case INSTANCE_OF:
+          if (file != NULL) {
+            os << StringPrintf("instance-of v%d, v%d, %s // type@%d", insn.vA, insn.vB,
+                               file->StringByTypeIdx(insn.vC), insn.vC);
+            break;
+          }  // else fall-through
+        default:
+          os << StringPrintf("%s v%d, v%d, thing@%d", opcode, insn.vA, insn.vB, insn.vC);
+          break;
+      }
+      break;
+    }
     case k32x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA, insn.vB); break;
     case k30t:  os << StringPrintf("%s %+d", opcode, insn.vA); break;
     case k31t:  os << StringPrintf("%s v%d, %+d", opcode, insn.vA, insn.vB); break;
