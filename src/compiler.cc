@@ -1261,7 +1261,7 @@ class DexFilesWorkerThread {
     if (spawn_) {
       pthread_attr_t attr;
       CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new compiler worker thread");
-      CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, 8*MB), "new compiler worker thread");
+      CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, 1*MB), "new compiler worker thread");
       CHECK_PTHREAD_CALL(pthread_create, (&pthread_, &attr, &Go, this), "new compiler worker thread");
       CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new compiler worker thread");
     }
