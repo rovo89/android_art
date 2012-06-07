@@ -36,7 +36,9 @@ namespace art {
 
 static std::ostream& operator<<(std::ostream& os, map_info_t* rhs) {
   for (map_info_t* m = rhs; m != NULL; m = m->next) {
-    os << StringPrintf("%08x-%08x %c%c %s\n",m->start, m->end,
+    os << StringPrintf("0x%08x-0x%08x %c%c %s\n",
+                       static_cast<uint32_t>(m->start),
+                       static_cast<uint32_t>(m->end),
                        m->is_readable ? 'r' : '-', m->is_executable ? 'x' : '-', m->name);
   }
   return os;
@@ -55,8 +57,9 @@ void CheckMapRequest(byte* addr, size_t byte_count) {
     CHECK(!(base >= m->start && base < m->end)      // start of new within old
         && !(limit > m->start && limit < m->end)  // end of new within old
         && !(base <= m->start && limit > m->end)) // start/end of new includes all of old
-        << StringPrintf("Requested region %08x-%08x overlaps with existing map %08x-%08x (%s)\n",
-                        base, limit, m->start, m->end, m->name)
+        << StringPrintf("Requested region 0x%08x-0x%08x overlaps with existing map 0x%08x-0x%08x (%s)\n",
+                        base, limit,
+                        static_cast<uint32_t>(m->start), static_cast<uint32_t>(m->end), m->name)
         << map_info_list;
   }
   free_map_info_list(map_info_list);
