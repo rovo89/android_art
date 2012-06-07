@@ -29,31 +29,36 @@ namespace art {
   ( ((reg) < mh.GetCodeItem()->registers_size_) &&                       \
     (( *((reg_bitmap) + (reg)/8) >> ((reg) % 8) ) & 0x01) )
 
-#define CHECK_REGS(...) do {          \
-    int t[] = {__VA_ARGS__};             \
-    int t_size = sizeof(t) / sizeof(*t);      \
-    for (int i = 0; i < t_size; ++i)          \
-      CHECK(REG(mh, reg_bitmap, t[i])) << "Error: Reg " << i << " is not in RegisterMap";  \
-  } while (false)
+#define CHECK_REGS(...) if (!IsShadowFrame()) { \
+    int t[] = {__VA_ARGS__}; \
+    int t_size = sizeof(t) / sizeof(*t); \
+    for (int i = 0; i < t_size; ++i) \
+      CHECK(REG(mh, reg_bitmap, t[i])) << "Error: Reg " << i << " is not in RegisterMap"; \
+  }
 
 static int gJava_StackWalk_refmap_calls = 0;
 
-struct TestReferenceMapVisitor : public Thread::StackVisitor {
-  TestReferenceMapVisitor() {
+struct TestReferenceMapVisitor : public StackVisitor {
+  explicit TestReferenceMapVisitor(const ManagedStack* stack,
+                                   const std::vector<TraceStackFrame>* trace_stack) :
+    StackVisitor(stack, trace_stack) {
   }
 
-  bool VisitFrame(const Frame& frame, uintptr_t pc) {
-    Method* m = frame.GetMethod();
+  bool VisitFrame() {
+    Method* m = GetMethod();
     CHECK(m != NULL);
     LOG(INFO) << "At " << PrettyMethod(m, false);
 
     if (m->IsCalleeSaveMethod() || m->IsNative()) {
       LOG(WARNING) << "no PC for " << PrettyMethod(m);
-      CHECK_EQ(pc, 0u);
+      CHECK_EQ(GetDexPc(), DexFile::kDexNoIndex);
       return true;
     }
-    verifier::PcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
-    const uint8_t* reg_bitmap = map.FindBitMap(m->ToDexPC(pc));
+    const uint8_t* reg_bitmap = NULL;
+    if (!IsShadowFrame()) {
+      verifier::PcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
+      reg_bitmap = map.FindBitMap(GetDexPc());
+    }
     MethodHelper mh(m);
     StringPiece m_name(mh.GetName());
 
@@ -62,29 +67,29 @@ struct TestReferenceMapVisitor : public Thread::StackVisitor {
     // find is what is expected.
     if (m_name == "f") {
       if (gJava_StackWalk_refmap_calls == 1) {
-        CHECK_EQ(1U, m->ToDexPC(pc));
+        CHECK_EQ(1U, GetDexPc());
         CHECK_REGS(1);
       } else {
         CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
-        CHECK_EQ(5U, m->ToDexPC(pc));
+        CHECK_EQ(5U, GetDexPc());
         CHECK_REGS(1);
       }
     } else if (m_name == "g") {
       if (gJava_StackWalk_refmap_calls == 1) {
-        CHECK_EQ(0xcU, m->ToDexPC(pc));
+        CHECK_EQ(0xcU, GetDexPc());
         CHECK_REGS(0, 2);  // Note that v1 is not in the minimal root set
       } else {
         CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
-        CHECK_EQ(0xcU, m->ToDexPC(pc));
+        CHECK_EQ(0xcU, GetDexPc());
         CHECK_REGS(0, 2);
       }
     } else if (m_name == "shlemiel") {
       if (gJava_StackWalk_refmap_calls == 1) {
-        CHECK_EQ(0x380U, m->ToDexPC(pc));
+        CHECK_EQ(0x380U, GetDexPc());
         CHECK_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
       } else {
         CHECK_EQ(gJava_StackWalk_refmap_calls, 2);
-        CHECK_EQ(0x380U, m->ToDexPC(pc));
+        CHECK_EQ(0x380U, GetDexPc());
         CHECK_REGS(2, 4, 5, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 21, 25);
       }
     }
@@ -99,8 +104,9 @@ extern "C" JNIEXPORT jint JNICALL Java_StackWalk_refmap(JNIEnv*, jobject, jint c
   gJava_StackWalk_refmap_calls++;
 
   // Visitor
-  TestReferenceMapVisitor mapper;
-  Thread::Current()->WalkStack(&mapper);
+  TestReferenceMapVisitor mapper(Thread::Current()->GetManagedStack(),
+                                 Thread::Current()->GetTraceStack());
+  mapper.WalkStack();
 
   return count + 1;
 }
@@ -109,8 +115,9 @@ extern "C" JNIEXPORT jint JNICALL Java_StackWalk2_refmap2(JNIEnv*, jobject, jint
   gJava_StackWalk_refmap_calls++;
 
   // Visitor
-  TestReferenceMapVisitor mapper;
-  Thread::Current()->WalkStack(&mapper);
+  TestReferenceMapVisitor mapper(Thread::Current()->GetManagedStack(),
+                                 Thread::Current()->GetTraceStack());
+  mapper.WalkStack();
 
   return count + 1;
 }

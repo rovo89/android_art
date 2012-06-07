@@ -27,7 +27,6 @@
 #include "object.h"
 #include "runtime.h"
 #include "runtime_support_func.h"
-#include "shadow_frame.h"
 #include "utils_llvm.h"
 
 #include <llvm/BasicBlock.h>
@@ -115,7 +114,7 @@ CompiledMethod* JniCompiler::Compile() {
   // Store the dex pc
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::DexPCOffset(),
-                           irb_.getInt32(0),
+                           irb_.getInt32(DexFile::kDexNoIndex),
                            kTBAAShadowFrame);
 
   // Push the shadow frame

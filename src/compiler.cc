@@ -923,9 +923,9 @@ static bool SkipClass(const ClassLoader* class_loader,
   return true;
 }
 
-class Context {
+class CompilationContext {
  public:
-  Context(ClassLinker* class_linker,
+  CompilationContext(ClassLinker* class_linker,
           const ClassLoader* class_loader,
           Compiler* compiler,
           DexCache* dex_cache,
@@ -964,11 +964,11 @@ class Context {
   const DexFile* dex_file_;
 };
 
-typedef void Callback(Context* context, size_t index);
+typedef void Callback(CompilationContext* context, size_t index);
 
 class WorkerThread {
  public:
-  WorkerThread(Context* context, size_t begin, size_t end, Callback callback, size_t stripe, bool spawn)
+  WorkerThread(CompilationContext* context, size_t begin, size_t end, Callback callback, size_t stripe, bool spawn)
       : spawn_(spawn), context_(context), begin_(begin), end_(end), callback_(callback), stripe_(stripe) {
     if (spawn_) {
       // Mac OS stacks are only 512KiB. Make sure we have the same stack size on all platforms.
@@ -1017,16 +1017,16 @@ class WorkerThread {
   pthread_t pthread_;
   bool spawn_;
 
-  Context* context_;
+  CompilationContext* context_;
   size_t begin_;
   size_t end_;
   Callback* callback_;
   size_t stripe_;
 
-  friend void ForAll(Context*, size_t, size_t, Callback, size_t);
+  friend void ForAll(CompilationContext*, size_t, size_t, Callback, size_t);
 };
 
-void ForAll(Context* context, size_t begin, size_t end, Callback callback, size_t thread_count) {
+void ForAll(CompilationContext* context, size_t begin, size_t end, Callback callback, size_t thread_count) {
   Thread* self = Thread::Current();
   CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
   CHECK_GT(thread_count, 0U);
@@ -1042,7 +1042,7 @@ void ForAll(Context* context, size_t begin, size_t end, Callback callback, size_
   STLDeleteElements(&threads);
 }
 
-static void ResolveClassFieldsAndMethods(Context* context, size_t class_def_index) {
+static void ResolveClassFieldsAndMethods(CompilationContext* context, size_t class_def_index) {
   const DexFile& dex_file = *context->GetDexFile();
 
   // Method and Field are the worst. We can't resolve without either
@@ -1108,7 +1108,7 @@ static void ResolveClassFieldsAndMethods(Context* context, size_t class_def_inde
   DCHECK(!it.HasNext());
 }
 
-static void ResolveType(Context* context, size_t type_idx) {
+static void ResolveType(CompilationContext* context, size_t type_idx) {
   // Class derived values are more complicated, they require the linker and loader.
   Thread* self = Thread::Current();
   Class* klass = context->GetClassLinker()->ResolveType(*context->GetDexFile(),
@@ -1135,7 +1135,7 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
     timings.AddSplit("Resolve " + dex_file.GetLocation() + " Strings");
   }
 
-  Context context(class_linker, class_loader, this, dex_cache, &dex_file);
+  CompilationContext context(class_linker, class_loader, this, dex_cache, &dex_file);
   ForAll(&context, 0, dex_cache->NumResolvedTypes(), ResolveType, thread_count_);
   timings.AddSplit("Resolve " + dex_file.GetLocation() + " Types");
 
@@ -1152,7 +1152,7 @@ void Compiler::Verify(const ClassLoader* class_loader,
   }
 }
 
-static void VerifyClass(Context* context, size_t class_def_index) {
+static void VerifyClass(CompilationContext* context, size_t class_def_index) {
   const DexFile::ClassDef& class_def = context->GetDexFile()->GetClassDef(class_def_index);
   const char* descriptor = context->GetDexFile()->GetClassDescriptor(class_def);
   Class* klass = context->GetClassLinker()->FindClass(descriptor, context->GetClassLoader());
@@ -1194,7 +1194,7 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
   dex_file.ChangePermissions(PROT_READ | PROT_WRITE);
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  Context context(class_linker, class_loader, this, class_linker->FindDexCache(dex_file), &dex_file);
+  CompilationContext context(class_linker, class_loader, this, class_linker->FindDexCache(dex_file), &dex_file);
   ForAll(&context, 0, dex_file.NumClassDefs(), VerifyClass, thread_count_);
 
   dex_file.ChangePermissions(PROT_READ);
@@ -1255,7 +1255,7 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, c
 // the future.
 class DexFilesWorkerThread {
  public:
-  DexFilesWorkerThread(Context *worker_context, Callback class_callback,
+  DexFilesWorkerThread(CompilationContext *worker_context, Callback class_callback,
                        const std::vector<const DexFile*>& dex_files,
                        volatile int32_t* shared_class_index, bool spawn)
       : spawn_(spawn), worker_context_(worker_context),
@@ -1308,10 +1308,10 @@ class DexFilesWorkerThread {
 
     // TODO: Add a callback to let the client specify the class_linker and
     //       dex_cache in the context for the current working dex file.
-    context_ = new Context(/* class_linker */NULL,
-                           worker_context_->GetClassLoader(),
-                           worker_context_->GetCompiler(),
-                           /* dex_cache */NULL, dex_file);
+    context_ = new CompilationContext(/* class_linker */NULL,
+                                      worker_context_->GetClassLoader(),
+                                      worker_context_->GetCompiler(),
+                                      /* dex_cache */NULL, dex_file);
 
     CHECK(context_ != NULL);
   }
@@ -1356,19 +1356,19 @@ class DexFilesWorkerThread {
   pthread_t pthread_;
   bool spawn_;
 
-  Context* worker_context_;
+  CompilationContext* worker_context_;
   Callback* class_callback_;
   const std::vector<const DexFile*>& dex_files_;
 
-  Context* context_;
+  CompilationContext* context_;
   volatile int32_t* shared_class_index_;
 
-  friend void ForClassesInAllDexFiles(Context*,
+  friend void ForClassesInAllDexFiles(CompilationContext*,
                                       const std::vector<const DexFile*>&,
                                       Callback, size_t);
 };
 
-void ForClassesInAllDexFiles(Context* worker_context,
+void ForClassesInAllDexFiles(CompilationContext* worker_context,
                              const std::vector<const DexFile*>& dex_files,
                              Callback class_callback, size_t thread_count) {
   Thread* self = Thread::Current();
@@ -1396,7 +1396,7 @@ void Compiler::Compile(const ClassLoader* class_loader,
   if (dex_files.size() <= 0) {
     return;  // No dex file
   }
-  Context context(NULL, class_loader, this, NULL, NULL);
+  CompilationContext context(NULL, class_loader, this, NULL, NULL);
   ForClassesInAllDexFiles(&context, dex_files, Compiler::CompileClass, thread_count_);
 #else
   for (size_t i = 0; i != dex_files.size(); ++i) {
@@ -1407,7 +1407,7 @@ void Compiler::Compile(const ClassLoader* class_loader,
 #endif
 }
 
-void Compiler::CompileClass(Context* context, size_t class_def_index) {
+void Compiler::CompileClass(CompilationContext* context, size_t class_def_index) {
   const ClassLoader* class_loader = context->GetClassLoader();
   const DexFile& dex_file = *context->GetDexFile();
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
@@ -1466,7 +1466,7 @@ void Compiler::CompileClass(Context* context, size_t class_def_index) {
 }
 
 void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
-  Context context(NULL, class_loader, this, NULL, &dex_file);
+  CompilationContext context(NULL, class_loader, this, NULL, &dex_file);
   ForAll(&context, 0, dex_file.NumClassDefs(), Compiler::CompileClass, thread_count_);
 }
 

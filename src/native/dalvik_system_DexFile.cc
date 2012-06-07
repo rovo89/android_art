@@ -24,6 +24,7 @@
 #include "logging.h"
 #include "os.h"
 #include "runtime.h"
+#include "scoped_jni_thread_state.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "space.h"
@@ -125,7 +126,7 @@ static void DexFile_closeDexFile(JNIEnv*, jclass, jint cookie) {
 
 static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
                                         jint cookie) {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+  ScopedJniThreadState tsc(env);
   const DexFile* dex_file = toDexFile(cookie);
   if (dex_file == NULL) {
     return NULL;
@@ -139,11 +140,10 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
   if (dex_class_def == NULL) {
     return NULL;
   }
-
-  Object* class_loader_object = Decode<Object*>(env, javaLoader);
-  ClassLoader* class_loader = down_cast<ClassLoader*>(class_loader_object);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   class_linker->RegisterDexFile(*dex_file);
+  Object* class_loader_object = Decode<Object*>(env, javaLoader);
+  ClassLoader* class_loader = down_cast<ClassLoader*>(class_loader_object);
   Class* result = class_linker->DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
   return AddLocalReference<jclass>(env, result);
 }

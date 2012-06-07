@@ -471,9 +471,10 @@ Object* Heap::AllocateLocked(size_t size) {
 Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
   lock_->AssertHeld();
 
-  // Since allocation can cause a GC which will need to SuspendAll,
-  // make sure all allocators are in the kRunnable state.
-  CHECK_EQ(Thread::Current()->GetState(), kRunnable);
+  // Since allocation can cause a GC which will need to SuspendAll, make sure all allocations are
+  // done in the runnable state where suspension is expected.
+  DCHECK_EQ(Thread::Current()->GetState(), kRunnable);
+  Thread::Current()->AssertThreadSuspensionIsAllowable();
 
   // Fail impossible allocations
   if (alloc_size > space->Capacity()) {

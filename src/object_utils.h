@@ -505,9 +505,13 @@ class MethodHelper {
     return dex_file.GetTypeDescriptor(dex_file.GetTypeId(return_type_idx));
   }
 
-  int32_t GetLineNumFromNativePC(uintptr_t raw_pc) {
-    const DexFile& dex_file = GetDexFile();
-    return dex_file.GetLineNumFromPC(method_, method_->ToDexPC(raw_pc));
+  int32_t GetLineNumFromDexPC(uint32_t dex_pc) {
+    if (dex_pc == DexFile::kDexNoIndex) {
+      return method_->IsNative() ? -2 : -1;
+    } else {
+      const DexFile& dex_file = GetDexFile();
+      return dex_file.GetLineNumFromPC(method_, dex_pc);
+    }
   }
 
   const char* GetDeclaringClassDescriptor() {

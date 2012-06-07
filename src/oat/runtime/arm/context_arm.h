@@ -28,7 +28,7 @@ class ArmContext : public Context {
   ArmContext();
   virtual ~ArmContext() {}
 
-  virtual void FillCalleeSaves(const Frame& fr);
+  virtual void FillCalleeSaves(const StackVisitor& fr);
 
   virtual void SetSP(uintptr_t new_sp) {
     gprs_[SP] = new_sp;

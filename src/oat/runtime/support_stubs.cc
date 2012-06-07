@@ -221,9 +221,8 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
 #else // ART_USE_LLVM_COMPILER
 const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** called_addr,
                                                      Thread* thread, Runtime::TrampolineType type) {
-  NthCallerVisitor visitor(0);
-  thread->WalkStack(&visitor);
-  Method* caller = visitor.caller;
+  uint32_t dex_pc;
+  Method* caller = thread->GetCurrentMethod(&dex_pc);
 
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   bool is_static;
@@ -231,8 +230,6 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** ca
   uint32_t dex_method_idx;
   if (type == Runtime::kUnknownMethod) {
     DCHECK(called->IsRuntimeMethod());
-    // less two as return address may span into next dex instruction
-    uint32_t dex_pc = static_cast<uint32_t>(visitor.pc);
     const DexFile::CodeItem* code = MethodHelper(caller).GetCodeItem();
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
     const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);

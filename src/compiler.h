@@ -36,7 +36,7 @@
 namespace art {
 
 class AOTCompilationStats;
-class Context;
+class CompilationContext;
 class OatCompilationUnit;
 class TimingLogger;
 
@@ -278,7 +278,7 @@ class Compiler {
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags, uint32_t method_idx,
                      const ClassLoader* class_loader, const DexFile& dex_file);
 
-  static void CompileClass(Context* context, size_t class_def_index);
+  static void CompileClass(CompilationContext* context, size_t class_def_index);
 
   void SetGcMaps(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
   void SetGcMapsDexFile(const ClassLoader* class_loader, const DexFile& dex_file);

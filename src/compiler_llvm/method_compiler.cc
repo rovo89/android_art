@@ -28,7 +28,6 @@
 #include "object_utils.h"
 #include "runtime_support_func.h"
 #include "runtime_support_llvm.h"
-#include "shadow_frame.h"
 #include "stl_util.h"
 #include "stringprintf.h"
 #include "utils_llvm.h"

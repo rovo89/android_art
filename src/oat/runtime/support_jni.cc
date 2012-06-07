@@ -90,7 +90,7 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp) {
   // | unused |
   // | unused |
   // | unused | <- sp
-  Method* jni_method = self->GetTopOfStack().GetMethod();
+  Method* jni_method = self->GetCurrentMethod();
   DCHECK(jni_method->IsNative()) << PrettyMethod(jni_method);
   intptr_t* arg_ptr = sp + 4;  // pointer to r1 on stack
   // Fix up this/jclass argument

@@ -20,6 +20,7 @@
 #include "nth_caller_visitor.h"
 #include "object.h"
 #include "object_utils.h"
+#include "scoped_jni_thread_state.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "well_known_classes.h"
@@ -307,7 +308,7 @@ static jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClas
 }
 
 static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass java_class, jobject jname) {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+  ScopedJniThreadState ts(env);
   Class* c = DecodeClass(env, java_class);
   if (c == NULL) {
     return NULL;
@@ -343,23 +344,23 @@ static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass java_class, jobj
 }
 
 static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+  ScopedJniThreadState ts(env);
   Class* c = DecodeClass(env, javaThis);
   return AddLocalReference<jstring>(env, c->ComputeName());
 }
 
 static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+  ScopedJniThreadState ts(env);
   SynthesizedProxyClass* c = down_cast<SynthesizedProxyClass*>(DecodeClass(env, javaThis));
   return AddLocalReference<jobjectArray>(env, c->GetInterfaces()->Clone());
 }
 
 static jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass javaRhs) {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+  ScopedJniThreadState ts(env);
   Class* lhs = DecodeClass(env, javaLhs);
   Class* rhs = Decode<Class*>(env, javaRhs); // Can be null.
   if (rhs == NULL) {
-    Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "class == null");
+    ts.Self()->ThrowNewException("Ljava/lang/NullPointerException;", "class == null");
     return JNI_FALSE;
   }
   return lhs->IsAssignableFrom(rhs) ? JNI_TRUE : JNI_FALSE;
@@ -395,10 +396,10 @@ static bool CheckMemberAccess(const Class* access_from, Class* access_to, uint32
 }
 
 static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+  ScopedJniThreadState ts(env);
   Class* c = DecodeClass(env, javaThis);
   if (c->IsPrimitive() || c->IsInterface() || c->IsArrayClass() || c->IsAbstract()) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
+    ts.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
         "Class %s can not be instantiated", PrettyDescriptor(ClassHelper(c).GetDescriptor()).c_str());
     return NULL;
   }
@@ -409,7 +410,7 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
 
   Method* init = c->FindDeclaredDirectMethod("<init>", "()V");
   if (init == NULL) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
+    ts.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
         "Class %s has no default <init>()V constructor", PrettyDescriptor(ClassHelper(c).GetDescriptor()).c_str());
     return NULL;
   }
@@ -423,20 +424,20 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
   // constructor must be public or, if the caller is in the same package,
   // have package scope.
 
-  NthCallerVisitor visitor(2);
-  Thread::Current()->WalkStack(&visitor);
+  NthCallerVisitor visitor(ts.Self()->GetManagedStack(), ts.Self()->GetTraceStack(), 2);
+  visitor.WalkStack();
   Class* caller_class = visitor.caller->GetDeclaringClass();
 
   ClassHelper caller_ch(caller_class);
   if (!caller_class->CanAccess(c)) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
+    ts.Self()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
         "Class %s is not accessible from class %s",
         PrettyDescriptor(ClassHelper(c).GetDescriptor()).c_str(),
         PrettyDescriptor(caller_ch.GetDescriptor()).c_str());
     return NULL;
   }
   if (!CheckMemberAccess(caller_class, init->GetDeclaringClass(), init->GetAccessFlags())) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
+    ts.Self()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
         "%s is not accessible from class %s",
         PrettyMethod(init).c_str(),
         PrettyDescriptor(caller_ch.GetDescriptor()).c_str());
@@ -445,7 +446,7 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
 
   Object* new_obj = c->AllocObject();
   if (new_obj == NULL) {
-    DCHECK(Thread::Current()->IsExceptionPending());
+    DCHECK(ts.Self()->IsExceptionPending());
     return NULL;
   }
 

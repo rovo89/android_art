@@ -194,26 +194,28 @@ static bool UninstallStubsClassVisitor(Class* klass, void*) {
   return true;
 }
 
-static void TraceRestoreStack(Thread* t, void*) {
-  Frame frame = t->GetTopOfStack();
-  if (frame.GetSP() != 0) {
-    for ( ; frame.GetMethod() != 0; frame.Next()) {
-      if (t->IsTraceStackEmpty()) {
-        break;
+static void TraceRestoreStack(Thread* self, void*) {
+  struct RestoreStackVisitor : public StackVisitor {
+    RestoreStackVisitor(Thread* self) : StackVisitor(self->GetManagedStack(),
+                                                     self->GetTraceStack()), self_(self) {}
+
+    virtual bool VisitFrame() {
+      if (self_->IsTraceStackEmpty()) {
+        return false;  // Stop.
       }
-#if defined(ART_USE_LLVM_COMPILER)
-      UNIMPLEMENTED(FATAL);
-#else
-      uintptr_t pc = frame.GetReturnPC();
-      Method* method = frame.GetMethod();
+      uintptr_t pc = GetReturnPc();
       if (IsTraceExitPc(pc)) {
-        TraceStackFrame trace_frame = t->PopTraceStackFrame();
-        frame.SetReturnPC(trace_frame.return_pc_);
-        CHECK(method == trace_frame.method_);
+        TraceStackFrame trace_frame = self_->PopTraceStackFrame();
+        SetReturnPc(trace_frame.return_pc_);
+        CHECK(GetMethod() == trace_frame.method_);
       }
-#endif
+      return true;  // Continue.
     }
-  }
+
+    Thread* self_;
+  };
+  RestoreStackVisitor visitor(self);
+  visitor.WalkStack();
 }
 
 void Trace::AddSavedCodeToMap(const Method* method, const void* code) {
@@ -470,10 +472,9 @@ void Trace::DumpMethodList(std::ostream& os) {
   for (It it = visited_methods_.begin(); it != visited_methods_.end(); ++it) {
     const Method* method = *it;
     MethodHelper mh(method);
-    os << StringPrintf("%p\t%s\t%s\t%s\t%s\t%d\n", method,
+    os << StringPrintf("%p\t%s\t%s\t%s\t%s\n", method,
         PrettyDescriptor(mh.GetDeclaringClassDescriptor()).c_str(), mh.GetName(),
-        mh.GetSignature().c_str(), mh.GetDeclaringClassSourceFile(),
-        mh.GetLineNumFromNativePC(0));
+        mh.GetSignature().c_str(), mh.GetDeclaringClassSourceFile());
   }
 }
 

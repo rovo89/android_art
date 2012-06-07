@@ -49,11 +49,8 @@ extern "C" void artDeliverExceptionFromCode(Throwable* exception, Thread* thread
 // Called by generated call to throw a NPE exception.
 extern "C" void artThrowNullPointerExceptionFromCode(Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
-  Frame frame = self->GetTopOfStack();
-  uintptr_t throw_native_pc = frame.GetReturnPC();
-  frame.Next();
-  Method* throw_method = frame.GetMethod();
-  uint32_t dex_pc = throw_method->ToDexPC(throw_native_pc - 2);
+  uint32_t dex_pc;
+  Method* throw_method = self->GetCurrentMethod(&dex_pc);
   ThrowNullPointerExceptionFromDexPC(self, throw_method, dex_pc);
   self->DeliverException();
 }
@@ -88,9 +85,7 @@ extern "C" void artThrowStackOverflowFromCode(Thread* thread, Method** sp) {
 
 extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
-  Frame frame = self->GetTopOfStack();  // We need the calling method as context for the method_idx
-  frame.Next();
-  Method* method = frame.GetMethod();
+  Method* method = self->GetCurrentMethod();
   self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
       MethodNameFromIndex(method, method_idx, verifier::VERIFY_ERROR_REF_METHOD, false).c_str());
   self->DeliverException();
@@ -98,9 +93,7 @@ extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self, M
 
 extern "C" void artThrowVerificationErrorFromCode(int32_t kind, int32_t ref, Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
-  Frame frame = self->GetTopOfStack();  // We need the calling method as context to interpret 'ref'
-  frame.Next();
-  Method* method = frame.GetMethod();
+  Method* method = self->GetCurrentMethod();
   ThrowVerificationError(self, method, kind, ref);
   self->DeliverException();
 }
