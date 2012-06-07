@@ -1551,9 +1551,7 @@ void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
     EmitGuard_NullPointerException(dex_pc, object_addr);
   }
 
-  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
-
-  irb_.CreateCall2(irb_.GetRuntime(LockObject), object_addr, thread_object_addr);
+  irb_.Runtime().EmitLockObject(object_addr);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
@@ -1573,9 +1571,7 @@ void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
 
   EmitUpdateDexPC(dex_pc);
 
-  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
-
-  irb_.CreateCall2(irb_.GetRuntime(UnlockObject), object_addr, thread_object_addr);
+  irb_.Runtime().EmitUnlockObject(object_addr);
 
   EmitGuard_ExceptionLandingPad(dex_pc, true);
 

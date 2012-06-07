@@ -18,6 +18,8 @@
 
 #include "card_table.h"
 #include "ir_builder.h"
+#include "monitor.h"
+#include "object.h"
 #include "shadow_frame.h"
 #include "thread.h"
 #include "utils_llvm.h"
@@ -176,6 +178,55 @@ void RuntimeSupportBuilder::EmitTestSuspend() {
   irb_.CreateBr(basic_block_cont);
 
   irb_.SetInsertPoint(basic_block_cont);
+}
+
+
+/* Monitor */
+
+void RuntimeSupportBuilder::EmitLockObject(llvm::Value* object) {
+  // TODO: Implement a fast path.
+  Function* slow_func = GetRuntimeSupportFunction(runtime_support::LockObject);
+  irb_.CreateCall2(slow_func, object, EmitGetCurrentThread());
+}
+
+void RuntimeSupportBuilder::EmitUnlockObject(llvm::Value* object) {
+  llvm::Value* lock_id =
+      EmitLoadFromThreadOffset(Thread::ThinLockIdOffset().Int32Value(),
+                               irb_.getJIntTy(),
+                               kTBAARuntimeInfo);
+  llvm::Value* monitor =
+      irb_.LoadFromObjectOffset(object,
+                                Object::MonitorOffset().Int32Value(),
+                                irb_.getJIntTy(),
+                                kTBAARuntimeInfo);
+
+  llvm::Value* my_monitor = irb_.CreateShl(lock_id, LW_LOCK_OWNER_SHIFT);
+  llvm::Value* hash_state = irb_.CreateAnd(monitor, (LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
+  llvm::Value* real_monitor = irb_.CreateAnd(monitor, ~(LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
+
+  // Is thin lock, held by us and not recursively acquired
+  llvm::Value* is_fast_path = irb_.CreateICmpEQ(real_monitor, my_monitor);
+
+  llvm::Function* parent_func = irb_.GetInsertBlock()->getParent();
+  BasicBlock* bb_fast = BasicBlock::Create(context_, "unlock_fast", parent_func);
+  BasicBlock* bb_slow = BasicBlock::Create(context_, "unlock_slow", parent_func);
+  BasicBlock* bb_cont = BasicBlock::Create(context_, "unlock_cont", parent_func);
+  irb_.CreateCondBr(is_fast_path, bb_fast, bb_slow, kLikely);
+
+  irb_.SetInsertPoint(bb_fast);
+  // Set all bits to zero (except hash state)
+  irb_.StoreToObjectOffset(object,
+                           Object::MonitorOffset().Int32Value(),
+                           hash_state,
+                           kTBAARuntimeInfo);
+  irb_.CreateBr(bb_cont);
+
+  irb_.SetInsertPoint(bb_slow);
+  Function* slow_func = GetRuntimeSupportFunction(runtime_support::UnlockObject);
+  irb_.CreateCall2(slow_func, object, EmitGetCurrentThread());
+  irb_.CreateBr(bb_cont);
+
+  irb_.SetInsertPoint(bb_cont);
 }
 
 

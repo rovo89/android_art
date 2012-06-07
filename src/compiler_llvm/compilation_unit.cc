@@ -24,6 +24,7 @@
 #include "os.h"
 
 #include "runtime_support_builder_arm.h"
+#include "runtime_support_builder_thumb2.h"
 #include "runtime_support_builder_x86.h"
 
 #include <llvm/ADT/OwningPtr.h>
@@ -180,12 +181,14 @@ CompilationUnit::CompilationUnit(InstructionSet insn_set, size_t elf_idx)
 
   // We always need a switch case, so just use a normal function.
   switch(insn_set_) {
-    default:
-      runtime_support_.reset(new RuntimeSupportBuilder(*context_, *module_, *irb_));
-      break;
+  default:
+    runtime_support_.reset(new RuntimeSupportBuilder(*context_, *module_, *irb_));
+    break;
   case kArm:
-  case kThumb2:
     runtime_support_.reset(new RuntimeSupportBuilderARM(*context_, *module_, *irb_));
+    break;
+  case kThumb2:
+    runtime_support_.reset(new RuntimeSupportBuilderThumb2(*context_, *module_, *irb_));
     break;
   case kX86:
     runtime_support_.reset(new RuntimeSupportBuilderX86(*context_, *module_, *irb_));
@@ -254,13 +257,13 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream) {
   switch (insn_set_) {
   case kThumb2:
     target_triple = "thumb-none-linux-gnueabi";
-    target_attr = "+thumb2,+neon,+neonfp,+vfp3";
+    target_attr = "+thumb2,+neon,+neonfp,+vfp3,+db";
     break;
 
   case kArm:
     target_triple = "armv7-none-linux-gnueabi";
     // TODO: Fix for Xoom.
-    target_attr = "+v7,+neon,+neonfp,+vfp3";
+    target_attr = "+v7,+neon,+neonfp,+vfp3,+db";
     break;
 
   case kX86:

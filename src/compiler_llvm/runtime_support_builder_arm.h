@@ -34,6 +34,10 @@ class RuntimeSupportBuilderARM : public RuntimeSupportBuilder {
   virtual void EmitStoreToThreadOffset(int64_t offset, llvm::Value* value,
                                        TBAASpecialType s_ty);
   virtual void EmitSetCurrentThread(llvm::Value* thread);
+
+  /* Monitor */
+  virtual void EmitLockObject(llvm::Value* object);
+  virtual void EmitUnlockObject(llvm::Value* object);
 };
 
 } // namespace compiler_llvm
