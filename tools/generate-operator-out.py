@@ -103,8 +103,14 @@ def ProcessFile(filename):
       in_enum = False
       continue
 
-    # Strip // comments.
-    line = re.sub(r'^ *//.*', '', raw_line)
+    # The only useful thing in comments is the <<alternate text>> syntax for
+    # overriding the default enum value names. Pull that out...
+    enum_text = None
+    m_comment = re.compile(r'// <<(.*?)>>').search(raw_line)
+    if m_comment:
+      enum_text = m_comment.group(1)
+    # ...and then strip // comments.
+    line = re.sub(r'//.*', '', raw_line)
 
     # Strip whitespace.
     line = line.strip()
@@ -113,17 +119,18 @@ def ProcessFile(filename):
     if len(line) == 0:
       continue
 
-    # Is this another enum value?
+    # Since we know we're in an enum type, and we're not looking at a comment
+    # or a blank line, this line should be the next enum value...
     m = _ENUM_VALUE_RE.search(line)
     if not m:
       Confused(filename, line_number, raw_line)
-
     enum_value = m.group(1)
 
     # By default, we turn "kSomeValue" into "SomeValue".
-    enum_text = enum_value
-    if enum_text.startswith('k'):
-      enum_text = enum_text[1:]
+    if enum_text == None:
+      enum_text = enum_value
+      if enum_text.startswith('k'):
+        enum_text = enum_text[1:]
 
     # Lose literal values because we don't care; turn "= 123, // blah" into ", // blah".
     rest = m.group(2).strip()
@@ -141,13 +148,9 @@ def ProcessFile(filename):
       rest = rest[1:]
     rest = rest.strip()
 
-    # Anything left should be a comment.
-    if len(rest) and not rest.startswith('// '):
+    # There shouldn't be anything left.
+    if len(rest):
       Confused(filename, line_number, raw_line)
-
-    m_comment = re.compile(r'<<(.*?)>>').search(rest)
-    if m_comment:
-      enum_text = m_comment.group(1)
 
     if len(enclosing_classes) > 0:
       enum_value = '::'.join(enclosing_classes) + '::' + enum_value
