@@ -102,7 +102,7 @@ static int InvokeMain(JNIEnv* env, char** argv) {
 // Parse arguments.  Most of it just gets passed through to the runtime.
 // The JNI spec defines a handful of standard arguments.
 static int oatexec(int argc, char** argv) {
-  InitLogging();
+  InitLogging(argv);
   setvbuf(stdout, NULL, _IONBF, 0);
 
   // Skip over argv[0].

@@ -36,21 +36,28 @@
 #include "thread_list.h"
 #include "utils.h"
 
-#if !defined(__APPLE__)
-#define HAVE_PROC_CMDLINE
-#endif
-
 namespace art {
 
-#if defined(HAVE_PROC_CMDLINE)
-static bool ReadCmdLine(std::string& result) {
-  if (!ReadFileToString("/proc/self/cmdline", &result)) {
-    return false;
+static void DumpCmdLine(std::ostream& os) {
+#if defined(__linux__)
+  // Show the original command line, and the current command line too if it's changed.
+  // On Android, /proc/self/cmdline will have been rewritten to something like "system_server".
+  std::string current_cmd_line;
+  if (ReadFileToString("/proc/self/cmdline", &current_cmd_line)) {
+    current_cmd_line.resize(current_cmd_line.size() - 1); // Lose the trailing '\0'.
+    std::replace(current_cmd_line.begin(), current_cmd_line.end(), '\0', ' ');
+
+    os << "Cmdline: " << current_cmd_line;
+    const char* stashed_cmd_line = GetCmdLine();
+    if (stashed_cmd_line != NULL && current_cmd_line != stashed_cmd_line) {
+      os << "Original command line: " << stashed_cmd_line;
+    }
   }
-  std::replace(result.begin(), result.end(), '\0', ' ');
-  return true;
-}
+  os << "\n";
+#else
+  os << "Cmdline: " << GetCmdLine() << "\n";
 #endif
+}
 
 SignalCatcher::SignalCatcher(const std::string& stack_trace_file)
     : stack_trace_file_(stack_trace_file),
@@ -58,12 +65,6 @@ SignalCatcher::SignalCatcher(const std::string& stack_trace_file)
       cond_("SignalCatcher::cond_"),
       thread_(NULL) {
   SetHaltFlag(false);
-
-#if defined(HAVE_PROC_CMDLINE)
-  // Stash the original command line for SIGQUIT reporting.
-  // By then, /proc/self/cmdline will have been rewritten to something like "system_server".
-  CHECK(ReadCmdLine(cmd_line_));
-#endif
 
   // Create a raw pthread; its start routine will attach to the runtime.
   CHECK_PTHREAD_CALL(pthread_create, (&pthread_, NULL, &Run, this), "signal catcher thread");
@@ -129,17 +130,7 @@ void SignalCatcher::HandleSigQuit() {
   os << "\n"
      << "----- pid " << getpid() << " at " << GetIsoDate() << " -----\n";
 
-#if defined(HAVE_PROC_CMDLINE)
-  std::string current_cmd_line;
-  if (ReadCmdLine(current_cmd_line) && current_cmd_line != cmd_line_) {
-    os << "Cmdline: " << current_cmd_line;
-  }
-  os << "\n";
-
-  if (current_cmd_line != cmd_line_) {
-    os << "Original command line: " << cmd_line_ << "\n";
-  }
-#endif
+  DumpCmdLine(os);
 
   os << "Build type: " << (kIsDebugBuild ? "debug" : "optimized") << "\n";
 

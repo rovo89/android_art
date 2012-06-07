@@ -1133,7 +1133,7 @@ class ImageDumper {
 };
 
 static int oatdump(int argc, char** argv) {
-  InitLogging();
+  InitLogging(argv);
 
   // Skip over argv[0].
   argv++;

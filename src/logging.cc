@@ -24,12 +24,26 @@ namespace art {
 
 LogVerbosity gLogVerbosity;
 
-static bool gInitLoggingCalled = false;
 static LogSeverity gMinimumLogSeverity = INFO;
+static std::string* gCmdLine;
+static std::string* gProgramInvocationName;
+static std::string* gProgramInvocationShortName;
 
 static Mutex& GetLoggingLock() {
   static Mutex logging_lock("LogMessage lock");
   return logging_lock;
+}
+
+const char* GetCmdLine() {
+  return (gCmdLine != NULL) ? gCmdLine->c_str() : NULL;
+}
+
+const char* ProgramInvocationName() {
+  return (gProgramInvocationName != NULL) ? gProgramInvocationName->c_str() : "art";
+}
+
+const char* ProgramInvocationShortName() {
+  return (gProgramInvocationShortName != NULL) ? gProgramInvocationShortName->c_str() : "art";
 }
 
 // Configure logging based on ANDROID_LOG_TAGS environment variable.
@@ -40,8 +54,19 @@ static Mutex& GetLoggingLock() {
 // The tag (or '*' for the global level) comes first, followed by a colon
 // and a letter indicating the minimum priority level we're expected to log.
 // This can be used to reveal or conceal logs with specific tags.
-void InitLogging() {
-  gInitLoggingCalled = true;
+void InitLogging(char* argv[]) {
+  // Stash the command line for later use. We can use /proc/self/cmdline on Linux to recover this,
+  // but we don't have that luxury on the Mac, and there are a couple of argv[0] variants that are
+  // commonly used.
+  gCmdLine = new std::string(argv[0]);
+  for (size_t i = 1; argv[i] != NULL; ++i) {
+    gCmdLine->append(" ");
+    gCmdLine->append(argv[i]);
+  }
+  gProgramInvocationName = new std::string(argv[0]);
+  const char* last_slash = strrchr(argv[0], '/');
+  gProgramInvocationShortName = new std::string((last_slash != NULL) ? last_slash + 1 : argv[0]);
+
   const char* tags = getenv("ANDROID_LOG_TAGS");
   if (tags == NULL) {
     return;

@@ -86,8 +86,8 @@ void ThreadList::DumpUnattachedThreads(std::ostream& os) {
   }
 
   dirent de;
-  dirent* result;
-  while (!readdir_r(d, &de, &result) && result != NULL) {
+  dirent* e;
+  while (!readdir_r(d, &de, &e) && e != NULL) {
     char* end;
     pid_t tid = strtol(de.d_name, &end, 10);
     if (!*end && !Contains(tid)) {

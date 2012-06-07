@@ -449,7 +449,7 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
 }
 
 static int dex2oat(int argc, char** argv) {
-  InitLogging();
+  InitLogging(argv);
 
   // Skip over argv[0].
   argv++;

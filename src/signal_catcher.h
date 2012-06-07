@@ -52,7 +52,6 @@ class SignalCatcher {
   ConditionVariable cond_;
   pthread_t pthread_;
   Thread* thread_;
-  std::string cmd_line_;
 };
 
 }  // namespace art
