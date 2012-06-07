@@ -753,10 +753,10 @@ void Class::DumpClass(std::ostream& os, int flags) const {
   if (IsArrayClass()) {
     os << "  componentType=" << PrettyClass(GetComponentType()) << "\n";
   }
-  if (kh.NumInterfaces() > 0) {
-    os << "  interfaces (" << kh.NumInterfaces() << "):\n";
-    for (size_t i = 0; i < kh.NumInterfaces(); ++i) {
-      Class* interface = kh.GetInterface(i);
+  if (kh.NumDirectInterfaces() > 0) {
+    os << "  interfaces (" << kh.NumDirectInterfaces() << "):\n";
+    for (size_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
+      Class* interface = kh.GetDirectInterface(i);
       const ClassLoader* cl = interface->GetClassLoader();
       os << StringPrintf("    %2zd: %s (cl=%p)\n", i, PrettyClass(interface).c_str(), cl);
     }
@@ -1174,9 +1174,9 @@ Field* Class::FindStaticField(const StringPiece& name, const StringPiece& type) 
     }
     // Is this field in any of this class' interfaces?
     kh.ChangeClass(k);
-    for (uint32_t i = 0; i < kh.NumInterfaces(); ++i) {
-      Class* interface = kh.GetInterface(i);
-      f = interface->FindDeclaredStaticField(name, type);
+    for (uint32_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
+      Class* interface = kh.GetDirectInterface(i);
+      f = interface->FindStaticField(name, type);
       if (f != NULL) {
         return f;
       }
@@ -1195,9 +1195,9 @@ Field* Class::FindStaticField(const DexCache* dex_cache, uint32_t dex_field_idx)
     }
     // Is this field in any of this class' interfaces?
     kh.ChangeClass(k);
-    for (uint32_t i = 0; i < kh.NumInterfaces(); ++i) {
-      Class* interface = kh.GetInterface(i);
-      f = interface->FindDeclaredStaticField(dex_cache, dex_field_idx);
+    for (uint32_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
+      Class* interface = kh.GetDirectInterface(i);
+      f = interface->FindStaticField(dex_cache, dex_field_idx);
       if (f != NULL) {
         return f;
       }
@@ -1221,9 +1221,9 @@ Field* Class::FindField(const StringPiece& name, const StringPiece& type) {
     }
     // Is this field in any of this class' interfaces?
     kh.ChangeClass(k);
-    for (uint32_t i = 0; i < kh.NumInterfaces(); ++i) {
-      Class* interface = kh.GetInterface(i);
-      f = interface->FindDeclaredStaticField(name, type);
+    for (uint32_t i = 0; i < kh.NumDirectInterfaces(); ++i) {
+      Class* interface = kh.GetDirectInterface(i);
+      f = interface->FindStaticField(name, type);
       if (f != NULL) {
         return f;
       }

@@ -126,7 +126,7 @@ class ClassHelper {
     return result;
   }
 
-  uint32_t NumInterfaces() {
+  uint32_t NumDirectInterfaces() {
     DCHECK(klass_ != NULL);
     if (klass_->IsPrimitive()) {
       return 0;
@@ -144,14 +144,14 @@ class ClassHelper {
     }
   }
 
-  uint16_t GetInterfaceTypeIdx(uint32_t idx) {
+  uint16_t GetDirectInterfaceTypeIdx(uint32_t idx) {
     DCHECK(klass_ != NULL);
     DCHECK(!klass_->IsPrimitive());
     DCHECK(!klass_->IsArrayClass());
     return GetInterfaceTypeList()->GetTypeItem(idx).type_idx_;
   }
 
-  Class* GetInterface(uint32_t idx) {
+  Class* GetDirectInterface(uint32_t idx) {
     DCHECK(klass_ != NULL);
     DCHECK(!klass_->IsPrimitive());
     if (klass_->IsArrayClass()) {
@@ -164,7 +164,7 @@ class ClassHelper {
     } else if (klass_->IsProxyClass()) {
       return klass_->GetIfTable()->Get(idx)->GetInterface();
     } else {
-      uint16_t type_idx = GetInterfaceTypeIdx(idx);
+      uint16_t type_idx = GetDirectInterfaceTypeIdx(idx);
       Class* interface = GetDexCache()->GetResolvedType(type_idx);
       if (interface == NULL) {
         interface = GetClassLinker()->ResolveType(GetDexFile(), type_idx, klass_);
