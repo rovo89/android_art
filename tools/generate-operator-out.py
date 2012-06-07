@@ -104,7 +104,7 @@ def ProcessFile(filename):
       continue
 
     # Strip // comments.
-    line = re.sub(r'//.*', '', raw_line)
+    line = re.sub(r'^ *//.*', '', raw_line)
 
     # Strip whitespace.
     line = line.strip()
