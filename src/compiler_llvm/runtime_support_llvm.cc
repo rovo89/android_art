@@ -15,6 +15,7 @@
  */
 
 #include "class_linker.h"
+#include "compiler_runtime_func_list.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "nth_caller_visitor.h"
@@ -22,6 +23,7 @@
 #include "object_utils.h"
 #include "reflection.h"
 #include "runtime_support.h"
+#include "runtime_support_func_list.h"
 #include "runtime_support_llvm.h"
 #include "ScopedLocalRef.h"
 #include "shadow_frame.h"
@@ -587,27 +589,20 @@ void art_check_put_array_element_from_code(const Object* element, const Object* 
 
 #define EXTERNAL_LINKAGE(NAME) \
 extern "C" void NAME(...);
-
-#include "compiler_runtime_func_list.h"
-COMPILER_RUNTIME_FUNC_LIST(EXTERNAL_LINKAGE)
-#undef COMPILER_RUNTIME_FUNC_LIST
+COMPILER_RUNTIME_FUNC_LIST_NATIVE(EXTERNAL_LINKAGE)
 #undef EXTERNAL_LINKAGE
 
 static void* art_find_compiler_runtime_func(char const* name) {
 // TODO: If target support some math func, use the target's version. (e.g. art_d2i -> __aeabi_d2iz)
   static const char* const names[] = {
 #define DEFINE_ENTRY(NAME) #NAME ,
-#include "compiler_runtime_func_list.h"
-    COMPILER_RUNTIME_FUNC_LIST(DEFINE_ENTRY)
-#undef COMPILER_RUNTIME_FUNC_LIST
+    COMPILER_RUNTIME_FUNC_LIST_NATIVE(DEFINE_ENTRY)
 #undef DEFINE_ENTRY
   };
 
   static void* const funcs[] = {
 #define DEFINE_ENTRY(NAME) reinterpret_cast<void*>(NAME) ,
-#include "compiler_runtime_func_list.h"
-    COMPILER_RUNTIME_FUNC_LIST(DEFINE_ENTRY)
-#undef COMPILER_RUNTIME_FUNC_LIST
+    COMPILER_RUNTIME_FUNC_LIST_NATIVE(DEFINE_ENTRY)
 #undef DEFINE_ENTRY
   };
 
@@ -797,10 +792,7 @@ void* art_find_runtime_support_func(void* context, char const* name) {
   static struct func_entry_t const tab[] = {
 #define DEFINE_ENTRY(ID, NAME) \
     { #NAME, sizeof(#NAME) - 1, reinterpret_cast<void*>(NAME) },
-
-#include "runtime_support_func_list.h"
     RUNTIME_SUPPORT_FUNC_LIST(DEFINE_ENTRY)
-#undef RUNTIME_SUPPORT_FUNC_LIST
 #undef DEFINE_ENTRY
   };
 
