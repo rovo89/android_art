@@ -28,6 +28,9 @@
 #include "thread_list.h"
 #include "toStringArray.h"
 
+extern "C" int dlmalloc_trim(size_t);
+extern "C" void dlmalloc_walk_free_pages(void(*)(void*, void*, void*), void*);
+
 namespace art {
 
 static jfloat VMRuntime_getTargetHeapUtilization(JNIEnv*, jobject) {
@@ -157,11 +160,22 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersio
 
 static void VMRuntime_trimHeap(JNIEnv*, jobject) {
   ScopedHeapLock heap_lock;
+
+  // Trim the managed heap.
   Heap* heap = Runtime::Current()->GetHeap();
   size_t alloc_space_size = heap->GetAllocSpace()->Size();
   float utilization = static_cast<float>(heap->GetBytesAllocated()) / alloc_space_size;
   uint64_t start_ns = NanoTime();
   heap->GetAllocSpace()->Trim();
+
+  // Trim the native heap.
+  dlmalloc_trim(0);
+#if 0 // TODO: switch over to this when bionic has moved to dlmalloc 2.8.5
+  dlmalloc_inspect_all(MspaceMadviseCallback, NULL);
+#else
+  dlmalloc_walk_free_pages(MspaceMadviseCallback, NULL);
+#endif
+
   LOG(INFO) << "Parallel heap trimming took " << PrettyDuration(NanoTime() - start_ns)
             << " on a " << PrettySize(alloc_space_size)
             << " heap with " << static_cast<int>(100 * utilization) << "% utilization";
