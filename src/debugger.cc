@@ -2678,22 +2678,11 @@ class HeapChunkContext {
     // Note: heap call backs cannot manipulate the heap upon which they are crawling, care is taken
     // in the following code not to allocate memory, by ensuring buf_ is of the correct size
 
-    const void* user_ptr = used_bytes > 0 ? const_cast<void*>(start) : NULL;
-    // from malloc.c mem2chunk(mem)
-    const void* chunk_ptr =
-        reinterpret_cast<const void*>(reinterpret_cast<const char*>(const_cast<void*>(start)) -
-            (2 * sizeof(size_t)));
-    // from malloc.c chunksize
-    size_t chunk_len = (reinterpret_cast<size_t const*>(chunk_ptr))[1] & ~7;
+    void* user_ptr = used_bytes > 0 ? start : NULL;
+    size_t chunk_len = mspace_usable_size(user_ptr);
 
-
-    //size_t chunk_len = malloc_usable_size(user_ptr);
-    CHECK_EQ((chunk_len & (ALLOCATION_UNIT_SIZE-1)), 0U);
-
-    /* Make sure there's enough room left in the buffer.
-     * We need to use two bytes for every fractional 256
-     * allocation units used by the chunk.
-     */
+    // Make sure there's enough room left in the buffer.
+    // We need to use two bytes for every fractional 256 allocation units used by the chunk.
     {
       size_t needed = (((chunk_len/ALLOCATION_UNIT_SIZE + 255) / 256) * 2);
       size_t bytesLeft = buf_.size() - (size_t)(p_ - &buf_[0]);
@@ -2709,7 +2698,7 @@ class HeapChunkContext {
     }
 
     // OLD-TODO: notice when there's a gap and start a new heap, or at least a new range.
-    EnsureHeader(chunk_ptr);
+    EnsureHeader(start);
 
     // Determine the type of this chunk.
     // OLD-TODO: if context.merge, see if this chunk is different from the last chunk.
