@@ -23,6 +23,7 @@
 #include "debugger.h"
 #include "scoped_heap_lock.h"
 #include "scoped_thread_list_lock.h"
+#include "timing_logger.h"
 #include "utils.h"
 
 namespace art {
@@ -159,7 +160,6 @@ void ThreadList::SuspendAll(bool for_debugger) {
   CHECK_EQ(self->GetState(), kRunnable);
   ScopedThreadListLock thread_list_lock;
   Thread* debug_thread = Dbg::GetDebugThread();
-
   {
     // Increment everybody's suspend count (except our own).
     MutexLock mu(thread_suspend_count_lock_);

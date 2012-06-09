@@ -69,6 +69,7 @@ Runtime::Runtime()
       system_class_loader_(NULL),
       shutting_down_(false),
       started_(false),
+      finished_starting_(false),
       vfprintf_(NULL),
       exit_(NULL),
       abort_(NULL),
@@ -573,6 +574,8 @@ void Runtime::Start() {
   Thread::Current()->GetJniEnv()->locals.AssertEmpty();
 
   VLOG(startup) << "Runtime::Start exiting";
+
+  finished_starting_ = true;
 }
 
 void Runtime::DidForkFromZygote() {

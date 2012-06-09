@@ -30,6 +30,7 @@
 #include "object_utils.h"
 #include "os.h"
 #include "scoped_heap_lock.h"
+#include "ScopedLocalRef.h"
 #include "space.h"
 #include "stl_util.h"
 #include "thread_list.h"
@@ -140,8 +141,13 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       card_table_(NULL),
       card_marking_disabled_(false),
       is_gc_running_(false),
+      concurrent_start_size_(128 * KB),
+      concurrent_min_free_(256 * KB),
+      try_running_gc_(false),
+      requesting_gc_(false),
       num_bytes_allocated_(0),
       num_objects_allocated_(0),
+      last_trim_time_(0),
       reference_referent_offset_(0),
       reference_queue_offset_(0),
       reference_queueNext_offset_(0),
@@ -245,6 +251,9 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   // but we can create the heap lock now. We don't create it earlier to
   // make it clear that you can't use locks during heap initialization.
   lock_ = new Mutex("Heap lock", kHeapLock);
+  condition_ = new ConditionVariable("Heap condition variable");
+
+  concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
 
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() exiting";
@@ -266,6 +275,7 @@ Heap::~Heap() {
   delete live_bitmap_;
   delete card_table_;
   delete mark_stack_;
+  delete condition_;
   delete lock_;
 }
 
@@ -296,6 +306,10 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
     DCHECK_GE(byte_count, sizeof(Object));
     Object* obj = AllocateLocked(byte_count);
     if (obj != NULL) {
+      if (!is_gc_running_ && num_bytes_allocated_ >= concurrent_start_bytes_) {
+        RequestConcurrentGC();
+      }
+
       obj->SetClass(c);
       if (Dbg::IsAllocTrackingEnabled()) {
         Dbg::RecordAllocation(c, byte_count);
@@ -597,17 +611,26 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
     mark_sweep.Init();
     timings.AddSplit("Init");
 
+    if (concurrent) {
+      card_table_->ClearNonImageSpaceCards(this);
+    }
+
     mark_sweep.MarkRoots();
     timings.AddSplit("MarkRoots");
+
+    if (!concurrent) {
+      mark_sweep.ScanDirtyImageRoots();
+      timings.AddSplit("ScanDirtyImageRoots");
+    }
 
     // Roots are marked on the bitmap and the mark_stack is empty
     DCHECK(mark_sweep.IsMarkStackEmpty());
 
     if (concurrent) {
-      timings.AddSplit("RootEnd");
       Unlock();
       thread_list->ResumeAll();
       rootEnd = NanoTime();
+      timings.AddSplit("RootEnd");
     }
 
     // Recursively mark all bits set in the non-image mark bitmap
@@ -623,12 +646,12 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
       // Re-mark root set.
       mark_sweep.ReMarkRoots();
       timings.AddSplit("ReMarkRoots");
-    }
 
-    // Scan dirty objects, this is required even if we are not doing a
-    // concurrent GC since we use the card table to locate image roots.
-    mark_sweep.RecursiveMarkDirtyObjects();
-    timings.AddSplit("RecursiveMarkDirtyObjects");
+      // Scan dirty objects, this is required even if we are not doing a
+      // concurrent GC since we use the card table to locate image roots.
+      mark_sweep.RecursiveMarkDirtyObjects();
+      timings.AddSplit("RecursiveMarkDirtyObjects");
+    }
 
     mark_sweep.ProcessReferences(clear_soft_references);
     timings.AddSplit("ProcessReferences");
@@ -667,7 +690,7 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
     duration_ns = (duration_ns / 1000) * 1000;
     if (concurrent) {
       uint64_t pauseRootsTime = (rootEnd - t0) / 1000 * 1000;
-      uint64_t pauseDirtyTime = (t1 - dirtyBegin) / 1000 * 1000;
+      uint64_t pauseDirtyTime = (dirtyEnd - dirtyBegin) / 1000 * 1000;
       LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
                 << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
                 << "paused " << PrettyDuration(pauseRootsTime) << "+" << PrettyDuration(pauseDirtyTime)
@@ -688,6 +711,15 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
 
 void Heap::WaitForConcurrentGcToComplete() {
   lock_->AssertHeld();
+
+  // Busy wait for GC to finish
+  if (is_gc_running_) {
+    uint64_t waitStart = NanoTime();
+    do {
+      condition_->Wait(*lock_);
+    } while (is_gc_running_);
+    LOG(INFO) << "WaitForConcurrentGcToComplete blocked for " << PrettyDuration(NsToMs(NanoTime() - waitStart));
+  }
 }
 
 void Heap::DumpForSigQuit(std::ostream& os) {
@@ -729,6 +761,14 @@ void Heap::GrowForUtilization() {
     target_size = num_bytes_allocated_ + kHeapIdealFree;
   } else if (target_size < num_bytes_allocated_ + kHeapMinFree) {
     target_size = num_bytes_allocated_ + kHeapMinFree;
+  }
+
+  // Calculate when to perform the next ConcurrentGC.
+  if (GetTotalMemory() - num_bytes_allocated_ < concurrent_min_free_) {
+    // Not enough free memory to perform concurrent GC.
+    concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
+  } else {
+    concurrent_start_bytes_ = alloc_space_->GetFootprintLimit() - concurrent_start_size_;
   }
 
   SetIdealFootprint(target_size);
@@ -854,6 +894,33 @@ void Heap::EnqueueClearedReferences(Object** cleared) {
   }
 }
 
+void Heap::RequestConcurrentGC() {
+  // Make sure that our Daemon threads are started
+  if (requesting_gc_ || !Runtime::Current()->IsFinishedStarting()) {
+    return;
+  }
+
+  requesting_gc_ = true;
+  JNIEnv* env = Thread::Current()->GetJniEnv();
+  env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons, WellKnownClasses::java_lang_Daemons_requestGC);
+  CHECK(!env->ExceptionCheck());
+  requesting_gc_ = false;
+}
+
+void Heap::ConcurrentGC() {
+  ScopedHeapLock heap_lock;
+  WaitForConcurrentGcToComplete();
+  // Current thread needs to be runnable or else we can't suspend all threads.
+  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+  CollectGarbageInternal(true, false);
+  condition_->Broadcast(); // Broadcast anyone that is blocked waiting for concurrent GC
+}
+
+void Heap::Trim() {
+  ScopedHeapLock heap_lock;
+  GetAllocSpace()->Trim();
+}
+
 void Heap::RequestHeapTrim() {
   // We don't have a good measure of how worthwhile a trim might be. We can't use the live bitmap
   // because that only marks object heads, so a large array looks like lots of empty space. We
@@ -862,15 +929,17 @@ void Heap::RequestHeapTrim() {
   // We could try mincore(2) but that's only a measure of how many pages we haven't given away,
   // not how much use we're making of those pages.
   float utilization = static_cast<float>(num_bytes_allocated_) / alloc_space_->Size();
-  if (utilization > 0.75f) {
-    // Don't bother trimming the heap if it's more than 75% utilized.
-    // (This percentage was picked arbitrarily.)
+  uint64_t ms_time = NsToMs(NanoTime());
+  if (utilization > 0.75f || ms_time - last_trim_time_ < 2 * 1000) {
+    // Don't bother trimming the heap if it's more than 75% utilized, or if a
+    // heap trim occurred in the last two seconds.
     return;
   }
-  if (!Runtime::Current()->IsStarted()) {
-    // Heap trimming isn't supported without a Java runtime (such as at dex2oat time)
+  if (!Runtime::Current()->IsFinishedStarting()) {
+    // Heap trimming isn't supported without a Java runtime or Daemons (such as at dex2oat time)
     return;
   }
+  last_trim_time_ = ms_time;
   JNIEnv* env = Thread::Current()->GetJniEnv();
   env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons, WellKnownClasses::java_lang_Daemons_requestHeapTrim);
   CHECK(!env->ExceptionCheck());

@@ -166,7 +166,8 @@ static void VMRuntime_trimHeap(JNIEnv*, jobject) {
   size_t alloc_space_size = heap->GetAllocSpace()->Size();
   float utilization = static_cast<float>(heap->GetBytesAllocated()) / alloc_space_size;
   uint64_t start_ns = NanoTime();
-  heap->GetAllocSpace()->Trim();
+
+  heap->Trim();
 
   // Trim the native heap.
   dlmalloc_trim(0);
@@ -181,11 +182,16 @@ static void VMRuntime_trimHeap(JNIEnv*, jobject) {
             << " heap with " << static_cast<int>(100 * utilization) << "% utilization";
 }
 
+static void VMRuntime_concurrentGC(JNIEnv*, jobject) {
+  Runtime::Current()->GetHeap()->ConcurrentGC();
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, addressOf, "(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, classPath, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, clearGrowthLimit, "()V"),
+  NATIVE_METHOD(VMRuntime, concurrentGC, "()V"),
   NATIVE_METHOD(VMRuntime, disableJitCompilation, "()V"),
   NATIVE_METHOD(VMRuntime, getTargetHeapUtilization, "()F"),
   NATIVE_METHOD(VMRuntime, isDebuggerActive, "()Z"),

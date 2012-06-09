@@ -45,6 +45,7 @@ jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer;
 jmethodID WellKnownClasses::com_android_dex_Dex_create;
 jmethodID WellKnownClasses::java_lang_ClassNotFoundException_init;
 jmethodID WellKnownClasses::java_lang_ClassLoader_loadClass;
+jmethodID WellKnownClasses::java_lang_Daemons_requestGC;
 jmethodID WellKnownClasses::java_lang_Daemons_requestHeapTrim;
 jmethodID WellKnownClasses::java_lang_Daemons_start;
 jmethodID WellKnownClasses::java_lang_ref_FinalizerReference_add;
@@ -123,6 +124,8 @@ void WellKnownClasses::Init(JNIEnv* env) {
   com_android_dex_Dex_create = CacheMethod(env, com_android_dex_Dex, true, "create", "(Ljava/nio/ByteBuffer;)Lcom/android/dex/Dex;");
   java_lang_ClassNotFoundException_init = CacheMethod(env, java_lang_ClassNotFoundException, false, "<init>", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
   java_lang_ClassLoader_loadClass = CacheMethod(env, java_lang_ClassLoader, false, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
+
+  java_lang_Daemons_requestGC = CacheMethod(env, java_lang_Daemons, true, "requestGC", "()V");
   java_lang_Daemons_requestHeapTrim = CacheMethod(env, java_lang_Daemons, true, "requestHeapTrim", "()V");
   java_lang_Daemons_start = CacheMethod(env, java_lang_Daemons, true, "start", "()V");
 

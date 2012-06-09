@@ -58,9 +58,6 @@ void MarkSweep::Init() {
   live_bitmap_ = heap_->GetLiveBits();
   mark_stack_->Reset();
 
-  // TODO: if concurrent, clear the card table.
-  heap_->GetCardTable()->ClearNonImageSpaceCards(heap_);
-
   // TODO: if concurrent, enable card marking in compiler
 
   // TODO: check that the mark bitmap is entirely clear.
@@ -204,9 +201,11 @@ void MarkSweep::RecursiveMark() {
   void* arg = reinterpret_cast<void*>(this);
   const std::vector<Space*>& spaces = heap_->GetSpaces();
   for (size_t i = 0; i < spaces.size(); ++i) {
-    uintptr_t begin = reinterpret_cast<uintptr_t>(spaces[i]->Begin());
-    uintptr_t end = reinterpret_cast<uintptr_t>(spaces[i]->End());
-    mark_bitmap_->ScanWalk(begin, end, &MarkSweep::ScanBitmapCallback, arg);
+    if (!spaces[i]->IsImageSpace()) {
+      uintptr_t begin = reinterpret_cast<uintptr_t>(spaces[i]->Begin());
+      uintptr_t end = reinterpret_cast<uintptr_t>(spaces[i]->End());
+      mark_bitmap_->ScanWalk(begin, end, &MarkSweep::ScanBitmapCallback, arg);
+    }
   }
   finger_ = reinterpret_cast<Object*>(~0);
   // TODO: tune the frequency of emptying the mark stack
