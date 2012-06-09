@@ -178,21 +178,11 @@ static void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, job
     }
   }
 
-  int result = hprof::DumpHeap(filename.c_str(), fd, false);
-  if (result != 0) {
-    // TODO: ideally we'd throw something more specific based on actual failure
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "Failure during heap dump; check log output for details: %d", result);
-    return;
-  }
+  hprof::DumpHeap(filename.c_str(), fd, false);
 }
 
 static void VMDebug_dumpHprofDataDdms(JNIEnv*, jclass) {
-  int result = hprof::DumpHeap("[DDMS]", -1, true);
-  if (result != 0) {
-    // TODO: ideally we'd throw something more specific based on actual failure
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "Failure during heap dump; check log output for details: %d", result);
-    return;
-  }
+  hprof::DumpHeap("[DDMS]", -1, true);
 }
 
 static void VMDebug_dumpReferenceTables(JNIEnv* env, jclass) {

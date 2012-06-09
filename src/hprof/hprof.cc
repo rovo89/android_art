@@ -24,46 +24,364 @@
 
 #include "hprof.h"
 
+#include <cutils/open_memstream.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/time.h>
+#include <sys/uio.h>
+#include <time.h>
+#include <time.h>
+#include <unistd.h>
+
+#include <set>
+
 #include "class_linker.h"
 #include "debugger.h"
+#include "file.h"
+#include "globals.h"
 #include "heap.h"
 #include "logging.h"
 #include "object.h"
 #include "object_utils.h"
+#include "safe_map.h"
 #include "scoped_heap_lock.h"
 #include "stringprintf.h"
-
-#include <cutils/open_memstream.h>
-#include <sys/uio.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/time.h>
-#include <time.h>
+#include "thread_list.h"
 
 namespace art {
 
 namespace hprof {
 
-#define HPROF_MAGIC_STRING  "JAVA PROFILE 1.0.3"
+#define UNIQUE_ERROR -((((uintptr_t)__func__) << 16 | __LINE__) & (0x7fffffff))
 
-/*
- * Initialize an Hprof.
- */
-Hprof::Hprof(const char* outputFileName, int fd, bool writeHeader, bool directToDdms)
+#define HPROF_TIME 0
+#define HPROF_NULL_STACK_TRACE   0
+#define HPROF_NULL_THREAD        0
+
+#define U2_TO_BUF_BE(buf, offset, value) \
+    do { \
+      unsigned char* buf_ = (unsigned char*)(buf); \
+      int offset_ = (int)(offset); \
+      uint16_t value_ = (uint16_t)(value); \
+      buf_[offset_ + 0] = (unsigned char)(value_ >>  8); \
+      buf_[offset_ + 1] = (unsigned char)(value_      ); \
+    } while (0)
+
+#define U4_TO_BUF_BE(buf, offset, value) \
+    do { \
+      unsigned char* buf_ = (unsigned char*)(buf); \
+      int offset_ = (int)(offset); \
+      uint32_t value_ = (uint32_t)(value); \
+      buf_[offset_ + 0] = (unsigned char)(value_ >> 24); \
+      buf_[offset_ + 1] = (unsigned char)(value_ >> 16); \
+      buf_[offset_ + 2] = (unsigned char)(value_ >>  8); \
+      buf_[offset_ + 3] = (unsigned char)(value_      ); \
+    } while (0)
+
+#define U8_TO_BUF_BE(buf, offset, value) \
+    do { \
+      unsigned char* buf_ = (unsigned char*)(buf); \
+      int offset_ = (int)(offset); \
+      uint64_t value_ = (uint64_t)(value); \
+      buf_[offset_ + 0] = (unsigned char)(value_ >> 56); \
+      buf_[offset_ + 1] = (unsigned char)(value_ >> 48); \
+      buf_[offset_ + 2] = (unsigned char)(value_ >> 40); \
+      buf_[offset_ + 3] = (unsigned char)(value_ >> 32); \
+      buf_[offset_ + 4] = (unsigned char)(value_ >> 24); \
+      buf_[offset_ + 5] = (unsigned char)(value_ >> 16); \
+      buf_[offset_ + 6] = (unsigned char)(value_ >>  8); \
+      buf_[offset_ + 7] = (unsigned char)(value_      ); \
+    } while (0)
+
+enum HprofTag {
+  HPROF_TAG_STRING = 0x01,
+  HPROF_TAG_LOAD_CLASS = 0x02,
+  HPROF_TAG_UNLOAD_CLASS = 0x03,
+  HPROF_TAG_STACK_FRAME = 0x04,
+  HPROF_TAG_STACK_TRACE = 0x05,
+  HPROF_TAG_ALLOC_SITES = 0x06,
+  HPROF_TAG_HEAP_SUMMARY = 0x07,
+  HPROF_TAG_START_THREAD = 0x0A,
+  HPROF_TAG_END_THREAD = 0x0B,
+  HPROF_TAG_HEAP_DUMP = 0x0C,
+  HPROF_TAG_HEAP_DUMP_SEGMENT = 0x1C,
+  HPROF_TAG_HEAP_DUMP_END = 0x2C,
+  HPROF_TAG_CPU_SAMPLES = 0x0D,
+  HPROF_TAG_CONTROL_SETTINGS = 0x0E,
+};
+
+// Values for the first byte of HEAP_DUMP and HEAP_DUMP_SEGMENT records:
+enum HprofHeapTag {
+  // Traditional.
+  HPROF_ROOT_UNKNOWN = 0xFF,
+  HPROF_ROOT_JNI_GLOBAL = 0x01,
+  HPROF_ROOT_JNI_LOCAL = 0x02,
+  HPROF_ROOT_JAVA_FRAME = 0x03,
+  HPROF_ROOT_NATIVE_STACK = 0x04,
+  HPROF_ROOT_STICKY_CLASS = 0x05,
+  HPROF_ROOT_THREAD_BLOCK = 0x06,
+  HPROF_ROOT_MONITOR_USED = 0x07,
+  HPROF_ROOT_THREAD_OBJECT = 0x08,
+  HPROF_CLASS_DUMP = 0x20,
+  HPROF_INSTANCE_DUMP = 0x21,
+  HPROF_OBJECT_ARRAY_DUMP = 0x22,
+  HPROF_PRIMITIVE_ARRAY_DUMP = 0x23,
+
+  // Android.
+  HPROF_HEAP_DUMP_INFO = 0xfe,
+  HPROF_ROOT_INTERNED_STRING = 0x89,
+  HPROF_ROOT_FINALIZING = 0x8a,  // Obsolete.
+  HPROF_ROOT_DEBUGGER = 0x8b,
+  HPROF_ROOT_REFERENCE_CLEANUP = 0x8c,  // Obsolete.
+  HPROF_ROOT_VM_INTERNAL = 0x8d,
+  HPROF_ROOT_JNI_MONITOR = 0x8e,
+  HPROF_UNREACHABLE = 0x90,  // Obsolete.
+  HPROF_PRIMITIVE_ARRAY_NODATA_DUMP = 0xc3,
+};
+
+enum HprofHeapId {
+  HPROF_HEAP_DEFAULT = 0,
+  HPROF_HEAP_ZYGOTE = 'Z',
+  HPROF_HEAP_APP = 'A'
+};
+
+enum HprofBasicType {
+  hprof_basic_object = 2,
+  hprof_basic_boolean = 4,
+  hprof_basic_char = 5,
+  hprof_basic_float = 6,
+  hprof_basic_double = 7,
+  hprof_basic_byte = 8,
+  hprof_basic_short = 9,
+  hprof_basic_int = 10,
+  hprof_basic_long = 11,
+};
+
+typedef uint32_t HprofId;
+typedef HprofId HprofStringId;
+typedef HprofId HprofObjectId;
+typedef HprofId HprofClassObjectId;
+typedef std::set<Class*> ClassSet;
+typedef std::set<Class*>::iterator ClassSetIterator;
+typedef SafeMap<std::string, size_t> StringMap;
+typedef SafeMap<std::string, size_t>::iterator StringMapIterator;
+
+// Represents a top-level hprof record, whose serialized format is:
+// U1  TAG: denoting the type of the record
+// U4  TIME: number of microseconds since the time stamp in the header
+// U4  LENGTH: number of bytes that follow this uint32_t field and belong to this record
+// U1* BODY: as many bytes as specified in the above uint32_t field
+class HprofRecord {
+ public:
+  int Flush(FILE* fp) {
+    if (dirty_) {
+      unsigned char headBuf[sizeof (uint8_t) + 2 * sizeof (uint32_t)];
+
+      headBuf[0] = tag_;
+      U4_TO_BUF_BE(headBuf, 1, time_);
+      U4_TO_BUF_BE(headBuf, 5, length_);
+
+      int nb = fwrite(headBuf, 1, sizeof(headBuf), fp);
+      if (nb != sizeof(headBuf)) {
+        return UNIQUE_ERROR;
+      }
+      nb = fwrite(body_, 1, length_, fp);
+      if (nb != (int)length_) {
+        return UNIQUE_ERROR;
+      }
+
+      dirty_ = false;
+    }
+    // TODO if we used less than half (or whatever) of allocLen, shrink the buffer.
+    return 0;
+  }
+
+  int AddU1(uint8_t value) {
+    int err = GuaranteeRecordAppend(1);
+    if (err != 0) {
+      return err;
+    }
+
+    body_[length_++] = value;
+    return 0;
+  }
+
+  int AddU2(uint16_t value) {
+    return AddU2List(&value, 1);
+  }
+
+  int AddU4(uint32_t value) {
+    return AddU4List(&value, 1);
+  }
+
+  int AddU8(uint64_t value) {
+    return AddU8List(&value, 1);
+  }
+
+  int AddId(HprofObjectId value) {
+    return AddU4((uint32_t) value);
+  }
+
+  int AddU1List(const uint8_t *values, size_t numValues) {
+    int err = GuaranteeRecordAppend(numValues);
+    if (err != 0) {
+      return err;
+    }
+
+    memcpy(body_ + length_, values, numValues);
+    length_ += numValues;
+    return 0;
+  }
+
+  int AddU2List(const uint16_t *values, size_t numValues) {
+    int err = GuaranteeRecordAppend(numValues * 2);
+    if (err != 0) {
+      return err;
+    }
+
+    unsigned char* insert = body_ + length_;
+    for (size_t i = 0; i < numValues; i++) {
+      U2_TO_BUF_BE(insert, 0, *values++);
+      insert += sizeof(*values);
+    }
+    length_ += numValues * 2;
+    return 0;
+  }
+
+  int AddU4List(const uint32_t *values, size_t numValues) {
+    int err = GuaranteeRecordAppend(numValues * 4);
+    if (err != 0) {
+      return err;
+    }
+
+    unsigned char* insert = body_ + length_;
+    for (size_t i = 0; i < numValues; i++) {
+      U4_TO_BUF_BE(insert, 0, *values++);
+      insert += sizeof(*values);
+    }
+    length_ += numValues * 4;
+    return 0;
+  }
+
+  int AddU8List(const uint64_t *values, size_t numValues) {
+    int err = GuaranteeRecordAppend(numValues * 8);
+    if (err != 0) {
+      return err;
+    }
+
+    unsigned char* insert = body_ + length_;
+    for (size_t i = 0; i < numValues; i++) {
+      U8_TO_BUF_BE(insert, 0, *values++);
+      insert += sizeof(*values);
+    }
+    length_ += numValues * 8;
+    return 0;
+  }
+
+  int AddIdList(const HprofObjectId *values, size_t numValues) {
+    return AddU4List((const uint32_t*) values, numValues);
+  }
+
+  int AddUtf8String(const char* str) {
+    // The terminating NUL character is NOT written.
+    return AddU1List((const uint8_t *)str, strlen(str));
+  }
+
+  unsigned char* body_;
+  uint32_t time_;
+  uint32_t length_;
+  size_t alloc_length_;
+  uint8_t tag_;
+  bool dirty_;
+
+ private:
+  int GuaranteeRecordAppend(size_t nmore) {
+    size_t minSize = length_ + nmore;
+    if (minSize > alloc_length_) {
+      size_t newAllocLen = alloc_length_ * 2;
+      if (newAllocLen < minSize) {
+        newAllocLen = alloc_length_ + nmore + nmore/2;
+      }
+      unsigned char* newBody = (unsigned char*)realloc(body_, newAllocLen);
+      if (newBody != NULL) {
+        body_ = newBody;
+        alloc_length_ = newAllocLen;
+      } else {
+        // TODO: set an error flag so future ops will fail
+        return UNIQUE_ERROR;
+      }
+    }
+
+    CHECK_LE(length_ + nmore, alloc_length_);
+    return 0;
+  }
+};
+
+class Hprof {
+ public:
+  Hprof(const char* output_filename, int fd, bool write_header, bool direct_to_ddms);
+  ~Hprof();
+
+  void VisitRoot(const Object* obj);
+  int DumpHeapObject(const Object *obj);
+  void Finish();
+
+ private:
+  int DumpClasses();
+  int DumpStrings();
+  int StartNewRecord(uint8_t tag, uint32_t time);
+  int FlushCurrentRecord();
+  int MarkRootObject(const Object *obj, jobject jniObj);
+  HprofClassObjectId LookupClassId(Class* c);
+  HprofStringId LookupStringId(String* string);
+  HprofStringId LookupStringId(const char* string);
+  HprofStringId LookupStringId(const std::string& string);
+  HprofStringId LookupClassNameId(Class* c);
+
+  // current_record_ *must* be first so that we can cast from a context to a record.
+  HprofRecord current_record_;
+
+  uint32_t gc_thread_serial_number_;
+  uint8_t gc_scan_state_;
+  HprofHeapId current_heap_; // which heap we're currently emitting
+  size_t objects_in_segment_;
+
+  // If direct_to_ddms_ is set, "file_name_" and "fd" will be ignored.
+  // Otherwise, "file_name_" must be valid, though if "fd" >= 0 it will
+  // only be used for debug messages.
+  bool direct_to_ddms_;
+  std::string file_name_;
+  char* file_data_ptr_;   // for open_memstream
+  size_t file_data_size_; // for open_memstream
+  FILE *mem_fp_;
+  int fd_;
+
+  ClassSet classes_;
+  size_t next_string_id_;
+  StringMap strings_;
+
+  DISALLOW_COPY_AND_ASSIGN(Hprof);
+};
+
+Hprof::Hprof(const char* output_filename, int fd, bool write_header, bool direct_to_ddms)
     : current_record_(),
       gc_thread_serial_number_(0),
       gc_scan_state_(0),
       current_heap_(HPROF_HEAP_DEFAULT),
       objects_in_segment_(0),
       direct_to_ddms_(0),
-      file_name_(outputFileName),
+      file_name_(output_filename),
       file_data_ptr_(NULL),
       file_data_size_(0),
       mem_fp_(NULL),
       fd_(0),
       next_string_id_(0x400000) {
+
+  LOG(INFO) << "hprof: heap dump starting (\"" << output_filename << "\", fd=" << fd
+            << ", write_header=" << write_header << ", direct_to_ddms=" << direct_to_ddms << ")";
+
   // Have to do this here, because it must happen after we
   // memset the struct (want to treat file_data_ptr_/file_data_size_
   // as read-only while the file is open).
@@ -73,7 +391,7 @@ Hprof::Hprof(const char* outputFileName, int fd, bool writeHeader, bool directTo
     PLOG(FATAL) << "open_memstream failed";
   }
 
-  direct_to_ddms_ = directToDdms;
+  direct_to_ddms_ = direct_to_ddms;
   mem_fp_ = fp;
   fd_ = fd;
 
@@ -81,8 +399,8 @@ Hprof::Hprof(const char* outputFileName, int fd, bool writeHeader, bool directTo
   current_record_.body_ = (unsigned char*)malloc(current_record_.alloc_length_);
   // TODO check for/return an error
 
-  if (writeHeader) {
-    char magic[] = HPROF_MAGIC_STRING;
+  if (write_header) {
+    char magic[] = "JAVA PROFILE 1.0.3";
     unsigned char buf[4];
 
     // Write the file header.
@@ -119,7 +437,7 @@ int Hprof::StartNewRecord(uint8_t tag, uint32_t time) {
   if (err != 0) {
     return err;
   } else if (rec->dirty_) {
-    return UNIQUE_ERROR();
+    return UNIQUE_ERROR;
   }
 
   rec->dirty_ = true;
@@ -147,7 +465,7 @@ int Hprof::FlushCurrentRecord() {
 // The ID for the synthetic object generated to account for class static overhead.
 #define CLASS_STATICS_ID(c) ((HprofObjectId)(((uint32_t)(c)) | 1))
 
-HprofBasicType Hprof::SignatureToBasicTypeAndSize(const char* sig, size_t* sizeOut) {
+static HprofBasicType SignatureToBasicTypeAndSize(const char* sig, size_t* sizeOut) {
   char c = sig[0];
   HprofBasicType ret;
   size_t size;
@@ -173,7 +491,7 @@ HprofBasicType Hprof::SignatureToBasicTypeAndSize(const char* sig, size_t* sizeO
   return ret;
 }
 
-HprofBasicType Hprof::PrimitiveToBasicTypeAndSize(Primitive::Type prim, size_t *sizeOut) {
+static HprofBasicType PrimitiveToBasicTypeAndSize(Primitive::Type prim, size_t *sizeOut) {
   HprofBasicType ret;
   size_t size;
 
@@ -285,7 +603,7 @@ int Hprof::MarkRootObject(const Object *obj, jobject jniObj) {
   return 0;
 }
 
-int Hprof::StackTraceSerialNumber(const void* /*obj*/) {
+static int StackTraceSerialNumber(const void* /*obj*/) {
   return HPROF_NULL_STACK_TRACE;
 }
 
@@ -531,10 +849,7 @@ int sysWriteFully(int fd, const void* buf, size_t count, const char* logMsg) {
   return 0;
 }
 
-/*
- * Finish up the hprof dump.  Returns true on success.
- */
-bool Hprof::Finish() {
+void Hprof::Finish() {
   // flush the "tail" portion of the output
   StartNewRecord(HPROF_TAG_HEAP_DUMP_END, HPROF_TIME);
   FlushCurrentRecord();
@@ -544,7 +859,6 @@ bool Hprof::Finish() {
   headCtx.classes_ = classes_;
   headCtx.strings_ = strings_;
 
-  LOG(INFO) << StringPrintf("hprof: dumping heap strings to \"%s\".", file_name_.c_str());
   headCtx.DumpStrings();
   headCtx.DumpClasses();
 
@@ -576,33 +890,30 @@ bool Hprof::Finish() {
     if (headCtx.fd_ >= 0) {
       outFd = dup(headCtx.fd_);
       if (outFd < 0) {
-        PLOG(ERROR) << StringPrintf("dup(%d) failed", headCtx.fd_);
-        // continue to fail-handler below
+        Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "Couldn't dump heap; dup(%d) failed: %s", headCtx.fd_, strerror(errno));
+        return;
       }
     } else {
       outFd = open(file_name_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
       if (outFd < 0) {
-        PLOG(ERROR) << StringPrintf("can't open \"%s\"", headCtx.file_name_.c_str());
-        // continue to fail-handler below
+        Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "Couldn't dump heap; open(\"%s\") failed: %s", headCtx.file_name_.c_str(), strerror(errno));
+        return;
       }
     }
-    if (outFd < 0) {
-      return false;
-    }
 
-    int result = sysWriteFully(outFd, headCtx.file_data_ptr_,
-        headCtx.file_data_size_, "hprof-head");
+    // TODO: just use writev(2)?
+    int result = sysWriteFully(outFd, headCtx.file_data_ptr_, headCtx.file_data_size_, "hprof-head");
     result |= sysWriteFully(outFd, file_data_ptr_, file_data_size_, "hprof-tail");
     close(outFd);
     if (result != 0) {
-      return false;
+      // TODO: better detail message.
+      Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "Couldn't dump heap; check log output for details");
+      return;
     }
   }
 
   // throw out a log message for the benefit of "runhat"
   LOG(INFO) << "hprof: heap dump completed (" << PrettySize(headCtx.file_data_size_ + file_data_size_ + 1023) << ")";
-
-  return true;
 }
 
 Hprof::~Hprof() {
@@ -741,13 +1052,13 @@ int Hprof::DumpClasses() {
   return 0;
 }
 
-void HprofRootVisitor(const Object* obj, void* arg) {
+static void HprofRootVisitor(const Object* obj, void* arg) {
   CHECK(arg != NULL);
   Hprof* hprof = (Hprof*)arg;
   hprof->VisitRoot(obj);
 }
 
-void HprofBitmapCallback(Object *obj, void *arg) {
+static void HprofBitmapCallback(Object *obj, void *arg) {
   CHECK(obj != NULL);
   CHECK(arg != NULL);
   Hprof *hprof = (Hprof*)arg;
@@ -763,10 +1074,8 @@ void HprofBitmapCallback(Object *obj, void *arg) {
  *
  * If "direct_to_ddms_" is set, the other arguments are ignored, and data is
  * sent directly to DDMS.
- *
- * Returns 0 on success, or an error code on failure.
  */
-int DumpHeap(const char* fileName, int fd, bool directToDdms) {
+void DumpHeap(const char* fileName, int fd, bool direct_to_ddms) {
   CHECK(fileName != NULL);
   ScopedHeapLock heap_lock;
   ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
@@ -775,13 +1084,12 @@ int DumpHeap(const char* fileName, int fd, bool directToDdms) {
   thread_list->SuspendAll();
 
   Runtime* runtime = Runtime::Current();
-  Hprof hprof(fileName, fd, false, directToDdms);
+  Hprof hprof(fileName, fd, false, direct_to_ddms);
   runtime->VisitRoots(HprofRootVisitor, &hprof);
   runtime->GetHeap()->GetLiveBits()->Walk(HprofBitmapCallback, &hprof);
   // TODO: write a HEAP_SUMMARY record
-  int success = hprof.Finish() ? 0 : -1;
+  hprof.Finish();
   thread_list->ResumeAll();
-  return success;
 }
 
 }  // namespace hprof

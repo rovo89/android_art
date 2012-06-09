@@ -150,7 +150,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/heap.cc \
 	src/heap_bitmap.cc \
 	src/hprof/hprof.cc \
-	src/hprof/hprof_record.cc \
 	src/image.cc \
 	src/image_writer.cc \
 	src/indirect_reference_table.cc \
