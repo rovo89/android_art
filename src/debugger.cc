@@ -2882,17 +2882,15 @@ void Dbg::RecordAllocation(Class* type, size_t byte_count) {
   }
 }
 
-/*
- * Return the index of the head element.
- *
- * We point at the most-recently-written record, so if allocRecordCount is 1
- * we want to use the current element.  Take "head+1" and subtract count
- * from it.
- *
- * We need to handle underflow in our circular buffer, so we add
- * kNumAllocRecords and then mask it back down.
- */
-inline static int headIndex() {
+// Returns the index of the head element.
+//
+// We point at the most-recently-written record, so if gAllocRecordCount is 1
+// we want to use the current element.  Take "head+1" and subtract count
+// from it.
+//
+// We need to handle underflow in our circular buffer, so we add
+// kNumAllocRecords and then mask it back down.
+static inline int HeadIndex() {
   return (gAllocRecordHead+1 + kNumAllocRecords - gAllocRecordCount) & (kNumAllocRecords-1);
 }
 
@@ -2905,14 +2903,14 @@ void Dbg::DumpRecentAllocations() {
 
   // "i" is the head of the list.  We want to start at the end of the
   // list and move forward to the tail.
-  size_t i = headIndex();
+  size_t i = HeadIndex();
   size_t count = gAllocRecordCount;
 
   LOG(INFO) << "Tracked allocations, (head=" << gAllocRecordHead << " count=" << count << ")";
   while (count--) {
     AllocRecord* record = &recent_allocation_records_[i];
 
-    LOG(INFO) << StringPrintf(" T=%-2d %6zd ", record->thin_lock_id, record->byte_count)
+    LOG(INFO) << StringPrintf(" Thread %-2d %6zd bytes ", record->thin_lock_id, record->byte_count)
               << PrettyClass(record->type);
 
     for (size_t stack_frame = 0; stack_frame < kMaxAllocRecordStackDepth; ++stack_frame) {
@@ -2941,18 +2939,23 @@ class StringTable {
     table_.insert(s);
   }
 
-  size_t IndexOf(const char* s) {
-    return std::distance(table_.begin(), table_.find(s));
+  size_t IndexOf(const char* s) const {
+    typedef std::set<std::string>::const_iterator It; // TODO: C++0x auto
+    It it = table_.find(s);
+    if (it == table_.end()) {
+      LOG(FATAL) << "IndexOf(\"" << s << "\") failed";
+    }
+    return std::distance(table_.begin(), it);
   }
 
-  size_t Size() {
+  size_t Size() const {
     return table_.size();
   }
 
-  void WriteTo(std::vector<uint8_t>& bytes) {
-    typedef std::set<const char*>::const_iterator It; // TODO: C++0x auto
+  void WriteTo(std::vector<uint8_t>& bytes) const {
+    typedef std::set<std::string>::const_iterator It; // TODO: C++0x auto
     for (It it = table_.begin(); it != table_.end(); ++it) {
-      const char* s = *it;
+      const char* s = (*it).c_str();
       size_t s_len = CountModifiedUtf8Chars(s);
       UniquePtr<uint16_t> s_utf16(new uint16_t[s_len]);
       ConvertModifiedUtf8ToUtf16(s_utf16.get(), s);
@@ -2961,7 +2964,7 @@ class StringTable {
   }
 
  private:
-  std::set<const char*> table_;
+  std::set<std::string> table_;
   DISALLOW_COPY_AND_ASSIGN(StringTable);
 };
 
@@ -3014,15 +3017,15 @@ jbyteArray Dbg::GetRecentAllocations() {
 
   MutexLock mu(gAllocTrackerLock);
 
-  /*
-   * Part 1: generate string tables.
-   */
+  //
+  // Part 1: generate string tables.
+  //
   StringTable class_names;
   StringTable method_names;
   StringTable filenames;
 
   int count = gAllocRecordCount;
-  int idx = headIndex();
+  int idx = HeadIndex();
   while (count--) {
     AllocRecord* record = &recent_allocation_records_[idx];
 
@@ -3044,9 +3047,9 @@ jbyteArray Dbg::GetRecentAllocations() {
 
   LOG(INFO) << "allocation records: " << gAllocRecordCount;
 
-  /*
-   * Part 2: allocate a buffer and generate the output.
-   */
+  //
+  // Part 2: allocate a buffer and generate the output.
+  //
   std::vector<uint8_t> bytes;
 
   // (1b) message header len (to allow future expansion); includes itself
@@ -3072,7 +3075,7 @@ jbyteArray Dbg::GetRecentAllocations() {
   JDWP::Append2BE(bytes, filenames.Size());
 
   count = gAllocRecordCount;
-  idx = headIndex();
+  idx = HeadIndex();
   ClassHelper kh;
   while (count--) {
     // For each entry:
@@ -3082,10 +3085,11 @@ jbyteArray Dbg::GetRecentAllocations() {
     // (1b) stack depth
     AllocRecord* record = &recent_allocation_records_[idx];
     size_t stack_depth = record->GetDepth();
+    kh.ChangeClass(record->type);
+    size_t allocated_object_class_name_index = class_names.IndexOf(kh.GetDescriptor());
     JDWP::Append4BE(bytes, record->byte_count);
     JDWP::Append2BE(bytes, record->thin_lock_id);
-    kh.ChangeClass(record->type);
-    JDWP::Append2BE(bytes, class_names.IndexOf(kh.GetDescriptor()));
+    JDWP::Append2BE(bytes, allocated_object_class_name_index);
     JDWP::Append1BE(bytes, stack_depth);
 
     MethodHelper mh;
@@ -3096,9 +3100,12 @@ jbyteArray Dbg::GetRecentAllocations() {
       // (2b) method source file
       // (2b) line number, clipped to 32767; -2 if native; -1 if no source
       mh.ChangeMethod(record->stack[stack_frame].method);
-      JDWP::Append2BE(bytes, class_names.IndexOf(mh.GetDeclaringClassDescriptor()));
-      JDWP::Append2BE(bytes, method_names.IndexOf(mh.GetName()));
-      JDWP::Append2BE(bytes, filenames.IndexOf(mh.GetDeclaringClassSourceFile()));
+      size_t class_name_index = class_names.IndexOf(mh.GetDeclaringClassDescriptor());
+      size_t method_name_index = method_names.IndexOf(mh.GetName());
+      size_t file_name_index = filenames.IndexOf(mh.GetDeclaringClassSourceFile());
+      JDWP::Append2BE(bytes, class_name_index);
+      JDWP::Append2BE(bytes, method_name_index);
+      JDWP::Append2BE(bytes, file_name_index);
       JDWP::Append2BE(bytes, record->stack[stack_frame].LineNumber());
     }
 
