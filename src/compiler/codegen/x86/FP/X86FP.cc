@@ -44,10 +44,12 @@ static bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
       op = kX86MulssRR;
       break;
     case Instruction::NEG_FLOAT:
-      rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
-      rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-      newLIR2(cUnit, kX86XorpsRR, rlResult.lowReg, rlResult.lowReg);
-      newLIR2(cUnit, kX86SubssRR, rlResult.lowReg, rlSrc1.lowReg);
+      // TODO: Make this nicer. Subtracting the source from 0 doesn't work in
+      // the 0 case, and using FCHS is difficult with register promotion. This
+      // code treats the value as a CoreReg to make it easy to manipulate.
+      rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
+      rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+      opRegRegImm(cUnit, kOpAdd, rlResult.lowReg, rlSrc1.lowReg, 0x80000000);
       storeValue(cUnit, rlDest, rlResult);
       return false;
     case Instruction::REM_FLOAT_2ADDR:
@@ -63,7 +65,10 @@ static bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
   int rDest = rlResult.lowReg;
   int rSrc1 = rlSrc1.lowReg;
   int rSrc2 = rlSrc2.lowReg;
-  // TODO: at least CHECK_NE(rDest, rSrc2);
+  if (rSrc2 == rDest) {
+    rSrc2 = oatAllocTempFloat(cUnit);
+    opRegCopy(cUnit, rSrc2, rDest);
+  }
   opRegCopy(cUnit, rDest, rSrc1);
   newLIR2(cUnit, op, rDest, rSrc2);
   storeValue(cUnit, rlDest, rlResult);
@@ -95,10 +100,13 @@ static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
       op = kX86MulsdRR;
       break;
     case Instruction::NEG_DOUBLE:
-      rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
-      rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-      newLIR2(cUnit, kX86XorpsRR, rlResult.lowReg, rlResult.lowReg);
-      newLIR2(cUnit, kX86SubsdRR, rlResult.lowReg, rlSrc1.lowReg);
+      // TODO: Make this nicer. Subtracting the source from 0 doesn't work in
+      // the 0 case, and using FCHS is difficult with register promotion. This
+      // code treats the value as a CoreReg to make it easy to manipulate.
+      rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
+      rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+      opRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc1.highReg, 0x80000000);
+      opRegCopy(cUnit, rlResult.lowReg, rlSrc1.lowReg);
       storeValueWide(cUnit, rlDest, rlResult);
       return false;
     case Instruction::REM_DOUBLE_2ADDR:
@@ -118,7 +126,10 @@ static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
   int rDest = S2D(rlResult.lowReg, rlResult.highReg);
   int rSrc1 = S2D(rlSrc1.lowReg, rlSrc1.highReg);
   int rSrc2 = S2D(rlSrc2.lowReg, rlSrc2.highReg);
-  // TODO: at least CHECK_NE(rDest, rSrc2);
+  if (rDest == rSrc2) {
+    rSrc2 = oatAllocTempDouble(cUnit) | FP_DOUBLE;
+    opRegCopy(cUnit, rSrc2, rDest);
+  }
   opRegCopy(cUnit, rDest, rSrc1);
   newLIR2(cUnit, op, rDest, rSrc2);
   storeValueWide(cUnit, rlDest, rlResult);
@@ -174,7 +185,7 @@ static bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode,
       srcReg = rlSrc.lowReg;
       oatClobberSReg(cUnit, rlDest.sRegLow);
       rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-      int tempReg = oatAllocTempDouble(cUnit);
+      int tempReg = oatAllocTempDouble(cUnit) | FP_DOUBLE;
 
       loadConstant(cUnit, rlResult.lowReg, 0x7fffffff);
       newLIR2(cUnit, kX86Cvtsi2sdRR, tempReg, rlResult.lowReg);
