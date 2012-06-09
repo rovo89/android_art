@@ -27,6 +27,12 @@ LIBART_COMPILER_COMMON_SRC_FILES += \
 	src/oat/jni/arm/calling_convention_arm.cc \
 	src/oat/jni/x86/calling_convention_x86.cc
 
+ifeq ($(ART_USE_QUICK_COMPILER), true)
+LIBART_COMPILER_COMMON_SRC_FILES += \
+	src/greenland/ir_builder.cc \
+	src/greenland/intrinsic_helper.cc
+endif
+
 LIBART_COMPILER_ARM_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
 	src/compiler/codegen/arm/ArchUtility.cc \
@@ -117,16 +123,39 @@ define build-libart-compiler
     LOCAL_CFLAGS += -D__mips_hard_float
   endif
 
+  ifeq ($(ART_USE_QUICK_COMPILER), true)
+    LOCAL_CFLAGS += -DART_USE_QUICK_COMPILER
+  endif
+
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
+
+  ifeq ($(ART_USE_QUICK_COMPILER), true)
+    LOCAL_STATIC_LIBRARIES += \
+      libLLVMBitWriter \
+      libLLVMBitReader \
+      libLLVMCore \
+      libLLVMSupport
+  endif
+
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libstlport
   else # host
     LOCAL_LDLIBS := -ldl -lpthread
   endif
   ifeq ($$(art_target_or_host),target)
+    ifeq ($(ART_USE_QUICK_COMPILER), true)
+      LOCAL_SHARED_LIBRARIES += libcutils
+      include $(LLVM_GEN_INTRINSICS_MK)
+      include $(LLVM_DEVICE_BUILD_MK)
+    endif
     include $(BUILD_SHARED_LIBRARY)
   else # host
     LOCAL_IS_HOST_MODULE := true
+    ifeq ($(ART_USE_QUICK_COMPILER), true)
+      LOCAL_STATIC_LIBRARIES += libcutils
+      include $(LLVM_GEN_INTRINSICS_MK)
+      include $(LLVM_HOST_BUILD_MK)
+    endif
     include $(BUILD_HOST_SHARED_LIBRARY)
   endif
 

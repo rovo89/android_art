@@ -44,6 +44,9 @@
 /* X86-specific register allocation */
 #include "../X86/Ralloc.cc"
 
+/* Bitcode conversion */
+#include "../../MethodBitcode.cc"
+
 /* MIR2LIR dispatcher and architectural independent codegen routines */
 #include "../../MethodCodegenDriver.cc"
 

@@ -692,15 +692,20 @@ bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
       if (!predBB) break;
       int ssaReg = predBB->dataFlowInfo->vRegToSSAMap[vReg];
       oatSetBit(cUnit, ssaRegV, ssaReg);
+      cUnit->tempSSABlockIdV[ssaReg] = predBB->id;
     }
 
     /* Count the number of SSA registers for a Dalvik register */
     int numUses = oatCountSetBits(ssaRegV);
     mir->ssaRep->numUses = numUses;
     mir->ssaRep->uses =
-        (int *) oatNew(cUnit, sizeof(int) * numUses, false, kAllocDFInfo);
+        (int*) oatNew(cUnit, sizeof(int) * numUses, false, kAllocDFInfo);
     mir->ssaRep->fpUse =
-        (bool *) oatNew(cUnit, sizeof(bool) * numUses, true, kAllocDFInfo);
+        (bool*) oatNew(cUnit, sizeof(bool) * numUses, true, kAllocDFInfo);
+    int* incoming =
+        (int*) oatNew(cUnit, sizeof(int) * numUses, false, kAllocDFInfo);
+    // TODO: Ugly, rework (but don't burden each MIR/LIR for Phi-only needs)
+    mir->dalvikInsn.vB = (intptr_t) incoming;
 
     ArenaBitVectorIterator phiIterator;
 
@@ -712,6 +717,7 @@ bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
       int ssaRegIdx = oatBitVectorIteratorNext(&phiIterator);
       if (ssaRegIdx == -1) break;
         *usePtr++ = ssaRegIdx;
+        *incoming++ = cUnit->tempSSABlockIdV[ssaRegIdx];
     }
   }
 
@@ -795,6 +801,10 @@ void oatMethodSSATransformation(CompilationUnit* cUnit)
      */
     cUnit->tempSSARegisterV = oatAllocBitVector(cUnit, cUnit->numSSARegs,
          false, kBitMapTempSSARegisterV);
+
+    cUnit->tempSSABlockIdV =
+        (int*)oatNew(cUnit, sizeof(int) * cUnit->numSSARegs, false,
+                     kAllocDFInfo);
 
     /* Insert phi-operands with latest SSA names from predecessor blocks */
     oatDataFlowAnalysisDispatcher(cUnit, insertPhiNodeOperands,

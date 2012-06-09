@@ -56,7 +56,7 @@ int loadHelper(CompilationUnit* cUnit, int offset)
   return rLR;
 }
 
-void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
+void genEntrySequence(CompilationUnit* cUnit)
 {
   int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
   /*
@@ -116,7 +116,7 @@ void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
   oatFreeTemp(cUnit, r3);
 }
 
-void genExitSequence(CompilationUnit* cUnit, BasicBlock* bb)
+void genExitSequence(CompilationUnit* cUnit)
 {
   int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
   /*

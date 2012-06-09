@@ -23,6 +23,8 @@
 #include "logging.h"
 
 #include <llvm/Support/IRBuilder.h>
+#include <llvm/Support/NoFolder.h>
+#include <llvm/Metadata.h>
 
 namespace llvm {
   class Module;
@@ -31,7 +33,30 @@ namespace llvm {
 namespace art {
 namespace greenland {
 
-typedef llvm::IRBuilder<> LLVMIRBuilder;
+#if defined(ART_USE_QUICK_COMPILER)
+class InserterWithDexOffset
+   : public llvm::IRBuilderDefaultInserter<true> {
+  public:
+    InserterWithDexOffset() : node_(NULL) {}
+    void InsertHelper(llvm::Instruction *I, const llvm::Twine &Name,
+                      llvm::BasicBlock *BB,
+                      llvm::BasicBlock::iterator InsertPt) const {
+      llvm::IRBuilderDefaultInserter<true>::InsertHelper(I, Name, BB, InsertPt);
+      if (node_ != NULL) {
+        I->setMetadata("DexOff", node_);
+      }
+    }
+    void SetDexOffset(llvm::MDNode* node) {
+      node_ = node;
+    }
+  private:
+    llvm::MDNode* node_;
+};
+
+typedef llvm::IRBuilder<true, llvm::NoFolder, InserterWithDexOffset> LLVMIRBuilder;
+#else
+typedef llvm::IRBuilder<true> LLVMIRBuilder;
+#endif
 
 class IRBuilder : public LLVMIRBuilder {
  public:

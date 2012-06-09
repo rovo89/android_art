@@ -45,6 +45,9 @@
 /* Thumb2-specific register allocation */
 #include "../Thumb2/Ralloc.cc"
 
+/* Bitcode conversion */
+#include "../../MethodBitcode.cc"
+
 /* MIR2LIR dispatcher and architectural independent codegen routines */
 #include "../../MethodCodegenDriver.cc"
 

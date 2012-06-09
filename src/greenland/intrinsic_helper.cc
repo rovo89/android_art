@@ -65,6 +65,12 @@ GetLLVMTypeOfIntrinsicValType(IRBuilder& irb,
     case IntrinsicHelper::kInt64ConstantTy: {
       return irb.getInt64Ty();
     }
+    case IntrinsicHelper::kFloatTy: {
+      return irb.getFloatTy();
+    }
+    case IntrinsicHelper::kDoubleTy: {
+      return irb.getDoubleTy();
+    }
     case IntrinsicHelper::kNone:
     case IntrinsicHelper::kVarArgTy:
     default: {

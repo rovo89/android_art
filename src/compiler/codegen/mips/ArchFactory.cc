@@ -144,7 +144,7 @@ void unSpillCoreRegs(CompilationUnit* cUnit)
   opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize);
 }
 
-void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
+void genEntrySequence(CompilationUnit* cUnit)
 {
   int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
   /*
@@ -198,7 +198,7 @@ void genEntrySequence(CompilationUnit* cUnit, BasicBlock* bb)
   oatFreeTemp(cUnit, rARG3);
 }
 
-void genExitSequence(CompilationUnit* cUnit, BasicBlock* bb)
+void genExitSequence(CompilationUnit* cUnit)
 {
   /*
    * In the exit path, rRET0/rRET1 are live - make sure they aren't

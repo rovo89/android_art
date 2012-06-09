@@ -75,6 +75,9 @@ class IntrinsicHelper {
     kInt32ConstantTy,
     kInt64ConstantTy,
 
+    kFloatTy,
+    kDoubleTy,
+
     kVarArgTy,
   };
 
@@ -100,7 +103,7 @@ class IntrinsicHelper {
   }
 
   static const char* GetName(IntrinsicId id) {
-    return GetInfo(id).name_;
+    return (id <= MaxIntrinsicId) ? GetInfo(id).name_ : "InvalidIntrinsic";
   }
 
   static unsigned GetAttr(IntrinsicId id) {

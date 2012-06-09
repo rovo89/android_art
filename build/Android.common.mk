@@ -28,11 +28,17 @@ else
 ART_USE_GREENLAND_COMPILER := false
 endif
 
+ifneq ($(wildcard art/USE_QUICK_COMPILER),)
+ART_USE_QUICK_COMPILER := true
+else
+ART_USE_QUICK_COMPILER := false
+endif
+
 ifeq ($(filter-out true,$(ART_USE_LLVM_COMPILER) $(ART_USE_GREENLAND_COMPILER)),)
 $(error Cannot enable art-greenland and art-llvm compiler simultaneously!)
 endif
 
-ifeq ($(filter true,$(ART_USE_LLVM_COMPILER) $(ART_USE_GREENLAND_COMPILER)),true)
+ifeq ($(filter true,$(ART_USE_LLVM_COMPILER) $(ART_USE_GREENLAND_COMPILER) $(ART_USE_QUICK_COMPILER)),true)
 ART_REQUIRE_LLVM := true
 else
 ART_REQUIRE_LLVM := false

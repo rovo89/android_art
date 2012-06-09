@@ -142,9 +142,11 @@ class Compiler {
                       bool target_is_direct,
                       size_t literal_offset);
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_QUICK_COMPILER)
   void SetBitcodeFileName(std::string const& filename);
+#endif
 
+#if defined(ART_USE_LLVM_COMPILER)
   void EnableAutoElfLoading();
 
   const void* GetMethodCodeAddr(const CompiledMethod* cm,

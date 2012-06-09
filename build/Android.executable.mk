@@ -26,6 +26,10 @@ ifeq ($(ART_USE_GREENLAND_COMPILER),true)
   ART_EXECUTABLES_CFLAGS += -DART_USE_GREENLAND_COMPILER=1
 endif
 
+ifeq ($(ART_USE_QUICK_COMPILER),true)
+  ART_EXECUTABLES_CFLAGS += -DART_USE_QUICK_COMPILER=1
+endif
+
 # $(1): executable ("d" will be appended for debug version)
 # $(2): source
 # $(3): target or host

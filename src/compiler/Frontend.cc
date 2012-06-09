@@ -712,7 +712,7 @@ void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock, MIR* insn,
        * THROW_VERIFICATION_ERROR is also an unconditional
        * branch, but we shouldn't treat it as such until we have
        * a dead code elimination pass (which won't be important
-       * until inlining w/ constant propogation is implemented.
+       * until inlining w/ constant propagation is implemented.
        */
       if (insn->dalvikInsn.opcode != Instruction::THROW) {
         curBlock->fallThrough = fallthroughBlock;
@@ -764,6 +764,9 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   cUnit->numIns = code_item->ins_size_;
   cUnit->numRegs = code_item->registers_size_ - cUnit->numIns;
   cUnit->numOuts = code_item->outs_size_;
+#if defined(ART_USE_QUICK_COMPILER)
+  cUnit->genBitcode = PrettyMethod(method_idx, dex_file).find("Fibonacci.fibonacci") != std::string::npos;
+#endif
   /* Adjust this value accordingly once inlining is performed */
   cUnit->numDalvikRegisters = code_item->registers_size_;
   // TODO: set this from command line
@@ -778,6 +781,9 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     cUnit->printMe = VLOG_IS_ON(compiler) ||
         (cUnit->enableDebug & (1 << kDebugVerbose));
   }
+#if defined(ART_USE_QUICK_COMPILER)
+  if (cUnit->genBitcode) cUnit->printMe = true;
+#endif
   if (cUnit->instructionSet == kX86) {
     // Disable optimizations on X86 for now
     cUnit->disableOpt = -1;
@@ -985,6 +991,13 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     }
   }
 
+#if defined(ART_USE_QUICK_COMPILER)
+  if (cUnit->genBitcode) {
+    // Bitcode generation requires full dataflow analysis, no qdMode
+    cUnit->qdMode = false;
+  }
+#endif
+
   if (cUnit->qdMode) {
     cUnit->disableDataflow = true;
     // Disable optimization which require dataflow/ssa
@@ -1012,6 +1025,18 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   /* Perform SSA transformation for the whole method */
   oatMethodSSATransformation(cUnit.get());
 
+  /* Do constant propagation */
+  // TODO: Probably need to make these expandable to support new ssa names
+  // introducted during MIR optimization passes
+  cUnit->isConstantV = oatAllocBitVector(cUnit.get(), cUnit->numSSARegs,
+                                         false  /* not expandable */);
+  cUnit->constantValues =
+      (int*)oatNew(cUnit.get(), sizeof(int) * cUnit->numSSARegs, true,
+                   kAllocDFInfo);
+  oatDataFlowAnalysisDispatcher(cUnit.get(), oatDoConstantPropagation,
+                                kAllNodes,
+                                false /* isIterative */);
+
   /* Detect loops */
   oatMethodLoopDetection(cUnit.get());
 
@@ -1029,19 +1054,31 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   /* Allocate Registers using simple local allocation scheme */
   oatSimpleRegAlloc(cUnit.get());
 
-  if (specialCase != kNoHandler) {
-    /*
-     * Custom codegen for special cases.  If for any reason the
-     * special codegen doesn't success, cUnit->firstLIRInsn will
-     * set to NULL;
-     */
-    oatSpecialMIR2LIR(cUnit.get(), specialCase);
-  }
+#if defined(ART_USE_QUICK_COMPILER)
+  /* Go the LLVM path? */
+  if (cUnit->genBitcode) {
+    // MIR->Bitcode
+    oatMethodMIR2Bitcode(cUnit.get());
+    // Bitcode->LIR
+    oatMethodBitcode2LIR(cUnit.get());
+  } else {
+#endif
+    if (specialCase != kNoHandler) {
+      /*
+       * Custom codegen for special cases.  If for any reason the
+       * special codegen doesn't succeed, cUnit->firstLIRInsn will
+       * set to NULL;
+       */
+      oatSpecialMIR2LIR(cUnit.get(), specialCase);
+    }
 
-  /* Convert MIR to LIR, etc. */
-  if (cUnit->firstLIRInsn == NULL) {
-    oatMethodMIR2LIR(cUnit.get());
+    /* Convert MIR to LIR, etc. */
+    if (cUnit->firstLIRInsn == NULL) {
+      oatMethodMIR2LIR(cUnit.get());
+    }
+#if defined(ART_USE_QUICK_COMPILER)
   }
+#endif
 
   // Debugging only
   if (cUnit->enableDebug & (1 << kDebugDumpCFG)) {

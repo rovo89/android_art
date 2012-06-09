@@ -35,6 +35,10 @@ void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 /* Lower middle-level IR to low-level IR for the whole method */
 void oatMethodMIR2LIR(CompilationUnit* cUnit);
 
+/* Bitcode conversions */
+void oatMethodMIR2Bitcode(CompilationUnit* cUnit);
+void oatMethodBitcode2LIR(CompilationUnit* cUnit);
+
 /* Lower middle-level IR to low-level IR for the simple methods */
 void oatSpecialMIR2LIR(CompilationUnit* cUnit, SpecialCaseHandler specialCase );
 

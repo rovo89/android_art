@@ -137,11 +137,11 @@ namespace art {
 #define rNone   (-1)
 
 /* RegisterLocation templates return values (rAX, rAX/rDX or XMM0) */
-//                               location,     wide, defined, fp, core, ref, highWord, home, lowReg, highReg,     sRegLow
-#define LOC_C_RETURN             {kLocPhysReg, 0,    0,       0,  0,    0,   0,        1,    rAX,    INVALID_REG, INVALID_SREG}
-#define LOC_C_RETURN_WIDE        {kLocPhysReg, 1,    0,       0,  0,    0,   0,        1,    rAX,    rDX,         INVALID_SREG}
-#define LOC_C_RETURN_FLOAT       {kLocPhysReg, 0,    0,       1,  0,    0,   0,        1,    fr0,    INVALID_REG, INVALID_SREG}
-#define LOC_C_RETURN_WIDE_DOUBLE {kLocPhysReg, 1,    0,       1,  0,    0,   0,        1,    fr0,    fr1,         INVALID_SREG}
+//                               location,     wide, defined, const, fp, core, ref, highWord, home, lowReg, highReg,     sRegLow
+#define LOC_C_RETURN             {kLocPhysReg, 0,    0,       0,     0,  0,    0,   0,        1,    rAX,    INVALID_REG, INVALID_SREG, INVALID_SREG}
+#define LOC_C_RETURN_WIDE        {kLocPhysReg, 1,    0,       0,     0,  0,    0,   0,        1,    rAX,    rDX,         INVALID_SREG, INVALID_SREG}
+#define LOC_C_RETURN_FLOAT       {kLocPhysReg, 0,    0,       0,     1,  0,    0,   0,        1,    fr0,    INVALID_REG, INVALID_SREG, INVALID_SREG}
+#define LOC_C_RETURN_WIDE_DOUBLE {kLocPhysReg, 1,    0,       0,     1,  0,    0,   0,        1,    fr0,    fr1,         INVALID_SREG, INVALID_SREG}
 
 enum ResourceEncodingPos {
   kGPReg0   = 0,
