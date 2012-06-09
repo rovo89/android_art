@@ -234,29 +234,30 @@ size_t AllocSpace::AllocationSize(const Object* obj) {
   return mspace_usable_size(const_cast<void*>(reinterpret_cast<const void*>(obj))) + kChunkOverhead;
 }
 
-// Call back from mspace_inspect_all returning the start and end of chunks and the bytes used,
-// if used_bytes is 0 then it indicates the range isn't in use and we madvise to the system that
-// we don't need it
-static void DontNeed(void* start, void* end, size_t used_bytes, void* /*num_bytes*/) {
-  if (used_bytes == 0) {
-    start = reinterpret_cast<void*>(RoundUp((uintptr_t)start, kPageSize));
-    end = reinterpret_cast<void*>(RoundDown((uintptr_t)end, kPageSize));
-    if (end > start) {
-      // We have a page aligned region to madvise on
-      size_t length = reinterpret_cast<byte*>(end) - reinterpret_cast<byte*>(start);
-      CHECK_MEMORY_CALL(madvise, (start, length, MADV_DONTNEED), "trim");
-    }
+void MspaceMadviseCallback(void* start, void* end, void* /*arg*/) {
+  // Do we have any whole pages to give back?
+  start = reinterpret_cast<void*>(RoundUp(reinterpret_cast<uintptr_t>(start), kPageSize));
+  end = reinterpret_cast<void*>(RoundDown(reinterpret_cast<uintptr_t>(end), kPageSize));
+  if (end > start) {
+    size_t length = reinterpret_cast<byte*>(end) - reinterpret_cast<byte*>(start);
+    CHECK_MEMORY_CALL(madvise, (start, length, MADV_DONTNEED), "trim");
   }
 }
 
-void AllocSpace::Trim() {
-  // Trim to release memory at the end of the space
-  mspace_trim(mspace_, 0);
-  // Visit space looking for page size holes to advise we don't need
-  size_t num_bytes_released = 0;
-  mspace_inspect_all(mspace_, DontNeed, &num_bytes_released);
+void MspaceMadviseCallback(void* start, void* end, size_t used_bytes, void* arg) {
+  // Is this chunk in use?
+  if (used_bytes != 0) {
+    return;
+  }
+  return MspaceMadviseCallback(start, end, arg);
 }
 
+void AllocSpace::Trim() {
+  // Trim to release memory at the end of the space.
+  mspace_trim(mspace_, 0);
+  // Visit space looking for page-sized holes to advise the kernel we don't need.
+  mspace_inspect_all(mspace_, MspaceMadviseCallback, NULL);
+}
 
 void AllocSpace::Walk(void(*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
                       void* arg) {

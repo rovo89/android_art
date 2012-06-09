@@ -36,13 +36,6 @@
 #include "thread_list.h"
 #include "well_known_classes.h"
 
-extern "C" void dlmalloc_walk_heap(void(*)(const void*, size_t, const void*, size_t, void*), void*);
-#ifndef HAVE_ANDROID_OS
-void dlmalloc_walk_heap(void(*)(const void*, size_t, const void*, size_t, void*), void*) {
-  // No-op for glibc.
-}
-#endif
-
 namespace art {
 
 static const size_t kMaxAllocRecordStackDepth = 16; // Max 255.
