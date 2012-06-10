@@ -274,8 +274,15 @@ void MethodCompiler::EmitPrologueAllocShadowFrame() {
 
   // Allocate the shadow frame now!
   shadow_frame_size_ = 0;
+  uint16_t arg_reg_start = code_item_->registers_size_ - code_item_->ins_size_;
   if (method_info_.need_shadow_frame_entry) {
     for (uint32_t i = 0, num_of_regs = code_item_->registers_size_; i < num_of_regs; ++i) {
+      if (i >= arg_reg_start && !method_info_.set_to_another_object[i]) {
+        // If we don't set argument registers to another object, we don't need the shadow frame
+        // entry for it. Because the arguments must have been in the caller's shadow frame.
+        continue;
+      }
+
       if (IsRegCanBeObject(i)) {
         reg_to_shadow_frame_index_[i] = shadow_frame_size_++;
       }
@@ -4209,8 +4216,10 @@ void MethodCompiler::ComputeMethodInfo() {
                          (code_item_->registers_size_ - code_item_->ins_size_);
   bool has_invoke = false;
   bool may_have_loop = false;
-  bool modify_this = false;
   bool may_throw_exception = false;
+  bool assume_this_non_null = false;
+  std::vector<bool>& set_to_another_object = method_info_.set_to_another_object;
+  set_to_another_object.resize(code_item_->registers_size_, false);
 
   Instruction const* insn;
   for (uint32_t dex_pc = 0;
@@ -4229,16 +4238,16 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::MOVE_WIDE:
     case Instruction::MOVE_WIDE_FROM16:
     case Instruction::MOVE_WIDE_16:
+    case Instruction::MOVE_RESULT:
+    case Instruction::MOVE_RESULT_WIDE:
+      break;
+
     case Instruction::MOVE_OBJECT:
     case Instruction::MOVE_OBJECT_FROM16:
     case Instruction::MOVE_OBJECT_16:
-    case Instruction::MOVE_RESULT:
-    case Instruction::MOVE_RESULT_WIDE:
     case Instruction::MOVE_RESULT_OBJECT:
     case Instruction::MOVE_EXCEPTION:
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
-      }
+      set_to_another_object[dec_insn.vA] = true;
       break;
 
     case Instruction::RETURN_VOID:
@@ -4251,13 +4260,13 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::CONST_16:
     case Instruction::CONST:
     case Instruction::CONST_HIGH16:
+      set_to_another_object[dec_insn.vA] = true;
+      break;
+
     case Instruction::CONST_WIDE_16:
     case Instruction::CONST_WIDE_32:
     case Instruction::CONST_WIDE:
     case Instruction::CONST_WIDE_HIGH16:
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
-      }
       break;
 
     case Instruction::CONST_STRING:
@@ -4266,16 +4275,12 @@ void MethodCompiler::ComputeMethodInfo() {
       if (!compiler_->CanAssumeStringIsPresentInDexCache(dex_cache_, dec_insn.vB)) {
         may_throw_exception = true;
       }
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
-      }
+      set_to_another_object[dec_insn.vA] = true;
       break;
 
     case Instruction::CONST_CLASS:
       may_throw_exception = true;
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
-      }
+      set_to_another_object[dec_insn.vA] = true;
       break;
 
     case Instruction::MONITOR_ENTER:
@@ -4284,14 +4289,15 @@ void MethodCompiler::ComputeMethodInfo() {
       may_throw_exception = true;
       break;
 
-    case Instruction::INSTANCE_OF:
     case Instruction::ARRAY_LENGTH:
+      may_throw_exception = true;
+      break;
+
+    case Instruction::INSTANCE_OF:
     case Instruction::NEW_INSTANCE:
     case Instruction::NEW_ARRAY:
       may_throw_exception = true;
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
-      }
+      set_to_another_object[dec_insn.vA] = true;
       break;
 
     case Instruction::FILLED_NEW_ARRAY:
@@ -4314,16 +4320,11 @@ void MethodCompiler::ComputeMethodInfo() {
 
     case Instruction::PACKED_SWITCH:
     case Instruction::SPARSE_SWITCH:
-      break;
-
     case Instruction::CMPL_FLOAT:
     case Instruction::CMPG_FLOAT:
     case Instruction::CMPL_DOUBLE:
     case Instruction::CMPG_DOUBLE:
     case Instruction::CMP_LONG:
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
-      }
       break;
 
     case Instruction::IF_EQ:
@@ -4362,8 +4363,8 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::AGET_CHAR:
     case Instruction::AGET_SHORT:
       may_throw_exception = true;
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
+      if (insn->Opcode() == Instruction::AGET_OBJECT) {
+        set_to_another_object[dec_insn.vA] = true;
       }
       break;
 
@@ -4385,8 +4386,8 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::IGET_CHAR:
     case Instruction::IGET_SHORT:
       {
-        if (dec_insn.vA == this_reg_idx) {
-          modify_this = true;
+        if (insn->Opcode() == Instruction::IGET_OBJECT) {
+          set_to_another_object[dec_insn.vA] = true;
         }
         uint32_t reg_idx = dec_insn.vB;
         uint32_t field_idx = dec_insn.vC;
@@ -4399,6 +4400,7 @@ void MethodCompiler::ComputeMethodInfo() {
         } else if (reg_idx != this_reg_idx) {
           // NullPointerException
           may_throw_exception = true;
+          assume_this_non_null = true;
         }
       }
       break;
@@ -4422,6 +4424,7 @@ void MethodCompiler::ComputeMethodInfo() {
         } else if (reg_idx != this_reg_idx) {
           // NullPointerException
           may_throw_exception = true;
+          assume_this_non_null = true;
         }
       }
       break;
@@ -4434,8 +4437,8 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::SGET_CHAR:
     case Instruction::SGET_SHORT:
       {
-        if (dec_insn.vA == this_reg_idx) {
-          modify_this = true;
+        if (insn->Opcode() == Instruction::AGET_OBJECT) {
+          set_to_another_object[dec_insn.vA] = true;
         }
         uint32_t field_idx = dec_insn.vB;
 
@@ -4549,9 +4552,6 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::SHL_LONG_2ADDR:
     case Instruction::SHR_LONG_2ADDR:
     case Instruction::USHR_LONG_2ADDR:
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
-      }
       break;
 
     case Instruction::DIV_INT:
@@ -4563,9 +4563,6 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::DIV_LONG_2ADDR:
     case Instruction::REM_LONG_2ADDR:
       may_throw_exception = true;
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
-      }
       break;
 
     case Instruction::ADD_FLOAT:
@@ -4588,9 +4585,6 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::MUL_DOUBLE_2ADDR:
     case Instruction::DIV_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE_2ADDR:
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
-      }
       break;
 
     case Instruction::ADD_INT_LIT16:
@@ -4608,19 +4602,14 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::SHL_INT_LIT8:
     case Instruction::SHR_INT_LIT8:
     case Instruction::USHR_INT_LIT8:
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
-      }
       break;
+
     case Instruction::DIV_INT_LIT16:
     case Instruction::DIV_INT_LIT8:
     case Instruction::REM_INT_LIT16:
     case Instruction::REM_INT_LIT8:
       if (dec_insn.vC == 0) {
         may_throw_exception = true;
-      }
-      if (dec_insn.vA == this_reg_idx) {
-        modify_this = true;
       }
       break;
 
@@ -4674,13 +4663,15 @@ void MethodCompiler::ComputeMethodInfo() {
   // According to the statistics, there are few methods that modify the "this" pointer. So this is a
   // simple way to avoid data flow analysis. After we have a high-level IR before IRBuilder, we
   // should remove this trick.
-  method_info_.this_will_not_be_null = !modify_this;
+  method_info_.this_will_not_be_null =
+      (oat_compilation_unit_->IsStatic()) ? (true) : (!set_to_another_object[this_reg_idx]);
   method_info_.has_invoke = has_invoke;
   // If this method has loop or invoke instruction, it may suspend. Thus we need a shadow frame entry
   // for GC.
   method_info_.need_shadow_frame_entry = has_invoke || may_have_loop;
   // If this method may throw an exception, we need a shadow frame for stack trace (dexpc).
-  method_info_.need_shadow_frame = method_info_.need_shadow_frame_entry || may_throw_exception;
+  method_info_.need_shadow_frame = method_info_.need_shadow_frame_entry || may_throw_exception ||
+                                   (assume_this_non_null && !method_info_.this_will_not_be_null);
   // If can only throw exception, but can't suspend check (no loop, no invoke),
   // then there is no shadow frame entry. Only Shadow frame is needed.
   method_info_.lazy_push_shadow_frame =

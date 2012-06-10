@@ -439,6 +439,7 @@ class MethodCompiler {
     bool need_shadow_frame_entry;
     bool need_shadow_frame;
     bool lazy_push_shadow_frame;
+    std::vector<bool> set_to_another_object;
   };
   MethodInfo method_info_;
 
