@@ -958,7 +958,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
     os << prefix << "(unwind_backtrace_thread failed for thread " << tid << ")\n";
     return;
   } else if (frame_count == 0) {
-    os << prefix << "(no native stack frames)\n";
+    os << prefix << "(no native stack frames for thread " << tid << ")\n";
     return;
   }
 

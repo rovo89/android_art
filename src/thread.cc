@@ -339,17 +339,10 @@ void Thread::CreatePeer(const char* name, bool as_daemon, Object* thread_group) 
     DecodeField(WellKnownClasses::java_lang_Thread_priority)->SetInt(peer_, thread_priority);
     peer_thread_name.reset(GetThreadName());
   }
-  // thread_name may have been null, so don't trust this to be non-null
+  // 'thread_name' may have been null, so don't trust 'peer_thread_name' to be non-null.
   if (peer_thread_name.get() != NULL) {
     SetThreadName(peer_thread_name->ToModifiedUtf8().c_str());
   }
-
-  // Pre-allocate an OutOfMemoryError for the double-OOME case.
-  ThrowNewException("Ljava/lang/OutOfMemoryError;",
-      "OutOfMemoryError thrown while trying to throw OutOfMemoryError; no stack available");
-  ScopedLocalRef<jthrowable> exception(env, env->ExceptionOccurred());
-  env->ExceptionClear();
-  pre_allocated_OutOfMemoryError_ = Decode<Throwable*>(env, exception.get());
 }
 
 void Thread::SetThreadName(const char* name) {
@@ -842,7 +835,6 @@ Thread::Thread()
       class_loader_override_(NULL),
       long_jump_context_(NULL),
       throwing_OutOfMemoryError_(false),
-      pre_allocated_OutOfMemoryError_(NULL),
       debug_invoke_req_(new DebugInvokeReq),
       trace_stack_(new std::vector<TraceStackFrame>),
       name_(new std::string(kThreadNameDuringStartup)) {
@@ -1487,11 +1479,11 @@ void Thread::ThrowOutOfMemoryError(const char* msg) {
     throwing_OutOfMemoryError_ = true;
     ThrowNewException("Ljava/lang/OutOfMemoryError;", NULL);
   } else {
-    SetException(pre_allocated_OutOfMemoryError_);
+    Dump(LOG(ERROR)); // The pre-allocated OOME has no stack, so help out and log one.
+    SetException(Runtime::Current()->GetPreAllocatedOutOfMemoryError());
   }
   throwing_OutOfMemoryError_ = false;
 }
-
 
 Thread* Thread::CurrentFromGdb() {
   return Thread::Current();
@@ -1886,9 +1878,6 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   }
   if (peer_ != NULL) {
     visitor(peer_, arg);
-  }
-  if (pre_allocated_OutOfMemoryError_ != NULL) {
-    visitor(pre_allocated_OutOfMemoryError_, arg);
   }
   if (class_loader_override_ != NULL) {
     visitor(class_loader_override_, arg);

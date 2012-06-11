@@ -63,6 +63,7 @@ Runtime::Runtime()
       class_linker_(NULL),
       signal_catcher_(NULL),
       java_vm_(NULL),
+      pre_allocated_OutOfMemoryError_(NULL),
       jni_stub_array_(NULL),
       abstract_method_error_stub_array_(NULL),
       resolution_method_(NULL),
@@ -82,7 +83,7 @@ Runtime::Runtime()
     resolution_stub_array_[i] = NULL;
   }
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    callee_save_method_[i] = NULL;
+    callee_save_methods_[i] = NULL;
   }
 }
 
@@ -549,11 +550,18 @@ void Runtime::Start() {
 
   CHECK(host_prefix_.empty()) << host_prefix_;
 
-  // Relocate the OatFiles (ELF images)
+  // Relocate the OatFiles (ELF images).
   class_linker_->RelocateExecutable();
 
-  // Restore main thread state to kNative as expected by native code
-  Thread::Current()->SetState(kNative);
+  // Restore main thread state to kNative as expected by native code.
+  Thread* self = Thread::Current();
+  self->SetState(kNative);
+
+  // Pre-allocate an OutOfMemoryError for the double-OOME case.
+  self->ThrowNewException("Ljava/lang/OutOfMemoryError;",
+                          "OutOfMemoryError thrown while trying to throw OutOfMemoryError; no stack available");
+  pre_allocated_OutOfMemoryError_ = self->GetException();
+  self->ClearException();
 
   started_ = true;
 
@@ -571,7 +579,7 @@ void Runtime::Start() {
 
   CreateSystemClassLoader();
 
-  Thread::Current()->GetJniEnv()->locals.AssertEmpty();
+  self->GetJniEnv()->locals.AssertEmpty();
 
   VLOG(startup) << "Runtime::Start exiting";
 
@@ -851,6 +859,9 @@ void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   intern_table_->VisitRoots(visitor, arg);
   java_vm_->VisitRoots(visitor, arg);
   thread_list_->VisitRoots(visitor, arg);
+  if (pre_allocated_OutOfMemoryError_ != NULL) {
+    visitor(pre_allocated_OutOfMemoryError_, arg);
+  }
   visitor(jni_stub_array_, arg);
   visitor(abstract_method_error_stub_array_, arg);
   for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
@@ -858,7 +869,7 @@ void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   }
   visitor(resolution_method_, arg);
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    visitor(callee_save_method_[i], arg);
+    visitor(callee_save_methods_[i], arg);
   }
 }
 
@@ -943,7 +954,7 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSa
 
 void Runtime::SetCalleeSaveMethod(Method* method, CalleeSaveType type) {
   DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
-  callee_save_method_[type] = method;
+  callee_save_methods_[type] = method;
 }
 
 void Runtime::EnableMethodTracing(Trace* tracer) {

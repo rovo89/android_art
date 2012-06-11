@@ -628,8 +628,6 @@ class PACKED Thread {
   // A boolean telling us whether we're recursively throwing OOME.
   uint32_t throwing_OutOfMemoryError_;
 
-  Throwable* pre_allocated_OutOfMemoryError_;
-
   // JDWP invoke-during-breakpoint support.
   DebugInvokeReq* debug_invoke_req_;
 

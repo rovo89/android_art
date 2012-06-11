@@ -48,6 +48,7 @@ class MonitorList;
 class SignalCatcher;
 class String;
 class ThreadList;
+class Throwable;
 class Trace;
 
 class Runtime {
@@ -172,12 +173,16 @@ class Runtime {
     return java_vm_;
   }
 
-  const std::vector<std::string>& GetProperties() const {
-    return properties_;
-  }
-
   MonitorList* GetMonitorList() const {
     return monitor_list_;
+  }
+
+  Throwable* GetPreAllocatedOutOfMemoryError() {
+    return pre_allocated_OutOfMemoryError_;
+  }
+
+  const std::vector<std::string>& GetProperties() const {
+    return properties_;
   }
 
   ThreadList* GetThreadList() const {
@@ -255,12 +260,12 @@ class Runtime {
   };
 
   bool HasCalleeSaveMethod(CalleeSaveType type) const {
-    return callee_save_method_[type] != NULL;
+    return callee_save_methods_[type] != NULL;
   }
 
   Method* GetCalleeSaveMethod(CalleeSaveType type) const {
     CHECK(HasCalleeSaveMethod(type));
-    return callee_save_method_[type];
+    return callee_save_methods_[type];
   }
 
   void SetCalleeSaveMethod(Method* method, CalleeSaveType type);
@@ -359,13 +364,15 @@ class Runtime {
 
   JavaVMExt* java_vm_;
 
+  Throwable* pre_allocated_OutOfMemoryError_;
+
   ByteArray* jni_stub_array_;
 
   ByteArray* abstract_method_error_stub_array_;
 
   ByteArray* resolution_stub_array_[kLastTrampolineMethodType];
 
-  Method* callee_save_method_[kLastCalleeSaveType];
+  Method* callee_save_methods_[kLastCalleeSaveType];
 
   Method* resolution_method_;
 
