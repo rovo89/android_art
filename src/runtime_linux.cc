@@ -251,8 +251,8 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw
   // TODO: instead, get debuggerd running on the host, try to connect, and hang around on success.
   if (getenv("debug_db_uid") != NULL) {
     LOG(INTERNAL_FATAL) << "********************************************************\n"
-                        << "* Process " << getpid() << " has been suspended while crashing. Attach gdb:\n"
-                        << "*     gdb -p " << getpid() << "\n"
+                        << "* Process " << getpid() << " thread " << GetTid() << " has been suspended while crashing. Attach gdb:\n"
+                        << "*     gdb -p " << GetTid() << "\n"
                         << "********************************************************\n";
     // Wait for debugger to attach.
     while (true) {
