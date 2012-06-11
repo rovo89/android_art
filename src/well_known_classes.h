@@ -53,6 +53,7 @@ struct WellKnownClasses {
   static jmethodID com_android_dex_Dex_create;
   static jmethodID java_lang_ClassLoader_loadClass;
   static jmethodID java_lang_ClassNotFoundException_init;
+  static jmethodID java_lang_Daemons_requestGC;
   static jmethodID java_lang_Daemons_requestHeapTrim;
   static jmethodID java_lang_Daemons_start;
   static jmethodID java_lang_ref_FinalizerReference_add;

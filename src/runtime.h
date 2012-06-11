@@ -116,6 +116,10 @@ class Runtime {
     return started_;
   }
 
+  bool IsFinishedStarting() const {
+    return finished_starting_;
+  }
+
   static Runtime* Current() {
     return instance_;
   }
@@ -370,6 +374,11 @@ class Runtime {
 
   bool shutting_down_;
   bool started_;
+
+  // New flag added which tells us if the runtime has finished starting. If
+  // this flag is set then the Daemon threads are created and the class loader
+  // is created. This flag is needed for knowing if its safe to request CMS.
+  bool finished_starting_;
 
   // Hooks supported by JNI_CreateJavaVM
   jint (*vfprintf_)(FILE* stream, const char* format, va_list ap);

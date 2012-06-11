@@ -22,6 +22,8 @@
 
 namespace art {
 
+class TimingLogger;
+
 class ThreadList {
  public:
   static const uint32_t kMaxThreadId = 0xFFFF;

@@ -756,7 +756,9 @@ void Thread::WaitUntilSuspended() {
     delay = new_delay;
     if (delay == 0) {
       sched_yield();
-      delay = 10000;
+      // Default to 1 milliseconds (note that this gets multiplied by 2 before
+      // the first sleep)
+      delay = 500;
     } else {
       usleep(delay);
       total_delay += delay;

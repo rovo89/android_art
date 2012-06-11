@@ -84,6 +84,10 @@ class Heap {
   // Initiates an explicit garbage collection.
   void CollectGarbage(bool clear_soft_references);
 
+  // Does a concurrent GC, should only be called by the GC daemon thread
+  // through runtime.
+  void ConcurrentGC();
+
   // Implements java.lang.Runtime.maxMemory.
   int64_t GetMaxMemory();
   // Implements java.lang.Runtime.totalMemory.
@@ -218,8 +222,21 @@ class Heap {
     return alloc_space_;
   }
 
+  size_t GetConcurrentStartSize() const { return concurrent_start_size_; }
+
+  void SetConcurrentStartSize(size_t size) {
+    concurrent_start_size_ = size;
+  }
+
+  size_t GetConcurrentMinFree() const { return concurrent_min_free_; }
+
+  void SetConcurrentMinFree(size_t size) {
+    concurrent_min_free_ = size;
+  }
+
   void DumpForSigQuit(std::ostream& os);
 
+  void Trim();
  private:
   // Allocates uninitialized storage.
   Object* AllocateLocked(size_t num_bytes);
@@ -229,6 +246,7 @@ class Heap {
   void EnqueueClearedReferences(Object** cleared_references);
 
   void RequestHeapTrim();
+  void RequestConcurrentGC();
 
   void RecordAllocationLocked(AllocSpace* space, const Object* object);
   void RecordImageAllocations(Space* space);
@@ -251,6 +269,7 @@ class Heap {
   static void VerificationCallback(Object* obj, void* arg);
 
   Mutex* lock_;
+  ConditionVariable* condition_;
 
   std::vector<Space*> spaces_;
 
@@ -272,6 +291,19 @@ class Heap {
   // True while the garbage collector is running.
   bool is_gc_running_;
 
+  // Bytes until concurrent GC
+  size_t concurrent_start_bytes_;
+  size_t concurrent_start_size_;
+  size_t concurrent_min_free_;
+
+  // True while the garbage collector is trying to signal the GC daemon thread.
+  // This flag is needed to prevent recursion from occurring when the JNI calls
+  // allocate memory and request another GC.
+  bool try_running_gc_;
+
+  // Used to ensure that we don't ever recursively request GC.
+  bool requesting_gc_;
+
   // Mark stack that we reuse to avoid re-allocating the mark stack
   MarkStack* mark_stack_;
 
@@ -280,6 +312,9 @@ class Heap {
 
   // Number of objects allocated.  Adjusted after each allocation and free.
   size_t num_objects_allocated_;
+
+  // Last trim time
+  uint64_t last_trim_time_;
 
   // offset of java.lang.ref.Reference.referent
   MemberOffset reference_referent_offset_;
