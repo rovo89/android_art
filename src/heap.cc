@@ -306,8 +306,11 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
     DCHECK_GE(byte_count, sizeof(Object));
     Object* obj = AllocateLocked(byte_count);
     if (obj != NULL) {
-      if (!is_gc_running_ && num_bytes_allocated_ >= concurrent_start_bytes_) {
-        RequestConcurrentGC();
+      // Disable CMS until bug is fixed
+      if (false) {
+        if (!is_gc_running_ && num_bytes_allocated_ >= concurrent_start_bytes_) {
+          RequestConcurrentGC();
+        }
       }
 
       obj->SetClass(c);
@@ -917,7 +920,7 @@ void Heap::ConcurrentGC() {
 }
 
 void Heap::Trim() {
-  ScopedHeapLock heap_lock;
+  lock_->AssertHeld();
   GetAllocSpace()->Trim();
 }
 
