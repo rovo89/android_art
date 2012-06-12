@@ -16,12 +16,16 @@
 
 #include "target_codegen_machine.h"
 
-#include "greenland.h"
+#include "lir_function.h"
+#include "lir_pass_manager.h"
 #include "target_lir_emitter.h"
+#include "target_lir_opcodes.h"
 #include "target_registry.h"
 
 #include "compiled_method.h"
 #include "compiler.h"
+#include "oat_compilation_unit.h"
+#include "utils.h"
 
 #include <UniquePtr.h>
 
@@ -39,23 +43,24 @@ TargetCodeGenMachine* TargetCodeGenMachine::Create(InstructionSet insn_set) {
   return (*ctor)();
 }
 
-CompiledMethod* TargetCodeGenMachine::Run(const Greenland& parent,
-                                          const llvm::Function& func,
-                                          const OatCompilationUnit& cunit,
-                                          DexLang::Context& dex_lang_ctx) {
-#if 0
-  UniquePtr<TargetLIREmitter> emitter(CreateLIREmitter(func, cunit,
-                                                       dex_lang_ctx));
-  LIRFunction* lir_func = emitter->Emit();
-  if (lir_func == NULL) {
+CompiledMethod* TargetCodeGenMachine::Run(const Compiler& compiler,
+                                          const GBCFunction& gbc_func) {
+  LIRPassManager lir_pm;
+
+  lir_pm.Add(CreateLIREmitter());
+
+  LIRFunction lir_func(*this, gbc_func);
+
+  if (!lir_pm.Run(lir_func)) {
     return NULL;
   }
-#endif
+
+  lir_func.Dump();
 
   // 0x90 is the NOP in x86
   std::vector<uint8_t> code(10, 0x90);
 
-  return new CompiledMethod(parent.GetCompiler().GetInstructionSet(), code,
+  return new CompiledMethod(compiler.GetInstructionSet(), code,
                             /* frame_size_in_bytes */0,
                             /* core_spill_mask */0,
                             /* fp_spill_mask */0);

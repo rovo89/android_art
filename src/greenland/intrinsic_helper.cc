@@ -21,7 +21,6 @@
 #include <llvm/DerivedTypes.h>
 #include <llvm/Function.h>
 #include <llvm/Intrinsics.h>
-#include <llvm/Module.h>
 #include <llvm/Support/IRBuilder.h>
 
 using namespace art;
@@ -65,10 +64,12 @@ GetLLVMTypeOfIntrinsicValType(IRBuilder& irb,
     case IntrinsicHelper::kInt64ConstantTy: {
       return irb.getInt64Ty();
     }
-    case IntrinsicHelper::kFloatTy: {
+    case IntrinsicHelper::kFloatTy:
+    case IntrinsicHelper::kFloatConstantTy: {
       return irb.getFloatTy();
     }
-    case IntrinsicHelper::kDoubleTy: {
+    case IntrinsicHelper::kDoubleTy:
+    case IntrinsicHelper::kDoubleConstantTy: {
       return irb.getDoubleTy();
     }
     case IntrinsicHelper::kNone:
@@ -86,7 +87,7 @@ GetLLVMTypeOfIntrinsicValType(IRBuilder& irb,
 namespace art {
 namespace greenland {
 
-const IntrinsicHelper::IntrinsicInfo IntrinsicHelper::Info[MaxIntrinsicId] = {
+const IntrinsicHelper::IntrinsicInfo IntrinsicHelper::Info[] = {
 #define DEF_INTRINSICS_FUNC(_, NAME, ATTR, RET_TYPE, ARG1_TYPE, ARG2_TYPE, \
                                                      ARG3_TYPE, ARG4_TYPE, \
                                                      ARG5_TYPE) \
@@ -144,6 +145,7 @@ IntrinsicHelper::IntrinsicHelper(llvm::LLVMContext& context,
                                                 info.name_, &module);
 
     fn->setOnlyReadsMemory(info.attr_ & kAttrReadOnly);
+    fn->setDoesNotAccessMemory(info.attr_ & kAttrReadNone);
     // None of the intrinsics throws exception
     fn->setDoesNotThrow(true);
 

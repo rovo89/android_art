@@ -19,6 +19,9 @@
 
 #include "../mutex.h"
 #include "globals.h"
+#ifdef ART_USE_DEXLANG_FRONTEND
+# include "greenland/dex_lang.h"
+#endif
 #include "instruction_set.h"
 #include "logging.h"
 #include "runtime_support_builder.h"
@@ -71,6 +74,12 @@ class CompilationUnit {
     return irb_.get();
   }
 
+#ifdef ART_USE_DEXLANG_FRONTEND
+  greenland::DexLang::Context* GetDexLangContext() const {
+    return dex_lang_ctx_;
+  }
+#endif
+
   void SetBitcodeFileName(const std::string& bitcode_filename) {
     bitcode_filename_ = bitcode_filename;
   }
@@ -94,6 +103,9 @@ class CompilationUnit {
   UniquePtr<IRBuilder> irb_;
   UniquePtr<RuntimeSupportBuilder> runtime_support_;
   llvm::Module* module_;
+#ifdef ART_USE_DEXLANG_FRONTEND
+  greenland::DexLang::Context* dex_lang_ctx_;
+#endif
 
   std::string bitcode_filename_;
 

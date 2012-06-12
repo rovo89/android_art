@@ -18,8 +18,7 @@
 
 #include "intrinsic_helper.h"
 
-#include "atomic.h"
-#include "inferred_reg_category_map.h"
+#include "compiler_llvm/inferred_reg_category_map.h"
 #include "object.h" // FIXME: include this in oat_compilation_unit.h
 #include "oat_compilation_unit.h"
 #include "stl_util.h"
@@ -41,21 +40,10 @@ namespace greenland {
 //----------------------------------------------------------------------------
 // DexLang::Context
 //----------------------------------------------------------------------------
-DexLang::Context::Context()
-    : context_(), module_(NULL), ref_count_(1), mem_usage_(0) {
-  module_ = new llvm::Module("art", context_);
-
-  // Initialize the contents of an empty module
-  // Type of "JavaObject"
-  llvm::StructType::create(context_, "JavaObject");
-  // Type of "Method"
-  llvm::StructType::create(context_, "Method");
-  // Type of "Thread"
-  llvm::StructType::create(context_, "Thread");
-
+DexLang::Context::Context(llvm::Module& module)
+    : module_(module), intrinsic_helper_(NULL) {
   // Initalize the DexLang intrinsics
-  intrinsic_helper_ = new IntrinsicHelper(context_, *module_);
-
+  intrinsic_helper_ = new IntrinsicHelper(GetLLVMContext(), module_);
   return;
 }
 
@@ -64,42 +52,24 @@ DexLang::Context::~Context() {
   return;
 }
 
-DexLang::Context& DexLang::Context::IncRef() {
-  android_atomic_inc(&ref_count_);
-  return *this;
-}
-
-void DexLang::Context::DecRef() {
-  int32_t old_ref_count = android_atomic_dec(&ref_count_);
-  if (old_ref_count <= 1) {
-    delete this;
-  }
-  return;
-}
-
-void DexLang::Context::AddMemUsageApproximation(size_t usage) {
-  android_atomic_add(static_cast<int32_t>(usage), &mem_usage_);
-  return;
-}
-
 //----------------------------------------------------------------------------
 // Constructor, Destructor and APIs
 //----------------------------------------------------------------------------
 DexLang::DexLang(DexLang::Context& context, Compiler& compiler,
                  OatCompilationUnit& cunit)
-    : dex_lang_ctx_(context.IncRef()), compiler_(compiler), cunit_(cunit),
+    : dex_lang_ctx_(context), compiler_(compiler), cunit_(cunit),
       dex_file_(cunit.GetDexFile()), code_item_(cunit.GetCodeItem()),
-      dex_cache_(cunit.GetDexCache()),
+      dex_cache_(cunit.GetDexCache()), method_idx_(cunit.GetDexMethodIndex()),
       context_(context.GetLLVMContext()), module_(context.GetOutputModule()),
       intrinsic_helper_(context.GetIntrinsicHelper()),
       irb_(context.GetLLVMContext(), context.GetOutputModule(),
            context.GetIntrinsicHelper()),
       func_(NULL), reg_alloc_bb_(NULL), arg_reg_init_bb_(NULL),
       basic_blocks_(cunit.GetCodeItem()->insns_size_in_code_units_),
-      retval_(NULL), retval_jty_(kVoid),
+      retval_reg_(NULL),
       landing_pads_bb_(cunit.GetCodeItem()->tries_size_, NULL),
       exception_unwind_bb_(NULL), cur_try_item_offset(-1),
-      require_shadow_frame(false), num_shadow_frame_entries_(0) {
+      num_shadow_frame_entries_(0) {
   if (cunit.GetCodeItem()->tries_size_ > 0) {
     cur_try_item_offset = 0;
   }
@@ -107,7 +77,7 @@ DexLang::DexLang(DexLang::Context& context, Compiler& compiler,
 }
 
 DexLang::~DexLang() {
-  dex_lang_ctx_.DecRef();
+  delete retval_reg_;
   return;
 }
 
@@ -119,44 +89,27 @@ llvm::Function* DexLang::Build() {
       !EmitPrologueLinkBasicBlocks() ||
       !PrettyLayoutExceptionBasicBlocks() ||
       !VerifyFunction() ||
+      // CompilerLLVM has its own optimizer
+#ifndef ART_USE_LLVM_COMPILER
       !OptimizeFunction() ||
-      !RemoveRedundantPendingExceptionChecks()) {
+      !RemoveRedundantPendingExceptionChecks() ||
+#endif
+      0) {
     return NULL;
   }
-
-  // NOTE: From statistic, the bitcode size is 4.5 times bigger than the
-  // Dex file.  Besides, we have to convert the code unit into bytes.
-  // Thus, we got our magic number 9.
-  dex_lang_ctx_.AddMemUsageApproximation(
-      code_item_->insns_size_in_code_units_ * 900);
 
   return func_;
 }
 
-llvm::Value* DexLang::AllocateDalvikReg(JType jty, unsigned reg_idx) {
-  RegCategory cat = GetRegCategoryFromJType(jty);
-  llvm::Type* type = irb_.GetJType(jty, kAccurate);
-
-  DCHECK_NE(type, static_cast<llvm::Type*>(NULL));
-
+llvm::Value* DexLang::AllocateDalvikReg(RegCategory cat, unsigned reg_idx) {
+  // Get reg_type and reg_name from DalvikReg
+  llvm::Type* reg_type = DalvikReg::GetRegCategoryEquivSizeTy(irb_, cat);
   std::string reg_name;
-  switch (cat) {
-    case kRegCat1nr: {
-      reg_name = StringPrintf("r%u", reg_idx);
-      break;
-    }
-    case kRegCat2: {
-      reg_name = StringPrintf("w%u", reg_idx);
-      break;
-    }
-    case kRegObject: {
-      reg_name = StringPrintf("p%u", reg_idx);
-      break;
-    }
-    default: {
-      LOG(FATAL) << "Unknown register category for allocation: " << cat;
-    }
-  }
+
+#if !defined(NDEBUG)
+  StringAppendF(&reg_name, "%c%u",
+                DalvikReg::GetRegCategoryNamePrefix(cat), reg_idx);
+#endif
 
   // Save current IR builder insert point
   DCHECK(reg_alloc_bb_ != NULL);
@@ -164,13 +117,12 @@ llvm::Value* DexLang::AllocateDalvikReg(JType jty, unsigned reg_idx) {
   irb_.SetInsertPoint(reg_alloc_bb_);
 
   // Alloca
-  llvm::Value* reg_addr = irb_.CreateAlloca(type, 0, reg_name);
+  llvm::Value* reg_addr = irb_.CreateAlloca(reg_type, 0, reg_name);
 
   // Restore IRBuilder insert point
   irb_.restoreIP(irb_ip_original);
 
   DCHECK_NE(reg_addr, static_cast<llvm::Value*>(NULL));
-
   return reg_addr;
 }
 
@@ -278,8 +230,8 @@ llvm::BasicBlock* DexLang::GetLandingPadBasicBlock(unsigned dex_pc) {
   llvm::Value* ti_offset_value = irb_.getInt32(ti_offset);
 
   llvm::Value* catch_handler_index_value =
-      EmitInvokeIntrinsic2(dex_pc, IntrinsicHelper::FindCatchBlock,
-                           method_object_addr, ti_offset_value);
+      EmitInvokeIntrinsic2NoThrow(IntrinsicHelper::FindCatchBlock,
+                                  method_object_addr, ti_offset_value);
 
   // Switch instruction (Go to unwind basic block by default)
   llvm::SwitchInst* sw =
@@ -356,11 +308,10 @@ void DexLang::EmitGuard_DivZeroException(unsigned dex_pc,
   irb_.CreateCondBr(equal_zero, block_exception, block_continue);
 
   irb_.SetInsertPoint(block_exception);
-  EmitUpdateDexPC(dex_pc);
   EmitInvokeIntrinsic(dex_pc, IntrinsicHelper::ThrowDivZeroException);
-  EmitBranchExceptionLandingPad(dex_pc);
 
   irb_.SetInsertPoint(block_continue);
+  return;
 }
 
 void DexLang::EmitGuard_NullPointerException(unsigned dex_pc,
@@ -377,12 +328,11 @@ void DexLang::EmitGuard_NullPointerException(unsigned dex_pc,
 
   irb_.SetInsertPoint(block_exception);
 
-  EmitUpdateDexPC(dex_pc);
   EmitInvokeIntrinsic(dex_pc, IntrinsicHelper::ThrowNullPointerException,
                       irb_.getInt32(dex_pc));
-  EmitBranchExceptionLandingPad(dex_pc);
 
   irb_.SetInsertPoint(block_continue);
+  return;
 }
 
 void
@@ -403,10 +353,8 @@ DexLang::EmitGuard_ArrayIndexOutOfBoundsException(unsigned dex_pc,
 
   irb_.SetInsertPoint(block_exception);
 
-  EmitUpdateDexPC(dex_pc);
   EmitInvokeIntrinsic2(dex_pc, IntrinsicHelper::ThrowIndexOutOfBounds,
                        index, array_len);
-  EmitBranchExceptionLandingPad(dex_pc);
 
   irb_.SetInsertPoint(block_continue);
   return;
@@ -420,7 +368,7 @@ void DexLang::EmitGuard_ArrayException(unsigned dex_pc,
 
 void DexLang::EmitGuard_ExceptionLandingPad(unsigned dex_pc) {
   llvm::Value* exception_pending =
-      EmitInvokeIntrinsic(dex_pc, IntrinsicHelper::IsExceptionPending);
+      EmitInvokeIntrinsicNoThrow(IntrinsicHelper::IsExceptionPending);
 
   llvm::BasicBlock* block_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
 
@@ -431,6 +379,7 @@ void DexLang::EmitGuard_ExceptionLandingPad(unsigned dex_pc) {
   }
 
   irb_.SetInsertPoint(block_cont);
+  return;
 }
 
 //----------------------------------------------------------------------------
@@ -446,7 +395,6 @@ void DexLang::EmitGuard_GarbageCollectionSuspend() {
 // Shadow Frame
 //----------------------------------------------------------------------------
 void DexLang::EmitUpdateDexPC(unsigned dex_pc) {
-  require_shadow_frame = true;
   EmitInvokeIntrinsicNoThrow(IntrinsicHelper::UpdateDexPC,
                              irb_.getInt32(dex_pc));
   return;
@@ -465,7 +413,7 @@ unsigned DexLang::AllocShadowFrameEntry(unsigned reg_idx) {
 // Code Generation
 //----------------------------------------------------------------------------
 bool DexLang::CreateFunction() {
-  std::string func_name(PrettyMethod(cunit_.GetDexMethodIndex(), *dex_file_,
+  std::string func_name(PrettyMethod(method_idx_, *dex_file_,
                                      /* with_signature */false));
   llvm::FunctionType* func_type = GetFunctionType();
 
@@ -521,54 +469,22 @@ llvm::FunctionType* DexLang::GetFunctionType() {
   return llvm::FunctionType::get(ret_type, args_type, false);
 }
 
-bool DexLang::PrepareDalvikRegs() {
-  const unsigned num_regs = code_item_->registers_size_;
-  const unsigned num_ins = code_item_->ins_size_;
-  unsigned reg_idx = 0;
-
-  // Registers v[0..(num_regs - num_ins - 1)] are used for local variable
-  for (; reg_idx < (num_regs - num_ins); reg_idx++) {
-    regs_.push_back(DalvikReg::CreateLocalVarReg(*this, reg_idx));
-  }
-
-  // Registers v[(num_regs - num_ins)..(num_regs - 1)] are used for input
-  // argument
-  uint32_t shorty_size;
-  const char* shorty = cunit_.GetShorty(&shorty_size);
-
-  if (!cunit_.IsStatic()) {
-    // The first argument to non-static method is "this" object pointer
-    regs_.push_back(DalvikReg::CreateArgReg(*this, reg_idx++, kObject));
-  }
-
-  for (unsigned i = 1; i < shorty_size; i++) {
-    JType jty = GetJTypeFromShorty(shorty[i]);
-    regs_.push_back(DalvikReg::CreateArgReg(*this, reg_idx++, jty));
-    reg_idx++;
-
-    if (GetRegCategoryFromJType(jty) == kRegCat2) {
-      // Need a register pair to hold the value
-      regs_.push_back(NULL);
-      reg_idx++;
-    }
-  }
-
-  CHECK_EQ(num_regs, regs_.size());
-
-  return true;
-}
-
 bool DexLang::EmitPrologue() {
   reg_alloc_bb_ = llvm::BasicBlock::Create(context_, "prologue.alloca", func_);
 
   arg_reg_init_bb_ =
       llvm::BasicBlock::Create(context_, "prologue.arginit", func_);
 
-  if (!PrepareDalvikRegs()) {
-    return false;
+  // Create register array
+  const unsigned num_regs = code_item_->registers_size_;
+  for (unsigned i = 0; i < num_regs; i++) {
+    regs_.push_back(new DalvikReg(*this, i));
   }
 
-  //Store argument to dalvik register
+  // Register hold return value from invoke and filled-new-array
+  retval_reg_ = new DalvikReg(*this, num_regs);
+
+  // Store argument to dalvik register
   irb_.SetInsertPoint(arg_reg_init_bb_);
   if (!EmitPrologueAssignArgRegister()) {
     return false;
@@ -617,10 +533,6 @@ bool DexLang::EmitPrologueAssignArgRegister() {
 }
 
 bool DexLang::EmitPrologueAllcaShadowFrame() {
-  if (!require_shadow_frame) {
-    return true;
-  }
-
   // Save current IR builder insert point
   llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
 
@@ -644,7 +556,13 @@ bool DexLang::PrettyLayoutExceptionBasicBlocks()  {
   llvm::BasicBlock* last_non_exception_bb = &func_->back();
   DCHECK(last_non_exception_bb != NULL);
 
-  DCHECK_NE(last_non_exception_bb, exception_unwind_bb_);
+  if (last_non_exception_bb == exception_unwind_bb_) {
+    // There's no other expcetion landing pads therefore the only exception
+    // basic blocks is for exception unwinding which is already the tail basic
+    // block of the function
+    return true;
+  }
+
   if (exception_unwind_bb_ != NULL) {
     exception_unwind_bb_->moveAfter(last_non_exception_bb);
   }
@@ -654,9 +572,14 @@ bool DexLang::PrettyLayoutExceptionBasicBlocks()  {
           landing_pads_bb_end = landing_pads_bb_.rend();
        landing_pads_bb_iter != landing_pads_bb_end; landing_pads_bb_iter++) {
     llvm::BasicBlock* landing_pads_bb = *landing_pads_bb_iter;
+    if (landing_pads_bb == NULL) {
+      continue;
+    }
+
     // Move the successors (the cache handlers) first
     llvm::TerminatorInst* inst = landing_pads_bb->getTerminator();
     CHECK(inst != NULL);
+
     for (unsigned i = 0, e = inst->getNumSuccessors(); i != e; i++) {
       llvm::BasicBlock* catch_handler = inst->getSuccessor(i);
       // One of the catch handler is the unwind basic block which is settled
@@ -665,8 +588,7 @@ bool DexLang::PrettyLayoutExceptionBasicBlocks()  {
         catch_handler->moveAfter(last_non_exception_bb);
       }
     }
-    if (landing_pads_bb != NULL) {
-      DCHECK_NE(last_non_exception_bb, landing_pads_bb);
+    if (last_non_exception_bb != landing_pads_bb) {
       landing_pads_bb->moveAfter(last_non_exception_bb);
     }
   }
@@ -677,7 +599,7 @@ bool DexLang::PrettyLayoutExceptionBasicBlocks()  {
 bool DexLang::VerifyFunction() {
   if (llvm::verifyFunction(*func_, llvm::PrintMessageAction)) {
     LOG(INFO) << "Verification failed on function: "
-              << PrettyMethod(cunit_.GetDexMethodIndex(), *dex_file_);
+              << PrettyMethod(method_idx_, *dex_file_);
     return false;
   }
   return true;
@@ -813,39 +735,18 @@ llvm::Value* DexLang::EmitGetCurrentThread() {
   return EmitInvokeIntrinsicNoThrow(IntrinsicHelper::GetCurrentThread);
 }
 
-llvm::Value*
-DexLang::EmitInvokeIntrinsicNoThrow(IntrinsicHelper::IntrinsicId intr_id) {
-  DCHECK(IntrinsicHelper::GetAttr(intr_id) & IntrinsicHelper::kAttrNoThrow);
-  return irb_.CreateCall(intrinsic_helper_.GetIntrinsicFunction(intr_id));
+void DexLang::EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr) {
+  EmitInvokeIntrinsic2NoThrow(IntrinsicHelper::MarkGCCard, value, target_addr);
+  return;
 }
 
 llvm::Value*
 DexLang::EmitInvokeIntrinsicNoThrow(IntrinsicHelper::IntrinsicId intr_id,
                                     llvm::ArrayRef<llvm::Value*> args) {
-  llvm::Function* intr = intrinsic_helper_.GetIntrinsicFunction(intr_id);
   DCHECK(IntrinsicHelper::GetAttr(intr_id) & IntrinsicHelper::kAttrNoThrow);
-  return irb_.CreateCall(intr, args);
-}
 
-llvm::Value*
-DexLang::EmitInvokeIntrinsic(unsigned dex_pc,
-                             IntrinsicHelper::IntrinsicId intr_id) {
   llvm::Function* intr = intrinsic_helper_.GetIntrinsicFunction(intr_id);
-  unsigned intr_attr = IntrinsicHelper::GetAttr(intr_id);
-  bool may_throw = !(intr_attr & IntrinsicHelper::kAttrNoThrow);
-
-  // Setup PC before invocation when the intrinsics may generate the exception
-  if (may_throw) {
-    EmitUpdateDexPC(dex_pc);
-  }
-
-  llvm::Value* ret_val = irb_.CreateCall(intr);
-
-  if (may_throw) {
-    EmitGuard_ExceptionLandingPad(dex_pc);
-  }
-
-  return ret_val;
+  return ((args.empty()) ? irb_.CreateCall(intr) : irb_.CreateCall(intr, args));
 }
 
 llvm::Value* DexLang::EmitInvokeIntrinsic(unsigned dex_pc,
@@ -853,36 +754,153 @@ llvm::Value* DexLang::EmitInvokeIntrinsic(unsigned dex_pc,
                                           llvm::ArrayRef<llvm::Value*> args) {
   llvm::Function* intr = intrinsic_helper_.GetIntrinsicFunction(intr_id);
   unsigned intr_attr = IntrinsicHelper::GetAttr(intr_id);
-  bool may_throw = !(intr_attr & IntrinsicHelper::kAttrNoThrow);
+  DCHECK(!(intr_attr & IntrinsicHelper::kAttrNoThrow));
 
   // Setup PC before invocation when the intrinsics may generate the exception
-  if (may_throw) {
-    EmitUpdateDexPC(dex_pc);
-  }
+  EmitUpdateDexPC(dex_pc);
 
-  llvm::Value* ret_val = irb_.CreateCall(intr, args);
+  llvm::Value* ret_val = ((args.empty()) ? irb_.CreateCall(intr) :
+                                           irb_.CreateCall(intr, args));
 
-  if (may_throw) {
+  if (intr_attr & IntrinsicHelper::kAttrDoThrow) {
+    // Directly branch to exception landingpad when the intrinsic is known to
+    // throw exception always
+    EmitBranchExceptionLandingPad(dex_pc);
+  } else {
     EmitGuard_ExceptionLandingPad(dex_pc);
   }
 
   return ret_val;
 }
 
-RegCategory DexLang::GetInferredRegCategory(unsigned dex_pc, unsigned reg_idx) {
-  Compiler::MethodReference mref(dex_file_, cunit_.GetDexMethodIndex());
+compiler_llvm::RegCategory DexLang::GetInferredRegCategory(unsigned dex_pc,
+                                                           unsigned reg_idx) {
+  Compiler::MethodReference mref(dex_file_, method_idx_);
 
-  const InferredRegCategoryMap* map =
+  const compiler_llvm::InferredRegCategoryMap* map =
     verifier::MethodVerifier::GetInferredRegCategoryMap(mref);
 
-  CHECK_NE(map, static_cast<InferredRegCategoryMap*>(NULL));
+  CHECK_NE(map, static_cast<compiler_llvm::InferredRegCategoryMap*>(NULL));
 
   return map->GetRegCategory(dex_pc, reg_idx);
+}
+
+llvm::Value* DexLang::EmitLoadConstantClass(unsigned dex_pc,
+                                            uint32_t type_idx) {
+  llvm::Value* type_idx_value = irb_.getInt32(type_idx);
+
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* thread_object_addr = EmitGetCurrentThread();
+
+  if (!compiler_.CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
+                                            *dex_file_, type_idx)) {
+    return EmitInvokeIntrinsic3(dex_pc, IntrinsicHelper::InitializeTypeAndVerifyAccess,
+                                type_idx_value, method_object_addr,
+                                thread_object_addr);
+  } else {
+    // Try to load the class (type) object from the dex cache
+    llvm::Value* type_object_addr =
+        EmitInvokeIntrinsicNoThrow(IntrinsicHelper::LoadTypeFromDexCache,
+                                   type_idx_value);
+
+    if (compiler_.CanAssumeTypeIsPresentInDexCache(dex_cache_, type_idx)) {
+      return type_object_addr;
+    }
+
+    llvm::BasicBlock* block_original = irb_.GetInsertBlock();
+
+    // Test whether class (type) object is in the dex cache or not
+    llvm::Value* equal_null =
+        irb_.CreateICmpEQ(type_object_addr, irb_.GetJNull());
+
+    llvm::BasicBlock* block_cont =
+      CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+    llvm::BasicBlock* block_load_class =
+      CreateBasicBlockWithDexPC(dex_pc, "load_class");
+
+    irb_.CreateCondBr(equal_null, block_load_class, block_cont);
+
+    // Failback routine to load the class object
+    irb_.SetInsertPoint(block_load_class);
+
+    llvm::Value* loaded_type_object_addr =
+        EmitInvokeIntrinsic3(dex_pc, IntrinsicHelper::InitializeType,
+                             type_idx_value, method_object_addr,
+                             thread_object_addr);
+
+    llvm::BasicBlock* block_after_load_class = irb_.GetInsertBlock();
+
+    irb_.CreateBr(block_cont);
+
+    // Now the class object must be loaded
+    irb_.SetInsertPoint(block_cont);
+
+    llvm::PHINode* phi = irb_.CreatePHI(irb_.GetJObjectTy(), 2);
+
+    phi->addIncoming(type_object_addr, block_original);
+    phi->addIncoming(loaded_type_object_addr, block_after_load_class);
+
+    return phi;
+  }
 }
 
 llvm::Value* DexLang::EmitLoadArrayLength(llvm::Value* array) {
   // Load array length
   return EmitInvokeIntrinsicNoThrow(IntrinsicHelper::ArrayLength, array);
+}
+
+llvm::Value* DexLang::EmitAllocNewArray(unsigned dex_pc, int32_t length,
+                                        uint32_t type_idx,
+                                        bool is_filled_new_array) {
+  bool skip_access_check = compiler_.CanAccessTypeWithoutChecks(method_idx_,
+                                                                dex_cache_,
+                                                                *dex_file_,
+                                                                type_idx);
+
+  llvm::Value* array_length_value;
+  IntrinsicHelper::IntrinsicId intrinsic;
+
+  // Select intrinsic and load the array length
+  if (is_filled_new_array) {
+    intrinsic =
+        skip_access_check ? IntrinsicHelper::CheckAndAllocArray :
+                            IntrinsicHelper::CheckAndAllocArrayWithAccessCheck;
+    array_length_value = irb_.getInt32(length);
+  } else {
+    intrinsic =
+        skip_access_check ? IntrinsicHelper::AllocArray :
+                            IntrinsicHelper::AllocArrayWithAccessCheck;
+    array_length_value = EmitLoadDalvikReg(length, kInt, kAccurate);
+  }
+
+  llvm::Constant* type_index_value = irb_.getInt32(type_idx);
+
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* thread_object_addr = EmitGetCurrentThread();
+
+  llvm::Value* array_addr = EmitInvokeIntrinsic4(dex_pc, intrinsic,
+                                                 type_index_value,
+                                                 method_object_addr,
+                                                 array_length_value,
+                                                 thread_object_addr);
+
+  return array_addr;
+}
+
+llvm::Value* DexLang::EmitCompareResultSelection(llvm::Value* cmp_eq,
+                                                 llvm::Value* cmp_lt) {
+
+  llvm::Constant* zero = irb_.GetJInt(0);
+  llvm::Constant* pos1 = irb_.GetJInt(1);
+  llvm::Constant* neg1 = irb_.GetJInt(-1);
+
+  llvm::Value* result_lt = irb_.CreateSelect(cmp_lt, neg1, pos1);
+  llvm::Value* result_eq = irb_.CreateSelect(cmp_eq, zero, result_lt);
+
+  return result_eq;
 }
 
 llvm::Value*
@@ -896,8 +914,8 @@ DexLang::EmitLoadStaticStorage(unsigned dex_pc, unsigned type_idx) {
 
   // Load static storage from dex cache
   llvm::Value* storage_object_addr =
-      EmitInvokeIntrinsic(dex_pc, IntrinsicHelper::LoadClassSSBFromDexCache,
-                          type_idx_value);
+      EmitInvokeIntrinsicNoThrow(IntrinsicHelper::LoadClassSSBFromDexCache,
+                                 type_idx_value);
 
   llvm::BasicBlock* block_original = irb_.GetInsertBlock();
 
@@ -1002,6 +1020,38 @@ llvm::Value* DexLang::EmitIntArithmResultComputation(unsigned dex_pc,
   return NULL;
 }
 
+llvm::Value*
+DexLang::EmitIntShiftArithmResultComputation(uint32_t dex_pc,
+                                             llvm::Value* lhs,
+                                             llvm::Value* rhs,
+                                             IntShiftArithmKind arithm,
+                                             JType op_jty) {
+  DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
+
+  if (op_jty == kInt) {
+    rhs = irb_.CreateAnd(rhs, 0x1f);
+  } else {
+    llvm::Value* masked_rhs = irb_.CreateAnd(rhs, 0x3f);
+    rhs = irb_.CreateZExt(masked_rhs, irb_.GetJLongTy());
+  }
+
+  switch (arithm) {
+    case kIntArithm_Shl: {
+      return irb_.CreateShl(lhs, rhs);
+    }
+    case kIntArithm_Shr: {
+      return irb_.CreateAShr(lhs, rhs);
+    }
+    case kIntArithm_UShr: {
+      return irb_.CreateLShr(lhs, rhs);
+    }
+    default: {
+      LOG(FATAL) << "Unknown integer shift arithmetic kind: " << arithm;
+      return NULL;
+    }
+  }
+}
+
 llvm::Value* DexLang::EmitIntDivRemResultComputation(unsigned dex_pc,
                                                      llvm::Value* dividend,
                                                      llvm::Value* divisor,
@@ -1035,7 +1085,7 @@ llvm::Value* DexLang::EmitIntDivRemResultComputation(unsigned dex_pc,
     }
   }
 
-  return EmitInvokeIntrinsic2(dex_pc, arithm_intrinsic, dividend, divisor);
+  return EmitInvokeIntrinsic2NoThrow(arithm_intrinsic, dividend, divisor);
 }
 
 //----------------------------------------------------------------------------
@@ -1069,17 +1119,8 @@ void DexLang::EmitInsn_MoveResult(unsigned dex_pc, const Instruction* insn,
                                   JType jty) {
   DecodedInstruction dec_insn(insn);
 
-  CHECK(retval_ != NULL) << "move-result must immediately after an invoke-kind "
-                            "instruction";
-  // Check the type
-  CHECK_EQ(irb_.GetJType(jty, kReg), irb_.GetJType(retval_jty_, kReg))
-      << "Mismatch type between the value from the most recent invoke-kind "
-         "instruction (" << retval_jty_ << ") and the kind of move-result "
-         "used! (" << jty << ")";
-
-  EmitStoreDalvikReg(dec_insn.vA, retval_jty_, kReg, retval_);
-
-  retval_ = NULL;
+  llvm::Value* src_value = EmitLoadDalvikRetValReg(jty, kReg);
+  EmitStoreDalvikReg(dec_insn.vA, jty, kReg, src_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
   return;
@@ -1094,6 +1135,18 @@ void DexLang::EmitInsn_MoveException(unsigned dex_pc, const Instruction* insn) {
   EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, exception_object_addr);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_ThrowException(unsigned dex_pc,
+                                      const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* exception_addr =
+      EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
+
+  EmitInvokeIntrinsic(dex_pc, IntrinsicHelper::ThrowException, exception_addr);
+
   return;
 }
 
@@ -1192,18 +1245,230 @@ void DexLang::EmitInsn_LoadConstantString(unsigned dex_pc,
 
   uint32_t string_idx = dec_insn.vB;
   llvm::Value* string_idx_value = irb_.getInt32(string_idx);
-  IntrinsicHelper::IntrinsicId intrinsic = IntrinsicHelper::UnknownId;
-
-  if (compiler_.CanAssumeStringIsPresentInDexCache(dex_cache_, string_idx)) {
-    intrinsic = IntrinsicHelper::ConstStringFast;
-  } else {
-    intrinsic = IntrinsicHelper::ConstString;
-  }
 
   llvm::Value* string_addr =
-      EmitInvokeIntrinsic(dex_pc, intrinsic, string_idx_value);
+      EmitInvokeIntrinsicNoThrow(IntrinsicHelper::LoadStringFromDexCache,
+                                 string_idx_value);
+
+  if (!compiler_.CanAssumeStringIsPresentInDexCache(dex_cache_, string_idx)) {
+    llvm::BasicBlock* block_str_exist =
+        CreateBasicBlockWithDexPC(dex_pc, "str_exist");
+
+    llvm::BasicBlock* block_str_resolve =
+        CreateBasicBlockWithDexPC(dex_pc, "str_resolve");
+
+    // Test: Is the string resolved and in the dex cache?
+    llvm::Value* equal_null = irb_.CreateICmpEQ(string_addr, irb_.GetJNull());
+
+    irb_.CreateCondBr(equal_null, block_str_resolve, block_str_exist);
+
+    // String is resolved, go to next basic block.
+    irb_.SetInsertPoint(block_str_exist);
+    EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, string_addr);
+    irb_.CreateBr(GetNextBasicBlock(dex_pc));
+
+    // String is not resolved yet, resolve it now.
+    irb_.SetInsertPoint(block_str_resolve);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    string_addr = EmitInvokeIntrinsic2(dex_pc, IntrinsicHelper::ResolveString,
+                                       method_object_addr, string_idx_value);
+  }
 
   EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, string_addr);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_LoadConstantClass(unsigned dex_pc,
+                                         const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vB);
+  EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, type_object_addr);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_MonitorEnter(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* object_addr =
+      EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
+
+  EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  llvm::Value* thread_object_addr = EmitGetCurrentThread();
+
+  EmitInvokeIntrinsic2NoThrow(IntrinsicHelper::LockObject,
+                              object_addr, thread_object_addr);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_MonitorExit(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* object_addr =
+      EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
+
+  EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  llvm::Value* thread_object_addr = EmitGetCurrentThread();
+
+  EmitInvokeIntrinsic2(dex_pc, IntrinsicHelper::UnlockObject,
+                       object_addr, thread_object_addr);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_CheckCast(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::BasicBlock* block_test_class =
+      CreateBasicBlockWithDexPC(dex_pc, "test_class");
+
+  llvm::BasicBlock* block_test_sub_class =
+      CreateBasicBlockWithDexPC(dex_pc, "test_sub_class");
+
+  llvm::Value* object_addr =
+      EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
+
+  // Test: Is the reference equal to null?  Act as no-op when it is null.
+  llvm::Value* equal_null = irb_.CreateICmpEQ(object_addr, irb_.GetJNull());
+
+  irb_.CreateCondBr(equal_null,
+                    GetNextBasicBlock(dex_pc),
+                    block_test_class);
+
+  // Test: Is the object instantiated from the given class?
+  irb_.SetInsertPoint(block_test_class);
+  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vB);
+  DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
+
+  llvm::PointerType* jobject_ptr_ty = irb_.GetJObjectTy();
+
+  llvm::Value* object_type_field_addr =
+      irb_.CreateBitCast(object_addr, jobject_ptr_ty->getPointerTo());
+
+  llvm::Value* object_type_object_addr =
+      irb_.CreateLoad(object_type_field_addr);
+
+  llvm::Value* equal_class =
+      irb_.CreateICmpEQ(type_object_addr, object_type_object_addr);
+
+  irb_.CreateCondBr(equal_class,
+                    GetNextBasicBlock(dex_pc),
+                    block_test_sub_class);
+
+  // Test: Is the object instantiated from the subclass of the given class?
+  irb_.SetInsertPoint(block_test_sub_class);
+
+  EmitInvokeIntrinsic2(dex_pc, IntrinsicHelper::CheckCast,
+                       type_object_addr, object_type_object_addr);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_InstanceOf(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Constant* zero = irb_.GetJInt(0);
+  llvm::Constant* one = irb_.GetJInt(1);
+
+  llvm::BasicBlock* block_nullp = CreateBasicBlockWithDexPC(dex_pc, "nullp");
+
+  llvm::BasicBlock* block_test_class =
+      CreateBasicBlockWithDexPC(dex_pc, "test_class");
+
+  llvm::BasicBlock* block_class_equals =
+      CreateBasicBlockWithDexPC(dex_pc, "class_eq");
+
+  llvm::BasicBlock* block_test_sub_class =
+      CreateBasicBlockWithDexPC(dex_pc, "test_sub_class");
+
+  llvm::Value* object_addr =
+      EmitLoadDalvikReg(dec_insn.vB, kObject, kAccurate);
+
+  // Overview of the following code :
+  // We check for null, if so, then false, otherwise check for class == . If so
+  // then true, otherwise do callout slowpath.
+  //
+  // Test: Is the reference equal to null?  Set 0 when it is null.
+  llvm::Value* equal_null = irb_.CreateICmpEQ(object_addr, irb_.GetJNull());
+
+  irb_.CreateCondBr(equal_null, block_nullp, block_test_class);
+
+  irb_.SetInsertPoint(block_nullp);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, zero);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+
+  // Test: Is the object instantiated from the given class?
+  irb_.SetInsertPoint(block_test_class);
+  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, dec_insn.vC);
+  DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
+
+  llvm::PointerType* jobject_ptr_ty = irb_.GetJObjectTy();
+
+  llvm::Value* object_type_field_addr =
+      irb_.CreateBitCast(object_addr, jobject_ptr_ty->getPointerTo());
+
+  llvm::Value* object_type_object_addr =
+      irb_.CreateLoad(object_type_field_addr);
+
+  llvm::Value* equal_class =
+      irb_.CreateICmpEQ(type_object_addr, object_type_object_addr);
+
+  irb_.CreateCondBr(equal_class, block_class_equals, block_test_sub_class);
+
+  irb_.SetInsertPoint(block_class_equals);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, one);
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+
+  // Test: Is the object instantiated from the subclass of the given class?
+  irb_.SetInsertPoint(block_test_sub_class);
+
+  llvm::Value* result =
+      EmitInvokeIntrinsic2NoThrow(IntrinsicHelper::IsAssignable,
+                                  type_object_addr, object_type_object_addr);
+
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_NewInstance(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  IntrinsicHelper::IntrinsicId alloc_intrinsic;
+  if (compiler_.CanAccessInstantiableTypeWithoutChecks(method_idx_,
+                                                       dex_cache_,
+                                                       *dex_file_,
+                                                       dec_insn.vB)) {
+    alloc_intrinsic = IntrinsicHelper::AllocObject;
+  } else {
+    alloc_intrinsic = IntrinsicHelper::AllocObjectWithAccessCheck;
+  }
+
+  llvm::Constant* type_index_value = irb_.getInt32(dec_insn.vB);
+
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* thread_object_addr = EmitGetCurrentThread();
+
+  llvm::Value* object_addr = EmitInvokeIntrinsic3(dex_pc, alloc_intrinsic,
+                                                  type_index_value,
+                                                  method_object_addr,
+                                                  thread_object_addr);
+
+  EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, object_addr);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
   return;
@@ -1239,15 +1504,100 @@ void DexLang::EmitInsn_ArrayLength(unsigned dex_pc, const Instruction* insn) {
 void DexLang::EmitInsn_NewArray(unsigned dex_pc, const Instruction* insn) {
   DecodedInstruction dec_insn(insn);
 
-  // Prepare argument to intrinsic
-  llvm::Value* array_length = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
-  llvm::Value* type_idx = irb_.getInt32(dec_insn.vC);
-
-  llvm::Value* array_addr =
-      EmitInvokeIntrinsic2(dex_pc, IntrinsicHelper::NewArray,
-                           array_length, type_idx);
+  llvm::Value* array_addr = EmitAllocNewArray(dex_pc, dec_insn.vB, dec_insn.vC,
+                                              /* is_filled_new_array */false);
 
   EmitStoreDalvikReg(dec_insn.vA, kObject, kAccurate, array_addr);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_FilledNewArray(unsigned dex_pc, const Instruction* insn,
+                                      bool is_range) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* object_addr = EmitAllocNewArray(dex_pc, dec_insn.vA, dec_insn.vB,
+                                               /* is_filled_new_array */true);
+
+  if (dec_insn.vA > 0) {
+    // Check for the element type
+    uint32_t type_desc_len = 0;
+    const char* type_desc =
+        dex_file_->StringByTypeIdx(dec_insn.vB, &type_desc_len);
+
+    DCHECK_GE(type_desc_len, 2u); // should be guaranteed by verifier
+    DCHECK_EQ(type_desc[0], '['); // should be guaranteed by verifier
+
+    // NOTE: Currently filled-new-array only supports 'L', '[', and 'I' as the
+    // element, therefore the element is either a primitive int or a reference
+    JType element_jty = ((type_desc[1] == 'I') ? kInt : kObject);
+
+    std::vector<llvm::Value*> args;
+    // Destination array object
+    args.push_back(object_addr);
+    // Type of the array element
+    //
+    // FIXME: Actually, dec_insn.vB (type_idx of the element) should be here to
+    // the intrinsic instead of element_jty. However, since GBCExpander cannot
+    // know which dex_file this filled-new-array instruction associated with, it
+    // is unable to know the exact type of the type_idx is. In the near future,
+    // metadata will be used to record the type information (i.e., type_desc)
+    args.push_back(irb_.getInt32(element_jty));
+
+    for (uint32_t i = 0; i < dec_insn.vA; ++i) {
+      int reg_index;
+      if (is_range) {
+        reg_index = dec_insn.vC + i;
+      } else {
+        reg_index = dec_insn.arg[i];
+      }
+
+      llvm::Value* reg_value =
+          EmitLoadDalvikReg(reg_index, element_jty, kAccurate);
+
+      args.push_back(reg_value);
+    }
+
+    EmitInvokeIntrinsicNoThrow(IntrinsicHelper::FilledNewArray, args);
+  }
+
+  EmitStoreDalvikRetValReg(kObject, kAccurate, object_addr);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_FillArrayData(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  // Read the payload
+  int32_t payload_offset = static_cast<int32_t>(dex_pc) +
+                           static_cast<int32_t>(dec_insn.vB);
+
+  const Instruction::ArrayDataPayload* payload =
+    reinterpret_cast<const Instruction::ArrayDataPayload*>(
+        code_item_->insns_ + payload_offset);
+
+  // Load array object
+  llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
+
+  if (payload->element_count == 0) {
+    // When the number of the elements in the payload is zero, we don't have
+    // to copy any numbers.  However, we should check whether the array object
+    // address is equal to null or not.
+    EmitGuard_NullPointerException(dex_pc, array_addr);
+  } else {
+    // To save the code size, we are going to call the runtime function to
+    // copy the content from DexFile.
+
+    // NOTE: We will check for the NullPointerException in the runtime.
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    EmitInvokeIntrinsic4(dex_pc, IntrinsicHelper::FillArrayData,
+                         method_object_addr, irb_.getInt32(dex_pc), array_addr,
+                         irb_.getInt32(payload_offset));
+  }
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
   return;
@@ -1258,20 +1608,21 @@ void DexLang::EmitInsn_UnaryConditionalBranch(unsigned dex_pc,
                                               CondBranchKind cond) {
   DecodedInstruction dec_insn(insn);
 
-  int8_t src_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vA);
+  compiler_llvm::RegCategory src_reg_cat =
+      GetInferredRegCategory(dex_pc, dec_insn.vA);
 
-  DCHECK_NE(kRegUnknown, src_reg_cat);
-  DCHECK_NE(kRegCat2, src_reg_cat);
+  DCHECK_NE(compiler_llvm::kRegUnknown, src_reg_cat);
+  DCHECK_NE(compiler_llvm::kRegCat2, src_reg_cat);
 
   int32_t branch_offset = dec_insn.vB;
 
   llvm::Value* src1_value;
   llvm::Value* src2_value;
 
-  if (src_reg_cat == kRegZero) {
+  if (src_reg_cat == compiler_llvm::kRegZero) {
     src1_value = irb_.getInt32(0);
     src2_value = irb_.getInt32(0);
-  } else if (src_reg_cat == kRegCat1nr) {
+  } else if (src_reg_cat == compiler_llvm::kRegCat1nr) {
     src1_value = EmitLoadDalvikReg(dec_insn.vA, kInt, kReg);
     src2_value = irb_.getInt32(0);
   } else {
@@ -1341,12 +1692,98 @@ void DexLang::EmitInsn_BinaryConditionalBranch(unsigned dex_pc,
     }
   }
 
-  llvm::Value* cond_value =
-    EmitConditionResult(src1_value, src2_value, cond);
+  llvm::Value* cond_value = EmitConditionResult(src1_value, src2_value, cond);
 
   irb_.CreateCondBr(cond_value,
                     GetBasicBlock(dex_pc + branch_offset),
                     GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_PackedSwitch(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  int32_t payload_offset = static_cast<int32_t>(dex_pc) +
+                           static_cast<int32_t>(dec_insn.vB);
+
+  const Instruction::PackedSwitchPayload* payload =
+    reinterpret_cast<const Instruction::PackedSwitchPayload*>(
+        code_item_->insns_ + payload_offset);
+
+  llvm::Value* value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
+
+  llvm::SwitchInst* sw =
+    irb_.CreateSwitch(value, GetNextBasicBlock(dex_pc), payload->case_count);
+
+  for (uint16_t i = 0; i < payload->case_count; ++i) {
+    sw->addCase(irb_.getInt32(payload->first_key + i),
+                GetBasicBlock(dex_pc + payload->targets[i]));
+  }
+  return;
+}
+
+void DexLang::EmitInsn_SparseSwitch(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  int32_t payload_offset = static_cast<int32_t>(dex_pc) +
+                           static_cast<int32_t>(dec_insn.vB);
+
+  const Instruction::SparseSwitchPayload* payload =
+    reinterpret_cast<const Instruction::SparseSwitchPayload*>(
+        code_item_->insns_ + payload_offset);
+
+  const int32_t* keys = payload->GetKeys();
+  const int32_t* targets = payload->GetTargets();
+
+  llvm::Value* value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
+
+  llvm::SwitchInst* sw =
+    irb_.CreateSwitch(value, GetNextBasicBlock(dex_pc), payload->case_count);
+
+  for (size_t i = 0; i < payload->case_count; ++i) {
+    sw->addCase(irb_.getInt32(keys[i]), GetBasicBlock(dex_pc + targets[i]));
+  }
+  return;
+}
+
+void DexLang::EmitInsn_FPCompare(unsigned dex_pc, const Instruction* insn,
+                                 JType fp_jty, bool gt_bias) {
+  DecodedInstruction dec_insn(insn);
+
+  DCHECK(fp_jty == kFloat || fp_jty == kDouble) << "JType: " << fp_jty;
+
+  llvm::Value* src1_value = EmitLoadDalvikReg(dec_insn.vB, fp_jty, kAccurate);
+  llvm::Value* src2_value = EmitLoadDalvikReg(dec_insn.vC, fp_jty, kAccurate);
+
+  llvm::Value* cmp_eq = irb_.CreateFCmpOEQ(src1_value, src2_value);
+  llvm::Value* cmp_lt;
+
+  if (gt_bias) {
+    cmp_lt = irb_.CreateFCmpOLT(src1_value, src2_value);
+  } else {
+    cmp_lt = irb_.CreateFCmpULT(src1_value, src2_value);
+  }
+
+  llvm::Value* result = EmitCompareResultSelection(cmp_eq, cmp_lt);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_LongCompare(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src1_value = EmitLoadDalvikReg(dec_insn.vB, kLong, kAccurate);
+  llvm::Value* src2_value = EmitLoadDalvikReg(dec_insn.vC, kLong, kAccurate);
+
+  llvm::Value* cmp_eq = irb_.CreateICmpEQ(src1_value, src2_value);
+  llvm::Value* cmp_lt = irb_.CreateICmpSLT(src1_value, src2_value);
+
+  llvm::Value* result = EmitCompareResultSelection(cmp_eq, cmp_lt);
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
   return;
 }
 
@@ -1398,10 +1835,9 @@ void DexLang::EmitInsn_AGet(unsigned dex_pc, const Instruction* insn,
 
   EmitGuard_ArrayException(dex_pc, array_addr, index_value);
 
-  llvm::Value* array_element_value = EmitInvokeIntrinsic2(dex_pc,
-                                                          aget_intrinsic,
-                                                          array_addr,
-                                                          index_value);
+  llvm::Value* array_element_value = EmitInvokeIntrinsic2NoThrow(aget_intrinsic,
+                                                                 array_addr,
+                                                                 index_value);
 
   EmitStoreDalvikReg(dec_insn.vA, elem_jty, kArray, array_element_value);
 
@@ -1451,24 +1887,218 @@ void DexLang::EmitInsn_APut(unsigned dex_pc, const Instruction* insn,
     }
   }
 
-  // Construct argument list passed to the intrinsic
-  llvm::Value* elem_addr = EmitLoadDalvikReg(dec_insn.vA, elem_jty, kAccurate);
   llvm::Value* array_addr = EmitLoadDalvikReg(dec_insn.vB, kObject, kAccurate);
   llvm::Value* index_value = EmitLoadDalvikReg(dec_insn.vC, kInt, kAccurate);
 
   EmitGuard_ArrayException(dex_pc, array_addr, index_value);
 
+  llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA, elem_jty, kArray);
+
   // Check the type if an object is putting
   if (elem_jty == kObject) {
     EmitInvokeIntrinsic2(dex_pc, IntrinsicHelper::CheckPutArrayElement,
-                         elem_addr, array_addr);
+                         new_value, array_addr);
+
+    EmitMarkGCCard(new_value, array_addr);
   }
 
-  EmitInvokeIntrinsic3(dex_pc, aput_intrinsic,
-                       elem_addr, array_addr, index_value);
+  EmitInvokeIntrinsic3NoThrow(aput_intrinsic, new_value, array_addr, index_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
 
+void DexLang::EmitInsn_IGet(unsigned dex_pc, const Instruction* insn,
+                            JType field_jty) {
+  DecodedInstruction dec_insn(insn);
+
+  uint32_t reg_idx = dec_insn.vB;
+  uint32_t field_idx = dec_insn.vC;
+
+  llvm::Value* object_addr = EmitLoadDalvikReg(reg_idx, kObject, kAccurate);
+
+  EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  int field_offset;
+  bool is_volatile;
+  bool is_fast_path = compiler_.ComputeInstanceFieldInfo(field_idx, &cunit_,
+                                                         field_offset,
+                                                         is_volatile,
+                                                         /* is_put */false);
+
+  // Select corresponding intrinsic accroding to the field type and is_fast_path
+  IntrinsicHelper::IntrinsicId iget_intrinsic = IntrinsicHelper::UnknownId;
+
+  switch (field_jty) {
+    case kInt: {
+      iget_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldGetFast :
+                           IntrinsicHelper::InstanceFieldGet;
+      break;
+    }
+    case kLong: {
+      iget_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldGetWideFast :
+                           IntrinsicHelper::InstanceFieldGetWide;
+      break;
+    }
+    case kObject: {
+      iget_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldGetObjectFast :
+                           IntrinsicHelper::InstanceFieldGetObject;
+      break;
+    }
+    case kBoolean: {
+      iget_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldGetBooleanFast :
+                           IntrinsicHelper::InstanceFieldGetBoolean;
+      break;
+    }
+    case kByte: {
+      iget_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldGetByteFast :
+                           IntrinsicHelper::InstanceFieldGetByte;
+      break;
+    }
+    case kChar: {
+      iget_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldGetCharFast :
+                           IntrinsicHelper::InstanceFieldGetChar;
+      break;
+    }
+    case kShort: {
+      iget_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldGetShortFast :
+                           IntrinsicHelper::InstanceFieldGetShort;
+      break;
+    }
+    default: {
+      LOG(FATAL) << "Unexpected element type got in iget instruction!";
+      return;
+    }
+  }
+
+  llvm::Value* instance_field_value;
+
+  if (!is_fast_path) {
+    llvm::Constant* field_idx_value = irb_.getInt32(field_idx);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    instance_field_value = EmitInvokeIntrinsic3(dex_pc, iget_intrinsic,
+                                                field_idx_value,
+                                                method_object_addr,
+                                                object_addr);
+  } else {
+    DCHECK_GE(field_offset, 0);
+
+    instance_field_value =
+        EmitInvokeIntrinsic3NoThrow(iget_intrinsic,
+                                    irb_.getInt32(field_offset),
+                                    irb_.getInt1(is_volatile),
+                                    object_addr);
+  }
+
+  EmitStoreDalvikReg(dec_insn.vA, field_jty, kField, instance_field_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_IPut(unsigned dex_pc, const Instruction* insn,
+                            JType field_jty) {
+  DecodedInstruction dec_insn(insn);
+
+  uint32_t reg_idx = dec_insn.vB;
+  uint32_t field_idx = dec_insn.vC;
+
+  llvm::Value* object_addr = EmitLoadDalvikReg(reg_idx, kObject, kAccurate);
+
+  EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  llvm::Value* new_value = EmitLoadDalvikReg(dec_insn.vA, field_jty, kField);
+
+  int field_offset;
+  bool is_volatile;
+  bool is_fast_path = compiler_.ComputeInstanceFieldInfo(field_idx, &cunit_,
+                                                         field_offset,
+                                                         is_volatile,
+                                                         /* is_iput */true);
+
+  // Select corresponding intrinsic accroding to the field type and is_fast_path
+  IntrinsicHelper::IntrinsicId iput_intrinsic = IntrinsicHelper::UnknownId;
+
+  switch (field_jty) {
+    case kInt: {
+      iput_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldPutFast :
+                           IntrinsicHelper::InstanceFieldPut;
+      break;
+    }
+    case kLong: {
+      iput_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldPutWideFast :
+                           IntrinsicHelper::InstanceFieldPutWide;
+      break;
+    }
+    case kObject: {
+      iput_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldPutObjectFast :
+                           IntrinsicHelper::InstanceFieldPutObject;
+      break;
+    }
+    case kBoolean: {
+      iput_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldPutBooleanFast :
+                           IntrinsicHelper::InstanceFieldPutBoolean;
+      break;
+    }
+    case kByte: {
+      iput_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldPutByteFast :
+                           IntrinsicHelper::InstanceFieldPutByte;
+      break;
+    }
+    case kChar: {
+      iput_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldPutCharFast :
+                           IntrinsicHelper::InstanceFieldPutChar;
+      break;
+    }
+    case kShort: {
+      iput_intrinsic =
+          (is_fast_path) ? IntrinsicHelper::InstanceFieldPutShortFast :
+                           IntrinsicHelper::InstanceFieldPutShort;
+      break;
+    }
+    default: {
+      LOG(FATAL) << "Unexpected element type got in iput instruction!";
+      return;
+    }
+  }
+
+  if (!is_fast_path) {
+    llvm::Value* field_idx_value = irb_.getInt32(field_idx);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    EmitInvokeIntrinsic4(dex_pc, iput_intrinsic, field_idx_value,
+                         method_object_addr, object_addr, new_value);
+
+  } else {
+    DCHECK_GE(field_offset, 0);
+
+    EmitInvokeIntrinsic4NoThrow(iput_intrinsic, irb_.getInt32(field_offset),
+                                irb_.getInt1(is_volatile), object_addr,
+                                new_value);
+
+    // If put an object, mark the GC card table
+    if (field_jty == kObject) {
+      EmitMarkGCCard(new_value, object_addr);
+    }
+  }
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
   return;
 }
 
@@ -1560,8 +2190,8 @@ void DexLang::EmitInsn_SGet(unsigned dex_pc, const Instruction* insn,
       llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
       static_storage_addr =
-        EmitInvokeIntrinsic(dex_pc, IntrinsicHelper::LoadDeclaringClassSSB,
-                            method_object_addr);
+          EmitInvokeIntrinsicNoThrow(IntrinsicHelper::LoadDeclaringClassSSB,
+                                     method_object_addr);
     } else {
       // Medium path, static storage base in a different class which
       // requires checks that the other class is initialized
@@ -1570,9 +2200,10 @@ void DexLang::EmitInsn_SGet(unsigned dex_pc, const Instruction* insn,
     }
 
     static_field_value =
-        EmitInvokeIntrinsic3(dex_pc, sget_intrinsic,
-                             static_storage_addr, irb_.getInt32(field_offset),
-                             irb_.getInt1(is_volatile));
+        EmitInvokeIntrinsic3NoThrow(sget_intrinsic,
+                                    static_storage_addr,
+                                    irb_.getInt32(field_offset),
+                                    irb_.getInt1(is_volatile));
   }
 
   EmitStoreDalvikReg(dec_insn.vA, field_jty, kField, static_field_value);
@@ -1668,8 +2299,8 @@ void DexLang::EmitInsn_SPut(unsigned dex_pc, const Instruction* insn,
       llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
 
       static_storage_addr =
-        EmitInvokeIntrinsic(dex_pc, IntrinsicHelper::LoadDeclaringClassSSB,
-                            method_object_addr);
+        EmitInvokeIntrinsicNoThrow(IntrinsicHelper::LoadDeclaringClassSSB,
+                                   method_object_addr);
     } else {
       // Medium path, static storage base in a different class which
       // requires checks that the other class is initialized
@@ -1677,9 +2308,14 @@ void DexLang::EmitInsn_SPut(unsigned dex_pc, const Instruction* insn,
       static_storage_addr = EmitLoadStaticStorage(dex_pc, ssb_index);
     }
 
-    EmitInvokeIntrinsic4(dex_pc, sput_intrinsic,
-                         static_storage_addr, irb_.getInt32(field_offset),
-                         irb_.getInt1(is_volatile), new_value);
+    EmitInvokeIntrinsic4NoThrow(sput_intrinsic, static_storage_addr,
+                                irb_.getInt32(field_offset),
+                                irb_.getInt1(is_volatile), new_value);
+
+    // If put an object, mark the GC card table
+    if (field_jty == kObject) {
+      EmitMarkGCCard(new_value, static_storage_addr);
+    }
   }
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
@@ -1725,13 +2361,40 @@ void DexLang::EmitInsn_Invoke(unsigned dex_pc, const Instruction* insn,
 
     llvm::Value* thread_object_addr = EmitGetCurrentThread();
 
+    // Select intrinsic according to the invoke_type
+    IntrinsicHelper::IntrinsicId invoke_intr = IntrinsicHelper::UnknownId;
+    switch (invoke_type) {
+      case kStatic: {
+        invoke_intr = IntrinsicHelper::FindStaticMethodWithAccessCheck;
+        break;
+      }
+      case kDirect: {
+        invoke_intr = IntrinsicHelper::FindDirectMethodWithAccessCheck;
+        break;
+      }
+      case kVirtual: {
+        invoke_intr = IntrinsicHelper::FindVirtualMethodWithAccessCheck;
+        break;
+      }
+      case kSuper: {
+        invoke_intr = IntrinsicHelper::FindSuperMethodWithAccessCheck;
+        break;
+      }
+      case kInterface: {
+        invoke_intr = IntrinsicHelper::FindInterfaceMethodWithAccessCheck;
+        break;
+      }
+      default: {
+        LOG(FATAL) << "Unknown type of invoke: " << invoke_type;
+      }
+    }
+
     callee_method_object_addr =
-        EmitInvokeIntrinsic5(dex_pc, IntrinsicHelper::GetCalleeMethodObjAddr,
-                             this_addr,
+        EmitInvokeIntrinsic4(dex_pc, invoke_intr,
                              callee_method_idx_value,
+                             this_addr,
                              caller_method_object_addr,
-                             thread_object_addr,
-                             irb_.getInt32(static_cast<unsigned>(invoke_type)));
+                             thread_object_addr);
   } else {
     switch (invoke_type) {
       case kStatic:
@@ -1743,18 +2406,16 @@ void DexLang::EmitInsn_Invoke(unsigned dex_pc, const Instruction* insn,
                                 irb_.GetJMethodTy());
         } else {
           callee_method_object_addr =
-              EmitInvokeIntrinsic(dex_pc,
-                                  IntrinsicHelper::GetSDCalleeMethodObjAddrFast,
-                                  callee_method_idx_value);
+              EmitInvokeIntrinsicNoThrow(IntrinsicHelper::GetSDCalleeMethodObjAddrFast,
+                                         callee_method_idx_value);
         }
         break;
       }
       case kVirtual: {
         DCHECK(vtable_idx != -1);
         callee_method_object_addr =
-            EmitInvokeIntrinsic2(dex_pc,
-                                 IntrinsicHelper::GetVirtualCalleeMethodObjAddrFast,
-                                 irb_.getInt32(vtable_idx), this_addr);
+            EmitInvokeIntrinsic2NoThrow(IntrinsicHelper::GetVirtualCalleeMethodObjAddrFast,
+                                        irb_.getInt32(vtable_idx), this_addr);
         break;
       }
       case kSuper: {
@@ -1770,8 +2431,8 @@ void DexLang::EmitInsn_Invoke(unsigned dex_pc, const Instruction* insn,
         callee_method_object_addr =
             EmitInvokeIntrinsic4(dex_pc,
                                  IntrinsicHelper::GetInterfaceCalleeMethodObjAddrFast,
-                                 this_addr,
                                  callee_method_idx_value,
+                                 this_addr,
                                  caller_method_object_addr,
                                  thread_object_addr);
         break;
@@ -1792,27 +2453,50 @@ void DexLang::EmitInsn_Invoke(unsigned dex_pc, const Instruction* insn,
   // Select the corresponding intrinsic according to the return type
   IntrinsicHelper::IntrinsicId invoke_intrinsic = IntrinsicHelper::UnknownId;
 
-  if (callee_ret_jty == kVoid) {
-    invoke_intrinsic = IntrinsicHelper::InvokeRetVoid;
-  } else {
-    switch (GetRegCategoryFromJType(callee_ret_jty)) {
-      case kRegCat1nr: {
-        invoke_intrinsic = IntrinsicHelper::InvokeRetCat1;
-        break;
-      }
-      case kRegCat2: {
-        invoke_intrinsic = IntrinsicHelper::InvokeRetCat2;
-        break;
-      }
-      case kRegObject: {
-        invoke_intrinsic = IntrinsicHelper::InvokeRetObject;
-        break;
-      }
-      default: {
-        LOG(FATAL) << "Unknown register category for type: "
-                   << callee_ret_jty;
-        break;
-      }
+  switch (callee_ret_jty) {
+    case kVoid: {
+      invoke_intrinsic = IntrinsicHelper::InvokeRetVoid;
+      break;
+    }
+    case kBoolean: {
+      invoke_intrinsic = IntrinsicHelper::InvokeRetBoolean;
+      break;
+    }
+    case kByte: {
+      invoke_intrinsic = IntrinsicHelper::InvokeRetByte;
+      break;
+    }
+    case kChar: {
+      invoke_intrinsic = IntrinsicHelper::InvokeRetChar;
+      break;
+    }
+    case kShort: {
+      invoke_intrinsic = IntrinsicHelper::InvokeRetShort;
+      break;
+    }
+    case kInt: {
+      invoke_intrinsic = IntrinsicHelper::InvokeRetInt;
+      break;
+    }
+    case kLong: {
+      invoke_intrinsic = IntrinsicHelper::InvokeRetLong;
+      break;
+    }
+    case kFloat: {
+      invoke_intrinsic = IntrinsicHelper::InvokeRetFloat;
+      break;
+    }
+    case kDouble: {
+      invoke_intrinsic = IntrinsicHelper::InvokeRetDouble;
+      break;
+    }
+    case kObject: {
+      invoke_intrinsic = IntrinsicHelper::InvokeRetObject;
+      break;
+    }
+    default: {
+      LOG(FATAL) << "Unknown register category for type: " << callee_ret_jty;
+      break;
     }
   }
 
@@ -1833,8 +2517,8 @@ void DexLang::EmitInsn_Invoke(unsigned dex_pc, const Instruction* insn,
 
   // Load argument values according to the shorty
   for (uint32_t i = 1; i < callee_shorty_size; i++) {
-    unsigned reg_idx = (arg_fmt == kArgReg) ? (dec_insn.vC + arg_idx) :
-                                              (dec_insn.arg[arg_idx]);
+    unsigned reg_idx = (arg_fmt == kArgRange) ? (dec_insn.vC + arg_idx) :
+                                                (dec_insn.arg[arg_idx]);
     JType jty = GetJTypeFromShorty(callee_shorty[i]);
     args.push_back(EmitLoadDalvikReg(reg_idx, jty, kAccurate));
     arg_idx++;
@@ -1853,11 +2537,161 @@ void DexLang::EmitInsn_Invoke(unsigned dex_pc, const Instruction* insn,
 
   // Store the return value for the subsequent move-result
   if (callee_shorty[0] != 'V') {
-    retval_ = retval;
-    retval_jty_ = GetJTypeFromShorty(callee_shorty[0]);
-  } else {
-    retval_ = NULL;
+    EmitStoreDalvikRetValReg(callee_ret_jty, kAccurate, retval);
   }
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_Neg(unsigned dex_pc, const Instruction* insn,
+                           JType op_jty) {
+  DecodedInstruction dec_insn(insn);
+
+  DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, op_jty, kAccurate);
+  llvm::Value* result_value = irb_.CreateNeg(src_value);
+  EmitStoreDalvikReg(dec_insn.vA, op_jty, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_Not(unsigned dex_pc, const Instruction* insn,
+                           JType op_jty) {
+  DecodedInstruction dec_insn(insn);
+
+  DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, op_jty, kAccurate);
+  llvm::Value* result_value = irb_.CreateXor(src_value, 0xFFFFFFFFFFFFFFFFLL);
+
+  EmitStoreDalvikReg(dec_insn.vA, op_jty, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_SExt(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
+  llvm::Value* result_value = irb_.CreateSExt(src_value, irb_.GetJLongTy());
+  EmitStoreDalvikReg(dec_insn.vA, kLong, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_Trunc(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kLong, kAccurate);
+  llvm::Value* result_value = irb_.CreateTrunc(src_value, irb_.GetJIntTy());
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_TruncAndSExt(unsigned dex_pc, const Instruction* insn,
+                                    unsigned N) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
+
+  llvm::Value* trunc_value =
+    irb_.CreateTrunc(src_value, llvm::Type::getIntNTy(context_, N));
+
+  llvm::Value* result_value = irb_.CreateSExt(trunc_value, irb_.GetJIntTy());
+
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_TruncAndZExt(unsigned dex_pc, const Instruction* insn,
+                                    unsigned N) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
+
+  llvm::Value* trunc_value =
+    irb_.CreateTrunc(src_value, llvm::Type::getIntNTy(context_, N));
+
+  llvm::Value* result_value = irb_.CreateZExt(trunc_value, irb_.GetJIntTy());
+
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_FNeg(unsigned dex_pc, const Instruction* insn,
+                            JType op_jty) {
+  DecodedInstruction dec_insn(insn);
+
+  DCHECK(op_jty == kFloat || op_jty == kDouble) << op_jty;
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, op_jty, kAccurate);
+  llvm::Value* result_value = irb_.CreateFNeg(src_value);
+  EmitStoreDalvikReg(dec_insn.vA, op_jty, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_IntToFP(unsigned dex_pc, const Instruction* insn,
+                               JType src_jty, JType dest_jty) {
+  DecodedInstruction dec_insn(insn);
+
+  DCHECK(src_jty == kInt || src_jty == kLong) << src_jty;
+  DCHECK(dest_jty == kFloat || dest_jty == kDouble) << dest_jty;
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, src_jty, kAccurate);
+  llvm::Type* dest_type = irb_.GetJType(dest_jty, kAccurate);
+  llvm::Value* dest_value = irb_.CreateSIToFP(src_value, dest_type);
+  EmitStoreDalvikReg(dec_insn.vA, dest_jty, kAccurate, dest_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_FPToInt(unsigned dex_pc, const Instruction* insn,
+                               JType src_jty, JType dest_jty,
+                               IntrinsicHelper::IntrinsicId intr_id) {
+  DecodedInstruction dec_insn(insn);
+
+  DCHECK(src_jty == kFloat || src_jty == kDouble) << src_jty;
+  DCHECK(dest_jty == kInt || dest_jty == kLong) << dest_jty;
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, src_jty, kAccurate);
+  llvm::Value* dest_value = EmitInvokeIntrinsicNoThrow(intr_id, src_value);
+  EmitStoreDalvikReg(dec_insn.vA, dest_jty, kAccurate, dest_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_FExt(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kFloat, kAccurate);
+  llvm::Value* result_value = irb_.CreateFPExt(src_value, irb_.GetJDoubleTy());
+  EmitStoreDalvikReg(dec_insn.vA, kDouble, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_FTrunc(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kDouble, kAccurate);
+  llvm::Value* result_value = irb_.CreateFPTrunc(src_value, irb_.GetJFloatTy());
+  EmitStoreDalvikReg(dec_insn.vA, kFloat, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
   return;
@@ -1903,6 +2737,70 @@ void DexLang::EmitInsn_IntArithmImmediate(unsigned dex_pc,
   llvm::Value* result_value =
     EmitIntArithmResultComputation(dex_pc, src_value, imm_value, arithm, kInt);
 
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_IntShiftArithm(unsigned dex_pc, const Instruction* insn,
+                                      IntShiftArithmKind arithm, JType op_jty,
+                                      bool is_2addr) {
+  DecodedInstruction dec_insn(insn);
+
+  DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
+
+  llvm::Value* src1_value;
+  llvm::Value* src2_value;
+
+  // NOTE: The 2nd operand of the shift arithmetic instruction is
+  // 32-bit integer regardless of the 1st operand.
+  if (is_2addr) {
+    src1_value = EmitLoadDalvikReg(dec_insn.vA, op_jty, kAccurate);
+    src2_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
+  } else {
+    src1_value = EmitLoadDalvikReg(dec_insn.vB, op_jty, kAccurate);
+    src2_value = EmitLoadDalvikReg(dec_insn.vC, kInt, kAccurate);
+  }
+
+  llvm::Value* result_value = EmitIntShiftArithmResultComputation(dex_pc,
+                                                                  src1_value,
+                                                                  src2_value,
+                                                                  arithm,
+                                                                  op_jty);
+
+  EmitStoreDalvikReg(dec_insn.vA, op_jty, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_IntShiftArithmImmediate(unsigned dex_pc,
+                                               const Instruction* insn,
+                                               IntShiftArithmKind arithm) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
+
+  llvm::Value* imm_value = irb_.getInt32(dec_insn.vC);
+
+  llvm::Value* result_value = EmitIntShiftArithmResultComputation(dex_pc,
+                                                                  src_value,
+                                                                  imm_value,
+                                                                  arithm, kInt);
+
+  EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result_value);
+
+  irb_.CreateBr(GetNextBasicBlock(dex_pc));
+  return;
+}
+
+void DexLang::EmitInsn_RSubImmediate(unsigned dex_pc, const Instruction* insn) {
+  DecodedInstruction dec_insn(insn);
+
+  llvm::Value* src_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
+  llvm::Value* imm_value = irb_.getInt32(dec_insn.vC);
+  llvm::Value* result_value = irb_.CreateSub(imm_value, src_value);
   EmitStoreDalvikReg(dec_insn.vA, kInt, kAccurate, result_value);
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
@@ -2048,32 +2946,32 @@ bool DexLang::EmitInstruction(unsigned dex_pc, const Instruction* insn) {
       EmitInsn_LoadConstantString(ARGS);
       break;
     }
-    case Instruction::CONST_CLASS:
-      //EmitInsn_LoadConstantClass(ARGS);
+    case Instruction::CONST_CLASS: {
+      EmitInsn_LoadConstantClass(ARGS);
       break;
-
-    case Instruction::MONITOR_ENTER:
-      //EmitInsn_MonitorEnter(ARGS);
+    }
+    case Instruction::MONITOR_ENTER: {
+      EmitInsn_MonitorEnter(ARGS);
       break;
-
-    case Instruction::MONITOR_EXIT:
-      //EmitInsn_MonitorExit(ARGS);
+    }
+    case Instruction::MONITOR_EXIT: {
+      EmitInsn_MonitorExit(ARGS);
       break;
-
-    case Instruction::CHECK_CAST:
-      //EmitInsn_CheckCast(ARGS);
+    }
+    case Instruction::CHECK_CAST: {
+      EmitInsn_CheckCast(ARGS);
       break;
-
-    case Instruction::INSTANCE_OF:
-      //EmitInsn_InstanceOf(ARGS);
+    }
+    case Instruction::INSTANCE_OF: {
+      EmitInsn_InstanceOf(ARGS);
       break;
-
+    }
     case Instruction::ARRAY_LENGTH: {
       EmitInsn_ArrayLength(ARGS);
       break;
     }
     case Instruction::NEW_INSTANCE:
-      //EmitInsn_NewInstance(ARGS);
+      EmitInsn_NewInstance(ARGS);
       break;
 
     case Instruction::NEW_ARRAY: {
@@ -2081,55 +2979,55 @@ bool DexLang::EmitInstruction(unsigned dex_pc, const Instruction* insn) {
       break;
     }
     case Instruction::FILLED_NEW_ARRAY:
-      //EmitInsn_FilledNewArray(ARGS, false);
+      EmitInsn_FilledNewArray(ARGS, /* is_range */false);
       break;
 
     case Instruction::FILLED_NEW_ARRAY_RANGE:
-      //EmitInsn_FilledNewArray(ARGS, true);
+      EmitInsn_FilledNewArray(ARGS, /* is_range */true);
       break;
 
     case Instruction::FILL_ARRAY_DATA:
-      //EmitInsn_FillArrayData(ARGS);
+      EmitInsn_FillArrayData(ARGS);
       break;
 
-    case Instruction::THROW:
-      //EmitInsn_ThrowException(ARGS);
+    case Instruction::THROW: {
+      EmitInsn_ThrowException(ARGS);
       break;
-
+    }
     case Instruction::GOTO:
     case Instruction::GOTO_16:
     case Instruction::GOTO_32: {
       EmitInsn_UnconditionalBranch(ARGS);
       break;
     }
-    case Instruction::PACKED_SWITCH:
-      //EmitInsn_PackedSwitch(ARGS);
+    case Instruction::PACKED_SWITCH: {
+      EmitInsn_PackedSwitch(ARGS);
       break;
-
-    case Instruction::SPARSE_SWITCH:
-      //EmitInsn_SparseSwitch(ARGS);
+    }
+    case Instruction::SPARSE_SWITCH: {
+      EmitInsn_SparseSwitch(ARGS);
       break;
-
-    case Instruction::CMPL_FLOAT:
-      //EmitInsn_FPCompare(ARGS, kFloat, false);
+    }
+    case Instruction::CMPL_FLOAT: {
+      EmitInsn_FPCompare(ARGS, kFloat, false);
       break;
-
-    case Instruction::CMPG_FLOAT:
-      //EmitInsn_FPCompare(ARGS, kFloat, true);
+    }
+    case Instruction::CMPG_FLOAT: {
+      EmitInsn_FPCompare(ARGS, kFloat, true);
       break;
-
-    case Instruction::CMPL_DOUBLE:
-      //EmitInsn_FPCompare(ARGS, kDouble, false);
+    }
+    case Instruction::CMPL_DOUBLE: {
+      EmitInsn_FPCompare(ARGS, kDouble, false);
       break;
-
-    case Instruction::CMPG_DOUBLE:
-      //EmitInsn_FPCompare(ARGS, kDouble, true);
+    }
+    case Instruction::CMPG_DOUBLE: {
+      EmitInsn_FPCompare(ARGS, kDouble, true);
       break;
-
-    case Instruction::CMP_LONG:
-      //EmitInsn_LongCompare(ARGS);
+    }
+    case Instruction::CMP_LONG: {
+      EmitInsn_LongCompare(ARGS);
       break;
-
+    }
     case Instruction::IF_EQ: {
       EmitInsn_BinaryConditionalBranch(ARGS, kCondBranch_EQ);
       break;
@@ -2234,62 +3132,62 @@ bool DexLang::EmitInstruction(unsigned dex_pc, const Instruction* insn) {
       EmitInsn_APut(ARGS, kShort);
       break;
     }
-    case Instruction::IGET:
-      //EmitInsn_IGet(ARGS, kInt);
+    case Instruction::IGET: {
+      EmitInsn_IGet(ARGS, kInt);
       break;
-
-    case Instruction::IGET_WIDE:
-      //EmitInsn_IGet(ARGS, kLong);
+    }
+    case Instruction::IGET_WIDE: {
+      EmitInsn_IGet(ARGS, kLong);
       break;
-
-    case Instruction::IGET_OBJECT:
-      //EmitInsn_IGet(ARGS, kObject);
+    }
+    case Instruction::IGET_OBJECT: {
+      EmitInsn_IGet(ARGS, kObject);
       break;
-
-    case Instruction::IGET_BOOLEAN:
-      //EmitInsn_IGet(ARGS, kBoolean);
+    }
+    case Instruction::IGET_BOOLEAN: {
+      EmitInsn_IGet(ARGS, kBoolean);
       break;
-
-    case Instruction::IGET_BYTE:
-      //EmitInsn_IGet(ARGS, kByte);
+    }
+    case Instruction::IGET_BYTE: {
+      EmitInsn_IGet(ARGS, kByte);
       break;
-
-    case Instruction::IGET_CHAR:
-      //EmitInsn_IGet(ARGS, kChar);
+    }
+    case Instruction::IGET_CHAR: {
+      EmitInsn_IGet(ARGS, kChar);
       break;
-
-    case Instruction::IGET_SHORT:
-      //EmitInsn_IGet(ARGS, kShort);
+    }
+    case Instruction::IGET_SHORT: {
+      EmitInsn_IGet(ARGS, kShort);
       break;
-
-    case Instruction::IPUT:
-      //EmitInsn_IPut(ARGS, kInt);
+    }
+    case Instruction::IPUT: {
+      EmitInsn_IPut(ARGS, kInt);
       break;
-
-    case Instruction::IPUT_WIDE:
-      //EmitInsn_IPut(ARGS, kLong);
+    }
+    case Instruction::IPUT_WIDE: {
+      EmitInsn_IPut(ARGS, kLong);
       break;
-
-    case Instruction::IPUT_OBJECT:
-      //EmitInsn_IPut(ARGS, kObject);
+    }
+    case Instruction::IPUT_OBJECT: {
+      EmitInsn_IPut(ARGS, kObject);
       break;
-
-    case Instruction::IPUT_BOOLEAN:
-      //EmitInsn_IPut(ARGS, kBoolean);
+    }
+    case Instruction::IPUT_BOOLEAN: {
+      EmitInsn_IPut(ARGS, kBoolean);
       break;
-
-    case Instruction::IPUT_BYTE:
-      //EmitInsn_IPut(ARGS, kByte);
+    }
+    case Instruction::IPUT_BYTE: {
+      EmitInsn_IPut(ARGS, kByte);
       break;
-
-    case Instruction::IPUT_CHAR:
-      //EmitInsn_IPut(ARGS, kChar);
+    }
+    case Instruction::IPUT_CHAR: {
+      EmitInsn_IPut(ARGS, kChar);
       break;
-
-    case Instruction::IPUT_SHORT:
-      //EmitInsn_IPut(ARGS, kShort);
+    }
+    case Instruction::IPUT_SHORT: {
+      EmitInsn_IPut(ARGS, kShort);
       break;
-
+    }
     case Instruction::SGET: {
       EmitInsn_SGet(ARGS, kInt);
       break;
@@ -2386,90 +3284,90 @@ bool DexLang::EmitInstruction(unsigned dex_pc, const Instruction* insn) {
       EmitInsn_Invoke(ARGS, kInterface, kArgRange);
       break;
     }
-    case Instruction::NEG_INT:
-      //EmitInsn_Neg(ARGS, kInt);
+    case Instruction::NEG_INT: {
+      EmitInsn_Neg(ARGS, kInt);
       break;
-
-    case Instruction::NOT_INT:
-      //EmitInsn_Not(ARGS, kInt);
+    }
+    case Instruction::NOT_INT: {
+      EmitInsn_Not(ARGS, kInt);
       break;
-
-    case Instruction::NEG_LONG:
-      //EmitInsn_Neg(ARGS, kLong);
+    }
+    case Instruction::NEG_LONG: {
+      EmitInsn_Neg(ARGS, kLong);
       break;
-
-    case Instruction::NOT_LONG:
-      //EmitInsn_Not(ARGS, kLong);
+    }
+    case Instruction::NOT_LONG: {
+      EmitInsn_Not(ARGS, kLong);
       break;
-
-    case Instruction::NEG_FLOAT:
-      //EmitInsn_FNeg(ARGS, kFloat);
+    }
+    case Instruction::NEG_FLOAT: {
+      EmitInsn_FNeg(ARGS, kFloat);
       break;
-
-    case Instruction::NEG_DOUBLE:
-      //EmitInsn_FNeg(ARGS, kDouble);
+    }
+    case Instruction::NEG_DOUBLE: {
+      EmitInsn_FNeg(ARGS, kDouble);
       break;
-
-    case Instruction::INT_TO_LONG:
-      //EmitInsn_SExt(ARGS);
+    }
+    case Instruction::INT_TO_LONG: {
+      EmitInsn_SExt(ARGS);
       break;
-
-    case Instruction::INT_TO_FLOAT:
-      //EmitInsn_IntToFP(ARGS, kInt, kFloat);
+    }
+    case Instruction::INT_TO_FLOAT: {
+      EmitInsn_IntToFP(ARGS, kInt, kFloat);
       break;
-
-    case Instruction::INT_TO_DOUBLE:
-      //EmitInsn_IntToFP(ARGS, kInt, kDouble);
+    }
+    case Instruction::INT_TO_DOUBLE: {
+      EmitInsn_IntToFP(ARGS, kInt, kDouble);
       break;
-
-    case Instruction::LONG_TO_INT:
-      //EmitInsn_Trunc(ARGS);
+    }
+    case Instruction::LONG_TO_INT: {
+      EmitInsn_Trunc(ARGS);
       break;
-
-    case Instruction::LONG_TO_FLOAT:
-      //EmitInsn_IntToFP(ARGS, kLong, kFloat);
+    }
+    case Instruction::LONG_TO_FLOAT: {
+      EmitInsn_IntToFP(ARGS, kLong, kFloat);
       break;
-
-    case Instruction::LONG_TO_DOUBLE:
-      //EmitInsn_IntToFP(ARGS, kLong, kDouble);
+    }
+    case Instruction::LONG_TO_DOUBLE: {
+      EmitInsn_IntToFP(ARGS, kLong, kDouble);
       break;
-
-    case Instruction::FLOAT_TO_INT:
-      //EmitInsn_FPToInt(ARGS, kFloat, kInt, F2I);
+    }
+    case Instruction::FLOAT_TO_INT: {
+      EmitInsn_FPToInt(ARGS, kFloat, kInt, IntrinsicHelper::F2I);
       break;
-
-    case Instruction::FLOAT_TO_LONG:
-      //EmitInsn_FPToInt(ARGS, kFloat, kLong, F2L);
+    }
+    case Instruction::FLOAT_TO_LONG: {
+      EmitInsn_FPToInt(ARGS, kFloat, kLong, IntrinsicHelper::F2L);
       break;
-
-    case Instruction::FLOAT_TO_DOUBLE:
-      //EmitInsn_FExt(ARGS);
+    }
+    case Instruction::FLOAT_TO_DOUBLE: {
+      EmitInsn_FExt(ARGS);
       break;
-
-    case Instruction::DOUBLE_TO_INT:
-      //EmitInsn_FPToInt(ARGS, kDouble, kInt, D2I);
+    }
+    case Instruction::DOUBLE_TO_INT: {
+      EmitInsn_FPToInt(ARGS, kDouble, kInt, IntrinsicHelper::D2I);
       break;
-
-    case Instruction::DOUBLE_TO_LONG:
-      //EmitInsn_FPToInt(ARGS, kDouble, kLong, D2L);
+    }
+    case Instruction::DOUBLE_TO_LONG: {
+      EmitInsn_FPToInt(ARGS, kDouble, kLong, IntrinsicHelper::D2L);
       break;
-
-    case Instruction::DOUBLE_TO_FLOAT:
-      //EmitInsn_FTrunc(ARGS);
+    }
+    case Instruction::DOUBLE_TO_FLOAT: {
+      EmitInsn_FTrunc(ARGS);
       break;
-
-    case Instruction::INT_TO_BYTE:
-      //EmitInsn_TruncAndSExt(ARGS, 8);
+    }
+    case Instruction::INT_TO_BYTE: {
+      EmitInsn_TruncAndSExt(ARGS, 8);
       break;
-
-    case Instruction::INT_TO_CHAR:
-      //EmitInsn_TruncAndZExt(ARGS, 16);
+    }
+    case Instruction::INT_TO_CHAR: {
+      EmitInsn_TruncAndZExt(ARGS, 16);
       break;
-
-    case Instruction::INT_TO_SHORT:
-      //EmitInsn_TruncAndSExt(ARGS, 16);
+    }
+    case Instruction::INT_TO_SHORT: {
+      EmitInsn_TruncAndSExt(ARGS, 16);
       break;
-
+    }
     case Instruction::ADD_INT: {
       EmitInsn_IntArithm(ARGS, kIntArithm_Add, kInt, false);
       break;
@@ -2502,18 +3400,18 @@ bool DexLang::EmitInstruction(unsigned dex_pc, const Instruction* insn) {
       EmitInsn_IntArithm(ARGS, kIntArithm_Xor, kInt, false);
       break;
     }
-    case Instruction::SHL_INT:
-      //EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shl, kInt, false);
+    case Instruction::SHL_INT: {
+      EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shl, kInt, false);
       break;
-
-    case Instruction::SHR_INT:
-      //EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shr, kInt, false);
+    }
+    case Instruction::SHR_INT: {
+      EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shr, kInt, false);
       break;
-
-    case Instruction::USHR_INT:
-      //EmitInsn_IntShiftArithm(ARGS, kIntArithm_UShr, kInt, false);
+    }
+    case Instruction::USHR_INT: {
+      EmitInsn_IntShiftArithm(ARGS, kIntArithm_UShr, kInt, false);
       break;
-
+    }
     case Instruction::ADD_LONG: {
       EmitInsn_IntArithm(ARGS, kIntArithm_Add, kLong, false);
       break;
@@ -2546,18 +3444,18 @@ bool DexLang::EmitInstruction(unsigned dex_pc, const Instruction* insn) {
       EmitInsn_IntArithm(ARGS, kIntArithm_Xor, kLong, false);
       break;
     }
-    case Instruction::SHL_LONG:
-      //EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shl, kLong, false);
+    case Instruction::SHL_LONG: {
+      EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shl, kLong, false);
       break;
-
-    case Instruction::SHR_LONG:
-      //EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shr, kLong, false);
+    }
+    case Instruction::SHR_LONG: {
+      EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shr, kLong, false);
       break;
-
-    case Instruction::USHR_LONG:
-      //EmitInsn_IntShiftArithm(ARGS, kIntArithm_UShr, kLong, false);
+    }
+    case Instruction::USHR_LONG: {
+      EmitInsn_IntShiftArithm(ARGS, kIntArithm_UShr, kLong, false);
       break;
-
+    }
     case Instruction::ADD_FLOAT: {
       EmitInsn_FPArithm(ARGS, kFPArithm_Add, kFloat, false);
       break;
@@ -2630,18 +3528,18 @@ bool DexLang::EmitInstruction(unsigned dex_pc, const Instruction* insn) {
       EmitInsn_IntArithm(ARGS, kIntArithm_Xor, kInt, true);
       break;
     }
-    case Instruction::SHL_INT_2ADDR:
-      //EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shl, kInt, true);
+    case Instruction::SHL_INT_2ADDR: {
+      EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shl, kInt, true);
       break;
-
-    case Instruction::SHR_INT_2ADDR:
-      //EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shr, kInt, true);
+    }
+    case Instruction::SHR_INT_2ADDR: {
+      EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shr, kInt, true);
       break;
-
-    case Instruction::USHR_INT_2ADDR:
-      //EmitInsn_IntShiftArithm(ARGS, kIntArithm_UShr, kInt, true);
+    }
+    case Instruction::USHR_INT_2ADDR: {
+      EmitInsn_IntShiftArithm(ARGS, kIntArithm_UShr, kInt, true);
       break;
-
+    }
     case Instruction::ADD_LONG_2ADDR: {
       EmitInsn_IntArithm(ARGS, kIntArithm_Add, kLong, true);
       break;
@@ -2674,18 +3572,18 @@ bool DexLang::EmitInstruction(unsigned dex_pc, const Instruction* insn) {
       EmitInsn_IntArithm(ARGS, kIntArithm_Xor, kLong, true);
       break;
     }
-    case Instruction::SHL_LONG_2ADDR:
-      //EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shl, kLong, true);
+    case Instruction::SHL_LONG_2ADDR: {
+      EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shl, kLong, true);
       break;
-
-    case Instruction::SHR_LONG_2ADDR:
-      //EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shr, kLong, true);
+    }
+    case Instruction::SHR_LONG_2ADDR: {
+      EmitInsn_IntShiftArithm(ARGS, kIntArithm_Shr, kLong, true);
       break;
-
-    case Instruction::USHR_LONG_2ADDR:
-      //EmitInsn_IntShiftArithm(ARGS, kIntArithm_UShr, kLong, true);
+    }
+    case Instruction::USHR_LONG_2ADDR: {
+      EmitInsn_IntShiftArithm(ARGS, kIntArithm_UShr, kLong, true);
       break;
-
+    }
     case Instruction::ADD_FLOAT_2ADDR: {
       EmitInsn_FPArithm(ARGS, kFPArithm_Add, kFloat, true);
       break;
@@ -2732,10 +3630,10 @@ bool DexLang::EmitInstruction(unsigned dex_pc, const Instruction* insn) {
       break;
     }
     case Instruction::RSUB_INT:
-    case Instruction::RSUB_INT_LIT8:
-      //EmitInsn_RSubImmediate(ARGS);
+    case Instruction::RSUB_INT_LIT8: {
+      EmitInsn_RSubImmediate(ARGS);
       break;
-
+    }
     case Instruction::MUL_INT_LIT16:
     case Instruction::MUL_INT_LIT8: {
       EmitInsn_IntArithmImmediate(ARGS, kIntArithm_Mul);
@@ -2766,17 +3664,18 @@ bool DexLang::EmitInstruction(unsigned dex_pc, const Instruction* insn) {
       EmitInsn_IntArithmImmediate(ARGS, kIntArithm_Xor);
       break;
     }
-    case Instruction::SHL_INT_LIT8:
-      //EmitInsn_IntShiftArithmImmediate(ARGS, kIntArithm_Shl);
+    case Instruction::SHL_INT_LIT8: {
+      EmitInsn_IntShiftArithmImmediate(ARGS, kIntArithm_Shl);
       break;
-
-    case Instruction::SHR_INT_LIT8:
-      //EmitInsn_IntShiftArithmImmediate(ARGS, kIntArithm_Shr);
+    }
+    case Instruction::SHR_INT_LIT8: {
+      EmitInsn_IntShiftArithmImmediate(ARGS, kIntArithm_Shr);
       break;
-
-    case Instruction::USHR_INT_LIT8:
-      //EmitInsn_IntShiftArithmImmediate(ARGS, kIntArithm_UShr);
+    }
+    case Instruction::USHR_INT_LIT8: {
+      EmitInsn_IntShiftArithmImmediate(ARGS, kIntArithm_UShr);
       break;
+    }
 
     case Instruction::UNUSED_3E:
     case Instruction::UNUSED_3F:

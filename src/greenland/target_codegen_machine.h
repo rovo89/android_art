@@ -17,26 +17,27 @@
 #ifndef ART_SRC_GREENLAND_TARGET_CODEGEN_MACHINE_H_
 #define ART_SRC_GREENLAND_TARGET_CODEGEN_MACHINE_H_
 
-#include "dex_lang.h"
-
 #include "instruction_set.h"
+
+#include <string>
 
 namespace art {
   class CompiledMethod;
-  class OatCompilationUnit;
-}
-
-namespace llvm {
-  class Function;
+  class Compiler;
 }
 
 namespace art {
 namespace greenland {
 
-class Greenland;
-class TargetLIREmitter;
+class GBCFunction;
+class LIR;
 class RegisterAllocator;
 class TargetAssembler;
+class TargetDataLayout;
+class TargetLIRBuilder;
+class TargetLIREmitter;
+class TargetLIRInfo;
+class TargetRegisterInfo;
 
 class TargetCodeGenMachine {
  protected:
@@ -45,9 +46,17 @@ class TargetCodeGenMachine {
  public:
   virtual ~TargetCodeGenMachine() { }
 
-  virtual TargetLIREmitter* CreateLIREmitter(const llvm::Function& func,
-                                             const OatCompilationUnit& cunit,
-                                             DexLang::Context& dex_lang_ctx) =0;
+  virtual TargetLIREmitter* CreateLIREmitter() = 0;
+
+  virtual const TargetDataLayout* GetDataLayout() const = 0;
+
+  virtual const TargetLIRInfo* GetLIRInfo() const = 0;
+
+  virtual const TargetRegisterInfo* GetRegisterInfo() const = 0;
+
+  virtual const char* GetConditionCodeName(unsigned cond) const = 0;
+
+  virtual TargetLIRBuilder* CreateLIRBuilder() = 0;
 
   virtual RegisterAllocator* GetRegisterAllocator() = 0;
 
@@ -56,10 +65,7 @@ class TargetCodeGenMachine {
   static TargetCodeGenMachine* Create(InstructionSet insn_set);
 
  public:
-  CompiledMethod* Run(const Greenland& parent,
-                      const llvm::Function& func,
-                      const OatCompilationUnit& cunit,
-                      DexLang::Context& dex_lang_ctx);
+  CompiledMethod* Run(const Compiler& compiler, const GBCFunction& gbc_func);
 };
 
 } // namespace greenland

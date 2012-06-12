@@ -267,7 +267,7 @@ void convertFillArrayData(CompilationUnit* cUnit, int32_t offset,
                           RegLocation rlArray)
 {
   greenland::IntrinsicHelper::IntrinsicId id;
-  id = greenland::IntrinsicHelper::FillArrayData;
+  id = greenland::IntrinsicHelper::HLFillArrayData;
   llvm::SmallVector<llvm::Value*, 2> args;
   args.push_back(cUnit->irb->getInt32(offset));
   args.push_back(getLLVMValue(cUnit, rlArray.origSReg));
@@ -340,7 +340,7 @@ void convertThrow(CompilationUnit* cUnit, RegLocation rlSrc)
 {
   llvm::Value* src = getLLVMValue(cUnit, rlSrc.origSReg);
   llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
-      greenland::IntrinsicHelper::Throw);
+      greenland::IntrinsicHelper::ThrowException);
   cUnit->irb->CreateCall(func, src);
 }
 
@@ -362,7 +362,7 @@ void convertArrayLength(CompilationUnit* cUnit, int optFlags,
   args.push_back(cUnit->irb->getInt32(optFlags));
   args.push_back(getLLVMValue(cUnit, rlSrc.origSReg));
   llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
-      greenland::IntrinsicHelper::ArrayLength);
+      greenland::IntrinsicHelper::OptArrayLength);
   llvm::Value* res = cUnit->irb->CreateCall(func, args);
   defineValue(cUnit, res, rlDest.origSReg);
 }
@@ -584,7 +584,7 @@ void convertInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
    */
   greenland::IntrinsicHelper::IntrinsicId id;
   if (isFilledNewArray) {
-    id = greenland::IntrinsicHelper::FilledNewArray;
+    id = greenland::IntrinsicHelper::HLFilledNewArray;
   } else if (info->result.location == kLocInvalid) {
     id = greenland::IntrinsicHelper::HLInvokeVoid;
   } else {
@@ -623,7 +623,7 @@ void convertCheckCast(CompilationUnit* cUnit, uint32_t type_idx,
                       RegLocation rlSrc)
 {
   greenland::IntrinsicHelper::IntrinsicId id;
-  id = greenland::IntrinsicHelper::CheckCast;
+  id = greenland::IntrinsicHelper::HLCheckCast;
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::SmallVector<llvm::Value*, 2> args;
   args.push_back(cUnit->irb->getInt32(type_idx));
@@ -1759,8 +1759,10 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
 {
   if (bb->blockType == kDead) return false;
   llvm::BasicBlock* llvmBB = getLLVMBlock(cUnit, bb->id);
-  cUnit->irb->SetInsertPoint(llvmBB);
-  setDexOffset(cUnit, bb->startOffset);
+  if (llvmBB != NULL) {
+    cUnit->irb->SetInsertPoint(llvmBB);
+    setDexOffset(cUnit, bb->startOffset);
+  }
 
   if (cUnit->printMe) {
     LOG(INFO) << "................................";
@@ -3012,10 +3014,10 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               case greenland::IntrinsicHelper::HLInvokeVoid:
                 cvtInvoke(cUnit, callInst, true /* isVoid */, false /* newArray */);
                 break;
-              case greenland::IntrinsicHelper::FilledNewArray:
+              case greenland::IntrinsicHelper::HLFilledNewArray:
                 cvtInvoke(cUnit, callInst, false /* isVoid */, true /* newArray */);
                 break;
-              case greenland::IntrinsicHelper::FillArrayData:
+              case greenland::IntrinsicHelper::HLFillArrayData:
                 cvtFillArrayData(cUnit, callInst);
                 break;
               case greenland::IntrinsicHelper::ConstString:
@@ -3024,7 +3026,7 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               case greenland::IntrinsicHelper::ConstClass:
                 cvtConstObject(cUnit, callInst, false /* isString */);
                 break;
-              case greenland::IntrinsicHelper::CheckCast:
+              case greenland::IntrinsicHelper::HLCheckCast:
                 cvtCheckCast(cUnit, callInst);
                 break;
               case greenland::IntrinsicHelper::NewInstance:
@@ -3063,7 +3065,7 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               case greenland::IntrinsicHelper::GetException:
                 cvtMoveException(cUnit, callInst);
                 break;
-              case greenland::IntrinsicHelper::Throw:
+              case greenland::IntrinsicHelper::ThrowException:
                 cvtThrow(cUnit, callInst);
                 break;
               case greenland::IntrinsicHelper::MonitorEnter:
@@ -3072,7 +3074,7 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               case greenland::IntrinsicHelper::MonitorExit:
                 cvtMonitorEnterExit(cUnit, false /* isEnter */, callInst);
                 break;
-              case greenland::IntrinsicHelper::ArrayLength:
+              case greenland::IntrinsicHelper::OptArrayLength:
                 cvtArrayLength(cUnit, callInst);
                 break;
               case greenland::IntrinsicHelper::NewArray:

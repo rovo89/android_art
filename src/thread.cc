@@ -260,6 +260,9 @@ void Thread::Init() {
   SetUpAlternateSignalStack();
   InitCpu();
   InitFunctionPointers();
+#ifdef ART_USE_GREENLAND_COMPILER
+  InitRuntimeEntryPoints(&runtime_entry_points_);
+#endif
   InitCardTable();
 
   Runtime* runtime = Runtime::Current();

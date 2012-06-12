@@ -18,16 +18,14 @@
 LIBART_COMPILER_GREENLAND_CFLAGS := -DART_USE_GREENLAND_COMPILER=1
 
 LIBART_COMPILER_GREENLAND_SRC_FILES += \
+	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/greenland/dalvik_reg.cc \
 	src/greenland/dex_lang.cc \
+	src/greenland/gbc_context.cc \
 	src/greenland/greenland.cc \
-	src/greenland/lir.cc \
-	src/greenland/lir_function.cc \
-	src/greenland/inferred_reg_category_map.cc \
 	src/greenland/intrinsic_helper.cc \
-	src/greenland/ir_builder.cc \
+	src/greenland/register_allocator.cc \
 	src/greenland/target_codegen_machine.cc \
-	src/greenland/target_lir_emitter.cc \
 	src/greenland/target_registry.cc \
 	src/oat/jni/calling_convention.cc \
 	src/oat/jni/jni_compiler.cc \
@@ -48,6 +46,21 @@ LIBART_COMPILER_GREENLAND_x86_SRC_FILES += \
   src/greenland/x86/x86_lir_emitter.cc \
   src/greenland/x86/x86_lir_info.cc \
   src/greenland/x86/x86_invoke_stub_compiler.cc
+
+########################################################################
+
+include $(CLEAR_VARS)
+LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
+LOCAL_MODULE := target_lir_builder_generator
+LOCAL_MODULE_TAGS := optional
+LOCAL_IS_HOST_MODULE := true
+LOCAL_SRC_FILES := src/greenland/tools/target_lir_builder_generator.cc
+LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
+LOCAL_C_INCLUDES := $(ART_C_INCLUDES)
+include $(BUILD_HOST_EXECUTABLE)
+TARGET_LIR_BUILDER_GENERATOR := $(LOCAL_BUILT_MODULE)
+
+########################################################################
 
 # $(1): target or host
 # $(2): ndebug or debug
@@ -85,20 +98,34 @@ define build-libart-compiler-greenland
   ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS)
   else # host
+    LOCAL_IS_HOST_MODULE := true
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
   endif
 
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
 
   ifeq ($$(art_target_or_host),target)
+    ENUM_INCLUDE_LIR_TARGETS := arm
     LOCAL_SRC_FILES += \
       $(LIBART_COMPILER_GREENLAND_$(TARGET_ARCH)_SRC_FILES)
   else
+    ENUM_INCLUDE_LIR_TARGETS := arm mips x86
     LOCAL_SRC_FILES += \
       $(LIBART_COMPILER_GREENLAND_arm_SRC_FILES) \
       $(LIBART_COMPILER_GREENLAND_mips_SRC_FILES) \
       $(LIBART_COMPILER_GREENLAND_x86_SRC_FILES)
   endif
+
+  GENERATED_SRC_DIR := $$(call intermediates-dir-for,$$(LOCAL_MODULE_CLASS),$$(LOCAL_MODULE),$$(LOCAL_IS_HOST_MODULE),)
+  ENUM_TARGEET_LIR_BUILDER_INC_FILES := $$(foreach lir_target, $$(ENUM_INCLUDE_LIR_TARGETS), $$(lir_target)_lir_builder_base.inc)
+  ENUM_TARGET_LIR_BUILDER_OUT_GEN := $$(addprefix $$(GENERATED_SRC_DIR)/, $$(ENUM_TARGEET_LIR_BUILDER_INC_FILES))
+
+$$(ENUM_TARGET_LIR_BUILDER_OUT_GEN): PRIVATE_LIR_TARGET = $$(subst _lir_builder_base.inc,,$$(notdir $$@))
+$$(ENUM_TARGET_LIR_BUILDER_OUT_GEN): %.inc : $$(TARGET_LIR_BUILDER_GENERATOR)
+	@echo "target Generated: $$@"
+	$$(hide) $$(TARGET_LIR_BUILDER_GENERATOR) $$(PRIVATE_LIR_TARGET) > $$@
+
+LOCAL_GENERATED_SOURCES += $$(ENUM_TARGET_LIR_BUILDER_OUT_GEN)
 
   LOCAL_STATIC_LIBRARIES += \
     libLLVMBitWriter \
@@ -114,7 +141,7 @@ define build-libart-compiler-greenland
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils libstlport libz libdl
     LOCAL_SHARED_LIBRARIES += libdynamic_annotations # tsan support
-#    LOCAL_SHARED_LIBRARIES += libcorkscrew # native stack trace support
+    LOCAL_SHARED_LIBRARIES += libcorkscrew # native stack trace support
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils
     LOCAL_SHARED_LIBRARIES += libz-host
@@ -144,7 +171,6 @@ define build-libart-compiler-greenland
     include $(LLVM_DEVICE_BUILD_MK)
     include $(BUILD_SHARED_LIBRARY)
   else # host
-    LOCAL_IS_HOST_MODULE := true
     include $(LLVM_GEN_INTRINSICS_MK)
     include $(LLVM_HOST_BUILD_MK)
     include $(BUILD_HOST_SHARED_LIBRARY)
@@ -163,8 +189,8 @@ define build-libart-compiler-greenland
       $(HOST_OUT_EXECUTABLES)/dex2oat: $$(LOCAL_INSTALLED_MODULE)
     endif
   endif
-
 endef
+
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
   $(eval $(call build-libart-compiler-greenland,target,ndebug))

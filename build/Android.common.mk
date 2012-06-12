@@ -26,6 +26,18 @@ $(info Enabling ART_USE_LLVM_COMPILER because WITH_ART_USE_LLVM_COMPILER=true)
 ART_USE_LLVM_COMPILER := true
 endif
 
+ART_USE_DEXLANG_FRONTEND := false
+ifeq ($(ART_USE_LLVM_COMPILER),true)
+  ifneq ($(wildcard art/USE_DEXLANG_FRONTEND),)
+  $(info Enabling ART_USE_DEXLANG_FRONTEND because of existence of art/USE_DEXLANG_FRONTEND)
+  ART_USE_DEXLANG_FRONTEND := true
+  endif
+  ifeq ($(WITH_ART_USE_DEXLANG_FRONTEND),true)
+  $(info Enabling ART_USE_DEXLANG_FRONTEND because WITH_ART_USE_DEXLANG_FRONTEND=true)
+  ART_USE_DEXLANG_FRONTEND := true
+  endif
+endif
+
 ART_USE_GREENLAND_COMPILER := false
 ifneq ($(wildcard art/USE_GREENLAND_COMPILER),)
 $(info Enabling ART_USE_GREENLAND_COMPILER because of existence of art/USE_GREENLAND_COMPILER)
@@ -254,7 +266,14 @@ endif
 
 ifeq ($(ART_USE_GREENLAND_COMPILER),true)
 LIBART_COMMON_SRC_FILES += \
-	src/greenland/inferred_reg_category_map.cc
+	src/compiler_llvm/inferred_reg_category_map.cc \
+	src/greenland/runtime_entry_points.cc \
+	src/greenland/runtime/support_alloc.cc \
+	src/greenland/runtime/support_cast.cc \
+	src/greenland/runtime/support_dexcache.cc \
+	src/greenland/runtime/support_exception.cc \
+	src/greenland/runtime/support_field.cc \
+	src/greenland/runtime/support_thread.cc
 endif
 
 LIBART_COMMON_SRC_FILES += \

@@ -29,9 +29,27 @@ class MipsCodeGenMachine : public TargetCodeGenMachine {
   MipsCodeGenMachine();
   virtual ~MipsCodeGenMachine();
 
-  virtual TargetLIREmitter* CreateLIREmitter(const llvm::Function& func,
-                                             const OatCompilationUnit& cunit,
-                                             DexLang::Context& dex_lang_ctx) {
+  virtual TargetLIREmitter* CreateLIREmitter() {
+    return NULL;
+  }
+
+  virtual const TargetDataLayout* GetDataLayout() const {
+    return NULL;
+  }
+
+  virtual const TargetLIRInfo* GetLIRInfo() const {
+    return NULL;
+  }
+
+  virtual const TargetRegisterInfo* GetRegisterInfo() const {
+    return NULL;
+  }
+
+  virtual const char* GetConditionCodeName(unsigned cond) const {
+    return NULL;
+  }
+
+  virtual TargetLIRBuilder* CreateLIRBuilder() {
     return NULL;
   }
 
@@ -41,6 +59,10 @@ class MipsCodeGenMachine : public TargetCodeGenMachine {
 
   virtual TargetAssembler* GetAssembler() {
     return NULL;
+  }
+
+  virtual std::string PrettyTargeteLIR(const LIR& lir) const {
+    return "";
   }
 };
 

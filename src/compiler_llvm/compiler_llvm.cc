@@ -23,11 +23,14 @@
 #include "compiler.h"
 #include "ir_builder.h"
 #include "jni_compiler.h"
-#include "method_compiler.h"
+#ifndef ART_USE_DEXLANG_FRONTEND
+# include "method_compiler.h"
+#endif
 #include "oat_compilation_unit.h"
 #include "oat_file.h"
 #include "stl_util.h"
 #include "stub_compiler.h"
+#include "utils_llvm.h"
 
 #include <llvm/LinkAllPasses.h>
 #include <llvm/LinkAllVMCore.h>
@@ -121,10 +124,25 @@ CompiledMethod* CompilerLLVM::
 CompileDexMethod(OatCompilationUnit* oat_compilation_unit) {
   UniquePtr<CompilationUnit> cunit(AllocateCompilationUnit());
 
+#ifdef ART_USE_DEXLANG_FRONTEND
+  // Run DexLang for Dex to Greenland Bitcode
+  UniquePtr<greenland::DexLang> dex_lang(
+      new greenland::DexLang(*cunit->GetDexLangContext(), *compiler_,
+                             *oat_compilation_unit));
+
+  llvm::Function* func = dex_lang->Build();
+  CHECK(func != NULL);
+
+  cunit->Materialize();
+
+  return new CompiledMethod(cunit->GetInstructionSet(),
+                            cunit->GetCompiledCode());
+#else
   UniquePtr<MethodCompiler> method_compiler(
       new MethodCompiler(cunit.get(), compiler_, oat_compilation_unit));
 
   return method_compiler->Compile();
+#endif
 }
 
 

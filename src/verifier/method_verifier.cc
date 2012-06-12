@@ -32,16 +32,10 @@
 #include "runtime.h"
 #include "stringpiece.h"
 
-#if defined(ART_USE_LLVM_COMPILER)
+#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
 #include "compiler_llvm/backend_types.h"
 #include "compiler_llvm/inferred_reg_category_map.h"
 using namespace art::compiler_llvm;
-#endif
-
-#if defined(ART_USE_GREENLAND_COMPILER)
-#include "greenland/backend_types.h"
-#include "greenland/inferred_reg_category_map.h"
-using namespace art::greenland;
 #endif
 
 namespace art {
@@ -3323,8 +3317,7 @@ const InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCategoryMap() {
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
   uint16_t regs_size = code_item_->registers_size_;
 
-  UniquePtr<InferredRegCategoryMap> table(
-    new InferredRegCategoryMap(insns_size, regs_size));
+  UniquePtr<InferredRegCategoryMap> table(new InferredRegCategoryMap(insns_size, regs_size));
 
   for (size_t i = 0; i < insns_size; ++i) {
     if (RegisterLine* line = reg_table_.GetLine(i)) {

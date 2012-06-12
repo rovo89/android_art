@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GREENLAND_DALVIK_REG_H_
-#define ART_SRC_GREENLAND_DALVIK_REG_H_
+#ifndef ART_SRC_COMPILER_LLVM_DALVIK_REG_H_
+#define ART_SRC_COMPILER_LLVM_DALVIK_REG_H_
 
 #include "backend_types.h"
+
+#include <stdint.h>
+#include <string>
 
 namespace llvm {
   class Type;
@@ -27,41 +30,54 @@ namespace llvm {
 namespace art {
 namespace greenland {
 
-class DexLang;
 class IRBuilder;
+class DexLang;
 
 class DalvikReg {
  public:
-  static DalvikReg* CreateArgReg(DexLang& dex_lang, unsigned reg_idx,
-                                 JType jty);
+  static llvm::Type* GetRegCategoryEquivSizeTy(IRBuilder& irb, RegCategory reg_cat);
 
-  static DalvikReg* CreateLocalVarReg(DexLang& dex_lang, unsigned reg_idx);
+  static char GetRegCategoryNamePrefix(RegCategory reg_cat);
 
-  virtual ~DalvikReg() { }
+  DalvikReg(DexLang& dex_lang, unsigned reg_idx);
 
-  virtual llvm::Value* GetValue(JType jty, JTypeSpace space) = 0;
+  ~DalvikReg();
+
+  llvm::Value* GetValue(JType jty, JTypeSpace space);
+
   llvm::Value* GetValue(char shorty, JTypeSpace space) {
     return GetValue(GetJTypeFromShorty(shorty), space);
   }
 
-  virtual void SetValue(JType jty, JTypeSpace space, llvm::Value* value) = 0;
+  void SetValue(JType jty, JTypeSpace space, llvm::Value* value);
+
   void SetValue(char shorty, JTypeSpace space, llvm::Value* value) {
     return SetValue(GetJTypeFromShorty(shorty), space, value);
   }
 
- protected:
-  DalvikReg(DexLang& dex_lang, unsigned reg_idx);
+ private:
+  void SetShadowEntry(llvm::Value* object);
 
-  void SetShadowEntry(llvm::Value* root_object);
+  llvm::Value* GetAddr(JType jty);
 
- protected:
+  llvm::Value* RegCat1SExt(llvm::Value* value);
+  llvm::Value* RegCat1ZExt(llvm::Value* value);
+
+  llvm::Value* RegCat1Trunc(llvm::Value* value, llvm::Type* ty);
+
   DexLang& dex_lang_;
   IRBuilder& irb_;
+
   unsigned reg_idx_;
+
   int shadow_frame_entry_idx_;
+
+  llvm::Value* reg_32_;
+  llvm::Value* reg_64_;
+  llvm::Value* reg_obj_;
 };
 
 } // namespace greenland
 } // namespace art
 
-#endif // ART_SRC_GREENLAND_DALVIK_REG_H_
+#endif // ART_SRC_COMPILER_LLVM_DALVIK_REG_H_

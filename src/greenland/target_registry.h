@@ -40,7 +40,7 @@ class TargetRegistry {
                                                     uint32_t shorty_len);
 
   static void RegisterTargetCodeGenMachine(InstructionSet insn_set,
-                                     TargetCodeGenMachineCtorTy ctor);
+                                           TargetCodeGenMachineCtorTy ctor);
   static TargetCodeGenMachineCtorTy GetTargetCodeGenMachineCtor(InstructionSet insn_set);
 
   static void RegisterInvokeStubCompiler(InstructionSet insn_set,

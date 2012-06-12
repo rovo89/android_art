@@ -16,6 +16,8 @@
 
 #include "greenland.h"
 
+#include "gbc_context.h"
+#include "gbc_function.h"
 #include "target_codegen_machine.h"
 #include "target_registry.h"
 
@@ -63,6 +65,9 @@ void InitializeAllInvokeStubCompilers() {
 }
 
 void InitializeGreenland() {
+  // Initialize LLVM internal data structure for multithreading
+  llvm::llvm_start_multithreaded();
+
   // Initialize passes
   llvm::PassRegistry &registry = *llvm::PassRegistry::getPassRegistry();
 
@@ -83,9 +88,6 @@ void InitializeGreenland() {
   InitializeAllCodeGenMachines();
   InitializeAllInvokeStubCompilers();
 
-  // Initialize LLVM internal data structure for multithreading
-  llvm::llvm_start_multithreaded();
-
   return;
 }
 
@@ -96,7 +98,7 @@ namespace greenland {
 
 Greenland::Greenland(art::Compiler& compiler)
     : compiler_(compiler), codegen_machine_(NULL),
-      lock_("greenland_compiler_lock"), cur_dex_lang_ctx_(NULL) {
+      lock_("greenland_compiler_lock"), cur_gbc_ctx_(NULL) {
   // Initialize Greenland
   pthread_once(&greenland_initialized, InitializeGreenland);
 
@@ -107,7 +109,7 @@ Greenland::Greenland(art::Compiler& compiler)
 }
 
 Greenland::~Greenland() {
-  cur_dex_lang_ctx_->DecRef();
+  cur_gbc_ctx_->DecRef();
   delete codegen_machine_;
 }
 
@@ -115,9 +117,10 @@ CompiledMethod* Greenland::Compile(OatCompilationUnit& cunit) {
   MutexLock GUARD(lock_);
 
   // Dex to LLVM IR
-  DexLang::Context& dex_lang_ctx = GetDexLangContext();
+  GBCContext& gbc_ctx = GetGBCContext();
 
-  UniquePtr<DexLang> dex_lang(new DexLang(dex_lang_ctx, compiler_, cunit));
+  UniquePtr<DexLang> dex_lang(new DexLang(gbc_ctx.GetDexLangContext(),
+                                          compiler_, cunit));
 
   llvm::Function* func = dex_lang->Build();
 
@@ -127,40 +130,47 @@ CompiledMethod* Greenland::Compile(OatCompilationUnit& cunit) {
     return NULL;
   }
 
-  dex_lang_ctx.GetOutputModule().dump();
+  func->dump();
 
-  UniquePtr<CompiledMethod> result(codegen_machine_->Run(*this, *func, cunit,
-                                                         dex_lang_ctx));
+  // NOTE: From statistic, the bitcode size is 4.5 times bigger than the
+  // Dex file.  Besides, we have to convert the code unit into bytes.
+  // Thus, we got our magic number 9.
+  gbc_ctx.AddMemUsageApproximation(
+      cunit.GetCodeItem()->insns_size_in_code_units_ * 900);
 
-  // dex_lang_ctx was no longer needed
-  dex_lang_ctx.DecRef();
+  GBCFunction gbc_func(gbc_ctx, *func, cunit);
+
+  UniquePtr<CompiledMethod> result(codegen_machine_->Run(compiler_, gbc_func));
+
+  // gbc_ctx was no longer needed
+  gbc_ctx.DecRef();
 
   return result.release();
 }
 
-DexLang::Context& Greenland::GetDexLangContext() {
+GBCContext& Greenland::GetGBCContext() {
   //MutexLock GUARD(lock_);
 
-  ResetDexLangContextIfThresholdReached();
+  ResetGBCContextIfThresholdReached();
 
-  if (cur_dex_lang_ctx_ == NULL) {
-    cur_dex_lang_ctx_ = new DexLang::Context();
+  if (cur_gbc_ctx_ == NULL) {
+    cur_gbc_ctx_ = new GBCContext();
   }
-  CHECK(cur_dex_lang_ctx_ != NULL);
+  CHECK(cur_gbc_ctx_ != NULL);
 
-  return cur_dex_lang_ctx_->IncRef();
+  return cur_gbc_ctx_->IncRef();
 }
 
-void Greenland::ResetDexLangContextIfThresholdReached() {
+void Greenland::ResetGBCContextIfThresholdReached() {
   lock_.AssertHeld();
 
-  if (cur_dex_lang_ctx_ == NULL) {
+  if (cur_gbc_ctx_ == NULL) {
     return;
   }
 
-  if (cur_dex_lang_ctx_->IsMemUsageThresholdReached()) {
-    cur_dex_lang_ctx_->DecRef();
-    cur_dex_lang_ctx_ = NULL;
+  if (cur_gbc_ctx_->IsMemUsageThresholdReached()) {
+    cur_gbc_ctx_->DecRef();
+    cur_gbc_ctx_ = NULL;
   }
   return;
 }

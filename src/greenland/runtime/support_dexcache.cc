@@ -14,16 +14,27 @@
  * limitations under the License.
  */
 
-#include "lir.h"
+#include "greenland/runtime_entry_points.h"
 
-#include "lir_desc.h"
-#include "lir_function.h"
+#include "runtime_utils.h"
+#include "runtime_support.h"
+
+using namespace art;
+using namespace art::greenland;
+
+namespace {
+
+Object* art_resolve_string(Method* referrer, uint32_t string_idx) {
+  return ResolveStringFromCode(referrer, string_idx);
+}
+
+} // anonymous namespace
 
 namespace art {
 namespace greenland {
 
-LIR::LIR(const LIRDesc& desc) : parent_(NULL), desc_(desc) {
-  operands_.reserve(desc_.GetNumOperands());
+void InitDexCacheRuntimes(RuntimeEntryPoints* entry_points) {
+  entry_points->ResolveString = art_resolve_string;
 }
 
 } // namespace greenland

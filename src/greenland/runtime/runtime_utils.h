@@ -14,27 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GREENLAND_LIR_DESC_H_
-#define ART_SRC_GREENLAND_LIR_DESC_H_
+#ifndef ART_SRC_GREENLAND_RUNTIME_UTILS_H_
+#define ART_SRC_GREENLAND_RUNTIME_UTILS_H_
+
+#include "asm_support.h"
+#include "thread.h"
 
 namespace art {
 namespace greenland {
 
-class LIRDesc {
- public:
-  unsigned opcode_;             // The opcode number
-  unsigned short num_operands_; // Num of args (may be more if variable_ops)
-
-  unsigned GetOpcode() const {
-    return opcode_;
-  }
-
-  unsigned GetNumOperands() const {
-    return num_operands_;
-  }
-};
+static inline Thread* art_get_current_thread() {
+#if defined(__i386__)
+  Thread* ptr;
+  __asm__ __volatile__("movl %%fs:(%1), %0"
+      : "=r"(ptr)  // output
+      : "r"(THREAD_SELF_OFFSET)  // input
+      :);  // clobber
+  return ptr;
+#else
+  return Thread::Current();
+#endif
+}
 
 } // namespace greenland
 } // namespace art
 
-#endif // ART_SRC_GREENLAND_LIR_DESC_H_
+#endif // ART_SRC_GREENLAND_RUNTIME_UTILS_H_

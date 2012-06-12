@@ -18,6 +18,7 @@
 #define ART_SRC_GREENLAND_DEX_LANG_H_
 
 #include "backend_types.h"
+#include "compiler_llvm/backend_types.h"
 #include "dalvik_reg.h"
 #include "ir_builder.h"
 
@@ -28,14 +29,13 @@
 
 #include <vector>
 
-#include <llvm/LLVMContext.h>
+#include <llvm/Module.h>
 #include <llvm/ADT/ArrayRef.h>
 
 namespace llvm {
   class BasicBlock;
   class Function;
   class LLVMContext;
-  class Module;
   class Type;
 }
 
@@ -54,34 +54,26 @@ class DexLang {
  public:
   class Context {
    private:
-    llvm::LLVMContext context_;
-    llvm::Module* module_;
+    llvm::Module& module_;
     IntrinsicHelper* intrinsic_helper_;
 
-    volatile int32_t ref_count_;
-    volatile int32_t mem_usage_;
-
+   public:
+    Context(llvm::Module& module);
     ~Context();
 
-    DISALLOW_COPY_AND_ASSIGN(Context);
-
-   public:
-    Context();
-
     inline llvm::LLVMContext& GetLLVMContext()
-    { return context_; }
+    { return module_.getContext(); }
+
     inline llvm::Module& GetOutputModule()
-    { return *module_; }
+    { return module_; }
+
     inline IntrinsicHelper& GetIntrinsicHelper()
     { return *intrinsic_helper_; }
+    inline const IntrinsicHelper& GetIntrinsicHelper() const
+    { return *intrinsic_helper_; }
 
-    Context& IncRef();
-    void DecRef();
-
-    void AddMemUsageApproximation(size_t usage);
-    inline bool IsMemUsageThresholdReached() const {
-      return (mem_usage_ > (30 << 20)); // (threshold: 30MiB)
-    }
+   private:
+    DISALLOW_COPY_AND_ASSIGN(Context);
   };
 
  public:
@@ -94,7 +86,7 @@ class DexLang {
   inline IRBuilder& GetIRBuilder() {
     return irb_;
   }
-  llvm::Value* AllocateDalvikReg(JType jty, unsigned reg_idx);
+  llvm::Value* AllocateDalvikReg(RegCategory cat, unsigned reg_idx);
 
  private:
   Context& dex_lang_ctx_;
@@ -104,6 +96,7 @@ class DexLang {
   const DexFile* dex_file_;
   const DexFile::CodeItem* code_item_;
   DexCache* dex_cache_;
+  uint32_t method_idx_;
 
   llvm::LLVMContext& context_;
   llvm::Module& module_;
@@ -161,9 +154,27 @@ class DexLang {
   // Return Value Related
   //----------------------------------------------------------------------------
   // Hold the return value returned from the lastest invoke-* instruction
-  llvm::Value* retval_;
-  // The type of ret_val_
-  JType retval_jty_;
+  DalvikReg* retval_reg_;
+
+  llvm::Value* EmitLoadDalvikRetValReg(JType jty, JTypeSpace space) {
+    return retval_reg_->GetValue(jty, space);
+  }
+
+  llvm::Value* EmitLoadDalvikRetValReg(char shorty, JTypeSpace space) {
+    return EmitLoadDalvikRetValReg(GetJTypeFromShorty(shorty), space);
+  }
+
+  void EmitStoreDalvikRetValReg(JType jty, JTypeSpace space,
+                                llvm::Value* new_value) {
+    retval_reg_->SetValue(jty, space, new_value);
+    return;
+  }
+
+  void EmitStoreDalvikRetValReg(char shorty, JTypeSpace space,
+                                llvm::Value* new_value) {
+    EmitStoreDalvikRetValReg(GetJTypeFromShorty(shorty), space, new_value);
+    return;
+  }
 
  private:
   //----------------------------------------------------------------------------
@@ -211,7 +222,6 @@ class DexLang {
   //----------------------------------------------------------------------------
   // Shadow Frame
   //----------------------------------------------------------------------------
-  bool require_shadow_frame;
   unsigned num_shadow_frame_entries_;
 
   void EmitUpdateDexPC(unsigned dex_pc);
@@ -227,8 +237,6 @@ class DexLang {
   //----------------------------------------------------------------------------
   bool CreateFunction();
   llvm::FunctionType* GetFunctionType();
-
-  bool PrepareDalvikRegs();
 
   bool EmitPrologue();
   bool EmitPrologueAssignArgRegister();
@@ -263,6 +271,12 @@ class DexLang {
     kIntArithm_Xor,
   };
 
+  enum IntShiftArithmKind {
+    kIntArithm_Shl,
+    kIntArithm_Shr,
+    kIntArithm_UShr,
+  };
+
   enum FPArithmKind {
     kFPArithm_Add,
     kFPArithm_Sub,
@@ -280,14 +294,37 @@ class DexLang {
 
   llvm::Value* EmitGetCurrentThread();
 
-  llvm::Value* EmitInvokeIntrinsicNoThrow(IntrinsicHelper::IntrinsicId intr_id);
+  void EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr);
+
   llvm::Value* EmitInvokeIntrinsicNoThrow(IntrinsicHelper::IntrinsicId intr_id,
-                                          llvm::ArrayRef<llvm::Value*> args);
-  llvm::Value* EmitInvokeIntrinsic(unsigned dex_pc,
-                                   IntrinsicHelper::IntrinsicId intr_id);
+                                          llvm::ArrayRef<llvm::Value*> args
+                                              = llvm::ArrayRef<llvm::Value*>());
+  llvm::Value* EmitInvokeIntrinsic2NoThrow(IntrinsicHelper::IntrinsicId intr_id,
+                                           llvm::Value* arg1,
+                                           llvm::Value* arg2) {
+    llvm::Value* args[] = { arg1, arg2 };
+    return EmitInvokeIntrinsicNoThrow(intr_id, args);
+  }
+  llvm::Value* EmitInvokeIntrinsic3NoThrow(IntrinsicHelper::IntrinsicId intr_id,
+                                           llvm::Value* arg1,
+                                           llvm::Value* arg2,
+                                           llvm::Value* arg3) {
+    llvm::Value* args[] = { arg1, arg2, arg3 };
+    return EmitInvokeIntrinsicNoThrow(intr_id, args);
+  }
+  llvm::Value* EmitInvokeIntrinsic4NoThrow(IntrinsicHelper::IntrinsicId intr_id,
+                                           llvm::Value* arg1,
+                                           llvm::Value* arg2,
+                                           llvm::Value* arg3,
+                                           llvm::Value* arg4) {
+    llvm::Value* args[] = { arg1, arg2, arg3, arg4 };
+    return EmitInvokeIntrinsicNoThrow(intr_id, args);
+  }
+
   llvm::Value* EmitInvokeIntrinsic(unsigned dex_pc,
                                    IntrinsicHelper::IntrinsicId intr_id,
-                                   llvm::ArrayRef<llvm::Value*> args);
+                                   llvm::ArrayRef<llvm::Value*> args
+                                        = llvm::ArrayRef<llvm::Value*>());
   llvm::Value* EmitInvokeIntrinsic2(unsigned dex_pc,
                                     IntrinsicHelper::IntrinsicId intr_id,
                                     llvm::Value* arg1,
@@ -323,9 +360,18 @@ class DexLang {
     return EmitInvokeIntrinsic(dex_pc, intr_id, args);
   }
 
-  RegCategory GetInferredRegCategory(unsigned dex_pc, unsigned reg_idx);
+  compiler_llvm::RegCategory GetInferredRegCategory(unsigned dex_pc,
+                                                    unsigned reg_idx);
+
+  llvm::Value* EmitLoadConstantClass(unsigned dex_pc, uint32_t type_idx);
 
   llvm::Value* EmitLoadArrayLength(llvm::Value* array);
+
+  llvm::Value* EmitAllocNewArray(unsigned dex_pc, int32_t length,
+                                 uint32_t type_idx, bool is_filled_new_array);
+
+  llvm::Value* EmitCompareResultSelection(llvm::Value* cmp_eq,
+                                          llvm::Value* cmp_lt);
 
   llvm::Value* EmitLoadStaticStorage(unsigned dex_pc, unsigned type_idx);
 
@@ -337,6 +383,12 @@ class DexLang {
                                               llvm::Value* rhs,
                                               IntArithmKind arithm,
                                               JType op_jty);
+
+  llvm::Value* EmitIntShiftArithmResultComputation(uint32_t dex_pc,
+                                                   llvm::Value* lhs,
+                                                   llvm::Value* rhs,
+                                                   IntShiftArithmKind arithm,
+                                                   JType op_jty);
 
   llvm::Value* EmitIntDivRemResultComputation(unsigned dex_pc,
                                               llvm::Value* dividend,
@@ -354,18 +406,15 @@ class DexLang {
 
   // MOVE_EXCEPTION, THROW instructions
   void EmitInsn_MoveException(GEN_INSN_ARGS);
-#if 0
   void EmitInsn_ThrowException(GEN_INSN_ARGS);
 
   // RETURN instructions
-#endif
   void EmitInsn_ReturnVoid(GEN_INSN_ARGS);
   void EmitInsn_Return(GEN_INSN_ARGS);
 
   // CONST, CONST_CLASS, CONST_STRING instructions
   void EmitInsn_LoadConstant(GEN_INSN_ARGS, JType imm_jty);
   void EmitInsn_LoadConstantString(GEN_INSN_ARGS);
-#if 0
   void EmitInsn_LoadConstantClass(GEN_INSN_ARGS);
 
   // MONITOR_ENTER, MONITOR_EXIT instructions
@@ -378,22 +427,18 @@ class DexLang {
 
   // NEW_INSTANCE instructions
   void EmitInsn_NewInstance(GEN_INSN_ARGS);
-#endif
 
   // ARRAY_LEN, NEW_ARRAY, FILLED_NEW_ARRAY, FILL_ARRAY_DATA instructions
   void EmitInsn_ArrayLength(GEN_INSN_ARGS);
   void EmitInsn_NewArray(GEN_INSN_ARGS);
-#if 0
   void EmitInsn_FilledNewArray(GEN_INSN_ARGS, bool is_range);
   void EmitInsn_FillArrayData(GEN_INSN_ARGS);
 
-#endif
   // GOTO, IF_TEST, IF_TESTZ instructions
   void EmitInsn_UnconditionalBranch(GEN_INSN_ARGS);
-  void EmitInsn_BinaryConditionalBranch(GEN_INSN_ARGS, CondBranchKind cond);
   void EmitInsn_UnaryConditionalBranch(GEN_INSN_ARGS, CondBranchKind cond);
+  void EmitInsn_BinaryConditionalBranch(GEN_INSN_ARGS, CondBranchKind cond);
 
-#if 0
   // PACKED_SWITCH, SPARSE_SWITCH instrutions
   void EmitInsn_PackedSwitch(GEN_INSN_ARGS);
   void EmitInsn_SparseSwitch(GEN_INSN_ARGS);
@@ -402,47 +447,21 @@ class DexLang {
   void EmitInsn_FPCompare(GEN_INSN_ARGS, JType fp_jty, bool gt_bias);
   void EmitInsn_LongCompare(GEN_INSN_ARGS);
 
-#endif
   // AGET, APUT instrutions
   void EmitInsn_AGet(GEN_INSN_ARGS, JType elem_jty);
   void EmitInsn_APut(GEN_INSN_ARGS, JType elem_jty);
 
-#if 0
   // IGET, IPUT instructions
   void EmitInsn_IGet(GEN_INSN_ARGS, JType field_jty);
   void EmitInsn_IPut(GEN_INSN_ARGS, JType field_jty);
-#endif
 
   // SGET, SPUT instructions
   void EmitInsn_SGet(GEN_INSN_ARGS, JType field_jty);
   void EmitInsn_SPut(GEN_INSN_ARGS, JType field_jty);
 
-#if 0
-  // INVOKE instructions
-  llvm::Value* EmitFixStub(llvm::Value* callee_method_object_addr,
-                           uint32_t method_idx,
-                           bool is_static);
-  llvm::Value* EmitEnsureResolved(llvm::Value* callee,
-                                  llvm::Value* caller,
-                                  uint32_t dex_method_idx,
-                                  bool is_virtual);
-#endif
-
   void EmitInsn_Invoke(GEN_INSN_ARGS,
                        InvokeType invoke_type,
                        InvokeArgFmt arg_fmt);
-
-#if 0
-  llvm::Value* EmitLoadSDCalleeMethodObjectAddr(uint32_t callee_method_idx);
-
-  llvm::Value* EmitLoadVirtualCalleeMethodObjectAddr(int vtable_idx,
-                                                     llvm::Value* this_addr);
-
-  llvm::Value* EmitCallRuntimeForCalleeMethodObjectAddr(uint32_t callee_method_idx,
-                                                        InvokeType invoke_type,
-                                                        llvm::Value* this_addr,
-                                                        unsigned dex_pc,
-                                                        bool is_fast_path);
 
   // Unary instructions
   void EmitInsn_Neg(GEN_INSN_ARGS, JType op_jty);
@@ -455,18 +474,16 @@ class DexLang {
   void EmitInsn_FNeg(GEN_INSN_ARGS, JType op_jty);
   void EmitInsn_IntToFP(GEN_INSN_ARGS, JType src_jty, JType dest_jty);
   void EmitInsn_FPToInt(GEN_INSN_ARGS, JType src_jty, JType dest_jty,
-                        runtime_support::RuntimeId runtime_func_id);
+                        IntrinsicHelper::IntrinsicId intr_id);
   void EmitInsn_FExt(GEN_INSN_ARGS);
   void EmitInsn_FTrunc(GEN_INSN_ARGS);
 
-#endif
   // Integer binary arithmetic instructions
   void EmitInsn_IntArithm(GEN_INSN_ARGS, IntArithmKind arithm,
                           JType op_jty, bool is_2addr);
 
   void EmitInsn_IntArithmImmediate(GEN_INSN_ARGS, IntArithmKind arithm);
 
-#if 0
   void EmitInsn_IntShiftArithm(GEN_INSN_ARGS, IntShiftArithmKind arithm,
                                JType op_jty, bool is_2addr);
 
@@ -475,7 +492,6 @@ class DexLang {
 
   void EmitInsn_RSubImmediate(GEN_INSN_ARGS);
 
-#endif
   // Floating-point binary arithmetic instructions
   void EmitInsn_FPArithm(GEN_INSN_ARGS, FPArithmKind arithm,
                          JType op_jty, bool is_2addr);

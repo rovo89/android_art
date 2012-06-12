@@ -25,9 +25,24 @@ IRBuilder::IRBuilder(llvm::LLVMContext& context, llvm::Module& module,
                      IntrinsicHelper& intrinsic_helper)
     : LLVMIRBuilder(context), java_object_type_(NULL), java_method_type_(NULL),
       java_thread_type_(NULL), intrinsic_helper_(intrinsic_helper) {
+  // JavaObject must be defined in the module
   java_object_type_ = module.getTypeByName("JavaObject")->getPointerTo();
-  java_method_type_ = module.getTypeByName("Method")->getPointerTo();
-  java_thread_type_ = module.getTypeByName("Thread")->getPointerTo();
+
+  // If type of Method is not explicitly defined in the module, use JavaObject*
+  llvm::Type* type = module.getTypeByName("Method");
+  if (type != NULL) {
+    java_method_type_ = type->getPointerTo();
+  } else {
+    java_method_type_ = java_object_type_;
+  }
+
+  // If type of Thread is not explicitly defined in the module, use JavaObject*
+  type = module.getTypeByName("Thread");
+  if (type != NULL) {
+    java_thread_type_ = type->getPointerTo();
+  } else {
+    java_thread_type_ = java_object_type_;
+  }
 }
 
 llvm::Type* IRBuilder::GetJTypeInAccurateSpace(JType jty) {

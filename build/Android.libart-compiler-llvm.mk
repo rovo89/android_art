@@ -16,16 +16,17 @@
 
 
 LIBART_COMPILER_LLVM_CFLAGS := -DART_USE_LLVM_COMPILER=1
+ifeq ($(ART_USE_DEXLANG_FRONTEND),true)
+  LIBART_COMPILER_LLVM_CFLAGS += -DART_USE_DEXLANG_FRONTEND=1
+endif
 
 LIBART_COMPILER_LLVM_SRC_FILES += \
 	src/compiler_llvm/compilation_unit.cc \
 	src/compiler_llvm/compiler_llvm.cc \
-	src/compiler_llvm/dalvik_reg.cc \
 	src/compiler_llvm/generated/art_module.cc \
 	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/compiler_llvm/ir_builder.cc \
 	src/compiler_llvm/jni_compiler.cc \
-	src/compiler_llvm/method_compiler.cc \
 	src/compiler_llvm/runtime_support_builder.cc \
 	src/compiler_llvm/runtime_support_builder_arm.cc \
 	src/compiler_llvm/runtime_support_builder_thumb2.cc \
@@ -33,6 +34,19 @@ LIBART_COMPILER_LLVM_SRC_FILES += \
 	src/compiler_llvm/runtime_support_llvm.cc \
 	src/compiler_llvm/stub_compiler.cc \
 	src/compiler_llvm/tbaa_info.cc
+
+ifeq ($(ART_USE_DEXLANG_FRONTEND),true)
+  LIBART_COMPILER_LLVM_SRC_FILES += \
+    src/compiler_llvm/gbc_expander.cc \
+    src/greenland/dalvik_reg.cc \
+    src/greenland/dex_lang.cc \
+    src/greenland/intrinsic_helper.cc \
+    src/greenland/ir_builder.cc
+else
+  LIBART_COMPILER_LLVM_SRC_FILES += \
+	  src/compiler_llvm/dalvik_reg.cc \
+	  src/compiler_llvm/method_compiler.cc
+endif
 
 # $(1): target or host
 # $(2): ndebug or debug

@@ -16,350 +16,201 @@
 
 #include "dalvik_reg.h"
 
-#include "dex_lang.h"
 #include "ir_builder.h"
-#include "intrinsic_helper.h"
+#include "dex_lang.h"
 
-#include <llvm/Function.h>
-
-using namespace art;
-using namespace art::greenland;
-
-namespace {
-
-  class DalvikArgReg : public DalvikReg {
-   public:
-    DalvikArgReg(DexLang& dex_lang, unsigned reg_idx, JType jty);
-
-    virtual llvm::Value* GetValue(JType jty, JTypeSpace space);
-    virtual void SetValue(JType jty, JTypeSpace space, llvm::Value* value);
-
-   private:
-    llvm::Value* reg_addr_;
-    JType jty_;
-
-    inline void CheckJType(JType jty) const {
-      CHECK_EQ(jty, jty_) << "Get value of type " << jty << " from Dalvik "
-                             "argument register v" << reg_idx_ << "(type: "
-                          << jty_ << ") without type coercion!";
-      return;
-    }
-  };
-
-  class DalvikLocalVarReg : public DalvikReg {
-   public:
-    DalvikLocalVarReg(DexLang& dex_lang, unsigned reg_idx);
-
-    virtual llvm::Value* GetValue(JType jty, JTypeSpace space);
-    virtual void SetValue(JType jty, JTypeSpace space, llvm::Value* value);
-
-   private:
-    llvm::Value* GetRawAddr(RegCategory cat);
-
-   private:
-    llvm::Value* reg_32_;
-    llvm::Value* reg_64_;
-    llvm::Value* reg_obj_;
-  };
-} // anonymous namespace
-
+namespace art {
+namespace greenland {
 
 //----------------------------------------------------------------------------
 // Dalvik Register
 //----------------------------------------------------------------------------
 
-DalvikReg* DalvikReg::CreateArgReg(DexLang& dex_lang, unsigned reg_idx,
-                                   JType jty) {
-  return new DalvikArgReg(dex_lang, reg_idx, jty);
-}
-
-DalvikReg* DalvikReg::CreateLocalVarReg(DexLang& dex_lang, unsigned reg_idx) {
-  return new DalvikLocalVarReg(dex_lang, reg_idx);
-}
-
 DalvikReg::DalvikReg(DexLang& dex_lang, unsigned reg_idx)
-    : dex_lang_(dex_lang), irb_(dex_lang.GetIRBuilder()), reg_idx_(reg_idx),
-      shadow_frame_entry_idx_(-1) {
+: dex_lang_(dex_lang), irb_(dex_lang.GetIRBuilder()),
+  reg_idx_(reg_idx), shadow_frame_entry_idx_(-1),
+  reg_32_(NULL), reg_64_(NULL), reg_obj_(NULL) {
 }
 
-void DalvikReg::SetShadowEntry(llvm::Value* root_object) {
+DalvikReg::~DalvikReg() {
+}
+
+void DalvikReg::SetShadowEntry(llvm::Value* object) {
   if (shadow_frame_entry_idx_ < 0) {
     shadow_frame_entry_idx_ = dex_lang_.AllocShadowFrameEntry(reg_idx_);
   }
 
   irb_.CreateCall2(irb_.GetIntrinsics(IntrinsicHelper::SetShadowFrameEntry),
-                  root_object, irb_.getInt32(shadow_frame_entry_idx_));
+                   object, irb_.getInt32(shadow_frame_entry_idx_));
 
   return;
 }
 
-//----------------------------------------------------------------------------
-// Dalvik Argument Register
-//----------------------------------------------------------------------------
-DalvikArgReg::DalvikArgReg(DexLang& dex_lang, unsigned reg_idx, JType jty)
-    : DalvikReg(dex_lang, reg_idx), jty_(jty) {
-  reg_addr_ = dex_lang_.AllocateDalvikReg(jty, reg_idx);
-  DCHECK(reg_addr_ != NULL);
+llvm::Type* DalvikReg::GetRegCategoryEquivSizeTy(IRBuilder& irb, RegCategory reg_cat) {
+  switch (reg_cat) {
+  case kRegCat1nr:  return irb.GetJIntTy();
+  case kRegCat2:    return irb.GetJLongTy();
+  case kRegObject:  return irb.GetJObjectTy();
+  default:
+    LOG(FATAL) << "Unknown register category: " << reg_cat;
+    return NULL;
+  }
 }
 
-llvm::Value* DalvikArgReg::GetValue(JType jty, JTypeSpace space) {
+char DalvikReg::GetRegCategoryNamePrefix(RegCategory reg_cat) {
+  switch (reg_cat) {
+  case kRegCat1nr:  return 'r';
+  case kRegCat2:    return 'w';
+  case kRegObject:  return 'p';
+  default:
+    LOG(FATAL) << "Unknown register category: " << reg_cat;
+    return '\0';
+  }
+}
+
+inline llvm::Value* DalvikReg::RegCat1SExt(llvm::Value* value) {
+  return irb_.CreateSExt(value, irb_.GetJIntTy());
+}
+
+inline llvm::Value* DalvikReg::RegCat1ZExt(llvm::Value* value) {
+  return irb_.CreateZExt(value, irb_.GetJIntTy());
+}
+
+inline llvm::Value* DalvikReg::RegCat1Trunc(llvm::Value* value,
+                                            llvm::Type* ty) {
+  return irb_.CreateTrunc(value, ty);
+}
+
+llvm::Value* DalvikReg::GetValue(JType jty, JTypeSpace space) {
   DCHECK_NE(jty, kVoid) << "Dalvik register will never be void type";
 
+  llvm::Value* value = NULL;
   switch (space) {
-    case kReg:
-    case kField: {
-      // Currently, kField is almost the same with kReg.
-      RegCategory cat = GetRegCategoryFromJType(jty_);
-      CHECK_EQ(cat, GetRegCategoryFromJType(jty)) << "Get value of type " << jty
-                                                  << "has different register "
-                                                     "category from the value "
-                                                     "contained in the register"
-                                                  << reg_idx_ << "(type: "
-                                                  << jty_ << ")";
-      switch (jty_) {
-        case kVoid: {
-          break;
-        }
-        case kBoolean:
-        case kChar: {
-          return irb_.CreateZExt(irb_.CreateLoad(reg_addr_), irb_.GetJIntTy());
-        }
-        case kByte:
-        case kShort: {
-          return irb_.CreateSExt(irb_.CreateLoad(reg_addr_), irb_.GetJIntTy());
-        }
-        case kFloat: {
-          return irb_.CreateBitCast(irb_.CreateLoad(reg_addr_),
-                                    irb_.GetJIntTy());
-        }
-        case kDouble: {
-          return irb_.CreateBitCast(irb_.CreateLoad(reg_addr_),
-                                    irb_.GetJLongTy());
-        }
-        case kInt:
-        case kLong:
-        case kObject: {
-          return irb_.CreateLoad(reg_addr_);
-        }
-        default: {
-          LOG(FATAL) << "Unexpected register type: " << jty;
-          break;
-        }
-      }
+  case kReg:
+  case kField:
+    value = irb_.CreateLoad(GetAddr(jty));
+    break;
+
+  case kAccurate:
+  case kArray:
+    switch (jty) {
+    case kVoid:
+      LOG(FATAL) << "Dalvik register with void type has no value";
+      return NULL;
+
+    case kBoolean:
+    case kChar:
+    case kByte:
+    case kShort:
+      // NOTE: In array type space, boolean is truncated from i32 to i8, while
+      // in accurate type space, boolean is truncated from i32 to i1.
+      // For the other cases, array type space is equal to accurate type space.
+      value = RegCat1Trunc(irb_.CreateLoad(GetAddr(jty)),
+                           irb_.GetJType(jty, space));
       break;
-    }
-    case kArray: {
-      switch (jty) {
-        case kVoid: {
-          LOG(FATAL) << "Dalvik register with void type has no value";
-          return NULL;
-        }
-        case kBoolean: {
-          CheckJType(jty);
-          // NOTE: In array type space, boolean is i8, while in accurate type
-          // space, boolean is i1. For the other cases, array type space is
-          // equal to accurate type space.
-          return irb_.CreateZExt(irb_.CreateLoad(reg_addr_), irb_.GetJByteTy());
-        }
-        case kByte:
-        case kChar:
-        case kShort:
-        case kInt:
-        case kLong:
-        case kFloat:
-        case kDouble:
-        case kObject: {
-          CheckJType(jty);
-          return irb_.CreateLoad(reg_addr_);
-        }
-        default: {
-          LOG(FATAL) << "Unexpected register type: " << jty;
-          break;
-        }
-      }
-    }
-    case kAccurate: {
-      CheckJType(jty);
-      return irb_.CreateLoad(reg_addr_);
-    }
-  }
-  return NULL;
-}
 
-void DalvikArgReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
-  if ((jty == jty_) && (space == kAccurate)) {
-    irb_.CreateStore(value, reg_addr_);
-    if (jty == kObject) {
-      SetShadowEntry(value);
-    }
-  } else {
-    LOG(FATAL) << "Normal .dex file doesn't use argument register for method-"
-                  "local variable!";
-  }
-  return;
-}
+    case kInt:
+    case kLong:
+    case kFloat:
+    case kDouble:
+    case kObject:
+      value = irb_.CreateLoad(GetAddr(jty));
+      break;
 
-//----------------------------------------------------------------------------
-// Dalvik Local Variable Register
-//----------------------------------------------------------------------------
-
-DalvikLocalVarReg::DalvikLocalVarReg(DexLang& dex_lang, unsigned reg_idx)
-    : DalvikReg(dex_lang, reg_idx), reg_32_(NULL), reg_64_(NULL),
-      reg_obj_(NULL) {
-}
-
-llvm::Value* DalvikLocalVarReg::GetRawAddr(RegCategory cat) {
-  switch (cat) {
-    case kRegCat1nr: {
-      if (reg_32_ == NULL) {
-        reg_32_ = dex_lang_.AllocateDalvikReg(kInt, reg_idx_);
-      }
-      return reg_32_;
-    }
-    case kRegCat2: {
-      if (reg_64_ == NULL) {
-        reg_64_ = dex_lang_.AllocateDalvikReg(kLong, reg_idx_);
-      }
-      return reg_64_;
-    }
-    case kRegObject: {
-      if (reg_obj_ == NULL) {
-        reg_obj_ = dex_lang_.AllocateDalvikReg(kObject, reg_idx_);
-      }
-      return reg_obj_;
-    }
-    default: {
-      LOG(FATAL) << "Unexpected register category: " << cat;
+    default:
+      LOG(FATAL) << "Unknown java type: " << jty;
       return NULL;
     }
+    break;
+
+  default:
+    LOG(FATAL) << "Couldn't GetValue of JType " << jty;
+    return NULL;
   }
-  return NULL;
+
+  if (jty == kFloat || jty == kDouble) {
+    value = irb_.CreateBitCast(value, irb_.GetJType(jty, space));
+  }
+  return value;
 }
 
-llvm::Value* DalvikLocalVarReg::GetValue(JType jty, JTypeSpace space) {
+void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
   DCHECK_NE(jty, kVoid) << "Dalvik register will never be void type";
-
-  switch (space) {
-    case kReg:
-    case kField: {
-      // float and double require bitcast to get their value from the integer
-      // register.
-      DCHECK((jty != kFloat) && (jty != kDouble));
-      return irb_.CreateLoad(GetRawAddr(GetRegCategoryFromJType(jty)));
-    }
-    case kAccurate:
-    case kArray: {
-      switch (jty) {
-        case kVoid: {
-          LOG(FATAL) << "Dalvik register with void type has no value";
-          return NULL;
-        }
-        case kBoolean:
-        case kChar:
-        case kByte:
-        case kShort: {
-          // NOTE: In array type space, boolean is truncated from i32 to i8,
-          // while in accurate type space, boolean is truncated from i32 to i1.
-          // For the other cases, array type space is equal to accurate type
-          // space.
-          return irb_.CreateTrunc(irb_.CreateLoad(GetRawAddr(kRegCat1nr)),
-                                  irb_.GetJType(jty, space));
-        }
-        case kFloat: {
-          return irb_.CreateBitCast(irb_.CreateLoad(GetRawAddr(kRegCat1nr)),
-                                    irb_.GetJType(jty, space));
-        }
-        case kDouble: {
-          return irb_.CreateBitCast(irb_.CreateLoad(GetRawAddr(kRegCat2)),
-                                    irb_.GetJType(jty, space));
-        }
-        case kInt:
-        case kLong:
-        case kObject: {
-          return irb_.CreateLoad(GetRawAddr(GetRegCategoryFromJType(jty)));
-        }
-        default: {
-          LOG(FATAL) << "Unexpected register type: " << jty;
-          break;
-        }
-      }
-    }
-    default: {
-      LOG(FATAL) << "Unexpected register space: " << space;
-      break;
-    }
-  }
-  return NULL;
-}
-
-void DalvikLocalVarReg::SetValue(JType jty, JTypeSpace space,
-                                 llvm::Value* value) {
-  DCHECK_NE(jty, kVoid) << "Dalvik register should never hold void type";
 
   if (jty == kObject) {
     SetShadowEntry(value);
+  } else if (jty == kFloat || jty == kDouble) {
+    value = irb_.CreateBitCast(value, irb_.GetJType(jty, kReg));
   }
 
   switch (space) {
-    case kReg:
-    case kField: {
-      // float and double require bitcast to get their value from the integer
-      // register.
-      DCHECK((jty != kFloat) && (jty != kDouble));
-      irb_.CreateStore(value, GetRawAddr(GetRegCategoryFromJType(jty)));
-      return;
-    }
-    case kAccurate:
-    case kArray: {
-      switch (jty) {
-        case kVoid: {
-          break;
-        }
-        case kBoolean:
-        case kChar: {
-          // NOTE: In accurate type space, we have to zero extend boolean from
-          // i1 to i32, and char from i16 to i32.  In array type space, we have
-          // to zero extend boolean from i8 to i32, and char from i16 to i32.
-          value = irb_.CreateZExt(value, irb_.GetJIntTy());
-          irb_.CreateStore(value, GetRawAddr(kRegCat1nr));
-          break;
-        }
-        case kByte:
-        case kShort: {
-          // NOTE: In accurate type space, we have to signed extend byte from
-          // i8 to i32, and short from i16 to i32.  In array type space, we have
-          // to sign extend byte from i8 to i32, and short from i16 to i32.
-          value = irb_.CreateSExt(value, irb_.GetJIntTy());
-          irb_.CreateStore(value, GetRawAddr(kRegCat1nr));
-          break;
-        }
-        case kFloat: {
-          value = irb_.CreateBitCast(value, irb_.GetJIntTy());
-          irb_.CreateStore(value, GetRawAddr(kRegCat1nr));
-          break;
-        }
-        case kDouble: {
-          value = irb_.CreateBitCast(value, irb_.GetJLongTy());
-          irb_.CreateStore(value, GetRawAddr(kRegCat2));
-          break;
-        }
-        case kInt:
-        case kLong:
-        case kObject: {
-          irb_.CreateStore(value, GetRawAddr(GetRegCategoryFromJType(jty)));
-          break;
-        }
-        default: {
-          LOG(FATAL) << "Unexpected register type: " << jty;
-          return;
-        }
-      }
-      return;
-    }
-    default: {
-      LOG(FATAL) << "Unexpected register space: " << space;
-      return;
+  case kReg:
+  case kField:
+    irb_.CreateStore(value, GetAddr(jty));
+    return;
+
+  case kAccurate:
+  case kArray:
+    switch (jty) {
+    case kVoid:
+      break;
+
+    case kBoolean:
+    case kChar:
+      // NOTE: In accurate type space, we have to zero extend boolean from
+      // i1 to i32, and char from i16 to i32.  In array type space, we have
+      // to zero extend boolean from i8 to i32, and char from i16 to i32.
+      irb_.CreateStore(RegCat1ZExt(value), GetAddr(jty));
+      break;
+
+    case kByte:
+    case kShort:
+      // NOTE: In accurate type space, we have to signed extend byte from
+      // i8 to i32, and short from i16 to i32.  In array type space, we have
+      // to sign extend byte from i8 to i32, and short from i16 to i32.
+      irb_.CreateStore(RegCat1SExt(value), GetAddr(jty));
+      break;
+
+    case kInt:
+    case kLong:
+    case kFloat:
+    case kDouble:
+    case kObject:
+      irb_.CreateStore(value, GetAddr(jty));
+      break;
+
+    default:
+      LOG(FATAL) << "Unknown java type: " << jty;
     }
   }
 }
 
+llvm::Value* DalvikReg::GetAddr(JType jty) {
+  switch (GetRegCategoryFromJType(jty)) {
+  case kRegCat1nr:
+    if (reg_32_ == NULL) {
+      reg_32_ = dex_lang_.AllocateDalvikReg(kRegCat1nr, reg_idx_);
+    }
+    return reg_32_;
+
+  case kRegCat2:
+    if (reg_64_ == NULL) {
+      reg_64_ = dex_lang_.AllocateDalvikReg(kRegCat2, reg_idx_);
+    }
+    return reg_64_;
+
+  case kRegObject:
+    if (reg_obj_ == NULL) {
+      reg_obj_ = dex_lang_.AllocateDalvikReg(kRegObject, reg_idx_);
+    }
+    return reg_obj_;
+
+  default:
+    LOG(FATAL) << "Unexpected register category: "
+               << GetRegCategoryFromJType(jty);
+    return NULL;
+  }
+}
+
+} // namespace greenland
+} // namespace art

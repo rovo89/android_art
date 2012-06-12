@@ -47,11 +47,22 @@ class IntrinsicHelper {
   enum IntrinsicAttribute {
     kAttrNone     = 0,
 
-    // Intrinsic that doesn't modify the memory state
-    kAttrReadOnly = 1 << 0,
+    // Intrinsic that neither modified the memory state nor refer to the global
+    // state
+    kAttrReadNone = 1 << 0,
+
+    // Intrinsic that doesn't modify the memory state. Note that one should set
+    // this flag carefully when the intrinsic may throw exception. Since the
+    // thread state is implicitly modified when an exception is thrown.
+    kAttrReadOnly = 1 << 1,
+
+    // Note that intrinsic without kAttrNoThrow and kAttrDoThrow set means that
+    // intrinsic generates exception in some cases
 
     // Intrinsic that never generates exception
-    kAttrNoThrow  = 1 << 1,
+    kAttrNoThrow  = 1 << 2,
+    // Intrinsic that always generate exception
+    kAttrDoThrow  = 1 << 3,
   };
 
   enum IntrinsicValType {
@@ -68,15 +79,16 @@ class IntrinsicHelper {
     kInt16Ty,
     kInt32Ty,
     kInt64Ty,
+    kFloatTy,
+    kDoubleTy,
 
     kInt1ConstantTy,
     kInt8ConstantTy,
     kInt16ConstantTy,
     kInt32ConstantTy,
     kInt64ConstantTy,
-
-    kFloatTy,
-    kDoubleTy,
+    kFloatConstantTy,
+    kDoubleConstantTy,
 
     kVarArgTy,
   };
@@ -93,7 +105,7 @@ class IntrinsicHelper {
   } IntrinsicInfo;
 
  private:
-  static const IntrinsicInfo Info[MaxIntrinsicId];
+  static const IntrinsicInfo Info[];
 
  public:
   static const IntrinsicInfo& GetInfo(IntrinsicId id) {
@@ -130,7 +142,10 @@ class IntrinsicHelper {
   }
 
  private:
-  llvm::Function* intrinsic_funcs_[MaxIntrinsicId];
+  // FIXME: "+1" is to workaround the GCC bugs:
+  // http://gcc.gnu.org/bugzilla/show_bug.cgi?id=43949
+  // Remove this when uses newer GCC (> 4.4.3)
+  llvm::Function* intrinsic_funcs_[MaxIntrinsicId + 1];
 
   // Map a llvm::Function to its intrinsic id
   llvm::DenseMap<const llvm::Function*, IntrinsicId> intrinsic_funcs_map_;

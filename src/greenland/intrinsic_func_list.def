@@ -58,9 +58,30 @@
 // Thread* dex_lang_get_current_thread()
 _EVAL_DEF_INTRINSICS_FUNC(GetCurrentThread,
                           dex_lang_get_current_thread,
-                          kAttrReadOnly | kAttrNoThrow,
-                           kJavaThreadTy,
+                          kAttrReadNone | kAttrNoThrow,
+                          kJavaThreadTy,
                           _EXPAND_ARG0())
+
+// void dex_lang_test_suspend(Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(TestSuspend,
+                          dex_lang_test_suspend,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG1(kJavaThreadTy))
+
+// void dex_lang_check_suspend() /* Expands to GetCurrentThread/TestSuspend */
+_EVAL_DEF_INTRINSICS_FUNC(CheckSuspend,
+                          dex_lang_check_suspend,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG0())
+
+// void dex_lang_mark_gc_card(Object* new_value, Object* object)
+_EVAL_DEF_INTRINSICS_FUNC(MarkGCCard,
+                          dex_lang_mark_gc_card,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kJavaObjectTy, kJavaObjectTy))
 
 //----------------------------------------------------------------------------
 // Exception
@@ -77,6 +98,13 @@ _EVAL_DEF_INTRINSICS_FUNC(CatchTargets,
                           kAttrReadOnly | kAttrNoThrow,
                           kInt32Ty,
                           _EXPAND_ARG1(kInt32ConstantTy))
+
+// void dex_lang_throw_exception(JavaObject* exception)
+_EVAL_DEF_INTRINSICS_FUNC(ThrowException,
+                          dex_lang_throw_exception,
+                          kAttrDoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG1(kJavaObjectTy))
 
 // JavaObject* dex_lang_get_current_exception()
 _EVAL_DEF_INTRINSICS_FUNC(GetException,
@@ -102,30 +130,23 @@ _EVAL_DEF_INTRINSICS_FUNC(FindCatchBlock,
 // void dex_lang_throw_div_zero()
 _EVAL_DEF_INTRINSICS_FUNC(ThrowDivZeroException,
                           dex_lang_throw_div_zero,
-                          kAttrNoThrow,
+                          kAttrDoThrow,
                           kVoidTy,
                           _EXPAND_ARG0())
 
 // void dex_lang_throw_null_pointer_exception(uint32_t dex_pc)
 _EVAL_DEF_INTRINSICS_FUNC(ThrowNullPointerException,
                           dex_lang_throw_null_pointer_exception,
-                          kAttrNoThrow,
+                          kAttrDoThrow,
                           kVoidTy,
                           _EXPAND_ARG1(kInt32ConstantTy))
 
 // void dex_lang_throw_array_bounds(int index, int array_len)
 _EVAL_DEF_INTRINSICS_FUNC(ThrowIndexOutOfBounds,
                           dex_lang_throw_array_bounds,
-                          kAttrNoThrow,
+                          kAttrDoThrow,
                           kVoidTy,
                           _EXPAND_ARG2(kInt32Ty, kInt32Ty))
-
-// void dex_lang_throw(exception_object)
-_EVAL_DEF_INTRINSICS_FUNC(Throw,
-                          dex_lang_throw,
-                          kAttrNoThrow,
-                          kVoidTy,
-                          _EXPAND_ARG1(kJavaObjectTy))
 
 //----------------------------------------------------------------------------
 // ConstString
@@ -138,16 +159,24 @@ _EVAL_DEF_INTRINSICS_FUNC(ConstString,
                           kJavaObjectTy,
                           _EXPAND_ARG1(kInt32ConstantTy))
 
-// JavaObject* dex_lang_const_string(uint32_t string_idx)
-_EVAL_DEF_INTRINSICS_FUNC(ConstStringFast,
-                          dex_lang_const_string.fast,
+// JavaObject* dex_lang_load_string_from_dex_cache(Method* method, uint32_t string_idx)
+_EVAL_DEF_INTRINSICS_FUNC(LoadStringFromDexCache,
+                          dex_lang_load_string_from_dex_cache,
                           kAttrReadOnly | kAttrNoThrow,
                           kJavaObjectTy,
                           _EXPAND_ARG1(kInt32ConstantTy))
 
+// JavaObject* dex_lang_resolve_string(Method* method, uint32_t string_idx)
+_EVAL_DEF_INTRINSICS_FUNC(ResolveString,
+                          dex_lang_resolve_string,
+                          kAttrNone,
+                          kJavaObjectTy,
+                          _EXPAND_ARG2(kJavaMethodTy, kInt32ConstantTy))
+
 //----------------------------------------------------------------------------
 // ConstClass
 //----------------------------------------------------------------------------
+
 // JavaObject* dex_lang_const_class(uint32_t type_idx)
 _EVAL_DEF_INTRINSICS_FUNC(ConstClass,
                           dex_lang_const_class,
@@ -155,15 +184,95 @@ _EVAL_DEF_INTRINSICS_FUNC(ConstClass,
                           kJavaObjectTy,
                           _EXPAND_ARG1(kInt32ConstantTy))
 
+// JavaObject* dex_lang_initialize_type_and_verify_access(uint32_t type_idx,
+//                                                        Method* referrer,
+//                                                        Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(InitializeTypeAndVerifyAccess,
+                          dex_lang_initialize_type_and_verify_access,
+                          kAttrNone,
+                          kJavaObjectTy,
+                          _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaThreadTy))
+
+// JavaObject* dex_lang_load_type_from_dex_cache(uint32_t type_idx)
+_EVAL_DEF_INTRINSICS_FUNC(LoadTypeFromDexCache,
+                          dex_lang_load_type_from_dex_cache,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kJavaObjectTy,
+                          _EXPAND_ARG1(kInt32ConstantTy))
+
+// JavaObject* dex_lang_initialize_type(uint32_t type_idx,
+//                                      Method* referrer,
+//                                      Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(InitializeType,
+                          dex_lang_initialize_type,
+                          kAttrNone,
+                          kJavaObjectTy,
+                          _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaThreadTy))
+
 //----------------------------------------------------------------------------
-// CheckCast
+// Lock
 //----------------------------------------------------------------------------
-// void dex_lang_check_cast(uint32_t type_idx, JavaObject* obj)
+
+// void dex_lang_lock_object(JavaObject* obj, Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(LockObject,
+                          dex_lang_lock_object,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kJavaObjectTy, kJavaThreadTy))
+
+// void dex_lang_unlock_object(JavaObject* obj, Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(UnlockObject,
+                          dex_lang_unlock_object,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG2(kJavaObjectTy, kJavaThreadTy))
+
+//----------------------------------------------------------------------------
+// Cast
+//----------------------------------------------------------------------------
+
+// void dex_lang_check_cast(JavaObject* dest_type, JavaObject* src_type)
 _EVAL_DEF_INTRINSICS_FUNC(CheckCast,
                           dex_lang_check_cast,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG2(kJavaObjectTy, kJavaObjectTy))
+
+// void dex_lang_hl_check_cast(uint32_t type_idx, JavaObject* obj)
+_EVAL_DEF_INTRINSICS_FUNC(HLCheckCast,
+                          dex_lang_hl_check_cast,
                           kAttrReadOnly | kAttrNoThrow,
                           kVoidTy,
                           _EXPAND_ARG2(kInt32ConstantTy, kJavaObjectTy))
+
+// int dex_lang_is_assignable(JavaObject* dest_type, JavaObject* src_type)
+_EVAL_DEF_INTRINSICS_FUNC(IsAssignable,
+                          dex_lang_is_assignable,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG2(kJavaObjectTy, kJavaObjectTy))
+
+//----------------------------------------------------------------------------
+// Allocation
+//----------------------------------------------------------------------------
+
+// JavaObject* dex_lang_alloc_object(uint32_t type_idx,
+//                                   Method* referrer,
+//                                   Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(AllocObject,
+                          dex_lang_alloc_object,
+                          kAttrNone,
+                          kJavaObjectTy,
+                          _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaThreadTy))
+
+// JavaObject* dex_lang_alloc_object_with_access_check(uint32_t type_idx,
+//                                                     Method* referrer,
+//                                                     Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(AllocObjectWithAccessCheck,
+                          dex_lang_alloc_object_with_access_check,
+                          kAttrNone,
+                          kJavaObjectTy,
+                          _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaThreadTy))
 
 //----------------------------------------------------------------------------
 // Instance
@@ -187,13 +296,6 @@ _EVAL_DEF_INTRINSICS_FUNC(InstanceOf,
 // Array
 //----------------------------------------------------------------------------
 
-// uint32_t dex_lang_array_length(int32_t opt_flags, JavaObject* array)
-_EVAL_DEF_INTRINSICS_FUNC(ArrayLength,
-                          dex_lang_array_length,
-                          kAttrReadOnly | kAttrNoThrow,
-                          kInt32Ty,
-                          _EXPAND_ARG2(kInt32Ty, kJavaObjectTy))
-
 // JavaObject* dex_lang_new_array(uint32_t type_idx, uint32_t array_size)
 _EVAL_DEF_INTRINSICS_FUNC(NewArray,
                           dex_lang_new_array,
@@ -201,12 +303,59 @@ _EVAL_DEF_INTRINSICS_FUNC(NewArray,
                           kJavaObjectTy,
                           _EXPAND_ARG2(kInt32ConstantTy, kInt32Ty))
 
-// void dex_lang_fill_array_data(int32_t offset, JavaObject* array)
-_EVAL_DEF_INTRINSICS_FUNC(FillArrayData,
-                          dex_lang_fill_array_data,
+// uint32_t dex_lang_opt_array_length(int32_t opt_flags, JavaObject* array)
+_EVAL_DEF_INTRINSICS_FUNC(OptArrayLength,
+                          dex_lang_opt_array_length,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG2(kInt32Ty, kJavaObjectTy))
+
+// uint32_t dex_lang_array_length(JavaObject* array)
+_EVAL_DEF_INTRINSICS_FUNC(ArrayLength,
+                          dex_lang_array_length,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG1(kJavaObjectTy))
+
+// JavaObject* dex_lang_alloc_array(uint32_t type_idx,
+//                                  Method* referrer,
+//                                  uint32_t length,
+//                                  Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(AllocArray,
+                          dex_lang_alloc_array,
                           kAttrNone,
-                          kVoidTy,
-                          _EXPAND_ARG2(kInt32ConstantTy, kJavaObjectTy))
+                          kJavaObjectTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaMethodTy, kInt32Ty, kJavaThreadTy))
+
+// JavaObject* dex_lang_alloc_array_with_access_check(uint32_t type_idx,
+//                                                    Method* referrer,
+//                                                    uint32_t length,
+//                                                    Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(AllocArrayWithAccessCheck,
+                          dex_lang_alloc_array_with_access_check,
+                          kAttrNone,
+                          kJavaObjectTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaMethodTy, kInt32Ty, kJavaThreadTy))
+
+// JavaObject* dex_lang_check_and_alloc_array(uint32_t type_idx,
+//                                            Method* referrer,
+//                                            uint32_t length,
+//                                            Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(CheckAndAllocArray,
+                          dex_lang_check_and_alloc_array,
+                          kAttrNone,
+                          kJavaObjectTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaMethodTy, kInt32ConstantTy, kJavaThreadTy))
+
+// JavaObject* dex_lang_check_and_alloc_array_with_access_check(uint32_t type_idx,
+//                                                              Method* referrer,
+//                                                              uint32_t length,
+//                                                              Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(CheckAndAllocArrayWithAccessCheck,
+                          dex_lang_check_and_alloc_array_with_access_check,
+                          kAttrNone,
+                          kJavaObjectTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaMethodTy, kInt32ConstantTy, kJavaThreadTy))
 
 // dex_lang_aget_* and dex_lang_aput_* never generate exception since the
 // necessary checking on arguments (e.g., array and index) has already done
@@ -301,9 +450,220 @@ _EVAL_DEF_INTRINSICS_FUNC(ArrayPutShort,
 // void dex_lang_check_put_array_element(JavaObject* value, JavaObject* array)
 _EVAL_DEF_INTRINSICS_FUNC(CheckPutArrayElement,
                           dex_lang_check_put_array_element,
-                          kAttrReadOnly | kAttrNoThrow,
+                          kAttrNone,
                           kVoidTy,
                           _EXPAND_ARG2(kJavaObjectTy, kJavaObjectTy))
+
+// void dex_lang_filled_new_array(Array* array,
+//                                uint32_t elem_jty, ...)
+_EVAL_DEF_INTRINSICS_FUNC(FilledNewArray,
+                          dex_lang_filled_new_array,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG3(kJavaObjectTy, kInt32ConstantTy, kVarArgTy))
+
+// void dex_lang_fill_array_data(Method* referrer,
+//                               uint32_t dex_pc,
+//                               Array* array,
+//                               uint32_t payload_offset)
+_EVAL_DEF_INTRINSICS_FUNC(FillArrayData,
+                          dex_lang_fill_array_data,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG4(kJavaMethodTy, kInt32ConstantTy, kJavaObjectTy, kInt32ConstantTy))
+
+// void dex_lang_hl_fill_array_data(int32_t offset, JavaObject* array)
+_EVAL_DEF_INTRINSICS_FUNC(HLFillArrayData,
+                          dex_lang_hl_fill_array_data,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32ConstantTy, kJavaObjectTy))
+
+//----------------------------------------------------------------------------
+// Instance Field
+//----------------------------------------------------------------------------
+
+// [type] dex_lang_iget_[type](uint32_t field_idx,
+//                             Method* referrer,
+//                             JavaObject* obj)
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGet,
+                          dex_lang_iget,
+                          kAttrNone,
+                          _JTYPE(kInt32Ty, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetWide,
+                          dex_lang_iget_wide,
+                          kAttrNone,
+                          _JTYPE(kInt64Ty, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetObject,
+                          dex_lang_iget_object,
+                          kAttrNone,
+                          _JTYPE(kJavaObjectTy, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetBoolean,
+                          dex_lang_iget_boolean,
+                          kAttrNone,
+                          _JTYPE(kInt1Ty, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetByte,
+                          dex_lang_iget_byte,
+                          kAttrNone,
+                          _JTYPE(kInt8Ty, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetChar,
+                          dex_lang_iget_char,
+                          kAttrNone,
+                          _JTYPE(kInt16Ty, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetShort,
+                          dex_lang_iget_short,
+                          kAttrNone,
+                          _JTYPE(kInt16Ty, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy))
+
+// [type] dex_lang_iget_[type].fast(int field_offset,
+//                                  bool is_volatile,
+//                                  JavaObject* obj)
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetFast,
+                          dex_lang_iget.fast,
+                          kAttrReadOnly | kAttrNoThrow,
+                          _JTYPE(kInt32Ty, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetWideFast,
+                          dex_lang_iget_wide.fast,
+                          kAttrReadOnly | kAttrNoThrow,
+                          _JTYPE(kInt64Ty, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetObjectFast,
+                          dex_lang_iget_object.fast,
+                          kAttrReadOnly | kAttrNoThrow,
+                          _JTYPE(kJavaObjectTy, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetBooleanFast,
+                          dex_lang_iget_boolean.fast,
+                          kAttrReadOnly | kAttrNoThrow,
+                          _JTYPE(kInt1Ty, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetByteFast,
+                          dex_lang_iget_byte.fast,
+                          kAttrReadOnly | kAttrNoThrow,
+                          _JTYPE(kInt8Ty, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetCharFast,
+                          dex_lang_iget_char.fast,
+                          kAttrReadOnly | kAttrNoThrow,
+                          _JTYPE(kInt16Ty, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldGetShortFast,
+                          dex_lang_iget_short.fast,
+                          kAttrReadOnly | kAttrNoThrow,
+                          _JTYPE(kInt16Ty, kField),
+                          _EXPAND_ARG3(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy))
+
+// void dex_lang_iput_[type](uint32_t field_idx,
+//                           Method* referrer,
+//                           JavaObject* obj,
+//                           [type] new_value)
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPut,
+                          dex_lang_iput,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy, _JTYPE(kInt32Ty, kField)))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutWide,
+                          dex_lang_iput_wide,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy, _JTYPE(kInt64Ty, kField)))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutObject,
+                          dex_lang_iput_object,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy, _JTYPE(kJavaObjectTy, kField)))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutBoolean,
+                          dex_lang_iput_boolean,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy, _JTYPE(kInt1Ty, kField)))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutByte,
+                          dex_lang_iput_byte,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy, _JTYPE(kInt8Ty, kField)))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutChar,
+                          dex_lang_iput_char,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy, _JTYPE(kInt16Ty, kField)))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutShort,
+                          dex_lang_iput_short,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaMethodTy, kJavaObjectTy, _JTYPE(kInt16Ty, kField)))
+
+// void dex_lang_iput_[type].fast(int field_offset,
+//                                bool is_volatile,
+//                                JavaObject* obj,
+//                                [type] new_value)
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutFast,
+                          dex_lang_iput.fast,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy, _JTYPE(kInt32Ty, kField)))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutWideFast,
+                          dex_lang_iput_wide.fast,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy, _JTYPE(kInt64Ty, kField)))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutObjectFast,
+                          dex_lang_iput_object.fast,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy, _JTYPE(kJavaObjectTy, kField)))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutBooleanFast,
+                          dex_lang_iput_boolean.fast,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy, _JTYPE(kInt1Ty, kField)))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutByteFast,
+                          dex_lang_iput_byte.fast,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy, _JTYPE(kInt8Ty, kField)))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutCharFast,
+                          dex_lang_iput_char.fast,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy, _JTYPE(kInt16Ty, kField)))
+
+_EVAL_DEF_INTRINSICS_FUNC(InstanceFieldPutShortFast,
+                          dex_lang_iput_short.fast,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kInt1ConstantTy, kJavaObjectTy, _JTYPE(kInt16Ty, kField)))
 
 //----------------------------------------------------------------------------
 // Static Field
@@ -312,43 +672,43 @@ _EVAL_DEF_INTRINSICS_FUNC(CheckPutArrayElement,
 // [type] dex_lang_sget_[type](uint32_t field_idx, Method* referrer)
 _EVAL_DEF_INTRINSICS_FUNC(StaticFieldGet,
                           dex_lang_sget,
-                          kAttrReadOnly,
+                          kAttrNone,
                           _JTYPE(kInt32Ty, kField),
                           _EXPAND_ARG2(kInt32ConstantTy, kJavaMethodTy))
 
 _EVAL_DEF_INTRINSICS_FUNC(StaticFieldGetWide,
                           dex_lang_sget_wide,
-                          kAttrReadOnly,
+                          kAttrNone,
                           _JTYPE(kInt64Ty, kField),
                           _EXPAND_ARG2(kInt32ConstantTy, kJavaMethodTy))
 
 _EVAL_DEF_INTRINSICS_FUNC(StaticFieldGetObject,
                           dex_lang_sget_object,
-                          kAttrReadOnly,
+                          kAttrNone,
                           _JTYPE(kJavaObjectTy, kField),
                           _EXPAND_ARG2(kInt32ConstantTy, kJavaMethodTy))
 
 _EVAL_DEF_INTRINSICS_FUNC(StaticFieldGetBoolean,
                           dex_lang_sget_boolean,
-                          kAttrReadOnly,
+                          kAttrNone,
                           _JTYPE(kInt1Ty, kField),
                           _EXPAND_ARG2(kInt32ConstantTy, kJavaMethodTy))
 
 _EVAL_DEF_INTRINSICS_FUNC(StaticFieldGetByte,
                           dex_lang_sget_byte,
-                          kAttrReadOnly,
+                          kAttrNone,
                           _JTYPE(kInt8Ty, kField),
                           _EXPAND_ARG2(kInt32ConstantTy, kJavaMethodTy))
 
 _EVAL_DEF_INTRINSICS_FUNC(StaticFieldGetChar,
                           dex_lang_sget_char,
-                          kAttrReadOnly,
+                          kAttrNone,
                           _JTYPE(kInt16Ty, kField),
                           _EXPAND_ARG2(kInt32ConstantTy, kJavaMethodTy))
 
 _EVAL_DEF_INTRINSICS_FUNC(StaticFieldGetShort,
                           dex_lang_sget_short,
-                          kAttrReadOnly,
+                          kAttrNone,
                           _JTYPE(kInt16Ty, kField),
                           _EXPAND_ARG2(kInt32ConstantTy, kJavaMethodTy))
 
@@ -802,7 +1162,7 @@ _EVAL_DEF_INTRINSICS_FUNC(HLInvokeDouble,
                           _EXPAND_ARG1(kVarArgTy))
 
 // FILLED_NEW_ARRAY returns object
-_EVAL_DEF_INTRINSICS_FUNC(FilledNewArray,
+_EVAL_DEF_INTRINSICS_FUNC(HLFilledNewArray,
                           dex_lang_hl_filled_new_array,
                           kAttrNone,
                           kJavaObjectTy,
@@ -812,21 +1172,60 @@ _EVAL_DEF_INTRINSICS_FUNC(FilledNewArray,
 // Invoke
 //----------------------------------------------------------------------------
 
-// Method* dex_lang_get_callee_method_obj_addr(uint32_t method_idx,
-//                                             JavaObject* this,
-//                                             Method* referrer,
-//                                             Thread* thread,
-//                                             InvokeType type)
-_EVAL_DEF_INTRINSICS_FUNC(GetCalleeMethodObjAddr,
-                          dex_lang_get_callee_method_obj_addr,
-                          kAttrReadOnly,
+// Method* dex_lang_find_static_method_with_access_check(uint32_t method_idx,
+//                                                       JavaObject* this,
+//                                                       Method* referrer,
+//                                                       Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(FindStaticMethodWithAccessCheck,
+                          dex_lang_find_static_method_with_access_check,
+                          kAttrNone,
                           kJavaMethodTy,
-                          _EXPAND_ARG5(kInt32ConstantTy, kJavaObjectTy, kJavaMethodTy, kJavaThreadTy, kInt32ConstantTy))
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaObjectTy, kJavaMethodTy, kJavaThreadTy))
+
+// Method* dex_lang_find_direct_method_with_access_check(uint32_t method_idx,
+//                                                       JavaObject* this,
+//                                                       Method* referrer,
+//                                                       Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(FindDirectMethodWithAccessCheck,
+                          dex_lang_find_direct_method_with_access_check,
+                          kAttrNone,
+                          kJavaMethodTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaObjectTy, kJavaMethodTy, kJavaThreadTy))
+
+// Method* dex_lang_find_virtual_method_with_access_check(uint32_t method_idx,
+//                                                        JavaObject* this,
+//                                                        Method* referrer,
+//                                                        Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(FindVirtualMethodWithAccessCheck,
+                          dex_lang_find_virtual_method_with_access_check,
+                          kAttrNone,
+                          kJavaMethodTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaObjectTy, kJavaMethodTy, kJavaThreadTy))
+
+// Method* dex_lang_find_super_method_with_access_check(uint32_t method_idx,
+//                                                      JavaObject* this,
+//                                                      Method* referrer,
+//                                                      Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(FindSuperMethodWithAccessCheck,
+                          dex_lang_find_super_method_with_access_check,
+                          kAttrNone,
+                          kJavaMethodTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaObjectTy, kJavaMethodTy, kJavaThreadTy))
+
+// Method* dex_lang_find_interface_method_with_access_check(uint32_t method_idx,
+//                                                          JavaObject* this,
+//                                                          Method* referrer,
+//                                                          Thread* thread)
+_EVAL_DEF_INTRINSICS_FUNC(FindInterfaceMethodWithAccessCheck,
+                          dex_lang_find_interface_method_with_access_check,
+                          kAttrNone,
+                          kJavaMethodTy,
+                          _EXPAND_ARG4(kInt32ConstantTy, kJavaObjectTy, kJavaMethodTy, kJavaThreadTy))
 
 // Method* dex_lang_get_sd_callee_method_obj_addr(uint32_t method_idx)
 _EVAL_DEF_INTRINSICS_FUNC(GetSDCalleeMethodObjAddrFast,
                           dex_lang_get_sd_callee_method_obj_addr_fast,
-                          kAttrReadOnly,
+                          kAttrReadOnly | kAttrNoThrow,
                           kJavaMethodTy,
                           _EXPAND_ARG1(kInt32ConstantTy))
 
@@ -844,7 +1243,7 @@ _EVAL_DEF_INTRINSICS_FUNC(GetVirtualCalleeMethodObjAddrFast,
 //                                                       Thread* thread)
 _EVAL_DEF_INTRINSICS_FUNC(GetInterfaceCalleeMethodObjAddrFast,
                           dex_lang_get_interface_callee_method_obj_addr_fast,
-                          kAttrReadOnly,
+                          kAttrNone,
                           kJavaMethodTy,
                           _EXPAND_ARG4(kInt32ConstantTy, kJavaObjectTy, kJavaMethodTy, kJavaThreadTy))
 
@@ -856,21 +1255,63 @@ _EVAL_DEF_INTRINSICS_FUNC(InvokeRetVoid,
                           kVoidTy,
                           _EXPAND_ARG2(kJavaMethodTy, kVarArgTy))
 
-// INVOKE method returns the value of type in Dalvik register category 1
-_EVAL_DEF_INTRINSICS_FUNC(InvokeRetCat1,
-                          dex_lang_invoke.i32,
+// INVOKE method returns the value of type boolean
+_EVAL_DEF_INTRINSICS_FUNC(InvokeRetBoolean,
+                          dex_lang_invoke.bool,
+                          kAttrNone,
+                          kInt1Ty,
+                          _EXPAND_ARG2(kJavaMethodTy, kVarArgTy))
+
+// INVOKE method returns the value of type byte
+_EVAL_DEF_INTRINSICS_FUNC(InvokeRetByte,
+                          dex_lang_invoke.byte,
+                          kAttrNone,
+                          kInt8Ty,
+                          _EXPAND_ARG2(kJavaMethodTy, kVarArgTy))
+
+// INVOKE method returns the value of type char
+_EVAL_DEF_INTRINSICS_FUNC(InvokeRetChar,
+                          dex_lang_invoke.char,
+                          kAttrNone,
+                          kInt16Ty,
+                          _EXPAND_ARG2(kJavaMethodTy, kVarArgTy))
+
+// INVOKE method returns the value of type short
+_EVAL_DEF_INTRINSICS_FUNC(InvokeRetShort,
+                          dex_lang_invoke.short,
+                          kAttrNone,
+                          kInt16Ty,
+                          _EXPAND_ARG2(kJavaMethodTy, kVarArgTy))
+
+// INVOKE method returns the value of type int
+_EVAL_DEF_INTRINSICS_FUNC(InvokeRetInt,
+                          dex_lang_invoke.int,
                           kAttrNone,
                           kInt32Ty,
                           _EXPAND_ARG2(kJavaMethodTy, kVarArgTy))
 
-// INVOKE method returns the value of type in Dalvik register category 2
-_EVAL_DEF_INTRINSICS_FUNC(InvokeRetCat2,
-                          dex_lang_invoke.i64,
+// INVOKE method returns the value of type long
+_EVAL_DEF_INTRINSICS_FUNC(InvokeRetLong,
+                          dex_lang_invoke.long,
                           kAttrNone,
                           kInt64Ty,
                           _EXPAND_ARG2(kJavaMethodTy, kVarArgTy))
 
-// INVOKE method returns the value of type in Dalvik register category "object"
+// INVOKE method returns the value of type float
+_EVAL_DEF_INTRINSICS_FUNC(InvokeRetFloat,
+                          dex_lang_invoke.float,
+                          kAttrNone,
+                          kFloatTy,
+                          _EXPAND_ARG2(kJavaMethodTy, kVarArgTy))
+
+// INVOKE method returns the value of type double
+_EVAL_DEF_INTRINSICS_FUNC(InvokeRetDouble,
+                          dex_lang_invoke.double,
+                          kAttrNone,
+                          kDoubleTy,
+                          _EXPAND_ARG2(kJavaMethodTy, kVarArgTy))
+
+// INVOKE method returns the value of type "object"
 _EVAL_DEF_INTRINSICS_FUNC(InvokeRetObject,
                           dex_lang_invoke.object,
                           kAttrNone,
@@ -884,46 +1325,57 @@ _EVAL_DEF_INTRINSICS_FUNC(InvokeRetObject,
 // int dex_lang_{div,rem}_int(int a, int b)
 _EVAL_DEF_INTRINSICS_FUNC(DivInt,
                           dex_lang_div_int,
-                          kAttrReadOnly | kAttrNoThrow,
+                          kAttrReadNone | kAttrNoThrow,
                           kInt32Ty,
                           _EXPAND_ARG2(kInt32Ty, kInt32Ty))
 
 _EVAL_DEF_INTRINSICS_FUNC(RemInt,
                           dex_lang_rem_int,
-                          kAttrReadOnly | kAttrNoThrow,
+                          kAttrReadNone | kAttrNoThrow,
                           kInt32Ty,
                           _EXPAND_ARG2(kInt32Ty, kInt32Ty))
 
 // long dex_lang_{div,rem}_long(long a, long b)
 _EVAL_DEF_INTRINSICS_FUNC(DivLong,
                           dex_lang_div_long,
-                          kAttrReadOnly | kAttrNoThrow,
+                          kAttrReadNone | kAttrNoThrow,
                           kInt64Ty,
                           _EXPAND_ARG2(kInt64Ty, kInt64Ty))
 
 _EVAL_DEF_INTRINSICS_FUNC(RemLong,
                           dex_lang_rem_long,
-                          kAttrReadOnly | kAttrNoThrow,
+                          kAttrReadNone | kAttrNoThrow,
                           kInt64Ty,
                           _EXPAND_ARG2(kInt64Ty, kInt64Ty))
 
-//----------------------------------------------------------------------------
-// Suspend Test
-//----------------------------------------------------------------------------
+// int64_t dex_lang_d2l(double f)
+_EVAL_DEF_INTRINSICS_FUNC(D2L,
+                          dex_lang_d2l,
+                          kAttrReadNone | kAttrNoThrow,
+                          kInt64Ty,
+                          _EXPAND_ARG1(kDoubleTy))
 
-// void dex_lang_test_suspend(Thread* thread)
-_EVAL_DEF_INTRINSICS_FUNC(TestSuspend,
-                          dex_lang_test_suspend,
-                          kAttrNoThrow,
-                          kVoidTy,
-                          _EXPAND_ARG1(kJavaThreadTy))
+// int32_t dex_lang_d2l(double f)
+_EVAL_DEF_INTRINSICS_FUNC(D2I,
+                          dex_lang_d2i,
+                          kAttrReadNone | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG1(kDoubleTy))
 
-// void dex_lang_check_suspend() /* Expands to GetCurrentThread/TestSuspend */
-_EVAL_DEF_INTRINSICS_FUNC(CheckSuspend,
-                          dex_lang_check_suspend,
-                          kAttrNoThrow,
-                          kVoidTy,
-                          _EXPAND_ARG0())
+// int64_t dex_lang_f2l(float f)
+_EVAL_DEF_INTRINSICS_FUNC(F2L,
+                          dex_lang_f2l,
+                          kAttrReadNone | kAttrNoThrow,
+                          kInt64Ty,
+                          _EXPAND_ARG1(kFloatTy))
+
+// int32_t dex_lang_f2i(float f)
+_EVAL_DEF_INTRINSICS_FUNC(F2I,
+                          dex_lang_f2i,
+                          kAttrReadNone | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG1(kFloatTy))
+
 //----------------------------------------------------------------------------
 // sput intrinsics to assist MIR to Greenland_ir conversion.
 // "HL" versions - will be deprecated when fast/slow path handling done

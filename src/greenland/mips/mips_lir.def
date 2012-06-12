@@ -14,21 +14,5 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GREENLAND_TARGET_LIR_OPCODES_H_
-#define ART_SRC_GREENLAND_TARGET_LIR_OPCODES_H_
-
-namespace art {
-namespace greenland {
-namespace opcode {
-
-enum {
-#define DEF_LIR_DESC(OPCODE, ...) OPCODE,
-#include "target_lir.def"
-#undef DEF_LIR_DESC
-};
-
-} // namespace opcode
-} // namespace greenland
-} // namespace art
-
-#endif // ART_SRC_GREENLAND_TARGET_LIR_OPCODES_H_
+#include "greenland/target_lir.def"
+#include "greenland/clear_target_lir.def"

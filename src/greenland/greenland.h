@@ -17,8 +17,6 @@
 #ifndef ART_SRC_GREENLAND_GREENLAND_H_
 #define ART_SRC_GREENLAND_GREENLAND_H_
 
-#include "dex_lang.h"
-
 #include "macros.h"
 #include "object.h"
 
@@ -31,6 +29,7 @@ namespace art {
 namespace art {
 namespace greenland {
 
+class GBCContext;
 class TargetCodeGenMachine;
 
 class Greenland {
@@ -54,11 +53,11 @@ class Greenland {
 
   Mutex lock_;
 
-  // NOTE: Ensure that the lock_ is held before altering cur_dex_lang_ctx_
-  DexLang::Context *cur_dex_lang_ctx_;
+  // NOTE: Ensure that the lock_ is held before altering cur_gbc_ctx
+  GBCContext *cur_gbc_ctx_;
 
-  DexLang::Context& GetDexLangContext();
-  void ResetDexLangContextIfThresholdReached();
+  GBCContext& GetGBCContext();
+  void ResetGBCContextIfThresholdReached();
 
   DISALLOW_COPY_AND_ASSIGN(Greenland);
 };

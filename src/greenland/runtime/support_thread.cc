@@ -14,37 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_GREENLAND_TARGET_LIR_INFO_H_
-#define ART_SRC_GREENLAND_TARGET_LIR_INFO_H_
+#include "greenland/runtime_entry_points.h"
 
-#include "lir_desc.h"
+#include "runtime_utils.h"
+#include "runtime_support.h"
+#include "thread_list.h"
 
-#include "logging.h"
+using namespace art;
+using namespace art::greenland;
+
+namespace {
+
+void art_test_suspend(Thread* thread) {
+  Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
+}
+
+} // anonymous namespace
 
 namespace art {
 namespace greenland {
 
-class TargetLIRInfo {
- private:
-  // An array of target's LIR instruction description
-  const LIRDesc* desc_;
-
-  unsigned num_desc_;
-
- public:
-  TargetLIRInfo(const LIRDesc* desc, unsigned num_desc)
-      : desc_(desc), num_desc_(num_desc) {
-  }
-
-  virtual ~TargetLIRInfo() { }
-
-  const LIRDesc& GetLIRDesc(unsigned opcode) {
-    DCHECK(opcode < num_desc_) << "Invalid opcode: " << opcode;
-    return desc_[opcode];
-  }
-};
+void InitThreadRuntimes(RuntimeEntryPoints* entry_points) {
+  entry_points->TestSuspend = art_test_suspend;
+}
 
 } // namespace greenland
 } // namespace art
-
-#endif // ART_SRC_GREENLAND_TARGET_LIR_INFO_H_
