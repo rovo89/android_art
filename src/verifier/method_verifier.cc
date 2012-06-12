@@ -1439,8 +1439,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
           if (reg_type.IsUninitializedTypes()) {
             Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "returning uninitialized object '" << reg_type << "'";
           } else if (!return_type.IsAssignableFrom(reg_type)) {
-            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning '" << reg_type
-                << "', but expected from declaration '" << return_type << "'";
+            Fail(reg_type.IsUnresolvedTypes() ? VERIFY_ERROR_BAD_CLASS_SOFT : VERIFY_ERROR_BAD_CLASS_HARD)
+                << "returning '" << reg_type << "', but expected from declaration '" << return_type << "'";
           }
         }
       }
