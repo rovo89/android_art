@@ -72,7 +72,8 @@ test-art-host-oat-$(1): $(ART_TEST_OUT)/oat-test-dex-$(1).jar test-art-host-depe
 	ANDROID_DATA=/tmp/android-data/test-art-host-oat-$(1) \
 	  ANDROID_ROOT=$(HOST_OUT) \
 	  LD_LIBRARY_PATH=$(HOST_OUT_SHARED_LIBRARIES) \
-	  oatexecd -Ximage:$(shell pwd)/$(HOST_CORE_IMG_OUT) -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2)
+	  oatexecd -Ximage:$(shell pwd)/$(HOST_CORE_IMG_OUT) -classpath $(HOST_OUT_JAVA_LIBRARIES)/oat-test-dex-$(1).jar -Djava.library.path=$(HOST_OUT_SHARED_LIBRARIES) $(1) $(2) \
+          && echo test-art-host-oat-$(1) PASSED || (echo test-art-host-oat-$(1) FAILED && exit 1)
 	$(hide) rm -r /tmp/android-data/test-art-host-oat-$(1)
 
 
