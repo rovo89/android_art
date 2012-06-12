@@ -32,6 +32,7 @@ const char* labelFormat = "L0x%x_d";
 
 namespace art {
 extern const RegLocation badLoc;
+RegLocation getLoc(CompilationUnit* cUnit, llvm::Value* val);
 
 llvm::BasicBlock* getLLVMBlock(CompilationUnit* cUnit, int id)
 {
@@ -122,6 +123,16 @@ llvm::Value* emitConst(CompilationUnit* cUnit, llvm::ArrayRef<llvm::Value*> src,
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
   return cUnit->irb->CreateCall(intr, src);
 }
+
+void emitPopShadowFrame(CompilationUnit* cUnit)
+{
+  llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(
+      greenland::IntrinsicHelper::PopShadowFrame);
+  cUnit->irb->CreateCall(intr);
+}
+
+
+
 llvm::Value* emitCopy(CompilationUnit* cUnit, llvm::ArrayRef<llvm::Value*> src,
                       RegLocation loc)
 {
@@ -274,6 +285,26 @@ void convertArithOp(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
   defineValue(cUnit, res, rlDest.origSReg);
 }
 
+void setShadowFrameEntry(CompilationUnit* cUnit, llvm::Value* newVal)
+{
+  int index = -1;
+  DCHECK(newVal != NULL);
+  int vReg = SRegToVReg(cUnit, getLoc(cUnit, newVal).origSReg);
+  for (int i = 0; i < cUnit->numShadowFrameEntries; i++) {
+    if (cUnit->shadowMap[i] == vReg) {
+      index = i;
+      break;
+    }
+  }
+  DCHECK(index != -1) << "Corrupt shadowMap";
+  greenland::IntrinsicHelper::IntrinsicId id =
+      greenland::IntrinsicHelper::SetShadowFrameEntry;
+  llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+  llvm::Value* tableSlot = cUnit->irb->getInt32(index);
+  llvm::Value* args[] = { newVal, tableSlot };
+  cUnit->irb->CreateCall(func, args);
+}
+
 void convertArithOpLit(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
                        RegLocation rlSrc1, int32_t imm)
 {
@@ -296,6 +327,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
   RegLocation rlDest = badLoc;
   RegLocation rlResult = badLoc;
   Instruction::Code opcode = mir->dalvikInsn.opcode;
+  bool objectDefinition = false;
 
   /* Prep Src and Dest locations */
   int nextSreg = 0;
@@ -332,6 +364,9 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       rlDest = oatGetDestWide(cUnit, mir, 0, 1);
     } else {
       rlDest = oatGetDest(cUnit, mir, 0);
+      if (rlDest.ref) {
+        objectDefinition = true;
+      }
     }
   }
 
@@ -403,6 +438,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
         if (!cUnit->attrs & METHOD_IS_LEAF) {
           emitSuspendCheck(cUnit);
         }
+        emitPopShadowFrame(cUnit);
         cUnit->irb->CreateRet(getLLVMValue(cUnit, rlSrc[0].origSReg));
         bb->hasReturn = true;
       }
@@ -412,6 +448,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
         if (!cUnit->attrs & METHOD_IS_LEAF) {
           emitSuspendCheck(cUnit);
         }
+        emitPopShadowFrame(cUnit);
         cUnit->irb->CreateRetVoid();
         bb->hasReturn = true;
       }
@@ -934,6 +971,10 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
     default:
       res = true;
   }
+  if (objectDefinition) {
+    setShadowFrameEntry(cUnit, (llvm::Value*)
+                        cUnit->llvmValues.elemList[rlDest.origSReg]);
+  }
   return res;
 }
 
@@ -1040,7 +1081,32 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
 
   if (bb->blockType == kEntryBlock) {
     setMethodInfo(cUnit);
-    //genEntrySequence(cUnit, bb);
+    bool *canBeRef = (bool*)  oatNew(cUnit, sizeof(bool) *
+                                     cUnit->numDalvikRegisters, true,
+                                     kAllocMisc);
+    for (int i = 0; i < cUnit->numSSARegs; i++) {
+      canBeRef[SRegToVReg(cUnit, i)] |= cUnit->regLocation[i].ref;
+    }
+    for (int i = 0; i < cUnit->numDalvikRegisters; i++) {
+      if (canBeRef[i]) {
+        cUnit->numShadowFrameEntries++;
+      }
+    }
+    if (cUnit->numShadowFrameEntries > 0) {
+      cUnit->shadowMap = (int*) oatNew(cUnit, sizeof(int) *
+                                       cUnit->numShadowFrameEntries, true,
+                                       kAllocMisc);
+      for (int i = 0, j = 0; i < cUnit->numDalvikRegisters; i++) {
+        if (canBeRef[i]) {
+          cUnit->shadowMap[j++] = i;
+        }
+      }
+      greenland::IntrinsicHelper::IntrinsicId id =
+              greenland::IntrinsicHelper::AllocaShadowFrame;
+      llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+      llvm::Value* entries = cUnit->irb->getInt32(cUnit->numShadowFrameEntries);
+      cUnit->irb->CreateCall(func, entries);
+    }
   } else if (bb->blockType == kExitBlock) {
     /*
      * Because of the differences between how MIR/LIR and llvm handle exit
@@ -1244,6 +1310,7 @@ void oatMethodMIR2Bitcode(CompilationUnit* cUnit)
 
 RegLocation getLoc(CompilationUnit* cUnit, llvm::Value* val) {
   RegLocation res;
+  DCHECK(val != NULL);
   SafeMap<llvm::Value*, RegLocation>::iterator it = cUnit->locMap.find(val);
   if (it == cUnit->locMap.end()) {
     const char* valName = val->getName().str().c_str();
@@ -1528,6 +1595,10 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
           greenland::IntrinsicHelper::IntrinsicId id =
               cUnit->intrinsic_helper->GetIntrinsicId(callee);
           switch (id) {
+            case greenland::IntrinsicHelper::AllocaShadowFrame:
+            case greenland::IntrinsicHelper::SetShadowFrameEntry:
+              // Ignore shadow frame stuff for quick compiler
+              break;
             case greenland::IntrinsicHelper::CopyInt:
             case greenland::IntrinsicHelper::CopyObj:
             case greenland::IntrinsicHelper::CopyFloat:
