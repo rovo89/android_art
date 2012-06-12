@@ -114,6 +114,8 @@ class PACKED Thread {
   void InitAfterFork();
 
   static Thread* Current() {
+    // We rely on Thread::Current returning NULL for a detached thread, so it's not obvious
+    // that we can replace this with a direct %fs access on x86.
     void* thread = pthread_getspecific(Thread::pthread_key_self_);
     return reinterpret_cast<Thread*>(thread);
   }
