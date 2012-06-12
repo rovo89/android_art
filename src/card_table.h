@@ -86,7 +86,10 @@ class CardTable {
 
   // Returns the first address in the heap which maps to this card.
   void* AddrFromCard(const byte *cardAddr) const {
-    DCHECK(IsValidCard(cardAddr));
+    DCHECK(IsValidCard(cardAddr))
+      << " cardAddr: " << reinterpret_cast<const void*>(cardAddr)
+      << " begin: " << reinterpret_cast<void*>(mem_map_->Begin() + offset_)
+      << " end: " << reinterpret_cast<void*>(mem_map_->End());
     uintptr_t offset = cardAddr - biased_begin_;
     return reinterpret_cast<void*>(offset << GC_CARD_SHIFT);
   }

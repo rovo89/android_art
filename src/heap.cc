@@ -306,17 +306,18 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
     DCHECK_GE(byte_count, sizeof(Object));
     Object* obj = AllocateLocked(byte_count);
     if (obj != NULL) {
-      // Disable CMS until bug is fixed
-      if (false) {
-        if (!is_gc_running_ && num_bytes_allocated_ >= concurrent_start_bytes_) {
-          RequestConcurrentGC();
-        }
-      }
-
       obj->SetClass(c);
       if (Dbg::IsAllocTrackingEnabled()) {
         Dbg::RecordAllocation(c, byte_count);
       }
+
+      if (!is_gc_running_ && num_bytes_allocated_ >= concurrent_start_bytes_) {
+        // The SirtRef is necessary since the calls in RequestConcurrentGC
+        // are a safepoint.
+        SirtRef<Object> ref(obj);
+        RequestConcurrentGC();
+      }
+      VerifyObject(obj);
       return obj;
     }
     total_bytes_free = GetFreeMemory();
@@ -598,6 +599,9 @@ void Heap::CollectGarbage(bool clear_soft_references) {
 void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
   lock_->AssertHeld();
 
+  DCHECK(!is_gc_running_);
+  is_gc_running_ = true;
+
   TimingLogger timings("CollectGarbageInternal");
   uint64_t t0 = NanoTime(), rootEnd = 0, dirtyBegin = 0, dirtyEnd = 0;
 
@@ -630,8 +634,10 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
     DCHECK(mark_sweep.IsMarkStackEmpty());
 
     if (concurrent) {
-      Unlock();
+      // We need to resume before unlocking or else a thread waiting for the
+      // heap lock would re-suspend since we have not yet called ResumeAll.
       thread_list->ResumeAll();
+      Unlock();
       rootEnd = NanoTime();
       timings.AddSplit("RootEnd");
     }
@@ -688,6 +694,7 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
   bool gc_was_particularly_slow = duration_ns > MsToNs(50); // TODO: crank this down for concurrent.
   if (VLOG_IS_ON(gc) || gc_was_particularly_slow) {
     // TODO: somehow make the specific GC implementation (here MarkSweep) responsible for logging.
+    // Reason: For CMS sometimes initial_size < num_bytes_allocated_ results in overflow (3GB freed message).
     size_t bytes_freed = initial_size - num_bytes_allocated_;
     // lose low nanoseconds in duration. TODO: make this part of PrettyDuration
     duration_ns = (duration_ns / 1000) * 1000;
@@ -710,6 +717,11 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
   if (VLOG_IS_ON(heap)) {
     timings.Dump();
   }
+
+  is_gc_running_ = false;
+
+  // Wake anyone who may have been waiting for the GC to complete.
+  condition_->Broadcast();
 }
 
 void Heap::WaitForConcurrentGcToComplete() {
@@ -717,11 +729,15 @@ void Heap::WaitForConcurrentGcToComplete() {
 
   // Busy wait for GC to finish
   if (is_gc_running_) {
-    uint64_t waitStart = NanoTime();
+    uint64_t wait_start = NanoTime();
     do {
+      ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
       condition_->Wait(*lock_);
     } while (is_gc_running_);
-    LOG(INFO) << "WaitForConcurrentGcToComplete blocked for " << PrettyDuration(NsToMs(NanoTime() - waitStart));
+    uint64_t wait_time = NanoTime() - wait_start;
+    if (wait_time > MsToNs(5)) {
+      LOG(INFO) << "WaitForConcurrentGcToComplete blocked for " << PrettyDuration(wait_time);
+    }
   }
 }
 
@@ -899,12 +915,14 @@ void Heap::EnqueueClearedReferences(Object** cleared) {
 
 void Heap::RequestConcurrentGC() {
   // Make sure that our Daemon threads are started
-  if (requesting_gc_ || !Runtime::Current()->IsFinishedStarting()) {
+  if (requesting_gc_ || !Runtime::Current()->IsFinishedStarting() || Runtime::Current()->IsShuttingDown()) {
     return;
   }
 
   requesting_gc_ = true;
   JNIEnv* env = Thread::Current()->GetJniEnv();
+  DCHECK(WellKnownClasses::java_lang_Daemons != NULL);
+  DCHECK(WellKnownClasses::java_lang_Daemons_requestGC != NULL);
   env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons, WellKnownClasses::java_lang_Daemons_requestGC);
   CHECK(!env->ExceptionCheck());
   requesting_gc_ = false;
@@ -916,11 +934,11 @@ void Heap::ConcurrentGC() {
   // Current thread needs to be runnable or else we can't suspend all threads.
   ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   CollectGarbageInternal(true, false);
-  condition_->Broadcast(); // Broadcast anyone that is blocked waiting for concurrent GC
 }
 
 void Heap::Trim() {
   lock_->AssertHeld();
+  WaitForConcurrentGcToComplete();
   GetAllocSpace()->Trim();
 }
 
@@ -938,12 +956,15 @@ void Heap::RequestHeapTrim() {
     // heap trim occurred in the last two seconds.
     return;
   }
-  if (!Runtime::Current()->IsFinishedStarting()) {
+  if (!Runtime::Current()->IsFinishedStarting() || Runtime::Current()->IsShuttingDown()) {
     // Heap trimming isn't supported without a Java runtime or Daemons (such as at dex2oat time)
+    // Also: we do not wish to start a heap trim if the runtime is shutting down.
     return;
   }
   last_trim_time_ = ms_time;
   JNIEnv* env = Thread::Current()->GetJniEnv();
+  DCHECK(WellKnownClasses::java_lang_Daemons != NULL);
+  DCHECK(WellKnownClasses::java_lang_Daemons_requestHeapTrim != NULL);
   env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons, WellKnownClasses::java_lang_Daemons_requestHeapTrim);
   CHECK(!env->ExceptionCheck());
 }
