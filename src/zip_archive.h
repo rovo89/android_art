@@ -18,7 +18,6 @@
 #define ART_SRC_ZIP_ARCHIVE_H_
 
 #include <stdint.h>
-#include <sys/mman.h>
 #include <zlib.h>
 
 #include "file.h"

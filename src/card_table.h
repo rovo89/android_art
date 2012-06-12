@@ -71,10 +71,9 @@ class CardTable {
 
   // Resets all of the bytes in the card table to clean.
   void ClearNonImageSpaceCards(Heap* heap);
- private:
 
-  CardTable(MemMap* begin, byte* biased_begin, size_t offset) :
-    mem_map_(begin), biased_begin_(biased_begin), offset_(offset) {}
+ private:
+  CardTable(MemMap* begin, byte* biased_begin, size_t offset);
 
   // Returns the address of the relevant byte in the card table, given an address on the heap.
   byte* CardFromAddr(const void *addr) const {

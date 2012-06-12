@@ -19,7 +19,6 @@
 #include <vector>
 
 #include <dlfcn.h>
-#include <sys/mman.h>
 #include <unistd.h>
 
 #include "class_linker.h"

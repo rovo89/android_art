@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-#include <sys/mman.h>
-
-#include "UniquePtr.h"
 #include "class_linker.h"
 #include "common_test.h"
 #include "dex_file.h"
@@ -27,6 +24,7 @@
 #include "runtime.h"
 #include "scoped_jni_thread_state.h"
 #include "thread.h"
+#include "UniquePtr.h"
 
 extern "C" JNIEXPORT jint JNICALL Java_MyClassNatives_bar(JNIEnv*, jobject, jint count) {
   return count + 1;
