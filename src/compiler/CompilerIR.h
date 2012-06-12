@@ -405,6 +405,9 @@ struct CompilationUnit {
       placeholderBB(NULL),
       entryBB(NULL),
       tempName(0),
+      requireShadowFrame(false),
+      numShadowFrameEntries(0),
+      shadowMap(NULL),
 #endif
 #ifndef NDEBUG
       liveSReg(0),
@@ -575,6 +578,9 @@ struct CompilationUnit {
   SafeMap<llvm::BasicBlock*, LIR*> blockToLabelMap; // llvm bb -> LIR label
   SafeMap<int32_t, llvm::BasicBlock*> idToBlockMap; // block id -> llvm bb
   SafeMap<llvm::Value*, RegLocation> locMap; // llvm Value to loc rec
+  bool requireShadowFrame;
+  int numShadowFrameEntries;
+  int* shadowMap;
 #endif
 #ifndef NDEBUG
   /*
