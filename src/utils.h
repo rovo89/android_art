@@ -267,6 +267,9 @@ template <typename StringT> std::string Join(std::vector<StringT>& strings, char
 // Returns the calling thread's tid. (The C libraries don't expose this.)
 pid_t GetTid();
 
+// Returns the given thread's name.
+std::string GetThreadName(pid_t tid);
+
 // Returns details of the calling thread's stack.
 void GetThreadStack(void*& stack_base, size_t& stack_size);
 

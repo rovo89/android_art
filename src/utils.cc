@@ -69,6 +69,16 @@ pid_t GetTid() {
 #endif
 }
 
+std::string GetThreadName(pid_t tid) {
+  std::string result;
+  if (ReadFileToString(StringPrintf("/proc/self/task/%d/comm", tid), &result)) {
+    result.resize(result.size() - 1); // Lose the trailing '\n'.
+  } else {
+    result = "<unknown>";
+  }
+  return result;
+}
+
 void GetThreadStack(void*& stack_base, size_t& stack_size) {
 #if defined(__APPLE__)
   stack_size = pthread_get_stacksize_np(pthread_self());

@@ -465,13 +465,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
        << " tid=" << thread->GetThinLockId()
        << " " << thread->GetState() << "\n";
   } else {
-    std::string thread_name;
-    if (ReadFileToString(StringPrintf("/proc/self/task/%d/comm", tid), &thread_name)) {
-      thread_name.resize(thread_name.size() - 1); // Lose the trailing '\n'.
-    } else {
-      thread_name = "<unknown>";
-    }
-    os << '"' << thread_name << '"'
+    os << '"' << ::art::GetThreadName(tid) << '"'
        << " prio=" << priority
        << " (not attached)\n";
   }

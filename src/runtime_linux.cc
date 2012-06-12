@@ -235,8 +235,10 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw
   OS os_info;
   const char* cmd_line = GetCmdLine();
   if (cmd_line == NULL) {
-    cmd_line = "<unset>"; // Because we're in a unit test, say.
+    cmd_line = "<unset>"; // Because no-one called InitLogging.
   }
+  pid_t tid = GetTid();
+  std::string thread_name(GetThreadName(tid));
   UContext thread_context(raw_context);
   Backtrace thread_backtrace;
 
@@ -248,14 +250,17 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw
                       << (has_address ? StringPrintf(" fault addr %p", info->si_addr) : "") << "\n"
                       << "OS: " << Dumpable<OS>(os_info) << "\n"
                       << "Cmdline: " << cmd_line << "\n"
+                      << "Thread: " << tid << " \"" << thread_name << "\"\n"
                       << "Registers:\n" << Dumpable<UContext>(thread_context) << "\n"
                       << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace);
 
   // TODO: instead, get debuggerd running on the host, try to connect, and hang around on success.
   if (getenv("debug_db_uid") != NULL) {
     LOG(INTERNAL_FATAL) << "********************************************************\n"
-                        << "* Process " << getpid() << " thread " << GetTid() << " has been suspended while crashing. Attach gdb:\n"
-                        << "*     gdb -p " << GetTid() << "\n"
+                        << "* Process " << getpid() << " thread " << tid << " \"" << thread_name << "\""
+                        << " has been suspended while crashing.\n"
+                        << "* Attach gdb:\n"
+                        << "*     gdb -p " << tid << "\n"
                         << "********************************************************\n";
     // Wait for debugger to attach.
     while (true) {
