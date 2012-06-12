@@ -17,7 +17,6 @@
 #include "jni_internal.h"
 
 #include <dlfcn.h>
-#include <sys/mman.h>
 
 #include <cstdarg>
 #include <utility>

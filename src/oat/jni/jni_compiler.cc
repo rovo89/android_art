@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <sys/mman.h>
 #include <vector>
 
 #include "calling_convention.h"

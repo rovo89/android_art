@@ -16,8 +16,6 @@
 
 #include "space.h"
 
-#include <sys/mman.h>
-
 #include "UniquePtr.h"
 #include "dlmalloc.h"
 #include "file.h"

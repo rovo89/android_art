@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-#include <sys/mman.h>
-
-#include "UniquePtr.h"
 #include "class_linker.h"
 #include "common_test.h"
 #include "dex_file.h"
 #include "gtest/gtest.h"
 #include "runtime.h"
 #include "thread.h"
+#include "UniquePtr.h"
 
 namespace art {
 

@@ -16,7 +16,7 @@
 
 #include "card_table.h"
 
-#include <sys/mman.h>  /* for PROT_* */
+#include <dynamic_annotations.h>
 
 #include "heap.h"
 #include "heap_bitmap.h"
@@ -79,6 +79,13 @@ CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   CHECK_EQ(reinterpret_cast<int>(biased_begin) & 0xff, GC_CARD_DIRTY);
 
   return new CardTable(mem_map.release(), biased_begin, offset);
+}
+
+CardTable::CardTable(MemMap* mem_map, byte* biased_begin, size_t offset)
+    : mem_map_(mem_map), biased_begin_(biased_begin), offset_(offset) {
+  byte* __attribute__((unused)) begin = mem_map_->Begin() + offset_;
+  byte* __attribute__((unused)) end = mem_map_->End();
+  ANNOTATE_BENIGN_RACE_SIZED(begin, (end - begin), "writes to GC card table");
 }
 
 void CardTable::ClearNonImageSpaceCards(Heap* heap) {

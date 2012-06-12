@@ -16,8 +16,6 @@
 
 #include "jni_internal.h"
 
-#include <sys/mman.h>
-
 #include <cmath>
 
 #include "common_test.h"

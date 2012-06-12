@@ -18,6 +18,7 @@
 #define ART_SRC_MEM_MAP_H_
 
 #include <stddef.h>
+#include <sys/mman.h>  // For the PROT_* and MAP_* constants.
 #include <sys/types.h>
 
 #include "globals.h"

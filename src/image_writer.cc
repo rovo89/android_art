@@ -16,12 +16,10 @@
 
 #include "image_writer.h"
 
-#include <sys/mman.h>
 #include <sys/stat.h>
 
 #include <vector>
 
-#include "UniquePtr.h"
 #include "class_linker.h"
 #include "class_loader.h"
 #include "compiled_method.h"
@@ -38,6 +36,7 @@
 #include "object_utils.h"
 #include "runtime.h"
 #include "space.h"
+#include "UniquePtr.h"
 #include "utils.h"
 
 namespace art {

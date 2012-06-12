@@ -16,8 +16,6 @@
 
 #include "mem_map.h"
 
-#include <sys/mman.h>
-
 #include "ScopedFd.h"
 #include "stringprintf.h"
 #include "utils.h"

@@ -16,8 +16,6 @@
 
 #include "oat_file.h"
 
-#include <sys/mman.h>
-
 #include "file.h"
 #include "os.h"
 #include "stl_util.h"

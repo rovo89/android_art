@@ -16,11 +16,9 @@
 
 #include "mark_stack.h"
 
-#include <sys/mman.h>
-
-#include "UniquePtr.h"
 #include "globals.h"
 #include "logging.h"
+#include "UniquePtr.h"
 #include "utils.h"
 
 namespace art {

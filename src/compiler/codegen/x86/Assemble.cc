@@ -18,7 +18,6 @@
 #include "../../CompilerInternals.h"
 #include "X86LIR.h"
 #include "Codegen.h"
-#include <sys/mman.h>           /* for protection change */
 
 namespace art {
 
