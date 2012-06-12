@@ -4397,10 +4397,14 @@ void MethodCompiler::ComputeMethodInfo() {
           field_idx, oat_compilation_unit_, field_offset, is_volatile, false);
         if (!is_fast_path) {
           may_throw_exception = true;
-        } else if (reg_idx != this_reg_idx) {
-          // NullPointerException
-          may_throw_exception = true;
-          assume_this_non_null = true;
+        } else {
+          // Fast-path, may throw NullPointerException
+          if (reg_idx == this_reg_idx) {
+            // We assume "this" will not be null at first.
+            assume_this_non_null = true;
+          } else {
+            may_throw_exception = true;
+          }
         }
       }
       break;
@@ -4421,10 +4425,14 @@ void MethodCompiler::ComputeMethodInfo() {
           field_idx, oat_compilation_unit_, field_offset, is_volatile, true);
         if (!is_fast_path) {
           may_throw_exception = true;
-        } else if (reg_idx != this_reg_idx) {
-          // NullPointerException
-          may_throw_exception = true;
-          assume_this_non_null = true;
+        } else {
+          // Fast-path, may throw NullPointerException
+          if (reg_idx == this_reg_idx) {
+            // We assume "this" will not be null at first.
+            assume_this_non_null = true;
+          } else {
+            may_throw_exception = true;
+          }
         }
       }
       break;
