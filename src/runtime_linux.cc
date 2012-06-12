@@ -233,7 +233,10 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw
                       signal_number == SIGFPE || signal_number == SIGSEGV);
 
   OS os_info;
-
+  const char* cmd_line = GetCmdLine();
+  if (cmd_line == NULL) {
+    cmd_line = "<unset>"; // Because we're in a unit test, say.
+  }
   UContext thread_context(raw_context);
   Backtrace thread_backtrace;
 
@@ -244,7 +247,7 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw
                                       GetSignalCodeName(signal_number, info->si_code))
                       << (has_address ? StringPrintf(" fault addr %p", info->si_addr) : "") << "\n"
                       << "OS: " << Dumpable<OS>(os_info) << "\n"
-                      << "Cmdline: " << GetCmdLine() << "\n"
+                      << "Cmdline: " << cmd_line << "\n"
                       << "Registers:\n" << Dumpable<UContext>(thread_context) << "\n"
                       << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace);
 
