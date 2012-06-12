@@ -2726,17 +2726,6 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
     << PrettyMethod(callee_method_idx, *dex_file_);
 }
 
-llvm::Value* MethodCompiler::EmitFixStub(llvm::Value* callee_method_object_addr,
-                                         uint32_t method_idx,
-                                         bool is_static) {
-  // TODO: Remove this after we solve the link and trampoline related problems.
-  llvm::Value* code_addr =  irb_.CreateCall(irb_.GetRuntime(FixStub), callee_method_object_addr);
-
-  llvm::FunctionType* method_type = GetFunctionType(method_idx, is_static);
-
-  return irb_.CreatePointerCast(code_addr, method_type->getPointerTo());
-}
-
 
 void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
                                      Instruction const* insn,
@@ -2851,7 +2840,6 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
                               GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
                               kTBAAJRuntime);
 
-#if 0
   // Invoke callee
   EmitUpdateDexPC(dex_pc);
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
@@ -2865,54 +2853,6 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
   if (ret_shorty != 'V') {
     EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
   }
-#else
-  uint32_t callee_access_flags = is_static ? kAccStatic : 0;
-  UniquePtr<OatCompilationUnit> callee_oat_compilation_unit(
-    oat_compilation_unit_->GetCallee(callee_method_idx, callee_access_flags));
-
-  char ret_shorty = callee_oat_compilation_unit->GetShorty()[0];
-
-
-  EmitUpdateDexPC(dex_pc);
-
-
-  llvm::BasicBlock* block_normal = CreateBasicBlockWithDexPC(dex_pc, "normal");
-  llvm::BasicBlock* block_stub = CreateBasicBlockWithDexPC(dex_pc, "stub");
-  llvm::BasicBlock* block_continue = CreateBasicBlockWithDexPC(dex_pc, "cont");
-
-  irb_.CreateCondBr(irb_.CreateIsNull(code_addr), block_stub, block_normal, kUnlikely);
-
-
-  irb_.SetInsertPoint(block_normal);
-  {
-    // Invoke callee
-    llvm::Value* retval = irb_.CreateCall(code_addr, args);
-    if (ret_shorty != 'V') {
-      EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
-    }
-  }
-  irb_.CreateBr(block_continue);
-
-
-  irb_.SetInsertPoint(block_stub);
-  { // lazy link
-    // TODO: Remove this after we solve the link problem.
-    code_addr = EmitFixStub(callee_method_object_addr, callee_method_idx, is_static);
-
-    EmitGuard_ExceptionLandingPad(dex_pc, false);
-
-    llvm::Value* retval = irb_.CreateCall(code_addr, args);
-    if (ret_shorty != 'V') {
-      EmitStoreDalvikRetValReg(ret_shorty, kAccurate, retval);
-    }
-  }
-  irb_.CreateBr(block_continue);
-
-
-  irb_.SetInsertPoint(block_continue);
-
-  EmitGuard_ExceptionLandingPad(dex_pc, true);
-#endif
 
   irb_.CreateBr(GetNextBasicBlock(dex_pc));
 }
