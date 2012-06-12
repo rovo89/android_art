@@ -54,7 +54,7 @@ define build-art-test
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   LOCAL_MODULE := $$(art_gtest_name)
   LOCAL_MODULE_TAGS := tests
-  LOCAL_SRC_FILES := $$(art_gtest_filename)
+  LOCAL_SRC_FILES := $$(art_gtest_filename) src/common_test.cc
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := libartd
   ifeq ($$(art_target_or_host),target)
@@ -78,7 +78,7 @@ define build-art-test
   ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS += $(ART_TARGET_CFLAGS) $(ART_TARGET_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libdl libicuuc libicui18n libnativehelper libstlport libz
-    LOCAL_STATIC_LIBRARIES += libgtest libgtest_main
+    LOCAL_STATIC_LIBRARIES += libgtest
     LOCAL_MODULE_PATH := $(ART_NATIVETEST_OUT)
     include $(BUILD_EXECUTABLE)
     art_gtest_exe := $$(LOCAL_MODULE_PATH)/$$(LOCAL_MODULE)
@@ -86,12 +86,9 @@ define build-art-test
   else # host
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
-    # glibc complains about double frees if you include both libraries, but Mac OS
-    # complains about unresolved symbols if you don't!
-    ifeq ($(HOST_OS),linux)
-      LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_main_host
-    else
-      LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host libgtest_main_host
+    ifeq ($(HOST_OS),darwin)
+      # Mac OS complains about unresolved symbols if you don't include this.
+      LOCAL_WHOLE_STATIC_LIBRARIES := libgtest_host
     endif
     include $(BUILD_HOST_EXECUTABLE)
     art_gtest_exe := $(HOST_OUT_EXECUTABLES)/$$(LOCAL_MODULE)
