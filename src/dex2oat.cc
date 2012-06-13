@@ -475,7 +475,7 @@ static int dex2oat(int argc, char** argv) {
   uintptr_t image_base = 0;
   UniquePtr<std::string> host_prefix;
   std::vector<const char*> runtime_args;
-  int thread_count = 2;
+  int thread_count = sysconf(_SC_NPROCESSORS_CONF);
   bool support_debugging = false;
 #if defined(__arm__)
   InstructionSet instruction_set = kThumb2;
@@ -562,10 +562,6 @@ static int dex2oat(int argc, char** argv) {
       Usage("unknown argument %s", option.data());
     }
   }
-
-#if !defined(ART_USE_LLVM_COMPILER)
-  thread_count = 1;
-#endif
 
   if (oat_filename.empty() && oat_fd == -1) {
     Usage("Output must be supplied with either --oat-file or --oat-fd");
