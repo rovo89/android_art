@@ -53,14 +53,12 @@ RegLocation oatGetReturn(CompilationUnit* cUnit, bool isFloat)
   return res;
 }
 
-void genInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-               InvokeType type, bool isRange)
+void genInvoke(CompilationUnit* cUnit, InvokeInfo* info)
 {
-  if (genIntrinsic(cUnit, bb, mir, type, isRange)) {
+  if (genIntrinsic(cUnit, info)) {
     return;
   }
-  DecodedInstruction* dInsn = &mir->dalvikInsn;
-  InvokeType originalType = type;  // avoiding mutation by ComputeInvokeInfo
+  InvokeType originalType = info->type;  // avoiding mutation by ComputeInvokeInfo
   int callState = 0;
   LIR* nullCk;
   LIR** pNullCk = NULL;
@@ -74,52 +72,52 @@ void genInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
                            cUnit->code_item, cUnit->method_idx,
                            cUnit->access_flags);
 
-  uint32_t dexMethodIdx = dInsn->vB;
+  uint32_t dexMethodIdx = info->methodIdx;
   int vtableIdx;
   uintptr_t directCode;
   uintptr_t directMethod;
   bool skipThis;
   bool fastPath =
-    cUnit->compiler->ComputeInvokeInfo(dexMethodIdx, &mUnit, type,
+    cUnit->compiler->ComputeInvokeInfo(dexMethodIdx, &mUnit, info->type,
                                        vtableIdx, directCode,
                                        directMethod)
     && !SLOW_INVOKE_PATH;
-  if (type == kInterface) {
+  if (info->type == kInterface) {
     nextCallInsn = fastPath ? nextInterfaceCallInsn
         : nextInterfaceCallInsnWithAccessCheck;
     skipThis = false;
-  } else if (type == kDirect) {
+  } else if (info->type == kDirect) {
     if (fastPath) {
       pNullCk = &nullCk;
     }
     nextCallInsn = fastPath ? nextSDCallInsn : nextDirectCallInsnSP;
     skipThis = false;
-  } else if (type == kStatic) {
+  } else if (info->type == kStatic) {
     nextCallInsn = fastPath ? nextSDCallInsn : nextStaticCallInsnSP;
     skipThis = false;
-  } else if (type == kSuper) {
+  } else if (info->type == kSuper) {
     DCHECK(!fastPath);  // Fast path is a direct call.
     nextCallInsn = nextSuperCallInsnSP;
     skipThis = false;
   } else {
-    DCHECK_EQ(type, kVirtual);
+    DCHECK_EQ(info->type, kVirtual);
     nextCallInsn = fastPath ? nextVCallInsn : nextVCallInsnSP;
     skipThis = fastPath;
   }
-  if (!isRange) {
-    callState = genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pNullCk,
+  if (!info->isRange) {
+    callState = genDalvikArgsNoRange(cUnit, info, callState, pNullCk,
                                      nextCallInsn, dexMethodIdx,
                                      vtableIdx, directCode, directMethod,
                                      originalType, skipThis);
   } else {
-    callState = genDalvikArgsRange(cUnit, mir, dInsn, callState, pNullCk,
+    callState = genDalvikArgsRange(cUnit, info, callState, pNullCk,
                                    nextCallInsn, dexMethodIdx, vtableIdx,
                                    directCode, directMethod, originalType,
                                    skipThis);
   }
   // Finish up any of the call sequence not interleaved in arg loading
   while (callState >= 0) {
-    callState = nextCallInsn(cUnit, mir, callState, dexMethodIdx,
+    callState = nextCallInsn(cUnit, info, callState, dexMethodIdx,
                              vtableIdx, directCode, directMethod,
                              originalType);
   }
@@ -129,11 +127,11 @@ void genInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 #if !defined(TARGET_X86)
   opReg(cUnit, kOpBlx, rINVOKE_TGT);
 #else
-  if (fastPath && type != kInterface) {
+  if (fastPath && info->type != kInterface) {
     opMem(cUnit, kOpBlx, rARG0, Method::GetCodeOffset().Int32Value());
   } else {
     int trampoline = 0;
-    switch (type) {
+    switch (info->type) {
     case kInterface:
       trampoline = fastPath ? ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline)
           : ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
@@ -158,6 +156,48 @@ void genInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 #endif
 
   oatClobberCalleeSave(cUnit);
+  if (info->result.location != kLocInvalid) {
+    // We have a following MOVE_RESULT - do it now.
+    if (info->result.wide) {
+      RegLocation retLoc = oatGetReturnWide(cUnit, false);
+      storeValueWide(cUnit, info->result, retLoc);
+    } else {
+      RegLocation retLoc = oatGetReturn(cUnit, false);
+      storeValue(cUnit, info->result, retLoc);
+    }
+  }
+}
+
+/*
+ * Build an array of location records for the incoming arguments.
+ * Note: one location record per word of arguments, with dummy
+ * high-word loc for wide arguments.  Also pull up any following
+ * MOVE_RESULT and incorporate it into the invoke.
+ */
+InvokeInfo* newInvokeInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                          InvokeType type, bool isRange)
+{
+  InvokeInfo* info = (InvokeInfo*)oatNew(cUnit, sizeof(InvokeInfo), true,
+                                         kAllocMisc);
+  MIR* moveResultMIR = oatFindMoveResult(cUnit, bb, mir);
+  if (moveResultMIR == NULL) {
+    info->result.location = kLocInvalid;
+  } else {
+    info->result = oatGetRawDest(cUnit, moveResultMIR);
+    moveResultMIR->dalvikInsn.opcode = Instruction::NOP;
+  }
+  info->numArgWords = mir->ssaRep->numUses;
+  info->args = (info->numArgWords == 0) ? NULL : (RegLocation*)
+      oatNew(cUnit, sizeof(RegLocation) * info->numArgWords, false, kAllocMisc);
+  for (int i = 0; i < info->numArgWords; i++) {
+    info->args[i] = oatGetRawSrc(cUnit, mir, i);
+  }
+  info->optFlags = mir->optimizationFlags;
+  info->type = type;
+  info->isRange = isRange;
+  info->methodIdx = mir->dalvikInsn.vB;
+  info->offset = mir->offset;
+  return info;
 }
 
 /*
@@ -185,7 +225,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
   rlSrc[0] = rlSrc[1] = rlSrc[2] = badLoc;
   if (attrs & DF_UA) {
     if (attrs & DF_A_WIDE) {
-      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg, nextSreg + 1);
+      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg);
       nextSreg+= 2;
     } else {
       rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
@@ -194,7 +234,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
   }
   if (attrs & DF_UB) {
     if (attrs & DF_B_WIDE) {
-      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg, nextSreg + 1);
+      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg);
       nextSreg+= 2;
     } else {
       rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
@@ -203,16 +243,16 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
   }
   if (attrs & DF_UC) {
     if (attrs & DF_C_WIDE) {
-      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg, nextSreg + 1);
+      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg);
     } else {
       rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
     }
   }
   if (attrs & DF_DA) {
     if (attrs & DF_A_WIDE) {
-      rlDest = oatGetDestWide(cUnit, mir, 0, 1);
+      rlDest = oatGetDestWide(cUnit, mir);
     } else {
-      rlDest = oatGetDest(cUnit, mir, 0);
+      rlDest = oatGetDest(cUnit, mir);
     }
   }
   switch (opcode) {
@@ -570,38 +610,38 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
       break;
 
     case Instruction::INVOKE_STATIC_RANGE:
-      genInvoke(cUnit, bb, mir, kStatic, true /*range*/);
+      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kStatic, true));
       break;
     case Instruction::INVOKE_STATIC:
-      genInvoke(cUnit, bb, mir, kStatic, false /*range*/);
+      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kStatic, false));
       break;
 
     case Instruction::INVOKE_DIRECT:
-      genInvoke(cUnit, bb,  mir, kDirect, false /*range*/);
+      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kDirect, false));
       break;
     case Instruction::INVOKE_DIRECT_RANGE:
-      genInvoke(cUnit, bb, mir, kDirect, true /*range*/);
+      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kDirect, true));
       break;
 
     case Instruction::INVOKE_VIRTUAL:
-      genInvoke(cUnit, bb, mir, kVirtual, false /*range*/);
+      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kVirtual, false));
       break;
     case Instruction::INVOKE_VIRTUAL_RANGE:
-      genInvoke(cUnit, bb, mir, kVirtual, true /*range*/);
+      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kVirtual, true));
       break;
 
     case Instruction::INVOKE_SUPER:
-      genInvoke(cUnit, bb, mir, kSuper, false /*range*/);
+      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kSuper, false));
       break;
     case Instruction::INVOKE_SUPER_RANGE:
-      genInvoke(cUnit, bb, mir, kSuper, true /*range*/);
+      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kSuper, true));
       break;
 
     case Instruction::INVOKE_INTERFACE:
-      genInvoke(cUnit, bb, mir, kInterface, false /*range*/);
+      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kInterface, false));
       break;
     case Instruction::INVOKE_INTERFACE_RANGE:
-      genInvoke(cUnit, bb, mir, kInterface, true /*range*/);
+      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kInterface, true));
       break;
 
     case Instruction::NEG_INT:
@@ -796,7 +836,7 @@ void handleExtendedMethodMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
     }
     case kMirOpCopy: {
       RegLocation rlSrc = oatGetSrc(cUnit, mir, 0);
-      RegLocation rlDest = oatGetDest(cUnit, mir, 0);
+      RegLocation rlDest = oatGetDest(cUnit, mir);
       storeValue(cUnit, rlDest, rlSrc);
       break;
     }

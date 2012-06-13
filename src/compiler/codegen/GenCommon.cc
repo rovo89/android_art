@@ -23,8 +23,7 @@ namespace art {
  * be applicable to most targets.  Only mid-level support utilities
  * and "op" calls may be used here.
  */
-void genInvoke(CompilationUnit* cUnit, BasicBlock* bb,  MIR* mir,
-         InvokeType type, bool isRange);
+void genInvoke(CompilationUnit* cUnit, InvokeInfo* info);
 #if defined(TARGET_ARM)
 LIR* opIT(CompilationUnit* cUnit, ArmConditionCode cond, const char* guide);
 bool smallLiteralDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
@@ -870,12 +869,10 @@ void handleIntrinsicLaunchpads(CompilationUnit *cUnit)
     oatResetRegPool(cUnit);
     oatResetDefTracking(cUnit);
     LIR* lab = intrinsicLabel[i];
-    MIR* mir = (MIR*)lab->operands[0];
-    InvokeType type = (InvokeType)lab->operands[1];
-    BasicBlock* bb = (BasicBlock*)lab->operands[3];
-    cUnit->currentDalvikOffset = mir->offset;
+    InvokeInfo* info = (InvokeInfo*)lab->operands[0];
+    cUnit->currentDalvikOffset = info->offset;
     oatAppendLIR(cUnit, lab);
-    genInvoke(cUnit, bb, mir, type, false /* isRange */);
+    genInvoke(cUnit, info);
     LIR* resumeLab = (LIR*)lab->operands[2];
     if (resumeLab != NULL) {
       opUnconditionalBranch(cUnit, resumeLab);

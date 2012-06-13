@@ -1683,16 +1683,13 @@ MIR* advanceMIR(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir,
  * opcodes or incoming arcs.  However, if the result of the invoke is not
  * used, a move-result may not be present.
  */
-MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                     bool wide)
+MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
 {
   BasicBlock* tbb = bb;
   mir = advanceMIR(cUnit, &tbb, mir, NULL, false);
   while (mir != NULL) {
-    if (!wide && mir->dalvikInsn.opcode == Instruction::MOVE_RESULT) {
-      break;
-    }
-    if (wide && mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_WIDE) {
+    if ((mir->dalvikInsn.opcode == Instruction::MOVE_RESULT) ||
+        (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_WIDE)) {
       break;
     }
     // Keep going if pseudo op, otherwise terminate
