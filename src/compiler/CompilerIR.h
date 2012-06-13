@@ -84,6 +84,22 @@ struct CompilerTemp {
   ArenaBitVector* bv;
 };
 
+struct InvokeInfo {
+  int numArgWords;      // Note: word count, not arg count
+  RegLocation* args;    // One for each word of arguments
+  RegLocation result;   // Eventual target of MOVE_RESULT
+  int optFlags;
+  InvokeType type;
+  uint32_t dexIdx;
+  uint32_t methodIdx;
+  uintptr_t directCode;
+  uintptr_t directMethod;
+  RegLocation target;    // Target of following move_result
+  bool skipThis;
+  bool isRange;
+  int offset;            // Dalvik offset
+};
+
  /*
  * Data structure tracking the mapping between a Dalvik register (pair) and a
  * native register (pair). The idea is to reuse the previously loaded value
@@ -755,8 +771,7 @@ void oatInsertLIRBefore(LIR* currentLIR, LIR* newLIR);
 
 void oatInsertLIRAfter(LIR* currentLIR, LIR* newLIR);
 
-MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                       bool wide);
+MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir);
 /* Debug Utilities */
 void oatDumpCompilationUnit(CompilationUnit* cUnit);
 
