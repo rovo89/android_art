@@ -756,6 +756,7 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
   if (oat_file != NULL) {
     const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location);
     CHECK(oat_dex_file != NULL) << oat_filename << " " << dex_location;
+    RegisterOatFileLocked(*oat_file);
     return oat_dex_file->OpenDexFile();
   }
   // Look for an existing file in the art-cache, validating the result if found
@@ -779,6 +780,7 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
     bool dex_check = (dex_location_checksum == oat_dex_file->GetDexFileLocationChecksum());
 
     if (image_check && dex_check) {
+      RegisterOatFileLocked(*oat_file);
       return oat_file->GetOatDexFile(dex_location)->OpenDexFile();
     }
     if (!image_check) {
@@ -830,7 +832,6 @@ const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_lo
     return NULL;
   }
   CHECK(oat_file != NULL) << oat_location;
-  RegisterOatFileLocked(*oat_file);
   return oat_file;
 }
 
