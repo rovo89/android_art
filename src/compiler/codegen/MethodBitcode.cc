@@ -336,7 +336,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
   rlSrc[0] = rlSrc[1] = rlSrc[2] = badLoc;
   if (attrs & DF_UA) {
     if (attrs & DF_A_WIDE) {
-      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg, nextSreg + 1);
+      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg);
       nextSreg+= 2;
     } else {
       rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
@@ -345,7 +345,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
   }
   if (attrs & DF_UB) {
     if (attrs & DF_B_WIDE) {
-      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg, nextSreg + 1);
+      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg);
       nextSreg+= 2;
     } else {
       rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
@@ -354,16 +354,16 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
   }
   if (attrs & DF_UC) {
     if (attrs & DF_C_WIDE) {
-      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg, nextSreg + 1);
+      rlSrc[nextLoc++] = oatGetSrcWide(cUnit, mir, nextSreg);
     } else {
       rlSrc[nextLoc++] = oatGetSrc(cUnit, mir, nextSreg);
     }
   }
   if (attrs & DF_DA) {
     if (attrs & DF_A_WIDE) {
-      rlDest = oatGetDestWide(cUnit, mir, 0, 1);
+      rlDest = oatGetDestWide(cUnit, mir);
     } else {
-      rlDest = oatGetDest(cUnit, mir, 0);
+      rlDest = oatGetDest(cUnit, mir);
       if (rlDest.ref) {
         objectDefinition = true;
       }
@@ -993,7 +993,7 @@ void convertExtendedMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
       for (int i = 0; i < mir->ssaRep->numUses; i++) {
         RegLocation loc;
         if (rlDest.wide) {
-           loc = oatGetSrcWide(cUnit, mir, i, i+1);
+           loc = oatGetSrcWide(cUnit, mir, i);
            i++;
         } else {
            loc = oatGetSrc(cUnit, mir, i);

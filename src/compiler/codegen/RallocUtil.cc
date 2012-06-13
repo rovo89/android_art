@@ -1005,35 +1005,43 @@ extern RegLocation oatEvalLoc(CompilationUnit* cUnit, RegLocation loc,
   return loc;
 }
 
-extern RegLocation oatGetDest(CompilationUnit* cUnit, MIR* mir, int num)
+extern RegLocation oatGetRawSrc(CompilationUnit* cUnit, MIR* mir, int num)
 {
-  RegLocation res = cUnit->regLocation[mir->ssaRep->defs[num]];
+  DCHECK(num < mir->ssaRep->numUses);
+  RegLocation res = cUnit->regLocation[mir->ssaRep->uses[num]];
+  DCHECK(!res.wide || num < (mir->ssaRep->numUses - 1));
+  return res;
+}
+extern RegLocation oatGetRawDest(CompilationUnit* cUnit, MIR* mir)
+{
+  DCHECK(mir->ssaRep->numDefs > 0);
+  RegLocation res = cUnit->regLocation[mir->ssaRep->defs[0]];
+  DCHECK(!res.wide || mir->ssaRep->numDefs == 2);
+  return res;
+}
+extern RegLocation oatGetDest(CompilationUnit* cUnit, MIR* mir)
+{
+  RegLocation res = oatGetRawDest(cUnit, mir);
   DCHECK(!res.wide);
   return res;
 }
 extern RegLocation oatGetSrc(CompilationUnit* cUnit, MIR* mir, int num)
 {
-  RegLocation res = cUnit->regLocation[mir->ssaRep->uses[num]];
+  RegLocation res = oatGetRawSrc(cUnit, mir, num);
   DCHECK(!res.wide);
   return res;
 }
-extern RegLocation oatGetRawSrc(CompilationUnit* cUnit, MIR* mir, int num)
+extern RegLocation oatGetDestWide(CompilationUnit* cUnit, MIR* mir)
 {
-  RegLocation res = cUnit->regLocation[mir->ssaRep->uses[num]];
-  return res;
-}
-extern RegLocation oatGetDestWide(CompilationUnit* cUnit, MIR* mir,
-                  int low, int high)
-{
-  RegLocation res = cUnit->regLocation[mir->ssaRep->defs[low]];
+  RegLocation res = oatGetRawDest(cUnit, mir);
   DCHECK(res.wide);
   return res;
 }
 
 extern RegLocation oatGetSrcWide(CompilationUnit* cUnit, MIR* mir,
-                 int low, int high)
+                 int low)
 {
-  RegLocation res = cUnit->regLocation[mir->ssaRep->uses[low]];
+  RegLocation res = oatGetRawSrc(cUnit, mir, low);
   DCHECK(res.wide);
   return res;
 }

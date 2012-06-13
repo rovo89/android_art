@@ -86,6 +86,7 @@ SSARepresentation* findMoveResult(MIR* mir)
   SSARepresentation* res = NULL;
   for (; mir; mir = mir->next) {
     if ((mir->dalvikInsn.opcode == Instruction::MOVE_RESULT) ||
+        (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) ||
         (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_WIDE)) {
       res = mir->ssaRep;
       break;

@@ -24,7 +24,7 @@ namespace art {
  * and "op" calls may be used here.
  */
 
-typedef int (*NextCallInsn)(CompilationUnit*, MIR*, int, uint32_t dexIdx,
+typedef int (*NextCallInsn)(CompilationUnit*, InvokeInfo*, int, uint32_t dexIdx,
                             uint32_t methodIdx, uintptr_t directCode,
                             uintptr_t directMethod, InvokeType type);
 LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target);
@@ -133,7 +133,7 @@ void scanMethodLiteralPool(CompilationUnit* cUnit, LIR** methodTarget, LIR** cod
  * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
-int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
+int nextSDCallInsn(CompilationUnit* cUnit, InvokeInfo* info,
                    int state, uint32_t dexIdx, uint32_t unused,
                    uintptr_t directCode, uintptr_t directMethod,
                    InvokeType type)
@@ -241,7 +241,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, MIR* mir,
  * Note also that we'll load the first argument ("this") into
  * rARG1 here rather than the standard loadArgRegs.
  */
-int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
+int nextVCallInsn(CompilationUnit* cUnit, InvokeInfo* info,
                   int state, uint32_t dexIdx, uint32_t methodIdx,
                   uintptr_t unused, uintptr_t unused2, InvokeType unused3)
 {
@@ -252,11 +252,11 @@ int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
    */
   switch (state) {
     case 0:  // Get "this" [set rARG1]
-      rlArg = oatGetSrc(cUnit, mir, 0);
+      rlArg = info->args[0];
       loadValueDirectFixed(cUnit, rlArg, rARG1);
       break;
     case 1: // Is "this" null? [use rARG1]
-      genNullCheck(cUnit, oatSSASrc(mir,0), rARG1, mir->optimizationFlags);
+      genNullCheck(cUnit, info->args[0].sRegLow, rARG1, info->optFlags);
       // get this->klass_ [use rARG1, set rINVOKE_TGT]
       loadWordDisp(cUnit, rARG1, Object::ClassOffset().Int32Value(),
                    rINVOKE_TGT);
@@ -281,7 +281,7 @@ int nextVCallInsn(CompilationUnit* cUnit, MIR* mir,
   return state + 1;
 }
 
-int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir, int trampoline,
+int nextInvokeInsnSP(CompilationUnit* cUnit, InvokeInfo* info, int trampoline,
                      int state, uint32_t dexIdx, uint32_t methodIdx)
 {
   /*
@@ -300,62 +300,63 @@ int nextInvokeInsnSP(CompilationUnit* cUnit, MIR* mir, int trampoline,
   return -1;
 }
 
-int nextStaticCallInsnSP(CompilationUnit* cUnit, MIR* mir,
+int nextStaticCallInsnSP(CompilationUnit* cUnit, InvokeInfo* info,
                          int state, uint32_t dexIdx, uint32_t methodIdx,
                          uintptr_t unused, uintptr_t unused2,
                          InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeStaticTrampolineWithAccessCheck);
-  return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
+  return nextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int nextDirectCallInsnSP(CompilationUnit* cUnit, MIR* mir, int state,
+int nextDirectCallInsnSP(CompilationUnit* cUnit, InvokeInfo* info, int state,
                          uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
                          uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeDirectTrampolineWithAccessCheck);
-  return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
+  return nextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int nextSuperCallInsnSP(CompilationUnit* cUnit, MIR* mir, int state,
+int nextSuperCallInsnSP(CompilationUnit* cUnit, InvokeInfo* info, int state,
                         uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
                         uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeSuperTrampolineWithAccessCheck);
-  return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
+  return nextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int nextVCallInsnSP(CompilationUnit* cUnit, MIR* mir, int state,
+int nextVCallInsnSP(CompilationUnit* cUnit, InvokeInfo* info, int state,
                     uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
                     uintptr_t unused2, InvokeType unused3)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeVirtualTrampolineWithAccessCheck);
-  return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
+  return nextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
 /*
  * All invoke-interface calls bounce off of art_invoke_interface_trampoline,
  * which will locate the target and continue on via a tail call.
  */
-int nextInterfaceCallInsn(CompilationUnit* cUnit, MIR* mir, int state,
+int nextInterfaceCallInsn(CompilationUnit* cUnit, InvokeInfo* info, int state,
                           uint32_t dexIdx, uint32_t unused, uintptr_t unused2,
                           uintptr_t unused3, InvokeType unused4)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeInterfaceTrampoline);
-  return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
+  return nextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int nextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit, MIR* mir,
-                                         int state, uint32_t dexIdx,
-                                         uint32_t unused, uintptr_t unused2,
-                                         uintptr_t unused3, InvokeType unused4)
+int nextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit,
+                                         InvokeInfo* info, int state,
+                                         uint32_t dexIdx, uint32_t unused,
+                                         uintptr_t unused2, uintptr_t unused3,
+                                         InvokeType unused4)
 {
   int trampoline = ENTRYPOINT_OFFSET(pInvokeInterfaceTrampolineWithAccessCheck);
-  return nextInvokeInsnSP(cUnit, mir, trampoline, state, dexIdx, 0);
+  return nextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int loadArgRegs(CompilationUnit* cUnit, MIR* mir, DecodedInstruction* dInsn,
-                int callState, NextCallInsn nextCallInsn, uint32_t dexIdx,
+int loadArgRegs(CompilationUnit* cUnit, InvokeInfo* info, int callState,
+                NextCallInsn nextCallInsn, uint32_t dexIdx,
                 uint32_t methodIdx, uintptr_t directCode,
                 uintptr_t directMethod, InvokeType type, bool skipThis)
 {
@@ -366,8 +367,8 @@ int loadArgRegs(CompilationUnit* cUnit, MIR* mir, DecodedInstruction* dInsn,
     nextReg++;
     nextArg++;
   }
-  for (; (nextReg <= lastArgReg) && (nextArg < mir->ssaRep->numUses); nextReg++) {
-    RegLocation rlArg = oatGetRawSrc(cUnit, mir, nextArg++);
+  for (; (nextReg <= lastArgReg) && (nextArg < info->numArgWords); nextReg++) {
+    RegLocation rlArg = info->args[nextArg++];
     rlArg = oatUpdateRawLoc(cUnit, rlArg);
     if (rlArg.wide && (nextReg <= rARG2)) {
       loadValueDirectWideFixed(cUnit, rlArg, nextReg, nextReg + 1);
@@ -377,7 +378,7 @@ int loadArgRegs(CompilationUnit* cUnit, MIR* mir, DecodedInstruction* dInsn,
       rlArg.wide = false;
       loadValueDirectFixed(cUnit, rlArg, nextReg);
     }
-    callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
+    callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                  directCode, directMethod, type);
   }
   return callState;
@@ -390,8 +391,8 @@ int loadArgRegs(CompilationUnit* cUnit, MIR* mir, DecodedInstruction* dInsn,
  * the target method pointer.  Note, this may also be called
  * for "range" variants if the number of arguments is 5 or fewer.
  */
-int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
-                         DecodedInstruction* dInsn, int callState,
+int genDalvikArgsNoRange(CompilationUnit* cUnit, InvokeInfo* info,
+                         int callState,
                          LIR** pcrLabel, NextCallInsn nextCallInsn,
                          uint32_t dexIdx, uint32_t methodIdx,
                          uintptr_t directCode, uintptr_t directMethod,
@@ -400,19 +401,19 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
   RegLocation rlArg;
 
   /* If no arguments, just return */
-  if (dInsn->vA == 0)
+  if (info->numArgWords == 0)
     return callState;
 
-  callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
+  callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                            directCode, directMethod, type);
 
-  DCHECK_LE(dInsn->vA, 5U);
-  if (dInsn->vA > 3) {
-    uint32_t nextUse = 3;
+  DCHECK_LE(info->numArgWords, 5);
+  if (info->numArgWords > 3) {
+    int32_t nextUse = 3;
     //Detect special case of wide arg spanning arg3/arg4
-    RegLocation rlUse0 = oatGetRawSrc(cUnit, mir, 0);
-    RegLocation rlUse1 = oatGetRawSrc(cUnit, mir, 1);
-    RegLocation rlUse2 = oatGetRawSrc(cUnit, mir, 2);
+    RegLocation rlUse0 = info->args[0];
+    RegLocation rlUse1 = info->args[1];
+    RegLocation rlUse2 = info->args[2];
     if (((!rlUse0.wide && !rlUse1.wide) || rlUse0.wide) &&
       rlUse2.wide) {
       int reg = -1;
@@ -424,20 +425,20 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
         // rARG2 & rARG3 can safely be used here
         reg = rARG3;
         loadWordDisp(cUnit, rSP, oatSRegOffset(cUnit, rlArg.sRegLow) + 4, reg);
-        callState = nextCallInsn(cUnit, mir, callState, dexIdx,
+        callState = nextCallInsn(cUnit, info, callState, dexIdx,
                                  methodIdx, directCode, directMethod, type);
       }
       storeBaseDisp(cUnit, rSP, (nextUse + 1) * 4, reg, kWord);
       storeBaseDisp(cUnit, rSP, 16 /* (3+1)*4 */, reg, kWord);
-      callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
+      callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                                directCode, directMethod, type);
       nextUse++;
     }
     // Loop through the rest
-    while (nextUse < dInsn->vA) {
+    while (nextUse < info->numArgWords) {
       int lowReg;
       int highReg = -1;
-      rlArg = oatGetRawSrc(cUnit, mir, nextUse);
+      rlArg = info->args[nextUse];
       rlArg = oatUpdateRawLoc(cUnit, rlArg);
       if (rlArg.location == kLocPhysReg) {
         lowReg = rlArg.lowReg;
@@ -450,7 +451,7 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
         } else {
           loadValueDirectFixed(cUnit, rlArg, lowReg);
         }
-        callState = nextCallInsn(cUnit, mir, callState, dexIdx,
+        callState = nextCallInsn(cUnit, info, callState, dexIdx,
                                  methodIdx, directCode, directMethod, type);
       }
       int outsOffset = (nextUse + 1) * 4;
@@ -461,18 +462,18 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
         storeWordDisp(cUnit, rSP, outsOffset, lowReg);
         nextUse++;
       }
-      callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
+      callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                                directCode, directMethod, type);
     }
   }
 
-  callState = loadArgRegs(cUnit, mir, dInsn, callState, nextCallInsn,
+  callState = loadArgRegs(cUnit, info, callState, nextCallInsn,
                           dexIdx, methodIdx, directCode, directMethod,
                           type, skipThis);
 
   if (pcrLabel) {
-    *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), rARG1,
-                             mir->optimizationFlags);
+    *pcrLabel = genNullCheck(cUnit, info->args[0].sRegLow, rARG1,
+                             info->optFlags);
   }
   return callState;
 }
@@ -492,31 +493,18 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, MIR* mir,
  *       Pass arg0, arg1 & arg2 in rARG1-rARG3
  *
  */
-int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
-                       DecodedInstruction* dInsn, int callState,
+int genDalvikArgsRange(CompilationUnit* cUnit, InvokeInfo* info, int callState,
                        LIR** pcrLabel, NextCallInsn nextCallInsn,
                        uint32_t dexIdx, uint32_t methodIdx,
                        uintptr_t directCode, uintptr_t directMethod,
                        InvokeType type, bool skipThis)
 {
-  int firstArg = dInsn->vC;
-  int numArgs = dInsn->vA;
 
   // If we can treat it as non-range (Jumbo ops will use range form)
-  if (numArgs <= 5)
-    return genDalvikArgsNoRange(cUnit, mir, dInsn, callState, pcrLabel,
+  if (info->numArgWords <= 5)
+    return genDalvikArgsNoRange(cUnit, info, callState, pcrLabel,
                                 nextCallInsn, dexIdx, methodIdx,
                                 directCode, directMethod, type, skipThis);
-  /*
-   * Make sure range list doesn't span the break between in normal
-   * Dalvik vRegs and the ins.
-   */
-  int highestArg = oatGetSrc(cUnit, mir, numArgs-1).sRegLow;
-  int boundaryReg = cUnit->numDalvikRegisters - cUnit->numIns;
-  if ((firstArg < boundaryReg) && (highestArg >= boundaryReg)) {
-    LOG(FATAL) << "Argument list spanned locals & args";
-  }
-
   /*
    * First load the non-register arguments.  Both forms expect all
    * of the source arguments to be in their home frame location, so
@@ -524,8 +512,8 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
    * frame backing storage.
    */
   // Scan the rest of the args - if in physReg flush to memory
-  for (int nextArg = 0; nextArg < numArgs;) {
-    RegLocation loc = oatGetRawSrc(cUnit, mir, nextArg);
+  for (int nextArg = 0; nextArg < info->numArgWords;) {
+    RegLocation loc = info->args[nextArg];
     if (loc.wide) {
       loc = oatUpdateLocWide(cUnit, loc);
       if ((nextArg >= 2) && (loc.location == kLocPhysReg)) {
@@ -543,87 +531,81 @@ int genDalvikArgsRange(CompilationUnit* cUnit, MIR* mir,
     }
   }
 
-  int startOffset = oatSRegOffset(cUnit,
-    cUnit->regLocation[mir->ssaRep->uses[3]].sRegLow);
+  int startOffset = oatSRegOffset(cUnit, info->args[3].sRegLow);
   int outsOffset = 4 /* Method* */ + (3 * 4);
 #if defined(TARGET_MIPS) || defined(TARGET_X86)
   // Generate memcpy
   opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
   opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
   callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy),
-                             rARG0, rARG1, (numArgs - 3) * 4);
+                             rARG0, rARG1, (info->numArgWords - 3) * 4);
 #else
-  if (numArgs >= 20) {
+  if (info->numArgWords >= 20) {
     // Generate memcpy
     opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
     opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
     callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy),
-                               rARG0, rARG1, (numArgs - 3) * 4);
+                               rARG0, rARG1, (info->numArgWords - 3) * 4);
   } else {
     // Use vldm/vstm pair using rARG3 as a temp
-    int regsLeft = std::min(numArgs - 3, 16);
-    callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
+    int regsLeft = std::min(info->numArgWords - 3, 16);
+    callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                              directCode, directMethod, type);
     opRegRegImm(cUnit, kOpAdd, rARG3, rSP, startOffset);
     LIR* ld = newLIR3(cUnit, kThumb2Vldms, rARG3, fr0, regsLeft);
     //TUNING: loosen barrier
     ld->defMask = ENCODE_ALL;
     setMemRefType(ld, true /* isLoad */, kDalvikReg);
-    callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
+    callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                              directCode, directMethod, type);
     opRegRegImm(cUnit, kOpAdd, rARG3, rSP, 4 /* Method* */ + (3 * 4));
-    callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
+    callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                              directCode, directMethod, type);
     LIR* st = newLIR3(cUnit, kThumb2Vstms, rARG3, fr0, regsLeft);
     setMemRefType(st, false /* isLoad */, kDalvikReg);
     st->defMask = ENCODE_ALL;
-    callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
+    callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                              directCode, directMethod, type);
 
   }
 #endif
 
-  callState = loadArgRegs(cUnit, mir, dInsn, callState, nextCallInsn,
+  callState = loadArgRegs(cUnit, info, callState, nextCallInsn,
                           dexIdx, methodIdx, directCode, directMethod,
                           type, skipThis);
 
-  callState = nextCallInsn(cUnit, mir, callState, dexIdx, methodIdx,
+  callState = nextCallInsn(cUnit, info, callState, dexIdx, methodIdx,
                            directCode, directMethod, type);
   if (pcrLabel) {
-    *pcrLabel = genNullCheck(cUnit, oatSSASrc(mir,0), rARG1,
-                             mir->optimizationFlags);
+    *pcrLabel = genNullCheck(cUnit, info->args[0].sRegLow, rARG1,
+                             info->optFlags);
   }
   return callState;
 }
 
-RegLocation inlineTarget(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
+RegLocation inlineTarget(CompilationUnit* cUnit, InvokeInfo* info)
 {
   RegLocation res;
-  mir = oatFindMoveResult(cUnit, bb, mir, false);
-  if (mir == NULL) {
+  if (info->result.location == kLocInvalid) {
     res = oatGetReturn(cUnit, false);
   } else {
-    res = oatGetDest(cUnit, mir, 0);
-    mir->dalvikInsn.opcode = Instruction::NOP;
+    res = info->result;
   }
   return res;
 }
 
-RegLocation inlineTargetWide(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
+RegLocation inlineTargetWide(CompilationUnit* cUnit, InvokeInfo* info)
 {
   RegLocation res;
-  mir = oatFindMoveResult(cUnit, bb, mir, true);
-  if (mir == NULL) {
+  if (info->result.location == kLocInvalid) {
     res = oatGetReturnWide(cUnit, false);
   } else {
-    res = oatGetDestWide(cUnit, mir, 0, 1);
-    mir->dalvikInsn.opcode = Instruction::NOP;
+    res = info->result;
   }
   return res;
 }
 
-bool genInlinedCharAt(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-            InvokeType type, bool isRange)
+bool genInlinedCharAt(CompilationUnit* cUnit, InvokeInfo* info)
 {
 #if defined(TARGET_ARM)
   // Location of reference to data array
@@ -635,15 +617,15 @@ bool genInlinedCharAt(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   // Start of char data with array_
   int dataOffset = Array::DataOffset(sizeof(uint16_t)).Int32Value();
 
-  RegLocation rlObj = oatGetSrc(cUnit, mir, 0);
-  RegLocation rlIdx = oatGetSrc(cUnit, mir, 1);
+  RegLocation rlObj = info->args[0];
+  RegLocation rlIdx = info->args[1];
   rlObj = loadValue(cUnit, rlObj, kCoreReg);
   rlIdx = loadValue(cUnit, rlIdx, kCoreReg);
   int regMax;
   int regOff = oatAllocTemp(cUnit);
   int regPtr = oatAllocTemp(cUnit);
-  genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->optimizationFlags);
-  bool rangeCheck = (!(mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK));
+  genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, info->optFlags);
+  bool rangeCheck = (!(info->optFlags & MIR_IGNORE_RANGE_CHECK));
   if (rangeCheck) {
     regMax = oatAllocTemp(cUnit);
     loadWordDisp(cUnit, rlObj.lowReg, countOffset, regMax);
@@ -653,7 +635,7 @@ bool genInlinedCharAt(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   LIR* launchPad = NULL;
   if (rangeCheck) {
     // Set up a launch pad to allow retry in case of bounds violation */
-    launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (int)mir, type);
+    launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
     oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
                           (intptr_t)launchPad);
     opRegReg(cUnit, kOpCmp, rlIdx.lowReg, regMax);
@@ -662,7 +644,7 @@ bool genInlinedCharAt(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   }
   opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
   opRegReg(cUnit, kOpAdd, regOff, rlIdx.lowReg);
-  RegLocation rlDest = inlineTarget(cUnit, bb, mir);
+  RegLocation rlDest = inlineTarget(cUnit, info);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   loadBaseIndexed(cUnit, regPtr, regOff, rlResult.lowReg, 1, kUnsignedHalf);
   oatFreeTemp(cUnit, regOff);
@@ -670,25 +652,23 @@ bool genInlinedCharAt(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   storeValue(cUnit, rlDest, rlResult);
   if (rangeCheck) {
     launchPad->operands[2] = 0;  // no resumption
-    launchPad->operands[3] = (uintptr_t)bb;
   }
   // Record that we've already inlined & null checked
-  mir->optimizationFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
+  info->optFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
   return true;
 #else
   return false;
 #endif
 }
 
-bool genInlinedMinMaxInt(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir,
-             bool isMin)
+bool genInlinedMinMaxInt(CompilationUnit *cUnit, InvokeInfo* info, bool isMin)
 {
 #if defined(TARGET_ARM)
-  RegLocation rlSrc1 = oatGetSrc(cUnit, mir, 0);
-  RegLocation rlSrc2 = oatGetSrc(cUnit, mir, 1);
+  RegLocation rlSrc1 = info->args[0];
+  RegLocation rlSrc2 = info->args[1];
   rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
   rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
-  RegLocation rlDest = inlineTarget(cUnit, bb, mir);
+  RegLocation rlDest = inlineTarget(cUnit, info);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
   opIT(cUnit, (isMin) ? kArmCondGt : kArmCondLt, "E");
@@ -703,16 +683,16 @@ bool genInlinedMinMaxInt(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir,
 }
 
 // Generates an inlined String.isEmpty or String.length.
-bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit,
-                                     BasicBlock* bb, MIR* mir, bool isEmpty)
+bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit, InvokeInfo* info,
+                                     bool isEmpty)
 {
 #if defined(TARGET_ARM)
   // dst = src.length();
-  RegLocation rlObj = oatGetSrc(cUnit, mir, 0);
+  RegLocation rlObj = info->args[0];
   rlObj = loadValue(cUnit, rlObj, kCoreReg);
-  RegLocation rlDest = inlineTarget(cUnit, bb, mir);
+  RegLocation rlDest = inlineTarget(cUnit, info);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-  genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, mir->optimizationFlags);
+  genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, info->optFlags);
   loadWordDisp(cUnit, rlObj.lowReg, String::CountOffset().Int32Value(),
                rlResult.lowReg);
   if (isEmpty) {
@@ -728,12 +708,12 @@ bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit,
 #endif
 }
 
-bool genInlinedAbsInt(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir)
+bool genInlinedAbsInt(CompilationUnit *cUnit, InvokeInfo* info)
 {
 #if defined(TARGET_ARM)
-  RegLocation rlSrc = oatGetSrc(cUnit, mir, 0);
+  RegLocation rlSrc = info->args[0];
   rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
-  RegLocation rlDest = inlineTarget(cUnit, bb, mir);
+  RegLocation rlDest = inlineTarget(cUnit, info);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   int signReg = oatAllocTemp(cUnit);
   // abs(x) = y<=x>>31, (x+y)^y.
@@ -747,12 +727,12 @@ bool genInlinedAbsInt(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir)
 #endif
 }
 
-bool genInlinedAbsLong(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir)
+bool genInlinedAbsLong(CompilationUnit *cUnit, InvokeInfo* info)
 {
 #if defined(TARGET_ARM)
-  RegLocation rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+  RegLocation rlSrc = info->args[0];
   rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
-  RegLocation rlDest = inlineTargetWide(cUnit, bb, mir);
+  RegLocation rlDest = inlineTargetWide(cUnit, info);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   int signReg = oatAllocTemp(cUnit);
   // abs(x) = y<=x>>31, (x+y)^y.
@@ -768,11 +748,11 @@ bool genInlinedAbsLong(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir)
 #endif
 }
 
-bool genInlinedFloatCvt(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir)
+bool genInlinedFloatCvt(CompilationUnit *cUnit, InvokeInfo* info)
 {
 #if defined(TARGET_ARM)
-  RegLocation rlSrc = oatGetSrc(cUnit, mir, 0);
-  RegLocation rlDest = inlineTarget(cUnit, bb, mir);
+  RegLocation rlSrc = info->args[0];
+  RegLocation rlDest = inlineTarget(cUnit, info);
   storeValue(cUnit, rlDest, rlSrc);
   return true;
 #else
@@ -780,11 +760,11 @@ bool genInlinedFloatCvt(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir)
 #endif
 }
 
-bool genInlinedDoubleCvt(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir)
+bool genInlinedDoubleCvt(CompilationUnit *cUnit, InvokeInfo* info)
 {
 #if defined(TARGET_ARM)
-  RegLocation rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
-  RegLocation rlDest = inlineTargetWide(cUnit, bb, mir);
+  RegLocation rlSrc = info->args[0];
+  RegLocation rlDest = inlineTargetWide(cUnit, info);
   storeValueWide(cUnit, rlDest, rlSrc);
   return true;
 #else
@@ -796,8 +776,8 @@ bool genInlinedDoubleCvt(CompilationUnit *cUnit, BasicBlock* bb, MIR *mir)
  * Fast string.indexOf(I) & (II).  Tests for simple case of char <= 0xffff,
  * otherwise bails to standard library code.
  */
-bool genInlinedIndexOf(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                       InvokeType type, bool zeroBased)
+bool genInlinedIndexOf(CompilationUnit* cUnit, InvokeInfo* info,
+                       bool zeroBased)
 {
 #if defined(TARGET_ARM)
 
@@ -807,9 +787,9 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   int regChar = rARG1;
   int regStart = rARG2;
 
-  RegLocation rlObj = oatGetSrc(cUnit, mir, 0);
-  RegLocation rlChar = oatGetSrc(cUnit, mir, 1);
-  RegLocation rlStart = oatGetSrc(cUnit, mir, 2);
+  RegLocation rlObj = info->args[0];
+  RegLocation rlChar = info->args[1];
+  RegLocation rlStart = info->args[2];
   loadValueDirectFixed(cUnit, rlObj, regPtr);
   loadValueDirectFixed(cUnit, rlChar, regChar);
   if (zeroBased) {
@@ -818,17 +798,19 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     loadValueDirectFixed(cUnit, rlStart, regStart);
   }
   int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pIndexOf));
-  genNullCheck(cUnit, rlObj.sRegLow, regPtr, mir->optimizationFlags);
-  LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (int)mir, type);
+  genNullCheck(cUnit, rlObj.sRegLow, regPtr, info->optFlags);
+  LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
   oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
               (intptr_t)launchPad);
   opCmpImmBranch(cUnit, kCondGt, regChar, 0xFFFF, launchPad);
   opReg(cUnit, kOpBlx, rTgt);
   LIR* resumeTgt = newLIR0(cUnit, kPseudoTargetLabel);
   launchPad->operands[2] = (uintptr_t)resumeTgt;
-  launchPad->operands[3] = (uintptr_t)bb;
   // Record that we've already inlined & null checked
-  mir->optimizationFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
+  info->optFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
+  RegLocation rlReturn = oatGetReturn(cUnit, false);
+  RegLocation rlDest = inlineTarget(cUnit, info);
+  storeValue(cUnit, rlDest, rlReturn);
   return true;
 #else
   return false;
@@ -836,8 +818,7 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 }
 
 /* Fast string.compareTo(Ljava/lang/string;)I. */
-bool genInlinedStringCompareTo(CompilationUnit* cUnit, BasicBlock* bb,
-                               MIR* mir, InvokeType type)
+bool genInlinedStringCompareTo(CompilationUnit* cUnit, InvokeInfo* info)
 {
 #if defined(TARGET_ARM)
   oatClobberCalleeSave(cUnit);
@@ -845,32 +826,34 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, BasicBlock* bb,
   int regThis = rARG0;
   int regCmp = rARG1;
 
-  RegLocation rlThis = oatGetSrc(cUnit, mir, 0);
-  RegLocation rlCmp = oatGetSrc(cUnit, mir, 1);
+  RegLocation rlThis = info->args[0];
+  RegLocation rlCmp = info->args[1];
   loadValueDirectFixed(cUnit, rlThis, regThis);
   loadValueDirectFixed(cUnit, rlCmp, regCmp);
   int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pStringCompareTo));
-  genNullCheck(cUnit, rlThis.sRegLow, regThis, mir->optimizationFlags);
+  genNullCheck(cUnit, rlThis.sRegLow, regThis, info->optFlags);
   //TUNING: check if rlCmp.sRegLow is already null checked
-  LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (int)mir, type);
+  LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
   oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
                         (intptr_t)launchPad);
   opCmpImmBranch(cUnit, kCondEq, regCmp, 0, launchPad);
   opReg(cUnit, kOpBlx, rTgt);
   launchPad->operands[2] = 0;  // No return possible
-  launchPad->operands[3] = (uintptr_t)bb;
   // Record that we've already inlined & null checked
-  mir->optimizationFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
+  info->optFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);
+  RegLocation rlReturn = oatGetReturn(cUnit, false);
+  RegLocation rlDest = inlineTarget(cUnit, info);
+  storeValue(cUnit, rlDest, rlReturn);
   return true;
 #else
   return false;
 #endif
 }
 
-bool genIntrinsic(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                  InvokeType type, bool isRange)
+bool genIntrinsic(CompilationUnit* cUnit, InvokeInfo* info)
 {
-  if ((mir->optimizationFlags & MIR_INLINED) || isRange)  {
+  if ((info->optFlags & MIR_INLINED) || info->isRange ||
+      (info->result.location == kLocInvalid))  {
     return false;
   }
   /*
@@ -883,48 +866,48 @@ bool genIntrinsic(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
    * method.  By doing this during basic block construction, we can also
    * take advantage of/generate new useful dataflow info.
    */
-  std::string tgtMethod(PrettyMethod(mir->dalvikInsn.vB, *cUnit->dex_file));
+  std::string tgtMethod(PrettyMethod(info->methodIdx, *cUnit->dex_file));
   if (tgtMethod.compare("char java.lang.String.charAt(int)") == 0) {
-    return genInlinedCharAt(cUnit, bb, mir, type, isRange);
+    return genInlinedCharAt(cUnit, info);
   }
   if (tgtMethod.compare("int java.lang.Math.min(int, int)") == 0) {
-    return genInlinedMinMaxInt(cUnit, bb, mir, true /* isMin */);
+    return genInlinedMinMaxInt(cUnit, info, true /* isMin */);
   }
   if (tgtMethod.compare("int java.lang.Math.max(int, int)") == 0) {
-    return genInlinedMinMaxInt(cUnit, bb, mir, false /* isMin */);
+    return genInlinedMinMaxInt(cUnit, info, false /* isMin */);
   }
   if (tgtMethod.compare("int java.lang.String.length()") == 0) {
-    return genInlinedStringIsEmptyOrLength(cUnit, bb, mir, false /* isEmpty */);
+    return genInlinedStringIsEmptyOrLength(cUnit, info, false /* isEmpty */);
   }
   if (tgtMethod.compare("boolean java.lang.String.isEmpty()") == 0) {
-    return genInlinedStringIsEmptyOrLength(cUnit, bb, mir, true /* isEmpty */);
+    return genInlinedStringIsEmptyOrLength(cUnit, info, true /* isEmpty */);
   }
   if (tgtMethod.compare("int java.lang.Math.abs(int)") == 0) {
-    return genInlinedAbsInt(cUnit, bb, mir);
+    return genInlinedAbsInt(cUnit, info);
   }
   if (tgtMethod.compare("long java.lang.Math.abs(long)") == 0) {
-    return genInlinedAbsLong(cUnit, bb, mir);
+    return genInlinedAbsLong(cUnit, info);
   }
   if (tgtMethod.compare("int java.lang.Float.floatToRawIntBits(float)") == 0) {
-    return genInlinedFloatCvt(cUnit, bb, mir);
+    return genInlinedFloatCvt(cUnit, info);
   }
   if (tgtMethod.compare("float java.lang.Float.intBitsToFloat(int)") == 0) {
-    return genInlinedFloatCvt(cUnit, bb, mir);
+    return genInlinedFloatCvt(cUnit, info);
   }
   if (tgtMethod.compare("long java.lang.Double.doubleToRawLongBits(double)") == 0) {
-    return genInlinedDoubleCvt(cUnit, bb, mir);
+    return genInlinedDoubleCvt(cUnit, info);
   }
   if (tgtMethod.compare("double java.lang.Double.longBitsToDouble(long)") == 0) {
-    return genInlinedDoubleCvt(cUnit, bb, mir);
+    return genInlinedDoubleCvt(cUnit, info);
   }
   if (tgtMethod.compare("int java.lang.String.indexOf(int, int)") == 0) {
-    return genInlinedIndexOf(cUnit, bb, mir, type, false /* base 0 */);
+    return genInlinedIndexOf(cUnit, info, false /* base 0 */);
   }
   if (tgtMethod.compare("int java.lang.String.indexOf(int)") == 0) {
-    return genInlinedIndexOf(cUnit, bb, mir, type, true /* base 0 */);
+    return genInlinedIndexOf(cUnit, info, true /* base 0 */);
   }
   if (tgtMethod.compare("int java.lang.String.compareTo(java.lang.String)") == 0) {
-    return genInlinedStringCompareTo(cUnit, bb, mir, type);
+    return genInlinedStringCompareTo(cUnit, info);
   }
   return false;
 }

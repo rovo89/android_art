@@ -107,17 +107,18 @@ extern void oatMarkDef(CompilationUnit* cUnit, RegLocation rl, LIR* start,
 extern void oatMarkDefWide(CompilationUnit* cUnit, RegLocation rl,
                            LIR* start, LIR* finish);
 
-extern RegLocation oatGetSrcWide(CompilationUnit* cUnit, MIR* mir,
-                                 int low, int high);
 
-extern RegLocation oatGetDestWide(CompilationUnit* cUnit, MIR* mir,
-                                  int low, int high);
 // Get the LocRecord associated with an SSA name use.
 extern RegLocation oatGetSrc(CompilationUnit* cUnit, MIR* mir, int num);
+extern RegLocation oatGetSrcWide(CompilationUnit* cUnit, MIR* mir, int low);
+// Non-width checking version
 extern RegLocation oatGetRawSrc(CompilationUnit* cUnit, MIR* mir, int num);
 
 // Get the LocRecord associated with an SSA name def.
-extern RegLocation oatGetDest(CompilationUnit* cUnit, MIR* mir, int num);
+extern RegLocation oatGetDest(CompilationUnit* cUnit, MIR* mir);
+extern RegLocation oatGetDestWide(CompilationUnit* cUnit, MIR* mir);
+// Non-width checking version
+extern RegLocation oatGetRawDest(CompilationUnit* cUnit, MIR* mir);
 
 extern RegLocation oatGetReturnWide(CompilationUnit* cUnit, bool isDouble);
 

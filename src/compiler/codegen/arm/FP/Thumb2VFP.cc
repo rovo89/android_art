@@ -167,8 +167,8 @@ void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   RegLocation rlSrc1;
   RegLocation rlSrc2;
   if (isDouble) {
-    rlSrc1 = oatGetSrcWide(cUnit, mir, 0, 1);
-    rlSrc2 = oatGetSrcWide(cUnit, mir, 2, 3);
+    rlSrc1 = oatGetSrcWide(cUnit, mir, 0);
+    rlSrc2 = oatGetSrcWide(cUnit, mir, 2);
     rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
     rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
     newLIR2(cUnit, kThumb2Vcmpd, S2D(rlSrc1.lowReg, r1Src2.highReg),

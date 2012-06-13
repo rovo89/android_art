@@ -182,7 +182,7 @@ MIR* specialIPut(CompilationUnit* cUnit, BasicBlock** bb, MIR* mir,
   RegLocation rlObj;
   lockLiveArgs(cUnit, mir);
   if (longOrDouble) {
-    rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+    rlSrc = oatGetSrcWide(cUnit, mir, 0);
     rlObj = oatGetSrc(cUnit, mir, 2);
   } else {
     rlSrc = oatGetSrc(cUnit, mir, 0);
@@ -210,7 +210,7 @@ MIR* specialIdentity(CompilationUnit* cUnit, MIR* mir)
   RegLocation rlDest;
   bool wide = (mir->ssaRep->numUses == 2);
   if (wide) {
-    rlSrc = oatGetSrcWide(cUnit, mir, 0, 1);
+    rlSrc = oatGetSrcWide(cUnit, mir, 0);
     rlDest = oatGetReturnWide(cUnit, false);
   } else {
     rlSrc = oatGetSrc(cUnit, mir, 0);
@@ -657,8 +657,8 @@ void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
   LIR* labelList = (LIR*)cUnit->blockLabelList;
   LIR* taken = &labelList[bb->taken->id];
   LIR* notTaken = &labelList[bb->fallThrough->id];
-  RegLocation rlSrc1 = oatGetSrcWide(cUnit, mir, 0, 1);
-  RegLocation rlSrc2 = oatGetSrcWide(cUnit, mir, 2, 3);
+  RegLocation rlSrc1 = oatGetSrcWide(cUnit, mir, 0);
+  RegLocation rlSrc2 = oatGetSrcWide(cUnit, mir, 2);
   rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
   rlSrc2 = loadValueWide(cUnit, rlSrc2, kCoreReg);
   ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
