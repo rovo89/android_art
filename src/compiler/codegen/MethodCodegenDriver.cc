@@ -53,7 +53,7 @@ RegLocation oatGetReturn(CompilationUnit* cUnit, bool isFloat)
   return res;
 }
 
-void genInvoke(CompilationUnit* cUnit, InvokeInfo* info)
+void genInvoke(CompilationUnit* cUnit, CallInfo* info)
 {
   if (genIntrinsic(cUnit, info)) {
     return;
@@ -72,7 +72,7 @@ void genInvoke(CompilationUnit* cUnit, InvokeInfo* info)
                            cUnit->code_item, cUnit->method_idx,
                            cUnit->access_flags);
 
-  uint32_t dexMethodIdx = info->methodIdx;
+  uint32_t dexMethodIdx = info->index;
   int vtableIdx;
   uintptr_t directCode;
   uintptr_t directMethod;
@@ -174,10 +174,10 @@ void genInvoke(CompilationUnit* cUnit, InvokeInfo* info)
  * high-word loc for wide arguments.  Also pull up any following
  * MOVE_RESULT and incorporate it into the invoke.
  */
-InvokeInfo* newInvokeInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                          InvokeType type, bool isRange)
+CallInfo* newCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                      InvokeType type, bool isRange)
 {
-  InvokeInfo* info = (InvokeInfo*)oatNew(cUnit, sizeof(InvokeInfo), true,
+  CallInfo* info = (CallInfo*)oatNew(cUnit, sizeof(CallInfo), true,
                                          kAllocMisc);
   MIR* moveResultMIR = oatFindMoveResult(cUnit, bb, mir);
   if (moveResultMIR == NULL) {
@@ -195,7 +195,7 @@ InvokeInfo* newInvokeInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   info->optFlags = mir->optimizationFlags;
   info->type = type;
   info->isRange = isRange;
-  info->methodIdx = mir->dalvikInsn.vB;
+  info->index = mir->dalvikInsn.vB;
   info->offset = mir->offset;
   return info;
 }
@@ -414,11 +414,13 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
       break;
 
     case Instruction::FILLED_NEW_ARRAY:
-      genFilledNewArray(cUnit, mir, false /* not range */);
+      genFilledNewArray(cUnit, newCallInfo(cUnit, bb, mir, kStatic,
+                        false /* not range */));
       break;
 
     case Instruction::FILLED_NEW_ARRAY_RANGE:
-      genFilledNewArray(cUnit, mir, true /* range */);
+      genFilledNewArray(cUnit, newCallInfo(cUnit, bb, mir, kStatic,
+                        true /* range */));
       break;
 
     case Instruction::NEW_ARRAY:
@@ -460,12 +462,15 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::IF_GE:
     case Instruction::IF_GT:
     case Instruction::IF_LE: {
+      LIR* taken = &labelList[bb->taken->id];
+      LIR* fallThrough = &labelList[bb->fallThrough->id];
       bool backwardBranch;
       backwardBranch = (bb->taken->startOffset <= mir->offset);
       if (backwardBranch) {
         genSuspendTest(cUnit, optFlags);
       }
-      genCompareAndBranch(cUnit, bb, opcode, rlSrc[0], rlSrc[1], labelList);
+      genCompareAndBranch(cUnit, opcode, rlSrc[0], rlSrc[1], taken,
+                          fallThrough);
       break;
       }
 
@@ -475,12 +480,14 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
     case Instruction::IF_GEZ:
     case Instruction::IF_GTZ:
     case Instruction::IF_LEZ: {
+      LIR* taken = &labelList[bb->taken->id];
+      LIR* fallThrough = &labelList[bb->fallThrough->id];
       bool backwardBranch;
       backwardBranch = (bb->taken->startOffset <= mir->offset);
       if (backwardBranch) {
         genSuspendTest(cUnit, optFlags);
       }
-      genCompareZeroAndBranch(cUnit, bb, opcode, rlSrc[0], labelList);
+      genCompareZeroAndBranch(cUnit, opcode, rlSrc[0], taken, fallThrough);
       break;
       }
 
@@ -610,38 +617,38 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
       break;
 
     case Instruction::INVOKE_STATIC_RANGE:
-      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kStatic, true));
+      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kStatic, true));
       break;
     case Instruction::INVOKE_STATIC:
-      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kStatic, false));
+      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kStatic, false));
       break;
 
     case Instruction::INVOKE_DIRECT:
-      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kDirect, false));
+      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kDirect, false));
       break;
     case Instruction::INVOKE_DIRECT_RANGE:
-      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kDirect, true));
+      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kDirect, true));
       break;
 
     case Instruction::INVOKE_VIRTUAL:
-      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kVirtual, false));
+      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kVirtual, false));
       break;
     case Instruction::INVOKE_VIRTUAL_RANGE:
-      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kVirtual, true));
+      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kVirtual, true));
       break;
 
     case Instruction::INVOKE_SUPER:
-      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kSuper, false));
+      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kSuper, false));
       break;
     case Instruction::INVOKE_SUPER_RANGE:
-      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kSuper, true));
+      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kSuper, true));
       break;
 
     case Instruction::INVOKE_INTERFACE:
-      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kInterface, false));
+      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kInterface, false));
       break;
     case Instruction::INVOKE_INTERFACE_RANGE:
-      genInvoke(cUnit, newInvokeInfo(cUnit, bb, mir, kInterface, true));
+      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kInterface, true));
       break;
 
     case Instruction::NEG_INT:

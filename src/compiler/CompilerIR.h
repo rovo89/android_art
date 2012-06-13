@@ -84,14 +84,14 @@ struct CompilerTemp {
   ArenaBitVector* bv;
 };
 
-struct InvokeInfo {
+struct CallInfo {
   int numArgWords;      // Note: word count, not arg count
   RegLocation* args;    // One for each word of arguments
   RegLocation result;   // Eventual target of MOVE_RESULT
   int optFlags;
   InvokeType type;
   uint32_t dexIdx;
-  uint32_t methodIdx;
+  uint32_t index;       // Method idx for invokes, type idx for FilledNewArray
   uintptr_t directCode;
   uintptr_t directMethod;
   RegLocation target;    // Target of following move_result
