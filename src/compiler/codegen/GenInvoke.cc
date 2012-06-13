@@ -24,7 +24,7 @@ namespace art {
  * and "op" calls may be used here.
  */
 
-typedef int (*NextCallInsn)(CompilationUnit*, InvokeInfo*, int, uint32_t dexIdx,
+typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int, uint32_t dexIdx,
                             uint32_t methodIdx, uintptr_t directCode,
                             uintptr_t directMethod, InvokeType type);
 LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target);
@@ -133,7 +133,7 @@ void scanMethodLiteralPool(CompilationUnit* cUnit, LIR** methodTarget, LIR** cod
  * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
-int nextSDCallInsn(CompilationUnit* cUnit, InvokeInfo* info,
+int nextSDCallInsn(CompilationUnit* cUnit, CallInfo* info,
                    int state, uint32_t dexIdx, uint32_t unused,
                    uintptr_t directCode, uintptr_t directMethod,
                    InvokeType type)
@@ -241,7 +241,7 @@ int nextSDCallInsn(CompilationUnit* cUnit, InvokeInfo* info,
  * Note also that we'll load the first argument ("this") into
  * rARG1 here rather than the standard loadArgRegs.
  */
-int nextVCallInsn(CompilationUnit* cUnit, InvokeInfo* info,
+int nextVCallInsn(CompilationUnit* cUnit, CallInfo* info,
                   int state, uint32_t dexIdx, uint32_t methodIdx,
                   uintptr_t unused, uintptr_t unused2, InvokeType unused3)
 {
@@ -281,7 +281,7 @@ int nextVCallInsn(CompilationUnit* cUnit, InvokeInfo* info,
   return state + 1;
 }
 
-int nextInvokeInsnSP(CompilationUnit* cUnit, InvokeInfo* info, int trampoline,
+int nextInvokeInsnSP(CompilationUnit* cUnit, CallInfo* info, int trampoline,
                      int state, uint32_t dexIdx, uint32_t methodIdx)
 {
   /*
@@ -300,7 +300,7 @@ int nextInvokeInsnSP(CompilationUnit* cUnit, InvokeInfo* info, int trampoline,
   return -1;
 }
 
-int nextStaticCallInsnSP(CompilationUnit* cUnit, InvokeInfo* info,
+int nextStaticCallInsnSP(CompilationUnit* cUnit, CallInfo* info,
                          int state, uint32_t dexIdx, uint32_t methodIdx,
                          uintptr_t unused, uintptr_t unused2,
                          InvokeType unused3)
@@ -309,7 +309,7 @@ int nextStaticCallInsnSP(CompilationUnit* cUnit, InvokeInfo* info,
   return nextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int nextDirectCallInsnSP(CompilationUnit* cUnit, InvokeInfo* info, int state,
+int nextDirectCallInsnSP(CompilationUnit* cUnit, CallInfo* info, int state,
                          uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
                          uintptr_t unused2, InvokeType unused3)
 {
@@ -317,7 +317,7 @@ int nextDirectCallInsnSP(CompilationUnit* cUnit, InvokeInfo* info, int state,
   return nextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int nextSuperCallInsnSP(CompilationUnit* cUnit, InvokeInfo* info, int state,
+int nextSuperCallInsnSP(CompilationUnit* cUnit, CallInfo* info, int state,
                         uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
                         uintptr_t unused2, InvokeType unused3)
 {
@@ -325,7 +325,7 @@ int nextSuperCallInsnSP(CompilationUnit* cUnit, InvokeInfo* info, int state,
   return nextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int nextVCallInsnSP(CompilationUnit* cUnit, InvokeInfo* info, int state,
+int nextVCallInsnSP(CompilationUnit* cUnit, CallInfo* info, int state,
                     uint32_t dexIdx, uint32_t methodIdx, uintptr_t unused,
                     uintptr_t unused2, InvokeType unused3)
 {
@@ -337,7 +337,7 @@ int nextVCallInsnSP(CompilationUnit* cUnit, InvokeInfo* info, int state,
  * All invoke-interface calls bounce off of art_invoke_interface_trampoline,
  * which will locate the target and continue on via a tail call.
  */
-int nextInterfaceCallInsn(CompilationUnit* cUnit, InvokeInfo* info, int state,
+int nextInterfaceCallInsn(CompilationUnit* cUnit, CallInfo* info, int state,
                           uint32_t dexIdx, uint32_t unused, uintptr_t unused2,
                           uintptr_t unused3, InvokeType unused4)
 {
@@ -346,7 +346,7 @@ int nextInterfaceCallInsn(CompilationUnit* cUnit, InvokeInfo* info, int state,
 }
 
 int nextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit,
-                                         InvokeInfo* info, int state,
+                                         CallInfo* info, int state,
                                          uint32_t dexIdx, uint32_t unused,
                                          uintptr_t unused2, uintptr_t unused3,
                                          InvokeType unused4)
@@ -355,7 +355,7 @@ int nextInterfaceCallInsnWithAccessCheck(CompilationUnit* cUnit,
   return nextInvokeInsnSP(cUnit, info, trampoline, state, dexIdx, 0);
 }
 
-int loadArgRegs(CompilationUnit* cUnit, InvokeInfo* info, int callState,
+int loadArgRegs(CompilationUnit* cUnit, CallInfo* info, int callState,
                 NextCallInsn nextCallInsn, uint32_t dexIdx,
                 uint32_t methodIdx, uintptr_t directCode,
                 uintptr_t directMethod, InvokeType type, bool skipThis)
@@ -391,7 +391,7 @@ int loadArgRegs(CompilationUnit* cUnit, InvokeInfo* info, int callState,
  * the target method pointer.  Note, this may also be called
  * for "range" variants if the number of arguments is 5 or fewer.
  */
-int genDalvikArgsNoRange(CompilationUnit* cUnit, InvokeInfo* info,
+int genDalvikArgsNoRange(CompilationUnit* cUnit, CallInfo* info,
                          int callState,
                          LIR** pcrLabel, NextCallInsn nextCallInsn,
                          uint32_t dexIdx, uint32_t methodIdx,
@@ -493,7 +493,7 @@ int genDalvikArgsNoRange(CompilationUnit* cUnit, InvokeInfo* info,
  *       Pass arg0, arg1 & arg2 in rARG1-rARG3
  *
  */
-int genDalvikArgsRange(CompilationUnit* cUnit, InvokeInfo* info, int callState,
+int genDalvikArgsRange(CompilationUnit* cUnit, CallInfo* info, int callState,
                        LIR** pcrLabel, NextCallInsn nextCallInsn,
                        uint32_t dexIdx, uint32_t methodIdx,
                        uintptr_t directCode, uintptr_t directMethod,
@@ -583,7 +583,7 @@ int genDalvikArgsRange(CompilationUnit* cUnit, InvokeInfo* info, int callState,
   return callState;
 }
 
-RegLocation inlineTarget(CompilationUnit* cUnit, InvokeInfo* info)
+RegLocation inlineTarget(CompilationUnit* cUnit, CallInfo* info)
 {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
@@ -594,7 +594,7 @@ RegLocation inlineTarget(CompilationUnit* cUnit, InvokeInfo* info)
   return res;
 }
 
-RegLocation inlineTargetWide(CompilationUnit* cUnit, InvokeInfo* info)
+RegLocation inlineTargetWide(CompilationUnit* cUnit, CallInfo* info)
 {
   RegLocation res;
   if (info->result.location == kLocInvalid) {
@@ -605,7 +605,7 @@ RegLocation inlineTargetWide(CompilationUnit* cUnit, InvokeInfo* info)
   return res;
 }
 
-bool genInlinedCharAt(CompilationUnit* cUnit, InvokeInfo* info)
+bool genInlinedCharAt(CompilationUnit* cUnit, CallInfo* info)
 {
 #if defined(TARGET_ARM)
   // Location of reference to data array
@@ -661,7 +661,7 @@ bool genInlinedCharAt(CompilationUnit* cUnit, InvokeInfo* info)
 #endif
 }
 
-bool genInlinedMinMaxInt(CompilationUnit *cUnit, InvokeInfo* info, bool isMin)
+bool genInlinedMinMaxInt(CompilationUnit *cUnit, CallInfo* info, bool isMin)
 {
 #if defined(TARGET_ARM)
   RegLocation rlSrc1 = info->args[0];
@@ -683,7 +683,7 @@ bool genInlinedMinMaxInt(CompilationUnit *cUnit, InvokeInfo* info, bool isMin)
 }
 
 // Generates an inlined String.isEmpty or String.length.
-bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit, InvokeInfo* info,
+bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit, CallInfo* info,
                                      bool isEmpty)
 {
 #if defined(TARGET_ARM)
@@ -708,7 +708,7 @@ bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit, InvokeInfo* info,
 #endif
 }
 
-bool genInlinedAbsInt(CompilationUnit *cUnit, InvokeInfo* info)
+bool genInlinedAbsInt(CompilationUnit *cUnit, CallInfo* info)
 {
 #if defined(TARGET_ARM)
   RegLocation rlSrc = info->args[0];
@@ -727,7 +727,7 @@ bool genInlinedAbsInt(CompilationUnit *cUnit, InvokeInfo* info)
 #endif
 }
 
-bool genInlinedAbsLong(CompilationUnit *cUnit, InvokeInfo* info)
+bool genInlinedAbsLong(CompilationUnit *cUnit, CallInfo* info)
 {
 #if defined(TARGET_ARM)
   RegLocation rlSrc = info->args[0];
@@ -748,7 +748,7 @@ bool genInlinedAbsLong(CompilationUnit *cUnit, InvokeInfo* info)
 #endif
 }
 
-bool genInlinedFloatCvt(CompilationUnit *cUnit, InvokeInfo* info)
+bool genInlinedFloatCvt(CompilationUnit *cUnit, CallInfo* info)
 {
 #if defined(TARGET_ARM)
   RegLocation rlSrc = info->args[0];
@@ -760,7 +760,7 @@ bool genInlinedFloatCvt(CompilationUnit *cUnit, InvokeInfo* info)
 #endif
 }
 
-bool genInlinedDoubleCvt(CompilationUnit *cUnit, InvokeInfo* info)
+bool genInlinedDoubleCvt(CompilationUnit *cUnit, CallInfo* info)
 {
 #if defined(TARGET_ARM)
   RegLocation rlSrc = info->args[0];
@@ -776,7 +776,7 @@ bool genInlinedDoubleCvt(CompilationUnit *cUnit, InvokeInfo* info)
  * Fast string.indexOf(I) & (II).  Tests for simple case of char <= 0xffff,
  * otherwise bails to standard library code.
  */
-bool genInlinedIndexOf(CompilationUnit* cUnit, InvokeInfo* info,
+bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info,
                        bool zeroBased)
 {
 #if defined(TARGET_ARM)
@@ -818,7 +818,7 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, InvokeInfo* info,
 }
 
 /* Fast string.compareTo(Ljava/lang/string;)I. */
-bool genInlinedStringCompareTo(CompilationUnit* cUnit, InvokeInfo* info)
+bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info)
 {
 #if defined(TARGET_ARM)
   oatClobberCalleeSave(cUnit);
@@ -850,7 +850,7 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, InvokeInfo* info)
 #endif
 }
 
-bool genIntrinsic(CompilationUnit* cUnit, InvokeInfo* info)
+bool genIntrinsic(CompilationUnit* cUnit, CallInfo* info)
 {
   if ((info->optFlags & MIR_INLINED) || info->isRange ||
       (info->result.location == kLocInvalid))  {
@@ -866,7 +866,7 @@ bool genIntrinsic(CompilationUnit* cUnit, InvokeInfo* info)
    * method.  By doing this during basic block construction, we can also
    * take advantage of/generate new useful dataflow info.
    */
-  std::string tgtMethod(PrettyMethod(info->methodIdx, *cUnit->dex_file));
+  std::string tgtMethod(PrettyMethod(info->index, *cUnit->dex_file));
   if (tgtMethod.compare("char java.lang.String.charAt(int)") == 0) {
     return genInlinedCharAt(cUnit, info);
   }

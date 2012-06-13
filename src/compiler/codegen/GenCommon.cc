@@ -23,7 +23,7 @@ namespace art {
  * be applicable to most targets.  Only mid-level support utilities
  * and "op" calls may be used here.
  */
-void genInvoke(CompilationUnit* cUnit, InvokeInfo* info);
+void genInvoke(CompilationUnit* cUnit, CallInfo* info);
 #if defined(TARGET_ARM)
 LIR* opIT(CompilationUnit* cUnit, ArmConditionCode cond, const char* guide);
 bool smallLiteralDivide(CompilationUnit* cUnit, Instruction::Code dalvikOpcode,
@@ -379,9 +379,9 @@ LIR* genRegRegCheck(CompilationUnit* cUnit, ConditionCode cCode,
   return branch;
 }
 
-void genCompareAndBranch(CompilationUnit* cUnit, BasicBlock* bb,
-                         Instruction::Code opcode, RegLocation rlSrc1,
-                         RegLocation rlSrc2, LIR* labelList)
+void genCompareAndBranch(CompilationUnit* cUnit, Instruction::Code opcode,
+                         RegLocation rlSrc1, RegLocation rlSrc2, LIR* taken,
+                         LIR* fallThrough)
 {
   ConditionCode cond;
   rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
@@ -410,18 +410,16 @@ void genCompareAndBranch(CompilationUnit* cUnit, BasicBlock* bb,
       LOG(FATAL) << "Unexpected opcode " << (int)opcode;
   }
 #if defined(TARGET_MIPS)
-  opCmpBranch(cUnit, cond, rlSrc1.lowReg, rlSrc2.lowReg,
-              &labelList[bb->taken->id]);
+  opCmpBranch(cUnit, cond, rlSrc1.lowReg, rlSrc2.lowReg, taken);
 #else
   opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
-  opCondBranch(cUnit, cond, &labelList[bb->taken->id]);
+  opCondBranch(cUnit, cond, taken);
 #endif
-  opUnconditionalBranch(cUnit, &labelList[bb->fallThrough->id]);
+  opUnconditionalBranch(cUnit, fallThrough);
 }
 
-void genCompareZeroAndBranch(CompilationUnit* cUnit, BasicBlock* bb,
-                             Instruction::Code opcode, RegLocation rlSrc,
-                             LIR* labelList)
+void genCompareZeroAndBranch(CompilationUnit* cUnit, Instruction::Code opcode,
+                             RegLocation rlSrc, LIR* taken, LIR* fallThrough)
 {
   ConditionCode cond;
   rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
@@ -449,12 +447,12 @@ void genCompareZeroAndBranch(CompilationUnit* cUnit, BasicBlock* bb,
       LOG(FATAL) << "Unexpected opcode " << (int)opcode;
   }
 #if defined(TARGET_MIPS) || defined(TARGET_X86)
-  opCmpImmBranch(cUnit, cond, rlSrc.lowReg, 0, &labelList[bb->taken->id]);
+  opCmpImmBranch(cUnit, cond, rlSrc.lowReg, 0, taken);
 #else
   opRegImm(cUnit, kOpCmp, rlSrc.lowReg, 0);
-  opCondBranch(cUnit, cond, &labelList[bb->taken->id]);
+  opCondBranch(cUnit, cond, taken);
 #endif
-  opUnconditionalBranch(cUnit, &labelList[bb->fallThrough->id]);
+  opUnconditionalBranch(cUnit, fallThrough);
 }
 
 void genIntToLong(CompilationUnit* cUnit, RegLocation rlDest,
@@ -522,11 +520,10 @@ void genNewArray(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest,
  * code throws runtime exception "bad Filled array req" for 'D' and 'J'.
  * Current code also throws internal unimp if not 'L', '[' or 'I'.
  */
-void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
+void genFilledNewArray(CompilationUnit* cUnit, CallInfo* info)
 {
-  DecodedInstruction* dInsn = &mir->dalvikInsn;
-  int elems = dInsn->vA;
-  int typeIdx = dInsn->vB;
+  int elems = info->numArgWords;
+  int typeIdx = info->index;
   oatFlushAllRegs(cUnit);  /* Everything to home location */
   int funcOffset;
   if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
@@ -554,7 +551,7 @@ void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
   size_t component_size = sizeof(int32_t);
 
   // Having a range of 0 is legal
-  if (isRange && (dInsn->vA > 0)) {
+  if (info->isRange && (elems > 0)) {
     /*
      * Bit of ugliness here.  We're going generate a mem copy loop
      * on the register range, but it is possible that some regs
@@ -563,8 +560,8 @@ void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
      * of any regs in the source range that have been promoted to
      * home location.
      */
-    for (unsigned int i = 0; i < dInsn->vA; i++) {
-      RegLocation loc = oatUpdateLoc(cUnit, oatGetSrc(cUnit, mir, i));
+    for (int i = 0; i < elems; i++) {
+      RegLocation loc = oatUpdateLoc(cUnit, info->args[i]);
       if (loc.location == kLocPhysReg) {
         storeBaseDisp(cUnit, rSP, oatSRegOffset(cUnit, loc.sRegLow),
                       loc.lowReg, kWord);
@@ -587,14 +584,14 @@ void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     int rVal = oatAllocTemp(cUnit);
 #endif
     // Set up source pointer
-    RegLocation rlFirst = oatGetSrc(cUnit, mir, 0);
+    RegLocation rlFirst = info->args[0];
     opRegRegImm(cUnit, kOpAdd, rSrc, rSP,
                 oatSRegOffset(cUnit, rlFirst.sRegLow));
     // Set up the target pointer
     opRegRegImm(cUnit, kOpAdd, rDst, rRET0,
                 Array::DataOffset(component_size).Int32Value());
     // Set up the loop counter (known to be > 0)
-    loadConstant(cUnit, rIdx, dInsn->vA - 1);
+    loadConstant(cUnit, rIdx, elems - 1);
     // Generate the copy loop.  Going backwards for convenience
     LIR* target = newLIR0(cUnit, kPseudoTargetLabel);
     // Copy next element
@@ -614,10 +611,10 @@ void genFilledNewArray(CompilationUnit* cUnit, MIR* mir, bool isRange)
     opRegRegImm(cUnit, kOpAdd, rRET0, rDst,
                 -Array::DataOffset(component_size).Int32Value());
 #endif
-  } else if (!isRange) {
+  } else if (!info->isRange) {
     // TUNING: interleave
-    for (unsigned int i = 0; i < dInsn->vA; i++) {
-      RegLocation rlArg = loadValue(cUnit, oatGetSrc(cUnit, mir, i), kCoreReg);
+    for (int i = 0; i < elems; i++) {
+      RegLocation rlArg = loadValue(cUnit, info->args[i], kCoreReg);
       storeBaseDisp(cUnit, rRET0,
                     Array::DataOffset(component_size).Int32Value() +
                     i * 4, rlArg.lowReg, kWord);
@@ -869,7 +866,7 @@ void handleIntrinsicLaunchpads(CompilationUnit *cUnit)
     oatResetRegPool(cUnit);
     oatResetDefTracking(cUnit);
     LIR* lab = intrinsicLabel[i];
-    InvokeInfo* info = (InvokeInfo*)lab->operands[0];
+    CallInfo* info = (CallInfo*)lab->operands[0];
     cUnit->currentDalvikOffset = info->offset;
     oatAppendLIR(cUnit, lab);
     genInvoke(cUnit, info);
