@@ -940,10 +940,12 @@ static void FindSymbolInElf(const backtrace_frame_t* frame, const backtrace_symb
     symbol_table = load_symbol_table(symbol->map_name);
   }
   const symbol_t* elf_symbol = NULL;
+  bool was_relative = true;
   if (symbol_table != NULL) {
     elf_symbol = find_symbol(symbol_table, symbol->relative_pc);
     if (elf_symbol == NULL) {
       elf_symbol = find_symbol(symbol_table, frame->absolute_pc);
+      was_relative = false;
     }
   }
   if (elf_symbol != NULL) {
@@ -953,7 +955,9 @@ static void FindSymbolInElf(const backtrace_frame_t* frame, const backtrace_symb
     } else {
       symbol_name = elf_symbol->name;
     }
-    pc_offset = frame->absolute_pc - elf_symbol->start;
+
+    // TODO: is it a libcorkscrew bug that we have to do this?
+    pc_offset = (was_relative ? symbol->relative_pc : frame->absolute_pc) - elf_symbol->start;
   } else {
     symbol_name = "???";
   }
