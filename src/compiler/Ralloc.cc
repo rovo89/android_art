@@ -81,12 +81,11 @@ bool remapNames(CompilationUnit* cUnit, BasicBlock* bb)
 }
 
 // Try to find the next move result which might have an FP target
-SSARepresentation* findMoveResult(MIR* mir)
+SSARepresentation* findFPMoveResult(MIR* mir)
 {
   SSARepresentation* res = NULL;
   for (; mir; mir = mir->next) {
     if ((mir->dalvikInsn.opcode == Instruction::MOVE_RESULT) ||
-        (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) ||
         (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_WIDE)) {
       res = mir->ssaRep;
       break;
@@ -193,10 +192,10 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
         // Handle result type if floating point
         if ((shorty[0] == 'F') || (shorty[0] == 'D')) {
           // Find move-result that consumes this result
-          SSARepresentation* tgtRep = findMoveResult(mir->next);
+          SSARepresentation* tgtRep = findFPMoveResult(mir->next);
           // Might be in next basic block
           if (!tgtRep) {
-            tgtRep = findMoveResult(bb->fallThrough->firstMIRInsn);
+            tgtRep = findFPMoveResult(bb->fallThrough->firstMIRInsn);
           }
           // Result might not be used at all, so no move-result
           if (tgtRep) {
