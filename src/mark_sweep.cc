@@ -159,7 +159,7 @@ void MarkSweep::ScanGrayObjects() {
     // Normally, we only need to scan the black dirty objects
     // But for image spaces, the roots will not be black objects.
     // To address this we just scan the live bits instead of the mark bits.
-    if (UNLIKELY(spaces[i]->IsImageSpace())) {
+    if (spaces[i]->IsImageSpace()) {
       // Image roots may not be marked so we may need to mark them.
       // TODO: optimize this by offsetting some of the work to init.
       card_table->Scan(heap_->GetLiveBits(), begin, end, ScanImageRootVisitor, this);

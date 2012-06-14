@@ -125,13 +125,13 @@ void CardTable::Scan(HeapBitmap* bitmap, byte* heap_begin, byte* heap_end, Callb
       card_cur++;
     }
     byte* run_start = card_cur;
-    size_t run = 0;
+
     while (card_cur < card_end && *card_cur == GC_CARD_DIRTY) {
-      run++;
       card_cur++;
     }
-    if (run > 0) {
-      byte* run_end = &card_cur[run];
+    byte* run_end = card_cur;
+
+    if (run_start != run_end) {
       bitmap->VisitRange(reinterpret_cast<uintptr_t>(AddrFromCard(run_start)),
                                       reinterpret_cast<uintptr_t>(AddrFromCard(run_end)),
                                       visitor, arg);

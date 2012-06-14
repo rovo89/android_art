@@ -35,6 +35,7 @@
 #include "jni_internal.h"
 #include "monitor.h"
 #include "oat_file.h"
+#include "scoped_heap_lock.h"
 #include "ScopedLocalRef.h"
 #include "signal_catcher.h"
 #include "signal_set.h"
@@ -92,6 +93,12 @@ Runtime::~Runtime() {
 
   if (IsMethodTracingActive()) {
     Trace::Shutdown();
+  }
+
+  // Make sure to let the GC complete if it is running.
+  {
+    ScopedHeapLock heap_lock;
+    heap_->WaitForConcurrentGcToComplete();
   }
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
