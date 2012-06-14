@@ -63,8 +63,8 @@ class Mutex {
   uint32_t GetDepth();
 
   pthread_mutex_t mutex_;
-  std::string name_;
-  MutexRank rank_;
+  const std::string name_;
+  const MutexRank rank_;
 
   friend class ConditionVariable;
   friend class MutexTester;

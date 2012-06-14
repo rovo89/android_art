@@ -3289,26 +3289,6 @@ void MethodVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
   }
 }
 
-Mutex* MethodVerifier::gc_maps_lock_ = NULL;
-MethodVerifier::GcMapTable* MethodVerifier::gc_maps_ = NULL;
-
-void MethodVerifier::InitGcMaps() {
-  gc_maps_lock_ = new Mutex("verifier GC maps lock");
-  MutexLock mu(*gc_maps_lock_);
-  gc_maps_ = new MethodVerifier::GcMapTable;
-}
-
-void MethodVerifier::DeleteGcMaps() {
-  {
-    MutexLock mu(*gc_maps_lock_);
-    STLDeleteValues(gc_maps_);
-    delete gc_maps_;
-    gc_maps_ = NULL;
-  }
-  delete gc_maps_lock_;
-  gc_maps_lock_ = NULL;
-}
-
 void MethodVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
   MutexLock mu(*gc_maps_lock_);
   GcMapTable::iterator it = gc_maps_->find(ref);
@@ -3330,26 +3310,78 @@ const std::vector<uint8_t>* MethodVerifier::GetGcMap(Compiler::MethodReference r
   return it->second;
 }
 
-static Mutex& GetRejectedClassesLock() {
-  static Mutex rejected_classes_lock("verifier rejected classes lock");
-  return rejected_classes_lock;
+Mutex* MethodVerifier::gc_maps_lock_ = NULL;
+MethodVerifier::GcMapTable* MethodVerifier::gc_maps_ = NULL;
+
+Mutex* MethodVerifier::rejected_classes_lock_ = NULL;
+MethodVerifier::RejectedClassesTable* MethodVerifier::rejected_classes_ = NULL;
+
+#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
+Mutex* MethodVerifier::inferred_reg_category_maps_lock_ = NULL;
+MethodVerifier::InferredRegCategoryMapTable* MethodVerifier::inferred_reg_category_maps_ = NULL;
+#endif
+
+void MethodVerifier::Init() {
+  gc_maps_lock_ = new Mutex("verifier GC maps lock");
+  {
+    MutexLock mu(*gc_maps_lock_);
+    gc_maps_ = new MethodVerifier::GcMapTable;
+  }
+
+  rejected_classes_lock_ = new Mutex("verifier rejected classes lock");
+  {
+    MutexLock mu(*rejected_classes_lock_);
+    rejected_classes_ = new MethodVerifier::RejectedClassesTable;
+  }
+
+#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
+  inferred_reg_category_maps_lock_ = new Mutex("verifier GC maps lock");
+  {
+    MutexLock mu(*inferred_reg_category_maps_lock_);
+    inferred_reg_category_maps_ = new MethodVerifier::InferredRegCategoryMapTable;
+  }
+#endif
 }
 
-static std::set<Compiler::ClassReference>& GetRejectedClasses() {
-  static std::set<Compiler::ClassReference> rejected_classes;
-  return rejected_classes;
+void MethodVerifier::Shutdown() {
+  {
+    MutexLock mu(*gc_maps_lock_);
+    STLDeleteValues(gc_maps_);
+    delete gc_maps_;
+    gc_maps_ = NULL;
+  }
+  delete gc_maps_lock_;
+  gc_maps_lock_ = NULL;
+
+  {
+    MutexLock mu(*rejected_classes_lock_);
+    delete rejected_classes_;
+    rejected_classes_ = NULL;
+  }
+  delete rejected_classes_lock_;
+  rejected_classes_lock_ = NULL;
+
+#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
+  {
+    MutexLock mu(*inferred_reg_category_maps_lock_);
+    STLDeleteValues(inferred_reg_category_maps_);
+    delete inferred_reg_category_maps_;
+    inferred_reg_category_maps_ = NULL;
+  }
+  delete inferred_reg_category_maps_lock_;
+  inferred_reg_category_maps_lock_ = NULL;
+#endif
 }
 
 void MethodVerifier::AddRejectedClass(Compiler::ClassReference ref) {
-  MutexLock mu(GetRejectedClassesLock());
-  GetRejectedClasses().insert(ref);
+  MutexLock mu(*rejected_classes_lock_);
+  rejected_classes_->insert(ref);
   CHECK(IsClassRejected(ref));
 }
 
 bool MethodVerifier::IsClassRejected(Compiler::ClassReference ref) {
-  MutexLock mu(GetRejectedClassesLock());
-  std::set<Compiler::ClassReference>& rejected_classes(GetRejectedClasses());
-  return (rejected_classes.find(ref) != rejected_classes.end());
+  MutexLock mu(*rejected_classes_lock_);
+  return (rejected_classes_->find(ref) != rejected_classes_->end());
 }
 
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
@@ -3397,27 +3429,6 @@ const InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCategoryMap() {
 
   return table.release();
 }
-
-Mutex* MethodVerifier::inferred_reg_category_maps_lock_ = NULL;
-MethodVerifier::InferredRegCategoryMapTable* MethodVerifier::inferred_reg_category_maps_ = NULL;
-
-void MethodVerifier::InitInferredRegCategoryMaps() {
-  inferred_reg_category_maps_lock_ = new Mutex("verifier GC maps lock");
-  MutexLock mu(*inferred_reg_category_maps_lock_);
-  inferred_reg_category_maps_ = new MethodVerifier::InferredRegCategoryMapTable;
-}
-
-void MethodVerifier::DeleteInferredRegCategoryMaps() {
-  {
-    MutexLock mu(*inferred_reg_category_maps_lock_);
-    STLDeleteValues(inferred_reg_category_maps_);
-    delete inferred_reg_category_maps_;
-    inferred_reg_category_maps_ = NULL;
-  }
-  delete inferred_reg_category_maps_lock_;
-  inferred_reg_category_maps_lock_ = NULL;
-}
-
 
 void MethodVerifier::SetInferredRegCategoryMap(Compiler::MethodReference ref,
                                           const InferredRegCategoryMap& inferred_reg_category_map) {
