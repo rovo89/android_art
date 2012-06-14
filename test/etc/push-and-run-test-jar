@@ -91,17 +91,13 @@ fi
 msg "------------------------------"
 
 if [ "$QUIET" = "n" ]; then
-  adb shell mkdir /data/run-test
-  adb push $TEST_NAME.jar /data/run-test
-  adb push $TEST_NAME.jar.oat /data/run-test
-  adb push $TEST_NAME-ex.jar /data/run-test
-  adb push $TEST_NAME-ex.jar.oat /data/run-test
+  adb shell mkdir -p $DEX_LOCATION
+  adb push $TEST_NAME.jar $DEX_LOCATION
+  adb push $TEST_NAME-ex.jar $DEX_LOCATION
 else
-  adb shell mkdir /data/run-test >/dev/null 2>&1
-  adb push $TEST_NAME.jar /data/run-test >/dev/null 2>&1
-  adb push $TEST_NAME.jar.oat /data/run-test >/dev/null 2>&1
-  adb push $TEST_NAME-ex.jar /data/run-test >/dev/null 2>&1
-  adb push $TEST_NAME-ex.jar.oat /data/run-test >/dev/null 2>&1
+  adb shell mkdir -p $DEX_LOCATION >/dev/null 2>&1
+  adb push $TEST_NAME.jar $DEX_LOCATION >/dev/null 2>&1
+  adb push $TEST_NAME-ex.jar $DEX_LOCATION >/dev/null 2>&1
 fi
 
 if [ "$DEBUG" = "y" ]; then
@@ -118,11 +114,8 @@ fi
 
 JNI_OPTS="-Xjnigreflimit:256 -Xcheck:jni"
 
-cmdline="cd /data; export DEX_LOCATION=$DEX_LOCATION; $INVOKE_WITH $OATEXEC $ZYGOTE \
-    $JNI_OPTS $DEBUG_OPTS \
-    -Ximage:/data/art-test/core.art \
-    -cp /data/run-test/$TEST_NAME.jar \
-    Main"
+cmdline="cd $DEX_LOCATION && mkdir art-cache && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
+    $INVOKE_WITH $OATEXEC $ZYGOTE $JNI_OPTS $DEBUG_OPTS -Ximage:/data/art-test/core.art -cp $DEX_LOCATION/$TEST_NAME.jar Main"
 if [ "$DEV_MODE" = "y" ]; then
   echo $cmdline "$@"
 fi

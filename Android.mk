@@ -264,7 +264,7 @@ clean-oat:
 	rm -f $(TARGET_OUT_APPS)/*.oat
 	rm -f $(TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.jar.oat
 	rm -f $(TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/package.apk.oat
-	rm -rf /tmp/art-cache/*.oat
+	rm -rf /tmp/test-*/art-cache/*.oat
 	adb remount
 	adb shell rm $(ART_NATIVETEST_DIR)/*.oat
 	adb shell rm $(ART_NATIVETEST_DIR)/*.art
@@ -275,7 +275,7 @@ clean-oat:
 	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.oat
 	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.art
 	adb shell rm system/app/*.oat
-	adb shell rm data/run-test/*.oat
+	adb shell rm data/run-test/test-*/art-cache/*.oat
 
 ########################################################################
 # cpplint target
