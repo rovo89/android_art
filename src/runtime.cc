@@ -111,10 +111,7 @@ Runtime::~Runtime() {
 
   delete class_linker_;
   delete heap_;
-#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
-  verifier::MethodVerifier::DeleteInferredRegCategoryMaps();
-#endif
-  verifier::MethodVerifier::DeleteGcMaps();
+  verifier::MethodVerifier::Shutdown();
   delete intern_table_;
   delete java_vm_;
   Thread::Shutdown();
@@ -658,11 +655,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   thread_list_ = new ThreadList;
   intern_table_ = new InternTable;
 
-  verifier::MethodVerifier::InitGcMaps();
-
-#if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
-  verifier::MethodVerifier::InitInferredRegCategoryMaps();
-#endif
+  verifier::MethodVerifier::Init();
 
   heap_ = new Heap(options->heap_initial_size_,
                    options->heap_growth_limit_,

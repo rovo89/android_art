@@ -199,13 +199,12 @@ class MethodVerifier {
   void Dump(std::ostream& os);
 
   static const std::vector<uint8_t>* GetGcMap(Compiler::MethodReference ref);
-  static void InitGcMaps();
-  static void DeleteGcMaps();
+
+  static void Init();
+  static void Shutdown();
 
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
   static const InferredRegCategoryMap* GetInferredRegCategoryMap(Compiler::MethodReference ref);
-  static void InitInferredRegCategoryMaps();
-  static void DeleteInferredRegCategoryMaps();
 #endif
 
   static bool IsClassRejected(Compiler::ClassReference ref);
@@ -577,8 +576,12 @@ class MethodVerifier {
   static GcMapTable* gc_maps_;
   static void SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map);
 
+  typedef std::set<Compiler::ClassReference> RejectedClassesTable;
+  static Mutex* rejected_classes_lock_;
+  static RejectedClassesTable* rejected_classes_;
+
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
-  // All the inferred register category maps that the verifier has created
+  // All the inferred register category maps that the verifier has created.
   typedef SafeMap<const Compiler::MethodReference,
                   const InferredRegCategoryMap*> InferredRegCategoryMapTable;
   static Mutex* inferred_reg_category_maps_lock_;
