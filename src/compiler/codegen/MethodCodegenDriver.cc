@@ -179,8 +179,8 @@ CallInfo* newCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 {
   CallInfo* info = (CallInfo*)oatNew(cUnit, sizeof(CallInfo), true,
                                          kAllocMisc);
-//FIXME: Disable all fusing as temporary workaround
-#if 1
+//FIXME: Disable fusing  for x86
+#if defined(TARGET_X86)
   info->result.location = kLocInvalid;
 #else
   MIR* moveResultMIR = oatFindMoveResult(cUnit, bb, mir);

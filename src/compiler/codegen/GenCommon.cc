@@ -624,6 +624,9 @@ void genFilledNewArray(CompilationUnit* cUnit, CallInfo* info)
       }
     }
   }
+  if (info->result.location != kLocInvalid) {
+    storeValue(cUnit, info->result, oatGetReturn(cUnit, false /* not fp */));
+  }
 }
 
 void genSput(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlSrc,
