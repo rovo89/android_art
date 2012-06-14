@@ -115,15 +115,13 @@ static void ThrowNullPointerException(const char* fmt, ...) {
 }
 
 static void ThrowEarlierClassFailure(Class* c) {
-  /*
-   * The class failed to initialize on a previous attempt, so we want to throw
-   * a NoClassDefFoundError (v2 2.17.5).  The exception to this rule is if we
-   * failed in verification, in which case v2 5.4.1 says we need to re-throw
-   * the previous error.
-   */
+  // The class failed to initialize on a previous attempt, so we want to throw
+  // a NoClassDefFoundError (v2 2.17.5).  The exception to this rule is if we
+  // failed in verification, in which case v2 5.4.1 says we need to re-throw
+  // the previous error.
   LOG(INFO) << "Rejecting re-init on previously-failed class " << PrettyClass(c);
 
-  CHECK(c->IsErroneous()) << PrettyClass(c);
+  CHECK(c->IsErroneous()) << PrettyClass(c) << " " << c->GetStatus();
   if (c->GetVerifyErrorClass() != NULL) {
     // TODO: change the verifier to store an _instance_, with a useful detail message?
     ClassHelper ve_ch(c->GetVerifyErrorClass());
@@ -1056,7 +1054,7 @@ ObjectArray<StackTraceElement>* ClassLinker::AllocStackTraceElementArray(size_t 
       length);
 }
 
-Class* EnsureResolved(Class* klass) {
+static Class* EnsureResolved(Class* klass) {
   DCHECK(klass != NULL);
   // Wait for the class if it has not already been linked.
   Thread* self = Thread::Current();
@@ -1396,7 +1394,7 @@ void ClassLinker::FixupStaticTrampolines(Class* klass) {
   }
 }
 
-void LinkCode(SirtRef<Method>& method, const OatFile::OatClass* oat_class, uint32_t method_index) {
+static void LinkCode(SirtRef<Method>& method, const OatFile::OatClass* oat_class, uint32_t method_index) {
   // Every kind of method should at least get an invoke stub from the oat_method.
   // non-abstract methods also get their code pointers.
   const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
