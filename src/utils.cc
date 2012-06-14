@@ -965,6 +965,9 @@ static void FindSymbolInElf(const backtrace_frame_t* frame, const backtrace_symb
 }
 
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool include_count) {
+  // Ensure libcorkscrew doesn't use a stale cache of /proc/self/maps.
+  flush_my_map_info_list();
+
   const size_t MAX_DEPTH = 32;
   UniquePtr<backtrace_frame_t[]> frames(new backtrace_frame_t[MAX_DEPTH]);
   ssize_t frame_count = unwind_backtrace_thread(tid, frames.get(), 0, MAX_DEPTH);
