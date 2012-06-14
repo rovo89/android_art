@@ -32,13 +32,14 @@ progdir=`dirname "${prog}"`
 cd "${progdir}"
 progdir=`pwd`
 prog="${progdir}"/`basename "${prog}"`
-tmp_dir="/tmp/test-$$"
+test_dir="test-$$"
+tmp_dir="/tmp/${test_dir}"
 
 export JAVA="java"
 export JAVAC="javac -g -target 1.5"
 export RUN="${progdir}/etc/push-and-run-test-jar"
 export IMAGE=${ANDROID_PRODUCT_OUT}/data/art-test/core.art
-export DEX_LOCATION=/data/run-test
+export DEX_LOCATION=/data/run-test/${test_dir}
 
 info="info.txt"
 build="build"
@@ -48,6 +49,7 @@ output="output.txt"
 build_output="build-output.txt"
 run_args="--quiet"
 
+host_mode="no"
 dev_mode="no"
 update_mode="no"
 debug_mode="no"
@@ -55,6 +57,7 @@ usage="no"
 
 while true; do
     if [ "x$1" = "x--host" ]; then
+        host_mode="yes"
         RUN="${progdir}/etc/host-run-test-jar"
         IMAGE=${ANDROID_HOST_OUT}/framework/core.art
         DEX_LOCATION=$tmp_dir
@@ -235,6 +238,9 @@ fi
 if [ "$good" = "yes" ]; then
     cd "$oldwd"
     rm -rf "$tmp_dir"
+    if [ "$host_mode" = "no" ]; then
+        adb shell rm -r $DEX_LOCATION
+    fi
     exit 0
 fi
 
@@ -249,7 +255,11 @@ fi
         echo '####################'
         echo ' '
     fi
-    echo "${TEST_NAME} files left in ${tmp_dir}"
+    echo "${TEST_NAME} files left in ${tmp_dir} on host"
+    if [ "$host_mode" = "yes" ]; then
+        echo "and in ${DEX_LOCATION} on target"
+    fi
+
 ) 1>&2
 
 exit 1
