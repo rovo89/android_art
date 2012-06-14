@@ -254,8 +254,7 @@ static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw
                       << "Registers:\n" << Dumpable<UContext>(thread_context) << "\n"
                       << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace);
 
-  // TODO: instead, get debuggerd running on the host, try to connect, and hang around on success.
-  if (getenv("debug_db_uid") != NULL) {
+  if (getenv("debug_db_uid") != NULL || getenv("art_wait_for_gdb_on_crash") != NULL) {
     LOG(INTERNAL_FATAL) << "********************************************************\n"
                         << "* Process " << getpid() << " thread " << tid << " \"" << thread_name << "\""
                         << " has been suspended while crashing.\n"

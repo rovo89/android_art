@@ -970,7 +970,8 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
 
   const size_t MAX_DEPTH = 32;
   UniquePtr<backtrace_frame_t[]> frames(new backtrace_frame_t[MAX_DEPTH]);
-  ssize_t frame_count = unwind_backtrace_thread(tid, frames.get(), 0, MAX_DEPTH);
+  size_t ignore_count = 2; // Don't include unwind_backtrace_thread or DumpNativeStack.
+  ssize_t frame_count = unwind_backtrace_thread(tid, frames.get(), ignore_count, MAX_DEPTH);
   if (frame_count == -1) {
     os << prefix << "(unwind_backtrace_thread failed for thread " << tid << ")\n";
     return;
