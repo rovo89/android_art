@@ -138,6 +138,7 @@ LIR *opReg(CompilationUnit *cUnit, OpKind op, int rDestSrc)
   X86OpCode opcode = kX86Bkpt;
   switch (op) {
     case kOpNeg: opcode = kX86Neg32R; break;
+    case kOpNot: opcode = kX86Not32R; break;
     case kOpBlx: opcode = kX86CallR; break;
     default:
       LOG(FATAL) << "Bad case in opReg " << op;

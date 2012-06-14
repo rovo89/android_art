@@ -262,11 +262,13 @@ void genCmpLong(CompilationUnit* cUnit, RegLocation rlDest,
   // Compute (r1:r0) = (r1:r0) - (r3:r2)
   opRegReg(cUnit, kOpSub, r0, r2);  // r0 = r0 - r2
   opRegReg(cUnit, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
+  newLIR2(cUnit, kX86Set8R, r2, kX86CondL);  // r2 = (r1:r0) < (r3:r2) ? 1 : 0
+  newLIR2(cUnit, kX86Movzx8RR, r2, r2);
+  opReg(cUnit, kOpNeg, r2);         // r2 = -r2
   opRegReg(cUnit, kOpOr, r0, r1);   // r0 = high | low - sets ZF
   newLIR2(cUnit, kX86Set8R, r0, kX86CondNz);  // r0 = (r1:r0) != (r3:r2) ? 1 : 0
   newLIR2(cUnit, kX86Movzx8RR, r0, r0);
-  opRegImm(cUnit, kOpAsr, r1, 31);  // r1 = high >> 31
-  opRegReg(cUnit, kOpOr, r0, r1);   // r0 holds result
+  opRegReg(cUnit, kOpOr, r0, r2);   // r0 = r0 | r2
   RegLocation rlResult = LOC_C_RETURN;
   storeValue(cUnit, rlDest, rlResult);
 }
