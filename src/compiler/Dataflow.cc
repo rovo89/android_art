@@ -1689,6 +1689,7 @@ MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
   mir = advanceMIR(cUnit, &tbb, mir, NULL, false);
   while (mir != NULL) {
     if ((mir->dalvikInsn.opcode == Instruction::MOVE_RESULT) ||
+        (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) ||
         (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_WIDE)) {
       break;
     }
