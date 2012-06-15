@@ -35,7 +35,6 @@ ThreadList::ThreadList()
       thread_exit_cond_("thread exit condition variable"),
       thread_suspend_count_lock_("thread suspend count lock", kThreadSuspendCountLock),
       thread_suspend_count_cond_("thread suspend count condition variable") {
-  VLOG(threads) << "Default stack size: " << PrettySize(Runtime::Current()->GetDefaultStackSize());
 }
 
 ThreadList::~ThreadList() {

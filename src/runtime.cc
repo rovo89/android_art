@@ -56,7 +56,7 @@ Runtime* Runtime::instance_ = NULL;
 Runtime::Runtime()
     : is_compiler_(false),
       is_zygote_(false),
-      default_stack_size_(Thread::kDefaultStackSize),
+      default_stack_size_(0),
       heap_(NULL),
       monitor_list_(NULL),
       thread_list_(NULL),
@@ -312,8 +312,8 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 
   parsed->heap_initial_size_ = Heap::kInitialSize;
   parsed->heap_maximum_size_ = Heap::kMaximumSize;
-  parsed->heap_growth_limit_ = 0;  // 0 means no growth limit
-  parsed->stack_size_ = Thread::kDefaultStackSize;
+  parsed->heap_growth_limit_ = 0;  // 0 means no growth limit.
+  parsed->stack_size_ = 0; // 0 means default.
 
   parsed->is_compiler_ = false;
   parsed->is_zygote_ = false;
