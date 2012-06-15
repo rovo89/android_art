@@ -132,6 +132,7 @@ void oatGetBlockName(BasicBlock* bb, char* name);
 const char* oatGetShortyFromTargetIdx(CompilationUnit*, int);
 void oatDumpRegLocTable(RegLocation*, int);
 void oatDumpMemStats(CompilationUnit* cUnit);
+void oatDumpRegLoc(RegLocation loc);
 
 }  // namespace art
 

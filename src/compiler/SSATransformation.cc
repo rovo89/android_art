@@ -816,9 +816,10 @@ void insertPhiNodes(CompilationUnit* cUnit)
  */
 bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
 {
-  ArenaBitVector* ssaRegV = cUnit->tempSSARegisterV;
   GrowableListIterator iter;
   MIR *mir;
+  std::vector<int> uses;
+  std::vector<int> incomingArc;
 
   /* Phi nodes are at the beginning of each block */
   for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
@@ -828,7 +829,8 @@ bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
     DCHECK_GE(ssaReg, 0);   // Shouldn't see compiler temps here
     int vReg = SRegToVReg(cUnit, ssaReg);
 
-    oatClearAllBits(ssaRegV);
+    uses.clear();
+    incomingArc.clear();
 
     /* Iterate through the predecessors */
     oatGrowableListIteratorInit(bb->predecessors, &iter);
@@ -837,12 +839,12 @@ bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
          (BasicBlock*)oatGrowableListIteratorNext(&iter);
       if (!predBB) break;
       int ssaReg = predBB->dataFlowInfo->vRegToSSAMap[vReg];
-      oatSetBit(cUnit, ssaRegV, ssaReg);
-      cUnit->tempSSABlockIdV[ssaReg] = predBB->id;
+      uses.push_back(ssaReg);
+      incomingArc.push_back(predBB->id);
     }
 
     /* Count the number of SSA registers for a Dalvik register */
-    int numUses = oatCountSetBits(ssaRegV);
+    int numUses = uses.size();
     mir->ssaRep->numUses = numUses;
     mir->ssaRep->uses =
         (int*) oatNew(cUnit, sizeof(int) * numUses, false, kAllocDFInfo);
@@ -853,17 +855,11 @@ bool insertPhiNodeOperands(CompilationUnit* cUnit, BasicBlock* bb)
     // TODO: Ugly, rework (but don't burden each MIR/LIR for Phi-only needs)
     mir->dalvikInsn.vB = (intptr_t) incoming;
 
-    ArenaBitVectorIterator phiIterator;
-
-    oatBitVectorIteratorInit(ssaRegV, &phiIterator);
-    int *usePtr = mir->ssaRep->uses;
-
     /* Set the uses array for the phi node */
-    while (true) {
-      int ssaRegIdx = oatBitVectorIteratorNext(&phiIterator);
-      if (ssaRegIdx == -1) break;
-        *usePtr++ = ssaRegIdx;
-        *incoming++ = cUnit->tempSSABlockIdV[ssaRegIdx];
+    int *usePtr = mir->ssaRep->uses;
+    for (int i = 0; i < numUses; i++) {
+      *usePtr++ = uses[i];
+      *incoming++ = incomingArc[i];
     }
   }
 
