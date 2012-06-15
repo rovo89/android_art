@@ -19,8 +19,82 @@
 
 namespace art {
 
-/* Enter the node to the dfsOrder list then visit its successors */
+// Make sure iterative dfs recording matches old recursive version
+//#define TEST_DFS
+
+inline BasicBlock* needsVisit(BasicBlock* bb) {
+  if (bb != NULL) {
+    if (bb->visited || bb->hidden) {
+      bb = NULL;
+    }
+  }
+  return bb;
+}
+
+BasicBlock* nextUnvisitedSuccessor(BasicBlock* bb)
+{
+  BasicBlock* res = needsVisit(bb->fallThrough);
+  if (res == NULL) {
+    res = needsVisit(bb->taken);
+    if (res == NULL) {
+      if (bb->successorBlockList.blockListType != kNotUsed) {
+        GrowableListIterator iterator;
+        oatGrowableListIteratorInit(&bb->successorBlockList.blocks,
+                                    &iterator);
+        while (true) {
+          SuccessorBlockInfo *sbi = (SuccessorBlockInfo*)
+              oatGrowableListIteratorNext(&iterator);
+          if (sbi == NULL) break;
+          res = needsVisit(sbi->block);
+          if (res != NULL) break;
+        }
+      }
+    }
+  }
+  return res;
+}
+
+void markPreOrder(CompilationUnit* cUnit, BasicBlock* block)
+{
+  block->visited = true;
+  // Can this block be reached only via previous block fallthrough?
+  if ((block->blockType == kDalvikByteCode) &&
+      (block->predecessors->numUsed == 1)) {
+    DCHECK_GE(cUnit->dfsOrder.numUsed, 1U);
+    int prevIdx = cUnit->dfsOrder.numUsed - 1;
+    int prevId = cUnit->dfsOrder.elemList[prevIdx];
+    BasicBlock* predBB = (BasicBlock*)block->predecessors->elemList[0];
+    if (predBB->id == prevId) {
+      block->fallThroughTarget = true;
+    }
+  }
+
+  /* Enqueue the preOrder block id */
+  oatInsertGrowableList(cUnit, &cUnit->dfsOrder, block->id);
+}
+
 void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
+{
+  std::vector<BasicBlock*> succ;
+  markPreOrder(cUnit, block);
+  succ.push_back(block);
+  while (!succ.empty()) {
+    BasicBlock* curr = succ.back();
+    BasicBlock* nextSuccessor = nextUnvisitedSuccessor(curr);
+    if (nextSuccessor != NULL) {
+      markPreOrder(cUnit, nextSuccessor);
+      succ.push_back(nextSuccessor);
+      continue;
+    }
+    curr->dfsId = cUnit->dfsPostOrder.numUsed;
+    oatInsertGrowableList(cUnit, &cUnit->dfsPostOrder, curr->id);
+    succ.pop_back();
+  }
+}
+
+#if defined(TEST_DFS)
+/* Enter the node to the dfsOrder list then visit its successors */
+void recursiveRecordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
 {
 
   if (block->visited || block->hidden) return;
@@ -42,9 +116,9 @@ void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
   oatInsertGrowableList(cUnit, &cUnit->dfsOrder, block->id);
 
   if (block->fallThrough) {
-    recordDFSOrders(cUnit, block->fallThrough);
+    recursiveRecordDFSOrders(cUnit, block->fallThrough);
   }
-  if (block->taken) recordDFSOrders(cUnit, block->taken);
+  if (block->taken) recursiveRecordDFSOrders(cUnit, block->taken);
   if (block->successorBlockList.blockListType != kNotUsed) {
     GrowableListIterator iterator;
     oatGrowableListIteratorInit(&block->successorBlockList.blocks,
@@ -54,7 +128,7 @@ void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
           (SuccessorBlockInfo *) oatGrowableListIteratorNext(&iterator);
       if (successorBlockInfo == NULL) break;
       BasicBlock* succBB = successorBlockInfo->block;
-      recordDFSOrders(cUnit, succBB);
+      recursiveRecordDFSOrders(cUnit, succBB);
     }
   }
 
@@ -63,6 +137,7 @@ void recordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
   oatInsertGrowableList(cUnit, &cUnit->dfsPostOrder, block->id);
   return;
 }
+#endif
 
 /* Sort the blocks by the Depth-First-Search */
 void computeDFSOrders(CompilationUnit* cUnit)
@@ -85,10 +160,81 @@ void computeDFSOrders(CompilationUnit* cUnit)
     cUnit->dfsPostOrder.numUsed = 0;
   }
 
+#if defined(TEST_DFS)
+  // Reset visited flags
   oatDataFlowAnalysisDispatcher(cUnit, oatClearVisitedFlag,
                                 kAllNodes, false /* isIterative */);
+  // Record pre and post order dfs
+  recursiveRecordDFSOrders(cUnit, cUnit->entryBlock);
+  // Copy the results for later comparison and reset the lists
+  GrowableList recursiveDfsOrder;
+  GrowableList recursiveDfsPostOrder;
+  oatInitGrowableList(cUnit, &recursiveDfsOrder, cUnit->dfsOrder.numUsed,
+                      kListDfsOrder);
+  for (unsigned int i = 0; i < cUnit->dfsOrder.numUsed; i++) {
+    oatInsertGrowableList(cUnit, &recursiveDfsOrder,
+                          cUnit->dfsOrder.elemList[i]);
+  }
+  cUnit->dfsOrder.numUsed = 0;
+  oatInitGrowableList(cUnit, &recursiveDfsPostOrder,
+                      cUnit->dfsPostOrder.numUsed, kListDfsOrder);
+  for (unsigned int i = 0; i < cUnit->dfsPostOrder.numUsed; i++) {
+    oatInsertGrowableList(cUnit, &recursiveDfsPostOrder,
+                          cUnit->dfsPostOrder.elemList[i]);
+  }
+  cUnit->dfsPostOrder.numUsed = 0;
+#endif
 
+  // Reset visited flags from all nodes
+  oatDataFlowAnalysisDispatcher(cUnit, oatClearVisitedFlag,
+                                kAllNodes, false /* isIterative */);
+  // Record dfs orders
   recordDFSOrders(cUnit, cUnit->entryBlock);
+
+#if defined(TEST_DFS)
+  bool mismatch = false;
+  mismatch |= (cUnit->dfsOrder.numUsed != recursiveDfsOrder.numUsed);
+  for (unsigned int i = 0; i < cUnit->dfsOrder.numUsed; i++) {
+    mismatch |= (cUnit->dfsOrder.elemList[i] !=
+                 recursiveDfsOrder.elemList[i]);
+  }
+  mismatch |= (cUnit->dfsPostOrder.numUsed != recursiveDfsPostOrder.numUsed);
+  for (unsigned int i = 0; i < cUnit->dfsPostOrder.numUsed; i++) {
+    mismatch |= (cUnit->dfsPostOrder.elemList[i] !=
+                 recursiveDfsPostOrder.elemList[i]);
+  }
+  if (mismatch) {
+    LOG(INFO) << "Mismatch for "
+              << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+    oatDumpCFG(cUnit, "/tmp/");
+    LOG(INFO) << "New dfs";
+    for (unsigned int i = 0; i < cUnit->dfsOrder.numUsed; i++) {
+      LOG(INFO) << i << " - " << cUnit->dfsOrder.elemList[i];
+    }
+    LOG(INFO) << "Recursive dfs";
+    for (unsigned int i = 0; i < recursiveDfsOrder.numUsed; i++) {
+      LOG(INFO) << i << " - " << recursiveDfsOrder.elemList[i];
+    }
+    LOG(INFO) << "New post dfs";
+    for (unsigned int i = 0; i < cUnit->dfsPostOrder.numUsed; i++) {
+      LOG(INFO) << i << " - " << cUnit->dfsPostOrder.elemList[i];
+    }
+    LOG(INFO) << "Recursive post dfs";
+    for (unsigned int i = 0; i < recursiveDfsPostOrder.numUsed; i++) {
+      LOG(INFO) << i << " - " << recursiveDfsPostOrder.elemList[i];
+    }
+  }
+  CHECK_EQ(cUnit->dfsOrder.numUsed, recursiveDfsOrder.numUsed);
+  for (unsigned int i = 0; i < cUnit->dfsOrder.numUsed; i++) {
+    CHECK_EQ(cUnit->dfsOrder.elemList[i], recursiveDfsOrder.elemList[i]);
+  }
+  CHECK_EQ(cUnit->dfsPostOrder.numUsed, recursiveDfsPostOrder.numUsed);
+  for (unsigned int i = 0; i < cUnit->dfsPostOrder.numUsed; i++) {
+    CHECK_EQ(cUnit->dfsPostOrder.elemList[i],
+             recursiveDfsPostOrder.elemList[i]);
+  }
+#endif
+
   cUnit->numReachableBlocks = cUnit->dfsOrder.numUsed;
 }
 
