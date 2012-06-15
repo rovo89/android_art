@@ -1651,6 +1651,10 @@ void ArmAssembler::SignExtend(ManagedRegister /*mreg*/, size_t /*size*/) {
   UNIMPLEMENTED(FATAL) << "no sign extension necessary for arm";
 }
 
+void ArmAssembler::ZeroExtend(ManagedRegister /*mreg*/, size_t /*size*/) {
+  UNIMPLEMENTED(FATAL) << "no zero extension necessary for arm";
+}
+
 void ArmAssembler::Move(ManagedRegister m_dst, ManagedRegister m_src, size_t /*size*/) {
   ArmManagedRegister dst = m_dst.AsArm();
   ArmManagedRegister src = m_src.AsArm();
