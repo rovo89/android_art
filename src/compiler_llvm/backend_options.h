@@ -24,7 +24,7 @@ extern llvm::cl::opt<bool> EnableARMLongCalls; \
 extern llvm::cl::opt<bool> ReserveR9;
 
 #define INITIAL_ARM_BACKEND_OPTIONS \
-EnableARMLongCalls = true; \
+EnableARMLongCalls = false; \
 ReserveR9 = true;
 
 #define DECLARE_X86_BACKEND_OPTIONS
