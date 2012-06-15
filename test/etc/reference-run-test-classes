@@ -58,4 +58,4 @@ if [ "$DEBUG" = "y" ]; then
     DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,address=$PORT,server=y,suspend=y"
 fi
 
-${JAVA} ${DEBUG_OPTS} -ea ${VERIFY_ARG} -classpath classes Main "$@"
+${JAVA} ${DEBUG_OPTS} ${VERIFY_ARG} -classpath classes Main "$@"

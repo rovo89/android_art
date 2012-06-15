@@ -40,6 +40,7 @@ export JAVAC="javac -g -target 1.5"
 export RUN="${progdir}/etc/push-and-run-test-jar"
 export IMAGE=${ANDROID_PRODUCT_OUT}/data/art-test/core.art
 export DEX_LOCATION=/data/run-test/${test_dir}
+export NEED_DEX="true"
 
 info="info.txt"
 build="build"
@@ -64,6 +65,7 @@ while true; do
         shift
     elif [ "x$1" = "x--jvm" ]; then
         RUN="${progdir}/etc/reference-run-test-classes"
+        NEED_DEX="false"
         shift
     elif [ "x$1" = "x-O" ]; then
         run_args="${run_args} -O"
