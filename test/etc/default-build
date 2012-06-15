@@ -21,15 +21,18 @@ mkdir classes
 ${JAVAC} -d classes `find src -name '*.java'`
 
 if [ -r src2 ]; then
-    ${JAVAC} -d classes `find src2 -name '*.java'`
+  ${JAVAC} -d classes `find src2 -name '*.java'`
 fi
 
-dx -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes
-zip $TEST_NAME.jar classes.dex
+if [ ${NEED_DEX} = "true" ]; then
+  dx -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes
+  zip $TEST_NAME.jar classes.dex
+fi
 
 if [ -r src-ex ]; then
-    mkdir classes-ex
-    ${JAVAC} -d classes-ex -cp classes `find src-ex -name '*.java'`
+  mkdir classes-ex
+  ${JAVAC} -d classes-ex -cp classes `find src-ex -name '*.java'`
+  if [ ${NEED_DEX} = "true" ]; then
     dx -JXmx256m --debug --dex --dump-to=classes-ex.lst --output=classes-ex.dex --dump-width=1000 classes-ex
 
     # quick shuffle so that the stored name is "classes.dex"
@@ -38,4 +41,5 @@ if [ -r src-ex ]; then
     zip $TEST_NAME-ex.jar classes.dex
     mv classes.dex classes-ex.dex
     mv classes-1.dex classes.dex
+  fi
 fi
