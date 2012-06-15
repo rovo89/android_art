@@ -1608,6 +1608,17 @@ void X86Assembler::SignExtend(ManagedRegister mreg, size_t size) {
   }
 }
 
+void X86Assembler::ZeroExtend(ManagedRegister mreg, size_t size) {
+  X86ManagedRegister reg = mreg.AsX86();
+  CHECK(size == 1 || size == 2) << size;
+  CHECK(reg.IsCpuRegister()) << reg;
+  if (size == 1) {
+    movzxb(reg.AsCpuRegister(), reg.AsByteRegister());
+  } else {
+    movzxw(reg.AsCpuRegister(), reg.AsCpuRegister());
+  }
+}
+
 void X86Assembler::Move(ManagedRegister mdest, ManagedRegister msrc, size_t size) {
   X86ManagedRegister dest = mdest.AsX86();
   X86ManagedRegister src = msrc.AsX86();

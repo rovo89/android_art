@@ -519,6 +519,9 @@ class ArmAssembler : public Assembler {
   // Sign extension
   virtual void SignExtend(ManagedRegister mreg, size_t size);
 
+  // Zero extension
+  virtual void ZeroExtend(ManagedRegister mreg, size_t size);
+
   // Exploit fast access in managed code to Thread::Current()
   virtual void GetCurrentThread(ManagedRegister tr);
   virtual void GetCurrentThread(FrameOffset dest_offset,
