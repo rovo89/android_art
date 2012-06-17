@@ -16,6 +16,8 @@
 
 class Fibonacci {
 
+/*
+    // Iterative version
     static int fibonacci(int n) {
         if (n == 0) {
             return 0;
@@ -29,12 +31,22 @@ class Fibonacci {
         }
         return y;
     }
+*/
+
+   // Recursive version
+   static int fibonacci(int n) {
+        if ((n == 0) || (n == 1)) {
+            return n;
+        } else {
+            return fibonacci(n - 1) + (fibonacci(n - 2));
+        }
+    }
 
     public static void main(String[] args) {
         String arg = (args.length > 0) ? args[0] : "10";
         try {
             int x = Integer.parseInt(arg);
-            int y = fibonacci(x); /* to warm up cache */
+            int y = fibonacci(x);
             System.out.printf("fibonacci(%d)=%d\n", x, y);
             y = fibonacci(x + 1);
             System.out.printf("fibonacci(%d)=%d\n", x + 1, y);

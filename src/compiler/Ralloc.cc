@@ -331,6 +331,10 @@ void oatDumpRegLocTable(RegLocation* table, int count)
   }
 }
 
+void oatDumpRegLoc(RegLocation loc) {
+  oatDumpRegLocTable(&loc, 1);
+}
+
 static const RegLocation freshLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
                                      INVALID_REG, INVALID_REG, INVALID_SREG,
                                      INVALID_SREG};

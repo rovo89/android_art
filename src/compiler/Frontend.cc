@@ -765,7 +765,11 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   cUnit->numRegs = code_item->registers_size_ - cUnit->numIns;
   cUnit->numOuts = code_item->outs_size_;
 #if defined(ART_USE_QUICK_COMPILER)
-  cUnit->genBitcode = PrettyMethod(method_idx, dex_file).find("Fibonacci.fibonacci") != std::string::npos;
+  if ((PrettyMethod(method_idx, dex_file).find("fibonacci") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("HelloWorld") != std::string::npos)
+     ) {
+    cUnit->genBitcode = true;
+  }
 #endif
   /* Adjust this value accordingly once inlining is performed */
   cUnit->numDalvikRegisters = code_item->registers_size_;
@@ -782,7 +786,9 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
         (cUnit->enableDebug & (1 << kDebugVerbose));
   }
 #if defined(ART_USE_QUICK_COMPILER)
-  if (cUnit->genBitcode) cUnit->printMe = true;
+  if (cUnit->genBitcode) {
+    cUnit->printMe = true;
+  }
 #endif
   if (cUnit->instructionSet == kX86) {
     // Disable optimizations on X86 for now
