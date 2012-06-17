@@ -252,16 +252,20 @@ void CompilationUnit::UpdateFrameSizeInBytes(const llvm::Function* func,
 bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream) {
   // Lookup the LLVM target
   char const* target_triple = NULL;
+  char const* target_cpu = "";
   char const* target_attr = NULL;
 
   switch (insn_set_) {
   case kThumb2:
     target_triple = "thumb-none-linux-gnueabi";
+    target_cpu = "cortex-a9";
     target_attr = "+thumb2,+neon,+neonfp,+vfp3,+db";
     break;
 
   case kArm:
     target_triple = "armv7-none-linux-gnueabi";
+    // TODO: Fix for Nexus S.
+    target_cpu = "cortex-a9";
     // TODO: Fix for Xoom.
     target_attr = "+v7,+neon,+neonfp,+vfp3,+db";
     break;
@@ -296,7 +300,7 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream) {
 
   // Create the llvm::TargetMachine
   llvm::OwningPtr<llvm::TargetMachine> target_machine(
-    target->createTargetMachine(target_triple, "", target_attr, target_options,
+    target->createTargetMachine(target_triple, target_cpu, target_attr, target_options,
                                 llvm::Reloc::Static, llvm::CodeModel::Small,
                                 llvm::CodeGenOpt::Aggressive));
 
