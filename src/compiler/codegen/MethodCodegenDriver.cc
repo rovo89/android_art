@@ -174,8 +174,8 @@ void genInvoke(CompilationUnit* cUnit, CallInfo* info)
  * high-word loc for wide arguments.  Also pull up any following
  * MOVE_RESULT and incorporate it into the invoke.
  */
-CallInfo* newCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                      InvokeType type, bool isRange)
+CallInfo* oatNewCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                         InvokeType type, bool isRange)
 {
   CallInfo* info = (CallInfo*)oatNew(cUnit, sizeof(CallInfo), true,
                                          kAllocMisc);
@@ -407,11 +407,11 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
 
     case Instruction::CONST_STRING:
     case Instruction::CONST_STRING_JUMBO:
-      genConstString(cUnit, vB, rlDest, rlSrc[0]);
+      genConstString(cUnit, vB, rlDest);
       break;
 
     case Instruction::CONST_CLASS:
-      genConstClass(cUnit, vB, rlDest, rlSrc[0]);
+      genConstClass(cUnit, vB, rlDest);
       break;
 
     case Instruction::FILL_ARRAY_DATA:
@@ -419,12 +419,12 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
       break;
 
     case Instruction::FILLED_NEW_ARRAY:
-      genFilledNewArray(cUnit, newCallInfo(cUnit, bb, mir, kStatic,
+      genFilledNewArray(cUnit, oatNewCallInfo(cUnit, bb, mir, kStatic,
                         false /* not range */));
       break;
 
     case Instruction::FILLED_NEW_ARRAY_RANGE:
-      genFilledNewArray(cUnit, newCallInfo(cUnit, bb, mir, kStatic,
+      genFilledNewArray(cUnit, oatNewCallInfo(cUnit, bb, mir, kStatic,
                         true /* range */));
       break;
 
@@ -622,38 +622,38 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
       break;
 
     case Instruction::INVOKE_STATIC_RANGE:
-      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kStatic, true));
+      genInvoke(cUnit, oatNewCallInfo(cUnit, bb, mir, kStatic, true));
       break;
     case Instruction::INVOKE_STATIC:
-      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kStatic, false));
+      genInvoke(cUnit, oatNewCallInfo(cUnit, bb, mir, kStatic, false));
       break;
 
     case Instruction::INVOKE_DIRECT:
-      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kDirect, false));
+      genInvoke(cUnit, oatNewCallInfo(cUnit, bb, mir, kDirect, false));
       break;
     case Instruction::INVOKE_DIRECT_RANGE:
-      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kDirect, true));
+      genInvoke(cUnit, oatNewCallInfo(cUnit, bb, mir, kDirect, true));
       break;
 
     case Instruction::INVOKE_VIRTUAL:
-      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kVirtual, false));
+      genInvoke(cUnit, oatNewCallInfo(cUnit, bb, mir, kVirtual, false));
       break;
     case Instruction::INVOKE_VIRTUAL_RANGE:
-      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kVirtual, true));
+      genInvoke(cUnit, oatNewCallInfo(cUnit, bb, mir, kVirtual, true));
       break;
 
     case Instruction::INVOKE_SUPER:
-      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kSuper, false));
+      genInvoke(cUnit, oatNewCallInfo(cUnit, bb, mir, kSuper, false));
       break;
     case Instruction::INVOKE_SUPER_RANGE:
-      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kSuper, true));
+      genInvoke(cUnit, oatNewCallInfo(cUnit, bb, mir, kSuper, true));
       break;
 
     case Instruction::INVOKE_INTERFACE:
-      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kInterface, false));
+      genInvoke(cUnit, oatNewCallInfo(cUnit, bb, mir, kInterface, false));
       break;
     case Instruction::INVOKE_INTERFACE_RANGE:
-      genInvoke(cUnit, newCallInfo(cUnit, bb, mir, kInterface, true));
+      genInvoke(cUnit, oatNewCallInfo(cUnit, bb, mir, kInterface, true));
       break;
 
     case Instruction::NEG_INT:

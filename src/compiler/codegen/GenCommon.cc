@@ -1083,8 +1083,8 @@ void genIPut(CompilationUnit* cUnit, uint32_t fieldIdx, int optFlags, OpSize siz
   }
 }
 
-void genConstClass(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest,
-                   RegLocation rlSrc)
+void genConstClass(CompilationUnit* cUnit, uint32_t type_idx,
+                   RegLocation rlDest)
 {
   RegLocation rlMethod = loadCurrMethod(cUnit);
   int resReg = oatAllocTemp(cUnit);
@@ -1145,8 +1145,8 @@ void genConstClass(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest
   }
 }
 
-void genConstString(CompilationUnit* cUnit, uint32_t string_idx, RegLocation rlDest,
-          RegLocation rlSrc)
+void genConstString(CompilationUnit* cUnit, uint32_t string_idx,
+                    RegLocation rlDest)
 {
   /* NOTE: Most strings should be available at compile time */
   int32_t offset_of_string = Array::DataOffset(sizeof(String*)).Int32Value() +

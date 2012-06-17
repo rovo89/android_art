@@ -449,6 +449,61 @@ _EVAL_DEF_INTRINSICS_FUNC(InitializeAndLoadClassSSB,
                           _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaThreadTy))
 
 //----------------------------------------------------------------------------
+// High-level Invokes (fast-path determination not yet performed)
+//
+// NOTE: We expect these intrinsics to be temporary.  Once calling conventions are
+//       fully merged, the unified front end will lower down to the
+//       InvokeRetxxx() intrinsics in the next section and these will be
+//       removed.
+//
+// arg0: InvokeType
+// arg1: method_idx
+// arg2: optimization_flags (primary to note whether null checking is needed)
+// [arg3..argN]: actual arguments
+//----------------------------------------------------------------------------
+// INVOKE method returns void
+_EVAL_DEF_INTRINSICS_FUNC(HLInvokeVoid,
+                          dex_lang_hl_invoke.void,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG1(kVarArgTy))
+
+// INVOKE method returns object
+_EVAL_DEF_INTRINSICS_FUNC(HLInvokeObj,
+                          dex_lang_hl_invoke.obj,
+                          kAttrNone,
+                          kJavaObjectTy,
+                          _EXPAND_ARG1(kVarArgTy))
+
+// INVOKE method returns int
+_EVAL_DEF_INTRINSICS_FUNC(HLInvokeInt,
+                          dex_lang_hl_invoke.i32,
+                          kAttrNone,
+                          kInt32Ty,
+                          _EXPAND_ARG1(kVarArgTy))
+
+// INVOKE method returns float
+_EVAL_DEF_INTRINSICS_FUNC(HLInvokeFloat,
+                          dex_lang_hl_invoke.f32,
+                          kAttrNone,
+                          kFloatTy,
+                          _EXPAND_ARG1(kVarArgTy))
+
+// INVOKE method returns long
+_EVAL_DEF_INTRINSICS_FUNC(HLInvokeLong,
+                          dex_lang_hl_invoke.i64,
+                          kAttrNone,
+                          kInt64Ty,
+                          _EXPAND_ARG1(kVarArgTy))
+
+// INVOKE method returns double
+_EVAL_DEF_INTRINSICS_FUNC(HLInvokeDouble,
+                          dex_lang_hl_invoke.f64,
+                          kAttrNone,
+                          kDoubleTy,
+                          _EXPAND_ARG1(kVarArgTy))
+
+//----------------------------------------------------------------------------
 // Invoke
 //----------------------------------------------------------------------------
 

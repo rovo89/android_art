@@ -361,7 +361,6 @@ void oatDumpPromotionMap(CompilationUnit *cUnit)
 /* Dump instructions and constant pool contents */
 void oatCodegenDump(CompilationUnit* cUnit)
 {
-  LOG(INFO) << "/*";
   LOG(INFO) << "Dumping LIR insns for "
             << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
   LIR* lirInsn;
