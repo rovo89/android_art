@@ -53,7 +53,7 @@ class HeapBitmap {
 
   typedef void ScanCallback(Object* obj, void* finger, void* arg);
 
-  typedef void SweepCallback(size_t numPtrs, Object** ptrs, void* arg);
+  typedef void SweepCallback(size_t ptr_count, Object** ptrs, void* arg);
 
   // Initialize a HeapBitmap so that it points to a bitmap large enough to cover a heap at
   // heap_begin of heap_capacity bytes, where objects are guaranteed to be kAlignment-aligned.

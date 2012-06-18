@@ -514,7 +514,6 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
   // Try harder, growing the heap if necessary.
   ptr = space->AllocWithGrowth(alloc_size);
   if (ptr != NULL) {
-    //size_t new_footprint = dvmHeapSourceGetIdealFootprint();
     size_t new_footprint = space->GetFootprintLimit();
     // OLD-TODO: may want to grow a little bit more so that the amount of
     //       free space is equal to the old free space + the
@@ -603,7 +602,7 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
   is_gc_running_ = true;
 
   TimingLogger timings("CollectGarbageInternal");
-  uint64_t t0 = NanoTime(), rootEnd = 0, dirtyBegin = 0, dirtyEnd = 0;
+  uint64_t t0 = NanoTime(), root_end = 0, dirty_begin = 0, dirty_end = 0;
 
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   thread_list->SuspendAll();
@@ -638,7 +637,7 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
       // heap lock would re-suspend since we have not yet called ResumeAll.
       thread_list->ResumeAll();
       Unlock();
-      rootEnd = NanoTime();
+      root_end = NanoTime();
       timings.AddSplit("RootEnd");
     }
 
@@ -647,7 +646,7 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
     timings.AddSplit("RecursiveMark");
 
     if (concurrent) {
-      dirtyBegin = NanoTime();
+      dirty_begin = NanoTime();
       Lock();
       thread_list->SuspendAll();
       timings.AddSplit("ReSuspend");
@@ -683,7 +682,7 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
   GrowForUtilization();
   timings.AddSplit("GrowForUtilization");
   thread_list->ResumeAll();
-  dirtyEnd = NanoTime();
+  dirty_end = NanoTime();
 
   EnqueueClearedReferences(&cleared_references);
   RequestHeapTrim();
@@ -699,14 +698,14 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
     // lose low nanoseconds in duration. TODO: make this part of PrettyDuration
     duration_ns = (duration_ns / 1000) * 1000;
     if (concurrent) {
-      uint64_t pauseRootsTime = (rootEnd - t0) / 1000 * 1000;
-      uint64_t pauseDirtyTime = (dirtyEnd - dirtyBegin) / 1000 * 1000;
+      uint64_t pause_roots_time = (root_end - t0) / 1000 * 1000;
+      uint64_t pause_dirty_time = (dirty_end - dirty_begin) / 1000 * 1000;
       LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
                 << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
-                << "paused " << PrettyDuration(pauseRootsTime) << "+" << PrettyDuration(pauseDirtyTime)
+                << "paused " << PrettyDuration(pause_roots_time) << "+" << PrettyDuration(pause_dirty_time)
                 << ", total " << PrettyDuration(duration_ns);
     } else {
-      uint64_t markSweepTime = (dirtyEnd - t0) / 1000 * 1000;
+      uint64_t markSweepTime = (dirty_end - t0) / 1000 * 1000;
       LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
                 << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
                 << "paused " << PrettyDuration(markSweepTime)

@@ -347,11 +347,11 @@ class MethodVerifier {
   // into an exception handler, but it's valid to do so as long as the target isn't a
   // "move-exception" instruction. We verify that in a later stage.
   // The dex format forbids certain instructions from branching to themselves.
-  // Updates "insnFlags", setting the "branch target" flag.
+  // Updates "insn_flags_", setting the "branch target" flag.
   bool CheckBranchTarget(uint32_t cur_offset);
 
   // Verify a switch table. "cur_offset" is the offset of the switch instruction.
-  // Updates "insnFlags", setting the "branch target" flag.
+  // Updates "insn_flags_", setting the "branch target" flag.
   bool CheckSwitchTargets(uint32_t cur_offset);
 
   // Check the register indices used in a "vararg" instruction, such as invoke-virtual or

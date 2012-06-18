@@ -43,8 +43,8 @@ class CardTable {
 
   // Set the card associated with the given address to GC_CARD_DIRTY.
   void MarkCard(const void *addr) {
-    byte* cardAddr = CardFromAddr(addr);
-    *cardAddr = GC_CARD_DIRTY;
+    byte* card_addr = CardFromAddr(addr);
+    *card_addr = GC_CARD_DIRTY;
   }
 
   // Is the object on a dirty card?
@@ -77,28 +77,28 @@ class CardTable {
 
   // Returns the address of the relevant byte in the card table, given an address on the heap.
   byte* CardFromAddr(const void *addr) const {
-    byte *cardAddr = biased_begin_ + ((uintptr_t)addr >> GC_CARD_SHIFT);
+    byte *card_addr = biased_begin_ + ((uintptr_t)addr >> GC_CARD_SHIFT);
     // Sanity check the caller was asking for address covered by the card table
-    DCHECK(IsValidCard(cardAddr)) << "addr: " << addr
-        << " cardAddr: " << reinterpret_cast<void*>(cardAddr);
-    return cardAddr;
+    DCHECK(IsValidCard(card_addr)) << "addr: " << addr
+        << " card_addr: " << reinterpret_cast<void*>(card_addr);
+    return card_addr;
   }
 
   // Returns the first address in the heap which maps to this card.
-  void* AddrFromCard(const byte *cardAddr) const {
-    DCHECK(IsValidCard(cardAddr))
-      << " cardAddr: " << reinterpret_cast<const void*>(cardAddr)
+  void* AddrFromCard(const byte *card_addr) const {
+    DCHECK(IsValidCard(card_addr))
+      << " card_addr: " << reinterpret_cast<const void*>(card_addr)
       << " begin: " << reinterpret_cast<void*>(mem_map_->Begin() + offset_)
       << " end: " << reinterpret_cast<void*>(mem_map_->End());
-    uintptr_t offset = cardAddr - biased_begin_;
+    uintptr_t offset = card_addr - biased_begin_;
     return reinterpret_cast<void*>(offset << GC_CARD_SHIFT);
   }
 
   // Returns true iff the card table address is within the bounds of the card table.
-  bool IsValidCard(const byte* cardAddr) const {
+  bool IsValidCard(const byte* card_addr) const {
     byte* begin = mem_map_->Begin() + offset_;
     byte* end = mem_map_->End();
-    return cardAddr >= begin && cardAddr < end;
+    return card_addr >= begin && card_addr < end;
   }
 
   // Verifies that all gray objects are on a dirty card.

@@ -207,10 +207,10 @@ static bool InflateToMemory(MemMap& mem_map, int in, size_t uncompressed_length,
     zerr = inflate(&zstream->Get(), Z_NO_FLUSH);
     if (zerr != Z_OK && zerr != Z_STREAM_END) {
       LOG(WARNING) << "Zip: inflate zerr=" << zerr
-                   << " (nIn=" << zstream->Get().next_in
-                   << " aIn=" << zstream->Get().avail_in
-                   << " nOut=" << zstream->Get().next_out
-                   << " aOut=" << zstream->Get().avail_out
+                   << " (next_in=" << zstream->Get().next_in
+                   << " avail_in=" << zstream->Get().avail_in
+                   << " next_out=" << zstream->Get().next_out
+                   << " avail_out=" << zstream->Get().avail_out
                    << ")";
       return false;
     }
