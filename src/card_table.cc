@@ -106,14 +106,14 @@ void CardTable::ClearCardTable() {
 }
 
 void CardTable::CheckAddrIsInCardTable(const byte* addr) const {
-  byte* cardAddr = biased_begin_ + ((uintptr_t)addr >> GC_CARD_SHIFT);
-  if (!IsValidCard(cardAddr)) {
+  byte* card_addr = biased_begin_ + ((uintptr_t)addr >> GC_CARD_SHIFT);
+  if (!IsValidCard(card_addr)) {
     byte* begin = mem_map_->Begin() + offset_;
     byte* end = mem_map_->End();
     LOG(FATAL) << "Cardtable - begin: " << reinterpret_cast<void*>(begin)
                << " end: " << reinterpret_cast<void*>(end)
                << " addr: " << reinterpret_cast<const void*>(addr)
-               << " cardAddr: " << reinterpret_cast<void*>(cardAddr);
+               << " card_addr: " << reinterpret_cast<void*>(card_addr);
   }
 }
 

@@ -164,14 +164,14 @@ void HexDump::Dump(std::ostream& os) const {
   size_t byte_count = byte_count_;
   int gap = static_cast<int>(offset & 0x0f);
   while (byte_count) {
-    unsigned int lineOffset = offset & ~0x0f;
+    unsigned int line_offset = offset & ~0x0f;
 
     char* hex = out;
     char* asc = out + 59;
 
     for (int i = 0; i < 8; i++) {
-      *hex++ = gHexDigit[lineOffset >> 28];
-      lineOffset <<= 4;
+      *hex++ = gHexDigit[line_offset >> 28];
+      line_offset <<= 4;
     }
     hex++;
     hex++;

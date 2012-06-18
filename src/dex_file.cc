@@ -594,16 +594,16 @@ int32_t DexFile::FindCatchHandlerOffset(const CodeItem &code_item, int32_t tries
 
   while (max >= min) {
     int32_t mid = (min + max) / 2;
-    const TryItem* pTry = DexFile::GetTryItems(code_item, mid);
-    uint32_t start = pTry->start_addr_;
+    const TryItem* try_item = DexFile::GetTryItems(code_item, mid);
+    uint32_t start = try_item->start_addr_;
     if (address < start) {
       max = mid - 1;
     } else {
-      uint32_t end = start + pTry->insn_count_;
+      uint32_t end = start + try_item->insn_count_;
       if (address >= end) {
         min = mid + 1;
       } else {  // We have a winner!
-        return (int32_t) pTry->handler_off_;
+        return (int32_t) try_item->handler_off_;
       }
     }
   }

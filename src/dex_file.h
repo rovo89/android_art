@@ -688,8 +688,8 @@ class DexFile {
   // Callback for "new locals table entry". "signature" is an empty string
   // if no signature is available for an entry.
   typedef void (*DexDebugNewLocalCb)(void* context, uint16_t reg,
-                                     uint32_t startAddress,
-                                     uint32_t endAddress,
+                                     uint32_t start_address,
+                                     uint32_t end_address,
                                      const char* name,
                                      const char* descriptor,
                                      const char* signature);
