@@ -70,6 +70,7 @@ class Runtime {
     std::string jni_trace_;
     bool is_compiler_;
     bool is_zygote_;
+    bool is_concurrent_gc_enabled_;
     size_t heap_initial_size_;
     size_t heap_maximum_size_;
     size_t heap_growth_limit_;
@@ -99,6 +100,10 @@ class Runtime {
 
   bool IsZygote() const {
     return is_zygote_;
+  }
+
+  bool IsConcurrentGcEnabled() const {
+    return is_concurrent_gc_enabled_;
   }
 
   const std::string& GetHostPrefix() const {
@@ -329,6 +334,7 @@ class Runtime {
 
   bool is_compiler_;
   bool is_zygote_;
+  bool is_concurrent_gc_enabled_;
 
   // The host prefix is used during cross compilation. It is removed
   // from the start of host paths such as:

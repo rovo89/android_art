@@ -56,6 +56,7 @@ Runtime* Runtime::instance_ = NULL;
 Runtime::Runtime()
     : is_compiler_(false),
       is_zygote_(false),
+      is_concurrent_gc_enabled_(true),
       default_stack_size_(0),
       heap_(NULL),
       monitor_list_(NULL),
@@ -317,6 +318,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
 
   parsed->is_compiler_ = false;
   parsed->is_zygote_ = false;
+  parsed->is_concurrent_gc_enabled_ = true;
 
   parsed->jni_globals_max_ = 0;
   parsed->lock_profiling_threshold_ = 0;
@@ -424,6 +426,18 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
       parsed->is_compiler_ = true;
     } else if (option == "-Xzygote") {
       parsed->is_zygote_ = true;
+    } else if (StartsWith(option, "-Xgc:")) {
+      std::vector<std::string> gc_options;
+      Split(option.substr(strlen("-Xgc:")), ',', gc_options);
+      for (size_t i = 0; i < gc_options.size(); ++i) {
+        if (gc_options[i] == "noconcurrent") {
+          parsed->is_concurrent_gc_enabled_ = false;
+        } else if (gc_options[i] == "concurrent") {
+          parsed->is_concurrent_gc_enabled_ = true;
+        } else {
+          LOG(WARNING) << "Ignoring unknown -Xgc option: " << gc_options[i];
+        }
+      }
     } else if (StartsWith(option, "-verbose:")) {
       std::vector<std::string> verbose_options;
       Split(option.substr(strlen("-verbose:")), ',', verbose_options);
@@ -643,6 +657,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
 
   is_compiler_ = options->is_compiler_;
   is_zygote_ = options->is_zygote_;
+  is_concurrent_gc_enabled_ = options->is_concurrent_gc_enabled_;
 
   vfprintf_ = options->hook_vfprintf_;
   exit_ = options->hook_exit_;
