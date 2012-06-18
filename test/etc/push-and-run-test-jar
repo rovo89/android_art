@@ -91,10 +91,12 @@ fi
 msg "------------------------------"
 
 if [ "$QUIET" = "n" ]; then
+  adb shell rm -r $DEX_LOCATION
   adb shell mkdir -p $DEX_LOCATION
   adb push $TEST_NAME.jar $DEX_LOCATION
   adb push $TEST_NAME-ex.jar $DEX_LOCATION
 else
+  adb shell rm -r $DEX_LOCATION >/dev/null 2>&1
   adb shell mkdir -p $DEX_LOCATION >/dev/null 2>&1
   adb push $TEST_NAME.jar $DEX_LOCATION >/dev/null 2>&1
   adb push $TEST_NAME-ex.jar $DEX_LOCATION >/dev/null 2>&1
