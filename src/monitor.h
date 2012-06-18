@@ -91,13 +91,13 @@ class Monitor {
 
   static void FailedUnlock(Object* obj, Thread* expected_owner, Thread* found_owner, Monitor* mon);
 
-  void Lock(Thread* self);
-  bool Unlock(Thread* thread);
+  void Lock(Thread* self) NO_THREAD_SAFETY_ANALYSIS; // TODO: mark Object LOCKABLE.
+  bool Unlock(Thread* thread) NO_THREAD_SAFETY_ANALYSIS; // TODO: mark Object LOCKABLE.
 
   void Notify(Thread* self);
   void NotifyAll(Thread* self);
 
-  void Wait(Thread* self, int64_t msec, int32_t nsec, bool interruptShouldThrow);
+  void Wait(Thread* self, int64_t msec, int32_t nsec, bool interruptShouldThrow) NO_THREAD_SAFETY_ANALYSIS; // TODO: mark Object LOCKABLE.
 
   // Translates the provided method and pc into its declaring class' source file and line number.
   void TranslateLocation(const Method* method, uint32_t pc,

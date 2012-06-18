@@ -76,9 +76,9 @@ class InternTable {
   void Remove(Table& table, const String* s, uint32_t hash_code);
 
   mutable Mutex intern_table_lock_;
-  Table image_strong_interns_;
-  Table strong_interns_;
-  Table weak_interns_;
+  Table image_strong_interns_ GUARDED_BY(intern_table_lock_);
+  Table strong_interns_ GUARDED_BY(intern_table_lock_);
+  Table weak_interns_ GUARDED_BY(intern_table_lock_);
 };
 
 }  // namespace art

@@ -42,7 +42,7 @@ class Space;
 class SpaceTest;
 class Thread;
 
-class Heap {
+class LOCKABLE Heap {
   friend class ScopedHeapLock;
  public:
   static const size_t kInitialSize = 2 * MB;
@@ -236,13 +236,14 @@ class Heap {
   void DumpForSigQuit(std::ostream& os);
 
   void Trim();
+
  private:
   // Allocates uninitialized storage.
   Object* AllocateLocked(size_t num_bytes);
   Object* AllocateLocked(AllocSpace* space, size_t num_bytes);
 
-  void Lock();
-  void Unlock();
+  void Lock() EXCLUSIVE_LOCK_FUNCTION();
+  void Unlock() UNLOCK_FUNCTION();
 
   // Pushes a list of cleared references out to the managed heap.
   void EnqueueClearedReferences(Object** cleared_references);
@@ -253,7 +254,8 @@ class Heap {
   void RecordAllocationLocked(AllocSpace* space, const Object* object);
   void RecordImageAllocations(Space* space);
 
-  void CollectGarbageInternal(bool concurrent, bool clear_soft_references);
+  // TODO: can we teach GCC to understand the weird locking in here?
+  void CollectGarbageInternal(bool concurrent, bool clear_soft_references) NO_THREAD_SAFETY_ANALYSIS;
 
   // Given the current contents of the alloc space, increase the allowed heap footprint to match
   // the target utilization ratio.  This should only be called immediately after a full garbage

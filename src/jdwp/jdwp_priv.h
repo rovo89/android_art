@@ -70,14 +70,15 @@ const JdwpTransport* AndroidAdbTransport();
  * Base class for JdwpNetState
  */
 class JdwpNetStateBase {
-public:
+ public:
   int clientSock;     /* active connection to debugger */
 
   JdwpNetStateBase();
   ssize_t writePacket(ExpandBuf* pReply);
   ssize_t writeBufferedPacket(const iovec* iov, int iov_count);
 
-private:
+ private:
+  // Used to serialize writes to the socket.
   Mutex socket_lock_;
 };
 

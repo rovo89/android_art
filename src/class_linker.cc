@@ -658,6 +658,7 @@ const OatFile* ClassLinker::FindOpenedOatFileForDexFile(const DexFile& dex_file)
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileFromDexLocation(const std::string& dex_location) {
+  MutexLock mu(dex_lock_);
   for (size_t i = 0; i < oat_files_.size(); i++) {
     const OatFile* oat_file = oat_files_[i];
     DCHECK(oat_file != NULL);
@@ -807,6 +808,7 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& oat_location) {
+  MutexLock mu(dex_lock_);
   for (size_t i = 0; i < oat_files_.size(); i++) {
     const OatFile* oat_file = oat_files_[i];
     DCHECK(oat_file != NULL);
@@ -928,8 +930,11 @@ void ClassLinker::InitFromImageCallback(Object* obj, void* arg) {
 void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   visitor(class_roots_, arg);
 
-  for (size_t i = 0; i < dex_caches_.size(); i++) {
-    visitor(dex_caches_[i], arg);
+  {
+    MutexLock mu(dex_lock_);
+    for (size_t i = 0; i < dex_caches_.size(); i++) {
+      visitor(dex_caches_[i], arg);
+    }
   }
 
   {
@@ -1831,11 +1836,11 @@ Class* ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, boo
   size_t hash = StringPieceHash()(descriptor);
   MutexLock mu(classes_lock_);
   Table& classes = image_class ? image_classes_ : classes_;
-  Class* existing = LookupClass(descriptor.data(), klass->GetClassLoader(), hash, classes);
+  Class* existing = LookupClassLocked(descriptor.data(), klass->GetClassLoader(), hash, classes);
 #ifndef NDEBUG
   // Check we don't have the class in the other table in error
   Table& other_classes = image_class ? classes_ : image_classes_;
-  CHECK(LookupClass(descriptor.data(), klass->GetClassLoader(), hash, other_classes) == NULL);
+  CHECK(LookupClassLocked(descriptor.data(), klass->GetClassLoader(), hash, other_classes) == NULL);
 #endif
   if (existing != NULL) {
     return existing;
@@ -1873,15 +1878,15 @@ Class* ClassLinker::LookupClass(const char* descriptor, const ClassLoader* class
   size_t hash = Hash(descriptor);
   MutexLock mu(classes_lock_);
   // TODO: determine if its better to search classes_ or image_classes_ first
-  Class* klass = LookupClass(descriptor, class_loader, hash, classes_);
+  Class* klass = LookupClassLocked(descriptor, class_loader, hash, classes_);
   if (klass != NULL) {
     return klass;
   }
-  return LookupClass(descriptor, class_loader, hash, image_classes_);
+  return LookupClassLocked(descriptor, class_loader, hash, image_classes_);
 }
 
-Class* ClassLinker::LookupClass(const char* descriptor, const ClassLoader* class_loader,
-                                size_t hash, const Table& classes) {
+Class* ClassLinker::LookupClassLocked(const char* descriptor, const ClassLoader* class_loader,
+                                      size_t hash, const Table& classes) {
   ClassHelper kh(NULL, this);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   for (It it = classes.lower_bound(hash), end = classes_.end(); it != end && it->first == hash; ++it) {
@@ -3513,6 +3518,7 @@ void ClassLinker::SetClassRoot(ClassRoot class_root, Class* klass) {
 }
 
 void ClassLinker::RelocateExecutable() {
+  MutexLock mu(dex_lock_);
   for (size_t i = 0; i < oat_files_.size(); ++i) {
     const_cast<OatFile*>(oat_files_[i])->RelocateExecutable();
   }

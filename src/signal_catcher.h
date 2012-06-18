@@ -44,14 +44,15 @@ class SignalCatcher {
   void Output(const std::string& s);
   void SetHaltFlag(bool new_value);
   bool ShouldHalt();
-  int WaitForSignal(SignalSet& signals);
+  int WaitForSignal(Thread* self, SignalSet& signals);
 
   std::string stack_trace_file_;
+
   mutable Mutex lock_;
-  bool halt_;
   ConditionVariable cond_;
-  pthread_t pthread_;
-  Thread* thread_;
+  bool halt_ GUARDED_BY(lock_);
+  pthread_t pthread_ GUARDED_BY(lock_);
+  Thread* thread_ GUARDED_BY(lock_);
 };
 
 }  // namespace art

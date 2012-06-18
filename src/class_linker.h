@@ -355,9 +355,9 @@ class ClassLinker {
   // the same descriptor and ClassLoader.
   Class* InsertClass(const StringPiece& descriptor, Class* klass, bool image_class);
 
-  void RegisterDexFileLocked(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
-  bool IsDexFileRegisteredLocked(const DexFile& dex_file) const;
-  void RegisterOatFileLocked(const OatFile& oat_file);
+  void RegisterDexFileLocked(const DexFile& dex_file, SirtRef<DexCache>& dex_cache) EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
+  bool IsDexFileRegisteredLocked(const DexFile& dex_file) const EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
+  void RegisterOatFileLocked(const OatFile& oat_file) EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
 
   bool InitializeClass(Class* klass, bool can_run_clinit, bool can_init_statics);
   bool WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock);
@@ -410,23 +410,22 @@ class ClassLinker {
 
   std::vector<const DexFile*> boot_class_path_;
 
-  std::vector<const DexFile*> dex_files_;
-  std::vector<DexCache*> dex_caches_;
-  std::vector<const OatFile*> oat_files_;
-  // lock to protect concurrent access to dex_files_, dex_caches_, and oat_files_
   mutable Mutex dex_lock_;
+  std::vector<const DexFile*> dex_files_ GUARDED_BY(dex_lock_);
+  std::vector<DexCache*> dex_caches_ GUARDED_BY(dex_lock_);
+  std::vector<const OatFile*> oat_files_ GUARDED_BY(dex_lock_);
 
 
   // multimap from a string hash code of a class descriptor to
   // Class* instances. Results should be compared for a matching
   // Class::descriptor_ and Class::class_loader_.
-  // Protected by classes_lock_
-  typedef std::multimap<size_t, Class*> Table;
-  Class* LookupClass(const char* descriptor, const ClassLoader* class_loader,
-                     size_t hash, const Table& classes);
-  Table image_classes_;
-  Table classes_;
   mutable Mutex classes_lock_;
+  typedef std::multimap<size_t, Class*> Table;
+  Table image_classes_  GUARDED_BY(classes_lock_);
+  Table classes_ GUARDED_BY(classes_lock_);
+
+  Class* LookupClassLocked(const char* descriptor, const ClassLoader* class_loader,
+                           size_t hash, const Table& classes) EXCLUSIVE_LOCKS_REQUIRED(classes_lock_);
 
   // indexes into class_roots_.
   // needs to be kept in sync with class_roots_descriptors_.

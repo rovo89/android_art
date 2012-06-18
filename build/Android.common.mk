@@ -74,6 +74,7 @@ art_cflags := \
 	-Werror \
 	-Wextra \
 	-Wstrict-aliasing=3 \
+	-Wthread-safety \
 	-fno-align-jumps \
 	-fstrict-aliasing
 
@@ -87,6 +88,8 @@ art_debug_cflags := \
 	-UNDEBUG
 
 ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1
+# The host GCC isn't necessarily new enough to support -Wthread-safety (GCC 4.4).
+ART_HOST_CFLAGS := $(filter-out -Wthread-safety,$(ART_HOST_CFLAGS))
 
 ART_TARGET_CFLAGS := $(art_cflags) -DART_TARGET
 ifeq ($(TARGET_CPU_SMP),true)
