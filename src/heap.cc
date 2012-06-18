@@ -914,8 +914,11 @@ void Heap::EnqueueClearedReferences(Object** cleared) {
 }
 
 void Heap::RequestConcurrentGC() {
-  // Make sure that our Daemon threads are started
-  if (requesting_gc_ || !Runtime::Current()->IsFinishedStarting() || Runtime::Current()->IsShuttingDown()) {
+  // Make sure that we can do a concurrent GC.
+  if (requesting_gc_ ||
+      !Runtime::Current()->IsFinishedStarting() ||
+      Runtime::Current()->IsShuttingDown() ||
+      !Runtime::Current()->IsConcurrentGcEnabled()) {
     return;
   }
 
