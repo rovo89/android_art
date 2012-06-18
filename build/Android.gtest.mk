@@ -100,6 +100,7 @@ ifeq ($$(art_target_or_host),target)
 $$(art_gtest_target): $$(art_gtest_exe) test-art-target-sync
 	adb shell touch $(ART_TEST_DIR)/$$@
 	adb shell rm $(ART_TEST_DIR)/$$@
+	adb shell chmod 755 $(ART_NATIVETEST_DIR)/$$(notdir $$<)
 	adb shell sh -c "$(ART_NATIVETEST_DIR)/$$(notdir $$<) && touch $(ART_TEST_DIR)/$$@"
 	$(hide) (adb pull $(ART_TEST_DIR)/$$@ /tmp/ && echo $$@ PASSED) || (echo $$@ FAILED && exit 1)
 	$(hide) rm /tmp/$$@
