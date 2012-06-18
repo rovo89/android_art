@@ -30,6 +30,57 @@ build_path := $(LOCAL_PATH)/build
 include $(build_path)/Android.common.mk
 
 ########################################################################
+# clean-oat targets
+#
+
+# following the example of build's dont_bother for clean targets
+ifneq (,$(filter clean-oat,$(MAKECMDGOALS)))
+art_dont_bother := true
+endif
+ifneq (,$(filter clean-oat-host,$(MAKECMDGOALS)))
+art_dont_bother := true
+endif
+ifneq (,$(filter clean-oat-target,$(MAKECMDGOALS)))
+art_dont_bother := true
+endif
+
+.PHONY: clean-oat
+clean-oat: clean-oat-host clean-oat-target
+
+.PHONY: clean-oat-host
+clean-oat-host:
+	rm -f $(ART_NATIVETEST_OUT)/*.oat
+	rm -f $(ART_NATIVETEST_OUT)/*.art
+	rm -f $(ART_TEST_OUT)/*.oat
+	rm -f $(ART_TEST_OUT)/*.art
+	rm -f $(ART_CACHE_OUT)/*.oat
+	rm -f $(ART_CACHE_OUT)/*.art
+	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.oat
+	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.art
+	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.oat
+	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.art
+	rm -f $(TARGET_OUT_APPS)/*.oat
+	rm -f $(TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.jar.oat
+	rm -f $(TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/package.apk.oat
+	rm -rf /tmp/test-*/art-cache/*.oat
+
+.PHONY: clean-oat-target
+clean-oat-target:
+	adb remount
+	adb shell rm $(ART_NATIVETEST_DIR)/*.oat
+	adb shell rm $(ART_NATIVETEST_DIR)/*.art
+	adb shell rm $(ART_TEST_DIR)/*.oat
+	adb shell rm $(ART_TEST_DIR)/*.art
+	adb shell rm $(ART_CACHE_DIR)/*.oat
+	adb shell rm $(ART_CACHE_DIR)/*.art
+	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.oat
+	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.art
+	adb shell rm system/app/*.oat
+	adb shell rm data/run-test/test-*/art-cache/*.oat
+
+ifneq ($(art_dont_bother),true)
+
+########################################################################
 # product targets
 include $(build_path)/Android.libart.mk
 include $(build_path)/Android.libart-compiler.mk
@@ -246,38 +297,6 @@ dump-oat-Calculator: $(call art-cache-out,system/app/Calculator.apk.oat) $(TARGE
 
 
 ########################################################################
-# clean-oat target
-#
-
-.PHONY: clean-oat
-clean-oat:
-	rm -f $(ART_NATIVETEST_OUT)/*.oat
-	rm -f $(ART_NATIVETEST_OUT)/*.art
-	rm -f $(ART_TEST_OUT)/*.oat
-	rm -f $(ART_TEST_OUT)/*.art
-	rm -f $(ART_CACHE_OUT)/*.oat
-	rm -f $(ART_CACHE_OUT)/*.art
-	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.oat
-	rm -f $(HOST_OUT_JAVA_LIBRARIES)/*.art
-	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.oat
-	rm -f $(TARGET_OUT_JAVA_LIBRARIES)/*.art
-	rm -f $(TARGET_OUT_APPS)/*.oat
-	rm -f $(TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.jar.oat
-	rm -f $(TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/package.apk.oat
-	rm -rf /tmp/test-*/art-cache/*.oat
-	adb remount
-	adb shell rm $(ART_NATIVETEST_DIR)/*.oat
-	adb shell rm $(ART_NATIVETEST_DIR)/*.art
-	adb shell rm $(ART_TEST_DIR)/*.oat
-	adb shell rm $(ART_TEST_DIR)/*.art
-	adb shell rm $(ART_CACHE_DIR)/*.oat
-	adb shell rm $(ART_CACHE_DIR)/*.art
-	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.oat
-	adb shell rm $(DEXPREOPT_BOOT_JAR_DIR)/*.art
-	adb shell rm system/app/*.oat
-	adb shell rm data/run-test/test-*/art-cache/*.oat
-
-########################################################################
 # cpplint target
 
 # "mm cpplint-art" to style check art source files
@@ -290,3 +309,5 @@ cpplint-art:
 ########################################################################
 
 include $(call all-makefiles-under,$(LOCAL_PATH))
+
+endif # !art_dont_bother
