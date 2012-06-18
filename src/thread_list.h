@@ -47,7 +47,7 @@ class ThreadList {
   void Suspend(Thread* thread, bool for_debugger = false);
   void UndoDebuggerSuspensions();
 
-  // Iterates over all the threads. The caller must hold the thread list lock.
+  // Iterates over all the threads.
   void ForEach(void (*callback)(Thread*, void*), void* context);
 
   void Register();
@@ -77,10 +77,10 @@ class ThreadList {
   static void ModifySuspendCount(Thread* thread, int delta, bool for_debugger);
 
   mutable Mutex allocated_ids_lock_;
-  std::bitset<kMaxThreadId> allocated_ids_;
+  std::bitset<kMaxThreadId> allocated_ids_ GUARDED_BY(allocated_ids_lock_);
 
   mutable Mutex thread_list_lock_;
-  std::list<Thread*> list_;
+  std::list<Thread*> list_; // TODO: GUARDED_BY(thread_list_lock_);
 
   ConditionVariable thread_start_cond_;
   ConditionVariable thread_exit_cond_;
@@ -88,7 +88,7 @@ class ThreadList {
   // This lock guards every thread's suspend_count_ field...
   mutable Mutex thread_suspend_count_lock_;
   // ...and is used in conjunction with this condition variable.
-  ConditionVariable thread_suspend_count_cond_;
+  ConditionVariable thread_suspend_count_cond_ GUARDED_BY(thread_suspend_count_lock_);
 
   friend class Thread;
   friend class ScopedThreadListLock;

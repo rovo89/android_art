@@ -38,16 +38,16 @@ enum MutexRank {
 };
 std::ostream& operator<<(std::ostream& os, const MutexRank& rhs);
 
-class Mutex {
+class LOCKABLE Mutex {
  public:
   explicit Mutex(const char* name, MutexRank rank = kNoMutexRank);
   ~Mutex();
 
-  void Lock();
+  void Lock() EXCLUSIVE_LOCK_FUNCTION();
 
-  bool TryLock();
+  bool TryLock() EXCLUSIVE_TRYLOCK_FUNCTION(true);
 
-  void Unlock();
+  void Unlock() UNLOCK_FUNCTION();
 
 #if !defined(NDEBUG)
   void AssertHeld();
@@ -71,13 +71,13 @@ class Mutex {
   DISALLOW_COPY_AND_ASSIGN(Mutex);
 };
 
-class MutexLock {
+class SCOPED_LOCKABLE MutexLock {
  public:
-  explicit MutexLock(Mutex& mu) : mu_(mu) {
+  explicit MutexLock(Mutex& mu) EXCLUSIVE_LOCK_FUNCTION(mu) : mu_(mu) {
     mu_.Lock();
   }
 
-  ~MutexLock() {
+  ~MutexLock() UNLOCK_FUNCTION() {
     mu_.Unlock();
   }
 
@@ -85,6 +85,8 @@ class MutexLock {
   Mutex& mu_;
   DISALLOW_COPY_AND_ASSIGN(MutexLock);
 };
+// Catch bug where variable name is omitted. "MutexLock (lock);" instead of "MutexLock mu(lock)".
+#define MutexLock(x) COMPILE_ASSERT(0, mutex_lock_declaration_missing_variable_name)
 
 class ConditionVariable {
  public:

@@ -45,18 +45,37 @@ TEST(Mutex, LockUnlock) {
 TEST(Mutex, TryLockUnlock) {
   Mutex mu("test mutex");
   MutexTester::AssertDepth(mu, 0U);
-  mu.TryLock();
+  ASSERT_TRUE(mu.TryLock());
+  MutexTester::AssertDepth(mu, 1U);
+  mu.Unlock();
+  MutexTester::AssertDepth(mu, 0U);
+}
+
+// GCC doesn't get recursive mutexes, so we have to turn off thread safety analysis.
+static void RecursiveLockUnlockTest() NO_THREAD_SAFETY_ANALYSIS {
+  Mutex mu("test mutex");
+  MutexTester::AssertDepth(mu, 0U);
+  mu.Lock();
+  MutexTester::AssertDepth(mu, 1U);
+  mu.Lock();
+  MutexTester::AssertDepth(mu, 2U);
+  mu.Unlock();
   MutexTester::AssertDepth(mu, 1U);
   mu.Unlock();
   MutexTester::AssertDepth(mu, 0U);
 }
 
 TEST(Mutex, RecursiveLockUnlock) {
+  RecursiveLockUnlockTest();
+}
+
+// GCC doesn't get recursive mutexes, so we have to turn off thread safety analysis.
+static void RecursiveTryLockUnlockTest() NO_THREAD_SAFETY_ANALYSIS {
   Mutex mu("test mutex");
   MutexTester::AssertDepth(mu, 0U);
-  mu.Lock();
+  ASSERT_TRUE(mu.TryLock());
   MutexTester::AssertDepth(mu, 1U);
-  mu.Lock();
+  ASSERT_TRUE(mu.TryLock());
   MutexTester::AssertDepth(mu, 2U);
   mu.Unlock();
   MutexTester::AssertDepth(mu, 1U);
@@ -65,16 +84,7 @@ TEST(Mutex, RecursiveLockUnlock) {
 }
 
 TEST(Mutex, RecursiveTryLockUnlock) {
-  Mutex mu("test mutex");
-  MutexTester::AssertDepth(mu, 0U);
-  mu.TryLock();
-  MutexTester::AssertDepth(mu, 1U);
-  mu.TryLock();
-  MutexTester::AssertDepth(mu, 2U);
-  mu.Unlock();
-  MutexTester::AssertDepth(mu, 1U);
-  mu.Unlock();
-  MutexTester::AssertDepth(mu, 0U);
+  RecursiveTryLockUnlockTest();
 }
 
 }  // namespace art

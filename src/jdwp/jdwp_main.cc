@@ -72,7 +72,7 @@ bool JdwpState::SendRequest(ExpandBuf* pReq) {
  */
 uint32_t JdwpState::NextRequestSerial() {
   MutexLock mu(serial_lock_);
-  return requestSerial++;
+  return request_serial_++;
 }
 
 /*
@@ -81,7 +81,7 @@ uint32_t JdwpState::NextRequestSerial() {
  */
 uint32_t JdwpState::NextEventSerial() {
   MutexLock mu(serial_lock_);
-  return eventSerial++;
+  return event_serial_++;
 }
 
 JdwpState::JdwpState(const JdwpOptions* options)
@@ -96,12 +96,12 @@ JdwpState::JdwpState(const JdwpOptions* options)
       attach_lock_("JDWP attach lock"),
       attach_cond_("JDWP attach condition variable"),
       lastActivityWhen(0),
-      requestSerial(0x10000000),
-      eventSerial(0x20000000),
       serial_lock_("JDWP serial lock"),
-      numEvents(0),
-      eventList(NULL),
-      event_lock_("JDWP event lock"),
+      request_serial_(0x10000000),
+      event_serial_(0x20000000),
+      event_list_lock_("JDWP event list lock"),
+      event_list_(NULL),
+      event_list_size_(0),
       event_thread_lock_("JDWP event thread lock"),
       event_thread_cond_("JDWP event thread condition variable"),
       eventThreadId(0),
@@ -140,7 +140,8 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
    * won't signal the cond var before we're waiting.
    */
   state->thread_start_lock_.Lock();
-  if (options->suspend) {
+  const bool should_suspend = options->suspend;
+  if (should_suspend) {
     state->attach_lock_.Lock();
   }
 
@@ -165,7 +166,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
    * times out (for timeout=xxx), so we have to check to see what happened
    * when we wake up.
    */
-  if (options->suspend) {
+  if (should_suspend) {
     {
       ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
 
@@ -201,7 +202,10 @@ void JdwpState::ResetState() {
   /* could reset the serial numbers, but no need to */
 
   UnregisterAll();
-  CHECK(eventList == NULL);
+  {
+    MutexLock mu(event_list_lock_);
+    CHECK(event_list_ == NULL);
+  }
 
   /*
    * Should not have one of these in progress.  If the debugger went away

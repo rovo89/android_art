@@ -1157,18 +1157,18 @@ static JdwpError handleER_Set(JdwpState* state, const uint8_t* buf, int dataLen,
   const uint8_t* origBuf = buf;
 
   uint8_t eventKind = Read1(&buf);
-  uint8_t suspendPolicy = Read1(&buf);
+  uint8_t suspend_policy = Read1(&buf);
   uint32_t modifierCount = Read4BE(&buf);
 
   VLOG(jdwp) << "  Set(kind=" << JdwpEventKind(eventKind)
-               << " suspend=" << JdwpSuspendPolicy(suspendPolicy)
+               << " suspend=" << JdwpSuspendPolicy(suspend_policy)
                << " mods=" << modifierCount << ")";
 
   CHECK_LT(modifierCount, 256U);    /* reasonableness check */
 
   JdwpEvent* pEvent = EventAlloc(modifierCount);
   pEvent->eventKind = static_cast<JdwpEventKind>(eventKind);
-  pEvent->suspendPolicy = static_cast<JdwpSuspendPolicy>(suspendPolicy);
+  pEvent->suspend_policy = static_cast<JdwpSuspendPolicy>(suspend_policy);
   pEvent->modCount = modifierCount;
 
   /*

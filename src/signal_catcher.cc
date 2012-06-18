@@ -155,8 +155,8 @@ void SignalCatcher::HandleSigUsr1() {
   Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
-int SignalCatcher::WaitForSignal(SignalSet& signals) {
-  ScopedThreadStateChange tsc(thread_, kVmWait);
+int SignalCatcher::WaitForSignal(Thread* self, SignalSet& signals) {
+  ScopedThreadStateChange tsc(self, kVmWait);
 
   // Signals for sigwait() must be blocked but not ignored.  We
   // block signals like SIGQUIT for all threads, so the condition
@@ -166,7 +166,7 @@ int SignalCatcher::WaitForSignal(SignalSet& signals) {
   if (!ShouldHalt()) {
     // Let the user know we got the signal, just in case the system's too screwed for us to
     // actually do what they want us to do...
-    LOG(INFO) << *thread_ << ": reacting to signal " << signal_number;
+    LOG(INFO) << *self << ": reacting to signal " << signal_number;
 
     // If anyone's holding locks (which might prevent us from getting back into state Runnable), say so...
     Runtime::Current()->DumpLockHolders(LOG(INFO));
@@ -181,11 +181,13 @@ void* SignalCatcher::Run(void* arg) {
 
   Runtime* runtime = Runtime::Current();
   runtime->AttachCurrentThread("Signal Catcher", true, Thread::GetSystemThreadGroup());
-  Thread::Current()->SetState(kRunnable);
+
+  Thread* self = Thread::Current();
+  self->SetState(kRunnable);
 
   {
     MutexLock mu(signal_catcher->lock_);
-    signal_catcher->thread_ = Thread::Current();
+    signal_catcher->thread_ = self;
     signal_catcher->cond_.Broadcast();
   }
 
@@ -195,7 +197,7 @@ void* SignalCatcher::Run(void* arg) {
   signals.Add(SIGUSR1);
 
   while (true) {
-    int signal_number = signal_catcher->WaitForSignal(signals);
+    int signal_number = signal_catcher->WaitForSignal(self, signals);
     if (signal_catcher->ShouldHalt()) {
       runtime->DetachCurrentThread();
       return NULL;

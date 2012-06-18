@@ -866,7 +866,7 @@ class DexFile {
 
   // A cached com.android.dex.Dex instance, possibly NULL. Use GetDexObject.
   mutable Mutex dex_object_lock_;
-  mutable jobject dex_object_;
+  mutable jobject dex_object_ GUARDED_BY(dex_object_lock_);
 
   // Points to the header section.
   const Header* header_;
