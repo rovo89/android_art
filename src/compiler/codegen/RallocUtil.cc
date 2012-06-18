@@ -29,17 +29,6 @@
 
 namespace art {
 
-#define SREG(c, s) ((c)->regLocation[(s)].sRegLow)
-/*
- * Get the "real" sreg number associated with an sReg slot.  In general,
- * sReg values passed through codegen are the SSA names created by
- * dataflow analysis and refer to slot numbers in the cUnit->regLocation
- * array.  However, renaming is accomplished by simply replacing RegLocation
- * entries in the cUnit->reglocation[] array.  Therefore, when location
- * records for operands are first created, we need to ask the locRecord
- * identified by the dataflow pass what it's new name is.
- */
-
 /*
  * Free all allocated temps in the temp pools.  Note that this does
  * not affect the "liveness" of a temp register, which will stay

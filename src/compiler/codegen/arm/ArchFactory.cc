@@ -56,7 +56,8 @@ int loadHelper(CompilationUnit* cUnit, int offset)
   return rLR;
 }
 
-void genEntrySequence(CompilationUnit* cUnit)
+void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
+                      RegLocation rlMethod)
 {
   int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
   /*
@@ -101,7 +102,7 @@ void genEntrySequence(CompilationUnit* cUnit)
     opRegImm(cUnit, kOpSub, rSP, cUnit->frameSize - (spillCount * 4));
   }
 
-  flushIns(cUnit);
+  flushIns(cUnit, argLocs, rlMethod);
 
   if (cUnit->genDebugger) {
     // Refresh update debugger callout

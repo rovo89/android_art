@@ -127,6 +127,9 @@ enum debugControlVector {
   kDebugShowMemoryUsage,
   kDebugShowNops,
   kDebugCountOpcodes,
+#if defined(ART_USE_QUICK_COMPILER)
+  kDebugDumpBitcodeFile,
+#endif
 };
 
 enum OatMethodAttributes {
@@ -193,6 +196,7 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix);
 void oatProcessSwitchTables(CompilationUnit* cUnit);
 bool oatIsFpReg(int reg);
 uint32_t oatFpRegMask(void);
+void oatReplaceSpecialChars(std::string& str);
 
 }  // namespace art
 

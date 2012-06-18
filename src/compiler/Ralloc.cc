@@ -339,6 +339,17 @@ static const RegLocation freshLoc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0,
                                      INVALID_REG, INVALID_REG, INVALID_SREG,
                                      INVALID_SREG};
 
+int oatComputeFrameSize(CompilationUnit* cUnit) {
+  /* Figure out the frame size */
+  static const uint32_t kAlignMask = kStackAlignment - 1;
+  uint32_t size = (cUnit->numCoreSpills + cUnit->numFPSpills +
+                   1 /* filler word */ + cUnit->numRegs + cUnit->numOuts +
+                   cUnit->numCompilerTemps + 1 /* curMethod* */)
+                   * sizeof(uint32_t);
+  /* Align and set */
+  return (size + kAlignMask) & ~(kAlignMask);
+}
+
 /*
  * Simple register allocation.  Some Dalvik virtual registers may
  * be promoted to physical registers.  Most of the work for temp
@@ -459,19 +470,16 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
 
   oatDoPromotion(cUnit);
 
+  /* Get easily-accessable post-promotion copy of RegLocation for Method* */
+  cUnit->methodLoc = cUnit->regLocation[cUnit->methodSReg];
+
   if (cUnit->printMe && !(cUnit->disableOpt & (1 << kPromoteRegs))) {
     LOG(INFO) << "After Promotion";
     oatDumpRegLocTable(cUnit->regLocation, cUnit->numSSARegs);
   }
 
-  /* Figure out the frame size */
-  static const uint32_t kAlignMask = kStackAlignment - 1;
-  uint32_t size = (cUnit->numCoreSpills + cUnit->numFPSpills +
-                   1 /* filler word */ + cUnit->numRegs + cUnit->numOuts +
-                   cUnit->numCompilerTemps + 1 /* curMethod* */)
-                   * sizeof(uint32_t);
-  /* Align and set */
-  cUnit->frameSize = (size + kAlignMask) & ~(kAlignMask);
+  /* Set the frame size */
+  cUnit->frameSize = oatComputeFrameSize(cUnit);
 }
 
 }  // namespace art

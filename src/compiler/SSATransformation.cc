@@ -206,7 +206,6 @@ void computeDFSOrders(CompilationUnit* cUnit)
   if (mismatch) {
     LOG(INFO) << "Mismatch for "
               << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
-    oatDumpCFG(cUnit, "/tmp/");
     LOG(INFO) << "New dfs";
     for (unsigned int i = 0; i < cUnit->dfsOrder.numUsed; i++) {
       LOG(INFO) << i << " - " << cUnit->dfsOrder.elemList[i];
