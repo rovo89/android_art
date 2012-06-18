@@ -621,6 +621,8 @@ class SharedLibrary {
    * If the call has not yet finished in another thread, wait for it.
    */
   bool CheckOnLoadResult() {
+    MutexLock mu(jni_on_load_lock_);
+
     Thread* self = Thread::Current();
     if (jni_on_load_thread_id_ == self->GetThinLockId()) {
       // Check this so we don't end up waiting for ourselves.  We need
@@ -630,7 +632,6 @@ class SharedLibrary {
       return true;
     }
 
-    MutexLock mu(jni_on_load_lock_);
     while (jni_on_load_result_ == kPending) {
       VLOG(jni) << "[" << *self << " waiting for \"" << path_ << "\" "
                 << "JNI_OnLoad...]";
@@ -645,11 +646,12 @@ class SharedLibrary {
   }
 
   void SetResult(bool result) {
+    MutexLock mu(jni_on_load_lock_);
+
     jni_on_load_result_ = result ? kOkay : kFailed;
     jni_on_load_thread_id_ = 0;
 
     // Broadcast a wakeup to anybody sleeping on the condition variable.
-    MutexLock mu(jni_on_load_lock_);
     jni_on_load_cond_.Broadcast();
   }
 
@@ -678,9 +680,9 @@ class SharedLibrary {
   // Wait for JNI_OnLoad in other thread.
   ConditionVariable jni_on_load_cond_;
   // Recursive invocation guard.
-  uint32_t jni_on_load_thread_id_;
+  uint32_t jni_on_load_thread_id_ GUARDED_BY(jni_on_load_lock_);
   // Result of earlier JNI_OnLoad call.
-  JNI_OnLoadState jni_on_load_result_;
+  JNI_OnLoadState jni_on_load_result_ GUARDED_BY(jni_on_load_lock_);
 };
 
 // This exists mainly to keep implementation details out of the header file.

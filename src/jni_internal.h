@@ -133,18 +133,18 @@ struct JavaVMExt : public JavaVM {
 
   // Used to hold references to pinned primitive arrays.
   Mutex pins_lock;
-  ReferenceTable pin_table;
+  ReferenceTable pin_table GUARDED_BY(pins_lock);
 
   // JNI global references.
   Mutex globals_lock;
-  IndirectReferenceTable globals;
+  IndirectReferenceTable globals GUARDED_BY(globals_lock);
 
   // JNI weak global references.
   Mutex weak_globals_lock;
-  IndirectReferenceTable weak_globals;
+  IndirectReferenceTable weak_globals GUARDED_BY(weak_globals_lock);
 
   Mutex libraries_lock;
-  Libraries* libraries;
+  Libraries* libraries GUARDED_BY(libraries_lock);
 
   // Used by -Xcheck:jni.
   const JNIInvokeInterface* unchecked_functions;

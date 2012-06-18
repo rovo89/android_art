@@ -171,14 +171,14 @@ static ObjectRegistry* gRegistry = NULL;
 
 // Recent allocation tracking.
 static Mutex gAllocTrackerLock("AllocTracker lock");
-AllocRecord* Dbg::recent_allocation_records_ = NULL; // TODO: CircularBuffer<AllocRecord>
-static size_t gAllocRecordHead = 0;
-static size_t gAllocRecordCount = 0;
+AllocRecord* Dbg::recent_allocation_records_ PT_GUARDED_BY(gAllocTrackerLock) = NULL; // TODO: CircularBuffer<AllocRecord>
+static size_t gAllocRecordHead GUARDED_BY(gAllocTrackerLock) = 0;
+static size_t gAllocRecordCount GUARDED_BY(gAllocTrackerLock) = 0;
 
 // Breakpoints and single-stepping.
 static Mutex gBreakpointsLock("breakpoints lock");
-static std::vector<Breakpoint> gBreakpoints;
-static SingleStepControl gSingleStepControl;
+static std::vector<Breakpoint> gBreakpoints GUARDED_BY(gBreakpointsLock);
+static SingleStepControl gSingleStepControl GUARDED_BY(gBreakpointsLock);
 
 static bool IsBreakpoint(Method* m, uint32_t dex_pc) {
   MutexLock mu(gBreakpointsLock);
@@ -479,9 +479,7 @@ static void SetDebuggerUpdatesEnabledCallback(Thread* t, void* user_data) {
 }
 
 static void SetDebuggerUpdatesEnabled(bool enabled) {
-  Runtime* runtime = Runtime::Current();
-  ScopedThreadListLock thread_list_lock;
-  runtime->GetThreadList()->ForEach(SetDebuggerUpdatesEnabledCallback, &enabled);
+  Runtime::Current()->GetThreadList()->ForEach(SetDebuggerUpdatesEnabledCallback, &enabled);
 }
 
 void Dbg::GoActive() {
@@ -1443,10 +1441,7 @@ void Dbg::GetThreadGroupThreadsImpl(Object* thread_group, JDWP::ObjectId** ppThr
   ThreadListVisitor tlv;
   tlv.thread_group = thread_group;
 
-  {
-    ScopedThreadListLock thread_list_lock;
-    Runtime::Current()->GetThreadList()->ForEach(ThreadListVisitor::Visit, &tlv);
-  }
+  Runtime::Current()->GetThreadList()->ForEach(ThreadListVisitor::Visit, &tlv);
 
   *pThreadCount = tlv.threads.size();
   if (*pThreadCount == 0) {
@@ -1819,6 +1814,7 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
 
   // If the debugger is single-stepping one of our threads, check to
   // see if we're that thread and we've reached a step point.
+  MutexLock mu(gBreakpointsLock);
   if (gSingleStepControl.is_active && gSingleStepControl.thread == self) {
     CHECK(!m->IsNative());
     if (gSingleStepControl.step_depth == JDWP::SD_INTO) {
@@ -1926,6 +1922,8 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     return JDWP::ERR_INVALID_THREAD;
   }
 
+  MutexLock mu(gBreakpointsLock);
+
   // TODO: there's no theoretical reason why we couldn't support single-stepping
   // of multiple threads at once, but we never did so historically.
   if (gSingleStepControl.thread != NULL && thread != gSingleStepControl.thread) {
@@ -1940,10 +1938,12 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
 
   struct SingleStepStackVisitor : public Thread::StackVisitor {
     SingleStepStackVisitor() {
+      MutexLock mu(gBreakpointsLock); // Keep GCC happy.
       gSingleStepControl.method = NULL;
       gSingleStepControl.stack_depth = 0;
     }
     bool VisitFrame(const Frame& f, uintptr_t pc) {
+      MutexLock mu(gBreakpointsLock); // Keep GCC happy.
       if (f.HasMethod()) {
         ++gSingleStepControl.stack_depth;
         if (gSingleStepControl.method == NULL) {
@@ -1974,6 +1974,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     }
 
     static bool Callback(void* raw_context, uint32_t address, uint32_t line_number) {
+      MutexLock mu(gBreakpointsLock); // Keep GCC happy.
       DebugCallbackContext* context = reinterpret_cast<DebugCallbackContext*>(raw_context);
       if (static_cast<int32_t>(line_number) == gSingleStepControl.line_number) {
         if (!context->last_pc_valid) {
@@ -1994,6 +1995,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
     }
 
     ~DebugCallbackContext() {
+      MutexLock mu(gBreakpointsLock); // Keep GCC happy.
       // If the line number was the last in the position table...
       if (last_pc_valid) {
         size_t end = MethodHelper(gSingleStepControl.method).GetCodeItem()->insns_size_in_code_units_;
@@ -2043,6 +2045,8 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
 }
 
 void Dbg::UnconfigureStep(JDWP::ObjectId /*threadId*/) {
+  MutexLock mu(gBreakpointsLock);
+
   gSingleStepControl.is_active = false;
   gSingleStepControl.thread = NULL;
   gSingleStepControl.dex_pcs.clear();
@@ -2890,7 +2894,7 @@ void Dbg::RecordAllocation(Class* type, size_t byte_count) {
 //
 // We need to handle underflow in our circular buffer, so we add
 // kNumAllocRecords and then mask it back down.
-static inline int HeadIndex() {
+static inline int HeadIndex() EXCLUSIVE_LOCKS_REQUIRED(gAllocTrackerLock) {
   return (gAllocRecordHead+1 + kNumAllocRecords - gAllocRecordCount) & (kNumAllocRecords-1);
 }
 

@@ -299,23 +299,23 @@ class Compiler {
   typedef SafeMap<const ClassReference, CompiledClass*> ClassTable;
   // All class references that this compiler has compiled
   mutable Mutex compiled_classes_lock_;
-  ClassTable compiled_classes_;
+  ClassTable compiled_classes_ GUARDED_BY(compiled_classes_lock_);
 
   typedef SafeMap<const MethodReference, CompiledMethod*> MethodTable;
   // All method references that this compiler has compiled
   mutable Mutex compiled_methods_lock_;
-  MethodTable compiled_methods_;
+  MethodTable compiled_methods_ GUARDED_BY(compiled_methods_lock_);
 
   typedef SafeMap<std::string, const CompiledInvokeStub*> InvokeStubTable;
   // Invocation stubs created to allow invocation of the compiled methods
   mutable Mutex compiled_invoke_stubs_lock_;
-  InvokeStubTable compiled_invoke_stubs_;
+  InvokeStubTable compiled_invoke_stubs_ GUARDED_BY(compiled_invoke_stubs_lock_);
 
 #if defined(ART_USE_LLVM_COMPILER)
   typedef SafeMap<std::string, const CompiledInvokeStub*> ProxyStubTable;
   // Proxy stubs created for proxy invocation delegation
   mutable Mutex compiled_proxy_stubs_lock_;
-  ProxyStubTable compiled_proxy_stubs_;
+  ProxyStubTable compiled_proxy_stubs_ GUARDED_BY(compiled_proxy_stubs_lock_);
 #endif
 
   bool image_;

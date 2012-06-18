@@ -92,7 +92,7 @@ struct JdwpEvent {
   JdwpEvent* next;
 
   JdwpEventKind eventKind;      /* what kind of event is this? */
-  JdwpSuspendPolicy suspendPolicy;  /* suspend all, none, or self? */
+  JdwpSuspendPolicy suspend_policy;  /* suspend all, none, or self? */
   int modCount;       /* #of entries in mods[] */
   uint32_t requestId;      /* serial#, reported to debugger */
 

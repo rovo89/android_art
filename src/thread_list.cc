@@ -395,7 +395,7 @@ void ThreadList::Unregister() {
 }
 
 void ThreadList::ForEach(void (*callback)(Thread*, void*), void* context) {
-  thread_list_lock_.AssertHeld();
+  ScopedThreadListLock thread_list_lock;
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     callback(*it, context);
   }
@@ -446,10 +446,10 @@ void ThreadList::SignalGo(Thread* child) {
 
 void ThreadList::WaitForGo() {
   Thread* self = Thread::Current();
-  DCHECK(Contains(self));
 
   {
     ScopedThreadListLock thread_list_lock;
+    DCHECK(Contains(self));
 
     // Tell our parent that we're in the thread list.
     VLOG(threads) << *self << " telling parent that we're now in thread list...";

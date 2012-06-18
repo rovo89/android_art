@@ -118,7 +118,7 @@ struct JdwpState {
    *
    * Returns a newly-allocated JdwpState struct on success, or NULL on failure.
    */
-  static JdwpState* Create(const JdwpOptions* options);
+  static JdwpState* Create(const JdwpOptions* options) NO_THREAD_SAFETY_ANALYSIS; // TODO: make GCC understand.
 
   ~JdwpState();
 
@@ -264,11 +264,15 @@ struct JdwpState {
   explicit JdwpState(const JdwpOptions* options);
   bool InvokeInProgress();
   bool IsConnected();
-  void SuspendByPolicy(JdwpSuspendPolicy suspendPolicy);
-  void CleanupMatchList(JdwpEvent** matchList, int matchCount);
+  void SuspendByPolicy(JdwpSuspendPolicy suspend_policy);
+  void CleanupMatchList(JdwpEvent** match_list,
+                        int match_count) EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_);
   void EventFinish(ExpandBuf* pReq);
-  void FindMatchingEvents(JdwpEventKind eventKind, ModBasket* basket, JdwpEvent** matchList, int* pMatchCount);
-  void UnregisterEvent(JdwpEvent* pEvent);
+  void FindMatchingEvents(JdwpEventKind eventKind,
+                          ModBasket* basket,
+                          JdwpEvent** match_list,
+                          int* pMatchCount) EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_);
+  void UnregisterEvent(JdwpEvent* pEvent) EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_);
 
 public: // TODO: fix privacy
   const JdwpOptions* options_;
@@ -299,17 +303,17 @@ private:
   int64_t lastActivityWhen;
 
   /* global counters and a mutex to protect them */
-  uint32_t requestSerial;
-  uint32_t eventSerial;
   Mutex serial_lock_;
+  uint32_t request_serial_ GUARDED_BY(serial_lock_);
+  uint32_t event_serial_ GUARDED_BY(serial_lock_);
 
   /*
    * Events requested by the debugger (breakpoints, class prep, etc).
    */
 public: // TODO: fix privacy
-  int numEvents;      /* #of elements in eventList */
-  JdwpEvent* eventList;      /* linked list of events */
-  Mutex event_lock_;      /* guards numEvents/eventList */
+  Mutex event_list_lock_;
+  JdwpEvent* event_list_ GUARDED_BY(event_list_lock_); // Linked list of events.
+  int event_list_size_ GUARDED_BY(event_list_lock_); // Number of elements in event_list_.
 private:
 
   /*

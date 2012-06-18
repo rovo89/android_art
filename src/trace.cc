@@ -485,7 +485,6 @@ static void DumpThread(Thread* t, void* arg) {
 }
 
 void Trace::DumpThreadList(std::ostream& os) {
-  ScopedThreadListLock thread_list_lock;
   Runtime::Current()->GetThreadList()->ForEach(DumpThread, &os);
 }
 
@@ -495,12 +494,7 @@ void Trace::InstallStubs() {
 
 void Trace::UninstallStubs() {
   Runtime::Current()->GetClassLinker()->VisitClasses(UninstallStubsClassVisitor, NULL);
-
-  // Restore stacks of all threads
-  {
-    ScopedThreadListLock thread_list_lock;
-    Runtime::Current()->GetThreadList()->ForEach(TraceRestoreStack, NULL);
-  }
+  Runtime::Current()->GetThreadList()->ForEach(TraceRestoreStack, NULL);
 }
 
 uint32_t TraceMethodUnwindFromCode(Thread* self) {
