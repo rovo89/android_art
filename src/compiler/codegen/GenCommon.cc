@@ -898,19 +898,20 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
         funcOffset = ENTRYPOINT_OFFSET(pThrowNullPointerFromCode);
         break;
       case kThrowArrayBounds:
+#if defined (TARGET_X86)
+        // x86 leaves the array pointer in v2, so load the array length that the handler expects
+        opRegMem(cUnit, kOpMov, v2, v2, Array::LengthOffset().Int32Value());
+#endif
+        // Move v1 (array index) to rARG0 and v2 (array length) to rARG1
         if (v2 != rARG0) {
           opRegCopy(cUnit, rARG0, v1);
           opRegCopy(cUnit, rARG1, v2);
         } else {
           if (v1 == rARG1) {
-#if defined(TARGET_ARM)
-            int rTmp = r12;
-#else
-            int rTmp = oatAllocTemp(cUnit);
-#endif
-            opRegCopy(cUnit, rTmp, v1);
+            // Swap v1 and v2, using rARG2 as a temp
+            opRegCopy(cUnit, rARG2, v1);
             opRegCopy(cUnit, rARG1, v2);
-            opRegCopy(cUnit, rARG0, rTmp);
+            opRegCopy(cUnit, rARG0, rARG2);
           } else {
             opRegCopy(cUnit, rARG1, v2);
             opRegCopy(cUnit, rARG0, v1);
