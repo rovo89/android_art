@@ -206,10 +206,13 @@ export TEST_NAME=`basename ${test_dir}`
 good="no"
 if [ "$dev_mode" = "yes" ]; then
     "./${build}" 2>&1
-    echo "build exit status: $?" 1>&2
-    "./${run}" $run_args "$@" 2>&1
-    echo "run exit status: $?" 1>&2
-    good="yes"
+    build_exit="$?"
+    echo "build exit status: $build_exit" 1>&2
+    if [ "$build_exit" = '0' ]; then
+      "./${run}" $run_args "$@" 2>&1
+      echo "run exit status: $?" 1>&2
+      good="yes"
+    fi
 elif [ "$update_mode" = "yes" ]; then
     "./${build}" >"$build_output" 2>&1
     build_exit="$?"
@@ -241,7 +244,7 @@ fi
 if [ "$good" = "yes" ]; then
     cd "$oldwd"
     rm -rf "$tmp_dir"
-    if [ "$target_mode" = "yes" ]; then
+    if [ "$target_mode" = "yes" -a "$build_exit" = "0" ]; then
         adb shell rm -r $DEX_LOCATION
     fi
     exit 0
