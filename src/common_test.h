@@ -542,6 +542,7 @@ class CheckJniAbortCatcher {
   ~CheckJniAbortCatcher() {
     vm_->check_jni_abort_hook = NULL;
     vm_->check_jni_abort_hook_data = NULL;
+    EXPECT_TRUE(actual_.empty()) << actual_;
   }
 
   void Check(const char* expected_text) {
