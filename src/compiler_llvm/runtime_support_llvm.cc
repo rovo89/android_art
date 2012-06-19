@@ -497,11 +497,34 @@ Object* art_get_obj_instance_from_code(uint32_t field_idx, Method* referrer, Obj
   return 0;
 }
 
-Object* art_decode_jobject_in_thread(Thread* thread, jobject obj) {
-  if (thread->IsExceptionPending()) {
+Object* art_decode_jobject_in_thread(Thread* self, jobject java_object) {
+  if (self->IsExceptionPending()) {
     return NULL;
   }
-  return thread->DecodeJObject(obj);
+  Object* o = self->DecodeJObject(java_object);
+  if (o == NULL || !self->GetJniEnv()->check_jni) {
+    return o;
+  }
+
+  if (o == kInvalidIndirectRefObject) {
+    LOG(ERROR) << "JNI ERROR (app bug): invalid reference returned from "
+               << PrettyMethod(self->GetCurrentMethod());
+    JniAbort(NULL);
+  }
+
+  // Make sure that the result is an instance of the type this
+  // method was expected to return.
+  Method* m = self->GetCurrentMethod();
+  MethodHelper mh(m);
+  Class* return_type = mh.GetReturnType();
+
+  if (!o->InstanceOf(return_type)) {
+    LOG(ERROR) << "JNI ERROR (app bug): attempt to return an instance of " << PrettyTypeOf(o)
+               << " from " << PrettyMethod(m);
+    JniAbort(NULL);
+  }
+
+  return o;
 }
 
 void art_fill_array_data_from_code(Method* method, uint32_t dex_pc,
