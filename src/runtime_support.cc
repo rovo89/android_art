@@ -104,14 +104,12 @@ void ThrowNewIllegalAccessErrorClassForMethodDispatch(Thread* self,
                                                       const Method* caller,
                                                       const Method* called,
                                                       InvokeType type) {
-  std::ostringstream type_stream;
-  type_stream << type;
   self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
                            "illegal class access ('%s' -> '%s')"
                            "in attempt to invoke %s method '%s' from '%s'",
                            PrettyDescriptor(referrer).c_str(),
                            PrettyDescriptor(accessed).c_str(),
-                           type_stream.str().c_str(),
+                           ToStr<InvokeType>(type).c_str(),
                            PrettyMethod(called).c_str(),
                            PrettyMethod(caller).c_str());
 }
@@ -169,11 +167,9 @@ void ThrowNullPointerExceptionForMethodAccess(Thread* self,
                                               InvokeType type) {
   const DexFile& dex_file =
       Runtime::Current()->GetClassLinker()->FindDexFile(caller->GetDeclaringClass()->GetDexCache());
-  std::ostringstream type_stream;
-  type_stream << type;
   self->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
                            "Attempt to invoke %s method '%s' on a null object reference",
-                           type_stream.str().c_str(),
+                           ToStr<InvokeType>(type).c_str(),
                            PrettyMethod(method_idx, dex_file, true).c_str());
 }
 
@@ -234,6 +230,10 @@ void ThrowNullPointerExceptionFromDexPC(Thread* self, Method* throw_method, uint
     case Instruction::APUT_SHORT:
       self->ThrowNewException("Ljava/lang/NullPointerException;",
                               "Attempt to write to null array");
+      break;
+    case Instruction::ARRAY_LENGTH:
+      self->ThrowNewException("Ljava/lang/NullPointerException;",
+                              "Attempt to get length of null array");
       break;
     default: {
       const DexFile& dex_file = Runtime::Current()->GetClassLinker()

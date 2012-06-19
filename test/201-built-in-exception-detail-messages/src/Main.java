@@ -24,6 +24,8 @@ public class Main {
     arrayStore();
     classCast();
     classNotFound();
+    negativeArraySize();
+    nullPointers();
     reflection();
     stringIndex();
   }
@@ -275,6 +277,71 @@ public class Main {
     }
   }
 
+  private static void negativeArraySize() throws Exception {
+    try {
+      int[] is = new int[-123];
+      fail();
+    } catch (NegativeArraySizeException ex) {
+      assertEquals("-123", ex.getMessage());
+    }
+  }
+
+  private static void nullPointers() throws Exception {
+    // Invoke method.
+    try {
+      Object o = null;
+      o.hashCode();
+      fail();
+    } catch (NullPointerException ex) {
+      assertEquals("Attempt to invoke virtual method 'int java.lang.Object.hashCode()' on a null object reference", ex.getMessage());
+    }
+
+    // Read field.
+    try {
+      A a = null;
+      int i = a.i;
+      fail();
+    } catch (NullPointerException ex) {
+      assertEquals("Attempt to read from field 'int A.i' on a null object reference", ex.getMessage());
+    }
+
+    // Write field.
+    try {
+      A a = null;
+      a.i = 1;
+      fail();
+    } catch (NullPointerException ex) {
+      assertEquals("Attempt to write to field 'int A.i' on a null object reference", ex.getMessage());
+    }
+
+    // Read array.
+    try {
+      int[] is = null;
+      int i = is[0];
+      fail();
+    } catch (NullPointerException ex) {
+      assertEquals("Attempt to read from null array", ex.getMessage());
+    }
+
+    // Write array.
+    try {
+      int[] is = null;
+      is[0] = 1;
+      fail();
+    } catch (NullPointerException ex) {
+      assertEquals("Attempt to write to null array", ex.getMessage());
+    }
+
+    // Invoke method.
+    try {
+      int[] is = null;
+      int i = is.length;
+      fail();
+    } catch (NullPointerException ex) {
+      assertEquals("Attempt to get length of null array", ex.getMessage());
+    }
+  }
+
   private static void reflection() throws Exception {
     // Can't assign Integer to a String field.
     try {
@@ -319,6 +386,42 @@ public class Main {
       fail();
     } catch (IllegalArgumentException expected) {
       assertEquals("method A.m argument 1 has type int, got null", expected.getMessage());
+    }
+
+    try {
+      Method m = String.class.getMethod("charAt", int.class);
+      m.invoke("hello"); // Wrong number of arguments.
+      fail();
+    } catch (IllegalArgumentException iae) {
+      assertEquals("wrong number of arguments; expected 1, got 0", iae.getMessage());
+    }
+    try {
+      Method m = String.class.getMethod("charAt", int.class);
+      m.invoke("hello", "world"); // Wrong type.
+      fail();
+    } catch (IllegalArgumentException iae) {
+      assertEquals("method java.lang.String.charAt argument 1 has type int, got java.lang.String", iae.getMessage());
+    }
+    try {
+      Method m = String.class.getMethod("charAt", int.class);
+      m.invoke("hello", (Object) null); // Null for a primitive argument.
+      fail();
+    } catch (IllegalArgumentException iae) {
+      assertEquals("method java.lang.String.charAt argument 1 has type int, got null", iae.getMessage());
+    }
+    try {
+      Method m = String.class.getMethod("charAt", int.class);
+      m.invoke(new Integer(5)); // Wrong type for 'this'.
+      fail();
+    } catch (IllegalArgumentException iae) {
+      assertEquals("expected receiver of type java.lang.String, but got java.lang.Integer", iae.getMessage());
+    }
+    try {
+      Method m = String.class.getMethod("charAt", int.class);
+      m.invoke(null); // Null for 'this'.
+      fail();
+    } catch (NullPointerException npe) {
+      assertEquals("expected receiver of type java.lang.String, but got null", npe.getMessage());
     }
   }
 

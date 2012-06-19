@@ -245,9 +245,7 @@ static std::string MakeCompilerSoName(InstructionSet instruction_set) {
   }
 
   // Capitalize the instruction set, because that's what we do in the build system.
-  std::ostringstream instruction_set_name_os;
-  instruction_set_name_os << instruction_set;
-  std::string instruction_set_name(instruction_set_name_os.str());
+  std::string instruction_set_name(ToStr<InstructionSet>(instruction_set).str());
   for (size_t i = 0; i < instruction_set_name.size(); ++i) {
     instruction_set_name[i] = toupper(instruction_set_name[i]);
   }
