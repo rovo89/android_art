@@ -33,19 +33,19 @@
 
 namespace art {
 
-void JniAbort(const char* jni_function_name) {
+static void JniAbort(const char* jni_function_name, const char* msg) {
   Thread* self = Thread::Current();
   Method* current_method = self->GetCurrentMethod();
 
   std::ostringstream os;
-  os << "Aborting because JNI app bug detected (see above for details)";
+  os << "JNI DETECTED ERROR IN APPLICATION: " << msg;
 
   if (jni_function_name != NULL) {
-    os << "\n             in call to " << jni_function_name;
+    os << "\n    in call to " << jni_function_name;
   }
   // TODO: is this useful given that we're about to dump the calling thread's stack?
   if (current_method != NULL) {
-    os << "\n             from " << PrettyMethod(current_method);
+    os << "\n    from " << PrettyMethod(current_method);
   }
   os << "\n";
   self->Dump(os);
@@ -57,6 +57,19 @@ void JniAbort(const char* jni_function_name) {
     self->SetState(kNative); // Ensure that we get a native stack trace for this thread.
     LOG(FATAL) << os.str();
   }
+}
+
+static void JniAbortV(const char* jni_function_name, const char* fmt, va_list ap) {
+  std::string msg;
+  StringAppendV(&msg, fmt, ap);
+  JniAbort(jni_function_name, msg.c_str());
+}
+
+void JniAbortF(const char* jni_function_name, const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  JniAbortV(jni_function_name, fmt, args);
+  va_end(args);
 }
 
 /*
@@ -75,32 +88,28 @@ T Decode(ScopedJniThreadState& ts, jobject obj) {
   return reinterpret_cast<T>(ts.Self()->DecodeJObject(obj));
 }
 
-/*
- * Hack to allow forcecopy to work with jniGetNonMovableArrayElements.
- * The code deliberately uses an invalid sequence of operations, so we
- * need to pass it through unmodified.  Review that code before making
- * any changes here.
- */
+// Hack to allow forcecopy to work with jniGetNonMovableArrayElements.
+// The code deliberately uses an invalid sequence of operations, so we
+// need to pass it through unmodified.  Review that code before making
+// any changes here.
 #define kNoCopyMagic    0xd5aab57f
 
-/*
- * Flags passed into ScopedCheck.
- */
+// Flags passed into ScopedCheck.
 #define kFlag_Default       0x0000
 
-#define kFlag_CritBad       0x0000      /* calling while in critical is bad */
-#define kFlag_CritOkay      0x0001      /* ...okay */
-#define kFlag_CritGet       0x0002      /* this is a critical "get" */
-#define kFlag_CritRelease   0x0003      /* this is a critical "release" */
-#define kFlag_CritMask      0x0003      /* bit mask to get "crit" value */
+#define kFlag_CritBad       0x0000      // Calling while in critical is not allowed.
+#define kFlag_CritOkay      0x0001      // Calling while in critical is allowed.
+#define kFlag_CritGet       0x0002      // This is a critical "get".
+#define kFlag_CritRelease   0x0003      // This is a critical "release".
+#define kFlag_CritMask      0x0003      // Bit mask to get "crit" value.
 
-#define kFlag_ExcepBad      0x0000      /* raised exceptions are bad */
-#define kFlag_ExcepOkay     0x0004      /* ...okay */
+#define kFlag_ExcepBad      0x0000      // Raised exceptions are not allowed.
+#define kFlag_ExcepOkay     0x0004      // Raised exceptions are allowed.
 
-#define kFlag_Release       0x0010      /* are we in a non-critical release function? */
-#define kFlag_NullableUtf   0x0020      /* are our UTF parameters nullable? */
+#define kFlag_Release       0x0010      // Are we in a non-critical release function?
+#define kFlag_NullableUtf   0x0020      // Are our UTF parameters nullable?
 
-#define kFlag_Invocation    0x8000      /* Part of the invocation interface (JavaVM*) */
+#define kFlag_Invocation    0x8000      // Part of the invocation interface (JavaVM*).
 
 #define kFlag_ForceTrace    0x80000000  // Add this to a JNI function's flags if you want to trace every call.
 
@@ -116,7 +125,7 @@ static const char* gBuiltInPrefixes[] = {
   NULL
 };
 
-bool ShouldTrace(JavaVMExt* vm, const Method* method) {
+static bool ShouldTrace(JavaVMExt* vm, const Method* method) {
   // If both "-Xcheck:jni" and "-Xjnitrace:" are enabled, we print trace messages
   // when a native method that matches the -Xjnitrace argument calls a JNI function
   // such as NewByteArray.
@@ -162,9 +171,10 @@ class ScopedCheck {
   // circumstances, but this is incorrect.
   void CheckClassName(const char* class_name) {
     if (!IsValidJniClassName(class_name)) {
-      LOG(ERROR) << "JNI ERROR: illegal class name '" << class_name << "' (" << function_name_ << ")\n"
-                 << "           (should be of the form 'java/lang/String', [Ljava/lang/String;' or '[[B')\n";
-      JniAbort();
+      JniAbortF(function_name_,
+                "illegal class name '%s'\n"
+                "    (should be of the form 'package/Class', [Lpackage/Class;' or '[[B')",
+                class_name);
     }
   }
 
@@ -184,36 +194,33 @@ class ScopedCheck {
     if (!field_type->IsPrimitive()) {
       if (java_object != NULL) {
         Object* obj = Decode<Object*>(ts, java_object);
-        /*
-         * If java_object is a weak global ref whose referent has been cleared,
-         * obj will be NULL.  Otherwise, obj should always be non-NULL
-         * and valid.
-         */
+        // If java_object is a weak global ref whose referent has been cleared,
+        // obj will be NULL.  Otherwise, obj should always be non-NULL
+        // and valid.
         if (!Runtime::Current()->GetHeap()->IsHeapAddress(obj)) {
-          LOG(ERROR) << "JNI ERROR: field operation on invalid " << GetIndirectRefKind(java_object) << ": " << java_object;
-          JniAbort();
+          JniAbortF(function_name_, "field operation on invalid %s: %p",
+                    ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(), java_object);
           return;
         } else {
           if (!obj->InstanceOf(field_type)) {
-            LOG(ERROR) << "JNI ERROR: attempt to set field " << PrettyField(f) << " with value of wrong type: " << PrettyTypeOf(obj);
-            JniAbort();
+            JniAbortF(function_name_, "attempt to set field %s with value of wrong type: %s",
+                      PrettyField(f).c_str(), PrettyTypeOf(obj).c_str());
             return;
           }
         }
       }
     } else if (field_type != Runtime::Current()->GetClassLinker()->FindPrimitiveClass(prim)) {
-      LOG(ERROR) << "JNI ERROR: attempt to set field " << PrettyField(f) << " with value of wrong type: " << prim;
-      JniAbort();
+      JniAbortF(function_name_, "attempt to set field %s with value of wrong type: %c",
+                PrettyField(f).c_str(), prim);
       return;
     }
 
-    if (isStatic && !f->IsStatic()) {
+    if (isStatic != f->IsStatic()) {
       if (isStatic) {
-        LOG(ERROR) << "JNI ERROR: accessing non-static field " << PrettyField(f) << " as static";
+        JniAbortF(function_name_, "accessing non-static field %s as static", PrettyField(f).c_str());
       } else {
-        LOG(ERROR) << "JNI ERROR: accessing static field " << PrettyField(f) << " as non-static";
+        JniAbortF(function_name_, "accessing static field %s as non-static", PrettyField(f).c_str());
       }
-      JniAbort();
       return;
     }
   }
@@ -228,8 +235,8 @@ class ScopedCheck {
 
     Object* o = Decode<Object*>(ts, java_object);
     if (o == NULL || !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
-      LOG(ERROR) << "JNI ERROR: field operation on invalid " << GetIndirectRefKind(java_object) << ": " << java_object;
-      JniAbort();
+      JniAbortF(function_name_, "field operation on invalid %s: %p",
+                ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(), java_object);
       return;
     }
 
@@ -240,9 +247,8 @@ class ScopedCheck {
     Class* c = o->GetClass();
     FieldHelper fh(f);
     if (c->FindInstanceField(fh.GetName(), fh.GetTypeDescriptor()) == NULL) {
-      LOG(ERROR) << "JNI ERROR: jfieldID " << PrettyField(f)
-                 << " not valid for an object of class " << PrettyTypeOf(o);
-      JniAbort();
+      JniAbortF(function_name_, "jfieldID %s not valid for an object of class %s",
+                PrettyField(f).c_str(), PrettyTypeOf(o).c_str());
     }
   }
 
@@ -251,8 +257,7 @@ class ScopedCheck {
    */
   void CheckNonNull(const void* ptr) {
     if (ptr == NULL) {
-      LOG(ERROR) << "JNI ERROR: invalid null pointer";
-      JniAbort();
+      JniAbortF(function_name_, "non-nullable argument was NULL");
     }
   }
 
@@ -267,18 +272,17 @@ class ScopedCheck {
       return;
     }
     if (*expectedType != MethodHelper(m).GetShorty()[0]) {
-      LOG(ERROR) << "JNI ERROR: the return type of " << function_name_ << " does not match "
-                 << PrettyMethod(m);
-      JniAbort();
-    } else if (isStatic && !m->IsStatic()) {
+      JniAbortF(function_name_, "the return type of %s does not match %s",
+                function_name_, PrettyMethod(m).c_str());
+    }
+    if (isStatic != m->IsStatic()) {
       if (isStatic) {
-        LOG(ERROR) << "JNI ERROR: calling non-static method "
-                   << PrettyMethod(m) << " with " << function_name_;
+        JniAbortF(function_name_, "calling non-static method %s with %s",
+                  PrettyMethod(m).c_str(), function_name_);
       } else {
-        LOG(ERROR) << "JNI ERROR: calling static method "
-                   << PrettyMethod(m) << " with non-static " << function_name_;
+        JniAbortF(function_name_, "calling static method %s with %s",
+                  PrettyMethod(m).c_str(), function_name_);
       }
-      JniAbort();
     }
   }
 
@@ -295,8 +299,8 @@ class ScopedCheck {
       return;
     }
     if (f->GetDeclaringClass() != c) {
-      LOG(ERROR) << "JNI ERROR: static jfieldID " << fid << " not valid for class " << PrettyClass(c);
-      JniAbort();
+      JniAbortF(function_name_, "static jfieldID %p not valid for class %s",
+                fid, PrettyClass(c).c_str());
     }
   }
 
@@ -317,8 +321,8 @@ class ScopedCheck {
     }
     Class* c = Decode<Class*>(ts, java_class);
     if (!c->IsAssignableFrom(m->GetDeclaringClass())) {
-      LOG(ERROR) << "JNI ERROR: can't call static " << PrettyMethod(m) << " on class " << PrettyClass(c);
-      JniAbort();
+      JniAbortF(function_name_, "can't call static %s on class %s",
+                PrettyMethod(m).c_str(), PrettyClass(c).c_str());
     }
   }
 
@@ -337,8 +341,8 @@ class ScopedCheck {
     }
     Object* o = Decode<Object*>(ts, java_object);
     if (!o->InstanceOf(m->GetDeclaringClass())) {
-      LOG(ERROR) << "JNI ERROR: can't call " << PrettyMethod(m) << " on instance of " << PrettyTypeOf(o);
-      JniAbort();
+      JniAbortF(function_name_, "can't call %s on instance of %s",
+                PrettyMethod(m).c_str(), PrettyTypeOf(o).c_str());
     }
   }
 
@@ -500,8 +504,7 @@ class ScopedCheck {
         } else if (ch == '.') {
           msg += "...";
         } else {
-          LOG(ERROR) << "unknown trace format specifier: " << ch;
-          JniAbort();
+          JniAbortF(function_name_, "unknown trace format specifier: %c", ch);
           return;
         }
         if (*fmt) {
@@ -603,17 +606,15 @@ class ScopedCheck {
     }
 
     if (java_object == NULL) {
-      LOG(ERROR) << "JNI ERROR: " << function_name_ << " received null " << what;
-      JniAbort();
+      JniAbortF(function_name_, "%s received null %s", function_name_, what);
       return false;
     }
 
     ScopedJniThreadState ts(env_);
     Object* obj = Decode<Object*>(ts, java_object);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(obj)) {
-      LOG(ERROR) << "JNI ERROR: " << what << " is an invalid " << GetIndirectRefKind(java_object) << ": "
-                 << java_object << " (" << obj << ")";
-      JniAbort();
+      JniAbortF(function_name_, "%s is an invalid %s: %p (%p)",
+                what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(), java_object, obj);
       return false;
     }
 
@@ -635,8 +636,7 @@ class ScopedCheck {
       break;
     }
     if (!okay) {
-      LOG(ERROR) << "JNI ERROR: " << what << " has wrong type: " << PrettyTypeOf(obj);
-      JniAbort();
+      JniAbortF(function_name_, "%s has wrong type: %s", what, PrettyTypeOf(obj).c_str());
       return false;
     }
 
@@ -662,39 +662,34 @@ class ScopedCheck {
    */
   void CheckArray(jarray java_array) {
     if (java_array == NULL) {
-      LOG(ERROR) << "JNI ERROR: received null array";
-      JniAbort();
+      JniAbortF(function_name_, "jarray was NULL");
       return;
     }
 
     ScopedJniThreadState ts(env_);
     Array* a = Decode<Array*>(ts, java_array);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(a)) {
-      LOG(ERROR) << "JNI ERROR: jarray is an invalid " << GetIndirectRefKind(java_array) << ": " << reinterpret_cast<void*>(java_array) << " (" << a << ")";
-      JniAbort();
+      JniAbortF(function_name_, "jarray is an invalid %s: %p (%p)",
+                ToStr<IndirectRefKind>(GetIndirectRefKind(java_array)).c_str(), java_array, a);
     } else if (!a->IsArrayInstance()) {
-      LOG(ERROR) << "JNI ERROR: jarray argument has non-array type: " << PrettyTypeOf(a);
-      JniAbort();
+      JniAbortF(function_name_, "jarray argument has non-array type: %s", PrettyTypeOf(a).c_str());
     }
   }
 
   void CheckLengthPositive(jsize length) {
     if (length < 0) {
-      LOG(ERROR) << "JNI ERROR: negative jsize: " << length;
-      JniAbort();
+      JniAbortF(function_name_, "negative jsize: %d", length);
     }
   }
 
   Field* CheckFieldID(jfieldID fid) {
     if (fid == NULL) {
-      LOG(ERROR) << "JNI ERROR: null jfieldID";
-      JniAbort();
+      JniAbortF(function_name_, "jfieldID was NULL");
       return NULL;
     }
     Field* f = DecodeField(fid);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(f)) {
-      LOG(ERROR) << "JNI ERROR: invalid jfieldID: " << fid;
-      JniAbort();
+      JniAbortF(function_name_, "invalid jfieldID: %p", fid);
       return NULL;
     }
     return f;
@@ -702,14 +697,12 @@ class ScopedCheck {
 
   Method* CheckMethodID(jmethodID mid) {
     if (mid == NULL) {
-      LOG(ERROR) << "JNI ERROR: null jmethodID";
-      JniAbort();
+      JniAbortF(function_name_, "jmethodID was NULL");
       return NULL;
     }
     Method* m = DecodeMethod(mid);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(m)) {
-      LOG(ERROR) << "JNI ERROR: invalid jmethodID: " << mid;
-      JniAbort();
+      JniAbortF(function_name_, "invalid jmethodID: %p", mid);
       return NULL;
     }
     return m;
@@ -731,8 +724,8 @@ class ScopedCheck {
     Object* o = Decode<Object*>(ts, java_object);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
       // TODO: when we remove work_around_app_jni_bugs, this should be impossible.
-      LOG(ERROR) << "JNI ERROR: native code passing in reference to invalid " << GetIndirectRefKind(java_object) << ": " << java_object;
-      JniAbort();
+      JniAbortF(function_name_, "native code passing in reference to invalid %s: %p",
+                ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(), java_object);
     }
   }
 
@@ -742,58 +735,52 @@ class ScopedCheck {
    */
   void CheckReleaseMode(jint mode) {
     if (mode != 0 && mode != JNI_COMMIT && mode != JNI_ABORT) {
-      LOG(ERROR) << "JNI ERROR: bad value for release mode: " << mode;
-      JniAbort();
+      JniAbortF(function_name_, "bad value for release mode: %d", mode);
     }
   }
 
   void CheckThread(int flags) {
     Thread* self = Thread::Current();
     if (self == NULL) {
-      LOG(ERROR) << "JNI ERROR: a thread is making JNI calls without being attached";
-      JniAbort();
+      JniAbortF(function_name_, "a thread (tid %d) is making JNI calls without being attached", GetTid());
       return;
     }
 
     // Get the *correct* JNIEnv by going through our TLS pointer.
     JNIEnvExt* threadEnv = self->GetJniEnv();
 
-    /*
-     * Verify that the current thread is (a) attached and (b) associated with
-     * this particular instance of JNIEnv.
-     */
+    // Verify that the current thread is (a) attached and (b) associated with
+    // this particular instance of JNIEnv.
     if (env_ != threadEnv) {
-      LOG(ERROR) << "JNI ERROR: thread " << *self << " using JNIEnv* from thread " << *env_->self;
-      // If we're keeping broken code limping along, we need to suppress the abort...
-      if (!vm_->work_around_app_jni_bugs) {
-        JniAbort();
+      if (vm_->work_around_app_jni_bugs) {
+        // If we're keeping broken code limping along, we need to suppress the abort...
+        LOG(ERROR) << "APP BUG DETECTED: thread " << *self << " using JNIEnv* from thread " << *env_->self;
+      } else {
+        JniAbortF(function_name_, "thread %s using JNIEnv* from thread %s",
+                  ToStr<Thread>(*self).c_str(), ToStr<Thread>(*env_->self).c_str());
         return;
       }
     }
 
-    /*
-     * Verify that, if this thread previously made a critical "get" call, we
-     * do the corresponding "release" call before we try anything else.
-     */
+    // Verify that, if this thread previously made a critical "get" call, we
+    // do the corresponding "release" call before we try anything else.
     switch (flags & kFlag_CritMask) {
     case kFlag_CritOkay:    // okay to call this method
       break;
     case kFlag_CritBad:     // not okay to call
       if (threadEnv->critical) {
-        LOG(ERROR) << "JNI ERROR: thread " << *self << " using JNI after critical get";
-        JniAbort();
+        JniAbortF(function_name_, "thread %s using JNI after critical get", ToStr<Thread>(*self).c_str());
         return;
       }
       break;
     case kFlag_CritGet:     // this is a "get" call
-      /* don't check here; we allow nested gets */
+      // Don't check here; we allow nested gets.
       threadEnv->critical++;
       break;
     case kFlag_CritRelease: // this is a "release" call
       threadEnv->critical--;
       if (threadEnv->critical < 0) {
-        LOG(ERROR) << "JNI ERROR: thread " << *self << " called too many critical releases";
-        JniAbort();
+        JniAbortF(function_name_, "thread %s called too many critical releases", ToStr<Thread>(*self).c_str());
         return;
       }
       break;
@@ -801,31 +788,27 @@ class ScopedCheck {
       LOG(FATAL) << "Bad flags (internal error): " << flags;
     }
 
-    /*
-     * Verify that, if an exception has been raised, the native code doesn't
-     * make any JNI calls other than the Exception* methods.
-     */
+    // Verify that, if an exception has been raised, the native code doesn't
+    // make any JNI calls other than the Exception* methods.
     if ((flags & kFlag_ExcepOkay) == 0 && self->IsExceptionPending()) {
       std::string type(PrettyTypeOf(self->GetException()));
-      LOG(ERROR) << "JNI ERROR: JNI " << function_name_ << " called with " << type << " pending";
       // TODO: write native code that doesn't require allocation for dumping an exception.
+      // TODO: do we care any more? art always dumps pending exceptions on aborting threads.
       if (type != "java.lang.OutOfMemoryError") {
-        LOG(ERROR) << "Pending exception is: ";
-        LOG(ERROR) << jniGetStackTrace(env_);
+        JniAbortF(function_name_, "JNI %s called with pending exception: %s",
+                  function_name_, type.c_str(), jniGetStackTrace(env_).c_str());
+      } else {
+        JniAbortF(function_name_, "JNI %s called with %s pending", function_name_, type.c_str());
       }
-      JniAbort();
       return;
     }
   }
 
-  /*
-   * Verify that "bytes" points to valid Modified UTF-8 data.
-   */
+  // Verifies that "bytes" points to valid Modified UTF-8 data.
   void CheckUtfString(const char* bytes, bool nullable) {
     if (bytes == NULL) {
       if (!nullable) {
-        LOG(ERROR) << "JNI ERROR: non-nullable const char* was NULL";
-        JniAbort();
+        JniAbortF(function_name_, "non-nullable const char* was NULL");
         return;
       }
       return;
@@ -834,10 +817,9 @@ class ScopedCheck {
     const char* errorKind = NULL;
     uint8_t utf8 = CheckUtfBytes(bytes, &errorKind);
     if (errorKind != NULL) {
-      LOG(ERROR) << "JNI ERROR: input is not valid Modified UTF-8: "
-                 << "illegal " << errorKind << " byte " << StringPrintf("%#x", utf8) << "\n"
-                 << "           string: '" << bytes << "'";
-      JniAbort();
+      JniAbortF(function_name_,
+                "input is not valid Modified UTF-8: illegal %s byte %#x\n"
+                "    string: '%s'", errorKind, utf8, bytes);
       return;
     }
   }
@@ -889,10 +871,6 @@ class ScopedCheck {
       }
     }
     return 0;
-  }
-
-  void JniAbort() {
-    ::art::JniAbort(function_name_);
   }
 
   JNIEnvExt* env_;
@@ -948,16 +926,16 @@ struct GuardedCopy {
     size_t newLen = ActualLength(len);
     uint8_t* newBuf = DebugAlloc(newLen);
 
-    /* fill it in with a pattern */
+    // Fill it in with a pattern.
     uint16_t* pat = reinterpret_cast<uint16_t*>(newBuf);
     for (size_t i = 0; i < newLen / 2; i++) {
       *pat++ = kGuardPattern;
     }
 
-    /* copy the data in; note "len" could be zero */
+    // Copy the data in; note "len" could be zero.
     memcpy(newBuf + kGuardLen / 2, buf, len);
 
-    /* if modification is not expected, grab a checksum */
+    // If modification is not expected, grab a checksum.
     uLong adler = 0;
     if (!modOkay) {
       adler = adler32(0L, Z_NULL, 0);
@@ -996,65 +974,57 @@ struct GuardedCopy {
     const uint8_t* fullBuf = ActualBuffer(dataBuf);
     const GuardedCopy* pExtra = GuardedCopy::FromData(dataBuf);
 
-    /*
-     * Before we do anything with "pExtra", check the magic number.  We
-     * do the check with memcmp rather than "==" in case the pointer is
-     * unaligned.  If it points to completely bogus memory we're going
-     * to crash, but there's no easy way around that.
-     */
+    // Before we do anything with "pExtra", check the magic number.  We
+    // do the check with memcmp rather than "==" in case the pointer is
+    // unaligned.  If it points to completely bogus memory we're going
+    // to crash, but there's no easy way around that.
     if (memcmp(&pExtra->magic, &kMagicCmp, 4) != 0) {
       uint8_t buf[4];
       memcpy(buf, &pExtra->magic, 4);
-      LOG(ERROR) << StringPrintf("JNI: guard magic does not match "
-          "(found 0x%02x%02x%02x%02x) -- incorrect data pointer %p?",
-          buf[3], buf[2], buf[1], buf[0], dataBuf); /* assume little endian */
-      JniAbort(functionName);
+      JniAbortF(functionName,
+          "guard magic does not match (found 0x%02x%02x%02x%02x) -- incorrect data pointer %p?",
+          buf[3], buf[2], buf[1], buf[0], dataBuf); // Assumes little-endian.
     }
 
     size_t len = pExtra->original_length;
 
-    /* check bottom half of guard; skip over optional checksum storage */
+    // Check bottom half of guard; skip over optional checksum storage.
     const uint16_t* pat = reinterpret_cast<const uint16_t*>(fullBuf);
     for (size_t i = sizeof(GuardedCopy) / 2; i < (kGuardLen / 2 - sizeof(GuardedCopy)) / 2; i++) {
       if (pat[i] != kGuardPattern) {
-        LOG(ERROR) << "JNI: guard pattern(1) disturbed at " << reinterpret_cast<const void*>(fullBuf) << " + " << (i*2);
-        JniAbort(functionName);
+        JniAbortF(functionName, "guard pattern(1) disturbed at %p +%d", fullBuf, i*2);
       }
     }
 
     int offset = kGuardLen / 2 + len;
     if (offset & 0x01) {
-      /* odd byte; expected value depends on endian-ness of host */
+      // Odd byte; expected value depends on endian.
       const uint16_t patSample = kGuardPattern;
-      if (fullBuf[offset] != reinterpret_cast<const uint8_t*>(&patSample)[1]) {
-        LOG(ERROR) << "JNI: guard pattern disturbed in odd byte after "
-                   << reinterpret_cast<const void*>(fullBuf) << " (+" << offset << ") "
-                   << StringPrintf("0x%02x 0x%02x", fullBuf[offset], ((const uint8_t*) &patSample)[1]);
-        JniAbort(functionName);
+      uint8_t expected_byte = reinterpret_cast<const uint8_t*>(&patSample)[1];
+      if (fullBuf[offset] != expected_byte) {
+        JniAbortF(functionName, "guard pattern disturbed in odd byte after %p +%d 0x%02x 0x%02x",
+                  fullBuf, offset, fullBuf[offset], expected_byte);
       }
       offset++;
     }
 
-    /* check top half of guard */
+    // Check top half of guard.
     pat = reinterpret_cast<const uint16_t*>(fullBuf + offset);
     for (size_t i = 0; i < kGuardLen / 4; i++) {
       if (pat[i] != kGuardPattern) {
-        LOG(ERROR) << "JNI: guard pattern(2) disturbed at " << reinterpret_cast<const void*>(fullBuf) << " + " << (offset + i*2);
-        JniAbort(functionName);
+        JniAbortF(functionName, "guard pattern(2) disturbed at %p +%d", fullBuf, offset + i*2);
       }
     }
 
-    /*
-     * If modification is not expected, verify checksum.  Strictly speaking
-     * this is wrong: if we told the client that we made a copy, there's no
-     * reason they can't alter the buffer.
-     */
+    // If modification is not expected, verify checksum.  Strictly speaking
+    // this is wrong: if we told the client that we made a copy, there's no
+    // reason they can't alter the buffer.
     if (!modOkay) {
       uLong adler = adler32(0L, Z_NULL, 0);
       adler = adler32(adler, (const Bytef*)dataBuf, len);
       if (pExtra->adler != adler) {
-        LOG(ERROR) << StringPrintf("JNI: buffer modified (0x%08lx vs 0x%08lx) at addr %p", pExtra->adler, adler, dataBuf);
-        JniAbort(functionName);
+        JniAbortF(functionName, "buffer modified (0x%08lx vs 0x%08lx) at address %p",
+                  pExtra->adler, adler, dataBuf);
       }
     }
   }
@@ -1099,7 +1069,7 @@ struct GuardedCopy {
  * Create a guarded copy of a primitive array.  Modifications to the copied
  * data are allowed.  Returns a pointer to the copied data.
  */
-void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean* isCopy) {
+static void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean* isCopy) {
   ScopedJniThreadState ts(env);
 
   Array* a = Decode<Array*>(ts, java_array);
@@ -1116,7 +1086,7 @@ void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean* isCopy
  * Perform the array "release" operation, which may or may not copy data
  * back into the managed heap, and may or may not release the underlying storage.
  */
-void ReleaseGuardedPACopy(JNIEnv* env, jarray java_array, void* dataBuf, int mode) {
+static void ReleaseGuardedPACopy(JNIEnv* env, jarray java_array, void* dataBuf, int mode) {
   if (reinterpret_cast<uintptr_t>(dataBuf) == kNoCopyMagic) {
     return;
   }
@@ -1249,8 +1219,8 @@ class CheckJNI {
   static void DeleteGlobalRef(JNIEnv* env, jobject globalRef) {
     CHECK_JNI_ENTRY(kFlag_Default | kFlag_ExcepOkay, "EL", env, globalRef);
     if (globalRef != NULL && GetIndirectRefKind(globalRef) != kGlobal) {
-      LOG(ERROR) << "JNI ERROR: DeleteGlobalRef on " << GetIndirectRefKind(globalRef) << ": " << globalRef;
-      JniAbort(__FUNCTION__);
+      JniAbortF(__FUNCTION__, "DeleteGlobalRef on %s: %p",
+                ToStr<IndirectRefKind>(GetIndirectRefKind(globalRef)).c_str(), globalRef);
     } else {
       baseEnv(env)->DeleteGlobalRef(env, globalRef);
       CHECK_JNI_EXIT_VOID();
@@ -1260,8 +1230,8 @@ class CheckJNI {
   static void DeleteWeakGlobalRef(JNIEnv* env, jweak weakGlobalRef) {
     CHECK_JNI_ENTRY(kFlag_Default | kFlag_ExcepOkay, "EL", env, weakGlobalRef);
     if (weakGlobalRef != NULL && GetIndirectRefKind(weakGlobalRef) != kWeakGlobal) {
-      LOG(ERROR) << "JNI ERROR: DeleteWeakGlobalRef on " << GetIndirectRefKind(weakGlobalRef) << ": " << weakGlobalRef;
-      JniAbort(__FUNCTION__);
+      JniAbortF(__FUNCTION__, "DeleteWeakGlobalRef on %s: %p",
+                ToStr<IndirectRefKind>(GetIndirectRefKind(weakGlobalRef)).c_str(), weakGlobalRef);
     } else {
       baseEnv(env)->DeleteWeakGlobalRef(env, weakGlobalRef);
       CHECK_JNI_EXIT_VOID();
@@ -1271,8 +1241,8 @@ class CheckJNI {
   static void DeleteLocalRef(JNIEnv* env, jobject localRef) {
     CHECK_JNI_ENTRY(kFlag_Default | kFlag_ExcepOkay, "EL", env, localRef);
     if (localRef != NULL && GetIndirectRefKind(localRef) != kLocal && !IsSirtLocalRef(env, localRef)) {
-      LOG(ERROR) << "JNI ERROR: DeleteLocalRef on " << GetIndirectRefKind(localRef) << ": " << localRef;
-      JniAbort(__FUNCTION__);
+      JniAbortF(__FUNCTION__, "DeleteLocalRef on %s: %p",
+                ToStr<IndirectRefKind>(GetIndirectRefKind(localRef)).c_str(), localRef);
     } else {
       baseEnv(env)->DeleteLocalRef(env, localRef);
       CHECK_JNI_EXIT_VOID();
@@ -1605,7 +1575,7 @@ struct ForceCopyGetChecker {
     force_copy = sc.ForceCopy();
     no_copy = 0;
     if (force_copy && isCopy != NULL) {
-      /* capture this before the base call tramples on it */
+      // Capture this before the base call tramples on it.
       no_copy = *reinterpret_cast<uint32_t*>(isCopy);
     }
   }
@@ -1662,7 +1632,7 @@ struct ForceCopyGetChecker {
     GET_PRIMITIVE_ARRAY_REGION(_ctype, _jname); \
     SET_PRIMITIVE_ARRAY_REGION(_ctype, _jname);
 
-/* TODO: verify primitive array type matches call type */
+// TODO: verify primitive array type matches call type.
 PRIMITIVE_ARRAY_FUNCTIONS(jboolean, Boolean, 'Z');
 PRIMITIVE_ARRAY_FUNCTIONS(jbyte, Byte, 'B');
 PRIMITIVE_ARRAY_FUNCTIONS(jchar, Char, 'C');
@@ -1781,12 +1751,10 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
   static jobject NewDirectByteBuffer(JNIEnv* env, void* address, jlong capacity) {
     CHECK_JNI_ENTRY(kFlag_Default, "EpJ", env, address, capacity);
     if (address == NULL) {
-      LOG(ERROR) << "JNI ERROR: non-nullable address is NULL";
-      JniAbort(__FUNCTION__);
+      JniAbortF(__FUNCTION__, "non-nullable address is NULL");
     }
     if (capacity <= 0) {
-      LOG(ERROR) << "JNI ERROR: capacity must be greater than 0: " << capacity;
-      JniAbort(__FUNCTION__);
+      JniAbortF(__FUNCTION__, "capacity must be greater than 0: %d", capacity);
     }
     return CHECK_JNI_EXIT("L", baseEnv(env)->NewDirectByteBuffer(env, address, capacity));
   }
