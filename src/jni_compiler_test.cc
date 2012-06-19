@@ -673,7 +673,6 @@ TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Instance) {
   SetUpForTest(class_loader.get(), false, "instanceMethodThatShouldReturnClass", "()Ljava/lang/Class;",
                reinterpret_cast<void*>(&Java_MyClassNatives_instanceMethodThatShouldReturnClass));
 
-#if !defined(ART_USE_LLVM_COMPILER)
   {
     CheckJniAbortCatcher check_jni_abort_catcher;
     // TODO: check type of returns with portable JNI compiler.
@@ -681,7 +680,6 @@ TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Instance) {
     env_->CallObjectMethod(jobj_, jmethod_);
     check_jni_abort_catcher.Check("java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass");
   }
-#endif
 
   CheckJniAbortCatcher check_jni_abort_catcher;
   // Here, we just call the method wrong; we should catch that too.
@@ -694,7 +692,6 @@ TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Static) {
   SetUpForTest(class_loader.get(), true, "staticMethodThatShouldReturnClass", "()Ljava/lang/Class;",
                reinterpret_cast<void*>(&Java_MyClassNatives_staticMethodThatShouldReturnClass));
 
-#if !defined(ART_USE_LLVM_COMPILER)
   {
     CheckJniAbortCatcher check_jni_abort_catcher;
     // TODO: check type of returns with portable JNI compiler.
@@ -702,7 +699,6 @@ TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Static) {
     env_->CallStaticObjectMethod(jklass_, jmethod_);
     check_jni_abort_catcher.Check("java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass");
   }
-#endif
 
   CheckJniAbortCatcher check_jni_abort_catcher;
   // Here, we just call the method wrong; we should catch that too.
