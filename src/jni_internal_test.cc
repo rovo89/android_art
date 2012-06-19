@@ -547,28 +547,33 @@ TEST_F(JniInternalTest, FindClass) {
   EXPECT_CLASS_FOUND("java/lang/String");
   // ...for arrays too, where you must include "L;".
   EXPECT_CLASS_FOUND("[Ljava/lang/String;");
+  // Primitive arrays are okay too, if the primitive type is valid.
+  EXPECT_CLASS_FOUND("[C");
 
   {
-    CheckJniAbortCatcher check_jni_abort_catcher;
-
     // We support . as well as / for compatibility, if -Xcheck:jni is off.
+    CheckJniAbortCatcher check_jni_abort_catcher;
     EXPECT_CLASS_FOUND("java.lang.String");
+    check_jni_abort_catcher.Check("JNI ERROR: app bug found: illegal class name 'java.lang.String'");
     EXPECT_CLASS_NOT_FOUND("Ljava.lang.String;");
+    check_jni_abort_catcher.Check("JNI ERROR: app bug found: illegal class name 'Ljava.lang.String;'");
     EXPECT_CLASS_FOUND("[Ljava.lang.String;");
+    check_jni_abort_catcher.Check("JNI ERROR: app bug found: illegal class name '[Ljava.lang.String;'");
     EXPECT_CLASS_NOT_FOUND("[java.lang.String");
+    check_jni_abort_catcher.Check("JNI ERROR: app bug found: illegal class name '[java.lang.String'");
 
     // You can't include the "L;" in a JNI class descriptor.
     EXPECT_CLASS_NOT_FOUND("Ljava/lang/String;");
+    check_jni_abort_catcher.Check("JNI ERROR: app bug found: illegal class name 'Ljava/lang/String;'");
+
     // But you must include it for an array of any reference type.
     EXPECT_CLASS_NOT_FOUND("[java/lang/String");
+    check_jni_abort_catcher.Check("JNI ERROR: app bug found: illegal class name '[java/lang/String'");
+
+    EXPECT_CLASS_NOT_FOUND("[K");
+    check_jni_abort_catcher.Check("JNI ERROR: app bug found: illegal class name '[K'");
   }
 
-  // Primitive arrays are okay (if the primitive type is valid)...
-  EXPECT_CLASS_FOUND("[C");
-  {
-    CheckJniAbortCatcher check_jni_abort_catcher;
-    EXPECT_CLASS_NOT_FOUND("[K");
-  }
   // But primitive types aren't allowed...
   EXPECT_CLASS_NOT_FOUND("C");
   EXPECT_CLASS_NOT_FOUND("K");
@@ -1022,10 +1027,11 @@ TEST_F(JniInternalTest, GetStringRegion_GetStringUTFRegion) {
 }
 
 TEST_F(JniInternalTest, GetStringUTFChars_ReleaseStringUTFChars) {
+  // Passing in a NULL jstring is ignored normally, but caught by -Xcheck:jni.
   {
-    // Passing in a NULL jstring is ignored normally, but caught by -Xcheck:jni.
     CheckJniAbortCatcher check_jni_abort_catcher;
     EXPECT_TRUE(env_->GetStringUTFChars(NULL, NULL) == NULL);
+    check_jni_abort_catcher.Check("JNI ERROR: app bug found: GetStringUTFChars received null jstring");
   }
 
   jstring s = env_->NewStringUTF("hello");
@@ -1217,10 +1223,11 @@ TEST_F(JniInternalTest, DeleteLocalRef) {
   ASSERT_TRUE(s != NULL);
   env_->DeleteLocalRef(s);
 
+  // Currently, deleting an already-deleted reference is just a CheckJNI warning.
   {
-    // Currently, deleting an already-deleted reference is just a CheckJNI warning.
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteLocalRef(s);
+    check_jni_abort_catcher.Check("JNI ERROR: app bug found: native code passing in reference to invalid local reference: 0x200001");
   }
 
   s = env_->NewStringUTF("");
@@ -1296,10 +1303,11 @@ TEST_F(JniInternalTest, DeleteGlobalRef) {
   ASSERT_TRUE(o != NULL);
   env_->DeleteGlobalRef(o);
 
+  // Currently, deleting an already-deleted reference is just a CheckJNI warning.
   {
-    // Currently, deleting an already-deleted reference is just a CheckJNI warning.
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteGlobalRef(o);
+    check_jni_abort_catcher.Check("JNI ERROR: app bug found: native code passing in reference to invalid global reference: 0x10000e");
   }
 
   jobject o1 = env_->NewGlobalRef(s);
@@ -1337,10 +1345,11 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
   ASSERT_TRUE(o != NULL);
   env_->DeleteWeakGlobalRef(o);
 
+  // Currently, deleting an already-deleted reference is just a CheckJNI warning.
   {
-    // Currently, deleting an already-deleted reference is just a CheckJNI warning.
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteWeakGlobalRef(o);
+    check_jni_abort_catcher.Check("JNI ERROR: app bug found: native code passing in reference to invalid weak global reference: 0x100003");
   }
 
   jobject o1 = env_->NewWeakGlobalRef(s);
@@ -1566,10 +1575,7 @@ TEST_F(JniInternalTest, MonitorEnterExit) {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->MonitorEnter(NULL);
     check_jni_abort_catcher.Check("in call to MonitorEnter");
-  }
 
-  {
-    CheckJniAbortCatcher check_jni_abort_catcher;
     env_->MonitorExit(NULL);
     check_jni_abort_catcher.Check("in call to MonitorExit");
   }

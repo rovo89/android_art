@@ -673,18 +673,17 @@ TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Instance) {
   SetUpForTest(class_loader.get(), false, "instanceMethodThatShouldReturnClass", "()Ljava/lang/Class;",
                reinterpret_cast<void*>(&Java_MyClassNatives_instanceMethodThatShouldReturnClass));
 
-  {
-    CheckJniAbortCatcher check_jni_abort_catcher;
-    // TODO: check type of returns with portable JNI compiler.
-    // This native method is bad, and tries to return a jstring as a jclass.
-    env_->CallObjectMethod(jobj_, jmethod_);
-    check_jni_abort_catcher.Check("java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass");
-  }
-
   CheckJniAbortCatcher check_jni_abort_catcher;
-  // Here, we just call the method wrong; we should catch that too.
+  // TODO: check type of returns with portable JNI compiler.
+  // This native method is bad, and tries to return a jstring as a jclass.
+  env_->CallObjectMethod(jobj_, jmethod_);
+  check_jni_abort_catcher.Check("attempt to return an instance of java.lang.String from java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass()");
+
+  // Here, we just call the method incorrectly; we should catch that too.
   env_->CallVoidMethod(jobj_, jmethod_);
-  check_jni_abort_catcher.Check("Aborting because JNI app bug detected");
+  check_jni_abort_catcher.Check("attempt to return an instance of java.lang.String from java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass()");
+  env_->CallStaticVoidMethod(jklass_, jmethod_);
+  check_jni_abort_catcher.Check("calling non-static method java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass() with CallStaticVoidMethodV");
 }
 
 TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Static) {
@@ -692,18 +691,17 @@ TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Static) {
   SetUpForTest(class_loader.get(), true, "staticMethodThatShouldReturnClass", "()Ljava/lang/Class;",
                reinterpret_cast<void*>(&Java_MyClassNatives_staticMethodThatShouldReturnClass));
 
-  {
-    CheckJniAbortCatcher check_jni_abort_catcher;
-    // TODO: check type of returns with portable JNI compiler.
-    // This native method is bad, and tries to return a jstring as a jclass.
-    env_->CallStaticObjectMethod(jklass_, jmethod_);
-    check_jni_abort_catcher.Check("java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass");
-  }
-
   CheckJniAbortCatcher check_jni_abort_catcher;
-  // Here, we just call the method wrong; we should catch that too.
+  // TODO: check type of returns with portable JNI compiler.
+  // This native method is bad, and tries to return a jstring as a jclass.
+  env_->CallStaticObjectMethod(jklass_, jmethod_);
+  check_jni_abort_catcher.Check("attempt to return an instance of java.lang.String from java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass()");
+
+  // Here, we just call the method incorrectly; we should catch that too.
+  env_->CallStaticVoidMethod(jklass_, jmethod_);
+  check_jni_abort_catcher.Check("attempt to return an instance of java.lang.String from java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass()");
   env_->CallVoidMethod(jobj_, jmethod_);
-  check_jni_abort_catcher.Check("Aborting because JNI app bug detected");
+  check_jni_abort_catcher.Check("calling static method java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass() with CallVoidMethodV");
 }
 
 // This should take jclass, but we're imitating a bug pattern.
@@ -722,7 +720,7 @@ TEST_F(JniCompilerTest, UpcallArgumentTypeChecking_Instance) {
   CheckJniAbortCatcher check_jni_abort_catcher;
   // We deliberately pass a bad second argument here.
   env_->CallVoidMethod(jobj_, jmethod_, 123, env_->NewStringUTF("not a class!"));
-  check_jni_abort_catcher.Check("Aborting because JNI app bug detected");
+  check_jni_abort_catcher.Check("bad arguments passed to void MyClassNatives.instanceMethodThatShouldTakeClass(int, java.lang.Class)");
 }
 
 TEST_F(JniCompilerTest, UpcallArgumentTypeChecking_Static) {
@@ -733,7 +731,7 @@ TEST_F(JniCompilerTest, UpcallArgumentTypeChecking_Static) {
   CheckJniAbortCatcher check_jni_abort_catcher;
   // We deliberately pass a bad second argument here.
   env_->CallStaticVoidMethod(jklass_, jmethod_, 123, env_->NewStringUTF("not a class!"));
-  check_jni_abort_catcher.Check("Aborting because JNI app bug detected");
+  check_jni_abort_catcher.Check("bad arguments passed to void MyClassNatives.staticMethodThatShouldTakeClass(int, java.lang.Class)");
 }
 
 }  // namespace art
