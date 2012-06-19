@@ -24,6 +24,7 @@
 #include "globals.h"
 #include "logging.h"
 #include "mem_map.h"
+#include "utils.h"
 
 namespace art {
 
@@ -87,6 +88,45 @@ class HeapBitmap {
   bool HasAddress(const void* addr) const;
 
   void VisitRange(uintptr_t base, uintptr_t max, Callback* visitor, void* arg) const;
+
+  class ClearVisitor {
+   public:
+    explicit ClearVisitor(HeapBitmap* const bitmap)
+        : bitmap_(bitmap) {
+    }
+
+    void operator ()(Object* obj) const {
+      bitmap_->Clear(obj);
+    }
+   private:
+    HeapBitmap* const bitmap_;
+  };
+
+  template <typename Visitor>
+  void VisitRange(uintptr_t visit_begin, uintptr_t visit_end, const Visitor& visitor) const {
+    for (; visit_begin < visit_end; visit_begin += kAlignment ) {
+      visitor(reinterpret_cast<Object*>(visit_begin));
+    }
+  }
+
+  template <typename Visitor>
+  void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end, const Visitor& visitor) const {
+    size_t start = HB_OFFSET_TO_INDEX(visit_begin - heap_begin_);
+    size_t end = HB_OFFSET_TO_INDEX(visit_end - heap_begin_ - 1);
+    for (size_t i = start; i <= end; i++) {
+      word w = bitmap_begin_[i];
+      if (w != 0) {
+        word high_bit = 1 << (kBitsPerWord - 1);
+        uintptr_t ptr_base = HB_INDEX_TO_OFFSET(i) + heap_begin_;
+        do {
+          const int shift = CLZ(w);
+          Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
+          visitor(obj);
+          w &= ~(high_bit >> shift);
+        } while (w != 0);
+      }
+    }
+  }
 
   void Walk(Callback* callback, void* arg);
 
