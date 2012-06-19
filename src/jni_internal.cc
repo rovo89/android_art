@@ -302,7 +302,7 @@ static void CheckMethodArguments(Method* m, JValue* args) {
   if (error_count > 0) {
     // TODO: pass the JNI function name (such as "CallVoidMethodV") through so we can call JniAbort
     // with an argument.
-    JniAbort(NULL);
+    JniAbortF(NULL, "bad arguments passed to %s (see above for details)", PrettyMethod(m).c_str());
   }
 }
 

@@ -249,6 +249,30 @@ std::ostream& operator<<(std::ostream& os, const Dumpable<T>& rhs) {
   return os;
 }
 
+// Helps you use operator<< in a const char*-like context such as our various 'F' methods with
+// format strings.
+template<typename T>
+class ToStr {
+ public:
+  ToStr(const T& value) {
+    std::ostringstream os;
+    os << value;
+    s_ = os.str();
+  }
+
+  const char* c_str() const {
+    return s_.c_str();
+  }
+
+  const std::string& str() const {
+    return s_;
+  }
+
+ private:
+  std::string s_;
+  DISALLOW_COPY_AND_ASSIGN(ToStr);
+};
+
 // The members of this struct are the valid arguments to VLOG and VLOG_IS_ON in code,
 // and the "-verbose:" command line argument.
 struct LogVerbosity {

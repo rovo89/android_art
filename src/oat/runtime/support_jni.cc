@@ -51,9 +51,8 @@ extern Object* DecodeJObjectInThread(Thread* self, jobject java_object) {
   }
 
   if (o == kInvalidIndirectRefObject) {
-    LOG(ERROR) << "JNI ERROR (app bug): invalid reference returned from "
-               << PrettyMethod(self->GetCurrentMethod());
-    JniAbort(NULL);
+    JniAbortF(NULL, "invalid reference returned from %s",
+              PrettyMethod(self->GetCurrentMethod()).c_str());
   }
 
   // Make sure that the result is an instance of the type this
@@ -63,9 +62,8 @@ extern Object* DecodeJObjectInThread(Thread* self, jobject java_object) {
   Class* return_type = mh.GetReturnType();
 
   if (!o->InstanceOf(return_type)) {
-    LOG(ERROR) << "JNI ERROR (app bug): attempt to return an instance of " << PrettyTypeOf(o)
-               << " from " << PrettyMethod(m);
-    JniAbort(NULL);
+    JniAbortF(NULL, "attempt to return an instance of %s from %s",
+              PrettyTypeOf(o).c_str(), PrettyMethod(m).c_str());
   }
 
   return o;

@@ -55,9 +55,9 @@ class ScopedJniThreadState {
     Thread* env_self = full_env->self;
     Thread* self = work_around_app_jni_bugs ? Thread::Current() : env_self;
     if (!work_around_app_jni_bugs && self != env_self) {
-      LOG(FATAL) << "JNI ERROR (app bug): JNIEnv for " << *env_self
-                 << " used on " << *self;
-      // TODO: pass JNI function through so we can call JniAbort(function_name) instead.
+      // TODO: pass through function name so we can use it here instead of NULL...
+      JniAbortF(NULL, "JNIEnv for %s used on %s",
+                ToStr<Thread>(*env_self).c_str(), ToStr<Thread>(*self).c_str());
     }
     return self;
   }

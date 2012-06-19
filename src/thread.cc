@@ -1062,8 +1062,7 @@ Object* Thread::DecodeJObject(jobject obj) {
   }
 
   if (result == NULL) {
-    LOG(ERROR) << "JNI ERROR (app bug): use of deleted " << kind << ": " << obj;
-    JniAbort(NULL);
+    JniAbortF(NULL, "use of deleted %s %p", ToStr<IndirectRefKind>(kind).c_str(), obj);
   } else {
     if (result != kInvalidIndirectRefObject) {
       Runtime::Current()->GetHeap()->VerifyObject(result);

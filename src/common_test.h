@@ -548,11 +548,13 @@ class CheckJniAbortCatcher {
     EXPECT_TRUE(actual_.find(expected_text) != std::string::npos) << "\n"
         << "Expected to find: " << expected_text << "\n"
         << "In the output   : " << actual_;
+    actual_.clear();
   }
 
  private:
   static void Hook(void* data, const std::string& reason) {
-    *reinterpret_cast<std::string*>(data) = reason;
+    // We use += because when we're hooking the aborts like this, multiple problems can be found.
+    *reinterpret_cast<std::string*>(data) += reason;
   }
 
   JavaVMExt* vm_;
