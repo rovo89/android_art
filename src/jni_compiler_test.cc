@@ -673,15 +673,20 @@ TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Instance) {
   SetUpForTest(class_loader.get(), false, "instanceMethodThatShouldReturnClass", "()Ljava/lang/Class;",
                reinterpret_cast<void*>(&Java_MyClassNatives_instanceMethodThatShouldReturnClass));
 
+#if !defined(ART_USE_LLVM_COMPILER)
+  {
+    CheckJniAbortCatcher check_jni_abort_catcher;
+    // TODO: check type of returns with portable JNI compiler.
+    // This native method is bad, and tries to return a jstring as a jclass.
+    env_->CallObjectMethod(jobj_, jmethod_);
+    check_jni_abort_catcher.Check("java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass");
+  }
+#endif
+
   CheckJniAbortCatcher check_jni_abort_catcher;
-
-  // This native method is bad, and tries to return a jstring as a jclass.
-  env_->CallObjectMethod(jobj_, jmethod_);
-  check_jni_abort_catcher.Check("java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass");
-
   // Here, we just call the method wrong; we should catch that too.
   env_->CallVoidMethod(jobj_, jmethod_);
-  check_jni_abort_catcher.Check("java.lang.Class MyClassNatives.instanceMethodThatShouldReturnClass");
+  check_jni_abort_catcher.Check("Aborting because JNI app bug detected");
 }
 
 TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Static) {
@@ -689,15 +694,20 @@ TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Static) {
   SetUpForTest(class_loader.get(), true, "staticMethodThatShouldReturnClass", "()Ljava/lang/Class;",
                reinterpret_cast<void*>(&Java_MyClassNatives_staticMethodThatShouldReturnClass));
 
+#if !defined(ART_USE_LLVM_COMPILER)
+  {
+    CheckJniAbortCatcher check_jni_abort_catcher;
+    // TODO: check type of returns with portable JNI compiler.
+    // This native method is bad, and tries to return a jstring as a jclass.
+    env_->CallStaticObjectMethod(jklass_, jmethod_);
+    check_jni_abort_catcher.Check("java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass");
+  }
+#endif
+
   CheckJniAbortCatcher check_jni_abort_catcher;
-
-  // This native method is bad, and tries to return a jstring as a jclass.
-  env_->CallStaticObjectMethod(jklass_, jmethod_);
-  check_jni_abort_catcher.Check("java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass");
-
   // Here, we just call the method wrong; we should catch that too.
   env_->CallVoidMethod(jobj_, jmethod_);
-  check_jni_abort_catcher.Check("java.lang.Class MyClassNatives.staticMethodThatShouldReturnClass");
+  check_jni_abort_catcher.Check("Aborting because JNI app bug detected");
 }
 
 // This should take jclass, but we're imitating a bug pattern.
