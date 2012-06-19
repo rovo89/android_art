@@ -477,6 +477,7 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
   // Fail impossible allocations
   if (alloc_size > space->Capacity()) {
     // On failure collect soft references
+    WaitForConcurrentGcToComplete();
     CollectGarbageInternal(false, true);
     return NULL;
   }
@@ -504,6 +505,8 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
     ++Runtime::Current()->GetStats()->gc_for_alloc_count;
     ++Thread::Current()->GetStats()->gc_for_alloc_count;
   }
+  // We don't need a WaitForConcurrentGcToComplete here since we checked
+  // is_gc_running_ earlier and we are in a heap lock.
   CollectGarbageInternal(false, false);
   ptr = space->AllocWithoutGrowth(alloc_size);
   if (ptr != NULL) {
@@ -529,6 +532,7 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
 
   // OLD-TODO: wait for the finalizers from the previous GC to finish
   VLOG(gc) << "Forcing collection of SoftReferences for " << PrettySize(alloc_size) << " allocation";
+  // We don't need a WaitForConcurrentGcToComplete here either.
   CollectGarbageInternal(false, true);
   ptr = space->AllocWithGrowth(alloc_size);
   if (ptr != NULL) {
@@ -592,7 +596,11 @@ int64_t Heap::CountInstances(Class* c, bool count_assignable) {
 
 void Heap::CollectGarbage(bool clear_soft_references) {
   ScopedHeapLock heap_lock;
-  CollectGarbageInternal(false, clear_soft_references);
+  // If we just waited for a GC to complete then we do not need to do another
+  // GC unless we clear soft references.
+  if (!WaitForConcurrentGcToComplete() || clear_soft_references) {
+    CollectGarbageInternal(false, clear_soft_references);
+  }
 }
 
 void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
@@ -723,7 +731,7 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
   condition_->Broadcast();
 }
 
-void Heap::WaitForConcurrentGcToComplete() {
+bool Heap::WaitForConcurrentGcToComplete() {
   lock_->AssertHeld();
 
   // Busy wait for GC to finish
@@ -737,7 +745,10 @@ void Heap::WaitForConcurrentGcToComplete() {
     if (wait_time > MsToNs(5)) {
       LOG(INFO) << "WaitForConcurrentGcToComplete blocked for " << PrettyDuration(wait_time);
     }
+    DCHECK(!is_gc_running_);
+    return true;
   }
+  return false;
 }
 
 void Heap::DumpForSigQuit(std::ostream& os) {
@@ -932,7 +943,10 @@ void Heap::RequestConcurrentGC() {
 
 void Heap::ConcurrentGC() {
   ScopedHeapLock heap_lock;
-  WaitForConcurrentGcToComplete();
+  // We shouldn't need a WaitForConcurrentGcToComplete here since only
+  // concurrent GC resumes threads before the GC is completed and this function
+  // is only called within the GC daemon thread.
+  CHECK(!is_gc_running_);
   // Current thread needs to be runnable or else we can't suspend all threads.
   ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   CollectGarbageInternal(true, false);

@@ -120,8 +120,9 @@ class LOCKABLE Heap {
   // from the system. Doesn't allow the space to exceed its growth limit.
   void SetIdealFootprint(size_t max_allowed_footprint);
 
-  // Blocks the caller until the garbage collector becomes idle.
-  void WaitForConcurrentGcToComplete();
+  // Blocks the caller until the garbage collector becomes idle and returns
+  // true if we waited for the GC to complete.
+  bool WaitForConcurrentGcToComplete();
 
   pid_t GetLockOwner(); // For SignalCatcher.
   void AssertLockHeld() {
