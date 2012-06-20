@@ -2738,7 +2738,7 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
 
   // Compute invoke related information for compiler decision
   int vtable_idx = -1;
-  uintptr_t direct_code = 0; // Currently unused
+  uintptr_t direct_code = 0;
   uintptr_t direct_method = 0;
   bool is_fast_path = compiler_->
     ComputeInvokeInfo(callee_method_idx, oat_compilation_unit_,
@@ -2834,11 +2834,19 @@ void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
     }
   }
 
-  llvm::Value* code_addr =
-    irb_.LoadFromObjectOffset(callee_method_object_addr,
-                              Method::GetCodeOffset().Int32Value(),
-                              GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
-                              kTBAAJRuntime);
+  llvm::Value* code_addr;
+  if (direct_code != 0u &&
+      direct_code != static_cast<uintptr_t>(-1)) {
+    code_addr =
+      irb_.CreateIntToPtr(irb_.getPtrEquivInt(direct_code),
+                          GetFunctionType(callee_method_idx, is_static)->getPointerTo());
+  } else {
+    code_addr =
+      irb_.LoadFromObjectOffset(callee_method_object_addr,
+                                Method::GetCodeOffset().Int32Value(),
+                                GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
+                                kTBAAJRuntime);
+  }
 
   // Invoke callee
   EmitUpdateDexPC(dex_pc);

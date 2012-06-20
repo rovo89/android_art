@@ -526,14 +526,6 @@ void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result
 
   bool have_executable_code = (GetCode() != NULL);
 
-#if defined(ART_USE_LLVM_COMPILER)
-  if (stub == NULL || !have_executable_code) {
-    Runtime::Current()->GetClassLinker()->LinkOatCodeFor(const_cast<Method*>(this));
-    stub = GetInvokeStub();
-    have_executable_code = (GetCode() != NULL);
-  }
-#endif
-
   if (Runtime::Current()->IsStarted() && have_executable_code && stub != NULL) {
     bool log = false;
     if (log) {

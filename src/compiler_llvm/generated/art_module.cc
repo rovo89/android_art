@@ -976,17 +976,6 @@ func_art_mark_gc_card_from_code->setCallingConv(CallingConv::C);
 AttrListPtr func_art_mark_gc_card_from_code_PAL;
 func_art_mark_gc_card_from_code->setAttributes(func_art_mark_gc_card_from_code_PAL);
 
-Function* func_art_fix_stub_from_code = mod->getFunction("art_fix_stub_from_code");
-if (!func_art_fix_stub_from_code) {
-func_art_fix_stub_from_code = Function::Create(
- /*Type=*/FuncTy_4,
- /*Linkage=*/GlobalValue::ExternalLinkage,
- /*Name=*/"art_fix_stub_from_code", mod); // (external, no body)
-func_art_fix_stub_from_code->setCallingConv(CallingConv::C);
-}
-AttrListPtr func_art_fix_stub_from_code_PAL;
-func_art_fix_stub_from_code->setAttributes(func_art_fix_stub_from_code_PAL);
-
 Function* func_art_proxy_invoke_handler_from_code = mod->getFunction("art_proxy_invoke_handler_from_code");
 if (!func_art_proxy_invoke_handler_from_code) {
 func_art_proxy_invoke_handler_from_code = Function::Create(
