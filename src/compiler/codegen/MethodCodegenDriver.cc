@@ -904,7 +904,9 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
   LIR* headLIR = NULL;
 
   if (bb->blockType == kEntryBlock) {
-    genEntrySequence(cUnit);
+    int startVReg = cUnit->numDalvikRegisters - cUnit->numIns;
+    genEntrySequence(cUnit, &cUnit->regLocation[startVReg],
+                     cUnit->regLocation[cUnit->methodSReg]);
   } else if (bb->blockType == kExitBlock) {
     genExitSequence(cUnit);
   }

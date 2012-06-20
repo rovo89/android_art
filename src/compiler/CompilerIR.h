@@ -504,6 +504,7 @@ struct CompilationUnit {
 
   /* SSA name for Method* */
   int methodSReg;
+  RegLocation methodLoc;            // Describes location of method*
 
   /*
    * Set to the Dalvik PC of the switch instruction if it has more than

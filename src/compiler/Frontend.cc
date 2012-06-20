@@ -52,6 +52,9 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   //(1 << kDebugShowMemoryUsage) |
   //(1 << kDebugShowNops) |
   //(1 << kDebugCountOpcodes) |
+#if defined(ART_USE_QUICK_COMPILER)
+  //(1 << kDebugDumpBitcodeFile) |
+#endif
   0;
 
 inline bool contentIsInsn(const u2* codePtr) {
@@ -243,37 +246,26 @@ BasicBlock *findBlock(CompilationUnit* cUnit, unsigned int codeOffset,
   return bb;
 }
 
+/* Turn method name into a legal Linux file name */
+void oatReplaceSpecialChars(std::string& str)
+{
+  static const struct { const char before; const char after; } match[] =
+      {{'/','-'}, {';','#'}, {' ','#'}, {'$','+'},
+       {'(','@'}, {')','@'}, {'<','='}, {'>','='}};
+  for (unsigned int i = 0; i < sizeof(match)/sizeof(match[0]); i++) {
+    std::replace(str.begin(), str.end(), match[i].before, match[i].after);
+  }
+}
+
 /* Dump the CFG into a DOT graph */
 void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
 {
   FILE* file;
-  std::string name(PrettyMethod(cUnit->method_idx, *cUnit->dex_file));
-  char startOffset[80];
-  sprintf(startOffset, "_%x", cUnit->entryBlock->fallThrough->startOffset);
-  char* fileName = (char*) oatNew(cUnit, strlen(dirPrefix) +
-                                  name.length() + strlen(".dot") + 1,
-                                  true, kAllocDebugInfo);
-  sprintf(fileName, "%s%s%s.dot", dirPrefix, name.c_str(), startOffset);
-
-  /*
-   * Convert the special characters into a filesystem- and shell-friendly
-   * format.
-   */
-  int i;
-  for (i = strlen(dirPrefix); fileName[i]; i++) {
-    if (fileName[i] == '/') {
-      fileName[i] = '_';
-    } else if (fileName[i] == ';') {
-      fileName[i] = '#';
-    } else if (fileName[i] == '$') {
-      fileName[i] = '+';
-    } else if (fileName[i] == '(' || fileName[i] == ')') {
-      fileName[i] = '@';
-    } else if (fileName[i] == '<' || fileName[i] == '>') {
-      fileName[i] = '=';
-    }
-  }
-  file = fopen(fileName, "w");
+  std::string fname(PrettyMethod(cUnit->method_idx, *cUnit->dex_file));
+  oatReplaceSpecialChars(fname);
+  fname = StringPrintf("%s%s%x.dot", dirPrefix, fname.c_str(),
+                      cUnit->entryBlock->fallThrough->startOffset);
+  file = fopen(fname.c_str(), "w");
   if (file == NULL) {
     return;
   }
@@ -788,6 +780,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
 #if defined(ART_USE_QUICK_COMPILER)
   if (cUnit->genBitcode) {
     cUnit->printMe = true;
+    cUnit->enableDebug |= (1 << kDebugDumpBitcodeFile);
   }
 #endif
   if (cUnit->instructionSet == kX86) {

@@ -163,7 +163,8 @@ void opRegThreadMem(CompilationUnit* cUnit, OpKind op, int rDest, int threadOffs
   newLIR2(cUnit, opcode, rDest, threadOffset);
 }
 
-void genEntrySequence(CompilationUnit* cUnit)
+void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
+                      RegLocation rlMethod)
 {
   /*
    * On entry, rARG0, rARG1, rARG2 are live.  Let the register
@@ -199,7 +200,7 @@ void genEntrySequence(CompilationUnit* cUnit)
     oatInsertGrowableList(cUnit, &cUnit->throwLaunchpads, (intptr_t)tgt);
   }
 
-  flushIns(cUnit);
+  flushIns(cUnit, argLocs, rlMethod);
 
   if (cUnit->genDebugger) {
     // Refresh update debugger callout

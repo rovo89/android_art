@@ -292,17 +292,17 @@ void markGCCard(CompilationUnit* cUnit, int valReg, int tgtAddrReg)
 /* Utilities to load the current Method* */
 void loadCurrMethodDirect(CompilationUnit *cUnit, int rTgt)
 {
-  loadValueDirectFixed(cUnit, cUnit->regLocation[cUnit->methodSReg], rTgt);
+  loadValueDirectFixed(cUnit, cUnit->methodLoc, rTgt);
 }
 
 RegLocation loadCurrMethod(CompilationUnit *cUnit)
 {
-  return loadValue(cUnit, cUnit->regLocation[cUnit->methodSReg], kCoreReg);
+  return loadValue(cUnit, cUnit->methodLoc, kCoreReg);
 }
 
 bool methodStarInReg(CompilationUnit* cUnit)
 {
-   return (cUnit->regLocation[cUnit->methodSReg].location == kLocPhysReg);
+   return (cUnit->methodLoc.location == kLocPhysReg);
 }
 
 

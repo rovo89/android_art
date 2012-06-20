@@ -27,6 +27,7 @@
 #include <llvm/Type.h>
 #include <llvm/Instructions.h>
 #include <llvm/Support/Casting.h>
+#include <llvm/Support/InstIterator.h>
 
 const char* labelFormat = "L0x%x_%d";
 
@@ -73,6 +74,50 @@ llvm::Type* llvmTypeFromLocRec(CompilationUnit* cUnit, RegLocation loc)
     }
   }
   return res;
+}
+
+/* Create an in-memory RegLocation from an llvm Value. */
+void createLocFromValue(CompilationUnit* cUnit, llvm::Value* val)
+{
+  // NOTE: llvm takes shortcuts with c_str() - get to std::string firstt
+  std::string s(val->getName().str());
+  const char* valName = s.c_str();
+  if (cUnit->printMe) {
+    LOG(INFO) << "Processing llvm Value " << valName;
+  }
+  SafeMap<llvm::Value*, RegLocation>::iterator it = cUnit->locMap.find(val);
+  DCHECK(it == cUnit->locMap.end()) << " - already defined: " << valName;
+  int baseSReg = INVALID_SREG;
+  int subscript = -1;
+  sscanf(valName, "v%d_%d", &baseSReg, &subscript);
+  if ((baseSReg == INVALID_SREG) && (!strcmp(valName, "method"))) {
+    baseSReg = SSA_METHOD_BASEREG;
+    subscript = 0;
+  }
+  if (cUnit->printMe) {
+    LOG(INFO) << "Base: " << baseSReg << ", Sub: " << subscript;
+  }
+  DCHECK_NE(baseSReg, INVALID_SREG);
+  DCHECK_NE(subscript, -1);
+  // TODO: redo during C++'ification
+  RegLocation loc =  {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0, INVALID_REG,
+                      INVALID_REG, INVALID_SREG, INVALID_SREG};
+  llvm::Type* ty = val->getType();
+  loc.wide = ((ty == cUnit->irb->getInt64Ty()) ||
+              (ty == cUnit->irb->getDoubleTy()));
+  loc.defined = true;
+  if ((ty == cUnit->irb->getFloatTy()) ||
+      (ty == cUnit->irb->getDoubleTy())) {
+    loc.fp = true;
+  } else if (ty == cUnit->irb->GetJObjectTy()) {
+    loc.ref = true;
+  } else {
+    loc.core = true;
+  }
+  loc.home = false;  // Will change during promotion
+  loc.sRegLow = baseSReg;
+  loc.origSReg = cUnit->locMap.size();
+  cUnit->locMap.Put(val, loc);
 }
 
 void initIR(CompilationUnit* cUnit)
@@ -1372,19 +1417,25 @@ void oatMethodMIR2Bitcode(CompilationUnit* cUnit)
 
   llvm::verifyFunction(*cUnit->func, llvm::PrintMessageAction);
 
-  // Write bitcode to file
-  std::string errmsg;
+  if (cUnit->enableDebug & (1 << kDebugDumpBitcodeFile)) {
+    // Write bitcode to file
+    std::string errmsg;
+    std::string fname(PrettyMethod(cUnit->method_idx, *cUnit->dex_file));
+    oatReplaceSpecialChars(fname);
+    // TODO: make configurable
+    fname = StringPrintf("/tmp/%s.bc", fname.c_str());
 
-  llvm::OwningPtr<llvm::tool_output_file> out_file(
-      new llvm::tool_output_file("/tmp/foo.bc", errmsg,
-                                 llvm::raw_fd_ostream::F_Binary));
+    llvm::OwningPtr<llvm::tool_output_file> out_file(
+        new llvm::tool_output_file(fname.c_str(), errmsg,
+                                   llvm::raw_fd_ostream::F_Binary));
 
-  if (!errmsg.empty()) {
-    LOG(ERROR) << "Failed to create bitcode output file: " << errmsg;
+    if (!errmsg.empty()) {
+      LOG(ERROR) << "Failed to create bitcode output file: " << errmsg;
+    }
+
+    llvm::WriteBitcodeToFile(cUnit->module, out_file->os());
+    out_file->keep();
   }
-
-  llvm::WriteBitcodeToFile(cUnit->module, out_file->os());
-  out_file->keep();
 }
 
 RegLocation getLoc(CompilationUnit* cUnit, llvm::Value* val) {
@@ -1575,11 +1626,6 @@ void cvtCall(CompilationUnit* cUnit, llvm::CallInst* callInst,
   UNIMPLEMENTED(FATAL);
 }
 
-void setMethodInfo(CompilationUnit* cUnit, llvm::CallInst* callInst)
-{
-  UNIMPLEMENTED(WARNING) << "Net setMethodInfo";
-}
-
 void cvtCopy(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK(callInst->getNumArgOperands() == 1);
@@ -1670,6 +1716,14 @@ void cvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
   genInvoke(cUnit, info);
 }
 
+/* Look up the RegLocation associated with a Value.  Must already be defined */
+RegLocation valToLoc(CompilationUnit* cUnit, llvm::Value* val)
+{
+  SafeMap<llvm::Value*, RegLocation>::iterator it = cUnit->locMap.find(val);
+  DCHECK(it != cUnit->locMap.end()) << "Missing definition";
+  return it->second;
+}
+
 bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
 {
   bool isEntry = (bb == &cUnit->func->getEntryBlock());
@@ -1697,7 +1751,19 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
 
   if (isEntry) {
     cUnit->currentDalvikOffset = 0;
-    genEntrySequence(cUnit);
+    RegLocation* argLocs = (RegLocation*)
+        oatNew(cUnit, sizeof(RegLocation) * cUnit->numIns, true, kAllocMisc);
+    llvm::Function::arg_iterator it(cUnit->func->arg_begin());
+    llvm::Function::arg_iterator it_end(cUnit->func->arg_end());
+    for (unsigned i = 0; it != it_end; ++it) {
+      llvm::Value* val = it;
+      argLocs[i++] = valToLoc(cUnit, val);
+      llvm::Type* ty = val->getType();
+      if ((ty == cUnit->irb->getInt64Ty()) || (ty == cUnit->irb->getDoubleTy())) {
+        argLocs[i++].sRegLow = INVALID_SREG;
+      }
+    }
+    genEntrySequence(cUnit, argLocs, cUnit->methodLoc);
   }
 
   // Visit all of the instructions in the block
@@ -1779,7 +1845,7 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               cvtConst(cUnit, callInst);
               break;
             case greenland::IntrinsicHelper::MethodInfo:
-              setMethodInfo(cUnit, callInst);
+              // Already dealt with - just ignore it here.
               break;
             case greenland::IntrinsicHelper::CheckSuspend:
               genSuspendTest(cUnit, 0 /* optFlags already applied */);
@@ -1891,17 +1957,62 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
  */
 void oatMethodBitcode2LIR(CompilationUnit* cUnit)
 {
-  int numBasicBlocks = cUnit->func->getBasicBlockList().size();
+  llvm::Function* func = cUnit->func;
+  int numBasicBlocks = func->getBasicBlockList().size();
   // Allocate a list for LIR basic block labels
   cUnit->blockLabelList =
     (void*)oatNew(cUnit, sizeof(LIR) * numBasicBlocks, true, kAllocLIR);
   LIR* labelList = (LIR*)cUnit->blockLabelList;
   int nextLabel = 0;
-  for (llvm::Function::iterator i = cUnit->func->begin(),
-       e = cUnit->func->end(); i != e; ++i) {
+  for (llvm::Function::iterator i = func->begin(),
+       e = func->end(); i != e; ++i) {
     cUnit->blockToLabelMap.Put(static_cast<llvm::BasicBlock*>(i),
                                &labelList[nextLabel++]);
   }
+
+  /*
+   * Keep honest - clear regLocations, Value => RegLocation,
+   * promotion map and VmapTables.
+   */
+  cUnit->locMap.clear();  // Start fresh
+  cUnit->regLocation = NULL;
+  for (int i = 0; i < cUnit->numDalvikRegisters + cUnit->numCompilerTemps + 1;
+       i++) {
+    cUnit->promotionMap[i].coreLocation = kLocDalvikFrame;
+    cUnit->promotionMap[i].fpLocation = kLocDalvikFrame;
+  }
+  cUnit->coreSpillMask = 0;
+  cUnit->numCoreSpills = 0;
+  cUnit->fpSpillMask = 0;
+  cUnit->numFPSpills = 0;
+  cUnit->coreVmapTable.clear();
+  cUnit->fpVmapTable.clear();
+  oatAdjustSpillMask(cUnit);
+  cUnit->frameSize = oatComputeFrameSize(cUnit);
+
+  /*
+   * At this point, we've lost all knowledge of register promotion.
+   * Rebuild that info from the MethodInfo intrinsic (if it
+   * exists - not required for correctness).
+   */
+  // TODO: find and recover MethodInfo.
+
+  // Create RegLocations for arguments
+  llvm::Function::arg_iterator it(cUnit->func->arg_begin());
+  llvm::Function::arg_iterator it_end(cUnit->func->arg_end());
+  for (; it != it_end; ++it) {
+    llvm::Value* val = it;
+    createLocFromValue(cUnit, val);
+  }
+  // Create RegLocations for all non-argument defintions
+  for (llvm::inst_iterator i = llvm::inst_begin(func),
+       e = llvm::inst_end(func); i != e; ++i) {
+    llvm::Value* val = &*i;
+    if (val->hasName() && (val->getName().str().c_str()[0] == 'v')) {
+      createLocFromValue(cUnit, val);
+    }
+  }
+
   // Walk the blocks, generating code.
   for (llvm::Function::iterator i = cUnit->func->begin(),
        e = cUnit->func->end(); i != e; ++i) {

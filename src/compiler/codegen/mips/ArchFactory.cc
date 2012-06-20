@@ -144,7 +144,8 @@ void unSpillCoreRegs(CompilationUnit* cUnit)
   opRegImm(cUnit, kOpAdd, rSP, cUnit->frameSize);
 }
 
-void genEntrySequence(CompilationUnit* cUnit)
+void genEntrySequence(CompilationUnit* cUnit, RegLocation* argLocs,
+                      RegLocation rlMethod)
 {
   int spillCount = cUnit->numCoreSpills + cUnit->numFPSpills;
   /*
@@ -183,7 +184,7 @@ void genEntrySequence(CompilationUnit* cUnit)
     opRegImm(cUnit, kOpSub, rSP, cUnit->frameSize - (spillCount * 4));
   }
 
-  flushIns(cUnit);
+  flushIns(cUnit, argLocs, rlMethod);
 
   if (cUnit->genDebugger) {
     // Refresh update debugger callout
