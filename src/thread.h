@@ -102,7 +102,7 @@ class PACKED Thread {
 
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
-  static void Create(Object* peer, size_t stack_size);
+  static void CreateNativeThread(Object* peer, size_t stack_size);
 
   // Attaches the calling native thread to the runtime, returning the new native peer.
   // Used to implement JNI AttachCurrentThread and AttachCurrentThreadAsDaemon calls.

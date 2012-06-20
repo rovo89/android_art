@@ -205,7 +205,7 @@ static void TearDownAlternateSignalStack() {
   delete[] allocated_signal_stack;
 }
 
-void Thread::Create(Object* peer, size_t stack_size) {
+void Thread::CreateNativeThread(Object* peer, size_t stack_size) {
   CHECK(peer != NULL);
 
   stack_size = FixStackSize(stack_size);
@@ -217,6 +217,7 @@ void Thread::Create(Object* peer, size_t stack_size) {
   // and know that we're not racing to assign it.
   SetVmData(peer, native_thread);
 
+  int pthread_create_result = 0;
   {
     ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
     pthread_t new_pthread;
@@ -224,8 +225,19 @@ void Thread::Create(Object* peer, size_t stack_size) {
     CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new thread");
     CHECK_PTHREAD_CALL(pthread_attr_setdetachstate, (&attr, PTHREAD_CREATE_DETACHED), "PTHREAD_CREATE_DETACHED");
     CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), stack_size);
-    CHECK_PTHREAD_CALL(pthread_create, (&new_pthread, &attr, Thread::CreateCallback, native_thread), "new thread");
+    pthread_create_result = pthread_create(&new_pthread, &attr, Thread::CreateCallback, native_thread);
     CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new thread");
+  }
+
+  if (pthread_create_result != 0) {
+    // pthread_create(3) failed, so clean up.
+    SetVmData(peer, 0);
+    delete native_thread;
+
+    std::string msg(StringPrintf("pthread_create (%s stack) failed: %s",
+                                 PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
+    Thread::Current()->ThrowOutOfMemoryError(msg.c_str());
+    return;
   }
 
   // Let the child know when it's safe to start running.
@@ -1468,7 +1480,7 @@ void Thread::ThrowOutOfMemoryError(const char* msg) {
       msg, (throwing_OutOfMemoryError_ ? " (recursive case)" : ""));
   if (!throwing_OutOfMemoryError_) {
     throwing_OutOfMemoryError_ = true;
-    ThrowNewException("Ljava/lang/OutOfMemoryError;", NULL);
+    ThrowNewException("Ljava/lang/OutOfMemoryError;", msg);
   } else {
     Dump(LOG(ERROR)); // The pre-allocated OOME has no stack, so help out and log one.
     SetException(Runtime::Current()->GetPreAllocatedOutOfMemoryError());
