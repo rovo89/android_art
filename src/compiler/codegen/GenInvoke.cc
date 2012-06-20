@@ -33,16 +33,18 @@ LIR* opCondBranch(CompilationUnit* cUnit, ConditionCode cc, LIR* target);
  * If there are any ins passed in registers that have not been promoted
  * to a callee-save register, flush them to the frame.  Perform intial
  * assignment of promoted arguments.
+ *
+ * argLocs is an array of location records describing the incoming arguments
+ * with one location record per word of argument.
  */
-void flushIns(CompilationUnit* cUnit)
+void flushIns(CompilationUnit* cUnit, RegLocation* argLocs, RegLocation rlMethod)
 {
   /*
    * Dummy up a RegLocation for the incoming Method*
    * It will attempt to keep rARG0 live (or copy it to home location
    * if promoted).
    */
-  RegLocation rlSrc = cUnit->regLocation[cUnit->methodSReg];
-  RegLocation rlMethod = cUnit->regLocation[cUnit->methodSReg];
+  RegLocation rlSrc = rlMethod;
   rlSrc.location = kLocPhysReg;
   rlSrc.lowReg = rARG0;
   rlSrc.home = false;
@@ -75,7 +77,7 @@ void flushIns(CompilationUnit* cUnit)
     if (i < numArgRegs) {
       // If arriving in register
       bool needFlush = true;
-      RegLocation* tLoc = &cUnit->regLocation[startVReg + i];
+      RegLocation* tLoc = &argLocs[i];
       if ((vMap->coreLocation == kLocPhysReg) && !tLoc->fp) {
         opRegCopy(cUnit, vMap->coreReg, argRegs[i]);
         needFlush = false;

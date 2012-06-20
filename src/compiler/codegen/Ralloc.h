@@ -229,6 +229,7 @@ extern uint32_t oatFPRegMask(void);
 extern void oatAdjustSpillMask(CompilationUnit* cUnit);
 void oatMarkPreservedSingle(CompilationUnit* cUnit, int vReg, int reg);
 void oatRegCopy(CompilationUnit* cUnit, int rDest, int rSrc);
+int oatComputeFrameSize(CompilationUnit* cUnit);
 
 }  // namespace art
 
