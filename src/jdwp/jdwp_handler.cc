@@ -974,16 +974,16 @@ static JdwpError handleTR_Frames(JdwpState*, const uint8_t* buf, int, ExpandBuf*
 
   expandBufAdd4BE(pReply, length);
   for (uint32_t i = start_frame; i < (start_frame + length); ++i) {
-    FrameId frameId;
+    FrameId frame_id;
     JdwpLocation loc;
     // TODO: switch to GetThreadFrames so we don't have to search for each frame
     // even though we only want them in order.
-    Dbg::GetThreadFrame(threadId, i, &frameId, &loc);
+    Dbg::GetThreadFrame(threadId, i, &frame_id, &loc);
 
-    expandBufAdd8BE(pReply, frameId);
+    expandBufAdd8BE(pReply, frame_id);
     AddLocation(pReply, &loc);
 
-    VLOG(jdwp) << StringPrintf("    Frame %d: id=%#llx ", i, frameId) << loc;
+    VLOG(jdwp) << StringPrintf("    Frame %d: id=%#llx ", i, frame_id) << loc;
   }
 
   return ERR_NONE;
@@ -1339,10 +1339,10 @@ static JdwpError handleER_Clear(JdwpState* state, const uint8_t* buf, int, Expan
  */
 static JdwpError handleSF_GetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply) {
   ObjectId threadId = ReadObjectId(&buf);
-  FrameId frameId = ReadFrameId(&buf);
+  FrameId frame_id = ReadFrameId(&buf);
   uint32_t slots = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req for %d slots in threadId=%#llx frameId=%#llx", slots, threadId, frameId);
+  VLOG(jdwp) << StringPrintf("  Req for %d slots in threadId=%#llx frame_id=%#llx", slots, threadId, frame_id);
 
   expandBufAdd4BE(pReply, slots);     /* "int values" */
   for (uint32_t i = 0; i < slots; i++) {
@@ -1353,7 +1353,7 @@ static JdwpError handleSF_GetValues(JdwpState*, const uint8_t* buf, int, ExpandB
 
     size_t width = Dbg::GetTagWidth(reqSigByte);
     uint8_t* ptr = expandBufAddSpace(pReply, width+1);
-    Dbg::GetLocalValue(threadId, frameId, slot, reqSigByte, ptr, width);
+    Dbg::GetLocalValue(threadId, frame_id, slot, reqSigByte, ptr, width);
   }
 
   return ERR_NONE;
@@ -1364,10 +1364,10 @@ static JdwpError handleSF_GetValues(JdwpState*, const uint8_t* buf, int, ExpandB
  */
 static JdwpError handleSF_SetValues(JdwpState*, const uint8_t* buf, int, ExpandBuf*) {
   ObjectId threadId = ReadObjectId(&buf);
-  FrameId frameId = ReadFrameId(&buf);
+  FrameId frame_id = ReadFrameId(&buf);
   uint32_t slots = Read4BE(&buf);
 
-  VLOG(jdwp) << StringPrintf("  Req to set %d slots in threadId=%#llx frameId=%#llx", slots, threadId, frameId);
+  VLOG(jdwp) << StringPrintf("  Req to set %d slots in threadId=%#llx frame_id=%#llx", slots, threadId, frame_id);
 
   for (uint32_t i = 0; i < slots; i++) {
     uint32_t slot = Read4BE(&buf);
@@ -1376,7 +1376,7 @@ static JdwpError handleSF_SetValues(JdwpState*, const uint8_t* buf, int, ExpandB
     uint64_t value = jdwpReadValue(&buf, width);
 
     VLOG(jdwp) << "    --> slot " << slot << " " << sigByte << " " << value;
-    Dbg::SetLocalValue(threadId, frameId, slot, sigByte, value, width);
+    Dbg::SetLocalValue(threadId, frame_id, slot, sigByte, value, width);
   }
 
   return ERR_NONE;
@@ -1387,16 +1387,20 @@ static JdwpError handleSF_SetValues(JdwpState*, const uint8_t* buf, int, ExpandB
  */
 static JdwpError handleSF_ThisObject(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply) {
   ReadObjectId(&buf); // Skip thread id.
-  FrameId frameId = ReadFrameId(&buf);
+  FrameId frame_id = ReadFrameId(&buf);
 
-  ObjectId objectId;
-  Dbg::GetThisObject(frameId, &objectId);
+  ObjectId id;
+  Dbg::GetThisObject(frame_id, &id);
 
-  uint8_t objectTag = Dbg::GetObjectTag(objectId);
-  VLOG(jdwp) << StringPrintf("  Req for 'this' in frame=%#llx --> %#llx '%c'", frameId, objectId, (char)objectTag);
+  uint8_t tag;
+  JdwpError result = Dbg::GetObjectTag(id, tag);
+  if (result != ERR_NONE) {
+    return result;
+  }
 
-  expandBufAdd1(pReply, objectTag);
-  expandBufAddObjectId(pReply, objectId);
+  VLOG(jdwp) << StringPrintf("  Req for 'this' in frame=%#llx --> %#llx '%c'", frame_id, id, static_cast<char>(tag));
+  expandBufAdd1(pReply, tag);
+  expandBufAddObjectId(pReply, id);
 
   return ERR_NONE;
 }

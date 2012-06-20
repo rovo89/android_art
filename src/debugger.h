@@ -141,7 +141,7 @@ class Dbg {
   static JDWP::JdwpError GetReferenceType(JDWP::ObjectId objectId, JDWP::ExpandBuf* pReply);
   static JDWP::JdwpError GetSignature(JDWP::RefTypeId refTypeId, std::string& signature);
   static JDWP::JdwpError GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file);
-  static uint8_t GetObjectTag(JDWP::ObjectId objectId);
+  static JDWP::JdwpError GetObjectTag(JDWP::ObjectId objectId, uint8_t& tag);
   static size_t GetTagWidth(JDWP::JdwpTag tag);
 
   static JDWP::JdwpError GetArrayLength(JDWP::ObjectId arrayId, int& length);
