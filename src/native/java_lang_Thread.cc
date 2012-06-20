@@ -32,18 +32,18 @@ static jboolean Thread_interrupted(JNIEnv*, jclass) {
   return Thread::Current()->Interrupted();
 }
 
-static jboolean Thread_isInterrupted(JNIEnv* env, jobject javaThread) {
+static jboolean Thread_isInterrupted(JNIEnv* env, jobject java_thread) {
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, javaThread);
+  Thread* thread = Thread::FromManagedThread(env, java_thread);
   return (thread != NULL) ? thread->IsInterrupted() : JNI_FALSE;
 }
 
-static void Thread_nativeCreate(JNIEnv* env, jclass, jobject javaThread, jlong stackSize) {
-  Object* managedThread = Decode<Object*>(env, javaThread);
-  Thread::Create(managedThread, stackSize);
+static void Thread_nativeCreate(JNIEnv* env, jclass, jobject java_thread, jlong stack_size) {
+  Object* managedThread = Decode<Object*>(env, java_thread);
+  Thread::CreateNativeThread(managedThread, stack_size);
 }
 
-static jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread, jboolean hasBeenStarted) {
+static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean has_been_started) {
   // Ordinals from Java's Thread.State.
   const jint kJavaNew = 0;
   const jint kJavaRunnable = 1;
@@ -52,9 +52,9 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread, jboolean has
   const jint kJavaTimedWaiting = 4;
   const jint kJavaTerminated = 5;
 
-  ThreadState internal_thread_state = (hasBeenStarted ? kTerminated : kStarting);
+  ThreadState internal_thread_state = (has_been_started ? kTerminated : kStarting);
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, javaThread);
+  Thread* thread = Thread::FromManagedThread(env, java_thread);
   if (thread != NULL) {
     internal_thread_state = thread->GetState();
   }
@@ -73,33 +73,33 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject javaThread, jboolean has
   return -1; // Unreachable.
 }
 
-static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject javaThread, jobject javaObject) {
-  Object* object = Decode<Object*>(env, javaObject);
+static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject java_thread, jobject java_object) {
+  Object* object = Decode<Object*>(env, java_object);
   if (object == NULL) {
     ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
     Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "object == null");
     return JNI_FALSE;
   }
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, javaThread);
+  Thread* thread = Thread::FromManagedThread(env, java_thread);
   return thread->HoldsLock(object);
 }
 
-static void Thread_nativeInterrupt(JNIEnv* env, jobject javaThread) {
+static void Thread_nativeInterrupt(JNIEnv* env, jobject java_thread) {
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, javaThread);
+  Thread* thread = Thread::FromManagedThread(env, java_thread);
   if (thread != NULL) {
     thread->Interrupt();
   }
 }
 
-static void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring javaName) {
+static void Thread_nativeSetName(JNIEnv* env, jobject java_thread, jstring java_name) {
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, javaThread);
+  Thread* thread = Thread::FromManagedThread(env, java_thread);
   if (thread == NULL) {
     return;
   }
-  ScopedUtfChars name(env, javaName);
+  ScopedUtfChars name(env, java_name);
   if (name.c_str() == NULL) {
     return;
   }
@@ -107,15 +107,15 @@ static void Thread_nativeSetName(JNIEnv* env, jobject javaThread, jstring javaNa
 }
 
 /*
- * Alter the priority of the specified thread.  "newPriority" will range
+ * Alter the priority of the specified thread.  "new_priority" will range
  * from Thread.MIN_PRIORITY to Thread.MAX_PRIORITY (1-10), with "normal"
  * threads at Thread.NORM_PRIORITY (5).
  */
-static void Thread_nativeSetPriority(JNIEnv* env, jobject javaThread, jint newPriority) {
+static void Thread_nativeSetPriority(JNIEnv* env, jobject java_thread, jint new_priority) {
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, javaThread);
+  Thread* thread = Thread::FromManagedThread(env, java_thread);
   if (thread != NULL) {
-    thread->SetNativePriority(newPriority);
+    thread->SetNativePriority(new_priority);
   }
 }
 
