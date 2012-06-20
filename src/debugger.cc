@@ -732,9 +732,13 @@ JDWP::JdwpError Dbg::GetSourceFile(JDWP::RefTypeId classId, std::string& result)
   return JDWP::ERR_NONE;
 }
 
-uint8_t Dbg::GetObjectTag(JDWP::ObjectId objectId) {
+JDWP::JdwpError Dbg::GetObjectTag(JDWP::ObjectId objectId, uint8_t& tag) {
   Object* o = gRegistry->Get<Object*>(objectId);
-  return TagFromObject(o);
+  if (o == kInvalidObject) {
+    return JDWP::ERR_INVALID_OBJECT;
+  }
+  tag = TagFromObject(o);
+  return JDWP::ERR_NONE;
 }
 
 size_t Dbg::GetTagWidth(JDWP::JdwpTag tag) {
@@ -1543,7 +1547,9 @@ void Dbg::ResumeThread(JDWP::ObjectId threadId) {
     LOG(WARNING) << "No such thread for resume: " << peer;
     return;
   }
-  Runtime::Current()->GetThreadList()->Resume(thread, true);
+  if (thread->GetSuspendCount() > 0) {
+    Runtime::Current()->GetThreadList()->Resume(thread, true);
+  }
 }
 
 void Dbg::SuspendSelf() {
