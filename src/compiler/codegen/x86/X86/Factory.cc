@@ -58,7 +58,7 @@ LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
 {
   int opcode;
   /* must be both DOUBLE or both not DOUBLE */
-  DCHECK_EQ(DOUBLEREG(rDest),DOUBLEREG(rSrc));
+  DCHECK_EQ(DOUBLEREG(rDest), DOUBLEREG(rSrc));
   if (DOUBLEREG(rDest)) {
     opcode = kX86MovsdRR;
   } else {
@@ -73,7 +73,7 @@ LIR *fpRegCopy(CompilationUnit *cUnit, int rDest, int rSrc)
       opcode = kX86MovdrxRR;
     }
   }
-  DCHECK((EncodingMap[opcode].flags & IS_BINARY_OP) != 0);
+  DCHECK_NE((EncodingMap[opcode].flags & IS_BINARY_OP), 0);
   LIR* res = rawLIR(cUnit, cUnit->currentDalvikOffset, opcode, rDest, rSrc);
   if (rDest == rSrc) {
     res->flags.isNop = true;

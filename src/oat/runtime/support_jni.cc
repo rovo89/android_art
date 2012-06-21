@@ -112,7 +112,7 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp) {
         arg_ptr = sp + 10;  // skip to out arguments plus 2 slots as long must be aligned
         reg_num = -1;
       } else {
-        DCHECK(reg_num == -1);
+        DCHECK_EQ(reg_num, -1);
         if ((reinterpret_cast<intptr_t>(arg_ptr) & 7) == 4) {
           arg_ptr += 3;  // unaligned, pad and move through stack arguments
         } else {
@@ -127,7 +127,7 @@ extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp) {
         arg_ptr = sp + 8;  // skip to outgoing stack arguments
         reg_num = -1;
       } else {
-        DCHECK(reg_num == -1);
+        DCHECK_EQ(reg_num, -1);
         arg_ptr++;  // move through stack arguments
       }
     }

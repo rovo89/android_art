@@ -16,7 +16,7 @@ static int createFiles(int count)
     for (i = 0; i < count; i++) {
         char nameBuf[32];
 
-        sprintf(nameBuf, "src/Interface%03d.java", i);
+        snprintf(nameBuf, sizeof(nameBuf), "src/Interface%03d.java", i);
         fp = fopen(nameBuf, "w");
         if (fp == NULL) {
             fprintf(stderr, "ERROR: unable to open %s\n", nameBuf);

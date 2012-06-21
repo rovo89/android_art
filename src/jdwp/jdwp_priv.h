@@ -32,6 +32,9 @@
 #define kJDWPHeaderLen  11
 #define kJDWPFlagReply  0x80
 
+#define kMagicHandshake     "JDWP-Handshake"
+#define kMagicHandshakeLen  (sizeof(kMagicHandshake)-1)
+
 /* DDM support */
 #define kJDWPDdmCmdSet  199     /* 0xc7, or 'G'+128 */
 #define kJDWPDdmCmd     1

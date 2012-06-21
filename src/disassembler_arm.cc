@@ -93,7 +93,7 @@ static const char* kThumbDataProcessingOperations[] = {
 };
 
 struct ArmRegister {
-  ArmRegister(uint32_t r) : r(r) { CHECK_LE(r, 15U); }
+  explicit ArmRegister(uint32_t r) : r(r) { CHECK_LE(r, 15U); }
   ArmRegister(uint32_t instruction, uint32_t at_bit) : r((instruction >> at_bit) & 0xf) { CHECK_LE(r, 15U); }
   uint32_t r;
 };
@@ -115,7 +115,7 @@ struct ThumbRegister : ArmRegister {
 };
 
 struct Rm {
-  Rm(uint32_t instruction) : shift((instruction >> 4) & 0xff), rm(instruction & 0xf) {}
+  explicit Rm(uint32_t instruction) : shift((instruction >> 4) & 0xff), rm(instruction & 0xf) {}
   uint32_t shift;
   ArmRegister rm;
 };
@@ -128,7 +128,7 @@ std::ostream& operator<<(std::ostream& os, const Rm& r) {
 }
 
 struct ShiftedImmediate {
-  ShiftedImmediate(uint32_t instruction) {
+  explicit ShiftedImmediate(uint32_t instruction) {
     uint32_t rotate = ((instruction >> 8) & 0xf);
     uint32_t imm = (instruction & 0xff);
     value = (imm >> (2 * rotate)) | (imm << (32 - (2 * rotate)));
@@ -141,7 +141,7 @@ std::ostream& operator<<(std::ostream& os, const ShiftedImmediate& rhs) {
 }
 
 struct RegisterList {
-  RegisterList(uint32_t instruction) : register_list(instruction & 0xffff) {}
+  explicit RegisterList(uint32_t instruction) : register_list(instruction & 0xffff) {}
   uint32_t register_list;
 };
 std::ostream& operator<<(std::ostream& os, const RegisterList& rhs) {

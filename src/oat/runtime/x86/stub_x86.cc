@@ -57,15 +57,15 @@ ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type) {
   __ popl(EBP);  // Restore callee saves.
   __ popl(ESI);
   // Swap EDI callee save with code pointer
-  __ xchgl(EDI, Address(ESP,0));
+  __ xchgl(EDI, Address(ESP, 0));
   // Tail call to intended method.
   __ ret();
 #else // ART_USE_LLVM_COMPILER
   __ pushl(EBP);
   __ movl(EBP, ESP);          // save ESP
   __ subl(ESP, Immediate(8));  // Align stack
-  __ movl(EAX, Address(EBP,8));  // Method* called
-  __ leal(EDX, Address(EBP,8));  // Method** called_addr
+  __ movl(EAX, Address(EBP, 8));  // Method* called
+  __ leal(EDX, Address(EBP, 8));  // Method** called_addr
   __ pushl(Immediate(type));  // pass is_static
   __ fs()->pushl(Address::Absolute(Thread::SelfOffset()));  // pass thread
   __ pushl(EDX);  // pass called_addr
@@ -132,7 +132,7 @@ ByteArray* CreateAbstractMethodErrorStub() {
   __ subl(ESP, Immediate(12));  // Align stack
   __ pushl(ESP);  // pass sp (not use)
   __ fs()->pushl(Address::Absolute(Thread::SelfOffset()));  // pass thread*
-  __ pushl(Address(EBP,8));  // pass method
+  __ pushl(Address(EBP, 8));  // pass method
   // Call to throw AbstractMethodError.
   __ Call(ThreadOffset(ENTRYPOINT_OFFSET(pThrowAbstractMethodErrorFromCode)),
           X86ManagedRegister::FromCpuRegister(ECX));

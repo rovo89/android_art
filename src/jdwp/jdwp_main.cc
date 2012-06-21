@@ -438,14 +438,14 @@ int64_t JdwpState::LastDebuggerActivity() {
 
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs) {
   os << "JdwpLocation["
-     << Dbg::GetClassName(rhs.classId) << "." << Dbg::GetMethodName(rhs.classId, rhs.methodId)
-     << "@" << StringPrintf("%#llx", rhs.dex_pc) << " " << rhs.typeTag << "]";
+     << Dbg::GetClassName(rhs.class_id) << "." << Dbg::GetMethodName(rhs.class_id, rhs.method_id)
+     << "@" << StringPrintf("%#llx", rhs.dex_pc) << " " << rhs.type_tag << "]";
   return os;
 }
 
 bool operator==(const JdwpLocation& lhs, const JdwpLocation& rhs) {
-  return lhs.dex_pc == rhs.dex_pc && lhs.methodId == rhs.methodId &&
-      lhs.classId == rhs.classId && lhs.typeTag == rhs.typeTag;
+  return lhs.dex_pc == rhs.dex_pc && lhs.method_id == rhs.method_id &&
+      lhs.class_id == rhs.class_id && lhs.type_tag == rhs.type_tag;
 }
 
 bool operator!=(const JdwpLocation& lhs, const JdwpLocation& rhs) {

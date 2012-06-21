@@ -674,7 +674,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit,
           break;
         case kFmtDfp: {
           DCHECK(DOUBLEREG(operand));
-          DCHECK((operand & 0x1) == 0);
+          DCHECK_EQ((operand & 0x1), 0U);
           value = ((operand & FP_REG_MASK) << encoder->fieldLoc[i].start) &
               ((1 << (encoder->fieldLoc[i].end + 1)) - 1);
           bits |= value;

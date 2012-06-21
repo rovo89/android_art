@@ -254,7 +254,7 @@ std::ostream& operator<<(std::ostream& os, const Dumpable<T>& rhs) {
 template<typename T>
 class ToStr {
  public:
-  ToStr(const T& value) {
+  explicit ToStr(const T& value) {
     std::ostringstream os;
     os << value;
     s_ = os.str();

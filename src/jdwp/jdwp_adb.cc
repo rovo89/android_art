@@ -48,9 +48,6 @@
 
 #define kInputBufferSize    8192
 
-#define kMagicHandshake     "JDWP-Handshake"
-#define kMagicHandshakeLen  (sizeof(kMagicHandshake)-1)
-
 #define kJdwpControlName    "\0jdwp-control"
 #define kJdwpControlNameLen (sizeof(kJdwpControlName)-1)
 
@@ -64,7 +61,7 @@ struct JdwpNetState : public JdwpNetStateBase {
   bool                shuttingDown;
   int                 wakeFds[2];
 
-  int                 inputCount;
+  size_t inputCount;
   unsigned char       inputBuffer[kInputBufferSize];
 
   socklen_t           controlAddrLen;
@@ -382,12 +379,12 @@ static bool awaitingHandshake(JdwpState* state) {
  */
 static bool haveFullPacket(JdwpNetState* netState) {
   if (netState->awaitingHandshake) {
-    return (netState->inputCount >= (int) kMagicHandshakeLen);
+    return (netState->inputCount >= kMagicHandshakeLen);
   }
   if (netState->inputCount < 4) {
     return false;
   }
-  long length = Get4BE(netState->inputBuffer);
+  uint32_t length = Get4BE(netState->inputBuffer);
   return (netState->inputCount >= length);
 }
 
@@ -397,8 +394,8 @@ static bool haveFullPacket(JdwpNetState* netState) {
  * This would be more efficient with a circular buffer.  However, we're
  * usually only going to find one packet, which is trivial to handle.
  */
-static void consumeBytes(JdwpNetState* netState, int count) {
-  CHECK_GT(count, 0);
+static void consumeBytes(JdwpNetState* netState, size_t count) {
+  CHECK_GT(count, 0U);
   CHECK_LE(count, netState->inputCount);
 
   if (count == netState->inputCount) {
@@ -437,7 +434,7 @@ static bool handlePacket(JdwpState* state) {
     cmd = Read1(&buf);
   }
 
-  CHECK_LE((int) length, netState->inputCount);
+  CHECK_LE(length, netState->inputCount);
   dataLen = length - (buf - netState->inputBuffer);
 
   if (!reply) {

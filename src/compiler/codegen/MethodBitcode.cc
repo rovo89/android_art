@@ -29,7 +29,7 @@
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/InstIterator.h>
 
-const char* labelFormat = "L0x%x_%d";
+static const char* kLabelFormat = "L0x%x_%d";
 
 namespace art {
 extern const RegLocation badLoc;
@@ -345,7 +345,7 @@ void setShadowFrameEntry(CompilationUnit* cUnit, llvm::Value* newVal)
       break;
     }
   }
-  DCHECK(index != -1) << "Corrupt shadowMap";
+  DCHECK_NE(index, -1) << "Corrupt shadowMap";
   greenland::IntrinsicHelper::IntrinsicId id =
       greenland::IntrinsicHelper::SetShadowFrameEntry;
   llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
@@ -1341,7 +1341,7 @@ bool createLLVMBasicBlock(CompilationUnit* cUnit, BasicBlock* bb)
     bool entryBlock = (bb->blockType == kEntryBlock);
     llvm::BasicBlock* llvmBB =
         llvm::BasicBlock::Create(*cUnit->context, entryBlock ? "entry" :
-                                 StringPrintf(labelFormat, offset, bb->id),
+                                 StringPrintf(kLabelFormat, offset, bb->id),
                                  cUnit->func);
     if (entryBlock) {
         cUnit->entryBB = llvmBB;
@@ -1443,17 +1443,16 @@ RegLocation getLoc(CompilationUnit* cUnit, llvm::Value* val) {
   DCHECK(val != NULL);
   SafeMap<llvm::Value*, RegLocation>::iterator it = cUnit->locMap.find(val);
   if (it == cUnit->locMap.end()) {
-    const char* valName = val->getName().str().c_str();
-    DCHECK(valName != NULL);
-    DCHECK(strlen(valName) > 0);
+    std::string valName(val->getName().str());
+    DCHECK(!valName.empty());
     if (valName[0] == 'v') {
       int baseSReg = INVALID_SREG;
-      sscanf(valName, "v%d_", &baseSReg);
+      sscanf(valName.c_str(), "v%d_", &baseSReg);
       res = cUnit->regLocation[baseSReg];
       cUnit->locMap.Put(val, res);
     } else {
       UNIMPLEMENTED(WARNING) << "Need to handle llvm temps";
-      DCHECK(valName[0] == 't');
+      DCHECK_EQ(valName[0], 't');
     }
   } else {
     res = it->second;
@@ -1628,7 +1627,7 @@ void cvtCall(CompilationUnit* cUnit, llvm::CallInst* callInst,
 
 void cvtCopy(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
-  DCHECK(callInst->getNumArgOperands() == 1);
+  DCHECK_EQ(callInst->getNumArgOperands(), 1);
   RegLocation rlSrc = getLoc(cUnit, callInst->getArgOperand(0));
   RegLocation rlDest = getLoc(cUnit, callInst);
   if (rlSrc.wide) {
@@ -1641,7 +1640,7 @@ void cvtCopy(CompilationUnit* cUnit, llvm::CallInst* callInst)
 // Note: Immediate arg is a ConstantInt regardless of result type
 void cvtConst(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
-  DCHECK(callInst->getNumArgOperands() == 1);
+  DCHECK_EQ(callInst->getNumArgOperands(), 1);
   llvm::ConstantInt* src =
       llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
   uint64_t immval = src->getZExtValue();
@@ -1659,7 +1658,7 @@ void cvtConst(CompilationUnit* cUnit, llvm::CallInst* callInst)
 
 void cvtConstString(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
-  DCHECK(callInst->getNumArgOperands() == 1);
+  DCHECK_EQ(callInst->getNumArgOperands(), 1);
   llvm::ConstantInt* stringIdxVal =
       llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
   uint32_t stringIdx = stringIdxVal->getZExtValue();
@@ -1733,7 +1732,7 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
   if (!isEntry) {
     const char* blockName = bb->getName().str().c_str();
     int dummy;
-    sscanf(blockName, labelFormat, &blockLabel->operands[0], &dummy);
+    sscanf(blockName, kLabelFormat, &blockLabel->operands[0], &dummy);
   }
   // Set the label kind
   blockLabel->opcode = kPseudoNormalBlockLabel;

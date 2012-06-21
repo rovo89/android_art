@@ -20,8 +20,8 @@
 #include "runtime.h"
 
 #define ENTRYPOINT_OFFSET(x) \
-  (static_cast<uintptr_t>(OFFSETOF_MEMBER(Thread, entrypoints_)) + \
-   static_cast<uintptr_t>(OFFSETOF_MEMBER(EntryPoints, x)))
+    (static_cast<uintptr_t>(OFFSETOF_MEMBER(Thread, entrypoints_)) + \
+        static_cast<uintptr_t>(OFFSETOF_MEMBER(EntryPoints, x)))
 
 namespace art {
 

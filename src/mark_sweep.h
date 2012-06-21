@@ -30,7 +30,7 @@ class Object;
 
 class MarkSweep {
  public:
-  MarkSweep(MarkStack* mark_stack);
+  explicit MarkSweep(MarkStack* mark_stack);
 
   ~MarkSweep();
 

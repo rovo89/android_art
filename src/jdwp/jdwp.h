@@ -73,9 +73,9 @@ static inline void expandBufAddFrameId(ExpandBuf* pReply, FrameId id) { expandBu
  * Holds a JDWP "location".
  */
 struct JdwpLocation {
-  JdwpTypeTag typeTag;
-  RefTypeId classId;
-  MethodId methodId;
+  JdwpTypeTag type_tag;
+  RefTypeId class_id;
+  MethodId method_id;
   uint64_t dex_pc;
 };
 std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs);
@@ -274,9 +274,9 @@ struct JdwpState {
                           int* pMatchCount) EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_);
   void UnregisterEvent(JdwpEvent* pEvent) EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_);
 
-public: // TODO: fix privacy
+ public: // TODO: fix privacy
   const JdwpOptions* options_;
-private:
+ private:
 
   /* wait for creation of the JDWP thread */
   Mutex thread_start_lock_;
@@ -285,15 +285,15 @@ private:
   volatile int32_t debug_thread_started_;
   pthread_t pthread_;
   Thread* thread_;
-public: // TODO: fix privacy
+ public: // TODO: fix privacy
   ObjectId debugThreadId;
-private:
+ private:
   bool run;
 
   const JdwpTransport* transport;
-public: // TODO: fix privacy
+ public: // TODO: fix privacy
   JdwpNetState* netState;
-private:
+ private:
 
   /* for wait-for-debugger */
   Mutex attach_lock_;
@@ -310,11 +310,11 @@ private:
   /*
    * Events requested by the debugger (breakpoints, class prep, etc).
    */
-public: // TODO: fix privacy
+ public: // TODO: fix privacy
   Mutex event_list_lock_;
   JdwpEvent* event_list_ GUARDED_BY(event_list_lock_); // Linked list of events.
   int event_list_size_ GUARDED_BY(event_list_lock_); // Number of elements in event_list_.
-private:
+ private:
 
   /*
    * Synchronize suspension of event thread (to avoid receiving "resume"
@@ -327,9 +327,8 @@ private:
   /*
    * DDM support.
    */
-public: // TODO: fix privacy
+ public: // TODO: fix privacy
   bool ddmActive;
-private:
 };
 
 }  // namespace JDWP

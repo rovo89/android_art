@@ -844,7 +844,7 @@ void ClassLinker::InitFromImage() {
   OatFile* oat_file = OpenOat(space);
   CHECK(oat_file != NULL) << "Failed to open oat file for image";
   CHECK_EQ(oat_file->GetOatHeader().GetImageFileLocationChecksum(), 0U);
-  CHECK(oat_file->GetOatHeader().GetImageFileLocation() == "");
+  CHECK(oat_file->GetOatHeader().GetImageFileLocation().empty());
   Object* dex_caches_object = space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
   ObjectArray<DexCache>* dex_caches = dex_caches_object->AsObjectArray<DexCache>();
 
