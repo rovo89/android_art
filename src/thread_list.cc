@@ -274,7 +274,7 @@ void ThreadList::ResumeAll(bool for_debugger) {
     MutexLock mu(thread_suspend_count_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
-      if (thread == self || (for_debugger && thread == debug_thread) || thread->suspend_count_ == 0) {
+      if (thread == self || (for_debugger && thread == debug_thread)) {
         continue;
       }
       ModifySuspendCount(thread, -1, for_debugger);
