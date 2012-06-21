@@ -188,7 +188,7 @@ bool OatFile::Map(File& file,
 
 #else
   oat = map->Begin() + oat_header.GetElfImageTableOffset();
-  CHECK((reinterpret_cast<uintptr_t>(oat) & 0x3) == 0);
+  CHECK_EQ((reinterpret_cast<uintptr_t>(oat) & 0x3), 0);
 
   for (uint32_t i = 0, end = oat_header.GetElfImageCount(); i < end; ++i) {
     uint32_t elf_offset = *reinterpret_cast<const uint32_t*>(oat);

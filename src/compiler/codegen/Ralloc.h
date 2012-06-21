@@ -50,14 +50,12 @@ inline int oatSRegHi(int lowSreg) {
 }
 
 
-inline bool oatLiveOut(CompilationUnit* cUnit, int sReg)
-{
+inline bool oatLiveOut(CompilationUnit* cUnit, int sReg) {
   //For now.
   return true;
 }
 
-inline int oatSSASrc(MIR* mir, int num)
-{
+inline int oatSSASrc(MIR* mir, int num) {
   DCHECK_GT(mir->ssaRep->numUses, num);
   return mir->ssaRep->uses[num];
 }

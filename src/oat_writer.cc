@@ -885,7 +885,7 @@ uint32_t OatWriter::OatElfImage::GetElfOffset() const {
 
 void OatWriter::OatElfImage::SetElfOffset(uint32_t offset) {
   DCHECK_NE(offset, 0U);
-  DCHECK((offset & 0x3LU) == 0);
+  DCHECK_EQ((offset & 0x3LU), 0U);
   elf_offset_ = offset;
 }
 

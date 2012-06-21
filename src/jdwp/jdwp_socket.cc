@@ -38,9 +38,6 @@
 
 #define kInputBufferSize    8192
 
-#define kMagicHandshake     "JDWP-Handshake"
-#define kMagicHandshakeLen  (sizeof(kMagicHandshake)-1)
-
 namespace art {
 
 namespace JDWP {
@@ -55,29 +52,29 @@ static void netFree(JdwpNetState* state);
  * We only talk to one debugger at a time.
  */
 struct JdwpNetState : public JdwpNetStateBase {
-    uint16_t listenPort;
-    int     listenSock;         /* listen for connection from debugger */
-    int     wakePipe[2];        /* break out of select */
+  uint16_t listenPort;
+  int     listenSock;         /* listen for connection from debugger */
+  int     wakePipe[2];        /* break out of select */
 
-    in_addr remoteAddr;
-    uint16_t remotePort;
+  in_addr remoteAddr;
+  uint16_t remotePort;
 
-    bool    awaitingHandshake;  /* waiting for "JDWP-Handshake" */
+  bool    awaitingHandshake;  /* waiting for "JDWP-Handshake" */
 
-    /* pending data from the network; would be more efficient as circular buf */
-    unsigned char  inputBuffer[kInputBufferSize];
-    int     inputCount;
+  /* pending data from the network; would be more efficient as circular buf */
+  unsigned char  inputBuffer[kInputBufferSize];
+  size_t inputCount;
 
-    JdwpNetState() {
-        listenPort  = 0;
-        listenSock  = -1;
-        wakePipe[0] = -1;
-        wakePipe[1] = -1;
+  JdwpNetState() {
+    listenPort  = 0;
+    listenSock  = -1;
+    wakePipe[0] = -1;
+    wakePipe[1] = -1;
 
-        awaitingHandshake = false;
+    awaitingHandshake = false;
 
-        inputCount = 0;
-    }
+    inputCount = 0;
+  }
 };
 
 static JdwpNetState* netStartup(uint16_t port, bool probe);
@@ -265,62 +262,15 @@ static bool isConnected(JdwpState* state) {
 }
 
 /*
- * Returns "true" if the fd is ready, "false" if not.
- */
-#if 0
-static bool isFdReadable(int sock)
-{
-    fd_set readfds;
-    timeval tv;
-    int count;
-
-    FD_ZERO(&readfds);
-    FD_SET(sock, &readfds);
-
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-    count = select(sock+1, &readfds, NULL, NULL, &tv);
-    if (count <= 0)
-        return false;
-
-    if (FD_ISSET(sock, &readfds))   /* make sure it's our fd */
-        return true;
-
-  LOG(ERROR) << "WEIRD: odd behavior in select (count=" << count << ")";
-  return false;
-}
-#endif
-
-#if 0
-/*
- * Check to see if we have a pending connection from the debugger.
- *
- * Returns true on success (meaning a connection is available).
- */
-static bool checkConnection(JdwpState* state) {
-    JdwpNetState* netState = state->netState;
-
-    CHECK_GE(netState->listenSock, 0);
-    /* not expecting to be called when debugger is actively connected */
-    CHECK_LT(netState->clientSock, 0);
-
-    if (!isFdReadable(netState->listenSock))
-        return false;
-    return true;
-}
-#endif
-
-/*
  * Disable the TCP Nagle algorithm, which delays transmission of outbound
  * packets until the previous transmissions have been acked.  JDWP does a
  * lot of back-and-forth with small packets, so this may help.
  */
-static int setNoDelay(int fd)
-{
-    int on = 1;
-    int cc = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
-    CHECK_EQ(cc, 0);
-    return cc;
+static int setNoDelay(int fd) {
+  int on = 1;
+  int cc = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
+  CHECK_EQ(cc, 0);
+  return cc;
 }
 
 /*
@@ -328,8 +278,7 @@ static int setNoDelay(int fd)
  * If that's not desirable, use checkConnection() to make sure something
  * is pending.
  */
-static bool acceptConnection(JdwpState* state)
-{
+static bool acceptConnection(JdwpState* state) {
   JdwpNetState* netState = state->netState;
   union {
     sockaddr_in  addrInet;
@@ -487,12 +436,12 @@ static void closeConnection(JdwpState* state) {
  */
 static bool haveFullPacket(JdwpNetState* netState) {
   if (netState->awaitingHandshake) {
-    return (netState->inputCount >= (int) kMagicHandshakeLen);
+    return (netState->inputCount >= kMagicHandshakeLen);
   }
   if (netState->inputCount < 4) {
     return false;
   }
-  long length = Get4BE(netState->inputBuffer);
+  uint32_t length = Get4BE(netState->inputBuffer);
   return (netState->inputCount >= length);
 }
 
@@ -502,8 +451,8 @@ static bool haveFullPacket(JdwpNetState* netState) {
  * This would be more efficient with a circular buffer.  However, we're
  * usually only going to find one packet, which is trivial to handle.
  */
-static void consumeBytes(JdwpNetState* netState, int count) {
-  CHECK_GT(count, 0);
+static void consumeBytes(JdwpNetState* netState, size_t count) {
+  CHECK_GT(count, 0U);
   CHECK_LE(count, netState->inputCount);
 
   if (count == netState->inputCount) {
@@ -516,58 +465,19 @@ static void consumeBytes(JdwpNetState* netState, int count) {
 }
 
 /*
- * Dump the contents of a packet to stdout.
- */
-#if 0
-static void dumpPacket(const unsigned char* packetBuf) {
-  const unsigned char* buf = packetBuf;
-  uint32_t length, id;
-  uint8_t flags, cmdSet, cmd;
-  uint16_t error;
-  bool reply;
-  int dataLen;
-
-  cmd = cmdSet = 0xcc;
-
-  length = Read4BE(&buf);
-  id = Read4BE(&buf);
-  flags = Read1(&buf);
-  if ((flags & kJDWPFlagReply) != 0) {
-    reply = true;
-    error = Read2BE(&buf);
-  } else {
-    reply = false;
-    cmdSet = Read1(&buf);
-    cmd = Read1(&buf);
-  }
-
-  dataLen = length - (buf - packetBuf);
-
-  VLOG(jdwp) << StringPrintf("--- %s: dataLen=%u id=0x%08x flags=0x%02x cmd=%d/%d",
-                             reply ? "reply" : "req", dataLen, id, flags, cmdSet, cmd);
-  VLOG(jdwp) << HexDump(buf, dataLen);
-}
-#endif
-
-/*
  * Handle a packet.  Returns "false" if we encounter a connection-fatal error.
  */
 static bool handlePacket(JdwpState* state) {
   JdwpNetState* netState = state->netState;
   const unsigned char* buf = netState->inputBuffer;
-  JdwpReqHeader hdr;
-  uint32_t length, id;
-  uint8_t flags, cmdSet, cmd;
+  uint8_t cmdSet, cmd;
   bool reply;
-  int dataLen;
 
   cmd = cmdSet = 0;       // shut up gcc
 
-  /*dumpPacket(netState->inputBuffer);*/
-
-  length = Read4BE(&buf);
-  id = Read4BE(&buf);
-  flags = Read1(&buf);
+  uint32_t length = Read4BE(&buf);
+  uint32_t id = Read4BE(&buf);
+  int8_t flags = Read1(&buf);
   if ((flags & kJDWPFlagReply) != 0) {
     reply = true;
     Read2BE(&buf);  // error
@@ -577,12 +487,13 @@ static bool handlePacket(JdwpState* state) {
     cmd = Read1(&buf);
   }
 
-  CHECK_LE((int) length, netState->inputCount);
-  dataLen = length - (buf - netState->inputBuffer);
+  CHECK_LE(length, netState->inputCount);
+  int dataLen = length - (buf - netState->inputBuffer);
 
   if (!reply) {
     ExpandBuf* pReply = expandBufAlloc();
 
+    JdwpReqHeader hdr;
     hdr.length = length;
     hdr.id = id;
     hdr.cmdSet = cmdSet;

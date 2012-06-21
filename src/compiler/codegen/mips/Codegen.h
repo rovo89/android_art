@@ -67,12 +67,11 @@ void freeRegLocTemps(CompilationUnit* cUnit, RegLocation rlKeep,
  * Must use a core register for data types narrower than word (due
  * to possible unaligned load/store.
  */
-inline RegisterClass oatRegClassBySize(OpSize size)
-{
+inline RegisterClass oatRegClassBySize(OpSize size) {
   return (size == kUnsignedHalf ||
           size == kSignedHalf ||
           size == kUnsignedByte ||
-          size == kSignedByte ) ? kCoreReg : kAnyReg;
+          size == kSignedByte) ? kCoreReg : kAnyReg;
 }
 
 /*
@@ -84,7 +83,7 @@ inline RegisterClass oatRegClassBySize(OpSize size)
  */
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 inline s4 s4FromSwitchData(const void* switchData) {
-  return *(s4*) switchData;
+  return *reinterpret_cast<const s4*>(switchData);
 }
 #else
 inline s4 s4FromSwitchData(const void* switchData) {

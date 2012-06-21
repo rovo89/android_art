@@ -1305,7 +1305,7 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit* cUnit,
           break;
         case kFmtDfp: {
           DCHECK(DOUBLEREG(operand));
-          DCHECK((operand & 0x1) == 0);
+          DCHECK_EQ((operand & 0x1), 0U);
           int regName = (operand & FP_REG_MASK) >> 1;
           /* Snag the 1-bit slice and position it */
           value = ((regName & 0x10) >> 4) << encoder->fieldLoc[i].end;

@@ -1020,7 +1020,7 @@ void oatSpecialMIR2LIR(CompilationUnit* cUnit, SpecialCaseHandler specialCase)
     return;
   }
   DCHECK_EQ(bb->startOffset, 0);
-  DCHECK(bb->firstMIRInsn != 0);
+  DCHECK(bb->firstMIRInsn != NULL);
 
   /* Get the first instruction */
   MIR* mir = bb->firstMIRInsn;
