@@ -36,7 +36,7 @@ declare void @__art_type_list(%JavaObject*, %ShadowFrame*)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 declare %JavaObject* @art_get_current_thread_from_code()
-declare void @art_set_current_thread_from_code(%JavaObject*)
+declare %JavaObject* @art_set_current_thread_from_code(%JavaObject*)
 
 declare void @art_lock_object_from_code(%JavaObject*, %JavaObject*)
 declare void @art_unlock_object_from_code(%JavaObject*, %JavaObject*)

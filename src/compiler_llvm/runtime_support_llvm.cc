@@ -61,8 +61,9 @@ Thread* art_get_current_thread_from_code() {
 #endif
 }
 
-void art_set_current_thread_from_code(void* thread_object_addr) {
+void* art_set_current_thread_from_code(void* thread_object_addr) {
   // Nothing to be done.
+  return NULL;
 }
 
 void art_lock_object_from_code(Object* obj, Thread* thread) {

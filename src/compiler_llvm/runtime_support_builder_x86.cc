@@ -68,8 +68,9 @@ void RuntimeSupportBuilderX86::EmitStoreToThreadOffset(int64_t offset, llvm::Val
   irb_.SetTBAA(call_inst, s_ty);
 }
 
-void RuntimeSupportBuilderX86::EmitSetCurrentThread(llvm::Value*) {
+llvm::Value* RuntimeSupportBuilderX86::EmitSetCurrentThread(llvm::Value*) {
   /* Nothing to be done. */
+  return llvm::UndefValue::get(irb_.getJObjectTy());
 }
 
 

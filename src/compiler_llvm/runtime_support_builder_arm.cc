@@ -67,10 +67,26 @@ void RuntimeSupportBuilderARM::EmitStoreToThreadOffset(int64_t offset, llvm::Val
   irb_.SetTBAA(call_inst, s_ty);
 }
 
-void RuntimeSupportBuilderARM::EmitSetCurrentThread(llvm::Value* thread) {
-  Function* ori_func = GetRuntimeSupportFunction(runtime_support::SetCurrentThread);
-  InlineAsm* func = InlineAsm::get(ori_func->getFunctionType(), "mov r9, $0", "r", true);
+llvm::Value*
+RuntimeSupportBuilderARM::EmitSetCurrentThread(llvm::Value* thread) {
+  // Separate to two InlineAsm: The first one produces the return value, while the second,
+  // sets the current thread.
+  // LLVM can delete the first one if the caller in LLVM IR doesn't use the return value.
+  //
+  // Here we don't call EmitGetCurrentThread, because we mark it as DoesNotAccessMemory and
+  // ConstJObject. We denote side effect to "true" below instead, so LLVM won't
+  // reorder these instructions incorrectly.
+  Function* ori_func = GetRuntimeSupportFunction(runtime_support::GetCurrentThread);
+  InlineAsm* func = InlineAsm::get(ori_func->getFunctionType(), "mov $0, r9", "=r", true);
+  CallInst* old_thread_register = irb_.CreateCall(func);
+  old_thread_register->setOnlyReadsMemory();
+
+  FunctionType* func_ty = FunctionType::get(/*Result=*/Type::getVoidTy(context_),
+                                            /*Params=*/irb_.getJObjectTy(),
+                                            /*isVarArg=*/false);
+  func = InlineAsm::get(func_ty, "mov r9, $0", "r", true);
   irb_.CreateCall(func, thread);
+  return old_thread_register;
 }
 
 

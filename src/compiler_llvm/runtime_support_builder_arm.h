@@ -33,7 +33,7 @@ class RuntimeSupportBuilderARM : public RuntimeSupportBuilder {
                                                 TBAASpecialType s_ty);
   virtual void EmitStoreToThreadOffset(int64_t offset, llvm::Value* value,
                                        TBAASpecialType s_ty);
-  virtual void EmitSetCurrentThread(llvm::Value* thread);
+  virtual llvm::Value* EmitSetCurrentThread(llvm::Value* thread);
 
   /* Monitor */
   virtual void EmitLockObject(llvm::Value* object);
