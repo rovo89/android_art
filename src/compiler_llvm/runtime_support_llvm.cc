@@ -115,7 +115,7 @@ void art_throw_div_zero_from_code() {
                             "divide by zero");
 }
 
-void art_throw_array_bounds_from_code(int32_t length, int32_t index) {
+void art_throw_array_bounds_from_code(int32_t index, int32_t length) {
   Thread* thread = art_get_current_thread_from_code();
   thread->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
                              "length=%d; index=%d", length, index);
