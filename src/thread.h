@@ -651,6 +651,7 @@ class PACKED Thread {
   EntryPoints entrypoints_;
 
  private:
+  friend class ScopedThreadListLockReleaser;
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
 

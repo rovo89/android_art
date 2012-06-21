@@ -92,6 +92,7 @@ class ThreadList {
 
   friend class Thread;
   friend class ScopedThreadListLock;
+  friend class ScopedThreadListLockReleaser;
 
   DISALLOW_COPY_AND_ASSIGN(ThreadList);
 };
