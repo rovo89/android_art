@@ -55,7 +55,7 @@ int32_t art_find_catch_block_from_code(Method* current_method,
 
 void art_test_suspend_from_code(Thread* thread);
 
-void art_set_current_thread_from_code(void* thread_object_addr);
+void* art_set_current_thread_from_code(void* thread_object_addr);
 
 //----------------------------------------------------------------------------
 // Runtime Support Function Lookup Callback

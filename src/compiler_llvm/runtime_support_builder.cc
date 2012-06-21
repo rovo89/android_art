@@ -94,9 +94,9 @@ void RuntimeSupportBuilder::EmitStoreToThreadOffset(int64_t offset, llvm::Value*
   irb_.StoreToObjectOffset(thread, offset, value, s_ty);
 }
 
-void RuntimeSupportBuilder::EmitSetCurrentThread(llvm::Value* thread) {
+llvm::Value* RuntimeSupportBuilder::EmitSetCurrentThread(llvm::Value* thread) {
   Function* func = GetRuntimeSupportFunction(runtime_support::SetCurrentThread);
-  irb_.CreateCall(func, thread);
+  return irb_.CreateCall(func, thread);
 }
 
 
