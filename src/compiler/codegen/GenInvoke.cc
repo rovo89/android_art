@@ -854,8 +854,7 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info)
 
 bool genIntrinsic(CompilationUnit* cUnit, CallInfo* info)
 {
-  if ((info->optFlags & MIR_INLINED) || info->isRange ||
-      (info->result.location == kLocInvalid))  {
+  if ((info->optFlags & MIR_INLINED) || info->isRange) {
     return false;
   }
   /*
