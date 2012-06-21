@@ -30,6 +30,7 @@
 #include "object_utils.h"
 #include "os.h"
 #include "scoped_heap_lock.h"
+#include "scoped_thread_list_lock_releaser.h"
 #include "ScopedLocalRef.h"
 #include "space.h"
 #include "stl_util.h"
@@ -737,8 +738,10 @@ bool Heap::WaitForConcurrentGcToComplete() {
   // Busy wait for GC to finish
   if (is_gc_running_) {
     uint64_t wait_start = NanoTime();
+
     do {
       ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
+      ScopedThreadListLockReleaser list_lock_releaser;
       condition_->Wait(*lock_);
     } while (is_gc_running_);
     uint64_t wait_time = NanoTime() - wait_start;
