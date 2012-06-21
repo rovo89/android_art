@@ -607,7 +607,6 @@ class ImageDumper {
   }
 
  private:
-
   static void PrettyObjectValue(std::string& summary, Class* type, Object* value) {
     CHECK(type != NULL);
     if (value == NULL) {

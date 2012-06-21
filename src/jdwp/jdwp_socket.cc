@@ -177,7 +177,7 @@ static JdwpNetState* netStartup(uint16_t port, bool probe) {
 
   return netState;
 
-fail:
+ fail:
   netShutdown(netState);
   netFree(netState);
   return NULL;
@@ -332,7 +332,7 @@ static bool acceptConnection(JdwpState* state) {
 /*
  * Create a connection to a waiting debugger.
  */
-static bool establishConnection(JdwpState* state) {
+static bool establishConnection(JdwpState* state, const JdwpOptions* options) {
   union {
     sockaddr_in  addrInet;
     sockaddr     addrPlain;
@@ -340,9 +340,9 @@ static bool establishConnection(JdwpState* state) {
   hostent* pEntry;
 
   CHECK(state != NULL && state->netState != NULL);
-  CHECK(!state->options_->server);
-  CHECK(!state->options_->host.empty());
-  CHECK_NE(state->options_->port, 0);
+  CHECK(!options->server);
+  CHECK(!options->host.empty());
+  CHECK_NE(options->port, 0);
 
   /*
    * Start by resolving the host name.
@@ -353,16 +353,16 @@ static bool establishConnection(JdwpState* state) {
   hostent he;
   char auxBuf[128];
   int error;
-  int cc = gethostbyname_r(state->options_->host.c_str(), &he, auxBuf, sizeof(auxBuf), &pEntry, &error);
+  int cc = gethostbyname_r(options->host.c_str(), &he, auxBuf, sizeof(auxBuf), &pEntry, &error);
   if (cc != 0) {
-    LOG(WARNING) << "gethostbyname_r('" << state->options_->host << "') failed: " << hstrerror(error);
+    LOG(WARNING) << "gethostbyname_r('" << options->host << "') failed: " << hstrerror(error);
     return false;
   }
 #else
   h_errno = 0;
-  pEntry = gethostbyname(state->options_->host.c_str());
+  pEntry = gethostbyname(options->host.c_str());
   if (pEntry == NULL) {
-    PLOG(WARNING) << "gethostbyname('" << state->options_->host << "') failed";
+    PLOG(WARNING) << "gethostbyname('" << options->host << "') failed";
     return false;
   }
 #endif
@@ -371,7 +371,7 @@ static bool establishConnection(JdwpState* state) {
   memcpy(&addr.addrInet.sin_addr, pEntry->h_addr, pEntry->h_length);
   addr.addrInet.sin_family = pEntry->h_addrtype;
 
-  addr.addrInet.sin_port = htons(state->options_->port);
+  addr.addrInet.sin_port = htons(options->port);
 
   LOG(INFO) << "Connecting out to " << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port);
 
@@ -396,7 +396,7 @@ static bool establishConnection(JdwpState* state) {
     return false;
   }
 
-  LOG(INFO) << "Connection established to " << state->options_->host << " (" << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port) << ")";
+  LOG(INFO) << "Connection established to " << options->host << " (" << inet_ntoa(addr.addrInet.sin_addr) << ":" << ntohs(addr.addrInet.sin_port) << ")";
   netState->awaitingHandshake = true;
   netState->inputCount = 0;
 
@@ -686,7 +686,7 @@ static bool processIncoming(JdwpState* state) {
    */
   return handlePacket(state);
 
-fail:
+ fail:
   closeConnection(state);
   return false;
 }

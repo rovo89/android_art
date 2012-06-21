@@ -248,6 +248,7 @@ class OatFile {
     }
 
     ~OatDexFile();
+
    private:
     OatDexFile(const OatFile* oat_file,
                const std::string& dex_file_location,

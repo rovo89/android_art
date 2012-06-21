@@ -490,7 +490,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
   // Reacquire the monitor lock.
   Lock(self);
 
-done:
+ done:
   /*
    * We remove our thread from wait set after restoring the count
    * and owner fields so the subroutine can check that the calling
@@ -597,7 +597,7 @@ void Monitor::MonitorEnter(Thread* self, Object* obj) {
   DCHECK(self != NULL);
   DCHECK(obj != NULL);
   uint32_t threadId = self->GetThinLockId();
-retry:
+ retry:
   thin = *thinp;
   if (LW_SHAPE(thin) == LW_SHAPE_THIN) {
     /*

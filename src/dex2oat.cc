@@ -118,7 +118,6 @@ static void Usage(const char* fmt, ...) {
 
 class Dex2Oat {
  public:
-
   static Dex2Oat* Create(Runtime::Options& options, InstructionSet instruction_set,
                          size_t thread_count, bool support_debugging) {
     UniquePtr<Runtime> runtime(CreateRuntime(options, instruction_set));
@@ -278,7 +277,6 @@ class Dex2Oat {
   }
 
  private:
-
   explicit Dex2Oat(Runtime* runtime, InstructionSet instruction_set, size_t thread_count,
                    bool support_debugging)
       : instruction_set_(instruction_set),

@@ -163,8 +163,8 @@ typedef uint32_t HprofId;
 typedef HprofId HprofStringId;
 typedef HprofId HprofObjectId;
 typedef HprofId HprofClassObjectId;
-typedef std::set<Class*> ClassSet;
-typedef std::set<Class*>::iterator ClassSetIterator;
+typedef std::set<const Class*> ClassSet;
+typedef std::set<const Class*>::iterator ClassSetIterator;
 typedef SafeMap<std::string, size_t> StringMap;
 typedef SafeMap<std::string, size_t>::iterator StringMapIterator;
 
@@ -177,7 +177,7 @@ class HprofRecord {
  public:
   int Flush(FILE* fp) {
     if (dirty_) {
-      unsigned char headBuf[sizeof (uint8_t) + 2 * sizeof (uint32_t)];
+      unsigned char headBuf[sizeof(uint8_t) + 2 * sizeof(uint32_t)];
 
       headBuf[0] = tag_;
       U4_TO_BUF_BE(headBuf, 1, time_);
@@ -334,11 +334,11 @@ class Hprof {
   int StartNewRecord(uint8_t tag, uint32_t time);
   int FlushCurrentRecord();
   int MarkRootObject(const Object *obj, jobject jniObj);
-  HprofClassObjectId LookupClassId(Class* c);
+  HprofClassObjectId LookupClassId(const Class* c);
   HprofStringId LookupStringId(String* string);
   HprofStringId LookupStringId(const char* string);
   HprofStringId LookupStringId(const std::string& string);
-  HprofStringId LookupClassNameId(Class* c);
+  HprofStringId LookupClassNameId(const Class* c);
 
   // current_record_ *must* be first so that we can cast from a context to a record.
   HprofRecord current_record_;
@@ -652,7 +652,7 @@ int Hprof::DumpHeapObject(const Object* obj) {
     // allocated which hasn't been initialized yet.
   } else {
     if (obj->IsClass()) {
-      Class* thisClass = (Class*)obj;
+      const Class* thisClass = obj->AsClass();
       // obj is a ClassObject.
       size_t sFieldCount = thisClass->NumStaticFields();
       if (sFieldCount != 0) {
@@ -734,7 +734,7 @@ int Hprof::DumpHeapObject(const Object* obj) {
         rec->AddU1(t);
       }
     } else if (c->IsArrayClass()) {
-      Array *aobj = (Array *)obj;
+      const Array* aobj = obj->AsArray();
       uint32_t length = aobj->GetLength();
 
       if (obj->IsObjectArray()) {
@@ -778,7 +778,6 @@ int Hprof::DumpHeapObject(const Object* obj) {
 #endif
       }
     } else {
-
       // obj is an instance object.
       rec->AddU1(HPROF_INSTANCE_DUMP);
       rec->AddId((HprofObjectId)obj);
@@ -1005,18 +1004,18 @@ int Hprof::DumpStrings() {
   return 0;
 }
 
-HprofStringId Hprof::LookupClassNameId(Class* c) {
+HprofStringId Hprof::LookupClassNameId(const Class* c) {
   return LookupStringId(PrettyDescriptor(c));
 }
 
-HprofClassObjectId Hprof::LookupClassId(Class* c) {
+HprofClassObjectId Hprof::LookupClassId(const Class* c) {
   if (c == NULL) {
     // c is the superclass of java.lang.Object or a primitive
     return (HprofClassObjectId)0;
   }
 
   std::pair<ClassSetIterator, bool> result = classes_.insert(c);
-  Class* present = *result.first;
+  const Class* present = *result.first;
 
   // Make sure that we've assigned a string ID for this class' name
   LookupClassNameId(c);
@@ -1030,7 +1029,7 @@ int Hprof::DumpClasses() {
   uint32_t nextSerialNumber = 1;
 
   for (ClassSetIterator it = classes_.begin(); it != classes_.end(); ++it) {
-    Class* c = *it;
+    const Class* c = *it;
     CHECK(c != NULL);
 
     int err = StartNewRecord(HPROF_TAG_LOAD_CLASS, HPROF_TIME);
@@ -1054,14 +1053,14 @@ int Hprof::DumpClasses() {
 
 static void HprofRootVisitor(const Object* obj, void* arg) {
   CHECK(arg != NULL);
-  Hprof* hprof = (Hprof*)arg;
+  Hprof* hprof = reinterpret_cast<Hprof*>(arg);
   hprof->VisitRoot(obj);
 }
 
 static void HprofBitmapCallback(Object *obj, void *arg) {
   CHECK(obj != NULL);
   CHECK(arg != NULL);
-  Hprof *hprof = (Hprof*)arg;
+  Hprof* hprof = reinterpret_cast<Hprof*>(arg);
   hprof->DumpHeapObject(obj);
 }
 

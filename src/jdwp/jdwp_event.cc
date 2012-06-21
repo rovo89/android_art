@@ -503,7 +503,7 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy) {
   }
 
   /* this is rare but possible -- see CLASS_PREPARE handling */
-  if (Dbg::GetThreadSelfId() == debugThreadId) {
+  if (Dbg::GetThreadSelfId() == debug_thread_id_) {
     LOG(INFO) << "NOTE: SuspendByPolicy not suspending JDWP thread";
     return;
   }
@@ -572,8 +572,8 @@ void JdwpState::SetWaitForEventThread(ObjectId threadId) {
    * If another thread is already doing stuff, wait for it.  This can
    * go to sleep indefinitely.
    */
-  while (eventThreadId != 0) {
-    VLOG(jdwp) << StringPrintf("event in progress (%#llx), %#llx sleeping", eventThreadId, threadId);
+  while (event_thread_id_ != 0) {
+    VLOG(jdwp) << StringPrintf("event in progress (%#llx), %#llx sleeping", event_thread_id_, threadId);
     waited = true;
     event_thread_cond_.Wait(event_thread_lock_);
   }
@@ -582,7 +582,7 @@ void JdwpState::SetWaitForEventThread(ObjectId threadId) {
     VLOG(jdwp) << StringPrintf("event token grabbed (%#llx)", threadId);
   }
   if (threadId != 0) {
-    eventThreadId = threadId;
+    event_thread_id_ = threadId;
   }
 }
 
@@ -597,10 +597,10 @@ void JdwpState::ClearWaitForEventThread() {
    */
   MutexLock mu(event_thread_lock_);
 
-  CHECK_NE(eventThreadId, 0U);
-  VLOG(jdwp) << StringPrintf("cleared event token (%#llx)", eventThreadId);
+  CHECK_NE(event_thread_id_, 0U);
+  VLOG(jdwp) << StringPrintf("cleared event token (%#llx)", event_thread_id_);
 
-  eventThreadId = 0;
+  event_thread_id_ = 0;
 
   event_thread_cond_.Signal();
 }
@@ -722,7 +722,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
    * while doing so.  (I don't think we currently do this at all, so
    * this is mostly paranoia.)
    */
-  if (basket.threadId == debugThreadId) {
+  if (basket.threadId == debug_thread_id_) {
     VLOG(jdwp) << "Ignoring location event in JDWP thread";
     return false;
   }
@@ -1018,7 +1018,7 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
       suspend_policy = scanSuspendPolicy(match_list, match_count);
       VLOG(jdwp) << "  suspend_policy=" << suspend_policy;
 
-      if (basket.threadId == debugThreadId) {
+      if (basket.threadId == debug_thread_id_) {
         /*
          * JDWP says that, for a class prep in the debugger thread, we
          * should set threadId to null and if any threads were supposed
@@ -1106,7 +1106,7 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
    * Make sure we're in VMWAIT in case the write blocks.
    */
   int old_state = Dbg::ThreadWaiting();
-  (*transport->sendBufferedRequest)(this, wrapiov, iov_count + 1);
+  (*transport_->sendBufferedRequest)(this, wrapiov, iov_count + 1);
   Dbg::ThreadContinuing(old_state);
 }
 

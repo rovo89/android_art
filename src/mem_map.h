@@ -28,7 +28,6 @@ namespace art {
 // Used to keep track of mmap segments.
 class MemMap {
  public:
-
   // Request an anonymous region of length 'byte_count' and a requested base address.
   // Use NULL as the requested base address if you don't care.
   //

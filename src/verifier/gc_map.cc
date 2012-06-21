@@ -52,5 +52,5 @@ const uint8_t* PcToReferenceMap::FindBitMap(uint16_t dex_pc, bool error_if_not_p
   return NULL;
 }
 
-}  // verifier
-}  // art
+}  // namespace verifier
+}  // namespace art

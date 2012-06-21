@@ -38,7 +38,6 @@ namespace art {
 
 class JniCompilerTest : public CommonTest {
  protected:
-
   void CompileForTest(ClassLoader* class_loader, bool direct,
                       const char* method_name, const char* method_sig) {
     // Compile the native method before starting the runtime
@@ -92,6 +91,7 @@ class JniCompilerTest : public CommonTest {
  public:
   static jclass jklass_;
   static jobject jobj_;
+
  protected:
   JNIEnv* env_;
   jmethodID jmethod_;

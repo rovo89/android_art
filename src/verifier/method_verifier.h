@@ -160,6 +160,7 @@ class MethodVerifier {
 #elif defined(ART_USE_GREENLAND_COMPILER)
   typedef greenland::InferredRegCategoryMap InferredRegCategoryMap;
 #endif
+
  public:
   enum FailureKind {
     kNoFailure,
@@ -210,7 +211,6 @@ class MethodVerifier {
   static bool IsClassRejected(Compiler::ClassReference ref);
 
  private:
-
   explicit MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
       const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
       uint32_t method_idx, Method* method, uint32_t access_flags);

@@ -100,8 +100,8 @@ extern "C" double __muldf3(double a, double b); // MUL_DOUBLE[_2ADDR]
 extern "C" double fmod(double a, double b);     // REM_DOUBLE[_2ADDR]
 
 // Long long arithmetics - REM_LONG[_2ADDR] and DIV_LONG[_2ADDR]
-extern "C" long long __divdi3(int64_t op1, int64_t op2);
-extern "C" long long __moddi3(int64_t op1, int64_t op2);
+extern "C" int64_t __divdi3(int64_t, int64_t);
+extern "C" int64_t __moddi3(int64_t, int64_t);
 extern "C" uint64_t art_shl_long(uint64_t, uint32_t);
 extern "C" uint64_t art_shr_long(uint64_t, uint32_t);
 extern "C" uint64_t art_ushr_long(uint64_t, uint32_t);
