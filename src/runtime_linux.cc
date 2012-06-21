@@ -127,7 +127,7 @@ static const char* GetSignalCodeName(int signal_number, int signal_code) {
 }
 
 struct UContext {
-  UContext(void* raw_context) : context(reinterpret_cast<ucontext_t*>(raw_context)->uc_mcontext) {}
+  explicit UContext(void* raw_context) : context(reinterpret_cast<ucontext_t*>(raw_context)->uc_mcontext) {}
 
   void Dump(std::ostream& os) {
     // TODO: support non-x86 hosts (not urgent because this code doesn't run on targets).

@@ -179,7 +179,8 @@ static bool IsRegisterPair(InstructionSet instruction_set, ManagedRegister r) {
 CompiledMethod* ArtJniCompileMethodInternal(Compiler& compiler,
                                             uint32_t access_flags, uint32_t method_idx,
                                             const DexFile& dex_file) {
-  CHECK((access_flags & kAccNative) != 0);
+  const bool is_native = (access_flags & kAccNative) != 0;
+  CHECK(is_native);
   const bool is_static = (access_flags & kAccStatic) != 0;
   const bool is_synchronized = (access_flags & kAccSynchronized) != 0;
   const char* shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));

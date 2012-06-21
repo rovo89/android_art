@@ -660,7 +660,7 @@ LIR* loadBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rDest,
     } else {
       DCHECK(DOUBLEREG(rDest));
       DCHECK((size == kLong) || (size == kDouble));
-      DCHECK((rDest & 0x1) == 0);
+      DCHECK_EQ((rDest & 0x1), 0);
       opcode = kThumb2Vldrd;
       size = kDouble;
     }
@@ -725,7 +725,7 @@ LIR* storeBaseIndexed(CompilationUnit* cUnit, int rBase, int rIndex, int rSrc,
     } else {
       DCHECK(DOUBLEREG(rSrc));
       DCHECK((size == kLong) || (size == kDouble));
-      DCHECK((rSrc & 0x1) == 0);
+      DCHECK_EQ((rSrc & 0x1), 0);
       opcode = kThumb2Vstrd;
       size = kDouble;
     }

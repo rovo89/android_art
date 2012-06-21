@@ -1003,7 +1003,7 @@ extern RegLocation oatGetRawSrc(CompilationUnit* cUnit, MIR* mir, int num)
 }
 extern RegLocation oatGetRawDest(CompilationUnit* cUnit, MIR* mir)
 {
-  DCHECK(mir->ssaRep->numDefs > 0);
+  DCHECK_GT(mir->ssaRep->numDefs, 0);
   RegLocation res = cUnit->regLocation[mir->ssaRep->defs[0]];
   DCHECK(!res.wide || mir->ssaRep->numDefs == 2);
   return res;

@@ -711,10 +711,10 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
 
   memset(&basket, 0, sizeof(basket));
   basket.pLoc = pLoc;
-  basket.classId = pLoc->classId;
+  basket.classId = pLoc->class_id;
   basket.thisPtr = thisPtr;
   basket.threadId = Dbg::GetThreadSelfId();
-  basket.className = Dbg::GetClassName(pLoc->classId);
+  basket.className = Dbg::GetClassName(pLoc->class_id);
 
   /*
    * On rare occasions we may need to execute interpreted code in the VM
@@ -766,7 +766,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
     }
     if (match_count != 0) {
       VLOG(jdwp) << "EVENT: " << match_list[0]->eventKind << "(" << match_count << " total) "
-                 << basket.className << "." << Dbg::GetMethodName(pLoc->classId, pLoc->methodId)
+                 << basket.className << "." << Dbg::GetMethodName(pLoc->class_id, pLoc->method_id)
                  << StringPrintf(" thread=%#llx dex_pc=%#llx)", basket.threadId, pLoc->dex_pc);
 
       suspend_policy = scanSuspendPolicy(match_list, match_count);
@@ -904,18 +904,17 @@ bool JdwpState::PostVMDeath() {
  * up the debugger.
  */
 bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
-    ObjectId exceptionId, RefTypeId exceptionClassId,
-    const JdwpLocation* pCatchLoc, ObjectId thisPtr)
-{
+                              ObjectId exceptionId, RefTypeId exceptionClassId,
+                              const JdwpLocation* pCatchLoc, ObjectId thisPtr) {
   ModBasket basket;
 
   memset(&basket, 0, sizeof(basket));
   basket.pLoc = pThrowLoc;
-  basket.classId = pThrowLoc->classId;
+  basket.classId = pThrowLoc->class_id;
   basket.threadId = Dbg::GetThreadSelfId();
   basket.className = Dbg::GetClassName(basket.classId);
   basket.excepClassId = exceptionClassId;
-  basket.caught = (pCatchLoc->classId != 0);
+  basket.caught = (pCatchLoc->class_id != 0);
   basket.thisPtr = thisPtr;
 
   /* don't try to post an exception caused by the debugger */
@@ -938,7 +937,7 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
                  << StringPrintf(" exceptId=%#llx", exceptionId)
                  << " caught=" << basket.caught << ")"
                  << "  throw: " << *pThrowLoc;
-      if (pCatchLoc->classId == 0) {
+      if (pCatchLoc->class_id == 0) {
         VLOG(jdwp) << "  catch: (not caught)";
       } else {
         VLOG(jdwp) << "  catch: " << *pCatchLoc;
