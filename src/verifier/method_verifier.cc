@@ -132,6 +132,7 @@ class InsnFlags {
     }
     return std::string(encoding);
   }
+
  private:
   enum {
     kInTry,

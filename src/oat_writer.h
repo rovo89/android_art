@@ -81,7 +81,6 @@ class OatWriter {
                      const Compiler& compiler);
 
  private:
-
   OatWriter(const std::vector<const DexFile*>& dex_files,
             uint32_t image_file_location_checksum,
             const std::string& image_file_location,

@@ -329,5 +329,5 @@ std::ostream& operator<<(std::ostream& os, const RegType& rhs) {
   return os;
 }
 
-}  // verifier
-}  // art
+}  // namespace verifier
+}  // namespace art

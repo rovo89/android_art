@@ -141,7 +141,6 @@ class MANAGED DexCache : public ObjectArray<Object> {
   }
 
  private:
-
   enum ArrayIndex {
     kLocation                 = 0,
     kStrings                  = 1,
@@ -157,6 +156,7 @@ class MANAGED DexCache : public ObjectArray<Object> {
     DCHECK(obj != NULL);
     return obj;
   }
+
   DISALLOW_IMPLICIT_CONSTRUCTORS(DexCache);
 };
 

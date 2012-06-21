@@ -269,5 +269,5 @@ const RegType& RegTypeCache::GetComponentType(const RegType& array, const ClassL
   }
 }
 
-}  // verifier
-}  // art
+}  // namespace verifier
+}  // namespace art

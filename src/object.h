@@ -1044,6 +1044,11 @@ class MANAGED Array : public Object {
     return reinterpret_cast<void*>(data);
   }
 
+  const void* GetRawData(size_t component_size) const {
+    intptr_t data = reinterpret_cast<intptr_t>(this) + DataOffset(component_size).Int32Value();
+    return reinterpret_cast<const void*>(data);
+  }
+
  protected:
   bool IsValidIndex(int32_t index) const {
     if (UNLIKELY(index < 0 || index >= length_)) {
@@ -1126,7 +1131,6 @@ class MANAGED StaticStorageBase : public Object {
 // C++ mirror of java.lang.Class
 class MANAGED Class : public StaticStorageBase {
  public:
-
   // Class Status
   //
   // kStatusNotReady: If a Class cannot be found in the class table by
@@ -1158,7 +1162,6 @@ class MANAGED Class : public StaticStorageBase {
   // again at runtime.
   //
   // TODO: Explain the other states
-
   enum Status {
     kStatusError = -1,
     kStatusNotReady = 0,
@@ -2220,7 +2223,6 @@ class MANAGED PrimitiveArray : public Array {
 // C++ mirror of java.lang.String
 class MANAGED String : public Object {
  public:
-
   static MemberOffset CountOffset() {
     return OFFSET_OF_OBJECT_MEMBER(String, count_);
   }

@@ -1425,13 +1425,7 @@ static JdwpError handleDDM_Chunk(JdwpState* state, const uint8_t* buf, int dataL
 
   VLOG(jdwp) << StringPrintf("  Handling DDM packet (%.4s)", buf);
 
-  /*
-   * On first DDM packet, notify all handlers that DDM is running.
-   */
-  if (!state->ddmActive) {
-    state->ddmActive = true;
-    Dbg::DdmConnected();
-  }
+  state->NotifyDdmsActive();
 
   /*
    * If they want to send something back, we copy it into the buffer.
@@ -1628,7 +1622,7 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
      * so waitForDebugger() doesn't return if we stall for a bit here.
      */
     Dbg::GoActive();
-    QuasiAtomic::Swap64(0, &lastActivityWhen);
+    QuasiAtomic::Swap64(0, &last_activity_time_ms_);
   }
 
   /*
@@ -1697,7 +1691,7 @@ void JdwpState::ProcessRequest(const JdwpReqHeader* pHeader, const uint8_t* buf,
    * the initial setup.  Only update if this is a non-DDMS packet.
    */
   if (pHeader->cmdSet != kJDWPDdmCmdSet) {
-    QuasiAtomic::Swap64(MilliTime(), &lastActivityWhen);
+    QuasiAtomic::Swap64(MilliTime(), &last_activity_time_ms_);
   }
 
   /* tell the VM that GC is okay again */

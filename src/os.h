@@ -25,7 +25,6 @@ class File;
 
 class OS {
  public:
-
   // Open a file. The returned file must be deleted by the caller.
   static File* OpenFile(const char* name, bool writable, bool create = true);
 

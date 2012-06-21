@@ -229,8 +229,8 @@ class RegisterLine {
 
   // Write a bit at each register location that holds a reference
   void WriteReferenceBitMap(std::vector<uint8_t>& data, size_t max_bytes);
- private:
 
+ private:
   void CopyRegToLockDepth(size_t dst, size_t src) {
     SafeMap<uint32_t, uint32_t>::iterator it = reg_to_lock_depths_.find(src);
     if (it != reg_to_lock_depths_.end()) {

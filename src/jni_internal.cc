@@ -769,7 +769,6 @@ JValue InvokeWithJValues(Thread* self, Object* receiver, Method* m, JValue* args
 
 class JNI {
  public:
-
   static jint GetVersion(JNIEnv* env) {
     ScopedJniThreadState ts(env);
     return JNI_VERSION_1_6;

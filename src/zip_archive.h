@@ -42,7 +42,6 @@ class ZipEntry {
   uint32_t GetCrc32();
 
  private:
-
   ZipEntry(const ZipArchive* zip_archive, const byte* ptr) : zip_archive_(zip_archive), ptr_(ptr) {}
 
   // Zip compression methods
@@ -65,11 +64,11 @@ class ZipEntry {
   const byte* ptr_;
 
   friend class ZipArchive;
+  DISALLOW_COPY_AND_ASSIGN(ZipEntry);
 };
 
 class ZipArchive {
  public:
-
   // Zip file constants.
   static const uint32_t kEOCDSignature  = 0x06054b50;
   static const int32_t kEOCDLen         = 22;
@@ -122,6 +121,8 @@ class ZipArchive {
   DirEntries dir_entries_;
 
   friend class ZipEntry;
+
+  DISALLOW_COPY_AND_ASSIGN(ZipArchive);
 };
 
 }  // namespace art

@@ -190,7 +190,7 @@ static bool acceptConnection(JdwpState* state) {
 
   /* first, ensure that we get a connection to the ADB daemon */
 
-retry:
+ retry:
   if (netState->shuttingDown) {
     return false;
   }
@@ -240,10 +240,7 @@ retry:
 #endif
 
         /* now try to send our pid to the ADB daemon */
-        do {
-          ret = send( netState->controlSock, buff, 4, 0 );
-        } while (ret < 0 && errno == EINTR);
-
+        ret = TEMP_FAILURE_RETRY(send(netState->controlSock, buff, 4, 0));
         if (ret >= 0) {
           VLOG(jdwp) << StringPrintf("PID sent as '%.*s' to ADB", 4, buff);
           break;
@@ -256,7 +253,7 @@ retry:
         PLOG(ERROR) << "Can't connect to ADB control socket";
       }
 
-      usleep( sleep_ms*1000 );
+      usleep(sleep_ms * 1000);
 
       sleep_ms += (sleep_ms >> 1);
       if (sleep_ms > sleep_max_ms) {
@@ -291,7 +288,7 @@ retry:
 /*
  * Connect out to a debugger (for server=n).  Not required.
  */
-static bool establishConnection(JdwpState*) {
+static bool establishConnection(JdwpState*, const JdwpOptions*) {
   return false;
 }
 
@@ -627,7 +624,7 @@ static bool processIncoming(JdwpState* state) {
    */
   return handlePacket(state);
 
-fail:
+ fail:
   closeConnection(state);
   return false;
 }

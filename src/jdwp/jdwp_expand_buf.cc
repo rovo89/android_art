@@ -44,13 +44,10 @@ struct ExpandBuf {
  * Allocate a JdwpBuf and some initial storage.
  */
 ExpandBuf* expandBufAlloc() {
-  ExpandBuf* newBuf;
-
-  newBuf = (ExpandBuf*) malloc(sizeof(*newBuf));
-  newBuf->storage = (uint8_t*) malloc(kInitialStorage);
+  ExpandBuf* newBuf = new ExpandBuf;
+  newBuf->storage = reinterpret_cast<uint8_t*>(malloc(kInitialStorage));
   newBuf->curLen = 0;
   newBuf->maxLen = kInitialStorage;
-
   return newBuf;
 }
 
@@ -63,7 +60,7 @@ void expandBufFree(ExpandBuf* pBuf) {
   }
 
   free(pBuf->storage);
-  free(pBuf);
+  delete pBuf;
 }
 
 /*
@@ -80,7 +77,6 @@ size_t expandBufGetLength(ExpandBuf* pBuf) {
   return pBuf->curLen;
 }
 
-
 /*
  * Ensure that the buffer has enough space to hold incoming data.  If it
  * doesn't, resize the buffer.
@@ -94,7 +90,7 @@ static void ensureSpace(ExpandBuf* pBuf, int newCount) {
     pBuf->maxLen *= 2;
   }
 
-  uint8_t* newPtr = (uint8_t*) realloc(pBuf->storage, pBuf->maxLen);
+  uint8_t* newPtr = reinterpret_cast<uint8_t*>(realloc(pBuf->storage, pBuf->maxLen));
   if (newPtr == NULL) {
     LOG(FATAL) << "realloc(" << pBuf->maxLen << ") failed";
   }

@@ -78,6 +78,7 @@ class RegTypeCache {
   const RegType& IntConstant() { return FromCat1Const(std::numeric_limits<jint>::max()); }
 
   const RegType& GetComponentType(const RegType& array, const ClassLoader* loader);
+
  private:
   // The allocated entries
   std::vector<RegType*> entries_;

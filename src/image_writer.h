@@ -49,8 +49,8 @@ class ImageWriter {
              const std::string& oat_filename,
              const std::string& oat_location,
              const Compiler& compiler);
- private:
 
+ private:
   bool AllocMemory();
 
   // we use the lock word to store the offset of the object in the image

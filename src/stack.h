@@ -41,7 +41,7 @@ class PACKED Frame {
  public:
   Frame() : sp_(NULL) {}
 
-  Frame(Method** sp) : sp_(sp) {}
+  explicit Frame(Method** sp) : sp_(sp) {}
 
   Method* GetMethod() const {
     return (sp_ != NULL) ? *sp_ : NULL;

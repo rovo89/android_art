@@ -214,6 +214,9 @@ struct JdwpState {
    */
   bool PostVMDeath();
 
+  // Called if/when we realize we're talking to DDMS.
+  void NotifyDdmsActive();
+
   /*
    * Send up a chunk of DDM data.
    */
@@ -276,59 +279,50 @@ struct JdwpState {
 
  public: // TODO: fix privacy
   const JdwpOptions* options_;
- private:
 
+ private:
   /* wait for creation of the JDWP thread */
   Mutex thread_start_lock_;
   ConditionVariable thread_start_cond_;
 
-  volatile int32_t debug_thread_started_;
   pthread_t pthread_;
   Thread* thread_;
- public: // TODO: fix privacy
-  ObjectId debugThreadId;
+
+  volatile int32_t debug_thread_started_;
+  ObjectId debug_thread_id_;
+
  private:
   bool run;
+  const JdwpTransport* transport_;
 
-  const JdwpTransport* transport;
  public: // TODO: fix privacy
   JdwpNetState* netState;
- private:
 
-  /* for wait-for-debugger */
+ private:
+  // For wait-for-debugger.
   Mutex attach_lock_;
   ConditionVariable attach_cond_;
 
-  /* time of last debugger activity, in milliseconds */
-  int64_t lastActivityWhen;
+  // Time of last debugger activity, in milliseconds.
+  int64_t last_activity_time_ms_;
 
-  /* global counters and a mutex to protect them */
+  // Global counters and a mutex to protect them.
   Mutex serial_lock_;
   uint32_t request_serial_ GUARDED_BY(serial_lock_);
   uint32_t event_serial_ GUARDED_BY(serial_lock_);
 
-  /*
-   * Events requested by the debugger (breakpoints, class prep, etc).
-   */
- public: // TODO: fix privacy
+  // Linked list of events requested by the debugger (breakpoints, class prep, etc).
   Mutex event_list_lock_;
-  JdwpEvent* event_list_ GUARDED_BY(event_list_lock_); // Linked list of events.
+  JdwpEvent* event_list_ GUARDED_BY(event_list_lock_);
   int event_list_size_ GUARDED_BY(event_list_lock_); // Number of elements in event_list_.
- private:
 
-  /*
-   * Synchronize suspension of event thread (to avoid receiving "resume"
-   * events before the thread has finished suspending itself).
-   */
+  // Used to synchronize suspension of the event thread (to avoid receiving "resume"
+  // events before the thread has finished suspending itself).
   Mutex event_thread_lock_;
   ConditionVariable event_thread_cond_;
-  ObjectId eventThreadId;
+  ObjectId event_thread_id_;
 
-  /*
-   * DDM support.
-   */
- public: // TODO: fix privacy
-  bool ddmActive;
+  bool ddm_is_active_;
 };
 
 }  // namespace JDWP

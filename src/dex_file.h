@@ -76,6 +76,7 @@ class DexFile {
     uint32_t class_defs_off_;  // file offset of ClassDef array
     uint32_t data_size_;  // unused
     uint32_t data_off_;  // unused
+
    private:
     DISALLOW_COPY_AND_ASSIGN(Header);
   };
@@ -107,6 +108,7 @@ class DexFile {
     uint16_t unused_;
     uint32_t size_;
     uint32_t offset_;
+
    private:
     DISALLOW_COPY_AND_ASSIGN(MapItem);
   };
@@ -114,6 +116,7 @@ class DexFile {
   struct MapList {
     uint32_t size_;
     MapItem list_[1];
+
    private:
     DISALLOW_COPY_AND_ASSIGN(MapList);
   };
@@ -121,6 +124,7 @@ class DexFile {
   // Raw string_id_item.
   struct StringId {
     uint32_t string_data_off_;  // offset in bytes from the base address
+
    private:
     DISALLOW_COPY_AND_ASSIGN(StringId);
   };
@@ -128,6 +132,7 @@ class DexFile {
   // Raw type_id_item.
   struct TypeId {
     uint32_t descriptor_idx_;  // index into string_ids
+
    private:
     DISALLOW_COPY_AND_ASSIGN(TypeId);
   };
@@ -137,6 +142,7 @@ class DexFile {
     uint16_t class_idx_;  // index into type_ids_ array for defining class
     uint16_t type_idx_;  // index into type_ids_ array for field type
     uint32_t name_idx_;  // index into string_ids_ array for field name
+
    private:
     DISALLOW_COPY_AND_ASSIGN(FieldId);
   };
@@ -146,6 +152,7 @@ class DexFile {
     uint16_t class_idx_;  // index into type_ids_ array for defining class
     uint16_t proto_idx_;  // index into proto_ids_ array for method prototype
     uint32_t name_idx_;  // index into string_ids_ array for method name
+
    private:
     DISALLOW_COPY_AND_ASSIGN(MethodId);
   };
@@ -156,6 +163,7 @@ class DexFile {
     uint16_t return_type_idx_;  // index into type_ids array for return type
     uint16_t pad_;             // padding = 0
     uint32_t parameters_off_;  // file offset to type_list for parameter types
+
    private:
     DISALLOW_COPY_AND_ASSIGN(ProtoId);
   };
@@ -172,6 +180,7 @@ class DexFile {
     uint32_t annotations_off_;  // file offset to annotations_directory_item
     uint32_t class_data_off_;  // file offset to class_data_item
     uint32_t static_values_off_;  // file offset to EncodedArray
+
    private:
     DISALLOW_COPY_AND_ASSIGN(ClassDef);
   };
@@ -179,6 +188,7 @@ class DexFile {
   // Raw type_item.
   struct TypeItem {
     uint16_t type_idx_;  // index into type_ids section
+
    private:
     DISALLOW_COPY_AND_ASSIGN(TypeItem);
   };
@@ -210,6 +220,7 @@ class DexFile {
     uint32_t debug_info_off_;  // file offset to debug info stream
     uint32_t insns_size_in_code_units_;  // size of the insns array, in 2 byte code units
     uint16_t insns_[1];
+
    private:
     DISALLOW_COPY_AND_ASSIGN(CodeItem);
   };
@@ -219,6 +230,7 @@ class DexFile {
     uint32_t start_addr_;
     uint16_t insn_count_;
     uint16_t handler_off_;
+
    private:
     DISALLOW_COPY_AND_ASSIGN(TryItem);
   };
@@ -255,6 +267,7 @@ class DexFile {
     uint32_t fields_size_;
     uint32_t methods_size_;
     uint32_t parameters_size_;
+
    private:
     DISALLOW_COPY_AND_ASSIGN(AnnotationsDirectoryItem);
   };
@@ -262,6 +275,7 @@ class DexFile {
   struct FieldAnnotationsItem {
     uint32_t field_idx_;
     uint32_t annotations_off_;
+
    private:
     DISALLOW_COPY_AND_ASSIGN(FieldAnnotationsItem);
   };
@@ -269,6 +283,7 @@ class DexFile {
   struct MethodAnnotationsItem {
     uint32_t method_idx_;
     uint32_t annotations_off_;
+
    private:
     DISALLOW_COPY_AND_ASSIGN(MethodAnnotationsItem);
   };
@@ -276,12 +291,14 @@ class DexFile {
   struct ParameterAnnotationsItem {
     uint32_t method_idx_;
     uint32_t annotations_off_;
+
    private:
     DISALLOW_COPY_AND_ASSIGN(ParameterAnnotationsItem);
   };
 
   struct AnnotationSetRefItem {
     uint32_t annotations_off_;
+
    private:
     DISALLOW_COPY_AND_ASSIGN(AnnotationSetRefItem);
   };
@@ -289,6 +306,7 @@ class DexFile {
   struct AnnotationSetRefList {
     uint32_t size_;
     AnnotationSetRefItem list_[1];
+
    private:
     DISALLOW_COPY_AND_ASSIGN(AnnotationSetRefList);
   };
@@ -296,6 +314,7 @@ class DexFile {
   struct AnnotationSetItem {
     uint32_t size_;
     uint32_t entries_[1];
+
    private:
     DISALLOW_COPY_AND_ASSIGN(AnnotationSetItem);
   };
@@ -303,6 +322,7 @@ class DexFile {
   struct AnnotationItem {
     uint8_t visibility_;
     uint8_t annotation_[1];
+
    private:
     DISALLOW_COPY_AND_ASSIGN(AnnotationItem);
   };
@@ -770,7 +790,6 @@ class DexFile {
   void ChangePermissions(int prot) const;
 
  private:
-
   // Opens a .dex file
   static const DexFile* OpenFile(const std::string& filename,
                                  const std::string& location,
@@ -1008,6 +1027,7 @@ class ClassDataItemIterator {
     CHECK(!HasNext());
     return ptr_pos_;
   }
+
  private:
   // A dex file's class_data_item is leb128 encoded, this structure holds a decoded form of the
   // header for a class_data_item
@@ -1039,6 +1059,7 @@ class ClassDataItemIterator {
     uint32_t field_idx_delta_;  // delta of index into the field_ids array for FieldId
     uint32_t access_flags_;  // access flags for the field
     ClassDataField() :  field_idx_delta_(0), access_flags_(0) {}
+
    private:
     DISALLOW_COPY_AND_ASSIGN(ClassDataField);
   };
@@ -1053,6 +1074,7 @@ class ClassDataItemIterator {
     uint32_t access_flags_;
     uint32_t code_off_;
     ClassDataMethod() : method_idx_delta_(0), access_flags_(0), code_off_(0) {}
+
    private:
     DISALLOW_COPY_AND_ASSIGN(ClassDataMethod);
   };
@@ -1082,6 +1104,7 @@ class EncodedStaticFieldValueIterator {
   bool HasNext() { return pos_ < array_size_; }
 
   void Next();
+
  private:
   enum ValueType {
     kByte = 0x00,
@@ -1142,6 +1165,7 @@ class CatchHandlerIterator {
       CHECK(!HasNext());
       return current_data_;
     }
+
   private:
     void Init(const DexFile::CodeItem& code_item, int32_t offset);
     void Init(const byte* handler_data);

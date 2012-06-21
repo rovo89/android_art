@@ -55,7 +55,7 @@ struct JdwpState;
 struct JdwpTransport {
   bool (*startup)(JdwpState* state, const JdwpOptions* options);
   bool (*accept)(JdwpState* state);
-  bool (*establish)(JdwpState* state);
+  bool (*establish)(JdwpState* state, const JdwpOptions* options);
   void (*close)(JdwpState* state);
   void (*shutdown)(JdwpState* state);
   void (*free)(JdwpState* state);

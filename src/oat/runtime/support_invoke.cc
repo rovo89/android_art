@@ -20,7 +20,7 @@
 namespace art {
 
 static uint64_t artInvokeCommon(uint32_t method_idx, Object* this_object, Method* caller_method,
-                                Thread* self, Method** sp, bool access_check, InvokeType type){
+                                Thread* self, Method** sp, bool access_check, InvokeType type) {
   Method* method = FindMethodFast(method_idx, this_object, caller_method, access_check, type);
   if (UNLIKELY(method == NULL)) {
     FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);

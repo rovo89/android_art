@@ -1298,7 +1298,7 @@ class DexFilesWorkerThread {
   }
 
   void SwitchToDexFile(size_t dex_file_index) {
-    CHECK (dex_file_index < dex_files_.size());
+    CHECK_LT(dex_file_index, dex_files_.size());
 
     const DexFile* dex_file = dex_files_[dex_file_index];
     CHECK(dex_file != NULL);

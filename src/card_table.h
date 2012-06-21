@@ -38,7 +38,6 @@ class Object;
 // WriteBarrier, and from there to here.
 class CardTable {
  public:
-
   static CardTable* Create(const byte* heap_begin, size_t heap_capacity);
 
   // Set the card associated with the given address to GC_CARD_DIRTY.

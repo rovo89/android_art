@@ -633,6 +633,7 @@ class MethodHelper {
     }
     return result;
   }
+
  private:
   // Set the method_ field, for proxy methods looking up the interface method via the resolved
   // methods table.

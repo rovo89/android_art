@@ -98,11 +98,11 @@ extern "C" double __aeabi_dmul(double a, double b); // MUL_DOUBLE[_2ADDR]
 extern "C" double fmod(double a, double b);         // REM_DOUBLE[_2ADDR]
 
 // Integer arithmetics.
-extern "C" int __aeabi_idivmod(int32_t op1, int32_t op2);  // [DIV|REM]_INT[_2ADDR|_LIT8|_LIT16]
+extern "C" int __aeabi_idivmod(int32_t, int32_t);  // [DIV|REM]_INT[_2ADDR|_LIT8|_LIT16]
 
 // Long long arithmetics - REM_LONG[_2ADDR] and DIV_LONG[_2ADDR]
-extern "C" long long __aeabi_ldivmod(long long op1, long long op2);
-extern "C" long long __aeabi_lmul(long long op1, long long op2);
+extern "C" int64_t __aeabi_ldivmod(int64_t, int64_t);
+extern "C" int64_t __aeabi_lmul(int64_t, int64_t);
 extern "C" uint64_t art_shl_long(uint64_t, uint32_t);
 extern "C" uint64_t art_shr_long(uint64_t, uint32_t);
 extern "C" uint64_t art_ushr_long(uint64_t, uint32_t);

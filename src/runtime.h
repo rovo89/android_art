@@ -53,7 +53,6 @@ class Trace;
 
 class Runtime {
  public:
-
   typedef std::vector<std::pair<std::string, const void*> > Options;
 
   class ParsedOptions {
