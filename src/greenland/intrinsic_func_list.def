@@ -127,6 +127,17 @@ _EVAL_DEF_INTRINSICS_FUNC(ConstStringFast,
                           _EXPAND_ARG1(kInt32ConstantTy))
 
 //----------------------------------------------------------------------------
+// New Instance
+//----------------------------------------------------------------------------
+
+// JavaObject* dex_lang_new_instance(uint32_t type_idx)
+_EVAL_DEF_INTRINSICS_FUNC(NewInstance,
+                          dex_lang_new_instance,
+                          kAttrNone,
+                          kJavaObjectTy,
+                          _EXPAND_ARG1(kInt32Ty))
+
+//----------------------------------------------------------------------------
 // Array
 //----------------------------------------------------------------------------
 
@@ -621,6 +632,17 @@ _EVAL_DEF_INTRINSICS_FUNC(CheckSuspend,
                           _EXPAND_ARG0())
 
 //----------------------------------------------------------------------------
+// sget intrinsics to assist MIR to Greenland_ir conversion.
+//----------------------------------------------------------------------------
+
+// object* sget_obj(int field_idx)
+_EVAL_DEF_INTRINSICS_FUNC(SgetObj,
+                          dex_lang_sget_obj,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kJavaObjectTy,
+                          _EXPAND_ARG1(kInt32Ty))
+
+//----------------------------------------------------------------------------
 // Shadow Frame
 //----------------------------------------------------------------------------
 
@@ -684,7 +706,7 @@ _EVAL_DEF_INTRINSICS_FUNC(ConstFloat,
                           kFloatTy,
                           _EXPAND_ARG1(kInt32Ty))
 
-// int copy_double(long)
+// int const_double(long)
 _EVAL_DEF_INTRINSICS_FUNC(ConstDouble,
                           dex_lang_const_Double,
                           kAttrReadOnly | kAttrNoThrow,
