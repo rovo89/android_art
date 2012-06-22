@@ -133,7 +133,7 @@ void art_throw_no_such_method_from_code(int32_t method_idx) {
 
 void art_throw_null_pointer_exception_from_code(uint32_t dex_pc) {
   Thread* thread = art_get_current_thread_from_code();
-  NthCallerVisitor visitor(thread->GetManagedStack(), 0);
+  NthCallerVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), 0);
   visitor.WalkStack();
   Method* throw_method = visitor.caller;
   ThrowNullPointerExceptionFromDexPC(thread, throw_method, dex_pc);
