@@ -468,7 +468,7 @@ class CommonTest : public testing::Test {
     return class_loader.get();
   }
 
-  void CompileClass(const ClassLoader* class_loader, const char* class_name) {
+  void CompileClass(ClassLoader* class_loader, const char* class_name) {
     std::string class_descriptor(DotToDescriptor(class_name));
     Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;

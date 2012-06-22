@@ -27,6 +27,7 @@ class Field;
 union JValue;
 class Method;
 class Object;
+class ScopedJniThreadState;
 
 void InitBoxingMethods();
 void BoxPrimitive(Primitive::Type src_class, JValue& value);
@@ -36,7 +37,7 @@ bool UnboxPrimitiveForResult(Object* o, Class* dst_class, JValue& unboxed_value)
 
 bool ConvertPrimitiveValue(Primitive::Type src_class, Primitive::Type dst_class, const JValue& src, JValue& dst);
 
-jobject InvokeMethod(JNIEnv* env, jobject method, jobject receiver, jobject args);
+jobject InvokeMethod(const ScopedJniThreadState& ts, jobject method, jobject receiver, jobject args);
 
 bool VerifyObjectInClass(Object* o, Class* c);
 

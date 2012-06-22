@@ -28,6 +28,7 @@
 #endif
 #include "object_utils.h"
 #include "safe_map.h"
+#include "scoped_jni_thread_state.h"
 #include "scoped_thread_list_lock.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
@@ -220,11 +221,12 @@ static Class* DecodeClass(JDWP::RefTypeId id, JDWP::JdwpError& status) {
 }
 
 static Thread* DecodeThread(JDWP::ObjectId threadId) {
+  ScopedJniThreadState ts(Thread::Current());
   Object* thread_peer = gRegistry->Get<Object*>(threadId);
   if (thread_peer == NULL || thread_peer == kInvalidObject) {
     return NULL;
   }
-  return Thread::FromManagedThread(thread_peer);
+  return Thread::FromManagedThread(ts, thread_peer);
 }
 
 static JDWP::JdwpTag BasicTagFromDescriptor(const char* descriptor) {
@@ -1369,11 +1371,17 @@ JDWP::ObjectId Dbg::GetThreadGroupParent(JDWP::ObjectId threadGroupId) {
 }
 
 JDWP::ObjectId Dbg::GetSystemThreadGroupId() {
-  return gRegistry->Add(Thread::GetSystemThreadGroup());
+  ScopedJniThreadState ts(Thread::Current());
+  Object* group =
+      ts.DecodeField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup)->GetObject(NULL);
+  return gRegistry->Add(group);
 }
 
 JDWP::ObjectId Dbg::GetMainThreadGroupId() {
-  return gRegistry->Add(Thread::GetMainThreadGroup());
+  ScopedJniThreadState ts(Thread::Current());
+  Object* group =
+      ts.DecodeField(WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup)->GetObject(NULL);
+  return gRegistry->Add(group);
 }
 
 bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus) {
@@ -1422,7 +1430,11 @@ bool Dbg::IsSuspended(JDWP::ObjectId threadId) {
 }
 
 void Dbg::GetThreadGroupThreadsImpl(Object* thread_group, JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
-  struct ThreadListVisitor {
+  class ThreadListVisitor {
+   public:
+    ThreadListVisitor(const ScopedJniThreadState& ts, Object* thread_group)
+      : ts_(ts), thread_group_(thread_group) {}
+
     static void Visit(Thread* t, void* arg) {
       reinterpret_cast<ThreadListVisitor*>(arg)->Visit(t);
     }
@@ -1433,27 +1445,34 @@ void Dbg::GetThreadGroupThreadsImpl(Object* thread_group, JDWP::ObjectId** ppThr
         // query all threads, so it's easier if we just don't tell them about this thread.
         return;
       }
-      if (thread_group == NULL || t->GetThreadGroup() == thread_group) {
-        threads.push_back(gRegistry->Add(t->GetPeer()));
+      if (thread_group_ == NULL || t->GetThreadGroup(ts_) == thread_group_) {
+        threads_.push_back(gRegistry->Add(t->GetPeer()));
       }
     }
 
-    Object* thread_group;
-    std::vector<JDWP::ObjectId> threads;
+    const std::vector<JDWP::ObjectId>& GetThreads() {
+      return threads_;
+    }
+
+   private:
+    const ScopedJniThreadState& ts_;
+    Object* const thread_group_;
+    std::vector<JDWP::ObjectId> threads_;
   };
 
-  ThreadListVisitor tlv;
-  tlv.thread_group = thread_group;
+  ScopedJniThreadState ts(Thread::Current());
+  ThreadListVisitor tlv(ts, thread_group);
 
   Runtime::Current()->GetThreadList()->ForEach(ThreadListVisitor::Visit, &tlv);
 
-  *pThreadCount = tlv.threads.size();
+  *pThreadCount = tlv.GetThreads().size();
   if (*pThreadCount == 0) {
     *ppThreadIds = NULL;
   } else {
+    // TODO: pass in std::vector rather than passing around pointers.
     *ppThreadIds = new JDWP::ObjectId[*pThreadCount];
     for (size_t i = 0; i < *pThreadCount; ++i) {
-      (*ppThreadIds)[i] = tlv.threads[i];
+      (*ppThreadIds)[i] = tlv.GetThreads()[i];
     }
   }
 }
@@ -1546,9 +1565,10 @@ void Dbg::ResumeVM() {
 }
 
 void Dbg::SuspendThread(JDWP::ObjectId threadId) {
+  ScopedJniThreadState ts(Thread::Current());
   Object* peer = gRegistry->Get<Object*>(threadId);
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(peer);
+  Thread* thread = Thread::FromManagedThread(ts, peer);
   if (thread == NULL) {
     LOG(WARNING) << "No such thread for suspend: " << peer;
     return;
@@ -1557,9 +1577,10 @@ void Dbg::SuspendThread(JDWP::ObjectId threadId) {
 }
 
 void Dbg::ResumeThread(JDWP::ObjectId threadId) {
+  ScopedJniThreadState ts(Thread::Current());
   Object* peer = gRegistry->Get<Object*>(threadId);
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(peer);
+  Thread* thread = Thread::FromManagedThread(ts, peer);
   if (thread == NULL) {
     LOG(WARNING) << "No such thread for resume: " << peer;
     return;
@@ -2336,14 +2357,12 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
 }
 
 void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
-  Thread* self = Thread::Current();
+  ScopedJniThreadState ts(Thread::Current());
 
   // We can be called while an exception is pending. We need
   // to preserve that across the method invocation.
-  SirtRef<Throwable> old_exception(self->GetException());
-  self->ClearException();
-
-  ScopedThreadStateChange tsc(self, kRunnable);
+  SirtRef<Throwable> old_exception(ts.Self()->GetException());
+  ts.Self()->ClearException();
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
   Method* m = pReq->method_;
@@ -2359,15 +2378,15 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 
-  LOG(INFO) << "self=" << self << " pReq->receiver_=" << pReq->receiver_ << " m=" << m << " #" << pReq->arg_count_ << " " << pReq->arg_values_;
-  pReq->result_value = InvokeWithJValues(self, pReq->receiver_, m, reinterpret_cast<JValue*>(pReq->arg_values_));
+  LOG(INFO) << "self=" << ts.Self() << " pReq->receiver_=" << pReq->receiver_ << " m=" << m << " #" << pReq->arg_count_ << " " << pReq->arg_values_;
+  pReq->result_value = InvokeWithJValues(ts, pReq->receiver_, m, reinterpret_cast<JValue*>(pReq->arg_values_));
 
-  pReq->exception = gRegistry->Add(self->GetException());
+  pReq->exception = gRegistry->Add(ts.Self()->GetException());
   pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m).GetShorty());
   if (pReq->exception != 0) {
-    Object* exc = self->GetException();
+    Object* exc = ts.Self()->GetException();
     VLOG(jdwp) << "  JDWP invocation returning with exception=" << exc << " " << PrettyTypeOf(exc);
-    self->ClearException();
+    ts.Self()->ClearException();
     pReq->result_value.SetJ(0);
   } else if (pReq->result_tag == JDWP::JT_OBJECT) {
     /* if no exception thrown, examine object result more closely */
@@ -2390,7 +2409,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   }
 
   if (old_exception.get() != NULL) {
-    self->SetException(old_exception.get());
+    ts.Self()->SetException(old_exception.get());
   }
 }
 
@@ -2549,7 +2568,8 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
     Dbg::DdmSendChunk(CHUNK_TYPE("THDE"), 4, buf);
   } else {
     CHECK(type == CHUNK_TYPE("THCR") || type == CHUNK_TYPE("THNM")) << type;
-    SirtRef<String> name(t->GetThreadName());
+    ScopedJniThreadState ts(Thread::Current());
+    SirtRef<String> name(t->GetThreadName(ts));
     size_t char_count = (name.get() != NULL) ? name->GetLength() : 0;
     const jchar* chars = name->GetCharArray()->GetData();
 

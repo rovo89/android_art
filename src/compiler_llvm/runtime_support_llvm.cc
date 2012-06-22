@@ -667,10 +667,11 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
 
   // Start new JNI local reference state
   JNIEnvExt* env = thread->GetJniEnv();
+  ScopedJniThreadState ts(env);
   ScopedJniEnvLocalRefState env_state(env);
 
   // Create local ref. copies of the receiver
-  jobject rcvr_jobj = AddLocalReference<jobject>(env, receiver);
+  jobject rcvr_jobj = ts.AddLocalReference<jobject>(receiver);
 
   // Convert proxy method into expected interface method
   Method* interface_method = proxy_method->FindOverriddenMethod();
@@ -680,7 +681,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
   // Set up arguments array and place in local IRT during boxing (which may allocate/GC)
   jvalue args_jobj[3];
   args_jobj[0].l = rcvr_jobj;
-  args_jobj[1].l = AddLocalReference<jobject>(env, interface_method);
+  args_jobj[1].l = ts.AddLocalReference<jobject>(interface_method);
   // Args array, if no arguments then NULL (don't include receiver in argument count)
   args_jobj[2].l = NULL;
   ObjectArray<Object>* args = NULL;
@@ -690,7 +691,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
       CHECK(thread->IsExceptionPending());
       return;
     }
-    args_jobj[2].l = AddLocalReference<jobjectArray>(env, args);
+    args_jobj[2].l = ts.AddLocalReference<jobjectArray>(args);
   }
 
   // Get parameter types.

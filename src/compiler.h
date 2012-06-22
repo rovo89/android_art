@@ -53,7 +53,7 @@ class Compiler {
 
   ~Compiler();
 
-  void CompileAll(const ClassLoader* class_loader,
+  void CompileAll(ClassLoader* class_loader,
                   const std::vector<const DexFile*>& dex_files);
 
   // Compile a single Method
@@ -255,24 +255,24 @@ class Compiler {
   // Checks if class specified by type_idx is one of the image_classes_
   bool IsImageClass(const std::string& descriptor) const;
 
-  void PreCompile(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files, TimingLogger& timings);
-  void PostCompile(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
+  void PreCompile(ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files, TimingLogger& timings);
+  void PostCompile(ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
 
   // Attempt to resolve all type, methods, fields, and strings
   // referenced from code in the dex file following PathClassLoader
   // ordering semantics.
-  void Resolve(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files, TimingLogger& timings);
-  void ResolveDexFile(const ClassLoader* class_loader, const DexFile& dex_file, TimingLogger& timings);
+  void Resolve(ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files, TimingLogger& timings);
+  void ResolveDexFile(ClassLoader* class_loader, const DexFile& dex_file, TimingLogger& timings);
 
-  void Verify(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
-  void VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
+  void Verify(ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
+  void VerifyDexFile(ClassLoader* class_loader, const DexFile& dex_file);
 
-  void InitializeClassesWithoutClinit(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
-  void InitializeClassesWithoutClinit(const ClassLoader* class_loader, const DexFile& dex_file);
+  void InitializeClassesWithoutClinit(ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
+  void InitializeClassesWithoutClinit(ClassLoader* class_loader, const DexFile& dex_file);
 
-  void Compile(const ClassLoader* class_loader,
+  void Compile(ClassLoader* class_loader,
                const std::vector<const DexFile*>& dex_files);
-  void CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
+  void CompileDexFile(ClassLoader* class_loader, const DexFile& dex_file);
   void CompileClass(const DexFile::ClassDef& class_def, const ClassLoader* class_loader,
                     const DexFile& dex_file);
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags, uint32_t method_idx,
@@ -280,8 +280,8 @@ class Compiler {
 
   static void CompileClass(CompilationContext* context, size_t class_def_index);
 
-  void SetGcMaps(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
-  void SetGcMapsDexFile(const ClassLoader* class_loader, const DexFile& dex_file);
+  void SetGcMaps(ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files);
+  void SetGcMapsDexFile(ClassLoader* class_loader, const DexFile& dex_file);
   void SetGcMapsMethod(const DexFile& dex_file, Method* method);
 
   void InsertInvokeStub(const std::string& key, const CompiledInvokeStub* compiled_invoke_stub);

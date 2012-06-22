@@ -19,6 +19,7 @@
 #include "dex_file.h"
 #include "gtest/gtest.h"
 #include "runtime.h"
+#include "scoped_jni_thread_state.h"
 #include "thread.h"
 #include "UniquePtr.h"
 
@@ -160,12 +161,13 @@ TEST_F(ExceptionTest, StackTraceElement) {
 #endif
 
   JNIEnv* env = thread->GetJniEnv();
-  jobject internal = thread->CreateInternalStackTrace(env);
+  ScopedJniThreadState ts(env);
+  jobject internal = thread->CreateInternalStackTrace(ts);
   ASSERT_TRUE(internal != NULL);
   jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(env, internal);
   ASSERT_TRUE(ste_array != NULL);
   ObjectArray<StackTraceElement>* trace_array =
-      Decode<ObjectArray<StackTraceElement>*>(env, ste_array);
+      ts.Decode<ObjectArray<StackTraceElement>*>(ste_array);
 
   ASSERT_TRUE(trace_array != NULL);
   ASSERT_TRUE(trace_array->Get(0) != NULL);

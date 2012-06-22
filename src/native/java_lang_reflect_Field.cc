@@ -19,12 +19,13 @@
 #include "object.h"
 #include "object_utils.h"
 #include "reflection.h"
+#include "scoped_jni_thread_state.h"
 
 namespace art {
 
-static bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_references) {
+static bool GetFieldValue(const ScopedJniThreadState& ts, Object* o, Field* f, JValue& value,
+                          bool allow_references) {
   DCHECK_EQ(value.GetJ(), 0LL);
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(), true, true)) {
     return false;
   }
@@ -64,18 +65,18 @@ static bool GetFieldValue(Object* o, Field* f, JValue& value, bool allow_referen
     // Never okay.
     break;
   }
-  Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
+  ts.Self()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
       "Not a primitive field: %s", PrettyField(f).c_str());
   return false;
 }
 
-static bool CheckReceiver(JNIEnv* env, jobject javaObj, Field* f, Object*& o) {
+static bool CheckReceiver(const ScopedJniThreadState& ts, jobject javaObj, Field* f, Object*& o) {
   if (f->IsStatic()) {
     o = NULL;
     return true;
   }
 
-  o = Decode<Object*>(env, javaObj);
+  o = ts.Decode<Object*>(javaObj);
   Class* declaringClass = f->GetDeclaringClass();
   if (!VerifyObjectInClass(o, declaringClass)) {
     return false;
@@ -84,32 +85,34 @@ static bool CheckReceiver(JNIEnv* env, jobject javaObj, Field* f, Object*& o) {
 }
 
 static jobject Field_get(JNIEnv* env, jobject javaField, jobject javaObj) {
-  Field* f = DecodeField(env->FromReflectedField(javaField));
+  ScopedJniThreadState ts(env);
+  Field* f = ts.DecodeField(env->FromReflectedField(javaField));
   Object* o = NULL;
-  if (!CheckReceiver(env, javaObj, f, o)) {
+  if (!CheckReceiver(ts, javaObj, f, o)) {
     return NULL;
   }
 
   // Get the field's value, boxing if necessary.
   JValue value;
-  if (!GetFieldValue(o, f, value, true)) {
+  if (!GetFieldValue(ts, o, f, value, true)) {
     return NULL;
   }
   BoxPrimitive(FieldHelper(f).GetTypeAsPrimitiveType(), value);
 
-  return AddLocalReference<jobject>(env, value.GetL());
+  return ts.AddLocalReference<jobject>(value.GetL());
 }
 
 static JValue GetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char dst_descriptor) {
-  Field* f = DecodeField(env->FromReflectedField(javaField));
+  ScopedJniThreadState ts(env);
+  Field* f = ts.DecodeField(env->FromReflectedField(javaField));
   Object* o = NULL;
-  if (!CheckReceiver(env, javaObj, f, o)) {
+  if (!CheckReceiver(ts, javaObj, f, o)) {
     return JValue();
   }
 
   // Read the value.
   JValue field_value;
-  if (!GetFieldValue(o, f, field_value, false)) {
+  if (!GetFieldValue(ts, o, f, field_value, false)) {
     return JValue();
   }
 
@@ -205,11 +208,11 @@ static void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool all
 }
 
 static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject javaValue) {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
-  Field* f = DecodeField(env->FromReflectedField(javaField));
+  ScopedJniThreadState ts(env);
+  Field* f = ts.DecodeField(env->FromReflectedField(javaField));
 
   // Unbox the value, if necessary.
-  Object* boxed_value = Decode<Object*>(env, javaValue);
+  Object* boxed_value = ts.Decode<Object*>(javaValue);
   JValue unboxed_value;
   if (!UnboxPrimitiveForField(boxed_value, FieldHelper(f).GetType(), unboxed_value, f)) {
     return;
@@ -217,7 +220,7 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
 
   // Check that the receiver is non-null and an instance of the field's declaring class.
   Object* o = NULL;
-  if (!CheckReceiver(env, javaObj, f, o)) {
+  if (!CheckReceiver(ts, javaObj, f, o)) {
     return;
   }
 
@@ -226,15 +229,15 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
 
 static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj, char src_descriptor,
                               const JValue& new_value) {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
-  Field* f = DecodeField(env->FromReflectedField(javaField));
+  ScopedJniThreadState ts(env);
+  Field* f = ts.DecodeField(env->FromReflectedField(javaField));
   Object* o = NULL;
-  if (!CheckReceiver(env, javaObj, f, o)) {
+  if (!CheckReceiver(ts, javaObj, f, o)) {
     return;
   }
   FieldHelper fh(f);
   if (!fh.IsPrimitiveType()) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
+    ts.Self()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
         "Not a primitive field: %s", PrettyField(f).c_str());
     return;
   }

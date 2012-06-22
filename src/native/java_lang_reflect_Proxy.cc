@@ -15,22 +15,23 @@
  */
 
 #include "class_linker.h"
+#include "class_loader.h"
 #include "jni_internal.h"
 #include "object.h"
+#include "scoped_jni_thread_state.h"
 
 namespace art {
 
 static jclass Proxy_generateProxy(JNIEnv* env, jclass, jstring javaName, jobjectArray javaInterfaces, jobject javaLoader, jobjectArray javaMethods, jobjectArray javaThrows) {
-  // Allocates Class so transition thread state to runnable
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
-  String* name = Decode<String*>(env, javaName);
-  ObjectArray<Class>* interfaces = Decode<ObjectArray<Class>*>(env, javaInterfaces);
-  ClassLoader* loader = Decode<ClassLoader*>(env, javaLoader);
-  ObjectArray<Method>* methods = Decode<ObjectArray<Method>*>(env, javaMethods);
-  ObjectArray<ObjectArray<Class> >* throws = Decode<ObjectArray<ObjectArray<Class> >*>(env, javaThrows);
+  ScopedJniThreadState ts(env);
+  String* name = ts.Decode<String*>(javaName);
+  ObjectArray<Class>* interfaces = ts.Decode<ObjectArray<Class>*>(javaInterfaces);
+  ClassLoader* loader = ts.Decode<ClassLoader*>(javaLoader);
+  ObjectArray<Method>* methods = ts.Decode<ObjectArray<Method>*>(javaMethods);
+  ObjectArray<ObjectArray<Class> >* throws = ts.Decode<ObjectArray<ObjectArray<Class> >*>(javaThrows);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* result = class_linker->CreateProxyClass(name, interfaces, loader, methods, throws);
-  return AddLocalReference<jclass>(env, result);
+  return ts.AddLocalReference<jclass>(result);
 }
 
 static JNINativeMethod gMethods[] = {

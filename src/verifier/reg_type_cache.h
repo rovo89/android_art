@@ -40,10 +40,10 @@ class RegTypeCache {
     return *result;
   }
 
-  const RegType& From(RegType::Type type, const ClassLoader* loader, const char* descriptor);
+  const RegType& From(RegType::Type type, ClassLoader* loader, const char* descriptor);
   const RegType& FromClass(Class* klass);
   const RegType& FromCat1Const(int32_t value);
-  const RegType& FromDescriptor(const ClassLoader* loader, const char* descriptor);
+  const RegType& FromDescriptor(ClassLoader* loader, const char* descriptor);
   const RegType& FromType(RegType::Type);
 
   const RegType& Boolean() { return FromType(RegType::kRegTypeBoolean); }
@@ -77,7 +77,7 @@ class RegTypeCache {
   const RegType& ShortConstant() { return FromCat1Const(std::numeric_limits<jshort>::min()); }
   const RegType& IntConstant() { return FromCat1Const(std::numeric_limits<jint>::max()); }
 
-  const RegType& GetComponentType(const RegType& array, const ClassLoader* loader);
+  const RegType& GetComponentType(const RegType& array, ClassLoader* loader);
 
  private:
   // The allocated entries

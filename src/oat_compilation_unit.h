@@ -30,7 +30,7 @@ class DexCache;
 
 class OatCompilationUnit {
  public:
-  OatCompilationUnit(const ClassLoader* class_loader, ClassLinker* class_linker,
+  OatCompilationUnit(ClassLoader* class_loader, ClassLinker* class_linker,
                      const DexFile& dex_file, DexCache& dex_cache,
                      const DexFile::CodeItem* code_item,
                      uint32_t method_idx, uint32_t access_flags)
@@ -46,7 +46,7 @@ class OatCompilationUnit {
                                   callee_access_flags);
   }
 
-  const ClassLoader* GetClassLoader() const {
+  ClassLoader* GetClassLoader() const {
     return class_loader_;
   }
 
@@ -85,7 +85,7 @@ class OatCompilationUnit {
   }
 
  public:
-  const ClassLoader* class_loader_;
+  ClassLoader* class_loader_;
   ClassLinker* class_linker_;
 
   const DexFile* dex_file_;

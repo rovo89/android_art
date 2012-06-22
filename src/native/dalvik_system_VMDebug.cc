@@ -22,6 +22,7 @@
 #include "hprof/hprof.h"
 #include "jni_internal.h"
 #include "ScopedUtfChars.h"
+#include "scoped_jni_thread_state.h"
 #include "toStringArray.h"
 #include "trace.h"
 
@@ -204,7 +205,8 @@ static void VMDebug_infopoint(JNIEnv*, jclass, jint id) {
 }
 
 static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass, jboolean countAssignable) {
-  Class* c = Decode<Class*>(env, javaClass);
+  ScopedJniThreadState ts(env);
+  Class* c = ts.Decode<Class*>(javaClass);
   if (c == NULL) {
     return 0;
   }
