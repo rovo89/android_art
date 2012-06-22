@@ -1642,7 +1642,7 @@ class ReferenceMapVisitor : public StackVisitor {
     } else {
       Method* m = GetMethod();
       // Process register map (which native and runtime methods don't have)
-      if (!m->IsNative() && !m->IsRuntimeMethod()) {
+      if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
         const uint8_t* gc_map = m->GetGcMap();
         CHECK(gc_map != NULL) << PrettyMethod(m);
         uint32_t gc_map_length = m->GetGcMapLength();

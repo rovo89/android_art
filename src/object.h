@@ -884,7 +884,7 @@ class MANAGED Method : public Object {
   }
 
   // Is this a CalleSaveMethod or ResolutionMethod and therefore doesn't adhere to normal
-  // conventions for a method of managed code.
+  // conventions for a method of managed code. Returns false for Proxy methods.
   bool IsRuntimeMethod() const {
     return GetDexMethodIndex() == DexFile::kDexNoIndex16;
   }
