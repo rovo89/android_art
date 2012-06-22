@@ -946,6 +946,9 @@ void Heap::RequestConcurrentGC() {
 }
 
 void Heap::ConcurrentGC() {
+  if (Runtime::Current()->IsShuttingDown()) {
+    return;
+  }
   ScopedHeapLock heap_lock;
   // We shouldn't need a WaitForConcurrentGcToComplete here since only
   // concurrent GC resumes threads before the GC is completed and this function
