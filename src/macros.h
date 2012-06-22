@@ -140,6 +140,8 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
   _rc; })
 #endif
 
+template<typename T> void UNUSED(const T&) {}
+
 #if defined(__SUPPORT_TS_ANNOTATION__)
 
 #define ACQUIRED_AFTER(...) __attribute__ ((acquired_after(__VA_ARGS__)))
