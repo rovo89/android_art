@@ -1512,7 +1512,7 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
         JDWP::FrameId frame_id(GetFrameId());
         JDWP::JdwpLocation location;
         SetLocation(location, GetMethod(), GetDexPc());
-        VLOG(jdwp) << StringPrintf("    Frame %3d: id=%3lld ", depth_, frame_id) << location;
+        VLOG(jdwp) << StringPrintf("    Frame %3zd: id=%3lld ", depth_, frame_id) << location;
         expandBufAdd8BE(buf_, frame_id);
         expandBufAddLocation(buf_, location);
       }
