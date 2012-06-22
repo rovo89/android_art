@@ -1507,7 +1507,7 @@ class CatchBlockStackVisitor : public StackVisitor {
 
   void DoLongJump() {
     Method* catch_method = *handler_quick_frame_;
-    Dbg::PostException(throw_frame_id_, throw_method_, throw_dex_pc_,
+    Dbg::PostException(self_, throw_frame_id_, throw_method_, throw_dex_pc_,
                        catch_method, handler_dex_pc_, exception_);
     if (kDebugExceptionDelivery) {
       if (catch_method == NULL) {

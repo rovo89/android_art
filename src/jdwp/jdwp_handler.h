@@ -35,9 +35,6 @@ struct JdwpReqHeader {
   uint8_t cmd;
 };
 
-/* helper function */
-void AddLocation(ExpandBuf* pReply, const JdwpLocation* pLoc);
-
 }  // namespace JDWP
 
 }  // namespace art

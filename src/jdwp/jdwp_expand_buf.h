@@ -27,6 +27,7 @@ namespace art {
 namespace JDWP {
 
 struct ExpandBuf;   /* private */
+struct JdwpLocation;
 
 /* create a new struct */
 ExpandBuf* expandBufAlloc();
@@ -58,6 +59,7 @@ void expandBufAdd4BE(ExpandBuf* pBuf, uint32_t val);
 void expandBufAdd8BE(ExpandBuf* pBuf, uint64_t val);
 void expandBufAddUtf8String(ExpandBuf* pBuf, const char* s);
 void expandBufAddUtf8String(ExpandBuf* pBuf, const std::string& s);
+void expandBufAddLocation(ExpandBuf* pReply, const JdwpLocation& location);
 
 }  // namespace JDWP
 

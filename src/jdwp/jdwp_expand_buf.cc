@@ -18,6 +18,7 @@
  * primitive values, e.g. JDWP replies.
  */
 
+#include "jdwp/jdwp.h"
 #include "jdwp/jdwp_bits.h"
 #include "jdwp/jdwp_expand_buf.h"
 #include "logging.h"
@@ -172,6 +173,13 @@ void expandBufAddUtf8String(ExpandBuf* pBuf, const std::string& s) {
   ensureSpace(pBuf, sizeof(uint32_t) + s.size());
   SetUtf8String(pBuf->storage + pBuf->curLen, s.data(), s.size());
   pBuf->curLen += sizeof(uint32_t) + s.size();
+}
+
+void expandBufAddLocation(ExpandBuf* buf, const JdwpLocation& location) {
+  expandBufAdd1(buf, location.type_tag);
+  expandBufAddObjectId(buf, location.class_id);
+  expandBufAddMethodId(buf, location.method_id);
+  expandBufAdd8BE(buf, location.dex_pc);
 }
 
 }  // namespace JDWP
