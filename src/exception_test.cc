@@ -184,6 +184,9 @@ TEST_F(ExceptionTest, StackTraceElement) {
 
 #if !defined(ART_USE_LLVM_COMPILER)
   thread->SetTopOfStack(NULL, 0); // Disarm the assertion that no code is running when we detach.
+#else
+  thread->PopShadowFrame();
+  thread->PopShadowFrame();
 #endif
 }
 

@@ -118,7 +118,7 @@ Monitor::Monitor(Object* obj)
       wait_set_(NULL),
       lock_("a monitor lock"),
       locking_method_(NULL),
-      locking_pc_(0) {
+      locking_dex_pc_(0) {
 }
 
 Monitor::~Monitor() {
@@ -188,14 +188,14 @@ void Monitor::Lock(Thread* self) {
   if (!lock_.TryLock()) {
     uint32_t wait_threshold = lock_profiling_threshold_;
     const Method* current_locking_method = NULL;
-    uintptr_t current_locking_pc = 0;
+    uint32_t current_locking_dex_pc = 0;
     {
       ScopedThreadStateChange tsc(self, kBlocked);
       if (wait_threshold != 0) {
         waitStart = NanoTime() / 1000;
       }
       current_locking_method = locking_method_;
-      current_locking_pc = locking_pc_;
+      current_locking_dex_pc = locking_dex_pc_;
 
       lock_.Lock();
       if (wait_threshold != 0) {
@@ -214,7 +214,7 @@ void Monitor::Lock(Thread* self) {
       if (sample_percent != 0 && (static_cast<uint32_t>(rand() % 100) < sample_percent)) {
         const char* current_locking_filename;
         uint32_t current_locking_line_number;
-        TranslateLocation(current_locking_method, current_locking_pc,
+        TranslateLocation(current_locking_method, current_locking_dex_pc,
                           current_locking_filename, current_locking_line_number);
         LogContentionEvent(self, wait_ms, sample_percent, current_locking_filename, current_locking_line_number);
       }
@@ -226,7 +226,7 @@ void Monitor::Lock(Thread* self) {
   // When debugging, save the current monitor holder for future
   // acquisition failures to use in sampled logging.
   if (lock_profiling_threshold_ != 0) {
-    locking_method_ = self->GetCurrentMethod(&locking_pc_);
+    locking_method_ = self->GetCurrentMethod(&locking_dex_pc_);
   }
 }
 
@@ -323,7 +323,7 @@ bool Monitor::Unlock(Thread* self) {
     if (lock_count_ == 0) {
       owner_ = NULL;
       locking_method_ = NULL;
-      locking_pc_ = 0;
+      locking_dex_pc_ = 0;
       lock_.Unlock();
     } else {
       --lock_count_;
@@ -427,13 +427,13 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
    * not order sensitive as we hold the pthread mutex.
    */
   AppendToWaitSet(self);
-  int prevLockCount = lock_count_;
+  int prev_lock_count = lock_count_;
   lock_count_ = 0;
   owner_ = NULL;
-  const Method* savedMethod = locking_method_;
+  const Method* saved_method = locking_method_;
   locking_method_ = NULL;
-  uintptr_t savedPc = locking_pc_;
-  locking_pc_ = 0;
+  uintptr_t saved_dex_pc = locking_dex_pc_;
+  locking_dex_pc_ = 0;
 
   /*
    * Update thread status.  If the GC wakes up, it'll ignore us, knowing
@@ -498,9 +498,9 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
    * updates is not order sensitive as we hold the pthread mutex.
    */
   owner_ = self;
-  lock_count_ = prevLockCount;
-  locking_method_ = savedMethod;
-  locking_pc_ = savedPc;
+  lock_count_ = prev_lock_count;
+  locking_method_ = saved_method;
+  locking_dex_pc_ = saved_dex_pc;
   RemoveFromWaitSet(self);
 
   /* set self->status back to kRunnable, and self-suspend if needed */
@@ -857,7 +857,7 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   os << "\n";
 }
 
-void Monitor::TranslateLocation(const Method* method, uint32_t pc,
+void Monitor::TranslateLocation(const Method* method, uint32_t dex_pc,
                                 const char*& source_file, uint32_t& line_number) const {
   // If method is null, location is unknown
   if (method == NULL) {
@@ -870,7 +870,7 @@ void Monitor::TranslateLocation(const Method* method, uint32_t pc,
   if (source_file == NULL) {
     source_file = "";
   }
-  line_number = mh.GetLineNumFromNativePC(pc);
+  line_number = mh.GetLineNumFromDexPC(dex_pc);
 }
 
 MonitorList::MonitorList() : lock_("MonitorList lock") {

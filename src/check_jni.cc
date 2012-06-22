@@ -80,7 +80,7 @@ void JniAbortF(const char* jni_function_name, const char* fmt, ...) {
 
 static bool IsSirtLocalRef(JNIEnv* env, jobject localRef) {
   return GetIndirectRefKind(localRef) == kSirtOrInvalid &&
-      reinterpret_cast<JNIEnvExt*>(env)->self->StackReferencesContain(localRef);
+      reinterpret_cast<JNIEnvExt*>(env)->self->SirtContains(localRef);
 }
 
 template<typename T>

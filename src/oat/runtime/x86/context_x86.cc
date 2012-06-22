@@ -31,17 +31,18 @@ X86Context::X86Context() {
 #endif
 }
 
-void X86Context::FillCalleeSaves(const Frame& fr) {
+void X86Context::FillCalleeSaves(const StackVisitor& fr) {
   Method* method = fr.GetMethod();
   uint32_t core_spills = method->GetCoreSpillMask();
   size_t spill_count = __builtin_popcount(core_spills);
-  CHECK_EQ(method->GetFpSpillMask(), 0u);
+  DCHECK_EQ(method->GetFpSpillMask(), 0u);
+  size_t frame_size = method->GetFrameSizeInBytes();
   if (spill_count > 0) {
     // Lowest number spill is furthest away, walk registers and fill into context.
     int j = 2;  // Offset j to skip return address spill.
     for (int i = 0; i < 8; i++) {
       if (((core_spills >> i) & 1) != 0) {
-        gprs_[i] = fr.LoadCalleeSave(spill_count - j);
+        gprs_[i] = fr.LoadCalleeSave(spill_count - j, frame_size);
         j++;
       }
     }

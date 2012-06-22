@@ -1244,8 +1244,8 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
 /* Returns sp-relative offset in bytes for a VReg */
 extern int oatVRegOffset(CompilationUnit* cUnit, int vReg)
 {
-  return Frame::GetVRegOffset(cUnit->code_item, cUnit->coreSpillMask,
-                              cUnit->fpSpillMask, cUnit->frameSize, vReg);
+  return StackVisitor::GetVRegOffset(cUnit->code_item, cUnit->coreSpillMask,
+                                     cUnit->fpSpillMask, cUnit->frameSize, vReg);
 }
 
 /* Returns sp-relative offset in bytes for a SReg */

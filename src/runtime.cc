@@ -862,7 +862,7 @@ void Runtime::DetachCurrentThread() {
   if (self == NULL) {
     LOG(FATAL) << "attempting to detach thread that is not attached";
   }
-  if (self->GetTopOfStack().GetSP() != NULL) {
+  if (self->HasManagedStack()) {
     LOG(FATAL) << *Thread::Current() << " attempting to detach while still running code";
   }
   thread_list_->Unregister();

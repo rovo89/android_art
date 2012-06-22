@@ -130,6 +130,9 @@ void Thread::InitCpu() {
       : "r"(THREAD_SELF_OFFSET)  // input
       :);  // clobber
   CHECK_EQ(self_check, this);
+
+  // Sanity check other offsets.
+  CHECK_EQ(THREAD_EXCEPTION_OFFSET, OFFSETOF_MEMBER(Thread, exception_));
 }
 
 }  // namespace art

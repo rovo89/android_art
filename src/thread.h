@@ -35,7 +35,6 @@
 #include "oat/runtime/oat_support_entrypoints.h"
 #include "offsets.h"
 #include "runtime_stats.h"
-#include "shadow_frame.h"
 #include "stack.h"
 #include "trace.h"
 #include "UniquePtr.h"
@@ -93,13 +92,6 @@ class PACKED Thread {
   static const size_t kStackOverflowReservedBytes = 8 * KB;
 #endif
 
-  class StackVisitor {
-   public:
-    virtual ~StackVisitor() {}
-    // Return 'true' if we should continue to visit more frames, 'false' to stop.
-    virtual bool VisitFrame(const Frame& frame, uintptr_t pc) = 0;
-  };
-
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
   static void CreateNativeThread(Object* peer, size_t stack_size);
@@ -111,7 +103,7 @@ class PACKED Thread {
   // Reset internal state of child thread after fork.
   void InitAfterFork();
 
-  static Thread* Current() {
+  static Thread* Current() __attribute__ ((pure)) {
     // We rely on Thread::Current returning NULL for a detached thread, so it's not obvious
     // that we can replace this with a direct %fs access on x86.
     void* thread = pthread_getspecific(Thread::pthread_key_self_);
@@ -145,6 +137,31 @@ class PACKED Thread {
 
   void WaitUntilSuspended();
 
+  // Once called thread suspension will cause an assertion failure.
+  void StartAssertNoThreadSuspension() {
+#ifndef NDEBUG
+    no_thread_suspension_++;
+#endif
+  }
+  // End region where no thread suspension is expected.
+  void EndAssertNoThreadSuspension() {
+#ifndef NDEBUG
+    DCHECK_GT(no_thread_suspension_, 0U);
+    no_thread_suspension_--;
+#endif
+  }
+
+  void AssertThreadSuspensionIsAllowable() const {
+    DCHECK_EQ(0u, no_thread_suspension_);
+  }
+
+  bool CanAccessDirectReferences() const {
+#ifdef MOVING_GARBAGE_COLLECTOR
+    // TODO: when we have a moving collector, we'll need: return state_ == kRunnable;
+#endif
+    return true;
+  }
+
   bool HoldsLock(Object*);
 
   /*
@@ -167,13 +184,6 @@ class PACKED Thread {
   static Object* GetMainThreadGroup();
   // Returns the "system" ThreadGroup, used when attaching our internal threads.
   static Object* GetSystemThreadGroup();
-
-  bool CanAccessDirectReferences() const {
-#ifdef MOVING_GARBAGE_COLLECTOR
-    // TODO: when we have a moving collector, we'll need: return state_ == kRunnable;
-#endif
-    return true;
-  }
 
   uint32_t GetThinLockId() const {
     return thin_lock_id_;
@@ -209,9 +219,6 @@ class PACKED Thread {
 
   bool IsStillStarting() const;
 
-  // Returns the current Method* and native PC (not dex PC) for this thread.
-  Method* GetCurrentMethod(uintptr_t* pc = NULL, Method*** sp = NULL) const;
-
   bool IsExceptionPending() const {
     return exception_ != NULL;
   }
@@ -236,20 +243,21 @@ class PACKED Thread {
   void DeliverException();
 
   Context* GetLongJumpContext();
-
-  Frame GetTopOfStack() const {
-    return top_of_managed_stack_;
+  void ReleaseLongJumpContext(Context* context) {
+    DCHECK(long_jump_context_ == NULL);
+    long_jump_context_ = context;
   }
 
-  // TODO: this is here for testing, remove when we have exception unit tests
-  // that use the real stack
+  Method* GetCurrentMethod(uint32_t* dex_pc = NULL, size_t* frame_id = NULL) const;
+
   void SetTopOfStack(void* stack, uintptr_t pc) {
-    top_of_managed_stack_.SetSP(reinterpret_cast<Method**>(stack));
-    top_of_managed_stack_pc_ = pc;
+    Method** top_method = reinterpret_cast<Method**>(stack);
+    managed_stack_.SetTopQuickFrame(top_method);
+    managed_stack_.SetTopQuickFramePc(pc);
   }
 
-  void SetTopOfStackPC(uintptr_t pc) {
-    top_of_managed_stack_pc_ = pc;
+  bool HasManagedStack() const {
+    return managed_stack_.GetTopQuickFrame() != NULL || managed_stack_.GetTopShadowFrame() != NULL;
   }
 
   // If 'msg' is NULL, no detail message is set.
@@ -268,7 +276,7 @@ class PACKED Thread {
   // Only the GC should call this.
   void ThrowOutOfMemoryError(const char* msg);
 
-  Frame FindExceptionHandler(void* throw_pc, void** handler_pc);
+  //QuickFrameIterator FindExceptionHandler(void* throw_pc, void** handler_pc);
 
   void* FindExceptionHandlerInMethod(const Method* method,
                                      void* throw_pc,
@@ -283,30 +291,6 @@ class PACKED Thread {
   JNIEnvExt* GetJniEnv() const {
     return jni_env_;
   }
-
-  // Number of references in SIRTs on this thread
-  size_t NumSirtReferences();
-
-  // Number of references allocated in ShadowFrames on this thread
-  size_t NumShadowFrameReferences();
-
-  // Number of references allocated in SIRTs & shadow frames on this thread
-  size_t NumStackReferences() {
-    return NumSirtReferences() + NumShadowFrameReferences();
-  };
-
-  // Is the given obj in this thread's stack indirect reference table?
-  bool SirtContains(jobject obj);
-
-  // Is the given obj in this thread's ShadowFrame?
-  bool ShadowFrameContains(jobject obj);
-
-  // Is the given obj in this thread's Sirts & ShadowFrames?
-  bool StackReferencesContain(jobject obj);
-
-  void SirtVisitRoots(Heap::RootVisitor* visitor, void* arg);
-
-  void ShadowFrameVisitRoots(Heap::RootVisitor* visitor, void* arg);
 
   // Convert a jobject into a Object*
   Object* DecodeJObject(jobject obj);
@@ -338,10 +322,6 @@ class PACKED Thread {
     MutexLock mu(*wait_mutex_);
     NotifyLocked();
   }
-
-  // Linked list recording transitions from native to managed code
-  void PushNativeToManagedRecord(NativeToManagedRecord* record);
-  void PopNativeToManagedRecord(const NativeToManagedRecord& record);
 
   const ClassLoader* GetClassLoaderOverride() {
     // TODO: need to place the class_loader_override_ in a handle
@@ -433,31 +413,57 @@ class PACKED Thread {
   }
 
   static ThreadOffset TopOfManagedStackOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_of_managed_stack_) +
-        OFFSETOF_MEMBER(Frame, sp_));
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, managed_stack_) +
+                        ManagedStack::TopQuickFrameOffset());
   }
 
   static ThreadOffset TopOfManagedStackPcOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_of_managed_stack_pc_));
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, managed_stack_) +
+                        ManagedStack::TopQuickFramePcOffset());
   }
 
-  ShadowFrame* PushShadowFrame(ShadowFrame* frame) {
-    ShadowFrame* old_frame = top_shadow_frame_;
-    top_shadow_frame_ = frame;
-    frame->SetLink(old_frame);
-    return old_frame;
+  const ManagedStack* GetManagedStack() const {
+    return &managed_stack_;
+  }
+
+  // Linked list recording fragments of managed stack.
+  void PushManagedStackFragment(ManagedStack* fragment) {
+    managed_stack_.PushManagedStackFragment(fragment);
+  }
+  void PopManagedStackFragment(const ManagedStack& fragment) {
+    managed_stack_.PopManagedStackFragment(fragment);
+  }
+
+  ShadowFrame* PushShadowFrame(ShadowFrame* new_top_frame) {
+    return managed_stack_.PushShadowFrame(new_top_frame);
   }
 
   ShadowFrame* PopShadowFrame() {
-    CHECK(top_shadow_frame_ != NULL);
-    ShadowFrame* frame = top_shadow_frame_;
-    top_shadow_frame_ = frame->GetLink();
-    return frame;
+    return managed_stack_.PopShadowFrame();
   }
 
   static ThreadOffset TopShadowFrameOffset() {
-    return ThreadOffset(OFFSETOF_MEMBER(Thread, top_shadow_frame_));
+    return ThreadOffset(OFFSETOF_MEMBER(Thread, managed_stack_) +
+                        ManagedStack::TopShadowFrameOffset());
   }
+
+  // Number of references allocated in ShadowFrames on this thread
+  size_t NumShadowFrameReferences() const {
+    return managed_stack_.NumShadowFrameReferences();
+  }
+
+  // Number of references in SIRTs on this thread
+  size_t NumSirtReferences();
+
+  // Number of references allocated in SIRTs & shadow frames on this thread
+  size_t NumStackReferences() {
+    return NumSirtReferences() + NumShadowFrameReferences();
+  };
+
+  // Is the given obj in this thread's stack indirect reference table?
+  bool SirtContains(jobject obj);
+
+  void SirtVisitRoots(Heap::RootVisitor* visitor, void* arg);
 
   void PushSirt(StackIndirectReferenceTable* sirt);
   StackIndirectReferenceTable* PopSirt();
@@ -466,20 +472,18 @@ class PACKED Thread {
     return ThreadOffset(OFFSETOF_MEMBER(Thread, top_sirt_));
   }
 
-  void WalkStack(StackVisitor* visitor, bool include_upcalls = false) const;
-
   DebugInvokeReq* GetInvokeReq() {
     return debug_invoke_req_;
   }
 
   void SetDebuggerUpdatesEnabled(bool enabled);
 
-  bool IsTraceStackEmpty() const {
-    return trace_stack_->empty();
+  const std::vector<TraceStackFrame>* GetTraceStack() const {
+    return trace_stack_;
   }
 
-  TraceStackFrame GetTraceStackFrame(uint32_t depth) const {
-    return trace_stack_->at(trace_stack_->size() - depth - 1);
+  bool IsTraceStackEmpty() const {
+    return trace_stack_->empty();
   }
 
   void PushTraceStackFrame(const TraceStackFrame& frame) {
@@ -532,6 +536,47 @@ class PACKED Thread {
 
   static void ThreadExitCallback(void* arg);
 
+  // TLS key used to retrieve the Thread*.
+  static pthread_key_t pthread_key_self_;
+
+  // --- Frequently accessed fields first for short offsets ---
+
+  // A non-zero value is used to tell the current thread to enter a safe point
+  // at the next poll.
+  int suspend_count_;
+
+  // The biased card table, see CardTable for details
+  byte* card_table_;
+
+  // The pending exception or NULL.
+  Throwable* exception_;
+
+  // The end of this thread's stack. This is the lowest safely-addressable address on the stack.
+  // We leave extra space so there's room for the code that throws StackOverflowError.
+  byte* stack_end_;
+
+  // The top of the managed stack often manipulated directly by compiler generated code.
+  ManagedStack managed_stack_;
+
+  // Every thread may have an associated JNI environment
+  JNIEnvExt* jni_env_;
+
+  // Initialized to "this". On certain architectures (such as x86) reading
+  // off of Thread::Current is easy but getting the address of Thread::Current
+  // is hard. This field can be read off of Thread::Current to give the address.
+  Thread* self_;
+
+  volatile ThreadState state_;
+
+  // Our managed peer (an instance of java.lang.Thread).
+  Object* peer_;
+
+  // The "lowest addressable byte" of the stack
+  byte* stack_begin_;
+
+  // Size of the stack
+  size_t stack_size_;
+
   // Thin lock thread id. This is a small integer used by the thin lock implementation.
   // This is not to be confused with the native thread's tid, nor is it the value returned
   // by java.lang.Thread.getId --- this is a distinct value, used only for locking. One
@@ -541,20 +586,6 @@ class PACKED Thread {
 
   // System thread id.
   pid_t tid_;
-
-  // Our managed peer (an instance of java.lang.Thread).
-  Object* peer_;
-
-  // The top_of_managed_stack_ and top_of_managed_stack_pc_ fields are accessed from
-  // compiled code, so we keep them early in the structure to (a) avoid having to keep
-  // fixing the assembler offsets and (b) improve the chances that these will still be aligned.
-
-  // Top of the managed stack, written out prior to the state transition from
-  // kRunnable to kNative. Uses include giving the starting point for scanning
-  // a managed stack when a thread is in native code.
-  Frame top_of_managed_stack_;
-  // PC corresponding to the call out of the top_of_managed_stack_ frame
-  uintptr_t top_of_managed_stack_pc_;
 
   // Guards the 'interrupted_' and 'wait_monitor_' members.
   mutable Mutex* wait_mutex_;
@@ -570,53 +601,12 @@ class PACKED Thread {
 
   friend class Monitor;
 
-  RuntimeStats stats_;
-
-  // The biased card table, see CardTable for details
-  byte* card_table_;
-
-  // The end of this thread's stack. This is the lowest safely-addressable address on the stack.
-  // We leave extra space so there's room for the code that throws StackOverflowError.
-  byte* stack_end_;
-
-  // Size of the stack
-  size_t stack_size_;
-
-  // The "lowest addressable byte" of the stack
-  byte* stack_begin_;
-
-  // A linked list (of stack allocated records) recording transitions from
-  // native to managed code.
-  NativeToManagedRecord* native_to_managed_record_;
-
   // Top of linked list of stack indirect reference tables or NULL for none
   StackIndirectReferenceTable* top_sirt_;
 
-  // Top of linked list of shadow stack or NULL for none
-  // Some backend may require shadow frame to ease the GC work.
-  ShadowFrame* top_shadow_frame_;
-
-  // Every thread may have an associated JNI environment
-  JNIEnvExt* jni_env_;
-
-  volatile ThreadState state_;
-
-  // Initialized to "this". On certain architectures (such as x86) reading
-  // off of Thread::Current is easy but getting the address of Thread::Current
-  // is hard. This field can be read off of Thread::Current to give the address.
-  Thread* self_;
-
   Runtime* runtime_;
 
-  // The pending exception or NULL.
-  Throwable* exception_;
-
-  // A non-zero value is used to tell the current thread to enter a safe point
-  // at the next poll.
-  int suspend_count_;
-  // How much of 'suspend_count_' is by request of the debugger, used to set things right
-  // when the debugger detaches. Must be <= suspend_count_.
-  int debug_suspend_count_;
+  RuntimeStats stats_;
 
   // Needed to get the right ClassLoader in JNI_OnLoad, but also
   // useful for testing.
@@ -628,11 +618,12 @@ class PACKED Thread {
   // A boolean telling us whether we're recursively throwing OOME.
   uint32_t throwing_OutOfMemoryError_;
 
+  // How much of 'suspend_count_' is by request of the debugger, used to set things right
+  // when the debugger detaches. Must be <= suspend_count_.
+  int debug_suspend_count_;
+
   // JDWP invoke-during-breakpoint support.
   DebugInvokeReq* debug_invoke_req_;
-
-  // TLS key used to retrieve the Thread*.
-  static pthread_key_t pthread_key_self_;
 
   // Additional stack used by method tracer to store method and return pc values.
   // Stored as a pointer since std::vector is not PACKED.
@@ -644,8 +635,11 @@ class PACKED Thread {
   // A cached pthread_t for the pthread underlying this Thread*.
   pthread_t pthread_self_;
 
+  // Mutexes held by this thread, see CheckSafeToLockOrUnlock.
   uint32_t held_mutexes_[kMaxMutexRank + 1];
 
+  // A positive value implies we're in a region where thread suspension isn't expected.
+  uint32_t no_thread_suspension_;
  public:
   // Runtime support function pointers
   EntryPoints entrypoints_;

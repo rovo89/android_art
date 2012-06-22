@@ -214,7 +214,7 @@ class Dbg {
     kMethodExit     = 0x08,
   };
   static void PostLocationEvent(const Method* method, int pcOffset, Object* thisPtr, int eventFlags);
-  static void PostException(Method** sp, Method* throwMethod, uintptr_t throwNativePc, Method* catchMethod, uintptr_t catchNativePc, Object* exception);
+  static void PostException(JDWP::FrameId frameId, Method* throwMethod, uint32_t throwDexPc, Method* catchMethod, uint32_t catchDexPc, Throwable* exception);
   static void PostThreadStart(Thread* t);
   static void PostThreadDeath(Thread* t);
   static void PostClassPrepare(Class* c);

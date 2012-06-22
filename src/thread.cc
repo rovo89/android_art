@@ -42,7 +42,6 @@
 #include "runtime_support.h"
 #include "scoped_jni_thread_state.h"
 #include "ScopedLocalRef.h"
-#include "shadow_frame.h"
 #include "space.h"
 #include "stack.h"
 #include "stack_indirect_reference_table.h"
@@ -528,44 +527,10 @@ void Thread::DumpState(std::ostream& os) const {
   Thread::DumpState(os, this, GetTid());
 }
 
-#if !defined(ART_USE_LLVM_COMPILER)
-void Thread::PushNativeToManagedRecord(NativeToManagedRecord* record) {
-  Method **sp = top_of_managed_stack_.GetSP();
-#ifndef NDEBUG
-  if (sp != NULL) {
-    Method* m = *sp;
-    Runtime::Current()->GetHeap()->VerifyObject(m);
-    DCHECK((m == NULL) || m->IsMethod());
-  }
-#endif
-  record->last_top_of_managed_stack_ = reinterpret_cast<void*>(sp);
-  record->last_top_of_managed_stack_pc_ = top_of_managed_stack_pc_;
-  record->link_ = native_to_managed_record_;
-  native_to_managed_record_ = record;
-  top_of_managed_stack_.SetSP(NULL);
-}
-#else
-void Thread::PushNativeToManagedRecord(NativeToManagedRecord*) {
-  LOG(FATAL) << "Called non-LLVM method with LLVM";
-}
-#endif
-
-#if !defined(ART_USE_LLVM_COMPILER)
-void Thread::PopNativeToManagedRecord(const NativeToManagedRecord& record) {
-  native_to_managed_record_ = record.link_;
-  top_of_managed_stack_.SetSP(reinterpret_cast<Method**>(record.last_top_of_managed_stack_));
-  top_of_managed_stack_pc_ = record.last_top_of_managed_stack_pc_;
-}
-#else
-void Thread::PopNativeToManagedRecord(const NativeToManagedRecord&) {
-  LOG(FATAL) << "Called non-LLVM method with LLVM";
-}
-#endif
-
-struct StackDumpVisitor : public Thread::StackVisitor {
-  StackDumpVisitor(std::ostream& os, const Thread* thread)
-      : last_method(NULL), last_line_number(0), repetition_count(0), os(os), thread(thread),
-        frame_count(0) {
+struct StackDumpVisitor : public StackVisitor {
+  StackDumpVisitor(std::ostream& os, const Thread* thread) :
+    StackVisitor(thread->GetManagedStack(), thread->GetTraceStack()), last_method(NULL),
+    last_line_number(0), repetition_count(0), os(os), thread(thread), frame_count(0) {
   }
 
   virtual ~StackDumpVisitor() {
@@ -574,19 +539,19 @@ struct StackDumpVisitor : public Thread::StackVisitor {
     }
   }
 
-  bool VisitFrame(const Frame& frame, uintptr_t pc) {
-    if (!frame.HasMethod()) {
+  bool VisitFrame() {
+    Method* m = GetMethod();
+    if (m->IsRuntimeMethod()) {
       return true;
     }
     const int kMaxRepetition = 3;
-    Method* m = frame.GetMethod();
     Class* c = m->GetDeclaringClass();
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     const DexCache* dex_cache = c->GetDexCache();
     int line_number = -1;
     if (dex_cache != NULL) {  // be tolerant of bad input
       const DexFile& dex_file = class_linker->FindDexFile(dex_cache);
-      line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
+      line_number = dex_file.GetLineNumFromPC(m, GetDexPc());
     }
     if (line_number == last_line_number && last_method == m) {
       repetition_count++;
@@ -632,7 +597,7 @@ void Thread::DumpStack(std::ostream& os) const {
     DumpNativeStack(os, GetTid(), "  native: ", false);
   }
   StackDumpVisitor dumper(os, this);
-  WalkStack(&dumper);
+  dumper.WalkStack();
 }
 
 void Thread::SetStateWithoutSuspendCheck(ThreadState new_state) {
@@ -643,6 +608,11 @@ void Thread::SetStateWithoutSuspendCheck(ThreadState new_state) {
 
 ThreadState Thread::SetState(ThreadState new_state) {
   ThreadState old_state = state_;
+  if (old_state == kRunnable) {
+    // Non-runnable states are points where we expect thread suspension can occur.
+    AssertThreadSuspensionIsAllowable();
+  }
+
   if (old_state == new_state) {
     return old_state;
   }
@@ -701,6 +671,7 @@ ThreadState Thread::SetState(ThreadState new_state) {
      * the thread is supposed to be suspended.  This is possibly faster
      * on SMP and slightly more correct, but less convenient.
      */
+    AssertThreadSuspensionIsAllowable();
     android_atomic_acquire_store(new_state, addr);
     ANNOTATE_IGNORE_READS_BEGIN();
     int suspend_count = suspend_count_;
@@ -813,35 +784,35 @@ uint32_t Thread::LockOwnerFromThreadLock(Object* thread_lock) {
 }
 
 Thread::Thread()
-    : thin_lock_id_(0),
-      tid_(0),
+    : suspend_count_(0),
+      card_table_(NULL),
+      exception_(NULL),
+      stack_end_(NULL),
+      managed_stack_(),
+      jni_env_(NULL),
+      self_(NULL),
+      state_(kNative),
       peer_(NULL),
-      top_of_managed_stack_(),
-      top_of_managed_stack_pc_(0),
+      stack_begin_(NULL),
+      stack_size_(0),
+      thin_lock_id_(0),
+      tid_(0),
       wait_mutex_(new Mutex("a thread wait mutex")),
       wait_cond_(new ConditionVariable("a thread wait condition variable")),
       wait_monitor_(NULL),
       interrupted_(false),
       wait_next_(NULL),
       monitor_enter_object_(NULL),
-      card_table_(0),
-      stack_end_(NULL),
-      native_to_managed_record_(NULL),
       top_sirt_(NULL),
-      top_shadow_frame_(NULL),
-      jni_env_(NULL),
-      state_(kNative),
-      self_(NULL),
       runtime_(NULL),
-      exception_(NULL),
-      suspend_count_(0),
-      debug_suspend_count_(0),
       class_loader_override_(NULL),
       long_jump_context_(NULL),
       throwing_OutOfMemoryError_(false),
+      debug_suspend_count_(0),
       debug_invoke_req_(new DebugInvokeReq),
       trace_stack_(new std::vector<TraceStackFrame>),
-      name_(new std::string(kThreadNameDuringStartup)) {
+      name_(new std::string(kThreadNameDuringStartup)),
+      no_thread_suspension_(0) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
   memset(&held_mutexes_[0], 0, sizeof(held_mutexes_));
 }
@@ -968,14 +939,6 @@ size_t Thread::NumSirtReferences() {
   return count;
 }
 
-size_t Thread::NumShadowFrameReferences() {
-  size_t count = 0;
-  for (ShadowFrame* cur = top_shadow_frame_; cur; cur = cur->GetLink()) {
-    count += cur->NumberOfReferences();
-  }
-  return count;
-}
-
 bool Thread::SirtContains(jobject obj) {
   Object** sirt_entry = reinterpret_cast<Object**>(obj);
   for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->GetLink()) {
@@ -983,37 +946,12 @@ bool Thread::SirtContains(jobject obj) {
       return true;
     }
   }
-  return false;
-}
-
-bool Thread::ShadowFrameContains(jobject obj) {
-  Object** shadow_frame_entry = reinterpret_cast<Object**>(obj);
-  for (ShadowFrame* cur = top_shadow_frame_; cur; cur = cur->GetLink()) {
-    if (cur->Contains(shadow_frame_entry)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool Thread::StackReferencesContain(jobject obj) {
-  return SirtContains(obj) || ShadowFrameContains(obj);
+  // JNI code invoked from portable code uses shadow frames rather than the SIRT.
+  return managed_stack_.ShadowFramesContain(sirt_entry);
 }
 
 void Thread::SirtVisitRoots(Heap::RootVisitor* visitor, void* arg) {
   for (StackIndirectReferenceTable* cur = top_sirt_; cur; cur = cur->GetLink()) {
-    size_t num_refs = cur->NumberOfReferences();
-    for (size_t j = 0; j < num_refs; j++) {
-      Object* object = cur->GetReference(j);
-      if (object != NULL) {
-        visitor(object, arg);
-      }
-    }
-  }
-}
-
-void Thread::ShadowFrameVisitRoots(Heap::RootVisitor* visitor, void* arg) {
-  for (ShadowFrame* cur = top_shadow_frame_; cur; cur = cur->GetLink()) {
     size_t num_refs = cur->NumberOfReferences();
     for (size_t j = 0; j < num_refs; j++) {
       Object* object = cur->GetReference(j);
@@ -1063,7 +1001,7 @@ Object* Thread::DecodeJObject(jobject obj) {
   default:
     // TODO: make stack indirect reference table lookup more efficient
     // Check if this is a local reference in the SIRT
-    if (StackReferencesContain(obj)) {
+    if (SirtContains(obj)) {
       result = *reinterpret_cast<Object**>(obj);  // Read from SIRT
     } else if (Runtime::Current()->GetJavaVM()->work_around_app_jni_bugs) {
       // Assume an invalid local reference is actually a direct pointer.
@@ -1083,20 +1021,24 @@ Object* Thread::DecodeJObject(jobject obj) {
   return result;
 }
 
-class CountStackDepthVisitor : public Thread::StackVisitor {
+class CountStackDepthVisitor : public StackVisitor {
  public:
-  CountStackDepthVisitor() : depth_(0), skip_depth_(0), skipping_(true) {}
+  CountStackDepthVisitor(const ManagedStack* stack,
+                         const std::vector<TraceStackFrame>* trace_stack) :
+                           StackVisitor(stack, trace_stack), depth_(0), skip_depth_(0),
+                           skipping_(true) {}
 
-  bool VisitFrame(const Frame& frame, uintptr_t /*pc*/) {
+  bool VisitFrame() {
     // We want to skip frames up to and including the exception's constructor.
     // Note we also skip the frame if it doesn't have a method (namely the callee
     // save frame)
-    if (skipping_ && frame.HasMethod() &&
-        !Throwable::GetJavaLangThrowable()->IsAssignableFrom(frame.GetMethod()->GetDeclaringClass())) {
+    Method* m = GetMethod();
+    if (skipping_ && !m->IsRuntimeMethod() &&
+        !Throwable::GetJavaLangThrowable()->IsAssignableFrom(m->GetDeclaringClass())) {
       skipping_ = false;
     }
     if (!skipping_) {
-      if (frame.HasMethod()) {  // ignore callee save frames
+      if (!m->IsRuntimeMethod()) {  // Ignore runtime frames (in particular callee save).
         ++depth_;
       }
     } else {
@@ -1119,89 +1061,71 @@ class CountStackDepthVisitor : public Thread::StackVisitor {
   bool skipping_;
 };
 
-class BuildInternalStackTraceVisitor : public Thread::StackVisitor {
+class BuildInternalStackTraceVisitor : public StackVisitor {
  public:
-  explicit BuildInternalStackTraceVisitor(int skip_depth)
-      : skip_depth_(skip_depth), count_(0), pc_trace_(NULL), method_trace_(NULL), local_ref_(NULL) {
-  }
+  explicit BuildInternalStackTraceVisitor(const ManagedStack* stack,
+                                          const std::vector<TraceStackFrame>* trace_stack,
+                                          int skip_depth) :
+    StackVisitor(stack, trace_stack), skip_depth_(skip_depth), count_(0), dex_pc_trace_(NULL),
+    method_trace_(NULL) {}
 
   bool Init(int depth, ScopedJniThreadState& ts) {
     // Allocate method trace with an extra slot that will hold the PC trace
-    method_trace_ = Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(depth + 1);
-    if (method_trace_ == NULL) {
+    SirtRef<ObjectArray<Object> >
+      method_trace(Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(depth + 1));
+    if (method_trace.get() == NULL) {
       return false;
     }
-    // Register a local reference as IntArray::Alloc may trigger GC
-    local_ref_ = AddLocalReference<jobject>(ts.Env(), method_trace_);
-    pc_trace_ = IntArray::Alloc(depth);
-    if (pc_trace_ == NULL) {
+    IntArray* dex_pc_trace = IntArray::Alloc(depth);
+    if (dex_pc_trace == NULL) {
       return false;
     }
-#ifdef MOVING_GARBAGE_COLLECTOR
-    // Re-read after potential GC
-    method_trace_ = Decode<ObjectArray<Object>*>(ts.Env(), local_ref_);
-#endif
     // Save PC trace in last element of method trace, also places it into the
     // object graph.
-    method_trace_->Set(depth, pc_trace_);
+    method_trace->Set(depth, dex_pc_trace);
+    // Set the Object*s and assert that no thread suspension is now possible.
+    ts.Self()->StartAssertNoThreadSuspension();
+    method_trace_ = method_trace.get();
+    dex_pc_trace_ = dex_pc_trace;
     return true;
   }
 
-  virtual ~BuildInternalStackTraceVisitor() {}
+  virtual ~BuildInternalStackTraceVisitor() {
+    Thread::Current()->EndAssertNoThreadSuspension();
+  }
 
-  bool VisitFrame(const Frame& frame, uintptr_t pc) {
-    if (method_trace_ == NULL || pc_trace_ == NULL) {
+  bool VisitFrame() {
+    if (method_trace_ == NULL || dex_pc_trace_ == NULL) {
       return true; // We're probably trying to fillInStackTrace for an OutOfMemoryError.
     }
     if (skip_depth_ > 0) {
       skip_depth_--;
       return true;
     }
-    if (!frame.HasMethod()) {
-      return true;  // ignore callee save frames
+    Method* m = GetMethod();
+    if (m->IsRuntimeMethod()) {
+      return true;  // Ignore runtime frames (in particular callee save).
     }
-    method_trace_->Set(count_, frame.GetMethod());
-    pc_trace_->Set(count_, pc);
+    method_trace_->Set(count_, m);
+    dex_pc_trace_->Set(count_, GetDexPc());
     ++count_;
     return true;
   }
 
-  jobject GetInternalStackTrace() const {
-    return local_ref_;
+  ObjectArray<Object>* GetInternalStackTrace() const {
+    return method_trace_;
   }
 
  private:
   // How many more frames to skip.
   int32_t skip_depth_;
-  // Current position down stack trace
+  // Current position down stack trace.
   uint32_t count_;
-  // Array of return PC values
-  IntArray* pc_trace_;
-  // An array of the methods on the stack, the last entry is a reference to the
-  // PC trace
+  // Array of dex PC values.
+  IntArray* dex_pc_trace_;
+  // An array of the methods on the stack, the last entry is a reference to the PC trace.
   ObjectArray<Object>* method_trace_;
-  // Local indirect reference table entry for method trace
-  jobject local_ref_;
 };
-
-#if !defined(ART_USE_LLVM_COMPILER)
-// TODO: remove this.
-static uintptr_t ManglePc(uintptr_t pc) {
-  // Move the PC back 2 bytes as a call will frequently terminate the
-  // decoding of a particular instruction and we want to make sure we
-  // get the Dex PC of the instruction with the call and not the
-  // instruction following.
-  if (pc > 0) { pc -= 2; }
-  return pc;
-}
-#endif
-
-// TODO: remove this.
-static uintptr_t DemanglePc(uintptr_t pc) {
-  // Revert mangling for the case where we need the PC to return to the upcall
-  if (pc > 0) { pc +=  2; }
-  return pc;
-}
 
 void Thread::PushSirt(StackIndirectReferenceTable* sirt) {
   sirt->SetLink(top_sirt_);
@@ -1215,112 +1139,10 @@ StackIndirectReferenceTable* Thread::PopSirt() {
   return sirt;
 }
 
-#if !defined(ART_USE_LLVM_COMPILER) // LLVM use ShadowFrame
-
-void Thread::WalkStack(StackVisitor* visitor, bool include_upcalls) const {
-  Frame frame = GetTopOfStack();
-  uintptr_t pc = ManglePc(top_of_managed_stack_pc_);
-  uint32_t trace_stack_depth = 0;
-  // TODO: enable this CHECK after native_to_managed_record_ is initialized during startup.
-  // CHECK(native_to_managed_record_ != NULL);
-  NativeToManagedRecord* record = native_to_managed_record_;
-  bool method_tracing_active = Runtime::Current()->IsMethodTracingActive();
-  while (frame.GetSP() != NULL) {
-    for ( ; frame.GetMethod() != NULL; frame.Next()) {
-      frame.GetMethod()->AssertPcIsWithinCode(pc);
-      bool should_continue = visitor->VisitFrame(frame, pc);
-      if (UNLIKELY(!should_continue)) {
-        return;
-      }
-      uintptr_t return_pc = frame.GetReturnPC();
-      if (LIKELY(!method_tracing_active)) {
-        pc = ManglePc(return_pc);
-      } else {
-        // While profiling, the return pc is restored from the side stack, except when walking
-        // the stack for an exception where the side stack will be unwound in VisitFrame.
-        if (IsTraceExitPc(return_pc) && !include_upcalls) {
-          TraceStackFrame trace_frame = GetTraceStackFrame(trace_stack_depth++);
-          CHECK(trace_frame.method_ == frame.GetMethod());
-          pc = ManglePc(trace_frame.return_pc_);
-        } else {
-          pc = ManglePc(return_pc);
-        }
-      }
-    }
-    if (include_upcalls) {
-      bool should_continue = visitor->VisitFrame(frame, pc);
-      if (!should_continue) {
-        return;
-      }
-    }
-    if (record == NULL) {
-      return;
-    }
-    // last_tos should return Frame instead of sp?
-    frame.SetSP(reinterpret_cast<Method**>(record->last_top_of_managed_stack_));
-    pc = ManglePc(record->last_top_of_managed_stack_pc_);
-    record = record->link_;
-  }
-}
-
-#else // defined(ART_USE_LLVM_COMPILER) // LLVM uses ShadowFrame
-
-void Thread::WalkStack(StackVisitor* visitor, bool /*include_upcalls*/) const {
-  for (ShadowFrame* cur = top_shadow_frame_; cur; cur = cur->GetLink()) {
-    Frame frame;
-    frame.SetSP(reinterpret_cast<Method**>(reinterpret_cast<byte*>(cur) +
-                                           ShadowFrame::MethodOffset()));
-    bool should_continue = visitor->VisitFrame(frame, cur->GetDexPC());
-    if (!should_continue) {
-      return;
-    }
-  }
-}
-
-/*
- *                                |                        |
- *                                |                        |
- *                                |                        |
- *                                |      .                 |
- *                                |      .                 |
- *                                |      .                 |
- *                                |      .                 |
- *                                | Method*                |
- *                                |      .                 |
- *                                |      .                 | <-- top_shadow_frame_   (ShadowFrame*)
- *                              / +------------------------+
- *                              ->|      .                 |
- *                              . |      .                 |
- *                              . |      .                 |
- *                               /+------------------------+
- *                              / |      .                 |
- *                             /  |      .                 |
- *     ---                     |  |      .                 |
- *      |                      |  |      .                 |
- *                             |  | Method*                | <-- frame.GetSP() (Method**)
- *  ShadowFrame                \  |      .                 |
- *      |                       ->|      .                 | <-- cur           (ShadowFrame*)
- *     ---                       /+------------------------+
- *                              / |      .                 |
- *                             /  |      .                 |
- *     ---                     |  |      .                 |
- *      |       cur->GetLink() |  |      .                 |
- *                             |  | Method*                |
- *   ShadowFrame               \  |      .                 |
- *      |                       ->|      .                 |
- *     ---                        +------------------------+
- *                                |      .                 |
- *                                |      .                 |
- *                                |      .                 |
- *                                +========================+
- */
-
-#endif
-
 jobject Thread::CreateInternalStackTrace(JNIEnv* env) const {
   // Compute depth of stack
-  CountStackDepthVisitor count_visitor;
-  WalkStack(&count_visitor);
+  CountStackDepthVisitor count_visitor(GetManagedStack(), GetTraceStack());
+  count_visitor.WalkStack();
   int32_t depth = count_visitor.GetDepth();
   int32_t skip_depth = count_visitor.GetSkipDepth();
 
@@ -1328,12 +1150,13 @@ jobject Thread::CreateInternalStackTrace(JNIEnv* env) const {
   ScopedJniThreadState ts(env);
 
   // Build internal stack trace
-  BuildInternalStackTraceVisitor build_trace_visitor(skip_depth);
+  BuildInternalStackTraceVisitor build_trace_visitor(GetManagedStack(), GetTraceStack(),
+                                                     skip_depth);
   if (!build_trace_visitor.Init(depth, ts)) {
     return NULL;  // Allocation failed
   }
-  WalkStack(&build_trace_visitor);
-  return build_trace_visitor.GetInternalStackTrace();
+  build_trace_visitor.WalkStack();
+  return AddLocalReference<jobjectArray>(ts.Env(), build_trace_visitor.GetInternalStackTrace());
 }
 
 jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
@@ -1375,8 +1198,8 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     // Prepare parameters for StackTraceElement(String cls, String method, String file, int line)
     Method* method = down_cast<Method*>(method_trace->Get(i));
     mh.ChangeMethod(method);
-    uint32_t native_pc = pc_trace->Get(i);
-    int32_t line_number = mh.GetLineNumFromNativePC(native_pc);
+    uint32_t dex_pc = pc_trace->Get(i);
+    int32_t line_number = mh.GetLineNumFromDexPC(dex_pc);
     // Allocate element, potentially triggering GC
     // TODO: reuse class_name_object via Class::name_?
     const char* descriptor = mh.GetDeclaringClassDescriptor();
@@ -1609,8 +1432,8 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
   DO_THREAD_OFFSET(state_);
   DO_THREAD_OFFSET(suspend_count_);
   DO_THREAD_OFFSET(thin_lock_id_);
-  DO_THREAD_OFFSET(top_of_managed_stack_);
-  DO_THREAD_OFFSET(top_of_managed_stack_pc_);
+  //DO_THREAD_OFFSET(top_of_managed_stack_);
+  //DO_THREAD_OFFSET(top_of_managed_stack_pc_);
   DO_THREAD_OFFSET(top_sirt_);
 #undef DO_THREAD_OFFSET
 
@@ -1628,68 +1451,100 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_
   os << offset;
 }
 
-class CatchBlockStackVisitor : public Thread::StackVisitor {
+static const bool kDebugExceptionDelivery = false;
+class CatchBlockStackVisitor : public StackVisitor {
  public:
-  CatchBlockStackVisitor(Class* to_find, Context* ljc)
-      : to_find_(to_find), long_jump_context_(ljc), native_method_count_(0),
+  CatchBlockStackVisitor(Thread* self, Throwable* exception)
+      : StackVisitor(self->GetManagedStack(), self->GetTraceStack(), self->GetLongJumpContext()),
+        self_(self), exception_(exception), to_find_(exception->GetClass()), throw_method_(NULL),
+        throw_frame_id_(0), throw_dex_pc_(0), handler_quick_frame_(NULL),
+        handler_quick_frame_pc_(0), handler_dex_pc_(0), native_method_count_(0),
         method_tracing_active_(Runtime::Current()->IsMethodTracingActive()) {
-#ifndef NDEBUG
-    handler_pc_ = 0xEBADC0DE;
-    handler_frame_.SetSP(reinterpret_cast<Method**>(0xEBADF00D));
-#endif
+    self->StartAssertNoThreadSuspension();  // Exception not in root sets, can't allow GC.
   }
 
-  bool VisitFrame(const Frame& fr, uintptr_t pc) {
-    Method* method = fr.GetMethod();
+  bool VisitFrame() {
+    Method* method = GetMethod();
     if (method == NULL) {
-      // This is the upcall, we remember the frame and last_pc so that we may
-      // long jump to them
-      handler_pc_ = DemanglePc(pc);
-      handler_frame_ = fr;
+      // This is the upcall, we remember the frame and last pc so that we may long jump to them.
+      handler_quick_frame_pc_ = GetCurrentQuickFramePc();
+      handler_quick_frame_ = GetCurrentQuickFrame();
       return false;  // End stack walk.
     }
     uint32_t dex_pc = DexFile::kDexNoIndex;
     if (method->IsRuntimeMethod()) {
       // ignore callee save method
       DCHECK(method->IsCalleeSaveMethod());
-    } else if (method->IsNative()) {
-      native_method_count_++;
     } else {
-      // Unwind stack when an exception occurs during method tracing
-      if (UNLIKELY(method_tracing_active_)) {
-#if !defined(ART_USE_LLVM_COMPILER)
-        if (IsTraceExitPc(DemanglePc(pc))) {
-          pc = ManglePc(TraceMethodUnwindFromCode(Thread::Current()));
-        }
-#else
-        UNIMPLEMENTED(FATAL);
-#endif
+      if (throw_method_ == NULL) {
+        throw_method_ = method;
+        throw_frame_id_ = GetFrameId();
+        throw_dex_pc_ = GetDexPc();
       }
-      dex_pc = method->ToDexPC(pc);
+      if (method->IsNative()) {
+        native_method_count_++;
+      } else {
+        // Unwind stack when an exception occurs during method tracing
+        if (UNLIKELY(method_tracing_active_ && IsTraceExitPc(GetCurrentQuickFramePc()))) {
+          uintptr_t pc = AdjustQuickFramePcForDexPcComputation(TraceMethodUnwindFromCode(Thread::Current()));
+          dex_pc = method->ToDexPC(pc);
+        } else {
+          dex_pc = GetDexPc();
+        }
+      }
     }
     if (dex_pc != DexFile::kDexNoIndex) {
       uint32_t found_dex_pc = method->FindCatchBlock(to_find_, dex_pc);
       if (found_dex_pc != DexFile::kDexNoIndex) {
-        handler_pc_ = method->ToNativePC(found_dex_pc);
-        handler_frame_ = fr;
+        handler_dex_pc_ = found_dex_pc;
+        handler_quick_frame_pc_ = method->ToNativePC(found_dex_pc);
+        handler_quick_frame_ = GetCurrentQuickFrame();
         return false;  // End stack walk.
       }
     }
-#if !defined(ART_USE_LLVM_COMPILER)
-    // Caller may be handler, fill in callee saves in context
-    long_jump_context_->FillCalleeSaves(fr);
-#endif
     return true;  // Continue stack walk.
   }
 
-  // The type of the exception catch block to find
+  void DoLongJump() {
+    Method* catch_method = *handler_quick_frame_;
+    Dbg::PostException(throw_frame_id_, throw_method_, throw_dex_pc_,
+                       catch_method, handler_dex_pc_, exception_);
+    if (kDebugExceptionDelivery) {
+      if (catch_method == NULL) {
+        LOG(INFO) << "Handler is upcall";
+      } else {
+        ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+        const DexFile& dex_file =
+            class_linker->FindDexFile(catch_method->GetDeclaringClass()->GetDexCache());
+        int line_number = dex_file.GetLineNumFromPC(catch_method, handler_dex_pc_);
+        LOG(INFO) << "Handler: " << PrettyMethod(catch_method) << " (line: " << line_number << ")";
+      }
+    }
+    self_->SetException(exception_);
+    self_->EndAssertNoThreadSuspension();  // Exception back in root set.
+    // Place context back on thread so it will be available when we continue.
+    self_->ReleaseLongJumpContext(context_);
+    context_->SetSP(reinterpret_cast<uintptr_t>(handler_quick_frame_));
+    CHECK_NE(handler_quick_frame_pc_, 0u);
+    context_->SetPC(handler_quick_frame_pc_);
+    context_->SmashCallerSaves();
+    context_->DoLongJump();
+  }
+
+ private:
+  Thread* self_;
+  Throwable* exception_;
+  // The type of the exception catch block to find.
   Class* to_find_;
-  // Frame with found handler or last frame if no handler found
-  Frame handler_frame_;
-  // PC to branch to for the handler
-  uintptr_t handler_pc_;
-  // Context that will be the target of the long jump
-  Context* long_jump_context_;
+  Method* throw_method_;
+  JDWP::FrameId throw_frame_id_;
+  uint32_t throw_dex_pc_;
+  // Quick frame with found handler or last frame if no handler found.
+  Method** handler_quick_frame_;
+  // PC to branch to for the handler.
+  uintptr_t handler_quick_frame_pc_;
+  // Associated dex PC.
+  uint32_t handler_dex_pc_;
   // Number of native methods passed in crawl (equates to number of SIRTs to pop)
   uint32_t native_method_count_;
   // Is method tracing active?
@@ -1697,8 +1552,6 @@ class CatchBlockStackVisitor : public Thread::StackVisitor {
 };
 
 void Thread::DeliverException() {
-#if !defined(ART_USE_LLVM_COMPILER)
-  const bool kDebugExceptionDelivery = false;
   Throwable* exception = GetException();  // Get exception from thread
   CHECK(exception != NULL);
   // Don't leave exception visible while we try to find the handler, which may cause class
@@ -1710,83 +1563,54 @@ void Thread::DeliverException() {
     DumpStack(LOG(INFO) << "Delivering exception: " << PrettyTypeOf(exception)
                         << ": " << str_msg << "\n");
   }
-
-  Context* long_jump_context = GetLongJumpContext();
-  CatchBlockStackVisitor catch_finder(exception->GetClass(), long_jump_context);
-  WalkStack(&catch_finder, true);
-
-  Method** sp;
-  uintptr_t throw_native_pc;
-  Method* throw_method = GetCurrentMethod(&throw_native_pc, &sp);
-  uintptr_t catch_native_pc = catch_finder.handler_pc_;
-  Method* catch_method = catch_finder.handler_frame_.GetMethod();
-  Dbg::PostException(sp, throw_method, throw_native_pc, catch_method, catch_native_pc, exception);
-
-  if (kDebugExceptionDelivery) {
-    if (catch_method == NULL) {
-      LOG(INFO) << "Handler is upcall";
-    } else {
-      ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      const DexFile& dex_file =
-          class_linker->FindDexFile(catch_method->GetDeclaringClass()->GetDexCache());
-      int line_number = dex_file.GetLineNumFromPC(catch_method,
-          catch_method->ToDexPC(catch_finder.handler_pc_));
-      LOG(INFO) << "Handler: " << PrettyMethod(catch_method) << " (line: " << line_number << ")";
-    }
-  }
-  SetException(exception);
-  CHECK_NE(catch_native_pc, 0u);
-  long_jump_context->SetSP(reinterpret_cast<uintptr_t>(catch_finder.handler_frame_.GetSP()));
-  long_jump_context->SetPC(catch_native_pc);
-  long_jump_context->SmashCallerSaves();
-  long_jump_context->DoLongJump();
-#endif
+  CatchBlockStackVisitor catch_finder(this, exception);
+  catch_finder.WalkStack(true);
+  catch_finder.DoLongJump();
   LOG(FATAL) << "UNREACHABLE";
 }
 
 Context* Thread::GetLongJumpContext() {
   Context* result = long_jump_context_;
-#if !defined(ART_USE_LLVM_COMPILER)
   if (result == NULL) {
     result = Context::Create();
-    long_jump_context_ = result;
+  } else {
+    long_jump_context_ = NULL;  // Avoid context being shared.
   }
-#endif
   return result;
 }
 
-#if !defined(ART_USE_LLVM_COMPILER)
-Method* Thread::GetCurrentMethod(uintptr_t* pc, Method*** sp) const {
-  Frame f = top_of_managed_stack_;
-  Method* m = f.GetMethod();
-  uintptr_t native_pc = top_of_managed_stack_pc_;
+Method* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) const {
+  struct CurrentMethodVisitor : public StackVisitor {
+    CurrentMethodVisitor(const ManagedStack* stack,
+                         const std::vector<TraceStackFrame>* trace_stack) :
+      StackVisitor(stack, trace_stack), method_(NULL), dex_pc_(0), frame_id_(0) {}
 
-  // We use JNI internally for exception throwing, so it's possible to arrive
-  // here via a "FromCode" function, in which case there's a synthetic
-  // callee-save method at the top of the stack. These shouldn't be user-visible,
-  // so if we find one, skip it and return the compiled method underneath.
-  if (m != NULL && m->IsCalleeSaveMethod()) {
-    native_pc = f.GetReturnPC();
-    f.Next();
-    m = f.GetMethod();
+    virtual bool VisitFrame() {
+      Method* m = GetMethod();
+      if (m->IsRuntimeMethod()) {
+        // Continue if this is a runtime method.
+        return true;
+      }
+      method_ = m;
+      dex_pc_ = GetDexPc();
+      frame_id_ = GetFrameId();
+      return false;
+    }
+    Method* method_;
+    uint32_t dex_pc_;
+    size_t frame_id_;
+  };
+
+  CurrentMethodVisitor visitor(GetManagedStack(), GetTraceStack());
+  visitor.WalkStack(false);
+  if (dex_pc != NULL) {
+    *dex_pc = visitor.dex_pc_;
   }
-  if (pc != NULL) {
-    *pc = (m != NULL) ? ManglePc(native_pc) : 0;
+  if (frame_id != NULL) {
+    *frame_id = visitor.frame_id_;
   }
-  if (sp != NULL) {
-    *sp = f.GetSP();
-  }
-  return m;
+  return visitor.method_;
 }
-#else
-Method* Thread::GetCurrentMethod(uintptr_t*, Method***) const {
-  ShadowFrame* frame = top_shadow_frame_;
-  if (frame == NULL) {
-    return NULL;
-  }
-  return frame->GetMethod();
-}
-#endif
 
 bool Thread::HoldsLock(Object* object) {
   if (object == NULL) {
@@ -1799,65 +1623,72 @@ bool Thread::IsDaemon() {
   return DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(peer_);
 }
 
-#if !defined(ART_USE_LLVM_COMPILER)
-class ReferenceMapVisitor : public Thread::StackVisitor {
+class ReferenceMapVisitor : public StackVisitor {
  public:
-  ReferenceMapVisitor(Context* context, Heap::RootVisitor* root_visitor, void* arg) :
-    context_(context), root_visitor_(root_visitor), arg_(arg) {
+  ReferenceMapVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
+                      Context* context, Heap::RootVisitor* root_visitor,
+                      void* arg) : StackVisitor(stack, trace_stack, context),
+                      root_visitor_(root_visitor), arg_(arg) {
   }
 
-  bool VisitFrame(const Frame& frame, uintptr_t pc) {
-    Method* m = frame.GetMethod();
+  bool VisitFrame() {
     if (false) {
-      LOG(INFO) << "Visiting stack roots in " << PrettyMethod(m)
-                << StringPrintf("@ PC:%04x", m->ToDexPC(pc));
+      LOG(INFO) << "Visiting stack roots in " << PrettyMethod(GetMethod())
+          << StringPrintf("@ PC:%04x", GetDexPc());
     }
-    // Process register map (which native and callee save methods don't have)
-    if (!m->IsNative() && !m->IsCalleeSaveMethod() && !m->IsProxyMethod()) {
-      CHECK(m->GetGcMap() != NULL) << PrettyMethod(m);
-      CHECK_NE(0U, m->GetGcMapLength()) << PrettyMethod(m);
-      verifier::PcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
-      const uint8_t* reg_bitmap = map.FindBitMap(m->ToDexPC(pc));
-      CHECK(reg_bitmap != NULL);
-      const VmapTable vmap_table(m->GetVmapTableRaw());
-      const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-      DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
-      uint32_t core_spills = m->GetCoreSpillMask();
-      uint32_t fp_spills = m->GetFpSpillMask();
-      size_t frame_size = m->GetFrameSizeInBytes();
-      // For all dex registers in the bitmap
-      size_t num_regs = std::min(map.RegWidth() * 8,
-                                 static_cast<size_t>(code_item->registers_size_));
-      for (size_t reg = 0; reg < num_regs; ++reg) {
-        // Does this register hold a reference?
-        if (TestBitmap(reg, reg_bitmap)) {
-          uint32_t vmap_offset;
-          Object* ref;
-          if (vmap_table.IsInContext(reg, vmap_offset)) {
-            // Compute the register we need to load from the context
-            uint32_t spill_mask = m->GetCoreSpillMask();
-            CHECK_LT(vmap_offset, static_cast<uint32_t>(__builtin_popcount(spill_mask)));
-            uint32_t matches = 0;
-            uint32_t spill_shifts = 0;
-            while (matches != (vmap_offset + 1)) {
-              DCHECK_NE(spill_mask, 0u);
-              matches += spill_mask & 1;  // Add 1 if the low bit is set
-              spill_mask >>= 1;
-              spill_shifts++;
+    ShadowFrame* shadow_frame = GetCurrentShadowFrame();
+    if (shadow_frame != NULL) {
+      shadow_frame->VisitRoots(root_visitor_, arg_);
+    } else {
+      Method* m = GetMethod();
+      // Process register map (which native and runtime methods don't have)
+      if (!m->IsNative() && !m->IsRuntimeMethod()) {
+        const uint8_t* gc_map = m->GetGcMap();
+        CHECK(gc_map != NULL) << PrettyMethod(m);
+        uint32_t gc_map_length = m->GetGcMapLength();
+        CHECK_NE(0U, gc_map_length) << PrettyMethod(m);
+        verifier::PcToReferenceMap map(gc_map, gc_map_length);
+        const uint8_t* reg_bitmap = map.FindBitMap(GetDexPc());
+        CHECK(reg_bitmap != NULL);
+        const VmapTable vmap_table(m->GetVmapTableRaw());
+        const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+        DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
+        uint32_t core_spills = m->GetCoreSpillMask();
+        uint32_t fp_spills = m->GetFpSpillMask();
+        size_t frame_size = m->GetFrameSizeInBytes();
+        // For all dex registers in the bitmap
+        size_t num_regs = std::min(map.RegWidth() * 8,
+                                   static_cast<size_t>(code_item->registers_size_));
+        for (size_t reg = 0; reg < num_regs; ++reg) {
+          // Does this register hold a reference?
+          if (TestBitmap(reg, reg_bitmap)) {
+            uint32_t vmap_offset;
+            Object* ref;
+            if (vmap_table.IsInContext(reg, vmap_offset)) {
+              // Compute the register we need to load from the context
+              uint32_t spill_mask = core_spills;
+              CHECK_LT(vmap_offset, static_cast<uint32_t>(__builtin_popcount(spill_mask)));
+              uint32_t matches = 0;
+              uint32_t spill_shifts = 0;
+              while (matches != (vmap_offset + 1)) {
+                DCHECK_NE(spill_mask, 0u);
+                matches += spill_mask & 1;  // Add 1 if the low bit is set
+                spill_mask >>= 1;
+                spill_shifts++;
+              }
+              spill_shifts--;  // wind back one as we want the last match
+              ref = reinterpret_cast<Object*>(GetGPR(spill_shifts));
+            } else {
+              ref = reinterpret_cast<Object*>(GetVReg(code_item, core_spills, fp_spills,
+                                                      frame_size, reg));
             }
-            spill_shifts--;  // wind back one as we want the last match
-            ref = reinterpret_cast<Object*>(context_->GetGPR(spill_shifts));
-          } else {
-            ref = reinterpret_cast<Object*>(frame.GetVReg(code_item, core_spills, fp_spills,
-                                                          frame_size, reg));
-          }
-          if (ref != NULL) {
-            root_visitor_(ref, arg_);
+            if (ref != NULL) {
+              root_visitor_(ref, arg_);
+            }
           }
         }
       }
     }
-    context_->FillCalleeSaves(frame);
     return true;
   }
 
@@ -1866,14 +1697,11 @@ class ReferenceMapVisitor : public Thread::StackVisitor {
     return ((reg_vector[reg / 8] >> (reg % 8)) & 0x01) != 0;
   }
 
-  // Context used to build up picture of callee saves
-  Context* context_;
   // Call-back when we visit a root
   Heap::RootVisitor* root_visitor_;
   // Argument to call-back
   void* arg_;
 };
-#endif
 
 void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   if (exception_ != NULL) {
@@ -1889,29 +1717,25 @@ void Thread::VisitRoots(Heap::RootVisitor* visitor, void* arg) {
   jni_env_->monitors.VisitRoots(visitor, arg);
 
   SirtVisitRoots(visitor, arg);
-  ShadowFrameVisitRoots(visitor, arg);
 
-#if !defined(ART_USE_LLVM_COMPILER)
-  // Cheat and steal the long jump context. Assume that we are not doing a GC during exception
-  // delivery.
-  Context* context = GetLongJumpContext();
   // Visit roots on this thread's stack
-  ReferenceMapVisitor mapper(context, visitor, arg);
-  WalkStack(&mapper);
-#endif
+  Context* context = GetLongJumpContext();
+  ReferenceMapVisitor mapper(GetManagedStack(), GetTraceStack(), context, visitor, arg);
+  mapper.WalkStack();
+  ReleaseLongJumpContext(context);
 }
 
 #if VERIFY_OBJECT_ENABLED
-static void VerifyObject(const Object* obj, void*) {
-  Runtime::Current()->GetHeap()->VerifyObject(obj);
+static void VerifyObject(const Object* obj, void* arg) {
+  Heap* heap = reinterpret_cast<Heap*>(arg);
+  heap->VerifyObject(obj);
 }
 
 void Thread::VerifyStack() {
-#if !defined(ART_USE_LLVM_COMPILER)
   UniquePtr<Context> context(Context::Create());
-  ReferenceMapVisitor mapper(context.get(), VerifyObject, NULL);
-  WalkStack(&mapper);
-#endif
+  ReferenceMapVisitor mapper(GetManagedStack(), context.get(), VerifyObject,
+                             Runtime::Current()->GetHeap());
+  mapper.WalkStack();
 }
 #endif
 

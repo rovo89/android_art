@@ -20,7 +20,6 @@
 #include "ir_builder.h"
 #include "monitor.h"
 #include "object.h"
-#include "shadow_frame.h"
 #include "thread.h"
 #include "utils_llvm.h"
 

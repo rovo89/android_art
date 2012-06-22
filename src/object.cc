@@ -544,11 +544,10 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
 void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const {
   // Push a transition back into managed code onto the linked list in thread.
   CHECK_EQ(kRunnable, self->GetState());
+  self->AssertThreadSuspensionIsAllowable();
 
-#if !defined(ART_USE_LLVM_COMPILER)
-  NativeToManagedRecord record;
-  self->PushNativeToManagedRecord(&record);
-#endif
+  ManagedStack fragment;
+  self->PushManagedStackFragment(&fragment);
 
   // Call the invoke stub associated with the method.
   // Pass everything as arguments.
@@ -584,10 +583,8 @@ void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result
     }
   }
 
-#if !defined(ART_USE_LLVM_COMPILER)
   // Pop transition.
-  self->PopNativeToManagedRecord(record);
-#endif
+  self->PopManagedStackFragment(fragment);
 }
 
 bool Method::IsRegistered() const {
@@ -1510,8 +1507,8 @@ std::string Throwable::Dump() const {
     for (int32_t i = 0; i < depth; ++i) {
       Method* method = down_cast<Method*>(method_trace->Get(i));
       mh.ChangeMethod(method);
-      uint32_t native_pc = pc_trace->Get(i);
-      int32_t line_number = mh.GetLineNumFromNativePC(native_pc);
+      uint32_t dex_pc = pc_trace->Get(i);
+      int32_t line_number = mh.GetLineNumFromDexPC(dex_pc);
       const char* source_file = mh.GetDeclaringClassSourceFile();
       result += StringPrintf("  at %s (%s:%d)\n", PrettyMethod(method, true).c_str(),
                              source_file, line_number);

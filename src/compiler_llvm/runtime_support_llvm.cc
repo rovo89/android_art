@@ -26,7 +26,6 @@
 #include "runtime_support_func_list.h"
 #include "runtime_support_llvm.h"
 #include "ScopedLocalRef.h"
-#include "shadow_frame.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "utils_llvm.h"
@@ -124,9 +123,7 @@ void art_throw_array_bounds_from_code(int32_t index, int32_t length) {
 void art_throw_no_such_method_from_code(int32_t method_idx) {
   Thread* thread = art_get_current_thread_from_code();
   // We need the calling method as context for the method_idx
-  Frame frame = thread->GetTopOfStack();
-  frame.Next();
-  Method* method = frame.GetMethod();
+  Method* method = thread->GetCurrentMethod();
   thread->ThrowNewException("Ljava/lang/NoSuchMethodError;",
                             MethodNameFromIndex(method,
                                                 method_idx,
@@ -136,8 +133,8 @@ void art_throw_no_such_method_from_code(int32_t method_idx) {
 
 void art_throw_null_pointer_exception_from_code(uint32_t dex_pc) {
   Thread* thread = art_get_current_thread_from_code();
-  NthCallerVisitor visitor(0);
-  thread->WalkStack(&visitor);
+  NthCallerVisitor visitor(thread->GetManagedStack(), 0);
+  visitor.WalkStack();
   Method* throw_method = visitor.caller;
   ThrowNullPointerExceptionFromDexPC(thread, throw_method, dex_pc);
 }

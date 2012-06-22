@@ -40,23 +40,21 @@ namespace art {
           << "Error: Reg @ " << i << "-th argument is not in GC map"; \
   } while (false)
 
-struct ReferenceMap2Visitor : public Thread::StackVisitor {
-  ReferenceMap2Visitor() {
+struct ReferenceMap2Visitor : public StackVisitor {
+  explicit ReferenceMap2Visitor(const ManagedStack* stack,
+                                const std::vector<TraceStackFrame>* trace_stack) :
+    StackVisitor(stack, trace_stack) {
   }
 
-  bool VisitFrame(const Frame& frame, uintptr_t pc) {
-    Method* m = frame.GetMethod();
-    if (!m || m->IsNative()) {
+  bool VisitFrame() {
+    Method* m = GetMethod();
+    if (!m || m->IsNative() || m->IsRuntimeMethod() || IsShadowFrame()) {
       return true;
     }
     LOG(INFO) << "At " << PrettyMethod(m, false);
 
     verifier::PcToReferenceMap map(m->GetGcMap(), m->GetGcMapLength());
 
-    if (!pc) {
-      // pc == NULL: m is either a native method or a phony method
-      return true;
-    }
     if (m->IsCalleeSaveMethod()) {
       LOG(WARNING) << "no PC for " << PrettyMethod(m);
       return true;
@@ -283,8 +281,9 @@ struct ReferenceMap2Visitor : public Thread::StackVisitor {
 
 extern "C" JNIEXPORT jint JNICALL Java_ReferenceMap_refmap(JNIEnv*, jobject, jint count) {
   // Visitor
-  ReferenceMap2Visitor mapper;
-  Thread::Current()->WalkStack(&mapper);
+  ReferenceMap2Visitor mapper(Thread::Current()->GetManagedStack(),
+                              Thread::Current()->GetTraceStack());
+  mapper.WalkStack();
 
   return count + 1;
 }

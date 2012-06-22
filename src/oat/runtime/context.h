@@ -22,7 +22,7 @@
 
 namespace art {
 
-class Frame;
+class StackVisitor;
 
 // Representation of a thread's context on the executing machine
 class Context {
@@ -34,7 +34,7 @@ class Context {
 
   // Read values from callee saves in the given frame. The frame also holds
   // the method that holds the layout.
-  virtual void FillCalleeSaves(const Frame& fr) = 0;
+  virtual void FillCalleeSaves(const StackVisitor& fr) = 0;
 
   // Set the stack pointer value
   virtual void SetSP(uintptr_t new_sp) = 0;

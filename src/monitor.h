@@ -120,11 +120,11 @@ class Monitor {
 
   Mutex lock_;
 
-  // Method and pc where the lock owner acquired the lock, used when lock
+  // Method and dex pc where the lock owner acquired the lock, used when lock
   // sampling is enabled. locking_method_ may be null if the lock is currently
   // unlocked, or if the lock is acquired by the system when the stack is empty.
   const Method* locking_method_;
-  uintptr_t locking_pc_;
+  uint32_t locking_dex_pc_;
 
   friend class MonitorList;
   friend class Object;

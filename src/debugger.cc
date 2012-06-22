@@ -96,10 +96,10 @@ class ObjectRegistry {
 
 struct AllocRecordStackTraceElement {
   Method* method;
-  uintptr_t raw_pc;
+  uint32_t dex_pc;
 
   int32_t LineNumber() const {
-    return MethodHelper(method).GetLineNumFromNativePC(raw_pc);
+    return MethodHelper(method).GetLineNumFromDexPC(dex_pc);
   }
 };
 
@@ -947,7 +947,7 @@ static Method* FromMethodId(JDWP::MethodId mid) {
 #endif
 }
 
-static void SetLocation(JDWP::JdwpLocation& location, Method* m, uintptr_t native_pc) {
+static void SetLocation(JDWP::JdwpLocation& location, Method* m, uint32_t dex_pc) {
   if (m == NULL) {
     memset(&location, 0, sizeof(location));
   } else {
@@ -955,7 +955,7 @@ static void SetLocation(JDWP::JdwpLocation& location, Method* m, uintptr_t nativ
     location.type_tag = c->IsInterface() ? JDWP::TT_INTERFACE : JDWP::TT_CLASS;
     location.class_id = gRegistry->Add(c);
     location.method_id = ToMethodId(m);
-    location.dex_pc = m->IsNative() ? -1 : m->ToDexPC(native_pc);
+    location.dex_pc = dex_pc;
   }
 }
 
@@ -1467,18 +1467,21 @@ void Dbg::GetAllThreads(JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
 }
 
 static int GetStackDepth(Thread* thread) {
-  struct CountStackDepthVisitor : public Thread::StackVisitor {
-    CountStackDepthVisitor() : depth(0) {}
-    bool VisitFrame(const Frame& f, uintptr_t) {
-      if (f.HasMethod()) {
+  struct CountStackDepthVisitor : public StackVisitor {
+    CountStackDepthVisitor(const ManagedStack* stack,
+                           const std::vector<TraceStackFrame>* trace_stack) :
+                             StackVisitor(stack, trace_stack), depth(0) {}
+
+    bool VisitFrame() {
+      if (!GetMethod()->IsRuntimeMethod()) {
         ++depth;
       }
       return true;
     }
     size_t depth;
   };
-  CountStackDepthVisitor visitor;
-  thread->WalkStack(&visitor);
+  CountStackDepthVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack());
+  visitor.WalkStack();
   return visitor.depth;
 }
 
@@ -1487,32 +1490,37 @@ int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
   return GetStackDepth(DecodeThread(threadId));
 }
 
-void Dbg::GetThreadFrame(JDWP::ObjectId threadId, int desired_frame_number, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc) {
+void Dbg::GetThreadFrame(JDWP::ObjectId threadId, int desired_frame_number, JDWP::FrameId* pFrameId,
+                         JDWP::JdwpLocation* pLoc) {
   ScopedThreadListLock thread_list_lock;
-  struct GetFrameVisitor : public Thread::StackVisitor {
-    GetFrameVisitor(int desired_frame_number, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc)
-        : depth(0), desired_frame_number(desired_frame_number), pFrameId(pFrameId), pLoc(pLoc) {
+  struct GetFrameVisitor : public StackVisitor {
+    GetFrameVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
+                    int desired_frame_number, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc) :
+                      StackVisitor(stack, trace_stack), depth(0),
+                      desired_frame_number(desired_frame_number), pFrameId(pFrameId), pLoc(pLoc) {
     }
-    bool VisitFrame(const Frame& f, uintptr_t pc) {
-      if (!f.HasMethod()) {
+
+    bool VisitFrame() {
+      if (GetMethod()->IsRuntimeMethod()) {
         return true; // The debugger can't do anything useful with a frame that has no Method*.
       }
       if (depth == desired_frame_number) {
-        *pFrameId = reinterpret_cast<JDWP::FrameId>(f.GetSP());
-        SetLocation(*pLoc, f.GetMethod(), pc);
+        *pFrameId = GetFrameId();
+        SetLocation(*pLoc, GetMethod(), GetDexPc());
         return false;
       }
       ++depth;
       return true;
     }
     int depth;
-    int desired_frame_number;
-    JDWP::FrameId* pFrameId;
-    JDWP::JdwpLocation* pLoc;
+    const int desired_frame_number;
+    JDWP::FrameId* const pFrameId;
+    JDWP::JdwpLocation* const pLoc;
   };
-  GetFrameVisitor visitor(desired_frame_number, pFrameId, pLoc);
-  visitor.desired_frame_number = desired_frame_number;
-  DecodeThread(threadId)->WalkStack(&visitor);
+  Thread* thread = DecodeThread(threadId);
+  GetFrameVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), desired_frame_number,
+                          pFrameId, pLoc);
+  visitor.WalkStack();
 }
 
 JDWP::ObjectId Dbg::GetThreadSelfId() {
@@ -1556,180 +1564,252 @@ void Dbg::SuspendSelf() {
   Runtime::Current()->GetThreadList()->SuspendSelfForDebugger();
 }
 
-static Object* GetThis(Frame& f) {
-  Method* m = f.GetMethod();
-  Object* o = NULL;
-  if (!m->IsNative() && !m->IsStatic()) {
-    uint16_t reg = DemangleSlot(0, m);
-    o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
+struct GetThisVisitor : public StackVisitor {
+  GetThisVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
+                 Context* context, JDWP::FrameId frameId) :
+    StackVisitor(stack, trace_stack, context), thisObject_(NULL), frameId_(frameId) {}
+
+
+  virtual bool VisitFrame() {
+    if (frameId_ != GetFrameId()) {
+      return true;  // continue
+    }
+    Method* m = GetMethod();
+    if (m->IsNative() || m->IsStatic()) {
+      thisObject_ = NULL;
+    } else {
+      uint16_t reg = DemangleSlot(0, m);
+      thisObject_ = reinterpret_cast<Object*>(GetVReg(m, reg));
+    }
+    return false;
   }
-  return o;
+
+  Object* thisObject_;
+  JDWP::FrameId frameId_;
+};
+
+static Object* GetThis(Method** quickFrame) {
+  struct FrameIdVisitor : public StackVisitor {
+    FrameIdVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
+                   Method** m) : StackVisitor(stack, trace_stack),
+        quick_frame_to_find_(m) , frame_id_(0) {}
+
+    virtual bool VisitFrame() {
+      if (quick_frame_to_find_ != GetCurrentQuickFrame()) {
+        return true;  // Continue.
+      }
+      frame_id_ = GetFrameId();
+      return false;  // Stop.
+    }
+
+    Method** const quick_frame_to_find_;
+    JDWP::FrameId frame_id_;
+  };
+
+  Method* m = *quickFrame;
+  if (m->IsNative() || m->IsStatic()) {
+    return NULL;
+  }
+  Thread* self = Thread::Current();
+  const ManagedStack* stack = self->GetManagedStack();
+  const std::vector<TraceStackFrame>* trace_stack = self->GetTraceStack();
+  FrameIdVisitor frameIdVisitor(stack, trace_stack, quickFrame);
+  frameIdVisitor.WalkStack();
+  UniquePtr<Context> context(Context::Create());
+  GetThisVisitor getThisVisitor(stack, trace_stack, context.get(), frameIdVisitor.frame_id_);
+  getThisVisitor.WalkStack();
+  return getThisVisitor.thisObject_;
 }
 
 void Dbg::GetThisObject(JDWP::FrameId frameId, JDWP::ObjectId* pThisId) {
-  Method** sp = reinterpret_cast<Method**>(frameId);
-  Frame f(sp);
-  Object* o = GetThis(f);
-  *pThisId = gRegistry->Add(o);
+  UniquePtr<Context> context(Context::Create());
+  Thread* self = Thread::Current();
+  GetThisVisitor visitor(self->GetManagedStack(), self->GetTraceStack(), context.get(), frameId);
+  visitor.WalkStack();
+  *pThisId = gRegistry->Add(visitor.thisObject_);
 }
 
-void Dbg::GetLocalValue(JDWP::ObjectId /*threadId*/, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t width) {
-  Method** sp = reinterpret_cast<Method**>(frameId);
-  Frame f(sp);
-  Method* m = f.GetMethod();
-  uint16_t reg = DemangleSlot(slot, m);
-
-#if defined(ART_USE_LLVM_COMPILER)
-  UNIMPLEMENTED(FATAL);
-#else
-  const VmapTable vmap_table(m->GetVmapTableRaw());
-  uint32_t vmap_offset;
-  if (vmap_table.IsInContext(reg, vmap_offset)) {
-    UNIMPLEMENTED(FATAL) << "Don't know how to pull locals from callee save frames: " << vmap_offset;
-  }
-#endif
-
-  // TODO: check that the tag is compatible with the actual type of the slot!
-
-  switch (tag) {
-  case JDWP::JT_BOOLEAN:
-    {
-      CHECK_EQ(width, 1U);
-      uint32_t intVal = f.GetVReg(m, reg);
-      VLOG(jdwp) << "get boolean local " << reg << " = " << intVal;
-      JDWP::Set1(buf+1, intVal != 0);
+void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t width) { 
+  struct GetLocalVisitor : public StackVisitor {
+    GetLocalVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
+                    Context* context, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag,
+                    uint8_t* buf, size_t width) :
+      StackVisitor(stack, trace_stack, context), frame_id_(frameId), slot_(slot), tag_(tag),
+      buf_(buf), width_(width) {
     }
-    break;
-  case JDWP::JT_BYTE:
-    {
-      CHECK_EQ(width, 1U);
-      uint32_t intVal = f.GetVReg(m, reg);
-      VLOG(jdwp) << "get byte local " << reg << " = " << intVal;
-      JDWP::Set1(buf+1, intVal);
-    }
-    break;
-  case JDWP::JT_SHORT:
-  case JDWP::JT_CHAR:
-    {
-      CHECK_EQ(width, 2U);
-      uint32_t intVal = f.GetVReg(m, reg);
-      VLOG(jdwp) << "get short/char local " << reg << " = " << intVal;
-      JDWP::Set2BE(buf+1, intVal);
-    }
-    break;
-  case JDWP::JT_INT:
-  case JDWP::JT_FLOAT:
-    {
-      CHECK_EQ(width, 4U);
-      uint32_t intVal = f.GetVReg(m, reg);
-      VLOG(jdwp) << "get int/float local " << reg << " = " << intVal;
-      JDWP::Set4BE(buf+1, intVal);
-    }
-    break;
-  case JDWP::JT_ARRAY:
-    {
-      CHECK_EQ(width, sizeof(JDWP::ObjectId));
-      Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
-      VLOG(jdwp) << "get array local " << reg << " = " << o;
-      if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
-        LOG(FATAL) << "Register " << reg << " expected to hold array: " << o;
+    bool VisitFrame() {
+      if (GetFrameId() != frame_id_) {
+        return true;  // Not our frame, carry on.
       }
-      JDWP::SetObjectId(buf+1, gRegistry->Add(o));
-    }
-    break;
-  case JDWP::JT_CLASS_LOADER:
-  case JDWP::JT_CLASS_OBJECT:
-  case JDWP::JT_OBJECT:
-  case JDWP::JT_STRING:
-  case JDWP::JT_THREAD:
-  case JDWP::JT_THREAD_GROUP:
-    {
-      CHECK_EQ(width, sizeof(JDWP::ObjectId));
-      Object* o = reinterpret_cast<Object*>(f.GetVReg(m, reg));
-      VLOG(jdwp) << "get object local " << reg << " = " << o;
-      if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
-        LOG(FATAL) << "Register " << reg << " expected to hold object: " << o;
-      }
-      tag = TagFromObject(o);
-      JDWP::SetObjectId(buf+1, gRegistry->Add(o));
-    }
-    break;
-  case JDWP::JT_DOUBLE:
-  case JDWP::JT_LONG:
-    {
-      CHECK_EQ(width, 8U);
-      uint32_t lo = f.GetVReg(m, reg);
-      uint64_t hi = f.GetVReg(m, reg + 1);
-      uint64_t longVal = (hi << 32) | lo;
-      VLOG(jdwp) << "get double/long local " << hi << ":" << lo << " = " << longVal;
-      JDWP::Set8BE(buf+1, longVal);
-    }
-    break;
-  default:
-    LOG(FATAL) << "Unknown tag " << tag;
-    break;
-  }
+      // TODO: check that the tag is compatible with the actual type of the slot!
+      Method* m = GetMethod();
+      uint16_t reg = DemangleSlot(slot_, m);
 
-  // Prepend tag, which may have been updated.
-  JDWP::Set1(buf, tag);
+      switch (tag_) {
+      case JDWP::JT_BOOLEAN:
+        {
+          CHECK_EQ(width_, 1U);
+          uint32_t intVal = GetVReg(m, reg);
+          VLOG(jdwp) << "get boolean local " << reg << " = " << intVal;
+          JDWP::Set1(buf_+1, intVal != 0);
+        }
+        break;
+      case JDWP::JT_BYTE:
+        {
+          CHECK_EQ(width_, 1U);
+          uint32_t intVal = GetVReg(m, reg);
+          VLOG(jdwp) << "get byte local " << reg << " = " << intVal;
+          JDWP::Set1(buf_+1, intVal);
+        }
+        break;
+      case JDWP::JT_SHORT:
+      case JDWP::JT_CHAR:
+        {
+          CHECK_EQ(width_, 2U);
+          uint32_t intVal = GetVReg(m, reg);
+          VLOG(jdwp) << "get short/char local " << reg << " = " << intVal;
+          JDWP::Set2BE(buf_+1, intVal);
+        }
+        break;
+      case JDWP::JT_INT:
+      case JDWP::JT_FLOAT:
+        {
+          CHECK_EQ(width_, 4U);
+          uint32_t intVal = GetVReg(m, reg);
+          VLOG(jdwp) << "get int/float local " << reg << " = " << intVal;
+          JDWP::Set4BE(buf_+1, intVal);
+        }
+        break;
+      case JDWP::JT_ARRAY:
+        {
+          CHECK_EQ(width_, sizeof(JDWP::ObjectId));
+          Object* o = reinterpret_cast<Object*>(GetVReg(m, reg));
+          VLOG(jdwp) << "get array local " << reg << " = " << o;
+          if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+            LOG(FATAL) << "Register " << reg << " expected to hold array: " << o;
+          }
+          JDWP::SetObjectId(buf_+1, gRegistry->Add(o));
+        }
+        break;
+      case JDWP::JT_CLASS_LOADER:
+      case JDWP::JT_CLASS_OBJECT:
+      case JDWP::JT_OBJECT:
+      case JDWP::JT_STRING:
+      case JDWP::JT_THREAD:
+      case JDWP::JT_THREAD_GROUP:
+        {
+          CHECK_EQ(width_, sizeof(JDWP::ObjectId));
+          Object* o = reinterpret_cast<Object*>(GetVReg(m, reg));
+          VLOG(jdwp) << "get object local " << reg << " = " << o;
+          if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+            LOG(FATAL) << "Register " << reg << " expected to hold object: " << o;
+          }
+          tag_ = TagFromObject(o);
+          JDWP::SetObjectId(buf_+1, gRegistry->Add(o));
+        }
+        break;
+      case JDWP::JT_DOUBLE:
+      case JDWP::JT_LONG:
+        {
+          CHECK_EQ(width_, 8U);
+          uint32_t lo = GetVReg(m, reg);
+          uint64_t hi = GetVReg(m, reg + 1);
+          uint64_t longVal = (hi << 32) | lo;
+          VLOG(jdwp) << "get double/long local " << hi << ":" << lo << " = " << longVal;
+          JDWP::Set8BE(buf_+1, longVal);
+        }
+        break;
+      default:
+        LOG(FATAL) << "Unknown tag " << tag_;
+        break;
+      }
+
+      // Prepend tag, which may have been updated.
+      JDWP::Set1(buf_, tag_);
+      return false;
+    }
+
+    const JDWP::FrameId frame_id_;
+    const int slot_;
+    JDWP::JdwpTag tag_;
+    uint8_t* const buf_;
+    const size_t width_;
+  };
+  Thread* thread = DecodeThread(threadId);
+  UniquePtr<Context> context(Context::Create());
+  GetLocalVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), context.get(),
+                          frameId, slot, tag, buf, width);
+  visitor.WalkStack();
 }
 
-void Dbg::SetLocalValue(JDWP::ObjectId /*threadId*/, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint64_t value, size_t width) {
-  Method** sp = reinterpret_cast<Method**>(frameId);
-  Frame f(sp);
-  Method* m = f.GetMethod();
-  uint16_t reg = DemangleSlot(slot, m);
-
-#if defined(ART_USE_LLVM_COMPILER)
-  UNIMPLEMENTED(FATAL);
-#else
-  const VmapTable vmap_table(m->GetVmapTableRaw());
-  uint32_t vmap_offset;
-  if (vmap_table.IsInContext(reg, vmap_offset)) {
-    UNIMPLEMENTED(FATAL) << "Don't know how to pull locals from callee save frames: " << vmap_offset;
-  }
-#endif
-
-  // TODO: check that the tag is compatible with the actual type of the slot!
-
-  switch (tag) {
-  case JDWP::JT_BOOLEAN:
-  case JDWP::JT_BYTE:
-    CHECK_EQ(width, 1U);
-    f.SetVReg(m, reg, static_cast<uint32_t>(value));
-    break;
-  case JDWP::JT_SHORT:
-  case JDWP::JT_CHAR:
-    CHECK_EQ(width, 2U);
-    f.SetVReg(m, reg, static_cast<uint32_t>(value));
-    break;
-  case JDWP::JT_INT:
-  case JDWP::JT_FLOAT:
-    CHECK_EQ(width, 4U);
-    f.SetVReg(m, reg, static_cast<uint32_t>(value));
-    break;
-  case JDWP::JT_ARRAY:
-  case JDWP::JT_OBJECT:
-  case JDWP::JT_STRING:
-    {
-      CHECK_EQ(width, sizeof(JDWP::ObjectId));
-      Object* o = gRegistry->Get<Object*>(static_cast<JDWP::ObjectId>(value));
-      if (o == kInvalidObject) {
-        UNIMPLEMENTED(FATAL) << "return an error code when given an invalid object to store";
-      }
-      f.SetVReg(m, reg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)));
+void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag,
+                        uint64_t value, size_t width) {
+  struct SetLocalVisitor : public StackVisitor {
+    SetLocalVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
+                    JDWP::FrameId frame_id, int slot, JDWP::JdwpTag tag, uint64_t value,
+                    size_t width) :
+                      StackVisitor(stack, trace_stack), frame_id_(frame_id), slot_(slot), tag_(tag),
+                      value_(value), width_(width) {
     }
-    break;
-  case JDWP::JT_DOUBLE:
-  case JDWP::JT_LONG:
-    CHECK_EQ(width, 8U);
-    f.SetVReg(m, reg, static_cast<uint32_t>(value));
-    f.SetVReg(m, reg + 1, static_cast<uint32_t>(value >> 32));
-    break;
-  default:
-    LOG(FATAL) << "Unknown tag " << tag;
-    break;
-  }
+    bool VisitFrame() {
+      if (GetFrameId() != frame_id_) {
+        return true;  // Not our frame, carry on.
+      }
+      // TODO: check that the tag is compatible with the actual type of the slot!
+      Method* m = GetMethod();
+      uint16_t reg = DemangleSlot(slot_, m);
+
+      switch (tag_) {
+        case JDWP::JT_BOOLEAN:
+        case JDWP::JT_BYTE:
+          CHECK_EQ(width_, 1U);
+          SetVReg(m, reg, static_cast<uint32_t>(value_));
+          break;
+        case JDWP::JT_SHORT:
+        case JDWP::JT_CHAR:
+          CHECK_EQ(width_, 2U);
+          SetVReg(m, reg, static_cast<uint32_t>(value_));
+          break;
+        case JDWP::JT_INT:
+        case JDWP::JT_FLOAT:
+          CHECK_EQ(width_, 4U);
+          SetVReg(m, reg, static_cast<uint32_t>(value_));
+          break;
+        case JDWP::JT_ARRAY:
+        case JDWP::JT_OBJECT:
+        case JDWP::JT_STRING:
+        {
+          CHECK_EQ(width_, sizeof(JDWP::ObjectId));
+          Object* o = gRegistry->Get<Object*>(static_cast<JDWP::ObjectId>(value_));
+          if (o == kInvalidObject) {
+            UNIMPLEMENTED(FATAL) << "return an error code when given an invalid object to store";
+          }
+          SetVReg(m, reg, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(o)));
+        }
+        break;
+        case JDWP::JT_DOUBLE:
+        case JDWP::JT_LONG:
+          CHECK_EQ(width_, 8U);
+          SetVReg(m, reg, static_cast<uint32_t>(value_));
+          SetVReg(m, reg + 1, static_cast<uint32_t>(value_ >> 32));
+          break;
+        default:
+          LOG(FATAL) << "Unknown tag " << tag_;
+          break;
+      }
+      return false;
+    }
+
+    const JDWP::FrameId frame_id_;
+    const int slot_;
+    const JDWP::JdwpTag tag_;
+    const uint64_t value_;
+    const size_t width_;
+  };
+  Thread* thread = DecodeThread(threadId);
+  SetLocalVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), frameId, slot, tag,
+                          value, width);
+  visitor.WalkStack();
 }
 
 void Dbg::PostLocationEvent(const Method* m, int dex_pc, Object* this_object, int event_flags) {
@@ -1753,19 +1833,20 @@ void Dbg::PostLocationEvent(const Method* m, int dex_pc, Object* this_object, in
   }
 }
 
-void Dbg::PostException(Method** sp, Method* throwMethod, uintptr_t throwNativePc, Method* catchMethod, uintptr_t catchNativePc, Object* exception) {
+void Dbg::PostException(JDWP::FrameId throwFrameId, Method* throwMethod, uint32_t throwDexPc,
+                        Method* catchMethod, uint32_t catchDexPc, Throwable* exception) {
   if (!IsDebuggerActive()) {
     return;
   }
 
   JDWP::JdwpLocation throw_location;
-  SetLocation(throw_location, throwMethod, throwNativePc);
+  SetLocation(throw_location, throwMethod, throwDexPc);
   JDWP::JdwpLocation catch_location;
-  SetLocation(catch_location, catchMethod, catchNativePc);
+  SetLocation(catch_location, catchMethod, catchDexPc);
 
   // We need 'this' for InstanceOnly filters.
   JDWP::ObjectId this_id;
-  GetThisObject(reinterpret_cast<JDWP::FrameId>(sp), &this_id);
+  GetThisObject(throwFrameId, &this_id);
 
   /*
    * Hand the event to the JDWP exception handler.  Note we're using the
@@ -1800,15 +1881,13 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
     return;
   }
 
-  Frame f(sp);
-  f.Next(); // Skip callee save frame.
-  Method* m = f.GetMethod();
+  Method* m = self->GetCurrentMethod();
 
   if (dex_pc == -1) {
     // We use a pc of -1 to represent method entry, since we might branch back to pc 0 later.
     // This means that for this special notification, there can't be anything else interesting
     // going on, so we're done already.
-    Dbg::PostLocationEvent(m, 0, GetThis(f), kMethodEntry);
+    Dbg::PostLocationEvent(m, 0, GetThis(sp), kMethodEntry);
     return;
   }
 
@@ -1899,7 +1978,7 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
   // If there's something interesting going on, see if it matches one
   // of the debugger filters.
   if (event_flags != 0) {
-    Dbg::PostLocationEvent(m, dex_pc, GetThis(f), event_flags);
+    Dbg::PostLocationEvent(m, dex_pc, GetThis(sp), event_flags);
   }
 }
 
@@ -1942,32 +2021,34 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
   // is for step-out.
   //
 
-  struct SingleStepStackVisitor : public Thread::StackVisitor {
-    SingleStepStackVisitor() {
+  struct SingleStepStackVisitor : public StackVisitor {
+    SingleStepStackVisitor(const ManagedStack* stack,
+                           const std::vector<TraceStackFrame>* trace_stack) :
+                             StackVisitor(stack, trace_stack) {
       MutexLock mu(gBreakpointsLock); // Keep GCC happy.
       gSingleStepControl.method = NULL;
       gSingleStepControl.stack_depth = 0;
     }
-    bool VisitFrame(const Frame& f, uintptr_t pc) {
+    bool VisitFrame() {
       MutexLock mu(gBreakpointsLock); // Keep GCC happy.
-      if (f.HasMethod()) {
+      const Method* m = GetMethod();
+      if (!m->IsRuntimeMethod()) {
         ++gSingleStepControl.stack_depth;
         if (gSingleStepControl.method == NULL) {
-          const Method* m = f.GetMethod();
           const DexCache* dex_cache = m->GetDeclaringClass()->GetDexCache();
           gSingleStepControl.method = m;
           gSingleStepControl.line_number = -1;
           if (dex_cache != NULL) {
             const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
-            gSingleStepControl.line_number = dex_file.GetLineNumFromPC(m, m->ToDexPC(pc));
+            gSingleStepControl.line_number = dex_file.GetLineNumFromPC(m, GetDexPc());
           }
         }
       }
       return true;
     }
   };
-  SingleStepStackVisitor visitor;
-  thread->WalkStack(&visitor);
+  SingleStepStackVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack());
+  visitor.WalkStack();
 
   //
   // Find the dex_pc values that correspond to the current line, for line-based single-stepping.
@@ -2835,17 +2916,20 @@ void Dbg::SetAllocTrackingEnabled(bool enabled) {
   }
 }
 
-struct AllocRecordStackVisitor : public Thread::StackVisitor {
-  explicit AllocRecordStackVisitor(AllocRecord* record) : record(record), depth(0) {
+struct AllocRecordStackVisitor : public StackVisitor {
+  AllocRecordStackVisitor(const ManagedStack* stack,
+                          const std::vector<TraceStackFrame>* trace_stack, AllocRecord* record) :
+    StackVisitor(stack, trace_stack), record(record), depth(0) {
   }
 
-  bool VisitFrame(const Frame& f, uintptr_t pc) {
+  bool VisitFrame() {
     if (depth >= kMaxAllocRecordStackDepth) {
       return false;
     }
-    if (f.HasMethod()) {
-      record->stack[depth].method = f.GetMethod();
-      record->stack[depth].raw_pc = pc;
+    Method* m = GetMethod();
+    if (!m->IsRuntimeMethod()) {
+      record->stack[depth].method = m;
+      record->stack[depth].dex_pc = GetDexPc();
       ++depth;
     }
     return true;
@@ -2855,7 +2939,7 @@ struct AllocRecordStackVisitor : public Thread::StackVisitor {
     // Clear out any unused stack trace elements.
     for (; depth < kMaxAllocRecordStackDepth; ++depth) {
       record->stack[depth].method = NULL;
-      record->stack[depth].raw_pc = 0;
+      record->stack[depth].dex_pc = 0;
     }
   }
 
@@ -2884,8 +2968,8 @@ void Dbg::RecordAllocation(Class* type, size_t byte_count) {
   record->thin_lock_id = self->GetThinLockId();
 
   // Fill in the stack trace.
-  AllocRecordStackVisitor visitor(record);
-  self->WalkStack(&visitor);
+  AllocRecordStackVisitor visitor(self->GetManagedStack(), self->GetTraceStack(), record);
+  visitor.WalkStack();
 
   if (gAllocRecordCount < kNumAllocRecords) {
     ++gAllocRecordCount;

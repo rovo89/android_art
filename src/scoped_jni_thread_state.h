@@ -25,10 +25,10 @@ namespace art {
 // that are using a JNIEnv on the wrong thread.
 class ScopedJniThreadState {
  public:
-  explicit ScopedJniThreadState(JNIEnv* env)
+  explicit ScopedJniThreadState(JNIEnv* env, ThreadState new_state = kRunnable)
       : env_(reinterpret_cast<JNIEnvExt*>(env)) {
     self_ = ThreadForEnv(env);
-    old_thread_state_ = self_->SetState(kRunnable);
+    old_thread_state_ = self_->SetState(new_state);
     self_->VerifyStack();
   }
 
