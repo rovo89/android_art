@@ -780,7 +780,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
         expandBufAdd1(pReq, match_list[i]->eventKind);
         expandBufAdd4BE(pReq, match_list[i]->requestId);
         expandBufAdd8BE(pReq, basket.threadId);
-        AddLocation(pReq, pLoc);
+        expandBufAddLocation(pReq, *pLoc);
       }
     }
 
@@ -955,10 +955,10 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
         expandBufAdd4BE(pReq, match_list[i]->requestId);
         expandBufAdd8BE(pReq, basket.threadId);
 
-        AddLocation(pReq, pThrowLoc);
+        expandBufAddLocation(pReq, *pThrowLoc);
         expandBufAdd1(pReq, JT_OBJECT);
         expandBufAdd8BE(pReq, exceptionId);
-        AddLocation(pReq, pCatchLoc);
+        expandBufAddLocation(pReq, *pCatchLoc);
       }
 
       /* don't let the GC discard it */
