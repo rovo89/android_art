@@ -16,9 +16,11 @@
 
 #include "mutex.h"
 
-#include "gtest/gtest.h"
+#include "common_test.h"
 
 namespace art {
+
+class MutexTest : public CommonTest {};
 
 struct MutexTester {
   static void AssertDepth(Mutex& mu, uint32_t expected_depth) {
@@ -33,7 +35,7 @@ struct MutexTester {
   }
 };
 
-TEST(Mutex, LockUnlock) {
+TEST_F(MutexTest, LockUnlock) {
   Mutex mu("test mutex");
   MutexTester::AssertDepth(mu, 0U);
   mu.Lock();
@@ -52,7 +54,7 @@ static void TryLockUnlockTest() NO_THREAD_SAFETY_ANALYSIS {
   MutexTester::AssertDepth(mu, 0U);
 }
 
-TEST(Mutex, TryLockUnlock) {
+TEST_F(MutexTest, TryLockUnlock) {
   TryLockUnlockTest();
 }
 
@@ -70,7 +72,7 @@ static void RecursiveLockUnlockTest() NO_THREAD_SAFETY_ANALYSIS {
   MutexTester::AssertDepth(mu, 0U);
 }
 
-TEST(Mutex, RecursiveLockUnlock) {
+TEST_F(MutexTest, RecursiveLockUnlock) {
   RecursiveLockUnlockTest();
 }
 
@@ -88,8 +90,46 @@ static void RecursiveTryLockUnlockTest() NO_THREAD_SAFETY_ANALYSIS {
   MutexTester::AssertDepth(mu, 0U);
 }
 
-TEST(Mutex, RecursiveTryLockUnlock) {
+TEST_F(MutexTest, RecursiveTryLockUnlock) {
   RecursiveTryLockUnlockTest();
+}
+
+
+struct RecursiveLockWait {
+  explicit RecursiveLockWait() : mu("test mutex"), cv("test condition variable") {}
+
+  static void* Callback(void* arg) {
+    RecursiveLockWait* state = reinterpret_cast<RecursiveLockWait*>(arg);
+    state->mu.Lock();
+    state->cv.Signal();
+    state->mu.Unlock();
+    return NULL;
+  }
+
+  Mutex mu;
+  ConditionVariable cv;
+};
+
+// GCC has trouble with our mutex tests, so we have to turn off thread safety analysis.
+static void RecursiveLockWaitTest() NO_THREAD_SAFETY_ANALYSIS {
+  RecursiveLockWait state;
+  state.mu.Lock();
+  state.mu.Lock();
+
+  pthread_t pthread;
+  int pthread_create_result = pthread_create(&pthread, NULL, RecursiveLockWait::Callback, &state);
+  ASSERT_EQ(0, pthread_create_result);
+
+  state.cv.Wait(state.mu);
+
+  state.mu.Unlock();
+  state.mu.Unlock();
+}
+
+// This ensures we don't hang when waiting on a recursively locked mutex,
+// which is not supported with bare pthread_mutex_t.
+TEST_F(MutexTest, RecursiveLockWait) {
+  RecursiveLockWaitTest();
 }
 
 }  // namespace art
