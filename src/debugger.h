@@ -191,7 +191,7 @@ class Dbg {
   static void GetThreadGroupThreads(JDWP::ObjectId threadGroupId, JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount);
   static void GetAllThreads(JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount);
   static int GetThreadFrameCount(JDWP::ObjectId threadId);
-  static void GetThreadFrame(JDWP::ObjectId threadId, int num, JDWP::FrameId* pFrameId, JDWP::JdwpLocation* pLoc);
+  static JDWP::JdwpError GetThreadFrames(JDWP::ObjectId thread_id, size_t start_frame, size_t frame_count, JDWP::ExpandBuf* buf);
 
   static JDWP::ObjectId GetThreadSelfId();
   static void SuspendVM();
@@ -200,7 +200,7 @@ class Dbg {
   static void ResumeThread(JDWP::ObjectId threadId);
   static void SuspendSelf();
 
-  static void GetThisObject(JDWP::FrameId frameId, JDWP::ObjectId* pThisId);
+  static JDWP::JdwpError GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, JDWP::ObjectId* result);
   static void GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t expectedLen);
   static void SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint64_t value, size_t width);
 
@@ -214,7 +214,7 @@ class Dbg {
     kMethodExit     = 0x08,
   };
   static void PostLocationEvent(const Method* method, int pcOffset, Object* thisPtr, int eventFlags);
-  static void PostException(JDWP::FrameId frameId, Method* throwMethod, uint32_t throwDexPc, Method* catchMethod, uint32_t catchDexPc, Throwable* exception);
+  static void PostException(Thread* thread, JDWP::FrameId frameId, Method* throwMethod, uint32_t throwDexPc, Method* catchMethod, uint32_t catchDexPc, Throwable* exception);
   static void PostThreadStart(Thread* t);
   static void PostThreadDeath(Thread* t);
   static void PostClassPrepare(Class* c);
