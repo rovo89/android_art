@@ -363,6 +363,7 @@ TEST_COMMON_SRC_FILES := \
 	src/oat_test.cc \
 	src/object_test.cc \
 	src/reference_table_test.cc \
+	src/runtime_support_test.cc \
 	src/runtime_test.cc \
 	src/space_test.cc \
 	src/utils_test.cc \
