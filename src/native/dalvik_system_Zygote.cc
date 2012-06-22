@@ -35,6 +35,10 @@
 #include <sys/prctl.h>
 #endif
 
+#if defined(HAVE_SELINUX)
+#include <selinux/android.h>
+#endif
+
 #if defined(__linux__)
 #include <sys/personality.h>
 #endif
@@ -287,7 +291,8 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
 // Utility routine to fork zygote and specialize the child process.
 static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaGids,
                                      jint debug_flags, jobjectArray javaRlimits,
-                                     jlong permittedCapabilities, jlong effectiveCapabilities) {
+                                     jlong permittedCapabilities, jlong effectiveCapabilities,
+                                     jstring java_se_info, jstring java_se_name, bool is_system_server) {
   Runtime* runtime = Runtime::Current();
   CHECK(runtime->IsZygote()) << "runtime instance not started with -Xzygote";
   if (false) { // TODO: do we need do anything special like !dvmGcPreZygoteFork()?
@@ -338,6 +343,25 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
 
     SetSchedulerPolicy();
 
+#if defined(HAVE_SELINUX) && defined(HAVE_ANDROID_OS)
+    {
+      ScopedUtfChars se_info(env, java_se_info);
+      CHECK(se_info != NULL);
+      ScopedUtfChars se_name(env, java_se_name);
+      CHECK(se_name != NULL);
+      rc = selinux_android_setcontext(uid, is_system_server, se_info, se_name);
+      if (rc == -1) {
+        PLOG(FATAL) << "selinux_android_setcontext(" << uid << ", "
+                    << (is_system_server ? "true" : "false") << ", "
+                    << "\"" << se_info << "\", \"" << se_name << "\") failed";
+      }
+    }
+#else
+    UNUSED(is_system_server);
+    UNUSED(java_se_info);
+    UNUSED(java_se_name);
+#endif
+
     // Our system thread ID, etc, has changed so reset Thread state.
     self->InitAfterFork();
 
@@ -352,8 +376,9 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
 }
 
 static jint Zygote_nativeForkAndSpecialize(JNIEnv* env, jclass, jint uid, jint gid, jintArray gids,
-                                           jint debug_flags, jobjectArray rlimits) {
-  return ForkAndSpecializeCommon(env, uid, gid, gids, debug_flags, rlimits, 0, 0);
+                                           jint debug_flags, jobjectArray rlimits,
+                                           jstring se_info, jstring se_name) {
+  return ForkAndSpecializeCommon(env, uid, gid, gids, debug_flags, rlimits, 0, 0, se_info, se_name, false);
 }
 
 static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t gid, jintArray gids,
@@ -361,7 +386,7 @@ static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t 
                                           jlong permittedCapabilities, jlong effectiveCapabilities) {
   pid_t pid = ForkAndSpecializeCommon(env, uid, gid, gids,
                                       debug_flags, rlimits,
-                                      permittedCapabilities, effectiveCapabilities);
+                                      permittedCapabilities, effectiveCapabilities, NULL, NULL, true);
   if (pid > 0) {
       // The zygote process checks whether the child process has died or not.
       LOG(INFO) << "System server process " << pid << " has been created";
@@ -380,7 +405,7 @@ static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Zygote, nativeExecShell, "(Ljava/lang/String;)V"),
   //NATIVE_METHOD(Zygote, nativeFork, "()I"),
-  NATIVE_METHOD(Zygote, nativeForkAndSpecialize, "(II[II[[I)I"),
+  NATIVE_METHOD(Zygote, nativeForkAndSpecialize, "(II[II[[ILjava/lang/String;Ljava/lang/String;)I"),
   NATIVE_METHOD(Zygote, nativeForkSystemServer, "(II[II[[IJJ)I"),
 };
 
