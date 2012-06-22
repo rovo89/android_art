@@ -190,7 +190,9 @@ void ConditionVariable::Signal() {
 
 void ConditionVariable::Wait(Mutex& mutex) {
   CheckSafeToWait(mutex.rank_);
+  uint unlock_depth = UnlockBeforeWait(mutex);
   CHECK_MUTEX_CALL(pthread_cond_wait, (&cond_, &mutex.mutex_));
+  RelockAfterWait(mutex, unlock_depth);
 }
 
 void ConditionVariable::TimedWait(Mutex& mutex, const timespec& ts) {
@@ -200,10 +202,30 @@ void ConditionVariable::TimedWait(Mutex& mutex, const timespec& ts) {
 #define TIMEDWAIT pthread_cond_timedwait
 #endif
   CheckSafeToWait(mutex.rank_);
+  uint unlock_depth = UnlockBeforeWait(mutex);
   int rc = TIMEDWAIT(&cond_, &mutex.mutex_, &ts);
+  RelockAfterWait(mutex, unlock_depth);
   if (rc != 0 && rc != ETIMEDOUT) {
     errno = rc;
     PLOG(FATAL) << "TimedWait failed for " << name_;
+  }
+}
+
+// Unlock a mutex down to depth == 1 so pthread conditional waiting can be used.
+// After waiting, use RelockAfterWait to restore the lock depth.
+uint32_t ConditionVariable::UnlockBeforeWait(Mutex& mutex) {
+  uint32_t unlock_count = 0;
+  CHECK_GT(mutex.GetDepth(), 0U);
+  while (mutex.GetDepth() != 1) {
+    mutex.Unlock();
+    unlock_count++;
+  }
+  return unlock_count;
+}
+
+void ConditionVariable::RelockAfterWait(Mutex& mutex, uint32_t unlock_count) {
+  for (uint32_t i = 0; i < unlock_count; i++) {
+    mutex.Lock();
   }
 }
 

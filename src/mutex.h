@@ -99,6 +99,9 @@ class ConditionVariable {
   void TimedWait(Mutex& mutex, const timespec& ts);
 
  private:
+  uint32_t UnlockBeforeWait(Mutex& mutex) NO_THREAD_SAFETY_ANALYSIS;
+  void RelockAfterWait(Mutex& mutex, uint32_t unlock_count) NO_THREAD_SAFETY_ANALYSIS;
+
   pthread_cond_t cond_;
   std::string name_;
   DISALLOW_COPY_AND_ASSIGN(ConditionVariable);
