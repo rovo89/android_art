@@ -551,7 +551,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
     case Instruction::RETURN_WIDE:
     case Instruction::RETURN:
     case Instruction::RETURN_OBJECT: {
-        if (!cUnit->attrs & METHOD_IS_LEAF) {
+        if (!(cUnit->attrs & METHOD_IS_LEAF)) {
           emitSuspendCheck(cUnit);
         }
         emitPopShadowFrame(cUnit);
@@ -561,7 +561,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       break;
 
     case Instruction::RETURN_VOID: {
-        if (!cUnit->attrs & METHOD_IS_LEAF) {
+        if (!(cUnit->attrs & METHOD_IS_LEAF)) {
           emitSuspendCheck(cUnit);
         }
         emitPopShadowFrame(cUnit);

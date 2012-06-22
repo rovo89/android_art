@@ -281,21 +281,21 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
       break;
     }
     case Instruction::RETURN_VOID:
-      if (!cUnit->attrs & METHOD_IS_LEAF) {
+      if (!(cUnit->attrs & METHOD_IS_LEAF)) {
         genSuspendTest(cUnit, optFlags);
       }
       break;
 
     case Instruction::RETURN:
     case Instruction::RETURN_OBJECT:
-      if (!cUnit->attrs & METHOD_IS_LEAF) {
+      if (!(cUnit->attrs & METHOD_IS_LEAF)) {
         genSuspendTest(cUnit, optFlags);
       }
       storeValue(cUnit, oatGetReturn(cUnit, cUnit->shorty[0] == 'F'), rlSrc[0]);
       break;
 
     case Instruction::RETURN_WIDE:
-      if (!cUnit->attrs & METHOD_IS_LEAF) {
+      if (!(cUnit->attrs & METHOD_IS_LEAF)) {
         genSuspendTest(cUnit, optFlags);
       }
       storeValueWide(cUnit, oatGetReturnWide(cUnit,
