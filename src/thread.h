@@ -655,10 +655,20 @@ std::ostream& operator<<(std::ostream& os, const ThreadState& state);
 class ScopedThreadStateChange {
  public:
   ScopedThreadStateChange(Thread* thread, ThreadState new_state) : thread_(thread) {
+    if (thread_ == NULL) {
+      // Value chosen arbitrarily and won't be used in the destructor since thread_ == NULL.
+      old_thread_state_ = kTerminated;
+      CHECK(Runtime::Current()->IsShuttingDown());
+      return;
+    }
     old_thread_state_ = thread_->SetState(new_state);
   }
 
   ~ScopedThreadStateChange() {
+    if (thread_ == NULL) {
+      CHECK(Runtime::Current()->IsShuttingDown());
+      return;
+    }
     thread_->SetState(old_thread_state_);
   }
 

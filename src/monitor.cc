@@ -184,8 +184,9 @@ void Monitor::Lock(Thread* self) {
     return;
   }
 
-  uint64_t waitStart, waitEnd;
   if (!lock_.TryLock()) {
+    uint64_t waitStart = 0;
+    uint64_t waitEnd = 0;
     uint32_t wait_threshold = lock_profiling_threshold_;
     const Method* current_locking_method = NULL;
     uint32_t current_locking_dex_pc = 0;

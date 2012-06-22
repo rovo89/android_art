@@ -21,12 +21,15 @@
 
 namespace art {
 
-ScopedThreadListLockReleaser::ScopedThreadListLockReleaser() {
+ScopedThreadListLockReleaser::ScopedThreadListLockReleaser() : unlocked_(false) {
+  if (Thread::Current() == NULL) {
+    CHECK(Runtime::Current()->IsShuttingDown());
+    return;
+  }
+
   if (Thread::Current()->held_mutexes_[kThreadListLock] > 0) {
     Runtime::Current()->GetThreadList()->thread_list_lock_.Unlock();
     unlocked_ = true;
-  } else {
-    unlocked_ = false;
   }
 }
 
