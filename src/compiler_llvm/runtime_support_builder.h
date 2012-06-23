@@ -64,6 +64,9 @@ class RuntimeSupportBuilder {
   virtual void EmitLockObject(llvm::Value* object);
   virtual void EmitUnlockObject(llvm::Value* object);
 
+  /* MarkGCCard */
+  virtual void EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr);
+
   llvm::Function* GetRuntimeSupportFunction(runtime_support::RuntimeId id) {
     if (id >= 0 && id < runtime_support::MAX_ID) {
       return runtime_support_func_decls_[id];
@@ -73,17 +76,7 @@ class RuntimeSupportBuilder {
     }
   }
 
-  void OptimizeRuntimeSupport();
-
   virtual ~RuntimeSupportBuilder() {}
-
- protected:
-  // Mark a function as inline function.
-  // You should implement the function, if mark as inline.
-  void MakeFunctionInline(llvm::Function* function);
-
-  void OverrideRuntimeSupportFunction(runtime_support::RuntimeId id, llvm::Function* function);
-
 
  protected:
   llvm::LLVMContext& context_;

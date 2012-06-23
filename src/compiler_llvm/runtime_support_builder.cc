@@ -21,7 +21,6 @@
 #include "monitor.h"
 #include "object.h"
 #include "thread.h"
-#include "utils_llvm.h"
 
 #include <llvm/DerivedTypes.h>
 #include <llvm/Function.h>
@@ -55,27 +54,12 @@ RuntimeSupportBuilder::RuntimeSupportBuilder(llvm::LLVMContext& context,
 #undef GET_RUNTIME_SUPPORT_FUNC_DECL
 }
 
-void RuntimeSupportBuilder::MakeFunctionInline(llvm::Function* func) {
-  func->setLinkage(GlobalValue::LinkOnceODRLinkage);
-  func->addFnAttr(Attribute::AlwaysInline);
-}
-
-void RuntimeSupportBuilder::OverrideRuntimeSupportFunction(RuntimeId id, llvm::Function* function) {
-  // TODO: Check function prototype.
-  if (id >= 0 && id < MAX_ID) {
-    runtime_support_func_decls_[id] = function;
-    target_runtime_support_func_[id] = true;
-  } else {
-    LOG(ERROR) << "Unknown runtime function id: " << id;
-  }
-}
-
 
 /* Thread */
 
 llvm::Value* RuntimeSupportBuilder::EmitGetCurrentThread() {
   Function* func = GetRuntimeSupportFunction(runtime_support::GetCurrentThread);
-  llvm::CallInst* call_inst = irb_.CreateCall(func);
+  CallInst* call_inst = irb_.CreateCall(func);
   call_inst->setOnlyReadsMemory();
   irb_.SetTBAA(call_inst, kTBAAConstJObject);
   return call_inst;
@@ -83,13 +67,13 @@ llvm::Value* RuntimeSupportBuilder::EmitGetCurrentThread() {
 
 llvm::Value* RuntimeSupportBuilder::EmitLoadFromThreadOffset(int64_t offset, llvm::Type* type,
                                                              TBAASpecialType s_ty) {
-  llvm::Value* thread = EmitGetCurrentThread();
+  Value* thread = EmitGetCurrentThread();
   return irb_.LoadFromObjectOffset(thread, offset, type, s_ty);
 }
 
 void RuntimeSupportBuilder::EmitStoreToThreadOffset(int64_t offset, llvm::Value* value,
                                                     TBAASpecialType s_ty) {
-  llvm::Value* thread = EmitGetCurrentThread();
+  Value* thread = EmitGetCurrentThread();
   irb_.StoreToObjectOffset(thread, offset, value, s_ty);
 }
 
@@ -156,7 +140,7 @@ llvm::Value* RuntimeSupportBuilder::EmitIsExceptionPending() {
                                               irb_.getJObjectTy(),
                                               kTBAAJRuntime);
   // If exception not null
-  return irb_.CreateICmpNE(exception, irb_.getJNull());
+  return irb_.CreateIsNotNull(exception);
 }
 
 void RuntimeSupportBuilder::EmitTestSuspend() {
@@ -166,7 +150,7 @@ void RuntimeSupportBuilder::EmitTestSuspend() {
                                                   kTBAARuntimeInfo);
   Value* is_suspend = irb_.CreateICmpNE(suspend_count, irb_.getJInt(0));
 
-  llvm::Function* parent_func = irb_.GetInsertBlock()->getParent();
+  Function* parent_func = irb_.GetInsertBlock()->getParent();
   BasicBlock* basic_block_suspend = BasicBlock::Create(context_, "suspend", parent_func);
   BasicBlock* basic_block_cont = BasicBlock::Create(context_, "suspend_cont", parent_func);
   irb_.CreateCondBr(is_suspend, basic_block_suspend, basic_block_cont, kUnlikely);
@@ -189,24 +173,24 @@ void RuntimeSupportBuilder::EmitLockObject(llvm::Value* object) {
 }
 
 void RuntimeSupportBuilder::EmitUnlockObject(llvm::Value* object) {
-  llvm::Value* lock_id =
+  Value* lock_id =
       EmitLoadFromThreadOffset(Thread::ThinLockIdOffset().Int32Value(),
                                irb_.getJIntTy(),
                                kTBAARuntimeInfo);
-  llvm::Value* monitor =
+  Value* monitor =
       irb_.LoadFromObjectOffset(object,
                                 Object::MonitorOffset().Int32Value(),
                                 irb_.getJIntTy(),
                                 kTBAARuntimeInfo);
 
-  llvm::Value* my_monitor = irb_.CreateShl(lock_id, LW_LOCK_OWNER_SHIFT);
-  llvm::Value* hash_state = irb_.CreateAnd(monitor, (LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
-  llvm::Value* real_monitor = irb_.CreateAnd(monitor, ~(LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
+  Value* my_monitor = irb_.CreateShl(lock_id, LW_LOCK_OWNER_SHIFT);
+  Value* hash_state = irb_.CreateAnd(monitor, (LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
+  Value* real_monitor = irb_.CreateAnd(monitor, ~(LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT));
 
   // Is thin lock, held by us and not recursively acquired
-  llvm::Value* is_fast_path = irb_.CreateICmpEQ(real_monitor, my_monitor);
+  Value* is_fast_path = irb_.CreateICmpEQ(real_monitor, my_monitor);
 
-  llvm::Function* parent_func = irb_.GetInsertBlock()->getParent();
+  Function* parent_func = irb_.GetInsertBlock()->getParent();
   BasicBlock* bb_fast = BasicBlock::Create(context_, "unlock_fast", parent_func);
   BasicBlock* bb_slow = BasicBlock::Create(context_, "unlock_slow", parent_func);
   BasicBlock* bb_cont = BasicBlock::Create(context_, "unlock_cont", parent_func);
@@ -229,59 +213,27 @@ void RuntimeSupportBuilder::EmitUnlockObject(llvm::Value* object) {
 }
 
 
-void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
-  // TODO: Remove this after we remove suspend loop pass.
-  if (!target_runtime_support_func_[runtime_support::TestSuspend]) {
-    Function* slow_func = GetRuntimeSupportFunction(runtime_support::TestSuspend);
-    Function* func = Function::Create(slow_func->getFunctionType(),
-                                      GlobalValue::LinkOnceODRLinkage,
-                                      "test_suspend_fast",
-                                      &module_);
-    MakeFunctionInline(func);
-    BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
-    irb_.SetInsertPoint(basic_block);
+void RuntimeSupportBuilder::EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr) {
+  Function* parent_func = irb_.GetInsertBlock()->getParent();
+  BasicBlock* bb_mark_gc_card = BasicBlock::Create(context_, "mark_gc_card", parent_func);
+  BasicBlock* bb_cont = BasicBlock::Create(context_, "mark_gc_card_cont", parent_func);
 
-    EmitTestSuspend();
+  llvm::Value* not_null = irb_.CreateIsNotNull(value);
+  irb_.CreateCondBr(not_null, bb_mark_gc_card, bb_cont);
 
-    irb_.CreateRetVoid();
+  irb_.SetInsertPoint(bb_mark_gc_card);
+  Value* card_table = EmitLoadFromThreadOffset(Thread::CardTableOffset().Int32Value(),
+                                               irb_.getInt8Ty()->getPointerTo(),
+                                               kTBAAConstJObject);
+  Value* target_addr_int = irb_.CreatePtrToInt(target_addr, irb_.getPtrEquivIntTy());
+  Value* card_no = irb_.CreateLShr(target_addr_int, irb_.getPtrEquivInt(GC_CARD_SHIFT));
+  Value* card_table_entry = irb_.CreateGEP(card_table, card_no);
+  irb_.CreateStore(irb_.getInt8(GC_CARD_DIRTY), card_table_entry, kTBAARuntimeInfo);
+  irb_.CreateBr(bb_cont);
 
-    OverrideRuntimeSupportFunction(runtime_support::TestSuspend, func);
-
-    VERIFY_LLVM_FUNCTION(*func);
-  }
-
-  if (!target_runtime_support_func_[MarkGCCard]) {
-    Function* func = GetRuntimeSupportFunction(MarkGCCard);
-    MakeFunctionInline(func);
-    BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);
-    irb_.SetInsertPoint(basic_block);
-    Function::arg_iterator arg_iter = func->arg_begin();
-    Value* value = arg_iter++;
-    Value* target_addr = arg_iter++;
-
-    llvm::Value* is_value_null = irb_.CreateICmpEQ(value, irb_.getJNull());
-
-    llvm::BasicBlock* block_value_is_null = BasicBlock::Create(context_, "value_is_null", func);
-    llvm::BasicBlock* block_mark_gc_card = BasicBlock::Create(context_, "mark_gc_card", func);
-
-    irb_.CreateCondBr(is_value_null, block_value_is_null, block_mark_gc_card);
-
-    irb_.SetInsertPoint(block_value_is_null);
-    irb_.CreateRetVoid();
-
-    irb_.SetInsertPoint(block_mark_gc_card);
-    Value* card_table = EmitLoadFromThreadOffset(Thread::CardTableOffset().Int32Value(),
-                                                 irb_.getInt8Ty()->getPointerTo(),
-                                                 kTBAAConstJObject);
-    Value* target_addr_int = irb_.CreatePtrToInt(target_addr, irb_.getPtrEquivIntTy());
-    Value* card_no = irb_.CreateLShr(target_addr_int, irb_.getPtrEquivInt(GC_CARD_SHIFT));
-    Value* card_table_entry = irb_.CreateGEP(card_table, card_no);
-    irb_.CreateStore(irb_.getInt8(GC_CARD_DIRTY), card_table_entry, kTBAARuntimeInfo);
-    irb_.CreateRetVoid();
-
-    VERIFY_LLVM_FUNCTION(*func);
-  }
+  irb_.SetInsertPoint(bb_cont);
 }
+
 
 } // namespace compiler_llvm
 } // namespace art
