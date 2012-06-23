@@ -1633,6 +1633,7 @@ JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame
   UniquePtr<Context> context(Context::Create());
   Thread* thread = DecodeThread(thread_id);
   if (thread == NULL) {
+    *result = 0;
     return JDWP::ERR_INVALID_THREAD;
   }
   GetThisVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), context.get(), frame_id);
