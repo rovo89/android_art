@@ -2217,9 +2217,7 @@ llvm::Value* MethodCompiler::EmitConditionResult(llvm::Value* lhs,
 
 void MethodCompiler::EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr) {
   // Using runtime support, let the target can override by InlineAssembly.
-  llvm::Function* runtime_func = irb_.GetRuntime(MarkGCCard);
-
-  irb_.CreateCall2(runtime_func, value, target_addr);
+  irb_.Runtime().EmitMarkGCCard(value, target_addr);
 }
 
 void
