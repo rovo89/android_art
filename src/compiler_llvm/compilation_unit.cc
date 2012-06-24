@@ -128,10 +128,9 @@ class AddSuspendCheckToLoopLatchPass : public llvm::LoopPass {
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
     AU.addRequiredID(llvm::LoopSimplifyID);
 
-    // TODO: Preserve more.
-    //AU.addPreserved<llvm::DominatorTree>();
+    AU.addPreserved<llvm::DominatorTree>();
     AU.addPreserved<llvm::LoopInfo>();
-    //AU.addPreservedID(llvm::LoopSimplifyID);
+    AU.addPreservedID(llvm::LoopSimplifyID);
     AU.addPreserved<llvm::ScalarEvolution>();
     AU.addPreservedID(llvm::BreakCriticalEdgesID);
   }
@@ -141,13 +140,11 @@ class AddSuspendCheckToLoopLatchPass : public llvm::LoopPass {
     llvm::BasicBlock* bb = loop->getLoopLatch();
     CHECK_NE(bb, static_cast<void*>(NULL)) << "A single loop latch must exist.";
 
-    llvm::BasicBlock* tb = bb->splitBasicBlock(bb->getTerminator(), "suspend_exit");
-    // Remove unconditional branch which is added by splitBasicBlock.
-    bb->getTerminator()->eraseFromParent();
+    irb_->SetInsertPoint(bb->getTerminator());
 
-    irb_->SetInsertPoint(bb);
-    irb_->Runtime().EmitTestSuspend();
-    irb_->CreateBr(tb);
+    using art::compiler_llvm::runtime_support::TestSuspend;
+    llvm::Value* runtime_func = irb_->GetRuntime(TestSuspend);
+    irb_->CreateCall(runtime_func, irb_->getJNull());
 
     return true;
   }
@@ -197,6 +194,8 @@ CompilationUnit::CompilationUnit(InstructionSet insn_set, size_t elf_idx)
     runtime_support_.reset(new RuntimeSupportBuilderX86(*context_, *module_, *irb_));
     break;
   }
+
+  runtime_support_->OptimizeRuntimeSupport();
 
   irb_->SetRuntimeSupport(runtime_support_.get());
 }
@@ -353,10 +352,8 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream) {
 
   // Add optimization pass
   llvm::PassManagerBuilder pm_builder;
-  // TODO: Use inliner after we can do IPO.
-  pm_builder.Inliner = NULL;
   //pm_builder.Inliner = llvm::createFunctionInliningPass();
-  //pm_builder.Inliner = llvm::createAlwaysInlinerPass();
+  pm_builder.Inliner = llvm::createAlwaysInlinerPass();
   //pm_builder.Inliner = llvm::createPartialInliningPass();
   pm_builder.OptLevel = 3;
   pm_builder.DisableSimplifyLibCalls = 1;
