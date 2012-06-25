@@ -26,6 +26,7 @@
 #include "debugger.h"
 #include "image.h"
 #include "mark_sweep.h"
+#include "mod_union_table.h"
 #include "object.h"
 #include "object_utils.h"
 #include "os.h"
@@ -239,6 +240,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
     LOG(FATAL) << "Failed to create card table";
   }
 
+  // Allocate the mod-union table
+  ModUnionTableBitmap* mod_union_table = new ModUnionTableBitmap(this);
+  mod_union_table->Init();
+  mod_union_table_ = mod_union_table;
+
   live_bitmap_ = live_bitmap.release();
   mark_bitmap_ = mark_bitmap.release();
   card_table_ = card_table.release();
@@ -275,6 +281,7 @@ Heap::~Heap() {
   delete mark_bitmap_;
   delete live_bitmap_;
   delete card_table_;
+  delete mod_union_table_;
   delete mark_stack_;
   delete condition_;
   delete lock_;
@@ -608,7 +615,7 @@ void Heap::CollectGarbage(bool clear_soft_references) {
 void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
   lock_->AssertHeld();
 
-  DCHECK(!is_gc_running_);
+  CHECK(!is_gc_running_);
   is_gc_running_ = true;
 
   TimingLogger timings("CollectGarbageInternal");
@@ -629,17 +636,16 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
 
     if (concurrent) {
       card_table_->ClearNonImageSpaceCards(this);
+      timings.AddSplit("ClearNonImageSpaceCards");
     }
+
+    // Clear image space cards and keep track of cards we cleared in the mod-union table.
+    mod_union_table_->ClearCards();
 
     mark_sweep.MarkRoots();
     timings.AddSplit("MarkRoots");
 
-    if (!concurrent) {
-      mark_sweep.ScanDirtyImageRoots();
-      timings.AddSplit("ScanDirtyImageRoots");
-    }
-
-    // Roots are marked on the bitmap and the mark_stack is empty
+    // Roots are marked on the bitmap and the mark_stack is empty.
     DCHECK(mark_sweep.IsMarkStackEmpty());
 
     if (concurrent) {
@@ -651,7 +657,15 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
       timings.AddSplit("RootEnd");
     }
 
-    // Recursively mark all bits set in the non-image mark bitmap
+    // Processes the cards we cleared earlier and adds their objects into the mod-union table.
+    mod_union_table_->Update(&mark_sweep);
+    timings.AddSplit("UpdateModUnionBitmap");
+
+    // Scans all objects in the mod-union table.
+    mod_union_table_->MarkReferences(&mark_sweep);
+    timings.AddSplit("ProcessModUnionBitmap");
+
+    // Recursively mark all the non-image bits set in the mark bitmap.
     mark_sweep.RecursiveMark();
     timings.AddSplit("RecursiveMark");
 
@@ -665,8 +679,7 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
       mark_sweep.ReMarkRoots();
       timings.AddSplit("ReMarkRoots");
 
-      // Scan dirty objects, this is required even if we are not doing a
-      // concurrent GC since we use the card table to locate image roots.
+      // Scan dirty objects, this is only required if we are not doing concurrent GC.
       mark_sweep.RecursiveMarkDirtyObjects();
       timings.AddSplit("RecursiveMarkDirtyObjects");
     }
@@ -683,6 +696,11 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
     mark_sweep.VerifyImageRoots();
     timings.AddSplit("VerifyImageRoots");
 
+    if (concurrent) {
+      thread_list->ResumeAll();
+      dirty_end = NanoTime();
+    }
+
     mark_sweep.Sweep();
     timings.AddSplit("Sweep");
 
@@ -691,35 +709,43 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
 
   GrowForUtilization();
   timings.AddSplit("GrowForUtilization");
-  thread_list->ResumeAll();
-  dirty_end = NanoTime();
+
+  if (!concurrent) {
+    thread_list->ResumeAll();
+    dirty_end = NanoTime();
+  }
 
   EnqueueClearedReferences(&cleared_references);
   RequestHeapTrim();
   timings.AddSplit("Finish");
 
-  uint64_t t1 = NanoTime();
-  uint64_t duration_ns = t1 - t0;
-  bool gc_was_particularly_slow = duration_ns > MsToNs(50); // TODO: crank this down for concurrent.
-  if (VLOG_IS_ON(gc) || gc_was_particularly_slow) {
+  if (VLOG_IS_ON(gc)) {
+    uint64_t t1 = NanoTime();
+
     // TODO: somehow make the specific GC implementation (here MarkSweep) responsible for logging.
     // Reason: For CMS sometimes initial_size < num_bytes_allocated_ results in overflow (3GB freed message).
     size_t bytes_freed = initial_size - num_bytes_allocated_;
-    // lose low nanoseconds in duration. TODO: make this part of PrettyDuration
-    duration_ns = (duration_ns / 1000) * 1000;
+    uint64_t duration_ns = t1 - t0;
+    duration_ns -= duration_ns % 1000;
+
+    // If the GC was slow, then print timings in the log.
     if (concurrent) {
       uint64_t pause_roots_time = (root_end - t0) / 1000 * 1000;
       uint64_t pause_dirty_time = (dirty_end - dirty_begin) / 1000 * 1000;
-      LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
-                << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
-                << "paused " << PrettyDuration(pause_roots_time) << "+" << PrettyDuration(pause_dirty_time)
-                << ", total " << PrettyDuration(duration_ns);
+      if (pause_roots_time > MsToNs(5) || pause_dirty_time > MsToNs(5)) {
+        LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
+                  << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
+                  << "paused " << PrettyDuration(pause_roots_time) << "+" << PrettyDuration(pause_dirty_time)
+                  << ", total " << PrettyDuration(duration_ns);
+      }
     } else {
-      uint64_t markSweepTime = (dirty_end - t0) / 1000 * 1000;
-      LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
-                << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
-                << "paused " << PrettyDuration(markSweepTime)
-                << ", total " << PrettyDuration(duration_ns);
+      if (duration_ns > MsToNs(50)) {
+        uint64_t markSweepTime = (dirty_end - t0) / 1000 * 1000;
+        LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
+                  << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
+                  << "paused " << PrettyDuration(markSweepTime)
+                  << ", total " << PrettyDuration(duration_ns);
+      }
     }
   }
   Dbg::GcDidFinish();

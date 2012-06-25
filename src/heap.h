@@ -37,13 +37,14 @@ class Class;
 class HeapBitmap;
 class ImageSpace;
 class MarkStack;
+class ModUnionTable;
+class ModUnionTableBitmap;
 class Object;
 class Space;
 class SpaceTest;
 class Thread;
 
 class LOCKABLE Heap {
-  friend class ScopedHeapLock;
  public:
   static const size_t kInitialSize = 2 * MB;
 
@@ -287,6 +288,10 @@ class LOCKABLE Heap {
 
   HeapBitmap* live_bitmap_;
 
+  // TODO: Reduce memory usage, this bitmap currently takes 1 bit per 8 bytes
+  // of image space.
+  ModUnionTable* mod_union_table_;
+
   CardTable* card_table_;
 
   // Used by the image writer to disable card marking on copied objects
@@ -341,6 +346,7 @@ class LOCKABLE Heap {
 
   bool verify_objects_;
 
+  friend class ScopedHeapLock;
   FRIEND_TEST(SpaceTest, AllocAndFree);
   FRIEND_TEST(SpaceTest, AllocAndFreeList);
   friend class SpaceTest;
