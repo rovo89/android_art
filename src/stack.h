@@ -19,7 +19,6 @@
 
 #include "dex_file.h"
 #include "heap.h"
-#include "jdwp/jdwp.h"
 #include "jni.h"
 #include "macros.h"
 #include "oat/runtime/context.h"
