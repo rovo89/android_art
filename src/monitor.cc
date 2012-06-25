@@ -32,6 +32,7 @@
 #include "stl_util.h"
 #include "thread.h"
 #include "thread_list.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -823,6 +824,24 @@ uint32_t Monitor::GetThinLockId(uint32_t raw_lock_word) {
   }
 }
 
+static uint32_t LockOwnerFromThreadLock(Object* thread_lock) {
+  if (thread_lock == NULL || thread_lock->GetClass() != WellKnownClasses::ToClass(WellKnownClasses::java_lang_ThreadLock)) {
+    return ThreadList::kInvalidId;
+  }
+  Field* thread_field = DecodeField(WellKnownClasses::java_lang_ThreadLock_thread);
+  Object* managed_thread = thread_field->GetObject(thread_lock);
+  if (managed_thread == NULL) {
+    return ThreadList::kInvalidId;
+  }
+  Field* vmData_field = DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+  uintptr_t vmData = static_cast<uintptr_t>(vmData_field->GetInt(managed_thread));
+  Thread* thread = reinterpret_cast<Thread*>(vmData);
+  if (thread == NULL) {
+    return ThreadList::kInvalidId;
+  }
+  return thread->GetThinLockId();
+}
+
 void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   ThreadState state = thread->GetState();
 
@@ -834,7 +853,7 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
     if (monitor != NULL) {
       object = monitor->obj_;
     }
-    lock_owner = Thread::LockOwnerFromThreadLock(object);
+    lock_owner = LockOwnerFromThreadLock(object);
   } else if (state == kBlocked) {
     os << "  - waiting to lock ";
     object = thread->monitor_enter_object_;

@@ -765,24 +765,6 @@ void Thread::Shutdown() {
   CHECK_PTHREAD_CALL(pthread_key_delete, (Thread::pthread_key_self_), "self key");
 }
 
-uint32_t Thread::LockOwnerFromThreadLock(Object* thread_lock) {
-  if (thread_lock == NULL || thread_lock->GetClass() != WellKnownClasses::ToClass(WellKnownClasses::java_lang_ThreadLock)) {
-    return ThreadList::kInvalidId;
-  }
-  Field* thread_field = DecodeField(WellKnownClasses::java_lang_ThreadLock_thread);
-  Object* managed_thread = thread_field->GetObject(thread_lock);
-  if (managed_thread == NULL) {
-    return ThreadList::kInvalidId;
-  }
-  Field* vmData_field = DecodeField(WellKnownClasses::java_lang_Thread_vmData);
-  uintptr_t vmData = static_cast<uintptr_t>(vmData_field->GetInt(managed_thread));
-  Thread* thread = reinterpret_cast<Thread*>(vmData);
-  if (thread == NULL) {
-    return ThreadList::kInvalidId;
-  }
-  return thread->GetThinLockId();
-}
-
 Thread::Thread()
     : suspend_count_(0),
       card_table_(NULL),

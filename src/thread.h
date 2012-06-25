@@ -112,7 +112,6 @@ class PACKED Thread {
 
   static Thread* FromManagedThread(Object* thread_peer);
   static Thread* FromManagedThread(JNIEnv* env, jobject thread);
-  static uint32_t LockOwnerFromThreadLock(Object* thread_lock);
 
   // Translates 172 to pAllocArrayFromCode and so on.
   static void DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_pointers);
