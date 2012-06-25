@@ -404,6 +404,10 @@ class ClassLinker {
   const OatFile* FindOpenedOatFileForDexFile(const DexFile& dex_file);
   const OatFile* FindOpenedOatFileFromDexLocation(const std::string& dex_location);
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location);
+  const DexFile* VerifyOatFileChecksums(const OatFile* oat_file,
+                                        const std::string& dex_location,
+                                        uint32_t dex_location_checksum)
+          EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
 
   Method* CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class);
   Method* CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype);

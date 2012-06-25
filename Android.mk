@@ -233,7 +233,11 @@ OAT_TARGET_TARGETS :=
 
 # $(1): input jar or apk target location
 define declare-oat-target-target
+ifneq (,$(filter $(1),$(addprefix system/app/,$(addsuffix .apk,$(PRODUCT_DEX_PREOPT_PACKAGES_IN_DATA)))))
 OUT_OAT_FILE := $(call art-cache-out,$(1).oat)
+else
+OUT_OAT_FILE := $(PRODUCT_OUT)/$(1).oat
+endif
 
 ifeq ($(ONE_SHOT_MAKEFILE),)
 .PHONY: oat-target-$(1)
@@ -254,7 +258,7 @@ endef
 
 $(foreach file,\
   $(filter-out\
-    $(TARGET_BOOT_DEX),\
+    $(addprefix $(TARGET_OUT_JAVA_LIBRARIES)/,$(addsuffix .jar,$(TARGET_BOOT_JARS))),\
     $(wildcard $(TARGET_OUT_APPS)/*.apk) $(wildcard $(TARGET_OUT_JAVA_LIBRARIES)/*.jar)),\
   $(eval $(call declare-oat-target-target,$(subst $(PRODUCT_OUT)/,,$(file)))))
 
