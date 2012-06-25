@@ -51,6 +51,19 @@ class CardTable {
     return *CardFromAddr(obj) == GC_CARD_DIRTY;
   }
 
+  // Visit cards within memory range.
+  template <typename Visitor>
+  void VisitClear(const void* start, const void* end, const Visitor& visitor) {
+    byte* card_start = CardFromAddr(start);
+    byte* card_end = CardFromAddr(end);
+    for (byte* cur = card_start; cur != card_end; ++cur) {
+      if (*cur == GC_CARD_DIRTY) {
+        *cur = GC_CARD_CLEAN;
+        visitor(cur);
+      }
+    }
+  }
+
   // Returns a value that when added to a heap address >> GC_CARD_SHIFT will address the appropriate
   // card table byte. For convenience this value is cached in every Thread
   byte* GetBiasedBegin() const {
@@ -61,16 +74,24 @@ class CardTable {
   typedef void Callback(Object* obj, void* arg);
   void Scan(HeapBitmap* bitmap, byte* begin, byte* end, Callback* visitor, void* arg) const;
 
-
   // Assertion used to check the given address is covered by the card table
   void CheckAddrIsInCardTable(const byte* addr) const;
 
   // Resets all of the bytes in the card table to clean.
   void ClearCardTable();
 
-  // Resets all of the bytes in the card table to clean.
+  // Resets all of the bytes in the card table which do not map to the image space.
   void ClearNonImageSpaceCards(Heap* heap);
 
+  // Returns the first address in the heap which maps to this card.
+  void* AddrFromCard(const byte *card_addr) const {
+    DCHECK(IsValidCard(card_addr))
+      << " card_addr: " << reinterpret_cast<const void*>(card_addr)
+      << " begin: " << reinterpret_cast<void*>(mem_map_->Begin() + offset_)
+      << " end: " << reinterpret_cast<void*>(mem_map_->End());
+    uintptr_t offset = card_addr - biased_begin_;
+    return reinterpret_cast<void*>(offset << GC_CARD_SHIFT);
+  }
  private:
   CardTable(MemMap* begin, byte* biased_begin, size_t offset);
 
@@ -81,16 +102,6 @@ class CardTable {
     DCHECK(IsValidCard(card_addr)) << "addr: " << addr
         << " card_addr: " << reinterpret_cast<void*>(card_addr);
     return card_addr;
-  }
-
-  // Returns the first address in the heap which maps to this card.
-  void* AddrFromCard(const byte *card_addr) const {
-    DCHECK(IsValidCard(card_addr))
-      << " card_addr: " << reinterpret_cast<const void*>(card_addr)
-      << " begin: " << reinterpret_cast<void*>(mem_map_->Begin() + offset_)
-      << " end: " << reinterpret_cast<void*>(mem_map_->End());
-    uintptr_t offset = card_addr - biased_begin_;
-    return reinterpret_cast<void*>(offset << GC_CARD_SHIFT);
   }
 
   // Returns true iff the card table address is within the bounds of the card table.

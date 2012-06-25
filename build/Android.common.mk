@@ -168,6 +168,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/mark_sweep.cc \
 	src/mem_map.cc \
 	src/memory_region.cc \
+	src/mod_union_table.cc \
 	src/monitor.cc \
 	src/mutex.cc \
 	src/native/dalvik_system_DexFile.cc \

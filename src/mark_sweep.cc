@@ -63,7 +63,7 @@ void MarkSweep::Init() {
   // TODO: check that the mark bitmap is entirely clear.
 }
 
-inline void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
+void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
   DCHECK(obj != NULL);
   if (obj < condemned_) {
     DCHECK(IsMarked(obj));
@@ -85,7 +85,7 @@ inline void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
 // objects.  Any newly-marked objects whose addresses are lower than
 // the finger won't be visited by the bitmap scan, so those objects
 // need to be added to the mark stack.
-inline void MarkSweep::MarkObject(const Object* obj) {
+void MarkSweep::MarkObject(const Object* obj) {
   if (obj != NULL) {
     MarkObject0(obj, true);
   }
@@ -115,9 +115,39 @@ void MarkSweep::ScanImageRootVisitor(Object* root, void* arg) {
   DCHECK(root != NULL);
   DCHECK(arg != NULL);
   MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
-  //DCHECK(mark_sweep->finger_ == NULL);  // no point to check finger if it is NULL
+  // Sanity tests
+  DCHECK(mark_sweep->live_bitmap_->Test(root));
   mark_sweep->MarkObject0(root, false);
   mark_sweep->ScanObject(root);
+}
+
+class CheckObjectVisitor {
+ public:
+  CheckObjectVisitor(MarkSweep* const mark_sweep)
+      : mark_sweep_(mark_sweep) {
+
+  }
+
+  void operator ()(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) const {
+    mark_sweep_->CheckReference(obj, ref, offset, is_static);
+  }
+
+ private:
+  MarkSweep* const mark_sweep_;
+};
+
+void MarkSweep::CheckObject(const Object* obj) {
+  DCHECK(obj != NULL);
+  CheckObjectVisitor visitor(this);
+  VisitObjectReferences(obj, visitor);
+}
+
+void MarkSweep::VerifyImageRootVisitor(Object* root, void* arg) {
+  DCHECK(root != NULL);
+  DCHECK(arg != NULL);
+  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
+  DCHECK(mark_sweep->IsMarked(root));
+  mark_sweep->CheckObject(root);
 }
 
 // Marks all objects that are in images and have been touched by the mutator
@@ -136,6 +166,11 @@ void MarkSweep::ScanDirtyImageRoots() {
 void MarkSweep::CheckBitmapCallback(Object* obj, void* finger, void* arg) {
   MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
   mark_sweep->finger_ = reinterpret_cast<Object*>(finger);
+  mark_sweep->CheckObject(obj);
+}
+
+void MarkSweep::CheckBitmapNoFingerCallback(Object* obj, void* arg) {
+  MarkSweep* mark_sweep = reinterpret_cast<MarkSweep*>(arg);
   mark_sweep->CheckObject(obj);
 }
 
@@ -180,7 +215,7 @@ void MarkSweep::VerifyImageRoots() {
     if (spaces[i]->IsImageSpace()) {
       uintptr_t begin = reinterpret_cast<uintptr_t>(spaces[i]->Begin());
       uintptr_t end = reinterpret_cast<uintptr_t>(spaces[i]->End());
-      mark_bitmap_->ScanWalk(begin, end, &MarkSweep::CheckBitmapCallback, arg);
+      live_bitmap_->ScanWalk(begin, end, &MarkSweep::CheckBitmapCallback, arg);
     }
   }
   finger_ = reinterpret_cast<Object*>(~0);
@@ -280,6 +315,8 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 void MarkSweep::Sweep() {
   SweepSystemWeaks();
 
+  DCHECK(mark_stack_->IsEmpty());
+
   const std::vector<Space*>& spaces = heap_->GetSpaces();
   SweepCallbackContext scc;
   scc.heap = heap_;
@@ -302,19 +339,10 @@ inline void MarkSweep::ScanInstanceFields(const Object* obj) {
   ScanFields(obj, klass->GetReferenceInstanceOffsets(), false);
 }
 
-inline void MarkSweep::CheckInstanceFields(const Object* obj) {
-  Class* klass = obj->GetClass();
-  CheckFields(obj, klass->GetReferenceInstanceOffsets(), false);
-}
-
 // Scans static storage on a Class.
 inline void MarkSweep::ScanStaticFields(const Class* klass) {
   DCHECK(klass != NULL);
   ScanFields(klass, klass->GetReferenceStaticOffsets(), true);
-}
-
-inline void MarkSweep::CheckStaticFields(const Class* klass) {
-  CheckFields(klass, klass->GetReferenceStaticOffsets(), true);
 }
 
 inline void MarkSweep::ScanFields(const Object* obj, uint32_t ref_offsets, bool is_static) {
@@ -350,9 +378,11 @@ inline void MarkSweep::ScanFields(const Object* obj, uint32_t ref_offsets, bool 
   }
 }
 
-inline void MarkSweep::CheckReference(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) {
+void MarkSweep::CheckReference(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) {
   AllocSpace* alloc_space = heap_->GetAllocSpace();
   if (alloc_space->Contains(ref)) {
+    DCHECK(IsMarked(obj));
+
     bool is_marked = mark_bitmap_->Test(ref);
 
     if (!is_marked) {
@@ -389,39 +419,6 @@ inline void MarkSweep::CheckReference(const Object* obj, const Object* ref, Memb
   }
 }
 
-inline void MarkSweep::CheckFields(const Object* obj, uint32_t ref_offsets, bool is_static) {
-  if (ref_offsets != CLASS_WALK_SUPER) {
-    // Found a reference offset bitmap.  Mark the specified offsets.
-    while (ref_offsets != 0) {
-      size_t right_shift = CLZ(ref_offsets);
-      MemberOffset field_offset = CLASS_OFFSET_FROM_CLZ(right_shift);
-      const Object* ref = obj->GetFieldObject<const Object*>(field_offset, false);
-      CheckReference(obj, ref, field_offset, is_static);
-      ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
-    }
-  } else {
-    // There is no reference offset bitmap.  In the non-static case,
-    // walk up the class inheritance hierarchy and find reference
-    // offsets the hard way. In the static case, just consider this
-    // class.
-    for (const Class* klass = is_static ? obj->AsClass() : obj->GetClass();
-         klass != NULL;
-         klass = is_static ? NULL : klass->GetSuperClass()) {
-      size_t num_reference_fields = (is_static
-                                     ? klass->NumReferenceStaticFields()
-                                     : klass->NumReferenceInstanceFields());
-      for (size_t i = 0; i < num_reference_fields; ++i) {
-        Field* field = (is_static
-                        ? klass->GetStaticField(i)
-                        : klass->GetInstanceField(i));
-        MemberOffset field_offset = field->GetOffset();
-        const Object* ref = obj->GetFieldObject<const Object*>(field_offset, false);
-        CheckReference(obj, ref, field_offset, is_static);
-      }
-    }
-  }
-}
-
 // Scans the header, static field references, and interface pointers
 // of a class object.
 inline void MarkSweep::ScanClass(const Object* obj) {
@@ -430,11 +427,6 @@ inline void MarkSweep::ScanClass(const Object* obj) {
 #endif
   ScanInstanceFields(obj);
   ScanStaticFields(obj->AsClass());
-}
-
-inline void MarkSweep::CheckClass(const Object* obj) {
-  CheckInstanceFields(obj);
-  CheckStaticFields(obj->AsClass());
 }
 
 // Scans the header of all array objects.  If the array object is
@@ -449,19 +441,6 @@ inline void MarkSweep::ScanArray(const Object* obj) {
     for (int32_t i = 0; i < array->GetLength(); ++i) {
       const Object* element = array->GetWithoutChecks(i);
       MarkObject(element);
-    }
-  }
-}
-
-inline void MarkSweep::CheckArray(const Object* obj) {
-  CheckReference(obj, obj->GetClass(), Object::ClassOffset(), false);
-  if (obj->IsObjectArray()) {
-    const ObjectArray<Object>* array = obj->AsObjectArray<Object>();
-    for (int32_t i = 0; i < array->GetLength(); ++i) {
-      const Object* element = array->GetWithoutChecks(i);
-      size_t width = sizeof(Object*);
-      CheckReference(obj, element, MemberOffset(i * width +
-                                                Array::DataOffset(width).Int32Value()), false);
     }
   }
 }
@@ -505,10 +484,6 @@ inline void MarkSweep::ScanOther(const Object* obj) {
   }
 }
 
-inline void MarkSweep::CheckOther(const Object* obj) {
-  CheckInstanceFields(obj);
-}
-
 // Scans an object reference.  Determines the type of the reference
 // and dispatches to a specialized scanning routine.
 inline void MarkSweep::ScanObject(const Object* obj) {
@@ -521,20 +496,6 @@ inline void MarkSweep::ScanObject(const Object* obj) {
     ScanArray(obj);
   } else {
     ScanOther(obj);
-  }
-}
-
-// Check to see that all alloc space references are marked for the given object
-inline void MarkSweep::CheckObject(const Object* obj) {
-  DCHECK(obj != NULL);
-  DCHECK(obj->GetClass() != NULL);
-  DCHECK(IsMarked(obj));
-  if (obj->IsClass()) {
-    CheckClass(obj);
-  } else if (obj->IsArrayInstance()) {
-    CheckArray(obj);
-  } else {
-    CheckOther(obj);
   }
 }
 
@@ -557,6 +518,9 @@ void MarkSweep::PreserveSomeSoftReferences(Object** list) {
   DCHECK(list != NULL);
   Object* clear = NULL;
   size_t counter = 0;
+
+  DCHECK(mark_stack_->IsEmpty());
+
   while (*list != NULL) {
     Object* ref = heap_->DequeuePendingReference(list);
     Object* referent = heap_->GetReferenceReferent(ref);
