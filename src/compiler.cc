@@ -439,7 +439,7 @@ ByteArray* Compiler::CreateAbstractMethodErrorStub(InstructionSet instruction_se
   }
 }
 
-void Compiler::CompileAll(const ClassLoader* class_loader,
+void Compiler::CompileAll(ClassLoader* class_loader,
                           const std::vector<const DexFile*>& dex_files) {
   DCHECK(!Runtime::Current()->IsStarted());
 
@@ -469,7 +469,7 @@ void Compiler::CompileAll(const ClassLoader* class_loader,
 void Compiler::CompileOne(const Method* method) {
   DCHECK(!Runtime::Current()->IsStarted());
 
-  const ClassLoader* class_loader = method->GetDeclaringClass()->GetClassLoader();
+  ClassLoader* class_loader = method->GetDeclaringClass()->GetClassLoader();
 
   // Find the dex_file
   const DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
@@ -487,7 +487,7 @@ void Compiler::CompileOne(const Method* method) {
   PostCompile(class_loader, dex_files);
 }
 
-void Compiler::Resolve(const ClassLoader* class_loader,
+void Compiler::Resolve(ClassLoader* class_loader,
                        const std::vector<const DexFile*>& dex_files, TimingLogger& timings) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
@@ -496,7 +496,7 @@ void Compiler::Resolve(const ClassLoader* class_loader,
   }
 }
 
-void Compiler::PreCompile(const ClassLoader* class_loader,
+void Compiler::PreCompile(ClassLoader* class_loader,
                           const std::vector<const DexFile*>& dex_files, TimingLogger& timings) {
   Resolve(class_loader, dex_files, timings);
 
@@ -507,7 +507,7 @@ void Compiler::PreCompile(const ClassLoader* class_loader,
   timings.AddSplit("PreCompile.InitializeClassesWithoutClinit");
 }
 
-void Compiler::PostCompile(const ClassLoader* class_loader,
+void Compiler::PostCompile(ClassLoader* class_loader,
                            const std::vector<const DexFile*>& dex_files) {
   SetGcMaps(class_loader, dex_files);
 #if defined(ART_USE_LLVM_COMPILER)
@@ -926,7 +926,7 @@ static bool SkipClass(const ClassLoader* class_loader,
 class CompilationContext {
  public:
   CompilationContext(ClassLinker* class_linker,
-          const ClassLoader* class_loader,
+          ClassLoader* class_loader,
           Compiler* compiler,
           DexCache* dex_cache,
           const DexFile* dex_file)
@@ -940,7 +940,7 @@ class CompilationContext {
     CHECK(class_linker_ != NULL);
     return class_linker_;
   }
-  const ClassLoader* GetClassLoader() {
+  ClassLoader* GetClassLoader() {
     return class_loader_;
   }
   Compiler* GetCompiler() {
@@ -958,7 +958,7 @@ class CompilationContext {
 
  private:
   ClassLinker* class_linker_;
-  const ClassLoader* class_loader_;
+  ClassLoader* class_loader_;
   Compiler* compiler_;
   DexCache* dex_cache_;
   const DexFile* dex_file_;
@@ -1121,7 +1121,7 @@ static void ResolveType(CompilationContext* context, size_t type_idx) {
   }
 }
 
-void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& dex_file, TimingLogger& timings) {
+void Compiler::ResolveDexFile(ClassLoader* class_loader, const DexFile& dex_file, TimingLogger& timings) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);
 
@@ -1143,7 +1143,7 @@ void Compiler::ResolveDexFile(const ClassLoader* class_loader, const DexFile& de
   timings.AddSplit("Resolve " + dex_file.GetLocation() + " MethodsAndFields");
 }
 
-void Compiler::Verify(const ClassLoader* class_loader,
+void Compiler::Verify(ClassLoader* class_loader,
                       const std::vector<const DexFile*>& dex_files) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
@@ -1190,7 +1190,7 @@ static void VerifyClass(CompilationContext* context, size_t class_def_index) {
   CHECK(!Thread::Current()->IsExceptionPending()) << PrettyTypeOf(Thread::Current()->GetException());
 }
 
-void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
+void Compiler::VerifyDexFile(ClassLoader* class_loader, const DexFile& dex_file) {
   dex_file.ChangePermissions(PROT_READ | PROT_WRITE);
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -1200,7 +1200,7 @@ void Compiler::VerifyDexFile(const ClassLoader* class_loader, const DexFile& dex
   dex_file.ChangePermissions(PROT_READ);
 }
 
-void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader,
+void Compiler::InitializeClassesWithoutClinit(ClassLoader* class_loader,
                                               const std::vector<const DexFile*>& dex_files) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
@@ -1209,7 +1209,7 @@ void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader,
   }
 }
 
-void Compiler::InitializeClassesWithoutClinit(const ClassLoader* class_loader, const DexFile& dex_file) {
+void Compiler::InitializeClassesWithoutClinit(ClassLoader* class_loader, const DexFile& dex_file) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs(); class_def_index++) {
     const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
@@ -1390,7 +1390,7 @@ void ForClassesInAllDexFiles(CompilationContext* worker_context,
   STLDeleteElements(&threads);
 }
 
-void Compiler::Compile(const ClassLoader* class_loader,
+void Compiler::Compile(ClassLoader* class_loader,
                        const std::vector<const DexFile*>& dex_files) {
 #if defined(ART_USE_LLVM_COMPILER)
   if (dex_files.size() <= 0) {
@@ -1465,7 +1465,7 @@ void Compiler::CompileClass(CompilationContext* context, size_t class_def_index)
   DCHECK(!it.HasNext());
 }
 
-void Compiler::CompileDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
+void Compiler::CompileDexFile(ClassLoader* class_loader, const DexFile& dex_file) {
   CompilationContext context(NULL, class_loader, this, NULL, &dex_file);
   ForAll(&context, 0, dex_file.NumClassDefs(), Compiler::CompileClass, thread_count_);
 }
@@ -1605,7 +1605,7 @@ CompiledMethod* Compiler::GetCompiledMethod(MethodReference ref) const {
   return it->second;
 }
 
-void Compiler::SetGcMaps(const ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files) {
+void Compiler::SetGcMaps(ClassLoader* class_loader, const std::vector<const DexFile*>& dex_files) {
   for (size_t i = 0; i != dex_files.size(); ++i) {
     const DexFile* dex_file = dex_files[i];
     CHECK(dex_file != NULL);
@@ -1613,7 +1613,7 @@ void Compiler::SetGcMaps(const ClassLoader* class_loader, const std::vector<cons
   }
 }
 
-void Compiler::SetGcMapsDexFile(const ClassLoader* class_loader, const DexFile& dex_file) {
+void Compiler::SetGcMapsDexFile(ClassLoader* class_loader, const DexFile& dex_file) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(dex_file);
   for (size_t class_def_index = 0; class_def_index < dex_file.NumClassDefs(); class_def_index++) {

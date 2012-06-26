@@ -18,6 +18,7 @@
 #include "object_utils.h"
 #include "reflection.h"
 #include "runtime_support.h"
+#include "scoped_jni_thread_state.h"
 #include "thread.h"
 #include "well_known_classes.h"
 
@@ -50,10 +51,11 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
   DCHECK_EQ(proxy_method->GetFrameSizeInBytes(), FRAME_SIZE_IN_BYTES);
   // Start new JNI local reference state
   JNIEnvExt* env = self->GetJniEnv();
+  ScopedJniThreadState ts(env);
   ScopedJniEnvLocalRefState env_state(env);
   // Create local ref. copies of proxy method and the receiver
-  jobject rcvr_jobj = AddLocalReference<jobject>(env, receiver);
-  jobject proxy_method_jobj = AddLocalReference<jobject>(env, proxy_method);
+  jobject rcvr_jobj = ts.AddLocalReference<jobject>(receiver);
+  jobject proxy_method_jobj = ts.AddLocalReference<jobject>(proxy_method);
 
   // Placing into local references incoming arguments from the caller's register arguments,
   // replacing original Object* with jobject
@@ -72,7 +74,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
   while (cur_arg < args_in_regs && param_index < num_params) {
     if (proxy_mh.IsParamAReference(param_index)) {
       Object* obj = *reinterpret_cast<Object**>(stack_args + (cur_arg * kPointerSize));
-      jobject jobj = AddLocalReference<jobject>(env, obj);
+      jobject jobj = ts.AddLocalReference<jobject>(obj);
       *reinterpret_cast<jobject*>(stack_args + (cur_arg * kPointerSize)) = jobj;
     }
     cur_arg = cur_arg + (proxy_mh.IsParamALongOrDouble(param_index) ? 2 : 1);
@@ -83,7 +85,7 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
   while (param_index < num_params) {
     if (proxy_mh.IsParamAReference(param_index)) {
       Object* obj = *reinterpret_cast<Object**>(stack_args + (cur_arg * kPointerSize));
-      jobject jobj = AddLocalReference<jobject>(env, obj);
+      jobject jobj = ts.AddLocalReference<jobject>(obj);
       *reinterpret_cast<jobject*>(stack_args + (cur_arg * kPointerSize)) = jobj;
     }
     cur_arg = cur_arg + (proxy_mh.IsParamALongOrDouble(param_index) ? 2 : 1);
@@ -102,13 +104,13 @@ extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
       CHECK(self->IsExceptionPending());
       return;
     }
-    args_jobj[2].l = AddLocalReference<jobjectArray>(env, args);
+    args_jobj[2].l = ts.AddLocalReference<jobjectArray>(args);
   }
   // Convert proxy method into expected interface method
   Method* interface_method = proxy_method->FindOverriddenMethod();
   DCHECK(interface_method != NULL);
   DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
-  args_jobj[1].l = AddLocalReference<jobject>(env, interface_method);
+  args_jobj[1].l = ts.AddLocalReference<jobject>(interface_method);
   // Box arguments
   cur_arg = 0;  // reset stack location to read to start
   // reset index, will index into param type array which doesn't include the receiver

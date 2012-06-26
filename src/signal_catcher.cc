@@ -180,7 +180,7 @@ void* SignalCatcher::Run(void* arg) {
   CHECK(signal_catcher != NULL);
 
   Runtime* runtime = Runtime::Current();
-  runtime->AttachCurrentThread("Signal Catcher", true, Thread::GetSystemThreadGroup());
+  runtime->AttachCurrentThread("Signal Catcher", true, runtime->GetSystemThreadGroup());
 
   Thread* self = Thread::Current();
   self->SetState(kRunnable);

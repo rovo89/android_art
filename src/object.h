@@ -1513,7 +1513,7 @@ class MANAGED Class : public StaticStorageBase {
 
   ClassLoader* GetClassLoader() const;
 
-  void SetClassLoader(const ClassLoader* new_cl);
+  void SetClassLoader(ClassLoader* new_cl);
 
   static MemberOffset DexCacheOffset() {
     return MemberOffset(OFFSETOF_MEMBER(Class, dex_cache_));

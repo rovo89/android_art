@@ -74,7 +74,7 @@ class OatWriter {
  public:
   // Write an oat file. Returns true on success, false on failure.
   static bool Create(File* file,
-                     const ClassLoader* class_loader,
+                     ClassLoader* class_loader,
                      const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_checksum,
                      const std::string& image_file_location,
@@ -84,7 +84,7 @@ class OatWriter {
   OatWriter(const std::vector<const DexFile*>& dex_files,
             uint32_t image_file_location_checksum,
             const std::string& image_file_location,
-            const ClassLoader* class_loader,
+            ClassLoader* class_loader,
             const Compiler& compiler);
   ~OatWriter();
 
@@ -177,7 +177,7 @@ class OatWriter {
   const Compiler* compiler_;
 
   // TODO: remove the ClassLoader when the code storage moves out of Method
-  const ClassLoader* class_loader_;
+  ClassLoader* class_loader_;
 
   // note OatFile does not take ownership of the DexFiles
   const std::vector<const DexFile*>* dex_files_;

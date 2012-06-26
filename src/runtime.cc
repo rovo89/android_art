@@ -36,6 +36,7 @@
 #include "monitor.h"
 #include "oat_file.h"
 #include "scoped_heap_lock.h"
+#include "scoped_jni_thread_state.h"
 #include "ScopedLocalRef.h"
 #include "signal_catcher.h"
 #include "signal_set.h"
@@ -80,7 +81,9 @@ Runtime::Runtime()
       method_trace_(0),
       method_trace_file_size_(0),
       tracer_(NULL),
-      use_compile_time_class_path_(false) {
+      use_compile_time_class_path_(false),
+      main_thread_group_(NULL),
+      system_thread_group_(NULL) {
   for (int i = 0; i < Runtime::kLastTrampolineMethodType; i++) {
     resolution_stub_array_[i] = NULL;
   }
@@ -534,33 +537,33 @@ Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
   return instance_;
 }
 
-void CreateSystemClassLoader() {
+static void CreateSystemClassLoader() {
   if (Runtime::Current()->UseCompileTimeClassPath()) {
     return;
   }
 
-  Thread* self = Thread::Current();
+  ScopedJniThreadState ts(Thread::Current());
 
-  // Must be in the kNative state for calling native methods.
-  CHECK_EQ(self->GetState(), kNative);
+  Class* class_loader_class = ts.Decode<Class*>(WellKnownClasses::java_lang_ClassLoader);
+  CHECK(Runtime::Current()->GetClassLinker()->EnsureInitialized(class_loader_class, true, true));
 
-  JNIEnv* env = self->GetJniEnv();
-  jmethodID getSystemClassLoader = env->GetStaticMethodID(WellKnownClasses::java_lang_ClassLoader,
-                                                          "getSystemClassLoader",
-                                                          "()Ljava/lang/ClassLoader;");
+  Method* getSystemClassLoader = class_loader_class->FindDirectMethod("getSystemClassLoader", "()Ljava/lang/ClassLoader;");
   CHECK(getSystemClassLoader != NULL);
-  ScopedLocalRef<jobject> class_loader(env, env->CallStaticObjectMethod(WellKnownClasses::java_lang_ClassLoader,
-                                                                        getSystemClassLoader));
-  CHECK(class_loader.get() != NULL);
 
-  Thread::Current()->SetClassLoaderOverride(Decode<ClassLoader*>(env, class_loader.get()));
+  ClassLoader* class_loader =
+    down_cast<ClassLoader*>(InvokeWithJValues(ts, NULL, getSystemClassLoader, NULL).GetL());
+  CHECK(class_loader != NULL);
 
-  jfieldID contextClassLoader = env->GetFieldID(WellKnownClasses::java_lang_Thread,
-                                                "contextClassLoader",
-                                                "Ljava/lang/ClassLoader;");
+  ts.Self()->SetClassLoaderOverride(class_loader);
+
+  Class* thread_class = ts.Decode<Class*>(WellKnownClasses::java_lang_Thread);
+  CHECK(Runtime::Current()->GetClassLinker()->EnsureInitialized(thread_class, true, true));
+
+  Field* contextClassLoader = thread_class->FindDeclaredInstanceField("contextClassLoader",
+                                                                      "Ljava/lang/ClassLoader;");
   CHECK(contextClassLoader != NULL);
-  ScopedLocalRef<jobject> self_jobject(env, AddLocalReference<jobject>(env, self->GetPeer()));
-  env->SetObjectField(self_jobject.get(), contextClassLoader, class_loader.get());
+
+  contextClassLoader->SetObject(ts.Self()->GetPeer(), class_loader);
 }
 
 void Runtime::Start() {
@@ -586,6 +589,9 @@ void Runtime::Start() {
   // InitNativeMethods needs to be after started_ so that the classes
   // it touches will have methods linked to the oat file if necessary.
   InitNativeMethods();
+
+  // Initialize well known thread group values that may be accessed threads while attaching.
+  InitThreadGroups(self);
 
   Thread::FinishStartup();
 
@@ -739,6 +745,17 @@ void Runtime::InitNativeMethods() {
   VLOG(startup) << "Runtime::InitNativeMethods exiting";
 }
 
+void Runtime::InitThreadGroups(Thread* self) {
+  JNIEnvExt* env = self->GetJniEnv();
+  ScopedJniEnvLocalRefState env_state(env);
+  main_thread_group_ =
+      env->NewGlobalRef(env->GetStaticObjectField(WellKnownClasses::java_lang_ThreadGroup,
+                                                  WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup));
+  system_thread_group_ =
+      env->NewGlobalRef(env->GetStaticObjectField(WellKnownClasses::java_lang_ThreadGroup,
+                                                  WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup));
+}
+
 void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
 #define REGISTER(FN) extern void FN(JNIEnv*); FN(env)
   // Register Throwable first so that registration of other native methods can throw exceptions
@@ -850,7 +867,7 @@ void Runtime::BlockSignals() {
   signals.Block();
 }
 
-void Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, Object* thread_group) {
+void Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group) {
   Thread::Attach(thread_name, as_daemon, thread_group);
   if (thread_name == NULL) {
     LOG(WARNING) << *Thread::Current() << " attached without supplying a name";

@@ -94,11 +94,11 @@ class PACKED Thread {
 
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
-  static void CreateNativeThread(Object* peer, size_t stack_size);
+  static void CreateNativeThread(JNIEnv* env, jobject peer, size_t stack_size);
 
   // Attaches the calling native thread to the runtime, returning the new native peer.
   // Used to implement JNI AttachCurrentThread and AttachCurrentThreadAsDaemon calls.
-  static Thread* Attach(const char* thread_name, bool as_daemon, Object* thread_group);
+  static Thread* Attach(const char* thread_name, bool as_daemon, jobject thread_group);
 
   // Reset internal state of child thread after fork.
   void InitAfterFork();
@@ -110,8 +110,8 @@ class PACKED Thread {
     return reinterpret_cast<Thread*>(thread);
   }
 
-  static Thread* FromManagedThread(Object* thread_peer);
-  static Thread* FromManagedThread(JNIEnv* env, jobject thread);
+  static Thread* FromManagedThread(const ScopedJniThreadState& ts, Object* thread_peer);
+  static Thread* FromManagedThread(const ScopedJniThreadState& ts, jobject thread);
 
   // Translates 172 to pAllocArrayFromCode and so on.
   static void DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_pointers);
@@ -179,11 +179,6 @@ class PACKED Thread {
    */
   static int GetNativePriority();
 
-  // Returns the "main" ThreadGroup, used when attaching user threads.
-  static Object* GetMainThreadGroup();
-  // Returns the "system" ThreadGroup, used when attaching our internal threads.
-  static Object* GetSystemThreadGroup();
-
   uint32_t GetThinLockId() const {
     return thin_lock_id_;
   }
@@ -193,7 +188,7 @@ class PACKED Thread {
   }
 
   // Returns the java.lang.Thread's name, or NULL if this Thread* doesn't have a peer.
-  String* GetThreadName() const;
+  String* GetThreadName(const ScopedJniThreadState& ts) const;
 
   // Sets 'name' to the java.lang.Thread's name. This requires no transition to managed code,
   // allocation, or locking.
@@ -206,7 +201,7 @@ class PACKED Thread {
     return peer_;
   }
 
-  Object* GetThreadGroup() const;
+  Object* GetThreadGroup(const ScopedJniThreadState& ts) const;
 
   RuntimeStats* GetStats() {
     return &stats_;
@@ -322,19 +317,19 @@ class PACKED Thread {
     NotifyLocked();
   }
 
-  const ClassLoader* GetClassLoaderOverride() {
+  ClassLoader* GetClassLoaderOverride() {
     // TODO: need to place the class_loader_override_ in a handle
     // DCHECK(CanAccessDirectReferences());
     return class_loader_override_;
   }
 
-  void SetClassLoaderOverride(const ClassLoader* class_loader_override) {
+  void SetClassLoaderOverride(ClassLoader* class_loader_override) {
     class_loader_override_ = class_loader_override;
   }
 
   // Create the internal representation of a stack trace, that is more time
   // and space efficient to compute than the StackTraceElement[]
-  jobject CreateInternalStackTrace(JNIEnv* env) const;
+  jobject CreateInternalStackTrace(const ScopedJniThreadState& ts) const;
 
   // Convert an internal stack trace representation (returned by CreateInternalStackTrace) to a
   // StackTraceElement[]. If output_array is NULL, a new array is created, otherwise as many
@@ -504,7 +499,7 @@ class PACKED Thread {
   void Destroy();
   friend class ThreadList;  // For ~Thread and Destroy.
 
-  void CreatePeer(const char* name, bool as_daemon, Object* thread_group);
+  void CreatePeer(const char* name, bool as_daemon, jobject thread_group);
   friend class Runtime; // For CreatePeer.
 
   void DumpState(std::ostream& os) const;
@@ -516,8 +511,8 @@ class PACKED Thread {
 
   static void* CreateCallback(void* arg);
 
-  void HandleUncaughtExceptions();
-  void RemoveFromThreadGroup();
+  void HandleUncaughtExceptions(const ScopedJniThreadState& ts);
+  void RemoveFromThreadGroup(const ScopedJniThreadState& ts);
 
   void Init();
   void InitCardTable();
@@ -609,7 +604,7 @@ class PACKED Thread {
 
   // Needed to get the right ClassLoader in JNI_OnLoad, but also
   // useful for testing.
-  const ClassLoader* class_loader_override_;
+  ClassLoader* class_loader_override_;
 
   // Thread local, lazily allocated, long jump context. Used to deliver exceptions.
   Context* long_jump_context_;

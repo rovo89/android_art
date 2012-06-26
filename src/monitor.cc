@@ -28,6 +28,7 @@
 #include "mutex.h"
 #include "object.h"
 #include "object_utils.h"
+#include "scoped_jni_thread_state.h"
 #include "scoped_thread_list_lock.h"
 #include "stl_util.h"
 #include "thread.h"
@@ -825,15 +826,17 @@ uint32_t Monitor::GetThinLockId(uint32_t raw_lock_word) {
 }
 
 static uint32_t LockOwnerFromThreadLock(Object* thread_lock) {
-  if (thread_lock == NULL || thread_lock->GetClass() != WellKnownClasses::ToClass(WellKnownClasses::java_lang_ThreadLock)) {
+  ScopedJniThreadState ts(Thread::Current());
+  if (thread_lock == NULL ||
+      thread_lock->GetClass() != ts.Decode<Class*>(WellKnownClasses::java_lang_ThreadLock)) {
     return ThreadList::kInvalidId;
   }
-  Field* thread_field = DecodeField(WellKnownClasses::java_lang_ThreadLock_thread);
+  Field* thread_field = ts.DecodeField(WellKnownClasses::java_lang_ThreadLock_thread);
   Object* managed_thread = thread_field->GetObject(thread_lock);
   if (managed_thread == NULL) {
     return ThreadList::kInvalidId;
   }
-  Field* vmData_field = DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+  Field* vmData_field = ts.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
   uintptr_t vmData = static_cast<uintptr_t>(vmData_field->GetInt(managed_thread));
   Thread* thread = reinterpret_cast<Thread*>(vmData);
   if (thread == NULL) {

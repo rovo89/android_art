@@ -18,6 +18,7 @@
 #include "jni_internal.h"
 #include "logging.h"
 #include "scoped_heap_lock.h"
+#include "scoped_jni_thread_state.h"
 #include "scoped_thread_list_lock.h"
 #include "ScopedPrimitiveArray.h"
 #include "stack.h"
@@ -68,7 +69,8 @@ static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint th
   if (thread == NULL) {
     return NULL;
   }
-  jobject stack = GetThreadStack(env, thread);
+  ScopedJniThreadState ts(env);
+  jobject stack = GetThreadStack(ts, thread);
   return (stack != NULL) ? Thread::InternalStackTraceToStackTraceElementArray(env, stack) : NULL;
 }
 

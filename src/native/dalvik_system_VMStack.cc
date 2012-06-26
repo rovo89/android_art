@@ -26,10 +26,11 @@
 namespace art {
 
 static jobject GetThreadStack(JNIEnv* env, jobject javaThread) {
+  ScopedJniThreadState ts(env);
   ScopedHeapLock heap_lock;
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, javaThread);
-  return (thread != NULL) ? GetThreadStack(env, thread) : NULL;
+  Thread* thread = Thread::FromManagedThread(ts, javaThread);
+  return (thread != NULL) ? GetThreadStack(ts, thread) : NULL;
 }
 
 static jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThread, jobjectArray javaSteArray) {
@@ -44,10 +45,10 @@ static jint VMStack_fillStackTraceElements(JNIEnv* env, jclass, jobject javaThre
 
 // Returns the defining class loader of the caller's caller.
 static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
-  ScopedJniThreadState ts(env, kNative);  // Not a state change out of native.
+  ScopedJniThreadState ts(env);
   NthCallerVisitor visitor(ts.Self()->GetManagedStack(), ts.Self()->GetTraceStack(), 2);
   visitor.WalkStack();
-  return AddLocalReference<jobject>(env, visitor.caller->GetDeclaringClass()->GetClassLoader());
+  return ts.AddLocalReference<jobject>(visitor.caller->GetDeclaringClass()->GetClassLoader());
 }
 
 static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap, jobject javaSystem) {
@@ -72,20 +73,20 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject ja
     Object* class_loader;
   };
   ScopedJniThreadState ts(env);
-  Object* bootstrap = Decode<Object*>(env, javaBootstrap);
-  Object* system = Decode<Object*>(env, javaSystem);
+  Object* bootstrap = ts.Decode<Object*>(javaBootstrap);
+  Object* system = ts.Decode<Object*>(javaSystem);
   ClosestUserClassLoaderVisitor visitor(ts.Self()->GetManagedStack(), ts.Self()->GetTraceStack(),
                                         bootstrap, system);
   visitor.WalkStack();
-  return AddLocalReference<jobject>(env, visitor.class_loader);
+  return ts.AddLocalReference<jobject>(visitor.class_loader);
 }
 
 // Returns the class of the caller's caller's caller.
 static jclass VMStack_getStackClass2(JNIEnv* env, jclass) {
-  ScopedJniThreadState ts(env, kNative);  // Not a state change out of native.
+  ScopedJniThreadState ts(env);
   NthCallerVisitor visitor(ts.Self()->GetManagedStack(), ts.Self()->GetTraceStack(), 3);
   visitor.WalkStack();
-  return AddLocalReference<jclass>(env, visitor.caller->GetDeclaringClass());
+  return ts.AddLocalReference<jclass>(visitor.caller->GetDeclaringClass());
 }
 
 static jobjectArray VMStack_getThreadStackTrace(JNIEnv* env, jclass, jobject javaThread) {

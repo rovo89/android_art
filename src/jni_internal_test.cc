@@ -20,6 +20,7 @@
 
 #include "common_test.h"
 #include "ScopedLocalRef.h"
+#include "scoped_jni_thread_state.h"
 
 namespace art {
 
@@ -1245,6 +1246,7 @@ TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
 
   jobject outer;
   jobject inner1, inner2;
+  ScopedJniThreadState ts(env_);
   Object* inner2_direct_pointer;
   {
     env_->PushLocalFrame(4);
@@ -1254,7 +1256,7 @@ TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
       env_->PushLocalFrame(4);
       inner1 = env_->NewLocalRef(outer);
       inner2 = env_->NewStringUTF("survivor");
-      inner2_direct_pointer = Decode<Object*>(env_, inner2);
+      inner2_direct_pointer = ts.Decode<Object*>(inner2);
       env_->PopLocalFrame(inner2);
     }
 

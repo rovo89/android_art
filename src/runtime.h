@@ -136,8 +136,18 @@ class Runtime {
   // that the native stack trace we get may point at the wrong call site.
   static void Abort();
 
+  // Returns the "main" ThreadGroup, used when attaching user threads.
+  jobject GetMainThreadGroup() const {
+    return main_thread_group_;
+  }
+
+  // Returns the "system" ThreadGroup, used when attaching our internal threads.
+  jobject GetSystemThreadGroup() const {
+    return system_thread_group_;
+  }
+
   // Attaches the calling native thread to the runtime.
-  void AttachCurrentThread(const char* thread_name, bool as_daemon, Object* thread_group);
+  void AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group);
 
   void CallExitHook(jint status);
 
@@ -323,6 +333,7 @@ class Runtime {
 
   bool Init(const Options& options, bool ignore_unrecognized);
   void InitNativeMethods();
+  void InitThreadGroups(Thread* self);
   void RegisterRuntimeNativeMethods(JNIEnv* env);
 
   void StartDaemonThreads();
@@ -408,6 +419,9 @@ class Runtime {
   typedef SafeMap<const ClassLoader*, std::vector<const DexFile*> > CompileTimeClassPaths;
   CompileTimeClassPaths compile_time_class_paths_;
   bool use_compile_time_class_path_;
+
+  jobject main_thread_group_;
+  jobject system_thread_group_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

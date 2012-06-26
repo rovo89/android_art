@@ -15,14 +15,17 @@
  */
 
 #include "class_linker.h"
+#include "class_loader.h"
 #include "jni_internal.h"
+#include "scoped_jni_thread_state.h"
 #include "ScopedUtfChars.h"
 #include "zip_archive.h"
 
 namespace art {
 
 static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader, jstring javaName) {
-  ClassLoader* loader = Decode<ClassLoader*>(env, javaLoader);
+  ScopedJniThreadState ts(env);
+  ClassLoader* loader = ts.Decode<ClassLoader*>(javaLoader);
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == NULL) {
     return NULL;
@@ -31,7 +34,7 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   std::string descriptor(DotToDescriptor(name.c_str()));
   Class* c = Runtime::Current()->GetClassLinker()->LookupClass(descriptor.c_str(), loader);
   if (c != NULL && c->IsResolved()) {
-    return AddLocalReference<jclass>(env, c);
+    return ts.AddLocalReference<jclass>(c);
   } else {
     // Class wasn't resolved so it may be erroneous or not yet ready, force the caller to go into
     // the regular loadClass code.

@@ -31,9 +31,10 @@ namespace art {
 class Method;
 class Object;
 class ShadowFrame;
+class ScopedJniThreadState;
 class Thread;
 
-jobject GetThreadStack(JNIEnv*, Thread*);
+jobject GetThreadStack(const ScopedJniThreadState&, Thread*);
 
 class ShadowFrame {
  public:

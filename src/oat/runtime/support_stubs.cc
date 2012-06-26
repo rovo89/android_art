@@ -23,6 +23,7 @@
 #if defined(ART_USE_LLVM_COMPILER)
 #include "nth_caller_visitor.h"
 #endif
+#include "scoped_jni_thread_state.h"
 
 // Architecture specific assembler helper to deliver exception.
 extern "C" void art_deliver_exception_from_code(void*);
@@ -81,6 +82,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsAndArgs);
   // Start new JNI local reference state
   JNIEnvExt* env = thread->GetJniEnv();
+  ScopedJniThreadState ts(env);
   ScopedJniEnvLocalRefState env_state(env);
 
   // Compute details about the called method (avoid GCs)
@@ -145,7 +147,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
       // If we thought we had fewer than 3 arguments in registers, account for the receiver
       args_in_regs++;
     }
-    AddLocalReference<jobject>(env, obj);
+    ts.AddLocalReference<jobject>(obj);
   }
   size_t shorty_index = 1;  // skip return value
   // Iterate while arguments and arguments in registers (less 1 from cur_arg which is offset to skip
@@ -155,7 +157,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
     shorty_index++;
     if (c == 'L') {
       Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
-      AddLocalReference<jobject>(env, obj);
+      ts.AddLocalReference<jobject>(obj);
     }
     cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
   }
@@ -166,7 +168,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
     shorty_index++;
     if (c == 'L') {
       Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
-      AddLocalReference<jobject>(env, obj);
+      ts.AddLocalReference<jobject>(obj);
     }
     cur_arg = cur_arg + (c == 'J' || c == 'D' ? 2 : 1);
   }

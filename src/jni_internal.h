@@ -43,6 +43,7 @@ class Field;
 union JValue;
 class Libraries;
 class Method;
+class ScopedJniThreadState;
 class Thread;
 
 void SetJniGlobalsMax(size_t max);
@@ -50,42 +51,9 @@ void JniAbortF(const char* jni_function_name, const char* fmt, ...);
 void* FindNativeMethod(Thread* thread);
 void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINativeMethod* methods, size_t method_count);
 
-template<typename T> T Decode(JNIEnv*, jobject);
-template<typename T> T AddLocalReference(JNIEnv*, const Object*);
-
-inline Field* DecodeField(jfieldID fid) {
-#ifdef MOVING_GARBAGE_COLLECTOR
-  // TODO: we should make these unique weak globals if Field instances can ever move.
-  UNIMPLEMENTED(WARNING);
-#endif
-  return reinterpret_cast<Field*>(fid);
-}
-
-inline jfieldID EncodeField(Field* field) {
-#ifdef MOVING_GARBAGE_COLLECTOR
-  UNIMPLEMENTED(WARNING);
-#endif
-  return reinterpret_cast<jfieldID>(field);
-}
-
-inline Method* DecodeMethod(jmethodID mid) {
-#ifdef MOVING_GARBAGE_COLLECTOR
-  // TODO: we should make these unique weak globals if Method instances can ever move.
-  UNIMPLEMENTED(WARNING);
-#endif
-  return reinterpret_cast<Method*>(mid);
-}
-
-inline jmethodID EncodeMethod(Method* method) {
-#ifdef MOVING_GARBAGE_COLLECTOR
-  UNIMPLEMENTED(WARNING);
-#endif
-  return reinterpret_cast<jmethodID>(method);
-}
-
 size_t NumArgArrayBytes(const char* shorty, uint32_t shorty_len);
-JValue InvokeWithJValues(JNIEnv* env, jobject obj, jmethodID mid, jvalue* args);
-JValue InvokeWithJValues(Thread* self, Object* receiver, Method* m, JValue* args);
+JValue InvokeWithJValues(const ScopedJniThreadState&, jobject obj, jmethodID mid, jvalue* args);
+JValue InvokeWithJValues(const ScopedJniThreadState&, Object* receiver, Method* m, JValue* args);
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause);
 

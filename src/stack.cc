@@ -26,7 +26,8 @@ namespace art {
 
 class StackGetter {
  public:
-  StackGetter(JNIEnv* env, Thread* thread) : env_(env), thread_(thread), trace_(NULL) {
+  StackGetter(const ScopedJniThreadState& ts, Thread* thread)
+    : ts_(ts), thread_(thread), trace_(NULL) {
   }
 
   static void Callback(void* arg) {
@@ -39,17 +40,17 @@ class StackGetter {
 
  private:
   void Callback() {
-    trace_ = thread_->CreateInternalStackTrace(env_);
+    trace_ = thread_->CreateInternalStackTrace(ts_);
   }
 
-  JNIEnv* env_;
-  Thread* thread_;
+  const ScopedJniThreadState& ts_;
+  Thread* const thread_;
   jobject trace_;
 };
 
-jobject GetThreadStack(JNIEnv* env, Thread* thread) {
+jobject GetThreadStack(const ScopedJniThreadState& ts, Thread* thread) {
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
-  StackGetter stack_getter(env, thread);
+  StackGetter stack_getter(ts, thread);
   thread_list->RunWhileSuspended(thread, StackGetter::Callback, &stack_getter);
   return stack_getter.GetTrace();
 }

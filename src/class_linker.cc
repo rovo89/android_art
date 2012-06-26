@@ -45,6 +45,7 @@
 #if defined(ART_USE_LLVM_COMPILER)
 #include "compiler_llvm/runtime_support_llvm.h"
 #endif
+#include "scoped_jni_thread_state.h"
 #include "ScopedLocalRef.h"
 #include "space.h"
 #include "stack_indirect_reference_table.h"
@@ -1116,7 +1117,7 @@ Class* ClassLinker::FindSystemClass(const char* descriptor) {
   return FindClass(descriptor, NULL);
 }
 
-Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_loader) {
+Class* ClassLinker::FindClass(const char* descriptor, ClassLoader* class_loader) {
   DCHECK_NE(*descriptor, '\0') << "descriptor is empty string";
   Thread* self = Thread::Current();
   DCHECK(self != NULL);
@@ -1159,19 +1160,24 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
     }
 
   } else {
+    ScopedJniThreadState ts(self->GetJniEnv());
+    ScopedLocalRef<jobject> class_loader_object(ts.Env(),
+                                                ts.AddLocalReference<jobject>(class_loader));
     std::string class_name_string(DescriptorToDot(descriptor));
-    ScopedThreadStateChange tsc(self, kNative);
-    JNIEnv* env = self->GetJniEnv();
-    ScopedLocalRef<jobject> class_name_object(env, env->NewStringUTF(class_name_string.c_str()));
-    if (class_name_object.get() == NULL) {
-      return NULL;
+    ScopedLocalRef<jobject> result(ts.Env(), NULL);
+    {
+      ScopedThreadStateChange tsc(self, kNative);
+      ScopedLocalRef<jobject> class_name_object(ts.Env(),
+                                                ts.Env()->NewStringUTF(class_name_string.c_str()));
+      if (class_name_object.get() == NULL) {
+        return NULL;
+      }
+      CHECK(class_loader_object.get() != NULL);
+      result.reset(ts.Env()->CallObjectMethod(class_loader_object.get(),
+                                              WellKnownClasses::java_lang_ClassLoader_loadClass,
+                                              class_name_object.get()));
     }
-    ScopedLocalRef<jobject> class_loader_object(env, AddLocalReference<jobject>(env, class_loader));
-    CHECK(class_loader_object.get() != NULL);
-    ScopedLocalRef<jobject> result(env, env->CallObjectMethod(class_loader_object.get(),
-                                                              WellKnownClasses::java_lang_ClassLoader_loadClass,
-                                                              class_name_object.get()));
-    if (env->ExceptionCheck()) {
+    if (ts.Env()->ExceptionCheck()) {
       // If the ClassLoader threw, pass that exception up.
       return NULL;
     } else if (result.get() == NULL) {
@@ -1181,7 +1187,7 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
       return NULL;
     } else {
       // success, return Class*
-      return Decode<Class*>(env, result.get());
+      return ts.Decode<Class*>(result.get());
     }
   }
 
@@ -1190,7 +1196,7 @@ Class* ClassLinker::FindClass(const char* descriptor, const ClassLoader* class_l
 }
 
 Class* ClassLinker::DefineClass(const StringPiece& descriptor,
-                                const ClassLoader* class_loader,
+                                ClassLoader* class_loader,
                                 const DexFile& dex_file,
                                 const DexFile::ClassDef& dex_class_def) {
   SirtRef<Class> klass(NULL);
@@ -1453,7 +1459,7 @@ static void LinkCode(SirtRef<Method>& method, const OatFile::OatClass* oat_class
 void ClassLinker::LoadClass(const DexFile& dex_file,
                             const DexFile::ClassDef& dex_class_def,
                             SirtRef<Class>& klass,
-                            const ClassLoader* class_loader) {
+                            ClassLoader* class_loader) {
   CHECK(klass.get() != NULL);
   CHECK(klass->GetDexCache() != NULL);
   CHECK_EQ(Class::kStatusNotReady, klass->GetStatus());
@@ -1707,7 +1713,7 @@ Class* ClassLinker::InitializePrimitiveClass(Class* primitive_class,
 // array class; that always comes from the base element class.
 //
 // Returns NULL with an exception raised on failure.
-Class* ClassLinker::CreateArrayClass(const std::string& descriptor, const ClassLoader* class_loader) {
+Class* ClassLinker::CreateArrayClass(const std::string& descriptor, ClassLoader* class_loader) {
   CHECK_EQ('[', descriptor[0]);
 
   // Identify the underlying component type
@@ -2657,7 +2663,7 @@ bool ClassLinker::EnsureInitialized(Class* c, bool can_run_clinit, bool can_init
 
 void ClassLinker::ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
                                     Class* c, SafeMap<uint32_t, Field*>& field_map) {
-  const ClassLoader* cl = c->GetClassLoader();
+  ClassLoader* cl = c->GetClassLoader();
   const byte* class_data = dex_file.GetClassData(dex_class_def);
   ClassDataItemIterator it(dex_file, class_data);
   for (size_t i = 0; it.HasNextStaticField(); i++, it.Next()) {
@@ -3342,7 +3348,7 @@ String* ClassLinker::ResolveString(const DexFile& dex_file,
 Class* ClassLinker::ResolveType(const DexFile& dex_file,
                                 uint16_t type_idx,
                                 DexCache* dex_cache,
-                                const ClassLoader* class_loader) {
+                                ClassLoader* class_loader) {
   DCHECK(dex_cache != NULL);
   Class* resolved = dex_cache->GetResolvedType(type_idx);
   if (resolved == NULL) {
@@ -3369,7 +3375,7 @@ Class* ClassLinker::ResolveType(const DexFile& dex_file,
 Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
                                    uint32_t method_idx,
                                    DexCache* dex_cache,
-                                   const ClassLoader* class_loader,
+                                   ClassLoader* class_loader,
                                    bool is_direct) {
   DCHECK(dex_cache != NULL);
   Method* resolved = dex_cache->GetResolvedMethod(method_idx);
@@ -3419,7 +3425,7 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
 Field* ClassLinker::ResolveField(const DexFile& dex_file,
                                  uint32_t field_idx,
                                  DexCache* dex_cache,
-                                 const ClassLoader* class_loader,
+                                 ClassLoader* class_loader,
                                  bool is_static) {
   DCHECK(dex_cache != NULL);
   Field* resolved = dex_cache->GetResolvedField(field_idx);
@@ -3459,7 +3465,7 @@ Field* ClassLinker::ResolveField(const DexFile& dex_file,
 Field* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
                                     uint32_t field_idx,
                                     DexCache* dex_cache,
-                                    const ClassLoader* class_loader) {
+                                    ClassLoader* class_loader) {
   DCHECK(dex_cache != NULL);
   Field* resolved = dex_cache->GetResolvedField(field_idx);
   if (resolved != NULL) {

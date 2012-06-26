@@ -31,13 +31,13 @@ namespace art {
 
 class CompilerTest : public CommonTest {
  protected:
-  void CompileAll(const ClassLoader* class_loader) {
+  void CompileAll(ClassLoader* class_loader) {
     compiler_->CompileAll(class_loader, Runtime::Current()->GetCompileTimeClassPath(class_loader));
     MakeAllExecutable(class_loader);
   }
 
-  void EnsureCompiled(const ClassLoader* class_loader,
-      const char* class_name, const char* method, const char* signature, bool is_virtual) {
+  void EnsureCompiled(ClassLoader* class_loader, const char* class_name, const char* method,
+                      const char* signature, bool is_virtual) {
     CompileAll(class_loader);
     runtime_->Start();
     env_ = Thread::Current()->GetJniEnv();
@@ -51,7 +51,7 @@ class CompilerTest : public CommonTest {
     CHECK(mid_ != NULL) << "Method not found: " << class_name << "." << method << signature;
   }
 
-  void MakeAllExecutable(const ClassLoader* class_loader) {
+  void MakeAllExecutable(ClassLoader* class_loader) {
     const std::vector<const DexFile*>& class_path
         = Runtime::Current()->GetCompileTimeClassPath(class_loader);
     for (size_t i = 0; i != class_path.size(); ++i) {
@@ -61,7 +61,7 @@ class CompilerTest : public CommonTest {
     }
   }
 
-  void MakeDexFileExecutable(const ClassLoader* class_loader, const DexFile& dex_file) {
+  void MakeDexFileExecutable(ClassLoader* class_loader, const DexFile& dex_file) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
       const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);

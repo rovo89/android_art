@@ -126,7 +126,7 @@ static void DexFile_closeDexFile(JNIEnv*, jclass, jint cookie) {
 
 static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
                                         jint cookie) {
-  ScopedJniThreadState tsc(env);
+  ScopedJniThreadState ts(env);
   const DexFile* dex_file = toDexFile(cookie);
   if (dex_file == NULL) {
     return NULL;
@@ -142,10 +142,10 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   class_linker->RegisterDexFile(*dex_file);
-  Object* class_loader_object = Decode<Object*>(env, javaLoader);
+  Object* class_loader_object = ts.Decode<Object*>(javaLoader);
   ClassLoader* class_loader = down_cast<ClassLoader*>(class_loader_object);
   Class* result = class_linker->DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
-  return AddLocalReference<jclass>(env, result);
+  return ts.AddLocalReference<jclass>(result);
 }
 
 static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
