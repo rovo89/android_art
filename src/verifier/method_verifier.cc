@@ -204,8 +204,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const Class* klass, std:
   return VerifyClass(&dex_file, kh.GetDexCache(), klass->GetClassLoader(), class_def_idx, error);
 }
 
-MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
-    const ClassLoader* class_loader, uint32_t class_def_idx, std::string& error) {
+MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
+    DexCache* dex_cache, ClassLoader* class_loader, uint32_t class_def_idx, std::string& error) {
   const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_idx);
   const byte* class_data = dex_file->GetClassData(class_def);
   if (class_data == NULL) {
@@ -277,7 +277,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
 }
 
 MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file,
-    DexCache* dex_cache, const ClassLoader* class_loader, uint32_t class_def_idx,
+    DexCache* dex_cache, ClassLoader* class_loader, uint32_t class_def_idx,
     const DexFile::CodeItem* code_item, Method* method, uint32_t method_access_flags) {
   MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item, method_idx,
                           method, method_access_flags);
@@ -317,7 +317,7 @@ void MethodVerifier::VerifyMethodAndDump(Method* method) {
 }
 
 MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
-    const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
+    ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
     uint32_t method_idx, Method* method, uint32_t method_access_flags)
     : work_insn_idx_(-1),
       method_idx_(method_idx),
@@ -2900,7 +2900,7 @@ void MethodVerifier::VerifyISGet(const DecodedInstruction& dec_insn,
     field = GetInstanceField(object_type, field_idx);
   }
   const char* descriptor;
-  const ClassLoader* loader;
+  ClassLoader* loader;
   if (field != NULL) {
     descriptor = FieldHelper(field).GetTypeDescriptor();
     loader = field->GetDeclaringClass()->GetClassLoader();
@@ -2949,7 +2949,7 @@ void MethodVerifier::VerifyISPut(const DecodedInstruction& dec_insn,
     field = GetInstanceField(object_type, field_idx);
   }
   const char* descriptor;
-  const ClassLoader* loader;
+  ClassLoader* loader;
   if (field != NULL) {
     descriptor = FieldHelper(field).GetTypeDescriptor();
     loader = field->GetDeclaringClass()->GetClassLoader();

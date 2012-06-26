@@ -83,11 +83,6 @@ static bool IsSirtLocalRef(JNIEnv* env, jobject localRef) {
       reinterpret_cast<JNIEnvExt*>(env)->self->SirtContains(localRef);
 }
 
-template<typename T>
-T Decode(ScopedJniThreadState& ts, jobject obj) {
-  return reinterpret_cast<T>(ts.Self()->DecodeJObject(obj));
-}
-
 // Hack to allow forcecopy to work with jniGetNonMovableArrayElements.
 // The code deliberately uses an invalid sequence of operations, so we
 // need to pass it through unmodified.  Review that code before making
@@ -151,14 +146,14 @@ static bool ShouldTrace(JavaVMExt* vm, const Method* method) {
 class ScopedCheck {
  public:
   // For JNIEnv* functions.
-  explicit ScopedCheck(JNIEnv* env, int flags, const char* functionName) {
-    Init(env, reinterpret_cast<JNIEnvExt*>(env)->vm, flags, functionName, true);
+  explicit ScopedCheck(JNIEnv* env, int flags, const char* functionName) : ts_(env) {
+    Init(flags, functionName, true);
     CheckThread(flags);
   }
 
   // For JavaVM* functions.
-  explicit ScopedCheck(JavaVM* vm, bool has_method, const char* functionName) {
-    Init(NULL, vm, kFlag_Invocation, functionName, has_method);
+  explicit ScopedCheck(JavaVM* vm, bool has_method, const char* functionName) : ts_(vm) {
+    Init(kFlag_Invocation, functionName, has_method);
   }
 
   bool ForceCopy() {
@@ -185,7 +180,6 @@ class ScopedCheck {
    * Works for both static and instance fields.
    */
   void CheckFieldType(jobject java_object, jfieldID fid, char prim, bool isStatic) {
-    ScopedJniThreadState ts(env_);
     Field* f = CheckFieldID(fid);
     if (f == NULL) {
       return;
@@ -193,7 +187,7 @@ class ScopedCheck {
     Class* field_type = FieldHelper(f).GetType();
     if (!field_type->IsPrimitive()) {
       if (java_object != NULL) {
-        Object* obj = Decode<Object*>(ts, java_object);
+        Object* obj = ts_.Decode<Object*>(java_object);
         // If java_object is a weak global ref whose referent has been cleared,
         // obj will be NULL.  Otherwise, obj should always be non-NULL
         // and valid.
@@ -231,9 +225,7 @@ class ScopedCheck {
    * Assumes "jobj" has already been validated.
    */
   void CheckInstanceFieldID(jobject java_object, jfieldID fid) {
-    ScopedJniThreadState ts(env_);
-
-    Object* o = Decode<Object*>(ts, java_object);
+    Object* o = ts_.Decode<Object*>(java_object);
     if (o == NULL || !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
       JniAbortF(function_name_, "field operation on invalid %s: %p",
                 ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(), java_object);
@@ -266,7 +258,6 @@ class ScopedCheck {
    * 'expectedType' will be "L" for all objects, including arrays.
    */
   void CheckSig(jmethodID mid, const char* expectedType, bool isStatic) {
-    ScopedJniThreadState ts(env_);
     Method* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
@@ -292,8 +283,7 @@ class ScopedCheck {
    * Assumes "java_class" has already been validated.
    */
   void CheckStaticFieldID(jclass java_class, jfieldID fid) {
-    ScopedJniThreadState ts(env_);
-    Class* c = Decode<Class*>(ts, java_class);
+    Class* c = ts_.Decode<Class*>(java_class);
     const Field* f = CheckFieldID(fid);
     if (f == NULL) {
       return;
@@ -314,12 +304,11 @@ class ScopedCheck {
    * Instances of "java_class" must be instances of the method's declaring class.
    */
   void CheckStaticMethod(jclass java_class, jmethodID mid) {
-    ScopedJniThreadState ts(env_);
     const Method* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
-    Class* c = Decode<Class*>(ts, java_class);
+    Class* c = ts_.Decode<Class*>(java_class);
     if (!c->IsAssignableFrom(m->GetDeclaringClass())) {
       JniAbortF(function_name_, "can't call static %s on class %s",
                 PrettyMethod(m).c_str(), PrettyClass(c).c_str());
@@ -334,12 +323,11 @@ class ScopedCheck {
    * will be handled automatically by the instanceof check.)
    */
   void CheckVirtualMethod(jobject java_object, jmethodID mid) {
-    ScopedJniThreadState ts(env_);
     const Method* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
-    Object* o = Decode<Object*>(ts, java_object);
+    Object* o = ts_.Decode<Object*>(java_object);
     if (!o->InstanceOf(m->GetDeclaringClass())) {
       JniAbortF(function_name_, "can't call %s on instance of %s",
                 PrettyMethod(m).c_str(), PrettyTypeOf(o).c_str());
@@ -386,7 +374,7 @@ class ScopedCheck {
     va_list ap;
 
     const Method* traceMethod = NULL;
-    if ((!vm_->trace.empty() || VLOG_IS_ON(third_party_jni)) && has_method_) {
+    if ((!ts_.Vm()->trace.empty() || VLOG_IS_ON(third_party_jni)) && has_method_) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
       Thread* self = Thread::Current();
@@ -395,7 +383,7 @@ class ScopedCheck {
       }
     }
 
-    if (((flags_ & kFlag_ForceTrace) != 0) || (traceMethod != NULL && ShouldTrace(vm_, traceMethod))) {
+    if (((flags_ & kFlag_ForceTrace) != 0) || (traceMethod != NULL && ShouldTrace(ts_.Vm(), traceMethod))) {
       va_start(ap, fmt0);
       std::string msg;
       for (const char* fmt = fmt0; *fmt;) {
@@ -610,8 +598,7 @@ class ScopedCheck {
       return false;
     }
 
-    ScopedJniThreadState ts(env_);
-    Object* obj = Decode<Object*>(ts, java_object);
+    Object* obj = ts_.Decode<Object*>(java_object);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(obj)) {
       JniAbortF(function_name_, "%s is an invalid %s: %p (%p)",
                 what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(), java_object, obj);
@@ -647,9 +634,7 @@ class ScopedCheck {
   // Set "has_method" to true if we have a valid thread with a method pointer.
   // We won't have one before attaching a thread, after detaching a thread, or
   // when shutting down the runtime.
-  void Init(JNIEnv* env, JavaVM* vm, int flags, const char* functionName, bool has_method) {
-    env_ = reinterpret_cast<JNIEnvExt*>(env);
-    vm_ = reinterpret_cast<JavaVMExt*>(vm);
+  void Init(int flags, const char* functionName, bool has_method) {
     flags_ = flags;
     function_name_ = functionName;
     has_method_ = has_method;
@@ -666,8 +651,7 @@ class ScopedCheck {
       return;
     }
 
-    ScopedJniThreadState ts(env_);
-    Array* a = Decode<Array*>(ts, java_array);
+    Array* a = ts_.Decode<Array*>(java_array);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(a)) {
       JniAbortF(function_name_, "jarray is an invalid %s: %p (%p)",
                 ToStr<IndirectRefKind>(GetIndirectRefKind(java_array)).c_str(), java_array, a);
@@ -687,8 +671,8 @@ class ScopedCheck {
       JniAbortF(function_name_, "jfieldID was NULL");
       return NULL;
     }
-    Field* f = DecodeField(fid);
-    if (!Runtime::Current()->GetHeap()->IsHeapAddress(f)) {
+    Field* f = ts_.DecodeField(fid);
+    if (!Runtime::Current()->GetHeap()->IsHeapAddress(f) || !f->IsField()) {
       JniAbortF(function_name_, "invalid jfieldID: %p", fid);
       return NULL;
     }
@@ -700,8 +684,8 @@ class ScopedCheck {
       JniAbortF(function_name_, "jmethodID was NULL");
       return NULL;
     }
-    Method* m = DecodeMethod(mid);
-    if (!Runtime::Current()->GetHeap()->IsHeapAddress(m)) {
+    Method* m = ts_.DecodeMethod(mid);
+    if (!Runtime::Current()->GetHeap()->IsHeapAddress(m) || !m->IsMethod()) {
       JniAbortF(function_name_, "invalid jmethodID: %p", mid);
       return NULL;
     }
@@ -719,9 +703,7 @@ class ScopedCheck {
       return;
     }
 
-    ScopedJniThreadState ts(env_);
-
-    Object* o = Decode<Object*>(ts, java_object);
+    Object* o = ts_.Decode<Object*>(java_object);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
       // TODO: when we remove work_around_app_jni_bugs, this should be impossible.
       JniAbortF(function_name_, "native code passing in reference to invalid %s: %p",
@@ -751,13 +733,13 @@ class ScopedCheck {
 
     // Verify that the current thread is (a) attached and (b) associated with
     // this particular instance of JNIEnv.
-    if (env_ != threadEnv) {
-      if (vm_->work_around_app_jni_bugs) {
+    if (ts_.Env() != threadEnv) {
+      if (ts_.Vm()->work_around_app_jni_bugs) {
         // If we're keeping broken code limping along, we need to suppress the abort...
-        LOG(ERROR) << "APP BUG DETECTED: thread " << *self << " using JNIEnv* from thread " << *env_->self;
+        LOG(ERROR) << "APP BUG DETECTED: thread " << *self << " using JNIEnv* from thread " << *ts_.Self();
       } else {
         JniAbortF(function_name_, "thread %s using JNIEnv* from thread %s",
-                  ToStr<Thread>(*self).c_str(), ToStr<Thread>(*env_->self).c_str());
+                  ToStr<Thread>(*self).c_str(), ToStr<Thread>(*ts_.Self()).c_str());
         return;
       }
     }
@@ -796,7 +778,7 @@ class ScopedCheck {
       // TODO: do we care any more? art always dumps pending exceptions on aborting threads.
       if (type != "java.lang.OutOfMemoryError") {
         JniAbortF(function_name_, "JNI %s called with pending exception: %s",
-                  function_name_, type.c_str(), jniGetStackTrace(env_).c_str());
+                  function_name_, type.c_str(), jniGetStackTrace(ts_.Env()).c_str());
       } else {
         JniAbortF(function_name_, "JNI %s called with %s pending", function_name_, type.c_str());
       }
@@ -873,8 +855,7 @@ class ScopedCheck {
     return 0;
   }
 
-  JNIEnvExt* env_;
-  JavaVMExt* vm_;
+  const ScopedJniThreadState ts_;
   const char* function_name_;
   int flags_;
   bool has_method_;
@@ -1072,7 +1053,7 @@ struct GuardedCopy {
 static void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean* isCopy) {
   ScopedJniThreadState ts(env);
 
-  Array* a = Decode<Array*>(ts, java_array);
+  Array* a = ts.Decode<Array*>(java_array);
   size_t component_size = a->GetClass()->GetComponentSize();
   size_t byte_count = a->GetLength() * component_size;
   void* result = GuardedCopy::Create(a->GetRawData(component_size), byte_count, true);
@@ -1092,7 +1073,7 @@ static void ReleaseGuardedPACopy(JNIEnv* env, jarray java_array, void* dataBuf, 
   }
 
   ScopedJniThreadState ts(env);
-  Array* a = Decode<Array*>(ts, java_array);
+  Array* a = ts.Decode<Array*>(java_array);
 
   GuardedCopy::Check(__FUNCTION__, dataBuf, true);
 
@@ -1481,7 +1462,7 @@ CALL(void, Void, , , VOID_RETURN, "V");
     const jchar* result = baseEnv(env)->GetStringChars(env, java_string, isCopy);
     if (sc.ForceCopy() && result != NULL) {
       ScopedJniThreadState ts(env);
-      String* s = Decode<String*>(ts, java_string);
+      String* s = ts.Decode<String*>(java_string);
       int byteCount = s->GetLength() * 2;
       result = (const jchar*) GuardedCopy::Create(result, byteCount, false);
       if (isCopy != NULL) {
@@ -1709,7 +1690,7 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
     const jchar* result = baseEnv(env)->GetStringCritical(env, java_string, isCopy);
     if (sc.ForceCopy() && result != NULL) {
       ScopedJniThreadState ts(env);
-      String* s = Decode<String*>(ts, java_string);
+      String* s = ts.Decode<String*>(java_string);
       int byteCount = s->GetLength() * 2;
       result = (const jchar*) GuardedCopy::Create(result, byteCount, false);
       if (isCopy != NULL) {

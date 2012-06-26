@@ -79,7 +79,7 @@ class ClassLinkerTest : public CommonTest {
 
   void AssertArrayClass(const std::string& array_descriptor,
                         const std::string& component_type,
-                        const ClassLoader* class_loader) {
+                        ClassLoader* class_loader) {
     Class* array = class_linker_->FindClass(array_descriptor.c_str(), class_loader);
     ClassHelper array_component_ch(array->GetComponentType());
     EXPECT_STREQ(component_type.c_str(), array_component_ch.GetDescriptor());

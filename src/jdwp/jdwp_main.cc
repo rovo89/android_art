@@ -270,7 +270,7 @@ static void* StartJdwpThread(void* arg) {
 
 void JdwpState::Run() {
   Runtime* runtime = Runtime::Current();
-  runtime->AttachCurrentThread("JDWP", true, Thread::GetSystemThreadGroup());
+  runtime->AttachCurrentThread("JDWP", true, runtime->GetSystemThreadGroup());
 
   VLOG(jdwp) << "JDWP: thread running";
 

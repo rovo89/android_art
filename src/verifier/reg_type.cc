@@ -294,7 +294,7 @@ Class* RegType::ClassJoin(Class* s, Class* t) {
     }
     Class* common_elem = ClassJoin(s_ct, t_ct);
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-    const ClassLoader* class_loader = s->GetClassLoader();
+    ClassLoader* class_loader = s->GetClassLoader();
     std::string descriptor("[");
     descriptor += ClassHelper(common_elem).GetDescriptor();
     Class* array_class = class_linker->FindClass(descriptor.c_str(), class_loader);

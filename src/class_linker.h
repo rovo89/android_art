@@ -54,12 +54,12 @@ class ClassLinker {
 
   // Finds a class by its descriptor, loading it if necessary.
   // If class_loader is null, searches boot_class_path_.
-  Class* FindClass(const char* descriptor, const ClassLoader* class_loader);
+  Class* FindClass(const char* descriptor, ClassLoader* class_loader);
 
   Class* FindSystemClass(const char* descriptor);
 
   // Define a new a class based on a ClassDef from a DexFile
-  Class* DefineClass(const StringPiece& descriptor, const ClassLoader* class_loader,
+  Class* DefineClass(const StringPiece& descriptor, ClassLoader* class_loader,
                      const DexFile& dex_file, const DexFile::ClassDef& dex_class_def);
 
   // Finds a class by its descriptor, returning NULL if it isn't wasn't loaded
@@ -119,7 +119,7 @@ class ClassLinker {
     if (UNLIKELY(resolved_type == NULL)) {
       Class* declaring_class = referrer->GetDeclaringClass();
       DexCache* dex_cache = declaring_class->GetDexCache();
-      const ClassLoader* class_loader = declaring_class->GetClassLoader();
+      ClassLoader* class_loader = declaring_class->GetClassLoader();
       const DexFile& dex_file = FindDexFile(dex_cache);
       resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
     }
@@ -131,7 +131,7 @@ class ClassLinker {
     DexCache* dex_cache = declaring_class->GetDexCache();
     Class* resolved_type = dex_cache->GetResolvedType(type_idx);
     if (UNLIKELY(resolved_type == NULL)) {
-      const ClassLoader* class_loader = declaring_class->GetClassLoader();
+      ClassLoader* class_loader = declaring_class->GetClassLoader();
       const DexFile& dex_file = FindDexFile(dex_cache);
       resolved_type = ResolveType(dex_file, type_idx, dex_cache, class_loader);
     }
@@ -145,7 +145,7 @@ class ClassLinker {
   Class* ResolveType(const DexFile& dex_file,
                      uint16_t type_idx,
                      DexCache* dex_cache,
-                     const ClassLoader* class_loader);
+                     ClassLoader* class_loader);
 
   // Resolve a method with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
@@ -155,7 +155,7 @@ class ClassLinker {
   Method* ResolveMethod(const DexFile& dex_file,
                         uint32_t method_idx,
                         DexCache* dex_cache,
-                        const ClassLoader* class_loader,
+                        ClassLoader* class_loader,
                         bool is_direct);
 
   Method* ResolveMethod(uint32_t method_idx, const Method* referrer, bool is_direct) {
@@ -163,7 +163,7 @@ class ClassLinker {
     if (UNLIKELY(resolved_method == NULL || resolved_method->IsRuntimeMethod())) {
       Class* declaring_class = referrer->GetDeclaringClass();
       DexCache* dex_cache = declaring_class->GetDexCache();
-      const ClassLoader* class_loader = declaring_class->GetClassLoader();
+      ClassLoader* class_loader = declaring_class->GetClassLoader();
       const DexFile& dex_file = FindDexFile(dex_cache);
       resolved_method = ResolveMethod(dex_file, method_idx, dex_cache, class_loader, is_direct);
     }
@@ -176,7 +176,7 @@ class ClassLinker {
     if (UNLIKELY(resolved_field == NULL)) {
       Class* declaring_class = referrer->GetDeclaringClass();
       DexCache* dex_cache = declaring_class->GetDexCache();
-      const ClassLoader* class_loader = declaring_class->GetClassLoader();
+      ClassLoader* class_loader = declaring_class->GetClassLoader();
       const DexFile& dex_file = FindDexFile(dex_cache);
       resolved_field = ResolveField(dex_file, field_idx, dex_cache, class_loader, is_static);
     }
@@ -191,7 +191,7 @@ class ClassLinker {
   Field* ResolveField(const DexFile& dex_file,
                       uint32_t field_idx,
                       DexCache* dex_cache,
-                      const ClassLoader* class_loader,
+                      ClassLoader* class_loader,
                       bool is_static);
 
   // Resolve a field with a given ID from the DexFile, storing the
@@ -201,7 +201,7 @@ class ClassLinker {
   Field* ResolveFieldJLS(const DexFile& dex_file,
                          uint32_t field_idx,
                          DexCache* dex_cache,
-                         const ClassLoader* class_loader);
+                         ClassLoader* class_loader);
 
   // Get shorty from method index without resolution. Used to do handlerization.
   const char* MethodShorty(uint32_t method_idx, Method* referrer, uint32_t* length);
@@ -323,7 +323,7 @@ class ClassLinker {
                                   Primitive::Type type);
 
 
-  Class* CreateArrayClass(const std::string& descriptor, const ClassLoader* class_loader);
+  Class* CreateArrayClass(const std::string& descriptor, ClassLoader* class_loader);
 
   void AppendToBootClassPath(const DexFile& dex_file);
   void AppendToBootClassPath(const DexFile& dex_file, SirtRef<DexCache>& dex_cache);
@@ -337,7 +337,7 @@ class ClassLinker {
   void LoadClass(const DexFile& dex_file,
                  const DexFile::ClassDef& dex_class_def,
                  SirtRef<Class>& klass,
-                 const ClassLoader* class_loader);
+                 ClassLoader* class_loader);
 
   void LoadField(const DexFile& dex_file, const ClassDataItemIterator& it, SirtRef<Class>& klass,
                  SirtRef<Field>& dst);

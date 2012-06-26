@@ -18,6 +18,7 @@
 #include "jni_internal.h"
 #include "object.h"
 #include "object_utils.h"
+#include "scoped_jni_thread_state.h"
 
 namespace art {
 
@@ -68,12 +69,12 @@ static Array* CreateMultiArray(Class* array_class, int current_dimension, IntArr
 // subtract pieces off.  Besides, we want to start with the outermost
 // piece and work our way in.
 static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, jobject javaDimArray) {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+  ScopedJniThreadState ts(env);
   DCHECK(javaElementClass != NULL);
-  Class* element_class = Decode<Class*>(env, javaElementClass);
+  Class* element_class = ts.Decode<Class*>(javaElementClass);
   DCHECK(element_class->IsClass());
   DCHECK(javaDimArray != NULL);
-  Object* dimensions_obj = Decode<Object*>(env, javaDimArray);
+  Object* dimensions_obj = ts.Decode<Object*>(javaDimArray);
   DCHECK(dimensions_obj->IsArrayInstance());
   DCHECK_STREQ(ClassHelper(dimensions_obj->GetClass()).GetDescriptor(), "[I");
   IntArray* dimensions_array = down_cast<IntArray*>(dimensions_obj);
@@ -89,7 +90,7 @@ static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementCla
   for (int i = 0; i < num_dimensions; i++) {
     int dimension = dimensions_array->Get(i);
     if (dimension < 0) {
-      Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;",
+      ts.Self()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;",
           "Dimension %d: %d", i, dimension);
       return NULL;
     }
@@ -112,15 +113,15 @@ static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementCla
     CHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
-  return AddLocalReference<jobject>(env, new_array);
+  return ts.AddLocalReference<jobject>(new_array);
 }
 
 static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementClass, jint length) {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+  ScopedJniThreadState ts(env);
   DCHECK(javaElementClass != NULL);
-  Class* element_class = Decode<Class*>(env, javaElementClass);
+  Class* element_class = ts.Decode<Class*>(javaElementClass);
   if (length < 0) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
+    ts.Self()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
     return NULL;
   }
   std::string descriptor;
@@ -130,16 +131,16 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* array_class = class_linker->FindClass(descriptor.c_str(), element_class->GetClassLoader());
   if (array_class == NULL) {
-    CHECK(Thread::Current()->IsExceptionPending());
+    CHECK(ts.Self()->IsExceptionPending());
     return NULL;
   }
   DCHECK(array_class->IsArrayClass());
   Array* new_array = Array::Alloc(array_class, length);
   if (new_array == NULL) {
-    CHECK(Thread::Current()->IsExceptionPending());
+    CHECK(ts.Self()->IsExceptionPending());
     return NULL;
   }
-  return AddLocalReference<jobject>(env, new_array);
+  return ts.AddLocalReference<jobject>(new_array);
 }
 
 static JNINativeMethod gMethods[] = {

@@ -30,7 +30,7 @@
 namespace art {
 
 bool OatWriter::Create(File* file,
-                       const ClassLoader* class_loader,
+                       ClassLoader* class_loader,
                        const std::vector<const DexFile*>& dex_files,
                        uint32_t image_file_location_checksum,
                        const std::string& image_file_location,
@@ -46,7 +46,7 @@ bool OatWriter::Create(File* file,
 OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_checksum,
                      const std::string& image_file_location,
-                     const ClassLoader* class_loader,
+                     ClassLoader* class_loader,
                      const Compiler& compiler) {
   compiler_ = &compiler;
   class_loader_ = class_loader;

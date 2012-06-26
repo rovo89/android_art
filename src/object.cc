@@ -322,35 +322,6 @@ void Method::ResetClasses() {
   java_lang_reflect_Method_ = NULL;
 }
 
-Class* ExtractNextClassFromSignature(ClassLinker* class_linker, const ClassLoader* cl, const char*& p) {
-  if (*p == '[') {
-    // Something like "[[[Ljava/lang/String;".
-    const char* start = p;
-    while (*p == '[') {
-      ++p;
-    }
-    if (*p == 'L') {
-      while (*p != ';') {
-        ++p;
-      }
-    }
-    ++p; // Either the ';' or the primitive type.
-
-    std::string descriptor(start, (p - start));
-    return class_linker->FindClass(descriptor.c_str(), cl);
-  } else if (*p == 'L') {
-    const char* start = p;
-    while (*p != ';') {
-      ++p;
-    }
-    ++p;
-    std::string descriptor(start, (p - start));
-    return class_linker->FindClass(descriptor.c_str(), cl);
-  } else {
-    return class_linker->FindPrimitiveClass(*p++);
-  }
-}
-
 ObjectArray<String>* Method::GetDexCacheStrings() const {
   return GetFieldObject<ObjectArray<String>*>(
       OFFSET_OF_OBJECT_MEMBER(Method, dex_cache_strings_), false);
@@ -937,8 +908,7 @@ ClassLoader* Class::GetClassLoader() const {
   return GetFieldObject<ClassLoader*>(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), false);
 }
 
-void Class::SetClassLoader(const ClassLoader* new_cl) {
-  ClassLoader* new_class_loader = const_cast<ClassLoader*>(new_cl);
+void Class::SetClassLoader(ClassLoader* new_class_loader) {
   SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, class_loader_), new_class_loader, false);
 }
 

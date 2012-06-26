@@ -17,6 +17,7 @@
 #include "debugger.h"
 #include "jni_internal.h"
 #include "object.h"
+#include "scoped_jni_thread_state.h"
 #include "scoped_thread_list_lock.h"
 #include "ScopedUtfChars.h"
 #include "thread.h"
@@ -25,22 +26,24 @@
 namespace art {
 
 static jobject Thread_currentThread(JNIEnv* env, jclass) {
-  return AddLocalReference<jobject>(env, Thread::Current()->GetPeer());
+  ScopedJniThreadState ts(env);
+  return ts.AddLocalReference<jobject>(ts.Self()->GetPeer());
 }
 
-static jboolean Thread_interrupted(JNIEnv*, jclass) {
-  return Thread::Current()->Interrupted();
+static jboolean Thread_interrupted(JNIEnv* env, jclass) {
+  ScopedJniThreadState ts(env, kNative);  // Doesn't touch objects, so keep in native state.
+  return ts.Self()->Interrupted();
 }
 
 static jboolean Thread_isInterrupted(JNIEnv* env, jobject java_thread) {
+  ScopedJniThreadState ts(env);
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, java_thread);
+  Thread* thread = Thread::FromManagedThread(ts, java_thread);
   return (thread != NULL) ? thread->IsInterrupted() : JNI_FALSE;
 }
 
 static void Thread_nativeCreate(JNIEnv* env, jclass, jobject java_thread, jlong stack_size) {
-  Object* managedThread = Decode<Object*>(env, java_thread);
-  Thread::CreateNativeThread(managedThread, stack_size);
+  Thread::CreateNativeThread(env, java_thread, stack_size);
 }
 
 static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean has_been_started) {
@@ -52,9 +55,10 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean ha
   const jint kJavaTimedWaiting = 4;
   const jint kJavaTerminated = 5;
 
+  ScopedJniThreadState ts(env);
   ThreadState internal_thread_state = (has_been_started ? kTerminated : kStarting);
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, java_thread);
+  Thread* thread = Thread::FromManagedThread(ts, java_thread);
   if (thread != NULL) {
     internal_thread_state = thread->GetState();
   }
@@ -74,28 +78,30 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean ha
 }
 
 static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject java_thread, jobject java_object) {
-  Object* object = Decode<Object*>(env, java_object);
+  ScopedJniThreadState ts(env);
+  Object* object = ts.Decode<Object*>(java_object);
   if (object == NULL) {
-    ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
     Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "object == null");
     return JNI_FALSE;
   }
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, java_thread);
+  Thread* thread = Thread::FromManagedThread(ts, java_thread);
   return thread->HoldsLock(object);
 }
 
 static void Thread_nativeInterrupt(JNIEnv* env, jobject java_thread) {
+  ScopedJniThreadState ts(env);
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, java_thread);
+  Thread* thread = Thread::FromManagedThread(ts, java_thread);
   if (thread != NULL) {
     thread->Interrupt();
   }
 }
 
 static void Thread_nativeSetName(JNIEnv* env, jobject java_thread, jstring java_name) {
+  ScopedJniThreadState ts(env);
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, java_thread);
+  Thread* thread = Thread::FromManagedThread(ts, java_thread);
   if (thread == NULL) {
     return;
   }
@@ -112,8 +118,9 @@ static void Thread_nativeSetName(JNIEnv* env, jobject java_thread, jstring java_
  * threads at Thread.NORM_PRIORITY (5).
  */
 static void Thread_nativeSetPriority(JNIEnv* env, jobject java_thread, jint new_priority) {
+  ScopedJniThreadState ts(env);
   ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(env, java_thread);
+  Thread* thread = Thread::FromManagedThread(ts, java_thread);
   if (thread != NULL) {
     thread->SetNativePriority(new_priority);
   }

@@ -31,6 +31,7 @@
 #include "object_utils.h"
 #include "os.h"
 #include "scoped_heap_lock.h"
+#include "scoped_jni_thread_state.h"
 #include "scoped_thread_list_lock_releaser.h"
 #include "ScopedLocalRef.h"
 #include "space.h"
@@ -935,20 +936,19 @@ Object* Heap::DequeuePendingReference(Object** list) {
 }
 
 void Heap::AddFinalizerReference(Thread* self, Object* object) {
-  ScopedThreadStateChange tsc(self, kRunnable);
+  ScopedJniThreadState ts(self);
   JValue args[1];
   args[0].SetL(object);
-  DecodeMethod(WellKnownClasses::java_lang_ref_FinalizerReference_add)->Invoke(self, NULL, args, NULL);
+  ts.DecodeMethod(WellKnownClasses::java_lang_ref_FinalizerReference_add)->Invoke(self, NULL, args, NULL);
 }
 
 void Heap::EnqueueClearedReferences(Object** cleared) {
   DCHECK(cleared != NULL);
   if (*cleared != NULL) {
-    Thread* self = Thread::Current();
-    ScopedThreadStateChange tsc(self, kRunnable);
+    ScopedJniThreadState ts(Thread::Current());
     JValue args[1];
     args[0].SetL(*cleared);
-    DecodeMethod(WellKnownClasses::java_lang_ref_ReferenceQueue_add)->Invoke(self, NULL, args, NULL);
+    ts.DecodeMethod(WellKnownClasses::java_lang_ref_ReferenceQueue_add)->Invoke(ts.Self(), NULL, args, NULL);
     *cleared = NULL;
   }
 }

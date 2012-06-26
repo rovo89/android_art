@@ -16,30 +16,34 @@
 
 #include "jni_internal.h"
 #include "object.h"
+#include "scoped_jni_thread_state.h"
 
 namespace art {
 
 static jlong Unsafe_objectFieldOffset0(JNIEnv* env, jclass, jobject javaField) {
   // TODO: move to Java code
   jfieldID fid = env->FromReflectedField(javaField);
-  Field* field = DecodeField(fid);
+  ScopedJniThreadState ts(env);
+  Field* field = ts.DecodeField(fid);
   return field->GetOffset().Int32Value();
 }
 
 static jint Unsafe_arrayBaseOffset0(JNIEnv* env, jclass, jclass javaArrayClass) {
   // TODO: move to Java code
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
-  Class* array_class = Decode<Class*>(env, javaArrayClass);
+  ScopedJniThreadState ts(env);
+  Class* array_class = ts.Decode<Class*>(javaArrayClass);
   return Array::DataOffset(array_class->GetComponentSize()).Int32Value();
 }
 
 static jint Unsafe_arrayIndexScale0(JNIEnv* env, jclass, jclass javaClass) {
-  Class* c = Decode<Class*>(env, javaClass);
+  ScopedJniThreadState ts(env);
+  Class* c = ts.Decode<Class*>(javaClass);
   return c->GetComponentSize();
 }
 
 static jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint expectedValue, jint newValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
   // Note: android_atomic_release_cas() returns 0 on success, not failure.
@@ -48,7 +52,8 @@ static jboolean Unsafe_compareAndSwapInt(JNIEnv* env, jobject, jobject javaObj, 
 }
 
 static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong expectedValue, jlong newValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   volatile int64_t* address = reinterpret_cast<volatile int64_t*>(raw_addr);
   // Note: android_atomic_cmpxchg() returns 0 on success, not failure.
@@ -57,9 +62,10 @@ static jboolean Unsafe_compareAndSwapLong(JNIEnv* env, jobject, jobject javaObj,
 }
 
 static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaExpectedValue, jobject javaNewValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
-  Object* expectedValue = Decode<Object*>(env, javaExpectedValue);
-  Object* newValue = Decode<Object*>(env, javaNewValue);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
+  Object* expectedValue = ts.Decode<Object*>(javaExpectedValue);
+  Object* newValue = ts.Decode<Object*>(javaNewValue);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   int32_t* address = reinterpret_cast<int32_t*>(raw_addr);
   // Note: android_atomic_cmpxchg() returns 0 on success, not failure.
@@ -72,90 +78,105 @@ static jboolean Unsafe_compareAndSwapObject(JNIEnv* env, jobject, jobject javaOb
 }
 
 static jint Unsafe_getInt(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   return obj->GetField32(MemberOffset(offset), false);
 }
 
 static jint Unsafe_getIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
   return android_atomic_acquire_load(address);
 }
 
 static void Unsafe_putInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   obj->SetField32(MemberOffset(offset), newValue, false);
 }
 
 static void Unsafe_putIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
   android_atomic_release_store(newValue, address);
 }
 
 static void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   ANDROID_MEMBAR_STORE();
   obj->SetField32(MemberOffset(offset), newValue, false);
 }
 
 static jlong Unsafe_getLong(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
   int64_t* address = reinterpret_cast<int64_t*>(raw_addr);
   return *address;
 }
 
 static jlong Unsafe_getLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   return obj->GetField64(MemberOffset(offset), true);
 }
 
 static void Unsafe_putLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   obj->SetField64(MemberOffset(offset), newValue, false);
 }
 
 static void Unsafe_putLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   obj->SetField64(MemberOffset(offset), newValue, true);
 }
 
 static void Unsafe_putOrderedLong(JNIEnv* env, jobject, jobject javaObj, jlong offset, jlong newValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   ANDROID_MEMBAR_STORE();
   obj->SetField64(MemberOffset(offset), newValue, false);
 }
 
 static jobject Unsafe_getObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   Object* value = obj->GetFieldObject<Object*>(MemberOffset(offset), true);
-  return AddLocalReference<jobject>(env, value);
+  return ts.AddLocalReference<jobject>(value);
 }
 
 static jobject Unsafe_getObject(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
-  Object* obj = Decode<Object*>(env, javaObj);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
   Object* value = obj->GetFieldObject<Object*>(MemberOffset(offset), false);
-  return AddLocalReference<jobject>(env, value);
+  return ts.AddLocalReference<jobject>(value);
 }
 
 static void Unsafe_putObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
-  Object* newValue = Decode<Object*>(env, javaNewValue);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
+  Object* newValue = ts.Decode<Object*>(javaNewValue);
   obj->SetFieldObject(MemberOffset(offset), newValue, false);
 }
 
 static void Unsafe_putObjectVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
-  Object* newValue = Decode<Object*>(env, javaNewValue);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
+  Object* newValue = ts.Decode<Object*>(javaNewValue);
   obj->SetFieldObject(MemberOffset(offset), newValue, true);
 }
 
 static void Unsafe_putOrderedObject(JNIEnv* env, jobject, jobject javaObj, jlong offset, jobject javaNewValue) {
-  Object* obj = Decode<Object*>(env, javaObj);
-  Object* newValue = Decode<Object*>(env, javaNewValue);
+  ScopedJniThreadState ts(env);
+  Object* obj = ts.Decode<Object*>(javaObj);
+  Object* newValue = ts.Decode<Object*>(javaNewValue);
   ANDROID_MEMBAR_STORE();
   obj->SetFieldObject(MemberOffset(offset), newValue, false);
 }

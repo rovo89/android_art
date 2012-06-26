@@ -17,16 +17,18 @@
 #include <limits.h>
 #include <unistd.h>
 
+#include "class_loader.h"
 #include "heap.h"
 #include "jni_internal.h"
 #include "object.h"
 #include "runtime.h"
+#include "scoped_jni_thread_state.h"
 #include "ScopedUtfChars.h"
 
 namespace art {
 
-static void Runtime_gc(JNIEnv*, jclass) {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+static void Runtime_gc(JNIEnv* env, jclass) {
+  ScopedJniThreadState ts(env);
   Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
@@ -43,12 +45,13 @@ static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
  * message on failure.
  */
 static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, jobject javaLoader) {
+  ScopedJniThreadState ts(env);
   ScopedUtfChars filename(env, javaFilename);
   if (filename.c_str() == NULL) {
     return NULL;
   }
 
-  ClassLoader* classLoader = Decode<ClassLoader*>(env, javaLoader);
+  ClassLoader* classLoader = ts.Decode<ClassLoader*>(javaLoader);
   std::string detail;
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   bool success = vm->LoadNativeLibrary(filename.c_str(), classLoader, detail);

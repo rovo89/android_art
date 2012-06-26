@@ -57,13 +57,11 @@ static RegType::Type RegTypeFromDescriptor(const std::string& descriptor) {
   }
 }
 
-const RegType& RegTypeCache::FromDescriptor(const ClassLoader* loader,
-                                            const char* descriptor) {
+const RegType& RegTypeCache::FromDescriptor(ClassLoader* loader, const char* descriptor) {
   return From(RegTypeFromDescriptor(descriptor), loader, descriptor);
 }
 
-const RegType& RegTypeCache::From(RegType::Type type, const ClassLoader* loader,
-                                  const char* descriptor) {
+const RegType& RegTypeCache::From(RegType::Type type, ClassLoader* loader, const char* descriptor) {
   if (type <= RegType::kRegTypeLastFixedLocation) {
     // entries should be sized greater than primitive types
     DCHECK_GT(entries_.size(), static_cast<size_t>(type));
@@ -258,7 +256,7 @@ const RegType& RegTypeCache::FromCat1Const(int32_t value) {
   return *entry;
 }
 
-const RegType& RegTypeCache::GetComponentType(const RegType& array, const ClassLoader* loader) {
+const RegType& RegTypeCache::GetComponentType(const RegType& array, ClassLoader* loader) {
   CHECK(array.IsArrayTypes());
   if (array.IsUnresolvedTypes()) {
     std::string descriptor(array.GetDescriptor()->ToModifiedUtf8());

@@ -69,7 +69,8 @@ void Monitor::LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample
   cp = EventLogWriteInt(cp, Monitor::IsSensitiveThread());
 
   // Emit self thread name string, <= 37 bytes.
-  std::string thread_name(self->GetThreadName()->ToModifiedUtf8());
+  std::string thread_name;
+  self->GetThreadName(thread_name);
   cp = EventLogWriteString(cp, thread_name.c_str(), thread_name.size());
 
   // Emit the wait time, 5 bytes.

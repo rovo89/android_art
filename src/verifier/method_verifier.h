@@ -171,7 +171,8 @@ class MethodVerifier {
   /* Verify a class. Returns "kNoFailure" on success. */
   static FailureKind VerifyClass(const Class* klass, std::string& error);
   static FailureKind VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
-      const ClassLoader* class_loader, uint32_t class_def_idx, std::string& error);
+                                 ClassLoader* class_loader, uint32_t class_def_idx,
+                                 std::string& error);
 
   uint8_t EncodePcToReferenceMapData() const;
 
@@ -212,7 +213,7 @@ class MethodVerifier {
 
  private:
   explicit MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
-      const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
+      ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
       uint32_t method_idx, Method* method, uint32_t access_flags);
 
   // Adds the given string to the beginning of the last failure message.
@@ -233,7 +234,7 @@ class MethodVerifier {
    *      for code flow problems.
    */
   static FailureKind VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
-      const ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
+      ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
       Method* method, uint32_t method_access_flags);
   static void VerifyMethodAndDump(Method* method);
 
@@ -611,7 +612,7 @@ class MethodVerifier {
   uint32_t method_access_flags_;  // Method's access flags.
   const DexFile* dex_file_;  // The dex file containing the method.
   DexCache* dex_cache_;  // The dex_cache for the declaring class of the method.
-  const ClassLoader* class_loader_;  // The class loader for the declaring class of the method.
+  ClassLoader* class_loader_;  // The class loader for the declaring class of the method.
   uint32_t class_def_idx_;  // The class def index of the declaring class of the method.
   const DexFile::CodeItem* code_item_;  // The code item containing the code for the method.
   UniquePtr<InsnFlags[]> insn_flags_;  // Instruction widths and flags, one entry per code unit.

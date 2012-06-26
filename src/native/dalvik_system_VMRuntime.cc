@@ -22,6 +22,7 @@
 #include "object.h"
 #include "object_utils.h"
 #include "scoped_heap_lock.h"
+#include "scoped_jni_thread_state.h"
 #include "scoped_thread_list_lock.h"
 #include "space.h"
 #include "thread.h"
@@ -48,7 +49,7 @@ static void VMRuntime_disableJitCompilation(JNIEnv*, jobject) {
 }
 
 static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaElementClass, jint length) {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+  ScopedJniThreadState ts(env);
 #ifdef MOVING_GARBAGE_COLLECTOR
   // TODO: right now, we don't have a copying collector, so there's no need
   // to do anything special here, but we ought to pass the non-movability
@@ -56,7 +57,7 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
   UNIMPLEMENTED(FATAL);
 #endif
 
-  Class* element_class = Decode<Class*>(env, javaElementClass);
+  Class* element_class = ts.Decode<Class*>(javaElementClass);
   if (element_class == NULL) {
     Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "element class == null");
     return NULL;
@@ -75,15 +76,15 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
   if (result == NULL) {
     return NULL;
   }
-  return AddLocalReference<jobject>(env, result);
+  return ts.AddLocalReference<jobject>(result);
 }
 
 static jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
   if (javaArray == NULL) {  // Most likely allocation failed
     return 0;
   }
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
-  Array* array = Decode<Array*>(env, javaArray);
+  ScopedJniThreadState ts(env);
+  Array* array = ts.Decode<Array*>(javaArray);
   if (!array->IsArrayInstance()) {
     Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;", "not an array");
     return 0;

@@ -107,19 +107,21 @@ void* Thread::CreateCallback(void* arg) {
   runtime->GetThreadList()->WaitForGo();
 
   {
-    CHECK_EQ(self->GetState(), kRunnable);
-    SirtRef<String> thread_name(self->GetThreadName());
-    self->SetThreadName(thread_name->ToModifiedUtf8().c_str());
+    ScopedJniThreadState ts(self);
+    {
+      SirtRef<String> thread_name(self->GetThreadName(ts));
+      self->SetThreadName(thread_name->ToModifiedUtf8().c_str());
+    }
+
+    Dbg::PostThreadStart(self);
+
+    // Invoke the 'run' method of our java.lang.Thread.
+    CHECK(self->peer_ != NULL);
+    Object* receiver = self->peer_;
+    jmethodID mid = WellKnownClasses::java_lang_Thread_run;
+    Method* m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(ts.DecodeMethod(mid));
+    m->Invoke(self, receiver, NULL, NULL);
   }
-
-  Dbg::PostThreadStart(self);
-
-  // Invoke the 'run' method of our java.lang.Thread.
-  CHECK(self->peer_ != NULL);
-  Object* receiver = self->peer_;
-  jmethodID mid = WellKnownClasses::java_lang_Thread_run;
-  Method* m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(DecodeMethod(mid));
-  m->Invoke(self, receiver, NULL, NULL);
 
   // Detach.
   runtime->GetThreadList()->Unregister();
@@ -127,18 +129,19 @@ void* Thread::CreateCallback(void* arg) {
   return NULL;
 }
 
-static void SetVmData(Object* managed_thread, Thread* native_thread) {
-  Field* f = DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+static void SetVmData(const ScopedJniThreadState& ts, Object* managed_thread,
+                      Thread* native_thread) {
+  Field* f = ts.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
   f->SetInt(managed_thread, reinterpret_cast<uintptr_t>(native_thread));
 }
 
-Thread* Thread::FromManagedThread(Object* thread_peer) {
-  Field* f = DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+Thread* Thread::FromManagedThread(const ScopedJniThreadState& ts, Object* thread_peer) {
+  Field* f = ts.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
   return reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetInt(thread_peer)));
 }
 
-Thread* Thread::FromManagedThread(JNIEnv* env, jobject java_thread) {
-  return FromManagedThread(Decode<Object*>(env, java_thread));
+Thread* Thread::FromManagedThread(const ScopedJniThreadState& ts, jobject java_thread) {
+  return FromManagedThread(ts, ts.Decode<Object*>(java_thread));
 }
 
 static size_t FixStackSize(size_t stack_size) {
@@ -204,41 +207,43 @@ static void TearDownAlternateSignalStack() {
   delete[] allocated_signal_stack;
 }
 
-void Thread::CreateNativeThread(Object* peer, size_t stack_size) {
-  CHECK(peer != NULL);
-
-  stack_size = FixStackSize(stack_size);
-
+void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_size) {
   Thread* native_thread = new Thread;
-  native_thread->peer_ = peer;
-
-  // Thread.start is synchronized, so we know that vmData is 0,
-  // and know that we're not racing to assign it.
-  SetVmData(peer, native_thread);
-
-  int pthread_create_result = 0;
   {
-    ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
-    pthread_t new_pthread;
-    pthread_attr_t attr;
-    CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new thread");
-    CHECK_PTHREAD_CALL(pthread_attr_setdetachstate, (&attr, PTHREAD_CREATE_DETACHED), "PTHREAD_CREATE_DETACHED");
-    CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), stack_size);
-    pthread_create_result = pthread_create(&new_pthread, &attr, Thread::CreateCallback, native_thread);
-    CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new thread");
+    ScopedJniThreadState ts(env);
+    Object* peer = ts.Decode<Object*>(java_peer);
+    CHECK(peer != NULL);
+    native_thread->peer_ = peer;
+
+    stack_size = FixStackSize(stack_size);
+
+    // Thread.start is synchronized, so we know that vmData is 0,
+    // and know that we're not racing to assign it.
+    SetVmData(ts, peer, native_thread);
+
+    int pthread_create_result = 0;
+    {
+      ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
+      pthread_t new_pthread;
+      pthread_attr_t attr;
+      CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new thread");
+      CHECK_PTHREAD_CALL(pthread_attr_setdetachstate, (&attr, PTHREAD_CREATE_DETACHED), "PTHREAD_CREATE_DETACHED");
+      CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), stack_size);
+      pthread_create_result = pthread_create(&new_pthread, &attr, Thread::CreateCallback, native_thread);
+      CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new thread");
+    }
+
+    if (pthread_create_result != 0) {
+      // pthread_create(3) failed, so clean up.
+      SetVmData(ts, peer, 0);
+      delete native_thread;
+
+      std::string msg(StringPrintf("pthread_create (%s stack) failed: %s",
+                                   PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
+      Thread::Current()->ThrowOutOfMemoryError(msg.c_str());
+      return;
+    }
   }
-
-  if (pthread_create_result != 0) {
-    // pthread_create(3) failed, so clean up.
-    SetVmData(peer, 0);
-    delete native_thread;
-
-    std::string msg(StringPrintf("pthread_create (%s stack) failed: %s",
-                                 PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
-    Thread::Current()->ThrowOutOfMemoryError(msg.c_str());
-    return;
-  }
-
   // Let the child know when it's safe to start running.
   Runtime::Current()->GetThreadList()->SignalGo(native_thread);
 }
@@ -271,7 +276,7 @@ void Thread::Init() {
   runtime->GetThreadList()->Register();
 }
 
-Thread* Thread::Attach(const char* thread_name, bool as_daemon, Object* thread_group) {
+Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_group) {
   Thread* self = new Thread;
   self->Init();
 
@@ -295,30 +300,14 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, Object* thread_g
   return self;
 }
 
-static Object* GetWellKnownThreadGroup(jfieldID which) {
-  Class* c = WellKnownClasses::ToClass(WellKnownClasses::java_lang_ThreadGroup);
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
-    return NULL;
-  }
-  return DecodeField(which)->GetObject(NULL);
-}
-
-Object* Thread::GetMainThreadGroup() {
-  return GetWellKnownThreadGroup(WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup);
-}
-
-Object* Thread::GetSystemThreadGroup() {
-  return GetWellKnownThreadGroup(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup);
-}
-
-void Thread::CreatePeer(const char* name, bool as_daemon, Object* thread_group) {
-  CHECK(Runtime::Current()->IsStarted());
+void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) {
+  Runtime* runtime = Runtime::Current();
+  CHECK(runtime->IsStarted());
   JNIEnv* env = jni_env_;
 
   if (thread_group == NULL) {
-    thread_group = Thread::GetMainThreadGroup();
+    thread_group = runtime->GetMainThreadGroup();
   }
-  ScopedLocalRef<jobject> java_thread_group(env, AddLocalReference<jobject>(env, thread_group));
   ScopedLocalRef<jobject> thread_name(env, env->NewStringUTF(name));
   jint thread_priority = GetNativePriority();
   jboolean thread_is_daemon = as_daemon;
@@ -332,21 +321,22 @@ void Thread::CreatePeer(const char* name, bool as_daemon, Object* thread_group) 
   env->CallNonvirtualVoidMethod(peer.get(),
                                 WellKnownClasses::java_lang_Thread,
                                 WellKnownClasses::java_lang_Thread_init,
-                                java_thread_group.get(), thread_name.get(), thread_priority, thread_is_daemon);
+                                thread_group, thread_name.get(), thread_priority, thread_is_daemon);
   CHECK(!IsExceptionPending()) << " " << PrettyTypeOf(GetException());
-  SetVmData(peer_, Thread::Current());
 
-  SirtRef<String> peer_thread_name(GetThreadName());
+  ScopedJniThreadState ts(this);
+  SetVmData(ts, peer_, Thread::Current());
+  SirtRef<String> peer_thread_name(GetThreadName(ts));
   if (peer_thread_name.get() == NULL) {
     // The Thread constructor should have set the Thread.name to a
     // non-null value. However, because we can run without code
     // available (in the compiler, in tests), we manually assign the
     // fields the constructor should have set.
-    DecodeField(WellKnownClasses::java_lang_Thread_daemon)->SetBoolean(peer_, thread_is_daemon);
-    DecodeField(WellKnownClasses::java_lang_Thread_group)->SetObject(peer_, thread_group);
-    DecodeField(WellKnownClasses::java_lang_Thread_name)->SetObject(peer_, Decode<Object*>(env, thread_name.get()));
-    DecodeField(WellKnownClasses::java_lang_Thread_priority)->SetInt(peer_, thread_priority);
-    peer_thread_name.reset(GetThreadName());
+    ts.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->SetBoolean(peer_, thread_is_daemon);
+    ts.DecodeField(WellKnownClasses::java_lang_Thread_group)->SetObject(peer_, ts.Decode<Object*>(thread_group));
+    ts.DecodeField(WellKnownClasses::java_lang_Thread_name)->SetObject(peer_, ts.Decode<Object*>(thread_name.get()));
+    ts.DecodeField(WellKnownClasses::java_lang_Thread_priority)->SetInt(peer_, thread_priority);
+    peer_thread_name.reset(GetThreadName(ts));
   }
   // 'thread_name' may have been null, so don't trust 'peer_thread_name' to be non-null.
   if (peer_thread_name.get() != NULL) {
@@ -432,8 +422,8 @@ void Thread::Dump(std::ostream& os, bool full) const {
   }
 }
 
-String* Thread::GetThreadName() const {
-  Field* f = DecodeField(WellKnownClasses::java_lang_Thread_name);
+String* Thread::GetThreadName(const ScopedJniThreadState& ts) const {
+  Field* f = ts.DecodeField(WellKnownClasses::java_lang_Thread_name);
   return (peer_ != NULL) ? reinterpret_cast<String*>(f->GetObject(peer_)) : NULL;
 }
 
@@ -447,12 +437,13 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   bool is_daemon = false;
 
   if (thread != NULL && thread->peer_ != NULL) {
-    priority = DecodeField(WellKnownClasses::java_lang_Thread_priority)->GetInt(thread->peer_);
-    is_daemon = DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(thread->peer_);
+    ScopedJniThreadState ts(Thread::Current());
+    priority = ts.DecodeField(WellKnownClasses::java_lang_Thread_priority)->GetInt(thread->peer_);
+    is_daemon = ts.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(thread->peer_);
 
-    Object* thread_group = thread->GetThreadGroup();
+    Object* thread_group = thread->GetThreadGroup(ts);
     if (thread_group != NULL) {
-      Field* group_name_field = DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
+      Field* group_name_field = ts.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
       String* group_name_string = reinterpret_cast<String*>(group_name_field->GetObject(thread_group));
       group_name = (group_name_string != NULL) ? group_name_string->ToModifiedUtf8() : "<null>";
     }
@@ -750,12 +741,13 @@ void Thread::Startup() {
 }
 
 void Thread::FinishStartup() {
-  CHECK(Runtime::Current()->IsStarted());
+  Runtime* runtime = Runtime::Current();
+  CHECK(runtime->IsStarted());
   Thread* self = Thread::Current();
 
   // Finish attaching the main thread.
   ScopedThreadStateChange tsc(self, kRunnable);
-  Thread::Current()->CreatePeer("main", false, Thread::GetMainThreadGroup());
+  Thread::Current()->CreatePeer("main", false, runtime->GetMainThreadGroup());
 
   InitBoxingMethods();
   Runtime::Current()->GetClassLinker()->RunRootClinits();
@@ -826,19 +818,19 @@ void Thread::Destroy() {
     Thread* self = this;
 
     // We may need to call user-supplied managed code.
-    SetState(kRunnable);
+    ScopedJniThreadState ts(this);
 
-    HandleUncaughtExceptions();
-    RemoveFromThreadGroup();
+    HandleUncaughtExceptions(ts);
+    RemoveFromThreadGroup(ts);
 
     // this.vmData = 0;
-    SetVmData(peer_, NULL);
+    SetVmData(ts, peer_, NULL);
 
     Dbg::PostThreadDeath(self);
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock
     // object. Signal anyone who is waiting.
-    Object* lock = DecodeField(WellKnownClasses::java_lang_Thread_lock)->GetObject(peer_);
+    Object* lock = ts.DecodeField(WellKnownClasses::java_lang_Thread_lock)->GetObject(peer_);
     // (This conditional is only needed for tests, where Thread.lock won't have been set.)
     if (lock != NULL) {
       lock->MonitorEnter(self);
@@ -868,25 +860,25 @@ Thread::~Thread() {
   TearDownAlternateSignalStack();
 }
 
-void Thread::HandleUncaughtExceptions() {
+void Thread::HandleUncaughtExceptions(const ScopedJniThreadState& ts) {
   if (!IsExceptionPending()) {
     return;
   }
-
   // Get and clear the exception.
   Object* exception = GetException();
   ClearException();
 
   // If the thread has its own handler, use that.
-  Object* handler = DecodeField(WellKnownClasses::java_lang_Thread_uncaughtHandler)->GetObject(peer_);
+  Object* handler =
+      ts.DecodeField(WellKnownClasses::java_lang_Thread_uncaughtHandler)->GetObject(peer_);
   if (handler == NULL) {
     // Otherwise use the thread group's default handler.
-    handler = GetThreadGroup();
+    handler = GetThreadGroup(ts);
   }
 
   // Call the handler.
   jmethodID mid = WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler_uncaughtException;
-  Method* m = handler->GetClass()->FindVirtualMethodForVirtualOrInterface(DecodeMethod(mid));
+  Method* m = handler->GetClass()->FindVirtualMethodForVirtualOrInterface(ts.DecodeMethod(mid));
   JValue args[2];
   args[0].SetL(peer_);
   args[1].SetL(exception);
@@ -896,17 +888,17 @@ void Thread::HandleUncaughtExceptions() {
   ClearException();
 }
 
-Object* Thread::GetThreadGroup() const {
-  return DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(peer_);
+Object* Thread::GetThreadGroup(const ScopedJniThreadState& ts) const {
+  return ts.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(peer_);
 }
 
-void Thread::RemoveFromThreadGroup() {
+void Thread::RemoveFromThreadGroup(const ScopedJniThreadState& ts) {
   // this.group.removeThread(this);
   // group can be null if we're in the compiler or a test.
-  Object* group = GetThreadGroup();
+  Object* group = GetThreadGroup(ts);
   if (group != NULL) {
     jmethodID mid = WellKnownClasses::java_lang_ThreadGroup_removeThread;
-    Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(DecodeMethod(mid));
+    Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(ts.DecodeMethod(mid));
     JValue args[1];
     args[0].SetL(peer_);
     m->Invoke(this, group, args, NULL);
@@ -1051,7 +1043,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     StackVisitor(stack, trace_stack), skip_depth_(skip_depth), count_(0), dex_pc_trace_(NULL),
     method_trace_(NULL) {}
 
-  bool Init(int depth, ScopedJniThreadState& ts) {
+  bool Init(int depth, const ScopedJniThreadState& ts) {
     // Allocate method trace with an extra slot that will hold the PC trace
     SirtRef<ObjectArray<Object> >
       method_trace(Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(depth + 1));
@@ -1121,15 +1113,12 @@ StackIndirectReferenceTable* Thread::PopSirt() {
   return sirt;
 }
 
-jobject Thread::CreateInternalStackTrace(JNIEnv* env) const {
+jobject Thread::CreateInternalStackTrace(const ScopedJniThreadState& ts) const {
   // Compute depth of stack
   CountStackDepthVisitor count_visitor(GetManagedStack(), GetTraceStack());
   count_visitor.WalkStack();
   int32_t depth = count_visitor.GetDepth();
   int32_t skip_depth = count_visitor.GetSkipDepth();
-
-  // Transition into runnable state to work on Object*/Array*
-  ScopedJniThreadState ts(env);
 
   // Build internal stack trace
   BuildInternalStackTraceVisitor build_trace_visitor(GetManagedStack(), GetTraceStack(),
@@ -1138,7 +1127,7 @@ jobject Thread::CreateInternalStackTrace(JNIEnv* env) const {
     return NULL;  // Allocation failed
   }
   build_trace_visitor.WalkStack();
-  return AddLocalReference<jobjectArray>(ts.Env(), build_trace_visitor.GetInternalStackTrace());
+  return ts.AddLocalReference<jobjectArray>(build_trace_visitor.GetInternalStackTrace());
 }
 
 jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
@@ -1146,8 +1135,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
   // Transition into runnable state to work on Object*/Array*
   ScopedJniThreadState ts(env);
   // Decode the internal stack trace into the depth, method trace and PC trace
-  ObjectArray<Object>* method_trace =
-      down_cast<ObjectArray<Object>*>(Decode<Object*>(ts.Env(), internal));
+  ObjectArray<Object>* method_trace = ts.Decode<ObjectArray<Object>*>(internal);
   int32_t depth = method_trace->GetLength() - 1;
   IntArray* pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
 
@@ -1158,8 +1146,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
   if (output_array != NULL) {
     // Reuse the array we were given.
     result = output_array;
-    java_traces = reinterpret_cast<ObjectArray<StackTraceElement>*>(Decode<Array*>(env,
-        output_array));
+    java_traces = ts.Decode<ObjectArray<StackTraceElement>*>(output_array);
     // ...adjusting the number of frames we'll write to not exceed the array length.
     depth = std::min(depth, java_traces->GetLength());
   } else {
@@ -1168,7 +1155,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     if (java_traces == NULL) {
       return NULL;
     }
-    result = AddLocalReference<jobjectArray>(ts.Env(), java_traces);
+    result = ts.AddLocalReference<jobjectArray>(java_traces);
   }
 
   if (stack_depth != NULL) {
@@ -1602,7 +1589,8 @@ bool Thread::HoldsLock(Object* object) {
 }
 
 bool Thread::IsDaemon() {
-  return DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(peer_);
+  ScopedJniThreadState ts(this);
+  return ts.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(peer_);
 }
 
 class ReferenceMapVisitor : public StackVisitor {

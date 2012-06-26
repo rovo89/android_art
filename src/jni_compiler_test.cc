@@ -536,10 +536,10 @@ jint Java_MyClassNatives_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
     ScopedJniThreadState ts(env);
 
     // Build stack trace
-    jobject internal = Thread::Current()->CreateInternalStackTrace(env);
+    jobject internal = Thread::Current()->CreateInternalStackTrace(ts);
     jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(env, internal);
     ObjectArray<StackTraceElement>* trace_array =
-        Decode<ObjectArray<StackTraceElement>*>(env, ste_array);
+        ts.Decode<ObjectArray<StackTraceElement>*>(ste_array);
     EXPECT_TRUE(trace_array != NULL);
     EXPECT_EQ(11, trace_array->GetLength());
 
@@ -591,8 +591,9 @@ TEST_F(JniCompilerTest, ReturnGlobalRef) {
 
 jint local_ref_test(JNIEnv* env, jobject thisObj, jint x) {
   // Add 10 local references
+  ScopedJniThreadState ts(env);
   for (int i = 0; i < 10; i++) {
-    AddLocalReference<jobject>(env, Decode<Object*>(env, thisObj));
+    ts.AddLocalReference<jobject>(ts.Decode<Object*>(thisObj));
   }
   return x+1;
 }

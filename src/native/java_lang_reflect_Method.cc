@@ -19,15 +19,18 @@
 #include "object.h"
 #include "object_utils.h"
 #include "reflection.h"
+#include "scoped_jni_thread_state.h"
 
 namespace art {
 
 static jobject Method_invoke(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobject javaArgs) {
-  return InvokeMethod(env, javaMethod, javaReceiver, javaArgs);
+  ScopedJniThreadState ts(env);
+  return InvokeMethod(ts, javaMethod, javaReceiver, javaArgs);
 }
 
 static jobject Method_getExceptionTypesNative(JNIEnv* env, jobject javaMethod) {
-  Method* proxy_method = Decode<Object*>(env, javaMethod)->AsMethod();
+  ScopedJniThreadState ts(env);
+  Method* proxy_method = ts.Decode<Object*>(javaMethod)->AsMethod();
   CHECK(proxy_method->GetDeclaringClass()->IsProxyClass());
   SynthesizedProxyClass* proxy_class =
       down_cast<SynthesizedProxyClass*>(proxy_method->GetDeclaringClass());
@@ -41,14 +44,13 @@ static jobject Method_getExceptionTypesNative(JNIEnv* env, jobject javaMethod) {
   }
   CHECK_NE(throws_index, -1);
   ObjectArray<Class>* declared_exceptions = proxy_class->GetThrows()->Get(throws_index);
-  // Change thread state for allocation
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
-  return AddLocalReference<jobject>(env, declared_exceptions->Clone());
+  return ts.AddLocalReference<jobject>(declared_exceptions->Clone());
 }
 
 static jobject Method_findOverriddenMethodNative(JNIEnv* env, jobject javaMethod) {
-  Method* method = Decode<Object*>(env, javaMethod)->AsMethod();
-  return AddLocalReference<jobject>(env, method->FindOverriddenMethod());
+  ScopedJniThreadState ts(env);
+  Method* method = ts.Decode<Object*>(javaMethod)->AsMethod();
+  return ts.AddLocalReference<jobject>(method->FindOverriddenMethod());
 }
 
 static JNINativeMethod gMethods[] = {

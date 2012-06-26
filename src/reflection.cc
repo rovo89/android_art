@@ -20,6 +20,7 @@
 #include "jni_internal.h"
 #include "object.h"
 #include "object_utils.h"
+#include "scoped_jni_thread_state.h"
 
 namespace art {
 
@@ -44,12 +45,10 @@ void InitBoxingMethods() {
   gShort_valueOf = class_linker->FindSystemClass("Ljava/lang/Short;")->FindDeclaredDirectMethod("valueOf", "(S)Ljava/lang/Short;");
 }
 
-jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobject javaArgs) {
-  Thread* self = Thread::Current();
-  ScopedThreadStateChange tsc(self, kRunnable);
-
-  jmethodID mid = env->FromReflectedMethod(javaMethod);
-  Method* m = reinterpret_cast<Method*>(mid);
+jobject InvokeMethod(const ScopedJniThreadState& ts, jobject javaMethod, jobject javaReceiver,
+                     jobject javaArgs) {
+  jmethodID mid = ts.Env()->FromReflectedMethod(javaMethod);
+  Method* m = ts.DecodeMethod(mid);
 
   Class* declaring_class = m->GetDeclaringClass();
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaring_class, true, true)) {
@@ -59,24 +58,24 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
   Object* receiver = NULL;
   if (!m->IsStatic()) {
     // Check that the receiver is non-null and an instance of the field's declaring class.
-    receiver = Decode<Object*>(env, javaReceiver);
+    receiver = ts.Decode<Object*>(javaReceiver);
     if (!VerifyObjectInClass(receiver, declaring_class)) {
       return NULL;
     }
 
     // Find the actual implementation of the virtual method.
     m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(m);
-    mid = reinterpret_cast<jmethodID>(m);
+    mid = ts.EncodeMethod(m);
   }
 
   // Get our arrays of arguments and their types, and check they're the same size.
-  ObjectArray<Object>* objects = Decode<ObjectArray<Object>*>(env, javaArgs);
+  ObjectArray<Object>* objects = ts.Decode<ObjectArray<Object>*>(javaArgs);
   MethodHelper mh(m);
   const DexFile::TypeList* classes = mh.GetParameterTypeList();
   uint32_t classes_size = classes == NULL ? 0 : classes->Size();
   uint32_t arg_count = (objects != NULL) ? objects->GetLength() : 0;
   if (arg_count != classes_size) {
-    self->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
+    ts.Self()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
         "wrong number of arguments; expected %d, got %d",
         classes_size, arg_count);
     return NULL;
@@ -92,27 +91,27 @@ jobject InvokeMethod(JNIEnv* env, jobject javaMethod, jobject javaReceiver, jobj
       return NULL;
     }
     if (!dst_class->IsPrimitive()) {
-      args[i].l = AddLocalReference<jobject>(env, arg);
+      args[i].l = ts.AddLocalReference<jobject>(arg);
     }
   }
 
   // Invoke the method.
-  JValue value(InvokeWithJValues(env, javaReceiver, mid, args.get()));
+  JValue value(InvokeWithJValues(ts, javaReceiver, mid, args.get()));
 
   // Wrap any exception with "Ljava/lang/reflect/InvocationTargetException;" and return early.
-  if (self->IsExceptionPending()) {
-    jthrowable th = env->ExceptionOccurred();
-    env->ExceptionClear();
-    jclass exception_class = env->FindClass("java/lang/reflect/InvocationTargetException");
-    jmethodID mid = env->GetMethodID(exception_class, "<init>", "(Ljava/lang/Throwable;)V");
-    jobject exception_instance = env->NewObject(exception_class, mid, th);
-    env->Throw(reinterpret_cast<jthrowable>(exception_instance));
+  if (ts.Self()->IsExceptionPending()) {
+    jthrowable th = ts.Env()->ExceptionOccurred();
+    ts.Env()->ExceptionClear();
+    jclass exception_class = ts.Env()->FindClass("java/lang/reflect/InvocationTargetException");
+    jmethodID mid = ts.Env()->GetMethodID(exception_class, "<init>", "(Ljava/lang/Throwable;)V");
+    jobject exception_instance = ts.Env()->NewObject(exception_class, mid, th);
+    ts.Env()->Throw(reinterpret_cast<jthrowable>(exception_instance));
     return NULL;
   }
 
   // Box if necessary and return.
   BoxPrimitive(mh.GetReturnType()->GetPrimitiveType(), value);
-  return AddLocalReference<jobject>(env, value.GetL());
+  return ts.AddLocalReference<jobject>(value.GetL());
 }
 
 bool VerifyObjectInClass(Object* o, Class* c) {
