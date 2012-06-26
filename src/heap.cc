@@ -234,7 +234,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   }
 
   // Allocate the mod-union table
-  ModUnionTableBitmap* mod_union_table = new ModUnionTableBitmap(this);
+  ModUnionTableReferenceCache* mod_union_table = new ModUnionTableReferenceCache(this);
   mod_union_table->Init();
   mod_union_table_ = mod_union_table;
 
@@ -705,11 +705,11 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
 
     // Processes the cards we cleared earlier and adds their objects into the mod-union table.
     mod_union_table_->Update(&mark_sweep);
-    timings.AddSplit("UpdateModUnionBitmap");
+    timings.AddSplit("UpdateModUnionTable");
 
     // Scans all objects in the mod-union table.
     mod_union_table_->MarkReferences(&mark_sweep);
-    timings.AddSplit("ProcessModUnionBitmap");
+    timings.AddSplit("MarkImageToAllocSpaceReferences");
 
     // Recursively mark all the non-image bits set in the mark bitmap.
     mark_sweep.RecursiveMark();

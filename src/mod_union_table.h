@@ -69,6 +69,36 @@ class ModUnionTableBitmap : public ModUnionTable {
   Heap* heap_;
 };
 
+// Reference caching implementation. Caches references pointing to alloc space(s)
+// for each card.
+class ModUnionTableReferenceCache : public ModUnionTable {
+ public:
+  typedef std::vector<const Object*> ReferenceArray;
+  typedef SafeMap<const byte*, ReferenceArray > ReferenceMap;
+
+  ModUnionTableReferenceCache(Heap* heap);
+  virtual ~ModUnionTableReferenceCache();
+
+  void Init();
+
+  // Clear image space cards.
+  void ClearCards();
+
+  // Update table based on cleared cards.
+  void Update(MarkSweep* mark_sweep);
+
+  // Mark all references to the alloc space(s).
+  void MarkReferences(MarkSweep* mark_sweep);
+ private:
+  // Cleared card array, used to update the mod-union table.
+  std::vector<byte*> cleared_cards_;
+
+  // Maps from dirty cards to their corresponding alloc space references.
+  ReferenceMap references_;
+
+  Heap* heap_;
+};
+
 }  // namespace art
 
 #endif  // ART_SRC_MOD_UNION_TABLE_H_

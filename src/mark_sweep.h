@@ -274,12 +274,15 @@ class MarkSweep {
   size_t array_count_;
   size_t other_count_;
 
+  friend class AddIfReachesAllocSpaceVisitor; // Used by mod-union table.
   friend class CheckObjectVisitor;
   friend class InternTableEntryIsUnmarked;
   friend class MarkIfReachesAllocspaceVisitor;
   friend class ModUnionClearCardVisitor;
+  friend class ModUnionReferenceVisitor;
   friend class ModUnionVisitor;
   friend class ModUnionTableBitmap;
+  friend class ModUnionTableReferenceCache;
 
   DISALLOW_COPY_AND_ASSIGN(MarkSweep);
 };

@@ -32,7 +32,7 @@ class MarkIfReachesAllocspaceVisitor {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator ()(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) const {
+  void operator ()(const Object* obj, const Object* ref, const MemberOffset& /* offset */, bool /* is_static */) const {
     // TODO: Optimize?
     // TODO: C++0x auto
     const Spaces& spaces = mark_sweep_->heap_->GetSpaces();
@@ -41,9 +41,6 @@ class MarkIfReachesAllocspaceVisitor {
         bitmap_->Set(obj);
       }
     }
-
-    // Avoid warnings.
-    (void)obj;(void)offset;(void)is_static;
   }
 
  private:
@@ -86,7 +83,7 @@ class ModUnionClearCardVisitor {
 ModUnionTableBitmap::ModUnionTableBitmap(Heap* heap) : heap_(heap) {
   // Prevent fragmentation of the heap which is caused by resizing of the vector.
   // TODO: Make a new vector which uses madvise (basically same as a mark stack).
-  cleared_cards_.reserve(4 * KB);
+  cleared_cards_.reserve(32);
 }
 
 ModUnionTableBitmap::~ModUnionTableBitmap() {
@@ -94,7 +91,7 @@ ModUnionTableBitmap::~ModUnionTableBitmap() {
 }
 
 void ModUnionTableBitmap::Init() {
-  const std::vector<Space*>& spaces = heap_->GetSpaces();
+  const Spaces& spaces = heap_->GetSpaces();
 
   // Create one heap bitmap per image space.
   for (size_t i = 0; i < spaces.size(); ++i) {
@@ -113,8 +110,8 @@ void ModUnionTableBitmap::Init() {
 
 void ModUnionTableBitmap::ClearCards() {
   CardTable* card_table = heap_->GetCardTable();
-  for (BitmapMap::iterator cur = bitmaps_.begin(); cur != bitmaps_.end(); ++cur) {
-    const Space* space = cur->first;
+  for (BitmapMap::iterator it = bitmaps_.begin(); it != bitmaps_.end(); ++it) {
+    const Space* space = it->first;
     ModUnionClearCardVisitor visitor(&cleared_cards_);
     // Clear dirty cards in the this image space and update the corresponding mod-union bits.
     card_table->VisitClear(space->Begin(), space->End(), visitor);
@@ -123,7 +120,6 @@ void ModUnionTableBitmap::ClearCards() {
 
 void ModUnionTableBitmap::Update(MarkSweep* mark_sweep) {
   CardTable* card_table = heap_->GetCardTable();
-
   while (!cleared_cards_.empty()) {
     byte* card = cleared_cards_.back();
     cleared_cards_.pop_back();
@@ -164,5 +160,111 @@ void ModUnionTableBitmap::MarkReferences(MarkSweep* mark_sweep) {
   }
 }
 
-}  // namespace art
 
+ModUnionTableReferenceCache::ModUnionTableReferenceCache(Heap* heap) : heap_(heap) {
+  cleared_cards_.reserve(32);
+}
+
+ModUnionTableReferenceCache::~ModUnionTableReferenceCache() {
+
+}
+
+void ModUnionTableReferenceCache::Init() {
+
+}
+
+void ModUnionTableReferenceCache::ClearCards() {
+  const Spaces& spaces = heap_->GetSpaces();
+  CardTable* card_table = heap_->GetCardTable();
+
+  // Create one heap bitmap per image space.
+  for (size_t i = 0; i < spaces.size(); ++i) {
+    if (spaces[i]->IsImageSpace()) {
+      ModUnionClearCardVisitor visitor(&cleared_cards_);
+      // Clear dirty cards in the this image space and update the corresponding mod-union bits.
+      card_table->VisitClear(spaces[i]->Begin(), spaces[i]->End(), visitor);
+    }
+  }
+}
+
+class AddIfReachesAllocSpaceVisitor {
+ public:
+  explicit AddIfReachesAllocSpaceVisitor(
+        MarkSweep* const mark_sweep,
+        ModUnionTableReferenceCache::ReferenceArray* references)
+    : mark_sweep_(mark_sweep),
+      references_(references) {
+  }
+
+  // Extra parameters are required since we use this same visitor signature for checking objects.
+  void operator ()(const Object* /* obj */, const Object* ref, const MemberOffset& /* offset */, bool /* is_static */) const {
+    if (mark_sweep_->heap_->GetAllocSpace()->Contains(ref)) {
+      references_->push_back(ref);
+    }
+  }
+
+ private:
+  MarkSweep* const mark_sweep_;
+  ModUnionTableReferenceCache::ReferenceArray* references_;
+};
+
+class ModUnionReferenceVisitor {
+ public:
+  explicit ModUnionReferenceVisitor(
+        MarkSweep* const mark_sweep,
+        ModUnionTableReferenceCache::ReferenceArray* references)
+    : mark_sweep_(mark_sweep),
+      references_(references) {
+  }
+
+  void operator ()(Object* obj) const {
+    DCHECK(obj != NULL);
+    // We don't have an early exit since we use the visitor pattern, an early
+    // exit should significantly speed this up.
+    AddIfReachesAllocSpaceVisitor visitor(mark_sweep_, references_);
+    mark_sweep_->VisitObjectReferences(obj, visitor);
+  }
+ private:
+  MarkSweep* const mark_sweep_;
+  ModUnionTableReferenceCache::ReferenceArray* references_;
+};
+
+void ModUnionTableReferenceCache::Update(MarkSweep* mark_sweep) {
+  CardTable* card_table = heap_->GetCardTable();
+  while (!cleared_cards_.empty()) {
+    byte* card = cleared_cards_.back();
+    cleared_cards_.pop_back();
+
+    // Update the corresponding references for the card
+    // TODO: C++0x auto
+    ReferenceMap::iterator found = references_.find(card);
+    if (found == references_.end()) {
+      references_.Put(card, ReferenceArray());
+      found = references_.find(card);
+    }
+
+    // Clear and re-compute alloc space references associated with this card.
+    ReferenceArray& cards_references = found->second;
+    cards_references.clear();
+    ModUnionReferenceVisitor visitor(mark_sweep, &cards_references);
+    uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card));
+    uintptr_t end = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card + 1));
+    SpaceBitmap* live_bitmap =
+        heap_->FindSpaceFromObject(reinterpret_cast<Object*>(start))->GetLiveBitmap();
+    live_bitmap->VisitMarkedRange(start, end, visitor);
+  }
+}
+
+void ModUnionTableReferenceCache::MarkReferences(MarkSweep* mark_sweep) {
+  // TODO: C++0x auto
+  size_t count = 0;
+  for (ReferenceMap::const_iterator it = references_.begin(); it != references_.end(); ++it) {
+    for (ReferenceArray::const_iterator it_ref = it->second.begin(); it_ref != it->second.end(); ++it_ref ) {
+      mark_sweep->MarkObject(*it_ref);
+      ++count;
+    }
+  }
+  VLOG(heap) << "Marked " << count << " references in mod union table";
+}
+
+}  // namespace art
