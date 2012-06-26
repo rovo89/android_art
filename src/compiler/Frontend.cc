@@ -761,8 +761,12 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   if ((PrettyMethod(method_idx, dex_file).find("fibonacci") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("HelloWorld") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("count10_006") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("exceptions_007") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("catchAndRethrow") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("throwNullPointerException") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("math_012") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("math_013") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("math_014") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("float_017") != std::string::npos)
      ) {
     cUnit->genBitcode = true;
