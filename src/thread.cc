@@ -1703,7 +1703,7 @@ static void VerifyObject(const Object* obj, void* arg) {
 
 void Thread::VerifyStack() {
   UniquePtr<Context> context(Context::Create());
-  ReferenceMapVisitor mapper(GetManagedStack(), context.get(), VerifyObject,
+  ReferenceMapVisitor mapper(GetManagedStack(), GetTraceStack(), context.get(), VerifyObject,
                              Runtime::Current()->GetHeap());
   mapper.WalkStack();
 }
