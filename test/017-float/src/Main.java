@@ -18,7 +18,7 @@
  * I dont know what this test does.
  */
 public class Main {
-    public static void main(String args[]) {
+    public static void float_017() {
         float f = 3.1415926535f;
         double d = 3.1415926535;
         //float fd = (float) d;
@@ -29,5 +29,8 @@ public class Main {
         System.out.println("base values: f=" + f + " d=" + d);
         //System.out.println("object values: off="
         //    + off.floatValue() + " ofd=" + ofd.floatValue());
+    }
+    public static void main(String args[]) {
+        float_017();
     }
 }

@@ -18,7 +18,7 @@
  * test add by a 16-bit constant
  */
 public class Main {
-    public static void main(String args[]) {
+    public static void math_013() {
         int a, b, res;
 
         a = 3;
@@ -27,5 +27,8 @@ public class Main {
         // a 16-bit constant
         a += 32000;
         System.out.println("a:" +a);
+    }
+    public static void main(String args[]) {
+        math_013();
     }
 }

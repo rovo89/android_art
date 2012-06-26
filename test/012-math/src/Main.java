@@ -18,7 +18,7 @@
  * test simple math opers
  */
 public class Main {
-    public static void main(String args[]) {
+    public static void math_012() {
         int pad0, pad1, pad2, pad3, pad4, pad5, pad6, pad7;
         int pad8, pad9, pad10, pad11, pad12, pad13, pad14, pad15;
         int a, b, res;
@@ -98,5 +98,8 @@ public class Main {
         System.out.println("f:" +f);
         f %= g;
         System.out.println("f:" +f);
+    }
+    public static void main(String args[]) {
+      math_012();
     }
 }

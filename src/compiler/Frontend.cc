@@ -757,8 +757,13 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   cUnit->numRegs = code_item->registers_size_ - cUnit->numIns;
   cUnit->numOuts = code_item->outs_size_;
 #if defined(ART_USE_QUICK_COMPILER)
+  // TODO: remove - temp for Quick compiler bring-up
   if ((PrettyMethod(method_idx, dex_file).find("fibonacci") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("HelloWorld") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("count10_006") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("math_012") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("math_013") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("float_017") != std::string::npos)
      ) {
     cUnit->genBitcode = true;
   }
@@ -781,6 +786,8 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   if (cUnit->genBitcode) {
     cUnit->printMe = true;
     cUnit->enableDebug |= (1 << kDebugDumpBitcodeFile);
+    // Disable non-safe optimizations for now
+    cUnit->disableOpt |= ~(1 << kSafeOptimizations);
   }
 #endif
   if (cUnit->instructionSet == kX86) {
