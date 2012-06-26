@@ -515,10 +515,9 @@ class ImageDumper {
  public:
   explicit ImageDumper(std::ostream& os, const std::string& image_filename,
                        const std::string& host_prefix, Space& image_space,
-                       const ImageHeader& image_header) : os_(os),
-                       image_filename_(image_filename), host_prefix_(host_prefix),
-                       image_space_(image_space), image_header_(image_header) {
-  }
+                       const ImageHeader& image_header)
+      : os_(os), image_filename_(image_filename), host_prefix_(host_prefix),
+        image_space_(image_space), image_header_(image_header) {}
 
   void Dump() {
     os_ << "MAGIC:\n";

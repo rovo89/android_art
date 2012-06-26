@@ -661,9 +661,9 @@ class ArmSuspendCountSlowPath : public SlowPath {
  public:
   ArmSuspendCountSlowPath(ArmManagedRegister return_reg,
                           FrameOffset return_save_location,
-                          size_t return_size) :
-     return_register_(return_reg), return_save_location_(return_save_location),
-     return_size_(return_size) {}
+                          size_t return_size)
+      : return_register_(return_reg), return_save_location_(return_save_location),
+        return_size_(return_size) {}
   virtual void Emit(Assembler *sp_asm);
 
  private:

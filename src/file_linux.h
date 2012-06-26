@@ -23,8 +23,8 @@ namespace art {
 
 class LinuxFile : public File {
  public:
-  LinuxFile(const char* name, int fd, bool auto_close) :
-        File(name), fd_(fd), auto_close_(auto_close) {}
+  LinuxFile(const char* name, int fd, bool auto_close)
+      : File(name), fd_(fd), auto_close_(auto_close) {}
   virtual ~LinuxFile();
 
   virtual void Close();

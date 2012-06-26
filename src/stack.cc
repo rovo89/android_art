@@ -173,8 +173,8 @@ void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
 size_t StackVisitor::ComputeNumFrames() const {
   struct NumFramesVisitor : public StackVisitor {
     explicit NumFramesVisitor(const ManagedStack* stack,
-                              const std::vector<TraceStackFrame>* trace_stack) :
-                                StackVisitor(stack, trace_stack), frames(0) {}
+                              const std::vector<TraceStackFrame>* trace_stack)
+        : StackVisitor(stack, trace_stack), frames(0) {}
 
     virtual bool VisitFrame() {
       frames++;

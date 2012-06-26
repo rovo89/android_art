@@ -885,8 +885,11 @@ static uint64_t ReadUnsignedLong(const byte* ptr, int zwidth, bool fill_on_right
 }
 
 EncodedStaticFieldValueIterator::EncodedStaticFieldValueIterator(const DexFile& dex_file,
-    DexCache* dex_cache, ClassLinker* linker, const DexFile::ClassDef& class_def) :
-    dex_file_(dex_file), dex_cache_(dex_cache), linker_(linker), array_size_(), pos_(-1), type_(0) {
+                                                                 DexCache* dex_cache,
+                                                                 ClassLinker* linker,
+                                                                 const DexFile::ClassDef& class_def)
+    : dex_file_(dex_file), dex_cache_(dex_cache), linker_(linker), array_size_(), pos_(-1),
+      type_(0) {
   ptr_ = dex_file.GetEncodedStaticFieldValuesArray(class_def);
   if (ptr_ == NULL) {
     array_size_ = 0;

@@ -306,9 +306,9 @@ class RegType {
  private:
   friend class RegTypeCache;
 
-  RegType(Type type, Object* klass_or_descriptor, uint32_t allocation_pc_or_constant, uint16_t cache_id) :
-    type_(type), klass_or_descriptor_(klass_or_descriptor), allocation_pc_or_constant_(allocation_pc_or_constant),
-    cache_id_(cache_id) {
+  RegType(Type type, Object* klass_or_descriptor, uint32_t allocation_pc_or_constant, uint16_t cache_id)
+      : type_(type), klass_or_descriptor_(klass_or_descriptor),
+        allocation_pc_or_constant_(allocation_pc_or_constant), cache_id_(cache_id) {
     DCHECK(IsConstant() || IsUninitializedTypes() || allocation_pc_or_constant == 0);
     if (!IsConstant() && !IsLongConstant() && !IsLongConstantHigh() && !IsUndefined() &&
         !IsConflict()) {
