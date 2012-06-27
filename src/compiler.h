@@ -244,10 +244,8 @@ class Compiler {
   void Compile(ClassLoader* class_loader,
                const std::vector<const DexFile*>& dex_files);
   void CompileDexFile(ClassLoader* class_loader, const DexFile& dex_file);
-  void CompileClass(const DexFile::ClassDef& class_def, const ClassLoader* class_loader,
-                    const DexFile& dex_file);
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags, uint32_t method_idx,
-                     const ClassLoader* class_loader, const DexFile& dex_file);
+                     ClassLoader* class_loader, const DexFile& dex_file);
 
   static void CompileClass(CompilationContext* context, size_t class_def_index);
 
@@ -310,7 +308,7 @@ class Compiler {
   typedef CompiledMethod* (*CompilerFn)(Compiler& compiler,
                                         const DexFile::CodeItem* code_item,
                                         uint32_t access_flags, uint32_t method_idx,
-                                        const ClassLoader* class_loader,
+                                        ClassLoader* class_loader,
                                         const DexFile& dex_file);
   CompilerFn compiler_;
 

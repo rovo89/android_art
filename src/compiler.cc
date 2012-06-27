@@ -895,7 +895,7 @@ void Compiler::AddMethodPatch(DexCache* dex_cache,
 // classes found in the boot classpath. Since at runtime we will
 // select the class from the boot classpath, do not attempt to resolve
 // or compile it now.
-static bool SkipClass(const ClassLoader* class_loader,
+static bool SkipClass(ClassLoader* class_loader,
                       const DexFile& dex_file,
                       const DexFile::ClassDef& class_def) {
   if (class_loader == NULL) {
@@ -1398,7 +1398,7 @@ void Compiler::Compile(ClassLoader* class_loader,
 }
 
 void Compiler::CompileClass(CompilationContext* context, size_t class_def_index) {
-  const ClassLoader* class_loader = context->GetClassLoader();
+  ClassLoader* class_loader = context->GetClassLoader();
   const DexFile& dex_file = *context->GetDexFile();
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_index);
   if (SkipClass(class_loader, dex_file, class_def)) {
@@ -1469,7 +1469,7 @@ static std::string MakeInvokeStubKey(bool is_static, const char* shorty) {
 }
 
 void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
-                             uint32_t method_idx, const ClassLoader* class_loader,
+                             uint32_t method_idx, ClassLoader* class_loader,
                              const DexFile& dex_file) {
   CompiledMethod* compiled_method = NULL;
   uint64_t start_ns = NanoTime();

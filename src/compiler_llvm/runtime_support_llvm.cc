@@ -25,6 +25,7 @@
 #include "runtime_support.h"
 #include "runtime_support_func_list.h"
 #include "runtime_support_llvm.h"
+#include "scoped_jni_thread_state.h"
 #include "ScopedLocalRef.h"
 #include "thread.h"
 #include "thread_list.h"
