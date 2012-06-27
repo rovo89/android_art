@@ -840,11 +840,13 @@ class MANAGED Method : public Object {
   }
 
   uint32_t GetInvokeStubSize() const {
-    const uint32_t* invoke_stub = reinterpret_cast<const uint32_t*>(GetInvokeStub());
-    if (invoke_stub == NULL) {
+    uintptr_t invoke_stub = reinterpret_cast<uintptr_t>(GetInvokeStub());
+    if (invoke_stub == 0) {
       return 0;
     }
-    return invoke_stub[-1];
+    // TODO: make this Thumb2 specific
+    invoke_stub &= ~0x1;
+    return reinterpret_cast<const uint32_t*>(invoke_stub)[-1];
   }
 
   uint32_t GetOatInvokeStubOffset() const {
