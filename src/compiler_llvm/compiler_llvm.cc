@@ -187,7 +187,7 @@ extern "C" void ArtUnInitCompilerContext(art::Compiler& compiler) {
 extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags, uint32_t method_idx,
-                                                 const art::ClassLoader* class_loader,
+                                                 art::ClassLoader* class_loader,
                                                  const art::DexFile& dex_file)
 {
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
