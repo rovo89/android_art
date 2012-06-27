@@ -29,7 +29,79 @@ namespace llvm {
 
 namespace art {
 
-class CompiledMethod {
+class CompiledCode {
+ public:
+  CompiledCode(InstructionSet instruction_set)
+      : instruction_set_(instruction_set), elf_idx_(-1), elf_func_idx_(-1) {
+  }
+
+  CompiledCode(InstructionSet instruction_set, const std::vector<uint8_t>& code)
+      : instruction_set_(instruction_set), code_(code), elf_idx_(-1),
+        elf_func_idx_(-1) {
+    CHECK_NE(code.size(), 0U);
+  }
+
+  CompiledCode(InstructionSet instruction_set,
+               uint16_t elf_idx,
+               uint16_t elf_func_idx)
+      : instruction_set_(instruction_set), elf_idx_(elf_idx),
+        elf_func_idx_(elf_func_idx) {
+  }
+
+  InstructionSet GetInstructionSet() const {
+    return instruction_set_;
+  }
+
+  const std::vector<uint8_t>& GetCode() const {
+    return code_;
+  }
+
+  void SetCode(const std::vector<uint8_t>& code) {
+    code_ = code;
+  }
+
+  bool operator==(const CompiledCode& rhs) const {
+    return (code_ == rhs.code_);
+  }
+
+  bool IsExecutableInElf() const {
+    return (elf_idx_ != static_cast<uint16_t>(-1u));
+  }
+
+  uint16_t GetElfIndex() const {
+    return elf_idx_;
+  }
+
+  uint16_t GetElfFuncIndex() const {
+    return elf_func_idx_;
+  }
+
+  // To align an offset from a page-aligned value to make it suitable
+  // for code storage. For example on ARM, to ensure that PC relative
+  // valu computations work out as expected.
+  uint32_t AlignCode(uint32_t offset) const;
+  static uint32_t AlignCode(uint32_t offset, InstructionSet instruction_set);
+
+  // returns the difference between the code address and a usable PC.
+  // mainly to cope with kThumb2 where the lower bit must be set.
+  size_t CodeDelta() const;
+
+  // Returns a pointer suitable for invoking the code at the argument
+  // code_pointer address.  Mainly to cope with kThumb2 where the
+  // lower bit must be set to indicate Thumb mode.
+  static const void* CodePointer(const void* code_pointer,
+                                 InstructionSet instruction_set);
+
+ private:
+  const InstructionSet instruction_set_;
+  std::vector<uint8_t> code_;
+
+  // LLVM-specific fields
+  uint16_t elf_idx_;
+  uint16_t elf_func_idx_;
+};
+
+class CompiledMethod : public CompiledCode {
  public:
   // Constructs a CompiledMethod for the non-LLVM compilers.
   CompiledMethod(InstructionSet instruction_set,
@@ -52,13 +124,15 @@ class CompiledMethod {
 
   // Constructs a CompiledMethod for the LLVM compiler.
   CompiledMethod(InstructionSet instruction_set,
-                 const uint16_t elf_idx,
-                 const uint16_t elf_func_idx);
+                 uint16_t elf_idx,
+                 uint16_t elf_func_idx)
+      : CompiledCode(instruction_set, elf_idx, elf_func_idx),
+        frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
+        fp_spill_mask_(0) {
+  }
 
   ~CompiledMethod();
 
-  InstructionSet GetInstructionSet() const;
-  const std::vector<uint8_t>& GetCode() const;
   size_t GetFrameSizeInBytes() const;
   uint32_t GetCoreSpillMask() const;
   uint32_t GetFpSpillMask() const;
@@ -72,79 +146,29 @@ class CompiledMethod {
   }
 #endif
 
-  // Aligns an offset from a page aligned value to make it suitable
-  // for code storage. important to ensure that PC relative value
-  // computations work out as expected on ARM.
-  uint32_t AlignCode(uint32_t offset) const;
-  static uint32_t AlignCode(uint32_t offset, InstructionSet instruction_set);
-
-  // returns the difference between the code address and a usable PC.
-  // mainly to cope with kThumb2 where the lower bit must be set.
-  size_t CodeDelta() const;
-
-  // Returns a pointer suitable for invoking the code at the argument
-  // code_pointer address.  Mainly to cope with kThumb2 where the
-  // lower bit must be set to indicate Thumb mode.
-  static const void* CodePointer(const void* code_pointer,
-                                 InstructionSet instruction_set);
-
-  uint16_t GetElfIndex() const {
-    DCHECK(IsExecutableInElf());
-    return elf_idx_;
-  }
-
-  uint16_t GetElfFuncIndex() const {
-    DCHECK(IsExecutableInElf());
-    return elf_func_idx_;
-  }
-
-  bool IsExecutableInElf() const {
-    return (elf_idx_ != static_cast<uint16_t>(-1u));
-  }
-
  private:
-  // For non-LLVM
-  const InstructionSet instruction_set_;
-  std::vector<uint8_t> code_;
   size_t frame_size_in_bytes_;
   const uint32_t core_spill_mask_;
   const uint32_t fp_spill_mask_;
   std::vector<uint32_t> mapping_table_;
   std::vector<uint16_t> vmap_table_;
   std::vector<uint8_t> gc_map_;
-  // For LLVM
-  uint16_t elf_idx_;
-  uint16_t elf_func_idx_;
 };
 
-class CompiledInvokeStub {
+class CompiledInvokeStub : public CompiledCode {
  public:
-  explicit CompiledInvokeStub(std::vector<uint8_t>& code);
-#if defined(ART_USE_LLVM_COMPILER)
-  explicit CompiledInvokeStub(uint16_t elf_idx, uint16_t elf_func_idx);
-#endif
+  explicit CompiledInvokeStub(InstructionSet instruction_set);
+
+  explicit CompiledInvokeStub(InstructionSet instruction_set,
+                              const std::vector<uint8_t>& code);
+
+  explicit CompiledInvokeStub(InstructionSet instruction_set,
+                              uint16_t elf_idx,
+                              uint16_t elf_func_idx)
+      : CompiledCode(instruction_set, elf_idx, elf_func_idx) {
+  }
+
   ~CompiledInvokeStub();
-
-  const std::vector<uint8_t>& GetCode() const;
-
-  uint16_t GetElfIndex() const {
-    DCHECK(IsExecutableInElf());
-    return elf_idx_;
-  }
-
-  uint16_t GetElfFuncIndex() const {
-    DCHECK(IsExecutableInElf());
-    return elf_func_idx_;
-  }
-
-  bool IsExecutableInElf() const {
-    return (elf_idx_ != static_cast<uint16_t>(-1u));
-  }
-
- private:
-  std::vector<uint8_t> code_;
-  uint16_t elf_idx_;
-  uint16_t elf_func_idx_;
 };
 
 }  // namespace art
