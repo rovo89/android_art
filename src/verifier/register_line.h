@@ -53,8 +53,8 @@ enum TypeCategory {
 // (which is not visible to the GC).
 class RegisterLine {
  public:
-  RegisterLine(size_t num_regs, MethodVerifier* verifier) :
-    line_(new uint16_t[num_regs]), verifier_(verifier), num_regs_(num_regs) {
+  RegisterLine(size_t num_regs, MethodVerifier* verifier)
+      : line_(new uint16_t[num_regs]), verifier_(verifier), num_regs_(num_regs) {
     memset(line_.get(), 0, num_regs_ * sizeof(uint16_t));
     result_[0] = RegType::kRegTypeUndefined;
     result_[1] = RegType::kRegTypeUndefined;

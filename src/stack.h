@@ -146,8 +146,8 @@ class ShadowFrame {
 // code.
 class PACKED ManagedStack {
  public:
-  ManagedStack() : link_(NULL), top_shadow_frame_(NULL),
-                   top_quick_frame_(NULL), top_quick_frame_pc_(0) {}
+  ManagedStack()
+      : link_(NULL), top_shadow_frame_(NULL), top_quick_frame_(NULL), top_quick_frame_pc_(0) {}
   void PushManagedStackFragment(ManagedStack* fragment);
   void PopManagedStackFragment(const ManagedStack& record);
 
@@ -215,9 +215,10 @@ class PACKED ManagedStack {
 class StackVisitor {
  protected:
   StackVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
-               Context* context = NULL) :
-    stack_start_(stack), trace_stack_(trace_stack), cur_shadow_frame_(NULL), cur_quick_frame_(NULL),
-    cur_quick_frame_pc_(0), num_frames_(0), cur_depth_(0), context_(context) {}
+               Context* context = NULL)
+      : stack_start_(stack), trace_stack_(trace_stack), cur_shadow_frame_(NULL),
+        cur_quick_frame_(NULL), cur_quick_frame_pc_(0), num_frames_(0), cur_depth_(0),
+        context_(context) {}
 
  public:
   virtual ~StackVisitor() {}

@@ -64,12 +64,13 @@ static void DumpStat(size_t x, size_t y, const char* str) {
 
 class AOTCompilationStats {
  public:
-  AOTCompilationStats() : stats_lock_("AOT compilation statistics lock"),
-     types_in_dex_cache_(0), types_not_in_dex_cache_(0),
-     strings_in_dex_cache_(0), strings_not_in_dex_cache_(0),
-     resolved_types_(0), unresolved_types_(0),
-     resolved_instance_fields_(0), unresolved_instance_fields_(0),
-     resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0) {
+  AOTCompilationStats()
+      : stats_lock_("AOT compilation statistics lock"),
+        types_in_dex_cache_(0), types_not_in_dex_cache_(0),
+        strings_in_dex_cache_(0), strings_not_in_dex_cache_(0),
+        resolved_types_(0), unresolved_types_(0),
+        resolved_instance_fields_(0), unresolved_instance_fields_(0),
+        resolved_local_static_fields_(0), resolved_static_fields_(0), unresolved_static_fields_(0) {
     for (size_t i = 0; i <= kMaxInvokeType; i++) {
       resolved_methods_[i] = 0;
       unresolved_methods_[i] = 0;

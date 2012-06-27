@@ -24,8 +24,8 @@ namespace arm {
 
 class ArmManagedRuntimeCallingConvention : public ManagedRuntimeCallingConvention {
  public:
-  ArmManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty) :
-      ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty) {}
+  ArmManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
+      : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty) {}
   virtual ~ArmManagedRuntimeCallingConvention() {}
   // Calling convention
   virtual ManagedRegister ReturnRegister();

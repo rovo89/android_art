@@ -188,8 +188,8 @@ class ManagedRuntimeCallingConvention : public CallingConvention {
   virtual const std::vector<ManagedRegister>& EntrySpills() = 0;
 
  protected:
-  ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty) :
-      CallingConvention(is_static, is_synchronized, shorty) {}
+  ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
+      : CallingConvention(is_static, is_synchronized, shorty) {}
 };
 
 // Abstraction for JNI calling conventions
@@ -275,8 +275,8 @@ class JniCallingConvention : public CallingConvention {
     kObjectOrClass = 1
   };
 
-  explicit JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty) :
-      CallingConvention(is_static, is_synchronized, shorty) {}
+  explicit JniCallingConvention(bool is_static, bool is_synchronized, const char* shorty)
+      : CallingConvention(is_static, is_synchronized, shorty) {}
 
   // Number of stack slots for outgoing arguments, above which the SIRT is
   // located

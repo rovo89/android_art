@@ -196,8 +196,8 @@ static bool UninstallStubsClassVisitor(Class* klass, void*) {
 
 static void TraceRestoreStack(Thread* self, void*) {
   struct RestoreStackVisitor : public StackVisitor {
-    RestoreStackVisitor(Thread* self) : StackVisitor(self->GetManagedStack(),
-                                                     self->GetTraceStack()), self_(self) {}
+    RestoreStackVisitor(Thread* self)
+        : StackVisitor(self->GetManagedStack(), self->GetTraceStack()), self_(self) {}
 
     virtual bool VisitFrame() {
       if (self_->IsTraceStackEmpty()) {

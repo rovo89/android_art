@@ -249,8 +249,8 @@ class FieldHelper {
  public:
   FieldHelper() : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(NULL) {}
   explicit FieldHelper(const Field* f) : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), field_(f) {}
-  FieldHelper(const Field* f, ClassLinker* l) : class_linker_(l), dex_cache_(NULL), dex_file_(NULL),
-      field_(f) {}
+  FieldHelper(const Field* f, ClassLinker* l)
+      : class_linker_(l), dex_cache_(NULL), dex_file_(NULL), field_(f) {}
 
   void ChangeField(const Field* new_f) {
     DCHECK(new_f != NULL);
@@ -377,14 +377,19 @@ class FieldHelper {
 
 class MethodHelper {
  public:
-  MethodHelper() : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL),
-      shorty_(NULL), shorty_len_(0) {}
-  explicit MethodHelper(const Method* m) : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL),
-      method_(NULL), shorty_(NULL), shorty_len_(0) {
+  MethodHelper()
+      : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
+        shorty_len_(0) {}
+
+  explicit MethodHelper(const Method* m)
+      : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
+        shorty_len_(0) {
     SetMethod(m);
   }
-  MethodHelper(const Method* m, ClassLinker* l) : class_linker_(l), dex_cache_(NULL),
-      dex_file_(NULL), method_(NULL), shorty_(NULL), shorty_len_(0) {
+
+  MethodHelper(const Method* m, ClassLinker* l)
+      : class_linker_(l), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
+        shorty_len_(0) {
     SetMethod(m);
   }
 

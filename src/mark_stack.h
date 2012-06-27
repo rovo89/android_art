@@ -53,9 +53,7 @@ class MarkStack {
   void Reset();
 
  private:
-  MarkStack() :
-      begin_(NULL), limit_(NULL), ptr_(NULL) {
-  }
+  MarkStack() : begin_(NULL), limit_(NULL), ptr_(NULL) {}
 
   void Init();
 

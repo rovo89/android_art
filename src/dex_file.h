@@ -734,8 +734,8 @@ class DexFile {
   };
 
   struct LocalInfo {
-    LocalInfo() : name_(NULL), descriptor_(NULL), signature_(NULL), start_address_(0),
-        is_live_(false) {}
+    LocalInfo()
+        : name_(NULL), descriptor_(NULL), signature_(NULL), start_address_(0), is_live_(false) {}
 
     const char* name_;  // E.g., list
     const char* descriptor_;  // E.g., Ljava/util/LinkedList;
@@ -748,8 +748,8 @@ class DexFile {
   };
 
   struct LineNumFromPcContext {
-    LineNumFromPcContext(uint32_t address, uint32_t line_num) :
-                           address_(address), line_num_(line_num) {}
+    LineNumFromPcContext(uint32_t address, uint32_t line_num)
+        : address_(address), line_num_(line_num) {}
     uint32_t address_;
     uint32_t line_num_;
    private:

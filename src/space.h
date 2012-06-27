@@ -98,8 +98,8 @@ class Space {
   virtual bool IsImageSpace() const = 0;
 
  protected:
-  Space(const std::string& name, MemMap* mem_map, byte* end) : name_(name), mem_map_(mem_map),
-      begin_(mem_map->Begin()), end_(end) {}
+  Space(const std::string& name, MemMap* mem_map, byte* end)
+      : name_(name), mem_map_(mem_map), begin_(mem_map->Begin()), end_(end) {}
 
   std::string name_;
   // Underlying storage of the space
@@ -182,8 +182,8 @@ class AllocSpace : public Space {
   friend class Space;
 
   AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* end,
-             size_t growth_limit) :
-    Space(name, mem_map, end), mspace_(mspace), growth_limit_(growth_limit) {
+             size_t growth_limit)
+      : Space(name, mem_map, end), mspace_(mspace), growth_limit_(growth_limit) {
     CHECK(mspace != NULL);
   }
 
@@ -234,8 +234,8 @@ class ImageSpace : public Space {
  private:
   friend class Space;
 
-  ImageSpace(const std::string& name, MemMap* mem_map) :
-      Space(name, mem_map, mem_map->End()) {}
+  ImageSpace(const std::string& name, MemMap* mem_map)
+      : Space(name, mem_map, mem_map->End()) {}
 
   DISALLOW_COPY_AND_ASSIGN(ImageSpace);
 };
