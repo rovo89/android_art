@@ -18,7 +18,7 @@
  * Test math exceptions
  */
 public class Main {
-    public static void main(String args[]) {
+    public static void math_014() {
         int expectedThrows = 2;
         int i;
         long j;
@@ -53,5 +53,8 @@ public class Main {
             System.out.println("HEY: expected throws is " + expectedThrows);
         else
             System.out.println("testMath3 success");
+    }
+    public static void main(String args[]) {
+        math_014();
     }
 }

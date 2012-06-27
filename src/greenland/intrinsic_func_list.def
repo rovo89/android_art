@@ -108,6 +108,20 @@ _EVAL_DEF_INTRINSICS_FUNC(ThrowIndexOutOfBounds,
                           kVoidTy,
                           _EXPAND_ARG2(kInt32Ty, kInt32Ty))
 
+// void dex_lang_throw(exception_object)
+_EVAL_DEF_INTRINSICS_FUNC(Throw,
+                          dex_lang_throw,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG1(kJavaObjectTy))
+
+// void dex_lang_throw_verification_error(int info1, int info2)
+_EVAL_DEF_INTRINSICS_FUNC(ThrowVerificationError,
+                          dex_lang_throw_verification_error,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32Ty, kInt32Ty))
+
 //----------------------------------------------------------------------------
 // ConstString
 //----------------------------------------------------------------------------
