@@ -3436,12 +3436,13 @@ void MethodVerifier::SetInferredRegCategoryMap(Compiler::MethodReference ref,
   MutexLock mu(*inferred_reg_category_maps_lock_);
   const InferredRegCategoryMap* existing_inferred_reg_category_map = GetInferredRegCategoryMap(ref);
 
-  if (existing_inferred_reg_category_map != NULL) {
+  if (existing_inferred_reg_category_map == NULL) {
+    inferred_reg_category_maps_->Put(ref, &inferred_reg_category_map);
+  } else {
     CHECK(*existing_inferred_reg_category_map == inferred_reg_category_map);
-    delete existing_inferred_reg_category_map;
+    delete &inferred_reg_category_map;
   }
 
-  inferred_reg_category_maps_->Put(ref, &inferred_reg_category_map);
   CHECK(GetInferredRegCategoryMap(ref) != NULL);
 }
 
