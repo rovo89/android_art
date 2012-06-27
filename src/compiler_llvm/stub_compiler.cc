@@ -141,8 +141,6 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
   }
 
   // Invoke managed method now!
-  // TODO: If we solve the trampoline related problems, we can just get the code address and call.
-#if 0
   llvm::Value* code_field_offset_value =
     irb_.getPtrEquivInt(Method::GetCodeOffset().Int32Value());
 
@@ -151,21 +149,6 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
                        accurate_func_type->getPointerTo()->getPointerTo());
 
   llvm::Value* code_addr = irb_.CreateLoad(code_field_addr, kTBAAJRuntime);
-#else
-  llvm::Value* result = irb_.CreateCall(irb_.GetRuntime(FixStub), method_object_addr);
-  llvm::Value* code_addr = irb_.CreatePointerCast(result, accurate_func_type->getPointerTo());
-
-  // Exception unwind.
-  llvm::Value* exception_pending = irb_.Runtime().EmitIsExceptionPending();
-  llvm::BasicBlock* block_unwind = llvm::BasicBlock::Create(*context_, "exception_unwind", func);
-  llvm::BasicBlock* block_cont = llvm::BasicBlock::Create(*context_, "cont", func);
-  irb_.CreateCondBr(exception_pending, block_unwind, block_cont);
-  irb_.SetInsertPoint(block_unwind);
-  // Restore thread register
-  irb_.Runtime().EmitSetCurrentThread(old_thread_register);
-  irb_.CreateRetVoid();
-  irb_.SetInsertPoint(block_cont);
-#endif
 
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
 

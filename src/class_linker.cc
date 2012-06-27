@@ -2295,11 +2295,6 @@ Method* ClassLinker::CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_
   ObjectArray<Method>* proxy_direct_methods = proxy_class->GetDirectMethods();
   CHECK_EQ(proxy_direct_methods->GetLength(), 15);
   Method* proxy_constructor = proxy_direct_methods->Get(2);
-#if defined(ART_USE_LLVM_COMPILER)
-  // Ensure link.
-  // TODO: Remove this after fixing the link problem by in-place linking.
-  art_fix_stub_from_code(proxy_constructor);
-#endif
   // Clone the existing constructor of Proxy (our constructor would just invoke it so steal its
   // code_ too)
   Method* constructor = down_cast<Method*>(proxy_constructor->Clone());
