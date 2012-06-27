@@ -58,6 +58,7 @@ namespace art {
 class Method;
 class Object;
 class Thread;
+class StackVisitor;
 
 class Monitor {
  public:
@@ -76,6 +77,7 @@ class Monitor {
   static void Wait(Thread* self, Object* obj, int64_t ms, int32_t ns, bool interruptShouldThrow);
 
   static void DescribeWait(std::ostream& os, const Thread* thread);
+  static void DescribeLocks(std::ostream& os, StackVisitor* stack_visitor);
 
   Object* GetObject();
 

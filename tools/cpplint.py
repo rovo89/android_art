@@ -2568,7 +2568,7 @@ def CheckLanguage(filename, clean_lines, linenum, file_extension, include_state,
   # probably a member operator declaration or default constructor.
   match = Search(
       r'(\bnew\s+)?\b'  # Grab 'new' operator, if it's there
-      r'(int|float|double|bool|char|int32|uint32|int64|uint64)\([^)]', line)
+      r'(int|float|double|bool|char|u?int(8|16|32|64)_t)\([^)]', line) # TODO(enh): upstream change to handle all stdint types.
   if match:
     # gMock methods are defined using some variant of MOCK_METHODx(name, type)
     # where type may be float(), int(string), etc.  Without context they are
@@ -2585,7 +2585,7 @@ def CheckLanguage(filename, clean_lines, linenum, file_extension, include_state,
 
   CheckCStyleCast(filename, linenum, line, clean_lines.raw_lines[linenum],
                   'static_cast',
-                  r'\((int|float|double|bool|char|u?int(16|32|64))\)', error)
+                  r'\((int|float|double|bool|char|u?int(8|16|32|64))\)', error) # TODO(enh): upstream change to handle all stdint types.
 
   # This doesn't catch all cases. Consider (const char * const)"hello".
   #
@@ -3300,6 +3300,7 @@ def ParseArguments(args):
   """
   try:
     (opts, filenames) = getopt.getopt(args, '', ['help', 'output=', 'verbose=',
+                                                 'stdout', # TODO(enh): added --stdout
                                                  'counting=',
                                                  'filter='])
   except getopt.GetoptError:
@@ -3307,12 +3308,15 @@ def ParseArguments(args):
 
   verbosity = _VerboseLevel()
   output_format = _OutputFormat()
+  output_stream = sys.stderr # TODO(enh): added --stdout
   filters = ''
   counting_style = ''
 
   for (opt, val) in opts:
     if opt == '--help':
       PrintUsage(None)
+    elif opt == '--stdout': # TODO(enh): added --stdout
+      output_stream = sys.stdout # TODO(enh): added --stdout
     elif opt == '--output':
       if not val in ('emacs', 'vs7'):
         PrintUsage('The only allowed output formats are emacs and vs7.')
@@ -3335,6 +3339,8 @@ def ParseArguments(args):
   _SetVerboseLevel(verbosity)
   _SetFilters(filters)
   _SetCountingStyle(counting_style)
+
+  sys.stderr = output_stream # TODO(enh): added --stdout
 
   return filenames
 

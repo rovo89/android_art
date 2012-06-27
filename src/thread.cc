@@ -519,9 +519,10 @@ void Thread::DumpState(std::ostream& os) const {
 }
 
 struct StackDumpVisitor : public StackVisitor {
-  StackDumpVisitor(std::ostream& os, const Thread* thread)
-      : StackVisitor(thread->GetManagedStack(), thread->GetTraceStack()), last_method(NULL),
-        last_line_number(0), repetition_count(0), os(os), thread(thread), frame_count(0) {
+  StackDumpVisitor(std::ostream& os, const Thread* thread, Context* context, bool can_allocate)
+      : StackVisitor(thread->GetManagedStack(), thread->GetTraceStack(), context),
+        os(os), thread(thread), can_allocate(can_allocate),
+        last_method(NULL), last_line_number(0), repetition_count(0), frame_count(0) {
   }
 
   virtual ~StackDumpVisitor() {
@@ -565,19 +566,24 @@ struct StackDumpVisitor : public StackVisitor {
            << ":" << line_number << ")";
       }
       os << "\n";
+      if (frame_count == 0) {
+        Monitor::DescribeWait(os, thread);
+      }
+      if (can_allocate) {
+        Monitor::DescribeLocks(os, this);
+      }
     }
 
-    if (frame_count++ == 0) {
-      Monitor::DescribeWait(os, thread);
-    }
+    ++frame_count;
     return true;
   }
+  std::ostream& os;
+  const Thread* thread;
+  bool can_allocate;
   MethodHelper mh;
   Method* last_method;
   int last_line_number;
   int repetition_count;
-  std::ostream& os;
-  const Thread* thread;
   int frame_count;
 };
 
@@ -587,7 +593,8 @@ void Thread::DumpStack(std::ostream& os) const {
     DumpKernelStack(os, GetTid(), "  kernel: ", false);
     DumpNativeStack(os, GetTid(), "  native: ", false);
   }
-  StackDumpVisitor dumper(os, this);
+  UniquePtr<Context> context(Context::Create());
+  StackDumpVisitor dumper(os, this, context.get(), !throwing_OutOfMemoryError_);
   dumper.WalkStack();
 }
 
@@ -999,7 +1006,8 @@ class CountStackDepthVisitor : public StackVisitor {
  public:
   CountStackDepthVisitor(const ManagedStack* stack,
                          const std::vector<TraceStackFrame>* trace_stack)
-      : StackVisitor(stack, trace_stack), depth_(0), skip_depth_(0), skipping_(true) {}
+      : StackVisitor(stack, trace_stack, NULL),
+        depth_(0), skip_depth_(0), skipping_(true) {}
 
   bool VisitFrame() {
     // We want to skip frames up to and including the exception's constructor.
@@ -1039,8 +1047,8 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
   explicit BuildInternalStackTraceVisitor(const ManagedStack* stack,
                                           const std::vector<TraceStackFrame>* trace_stack,
                                           int skip_depth)
-      : StackVisitor(stack, trace_stack), skip_depth_(skip_depth), count_(0), dex_pc_trace_(NULL),
-        method_trace_(NULL) {}
+      : StackVisitor(stack, trace_stack, NULL),
+        skip_depth_(skip_depth), count_(0), dex_pc_trace_(NULL), method_trace_(NULL) {}
 
   bool Init(int depth, const ScopedJniThreadState& ts) {
     // Allocate method trace with an extra slot that will hold the PC trace
@@ -1551,7 +1559,7 @@ Method* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) const {
   struct CurrentMethodVisitor : public StackVisitor {
     CurrentMethodVisitor(const ManagedStack* stack,
                          const std::vector<TraceStackFrame>* trace_stack)
-        : StackVisitor(stack, trace_stack), method_(NULL), dex_pc_(0), frame_id_(0) {}
+        : StackVisitor(stack, trace_stack, NULL), method_(NULL), dex_pc_(0), frame_id_(0) {}
 
     virtual bool VisitFrame() {
       Method* m = GetMethod();

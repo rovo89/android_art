@@ -43,7 +43,7 @@ namespace art {
 struct ReferenceMap2Visitor : public StackVisitor {
   explicit ReferenceMap2Visitor(const ManagedStack* stack,
                                 const std::vector<TraceStackFrame>* trace_stack) :
-    StackVisitor(stack, trace_stack) {
+    StackVisitor(stack, trace_stack, NULL) {
   }
 
   bool VisitFrame() {

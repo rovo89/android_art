@@ -17,9 +17,17 @@
 #ifndef ART_SRC_STL_UTIL_H_
 #define ART_SRC_STL_UTIL_H_
 
+#include <algorithm>
 #include <iostream>
 
 namespace art {
+
+// Sort and remove duplicates of an STL vector or deque.
+template<class T>
+void STLSortAndRemoveDuplicates(T* v) {
+  std::sort(v->begin(), v->end());
+  v->erase(std::unique(v->begin(), v->end()), v->end());
+}
 
 // STLDeleteContainerPointers()
 //  For a range within a container of pointers, calls delete

@@ -328,10 +328,33 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
       class_loader_(class_loader),
       class_def_idx_(class_def_idx),
       code_item_(code_item),
+      interesting_dex_pc_(-1),
+      monitor_enter_dex_pcs_(NULL),
       have_pending_hard_failure_(false),
       have_pending_rewrite_failure_(false),
       new_instance_count_(0),
       monitor_enter_count_(0) {
+}
+
+void MethodVerifier::FindLocksAtDexPc(Method* m, uint32_t dex_pc, std::vector<uint32_t>& monitor_enter_dex_pcs) {
+  MethodHelper mh(m);
+  MethodVerifier verifier(&mh.GetDexFile(), mh.GetDexCache(), mh.GetClassLoader(),
+                          mh.GetClassDefIndex(), mh.GetCodeItem(), m->GetDexMethodIndex(),
+                          m, m->GetAccessFlags());
+  verifier.interesting_dex_pc_ = dex_pc;
+  verifier.monitor_enter_dex_pcs_ = &monitor_enter_dex_pcs;
+  verifier.FindLocksAtDexPc();
+}
+
+void MethodVerifier::FindLocksAtDexPc() {
+  CHECK(monitor_enter_dex_pcs_ != NULL);
+  CHECK(code_item_ != NULL); // This only makes sense for methods with code.
+
+  // Strictly speaking, we ought to be able to get away with doing a subset of the full method
+  // verification. In practice, the phase we want relies on data structures set up by all the
+  // earlier passes, so we just run the full method verification and bail out early when we've
+  // got what we wanted.
+  Verify();
 }
 
 bool MethodVerifier::Verify() {
@@ -1275,6 +1298,16 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     gDvm.verifierStats.instrsExamined++;
   }
 #endif
+
+  // If we're doing FindLocksAtDexPc, check whether we're at the dex pc we care about.
+  // We want the state _before_ the instruction, for the case where the dex pc we're
+  // interested in is itself a monitor-enter instruction (which is a likely place
+  // for a thread to be suspended).
+  if (monitor_enter_dex_pcs_ != NULL && work_insn_idx_ == interesting_dex_pc_) {
+    for (size_t i = 0; i < work_line_->GetMonitorEnterCount(); ++i) {
+      monitor_enter_dex_pcs_->push_back(work_line_->GetMonitorEnterDexPc(i));
+    }
+  }
 
   /*
    * Once we finish decoding the instruction, we need to figure out where
