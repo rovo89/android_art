@@ -22,8 +22,6 @@
 #include "compiled_method.h"
 #include "compiler.h"
 #include "dex_cache.h"
-#include "elf_image.h"
-#include "elf_loader.h"
 #include "ir_builder.h"
 #include "jni_compiler.h"
 #include "method_compiler.h"
@@ -95,9 +93,9 @@ llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
 
 CompilerLLVM::CompilerLLVM(Compiler* compiler, InstructionSet insn_set)
-    : compiler_(compiler), compiler_lock_("llvm_compiler_lock"),
-      insn_set_(insn_set), curr_cunit_(NULL) {
-
+    : compiler_(compiler), insn_set_(insn_set),
+      num_cunits_lock_("compilation unit counter lock"), num_cunits_(0),
+      plt_(insn_set) {
 
   // Initialize LLVM libraries
   pthread_once(&llvm_initialized, InitializeLLVM);
@@ -105,152 +103,21 @@ CompilerLLVM::CompilerLLVM(Compiler* compiler, InstructionSet insn_set)
 
 
 CompilerLLVM::~CompilerLLVM() {
-  STLDeleteElements(&cunits_);
 }
 
 
-void CompilerLLVM::EnsureCompilationUnit() {
-  compiler_lock_.AssertHeld();
-
-  if (curr_cunit_ != NULL) {
-    return;
-  }
-
-  // Allocate compilation unit
-  size_t cunit_idx = cunits_.size();
-  curr_cunit_ = new CompilationUnit(insn_set_, cunit_idx);
-
-  // Register compilation unit
-  cunits_.push_back(curr_cunit_);
-}
-
-
-void CompilerLLVM::MaterializeRemainder() {
-  compiler_lock_.Lock();
-  // Localize
-  CompilationUnit* cunit = curr_cunit_;
-  // Reset the curr_cuit_
-  curr_cunit_ = NULL;
-  compiler_lock_.Unlock();
-
-  if (cunit != NULL) {
-    Materialize(cunit);
-  }
-}
-
-
-void CompilerLLVM::MaterializeIfThresholdReached() {
-  compiler_lock_.Lock();
-  // Localize
-  CompilationUnit* cunit = curr_cunit_;
-
-  if (curr_cunit_ != NULL && curr_cunit_->IsMaterializeThresholdReached()) {
-    // Delete the compilation unit
-    curr_cunit_ = NULL;
-  } else {
-    // Reset cunit such that Materialize() won't be invoked
-    cunit = NULL;
-  }
-
-  compiler_lock_.Unlock();
-
-  if (cunit != NULL) {
-    Materialize(cunit);
-  }
-}
-
-
-void CompilerLLVM::Materialize(CompilationUnit* cunit) {
-  DCHECK(cunit != NULL);
-  DCHECK(!cunit->IsMaterialized());
-
-  // Write bitcode to file when filename is set
-  if (IsBitcodeFileNameAvailable()) {
-    const size_t cunit_idx = cunits_.size();
-    cunit->SetBitcodeFileName(
-      StringPrintf("%s-%zu", bitcode_filename_.c_str(), cunit_idx));
-  }
-
-  // Materialize the llvm::Module into ELF object file
-  cunit->Materialize(compiler_->GetThreadCount());
-
-  // Load ELF image when automatic ELF loading is enabled
-  if (IsAutoElfLoadingEnabled()) {
-    LoadElfFromCompilationUnit(cunit);
-  }
-}
-
-
-void CompilerLLVM::EnableAutoElfLoading() {
-  MutexLock GUARD(compiler_lock_);
-
-  if (IsAutoElfLoadingEnabled()) {
-    // If there is an existing ELF loader, then do nothing.
-    // Because the existing ELF loader may have returned some code address
-    // already.  If we replace the existing ELF loader with
-    // elf_loader_.reset(...), then it is possible to have some dangling
-    // pointer.
-    return;
-  }
-
-  // Create ELF loader and load the materialized CompilationUnit
-  elf_loader_.reset(new ElfLoader());
-
-  for (size_t i = 0; i < cunits_.size(); ++i) {
-    if (cunits_[i]->IsMaterialized()) {
-      LoadElfFromCompilationUnit(cunits_[i]);
-    }
-  }
-}
-
-
-void CompilerLLVM::LoadElfFromCompilationUnit(const CompilationUnit* cunit) {
-  MutexLock GUARD(compiler_lock_);
-  DCHECK(cunit->IsMaterialized()) << cunit->GetElfIndex();
-
-  if (!elf_loader_->LoadElfAt(cunit->GetElfIndex(),
-                              cunit->GetElfImage(),
-                              OatFile::kRelocAll)) {
-    LOG(ERROR) << "Failed to load ELF from compilation unit "
-               << cunit->GetElfIndex();
-  }
-}
-
-
-const void* CompilerLLVM::GetMethodCodeAddr(const CompiledMethod* cm) const {
-  return elf_loader_->GetMethodCodeAddr(cm->GetElfIndex(),
-                                        cm->GetElfFuncIndex());
-}
-
-
-const Method::InvokeStub* CompilerLLVM::
-GetMethodInvokeStubAddr(const CompiledInvokeStub* cm) const {
-  return elf_loader_->GetMethodInvokeStubAddr(cm->GetElfIndex(),
-                                              cm->GetElfFuncIndex());
-}
-
-
-std::vector<ElfImage> CompilerLLVM::GetElfImages() const {
-  std::vector<ElfImage> result;
-
-  for (size_t i = 0; i < cunits_.size(); ++i) {
-    result.push_back(cunits_[i]->GetElfImage());
-  }
-
-  return result;
+CompilationUnit* CompilerLLVM::AllocateCompilationUnit() {
+  MutexLock GUARD(num_cunits_lock_);
+  return new CompilationUnit(this, num_cunits_++);
 }
 
 
 CompiledMethod* CompilerLLVM::
 CompileDexMethod(OatCompilationUnit* oat_compilation_unit) {
-  MutexLock GUARD(compiler_lock_);
-
-  EnsureCompilationUnit();
-
-  MutexLock GUARD_CUNIT(curr_cunit_->cunit_lock_);
+  UniquePtr<CompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<MethodCompiler> method_compiler(
-      new MethodCompiler(curr_cunit_, compiler_, oat_compilation_unit));
+      new MethodCompiler(cunit.get(), compiler_, oat_compilation_unit));
 
   return method_compiler->Compile();
 }
@@ -258,14 +125,10 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit) {
 
 CompiledMethod* CompilerLLVM::
 CompileNativeMethod(OatCompilationUnit* oat_compilation_unit) {
-  MutexLock GUARD(compiler_lock_);
-
-  EnsureCompilationUnit();
-
-  MutexLock GUARD_CUNIT(curr_cunit_->cunit_lock_);
+  UniquePtr<CompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<JniCompiler> jni_compiler(
-      new JniCompiler(curr_cunit_, *compiler_, oat_compilation_unit));
+      new JniCompiler(cunit.get(), *compiler_, oat_compilation_unit));
 
   return jni_compiler->Compile();
 }
@@ -273,28 +136,20 @@ CompileNativeMethod(OatCompilationUnit* oat_compilation_unit) {
 
 CompiledInvokeStub* CompilerLLVM::CreateInvokeStub(bool is_static,
                                                    char const *shorty) {
-  MutexLock GUARD(compiler_lock_);
-
-  EnsureCompilationUnit();
-
-  MutexLock GUARD_CUNIT(curr_cunit_->cunit_lock_);
+  UniquePtr<CompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<StubCompiler> stub_compiler(
-    new StubCompiler(curr_cunit_, *compiler_));
+    new StubCompiler(cunit.get(), *compiler_));
 
   return stub_compiler->CreateInvokeStub(is_static, shorty);
 }
 
 
 CompiledInvokeStub* CompilerLLVM::CreateProxyStub(char const *shorty) {
-  MutexLock GUARD(compiler_lock_);
-
-  EnsureCompilationUnit();
-
-  MutexLock GUARD_CUNIT(curr_cunit_->cunit_lock_);
+  UniquePtr<CompilationUnit> cunit(AllocateCompilationUnit());
 
   UniquePtr<StubCompiler> stub_compiler(
-    new StubCompiler(curr_cunit_, *compiler_));
+    new StubCompiler(cunit.get(), *compiler_));
 
   return stub_compiler->CreateProxyStub(shorty);
 }
@@ -324,6 +179,11 @@ extern "C" void ArtInitCompilerContext(art::Compiler& compiler) {
   compiler.SetCompilerContext(compiler_llvm);
 }
 
+extern "C" void ArtUnInitCompilerContext(art::Compiler& compiler) {
+  delete ContextOf(compiler);
+  compiler.SetCompilerContext(NULL);
+}
+
 extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags, uint32_t method_idx,
@@ -338,7 +198,6 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
     method_idx, access_flags);
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
   art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&oat_compilation_unit);
-  compiler_llvm->MaterializeIfThresholdReached();
   return result;
 }
 
@@ -354,7 +213,6 @@ extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
 
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
   art::CompiledMethod* result = compiler_llvm->CompileNativeMethod(&oat_compilation_unit);
-  compiler_llvm->MaterializeIfThresholdReached();
   return result;
 }
 
@@ -364,7 +222,6 @@ extern "C" art::CompiledInvokeStub* ArtCreateInvokeStub(art::Compiler& compiler,
                                                         uint32_t shorty_len) {
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
   art::CompiledInvokeStub* result = compiler_llvm->CreateInvokeStub(is_static, shorty);
-  compiler_llvm->MaterializeIfThresholdReached();
   return result;
 }
 
@@ -373,45 +230,10 @@ extern "C" art::CompiledInvokeStub* ArtCreateProxyStub(art::Compiler& compiler,
                                                        uint32_t shorty_len) {
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
   art::CompiledInvokeStub* result = compiler_llvm->CreateProxyStub(shorty);
-  compiler_llvm->MaterializeIfThresholdReached();
   return result;
 }
 
 extern "C" void compilerLLVMSetBitcodeFileName(art::Compiler& compiler,
                                                std::string const& filename) {
   ContextOf(compiler)->SetBitcodeFileName(filename);
-}
-
-extern "C" void compilerLLVMMaterializeRemainder(art::Compiler& compiler) {
-  ContextOf(compiler)->MaterializeRemainder();
-}
-
-extern "C" void compilerLLVMEnableAutoElfLoading(art::Compiler& compiler) {
-  art::compiler_llvm::CompilerLLVM* compiler_llvm =
-      reinterpret_cast<art::compiler_llvm::CompilerLLVM*>(compiler.GetCompilerContext());
-  return compiler_llvm->EnableAutoElfLoading();
-}
-
-extern "C" const void* compilerLLVMGetMethodCodeAddr(const art::Compiler& compiler,
-                                                     const art::CompiledMethod* cm,
-                                                     const art::Method*) {
-  const art::compiler_llvm::CompilerLLVM* compiler_llvm =
-      reinterpret_cast<const art::compiler_llvm::CompilerLLVM*>(compiler.GetCompilerContext());
-  return compiler_llvm->GetMethodCodeAddr(cm);
-}
-
-extern "C" const art::Method::InvokeStub* compilerLLVMGetMethodInvokeStubAddr(const art::Compiler& compiler,
-                                                                              const art::CompiledInvokeStub* cm,
-                                                                              const art::Method*) {
-  const art::compiler_llvm::CompilerLLVM* compiler_llvm =
-      reinterpret_cast<const art::compiler_llvm::CompilerLLVM*>(compiler.GetCompilerContext());
-  return compiler_llvm->GetMethodInvokeStubAddr(cm);
-}
-
-extern "C" std::vector<art::ElfImage> compilerLLVMGetElfImages(const art::Compiler& compiler) {
-  return ContextOf(compiler)->GetElfImages();
-}
-
-extern "C" void compilerLLVMDispose(art::Compiler& compiler) {
-  delete ContextOf(compiler);
 }

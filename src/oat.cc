@@ -29,7 +29,6 @@ OatHeader::OatHeader() {
 
 OatHeader::OatHeader(InstructionSet instruction_set,
                      const std::vector<const DexFile*>* dex_files,
-                     uint32_t elf_image_count,
                      uint32_t image_file_location_checksum,
                      const std::string& image_file_location) {
   memcpy(magic_, kOatMagic, sizeof(kOatMagic));
@@ -43,9 +42,6 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   dex_file_count_ = dex_files->size();
   UpdateChecksum(&dex_file_count_, sizeof(dex_file_count_));
 
-  elf_image_count_ = elf_image_count;
-  UpdateChecksum(&elf_image_count_, sizeof(elf_image_count_));
-
   image_file_location_checksum_ = image_file_location_checksum;
   UpdateChecksum(&image_file_location_checksum_, sizeof(image_file_location_checksum_));
 
@@ -53,7 +49,6 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   UpdateChecksum(&image_file_location_size_, sizeof(image_file_location_size_));
   UpdateChecksum(image_file_location.data(), image_file_location_size_);
 
-  elf_image_table_offset_ = 0;
   executable_offset_ = 0;
 }
 
@@ -75,16 +70,6 @@ const char* OatHeader::GetMagic() const {
 uint32_t OatHeader::GetDexFileCount() const {
   DCHECK(IsValid());
   return dex_file_count_;
-}
-
-uint32_t OatHeader::GetElfImageCount() const {
-  DCHECK(IsValid());
-  return elf_image_count_;
-}
-
-uint32_t OatHeader::GetElfImageTableOffset() const {
-  DCHECK(IsValid());
-  return elf_image_table_offset_;
 }
 
 uint32_t OatHeader::GetChecksum() const {
@@ -131,12 +116,6 @@ std::string OatHeader::GetImageFileLocation() const {
                      GetImageFileLocationSize());
 }
 
-void OatHeader::SetElfImageTableOffset(uint32_t elf_image_table_offset) {
-  DCHECK(IsValid());
-  elf_image_table_offset_ = elf_image_table_offset;
-  UpdateChecksum(&elf_image_table_offset_, sizeof(elf_image_table_offset_));
-}
-
 void OatHeader::SetExecutableOffset(uint32_t executable_offset) {
   DCHECK_ALIGNED(executable_offset, kPageSize);
   CHECK_GT(executable_offset, sizeof(OatHeader));
@@ -156,12 +135,6 @@ OatMethodOffsets::OatMethodOffsets()
     vmap_table_offset_(0),
     gc_map_offset_(0),
     invoke_stub_offset_(0)
-#if defined(ART_USE_LLVM_COMPILER)
-  , code_elf_idx_(static_cast<uint16_t>(-1u)),
-    code_elf_func_idx_(static_cast<uint16_t>(-1u)),
-    invoke_stub_elf_idx_(static_cast<uint16_t>(-1u)),
-    invoke_stub_elf_func_idx_(static_cast<uint16_t>(-1u))
-#endif
 {}
 
 OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
@@ -173,12 +146,7 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
                                    uint32_t gc_map_offset,
                                    uint32_t invoke_stub_offset
 #if defined(ART_USE_LLVM_COMPILER)
-                                 , uint16_t code_elf_idx,
-                                   uint16_t code_elf_func_idx,
-                                   uint16_t invoke_stub_elf_idx,
-                                   uint16_t invoke_stub_elf_func_idx,
-                                   uint16_t proxy_stub_elf_idx,
-                                   uint16_t proxy_stub_elf_func_idx
+                                 , uint32_t proxy_stub_offset
 #endif
                                    )
   : code_offset_(code_offset),
@@ -190,12 +158,7 @@ OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
     gc_map_offset_(gc_map_offset),
     invoke_stub_offset_(invoke_stub_offset)
 #if defined(ART_USE_LLVM_COMPILER)
-  , code_elf_idx_(code_elf_idx),
-    code_elf_func_idx_(code_elf_func_idx),
-    invoke_stub_elf_idx_(invoke_stub_elf_idx),
-    invoke_stub_elf_func_idx_(invoke_stub_elf_func_idx),
-    proxy_stub_elf_idx_(proxy_stub_elf_idx),
-    proxy_stub_elf_func_idx_(proxy_stub_elf_func_idx)
+  , proxy_stub_offset_(proxy_stub_offset)
 #endif
 {}
 

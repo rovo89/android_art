@@ -18,7 +18,6 @@
 #define ART_SRC_COMPILER_LLVM_COMPILATION_UNIT_H_
 
 #include "../mutex.h"
-#include "elf_image.h"
 #include "globals.h"
 #include "instruction_set.h"
 #include "logging.h"
@@ -44,81 +43,52 @@ namespace llvm {
 namespace art {
 namespace compiler_llvm {
 
+class CompilerLLVM;
 class IRBuilder;
 
 class CompilationUnit {
  public:
-  CompilationUnit(InstructionSet insn_set, size_t elf_idx);
+  CompilationUnit(const CompilerLLVM* compiler_llvm,
+                  size_t cunit_idx);
 
   ~CompilationUnit();
 
-  size_t GetElfIndex() const {
-    return elf_idx_;
+  size_t GetIndex() const {
+    return cunit_idx_;
   }
 
-  InstructionSet GetInstructionSet() const {
-    cunit_lock_.AssertHeld();
-    return insn_set_;
-  }
+  InstructionSet GetInstructionSet() const;
 
   llvm::LLVMContext* GetLLVMContext() const {
-    cunit_lock_.AssertHeld();
     return context_.get();
   }
 
   llvm::Module* GetModule() const {
-    cunit_lock_.AssertHeld();
     return module_;
   }
 
   IRBuilder* GetIRBuilder() const {
-    cunit_lock_.AssertHeld();
     return irb_.get();
   }
 
-  ElfImage GetElfImage() const {
-    MutexLock GUARD(cunit_lock_);
-    CHECK_GT(elf_image_.size(), 0u);
-    return ElfImage(elf_image_);
-  }
-
-  uint16_t AcquireUniqueElfFuncIndex() {
-    cunit_lock_.AssertHeld();
-    CHECK(num_elf_funcs_ < UINT16_MAX);
-    return num_elf_funcs_++;
-  }
-
   void SetBitcodeFileName(const std::string& bitcode_filename) {
-    MutexLock GUARD(cunit_lock_);
     bitcode_filename_ = bitcode_filename;
   }
 
-  bool Materialize(size_t thread_count);
+  bool Materialize();
 
   bool IsMaterialized() const {
-    MutexLock GUARD(cunit_lock_);
     return (context_.get() == NULL);
   }
 
-  bool IsMaterializeThresholdReached() const {
-    MutexLock GUARD(cunit_lock_);
-    return (mem_usage_ > 1000000u); // (threshold: 1 MB)
+  const std::vector<uint8_t>& GetCompiledCode() const {
+    DCHECK(IsMaterialized());
+    return compiled_code_;
   }
-
-  void AddMemUsageApproximation(size_t usage) {
-    MutexLock GUARD(cunit_lock_);
-    mem_usage_ += usage;
-  }
-
-  void RegisterCompiledMethod(const llvm::Function* func, CompiledMethod* cm);
-
-  void UpdateFrameSizeInBytes(const llvm::Function* func, size_t frame_size_in_bytes);
-
-  mutable Mutex cunit_lock_;
 
  private:
-  InstructionSet insn_set_;
-  const size_t elf_idx_;
+  const CompilerLLVM* compiler_llvm_;
+  const size_t cunit_idx_;
 
   UniquePtr<llvm::LLVMContext> context_;
   UniquePtr<IRBuilder> irb_;
@@ -126,15 +96,24 @@ class CompilationUnit {
   llvm::Module* module_;
 
   std::string bitcode_filename_;
-  std::string elf_image_;
 
-  typedef SafeMap<const llvm::Function*, CompiledMethod*> CompiledMethodMap;
-  UniquePtr<CompiledMethodMap> compiled_methods_map_;
+  std::vector<uint8_t> compiled_code_;
 
-  size_t mem_usage_;
-  uint16_t num_elf_funcs_;
+  SafeMap<const llvm::Function*, CompiledMethod*> compiled_methods_map_;
 
-  bool MaterializeToFile(llvm::raw_ostream& out_stream);
+  void CheckCodeAlign(uint32_t offset) const;
+
+  void DeleteResources() {
+    module_ = NULL; // Managed by context_
+    context_.reset(NULL);
+    irb_.reset(NULL);
+    runtime_support_.reset(NULL);
+  }
+
+  bool MaterializeToString(std::string& str_buffer);
+  bool MaterializeToRawOStream(llvm::raw_ostream& out_stream);
+
+  bool ExtractCodeAndPrelink(const std::string& elf_image);
 };
 
 } // namespace compiler_llvm

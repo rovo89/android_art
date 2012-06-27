@@ -177,14 +177,10 @@ class CommonTest : public testing::Test {
     MakeExecutable(code_array->GetData(), code_array->GetLength());
   }
 
-#if !defined(ART_USE_LLVM_COMPILER)  // LLVM compilation uses ELF instead
   static void MakeExecutable(const std::vector<uint8_t>& code) {
     CHECK_NE(code.size(), 0U);
     MakeExecutable(&code[0], code.size());
   }
-#else
-  static void MakeExecutable(const std::vector<uint8_t>&) {}
-#endif
 
   // Create an OatMethod based on pointers (for unit tests)
   OatFile::OatMethod CreateOatMethod(const void* code,
@@ -205,13 +201,7 @@ class CommonTest : public testing::Test {
                                 reinterpret_cast<uint32_t>(gc_map),
                                 reinterpret_cast<uint32_t>(invoke_stub)
 #if defined(ART_USE_LLVM_COMPILER)
-                              , NULL,
-                                static_cast<uint16_t>(-1u),
-                                static_cast<uint16_t>(-1u),
-                                static_cast<uint16_t>(-1u),
-                                static_cast<uint16_t>(-1u),
-                                static_cast<uint16_t>(-1u),
-                                static_cast<uint16_t>(-1u)
+                              , 0
 #endif
                                 );
   }
@@ -224,17 +214,12 @@ class CommonTest : public testing::Test {
         compiler_->FindInvokeStub(mh.IsStatic(), mh.GetShorty());
     CHECK(compiled_invoke_stub != NULL) << PrettyMethod(method);
 
-    const Method::InvokeStub* method_invoke_stub = NULL;
-    if (compiled_invoke_stub->IsExecutableInElf()) {
-      method_invoke_stub =
-          compiler_->GetMethodInvokeStubAddr(compiled_invoke_stub, method);
-    } else {
-      const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
-      MakeExecutable(invoke_stub);
-      method_invoke_stub = reinterpret_cast<const Method::InvokeStub*>(
+    const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
+    MakeExecutable(invoke_stub);
+    const Method::InvokeStub* method_invoke_stub =
+        reinterpret_cast<const Method::InvokeStub*>(
           CompiledCode::CodePointer(&invoke_stub[0],
                                     compiled_invoke_stub->GetInstructionSet()));
-    }
 
     LOG(INFO) << "MakeExecutable " << PrettyMethod(method)
               << " invoke_stub=" << reinterpret_cast<void*>(method_invoke_stub);
@@ -247,14 +232,10 @@ class CommonTest : public testing::Test {
                                                                  method->GetDexMethodIndex()));
       CHECK(compiled_method != NULL) << PrettyMethod(method);
 
-      const void* method_code = NULL;
-      if (compiled_method->IsExecutableInElf()) {
-        method_code = compiler_->GetMethodCodeAddr(compiled_method, method);
-      } else {
-        const std::vector<uint8_t>& code = compiled_method->GetCode();
-        MakeExecutable(code);
-        method_code = CompiledMethod::CodePointer(&code[0], compiled_method->GetInstructionSet());
-      }
+      const std::vector<uint8_t>& code = compiled_method->GetCode();
+      MakeExecutable(code);
+      const void* method_code = CompiledMethod::CodePointer(&code[0],
+                                                            compiled_method->GetInstructionSet());
 
       LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
 
@@ -380,9 +361,6 @@ class CommonTest : public testing::Test {
     image_classes_.reset(new std::set<std::string>);
     compiler_.reset(new Compiler(instruction_set, true, 2, false, image_classes_.get(),
                                  true, true));
-#if defined(ART_USE_LLVM_COMPILER)
-    compiler_->EnableAutoElfLoading();
-#endif
 
     Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption before the test
   }

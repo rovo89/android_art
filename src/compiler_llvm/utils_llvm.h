@@ -32,8 +32,8 @@ namespace art {
 #define VERIFY_LLVM_FUNCTION(func)
 #endif
 
-inline static std::string ElfFuncName(uint16_t elf_func_idx) {
-  return StringPrintf("Art%u", static_cast<unsigned int>(elf_func_idx));
+inline static std::string ElfFuncName(uint16_t idx) {
+  return StringPrintf("Art%u", static_cast<unsigned int>(idx));
 }
 
 class CStringLessThanComparator {

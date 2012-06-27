@@ -25,14 +25,6 @@
 #include "oat.h"
 #include "object.h"
 
-#if defined(ART_USE_LLVM_COMPILER)
-namespace art {
-  namespace compiler_llvm {
-    class ElfLoader;
-  }
-}
-#endif
-
 namespace art {
 
 class OatFile {
@@ -103,37 +95,6 @@ class OatFile {
       return invoke_stub_offset_;
     }
 
-#if defined(ART_USE_LLVM_COMPILER)
-    uint16_t GetCodeElfIndex() const {
-      return code_elf_idx_;
-    }
-    uint16_t GetCodeElfFuncIndex() const {
-      return code_elf_func_idx_;
-    }
-    uint16_t GetInvokeStubElfIndex() const {
-      return invoke_stub_elf_idx_;
-    }
-    uint16_t GetInvokeStubElfFuncIndex() const {
-      return invoke_stub_elf_func_idx_;
-    }
-#endif
-
-    bool IsCodeInElf() const {
-#if defined(ART_USE_LLVM_COMPILER)
-      return (code_elf_idx_ != static_cast<uint16_t>(-1));
-#else
-      return false;
-#endif
-    }
-
-    bool IsInvokeStubInElf() const {
-#if defined(ART_USE_LLVM_COMPILER)
-      return (invoke_stub_elf_idx_ != static_cast<uint16_t>(-1));
-#else
-      return false;
-#endif
-    }
-
     const void* GetCode() const;
     uint32_t GetCodeSize() const;
 
@@ -167,13 +128,7 @@ class OatFile {
               const uint32_t gc_map_offset,
               const uint32_t invoke_stub_offset
 #if defined(ART_USE_LLVM_COMPILER)
-            , const compiler_llvm::ElfLoader* elf_loader,
-              const uint16_t code_elf_idx,
-              const uint16_t code_elf_func_idx,
-              const uint16_t invoke_stub_elf_idx,
-              const uint16_t invoke_stub_elf_func_idx,
-              const uint16_t proxy_stub_elf_idx,
-              const uint16_t proxy_stub_elf_func_idx
+            , const uint32_t proxy_stub_offset
 #endif
               );
 
@@ -198,14 +153,7 @@ class OatFile {
     uint32_t invoke_stub_offset_;
 
 #if defined(ART_USE_LLVM_COMPILER)
-    const compiler_llvm::ElfLoader* elf_loader_;
-
-    uint16_t code_elf_idx_;
-    uint16_t code_elf_func_idx_;
-    uint16_t invoke_stub_elf_idx_;
-    uint16_t invoke_stub_elf_func_idx_;
-    uint16_t proxy_stub_elf_idx_;
-    uint16_t proxy_stub_elf_func_idx_;
+    uint32_t proxy_stub_offset_;
 #endif
 
     friend class OatClass;
@@ -266,42 +214,9 @@ class OatFile {
     DISALLOW_COPY_AND_ASSIGN(OatDexFile);
   };
 
-#if defined(ART_USE_LLVM_COMPILER)
-  class OatElfImage {
-   public:
-    const byte* begin() const {
-      return elf_addr_;
-    }
-
-    const byte* end() const {
-      return (elf_addr_ + elf_size_);
-    }
-
-    size_t size() const {
-      return elf_size_;
-    }
-
-   private:
-    OatElfImage(const OatFile* oat_file, const byte* addr, uint32_t size);
-
-    const OatFile* oat_file_;
-    const byte* elf_addr_;
-    uint32_t elf_size_;
-
-    friend class OatFile;
-    DISALLOW_COPY_AND_ASSIGN(OatElfImage);
-  };
-#endif
-
   const OatDexFile* GetOatDexFile(const std::string& dex_file_location,
                                   bool warn_if_not_found = true) const;
   std::vector<const OatDexFile*> GetOatDexFiles() const;
-
-#if defined(ART_USE_LLVM_COMPILER)
-  const OatElfImage* GetOatElfImage(size_t i) const {
-    return oat_elf_images_[i];
-  }
-#endif
 
   size_t Size() const {
     return End() - Begin();
@@ -326,11 +241,6 @@ class OatFile {
 
   typedef SafeMap<std::string, const OatDexFile*> Table;
   Table oat_dex_files_;
-
-#if defined(ART_USE_LLVM_COMPILER)
-  std::vector<OatElfImage*> oat_elf_images_;
-  UniquePtr<compiler_llvm::ElfLoader> elf_loader_;
-#endif
 
   friend class OatClass;
   friend class OatDexFile;

@@ -17,6 +17,7 @@
 #include "compilation_unit.h"
 
 #include "compiled_method.h"
+#include "compiler_llvm.h"
 #include "file.h"
 #include "instruction_set.h"
 #include "ir_builder.h"
@@ -47,8 +48,10 @@
 #include <llvm/DerivedTypes.h>
 #include <llvm/LLVMContext.h>
 #include <llvm/Module.h>
+#include <llvm/Object/ObjectFile.h>
 #include <llvm/PassManager.h>
 #include <llvm/Support/Debug.h>
+#include <llvm/Support/ELF.h>
 #include <llvm/Support/FormattedStream.h>
 #include <llvm/Support/ManagedStatic.h>
 #include <llvm/Support/MemoryBuffer.h>
@@ -76,37 +79,6 @@
 #include <string>
 
 namespace {
-
-class UpdateFrameSizePass : public llvm::MachineFunctionPass {
- public:
-  static char ID;
-
-  UpdateFrameSizePass() : llvm::MachineFunctionPass(ID), cunit_(NULL) {
-    LOG(FATAL) << "Unexpected instantiation of UpdateFrameSizePass";
-    // NOTE: We have to declare this constructor for llvm::RegisterPass, but
-    // this constructor won't work because we have no information on
-    // CompilationUnit.  Thus, we should place a LOG(FATAL) here.
-  }
-
-  UpdateFrameSizePass(art::compiler_llvm::CompilationUnit* cunit)
-    : llvm::MachineFunctionPass(ID), cunit_(cunit) {
-  }
-
-  virtual bool runOnMachineFunction(llvm::MachineFunction &MF) {
-    cunit_->UpdateFrameSizeInBytes(MF.getFunction(),
-                                   MF.getFrameInfo()->getStackSize());
-    return false;
-  }
-
- private:
-  art::compiler_llvm::CompilationUnit* cunit_;
-};
-
-char UpdateFrameSizePass::ID = 0;
-
-llvm::RegisterPass<UpdateFrameSizePass> reg_update_frame_size_pass_(
-  "update-frame-size", "Update frame size pass", false, false);
-
 
 // TODO: We may need something to manage these passes.
 // TODO: We need high-level IR to analysis and do this at the IRBuilder level.
@@ -167,10 +139,10 @@ namespace compiler_llvm {
 llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
 
-CompilationUnit::CompilationUnit(InstructionSet insn_set, size_t elf_idx)
-: cunit_lock_("compilation_unit_lock"), insn_set_(insn_set), elf_idx_(elf_idx),
-  context_(new llvm::LLVMContext()), compiled_methods_map_(new CompiledMethodMap()),
-  mem_usage_(0), num_elf_funcs_(0) {
+CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
+                                 size_t cunit_idx)
+: compiler_llvm_(compiler_llvm), cunit_idx_(cunit_idx),
+  context_(new llvm::LLVMContext()) {
 
   // Create the module and include the runtime function declaration
   module_ = new llvm::Module("art", *context_);
@@ -180,7 +152,7 @@ CompilationUnit::CompilationUnit(InstructionSet insn_set, size_t elf_idx)
   irb_.reset(new IRBuilder(*context_, *module_));
 
   // We always need a switch case, so just use a normal function.
-  switch(insn_set_) {
+  switch(GetInstructionSet()) {
   default:
     runtime_support_.reset(new RuntimeSupportBuilder(*context_, *module_, *irb_));
     break;
@@ -205,57 +177,56 @@ CompilationUnit::~CompilationUnit() {
 }
 
 
-bool CompilationUnit::Materialize(size_t thread_count) {
-  MutexLock GUARD(cunit_lock_);
-
-  // Materialize the bitcode to elf_image_
-  llvm::raw_string_ostream str_os(elf_image_);
-  bool success = MaterializeToFile(str_os);
-  LOG(INFO) << "Compilation Unit: " << elf_idx_ << (success ? " (done)" : " (failed)");
-
-  // Free the resources
-  context_.reset(NULL);
-  irb_.reset(NULL);
-  module_ = NULL;
-  runtime_support_.reset(NULL);
-  compiled_methods_map_.reset(NULL);
-
-  return success;
+InstructionSet CompilationUnit::GetInstructionSet() const {
+  return compiler_llvm_->GetInstructionSet();
 }
 
 
-void CompilationUnit::RegisterCompiledMethod(const llvm::Function* func,
-                                             CompiledMethod* compiled_method) {
-  MutexLock GUARD(cunit_lock_);
-  compiled_methods_map_->Put(func, compiled_method);
-}
+bool CompilationUnit::Materialize() {
+  std::string elf_image;
 
-
-void CompilationUnit::UpdateFrameSizeInBytes(const llvm::Function* func,
-                                             size_t frame_size_in_bytes) {
-  MutexLock GUARD(cunit_lock_);
-  SafeMap<const llvm::Function*, CompiledMethod*>::iterator iter =
-    compiled_methods_map_->find(func);
-
-  if (iter != compiled_methods_map_->end()) {
-    CompiledMethod* compiled_method = iter->second;
-    compiled_method->SetFrameSizeInBytes(frame_size_in_bytes);
-
-    if (frame_size_in_bytes > 1728u) {
-      LOG(WARNING) << "Huge frame size: " << frame_size_in_bytes
-                   << " elf_idx=" << compiled_method->GetElfIndex()
-                   << " elf_func_idx=" << compiled_method->GetElfFuncIndex();
-    }
+  // Compile and prelink llvm::Module
+  if (!MaterializeToString(elf_image)) {
+    LOG(ERROR) << "Failed to materialize compilation unit " << cunit_idx_;
+    DeleteResources();
+    return false;
   }
+
+#if 0
+  // Dump the ELF image for debugging
+  std::string filename(StringPrintf("%s/Art%zu.elf",
+                                    GetArtCacheOrDie(GetAndroidData()).c_str(),
+                                    cunit_idx_));
+  UniquePtr<File> output(OS::OpenFile(filename.c_str(), true));
+  output->WriteFully(elf_image.data(), elf_image.size());
+#endif
+
+  // Extract the .text section and prelink the code
+  if (!ExtractCodeAndPrelink(elf_image)) {
+    LOG(ERROR) << "Failed to extract code from compilation unit " << cunit_idx_;
+    DeleteResources();
+    return false;
+  }
+
+  DeleteResources();
+  return true;
 }
 
-bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream) {
+
+bool CompilationUnit::MaterializeToString(std::string& str_buffer) {
+  llvm::raw_string_ostream str_os(str_buffer);
+  return MaterializeToRawOStream(str_os);
+}
+
+
+bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
   // Lookup the LLVM target
   char const* target_triple = NULL;
   char const* target_cpu = "";
   char const* target_attr = NULL;
 
-  switch (insn_set_) {
+  InstructionSet insn_set = GetInstructionSet();
+  switch (insn_set) {
   case kThumb2:
     target_triple = "thumb-none-linux-gnueabi";
     target_cpu = "cortex-a9";
@@ -281,7 +252,7 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream) {
     break;
 
   default:
-    LOG(FATAL) << "Unknown instruction set: " << insn_set_;
+    LOG(FATAL) << "Unknown instruction set: " << insn_set;
   }
 
   std::string errmsg;
@@ -375,11 +346,6 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream) {
       return false;
     }
 
-    // FIXME: Unable to run the UpdateFrameSizePass pass since it tries to
-    //        update the value reside in the different address space.
-    // Add pass to update the frame_size_in_bytes_
-    //pm.add(new ::UpdateFrameSizePass(this));
-
     // Run the per-function optimization
     fpm.doInitialization();
     for (llvm::Module::iterator F = module_->begin(), E = module_->end();
@@ -394,6 +360,131 @@ bool CompilationUnit::MaterializeToFile(llvm::raw_ostream& out_stream) {
 
   return true;
 }
+
+
+bool CompilationUnit::ExtractCodeAndPrelink(const std::string& elf_image) {
+  llvm::OwningPtr<llvm::MemoryBuffer> elf_image_buff(
+    llvm::MemoryBuffer::getMemBuffer(llvm::StringRef(elf_image.data(),
+                                                     elf_image.size())));
+
+  llvm::OwningPtr<llvm::object::ObjectFile> elf_file(
+    llvm::object::ObjectFile::createELFObjectFile(elf_image_buff.take()));
+
+  llvm::error_code ec;
+
+  const ProcedureLinkageTable& plt = compiler_llvm_->GetProcedureLinkageTable();
+
+  for (llvm::object::section_iterator
+       sec_iter = elf_file->begin_sections(),
+       sec_end = elf_file->end_sections();
+       sec_iter != sec_end; sec_iter.increment(ec)) {
+
+    CHECK(ec == 0) << "Failed to read section because " << ec.message();
+
+    // Read the section information
+    llvm::StringRef name;
+    uint64_t alignment = 0u;
+    uint64_t size = 0u;
+
+    CHECK(sec_iter->getName(name) == 0);
+    CHECK(sec_iter->getSize(size) == 0);
+    CHECK(sec_iter->getAlignment(alignment) == 0);
+
+    if (name == ".data" || name == ".bss" || name == ".rodata") {
+      if (size > 0) {
+        LOG(FATAL) << "Compilation unit " << cunit_idx_ << " has non-empty "
+                   << name.str() << " section";
+      }
+
+    } else if (name == "" || name == ".rel.text" ||
+               name == ".ARM.attributes" || name == ".symtab" ||
+               name == ".strtab" || name == ".shstrtab") {
+      // We can ignore these sections.  We don't have to copy them into
+      // the result Oat file.
+
+    } else if (name == ".text") {
+      // Ensure the alignment requirement is less than or equal to
+      // kArchAlignment
+      CheckCodeAlign(alignment);
+
+      // Copy the compiled code
+      llvm::StringRef contents;
+      CHECK(sec_iter->getContents(contents) == 0);
+
+      copy(contents.data(),
+           contents.data() + contents.size(),
+           back_inserter(compiled_code_));
+
+      // Prelink the compiled code
+      for (llvm::object::relocation_iterator
+           rel_iter = sec_iter->begin_relocations(),
+           rel_end = sec_iter->end_relocations(); rel_iter != rel_end;
+           rel_iter.increment(ec)) {
+
+        CHECK(ec == 0) << "Failed to read relocation because " << ec.message();
+
+        // Read the relocation information
+        llvm::object::SymbolRef sym_ref;
+        uint64_t rel_offset = 0;
+        uint64_t rel_type = 0;
+        int64_t rel_addend = 0;
+
+        CHECK(rel_iter->getSymbol(sym_ref) == 0);
+        CHECK(rel_iter->getOffset(rel_offset) == 0);
+        CHECK(rel_iter->getType(rel_type) == 0);
+        CHECK(rel_iter->getAdditionalInfo(rel_addend) == 0);
+
+        // Read the symbol related to this relocation fixup
+        llvm::StringRef sym_name;
+        CHECK(sym_ref.getName(sym_name) == 0);
+
+        // Relocate the fixup.
+        // TODO: Support more relocation type.
+        CHECK(rel_type == llvm::ELF::R_ARM_ABS32);
+        CHECK_LE(rel_offset + 4, compiled_code_.size());
+
+        uintptr_t dest_addr = plt.GetEntryAddress(sym_name.str().c_str());
+        uintptr_t final_addr = dest_addr + rel_addend;
+        compiled_code_[rel_offset] = final_addr & 0xff;
+        compiled_code_[rel_offset + 1] = (final_addr >> 8) & 0xff;
+        compiled_code_[rel_offset + 2] = (final_addr >> 16) & 0xff;
+        compiled_code_[rel_offset + 3] = (final_addr >> 24) & 0xff;
+      }
+
+    } else {
+      LOG(WARNING) << "Unexpected section: " << name.str();
+    }
+  }
+
+  return true;
+}
+
+
+// Check whether the align is less than or equal to the code alignment of
+// that architecture.  Since the Oat writer only guarantee that the compiled
+// method being aligned to kArchAlignment, we have no way to align the ELf
+// section if the section alignment is greater than kArchAlignment.
+void CompilationUnit::CheckCodeAlign(uint32_t align) const {
+  InstructionSet insn_set = GetInstructionSet();
+  switch (insn_set) {
+  case kThumb2:
+  case kArm:
+    CHECK_LE(align, static_cast<uint32_t>(kArmAlignment));
+    break;
+
+  case kX86:
+    CHECK_LE(align, static_cast<uint32_t>(kX86Alignment));
+    break;
+
+  case kMips:
+    CHECK_LE(align, static_cast<uint32_t>(kMipsAlignment));
+    break;
+
+  default:
+    LOG(FATAL) << "Unknown instruction set: " << insn_set;
+  }
+}
+
 
 } // namespace compiler_llvm
 } // namespace art

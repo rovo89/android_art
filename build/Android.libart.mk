@@ -98,13 +98,6 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : art/%.h
     endif
   endif
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
-  ifeq ($(ART_USE_LLVM_COMPILER),true)
-    LOCAL_C_INCLUDES += frameworks/compile/linkloader
-    LOCAL_STATIC_LIBRARIES += librsloader
-  endif
-  ifeq ($(ART_REQUIRE_LLVM),true)
-    LOCAL_STATIC_LIBRARIES += libLLVMSupport
-  endif
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
   LOCAL_SHARED_LIBRARIES += libcorkscrew # native stack trace support
   ifeq ($$(art_target_or_host),target)

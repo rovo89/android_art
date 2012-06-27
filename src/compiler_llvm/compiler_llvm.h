@@ -19,10 +19,10 @@
 
 #include "compiler.h"
 #include "dex_file.h"
-#include "elf_image.h"
 #include "instruction_set.h"
 #include "macros.h"
 #include "object.h"
+#include "procedure_linkage_table.h"
 
 #include <UniquePtr.h>
 
@@ -54,7 +54,6 @@ namespace art {
 namespace compiler_llvm {
 
 class CompilationUnit;
-class ElfLoader;
 class IRBuilder;
 
 class CompilerLLVM {
@@ -62,10 +61,6 @@ class CompilerLLVM {
   CompilerLLVM(Compiler* compiler, InstructionSet insn_set);
 
   ~CompilerLLVM();
-
-  void MaterializeIfThresholdReached();
-
-  void MaterializeRemainder();
 
   Compiler* GetCompiler() const {
     return compiler_;
@@ -75,30 +70,9 @@ class CompilerLLVM {
     return insn_set_;
   }
 
-  size_t GetNumCompilationUnits() const {
-    return cunits_.size();
-  }
-
-  const CompilationUnit* GetCompilationUnit(size_t i) const {
-    return cunits_[i];
-  }
-
   void SetBitcodeFileName(std::string const& filename) {
     bitcode_filename_ = filename;
   }
-
-  void EnableAutoElfLoading();
-
-  bool IsAutoElfLoadingEnabled() const {
-    return (elf_loader_.get() != NULL);
-  }
-
-  const void* GetMethodCodeAddr(const CompiledMethod* cm) const;
-
-  const Method::InvokeStub* GetMethodInvokeStubAddr(
-                                const CompiledInvokeStub* cm) const;
-
-  std::vector<ElfImage> GetElfImages() const;
 
   CompiledMethod* CompileDexMethod(OatCompilationUnit* oat_compilation_unit);
 
@@ -108,12 +82,14 @@ class CompilerLLVM {
 
   CompiledInvokeStub* CreateProxyStub(const char *shorty);
 
+  const ProcedureLinkageTable& GetProcedureLinkageTable() const {
+    return plt_;
+  }
+
  private:
-  void EnsureCompilationUnit();
+  CompilationUnit* AllocateCompilationUnit();
 
   void Materialize(CompilationUnit* cunit);
-
-  void LoadElfFromCompilationUnit(const CompilationUnit* cunit);
 
   bool IsBitcodeFileNameAvailable() const {
     return !bitcode_filename_.empty();
@@ -121,19 +97,14 @@ class CompilerLLVM {
 
   Compiler* compiler_;
 
- public:
-  Mutex compiler_lock_;
-
- private:
   InstructionSet insn_set_;
 
-  CompilationUnit* curr_cunit_;
-
-  std::vector<CompilationUnit*> cunits_;
+  Mutex num_cunits_lock_;
+  size_t num_cunits_;
 
   std::string bitcode_filename_;
 
-  UniquePtr<ElfLoader> elf_loader_;
+  ProcedureLinkageTable plt_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerLLVM);
 };

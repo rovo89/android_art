@@ -51,8 +51,7 @@ JniCompiler::JniCompiler(CompilationUnit* cunit,
   class_loader_(oat_compilation_unit->class_loader_),
   dex_cache_(oat_compilation_unit->dex_cache_),
   dex_file_(oat_compilation_unit->dex_file_),
-  method_(dex_cache_->GetResolvedMethod(method_idx_)),
-  elf_func_idx_(cunit_->AcquireUniqueElfFuncIndex()) {
+  method_(dex_cache_->GetResolvedMethod(method_idx_)) {
 
   // Check: Ensure that the method is resolved
   CHECK_NE(method_, static_cast<art::Method*>(NULL));
@@ -262,26 +261,16 @@ CompiledMethod* JniCompiler::Compile() {
   // Verify the generated bitcode
   VERIFY_LLVM_FUNCTION(*func_);
 
-  // Add the memory usage approximation of the compilation unit
-  cunit_->AddMemUsageApproximation((sirt_size * 4 + 50) * 50);
-  // NOTE: We will emit 4 LLVM instructions per object argument,
-  // And about 50 instructions for other operations. (Some runtime support will be inlined.)
-  // Beside, we guess that we have to use 50 bytes to represent one LLVM instruction.
+  cunit_->Materialize();
 
-  CompiledMethod* compiled_method =
-      new CompiledMethod(cunit_->GetInstructionSet(),
-                         cunit_->GetElfIndex(),
-                         elf_func_idx_);
-
-  cunit_->RegisterCompiledMethod(func_, compiled_method);
-
-  return compiled_method;
+  return new CompiledMethod(cunit_->GetInstructionSet(),
+                            cunit_->GetCompiledCode());
 }
 
 
 void JniCompiler::CreateFunction() {
   // LLVM function name
-  std::string func_name(ElfFuncName(elf_func_idx_));
+  std::string func_name(ElfFuncName(cunit_->GetIndex()));
 
   // Get function type
   llvm::FunctionType* func_type =
