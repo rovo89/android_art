@@ -140,12 +140,25 @@ const char* llvmSSAName(CompilationUnit* cUnit, int ssaReg) {
   return GET_ELEM_N(cUnit->ssaStrings, char*, ssaReg);
 }
 
-llvm::Value* emitSget(CompilationUnit* cUnit,
-                      greenland::IntrinsicHelper::IntrinsicId id,
-                      llvm::ArrayRef<llvm::Value*> src, RegLocation Loc)
+void convertSget(CompilationUnit* cUnit, int32_t fieldIndex,
+                 greenland::IntrinsicHelper::IntrinsicId id,
+                 RegLocation rlDest)
 {
+  llvm::Constant* fieldIdx = cUnit->irb->getInt32(fieldIndex);
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
-  return cUnit->irb->CreateCall(intr, src);
+  llvm::Value* res = cUnit->irb->CreateCall(intr, fieldIdx);
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertSput(CompilationUnit* cUnit, int32_t fieldIndex,
+                 greenland::IntrinsicHelper::IntrinsicId id,
+                 RegLocation rlSrc)
+{
+  llvm::SmallVector<llvm::Value*, 2> args;
+  args.push_back(cUnit->irb->getInt32(fieldIndex));
+  args.push_back(getLLVMValue(cUnit, rlSrc.origSReg));
+  llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+  cUnit->irb->CreateCall(intr, args);
 }
 
 llvm::Value* emitConst(CompilationUnit* cUnit, llvm::ArrayRef<llvm::Value*> src,
@@ -177,8 +190,6 @@ void emitPopShadowFrame(CompilationUnit* cUnit)
       greenland::IntrinsicHelper::PopShadowFrame);
   cUnit->irb->CreateCall(intr);
 }
-
-
 
 llvm::Value* emitCopy(CompilationUnit* cUnit, llvm::ArrayRef<llvm::Value*> src,
                       RegLocation loc)
@@ -218,6 +229,27 @@ void convertThrow(CompilationUnit* cUnit, RegLocation rlSrc)
       greenland::IntrinsicHelper::Throw);
   cUnit->irb->CreateCall(func, src);
   cUnit->irb->CreateUnreachable();
+}
+
+void convertMonitorEnterExit(CompilationUnit* cUnit, int optFlags,
+                             greenland::IntrinsicHelper::IntrinsicId id,
+                             RegLocation rlSrc)
+{
+  llvm::SmallVector<llvm::Value*, 2> args;
+  args.push_back(cUnit->irb->getInt32(optFlags));
+  args.push_back(getLLVMValue(cUnit, rlSrc.origSReg));
+  llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+  cUnit->irb->CreateCall(func, args);
+}
+
+void convertArrayLength(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
+{
+  llvm::SmallVector<llvm::Value*, 2> args;
+  args.push_back(cUnit->irb->getInt32(optFlags));
+  args.push_back(getLLVMValue(cUnit, rlSrc.origSReg));
+  llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
+      greenland::IntrinsicHelper::ArrayLength);
+  cUnit->irb->CreateCall(func, args);
 }
 
 void convertThrowVerificationError(CompilationUnit* cUnit, int info1, int info2)
@@ -450,7 +482,7 @@ void convertInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
       if (info->result.fp) {
         id = greenland::IntrinsicHelper::HLInvokeDouble;
       } else {
-        id = greenland::IntrinsicHelper::HLInvokeFloat;
+        id = greenland::IntrinsicHelper::HLInvokeLong;
       }
     } else if (info->result.ref) {
         id = greenland::IntrinsicHelper::HLInvokeObj;
@@ -478,14 +510,66 @@ void convertConstString(CompilationUnit* cUnit, BasicBlock* bb,
   defineValue(cUnit, res, rlDest.origSReg);
 }
 
-void convertNewInstance(CompilationUnit* cUnit, BasicBlock* bb,
-                        uint32_t type_idx, RegLocation rlDest)
+void convertNewInstance(CompilationUnit* cUnit, uint32_t type_idx,
+                        RegLocation rlDest)
 {
   greenland::IntrinsicHelper::IntrinsicId id;
   id = greenland::IntrinsicHelper::NewInstance;
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::Value* index = cUnit->irb->getInt32(type_idx);
   llvm::Value* res = cUnit->irb->CreateCall(intr, index);
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertNewArray(CompilationUnit* cUnit, uint32_t type_idx,
+                     RegLocation rlDest, RegLocation rlSrc)
+{
+  greenland::IntrinsicHelper::IntrinsicId id;
+  id = greenland::IntrinsicHelper::NewArray;
+  llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+  llvm::SmallVector<llvm::Value*, 2> args;
+  args.push_back(cUnit->irb->getInt32(type_idx));
+  args.push_back(getLLVMValue(cUnit, rlSrc.origSReg));
+  llvm::Value* res = cUnit->irb->CreateCall(intr, args);
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertAget(CompilationUnit* cUnit, int optFlags,
+                 greenland::IntrinsicHelper::IntrinsicId id,
+                 RegLocation rlDest, RegLocation rlArray, RegLocation rlIndex)
+{
+  llvm::SmallVector<llvm::Value*, 3> args;
+  args.push_back(cUnit->irb->getInt32(optFlags));
+  args.push_back(getLLVMValue(cUnit, rlArray.origSReg));
+  args.push_back(getLLVMValue(cUnit, rlIndex.origSReg));
+  llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+  llvm::Value* res = cUnit->irb->CreateCall(intr, args);
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertAput(CompilationUnit* cUnit, int optFlags,
+                 greenland::IntrinsicHelper::IntrinsicId id,
+                 RegLocation rlSrc, RegLocation rlArray, RegLocation rlIndex)
+{
+  llvm::SmallVector<llvm::Value*, 4> args;
+  args.push_back(cUnit->irb->getInt32(optFlags));
+  args.push_back(getLLVMValue(cUnit, rlSrc.origSReg));
+  args.push_back(getLLVMValue(cUnit, rlArray.origSReg));
+  args.push_back(getLLVMValue(cUnit, rlIndex.origSReg));
+  llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+  cUnit->irb->CreateCall(intr, args);
+}
+
+void convertInstanceOf(CompilationUnit* cUnit, uint32_t type_idx,
+                       RegLocation rlDest, RegLocation rlSrc)
+{
+  greenland::IntrinsicHelper::IntrinsicId id;
+  id = greenland::IntrinsicHelper::InstanceOf;
+  llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+  llvm::SmallVector<llvm::Value*, 2> args;
+  args.push_back(cUnit->irb->getInt32(type_idx));
+  args.push_back(getLLVMValue(cUnit, rlSrc.origSReg));
+  llvm::Value* res = cUnit->irb->CreateCall(intr, args);
   defineValue(cUnit, res, rlDest.origSReg);
 }
 
@@ -505,6 +589,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
   uint32_t vA = mir->dalvikInsn.vA;
   uint32_t vB = mir->dalvikInsn.vB;
   uint32_t vC = mir->dalvikInsn.vC;
+  int optFlags = mir->optimizationFlags;
 
   bool objectDefinition = false;
 
@@ -613,11 +698,69 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       }
       break;
 
-    case Instruction::SGET_OBJECT: {
-        llvm::Constant* fieldIdx = cUnit->irb->GetJInt(vB);
-        llvm::Value* res = emitSget(cUnit, greenland::IntrinsicHelper::SgetObj,
-                                    fieldIdx, rlDest);
-        defineValue(cUnit, res, rlDest.origSReg);
+    case Instruction::SPUT_OBJECT:
+      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputObject,
+                  rlSrc[0]);
+      break;
+    case Instruction::SPUT:
+      if (rlSrc[0].fp) {
+        convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputFloat,
+                    rlSrc[0]);
+      } else {
+        convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSput, rlSrc[0]);
+      }
+      break;
+    case Instruction::SPUT_BOOLEAN:
+      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputBoolean,
+                  rlSrc[0]);
+      break;
+    case Instruction::SPUT_BYTE:
+      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputByte, rlSrc[0]);
+      break;
+    case Instruction::SPUT_CHAR:
+      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputChar, rlSrc[0]);
+      break;
+    case Instruction::SPUT_SHORT:
+      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputShort, rlSrc[0]);
+      break;
+    case Instruction::SPUT_WIDE:
+      if (rlSrc[0].fp) {
+        convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputDouble,
+                    rlSrc[0]);
+      } else {
+        convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputWide,
+                    rlSrc[0]);
+      }
+      break;
+
+    case Instruction::SGET_OBJECT:
+      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSgetObject, rlDest);
+      break;
+    case Instruction::SGET:
+      if (rlDest.fp) {
+        convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSgetFloat, rlDest);
+      } else {
+        convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSget, rlDest);
+      }
+      break;
+    case Instruction::SGET_BOOLEAN:
+      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSgetBoolean, rlDest);
+      break;
+    case Instruction::SGET_BYTE:
+      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSgetByte, rlDest);
+      break;
+    case Instruction::SGET_CHAR:
+      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSgetChar, rlDest);
+      break;
+    case Instruction::SGET_SHORT:
+      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSgetShort, rlDest);
+      break;
+    case Instruction::SGET_WIDE:
+      if (rlDest.fp) {
+        convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSgetDouble,
+                    rlDest);
+      } else {
+        convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSgetWide, rlDest);
       }
       break;
 
@@ -881,7 +1024,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       break;
 
     case Instruction::NEW_INSTANCE:
-      convertNewInstance(cUnit, bb, vB, rlDest);
+      convertNewInstance(cUnit, vB, rlDest);
       break;
 
    case Instruction::MOVE_EXCEPTION:
@@ -896,70 +1039,124 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       convertThrowVerificationError(cUnit, vA, vB);
       break;
 
-#if 0
-
-    case Instruction::MOVE_EXCEPTION: {
-      int exOffset = Thread::ExceptionOffset().Int32Value();
-      rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-#if defined(TARGET_X86)
-      newLIR2(cUnit, kX86Mov32RT, rlResult.lowReg, exOffset);
-      newLIR2(cUnit, kX86Mov32TI, exOffset, 0);
-#else
-      int resetReg = oatAllocTemp(cUnit);
-      loadWordDisp(cUnit, rSELF, exOffset, rlResult.lowReg);
-      loadConstant(cUnit, resetReg, 0);
-      storeWordDisp(cUnit, rSELF, exOffset, resetReg);
-      storeValue(cUnit, rlDest, rlResult);
-      oatFreeTemp(cUnit, resetReg);
-#endif
-      break;
-    }
-
     case Instruction::MOVE_RESULT_WIDE:
-      if (mir->optimizationFlags & MIR_INLINED)
-        break;  // Nop - combined w/ previous invoke
-      storeValueWide(cUnit, rlDest, oatGetReturnWide(cUnit, rlDest.fp));
-      break;
-
     case Instruction::MOVE_RESULT:
     case Instruction::MOVE_RESULT_OBJECT:
-      if (mir->optimizationFlags & MIR_INLINED)
-        break;  // Nop - combined w/ previous invoke
-      storeValue(cUnit, rlDest, oatGetReturn(cUnit, rlDest.fp));
+      CHECK(false) << "Unexpected MOVE_RESULT";
       break;
 
     case Instruction::MONITOR_ENTER:
-      genMonitorEnter(cUnit, mir, rlSrc[0]);
+      convertMonitorEnterExit(cUnit, optFlags,
+                              greenland::IntrinsicHelper::MonitorEnter,
+                              rlSrc[0]);
       break;
 
     case Instruction::MONITOR_EXIT:
-      genMonitorExit(cUnit, mir, rlSrc[0]);
-      break;
-
-    case Instruction::CHECK_CAST:
-      genCheckCast(cUnit, mir, rlSrc[0]);
-      break;
-
-    case Instruction::INSTANCE_OF:
-      genInstanceof(cUnit, mir, rlDest, rlSrc[0]);
-      break;
-
-    case Instruction::THROW:
-      genThrow(cUnit, mir, rlSrc[0]);
-      break;
-
-    case Instruction::THROW_VERIFICATION_ERROR:
-      genThrowVerificationError(cUnit, mir);
+      convertMonitorEnterExit(cUnit, optFlags,
+                              greenland::IntrinsicHelper::MonitorExit,
+                              rlSrc[0]);
       break;
 
     case Instruction::ARRAY_LENGTH:
-      int lenOffset;
-      lenOffset = Array::LengthOffset().Int32Value();
-      rlSrc[0] = loadValue(cUnit, rlSrc[0], kCoreReg);
-      genNullCheck(cUnit, rlSrc[0].sRegLow, rlSrc[0].lowReg, mir);
-      rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-      loadWordDisp(cUnit, rlSrc[0].lowReg, lenOffset, rlResult.lowReg);
-      storeValue(cUnit, rlDest, rlResult);
+      convertArrayLength(cUnit, optFlags, rlSrc[0]);
+      break;
+
+    case Instruction::NEW_ARRAY:
+      convertNewArray(cUnit, vC, rlDest, rlSrc[0]);
+      break;
+
+    case Instruction::INSTANCE_OF:
+      convertInstanceOf(cUnit, vC, rlDest, rlSrc[0]);
+      break;
+
+    case Instruction::AGET:
+      if (rlDest.fp) {
+        convertAget(cUnit, optFlags,
+                    greenland::IntrinsicHelper::HLArrayGetFloat,
+                    rlDest, rlSrc[0], rlSrc[1]);
+      } else {
+        convertAget(cUnit, optFlags, greenland::IntrinsicHelper::HLArrayGet,
+                    rlDest, rlSrc[0], rlSrc[1]);
+      }
+      break;
+    case Instruction::AGET_OBJECT:
+      convertAget(cUnit, optFlags, greenland::IntrinsicHelper::HLArrayGetObject,
+                  rlDest, rlSrc[0], rlSrc[1]);
+      break;
+    case Instruction::AGET_BOOLEAN:
+      convertAget(cUnit, optFlags,
+                  greenland::IntrinsicHelper::HLArrayGetBoolean,
+                  rlDest, rlSrc[0], rlSrc[1]);
+      break;
+    case Instruction::AGET_BYTE:
+      convertAget(cUnit, optFlags, greenland::IntrinsicHelper::HLArrayGetByte,
+                  rlDest, rlSrc[0], rlSrc[1]);
+      break;
+    case Instruction::AGET_CHAR:
+      convertAget(cUnit, optFlags, greenland::IntrinsicHelper::HLArrayGetChar,
+                  rlDest, rlSrc[0], rlSrc[1]);
+      break;
+    case Instruction::AGET_SHORT:
+      convertAget(cUnit, optFlags, greenland::IntrinsicHelper::HLArrayGetShort,
+                  rlDest, rlSrc[0], rlSrc[1]);
+      break;
+    case Instruction::AGET_WIDE:
+      if (rlDest.fp) {
+        convertAget(cUnit, optFlags,
+                    greenland::IntrinsicHelper::HLArrayGetDouble,
+                    rlDest, rlSrc[0], rlSrc[1]);
+      } else {
+        convertAget(cUnit, optFlags, greenland::IntrinsicHelper::HLArrayGetWide,
+                    rlDest, rlSrc[0], rlSrc[1]);
+      }
+      break;
+
+    case Instruction::APUT:
+      if (rlSrc[0].fp) {
+        convertAput(cUnit, optFlags,
+                    greenland::IntrinsicHelper::HLArrayPutFloat,
+                    rlSrc[0], rlSrc[1], rlSrc[2]);
+      } else {
+        convertAput(cUnit, optFlags, greenland::IntrinsicHelper::HLArrayPut,
+                    rlSrc[0], rlSrc[1], rlSrc[2]);
+      }
+      break;
+    case Instruction::APUT_OBJECT:
+      convertAput(cUnit, optFlags, greenland::IntrinsicHelper::HLArrayPutObject,
+                    rlSrc[0], rlSrc[1], rlSrc[2]);
+      break;
+    case Instruction::APUT_BOOLEAN:
+      convertAput(cUnit, optFlags,
+                  greenland::IntrinsicHelper::HLArrayPutBoolean,
+                    rlSrc[0], rlSrc[1], rlSrc[2]);
+      break;
+    case Instruction::APUT_BYTE:
+      convertAput(cUnit, optFlags, greenland::IntrinsicHelper::HLArrayPutByte,
+                    rlSrc[0], rlSrc[1], rlSrc[2]);
+      break;
+    case Instruction::APUT_CHAR:
+      convertAput(cUnit, optFlags, greenland::IntrinsicHelper::HLArrayPutChar,
+                    rlSrc[0], rlSrc[1], rlSrc[2]);
+      break;
+    case Instruction::APUT_SHORT:
+      convertAput(cUnit, optFlags, greenland::IntrinsicHelper::HLArrayPutShort,
+                    rlSrc[0], rlSrc[1], rlSrc[2]);
+      break;
+    case Instruction::APUT_WIDE:
+      if (rlSrc[0].fp) {
+        convertAput(cUnit, optFlags,
+                    greenland::IntrinsicHelper::HLArrayPutDouble,
+                    rlSrc[0], rlSrc[1], rlSrc[2]);
+      } else {
+        convertAput(cUnit, optFlags, greenland::IntrinsicHelper::HLArrayPutWide,
+                    rlSrc[0], rlSrc[1], rlSrc[2]);
+      }
+      break;
+
+#if 0
+
+    case Instruction::CHECK_CAST:
+      genCheckCast(cUnit, mir, rlSrc[0]);
       break;
 
     case Instruction::CONST_CLASS:
@@ -970,16 +1167,8 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       genFillArrayData(cUnit, mir, rlSrc[0]);
       break;
 
-    case Instruction::FILLED_NEW_ARRAY:
-      genFilledNewArray(cUnit, mir, false /* not range */);
-      break;
-
     case Instruction::FILLED_NEW_ARRAY_RANGE:
       genFilledNewArray(cUnit, mir, true /* range */);
-      break;
-
-    case Instruction::NEW_ARRAY:
-      genNewArray(cUnit, mir, rlDest, rlSrc[0]);
       break;
 
     case Instruction::PACKED_SWITCH:
@@ -999,44 +1188,6 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
 
     case Instruction::CMP_LONG:
       genCmpLong(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
-      break;
-
-    case Instruction::AGET_WIDE:
-      genArrayGet(cUnit, mir, kLong, rlSrc[0], rlSrc[1], rlDest, 3);
-      break;
-    case Instruction::AGET:
-    case Instruction::AGET_OBJECT:
-      genArrayGet(cUnit, mir, kWord, rlSrc[0], rlSrc[1], rlDest, 2);
-      break;
-    case Instruction::AGET_BOOLEAN:
-      genArrayGet(cUnit, mir, kUnsignedByte, rlSrc[0], rlSrc[1], rlDest, 0);
-      break;
-    case Instruction::AGET_BYTE:
-      genArrayGet(cUnit, mir, kSignedByte, rlSrc[0], rlSrc[1], rlDest, 0);
-      break;
-    case Instruction::AGET_CHAR:
-      genArrayGet(cUnit, mir, kUnsignedHalf, rlSrc[0], rlSrc[1], rlDest, 1);
-      break;
-    case Instruction::AGET_SHORT:
-      genArrayGet(cUnit, mir, kSignedHalf, rlSrc[0], rlSrc[1], rlDest, 1);
-      break;
-    case Instruction::APUT_WIDE:
-      genArrayPut(cUnit, mir, kLong, rlSrc[1], rlSrc[2], rlSrc[0], 3);
-      break;
-    case Instruction::APUT:
-      genArrayPut(cUnit, mir, kWord, rlSrc[1], rlSrc[2], rlSrc[0], 2);
-      break;
-    case Instruction::APUT_OBJECT:
-      genArrayObjPut(cUnit, mir, rlSrc[1], rlSrc[2], rlSrc[0], 2);
-      break;
-    case Instruction::APUT_SHORT:
-    case Instruction::APUT_CHAR:
-      genArrayPut(cUnit, mir, kUnsignedHalf, rlSrc[1], rlSrc[2], rlSrc[0], 1);
-      break;
-    case Instruction::APUT_BYTE:
-    case Instruction::APUT_BOOLEAN:
-      genArrayPut(cUnit, mir, kUnsignedByte, rlSrc[1], rlSrc[2],
-            rlSrc[0], 0);
       break;
 
     case Instruction::IGET_OBJECT:
@@ -1093,37 +1244,6 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
 
     case Instruction::IPUT_SHORT:
       genIPut(cUnit, mir, kSignedHalf, rlSrc[0], rlSrc[1], false, false);
-      break;
-
-    case Instruction::SGET_OBJECT:
-      genSget(cUnit, mir, rlDest, false, true);
-      break;
-    case Instruction::SGET:
-    case Instruction::SGET_BOOLEAN:
-    case Instruction::SGET_BYTE:
-    case Instruction::SGET_CHAR:
-    case Instruction::SGET_SHORT:
-      genSget(cUnit, mir, rlDest, false, false);
-      break;
-
-    case Instruction::SGET_WIDE:
-      genSget(cUnit, mir, rlDest, true, false);
-      break;
-
-    case Instruction::SPUT_OBJECT:
-      genSput(cUnit, mir, rlSrc[0], false, true);
-      break;
-
-    case Instruction::SPUT:
-    case Instruction::SPUT_BOOLEAN:
-    case Instruction::SPUT_BYTE:
-    case Instruction::SPUT_CHAR:
-    case Instruction::SPUT_SHORT:
-      genSput(cUnit, mir, rlSrc[0], false, false);
-      break;
-
-    case Instruction::SPUT_WIDE:
-      genSput(cUnit, mir, rlSrc[0], true, false);
       break;
 
     case Instruction::NEG_INT:
@@ -1822,6 +1942,30 @@ void cvtNewInstance(CompilationUnit* cUnit, llvm::CallInst* callInst)
   genNewInstance(cUnit, typeIdx, rlDest);
 }
 
+void cvtNewArray(CompilationUnit* cUnit, llvm::CallInst* callInst)
+{
+  DCHECK_EQ(callInst->getNumArgOperands(), 2U);
+  llvm::ConstantInt* typeIdxVal =
+      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
+  uint32_t typeIdx = typeIdxVal->getZExtValue();
+  llvm::Value* len = callInst->getArgOperand(1);
+  RegLocation rlLen = getLoc(cUnit, len);
+  RegLocation rlDest = getLoc(cUnit, callInst);
+  genNewArray(cUnit, typeIdx, rlDest, rlLen);
+}
+
+void cvtInstanceOf(CompilationUnit* cUnit, llvm::CallInst* callInst)
+{
+  DCHECK_EQ(callInst->getNumArgOperands(), 2U);
+  llvm::ConstantInt* typeIdxVal =
+      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
+  uint32_t typeIdx = typeIdxVal->getZExtValue();
+  llvm::Value* src = callInst->getArgOperand(1);
+  RegLocation rlSrc = getLoc(cUnit, src);
+  RegLocation rlDest = getLoc(cUnit, callInst);
+  genInstanceof(cUnit, typeIdx, rlDest, rlSrc);
+}
+
 void cvtThrowVerificationError(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 2U);
@@ -1838,6 +1982,37 @@ void cvtThrow(CompilationUnit* cUnit, llvm::CallInst* callInst)
   llvm::Value* src = callInst->getArgOperand(0);
   RegLocation rlSrc = getLoc(cUnit, src);
   genThrow(cUnit, rlSrc);
+}
+
+void cvtMonitorEnterExit(CompilationUnit* cUnit, bool isEnter,
+                         llvm::CallInst* callInst)
+{
+  DCHECK_EQ(callInst->getNumArgOperands(), 2U);
+  llvm::ConstantInt* optFlags =
+      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
+  llvm::Value* src = callInst->getArgOperand(1);
+  RegLocation rlSrc = getLoc(cUnit, src);
+  if (isEnter) {
+    genMonitorEnter(cUnit, optFlags->getZExtValue(), rlSrc);
+  } else {
+    genMonitorExit(cUnit, optFlags->getZExtValue(), rlSrc);
+  }
+}
+
+void cvtMonitorArrayLength(CompilationUnit* cUnit, llvm::CallInst* callInst)
+{
+  DCHECK_EQ(callInst->getNumArgOperands(), 2U);
+  llvm::ConstantInt* optFlags =
+      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
+  llvm::Value* src = callInst->getArgOperand(1);
+  RegLocation rlSrc = getLoc(cUnit, src);
+  rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
+  genNullCheck(cUnit, rlSrc.sRegLow, rlSrc.lowReg, optFlags->getZExtValue());
+  RegLocation rlDest = getLoc(cUnit, callInst);
+  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+  int lenOffset = Array::LengthOffset().Int32Value();
+  loadWordDisp(cUnit, rlSrc.lowReg, lenOffset, rlResult.lowReg);
+  storeValue(cUnit, rlDest, rlResult);
 }
 
 void cvtMoveException(CompilationUnit* cUnit, llvm::CallInst* callInst)
@@ -1870,12 +2045,50 @@ void cvtSget(CompilationUnit* cUnit, llvm::CallInst* callInst, bool isWide,
   genSget(cUnit, typeIdx, rlDest, isWide, isObject);
 }
 
+void cvtSput(CompilationUnit* cUnit, llvm::CallInst* callInst, bool isWide,
+             bool isObject)
+{
+  DCHECK_EQ(callInst->getNumArgOperands(), 2U);
+  llvm::ConstantInt* typeIdxVal =
+      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
+  uint32_t typeIdx = typeIdxVal->getZExtValue();
+  llvm::Value* src = callInst->getArgOperand(1);
+  RegLocation rlSrc = getLoc(cUnit, src);
+  genSput(cUnit, typeIdx, rlSrc, isWide, isObject);
+}
+
+void cvtAget(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
+             int scale)
+{
+  DCHECK_EQ(callInst->getNumArgOperands(), 3U);
+  llvm::ConstantInt* optFlags =
+      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
+  RegLocation rlArray = getLoc(cUnit, callInst->getArgOperand(1));
+  RegLocation rlIndex = getLoc(cUnit, callInst->getArgOperand(2));
+  RegLocation rlDest = getLoc(cUnit, callInst);
+  genArrayGet(cUnit, optFlags->getZExtValue(), size, rlArray, rlIndex,
+              rlDest, scale);
+}
+
+void cvtAput(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
+             int scale)
+{
+  DCHECK_EQ(callInst->getNumArgOperands(), 4U);
+  llvm::ConstantInt* optFlags =
+      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
+  RegLocation rlSrc = getLoc(cUnit, callInst->getArgOperand(1));
+  RegLocation rlArray = getLoc(cUnit, callInst->getArgOperand(2));
+  RegLocation rlIndex = getLoc(cUnit, callInst->getArgOperand(3));
+  genArrayPut(cUnit, optFlags->getZExtValue(), size, rlArray, rlIndex,
+              rlSrc, scale);
+}
+
 void cvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
-               greenland::JType jtype)
+               bool isVoid)
 {
   CallInfo* info = (CallInfo*)oatNew(cUnit, sizeof(CallInfo), true,
                                          kAllocMisc);
-  if (jtype == greenland::kVoid) {
+  if (isVoid) {
     info->result.location = kLocInvalid;
   } else {
     info->result = getLoc(cUnit, callInst);
@@ -2061,14 +2274,15 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
             case greenland::IntrinsicHelper::CheckSuspend:
               genSuspendTest(cUnit, 0 /* optFlags already applied */);
               break;
-            case greenland::IntrinsicHelper::HLInvokeInt:
-              cvtInvoke(cUnit, callInst, greenland::kInt);
-              break;
             case greenland::IntrinsicHelper::HLInvokeObj:
-              cvtInvoke(cUnit, callInst, greenland::kObject);
+            case greenland::IntrinsicHelper::HLInvokeFloat:
+            case greenland::IntrinsicHelper::HLInvokeDouble:
+            case greenland::IntrinsicHelper::HLInvokeLong:
+            case greenland::IntrinsicHelper::HLInvokeInt:
+              cvtInvoke(cUnit, callInst, false /* isVoid */);
               break;
             case greenland::IntrinsicHelper::HLInvokeVoid:
-              cvtInvoke(cUnit, callInst, greenland::kVoid);
+              cvtInvoke(cUnit, callInst, true /* isVoid */);
               break;
             case greenland::IntrinsicHelper::ConstString:
               cvtConstString(cUnit, callInst);
@@ -2076,8 +2290,20 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
             case greenland::IntrinsicHelper::NewInstance:
               cvtNewInstance(cUnit, callInst);
               break;
-            case greenland::IntrinsicHelper::SgetObj:
+            case greenland::IntrinsicHelper::HLSgetObject:
               cvtSget(cUnit, callInst, false /* wide */, true /* Object */);
+              break;
+            case greenland::IntrinsicHelper::HLSget:
+            case greenland::IntrinsicHelper::HLSgetFloat:
+            case greenland::IntrinsicHelper::HLSgetBoolean:
+            case greenland::IntrinsicHelper::HLSgetByte:
+            case greenland::IntrinsicHelper::HLSgetChar:
+            case greenland::IntrinsicHelper::HLSgetShort:
+              cvtSget(cUnit, callInst, false /* wide */, false /* Object */);
+              break;
+            case greenland::IntrinsicHelper::HLSgetWide:
+            case greenland::IntrinsicHelper::HLSgetDouble:
+              cvtSget(cUnit, callInst, true /* wide */, false /* Object */);
               break;
             case greenland::IntrinsicHelper::GetException:
               cvtMoveException(cUnit, callInst);
@@ -2086,8 +2312,68 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               cvtThrow(cUnit, callInst);
               break;
             case greenland::IntrinsicHelper::ThrowVerificationError:
-              cvtThrow(cUnit, callInst);
+              cvtThrowVerificationError(cUnit, callInst);
               break;
+            case greenland::IntrinsicHelper::MonitorEnter:
+              cvtMonitorEnterExit(cUnit, true /* isEnter */, callInst);
+              break;
+            case greenland::IntrinsicHelper::MonitorExit:
+              cvtMonitorEnterExit(cUnit, false /* isEnter */, callInst);
+              break;
+            case greenland::IntrinsicHelper::ArrayLength:
+              cvtMonitorArrayLength(cUnit, callInst);
+              break;
+            case greenland::IntrinsicHelper::NewArray:
+              cvtNewArray(cUnit, callInst);
+              break;
+            case greenland::IntrinsicHelper::InstanceOf:
+              cvtInstanceOf(cUnit, callInst);
+              break;
+
+            case greenland::IntrinsicHelper::HLArrayGet:
+            case greenland::IntrinsicHelper::HLArrayGetObject:
+            case greenland::IntrinsicHelper::HLArrayGetFloat:
+              cvtAget(cUnit, callInst, kWord, 2);
+              break;
+            case greenland::IntrinsicHelper::HLArrayGetWide:
+            case greenland::IntrinsicHelper::HLArrayGetDouble:
+              cvtAget(cUnit, callInst, kLong, 3);
+              break;
+            case greenland::IntrinsicHelper::HLArrayGetBoolean:
+              cvtAget(cUnit, callInst, kUnsignedByte, 0);
+              break;
+            case greenland::IntrinsicHelper::HLArrayGetByte:
+              cvtAget(cUnit, callInst, kSignedByte, 0);
+              break;
+            case greenland::IntrinsicHelper::HLArrayGetChar:
+              cvtAget(cUnit, callInst, kUnsignedHalf, 1);
+              break;
+            case greenland::IntrinsicHelper::HLArrayGetShort:
+              cvtAget(cUnit, callInst, kSignedHalf, 1);
+              break;
+
+            case greenland::IntrinsicHelper::HLArrayPut:
+            case greenland::IntrinsicHelper::HLArrayPutObject:
+            case greenland::IntrinsicHelper::HLArrayPutFloat:
+              cvtAput(cUnit, callInst, kWord, 2);
+              break;
+            case greenland::IntrinsicHelper::HLArrayPutWide:
+            case greenland::IntrinsicHelper::HLArrayPutDouble:
+              cvtAput(cUnit, callInst, kLong, 3);
+              break;
+            case greenland::IntrinsicHelper::HLArrayPutBoolean:
+              cvtAput(cUnit, callInst, kUnsignedByte, 0);
+              break;
+            case greenland::IntrinsicHelper::HLArrayPutByte:
+              cvtAput(cUnit, callInst, kSignedByte, 0);
+              break;
+            case greenland::IntrinsicHelper::HLArrayPutChar:
+              cvtAput(cUnit, callInst, kUnsignedHalf, 1);
+              break;
+            case greenland::IntrinsicHelper::HLArrayPutShort:
+              cvtAput(cUnit, callInst, kSignedHalf, 1);
+              break;
+
             case greenland::IntrinsicHelper::UnknownId:
               cvtCall(cUnit, callInst, callee);
               break;
