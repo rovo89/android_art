@@ -18,7 +18,7 @@
  * Exceptions across method calls
  */
 public class Main {
-    public static void main (String args[]) {
+    public static void exceptions_007() {
         try {
             catchAndRethrow();
         } catch (NullPointerException npe) {
@@ -26,6 +26,9 @@ public class Main {
             System.out.println(npe.getMessage());
             npe.printStackTrace();
         }
+    }
+    public static void main (String args[]) {
+        exceptions_007();
     }
 
     private static void catchAndRethrow() {

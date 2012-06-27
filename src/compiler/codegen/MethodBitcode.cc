@@ -203,6 +203,34 @@ llvm::Value* emitCopy(CompilationUnit* cUnit, llvm::ArrayRef<llvm::Value*> src,
   return cUnit->irb->CreateCall(intr, src);
 }
 
+void convertMoveException(CompilationUnit* cUnit, RegLocation rlDest)
+{
+  llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
+      greenland::IntrinsicHelper::GetException);
+  llvm::Value* res = cUnit->irb->CreateCall(func);
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertThrow(CompilationUnit* cUnit, RegLocation rlSrc)
+{
+  llvm::Value* src = getLLVMValue(cUnit, rlSrc.origSReg);
+  llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
+      greenland::IntrinsicHelper::Throw);
+  cUnit->irb->CreateCall(func, src);
+  cUnit->irb->CreateUnreachable();
+}
+
+void convertThrowVerificationError(CompilationUnit* cUnit, int info1, int info2)
+{
+  llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
+      greenland::IntrinsicHelper::Throw);
+  llvm::SmallVector<llvm::Value*, 2> args;
+  args.push_back(cUnit->irb->getInt32(info1));
+  args.push_back(cUnit->irb->getInt32(info2));
+  cUnit->irb->CreateCall(func, args);
+  cUnit->irb->CreateUnreachable();
+}
+
 void emitSuspendCheck(CompilationUnit* cUnit)
 {
   greenland::IntrinsicHelper::IntrinsicId id =
@@ -474,6 +502,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
   RegLocation rlDest = badLoc;
   RegLocation rlResult = badLoc;
   Instruction::Code opcode = mir->dalvikInsn.opcode;
+  uint32_t vA = mir->dalvikInsn.vA;
   uint32_t vB = mir->dalvikInsn.vB;
   uint32_t vC = mir->dalvikInsn.vC;
 
@@ -855,6 +884,17 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       convertNewInstance(cUnit, bb, vB, rlDest);
       break;
 
+   case Instruction::MOVE_EXCEPTION:
+      convertMoveException(cUnit, rlDest);
+      break;
+
+   case Instruction::THROW:
+      convertThrow(cUnit, rlSrc[0]);
+      break;
+
+   case Instruction::THROW_VERIFICATION_ERROR:
+      convertThrowVerificationError(cUnit, vA, vB);
+      break;
 
 #if 0
 
@@ -1136,6 +1176,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
 #endif
 
     default:
+      UNIMPLEMENTED(FATAL) << "Unsupported Dex opcode 0x" << std::hex << opcode;
       res = true;
   }
   if (objectDefinition) {
@@ -1494,13 +1535,7 @@ RegLocation getLoc(CompilationUnit* cUnit, llvm::Value* val) {
   SafeMap<llvm::Value*, RegLocation>::iterator it = cUnit->locMap.find(val);
   if (it == cUnit->locMap.end()) {
     std::string valName = val->getName().str();
-    DCHECK(!valName.empty());
-    if (valName[0] == 'v') {
-      int baseSReg = INVALID_SREG;
-      sscanf(valName.c_str(), "v%d_", &baseSReg);
-      res = cUnit->regLocation[baseSReg];
-      cUnit->locMap.Put(val, res);
-    } else {
+    if (valName.empty()) {
       UNIMPLEMENTED(WARNING) << "Need to handle unnamed llvm temps";
       memset(&res, 0, sizeof(res));
       res.location = kLocPhysReg;
@@ -1508,6 +1543,12 @@ RegLocation getLoc(CompilationUnit* cUnit, llvm::Value* val) {
       res.home = true;
       res.sRegLow = INVALID_SREG;
       res.origSReg = INVALID_SREG;
+      cUnit->locMap.Put(val, res);
+    } else {
+      DCHECK_EQ(valName[0], 'v');
+      int baseSReg = INVALID_SREG;
+      sscanf(valName.c_str(), "v%d_", &baseSReg);
+      res = cUnit->regLocation[baseSReg];
       cUnit->locMap.Put(val, res);
     }
   } else {
@@ -1773,7 +1814,7 @@ void cvtConstString(CompilationUnit* cUnit, llvm::CallInst* callInst)
 
 void cvtNewInstance(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
-  DCHECK(callInst->getNumArgOperands() == 1);
+  DCHECK_EQ(callInst->getNumArgOperands(), 1U);
   llvm::ConstantInt* typeIdxVal =
       llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
   uint32_t typeIdx = typeIdxVal->getZExtValue();
@@ -1781,10 +1822,47 @@ void cvtNewInstance(CompilationUnit* cUnit, llvm::CallInst* callInst)
   genNewInstance(cUnit, typeIdx, rlDest);
 }
 
+void cvtThrowVerificationError(CompilationUnit* cUnit, llvm::CallInst* callInst)
+{
+  DCHECK_EQ(callInst->getNumArgOperands(), 2U);
+  llvm::ConstantInt* info1 =
+      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
+  llvm::ConstantInt* info2 =
+      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(1));
+  genThrowVerificationError(cUnit, info1->getZExtValue(), info2->getZExtValue());
+}
+
+void cvtThrow(CompilationUnit* cUnit, llvm::CallInst* callInst)
+{
+  DCHECK_EQ(callInst->getNumArgOperands(), 1U);
+  llvm::Value* src = callInst->getArgOperand(0);
+  RegLocation rlSrc = getLoc(cUnit, src);
+  genThrow(cUnit, rlSrc);
+}
+
+void cvtMoveException(CompilationUnit* cUnit, llvm::CallInst* callInst)
+{
+  DCHECK_EQ(callInst->getNumArgOperands(), 0U);
+  int exOffset = Thread::ExceptionOffset().Int32Value();
+  RegLocation rlDest = getLoc(cUnit, callInst);
+  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+#if defined(TARGET_X86)
+  newLIR2(cUnit, kX86Mov32RT, rlResult.lowReg, exOffset);
+  newLIR2(cUnit, kX86Mov32TI, exOffset, 0);
+#else
+  int resetReg = oatAllocTemp(cUnit);
+  loadWordDisp(cUnit, rSELF, exOffset, rlResult.lowReg);
+  loadConstant(cUnit, resetReg, 0);
+  storeWordDisp(cUnit, rSELF, exOffset, resetReg);
+  oatFreeTemp(cUnit, resetReg);
+#endif
+  storeValue(cUnit, rlDest, rlResult);
+}
+
 void cvtSget(CompilationUnit* cUnit, llvm::CallInst* callInst, bool isWide,
              bool isObject)
 {
-  DCHECK(callInst->getNumArgOperands() == 1);
+  DCHECK_EQ(callInst->getNumArgOperands(), 1U);
   llvm::ConstantInt* typeIdxVal =
       llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
   uint32_t typeIdx = typeIdxVal->getZExtValue();
@@ -2001,6 +2079,15 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
             case greenland::IntrinsicHelper::SgetObj:
               cvtSget(cUnit, callInst, false /* wide */, true /* Object */);
               break;
+            case greenland::IntrinsicHelper::GetException:
+              cvtMoveException(cUnit, callInst);
+              break;
+            case greenland::IntrinsicHelper::Throw:
+              cvtThrow(cUnit, callInst);
+              break;
+            case greenland::IntrinsicHelper::ThrowVerificationError:
+              cvtThrow(cUnit, callInst);
+              break;
             case greenland::IntrinsicHelper::UnknownId:
               cvtCall(cUnit, callInst, callee);
               break;
@@ -2031,6 +2118,9 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
       case llvm::Instruction::FDiv: cvtBinFPOp(cUnit, kOpDiv, inst); break;
       case llvm::Instruction::FRem: cvtBinFPOp(cUnit, kOpRem, inst); break;
 
+      case llvm::Instruction::Unreachable:
+        break;  // FIXME: can we really ignore these?
+
       case llvm::Instruction::Invoke:
       case llvm::Instruction::Trunc:
       case llvm::Instruction::ZExt:
@@ -2051,7 +2141,6 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
       case llvm::Instruction::URem:
       case llvm::Instruction::UDiv:
       case llvm::Instruction::Resume:
-      case llvm::Instruction::Unreachable:
       case llvm::Instruction::Alloca:
       case llvm::Instruction::GetElementPtr:
       case llvm::Instruction::Fence:
