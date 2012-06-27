@@ -1362,28 +1362,6 @@ const void* ClassLinker::GetOatCodeFor(const Method* method) {
   return GetOatMethodFor(method).GetCode();
 }
 
-void ClassLinker::LinkOatCodeFor(Method* method) {
-  Class* declaring_class = method->GetDeclaringClass();
-  ClassHelper kh(declaring_class);
-  const OatFile* oat_file = FindOpenedOatFileForDexFile(kh.GetDexFile());
-  if (oat_file != NULL) {
-    // NOTE: We have to check the availability of OatFile first.  Because
-    // GetOatMethodFor(...) will try to find the OatFile and there's
-    // an assert in GetOatMethodFor(...).  Besides, due to the return
-    // type of OatClass::GetOatMethod(...), we can't return a failure value
-    // back.
-
-    // TODO: Remove this workaround.
-    OatFile::OatMethod oat_method = GetOatMethodFor(method);
-    if (method->GetCode() == NULL) {
-      method->SetCode(oat_method.GetCode());
-    }
-    if (method->GetInvokeStub() == NULL) {
-      method->SetInvokeStub(oat_method.GetInvokeStub());
-    }
-  }
-}
-
 void ClassLinker::FixupStaticTrampolines(Class* klass) {
   ClassHelper kh(klass);
   const DexFile::ClassDef* dex_class_def = kh.GetClassDef();
@@ -2211,14 +2189,6 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
   size_t num_virtual_methods = methods->GetLength();
   klass->SetVirtualMethods(AllocObjectArray<Method>(num_virtual_methods));
   for (size_t i = 0; i < num_virtual_methods; ++i) {
-#if defined(ART_USE_LLVM_COMPILER)
-    Method* method = methods->Get(i);
-    // Ensure link.
-    // TODO: Remove this after fixing the link problem by in-place linking.
-    if (method->GetCode() == NULL || method->GetInvokeStub() == NULL) {
-      Runtime::Current()->GetClassLinker()->LinkOatCodeFor(methods->Get(i));
-    }
-#endif
     SirtRef<Method> prototype(methods->Get(i));
     klass->SetVirtualMethod(i, CreateProxyMethod(klass, prototype));
   }

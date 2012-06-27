@@ -201,14 +201,6 @@ class MethodCompiler {
   void EmitInsn_SPut(GEN_INSN_ARGS, JType field_jty);
 
   // INVOKE instructions
-  llvm::Value* EmitFixStub(llvm::Value* callee_method_object_addr,
-                           uint32_t method_idx,
-                           bool is_static);
-  llvm::Value* EmitEnsureResolved(llvm::Value* callee,
-                                  llvm::Value* caller,
-                                  uint32_t dex_method_idx,
-                                  bool is_virtual);
-
   void EmitInsn_Invoke(GEN_INSN_ARGS,
                        InvokeType invoke_type,
                        InvokeArgFmt arg_fmt);

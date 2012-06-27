@@ -639,21 +639,6 @@ static void* art_find_compiler_runtime_func(char const* name) {
   }
 }
 
-// TODO: This runtime support function is the temporary solution for the link issue.
-// It calls to this function before invoking any function, and this function will check:
-// 1. The code address is 0.                       -> Link the code by ELFLoader
-// That will solved by in-place linking at image loading.
-const void* art_fix_stub_from_code(Method* called) {
-  const void* code = called->GetCode();
-  // 1. The code address is 0.                       -> Link the code by ELFLoader
-  if (UNLIKELY(code == NULL)) {
-    Runtime::Current()->GetClassLinker()->LinkOatCodeFor(called);
-    return called->GetCode();
-  }
-
-  return code;
-}
-
 // Handler for invocation on proxy methods. We create a boxed argument array. And we invoke
 // the invocation handler which is a field within the proxy object receiver.
 void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {

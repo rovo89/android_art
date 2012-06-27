@@ -63,8 +63,6 @@ void* art_set_current_thread_from_code(void* thread_object_addr);
 
 void* art_find_runtime_support_func(void* context, char const* name);
 
-const void* art_fix_stub_from_code(Method* called);
-
 }  // namespace art
 
 #endif  // ART_SRC_COMPILER_LLVM_RUNTIME_SUPPORT_LLVM_H_
