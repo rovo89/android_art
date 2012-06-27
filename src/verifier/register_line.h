@@ -230,6 +230,14 @@ class RegisterLine {
   // Write a bit at each register location that holds a reference
   void WriteReferenceBitMap(std::vector<uint8_t>& data, size_t max_bytes);
 
+  size_t GetMonitorEnterCount() {
+    return monitors_.size();
+  }
+
+  uint32_t GetMonitorEnterDexPc(size_t i) {
+    return monitors_[i];
+  }
+
  private:
   void CopyRegToLockDepth(size_t dst, size_t src) {
     SafeMap<uint32_t, uint32_t>::iterator it = reg_to_lock_depths_.find(src);

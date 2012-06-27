@@ -31,6 +31,7 @@ namespace art {
 class Method;
 class Object;
 class ShadowFrame;
+class StackIndirectReferenceTable;
 class ScopedJniThreadState;
 class Thread;
 
@@ -215,7 +216,7 @@ class PACKED ManagedStack {
 class StackVisitor {
  protected:
   StackVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
-               Context* context = NULL)
+               Context* context)
       : stack_start_(stack), trace_stack_(trace_stack), cur_shadow_frame_(NULL),
         cur_quick_frame_(NULL), cur_quick_frame_pc_(0), num_frames_(0), cur_depth_(0),
         context_(context) {}
@@ -256,12 +257,12 @@ class StackVisitor {
 
   uint32_t GetDexPc() const;
 
-  // Gets the height of the stack in the managed stack frames, including transitions.
+  // Returns the height of the stack in the managed stack frames, including transitions.
   size_t GetFrameHeight() {
     return GetNumFrames() - cur_depth_;
   }
 
-  // Get a frame ID where 0 is a special value.
+  // Returns a frame ID for JDWP use, starting from 1.
   size_t GetFrameId() {
     return GetFrameHeight() + 1;
   }
@@ -357,6 +358,12 @@ class StackVisitor {
 
   ShadowFrame* GetCurrentShadowFrame() const {
     return cur_shadow_frame_;
+  }
+
+  StackIndirectReferenceTable* GetCurrentSirt() const {
+    Method** sp = GetCurrentQuickFrame();
+    ++sp; // Skip Method*; SIRT comes next;
+    return reinterpret_cast<StackIndirectReferenceTable*>(sp);
   }
 
  private:

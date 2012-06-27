@@ -202,6 +202,10 @@ class MethodVerifier {
 
   static const std::vector<uint8_t>* GetGcMap(Compiler::MethodReference ref);
 
+  // Fills 'monitor_enter_dex_pcs' with the dex pcs of the monitor-enter instructions corresponding
+  // to the locks held at 'dex_pc' in 'm'.
+  static void FindLocksAtDexPc(Method* m, uint32_t dex_pc, std::vector<uint32_t>& monitor_enter_dex_pcs);
+
   static void Init();
   static void Shutdown();
 
@@ -241,6 +245,8 @@ class MethodVerifier {
   // Run verification on the method. Returns true if verification completes and false if the input
   // has an irrecoverable corruption.
   bool Verify();
+
+  void FindLocksAtDexPc();
 
   /*
    * Compute the width of the instruction at each address in the instruction stream, and store it in
@@ -616,6 +622,12 @@ class MethodVerifier {
   uint32_t class_def_idx_;  // The class def index of the declaring class of the method.
   const DexFile::CodeItem* code_item_;  // The code item containing the code for the method.
   UniquePtr<InsnFlags[]> insn_flags_;  // Instruction widths and flags, one entry per code unit.
+
+  // The dex PC of a FindLocksAtDexPc request, -1 otherwise.
+  uint32_t interesting_dex_pc_;
+  // The container into which FindLocksAtDexPc should write the registers containing held locks,
+  // NULL if we're not doing FindLocksAtDexPc.
+  std::vector<uint32_t>* monitor_enter_dex_pcs_;
 
   // The types of any error that occurs.
   std::vector<VerifyError> failures_;

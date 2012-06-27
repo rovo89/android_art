@@ -27,7 +27,7 @@ namespace art {
 class StackGetter {
  public:
   StackGetter(const ScopedJniThreadState& ts, Thread* thread)
-    : ts_(ts), thread_(thread), trace_(NULL) {
+      : ts_(ts), thread_(thread), trace_(NULL) {
   }
 
   static void Callback(void* arg) {
@@ -106,6 +106,7 @@ uint32_t StackVisitor::GetDexPc() const {
 }
 
 uint32_t StackVisitor::GetVReg(Method* m, int vreg) const {
+  DCHECK(context_ != NULL); // You can't reliably read registers without a context.
   DCHECK(m == GetMethod());
   uint32_t core_spills = m->GetCoreSpillMask();
   const VmapTable vmap_table(m->GetVmapTableRaw());
@@ -135,6 +136,7 @@ uint32_t StackVisitor::GetVReg(Method* m, int vreg) const {
 }
 
 void StackVisitor::SetVReg(Method* m, int vreg, uint32_t new_value) {
+  DCHECK(context_ != NULL); // You can't reliably write registers without a context.
   DCHECK(m == GetMethod());
   const VmapTable vmap_table(m->GetVmapTableRaw());
   uint32_t vmap_offset;
@@ -174,12 +176,13 @@ size_t StackVisitor::ComputeNumFrames() const {
   struct NumFramesVisitor : public StackVisitor {
     explicit NumFramesVisitor(const ManagedStack* stack,
                               const std::vector<TraceStackFrame>* trace_stack)
-        : StackVisitor(stack, trace_stack), frames(0) {}
+        : StackVisitor(stack, trace_stack, NULL), frames(0) {}
 
     virtual bool VisitFrame() {
       frames++;
       return true;
     }
+
     size_t frames;
   };
 

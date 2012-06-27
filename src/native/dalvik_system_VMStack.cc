@@ -56,8 +56,9 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject ja
     ClosestUserClassLoaderVisitor(const ManagedStack* stack,
                                   const std::vector<TraceStackFrame>* trace_stack,
                                   Object* bootstrap, Object* system)
-      : StackVisitor(stack, trace_stack), bootstrap(bootstrap), system(system),
-        class_loader(NULL) {}
+      : StackVisitor(stack, trace_stack, NULL),
+        bootstrap(bootstrap), system(system), class_loader(NULL) {}
+
     bool VisitFrame() {
       DCHECK(class_loader == NULL);
       Class* c = GetMethod()->GetDeclaringClass();
@@ -68,6 +69,7 @@ static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject ja
       }
       return true;
     }
+
     Object* bootstrap;
     Object* system;
     Object* class_loader;

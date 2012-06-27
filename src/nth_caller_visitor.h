@@ -24,8 +24,9 @@ namespace art {
 
 // Walks up the stack 'n' callers, when used with Thread::WalkStack.
 struct NthCallerVisitor : public StackVisitor {
-  NthCallerVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
-                   size_t n) : StackVisitor(stack, trace_stack), n(n), count(0), caller(NULL) {}
+  NthCallerVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack, size_t n)
+      : StackVisitor(stack, trace_stack, NULL), n(n), count(0), caller(NULL) {}
+
   bool VisitFrame() {
     DCHECK(caller == NULL);
     if (count++ == n) {
@@ -34,6 +35,7 @@ struct NthCallerVisitor : public StackVisitor {
     }
     return true;
   }
+
   size_t n;
   size_t count;
   Method* caller;

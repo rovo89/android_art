@@ -1489,7 +1489,7 @@ static int GetStackDepth(Thread* thread) {
   struct CountStackDepthVisitor : public StackVisitor {
     CountStackDepthVisitor(const ManagedStack* stack,
                            const std::vector<TraceStackFrame>* trace_stack)
-        : StackVisitor(stack, trace_stack), depth(0) {}
+        : StackVisitor(stack, trace_stack, NULL), depth(0) {}
 
     bool VisitFrame() {
       if (!GetMethod()->IsRuntimeMethod()) {
@@ -1499,6 +1499,7 @@ static int GetStackDepth(Thread* thread) {
     }
     size_t depth;
   };
+
   CountStackDepthVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack());
   visitor.WalkStack();
   return visitor.depth;
@@ -1515,7 +1516,7 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
    public:
     GetFrameVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
                     size_t start_frame, size_t frame_count, JDWP::ExpandBuf* buf)
-        : StackVisitor(stack, trace_stack), depth_(0),
+        : StackVisitor(stack, trace_stack, NULL), depth_(0),
           start_frame_(start_frame), frame_count_(frame_count), buf_(buf) {
       expandBufAdd4BE(buf_, frame_count_);
     }
@@ -1621,7 +1622,7 @@ static Object* GetThis(Method** quickFrame) {
   struct FrameIdVisitor : public StackVisitor {
     FrameIdVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
                    Method** m)
-        : StackVisitor(stack, trace_stack), quick_frame_to_find(m) , frame_id(0) {}
+        : StackVisitor(stack, trace_stack, NULL), quick_frame_to_find(m) , frame_id(0) {}
 
     virtual bool VisitFrame() {
       if (quick_frame_to_find != GetCurrentQuickFrame()) {
@@ -1779,11 +1780,11 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
 void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag,
                         uint64_t value, size_t width) {
   struct SetLocalVisitor : public StackVisitor {
-    SetLocalVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
+    SetLocalVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack, Context* context,
                     JDWP::FrameId frame_id, int slot, JDWP::JdwpTag tag, uint64_t value,
                     size_t width)
-        : StackVisitor(stack, trace_stack), frame_id_(frame_id), slot_(slot), tag_(tag),
-          value_(value), width_(width) {}
+        : StackVisitor(stack, trace_stack, context),
+          frame_id_(frame_id), slot_(slot), tag_(tag), value_(value), width_(width) {}
 
     bool VisitFrame() {
       if (GetFrameId() != frame_id_) {
@@ -1841,8 +1842,9 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     const size_t width_;
   };
   Thread* thread = DecodeThread(threadId);
-  SetLocalVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), frameId, slot, tag,
-                          value, width);
+  UniquePtr<Context> context(Context::Create());
+  SetLocalVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), context.get(),
+                          frameId, slot, tag, value, width);
   visitor.WalkStack();
 }
 
@@ -2060,7 +2062,7 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
   struct SingleStepStackVisitor : public StackVisitor {
     SingleStepStackVisitor(const ManagedStack* stack,
                            const std::vector<TraceStackFrame>* trace_stack)
-        : StackVisitor(stack, trace_stack) {
+        : StackVisitor(stack, trace_stack, NULL) {
       MutexLock mu(gBreakpointsLock); // Keep GCC happy.
       gSingleStepControl.method = NULL;
       gSingleStepControl.stack_depth = 0;
@@ -2955,7 +2957,7 @@ void Dbg::SetAllocTrackingEnabled(bool enabled) {
 struct AllocRecordStackVisitor : public StackVisitor {
   AllocRecordStackVisitor(const ManagedStack* stack,
                           const std::vector<TraceStackFrame>* trace_stack, AllocRecord* record)
-      : StackVisitor(stack, trace_stack), record(record), depth(0) {}
+      : StackVisitor(stack, trace_stack, NULL), record(record), depth(0) {}
 
   bool VisitFrame() {
     if (depth >= kMaxAllocRecordStackDepth) {

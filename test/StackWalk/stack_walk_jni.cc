@@ -40,8 +40,8 @@ static int gJava_StackWalk_refmap_calls = 0;
 
 struct TestReferenceMapVisitor : public StackVisitor {
   explicit TestReferenceMapVisitor(const ManagedStack* stack,
-                                   const std::vector<TraceStackFrame>* trace_stack) :
-    StackVisitor(stack, trace_stack) {
+                                   const std::vector<TraceStackFrame>* trace_stack)
+      : StackVisitor(stack, trace_stack, NULL) {
   }
 
   bool VisitFrame() {
