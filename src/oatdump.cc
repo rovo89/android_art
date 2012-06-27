@@ -435,7 +435,6 @@ class OatDumper {
     os << "}\n" << std::flush;
   }
 
-#if !defined(ART_USE_LLVM_COMPILER)
   void DumpCode(std::ostream& os, const void* code, int code_size,
                 const uint32_t* raw_mapping_table,
                 const DexFile& dex_file, const DexFile::CodeItem* code_item) {
@@ -471,12 +470,6 @@ class OatDumper {
       disassembler_->Dump(os, cur_pc, cur_pc_end);
     }
   }
-#else
-  void DumpCode(std::ostream&, const void*, int, const uint32_t*,
-                const DexFile&, const DexFile::CodeItem*) {
-    // TODO: Dump code for the LLVM side.
-  }
-#endif
 
   const std::string host_prefix_;
   const OatFile& oat_file_;
