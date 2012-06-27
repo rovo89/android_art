@@ -231,7 +231,9 @@ class CommonTest : public testing::Test {
     } else {
       const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
       MakeExecutable(invoke_stub);
-      method_invoke_stub = reinterpret_cast<const Method::InvokeStub*>(&invoke_stub[0]);
+      method_invoke_stub = reinterpret_cast<const Method::InvokeStub*>(
+          CompiledCode::CodePointer(&invoke_stub[0],
+                                    compiled_invoke_stub->GetInstructionSet()));
     }
 
     LOG(INFO) << "MakeExecutable " << PrettyMethod(method)

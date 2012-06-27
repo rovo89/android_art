@@ -377,7 +377,8 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
       const std::vector<uint8_t>& invoke_stub = compiled_invoke_stub->GetCode();
       uint32_t invoke_stub_size = invoke_stub.size() * sizeof(invoke_stub[0]);
       CHECK_NE(invoke_stub_size, 0U);
-      invoke_stub_offset = offset + sizeof(invoke_stub_size);
+      uint32_t thumb_offset = compiled_invoke_stub->CodeDelta();
+      invoke_stub_offset = offset + sizeof(invoke_stub_size) + thumb_offset;
 
       // Deduplicate invoke stubs
       SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter = code_offsets_.find(&invoke_stub);
@@ -760,7 +761,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
       CHECK_NE(invoke_stub_size, 0U);
 
       // Deduplicate invoke stubs
-      size_t offset = code_offset + sizeof(invoke_stub_size);
+      size_t offset = code_offset + sizeof(invoke_stub_size) + compiled_invoke_stub->CodeDelta();
       SafeMap<const std::vector<uint8_t>*, uint32_t>::iterator stub_iter =
           code_offsets_.find(&invoke_stub);
       if (stub_iter != code_offsets_.end() && offset != method_offsets.invoke_stub_offset_) {

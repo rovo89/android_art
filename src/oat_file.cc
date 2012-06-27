@@ -435,6 +435,8 @@ uint32_t OatFile::OatMethod::GetInvokeStubSize() const {
     if (code == 0) {
       return 0;
     }
+    // TODO: make this Thumb2 specific
+    code &= ~0x1;
     return reinterpret_cast<uint32_t*>(code)[-1];
   } else {
 #if !defined(ART_USE_LLVM_COMPILER)
