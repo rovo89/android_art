@@ -151,7 +151,7 @@ CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty, uint32_
   std::vector<uint8_t> code(assembler->CodeSize());
   MemoryRegion region(&code[0], code.size());
   assembler->FinalizeInstructions(region);
-  return new CompiledInvokeStub(code);
+  return new CompiledInvokeStub(kArm, code);
 #undef __
 }
 
