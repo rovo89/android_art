@@ -43,8 +43,9 @@ const int kStackAlignment = 16;
 // Required object alignment
 const int kObjectAlignment = 8;
 
-// ARM instruction alignment. ARM processors require code to be 4-byte aligned.
-const int kArmAlignment = 4;
+// ARM instruction alignment. ARM processors require code to be 4-byte aligned,
+// but ARM ELF requires 8..
+const int kArmAlignment = 8;
 
 // MIPS instruction alignment.  MIPS processors require code to be 4-byte aligned.
 const int kMipsAlignment = 4;
