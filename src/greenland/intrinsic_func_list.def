@@ -141,7 +141,7 @@ _EVAL_DEF_INTRINSICS_FUNC(ConstStringFast,
                           _EXPAND_ARG1(kInt32ConstantTy))
 
 //----------------------------------------------------------------------------
-// New Instance
+// Instance
 //----------------------------------------------------------------------------
 
 // JavaObject* dex_lang_new_instance(uint32_t type_idx)
@@ -151,16 +151,23 @@ _EVAL_DEF_INTRINSICS_FUNC(NewInstance,
                           kJavaObjectTy,
                           _EXPAND_ARG1(kInt32Ty))
 
+// bool dex_lang_instance_of(uint32_t type_idx, JavaObject* ref)
+_EVAL_DEF_INTRINSICS_FUNC(InstanceOf,
+                          dex_lang_instance_of,
+                          kAttrNone,
+                          kInt1Ty,
+                          _EXPAND_ARG2(kInt32Ty, kJavaObjectTy))
+
 //----------------------------------------------------------------------------
 // Array
 //----------------------------------------------------------------------------
 
-// uint32_t dex_lang_array_length(JavaObject* array)
+// uint32_t dex_lang_array_length(int32_t opt_flags, JavaObject* array)
 _EVAL_DEF_INTRINSICS_FUNC(ArrayLength,
                           dex_lang_array_length,
                           kAttrReadOnly | kAttrNoThrow,
                           kInt32Ty,
-                          _EXPAND_ARG1(kJavaObjectTy))
+                          _EXPAND_ARG2(kInt32Ty, kJavaObjectTy))
 
 // JavaObject* dex_lang_new_array(uint32_t type_idx, uint32_t array_size)
 _EVAL_DEF_INTRINSICS_FUNC(NewArray,
@@ -474,6 +481,123 @@ _EVAL_DEF_INTRINSICS_FUNC(InitializeAndLoadClassSSB,
                           _EXPAND_ARG3(kInt32ConstantTy, kJavaMethodTy, kJavaThreadTy))
 
 //----------------------------------------------------------------------------
+// High-level Array get/put
+//
+// Similar to dex_lang_aget/aput_xxx, but checks not yet performed.
+// OptFlags contain info describing whether frontend has determined that
+// null check and/or array bounds check may be skipped.
+//
+// [type] void dex_lang_hl_aget_[type](int optFlags, JavaObject* array, uint32_t index)
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayGet,
+                          dex_lang_hl_aget,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayGetFloat,
+                          dex_lang_hl_aget_float,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kFloatTy,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayGetWide,
+                          dex_lang_hl_aget_wide,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt64Ty,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayGetDouble,
+                          dex_lang_hl_aget_double,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kDoubleTy,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayGetObject,
+                          dex_lang_hl_aget_object,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kJavaObjectTy,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayGetBoolean,
+                          dex_lang_hl_aget_boolean,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt1Ty,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayGetByte,
+                          dex_lang_hl_aget_byte,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt8Ty,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayGetChar,
+                          dex_lang_hl_aget_char,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt16Ty,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayGetShort,
+                          dex_lang_hl_aget_short,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt16Ty,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+// void dex_lang_aput_[type](int optFlags, [type] value, JavaObject* array, uint32_t index)
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayPut,
+                          dex_lang_hl_aput,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayPutFloat,
+                          dex_lang_hl_aput_float,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kFloatTy, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayPutWide,
+                          dex_lang_hl_aput_wide,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kInt64Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayPutDouble,
+                          dex_lang_hl_aput_double,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kDoubleTy, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayPutObject,
+                          dex_lang_hl_aput_object,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kJavaObjectTy, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayPutBoolean,
+                          dex_lang_hl_aput_boolean,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kInt1Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayPutByte,
+                          dex_lang_hl_aput_byte,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kInt8Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayPutChar,
+                          dex_lang_hl_aput_char,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kInt16Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLArrayPutShort,
+                          dex_lang_hl_aput_short,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kInt16Ty, kJavaObjectTy, kInt32Ty))
+
+//----------------------------------------------------------------------------
 // High-level Invokes (fast-path determination not yet performed)
 //
 // NOTE: We expect these intrinsics to be temporary.  Once calling conventions are
@@ -644,17 +768,159 @@ _EVAL_DEF_INTRINSICS_FUNC(CheckSuspend,
                           kAttrNoThrow,
                           kVoidTy,
                           _EXPAND_ARG0())
+//----------------------------------------------------------------------------
+// sput intrinsics to assist MIR to Greenland_ir conversion.
+// "HL" versions - will be deprecated when fast/slow path handling done
+// in the common frontend.
+//----------------------------------------------------------------------------
+
+// void sput_hl(int field_idx, int val)
+_EVAL_DEF_INTRINSICS_FUNC(HLSput,
+                          dex_lang_hl_sput,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32Ty, kInt32Ty))
+
+// void sput_hl_object(int field_idx, object* val)
+_EVAL_DEF_INTRINSICS_FUNC(HLSputObject,
+                          dex_lang_hl_sput_object,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32Ty, kJavaObjectTy))
+
+// void sput_hl_boolean(int field_idx, kInt1Ty)
+_EVAL_DEF_INTRINSICS_FUNC(HLSputBoolean,
+                          dex_lang_hl_sput_boolean,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32Ty, kInt1Ty))
+
+// void sput_hl_byte(int field_idx, int val)
+_EVAL_DEF_INTRINSICS_FUNC(HLSputByte,
+                          dex_lang_hl_sput_byte,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32Ty, kInt8Ty))
+
+// void sput_hl_char(int field_idx, kInt16Ty val)
+_EVAL_DEF_INTRINSICS_FUNC(HLSputChar,
+                          dex_lang_hl_sput_char,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32Ty, kInt16Ty))
+
+// void sput_hl_short(int field_idx, int val)
+_EVAL_DEF_INTRINSICS_FUNC(HLSputShort,
+                          dex_lang_hl_sput_short,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32Ty, kInt16Ty))
+
+// void sput_hl_wide(int field_idx, long val)
+_EVAL_DEF_INTRINSICS_FUNC(HLSputWide,
+                          dex_lang_hl_sput_wide,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32Ty, kInt64Ty))
+
+// void sput_hl_double(int field_idx, double val)
+_EVAL_DEF_INTRINSICS_FUNC(HLSputDouble,
+                          dex_lang_hl_sput_double,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32Ty, kDoubleTy))
+
+// void sput_hl_float(int field_idx, float val)
+_EVAL_DEF_INTRINSICS_FUNC(HLSputFloat,
+                          dex_lang_hl_sput_float,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32Ty, kFloatTy))
 
 //----------------------------------------------------------------------------
 // sget intrinsics to assist MIR to Greenland_ir conversion.
+// "HL" versions - will be deprecated when fast/slow path handling done
+// in the common frontend.
 //----------------------------------------------------------------------------
 
-// object* sget_obj(int field_idx)
-_EVAL_DEF_INTRINSICS_FUNC(SgetObj,
-                          dex_lang_sget_obj,
+// int sget_hl(int field_idx)
+_EVAL_DEF_INTRINSICS_FUNC(HLSget,
+                          dex_lang_hl_sget,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// object* sget_hl_object(int field_idx)
+_EVAL_DEF_INTRINSICS_FUNC(HLSgetObject,
+                          dex_lang_hl_sget_object,
                           kAttrReadOnly | kAttrNoThrow,
                           kJavaObjectTy,
                           _EXPAND_ARG1(kInt32Ty))
+
+// boolean sget_hl_boolean(int field_idx)
+_EVAL_DEF_INTRINSICS_FUNC(HLSgetBoolean,
+                          dex_lang_hl_sget_boolean,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt1Ty,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// byte sget_hl_byte(int field_idx)
+_EVAL_DEF_INTRINSICS_FUNC(HLSgetByte,
+                          dex_lang_hl_sget_byte,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt8Ty,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// char sget_hl_char(int field_idx)
+_EVAL_DEF_INTRINSICS_FUNC(HLSgetChar,
+                          dex_lang_hl_sget_char,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt16Ty,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// char sget_hl_short(int field_idx)
+_EVAL_DEF_INTRINSICS_FUNC(HLSgetShort,
+                          dex_lang_hl_sget_short,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt16Ty,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// char sget_hl_wide(int field_idx)
+_EVAL_DEF_INTRINSICS_FUNC(HLSgetWide,
+                          dex_lang_hl_sget_wide,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt64Ty,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// char sget_hl_double(int field_idx)
+_EVAL_DEF_INTRINSICS_FUNC(HLSgetDouble,
+                          dex_lang_hl_sget_double,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kDoubleTy,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// char sget_hl_float(int field_idx)
+_EVAL_DEF_INTRINSICS_FUNC(HLSgetFloat,
+                          dex_lang_hl_sget_float,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kFloatTy,
+                          _EXPAND_ARG1(kInt32Ty))
+//----------------------------------------------------------------------------
+// Monitor enter/exit
+//----------------------------------------------------------------------------
+// uint32_t dex_lang_monitor_enter(JavaObject* obj)
+_EVAL_DEF_INTRINSICS_FUNC(MonitorEnter,
+                          dex_lang_monitor_enter,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG1(kJavaObjectTy))
+
+// uint32_t dex_lang_monitor_exit(JavaObject* obj)
+_EVAL_DEF_INTRINSICS_FUNC(MonitorExit,
+                          dex_lang_monitor_exit,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG1(kJavaObjectTy))
 
 //----------------------------------------------------------------------------
 // Shadow Frame

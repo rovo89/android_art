@@ -768,6 +768,10 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
       || (PrettyMethod(method_idx, dex_file).find("math_013") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("math_014") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("float_017") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("array_028") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("writeArray") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("writeTest") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("copyTest") != std::string::npos)
      ) {
     cUnit->genBitcode = true;
   }

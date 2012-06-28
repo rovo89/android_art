@@ -70,13 +70,16 @@ public class Main {
         report(start, end);
     }
 
+    public static void array_028() {
+        writeTest();
+        copyTest();
+        System.out.println("Done!");
+    }
+
     public static void main(String[] args) {
         if ((args.length >= 1) && args[0].equals("--timing")) {
             timing = true;
         }
-
-        writeTest();
-        copyTest();
-        System.out.println("Done!");
+        array_028();
     }
 }
