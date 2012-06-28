@@ -145,6 +145,7 @@ size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) 
   bool load = false;  // loads from memory (ie rm is on the right)
   bool byte_operand = false;
   bool ax = false;  // implicit use of ax
+  bool cx = false;  // implicit use of cx
   bool reg_in_opcode = false;  // low 3-bits of opcode encode register parameter
   RegFile src_reg_file = GPR;
   RegFile dst_reg_file = GPR;
@@ -383,7 +384,7 @@ DISASSEMBLER_ENTRY(cmp,
     reg_in_opcode = true;
     break;
   case 0xC0: case 0xC1:
-  case 0xD0: case 0xD1:
+  case 0xD0: case 0xD1: case 0xD2: case 0xD3:
     static const char* shift_opcodes[] =
         {"rol", "ror", "rcl", "rcr", "shl", "shr", "unknown-shift", "sar"};
     modrm_opcodes = shift_opcodes;
@@ -391,7 +392,8 @@ DISASSEMBLER_ENTRY(cmp,
     reg_is_opcode = true;
     store = true;
     immediate_bytes = ((*instr & 0xf0) == 0xc0) ? 1 : 0;
-    byte_operand = *instr == 0xC0;
+    cx = (*instr == 0xD2) || (*instr == 0xD3);
+    byte_operand = (*instr == 0xC0);
     break;
   case 0xC3: opcode << "ret"; break;
   case 0xC7:
@@ -508,10 +510,15 @@ DISASSEMBLER_ENTRY(cmp,
     }
   }
   if (ax) {
+    args << ", ";
     DumpReg(args, rex, 0 /* EAX */, byte_operand, prefix[2], GPR);
   }
+  if (cx) {
+    args << ", ";
+    DumpReg(args, rex, 1 /* ECX */, true, prefix[2], GPR);
+  }
   if (immediate_bytes > 0) {
-    if (has_modrm || reg_in_opcode || ax) {
+    if (has_modrm || reg_in_opcode || ax || cx) {
       args << ", ";
     }
     if (immediate_bytes == 1) {

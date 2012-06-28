@@ -76,10 +76,17 @@ inline u8 getRegMaskCommon(int reg)
   int shift;
   int regId = reg & 0x1f;
 
+#if defined(TARGET_X86)
+  /*
+   * Double registers in x86 are just a single FP register
+   */
+  seed = 1;
+#else
   /*
    * Each double register is equal to a pair of single-precision FP registers
    */
   seed = DOUBLEREG(reg) ? 3 : 1;
+#endif
   /* FP register starts at bit position 16 */
   shift = FPREG(reg) ? kFPReg0 : 0;
   /* Expand the double register id into single offset */
@@ -140,6 +147,16 @@ void setupResourceMasks(LIR* lir)
     setupRegMask(&lir->defMask, lir->operands[1]);
   }
 
+#if defined(TARGET_X86)
+  if (flags & REG_DEFA) {
+    setupRegMask(&lir->defMask, rAX);
+  }
+
+  if (flags & REG_DEFD) {
+    setupRegMask(&lir->defMask, rDX);
+  }
+#endif
+
   if (flags & REG_DEF_SP) {
     lir->defMask |= ENCODE_REG_SP;
   }
@@ -150,6 +167,7 @@ void setupResourceMasks(LIR* lir)
   }
 #endif
 
+#if defined(TARGET_ARM)
   if (flags & REG_DEF_LIST0) {
     lir->defMask |= ENCODE_REG_LIST(lir->operands[0]);
   }
@@ -158,7 +176,6 @@ void setupResourceMasks(LIR* lir)
     lir->defMask |= ENCODE_REG_LIST(lir->operands[1]);
   }
 
-#if defined(TARGET_ARM)
   if (flags & REG_DEF_FPCS_LIST0) {
     lir->defMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
   }
@@ -191,6 +208,20 @@ void setupResourceMasks(LIR* lir)
     }
   }
 
+#if defined(TARGET_X86)
+  if (flags & REG_USEA) {
+    setupRegMask(&lir->useMask, rAX);
+  }
+
+  if (flags & REG_USEC) {
+    setupRegMask(&lir->useMask, rCX);
+  }
+
+  if (flags & REG_USED) {
+    setupRegMask(&lir->useMask, rDX);
+  }
+#endif
+
 #if defined(TARGET_ARM)
   if (flags & REG_USE_PC) {
     lir->useMask |= ENCODE_REG_PC;
@@ -201,6 +232,7 @@ void setupResourceMasks(LIR* lir)
     lir->useMask |= ENCODE_REG_SP;
   }
 
+#if defined(TARGET_ARM)
   if (flags & REG_USE_LIST0) {
     lir->useMask |= ENCODE_REG_LIST(lir->operands[0]);
   }
@@ -209,7 +241,6 @@ void setupResourceMasks(LIR* lir)
     lir->useMask |= ENCODE_REG_LIST(lir->operands[1]);
   }
 
-#if defined(TARGET_ARM)
   if (flags & REG_USE_FPCS_LIST0) {
     lir->useMask |= ENCODE_REG_FPCS_LIST(lir->operands[0]);
   }

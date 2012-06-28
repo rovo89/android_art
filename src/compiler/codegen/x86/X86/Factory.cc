@@ -431,11 +431,10 @@ LIR* loadBaseIndexedDisp(CompilationUnit *cUnit,
       is64bit = true;
       if (FPREG(rDest)) {
         opcode = isArray ? kX86MovsdRA : kX86MovsdRM;
-        if (DOUBLEREG(rDest)) {
-          rDest = rDest - FP_DOUBLE;
-        } else {
+        if (SINGLEREG(rDest)) {
           DCHECK(FPREG(rDestHi));
           DCHECK_EQ(rDest, (rDestHi - 1));
+          rDest = S2D(rDest, rDestHi);
         }
         rDestHi = rDest + 1;
       } else {
@@ -531,19 +530,21 @@ LIR* storeBaseIndexedDisp(CompilationUnit *cUnit,
                           int rSrc, int rSrcHi,
                           OpSize size, int sReg) {
   LIR *store = NULL;
+  LIR *store2 = NULL;
   bool isArray = rIndex != INVALID_REG;
   bool pair = false;
+  bool is64bit = false;
   X86OpCode opcode = kX86Nop;
   switch (size) {
     case kLong:
     case kDouble:
+      is64bit = true;
       if (FPREG(rSrc)) {
         opcode = isArray ? kX86MovsdAR : kX86MovsdMR;
-        if (DOUBLEREG(rSrc)) {
-          rSrc = rSrc - FP_DOUBLE;
-        } else {
+        if (SINGLEREG(rSrc)) {
           DCHECK(FPREG(rSrcHi));
           DCHECK_EQ(rSrc, (rSrcHi - 1));
+          rSrc = S2D(rSrc, rSrcHi);
         }
         rSrcHi = rSrc + 1;
       } else {
@@ -580,7 +581,15 @@ LIR* storeBaseIndexedDisp(CompilationUnit *cUnit,
       store = newLIR3(cUnit, opcode, rBase, displacement + LOWORD_OFFSET, rSrc);
     } else {
       store = newLIR3(cUnit, opcode, rBase, displacement + LOWORD_OFFSET, rSrc);
-      newLIR3(cUnit, opcode, rBase, displacement + HIWORD_OFFSET, rSrcHi);
+      store2 = newLIR3(cUnit, opcode, rBase, displacement + HIWORD_OFFSET, rSrcHi);
+    }
+    if (rBase == rSP) {
+      annotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0))
+                              >> 2, false /* isLoad */, is64bit);
+      if (pair) {
+        annotateDalvikRegAccess(store2, (displacement + HIWORD_OFFSET) >> 2,
+                                false /* isLoad */, is64bit);
+      }
     }
   } else {
     if (!pair) {
@@ -589,8 +598,8 @@ LIR* storeBaseIndexedDisp(CompilationUnit *cUnit,
     } else {
       store = newLIR5(cUnit, opcode, rBase, rIndex, scale,
                       displacement + LOWORD_OFFSET, rSrc);
-      newLIR5(cUnit, opcode, rBase, rIndex, scale,
-              displacement + HIWORD_OFFSET, rSrcHi);
+      store2 = newLIR5(cUnit, opcode, rBase, rIndex, scale,
+                       displacement + HIWORD_OFFSET, rSrcHi);
     }
   }
 
@@ -622,8 +631,7 @@ LIR *storeBaseDispWide(CompilationUnit *cUnit, int rBase, int displacement,
 
 void loadPair(CompilationUnit *cUnit, int base, int lowReg, int highReg)
 {
-  loadWordDisp(cUnit, base, 0, lowReg);
-  loadWordDisp(cUnit, base, 4, highReg);
+  loadBaseDispWide(cUnit, base, 0, lowReg, highReg, INVALID_SREG);
 }
 
 }  // namespace art

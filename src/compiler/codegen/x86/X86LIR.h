@@ -110,7 +110,7 @@ namespace art {
 /* Offset to distingish FP regs */
 #define FP_REG_OFFSET 32
 /* Offset to distinguish DP FP regs */
-#define FP_DOUBLE (FP_REG_OFFSET + 16)
+#define FP_DOUBLE (FP_REG_OFFSET + 32)
 /* Offset to distingish the extra regs */
 #define EXTRA_REG_OFFSET (FP_DOUBLE + 16)
 /* Reg types */
@@ -515,16 +515,18 @@ enum X86OpFeatureFlags {
   kIsBranch = 0,
   kRegDef0,
   kRegDef1,
+  kRegDefA,
+  kRegDefD,
   kRegDefSP,
-  kRegDefList0,
-  kRegDefList1,
   kRegUse0,
   kRegUse1,
   kRegUse2,
   kRegUse3,
+  kRegUse4,
+  kRegUseA,
+  kRegUseC,
+  kRegUseD,
   kRegUseSP,
-  kRegUseList0,
-  kRegUseList1,
   kNoOperand,
   kIsUnaryOp,
   kIsBinaryOp,
@@ -546,18 +548,18 @@ enum X86OpFeatureFlags {
 #define IS_BRANCH       (1 << kIsBranch)
 #define REG_DEF0        (1 << kRegDef0)
 #define REG_DEF1        (1 << kRegDef1)
+#define REG_DEFA        (1 << kRegDefA)
+#define REG_DEFD        (1 << kRegDefD)
 #define REG_DEF_SP      (1 << kRegDefSP)
-#define REG_DEF_LR      (1 << kRegDefLR)
-#define REG_DEF_LIST0   (1 << kRegDefList0)
-#define REG_DEF_LIST1   (1 << kRegDefList1)
 #define REG_USE0        (1 << kRegUse0)
 #define REG_USE1        (1 << kRegUse1)
 #define REG_USE2        (1 << kRegUse2)
 #define REG_USE3        (1 << kRegUse3)
+#define REG_USE4        (1 << kRegUse4)
+#define REG_USEA        (1 << kRegUseA)
+#define REG_USEC        (1 << kRegUseC)
+#define REG_USED        (1 << kRegUseD)
 #define REG_USE_SP      (1 << kRegUseSP)
-#define REG_USE_PC      (1 << kRegUsePC)
-#define REG_USE_LIST0   (1 << kRegUseList0)
-#define REG_USE_LIST1   (1 << kRegUseList1)
 #define NO_OPERAND      (1 << kNoOperand)
 #define IS_UNARY_OP     (1 << kIsUnaryOp)
 #define IS_BINARY_OP    (1 << kIsBinaryOp)
@@ -579,15 +581,13 @@ enum X86OpFeatureFlags {
 #define REG_USE01       (REG_USE0 | REG_USE1)
 #define REG_USE02       (REG_USE0 | REG_USE2)
 #define REG_USE012      (REG_USE01 | REG_USE2)
-#define REG_USE12       (REG_USE1 | REG_USE2)
-#define REG_USE23       (REG_USE2 | REG_USE3)
-#define REG_DEF01       (REG_DEF0 | REG_DEF1)
+#define REG_USE014      (REG_USE01 | REG_USE4)
 #define REG_DEF0_USE0   (REG_DEF0 | REG_USE0)
 #define REG_DEF0_USE1   (REG_DEF0 | REG_USE1)
-#define REG_DEF0_USE2   (REG_DEF0 | REG_USE2)
-#define REG_DEF0_USE01  (REG_DEF0 | REG_USE01)
-#define REG_DEF0_USE12  (REG_DEF0 | REG_USE12)
-#define REG_DEF01_USE2  (REG_DEF0 | REG_DEF1 | REG_USE2)
+#define REG_DEF0_USE12  (REG_DEF0_USE1 | REG_USE2)
+#define REG_DEFA_USEA   (REG_DEFA | REG_USEA)
+#define REG_DEFAD_USEA  (REG_DEFA_USEA | REG_DEFD)
+#define REG_DEFAD_USEAD (REG_DEFAD_USEA | REG_USED)
 
 /* Keys for target-specific scheduling and other optimization hints */
 enum X86TargetOptHints {
