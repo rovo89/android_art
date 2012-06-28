@@ -1249,7 +1249,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
     insn_flags_[insn_idx].ClearChanged();
   }
 
-  if (DEAD_CODE_SCAN && ((method_access_flags_ & kAccWritable) == 0)) {
+  if (gDebugVerify) {
     /*
      * Scan for dead code. There's nothing "evil" about dead code
      * (besides the wasted space), but it indicates a flaw somewhere
@@ -3073,6 +3073,9 @@ void MethodVerifier::ReplaceFailingInstruction() {
                << PrettyMethod(method_idx_, *dex_file_) << " " << failure_message->str();
     return;
   }
+
+  CHECK_EQ(dex_file_->GetPermissions() & PROT_WRITE, PROT_WRITE);  // Dex file needs to be writable.
+
   const Instruction* inst = Instruction::At(code_item_->insns_ + work_insn_idx_);
   DCHECK(inst->IsThrow()) << "Expected instruction that will throw " << inst->Name();
   VerifyErrorRefType ref_type;

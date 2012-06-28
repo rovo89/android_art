@@ -789,6 +789,14 @@ class DexFile {
 
   void ChangePermissions(int prot) const;
 
+  int GetPermissions() const {
+    if (mem_map_.get() == NULL) {
+      return 0;
+    } else {
+      return mem_map_->GetProtect();
+    }
+  }
+
  private:
   // Opens a .dex file
   static const DexFile* OpenFile(const std::string& filename,
