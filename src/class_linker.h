@@ -251,6 +251,11 @@ class ClassLinker {
   const DexFile* FindDexFileInOatFileFromDexLocation(const std::string& location);
 
 
+  // Returns true if oat file contains the dex file with the given location and checksum
+  static bool VerifyOatFileChecksums(const OatFile* oat_file,
+                                     const std::string& dex_location,
+                                     uint32_t dex_location_checksum);
+
   // TODO: replace this with multiple methods that allocate the correct managed type.
   template <class T>
   ObjectArray<T>* AllocObjectArray(size_t length) {
@@ -402,10 +407,10 @@ class ClassLinker {
   const OatFile* FindOpenedOatFileForDexFile(const DexFile& dex_file);
   const OatFile* FindOpenedOatFileFromDexLocation(const std::string& dex_location);
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location);
-  const DexFile* VerifyOatFileChecksums(const OatFile* oat_file,
-                                        const std::string& dex_location,
-                                        uint32_t dex_location_checksum)
-          EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
+  const DexFile* VerifyAndOpenDexFileFromOatFile(const OatFile* oat_file,
+                                                 const std::string& dex_location,
+                                                 uint32_t dex_location_checksum)
+      EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
 
   Method* CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class);
   Method* CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype);
