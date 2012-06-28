@@ -42,8 +42,9 @@ static jboolean Thread_isInterrupted(JNIEnv* env, jobject java_thread) {
   return (thread != NULL) ? thread->IsInterrupted() : JNI_FALSE;
 }
 
-static void Thread_nativeCreate(JNIEnv* env, jclass, jobject java_thread, jlong stack_size) {
-  Thread::CreateNativeThread(env, java_thread, stack_size);
+static void Thread_nativeCreate(JNIEnv* env, jclass, jobject java_thread, jlong stack_size,
+                                jboolean daemon) {
+  Thread::CreateNativeThread(env, java_thread, stack_size, daemon == JNI_TRUE);
 }
 
 static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean has_been_started) {
@@ -140,7 +141,7 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Thread, currentThread, "()Ljava/lang/Thread;"),
   NATIVE_METHOD(Thread, interrupted, "()Z"),
   NATIVE_METHOD(Thread, isInterrupted, "()Z"),
-  NATIVE_METHOD(Thread, nativeCreate, "(Ljava/lang/Thread;J)V"),
+  NATIVE_METHOD(Thread, nativeCreate, "(Ljava/lang/Thread;JZ)V"),
   NATIVE_METHOD(Thread, nativeGetStatus, "(Z)I"),
   NATIVE_METHOD(Thread, nativeHoldsLock, "(Ljava/lang/Object;)Z"),
   NATIVE_METHOD(Thread, nativeInterrupt, "()V"),

@@ -34,22 +34,24 @@ namespace art {
 class ScopedJniThreadState {
  public:
   explicit ScopedJniThreadState(JNIEnv* env, ThreadState new_state = kRunnable)
-    : env_(reinterpret_cast<JNIEnvExt*>(env)), vm_(env_->vm), self_(ThreadForEnv(env)),
-      old_thread_state_(self_->SetState(new_state)), thread_state_(new_state) {
+      : env_(reinterpret_cast<JNIEnvExt*>(env)), vm_(env_->vm), self_(ThreadForEnv(env)),
+        old_thread_state_(self_->SetState(new_state)), thread_state_(new_state) {
     self_->VerifyStack();
   }
 
   explicit ScopedJniThreadState(Thread* self, ThreadState new_state = kRunnable)
-    : env_(reinterpret_cast<JNIEnvExt*>(self->GetJniEnv())), vm_(env_->vm), self_(self),
-      old_thread_state_(self_->SetState(new_state)), thread_state_(new_state) {
+      : env_(reinterpret_cast<JNIEnvExt*>(self->GetJniEnv())), vm_(env_->vm), self_(self),
+        old_thread_state_(self_->SetState(new_state)), thread_state_(new_state) {
+    if (!Vm()->work_around_app_jni_bugs && self != Thread::Current()) {
+      UnexpectedThreads(self, Thread::Current());
+    }
     self_->VerifyStack();
   }
 
-  // Used when we want a scoped jni thread state but have no thread/JNIEnv.
+  // Used when we want a scoped JNI thread state but have no thread/JNIEnv.
   explicit ScopedJniThreadState(JavaVM* vm)
-    : env_(NULL), vm_(reinterpret_cast<JavaVMExt*>(vm)), self_(NULL),
-      old_thread_state_(kTerminated), thread_state_(kTerminated) {
-  }
+      : env_(NULL), vm_(reinterpret_cast<JavaVMExt*>(vm)), self_(NULL),
+        old_thread_state_(kTerminated), thread_state_(kTerminated) {}
 
   ~ScopedJniThreadState() {
     if (self_ != NULL) {
@@ -164,11 +166,17 @@ class ScopedJniThreadState {
     Thread* env_self = full_env->self;
     Thread* self = work_around_app_jni_bugs ? Thread::Current() : env_self;
     if (!work_around_app_jni_bugs && self != env_self) {
-      // TODO: pass through function name so we can use it here instead of NULL...
-      JniAbortF(NULL, "JNIEnv for %s used on %s",
-                ToStr<Thread>(*env_self).c_str(), ToStr<Thread>(*self).c_str());
+      UnexpectedThreads(env_self, self);
     }
     return self;
+  }
+
+  static void UnexpectedThreads(Thread* found_self, Thread* expected_self) {
+    // TODO: pass through function name so we can use it here instead of NULL...
+    JniAbortF(NULL, "JNIEnv for %s used on %s",
+             found_self != NULL ? ToStr<Thread>(*found_self).c_str() : "NULL",
+             expected_self != NULL ? ToStr<Thread>(*expected_self).c_str() : "NULL");
+
   }
 
   // The full JNIEnv.

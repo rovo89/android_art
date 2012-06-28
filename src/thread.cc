@@ -207,8 +207,8 @@ static void TearDownAlternateSignalStack() {
   delete[] allocated_signal_stack;
 }
 
-void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_size) {
-  Thread* native_thread = new Thread;
+void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_size, bool daemon) {
+  Thread* native_thread = new Thread(daemon);
   {
     ScopedJniThreadState ts(env);
     Object* peer = ts.Decode<Object*>(java_peer);
@@ -277,7 +277,7 @@ void Thread::Init() {
 }
 
 Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_group) {
-  Thread* self = new Thread;
+  Thread* self = new Thread(as_daemon);
   self->Init();
 
   self->SetState(kNative);
@@ -599,12 +599,20 @@ void Thread::DumpStack(std::ostream& os) const {
 }
 
 void Thread::SetStateWithoutSuspendCheck(ThreadState new_state) {
+  DCHECK_EQ(this, Thread::Current());
   volatile void* raw = reinterpret_cast<volatile void*>(&state_);
   volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw);
   android_atomic_release_store(new_state, addr);
 }
 
 ThreadState Thread::SetState(ThreadState new_state) {
+  if (new_state != kVmWait && new_state != kTerminated) {
+    // TODO: kVmWait is set by the parent thread to a child thread to indicate it can go. Similarly
+    // kTerminated may be set by a parent thread to its child if pthread creation fails.  This
+    // overloaded use of the state variable means we cannot fully assert that only threads
+    // themselves modify their state.
+    DCHECK_EQ(this, Thread::Current());
+  }
   ThreadState old_state = state_;
   if (old_state == kRunnable) {
     // Non-runnable states are points where we expect thread suspension can occur.
@@ -764,7 +772,7 @@ void Thread::Shutdown() {
   CHECK_PTHREAD_CALL(pthread_key_delete, (Thread::pthread_key_self_), "self key");
 }
 
-Thread::Thread()
+Thread::Thread(bool daemon)
     : suspend_count_(0),
       card_table_(NULL),
       exception_(NULL),
@@ -793,7 +801,9 @@ Thread::Thread()
       debug_invoke_req_(new DebugInvokeReq),
       trace_stack_(new std::vector<TraceStackFrame>),
       name_(new std::string(kThreadNameDuringStartup)),
-      no_thread_suspension_(0) {
+      daemon_(daemon),
+      no_thread_suspension_(0),
+      last_no_thread_suspension_cause_(NULL) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
   memset(&held_mutexes_[0], 0, sizeof(held_mutexes_));
 }
@@ -1065,14 +1075,18 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     // object graph.
     method_trace->Set(depth, dex_pc_trace);
     // Set the Object*s and assert that no thread suspension is now possible.
-    ts.Self()->StartAssertNoThreadSuspension();
+    const char* last_no_suspend_cause =
+        ts.Self()->StartAssertNoThreadSuspension("Building internal stack trace");
+    CHECK(last_no_suspend_cause == NULL) << last_no_suspend_cause;
     method_trace_ = method_trace.get();
     dex_pc_trace_ = dex_pc_trace;
     return true;
   }
 
   virtual ~BuildInternalStackTraceVisitor() {
-    Thread::Current()->EndAssertNoThreadSuspension();
+    if (method_trace_ != NULL) {
+      Thread::Current()->EndAssertNoThreadSuspension(NULL);
+    }
   }
 
   bool VisitFrame() {
@@ -1436,7 +1450,12 @@ class CatchBlockStackVisitor : public StackVisitor {
         throw_frame_id_(0), throw_dex_pc_(0), handler_quick_frame_(NULL),
         handler_quick_frame_pc_(0), handler_dex_pc_(0), native_method_count_(0),
         method_tracing_active_(Runtime::Current()->IsMethodTracingActive()) {
-    self->StartAssertNoThreadSuspension();  // Exception not in root sets, can't allow GC.
+    // Exception not in root sets, can't allow GC.
+    last_no_assert_suspension_cause_ = self->StartAssertNoThreadSuspension("Finding catch block");
+  }
+
+  ~CatchBlockStackVisitor() {
+    LOG(FATAL) << "UNREACHABLE";  // Expected to take long jump.
   }
 
   bool VisitFrame() {
@@ -1496,8 +1515,8 @@ class CatchBlockStackVisitor : public StackVisitor {
         LOG(INFO) << "Handler: " << PrettyMethod(catch_method) << " (line: " << line_number << ")";
       }
     }
-    self_->SetException(exception_);
-    self_->EndAssertNoThreadSuspension();  // Exception back in root set.
+    self_->SetException(exception_);  // Exception back in root set.
+    self_->EndAssertNoThreadSuspension(last_no_assert_suspension_cause_);
     // Place context back on thread so it will be available when we continue.
     self_->ReleaseLongJumpContext(context_);
     context_->SetSP(reinterpret_cast<uintptr_t>(handler_quick_frame_));
@@ -1525,6 +1544,8 @@ class CatchBlockStackVisitor : public StackVisitor {
   uint32_t native_method_count_;
   // Is method tracing active?
   const bool method_tracing_active_;
+  // Support for nesting no thread suspension checks.
+  const char* last_no_assert_suspension_cause_;
 };
 
 void Thread::DeliverException() {
@@ -1593,11 +1614,6 @@ bool Thread::HoldsLock(Object* object) {
     return false;
   }
   return object->GetThinLockId() == thin_lock_id_;
-}
-
-bool Thread::IsDaemon() {
-  ScopedJniThreadState ts(this);
-  return ts.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(peer_);
 }
 
 class ReferenceMapVisitor : public StackVisitor {

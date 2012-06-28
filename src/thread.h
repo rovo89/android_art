@@ -94,7 +94,7 @@ class PACKED Thread {
 
   // Creates a new native thread corresponding to the given managed peer.
   // Used to implement Thread.start.
-  static void CreateNativeThread(JNIEnv* env, jobject peer, size_t stack_size);
+  static void CreateNativeThread(JNIEnv* env, jobject peer, size_t stack_size, bool daemon);
 
   // Attaches the calling native thread to the runtime, returning the new native peer.
   // Used to implement JNI AttachCurrentThread and AttachCurrentThreadAsDaemon calls.
@@ -131,27 +131,45 @@ class PACKED Thread {
   ThreadState SetState(ThreadState new_state);
   void SetStateWithoutSuspendCheck(ThreadState new_state);
 
-  bool IsDaemon();
+  bool IsDaemon() const {
+    return daemon_;
+  }
+
   bool IsSuspended();
 
   void WaitUntilSuspended();
 
   // Once called thread suspension will cause an assertion failure.
-  void StartAssertNoThreadSuspension() {
 #ifndef NDEBUG
+  const char* StartAssertNoThreadSuspension(const char* cause) {
+    CHECK(cause != NULL);
+    const char* previous_cause = last_no_thread_suspension_cause_;
     no_thread_suspension_++;
-#endif
+    last_no_thread_suspension_cause_ = cause;
+    return previous_cause;
   }
+#else
+  const char* StartAssertNoThreadSuspension(const char* cause) {
+    CHECK(cause != NULL);
+    return NULL;
+  }
+#endif
+
   // End region where no thread suspension is expected.
-  void EndAssertNoThreadSuspension() {
 #ifndef NDEBUG
-    DCHECK_GT(no_thread_suspension_, 0U);
+  void EndAssertNoThreadSuspension(const char* old_cause) {
+    CHECK(old_cause != NULL || no_thread_suspension_ == 1);
+    CHECK_GT(no_thread_suspension_, 0U);
     no_thread_suspension_--;
-#endif
+    last_no_thread_suspension_cause_ = old_cause;
   }
+#else
+  void EndAssertNoThreadSuspension(const char*) {
+  }
+#endif
 
   void AssertThreadSuspensionIsAllowable() const {
-    DCHECK_EQ(0u, no_thread_suspension_);
+    DCHECK_EQ(0u, no_thread_suspension_) << last_no_thread_suspension_cause_;
   }
 
   bool CanAccessDirectReferences() const {
@@ -494,7 +512,7 @@ class PACKED Thread {
   void CheckSafeToWait(MutexRank rank);
 
  private:
-  Thread();
+  explicit Thread(bool daemon);
   ~Thread();
   void Destroy();
   friend class ThreadList;  // For ~Thread and Destroy.
@@ -626,6 +644,12 @@ class PACKED Thread {
   // A cached copy of the java.lang.Thread's name.
   std::string* name_;
 
+  // Is the thread a daemon?
+  const bool daemon_;
+
+  // Keep data fields within Thread 4 byte aligned.
+  byte pad_[3];
+
   // A cached pthread_t for the pthread underlying this Thread*.
   pthread_t pthread_self_;
 
@@ -634,6 +658,9 @@ class PACKED Thread {
 
   // A positive value implies we're in a region where thread suspension isn't expected.
   uint32_t no_thread_suspension_;
+
+  // Cause for last suspension.
+  const char* last_no_thread_suspension_cause_;
  public:
   // Runtime support function pointers
   EntryPoints entrypoints_;
