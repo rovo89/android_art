@@ -492,11 +492,7 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (StartsWith(option, "-Xlockprofthreshold:")) {
       parsed->lock_profiling_threshold_ = ParseIntegerOrDie(option);
     } else if (StartsWith(option, "-Xstacktracefile:")) {
-      if (kIsDebugBuild) {
-        // Ignore the zygote and always show stack traces in debug builds.
-      } else {
-        parsed->stack_trace_file_ = option.substr(strlen("-Xstacktracefile:"));
-      }
+      parsed->stack_trace_file_ = option.substr(strlen("-Xstacktracefile:"));
     } else if (option == "sensitiveThread") {
       parsed->hook_is_sensitive_thread_ = reinterpret_cast<bool (*)()>(options[i].second);
     } else if (option == "vfprintf") {
