@@ -208,18 +208,13 @@ static JdwpError VM_ClassesBySignature(JdwpState*, const uint8_t* buf, int, Expa
  * to be suspended, and that violates some JDWP expectations.
  */
 static JdwpError VM_AllThreads(JdwpState*, const uint8_t*, int, ExpandBuf* pReply) {
-  ObjectId* pThreadIds;
-  uint32_t threadCount;
-  Dbg::GetAllThreads(&pThreadIds, &threadCount);
+  std::vector<ObjectId> thread_ids;
+  Dbg::GetThreads(NULL, thread_ids);
 
-  expandBufAdd4BE(pReply, threadCount);
-
-  ObjectId* walker = pThreadIds;
-  for (uint32_t i = 0; i < threadCount; i++) {
-    expandBufAddObjectId(pReply, *walker++);
+  expandBufAdd4BE(pReply, thread_ids.size());
+  for (uint32_t i = 0; i < thread_ids.size(); ++i) {
+    expandBufAddObjectId(pReply, thread_ids[i]);
   }
-
-  free(pThreadIds);
 
   return ERR_NONE;
 }
@@ -236,10 +231,10 @@ static JdwpError VM_TopLevelThreadGroups(JdwpState*, const uint8_t*, int, Expand
    */
   uint32_t groups = 1;
   expandBufAdd4BE(pReply, groups);
-  //threadGroupId = debugGetMainThreadGroup();
-  //expandBufAdd8BE(pReply, threadGroupId);
-  ObjectId threadGroupId = Dbg::GetSystemThreadGroupId();
-  expandBufAddObjectId(pReply, threadGroupId);
+  //thread_group_id = debugGetMainThreadGroup();
+  //expandBufAdd8BE(pReply, thread_group_id);
+  ObjectId thread_group_id = Dbg::GetSystemThreadGroupId();
+  expandBufAddObjectId(pReply, thread_group_id);
 
   return ERR_NONE;
 }
@@ -1015,10 +1010,10 @@ static JdwpError TR_SuspendCount(JdwpState*, const uint8_t* buf, int, ExpandBuf*
  * The Eclipse debugger recognizes "main" and "system" as special.
  */
 static JdwpError TGR_Name(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply) {
-  ObjectId threadGroupId = ReadObjectId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for name of threadGroupId=%#llx", threadGroupId);
+  ObjectId thread_group_id = ReadObjectId(&buf);
+  VLOG(jdwp) << StringPrintf("  Req for name of thread_group_id=%#llx", thread_group_id);
 
-  expandBufAddUtf8String(pReply, Dbg::GetThreadGroupName(threadGroupId));
+  expandBufAddUtf8String(pReply, Dbg::GetThreadGroupName(thread_group_id));
 
   return ERR_NONE;
 }
@@ -1028,9 +1023,9 @@ static JdwpError TGR_Name(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply
  * thread group.
  */
 static JdwpError TGR_Parent(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply) {
-  ObjectId groupId = ReadObjectId(&buf);
+  ObjectId thread_group_id = ReadObjectId(&buf);
 
-  ObjectId parentGroup = Dbg::GetThreadGroupParent(groupId);
+  ObjectId parentGroup = Dbg::GetThreadGroupParent(thread_group_id);
   expandBufAddObjectId(pReply, parentGroup);
 
   return ERR_NONE;
@@ -1041,30 +1036,21 @@ static JdwpError TGR_Parent(JdwpState*, const uint8_t* buf, int, ExpandBuf* pRep
  * specified thread group.
  */
 static JdwpError TGR_Children(JdwpState*, const uint8_t* buf, int, ExpandBuf* pReply) {
-  ObjectId threadGroupId = ReadObjectId(&buf);
-  VLOG(jdwp) << StringPrintf("  Req for threads in threadGroupId=%#llx", threadGroupId);
+  ObjectId thread_group_id = ReadObjectId(&buf);
+  VLOG(jdwp) << StringPrintf("  Req for threads in thread_group_id=%#llx", thread_group_id);
 
-  ObjectId* pThreadIds;
-  uint32_t threadCount;
-  Dbg::GetThreadGroupThreads(threadGroupId, &pThreadIds, &threadCount);
-
-  expandBufAdd4BE(pReply, threadCount);
-
-  for (uint32_t i = 0; i < threadCount; i++) {
-    expandBufAddObjectId(pReply, pThreadIds[i]);
+  std::vector<ObjectId> thread_ids;
+  Dbg::GetThreads(thread_group_id, thread_ids);
+  expandBufAdd4BE(pReply, thread_ids.size());
+  for (uint32_t i = 0; i < thread_ids.size(); ++i) {
+    expandBufAddObjectId(pReply, thread_ids[i]);
   }
-  free(pThreadIds);
 
-  /*
-   * TODO: finish support for child groups
-   *
-   * For now, just show that "main" is a child of "system".
-   */
-  if (threadGroupId == Dbg::GetSystemThreadGroupId()) {
-    expandBufAdd4BE(pReply, 1);
-    expandBufAddObjectId(pReply, Dbg::GetMainThreadGroupId());
-  } else {
-    expandBufAdd4BE(pReply, 0);
+  std::vector<ObjectId> child_thread_groups_ids;
+  Dbg::GetChildThreadGroups(thread_group_id, child_thread_groups_ids);
+  expandBufAdd4BE(pReply, child_thread_groups_ids.size());
+  for (uint32_t i = 0; i < child_thread_groups_ids.size(); ++i) {
+    expandBufAddObjectId(pReply, child_thread_groups_ids[i]);
   }
 
   return ERR_NONE;

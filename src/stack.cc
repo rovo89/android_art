@@ -128,7 +128,7 @@ uint32_t StackVisitor::GetVReg(Method* m, int vreg) const {
     return GetGPR(spill_shifts);
   } else {
     const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-    DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
+    DCHECK(code_item != NULL) << PrettyMethod(m); // Can't be NULL or how would we compile its instructions?
     uint32_t fp_spills = m->GetFpSpillMask();
     size_t frame_size = m->GetFrameSizeInBytes();
     return GetVReg(code_item, core_spills, fp_spills, frame_size, vreg);
@@ -145,7 +145,7 @@ void StackVisitor::SetVReg(Method* m, int vreg, uint32_t new_value) {
     UNIMPLEMENTED(FATAL);
   }
   const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-  DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
+  DCHECK(code_item != NULL) << PrettyMethod(m); // Can't be NULL or how would we compile its instructions?
   uint32_t core_spills = m->GetCoreSpillMask();
   uint32_t fp_spills = m->GetFpSpillMask();
   size_t frame_size = m->GetFrameSizeInBytes();
