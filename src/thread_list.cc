@@ -75,7 +75,11 @@ void ThreadList::DumpForSigQuit(std::ostream& os) {
 static void DumpUnattachedThread(std::ostream& os, pid_t tid) {
   Thread::DumpState(os, NULL, tid);
   DumpKernelStack(os, tid, "  kernel: ", false);
-  DumpNativeStack(os, tid, "  native: ", false);
+  // TODO: Reenable this when the native code in system_server can handle it.
+  // Currently "adb shell kill -3 `pid system_server`" will cause it to exit.
+  if (false) {
+    DumpNativeStack(os, tid, "  native: ", false);
+  }
   os << "\n";
 }
 
