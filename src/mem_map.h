@@ -59,6 +59,10 @@ class MemMap {
 
   bool Protect(int prot);
 
+  int GetProtect() const {
+    return prot_;
+  }
+
   byte* Begin() const {
     return begin_;
   }
@@ -72,13 +76,14 @@ class MemMap {
   }
 
  private:
-  MemMap(byte* begin, size_t size, void* base_begin, size_t base_size);
+  MemMap(byte* begin, size_t size, void* base_begin, size_t base_size, int prot);
 
-  byte* const begin_;  // start of data
-  const size_t size_;  // length of data
+  byte* const begin_;  // Start of data.
+  const size_t size_;  // Length of data.
 
-  void* const base_begin_;  // page-aligned base address
-  const size_t base_size_;  // length of mapping
+  void* const base_begin_;  // Page-aligned base address.
+  const size_t base_size_;  // Length of mapping.
+  int prot_;  // Protection of the map.
 };
 
 }  // namespace art

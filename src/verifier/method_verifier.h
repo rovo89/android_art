@@ -58,13 +58,6 @@ class InsnFlags;
 class PcToReferenceMap;
 
 /*
- * Set this to enable dead code scanning. This is not required, but it's very useful when testing
- * changes to the verifier (to make sure we're not skipping over stuff). The only reason not to do
- * it is that it slightly increases the time required to perform verification.
- */
-#define DEAD_CODE_SCAN kIsDebugBuild
-
-/*
  * "Direct" and "virtual" methods are stored independently. The type of call used to invoke the
  * method determines which list we search, and whether we travel up into superclasses.
  *
