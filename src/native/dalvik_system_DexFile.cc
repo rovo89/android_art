@@ -192,17 +192,26 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
     }
   }
 
-  // If we have an oat file next to the dex file, assume up-to-date.
-  // A user build looks like this, and it will have no classes.dex in
-  // the input for checksum validation.
+  // Check if we have an oat file next to the dex file.
   std::string oat_filename(OatFile::DexFilenameToOatFilename(filename.c_str()));
   UniquePtr<const OatFile> oat_file(
       OatFile::Open(oat_filename, oat_filename, NULL, OatFile::kRelocNone));
   if (oat_file.get() != NULL && oat_file->GetOatDexFile(filename.c_str()) != NULL) {
-    if (debug_logging) {
-      LOG(INFO) << "DexFile_isDexOptNeeded ignoring precompiled file: " << filename.c_str();
+    uint32_t location_checksum;
+    // If we have no classes.dex checksum such as in a user build, assume up-to-date.
+    if (!DexFile::GetChecksum(filename.c_str(), location_checksum)) {
+      if (debug_logging) {
+        LOG(INFO) << "DexFile_isDexOptNeeded ignoring precompiled stripped file: " << filename.c_str();
+      }
+      return JNI_FALSE;
     }
-    return JNI_FALSE;
+    if (ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum)) {
+      if (debug_logging) {
+        LOG(INFO) << "DexFile_isDexOptNeeded precompiled file " << oat_filename
+                  << " is up-to-date checksum compared to " << filename.c_str();
+      }
+      return JNI_FALSE;
+    }
   }
 
   // Check if we have an oat file in the cache
@@ -223,26 +232,13 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
     return JNI_TRUE;
   }
 
-  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename.c_str());
-  if (oat_dex_file == NULL) {
-    LOG(ERROR) << "DexFile_isDexOptNeeded cache file " << cache_location
-               << " does not contain contents for " << filename.c_str();
-    std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file->GetOatDexFiles();
-    for (size_t i = 0; i < oat_dex_files.size(); i++) {
-      const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
-      LOG(ERROR) << "DexFile_isDexOptNeeded cache file " << cache_location
-                 << " contains contents for " << oat_dex_file->GetDexFileLocation();
-    }
-    return JNI_TRUE;
-  }
-
   uint32_t location_checksum;
   if (!DexFile::GetChecksum(filename.c_str(), location_checksum)) {
     LOG(ERROR) << "DexFile_isDexOptNeeded failed to compute checksum of " << filename.c_str();
     return JNI_TRUE;
   }
 
-  if (location_checksum != oat_dex_file->GetDexFileLocationChecksum()) {
+  if (!ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum)) {
     LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
               << " has out-of-date checksum compared to " << filename.c_str();
     return JNI_TRUE;
