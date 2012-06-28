@@ -33,7 +33,7 @@ LIBART_COMPILER_COMMON_SRC_FILES += \
 	src/greenland/intrinsic_helper.cc
 endif
 
-LIBART_COMPILER_ARM_SRC_FILES += \
+LIBART_COMPILER_arm_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
 	src/compiler/codegen/arm/ArchUtility.cc \
 	src/compiler/codegen/arm/ArmRallocUtil.cc \
@@ -41,14 +41,14 @@ LIBART_COMPILER_ARM_SRC_FILES += \
 	src/compiler/codegen/arm/armv7-a/Codegen.cc \
 	src/oat/jni/arm/jni_internal_arm.cc
 
-LIBART_COMPILER_MIPS_SRC_FILES += \
+LIBART_COMPILER_mips_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
 	src/compiler/codegen/mips/ArchUtility.cc \
 	src/compiler/codegen/mips/MipsRallocUtil.cc \
 	src/compiler/codegen/mips/Assemble.cc \
 	src/compiler/codegen/mips/mips/Codegen.cc
 
-LIBART_COMPILER_X86_SRC_FILES += \
+LIBART_COMPILER_x86_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \
 	src/compiler/codegen/x86/ArchUtility.cc \
 	src/compiler/codegen/x86/X86RallocUtil.cc \
@@ -59,7 +59,6 @@ LIBART_COMPILER_X86_SRC_FILES += \
 # $(1): target or host
 # $(2): ndebug or debug
 # $(3): architecture name
-# $(4): list of source files
 define build-libart-compiler
   ifneq ($(1),target)
     ifneq ($(1),host)
@@ -75,7 +74,6 @@ define build-libart-compiler
   art_target_or_host := $(1)
   art_ndebug_or_debug := $(2)
   libart_compiler_arch := $(3)
-  libart_compiler_src_files := $(4)
 
   include $(CLEAR_VARS)
   ifeq ($$(art_target_or_host),target)
@@ -91,7 +89,8 @@ define build-libart-compiler
   LOCAL_MODULE_TAGS := optional
   LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 
-  LOCAL_SRC_FILES := $$(libart_compiler_src_files)
+  LOCAL_SRC_FILES := $$(LIBART_COMPILER_$$(libart_compiler_arch)_SRC_FILES)
+
   ifeq ($$(art_target_or_host),target)
     LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
   else # host
@@ -119,7 +118,7 @@ define build-libart-compiler
   endif
 
   # TODO: temporary hack for testing.
-  ifeq ($$(libart_compiler_arch),MIPS)
+  ifeq ($$(libart_compiler_arch),mips)
     LOCAL_CFLAGS += -D__mips_hard_float
   endif
 
@@ -178,14 +177,14 @@ endef
 # $(1): target or host
 # $(2): ndebug or debug
 define build-libart-compilers
-  $(foreach arch,ARM MIPS X86,$(eval $(call build-libart-compiler,$(1),$(2),$(arch),$(LIBART_COMPILER_$(arch)_SRC_FILES))))
+  $(foreach arch,arm mips x86,$(eval $(call build-libart-compiler,$(1),$(2),$(arch))))
 endef
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-libart-compilers,target,ndebug))
+  $(eval $(call build-libart-compiler,target,ndebug,$(TARGET_ARCH)))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-libart-compilers,target,debug))
+  $(eval $(call build-libart-compiler,target,debug,$(TARGET_ARCH)))
 endif
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
   $(eval $(call build-libart-compilers,host,ndebug))

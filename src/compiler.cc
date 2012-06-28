@@ -245,10 +245,10 @@ static std::string MakeCompilerSoName(InstructionSet instruction_set) {
     instruction_set = kArm;
   }
 
-  // Capitalize the instruction set, because that's what we do in the build system.
+  // Lower case the instruction set, because that's what we do in the build system.
   std::string instruction_set_name(ToStr<InstructionSet>(instruction_set).str());
   for (size_t i = 0; i < instruction_set_name.size(); ++i) {
-    instruction_set_name[i] = toupper(instruction_set_name[i]);
+    instruction_set_name[i] = tolower(instruction_set_name[i]);
   }
 
   // Bad things happen if we pull in the libartd-compiler to a libart dex2oat or vice versa,
