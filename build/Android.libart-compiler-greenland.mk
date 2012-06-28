@@ -34,15 +34,15 @@ LIBART_COMPILER_GREENLAND_SRC_FILES += \
 	src/oat/jni/arm/calling_convention_arm.cc \
 	src/oat/jni/x86/calling_convention_x86.cc
 
-LIBART_COMPILER_GREENLAND_ARM_SRC_FILES += \
+LIBART_COMPILER_GREENLAND_arm_SRC_FILES += \
   src/greenland/arm/arm_codegen_machine.cc \
 	src/greenland/arm/arm_invoke_stub_compiler.cc
 
-LIBART_COMPILER_GREENLAND_MIPS_SRC_FILES += \
+LIBART_COMPILER_GREENLAND_mips_SRC_FILES += \
   src/greenland/mips/mips_codegen_machine.cc \
   src/greenland/mips/mips_invoke_stub_compiler.cc
 
-LIBART_COMPILER_GREENLAND_X86_SRC_FILES += \
+LIBART_COMPILER_GREENLAND_x86_SRC_FILES += \
   src/greenland/x86/x86_codegen_machine.cc \
   src/greenland/x86/x86_lir_emitter.cc \
   src/greenland/x86/x86_lir_info.cc \
@@ -91,12 +91,12 @@ define build-libart-compiler-greenland
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_SRC_FILES += \
-      $(LIBART_COMPILER_GREENLAND_ARM_SRC_FILES)
+      $(LIBART_COMPILER_GREENLAND_$(TARGET_ARCH)_SRC_FILES)
   else
     LOCAL_SRC_FILES += \
-      $(LIBART_COMPILER_GREENLAND_ARM_SRC_FILES) \
-      $(LIBART_COMPILER_GREENLAND_MIPS_SRC_FILES) \
-      $(LIBART_COMPILER_GREENLAND_X86_SRC_FILES)
+      $(LIBART_COMPILER_GREENLAND_arm_SRC_FILES) \
+      $(LIBART_COMPILER_GREENLAND_mips_SRC_FILES) \
+      $(LIBART_COMPILER_GREENLAND_x86_SRC_FILES)
   endif
 
   LOCAL_STATIC_LIBRARIES += \
