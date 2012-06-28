@@ -86,11 +86,16 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
     /* Skip non-interesting instructions */
     if ((thisLIR->flags.isNop == true) ||
         isPseudoOpcode(thisLIR->opcode) ||
+        (EncodingMap[thisLIR->opcode].flags & IS_BRANCH) ||
         !(EncodingMap[thisLIR->opcode].flags & (IS_LOAD | IS_STORE))) {
       continue;
     }
 
+#if defined(TARGET_X86)
+    int nativeRegId = (EncodingMap[thisLIR->opcode].flags & IS_STORE) ? thisLIR->operands[2] : thisLIR->operands[0];
+#else
     int nativeRegId = thisLIR->operands[0];
+#endif
     bool isThisLIRLoad = EncodingMap[thisLIR->opcode].flags & IS_LOAD;
     LIR* checkLIR;
     /* Use the mem mask to determine the rough memory location */
@@ -102,9 +107,8 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
      */
     if (!(thisMemMask & (ENCODE_LITERAL | ENCODE_DALVIK_REG))) continue;
 
-// FIXME: make sure we have a branch barrier for x86
 #if defined(TARGET_X86)
-    u8 stopUseRegMask = (thisLIR->useMask) & ~ENCODE_MEM;
+    u8 stopUseRegMask = (IS_BRANCH | thisLIR->useMask) & ~ENCODE_MEM;
 #else
     /*
      * Add r15 (pc) to the resource mask to prevent this instruction
