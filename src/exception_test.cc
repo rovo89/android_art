@@ -33,6 +33,7 @@ class ExceptionTest : public CommonTest {
     SirtRef<ClassLoader> class_loader(LoadDex("ExceptionHandle"));
     my_klass_ = class_linker_->FindClass("LExceptionHandle;", class_loader.get());
     ASSERT_TRUE(my_klass_ != NULL);
+    class_linker_->EnsureInitialized(my_klass_, false, true);
 
     dex_ = &Runtime::Current()->GetClassLinker()->FindDexFile(my_klass_->GetDexCache());
 
@@ -49,23 +50,28 @@ class ExceptionTest : public CommonTest {
     fake_mapping_data_.push_back(3);  // offset 3
     fake_mapping_data_.push_back(3);  // maps to dex offset 3
 
+    fake_vmap_table_data_.push_back(0);
+
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
     ASSERT_TRUE(method_f_ != NULL);
     method_f_->SetFrameSizeInBytes(kStackAlignment);
     method_f_->SetCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
     method_f_->SetMappingTable(&fake_mapping_data_[0]);
+    method_f_->SetVmapTable(&fake_vmap_table_data_[0]);
 
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
     ASSERT_TRUE(method_g_ != NULL);
     method_g_->SetFrameSizeInBytes(kStackAlignment);
     method_g_->SetCode(CompiledMethod::CodePointer(&fake_code_[sizeof(code_size)], kThumb2));
     method_g_->SetMappingTable(&fake_mapping_data_[0]);
+    method_g_->SetVmapTable(&fake_vmap_table_data_[0]);
   }
 
   const DexFile* dex_;
 
   std::vector<uint8_t> fake_code_;
   std::vector<uint32_t> fake_mapping_data_;
+  std::vector<uint16_t> fake_vmap_table_data_;
 
   Method* method_f_;
   Method* method_g_;
@@ -118,15 +124,15 @@ TEST_F(ExceptionTest, StackTraceElement) {
 
 #if !defined(ART_USE_LLVM_COMPILER)
   // Create two fake stack frames with mapping data created in SetUp. We map offset 3 in the code
-  // to dex pc 3, however, we set the return pc to 5 as the stack walker always subtracts two
-  // from a return pc.
-  const uintptr_t pc_offset = 3 + 2;
+  // to dex pc 3.
+  const uint32_t dex_pc = 3;
 
   // Create/push fake 16byte stack frame for method g
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
   fake_stack.push_back(0);
   fake_stack.push_back(0);
-  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_->GetCode()) + pc_offset);  // return pc
+  // We add 2 to the native pc since the stack walker always subtracts two from a return pc.
+  fake_stack.push_back(method_f_->ToNativePC(dex_pc) + 2);  // return pc
 
   // Create/push fake 16byte stack frame for method f
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
@@ -137,9 +143,14 @@ TEST_F(ExceptionTest, StackTraceElement) {
   // Pull Method* of NULL to terminate the trace
   fake_stack.push_back(0);
 
-  // Set up thread to appear as if we called out of method_g_ at pc 3
+  // Push null values which will become null incoming arguments.
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+
+  // Set up thread to appear as if we called out of method_g_ at pc dex 3
   Thread* thread = Thread::Current();
-  thread->SetTopOfStack(&fake_stack[0], reinterpret_cast<uintptr_t>(method_g_->GetCode()) + pc_offset);  // return pc
+  thread->SetTopOfStack(&fake_stack[0], method_g_->ToNativePC(dex_pc) + 2);  // return pc
 #else
   // Create/push fake 20-byte shadow frame for method g
   fake_stack.push_back(0);
