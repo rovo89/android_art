@@ -512,6 +512,10 @@ class PACKED Thread {
   void CheckSafeToWait(MutexRank rank);
 
  private:
+  // We have no control over the size of 'bool', but want our boolean fields
+  // to be 4-byte quantities.
+  typedef uint32_t bool32_t;
+
   explicit Thread(bool daemon);
   ~Thread();
   void Destroy();
@@ -605,7 +609,7 @@ class PACKED Thread {
   // Pointer to the monitor lock we're currently waiting on (or NULL), guarded by wait_mutex_.
   Monitor* wait_monitor_;
   // Thread "interrupted" status; stays raised until queried or thrown, guarded by wait_mutex_.
-  uint32_t interrupted_;
+  bool32_t interrupted_;
   // The next thread in the wait set this thread is part of.
   Thread* wait_next_;
   // If we're blocked in MonitorEnter, this is the object we're trying to lock.
@@ -628,7 +632,7 @@ class PACKED Thread {
   Context* long_jump_context_;
 
   // A boolean telling us whether we're recursively throwing OOME.
-  uint32_t throwing_OutOfMemoryError_;
+  bool32_t throwing_OutOfMemoryError_;
 
   // How much of 'suspend_count_' is by request of the debugger, used to set things right
   // when the debugger detaches. Must be <= suspend_count_.
@@ -645,10 +649,7 @@ class PACKED Thread {
   std::string* name_;
 
   // Is the thread a daemon?
-  const bool daemon_;
-
-  // Keep data fields within Thread 4 byte aligned.
-  byte pad_[3];
+  const bool32_t daemon_;
 
   // A cached pthread_t for the pthread underlying this Thread*.
   pthread_t pthread_self_;
@@ -661,6 +662,7 @@ class PACKED Thread {
 
   // Cause for last suspension.
   const char* last_no_thread_suspension_cause_;
+
  public:
   // Runtime support function pointers
   EntryPoints entrypoints_;
