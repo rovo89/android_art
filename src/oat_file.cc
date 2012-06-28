@@ -210,7 +210,9 @@ std::vector<const OatFile::OatDexFile*> OatFile::GetOatDexFiles() const {
 }
 
 void OatFile::RelocateExecutable() {
+#if defined(ART_USE_LLVM_COMPILER)
   UNIMPLEMENTED(WARNING) << "Relocate the executable";
+#endif
 }
 
 OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
