@@ -910,7 +910,7 @@ void Monitor::DescribeLocks(std::ostream& os, StackVisitor* stack_visitor) {
 
   // Is there any reason to believe there's any synchronization in this method?
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
-  CHECK(code_item != NULL);
+  CHECK(code_item != NULL) << PrettyMethod(m);
   if (code_item->tries_size_ == 0) {
     return; // No "tries" implies no synchronization, so no held locks to report.
   }

@@ -27,7 +27,7 @@ namespace art {
  */
 extern "C" void artUpdateDebuggerFromCode(int32_t dex_pc, Thread* self, Method** sp) {
   FinishCalleeSaveFrameSetup(self, sp,  Runtime::kRefsAndArgs);
-  Dbg::UpdateDebugger(dex_pc, self, sp);
+  Dbg::UpdateDebugger(dex_pc, self);
 }
 
 // Temporary debugging hook for compiler.
