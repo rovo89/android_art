@@ -189,7 +189,7 @@ class Dbg {
   static bool IsSuspended(JDWP::ObjectId threadId);
   //static void WaitForSuspend(JDWP::ObjectId threadId);
 
-  // Fills 'thread_ids' with the threads in the given thread group. If thread_group_id == NULL,
+  // Fills 'thread_ids' with the threads in the given thread group. If thread_group_id == 0,
   // returns all threads.
   static void GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& thread_ids);
   static void GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& child_thread_group_ids);
