@@ -42,6 +42,9 @@ namespace llvm {
 namespace art {
   class Compiler;
   class OatCompilationUnit;
+  namespace compiler_llvm {
+    class InferredRegCategoryMap;
+  }
 }
 
 namespace art {
@@ -125,29 +128,15 @@ class DexLang {
   //----------------------------------------------------------------------------
   std::vector<DalvikReg*> regs_;
 
-  inline llvm::Value* EmitLoadDalvikReg(unsigned reg_idx, JType jty,
-                                        JTypeSpace space) {
-    DCHECK(regs_.at(reg_idx) != NULL);
-    return regs_[reg_idx]->GetValue(jty, space);
-  }
+  llvm::Value* EmitLoadDalvikReg(unsigned reg_idx, JType jty, JTypeSpace space);
 
-  inline llvm::Value* EmitLoadDalvikReg(unsigned reg_idx, char shorty,
-                                        JTypeSpace space) {
-    DCHECK(regs_.at(reg_idx) != NULL);
-    return EmitLoadDalvikReg(reg_idx, GetJTypeFromShorty(shorty), space);
-  }
+  llvm::Value* EmitLoadDalvikReg(unsigned reg_idx, char shorty, JTypeSpace space);
 
-  inline void EmitStoreDalvikReg(unsigned reg_idx, JType jty, JTypeSpace space,
-                                 llvm::Value* new_value) {
-    regs_[reg_idx]->SetValue(jty, space, new_value);
-    return;
-  }
+  void EmitStoreDalvikReg(unsigned reg_idx, JType jty,
+                          JTypeSpace space, llvm::Value* new_value);
 
-  inline void EmitStoreDalvikReg(unsigned reg_idx, char shorty,
-                                 JTypeSpace space, llvm::Value* new_value) {
-    EmitStoreDalvikReg(reg_idx, GetJTypeFromShorty(shorty), space, new_value);
-    return;
-  }
+  void EmitStoreDalvikReg(unsigned reg_idx, char shorty,
+                          JTypeSpace space, llvm::Value* new_value);
 
  private:
   //----------------------------------------------------------------------------
@@ -156,25 +145,34 @@ class DexLang {
   // Hold the return value returned from the lastest invoke-* instruction
   DalvikReg* retval_reg_;
 
-  llvm::Value* EmitLoadDalvikRetValReg(JType jty, JTypeSpace space) {
-    return retval_reg_->GetValue(jty, space);
-  }
+  llvm::Value* EmitLoadDalvikRetValReg(JType jty, JTypeSpace space);
 
-  llvm::Value* EmitLoadDalvikRetValReg(char shorty, JTypeSpace space) {
-    return EmitLoadDalvikRetValReg(GetJTypeFromShorty(shorty), space);
-  }
+  llvm::Value* EmitLoadDalvikRetValReg(char shorty, JTypeSpace space);
 
-  void EmitStoreDalvikRetValReg(JType jty, JTypeSpace space,
-                                llvm::Value* new_value) {
-    retval_reg_->SetValue(jty, space, new_value);
-    return;
-  }
+  void EmitStoreDalvikRetValReg(JType jty, JTypeSpace space, llvm::Value* new_value);
 
-  void EmitStoreDalvikRetValReg(char shorty, JTypeSpace space,
-                                llvm::Value* new_value) {
-    EmitStoreDalvikRetValReg(GetJTypeFromShorty(shorty), space, new_value);
-    return;
-  }
+  void EmitStoreDalvikRetValReg(char shorty, JTypeSpace space, llvm::Value* new_value);
+
+ private:
+  //----------------------------------------------------------------------------
+  // Shadow Frame
+  //----------------------------------------------------------------------------
+  unsigned num_shadow_frame_entries_;
+  std::vector<int32_t> reg_to_shadow_frame_index_;
+
+  void EmitUpdateDexPC(unsigned dex_pc);
+
+  void EmitPopShadowFrame();
+
+ private:
+  //----------------------------------------------------------------------------
+  // RegCategory
+  //----------------------------------------------------------------------------
+  compiler_llvm::RegCategory GetInferredRegCategory(unsigned dex_pc, unsigned reg_idx);
+
+  compiler_llvm::InferredRegCategoryMap const* GetInferredRegCategoryMap();
+
+  bool IsRegCanBeObject(unsigned reg_idx);
 
  private:
   //----------------------------------------------------------------------------
@@ -210,26 +208,13 @@ class DexLang {
                                 llvm::Value* array,
                                 llvm::Value* index);
 
-  void EmitGuard_ExceptionLandingPad(unsigned dex_pc);
+  void EmitGuard_ExceptionLandingPad(unsigned dex_pc, bool can_skip_unwind);
 
  private:
   //----------------------------------------------------------------------------
   // Garbage Collection Safe Point
   //----------------------------------------------------------------------------
   void EmitGuard_GarbageCollectionSuspend();
-
- private:
-  //----------------------------------------------------------------------------
-  // Shadow Frame
-  //----------------------------------------------------------------------------
-  unsigned num_shadow_frame_entries_;
-
-  void EmitUpdateDexPC(unsigned dex_pc);
-
-  void EmitPopShadowFrame();
-
- public:
-  unsigned AllocShadowFrameEntry(unsigned reg_idx);
 
  private:
   //----------------------------------------------------------------------------
@@ -321,35 +306,35 @@ class DexLang {
     return EmitInvokeIntrinsicNoThrow(intr_id, args);
   }
 
-  llvm::Value* EmitInvokeIntrinsic(unsigned dex_pc,
+  llvm::Value* EmitInvokeIntrinsic(unsigned dex_pc, bool can_skip_unwind,
                                    IntrinsicHelper::IntrinsicId intr_id,
                                    llvm::ArrayRef<llvm::Value*> args
                                         = llvm::ArrayRef<llvm::Value*>());
-  llvm::Value* EmitInvokeIntrinsic2(unsigned dex_pc,
+  llvm::Value* EmitInvokeIntrinsic2(unsigned dex_pc, bool can_skip_unwind,
                                     IntrinsicHelper::IntrinsicId intr_id,
                                     llvm::Value* arg1,
                                     llvm::Value* arg2) {
     llvm::Value* args[] = { arg1, arg2 };
-    return EmitInvokeIntrinsic(dex_pc, intr_id, args);
+    return EmitInvokeIntrinsic(dex_pc, can_skip_unwind, intr_id, args);
   }
-  llvm::Value* EmitInvokeIntrinsic3(unsigned dex_pc,
+  llvm::Value* EmitInvokeIntrinsic3(unsigned dex_pc, bool can_skip_unwind,
                                     IntrinsicHelper::IntrinsicId intr_id,
                                     llvm::Value* arg1,
                                     llvm::Value* arg2,
                                     llvm::Value* arg3) {
     llvm::Value* args[] = { arg1, arg2, arg3 };
-    return EmitInvokeIntrinsic(dex_pc, intr_id, args);
+    return EmitInvokeIntrinsic(dex_pc, can_skip_unwind, intr_id, args);
   }
-  llvm::Value* EmitInvokeIntrinsic4(unsigned dex_pc,
+  llvm::Value* EmitInvokeIntrinsic4(unsigned dex_pc, bool can_skip_unwind,
                                     IntrinsicHelper::IntrinsicId intr_id,
                                     llvm::Value* arg1,
                                     llvm::Value* arg2,
                                     llvm::Value* arg3,
                                     llvm::Value* arg4) {
     llvm::Value* args[] = { arg1, arg2, arg3, arg4 };
-    return EmitInvokeIntrinsic(dex_pc, intr_id, args);
+    return EmitInvokeIntrinsic(dex_pc, can_skip_unwind, intr_id, args);
   }
-  llvm::Value* EmitInvokeIntrinsic5(unsigned dex_pc,
+  llvm::Value* EmitInvokeIntrinsic5(unsigned dex_pc, bool can_skip_unwind,
                                     IntrinsicHelper::IntrinsicId intr_id,
                                     llvm::Value* arg1,
                                     llvm::Value* arg2,
@@ -357,11 +342,8 @@ class DexLang {
                                     llvm::Value* arg4,
                                     llvm::Value* arg5) {
     llvm::Value* args[] = { arg1, arg2, arg3, arg4, arg5 };
-    return EmitInvokeIntrinsic(dex_pc, intr_id, args);
+    return EmitInvokeIntrinsic(dex_pc, can_skip_unwind, intr_id, args);
   }
-
-  compiler_llvm::RegCategory GetInferredRegCategory(unsigned dex_pc,
-                                                    unsigned reg_idx);
 
   llvm::Value* EmitLoadConstantClass(unsigned dex_pc, uint32_t type_idx);
 
@@ -500,6 +482,23 @@ class DexLang {
 
   bool EmitInstructions();
   bool EmitInstruction(unsigned dex_pc, const Instruction* insn);
+
+
+  // TODO: Use high-level IR to do this
+  bool IsInstructionDirectToReturn(uint32_t dex_pc);
+
+  struct MethodInfo {
+    int64_t this_reg_idx;
+    bool this_will_not_be_null;
+    bool has_invoke;
+    bool need_shadow_frame_entry;
+    bool need_shadow_frame;
+    bool lazy_push_shadow_frame;
+    std::vector<bool> set_to_another_object;
+  };
+  MethodInfo method_info_;
+
+  void ComputeMethodInfo();
 
   DISALLOW_COPY_AND_ASSIGN(DexLang);
 };

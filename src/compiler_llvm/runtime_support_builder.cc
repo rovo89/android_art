@@ -235,7 +235,7 @@ void RuntimeSupportBuilder::OptimizeRuntimeSupport() {
     Function* slow_func = GetRuntimeSupportFunction(runtime_support::TestSuspend);
     Function* func = Function::Create(slow_func->getFunctionType(),
                                       GlobalValue::LinkOnceODRLinkage,
-                                      "test_suspend_fast",
+                                      "art_test_suspend_fast",
                                       &module_);
     MakeFunctionInline(func);
     BasicBlock* basic_block = BasicBlock::Create(context_, "entry", func);

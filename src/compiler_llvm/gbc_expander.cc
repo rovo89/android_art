@@ -194,8 +194,13 @@ class GBCExpanderPass : public llvm::FunctionPass {
 char GBCExpanderPass::ID = 0;
 
 bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
+  // Runtime support or stub
+  if (func.getName().startswith("art_") || func.getName().startswith("Art")) {
+    return false;
+  }
   bool changed;
 
+  // TODO: Use intrinsic.
   changed = InsertStackOverflowCheck(func);
 
   std::list<std::pair<llvm::CallInst*,
@@ -962,7 +967,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
   switch (intr_id) {
     //==- Thread -----------------------------------------------------------==//
     case IntrinsicHelper::GetCurrentThread: {
-      return ExpandToRuntime(runtime_support::GetCurrentThread, call_inst);
+      return irb_.Runtime().EmitGetCurrentThread();
     }
     case IntrinsicHelper::TestSuspend: {
       Expand_TestSuspend(call_inst);

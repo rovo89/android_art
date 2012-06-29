@@ -28,22 +28,10 @@ namespace greenland {
 
 DalvikReg::DalvikReg(DexLang& dex_lang, unsigned reg_idx)
 : dex_lang_(dex_lang), irb_(dex_lang.GetIRBuilder()),
-  reg_idx_(reg_idx), shadow_frame_entry_idx_(-1),
-  reg_32_(NULL), reg_64_(NULL), reg_obj_(NULL) {
+  reg_idx_(reg_idx), reg_32_(NULL), reg_64_(NULL), reg_obj_(NULL) {
 }
 
 DalvikReg::~DalvikReg() {
-}
-
-void DalvikReg::SetShadowEntry(llvm::Value* object) {
-  if (shadow_frame_entry_idx_ < 0) {
-    shadow_frame_entry_idx_ = dex_lang_.AllocShadowFrameEntry(reg_idx_);
-  }
-
-  irb_.CreateCall2(irb_.GetIntrinsics(IntrinsicHelper::SetShadowFrameEntry),
-                   object, irb_.getInt32(shadow_frame_entry_idx_));
-
-  return;
 }
 
 llvm::Type* DalvikReg::GetRegCategoryEquivSizeTy(IRBuilder& irb, RegCategory reg_cat) {
@@ -137,9 +125,7 @@ llvm::Value* DalvikReg::GetValue(JType jty, JTypeSpace space) {
 void DalvikReg::SetValue(JType jty, JTypeSpace space, llvm::Value* value) {
   DCHECK_NE(jty, kVoid) << "Dalvik register will never be void type";
 
-  if (jty == kObject) {
-    SetShadowEntry(value);
-  } else if (jty == kFloat || jty == kDouble) {
+  if (jty == kFloat || jty == kDouble) {
     value = irb_.CreateBitCast(value, irb_.GetJType(jty, kReg));
   }
 

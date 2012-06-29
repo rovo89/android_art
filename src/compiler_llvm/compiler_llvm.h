@@ -89,12 +89,6 @@ class CompilerLLVM {
  private:
   CompilationUnit* AllocateCompilationUnit();
 
-  void Materialize(CompilationUnit* cunit);
-
-  bool IsBitcodeFileNameAvailable() const {
-    return !bitcode_filename_.empty();
-  }
-
   Compiler* compiler_;
 
   InstructionSet insn_set_;

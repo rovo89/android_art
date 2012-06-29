@@ -56,8 +56,6 @@ class DalvikReg {
   }
 
  private:
-  void SetShadowEntry(llvm::Value* object);
-
   llvm::Value* GetAddr(JType jty);
 
   llvm::Value* RegCat1SExt(llvm::Value* value);
@@ -69,8 +67,6 @@ class DalvikReg {
   IRBuilder& irb_;
 
   unsigned reg_idx_;
-
-  int shadow_frame_entry_idx_;
 
   llvm::Value* reg_32_;
   llvm::Value* reg_64_;
