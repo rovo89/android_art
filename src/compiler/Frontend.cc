@@ -759,6 +759,11 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
 #if defined(ART_USE_QUICK_COMPILER)
   // TODO: remove - temp for Quick compiler bring-up
   if ((PrettyMethod(method_idx, dex_file).find("fibonacci") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("Array") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("Monitor") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("InternedString") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("StaticField") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("UnresClass") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("HelloWorld") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("count10_006") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("exceptions_007") != std::string::npos)
@@ -775,6 +780,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
       || (PrettyMethod(method_idx, dex_file).find("shiftTest1") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("shiftTest2") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("unsignedShiftTest") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("convTest") != std::string::npos)
      ) {
     cUnit->genBitcode = true;
   }
