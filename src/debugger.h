@@ -188,8 +188,12 @@ class Dbg {
   static bool ThreadExists(JDWP::ObjectId threadId);
   static bool IsSuspended(JDWP::ObjectId threadId);
   //static void WaitForSuspend(JDWP::ObjectId threadId);
-  static void GetThreadGroupThreads(JDWP::ObjectId threadGroupId, JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount);
-  static void GetAllThreads(JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount);
+
+  // Fills 'thread_ids' with the threads in the given thread group. If thread_group_id == NULL,
+  // returns all threads.
+  static void GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& thread_ids);
+  static void GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& child_thread_group_ids);
+
   static int GetThreadFrameCount(JDWP::ObjectId threadId);
   static JDWP::JdwpError GetThreadFrames(JDWP::ObjectId thread_id, size_t start_frame, size_t frame_count, JDWP::ExpandBuf* buf);
 
@@ -214,12 +218,12 @@ class Dbg {
     kMethodExit     = 0x08,
   };
   static void PostLocationEvent(const Method* method, int pcOffset, Object* thisPtr, int eventFlags);
-  static void PostException(Thread* thread, JDWP::FrameId frameId, Method* throwMethod, uint32_t throwDexPc, Method* catchMethod, uint32_t catchDexPc, Throwable* exception);
+  static void PostException(Thread* thread, JDWP::FrameId throw_frame_id, Method* throw_method, uint32_t throw_dex_pc, Method* catch_method, uint32_t catch_dex_pc, Throwable* exception);
   static void PostThreadStart(Thread* t);
   static void PostThreadDeath(Thread* t);
   static void PostClassPrepare(Class* c);
 
-  static void UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp);
+  static void UpdateDebugger(int32_t dex_pc, Thread* self);
 
   static void WatchLocation(const JDWP::JdwpLocation* pLoc);
   static void UnwatchLocation(const JDWP::JdwpLocation* pLoc);
@@ -276,7 +280,6 @@ class Dbg {
 
  private:
   static void DdmBroadcast(bool);
-  static void GetThreadGroupThreadsImpl(Object*, JDWP::ObjectId**, uint32_t*);
   static void PostThreadStartOrStop(Thread*, uint32_t);
 
   static AllocRecord* recent_allocation_records_;

@@ -1009,7 +1009,7 @@ static uint16_t DemangleSlot(uint16_t slot, Method* m) {
     return 0;
   } else if (slot == 0) {
     const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-    CHECK(code_item != NULL);
+    CHECK(code_item != NULL) << PrettyMethod(m);
     return code_item->registers_size_ - code_item->ins_size_;
   }
   return slot;
@@ -1429,11 +1429,11 @@ bool Dbg::IsSuspended(JDWP::ObjectId threadId) {
   return DecodeThread(threadId)->IsSuspended();
 }
 
-void Dbg::GetThreadGroupThreadsImpl(Object* thread_group, JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
+void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& thread_ids) {
   class ThreadListVisitor {
    public:
-    ThreadListVisitor(const ScopedJniThreadState& ts, Object* thread_group)
-      : ts_(ts), thread_group_(thread_group) {}
+    ThreadListVisitor(const ScopedJniThreadState& ts, Object* thread_group, std::vector<JDWP::ObjectId>& thread_ids)
+        : ts_(ts), thread_group_(thread_group), thread_ids_(thread_ids) {}
 
     static void Visit(Thread* t, void* arg) {
       reinterpret_cast<ThreadListVisitor*>(arg)->Visit(t);
@@ -1446,43 +1446,40 @@ void Dbg::GetThreadGroupThreadsImpl(Object* thread_group, JDWP::ObjectId** ppThr
         return;
       }
       if (thread_group_ == NULL || t->GetThreadGroup(ts_) == thread_group_) {
-        threads_.push_back(gRegistry->Add(t->GetPeer()));
+        thread_ids_.push_back(gRegistry->Add(t->GetPeer()));
       }
-    }
-
-    const std::vector<JDWP::ObjectId>& GetThreads() {
-      return threads_;
     }
 
    private:
     const ScopedJniThreadState& ts_;
     Object* const thread_group_;
-    std::vector<JDWP::ObjectId> threads_;
+    std::vector<JDWP::ObjectId>& thread_ids_;
   };
 
   ScopedJniThreadState ts(Thread::Current());
-  ThreadListVisitor tlv(ts, thread_group);
-
+  Object* thread_group = gRegistry->Get<Object*>(thread_group_id);
+  ThreadListVisitor tlv(ts, thread_group, thread_ids);
   Runtime::Current()->GetThreadList()->ForEach(ThreadListVisitor::Visit, &tlv);
+}
 
-  *pThreadCount = tlv.GetThreads().size();
-  if (*pThreadCount == 0) {
-    *ppThreadIds = NULL;
-  } else {
-    // TODO: pass in std::vector rather than passing around pointers.
-    *ppThreadIds = new JDWP::ObjectId[*pThreadCount];
-    for (size_t i = 0; i < *pThreadCount; ++i) {
-      (*ppThreadIds)[i] = tlv.GetThreads()[i];
-    }
+void Dbg::GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& child_thread_group_ids) {
+  ScopedJniThreadState ts(Thread::Current());
+  Object* thread_group = gRegistry->Get<Object*>(thread_group_id);
+
+  // Get the ArrayList<ThreadGroup> "groups" out of this thread group...
+  Field* groups_field = thread_group->GetClass()->FindInstanceField("groups", "Ljava/util/List;");
+  Object* groups_array_list = groups_field->GetObject(thread_group);
+
+  // Get the array and size out of the ArrayList<ThreadGroup>...
+  Field* array_field = groups_array_list->GetClass()->FindInstanceField("array", "[Ljava/lang/Object;");
+  Field* size_field = groups_array_list->GetClass()->FindInstanceField("size", "I");
+  ObjectArray<Object>* groups_array = array_field->GetObject(groups_array_list)->AsObjectArray<Object>();
+  const int32_t size = size_field->GetInt(groups_array_list);
+
+  // Copy the first 'size' elements out of the array into the result.
+  for (int32_t i = 0; i < size; ++i) {
+    child_thread_group_ids.push_back(gRegistry->Add(groups_array->Get(i)));
   }
-}
-
-void Dbg::GetThreadGroupThreads(JDWP::ObjectId threadGroupId, JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
-  GetThreadGroupThreadsImpl(gRegistry->Get<Object*>(threadGroupId), ppThreadIds, pThreadCount);
-}
-
-void Dbg::GetAllThreads(JDWP::ObjectId** ppThreadIds, uint32_t* pThreadCount) {
-  GetThreadGroupThreadsImpl(NULL, ppThreadIds, pThreadCount);
 }
 
 static int GetStackDepth(Thread* thread) {
@@ -1618,46 +1615,25 @@ struct GetThisVisitor : public StackVisitor {
   JDWP::FrameId frame_id;
 };
 
-static Object* GetThis(Method** quickFrame) {
-  struct FrameIdVisitor : public StackVisitor {
-    FrameIdVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
-                   Method** m)
-        : StackVisitor(stack, trace_stack, NULL), quick_frame_to_find(m) , frame_id(0) {}
-
-    virtual bool VisitFrame() {
-      if (quick_frame_to_find != GetCurrentQuickFrame()) {
-        return true;  // Continue.
-      }
-      frame_id = GetFrameId();
-      return false;  // Stop.
-    }
-
-    Method** const quick_frame_to_find;
-    JDWP::FrameId frame_id;
-  };
-
-  Method* m = *quickFrame;
+static Object* GetThis(Thread* self, Method* m, size_t frame_id) {
+  // TODO: should we return the 'this' we passed through to non-static native methods?
   if (m->IsNative() || m->IsStatic()) {
     return NULL;
   }
-  Thread* self = Thread::Current();
-  const ManagedStack* stack = self->GetManagedStack();
-  const std::vector<TraceStackFrame>* trace_stack = self->GetTraceStack();
-  FrameIdVisitor frameIdVisitor(stack, trace_stack, quickFrame);
-  frameIdVisitor.WalkStack();
+
   UniquePtr<Context> context(Context::Create());
-  GetThisVisitor getThisVisitor(stack, trace_stack, context.get(), frameIdVisitor.frame_id);
-  getThisVisitor.WalkStack();
-  return getThisVisitor.this_object;
+  GetThisVisitor visitor(self->GetManagedStack(), self->GetTraceStack(), context.get(), frame_id);
+  visitor.WalkStack();
+  return visitor.this_object;
 }
 
 JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, JDWP::ObjectId* result) {
-  UniquePtr<Context> context(Context::Create());
   Thread* thread = DecodeThread(thread_id);
   if (thread == NULL) {
-    *result = 0;
     return JDWP::ERR_INVALID_THREAD;
   }
+
+  UniquePtr<Context> context(Context::Create());
   GetThisVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), context.get(), frame_id);
   visitor.WalkStack();
   *result = gRegistry->Add(visitor.this_object);
@@ -1869,22 +1845,23 @@ void Dbg::PostLocationEvent(const Method* m, int dex_pc, Object* this_object, in
   }
 }
 
-void Dbg::PostException(Thread* thread, JDWP::FrameId throwFrameId, Method* throwMethod, uint32_t throwDexPc,
-                        Method* catchMethod, uint32_t catchDexPc, Throwable* exception) {
+void Dbg::PostException(Thread* thread,
+                        JDWP::FrameId throw_frame_id, Method* throw_method, uint32_t throw_dex_pc,
+                        Method* catch_method, uint32_t catch_dex_pc, Throwable* exception) {
   if (!IsDebuggerActive()) {
     return;
   }
 
   JDWP::JdwpLocation throw_location;
-  SetLocation(throw_location, throwMethod, throwDexPc);
+  SetLocation(throw_location, throw_method, throw_dex_pc);
   JDWP::JdwpLocation catch_location;
-  SetLocation(catch_location, catchMethod, catchDexPc);
+  SetLocation(catch_location, catch_method, catch_dex_pc);
 
   // We need 'this' for InstanceOnly filters.
-  JDWP::ObjectId thread_id = gRegistry->Add(thread->GetPeer());
-  JDWP::ObjectId this_id;
-  JDWP::JdwpError get_this_error = GetThisObject(thread_id, throwFrameId, &this_id);
-  CHECK_EQ(get_this_error, JDWP::ERR_NONE);
+  UniquePtr<Context> context(Context::Create());
+  GetThisVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), context.get(), throw_frame_id);
+  visitor.WalkStack();
+  JDWP::ObjectId this_id = gRegistry->Add(visitor.this_object);
 
   /*
    * Hand the event to the JDWP exception handler.  Note we're using the
@@ -1914,18 +1891,20 @@ void Dbg::PostClassPrepare(Class* c) {
   gJdwpState->PostClassPrepare(tag, gRegistry->Add(c), ClassHelper(c).GetDescriptor(), state);
 }
 
-void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
+void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self) {
   if (!IsDebuggerActive() || dex_pc == -2 /* fake method exit */) {
     return;
   }
 
-  Method* m = self->GetCurrentMethod();
+  size_t frame_id;
+  Method* m = self->GetCurrentMethod(NULL, &frame_id);
+  //LOG(INFO) << "UpdateDebugger " << PrettyMethod(m) << "@" << dex_pc << " frame " << frame_id;
 
   if (dex_pc == -1) {
     // We use a pc of -1 to represent method entry, since we might branch back to pc 0 later.
     // This means that for this special notification, there can't be anything else interesting
     // going on, so we're done already.
-    Dbg::PostLocationEvent(m, 0, GetThis(sp), kMethodEntry);
+    Dbg::PostLocationEvent(m, 0, GetThis(self, m, frame_id), kMethodEntry);
     return;
   }
 
@@ -2006,7 +1985,7 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
   // terminates "with a thrown exception".
   if (dex_pc >= 0) {
     const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-    CHECK(code_item != NULL);
+    CHECK(code_item != NULL) << PrettyMethod(m) << " @" << dex_pc;
     CHECK_LT(dex_pc, static_cast<int32_t>(code_item->insns_size_in_code_units_));
     if (Instruction::At(&code_item->insns_[dex_pc])->IsReturn()) {
       event_flags |= kMethodExit;
@@ -2016,7 +1995,7 @@ void Dbg::UpdateDebugger(int32_t dex_pc, Thread* self, Method** sp) {
   // If there's something interesting going on, see if it matches one
   // of the debugger filters.
   if (event_flags != 0) {
-    Dbg::PostLocationEvent(m, dex_pc, GetThis(sp), event_flags);
+    Dbg::PostLocationEvent(m, dex_pc, GetThis(self, m, frame_id), event_flags);
   }
 }
 

@@ -577,7 +577,7 @@ int32_t DexFile::GetLineNumFromPC(const Method* method, uint32_t rel_pc) const {
   }
 
   const CodeItem* code_item = GetCodeItem(method->GetCodeItemOffset());
-  DCHECK(code_item != NULL) << GetLocation();
+  DCHECK(code_item != NULL) << PrettyMethod(method) << " " << GetLocation();
 
   // A method with no line number info should return -1
   LineNumFromPcContext context(rel_pc, -1);

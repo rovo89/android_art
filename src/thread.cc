@@ -1643,7 +1643,7 @@ class ReferenceMapVisitor : public StackVisitor {
         CHECK(reg_bitmap != NULL);
         const VmapTable vmap_table(m->GetVmapTableRaw());
         const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-        DCHECK(code_item != NULL);  // can't be NULL or how would we compile its instructions?
+        DCHECK(code_item != NULL) << PrettyMethod(m); // Can't be NULL or how would we compile its instructions?
         uint32_t core_spills = m->GetCoreSpillMask();
         uint32_t fp_spills = m->GetFpSpillMask();
         size_t frame_size = m->GetFrameSizeInBytes();
