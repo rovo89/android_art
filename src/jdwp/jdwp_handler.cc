@@ -209,7 +209,7 @@ static JdwpError VM_ClassesBySignature(JdwpState*, const uint8_t* buf, int, Expa
  */
 static JdwpError VM_AllThreads(JdwpState*, const uint8_t*, int, ExpandBuf* pReply) {
   std::vector<ObjectId> thread_ids;
-  Dbg::GetThreads(NULL, thread_ids);
+  Dbg::GetThreads(0, thread_ids);
 
   expandBufAdd4BE(pReply, thread_ids.size());
   for (uint32_t i = 0; i < thread_ids.size(); ++i) {
