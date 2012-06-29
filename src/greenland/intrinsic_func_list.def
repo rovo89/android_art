@@ -141,6 +141,26 @@ _EVAL_DEF_INTRINSICS_FUNC(ConstStringFast,
                           _EXPAND_ARG1(kInt32ConstantTy))
 
 //----------------------------------------------------------------------------
+// ConstClass
+//----------------------------------------------------------------------------
+// JavaObject* dex_lang_const_class(uint32_t type_idx)
+_EVAL_DEF_INTRINSICS_FUNC(ConstClass,
+                          dex_lang_const_class,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kJavaObjectTy,
+                          _EXPAND_ARG1(kInt32ConstantTy))
+
+//----------------------------------------------------------------------------
+// CheckCast
+//----------------------------------------------------------------------------
+// void dex_lang_check_cast(uint32_t type_idx, JavaObject* obj)
+_EVAL_DEF_INTRINSICS_FUNC(CheckCast,
+                          dex_lang_check_cast,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32ConstantTy, kJavaObjectTy))
+
+//----------------------------------------------------------------------------
 // Instance
 //----------------------------------------------------------------------------
 
@@ -175,6 +195,13 @@ _EVAL_DEF_INTRINSICS_FUNC(NewArray,
                           kAttrNone,
                           kJavaObjectTy,
                           _EXPAND_ARG2(kInt32ConstantTy, kInt32Ty))
+
+// void dex_lang_fill_array_data(int32_t offset, JavaObject* array)
+_EVAL_DEF_INTRINSICS_FUNC(FillArrayData,
+                          dex_lang_fill_array_data,
+                          kAttrNone,
+                          kVoidTy,
+                          _EXPAND_ARG2(kInt32ConstantTy, kJavaObjectTy))
 
 // dex_lang_aget_* and dex_lang_aput_* never generate exception since the
 // necessary checking on arguments (e.g., array and index) has already done
@@ -598,6 +625,123 @@ _EVAL_DEF_INTRINSICS_FUNC(HLArrayPutShort,
                           _EXPAND_ARG4(kInt32Ty, kInt16Ty, kJavaObjectTy, kInt32Ty))
 
 //----------------------------------------------------------------------------
+// High-level Instance get/put
+//
+// Similar to dex_lang_iget/iput_xxx, but checks not yet performed.
+// OptFlags contain info describing whether frontend has determined that
+// null check may be skipped.
+//
+// [type] void dex_lang_hl_iget_[type](int optFlags, JavaObject* obj, uint32_t field_idx)
+_EVAL_DEF_INTRINSICS_FUNC(HLIGet,
+                          dex_lang_hl_iget,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIGetFloat,
+                          dex_lang_hl_iget_float,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kFloatTy,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIGetWide,
+                          dex_lang_hl_iget_wide,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt64Ty,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIGetDouble,
+                          dex_lang_hl_iget_double,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kDoubleTy,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIGetObject,
+                          dex_lang_hl_iget_object,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kJavaObjectTy,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIGetBoolean,
+                          dex_lang_hl_iget_boolean,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt1Ty,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIGetByte,
+                          dex_lang_hl_iget_byte,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt8Ty,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIGetChar,
+                          dex_lang_hl_iget_char,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt16Ty,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIGetShort,
+                          dex_lang_hl_iget_short,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt16Ty,
+                          _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+// void dex_lang_iput_[type](int optFlags, [type] value, JavaObject* ojb, uint32_t field_idx)
+_EVAL_DEF_INTRINSICS_FUNC(HLIPut,
+                          dex_lang_hl_iput,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kInt32Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIPutFloat,
+                          dex_lang_hl_iput_float,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kFloatTy, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIPutWide,
+                          dex_lang_hl_iput_wide,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kInt64Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIPutDouble,
+                          dex_lang_hl_iput_double,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kDoubleTy, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIPutObject,
+                          dex_lang_hl_iput_object,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kJavaObjectTy, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIPutBoolean,
+                          dex_lang_hl_iput_boolean,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kInt1Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIPutByte,
+                          dex_lang_hl_iput_byte,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kInt8Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIPutChar,
+                          dex_lang_hl_iput_char,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kInt16Ty, kJavaObjectTy, kInt32Ty))
+
+_EVAL_DEF_INTRINSICS_FUNC(HLIPutShort,
+                          dex_lang_hl_iput_short,
+                          kAttrNoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG4(kInt32Ty, kInt16Ty, kJavaObjectTy, kInt32Ty))
+
+//----------------------------------------------------------------------------
 // High-level Invokes (fast-path determination not yet performed)
 //
 // NOTE: We expect these intrinsics to be temporary.  Once calling conventions are
@@ -605,8 +749,8 @@ _EVAL_DEF_INTRINSICS_FUNC(HLArrayPutShort,
 //       InvokeRetxxx() intrinsics in the next section and these will be
 //       removed.
 //
-// arg0: InvokeType
-// arg1: method_idx
+// arg0: InvokeType [ignored if FilledNewArray]
+// arg1: method_idx [ignored if FilledNewArray]
 // arg2: optimization_flags (primary to note whether null checking is needed)
 // [arg3..argN]: actual arguments
 //----------------------------------------------------------------------------
@@ -650,6 +794,13 @@ _EVAL_DEF_INTRINSICS_FUNC(HLInvokeDouble,
                           dex_lang_hl_invoke.f64,
                           kAttrNone,
                           kDoubleTy,
+                          _EXPAND_ARG1(kVarArgTy))
+
+// FILLED_NEW_ARRAY returns object
+_EVAL_DEF_INTRINSICS_FUNC(FilledNewArray,
+                          dex_lang_hl_filled_new_array,
+                          kAttrNone,
+                          kJavaObjectTy,
                           _EXPAND_ARG1(kVarArgTy))
 
 //----------------------------------------------------------------------------
@@ -1040,6 +1191,33 @@ _EVAL_DEF_INTRINSICS_FUNC(CopyDouble,
                           kDoubleTy,
                           _EXPAND_ARG1(kDoubleTy))
 
+//----------------------------------------------------------------------------
+// Conversion instrinsics.  Note: these should eventually be removed.  We
+// can express these directly in bitcode, but by using intrinsics the
+// Quick compiler can be more efficient.  Some extra optimization infrastructure
+// will have to be developed to undo the bitcode verbosity when these are
+// done inline.
+//----------------------------------------------------------------------------
+// int int_to_byte(int)
+_EVAL_DEF_INTRINSICS_FUNC(IntToByte,
+                          dex_lang_int_to_byte,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// int int_to_char(int)
+_EVAL_DEF_INTRINSICS_FUNC(IntToChar,
+                          dex_lang_int_to_char,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG1(kInt32Ty))
+
+// int int_to_short(int)
+_EVAL_DEF_INTRINSICS_FUNC(IntToShort,
+                          dex_lang_int_to_byte,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG1(kInt32Ty))
 
 // Clean up all internal used macros
 #undef _EXPAND_ARG0
