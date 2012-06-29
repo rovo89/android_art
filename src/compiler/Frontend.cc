@@ -772,6 +772,9 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
       || (PrettyMethod(method_idx, dex_file).find("writeArray") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("writeTest") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("copyTest") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("shiftTest1") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("shiftTest2") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("unsignedShiftTest") != std::string::npos)
      ) {
     cUnit->genBitcode = true;
   }
