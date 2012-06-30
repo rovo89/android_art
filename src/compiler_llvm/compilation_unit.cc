@@ -363,6 +363,14 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
 
 
 bool CompilationUnit::ExtractCodeAndPrelink(const std::string& elf_image) {
+  if (GetInstructionSet() == kX86) {
+    compiled_code_.push_back(0xccU);
+    compiled_code_.push_back(0xccU);
+    compiled_code_.push_back(0xccU);
+    compiled_code_.push_back(0xccU);
+    return true;
+  }
+
   llvm::OwningPtr<llvm::MemoryBuffer> elf_image_buff(
     llvm::MemoryBuffer::getMemBuffer(llvm::StringRef(elf_image.data(),
                                                      elf_image.size())));
