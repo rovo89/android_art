@@ -280,10 +280,11 @@ class StackVisitor {
 
   uintptr_t GetGPR(uint32_t reg) const;
 
-  uint32_t GetVReg(const DexFile::CodeItem* code_item, uint32_t core_spills,
-                   uint32_t fp_spills, size_t frame_size, int vreg) const {
+  uint32_t GetVReg(Method** cur_quick_frame, const DexFile::CodeItem* code_item,
+                   uint32_t core_spills, uint32_t fp_spills, size_t frame_size, int vreg) const {
     int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
-    byte* vreg_addr = reinterpret_cast<byte*>(GetCurrentQuickFrame()) + offset;
+    DCHECK_EQ(cur_quick_frame, GetCurrentQuickFrame());
+    byte* vreg_addr = reinterpret_cast<byte*>(cur_quick_frame) + offset;
     return *reinterpret_cast<uint32_t*>(vreg_addr);
   }
 
