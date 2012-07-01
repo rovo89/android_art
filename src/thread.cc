@@ -1650,6 +1650,8 @@ class ReferenceMapVisitor : public StackVisitor {
         // For all dex registers in the bitmap
         size_t num_regs = std::min(map.RegWidth() * 8,
                                    static_cast<size_t>(code_item->registers_size_));
+        Method** cur_quick_frame = GetCurrentQuickFrame();
+        DCHECK(cur_quick_frame != NULL);
         for (size_t reg = 0; reg < num_regs; ++reg) {
           // Does this register hold a reference?
           if (TestBitmap(reg, reg_bitmap)) {
@@ -1670,8 +1672,8 @@ class ReferenceMapVisitor : public StackVisitor {
               spill_shifts--;  // wind back one as we want the last match
               ref = reinterpret_cast<Object*>(GetGPR(spill_shifts));
             } else {
-              ref = reinterpret_cast<Object*>(GetVReg(code_item, core_spills, fp_spills,
-                                                      frame_size, reg));
+              ref = reinterpret_cast<Object*>(GetVReg(cur_quick_frame, code_item, core_spills,
+                                                      fp_spills, frame_size, reg));
             }
             if (ref != NULL) {
               root_visitor_(ref, arg_);

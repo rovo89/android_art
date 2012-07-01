@@ -106,55 +106,65 @@ uint32_t StackVisitor::GetDexPc() const {
 }
 
 uint32_t StackVisitor::GetVReg(Method* m, int vreg) const {
-  DCHECK(context_ != NULL); // You can't reliably read registers without a context.
-  DCHECK(m == GetMethod());
-  uint32_t core_spills = m->GetCoreSpillMask();
-  const VmapTable vmap_table(m->GetVmapTableRaw());
-  uint32_t vmap_offset;
-  // TODO: IsInContext stops before spotting floating point registers.
-  if (vmap_table.IsInContext(vreg, vmap_offset)) {
-    // Compute the register we need to load from the context.
-    uint32_t spill_mask = core_spills;
-    CHECK_LT(vmap_offset, static_cast<uint32_t>(__builtin_popcount(spill_mask)));
-    uint32_t matches = 0;
-    uint32_t spill_shifts = 0;
-    while (matches != (vmap_offset + 1)) {
-      DCHECK_NE(spill_mask, 0u);
-      matches += spill_mask & 1;  // Add 1 if the low bit is set.
-      spill_mask >>= 1;
-      spill_shifts++;
+  if (cur_quick_frame_ != NULL) {
+    DCHECK(context_ != NULL); // You can't reliably read registers without a context.
+    DCHECK(m == GetMethod());
+    uint32_t core_spills = m->GetCoreSpillMask();
+    const VmapTable vmap_table(m->GetVmapTableRaw());
+    uint32_t vmap_offset;
+    // TODO: IsInContext stops before spotting floating point registers.
+    if (vmap_table.IsInContext(vreg, vmap_offset)) {
+      // Compute the register we need to load from the context.
+      uint32_t spill_mask = core_spills;
+      CHECK_LT(vmap_offset, static_cast<uint32_t>(__builtin_popcount(spill_mask)));
+      uint32_t matches = 0;
+      uint32_t spill_shifts = 0;
+      while (matches != (vmap_offset + 1)) {
+        DCHECK_NE(spill_mask, 0u);
+        matches += spill_mask & 1;  // Add 1 if the low bit is set.
+        spill_mask >>= 1;
+        spill_shifts++;
+      }
+      spill_shifts--;  // Wind back one as we want the last match.
+      return GetGPR(spill_shifts);
+    } else {
+      const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+      DCHECK(code_item != NULL) << PrettyMethod(m); // Can't be NULL or how would we compile its instructions?
+      uint32_t fp_spills = m->GetFpSpillMask();
+      size_t frame_size = m->GetFrameSizeInBytes();
+      return GetVReg(cur_quick_frame_, code_item, core_spills, fp_spills, frame_size, vreg);
     }
-    spill_shifts--;  // Wind back one as we want the last match.
-    return GetGPR(spill_shifts);
   } else {
-    const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-    DCHECK(code_item != NULL) << PrettyMethod(m); // Can't be NULL or how would we compile its instructions?
-    uint32_t fp_spills = m->GetFpSpillMask();
-    size_t frame_size = m->GetFrameSizeInBytes();
-    return GetVReg(code_item, core_spills, fp_spills, frame_size, vreg);
+    LOG(FATAL) << "Unimplemented - shadow frame GetVReg";
+    return 0;  // Keep GCC happy.
   }
 }
 
 void StackVisitor::SetVReg(Method* m, int vreg, uint32_t new_value) {
-  DCHECK(context_ != NULL); // You can't reliably write registers without a context.
-  DCHECK(m == GetMethod());
-  const VmapTable vmap_table(m->GetVmapTableRaw());
-  uint32_t vmap_offset;
-  // TODO: IsInContext stops before spotting floating point registers.
-  if (vmap_table.IsInContext(vreg, vmap_offset)) {
-    UNIMPLEMENTED(FATAL);
+  if (cur_quick_frame_ != NULL) {
+    DCHECK(context_ != NULL); // You can't reliably write registers without a context.
+    DCHECK(m == GetMethod());
+    const VmapTable vmap_table(m->GetVmapTableRaw());
+    uint32_t vmap_offset;
+    // TODO: IsInContext stops before spotting floating point registers.
+    if (vmap_table.IsInContext(vreg, vmap_offset)) {
+      UNIMPLEMENTED(FATAL);
+    }
+    const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
+    DCHECK(code_item != NULL) << PrettyMethod(m); // Can't be NULL or how would we compile its instructions?
+    uint32_t core_spills = m->GetCoreSpillMask();
+    uint32_t fp_spills = m->GetFpSpillMask();
+    size_t frame_size = m->GetFrameSizeInBytes();
+    int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
+    byte* vreg_addr = reinterpret_cast<byte*>(GetCurrentQuickFrame()) + offset;
+    *reinterpret_cast<uint32_t*>(vreg_addr) = new_value;
+  } else {
+    LOG(FATAL) << "Unimplemented - shadow frame SetVReg";
   }
-  const DexFile::CodeItem* code_item = MethodHelper(m).GetCodeItem();
-  DCHECK(code_item != NULL) << PrettyMethod(m); // Can't be NULL or how would we compile its instructions?
-  uint32_t core_spills = m->GetCoreSpillMask();
-  uint32_t fp_spills = m->GetFpSpillMask();
-  size_t frame_size = m->GetFrameSizeInBytes();
-  int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg);
-  byte* vreg_addr = reinterpret_cast<byte*>(GetCurrentQuickFrame()) + offset;
-  *reinterpret_cast<uint32_t*>(vreg_addr) = new_value;
 }
 
 uintptr_t StackVisitor::GetGPR(uint32_t reg) const {
+  DCHECK (cur_quick_frame_ != NULL) << "This is a quick frame routine";
   return context_->GetGPR(reg);
 }
 
