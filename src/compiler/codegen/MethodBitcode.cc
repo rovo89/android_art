@@ -254,14 +254,16 @@ void convertMonitorEnterExit(CompilationUnit* cUnit, int optFlags,
   cUnit->irb->CreateCall(func, args);
 }
 
-void convertArrayLength(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
+void convertArrayLength(CompilationUnit* cUnit, int optFlags,
+                        RegLocation rlDest, RegLocation rlSrc)
 {
   llvm::SmallVector<llvm::Value*, 2> args;
   args.push_back(cUnit->irb->getInt32(optFlags));
   args.push_back(getLLVMValue(cUnit, rlSrc.origSReg));
   llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
       greenland::IntrinsicHelper::ArrayLength);
-  cUnit->irb->CreateCall(func, args);
+  llvm::Value* res = cUnit->irb->CreateCall(func, args);
+  defineValue(cUnit, res, rlDest.origSReg);
 }
 
 void convertThrowVerificationError(CompilationUnit* cUnit, int info1, int info2)
@@ -287,6 +289,7 @@ llvm::Value* convertCompare(CompilationUnit* cUnit, ConditionCode cc,
                             llvm::Value* src1, llvm::Value* src2)
 {
   llvm::Value* res = NULL;
+  DCHECK_EQ(src1->getType(), src2->getType());
   switch(cc) {
     case kCondEq: res = cUnit->irb->CreateICmpEQ(src1, src2); break;
     case kCondNe: res = cUnit->irb->CreateICmpNE(src1, src2); break;
@@ -465,7 +468,7 @@ void convertArithOpLit(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
  * The requirements are similar.
  */
 void convertInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
-                   InvokeType invokeType, bool isRange, bool isNewArray)
+                   InvokeType invokeType, bool isRange, bool isFilledNewArray)
 {
   CallInfo* info = oatNewCallInfo(cUnit, bb, mir, invokeType, isRange);
   llvm::SmallVector<llvm::Value*, 10> args;
@@ -493,8 +496,8 @@ void convertInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
    * is not used, we'll treat this as a void invoke.
    */
   greenland::IntrinsicHelper::IntrinsicId id;
-  if (isNewArray) {
-    id = greenland::IntrinsicHelper::NewArray;
+  if (isFilledNewArray) {
+    id = greenland::IntrinsicHelper::FilledNewArray;
   } else if (info->result.location == kLocInvalid) {
     id = greenland::IntrinsicHelper::HLInvokeVoid;
   } else {
@@ -638,13 +641,92 @@ void convertIntToLong(CompilationUnit* cUnit, RegLocation rlDest,
   defineValue(cUnit, res, rlDest.origSReg);
 }
 
+void convertLongToInt(CompilationUnit* cUnit, RegLocation rlDest,
+                      RegLocation rlSrc)
+{
+  llvm::Value* src = getLLVMValue(cUnit, rlSrc.origSReg);
+  llvm::Value* res = cUnit->irb->CreateTrunc(src, cUnit->irb->getInt32Ty());
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertFloatToDouble(CompilationUnit* cUnit, RegLocation rlDest,
+                          RegLocation rlSrc)
+{
+  llvm::Value* src = getLLVMValue(cUnit, rlSrc.origSReg);
+  llvm::Value* res = cUnit->irb->CreateFPExt(src, cUnit->irb->getDoubleTy());
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertDoubleToFloat(CompilationUnit* cUnit, RegLocation rlDest,
+                          RegLocation rlSrc)
+{
+  llvm::Value* src = getLLVMValue(cUnit, rlSrc.origSReg);
+  llvm::Value* res = cUnit->irb->CreateFPTrunc(src, cUnit->irb->getFloatTy());
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertWideComparison(CompilationUnit* cUnit,
+                           greenland::IntrinsicHelper::IntrinsicId id,
+                           RegLocation rlDest, RegLocation rlSrc1,
+                           RegLocation rlSrc2)
+{
+  DCHECK_EQ(rlSrc1.fp, rlSrc2.fp);
+  DCHECK_EQ(rlSrc1.wide, rlSrc2.wide);
+  llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+  llvm::SmallVector<llvm::Value*, 2> args;
+  args.push_back(getLLVMValue(cUnit, rlSrc1.origSReg));
+  args.push_back(getLLVMValue(cUnit, rlSrc2.origSReg));
+  llvm::Value* res = cUnit->irb->CreateCall(intr, args);
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
 void convertIntNarrowing(CompilationUnit* cUnit, RegLocation rlDest,
                          RegLocation rlSrc,
                          greenland::IntrinsicHelper::IntrinsicId id)
 {
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
-  llvm::Value* res = cUnit->irb->CreateCall(intr,
-                                            getLLVMValue(cUnit, rlSrc.origSReg));
+  llvm::Value* res =
+      cUnit->irb->CreateCall(intr, getLLVMValue(cUnit, rlSrc.origSReg));
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertNeg(CompilationUnit* cUnit, RegLocation rlDest,
+                RegLocation rlSrc)
+{
+  llvm::Value* res = cUnit->irb->CreateNeg(getLLVMValue(cUnit, rlSrc.origSReg));
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertIntToFP(CompilationUnit* cUnit, llvm::Type* ty, RegLocation rlDest,
+                    RegLocation rlSrc)
+{
+  llvm::Value* res =
+      cUnit->irb->CreateSIToFP(getLLVMValue(cUnit, rlSrc.origSReg), ty);
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertFPToInt(CompilationUnit* cUnit, llvm::Type* ty, RegLocation rlDest,
+                    RegLocation rlSrc)
+{
+  llvm::Value* res =
+      cUnit->irb->CreateFPToSI(getLLVMValue(cUnit, rlSrc.origSReg), ty);
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+
+void convertNegFP(CompilationUnit* cUnit, RegLocation rlDest,
+                RegLocation rlSrc)
+{
+  llvm::Value* res =
+      cUnit->irb->CreateFNeg(getLLVMValue(cUnit, rlSrc.origSReg));
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertNot(CompilationUnit* cUnit, RegLocation rlDest,
+                RegLocation rlSrc)
+{
+  llvm::Value* src = getLLVMValue(cUnit, rlSrc.origSReg);
+  llvm::Value* res = cUnit->irb->CreateXor(src, static_cast<uint64_t>(-1));
   defineValue(cUnit, res, rlDest.origSReg);
 }
 
@@ -717,6 +799,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
     case Instruction::MOVE_OBJECT:
     case Instruction::MOVE_16:
     case Instruction::MOVE_OBJECT_16:
+    case Instruction::MOVE_OBJECT_FROM16:
     case Instruction::MOVE_FROM16:
     case Instruction::MOVE_WIDE:
     case Instruction::MOVE_WIDE_16:
@@ -745,7 +828,9 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
 
     case Instruction::CONST_WIDE_16:
     case Instruction::CONST_WIDE_32: {
-        llvm::Constant* immValue = cUnit->irb->GetJLong(vB);
+        // Sign extend to 64 bits
+        int64_t imm = static_cast<int32_t>(vB);
+        llvm::Constant* immValue = cUnit->irb->GetJLong(imm);
         llvm::Value* res = emitConst(cUnit, immValue, rlDest);
         defineValue(cUnit, res, rlDest.origSReg);
       }
@@ -774,36 +859,36 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       break;
 
     case Instruction::SPUT_OBJECT:
-      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputObject,
+      convertSput(cUnit, vB, greenland::IntrinsicHelper::HLSputObject,
                   rlSrc[0]);
       break;
     case Instruction::SPUT:
       if (rlSrc[0].fp) {
-        convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputFloat,
+        convertSput(cUnit, vB, greenland::IntrinsicHelper::HLSputFloat,
                     rlSrc[0]);
       } else {
-        convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSput, rlSrc[0]);
+        convertSput(cUnit, vB, greenland::IntrinsicHelper::HLSput, rlSrc[0]);
       }
       break;
     case Instruction::SPUT_BOOLEAN:
-      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputBoolean,
+      convertSput(cUnit, vB, greenland::IntrinsicHelper::HLSputBoolean,
                   rlSrc[0]);
       break;
     case Instruction::SPUT_BYTE:
-      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputByte, rlSrc[0]);
+      convertSput(cUnit, vB, greenland::IntrinsicHelper::HLSputByte, rlSrc[0]);
       break;
     case Instruction::SPUT_CHAR:
-      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputChar, rlSrc[0]);
+      convertSput(cUnit, vB, greenland::IntrinsicHelper::HLSputChar, rlSrc[0]);
       break;
     case Instruction::SPUT_SHORT:
-      convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputShort, rlSrc[0]);
+      convertSput(cUnit, vB, greenland::IntrinsicHelper::HLSputShort, rlSrc[0]);
       break;
     case Instruction::SPUT_WIDE:
       if (rlSrc[0].fp) {
-        convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputDouble,
+        convertSput(cUnit, vB, greenland::IntrinsicHelper::HLSputDouble,
                     rlSrc[0]);
       } else {
-        convertSget(cUnit, vB, greenland::IntrinsicHelper::HLSputWide,
+        convertSput(cUnit, vB, greenland::IntrinsicHelper::HLSputWide,
                     rlSrc[0]);
       }
       break;
@@ -1161,7 +1246,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       break;
 
     case Instruction::ARRAY_LENGTH:
-      convertArrayLength(cUnit, optFlags, rlSrc[0]);
+      convertArrayLength(cUnit, optFlags, rlDest, rlSrc[0]);
       break;
 
     case Instruction::NEW_ARRAY:
@@ -1337,6 +1422,10 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       convertFillArrayData(cUnit, vB, rlSrc[0]);
       break;
 
+    case Instruction::LONG_TO_INT:
+      convertLongToInt(cUnit, rlDest, rlSrc[0]);
+      break;
+
     case Instruction::INT_TO_LONG:
       convertIntToLong(cUnit, rlDest, rlSrc[0]);
       break;
@@ -1354,64 +1443,78 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
                           greenland::IntrinsicHelper::IntToShort);
       break;
 
-#if 0
-
-    case Instruction::PACKED_SWITCH:
-      genPackedSwitch(cUnit, mir, rlSrc[0]);
+    case Instruction::INT_TO_FLOAT:
+    case Instruction::LONG_TO_FLOAT:
+      convertIntToFP(cUnit, cUnit->irb->getFloatTy(), rlDest, rlSrc[0]);
       break;
 
-    case Instruction::SPARSE_SWITCH:
-      genSparseSwitch(cUnit, mir, rlSrc[0], labelList);
+    case Instruction::INT_TO_DOUBLE:
+    case Instruction::LONG_TO_DOUBLE:
+      convertIntToFP(cUnit, cUnit->irb->getDoubleTy(), rlDest, rlSrc[0]);
       break;
 
-    case Instruction::CMPL_FLOAT:
-    case Instruction::CMPG_FLOAT:
-    case Instruction::CMPL_DOUBLE:
-    case Instruction::CMPG_DOUBLE:
-      res = genCmpFP(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
+    case Instruction::FLOAT_TO_DOUBLE:
+      convertFloatToDouble(cUnit, rlDest, rlSrc[0]);
       break;
 
-    case Instruction::CMP_LONG:
-      genCmpLong(cUnit, mir, rlDest, rlSrc[0], rlSrc[1]);
-      break;
-
-    case Instruction::NEG_INT:
-    case Instruction::NOT_INT:
-      res = genArithOpInt(cUnit, mir, rlDest, rlSrc[0], rlSrc[0]);
+    case Instruction::DOUBLE_TO_FLOAT:
+      convertDoubleToFloat(cUnit, rlDest, rlSrc[0]);
       break;
 
     case Instruction::NEG_LONG:
-    case Instruction::NOT_LONG:
-      res = genArithOpLong(cUnit, mir, rlDest, rlSrc[0], rlSrc[0]);
+    case Instruction::NEG_INT:
+      convertNeg(cUnit, rlDest, rlSrc[0]);
       break;
 
     case Instruction::NEG_FLOAT:
-      res = genArithOpFloat(cUnit, mir, rlDest, rlSrc[0], rlSrc[0]);
-      break;
-
     case Instruction::NEG_DOUBLE:
-      res = genArithOpDouble(cUnit, mir, rlDest, rlSrc[0], rlSrc[0]);
+      convertNegFP(cUnit, rlDest, rlSrc[0]);
       break;
 
-    case Instruction::LONG_TO_INT:
-      rlSrc[0] = oatUpdateLocWide(cUnit, rlSrc[0]);
-      rlSrc[0] = oatWideToNarrow(cUnit, rlSrc[0]);
-      storeValue(cUnit, rlDest, rlSrc[0]);
+    case Instruction::NOT_LONG:
+    case Instruction::NOT_INT:
+      convertNot(cUnit, rlDest, rlSrc[0]);
       break;
 
-    case Instruction::INT_TO_FLOAT:
-    case Instruction::INT_TO_DOUBLE:
-    case Instruction::LONG_TO_FLOAT:
-    case Instruction::LONG_TO_DOUBLE:
     case Instruction::FLOAT_TO_INT:
-    case Instruction::FLOAT_TO_LONG:
-    case Instruction::FLOAT_TO_DOUBLE:
     case Instruction::DOUBLE_TO_INT:
-    case Instruction::DOUBLE_TO_LONG:
-    case Instruction::DOUBLE_TO_FLOAT:
-      genConversion(cUnit, mir);
+      convertFPToInt(cUnit, cUnit->irb->getInt32Ty(), rlDest, rlSrc[0]);
       break;
 
+    case Instruction::FLOAT_TO_LONG:
+    case Instruction::DOUBLE_TO_LONG:
+      convertFPToInt(cUnit, cUnit->irb->getInt64Ty(), rlDest, rlSrc[0]);
+      break;
+
+    case Instruction::CMPL_FLOAT:
+      convertWideComparison(cUnit, greenland::IntrinsicHelper::CmplFloat,
+                            rlDest, rlSrc[0], rlSrc[1]);
+      break;
+    case Instruction::CMPG_FLOAT:
+      convertWideComparison(cUnit, greenland::IntrinsicHelper::CmpgFloat,
+                            rlDest, rlSrc[0], rlSrc[1]);
+      break;
+    case Instruction::CMPL_DOUBLE:
+      convertWideComparison(cUnit, greenland::IntrinsicHelper::CmplDouble,
+                            rlDest, rlSrc[0], rlSrc[1]);
+      break;
+    case Instruction::CMPG_DOUBLE:
+      convertWideComparison(cUnit, greenland::IntrinsicHelper::CmpgDouble,
+                            rlDest, rlSrc[0], rlSrc[1]);
+      break;
+    case Instruction::CMP_LONG:
+      convertWideComparison(cUnit, greenland::IntrinsicHelper::CmpLong,
+                            rlDest, rlSrc[0], rlSrc[1]);
+      break;
+
+#if 0
+    case Instruction::PACKED_SWITCH:
+      genPackedSwitch(cUnit, vB, rlSrc[0]);
+      break;
+
+    case Instruction::SPARSE_SWITCH:
+      genSparseSwitch(cUnit, vB, rlSrc[0], labelList);
+      break;
 #endif
 
     default:
@@ -1480,7 +1583,7 @@ void convertExtendedMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 void setDexOffset(CompilationUnit* cUnit, int32_t offset)
 {
   cUnit->currentDalvikOffset = offset;
-  llvm::SmallVector<llvm::Value*, 1>arrayRef;
+  llvm::SmallVector<llvm::Value*, 1> arrayRef;
   arrayRef.push_back(cUnit->irb->getInt32(offset));
   llvm::MDNode* node = llvm::MDNode::get(*cUnit->context, arrayRef);
   cUnit->irb->SetDexOffset(node);
@@ -1902,6 +2005,72 @@ void cvtIntNarrowing(CompilationUnit* cUnit, llvm::Instruction* inst,
   genIntNarrowing(cUnit, opcode, rlDest, rlSrc);
 }
 
+void cvtIntToFP(CompilationUnit* cUnit, llvm::Instruction* inst)
+{
+  RegLocation rlDest = getLoc(cUnit, inst);
+  RegLocation rlSrc = getLoc(cUnit, inst->getOperand(0));
+  Instruction::Code opcode;
+  if (rlDest.wide) {
+    if (rlSrc.wide) {
+      opcode = Instruction::LONG_TO_DOUBLE;
+    } else {
+      opcode = Instruction::INT_TO_DOUBLE;
+    }
+  } else {
+    if (rlSrc.wide) {
+      opcode = Instruction::LONG_TO_FLOAT;
+    } else {
+      opcode = Instruction::INT_TO_FLOAT;
+    }
+  }
+  genConversion(cUnit, opcode, rlDest, rlSrc);
+}
+
+void cvtFPToInt(CompilationUnit* cUnit, llvm::Instruction* inst)
+{
+  RegLocation rlDest = getLoc(cUnit, inst);
+  RegLocation rlSrc = getLoc(cUnit, inst->getOperand(0));
+  Instruction::Code opcode;
+  if (rlDest.wide) {
+    if (rlSrc.wide) {
+      opcode = Instruction::DOUBLE_TO_LONG;
+    } else {
+      opcode = Instruction::FLOAT_TO_LONG;
+    }
+  } else {
+    if (rlSrc.wide) {
+      opcode = Instruction::DOUBLE_TO_INT;
+    } else {
+      opcode = Instruction::FLOAT_TO_INT;
+    }
+  }
+  genConversion(cUnit, opcode, rlDest, rlSrc);
+}
+
+void cvtFloatToDouble(CompilationUnit* cUnit, llvm::Instruction* inst)
+{
+  RegLocation rlDest = getLoc(cUnit, inst);
+  RegLocation rlSrc = getLoc(cUnit, inst->getOperand(0));
+  genConversion(cUnit, Instruction::FLOAT_TO_DOUBLE, rlDest, rlSrc);
+}
+
+void cvtTrunc(CompilationUnit* cUnit, llvm::Instruction* inst)
+{
+  RegLocation rlDest = getLoc(cUnit, inst);
+  RegLocation rlSrc = getLoc(cUnit, inst->getOperand(0));
+  rlSrc = oatUpdateLocWide(cUnit, rlSrc);
+  rlSrc = oatWideToNarrow(cUnit, rlSrc);
+  storeValue(cUnit, rlDest, rlSrc);
+}
+
+void cvtDoubleToFloat(CompilationUnit* cUnit, llvm::Instruction* inst)
+{
+  RegLocation rlDest = getLoc(cUnit, inst);
+  RegLocation rlSrc = getLoc(cUnit, inst->getOperand(0));
+  genConversion(cUnit, Instruction::DOUBLE_TO_FLOAT, rlDest, rlSrc);
+}
+
+
 void cvtIntExt(CompilationUnit* cUnit, llvm::Instruction* inst, bool isSigned)
 {
   // TODO: evaluate src/tgt types and add general support for more than int to long
@@ -2094,6 +2263,8 @@ void cvtCopy(CompilationUnit* cUnit, llvm::CallInst* callInst)
   DCHECK_EQ(callInst->getNumArgOperands(), 1U);
   RegLocation rlSrc = getLoc(cUnit, callInst->getArgOperand(0));
   RegLocation rlDest = getLoc(cUnit, callInst);
+  DCHECK_EQ(rlSrc.wide, rlDest.wide);
+  DCHECK_EQ(rlSrc.fp, rlDest.fp);
   if (rlSrc.wide) {
     storeValueWide(cUnit, rlDest, rlSrc);
   } else {
@@ -2211,7 +2382,7 @@ void cvtMonitorEnterExit(CompilationUnit* cUnit, bool isEnter,
   }
 }
 
-void cvtMonitorArrayLength(CompilationUnit* cUnit, llvm::CallInst* callInst)
+void cvtArrayLength(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 2U);
   llvm::ConstantInt* optFlags =
@@ -2332,8 +2503,25 @@ void cvtCheckCast(CompilationUnit* cUnit, llvm::CallInst* callInst)
   genCheckCast(cUnit, typeIdx->getZExtValue(), rlSrc);
 }
 
+void cvtFPCompare(CompilationUnit* cUnit, llvm::CallInst* callInst,
+                  Instruction::Code opcode)
+{
+  RegLocation rlSrc1 = getLoc(cUnit, callInst->getArgOperand(0));
+  RegLocation rlSrc2 = getLoc(cUnit, callInst->getArgOperand(1));
+  RegLocation rlDest = getLoc(cUnit, callInst);
+  genCmpFP(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
+}
+
+void cvtLongCompare(CompilationUnit* cUnit, llvm::CallInst* callInst)
+{
+  RegLocation rlSrc1 = getLoc(cUnit, callInst->getArgOperand(0));
+  RegLocation rlSrc2 = getLoc(cUnit, callInst->getArgOperand(1));
+  RegLocation rlDest = getLoc(cUnit, callInst);
+  genCmpLong(cUnit, rlDest, rlSrc1, rlSrc2);
+}
+
 void cvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
-               bool isVoid, bool isNewArray)
+               bool isVoid, bool isFilledNewArray)
 {
   CallInfo* info = (CallInfo*)oatNew(cUnit, sizeof(CallInfo), true,
                                          kAllocMisc);
@@ -2378,7 +2566,7 @@ void cvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
     }
     next++;
   }
-  if (isNewArray) {
+  if (isFilledNewArray) {
     genFilledNewArray(cUnit, info);
   } else {
     genInvoke(cUnit, info);
@@ -2570,6 +2758,18 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
             case greenland::IntrinsicHelper::HLSgetDouble:
               cvtSget(cUnit, callInst, true /* wide */, false /* Object */);
               break;
+            case greenland::IntrinsicHelper::HLSput:
+            case greenland::IntrinsicHelper::HLSputFloat:
+            case greenland::IntrinsicHelper::HLSputBoolean:
+            case greenland::IntrinsicHelper::HLSputByte:
+            case greenland::IntrinsicHelper::HLSputChar:
+            case greenland::IntrinsicHelper::HLSputShort:
+              cvtSput(cUnit, callInst, false /* wide */, false /* Object */);
+              break;
+            case greenland::IntrinsicHelper::HLSputWide:
+            case greenland::IntrinsicHelper::HLSputDouble:
+              cvtSput(cUnit, callInst, true /* wide */, false /* Object */);
+              break;
             case greenland::IntrinsicHelper::GetException:
               cvtMoveException(cUnit, callInst);
               break;
@@ -2586,7 +2786,7 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               cvtMonitorEnterExit(cUnit, false /* isEnter */, callInst);
               break;
             case greenland::IntrinsicHelper::ArrayLength:
-              cvtMonitorArrayLength(cUnit, callInst);
+              cvtArrayLength(cUnit, callInst);
               break;
             case greenland::IntrinsicHelper::NewArray:
               cvtNewArray(cUnit, callInst);
@@ -2705,6 +2905,23 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               cvtIntNarrowing(cUnit, callInst, Instruction::INT_TO_BYTE);
               break;
 
+            case greenland::IntrinsicHelper::CmplFloat:
+              cvtFPCompare(cUnit, callInst, Instruction::CMPL_FLOAT);
+              break;
+            case greenland::IntrinsicHelper::CmpgFloat:
+              cvtFPCompare(cUnit, callInst, Instruction::CMPG_FLOAT);
+              break;
+            case greenland::IntrinsicHelper::CmplDouble:
+              cvtFPCompare(cUnit, callInst, Instruction::CMPL_DOUBLE);
+              break;
+            case greenland::IntrinsicHelper::CmpgDouble:
+              cvtFPCompare(cUnit, callInst, Instruction::CMPG_DOUBLE);
+              break;
+
+            case greenland::IntrinsicHelper::CmpLong:
+              cvtLongCompare(cUnit, callInst);
+              break;
+
             case greenland::IntrinsicHelper::UnknownId:
               cvtCall(cUnit, callInst, callee);
               break;
@@ -2734,6 +2951,11 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
       case llvm::Instruction::FMul: cvtBinFPOp(cUnit, kOpMul, inst); break;
       case llvm::Instruction::FDiv: cvtBinFPOp(cUnit, kOpDiv, inst); break;
       case llvm::Instruction::FRem: cvtBinFPOp(cUnit, kOpRem, inst); break;
+      case llvm::Instruction::SIToFP: cvtIntToFP(cUnit, inst); break;
+      case llvm::Instruction::FPToSI: cvtFPToInt(cUnit, inst); break;
+      case llvm::Instruction::FPTrunc: cvtDoubleToFloat(cUnit, inst); break;
+      case llvm::Instruction::FPExt: cvtFloatToDouble(cUnit, inst); break;
+      case llvm::Instruction::Trunc: cvtTrunc(cUnit, inst); break;
 
       case llvm::Instruction::ZExt: cvtIntExt(cUnit, inst, false /* signed */);
         break;
@@ -2744,20 +2966,12 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
         break;  // FIXME: can we really ignore these?
 
       case llvm::Instruction::Invoke:
-      case llvm::Instruction::Trunc:
       case llvm::Instruction::FPToUI:
-      case llvm::Instruction::FPToSI:
       case llvm::Instruction::UIToFP:
-      case llvm::Instruction::SIToFP:
-      case llvm::Instruction::FPTrunc:
-      case llvm::Instruction::FPExt:
       case llvm::Instruction::PtrToInt:
       case llvm::Instruction::IntToPtr:
       case llvm::Instruction::Switch:
       case llvm::Instruction::FCmp:
-        UNIMPLEMENTED(FATAL) << "Unimplemented llvm opcode: " << opcode;
-        break;
-
       case llvm::Instruction::URem:
       case llvm::Instruction::UDiv:
       case llvm::Instruction::Resume:
