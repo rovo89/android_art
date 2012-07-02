@@ -175,7 +175,7 @@ _EVAL_DEF_INTRINSICS_FUNC(NewInstance,
 _EVAL_DEF_INTRINSICS_FUNC(InstanceOf,
                           dex_lang_instance_of,
                           kAttrNone,
-                          kInt1Ty,
+                          kInt32Ty,
                           _EXPAND_ARG2(kInt32Ty, kJavaObjectTy))
 
 //----------------------------------------------------------------------------
@@ -686,7 +686,7 @@ _EVAL_DEF_INTRINSICS_FUNC(HLIGetShort,
                           kInt32Ty,
                           _EXPAND_ARG3(kInt32Ty, kJavaObjectTy, kInt32Ty))
 
-// void dex_lang_iput_[type](int optFlags, [type] value, JavaObject* ojb, uint32_t field_idx)
+// void dex_lang_iput_[type](int optFlags, [type] value, JavaObject* obj, uint32_t field_idx)
 _EVAL_DEF_INTRINSICS_FUNC(HLIPut,
                           dex_lang_hl_iput,
                           kAttrNoThrow,

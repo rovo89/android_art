@@ -333,7 +333,6 @@ void convertCompareZeroAndBranch(CompilationUnit* cUnit, BasicBlock* bb,
     src2 = cUnit->irb->getInt32(0);
   }
   llvm::Value* condValue = convertCompare(cUnit, cc, src1, src2);
-  condValue->setName(StringPrintf("t%d", cUnit->tempName++));
   cUnit->irb->CreateCondBr(condValue, getLLVMBlock(cUnit, bb->taken->id),
                            getLLVMBlock(cUnit, bb->fallThrough->id));
   // Don't redo the fallthrough branch in the BB driver
@@ -429,6 +428,7 @@ void convertArithOp(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
 {
   llvm::Value* src1 = getLLVMValue(cUnit, rlSrc1.origSReg);
   llvm::Value* src2 = getLLVMValue(cUnit, rlSrc2.origSReg);
+  DCHECK_EQ(src1->getType(), src2->getType());
   llvm::Value* res = genArithOp(cUnit, op, rlDest.wide, src1, src2);
   defineValue(cUnit, res, rlDest.origSReg);
 }
@@ -479,13 +479,7 @@ void convertInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   // Insert the optimization flags
   args.push_back(cUnit->irb->getInt32(info->optFlags));
   // Now, insert the actual arguments
-  if (cUnit->printMe) {
-    LOG(INFO) << "Building Invoke info";
-  }
   for (int i = 0; i < info->numArgWords;) {
-    if (cUnit->printMe) {
-      oatDumpRegLoc(info->args[i]);
-    }
     llvm::Value* val = getLLVMValue(cUnit, info->args[i].origSReg);
     args.push_back(val);
     i += info->args[i].wide ? 2 : 1;
@@ -1344,39 +1338,39 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
     case Instruction::IGET:
       if (rlDest.fp) {
         convertIget(cUnit, optFlags, greenland::IntrinsicHelper::HLIGetFloat,
-                    rlSrc[0], rlSrc[1], vC);
+                    rlDest, rlSrc[0], vC);
       } else {
         convertIget(cUnit, optFlags, greenland::IntrinsicHelper::HLIGet,
-                    rlSrc[0], rlSrc[1], vC);
+                    rlDest, rlSrc[0], vC);
       }
       break;
     case Instruction::IGET_OBJECT:
       convertIget(cUnit, optFlags, greenland::IntrinsicHelper::HLIGetObject,
-                  rlSrc[0], rlSrc[1], vC);
+                  rlDest, rlSrc[0], vC);
       break;
     case Instruction::IGET_BOOLEAN:
       convertIget(cUnit, optFlags, greenland::IntrinsicHelper::HLIGetBoolean,
-                  rlSrc[0], rlSrc[1], vC);
+                  rlDest, rlSrc[0], vC);
       break;
     case Instruction::IGET_BYTE:
       convertIget(cUnit, optFlags, greenland::IntrinsicHelper::HLIGetByte,
-                  rlSrc[0], rlSrc[1], vC);
+                  rlDest, rlSrc[0], vC);
       break;
     case Instruction::IGET_CHAR:
       convertIget(cUnit, optFlags, greenland::IntrinsicHelper::HLIGetChar,
-                  rlSrc[0], rlSrc[1], vC);
+                  rlDest, rlSrc[0], vC);
       break;
     case Instruction::IGET_SHORT:
       convertIget(cUnit, optFlags, greenland::IntrinsicHelper::HLIGetShort,
-                  rlSrc[0], rlSrc[1], vC);
+                  rlDest, rlSrc[0], vC);
       break;
     case Instruction::IGET_WIDE:
       if (rlDest.fp) {
         convertIget(cUnit, optFlags, greenland::IntrinsicHelper::HLIGetDouble,
-                    rlSrc[0], rlSrc[1], vC);
+                    rlDest, rlSrc[0], vC);
       } else {
         convertIget(cUnit, optFlags, greenland::IntrinsicHelper::HLIGetWide,
-                    rlSrc[0], rlSrc[1], vC);
+                    rlDest, rlSrc[0], vC);
       }
       break;
     case Instruction::IPUT:
@@ -1710,10 +1704,32 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
   return false;
 }
 
+char remapShorty(char shortyType) {
+  /*
+   * TODO: might want to revisit this.  Dalvik registers are 32-bits wide,
+   * and longs/doubles are represented as a pair of registers.  When sub-word
+   * arguments (and method results) are passed, they are extended to Dalvik
+   * virtual register containers.  Because llvm is picky about type consistency,
+   * we must either cast the "real" type to 32-bit container multiple Dalvik
+   * register types, or always use the expanded values.
+   * Here, we're doing the latter.  We map the shorty signature to container
+   * types (which is valid so long as we always do a real expansion of passed
+   * arguments and field loads).
+   */
+  switch(shortyType) {
+    case 'Z' : shortyType = 'I'; break;
+    case 'B' : shortyType = 'I'; break;
+    case 'S' : shortyType = 'I'; break;
+    case 'C' : shortyType = 'I'; break;
+    default: break;
+  }
+  return shortyType;
+}
+
 llvm::FunctionType* getFunctionType(CompilationUnit* cUnit) {
 
   // Get return type
-  llvm::Type* ret_type = cUnit->irb->GetJType(cUnit->shorty[0],
+  llvm::Type* ret_type = cUnit->irb->GetJType(remapShorty(cUnit->shorty[0]),
                                               greenland::kAccurate);
 
   // Get argument type
@@ -1728,7 +1744,7 @@ llvm::FunctionType* getFunctionType(CompilationUnit* cUnit) {
   }
 
   for (uint32_t i = 1; i < strlen(cUnit->shorty); ++i) {
-    args_type.push_back(cUnit->irb->GetJType(cUnit->shorty[i],
+    args_type.push_back(cUnit->irb->GetJType(remapShorty(cUnit->shorty[i]),
                                              greenland::kAccurate));
   }
 
@@ -1839,6 +1855,11 @@ void oatMethodMIR2Bitcode(CompilationUnit* cUnit)
       // Recover previously-created argument values
       llvm::Value* argVal = arg_iter++;
       oatInsertGrowableList(cUnit, &cUnit->llvmValues, (intptr_t)argVal);
+      if (cUnit->regLocation[i].wide) {
+        // Skip high half of wide values.
+        oatInsertGrowableList(cUnit, &cUnit->llvmValues, 0);
+        i++;
+      }
     }
   }
   cUnit->irb->CreateBr(cUnit->placeholderBB);
@@ -1987,13 +2008,32 @@ Instruction::Code getDalvikFPOpcode(OpKind op, bool isConst, bool isWide)
 void cvtBinFPOp(CompilationUnit* cUnit, OpKind op, llvm::Instruction* inst)
 {
   RegLocation rlDest = getLoc(cUnit, inst);
-  RegLocation rlSrc1 = getLoc(cUnit, inst->getOperand(0));
-  RegLocation rlSrc2 = getLoc(cUnit, inst->getOperand(1));
-  Instruction::Code dalvikOp = getDalvikFPOpcode(op, false, rlDest.wide);
-  if (rlDest.wide) {
-    genArithOpDouble(cUnit, dalvikOp, rlDest, rlSrc1, rlSrc2);
+  /*
+   * Normally, we won't ever generate an FP operation with an immediate
+   * operand (not supported in Dex instruction set).  However, the IR builder
+   * may insert them - in particular for createNegFP.  Recognize this case
+   * and deal with it.
+   */
+  llvm::ConstantFP* op1C = llvm::dyn_cast<llvm::ConstantFP>(inst->getOperand(0));
+  llvm::ConstantFP* op2C = llvm::dyn_cast<llvm::ConstantFP>(inst->getOperand(1));
+  DCHECK(op2C == NULL);
+  if ((op1C != NULL) && (op == kOpSub)) {
+    RegLocation rlSrc = getLoc(cUnit, inst->getOperand(1));
+    if (rlDest.wide) {
+      genArithOpDouble(cUnit, Instruction::NEG_DOUBLE, rlDest, rlSrc, rlSrc);
+    } else {
+      genArithOpFloat(cUnit, Instruction::NEG_FLOAT, rlDest, rlSrc, rlSrc);
+    }
   } else {
-    genArithOpFloat(cUnit, dalvikOp, rlDest, rlSrc1, rlSrc2);
+    DCHECK(op1C == NULL);
+    RegLocation rlSrc1 = getLoc(cUnit, inst->getOperand(0));
+    RegLocation rlSrc2 = getLoc(cUnit, inst->getOperand(1));
+    Instruction::Code dalvikOp = getDalvikFPOpcode(op, false, rlDest.wide);
+    if (rlDest.wide) {
+      genArithOpDouble(cUnit, dalvikOp, rlDest, rlSrc1, rlSrc2);
+    } else {
+      genArithOpFloat(cUnit, dalvikOp, rlDest, rlSrc1, rlSrc2);
+    }
   }
 }
 
@@ -2489,7 +2529,7 @@ void cvtIput(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
   RegLocation rlSrc = getLoc(cUnit, callInst->getArgOperand(1));
   RegLocation rlObj = getLoc(cUnit, callInst->getArgOperand(2));
   llvm::ConstantInt* fieldIdx =
-      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(2));
+      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(3));
   genIPut(cUnit, fieldIdx->getZExtValue(), optFlags->getZExtValue(),
           size, rlSrc, rlObj, isWide, isObj);
 }
@@ -2541,9 +2581,6 @@ void cvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
   info->optFlags = optFlagsVal->getZExtValue();
   info->offset = cUnit->currentDalvikOffset;
 
-  // FIXME - rework such that we no longer need isRange
-  info->isRange = false;
-
   // Count the argument words, and then build argument array.
   info->numArgWords = 0;
   for (unsigned int i = 3; i < callInst->getNumArgOperands(); i++) {
@@ -2555,9 +2592,6 @@ void cvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
   // Now, fill in the location records, synthesizing high loc of wide vals
   for (int i = 3, next = 0; next < info->numArgWords;) {
     info->args[next] = getLoc(cUnit, callInst->getArgOperand(i++));
-    if (cUnit->printMe) {
-      oatDumpRegLoc(info->args[next]);
-    }
     if (info->args[next].wide) {
       next++;
       // TODO: Might make sense to mark this as an invalid loc
@@ -2566,6 +2600,9 @@ void cvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
     }
     next++;
   }
+  // TODO - rework such that we no longer need isRange
+  info->isRange = (info->numArgWords > 5);
+
   if (isFilledNewArray) {
     genFilledNewArray(cUnit, info);
   } else {
