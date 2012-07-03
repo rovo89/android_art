@@ -197,6 +197,7 @@ void oatProcessSwitchTables(CompilationUnit* cUnit);
 bool oatIsFpReg(int reg);
 uint32_t oatFpRegMask(void);
 void oatReplaceSpecialChars(std::string& str);
+BasicBlock* oatFindBlock(CompilationUnit* cUnit, unsigned int codeOffset);
 
 }  // namespace art
 

@@ -140,6 +140,38 @@ const char* llvmSSAName(CompilationUnit* cUnit, int ssaReg) {
   return GET_ELEM_N(cUnit->ssaStrings, char*, ssaReg);
 }
 
+llvm::BasicBlock* findCaseTarget(CompilationUnit* cUnit, uint32_t vaddr)
+{
+  BasicBlock* bb = oatFindBlock(cUnit, vaddr);
+  DCHECK(bb != NULL);
+  return getLLVMBlock(cUnit, bb->id);
+}
+
+void convertPackedSwitch(CompilationUnit* cUnit, BasicBlock* bb,
+                         int32_t tableOffset, RegLocation rlSrc)
+{
+  const Instruction::PackedSwitchPayload* payload =
+      reinterpret_cast<const Instruction::PackedSwitchPayload*>(
+      cUnit->insns + cUnit->currentDalvikOffset + tableOffset);
+
+  llvm::Value* value = getLLVMValue(cUnit, rlSrc.origSReg);
+
+  llvm::SwitchInst* sw =
+    cUnit->irb->CreateSwitch(value, getLLVMBlock(cUnit, bb->fallThrough->id),
+                             payload->case_count);
+
+  for (uint16_t i = 0; i < payload->case_count; ++i) {
+    llvm::BasicBlock* llvmBB =
+        findCaseTarget(cUnit, cUnit->currentDalvikOffset + payload->targets[i]);
+    sw->addCase(cUnit->irb->getInt32(payload->first_key + i), llvmBB);
+  }
+  llvm::MDNode* switchNode =
+      llvm::MDNode::get(*cUnit->context, cUnit->irb->getInt32(tableOffset));
+  sw->setMetadata("SwitchTable", switchNode);
+  bb->taken = NULL;
+  bb->fallThrough = NULL;
+}
+
 void convertSget(CompilationUnit* cUnit, int32_t fieldIndex,
                  greenland::IntrinsicHelper::IntrinsicId id,
                  RegLocation rlDest)
@@ -1501,10 +1533,11 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
                             rlDest, rlSrc[0], rlSrc[1]);
       break;
 
-#if 0
     case Instruction::PACKED_SWITCH:
-      genPackedSwitch(cUnit, vB, rlSrc[0]);
+      convertPackedSwitch(cUnit, bb, vB, rlSrc[0]);
       break;
+
+#if 0
 
     case Instruction::SPARSE_SWITCH:
       genSparseSwitch(cUnit, vB, rlSrc[0], labelList);
@@ -2138,12 +2171,17 @@ void cvtBinOp(CompilationUnit* cUnit, OpKind op, llvm::Instruction* inst)
 {
   RegLocation rlDest = getLoc(cUnit, inst);
   llvm::Value* lhs = inst->getOperand(0);
-  // Special-case RSUB
+  // Special-case RSUB/NEG
   llvm::ConstantInt* lhsImm = llvm::dyn_cast<llvm::ConstantInt>(lhs);
   if ((op == kOpSub) && (lhsImm != NULL)) {
     RegLocation rlSrc1 = getLoc(cUnit, inst->getOperand(1));
-    genArithOpIntLit(cUnit, Instruction::RSUB_INT, rlDest, rlSrc1,
-                     lhsImm->getSExtValue());
+    if (rlSrc1.wide) {
+      DCHECK_EQ(lhsImm->getSExtValue(), 0);
+      genArithOpLong(cUnit, Instruction::NEG_LONG, rlDest, rlSrc1, rlSrc1);
+    } else {
+      genArithOpIntLit(cUnit, Instruction::RSUB_INT, rlDest, rlSrc1,
+                       lhsImm->getSExtValue());
+    }
     return;
   }
   DCHECK(lhsImm == NULL);
@@ -2558,6 +2596,20 @@ void cvtLongCompare(CompilationUnit* cUnit, llvm::CallInst* callInst)
   RegLocation rlSrc2 = getLoc(cUnit, callInst->getArgOperand(1));
   RegLocation rlDest = getLoc(cUnit, callInst);
   genCmpLong(cUnit, rlDest, rlSrc1, rlSrc2);
+}
+
+void cvtSwitch(CompilationUnit* cUnit, llvm::Instruction* inst)
+{
+  llvm::SwitchInst* swInst = llvm::dyn_cast<llvm::SwitchInst>(inst);
+  DCHECK(swInst != NULL);
+  llvm::Value* testVal = swInst->getCondition();
+  llvm::MDNode* tableOffsetNode = swInst->getMetadata("SwitchTable");
+  DCHECK(tableOffsetNode != NULL);
+  llvm::ConstantInt* tableOffsetValue =
+          static_cast<llvm::ConstantInt*>(tableOffsetNode->getOperand(0));
+  int32_t tableOffset = tableOffsetValue->getSExtValue();
+  RegLocation rlSrc = getLoc(cUnit, testVal);
+  genPackedSwitch(cUnit, tableOffset, rlSrc);
 }
 
 void cvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
@@ -2999,6 +3051,8 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
       case llvm::Instruction::SExt: cvtIntExt(cUnit, inst, true /* signed */);
         break;
 
+      case llvm::Instruction::Switch: cvtSwitch(cUnit, inst); break;
+
       case llvm::Instruction::Unreachable:
         break;  // FIXME: can we really ignore these?
 
@@ -3007,7 +3061,6 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
       case llvm::Instruction::UIToFP:
       case llvm::Instruction::PtrToInt:
       case llvm::Instruction::IntToPtr:
-      case llvm::Instruction::Switch:
       case llvm::Instruction::FCmp:
       case llvm::Instruction::URem:
       case llvm::Instruction::UDiv:
