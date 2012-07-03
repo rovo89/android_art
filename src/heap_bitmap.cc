@@ -24,7 +24,8 @@ namespace art {
 
 HeapBitmap* HeapBitmap::Create(const char* name, byte* heap_begin, size_t heap_capacity) {
   CHECK(heap_begin != NULL);
-  size_t bitmap_size = HB_OFFSET_TO_INDEX(heap_capacity) * kWordSize;
+  // Round up since heap_capacity is not necessarily a multiple of kAlignment * kBitsPerWord.
+  size_t bitmap_size = HB_OFFSET_TO_INDEX(RoundUp(heap_capacity, kAlignment * kBitsPerWord)) * kWordSize;
   UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name, NULL, bitmap_size, PROT_READ | PROT_WRITE));
   if (mem_map.get() == NULL) {
     LOG(ERROR) << "Failed to allocate bitmap " << name;
