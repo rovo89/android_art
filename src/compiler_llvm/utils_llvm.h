@@ -32,7 +32,7 @@ namespace art {
 #define VERIFY_LLVM_FUNCTION(func)
 #endif
 
-inline static std::string ElfFuncName(uint16_t idx) {
+inline static std::string ElfFuncName(uint32_t idx) {
   return StringPrintf("Art%u", static_cast<unsigned int>(idx));
 }
 
