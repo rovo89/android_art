@@ -246,6 +246,12 @@ BasicBlock *findBlock(CompilationUnit* cUnit, unsigned int codeOffset,
   return bb;
 }
 
+/* Find existing block */
+BasicBlock* oatFindBlock(CompilationUnit* cUnit, unsigned int codeOffset)
+{
+  return findBlock(cUnit, codeOffset, false, false, NULL);
+}
+
 /* Turn method name into a legal Linux file name */
 void oatReplaceSpecialChars(std::string& str)
 {
@@ -781,7 +787,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
       || (PrettyMethod(method_idx, dex_file).find("FloatMath") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("Goto") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("InternedString") != std::string::npos)
-   //   || (PrettyMethod(method_idx, dex_file).find("IntMath") != std::string::npos)
+      || (PrettyMethod(method_idx, dex_file).find("IntMath") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("InstField") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("MethodCall") != std::string::npos)
       || (PrettyMethod(method_idx, dex_file).find("Monitor") != std::string::npos)
