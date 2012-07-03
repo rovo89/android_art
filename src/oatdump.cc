@@ -552,10 +552,15 @@ class ImageDumper {
     oat_dumper_.reset(new OatDumper(host_prefix_, *oat_file));
 
     os_ << "OBJECTS:\n" << std::flush;
-    HeapBitmap* heap_bitmap = Runtime::Current()->GetHeap()->GetLiveBits();
-    DCHECK(heap_bitmap != NULL);
-    heap_bitmap->Walk(ImageDumper::Callback, this);
-    os_ << "\n";
+
+    // Loop through all the image spaces and dump their objects.
+    Heap* heap = Runtime::Current()->GetHeap();
+    const Spaces& spaces = heap->GetSpaces();
+    // TODO: C++0x auto
+    for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
+      (*cur)->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
+      os_ << "\n";
+    }
 
     os_ << "STATS:\n" << std::flush;
     UniquePtr<File> file(OS::OpenFile(image_filename_.c_str(), false));

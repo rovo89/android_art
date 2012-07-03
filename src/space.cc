@@ -22,6 +22,7 @@
 #include "image.h"
 #include "logging.h"
 #include "os.h"
+#include "stl_util.h"
 #include "utils.h"
 
 namespace art {
@@ -38,6 +39,26 @@ namespace art {
       PLOG(FATAL) << # call << " failed for " << what; \
     } \
   } while (false)
+
+size_t AllocSpace::bitmap_index_ = 0;
+
+AllocSpace::AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* end,
+                       size_t growth_limit)
+    : Space(name, mem_map, end), mspace_(mspace), growth_limit_(growth_limit) {
+  CHECK(mspace != NULL);
+
+  size_t bitmap_index = bitmap_index_++;
+
+  live_bitmap_.reset(SpaceBitmap::Create(
+      StringPrintf("allocspace-%s-live-bitmap-%d", name.c_str(), static_cast<int>(bitmap_index)),
+      Begin(), Capacity()));
+  DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace live bitmap #" << bitmap_index;
+
+  mark_bitmap_.reset(SpaceBitmap::Create(
+      StringPrintf("allocspace-%s-mark-bitmap-%d", name.c_str(), static_cast<int>(bitmap_index)),
+      Begin(), Capacity()));
+  DCHECK(live_bitmap_.get() != NULL) << "could not create allocspace mark bitmap #" << bitmap_index;
+}
 
 AllocSpace* Space::CreateAllocSpace(const std::string& name, size_t initial_size,
                                     size_t growth_limit, size_t capacity,
@@ -175,24 +196,25 @@ void AllocSpace::FreeList(size_t num_ptrs, Object** ptrs) {
 // Callback from dlmalloc when it needs to increase the footprint
 extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
   Heap* heap = Runtime::Current()->GetHeap();
-  AllocSpace* space = heap->GetAllocSpace();
-  if (LIKELY(space->GetMspace() == mspace)) {
-    return space->MoreCore(increment);
+  if (heap->GetAllocSpace()->GetMspace() == mspace) {
+    return heap->GetAllocSpace()->MoreCore(increment);
   } else {
-    // Exhaustively search alloc spaces
-    const std::vector<Space*>& spaces = heap->GetSpaces();
-    for (size_t i = 0; i < spaces.size(); ++i) {
-      if (spaces[i]->IsAllocSpace()) {
-        AllocSpace* space = spaces[i]->AsAllocSpace();
+    // Exhaustively search alloc spaces.
+    const Spaces& spaces = heap->GetSpaces();
+    // TODO: C++0x auto
+    for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
+      if ((*cur)->IsAllocSpace()) {
+        AllocSpace* space = (*cur)->AsAllocSpace();
         if (mspace == space->GetMspace()) {
           return space->MoreCore(increment);
         }
       }
     }
-    LOG(FATAL) << "Unexpected call to art_heap_morecore. mspace: " << mspace
-               << " increment: " << increment;
-    return NULL;
   }
+
+  LOG(FATAL) << "Unexpected call to art_heap_morecore. mspace: " << mspace
+             << " increment: " << increment;
+  return NULL;
 }
 
 void* AllocSpace::MoreCore(intptr_t increment) {
@@ -278,6 +300,17 @@ void AllocSpace::SetFootprintLimit(size_t new_size) {
   mspace_set_footprint_limit(mspace_, new_size);
 }
 
+size_t ImageSpace::bitmap_index_ = 0;
+
+ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map)
+    : Space(name, mem_map, mem_map->End()) {
+  const size_t bitmap_index = bitmap_index_++;
+  live_bitmap_.reset(SpaceBitmap::Create(
+      StringPrintf("imagespace-%s-live-bitmap-%d", name.c_str(), static_cast<int>(bitmap_index)),
+      Begin(), Capacity()));
+  DCHECK(live_bitmap_.get() != NULL) << "could not create imagespace live bitmap #" << bitmap_index;
+}
+
 ImageSpace* Space::CreateImageSpace(const std::string& image_file_name) {
   CHECK(!image_file_name.empty());
 
@@ -345,7 +378,7 @@ ImageSpace* Space::CreateImageSpace(const std::string& image_file_name) {
   return space;
 }
 
-void ImageSpace::RecordImageAllocations(HeapBitmap* live_bitmap) const {
+void ImageSpace::RecordImageAllocations(SpaceBitmap* live_bitmap) const {
   uint64_t start_time = 0;
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "ImageSpace::RecordImageAllocations entering";

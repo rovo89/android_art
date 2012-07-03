@@ -26,29 +26,34 @@ namespace art {
 
 class MarkIfReachesAllocspaceVisitor {
  public:
-  explicit MarkIfReachesAllocspaceVisitor(MarkSweep* const mark_sweep, HeapBitmap* bitmap)
+  explicit MarkIfReachesAllocspaceVisitor(MarkSweep* const mark_sweep, SpaceBitmap* bitmap)
     : mark_sweep_(mark_sweep),
       bitmap_(bitmap) {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
   void operator ()(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) const {
-    if (mark_sweep_->heap_->GetAllocSpace()->Contains(ref)) {
-      // This can mark the same object multiple times, but is unlikely to be a performance problem.
-      bitmap_->Set(obj);
+    // TODO: Optimize?
+    // TODO: C++0x auto
+    const Spaces& spaces = mark_sweep_->heap_->GetSpaces();
+    for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
+      if ((*cur)->IsAllocSpace() && (*cur)->Contains(ref)) {
+        bitmap_->Set(obj);
+      }
     }
+
     // Avoid warnings.
     (void)obj;(void)offset;(void)is_static;
   }
 
  private:
   MarkSweep* const mark_sweep_;
-  HeapBitmap* bitmap_;
+  SpaceBitmap* bitmap_;
 };
 
 class ModUnionVisitor {
  public:
-  explicit ModUnionVisitor(MarkSweep* const mark_sweep, HeapBitmap* bitmap)
+  explicit ModUnionVisitor(MarkSweep* const mark_sweep, SpaceBitmap* bitmap)
     : mark_sweep_(mark_sweep),
       bitmap_(bitmap) {
   }
@@ -62,7 +67,7 @@ class ModUnionVisitor {
   }
  private:
   MarkSweep* const mark_sweep_;
-  HeapBitmap* bitmap_;
+  SpaceBitmap* bitmap_;
 };
 
 class ModUnionClearCardVisitor {
@@ -96,7 +101,7 @@ void ModUnionTableBitmap::Init() {
     if (spaces[i]->IsImageSpace()) {
       // Allocate the mod-union table
       // The mod-union table is only needed when we have an image space since it's purpose is to cache image roots.
-      UniquePtr<HeapBitmap> bitmap(HeapBitmap::Create("mod-union table bitmap", spaces[i]->Begin(), spaces[i]->Capacity()));
+      UniquePtr<SpaceBitmap> bitmap(SpaceBitmap::Create("mod-union table bitmap", spaces[i]->Begin(), spaces[i]->Capacity()));
       if (bitmap.get() == NULL) {
         LOG(FATAL) << "Failed to create mod-union bitmap";
       }
@@ -124,9 +129,11 @@ void ModUnionTableBitmap::Update(MarkSweep* mark_sweep) {
     cleared_cards_.pop_back();
 
     // Find out which bitmap the card maps to.
-    HeapBitmap* bitmap = 0;
+    SpaceBitmap* bitmap = 0;
+    const Space* space = 0;
     for (BitmapMap::iterator cur = bitmaps_.begin(); cur != bitmaps_.end(); ++cur) {
-      if (cur->first->Contains(reinterpret_cast<Object*>(card_table->AddrFromCard(card)))) {
+      space = cur->first;
+      if (space->Contains(reinterpret_cast<Object*>(card_table->AddrFromCard(card)))) {
         bitmap = cur->second;
         break;
       }
@@ -138,12 +145,12 @@ void ModUnionTableBitmap::Update(MarkSweep* mark_sweep) {
 
     // Clear the mod-union bitmap range corresponding to this card so that we
     // don't have any objects marked which do not reach the alloc space.
-    bitmap->VisitRange(start, end, HeapBitmap::ClearVisitor(bitmap));
+    bitmap->VisitRange(start, end, SpaceBitmap::ClearVisitor(bitmap));
 
     // At this point we need to update the mod-union bitmap to contain all the
     // objects which reach the alloc space.
     ModUnionVisitor visitor(mark_sweep, bitmap);
-    heap_->GetLiveBits()->VisitMarkedRange(start, end, visitor);
+    space->GetLiveBitmap()->VisitMarkedRange(start, end, visitor);
   }
 }
 

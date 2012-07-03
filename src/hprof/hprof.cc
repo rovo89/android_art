@@ -48,6 +48,7 @@
 #include "os.h"
 #include "safe_map.h"
 #include "scoped_heap_lock.h"
+#include "space.h"
 #include "stringprintf.h"
 #include "thread_list.h"
 
@@ -404,7 +405,7 @@ class Hprof {
     // Walk the roots and the heap.
     current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT, HPROF_TIME);
     Runtime::Current()->VisitRoots(RootVisitor, this);
-    Runtime::Current()->GetHeap()->GetLiveBits()->Walk(HeapBitmapCallback, this);
+    Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(HeapBitmapCallback, this);
     current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_END, HPROF_TIME);
     current_record_.Flush();
     fflush(body_fp_);

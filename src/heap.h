@@ -27,6 +27,7 @@
 #include "heap_bitmap.h"
 #include "mutex.h"
 #include "offsets.h"
+#include "safe_map.h"
 
 #define VERIFY_OBJECT_ENABLED 0
 
@@ -43,6 +44,8 @@ class Object;
 class Space;
 class SpaceTest;
 class Thread;
+
+typedef std::vector<Space*> Spaces;
 
 class LOCKABLE Heap {
  public:
@@ -137,14 +140,6 @@ class LOCKABLE Heap {
     return spaces_;
   }
 
-  HeapBitmap* GetLiveBits() {
-    return live_bitmap_;
-  }
-
-  HeapBitmap* GetMarkBits() {
-    return mark_bitmap_;
-  }
-
   void SetReferenceOffsets(MemberOffset reference_referent_offset,
                            MemberOffset reference_queue_offset,
                            MemberOffset reference_queueNext_offset,
@@ -213,16 +208,6 @@ class LOCKABLE Heap {
   size_t GetBytesAllocated() { return num_bytes_allocated_; }
   size_t GetObjectsAllocated() { return num_objects_allocated_; }
 
-  ImageSpace* GetImageSpace() {
-    CHECK(image_space_ != NULL);
-    return image_space_;
-  }
-
-  AllocSpace* GetAllocSpace() {
-    CHECK(alloc_space_ != NULL);
-    return alloc_space_;
-  }
-
   size_t GetConcurrentStartSize() const { return concurrent_start_size_; }
 
   void SetConcurrentStartSize(size_t size) {
@@ -235,9 +220,26 @@ class LOCKABLE Heap {
     concurrent_min_free_ = size;
   }
 
+  // Functions for getting the bitmap which corresponds to an object's address.
+  // This is probably slow, TODO: use better data structure like binary tree .
+  Space* FindSpaceFromObject(const Object*) const;
+
   void DumpForSigQuit(std::ostream& os);
 
-  void Trim();
+  void Trim(AllocSpace* alloc_space);
+
+  HeapBitmap* GetLiveBitmap() {
+    return live_bitmap_.get();
+  }
+
+  HeapBitmap* GetMarkBitmap() {
+    return mark_bitmap_.get();
+  }
+
+  // Assumes there is only one image space.
+  // DEPRECATED: Should remove in "near" future when support for multiple image spaces is added.
+  ImageSpace* GetImageSpace();
+  AllocSpace* GetAllocSpace();
 
  private:
   // Allocates uninitialized storage.
@@ -276,16 +278,10 @@ class LOCKABLE Heap {
   Mutex* lock_;
   ConditionVariable* condition_;
 
-  std::vector<Space*> spaces_;
+  Spaces spaces_;
 
-  ImageSpace* image_space_;
-
-  // default Space for allocations
+  // The alloc space which we are currently allocating into.
   AllocSpace* alloc_space_;
-
-  HeapBitmap* mark_bitmap_;
-
-  HeapBitmap* live_bitmap_;
 
   // TODO: Reduce memory usage, this bitmap currently takes 1 bit per 8 bytes
   // of image space.
@@ -300,10 +296,13 @@ class LOCKABLE Heap {
   // True while the garbage collector is running.
   volatile bool is_gc_running_;
 
-  // Bytes until concurrent GC
+  // Bytes until concurrent GC starts.
   size_t concurrent_start_bytes_;
   size_t concurrent_start_size_;
   size_t concurrent_min_free_;
+
+  UniquePtr<HeapBitmap> live_bitmap_;
+  UniquePtr<HeapBitmap> mark_bitmap_;
 
   // True while the garbage collector is trying to signal the GC daemon thread.
   // This flag is needed to prevent recursion from occurring when the JNI calls

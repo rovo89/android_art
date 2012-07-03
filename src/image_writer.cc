@@ -52,7 +52,7 @@ bool ImageWriter::Write(const std::string& image_filename,
   image_begin_ = reinterpret_cast<byte*>(image_begin);
 
   Heap* heap = Runtime::Current()->GetHeap();
-  source_space_ = heap->GetAllocSpace();
+  const Spaces& spaces = heap->GetSpaces();
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const std::vector<DexCache*>& all_dex_caches = class_linker->GetDexCaches();
@@ -75,7 +75,14 @@ bool ImageWriter::Write(const std::string& image_filename,
   ComputeLazyFieldsForImageClasses();  // Add useful information
   ComputeEagerResolvedStrings();
   heap->CollectGarbage(false);  // Remove garbage
-  heap->GetAllocSpace()->Trim();  // Trim size of source_space
+  // Trim size of alloc spaces
+  // TODO: C++0x auto
+  for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
+    if ((*cur)->IsAllocSpace()) {
+      (*cur)->AsAllocSpace()->Trim();
+    }
+  }
+
   if (!AllocMemory()) {
     return false;
   }
@@ -104,8 +111,27 @@ bool ImageWriter::Write(const std::string& image_filename,
   return true;
 }
 
+bool ImageWriter::InSourceSpace(const Object* object) const {
+  const Spaces& spaces = Runtime::Current()->GetHeap()->GetSpaces();
+  // TODO: C++0x auto
+  for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
+    if ((*cur)->IsAllocSpace() && (*cur)->Contains(object)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool ImageWriter::AllocMemory() {
-  size_t size = source_space_->Size();
+  typedef std::vector<Space*> SpaceVec;
+  const SpaceVec& spaces = Runtime::Current()->GetHeap()->GetSpaces();
+  size_t size = 0;
+  for (SpaceVec::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
+    if ((*cur)->IsAllocSpace()) {
+      size += (*cur)->Size();
+    }
+  }
+
   int prot = PROT_READ | PROT_WRITE;
   size_t length = RoundUp(size, kPageSize);
   image_.reset(MemMap::MapAnonymous("image-writer-image", NULL, length, prot));
@@ -151,9 +177,8 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
 }
 
 void ImageWriter::ComputeEagerResolvedStrings() {
-  HeapBitmap* heap_bitmap = Runtime::Current()->GetHeap()->GetLiveBits();
-  DCHECK(heap_bitmap != NULL);
-  heap_bitmap->Walk(ComputeEagerResolvedStringsCallback, this);  // TODO: add Space-limited Walk
+  // TODO: Check image spaces only?
+  Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(ComputeEagerResolvedStringsCallback, this);
 }
 
 bool ImageWriter::IsImageClass(const Class* klass) {
@@ -232,7 +257,8 @@ void ImageWriter::CheckNonImageClassesRemoved() {
   if (image_classes_ == NULL) {
     return;
   }
-  Runtime::Current()->GetHeap()->GetLiveBits()->Walk(CheckNonImageClassesRemovedCallback, this);
+
+  Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(CheckNonImageClassesRemovedCallback, this);
 }
 
 void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
@@ -332,16 +358,21 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
 void ImageWriter::CalculateNewObjectOffsets() {
   SirtRef<ObjectArray<Object> > image_roots(CreateImageRoots());
 
-  HeapBitmap* heap_bitmap = Runtime::Current()->GetHeap()->GetLiveBits();
-  DCHECK(heap_bitmap != NULL);
+  Heap* heap = Runtime::Current()->GetHeap();
+  typedef std::vector<Space*> SpaceVec;
+  const SpaceVec& spaces = heap->GetSpaces();
+  DCHECK(!spaces.empty());
   DCHECK_EQ(0U, image_end_);
 
   // leave space for the header, but do not write it yet, we need to
   // know where image_roots is going to end up
   image_end_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
 
-  heap_bitmap->InOrderWalk(CalculateNewObjectOffsetsCallback, this);  // TODO: add Space-limited Walk
-  DCHECK_LT(image_end_, image_->Size());
+  // TODO: Image spaces only?
+  for (SpaceVec::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
+    (*cur)->GetLiveBitmap()->InOrderWalk(CalculateNewObjectOffsetsCallback, this);
+    DCHECK_LT(image_end_, image_->Size());
+  }
 
   // Note that image_top_ is left at end of used space
   oat_begin_ = image_begin_ +  RoundUp(image_end_, kPageSize);
@@ -358,11 +389,10 @@ void ImageWriter::CalculateNewObjectOffsets() {
 
 void ImageWriter::CopyAndFixupObjects() {
   Heap* heap = Runtime::Current()->GetHeap();
-  HeapBitmap* heap_bitmap = heap->GetLiveBits();
-  DCHECK(heap_bitmap != NULL);
   // TODO: heap validation can't handle this fix up pass
   heap->DisableObjectValidation();
-  heap_bitmap->Walk(CopyAndFixupObjectsCallback, this);  // TODO: add Space-limited Walk
+  // TODO: Image spaces only?
+  heap->GetLiveBitmap()->Walk(CopyAndFixupObjectsCallback, this);
 }
 
 void ImageWriter::CopyAndFixupObjectsCallback(Object* object, void* arg) {

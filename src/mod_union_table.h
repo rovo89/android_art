@@ -63,7 +63,7 @@ class ModUnionTableBitmap : public ModUnionTable {
 
   // One bitmap per image space.
   // TODO: Add support for zygote spaces?
-  typedef SafeMap<const Space*,  HeapBitmap*> BitmapMap;
+  typedef SafeMap<Space*,  SpaceBitmap*> BitmapMap;
   BitmapMap bitmaps_;
 
   Heap* heap_;
