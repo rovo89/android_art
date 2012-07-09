@@ -1268,7 +1268,7 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
       if (insns[insn_idx] == Instruction::kPackedSwitchSignature ||
           insns[insn_idx] == Instruction::kSparseSwitchSignature ||
           insns[insn_idx] == Instruction::kArrayDataSignature ||
-          (insns[insn_idx] == Instruction::NOP &&
+          (insns[insn_idx] == Instruction::NOP && (insn_idx + 1 < insns_size) &&
            (insns[insn_idx + 1] == Instruction::kPackedSwitchSignature ||
             insns[insn_idx + 1] == Instruction::kSparseSwitchSignature ||
             insns[insn_idx + 1] == Instruction::kArrayDataSignature))) {
