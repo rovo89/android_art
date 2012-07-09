@@ -447,7 +447,7 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
       break;
 
     case Instruction::SPARSE_SWITCH:
-      genSparseSwitch(cUnit, vB, rlSrc[0], labelList);
+      genSparseSwitch(cUnit, vB, rlSrc[0]);
       break;
 
     case Instruction::CMPL_FLOAT:
@@ -878,7 +878,7 @@ void handleExtendedMethodMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
 bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 {
   MIR* mir;
-  LIR* labelList = (LIR*) cUnit->blockLabelList;
+  LIR* labelList = cUnit->blockLabelList;
   int blockId = bb->id;
 
   cUnit->curBlock = bb;
@@ -992,7 +992,7 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 /* Set basic block labels */
 bool labelBlocks(CompilationUnit* cUnit, BasicBlock* bb)
 {
-  LIR* labelList = (LIR*) cUnit->blockLabelList;
+  LIR* labelList = cUnit->blockLabelList;
   int blockId = bb->id;
 
   cUnit->curBlock = bb;
@@ -1037,7 +1037,7 @@ void oatMethodMIR2LIR(CompilationUnit* cUnit)
 {
   /* Used to hold the labels of each block */
   cUnit->blockLabelList =
-      (void *) oatNew(cUnit, sizeof(LIR) * cUnit->numBlocks, true, kAllocLIR);
+      (LIR*) oatNew(cUnit, sizeof(LIR) * cUnit->numBlocks, true, kAllocLIR);
 
   oatDataFlowAnalysisDispatcher(cUnit, methodBlockCodeGen,
                                 kPreOrderDFSTraversal, false /* Iterative */);

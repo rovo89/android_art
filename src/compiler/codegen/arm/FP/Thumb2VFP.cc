@@ -162,7 +162,7 @@ bool genConversion(CompilationUnit* cUnit, Instruction::Code opcode,
 void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
                          bool gtBias, bool isDouble)
 {
-  LIR* labelList = (LIR*)cUnit->blockLabelList;
+  LIR* labelList = cUnit->blockLabelList;
   LIR* target = &labelList[bb->taken->id];
   RegLocation rlSrc1;
   RegLocation rlSrc2;

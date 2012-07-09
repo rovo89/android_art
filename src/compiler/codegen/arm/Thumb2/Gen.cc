@@ -369,7 +369,7 @@ LIR* opIT(CompilationUnit* cUnit, ArmConditionCode code, const char* guide)
  *   cbnz  rIdx, lp
  */
 void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
-                     RegLocation rlSrc, LIR* labelList)
+                     RegLocation rlSrc)
 {
   const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   if (cUnit->printMe) {
@@ -654,7 +654,7 @@ void genCmpLong(CompilationUnit* cUnit, RegLocation rlDest,
 
 void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
 {
-  LIR* labelList = (LIR*)cUnit->blockLabelList;
+  LIR* labelList = cUnit->blockLabelList;
   LIR* taken = &labelList[bb->taken->id];
   LIR* notTaken = &labelList[bb->fallThrough->id];
   RegLocation rlSrc1 = oatGetSrcWide(cUnit, mir, 0);

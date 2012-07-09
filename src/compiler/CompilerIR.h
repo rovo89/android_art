@@ -533,7 +533,7 @@ struct CompilationUnit {
   ArenaBitVector* tempSSARegisterV;   // numSSARegs
   int* tempSSABlockIdV;               // working storage for Phi labels
   bool printSSANames;
-  void* blockLabelList;
+  LIR* blockLabelList;
   bool quitLoopMode;                  // cold path/complex bytecode
   int preservedRegsUsed;              // How many callee save regs used
   /*

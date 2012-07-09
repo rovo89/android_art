@@ -763,45 +763,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   cUnit->numRegs = code_item->registers_size_ - cUnit->numIns;
   cUnit->numOuts = code_item->outs_size_;
 #if defined(ART_USE_QUICK_COMPILER)
-  // TODO: remove - temp for Quick compiler bring-up
-  if ((PrettyMethod(method_idx, dex_file).find("fibonacci") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("HelloWorld") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("count10_006") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("exceptions_007") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("catchAndRethrow") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("math_012") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("math_013") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("math_014") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("float_017") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("array_028") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("writeArray") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("writeTest") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("copyTest") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("shiftTest1") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("shiftTest2") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("unsignedShiftTest") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("convTest") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("Array") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("Classes") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("Compare") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("FloatMath") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("Goto") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("InternedString") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("IntMath") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("InstField") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("MethodCall") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("Monitor") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("StaticField") != std::string::npos)
-   //   || (PrettyMethod(method_idx, dex_file).find("Switch") != std::string::npos)
-   //   || (PrettyMethod(method_idx, dex_file).find("Throw.rethrow") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("UnresClass") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("UsresClassSubclass") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("UsresStuff") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("UsresTest1") != std::string::npos)
-      || (PrettyMethod(method_idx, dex_file).find("UsresTest2") != std::string::npos)
-     ) {
-    cUnit->genBitcode = true;
-  }
+  cUnit->genBitcode = true;
 #endif
   /* Adjust this value accordingly once inlining is performed */
   cUnit->numDalvikRegisters = code_item->registers_size_;
