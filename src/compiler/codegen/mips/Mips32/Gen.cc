@@ -64,7 +64,7 @@ void genSpecialCase(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
  *
  */
 void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
-                     RegLocation rlSrc, LIR* labelList)
+                     RegLocation rlSrc)
 {
   const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   if (cUnit->printMe) {

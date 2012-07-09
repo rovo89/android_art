@@ -172,6 +172,34 @@ void convertPackedSwitch(CompilationUnit* cUnit, BasicBlock* bb,
   bb->fallThrough = NULL;
 }
 
+void convertSparseSwitch(CompilationUnit* cUnit, BasicBlock* bb,
+                         int32_t tableOffset, RegLocation rlSrc)
+{
+  const Instruction::SparseSwitchPayload* payload =
+      reinterpret_cast<const Instruction::SparseSwitchPayload*>(
+      cUnit->insns + cUnit->currentDalvikOffset + tableOffset);
+
+  const int32_t* keys = payload->GetKeys();
+  const int32_t* targets = payload->GetTargets();
+
+  llvm::Value* value = getLLVMValue(cUnit, rlSrc.origSReg);
+
+  llvm::SwitchInst* sw =
+    cUnit->irb->CreateSwitch(value, getLLVMBlock(cUnit, bb->fallThrough->id),
+                             payload->case_count);
+
+  for (size_t i = 0; i < payload->case_count; ++i) {
+    llvm::BasicBlock* llvmBB =
+        findCaseTarget(cUnit, cUnit->currentDalvikOffset + targets[i]);
+    sw->addCase(cUnit->irb->getInt32(keys[i]), llvmBB);
+  }
+  llvm::MDNode* switchNode =
+      llvm::MDNode::get(*cUnit->context, cUnit->irb->getInt32(tableOffset));
+  sw->setMetadata("SwitchTable", switchNode);
+  bb->taken = NULL;
+  bb->fallThrough = NULL;
+}
+
 void convertSget(CompilationUnit* cUnit, int32_t fieldIndex,
                  greenland::IntrinsicHelper::IntrinsicId id,
                  RegLocation rlDest)
@@ -301,7 +329,7 @@ void convertArrayLength(CompilationUnit* cUnit, int optFlags,
 void convertThrowVerificationError(CompilationUnit* cUnit, int info1, int info2)
 {
   llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
-      greenland::IntrinsicHelper::Throw);
+      greenland::IntrinsicHelper::ThrowVerificationError);
   llvm::SmallVector<llvm::Value*, 2> args;
   args.push_back(cUnit->irb->getInt32(info1));
   args.push_back(cUnit->irb->getInt32(info2));
@@ -1537,12 +1565,9 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       convertPackedSwitch(cUnit, bb, vB, rlSrc[0]);
       break;
 
-#if 0
-
     case Instruction::SPARSE_SWITCH:
-      genSparseSwitch(cUnit, vB, rlSrc[0], labelList);
+      convertSparseSwitch(cUnit, bb, vB, rlSrc[0]);
       break;
-#endif
 
     default:
       UNIMPLEMENTED(FATAL) << "Unsupported Dex opcode 0x" << std::hex << opcode;
@@ -2609,7 +2634,14 @@ void cvtSwitch(CompilationUnit* cUnit, llvm::Instruction* inst)
           static_cast<llvm::ConstantInt*>(tableOffsetNode->getOperand(0));
   int32_t tableOffset = tableOffsetValue->getSExtValue();
   RegLocation rlSrc = getLoc(cUnit, testVal);
-  genPackedSwitch(cUnit, tableOffset, rlSrc);
+  const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
+  u2 tableMagic = *table;
+  if (tableMagic == 0x100) {
+    genPackedSwitch(cUnit, tableOffset, rlSrc);
+  } else {
+    DCHECK_EQ(tableMagic, 0x200);
+    genSparseSwitch(cUnit, tableOffset, rlSrc);
+  }
 }
 
 void cvtInvoke(CompilationUnit* cUnit, llvm::CallInst* callInst,
@@ -2858,6 +2890,9 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
             case greenland::IntrinsicHelper::HLSputWide:
             case greenland::IntrinsicHelper::HLSputDouble:
               cvtSput(cUnit, callInst, true /* wide */, false /* Object */);
+              break;
+            case greenland::IntrinsicHelper::HLSputObject:
+              cvtSput(cUnit, callInst, false /* wide */, true /* Object */);
               break;
             case greenland::IntrinsicHelper::GetException:
               cvtMoveException(cUnit, callInst);
@@ -3117,8 +3152,8 @@ void oatMethodBitcode2LIR(CompilationUnit* cUnit)
   int numBasicBlocks = func->getBasicBlockList().size();
   // Allocate a list for LIR basic block labels
   cUnit->blockLabelList =
-    (void*)oatNew(cUnit, sizeof(LIR) * numBasicBlocks, true, kAllocLIR);
-  LIR* labelList = (LIR*)cUnit->blockLabelList;
+    (LIR*)oatNew(cUnit, sizeof(LIR) * numBasicBlocks, true, kAllocLIR);
+  LIR* labelList = cUnit->blockLabelList;
   int nextLabel = 0;
   for (llvm::Function::iterator i = func->begin(),
        e = func->end(); i != e; ++i) {

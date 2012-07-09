@@ -52,7 +52,7 @@ LIR* genRegMemCheck(CompilationUnit* cUnit, ConditionCode cCode,
 BasicBlock *findBlock(CompilationUnit* cUnit, unsigned int codeOffset,
                       bool split, bool create, BasicBlock** immedPredBlockP);
 void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
-                     RegLocation rlSrc, LIR* labelList)
+                     RegLocation rlSrc)
 {
   const u2* table = cUnit->insns + cUnit->currentDalvikOffset + tableOffset;
   if (cUnit->printMe) {
@@ -67,6 +67,7 @@ void genSparseSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
     BasicBlock* case_block = findBlock(cUnit,
                                        cUnit->currentDalvikOffset + targets[i],
                                        false, false, NULL);
+    LIR* labelList = cUnit->blockLabelList;
     opCmpImmBranch(cUnit, kCondEq, rlSrc.lowReg, key,
                    &labelList[case_block->id]);
   }
