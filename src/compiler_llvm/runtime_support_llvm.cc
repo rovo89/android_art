@@ -14,6 +14,10 @@
  * limitations under the License.
  */
 
+#include "runtime_support_llvm.h"
+
+#include "ScopedLocalRef.h"
+#include "asm_support.h"
 #include "class_linker.h"
 #include "compiler_runtime_func_list.h"
 #include "dex_file.h"
@@ -24,9 +28,7 @@
 #include "reflection.h"
 #include "runtime_support.h"
 #include "runtime_support_func_list.h"
-#include "runtime_support_llvm.h"
 #include "scoped_jni_thread_state.h"
-#include "ScopedLocalRef.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "utils_llvm.h"
@@ -38,8 +40,6 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
-
-#include "asm_support.h"
 
 namespace art {
 
