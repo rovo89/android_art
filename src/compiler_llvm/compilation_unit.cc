@@ -221,9 +221,9 @@ bool CompilationUnit::MaterializeToString(std::string& str_buffer) {
 
 bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
   // Lookup the LLVM target
-  char const* target_triple = NULL;
-  char const* target_cpu = "";
-  char const* target_attr = NULL;
+  const char* target_triple = NULL;
+  const char* target_cpu = "";
+  const char* target_attr = NULL;
 
   InstructionSet insn_set = GetInstructionSet();
   switch (insn_set) {
@@ -256,7 +256,7 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
   }
 
   std::string errmsg;
-  llvm::Target const* target =
+  const llvm::Target* target =
     llvm::TargetRegistry::lookupTarget(target_triple, errmsg);
 
   CHECK(target != NULL) << errmsg;
@@ -278,7 +278,7 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
   CHECK(target_machine.get() != NULL) << "Failed to create target machine";
 
   // Add target data
-  llvm::TargetData const* target_data = target_machine->getTargetData();
+  const llvm::TargetData* target_data = target_machine->getTargetData();
 
   // PassManager for code generation passes
   llvm::PassManager pm;

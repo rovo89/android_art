@@ -41,12 +41,12 @@ class StubCompiler {
  public:
   StubCompiler(CompilationUnit* cunit, Compiler& compiler);
 
-  CompiledInvokeStub* CreateInvokeStub(bool is_static, char const* shorty);
-  CompiledInvokeStub* CreateProxyStub(char const* shorty);
+  CompiledInvokeStub* CreateInvokeStub(bool is_static, const char* shorty);
+  CompiledInvokeStub* CreateProxyStub(const char* shorty);
 
  private:
   CompilationUnit* cunit_;
-  Compiler const* compiler_;
+  const Compiler* compiler_;
   llvm::Module* module_;
   llvm::LLVMContext* context_;
   IRBuilder& irb_;

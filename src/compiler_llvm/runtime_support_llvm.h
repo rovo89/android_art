@@ -61,7 +61,7 @@ void* art_set_current_thread_from_code(void* thread_object_addr);
 // Runtime Support Function Lookup Callback
 //----------------------------------------------------------------------------
 
-void* art_find_runtime_support_func(void* context, char const* name);
+void* art_find_runtime_support_func(void* context, const char* name);
 
 }  // namespace art
 

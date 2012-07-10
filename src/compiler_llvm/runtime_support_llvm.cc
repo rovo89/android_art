@@ -610,7 +610,7 @@ extern "C" void NAME(...);
 COMPILER_RUNTIME_FUNC_LIST_NATIVE(EXTERNAL_LINKAGE)
 #undef EXTERNAL_LINKAGE
 
-static void* art_find_compiler_runtime_func(char const* name) {
+static void* art_find_compiler_runtime_func(const char* name) {
 // TODO: If target support some math func, use the target's version. (e.g. art_d2i -> __aeabi_d2iz)
   static const char* const names[] = {
 #define DEFINE_ENTRY(NAME) #NAME ,
@@ -786,9 +786,9 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
   va_end(ap);
 }
 
-void* art_find_runtime_support_func(void* context, char const* name) {
+void* art_find_runtime_support_func(void* context, const char* name) {
   struct func_entry_t {
-    char const* name;
+    const char* name;
     size_t name_len;
     void* addr;
   };

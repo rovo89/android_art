@@ -47,7 +47,7 @@ StubCompiler::StubCompiler(CompilationUnit* cunit, Compiler& compiler)
 
 
 CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
-                                                   char const* shorty) {
+                                                   const char* shorty) {
   CHECK(shorty != NULL);
   size_t shorty_size = strlen(shorty);
 
@@ -174,7 +174,7 @@ CompiledInvokeStub* StubCompiler::CreateInvokeStub(bool is_static,
 }
 
 
-CompiledInvokeStub* StubCompiler::CreateProxyStub(char const* shorty) {
+CompiledInvokeStub* StubCompiler::CreateProxyStub(const char* shorty) {
   CHECK(shorty != NULL);
   size_t shorty_size = strlen(shorty);
 

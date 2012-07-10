@@ -67,7 +67,7 @@ class MarkStack {
   const Object* const* limit_;
 
   // Pointer to the top of the mark stack.
-  Object const**  ptr_;
+  const Object**  ptr_;
 
   DISALLOW_COPY_AND_ASSIGN(MarkStack);
 };
