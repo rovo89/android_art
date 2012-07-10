@@ -2557,7 +2557,7 @@ void cvtAget(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
 }
 
 void cvtAput(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
-             int scale)
+             int scale, bool isObject)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 4U);
   llvm::ConstantInt* optFlags =
@@ -2565,8 +2565,24 @@ void cvtAput(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
   RegLocation rlSrc = getLoc(cUnit, callInst->getArgOperand(1));
   RegLocation rlArray = getLoc(cUnit, callInst->getArgOperand(2));
   RegLocation rlIndex = getLoc(cUnit, callInst->getArgOperand(3));
-  genArrayPut(cUnit, optFlags->getZExtValue(), size, rlArray, rlIndex,
-              rlSrc, scale);
+  if (isObject) {
+    genArrayObjPut(cUnit, optFlags->getZExtValue(), rlArray, rlIndex,
+                   rlSrc, scale);
+  } else {
+    genArrayPut(cUnit, optFlags->getZExtValue(), size, rlArray, rlIndex,
+                rlSrc, scale);
+  }
+}
+
+void cvtAputObj(CompilationUnit* cUnit, llvm::CallInst* callInst)
+{
+  cvtAput(cUnit, callInst, kWord, 2, true /* isObject */);
+}
+
+void cvtAputPrimitive(CompilationUnit* cUnit, llvm::CallInst* callInst,
+                      OpSize size, int scale)
+{
+  cvtAput(cUnit, callInst, size, scale, false /* isObject */);
 }
 
 void cvtIget(CompilationUnit* cUnit, llvm::CallInst* callInst, OpSize size,
@@ -2942,25 +2958,27 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               break;
 
             case greenland::IntrinsicHelper::HLArrayPut:
-            case greenland::IntrinsicHelper::HLArrayPutObject:
             case greenland::IntrinsicHelper::HLArrayPutFloat:
-              cvtAput(cUnit, callInst, kWord, 2);
+              cvtAputPrimitive(cUnit, callInst, kWord, 2);
+              break;
+            case greenland::IntrinsicHelper::HLArrayPutObject:
+              cvtAputObj(cUnit, callInst);
               break;
             case greenland::IntrinsicHelper::HLArrayPutWide:
             case greenland::IntrinsicHelper::HLArrayPutDouble:
-              cvtAput(cUnit, callInst, kLong, 3);
+              cvtAputPrimitive(cUnit, callInst, kLong, 3);
               break;
             case greenland::IntrinsicHelper::HLArrayPutBoolean:
-              cvtAput(cUnit, callInst, kUnsignedByte, 0);
+              cvtAputPrimitive(cUnit, callInst, kUnsignedByte, 0);
               break;
             case greenland::IntrinsicHelper::HLArrayPutByte:
-              cvtAput(cUnit, callInst, kSignedByte, 0);
+              cvtAputPrimitive(cUnit, callInst, kSignedByte, 0);
               break;
             case greenland::IntrinsicHelper::HLArrayPutChar:
-              cvtAput(cUnit, callInst, kUnsignedHalf, 1);
+              cvtAputPrimitive(cUnit, callInst, kUnsignedHalf, 1);
               break;
             case greenland::IntrinsicHelper::HLArrayPutShort:
-              cvtAput(cUnit, callInst, kSignedHalf, 1);
+              cvtAputPrimitive(cUnit, callInst, kSignedHalf, 1);
               break;
 
             case greenland::IntrinsicHelper::HLIGet:

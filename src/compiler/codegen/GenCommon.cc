@@ -1439,7 +1439,7 @@ void genArrayObjPut(CompilationUnit* cUnit, int optFlags, RegLocation rlArray,
   int regLen = INVALID_REG;
   if (needsRangeCheck) {
     regLen = rARG1;
-    loadWordDisp(cUnit, rlArray.lowReg, lenOffset, regLen);  // Get len
+    loadWordDisp(cUnit, rArray, lenOffset, regLen);  // Get len
   }
   /* rPtr -> array data */
   int rPtr = oatAllocTemp(cUnit);

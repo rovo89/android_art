@@ -218,6 +218,8 @@ std::string buildInsnString(const char* fmt, LIR* lir, unsigned char* baseAddr)
              sprintf(tbuf,"%d", operand);
              break;
            case 'C':
+             DCHECK_LT(operand, static_cast<int>(
+                 sizeof(coreRegNames)/sizeof(coreRegNames[0])));
              sprintf(tbuf,"%s",coreRegNames[operand]);
              break;
            case 'E':
