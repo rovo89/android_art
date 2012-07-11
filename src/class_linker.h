@@ -300,7 +300,6 @@ class ClassLinker {
   void InitFromImage();
   OatFile* OpenOat(const ImageSpace* space);
   static void InitFromImageCallback(Object* obj, void* arg);
-  struct InitFromImageCallbackState;
 
   void FinishInit();
 
