@@ -2850,7 +2850,8 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<Class>& klass) {
       for (; j < actual_count; ++j) {
         Method* super_method = vtable->Get(j);
         super_mh.ChangeMethod(super_method);
-        if (local_mh.HasSameNameAndSignature(&super_mh)) {
+        if (local_mh.HasSameNameAndSignature(&super_mh) &&
+            klass->CanAccessMember(super_method->GetDeclaringClass(), super_method->GetAccessFlags())) {
           // Verify
           if (super_method->IsFinal()) {
             MethodHelper mh(local_method);
