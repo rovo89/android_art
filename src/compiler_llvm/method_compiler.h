@@ -94,7 +94,7 @@ class MethodCompiler {
   void EmitPrologueAllocShadowFrame();
   void EmitPrologueAssignArgRegister();
   void EmitInstructions();
-  void EmitInstruction(uint32_t dex_pc, Instruction const* insn);
+  void EmitInstruction(uint32_t dex_pc, const Instruction* insn);
 
   enum CondBranchKind {
     kCondBranch_EQ,
@@ -135,7 +135,7 @@ class MethodCompiler {
     kArgRange,
   };
 
-#define GEN_INSN_ARGS uint32_t dex_pc, Instruction const* insn
+#define GEN_INSN_ARGS uint32_t dex_pc, const Instruction* insn
 
   // NOP, PAYLOAD (unreachable) instructions
   void EmitInsn_Nop(GEN_INSN_ARGS);
@@ -364,7 +364,7 @@ class MethodCompiler {
 
   RegCategory GetInferredRegCategory(uint32_t dex_pc, uint16_t reg);
 
-  InferredRegCategoryMap const* GetInferredRegCategoryMap();
+  const InferredRegCategoryMap* GetInferredRegCategoryMap();
 
   bool IsRegCanBeObject(uint16_t reg_idx);
 
@@ -375,7 +375,7 @@ class MethodCompiler {
   llvm::BasicBlock* GetNextBasicBlock(uint32_t dex_pc);
 
   llvm::BasicBlock* CreateBasicBlockWithDexPC(uint32_t dex_pc,
-                                              char const* postfix = NULL);
+                                              const char* postfix = NULL);
 
   int32_t GetTryItemOffset(uint32_t dex_pc);
 
@@ -442,11 +442,11 @@ class MethodCompiler {
   Compiler* compiler_;
 
   ClassLinker* class_linker_;
-  ClassLoader const* class_loader_;
+  const ClassLoader* class_loader_;
 
-  DexFile const* dex_file_;
+  const DexFile* dex_file_;
   DexCache* dex_cache_;
-  DexFile::CodeItem const* code_item_;
+  const DexFile::CodeItem* code_item_;
 
   OatCompilationUnit* oat_compilation_unit_;
 

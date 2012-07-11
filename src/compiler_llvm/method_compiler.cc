@@ -121,7 +121,7 @@ llvm::FunctionType* MethodCompiler::GetFunctionType(uint32_t method_idx,
   DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx);
 
   uint32_t shorty_size;
-  char const* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
+  const char* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
   CHECK_GE(shorty_size, 1u);
 
   // Get return type
@@ -324,7 +324,7 @@ void MethodCompiler::EmitPrologueAssignArgRegister() {
   llvm::Function::arg_iterator arg_end(func_->arg_end());
 
   uint32_t shorty_size = 0;
-  char const* shorty = oat_compilation_unit_->GetShorty(&shorty_size);
+  const char* shorty = oat_compilation_unit_->GetShorty(&shorty_size);
   CHECK_GE(shorty_size, 1u);
 
   ++arg_iter; // skip method object
@@ -353,7 +353,7 @@ void MethodCompiler::EmitPrologueAssignArgRegister() {
 void MethodCompiler::EmitInstructions() {
   uint32_t dex_pc = 0;
   while (dex_pc < code_item_->insns_size_in_code_units_) {
-    Instruction const* insn = Instruction::At(code_item_->insns_ + dex_pc);
+    const Instruction* insn = Instruction::At(code_item_->insns_ + dex_pc);
     EmitInstruction(dex_pc, insn);
     dex_pc += insn->SizeInCodeUnits();
   }
@@ -361,7 +361,7 @@ void MethodCompiler::EmitInstructions() {
 
 
 void MethodCompiler::EmitInstruction(uint32_t dex_pc,
-                                     Instruction const* insn) {
+                                     const Instruction* insn) {
 
   // Set the IRBuilder insertion point
   irb_.SetInsertPoint(GetBasicBlock(dex_pc));
@@ -1218,7 +1218,7 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_Nop(uint32_t dex_pc,
-                                  Instruction const* insn) {
+                                  const Instruction* insn) {
 
   uint16_t insn_signature = code_item_->insns_[dex_pc];
 
@@ -1233,7 +1233,7 @@ void MethodCompiler::EmitInsn_Nop(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_Move(uint32_t dex_pc,
-                                   Instruction const* insn,
+                                   const Instruction* insn,
                                    JType jty) {
 
   DecodedInstruction dec_insn(insn);
@@ -1246,7 +1246,7 @@ void MethodCompiler::EmitInsn_Move(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_MoveResult(uint32_t dex_pc,
-                                         Instruction const* insn,
+                                         const Instruction* insn,
                                          JType jty) {
 
   DecodedInstruction dec_insn(insn);
@@ -1259,7 +1259,7 @@ void MethodCompiler::EmitInsn_MoveResult(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_MoveException(uint32_t dex_pc,
-                                            Instruction const* insn) {
+                                            const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1282,7 +1282,7 @@ void MethodCompiler::EmitInsn_MoveException(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_ThrowException(uint32_t dex_pc,
-                                             Instruction const* insn) {
+                                             const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1298,7 +1298,7 @@ void MethodCompiler::EmitInsn_ThrowException(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_ThrowVerificationError(uint32_t dex_pc,
-                                                     Instruction const* insn) {
+                                                     const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1316,7 +1316,7 @@ void MethodCompiler::EmitInsn_ThrowVerificationError(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_ReturnVoid(uint32_t dex_pc,
-                                         Instruction const* insn) {
+                                         const Instruction* insn) {
   // Pop the shadow frame
   EmitPopShadowFrame();
 
@@ -1326,7 +1326,7 @@ void MethodCompiler::EmitInsn_ReturnVoid(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_Return(uint32_t dex_pc,
-                                     Instruction const* insn) {
+                                     const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1344,7 +1344,7 @@ void MethodCompiler::EmitInsn_Return(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_LoadConstant(uint32_t dex_pc,
-                                           Instruction const* insn,
+                                           const Instruction* insn,
                                            JType imm_jty) {
 
   DecodedInstruction dec_insn(insn);
@@ -1399,7 +1399,7 @@ void MethodCompiler::EmitInsn_LoadConstant(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
-                                                 Instruction const* insn) {
+                                                 const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1533,7 +1533,7 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_LoadConstantClass(uint32_t dex_pc,
-                                                Instruction const* insn) {
+                                                const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1545,7 +1545,7 @@ void MethodCompiler::EmitInsn_LoadConstantClass(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
-                                           Instruction const* insn) {
+                                           const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1563,7 +1563,7 @@ void MethodCompiler::EmitInsn_MonitorEnter(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
-                                          Instruction const* insn) {
+                                          const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1585,7 +1585,7 @@ void MethodCompiler::EmitInsn_MonitorExit(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
-                                        Instruction const* insn) {
+                                        const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1640,7 +1640,7 @@ void MethodCompiler::EmitInsn_CheckCast(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_InstanceOf(uint32_t dex_pc,
-                                         Instruction const* insn) {
+                                         const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1719,7 +1719,7 @@ llvm::Value* MethodCompiler::EmitLoadArrayLength(llvm::Value* array) {
 
 
 void MethodCompiler::EmitInsn_ArrayLength(uint32_t dex_pc,
-                                          Instruction const* insn) {
+                                          const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1736,7 +1736,7 @@ void MethodCompiler::EmitInsn_ArrayLength(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
-                                          Instruction const* insn) {
+                                          const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1810,7 +1810,7 @@ llvm::Value* MethodCompiler::EmitAllocNewArray(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_NewArray(uint32_t dex_pc,
-                                       Instruction const* insn) {
+                                       const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1824,7 +1824,7 @@ void MethodCompiler::EmitInsn_NewArray(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
-                                             Instruction const* insn,
+                                             const Instruction* insn,
                                              bool is_range) {
 
   DecodedInstruction dec_insn(insn);
@@ -1898,7 +1898,7 @@ void MethodCompiler::EmitInsn_FilledNewArray(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
-                                            Instruction const* insn) {
+                                            const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1942,7 +1942,7 @@ void MethodCompiler::EmitInsn_FillArrayData(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_UnconditionalBranch(uint32_t dex_pc,
-                                                  Instruction const* insn) {
+                                                  const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1953,7 +1953,7 @@ void MethodCompiler::EmitInsn_UnconditionalBranch(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_PackedSwitch(uint32_t dex_pc,
-                                           Instruction const* insn) {
+                                           const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -1977,7 +1977,7 @@ void MethodCompiler::EmitInsn_PackedSwitch(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_SparseSwitch(uint32_t dex_pc,
-                                           Instruction const* insn) {
+                                           const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -2003,7 +2003,7 @@ void MethodCompiler::EmitInsn_SparseSwitch(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_FPCompare(uint32_t dex_pc,
-                                        Instruction const* insn,
+                                        const Instruction* insn,
                                         JType fp_jty,
                                         bool gt_bias) {
 
@@ -2031,7 +2031,7 @@ void MethodCompiler::EmitInsn_FPCompare(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_LongCompare(uint32_t dex_pc,
-                                          Instruction const* insn) {
+                                          const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -2063,7 +2063,7 @@ llvm::Value* MethodCompiler::EmitCompareResultSelection(llvm::Value* cmp_eq,
 
 
 void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
-                                                      Instruction const* insn,
+                                                      const Instruction* insn,
                                                       CondBranchKind cond) {
 
   DecodedInstruction dec_insn(insn);
@@ -2127,7 +2127,7 @@ void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
-                                                     Instruction const* insn,
+                                                     const Instruction* insn,
                                                      CondBranchKind cond) {
 
   DecodedInstruction dec_insn(insn);
@@ -2161,10 +2161,10 @@ void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
                     GetNextBasicBlock(dex_pc));
 }
 
-InferredRegCategoryMap const* MethodCompiler::GetInferredRegCategoryMap() {
+const InferredRegCategoryMap* MethodCompiler::GetInferredRegCategoryMap() {
   Compiler::MethodReference mref(dex_file_, method_idx_);
 
-  InferredRegCategoryMap const* map =
+  const InferredRegCategoryMap* map =
     verifier::MethodVerifier::GetInferredRegCategoryMap(mref);
 
   CHECK_NE(map, static_cast<InferredRegCategoryMap*>(NULL));
@@ -2174,13 +2174,13 @@ InferredRegCategoryMap const* MethodCompiler::GetInferredRegCategoryMap() {
 
 RegCategory MethodCompiler::GetInferredRegCategory(uint32_t dex_pc,
                                                    uint16_t reg_idx) {
-  InferredRegCategoryMap const* map = GetInferredRegCategoryMap();
+  const InferredRegCategoryMap* map = GetInferredRegCategoryMap();
 
   return map->GetRegCategory(dex_pc, reg_idx);
 }
 
 bool MethodCompiler::IsRegCanBeObject(uint16_t reg_idx) {
-  InferredRegCategoryMap const* map = GetInferredRegCategoryMap();
+  const InferredRegCategoryMap* map = GetInferredRegCategoryMap();
 
   return map->IsRegCanBeObject(reg_idx);
 }
@@ -2282,7 +2282,7 @@ llvm::Value* MethodCompiler::EmitArrayGEP(llvm::Value* array_addr,
 
 
 void MethodCompiler::EmitInsn_AGet(uint32_t dex_pc,
-                                   Instruction const* insn,
+                                   const Instruction* insn,
                                    JType elem_jty) {
 
   DecodedInstruction dec_insn(insn);
@@ -2303,7 +2303,7 @@ void MethodCompiler::EmitInsn_AGet(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
-                                   Instruction const* insn,
+                                   const Instruction* insn,
                                    JType elem_jty) {
 
   DecodedInstruction dec_insn(insn);
@@ -2334,7 +2334,7 @@ void MethodCompiler::EmitInsn_APut(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
-                                   Instruction const* insn,
+                                   const Instruction* insn,
                                    JType field_jty) {
 
   DecodedInstruction dec_insn(insn);
@@ -2400,7 +2400,7 @@ void MethodCompiler::EmitInsn_IGet(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_IPut(uint32_t dex_pc,
-                                   Instruction const* insn,
+                                   const Instruction* insn,
                                    JType field_jty) {
 
   DecodedInstruction dec_insn(insn);
@@ -2524,7 +2524,7 @@ llvm::Value* MethodCompiler::EmitLoadStaticStorage(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
-                                   Instruction const* insn,
+                                   const Instruction* insn,
                                    JType field_jty) {
 
   DecodedInstruction dec_insn(insn);
@@ -2603,7 +2603,7 @@ void MethodCompiler::EmitInsn_SGet(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_SPut(uint32_t dex_pc,
-                                   Instruction const* insn,
+                                   const Instruction* insn,
                                    JType field_jty) {
 
   DecodedInstruction dec_insn(insn);
@@ -2695,7 +2695,7 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
     dex_file_->GetMethodId(callee_method_idx);
 
   uint32_t shorty_size;
-  char const* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
+  const char* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
   CHECK_GE(shorty_size, 1u);
 
   // Load argument values according to the shorty (without "this")
@@ -2728,7 +2728,7 @@ EmitLoadActualParameters(std::vector<llvm::Value*>& args,
 
 
 void MethodCompiler::EmitInsn_Invoke(uint32_t dex_pc,
-                                     Instruction const* insn,
+                                     const Instruction* insn,
                                      InvokeType invoke_type,
                                      InvokeArgFmt arg_fmt) {
   DecodedInstruction dec_insn(insn);
@@ -2965,7 +2965,7 @@ EmitCallRuntimeForCalleeMethodObjectAddr(uint32_t callee_method_idx,
 
 
 void MethodCompiler::EmitInsn_Neg(uint32_t dex_pc,
-                                  Instruction const* insn,
+                                  const Instruction* insn,
                                   JType op_jty) {
 
   DecodedInstruction dec_insn(insn);
@@ -2981,7 +2981,7 @@ void MethodCompiler::EmitInsn_Neg(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_Not(uint32_t dex_pc,
-                                  Instruction const* insn,
+                                  const Instruction* insn,
                                   JType op_jty) {
 
   DecodedInstruction dec_insn(insn);
@@ -2999,7 +2999,7 @@ void MethodCompiler::EmitInsn_Not(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_SExt(uint32_t dex_pc,
-                                   Instruction const* insn) {
+                                   const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -3012,7 +3012,7 @@ void MethodCompiler::EmitInsn_SExt(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_Trunc(uint32_t dex_pc,
-                                    Instruction const* insn) {
+                                    const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -3025,7 +3025,7 @@ void MethodCompiler::EmitInsn_Trunc(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_TruncAndSExt(uint32_t dex_pc,
-                                           Instruction const* insn,
+                                           const Instruction* insn,
                                            unsigned N) {
 
   DecodedInstruction dec_insn(insn);
@@ -3044,7 +3044,7 @@ void MethodCompiler::EmitInsn_TruncAndSExt(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_TruncAndZExt(uint32_t dex_pc,
-                                           Instruction const* insn,
+                                           const Instruction* insn,
                                            unsigned N) {
 
   DecodedInstruction dec_insn(insn);
@@ -3063,7 +3063,7 @@ void MethodCompiler::EmitInsn_TruncAndZExt(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_FNeg(uint32_t dex_pc,
-                                   Instruction const* insn,
+                                   const Instruction* insn,
                                    JType op_jty) {
 
   DecodedInstruction dec_insn(insn);
@@ -3079,7 +3079,7 @@ void MethodCompiler::EmitInsn_FNeg(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_IntToFP(uint32_t dex_pc,
-                                      Instruction const* insn,
+                                      const Instruction* insn,
                                       JType src_jty,
                                       JType dest_jty) {
 
@@ -3098,7 +3098,7 @@ void MethodCompiler::EmitInsn_IntToFP(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_FPToInt(uint32_t dex_pc,
-                                      Instruction const* insn,
+                                      const Instruction* insn,
                                       JType src_jty,
                                       JType dest_jty,
                                       runtime_support::RuntimeId runtime_func_id) {
@@ -3117,7 +3117,7 @@ void MethodCompiler::EmitInsn_FPToInt(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_FExt(uint32_t dex_pc,
-                                   Instruction const* insn) {
+                                   const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -3130,7 +3130,7 @@ void MethodCompiler::EmitInsn_FExt(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_FTrunc(uint32_t dex_pc,
-                                     Instruction const* insn) {
+                                     const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -3143,7 +3143,7 @@ void MethodCompiler::EmitInsn_FTrunc(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_IntArithm(uint32_t dex_pc,
-                                        Instruction const* insn,
+                                        const Instruction* insn,
                                         IntArithmKind arithm,
                                         JType op_jty,
                                         bool is_2addr) {
@@ -3174,7 +3174,7 @@ void MethodCompiler::EmitInsn_IntArithm(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_IntArithmImmediate(uint32_t dex_pc,
-                                                 Instruction const* insn,
+                                                 const Instruction* insn,
                                                  IntArithmKind arithm) {
 
   DecodedInstruction dec_insn(insn);
@@ -3292,7 +3292,7 @@ MethodCompiler::EmitIntDivRemResultComputation(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_IntShiftArithm(uint32_t dex_pc,
-                                             Instruction const* insn,
+                                             const Instruction* insn,
                                              IntShiftArithmKind arithm,
                                              JType op_jty,
                                              bool is_2addr) {
@@ -3326,7 +3326,7 @@ void MethodCompiler::EmitInsn_IntShiftArithm(uint32_t dex_pc,
 
 void MethodCompiler::
 EmitInsn_IntShiftArithmImmediate(uint32_t dex_pc,
-                                 Instruction const* insn,
+                                 const Instruction* insn,
                                  IntShiftArithmKind arithm) {
 
   DecodedInstruction dec_insn(insn);
@@ -3378,7 +3378,7 @@ MethodCompiler::EmitIntShiftArithmResultComputation(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_RSubImmediate(uint32_t dex_pc,
-                                            Instruction const* insn) {
+                                            const Instruction* insn) {
 
   DecodedInstruction dec_insn(insn);
 
@@ -3392,7 +3392,7 @@ void MethodCompiler::EmitInsn_RSubImmediate(uint32_t dex_pc,
 
 
 void MethodCompiler::EmitInsn_FPArithm(uint32_t dex_pc,
-                                       Instruction const* insn,
+                                       const Instruction* insn,
                                        FPArithmKind arithm,
                                        JType op_jty,
                                        bool is_2addr) {
@@ -3586,7 +3586,7 @@ void MethodCompiler::EmitBranchExceptionLandingPad(uint32_t dex_pc) {
 
 void MethodCompiler::EmitGuard_ExceptionLandingPad(uint32_t dex_pc, bool can_skip_unwind) {
   llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc);
-  Instruction const* insn = Instruction::At(code_item_->insns_ + dex_pc);
+  const Instruction* insn = Instruction::At(code_item_->insns_ + dex_pc);
   if (lpad == NULL && can_skip_unwind &&
       IsInstructionDirectToReturn(dex_pc + insn->SizeInCodeUnits())) {
     return;
@@ -3617,7 +3617,7 @@ void MethodCompiler::EmitGuard_GarbageCollectionSuspend() {
 
 
 llvm::BasicBlock* MethodCompiler::
-CreateBasicBlockWithDexPC(uint32_t dex_pc, char const* postfix) {
+CreateBasicBlockWithDexPC(uint32_t dex_pc, const char* postfix) {
   std::string name;
 
 #if !defined(NDEBUG)
@@ -3648,7 +3648,7 @@ llvm::BasicBlock* MethodCompiler::GetBasicBlock(uint32_t dex_pc) {
 
 llvm::BasicBlock*
 MethodCompiler::GetNextBasicBlock(uint32_t dex_pc) {
-  Instruction const* insn = Instruction::At(code_item_->insns_ + dex_pc);
+  const Instruction* insn = Instruction::At(code_item_->insns_ + dex_pc);
   return GetBasicBlock(dex_pc + insn->SizeInCodeUnits());
 }
 
@@ -3664,7 +3664,7 @@ int32_t MethodCompiler::GetTryItemOffset(uint32_t dex_pc) {
   while (min <= max) {
     int32_t mid = min + (max - min) / 2;
 
-    DexFile::TryItem const* ti = DexFile::GetTryItems(*code_item_, mid);
+    const DexFile::TryItem* ti = DexFile::GetTryItems(*code_item_, mid);
     uint32_t start = ti->start_addr_;
     uint32_t end = start + ti->insn_count_;
 
@@ -3700,7 +3700,7 @@ llvm::BasicBlock* MethodCompiler::GetLandingPadBasicBlock(uint32_t dex_pc) {
   }
 
   // Get try item from code item
-  DexFile::TryItem const* ti = DexFile::GetTryItems(*code_item_, ti_offset);
+  const DexFile::TryItem* ti = DexFile::GetTryItems(*code_item_, ti_offset);
 
   std::string lpadname;
 
@@ -4106,7 +4106,7 @@ bool MethodCompiler::IsInstructionDirectToReturn(uint32_t dex_pc) {
       return false;
     }
 
-    Instruction const* insn = Instruction::At(code_item_->insns_ + dex_pc);
+    const Instruction* insn = Instruction::At(code_item_->insns_ + dex_pc);
 
     if (insn->IsReturn()) {
       return true;
@@ -4157,7 +4157,7 @@ void MethodCompiler::ComputeMethodInfo() {
   std::vector<bool>& set_to_another_object = method_info_.set_to_another_object;
   set_to_another_object.resize(code_item_->registers_size_, false);
 
-  Instruction const* insn;
+  const Instruction* insn;
   for (uint32_t dex_pc = 0;
        dex_pc < code_item_->insns_size_in_code_units_;
        dex_pc += insn->SizeInCodeUnits()) {

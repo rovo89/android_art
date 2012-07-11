@@ -294,7 +294,7 @@ llvm::FunctionType* JniCompiler::GetFunctionType(uint32_t method_idx,
   DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx);
 
   uint32_t shorty_size;
-  char const* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
+  const char* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
   CHECK_GE(shorty_size, 1u);
 
   // Get return type
