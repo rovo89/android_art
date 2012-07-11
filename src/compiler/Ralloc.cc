@@ -180,6 +180,36 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
         }
       }
 
+      // Special-case return handling
+      if ((mir->dalvikInsn.opcode == Instruction::RETURN) ||
+          (mir->dalvikInsn.opcode == Instruction::RETURN_WIDE) ||
+          (mir->dalvikInsn.opcode == Instruction::RETURN_OBJECT)) {
+        switch(cUnit->shorty[0]) {
+            case 'I':
+              changed |= setCore(cUnit, ssaRep->uses[0], true);
+              break;
+            case 'J':
+              changed |= setCore(cUnit, ssaRep->uses[0], true);
+              changed |= setCore(cUnit, ssaRep->uses[1], true);
+              cUnit->regLocation[ssaRep->uses[0]].wide = true;
+              cUnit->regLocation[ssaRep->uses[1]].highWord = true;
+              break;
+            case 'F':
+              changed |= setFp(cUnit, ssaRep->uses[0], true);
+              break;
+            case 'D':
+              changed |= setFp(cUnit, ssaRep->uses[0], true);
+              changed |= setFp(cUnit, ssaRep->uses[1], true);
+              cUnit->regLocation[ssaRep->uses[0]].wide = true;
+              cUnit->regLocation[ssaRep->uses[1]].highWord = true;
+              break;
+            case 'L':
+              changed |= setRef(cUnit, ssaRep->uses[0], true);
+              break;
+            default: break;
+        }
+      }
+
       // Special-case handling for format 35c/3rc invokes
       Instruction::Code opcode = mir->dalvikInsn.opcode;
       int flags = (static_cast<int>(opcode) >= kNumPackedOpcodes)
@@ -322,7 +352,8 @@ void oatDumpRegLocTable(RegLocation* table, int count)
   for (int i = 0; i < count; i++) {
     LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c%d %c%d S%d",
         i, storageName[table[i].location], table[i].wide ? 'W' : 'N',
-        table[i].defined ? 'D' : 'U', table[i].fp ? 'F' : 'C',
+        table[i].defined ? 'D' : 'U',
+        table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
         table[i].highWord ? 'H' : 'L', table[i].home ? 'h' : 't',
         oatIsFpReg(table[i].lowReg) ? 's' : 'r',
         table[i].lowReg & oatFpRegMask(),
@@ -418,15 +449,19 @@ void oatSimpleRegAlloc(CompilationUnit* cUnit)
           cUnit->regLocation[sReg].core = true;
           cUnit->regLocation[sReg].defined = true;
           sReg++;
-            break;
-          case 'F':
-            cUnit->regLocation[sReg].fp = true;
-            cUnit->regLocation[sReg].defined = true;
-            break;
-          default:
-            cUnit->regLocation[sReg].core = true;
-            cUnit->regLocation[sReg].defined = true;
-            break;
+          break;
+        case 'F':
+          cUnit->regLocation[sReg].fp = true;
+          cUnit->regLocation[sReg].defined = true;
+          break;
+        case 'L':
+          cUnit->regLocation[sReg].ref = true;
+          cUnit->regLocation[sReg].defined = true;
+          break;
+        default:
+          cUnit->regLocation[sReg].core = true;
+          cUnit->regLocation[sReg].defined = true;
+          break;
         }
         sReg++;
       }
