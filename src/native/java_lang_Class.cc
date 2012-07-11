@@ -354,35 +354,6 @@ static jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass java
   return lhs->IsAssignableFrom(rhs) ? JNI_TRUE : JNI_FALSE;
 }
 
-// Validate method/field access.
-static bool CheckMemberAccess(const Class* access_from, Class* access_to, uint32_t member_flags) {
-  // quick accept for public access */
-  if (member_flags & kAccPublic) {
-    return true;
-  }
-
-  // quick accept for access from same class
-  if (access_from == access_to) {
-    return true;
-  }
-
-  // quick reject for private access from another class
-  if (member_flags & kAccPrivate) {
-    return false;
-  }
-
-  // Semi-quick test for protected access from a sub-class, which may or
-  // may not be in the same package.
-  if (member_flags & kAccProtected) {
-    if (access_from->IsSubClass(access_to)) {
-        return true;
-    }
-  }
-
-  // Allow protected and private access from other classes in the same
-  return access_from->IsInSamePackage(access_to);
-}
-
 static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
   ScopedJniThreadState ts(env);
   Class* c = DecodeClass(ts, javaThis);
@@ -424,7 +395,7 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
         PrettyDescriptor(caller_ch.GetDescriptor()).c_str());
     return NULL;
   }
-  if (!CheckMemberAccess(caller_class, init->GetDeclaringClass(), init->GetAccessFlags())) {
+  if (!caller_class->CanAccessMember(init->GetDeclaringClass(), init->GetAccessFlags())) {
     ts.Self()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
         "%s is not accessible from class %s",
         PrettyMethod(init).c_str(),
