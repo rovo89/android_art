@@ -34,8 +34,10 @@
 #include "well_known_classes.h"
 
 #include <algorithm>
-#include <cstdarg>
+#include <math.h>
+#include <stdarg.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include "asm_support.h"
 
@@ -605,21 +607,22 @@ void art_check_put_array_element_from_code(const Object* element, const Object* 
 // Runtime Support Function Lookup Callback
 //----------------------------------------------------------------------------
 
-#define EXTERNAL_LINKAGE(NAME) \
-extern "C" void NAME(...);
+#define EXTERNAL_LINKAGE(NAME, RETURN_TYPE, ...) \
+extern "C" RETURN_TYPE NAME(__VA_ARGS__);
 COMPILER_RUNTIME_FUNC_LIST_NATIVE(EXTERNAL_LINKAGE)
 #undef EXTERNAL_LINKAGE
 
 static void* art_find_compiler_runtime_func(const char* name) {
 // TODO: If target support some math func, use the target's version. (e.g. art_d2i -> __aeabi_d2iz)
   static const char* const names[] = {
-#define DEFINE_ENTRY(NAME) #NAME ,
+#define DEFINE_ENTRY(NAME, RETURN_TYPE, ...) #NAME ,
     COMPILER_RUNTIME_FUNC_LIST_NATIVE(DEFINE_ENTRY)
 #undef DEFINE_ENTRY
   };
 
   static void* const funcs[] = {
-#define DEFINE_ENTRY(NAME) reinterpret_cast<void*>(NAME) ,
+#define DEFINE_ENTRY(NAME, RETURN_TYPE, ...) \
+    reinterpret_cast<void*>(static_cast<RETURN_TYPE (*)(__VA_ARGS__)>(NAME)) ,
     COMPILER_RUNTIME_FUNC_LIST_NATIVE(DEFINE_ENTRY)
 #undef DEFINE_ENTRY
   };

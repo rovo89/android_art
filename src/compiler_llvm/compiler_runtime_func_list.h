@@ -20,213 +20,205 @@
 // NOTE: COMPILER_RUNTIME_FUNC_LIST_* should be sorted!
 
 #define COMPILER_RUNTIME_FUNC_LIST_X86(V) \
-  V(__ashldi3) \
-  V(__ashrdi3) \
-  V(__divdi3) \
-  V(__fixdfdi) \
-  V(__fixsfdi) \
-  V(__fixtfdi) \
-  V(__fixtfsi) \
-  V(__fixunsdfdi) \
-  V(__fixunsdfsi) \
-  V(__fixunssfdi) \
-  V(__fixunssfsi) \
-  V(__fixunstfdi) \
-  V(__fixunstfsi) \
-  V(__fixunsxfdi) \
-  V(__fixunsxfsi) \
-  V(__fixxfdi) \
-  V(__floatdidf) \
-  V(__floatdisf) \
-  V(__floatditf) \
-  V(__floatdixf) \
-  V(__floatsitf) \
-  V(__floatundidf) \
-  V(__floatundisf) \
-  V(__floatunditf) \
-  V(__floatundixf) \
-  V(__floatunsitf) \
-  V(__lshrdi3) \
-  V(__moddi3) \
-  V(__muldi3) \
-  V(__negdi2) \
-  V(__powidf2) \
-  V(__powisf2) \
-  V(__powitf2) \
-  V(__powixf2) \
-  V(__trunctfdf2) \
-  V(__trunctfsf2) \
-  V(__udivdi3) \
-  V(__umoddi3) \
-  V(ceil) \
-  V(ceilf) \
-  V(ceill) \
-  V(copysign) \
-  V(copysignf) \
-  V(copysignl) \
-  V(cos) \
-  V(cosf) \
-  V(exp) \
-  V(exp2) \
-  V(exp2f) \
-  V(expf) \
-  V(floor) \
-  V(floorf) \
-  V(floorl) \
-  V(fma) \
-  V(fmaf) \
-  V(fmod) \
-  V(fmodf) \
-  V(log) \
-  V(log10) \
-  V(log10f) \
-  V(logf) \
-  V(memcpy) \
-  V(memmove) \
-  V(memset) \
-  V(nearbyint) \
-  V(nearbyintf) \
-  V(pow) \
-  V(powf) \
-  V(rint) \
-  V(rintf) \
-  V(sin) \
-  V(sinf) \
-  V(sqrt) \
-  V(sqrtf) \
-  V(trunc) \
-  V(truncf) \
-  V(truncl)
+  V(__ashldi3,          long long, long long, int) \
+  V(__ashrdi3,          long long, long long, int) \
+  V(__divdi3,           long long, long long, long long) \
+  V(__fixdfdi,          long long, double) \
+  V(__fixsfdi,          long long, float) \
+  V(__fixtfdi,          long long, long double) \
+  V(__fixtfsi,          int, long double) \
+  V(__fixunsdfdi,       unsigned long long, double) \
+  V(__fixunsdfsi,       unsigned int, double) \
+  V(__fixunssfdi,       unsigned long long, float) \
+  V(__fixunssfsi,       unsigned int, float) \
+  V(__fixunstfdi,       unsigned long long, long double) \
+  V(__fixunstfsi,       unsigned int, long double) \
+  V(__fixunsxfdi,       unsigned long long, long double) \
+  V(__fixunsxfsi,       unsigned int, long double) \
+  V(__fixxfdi,          long long, long double) \
+  V(__floatdidf,        double, long long) \
+  V(__floatdisf,        float, long long) \
+  V(__floatditf,        long double, long long) \
+  V(__floatdixf,        long double, long long) \
+  V(__floatsitf,        long double, int) \
+  V(__floatundidf,      double, unsigned long long) \
+  V(__floatundisf,      float, unsigned long long) \
+  V(__floatunditf,      long double, unsigned long long) \
+  V(__floatundixf,      long double, unsigned long long) \
+  V(__floatunsitf,      long double, int) \
+  V(__lshrdi3,          long long, long long, int) \
+  V(__moddi3,           long long, long long, long long) \
+  V(__muldi3,           long long, long long, long long) \
+  V(__negdi2,           long long, long long) \
+  V(__powidf2,          double, double, int) \
+  V(__powisf2,          float, float, int) \
+  V(__powitf2,          long double, long double, int) \
+  V(__powixf2,          long double, long double, int) \
+  V(__trunctfdf2,       double, long double) \
+  V(__trunctfsf2,       float, long double) \
+  V(__udivdi3,          unsigned long long, unsigned long long, unsigned long long) \
+  V(__umoddi3,          unsigned long long, unsigned long long, unsigned long long) \
+  V(ceil,               double, double) \
+  V(ceilf,              float, float) \
+  V(ceill,              long double, long double) \
+  V(copysign,           double, double, double) \
+  V(copysignf,          float, float, float) \
+  V(copysignl,          long double, long double, long double) \
+  V(cos,                double, double) \
+  V(cosf,               float, float) \
+  V(exp,                double, double) \
+  V(exp2,               double, double) \
+  V(exp2f,              float, float) \
+  V(expf,               float, float) \
+  V(floor,              double, double) \
+  V(floorf,             float, float) \
+  V(floorl,             long double, long double) \
+  V(fma,                double, double, double, double) \
+  V(fmaf,               float, float, float, float) \
+  V(fmod,               double, double, double) \
+  V(fmodf,              float, float, float) \
+  V(log,                double, double) \
+  V(log10,              double, double) \
+  V(log10f,             float, float) \
+  V(logf,               float, float) \
+  V(memcpy,             void *, void *, const void *, size_t) \
+  V(memmove,            void *, void *, const void *, size_t) \
+  V(memset,             void *, void *, int, size_t) \
+  V(nearbyint,          double, double) \
+  V(nearbyintf,         float, float) \
+  V(pow,                double, double, double) \
+  V(powf,               float, float, float) \
+  V(rint,               double, double) \
+  V(rintf,              float, float) \
+  V(sin,                double, double) \
+  V(sinf,               float, float) \
+  V(sqrt,               double, double) \
+  V(sqrtf,              float, float) \
+  V(trunc,              double, double) \
+  V(truncf,             float, float) \
+  V(truncl,             long double, long double)
 
 #define COMPILER_RUNTIME_FUNC_LIST_MIPS(V) \
-  V(__ashldi3) \
-  V(__ashrdi3) \
-  V(__divdi3) \
-  V(__fixdfdi) \
-  V(__fixsfdi) \
-  V(__fixunsdfdi) \
-  V(__fixunsdfsi) \
-  V(__fixunssfdi) \
-  V(__fixunssfsi) \
-  V(__floatdidf) \
-  V(__floatdisf) \
-  V(__floatundidf) \
-  V(__floatundisf) \
-  V(__lshrdi3) \
-  V(__moddi3) \
-  V(__muldi3) \
-  V(__negdi2) \
-  V(__powidf2) \
-  V(__powisf2) \
-  V(__udivdi3) \
-  V(__umoddi3) \
-  V(ceil) \
-  V(ceilf) \
-  V(ceill) \
-  V(copysign) \
-  V(copysignf) \
-  V(copysignl) \
-  V(cos) \
-  V(cosf) \
-  V(exp) \
-  V(exp2) \
-  V(exp2f) \
-  V(expf) \
-  V(floor) \
-  V(floorf) \
-  V(floorl) \
-  V(fma) \
-  V(fmaf) \
-  V(fmod) \
-  V(fmodf) \
-  V(log) \
-  V(log10) \
-  V(log10f) \
-  V(logf) \
-  V(memcpy) \
-  V(memmove) \
-  V(memset) \
-  V(nearbyint) \
-  V(nearbyintf) \
-  V(pow) \
-  V(powf) \
-  V(rint) \
-  V(rintf) \
-  V(sin) \
-  V(sinf) \
-  V(sqrt) \
-  V(sqrtf) \
-  V(trunc) \
-  V(truncf) \
-  V(truncl)
+  V(__ashldi3,          long long, long long, int) \
+  V(__ashrdi3,          long long, long long, int) \
+  V(__divdi3,           long long, long long, long long) \
+  V(__fixdfdi,          long long, double) \
+  V(__fixsfdi,          long long, float) \
+  V(__fixunsdfdi,       unsigned long long, double) \
+  V(__fixunsdfsi,       unsigned int, double) \
+  V(__fixunssfdi,       unsigned long long, float) \
+  V(__fixunssfsi,       unsigned int, float) \
+  V(__floatdidf,        double, long long) \
+  V(__floatdisf,        float, long long) \
+  V(__floatundidf,      double, unsigned long long) \
+  V(__floatundisf,      float, unsigned long long) \
+  V(__lshrdi3,          long long, long long, int) \
+  V(__moddi3,           long long, long long, long long) \
+  V(__muldi3,           long long, long long, long long) \
+  V(__negdi2,           long long, long long) \
+  V(__powidf2,          double, double, int) \
+  V(__powisf2,          float, float, int) \
+  V(__udivdi3,          unsigned long long, unsigned long long, unsigned long long) \
+  V(__umoddi3,          unsigned long long, unsigned long long, unsigned long long) \
+  V(ceil,               double, double) \
+  V(ceilf,              float, float) \
+  V(ceill,              long double, long double) \
+  V(copysign,           double, double, double) \
+  V(copysignf,          float, float, float) \
+  V(copysignl,          long double, long double, long double) \
+  V(cos,                double, double) \
+  V(cosf,               float, float) \
+  V(exp,                double, double) \
+  V(exp2,               double, double) \
+  V(exp2f,              float, float) \
+  V(expf,               float, float) \
+  V(floor,              double, double) \
+  V(floorf,             float, float) \
+  V(floorl,             long double, long double) \
+  V(fma,                double, double, double, double) \
+  V(fmaf,               float, float, float, float) \
+  V(fmod,               double, double, double) \
+  V(fmodf,              float, float, float) \
+  V(log,                double, double) \
+  V(log10,              double, double) \
+  V(log10f,             float, float) \
+  V(logf,               float, float) \
+  V(memcpy,             void *, void *, const void *, size_t) \
+  V(memmove,            void *, void *, const void *, size_t) \
+  V(memset,             void *, void *, int, size_t) \
+  V(nearbyint,          double, double) \
+  V(nearbyintf,         float, float) \
+  V(pow,                double, double, double) \
+  V(powf,               float, float, float) \
+  V(rint,               double, double) \
+  V(rintf,              float, float) \
+  V(sin,                double, double) \
+  V(sinf,               float, float) \
+  V(sqrt,               double, double) \
+  V(sqrtf,              float, float) \
+  V(trunc,              double, double) \
+  V(truncf,             float, float) \
+  V(truncl,             long double, long double)
 
 #define COMPILER_RUNTIME_FUNC_LIST_ARM(V) \
-  V(__aeabi_d2f) \
-  V(__aeabi_d2iz) \
-  V(__aeabi_d2lz) \
-  V(__aeabi_d2uiz) \
-  V(__aeabi_d2ulz) \
-  V(__aeabi_dadd) \
-  V(__aeabi_dcmpeq) \
-  V(__aeabi_dcmpeq) \
-  V(__aeabi_dcmpge) \
-  V(__aeabi_dcmpgt) \
-  V(__aeabi_dcmple) \
-  V(__aeabi_dcmplt) \
-  V(__aeabi_dcmpun) \
-  V(__aeabi_dcmpun) \
-  V(__aeabi_ddiv) \
-  V(__aeabi_dmul) \
-  V(__aeabi_dsub) \
-  V(__aeabi_f2d) \
-  V(__aeabi_f2iz) \
-  V(__aeabi_f2lz) \
-  V(__aeabi_f2uiz) \
-  V(__aeabi_f2ulz) \
-  V(__aeabi_fadd) \
-  V(__aeabi_fcmpeq) \
-  V(__aeabi_fcmpeq) \
-  V(__aeabi_fcmpge) \
-  V(__aeabi_fcmpgt) \
-  V(__aeabi_fcmple) \
-  V(__aeabi_fcmplt) \
-  V(__aeabi_fcmpun) \
-  V(__aeabi_fcmpun) \
-  V(__aeabi_fdiv) \
-  V(__aeabi_fmul) \
-  V(__aeabi_fsub) \
-  V(__aeabi_i2d) \
-  V(__aeabi_i2f) \
-  V(__aeabi_idiv) \
-  V(__aeabi_idiv) \
-  V(__aeabi_idiv) \
-  V(__aeabi_l2d) \
-  V(__aeabi_l2f) \
-  V(__aeabi_lasr) \
-  V(__aeabi_ldivmod) \
-  V(__aeabi_llsl) \
-  V(__aeabi_llsr) \
-  V(__aeabi_lmul) \
-  V(__aeabi_memcpy) \
-  V(__aeabi_memmove) \
-  V(__aeabi_memset) \
-  V(__aeabi_ui2d) \
-  V(__aeabi_ui2f) \
-  V(__aeabi_uidiv) \
-  V(__aeabi_uidiv) \
-  V(__aeabi_uidiv) \
-  V(__aeabi_ul2d) \
-  V(__aeabi_ul2f) \
-  V(__aeabi_uldivmod) \
-  V(__moddi3) \
-  V(__modsi3) \
-  V(__umoddi3) \
-  V(__umodsi3) \
-  V(fmod) \
-  V(fmodf) \
-  V(memcpy) \
-  V(memmove) \
-  V(memset)
+  V(__aeabi_d2f,        float, double) \
+  V(__aeabi_d2iz,       int, double) \
+  V(__aeabi_d2lz,       long long, double) \
+  V(__aeabi_d2uiz,      unsigned, double) \
+  V(__aeabi_d2ulz,      unsigned long long, double) \
+  V(__aeabi_dadd,       double, double, double) \
+  V(__aeabi_dcmpeq,     int, double, double) \
+  V(__aeabi_dcmpge,     int, double, double) \
+  V(__aeabi_dcmpgt,     int, double, double) \
+  V(__aeabi_dcmple,     int, double, double) \
+  V(__aeabi_dcmplt,     int, double, double) \
+  V(__aeabi_dcmpun,     int, double, double) \
+  V(__aeabi_ddiv,       double, double, double) \
+  V(__aeabi_dmul,       double, double, double) \
+  V(__aeabi_dsub,       double, double, double) \
+  V(__aeabi_f2d,        double, float) \
+  V(__aeabi_f2iz,       int, float) \
+  V(__aeabi_f2lz,       long long, float) \
+  V(__aeabi_f2uiz,      unsigned int, float) \
+  V(__aeabi_f2ulz,      unsigned long long, float) \
+  V(__aeabi_fadd,       float, float, float) \
+  V(__aeabi_fcmpeq,     int, float, float) \
+  V(__aeabi_fcmpge,     int, float, float) \
+  V(__aeabi_fcmpgt,     int, float, float) \
+  V(__aeabi_fcmple,     int, float, float) \
+  V(__aeabi_fcmplt,     int, float, float) \
+  V(__aeabi_fcmpun,     int, float, float) \
+  V(__aeabi_fdiv,       float, float, float) \
+  V(__aeabi_fmul,       float, float, float) \
+  V(__aeabi_fsub,       float, float, float) \
+  V(__aeabi_i2d,        double, int) \
+  V(__aeabi_i2f,        float, int) \
+  V(__aeabi_idiv,       int, int, int) \
+  V(__aeabi_l2d,        double, long long) \
+  V(__aeabi_l2f,        float, long long) \
+  V(__aeabi_lasr,       long long, long long, int) \
+  V(__aeabi_ldivmod,    /* value in regs */ void, long long, long long) \
+  V(__aeabi_llsl,       long long, long long, int) \
+  V(__aeabi_llsr,       long long, long long, int) \
+  V(__aeabi_lmul,       long long, long long, long long) \
+  V(__aeabi_memcpy,     void, void *, const void *, size_t) \
+  V(__aeabi_memmove,    void, void *, const void *, size_t) \
+  V(__aeabi_memset,     void, void *, size_t, int) /* different from stdlib */ \
+  V(__aeabi_ui2d,       double, unsigned int) \
+  V(__aeabi_ui2f,       float, unsigned int) \
+  V(__aeabi_uidiv,      unsigned int, unsigned int, unsigned int) \
+  V(__aeabi_ul2d,       double, unsigned long long) \
+  V(__aeabi_ul2f,       float, unsigned long long) \
+  V(__aeabi_uldivmod,   /* value in regs */ void, unsigned long long, unsigned long long) \
+  V(__moddi3,           long long, long long, long long) \
+  V(__modsi3,           int, int, int) \
+  V(__umoddi3,          unsigned long long, unsigned long long, unsigned long long) \
+  V(__umodsi3,          unsigned int, unsigned int, unsigned int) \
+  V(fmod,               double, double, double) \
+  V(fmodf,              float, float, float) \
+  V(memcpy,             void *, void *, const void *, size_t) \
+  V(memmove,            void *, void *, const void *, size_t) \
+  V(memset,             void *, void *, int, size_t)
 
 
 #if defined(__arm__)

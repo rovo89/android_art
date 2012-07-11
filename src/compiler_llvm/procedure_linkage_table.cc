@@ -42,19 +42,19 @@ namespace {
   };
 
   const char* const compiler_runtime_func_name_list_arm[] = {
-#define DEFINE_ENTRY(NAME) #NAME,
+#define DEFINE_ENTRY(NAME, RETURN_TYPE, ...) #NAME,
     COMPILER_RUNTIME_FUNC_LIST_ARM(DEFINE_ENTRY)
 #undef DEFINE_ENTRY
   };
 
   const char* const compiler_runtime_func_name_list_mips[] = {
-#define DEFINE_ENTRY(NAME) #NAME,
+#define DEFINE_ENTRY(NAME, RETURN_TYPE, ...) #NAME,
     COMPILER_RUNTIME_FUNC_LIST_MIPS(DEFINE_ENTRY)
 #undef DEFINE_ENTRY
   };
 
   const char* const compiler_runtime_func_name_list_x86[] = {
-#define DEFINE_ENTRY(NAME) #NAME,
+#define DEFINE_ENTRY(NAME, RETURN_TYPE, ...) #NAME,
     COMPILER_RUNTIME_FUNC_LIST_X86(DEFINE_ENTRY)
 #undef DEFINE_ENTRY
   };
