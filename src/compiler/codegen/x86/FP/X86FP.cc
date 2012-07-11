@@ -21,6 +21,7 @@ static bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
                             RegLocation rlSrc2) {
   X86OpCode op = kX86Nop;
   RegLocation rlResult;
+  int tempReg;
 
   /*
    * Don't attempt to optimize register usage since these opcodes call out to
@@ -44,12 +45,13 @@ static bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
       op = kX86MulssRR;
       break;
     case Instruction::NEG_FLOAT:
-      // TODO: Make this nicer. Subtracting the source from 0 doesn't work in
-      // the 0 case, and using FCHS is difficult with register promotion. This
-      // code treats the value as a CoreReg to make it easy to manipulate.
-      rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
-      rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-      opRegRegImm(cUnit, kOpAdd, rlResult.lowReg, rlSrc1.lowReg, 0x80000000);
+      // TODO: Make this an XorpsRM where the memory location holds 0x80000000
+      rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
+      rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
+      tempReg = oatAllocTemp(cUnit);
+      loadConstant(cUnit, tempReg, 0x80000000);
+      newLIR2(cUnit, kX86MovdxrRR, rlResult.lowReg, tempReg);
+      newLIR2(cUnit, kX86XorpsRR, rlResult.lowReg, rlSrc1.lowReg);
       storeValue(cUnit, rlDest, rlResult);
       return false;
     case Instruction::REM_FLOAT_2ADDR:
@@ -81,6 +83,7 @@ static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
                              RegLocation rlSrc2) {
   X86OpCode op = kX86Nop;
   RegLocation rlResult;
+  int tempReg;
 
   switch (opcode) {
     case Instruction::ADD_DOUBLE_2ADDR:
@@ -100,13 +103,14 @@ static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
       op = kX86MulsdRR;
       break;
     case Instruction::NEG_DOUBLE:
-      // TODO: Make this nicer. Subtracting the source from 0 doesn't work in
-      // the 0 case, and using FCHS is difficult with register promotion. This
-      // code treats the value as a CoreReg to make it easy to manipulate.
-      rlSrc1 = loadValueWide(cUnit, rlSrc1, kCoreReg);
-      rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
-      opRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc1.highReg, 0x80000000);
-      opRegCopy(cUnit, rlResult.lowReg, rlSrc1.lowReg);
+      // TODO: Make this an XorpdRM where the memory location holds 0x8000000000000000
+      rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
+      rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
+      tempReg = oatAllocTemp(cUnit);
+      loadConstant(cUnit, tempReg, 0x80000000);
+      newLIR2(cUnit, kX86MovdxrRR, rlResult.lowReg, tempReg);
+      newLIR2(cUnit, kX86PsllqRI, rlResult.lowReg, 32);
+      newLIR2(cUnit, kX86XorpsRR, rlResult.lowReg, rlSrc1.lowReg);
       storeValueWide(cUnit, rlDest, rlResult);
       return false;
     case Instruction::REM_DOUBLE_2ADDR:
