@@ -2344,6 +2344,8 @@ void cvtICmpBr(CompilationUnit* cUnit, llvm::Instruction* inst,
   // TODO: handle fused CMP_LONG/IF_xxZ case
   if (llvm::ConstantInt* src2 = llvm::dyn_cast<llvm::ConstantInt>(rhs)) {
     opRegImm(cUnit, kOpCmp, rlSrc1.lowReg, src2->getSExtValue());
+  } else if (llvm::dyn_cast<llvm::ConstantPointerNull>(rhs) != NULL) {
+    opRegImm(cUnit, kOpCmp, rlSrc1.lowReg, 0);
   } else {
     RegLocation rlSrc2 = getLoc(cUnit, rhs);
     rlSrc2 = loadValue(cUnit, rlSrc2, kCoreReg);
