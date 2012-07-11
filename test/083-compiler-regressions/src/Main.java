@@ -40,6 +40,8 @@ public class Main {
         wideGetterSetterTest();
         wideIdentityTest();
         returnConstantTest();
+        ZeroTests.longDivTest();
+        ZeroTests.longModTest();
     }
 
     public static void returnConstantTest() {

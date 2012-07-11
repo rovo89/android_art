@@ -9,3 +9,5 @@ identityTest passes
 wideGetterSetterTest passes
 wideIdentityTest passes
 returnConstantTest passes
+longDivTest passes
+longModTest passes
