@@ -254,7 +254,6 @@ class LOCKABLE Heap {
   void RequestConcurrentGC();
 
   void RecordAllocationLocked(AllocSpace* space, const Object* object);
-  void RecordImageAllocations(Space* space);
 
   // TODO: can we teach GCC to understand the weird locking in here?
   void CollectGarbageInternal(bool concurrent, bool clear_soft_references) NO_THREAD_SAFETY_ANALYSIS;
