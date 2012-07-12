@@ -136,7 +136,7 @@ class LOCKABLE Heap {
     lock_->AssertNotHeld();
   }
 
-  const std::vector<Space*>& GetSpaces() {
+  const Spaces& GetSpaces() {
     return spaces_;
   }
 

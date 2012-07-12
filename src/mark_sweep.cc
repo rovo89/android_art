@@ -30,6 +30,7 @@
 #include "monitor.h"
 #include "object.h"
 #include "runtime.h"
+#include "scoped_heap_lock.h"
 #include "space.h"
 #include "timing_logger.h"
 #include "thread.h"
@@ -267,7 +268,7 @@ void MarkSweep::SweepJniWeakGlobals() {
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   MutexLock mu(vm->weak_globals_lock);
   IndirectReferenceTable* table = &vm->weak_globals;
-  typedef IndirectReferenceTable::iterator It; // TODO: C++0x auto
+  typedef IndirectReferenceTable::iterator It;  // TODO: C++0x auto
   for (It it = table->begin(), end = table->end(); it != end; ++it) {
     const Object** entry = *it;
     if (!heap_->GetMarkBitmap()->Test(*entry)) {
@@ -288,7 +289,8 @@ struct SweepCallbackContext {
 };
 
 void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
-  // TODO: lock heap if concurrent
+  ScopedHeapLock lock;
+
   size_t freed_objects = num_ptrs;
   size_t freed_bytes = 0;
   SweepCallbackContext* context = static_cast<SweepCallbackContext*>(arg);
@@ -316,7 +318,6 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
     }
   }
   heap->RecordFreeLocked(freed_objects, freed_bytes);
-  // TODO: unlock heap if concurrent
 }
 
 void MarkSweep::Sweep() {
@@ -332,8 +333,9 @@ void MarkSweep::Sweep() {
       uintptr_t begin = reinterpret_cast<uintptr_t>(spaces[i]->Begin());
       uintptr_t end = reinterpret_cast<uintptr_t>(spaces[i]->End());
       scc.space = spaces[i]->AsAllocSpace();
-      SpaceBitmap* live_bitmap = scc.space->GetLiveBitmap();
-      SpaceBitmap* mark_bitmap = scc.space->GetMarkBitmap();
+      // Bitmaps are pre-swapped for optimization which enables sweeping with the heap unlocked.
+      SpaceBitmap* live_bitmap = scc.space->GetMarkBitmap();
+      SpaceBitmap* mark_bitmap = scc.space->GetLiveBitmap();
       SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap, begin, end,
                             &MarkSweep::SweepCallback, reinterpret_cast<void*>(&scc));
     }

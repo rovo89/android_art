@@ -51,7 +51,7 @@ namespace art {
 
     SpaceBitmap* GetSpaceBitmap(const Object* obj) {
       // TODO: C++0x auto
-      for (BitmapVec::iterator cur = bitmaps_.begin(); cur != bitmaps_.end(); ++cur) {
+      for (Bitmaps::iterator cur = bitmaps_.begin(); cur != bitmaps_.end(); ++cur) {
         if ((*cur)->HasAddress(obj)) {
           return *cur;
         }
@@ -61,18 +61,21 @@ namespace art {
 
     void Walk(SpaceBitmap::Callback* callback, void* arg) {
       // TODO: C++0x auto
-      for (BitmapVec::iterator cur = bitmaps_.begin(); cur != bitmaps_.end(); ++cur) {
+      for (Bitmaps::iterator cur = bitmaps_.begin(); cur != bitmaps_.end(); ++cur) {
         (*cur)->Walk(callback, arg);
       }
     }
+
+    // Find and replace a bitmap pointer, this is used by for the bitmap swapping in the GC.
+    void ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap);
 
    private:
     void AddSpaceBitmap(SpaceBitmap* space) {
       bitmaps_.push_back(space);
     }
 
-    typedef std::vector<SpaceBitmap*> BitmapVec;
-    BitmapVec bitmaps_;
+    typedef std::vector<SpaceBitmap*> Bitmaps;
+    Bitmaps bitmaps_;
 
     friend class Heap;
   };
