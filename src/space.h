@@ -31,6 +31,7 @@ namespace art {
 class AllocSpace;
 class ImageSpace;
 class Object;
+class SpaceBitmap;
 
 // A space contains memory allocated for managed objects.
 class Space {
@@ -97,11 +98,19 @@ class Space {
   virtual bool IsAllocSpace() const = 0;
   virtual bool IsImageSpace() const = 0;
 
+  virtual SpaceBitmap* GetLiveBitmap() const = 0;
+  virtual SpaceBitmap* GetMarkBitmap() const = 0;
+
+  const std::string GetName() const {
+    return name_;
+  }
+
  protected:
   Space(const std::string& name, MemMap* mem_map, byte* end)
       : name_(name), mem_map_(mem_map), begin_(mem_map->Begin()), end_(end) {}
 
   std::string name_;
+
   // Underlying storage of the space
   UniquePtr<MemMap> mem_map_;
 
@@ -178,14 +187,23 @@ class AllocSpace : public Space {
     return false;
   }
 
+  virtual SpaceBitmap* GetLiveBitmap() const {
+    return live_bitmap_.get();
+  }
+
+  virtual SpaceBitmap* GetMarkBitmap() const {
+    return mark_bitmap_.get();
+  }
+
  private:
   friend class Space;
 
+  UniquePtr<SpaceBitmap> live_bitmap_;
+  UniquePtr<SpaceBitmap> mark_bitmap_;
+  static size_t bitmap_index_;
+
   AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* end,
-             size_t growth_limit)
-      : Space(name, mem_map, end), mspace_(mspace), growth_limit_(growth_limit) {
-    CHECK(mspace != NULL);
-  }
+             size_t growth_limit);
 
   bool Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base);
 
@@ -221,7 +239,7 @@ class ImageSpace : public Space {
   }
 
   // Mark the objects defined in this space in the given live bitmap
-  void RecordImageAllocations(HeapBitmap* live_bitmap) const;
+  void RecordImageAllocations(SpaceBitmap* live_bitmap) const;
 
   virtual bool IsAllocSpace() const {
     return false;
@@ -231,11 +249,20 @@ class ImageSpace : public Space {
     return true;
   }
 
+  virtual SpaceBitmap* GetLiveBitmap() const {
+   return live_bitmap_.get();
+ }
+
+ virtual SpaceBitmap* GetMarkBitmap() const {
+   return live_bitmap_.get();
+ }
  private:
   friend class Space;
 
-  ImageSpace(const std::string& name, MemMap* mem_map)
-      : Space(name, mem_map, mem_map->End()) {}
+  UniquePtr<SpaceBitmap> live_bitmap_;
+  static size_t bitmap_index_;
+
+  ImageSpace(const std::string& name, MemMap* mem_map);
 
   DISALLOW_COPY_AND_ASSIGN(ImageSpace);
 };

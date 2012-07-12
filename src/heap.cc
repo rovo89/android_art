@@ -137,10 +137,7 @@ static bool GenerateImage(const std::string& image_file_name) {
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
            const std::string& original_image_file_name)
     : lock_(NULL),
-      image_space_(NULL),
       alloc_space_(NULL),
-      mark_bitmap_(NULL),
-      live_bitmap_(NULL),
       card_table_(NULL),
       card_marking_disabled_(false),
       is_gc_running_(false),
@@ -167,72 +164,67 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   Space* first_space = NULL;
   Space* last_space = NULL;
 
+  live_bitmap_.reset(new HeapBitmap);
+  mark_bitmap_.reset(new HeapBitmap);
+
   // Requested begin for the alloc space, to follow the mapped image and oat files
   byte* requested_begin = NULL;
   std::string image_file_name(original_image_file_name);
   if (!image_file_name.empty()) {
+    Space* image_space = NULL;
+
     if (OS::FileExists(image_file_name.c_str())) {
       // If the /system file exists, it should be up-to-date, don't try to generate
-      image_space_ = Space::CreateImageSpace(image_file_name);
+      image_space = Space::CreateImageSpace(image_file_name);
     } else {
       // If the /system file didn't exist, we need to use one from the art-cache.
       // If the cache file exists, try to open, but if it fails, regenerate.
       // If it does not exist, generate.
       image_file_name = GetArtCacheFilenameOrDie(image_file_name);
       if (OS::FileExists(image_file_name.c_str())) {
-        image_space_ = Space::CreateImageSpace(image_file_name);
+        image_space = Space::CreateImageSpace(image_file_name);
       }
-      if (image_space_ == NULL) {
+      if (image_space == NULL) {
         if (!GenerateImage(image_file_name)) {
           LOG(FATAL) << "Failed to generate image: " << image_file_name;
         }
-        image_space_ = Space::CreateImageSpace(image_file_name);
+        image_space = Space::CreateImageSpace(image_file_name);
       }
     }
-    if (image_space_ == NULL) {
+    if (image_space == NULL) {
       LOG(FATAL) << "Failed to create space from " << image_file_name;
     }
 
-    AddSpace(image_space_);
-    UpdateFirstAndLastSpace(&first_space, &last_space, image_space_);
+    AddSpace(image_space);
+    UpdateFirstAndLastSpace(&first_space, &last_space, image_space);
     // Oat files referenced by image files immediately follow them in memory, ensure alloc space
     // isn't going to get in the middle
-    byte* oat_end_addr = image_space_->GetImageHeader().GetOatEnd();
-    CHECK(oat_end_addr > image_space_->End());
+    byte* oat_end_addr = GetImageSpace()->GetImageHeader().GetOatEnd();
+    CHECK(oat_end_addr > GetImageSpace()->End());
     if (oat_end_addr > requested_begin) {
       requested_begin = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_end_addr),
                                                         kPageSize));
     }
   }
 
-  alloc_space_ = Space::CreateAllocSpace("alloc space", initial_size, growth_limit, capacity,
-                                         requested_begin);
+  UniquePtr<AllocSpace> alloc_space(Space::CreateAllocSpace(
+      "alloc space", initial_size, growth_limit, capacity, requested_begin));
+  alloc_space_ = alloc_space.release();
+  AddSpace(alloc_space_);
   if (alloc_space_ == NULL) {
     LOG(FATAL) << "Failed to create alloc space";
   }
-  AddSpace(alloc_space_);
+
   UpdateFirstAndLastSpace(&first_space, &last_space, alloc_space_);
   byte* heap_begin = first_space->Begin();
   size_t heap_capacity = (last_space->Begin() - first_space->Begin()) + last_space->NonGrowthLimitCapacity();
-
-  // Allocate the initial live bitmap.
-  UniquePtr<HeapBitmap> live_bitmap(HeapBitmap::Create("dalvik-bitmap-1", heap_begin, heap_capacity));
-  if (live_bitmap.get() == NULL) {
-    LOG(FATAL) << "Failed to create live bitmap";
-  }
 
   // Mark image objects in the live bitmap
   for (size_t i = 0; i < spaces_.size(); ++i) {
     Space* space = spaces_[i];
     if (space->IsImageSpace()) {
-      space->AsImageSpace()->RecordImageAllocations(live_bitmap.get());
+      space->AsImageSpace()->RecordImageAllocations(space->GetLiveBitmap());
     }
-  }
-
-  // Allocate the initial mark bitmap.
-  UniquePtr<HeapBitmap> mark_bitmap(HeapBitmap::Create("dalvik-bitmap-2", heap_begin, heap_capacity));
-  if (mark_bitmap.get() == NULL) {
-    LOG(FATAL) << "Failed to create mark bitmap";
   }
 
   // Allocate the card table.
@@ -246,8 +238,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   mod_union_table->Init();
   mod_union_table_ = mod_union_table;
 
-  live_bitmap_ = live_bitmap.release();
-  mark_bitmap_ = mark_bitmap.release();
   card_table_ = card_table.release();
 
   num_bytes_allocated_ = 0;
@@ -269,6 +259,12 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
 }
 
 void Heap::AddSpace(Space* space) {
+  DCHECK(space->GetLiveBitmap() != NULL);
+  live_bitmap_->AddSpaceBitmap(space->GetLiveBitmap());
+
+  DCHECK(space->GetMarkBitmap() != NULL);
+  mark_bitmap_->AddSpaceBitmap(space->GetMarkBitmap());
+
   spaces_.push_back(space);
 }
 
@@ -279,13 +275,36 @@ Heap::~Heap() {
   // all daemon threads are suspended, and we also know that the threads list have been deleted, so
   // those threads can't resume. We're the only running thread, and we can do whatever we like...
   STLDeleteElements(&spaces_);
-  delete mark_bitmap_;
-  delete live_bitmap_;
   delete card_table_;
   delete mod_union_table_;
   delete mark_stack_;
   delete condition_;
   delete lock_;
+}
+
+Space* Heap::FindSpaceFromObject(const Object* obj) const {
+  // TODO: C++0x auto
+  for (Spaces::const_iterator cur = spaces_.begin(); cur != spaces_.end(); ++cur) {
+    if ((*cur)->Contains(obj)) {
+      return *cur;
+    }
+  }
+  LOG(FATAL) << "object " << reinterpret_cast<const void*>(obj) << " not inside any spaces!";
+  return NULL;
+}
+
+ImageSpace* Heap::GetImageSpace() {
+  // TODO: C++0x auto
+  for (Spaces::const_iterator cur = spaces_.begin(); cur != spaces_.end(); ++cur) {
+    if ((*cur)->IsImageSpace()) {
+      return (*cur)->AsImageSpace();
+    }
+  }
+  return NULL;
+}
+
+AllocSpace* Heap::GetAllocSpace() {
+  return alloc_space_;
 }
 
 static void MSpaceChunkCallback(void* start, void* end, size_t used_bytes, void* arg) {
@@ -321,8 +340,7 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
       }
 
       if (!is_gc_running_ && num_bytes_allocated_ >= concurrent_start_bytes_) {
-        // The SirtRef is necessary since the calls in RequestConcurrentGC
-        // are a safepoint.
+        // The SirtRef is necessary since the calls in RequestConcurrentGC are a safepoint.
         SirtRef<Object> ref(obj);
         RequestConcurrentGC();
       }
@@ -331,7 +349,12 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
     }
     total_bytes_free = GetFreeMemory();
     max_contiguous_allocation = 0;
-    GetAllocSpace()->Walk(MSpaceChunkCallback, &max_contiguous_allocation);
+    // TODO: C++0x auto
+    for (Spaces::const_iterator cur = spaces_.begin(); cur != spaces_.end(); ++cur) {
+      if ((*cur)->IsAllocSpace()) {
+        (*cur)->AsAllocSpace()->Walk(MSpaceChunkCallback, &max_contiguous_allocation);
+      }
+    }
   }
 
   std::string msg(StringPrintf("Failed to allocate a %zd-byte %s (%lld total bytes free; largest possible contiguous allocation %zd bytes)",
@@ -361,7 +384,7 @@ bool Heap::IsHeapAddress(const Object* obj) {
 
 bool Heap::IsLiveObjectLocked(const Object* obj) {
   lock_->AssertHeld();
-  return IsHeapAddress(obj) && live_bitmap_->Test(obj);
+  return IsHeapAddress(obj) && GetLiveBitmap()->Test(obj);
 }
 
 #if VERIFY_OBJECT_ENABLED
@@ -381,7 +404,7 @@ void Heap::VerifyObjectLocked(const Object* obj) {
   if (obj != NULL) {
     if (!IsAligned<kObjectAlignment>(obj)) {
       LOG(FATAL) << "Object isn't aligned: " << obj;
-    } else if (!live_bitmap_->Test(obj)) {
+    } else if (!GetLiveBitmap()->Test(obj)) {
       LOG(FATAL) << "Object is dead: " << obj;
     }
     // Ignore early dawn of the universe verifications
@@ -393,7 +416,7 @@ void Heap::VerifyObjectLocked(const Object* obj) {
         LOG(FATAL) << "Null class in object: " << obj;
       } else if (!IsAligned<kObjectAlignment>(c)) {
         LOG(FATAL) << "Class isn't aligned: " << c << " in object: " << obj;
-      } else if (!live_bitmap_->Test(c)) {
+      } else if (!GetLiveBitmap()->Test(c)) {
         LOG(FATAL) << "Class of object is dead: " << c << " in object: " << obj;
       }
       // Check obj.getClass().getClass() == obj.getClass().getClass().getClass()
@@ -415,7 +438,7 @@ void Heap::VerificationCallback(Object* obj, void* arg) {
 
 void Heap::VerifyHeap() {
   ScopedHeapLock heap_lock;
-  live_bitmap_->Walk(Heap::VerificationCallback, this);
+  GetLiveBitmap()->Walk(Heap::VerificationCallback, this);
 }
 
 void Heap::RecordAllocationLocked(AllocSpace* space, const Object* obj) {
@@ -467,13 +490,28 @@ void Heap::RecordFreeLocked(size_t freed_objects, size_t freed_bytes) {
 
 Object* Heap::AllocateLocked(size_t size) {
   lock_->AssertHeld();
-  DCHECK(alloc_space_ != NULL);
-  AllocSpace* space = alloc_space_;
-  Object* obj = AllocateLocked(space, size);
+
+  // Try the default alloc space first.
+  Object* obj = AllocateLocked(alloc_space_, size);
   if (obj != NULL) {
-    RecordAllocationLocked(space, obj);
+    RecordAllocationLocked(alloc_space_, obj);
+    return obj;
   }
-  return obj;
+
+  // TODO: C++0x auto
+  for (Spaces::const_iterator cur = spaces_.begin(); cur != spaces_.end(); ++cur) {
+    if ((*cur)->IsAllocSpace() && *cur != alloc_space_) {
+      AllocSpace* space = (*cur)->AsAllocSpace();
+      Object* obj = AllocateLocked(space, size);
+      if (obj != NULL) {
+        RecordAllocationLocked(space, obj);
+        // Switch to this alloc space since the old one did not have enough storage.
+        alloc_space_ = space;
+        return obj;
+      }
+    }
+  }
+  return NULL;
 }
 
 Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
@@ -553,15 +591,22 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
 }
 
 int64_t Heap::GetMaxMemory() {
-  return alloc_space_->Capacity();
+  size_t total = 0;
+  // TODO: C++0x auto
+  for (Spaces::const_iterator cur = spaces_.begin(); cur != spaces_.end(); ++cur) {
+    if ((*cur)->IsAllocSpace()) {
+      total += (*cur)->AsAllocSpace()->Capacity();
+    }
+  }
+  return total;
 }
 
 int64_t Heap::GetTotalMemory() {
-  return alloc_space_->Capacity();
+  return GetMaxMemory();
 }
 
 int64_t Heap::GetFreeMemory() {
-  return alloc_space_->Capacity() - num_bytes_allocated_;
+  return GetMaxMemory() - num_bytes_allocated_;
 }
 
 class InstanceCounter {
@@ -600,7 +645,7 @@ class InstanceCounter {
 int64_t Heap::CountInstances(Class* c, bool count_assignable) {
   ScopedHeapLock heap_lock;
   InstanceCounter counter(c, count_assignable);
-  live_bitmap_->Walk(InstanceCounter::Callback, &counter);
+  GetLiveBitmap()->Walk(InstanceCounter::Callback, &counter);
   return counter.GetCount();
 }
 
@@ -794,13 +839,20 @@ size_t Heap::GetPercentFree() {
 }
 
 void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
-  size_t alloc_space_capacity = alloc_space_->Capacity();
-  if (max_allowed_footprint > alloc_space_capacity) {
-    VLOG(gc) << "Clamp target GC heap from " << PrettySize(max_allowed_footprint)
-             << " to " << PrettySize(alloc_space_capacity);
-    max_allowed_footprint = alloc_space_capacity;
+  // TODO: C++0x auto
+  for (Spaces::const_iterator cur = spaces_.begin(); cur != spaces_.end(); ++cur) {
+    if ((*cur)->IsAllocSpace()) {
+      AllocSpace* alloc_space = (*cur)->AsAllocSpace();
+      // TODO: Behavior for multiple alloc spaces?
+      size_t alloc_space_capacity = alloc_space->Capacity();
+      if (max_allowed_footprint > alloc_space_capacity) {
+        VLOG(gc) << "Clamp target GC heap from " << PrettySize(max_allowed_footprint)
+                 << " to " << PrettySize(alloc_space_capacity);
+        max_allowed_footprint = alloc_space_capacity;
+      }
+      alloc_space->SetFootprintLimit(max_allowed_footprint);
+    }
   }
-  alloc_space_->SetFootprintLimit(max_allowed_footprint);
 }
 
 // kHeapIdealFree is the ideal maximum free size, when we grow the heap for utilization.
@@ -985,10 +1037,10 @@ void Heap::ConcurrentGC() {
   CollectGarbageInternal(true, false);
 }
 
-void Heap::Trim() {
+void Heap::Trim(AllocSpace* alloc_space) {
   lock_->AssertHeld();
   WaitForConcurrentGcToComplete();
-  GetAllocSpace()->Trim();
+  alloc_space->Trim();
 }
 
 void Heap::RequestHeapTrim() {

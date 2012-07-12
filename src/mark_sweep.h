@@ -83,7 +83,10 @@ class MarkSweep {
  private:
   // Returns true if the object has its bit set in the mark bitmap.
   bool IsMarked(const Object* object) const {
-    return mark_bitmap_->Test(object);
+    if (current_mark_bitmap_->HasAddress(object)) {
+      return current_mark_bitmap_->Test(object);
+    }
+    return heap_->GetMarkBitmap()->Test(object);
   }
 
   static bool IsMarked(const Object* object, void* arg) {
@@ -246,11 +249,12 @@ class MarkSweep {
   void SweepSystemWeaks();
   void SweepJniWeakGlobals();
 
+  // Current space, we check this space first to avoid searching for the appropriate space for an object.
+  SpaceBitmap* current_mark_bitmap_;
+
   MarkStack* mark_stack_;
 
   Heap* heap_;
-  HeapBitmap* mark_bitmap_;
-  HeapBitmap* live_bitmap_;
 
   Object* finger_;
 

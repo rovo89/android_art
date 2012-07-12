@@ -783,7 +783,7 @@ void Compiler::GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_t
       }
     }
   } else {
-    if (Runtime::Current()->GetHeap()->GetImageSpace()->Contains(method)) {
+    if (Runtime::Current()->GetHeap()->FindSpaceFromObject(method)->IsImageSpace()) {
       direct_method = reinterpret_cast<uintptr_t>(method);
     }
     direct_code = reinterpret_cast<uintptr_t>(method->GetCode());

@@ -2909,7 +2909,13 @@ void Dbg::DdmSendHeapSegments(bool native) {
     UNIMPLEMENTED(WARNING) << "Native heap send heap segments";
   } else {
     Heap* heap = Runtime::Current()->GetHeap();
-    heap->GetAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+    typedef std::vector<Space*> SpaceVec;
+    const SpaceVec& spaces = heap->GetSpaces();
+    for (SpaceVec::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
+      if ((*cur)->IsAllocSpace()) {
+        (*cur)->AsAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+      }
+    }
   }
 
   // Finally, send a heap end chunk.

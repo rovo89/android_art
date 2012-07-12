@@ -224,12 +224,20 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
     return JNI_TRUE;
   }
 
-  const ImageHeader& image_header = runtime->GetHeap()->GetImageSpace()->GetImageHeader();
-  if (oat_file->GetOatHeader().GetImageFileLocationChecksum() != image_header.GetOatChecksum()) {
-    LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
-              << " has out-of-date checksum compared to "
-              << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
-    return JNI_TRUE;
+  Heap* heap = runtime->GetHeap();
+  const Spaces& spaces = heap->GetSpaces();
+  // TODO: C++0x auto
+  for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
+    if ((*cur)->IsImageSpace()) {
+      // TODO: Ensure this works with multiple image spaces.
+      const ImageHeader& image_header = (*cur)->AsImageSpace()->GetImageHeader();
+      if (oat_file->GetOatHeader().GetImageFileLocationChecksum() != image_header.GetOatChecksum()) {
+        LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
+                  << " has out-of-date checksum compared to "
+                  << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
+        return JNI_TRUE;
+      }
+    }
   }
 
   uint32_t location_checksum;

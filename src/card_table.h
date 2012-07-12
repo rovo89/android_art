@@ -25,7 +25,7 @@
 namespace art {
 
 class Heap;
-class HeapBitmap;
+class SpaceBitmap;
 class Object;
 
 #define GC_CARD_SHIFT 7
@@ -72,7 +72,7 @@ class CardTable {
 
   // For every dirty card between begin and end invoke the visitor with the specified argument
   typedef void Callback(Object* obj, void* arg);
-  void Scan(HeapBitmap* bitmap, byte* begin, byte* end, Callback* visitor, void* arg) const;
+  void Scan(SpaceBitmap* bitmap, byte* begin, byte* end, Callback* visitor, void* arg) const;
 
   // Assertion used to check the given address is covered by the card table
   void CheckAddrIsInCardTable(const byte* addr) const;

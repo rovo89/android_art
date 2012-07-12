@@ -215,6 +215,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/scoped_thread_list_lock_releaser.cc \
 	src/signal_catcher.cc \
 	src/space.cc \
+	src/space_bitmap.cc \
 	src/stack.cc \
 	src/stringpiece.cc \
 	src/stringprintf.cc \

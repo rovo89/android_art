@@ -117,9 +117,11 @@ void CardTable::CheckAddrIsInCardTable(const byte* addr) const {
   }
 }
 
-void CardTable::Scan(HeapBitmap* bitmap, byte* heap_begin, byte* heap_end, Callback* visitor, void* arg) const {
-  byte* card_cur = CardFromAddr(heap_begin);
-  byte* card_end = CardFromAddr(heap_end);
+void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end, Callback* visitor, void* arg) const {
+  DCHECK(bitmap->HasAddress(scan_begin));
+  DCHECK(bitmap->HasAddress(scan_end - 1));  // scan_end is the byte after the last byte we scan.
+  byte* card_cur = CardFromAddr(scan_begin);
+  byte* card_end = CardFromAddr(scan_end);
   while (card_cur < card_end) {
     while (card_cur < card_end && *card_cur == GC_CARD_CLEAN) {
       card_cur++;

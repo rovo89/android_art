@@ -47,9 +47,9 @@ TEST_F(HeapTest, GarbageCollectClassLinkerInit) {
 
 TEST_F(HeapTest, HeapBitmapCapacityTest) {
   byte* heap_begin = reinterpret_cast<byte*>(0x1000);
-  const size_t heap_capacity = HeapBitmap::kAlignment * (sizeof(intptr_t) * 8 + 1);
-  UniquePtr<HeapBitmap> bitmap(HeapBitmap::Create("test-bitmap", heap_begin, heap_capacity));
-  bitmap->Set(reinterpret_cast<const Object*>(&heap_begin[heap_capacity - HeapBitmap::kAlignment]));
+  const size_t heap_capacity = SpaceBitmap::kAlignment * (sizeof(intptr_t) * 8 + 1);
+  UniquePtr<SpaceBitmap> bitmap(SpaceBitmap::Create("test-bitmap", heap_begin, heap_capacity));
+  bitmap->Set(reinterpret_cast<const Object*>(&heap_begin[heap_capacity - SpaceBitmap::kAlignment]));
 }
 
 }  // namespace art

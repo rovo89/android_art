@@ -39,8 +39,7 @@ namespace art {
 class ImageWriter {
  public:
   explicit ImageWriter(const std::set<std::string>* image_classes)
-      : source_space_(NULL), image_end_(0), image_begin_(NULL), image_classes_(image_classes),
-        oat_begin_(NULL) {}
+      : image_end_(0), image_begin_(NULL), image_classes_(image_classes), oat_begin_(NULL) {}
 
   ~ImageWriter() {}
 
@@ -79,10 +78,7 @@ class ImageWriter {
     return offsets_.find(object)->second;
   }
 
-  bool InSourceSpace(const Object* object) const {
-    DCHECK(source_space_ != NULL);
-    return source_space_->Contains(object);
-  }
+  bool InSourceSpace(const Object* object) const;
 
   Object* GetImageAddress(const Object* object) const {
     if (object == NULL) {
@@ -146,9 +142,6 @@ class ImageWriter {
 
   // oat file with code for this image
   OatFile* oat_file_;
-
-  // Space we are writing objects from
-  const Space* source_space_;
 
   // memory mapped for generating the image
   UniquePtr<MemMap> image_;

@@ -48,6 +48,7 @@
 #include "scoped_jni_thread_state.h"
 #include "ScopedLocalRef.h"
 #include "space.h"
+#include "space_bitmap.h"
 #include "stack_indirect_reference_table.h"
 #include "stl_util.h"
 #include "thread.h"
@@ -916,11 +917,11 @@ void ClassLinker::InitFromImage() {
     AppendToBootClassPath(*dex_file, dex_cache);
   }
 
-  HeapBitmap* heap_bitmap = heap->GetLiveBits();
-  DCHECK(heap_bitmap != NULL);
-
   // reinit clases_ table
-  heap_bitmap->Walk(InitFromImageCallback, this);
+  const Spaces& vec = heap->GetSpaces();
+  for (Spaces::const_iterator cur = vec.begin(); cur != vec.end(); ++cur) {
+    (*cur)->GetLiveBitmap()->Walk(InitFromImageCallback, this);
+  }
 
   // reinit class_roots_
   Object* class_roots_object =

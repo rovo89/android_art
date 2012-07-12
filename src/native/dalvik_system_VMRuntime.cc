@@ -164,23 +164,27 @@ static void VMRuntime_trimHeap(JNIEnv*, jobject) {
 
   // Trim the managed heap.
   Heap* heap = Runtime::Current()->GetHeap();
-  size_t alloc_space_size = heap->GetAllocSpace()->Size();
-  float utilization = static_cast<float>(heap->GetBytesAllocated()) / alloc_space_size;
-  uint64_t start_ns = NanoTime();
-
-  heap->Trim();
-
-  // Trim the native heap.
-  dlmalloc_trim(0);
+  const Spaces& spaces = heap->GetSpaces();
+  // TODO: C++0x auto
+  for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
+    if ((*cur)->IsAllocSpace()) {
+      uint64_t start_ns = NanoTime();
+      AllocSpace* alloc_space = (*cur)->AsAllocSpace();
+      size_t alloc_space_size = alloc_space->Size();
+      float utilization = static_cast<float>(heap->GetBytesAllocated()) / alloc_space_size;
+      heap->Trim(alloc_space);
+      // Trim the native heap.
+      dlmalloc_trim(0);
 #if 0 // TODO: switch over to this when bionic has moved to dlmalloc 2.8.5
-  dlmalloc_inspect_all(MspaceMadviseCallback, NULL);
+      dlmalloc_inspect_all(MspaceMadviseCallback, NULL);
 #else
-  dlmalloc_walk_free_pages(MspaceMadviseCallback, NULL);
+      dlmalloc_walk_free_pages(MspaceMadviseCallback, NULL);
 #endif
-
-  LOG(INFO) << "Parallel heap trimming took " << PrettyDuration(NanoTime() - start_ns)
-            << " on a " << PrettySize(alloc_space_size)
-            << " heap with " << static_cast<int>(100 * utilization) << "% utilization";
+      LOG(INFO) << "Parallel heap trimming took " << PrettyDuration(NanoTime() - start_ns)
+                << " on a " << PrettySize(alloc_space_size)
+                << " alloc space with " << static_cast<int>(100 * utilization) << "% utilization";
+    }
+  }
 }
 
 static void VMRuntime_concurrentGC(JNIEnv*, jobject) {

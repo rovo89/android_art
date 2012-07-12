@@ -65,7 +65,7 @@ TEST_F(ImageTest, WriteRead) {
     Space* space = heap->GetSpaces()[0];
     ASSERT_FALSE(space->IsImageSpace());
     ASSERT_TRUE(space != NULL);
-    ASSERT_EQ(space, heap->GetAllocSpace());
+    ASSERT_TRUE(space->IsAllocSpace());
     ASSERT_GE(sizeof(image_header) + space->Size(), static_cast<size_t>(file->Length()));
   }
 
@@ -93,8 +93,6 @@ TEST_F(ImageTest, WriteRead) {
   ASSERT_FALSE(heap->GetSpaces()[0]->IsAllocSpace());
   ASSERT_FALSE(heap->GetSpaces()[1]->IsImageSpace());
   ASSERT_TRUE(heap->GetSpaces()[1]->IsAllocSpace());
-  ASSERT_TRUE(heap->GetImageSpace() != NULL);
-  ASSERT_TRUE(heap->GetAllocSpace() != NULL);
 
   ImageSpace* image_space = heap->GetImageSpace();
   byte* image_begin = image_space->Begin();
