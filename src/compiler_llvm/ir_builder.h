@@ -18,9 +18,9 @@
 #define ART_SRC_COMPILER_LLVM_IR_BUILDER_H_
 
 #include "backend_types.h"
+#include "md_builder.h"
 #include "runtime_support_builder.h"
 #include "runtime_support_func.h"
-#include "tbaa_info.h"
 
 #include <llvm/Constants.h>
 #include <llvm/DerivedTypes.h>
@@ -72,29 +72,29 @@ class IRBuilder : public LLVMIRBuilder {
 
   // TODO: After we design the non-special TBAA info, re-design the TBAA interface.
   llvm::LoadInst* CreateLoad(llvm::Value* ptr, TBAASpecialType special_ty) {
-    return CreateLoad(ptr, tbaa_.GetSpecialType(special_ty));
+    return CreateLoad(ptr, mdb_.GetTBAASpecialType(special_ty));
   }
 
   llvm::StoreInst* CreateStore(llvm::Value* val, llvm::Value* ptr, TBAASpecialType special_ty) {
     DCHECK_NE(special_ty, kTBAAConstJObject) << "ConstJObject is read only!";
-    return CreateStore(val, ptr, tbaa_.GetSpecialType(special_ty));
+    return CreateStore(val, ptr, mdb_.GetTBAASpecialType(special_ty));
   }
 
   llvm::LoadInst* CreateLoad(llvm::Value* ptr, TBAASpecialType special_ty, JType j_ty) {
-    return CreateLoad(ptr, tbaa_.GetMemoryJType(special_ty, j_ty));
+    return CreateLoad(ptr, mdb_.GetTBAAMemoryJType(special_ty, j_ty));
   }
 
   llvm::StoreInst* CreateStore(llvm::Value* val, llvm::Value* ptr,
                                TBAASpecialType special_ty, JType j_ty) {
     DCHECK_NE(special_ty, kTBAAConstJObject) << "ConstJObject is read only!";
-    return CreateStore(val, ptr, tbaa_.GetMemoryJType(special_ty, j_ty));
+    return CreateStore(val, ptr, mdb_.GetTBAAMemoryJType(special_ty, j_ty));
   }
 
   llvm::LoadInst* LoadFromObjectOffset(llvm::Value* object_addr,
                                        int64_t offset,
                                        llvm::Type* type,
                                        TBAASpecialType special_ty) {
-    return LoadFromObjectOffset(object_addr, offset, type, tbaa_.GetSpecialType(special_ty));
+    return LoadFromObjectOffset(object_addr, offset, type, mdb_.GetTBAASpecialType(special_ty));
   }
 
   void StoreToObjectOffset(llvm::Value* object_addr,
@@ -102,14 +102,14 @@ class IRBuilder : public LLVMIRBuilder {
                            llvm::Value* new_value,
                            TBAASpecialType special_ty) {
     DCHECK_NE(special_ty, kTBAAConstJObject) << "ConstJObject is read only!";
-    StoreToObjectOffset(object_addr, offset, new_value, tbaa_.GetSpecialType(special_ty));
+    StoreToObjectOffset(object_addr, offset, new_value, mdb_.GetTBAASpecialType(special_ty));
   }
 
   llvm::LoadInst* LoadFromObjectOffset(llvm::Value* object_addr,
                                        int64_t offset,
                                        llvm::Type* type,
                                        TBAASpecialType special_ty, JType j_ty) {
-    return LoadFromObjectOffset(object_addr, offset, type, tbaa_.GetMemoryJType(special_ty, j_ty));
+    return LoadFromObjectOffset(object_addr, offset, type, mdb_.GetTBAAMemoryJType(special_ty, j_ty));
   }
 
   void StoreToObjectOffset(llvm::Value* object_addr,
@@ -117,11 +117,11 @@ class IRBuilder : public LLVMIRBuilder {
                            llvm::Value* new_value,
                            TBAASpecialType special_ty, JType j_ty) {
     DCHECK_NE(special_ty, kTBAAConstJObject) << "ConstJObject is read only!";
-    StoreToObjectOffset(object_addr, offset, new_value, tbaa_.GetMemoryJType(special_ty, j_ty));
+    StoreToObjectOffset(object_addr, offset, new_value, mdb_.GetTBAAMemoryJType(special_ty, j_ty));
   }
 
   void SetTBAA(llvm::Instruction* inst, TBAASpecialType special_ty) {
-    inst->setMetadata(llvm::LLVMContext::MD_tbaa, tbaa_.GetSpecialType(special_ty));
+    inst->setMetadata(llvm::LLVMContext::MD_tbaa, mdb_.GetTBAASpecialType(special_ty));
   }
 
 
@@ -135,10 +135,8 @@ class IRBuilder : public LLVMIRBuilder {
                                  llvm::BasicBlock* true_bb,
                                  llvm::BasicBlock* false_bb,
                                  ExpectCond expect) {
-    DCHECK_LT(expect, MAX_EXPECT) << "MAX_EXPECT is not for branch weight";
-
-    llvm::BranchInst* branch_inst = LLVMIRBuilder::CreateCondBr(cond, true_bb, false_bb);
-    branch_inst->setMetadata(llvm::LLVMContext::MD_prof, expect_cond_[expect]);
+    llvm::BranchInst* branch_inst = CreateCondBr(cond, true_bb, false_bb);
+    branch_inst->setMetadata(llvm::LLVMContext::MD_prof, mdb_.GetBranchWeights(expect));
     return branch_inst;
   }
 
@@ -423,11 +421,9 @@ class IRBuilder : public LLVMIRBuilder {
 
   llvm::StructType* art_frame_type_;
 
-  TBAAInfo tbaa_;
+  MDBuilder mdb_;
 
   RuntimeSupportBuilder* runtime_support_;
-
-  llvm::MDNode* expect_cond_[MAX_EXPECT];
 };
 
 

@@ -27,13 +27,13 @@ LIBART_COMPILER_LLVM_SRC_FILES += \
 	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/compiler_llvm/ir_builder.cc \
 	src/compiler_llvm/jni_compiler.cc \
+	src/compiler_llvm/md_builder.cc \
 	src/compiler_llvm/runtime_support_builder.cc \
 	src/compiler_llvm/runtime_support_builder_arm.cc \
 	src/compiler_llvm/runtime_support_builder_thumb2.cc \
 	src/compiler_llvm/runtime_support_builder_x86.cc \
 	src/compiler_llvm/runtime_support_llvm.cc \
-	src/compiler_llvm/stub_compiler.cc \
-	src/compiler_llvm/tbaa_info.cc
+	src/compiler_llvm/stub_compiler.cc
 
 ifeq ($(ART_USE_DEXLANG_FRONTEND),true)
   LIBART_COMPILER_LLVM_SRC_FILES += \

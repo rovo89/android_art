@@ -15,42 +15,33 @@
  */
 
 
-#include "tbaa_info.h"
+#include "md_builder.h"
 
-#include <llvm/ADT/SmallVector.h>
-#include <llvm/ADT/StringRef.h>
-#include <llvm/Constants.h>
-#include <llvm/Metadata.h>
-#include <llvm/Type.h>
+#include "llvm/Support/MDBuilder.h"
 
+#include <string>
 
 namespace art {
 namespace compiler_llvm {
 
 
-llvm::MDNode* TBAAInfo::GetRootType() {
-  if (root_ == NULL) {
-    root_ = GenTBAANode("Art TBAA Root");
-  }
-  return root_;
-}
-
-llvm::MDNode* TBAAInfo::GetSpecialType(TBAASpecialType sty_id) {
+llvm::MDNode* MDBuilder::GetTBAASpecialType(TBAASpecialType sty_id) {
   DCHECK_GE(sty_id, 0) << "Unknown TBAA special type: " << sty_id;
   DCHECK_LT(sty_id, MAX_TBAA_SPECIAL_TYPE) << "Unknown TBAA special type: " << sty_id;
+  DCHECK(tbaa_root_ != NULL);
 
-  llvm::MDNode*& spec_ty = special_type_[sty_id];
+  llvm::MDNode*& spec_ty = tbaa_special_type_[sty_id];
   if (spec_ty == NULL) {
     switch (sty_id) {
-    case kTBAARegister:     spec_ty = GenTBAANode("Register", GetRootType()); break;
-    case kTBAAStackTemp:    spec_ty = GenTBAANode("StackTemp", GetRootType()); break;
-    case kTBAAHeapArray:    spec_ty = GenTBAANode("HeapArray", GetRootType()); break;
-    case kTBAAHeapInstance: spec_ty = GenTBAANode("HeapInstance", GetRootType()); break;
-    case kTBAAHeapStatic:   spec_ty = GenTBAANode("HeapStatic", GetRootType()); break;
-    case kTBAAJRuntime:     spec_ty = GenTBAANode("JRuntime", GetRootType()); break;
-    case kTBAARuntimeInfo:  spec_ty = GenTBAANode("RuntimeInfo", GetRootType()); break;
-    case kTBAAShadowFrame:  spec_ty = GenTBAANode("ShadowFrame", GetRootType()); break;
-    case kTBAAConstJObject: spec_ty = GenTBAANode("ConstJObject", GetRootType(), true); break;
+    case kTBAARegister:     spec_ty = createTBAANode("Register", tbaa_root_); break;
+    case kTBAAStackTemp:    spec_ty = createTBAANode("StackTemp", tbaa_root_); break;
+    case kTBAAHeapArray:    spec_ty = createTBAANode("HeapArray", tbaa_root_); break;
+    case kTBAAHeapInstance: spec_ty = createTBAANode("HeapInstance", tbaa_root_); break;
+    case kTBAAHeapStatic:   spec_ty = createTBAANode("HeapStatic", tbaa_root_); break;
+    case kTBAAJRuntime:     spec_ty = createTBAANode("JRuntime", tbaa_root_); break;
+    case kTBAARuntimeInfo:  spec_ty = createTBAANode("RuntimeInfo", tbaa_root_); break;
+    case kTBAAShadowFrame:  spec_ty = createTBAANode("ShadowFrame", tbaa_root_); break;
+    case kTBAAConstJObject: spec_ty = createTBAANode("ConstJObject", tbaa_root_, true); break;
     default:
       LOG(FATAL) << "Unknown TBAA special type: " << sty_id;
       break;
@@ -59,7 +50,7 @@ llvm::MDNode* TBAAInfo::GetSpecialType(TBAASpecialType sty_id) {
   return spec_ty;
 }
 
-llvm::MDNode* TBAAInfo::GetMemoryJType(TBAASpecialType sty_id, JType jty_id) {
+llvm::MDNode* MDBuilder::GetTBAAMemoryJType(TBAASpecialType sty_id, JType jty_id) {
   DCHECK(sty_id == kTBAAHeapArray ||
          sty_id == kTBAAHeapInstance ||
          sty_id == kTBAAHeapStatic) << "SpecialType must be array, instance, or static";
@@ -79,7 +70,7 @@ llvm::MDNode* TBAAInfo::GetMemoryJType(TBAASpecialType sty_id, JType jty_id) {
     break;
   }
 
-  llvm::MDNode*& spec_ty = memory_jtype_[sty_mapped_index][jty_id];
+  llvm::MDNode*& spec_ty = tbaa_memory_jtype_[sty_mapped_index][jty_id];
   if (spec_ty != NULL) {
     return spec_ty;
   }
@@ -99,22 +90,8 @@ llvm::MDNode* TBAAInfo::GetMemoryJType(TBAASpecialType sty_id, JType jty_id) {
     break;
   }
 
-  spec_ty = GenTBAANode(name, GetSpecialType(sty_id));
+  spec_ty = createTBAANode(name, GetTBAASpecialType(sty_id));
   return spec_ty;
-}
-
-llvm::MDNode* TBAAInfo::GenTBAANode(llvm::StringRef name, llvm::MDNode* parent, bool read_only) {
-  llvm::SmallVector<llvm::Value*, 3> array_ref;
-
-  array_ref.push_back(llvm::MDString::get(context_, name));
-  if (parent != NULL) {
-    array_ref.push_back(parent);
-  }
-  if (read_only != false) {
-    array_ref.push_back(llvm::ConstantInt::get(llvm::Type::getInt1Ty(context_), read_only));
-  }
-
-  return llvm::MDNode::get(context_, array_ref);
 }
 
 
