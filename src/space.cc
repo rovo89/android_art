@@ -144,6 +144,12 @@ void* AllocSpace::CreateMallocSpace(void* begin, size_t morecore_start, size_t i
   return msp;
 }
 
+void AllocSpace::SwapBitmaps() {
+  SpaceBitmap* temp_live_bitmap = live_bitmap_.release();
+  live_bitmap_.reset(mark_bitmap_.release());
+  mark_bitmap_.reset(temp_live_bitmap);
+}
+
 Object* AllocSpace::AllocWithoutGrowth(size_t num_bytes) {
   Object* result = reinterpret_cast<Object*>(mspace_calloc(mspace_, 1, num_bytes));
 #if DEBUG_SPACES

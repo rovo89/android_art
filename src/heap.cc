@@ -733,10 +733,18 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
     mark_sweep.ProcessReferences(clear_soft_references);
     timings.AddSplit("ProcessReferences");
 
-    // TODO: swap live and marked bitmaps
-    // Note: Need to be careful about image spaces if we do this since not
-    // everything image space will be marked, resulting in things not being
-    // marked as live anymore.
+    // Swap the live and mark bitmaps for each alloc space. This is needed since sweep re-swaps
+    // these bitmaps. Doing this enables us to sweep with the heap unlocked since new allocations
+    // set the live bit, but since we have the bitmaps reversed at this point, this sets the mark bit
+    // instead, resulting in no new allocated objects being incorrectly freed by sweep.
+    for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+      Space* space = *it;
+      if (space->IsAllocSpace()) {
+        live_bitmap_->ReplaceBitmap(space->GetLiveBitmap(), space->GetMarkBitmap());
+        mark_bitmap_->ReplaceBitmap(space->GetMarkBitmap(), space->GetLiveBitmap());
+        space->AsAllocSpace()->SwapBitmaps();
+      }
+    }
 
     // Verify that we only reach marked objects from the image space
     mark_sweep.VerifyImageRoots();
@@ -745,12 +753,19 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
     if (concurrent) {
       thread_list->ResumeAll();
       dirty_end = NanoTime();
+      Unlock();
     }
 
     mark_sweep.Sweep();
     timings.AddSplit("Sweep");
 
     cleared_references = mark_sweep.GetClearedReferences();
+  }
+
+  if (concurrent) {
+    // Relock since we unlocked earlier.
+    // TODO: We probably don't need to have the heap locked for all remainder of the function, except for GrowForUtilization.
+    Lock();
   }
 
   GrowForUtilization();

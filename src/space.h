@@ -195,6 +195,9 @@ class AllocSpace : public Space {
     return mark_bitmap_.get();
   }
 
+  // Swap the live and mark bitmaps of this space. This is used by the GC for concurrent sweeping.
+  void SwapBitmaps();
+
  private:
   friend class Space;
 
@@ -256,6 +259,7 @@ class ImageSpace : public Space {
  virtual SpaceBitmap* GetMarkBitmap() const {
    return live_bitmap_.get();
  }
+
  private:
   friend class Space;
 
