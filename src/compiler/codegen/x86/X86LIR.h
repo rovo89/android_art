@@ -110,7 +110,7 @@ namespace art {
 /* Offset to distingish FP regs */
 #define FP_REG_OFFSET 32
 /* Offset to distinguish DP FP regs */
-#define FP_DOUBLE (FP_REG_OFFSET + 32)
+#define FP_DOUBLE (FP_REG_OFFSET + 16)
 /* Offset to distingish the extra regs */
 #define EXTRA_REG_OFFSET (FP_DOUBLE + 16)
 /* Reg types */
@@ -433,9 +433,10 @@ enum X86OpCode {
   Binary0fOpCode(kX86Subss),    // float subtract
   Binary0fOpCode(kX86Divsd),    // double divide
   Binary0fOpCode(kX86Divss),    // float divide
-  kX86PsllqRI,                  // shift of floating point registers
+  kX86PsrlqRI,                  // right shift of floating point registers
+  kX86PsllqRI,                  // left shift of floating point registers
   Binary0fOpCode(kX86Movdxr),   // move into xmm from gpr
-  Binary0fOpCode(kX86Movdrx),   // move into reg from xmm
+  kX86MovdrxRR, kX86MovdrxMR, kX86MovdrxAR,// move into reg from xmm
   kX86Set8R, kX86Set8M, kX86Set8A,// set byte depending on condition operand
   kX86Mfence,                   // memory barrier
   Binary0fOpCode(kX86Imul16),   // 16bit multiply
@@ -470,6 +471,7 @@ enum X86EncodingKind {
   kReg, kMem, kArray,                      // R, M and A instruction kinds.
   kMemReg, kArrayReg, kThreadReg,          // MR, AR and TR instruction kinds.
   kRegReg, kRegMem, kRegArray, kRegThread, // RR, RM, RA and RT instruction kinds.
+  kRegRegStore,                            // RR following the store modrm reg-reg encoding rather than the load.
   kRegImm, kMemImm, kArrayImm, kThreadImm, // RI, MI, AI and TI instruction kinds.
   kRegRegImm, kRegMemImm, kRegArrayImm,    // RRI, RMI and RAI instruction kinds.
   kMovRegImm,                              // Shorter form move RI.

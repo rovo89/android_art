@@ -225,10 +225,13 @@ DISASSEMBLER_ENTRY(cmp,
       case 0x10: case 0x11:
         if (prefix[0] == 0xF2) {
           opcode << "movsd";
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else if (prefix[0] == 0xF3) {
           opcode << "movss";
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else if (prefix[2] == 0x66) {
           opcode << "movupd";
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else {
           opcode << "movups";
         }
@@ -236,6 +239,71 @@ DISASSEMBLER_ENTRY(cmp,
         src_reg_file = dst_reg_file = SSE;
         load = *instr == 0x10;
         store = !load;
+        break;
+      case 0x2A:
+        if (prefix[2] == 0x66) {
+          opcode << "cvtpi2pd";
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else if (prefix[0] == 0xF2) {
+          opcode << "cvtsi2sd";
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else if (prefix[0] == 0xF3) {
+          opcode << "cvtsi2ss";
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          opcode << "cvtpi2ps";
+        }
+        load = true;
+        has_modrm = true;
+        dst_reg_file = SSE;
+        break;
+      case 0x2C:
+        if (prefix[2] == 0x66) {
+          opcode << "cvttpd2pi";
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else if (prefix[0] == 0xF2) {
+          opcode << "cvttsd2si";
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else if (prefix[0] == 0xF3) {
+          opcode << "cvttss2si";
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          opcode << "cvttps2pi";
+        }
+        load = true;
+        has_modrm = true;
+        src_reg_file = SSE;
+        break;
+      case 0x2D:
+        if (prefix[2] == 0x66) {
+          opcode << "cvtpd2pi";
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else if (prefix[0] == 0xF2) {
+          opcode << "cvtsd2si";
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else if (prefix[0] == 0xF3) {
+          opcode << "cvtss2si";
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          opcode << "cvtps2pi";
+        }
+        load = true;
+        has_modrm = true;
+        src_reg_file = SSE;
+        break;
+      case 0x2E:
+        opcode << "u";
+        // FALLTHROUGH
+      case 0x2F:
+        if (prefix[2] == 0x66) {
+          opcode << "comisd";
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          opcode << "comiss";
+        }
+        has_modrm = true;
+        load = true;
+        src_reg_file = dst_reg_file = SSE;
         break;
       case 0x38:  // 3 byte extended opcode
         opcode << StringPrintf("unknown opcode '0F 38 %02X'", *instr);
@@ -264,13 +332,13 @@ DISASSEMBLER_ENTRY(cmp,
         }
         if (prefix[2] == 0x66) {
           opcode << "pd";
-          prefix[2] = 0;  // clear prefix now its served its purpose as part of the opcode
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else if (prefix[0] == 0xF2) {
           opcode << "sd";
-          prefix[0] = 0;  // clear prefix now its served its purpose as part of the opcode
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else if (prefix[0] == 0xF3) {
           opcode << "ss";
-          prefix[0] = 0;  // clear prefix now its served its purpose as part of the opcode
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else {
           opcode << "ps";
         }
@@ -282,13 +350,13 @@ DISASSEMBLER_ENTRY(cmp,
       case 0x5A:
         if (prefix[2] == 0x66) {
           opcode << "cvtpd2ps";
-          prefix[2] = 0;  // clear prefix now its served its purpose as part of the opcode
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else if (prefix[0] == 0xF2) {
           opcode << "cvtsd2ss";
-          prefix[0] = 0;  // clear prefix now its served its purpose as part of the opcode
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else if (prefix[0] == 0xF3) {
           opcode << "cvtss2sd";
-          prefix[0] = 0;  // clear prefix now its served its purpose as part of the opcode
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else {
           opcode << "cvtps2pd";
         }
@@ -299,12 +367,12 @@ DISASSEMBLER_ENTRY(cmp,
       case 0x5B:
         if (prefix[2] == 0x66) {
           opcode << "cvtps2dq";
-          prefix[2] = 0;  // clear prefix now its served its purpose as part of the opcode
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else if (prefix[0] == 0xF2) {
           opcode << "bad opcode F2 0F 5B";
         } else if (prefix[0] == 0xF3) {
           opcode << "cvttps2dq";
-          prefix[0] = 0;  // clear prefix now its served its purpose as part of the opcode
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else {
           opcode << "cvtdq2ps";
         }
@@ -315,12 +383,11 @@ DISASSEMBLER_ENTRY(cmp,
       case 0x6E:
         if (prefix[2] == 0x66) {
           dst_reg_file = SSE;
-          opcode << "movq";
-          prefix[2] = 0;  // clear prefix now its served its purpose as part of the opcode
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else {
           dst_reg_file = MMX;
-          opcode << "movd";
         }
+        opcode << "movd";
         load = true;
         has_modrm = true;
         break;
@@ -328,16 +395,70 @@ DISASSEMBLER_ENTRY(cmp,
         if (prefix[2] == 0x66) {
           dst_reg_file = SSE;
           opcode << "movdqa";
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else if (prefix[0] == 0xF3) {
           dst_reg_file = SSE;
           opcode << "movdqu";
-          prefix[0] = 0;  // clear prefix now its served its purpose as part of the opcode
+          prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
         } else {
           dst_reg_file = MMX;
           opcode << "movq";
         }
         load = true;
         has_modrm = true;
+        break;
+      case 0x71:
+        if (prefix[2] == 0x66) {
+          dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          dst_reg_file = MMX;
+        }
+        static const char* x71_opcodes[] = {"unknown-71", "unknown-71", "psrlw", "unknown-71", "psraw", "unknown-71", "psllw", "unknown-71"};
+        modrm_opcodes = x71_opcodes;
+        reg_is_opcode = true;
+        has_modrm = true;
+        store = true;
+        immediate_bytes = 1;
+        break;
+      case 0x72:
+        if (prefix[2] == 0x66) {
+          dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          dst_reg_file = MMX;
+        }
+        static const char* x72_opcodes[] = {"unknown-72", "unknown-72", "psrld", "unknown-72", "psrad", "unknown-72", "pslld", "unknown-72"};
+        modrm_opcodes = x72_opcodes;
+        reg_is_opcode = true;
+        has_modrm = true;
+        store = true;
+        immediate_bytes = 1;
+        break;
+      case 0x73:
+        if (prefix[2] == 0x66) {
+          dst_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          dst_reg_file = MMX;
+        }
+        static const char* x73_opcodes[] = {"unknown-73", "unknown-73", "psrlq", "unknown-73", "unknown-73", "unknown-73", "psllq", "unknown-73"};
+        modrm_opcodes = x73_opcodes;
+        reg_is_opcode = true;
+        has_modrm = true;
+        store = true;
+        immediate_bytes = 1;
+        break;
+      case 0x7E:
+        if (prefix[2] == 0x66) {
+          src_reg_file = SSE;
+          prefix[2] = 0;  // clear prefix now it's served its purpose as part of the opcode
+        } else {
+          src_reg_file = MMX;
+        }
+        opcode << "movd";
+        has_modrm = true;
+        store = true;
         break;
       case 0x80: case 0x81: case 0x82: case 0x83: case 0x84: case 0x85: case 0x86: case 0x87:
       case 0x88: case 0x89: case 0x8A: case 0x8B: case 0x8C: case 0x8D: case 0x8E: case 0x8F:
@@ -510,7 +631,7 @@ DISASSEMBLER_ENTRY(cmp,
     }
   }
   if (ax) {
-    args << ", ";
+    // If this opcode implicitly uses ax, ax is always the first arg.
     DumpReg(args, rex, 0 /* EAX */, byte_operand, prefix[2], GPR);
   }
   if (cx) {

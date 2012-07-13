@@ -280,10 +280,13 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   EXT_0F_ENCODING_MAP(Divsd,     0xF2, 0x5E, REG_DEF0),
   EXT_0F_ENCODING_MAP(Divss,     0xF3, 0x5E, REG_DEF0),
 
+  { kX86PsrlqRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x73, 0, 2, 0, 1 }, "PsrlqRI", "!0r,!1d" },
   { kX86PsllqRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x73, 0, 6, 0, 1 }, "PsllqRI", "!0r,!1d" },
 
   EXT_0F_ENCODING_MAP(Movdxr,    0x66, 0x6E, REG_DEF0),
-  EXT_0F_ENCODING_MAP(Movdrx,    0x66, 0x7E, REG_DEF0),
+  { kX86MovdrxRR, kRegRegStore, IS_BINARY_OP | REG_DEF0   | REG_USE01,  { 0x66, 0, 0x0F, 0x7E, 0, 0, 0, 0 }, "MovdrxRR", "!0r,!1r" },
+  { kX86MovdrxMR, kMemReg,      IS_STORE | IS_TERTIARY_OP | REG_USE02,  { 0x66, 0, 0x0F, 0x7E, 0, 0, 0, 0 }, "MovdrxMR", "[!0r+!1d],!2r" },
+  { kX86MovdrxAR, kArrayReg,    IS_STORE | IS_QUIN_OP     | REG_USE014, { 0x66, 0, 0x0F, 0x7E, 0, 0, 0, 0 }, "MovdrxAR", "[!0r+!1r<<!2d+!3d],!4r" },
 
   { kX86Set8R, kRegCond,              IS_BINARY_OP   | REG_DEF0  | USES_CCODES, { 0, 0, 0x0F, 0x90, 0, 0, 0, 0 }, "Set8R", "!1c !0r" },
   { kX86Set8M, kMemCond,   IS_STORE | IS_TERTIARY_OP | REG_USE0  | USES_CCODES, { 0, 0, 0x0F, 0x90, 0, 0, 0, 0 }, "Set8M", "!2c [!0r+!1d]" },
@@ -374,6 +377,8 @@ int oatGetInsnSize(LIR* lir) {
     case kThreadReg:  // lir operands - 0: disp, 1: reg
       return computeSize(entry, lir->operands[0], false);
     case kRegReg:
+      return computeSize(entry, 0, false);
+    case kRegRegStore:
       return computeSize(entry, 0, false);
     case kRegMem: { // lir operands - 0: reg, 1: base, 2: disp
       int base = lir->operands[1];
@@ -799,6 +804,9 @@ static void emitRegImm(CompilationUnit* cUnit, const X86EncodingMap* entry,
     } else {
       DCHECK_EQ(0, entry->skeleton.extra_opcode1);
       DCHECK_EQ(0, entry->skeleton.extra_opcode2);
+    }
+    if (FPREG(reg)) {
+      reg = reg & FP_REG_MASK;
     }
     uint8_t modrm = (3 << 6) | (entry->skeleton.modrm_opcode << 3) | reg;
     cUnit->codeBuffer.push_back(modrm);
@@ -1306,6 +1314,9 @@ AssemblerStatus oatAssembleInstructions(CompilationUnit *cUnit, intptr_t startAd
         break;
       case kRegReg:  // lir operands - 0: reg1, 1: reg2
         emitRegReg(cUnit, entry, lir->operands[0], lir->operands[1]);
+        break;
+      case kRegRegStore:  // lir operands - 0: reg2, 1: reg1
+        emitRegReg(cUnit, entry, lir->operands[1], lir->operands[0]);
         break;
       case kRegRegImm:
         emitRegRegImm(cUnit, entry, lir->operands[0], lir->operands[1], lir->operands[2]);

@@ -791,8 +791,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     // Disable some optimizations on X86 for now
     cUnit->disableOpt |= (
         (1 << kLoadStoreElimination) |
-        (1 << kPromoteRegs) |
-        (1 << kTrackLiveTemps));
+        (1 << kPromoteRegs));
   }
   /* Are we generating code for the debugger? */
   if (compiler.IsDebuggingSupported()) {
