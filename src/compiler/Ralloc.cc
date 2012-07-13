@@ -23,9 +23,6 @@ namespace art {
 
 bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
   bool change = false;
-  if (cUnit->regLocation[index].highWord) {
-    return change;
-  }
   if (isFP && !cUnit->regLocation[index].fp) {
     cUnit->regLocation[index].fp = true;
     cUnit->regLocation[index].defined = true;
@@ -36,9 +33,6 @@ bool setFp(CompilationUnit* cUnit, int index, bool isFP) {
 
 bool setCore(CompilationUnit* cUnit, int index, bool isCore) {
   bool change = false;
-  if (cUnit->regLocation[index].highWord) {
-    return change;
-  }
   if (isCore && !cUnit->regLocation[index].defined) {
     cUnit->regLocation[index].core = true;
     cUnit->regLocation[index].defined = true;
@@ -49,12 +43,27 @@ bool setCore(CompilationUnit* cUnit, int index, bool isCore) {
 
 bool setRef(CompilationUnit* cUnit, int index, bool isRef) {
   bool change = false;
-  if (cUnit->regLocation[index].highWord) {
-    return change;
-  }
   if (isRef && !cUnit->regLocation[index].defined) {
     cUnit->regLocation[index].ref = true;
     cUnit->regLocation[index].defined = true;
+    change = true;
+  }
+  return change;
+}
+
+bool setWide(CompilationUnit* cUnit, int index, bool isWide) {
+  bool change = false;
+  if (isWide && !cUnit->regLocation[index].wide) {
+    cUnit->regLocation[index].wide = true;
+    change = true;
+  }
+  return change;
+}
+
+bool setHigh(CompilationUnit* cUnit, int index, bool isHigh) {
+  bool change = false;
+  if (isHigh && !cUnit->regLocation[index].highWord) {
+    cUnit->regLocation[index].highWord = true;
     change = true;
   }
   return change;
@@ -123,6 +132,7 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
         }
         if (attrs & DF_A_WIDE) {
           cUnit->regLocation[ssaRep->defs[0]].wide = true;
+          cUnit->regLocation[ssaRep->defs[1]].wide = true;
           cUnit->regLocation[ssaRep->defs[1]].highWord = true;
           DCHECK_EQ(SRegToVReg(cUnit, ssaRep->defs[0])+1,
           SRegToVReg(cUnit, ssaRep->defs[1]));
@@ -140,6 +150,7 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
         }
         if (attrs & DF_A_WIDE) {
           cUnit->regLocation[ssaRep->uses[next]].wide = true;
+          cUnit->regLocation[ssaRep->uses[next + 1]].wide = true;
           cUnit->regLocation[ssaRep->uses[next + 1]].highWord = true;
           DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[next])+1,
           SRegToVReg(cUnit, ssaRep->uses[next + 1]));
@@ -157,6 +168,7 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
         }
         if (attrs & DF_B_WIDE) {
           cUnit->regLocation[ssaRep->uses[next]].wide = true;
+          cUnit->regLocation[ssaRep->uses[next + 1]].wide = true;
           cUnit->regLocation[ssaRep->uses[next + 1]].highWord = true;
           DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[next])+1,
                                SRegToVReg(cUnit, ssaRep->uses[next + 1]));
@@ -174,6 +186,7 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
         }
         if (attrs & DF_C_WIDE) {
           cUnit->regLocation[ssaRep->uses[next]].wide = true;
+          cUnit->regLocation[ssaRep->uses[next + 1]].wide = true;
           cUnit->regLocation[ssaRep->uses[next + 1]].highWord = true;
           DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[next])+1,
           SRegToVReg(cUnit, ssaRep->uses[next + 1]));
@@ -192,6 +205,7 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
               changed |= setCore(cUnit, ssaRep->uses[0], true);
               changed |= setCore(cUnit, ssaRep->uses[1], true);
               cUnit->regLocation[ssaRep->uses[0]].wide = true;
+              cUnit->regLocation[ssaRep->uses[1]].wide = true;
               cUnit->regLocation[ssaRep->uses[1]].highWord = true;
               break;
             case 'F':
@@ -201,6 +215,7 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
               changed |= setFp(cUnit, ssaRep->uses[0], true);
               changed |= setFp(cUnit, ssaRep->uses[1], true);
               cUnit->regLocation[ssaRep->uses[0]].wide = true;
+              cUnit->regLocation[ssaRep->uses[1]].wide = true;
               cUnit->regLocation[ssaRep->uses[1]].highWord = true;
               break;
             case 'L':
@@ -254,6 +269,7 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                 ssaRep->fpUse[i] = true;
                 ssaRep->fpUse[i+1] = true;
                 cUnit->regLocation[ssaRep->uses[i]].wide = true;
+                cUnit->regLocation[ssaRep->uses[i+1]].wide = true;
                 cUnit->regLocation[ssaRep->uses[i+1]].highWord = true;
                 DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[i])+1,
                                      SRegToVReg(cUnit, ssaRep->uses[i+1]));
@@ -261,6 +277,7 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
                 break;
               case 'J':
                 cUnit->regLocation[ssaRep->uses[i]].wide = true;
+                cUnit->regLocation[ssaRep->uses[i+1]].wide = true;
                 cUnit->regLocation[ssaRep->uses[i+1]].highWord = true;
                 DCHECK_EQ(SRegToVReg(cUnit, ssaRep->uses[i])+1,
                                      SRegToVReg(cUnit, ssaRep->uses[i+1]));
@@ -292,23 +309,27 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
         }
       // Special-case handling for moves & Phi
       if (attrs & (DF_IS_MOVE | DF_NULL_TRANSFER_N)) {
-        // If any of our inputs or outputs is defined, set all
-        bool definedFP = false;
-        bool definedCore = false;
-        bool definedRef = false;
-        definedFP |= (cUnit->regLocation[ssaRep->defs[0]].defined &&
-                      cUnit->regLocation[ssaRep->defs[0]].fp);
-        definedCore |= (cUnit->regLocation[ssaRep->defs[0]].defined &&
-                        cUnit->regLocation[ssaRep->defs[0]].core);
-        definedRef |= (cUnit->regLocation[ssaRep->defs[0]].defined &&
-                       cUnit->regLocation[ssaRep->defs[0]].ref);
-        for (int i = 0; i < ssaRep->numUses; i++) {
-          definedFP |= (cUnit->regLocation[ssaRep->uses[i]].defined &&
-                        cUnit->regLocation[ssaRep->uses[i]].fp);
-          definedCore |= (cUnit->regLocation[ssaRep->uses[i]].defined
-                          && cUnit->regLocation[ssaRep->uses[i]].core);
-          definedRef |= (cUnit->regLocation[ssaRep->uses[i]].defined
-                         && cUnit->regLocation[ssaRep->uses[i]].ref);
+        /*
+         * If any of our inputs or outputs is defined, set all.
+         * Some ugliness related to Phi nodes and wide values.
+         * The Phi set will include all low words or all high
+         * words, so we have to treat them specially.
+         */
+        bool isPhi = (static_cast<int>(mir->dalvikInsn.opcode) ==
+                      kMirOpPhi);
+        RegLocation rlTemp = cUnit->regLocation[ssaRep->defs[0]];
+        bool definedFP = rlTemp.defined && rlTemp.fp;
+        bool definedCore = rlTemp.defined && rlTemp.core;
+        bool definedRef = rlTemp.defined && rlTemp.ref;
+        bool isWide = rlTemp.wide || ((attrs & DF_A_WIDE) != 0);
+        bool isHigh = isPhi && rlTemp.wide && rlTemp.highWord;
+        for (int i = 0; i < ssaRep->numUses;i++) {
+          rlTemp = cUnit->regLocation[ssaRep->uses[i]];
+          definedFP |= rlTemp.defined && rlTemp.fp;
+          definedCore |= rlTemp.defined && rlTemp.core;
+          definedRef |= rlTemp.defined && rlTemp.ref;
+          isWide |= rlTemp.wide;
+          isHigh |= isPhi && rlTemp.wide && rlTemp.highWord;
         }
         /*
          * TODO: cleaner fix
@@ -334,10 +355,23 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
         changed |= setFp(cUnit, ssaRep->defs[0], definedFP);
         changed |= setCore(cUnit, ssaRep->defs[0], definedCore);
         changed |= setRef(cUnit, ssaRep->defs[0], definedRef);
+        changed |= setWide(cUnit, ssaRep->defs[0], isWide);
+        changed |= setHigh(cUnit, ssaRep->defs[0], isHigh);
+        if (attrs & DF_A_WIDE) {
+          changed |= setWide(cUnit, ssaRep->defs[1], true);
+          changed |= setHigh(cUnit, ssaRep->defs[1], true);
+        }
         for (int i = 0; i < ssaRep->numUses; i++) {
-         changed |= setFp(cUnit, ssaRep->uses[i], definedFP);
-         changed |= setCore(cUnit, ssaRep->uses[i], definedCore);
-         changed |= setRef(cUnit, ssaRep->uses[i], definedRef);
+          changed |= setFp(cUnit, ssaRep->uses[i], definedFP);
+          changed |= setCore(cUnit, ssaRep->uses[i], definedCore);
+          changed |= setRef(cUnit, ssaRep->uses[i], definedRef);
+          changed |= setWide(cUnit, ssaRep->uses[i], isWide);
+          changed |= setHigh(cUnit, ssaRep->uses[i], isHigh);
+        }
+        if (attrs & DF_A_WIDE) {
+          DCHECK_EQ(ssaRep->numUses, 2);
+          changed |= setWide(cUnit, ssaRep->uses[1], true);
+          changed |= setHigh(cUnit, ssaRep->uses[1], true);
         }
       }
     }

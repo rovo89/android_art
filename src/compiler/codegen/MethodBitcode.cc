@@ -464,24 +464,27 @@ void convertFPArithOp(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
   defineValue(cUnit, res, rlDest.origSReg);
 }
 
-void convertShift(CompilationUnit* cUnit, OpKind op, RegLocation rlDest,
-                  RegLocation rlSrc1, RegLocation rlSrc2)
+void convertShift(CompilationUnit* cUnit,
+                  greenland::IntrinsicHelper::IntrinsicId id,
+                  RegLocation rlDest, RegLocation rlSrc1, RegLocation rlSrc2)
 {
-  llvm::Value* src1 = getLLVMValue(cUnit, rlSrc1.origSReg);
-  llvm::Value* src2 = getLLVMValue(cUnit, rlSrc2.origSReg);
-  /*
-   * TODO: Figure out how best to handle constraining the shift
-   * amount to 31 for int and 63 for long.  We take care of this
-   * inline for int and in the out-of-line handler for longs, so
-   * it's a bit of a waste to generate llvm bitcode for this.
-   * Yet more intrinsics?
-   */
-  UNIMPLEMENTED(WARNING) << "llvm shift mismatch";
-  if (rlDest.wide) {
-    // llvm thinks the shift could should be in 64 bits.
-    src2 = cUnit->irb->CreateZExt(src2, cUnit->irb->getInt64Ty());
-  }
-  llvm::Value* res = genArithOp(cUnit, op, rlDest.wide, src1, src2);
+  llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+  llvm::SmallVector<llvm::Value*, 2>args;
+  args.push_back(getLLVMValue(cUnit, rlSrc1.origSReg));
+  args.push_back(getLLVMValue(cUnit, rlSrc2.origSReg));
+  llvm::Value* res = cUnit->irb->CreateCall(intr, args);
+  defineValue(cUnit, res, rlDest.origSReg);
+}
+
+void convertShiftLit(CompilationUnit* cUnit,
+                     greenland::IntrinsicHelper::IntrinsicId id,
+                     RegLocation rlDest, RegLocation rlSrc, int shiftAmount)
+{
+  llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+  llvm::SmallVector<llvm::Value*, 2>args;
+  args.push_back(getLLVMValue(cUnit, rlSrc.origSReg));
+  args.push_back(cUnit->irb->getInt32(shiftAmount));
+  llvm::Value* res = cUnit->irb->CreateCall(intr, args);
   defineValue(cUnit, res, rlDest.origSReg);
 }
 
@@ -1099,27 +1102,33 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       break;
     case Instruction::SHL_LONG:
     case Instruction::SHL_LONG_2ADDR:
-      convertShift(cUnit, kOpLsl, rlDest, rlSrc[0], rlSrc[1]);
+      convertShift(cUnit, greenland::IntrinsicHelper::SHLLong,
+                    rlDest, rlSrc[0], rlSrc[1]);
       break;
     case Instruction::SHL_INT:
     case Instruction::SHL_INT_2ADDR:
-      convertShift(cUnit, kOpLsl, rlDest, rlSrc[0], rlSrc[1]);
+      convertShift(cUnit, greenland::IntrinsicHelper::SHLInt,
+                   rlDest, rlSrc[0], rlSrc[1]);
       break;
     case Instruction::SHR_LONG:
     case Instruction::SHR_LONG_2ADDR:
-      convertShift(cUnit, kOpAsr, rlDest, rlSrc[0], rlSrc[1]);
+      convertShift(cUnit, greenland::IntrinsicHelper::SHRLong,
+                   rlDest, rlSrc[0], rlSrc[1]);
       break;
     case Instruction::SHR_INT:
     case Instruction::SHR_INT_2ADDR:
-      convertShift(cUnit, kOpAsr, rlDest, rlSrc[0], rlSrc[1]);
+      convertShift(cUnit, greenland::IntrinsicHelper::SHRInt,
+                   rlDest, rlSrc[0], rlSrc[1]);
       break;
     case Instruction::USHR_LONG:
     case Instruction::USHR_LONG_2ADDR:
-      convertShift(cUnit, kOpLsr, rlDest, rlSrc[0], rlSrc[1]);
+      convertShift(cUnit, greenland::IntrinsicHelper::USHRLong,
+                   rlDest, rlSrc[0], rlSrc[1]);
       break;
     case Instruction::USHR_INT:
     case Instruction::USHR_INT_2ADDR:
-      convertShift(cUnit, kOpLsr, rlDest, rlSrc[0], rlSrc[1]);
+      convertShift(cUnit, greenland::IntrinsicHelper::USHRInt,
+                   rlDest, rlSrc[0], rlSrc[1]);
       break;
 
     case Instruction::ADD_INT_LIT16:
@@ -1155,13 +1164,16 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       convertArithOpLit(cUnit, kOpXor, rlDest, rlSrc[0], vC);
       break;
     case Instruction::SHL_INT_LIT8:
-      convertArithOpLit(cUnit, kOpLsl, rlDest, rlSrc[0], vC & 0x1f);
+      convertShiftLit(cUnit, greenland::IntrinsicHelper::SHLInt,
+                      rlDest, rlSrc[0], vC & 0x1f);
       break;
     case Instruction::SHR_INT_LIT8:
-      convertArithOpLit(cUnit, kOpAsr, rlDest, rlSrc[0], vC & 0x1f);
+      convertShiftLit(cUnit, greenland::IntrinsicHelper::SHRInt,
+                      rlDest, rlSrc[0], vC & 0x1f);
       break;
     case Instruction::USHR_INT_LIT8:
-      convertArithOpLit(cUnit, kOpLsr, rlDest, rlSrc[0], vC & 0x1f);
+      convertShiftLit(cUnit, greenland::IntrinsicHelper::USHRInt,
+                      rlDest, rlSrc[0], vC & 0x1f);
       break;
 
     case Instruction::ADD_FLOAT:
@@ -1589,19 +1601,30 @@ void convertExtendedMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 
   switch ((ExtendedMIROpcode)mir->dalvikInsn.opcode) {
     case kMirOpPhi: {
-      int* incoming = (int*)mir->dalvikInsn.vB;
       RegLocation rlDest = cUnit->regLocation[mir->ssaRep->defs[0]];
+      /*
+       * The Art compiler's Phi nodes only handle 32-bit operands,
+       * representing wide values using a matched set of Phi nodes
+       * for the lower and upper halves.  In the llvm world, we only
+       * want a single Phi for wides.  Here we will simply discard
+       * the Phi node representing the high word.
+       */
+      if (rlDest.highWord) {
+        return;  // No Phi node - handled via low word
+      }
+      int* incoming = (int*)mir->dalvikInsn.vB;
       llvm::Type* phiType =
           llvmTypeFromLocRec(cUnit, rlDest);
       llvm::PHINode* phi = cUnit->irb->CreatePHI(phiType, mir->ssaRep->numUses);
       for (int i = 0; i < mir->ssaRep->numUses; i++) {
         RegLocation loc;
-        if (rlDest.wide) {
-           loc = oatGetSrcWide(cUnit, mir, i);
-           i++;
-        } else {
-           loc = oatGetSrc(cUnit, mir, i);
-        }
+        // Don't check width here.
+        loc = oatGetRawSrc(cUnit, mir, i);
+        DCHECK_EQ(rlDest.wide, loc.wide);
+        DCHECK_EQ(rlDest.wide & rlDest.highWord, loc.wide & loc.highWord);
+        DCHECK_EQ(rlDest.fp, loc.fp);
+        DCHECK_EQ(rlDest.core, loc.core);
+        DCHECK_EQ(rlDest.ref, loc.ref);
         phi->addIncoming(getLLVMValue(cUnit, loc.origSReg),
                          getLLVMBlock(cUnit, incoming[i]));
       }
@@ -1895,30 +1918,18 @@ void oatMethodMIR2Bitcode(CompilationUnit* cUnit)
   arg_iter++;  /* Skip path method */
   for (int i = 0; i < cUnit->numSSARegs; i++) {
     llvm::Value* val;
-    if ((i < cUnit->numRegs) || (i >= (cUnit->numRegs + cUnit->numIns))) {
-      // Handle SSA defs, skipping Method* and compiler temps
-      if (SRegToVReg(cUnit, i) < 0) {
-        val = NULL;
-      } else {
-        llvm::Constant* immValue = cUnit->irb->GetJInt(0);
-        val = emitConst(cUnit, immValue, cUnit->regLocation[i]);
-        val->setName(llvmSSAName(cUnit, i));
-      }
+    if ((SRegToVReg(cUnit, i) < 0) || cUnit->regLocation[i].highWord) {
+      oatInsertGrowableList(cUnit, &cUnit->llvmValues, 0);
+    } else if ((i < cUnit->numRegs) ||
+               (i >= (cUnit->numRegs + cUnit->numIns))) {
+      llvm::Constant* immValue = cUnit->irb->GetJInt(0);
+      val = emitConst(cUnit, immValue, cUnit->regLocation[i]);
+      val->setName(llvmSSAName(cUnit, i));
       oatInsertGrowableList(cUnit, &cUnit->llvmValues, (intptr_t)val);
-      if (cUnit->regLocation[i].wide) {
-        // Skip high half of wide values
-        oatInsertGrowableList(cUnit, &cUnit->llvmValues, 0);
-        i++;
-      }
     } else {
       // Recover previously-created argument values
       llvm::Value* argVal = arg_iter++;
       oatInsertGrowableList(cUnit, &cUnit->llvmValues, (intptr_t)argVal);
-      if (cUnit->regLocation[i].wide) {
-        // Skip high half of wide values.
-        oatInsertGrowableList(cUnit, &cUnit->llvmValues, 0);
-        i++;
-      }
     }
   }
 
@@ -1959,7 +1970,7 @@ void oatMethodMIR2Bitcode(CompilationUnit* cUnit)
   cUnit->irb->SetInsertPoint(cUnit->entryBB);
   cUnit->irb->CreateBr(cUnit->entryTargetBB);
 
-  llvm::verifyFunction(*cUnit->func, llvm::PrintMessageAction);
+  //llvm::verifyFunction(*cUnit->func, llvm::PrintMessageAction);
 
   if (cUnit->enableDebug & (1 << kDebugDumpBitcodeFile)) {
     // Write bitcode to file
@@ -2258,43 +2269,23 @@ void cvtBinOp(CompilationUnit* cUnit, OpKind op, llvm::Instruction* inst)
   }
 }
 
-void cvtShiftOp(CompilationUnit* cUnit, OpKind op, llvm::Instruction* inst)
+void cvtShiftOp(CompilationUnit* cUnit, Instruction::Code opcode,
+                llvm::CallInst* callInst)
 {
-  if (inst->getType() == cUnit->irb->getInt64Ty()) {
-    /*
-     * llvm wants the shift amount to be 64 bits, whereas we've constained
-     * it to be in 6 bits.  It should always be held as an unnamed temp
-     * at this point that was the result of a previous UExt.  We'll backtrack
-     * to find the pre-extension value and use that.
-     * TODO: probably better to handle this in cvtIntExt() or just intrinsify
-     */
-    RegLocation rlDest = getLoc(cUnit, inst);
-    RegLocation rlSrc = getLoc(cUnit, inst->getOperand(0));
-    RegLocation rlShift = getLoc(cUnit, inst->getOperand(1));
-    DCHECK(rlShift.wide);
-    DCHECK_EQ(rlShift.sRegLow, INVALID_SREG);
-    // Now, free the temp registers - we won't need them.
-    // TODO: kill the dead extend ops
-    oatFreeTemp(cUnit, rlShift.lowReg);
-    oatFreeTemp(cUnit, rlShift.highReg);
-    // Get the pre-extend operand
-    llvm::Instruction* extInst =
-        llvm::dyn_cast<llvm::Instruction>(inst->getOperand(1));
-    DCHECK(extInst != NULL);
-    rlShift = getLoc(cUnit, extInst->getOperand(0));
-    DCHECK(!rlShift.wide);
-    Instruction::Code opcode;
-    if (op == kOpLsl)
-      opcode = Instruction::SHL_LONG;
-    else if (op == kOpAsr)
-      opcode = Instruction::SHR_LONG;
-    else {
-      DCHECK_EQ(op, kOpLsr);
-      opcode = Instruction::USHR_LONG;
-    }
-    genShiftOpLong(cUnit, opcode, rlDest, rlSrc, rlShift);
+  DCHECK_EQ(callInst->getNumArgOperands(), 2U);
+  RegLocation rlDest = getLoc(cUnit, callInst);
+  RegLocation rlSrc = getLoc(cUnit, callInst->getArgOperand(0));
+  llvm::Value* rhs = callInst->getArgOperand(1);
+  if (llvm::ConstantInt* src2 = llvm::dyn_cast<llvm::ConstantInt>(rhs)) {
+    DCHECK(!rlDest.wide);
+    genArithOpIntLit(cUnit, opcode, rlDest, rlSrc, src2->getSExtValue());
   } else {
-    cvtBinOp(cUnit, op, inst);
+    RegLocation rlShift = getLoc(cUnit, rhs);
+    if (callInst->getType() == cUnit->irb->getInt64Ty()) {
+      genShiftOpLong(cUnit, opcode, rlDest, rlSrc, rlShift);
+    } else {
+      genArithOpInt(cUnit, opcode, rlDest, rlSrc, rlShift);
+    }
   }
 }
 
@@ -3098,9 +3089,25 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               cvtLongCompare(cUnit, callInst);
               break;
 
-            case greenland::IntrinsicHelper::UnknownId:
-              cvtCall(cUnit, callInst, callee);
+            case greenland::IntrinsicHelper::SHLLong:
+              cvtShiftOp(cUnit, Instruction::SHL_LONG, callInst);
               break;
+            case greenland::IntrinsicHelper::SHRLong:
+              cvtShiftOp(cUnit, Instruction::SHR_LONG, callInst);
+              break;
+            case greenland::IntrinsicHelper::USHRLong:
+              cvtShiftOp(cUnit, Instruction::USHR_LONG, callInst);
+              break;
+            case greenland::IntrinsicHelper::SHLInt:
+              cvtShiftOp(cUnit, Instruction::SHL_INT, callInst);
+              break;
+            case greenland::IntrinsicHelper::SHRInt:
+              cvtShiftOp(cUnit, Instruction::SHR_INT, callInst);
+              break;
+            case greenland::IntrinsicHelper::USHRInt:
+              cvtShiftOp(cUnit, Instruction::USHR_INT, callInst);
+              break;
+
             default:
               LOG(FATAL) << "Unexpected intrinsic " << (int)id << ", "
                          << cUnit->intrinsic_helper->GetName(id);
@@ -3117,9 +3124,6 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
       case llvm::Instruction::And: cvtBinOp(cUnit, kOpAnd, inst); break;
       case llvm::Instruction::Or: cvtBinOp(cUnit, kOpOr, inst); break;
       case llvm::Instruction::Xor: cvtBinOp(cUnit, kOpXor, inst); break;
-      case llvm::Instruction::Shl: cvtShiftOp(cUnit, kOpLsl, inst); break;
-      case llvm::Instruction::LShr: cvtShiftOp(cUnit, kOpLsr, inst); break;
-      case llvm::Instruction::AShr: cvtShiftOp(cUnit, kOpAsr, inst); break;
       case llvm::Instruction::PHI: cvtPhi(cUnit, inst); break;
       case llvm::Instruction::Ret: cvtRet(cUnit, inst); break;
       case llvm::Instruction::FAdd: cvtBinFPOp(cUnit, kOpAdd, inst); break;
@@ -3143,6 +3147,9 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
       case llvm::Instruction::Unreachable:
         break;  // FIXME: can we really ignore these?
 
+      case llvm::Instruction::Shl:
+      case llvm::Instruction::LShr:
+      case llvm::Instruction::AShr:
       case llvm::Instruction::Invoke:
       case llvm::Instruction::FPToUI:
       case llvm::Instruction::UIToFP:
@@ -3174,7 +3181,8 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
         LOG(FATAL) << "Unexpected llvm opcode: " << opcode; break;
 
       default:
-        LOG(FATAL) << "Unknown llvm opcode: " << opcode; break;
+        LOG(FATAL) << "Unknown llvm opcode: " << inst->getOpcodeName();
+        break;
     }
   }
 

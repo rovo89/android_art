@@ -763,7 +763,9 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   cUnit->numRegs = code_item->registers_size_ - cUnit->numIns;
   cUnit->numOuts = code_item->outs_size_;
 #if defined(ART_USE_QUICK_COMPILER)
+#if defined(TARGET_ARM)
   cUnit->genBitcode = true;
+#endif
 #endif
   /* Adjust this value accordingly once inlining is performed */
   cUnit->numDalvikRegisters = code_item->registers_size_;
@@ -781,8 +783,8 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   }
 #if defined(ART_USE_QUICK_COMPILER)
   if (cUnit->genBitcode) {
-    cUnit->printMe = true;
-    cUnit->enableDebug |= (1 << kDebugDumpBitcodeFile);
+    //cUnit->printMe = true;
+    //cUnit->enableDebug |= (1 << kDebugDumpBitcodeFile);
     // Disable non-safe optimizations for now
     cUnit->disableOpt |= ~(1 << kSafeOptimizations);
   }

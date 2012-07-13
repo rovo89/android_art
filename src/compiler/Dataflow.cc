@@ -69,7 +69,7 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_REF_A,
 
   // 0D MOVE_EXCEPTION vAA
-  DF_DA | DF_CORE_A,
+  DF_DA | DF_REF_A,
 
   // 0E RETURN_VOID
   DF_NOP,
@@ -180,41 +180,40 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   DF_DA | DF_UB | DF_B_WIDE | DF_UC | DF_C_WIDE | DF_CORE_A | DF_CORE_B | DF_CORE_C,
 
   // 32 IF_EQ vA, vB, +CCCC
-  DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
+  DF_UA | DF_UB,
 
   // 33 IF_NE vA, vB, +CCCC
-  DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
+  DF_UA | DF_UB,
 
   // 34 IF_LT vA, vB, +CCCC
-  DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
+  DF_UA | DF_UB,
 
   // 35 IF_GE vA, vB, +CCCC
-  DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
+  DF_UA | DF_UB,
 
   // 36 IF_GT vA, vB, +CCCC
-  DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
+  DF_UA | DF_UB,
 
   // 37 IF_LE vA, vB, +CCCC
-  DF_UA | DF_UB | DF_CORE_A | DF_CORE_B,
-
+  DF_UA | DF_UB,
 
   // 38 IF_EQZ vAA, +BBBB
-  DF_UA | DF_CORE_A,
+  DF_UA,
 
   // 39 IF_NEZ vAA, +BBBB
-  DF_UA | DF_CORE_A,
+  DF_UA,
 
   // 3A IF_LTZ vAA, +BBBB
-  DF_UA | DF_CORE_A,
+  DF_UA,
 
   // 3B IF_GEZ vAA, +BBBB
-  DF_UA | DF_CORE_A,
+  DF_UA,
 
   // 3C IF_GTZ vAA, +BBBB
-  DF_UA | DF_CORE_A,
+  DF_UA,
 
   // 3D IF_LEZ vAA, +BBBB
-  DF_UA | DF_CORE_A,
+  DF_UA,
 
   // 3E UNUSED_3E
   DF_NOP,
