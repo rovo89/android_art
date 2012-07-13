@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_LLVM_INFERRED_REG_CATEGORY_MAP_H_
-#define ART_SRC_COMPILER_LLVM_INFERRED_REG_CATEGORY_MAP_H_
+#ifndef ART_SRC_GREENLAND_INFERRED_REG_CATEGORY_MAP_H_
+#define ART_SRC_GREENLAND_INFERRED_REG_CATEGORY_MAP_H_
 
 #include "backend_types.h"
 
@@ -25,7 +25,7 @@
 #include "safe_map.h"
 
 namespace art {
-namespace compiler_llvm {
+namespace greenland {
 
 
 class InferredRegCategoryMap {
@@ -80,7 +80,7 @@ class InferredRegCategoryMap {
 };
 
 
-} // namespace compiler_llvm
+} // namespace greenland
 } // namespace art
 
-#endif // ART_SRC_COMPILER_LLVM_INFERRED_REG_CATEGORY_MAP_H_
+#endif // ART_SRC_GREENLAND_INFERRED_REG_CATEGORY_MAP_H_

@@ -33,6 +33,7 @@ enum JType {
   kFloat,
   kDouble,
   kObject,
+  MAX_JTYPE
 };
 
 
@@ -111,10 +112,11 @@ inline RegCategory GetRegCategoryFromJType(JType jty) {
 
   case kObject:
     return kRegObject;
-  }
 
-  LOG(FATAL) << "Unknown java type: " << jty;
-  return kRegUnknown;
+  default:
+    LOG(FATAL) << "Unknown java type: " << jty;
+    return kRegUnknown;
+  }
 }
 
 

@@ -40,9 +40,9 @@ namespace art {
 struct ReferenceMap2Visitor;
 
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
-namespace compiler_llvm {
+namespace greenland {
   class InferredRegCategoryMap;
-}  // namespace compiler_llvm
+}  // namespace greenland
 #endif
 
 namespace verifier {
@@ -144,7 +144,7 @@ class PcToRegisterLineTable {
 // The verifier
 class MethodVerifier {
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
-  typedef compiler_llvm::InferredRegCategoryMap InferredRegCategoryMap;
+  typedef greenland::InferredRegCategoryMap InferredRegCategoryMap;
 #endif
 
  public:

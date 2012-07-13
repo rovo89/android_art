@@ -24,7 +24,6 @@ LIBART_COMPILER_LLVM_SRC_FILES += \
 	src/compiler_llvm/compilation_unit.cc \
 	src/compiler_llvm/compiler_llvm.cc \
 	src/compiler_llvm/generated/art_module.cc \
-	src/compiler_llvm/inferred_reg_category_map.cc \
 	src/compiler_llvm/ir_builder.cc \
 	src/compiler_llvm/jni_compiler.cc \
 	src/compiler_llvm/md_builder.cc \
@@ -33,7 +32,8 @@ LIBART_COMPILER_LLVM_SRC_FILES += \
 	src/compiler_llvm/runtime_support_builder_thumb2.cc \
 	src/compiler_llvm/runtime_support_builder_x86.cc \
 	src/compiler_llvm/runtime_support_llvm.cc \
-	src/compiler_llvm/stub_compiler.cc
+	src/compiler_llvm/stub_compiler.cc \
+	src/greenland/inferred_reg_category_map.cc
 
 ifeq ($(ART_USE_DEXLANG_FRONTEND),true)
   LIBART_COMPILER_LLVM_SRC_FILES += \

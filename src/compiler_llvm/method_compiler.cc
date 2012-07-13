@@ -20,7 +20,7 @@
 #include "compilation_unit.h"
 #include "compiler.h"
 #include "dalvik_reg.h"
-#include "inferred_reg_category_map.h"
+#include "greenland/inferred_reg_category_map.h"
 #include "ir_builder.h"
 #include "logging.h"
 #include "oat_compilation_unit.h"
@@ -2042,26 +2042,26 @@ void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
 
   DecodedInstruction dec_insn(insn);
 
-  int8_t src1_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vA);
-  int8_t src2_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vB);
+  greenland::RegCategory src1_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vA);
+  greenland::RegCategory src2_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vB);
 
-  DCHECK_NE(kRegUnknown, src1_reg_cat);
-  DCHECK_NE(kRegUnknown, src2_reg_cat);
-  DCHECK_NE(kRegCat2, src1_reg_cat);
-  DCHECK_NE(kRegCat2, src2_reg_cat);
+  DCHECK_NE(greenland::kRegUnknown, src1_reg_cat);
+  DCHECK_NE(greenland::kRegUnknown, src2_reg_cat);
+  DCHECK_NE(greenland::kRegCat2, src1_reg_cat);
+  DCHECK_NE(greenland::kRegCat2, src2_reg_cat);
 
   int32_t branch_offset = dec_insn.vC;
 
   llvm::Value* src1_value;
   llvm::Value* src2_value;
 
-  if (src1_reg_cat == kRegZero && src2_reg_cat == kRegZero) {
+  if (src1_reg_cat == greenland::kRegZero && src2_reg_cat == greenland::kRegZero) {
     src1_value = irb_.getInt32(0);
     src2_value = irb_.getInt32(0);
-  } else if (src1_reg_cat != kRegZero && src2_reg_cat != kRegZero) {
+  } else if (src1_reg_cat != greenland::kRegZero && src2_reg_cat != greenland::kRegZero) {
     CHECK_EQ(src1_reg_cat, src2_reg_cat);
 
-    if (src1_reg_cat == kRegCat1nr) {
+    if (src1_reg_cat == greenland::kRegCat1nr) {
       src1_value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
       src2_value = EmitLoadDalvikReg(dec_insn.vB, kInt, kAccurate);
     } else {
@@ -2069,11 +2069,11 @@ void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
       src2_value = EmitLoadDalvikReg(dec_insn.vB, kObject, kAccurate);
     }
   } else {
-    DCHECK(src1_reg_cat == kRegZero ||
-           src2_reg_cat == kRegZero);
+    DCHECK(src1_reg_cat == greenland::kRegZero ||
+           src2_reg_cat == greenland::kRegZero);
 
-    if (src1_reg_cat == kRegZero) {
-      if (src2_reg_cat == kRegCat1nr) {
+    if (src1_reg_cat == greenland::kRegZero) {
+      if (src2_reg_cat == greenland::kRegCat1nr) {
         src1_value = irb_.getJInt(0);
         src2_value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
       } else {
@@ -2081,7 +2081,7 @@ void MethodCompiler::EmitInsn_BinaryConditionalBranch(uint32_t dex_pc,
         src2_value = EmitLoadDalvikReg(dec_insn.vA, kObject, kAccurate);
       }
     } else { // src2_reg_cat == kRegZero
-      if (src2_reg_cat == kRegCat1nr) {
+      if (src2_reg_cat == greenland::kRegCat1nr) {
         src1_value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
         src2_value = irb_.getJInt(0);
       } else {
@@ -2106,20 +2106,20 @@ void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
 
   DecodedInstruction dec_insn(insn);
 
-  int8_t src_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vA);
+  greenland::RegCategory src_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vA);
 
-  DCHECK_NE(kRegUnknown, src_reg_cat);
-  DCHECK_NE(kRegCat2, src_reg_cat);
+  DCHECK_NE(greenland::kRegUnknown, src_reg_cat);
+  DCHECK_NE(greenland::kRegCat2, src_reg_cat);
 
   int32_t branch_offset = dec_insn.vB;
 
   llvm::Value* src1_value;
   llvm::Value* src2_value;
 
-  if (src_reg_cat == kRegZero) {
+  if (src_reg_cat == greenland::kRegZero) {
     src1_value = irb_.getInt32(0);
     src2_value = irb_.getInt32(0);
-  } else if (src_reg_cat == kRegCat1nr) {
+  } else if (src_reg_cat == greenland::kRegCat1nr) {
     src1_value = EmitLoadDalvikReg(dec_insn.vA, kInt, kAccurate);
     src2_value = irb_.getInt32(0);
   } else {
@@ -2135,26 +2135,26 @@ void MethodCompiler::EmitInsn_UnaryConditionalBranch(uint32_t dex_pc,
                     GetNextBasicBlock(dex_pc));
 }
 
-const InferredRegCategoryMap* MethodCompiler::GetInferredRegCategoryMap() {
+const greenland::InferredRegCategoryMap* MethodCompiler::GetInferredRegCategoryMap() {
   Compiler::MethodReference mref(dex_file_, method_idx_);
 
-  const InferredRegCategoryMap* map =
+  const greenland::InferredRegCategoryMap* map =
     verifier::MethodVerifier::GetInferredRegCategoryMap(mref);
 
-  CHECK_NE(map, static_cast<InferredRegCategoryMap*>(NULL));
+  CHECK_NE(map, static_cast<greenland::InferredRegCategoryMap*>(NULL));
 
   return map;
 }
 
-RegCategory MethodCompiler::GetInferredRegCategory(uint32_t dex_pc,
-                                                   uint16_t reg_idx) {
-  const InferredRegCategoryMap* map = GetInferredRegCategoryMap();
+greenland::RegCategory MethodCompiler::GetInferredRegCategory(uint32_t dex_pc,
+                                                              uint16_t reg_idx) {
+  const greenland::InferredRegCategoryMap* map = GetInferredRegCategoryMap();
 
   return map->GetRegCategory(dex_pc, reg_idx);
 }
 
 bool MethodCompiler::IsRegCanBeObject(uint16_t reg_idx) {
-  const InferredRegCategoryMap* map = GetInferredRegCategoryMap();
+  const greenland::InferredRegCategoryMap* map = GetInferredRegCategoryMap();
 
   return map->IsRegCanBeObject(reg_idx);
 }

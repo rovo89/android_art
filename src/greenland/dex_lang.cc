@@ -18,7 +18,7 @@
 
 #include "intrinsic_helper.h"
 
-#include "compiler_llvm/inferred_reg_category_map.h"
+#include "greenland/inferred_reg_category_map.h"
 #include "object.h" // FIXME: include this in oat_compilation_unit.h
 #include "oat_compilation_unit.h"
 #include "stl_util.h"
@@ -857,26 +857,26 @@ llvm::Value* DexLang::EmitInvokeIntrinsic(unsigned dex_pc, bool can_skip_unwind,
   return ret_val;
 }
 
-compiler_llvm::InferredRegCategoryMap const* DexLang::GetInferredRegCategoryMap() {
+InferredRegCategoryMap const* DexLang::GetInferredRegCategoryMap() {
   Compiler::MethodReference mref(dex_file_, method_idx_);
 
-  compiler_llvm::InferredRegCategoryMap const* map =
+  InferredRegCategoryMap const* map =
     verifier::MethodVerifier::GetInferredRegCategoryMap(mref);
 
-  CHECK_NE(map, static_cast<compiler_llvm::InferredRegCategoryMap*>(NULL));
+  CHECK_NE(map, static_cast<InferredRegCategoryMap*>(NULL));
 
   return map;
 }
 
-compiler_llvm::RegCategory DexLang::GetInferredRegCategory(unsigned dex_pc,
-                                                           unsigned reg_idx) {
-  compiler_llvm::InferredRegCategoryMap const* map = GetInferredRegCategoryMap();
+RegCategory DexLang::GetInferredRegCategory(unsigned dex_pc,
+                                            unsigned reg_idx) {
+  InferredRegCategoryMap const* map = GetInferredRegCategoryMap();
 
   return map->GetRegCategory(dex_pc, reg_idx);
 }
 
 bool DexLang::IsRegCanBeObject(unsigned reg_idx) {
-  compiler_llvm::InferredRegCategoryMap const* map = GetInferredRegCategoryMap();
+  InferredRegCategoryMap const* map = GetInferredRegCategoryMap();
 
   return map->IsRegCanBeObject(reg_idx);
 }
@@ -1702,21 +1702,20 @@ void DexLang::EmitInsn_UnaryConditionalBranch(unsigned dex_pc,
                                               CondBranchKind cond) {
   DecodedInstruction dec_insn(insn);
 
-  compiler_llvm::RegCategory src_reg_cat =
-      GetInferredRegCategory(dex_pc, dec_insn.vA);
+  RegCategory src_reg_cat = GetInferredRegCategory(dex_pc, dec_insn.vA);
 
-  DCHECK_NE(compiler_llvm::kRegUnknown, src_reg_cat);
-  DCHECK_NE(compiler_llvm::kRegCat2, src_reg_cat);
+  DCHECK_NE(kRegUnknown, src_reg_cat);
+  DCHECK_NE(kRegCat2, src_reg_cat);
 
   int32_t branch_offset = dec_insn.vB;
 
   llvm::Value* src1_value;
   llvm::Value* src2_value;
 
-  if (src_reg_cat == compiler_llvm::kRegZero) {
+  if (src_reg_cat == kRegZero) {
     src1_value = irb_.getInt32(0);
     src2_value = irb_.getInt32(0);
-  } else if (src_reg_cat == compiler_llvm::kRegCat1nr) {
+  } else if (src_reg_cat == kRegCat1nr) {
     src1_value = EmitLoadDalvikReg(dec_insn.vA, kInt, kReg);
     src2_value = irb_.getInt32(0);
   } else {

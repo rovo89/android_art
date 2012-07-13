@@ -18,7 +18,6 @@
 #define ART_SRC_GREENLAND_DEX_LANG_H_
 
 #include "backend_types.h"
-#include "compiler_llvm/backend_types.h"
 #include "dalvik_reg.h"
 #include "ir_builder.h"
 
@@ -42,15 +41,13 @@ namespace llvm {
 namespace art {
   class Compiler;
   class OatCompilationUnit;
-  namespace compiler_llvm {
-    class InferredRegCategoryMap;
-  }
 }
 
 namespace art {
 namespace greenland {
 
 class DalvikReg;
+class InferredRegCategoryMap;
 class IntrinsicHelper;
 
 class DexLang {
@@ -168,9 +165,9 @@ class DexLang {
   //----------------------------------------------------------------------------
   // RegCategory
   //----------------------------------------------------------------------------
-  compiler_llvm::RegCategory GetInferredRegCategory(unsigned dex_pc, unsigned reg_idx);
+  RegCategory GetInferredRegCategory(unsigned dex_pc, unsigned reg_idx);
 
-  compiler_llvm::InferredRegCategoryMap const* GetInferredRegCategoryMap();
+  InferredRegCategoryMap const* GetInferredRegCategoryMap();
 
   bool IsRegCanBeObject(unsigned reg_idx);
 

@@ -33,9 +33,8 @@
 #include "stringpiece.h"
 
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
-#include "compiler_llvm/backend_types.h"
-#include "compiler_llvm/inferred_reg_category_map.h"
-using namespace art::compiler_llvm;
+#include "greenland/backend_types.h"
+#include "greenland/inferred_reg_category_map.h"
 #endif
 
 namespace art {
@@ -3313,7 +3312,7 @@ bool MethodVerifier::IsClassRejected(Compiler::ClassReference ref) {
 }
 
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
-const InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCategoryMap() {
+const greenland::InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCategoryMap() {
   uint32_t insns_size = code_item_->insns_size_in_code_units_;
   uint16_t regs_size = code_item_->registers_size_;
 
@@ -3339,15 +3338,15 @@ const InferredRegCategoryMap* MethodVerifier::GenerateInferredRegCategoryMap() {
           const RegType &rt = line->GetRegisterType(r);
 
           if (rt.IsZero()) {
-            table->SetRegCategory(i, r, kRegZero);
+            table->SetRegCategory(i, r, greenland::kRegZero);
           } else if (rt.IsCategory1Types()) {
-            table->SetRegCategory(i, r, kRegCat1nr);
+            table->SetRegCategory(i, r, greenland::kRegCat1nr);
           } else if (rt.IsCategory2Types()) {
-            table->SetRegCategory(i, r, kRegCat2);
+            table->SetRegCategory(i, r, greenland::kRegCat2);
           } else if (rt.IsReferenceTypes()) {
-            table->SetRegCategory(i, r, kRegObject);
+            table->SetRegCategory(i, r, greenland::kRegObject);
           } else {
-            table->SetRegCategory(i, r, kRegUnknown);
+            table->SetRegCategory(i, r, greenland::kRegUnknown);
           }
         }
       }
@@ -3372,7 +3371,7 @@ void MethodVerifier::SetInferredRegCategoryMap(Compiler::MethodReference ref,
   CHECK(GetInferredRegCategoryMap(ref) != NULL);
 }
 
-const InferredRegCategoryMap*
+const greenland::InferredRegCategoryMap*
 MethodVerifier::GetInferredRegCategoryMap(Compiler::MethodReference ref) {
   MutexLock mu(*inferred_reg_category_maps_lock_);
 

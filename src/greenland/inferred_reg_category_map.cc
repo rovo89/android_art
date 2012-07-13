@@ -16,14 +16,13 @@
 
 #include "inferred_reg_category_map.h"
 
-#include "backend_types.h"
 #include "stl_util.h"
 
 #include <stdint.h>
 #include <vector>
 
 namespace art {
-namespace compiler_llvm {
+namespace greenland {
 
 
 InferredRegCategoryMap::InferredRegCategoryMap(uint32_t insns_size,
@@ -99,5 +98,5 @@ operator!=(InferredRegCategoryMap const& rhs) const {
 }
 
 
-} // namespace compiler_llvm
+} // namespace greenland
 } // namespace art

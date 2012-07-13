@@ -18,7 +18,7 @@
 LIBART_COMPILER_GREENLAND_CFLAGS := -DART_USE_GREENLAND_COMPILER=1
 
 LIBART_COMPILER_GREENLAND_SRC_FILES += \
-	src/compiler_llvm/inferred_reg_category_map.cc \
+	src/greenland/inferred_reg_category_map.cc \
 	src/greenland/dalvik_reg.cc \
 	src/greenland/dex_lang.cc \
 	src/greenland/gbc_context.cc \

@@ -20,6 +20,7 @@
 #include "backend_types.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
+#include "greenland/backend_types.h"
 #include "invoke_type.h"
 #include "object_utils.h"
 #include "runtime_support_func.h"
@@ -39,6 +40,10 @@ namespace art {
   class DexCache;
   class Field;
   class OatCompilationUnit;
+
+  namespace greenland {
+    class InferredRegCategoryMap;
+  }
 }
 
 
@@ -361,9 +366,9 @@ class MethodCompiler {
                                 llvm::Value* array,
                                 llvm::Value* index);
 
-  RegCategory GetInferredRegCategory(uint32_t dex_pc, uint16_t reg);
+  greenland::RegCategory GetInferredRegCategory(uint32_t dex_pc, uint16_t reg);
 
-  const InferredRegCategoryMap* GetInferredRegCategoryMap();
+  const greenland::InferredRegCategoryMap* GetInferredRegCategoryMap();
 
   bool IsRegCanBeObject(uint16_t reg_idx);
 

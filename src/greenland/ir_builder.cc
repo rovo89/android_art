@@ -76,10 +76,11 @@ llvm::Type* IRBuilder::GetJTypeInAccurateSpace(JType jty) {
 
   case kObject:
     return GetJObjectTy();
-  }
 
-  LOG(FATAL) << "Unknown java type: " << jty;
-  return NULL;
+  default:
+    LOG(FATAL) << "Unknown java type: " << jty;
+    return NULL;
+  }
 }
 
 llvm::Type* IRBuilder::GetJTypeInRegSpace(JType jty) {
@@ -134,10 +135,11 @@ llvm::Type* IRBuilder::GetJTypeInArraySpace(JType jty) {
 
   case kObject:
     return GetJObjectTy();
-  }
 
-  LOG(FATAL) << "Unknown java type: " << jty;
-  return NULL;
+  default:
+    LOG(FATAL) << "Unknown java type: " << jty;
+    return NULL;
+  }
 }
 
 } // namespace greenland

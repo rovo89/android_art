@@ -39,12 +39,6 @@
 #include "utils.h"
 #include "well_known_classes.h"
 
-#if defined(ART_USE_LLVM_COMPILER)
-#include "compiler_llvm/inferred_reg_category_map.h"
-#include "compiler_llvm/runtime_support_llvm.h"
-using art::compiler_llvm::InferredRegCategoryMap;
-#endif
-
 namespace art {
 
 String* Object::AsString() {
