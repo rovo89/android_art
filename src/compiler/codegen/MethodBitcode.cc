@@ -53,6 +53,9 @@ void defineValue(CompilationUnit* cUnit, llvm::Value* val, int sReg)
   placeholder->replaceAllUsesWith(val);
   val->takeName(placeholder);
   cUnit->llvmValues.elemList[sReg] = (intptr_t)val;
+  llvm::Instruction* inst = llvm::dyn_cast<llvm::Instruction>(placeholder);
+  DCHECK(inst != NULL);
+  inst->eraseFromParent();
 }
 
 llvm::Type* llvmTypeFromLocRec(CompilationUnit* cUnit, RegLocation loc)
@@ -334,7 +337,6 @@ void convertThrowVerificationError(CompilationUnit* cUnit, int info1, int info2)
   args.push_back(cUnit->irb->getInt32(info1));
   args.push_back(cUnit->irb->getInt32(info2));
   cUnit->irb->CreateCall(func, args);
-  cUnit->irb->CreateUnreachable();
 }
 
 void emitSuspendCheck(CompilationUnit* cUnit)
@@ -1755,7 +1757,9 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
     }
   }
 
-  if ((bb->fallThrough != NULL) && !bb->hasReturn) {
+  if (bb->blockType == kEntryBlock) {
+    cUnit->entryTargetBB = getLLVMBlock(cUnit, bb->fallThrough->id);
+  } else if ((bb->fallThrough != NULL) && !bb->hasReturn) {
     cUnit->irb->CreateBr(getLLVMBlock(cUnit, bb->fallThrough->id));
   }
 
@@ -1891,16 +1895,13 @@ void oatMethodMIR2Bitcode(CompilationUnit* cUnit)
   arg_iter++;  /* Skip path method */
   for (int i = 0; i < cUnit->numSSARegs; i++) {
     llvm::Value* val;
-    llvm::Type* ty = llvmTypeFromLocRec(cUnit, cUnit->regLocation[i]);
-    if (i < cUnit->numRegs) {
-      // Skip non-argument _0 names - should never be a use
-      oatInsertGrowableList(cUnit, &cUnit->llvmValues, (intptr_t)0);
-    } else if (i >= (cUnit->numRegs + cUnit->numIns)) {
+    if ((i < cUnit->numRegs) || (i >= (cUnit->numRegs + cUnit->numIns))) {
       // Handle SSA defs, skipping Method* and compiler temps
       if (SRegToVReg(cUnit, i) < 0) {
         val = NULL;
       } else {
-        val = cUnit->irb->CreateLoad(cUnit->irb->CreateAlloca(ty, 0));
+        llvm::Constant* immValue = cUnit->irb->GetJInt(0);
+        val = emitConst(cUnit, immValue, cUnit->regLocation[i]);
         val->setName(llvmSSAName(cUnit, i));
       }
       oatInsertGrowableList(cUnit, &cUnit->llvmValues, (intptr_t)val);
@@ -1920,12 +1921,43 @@ void oatMethodMIR2Bitcode(CompilationUnit* cUnit)
       }
     }
   }
-  cUnit->irb->CreateBr(cUnit->placeholderBB);
 
   oatDataFlowAnalysisDispatcher(cUnit, methodBlockBitcodeConversion,
                                 kPreOrderDFSTraversal, false /* Iterative */);
 
-  cUnit->placeholderBB->eraseFromParent();
+  /*
+   * In a few rare cases of verification failure, the verifier will
+   * replace one or more Dalvik opcodes with the special
+   * throw-verification-failure opcode.  This can leave the SSA graph
+   * in an invalid state, as definitions may be lost, while uses retained.
+   * To work around this problem, we insert placeholder definitions for
+   * all Dalvik SSA regs in the "placeholder" block.  Here, after
+   * bitcode conversion is complete, we examine those placeholder definitions
+   * and delete any with no references (which normally is all of them).
+   *
+   * If any definitions remain, we link the placeholder block into the
+   * CFG.  Otherwise, it is deleted.
+   */
+  for (llvm::BasicBlock::iterator it = cUnit->placeholderBB->begin(),
+       itEnd = cUnit->placeholderBB->end(); it != itEnd;) {
+    llvm::Instruction* inst = llvm::dyn_cast<llvm::Instruction>(it++);
+    DCHECK(inst != NULL);
+    llvm::Value* val = llvm::dyn_cast<llvm::Value>(inst);
+    DCHECK(val != NULL);
+    if (val->getNumUses() == 0) {
+      inst->eraseFromParent();
+    }
+  }
+  setDexOffset(cUnit, 0);
+  if (cUnit->placeholderBB->empty()) {
+    cUnit->placeholderBB->eraseFromParent();
+  } else {
+    cUnit->irb->SetInsertPoint(cUnit->placeholderBB);
+    cUnit->irb->CreateBr(cUnit->entryTargetBB);
+    cUnit->entryTargetBB = cUnit->placeholderBB;
+  }
+  cUnit->irb->SetInsertPoint(cUnit->entryBB);
+  cUnit->irb->CreateBr(cUnit->entryTargetBB);
 
   llvm::verifyFunction(*cUnit->func, llvm::PrintMessageAction);
 
