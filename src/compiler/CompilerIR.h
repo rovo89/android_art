@@ -420,6 +420,7 @@ struct CompilationUnit {
       irb(NULL),
       placeholderBB(NULL),
       entryBB(NULL),
+      entryTargetBB(NULL),
       tempName(0),
       requireShadowFrame(false),
       numShadowFrameEntries(0),
@@ -589,6 +590,7 @@ struct CompilationUnit {
   greenland::IRBuilder* irb;
   llvm::BasicBlock* placeholderBB;
   llvm::BasicBlock* entryBB;
+  llvm::BasicBlock* entryTargetBB;
   std::string bitcode_filename;
   GrowableList llvmValues;
   int32_t tempName;
