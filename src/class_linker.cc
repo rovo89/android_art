@@ -2851,19 +2851,22 @@ bool ClassLinker::LinkVirtualMethods(SirtRef<Class>& klass) {
       for (; j < actual_count; ++j) {
         Method* super_method = vtable->Get(j);
         super_mh.ChangeMethod(super_method);
-        if (local_mh.HasSameNameAndSignature(&super_mh) &&
-            klass->CanAccessMember(super_method->GetDeclaringClass(), super_method->GetAccessFlags())) {
-          // Verify
-          if (super_method->IsFinal()) {
-            MethodHelper mh(local_method);
-            ThrowLinkageError("Method %s.%s overrides final method in class %s",
-                PrettyDescriptor(klass.get()).c_str(),
-                mh.GetName(), mh.GetDeclaringClassDescriptor());
-            return false;
+        if (local_mh.HasSameNameAndSignature(&super_mh)) {
+          if (klass->CanAccessMember(super_method->GetDeclaringClass(), super_method->GetAccessFlags())) {
+            if (super_method->IsFinal()) {
+              ThrowLinkageError("Method %s overrides final method in class %s",
+                                PrettyMethod(local_method).c_str(),
+                                super_mh.GetDeclaringClassDescriptor());
+              return false;
+            }
+            vtable->Set(j, local_method);
+            local_method->SetMethodIndex(j);
+            break;
+          } else {
+            LOG(WARNING) << "Before Android 4.1, method " << PrettyMethod(local_method)
+                         << " would have incorrectly overridden the package-private method in "
+                         << PrettyDescriptor(super_mh.GetDeclaringClassDescriptor());
           }
-          vtable->Set(j, local_method);
-          local_method->SetMethodIndex(j);
-          break;
         }
       }
       if (j == actual_count) {
