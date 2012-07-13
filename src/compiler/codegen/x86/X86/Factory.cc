@@ -475,9 +475,15 @@ LIR* loadBaseIndexedDisp(CompilationUnit *cUnit,
     if (!pair) {
       load = newLIR3(cUnit, opcode, rDest, rBase, displacement + LOWORD_OFFSET);
     } else {
-      load = newLIR3(cUnit, opcode, rDest, rBase, displacement + LOWORD_OFFSET);
-      load2 = newLIR3(cUnit, opcode, rDestHi, rBase,
-                      displacement + HIWORD_OFFSET);
+      if (rBase == rDest) {
+        load2 = newLIR3(cUnit, opcode, rDestHi, rBase,
+                        displacement + HIWORD_OFFSET);
+        load = newLIR3(cUnit, opcode, rDest, rBase, displacement + LOWORD_OFFSET);
+      } else {
+        load = newLIR3(cUnit, opcode, rDest, rBase, displacement + LOWORD_OFFSET);
+        load2 = newLIR3(cUnit, opcode, rDestHi, rBase,
+                        displacement + HIWORD_OFFSET);
+      }
     }
     if (rBase == rSP) {
       annotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0))
@@ -492,10 +498,17 @@ LIR* loadBaseIndexedDisp(CompilationUnit *cUnit,
       load = newLIR5(cUnit, opcode, rDest, rBase, rIndex, scale,
                      displacement + LOWORD_OFFSET);
     } else {
-      load = newLIR5(cUnit, opcode, rDest, rBase, rIndex, scale,
-                     displacement + LOWORD_OFFSET);
-      load2 = newLIR5(cUnit, opcode, rDestHi, rBase, rIndex, scale,
-                      displacement + HIWORD_OFFSET);
+      if (rBase == rDest) {
+        load2 = newLIR5(cUnit, opcode, rDestHi, rBase, rIndex, scale,
+                        displacement + HIWORD_OFFSET);
+        load = newLIR5(cUnit, opcode, rDest, rBase, rIndex, scale,
+                       displacement + LOWORD_OFFSET);
+      } else {
+        load = newLIR5(cUnit, opcode, rDest, rBase, rIndex, scale,
+                       displacement + LOWORD_OFFSET);
+        load2 = newLIR5(cUnit, opcode, rDestHi, rBase, rIndex, scale,
+                        displacement + HIWORD_OFFSET);
+      }
     }
   }
 

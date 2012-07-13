@@ -352,13 +352,18 @@ void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
     if (srcFP) {
       opRegCopy(cUnit, S2D(destLo, destHi), S2D(srcLo, srcHi));
     } else {
-      UNIMPLEMENTED(WARNING);
-      newLIR0(cUnit, kX86Bkpt);
+      // TODO: Prevent this from happening in the code. The result is often
+      // unused or could have been loaded more easily from memory.
+      newLIR2(cUnit, kX86MovdxrRR, destLo, srcLo);
+      newLIR2(cUnit, kX86MovdxrRR, destHi, srcHi);
+      newLIR2(cUnit, kX86PsllqRI, destHi, 32);
+      newLIR2(cUnit, kX86OrpsRR, destLo, destHi);
     }
   } else {
     if (srcFP) {
-      UNIMPLEMENTED(WARNING);
-      newLIR0(cUnit, kX86Bkpt);
+      newLIR2(cUnit, kX86MovdrxRR, destLo, srcLo);
+      newLIR2(cUnit, kX86PsrlqRI, srcLo, 32);
+      newLIR2(cUnit, kX86MovdrxRR, destHi, srcLo);
     } else {
       // Handle overlap
       if (srcHi == destLo) {
