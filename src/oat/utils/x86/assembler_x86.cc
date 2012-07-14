@@ -1415,10 +1415,12 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                               const std::vector<ManagedRegister>& spill_regs,
                               const std::vector<ManagedRegister>& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
-  CHECK_EQ(0u, spill_regs.size());  // no spilled regs on x86
+  for (int i = spill_regs.size() - 1; i >= 0; --i) {
+    pushl(spill_regs.at(i).AsX86().AsCpuRegister());
+  }
   // return address then method on stack
-  addl(ESP, Immediate(-frame_size + kPointerSize /*method*/ +
-                      kPointerSize /*return address*/));
+  addl(ESP, Immediate(-frame_size + (spill_regs.size() * kPointerSize) +
+                      kPointerSize /*method*/ + kPointerSize /*return address*/));
   pushl(method_reg.AsX86().AsCpuRegister());
   for (size_t i = 0; i < entry_spills.size(); ++i) {
     movl(Address(ESP, frame_size + kPointerSize + (i * kPointerSize)),
@@ -1429,8 +1431,10 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 void X86Assembler::RemoveFrame(size_t frame_size,
                             const std::vector<ManagedRegister>& spill_regs) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
-  CHECK_EQ(0u, spill_regs.size());  // no spilled regs on x86
-  addl(ESP, Immediate(frame_size - kPointerSize));
+  addl(ESP, Immediate(frame_size - (spill_regs.size() * kPointerSize) - kPointerSize));
+  for (size_t i = 0; i < spill_regs.size(); ++i) {
+    popl(spill_regs.at(i).AsX86().AsCpuRegister());
+  }
   ret();
 }
 

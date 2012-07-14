@@ -199,6 +199,9 @@ enum NativeRegisterPool {
   rSI    = r6,
   r7     = 7,
   rDI    = r7,
+#ifndef TARGET_REX_SUPPORT
+  rRET   = 8,  // fake return address register for core spill mask
+#else
   r8     = 8,
   r9     = 9,
   r10    = 10,
@@ -208,6 +211,7 @@ enum NativeRegisterPool {
   r14    = 14,
   r15    = 15,
   rRET   = 16,  // fake return address register for core spill mask
+#endif
   fr0  =  0 + FP_REG_OFFSET,
   fr1  =  1 + FP_REG_OFFSET,
   fr2  =  2 + FP_REG_OFFSET,
