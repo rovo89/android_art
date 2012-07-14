@@ -269,7 +269,7 @@ void Thread::Init() {
   InitTid();
   InitStackHwm();
 
-  CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach");
+  CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach self");
 
   jni_env_ = new JNIEnvExt(this, runtime->GetJavaVM());
 
@@ -742,7 +742,13 @@ void Thread::WaitUntilSuspended() {
 
 void Thread::ThreadExitCallback(void* arg) {
   Thread* self = reinterpret_cast<Thread*>(arg);
-  LOG(FATAL) << "Native thread exited without calling DetachCurrentThread: " << *self;
+  if (self->thread_exit_check_count_ == 0) {
+    LOG(WARNING) << "Native thread exiting without having called DetachCurrentThread (maybe it's going to use a pthread_key_create destructor?): " << *self;
+    CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, self), "reattach self");
+    self->thread_exit_check_count_ = 1;
+  } else {
+    LOG(FATAL) << "Native thread exited without calling DetachCurrentThread: " << *self;
+  }
 }
 
 void Thread::Startup() {
@@ -803,7 +809,8 @@ Thread::Thread(bool daemon)
       name_(new std::string(kThreadNameDuringStartup)),
       daemon_(daemon),
       no_thread_suspension_(0),
-      last_no_thread_suspension_cause_(NULL) {
+      last_no_thread_suspension_cause_(NULL),
+      thread_exit_check_count_(0) {
   CHECK_EQ((sizeof(Thread) % 4), 0U) << sizeof(Thread);
   memset(&held_mutexes_[0], 0, sizeof(held_mutexes_));
 }
