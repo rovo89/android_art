@@ -665,9 +665,13 @@ class PACKED Thread {
 
  public:
   // Runtime support function pointers
+  // TODO: move this near the top, since changing its offset requires all oats to be recompiled!
   EntryPoints entrypoints_;
 
  private:
+  // How many times has our pthread key's destructor been called?
+  uint32_t thread_exit_check_count_;
+
   friend class ScopedThreadListLockReleaser;
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
