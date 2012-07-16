@@ -2062,16 +2062,19 @@ bool genArithOpIntLit(CompilationUnit* cUnit, Instruction::Code opcode,
       op = kOpXor;
       break;
     case Instruction::SHL_INT_LIT8:
+    case Instruction::SHL_INT:
       lit &= 31;
       shiftOp = true;
       op = kOpLsl;
       break;
     case Instruction::SHR_INT_LIT8:
+    case Instruction::SHR_INT:
       lit &= 31;
       shiftOp = true;
       op = kOpAsr;
       break;
     case Instruction::USHR_INT_LIT8:
+    case Instruction::USHR_INT:
       lit &= 31;
       shiftOp = true;
       op = kOpLsr;

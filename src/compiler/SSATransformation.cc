@@ -747,7 +747,7 @@ void insertPhiNodes(CompilationUnit* cUnit)
                                 kPostOrderDFSTraversal, true /* isIterative */);
 
   /* Iterate through each Dalvik register */
-  for (dalvikReg = 0; dalvikReg < cUnit->numDalvikRegisters; dalvikReg++) {
+  for (dalvikReg = cUnit->numDalvikRegisters - 1; dalvikReg >= 0; dalvikReg--) {
     bool change;
     ArenaBitVectorIterator iterator;
 

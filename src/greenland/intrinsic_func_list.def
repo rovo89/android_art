@@ -1228,7 +1228,7 @@ _EVAL_DEF_INTRINSICS_FUNC(CopyObj,
                           kJavaObjectTy,
                           _EXPAND_ARG1(kJavaObjectTy))
 
-// int copy_long(long)
+// long copy_long(long)
 _EVAL_DEF_INTRINSICS_FUNC(CopyLong,
                           dex_lang_copy_long,
                           kAttrReadOnly | kAttrNoThrow,
@@ -1249,6 +1249,50 @@ _EVAL_DEF_INTRINSICS_FUNC(CopyDouble,
                           kDoubleTy,
                           _EXPAND_ARG1(kDoubleTy))
 
+//----------------------------------------------------------------------------
+// Shift intrinsics.  Shift semantics for Dalvik are a bit different than
+// the llvm shift operators.  For 32-bit shifts, the shift count is constrained
+// to the range of 0..31, while for 64-bit shifts we limit to 0..63.
+// Further, the shift count for Long shifts in Dalvik is 32 bits, while
+// llvm requires a 64-bit shift count. For GBC, we represent shifts as an
+//  intrinsic to allow most efficient target-dependent lowering.
+//----------------------------------------------------------------------------
+// long shl_long(long,int)
+_EVAL_DEF_INTRINSICS_FUNC(SHLLong,
+                          dex_lang_shl_long,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt64Ty,
+                          _EXPAND_ARG2(kInt64Ty,kInt32Ty))
+// long shr_long(long,int)
+_EVAL_DEF_INTRINSICS_FUNC(SHRLong,
+                          dex_lang_shr_long,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt64Ty,
+                          _EXPAND_ARG2(kInt64Ty,kInt32Ty))
+// long ushr_long(long,int)
+_EVAL_DEF_INTRINSICS_FUNC(USHRLong,
+                          dex_lang_ushl_long,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt64Ty,
+                          _EXPAND_ARG2(kInt64Ty,kInt32Ty))
+// int shl_int(int,int)
+_EVAL_DEF_INTRINSICS_FUNC(SHLInt,
+                          dex_lang_shl_int,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG2(kInt32Ty,kInt32Ty))
+// long shr_int(int,int)
+_EVAL_DEF_INTRINSICS_FUNC(SHRInt,
+                          dex_lang_shr_int,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG2(kInt32Ty,kInt32Ty))
+// int ushr_long(int,int)
+_EVAL_DEF_INTRINSICS_FUNC(USHRInt,
+                          dex_lang_ushl_int,
+                          kAttrReadOnly | kAttrNoThrow,
+                          kInt32Ty,
+                          _EXPAND_ARG2(kInt32Ty,kInt32Ty))
 //----------------------------------------------------------------------------
 // Conversion instrinsics.  Note: these should eventually be removed.  We
 // can express these directly in bitcode, but by using intrinsics the
