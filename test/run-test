@@ -55,6 +55,7 @@ dev_mode="no"
 update_mode="no"
 debug_mode="no"
 usage="no"
+build_only="no"
 
 while true; do
     if [ "x$1" = "x--host" ]; then
@@ -99,6 +100,13 @@ while true; do
         run_args="${run_args} --dev"
         dev_mode="yes"
         shift
+    elif [ "x$1" = "x--build-only" ]; then
+        build_only="yes"
+        shift
+    elif [ "x$1" = "x--output-path" ]; then
+        shift
+        tmp_dir=$1
+        shift
     elif [ "x$1" = "x--update" ]; then
         update_mode="yes"
         shift
@@ -134,7 +142,6 @@ if [ "$usage" = "no" ]; then
         fi
         test_dir="$td2"
     fi
-
     # Shift to get rid of the test name argument. The rest of the arguments
     # will get passed to the test run.
     shift
@@ -156,6 +163,7 @@ if [ "$usage" = "yes" ]; then
         echo "    -O             Run oatexec rather than oatexecd (off by default)."
         echo "    --debug        Wait for a debugger to attach."
         #echo "    --gdb          Run under gdb; incompatible with some tests."
+        echo "    --build-only   Build test files only (off by default)."
         echo "    --no-verify    Turn off verification (on by default)."
         echo "    --no-optimize  Turn off optimization (on by default)."
         echo "    --no-precise   Turn off precise GC (on by default)."
@@ -165,6 +173,8 @@ if [ "$usage" = "yes" ]; then
         echo "    --host         Use the host-mode virtual machine."
         echo "    --valgrind     Use valgrind when running locally."
         echo "    --jvm          Use a host-local RI virtual machine."
+        echo "    --output-path [path] Location where to store the build" \
+             "files."
     ) 1>&2
     exit 1
 fi
@@ -224,6 +234,20 @@ elif [ "$update_mode" = "yes" ]; then
         cat "$build_output" 1>&2
         echo "build exit status: $build_exit" 1>&2
     fi
+elif [ "$build_only" = "yes" ]; then
+    good="yes"
+    "./${build}" >"$build_output" 2>&1
+    build_exit="$?"
+    if [ "$build_exit" '!=' '0' ]; then
+        cp "$build_output" "$output"
+        echo "build exit status: $build_exit" >>"$output"
+        diff --strip-trailing-cr -q "$expected" "$output" >/dev/null
+        if [ "$?" '!=' "0" ]; then
+            good="no"
+            echo "BUILD FAILED For ${TEST_NAME}"
+        fi
+    fi
+    exit 0
 else
     "./${build}" >"$build_output" 2>&1
     build_exit="$?"
@@ -241,7 +265,8 @@ else
     fi
 fi
 
-if [ "$good" = "yes" ]; then
+# Clean up test files.
+if [ "$good" == "yes" ]; then
     cd "$oldwd"
     rm -rf "$tmp_dir"
     if [ "$target_mode" = "yes" -a "$build_exit" = "0" ]; then
@@ -250,8 +275,9 @@ if [ "$good" = "yes" ]; then
     exit 0
 fi
 
+
 (
-    if [ "$update_mode" '!=' "yes" ]; then
+    if [ "$update_mode" != "yes" ]; then
         echo "${test_dir}: FAILED!"
         echo ' '
         echo '#################### info'
@@ -262,7 +288,7 @@ fi
         echo ' '
     fi
     echo "${TEST_NAME} files left in ${tmp_dir} on host"
-    if [ "$target_mode" = "yes" ]; then
+    if [ "$target_mode" == "yes" ]; then
         echo "and in ${DEX_LOCATION} on target"
     fi
 
