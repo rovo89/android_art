@@ -1298,7 +1298,12 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
     case Instruction::MOVE_RESULT_WIDE:
     case Instruction::MOVE_RESULT:
     case Instruction::MOVE_RESULT_OBJECT:
+#if defined(TARGET_ARM)
       CHECK(false) << "Unexpected MOVE_RESULT";
+#else
+      UNIMPLEMENTED(WARNING) << "need x86 move-result fusing";
+#endif
+
       break;
 
     case Instruction::MONITOR_ENTER:
@@ -1448,7 +1453,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       }
       break;
     case Instruction::IPUT:
-      if (rlDest.fp) {
+      if (rlSrc[0].fp) {
         convertIput(cUnit, optFlags, greenland::IntrinsicHelper::HLIPutFloat,
                     rlSrc[0], rlSrc[1], vC);
       } else {
@@ -1477,7 +1482,7 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
                   rlSrc[0], rlSrc[1], vC);
       break;
     case Instruction::IPUT_WIDE:
-      if (rlDest.fp) {
+      if (rlSrc[0].fp) {
         convertIput(cUnit, optFlags, greenland::IntrinsicHelper::HLIPutDouble,
                     rlSrc[0], rlSrc[1], vC);
       } else {
@@ -1918,11 +1923,13 @@ void oatMethodMIR2Bitcode(CompilationUnit* cUnit)
   arg_iter++;  /* Skip path method */
   for (int i = 0; i < cUnit->numSSARegs; i++) {
     llvm::Value* val;
-    if ((SRegToVReg(cUnit, i) < 0) || cUnit->regLocation[i].highWord) {
+    RegLocation rlTemp = cUnit->regLocation[i];
+    if ((SRegToVReg(cUnit, i) < 0) || rlTemp.highWord) {
       oatInsertGrowableList(cUnit, &cUnit->llvmValues, 0);
     } else if ((i < cUnit->numRegs) ||
                (i >= (cUnit->numRegs + cUnit->numIns))) {
-      llvm::Constant* immValue = cUnit->irb->GetJInt(0);
+      llvm::Constant* immValue = cUnit->regLocation[i].wide ?
+         cUnit->irb->GetJLong(0) : cUnit->irb->GetJInt(0);
       val = emitConst(cUnit, immValue, cUnit->regLocation[i]);
       val->setName(llvmSSAName(cUnit, i));
       oatInsertGrowableList(cUnit, &cUnit->llvmValues, (intptr_t)val);
