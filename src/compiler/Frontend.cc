@@ -763,9 +763,17 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   cUnit->numRegs = code_item->registers_size_ - cUnit->numIns;
   cUnit->numOuts = code_item->outs_size_;
 #if defined(ART_USE_QUICK_COMPILER)
-#if defined(TARGET_ARM)
-  cUnit->genBitcode = true;
-#endif
+  // TODO: fix bug and remove this workaround
+  std::string methodName = PrettyMethod(method_idx, dex_file);
+  if ((methodName.find("gdata2.AndroidGDataClient.createAndExecuteMethod")
+      != std::string::npos) || (methodName.find("hG.a") != std::string::npos)
+      || (methodName.find("hT.a(hV, java.lang.String, java.lang.String, java")
+      != std::string::npos) || (methodName.find("AndroidHttpTransport.exchange")
+      != std::string::npos)) {
+    LOG(INFO) << "Skipping bitcode generation for " << methodName;
+  } else {
+    cUnit->genBitcode = true;
+  }
 #endif
   /* Adjust this value accordingly once inlining is performed */
   cUnit->numDalvikRegisters = code_item->registers_size_;
