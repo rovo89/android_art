@@ -38,9 +38,13 @@ tmp_dir="/tmp/${test_dir}"
 export JAVA="java"
 export JAVAC="javac -g -target 1.5"
 export RUN="${progdir}/etc/push-and-run-test-jar"
-export IMAGE=${ANDROID_PRODUCT_OUT}/data/art-test/core.art
 export DEX_LOCATION=/data/run-test/${test_dir}
 export NEED_DEX="true"
+
+# If dx was not set by the environment variable, assume it is in the path.
+if [ -z "$DX" ]; then
+  export DX="dx"
+fi
 
 info="info.txt"
 build="build"
@@ -61,7 +65,6 @@ while true; do
     if [ "x$1" = "x--host" ]; then
         target_mode="no"
         RUN="${progdir}/etc/host-run-test-jar"
-        IMAGE=${ANDROID_HOST_OUT}/framework/core.art
         DEX_LOCATION=$tmp_dir
         shift
     elif [ "x$1" = "x--jvm" ]; then

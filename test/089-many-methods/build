@@ -45,5 +45,5 @@ function writeFileMethod(name) {
 
 mkdir classes
 ${JAVAC} -d classes `find src -name '*.java'`
-dx -JXmx1024m --dex --no-optimize classes
+${DX} -JXmx1024m --dex --no-optimize classes
 

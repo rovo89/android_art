@@ -19,5 +19,5 @@ set -e
 
 # Use classes that are compiled with ecj that exposes an invokeinterface
 # issue when interfaces override methods in Object
-dx --debug --dex --dump-to=classes.lst --output=classes.dex classes
+${DX} --debug --dex --dump-to=classes.lst --output=classes.dex classes
 zip $TEST_NAME.jar classes.dex
