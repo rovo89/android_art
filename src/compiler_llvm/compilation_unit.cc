@@ -98,6 +98,7 @@ class AddSuspendCheckToLoopLatchPass : public llvm::LoopPass {
   }
 
   virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const {
+    AU.addRequired<llvm::LoopInfo>();
     AU.addRequiredID(llvm::LoopSimplifyID);
 
     AU.addPreserved<llvm::DominatorTree>();
@@ -108,15 +109,28 @@ class AddSuspendCheckToLoopLatchPass : public llvm::LoopPass {
   }
 
   virtual bool runOnLoop(llvm::Loop *loop, llvm::LPPassManager &lpm) {
+    llvm::LoopInfo* loop_info = &getAnalysis<llvm::LoopInfo>();
+
     CHECK_EQ(loop->getNumBackEdges(), 1U) << "Loop must be simplified!";
     llvm::BasicBlock* bb = loop->getLoopLatch();
     CHECK_NE(bb, static_cast<void*>(NULL)) << "A single loop latch must exist.";
 
-    irb_->SetInsertPoint(bb->getTerminator());
+    llvm::BasicBlock* tb = bb->splitBasicBlock(bb->getTerminator(), "suspend_exit");
+    // Remove unconditional branch which is added by splitBasicBlock.
+    bb->getTerminator()->eraseFromParent();
 
-    using art::compiler_llvm::runtime_support::TestSuspend;
-    llvm::Value* runtime_func = irb_->GetRuntime(TestSuspend);
-    irb_->CreateCall(runtime_func, irb_->getJNull());
+    irb_->SetInsertPoint(bb);
+    irb_->Runtime().EmitTestSuspend();
+    irb_->CreateBr(tb);
+
+    loop->addBasicBlockToLoop(tb, loop_info->getBase());
+    // EmitTestSuspend() creates some basic blocks. We should add them to using
+    // addBasicBlockToLoop(...) as above.
+    for (llvm::succ_iterator succ_iter = llvm::succ_begin(bb), succ_end = llvm::succ_end(bb);
+         succ_iter != succ_end;
+         succ_iter++) {
+      loop->addBasicBlockToLoop(*succ_iter, loop_info->getBase());
+    }
 
     return true;
   }
@@ -176,8 +190,6 @@ CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
     runtime_support_.reset(new RuntimeSupportBuilderX86(*context_, *module_, *irb_));
     break;
   }
-
-  runtime_support_->OptimizeRuntimeSupport();
 
   irb_->SetRuntimeSupport(runtime_support_.get());
 }
@@ -342,8 +354,10 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
 
   // Add optimization pass
   llvm::PassManagerBuilder pm_builder;
+  // TODO: Use inliner after we can do IPO.
+  pm_builder.Inliner = NULL;
   //pm_builder.Inliner = llvm::createFunctionInliningPass();
-  pm_builder.Inliner = llvm::createAlwaysInlinerPass();
+  //pm_builder.Inliner = llvm::createAlwaysInlinerPass();
   //pm_builder.Inliner = llvm::createPartialInliningPass();
   pm_builder.OptLevel = 3;
   pm_builder.DisableSimplifyLibCalls = 1;

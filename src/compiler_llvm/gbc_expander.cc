@@ -106,6 +106,8 @@ class GBCExpanderPass : public llvm::FunctionPass {
   //----------------------------------------------------------------------------
   void Expand_TestSuspend(llvm::CallInst& call_inst);
 
+  void Expand_MarkGCCard(llvm::CallInst& call_inst);
+
   llvm::Value* Expand_GetException();
 
   llvm::Value* Expand_LoadStringFromDexCache(llvm::Value* string_idx_value);
@@ -512,6 +514,20 @@ void GBCExpanderPass::Expand_TestSuspend(llvm::CallInst& call_inst) {
 
   SplitAndInsertBasicBlocksAfter(call_inst, suspend_test_begin_bb,
                                             suspend_test_end_bb);
+  return;
+}
+
+void GBCExpanderPass::Expand_MarkGCCard(llvm::CallInst& call_inst) {
+  llvm::Function* parent_func = irb_.GetInsertBlock()->getParent();
+  llvm::BasicBlock* begin_bb =
+    llvm::BasicBlock::Create(context_, "mark_gc_card", parent_func);
+
+  irb_.SetInsertPoint(begin_bb);
+  irb_.Runtime().EmitMarkGCCard(call_inst.getArgOperand(0), call_inst.getArgOperand(1));
+
+  llvm::BasicBlock* end_bb = irb_.GetInsertBlock();
+
+  SplitAndInsertBasicBlocksAfter(call_inst, begin_bb, end_bb);
   return;
 }
 
@@ -974,7 +990,8 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return NULL;
     }
     case IntrinsicHelper::MarkGCCard: {
-      return ExpandToRuntime(runtime_support::MarkGCCard, call_inst);
+      Expand_MarkGCCard(call_inst);
+      return NULL;
     }
     //==- Exception --------------------------------------------------------==//
     case IntrinsicHelper::ThrowException: {
