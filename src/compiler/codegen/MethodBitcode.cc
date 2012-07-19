@@ -800,7 +800,6 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
   bool res = false;   // Assume success
   RegLocation rlSrc[3];
   RegLocation rlDest = badLoc;
-  RegLocation rlResult = badLoc;
   Instruction::Code opcode = mir->dalvikInsn.opcode;
   uint32_t vA = mir->dalvikInsn.vA;
   uint32_t vB = mir->dalvikInsn.vB;
