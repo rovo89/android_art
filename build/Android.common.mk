@@ -16,33 +16,45 @@
 
 # TODO: move the LLVM compiler out into a separate shared library too...
 # Use llvm as the backend
-ifneq ($(wildcard art/USE_LLVM_COMPILER),)
-ART_USE_LLVM_COMPILER := true
-else
 ART_USE_LLVM_COMPILER := false
+ifneq ($(wildcard art/USE_LLVM_COMPILER),)
+$(info Enabling ART_USE_LLVM_COMPILER because of existence of art/USE_LLVM_COMPILER)
+ART_USE_LLVM_COMPILER := true
+endif
+ifeq ($(WITH_ART_USE_LLVM_COMPILER),true)
+$(info Enabling ART_USE_LLVM_COMPILER because WITH_ART_USE_LLVM_COMPILER=true)
+ART_USE_LLVM_COMPILER := true
 endif
 
-ifneq ($(wildcard art/USE_GREENLAND_COMPILER),)
-ART_USE_GREENLAND_COMPILER := true
-else
 ART_USE_GREENLAND_COMPILER := false
+ifneq ($(wildcard art/USE_GREENLAND_COMPILER),)
+$(info Enabling ART_USE_GREENLAND_COMPILER because of existence of art/USE_GREENLAND_COMPILER)
+ART_USE_GREENLAND_COMPILER := true
+endif
+ifeq ($(WITH_ART_USE_GREENLAND_COMPILER),true)
+$(info Enabling ART_USE_GREENLAND_COMPILER because WITH_ART_USE_GREENLAND_COMPILER=true)
+ART_USE_GREENLAND_COMPILER := true
 endif
 
+ART_USE_QUICK_COMPILER := false
 ifneq ($(wildcard art/USE_QUICK_COMPILER),)
 ART_USE_QUICK_COMPILER := true
-else
-ART_USE_QUICK_COMPILER := false
+$(info Enabling ART_USE_QUICK_COMPILER because of existence of art/USE_QUICK_COMPILER)
+endif
+ifeq ($(WITH_ART_USE_QUICK_COMPILER),true)
+ART_USE_QUICK_COMPILER := true
+$(info Enabling ART_USE_QUICK_COMPILER because WITH_ART_USE_QUICK_COMPILER=true)
 endif
 
-ifeq ($(filter-out true,$(ART_USE_LLVM_COMPILER) $(ART_USE_GREENLAND_COMPILER)),)
-$(error Cannot enable art-greenland and art-llvm compiler simultaneously!)
-endif
-
-ifeq ($(filter true,$(ART_USE_LLVM_COMPILER) $(ART_USE_GREENLAND_COMPILER) $(ART_USE_QUICK_COMPILER)),true)
-ART_REQUIRE_LLVM := true
-else
+ifeq ($(words $(filter true,$(ART_USE_LLVM_COMPILER) $(ART_USE_GREENLAND_COMPILER) $(ART_USE_QUICK_COMPILER))),0)
 ART_REQUIRE_LLVM := false
-endif
+else #!0
+ifeq ($(words $(filter true,$(ART_USE_LLVM_COMPILER) $(ART_USE_GREENLAND_COMPILER) $(ART_USE_QUICK_COMPILER))),1)
+ART_REQUIRE_LLVM := true
+else #!1
+$(error Cannot enable combinations of art-greenland, art-llvm, and art-quick compiler simultaneously!)
+endif #!1
+endif #!0
 
 ifeq ($(ART_REQUIRE_LLVM),true)
 LLVM_ROOT_PATH := external/llvm
