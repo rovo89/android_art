@@ -502,7 +502,6 @@ void genNewArray(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest,
   oatFlushAllRegs(cUnit);  /* Everything to home location */
   int funcOffset;
   if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
-                                                  cUnit->dex_cache,
                                                   *cUnit->dex_file,
                                                   type_idx)) {
     funcOffset = ENTRYPOINT_OFFSET(pAllocArrayFromCode);
@@ -527,7 +526,6 @@ void genFilledNewArray(CompilationUnit* cUnit, CallInfo* info)
   oatFlushAllRegs(cUnit);  /* Everything to home location */
   int funcOffset;
   if (cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
-                                                  cUnit->dex_cache,
                                                   *cUnit->dex_file,
                                                   typeIdx)) {
     funcOffset = ENTRYPOINT_OFFSET(pCheckAndAllocArrayFromCode);
@@ -637,10 +635,8 @@ void genSput(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlSrc,
   bool isVolatile;
   bool isReferrersClass;
 
-  OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
-                           *cUnit->dex_file, *cUnit->dex_cache,
-                           cUnit->code_item, cUnit->method_idx,
-                           cUnit->access_flags);
+  OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker, *cUnit->dex_file,
+                           cUnit->code_item, cUnit->method_idx, cUnit->access_flags);
 
   bool fastPath =
       cUnit->compiler->ComputeStaticFieldInfo(fieldIdx, &mUnit,
@@ -735,7 +731,7 @@ void genSget(CompilationUnit* cUnit, uint32_t fieldIdx, RegLocation rlDest,
   bool isReferrersClass;
 
   OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
-                           *cUnit->dex_file, *cUnit->dex_cache,
+                           *cUnit->dex_file,
                            cUnit->code_item, cUnit->method_idx,
                            cUnit->access_flags);
 
@@ -978,7 +974,7 @@ bool fastInstance(CompilationUnit* cUnit,  uint32_t fieldIdx,
                   int& fieldOffset, bool& isVolatile, bool isPut)
 {
   OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
-               *cUnit->dex_file, *cUnit->dex_cache,
+               *cUnit->dex_file,
                cUnit->code_item, cUnit->method_idx,
                cUnit->access_flags);
   return cUnit->compiler->ComputeInstanceFieldInfo(fieldIdx, &mUnit,
@@ -1102,7 +1098,6 @@ void genConstClass(CompilationUnit* cUnit, uint32_t type_idx,
   int resReg = oatAllocTemp(cUnit);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
-                                                   cUnit->dex_cache,
                                                    *cUnit->dex_file,
                                                    type_idx)) {
     // Call out to helper which resolves type and verifies access.
@@ -1121,7 +1116,7 @@ void genConstClass(CompilationUnit* cUnit, uint32_t type_idx,
         Array::DataOffset(sizeof(Class*)).Int32Value() + (sizeof(Class*)
                           * type_idx);
     loadWordDisp(cUnit, resReg, offset_of_type, rlResult.lowReg);
-    if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(cUnit->dex_cache,
+    if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(*cUnit->dex_file,
         type_idx) || SLOW_TYPE_PATH) {
       // Slow path, at runtime test if type is null and if so initialize
       oatFlushAllRegs(cUnit);
@@ -1164,7 +1159,7 @@ void genConstString(CompilationUnit* cUnit, uint32_t string_idx,
   int32_t offset_of_string = Array::DataOffset(sizeof(String*)).Int32Value() +
                  (sizeof(String*) * string_idx);
   if (!cUnit->compiler->CanAssumeStringIsPresentInDexCache(
-      cUnit->dex_cache, string_idx) || SLOW_STRING_PATH) {
+      *cUnit->dex_file, string_idx) || SLOW_STRING_PATH) {
     // slow path, resolve string if not in dex cache
     oatFlushAllRegs(cUnit);
     oatLockCallTemps(cUnit); // Using explicit registers
@@ -1222,7 +1217,7 @@ void genNewInstance(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDes
   // access because the verifier was unable to?
   int funcOffset;
   if (cUnit->compiler->CanAccessInstantiableTypeWithoutChecks(
-      cUnit->method_idx, cUnit->dex_cache, *cUnit->dex_file, type_idx)) {
+      cUnit->method_idx, *cUnit->dex_file, type_idx)) {
     funcOffset = ENTRYPOINT_OFFSET(pAllocObjectFromCode);
   } else {
     funcOffset = ENTRYPOINT_OFFSET(pAllocObjectFromCodeWithAccessCheck);
@@ -1248,7 +1243,6 @@ void genInstanceof(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest
   loadCurrMethodDirect(cUnit, rARG1);  // rARG1 <= current Method*
   int classReg = rARG2;  // rARG2 will hold the Class*
   if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
-                                                   cUnit->dex_cache,
                                                    *cUnit->dex_file,
                                                    type_idx)) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
@@ -1268,7 +1262,7 @@ void genInstanceof(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlDest
         * type_idx);
     loadWordDisp(cUnit, classReg, offset_of_type, classReg);
     if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(
-        cUnit->dex_cache, type_idx)) {
+        *cUnit->dex_file, type_idx)) {
       // Need to test presence of type in dex cache at runtime
       LIR* hopBranch = opCmpImmBranch(cUnit, kCondNe, classReg, 0, NULL);
       // Not resolved
@@ -1333,7 +1327,6 @@ void genCheckCast(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlSrc)
   loadCurrMethodDirect(cUnit, rARG1);  // rARG1 <= current Method*
   int classReg = rARG2;  // rARG2 will hold the Class*
   if (!cUnit->compiler->CanAccessTypeWithoutChecks(cUnit->method_idx,
-                                                   cUnit->dex_cache,
                                                    *cUnit->dex_file,
                                                    type_idx)) {
     // Check we have access to type_idx and if not throw IllegalAccessError,
@@ -1352,7 +1345,7 @@ void genCheckCast(CompilationUnit* cUnit, uint32_t type_idx, RegLocation rlSrc)
         (sizeof(Class*) * type_idx);
     loadWordDisp(cUnit, classReg, offset_of_type, classReg);
     if (!cUnit->compiler->CanAssumeTypeIsPresentInDexCache(
-        cUnit->dex_cache, type_idx)) {
+        *cUnit->dex_file, type_idx)) {
       // Need to test presence of type in dex cache at runtime
       LIR* hopBranch = opCmpImmBranch(cUnit, kCondNe, classReg, 0, NULL);
       // Not resolved

@@ -16,31 +16,31 @@
 
 #include "jni_internal.h"
 #include "object.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 
 static jobject Object_internalClone(JNIEnv* env, jobject javaThis) {
-  ScopedJniThreadState ts(env);
-  Object* o = ts.Decode<Object*>(javaThis);
-  return ts.AddLocalReference<jobject>(o->Clone());
+  ScopedObjectAccess soa(env);
+  Object* o = soa.Decode<Object*>(javaThis);
+  return soa.AddLocalReference<jobject>(o->Clone());
 }
 
 static void Object_notify(JNIEnv* env, jobject javaThis) {
-  ScopedJniThreadState ts(env);
-  Object* o = ts.Decode<Object*>(javaThis);
+  ScopedObjectAccess soa(env);
+  Object* o = soa.Decode<Object*>(javaThis);
   o->Notify();
 }
 
 static void Object_notifyAll(JNIEnv* env, jobject javaThis) {
-  ScopedJniThreadState ts(env);
-  Object* o = ts.Decode<Object*>(javaThis);
+  ScopedObjectAccess soa(env);
+  Object* o = soa.Decode<Object*>(javaThis);
   o->NotifyAll();
 }
 
 static void Object_wait(JNIEnv* env, jobject javaThis, jlong ms, jint ns) {
-  ScopedJniThreadState ts(env);
-  Object* o = ts.Decode<Object*>(javaThis);
+  ScopedObjectAccess soa(env);
+  Object* o = soa.Decode<Object*>(javaThis);
   o->Wait(ms, ns);
 }
 

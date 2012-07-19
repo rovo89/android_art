@@ -17,8 +17,7 @@
 #include "debugger.h"
 #include "jni_internal.h"
 #include "object.h"
-#include "scoped_jni_thread_state.h"
-#include "scoped_thread_list_lock.h"
+#include "scoped_thread_state_change.h"
 #include "ScopedUtfChars.h"
 #include "thread.h"
 #include "thread_list.h"
@@ -26,19 +25,18 @@
 namespace art {
 
 static jobject Thread_currentThread(JNIEnv* env, jclass) {
-  ScopedJniThreadState ts(env);
-  return ts.AddLocalReference<jobject>(ts.Self()->GetPeer());
+  ScopedObjectAccess soa(env);
+  return soa.AddLocalReference<jobject>(soa.Self()->GetPeer());
 }
 
 static jboolean Thread_interrupted(JNIEnv* env, jclass) {
-  ScopedJniThreadState ts(env, kNative);  // Doesn't touch objects, so keep in native state.
-  return ts.Self()->Interrupted();
+  return reinterpret_cast<JNIEnvExt*>(env)->self->Interrupted() ? JNI_TRUE : JNI_FALSE;
 }
 
 static jboolean Thread_isInterrupted(JNIEnv* env, jobject java_thread) {
-  ScopedJniThreadState ts(env);
-  ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(ts, java_thread);
+  ScopedObjectAccess soa(env);
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  Thread* thread = Thread::FromManagedThread(soa, java_thread);
   return (thread != NULL) ? thread->IsInterrupted() : JNI_FALSE;
 }
 
@@ -56,53 +54,62 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean ha
   const jint kJavaTimedWaiting = 4;
   const jint kJavaTerminated = 5;
 
-  ScopedJniThreadState ts(env);
+  ScopedObjectAccess soa(env);
   ThreadState internal_thread_state = (has_been_started ? kTerminated : kStarting);
-  ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(ts, java_thread);
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  Thread* thread = Thread::FromManagedThread(soa, java_thread);
   if (thread != NULL) {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
     internal_thread_state = thread->GetState();
   }
   switch (internal_thread_state) {
-    case kTerminated:   return kJavaTerminated;
-    case kRunnable:     return kJavaRunnable;
-    case kTimedWaiting: return kJavaTimedWaiting;
-    case kBlocked:      return kJavaBlocked;
-    case kWaiting:      return kJavaWaiting;
-    case kStarting:     return kJavaNew;
-    case kNative:       return kJavaRunnable;
-    case kVmWait:       return kJavaWaiting;
-    case kSuspended:    return kJavaRunnable;
+    case kTerminated:                     return kJavaTerminated;
+    case kRunnable:                       return kJavaRunnable;
+    case kTimedWaiting:                   return kJavaTimedWaiting;
+    case kBlocked:                        return kJavaBlocked;
+    case kWaiting:                        return kJavaWaiting;
+    case kStarting:                       return kJavaNew;
+    case kNative:                         return kJavaRunnable;
+    case kWaitingForGcToComplete:         return kJavaWaiting;
+    case kWaitingPerformingGc:            return kJavaWaiting;
+    case kWaitingForDebuggerSend:         return kJavaWaiting;
+    case kWaitingForDebuggerToAttach:     return kJavaWaiting;
+    case kWaitingInMainDebuggerLoop:      return kJavaWaiting;
+    case kWaitingForDebuggerSuspension:   return kJavaWaiting;
+    case kWaitingForJniOnLoad:            return kJavaWaiting;
+    case kWaitingForSignalCatcherOutput:  return kJavaWaiting;
+    case kWaitingInMainSignalCatcherLoop: return kJavaWaiting;
+    case kSuspended:                      return kJavaRunnable;
     // Don't add a 'default' here so the compiler can spot incompatible enum changes.
   }
   return -1; // Unreachable.
 }
 
 static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject java_thread, jobject java_object) {
-  ScopedJniThreadState ts(env);
-  Object* object = ts.Decode<Object*>(java_object);
+  ScopedObjectAccess soa(env);
+  Object* object = soa.Decode<Object*>(java_object);
   if (object == NULL) {
     Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "object == null");
     return JNI_FALSE;
   }
-  ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(ts, java_thread);
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  Thread* thread = Thread::FromManagedThread(soa, java_thread);
   return thread->HoldsLock(object);
 }
 
 static void Thread_nativeInterrupt(JNIEnv* env, jobject java_thread) {
-  ScopedJniThreadState ts(env);
-  ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(ts, java_thread);
+  ScopedObjectAccess soa(env);
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  Thread* thread = Thread::FromManagedThread(soa, java_thread);
   if (thread != NULL) {
     thread->Interrupt();
   }
 }
 
 static void Thread_nativeSetName(JNIEnv* env, jobject java_thread, jstring java_name) {
-  ScopedJniThreadState ts(env);
-  ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(ts, java_thread);
+  ScopedObjectAccess soa(env);
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  Thread* thread = Thread::FromManagedThread(soa, java_thread);
   if (thread == NULL) {
     return;
   }
@@ -119,9 +126,9 @@ static void Thread_nativeSetName(JNIEnv* env, jobject java_thread, jstring java_
  * threads at Thread.NORM_PRIORITY (5).
  */
 static void Thread_nativeSetPriority(JNIEnv* env, jobject java_thread, jint new_priority) {
-  ScopedJniThreadState ts(env);
-  ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(ts, java_thread);
+  ScopedObjectAccess soa(env);
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  Thread* thread = Thread::FromManagedThread(soa, java_thread);
   if (thread != NULL) {
     thread->SetNativePriority(new_priority);
   }

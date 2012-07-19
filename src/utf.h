@@ -19,6 +19,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "macros.h"
 
 /*
  * All UTF-8 in art is actually modified UTF-8. Mostly, this distinction
@@ -63,7 +64,8 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, const uint16_t* utf16_in, size_t
 /*
  * The java.lang.String hashCode() algorithm.
  */
-int32_t ComputeUtf16Hash(const CharArray* chars, int32_t offset, size_t char_count);
+int32_t ComputeUtf16Hash(const CharArray* chars, int32_t offset, size_t char_count)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 int32_t ComputeUtf16Hash(const uint16_t* chars, size_t char_count);
 
 /*

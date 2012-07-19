@@ -36,30 +36,6 @@ class MANAGED ClassLoader : public Object {
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassLoader);
 };
 
-// C++ mirror of dalvik.system.BaseDexClassLoader
-class MANAGED BaseDexClassLoader : public ClassLoader {
- private:
-  // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
-  String* original_library_path_;
-  String* original_path_;
-  Object* path_list_;
-
-  friend struct BaseDexClassLoaderOffsets;  // for verifying offset information
-  DISALLOW_IMPLICIT_CONSTRUCTORS(BaseDexClassLoader);
-};
-
-// C++ mirror of dalvik.system.PathClassLoader
-class MANAGED PathClassLoader : public BaseDexClassLoader {
- public:
-  static PathClassLoader* AllocCompileTime(std::vector<const DexFile*>& dex_files);
-  static void SetClass(Class* dalvik_system_PathClassLoader);
-  static void ResetClass();
- private:
-  static Class* dalvik_system_PathClassLoader_;
-  friend struct PathClassLoaderOffsets;  // for verifying offset information
-  DISALLOW_IMPLICIT_CONSTRUCTORS(PathClassLoader);
-};
-
 }  // namespace art
 
 #endif  // ART_SRC_CLASS_LOADER_H_

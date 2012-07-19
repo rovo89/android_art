@@ -25,6 +25,7 @@
 namespace art {
 
 jclass WellKnownClasses::com_android_dex_Dex;
+jclass WellKnownClasses::dalvik_system_PathClassLoader;
 jclass WellKnownClasses::java_lang_ClassLoader;
 jclass WellKnownClasses::java_lang_ClassNotFoundException;
 jclass WellKnownClasses::java_lang_Daemons;
@@ -43,14 +44,22 @@ jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_Chunk;
 jclass WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer;
 
 jmethodID WellKnownClasses::com_android_dex_Dex_create;
-jmethodID WellKnownClasses::java_lang_ClassNotFoundException_init;
+jmethodID WellKnownClasses::java_lang_Boolean_valueOf;
+jmethodID WellKnownClasses::java_lang_Byte_valueOf;
+jmethodID WellKnownClasses::java_lang_Character_valueOf;
 jmethodID WellKnownClasses::java_lang_ClassLoader_loadClass;
+jmethodID WellKnownClasses::java_lang_ClassNotFoundException_init;
 jmethodID WellKnownClasses::java_lang_Daemons_requestGC;
 jmethodID WellKnownClasses::java_lang_Daemons_requestHeapTrim;
 jmethodID WellKnownClasses::java_lang_Daemons_start;
+jmethodID WellKnownClasses::java_lang_Double_valueOf;
+jmethodID WellKnownClasses::java_lang_Float_valueOf;
+jmethodID WellKnownClasses::java_lang_Integer_valueOf;
+jmethodID WellKnownClasses::java_lang_Long_valueOf;
 jmethodID WellKnownClasses::java_lang_ref_FinalizerReference_add;
 jmethodID WellKnownClasses::java_lang_ref_ReferenceQueue_add;
 jmethodID WellKnownClasses::java_lang_reflect_InvocationHandler_invoke;
+jmethodID WellKnownClasses::java_lang_Short_valueOf;
 jmethodID WellKnownClasses::java_lang_Thread_init;
 jmethodID WellKnownClasses::java_lang_Thread_run;
 jmethodID WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler_uncaughtException;
@@ -102,8 +111,15 @@ static jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static, const char* 
   return mid;
 }
 
-void WellKnownClasses::Init(JNIEnv* env) {
+static jmethodID CachePrimitiveBoxingMethod(JNIEnv* env, char prim_name, const char* boxed_name) {
+  ScopedLocalRef<jclass> boxed_class(env, env->FindClass(boxed_name));
+  return CacheMethod(env, boxed_class.get(), true, "valueOf",
+                     StringPrintf("(%c)L%s;", prim_name, boxed_name).c_str());
+}
+
+void WellKnownClasses::InitClasses(JNIEnv* env) {
   com_android_dex_Dex = CacheClass(env, "com/android/dex/Dex");
+  dalvik_system_PathClassLoader = CacheClass(env, "dalvik/system/PathClassLoader");
   java_lang_ClassLoader = CacheClass(env, "java/lang/ClassLoader");
   java_lang_ClassNotFoundException = CacheClass(env, "java/lang/ClassNotFoundException");
   java_lang_Daemons = CacheClass(env, "java/lang/Daemons");
@@ -120,6 +136,10 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_nio_ReadWriteDirectByteBuffer = CacheClass(env, "java/nio/ReadWriteDirectByteBuffer");
   org_apache_harmony_dalvik_ddmc_Chunk = CacheClass(env, "org/apache/harmony/dalvik/ddmc/Chunk");
   org_apache_harmony_dalvik_ddmc_DdmServer = CacheClass(env, "org/apache/harmony/dalvik/ddmc/DdmServer");
+}
+
+void WellKnownClasses::Init(JNIEnv* env) {
+  InitClasses(env);
 
   com_android_dex_Dex_create = CacheMethod(env, com_android_dex_Dex, true, "create", "(Ljava/nio/ByteBuffer;)Lcom/android/dex/Dex;");
   java_lang_ClassNotFoundException_init = CacheMethod(env, java_lang_ClassNotFoundException, false, "<init>", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
@@ -161,6 +181,15 @@ void WellKnownClasses::Init(JNIEnv* env) {
   org_apache_harmony_dalvik_ddmc_Chunk_length = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "length", "I");
   org_apache_harmony_dalvik_ddmc_Chunk_offset = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "offset", "I");
   org_apache_harmony_dalvik_ddmc_Chunk_type = CacheField(env, org_apache_harmony_dalvik_ddmc_Chunk, false, "type", "I");
+
+  java_lang_Boolean_valueOf = CachePrimitiveBoxingMethod(env, 'Z', "java/lang/Boolean");
+  java_lang_Byte_valueOf = CachePrimitiveBoxingMethod(env, 'B', "java/lang/Byte");
+  java_lang_Character_valueOf = CachePrimitiveBoxingMethod(env, 'C', "java/lang/Character");
+  java_lang_Double_valueOf = CachePrimitiveBoxingMethod(env, 'D', "java/lang/Double");
+  java_lang_Float_valueOf = CachePrimitiveBoxingMethod(env, 'F', "java/lang/Float");
+  java_lang_Integer_valueOf = CachePrimitiveBoxingMethod(env, 'I', "java/lang/Integer");
+  java_lang_Long_valueOf = CachePrimitiveBoxingMethod(env, 'J', "java/lang/Long");
+  java_lang_Short_valueOf = CachePrimitiveBoxingMethod(env, 'S', "java/lang/Short");
 }
 
 Class* WellKnownClasses::ToClass(jclass global_jclass) {

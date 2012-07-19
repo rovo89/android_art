@@ -29,7 +29,8 @@ namespace art {
 
 class ClassLinkerTest : public CommonTest {
  protected:
-  void AssertNonExistentClass(const std::string& descriptor) {
+  void AssertNonExistentClass(const std::string& descriptor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     EXPECT_TRUE(class_linker_->FindSystemClass(descriptor.c_str()) == NULL);
     Thread* self = Thread::Current();
     EXPECT_TRUE(self->IsExceptionPending());
@@ -39,11 +40,13 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(exception->InstanceOf(exception_class));
   }
 
-  void AssertPrimitiveClass(const std::string& descriptor) {
+  void AssertPrimitiveClass(const std::string& descriptor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     AssertPrimitiveClass(descriptor, class_linker_->FindSystemClass(descriptor.c_str()));
   }
 
-  void AssertPrimitiveClass(const std::string& descriptor, const Class* primitive) {
+  void AssertPrimitiveClass(const std::string& descriptor, const Class* primitive)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     ClassHelper primitive_ch(primitive);
     ASSERT_TRUE(primitive != NULL);
     ASSERT_TRUE(primitive->GetClass() != NULL);
@@ -79,7 +82,8 @@ class ClassLinkerTest : public CommonTest {
 
   void AssertArrayClass(const std::string& array_descriptor,
                         const std::string& component_type,
-                        ClassLoader* class_loader) {
+                        ClassLoader* class_loader)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Class* array = class_linker_->FindClass(array_descriptor.c_str(), class_loader);
     ClassHelper array_component_ch(array->GetComponentType());
     EXPECT_STREQ(component_type.c_str(), array_component_ch.GetDescriptor());
@@ -87,7 +91,8 @@ class ClassLinkerTest : public CommonTest {
     AssertArrayClass(array_descriptor, array);
   }
 
-  void AssertArrayClass(const std::string& array_descriptor, Class* array) {
+  void AssertArrayClass(const std::string& array_descriptor, Class* array)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     ClassHelper kh(array);
     ASSERT_TRUE(array != NULL);
     ASSERT_TRUE(array->GetClass() != NULL);
@@ -130,7 +135,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_STREQ(kh.GetDescriptor(), "Ljava/io/Serializable;");
   }
 
-  void AssertMethod(Method* method) {
+  void AssertMethod(Method* method) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     MethodHelper mh(method);
     EXPECT_TRUE(method != NULL);
     EXPECT_TRUE(method->GetClass() != NULL);
@@ -151,7 +156,8 @@ class ClassLinkerTest : public CommonTest {
               method->GetDexCacheInitializedStaticStorage());
   }
 
-  void AssertField(Class* klass, Field* field) {
+  void AssertField(Class* klass, Field* field)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     FieldHelper fh(field);
     EXPECT_TRUE(field != NULL);
     EXPECT_TRUE(field->GetClass() != NULL);
@@ -160,7 +166,8 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_TRUE(fh.GetType() != NULL);
   }
 
-  void AssertClass(const std::string& descriptor, Class* klass) {
+  void AssertClass(const std::string& descriptor, Class* klass)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     ClassHelper kh(klass);
     EXPECT_STREQ(descriptor.c_str(), kh.GetDescriptor());
     if (descriptor == "Ljava/lang/Object;") {
@@ -283,7 +290,8 @@ class ClassLinkerTest : public CommonTest {
               total_num_reference_instance_fields == 0);
   }
 
-  void AssertDexFileClass(ClassLoader* class_loader, const std::string& descriptor) {
+  void AssertDexFileClass(ClassLoader* class_loader, const std::string& descriptor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     ASSERT_TRUE(descriptor != NULL);
     Class* klass = class_linker_->FindSystemClass(descriptor.c_str());
     ASSERT_TRUE(klass != NULL);
@@ -298,7 +306,8 @@ class ClassLinkerTest : public CommonTest {
     }
   }
 
-  void AssertDexFile(const DexFile* dex, ClassLoader* class_loader) {
+  void AssertDexFile(const DexFile* dex, ClassLoader* class_loader)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     ASSERT_TRUE(dex != NULL);
 
     // Verify all the classes defined in this file
@@ -341,7 +350,7 @@ struct CheckOffsets {
   std::string class_descriptor;
   std::vector<CheckOffset> offsets;
 
-  bool Check() {
+  bool Check() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Class* klass = Runtime::Current()->GetClassLinker()->FindSystemClass(class_descriptor.c_str());
     CHECK(klass != NULL) << class_descriptor;
 
@@ -549,21 +558,6 @@ struct ClassLoaderOffsets : public CheckOffsets<ClassLoader> {
   };
 };
 
-struct BaseDexClassLoaderOffsets : public CheckOffsets<BaseDexClassLoader> {
-  BaseDexClassLoaderOffsets()
-    : CheckOffsets<BaseDexClassLoader>(false, "Ldalvik/system/BaseDexClassLoader;") {
-    // alphabetical references
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, original_library_path_), "originalLibraryPath"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, original_path_),         "originalPath"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(BaseDexClassLoader, path_list_),             "pathList"));
-  };
-};
-
-struct PathClassLoaderOffsets : public CheckOffsets<PathClassLoader> {
-  PathClassLoaderOffsets()
-    : CheckOffsets<PathClassLoader>(false, "Ldalvik/system/PathClassLoader;") {}
-};
-
 struct ProxyOffsets : public CheckOffsets<Proxy> {
   ProxyOffsets() : CheckOffsets<Proxy>(false, "Ljava/lang/reflect/Proxy;") {
     // alphabetical references
@@ -614,6 +608,7 @@ struct MethodClassOffsets : public CheckOffsets<MethodClass> {
 // reorder the fields in the C++ class. Managed class fields are ordered by
 // ClassLinker::LinkFields.
 TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
+  ScopedObjectAccess soa(Thread::Current());
   EXPECT_TRUE(ObjectOffsets().Check());
   EXPECT_TRUE(ConstructorOffsets().Check());
   EXPECT_TRUE(FieldOffsets().Check());
@@ -623,8 +618,6 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(ThrowableOffsets().Check());
   EXPECT_TRUE(StackTraceElementOffsets().Check());
   EXPECT_TRUE(ClassLoaderOffsets().Check());
-  EXPECT_TRUE(BaseDexClassLoaderOffsets().Check());
-  EXPECT_TRUE(PathClassLoaderOffsets().Check());
   EXPECT_TRUE(ProxyOffsets().Check());
 
   EXPECT_TRUE(ClassClassOffsets().Check());
@@ -634,12 +627,14 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
+  ScopedObjectAccess soa(Thread::Current());
   AssertNonExistentClass("NoSuchClass;");
   AssertNonExistentClass("LNoSuchClass;");
 }
 
 TEST_F(ClassLinkerTest, FindClassNested) {
-  SirtRef<ClassLoader> class_loader(LoadDex("Nested"));
+  ScopedObjectAccess soa(Thread::Current());
+  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(LoadDex("Nested")));
 
   Class* outer = class_linker_->FindClass("LNested;", class_loader.get());
   ASSERT_TRUE(outer != NULL);
@@ -653,6 +648,7 @@ TEST_F(ClassLinkerTest, FindClassNested) {
 }
 
 TEST_F(ClassLinkerTest, FindClass_Primitives) {
+  ScopedObjectAccess soa(Thread::Current());
   const std::string expected("BCDFIJSZV");
   for (int ch = 1; ch < 256; ++ch) {
     std::string descriptor;
@@ -666,6 +662,7 @@ TEST_F(ClassLinkerTest, FindClass_Primitives) {
 }
 
 TEST_F(ClassLinkerTest, FindClass) {
+  ScopedObjectAccess soa(Thread::Current());
   Class* JavaLangObject = class_linker_->FindSystemClass("Ljava/lang/Object;");
   ClassHelper kh(JavaLangObject);
   ASSERT_TRUE(JavaLangObject != NULL);
@@ -701,7 +698,7 @@ TEST_F(ClassLinkerTest, FindClass) {
   EXPECT_EQ(0U, JavaLangObject->NumStaticFields());
   EXPECT_EQ(0U, kh.NumDirectInterfaces());
 
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClass"));
+  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(LoadDex("MyClass")));
   AssertNonExistentClass("LMyClass;");
   Class* MyClass = class_linker_->FindClass("LMyClass;", class_loader.get());
   kh.ChangeClass(MyClass);
@@ -746,12 +743,14 @@ TEST_F(ClassLinkerTest, FindClass) {
 }
 
 TEST_F(ClassLinkerTest, LibCore) {
+  ScopedObjectAccess soa(Thread::Current());
   AssertDexFile(java_lang_dex_file_, NULL);
 }
 
 // The first reference array element must be a multiple of 4 bytes from the
 // start of the object
 TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
+  ScopedObjectAccess soa(Thread::Current());
   Class* array_class = class_linker_->FindSystemClass("[Ljava/lang/String;");
   ObjectArray<String>* array = ObjectArray<String>::Alloc(array_class, 0);
   uint32_t array_offset = reinterpret_cast<uint32_t>(array);
@@ -765,6 +764,7 @@ TEST_F(ClassLinkerTest, ValidateObjectArrayElementsOffset) {
 }
 
 TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
+  ScopedObjectAccess soa(Thread::Current());
   SirtRef<LongArray> long_array(LongArray::Alloc(0));
   EXPECT_EQ(class_linker_->FindSystemClass("[J"), long_array->GetClass());
   uintptr_t data_offset = reinterpret_cast<uintptr_t>(long_array->GetData());
@@ -796,6 +796,7 @@ TEST_F(ClassLinkerTest, ValidatePrimitiveArrayElementsOffset) {
 TEST_F(ClassLinkerTest, ValidateBoxedTypes) {
   // Validate that the "value" field is always the 0th field in each of java.lang's box classes.
   // This lets UnboxPrimitive avoid searching for the field by name at runtime.
+  ScopedObjectAccess soa(Thread::Current());
   Class* c;
   c = class_linker_->FindClass("Ljava/lang/Boolean;", NULL);
   FieldHelper fh(c->GetIFields()->Get(0));
@@ -824,8 +825,9 @@ TEST_F(ClassLinkerTest, ValidateBoxedTypes) {
 }
 
 TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
-  SirtRef<ClassLoader> class_loader_1(LoadDex("MyClass"));
-  SirtRef<ClassLoader> class_loader_2(LoadDex("MyClass"));
+  ScopedObjectAccess soa(Thread::Current());
+  SirtRef<ClassLoader> class_loader_1(soa.Decode<ClassLoader*>(LoadDex("MyClass")));
+  SirtRef<ClassLoader> class_loader_2(soa.Decode<ClassLoader*>(LoadDex("MyClass")));
   Class* MyClass_1 = class_linker_->FindClass("LMyClass;", class_loader_1.get());
   Class* MyClass_2 = class_linker_->FindClass("LMyClass;", class_loader_2.get());
   EXPECT_TRUE(MyClass_1 != NULL);
@@ -834,7 +836,8 @@ TEST_F(ClassLinkerTest, TwoClassLoadersOneClass) {
 }
 
 TEST_F(ClassLinkerTest, StaticFields) {
-  SirtRef<ClassLoader> class_loader(LoadDex("Statics"));
+  ScopedObjectAccess soa(Thread::Current());
+  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(LoadDex("Statics")));
   Class* statics = class_linker_->FindClass("LStatics;", class_loader.get());
   class_linker_->EnsureInitialized(statics, true, true);
 
@@ -915,7 +918,8 @@ TEST_F(ClassLinkerTest, StaticFields) {
 }
 
 TEST_F(ClassLinkerTest, Interfaces) {
-  SirtRef<ClassLoader> class_loader(LoadDex("Interfaces"));
+  ScopedObjectAccess soa(Thread::Current());
+  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(LoadDex("Interfaces")));
   Class* I = class_linker_->FindClass("LInterfaces$I;", class_loader.get());
   Class* J = class_linker_->FindClass("LInterfaces$J;", class_loader.get());
   Class* K = class_linker_->FindClass("LInterfaces$K;", class_loader.get());
@@ -973,8 +977,10 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
   // case 1, get the uninitialized storage from StaticsFromCode.<clinit>
   // case 2, get the initialized storage from StaticsFromCode.getS0
 
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticsFromCode"));
-  const DexFile* dex_file = Runtime::Current()->GetCompileTimeClassPath(class_loader.get())[0];
+  ScopedObjectAccess soa(Thread::Current());
+  jobject jclass_loader = LoadDex("StaticsFromCode");
+  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(jclass_loader));
+  const DexFile* dex_file = Runtime::Current()->GetCompileTimeClassPath(jclass_loader)[0];
   CHECK(dex_file != NULL);
 
   Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());
@@ -995,6 +1001,7 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
 }
 
 TEST_F(ClassLinkerTest, FinalizableBit) {
+  ScopedObjectAccess soa(Thread::Current());
   Class* c;
 
   // Object has a finalize method, but we know it's empty.
@@ -1028,6 +1035,7 @@ TEST_F(ClassLinkerTest, FinalizableBit) {
 }
 
 TEST_F(ClassLinkerTest, ClassRootDescriptors) {
+  ScopedObjectAccess soa(Thread::Current());
   ClassHelper kh;
   for (int i = 0; i < ClassLinker::kClassRootsMax; i++) {
     Class* klass = class_linker_->GetClassRoot(ClassLinker::ClassRoot(i));

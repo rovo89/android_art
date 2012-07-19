@@ -50,7 +50,8 @@ static char* EventLogWriteString(char* dst, const char* value, size_t len) {
   return dst + len;
 }
 
-void Monitor::LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent, const char* owner_filename, uint32_t owner_line_number) {
+void Monitor::LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent,
+                                 const char* owner_filename, uint32_t owner_line_number) {
   // Emit the event list length, 1 byte.
   char eventBuffer[174];
   char* cp = eventBuffer;
@@ -103,7 +104,8 @@ void Monitor::LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample
   cp = EventLogWriteInt(cp, sample_percent);
 
   CHECK_LE((size_t)(cp - eventBuffer), sizeof(eventBuffer));
-  android_btWriteLog(EVENT_LOG_TAG_dvm_lock_sample, EVENT_TYPE_LIST, eventBuffer, (size_t)(cp - eventBuffer));
+  android_btWriteLog(EVENT_LOG_TAG_dvm_lock_sample, EVENT_TYPE_LIST, eventBuffer,
+                     (size_t)(cp - eventBuffer));
 }
 
 }  // namespace art

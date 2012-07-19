@@ -51,6 +51,8 @@ class Method;
 class Monitor;
 class Object;
 class Runtime;
+class ScopedObjectAccess;
+class ScopedObjectAccessUnchecked;
 class ShadowFrame;
 class StackIndirectReferenceTable;
 class StackTraceElement;
@@ -72,15 +74,23 @@ enum ThreadPriority {
 };
 
 enum ThreadState {
-  kTerminated   = 0, // Thread.TERMINATED     JDWP TS_ZOMBIE
-  kRunnable     = 1, // Thread.RUNNABLE       JDWP TS_RUNNING
-  kTimedWaiting = 2, // Thread.TIMED_WAITING  JDWP TS_WAIT    - in Object.wait() with a timeout
-  kBlocked      = 3, // Thread.BLOCKED        JDWP TS_MONITOR - blocked on a monitor
-  kWaiting      = 4, // Thread.WAITING        JDWP TS_WAIT    - in Object.wait()
-  kStarting     = 5, // Thread.NEW                            - native thread started, not yet ready to run managed code
-  kNative       = 6, //                                       - running in a JNI native method
-  kVmWait       = 7, //                                       - waiting on an internal runtime resource
-  kSuspended    = 8, //                                       - suspended by GC or debugger
+  kTerminated                     = 0,   // Thread.TERMINATED     JDWP TS_ZOMBIE
+  kRunnable                       = 1,   // Thread.RUNNABLE       JDWP TS_RUNNING
+  kTimedWaiting                   = 2,   // Thread.TIMED_WAITING  JDWP TS_WAIT    - in Object.wait() with a timeout
+  kBlocked                        = 3,   // Thread.BLOCKED        JDWP TS_MONITOR - blocked on a monitor
+  kWaiting                        = 4,   // Thread.WAITING        JDWP TS_WAIT    - in Object.wait()
+  kWaitingForGcToComplete         = 5,   // Thread.WAITING        JDWP TS_WAIT    - blocked waiting for GC
+  kWaitingPerformingGc            = 6,   // Thread.WAITING        JDWP TS_WAIT    - performing GC
+  kWaitingForDebuggerSend         = 7,   // Thread.WAITING        JDWP TS_WAIT    - blocked waiting for events to be sent
+  kWaitingForDebuggerToAttach     = 8,   // Thread.WAITING        JDWP TS_WAIT    - blocked waiting for debugger to attach
+  kWaitingInMainDebuggerLoop      = 9,   // Thread.WAITING        JDWP TS_WAIT    - blocking/reading/processing debugger events
+  kWaitingForDebuggerSuspension   = 10,  // Thread.WAITING        JDWP TS_WAIT    - waiting for debugger suspend all
+  kWaitingForJniOnLoad            = 11,  // Thread.WAITING        JDWP TS_WAIT    - waiting for execution of dlopen and JNI on load code
+  kWaitingForSignalCatcherOutput  = 12,  // Thread.WAITING        JDWP TS_WAIT    - waiting for signal catcher IO to complete
+  kWaitingInMainSignalCatcherLoop = 13,  // Thread.WAITING        JDWP TS_WAIT    - blocking/reading/processing signals
+  kStarting                       = 14,  // Thread.NEW            JDWP TS_WAIT    - native thread started, not yet ready to run managed code
+  kNative                         = 15,  // Thread.RUNNABLE       JDWP TS_RUNNING - running in a JNI native method
+  kSuspended                      = 16,  // Thread.RUNNABLE       JDWP TS_RUNNING - suspended by GC or debugger
 };
 
 class PACKED Thread {
@@ -110,34 +120,90 @@ class PACKED Thread {
     return reinterpret_cast<Thread*>(thread);
   }
 
-  static Thread* FromManagedThread(const ScopedJniThreadState& ts, Object* thread_peer);
-  static Thread* FromManagedThread(const ScopedJniThreadState& ts, jobject thread);
+  static Thread* FromManagedThread(const ScopedObjectAccessUnchecked& ts, Object* thread_peer)
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  static Thread* FromManagedThread(const ScopedObjectAccessUnchecked& ts, jobject thread)
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Translates 172 to pAllocArrayFromCode and so on.
   static void DumpThreadOffset(std::ostream& os, uint32_t offset, size_t size_of_pointers);
 
-  // When full == true, dumps the detailed thread state and the thread stack (used for SIGQUIT).
-  // When full == false, dumps a one-line summary of thread state (used for operator<<).
-  void Dump(std::ostream& os, bool full = true) const;
+  // Dumps a one-line summary of thread state (used for operator<<).
+  void ShortDump(std::ostream& os) const;
+
+  // Dumps the detailed thread state and the thread stack (used for SIGQUIT).
+  void Dump(std::ostream& os) const
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Dumps the SIGQUIT per-thread header. 'thread' can be NULL for a non-attached thread, in which
   // case we use 'tid' to identify the thread, and we'll include as much information as we can.
-  static void DumpState(std::ostream& os, const Thread* thread, pid_t tid);
+  static void DumpState(std::ostream& os, const Thread* thread, pid_t tid)
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_);
 
-  ThreadState GetState() const {
+  ThreadState GetState() const
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_suspend_count_lock_) {
+    GlobalSynchronization::thread_suspend_count_lock_->AssertHeld();
     return state_;
   }
 
-  ThreadState SetState(ThreadState new_state);
-  void SetStateWithoutSuspendCheck(ThreadState new_state);
-
-  bool IsDaemon() const {
-    return daemon_;
+  ThreadState SetState(ThreadState new_state)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_suspend_count_lock_) {
+    GlobalSynchronization::thread_suspend_count_lock_->AssertHeld();
+    ThreadState old_state = state_;
+    if (new_state == kRunnable) {
+      // Sanity, should never become runnable with a pending suspension and should always hold
+      // share of mutator_lock_.
+      CHECK_EQ(GetSuspendCount(), 0);
+      GlobalSynchronization::mutator_lock_->AssertSharedHeld();
+    }
+    state_ = new_state;
+    return old_state;
   }
 
-  bool IsSuspended();
+  int GetSuspendCount() const
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_suspend_count_lock_) {
+    GlobalSynchronization::thread_suspend_count_lock_->AssertHeld();
+    return suspend_count_;
+  }
 
-  void WaitUntilSuspended();
+  int GetDebugSuspendCount() const
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_suspend_count_lock_) {
+    GlobalSynchronization::thread_suspend_count_lock_->AssertHeld();
+    return debug_suspend_count_;
+  }
+
+  bool IsSuspended() const
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_suspend_count_lock_) {
+    int suspend_count = GetSuspendCount();
+    return suspend_count != 0 && GetState() != kRunnable;
+  }
+
+  void ModifySuspendCount(int delta, bool for_debugger)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_suspend_count_lock_);
+
+  // Called when thread detected that the thread_suspend_count_ was non-zero. Gives up share of
+  // mutator_lock_ and waits until it is resumed and thread_suspend_count_ is zero.
+  void FullSuspendCheck() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+
+  // Transition from non-runnable to runnable state acquiring share on mutator_lock_.
+  ThreadState TransitionFromSuspendedToRunnable()
+      SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_);
+
+  // Transition from runnable into a state where mutator privileges are denied. Releases share of
+  // mutator lock.
+  void TransitionFromRunnableToSuspended(ThreadState new_state)
+      UNLOCK_FUNCTION(GlobalSynchronization::mutator_lock_);
+
+  // Wait for a debugger suspension on the thread associated with the given peer. Returns the
+  // thread on success, else NULL. If the thread should be suspended then request_suspension should
+  // be true on entry. If the suspension times out then *timeout is set to true.
+  static Thread* SuspendForDebugger(jobject peer,  bool request_suspension, bool* timeout)
+      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_,
+                     GlobalSynchronization::thread_list_lock_,
+                     GlobalSynchronization::thread_suspend_count_lock_);
 
   // Once called thread suspension will cause an assertion failure.
 #ifndef NDEBUG
@@ -168,15 +234,24 @@ class PACKED Thread {
   }
 #endif
 
-  void AssertThreadSuspensionIsAllowable() const {
-    DCHECK_EQ(0u, no_thread_suspension_) << last_no_thread_suspension_cause_;
+
+#ifndef NDEBUG
+  void AssertThreadSuspensionIsAllowable(bool check_locks = true) const;
+#else
+  void AssertThreadSuspensionIsAllowable(bool check_locks = true) const {
+    check_locks = !check_locks;  // Keep GCC happy about unused parameters.
   }
+#endif
 
   bool CanAccessDirectReferences() const {
 #ifdef MOVING_GARBAGE_COLLECTOR
     // TODO: when we have a moving collector, we'll need: return state_ == kRunnable;
 #endif
     return true;
+  }
+
+  bool IsDaemon() const {
+    return daemon_;
   }
 
   bool HoldsLock(Object*);
@@ -206,27 +281,29 @@ class PACKED Thread {
   }
 
   // Returns the java.lang.Thread's name, or NULL if this Thread* doesn't have a peer.
-  String* GetThreadName(const ScopedJniThreadState& ts) const;
+  String* GetThreadName(const ScopedObjectAccessUnchecked& ts) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Sets 'name' to the java.lang.Thread's name. This requires no transition to managed code,
   // allocation, or locking.
   void GetThreadName(std::string& name) const;
 
   // Sets the thread's name.
-  void SetThreadName(const char* name);
+  void SetThreadName(const char* name) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  Object* GetPeer() const {
+  Object* GetPeer() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     return peer_;
   }
 
-  Object* GetThreadGroup(const ScopedJniThreadState& ts) const;
+  bool HasPeer() const {
+    return peer_ != NULL;
+  }
+
+  Object* GetThreadGroup(const ScopedObjectAccessUnchecked& ts) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   RuntimeStats* GetStats() {
     return &stats_;
-  }
-
-  int GetSuspendCount() const {
-    return suspend_count_;
   }
 
   bool IsStillStarting() const;
@@ -235,12 +312,15 @@ class PACKED Thread {
     return exception_ != NULL;
   }
 
-  Throwable* GetException() const {
+  Throwable* GetException() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     DCHECK(CanAccessDirectReferences());
     return exception_;
   }
 
-  void SetException(Throwable* new_exception) {
+  void AssertNoPendingException() const;
+
+  void SetException(Throwable* new_exception)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     DCHECK(CanAccessDirectReferences());
     CHECK(new_exception != NULL);
     // TODO: CHECK(exception_ == NULL);
@@ -252,7 +332,7 @@ class PACKED Thread {
   }
 
   // Find catch block and perform long jump to appropriate exception handle
-  void DeliverException();
+  void DeliverException() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   Context* GetLongJumpContext();
   void ReleaseLongJumpContext(Context* context) {
@@ -260,7 +340,8 @@ class PACKED Thread {
     long_jump_context_ = context;
   }
 
-  Method* GetCurrentMethod(uint32_t* dex_pc = NULL, size_t* frame_id = NULL) const;
+  Method* GetCurrentMethod(uint32_t* dex_pc = NULL, size_t* frame_id = NULL) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   void SetTopOfStack(void* stack, uintptr_t pc) {
     Method** top_method = reinterpret_cast<Method**>(stack);
@@ -273,20 +354,25 @@ class PACKED Thread {
   }
 
   // If 'msg' is NULL, no detail message is set.
-  void ThrowNewException(const char* exception_class_descriptor, const char* msg);
+  void ThrowNewException(const char* exception_class_descriptor, const char* msg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // If 'msg' is NULL, no detail message is set. An exception must be pending, and will be
   // used as the new exception's cause.
-  void ThrowNewWrappedException(const char* exception_class_descriptor, const char* msg);
+  void ThrowNewWrappedException(const char* exception_class_descriptor, const char* msg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   void ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...)
-      __attribute__((format(printf, 3, 4)));
+      __attribute__((format(printf, 3, 4)))
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap);
+  void ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // OutOfMemoryError is special, because we need to pre-allocate an instance.
   // Only the GC should call this.
-  void ThrowOutOfMemoryError(const char* msg);
+  void ThrowOutOfMemoryError(const char* msg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   //QuickFrameIterator FindExceptionHandler(void* throw_pc, void** handler_pc);
 
@@ -305,7 +391,10 @@ class PACKED Thread {
   }
 
   // Convert a jobject into a Object*
-  Object* DecodeJObject(jobject obj);
+  Object* DecodeJObject(jobject obj)
+      LOCKS_EXCLUDED(JavaVMExt::globals_lock,
+                     JavaVMExt::weak_globals_lock)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Implements java.lang.Thread.interrupted.
   bool Interrupted() {
@@ -335,9 +424,9 @@ class PACKED Thread {
     NotifyLocked();
   }
 
-  ClassLoader* GetClassLoaderOverride() {
-    // TODO: need to place the class_loader_override_ in a handle
-    // DCHECK(CanAccessDirectReferences());
+  ClassLoader* GetClassLoaderOverride()
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    DCHECK(CanAccessDirectReferences());
     return class_loader_override_;
   }
 
@@ -347,7 +436,8 @@ class PACKED Thread {
 
   // Create the internal representation of a stack trace, that is more time
   // and space efficient to compute than the StackTraceElement[]
-  jobject CreateInternalStackTrace(const ScopedJniThreadState& ts) const;
+  jobject CreateInternalStackTrace(const ScopedObjectAccess& soa) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Convert an internal stack trace representation (returned by CreateInternalStackTrace) to a
   // StackTraceElement[]. If output_array is NULL, a new array is created, otherwise as many
@@ -356,7 +446,8 @@ class PACKED Thread {
   static jobjectArray InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
       jobjectArray output_array = NULL, int* stack_depth = NULL);
 
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg);
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
 #if VERIFY_OBJECT_ENABLED
   void VerifyStack();
@@ -398,16 +489,7 @@ class PACKED Thread {
   }
 
   // Set the stack end to that to be used during a stack overflow
-  void SetStackEndForStackOverflow() {
-    // During stack overflow we allow use of the full stack
-    if (stack_end_ == stack_begin_) {
-      DumpStack(std::cerr);
-      LOG(FATAL) << "Need to increase kStackOverflowReservedBytes (currently "
-                 << kStackOverflowReservedBytes << ")";
-    }
-
-    stack_end_ = stack_begin_;
-  }
+  void SetStackEndForStackOverflow() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Set the stack end to that to be used during regular execution
   void ResetDefaultStackEnd() {
@@ -508,8 +590,13 @@ class PACKED Thread {
     return frame;
   }
 
-  void CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking);
-  void CheckSafeToWait(MutexRank rank);
+  BaseMutex* GetHeldMutex(MutexLevel level) const {
+    return held_mutexes_[level];
+  }
+
+  void SetHeldMutex(MutexLevel level, BaseMutex* mutex) {
+    held_mutexes_[level] = mutex;
+  }
 
  private:
   // We have no control over the size of 'bool', but want our boolean fields
@@ -517,24 +604,36 @@ class PACKED Thread {
   typedef uint32_t bool32_t;
 
   explicit Thread(bool daemon);
-  ~Thread();
+  ~Thread() LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_,
+                           GlobalSynchronization::thread_suspend_count_lock_);
   void Destroy();
   friend class ThreadList;  // For ~Thread and Destroy.
 
   void CreatePeer(const char* name, bool as_daemon, jobject thread_group);
   friend class Runtime; // For CreatePeer.
 
+  // TODO: remove, callers should use GetState and hold the appropriate locks. Used only by
+  //       ShortDump.
+  ThreadState GetStateUnsafe() const NO_THREAD_SAFETY_ANALYSIS {
+    return state_;
+  }
+
   void DumpState(std::ostream& os) const;
-  void DumpStack(std::ostream& os) const;
+  void DumpStack(std::ostream& os) const
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Out-of-line conveniences for debugging in gdb.
   static Thread* CurrentFromGdb(); // Like Thread::Current.
-  void DumpFromGdb() const; // Like Thread::Dump(std::cerr).
+  // Like Thread::Dump(std::cerr).
+  void DumpFromGdb() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   static void* CreateCallback(void* arg);
 
-  void HandleUncaughtExceptions(const ScopedJniThreadState& ts);
-  void RemoveFromThreadGroup(const ScopedJniThreadState& ts);
+  void HandleUncaughtExceptions(const ScopedObjectAccess& soa)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void RemoveFromThreadGroup(const ScopedObjectAccess& soa)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   void Init();
   void InitCardTable();
@@ -544,7 +643,7 @@ class PACKED Thread {
   void InitPthreadKeySelf();
   void InitStackHwm();
 
-  void NotifyLocked() {
+  void NotifyLocked() EXCLUSIVE_LOCKS_REQUIRED(wait_mutex_) {
     if (wait_monitor_ != NULL) {
       wait_cond_->Signal();
     }
@@ -555,11 +654,16 @@ class PACKED Thread {
   // TLS key used to retrieve the Thread*.
   static pthread_key_t pthread_key_self_;
 
+  // Used to notify threads that they should attempt to resume, they will suspend again if
+  // their suspend count is > 0.
+  static ConditionVariable* resume_cond_
+      GUARDED_BY(GlobalSynchronization::thread_suspend_count_lock_);
+
   // --- Frequently accessed fields first for short offsets ---
 
   // A non-zero value is used to tell the current thread to enter a safe point
   // at the next poll.
-  int suspend_count_;
+  int suspend_count_ GUARDED_BY(GlobalSynchronization::thread_suspend_count_lock_);
 
   // The biased card table, see CardTable for details
   byte* card_table_;
@@ -582,7 +686,7 @@ class PACKED Thread {
   // is hard. This field can be read off of Thread::Current to give the address.
   Thread* self_;
 
-  volatile ThreadState state_;
+  volatile ThreadState state_ GUARDED_BY(GlobalSynchronization::thread_suspend_count_lock_);
 
   // Our managed peer (an instance of java.lang.Thread).
   Object* peer_;
@@ -604,12 +708,12 @@ class PACKED Thread {
   pid_t tid_;
 
   // Guards the 'interrupted_' and 'wait_monitor_' members.
-  mutable Mutex* wait_mutex_;
-  ConditionVariable* wait_cond_;
-  // Pointer to the monitor lock we're currently waiting on (or NULL), guarded by wait_mutex_.
-  Monitor* wait_monitor_;
-  // Thread "interrupted" status; stays raised until queried or thrown, guarded by wait_mutex_.
-  bool32_t interrupted_;
+  mutable Mutex* wait_mutex_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  ConditionVariable* wait_cond_ GUARDED_BY(wait_mutex_);
+  // Pointer to the monitor lock we're currently waiting on (or NULL).
+  Monitor* wait_monitor_ GUARDED_BY(wait_mutex_);
+  // Thread "interrupted" status; stays raised until queried or thrown.
+  bool32_t interrupted_ GUARDED_BY(wait_mutex_);
   // The next thread in the wait set this thread is part of.
   Thread* wait_next_;
   // If we're blocked in MonitorEnter, this is the object we're trying to lock.
@@ -636,7 +740,7 @@ class PACKED Thread {
 
   // How much of 'suspend_count_' is by request of the debugger, used to set things right
   // when the debugger detaches. Must be <= suspend_count_.
-  int debug_suspend_count_;
+  int debug_suspend_count_ GUARDED_BY(GlobalSynchronization::thread_suspend_count_lock_);
 
   // JDWP invoke-during-breakpoint support.
   DebugInvokeReq* debug_invoke_req_;
@@ -654,8 +758,8 @@ class PACKED Thread {
   // A cached pthread_t for the pthread underlying this Thread*.
   pthread_t pthread_self_;
 
-  // Mutexes held by this thread, see CheckSafeToLockOrUnlock.
-  uint32_t held_mutexes_[kMaxMutexRank + 1];
+  // Support for Mutex lock hierarchy bug detection.
+  BaseMutex* held_mutexes_[kMaxMutexLevel + 1];
 
   // A positive value implies we're in a region where thread suspension isn't expected.
   uint32_t no_thread_suspension_;
@@ -672,38 +776,11 @@ class PACKED Thread {
   // How many times has our pthread key's destructor been called?
   uint32_t thread_exit_check_count_;
 
-  friend class ScopedThreadListLockReleaser;
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread);
 std::ostream& operator<<(std::ostream& os, const ThreadState& state);
-
-class ScopedThreadStateChange {
- public:
-  ScopedThreadStateChange(Thread* thread, ThreadState new_state) : thread_(thread) {
-    if (thread_ == NULL) {
-      // Value chosen arbitrarily and won't be used in the destructor since thread_ == NULL.
-      old_thread_state_ = kTerminated;
-      CHECK(Runtime::Current()->IsShuttingDown());
-      return;
-    }
-    old_thread_state_ = thread_->SetState(new_state);
-  }
-
-  ~ScopedThreadStateChange() {
-    if (thread_ == NULL) {
-      CHECK(Runtime::Current()->IsShuttingDown());
-      return;
-    }
-    thread_->SetState(old_thread_state_);
-  }
-
- private:
-  Thread* thread_;
-  ThreadState old_thread_state_;
-  DISALLOW_COPY_AND_ASSIGN(ScopedThreadStateChange);
-};
 
 }  // namespace art
 

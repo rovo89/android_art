@@ -34,7 +34,8 @@ class ObjectTest : public CommonTest {
   void AssertString(int32_t length,
                     const char* utf8_in,
                     const char* utf16_expected_le,
-                    int32_t expected_hash) {
+                    int32_t expected_hash)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     UniquePtr<uint16_t[]> utf16_expected(new uint16_t[length]);
     for (int32_t i = 0; i < length; i++) {
       uint16_t ch = (((utf16_expected_le[i*2 + 0] & 0xff) << 8) |
@@ -74,6 +75,7 @@ TEST_F(ObjectTest, IsInSamePackage) {
 }
 
 TEST_F(ObjectTest, Clone) {
+  ScopedObjectAccess soa(Thread::Current());
   SirtRef<ObjectArray<Object> > a1(class_linker_->AllocObjectArray<Object>(256));
   size_t s1 = a1->SizeOf();
   Object* clone = a1->Clone();
@@ -82,6 +84,7 @@ TEST_F(ObjectTest, Clone) {
 }
 
 TEST_F(ObjectTest, AllocObjectArray) {
+  ScopedObjectAccess soa(Thread::Current());
   SirtRef<ObjectArray<Object> > oa(class_linker_->AllocObjectArray<Object>(2));
   EXPECT_EQ(2, oa->GetLength());
   EXPECT_TRUE(oa->Get(0) == NULL);
@@ -114,6 +117,7 @@ TEST_F(ObjectTest, AllocObjectArray) {
 }
 
 TEST_F(ObjectTest, AllocArray) {
+  ScopedObjectAccess soa(Thread::Current());
   Class* c = class_linker_->FindSystemClass("[I");
   SirtRef<Array> a(Array::Alloc(c, 1));
   ASSERT_TRUE(c == a->GetClass());
@@ -129,6 +133,7 @@ TEST_F(ObjectTest, AllocArray) {
 
 template<typename ArrayT>
 void TestPrimitiveArray(ClassLinker* cl) {
+  ScopedObjectAccess soa(Thread::Current());
   typedef typename ArrayT::ElementType T;
 
   ArrayT* a = ArrayT::Alloc(2);
@@ -183,6 +188,7 @@ TEST_F(ObjectTest, PrimitiveArray_Short_Alloc) {
 
 TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
   // pretend we are trying to call 'new char[3]' from String.toCharArray
+  ScopedObjectAccess soa(Thread::Current());
   Class* java_util_Arrays = class_linker_->FindSystemClass("Ljava/util/Arrays;");
   Method* sort = java_util_Arrays->FindDirectMethod("sort", "([I)V");
   const DexFile::StringId* string_id = java_lang_dex_file_->FindStringId("[I");
@@ -200,11 +206,13 @@ TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
 
 TEST_F(ObjectTest, StaticFieldFromCode) {
   // pretend we are trying to access 'Static.s0' from StaticsFromCode.<clinit>
-  SirtRef<ClassLoader> class_loader(LoadDex("StaticsFromCode"));
-  const DexFile* dex_file = Runtime::Current()->GetCompileTimeClassPath(class_loader.get())[0];
+  ScopedObjectAccess soa(Thread::Current());
+  jobject class_loader = LoadDex("StaticsFromCode");
+  const DexFile* dex_file = Runtime::Current()->GetCompileTimeClassPath(class_loader)[0];
   CHECK(dex_file != NULL);
 
-  Class* klass = class_linker_->FindClass("LStaticsFromCode;", class_loader.get());
+  Class* klass =
+      class_linker_->FindClass("LStaticsFromCode;", soa.Decode<ClassLoader*>(class_loader));
   Method* clinit = klass->FindDirectMethod("<clinit>", "()V");
   const DexFile::StringId* klass_string_id = dex_file->FindStringId("LStaticsFromCode;");
   ASSERT_TRUE(klass_string_id != NULL);
@@ -242,6 +250,7 @@ TEST_F(ObjectTest, StaticFieldFromCode) {
 }
 
 TEST_F(ObjectTest, String) {
+  ScopedObjectAccess soa(Thread::Current());
   // Test the empty string.
   AssertString(0, "",     "", 0);
 
@@ -265,6 +274,7 @@ TEST_F(ObjectTest, String) {
 }
 
 TEST_F(ObjectTest, StringEqualsUtf8) {
+  ScopedObjectAccess soa(Thread::Current());
   SirtRef<String> string(String::AllocFromModifiedUtf8("android"));
   EXPECT_TRUE(string->Equals("android"));
   EXPECT_FALSE(string->Equals("Android"));
@@ -279,6 +289,7 @@ TEST_F(ObjectTest, StringEqualsUtf8) {
 }
 
 TEST_F(ObjectTest, StringEquals) {
+  ScopedObjectAccess soa(Thread::Current());
   SirtRef<String> string(String::AllocFromModifiedUtf8("android"));
   SirtRef<String> string_2(String::AllocFromModifiedUtf8("android"));
   EXPECT_TRUE(string->Equals(string_2.get()));
@@ -294,6 +305,7 @@ TEST_F(ObjectTest, StringEquals) {
 }
 
 TEST_F(ObjectTest, StringLength) {
+  ScopedObjectAccess soa(Thread::Current());
   SirtRef<String> string(String::AllocFromModifiedUtf8("android"));
   EXPECT_EQ(string->GetLength(), 7);
   EXPECT_EQ(string->GetUtfLength(), 7);
@@ -306,10 +318,13 @@ TEST_F(ObjectTest, StringLength) {
 }
 
 TEST_F(ObjectTest, DescriptorCompare) {
+  ScopedObjectAccess soa(Thread::Current());
   ClassLinker* linker = class_linker_;
 
-  SirtRef<ClassLoader> class_loader_1(LoadDex("ProtoCompare"));
-  SirtRef<ClassLoader> class_loader_2(LoadDex("ProtoCompare2"));
+  jobject jclass_loader_1 = LoadDex("ProtoCompare");
+  jobject jclass_loader_2 = LoadDex("ProtoCompare2");
+  SirtRef<ClassLoader> class_loader_1(soa.Decode<ClassLoader*>(jclass_loader_1));
+  SirtRef<ClassLoader> class_loader_2(soa.Decode<ClassLoader*>(jclass_loader_2));
 
   Class* klass1 = linker->FindClass("LProtoCompare;", class_loader_1.get());
   ASSERT_TRUE(klass1 != NULL);
@@ -365,6 +380,7 @@ TEST_F(ObjectTest, DescriptorCompare) {
 
 
 TEST_F(ObjectTest, StringHashCode) {
+  ScopedObjectAccess soa(Thread::Current());
   SirtRef<String> empty(String::AllocFromModifiedUtf8(""));
   SirtRef<String> A(String::AllocFromModifiedUtf8("A"));
   SirtRef<String> ABC(String::AllocFromModifiedUtf8("ABC"));
@@ -375,7 +391,10 @@ TEST_F(ObjectTest, StringHashCode) {
 }
 
 TEST_F(ObjectTest, InstanceOf) {
-  SirtRef<ClassLoader> class_loader(LoadDex("XandY"));
+  ScopedObjectAccess soa(Thread::Current());
+  jobject jclass_loader = LoadDex("XandY");
+  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(jclass_loader));
+
   Class* X = class_linker_->FindClass("LX;", class_loader.get());
   Class* Y = class_linker_->FindClass("LY;", class_loader.get());
   ASSERT_TRUE(X != NULL);
@@ -406,7 +425,9 @@ TEST_F(ObjectTest, InstanceOf) {
 }
 
 TEST_F(ObjectTest, IsAssignableFrom) {
-  SirtRef<ClassLoader> class_loader(LoadDex("XandY"));
+  ScopedObjectAccess soa(Thread::Current());
+  jobject jclass_loader = LoadDex("XandY");
+  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(jclass_loader));
   Class* X = class_linker_->FindClass("LX;", class_loader.get());
   Class* Y = class_linker_->FindClass("LY;", class_loader.get());
 
@@ -441,7 +462,9 @@ TEST_F(ObjectTest, IsAssignableFrom) {
 }
 
 TEST_F(ObjectTest, IsAssignableFromArray) {
-  SirtRef<ClassLoader> class_loader(LoadDex("XandY"));
+  ScopedObjectAccess soa(Thread::Current());
+  jobject jclass_loader = LoadDex("XandY");
+  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(jclass_loader));
   Class* X = class_linker_->FindClass("LX;", class_loader.get());
   Class* Y = class_linker_->FindClass("LY;", class_loader.get());
   ASSERT_TRUE(X != NULL);
@@ -492,6 +515,7 @@ TEST_F(ObjectTest, IsAssignableFromArray) {
 }
 
 TEST_F(ObjectTest, FindInstanceField) {
+  ScopedObjectAccess soa(Thread::Current());
   SirtRef<String> s(String::AllocFromModifiedUtf8("ABC"));
   ASSERT_TRUE(s.get() != NULL);
   Class* c = s->GetClass();
@@ -524,6 +548,7 @@ TEST_F(ObjectTest, FindInstanceField) {
 }
 
 TEST_F(ObjectTest, FindStaticField) {
+  ScopedObjectAccess soa(Thread::Current());
   SirtRef<String> s(String::AllocFromModifiedUtf8("ABC"));
   ASSERT_TRUE(s.get() != NULL);
   Class* c = s->GetClass();

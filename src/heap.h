@@ -62,12 +62,14 @@ class LOCKABLE Heap {
   // image_file_names names specify Spaces to load based on
   // ImageWriter output.
   explicit Heap(size_t starting_size, size_t growth_limit, size_t capacity,
-                const std::string& image_file_name);
+                const std::string& image_file_name, bool concurrent_gc);
 
   ~Heap();
 
   // Allocates and initializes storage for an object instance.
-  Object* AllocObject(Class* klass, size_t num_bytes);
+  Object* AllocObject(Class* klass, size_t num_bytes)
+      LOCKS_EXCLUDED(statistics_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Check sanity of given reference. Requires the heap lock.
 #if VERIFY_OBJECT_ENABLED
@@ -86,10 +88,12 @@ class LOCKABLE Heap {
 
   // Returns true if 'obj' is a live heap object, false otherwise (including for invalid addresses).
   // Requires the heap lock to be held.
-  bool IsLiveObjectLocked(const Object* obj);
+  bool IsLiveObjectLocked(const Object* obj)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   // Initiates an explicit garbage collection.
-  void CollectGarbage(bool clear_soft_references);
+  void CollectGarbage(bool clear_soft_references)
+      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
 
   // Does a concurrent GC, should only be called by the GC daemon thread
   // through runtime.
@@ -100,10 +104,12 @@ class LOCKABLE Heap {
   // Implements java.lang.Runtime.totalMemory.
   int64_t GetTotalMemory();
   // Implements java.lang.Runtime.freeMemory.
-  int64_t GetFreeMemory();
+  int64_t GetFreeMemory() LOCKS_EXCLUDED(statistics_lock_);
 
   // Implements VMDebug.countInstancesOfClass.
-  int64_t CountInstances(Class* c, bool count_assignable);
+  int64_t CountInstances(Class* c, bool count_assignable)
+      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Removes the growth limit on the alloc space so it may grow to its maximum capacity. Used to
   // implement dalvik.system.VMRuntime.clearGrowthLimit.
@@ -129,14 +135,6 @@ class LOCKABLE Heap {
   // Blocks the caller until the garbage collector becomes idle and returns
   // true if we waited for the GC to complete.
   bool WaitForConcurrentGcToComplete();
-
-  pid_t GetLockOwner(); // For SignalCatcher.
-  void AssertLockHeld() {
-    lock_->AssertHeld();
-  }
-  void AssertLockNotHeld() {
-    lock_->AssertNotHeld();
-  }
 
   const Spaces& GetSpaces() {
     return spaces_;
@@ -178,8 +176,7 @@ class LOCKABLE Heap {
     verify_objects_ = false;
   }
 
-  // Callers must hold the heap lock.
-  void RecordFreeLocked(size_t freed_objects, size_t freed_bytes);
+  void RecordFree(size_t freed_objects, size_t freed_bytes) LOCKS_EXCLUDED(statistics_lock_);
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.
@@ -190,7 +187,8 @@ class LOCKABLE Heap {
   }
 
   // Write barrier for array operations that update many field positions
-  void WriteBarrierArray(const Object* dst, int /*start_offset*/, size_t /*length TODO: element_count or byte_count?*/) {
+  void WriteBarrierArray(const Object* dst, int /*start_offset*/,
+                         size_t /*length TODO: element_count or byte_count?*/) {
     if (UNLIKELY(!card_marking_disabled_)) {
       card_table_->MarkCard(dst);
     }
@@ -207,34 +205,24 @@ class LOCKABLE Heap {
 
   void AddFinalizerReference(Thread* self, Object* object);
 
-  size_t GetBytesAllocated() { return num_bytes_allocated_; }
-  size_t GetObjectsAllocated() { return num_objects_allocated_; }
-
-  size_t GetConcurrentStartSize() const { return concurrent_start_size_; }
-
-  void SetConcurrentStartSize(size_t size) {
-    concurrent_start_size_ = size;
-  }
-
-  size_t GetConcurrentMinFree() const { return concurrent_min_free_; }
-
-  void SetConcurrentMinFree(size_t size) {
-    concurrent_min_free_ = size;
-  }
+  size_t GetBytesAllocated() const LOCKS_EXCLUDED(statistics_lock_);
+  size_t GetObjectsAllocated() const LOCKS_EXCLUDED(statistics_lock_);
+  size_t GetConcurrentStartSize() const LOCKS_EXCLUDED(statistics_lock_);
+  size_t GetConcurrentMinFree() const LOCKS_EXCLUDED(statistics_lock_);
 
   // Functions for getting the bitmap which corresponds to an object's address.
   // This is probably slow, TODO: use better data structure like binary tree .
   Space* FindSpaceFromObject(const Object*) const;
 
-  void DumpForSigQuit(std::ostream& os);
+  void DumpForSigQuit(std::ostream& os) LOCKS_EXCLUDED(statistics_lock_);
 
   void Trim(AllocSpace* alloc_space);
 
-  HeapBitmap* GetLiveBitmap() {
+  HeapBitmap* GetLiveBitmap() SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
     return live_bitmap_.get();
   }
 
-  HeapBitmap* GetMarkBitmap() {
+  HeapBitmap* GetMarkBitmap() SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
     return mark_bitmap_.get();
   }
 
@@ -248,11 +236,11 @@ class LOCKABLE Heap {
 
  private:
   // Allocates uninitialized storage.
-  Object* AllocateLocked(size_t num_bytes);
-  Object* AllocateLocked(AllocSpace* space, size_t num_bytes);
-
-  void Lock() EXCLUSIVE_LOCK_FUNCTION();
-  void Unlock() UNLOCK_FUNCTION();
+  Object* Allocate(size_t num_bytes)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  Object* Allocate(AllocSpace* space, size_t num_bytes)
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Pushes a list of cleared references out to the managed heap.
   void EnqueueClearedReferences(Object** cleared_references);
@@ -260,35 +248,42 @@ class LOCKABLE Heap {
   void RequestHeapTrim();
   void RequestConcurrentGC();
 
-  void RecordAllocationLocked(AllocSpace* space, const Object* object);
+  void RecordAllocation(AllocSpace* space, const Object* object)
+      LOCKS_EXCLUDED(statistics_lock_, GlobalSynchronization::heap_bitmap_lock_);
 
-  // TODO: can we teach GCC to understand the weird locking in here?
-  void CollectGarbageInternal(bool partial_gc, bool concurrent, bool clear_soft_references) NO_THREAD_SAFETY_ANALYSIS;
+  void CollectGarbageInternal(bool partial_gc, bool clear_soft_references)
+      LOCKS_EXCLUDED(gc_complete_lock_,
+                     GlobalSynchronization::heap_bitmap_lock_,
+                     GlobalSynchronization::mutator_lock_,
+                     GlobalSynchronization::thread_suspend_count_lock_);
+  void CollectGarbageMarkSweepPlan(bool partial_gc, bool clear_soft_references)
+      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_,
+                     GlobalSynchronization::mutator_lock_);
+  void CollectGarbageConcurrentMarkSweepPlan(bool partial_gc, bool clear_soft_references)
+      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_,
+                     GlobalSynchronization::mutator_lock_);
 
   // Given the current contents of the alloc space, increase the allowed heap footprint to match
   // the target utilization ratio.  This should only be called immediately after a full garbage
   // collection.
   void GrowForUtilization();
 
-  size_t GetPercentFree();
+  size_t GetPercentFree() EXCLUSIVE_LOCKS_REQUIRED(statistics_lock_);
 
-  void AddSpace(Space* space);
+  void AddSpace(Space* space) LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_);
 
-  void VerifyObjectLocked(const Object *obj);
+  void VerifyObjectLocked(const Object *obj)
+      SHARED_LOCKS_REQUIRED(GlobalSychronization::heap_bitmap_lock_);
 
-  void VerifyHeapLocked();
-
-  static void VerificationCallback(Object* obj, void* arg);
-
-  UniquePtr<Mutex> lock_;
-  UniquePtr<ConditionVariable> condition_;
+  static void VerificationCallback(Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSychronization::heap_bitmap_lock_);
 
   Spaces spaces_;
 
   // The alloc space which we are currently allocating into.
   AllocSpace* alloc_space_;
 
-  // The mod-union table remembers all of the referneces from the image space to the alloc /
+  // The mod-union table remembers all of the references from the image space to the alloc /
   // zygote spaces.
   UniquePtr<ModUnionTable> mod_union_table_;
 
@@ -297,20 +292,44 @@ class LOCKABLE Heap {
 
   UniquePtr<CardTable> card_table_;
 
+  // True for concurrent mark sweep GC, false for mark sweep.
+  const bool concurrent_gc_;
+
+  // If we have a zygote space.
+  bool have_zygote_space_;
+
   // Used by the image writer to disable card marking on copied objects
   // TODO: remove
   bool card_marking_disabled_;
 
+  // Guards access to the state of GC, associated conditional variable is used to signal when a GC
+  // completes.
+  Mutex* gc_complete_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  UniquePtr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
+
   // True while the garbage collector is running.
-  volatile bool is_gc_running_;
+  volatile bool is_gc_running_ GUARDED_BY(gc_complete_lock_);
+
+  // Guards access to heap statistics, some used to calculate when concurrent GC should occur.
+  // TODO: move bytes/objects allocated to thread-locals and remove need for lock?
+  Mutex* statistics_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // Bytes until concurrent GC starts.
-  size_t concurrent_start_bytes_;
+  size_t concurrent_start_bytes_ GUARDED_BY(statistics_lock_);
   size_t concurrent_start_size_;
   size_t concurrent_min_free_;
 
-  UniquePtr<HeapBitmap> live_bitmap_;
-  UniquePtr<HeapBitmap> mark_bitmap_;
+  // Number of bytes allocated.  Adjusted after each allocation and free.
+  size_t num_bytes_allocated_ GUARDED_BY(statistics_lock_);
+
+  // Number of objects allocated.  Adjusted after each allocation and free.
+  size_t num_objects_allocated_ GUARDED_BY(statistics_lock_);
+
+  // Last trim time
+  uint64_t last_trim_time_;
+
+  UniquePtr<HeapBitmap> live_bitmap_ GUARDED_BY(GlobalSynchronization::heap_bitmap_lock_);
+  UniquePtr<HeapBitmap> mark_bitmap_ GUARDED_BY(GlobalSynchronization::heap_bitmap_lock_);
 
   // True while the garbage collector is trying to signal the GC daemon thread.
   // This flag is needed to prevent recursion from occurring when the JNI calls
@@ -318,19 +337,10 @@ class LOCKABLE Heap {
   bool try_running_gc_;
 
   // Used to ensure that we don't ever recursively request GC.
-  bool requesting_gc_;
+  volatile bool requesting_gc_;
 
   // Mark stack that we reuse to avoid re-allocating the mark stack
   UniquePtr<MarkStack> mark_stack_;
-
-  // Number of bytes allocated.  Adjusted after each allocation and free.
-  size_t num_bytes_allocated_;
-
-  // Number of objects allocated.  Adjusted after each allocation and free.
-  size_t num_objects_allocated_;
-
-  // Last trim time
-  uint64_t last_trim_time_;
 
   // offset of java.lang.ref.Reference.referent
   MemberOffset reference_referent_offset_;
@@ -346,9 +356,6 @@ class LOCKABLE Heap {
 
   // offset of java.lang.ref.FinalizerReference.zombie
   MemberOffset finalizer_reference_zombie_offset_;
-
-  // If we have a zygote space.
-  bool have_zygote_space_;
 
   // Target ideal heap utilization ratio
   float target_utilization_;

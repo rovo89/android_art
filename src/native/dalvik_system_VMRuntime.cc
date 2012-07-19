@@ -21,9 +21,7 @@
 #include "jni_internal.h"
 #include "object.h"
 #include "object_utils.h"
-#include "scoped_heap_lock.h"
-#include "scoped_jni_thread_state.h"
-#include "scoped_thread_list_lock.h"
+#include "scoped_thread_state_change.h"
 #include "space.h"
 #include "thread.h"
 #include "thread_list.h"
@@ -49,7 +47,7 @@ static void VMRuntime_disableJitCompilation(JNIEnv*, jobject) {
 }
 
 static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaElementClass, jint length) {
-  ScopedJniThreadState ts(env);
+  ScopedObjectAccess soa(env);
 #ifdef MOVING_GARBAGE_COLLECTOR
   // TODO: right now, we don't have a copying collector, so there's no need
   // to do anything special here, but we ought to pass the non-movability
@@ -57,7 +55,7 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
   UNIMPLEMENTED(FATAL);
 #endif
 
-  Class* element_class = ts.Decode<Class*>(javaElementClass);
+  Class* element_class = soa.Decode<Class*>(javaElementClass);
   if (element_class == NULL) {
     Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "element class == null");
     return NULL;
@@ -76,15 +74,15 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
   if (result == NULL) {
     return NULL;
   }
-  return ts.AddLocalReference<jobject>(result);
+  return soa.AddLocalReference<jobject>(result);
 }
 
 static jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
   if (javaArray == NULL) {  // Most likely allocation failed
     return 0;
   }
-  ScopedJniThreadState ts(env);
-  Array* array = ts.Decode<Array*>(javaArray);
+  ScopedObjectAccess soa(env);
+  Array* array = soa.Decode<Array*>(javaArray);
   if (!array->IsArrayInstance()) {
     Thread::Current()->ThrowNewException("Ljava/lang/IllegalArgumentException;", "not an array");
     return 0;
@@ -143,7 +141,7 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersio
 #if !defined(ART_USE_LLVM_COMPILER)
     if (vm->check_jni) {
       LOG(WARNING) << "Turning off CheckJNI so we can turn on JNI app bug workarounds...";
-      ScopedThreadListLock thread_list_lock;
+      MutexLock mu(*GlobalSynchronization::thread_list_lock_);
       vm->SetCheckJniEnabled(false);
       runtime->GetThreadList()->ForEach(DisableCheckJniCallback, NULL);
     }
@@ -160,8 +158,6 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersio
 }
 
 static void VMRuntime_trimHeap(JNIEnv*, jobject) {
-  ScopedHeapLock heap_lock;
-
   // Trim the managed heap.
   Heap* heap = Runtime::Current()->GetHeap();
   const Spaces& spaces = heap->GetSpaces();

@@ -22,7 +22,7 @@
 #include "hprof/hprof.h"
 #include "jni_internal.h"
 #include "ScopedUtfChars.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 #include "toStringArray.h"
 #include "trace.h"
 
@@ -57,7 +57,8 @@ static void VMDebug_startMethodTracingDdmsImpl(JNIEnv*, jclass, jint bufferSize,
   Trace::Start("[DDMS]", -1, bufferSize, flags, true);
 }
 
-static void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceFilename, jobject javaFd, jint bufferSize, jint flags) {
+static void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceFilename,
+                                         jobject javaFd, jint bufferSize, jint flags) {
   int originalFd = jniGetFDFromFileDescriptor(env, javaFd);
   if (originalFd < 0) {
     return;
@@ -65,7 +66,9 @@ static void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceF
 
   int fd = dup(originalFd);
   if (fd < 0) {
-    Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;", "dup(%d) failed: %s", originalFd, strerror(errno));
+    ScopedObjectAccess soa(env);
+    Thread::Current()->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
+                                          "dup(%d) failed: %s", originalFd, strerror(errno));
     return;
   }
 
@@ -76,7 +79,8 @@ static void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceF
   Trace::Start(traceFilename.c_str(), fd, bufferSize, flags, false);
 }
 
-static void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring javaTraceFilename, jint bufferSize, jint flags) {
+static void VMDebug_startMethodTracingFilename(JNIEnv* env, jclass, jstring javaTraceFilename,
+                                               jint bufferSize, jint flags) {
   ScopedUtfChars traceFilename(env, javaTraceFilename);
   if (traceFilename.c_str() == NULL) {
     return;
@@ -114,23 +118,28 @@ static jlong VMDebug_lastDebuggerActivity(JNIEnv*, jclass) {
   return Dbg::LastDebuggerActivity();
 }
 
-static void VMDebug_startInstructionCounting(JNIEnv*, jclass) {
+static void VMDebug_startInstructionCounting(JNIEnv* env, jclass) {
+  ScopedObjectAccess soa(env);
   Thread::Current()->ThrowNewException("Ljava/lang/UnsupportedOperationException;", "");
 }
 
-static void VMDebug_stopInstructionCounting(JNIEnv*, jclass) {
+static void VMDebug_stopInstructionCounting(JNIEnv* env, jclass) {
+  ScopedObjectAccess soa(env);
   Thread::Current()->ThrowNewException("Ljava/lang/UnsupportedOperationException;", "");
 }
 
-static void VMDebug_getInstructionCount(JNIEnv*, jclass, jintArray /*javaCounts*/) {
+static void VMDebug_getInstructionCount(JNIEnv* env, jclass, jintArray /*javaCounts*/) {
+  ScopedObjectAccess soa(env);
   Thread::Current()->ThrowNewException("Ljava/lang/UnsupportedOperationException;", "");
 }
 
-static void VMDebug_resetInstructionCount(JNIEnv*, jclass) {
+static void VMDebug_resetInstructionCount(JNIEnv* env, jclass) {
+  ScopedObjectAccess soa(env);
   Thread::Current()->ThrowNewException("Ljava/lang/UnsupportedOperationException;", "");
 }
 
-static void VMDebug_printLoadedClasses(JNIEnv*, jclass, jint flags) {
+static void VMDebug_printLoadedClasses(JNIEnv* env, jclass, jint flags) {
+  ScopedObjectAccess soa(env);
   return Runtime::Current()->GetClassLinker()->DumpAllClasses(flags);
 }
 
@@ -155,7 +164,9 @@ static jlong VMDebug_threadCpuTimeNanos(JNIEnv*, jclass) {
 static void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, jobject javaFd) {
   // Only one of these may be NULL.
   if (javaFilename == NULL && javaFd == NULL) {
-    Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "fileName == null && fd == null");
+    ScopedObjectAccess soa(env);
+    Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;",
+                                         "fileName == null && fd == null");
     return;
   }
 
@@ -174,7 +185,9 @@ static void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, job
   if (javaFd != NULL) {
     fd = jniGetFDFromFileDescriptor(env, javaFd);
     if (fd < 0) {
-      Thread::Current()->ThrowNewException("Ljava/lang/RuntimeException;", "Invalid file descriptor");
+      ScopedObjectAccess soa(env);
+      Thread::Current()->ThrowNewException("Ljava/lang/RuntimeException;",
+                                           "Invalid file descriptor");
       return;
     }
   }
@@ -187,11 +200,11 @@ static void VMDebug_dumpHprofDataDdms(JNIEnv*, jclass) {
 }
 
 static void VMDebug_dumpReferenceTables(JNIEnv* env, jclass) {
+  ScopedObjectAccess soa(env);
   LOG(INFO) << "--- reference table dump ---";
 
-  JNIEnvExt* e = reinterpret_cast<JNIEnvExt*>(env);
-  e->DumpReferenceTables(LOG(INFO));
-  e->vm->DumpReferenceTables(LOG(INFO));
+  soa.Env()->DumpReferenceTables(LOG(INFO));
+  soa.Vm()->DumpReferenceTables(LOG(INFO));
 
   LOG(INFO) << "---";
 }
@@ -204,9 +217,10 @@ static void VMDebug_infopoint(JNIEnv*, jclass, jint id) {
   LOG(INFO) << "VMDebug infopoint " << id << " hit";
 }
 
-static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass, jboolean countAssignable) {
-  ScopedJniThreadState ts(env);
-  Class* c = ts.Decode<Class*>(javaClass);
+static jlong VMDebug_countInstancesOfClass(JNIEnv* env, jclass, jclass javaClass,
+                                           jboolean countAssignable) {
+  ScopedObjectAccess soa(env);
+  Class* c = soa.Decode<Class*>(javaClass);
   if (c == NULL) {
     return 0;
   }

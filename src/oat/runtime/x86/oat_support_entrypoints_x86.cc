@@ -59,8 +59,17 @@ extern "C" void* art_get_obj_static_from_code(uint32_t);
 extern "C" void art_handle_fill_data_from_code(void*, void*);
 
 // JNI entrypoints.
-extern Object* DecodeJObjectInThread(Thread* thread, jobject obj);
 extern void* FindNativeMethod(Thread* thread);
+extern uint32_t JniMethodStart(Thread* self);
+extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self);
+extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self);
+extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked,
+                                     Thread* self);
+extern Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
+                                         Thread* self);
+extern Object* JniMethodEndWithReferenceSynchronized(jobject result,
+                                                     uint32_t saved_local_ref_cookie,
+                                                     jobject locked, Thread* self);
 
 // Lock entrypoints.
 extern "C" void art_lock_object_from_code(void*);
@@ -153,8 +162,13 @@ void InitEntryPoints(EntryPoints* points) {
   points->pHandleFillArrayDataFromCode = art_handle_fill_data_from_code;
 
   // JNI
-  points->pDecodeJObjectInThread = DecodeJObjectInThread;
   points->pFindNativeMethod = FindNativeMethod;
+  points->pJniMethodStart = JniMethodStart;
+  points->pJniMethodStartSynchronized = JniMethodStartSynchronized;
+  points->pJniMethodEnd = JniMethodEnd;
+  points->pJniMethodEndSynchronized = JniMethodEndSynchronized;
+  points->pJniMethodEndWithReference = JniMethodEndWithReference;
+  points->pJniMethodEndWithReferenceSynchronized = JniMethodEndWithReferenceSynchronized;
 
   // Locks
   points->pLockObjectFromCode = art_lock_object_from_code;

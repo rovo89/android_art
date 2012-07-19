@@ -44,36 +44,46 @@ class MarkSweep {
   void Init();
 
   // Marks the root set at the start of a garbage collection.
-  void MarkRoots();
+  void MarkRoots()
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Marks the roots in the image space on dirty cards.
-  void ScanDirtyImageRoots();
+  void ScanDirtyImageRoots() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   // Verify that image roots point to only marked objects within the alloc space.
-  void VerifyImageRoots();
+  void VerifyImageRoots() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   bool IsMarkStackEmpty() const {
     return mark_stack_->IsEmpty();
   }
 
   // Builds a mark stack and recursively mark until it empties.
-  void RecursiveMark(bool partial);
+  void RecursiveMark(bool partial)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Copies mark bits from live bitmap of zygote space to mark bitmap for partial GCs.
   void CopyMarkBits();
 
   // Builds a mark stack with objects on dirty cards and recursively mark
   // until it empties.
-  void RecursiveMarkDirtyObjects();
+  void RecursiveMarkDirtyObjects()
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Remarks the root set after completing the concurrent mark.
-  void ReMarkRoots();
+  void ReMarkRoots()
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   Heap* GetHeap() {
     return heap_;
   }
 
-  void ProcessReferences(bool clear_soft_references) {
+  void ProcessReferences(bool clear_soft_references)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     ProcessReferences(&soft_reference_list_, clear_soft_references,
                       &weak_reference_list_,
                       &finalizer_reference_list_,
@@ -81,59 +91,83 @@ class MarkSweep {
   }
 
   // Sweeps unmarked objects to complete the garbage collection.
-  void Sweep(bool partial);
+  void Sweep(bool partial) EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   Object* GetClearedReferences() {
     return cleared_reference_list_;
   }
 
   // Blackens an object.
-  void ScanObject(const Object* obj);
+  void ScanObject(const Object* obj)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
  private:
   // Returns true if the object has its bit set in the mark bitmap.
-  bool IsMarked(const Object* object) const {
+  bool IsMarked(const Object* object) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
     if (current_mark_bitmap_->HasAddress(object)) {
       return current_mark_bitmap_->Test(object);
     }
     return heap_->GetMarkBitmap()->Test(object);
   }
 
-  static bool IsMarkedCallback(const Object* object, void* arg) {
+  static bool IsMarkedCallback(const Object* object, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
     return reinterpret_cast<MarkSweep*>(arg)->IsMarked(object);
   }
 
-  static bool IsLiveCallback(const Object* object, void* arg) {
+  static bool IsLiveCallback(const Object* object, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
     return reinterpret_cast<MarkSweep*>(arg)->GetHeap()->GetLiveBitmap()->Test(object);
   }
 
-  static void MarkObjectVisitor(const Object* root, void* arg);
+  static void MarkObjectVisitor(const Object* root, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
-  static void ReMarkObjectVisitor(const Object* root, void* arg);
+  static void ReMarkObjectVisitor(const Object* root, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
-  static void VerifyImageRootVisitor(Object* root, void* arg);
+  static void VerifyImageRootVisitor(Object* root, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_);
 
-  static void ScanDirtyCardCallback(Object* obj, void* arg);
+  static void ScanDirtyCardCallback(Object* obj, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Marks an object.
-  void MarkObject(const Object* obj);
+  void MarkObject(const Object* obj)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   // Yuck.
-  void MarkObject0(const Object* obj, bool check_finger);
+  void MarkObject0(const Object* obj, bool check_finger)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
-  static void ScanBitmapCallback(Object* obj, void* finger, void* arg);
+  static void ScanBitmapCallback(Object* obj, void* finger, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  static void SweepCallback(size_t num_ptrs, Object** ptrs, void* arg);
+
+  static void SweepCallback(size_t num_ptrs, Object** ptrs, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   // Special sweep for zygote that just marks objects / dirties cards.
-  static void ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg);
+  static void ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
-  void CheckReference(const Object* obj, const Object* ref, MemberOffset offset, bool is_static);
+  void CheckReference(const Object* obj, const Object* ref, MemberOffset offset, bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_);
 
-  void CheckObject(const Object* obj);
+  void CheckObject(const Object* obj)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_);
 
   template <typename Visitor>
-  void VisitObjectReferences(const Object* obj, const Visitor& visitor) {
+  void VisitObjectReferences(const Object* obj, const Visitor& visitor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     DCHECK(obj != NULL);
     DCHECK(obj->GetClass() != NULL);
     if (obj->IsClass()) {
@@ -146,10 +180,14 @@ class MarkSweep {
   }
 
   // Grays references in instance fields.
-  void ScanInstanceFields(const Object* obj);
+  void ScanInstanceFields(const Object* obj)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   template <typename Visitor>
-  void VisitInstanceFieldsReferences(const Object* obj, const Visitor& visitor) {
+  void VisitInstanceFieldsReferences(const Object* obj, const Visitor& visitor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     DCHECK(obj != NULL);
     Class* klass = obj->GetClass();
     DCHECK(klass != NULL);
@@ -157,28 +195,42 @@ class MarkSweep {
   }
 
   // Blackens a class object.
-  void ScanClass(const Object* obj);
+  void ScanClass(const Object* obj)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+
 
   template <typename Visitor>
-  void VisitClassReferences(const Object* obj, const Visitor& visitor) {
+  void VisitClassReferences(const Object* obj, const Visitor& visitor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     VisitInstanceFieldsReferences(obj, visitor);
     VisitStaticFieldsReferences(obj->AsClass(), visitor);
   }
 
   // Grays references in static fields.
-  void ScanStaticFields(const Class* klass);
+  void ScanStaticFields(const Class* klass)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   template <typename Visitor>
-  void VisitStaticFieldsReferences(const Class* klass, const Visitor& visitor) {
+  void VisitStaticFieldsReferences(const Class* klass, const Visitor& visitor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {\
     DCHECK(klass != NULL);
     VisitFieldsReferences(klass, klass->GetReferenceStaticOffsets(), true, visitor);
   }
 
   // Used by ScanInstanceFields and ScanStaticFields
-  void ScanFields(const Object* obj, uint32_t ref_offsets, bool is_static);
+  void ScanFields(const Object* obj, uint32_t ref_offsets, bool is_static)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   template <typename Visitor>
-  void VisitFieldsReferences(const Object* obj, uint32_t ref_offsets, bool is_static, const Visitor& visitor) {
+  void VisitFieldsReferences(const Object* obj, uint32_t ref_offsets, bool is_static,
+                             const Visitor& visitor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     if (ref_offsets != CLASS_WALK_SUPER) {
       // Found a reference offset bitmap.  Mark the specified offsets.
       while (ref_offsets != 0) {
@@ -212,10 +264,14 @@ class MarkSweep {
   }
 
   // Grays references in an array.
-  void ScanArray(const Object* obj);
+  void ScanArray(const Object* obj)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   template <typename Visitor>
-  void VisitArrayReferences(const Object* obj, const Visitor& visitor) {
+  void VisitArrayReferences(const Object* obj, const Visitor& visitor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     visitor(obj, obj->GetClass(), Object::ClassOffset(), false);
     if (obj->IsObjectArray()) {
       const ObjectArray<Object>* array = obj->AsObjectArray<Object>();
@@ -227,35 +283,51 @@ class MarkSweep {
     }
   }
 
-  void ScanOther(const Object* obj);
+  void ScanOther(const Object* obj)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   template <typename Visitor>
-  void VisitOtherReferences(const Object* obj, const Visitor& visitor) {
+  void VisitOtherReferences(const Object* obj, const Visitor& visitor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     return VisitInstanceFieldsReferences(obj, visitor);
   }
 
   // Blackens objects grayed during a garbage collection.
-  void ScanGrayObjects();
+  void ScanGrayObjects() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   // Schedules an unmarked object for reference processing.
-  void DelayReferenceReferent(Object* reference);
+  void DelayReferenceReferent(Object* reference)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   // Recursively blackens objects on the mark stack.
-  void ProcessMarkStack();
+  void ProcessMarkStack()
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void EnqueueFinalizerReferences(Object** ref);
+  void EnqueueFinalizerReferences(Object** ref)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void PreserveSomeSoftReferences(Object** ref);
+  void PreserveSomeSoftReferences(Object** ref)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void ClearWhiteReferences(Object** list);
+  void ClearWhiteReferences(Object** list)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   void ProcessReferences(Object** soft_references, bool clear_soft_references,
                          Object** weak_references,
                          Object** finalizer_references,
-                         Object** phantom_references);
+                         Object** phantom_references)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void SweepSystemWeaks(bool swap_bitmaps);
-  void SweepJniWeakGlobals(HeapBitmap* bitmap);
+  void SweepSystemWeaks(bool swap_bitmaps)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+  void SweepJniWeakGlobals(HeapBitmap* bitmap)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   // Current space, we check this space first to avoid searching for the appropriate space for an object.
   SpaceBitmap* current_mark_bitmap_;

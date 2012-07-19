@@ -45,7 +45,8 @@ size_t AllocSpace::bitmap_index_ = 0;
 
 AllocSpace::AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
                        size_t growth_limit)
-    : Space(name, mem_map, begin, end, GCRP_ALWAYS_COLLECT), mspace_(mspace), growth_limit_(growth_limit) {
+    : Space(name, mem_map, begin, end, GCRP_ALWAYS_COLLECT), lock_("allocation space lock"),
+      mspace_(mspace), growth_limit_(growth_limit) {
   CHECK(mspace != NULL);
 
   size_t bitmap_index = bitmap_index_++;
@@ -155,29 +156,37 @@ void AllocSpace::SwapBitmaps() {
   mark_bitmap_.reset(temp_live_bitmap);
 }
 
-Object* AllocSpace::AllocWithoutGrowth(size_t num_bytes) {
+Object* AllocSpace::AllocWithoutGrowthLocked(size_t num_bytes) {
   Object* result = reinterpret_cast<Object*>(mspace_calloc(mspace_, 1, num_bytes));
 #if DEBUG_SPACES
   if (result != NULL) {
     CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)
-        << ") not in bounds of heap " << *this;
+        << ") not in bounds of allocation space " << *this;
   }
 #endif
   return result;
 }
 
+Object* AllocSpace::AllocWithoutGrowth(size_t num_bytes) {
+  MutexLock mu(lock_);
+  return AllocWithoutGrowthLocked(num_bytes);
+}
+
 Object* AllocSpace::AllocWithGrowth(size_t num_bytes) {
+  MutexLock mu(lock_);
   // Grow as much as possible within the mspace.
   size_t max_allowed = Capacity();
   mspace_set_footprint_limit(mspace_, max_allowed);
   // Try the allocation.
-  void* ptr = AllocWithoutGrowth(num_bytes);
+  void* ptr = AllocWithoutGrowthLocked(num_bytes);
   // Shrink back down as small as possible.
   size_t footprint = mspace_footprint(mspace_);
   mspace_set_footprint_limit(mspace_, footprint);
   // Return the new allocation or NULL.
   Object* result = reinterpret_cast<Object*>(ptr);
+#if DEBUG_SPACES
   CHECK(result == NULL || Contains(result));
+#endif
   return result;
 }
 
@@ -228,6 +237,7 @@ AllocSpace* AllocSpace::CreateZygoteSpace() {
 }
 
 void AllocSpace::Free(Object* ptr) {
+  MutexLock mu(lock_);
 #if DEBUG_SPACES
   CHECK(ptr != NULL);
   CHECK(Contains(ptr)) << "Free (" << ptr << ") not in bounds of heap " << *this;
@@ -236,6 +246,7 @@ void AllocSpace::Free(Object* ptr) {
 }
 
 void AllocSpace::FreeList(size_t num_ptrs, Object** ptrs) {
+  MutexLock mu(lock_);
 #if DEBUG_SPACES
   CHECK(ptrs != NULL);
   size_t num_broken_ptrs = 0;
@@ -275,6 +286,7 @@ extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
 }
 
 void* AllocSpace::MoreCore(intptr_t increment) {
+  lock_.AssertHeld();
   byte* original_end = end_;
   if (increment != 0) {
     VLOG(heap) << "AllocSpace::MoreCore " << PrettySize(increment);
@@ -330,6 +342,7 @@ void MspaceMadviseCallback(void* start, void* end, size_t used_bytes, void* arg)
 }
 
 void AllocSpace::Trim() {
+  MutexLock mu(lock_);
   // Trim to release memory at the end of the space.
   mspace_trim(mspace_, 0);
   // Visit space looking for page-sized holes to advise the kernel we don't need.
@@ -338,14 +351,17 @@ void AllocSpace::Trim() {
 
 void AllocSpace::Walk(void(*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
                       void* arg) {
+  MutexLock mu(lock_);
   mspace_inspect_all(mspace_, callback, arg);
 }
 
 size_t AllocSpace::GetFootprintLimit() {
+  MutexLock mu(lock_);
   return mspace_footprint_limit(mspace_);
 }
 
 void AllocSpace::SetFootprintLimit(size_t new_size) {
+  MutexLock mu(lock_);
   VLOG(heap) << "AllocSpace::SetFootprintLimit " << PrettySize(new_size);
   // Compare against the actual footprint, rather than the Size(), because the heap may not have
   // grown all the way to the allowed size yet.

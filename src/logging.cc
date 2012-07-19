@@ -29,11 +29,6 @@ static std::string* gCmdLine;
 static std::string* gProgramInvocationName;
 static std::string* gProgramInvocationShortName;
 
-static Mutex& GetLoggingLock() {
-  static Mutex logging_lock("LogMessage lock");
-  return logging_lock;
-}
-
 const char* GetCmdLine() {
   return (gCmdLine != NULL) ? gCmdLine->c_str() : NULL;
 }
@@ -55,6 +50,9 @@ const char* ProgramInvocationShortName() {
 // and a letter indicating the minimum priority level we're expected to log.
 // This can be used to reveal or conceal logs with specific tags.
 void InitLogging(char* argv[]) {
+  // TODO: Move this to a more obvious InitART...
+  GlobalSynchronization::Init();
+
   // Stash the command line for later use. We can use /proc/self/cmdline on Linux to recover this,
   // but we don't have that luxury on the Mac, and there are a couple of argv[0] variants that are
   // commonly used.
@@ -106,7 +104,7 @@ LogMessage::~LogMessage() {
 
   // Do the actual logging with the lock held.
   {
-    MutexLock mu(GetLoggingLock());
+    MutexLock mu(*GlobalSynchronization::logging_lock_);
     if (msg.find('\n') == std::string::npos) {
       LogLine(msg.c_str());
     } else {

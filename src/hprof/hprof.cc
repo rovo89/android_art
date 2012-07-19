@@ -47,7 +47,7 @@
 #include "object_utils.h"
 #include "os.h"
 #include "safe_map.h"
-#include "scoped_heap_lock.h"
+#include "scoped_thread_state_change.h"
 #include "space.h"
 #include "stringprintf.h"
 #include "thread_list.h"
@@ -165,8 +165,8 @@ typedef uint32_t HprofId;
 typedef HprofId HprofStringId;
 typedef HprofId HprofObjectId;
 typedef HprofId HprofClassObjectId;
-typedef std::set<const Class*> ClassSet;
-typedef std::set<const Class*>::iterator ClassSetIterator;
+typedef std::set<Class*> ClassSet;
+typedef std::set<Class*>::iterator ClassSetIterator;
 typedef SafeMap<std::string, size_t> StringMap;
 typedef SafeMap<std::string, size_t>::iterator StringMapIterator;
 
@@ -401,11 +401,16 @@ class Hprof {
     free(body_data_ptr_);
   }
 
-  void Dump() {
+  void Dump()
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_) {
     // Walk the roots and the heap.
     current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT, HPROF_TIME);
     Runtime::Current()->VisitRoots(RootVisitor, this);
-    Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(HeapBitmapCallback, this);
+    {
+      ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(HeapBitmapCallback, this);
+    }
     current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_END, HPROF_TIME);
     current_record_.Flush();
     fflush(body_fp_);
@@ -464,27 +469,29 @@ class Hprof {
   }
 
  private:
-  static void RootVisitor(const Object* obj, void* arg) {
+  static void RootVisitor(const Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     CHECK(arg != NULL);
     Hprof* hprof = reinterpret_cast<Hprof*>(arg);
     hprof->VisitRoot(obj);
   }
 
-  static void HeapBitmapCallback(Object* obj, void* arg) {
+  static void HeapBitmapCallback(Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     CHECK(obj != NULL);
     CHECK(arg != NULL);
     Hprof* hprof = reinterpret_cast<Hprof*>(arg);
     hprof->DumpHeapObject(obj);
   }
 
-  void VisitRoot(const Object* obj);
+  void VisitRoot(const Object* obj) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  int DumpHeapObject(const Object* obj);
+  int DumpHeapObject(Object* obj) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   void Finish() {
   }
 
-  int WriteClassTable() {
+  int WriteClassTable() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     HprofRecord* rec = &current_record_;
     uint32_t nextSerialNumber = 1;
 
@@ -551,7 +558,8 @@ class Hprof {
 
   int MarkRootObject(const Object* obj, jobject jniObj);
 
-  HprofClassObjectId LookupClassId(const Class* c) {
+  HprofClassObjectId LookupClassId(Class* c)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     if (c == NULL) {
       // c is the superclass of java.lang.Object or a primitive
       return (HprofClassObjectId)0;
@@ -585,7 +593,8 @@ class Hprof {
     return id;
   }
 
-  HprofStringId LookupClassNameId(const Class* c) {
+  HprofStringId LookupClassNameId(const Class* c)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     return LookupStringId(PrettyDescriptor(c));
   }
 
@@ -807,7 +816,7 @@ static int StackTraceSerialNumber(const Object* /*obj*/) {
   return HPROF_NULL_STACK_TRACE;
 }
 
-int Hprof::DumpHeapObject(const Object* obj) {
+int Hprof::DumpHeapObject(Object* obj) {
   HprofRecord* rec = &current_record_;
   HprofHeapId desiredHeap = false ? HPROF_HEAP_ZYGOTE : HPROF_HEAP_APP; // TODO: zygote objects?
 
@@ -847,7 +856,7 @@ int Hprof::DumpHeapObject(const Object* obj) {
     // allocated which hasn't been initialized yet.
   } else {
     if (obj->IsClass()) {
-      const Class* thisClass = obj->AsClass();
+      Class* thisClass = obj->AsClass();
       // obj is a ClassObject.
       size_t sFieldCount = thisClass->NumStaticFields();
       if (sFieldCount != 0) {
@@ -1053,15 +1062,11 @@ void Hprof::VisitRoot(const Object* obj) {
 // Otherwise, "filename" is used to create an output file.
 void DumpHeap(const char* filename, int fd, bool direct_to_ddms) {
   CHECK(filename != NULL);
-  ScopedHeapLock heap_lock;
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
 
-  ThreadList* thread_list = Runtime::Current()->GetThreadList();
-  thread_list->SuspendAll();
-
+  Runtime::Current()->GetThreadList()->SuspendAll();
   Hprof hprof(filename, fd, direct_to_ddms);
   hprof.Dump();
-  thread_list->ResumeAll();
+  Runtime::Current()->GetThreadList()->ResumeAll();
 }
 
 }  // namespace hprof

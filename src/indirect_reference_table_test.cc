@@ -24,6 +24,7 @@ class IndirectReferenceTableTest : public CommonTest {
 };
 
 TEST_F(IndirectReferenceTableTest, BasicTest) {
+  ScopedObjectAccess soa(Thread::Current());
   static const size_t kTableInitial = 10;
   static const size_t kTableMax = 20;
   IndirectReferenceTable irt(kTableInitial, kTableMax, kGlobal);

@@ -21,6 +21,7 @@
 #include "object.h"
 #include "object_utils.h"
 #include "jni.h"
+#include "scoped_thread_state_change.h"
 #include "verifier/gc_map.h"
 
 namespace art {
@@ -41,10 +42,11 @@ static int gJava_StackWalk_refmap_calls = 0;
 struct TestReferenceMapVisitor : public StackVisitor {
   explicit TestReferenceMapVisitor(const ManagedStack* stack,
                                    const std::vector<TraceStackFrame>* trace_stack)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
       : StackVisitor(stack, trace_stack, NULL) {
   }
 
-  bool VisitFrame() {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* m = GetMethod();
     CHECK(m != NULL);
     LOG(INFO) << "At " << PrettyMethod(m, false);
@@ -100,6 +102,7 @@ struct TestReferenceMapVisitor : public StackVisitor {
 };
 
 extern "C" JNIEXPORT jint JNICALL Java_StackWalk_refmap(JNIEnv*, jobject, jint count) {
+  ScopedObjectAccess ts(Thread::Current());
   CHECK_EQ(count, 0);
   gJava_StackWalk_refmap_calls++;
 
@@ -112,6 +115,7 @@ extern "C" JNIEXPORT jint JNICALL Java_StackWalk_refmap(JNIEnv*, jobject, jint c
 }
 
 extern "C" JNIEXPORT jint JNICALL Java_StackWalk2_refmap2(JNIEnv*, jobject, jint count) {
+  ScopedObjectAccess ts(Thread::Current());
   gJava_StackWalk_refmap_calls++;
 
   // Visitor

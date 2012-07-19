@@ -40,32 +40,68 @@ class RegTypeCache {
     return *result;
   }
 
-  const RegType& From(RegType::Type type, ClassLoader* loader, const char* descriptor);
-  const RegType& FromClass(Class* klass);
+  const RegType& From(RegType::Type type, ClassLoader* loader, const char* descriptor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  const RegType& FromClass(Class* klass)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   const RegType& FromCat1Const(int32_t value);
-  const RegType& FromDescriptor(ClassLoader* loader, const char* descriptor);
-  const RegType& FromType(RegType::Type);
+  const RegType& FromDescriptor(ClassLoader* loader, const char* descriptor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  const RegType& FromType(RegType::Type)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   const RegType& FromUnresolvedMerge(const RegType& left, const RegType& right);
   const RegType& FromUnresolvedSuperClass(const RegType& child);
 
-  const RegType& Boolean() { return FromType(RegType::kRegTypeBoolean); }
-  const RegType& Byte()    { return FromType(RegType::kRegTypeByte); }
-  const RegType& Char()    { return FromType(RegType::kRegTypeChar); }
-  const RegType& Short()   { return FromType(RegType::kRegTypeShort); }
-  const RegType& Integer() { return FromType(RegType::kRegTypeInteger); }
-  const RegType& Float()   { return FromType(RegType::kRegTypeFloat); }
-  const RegType& Long()    { return FromType(RegType::kRegTypeLongLo); }
-  const RegType& Double()  { return FromType(RegType::kRegTypeDoubleLo); }
+  const RegType& Boolean() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return FromType(RegType::kRegTypeBoolean);
+  }
+  const RegType& Byte() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return FromType(RegType::kRegTypeByte);
+  }
+  const RegType& Char() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return FromType(RegType::kRegTypeChar);
+  }
+  const RegType& Short() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return FromType(RegType::kRegTypeShort);
+  }
+  const RegType& Integer() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return FromType(RegType::kRegTypeInteger);
+  }
+  const RegType& Float() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return FromType(RegType::kRegTypeFloat);
+  }
+  const RegType& Long() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return FromType(RegType::kRegTypeLongLo);
+  }
+  const RegType& Double() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return FromType(RegType::kRegTypeDoubleLo);
+  }
 
-  const RegType& JavaLangClass()  { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Class;"); }
-  const RegType& JavaLangObject() { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Object;"); }
-  const RegType& JavaLangString() { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/String;"); }
-  const RegType& JavaLangThrowable() { return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Throwable;"); }
+  const RegType& JavaLangClass() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Class;");
+  }
+  const RegType& JavaLangObject() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Object;");
+  }
+  const RegType& JavaLangString() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return From(RegType::kRegTypeReference, NULL, "Ljava/lang/String;");
+  }
+  const RegType& JavaLangThrowable() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return From(RegType::kRegTypeReference, NULL, "Ljava/lang/Throwable;");
+  }
 
-  const RegType& Undefined() { return FromType(RegType::kRegTypeUndefined); }
-  const RegType& Conflict()  { return FromType(RegType::kRegTypeConflict); }
-  const RegType& ConstLo()   { return FromType(RegType::kRegTypeConstLo); }
-  const RegType& Zero()      { return FromCat1Const(0); }
+  const RegType& Undefined() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return FromType(RegType::kRegTypeUndefined);
+  }
+  const RegType& Conflict() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return FromType(RegType::kRegTypeConflict);
+  }
+  const RegType& ConstLo() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return FromType(RegType::kRegTypeConstLo);
+  }
+  const RegType& Zero() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    return FromCat1Const(0);
+  }
 
   const RegType& Uninitialized(const RegType& type, uint32_t allocation_pc);
   // Create an uninitialized 'this' argument for the given type.
@@ -79,7 +115,8 @@ class RegTypeCache {
   const RegType& ShortConstant() { return FromCat1Const(std::numeric_limits<jshort>::min()); }
   const RegType& IntConstant() { return FromCat1Const(std::numeric_limits<jint>::max()); }
 
-  const RegType& GetComponentType(const RegType& array, ClassLoader* loader);
+  const RegType& GetComponentType(const RegType& array, ClassLoader* loader)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
  private:
   // The allocated entries

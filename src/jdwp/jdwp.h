@@ -78,7 +78,8 @@ struct JdwpLocation {
   MethodId method_id;
   uint64_t dex_pc;
 };
-std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs);
+std::ostream& operator<<(std::ostream& os, const JdwpLocation& rhs)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 bool operator==(const JdwpLocation& lhs, const JdwpLocation& rhs);
 bool operator!=(const JdwpLocation& lhs, const JdwpLocation& rhs);
 
@@ -118,7 +119,8 @@ struct JdwpState {
    *
    * Returns a newly-allocated JdwpState struct on success, or NULL on failure.
    */
-  static JdwpState* Create(const JdwpOptions* options) NO_THREAD_SAFETY_ANALYSIS; // TODO: make GCC understand.
+  static JdwpState* Create(const JdwpOptions* options)
+      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
 
   ~JdwpState();
 
@@ -178,7 +180,7 @@ struct JdwpState {
    * The VM has finished initializing.  Only called when the debugger is
    * connected at the time initialization completes.
    */
-  bool PostVMStart();
+  bool PostVMStart() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   /*
    * A location of interest has been reached.  This is used for breakpoints,
@@ -190,24 +192,30 @@ struct JdwpState {
    *
    * "eventFlags" indicates the types of events that have occurred.
    */
-  bool PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags);
+  bool PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags)
+     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   /*
    * An exception has been thrown.
    *
    * Pass in a zeroed-out "*pCatchLoc" if the exception wasn't caught.
    */
-  bool PostException(const JdwpLocation* pThrowLoc, ObjectId excepId, RefTypeId excepClassId, const JdwpLocation* pCatchLoc, ObjectId thisPtr);
+  bool PostException(const JdwpLocation* pThrowLoc, ObjectId excepId, RefTypeId excepClassId,
+                     const JdwpLocation* pCatchLoc, ObjectId thisPtr)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   /*
    * A thread has started or stopped.
    */
-  bool PostThreadChange(ObjectId threadId, bool start);
+  bool PostThreadChange(ObjectId threadId, bool start)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   /*
    * Class has been prepared.
    */
-  bool PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std::string& signature, int status);
+  bool PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std::string& signature,
+                        int status)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   /*
    * The VM is about to stop.
@@ -215,12 +223,13 @@ struct JdwpState {
   bool PostVMDeath();
 
   // Called if/when we realize we're talking to DDMS.
-  void NotifyDdmsActive();
+  void NotifyDdmsActive() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   /*
    * Send up a chunk of DDM data.
    */
-  void DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count);
+  void DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   /*
    * Process a request from the debugger.
@@ -237,13 +246,17 @@ struct JdwpState {
    */
   bool SendRequest(ExpandBuf* pReq);
 
-  void ResetState();
+  void ResetState()
+      LOCKS_EXCLUDED(event_list_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   /* atomic ops to get next serial number */
   uint32_t NextRequestSerial();
   uint32_t NextEventSerial();
 
-  void Run();
+  void Run()
+      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_,
+                     GlobalSynchronization::thread_suspend_count_lock_);
 
   /*
    * Register an event by adding it to the event list.
@@ -251,44 +264,60 @@ struct JdwpState {
    * "*pEvent" must be storage allocated with jdwpEventAlloc().  The caller
    * may discard its pointer after calling this.
    */
-  JdwpError RegisterEvent(JdwpEvent* pEvent);
+  JdwpError RegisterEvent(JdwpEvent* pEvent)
+      LOCKS_EXCLUDED(event_list_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   /*
    * Unregister an event, given the requestId.
    */
-  void UnregisterEventById(uint32_t requestId);
+  void UnregisterEventById(uint32_t requestId)
+      LOCKS_EXCLUDED(event_list_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   /*
    * Unregister all events.
    */
-  void UnregisterAll();
+  void UnregisterAll()
+      LOCKS_EXCLUDED(event_list_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
  private:
   explicit JdwpState(const JdwpOptions* options);
   bool InvokeInProgress();
   bool IsConnected();
-  void SuspendByPolicy(JdwpSuspendPolicy suspend_policy);
+  void SuspendByPolicy(JdwpSuspendPolicy suspend_policy,  JDWP::ObjectId thread_self_id)
+      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+  void SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy suspend_policy,
+                                     ObjectId threadId)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   void CleanupMatchList(JdwpEvent** match_list,
-                        int match_count) EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_);
+                        int match_count)
+      EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   void EventFinish(ExpandBuf* pReq);
   void FindMatchingEvents(JdwpEventKind eventKind,
                           ModBasket* basket,
                           JdwpEvent** match_list,
-                          int* pMatchCount) EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_);
-  void UnregisterEvent(JdwpEvent* pEvent) EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_);
+                          int* pMatchCount)
+      EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void UnregisterEvent(JdwpEvent* pEvent)
+      EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
  public: // TODO: fix privacy
   const JdwpOptions* options_;
 
  private:
   /* wait for creation of the JDWP thread */
-  Mutex thread_start_lock_;
-  ConditionVariable thread_start_cond_;
+  Mutex thread_start_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  ConditionVariable thread_start_cond_ GUARDED_BY(thread_start_lock_);
 
   pthread_t pthread_;
   Thread* thread_;
 
-  volatile int32_t debug_thread_started_;
+  volatile int32_t debug_thread_started_ GUARDED_BY(thread_start_lock_);
   ObjectId debug_thread_id_;
 
  private:
@@ -300,14 +329,14 @@ struct JdwpState {
 
  private:
   // For wait-for-debugger.
-  Mutex attach_lock_;
-  ConditionVariable attach_cond_;
+  Mutex attach_lock_ ACQUIRED_AFTER(thread_start_lock_);
+  ConditionVariable attach_cond_ GUARDED_BY(attach_lock_);
 
   // Time of last debugger activity, in milliseconds.
   int64_t last_activity_time_ms_;
 
   // Global counters and a mutex to protect them.
-  Mutex serial_lock_;
+  Mutex serial_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   uint32_t request_serial_ GUARDED_BY(serial_lock_);
   uint32_t event_serial_ GUARDED_BY(serial_lock_);
 
@@ -318,8 +347,8 @@ struct JdwpState {
 
   // Used to synchronize suspension of the event thread (to avoid receiving "resume"
   // events before the thread has finished suspending itself).
-  Mutex event_thread_lock_;
-  ConditionVariable event_thread_cond_;
+  Mutex event_thread_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  ConditionVariable event_thread_cond_ GUARDED_BY(event_thread_lock_);
   ObjectId event_thread_id_;
 
   bool ddm_is_active_;

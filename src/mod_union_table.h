@@ -84,10 +84,12 @@ class ModUnionTableBitmap : public ModUnionTable {
   void ClearCards(Space* space);
 
   // Update table based on cleared cards.
-  void Update();
+  void Update()
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Mark all references to the alloc space(s).
-  void MarkReferences();
+  void MarkReferences() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
  protected:
   // Cleared card array, used to update the mod-union table.
@@ -111,10 +113,12 @@ class ModUnionTableReferenceCache : public ModUnionTable {
   void ClearCards(Space* space);
 
   // Update table based on cleared cards.
-  void Update();
+  void Update()
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Mark all references to the alloc space(s).
-  void MarkReferences();
+  void MarkReferences() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   // Verify the mod-union table.
   void Verify();
@@ -146,7 +150,9 @@ class ModUnionTableCardCache : public ModUnionTable {
   void Update() {}
 
   // Mark all references to the alloc space(s).
-  void MarkReferences();
+  void MarkReferences()
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Nothing to verify.
   void Verify() {}

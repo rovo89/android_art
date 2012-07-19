@@ -1440,10 +1440,9 @@ void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                               const std::vector<ManagedRegister>& callee_save_regs,
                               const std::vector<ManagedRegister>& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
-  DCHECK_EQ(entry_spills.size(), 0u);
   CHECK_EQ(R0, method_reg.AsArm().AsCoreRegister());
 
-  // Push callee saves and link register
+  // Push callee saves and link register.
   RegList push_list = 1 << LR;
   size_t pushed_values = 1;
   for (size_t i = 0; i < callee_save_regs.size(); i++) {
@@ -1453,13 +1452,19 @@ void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   }
   PushList(push_list);
 
-  // Increase frame to required size
+  // Increase frame to required size.
   CHECK_GT(frame_size, pushed_values * kPointerSize);  // Must be at least space to push Method*
   size_t adjust = frame_size - (pushed_values * kPointerSize);
   IncreaseFrameSize(adjust);
 
-  // Write out Method*
+  // Write out Method*.
   StoreToOffset(kStoreWord, R0, SP, 0);
+
+  // Write out entry spills.
+  for (size_t i = 0; i < entry_spills.size(); ++i) {
+    Register reg = entry_spills.at(i).AsArm().AsCoreRegister();
+    StoreToOffset(kStoreWord, reg, SP, frame_size + kPointerSize + (i * kPointerSize));
+  }
 }
 
 void ArmAssembler::RemoveFrame(size_t frame_size,
@@ -1891,9 +1896,9 @@ void ArmSuspendCountSlowPath::Emit(Assembler* sasm) {
 #undef __
 }
 
-void ArmAssembler::ExceptionPoll(ManagedRegister mscratch) {
+void ArmAssembler::ExceptionPoll(ManagedRegister mscratch, size_t stack_adjust) {
   ArmManagedRegister scratch = mscratch.AsArm();
-  ArmExceptionSlowPath* slow = new ArmExceptionSlowPath(scratch);
+  ArmExceptionSlowPath* slow = new ArmExceptionSlowPath(scratch, stack_adjust);
   buffer_.EnqueueSlowPath(slow);
   LoadFromOffset(kLoadWord, scratch.AsCoreRegister(),
                  TR, Thread::ExceptionOffset().Int32Value());
@@ -1905,7 +1910,9 @@ void ArmExceptionSlowPath::Emit(Assembler* sasm) {
   ArmAssembler* sp_asm = down_cast<ArmAssembler*>(sasm);
 #define __ sp_asm->
   __ Bind(&entry_);
-
+  if (stack_adjust_ != 0) {  // Fix up the frame.
+    __ DecreaseFrameSize(stack_adjust_);
+  }
   // Pass exception object as argument
   // Don't care about preserving R0 as this call won't return
   __ mov(R0, ShifterOperand(scratch_.AsCoreRegister()));

@@ -21,8 +21,6 @@
 #include <unistd.h>
 
 #include "debugger.h"
-#include "scoped_heap_lock.h"
-#include "scoped_thread_list_lock.h"
 #include "timing_logger.h"
 #include "utils.h"
 
@@ -30,11 +28,8 @@ namespace art {
 
 ThreadList::ThreadList()
     : allocated_ids_lock_("allocated thread ids lock"),
-      thread_list_lock_("thread list lock", kThreadListLock),
-      thread_start_cond_("thread start condition variable"),
-      thread_exit_cond_("thread exit condition variable"),
-      thread_suspend_count_lock_("thread suspend count lock", kThreadSuspendCountLock),
-      thread_suspend_count_cond_("thread suspend count condition variable") {
+      suspend_all_count_(0), debug_suspend_all_count_(0),
+      thread_exit_cond_("thread exit condition variable") {
 }
 
 ThreadList::~ThreadList() {
@@ -46,6 +41,8 @@ ThreadList::~ThreadList() {
   }
 
   WaitForOtherNonDaemonThreadsToExit();
+  // TODO: there's an unaddressed race here where a thread may attach during shutdown, see
+  //       Thread::Init.
   SuspendAllDaemonThreads();
 }
 
@@ -63,12 +60,14 @@ bool ThreadList::Contains(pid_t tid) {
 }
 
 pid_t ThreadList::GetLockOwner() {
-  return thread_list_lock_.GetOwner();
+  return GlobalSynchronization::thread_list_lock_->GetExclusiveOwnerTid();
 }
 
 void ThreadList::DumpForSigQuit(std::ostream& os) {
-  ScopedThreadListLock thread_list_lock;
-  DumpLocked(os);
+  {
+    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+    DumpLocked(os);
+  }
   DumpUnattachedThreads(os);
 }
 
@@ -94,14 +93,22 @@ void ThreadList::DumpUnattachedThreads(std::ostream& os) {
   while (!readdir_r(d, &de, &e) && e != NULL) {
     char* end;
     pid_t tid = strtol(de.d_name, &end, 10);
-    if (!*end && !Contains(tid)) {
-      DumpUnattachedThread(os, tid);
+    if (!*end) {
+      bool contains;
+      {
+        MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+        contains = Contains(tid);
+      }
+      if (!contains) {
+        DumpUnattachedThread(os, tid);
+      }
     }
   }
   closedir(d);
 }
 
 void ThreadList::DumpLocked(std::ostream& os) {
+  GlobalSynchronization::thread_list_lock_->AssertHeld();
   os << "DALVIK THREADS (" << list_.size() << "):\n";
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     (*it)->Dump(os);
@@ -109,119 +116,171 @@ void ThreadList::DumpLocked(std::ostream& os) {
   }
 }
 
-void ThreadList::ModifySuspendCount(Thread* thread, int delta, bool for_debugger) {
-#ifndef NDEBUG
-  DCHECK(delta == -1 || delta == +1 || delta == -thread->debug_suspend_count_)
-      << delta << " " << thread->debug_suspend_count_ << " " << *thread;
-  DCHECK_GE(thread->suspend_count_, thread->debug_suspend_count_) << *thread;
-#endif
-  if (delta == -1 && thread->suspend_count_ <= 0) {
-    // This is expected if you attach a thread during a GC.
-    if (UNLIKELY(!thread->IsStillStarting())) {
-      std::ostringstream ss;
-      Runtime::Current()->GetThreadList()->DumpLocked(ss);
-      LOG(FATAL) << *thread << " suspend count already zero.\n" << ss.str();
-    }
-    return;
-  }
-  thread->suspend_count_ += delta;
-  if (for_debugger) {
-    thread->debug_suspend_count_ += delta;
-  }
-}
-
-void ThreadList::FullSuspendCheck(Thread* thread) {
-  CHECK(thread != NULL);
-  CHECK_GE(thread->suspend_count_, 0);
-
-  MutexLock mu(thread_suspend_count_lock_);
-  if (thread->suspend_count_ == 0) {
-    return;
-  }
-
-  VLOG(threads) << *thread << " self-suspending";
-  {
-    ScopedThreadStateChange tsc(thread, kSuspended);
-    while (thread->suspend_count_ != 0) {
-      /*
-       * Wait for wakeup signal, releasing lock.  The act of releasing
-       * and re-acquiring the lock provides the memory barriers we
-       * need for correct behavior on SMP.
-       */
-      thread_suspend_count_cond_.Wait(thread_suspend_count_lock_);
-    }
-    CHECK_EQ(thread->suspend_count_, 0);
-  }
-  VLOG(threads) << *thread << " self-reviving";
-}
-
-void ThreadList::SuspendAll(bool for_debugger) {
-  Thread* self = Thread::Current();
-
-  VLOG(threads) << *self << " SuspendAll starting..." << (for_debugger ? " (debugger)" : "");
-
-  CHECK_EQ(self->GetState(), kRunnable);
-  ScopedThreadListLock thread_list_lock;
-  Thread* debug_thread = Dbg::GetDebugThread();
-  {
-    // Increment everybody's suspend count (except our own).
-    MutexLock mu(thread_suspend_count_lock_);
-    for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
-      Thread* thread = *it;
-      if (thread == self || (for_debugger && thread == debug_thread)) {
-        continue;
-      }
-      VLOG(threads) << "requesting thread suspend: " << *thread;
-      ModifySuspendCount(thread, +1, for_debugger);
-    }
-  }
-
-  /*
-   * Wait for everybody in kRunnable state to stop.  Other states
-   * indicate the code is either running natively or sleeping quietly.
-   * Any attempt to transition back to kRunnable will cause a check
-   * for suspension, so it should be impossible for anything to execute
-   * interpreted code or modify objects (assuming native code plays nicely).
-   *
-   * It's also okay if the thread transitions to a non-kRunnable state.
-   *
-   * Note we released the thread_suspend_count_lock_ before getting here,
-   * so if another thread is fiddling with its suspend count (perhaps
-   * self-suspending for the debugger) it won't block while we're waiting
-   * in here.
-   */
+void ThreadList::AssertThreadsAreSuspended() {
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
   for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
     Thread* thread = *it;
-    if (thread == self || (for_debugger && thread == debug_thread)) {
-      continue;
-    }
-    thread->WaitUntilSuspended();
-    VLOG(threads) << "thread suspended: " << *thread;
+    CHECK_NE(thread->GetState(), kRunnable);
   }
+}
+
+// Attempt to rectify locks so that we dump thread list with required locks before exiting.
+static void UnsafeLogFatalForThreadSuspendAllTimeout() NO_THREAD_SAFETY_ANALYSIS {
+  Runtime* runtime = Runtime::Current();
+  std::ostringstream ss;
+  ss << "Thread suspend timeout\n";
+  runtime->DumpLockHolders(ss);
+  ss << "\n";
+  GlobalSynchronization::mutator_lock_->SharedTryLock();
+  if (!GlobalSynchronization::mutator_lock_->IsSharedHeld()) {
+    LOG(WARNING) << "Dumping thread list without holding mutator_lock_";
+  }
+  GlobalSynchronization::thread_list_lock_->TryLock();
+  if (!GlobalSynchronization::thread_list_lock_->IsExclusiveHeld()) {
+    LOG(WARNING) << "Dumping thread list without holding thread_list_lock_";
+  }
+  runtime->GetThreadList()->DumpLocked(ss);
+  LOG(FATAL) << ss.str();
+}
+
+void ThreadList::SuspendAll() {
+  Thread* self = Thread::Current();
+
+  VLOG(threads) << *self << " SuspendAll starting...";
+
+  if (kIsDebugBuild) {
+    GlobalSynchronization::mutator_lock_->AssertNotHeld();
+    GlobalSynchronization::thread_list_lock_->AssertNotHeld();
+    GlobalSynchronization::thread_suspend_count_lock_->AssertNotHeld();
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    CHECK_NE(self->GetState(), kRunnable);
+  }
+  {
+    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+    {
+      MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
+      // Update global suspend all state for attaching threads.
+      ++suspend_all_count_;
+      // Increment everybody's suspend count (except our own).
+      for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+        Thread* thread = *it;
+        if (thread == self) {
+          continue;
+        }
+        VLOG(threads) << "requesting thread suspend: " << *thread;
+        thread->ModifySuspendCount(+1, false);
+      }
+    }
+  }
+
+  // Block on the mutator lock until all Runnable threads release their share of access. Timeout
+  // if we wait more than 30 seconds.
+  timespec timeout;
+  clock_gettime(CLOCK_REALTIME, &timeout);
+  timeout.tv_sec += 30;
+  if (UNLIKELY(!GlobalSynchronization::mutator_lock_->ExclusiveLockWithTimeout(timeout))) {
+    UnsafeLogFatalForThreadSuspendAllTimeout();
+  }
+
+  // Debug check that all threads are suspended.
+  AssertThreadsAreSuspended();
 
   VLOG(threads) << *self << " SuspendAll complete";
 }
 
-void ThreadList::Suspend(Thread* thread, bool for_debugger) {
+void ThreadList::ResumeAll() {
+  Thread* self = Thread::Current();
+
+  VLOG(threads) << *self << " ResumeAll starting";
+  {
+    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+    MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
+    // Update global suspend all state for attaching threads.
+    --suspend_all_count_;
+    // Decrement the suspend counts for all threads.
+    for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+      Thread* thread = *it;
+      if (thread == self) {
+        continue;
+      }
+      thread->ModifySuspendCount(-1, false);
+    }
+
+    // Broadcast a notification to all suspended threads, some or all of
+    // which may choose to wake up.  No need to wait for them.
+    VLOG(threads) << *self << " ResumeAll waking others";
+    Thread::resume_cond_->Broadcast();
+  }
+  GlobalSynchronization::mutator_lock_->ExclusiveUnlock();
+  VLOG(threads) << *self << " ResumeAll complete";
+}
+
+void ThreadList::Resume(Thread* thread, bool for_debugger) {
   DCHECK(thread != Thread::Current());
-  thread_list_lock_.AssertHeld();
+  VLOG(threads) << "Resume(" << *thread << ") starting..." << (for_debugger ? " (debugger)" : "");
 
-  // TODO: add another thread_suspend_lock_ to avoid GC/debugger races.
-
-  VLOG(threads) << "Suspend(" << *thread << ") starting..." << (for_debugger ? " (debugger)" : "");
-
-  if (!Contains(thread)) {
-    return;
+  {
+    // To check Contains.
+    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+    // To check IsSuspended.
+    MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
+    CHECK(thread->IsSuspended());
+    if (!Contains(thread)) {
+      return;
+    }
+    thread->ModifySuspendCount(-1, for_debugger);
   }
 
   {
-    MutexLock mu(thread_suspend_count_lock_);
-    ModifySuspendCount(thread, +1, for_debugger);
+    VLOG(threads) << "Resume(" << *thread << ") waking others";
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    Thread::resume_cond_->Broadcast();
   }
 
-  thread->WaitUntilSuspended();
+  VLOG(threads) << "Resume(" << *thread << ") complete";
+}
 
-  VLOG(threads) << "Suspend(" << *thread << ") complete";
+void ThreadList::SuspendAllForDebugger() {
+  Thread* self = Thread::Current();
+  Thread* debug_thread = Dbg::GetDebugThread();
+
+  VLOG(threads) << *self << " SuspendAllForDebugger starting...";
+
+  {
+    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+    {
+      MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+      // Update global suspend all state for attaching threads.
+      ++suspend_all_count_;
+      ++debug_suspend_all_count_;
+      // Increment everybody's suspend count (except our own).
+      for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+        Thread* thread = *it;
+        if (thread == self || thread == debug_thread) {
+          continue;
+        }
+        VLOG(threads) << "requesting thread suspend: " << *thread;
+        thread->ModifySuspendCount(+1, true);
+      }
+    }
+  }
+
+  // Block on the mutator lock until all Runnable threads release their share of access. Timeout
+  // if we wait more than 30 seconds.
+  timespec timeout;
+  clock_gettime(CLOCK_REALTIME, &timeout);
+  timeout.tv_sec += 30;
+  if (!GlobalSynchronization::mutator_lock_->ExclusiveLockWithTimeout(timeout)) {
+    UnsafeLogFatalForThreadSuspendAllTimeout();
+  } else {
+    // Debugger suspends all threads but doesn't hold onto the mutator_lock_.
+    GlobalSynchronization::mutator_lock_->ExclusiveUnlock();
+  }
+
+  AssertThreadsAreSuspended();
+
+  VLOG(threads) << *self << " SuspendAll complete";
 }
 
 void ThreadList::SuspendSelfForDebugger() {
@@ -235,8 +294,8 @@ void ThreadList::SuspendSelfForDebugger() {
   // Collisions with other suspends aren't really interesting. We want
   // to ensure that we're the only one fiddling with the suspend count
   // though.
-  MutexLock mu(thread_suspend_count_lock_);
-  ModifySuspendCount(self, +1, true);
+  MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+  self->ModifySuspendCount(+1, true);
 
   // Suspend ourselves.
   CHECK_GT(self->suspend_count_, 0);
@@ -249,7 +308,7 @@ void ThreadList::SuspendSelfForDebugger() {
   Dbg::ClearWaitForEventThread();
 
   while (self->suspend_count_ != 0) {
-    thread_suspend_count_cond_.Wait(thread_suspend_count_lock_);
+    Thread::resume_cond_->Wait(*GlobalSynchronization::thread_suspend_count_lock_);
     if (self->suspend_count_ != 0) {
       // The condition was signaled but we're still suspended. This
       // can happen if the debugger lets go while a SIGQUIT thread
@@ -264,255 +323,71 @@ void ThreadList::SuspendSelfForDebugger() {
   VLOG(threads) << *self << " self-reviving (debugger)";
 }
 
-void ThreadList::ResumeAll(bool for_debugger) {
-  Thread* self = Thread::Current();
-
-  VLOG(threads) << *self << " ResumeAll starting" << (for_debugger ? " (debugger)" : "");
-
-  // Decrement the suspend counts for all threads.  No need for atomic
-  // writes, since nobody should be moving until we decrement the count.
-  // We do need to hold the thread list because of JNI attaches.
-  {
-    ScopedThreadListLock thread_list_lock;
-    Thread* debug_thread = Dbg::GetDebugThread();
-    MutexLock mu(thread_suspend_count_lock_);
-    for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
-      Thread* thread = *it;
-      if (thread == self || (for_debugger && thread == debug_thread)) {
-        continue;
-      }
-      ModifySuspendCount(thread, -1, for_debugger);
-    }
-  }
-
-  // Broadcast a notification to all suspended threads, some or all of
-  // which may choose to wake up.  No need to wait for them.
-  {
-    VLOG(threads) << *self << " ResumeAll waking others";
-    MutexLock mu(thread_suspend_count_lock_);
-    thread_suspend_count_cond_.Broadcast();
-  }
-
-  VLOG(threads) << *self << " ResumeAll complete";
-}
-
-void ThreadList::Resume(Thread* thread, bool for_debugger) {
-  DCHECK(thread != Thread::Current());
-
-  if (!for_debugger) { // The debugger is very naughty. See Dbg::InvokeMethod.
-    thread_list_lock_.AssertHeld();
-  }
-
-  VLOG(threads) << "Resume(" << *thread << ") starting..." << (for_debugger ? " (debugger)" : "");
-
-  {
-    MutexLock mu(thread_suspend_count_lock_);
-    if (!Contains(thread)) {
-      return;
-    }
-    ModifySuspendCount(thread, -1, for_debugger);
-  }
-
-  {
-    VLOG(threads) << "Resume(" << *thread << ") waking others";
-    MutexLock mu(thread_suspend_count_lock_);
-    thread_suspend_count_cond_.Broadcast();
-  }
-
-  VLOG(threads) << "Resume(" << *thread << ") complete";
-}
-
-void ThreadList::RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg) {  // NOLINT
-  DCHECK(thread != NULL);
-  Thread* self = Thread::Current();
-  if (thread != self) {
-    Suspend(thread);
-  }
-  callback(arg);
-  if (thread != self) {
-    Resume(thread);
-  }
-}
-
 void ThreadList::UndoDebuggerSuspensions() {
   Thread* self = Thread::Current();
 
   VLOG(threads) << *self << " UndoDebuggerSuspensions starting";
 
   {
-    ScopedThreadListLock thread_list_lock;
-    MutexLock mu(thread_suspend_count_lock_);
+    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+    MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
+    // Update global suspend all state for attaching threads.
+    suspend_all_count_ -= debug_suspend_all_count_;
+    debug_suspend_all_count_ = 0;
+    // Update running threads.
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
       if (thread == self || thread->debug_suspend_count_ == 0) {
         continue;
       }
-      ModifySuspendCount(thread, -thread->debug_suspend_count_, true);
+      thread->ModifySuspendCount(-thread->debug_suspend_count_, true);
     }
   }
 
   {
-    MutexLock mu(thread_suspend_count_lock_);
-    thread_suspend_count_cond_.Broadcast();
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    Thread::resume_cond_->Broadcast();
   }
 
   VLOG(threads) << "UndoDebuggerSuspensions(" << *self << ") complete";
 }
 
-void ThreadList::Register() {
-  Thread* self = Thread::Current();
-
-  VLOG(threads) << "ThreadList::Register() " << *self << "\n" << Dumpable<Thread>(*self);
-
-  ScopedThreadListLock thread_list_lock;
-  CHECK(!Contains(self));
-  list_.push_back(self);
-}
-
-void ThreadList::Unregister() {
-  Thread* self = Thread::Current();
-
-  VLOG(threads) << "ThreadList::Unregister() " << *self;
-
-  // Any time-consuming destruction, plus anything that can call back into managed code or
-  // suspend and so on, must happen at this point, and not in ~Thread.
-  self->Destroy();
-
-  {
-    // Remove this thread from the list.
-    ScopedThreadListLock thread_list_lock;
-    CHECK(Contains(self));
-    list_.remove(self);
-  }
-
-  // Delete the Thread* and release the thin lock id.
-  uint32_t thin_lock_id = self->thin_lock_id_;
-  delete self;
-  ReleaseThreadId(thin_lock_id);
-
-  // Clear the TLS data, so that the underlying native thread is recognizably detached.
-  // (It may wish to reattach later.)
-  CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, NULL), "detach self");
-
-  // Signal that a thread just detached.
-  thread_exit_cond_.Signal();
-}
-
-void ThreadList::ForEach(void (*callback)(Thread*, void*), void* context) {
-  ScopedThreadListLock thread_list_lock;
-  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
-    callback(*it, context);
-  }
-}
-
-void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
-  ScopedThreadListLock thread_list_lock;
-  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
-    (*it)->VisitRoots(visitor, arg);
-  }
-}
-
-/*
- * Tell a new thread it's safe to start.
- *
- * We must hold the thread list lock before messing with another thread.
- * In the general case we would also need to verify that the new thread was
- * still in the thread list, but in our case the thread has not started
- * executing user code and therefore has not had a chance to exit.
- *
- * We move it to kVmWait, and it then shifts itself to kRunning, which
- * comes with a suspend-pending check. We do this after
- */
-void ThreadList::SignalGo(Thread* child) {
-  Thread* self = Thread::Current();
-  CHECK(child != self);
-
-  {
-    ScopedThreadListLock thread_list_lock;
-    VLOG(threads) << *self << " waiting for child " << *child << " to be in thread list...";
-
-    // We wait for the child to tell us that it's in the thread list.
-    while (child->GetState() != kStarting) {
-      thread_start_cond_.Wait(thread_list_lock_);
-    }
-  }
-
-  // If we switch out of runnable and then back in, we know there's no pending suspend.
-  self->SetState(kVmWait);
-  self->SetState(kRunnable);
-
-  // Tell the child that it's safe: it will see any future suspend request.
-  ScopedThreadListLock thread_list_lock;
-  VLOG(threads) << *self << " telling child " << *child << " it's safe to proceed...";
-  child->SetState(kVmWait);
-  thread_start_cond_.Broadcast();
-}
-
-void ThreadList::WaitForGo() {
-  Thread* self = Thread::Current();
-
-  {
-    ScopedThreadListLock thread_list_lock;
-    DCHECK(Contains(self));
-
-    // Tell our parent that we're in the thread list.
-    VLOG(threads) << *self << " telling parent that we're now in thread list...";
-    self->SetState(kStarting);
-    thread_start_cond_.Broadcast();
-
-    // Wait until our parent tells us there's no suspend still pending
-    // from before we were on the thread list.
-    VLOG(threads) << *self << " waiting for parent's go-ahead...";
-    while (self->GetState() != kVmWait) {
-      thread_start_cond_.Wait(thread_list_lock_);
-    }
-  }
-
-  // Enter the runnable state. We know that any pending suspend will affect us now.
-  VLOG(threads) << *self << " entering runnable state...";
-  // Lock and unlock the heap lock. This ensures that if there was a GC in progress when we
-  // started, we wait until it's over. Which means that if there's now another GC pending, our
-  // suspend count is non-zero, so switching to the runnable state will suspend us.
-  // TODO: find a better solution!
-  {
-    ScopedHeapLock heap_lock;
-  }
-  self->SetState(kRunnable);
-}
-
-bool ThreadList::AllOtherThreadsAreDaemons() {
-  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
-    // TODO: there's a race here with thread exit that's being worked around by checking if the peer
-    // is null.
-    Thread* thread = *it;
-    if (thread != Thread::Current() && thread->GetPeer() != NULL && !thread->IsDaemon()) {
-      return false;
-    }
-  }
-  return true;
-}
-
 void ThreadList::WaitForOtherNonDaemonThreadsToExit() {
-  ScopedThreadListLock thread_list_lock;
-  while (!AllOtherThreadsAreDaemons()) {
-    thread_exit_cond_.Wait(thread_list_lock_);
-  }
+  GlobalSynchronization::mutator_lock_->AssertNotHeld();
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  bool all_threads_are_daemons;
+  do {
+    all_threads_are_daemons = true;
+    for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+      // TODO: there's a race here with thread exit that's being worked around by checking if the
+      // thread has a peer.
+      Thread* thread = *it;
+      if (thread != Thread::Current() && thread->HasPeer() && !thread->IsDaemon()) {
+        all_threads_are_daemons = false;
+        break;
+      }
+    }
+    if (!all_threads_are_daemons) {
+      // Wait for another thread to exit before re-checking.
+      thread_exit_cond_.Wait(*GlobalSynchronization::thread_list_lock_);
+    }
+  } while(!all_threads_are_daemons);
 }
 
 void ThreadList::SuspendAllDaemonThreads() {
-  ScopedThreadListLock thread_list_lock;
-
-  // Tell all the daemons it's time to suspend.
-  {
-    MutexLock mu(thread_suspend_count_lock_);
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  { // Tell all the daemons it's time to suspend.
+    MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
+      // This is only run after all non-daemon threads have exited, so the remainder should all be
+      // daemons.
+      CHECK(thread->IsDaemon());
       if (thread != Thread::Current()) {
         ++thread->suspend_count_;
       }
     }
   }
-
   // Give the threads a chance to suspend, complaining if they're slow.
   bool have_complained = false;
   for (int i = 0; i < 10; ++i) {
@@ -520,6 +395,7 @@ void ThreadList::SuspendAllDaemonThreads() {
     bool all_suspended = true;
     for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
       Thread* thread = *it;
+      MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
       if (thread != Thread::Current() && thread->GetState() == kRunnable) {
         if (!have_complained) {
           LOG(WARNING) << "daemon thread not yet suspended: " << *thread;
@@ -532,11 +408,72 @@ void ThreadList::SuspendAllDaemonThreads() {
       return;
     }
   }
+  LOG(ERROR) << "suspend all daemons failed";
+}
+void ThreadList::Register(Thread* self) {
+  DCHECK_EQ(self, Thread::Current());
+
+  if (VLOG_IS_ON(threads)) {
+    std::ostringstream oss;
+    self->ShortDump(oss);  // We don't hold the mutator_lock_ yet and so cannot call Dump.
+    LOG(INFO) << "ThreadList::Register() " << *self  << "\n" << oss;
+  }
+
+  // Atomically add self to the thread list and make its thread_suspend_count_ reflect ongoing
+  // SuspendAll requests.
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
+  self->suspend_count_ = suspend_all_count_;
+  self->debug_suspend_count_ = debug_suspend_all_count_;
+  CHECK(!Contains(self));
+  list_.push_back(self);
+}
+
+void ThreadList::Unregister(Thread* self) {
+  DCHECK_EQ(self, Thread::Current());
+
+  VLOG(threads) << "ThreadList::Unregister() " << *self;
+
+  // Any time-consuming destruction, plus anything that can call back into managed code or
+  // suspend and so on, must happen at this point, and not in ~Thread.
+  self->Destroy();
+
+  {
+    // Remove this thread from the list.
+    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+    CHECK(Contains(self));
+    list_.remove(self);
+  }
+
+  // Delete the Thread* and release the thin lock id.
+  uint32_t thin_lock_id = self->thin_lock_id_;
+  ReleaseThreadId(thin_lock_id);
+  delete self;
+
+  // Clear the TLS data, so that the underlying native thread is recognizably detached.
+  // (It may wish to reattach later.)
+  CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, NULL), "detach self");
+
+  // Signal that a thread just detached.
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  thread_exit_cond_.Signal();
+}
+
+void ThreadList::ForEach(void (*callback)(Thread*, void*), void* context) {
+  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+    callback(*it, context);
+  }
+}
+
+void ThreadList::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  for (It it = list_.begin(), end = list_.end(); it != end; ++it) {
+    (*it)->VisitRoots(visitor, arg);
+  }
 }
 
 uint32_t ThreadList::AllocThreadId() {
   MutexLock mu(allocated_ids_lock_);
-  //ScopedThreadListLock thread_list_lock;
   for (size_t i = 0; i < allocated_ids_.size(); ++i) {
     if (!allocated_ids_[i]) {
       allocated_ids_.set(i);

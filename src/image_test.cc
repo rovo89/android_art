@@ -32,19 +32,21 @@ class ImageTest : public CommonTest {};
 
 TEST_F(ImageTest, WriteRead) {
   ScratchFile tmp_oat;
-  std::vector<const DexFile*> dex_files;
-  dex_files.push_back(java_lang_dex_file_);
-  bool success_oat = OatWriter::Create(tmp_oat.GetFile(), NULL, dex_files, 0, "", *compiler_.get());
-  ASSERT_TRUE(success_oat);
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    std::vector<const DexFile*> dex_files;
+    dex_files.push_back(java_lang_dex_file_);
+    bool success_oat = OatWriter::Create(tmp_oat.GetFile(), NULL, dex_files, 0, "", *compiler_.get());
+    ASSERT_TRUE(success_oat);
 
-  // Force all system classes into memory
-  for (size_t i = 0; i < java_lang_dex_file_->NumClassDefs(); ++i) {
-    const DexFile::ClassDef& class_def = java_lang_dex_file_->GetClassDef(i);
-    const char* descriptor = java_lang_dex_file_->GetClassDescriptor(class_def);
-    Class* klass = class_linker_->FindSystemClass(descriptor);
-    EXPECT_TRUE(klass != NULL) << descriptor;
+    // Force all system classes into memory
+    for (size_t i = 0; i < java_lang_dex_file_->NumClassDefs(); ++i) {
+      const DexFile::ClassDef& class_def = java_lang_dex_file_->GetClassDef(i);
+      const char* descriptor = java_lang_dex_file_->GetClassDescriptor(class_def);
+      Class* klass = class_linker_->FindSystemClass(descriptor);
+      EXPECT_TRUE(klass != NULL) << descriptor;
+    }
   }
-
   ImageWriter writer(NULL);
   ScratchFile tmp_image;
   const uintptr_t requested_image_base = 0x60000000;
@@ -81,7 +83,15 @@ TEST_F(ImageTest, WriteRead) {
   image.append(tmp_image.GetFilename());
   options.push_back(std::make_pair(image.c_str(), reinterpret_cast<void*>(NULL)));
 
-  runtime_.reset(Runtime::Create(options, false));
+  if (!Runtime::Create(options, false)) {
+    LOG(FATAL) << "Failed to create runtime";
+    return;
+  }
+  runtime_.reset(Runtime::Current());
+  // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
+  // give it away now and then switch to a more managable ScopedObjectAccess.
+  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  ScopedObjectAccess soa(Thread::Current());
   ASSERT_TRUE(runtime_.get() != NULL);
   class_linker_ = runtime_->GetClassLinker();
 

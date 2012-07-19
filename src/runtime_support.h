@@ -44,37 +44,50 @@ class Method;
 class Object;
 
 // Helpers to give consistent descriptive exception messages
-void ThrowNewIllegalAccessErrorClass(Thread* self, Class* referrer, Class* accessed);
+void ThrowNewIllegalAccessErrorClass(Thread* self, Class* referrer, Class* accessed)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 void ThrowNewIllegalAccessErrorClassForMethodDispatch(Thread* self, Class* referrer,
                                                       Class* accessed,
                                                       const Method* caller,
                                                       const Method* called,
-                                                      InvokeType type);
+                                                      InvokeType type)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 void ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(Thread* self,
                                                                    const Method* referrer,
                                                                    const Method* interface_method,
-                                                                   Object* this_object);
-void ThrowNewIllegalAccessErrorField(Thread* self, Class* referrer, Field* accessed);
-void ThrowNewIllegalAccessErrorFinalField(Thread* self, const Method* referrer, Field* accessed);
+                                                                   Object* this_object)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+void ThrowNewIllegalAccessErrorField(Thread* self, Class* referrer, Field* accessed)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+void ThrowNewIllegalAccessErrorFinalField(Thread* self, const Method* referrer, Field* accessed)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-void ThrowNewIllegalAccessErrorMethod(Thread* self, Class* referrer, Method* accessed);
-void ThrowNullPointerExceptionForFieldAccess(Thread* self, Field* field, bool is_read);
+void ThrowNewIllegalAccessErrorMethod(Thread* self, Class* referrer, Method* accessed)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+void ThrowNullPointerExceptionForFieldAccess(Thread* self, Field* field, bool is_read)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 void ThrowNullPointerExceptionForMethodAccess(Thread* self, Method* caller, uint32_t method_idx,
-                                              InvokeType type);
-void ThrowNullPointerExceptionFromDexPC(Thread* self, Method* caller, uint32_t dex_pc);
-void ThrowVerificationError(Thread* self, const Method* method, int32_t kind, int32_t ref);
+                                              InvokeType type)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+void ThrowNullPointerExceptionFromDexPC(Thread* self, Method* caller, uint32_t dex_pc)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+void ThrowVerificationError(Thread* self, const Method* method, int32_t kind, int32_t ref)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
 std::string FieldNameFromIndex(const Method* method, uint32_t ref,
-                               verifier::VerifyErrorRefType ref_type, bool access);
+                               verifier::VerifyErrorRefType ref_type, bool access)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 std::string MethodNameFromIndex(const Method* method, uint32_t ref,
-                                verifier::VerifyErrorRefType ref_type, bool access);
+                                verifier::VerifyErrorRefType ref_type, bool access)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
 static inline Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thread* self,
-                                          bool access_check) {
+                                          bool access_check)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
   Runtime* runtime = Runtime::Current();
   if (UNLIKELY(klass == NULL)) {
@@ -108,7 +121,8 @@ static inline Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thr
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
 static inline Array* AllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
-                                        Thread* self, bool access_check) {
+                                        Thread* self, bool access_check)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   if (UNLIKELY(component_count < 0)) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
                                           component_count);
@@ -134,15 +148,18 @@ static inline Array* AllocArrayFromCode(uint32_t type_idx, Method* method, int32
 }
 
 extern Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
-                                         Thread* self, bool access_check);
+                                         Thread* self, bool access_check)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
 extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* self,
                                 bool is_static, bool is_primitive, bool is_set,
-                                size_t expected_size);
+                                size_t expected_size)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
 // Fast path field resolution that can't throw exceptions
 static inline Field* FindFieldFast(uint32_t field_idx, const Method* referrer, bool is_primitive,
-                                   size_t expected_size, bool is_set) {
+                                   size_t expected_size, bool is_set)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Field* resolved_field = referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
   if (UNLIKELY(resolved_field == NULL)) {
     return NULL;
@@ -170,7 +187,8 @@ static inline Field* FindFieldFast(uint32_t field_idx, const Method* referrer, b
 
 // Fast path method resolution that can't throw exceptions
 static inline Method* FindMethodFast(uint32_t method_idx, Object* this_object, const Method* referrer,
-                              bool access_check, InvokeType type) {
+                                     bool access_check, InvokeType type)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   bool is_direct = type == kStatic || type == kDirect;
   if (UNLIKELY(this_object == NULL && !is_direct)) {
     return NULL;
@@ -204,12 +222,15 @@ static inline Method* FindMethodFast(uint32_t method_idx, Object* this_object, c
 }
 
 extern Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Method* referrer,
-                                  Thread* self, bool access_check, InvokeType type);
+                                  Thread* self, bool access_check, InvokeType type)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
 extern Class* ResolveVerifyAndClinit(uint32_t type_idx, const Method* referrer, Thread* self,
-                                     bool can_run_clinit, bool verify_access);
+                                     bool can_run_clinit, bool verify_access)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-static inline String* ResolveStringFromCode(const Method* referrer, uint32_t string_idx) {
+static inline String* ResolveStringFromCode(const Method* referrer, uint32_t string_idx)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   return class_linker->ResolveString(string_idx, referrer);
 }

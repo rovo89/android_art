@@ -147,7 +147,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/card_table.cc \
 	src/check_jni.cc \
 	src/class_linker.cc \
-	src/class_loader.cc \
 	src/compiled_method.cc \
 	src/compiler.cc \
 	src/debugger.cc \
@@ -175,6 +174,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/jdwp/jdwp_main.cc \
 	src/jdwp/jdwp_socket.cc \
 	src/jni_internal.cc \
+	src/jobject_comparator.cc \
 	src/logging.cc \
 	src/mark_stack.cc \
 	src/mark_sweep.cc \
@@ -223,8 +223,6 @@ LIBART_COMMON_SRC_FILES := \
 	src/reflection.cc \
 	src/runtime.cc \
 	src/runtime_support.cc \
-	src/scoped_thread_list_lock.cc \
-	src/scoped_thread_list_lock_releaser.cc \
 	src/signal_catcher.cc \
 	src/space.cc \
 	src/space_bitmap.cc \

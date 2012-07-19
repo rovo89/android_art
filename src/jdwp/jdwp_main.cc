@@ -22,6 +22,7 @@
 #include "debugger.h"
 #include "jdwp/jdwp_priv.h"
 #include "logging.h"
+#include "scoped_thread_state_change.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -88,6 +89,8 @@ JdwpState::JdwpState(const JdwpOptions* options)
     : options_(options),
       thread_start_lock_("JDWP thread start lock"),
       thread_start_cond_("JDWP thread start condition variable"),
+      pthread_(0),
+      thread_(NULL),
       debug_thread_started_(false),
       debug_thread_id_(0),
       run(false),
@@ -115,6 +118,7 @@ JdwpState::JdwpState(const JdwpOptions* options)
  * the thread is accepting network connections.
  */
 JdwpState* JdwpState::Create(const JdwpOptions* options) {
+  GlobalSynchronization::mutator_lock_->AssertNotHeld();
   UniquePtr<JdwpState> state(new JdwpState(options));
   switch (options->transport) {
   case kJdwpTransportSocket:
@@ -139,53 +143,62 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
    * Grab a mutex or two before starting the thread.  This ensures they
    * won't signal the cond var before we're waiting.
    */
-  state->thread_start_lock_.Lock();
-  const bool should_suspend = options->suspend;
-  if (should_suspend) {
-    state->attach_lock_.Lock();
-  }
+  {
+    MutexLock thread_start_locker(state->thread_start_lock_);
+    const bool should_suspend = options->suspend;
+    if (!should_suspend) {
+      /*
+       * We have bound to a port, or are trying to connect outbound to a
+       * debugger.  Create the JDWP thread and let it continue the mission.
+       */
+      CHECK_PTHREAD_CALL(pthread_create, (&state->pthread_, NULL, StartJdwpThread, state.get()), "JDWP thread");
 
-  /*
-   * We have bound to a port, or are trying to connect outbound to a
-   * debugger.  Create the JDWP thread and let it continue the mission.
-   */
-  CHECK_PTHREAD_CALL(pthread_create, (&state->pthread_, NULL, StartJdwpThread, state.get()), "JDWP thread");
+      /*
+       * Wait until the thread finishes basic initialization.
+       * TODO: cond vars should be waited upon in a loop
+       */
+      state->thread_start_cond_.Wait(state->thread_start_lock_);
+    } else {
+      {
+        MutexLock attach_locker(state->attach_lock_);
+        /*
+         * We have bound to a port, or are trying to connect outbound to a
+         * debugger.  Create the JDWP thread and let it continue the mission.
+         */
+        CHECK_PTHREAD_CALL(pthread_create, (&state->pthread_, NULL, StartJdwpThread, state.get()), "JDWP thread");
 
-  /*
-   * Wait until the thread finishes basic initialization.
-   * TODO: cond vars should be waited upon in a loop
-   */
-  state->thread_start_cond_.Wait(state->thread_start_lock_);
-  state->thread_start_lock_.Unlock();
+        /*
+         * Wait until the thread finishes basic initialization.
+         * TODO: cond vars should be waited upon in a loop
+         */
+        state->thread_start_cond_.Wait(state->thread_start_lock_);
 
-  /*
-   * For suspend=y, wait for the debugger to connect to us or for us to
-   * connect to the debugger.
-   *
-   * The JDWP thread will signal us when it connects successfully or
-   * times out (for timeout=xxx), so we have to check to see what happened
-   * when we wake up.
-   */
-  if (should_suspend) {
-    {
-      ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
+        /*
+         * For suspend=y, wait for the debugger to connect to us or for us to
+         * connect to the debugger.
+         *
+         * The JDWP thread will signal us when it connects successfully or
+         * times out (for timeout=xxx), so we have to check to see what happened
+         * when we wake up.
+         */
+        {
+          ScopedThreadStateChange tsc(Thread::Current(), kWaitingForDebuggerToAttach);
+          state->attach_cond_.Wait(state->attach_lock_);
+        }
+      }
+      if (!state->IsActive()) {
+        LOG(ERROR) << "JDWP connection failed";
+        return NULL;
+      }
 
-      state->attach_cond_.Wait(state->attach_lock_);
-      state->attach_lock_.Unlock();
+      LOG(INFO) << "JDWP connected";
+
+      /*
+       * Ordinarily we would pause briefly to allow the debugger to set
+       * breakpoints and so on, but for "suspend=y" the VM init code will
+       * pause the VM when it sends the VM_START message.
+       */
     }
-
-    if (!state->IsActive()) {
-      LOG(ERROR) << "JDWP connection failed";
-      return NULL;
-    }
-
-    LOG(INFO) << "JDWP connected";
-
-    /*
-     * Ordinarily we would pause briefly to allow the debugger to set
-     * breakpoints and so on, but for "suspend=y" the VM init code will
-     * pause the VM when it sends the VM_START message.
-     */
   }
 
   return state.release();
@@ -280,14 +293,18 @@ void JdwpState::Run() {
    */
   thread_ = Thread::Current();
   run = true;
-  android_atomic_release_store(true, &debug_thread_started_);
 
   thread_start_lock_.Lock();
+  debug_thread_started_ = true;
   thread_start_cond_.Broadcast();
   thread_start_lock_.Unlock();
 
-  /* set the thread state to VMWAIT so GCs don't wait for us */
-  Dbg::ThreadWaiting();
+  /* set the thread state to kWaitingInMainDebuggerLoop so GCs don't wait for us */
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    CHECK_EQ(thread_->GetState(), kNative);
+    thread_->SetState(kWaitingInMainDebuggerLoop);
+  }
 
   /*
    * Loop forever if we're in server mode, processing connections.  In
@@ -327,10 +344,10 @@ void JdwpState::Run() {
     /* process requests until the debugger drops */
     bool first = true;
     while (!Dbg::IsDisposed()) {
-      // sanity check -- shouldn't happen?
-      if (Thread::Current()->GetState() != kVmWait) {
-        LOG(ERROR) << "JDWP thread no longer in VMWAIT (now " << Thread::Current()->GetState() << "); resetting";
-        Dbg::ThreadWaiting();
+      {
+        // sanity check -- shouldn't happen?
+        MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+        CHECK_EQ(thread_->GetState(), kWaitingInMainDebuggerLoop);
       }
 
       if (!(*transport_->processIncoming)(this)) {
@@ -343,7 +360,10 @@ void JdwpState::Run() {
         first = false;
 
         /* set thread ID; requires object registry to be active */
-        debug_thread_id_ = Dbg::GetThreadSelfId();
+        {
+          ScopedObjectAccess soa(thread_);
+          debug_thread_id_ = Dbg::GetThreadSelfId();
+        }
 
         /* wake anybody who's waiting for us */
         MutexLock mu(attach_lock_);
@@ -357,14 +377,16 @@ void JdwpState::Run() {
       ddm_is_active_ = false;
 
       /* broadcast the disconnect; must be in RUNNING state */
-      Dbg::ThreadRunning();
+      thread_->TransitionFromSuspendedToRunnable();
       Dbg::DdmDisconnected();
-      Dbg::ThreadWaiting();
+      thread_->TransitionFromRunnableToSuspended(kWaitingInMainDebuggerLoop);
     }
 
     /* release session state, e.g. remove breakpoint instructions */
-    ResetState();
-
+    {
+      ScopedObjectAccess soa(thread_);
+      ResetState();
+    }
     /* tell the interpreter that the debugger is no longer around */
     Dbg::Disconnected();
 
@@ -377,8 +399,12 @@ void JdwpState::Run() {
     }
   }
 
-  /* back to running, for thread shutdown */
-  Dbg::ThreadRunning();
+  /* back to native, for thread shutdown */
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    CHECK_EQ(thread_->GetState(), kWaitingInMainDebuggerLoop);
+    thread_->SetState(kNative);
+  }
 
   VLOG(jdwp) << "JDWP: thread detaching and exiting...";
   runtime->DetachCurrentThread();

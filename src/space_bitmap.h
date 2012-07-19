@@ -111,7 +111,8 @@ class SpaceBitmap {
   }
 
   template <typename Visitor>
-  void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end, const Visitor& visitor) const {
+  void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end, const Visitor& visitor) const
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
     DCHECK_LT(visit_begin, visit_end);
 
     const size_t bit_index_start = (visit_begin - heap_begin_) / kAlignment;
@@ -177,7 +178,8 @@ class SpaceBitmap {
 
   void Walk(Callback* callback, void* arg);
 
-  void InOrderWalk(Callback* callback, void* arg);
+  void InOrderWalk(Callback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   void ScanWalk(uintptr_t base, uintptr_t max, ScanCallback* thunk, void* arg);
 

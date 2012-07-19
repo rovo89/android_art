@@ -225,7 +225,8 @@ static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callb
 // Walk instance fields of the given Class. Separate function to allow recursion on the super
 // class.
 static void WalkInstanceFields(SpaceBitmap* visited, SpaceBitmap::Callback* callback, Object* obj,
-                               Class* klass, void* arg) {
+                               Class* klass, void* arg)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   // Visit fields of parent classes first.
   Class* super = klass->GetSuperClass();
   if (super != NULL) {
@@ -249,7 +250,8 @@ static void WalkInstanceFields(SpaceBitmap* visited, SpaceBitmap::Callback* call
 
 // For an unvisited object, visit it then all its children found via fields.
 static void WalkFieldsInOrder(SpaceBitmap* visited, SpaceBitmap::Callback* callback, Object* obj,
-                              void* arg) {
+                              void* arg)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   if (visited->Test(obj)) {
     return;
   }

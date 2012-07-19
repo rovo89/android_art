@@ -32,6 +32,7 @@
 #include "os.h"
 #include "runtime.h"
 #include "safe_map.h"
+#include "scoped_thread_state_change.h"
 #include "space.h"
 #include "stringpiece.h"
 #include "verifier/gc_map.h"
@@ -155,7 +156,7 @@ class OatDumper {
     return oat_file_.GetOatHeader().GetInstructionSet();
   }
 
-  const void* GetOatCode(Method* m) {
+  const void* GetOatCode(Method* m) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     MethodHelper mh(m);
     for (size_t i = 0; i < oat_dex_files_.size(); i++) {
       const OatFile::OatDexFile* oat_dex_file = oat_dex_files_[i];
@@ -486,7 +487,7 @@ class ImageDumper {
       : os_(os), image_filename_(image_filename), host_prefix_(host_prefix),
         image_space_(image_space), image_header_(image_header) {}
 
-  void Dump() {
+  void Dump() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     os_ << "MAGIC:\n";
     os_ << image_header_.GetMagic() << "\n\n";
 
@@ -578,7 +579,8 @@ class ImageDumper {
   }
 
  private:
-  static void PrettyObjectValue(std::string& summary, Class* type, Object* value) {
+  static void PrettyObjectValue(std::string& summary, Class* type, Object* value)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     CHECK(type != NULL);
     if (value == NULL) {
       StringAppendF(&summary, "null   %s\n", PrettyDescriptor(type).c_str());
@@ -599,7 +601,8 @@ class ImageDumper {
     }
   }
 
-  static void PrintField(std::string& summary, Field* field, Object* obj) {
+  static void PrintField(std::string& summary, Field* field, Object* obj)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     FieldHelper fh(field);
     Class* type = fh.GetType();
     StringAppendF(&summary, "\t%s: ", fh.GetName());
@@ -617,7 +620,8 @@ class ImageDumper {
     }
   }
 
-  static void DumpFields(std::string& summary, Object* obj, Class* klass) {
+  static void DumpFields(std::string& summary, Object* obj, Class* klass)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Class* super = klass->GetSuperClass();
     if (super != NULL) {
       DumpFields(summary, obj, super);
@@ -635,7 +639,8 @@ class ImageDumper {
     return image_space_.Contains(object);
   }
 
-  const void* GetOatCodeBegin(Method* m) {
+  const void* GetOatCodeBegin(Method* m)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     const void* code = m->GetCode();
     if (code == runtime->GetResolutionStubArray(Runtime::kStaticMethod)->GetData()) {
@@ -647,7 +652,8 @@ class ImageDumper {
     return code;
   }
 
-  uint32_t GetOatCodeSize(Method* m) {
+  uint32_t GetOatCodeSize(Method* m)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     const uint32_t* oat_code_begin = reinterpret_cast<const uint32_t*>(GetOatCodeBegin(m));
     if (oat_code_begin == NULL) {
       return 0;
@@ -655,7 +661,8 @@ class ImageDumper {
     return oat_code_begin[-1];
   }
 
-  const void* GetOatCodeEnd(Method* m) {
+  const void* GetOatCodeEnd(Method* m)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     const uint8_t* oat_code_begin = reinterpret_cast<const uint8_t*>(GetOatCodeBegin(m));
     if (oat_code_begin == NULL) {
       return NULL;
@@ -663,7 +670,8 @@ class ImageDumper {
     return oat_code_begin + GetOatCodeSize(m);
   }
 
-  static void Callback(Object* obj, void* arg) {
+  static void Callback(Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     DCHECK(obj != NULL);
     DCHECK(arg != NULL);
     ImageDumper* state = reinterpret_cast<ImageDumper*>(arg);
@@ -921,7 +929,8 @@ class ImageDumper {
       method_outlier.push_back(method);
     }
 
-    void DumpOutliers(std::ostream& os) {
+    void DumpOutliers(std::ostream& os)
+        SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
       size_t sum_of_sizes = 0;
       size_t sum_of_sizes_squared = 0;
       size_t sum_of_expansion = 0;
@@ -1021,7 +1030,7 @@ class ImageDumper {
       os << "\n" << std::flush;
     }
 
-    void Dump(std::ostream& os) {
+    void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
       os << "\tart_file_bytes = " << PrettySize(file_bytes) << "\n\n"
          << "\tart_file_bytes = header_bytes + object_bytes + alignment_bytes\n"
          << StringPrintf("\theader_bytes    =  %8zd (%2.0f%% of art file bytes)\n"
@@ -1197,11 +1206,15 @@ static int oatdump(int argc, char** argv) {
     options.push_back(std::make_pair("host-prefix", host_prefix->c_str()));
   }
 
-  UniquePtr<Runtime> runtime(Runtime::Create(options, false));
-  if (runtime.get() == NULL) {
+  if (!Runtime::Create(options, false)) {
     fprintf(stderr, "Failed to create runtime\n");
     return EXIT_FAILURE;
   }
+  UniquePtr<Runtime> runtime(Runtime::Current());
+  // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
+  // give it away now and then switch to a more managable ScopedObjectAccess.
+  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  ScopedObjectAccess soa(Thread::Current());
 
   Heap* heap = Runtime::Current()->GetHeap();
   ImageSpace* image_space = heap->GetImageSpace();

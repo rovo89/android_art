@@ -22,7 +22,7 @@
 #include "class_linker.h"
 #include "logging.h"
 #include "object_utils.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 #include "space.h"
 #include "thread.h"
 #include "runtime.h"
@@ -35,6 +35,7 @@ namespace art {
 
 static void JniAbort(const char* jni_function_name, const char* msg) {
   Thread* self = Thread::Current();
+  ScopedObjectAccess soa(self);
   Method* current_method = self->GetCurrentMethod();
 
   std::ostringstream os;
@@ -54,7 +55,11 @@ static void JniAbort(const char* jni_function_name, const char* msg) {
   if (vm->check_jni_abort_hook != NULL) {
     vm->check_jni_abort_hook(vm->check_jni_abort_hook_data, os.str());
   } else {
-    self->SetState(kNative); // Ensure that we get a native stack trace for this thread.
+    {
+      MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+      CHECK_NE(self->GetState(), kRunnable);
+      self->SetState(kNative); // Ensure that we get a native stack trace for this thread.
+    }
     LOG(FATAL) << os.str();
   }
 }
@@ -120,7 +125,8 @@ static const char* gBuiltInPrefixes[] = {
   NULL
 };
 
-static bool ShouldTrace(JavaVMExt* vm, const Method* method) {
+static bool ShouldTrace(JavaVMExt* vm, const Method* method)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   // If both "-Xcheck:jni" and "-Xjnitrace:" are enabled, we print trace messages
   // when a native method that matches the -Xjnitrace argument calls a JNI function
   // such as NewByteArray.
@@ -146,14 +152,25 @@ static bool ShouldTrace(JavaVMExt* vm, const Method* method) {
 class ScopedCheck {
  public:
   // For JNIEnv* functions.
-  explicit ScopedCheck(JNIEnv* env, int flags, const char* functionName) : ts_(env) {
+  explicit ScopedCheck(JNIEnv* env, int flags, const char* functionName)
+      SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_)
+      : soa_(env) {
     Init(flags, functionName, true);
     CheckThread(flags);
   }
 
   // For JavaVM* functions.
-  explicit ScopedCheck(JavaVM* vm, bool has_method, const char* functionName) : ts_(vm) {
+  // TODO: it's not correct that this is a lock function, but making it so aids annotalysis.
+  explicit ScopedCheck(JavaVM* vm, bool has_method, const char* functionName)
+      SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_)
+      : soa_(vm) {
     Init(kFlag_Invocation, functionName, has_method);
+  }
+
+  ~ScopedCheck() UNLOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {}
+
+  const ScopedObjectAccess& soa() {
+    return soa_;
   }
 
   bool ForceCopy() {
@@ -179,7 +196,8 @@ class ScopedCheck {
    *
    * Works for both static and instance fields.
    */
-  void CheckFieldType(jobject java_object, jfieldID fid, char prim, bool isStatic) {
+  void CheckFieldType(jobject java_object, jfieldID fid, char prim, bool isStatic)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Field* f = CheckFieldID(fid);
     if (f == NULL) {
       return;
@@ -187,7 +205,7 @@ class ScopedCheck {
     Class* field_type = FieldHelper(f).GetType();
     if (!field_type->IsPrimitive()) {
       if (java_object != NULL) {
-        Object* obj = ts_.Decode<Object*>(java_object);
+        Object* obj = soa_.Decode<Object*>(java_object);
         // If java_object is a weak global ref whose referent has been cleared,
         // obj will be NULL.  Otherwise, obj should always be non-NULL
         // and valid.
@@ -224,8 +242,9 @@ class ScopedCheck {
    *
    * Assumes "jobj" has already been validated.
    */
-  void CheckInstanceFieldID(jobject java_object, jfieldID fid) {
-    Object* o = ts_.Decode<Object*>(java_object);
+  void CheckInstanceFieldID(jobject java_object, jfieldID fid)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    Object* o = soa_.Decode<Object*>(java_object);
     if (o == NULL || !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
       JniAbortF(function_name_, "field operation on invalid %s: %p",
                 ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(), java_object);
@@ -257,7 +276,8 @@ class ScopedCheck {
    * Verify that the method's return type matches the type of call.
    * 'expectedType' will be "L" for all objects, including arrays.
    */
-  void CheckSig(jmethodID mid, const char* expectedType, bool isStatic) {
+  void CheckSig(jmethodID mid, const char* expectedType, bool isStatic)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
@@ -282,8 +302,9 @@ class ScopedCheck {
    *
    * Assumes "java_class" has already been validated.
    */
-  void CheckStaticFieldID(jclass java_class, jfieldID fid) {
-    Class* c = ts_.Decode<Class*>(java_class);
+  void CheckStaticFieldID(jclass java_class, jfieldID fid)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    Class* c = soa_.Decode<Class*>(java_class);
     const Field* f = CheckFieldID(fid);
     if (f == NULL) {
       return;
@@ -303,12 +324,13 @@ class ScopedCheck {
    *
    * Instances of "java_class" must be instances of the method's declaring class.
    */
-  void CheckStaticMethod(jclass java_class, jmethodID mid) {
+  void CheckStaticMethod(jclass java_class, jmethodID mid)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     const Method* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
-    Class* c = ts_.Decode<Class*>(java_class);
+    Class* c = soa_.Decode<Class*>(java_class);
     if (!c->IsAssignableFrom(m->GetDeclaringClass())) {
       JniAbortF(function_name_, "can't call static %s on class %s",
                 PrettyMethod(m).c_str(), PrettyClass(c).c_str());
@@ -322,12 +344,13 @@ class ScopedCheck {
    * (Note the mid might point to a declaration in an interface; this
    * will be handled automatically by the instanceof check.)
    */
-  void CheckVirtualMethod(jobject java_object, jmethodID mid) {
+  void CheckVirtualMethod(jobject java_object, jmethodID mid)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     const Method* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
     }
-    Object* o = ts_.Decode<Object*>(java_object);
+    Object* o = soa_.Decode<Object*>(java_object);
     if (!o->InstanceOf(m->GetDeclaringClass())) {
       JniAbortF(function_name_, "can't call %s on instance of %s",
                 PrettyMethod(m).c_str(), PrettyTypeOf(o).c_str());
@@ -370,11 +393,12 @@ class ScopedCheck {
    *
    * Use the kFlag_NullableUtf flag where 'u' field(s) are nullable.
    */
-  void Check(bool entry, const char* fmt0, ...) {
+  void Check(bool entry, const char* fmt0, ...)
+      SHARED_LOCKS_REQUIRED (GlobalSynchronization::mutator_lock_) {
     va_list ap;
 
     const Method* traceMethod = NULL;
-    if ((!ts_.Vm()->trace.empty() || VLOG_IS_ON(third_party_jni)) && has_method_) {
+    if ((!soa_.Vm()->trace.empty() || VLOG_IS_ON(third_party_jni)) && has_method_) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
       Thread* self = Thread::Current();
@@ -383,7 +407,7 @@ class ScopedCheck {
       }
     }
 
-    if (((flags_ & kFlag_ForceTrace) != 0) || (traceMethod != NULL && ShouldTrace(ts_.Vm(), traceMethod))) {
+    if (((flags_ & kFlag_ForceTrace) != 0) || (traceMethod != NULL && ShouldTrace(soa_.Vm(), traceMethod))) {
       va_start(ap, fmt0);
       std::string msg;
       for (const char* fmt = fmt0; *fmt;) {
@@ -571,7 +595,8 @@ class ScopedCheck {
    * Because we're looking at an object on the GC heap, we have to switch
    * to "running" mode before doing the checks.
    */
-  bool CheckInstance(InstanceKind kind, jobject java_object) {
+  bool CheckInstance(InstanceKind kind, jobject java_object)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     const char* what = NULL;
     switch (kind) {
     case kClass:
@@ -598,7 +623,7 @@ class ScopedCheck {
       return false;
     }
 
-    Object* obj = ts_.Decode<Object*>(java_object);
+    Object* obj = soa_.Decode<Object*>(java_object);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(obj)) {
       JniAbortF(function_name_, "%s is an invalid %s: %p (%p)",
                 what, ToStr<IndirectRefKind>(GetIndirectRefKind(java_object)).c_str(), java_object, obj);
@@ -645,13 +670,13 @@ class ScopedCheck {
    *
    * Since we're dealing with objects, switch to "running" mode.
    */
-  void CheckArray(jarray java_array) {
+  void CheckArray(jarray java_array) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     if (java_array == NULL) {
       JniAbortF(function_name_, "jarray was NULL");
       return;
     }
 
-    Array* a = ts_.Decode<Array*>(java_array);
+    Array* a = soa_.Decode<Array*>(java_array);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(a)) {
       JniAbortF(function_name_, "jarray is an invalid %s: %p (%p)",
                 ToStr<IndirectRefKind>(GetIndirectRefKind(java_array)).c_str(), java_array, a);
@@ -666,12 +691,12 @@ class ScopedCheck {
     }
   }
 
-  Field* CheckFieldID(jfieldID fid) {
+  Field* CheckFieldID(jfieldID fid) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     if (fid == NULL) {
       JniAbortF(function_name_, "jfieldID was NULL");
       return NULL;
     }
-    Field* f = ts_.DecodeField(fid);
+    Field* f = soa_.DecodeField(fid);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(f) || !f->IsField()) {
       JniAbortF(function_name_, "invalid jfieldID: %p", fid);
       return NULL;
@@ -679,12 +704,12 @@ class ScopedCheck {
     return f;
   }
 
-  Method* CheckMethodID(jmethodID mid) {
+  Method* CheckMethodID(jmethodID mid) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     if (mid == NULL) {
       JniAbortF(function_name_, "jmethodID was NULL");
       return NULL;
     }
-    Method* m = ts_.DecodeMethod(mid);
+    Method* m = soa_.DecodeMethod(mid);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(m) || !m->IsMethod()) {
       JniAbortF(function_name_, "invalid jmethodID: %p", mid);
       return NULL;
@@ -698,12 +723,13 @@ class ScopedCheck {
    *
    * Switches to "running" mode before performing checks.
    */
-  void CheckObject(jobject java_object) {
+  void CheckObject(jobject java_object)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     if (java_object == NULL) {
       return;
     }
 
-    Object* o = ts_.Decode<Object*>(java_object);
+    Object* o = soa_.Decode<Object*>(java_object);
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
       // TODO: when we remove work_around_app_jni_bugs, this should be impossible.
       JniAbortF(function_name_, "native code passing in reference to invalid %s: %p",
@@ -721,7 +747,7 @@ class ScopedCheck {
     }
   }
 
-  void CheckThread(int flags) {
+  void CheckThread(int flags) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Thread* self = Thread::Current();
     if (self == NULL) {
       JniAbortF(function_name_, "a thread (tid %d) is making JNI calls without being attached", GetTid());
@@ -733,13 +759,13 @@ class ScopedCheck {
 
     // Verify that the current thread is (a) attached and (b) associated with
     // this particular instance of JNIEnv.
-    if (ts_.Env() != threadEnv) {
-      if (ts_.Vm()->work_around_app_jni_bugs) {
+    if (soa_.Env() != threadEnv) {
+      if (soa_.Vm()->work_around_app_jni_bugs) {
         // If we're keeping broken code limping along, we need to suppress the abort...
-        LOG(ERROR) << "APP BUG DETECTED: thread " << *self << " using JNIEnv* from thread " << *ts_.Self();
+        LOG(ERROR) << "APP BUG DETECTED: thread " << *self << " using JNIEnv* from thread " << *soa_.Self();
       } else {
         JniAbortF(function_name_, "thread %s using JNIEnv* from thread %s",
-                  ToStr<Thread>(*self).c_str(), ToStr<Thread>(*ts_.Self()).c_str());
+                  ToStr<Thread>(*self).c_str(), ToStr<Thread>(*soa_.Self()).c_str());
         return;
       }
     }
@@ -778,7 +804,7 @@ class ScopedCheck {
       // TODO: do we care any more? art always dumps pending exceptions on aborting threads.
       if (type != "java.lang.OutOfMemoryError") {
         JniAbortF(function_name_, "JNI %s called with pending exception: %s",
-                  function_name_, type.c_str(), jniGetStackTrace(ts_.Env()).c_str());
+                  function_name_, type.c_str(), jniGetStackTrace(soa_.Env()).c_str());
       } else {
         JniAbortF(function_name_, "JNI %s called with %s pending", function_name_, type.c_str());
       }
@@ -855,7 +881,7 @@ class ScopedCheck {
     return 0;
   }
 
-  const ScopedJniThreadState ts_;
+  const ScopedObjectAccess soa_;
   const char* function_name_;
   int flags_;
   bool has_method_;
@@ -1051,9 +1077,9 @@ struct GuardedCopy {
  * data are allowed.  Returns a pointer to the copied data.
  */
 static void* CreateGuardedPACopy(JNIEnv* env, const jarray java_array, jboolean* isCopy) {
-  ScopedJniThreadState ts(env);
+  ScopedObjectAccess soa(env);
 
-  Array* a = ts.Decode<Array*>(java_array);
+  Array* a = soa.Decode<Array*>(java_array);
   size_t component_size = a->GetClass()->GetComponentSize();
   size_t byte_count = a->GetLength() * component_size;
   void* result = GuardedCopy::Create(a->GetRawData(component_size), byte_count, true);
@@ -1072,8 +1098,8 @@ static void ReleaseGuardedPACopy(JNIEnv* env, jarray java_array, void* dataBuf, 
     return;
   }
 
-  ScopedJniThreadState ts(env);
-  Array* a = ts.Decode<Array*>(java_array);
+  ScopedObjectAccess soa(env);
+  Array* a = soa.Decode<Array*>(java_array);
 
   GuardedCopy::Check(__FUNCTION__, dataBuf, true);
 
@@ -1461,8 +1487,7 @@ CALL(void, Void, , , VOID_RETURN, "V");
     CHECK_JNI_ENTRY(kFlag_CritOkay, "Esp", env, java_string, isCopy);
     const jchar* result = baseEnv(env)->GetStringChars(env, java_string, isCopy);
     if (sc.ForceCopy() && result != NULL) {
-      ScopedJniThreadState ts(env);
-      String* s = ts.Decode<String*>(java_string);
+      String* s = sc.soa().Decode<String*>(java_string);
       int byteCount = s->GetLength() * 2;
       result = (const jchar*) GuardedCopy::Create(result, byteCount, false);
       if (isCopy != NULL) {
@@ -1689,8 +1714,7 @@ PRIMITIVE_ARRAY_FUNCTIONS(jdouble, Double, 'D');
     CHECK_JNI_ENTRY(kFlag_CritGet, "Esp", env, java_string, isCopy);
     const jchar* result = baseEnv(env)->GetStringCritical(env, java_string, isCopy);
     if (sc.ForceCopy() && result != NULL) {
-      ScopedJniThreadState ts(env);
-      String* s = ts.Decode<String*>(java_string);
+      String* s = sc.soa().Decode<String*>(java_string);
       int byteCount = s->GetLength() * 2;
       result = (const jchar*) GuardedCopy::Create(result, byteCount, false);
       if (isCopy != NULL) {

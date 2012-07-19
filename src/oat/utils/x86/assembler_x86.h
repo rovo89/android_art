@@ -598,7 +598,7 @@ class X86Assembler : public Assembler {
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.
-  virtual void ExceptionPoll(ManagedRegister scratch);
+  virtual void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust);
 
  private:
   inline void EmitUint8(uint8_t value);
@@ -650,8 +650,10 @@ inline void X86Assembler::EmitOperandSizeOverride() {
 // Slowpath entered when Thread::Current()->_exception is non-null
 class X86ExceptionSlowPath : public SlowPath {
  public:
-  X86ExceptionSlowPath() {}
+  X86ExceptionSlowPath(size_t stack_adjust) : stack_adjust_(stack_adjust) {}
   virtual void Emit(Assembler *sp_asm);
+ private:
+  const size_t stack_adjust_;
 };
 
 // Slowpath entered when Thread::Current()->_suspend_count is non-zero

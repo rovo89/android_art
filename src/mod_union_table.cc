@@ -56,7 +56,9 @@ class ModUnionVisitor {
       bitmap_(bitmap) {
   }
 
-  void operator ()(Object* obj) const {
+  void operator ()(Object* obj) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     DCHECK(obj != NULL);
     // We don't have an early exit since we use the visitor pattern, an early
     // exit should significantly speed this up.
@@ -136,10 +138,11 @@ void ModUnionTableBitmap::Update() {
 class ModUnionScanImageRootVisitor {
  public:
   ModUnionScanImageRootVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {
-
   }
 
-  void operator ()(const Object* root) const {
+  void operator ()(const Object* root) const
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     DCHECK(root != NULL);
     mark_sweep_->ScanObject(root);
   }
@@ -208,7 +211,9 @@ class ModUnionReferenceVisitor {
       references_(references) {
   }
 
-  void operator ()(Object* obj) const {
+  void operator ()(Object* obj) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     DCHECK(obj != NULL);
     // We don't have an early exit since we use the visitor pattern, an early
     // exit should significantly speed this up.

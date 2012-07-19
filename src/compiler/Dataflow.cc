@@ -2274,7 +2274,7 @@ bool invokeUsesMethodStar(CompilationUnit* cUnit, MIR* mir)
       return false;
   }
   OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
-                           *cUnit->dex_file, *cUnit->dex_cache,
+                           *cUnit->dex_file,
                            cUnit->code_item, cUnit->method_idx,
                            cUnit->access_flags);
   // TODO: add a flag so we don't counts the stats for this twice

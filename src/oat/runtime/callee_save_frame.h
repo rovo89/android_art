@@ -23,9 +23,11 @@ namespace art {
 
 class Method;
 
-// Place a special frame at the TOS that will save the callee saves for the given type
-static void  FinishCalleeSaveFrameSetup(Thread* self, Method** sp, Runtime::CalleeSaveType type) {
-  // Be aware the store below may well stomp on an incoming argument
+// Place a special frame at the TOS that will save the callee saves for the given type.
+static void  FinishCalleeSaveFrameSetup(Thread* self, Method** sp, Runtime::CalleeSaveType type)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  // Be aware the store below may well stomp on an incoming argument.
+  GlobalSynchronization::mutator_lock_->AssertSharedHeld();
   *sp = Runtime::Current()->GetCalleeSaveMethod(type);
   self->SetTopOfStack(sp, 0);
   self->VerifyStack();

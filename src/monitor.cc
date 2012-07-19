@@ -31,8 +31,7 @@
 #include "mutex.h"
 #include "object.h"
 #include "object_utils.h"
-#include "scoped_jni_thread_state.h"
-#include "scoped_thread_list_lock.h"
+#include "scoped_thread_state_change.h"
 #include "stl_util.h"
 #include "thread.h"
 #include "thread_list.h"
@@ -117,14 +116,26 @@ void Monitor::Init(uint32_t lock_profiling_threshold, bool (*is_sensitive_thread
   is_sensitive_thread_hook_ = is_sensitive_thread_hook;
 }
 
-Monitor::Monitor(Object* obj)
-    : owner_(NULL),
+Monitor::Monitor(Thread* owner, Object* obj)
+    : monitor_lock_("a monitor lock", kMonitorLock),
+      owner_(owner),
       lock_count_(0),
       obj_(obj),
       wait_set_(NULL),
-      lock_("a monitor lock"),
       locking_method_(NULL),
       locking_dex_pc_(0) {
+  monitor_lock_.Lock();
+  // Propagate the lock state.
+  uint32_t thin = *obj->GetRawLockWordAddress();
+  lock_count_ = LW_LOCK_COUNT(thin);
+  thin &= LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT;
+  thin |= reinterpret_cast<uint32_t>(this) | LW_SHAPE_FAT;
+  // Publish the updated lock word.
+  android_atomic_release_store(thin, obj->GetRawLockWordAddress());
+  // Lock profiling.
+  if (lock_profiling_threshold_ != 0) {
+    locking_method_ = owner->GetCurrentMethod(&locking_dex_pc_);
+  }
 }
 
 Monitor::~Monitor() {
@@ -190,7 +201,7 @@ void Monitor::Lock(Thread* self) {
     return;
   }
 
-  if (!lock_.TryLock()) {
+  if (!monitor_lock_.TryLock()) {
     uint64_t waitStart = 0;
     uint64_t waitEnd = 0;
     uint32_t wait_threshold = lock_profiling_threshold_;
@@ -204,7 +215,7 @@ void Monitor::Lock(Thread* self) {
       current_locking_method = locking_method_;
       current_locking_dex_pc = locking_dex_pc_;
 
-      lock_.Lock();
+      monitor_lock_.Lock();
       if (wait_threshold != 0) {
         waitEnd = NanoTime() / 1000;
       }
@@ -240,7 +251,8 @@ void Monitor::Lock(Thread* self) {
 static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
                                               __attribute__((format(printf, 1, 2)));
 
-static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...) {
+static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   va_list args;
   va_start(args, fmt);
   Thread::Current()->ThrowNewExceptionV("Ljava/lang/IllegalMonitorStateException;", fmt, args);
@@ -272,7 +284,7 @@ void Monitor::FailedUnlock(Object* o, Thread* expected_owner, Thread* found_owne
   {
     // TODO: isn't this too late to prevent threads from disappearing?
     // Acquire thread list lock so threads won't disappear from under us.
-    ScopedThreadListLock thread_list_lock;
+    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
     // Re-read owner now that we hold lock.
     current_owner = (monitor != NULL) ? monitor->owner_ : NULL;
     // Get short descriptions of the threads involved.
@@ -322,7 +334,7 @@ void Monitor::FailedUnlock(Object* o, Thread* expected_owner, Thread* found_owne
   }
 }
 
-bool Monitor::Unlock(Thread* self) {
+bool Monitor::Unlock(Thread* self, bool for_wait) {
   DCHECK(self != NULL);
   Thread* owner = owner_;
   if (owner == self) {
@@ -331,10 +343,17 @@ bool Monitor::Unlock(Thread* self) {
       owner_ = NULL;
       locking_method_ = NULL;
       locking_dex_pc_ = 0;
-      lock_.Unlock();
+      monitor_lock_.Unlock();
     } else {
       --lock_count_;
     }
+  } else if (for_wait) {
+    // Wait should have already cleared the fields.
+    DCHECK_EQ(lock_count_, 0);
+    DCHECK(owner == NULL);
+    DCHECK(locking_method_ == NULL);
+    DCHECK_EQ(locking_dex_pc_, 0u);
+    monitor_lock_.Unlock();
   } else {
     // We don't own this, so we're not allowed to unlock it.
     // The JNI spec says that we should throw IllegalMonitorStateException
@@ -346,7 +365,8 @@ bool Monitor::Unlock(Thread* self) {
 }
 
 // Converts the given waiting time (relative to "now") into an absolute time in 'ts'.
-static void ToAbsoluteTime(int64_t ms, int32_t ns, timespec* ts) {
+static void ToAbsoluteTime(int64_t ms, int32_t ns, timespec* ts)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   int64_t endSec;
 
 #ifdef HAVE_TIMEDWAIT_MONOTONIC
@@ -407,7 +427,11 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
     ThrowIllegalMonitorStateExceptionF("object not locked by thread before wait()");
     return;
   }
+  monitor_lock_.AssertHeld();
+  WaitWithLock(self, ms, ns, interruptShouldThrow);
+}
 
+void Monitor::WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThrow) {
   // Enforce the timeout range.
   if (ms < 0 || ns < 0 || ns > 999999) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
@@ -447,57 +471,52 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
    * that we won't touch any references in this state, and we'll check
    * our suspend mode before we transition out.
    */
-  if (timed) {
-    self->SetState(kTimedWaiting);
-  } else {
-    self->SetState(kWaiting);
-  }
+  self->TransitionFromRunnableToSuspended(timed ? kTimedWaiting : kWaiting);
 
-  self->wait_mutex_->Lock();
-
-  /*
-   * Set wait_monitor_ to the monitor object we will be waiting on.
-   * When wait_monitor_ is non-NULL a notifying or interrupting thread
-   * must signal the thread's wait_cond_ to wake it up.
-   */
-  DCHECK(self->wait_monitor_ == NULL);
-  self->wait_monitor_ = this;
-
-  /*
-   * Handle the case where the thread was interrupted before we called
-   * wait().
-   */
   bool wasInterrupted = false;
-  if (self->interrupted_) {
-    wasInterrupted = true;
+  {
+    // Pseudo-atomically wait on self's wait_cond_ and release the monitor lock.
+    MutexLock mu(*self->wait_mutex_);
+
+    // Set wait_monitor_ to the monitor object we will be waiting on. When wait_monitor_ is
+    // non-NULL a notifying or interrupting thread must signal the thread's wait_cond_ to wake it
+    // up.
+    DCHECK(self->wait_monitor_ == NULL);
+    self->wait_monitor_ = this;
+
+    // Release the monitor lock.
+    Unlock(self, true);
+
+    /*
+     * Handle the case where the thread was interrupted before we called
+     * wait().
+     */
+    if (self->interrupted_) {
+      wasInterrupted = true;
+    } else {
+      // Wait for a notification or a timeout to occur.
+      if (!timed) {
+        self->wait_cond_->Wait(*self->wait_mutex_);
+      } else {
+        self->wait_cond_->TimedWait(*self->wait_mutex_, ts);
+      }
+      if (self->interrupted_) {
+        wasInterrupted = true;
+      }
+      self->interrupted_ = false;
+    }
     self->wait_monitor_ = NULL;
-    self->wait_mutex_->Unlock();
-    goto done;
   }
 
-  /*
-   * Release the monitor lock and wait for a notification or
-   * a timeout to occur.
-   */
-  lock_.Unlock();
+  // Set self->status back to kRunnable, and self-suspend if needed.
+  self->TransitionFromSuspendedToRunnable();
 
-  if (!timed) {
-    self->wait_cond_->Wait(*self->wait_mutex_);
-  } else {
-    self->wait_cond_->TimedWait(*self->wait_mutex_, ts);
-  }
-  if (self->interrupted_) {
-    wasInterrupted = true;
-  }
-
-  self->interrupted_ = false;
-  self->wait_monitor_ = NULL;
-  self->wait_mutex_->Unlock();
-
-  // Reacquire the monitor lock.
+  // Re-acquire the monitor lock.
   Lock(self);
 
- done:
+
+  self->wait_mutex_->AssertNotHeld();
+
   /*
    * We remove our thread from wait set after restoring the count
    * and owner fields so the subroutine can check that the calling
@@ -510,9 +529,6 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
   locking_dex_pc_ = saved_dex_pc;
   RemoveFromWaitSet(self);
 
-  /* set self->status back to kRunnable, and self-suspend if needed */
-  self->SetState(kRunnable);
-
   if (wasInterrupted) {
     /*
      * We were interrupted while waiting, or somebody interrupted an
@@ -521,7 +537,10 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
      * The doc sayeth: "The interrupted status of the current thread is
      * cleared when this exception is thrown."
      */
-    self->interrupted_ = false;
+    {
+      MutexLock mu(*self->wait_mutex_);
+      self->interrupted_ = false;
+    }
     if (interruptShouldThrow) {
       Thread::Current()->ThrowNewException("Ljava/lang/InterruptedException;", NULL);
     }
@@ -530,12 +549,16 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThr
 
 void Monitor::Notify(Thread* self) {
   DCHECK(self != NULL);
-
   // Make sure that we hold the lock.
   if (owner_ != self) {
     ThrowIllegalMonitorStateExceptionF("object not locked by thread before notify()");
     return;
   }
+  monitor_lock_.AssertHeld();
+  NotifyWithLock();
+}
+
+void Monitor::NotifyWithLock() {
   // Signal the first waiting thread in the wait set.
   while (wait_set_ != NULL) {
     Thread* thread = wait_set_;
@@ -553,12 +576,16 @@ void Monitor::Notify(Thread* self) {
 
 void Monitor::NotifyAll(Thread* self) {
   DCHECK(self != NULL);
-
   // Make sure that we hold the lock.
   if (owner_ != self) {
     ThrowIllegalMonitorStateExceptionF("object not locked by thread before notifyAll()");
     return;
   }
+  monitor_lock_.AssertHeld();
+  NotifyAllWithLock();
+}
+
+void Monitor::NotifyAllWithLock() {
   // Signal all threads in the wait set.
   while (wait_set_ != NULL) {
     Thread* thread = wait_set_;
@@ -579,18 +606,10 @@ void Monitor::Inflate(Thread* self, Object* obj) {
   DCHECK_EQ(LW_LOCK_OWNER(*obj->GetRawLockWordAddress()), static_cast<int32_t>(self->GetThinLockId()));
 
   // Allocate and acquire a new monitor.
-  Monitor* m = new Monitor(obj);
+  Monitor* m = new Monitor(self, obj);
   VLOG(monitor) << "monitor: thread " << self->GetThinLockId()
                 << " created monitor " << m << " for object " << obj;
   Runtime::Current()->GetMonitorList()->Add(m);
-  m->Lock(self);
-  // Propagate the lock state.
-  uint32_t thin = *obj->GetRawLockWordAddress();
-  m->lock_count_ = LW_LOCK_COUNT(thin);
-  thin &= LW_HASH_STATE_MASK << LW_HASH_STATE_SHIFT;
-  thin |= reinterpret_cast<uint32_t>(m) | LW_SHAPE_FAT;
-  // Publish the updated lock word.
-  android_atomic_release_store(thin, obj->GetRawLockWordAddress());
 }
 
 void Monitor::MonitorEnter(Thread* self, Object* obj) {
@@ -639,7 +658,7 @@ void Monitor::MonitorEnter(Thread* self, Object* obj) {
                                     threadId, thinp, PrettyTypeOf(obj).c_str(), LW_LOCK_OWNER(thin));
       // The lock is owned by another thread. Notify the runtime that we are about to wait.
       self->monitor_enter_object_ = obj;
-      ThreadState oldStatus = self->SetState(kBlocked);
+      self->TransitionFromRunnableToSuspended(kBlocked);
       // Spin until the thin lock is released or inflated.
       sleepDelayNs = 0;
       for (;;) {
@@ -677,14 +696,14 @@ void Monitor::MonitorEnter(Thread* self, Object* obj) {
           // waiting and try again.
           VLOG(monitor) << StringPrintf("monitor: thread %d found lock %p surprise-fattened by another thread", threadId, thinp);
           self->monitor_enter_object_ = NULL;
-          self->SetState(oldStatus);
+          self->TransitionFromSuspendedToRunnable();
           goto retry;
         }
       }
       VLOG(monitor) << StringPrintf("monitor: thread %d spin on lock %p done", threadId, thinp);
       // We have acquired the thin lock. Let the runtime know that we are no longer waiting.
       self->monitor_enter_object_ = NULL;
-      self->SetState(oldStatus);
+      self->TransitionFromSuspendedToRunnable();
       // Fatten the lock.
       Inflate(self, obj);
       VLOG(monitor) << StringPrintf("monitor: thread %d fattened lock %p", threadId, thinp);
@@ -750,7 +769,7 @@ bool Monitor::MonitorExit(Thread* self, Object* obj) {
      * raised any exceptions before continuing.
      */
     DCHECK(LW_MONITOR(*thinp) != NULL);
-    if (!LW_MONITOR(*thinp)->Unlock(self)) {
+    if (!LW_MONITOR(*thinp)->Unlock(self, false)) {
       // An exception has been raised.  Do not fall through.
       return false;
     }
@@ -796,6 +815,7 @@ void Monitor::Notify(Thread* self, Object *obj) {
       return;
     }
     // no-op;  there are no waiters to notify.
+    Inflate(self, obj);
   } else {
     // It's a fat lock.
     LW_MONITOR(thin)->Notify(self);
@@ -814,6 +834,7 @@ void Monitor::NotifyAll(Thread* self, Object *obj) {
       return;
     }
     // no-op;  there are no waiters to notify.
+    Inflate(self, obj);
   } else {
     // It's a fat lock.
     LW_MONITOR(thin)->NotifyAll(self);
@@ -830,17 +851,17 @@ uint32_t Monitor::GetThinLockId(uint32_t raw_lock_word) {
 }
 
 static uint32_t LockOwnerFromThreadLock(Object* thread_lock) {
-  ScopedJniThreadState ts(Thread::Current());
+  ScopedObjectAccess soa(Thread::Current());
   if (thread_lock == NULL ||
-      thread_lock->GetClass() != ts.Decode<Class*>(WellKnownClasses::java_lang_ThreadLock)) {
+      thread_lock->GetClass() != soa.Decode<Class*>(WellKnownClasses::java_lang_ThreadLock)) {
     return ThreadList::kInvalidId;
   }
-  Field* thread_field = ts.DecodeField(WellKnownClasses::java_lang_ThreadLock_thread);
+  Field* thread_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadLock_thread);
   Object* managed_thread = thread_field->GetObject(thread_lock);
   if (managed_thread == NULL) {
     return ThreadList::kInvalidId;
   }
-  Field* vmData_field = ts.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+  Field* vmData_field = soa.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
   uintptr_t vmData = static_cast<uintptr_t>(vmData_field->GetInt(managed_thread));
   Thread* thread = reinterpret_cast<Thread*>(vmData);
   if (thread == NULL) {
@@ -850,13 +871,21 @@ static uint32_t LockOwnerFromThreadLock(Object* thread_lock) {
 }
 
 void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
-  ThreadState state = thread->GetState();
+  ThreadState state;
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    state = thread->GetState();
+  }
 
   Object* object = NULL;
   uint32_t lock_owner = ThreadList::kInvalidId;
   if (state == kWaiting || state == kTimedWaiting) {
     os << "  - waiting on ";
-    Monitor* monitor = thread->wait_monitor_;
+    Monitor* monitor;
+    {
+      MutexLock mu(*thread->wait_mutex_);
+      monitor = thread->wait_monitor_;
+    }
     if (monitor != NULL) {
       object = monitor->obj_;
     }
@@ -883,7 +912,8 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   os << "\n";
 }
 
-static void DumpLockedObject(std::ostream& os, Object* o) {
+static void DumpLockedObject(std::ostream& os, Object* o)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   os << "  - locked <" << o << "> (a " << PrettyTypeOf(o) << ")\n";
 }
 
@@ -968,21 +998,21 @@ void Monitor::TranslateLocation(const Method* method, uint32_t dex_pc,
   line_number = mh.GetLineNumFromDexPC(dex_pc);
 }
 
-MonitorList::MonitorList() : lock_("MonitorList lock") {
+MonitorList::MonitorList() : monitor_list_lock_("MonitorList lock") {
 }
 
 MonitorList::~MonitorList() {
-  MutexLock mu(lock_);
+  MutexLock mu(monitor_list_lock_);
   STLDeleteElements(&list_);
 }
 
 void MonitorList::Add(Monitor* m) {
-  MutexLock mu(lock_);
+  MutexLock mu(monitor_list_lock_);
   list_.push_front(m);
 }
 
 void MonitorList::SweepMonitorList(Heap::IsMarkedTester is_marked, void* arg) {
-  MutexLock mu(lock_);
+  MutexLock mu(monitor_list_lock_);
   typedef std::list<Monitor*>::iterator It; // TODO: C++0x auto
   It it = list_.begin();
   while (it != list_.end()) {

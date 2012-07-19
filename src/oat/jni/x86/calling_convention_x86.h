@@ -49,6 +49,7 @@ class X86JniCallingConvention : public JniCallingConvention {
   virtual ~X86JniCallingConvention() {}
   // Calling convention
   virtual ManagedRegister ReturnRegister();
+  virtual ManagedRegister IntReturnRegister();
   virtual ManagedRegister InterproceduralScratchRegister();
   // JNI calling convention
   virtual size_t FrameSize();
@@ -61,7 +62,6 @@ class X86JniCallingConvention : public JniCallingConvention {
   virtual uint32_t FpSpillMask() const {
     return 0;
   }
-  virtual bool IsMethodRegisterClobberedPreCall();
   virtual bool IsCurrentParamInRegister();
   virtual bool IsCurrentParamOnStack();
   virtual ManagedRegister CurrentParamRegister();

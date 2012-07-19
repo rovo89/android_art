@@ -204,7 +204,7 @@ BasicBlock* oatFindBlock(CompilationUnit* cUnit, unsigned int codeOffset);
 extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags, uint32_t method_idx,
-                                                 const art::ClassLoader* class_loader,
+                                                 jobject class_loader,
                                                  const art::DexFile& dex_file);
 
 #endif // ART_SRC_COMPILER_COMPILER_H_

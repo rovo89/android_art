@@ -15,14 +15,14 @@
  */
 
 #include "jni_internal.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 #include "thread.h"
 
 namespace art {
 
 static jobject Throwable_nativeFillInStackTrace(JNIEnv* env, jclass) {
-  ScopedJniThreadState ts(env);
-  return ts.Self()->CreateInternalStackTrace(ts);
+  ScopedObjectAccess soa(env);
+  return soa.Self()->CreateInternalStackTrace(soa);
 }
 
 static jobjectArray Throwable_nativeGetStackTrace(JNIEnv* env, jclass, jobject javaStackState) {

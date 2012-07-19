@@ -326,7 +326,6 @@ struct CompilationUnit {
       compiler(NULL),
       class_linker(NULL),
       dex_file(NULL),
-      dex_cache(NULL),
       class_loader(NULL),
       method_idx(0),
       code_item(NULL),
@@ -436,8 +435,7 @@ struct CompilationUnit {
   Compiler* compiler;            // Compiler driving this compiler
   ClassLinker* class_linker;     // Linker to resolve fields and methods
   const DexFile* dex_file;       // DexFile containing the method being compiled
-  DexCache* dex_cache;           // DexFile's corresponding cache
-  ClassLoader* class_loader;     // compiling method's class loader
+  jobject class_loader;          // compiling method's class loader
   uint32_t method_idx;                // compiling method's index into method_ids of DexFile
   const DexFile::CodeItem* code_item;  // compiling method's DexFile code_item
   uint32_t access_flags;              // compiling method's access flags

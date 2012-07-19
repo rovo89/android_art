@@ -20,35 +20,15 @@
 #include "jni_internal.h"
 #include "object.h"
 #include "object_utils.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
+#include "well_known_classes.h"
 
 namespace art {
 
-Method* gBoolean_valueOf;
-Method* gByte_valueOf;
-Method* gCharacter_valueOf;
-Method* gDouble_valueOf;
-Method* gFloat_valueOf;
-Method* gInteger_valueOf;
-Method* gLong_valueOf;
-Method* gShort_valueOf;
-
-void InitBoxingMethods() {
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  gBoolean_valueOf = class_linker->FindSystemClass("Ljava/lang/Boolean;")->FindDeclaredDirectMethod("valueOf", "(Z)Ljava/lang/Boolean;");
-  gByte_valueOf = class_linker->FindSystemClass("Ljava/lang/Byte;")->FindDeclaredDirectMethod("valueOf", "(B)Ljava/lang/Byte;");
-  gCharacter_valueOf = class_linker->FindSystemClass("Ljava/lang/Character;")->FindDeclaredDirectMethod("valueOf", "(C)Ljava/lang/Character;");
-  gDouble_valueOf = class_linker->FindSystemClass("Ljava/lang/Double;")->FindDeclaredDirectMethod("valueOf", "(D)Ljava/lang/Double;");
-  gFloat_valueOf = class_linker->FindSystemClass("Ljava/lang/Float;")->FindDeclaredDirectMethod("valueOf", "(F)Ljava/lang/Float;");
-  gInteger_valueOf = class_linker->FindSystemClass("Ljava/lang/Integer;")->FindDeclaredDirectMethod("valueOf", "(I)Ljava/lang/Integer;");
-  gLong_valueOf = class_linker->FindSystemClass("Ljava/lang/Long;")->FindDeclaredDirectMethod("valueOf", "(J)Ljava/lang/Long;");
-  gShort_valueOf = class_linker->FindSystemClass("Ljava/lang/Short;")->FindDeclaredDirectMethod("valueOf", "(S)Ljava/lang/Short;");
-}
-
-jobject InvokeMethod(const ScopedJniThreadState& ts, jobject javaMethod, jobject javaReceiver,
+jobject InvokeMethod(const ScopedObjectAccess& soa, jobject javaMethod, jobject javaReceiver,
                      jobject javaArgs) {
-  jmethodID mid = ts.Env()->FromReflectedMethod(javaMethod);
-  Method* m = ts.DecodeMethod(mid);
+  jmethodID mid = soa.Env()->FromReflectedMethod(javaMethod);
+  Method* m = soa.DecodeMethod(mid);
 
   Class* declaring_class = m->GetDeclaringClass();
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(declaring_class, true, true)) {
@@ -58,24 +38,24 @@ jobject InvokeMethod(const ScopedJniThreadState& ts, jobject javaMethod, jobject
   Object* receiver = NULL;
   if (!m->IsStatic()) {
     // Check that the receiver is non-null and an instance of the field's declaring class.
-    receiver = ts.Decode<Object*>(javaReceiver);
+    receiver = soa.Decode<Object*>(javaReceiver);
     if (!VerifyObjectInClass(receiver, declaring_class)) {
       return NULL;
     }
 
     // Find the actual implementation of the virtual method.
     m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(m);
-    mid = ts.EncodeMethod(m);
+    mid = soa.EncodeMethod(m);
   }
 
   // Get our arrays of arguments and their types, and check they're the same size.
-  ObjectArray<Object>* objects = ts.Decode<ObjectArray<Object>*>(javaArgs);
+  ObjectArray<Object>* objects = soa.Decode<ObjectArray<Object>*>(javaArgs);
   MethodHelper mh(m);
   const DexFile::TypeList* classes = mh.GetParameterTypeList();
   uint32_t classes_size = classes == NULL ? 0 : classes->Size();
   uint32_t arg_count = (objects != NULL) ? objects->GetLength() : 0;
   if (arg_count != classes_size) {
-    ts.Self()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
         "wrong number of arguments; expected %d, got %d",
         classes_size, arg_count);
     return NULL;
@@ -91,27 +71,27 @@ jobject InvokeMethod(const ScopedJniThreadState& ts, jobject javaMethod, jobject
       return NULL;
     }
     if (!dst_class->IsPrimitive()) {
-      args[i].l = ts.AddLocalReference<jobject>(arg);
+      args[i].l = soa.AddLocalReference<jobject>(arg);
     }
   }
 
   // Invoke the method.
-  JValue value(InvokeWithJValues(ts, javaReceiver, mid, args.get()));
+  JValue value(InvokeWithJValues(soa, javaReceiver, mid, args.get()));
 
   // Wrap any exception with "Ljava/lang/reflect/InvocationTargetException;" and return early.
-  if (ts.Self()->IsExceptionPending()) {
-    jthrowable th = ts.Env()->ExceptionOccurred();
-    ts.Env()->ExceptionClear();
-    jclass exception_class = ts.Env()->FindClass("java/lang/reflect/InvocationTargetException");
-    jmethodID mid = ts.Env()->GetMethodID(exception_class, "<init>", "(Ljava/lang/Throwable;)V");
-    jobject exception_instance = ts.Env()->NewObject(exception_class, mid, th);
-    ts.Env()->Throw(reinterpret_cast<jthrowable>(exception_instance));
+  if (soa.Self()->IsExceptionPending()) {
+    jthrowable th = soa.Env()->ExceptionOccurred();
+    soa.Env()->ExceptionClear();
+    jclass exception_class = soa.Env()->FindClass("java/lang/reflect/InvocationTargetException");
+    jmethodID mid = soa.Env()->GetMethodID(exception_class, "<init>", "(Ljava/lang/Throwable;)V");
+    jobject exception_instance = soa.Env()->NewObject(exception_class, mid, th);
+    soa.Env()->Throw(reinterpret_cast<jthrowable>(exception_instance));
     return NULL;
   }
 
   // Box if necessary and return.
   BoxPrimitive(mh.GetReturnType()->GetPrimitiveType(), value);
-  return ts.AddLocalReference<jobject>(value.GetL());
+  return soa.AddLocalReference<jobject>(value.GetL());
 }
 
 bool VerifyObjectInClass(Object* o, Class* c) {
@@ -220,31 +200,31 @@ void BoxPrimitive(Primitive::Type src_class, JValue& value) {
     return;
   }
 
-  Method* m = NULL;
+  jmethodID m = NULL;
   switch (src_class) {
   case Primitive::kPrimBoolean:
-    m = gBoolean_valueOf;
+    m = WellKnownClasses::java_lang_Boolean_valueOf;
     break;
   case Primitive::kPrimByte:
-    m = gByte_valueOf;
+    m = WellKnownClasses::java_lang_Byte_valueOf;
     break;
   case Primitive::kPrimChar:
-    m = gCharacter_valueOf;
+    m = WellKnownClasses::java_lang_Character_valueOf;
     break;
   case Primitive::kPrimDouble:
-    m = gDouble_valueOf;
+    m = WellKnownClasses::java_lang_Double_valueOf;
     break;
   case Primitive::kPrimFloat:
-    m = gFloat_valueOf;
+    m = WellKnownClasses::java_lang_Float_valueOf;
     break;
   case Primitive::kPrimInt:
-    m = gInteger_valueOf;
+    m = WellKnownClasses::java_lang_Integer_valueOf;
     break;
   case Primitive::kPrimLong:
-    m = gLong_valueOf;
+    m = WellKnownClasses::java_lang_Long_valueOf;
     break;
   case Primitive::kPrimShort:
-    m = gShort_valueOf;
+    m = WellKnownClasses::java_lang_Short_valueOf;
     break;
   case Primitive::kPrimVoid:
     // There's no such thing as a void field, and void methods invoked via reflection return null.
@@ -254,13 +234,17 @@ void BoxPrimitive(Primitive::Type src_class, JValue& value) {
     LOG(FATAL) << static_cast<int>(src_class);
   }
 
-  Thread* self = Thread::Current();
-  ScopedThreadStateChange tsc(self, kRunnable);
+  if (kIsDebugBuild) {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    CHECK_EQ(Thread::Current()->GetState(), kRunnable);
+  }
+  ScopedObjectAccessUnchecked soa(Thread::Current());
   JValue args[1] = { value };
-  m->Invoke(self, NULL, args, &value);
+  soa.DecodeMethod(m)->Invoke(soa.Self(), NULL, args, &value);
 }
 
-static std::string UnboxingFailureKind(Method* m, int index, Field* f) {
+static std::string UnboxingFailureKind(Method* m, int index, Field* f)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   if (m != NULL && index != -1) {
     ++index; // Humans count from 1.
     return StringPrintf("method %s argument %d", PrettyMethod(m, false).c_str(), index);
@@ -271,7 +255,9 @@ static std::string UnboxingFailureKind(Method* m, int index, Field* f) {
   return "result";
 }
 
-static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, Method* m, int index, Field* f) {
+static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, Method* m,
+                           int index, Field* f)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   if (!dst_class->IsPrimitive()) {
     if (o != NULL && !o->InstanceOf(dst_class)) {
       Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",

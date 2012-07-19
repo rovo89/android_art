@@ -14,29 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_SCOPED_HEAP_LOCK_H_
-#define ART_SRC_SCOPED_HEAP_LOCK_H_
+#ifndef ART_SRC_JOBJECT_COMPARATOR_H_
+#define ART_SRC_JOBJECT_COMPARATOR_H_
 
-#include "heap.h"
-#include "macros.h"
-#include "runtime.h"
+#include <jni.h>
 
 namespace art {
 
-class ScopedHeapLock {
- public:
-  ScopedHeapLock() {
-    Runtime::Current()->GetHeap()->Lock();
-  }
-
-  ~ScopedHeapLock() {
-    Runtime::Current()->GetHeap()->Unlock();
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(ScopedHeapLock);
+struct JobjectComparator {
+  bool operator()(jobject jobj1, jobject jobj2) const;
 };
 
 }  // namespace art
 
-#endif  // ART_SRC_SCOPED_HEAP_LOCK_H_
+#endif  // ART_SRC_JOBJECT_COMPARATOR_H_

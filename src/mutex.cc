@@ -37,44 +37,158 @@ namespace art {
 
 // This works on Mac OS 10.7, but hasn't been tested on older releases.
 struct __attribute__((__may_alias__)) darwin_pthread_mutex_t {
-  uint32_t padding0[2];
-  uint32_t value;
-  uint32_t padding1[5];
-  uint64_t owner_tid;
+  uint32_t padding0[4];
+  intptr_t padding1;
+  uintptr_t owner_tid;
+  // ...other stuff we don't care about.
+};
+
+struct __attribute__((__may_alias__)) darwin_pthread_rwlock_t {
+  int32_t padding0[4];
+  intptr_t padding1[2];
+  uintptr_t rw_owner_tid;
   // ...other stuff we don't care about.
 };
 
 struct __attribute__((__may_alias__)) glibc_pthread_mutex_t {
-  int lock;
-  unsigned int count;
+  int32_t padding0[2];
   int owner;
   // ...other stuff we don't care about.
 };
 
-static inline void CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
-  if (!kIsDebugBuild) {
-    return;
+struct __attribute__((__may_alias__)) glibc_pthread_rwlock_t {
+#ifdef __LP64__
+  int32_t padding0[6];
+#else
+  int32_t padding0[7];
+#endif
+  int writer;
+  // ...other stuff we don't care about.
+};
+
+ReaderWriterMutex* GlobalSynchronization::mutator_lock_ = NULL;
+Mutex* GlobalSynchronization::thread_list_lock_ = NULL;
+Mutex* GlobalSynchronization::classlinker_classes_lock_ = NULL;
+ReaderWriterMutex* GlobalSynchronization::heap_bitmap_lock_ = NULL;
+Mutex* GlobalSynchronization::abort_lock_ = NULL;
+Mutex* GlobalSynchronization::logging_lock_ = NULL;
+Mutex* GlobalSynchronization::unexpected_signal_lock_ = NULL;
+Mutex* GlobalSynchronization::thread_suspend_count_lock_ = NULL;
+
+void GlobalSynchronization::Init() {
+  if (logging_lock_ != NULL) {
+    // Already initialized.
+    DCHECK(mutator_lock_ != NULL);
+    DCHECK(thread_list_lock_ != NULL);
+    DCHECK(classlinker_classes_lock_ != NULL);
+    DCHECK(heap_bitmap_lock_ != NULL);
+    DCHECK(abort_lock_ != NULL);
+    DCHECK(logging_lock_ != NULL);
+    DCHECK(unexpected_signal_lock_ != NULL);
+    DCHECK(thread_suspend_count_lock_ != NULL);
+  } else {
+    logging_lock_ = new Mutex("logging lock", kLoggingLock, true);
+    abort_lock_ = new Mutex("abort lock", kAbortLock, true);
+    DCHECK(mutator_lock_ == NULL);
+    mutator_lock_ = new ReaderWriterMutex("mutator lock", kMutatorLock);
+    DCHECK(thread_list_lock_ == NULL);
+    thread_list_lock_ = new Mutex("thread list lock", kThreadListLock);
+    DCHECK(classlinker_classes_lock_ == NULL);
+    classlinker_classes_lock_ = new Mutex("ClassLinker classes lock", kClassLinkerClassesLock);
+    DCHECK(heap_bitmap_lock_ == NULL);
+    heap_bitmap_lock_ = new ReaderWriterMutex("heap bitmap lock", kHeapBitmapLock);
+    DCHECK(unexpected_signal_lock_ == NULL);
+    unexpected_signal_lock_ = new Mutex("unexpected signal lock", kUnexpectedSignalLock, true);
+    DCHECK(thread_suspend_count_lock_ == NULL);
+    thread_suspend_count_lock_ = new Mutex("thread suspend count lock", kThreadSuspendCountLock);
   }
-  if (rank == -1) {
-    return;
-  }
-  Thread::Current()->CheckSafeToLockOrUnlock(rank, is_locking);
 }
 
-static inline void CheckSafeToWait(MutexRank rank) {
-  if (!kIsDebugBuild) {
-    return;
-  }
-  Thread::Current()->CheckSafeToWait(rank);
+BaseMutex::BaseMutex(const char* name, MutexLevel level) : level_(level), name_(name) {}
+
+static void CheckUnattachedThread(MutexLevel level) {
+  // The check below enumerates the cases where we expect not to be able to sanity check locks
+  // on a thread. TODO: tighten this check.
+  Runtime* runtime = Runtime::Current();
+  CHECK(runtime == NULL || !runtime->IsStarted() || runtime->IsShuttingDown() ||
+        level == kDefaultMutexLevel  || level == kThreadListLock ||
+        level == kLoggingLock || level == kAbortLock);
 }
 
-Mutex::Mutex(const char* name, MutexRank rank) : name_(name), rank_(rank) {
-  // Like Java, we use recursive mutexes.
+void BaseMutex::RegisterAsLockedWithCurrentThread() {
+  Thread* self = Thread::Current();
+  if (self == NULL) {
+    CheckUnattachedThread(level_);
+    return;
+  }
+  // Check if a bad Mutex of this level or lower is held.
+  bool bad_mutexes_held = false;
+  for (int i = level_; i >= 0; --i) {
+    BaseMutex* held_mutex = self->GetHeldMutex(static_cast<MutexLevel>(i));
+    if (UNLIKELY(held_mutex != NULL)) {
+      LOG(ERROR) << "Lock level violation: holding \"" << held_mutex->name_ << "\" (level " << i
+          << ") while locking \"" << name_ << "\" (level " << static_cast<int>(level_) << ")";
+      if (i > kAbortLock) {
+        // Only abort in the check below if this is more than abort level lock.
+        bad_mutexes_held = true;
+      }
+    }
+  }
+  CHECK(!bad_mutexes_held);
+  // Don't record monitors as they are outside the scope of analysis. They may be inspected off of
+  // the monitor list.
+  if (level_ != kMonitorLock) {
+    self->SetHeldMutex(level_, this);
+  }
+}
+
+void BaseMutex::RegisterAsUnlockedWithCurrentThread() {
+  Thread* self = Thread::Current();
+  if (self == NULL) {
+    CheckUnattachedThread(level_);
+    return;
+  }
+  if (level_ != kMonitorLock) {
+    CHECK(self->GetHeldMutex(level_) == this) << "Unlocking on unacquired mutex: " << name_;
+    self->SetHeldMutex(level_, NULL);
+  }
+}
+
+void BaseMutex::CheckSafeToWait() {
+  Thread* self = Thread::Current();
+  if (self == NULL) {
+    CheckUnattachedThread(level_);
+    return;
+  }
+  CHECK(self->GetHeldMutex(level_) == this) << "Waiting on unacquired mutex: " << name_;
+  bool bad_mutexes_held = false;
+  for (int i = kMaxMutexLevel; i >= 0; --i) {
+    if (i != level_) {
+      BaseMutex* held_mutex = self->GetHeldMutex(static_cast<MutexLevel>(i));
+      if (held_mutex != NULL) {
+        LOG(ERROR) << "Holding " << held_mutex->name_ << " (level " << i
+            << ") while performing wait on: "
+            << name_ << " (level " << static_cast<int>(level_) << ")";
+        bad_mutexes_held = true;
+      }
+    }
+  }
+  CHECK(!bad_mutexes_held);
+}
+
+Mutex::Mutex(const char* name, MutexLevel level, bool recursive)
+    : BaseMutex(name, level), recursive_(recursive), recursion_count_(0) {
+#if defined(__BIONIC__)
+  // Use recursive mutexes as Bionic's non-recursive mutexes don't have TIDs to check lock
+  // ownership of.
   pthread_mutexattr_t attributes;
   CHECK_MUTEX_CALL(pthread_mutexattr_init, (&attributes));
   CHECK_MUTEX_CALL(pthread_mutexattr_settype, (&attributes, PTHREAD_MUTEX_RECURSIVE));
   CHECK_MUTEX_CALL(pthread_mutex_init, (&mutex_, &attributes));
   CHECK_MUTEX_CALL(pthread_mutexattr_destroy, (&attributes));
+#else
+  CHECK_MUTEX_CALL(pthread_mutex_init, (&mutex_, NULL));
+#endif
 }
 
 Mutex::~Mutex() {
@@ -89,55 +203,69 @@ Mutex::~Mutex() {
   }
 }
 
-void Mutex::Lock() {
-  CheckSafeToLockOrUnlock(rank_, true);
-  CHECK_MUTEX_CALL(pthread_mutex_lock, (&mutex_));
+void Mutex::ExclusiveLock() {
+  bool is_held = IsExclusiveHeld();
+  CHECK(recursive_ || !is_held)
+      << "Error attempt to recursively lock non-recursive lock \"" << name_ << "\"";
+  if (!is_held) {
+    CHECK_MUTEX_CALL(pthread_mutex_lock, (&mutex_));
+    RegisterAsLockedWithCurrentThread();
+  }
+  recursion_count_++;
+  DCHECK(recursion_count_ == 1 || recursive_) << "Unexpected recursion count on mutex: "
+      << name_ << " " << recursion_count_;
   AssertHeld();
 }
 
-bool Mutex::TryLock() {
-  int result = pthread_mutex_trylock(&mutex_);
-  if (result == EBUSY) {
-    return false;
+bool Mutex::ExclusiveTryLock() {
+  bool is_held = IsExclusiveHeld();
+  CHECK(recursive_ || !is_held)
+      << "Error attempt to recursively lock non-recursive lock \"" << name_ << "\"";
+  if (!is_held) {
+    int result = pthread_mutex_trylock(&mutex_);
+    if (result == EBUSY) {
+      return false;
+    }
+    if (result != 0) {
+      errno = result;
+      PLOG(FATAL) << "pthread_mutex_trylock failed for " << name_;
+    }
+    RegisterAsLockedWithCurrentThread();
   }
-  if (result != 0) {
-    errno = result;
-    PLOG(FATAL) << "pthread_mutex_trylock failed for " << name_;
-  }
-  CheckSafeToLockOrUnlock(rank_, true);
+  recursion_count_++;
   AssertHeld();
   return true;
 }
 
-void Mutex::Unlock() {
+void Mutex::ExclusiveUnlock() {
   AssertHeld();
-  CheckSafeToLockOrUnlock(rank_, false);
-  CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
+  recursion_count_--;
+  if (!recursive_ || recursion_count_ == 0) {
+    DCHECK(recursion_count_ == 0 || recursive_) << "Unexpected recursion count on mutex: "
+        << name_ << " " << recursion_count_;
+    RegisterAsUnlockedWithCurrentThread();
+    CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
+  }
 }
 
-#if !defined(NDEBUG)
-#if defined(__APPLE__) && MAC_OS_X_VERSION_MAX_ALLOWED < 1060
-// Mac OS 10.5 didn't have anything we could implement GetTid() with. One thing we could try would
-// be using pthread_t instead of the actual tid; this would be acceptable in most places, and more
-// portable. 10.5 is already obsolete, though, so doing so would probably be all pain for no gain.
-void Mutex::AssertHeld() {}
-void Mutex::AssertNotHeld() {}
-#else
-void Mutex::AssertHeld() {
-  DCHECK_EQ(GetOwner(), static_cast<uint64_t>(GetTid()));
+bool Mutex::IsExclusiveHeld() const {
+  Thread* self = Thread::Current();
+  bool result;
+  if (self == NULL || level_ == kMonitorLock) {  // Handle unattached threads and monitors.
+    result = (GetExclusiveOwnerTid() == static_cast<uint64_t>(GetTid()));
+  } else {
+    result = (self->GetHeldMutex(level_) == this);
+    // Sanity debug check that if we think it is locked, so does the pthread.
+    DCHECK(result == (GetExclusiveOwnerTid() == static_cast<uint64_t>(GetTid())));
+  }
+  return result;
 }
 
-void Mutex::AssertNotHeld() {
-  DCHECK_NE(GetOwner(), static_cast<uint64_t>(GetTid()));
-}
-#endif
-#endif
-
-uint64_t Mutex::GetOwner() {
+uint64_t Mutex::GetExclusiveOwnerTid() const {
 #if defined(__BIONIC__)
   return static_cast<uint64_t>((mutex_.value >> 16) & 0xffff);
 #elif defined(__GLIBC__)
-  return reinterpret_cast<glibc_pthread_mutex_t*>(&mutex_)->owner;
+  return reinterpret_cast<const glibc_pthread_mutex_t*>(&mutex_)->owner;
 #elif defined(__APPLE__)
   return reinterpret_cast<darwin_pthread_mutex_t*>(&mutex_)->owner_tid;
 #else
@@ -145,24 +273,104 @@ uint64_t Mutex::GetOwner() {
 #endif
 }
 
-uint32_t Mutex::GetDepth() {
-  bool held = (GetOwner() == static_cast<uint64_t>(GetTid()));
-  if (!held) {
-    return 0;
+ReaderWriterMutex::ReaderWriterMutex(const char* name, MutexLevel level) : BaseMutex(name, level) {
+  CHECK_MUTEX_CALL(pthread_rwlock_init, (&rwlock_, NULL));
+}
+
+ReaderWriterMutex::~ReaderWriterMutex() {
+  // We can't use CHECK_MUTEX_CALL here because on shutdown a suspended daemon thread
+  // may still be using locks.
+  int rc = pthread_rwlock_destroy(&rwlock_);
+  if (rc != 0) {
+    errno = rc;
+    // TODO: should we just not log at all if shutting down? this could be the logging mutex!
+    bool shutting_down = Runtime::Current()->IsShuttingDown();
+    PLOG(shutting_down ? WARNING : FATAL) << "pthread_mutex_destroy failed for " << name_;
   }
-  uint32_t depth;
+}
+
+void ReaderWriterMutex::ExclusiveLock() {
+  AssertNotExclusiveHeld();
+  CHECK_MUTEX_CALL(pthread_rwlock_wrlock, (&rwlock_));
+  RegisterAsLockedWithCurrentThread();
+  AssertExclusiveHeld();
+}
+
+void ReaderWriterMutex::ExclusiveUnlock() {
+  AssertExclusiveHeld();
+  RegisterAsUnlockedWithCurrentThread();
+  CHECK_MUTEX_CALL(pthread_rwlock_unlock, (&rwlock_));
+}
+
+bool ReaderWriterMutex::ExclusiveLockWithTimeout(const timespec& abs_timeout) {
+  int result = pthread_rwlock_timedwrlock(&rwlock_, &abs_timeout);
+  if (result == ETIMEDOUT) {
+    return false;
+  }
+  if (result != 0) {
+    errno = result;
+    PLOG(FATAL) << "pthread_mutex_trylock failed for " << name_;
+  }
+  RegisterAsLockedWithCurrentThread();
+  AssertSharedHeld();
+  return true;
+}
+
+void ReaderWriterMutex::SharedLock() {
+  CHECK_MUTEX_CALL(pthread_rwlock_rdlock, (&rwlock_));
+  RegisterAsLockedWithCurrentThread();
+  AssertSharedHeld();
+}
+
+bool ReaderWriterMutex::SharedTryLock() {
+  int result = pthread_rwlock_tryrdlock(&rwlock_);
+  if (result == EBUSY) {
+    return false;
+  }
+  if (result != 0) {
+    errno = result;
+    PLOG(FATAL) << "pthread_mutex_trylock failed for " << name_;
+  }
+  RegisterAsLockedWithCurrentThread();
+  AssertSharedHeld();
+  return true;
+}
+
+void ReaderWriterMutex::SharedUnlock() {
+  AssertSharedHeld();
+  RegisterAsUnlockedWithCurrentThread();
+  CHECK_MUTEX_CALL(pthread_rwlock_unlock, (&rwlock_));
+}
+
+bool ReaderWriterMutex::IsExclusiveHeld() const {
+  bool result = (GetExclusiveOwnerTid() == static_cast<uint64_t>(GetTid()));
+  // Sanity that if the pthread thinks we own the lock the Thread agrees.
+  Thread* self = Thread::Current();
+  DCHECK((self == NULL) || !result || (self->GetHeldMutex(level_) == this));
+  return result;
+}
+
+bool ReaderWriterMutex::IsSharedHeld() const {
+  Thread* self = Thread::Current();
+  bool result;
+  if (UNLIKELY(self == NULL)) {  // Handle unattached threads.
+    result = IsExclusiveHeld(); // TODO: a better best effort here.
+  } else {
+    result = (self->GetHeldMutex(level_) == this);
+  }
+  return result;
+}
+
+uint64_t ReaderWriterMutex::GetExclusiveOwnerTid() const {
 #if defined(__BIONIC__)
-  depth = static_cast<uint32_t>((mutex_.value >> 2) & 0x7ff) + 1;
+  return rwlock_.writerThreadId;
 #elif defined(__GLIBC__)
-  depth = reinterpret_cast<glibc_pthread_mutex_t*>(&mutex_)->count;
+  return reinterpret_cast<const glibc_pthread_rwlock_t*>(&rwlock_)->writer;
 #elif defined(__APPLE__)
-  darwin_pthread_mutex_t* darwin_mutex = reinterpret_cast<darwin_pthread_mutex_t*>(&mutex_);
-  depth = ((darwin_mutex->value >> 16) & 0xffff);
+  return reinterpret_cast<const darwin_pthread_rwlock_t*>(&rwlock_)->rw_owner_tid;
 #else
 #error unsupported C library
 #endif
-  CHECK_NE(depth, 0U) << "owner=" << GetOwner() << " tid=" << GetTid();
-  return depth;
 }
 
 ConditionVariable::ConditionVariable(const std::string& name) : name_(name) {
@@ -189,10 +397,11 @@ void ConditionVariable::Signal() {
 }
 
 void ConditionVariable::Wait(Mutex& mutex) {
-  CheckSafeToWait(mutex.rank_);
-  uint unlock_depth = UnlockBeforeWait(mutex);
+  mutex.CheckSafeToWait();
+  unsigned int old_recursion_count = mutex.recursion_count_;
+  mutex.recursion_count_ = 0;
   CHECK_MUTEX_CALL(pthread_cond_wait, (&cond_, &mutex.mutex_));
-  RelockAfterWait(mutex, unlock_depth);
+  mutex.recursion_count_ = old_recursion_count;
 }
 
 void ConditionVariable::TimedWait(Mutex& mutex, const timespec& ts) {
@@ -201,31 +410,14 @@ void ConditionVariable::TimedWait(Mutex& mutex, const timespec& ts) {
 #else
 #define TIMEDWAIT pthread_cond_timedwait
 #endif
-  CheckSafeToWait(mutex.rank_);
-  uint unlock_depth = UnlockBeforeWait(mutex);
+  mutex.CheckSafeToWait();
+  unsigned int old_recursion_count = mutex.recursion_count_;
+  mutex.recursion_count_ = 0;
   int rc = TIMEDWAIT(&cond_, &mutex.mutex_, &ts);
-  RelockAfterWait(mutex, unlock_depth);
+  mutex.recursion_count_ = old_recursion_count;
   if (rc != 0 && rc != ETIMEDOUT) {
     errno = rc;
     PLOG(FATAL) << "TimedWait failed for " << name_;
-  }
-}
-
-// Unlock a mutex down to depth == 1 so pthread conditional waiting can be used.
-// After waiting, use RelockAfterWait to restore the lock depth.
-uint32_t ConditionVariable::UnlockBeforeWait(Mutex& mutex) {
-  uint32_t unlock_count = 0;
-  CHECK_GT(mutex.GetDepth(), 0U);
-  while (mutex.GetDepth() != 1) {
-    mutex.Unlock();
-    unlock_count++;
-  }
-  return unlock_count;
-}
-
-void ConditionVariable::RelockAfterWait(Mutex& mutex, uint32_t unlock_count) {
-  for (uint32_t i = 0; i < unlock_count; i++) {
-    mutex.Lock();
   }
 }
 

@@ -733,7 +733,7 @@ void oatInit(CompilationUnit* cUnit, const Compiler& compiler) {
 CompiledMethod* oatCompileMethod(Compiler& compiler,
                                  const DexFile::CodeItem* code_item,
                                  uint32_t access_flags, uint32_t method_idx,
-                                 const ClassLoader* class_loader,
+                                 jobject class_loader,
                                  const DexFile& dex_file)
 {
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
@@ -751,7 +751,6 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   cUnit->compiler = &compiler;
   cUnit->class_linker = class_linker;
   cUnit->dex_file = &dex_file;
-  cUnit->dex_cache = class_linker->FindDexCache(dex_file);
   cUnit->method_idx = method_idx;
   cUnit->code_item = code_item;
   cUnit->access_flags = access_flags;
@@ -1161,7 +1160,7 @@ extern "C" art::CompiledMethod*
     ArtCompileMethod(art::Compiler& compiler,
                      const art::DexFile::CodeItem* code_item,
                      uint32_t access_flags, uint32_t method_idx,
-                     const art::ClassLoader* class_loader,
+                     jobject class_loader,
                      const art::DexFile& dex_file)
 {
   CHECK_EQ(compiler.GetInstructionSet(), art::oatInstructionSet());

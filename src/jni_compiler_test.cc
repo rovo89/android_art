@@ -22,7 +22,8 @@
 #include "jni_internal.h"
 #include "mem_map.h"
 #include "runtime.h"
-#include "scoped_jni_thread_state.h"
+#include "ScopedLocalRef.h"
+#include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "UniquePtr.h"
 
@@ -38,10 +39,11 @@ namespace art {
 
 class JniCompilerTest : public CommonTest {
  protected:
-  void CompileForTest(ClassLoader* class_loader, bool direct,
+  void CompileForTest(jobject class_loader, bool direct,
                       const char* method_name, const char* method_sig) {
+    ScopedObjectAccess soa(Thread::Current());
     // Compile the native method before starting the runtime
-    Class* c = class_linker_->FindClass("LMyClassNatives;", class_loader);
+    Class* c = class_linker_->FindClass("LMyClassNatives;", soa.Decode<ClassLoader*>(class_loader));
     Method* method;
     if (direct) {
       method = c->FindDirectMethod(method_name, method_sig);
@@ -56,15 +58,20 @@ class JniCompilerTest : public CommonTest {
     ASSERT_TRUE(method->GetCode() != NULL);
   }
 
-  void SetUpForTest(ClassLoader* class_loader, bool direct,
-                    const char* method_name, const char* method_sig,
+  void SetUpForTest(bool direct, const char* method_name, const char* method_sig,
                     void* native_fnptr) {
-    CompileForTest(class_loader, direct, method_name, method_sig);
-    if (!runtime_->IsStarted()) {
+    // Initialize class loader and compile method when runtime not started.
+    if (!runtime_->IsStarted()){
+      {
+        ScopedObjectAccess soa(Thread::Current());
+        class_loader_ = LoadDex("MyClassNatives");
+      }
+      CompileForTest(class_loader_, direct, method_name, method_sig);
+      // Start runtime.
+      Thread::Current()->TransitionFromSuspendedToRunnable();
       runtime_->Start();
     }
-
-    // JNI operations after runtime start
+    // JNI operations after runtime start.
     env_ = Thread::Current()->GetJniEnv();
     jklass_ = env_->FindClass("MyClassNatives");
     ASSERT_TRUE(jklass_ != NULL);
@@ -91,6 +98,8 @@ class JniCompilerTest : public CommonTest {
  public:
   static jclass jklass_;
   static jobject jobj_;
+  static jobject class_loader_;
+
 
  protected:
   JNIEnv* env_;
@@ -99,12 +108,17 @@ class JniCompilerTest : public CommonTest {
 
 jclass JniCompilerTest::jklass_;
 jobject JniCompilerTest::jobj_;
+jobject JniCompilerTest::class_loader_;
 
 int gJava_MyClassNatives_foo_calls = 0;
 void Java_MyClassNatives_foo(JNIEnv* env, jobject thisObj) {
-  // 2 = SirtRef<ClassLoader> + thisObj
-  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
-  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  // 1 = thisObj
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    EXPECT_EQ(kNative, Thread::Current()->GetState());
+    GlobalSynchronization::mutator_lock_->AssertNotHeld();
+  }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -112,8 +126,7 @@ void Java_MyClassNatives_foo(JNIEnv* env, jobject thisObj) {
 }
 
 TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "foo", "()V",
+  SetUpForTest(false, "foo", "()V",
                reinterpret_cast<void*>(&Java_MyClassNatives_foo));
 
   EXPECT_EQ(0, gJava_MyClassNatives_foo_calls);
@@ -124,26 +137,28 @@ TEST_F(JniCompilerTest, CompileAndRunNoArgMethod) {
 }
 
 TEST_F(JniCompilerTest, CompileAndRunIntMethodThroughStub) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "bar", "(I)I",
+  SetUpForTest(false, "bar", "(I)I",
                NULL /* calling through stub will link with &Java_MyClassNatives_bar */);
 
+  ScopedObjectAccess soa(Thread::Current());
   std::string reason;
-  ASSERT_TRUE(Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", class_loader.get(), reason))
-      << reason;
+  ASSERT_TRUE(
+      Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", soa.Decode<ClassLoader*>(class_loader_),
+                                                         reason)) << reason;
 
   jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 24);
   EXPECT_EQ(25, result);
 }
 
 TEST_F(JniCompilerTest, CompileAndRunStaticIntMethodThroughStub) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), true, "sbar", "(I)I",
+  SetUpForTest(true, "sbar", "(I)I",
                NULL /* calling through stub will link with &Java_MyClassNatives_sbar */);
 
+  ScopedObjectAccess soa(Thread::Current());
   std::string reason;
-  ASSERT_TRUE(Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", class_loader.get(), reason))
-      << reason;
+  ASSERT_TRUE(
+      Runtime::Current()->GetJavaVM()->LoadNativeLibrary("", soa.Decode<ClassLoader*>(class_loader_),
+                                                         reason)) << reason;
 
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 42);
   EXPECT_EQ(43, result);
@@ -151,9 +166,12 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntMethodThroughStub) {
 
 int gJava_MyClassNatives_fooI_calls = 0;
 jint Java_MyClassNatives_fooI(JNIEnv* env, jobject thisObj, jint x) {
-  // 2 = SirtRef<ClassLoader> + thisObj
-  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
-  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  // 1 = thisObj
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    EXPECT_EQ(kNative, Thread::Current()->GetState());
+  }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -162,8 +180,7 @@ jint Java_MyClassNatives_fooI(JNIEnv* env, jobject thisObj, jint x) {
 }
 
 TEST_F(JniCompilerTest, CompileAndRunIntMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "fooI", "(I)I",
+  SetUpForTest(false, "fooI", "(I)I",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooI));
 
   EXPECT_EQ(0, gJava_MyClassNatives_fooI_calls);
@@ -177,9 +194,12 @@ TEST_F(JniCompilerTest, CompileAndRunIntMethod) {
 
 int gJava_MyClassNatives_fooII_calls = 0;
 jint Java_MyClassNatives_fooII(JNIEnv* env, jobject thisObj, jint x, jint y) {
-  // 2 = SirtRef<ClassLoader> + thisObj
-  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
-  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  // 1 = thisObj
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    EXPECT_EQ(kNative, Thread::Current()->GetState());
+  }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -188,8 +208,7 @@ jint Java_MyClassNatives_fooII(JNIEnv* env, jobject thisObj, jint x, jint y) {
 }
 
 TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "fooII", "(II)I",
+  SetUpForTest(false, "fooII", "(II)I",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooII));
 
   EXPECT_EQ(0, gJava_MyClassNatives_fooII_calls);
@@ -204,9 +223,12 @@ TEST_F(JniCompilerTest, CompileAndRunIntIntMethod) {
 
 int gJava_MyClassNatives_fooJJ_calls = 0;
 jlong Java_MyClassNatives_fooJJ(JNIEnv* env, jobject thisObj, jlong x, jlong y) {
-  // 2 = SirtRef<ClassLoader> + thisObj
-  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
-  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  // 1 = thisObj
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    EXPECT_EQ(kNative, Thread::Current()->GetState());
+  }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -215,8 +237,7 @@ jlong Java_MyClassNatives_fooJJ(JNIEnv* env, jobject thisObj, jlong x, jlong y) 
 }
 
 TEST_F(JniCompilerTest, CompileAndRunLongLongMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "fooJJ", "(JJ)J",
+  SetUpForTest(false, "fooJJ", "(JJ)J",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooJJ));
 
   EXPECT_EQ(0, gJava_MyClassNatives_fooJJ_calls);
@@ -232,9 +253,12 @@ TEST_F(JniCompilerTest, CompileAndRunLongLongMethod) {
 
 int gJava_MyClassNatives_fooDD_calls = 0;
 jdouble Java_MyClassNatives_fooDD(JNIEnv* env, jobject thisObj, jdouble x, jdouble y) {
-  // 2 = SirtRef<ClassLoader> + thisObj
-  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
-  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  // 1 = thisObj
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    EXPECT_EQ(kNative, Thread::Current()->GetState());
+  }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -243,8 +267,7 @@ jdouble Java_MyClassNatives_fooDD(JNIEnv* env, jobject thisObj, jdouble x, jdoub
 }
 
 TEST_F(JniCompilerTest, CompileAndRunDoubleDoubleMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "fooDD", "(DD)D",
+  SetUpForTest(false, "fooDD", "(DD)D",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooDD));
 
   EXPECT_EQ(0, gJava_MyClassNatives_fooDD_calls);
@@ -261,9 +284,12 @@ TEST_F(JniCompilerTest, CompileAndRunDoubleDoubleMethod) {
 
 int gJava_MyClassNatives_fooJJ_synchronized_calls = 0;
 jlong Java_MyClassNatives_fooJJ_synchronized(JNIEnv* env, jobject thisObj, jlong x, jlong y) {
-  // 2 = SirtRef<ClassLoader> + thisObj
-  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
-  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  // 1 = thisObj
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    EXPECT_EQ(kNative, Thread::Current()->GetState());
+  }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -272,8 +298,7 @@ jlong Java_MyClassNatives_fooJJ_synchronized(JNIEnv* env, jobject thisObj, jlong
 }
 
 TEST_F(JniCompilerTest, CompileAndRun_fooJJ_synchronized) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "fooJJ_synchronized", "(JJ)J",
+  SetUpForTest(false, "fooJJ_synchronized", "(JJ)J",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooJJ_synchronized));
 
   EXPECT_EQ(0, gJava_MyClassNatives_fooJJ_synchronized_calls);
@@ -287,9 +312,12 @@ TEST_F(JniCompilerTest, CompileAndRun_fooJJ_synchronized) {
 int gJava_MyClassNatives_fooIOO_calls = 0;
 jobject Java_MyClassNatives_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject y,
                             jobject z) {
-  // 4 = SirtRef<ClassLoader> + this + y + z
-  EXPECT_EQ(4U, Thread::Current()->NumStackReferences());
-  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  // 3 = this + y + z
+  EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    EXPECT_EQ(kNative, Thread::Current()->GetState());
+  }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
   EXPECT_TRUE(env->IsInstanceOf(thisObj, JniCompilerTest::jklass_));
@@ -305,8 +333,7 @@ jobject Java_MyClassNatives_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject
 }
 
 TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "fooIOO",
+  SetUpForTest(false, "fooIOO",
                "(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooIOO));
 
@@ -338,9 +365,12 @@ TEST_F(JniCompilerTest, CompileAndRunIntObjectObjectMethod) {
 
 int gJava_MyClassNatives_fooSII_calls = 0;
 jint Java_MyClassNatives_fooSII(JNIEnv* env, jclass klass, jint x, jint y) {
-  // 2 = SirtRef<ClassLoader> + klass
-  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
-  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  // 1 = klass
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    EXPECT_EQ(kNative, Thread::Current()->GetState());
+  }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
@@ -349,8 +379,7 @@ jint Java_MyClassNatives_fooSII(JNIEnv* env, jclass klass, jint x, jint y) {
 }
 
 TEST_F(JniCompilerTest, CompileAndRunStaticIntIntMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), true, "fooSII", "(II)I",
+  SetUpForTest(true, "fooSII", "(II)I",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooSII));
 
   EXPECT_EQ(0, gJava_MyClassNatives_fooSII_calls);
@@ -361,9 +390,12 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntIntMethod) {
 
 int gJava_MyClassNatives_fooSDD_calls = 0;
 jdouble Java_MyClassNatives_fooSDD(JNIEnv* env, jclass klass, jdouble x, jdouble y) {
-  // 2 = SirtRef<ClassLoader> + klass
-  EXPECT_EQ(2U, Thread::Current()->NumStackReferences());
-  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  // 1 = klass
+  EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    EXPECT_EQ(kNative, Thread::Current()->GetState());
+  }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
@@ -372,8 +404,7 @@ jdouble Java_MyClassNatives_fooSDD(JNIEnv* env, jclass klass, jdouble x, jdouble
 }
 
 TEST_F(JniCompilerTest, CompileAndRunStaticDoubleDoubleMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), true, "fooSDD", "(DD)D",
+  SetUpForTest(true, "fooSDD", "(DD)D",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooSDD));
 
   EXPECT_EQ(0, gJava_MyClassNatives_fooSDD_calls);
@@ -390,9 +421,12 @@ TEST_F(JniCompilerTest, CompileAndRunStaticDoubleDoubleMethod) {
 int gJava_MyClassNatives_fooSIOO_calls = 0;
 jobject Java_MyClassNatives_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
                              jobject z) {
-  // 4 = SirtRef<ClassLoader> + klass + y + z
-  EXPECT_EQ(4U, Thread::Current()->NumStackReferences());
-  EXPECT_EQ(kNative, Thread::Current()->GetState());
+  // 3 = klass + y + z
+  EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    EXPECT_EQ(kNative, Thread::Current()->GetState());
+  }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
@@ -409,8 +443,7 @@ jobject Java_MyClassNatives_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y
 
 
 TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), true, "fooSIOO",
+  SetUpForTest(true, "fooSIOO",
                "(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooSIOO));
 
@@ -441,11 +474,13 @@ TEST_F(JniCompilerTest, CompileAndRunStaticIntObjectObjectMethod) {
 }
 
 int gJava_MyClassNatives_fooSSIOO_calls = 0;
-jobject Java_MyClassNatives_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject y,
-                             jobject z) {
-  // 4 = SirtRef<ClassLoader> + klass + y + z
-  EXPECT_EQ(4U, Thread::Current()->NumStackReferences());
-  EXPECT_EQ(kNative, Thread::Current()->GetState());
+jobject Java_MyClassNatives_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject y, jobject z) {
+  // 3 = klass + y + z
+  EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    EXPECT_EQ(kNative, Thread::Current()->GetState());
+  }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(klass != NULL);
   EXPECT_TRUE(env->IsInstanceOf(JniCompilerTest::jobj_, klass));
@@ -461,8 +496,7 @@ jobject Java_MyClassNatives_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject 
 }
 
 TEST_F(JniCompilerTest, CompileAndRunStaticSynchronizedIntObjectObjectMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), true, "fooSSIOO",
+  SetUpForTest(true, "fooSSIOO",
                "(ILjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooSSIOO));
 
@@ -498,34 +532,42 @@ void Java_MyClassNatives_throwException(JNIEnv* env, jobject) {
 }
 
 TEST_F(JniCompilerTest, ExceptionHandling) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
+  {
+    ASSERT_FALSE(runtime_->IsStarted());
+    ScopedObjectAccess soa(Thread::Current());
+    class_loader_ = LoadDex("MyClassNatives");
 
-  // all compilation needs to happen before SetUpForTest calls Runtime::Start
-  CompileForTest(class_loader.get(), false, "foo", "()V");
-  CompileForTest(class_loader.get(), false, "throwException", "()V");
-  CompileForTest(class_loader.get(), false, "foo", "()V");
+    // all compilation needs to happen before Runtime::Start
+    CompileForTest(class_loader_, false, "foo", "()V");
+    CompileForTest(class_loader_, false, "throwException", "()V");
+    CompileForTest(class_loader_, false, "foo", "()V");
+  }
+  // Start runtime to avoid re-initialization in SetupForTest.
+  Thread::Current()->TransitionFromSuspendedToRunnable();
+  runtime_->Start();
 
   gJava_MyClassNatives_foo_calls = 0;
 
   // Check a single call of a JNI method is ok
-  SetUpForTest(class_loader.get(), false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClassNatives_foo));
+  SetUpForTest(false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClassNatives_foo));
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
   EXPECT_EQ(1, gJava_MyClassNatives_foo_calls);
   EXPECT_FALSE(Thread::Current()->IsExceptionPending());
 
   // Get class for exception we expect to be thrown
-  Class* jlre = class_linker_->FindClass("Ljava/lang/RuntimeException;", class_loader.get());
-  SetUpForTest(class_loader.get(), false, "throwException", "()V",
+  ScopedLocalRef<jclass> jlre(env_, env_->FindClass("java/lang/RuntimeException"));
+  SetUpForTest(false, "throwException", "()V",
                reinterpret_cast<void*>(&Java_MyClassNatives_throwException));
   // Call Java_MyClassNatives_throwException (JNI method that throws exception)
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
   EXPECT_EQ(1, gJava_MyClassNatives_foo_calls);
-  EXPECT_TRUE(Thread::Current()->IsExceptionPending());
-  EXPECT_TRUE(Thread::Current()->GetException()->InstanceOf(jlre));
-  Thread::Current()->ClearException();
+  EXPECT_TRUE(env_->ExceptionCheck() == JNI_TRUE);
+  ScopedLocalRef<jthrowable> exception(env_, env_->ExceptionOccurred());
+  env_->ExceptionClear();
+  EXPECT_TRUE(env_->IsInstanceOf(exception.get(), jlre.get()));
 
   // Check a single call of a JNI method is ok
-  SetUpForTest(class_loader.get(), false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClassNatives_foo));
+  SetUpForTest(false, "foo", "()V", reinterpret_cast<void*>(&Java_MyClassNatives_foo));
   env_->CallNonvirtualVoidMethod(jobj_, jklass_, jmethod_);
   EXPECT_EQ(2, gJava_MyClassNatives_foo_calls);
 }
@@ -533,13 +575,13 @@ TEST_F(JniCompilerTest, ExceptionHandling) {
 jint Java_MyClassNatives_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
   if (i <= 0) {
     // We want to check raw Object*/Array* below
-    ScopedJniThreadState ts(env);
+    ScopedObjectAccess soa(env);
 
     // Build stack trace
-    jobject internal = Thread::Current()->CreateInternalStackTrace(ts);
+    jobject internal = Thread::Current()->CreateInternalStackTrace(soa);
     jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(env, internal);
     ObjectArray<StackTraceElement>* trace_array =
-        ts.Decode<ObjectArray<StackTraceElement>*>(ste_array);
+        soa.Decode<ObjectArray<StackTraceElement>*>(ste_array);
     EXPECT_TRUE(trace_array != NULL);
     EXPECT_EQ(11, trace_array->GetLength());
 
@@ -569,8 +611,7 @@ jint Java_MyClassNatives_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
 }
 
 TEST_F(JniCompilerTest, NativeStackTraceElement) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "fooI", "(I)I",
+  SetUpForTest(false, "fooI", "(I)I",
                reinterpret_cast<void*>(&Java_MyClassNatives_nativeUpCall));
   jint result = env_->CallNonvirtualIntMethod(jobj_, jklass_, jmethod_, 10);
   EXPECT_EQ(10+9+8+7+6+5+4+3+2+1, result);
@@ -581,8 +622,7 @@ jobject Java_MyClassNatives_fooO(JNIEnv* env, jobject, jobject x) {
 }
 
 TEST_F(JniCompilerTest, ReturnGlobalRef) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "fooO", "(Ljava/lang/Object;)Ljava/lang/Object;",
+  SetUpForTest(false, "fooO", "(Ljava/lang/Object;)Ljava/lang/Object;",
                reinterpret_cast<void*>(&Java_MyClassNatives_fooO));
   jobject result = env_->CallNonvirtualObjectMethod(jobj_, jklass_, jmethod_, jobj_);
   EXPECT_EQ(JNILocalRefType, env_->GetObjectRefType(result));
@@ -591,16 +631,15 @@ TEST_F(JniCompilerTest, ReturnGlobalRef) {
 
 jint local_ref_test(JNIEnv* env, jobject thisObj, jint x) {
   // Add 10 local references
-  ScopedJniThreadState ts(env);
+  ScopedObjectAccess soa(env);
   for (int i = 0; i < 10; i++) {
-    ts.AddLocalReference<jobject>(ts.Decode<Object*>(thisObj));
+    soa.AddLocalReference<jobject>(soa.Decode<Object*>(thisObj));
   }
   return x+1;
 }
 
 TEST_F(JniCompilerTest, LocalReferenceTableClearingTest) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "fooI", "(I)I", reinterpret_cast<void*>(&local_ref_test));
+  SetUpForTest(false, "fooI", "(I)I", reinterpret_cast<void*>(&local_ref_test));
   // 1000 invocations of a method that adds 10 local references
   for (int i = 0; i < 1000; i++) {
     jint result = env_->CallIntMethod(jobj_, jmethod_, i);
@@ -618,8 +657,7 @@ void my_arraycopy(JNIEnv* env, jclass klass, jobject src, jint src_pos, jobject 
 }
 
 TEST_F(JniCompilerTest, JavaLangSystemArrayCopy) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), true, "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V",
+  SetUpForTest(true, "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V",
                reinterpret_cast<void*>(&my_arraycopy));
   env_->CallStaticVoidMethod(jklass_, jmethod_, jobj_, 1234, jklass_, 5678, 9876);
 }
@@ -634,8 +672,7 @@ jboolean my_casi(JNIEnv* env, jobject unsafe, jobject obj, jlong offset, jint ex
 }
 
 TEST_F(JniCompilerTest, CompareAndSwapInt) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "compareAndSwapInt", "(Ljava/lang/Object;JII)Z",
+  SetUpForTest(false, "compareAndSwapInt", "(Ljava/lang/Object;JII)Z",
                reinterpret_cast<void*>(&my_casi));
   jboolean result = env_->CallBooleanMethod(jobj_, jmethod_, jobj_, 0x12345678ABCDEF88ll, 0xCAFEF00D, 0xEBADF00D);
   EXPECT_EQ(result, JNI_TRUE);
@@ -651,8 +688,7 @@ jint my_gettext(JNIEnv* env, jclass klass, jlong val1, jobject obj1, jlong val2,
 }
 
 TEST_F(JniCompilerTest, GetText) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), true, "getText", "(JLjava/lang/Object;JLjava/lang/Object;)I",
+  SetUpForTest(true, "getText", "(JLjava/lang/Object;JLjava/lang/Object;)I",
                reinterpret_cast<void*>(&my_gettext));
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 0x12345678ABCDEF88ll, jobj_,
                                           0x7FEDCBA987654321ll, jobj_);
@@ -670,8 +706,7 @@ jobject Java_MyClassNatives_staticMethodThatShouldReturnClass(JNIEnv* env, jclas
 }
 
 TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Instance) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "instanceMethodThatShouldReturnClass", "()Ljava/lang/Class;",
+  SetUpForTest(false, "instanceMethodThatShouldReturnClass", "()Ljava/lang/Class;",
                reinterpret_cast<void*>(&Java_MyClassNatives_instanceMethodThatShouldReturnClass));
 
   CheckJniAbortCatcher check_jni_abort_catcher;
@@ -688,8 +723,7 @@ TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Instance) {
 }
 
 TEST_F(JniCompilerTest, UpcallReturnTypeChecking_Static) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), true, "staticMethodThatShouldReturnClass", "()Ljava/lang/Class;",
+  SetUpForTest(true, "staticMethodThatShouldReturnClass", "()Ljava/lang/Class;",
                reinterpret_cast<void*>(&Java_MyClassNatives_staticMethodThatShouldReturnClass));
 
   CheckJniAbortCatcher check_jni_abort_catcher;
@@ -714,8 +748,7 @@ void Java_MyClassNatives_staticMethodThatShouldTakeClass(JNIEnv*, jclass, jclass
 }
 
 TEST_F(JniCompilerTest, UpcallArgumentTypeChecking_Instance) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), false, "instanceMethodThatShouldTakeClass", "(ILjava/lang/Class;)V",
+  SetUpForTest(false, "instanceMethodThatShouldTakeClass", "(ILjava/lang/Class;)V",
                reinterpret_cast<void*>(&Java_MyClassNatives_instanceMethodThatShouldTakeClass));
 
   CheckJniAbortCatcher check_jni_abort_catcher;
@@ -725,8 +758,7 @@ TEST_F(JniCompilerTest, UpcallArgumentTypeChecking_Instance) {
 }
 
 TEST_F(JniCompilerTest, UpcallArgumentTypeChecking_Static) {
-  SirtRef<ClassLoader> class_loader(LoadDex("MyClassNatives"));
-  SetUpForTest(class_loader.get(), true, "staticMethodThatShouldTakeClass", "(ILjava/lang/Class;)V",
+  SetUpForTest(true, "staticMethodThatShouldTakeClass", "(ILjava/lang/Class;)V",
                reinterpret_cast<void*>(&Java_MyClassNatives_staticMethodThatShouldTakeClass));
 
   CheckJniAbortCatcher check_jni_abort_catcher;

@@ -61,6 +61,10 @@ ManagedRegister X86JniCallingConvention::ReturnRegister() {
   return ReturnRegisterForShorty(GetShorty(), true);
 }
 
+ManagedRegister X86JniCallingConvention::IntReturnRegister() {
+  return X86ManagedRegister::FromCpuRegister(EAX);
+}
+
 // Managed runtime calling convention
 
 ManagedRegister X86ManagedRuntimeCallingConvention::MethodRegister() {
@@ -131,10 +135,6 @@ size_t X86JniCallingConvention::OutArgSize() {
   return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize, kStackAlignment);
 }
 
-bool X86JniCallingConvention::IsMethodRegisterClobberedPreCall() {
-  return IsSynchronized();  // Monitor enter crushes the method register
-}
-
 bool X86JniCallingConvention::IsCurrentParamInRegister() {
   return false;  // Everything is passed by stack.
 }
@@ -149,15 +149,17 @@ ManagedRegister X86JniCallingConvention::CurrentParamRegister() {
 }
 
 FrameOffset X86JniCallingConvention::CurrentParamStackOffset() {
-  return FrameOffset(displacement_.Int32Value() - OutArgSize() +
-                     (itr_slots_ * kPointerSize));
+  return FrameOffset(displacement_.Int32Value() - OutArgSize() + (itr_slots_ * kPointerSize));
 }
 
 size_t X86JniCallingConvention::NumberOfOutgoingStackArgs() {
   size_t static_args = IsStatic() ? 1 : 0;  // count jclass
   // regular argument parameters and this
   size_t param_args = NumArgs() + NumLongOrDoubleArgs();
-  return static_args + param_args + 2;  // count JNIEnv* and return pc (pushed after Method*)
+  // count JNIEnv* and return pc (pushed after Method*)
+  size_t total_args = static_args + param_args + 2;
+  return total_args;
+
 }
 
 }  // namespace x86

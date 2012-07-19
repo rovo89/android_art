@@ -16,7 +16,7 @@
 
 #include "jni_internal.h"
 #include "object.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 
 /*
  * We make guarantees about the atomicity of accesses to primitive
@@ -101,28 +101,29 @@ static void move32(void* dst, const void* src, size_t n) {
 
 namespace art {
 
-static void ThrowArrayStoreException_NotAnArray(const char* identifier, Object* array) {
+static void ThrowArrayStoreException_NotAnArray(const char* identifier, Object* array)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   std::string actualType(PrettyTypeOf(array));
   Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
       "%s of type %s is not an array", identifier, actualType.c_str());
 }
 
 static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, jobject javaDst, jint dstPos, jint length) {
-  ScopedJniThreadState ts(env);
+  ScopedObjectAccess soa(env);
 
   // Null pointer checks.
   if (javaSrc == NULL) {
-    ts.Self()->ThrowNewException("Ljava/lang/NullPointerException;", "src == null");
+    soa.Self()->ThrowNewException("Ljava/lang/NullPointerException;", "src == null");
     return;
   }
   if (javaDst == NULL) {
-    ts.Self()->ThrowNewException("Ljava/lang/NullPointerException;", "dst == null");
+    soa.Self()->ThrowNewException("Ljava/lang/NullPointerException;", "dst == null");
     return;
   }
 
   // Make sure source and destination are both arrays.
-  Object* srcObject = ts.Decode<Object*>(javaSrc);
-  Object* dstObject = ts.Decode<Object*>(javaDst);
+  Object* srcObject = soa.Decode<Object*>(javaSrc);
+  Object* dstObject = soa.Decode<Object*>(javaDst);
   if (!srcObject->IsArrayInstance()) {
     ThrowArrayStoreException_NotAnArray("source", srcObject);
     return;
@@ -138,7 +139,7 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
 
   // Bounds checking.
   if (srcPos < 0 || dstPos < 0 || length < 0 || srcPos > srcArray->GetLength() - length || dstPos > dstArray->GetLength() - length) {
-    ts.Self()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
         "src.length=%d srcPos=%d dst.length=%d dstPos=%d length=%d",
         srcArray->GetLength(), srcPos, dstArray->GetLength(), dstPos, length);
     return;
@@ -150,7 +151,7 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
     if (srcComponentType->IsPrimitive() != dstComponentType->IsPrimitive() || srcComponentType != dstComponentType) {
       std::string srcType(PrettyTypeOf(srcArray));
       std::string dstType(PrettyTypeOf(dstArray));
-      ts.Self()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
+      soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
           "Incompatible types: src=%s, dst=%s", srcType.c_str(), dstType.c_str());
       return;
     }
@@ -233,7 +234,7 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
   if (i != length) {
     std::string actualSrcType(PrettyTypeOf(o));
     std::string dstType(PrettyTypeOf(dstArray));
-    ts.Self()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
         "source[%d] of type %s cannot be stored in destination array of type %s",
         srcPos + i, actualSrcType.c_str(), dstType.c_str());
     return;
@@ -241,9 +242,9 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
 }
 
 static jint System_identityHashCode(JNIEnv* env, jclass, jobject javaObject) {
-  ScopedJniThreadState ts(env);
-  Object* o = ts.Decode<Object*>(javaObject);
-  return static_cast<jint>(reinterpret_cast<uintptr_t>(o));
+  ScopedObjectAccess soa(env);
+  Object* o = soa.Decode<Object*>(javaObject);
+  return static_cast<jint>(o->IdentityHashCode());
 }
 
 static JNINativeMethod gMethods[] = {

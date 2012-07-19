@@ -16,7 +16,7 @@
 
 #include "jni_internal.h"
 #include "object.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 
 #ifdef HAVE__MEMCMP16
 // "count" is in 16-bit units.
@@ -36,9 +36,9 @@ uint32_t MemCmp16(const uint16_t* s0, const uint16_t* s1, size_t count) {
 namespace art {
 
 static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
-  ScopedJniThreadState ts(env);
-  String* lhs = ts.Decode<String*>(javaThis);
-  String* rhs = ts.Decode<String*>(javaRhs);
+  ScopedObjectAccess soa(env);
+  String* lhs = soa.Decode<String*>(javaThis);
+  String* rhs = soa.Decode<String*>(javaRhs);
 
   if (rhs == NULL) {
     Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "rhs == null");
@@ -70,11 +70,11 @@ static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
 }
 
 static jint String_fastIndexOf(JNIEnv* env, jobject java_this, jint ch, jint start) {
-  ScopedJniThreadState ts(env);
+  ScopedObjectAccess soa(env);
   // This method does not handle supplementary characters. They're dealt with in managed code.
   DCHECK_LE(ch, 0xffff);
 
-  String* s = ts.Decode<String*>(java_this);
+  String* s = soa.Decode<String*>(java_this);
 
   jint count = s->GetLength();
   if (start < 0) {
@@ -96,10 +96,10 @@ static jint String_fastIndexOf(JNIEnv* env, jobject java_this, jint ch, jint sta
 }
 
 static jstring String_intern(JNIEnv* env, jobject javaThis) {
-  ScopedJniThreadState ts(env);
-  String* s = ts.Decode<String*>(javaThis);
+  ScopedObjectAccess soa(env);
+  String* s = soa.Decode<String*>(javaThis);
   String* result = s->Intern();
-  return ts.AddLocalReference<jstring>(result);
+  return soa.AddLocalReference<jstring>(result);
 }
 
 static JNINativeMethod gMethods[] = {

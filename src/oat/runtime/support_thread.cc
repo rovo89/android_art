@@ -20,15 +20,18 @@
 
 namespace art {
 
-void CheckSuspendFromCode(Thread* thread) {
-  // Called when thread->suspend_count_ != 0
-  Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
+void CheckSuspendFromCode(Thread* thread)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  // Called when thread->suspend_count_ != 0 on JNI return. JNI method acts as callee-save frame.
+  thread->VerifyStack();
+  thread->FullSuspendCheck();
 }
 
-extern "C" void artTestSuspendFromCode(Thread* thread, Method** sp) {
+extern "C" void artTestSuspendFromCode(Thread* thread, Method** sp)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   // Called when suspend count check value is 0 and thread->suspend_count_ != 0
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsOnly);
-  Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
+  thread->FullSuspendCheck();
 }
 
 }  // namespace art

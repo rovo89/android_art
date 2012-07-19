@@ -41,9 +41,9 @@ class CallingConvention {
     return result;
   }
 
-  // Register that holds result of this method
+  // Register that holds result of this method invocation.
   virtual ManagedRegister ReturnRegister() = 0;
-  // Register reserved for scratch usage during procedure calls
+  // Register reserved for scratch usage during procedure calls.
   virtual ManagedRegister InterproceduralScratchRegister() = 0;
 
   // Offset of Method within the frame
@@ -224,6 +224,8 @@ class JniCallingConvention : public CallingConvention {
   // Location where the return value of a call can be squirreled if another
   // call is made following the native call
   FrameOffset ReturnValueSaveLocation() const;
+  // Register that holds result if it is integer.
+  virtual ManagedRegister IntReturnRegister() = 0;
 
   // Callee save registers to spill prior to native code (which may clobber)
   virtual const std::vector<ManagedRegister>& CalleeSaveRegisters() const = 0;
@@ -231,10 +233,6 @@ class JniCallingConvention : public CallingConvention {
   // Spill mask values
   virtual uint32_t CoreSpillMask() const = 0;
   virtual uint32_t FpSpillMask() const = 0;
-
-  // Returns true if the method register will have been clobbered during argument
-  // set up
-  virtual bool IsMethodRegisterClobberedPreCall() = 0;
 
   // An extra scratch register live after the call
   virtual ManagedRegister ReturnScratchRegister() const = 0;

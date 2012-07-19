@@ -36,12 +36,10 @@ class ArmManagedRuntimeCallingConvention : public ManagedRuntimeCallingConventio
   virtual bool IsCurrentParamOnStack();
   virtual ManagedRegister CurrentParamRegister();
   virtual FrameOffset CurrentParamStackOffset();
-  virtual const std::vector<ManagedRegister>& EntrySpills() {
-    DCHECK(entry_spills_.empty());
-    return entry_spills_;
-  }
+  virtual const std::vector<ManagedRegister>& EntrySpills();
+
  private:
-  static std::vector<ManagedRegister> entry_spills_;
+  std::vector<ManagedRegister> entry_spills_;
 
   DISALLOW_COPY_AND_ASSIGN(ArmManagedRuntimeCallingConvention);
 };
@@ -52,6 +50,7 @@ class ArmJniCallingConvention : public JniCallingConvention {
   virtual ~ArmJniCallingConvention() {}
   // Calling convention
   virtual ManagedRegister ReturnRegister();
+  virtual ManagedRegister IntReturnRegister();
   virtual ManagedRegister InterproceduralScratchRegister();
   // JNI calling convention
   virtual void Next();  // Override default behavior for AAPCS
@@ -65,7 +64,6 @@ class ArmJniCallingConvention : public JniCallingConvention {
   virtual uint32_t FpSpillMask() const {
     return 0;  // Floats aren't spilled in JNI down call
   }
-  virtual bool IsMethodRegisterClobberedPreCall();
   virtual bool IsCurrentParamInRegister();
   virtual bool IsCurrentParamOnStack();
   virtual ManagedRegister CurrentParamRegister();

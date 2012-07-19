@@ -31,14 +31,16 @@ namespace art {
 
 class CompilerTest : public CommonTest {
  protected:
-  void CompileAll(ClassLoader* class_loader) {
+  void CompileAll(jobject class_loader) LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
     compiler_->CompileAll(class_loader, Runtime::Current()->GetCompileTimeClassPath(class_loader));
     MakeAllExecutable(class_loader);
   }
 
-  void EnsureCompiled(ClassLoader* class_loader, const char* class_name, const char* method,
-                      const char* signature, bool is_virtual) {
+  void EnsureCompiled(jobject class_loader, const char* class_name, const char* method,
+                      const char* signature, bool is_virtual)
+      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
     CompileAll(class_loader);
+    Thread::Current()->TransitionFromSuspendedToRunnable();
     runtime_->Start();
     env_ = Thread::Current()->GetJniEnv();
     class_ = env_->FindClass(class_name);
@@ -51,7 +53,7 @@ class CompilerTest : public CommonTest {
     CHECK(mid_ != NULL) << "Method not found: " << class_name << "." << method << signature;
   }
 
-  void MakeAllExecutable(ClassLoader* class_loader) {
+  void MakeAllExecutable(jobject class_loader) {
     const std::vector<const DexFile*>& class_path
         = Runtime::Current()->GetCompileTimeClassPath(class_loader);
     for (size_t i = 0; i != class_path.size(); ++i) {
@@ -61,12 +63,13 @@ class CompilerTest : public CommonTest {
     }
   }
 
-  void MakeDexFileExecutable(ClassLoader* class_loader, const DexFile& dex_file) {
+  void MakeDexFileExecutable(jobject class_loader, const DexFile& dex_file) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
       const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
       const char* descriptor = dex_file.GetClassDescriptor(class_def);
-      Class* c = class_linker->FindClass(descriptor, class_loader);
+      ScopedObjectAccess soa(Thread::Current());
+      Class* c = class_linker->FindClass(descriptor, soa.Decode<ClassLoader*>(class_loader));
       CHECK(c != NULL);
       for (size_t i = 0; i < c->NumDirectMethods(); i++) {
         MakeExecutable(c->GetDirectMethod(i));
@@ -87,6 +90,7 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
   CompileAll(NULL);
 
   // All libcore references should resolve
+  ScopedObjectAccess soa(Thread::Current());
   const DexFile* dex = java_lang_dex_file_;
   DexCache* dex_cache = class_linker_->FindDexCache(*dex);
   EXPECT_EQ(dex->NumStringIds(), dex_cache->NumStrings());
@@ -125,12 +129,15 @@ TEST_F(CompilerTest, DISABLED_LARGE_CompileDexLibCore) {
 }
 
 TEST_F(CompilerTest, AbstractMethodErrorStub) {
-  CompileVirtualMethod(NULL, "java.lang.Class", "isFinalizable", "()Z");
-  CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
-
-  SirtRef<ClassLoader> class_loader(LoadDex("AbstractMethod"));
-  ASSERT_TRUE(class_loader.get() != NULL);
-  EnsureCompiled(class_loader.get(), "AbstractClass", "foo", "()V", true);
+  jobject class_loader;
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    CompileVirtualMethod(NULL, "java.lang.Class", "isFinalizable", "()Z");
+    CompileDirectMethod(NULL, "java.lang.Object", "<init>", "()V");
+    class_loader = LoadDex("AbstractMethod");
+  }
+  ASSERT_TRUE(class_loader != NULL);
+  EnsureCompiled(class_loader, "AbstractClass", "foo", "()V", true);
 
   // Create a jobj_ of ConcreteClass, NOT AbstractClass.
   jclass c_class = env_->FindClass("ConcreteClass");
@@ -138,11 +145,13 @@ TEST_F(CompilerTest, AbstractMethodErrorStub) {
   jobject jobj_ = env_->NewObject(c_class, constructor);
   ASSERT_TRUE(jobj_ != NULL);
 
-  Class* jlame = class_linker_->FindClass("Ljava/lang/AbstractMethodError;", class_loader.get());
   // Force non-virtual call to AbstractClass foo, will throw AbstractMethodError exception.
   env_->CallNonvirtualVoidMethod(jobj_, class_, mid_);
-  EXPECT_TRUE(Thread::Current()->IsExceptionPending());
-  EXPECT_TRUE(Thread::Current()->GetException()->InstanceOf(jlame));
+  EXPECT_EQ(env_->ExceptionCheck(), JNI_TRUE);
+  jthrowable exception = env_->ExceptionOccurred();
+  env_->ExceptionClear();
+  jclass jlame = env_->FindClass("java/lang/AbstractMethodError");
+  EXPECT_TRUE(env_->IsInstanceOf(exception, jlame));
   Thread::Current()->ClearException();
 }
 

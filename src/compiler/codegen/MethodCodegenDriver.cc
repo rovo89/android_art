@@ -68,7 +68,7 @@ void genInvoke(CompilationUnit* cUnit, CallInfo* info)
   oatLockCallTemps(cUnit);
 
   OatCompilationUnit mUnit(cUnit->class_loader, cUnit->class_linker,
-                           *cUnit->dex_file, *cUnit->dex_cache,
+                           *cUnit->dex_file,
                            cUnit->code_item, cUnit->method_idx,
                            cUnit->access_flags);
 

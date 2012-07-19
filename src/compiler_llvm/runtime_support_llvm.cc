@@ -28,7 +28,7 @@
 #include "reflection.h"
 #include "runtime_support.h"
 #include "runtime_support_func_list.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "thread_list.h"
 #include "utils_llvm.h"
@@ -656,7 +656,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
 
   // Start new JNI local reference state
   JNIEnvExt* env = thread->GetJniEnv();
-  ScopedJniThreadState ts(env);
+  ScopedObjectAccess soa(env);
   ScopedJniEnvLocalRefState env_state(env);
 
   // Create local ref. copies of the receiver

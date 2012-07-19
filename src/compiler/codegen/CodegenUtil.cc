@@ -644,7 +644,7 @@ void installLiteralPools(CompilationUnit* cUnit)
   if (dataLIR != NULL) {
     while (dataLIR != NULL) {
       uint32_t target = dataLIR->operands[0];
-      cUnit->compiler->AddCodePatch(cUnit->dex_cache, cUnit->dex_file,
+      cUnit->compiler->AddCodePatch(cUnit->dex_file,
                                     cUnit->method_idx,
                                     cUnit->access_flags,
                                     target,
@@ -659,7 +659,7 @@ void installLiteralPools(CompilationUnit* cUnit)
     dataLIR = cUnit->methodLiteralList;
     while (dataLIR != NULL) {
       uint32_t target = dataLIR->operands[0];
-      cUnit->compiler->AddMethodPatch(cUnit->dex_cache, cUnit->dex_file,
+      cUnit->compiler->AddMethodPatch(cUnit->dex_file,
                                       cUnit->method_idx,
                                       cUnit->access_flags,
                                       target,

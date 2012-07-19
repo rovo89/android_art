@@ -24,6 +24,7 @@ class ReferenceTableTest : public CommonTest {
 };
 
 TEST_F(ReferenceTableTest, Basics) {
+  ScopedObjectAccess soa(Thread::Current());
   Object* o1 = String::AllocFromModifiedUtf8("hello");
   Object* o2 = ShortArray::Alloc(0);
 

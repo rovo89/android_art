@@ -18,13 +18,14 @@
 #include "jni_internal.h"
 #include "object.h"
 #include "object_utils.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 
 // Recursively create an array with multiple dimensions.  Elements may be
 // Objects or primitive types.
-static Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dimensions) {
+static Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dimensions)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   int32_t array_length = dimensions->Get(current_dimension++);
   SirtRef<Array> new_array(Array::Alloc(array_class, array_length));
   if (new_array.get() == NULL) {
@@ -69,12 +70,12 @@ static Array* CreateMultiArray(Class* array_class, int current_dimension, IntArr
 // subtract pieces off.  Besides, we want to start with the outermost
 // piece and work our way in.
 static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementClass, jobject javaDimArray) {
-  ScopedJniThreadState ts(env);
+  ScopedObjectAccess soa(env);
   DCHECK(javaElementClass != NULL);
-  Class* element_class = ts.Decode<Class*>(javaElementClass);
+  Class* element_class = soa.Decode<Class*>(javaElementClass);
   DCHECK(element_class->IsClass());
   DCHECK(javaDimArray != NULL);
-  Object* dimensions_obj = ts.Decode<Object*>(javaDimArray);
+  Object* dimensions_obj = soa.Decode<Object*>(javaDimArray);
   DCHECK(dimensions_obj->IsArrayInstance());
   DCHECK_STREQ(ClassHelper(dimensions_obj->GetClass()).GetDescriptor(), "[I");
   IntArray* dimensions_array = down_cast<IntArray*>(dimensions_obj);
@@ -90,7 +91,7 @@ static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementCla
   for (int i = 0; i < num_dimensions; i++) {
     int dimension = dimensions_array->Get(i);
     if (dimension < 0) {
-      ts.Self()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;",
+      soa.Self()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;",
           "Dimension %d: %d", i, dimension);
       return NULL;
     }
@@ -113,15 +114,15 @@ static jobject Array_createMultiArray(JNIEnv* env, jclass, jclass javaElementCla
     CHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
-  return ts.AddLocalReference<jobject>(new_array);
+  return soa.AddLocalReference<jobject>(new_array);
 }
 
 static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementClass, jint length) {
-  ScopedJniThreadState ts(env);
+  ScopedObjectAccess soa(env);
   DCHECK(javaElementClass != NULL);
-  Class* element_class = ts.Decode<Class*>(javaElementClass);
+  Class* element_class = soa.Decode<Class*>(javaElementClass);
   if (length < 0) {
-    ts.Self()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d", length);
     return NULL;
   }
   std::string descriptor;
@@ -131,16 +132,16 @@ static jobject Array_createObjectArray(JNIEnv* env, jclass, jclass javaElementCl
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* array_class = class_linker->FindClass(descriptor.c_str(), element_class->GetClassLoader());
   if (array_class == NULL) {
-    CHECK(ts.Self()->IsExceptionPending());
+    CHECK(soa.Self()->IsExceptionPending());
     return NULL;
   }
   DCHECK(array_class->IsArrayClass());
   Array* new_array = Array::Alloc(array_class, length);
   if (new_array == NULL) {
-    CHECK(ts.Self()->IsExceptionPending());
+    CHECK(soa.Self()->IsExceptionPending());
     return NULL;
   }
-  return ts.AddLocalReference<jobject>(new_array);
+  return soa.AddLocalReference<jobject>(new_array);
 }
 
 static JNINativeMethod gMethods[] = {

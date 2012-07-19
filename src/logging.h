@@ -187,7 +187,7 @@ struct LogMessageData {
 class LogMessage {
  public:
   LogMessage(const char* file, int line, LogSeverity severity, int error);
-  ~LogMessage();
+  ~LogMessage() LOCKS_EXCLUDED(GlobalSynchronization::logging_lock_);
   std::ostream& stream();
 
  private:
@@ -245,6 +245,35 @@ class Dumpable {
 
 template<typename T>
 std::ostream& operator<<(std::ostream& os, const Dumpable<T>& rhs) {
+  rhs.Dump(os);
+  return os;
+}
+
+template<typename T>
+class MutatorLockedDumpable {
+ public:
+  explicit MutatorLockedDumpable(T& value)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) : value_(value) {
+  }
+
+  void Dump(std::ostream& os) const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    value_.Dump(os);
+  }
+
+ private:
+  T& value_;
+
+// TODO: Remove the #if when Mac OS build server no longer uses GCC 4.2.*.
+#if GCC_VERSION >= 40300
+  DISALLOW_COPY_AND_ASSIGN(MutatorLockedDumpable);
+#endif
+};
+
+template<typename T>
+std::ostream& operator<<(std::ostream& os, const MutatorLockedDumpable<T>& rhs)
+// TODO: should be SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) however annotalysis
+//       currently fails for this.
+    NO_THREAD_SAFETY_ANALYSIS {
   rhs.Dump(os);
   return os;
 }

@@ -26,6 +26,7 @@ namespace verifier {
 class RegTypeTest : public CommonTest {};
 
 TEST_F(RegTypeTest, Primitives) {
+  ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache;
 
   const RegType& bool_reg_type = cache.Boolean();

@@ -53,48 +53,27 @@ ManagedRegister ArmJniCallingConvention::ReturnRegister() {
   return ReturnRegisterForShorty(GetShorty());
 }
 
-// Managed runtime calling convention
+ManagedRegister ArmJniCallingConvention::IntReturnRegister() {
+  return ArmManagedRegister::FromCoreRegister(R0);
+}
 
-std::vector<ManagedRegister> ArmManagedRuntimeCallingConvention::entry_spills_;
+// Managed runtime calling convention
 
 ManagedRegister ArmManagedRuntimeCallingConvention::MethodRegister() {
   return ArmManagedRegister::FromCoreRegister(R0);
 }
 
 bool ArmManagedRuntimeCallingConvention::IsCurrentParamInRegister() {
-  return itr_slots_ < 3;
+  return false;  // Everything moved to stack on entry.
 }
 
 bool ArmManagedRuntimeCallingConvention::IsCurrentParamOnStack() {
-  if (itr_slots_ < 2) {
-    return false;
-  } else if (itr_slots_ > 2) {
-    return true;
-  } else {
-    // handle funny case of a long/double straddling registers and the stack
-    return IsParamALongOrDouble(itr_args_);
-  }
+  return true;
 }
 
-static const Register kManagedArgumentRegisters[] = {
-  R1, R2, R3
-};
 ManagedRegister ArmManagedRuntimeCallingConvention::CurrentParamRegister() {
-  CHECK(IsCurrentParamInRegister());
-  if (IsParamALongOrDouble(itr_args_)) {
-    if (itr_slots_ == 0) {
-      return ArmManagedRegister::FromRegisterPair(R1_R2);
-    } else if (itr_slots_ == 1) {
-      return ArmManagedRegister::FromRegisterPair(R2_R3);
-    } else {
-      // This is a long/double split between registers and the stack
-      return ArmManagedRegister::FromCoreRegister(
-        kManagedArgumentRegisters[itr_slots_]);
-    }
-  } else {
-    return
-      ArmManagedRegister::FromCoreRegister(kManagedArgumentRegisters[itr_slots_]);
-  }
+  LOG(FATAL) << "Should not reach here";
+  return ManagedRegister::NoRegister();
 }
 
 FrameOffset ArmManagedRuntimeCallingConvention::CurrentParamStackOffset() {
@@ -103,15 +82,26 @@ FrameOffset ArmManagedRuntimeCallingConvention::CurrentParamStackOffset() {
       FrameOffset(displacement_.Int32Value() +   // displacement
                   kPointerSize +                 // Method*
                   (itr_slots_ * kPointerSize));  // offset into in args
-  if (itr_slots_ == 2) {
-    // the odd spanning case, bump the offset to skip the first half of the
-    // input which is in a register
-    CHECK(IsCurrentParamInRegister());
-    result = FrameOffset(result.Int32Value() + 4);
-  }
   return result;
 }
 
+const std::vector<ManagedRegister>& ArmManagedRuntimeCallingConvention::EntrySpills() {
+  // We spill the argument registers on ARM to free them up for scratch use, we then assume
+  // all arguments are on the stack.
+  if (entry_spills_.size() == 0) {
+    size_t num_spills = NumArgs() + NumLongOrDoubleArgs();
+    if (num_spills > 0) {
+      entry_spills_.push_back(ArmManagedRegister::FromCoreRegister(R1));
+      if (num_spills > 1) {
+        entry_spills_.push_back(ArmManagedRegister::FromCoreRegister(R2));
+        if (num_spills > 2) {
+          entry_spills_.push_back(ArmManagedRegister::FromCoreRegister(R3));
+        }
+      }
+    }
+  }
+  return entry_spills_;
+}
 // JNI calling convention
 
 ArmJniCallingConvention::ArmJniCallingConvention(bool is_static, bool is_synchronized,
@@ -163,11 +153,6 @@ size_t ArmJniCallingConvention::FrameSize() {
 size_t ArmJniCallingConvention::OutArgSize() {
   return RoundUp(NumberOfOutgoingStackArgs() * kPointerSize + padding_,
                  kStackAlignment);
-}
-
-// Will reg be crushed by an outgoing argument?
-bool ArmJniCallingConvention::IsMethodRegisterClobberedPreCall() {
-  return true;  // The method register R0 is always clobbered by the JNIEnv
 }
 
 // JniCallingConvention ABI follows AAPCS where longs and doubles must occur

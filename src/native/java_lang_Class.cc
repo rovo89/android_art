@@ -20,15 +20,16 @@
 #include "nth_caller_visitor.h"
 #include "object.h"
 #include "object_utils.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "well_known_classes.h"
 
 namespace art {
 
-static Class* DecodeClass(const ScopedJniThreadState& ts, jobject java_class) {
-  Class* c = ts.Decode<Class*>(java_class);
+static Class* DecodeClass(const ScopedObjectAccess& soa, jobject java_class)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  Class* c = soa.Decode<Class*>(java_class);
   DCHECK(c != NULL);
   DCHECK(c->IsClass());
   // TODO: we could EnsureInitialized here, rather than on every reflective get/set or invoke .
@@ -39,7 +40,7 @@ static Class* DecodeClass(const ScopedJniThreadState& ts, jobject java_class) {
 
 // "name" is in "binary name" format, e.g. "dalvik.system.Debug$1".
 static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean initialize, jobject javaLoader) {
-  ScopedJniThreadState ts(env);
+  ScopedObjectAccess soa(env);
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == NULL) {
     return NULL;
@@ -55,7 +56,7 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   }
 
   std::string descriptor(DotToDescriptor(name.c_str()));
-  ClassLoader* class_loader = ts.Decode<ClassLoader*>(javaLoader);
+  ClassLoader* class_loader = soa.Decode<ClassLoader*>(javaLoader);
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Class* c = class_linker->FindClass(descriptor.c_str(), class_loader);
   if (c == NULL) {
@@ -70,12 +71,12 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   if (initialize) {
     class_linker->EnsureInitialized(c, true, true);
   }
-  return ts.AddLocalReference<jclass>(c);
+  return soa.AddLocalReference<jclass>(c);
 }
 
 static jint Class_getAnnotationDirectoryOffset(JNIEnv* env, jclass javaClass) {
-  ScopedJniThreadState ts(env);
-  Class* c = DecodeClass(ts, javaClass);
+  ScopedObjectAccess soa(env);
+  Class* c = DecodeClass(soa, javaClass);
   if (c->IsPrimitive() || c->IsArrayClass() || c->IsProxyClass()) {
     return 0;  // primitive, array and proxy classes don't have class definitions
   }
@@ -87,17 +88,22 @@ static jint Class_getAnnotationDirectoryOffset(JNIEnv* env, jclass javaClass) {
   }
 }
 
+// TODO: Remove this redundant struct when GCC annotalysis works correctly on top-level functions.
+struct WorkAroundGccAnnotalysisBug {
 template<typename T>
-static jobjectArray ToArray(const ScopedJniThreadState& ts, const char* array_class_name,
-                            const std::vector<T*>& objects) {
-  ScopedLocalRef<jclass> array_class(ts.Env(), ts.Env()->FindClass(array_class_name));
-  jobjectArray result = ts.Env()->NewObjectArray(objects.size(), array_class.get(), NULL);
+static jobjectArray ToArray(const ScopedObjectAccessUnchecked& soa, const char* array_class_name,
+                            const std::vector<T*>& objects)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  ScopedLocalRef<jclass> array_class(soa.Env(), soa.Env()->FindClass(array_class_name));
+  jobjectArray result = soa.Env()->NewObjectArray(objects.size(), array_class.get(), NULL);
   for (size_t i = 0; i < objects.size(); ++i) {
-    ScopedLocalRef<jobject> object(ts.Env(), ts.AddLocalReference<jobject>(objects[i]));
-    ts.Env()->SetObjectArrayElement(result, i, object.get());
+    ScopedLocalRef<jobject> object(soa.Env(), soa.AddLocalReference<jobject>(objects[i]));
+    soa.Env()->SetObjectArrayElement(result, i, object.get());
   }
   return result;
 }
+};
+#define ToArray(a, b, c) WorkAroundGccAnnotalysisBug::ToArray(a, b, c)
 
 static bool IsVisibleConstructor(Method* m, bool public_only) {
   if (public_only && !m->IsPublic()) {
@@ -110,8 +116,8 @@ static bool IsVisibleConstructor(Method* m, bool public_only) {
 }
 
 static jobjectArray Class_getDeclaredConstructors(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
-  ScopedJniThreadState ts(env);
-  Class* c = DecodeClass(ts, javaClass);
+  ScopedObjectAccess soa(env);
+  Class* c = DecodeClass(soa, javaClass);
   std::vector<Method*> constructors;
   for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
     Method* m = c->GetDirectMethod(i);
@@ -120,7 +126,7 @@ static jobjectArray Class_getDeclaredConstructors(JNIEnv* env, jclass javaClass,
     }
   }
 
-  return ToArray(ts, "java/lang/reflect/Constructor", constructors);
+  return ToArray(soa, "java/lang/reflect/Constructor", constructors);
 }
 
 static bool IsVisibleField(Field* f, bool public_only) {
@@ -131,8 +137,8 @@ static bool IsVisibleField(Field* f, bool public_only) {
 }
 
 static jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
-  ScopedJniThreadState ts(env);
-  Class* c = DecodeClass(ts, javaClass);
+  ScopedObjectAccess soa(env);
+  Class* c = DecodeClass(soa, javaClass);
   std::vector<Field*> fields;
   FieldHelper fh;
   for (size_t i = 0; i < c->NumInstanceFields(); ++i) {
@@ -164,7 +170,7 @@ static jobjectArray Class_getDeclaredFields(JNIEnv* env, jclass javaClass, jbool
     }
   }
 
-  return ToArray(ts, "java/lang/reflect/Field", fields);
+  return ToArray(soa, "java/lang/reflect/Field", fields);
 }
 
 static bool IsVisibleMethod(Method* m, bool public_only) {
@@ -181,8 +187,8 @@ static bool IsVisibleMethod(Method* m, bool public_only) {
 }
 
 static jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboolean publicOnly) {
-  ScopedJniThreadState ts(env);
-  Class* c = DecodeClass(ts, javaClass);
+  ScopedObjectAccess soa(env);
+  Class* c = DecodeClass(soa, javaClass);
   if (c == NULL) {
     return NULL;
   }
@@ -218,12 +224,12 @@ static jobjectArray Class_getDeclaredMethods(JNIEnv* env, jclass javaClass, jboo
     }
   }
 
-  return ToArray(ts, "java/lang/reflect/Method", methods);
+  return ToArray(soa, "java/lang/reflect/Method", methods);
 }
 
 static jobject Class_getDex(JNIEnv* env, jobject javaClass) {
-  ScopedJniThreadState ts(env);
-  Class* c = DecodeClass(ts, javaClass);
+  ScopedObjectAccess soa(env);
+  Class* c = DecodeClass(soa, javaClass);
 
   DexCache* dex_cache = c->GetDexCache();
   if (dex_cache == NULL) {
@@ -233,7 +239,8 @@ static jobject Class_getDex(JNIEnv* env, jobject javaClass) {
   return Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache).GetDexObject(env);
 }
 
-static bool MethodMatches(MethodHelper* mh, const std::string& name, ObjectArray<Class>* arg_array) {
+static bool MethodMatches(MethodHelper* mh, const std::string& name, ObjectArray<Class>* arg_array)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   if (name != mh->GetName()) {
     return false;
   }
@@ -254,7 +261,8 @@ static bool MethodMatches(MethodHelper* mh, const std::string& name, ObjectArray
 }
 
 static Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, const std::string& name,
-                                              ObjectArray<Class>* arg_array) {
+                                              ObjectArray<Class>* arg_array)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   if (methods == NULL) {
     return NULL;
   }
@@ -282,10 +290,10 @@ static Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, cons
 
 static jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClass, jstring javaName,
                                                     jobjectArray javaArgs) {
-  ScopedJniThreadState ts(env);
-  Class* c = DecodeClass(ts, javaClass);
-  std::string name(ts.Decode<String*>(javaName)->ToModifiedUtf8());
-  ObjectArray<Class>* arg_array = ts.Decode<ObjectArray<Class>*>(javaArgs);
+  ScopedObjectAccess soa(env);
+  Class* c = DecodeClass(soa, javaClass);
+  std::string name(soa.Decode<String*>(javaName)->ToModifiedUtf8());
+  ObjectArray<Class>* arg_array = soa.Decode<ObjectArray<Class>*>(javaArgs);
 
   Method* m = FindConstructorOrMethodInArray(c->GetDirectMethods(), name, arg_array);
   if (m == NULL) {
@@ -293,16 +301,16 @@ static jobject Class_getDeclaredConstructorOrMethod(JNIEnv* env, jclass javaClas
   }
 
   if (m != NULL) {
-    return ts.AddLocalReference<jobject>(m);
+    return soa.AddLocalReference<jobject>(m);
   } else {
     return NULL;
   }
 }
 
 static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass java_class, jobject jname) {
-  ScopedJniThreadState ts(env);
-  Class* c = DecodeClass(ts, java_class);
-  String* name = ts.Decode<String*>(jname);
+  ScopedObjectAccess soa(env);
+  Class* c = DecodeClass(soa, java_class);
+  String* name = soa.Decode<String*>(jname);
   DCHECK(name->GetClass()->IsStringClass());
 
   FieldHelper fh;
@@ -314,7 +322,7 @@ static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass java_class, jobj
         DCHECK(env->ExceptionOccurred());
         return NULL;
       }
-      return ts.AddLocalReference<jclass>(f);
+      return soa.AddLocalReference<jclass>(f);
     }
   }
   for (size_t i = 0; i < c->NumStaticFields(); ++i) {
@@ -325,40 +333,40 @@ static jobject Class_getDeclaredFieldNative(JNIEnv* env, jclass java_class, jobj
         DCHECK(env->ExceptionOccurred());
         return NULL;
       }
-      return ts.AddLocalReference<jclass>(f);
+      return soa.AddLocalReference<jclass>(f);
     }
   }
   return NULL;
 }
 
 static jstring Class_getNameNative(JNIEnv* env, jobject javaThis) {
-  ScopedJniThreadState ts(env);
-  Class* c = DecodeClass(ts, javaThis);
-  return ts.AddLocalReference<jstring>(c->ComputeName());
+  ScopedObjectAccess soa(env);
+  Class* c = DecodeClass(soa, javaThis);
+  return soa.AddLocalReference<jstring>(c->ComputeName());
 }
 
 static jobjectArray Class_getProxyInterfaces(JNIEnv* env, jobject javaThis) {
-  ScopedJniThreadState ts(env);
-  SynthesizedProxyClass* c = down_cast<SynthesizedProxyClass*>(DecodeClass(ts, javaThis));
-  return ts.AddLocalReference<jobjectArray>(c->GetInterfaces()->Clone());
+  ScopedObjectAccess soa(env);
+  SynthesizedProxyClass* c = down_cast<SynthesizedProxyClass*>(DecodeClass(soa, javaThis));
+  return soa.AddLocalReference<jobjectArray>(c->GetInterfaces()->Clone());
 }
 
 static jboolean Class_isAssignableFrom(JNIEnv* env, jobject javaLhs, jclass javaRhs) {
-  ScopedJniThreadState ts(env);
-  Class* lhs = DecodeClass(ts, javaLhs);
-  Class* rhs = ts.Decode<Class*>(javaRhs); // Can be null.
+  ScopedObjectAccess soa(env);
+  Class* lhs = DecodeClass(soa, javaLhs);
+  Class* rhs = soa.Decode<Class*>(javaRhs); // Can be null.
   if (rhs == NULL) {
-    ts.Self()->ThrowNewException("Ljava/lang/NullPointerException;", "class == null");
+    soa.Self()->ThrowNewException("Ljava/lang/NullPointerException;", "class == null");
     return JNI_FALSE;
   }
   return lhs->IsAssignableFrom(rhs) ? JNI_TRUE : JNI_FALSE;
 }
 
 static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
-  ScopedJniThreadState ts(env);
-  Class* c = DecodeClass(ts, javaThis);
+  ScopedObjectAccess soa(env);
+  Class* c = DecodeClass(soa, javaThis);
   if (c->IsPrimitive() || c->IsInterface() || c->IsArrayClass() || c->IsAbstract()) {
-    ts.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
         "Class %s can not be instantiated", PrettyDescriptor(ClassHelper(c).GetDescriptor()).c_str());
     return NULL;
   }
@@ -369,7 +377,7 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
 
   Method* init = c->FindDeclaredDirectMethod("<init>", "()V");
   if (init == NULL) {
-    ts.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
         "Class %s has no default <init>()V constructor", PrettyDescriptor(ClassHelper(c).GetDescriptor()).c_str());
     return NULL;
   }
@@ -383,20 +391,20 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
   // constructor must be public or, if the caller is in the same package,
   // have package scope.
 
-  NthCallerVisitor visitor(ts.Self()->GetManagedStack(), ts.Self()->GetTraceStack(), 2);
+  NthCallerVisitor visitor(soa.Self()->GetManagedStack(), soa.Self()->GetTraceStack(), 2);
   visitor.WalkStack();
   Class* caller_class = visitor.caller->GetDeclaringClass();
 
   ClassHelper caller_ch(caller_class);
   if (!caller_class->CanAccess(c)) {
-    ts.Self()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
         "Class %s is not accessible from class %s",
         PrettyDescriptor(ClassHelper(c).GetDescriptor()).c_str(),
         PrettyDescriptor(caller_ch.GetDescriptor()).c_str());
     return NULL;
   }
   if (!caller_class->CanAccessMember(init->GetDeclaringClass(), init->GetAccessFlags())) {
-    ts.Self()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/IllegalAccessException;",
         "%s is not accessible from class %s",
         PrettyMethod(init).c_str(),
         PrettyDescriptor(caller_ch.GetDescriptor()).c_str());
@@ -405,13 +413,13 @@ static jobject Class_newInstanceImpl(JNIEnv* env, jobject javaThis) {
 
   Object* new_obj = c->AllocObject();
   if (new_obj == NULL) {
-    DCHECK(ts.Self()->IsExceptionPending());
+    DCHECK(soa.Self()->IsExceptionPending());
     return NULL;
   }
 
   // invoke constructor; unlike reflection calls, we don't wrap exceptions
-  jclass java_class = ts.AddLocalReference<jclass>(c);
-  jmethodID mid = ts.EncodeMethod(init);
+  jclass java_class = soa.AddLocalReference<jclass>(c);
+  jmethodID mid = soa.EncodeMethod(init);
   return env->NewObject(java_class, mid);
 }
 

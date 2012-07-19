@@ -74,7 +74,9 @@ class CardTable {
 
   // For every dirty card between begin and end invoke the visitor with the specified argument.
   template <typename Visitor>
-  void Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end, const Visitor& visitor) const {
+  void Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end, const Visitor& visitor) const
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     DCHECK(bitmap->HasAddress(scan_begin));
     DCHECK(bitmap->HasAddress(scan_end - 1));  // scan_end is the byte after the last byte we scan.
     byte* card_cur = CardFromAddr(scan_begin);

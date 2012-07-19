@@ -40,7 +40,7 @@
 #include "reflection.h"
 #include "runtime.h"
 #include "runtime_support.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "space.h"
 #include "stack.h"
@@ -53,6 +53,7 @@
 namespace art {
 
 pthread_key_t Thread::pthread_key_self_;
+ConditionVariable* Thread::resume_cond_;
 
 static const char* kThreadNameDuringStartup = "<native thread without managed peer>";
 
@@ -101,15 +102,10 @@ void* Thread::CreateCallback(void* arg) {
   Thread* self = reinterpret_cast<Thread*>(arg);
   self->Init();
 
-  // Wait until it's safe to start running code. (There may have been a suspend-all
-  // in progress while we were starting up.)
-  Runtime* runtime = Runtime::Current();
-  runtime->GetThreadList()->WaitForGo();
-
   {
-    ScopedJniThreadState ts(self);
+    ScopedObjectAccess soa(self);
     {
-      SirtRef<String> thread_name(self->GetThreadName(ts));
+      SirtRef<String> thread_name(self->GetThreadName(soa));
       self->SetThreadName(thread_name->ToModifiedUtf8().c_str());
     }
 
@@ -119,29 +115,37 @@ void* Thread::CreateCallback(void* arg) {
     CHECK(self->peer_ != NULL);
     Object* receiver = self->peer_;
     jmethodID mid = WellKnownClasses::java_lang_Thread_run;
-    Method* m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(ts.DecodeMethod(mid));
+    Method* m = receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
     m->Invoke(self, receiver, NULL, NULL);
   }
 
-  // Detach.
-  runtime->GetThreadList()->Unregister();
+  // Detach and delete self.
+  Runtime::Current()->GetThreadList()->Unregister(self);
 
   return NULL;
 }
 
-static void SetVmData(const ScopedJniThreadState& ts, Object* managed_thread,
-                      Thread* native_thread) {
-  Field* f = ts.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+static void SetVmData(const ScopedObjectAccess& soa, Object* managed_thread,
+                      Thread* native_thread)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
   f->SetInt(managed_thread, reinterpret_cast<uintptr_t>(native_thread));
 }
 
-Thread* Thread::FromManagedThread(const ScopedJniThreadState& ts, Object* thread_peer) {
-  Field* f = ts.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
-  return reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetInt(thread_peer)));
+Thread* Thread::FromManagedThread(const ScopedObjectAccessUnchecked& soa, Object* thread_peer) {
+  Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
+  Thread* result = reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetInt(thread_peer)));
+  // Sanity check that if we have a result it is either suspended or we hold the thread_list_lock_
+  // to stop it from going away.
+  MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+  if (result != NULL && !result->IsSuspended()) {
+    GlobalSynchronization::thread_list_lock_->AssertHeld();
+  }
+  return result;
 }
 
-Thread* Thread::FromManagedThread(const ScopedJniThreadState& ts, jobject java_thread) {
-  return FromManagedThread(ts, ts.Decode<Object*>(java_thread));
+Thread* Thread::FromManagedThread(const ScopedObjectAccessUnchecked& soa, jobject java_thread) {
+  return FromManagedThread(soa, soa.Decode<Object*>(java_thread));
 }
 
 static size_t FixStackSize(size_t stack_size) {
@@ -210,42 +214,38 @@ static void TearDownAlternateSignalStack() {
 void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_size, bool daemon) {
   Thread* native_thread = new Thread(daemon);
   {
-    ScopedJniThreadState ts(env);
-    Object* peer = ts.Decode<Object*>(java_peer);
+    ScopedObjectAccess soa(env);
+    Object* peer = soa.Decode<Object*>(java_peer);
     CHECK(peer != NULL);
     native_thread->peer_ = peer;
 
     stack_size = FixStackSize(stack_size);
 
-    // Thread.start is synchronized, so we know that vmData is 0,
-    // and know that we're not racing to assign it.
-    SetVmData(ts, peer, native_thread);
-
-    int pthread_create_result = 0;
-    {
-      ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
-      pthread_t new_pthread;
-      pthread_attr_t attr;
-      CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new thread");
-      CHECK_PTHREAD_CALL(pthread_attr_setdetachstate, (&attr, PTHREAD_CREATE_DETACHED), "PTHREAD_CREATE_DETACHED");
-      CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), stack_size);
-      pthread_create_result = pthread_create(&new_pthread, &attr, Thread::CreateCallback, native_thread);
-      CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new thread");
-    }
-
-    if (pthread_create_result != 0) {
-      // pthread_create(3) failed, so clean up.
-      SetVmData(ts, peer, 0);
-      delete native_thread;
-
-      std::string msg(StringPrintf("pthread_create (%s stack) failed: %s",
-                                   PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
-      Thread::Current()->ThrowOutOfMemoryError(msg.c_str());
-      return;
-    }
+    // Thread.start is synchronized, so we know that vmData is 0, and know that we're not racing to
+    // assign it.
+    SetVmData(soa, peer, native_thread);
   }
-  // Let the child know when it's safe to start running.
-  Runtime::Current()->GetThreadList()->SignalGo(native_thread);
+
+  pthread_t new_pthread;
+  pthread_attr_t attr;
+  CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "new thread");
+  CHECK_PTHREAD_CALL(pthread_attr_setdetachstate, (&attr, PTHREAD_CREATE_DETACHED), "PTHREAD_CREATE_DETACHED");
+  CHECK_PTHREAD_CALL(pthread_attr_setstacksize, (&attr, stack_size), stack_size);
+  int pthread_create_result = pthread_create(&new_pthread, &attr, Thread::CreateCallback, native_thread);
+  CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "new thread");
+
+  if (UNLIKELY(pthread_create_result != 0)) {
+    // pthread_create(3) failed, so clean up.
+    ScopedObjectAccess soa(env);
+    Object* peer = soa.Decode<Object*>(java_peer);
+    SetVmData(soa, peer, 0);
+    delete native_thread;
+
+    std::string msg(StringPrintf("pthread_create (%s stack) failed: %s",
+                                 PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
+    Thread::Current()->ThrowOutOfMemoryError(msg.c_str());
+    return;
+  }
 }
 
 void Thread::Init() {
@@ -262,7 +262,9 @@ void Thread::Init() {
 
   Runtime* runtime = Runtime::Current();
   CHECK(runtime != NULL);
-
+  if (runtime->IsShuttingDown()) {
+    UNIMPLEMENTED(WARNING) << "Thread attaching whilst runtime is shutting down";
+  }
   thin_lock_id_ = runtime->GetThreadList()->AllocThreadId();
   pthread_self_ = pthread_self();
 
@@ -273,14 +275,18 @@ void Thread::Init() {
 
   jni_env_ = new JNIEnvExt(this, runtime->GetJavaVM());
 
-  runtime->GetThreadList()->Register();
+  runtime->GetThreadList()->Register(this);
 }
 
 Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_group) {
   Thread* self = new Thread(as_daemon);
   self->Init();
 
-  self->SetState(kNative);
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    CHECK_NE(self->GetState(), kRunnable);
+    self->SetState(kNative);
+  }
 
   // If we're the main thread, ClassLinker won't be created until after we're attached,
   // so that thread needs a two-stage attach. Regular threads don't need this hack.
@@ -313,30 +319,33 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
   jboolean thread_is_daemon = as_daemon;
 
   ScopedLocalRef<jobject> peer(env, env->AllocObject(WellKnownClasses::java_lang_Thread));
-  peer_ = DecodeJObject(peer.get());
-  if (peer_ == NULL) {
-    CHECK(IsExceptionPending());
-    return;
+  {
+    ScopedObjectAccess soa(env);
+    peer_ = DecodeJObject(peer.get());
+    if (peer_ == NULL) {
+      CHECK(IsExceptionPending());
+      return;
+    }
   }
   env->CallNonvirtualVoidMethod(peer.get(),
                                 WellKnownClasses::java_lang_Thread,
                                 WellKnownClasses::java_lang_Thread_init,
                                 thread_group, thread_name.get(), thread_priority, thread_is_daemon);
-  CHECK(!IsExceptionPending()) << " " << PrettyTypeOf(GetException());
+  AssertNoPendingException();
 
-  ScopedJniThreadState ts(this);
-  SetVmData(ts, peer_, Thread::Current());
-  SirtRef<String> peer_thread_name(GetThreadName(ts));
+  ScopedObjectAccess soa(this);
+  SetVmData(soa, peer_, Thread::Current());
+  SirtRef<String> peer_thread_name(GetThreadName(soa));
   if (peer_thread_name.get() == NULL) {
     // The Thread constructor should have set the Thread.name to a
     // non-null value. However, because we can run without code
     // available (in the compiler, in tests), we manually assign the
     // fields the constructor should have set.
-    ts.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->SetBoolean(peer_, thread_is_daemon);
-    ts.DecodeField(WellKnownClasses::java_lang_Thread_group)->SetObject(peer_, ts.Decode<Object*>(thread_group));
-    ts.DecodeField(WellKnownClasses::java_lang_Thread_name)->SetObject(peer_, ts.Decode<Object*>(thread_name.get()));
-    ts.DecodeField(WellKnownClasses::java_lang_Thread_priority)->SetInt(peer_, thread_priority);
-    peer_thread_name.reset(GetThreadName(ts));
+    soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->SetBoolean(peer_, thread_is_daemon);
+    soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->SetObject(peer_, soa.Decode<Object*>(thread_group));
+    soa.DecodeField(WellKnownClasses::java_lang_Thread_name)->SetObject(peer_, soa.Decode<Object*>(thread_name.get()));
+    soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->SetInt(peer_, thread_priority);
+    peer_thread_name.reset(GetThreadName(soa));
   }
   // 'thread_name' may have been null, so don't trust 'peer_thread_name' to be non-null.
   if (peer_thread_name.get() != NULL) {
@@ -403,32 +412,190 @@ void Thread::InitStackHwm() {
   CHECK_GT(&stack_variable, reinterpret_cast<void*>(stack_end_));
 }
 
-void Thread::Dump(std::ostream& os, bool full) const {
-  if (full) {
-    DumpState(os);
-    DumpStack(os);
-  } else {
-    os << "Thread[";
-    if (GetThinLockId() != 0) {
-      // If we're in kStarting, we won't have a thin lock id or tid yet.
-      os << GetThinLockId()
-         << ",tid=" << GetTid() << ',';
-    }
-    os << GetState()
-       << ",Thread*=" << this
-       << ",peer=" << peer_
-       << ",\"" << *name_ << "\""
-       << "]";
+void Thread::ShortDump(std::ostream& os) const {
+  os << "Thread[";
+  if (GetThinLockId() != 0) {
+    // If we're in kStarting, we won't have a thin lock id or tid yet.
+    os << GetThinLockId()
+             << ",tid=" << GetTid() << ',';
   }
+  os << GetStateUnsafe()
+           << ",Thread*=" << this
+           << ",peer=" << peer_
+           << ",\"" << *name_ << "\""
+           << "]";
 }
 
-String* Thread::GetThreadName(const ScopedJniThreadState& ts) const {
-  Field* f = ts.DecodeField(WellKnownClasses::java_lang_Thread_name);
+void Thread::Dump(std::ostream& os) const {
+  DumpState(os);
+  DumpStack(os);
+}
+
+String* Thread::GetThreadName(const ScopedObjectAccessUnchecked& soa) const {
+  Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_name);
   return (peer_ != NULL) ? reinterpret_cast<String*>(f->GetObject(peer_)) : NULL;
 }
 
 void Thread::GetThreadName(std::string& name) const {
   name.assign(*name_);
+}
+
+// Attempt to rectify locks so that we dump thread list with required locks before exiting.
+static void UnsafeLogFatalForSuspendCount(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
+  GlobalSynchronization::thread_suspend_count_lock_->Unlock();
+  GlobalSynchronization::mutator_lock_->SharedTryLock();
+  if (!GlobalSynchronization::mutator_lock_->IsSharedHeld()) {
+    LOG(WARNING) << "Dumping thread list without holding mutator_lock_";
+  }
+  GlobalSynchronization::thread_list_lock_->TryLock();
+  if (!GlobalSynchronization::thread_list_lock_->IsExclusiveHeld()) {
+    LOG(WARNING) << "Dumping thread list without holding thread_list_lock_";
+  }
+  std::ostringstream ss;
+  Runtime::Current()->GetThreadList()->DumpLocked(ss);
+  LOG(FATAL) << self << " suspend count already zero.\n" << ss.str();
+}
+
+void Thread::ModifySuspendCount(int delta, bool for_debugger) {
+  DCHECK(delta == -1 || delta == +1 || delta == -debug_suspend_count_)
+      << delta << " " << debug_suspend_count_ << " " << this;
+  DCHECK_GE(suspend_count_, debug_suspend_count_) << this;
+  GlobalSynchronization::thread_suspend_count_lock_->AssertHeld();
+
+  if (delta == -1 && suspend_count_ <= 0) {
+    // This is expected if you attach a thread during a GC.
+    if (UNLIKELY(!IsStillStarting())) {
+      UnsafeLogFatalForSuspendCount(this);
+    }
+    return;
+  }
+  suspend_count_ += delta;
+  if (for_debugger) {
+    debug_suspend_count_ += delta;
+  }
+}
+
+void Thread::FullSuspendCheck() {
+  VLOG(threads) << this << " self-suspending";
+  // Make thread appear suspended to other threads, release mutator_lock_.
+  TransitionFromRunnableToSuspended(kSuspended);
+  // Transition back to runnable noting requests to suspend, re-acquire share on mutator_lock_.
+  TransitionFromSuspendedToRunnable();
+  VLOG(threads) << this << " self-reviving";
+}
+
+void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
+  AssertThreadSuspensionIsAllowable();
+  CHECK_NE(new_state, kRunnable);
+  CHECK_EQ(this, Thread::Current());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    CHECK_EQ(GetState(), kRunnable);
+    SetState(new_state);
+  }
+  // Release share on mutator_lock_.
+  GlobalSynchronization::mutator_lock_->SharedUnlock();
+}
+
+ThreadState Thread::TransitionFromSuspendedToRunnable() {
+  bool done = false;
+  ThreadState old_state;
+  do {
+    {
+      // Wait while our suspend count is non-zero.
+      MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+      old_state = GetState();
+      CHECK_NE(old_state, kRunnable);
+      GlobalSynchronization::mutator_lock_->AssertNotHeld();  // Otherwise we starve GC..
+      while (GetSuspendCount() != 0) {
+        // Re-check when Thread::resume_cond_ is notified.
+        Thread::resume_cond_->Wait(*GlobalSynchronization::thread_suspend_count_lock_);
+      }
+    }
+    // Re-acquire shared mutator_lock_ access.
+    GlobalSynchronization::mutator_lock_->SharedLock();
+    // Holding the mutator_lock_, synchronize with any thread trying to raise the suspend count
+    // and change state to Runnable if no suspend is pending.
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    if (GetSuspendCount() == 0) {
+      SetState(kRunnable);
+      done = true;
+    } else {
+      // Release shared mutator_lock_ access and try again.
+      GlobalSynchronization::mutator_lock_->SharedUnlock();
+    }
+  } while (!done);
+  return old_state;
+}
+
+Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* timeout) {
+  static const useconds_t kTimeoutUs = 30 * 1000000; // 30s.
+  useconds_t total_delay_us = 0;
+  useconds_t delay_us = 0;
+  bool did_suspend_request = false;
+  *timeout = false;
+  while (true) {
+    Thread* thread;
+    {
+      ScopedObjectAccess soa(Thread::Current());
+      MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+      thread = Thread::FromManagedThread(soa, peer);
+      if (thread == NULL) {
+        LOG(WARNING) << "No such thread for suspend: " << peer;
+        return NULL;
+      }
+      {
+        MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+        if (request_suspension) {
+          thread->ModifySuspendCount(+1, true /* for_debugger */);
+          request_suspension = false;
+          did_suspend_request = true;
+        }
+        // IsSuspended on the current thread will fail as the current thread is changed into
+        // Runnable above. As the suspend count is now raised if this is the current thread
+        // it will self suspend on transition to Runnable, making it hard to work with. Its simpler
+        // to just explicitly handle the current thread in the callers to this code.
+        CHECK_NE(thread, soa.Self()) << "Attempt to suspend for debugger the current thread";
+        // If thread is suspended (perhaps it was already not Runnable but didn't have a suspend
+        // count, or else we've waited and it has self suspended) or is the current thread, we're
+        // done.
+        if (thread->IsSuspended()) {
+          return thread;
+        }
+        if (total_delay_us >= kTimeoutUs) {
+          LOG(ERROR) << "Thread suspension timed out: " << peer;
+          if (did_suspend_request) {
+            thread->ModifySuspendCount(-1, true /* for_debugger */);
+          }
+          *timeout = true;
+          return NULL;
+        }
+      }
+      // Release locks and come out of runnable state.
+    }
+    for (int i = kMaxMutexLevel; i >= 0; --i) {
+      BaseMutex* held_mutex = Thread::Current()->GetHeldMutex(static_cast<MutexLevel>(i));
+      if (held_mutex != NULL) {
+        LOG(FATAL) << "Holding " << held_mutex->GetName()
+            << " while sleeping for thread suspension";
+      }
+    }
+    {
+      useconds_t new_delay_us = delay_us * 2;
+      CHECK_GE(new_delay_us, delay_us);
+      if (new_delay_us < 500000) {  // Don't allow sleeping to be more than 0.5s.
+        delay_us = new_delay_us;
+      }
+    }
+    if (delay_us == 0) {
+      sched_yield();
+      // Default to 1 milliseconds (note that this gets multiplied by 2 before the first sleep).
+      delay_us = 500;
+    } else {
+      usleep(delay_us);
+      total_delay_us += delay_us;
+    }
+  }
 }
 
 void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
@@ -437,13 +604,13 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   bool is_daemon = false;
 
   if (thread != NULL && thread->peer_ != NULL) {
-    ScopedJniThreadState ts(Thread::Current());
-    priority = ts.DecodeField(WellKnownClasses::java_lang_Thread_priority)->GetInt(thread->peer_);
-    is_daemon = ts.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(thread->peer_);
+    ScopedObjectAccess soa(Thread::Current());
+    priority = soa.DecodeField(WellKnownClasses::java_lang_Thread_priority)->GetInt(thread->peer_);
+    is_daemon = soa.DecodeField(WellKnownClasses::java_lang_Thread_daemon)->GetBoolean(thread->peer_);
 
-    Object* thread_group = thread->GetThreadGroup(ts);
+    Object* thread_group = thread->GetThreadGroup(soa);
     if (thread_group != NULL) {
-      Field* group_name_field = ts.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
+      Field* group_name_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
       String* group_name_string = reinterpret_cast<String*>(group_name_field->GetObject(thread_group));
       group_name = (group_name_string != NULL) ? group_name_string->ToModifiedUtf8() : "<null>";
     }
@@ -461,6 +628,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     if (is_daemon) {
       os << " daemon";
     }
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
     os << " prio=" << priority
        << " tid=" << thread->GetThinLockId()
        << " " << thread->GetState() << "\n";
@@ -471,6 +639,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   }
 
   if (thread != NULL) {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
     os << "  | group=\"" << group_name << "\""
        << " sCount=" << thread->suspend_count_
        << " dsCount=" << thread->debug_suspend_count_
@@ -520,6 +689,7 @@ void Thread::DumpState(std::ostream& os) const {
 
 struct StackDumpVisitor : public StackVisitor {
   StackDumpVisitor(std::ostream& os, const Thread* thread, Context* context, bool can_allocate)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
       : StackVisitor(thread->GetManagedStack(), thread->GetTraceStack(), context),
         os(os), thread(thread), can_allocate(can_allocate),
         last_method(NULL), last_line_number(0), repetition_count(0), frame_count(0) {
@@ -531,7 +701,7 @@ struct StackDumpVisitor : public StackVisitor {
     }
   }
 
-  bool VisitFrame() {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* m = GetMethod();
     if (m->IsRuntimeMethod()) {
       return true;
@@ -589,155 +759,18 @@ struct StackDumpVisitor : public StackVisitor {
 
 void Thread::DumpStack(std::ostream& os) const {
   // If we're currently in native code, dump that stack before dumping the managed stack.
-  if (GetState() == kNative || GetState() == kVmWait) {
+  ThreadState state;
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    state = GetState();
+  }
+  if (state == kNative) {
     DumpKernelStack(os, GetTid(), "  kernel: ", false);
     DumpNativeStack(os, GetTid(), "  native: ", false);
   }
   UniquePtr<Context> context(Context::Create());
   StackDumpVisitor dumper(os, this, context.get(), !throwing_OutOfMemoryError_);
   dumper.WalkStack();
-}
-
-void Thread::SetStateWithoutSuspendCheck(ThreadState new_state) {
-  DCHECK_EQ(this, Thread::Current());
-  volatile void* raw = reinterpret_cast<volatile void*>(&state_);
-  volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw);
-  android_atomic_release_store(new_state, addr);
-}
-
-ThreadState Thread::SetState(ThreadState new_state) {
-  if (new_state != kVmWait && new_state != kTerminated) {
-    // TODO: kVmWait is set by the parent thread to a child thread to indicate it can go. Similarly
-    // kTerminated may be set by a parent thread to its child if pthread creation fails.  This
-    // overloaded use of the state variable means we cannot fully assert that only threads
-    // themselves modify their state.
-    DCHECK_EQ(this, Thread::Current());
-  }
-  ThreadState old_state = state_;
-  if (old_state == kRunnable) {
-    // Non-runnable states are points where we expect thread suspension can occur.
-    AssertThreadSuspensionIsAllowable();
-  }
-
-  if (old_state == new_state) {
-    return old_state;
-  }
-
-  volatile void* raw = reinterpret_cast<volatile void*>(&state_);
-  volatile int32_t* addr = reinterpret_cast<volatile int32_t*>(raw);
-
-  if (new_state == kRunnable) {
-    /*
-     * Change our status to kRunnable.  The transition requires
-     * that we check for pending suspension, because the runtime considers
-     * us to be "asleep" in all other states, and another thread could
-     * be performing a GC now.
-     *
-     * The order of operations is very significant here.  One way to
-     * do this wrong is:
-     *
-     *   GCing thread                   Our thread (in kNative)
-     *   ------------                   ----------------------
-     *                                  check suspend count (== 0)
-     *   SuspendAllThreads()
-     *   grab suspend-count lock
-     *   increment all suspend counts
-     *   release suspend-count lock
-     *   check thread state (== kNative)
-     *   all are suspended, begin GC
-     *                                  set state to kRunnable
-     *                                  (continue executing)
-     *
-     * We can correct this by grabbing the suspend-count lock and
-     * performing both of our operations (check suspend count, set
-     * state) while holding it, now we need to grab a mutex on every
-     * transition to kRunnable.
-     *
-     * What we do instead is change the order of operations so that
-     * the transition to kRunnable happens first.  If we then detect
-     * that the suspend count is nonzero, we switch to kSuspended.
-     *
-     * Appropriate compiler and memory barriers are required to ensure
-     * that the operations are observed in the expected order.
-     *
-     * This does create a small window of opportunity where a GC in
-     * progress could observe what appears to be a running thread (if
-     * it happens to look between when we set to kRunnable and when we
-     * switch to kSuspended).  At worst this only affects assertions
-     * and thread logging.  (We could work around it with some sort
-     * of intermediate "pre-running" state that is generally treated
-     * as equivalent to running, but that doesn't seem worthwhile.)
-     *
-     * We can also solve this by combining the "status" and "suspend
-     * count" fields into a single 32-bit value.  This trades the
-     * store/load barrier on transition to kRunnable for an atomic RMW
-     * op on all transitions and all suspend count updates (also, all
-     * accesses to status or the thread count require bit-fiddling).
-     * It also eliminates the brief transition through kRunnable when
-     * the thread is supposed to be suspended.  This is possibly faster
-     * on SMP and slightly more correct, but less convenient.
-     */
-    AssertThreadSuspensionIsAllowable();
-    android_atomic_acquire_store(new_state, addr);
-    ANNOTATE_IGNORE_READS_BEGIN();
-    int suspend_count = suspend_count_;
-    ANNOTATE_IGNORE_READS_END();
-    if (suspend_count != 0) {
-      Runtime::Current()->GetThreadList()->FullSuspendCheck(this);
-    }
-  } else {
-    /*
-     * Not changing to kRunnable. No additional work required.
-     *
-     * We use a releasing store to ensure that, if we were runnable,
-     * any updates we previously made to objects on the managed heap
-     * will be observed before the state change.
-     */
-    android_atomic_release_store(new_state, addr);
-  }
-
-  return old_state;
-}
-
-bool Thread::IsSuspended() {
-  ANNOTATE_IGNORE_READS_BEGIN();
-  int suspend_count = suspend_count_;
-  ANNOTATE_IGNORE_READS_END();
-  return suspend_count != 0 && GetState() != kRunnable;
-}
-
-static void ReportThreadSuspendTimeout(Thread* waiting_thread) {
-  Runtime* runtime = Runtime::Current();
-  std::ostringstream ss;
-  ss << "Thread suspend timeout waiting for thread " << *waiting_thread << "\n";
-  runtime->DumpLockHolders(ss);
-  ss << "\n";
-  runtime->GetThreadList()->DumpLocked(ss);
-  LOG(FATAL) << ss.str();
-}
-
-void Thread::WaitUntilSuspended() {
-  static const useconds_t kTimeoutUs = 30 * 1000000; // 30s.
-
-  useconds_t total_delay = 0;
-  useconds_t delay = 0;
-  while (GetState() == kRunnable) {
-    if (total_delay >= kTimeoutUs) {
-      ReportThreadSuspendTimeout(this);
-    }
-    useconds_t new_delay = delay * 2;
-    CHECK_GE(new_delay, delay);
-    delay = new_delay;
-    if (delay == 0) {
-      sched_yield();
-      // Default to 1 milliseconds (note that this gets multiplied by 2 before
-      // the first sleep)
-      delay = 500;
-    } else {
-      usleep(delay);
-      total_delay += delay;
-    }
-  }
 }
 
 void Thread::ThreadExitCallback(void* arg) {
@@ -752,6 +785,11 @@ void Thread::ThreadExitCallback(void* arg) {
 }
 
 void Thread::Startup() {
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);  // Keep GCC happy.
+    resume_cond_ = new ConditionVariable("Thread resumption condition variable");
+  }
+
   // Allocate a TLS slot.
   CHECK_PTHREAD_CALL(pthread_key_create, (&Thread::pthread_key_self_, Thread::ThreadExitCallback), "self key");
 
@@ -764,13 +802,11 @@ void Thread::Startup() {
 void Thread::FinishStartup() {
   Runtime* runtime = Runtime::Current();
   CHECK(runtime->IsStarted());
-  Thread* self = Thread::Current();
 
   // Finish attaching the main thread.
-  ScopedThreadStateChange tsc(self, kRunnable);
+  ScopedObjectAccess soa(Thread::Current());
   Thread::Current()->CreatePeer("main", false, runtime->GetMainThreadGroup());
 
-  InitBoxingMethods();
   Runtime::Current()->GetClassLinker()->RunRootClinits();
 }
 
@@ -808,6 +844,7 @@ Thread::Thread(bool daemon)
       trace_stack_(new std::vector<TraceStackFrame>),
       name_(new std::string(kThreadNameDuringStartup)),
       daemon_(daemon),
+      pthread_self_(0),
       no_thread_suspension_(0),
       last_no_thread_suspension_cause_(NULL),
       thread_exit_check_count_(0) {
@@ -825,36 +862,49 @@ bool Thread::IsStillStarting() const {
   return (*name_ == kThreadNameDuringStartup);
 }
 
-static void MonitorExitVisitor(const Object* object, void*) {
+void Thread::AssertNoPendingException() const {
+  if (UNLIKELY(IsExceptionPending())) {
+    ScopedObjectAccess soa(Thread::Current());
+    Throwable* exception = GetException();
+    LOG(FATAL) << "No pending exception expected: " << exception->Dump();
+  }
+}
+
+static void MonitorExitVisitor(const Object* object, void* arg) NO_THREAD_SAFETY_ANALYSIS {
+  Thread* self = reinterpret_cast<Thread*>(arg);
   Object* entered_monitor = const_cast<Object*>(object);
-  LOG(WARNING) << "Calling MonitorExit on object " << object << " (" << PrettyTypeOf(object) << ")"
-               << " left locked by native thread " << *Thread::Current() << " which is detaching";
-  entered_monitor->MonitorExit(Thread::Current());
+  if (self->HoldsLock(entered_monitor)) {
+    LOG(WARNING) << "Calling MonitorExit on object "
+                 << object << " (" << PrettyTypeOf(object) << ")"
+                 << " left locked by native thread "
+                 << *Thread::Current() << " which is detaching";
+    entered_monitor->MonitorExit(self);
+  }
 }
 
 void Thread::Destroy() {
   // On thread detach, all monitors entered with JNI MonitorEnter are automatically exited.
   if (jni_env_ != NULL) {
-    jni_env_->monitors.VisitRoots(MonitorExitVisitor, NULL);
+    jni_env_->monitors.VisitRoots(MonitorExitVisitor, Thread::Current());
   }
 
   if (peer_ != NULL) {
     Thread* self = this;
 
     // We may need to call user-supplied managed code.
-    ScopedJniThreadState ts(this);
+    ScopedObjectAccess soa(this);
 
-    HandleUncaughtExceptions(ts);
-    RemoveFromThreadGroup(ts);
+    HandleUncaughtExceptions(soa);
+    RemoveFromThreadGroup(soa);
 
     // this.vmData = 0;
-    SetVmData(ts, peer_, NULL);
+    SetVmData(soa, peer_, NULL);
 
     Dbg::PostThreadDeath(self);
 
     // Thread.join() is implemented as an Object.wait() on the Thread.lock
     // object. Signal anyone who is waiting.
-    Object* lock = ts.DecodeField(WellKnownClasses::java_lang_Thread_lock)->GetObject(peer_);
+    Object* lock = soa.DecodeField(WellKnownClasses::java_lang_Thread_lock)->GetObject(peer_);
     // (This conditional is only needed for tests, where Thread.lock won't have been set.)
     if (lock != NULL) {
       lock->MonitorEnter(self);
@@ -868,7 +918,11 @@ Thread::~Thread() {
   delete jni_env_;
   jni_env_ = NULL;
 
-  SetState(kTerminated);
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    CHECK_NE(GetState(), kRunnable);
+    SetState(kTerminated);
+  }
 
   delete wait_cond_;
   delete wait_mutex_;
@@ -884,7 +938,7 @@ Thread::~Thread() {
   TearDownAlternateSignalStack();
 }
 
-void Thread::HandleUncaughtExceptions(const ScopedJniThreadState& ts) {
+void Thread::HandleUncaughtExceptions(const ScopedObjectAccess& soa) {
   if (!IsExceptionPending()) {
     return;
   }
@@ -894,15 +948,15 @@ void Thread::HandleUncaughtExceptions(const ScopedJniThreadState& ts) {
 
   // If the thread has its own handler, use that.
   Object* handler =
-      ts.DecodeField(WellKnownClasses::java_lang_Thread_uncaughtHandler)->GetObject(peer_);
+      soa.DecodeField(WellKnownClasses::java_lang_Thread_uncaughtHandler)->GetObject(peer_);
   if (handler == NULL) {
     // Otherwise use the thread group's default handler.
-    handler = GetThreadGroup(ts);
+    handler = GetThreadGroup(soa);
   }
 
   // Call the handler.
   jmethodID mid = WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler_uncaughtException;
-  Method* m = handler->GetClass()->FindVirtualMethodForVirtualOrInterface(ts.DecodeMethod(mid));
+  Method* m = handler->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
   JValue args[2];
   args[0].SetL(peer_);
   args[1].SetL(exception);
@@ -912,17 +966,17 @@ void Thread::HandleUncaughtExceptions(const ScopedJniThreadState& ts) {
   ClearException();
 }
 
-Object* Thread::GetThreadGroup(const ScopedJniThreadState& ts) const {
-  return ts.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(peer_);
+Object* Thread::GetThreadGroup(const ScopedObjectAccessUnchecked& soa) const {
+  return soa.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(peer_);
 }
 
-void Thread::RemoveFromThreadGroup(const ScopedJniThreadState& ts) {
+void Thread::RemoveFromThreadGroup(const ScopedObjectAccess& soa) {
   // this.group.removeThread(this);
   // group can be null if we're in the compiler or a test.
-  Object* group = GetThreadGroup(ts);
+  Object* group = GetThreadGroup(soa);
   if (group != NULL) {
     jmethodID mid = WellKnownClasses::java_lang_ThreadGroup_removeThread;
-    Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(ts.DecodeMethod(mid));
+    Method* m = group->GetClass()->FindVirtualMethodForVirtualOrInterface(soa.DecodeMethod(mid));
     JValue args[1];
     args[0].SetL(peer_);
     m->Invoke(this, group, args, NULL);
@@ -1023,10 +1077,11 @@ class CountStackDepthVisitor : public StackVisitor {
  public:
   CountStackDepthVisitor(const ManagedStack* stack,
                          const std::vector<TraceStackFrame>* trace_stack)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
       : StackVisitor(stack, trace_stack, NULL),
         depth_(0), skip_depth_(0), skipping_(true) {}
 
-  bool VisitFrame() {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     // We want to skip frames up to and including the exception's constructor.
     // Note we also skip the frame if it doesn't have a method (namely the callee
     // save frame)
@@ -1067,7 +1122,8 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
       : StackVisitor(stack, trace_stack, NULL),
         skip_depth_(skip_depth), count_(0), dex_pc_trace_(NULL), method_trace_(NULL) {}
 
-  bool Init(int depth, const ScopedJniThreadState& ts) {
+  bool Init(int depth, const ScopedObjectAccess& soa)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     // Allocate method trace with an extra slot that will hold the PC trace
     SirtRef<ObjectArray<Object> >
       method_trace(Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(depth + 1));
@@ -1083,7 +1139,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     method_trace->Set(depth, dex_pc_trace);
     // Set the Object*s and assert that no thread suspension is now possible.
     const char* last_no_suspend_cause =
-        ts.Self()->StartAssertNoThreadSuspension("Building internal stack trace");
+        soa.Self()->StartAssertNoThreadSuspension("Building internal stack trace");
     CHECK(last_no_suspend_cause == NULL) << last_no_suspend_cause;
     method_trace_ = method_trace.get();
     dex_pc_trace_ = dex_pc_trace;
@@ -1096,7 +1152,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     }
   }
 
-  bool VisitFrame() {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     if (method_trace_ == NULL || dex_pc_trace_ == NULL) {
       return true; // We're probably trying to fillInStackTrace for an OutOfMemoryError.
     }
@@ -1141,7 +1197,7 @@ StackIndirectReferenceTable* Thread::PopSirt() {
   return sirt;
 }
 
-jobject Thread::CreateInternalStackTrace(const ScopedJniThreadState& ts) const {
+jobject Thread::CreateInternalStackTrace(const ScopedObjectAccess& soa) const {
   // Compute depth of stack
   CountStackDepthVisitor count_visitor(GetManagedStack(), GetTraceStack());
   count_visitor.WalkStack();
@@ -1151,19 +1207,19 @@ jobject Thread::CreateInternalStackTrace(const ScopedJniThreadState& ts) const {
   // Build internal stack trace
   BuildInternalStackTraceVisitor build_trace_visitor(GetManagedStack(), GetTraceStack(),
                                                      skip_depth);
-  if (!build_trace_visitor.Init(depth, ts)) {
+  if (!build_trace_visitor.Init(depth, soa)) {
     return NULL;  // Allocation failed
   }
   build_trace_visitor.WalkStack();
-  return ts.AddLocalReference<jobjectArray>(build_trace_visitor.GetInternalStackTrace());
+  return soa.AddLocalReference<jobjectArray>(build_trace_visitor.GetInternalStackTrace());
 }
 
 jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, jobject internal,
     jobjectArray output_array, int* stack_depth) {
   // Transition into runnable state to work on Object*/Array*
-  ScopedJniThreadState ts(env);
+  ScopedObjectAccess soa(env);
   // Decode the internal stack trace into the depth, method trace and PC trace
-  ObjectArray<Object>* method_trace = ts.Decode<ObjectArray<Object>*>(internal);
+  ObjectArray<Object>* method_trace = soa.Decode<ObjectArray<Object>*>(internal);
   int32_t depth = method_trace->GetLength() - 1;
   IntArray* pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
 
@@ -1174,7 +1230,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
   if (output_array != NULL) {
     // Reuse the array we were given.
     result = output_array;
-    java_traces = ts.Decode<ObjectArray<StackTraceElement>*>(output_array);
+    java_traces = soa.Decode<ObjectArray<StackTraceElement>*>(output_array);
     // ...adjusting the number of frames we'll write to not exceed the array length.
     depth = std::min(depth, java_traces->GetLength());
   } else {
@@ -1183,7 +1239,7 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     if (java_traces == NULL) {
       return NULL;
     }
-    result = ts.AddLocalReference<jobjectArray>(java_traces);
+    result = soa.AddLocalReference<jobjectArray>(java_traces);
   }
 
   if (stack_depth != NULL) {
@@ -1223,8 +1279,8 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(JNIEnv* env, job
     }
 #ifdef MOVING_GARBAGE_COLLECTOR
     // Re-read after potential GC
-    java_traces = Decode<ObjectArray<Object>*>(ts.Env(), result);
-    method_trace = down_cast<ObjectArray<Object>*>(Decode<Object*>(ts.Env(), internal));
+    java_traces = Decode<ObjectArray<Object>*>(soa.Env(), result);
+    method_trace = down_cast<ObjectArray<Object>*>(Decode<Object*>(soa.Env(), internal));
     pc_trace = down_cast<IntArray*>(method_trace->Get(depth));
 #endif
     java_traces->Set(i, obj);
@@ -1246,7 +1302,7 @@ void Thread::ThrowNewExceptionV(const char* exception_class_descriptor, const ch
 }
 
 void Thread::ThrowNewException(const char* exception_class_descriptor, const char* msg) {
-  CHECK(!IsExceptionPending()); // Callers should either clear or call ThrowNewWrappedException.
+  AssertNoPendingException(); // Callers should either clear or call ThrowNewWrappedException.
   ThrowNewWrappedException(exception_class_descriptor, msg);
 }
 
@@ -1276,10 +1332,10 @@ void Thread::ThrowNewWrappedException(const char* exception_class_descriptor, co
     ScopedLocalRef<jthrowable> exception(
         env, reinterpret_cast<jthrowable>(env->AllocObject(exception_class.get())));
     if (exception.get() != NULL) {
-      ScopedJniThreadState ts(env);
-      Throwable* t = reinterpret_cast<Throwable*>(ts.Self()->DecodeJObject(exception.get()));
+      ScopedObjectAccessUnchecked soa(env);
+      Throwable* t = reinterpret_cast<Throwable*>(soa.Self()->DecodeJObject(exception.get()));
       t->SetDetailMessage(String::AllocFromModifiedUtf8(msg));
-      ts.Self()->SetException(t);
+      soa.Self()->SetException(t);
     } else {
       LOG(ERROR) << "Couldn't throw new " << descriptor << " because JNI AllocObject failed: "
                  << PrettyTypeOf(GetException());
@@ -1358,8 +1414,13 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   ENTRY_POINT_INFO(pGetObjInstance),
   ENTRY_POINT_INFO(pGetObjStatic),
   ENTRY_POINT_INFO(pHandleFillArrayDataFromCode),
-  ENTRY_POINT_INFO(pDecodeJObjectInThread),
   ENTRY_POINT_INFO(pFindNativeMethod),
+  ENTRY_POINT_INFO(pJniMethodStart),
+  ENTRY_POINT_INFO(pJniMethodStartSynchronized),
+  ENTRY_POINT_INFO(pJniMethodEnd),
+  ENTRY_POINT_INFO(pJniMethodEndSynchronized),
+  ENTRY_POINT_INFO(pJniMethodEndWithReference),
+  ENTRY_POINT_INFO(pJniMethodEndWithReferenceSynchronized),
   ENTRY_POINT_INFO(pLockObjectFromCode),
   ENTRY_POINT_INFO(pUnlockObjectFromCode),
   ENTRY_POINT_INFO(pCmpgDouble),
@@ -1452,6 +1513,7 @@ static const bool kDebugExceptionDelivery = false;
 class CatchBlockStackVisitor : public StackVisitor {
  public:
   CatchBlockStackVisitor(Thread* self, Throwable* exception)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
       : StackVisitor(self->GetManagedStack(), self->GetTraceStack(), self->GetLongJumpContext()),
         self_(self), exception_(exception), to_find_(exception->GetClass()), throw_method_(NULL),
         throw_frame_id_(0), throw_dex_pc_(0), handler_quick_frame_(NULL),
@@ -1465,7 +1527,8 @@ class CatchBlockStackVisitor : public StackVisitor {
     LOG(FATAL) << "UNREACHABLE";  // Expected to take long jump.
   }
 
-  bool VisitFrame() {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method = GetMethod();
     if (method == NULL) {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
@@ -1507,7 +1570,7 @@ class CatchBlockStackVisitor : public StackVisitor {
     return true;  // Continue stack walk.
   }
 
-  void DoLongJump() {
+  void DoLongJump() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* catch_method = *handler_quick_frame_;
     Dbg::PostException(self_, throw_frame_id_, throw_method_, throw_dex_pc_,
                        catch_method, handler_dex_pc_, exception_);
@@ -1587,9 +1650,10 @@ Method* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) const {
   struct CurrentMethodVisitor : public StackVisitor {
     CurrentMethodVisitor(const ManagedStack* stack,
                          const std::vector<TraceStackFrame>* trace_stack)
+        SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
         : StackVisitor(stack, trace_stack, NULL), method_(NULL), dex_pc_(0), frame_id_(0) {}
 
-    virtual bool VisitFrame() {
+    virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
       Method* m = GetMethod();
       if (m->IsRuntimeMethod()) {
         // Continue if this is a runtime method.
@@ -1627,9 +1691,10 @@ class ReferenceMapVisitor : public StackVisitor {
  public:
   ReferenceMapVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
                       Context* context, Heap::RootVisitor* root_visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
       : StackVisitor(stack, trace_stack, context), root_visitor_(root_visitor), arg_(arg) {}
 
-  bool VisitFrame() {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     if (false) {
       LOG(INFO) << "Visiting stack roots in " << PrettyMethod(GetMethod())
           << StringPrintf("@ PC:%04x", GetDexPc());
@@ -1739,51 +1804,42 @@ void Thread::VerifyStack() {
 }
 #endif
 
+// Set the stack end to that to be used during a stack overflow
+void Thread::SetStackEndForStackOverflow() {
+  // During stack overflow we allow use of the full stack
+  if (stack_end_ == stack_begin_) {
+    DumpStack(std::cerr);
+    LOG(FATAL) << "Need to increase kStackOverflowReservedBytes (currently "
+               << kStackOverflowReservedBytes << ")";
+  }
+
+  stack_end_ = stack_begin_;
+}
+
 std::ostream& operator<<(std::ostream& os, const Thread& thread) {
-  thread.Dump(os, false);
+  thread.ShortDump(os);
   return os;
 }
 
-void Thread::CheckSafeToLockOrUnlock(MutexRank rank, bool is_locking) {
-  if (this == NULL) {
-    CHECK(Runtime::Current()->IsShuttingDown());
-    return;
-  }
-  if (is_locking) {
-    if (held_mutexes_[rank] == 0) {
-      bool bad_mutexes_held = false;
-      for (int i = kMaxMutexRank; i > rank; --i) {
-        if (held_mutexes_[i] != 0) {
-          LOG(ERROR) << "holding " << static_cast<MutexRank>(i) << " while " << (is_locking ? "locking" : "unlocking") << " " << rank;
+#ifndef NDEBUG
+void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
+  CHECK_EQ(0u, no_thread_suspension_) << last_no_thread_suspension_cause_;
+  if (check_locks) {
+    bool bad_mutexes_held = false;
+    for (int i = kMaxMutexLevel; i >= 0; --i) {
+      // We expect no locks except the mutator_lock_.
+      if (i != kMutatorLock) {
+        BaseMutex* held_mutex = GetHeldMutex(static_cast<MutexLevel>(i));
+        if (held_mutex != NULL) {
+          LOG(ERROR) << "holding \"" << held_mutex->GetName()
+                  << "\" at point where thread suspension is expected";
           bad_mutexes_held = true;
         }
       }
-      CHECK(!bad_mutexes_held) << rank;
     }
-    ++held_mutexes_[rank];
-  } else {
-    CHECK_GT(held_mutexes_[rank], 0U) << rank;
-    --held_mutexes_[rank];
+    CHECK(!bad_mutexes_held);
   }
 }
-
-void Thread::CheckSafeToWait(MutexRank rank) {
-  if (this == NULL) {
-    CHECK(Runtime::Current()->IsShuttingDown());
-    return;
-  }
-  bool bad_mutexes_held = false;
-  for (int i = kMaxMutexRank; i >= 0; --i) {
-    if (i != rank && held_mutexes_[i] != 0) {
-      LOG(ERROR) << "holding " << static_cast<MutexRank>(i) << " while doing condition variable wait on " << rank;
-      bad_mutexes_held = true;
-    }
-  }
-  if (held_mutexes_[rank] == 0) {
-    LOG(ERROR) << "*not* holding " << rank << " while doing condition variable wait on it";
-    bad_mutexes_held = true;
-  }
-  CHECK(!bad_mutexes_held);
-}
+#endif
 
 }  // namespace art

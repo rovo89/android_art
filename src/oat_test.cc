@@ -25,7 +25,8 @@ class OatTest : public CommonTest {
  protected:
   void CheckMethod(Method* method,
                    const OatFile::OatMethod& oat_method,
-                   const DexFile* dex_file) {
+                   const DexFile* dex_file)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     const CompiledMethod* compiled_method =
         compiler_->GetCompiledMethod(Compiler::MethodReference(dex_file,
                                                                method->GetDexMethodIndex()));
@@ -62,15 +63,16 @@ TEST_F(OatTest, WriteRead) {
   const bool compile = false;  // DISABLED_ due to the time to compile libcore
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
-  SirtRef<ClassLoader> class_loader(NULL);
+  jobject class_loader = NULL;
   if (compile) {
     compiler_.reset(new Compiler(kThumb2, false, 2, false, NULL, true, true));
-    compiler_->CompileAll(class_loader.get(), class_linker->GetBootClassPath());
+    compiler_->CompileAll(class_loader, class_linker->GetBootClassPath());
   }
 
+  ScopedObjectAccess soa(Thread::Current());
   ScratchFile tmp;
   bool success = OatWriter::Create(tmp.GetFile(),
-                                   class_loader.get(),
+                                   class_loader,
                                    class_linker->GetBootClassPath(),
                                    42U,
                                    "lue.art",
@@ -78,7 +80,7 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_TRUE(success);
 
   if (compile) {  // OatWriter strips the code, regenerate to compare
-    compiler_->CompileAll(class_loader.get(), class_linker->GetBootClassPath());
+    compiler_->CompileAll(class_loader, class_linker->GetBootClassPath());
   }
   UniquePtr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(),
                                             tmp.GetFilename(),
@@ -105,7 +107,7 @@ TEST_F(OatTest, WriteRead) {
 
     UniquePtr<const OatFile::OatClass> oat_class(oat_dex_file->GetOatClass(i));
 
-    Class* klass = class_linker->FindClass(descriptor, class_loader.get());
+    Class* klass = class_linker->FindClass(descriptor, NULL);
 
     size_t method_index = 0;
     for (size_t i = 0; i < klass->NumDirectMethods(); i++, method_index++) {

@@ -374,7 +374,8 @@ static bool PatternMatch(const char* pattern, const std::string& target) {
  * If we find a Count mod before rejecting an event, we decrement it.  We
  * need to do this even if later mods cause us to ignore the event.
  */
-static bool ModsMatch(JdwpEvent* pEvent, ModBasket* basket) {
+static bool ModsMatch(JdwpEvent* pEvent, ModBasket* basket)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   JdwpEventMod* pMod = pEvent->mods;
 
   for (int i = pEvent->modCount; i > 0; i--, pMod++) {
@@ -452,7 +453,8 @@ static bool ModsMatch(JdwpEvent* pEvent, ModBasket* basket) {
  * DO NOT call this multiple times for the same eventKind, as Count mods are
  * decremented during the scan.
  */
-void JdwpState::FindMatchingEvents(JdwpEventKind eventKind, ModBasket* basket, JdwpEvent** match_list, int* pMatchCount) {
+void JdwpState::FindMatchingEvents(JdwpEventKind eventKind, ModBasket* basket,
+                                   JdwpEvent** match_list, int* pMatchCount) {
   /* start after the existing entries */
   match_list += *pMatchCount;
 
@@ -490,7 +492,7 @@ static JdwpSuspendPolicy scanSuspendPolicy(JdwpEvent** match_list, int match_cou
  *  SP_EVENT_THREAD - suspend ourselves
  *  SP_ALL - suspend everybody except JDWP support thread
  */
-void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy) {
+void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId thread_self_id) {
   VLOG(jdwp) << "SuspendByPolicy(" << suspend_policy << ")";
   if (suspend_policy == SP_NONE) {
     return;
@@ -503,7 +505,7 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy) {
   }
 
   /* this is rare but possible -- see CLASS_PREPARE handling */
-  if (Dbg::GetThreadSelfId() == debug_thread_id_) {
+  if (thread_self_id == debug_thread_id_) {
     LOG(INFO) << "NOTE: SuspendByPolicy not suspending JDWP thread";
     return;
   }
@@ -524,7 +526,7 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy) {
     }
 
     /* grab this before posting/suspending again */
-    SetWaitForEventThread(Dbg::GetThreadSelfId());
+    SetWaitForEventThread(thread_self_id);
 
     /* leave pReq->invoke_needed_ raised so we can check reentrancy */
     Dbg::ExecuteMethod(pReq);
@@ -537,6 +539,23 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy) {
     VLOG(jdwp) << "invoke complete, signaling and self-suspending";
     MutexLock mu(pReq->lock_);
     pReq->cond_.Signal();
+  }
+}
+
+void JdwpState::SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy suspend_policy,
+                                              ObjectId threadId) {
+  Thread* self = Thread::Current();
+  self->AssertThreadSuspensionIsAllowable();
+  /* send request and possibly suspend ourselves */
+  if (pReq != NULL) {
+    JDWP::ObjectId thread_self_id = Dbg::GetThreadSelfId();
+    self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
+    if (suspend_policy != SP_NONE) {
+      SetWaitForEventThread(threadId);
+    }
+    EventFinish(pReq);
+    SuspendByPolicy(suspend_policy, thread_self_id);
+    self->TransitionFromSuspendedToRunnable();
   }
 }
 
@@ -670,17 +689,7 @@ bool JdwpState::PostVMStart() {
   }
 
   /* send request and possibly suspend ourselves */
-  if (pReq != NULL) {
-    int old_state = Dbg::ThreadWaiting();
-    if (suspend_policy != SP_NONE) {
-      SetWaitForEventThread(threadId);
-    }
-
-    EventFinish(pReq);
-
-    SuspendByPolicy(suspend_policy);
-    Dbg::ThreadContinuing(old_state);
-  }
+  SendRequestAndPossiblySuspend(pReq, suspend_policy, threadId);
 
   return true;
 }
@@ -787,18 +796,7 @@ bool JdwpState::PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, in
     CleanupMatchList(match_list, match_count);
   }
 
-  /* send request and possibly suspend ourselves */
-  if (pReq != NULL) {
-    int old_state = Dbg::ThreadWaiting();
-    if (suspend_policy != SP_NONE) {
-      SetWaitForEventThread(basket.threadId);
-    }
-
-    EventFinish(pReq);
-
-    SuspendByPolicy(suspend_policy);
-    Dbg::ThreadContinuing(old_state);
-  }
+  SendRequestAndPossiblySuspend(pReq, suspend_policy, basket.threadId);
 
   return match_count != 0;
 }
@@ -859,17 +857,7 @@ bool JdwpState::PostThreadChange(ObjectId threadId, bool start) {
     CleanupMatchList(match_list, match_count);
   }
 
-  /* send request and possibly suspend ourselves */
-  if (pReq != NULL) {
-    int old_state = Dbg::ThreadWaiting();
-    if (suspend_policy != SP_NONE) {
-      SetWaitForEventThread(basket.threadId);
-    }
-    EventFinish(pReq);
-
-    SuspendByPolicy(suspend_policy);
-    Dbg::ThreadContinuing(old_state);
-  }
+  SendRequestAndPossiblySuspend(pReq, suspend_policy, basket.threadId);
 
   return match_count != 0;
 }
@@ -968,18 +956,7 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
     CleanupMatchList(match_list, match_count);
   }
 
-  /* send request and possibly suspend ourselves */
-  if (pReq != NULL) {
-    int old_state = Dbg::ThreadWaiting();
-    if (suspend_policy != SP_NONE) {
-      SetWaitForEventThread(basket.threadId);
-    }
-
-    EventFinish(pReq);
-
-    SuspendByPolicy(suspend_policy);
-    Dbg::ThreadContinuing(old_state);
-  }
+  SendRequestAndPossiblySuspend(pReq, suspend_policy, basket.threadId);
 
   return match_count != 0;
 }
@@ -990,7 +967,8 @@ bool JdwpState::PostException(const JdwpLocation* pThrowLoc,
  * Valid mods:
  *  Count, ThreadOnly, ClassOnly, ClassMatch, ClassExclude
  */
-bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std::string& signature, int status) {
+bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std::string& signature,
+                                 int status) {
   ModBasket basket;
 
   memset(&basket, 0, sizeof(basket));
@@ -1049,17 +1027,7 @@ bool JdwpState::PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std
     CleanupMatchList(match_list, match_count);
   }
 
-  /* send request and possibly suspend ourselves */
-  if (pReq != NULL) {
-    int old_state = Dbg::ThreadWaiting();
-    if (suspend_policy != SP_NONE) {
-      SetWaitForEventThread(basket.threadId);
-    }
-    EventFinish(pReq);
-
-    SuspendByPolicy(suspend_policy);
-    Dbg::ThreadContinuing(old_state);
-  }
+  SendRequestAndPossiblySuspend(pReq, suspend_policy, basket.threadId);
 
   return match_count != 0;
 }
@@ -1105,9 +1073,10 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
   /*
    * Make sure we're in VMWAIT in case the write blocks.
    */
-  int old_state = Dbg::ThreadWaiting();
+  Thread* self = Thread::Current();
+  self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
   (*transport_->sendBufferedRequest)(this, wrapiov, iov_count + 1);
-  Dbg::ThreadContinuing(old_state);
+  self->TransitionFromSuspendedToRunnable();
 }
 
 }  // namespace JDWP

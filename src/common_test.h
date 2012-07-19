@@ -33,12 +33,15 @@
 #include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
+#include "ScopedLocalRef.h"
+#include "scoped_thread_state_change.h"
 #include "stl_util.h"
 #include "stringprintf.h"
 #include "thread.h"
 #include "unicode/uclean.h"
 #include "unicode/uvernum.h"
 #include "UniquePtr.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -206,7 +209,7 @@ class CommonTest : public testing::Test {
                                 );
   }
 
-  void MakeExecutable(Method* method) {
+  void MakeExecutable(Method* method) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     CHECK(method != NULL);
 
     MethodHelper mh(method);
@@ -328,7 +331,17 @@ class CommonTest : public testing::Test {
     options.push_back(std::make_pair("-Xcheck:jni", reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair(min_heap_string.c_str(), reinterpret_cast<void*>(NULL)));
     options.push_back(std::make_pair(max_heap_string.c_str(), reinterpret_cast<void*>(NULL)));
-    runtime_.reset(Runtime::Create(options, false));
+    if(!Runtime::Create(options, false)) {
+      LOG(FATAL) << "Failed to create runtime";
+      return;
+    }
+    runtime_.reset(Runtime::Current());
+    // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
+    // give it away now and then switch to a more managable ScopedObjectAccess.
+    Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+    // Whilst we're in native take the opportunity to initialize well known classes.
+    WellKnownClasses::InitClasses(Thread::Current()->GetJniEnv());
+    ScopedObjectAccess soa(Thread::Current());
     ASSERT_TRUE(runtime_.get() != NULL);
     class_linker_ = runtime_->GetClassLinker();
 
@@ -362,7 +375,7 @@ class CommonTest : public testing::Test {
     compiler_.reset(new Compiler(instruction_set, true, 2, false, image_classes_.get(),
                                  true, true));
 
-    Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption before the test
+    runtime_->GetHeap()->VerifyHeap();  // Check for heap corruption before the test
   }
 
   virtual void TearDown() {
@@ -436,16 +449,20 @@ class CommonTest : public testing::Test {
     return dex_file;
   }
 
-  ClassLoader* LoadDex(const char* dex_name) {
+  jobject LoadDex(const char* dex_name)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     const DexFile* dex_file = OpenTestDexFile(dex_name);
     CHECK(dex_file != NULL);
     class_linker_->RegisterDexFile(*dex_file);
     std::vector<const DexFile*> class_path;
     class_path.push_back(dex_file);
-    SirtRef<ClassLoader> class_loader(PathClassLoader::AllocCompileTime(class_path));
-    CHECK(class_loader.get() != NULL);
-    Thread::Current()->SetClassLoaderOverride(class_loader.get());
-    return class_loader.get();
+    ScopedObjectAccessUnchecked soa(Thread::Current());
+    ScopedLocalRef<jobject> class_loader_local(soa.Env(),
+        soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
+    jobject class_loader = soa.Env()->NewGlobalRef(class_loader_local.get());
+    soa.Self()->SetClassLoaderOverride(soa.Decode<ClassLoader*>(class_loader_local.get()));
+    Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path);
+    return class_loader;
   }
 
   void CompileClass(ClassLoader* class_loader, const char* class_name) {
@@ -460,7 +477,7 @@ class CommonTest : public testing::Test {
     }
   }
 
-  void CompileMethod(Method* method) {
+  void CompileMethod(Method* method) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     CHECK(method != NULL);
     compiler_->CompileOne(method);
     MakeExecutable(method);
@@ -471,7 +488,8 @@ class CommonTest : public testing::Test {
   void CompileDirectMethod(ClassLoader* class_loader,
                            const char* class_name,
                            const char* method_name,
-                           const char* signature) {
+                           const char* signature)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
     Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
@@ -484,7 +502,8 @@ class CommonTest : public testing::Test {
   void CompileVirtualMethod(ClassLoader* class_loader,
                             const char* class_name,
                             const char* method_name,
-                            const char* signature) {
+                            const char* signature)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
     Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;

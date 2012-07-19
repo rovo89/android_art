@@ -64,18 +64,19 @@ class OatWriter {
  public:
   // Write an oat file. Returns true on success, false on failure.
   static bool Create(File* file,
-                     ClassLoader* class_loader,
+                     jobject class_loader,
                      const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_checksum,
                      const std::string& image_file_location,
-                     const Compiler& compiler);
+                     const Compiler& compiler)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
  private:
   OatWriter(const std::vector<const DexFile*>& dex_files,
             uint32_t image_file_location_checksum,
             const std::string& image_file_location,
-            ClassLoader* class_loader,
-            const Compiler& compiler);
+            jobject class_loader,
+            const Compiler& compiler) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   ~OatWriter();
 
   size_t InitOatHeader();
@@ -83,17 +84,21 @@ class OatWriter {
   size_t InitDexFiles(size_t offset);
   size_t InitOatClasses(size_t offset);
   size_t InitOatCode(size_t offset);
-  size_t InitOatCodeDexFiles(size_t offset);
+  size_t InitOatCodeDexFiles(size_t offset)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   size_t InitOatCodeDexFile(size_t offset,
                             size_t& oat_class_index,
-                            const DexFile& dex_file);
+                            const DexFile& dex_file)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   size_t InitOatCodeClassDef(size_t offset,
                              size_t oat_class_index, size_t class_def_index,
                              const DexFile& dex_file,
-                             const DexFile::ClassDef& class_def);
+                             const DexFile::ClassDef& class_def)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   size_t InitOatCodeMethod(size_t offset, size_t oat_class_index, size_t class_def_index,
                            size_t class_def_method_index, bool is_native, bool is_static,
-                           bool is_direct, uint32_t method_idx, const DexFile*);
+                           bool is_direct, uint32_t method_idx, const DexFile*)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   bool Write(File* file);
   bool WriteTables(File* file);
@@ -146,7 +151,7 @@ class OatWriter {
   const Compiler* compiler_;
 
   // TODO: remove the ClassLoader when the code storage moves out of Method
-  ClassLoader* class_loader_;
+  jobject class_loader_;
 
   // note OatFile does not take ownership of the DexFiles
   const std::vector<const DexFile*>* dex_files_;

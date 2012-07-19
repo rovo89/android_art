@@ -20,7 +20,6 @@
 
 #include "common_test.h"
 #include "ScopedLocalRef.h"
-#include "scoped_jni_thread_state.h"
 
 namespace art {
 
@@ -69,9 +68,12 @@ class JniInternalTest : public CommonTest {
     CommonTest::TearDown();
   }
 
-  Method::InvokeStub* DoCompile(Method*& method, Object*& receiver, bool is_static, const char* method_name, const char* method_signature) {
+  Method::InvokeStub* DoCompile(Method*& method, Object*& receiver, bool is_static,
+                                const char* method_name, const char* method_signature)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     const char* class_name = is_static ? "StaticLeafMethods" : "NonStaticLeafMethods";
-    SirtRef<ClassLoader> class_loader(LoadDex(class_name));
+    jobject jclass_loader(LoadDex(class_name));
+    SirtRef<ClassLoader> class_loader(ScopedObjectAccessUnchecked(Thread::Current()).Decode<ClassLoader*>(jclass_loader));
     if (is_static) {
       CompileDirectMethod(class_loader.get(), class_name, method_name, method_signature);
     } else {
@@ -83,7 +85,8 @@ class JniInternalTest : public CommonTest {
     Class* c = class_linker_->FindClass(DotToDescriptor(class_name).c_str(), class_loader.get());
     CHECK(c != NULL);
 
-    method = is_static ? c->FindDirectMethod(method_name, method_signature) : c->FindVirtualMethod(method_name, method_signature);
+    method = is_static ? c->FindDirectMethod(method_name, method_signature)
+                       : c->FindVirtualMethod(method_name, method_signature);
     CHECK(method != NULL);
 
     receiver = (is_static ? NULL : c->AllocObject());
@@ -94,14 +97,15 @@ class JniInternalTest : public CommonTest {
     return stub;
   }
 
-  void InvokeNopMethod(bool is_static) {
+  void InvokeNopMethod(bool is_static) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "nop", "()V");
     (*stub)(method, receiver, Thread::Current(), NULL, NULL);
   }
 
-  void InvokeIdentityByteMethod(bool is_static) {
+  void InvokeIdentityByteMethod(bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(B)B");
@@ -130,7 +134,8 @@ class JniInternalTest : public CommonTest {
     EXPECT_EQ(SCHAR_MIN, result.GetB());
   }
 
-  void InvokeIdentityIntMethod(bool is_static) {
+  void InvokeIdentityIntMethod(bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(I)I");
@@ -159,7 +164,8 @@ class JniInternalTest : public CommonTest {
     EXPECT_EQ(INT_MIN, result.GetI());
   }
 
-  void InvokeIdentityDoubleMethod(bool is_static) {
+  void InvokeIdentityDoubleMethod(bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(D)D");
@@ -188,7 +194,8 @@ class JniInternalTest : public CommonTest {
     EXPECT_EQ(DBL_MIN, result.GetD());
   }
 
-  void InvokeSumIntIntMethod(bool is_static) {
+  void InvokeSumIntIntMethod(bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(II)I");
@@ -226,7 +233,8 @@ class JniInternalTest : public CommonTest {
     EXPECT_EQ(-2, result.GetI());
   }
 
-  void InvokeSumIntIntIntMethod(bool is_static) {
+  void InvokeSumIntIntIntMethod(bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(III)I");
@@ -269,7 +277,8 @@ class JniInternalTest : public CommonTest {
     EXPECT_EQ(2147483645, result.GetI());
   }
 
-  void InvokeSumIntIntIntIntMethod(bool is_static) {
+  void InvokeSumIntIntIntIntMethod(bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIII)I");
@@ -317,7 +326,8 @@ class JniInternalTest : public CommonTest {
     EXPECT_EQ(-4, result.GetI());
   }
 
-  void InvokeSumIntIntIntIntIntMethod(bool is_static) {
+  void InvokeSumIntIntIntIntIntMethod(bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIIII)I");
@@ -370,7 +380,8 @@ class JniInternalTest : public CommonTest {
     EXPECT_EQ(2147483643, result.GetI());
   }
 
-  void InvokeSumDoubleDoubleMethod(bool is_static) {
+  void InvokeSumDoubleDoubleMethod(bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DD)D");
@@ -409,7 +420,8 @@ class JniInternalTest : public CommonTest {
     EXPECT_EQ(INFINITY, result.GetD());
   }
 
-  void InvokeSumDoubleDoubleDoubleMethod(bool is_static) {
+  void InvokeSumDoubleDoubleDoubleMethod(bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDD)D");
@@ -439,7 +451,8 @@ class JniInternalTest : public CommonTest {
     EXPECT_EQ(2.0, result.GetD());
   }
 
-  void InvokeSumDoubleDoubleDoubleDoubleMethod(bool is_static) {
+  void InvokeSumDoubleDoubleDoubleDoubleMethod(bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDD)D");
@@ -472,7 +485,8 @@ class JniInternalTest : public CommonTest {
     EXPECT_EQ(-2.0, result.GetD());
   }
 
-  void InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(bool is_static) {
+  void InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDDD)D");
@@ -1143,7 +1157,8 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
 
 #if !defined(ART_USE_LLVM_COMPILER)
 TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
-  SirtRef<ClassLoader> class_loader(LoadDex("AllFields"));
+  Thread::Current()->TransitionFromSuspendedToRunnable();
+  LoadDex("AllFields");
   runtime_->Start();
 
   jclass c = env_->FindClass("AllFields");
@@ -1171,7 +1186,8 @@ TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
 }
 
 TEST_F(JniInternalTest, GetObjectField_SetObjectField) {
-  SirtRef<ClassLoader> class_loader(LoadDex("AllFields"));
+  Thread::Current()->TransitionFromSuspendedToRunnable();
+  LoadDex("AllFields");
   runtime_->Start();
 
   jclass c = env_->FindClass("AllFields");
@@ -1228,7 +1244,7 @@ TEST_F(JniInternalTest, DeleteLocalRef) {
   {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteLocalRef(s);
-    check_jni_abort_catcher.Check("native code passing in reference to invalid local reference: 0x200001");
+    check_jni_abort_catcher.Check("native code passing in reference to invalid local reference: 0x1400001");
   }
 
   s = env_->NewStringUTF("");
@@ -1246,7 +1262,7 @@ TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
 
   jobject outer;
   jobject inner1, inner2;
-  ScopedJniThreadState ts(env_);
+  ScopedObjectAccess soa(env_);
   Object* inner2_direct_pointer;
   {
     env_->PushLocalFrame(4);
@@ -1256,7 +1272,7 @@ TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
       env_->PushLocalFrame(4);
       inner1 = env_->NewLocalRef(outer);
       inner2 = env_->NewStringUTF("survivor");
-      inner2_direct_pointer = ts.Decode<Object*>(inner2);
+      inner2_direct_pointer = soa.Decode<Object*>(inner2);
       env_->PopLocalFrame(inner2);
     }
 
@@ -1309,7 +1325,7 @@ TEST_F(JniInternalTest, DeleteGlobalRef) {
   {
     CheckJniAbortCatcher check_jni_abort_catcher;
     env_->DeleteGlobalRef(o);
-    check_jni_abort_catcher.Check("native code passing in reference to invalid global reference: 0x10000e");
+    check_jni_abort_catcher.Check("native code passing in reference to invalid global reference: 0x100056");
   }
 
   jobject o1 = env_->NewGlobalRef(s);
@@ -1364,7 +1380,9 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
 }
 
 TEST_F(JniInternalTest, StaticMainMethod) {
-  SirtRef<ClassLoader> class_loader(LoadDex("Main"));
+  ScopedObjectAccess soa(Thread::Current());
+  jobject jclass_loader = LoadDex("Main");
+  SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(jclass_loader));
   CompileDirectMethod(class_loader.get(), "Main", "main", "([Ljava/lang/String;)V");
 
   Class* klass = class_linker_->FindClass("LMain;", class_loader.get());
@@ -1382,98 +1400,122 @@ TEST_F(JniInternalTest, StaticMainMethod) {
 }
 
 TEST_F(JniInternalTest, StaticNopMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeNopMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticNopMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeNopMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticIdentityByteMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeIdentityByteMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticIdentityByteMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeIdentityByteMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticIdentityIntMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeIdentityIntMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticIdentityIntMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeIdentityIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticIdentityDoubleMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeIdentityDoubleMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticIdentityDoubleMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeIdentityDoubleMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumIntIntMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntIntMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumIntIntIntMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntIntIntMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumIntIntIntIntMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntIntIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumIntIntIntIntIntMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntIntIntIntMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumIntIntIntIntIntMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumIntIntIntIntIntMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumDoubleDoubleMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleDoubleMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumDoubleDoubleDoubleMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleDoubleMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleDoubleDoubleMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumDoubleDoubleDoubleDoubleMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleDoubleDoubleMethod(false);
 }
 
 TEST_F(JniInternalTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(true);
 }
 
 TEST_F(JniInternalTest, NonStaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
+  ScopedObjectAccess soa(Thread::Current());
   InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(false);
 }
 

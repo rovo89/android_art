@@ -60,7 +60,7 @@ TEST_F(MutexTest, TryLockUnlock) {
 
 // GCC has trouble with our mutex tests, so we have to turn off thread safety analysis.
 static void RecursiveLockUnlockTest() NO_THREAD_SAFETY_ANALYSIS {
-  Mutex mu("test mutex");
+  Mutex mu("test mutex", kDefaultMutexLevel, true);
   MutexTester::AssertDepth(mu, 0U);
   mu.Lock();
   MutexTester::AssertDepth(mu, 1U);
@@ -78,7 +78,7 @@ TEST_F(MutexTest, RecursiveLockUnlock) {
 
 // GCC has trouble with our mutex tests, so we have to turn off thread safety analysis.
 static void RecursiveTryLockUnlockTest() NO_THREAD_SAFETY_ANALYSIS {
-  Mutex mu("test mutex");
+  Mutex mu("test mutex", kDefaultMutexLevel, true);
   MutexTester::AssertDepth(mu, 0U);
   ASSERT_TRUE(mu.TryLock());
   MutexTester::AssertDepth(mu, 1U);
@@ -96,7 +96,9 @@ TEST_F(MutexTest, RecursiveTryLockUnlock) {
 
 
 struct RecursiveLockWait {
-  explicit RecursiveLockWait() : mu("test mutex"), cv("test condition variable") {}
+  explicit RecursiveLockWait()
+      : mu("test mutex", kDefaultMutexLevel, true), cv("test condition variable") {
+  }
 
   static void* Callback(void* arg) {
     RecursiveLockWait* state = reinterpret_cast<RecursiveLockWait*>(arg);
@@ -130,6 +132,40 @@ static void RecursiveLockWaitTest() NO_THREAD_SAFETY_ANALYSIS {
 // which is not supported with bare pthread_mutex_t.
 TEST_F(MutexTest, RecursiveLockWait) {
   RecursiveLockWaitTest();
+}
+
+TEST_F(MutexTest, SharedLockUnlock) {
+  ReaderWriterMutex mu("test rwmutex");
+  mu.AssertNotHeld();
+  mu.SharedLock();
+  mu.AssertSharedHeld();
+  mu.AssertNotExclusiveHeld();
+  mu.SharedUnlock();
+  mu.AssertNotHeld();
+}
+
+TEST_F(MutexTest, ExclusiveLockUnlock) {
+  ReaderWriterMutex mu("test rwmutex");
+  mu.AssertNotHeld();
+  mu.ExclusiveLock();
+  mu.AssertSharedHeld();
+  mu.AssertExclusiveHeld();
+  mu.ExclusiveUnlock();
+  mu.AssertNotHeld();
+}
+
+// GCC has trouble with our mutex tests, so we have to turn off thread safety analysis.
+static void SharedTryLockUnlockTest() NO_THREAD_SAFETY_ANALYSIS {
+  ReaderWriterMutex mu("test rwmutex");
+  mu.AssertNotHeld();
+  ASSERT_TRUE(mu.SharedTryLock());
+  mu.AssertSharedHeld();
+  mu.SharedUnlock();
+  mu.AssertNotHeld();
+}
+
+TEST_F(MutexTest, SharedTryLockUnlock) {
+  SharedTryLockUnlockTest();
 }
 
 }  // namespace art

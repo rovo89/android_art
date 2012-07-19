@@ -24,37 +24,6 @@
 
 namespace art {
 
-class StackGetter {
- public:
-  StackGetter(const ScopedJniThreadState& ts, Thread* thread)
-      : ts_(ts), thread_(thread), trace_(NULL) {
-  }
-
-  static void Callback(void* arg) {
-    reinterpret_cast<StackGetter*>(arg)->Callback();
-  }
-
-  jobject GetTrace() {
-    return trace_;
-  }
-
- private:
-  void Callback() {
-    trace_ = thread_->CreateInternalStackTrace(ts_);
-  }
-
-  const ScopedJniThreadState& ts_;
-  Thread* const thread_;
-  jobject trace_;
-};
-
-jobject GetThreadStack(const ScopedJniThreadState& ts, Thread* thread) {
-  ThreadList* thread_list = Runtime::Current()->GetThreadList();
-  StackGetter stack_getter(ts, thread);
-  thread_list->RunWhileSuspended(thread, StackGetter::Callback, &stack_getter);
-  return stack_getter.GetTrace();
-}
-
 void ManagedStack::PushManagedStackFragment(ManagedStack* fragment) {
   // Copy this top fragment into given fragment.
   memcpy(fragment, this, sizeof(ManagedStack));
@@ -201,7 +170,7 @@ size_t StackVisitor::ComputeNumFrames() const {
   return visitor.frames;
 }
 
-void StackVisitor::SanityCheckFrame() {
+void StackVisitor::SanityCheckFrame() const {
 #ifndef NDEBUG
   Method* method = GetMethod();
   CHECK(method->GetClass() == Method::GetMethodClass() ||

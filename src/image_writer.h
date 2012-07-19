@@ -39,7 +39,8 @@ namespace art {
 class ImageWriter {
  public:
   explicit ImageWriter(const std::set<std::string>* image_classes)
-      : image_end_(0), image_begin_(NULL), image_classes_(image_classes), oat_begin_(NULL) {}
+      : oat_file_(NULL), image_end_(0), image_begin_(NULL), image_classes_(image_classes),
+        oat_begin_(NULL) {}
 
   ~ImageWriter() {}
 
@@ -47,13 +48,15 @@ class ImageWriter {
              uintptr_t image_begin,
              const std::string& oat_filename,
              const std::string& oat_location,
-             const Compiler& compiler);
+             const Compiler& compiler)
+      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
 
  private:
   bool AllocMemory();
 
   // we use the lock word to store the offset of the object in the image
-  void AssignImageOffset(Object* object) {
+  void AssignImageOffset(Object* object)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     DCHECK(object != NULL);
     SetImageOffset(object, image_end_);
     image_end_ += RoundUp(object->SizeOf(), 8);  // 64-bit alignment
@@ -105,38 +108,55 @@ class ImageWriter {
     return oat_begin_ + offset;
   }
 
-  bool IsImageClass(const Class* klass);
+  bool IsImageClass(const Class* klass) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   void DumpImageClasses();
 
-  void ComputeLazyFieldsForImageClasses();
-  static bool ComputeLazyFieldsForClassesVisitor(Class* klass, void* arg);
+  void ComputeLazyFieldsForImageClasses()
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  static bool ComputeLazyFieldsForClassesVisitor(Class* klass, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Wire dex cache resolved strings to strings in the image to avoid runtime resolution
   void ComputeEagerResolvedStrings();
-  static void ComputeEagerResolvedStringsCallback(Object* obj, void* arg);
+  static void ComputeEagerResolvedStringsCallback(Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void PruneNonImageClasses();
-  static bool NonImageClassesVisitor(Class* c, void* arg);
+  void PruneNonImageClasses() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  static bool NonImageClassesVisitor(Class* c, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   void CheckNonImageClassesRemoved();
-  static void CheckNonImageClassesRemovedCallback(Object* obj, void* arg);
+  static void CheckNonImageClassesRemovedCallback(Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void CalculateNewObjectOffsets();
-  ObjectArray<Object>* CreateImageRoots() const;
-  static void CalculateNewObjectOffsetsCallback(Object* obj, void* arg);
+  void CalculateNewObjectOffsets() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  ObjectArray<Object>* CreateImageRoots() const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  static void CalculateNewObjectOffsetsCallback(Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   void CopyAndFixupObjects();
-  static void CopyAndFixupObjectsCallback(Object* obj, void* arg);
-  void FixupClass(const Class* orig, Class* copy);
-  void FixupMethod(const Method* orig, Method* copy);
-  void FixupObject(const Object* orig, Object* copy);
-  void FixupObjectArray(const ObjectArray<Object>* orig, ObjectArray<Object>* copy);
-  void FixupInstanceFields(const Object* orig, Object* copy);
-  void FixupStaticFields(const Class* orig, Class* copy);
-  void FixupFields(const Object* orig, Object* copy, uint32_t ref_offsets, bool is_static);
+  static void CopyAndFixupObjectsCallback(Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void FixupClass(const Class* orig, Class* copy)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void FixupMethod(const Method* orig, Method* copy)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void FixupObject(const Object* orig, Object* copy)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void FixupObjectArray(const ObjectArray<Object>* orig, ObjectArray<Object>* copy)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void FixupInstanceFields(const Object* orig, Object* copy)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void FixupStaticFields(const Class* orig, Class* copy)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void FixupFields(const Object* orig, Object* copy, uint32_t ref_offsets, bool is_static)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void PatchOatCodeAndMethods(const Compiler& compiler);
-  void SetPatchLocation(const Compiler::PatchInformation* patch, uint32_t value);
+  void PatchOatCodeAndMethods(const Compiler& compiler)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void SetPatchLocation(const Compiler::PatchInformation* patch, uint32_t value)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   SafeMap<const Object*, size_t> offsets_;
 

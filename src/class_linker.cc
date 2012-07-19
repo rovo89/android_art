@@ -45,8 +45,8 @@
 #if defined(ART_USE_LLVM_COMPILER)
 #include "compiler_llvm/runtime_support_llvm.h"
 #endif
-#include "scoped_jni_thread_state.h"
 #include "ScopedLocalRef.h"
+#include "scoped_thread_state_change.h"
 #include "space.h"
 #include "space_bitmap.h"
 #include "stack_indirect_reference_table.h"
@@ -58,7 +58,9 @@
 
 namespace art {
 
-static void ThrowNoClassDefFoundError(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
+static void ThrowNoClassDefFoundError(const char* fmt, ...)
+    __attribute__((__format__(__printf__, 1, 2)))
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 static void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -66,7 +68,9 @@ static void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_end(args);
 }
 
-static void ThrowClassFormatError(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
+static void ThrowClassFormatError(const char* fmt, ...)
+    __attribute__((__format__(__printf__, 1, 2)))
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 static void ThrowClassFormatError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -74,7 +78,9 @@ static void ThrowClassFormatError(const char* fmt, ...) {
   va_end(args);
 }
 
-static void ThrowLinkageError(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
+static void ThrowLinkageError(const char* fmt, ...)
+    __attribute__((__format__(__printf__, 1, 2)))
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 static void ThrowLinkageError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -83,7 +89,8 @@ static void ThrowLinkageError(const char* fmt, ...) {
 }
 
 static void ThrowNoSuchMethodError(bool is_direct, Class* c, const StringPiece& name,
-                                   const StringPiece& signature) {
+                                   const StringPiece& signature)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   ClassHelper kh(c);
   std::ostringstream msg;
   msg << "no " << (is_direct ? "direct" : "virtual") << " method " << name << signature
@@ -96,7 +103,8 @@ static void ThrowNoSuchMethodError(bool is_direct, Class* c, const StringPiece& 
 }
 
 static void ThrowNoSuchFieldError(const StringPiece& scope, Class* c, const StringPiece& type,
-                                  const StringPiece& name) {
+                                  const StringPiece& name)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   ClassHelper kh(c);
   std::ostringstream msg;
   msg << "no " << scope << "field " << name << " of type " << type
@@ -108,7 +116,9 @@ static void ThrowNoSuchFieldError(const StringPiece& scope, Class* c, const Stri
   Thread::Current()->ThrowNewException("Ljava/lang/NoSuchFieldError;", msg.str().c_str());
 }
 
-static void ThrowNullPointerException(const char* fmt, ...) __attribute__((__format__(__printf__, 1, 2)));
+static void ThrowNullPointerException(const char* fmt, ...)
+    __attribute__((__format__(__printf__, 1, 2)))
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 static void ThrowNullPointerException(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -116,7 +126,8 @@ static void ThrowNullPointerException(const char* fmt, ...) {
   va_end(args);
 }
 
-static void ThrowEarlierClassFailure(Class* c) {
+static void ThrowEarlierClassFailure(Class* c)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   // The class failed to initialize on a previous attempt, so we want to throw
   // a NoClassDefFoundError (v2 2.17.5).  The exception to this rule is if we
   // failed in verification, in which case v2 5.4.1 says we need to re-throw
@@ -134,7 +145,8 @@ static void ThrowEarlierClassFailure(Class* c) {
   }
 }
 
-static void WrapExceptionInInitializer() {
+static void WrapExceptionInInitializer()
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
 
@@ -172,8 +184,6 @@ const char* ClassLinker::class_roots_descriptors_[] = {
   "Ljava/lang/reflect/Method;",
   "Ljava/lang/reflect/Proxy;",
   "Ljava/lang/ClassLoader;",
-  "Ldalvik/system/BaseDexClassLoader;",
-  "Ldalvik/system/PathClassLoader;",
   "Ljava/lang/Throwable;",
   "Ljava/lang/ClassNotFoundException;",
   "Ljava/lang/StackTraceElement;",
@@ -212,8 +222,8 @@ ClassLinker* ClassLinker::CreateFromImage(InternTable* intern_table) {
 }
 
 ClassLinker::ClassLinker(InternTable* intern_table)
-    : dex_lock_("ClassLinker dex lock"),
-      classes_lock_("ClassLinker classes lock"),
+    // dex_lock_ is recursive as it may be used in stack dumping.
+    : dex_lock_("ClassLinker dex lock", kDefaultMutexLevel, true),
       class_roots_(NULL),
       array_iftable_(NULL),
       init_done_(false),
@@ -433,19 +443,10 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
       java_lang_ref_WeakReference->GetAccessFlags() |
           kAccClassIsReference | kAccClassIsWeakReference);
 
-  // Setup the ClassLoaders, verifying the object_size_
+  // Setup the ClassLoader, verifying the object_size_
   Class* java_lang_ClassLoader = FindSystemClass("Ljava/lang/ClassLoader;");
   CHECK_EQ(java_lang_ClassLoader->GetObjectSize(), sizeof(ClassLoader));
   SetClassRoot(kJavaLangClassLoader, java_lang_ClassLoader);
-
-  Class* dalvik_system_BaseDexClassLoader = FindSystemClass("Ldalvik/system/BaseDexClassLoader;");
-  CHECK_EQ(dalvik_system_BaseDexClassLoader->GetObjectSize(), sizeof(BaseDexClassLoader));
-  SetClassRoot(kDalvikSystemBaseDexClassLoader, dalvik_system_BaseDexClassLoader);
-
-  Class* dalvik_system_PathClassLoader = FindSystemClass("Ldalvik/system/PathClassLoader;");
-  CHECK_EQ(dalvik_system_PathClassLoader->GetObjectSize(), sizeof(PathClassLoader));
-  SetClassRoot(kDalvikSystemPathClassLoader, dalvik_system_PathClassLoader);
-  PathClassLoader::SetClass(dalvik_system_PathClassLoader);
 
   // Set up java.lang.Throwable, java.lang.ClassNotFoundException, and
   // java.lang.StackTraceElement as a convenience
@@ -536,7 +537,7 @@ void ClassLinker::RunRootClinits() {
     Class* c = GetClassRoot(ClassRoot(i));
     if (!c->IsArrayClass() && !c->IsPrimitive()) {
       EnsureInitialized(GetClassRoot(ClassRoot(i)), true, true);
-      CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
+      self->AssertNoPendingException();
     }
   }
 }
@@ -656,11 +657,11 @@ OatFile* ClassLinker::OpenOat(const ImageSpace* space) {
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileForDexFile(const DexFile& dex_file) {
+  MutexLock mu(dex_lock_);
   return FindOpenedOatFileFromDexLocation(dex_file.GetLocation());
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileFromDexLocation(const std::string& dex_location) {
-  MutexLock mu(dex_lock_);
   for (size_t i = 0; i < oat_files_.size(); i++) {
     const OatFile* oat_file = oat_files_[i];
     DCHECK(oat_file != NULL);
@@ -698,6 +699,12 @@ static const DexFile* FindDexFileInOatLocation(const std::string& dex_location,
 
 const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const std::string& dex_location,
                                                               const std::string& oat_location) {
+  MutexLock mu(dex_lock_);
+  return FindOrCreateOatFileForDexLocationLocked(dex_location, oat_location);
+}
+
+const DexFile* ClassLinker::FindOrCreateOatFileForDexLocationLocked(const std::string& dex_location,
+                                                                    const std::string& oat_location) {
   uint32_t dex_location_checksum;
   if (!DexFile::GetChecksum(dex_location, dex_location_checksum)) {
     LOG(ERROR) << "Failed to compute checksum '" << dex_location << "'";
@@ -713,13 +720,12 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const std::string&
   }
 
   // Generate the output oat file for the dex file
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   UniquePtr<File> file(OS::OpenFile(oat_location.c_str(), true));
   if (file.get() == NULL) {
     LOG(ERROR) << "Failed to create oat file: " << oat_location;
     return NULL;
   }
-  if (!class_linker->GenerateOatFile(dex_location, file->Fd(), oat_location)) {
+  if (!GenerateOatFile(dex_location, file->Fd(), oat_location)) {
     LOG(ERROR) << "Failed to generate oat file: " << oat_location;
     return NULL;
   }
@@ -734,7 +740,7 @@ const DexFile* ClassLinker::FindOrCreateOatFileForDexLocation(const std::string&
     LOG(ERROR) << "Failed to open generated oat file: " << oat_location;
     return NULL;
   }
-  class_linker->RegisterOatFile(*oat_file);
+  RegisterOatFileLocked(*oat_file);
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location);
   if (oat_dex_file == NULL) {
     LOG(ERROR) << "Failed to find dex file in generated oat file: " << oat_location;
@@ -808,7 +814,7 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
   // Look for an existing file next to dex. for example, for
   // /foo/bar/baz.jar, look for /foo/bar/baz.jar.oat.
   std::string oat_filename(OatFile::DexFilenameToOatFilename(dex_location));
-  const OatFile* oat_file = FindOatFileFromOatLocation(oat_filename);
+  const OatFile* oat_file = FindOatFileFromOatLocationLocked(oat_filename);
   if (oat_file != NULL) {
     uint32_t dex_location_checksum;
     if (!DexFile::GetChecksum(dex_location, dex_location_checksum)) {
@@ -829,7 +835,7 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
   // Look for an existing file in the art-cache, validating the result if found
   // not found in /foo/bar/baz.oat? try /data/art-cache/foo@bar@baz.oat
   std::string cache_location(GetArtCacheFilenameOrDie(oat_filename));
-  oat_file = FindOatFileFromOatLocation(cache_location);
+  oat_file = FindOatFileFromOatLocationLocked(cache_location);
   if (oat_file != NULL) {
     uint32_t dex_location_checksum;
     if (!DexFile::GetChecksum(dex_location, dex_location_checksum)) {
@@ -850,11 +856,10 @@ const DexFile* ClassLinker::FindDexFileInOatFileFromDexLocation(const std::strin
 
   // Try to generate oat file if it wasn't found or was obsolete.
   std::string oat_cache_filename(GetArtCacheFilenameOrDie(oat_filename));
-  return FindOrCreateOatFileForDexLocation(dex_location, oat_cache_filename);
+  return FindOrCreateOatFileForDexLocationLocked(dex_location, oat_cache_filename);
 }
 
 const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& oat_location) {
-  MutexLock mu(dex_lock_);
   for (size_t i = 0; i < oat_files_.size(); i++) {
     const OatFile* oat_file = oat_files_[i];
     DCHECK(oat_file != NULL);
@@ -867,6 +872,10 @@ const OatFile* ClassLinker::FindOpenedOatFileFromOatLocation(const std::string& 
 
 const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_location) {
   MutexLock mu(dex_lock_);
+  return FindOatFileFromOatLocationLocked(oat_location);
+}
+
+const OatFile* ClassLinker::FindOatFileFromOatLocationLocked(const std::string& oat_location) {
   const OatFile* oat_file = FindOpenedOatFileFromOatLocation(oat_location);
   if (oat_file != NULL) {
     return oat_file;
@@ -942,7 +951,6 @@ void ClassLinker::InitFromImage() {
   IntArray::SetArrayClass(GetClassRoot(kIntArrayClass));
   LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
   ShortArray::SetArrayClass(GetClassRoot(kShortArrayClass));
-  PathClassLoader::SetClass(GetClassRoot(kDalvikSystemPathClassLoader));
   Throwable::SetClass(GetClassRoot(kJavaLangThrowable));
   StackTraceElement::SetClass(GetClassRoot(kJavaLangStackTraceElement));
 
@@ -984,7 +992,7 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   }
 
   {
-    MutexLock mu(classes_lock_);
+    MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
     typedef Table::const_iterator It;  // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       visitor(it->second, arg);
@@ -998,7 +1006,7 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
 }
 
 void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) const {
-  MutexLock mu(classes_lock_);
+  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
     if (!visitor(it->second, arg)) {
@@ -1012,6 +1020,24 @@ void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) const {
   }
 }
 
+static bool GetClassesVisitor(Class* c, void* arg) {
+  std::set<Class*>* classes = reinterpret_cast<std::set<Class*>*>(arg);
+  classes->insert(c);
+  return true;
+}
+
+void ClassLinker::VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg) const {
+  std::set<Class*> classes;
+  VisitClasses(GetClassesVisitor, &classes);
+  typedef std::set<Class*>::const_iterator It;  // TODO: C++0x auto
+  for (It it = classes.begin(), end = classes.end(); it != end; ++it) {
+    if (!visitor(*it, arg)) {
+      return;
+    }
+  }
+}
+
+
 ClassLinker::~ClassLinker() {
   String::ResetClass();
   Field::ResetClass();
@@ -1024,7 +1050,6 @@ ClassLinker::~ClassLinker() {
   IntArray::ResetArrayClass();
   LongArray::ResetArrayClass();
   ShortArray::ResetArrayClass();
-  PathClassLoader::ResetClass();
   Throwable::ResetClass();
   StackTraceElement::ResetClass();
   STLDeleteElements(&boot_class_path_);
@@ -1105,7 +1130,8 @@ ObjectArray<StackTraceElement>* ClassLinker::AllocStackTraceElementArray(size_t 
       length);
 }
 
-static Class* EnsureResolved(Class* klass) {
+static Class* EnsureResolved(Class* klass)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   DCHECK(klass != NULL);
   // Wait for the class if it has not already been linked.
   Thread* self = Thread::Current();
@@ -1130,7 +1156,8 @@ static Class* EnsureResolved(Class* klass) {
   // Return the loaded class.  No exceptions should be pending.
   CHECK(klass->IsResolved()) << PrettyClass(klass);
   CHECK(!self->IsExceptionPending())
-      << PrettyClass(klass) << " " << PrettyTypeOf(self->GetException());
+      << PrettyClass(klass) << " " << PrettyTypeOf(self->GetException()) << "\n"
+      << self->GetException()->Dump();
   return klass;
 }
 
@@ -1142,7 +1169,7 @@ Class* ClassLinker::FindClass(const char* descriptor, ClassLoader* class_loader)
   DCHECK_NE(*descriptor, '\0') << "descriptor is empty string";
   Thread* self = Thread::Current();
   DCHECK(self != NULL);
-  CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
+  self->AssertNoPendingException();
   if (descriptor[1] == '\0') {
     // only the descriptors of primitive types should be 1 character long, also avoid class lookup
     // for primitive classes that aren't backed by dex files.
@@ -1173,32 +1200,37 @@ Class* ClassLinker::FindClass(const char* descriptor, ClassLoader* class_loader)
     self->ClearException();
 
     // next try the compile time class path
-    const std::vector<const DexFile*>& class_path
-        = Runtime::Current()->GetCompileTimeClassPath(class_loader);
-    DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, class_path);
+    const std::vector<const DexFile*>* class_path;
+    {
+      ScopedObjectAccessUnchecked soa(Thread::Current());
+      ScopedLocalRef<jobject> jclass_loader(soa.Env(), soa.AddLocalReference<jobject>(class_loader));
+      class_path = &Runtime::Current()->GetCompileTimeClassPath(jclass_loader.get());
+    }
+
+    DexFile::ClassPathEntry pair = DexFile::FindInClassPath(descriptor, *class_path);
     if (pair.second != NULL) {
       return DefineClass(descriptor, class_loader, *pair.first, *pair.second);
     }
 
   } else {
-    ScopedJniThreadState ts(self->GetJniEnv());
-    ScopedLocalRef<jobject> class_loader_object(ts.Env(),
-                                                ts.AddLocalReference<jobject>(class_loader));
+    ScopedObjectAccessUnchecked soa(self->GetJniEnv());
+    ScopedLocalRef<jobject> class_loader_object(soa.Env(),
+                                                soa.AddLocalReference<jobject>(class_loader));
     std::string class_name_string(DescriptorToDot(descriptor));
-    ScopedLocalRef<jobject> result(ts.Env(), NULL);
+    ScopedLocalRef<jobject> result(soa.Env(), NULL);
     {
       ScopedThreadStateChange tsc(self, kNative);
-      ScopedLocalRef<jobject> class_name_object(ts.Env(),
-                                                ts.Env()->NewStringUTF(class_name_string.c_str()));
+      ScopedLocalRef<jobject> class_name_object(soa.Env(),
+                                                soa.Env()->NewStringUTF(class_name_string.c_str()));
       if (class_name_object.get() == NULL) {
         return NULL;
       }
       CHECK(class_loader_object.get() != NULL);
-      result.reset(ts.Env()->CallObjectMethod(class_loader_object.get(),
-                                              WellKnownClasses::java_lang_ClassLoader_loadClass,
-                                              class_name_object.get()));
+      result.reset(soa.Env()->CallObjectMethod(class_loader_object.get(),
+                                               WellKnownClasses::java_lang_ClassLoader_loadClass,
+                                               class_name_object.get()));
     }
-    if (ts.Env()->ExceptionCheck()) {
+    if (soa.Env()->ExceptionCheck()) {
       // If the ClassLoader threw, pass that exception up.
       return NULL;
     } else if (result.get() == NULL) {
@@ -1208,7 +1240,7 @@ Class* ClassLinker::FindClass(const char* descriptor, ClassLoader* class_loader)
       return NULL;
     } else {
       // success, return Class*
-      return ts.Decode<Class*>(result.get());
+      return soa.Decode<Class*>(result.get());
     }
   }
 
@@ -1428,7 +1460,9 @@ void ClassLinker::FixupStaticTrampolines(Class* klass) {
   }
 }
 
-static void LinkCode(SirtRef<Method>& method, const OatFile::OatClass* oat_class, uint32_t method_index) {
+static void LinkCode(SirtRef<Method>& method, const OatFile::OatClass* oat_class,
+                     uint32_t method_index)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   // Every kind of method should at least get an invoke stub from the oat_method.
   // non-abstract methods also get their code pointers.
   const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
@@ -1863,7 +1897,7 @@ Class* ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, boo
     LOG(INFO) << "Loaded class " << descriptor << source;
   }
   size_t hash = StringPieceHash()(descriptor);
-  MutexLock mu(classes_lock_);
+  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
   Table& classes = image_class ? image_classes_ : classes_;
   Class* existing = LookupClassLocked(descriptor.data(), klass->GetClassLoader(), hash, classes);
 #ifndef NDEBUG
@@ -1880,7 +1914,7 @@ Class* ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, boo
 
 bool ClassLinker::RemoveClass(const char* descriptor, const ClassLoader* class_loader) {
   size_t hash = Hash(descriptor);
-  MutexLock mu(classes_lock_);
+  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
   typedef Table::iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh;
@@ -1905,7 +1939,7 @@ bool ClassLinker::RemoveClass(const char* descriptor, const ClassLoader* class_l
 
 Class* ClassLinker::LookupClass(const char* descriptor, const ClassLoader* class_loader) {
   size_t hash = Hash(descriptor);
-  MutexLock mu(classes_lock_);
+  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
   // TODO: determine if its better to search classes_ or image_classes_ first
   Class* klass = LookupClassLocked(descriptor, class_loader, hash, classes_);
   if (klass != NULL) {
@@ -1940,7 +1974,7 @@ Class* ClassLinker::LookupClassLocked(const char* descriptor, const ClassLoader*
 void ClassLinker::LookupClasses(const char* descriptor, std::vector<Class*>& classes) {
   classes.clear();
   size_t hash = Hash(descriptor);
-  MutexLock mu(classes_lock_);
+  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh(NULL, this);
@@ -1961,7 +1995,8 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<Class*>& cla
 }
 
 #if !defined(NDEBUG) && !defined(ART_USE_LLVM_COMPILER)
-static void CheckMethodsHaveGcMaps(Class* klass) {
+static void CheckMethodsHaveGcMaps(Class* klass)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   if (!Runtime::Current()->IsStarted()) {
     return;
   }
@@ -2050,7 +2085,7 @@ void ClassLinker::VerifyClass(Class* klass) {
           << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
           << " because: " << error_msg;
     }
-    DCHECK(!Thread::Current()->IsExceptionPending());
+    Thread::Current()->AssertNoPendingException();
     CHECK(verifier_failure == verifier::MethodVerifier::kNoFailure ||
           Runtime::Current()->IsCompiler());
     // Make sure all classes referenced by catch blocks are resolved
@@ -2064,7 +2099,7 @@ void ClassLinker::VerifyClass(Class* klass) {
         << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
         << " because: " << error_msg;
     Thread* self = Thread::Current();
-    CHECK(!self->IsExceptionPending());
+    self->AssertNoPendingException();
     self->ThrowNewException("Ljava/lang/VerifyError;", error_msg.c_str());
     CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying) << PrettyDescriptor(klass);
     klass->SetStatus(Class::kStatusError);
@@ -2300,7 +2335,8 @@ Method* ClassLinker::CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_
   return constructor;
 }
 
-static void CheckProxyConstructor(Method* constructor) {
+static void CheckProxyConstructor(Method* constructor)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   CHECK(constructor->IsConstructor());
   MethodHelper mh(constructor);
   CHECK_STREQ(mh.GetName(), "<init>");
@@ -2338,7 +2374,8 @@ Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& p
   return method;
 }
 
-static void CheckProxyMethod(Method* method, SirtRef<Method>& prototype) {
+static void CheckProxyMethod(Method* method, SirtRef<Method>& prototype)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   // Basic sanity
   CHECK(!prototype->IsFinal());
   CHECK(method->IsFinal());
@@ -2485,9 +2522,10 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit, bool can_in
   return success;
 }
 
-bool ClassLinker::WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock) {
+bool ClassLinker::WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   while (true) {
-    CHECK(!self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
+    self->AssertNoPendingException();
     lock.Wait();
 
     // When we wake up, repeat the test for init-in-progress.  If
@@ -3096,8 +3134,11 @@ bool ClassLinker::LinkStaticFields(SirtRef<Class>& klass) {
 }
 
 struct LinkFieldsComparator {
-  explicit LinkFieldsComparator(FieldHelper* fh) : fh_(fh) {}
-  bool operator()(const Field* field1, const Field* field2) {
+  explicit LinkFieldsComparator(FieldHelper* fh)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      : fh_(fh) {}
+  // No thread safety analysis as will be called from STL. Checked lock held in constructor.
+  bool operator()(const Field* field1, const Field* field2) NO_THREAD_SAFETY_ANALYSIS {
     // First come reference fields, then 64-bit, and finally 32-bit
     fh_->ChangeField(field1);
     Primitive::Type type1 = fh_->GetTypeAsPrimitiveType();
@@ -3497,7 +3538,7 @@ void ClassLinker::DumpAllClasses(int flags) const {
   // lock held, because it might need to resolve a field's type, which would try to take the lock.
   std::vector<Class*> all_classes;
   {
-    MutexLock mu(classes_lock_);
+    MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
     typedef Table::const_iterator It;  // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       all_classes.push_back(it->second);
@@ -3513,22 +3554,22 @@ void ClassLinker::DumpAllClasses(int flags) const {
 }
 
 void ClassLinker::DumpForSigQuit(std::ostream& os) const {
-  MutexLock mu(classes_lock_);
+  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
   os << "Loaded classes: " << image_classes_.size() << " image classes; "
      << classes_.size() << " allocated classes\n";
 }
 
 size_t ClassLinker::NumLoadedClasses() const {
-  MutexLock mu(classes_lock_);
+  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
   return classes_.size() + image_classes_.size();
 }
 
 pid_t ClassLinker::GetClassesLockOwner() {
-  return classes_lock_.GetOwner();
+  return GlobalSynchronization::classlinker_classes_lock_->GetExclusiveOwnerTid();
 }
 
 pid_t ClassLinker::GetDexLockOwner() {
-  return dex_lock_.GetOwner();
+  return dex_lock_.GetExclusiveOwnerTid();
 }
 
 void ClassLinker::SetClassRoot(ClassRoot class_root, Class* klass) {

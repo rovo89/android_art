@@ -313,7 +313,7 @@ void MethodVerifier::VerifyMethodAndDump(Method* method) {
                           method, method->GetAccessFlags());
   verifier.Verify();
   verifier.DumpFailures(LOG(INFO) << "Dump of method " << PrettyMethod(method) << "\n")
-      << verifier.info_messages_.str() << Dumpable<MethodVerifier>(verifier);
+      << verifier.info_messages_.str() << MutatorLockedDumpable<MethodVerifier>(verifier);
 }
 
 MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
@@ -1026,7 +1026,8 @@ std::ostream& MethodVerifier::DumpFailures(std::ostream& os) {
   return os;
 }
 
-extern "C" void MethodVerifierGdbDump(MethodVerifier* v) {
+extern "C" void MethodVerifierGdbDump(MethodVerifier* v)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   v->Dump(std::cerr);
 }
 
@@ -3327,13 +3328,15 @@ void MethodVerifier::VerifyGcMap(const std::vector<uint8_t>& data) {
 }
 
 void MethodVerifier::SetGcMap(Compiler::MethodReference ref, const std::vector<uint8_t>& gc_map) {
-  MutexLock mu(*gc_maps_lock_);
-  GcMapTable::iterator it = gc_maps_->find(ref);
-  if (it != gc_maps_->end()) {
-    delete it->second;
-    gc_maps_->erase(it);
+  {
+    MutexLock mu(*gc_maps_lock_);
+    GcMapTable::iterator it = gc_maps_->find(ref);
+    if (it != gc_maps_->end()) {
+      delete it->second;
+      gc_maps_->erase(it);
+    }
+    gc_maps_->Put(ref, &gc_map);
   }
-  gc_maps_->Put(ref, &gc_map);
   CHECK(GetGcMap(ref) != NULL);
 }
 
@@ -3411,8 +3414,10 @@ void MethodVerifier::Shutdown() {
 }
 
 void MethodVerifier::AddRejectedClass(Compiler::ClassReference ref) {
-  MutexLock mu(*rejected_classes_lock_);
-  rejected_classes_->insert(ref);
+  {
+    MutexLock mu(*rejected_classes_lock_);
+    rejected_classes_->insert(ref);
+  }
   CHECK(IsClassRejected(ref));
 }
 

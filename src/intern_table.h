@@ -41,24 +41,27 @@ class InternTable {
   InternTable();
 
   // Interns a potentially new string in the 'strong' table. (See above.)
-  String* InternStrong(int32_t utf16_length, const char* utf8_data);
+  String* InternStrong(int32_t utf16_length, const char* utf8_data)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Interns a potentially new string in the 'strong' table. (See above.)
-  String* InternStrong(const char* utf8_data);
+  String* InternStrong(const char* utf8_data)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Interns a potentially new string in the 'strong' table. (See above.)
-  String* InternStrong(String* s);
+  String* InternStrong(String* s) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Interns a potentially new string in the 'weak' table. (See above.)
-  String* InternWeak(String* s);
+  String* InternWeak(String* s) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Register a String trusting that it is safe to intern.
   // Used when reinitializing InternTable from an image.
-  void RegisterStrong(String* s);
+  void RegisterStrong(String* s) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void SweepInternTableWeaks(Heap::IsMarkedTester is_marked, void* arg);
+  void SweepInternTableWeaks(Heap::IsMarkedTester is_marked, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
-  bool ContainsWeak(String* s);
+  bool ContainsWeak(String* s) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   size_t Size() const;
 
@@ -69,9 +72,11 @@ class InternTable {
  private:
   typedef std::multimap<int32_t, String*> Table;
 
-  String* Insert(String* s, bool is_strong);
+  String* Insert(String* s, bool is_strong)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  String* Lookup(Table& table, String* s, uint32_t hash_code);
+  String* Lookup(Table& table, String* s, uint32_t hash_code)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   String* Insert(Table& table, String* s, uint32_t hash_code);
   void Remove(Table& table, const String* s, uint32_t hash_code);
 

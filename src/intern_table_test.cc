@@ -24,6 +24,7 @@ namespace art {
 class InternTableTest : public CommonTest {};
 
 TEST_F(InternTableTest, Intern) {
+  ScopedObjectAccess soa(Thread::Current());
   InternTable intern_table;
   SirtRef<String> foo_1(intern_table.InternStrong(3, "foo"));
   SirtRef<String> foo_2(intern_table.InternStrong(3, "foo"));
@@ -41,6 +42,7 @@ TEST_F(InternTableTest, Intern) {
 }
 
 TEST_F(InternTableTest, Size) {
+  ScopedObjectAccess soa(Thread::Current());
   InternTable t;
   EXPECT_EQ(0U, t.Size());
   t.InternStrong(3, "foo");
@@ -84,6 +86,7 @@ bool IsMarked(const Object* object, void* arg) {
 }
 
 TEST_F(InternTableTest, SweepInternTableWeaks) {
+  ScopedObjectAccess soa(Thread::Current());
   InternTable t;
   t.InternStrong(3, "foo");
   t.InternStrong(3, "bar");
@@ -98,7 +101,10 @@ TEST_F(InternTableTest, SweepInternTableWeaks) {
   TestPredicate p;
   p.Expect(s0.get());
   p.Expect(s1.get());
-  t.SweepInternTableWeaks(IsMarked, &p);
+  {
+    ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    t.SweepInternTableWeaks(IsMarked, &p);
+  }
 
   EXPECT_EQ(2U, t.Size());
 
@@ -109,6 +115,7 @@ TEST_F(InternTableTest, SweepInternTableWeaks) {
 }
 
 TEST_F(InternTableTest, ContainsWeak) {
+  ScopedObjectAccess soa(Thread::Current());
   {
     // Strongs are never weak.
     InternTable t;

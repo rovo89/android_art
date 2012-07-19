@@ -30,7 +30,6 @@
 #include "monitor.h"
 #include "object.h"
 #include "runtime.h"
-#include "scoped_heap_lock.h"
 #include "space.h"
 #include "timing_logger.h"
 #include "thread.h"
@@ -133,7 +132,9 @@ class CheckObjectVisitor {
 
   }
 
-  void operator ()(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) const {
+  void operator ()(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     mark_sweep_->CheckReference(obj, ref, offset, is_static);
   }
 
@@ -171,10 +172,11 @@ void MarkSweep::CopyMarkBits() {
 class ScanImageRootVisitor {
  public:
   ScanImageRootVisitor(MarkSweep* const mark_sweep) : mark_sweep_(mark_sweep) {
-
   }
 
-  void operator ()(const Object* root) const {
+  void operator ()(const Object* root) const
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     DCHECK(root != NULL);
     mark_sweep_->ScanObject(root);
   }
@@ -225,7 +227,9 @@ class CheckBitmapVisitor {
 
   }
 
-  void operator ()(const Object* obj) const {
+  void operator ()(const Object* obj) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     DCHECK(obj != NULL);
     mark_sweep_->CheckObject(obj);
   }
@@ -322,7 +326,7 @@ struct SweepCallbackContext {
 };
 
 void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
-  ScopedHeapLock lock;
+  GlobalSynchronization::heap_bitmap_lock_->AssertExclusiveHeld();
 
   size_t freed_objects = num_ptrs;
   size_t freed_bytes = 0;
@@ -348,11 +352,12 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
       space->Free(obj);
     }
   }
-  heap->RecordFreeLocked(freed_objects, freed_bytes);
+  heap->RecordFree(freed_objects, freed_bytes);
 }
 
 void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
-  ScopedHeapLock lock;
+  GlobalSynchronization::heap_bitmap_lock_->AssertExclusiveHeld();
+
   SweepCallbackContext* context = static_cast<SweepCallbackContext*>(arg);
   Heap* heap = context->heap;
   // We don't free any actual memory to avoid dirtying the shared zygote pages.

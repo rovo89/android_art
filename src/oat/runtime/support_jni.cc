@@ -16,20 +16,23 @@
 
 #include "object.h"
 #include "object_utils.h"
+#include "scoped_thread_state_change.h"
 #include "thread.h"
 
 namespace art {
 
 // Used by the JNI dlsym stub to find the native method to invoke if none is registered.
-extern void* FindNativeMethod(Thread* self) {
+extern void* FindNativeMethod(Thread* self) LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
+  GlobalSynchronization::mutator_lock_->AssertNotHeld();  // We come here as Native.
   DCHECK(Thread::Current() == self);
+  ScopedObjectAccess soa(self);
 
-  Method* method = const_cast<Method*>(self->GetCurrentMethod());
+  Method* method = self->GetCurrentMethod();
   DCHECK(method != NULL);
 
   // Lookup symbol address for method, on failure we'll return NULL with an
   // exception set, otherwise we return the address of the method we found.
-  void* native_code = self->GetJniEnv()->vm->FindCodeForNativeMethod(method);
+  void* native_code = soa.Vm()->FindCodeForNativeMethod(method);
   if (native_code == NULL) {
     DCHECK(self->IsExceptionPending());
     return NULL;
@@ -40,23 +43,61 @@ extern void* FindNativeMethod(Thread* self) {
   }
 }
 
-// Return value helper for jobject return types, used for JNI return values.
-extern Object* DecodeJObjectInThread(Thread* self, jobject java_object) {
-  if (self->IsExceptionPending()) {
-    return NULL;
-  }
-  Object* o = self->DecodeJObject(java_object);
-  if (o == NULL || !self->GetJniEnv()->check_jni) {
-    return o;
-  }
+// Called on entry to JNI, transition out of Runnable and release share of mutator_lock_.
+extern uint32_t JniMethodStart(Thread* self) UNLOCK_FUNCTION(GlobalSynchronizatio::mutator_lock_) {
+  JNIEnvExt* env = self->GetJniEnv();
+  uint32_t saved_local_ref_cookie = env->local_ref_cookie;
+  env->local_ref_cookie = env->locals.GetSegmentState();
+  self->TransitionFromRunnableToSuspended(kNative);
+  return saved_local_ref_cookie;
+}
 
+extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self)
+    UNLOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+  self->DecodeJObject(to_lock)->MonitorEnter(self);
+  return JniMethodStart(self);
+}
+
+static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self) {
+  JNIEnvExt* env = self->GetJniEnv();
+  env->locals.SetSegmentState(env->local_ref_cookie);
+  env->local_ref_cookie = saved_local_ref_cookie;
+  self->PopSirt();
+}
+
+static void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+    UNLOCK_FUNCTION(monitor_lock_) {
+  // Save any pending exception over monitor exit call.
+  Throwable* saved_exception = NULL;
+  if (UNLIKELY(self->IsExceptionPending())) {
+    saved_exception = self->GetException();
+    self->ClearException();
+  }
+  // Decode locked object and unlock, before popping local references.
+  self->DecodeJObject(locked)->MonitorExit(self);
+  if (UNLIKELY(self->IsExceptionPending())) {
+    LOG(FATAL) << "Synchronized JNI code returning with an exception:\n"
+        << saved_exception->Dump()
+        << "\nEncountered second exception during implicit MonitorExit:\n"
+        << self->GetException()->Dump();
+  }
+  // Restore pending exception.
+  if (saved_exception != NULL) {
+    self->SetException(saved_exception);
+  }
+}
+
+static void CheckReferenceResult(Object* o, Thread* self)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  if (o == NULL) {
+    return;
+  }
   if (o == kInvalidIndirectRefObject) {
     JniAbortF(NULL, "invalid reference returned from %s",
               PrettyMethod(self->GetCurrentMethod()).c_str());
   }
-
-  // Make sure that the result is an instance of the type this
-  // method was expected to return.
+  // Make sure that the result is an instance of the type this method was expected to return.
   Method* m = self->GetCurrentMethod();
   MethodHelper mh(m);
   Class* return_type = mh.GetReturnType();
@@ -65,7 +106,53 @@ extern Object* DecodeJObjectInThread(Thread* self, jobject java_object) {
     JniAbortF(NULL, "attempt to return an instance of %s from %s",
               PrettyTypeOf(o).c_str(), PrettyMethod(m).c_str());
   }
+}
 
+extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self)
+    SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+  self->TransitionFromSuspendedToRunnable();
+  PopLocalReferences(saved_local_ref_cookie, self);
+}
+
+
+extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked, Thread* self)
+    SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+  self->TransitionFromSuspendedToRunnable();
+  UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
+  PopLocalReferences(saved_local_ref_cookie, self);
+}
+
+extern Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
+                                         Thread* self)
+    SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+  self->TransitionFromSuspendedToRunnable();
+  Object* o = self->DecodeJObject(result);  // Must decode before pop.
+  PopLocalReferences(saved_local_ref_cookie, self);
+  // Process result.
+  if (UNLIKELY(self->GetJniEnv()->check_jni)) {
+    if (self->IsExceptionPending()) {
+      return NULL;
+    }
+    CheckReferenceResult(o, self);
+  }
+  return o;
+}
+
+extern Object* JniMethodEndWithReferenceSynchronized(jobject result,
+                                                     uint32_t saved_local_ref_cookie,
+                                                     jobject locked, Thread* self)
+    SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+  self->TransitionFromSuspendedToRunnable();
+  UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
+  Object* o = self->DecodeJObject(result);
+  PopLocalReferences(saved_local_ref_cookie, self);
+  // Process result.
+  if (UNLIKELY(self->GetJniEnv()->check_jni)) {
+    if (self->IsExceptionPending()) {
+      return NULL;
+    }
+    CheckReferenceResult(o, self);
+  }
   return o;
 }
 
@@ -77,7 +164,8 @@ static void WorkAroundJniBugsForJobject(intptr_t* arg_ptr) {
   *arg_ptr = reinterpret_cast<intptr_t>(value_as_work_around_rep);
 }
 
-extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp) {
+extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_){
   DCHECK(Thread::Current() == self);
   // TODO: this code is specific to ARM
   // On entry the stack pointed by sp is:

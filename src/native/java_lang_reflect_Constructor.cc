@@ -19,7 +19,7 @@
 #include "object.h"
 #include "object_utils.h"
 #include "reflection.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 
@@ -31,17 +31,17 @@ namespace art {
  * with an interface, array, or primitive class.
  */
 static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectArray javaArgs) {
-  ScopedJniThreadState ts(env);
-  Method* m = ts.Decode<Object*>(javaMethod)->AsMethod();
+  ScopedObjectAccess soa(env);
+  Method* m = soa.Decode<Object*>(javaMethod)->AsMethod();
   Class* c = m->GetDeclaringClass();
   if (c->IsAbstract()) {
-    ts.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
         "Can't instantiate abstract class %s", PrettyDescriptor(c).c_str());
     return NULL;
   }
 
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
-    DCHECK(ts.Self()->IsExceptionPending());
+    DCHECK(soa.Self()->IsExceptionPending());
     return NULL;
   }
 
@@ -50,8 +50,8 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
     return NULL;
   }
 
-  jobject javaReceiver = ts.AddLocalReference<jobject>(receiver);
-  InvokeMethod(ts, javaMethod, javaReceiver, javaArgs);
+  jobject javaReceiver = soa.AddLocalReference<jobject>(receiver);
+  InvokeMethod(soa, javaMethod, javaReceiver, javaArgs);
 
   // Constructors are ()V methods, so we shouldn't touch the result of InvokeMethod.
   return javaReceiver;

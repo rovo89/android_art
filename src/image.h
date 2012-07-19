@@ -94,7 +94,8 @@ class PACKED ImageHeader {
     kImageRootsMax,
   };
 
-  Object* GetImageRoot(ImageRoot image_root) const {
+  Object* GetImageRoot(ImageRoot image_root) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     return GetImageRoots()->Get(image_root);
   }
 

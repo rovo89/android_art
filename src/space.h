@@ -52,7 +52,8 @@ class Space {
                                       byte* requested_begin);
 
   // create a Space from an image file. cannot be used for future allocation or collected.
-  static ImageSpace* CreateImageSpace(const std::string& image);
+  static ImageSpace* CreateImageSpace(const std::string& image)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   virtual ~Space() {}
 
@@ -122,7 +123,8 @@ class Space {
   }
 
  protected:
-  Space(const std::string& name, MemMap* mem_map, byte* begin, byte* end, GcRetentionPolicy gc_retention_policy)
+  Space(const std::string& name, MemMap* mem_map, byte* begin, byte* end,
+        GcRetentionPolicy gc_retention_policy)
       : name_(name),
         mem_map_(mem_map),
         begin_(begin),
@@ -229,6 +231,8 @@ class AllocSpace : public Space {
   AllocSpace* CreateZygoteSpace();
 
  private:
+  Object* AllocWithoutGrowthLocked(size_t num_bytes) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+
   friend class Space;
 
   UniquePtr<SpaceBitmap> live_bitmap_;
@@ -244,6 +248,9 @@ class AllocSpace : public Space {
 
   // The boundary tag overhead.
   static const size_t kChunkOverhead = kWordSize;
+
+  // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.
+  Mutex lock_;
 
   // Underlying malloc space
   void* const mspace_;
@@ -272,7 +279,8 @@ class ImageSpace : public Space {
   }
 
   // Mark the objects defined in this space in the given live bitmap
-  void RecordImageAllocations(SpaceBitmap* live_bitmap) const;
+  void RecordImageAllocations(SpaceBitmap* live_bitmap) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   virtual bool IsAllocSpace() const {
     return false;

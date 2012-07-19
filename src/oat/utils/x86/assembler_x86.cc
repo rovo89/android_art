@@ -1862,8 +1862,8 @@ void X86SuspendCountSlowPath::Emit(Assembler *sasm) {
 #undef __
 }
 
-void X86Assembler::ExceptionPoll(ManagedRegister /*scratch*/) {
-  X86ExceptionSlowPath* slow = new X86ExceptionSlowPath();
+void X86Assembler::ExceptionPoll(ManagedRegister /*scratch*/, size_t stack_adjust) {
+  X86ExceptionSlowPath* slow = new X86ExceptionSlowPath(stack_adjust);
   buffer_.EnqueueSlowPath(slow);
   fs()->cmpl(Address::Absolute(Thread::ExceptionOffset()), Immediate(0));
   j(kNotEqual, slow->Entry());
@@ -1874,6 +1874,9 @@ void X86ExceptionSlowPath::Emit(Assembler *sasm) {
 #define __ sp_asm->
   __ Bind(&entry_);
   // Note: the return value is dead
+  if (stack_adjust_ != 0) {  // Fix up the frame.
+    __ DecreaseFrameSize(stack_adjust_);
+  }
   // Pass exception as argument in EAX
   __ fs()->movl(EAX, Address::Absolute(Thread::ExceptionOffset()));
   __ fs()->call(Address::Absolute(ENTRYPOINT_OFFSET(pDeliverException)));

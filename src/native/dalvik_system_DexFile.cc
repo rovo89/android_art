@@ -24,7 +24,7 @@
 #include "logging.h"
 #include "os.h"
 #include "runtime.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "space.h"
@@ -89,12 +89,14 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
   if (env->ExceptionCheck()) {
     return 0;
   }
+  ScopedObjectAccess soa(env);
   const DexFile* dex_file;
   if (outputName.c_str() == NULL) {
     dex_file = Runtime::Current()->GetClassLinker()->FindDexFileInOatFileFromDexLocation(source);
   } else {
     std::string output(outputName.c_str());
-    dex_file = Runtime::Current()->GetClassLinker()->FindOrCreateOatFileForDexLocation(source, output);
+    dex_file =
+        Runtime::Current()->GetClassLinker()->FindOrCreateOatFileForDexLocation(source, output);
   }
   if (dex_file == NULL) {
     LOG(WARNING) << "Failed to open dex file: " << source;
@@ -105,7 +107,8 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
   return static_cast<jint>(reinterpret_cast<uintptr_t>(dex_file));
 }
 
-static const DexFile* toDexFile(int dex_file_address) {
+static const DexFile* toDexFile(int dex_file_address)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   const DexFile* dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(dex_file_address));
   if (dex_file == NULL) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NullPointerException;", "dex_file == null");
@@ -113,8 +116,12 @@ static const DexFile* toDexFile(int dex_file_address) {
   return dex_file;
 }
 
-static void DexFile_closeDexFile(JNIEnv*, jclass, jint cookie) {
-  const DexFile* dex_file = toDexFile(cookie);
+static void DexFile_closeDexFile(JNIEnv* env, jclass, jint cookie) {
+  const DexFile* dex_file;
+  {
+    ScopedObjectAccess soa(env);
+    dex_file = toDexFile(cookie);
+  }
   if (dex_file == NULL) {
     return;
   }
@@ -126,7 +133,7 @@ static void DexFile_closeDexFile(JNIEnv*, jclass, jint cookie) {
 
 static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
                                         jint cookie) {
-  ScopedJniThreadState ts(env);
+  ScopedObjectAccess soa(env);
   const DexFile* dex_file = toDexFile(cookie);
   if (dex_file == NULL) {
     return NULL;
@@ -142,14 +149,18 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
   }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   class_linker->RegisterDexFile(*dex_file);
-  Object* class_loader_object = ts.Decode<Object*>(javaLoader);
+  Object* class_loader_object = soa.Decode<Object*>(javaLoader);
   ClassLoader* class_loader = down_cast<ClassLoader*>(class_loader_object);
   Class* result = class_linker->DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
-  return ts.AddLocalReference<jclass>(result);
+  return soa.AddLocalReference<jclass>(result);
 }
 
 static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jint cookie) {
-  const DexFile* dex_file = toDexFile(cookie);
+  const DexFile* dex_file;
+  {
+    ScopedObjectAccess soa(env);
+    dex_file = toDexFile(cookie);
+  }
   if (dex_file == NULL) {
     return NULL;
   }
@@ -174,6 +185,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
   if (!OS::FileExists(filename.c_str())) {
     LOG(ERROR) << "DexFile_isDexOptNeeded file '" << filename.c_str() << "' does not exist";
+    ScopedObjectAccess soa(env);
     Thread::Current()->ThrowNewExceptionF("Ljava/io/FileNotFoundException;", "%s", filename.c_str());
     return JNI_TRUE;
   }
@@ -205,6 +217,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
       }
       return JNI_FALSE;
     }
+    ScopedObjectAccess soa(env);
     if (ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum)) {
       if (debug_logging) {
         LOG(INFO) << "DexFile_isDexOptNeeded precompiled file " << oat_filename
@@ -232,6 +245,7 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
       // TODO: Ensure this works with multiple image spaces.
       const ImageHeader& image_header = (*cur)->AsImageSpace()->GetImageHeader();
       if (oat_file->GetOatHeader().GetImageFileLocationChecksum() != image_header.GetOatChecksum()) {
+        ScopedObjectAccess soa(env);
         LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
                   << " has out-of-date checksum compared to "
                   << image_header.GetImageRoot(ImageHeader::kOatLocation)->AsString()->ToModifiedUtf8();
@@ -246,9 +260,10 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
     return JNI_TRUE;
   }
 
+  ScopedObjectAccess soa(env);
   if (!ClassLinker::VerifyOatFileChecksums(oat_file.get(), filename.c_str(), location_checksum)) {
     LOG(INFO) << "DexFile_isDexOptNeeded cache file " << cache_location
-              << " has out-of-date checksum compared to " << filename.c_str();
+        << " has out-of-date checksum compared to " << filename.c_str();
     return JNI_TRUE;
   }
 

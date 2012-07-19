@@ -25,13 +25,15 @@ namespace art {
 
   class HeapBitmap {
    public:
-    bool Test(const Object* obj) {
+    bool Test(const Object* obj)
+        SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
       SpaceBitmap* bitmap = GetSpaceBitmap(obj);
       DCHECK(bitmap != NULL);
       return bitmap->Test(obj);
     }
 
-    void Clear(const Object* obj) {
+    void Clear(const Object* obj)
+        EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
       SpaceBitmap* bitmap = GetSpaceBitmap(obj);
       DCHECK(bitmap != NULL)
         << "tried to clear object "
@@ -40,7 +42,8 @@ namespace art {
       return bitmap->Clear(obj);
     }
 
-    void Set(const Object* obj) {
+    void Set(const Object* obj)
+        EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
       SpaceBitmap* bitmap = GetSpaceBitmap(obj);
       DCHECK(bitmap != NULL)
         << "tried to mark object "
@@ -59,7 +62,8 @@ namespace art {
       return NULL;
     }
 
-    void Walk(SpaceBitmap::Callback* callback, void* arg) {
+    void Walk(SpaceBitmap::Callback* callback, void* arg)
+        SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
       // TODO: C++0x auto
       for (Bitmaps::iterator cur = bitmaps_.begin(); cur != bitmaps_.end(); ++cur) {
         (*cur)->Walk(callback, arg);
@@ -67,7 +71,8 @@ namespace art {
     }
 
     // Find and replace a bitmap pointer, this is used by for the bitmap swapping in the GC.
-    void ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap);
+    void ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap)
+        EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
     HeapBitmap(Heap* heap) : heap_(heap) {
 

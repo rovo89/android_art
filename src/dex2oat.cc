@@ -33,9 +33,12 @@
 #include "object_utils.h"
 #include "os.h"
 #include "runtime.h"
+#include "ScopedLocalRef.h"
+#include "scoped_thread_state_change.h"
 #include "stl_util.h"
 #include "stringpiece.h"
 #include "timing_logger.h"
+#include "well_known_classes.h"
 #include "zip_archive.h"
 
 namespace art {
@@ -118,13 +121,15 @@ static void Usage(const char* fmt, ...) {
 
 class Dex2Oat {
  public:
-  static Dex2Oat* Create(Runtime::Options& options, InstructionSet instruction_set,
-                         size_t thread_count, bool support_debugging) {
-    UniquePtr<Runtime> runtime(CreateRuntime(options, instruction_set));
-    if (runtime.get() == NULL) {
-      return NULL;
+  static bool Create(Dex2Oat** p_dex2oat, Runtime::Options& options, InstructionSet instruction_set,
+                         size_t thread_count, bool support_debugging)
+      SHARED_TRYLOCK_FUNCTION(true, GlobalSynchronization::mutator_lock_) {
+    if (!CreateRuntime(options, instruction_set)) {
+      *p_dex2oat = NULL;
+      return false;
     }
-    return new Dex2Oat(runtime.release(), instruction_set, thread_count, support_debugging);
+    *p_dex2oat = new Dex2Oat(Runtime::Current(), instruction_set, thread_count, support_debugging);
+    return true;
   }
 
   ~Dex2Oat() {
@@ -133,7 +138,8 @@ class Dex2Oat {
   }
 
   // Make a list of descriptors for classes to include in the image
-  const std::set<std::string>* GetImageClassDescriptors(const char* image_classes_filename) {
+  const std::set<std::string>* GetImageClassDescriptors(const char* image_classes_filename)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     UniquePtr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename, std::ifstream::in));
     if (image_classes_file.get() == NULL) {
       LOG(ERROR) << "Failed to open image classes file " << image_classes_filename;
@@ -206,14 +212,10 @@ class Dex2Oat {
                                 bool image,
                                 const std::set<std::string>* image_classes,
                                 bool dump_stats,
-                                bool dump_timings) {
+                                bool dump_timings)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     // SirtRef and ClassLoader creation needs to come after Runtime::Create
-    UniquePtr<SirtRef<ClassLoader> > class_loader(new SirtRef<ClassLoader>(NULL));
-    if (class_loader.get() == NULL) {
-      LOG(ERROR) << "Failed to create SirtRef for class loader";
-      return NULL;
-    }
-
+    jobject class_loader = NULL;
     if (!boot_image_option.empty()) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       std::vector<const DexFile*> class_path_files(dex_files);
@@ -221,7 +223,12 @@ class Dex2Oat {
       for (size_t i = 0; i < class_path_files.size(); i++) {
         class_linker->RegisterDexFile(*class_path_files[i]);
       }
-      class_loader.get()->reset(PathClassLoader::AllocCompileTime(class_path_files));
+      ScopedObjectAccessUnchecked soa(Thread::Current());
+      soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader);
+      ScopedLocalRef<jobject> class_loader_local(soa.Env(),
+          soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
+      class_loader = soa.Env()->NewGlobalRef(class_loader_local.get());
+      Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path_files);
     }
 
     UniquePtr<Compiler> compiler(new Compiler(instruction_set_,
@@ -236,7 +243,11 @@ class Dex2Oat {
     compiler->SetBitcodeFileName(bitcode_filename);
 #endif
 
-    compiler->CompileAll(class_loader->get(), dex_files);
+    Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+
+    compiler->CompileAll(class_loader, dex_files);
+
+    Thread::Current()->TransitionFromSuspendedToRunnable();
 
     std::string image_file_location;
     uint32_t image_file_location_checksum = 0;
@@ -251,7 +262,7 @@ class Dex2Oat {
     }
 
     if (!OatWriter::Create(oat_file,
-                           class_loader->get(),
+                           class_loader,
                            dex_files,
                            image_file_location_checksum,
                            image_file_location,
@@ -267,7 +278,8 @@ class Dex2Oat {
                        const std::set<std::string>* image_classes,
                        const std::string& oat_filename,
                        const std::string& oat_location,
-                       const Compiler& compiler) {
+                       const Compiler& compiler)
+      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
     ImageWriter image_writer(image_classes);
     if (!image_writer.Write(image_filename, image_base, oat_filename, oat_location, compiler)) {
       LOG(ERROR) << "Failed to create image file " << image_filename;
@@ -286,13 +298,13 @@ class Dex2Oat {
         start_ns_(NanoTime()) {
   }
 
-  static Runtime* CreateRuntime(Runtime::Options& options, InstructionSet instruction_set) {
-    Runtime* runtime = Runtime::Create(options, false);
-    if (runtime == NULL) {
+  static bool CreateRuntime(Runtime::Options& options, InstructionSet instruction_set)
+      SHARED_TRYLOCK_FUNCTION(true, GlobalSynchronization::mutator_lock_) {
+    if (!Runtime::Create(options, false)) {
       LOG(ERROR) << "Failed to create runtime";
-      return NULL;
+      return false;
     }
-
+    Runtime* runtime = Runtime::Current();
     // if we loaded an existing image, we will reuse values from the image roots.
     if (!runtime->HasJniDlsymLookupStub()) {
       runtime->SetJniDlsymLookupStub(Compiler::CreateJniDlsymLookupStub(instruction_set));
@@ -316,11 +328,12 @@ class Dex2Oat {
       }
     }
     runtime->GetClassLinker()->FixupDexCaches(runtime->GetResolutionMethod());
-    return runtime;
+    return true;
   }
 
   static void ResolveExceptionsForMethod(MethodHelper* mh,
-                           std::set<std::pair<uint16_t, const DexFile*> >& exceptions_to_resolve) {
+                           std::set<std::pair<uint16_t, const DexFile*> >& exceptions_to_resolve)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     const DexFile::CodeItem* code_item = mh->GetCodeItem();
     if (code_item == NULL) {
       return;  // native or abstract method
@@ -355,7 +368,9 @@ class Dex2Oat {
       }
     }
   }
-  static bool ResolveCatchBlockExceptionsClassVisitor(Class* c, void* arg) {
+
+  static bool ResolveCatchBlockExceptionsClassVisitor(Class* c, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     std::set<std::pair<uint16_t, const DexFile*> >* exceptions_to_resolve =
         reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*> >*>(arg);
     MethodHelper mh;
@@ -371,7 +386,9 @@ class Dex2Oat {
     }
     return true;
   }
-  static bool RecordImageClassesVisitor(Class* klass, void* arg) {
+
+  static bool RecordImageClassesVisitor(Class* klass, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     std::set<std::string>* image_classes = reinterpret_cast<std::set<std::string>*>(arg);
     if (klass->IsArrayClass() || klass->IsPrimitive()) {
       return true;
@@ -684,8 +701,18 @@ static int dex2oat(int argc, char** argv) {
     options.push_back(std::make_pair(runtime_args[i], reinterpret_cast<void*>(NULL)));
   }
 
-  UniquePtr<Dex2Oat> dex2oat(Dex2Oat::Create(options, instruction_set, thread_count,
-                                             support_debugging));
+  Dex2Oat* p_dex2oat;
+  if (!Dex2Oat::Create(&p_dex2oat, options, instruction_set, thread_count, support_debugging)) {
+    LOG(ERROR) << "Failed to create dex2oat";
+    return EXIT_FAILURE;
+  }
+  UniquePtr<Dex2Oat> dex2oat(p_dex2oat);
+  // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
+  // give it away now and then switch to a more managable ScopedObjectAccess.
+  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  // Whilst we're in native take the opportunity to initialize well known classes.
+  WellKnownClasses::InitClasses(Thread::Current()->GetJniEnv());
+  ScopedObjectAccess soa(Thread::Current());
 
   // If --image-classes was specified, calculate the full list of classes to include in the image
   UniquePtr<const std::set<std::string> > image_classes(NULL);
@@ -744,12 +771,15 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_SUCCESS;
   }
 
-  if (!dex2oat->CreateImageFile(image_filename,
-                                image_base,
-                                image_classes.get(),
-                                oat_filename,
-                                oat_location,
-                                *compiler.get())) {
+  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  bool image_creation_success = dex2oat->CreateImageFile(image_filename,
+                                                         image_base,
+                                                         image_classes.get(),
+                                                         oat_filename,
+                                                         oat_location,
+                                                         *compiler.get());
+  Thread::Current()->TransitionFromSuspendedToRunnable();
+  if (!image_creation_success) {
     return EXIT_FAILURE;
   }
 

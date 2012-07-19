@@ -35,9 +35,8 @@
 #include "jni_internal.h"
 #include "monitor.h"
 #include "oat_file.h"
-#include "scoped_heap_lock.h"
-#include "scoped_jni_thread_state.h"
 #include "ScopedLocalRef.h"
+#include "scoped_thread_state_change.h"
 #include "signal_catcher.h"
 #include "signal_set.h"
 #include "space.h"
@@ -118,10 +117,7 @@ Runtime::~Runtime() {
   }
 
   // Make sure to let the GC complete if it is running.
-  {
-    ScopedHeapLock heap_lock;
-    heap_->WaitForConcurrentGcToComplete();
-  }
+  heap_->WaitForConcurrentGcToComplete();
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
   Dbg::StopJdwp();
@@ -162,6 +158,10 @@ struct AbortState {
     if (self == NULL) {
       os << "(Aborting thread was not attached to runtime!)\n";
     } else {
+      // TODO: we're aborting and the ScopedObjectAccess may attempt to acquire the mutator_lock_
+      //       which may block indefinitely if there's a misbehaving thread holding it exclusively.
+      //       The code below should be made robust to this.
+      ScopedObjectAccess soa(self);
       self->Dump(os);
       if (self->IsExceptionPending()) {
         os << "Pending " << PrettyTypeOf(self->GetException()) << " on thread:\n"
@@ -171,15 +171,10 @@ struct AbortState {
   }
 };
 
-static Mutex& GetAbortLock() {
-  static Mutex abort_lock("abort lock");
-  return abort_lock;
-}
-
 void Runtime::Abort() {
   // Ensure that we don't have multiple threads trying to abort at once,
   // which would result in significantly worse diagnostics.
-  MutexLock mu(GetAbortLock());
+  MutexLock mu(*GlobalSynchronization::abort_lock_);
 
   // Get any pending output out of the way.
   fflush(NULL);
@@ -313,15 +308,6 @@ size_t ParseIntegerOrDie(const std::string& s) {
     LOG(FATAL) << "Failed to parse integer in: " << s;
   }
   return result;
-}
-
-void LoadJniLibrary(JavaVMExt* vm, const char* name) {
-  std::string mapped_name(StringPrintf(OS_SHARED_LIB_FORMAT_STR, name));
-  std::string reason;
-  if (!vm->LoadNativeLibrary(mapped_name, NULL, reason)) {
-    LOG(FATAL) << "LoadNativeLibrary failed for \"" << mapped_name << "\": "
-               << reason;
-  }
 }
 
 Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, bool ignore_unrecognized) {
@@ -543,17 +529,19 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
   return parsed.release();
 }
 
-Runtime* Runtime::Create(const Options& options, bool ignore_unrecognized) {
+bool Runtime::Create(const Options& options, bool ignore_unrecognized) {
   // TODO: acquire a static mutex on Runtime to avoid racing.
   if (Runtime::instance_ != NULL) {
-    return NULL;
+    return false;
   }
+  GlobalSynchronization::Init();
   instance_ = new Runtime;
   if (!instance_->Init(options, ignore_unrecognized)) {
     delete instance_;
     instance_ = NULL;
+    return false;
   }
-  return instance_;
+  return true;
 }
 
 static void CreateSystemClassLoader() {
@@ -561,28 +549,28 @@ static void CreateSystemClassLoader() {
     return;
   }
 
-  ScopedJniThreadState ts(Thread::Current());
+  ScopedObjectAccess soa(Thread::Current());
 
-  Class* class_loader_class = ts.Decode<Class*>(WellKnownClasses::java_lang_ClassLoader);
+  Class* class_loader_class = soa.Decode<Class*>(WellKnownClasses::java_lang_ClassLoader);
   CHECK(Runtime::Current()->GetClassLinker()->EnsureInitialized(class_loader_class, true, true));
 
   Method* getSystemClassLoader = class_loader_class->FindDirectMethod("getSystemClassLoader", "()Ljava/lang/ClassLoader;");
   CHECK(getSystemClassLoader != NULL);
 
   ClassLoader* class_loader =
-    down_cast<ClassLoader*>(InvokeWithJValues(ts, NULL, getSystemClassLoader, NULL).GetL());
+    down_cast<ClassLoader*>(InvokeWithJValues(soa, NULL, getSystemClassLoader, NULL).GetL());
   CHECK(class_loader != NULL);
 
-  ts.Self()->SetClassLoaderOverride(class_loader);
+  soa.Self()->SetClassLoaderOverride(class_loader);
 
-  Class* thread_class = ts.Decode<Class*>(WellKnownClasses::java_lang_Thread);
+  Class* thread_class = soa.Decode<Class*>(WellKnownClasses::java_lang_Thread);
   CHECK(Runtime::Current()->GetClassLinker()->EnsureInitialized(thread_class, true, true));
 
   Field* contextClassLoader = thread_class->FindDeclaredInstanceField("contextClassLoader",
                                                                       "Ljava/lang/ClassLoader;");
   CHECK(contextClassLoader != NULL);
 
-  contextClassLoader->SetObject(ts.Self()->GetPeer(), class_loader);
+  contextClassLoader->SetObject(soa.Self()->GetPeer(), class_loader);
 }
 
 void Runtime::Start() {
@@ -593,15 +581,15 @@ void Runtime::Start() {
   // Relocate the OatFiles (ELF images).
   class_linker_->RelocateExecutable();
 
-  // Restore main thread state to kNative as expected by native code.
-  Thread* self = Thread::Current();
-  self->SetState(kNative);
-
   // Pre-allocate an OutOfMemoryError for the double-OOME case.
+  Thread* self = Thread::Current();
   self->ThrowNewException("Ljava/lang/OutOfMemoryError;",
                           "OutOfMemoryError thrown while trying to throw OutOfMemoryError; no stack available");
   pre_allocated_OutOfMemoryError_ = self->GetException();
   self->ClearException();
+
+  // Restore main thread state to kNative as expected by native code.
+  self->TransitionFromRunnableToSuspended(kNative);
 
   started_ = true;
 
@@ -651,7 +639,10 @@ void Runtime::StartDaemonThreads() {
   Thread* self = Thread::Current();
 
   // Must be in the kNative state for calling native methods.
-  CHECK_EQ(self->GetState(), kNative);
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    CHECK_EQ(self->GetState(), kNative);
+  }
 
   JNIEnv* env = self->GetJniEnv();
   env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons, WellKnownClasses::java_lang_Daemons_start);
@@ -700,7 +691,8 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   heap_ = new Heap(options->heap_initial_size_,
                    options->heap_growth_limit_,
                    options->heap_maximum_size_,
-                   options->image_);
+                   options->image_,
+                   options->is_concurrent_gc_enabled_);
 
   BlockSignals();
   InitPlatformSignalHandlers();
@@ -714,7 +706,7 @@ bool Runtime::Init(const Options& raw_options, bool ignore_unrecognized) {
   Thread::Attach("main", false, NULL);
 
   // Set us to runnable so tools using a runtime can allocate and GC by default
-  Thread::Current()->SetState(kRunnable);
+  Thread::Current()->TransitionFromSuspendedToRunnable();
 
   // Now we're attached, we can take the heap lock and validate the heap.
   GetHeap()->EnableObjectValidation();
@@ -747,7 +739,10 @@ void Runtime::InitNativeMethods() {
   JNIEnv* env = self->GetJniEnv();
 
   // Must be in the kNative state for calling native methods (JNI_OnLoad code).
-  CHECK_EQ(self->GetState(), kNative);
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    CHECK_EQ(self->GetState(), kNative);
+  }
 
   // First set up JniConstants, which is used by both the runtime's built-in native
   // methods and libcore.
@@ -760,7 +755,15 @@ void Runtime::InitNativeMethods() {
   // Then set up libcore, which is just a regular JNI library with a regular JNI_OnLoad.
   // Most JNI libraries can just use System.loadLibrary, but libcore can't because it's
   // the library that implements System.loadLibrary!
-  LoadJniLibrary(instance_->GetJavaVM(), "javacore");
+  {
+    std::string mapped_name(StringPrintf(OS_SHARED_LIB_FORMAT_STR, "javacore"));
+    std::string reason;
+    self->TransitionFromSuspendedToRunnable();
+    if (!instance_->java_vm_->LoadNativeLibrary(mapped_name, NULL, reason)) {
+      LOG(FATAL) << "LoadNativeLibrary failed for \"" << mapped_name << "\": " << reason;
+    }
+    self->TransitionFromRunnableToSuspended(kNative);
+  }
   VLOG(startup) << "Runtime::InitNativeMethods exiting";
 }
 
@@ -826,12 +829,12 @@ void Runtime::DumpForSigQuit(std::ostream& os) {
 }
 
 void Runtime::DumpLockHolders(std::ostream& os) {
-  pid_t heap_lock_owner = GetHeap()->GetLockOwner();
+  uint64_t mutator_lock_owner = GlobalSynchronization::mutator_lock_->GetExclusiveOwnerTid();
   pid_t thread_list_lock_owner = GetThreadList()->GetLockOwner();
   pid_t classes_lock_owner = GetClassLinker()->GetClassesLockOwner();
   pid_t dex_lock_owner = GetClassLinker()->GetDexLockOwner();
-  if ((heap_lock_owner | thread_list_lock_owner | classes_lock_owner | dex_lock_owner) != 0) {
-    os << "Heap lock owner tid: " << heap_lock_owner << "\n"
+  if ((thread_list_lock_owner | classes_lock_owner | dex_lock_owner) != 0) {
+    os << "Mutator lock exclusive owner tid: " << mutator_lock_owner << "\n"
        << "ThreadList lock owner tid: " << thread_list_lock_owner << "\n"
        << "ClassLinker classes lock owner tid: " << classes_lock_owner << "\n"
        << "ClassLinker dex lock owner tid: " << dex_lock_owner << "\n";
@@ -913,7 +916,7 @@ void Runtime::DetachCurrentThread() {
   if (self->HasManagedStack()) {
     LOG(FATAL) << *Thread::Current() << " attempting to detach while still running code";
   }
-  thread_list_->Unregister();
+  thread_list_->Unregister(self);
 }
 
 void Runtime::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
@@ -1031,7 +1034,7 @@ void Runtime::DisableMethodTracing() {
   tracer_ = NULL;
 }
 
-const std::vector<const DexFile*>& Runtime::GetCompileTimeClassPath(const ClassLoader* class_loader) {
+const std::vector<const DexFile*>& Runtime::GetCompileTimeClassPath(jobject class_loader) {
   if (class_loader == NULL) {
     return GetClassLinker()->GetBootClassPath();
   }
@@ -1041,7 +1044,7 @@ const std::vector<const DexFile*>& Runtime::GetCompileTimeClassPath(const ClassL
   return it->second;
 }
 
-void Runtime::SetCompileTimeClassPath(const ClassLoader* class_loader, std::vector<const DexFile*>& class_path) {
+void Runtime::SetCompileTimeClassPath(jobject class_loader, std::vector<const DexFile*>& class_path) {
   CHECK(!IsStarted());
   use_compile_time_class_path_ = true;
   compile_time_class_paths_.Put(class_loader, class_path);

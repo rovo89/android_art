@@ -220,18 +220,37 @@ DexFile::~DexFile() {
   // the global reference table is otherwise empty!
 }
 
-jobject DexFile::GetDexObject(JNIEnv* env) const {
-  MutexLock mu(dex_object_lock_);
-  if (dex_object_ != NULL) {
-    return dex_object_;
+class ScopedJniMonitorLock {
+ public:
+  ScopedJniMonitorLock(JNIEnv* env, jobject locked) : env_(env), locked_(locked){
+    env->MonitorEnter(locked_);
   }
+  ~ScopedJniMonitorLock() {
+    env_->MonitorExit(locked_);
+  }
+ private:
+  JNIEnv* const env_;
+  const jobject locked_;
+};
 
+jobject DexFile::GetDexObject(JNIEnv* env) const {
+  {
+    ScopedJniMonitorLock lock(env, WellKnownClasses::com_android_dex_Dex);
+    if (dex_object_ != NULL) {
+      return dex_object_;
+    }
+  }
   void* address = const_cast<void*>(reinterpret_cast<const void*>(begin_));
   jobject byte_buffer = env->NewDirectByteBuffer(address, size_);
   if (byte_buffer == NULL) {
     return NULL;
   }
 
+  ScopedJniMonitorLock lock(env, WellKnownClasses::com_android_dex_Dex);
+  // Re-test to see if someone beat us to the creation when we had the lock released.
+  if (dex_object_ != NULL) {
+    return dex_object_;
+  }
   jvalue args[1];
   args[0].l = byte_buffer;
   jobject local = env->CallStaticObjectMethodA(WellKnownClasses::com_android_dex_Dex,

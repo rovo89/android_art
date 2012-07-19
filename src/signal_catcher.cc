@@ -30,7 +30,7 @@
 #include "heap.h"
 #include "os.h"
 #include "runtime.h"
-#include "scoped_heap_lock.h"
+#include "scoped_thread_state_change.h"
 #include "signal_set.h"
 #include "thread.h"
 #include "thread_list.h"
@@ -99,7 +99,7 @@ void SignalCatcher::Output(const std::string& s) {
     return;
   }
 
-  ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
+  ScopedThreadStateChange tsc(Thread::Current(), kWaitingForSignalCatcherOutput);
   int fd = open(stack_trace_file_.c_str(), O_APPEND | O_CREAT | O_WRONLY, 0666);
   if (fd == -1) {
     PLOG(ERROR) << "Unable to open stack trace file '" << stack_trace_file_ << "'";
@@ -118,17 +118,27 @@ void SignalCatcher::HandleSigQuit() {
   Runtime* runtime = Runtime::Current();
   ThreadList* thread_list = runtime->GetThreadList();
 
-  // We take the heap lock before suspending all threads so we don't end up in a situation where
-  // one of the suspended threads suspended via the implicit FullSuspendCheck on the slow path of
-  // Heap::Lock, which is the only case where a thread can be suspended while holding the heap lock.
-  // (We need the heap lock when we dump the thread list. We could probably fix this by duplicating
-  // more state from java.lang.Thread in struct Thread.)
-  ScopedHeapLock heap_lock;
   thread_list->SuspendAll();
+
+  // We should exclusively hold the mutator lock, set state to Runnable without a pending
+  // suspension to avoid giving away or trying re-acquire the mutator lock.
+  GlobalSynchronization::mutator_lock_->AssertExclusiveHeld();
+  Thread* self = Thread::Current();
+  ThreadState old_state;
+  int suspend_count;
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    suspend_count = self->GetSuspendCount();
+    if (suspend_count != 0) {
+      CHECK_EQ(suspend_count, 1);
+      self->ModifySuspendCount(-1, false);
+    }
+    old_state = self->SetState(kRunnable);
+  }
 
   std::ostringstream os;
   os << "\n"
-     << "----- pid " << getpid() << " at " << GetIsoDate() << " -----\n";
+      << "----- pid " << getpid() << " at " << GetIsoDate() << " -----\n";
 
   DumpCmdLine(os);
 
@@ -144,7 +154,13 @@ void SignalCatcher::HandleSigQuit() {
   }
 
   os << "----- end " << getpid() << " -----\n";
-
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    self->SetState(old_state);
+    if (suspend_count != 0) {
+      self->ModifySuspendCount(+1, false);
+    }
+  }
   thread_list->ResumeAll();
 
   Output(os.str());
@@ -156,7 +172,7 @@ void SignalCatcher::HandleSigUsr1() {
 }
 
 int SignalCatcher::WaitForSignal(Thread* self, SignalSet& signals) {
-  ScopedThreadStateChange tsc(self, kVmWait);
+  ScopedThreadStateChange tsc(self, kWaitingInMainSignalCatcherLoop);
 
   // Signals for sigwait() must be blocked but not ignored.  We
   // block signals like SIGQUIT for all threads, so the condition
@@ -183,7 +199,6 @@ void* SignalCatcher::Run(void* arg) {
   runtime->AttachCurrentThread("Signal Catcher", true, runtime->GetSystemThreadGroup());
 
   Thread* self = Thread::Current();
-  self->SetState(kRunnable);
 
   {
     MutexLock mu(signal_catcher->lock_);

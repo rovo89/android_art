@@ -72,8 +72,14 @@ struct PACKED EntryPoints {
   void (*pHandleFillArrayDataFromCode)(void*, void*);
 
   // JNI
-  Object* (*pDecodeJObjectInThread)(Thread* thread, jobject obj);
   void* (*pFindNativeMethod)(Thread* thread);
+  uint32_t (*pJniMethodStart)(Thread*);
+  uint32_t (*pJniMethodStartSynchronized)(jobject to_lock, Thread* self);
+  void (*pJniMethodEnd)(uint32_t cookie, Thread* self);
+  void (*pJniMethodEndSynchronized)(uint32_t cookie, jobject locked, Thread* self);
+  Object* (*pJniMethodEndWithReference)(jobject result, uint32_t cookie, Thread* self);
+  Object* (*pJniMethodEndWithReferenceSynchronized)(jobject result, uint32_t cookie,
+                                                    jobject locked, Thread* self);
 
   // Locks
   void (*pLockObjectFromCode)(void*);

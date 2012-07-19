@@ -293,7 +293,8 @@ std::string MethodNameFromIndex(const Method* method, uint32_t ref,
 }
 
 static std::string ClassNameFromIndex(const Method* method, uint32_t ref,
-                                      verifier::VerifyErrorRefType ref_type, bool access) {
+                                      verifier::VerifyErrorRefType ref_type, bool access)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
 

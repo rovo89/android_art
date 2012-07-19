@@ -564,7 +564,7 @@ class ArmAssembler : public Assembler {
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.
-  virtual void ExceptionPoll(ManagedRegister scratch);
+  virtual void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust);
 
  private:
   void EmitType01(Condition cond,
@@ -650,10 +650,13 @@ class ArmAssembler : public Assembler {
 // Slowpath entered when Thread::Current()->_exception is non-null
 class ArmExceptionSlowPath : public SlowPath {
  public:
-  explicit ArmExceptionSlowPath(ArmManagedRegister scratch) : scratch_(scratch) {}
+  explicit ArmExceptionSlowPath(ArmManagedRegister scratch, size_t stack_adjust)
+      : scratch_(scratch), stack_adjust_(stack_adjust) {
+  }
   virtual void Emit(Assembler *sp_asm);
  private:
   const ArmManagedRegister scratch_;
+  const size_t stack_adjust_;
 };
 
 // Slowpath entered when Thread::Current()->_suspend_count is non-zero

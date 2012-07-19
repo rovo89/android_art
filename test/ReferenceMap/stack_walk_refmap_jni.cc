@@ -20,6 +20,7 @@
 #include "class_linker.h"
 #include "object.h"
 #include "object_utils.h"
+#include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "jni.h"
 #include "verifier/gc_map.h"
@@ -42,11 +43,12 @@ namespace art {
 
 struct ReferenceMap2Visitor : public StackVisitor {
   explicit ReferenceMap2Visitor(const ManagedStack* stack,
-                                const std::vector<TraceStackFrame>* trace_stack) :
-    StackVisitor(stack, trace_stack, NULL) {
+                                const std::vector<TraceStackFrame>* trace_stack)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      : StackVisitor(stack, trace_stack, NULL) {
   }
 
-  bool VisitFrame() {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     Method* m = GetMethod();
     if (!m || m->IsNative() || m->IsRuntimeMethod() || IsShadowFrame()) {
       return true;
@@ -62,7 +64,7 @@ struct ReferenceMap2Visitor : public StackVisitor {
 
     // Enable this to dump reference map to LOG(INFO)
     if (false) {
-      ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+      ScopedObjectAccess ts(Thread::Current());
       art::verifier::MethodVerifier::VerifyMethodAndDump(m);
     }
     const uint8_t* ref_bitmap = NULL;
@@ -281,6 +283,7 @@ struct ReferenceMap2Visitor : public StackVisitor {
 
 extern "C" JNIEXPORT jint JNICALL Java_ReferenceMap_refmap(JNIEnv*, jobject, jint count) {
   // Visitor
+  ScopedObjectAccess ts(Thread::Current());
   ReferenceMap2Visitor mapper(Thread::Current()->GetManagedStack(),
                               Thread::Current()->GetTraceStack());
   mapper.WalkStack();

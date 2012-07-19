@@ -26,7 +26,7 @@
 #endif
 #include "object_utils.h"
 #include "os.h"
-#include "scoped_thread_list_lock.h"
+#include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "thread_list.h"
 
@@ -158,7 +158,8 @@ static void Append8LE(uint8_t* buf, uint64_t val) {
   *buf++ = (uint8_t) (val >> 56);
 }
 
-static bool InstallStubsClassVisitor(Class* klass, void*) {
+static bool InstallStubsClassVisitor(Class* klass, void*)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Trace* tracer = Runtime::Current()->GetTracer();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
     Method* method = klass->GetDirectMethod(i);
@@ -176,7 +177,8 @@ static bool InstallStubsClassVisitor(Class* klass, void*) {
   return true;
 }
 
-static bool UninstallStubsClassVisitor(Class* klass, void*) {
+static bool UninstallStubsClassVisitor(Class* klass, void*)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Trace* tracer = Runtime::Current()->GetTracer();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
     Method* method = klass->GetDirectMethod(i);
@@ -214,6 +216,7 @@ static void TraceRestoreStack(Thread* self, void*) {
 
     Thread* self_;
   };
+  ScopedObjectAccess soa(self);
   RestoreStackVisitor visitor(self);
   visitor.WalkStack();
 }
@@ -266,7 +269,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
   }
 
   ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
-  Runtime::Current()->GetThreadList()->SuspendAll(false);
+  Runtime::Current()->GetThreadList()->SuspendAll();
 
   // Open trace file if not going directly to ddms.
   File* trace_file = NULL;
@@ -280,7 +283,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
       PLOG(ERROR) << "Unable to open trace file '" << trace_filename << "'";
       Thread::Current()->ThrowNewException("Ljava/lang/RuntimeException;",
           StringPrintf("Unable to open trace file '%s'", trace_filename).c_str());
-      Runtime::Current()->GetThreadList()->ResumeAll(false);
+      Runtime::Current()->GetThreadList()->ResumeAll();
       return;
     }
   }
@@ -296,7 +299,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
   Runtime::Current()->EnableMethodTracing(tracer);
   tracer->BeginTracing();
 
-  Runtime::Current()->GetThreadList()->ResumeAll(false);
+  Runtime::Current()->GetThreadList()->ResumeAll();
 }
 
 void Trace::Stop() {
@@ -306,12 +309,12 @@ void Trace::Stop() {
   }
 
   ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
-  Runtime::Current()->GetThreadList()->SuspendAll(false);
+  Runtime::Current()->GetThreadList()->SuspendAll();
 
   Runtime::Current()->GetTracer()->FinishTracing();
   Runtime::Current()->DisableMethodTracing();
 
-  Runtime::Current()->GetThreadList()->ResumeAll(false);
+  Runtime::Current()->GetThreadList()->ResumeAll();
 }
 
 void Trace::Shutdown() {
@@ -486,6 +489,8 @@ static void DumpThread(Thread* t, void* arg) {
 }
 
 void Trace::DumpThreadList(std::ostream& os) {
+  GlobalSynchronization::thread_list_lock_->AssertNotHeld();
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
   Runtime::Current()->GetThreadList()->ForEach(DumpThread, &os);
 }
 
@@ -494,7 +499,9 @@ void Trace::InstallStubs() {
 }
 
 void Trace::UninstallStubs() {
+  GlobalSynchronization::thread_list_lock_->AssertNotHeld();
   Runtime::Current()->GetClassLinker()->VisitClasses(UninstallStubsClassVisitor, NULL);
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
   Runtime::Current()->GetThreadList()->ForEach(TraceRestoreStack, NULL);
 }
 

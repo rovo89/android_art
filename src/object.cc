@@ -425,7 +425,8 @@ Method* Method::FindOverriddenMethod() const {
   return result;
 }
 
-static const void* GetOatCode(const Method* m) {
+static const void* GetOatCode(const Method* m)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Runtime* runtime = Runtime::Current();
   const void* code = m->GetCode();
   // Peel off any method tracing trampoline.
@@ -513,10 +514,13 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
 }
 
 void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const {
-  // Push a transition back into managed code onto the linked list in thread.
-  CHECK_EQ(kRunnable, self->GetState());
-  self->AssertThreadSuspensionIsAllowable();
+  if (kIsDebugBuild) {
+    self->AssertThreadSuspensionIsAllowable();
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    CHECK_EQ(kRunnable, self->GetState());
+  }
 
+  // Push a transition back into managed code onto the linked list in thread.
   ManagedStack fragment;
   self->PushManagedStackFragment(&fragment);
 
@@ -1219,6 +1223,7 @@ Array* Array::Alloc(Class* array_class, int32_t component_count, size_t componen
 }
 
 Array* Array::Alloc(Class* array_class, int32_t component_count) {
+  DCHECK(array_class->IsArrayClass());
   return Alloc(array_class, component_count, array_class->GetComponentSize());
 }
 

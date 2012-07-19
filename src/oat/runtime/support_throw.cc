@@ -23,13 +23,15 @@
 namespace art {
 
 // Deliver an exception that's pending on thread helping set up a callee save frame on the way.
-extern "C" void artDeliverPendingExceptionFromCode(Thread* thread, Method** sp) {
+extern "C" void artDeliverPendingExceptionFromCode(Thread* thread, Method** sp)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->DeliverException();
 }
 
 // Called by generated call to throw an exception.
-extern "C" void artDeliverExceptionFromCode(Throwable* exception, Thread* thread, Method** sp) {
+extern "C" void artDeliverExceptionFromCode(Throwable* exception, Thread* thread, Method** sp)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   /*
    * exception may be NULL, in which case this routine should
    * throw NPE.  NOTE: this is a convenience for generated code,
@@ -47,7 +49,8 @@ extern "C" void artDeliverExceptionFromCode(Throwable* exception, Thread* thread
 }
 
 // Called by generated call to throw a NPE exception.
-extern "C" void artThrowNullPointerExceptionFromCode(Thread* self, Method** sp) {
+extern "C" void artThrowNullPointerExceptionFromCode(Thread* self, Method** sp)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   uint32_t dex_pc;
   Method* throw_method = self->GetCurrentMethod(&dex_pc);
@@ -56,21 +59,24 @@ extern "C" void artThrowNullPointerExceptionFromCode(Thread* self, Method** sp) 
 }
 
 // Called by generated call to throw an arithmetic divide by zero exception.
-extern "C" void artThrowDivZeroFromCode(Thread* thread, Method** sp) {
+extern "C" void artThrowDivZeroFromCode(Thread* thread, Method** sp)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->ThrowNewException("Ljava/lang/ArithmeticException;", "divide by zero");
   thread->DeliverException();
 }
 
 // Called by generated call to throw an array index out of bounds exception.
-extern "C" void artThrowArrayBoundsFromCode(int index, int limit, Thread* thread, Method** sp) {
+extern "C" void artThrowArrayBoundsFromCode(int index, int limit, Thread* thread, Method** sp)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
                              "length=%d; index=%d", limit, index);
   thread->DeliverException();
 }
 
-extern "C" void artThrowStackOverflowFromCode(Thread* thread, Method** sp) {
+extern "C" void artThrowStackOverflowFromCode(Thread* thread, Method** sp)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   // Remove extra entry pushed onto second stack during method tracing.
   if (Runtime::Current()->IsMethodTracingActive()) {
@@ -83,7 +89,8 @@ extern "C" void artThrowStackOverflowFromCode(Thread* thread, Method** sp) {
   thread->DeliverException();
 }
 
-extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self, Method** sp) {
+extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self, Method** sp)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   Method* method = self->GetCurrentMethod();
   self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
@@ -91,7 +98,9 @@ extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self, M
   self->DeliverException();
 }
 
-extern "C" void artThrowVerificationErrorFromCode(int32_t kind, int32_t ref, Thread* self, Method** sp) {
+extern "C" void artThrowVerificationErrorFromCode(int32_t kind, int32_t ref, Thread* self,
+                                                  Method** sp)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   Method* method = self->GetCurrentMethod();
   ThrowVerificationError(self, method, kind, ref);

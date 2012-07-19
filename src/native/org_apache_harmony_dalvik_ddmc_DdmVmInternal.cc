@@ -17,9 +17,9 @@
 #include "debugger.h"
 #include "jni_internal.h"
 #include "logging.h"
-#include "scoped_heap_lock.h"
-#include "scoped_jni_thread_state.h"
-#include "scoped_thread_list_lock.h"
+#include "../mutex.h"  // Avoid pulling in icu4c's mutex.h
+#include "scoped_thread_state_change.h"
+#include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
 #include "stack.h"
 #include "thread_list.h"
@@ -30,7 +30,8 @@ static void DdmVmInternal_enableRecentAllocations(JNIEnv*, jclass, jboolean enab
   Dbg::SetAllocTrackingEnabled(enable);
 }
 
-static jbyteArray DdmVmInternal_getRecentAllocations(JNIEnv*, jclass) {
+static jbyteArray DdmVmInternal_getRecentAllocations(JNIEnv* env, jclass) {
+  ScopedObjectAccess soa(env);
   return Dbg::GetRecentAllocations();
 }
 
@@ -38,7 +39,7 @@ static jboolean DdmVmInternal_getRecentAllocationStatus(JNIEnv*, jclass) {
   return Dbg::IsAllocTrackingEnabled();
 }
 
-static Thread* FindThreadByThinLockId(uint32_t thin_lock_id) {
+static jobject FindThreadByThinLockId(JNIEnv* env, uint32_t thin_lock_id) {
   struct ThreadFinder {
     explicit ThreadFinder(uint32_t thin_lock_id) : thin_lock_id(thin_lock_id), thread(NULL) {
     }
@@ -54,8 +55,16 @@ static Thread* FindThreadByThinLockId(uint32_t thin_lock_id) {
     Thread* thread;
   };
   ThreadFinder finder(thin_lock_id);
-  Runtime::Current()->GetThreadList()->ForEach(ThreadFinder::Callback, &finder);
-  return finder.thread;
+  {
+    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+    Runtime::Current()->GetThreadList()->ForEach(ThreadFinder::Callback, &finder);
+  }
+  if (finder.thread != NULL) {
+    ScopedObjectAccess soa(env);
+    return soa.AddLocalReference<jobject>(finder.thread->GetPeer());
+  } else {
+    return NULL;
+  }
 }
 
 /*
@@ -63,15 +72,26 @@ static Thread* FindThreadByThinLockId(uint32_t thin_lock_id) {
  * NULL on failure, e.g. if the threadId couldn't be found.
  */
 static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint thin_lock_id) {
-  ScopedHeapLock heap_lock;
-  ScopedThreadListLock thread_list_lock;
-  Thread* thread = FindThreadByThinLockId(static_cast<uint32_t>(thin_lock_id));
-  if (thread == NULL) {
+  ScopedLocalRef<jobject> peer(env,
+                               FindThreadByThinLockId(env, static_cast<uint32_t>(thin_lock_id)));
+  if (peer.get() == NULL) {
     return NULL;
   }
-  ScopedJniThreadState ts(env);
-  jobject stack = GetThreadStack(ts, thread);
-  return (stack != NULL) ? Thread::InternalStackTraceToStackTraceElementArray(env, stack) : NULL;
+  bool timeout;
+  // Suspend thread to build stack trace.
+  Thread* thread = Thread::SuspendForDebugger(peer.get(), true, &timeout);
+  if (thread != NULL) {
+    jobject trace;
+    {
+      ScopedObjectAccess soa(env);
+      trace = thread->CreateInternalStackTrace(soa);
+    }
+    // Restart suspended thread.
+    Runtime::Current()->GetThreadList()->Resume(thread, true);
+    return Thread::InternalStackTraceToStackTraceElementArray(env, trace);
+  } else {
+    return NULL;
+  }
 }
 
 static void ThreadCountCallback(Thread*, void* context) {
@@ -109,7 +129,10 @@ static void ThreadStatsGetterCallback(Thread* t, void* context) {
 
   std::vector<uint8_t>& bytes = *reinterpret_cast<std::vector<uint8_t>*>(context);
   JDWP::Append4BE(bytes, t->GetThinLockId());
-  JDWP::Append1BE(bytes, t->GetState());
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    JDWP::Append1BE(bytes, t->GetState());
+  }
   JDWP::Append4BE(bytes, t->GetTid());
   JDWP::Append4BE(bytes, utime);
   JDWP::Append4BE(bytes, stime);
@@ -119,7 +142,7 @@ static void ThreadStatsGetterCallback(Thread* t, void* context) {
 static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
   std::vector<uint8_t> bytes;
   {
-    ScopedThreadListLock thread_list_lock;
+    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
 
     uint16_t thread_count = 0;
@@ -139,7 +162,8 @@ static jbyteArray DdmVmInternal_getThreadStats(JNIEnv* env, jclass) {
   return result;
 }
 
-static jint DdmVmInternal_heapInfoNotify(JNIEnv*, jclass, jint when) {
+static jint DdmVmInternal_heapInfoNotify(JNIEnv* env, jclass, jint when) {
+  ScopedObjectAccess soa(env);
   return Dbg::DdmHandleHpifChunk(static_cast<Dbg::HpifWhen>(when));
 }
 

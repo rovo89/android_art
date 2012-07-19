@@ -25,6 +25,7 @@
 
 #include "heap.h"
 #include "mutex.h"
+#include "thread.h"
 
 namespace art {
 
@@ -67,66 +68,96 @@ class Monitor {
   static bool IsSensitiveThread();
   static void Init(uint32_t lock_profiling_threshold, bool (*is_sensitive_thread_hook)());
 
-  static uint32_t GetThinLockId(uint32_t raw_lock_word);
+  static uint32_t GetThinLockId(uint32_t raw_lock_word)
+      NO_THREAD_SAFETY_ANALYSIS;  // Reading lock owner without holding lock is racy.
 
-  static void MonitorEnter(Thread* thread, Object* obj);
-  static bool MonitorExit(Thread* thread, Object* obj);
+  static void MonitorEnter(Thread* thread, Object* obj)
+      EXCLUSIVE_LOCK_FUNCTION(monitor_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  static bool MonitorExit(Thread* thread, Object* obj)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      UNLOCK_FUNCTION(monitor_lock_);
 
-  static void Notify(Thread* self, Object* obj);
-  static void NotifyAll(Thread* self, Object* obj);
-  static void Wait(Thread* self, Object* obj, int64_t ms, int32_t ns, bool interruptShouldThrow);
+  static void Notify(Thread* self, Object* obj)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  static void NotifyAll(Thread* self, Object* obj)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  static void Wait(Thread* self, Object* obj, int64_t ms, int32_t ns, bool interruptShouldThrow)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  static void DescribeWait(std::ostream& os, const Thread* thread);
-  static void DescribeLocks(std::ostream& os, StackVisitor* stack_visitor);
+  static void DescribeWait(std::ostream& os, const Thread* thread)
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  static void DescribeLocks(std::ostream& os, StackVisitor* stack_visitor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   Object* GetObject();
 
  private:
-  explicit Monitor(Object* obj);
+  explicit Monitor(Thread* owner, Object* obj)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void AppendToWaitSet(Thread* thread);
-  void RemoveFromWaitSet(Thread* thread);
+  void AppendToWaitSet(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_);
+  void RemoveFromWaitSet(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_);
 
-  static void Inflate(Thread* self, Object* obj);
+  static void Inflate(Thread* self, Object* obj)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent, const char* owner_filename, uint32_t owner_line_number);
+  void LogContentionEvent(Thread* self, uint32_t wait_ms, uint32_t sample_percent,
+                          const char* owner_filename, uint32_t owner_line_number)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  static void FailedUnlock(Object* obj, Thread* expected_owner, Thread* found_owner, Monitor* mon);
+  static void FailedUnlock(Object* obj, Thread* expected_owner, Thread* found_owner, Monitor* mon)
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void Lock(Thread* self) NO_THREAD_SAFETY_ANALYSIS; // TODO: mark Object LOCKABLE.
-  bool Unlock(Thread* thread) NO_THREAD_SAFETY_ANALYSIS; // TODO: mark Object LOCKABLE.
+  void Lock(Thread* self) EXCLUSIVE_LOCK_FUNCTION(monitor_lock_);
+  bool Unlock(Thread* thread, bool for_wait) UNLOCK_FUNCTION(monitor_lock_);
 
-  void Notify(Thread* self);
-  void NotifyAll(Thread* self);
+  void Notify(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
+  void NotifyWithLock()
+      EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void Wait(Thread* self, int64_t msec, int32_t nsec, bool interruptShouldThrow) NO_THREAD_SAFETY_ANALYSIS; // TODO: mark Object LOCKABLE.
+  void NotifyAll(Thread* self) NO_THREAD_SAFETY_ANALYSIS;
+  void NotifyAllWithLock()
+      EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+
+
+  void Wait(Thread* self, int64_t msec, int32_t nsec, bool interruptShouldThrow)
+      NO_THREAD_SAFETY_ANALYSIS;
+  void WaitWithLock(Thread* self, int64_t ms, int32_t ns, bool interruptShouldThrow)
+      EXCLUSIVE_LOCKS_REQUIRED(monitor_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Translates the provided method and pc into its declaring class' source file and line number.
   void TranslateLocation(const Method* method, uint32_t pc,
-                         const char*& source_file, uint32_t& line_number) const;
+                         const char*& source_file, uint32_t& line_number) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   static bool (*is_sensitive_thread_hook_)();
   static uint32_t lock_profiling_threshold_;
+
+  Mutex monitor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // Which thread currently owns the lock?
   Thread* volatile owner_;
 
   // Owner's recursive lock depth.
-  int lock_count_;
+  int lock_count_ GUARDED_BY(monitor_lock_);
 
   // What object are we part of (for debugging).
   Object* const obj_;
 
   // Threads currently waiting on this monitor.
-  Thread* wait_set_;
-
-  Mutex lock_;
+  Thread* wait_set_ GUARDED_BY(monitor_lock_);
 
   // Method and dex pc where the lock owner acquired the lock, used when lock
   // sampling is enabled. locking_method_ may be null if the lock is currently
   // unlocked, or if the lock is acquired by the system when the stack is empty.
-  const Method* locking_method_;
-  uint32_t locking_dex_pc_;
+  const Method* locking_method_ GUARDED_BY(monitor_lock_);
+  uint32_t locking_dex_pc_ GUARDED_BY(monitor_lock_);
 
   friend class MonitorList;
   friend class Object;
@@ -140,11 +171,12 @@ class MonitorList {
 
   void Add(Monitor* m);
 
-  void SweepMonitorList(Heap::IsMarkedTester is_marked, void* arg);
+  void SweepMonitorList(Heap::IsMarkedTester is_marked, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
  private:
-  Mutex lock_;
-  std::list<Monitor*> list_;
+  Mutex monitor_list_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  std::list<Monitor*> list_ GUARDED_BY(monitor_list_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(MonitorList);
 };

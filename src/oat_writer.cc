@@ -23,13 +23,14 @@
 #include "file.h"
 #include "os.h"
 #include "safe_map.h"
+#include "scoped_thread_state_change.h"
 #include "space.h"
 #include "stl_util.h"
 
 namespace art {
 
 bool OatWriter::Create(File* file,
-                       ClassLoader* class_loader,
+                       jobject class_loader,
                        const std::vector<const DexFile*>& dex_files,
                        uint32_t image_file_location_checksum,
                        const std::string& image_file_location,
@@ -45,7 +46,7 @@ bool OatWriter::Create(File* file,
 OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
                      uint32_t image_file_location_checksum,
                      const std::string& image_file_location,
-                     ClassLoader* class_loader,
+                     jobject class_loader,
                      const Compiler& compiler) {
   compiler_ = &compiler;
   class_loader_ = class_loader;
@@ -380,8 +381,10 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   if (compiler_->IsImage()) {
     ClassLinker* linker = Runtime::Current()->GetClassLinker();
     DexCache* dex_cache = linker->FindDexCache(*dex_file);
-    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader_,
-                                           is_direct);
+    // Unchecked as we hold mutator_lock_ on entry.
+    ScopedObjectAccessUnchecked soa(Thread::Current());
+    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache,
+                                           soa.Decode<ClassLoader*>(class_loader_), is_direct);
     CHECK(method != NULL);
     method->SetFrameSizeInBytes(frame_size_in_bytes);
     method->SetCoreSpillMask(core_spill_mask);

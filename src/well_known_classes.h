@@ -18,6 +18,7 @@
 #define ART_SRC_WELL_KNOWN_CLASSES_H_
 
 #include "jni.h"
+#include "mutex.h"
 
 namespace art {
 
@@ -28,11 +29,14 @@ class Class;
 // we keep them separate).
 
 struct WellKnownClasses {
+  static void InitClasses(JNIEnv* env);
   static void Init(JNIEnv* env);
 
-  static Class* ToClass(jclass global_jclass);
+  static Class* ToClass(jclass global_jclass)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   static jclass com_android_dex_Dex;
+  static jclass dalvik_system_PathClassLoader;
   static jclass java_lang_ClassLoader;
   static jclass java_lang_ClassNotFoundException;
   static jclass java_lang_Daemons;
@@ -51,14 +55,22 @@ struct WellKnownClasses {
   static jclass org_apache_harmony_dalvik_ddmc_DdmServer;
 
   static jmethodID com_android_dex_Dex_create;
+  static jmethodID java_lang_Boolean_valueOf;
+  static jmethodID java_lang_Byte_valueOf;
+  static jmethodID java_lang_Character_valueOf;
   static jmethodID java_lang_ClassLoader_loadClass;
   static jmethodID java_lang_ClassNotFoundException_init;
   static jmethodID java_lang_Daemons_requestGC;
   static jmethodID java_lang_Daemons_requestHeapTrim;
   static jmethodID java_lang_Daemons_start;
+  static jmethodID java_lang_Double_valueOf;
+  static jmethodID java_lang_Float_valueOf;
+  static jmethodID java_lang_Integer_valueOf;
+  static jmethodID java_lang_Long_valueOf;
   static jmethodID java_lang_ref_FinalizerReference_add;
   static jmethodID java_lang_ref_ReferenceQueue_add;
   static jmethodID java_lang_reflect_InvocationHandler_invoke;
+  static jmethodID java_lang_Short_valueOf;
   static jmethodID java_lang_Thread_init;
   static jmethodID java_lang_Thread_run;
   static jmethodID java_lang_Thread$UncaughtExceptionHandler_uncaughtException;

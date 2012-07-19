@@ -37,7 +37,8 @@ namespace art {
  */
 extern "C" int artHandleFillArrayDataFromCode(Array* array,
                                               const Instruction::ArrayDataPayload* payload,
-                                              Thread* self, Method** sp) {
+                                              Thread* self, Method** sp)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   DCHECK_EQ(payload->ident, static_cast<uint16_t>(Instruction::kArrayDataSignature));
   if (UNLIKELY(array == NULL)) {

@@ -33,66 +33,98 @@ class ThreadList {
   explicit ThreadList();
   ~ThreadList();
 
-  void DumpForSigQuit(std::ostream& os);
-  void DumpLocked(std::ostream& os); // For thread suspend timeout dumps.
+  void DumpForSigQuit(std::ostream& os)
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void DumpLocked(std::ostream& os)  // For thread suspend timeout dumps.
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_list_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   pid_t GetLockOwner(); // For SignalCatcher.
 
   // Thread suspension support.
-  void FullSuspendCheck(Thread* thread);
-  void ResumeAll(bool for_debugger = false);
-  void Resume(Thread* thread, bool for_debugger = false);
-  void RunWhileSuspended(Thread* thread, void (*callback)(void*), void* arg);  // NOLINT
-  void SuspendAll(bool for_debugger = false);
-  void SuspendSelfForDebugger();
-  void Suspend(Thread* thread, bool for_debugger = false);
-  void UndoDebuggerSuspensions();
+  void ResumeAll()
+      UNLOCK_FUNCTION(GlobalSynchronization::mutator_lock_)
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
+                     GlobalSynchronization::thread_suspend_count_lock_);
+  void Resume(Thread* thread, bool for_debugger = false)
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_);
+
+  // Suspends all threads and gets exclusive access to the mutator_lock_.
+  void SuspendAll()
+      EXCLUSIVE_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_)
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
+                     GlobalSynchronization::thread_suspend_count_lock_);
+
+  // Suspends all threads
+  void SuspendAllForDebugger()
+      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_,
+                     GlobalSynchronization::thread_list_lock_,
+                     GlobalSynchronization::thread_suspend_count_lock_);
+
+  void SuspendSelfForDebugger()
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_);
+
+  void UndoDebuggerSuspensions()
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
+                     GlobalSynchronization::thread_suspend_count_lock_);
 
   // Iterates over all the threads.
-  void ForEach(void (*callback)(Thread*, void*), void* context);
+  void ForEach(void (*callback)(Thread*, void*), void* context)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_list_lock_);
 
-  void Register();
-  void Unregister();
+  // Add/remove current thread from list.
+  void Register(Thread* self)
+      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_,
+                     GlobalSynchronization::thread_list_lock_);
+  void Unregister(Thread* self)
+      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_,
+                     GlobalSynchronization::thread_list_lock_);
 
-  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const;
+  void VisitRoots(Heap::RootVisitor* visitor, void* arg) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  // Handshaking for new thread creation.
-  void SignalGo(Thread* child);
-  void WaitForGo();
+  // Return a copy of the thread list.
+  std::list<Thread*> GetList() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_list_lock_) {
+    return list_;
+  }
 
  private:
   typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
 
   uint32_t AllocThreadId();
-  void ReleaseThreadId(uint32_t id);
+  void ReleaseThreadId(uint32_t id) LOCKS_EXCLUDED(allocated_ids_lock_);
 
-  bool Contains(Thread* thread);
-  bool Contains(pid_t tid);
+  bool Contains(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_list_lock_);
+  bool Contains(pid_t tid) EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_list_lock_);
 
-  void DumpUnattachedThreads(std::ostream& os);
+  void DumpUnattachedThreads(std::ostream& os)
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_);
 
-  bool AllOtherThreadsAreDaemons();
-  void SuspendAllDaemonThreads();
-  void WaitForOtherNonDaemonThreadsToExit();
+  void SuspendAllDaemonThreads()
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
+                     GlobalSynchronization::thread_suspend_count_lock_);
+  void WaitForOtherNonDaemonThreadsToExit()
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
+                     GlobalSynchronization::thread_suspend_count_lock_);
 
-  static void ModifySuspendCount(Thread* thread, int delta, bool for_debugger);
+  void AssertThreadsAreSuspended()
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
+                     GlobalSynchronization::thread_suspend_count_lock_);
 
-  mutable Mutex allocated_ids_lock_;
+  mutable Mutex allocated_ids_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::bitset<kMaxThreadId> allocated_ids_ GUARDED_BY(allocated_ids_lock_);
 
-  mutable Mutex thread_list_lock_;
-  std::list<Thread*> list_; // TODO: GUARDED_BY(thread_list_lock_);
+  // The actual list of all threads.
+  std::list<Thread*> list_ GUARDED_BY(GlobalSynchronization::thread_list_lock_);
 
-  ConditionVariable thread_start_cond_;
-  ConditionVariable thread_exit_cond_;
+  // Ongoing suspend all requests, used to ensure threads added to list_ respect SuspendAll.
+  int suspend_all_count_ GUARDED_BY(GlobalSynchronization::thread_suspend_count_lock_);
+  int debug_suspend_all_count_ GUARDED_BY(GlobalSynchronization::thread_suspend_count_lock_);
 
-  // This lock guards every thread's suspend_count_ field...
-  mutable Mutex thread_suspend_count_lock_;
-  // ...and is used in conjunction with this condition variable.
-  ConditionVariable thread_suspend_count_cond_ GUARDED_BY(thread_suspend_count_lock_);
+  // Signaled when threads terminate. Used to determine when all non-daemons have terminated.
+  ConditionVariable thread_exit_cond_ GUARDED_BY(GlobalSynchronization::thread_list_lock_);
 
   friend class Thread;
-  friend class ScopedThreadListLock;
-  friend class ScopedThreadListLockReleaser;
 
   DISALLOW_COPY_AND_ASSIGN(ThreadList);
 };

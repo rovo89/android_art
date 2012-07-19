@@ -28,10 +28,9 @@
 #endif
 #include "object_utils.h"
 #include "safe_map.h"
-#include "scoped_jni_thread_state.h"
-#include "scoped_thread_list_lock.h"
 #include "ScopedLocalRef.h"
 #include "ScopedPrimitiveArray.h"
+#include "scoped_thread_state_change.h"
 #include "space.h"
 #include "stack_indirect_reference_table.h"
 #include "thread_list.h"
@@ -91,7 +90,7 @@ class ObjectRegistry {
   }
 
  private:
-  Mutex lock_;
+  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   SafeMap<JDWP::ObjectId, Object*> map_;
 };
 
@@ -99,7 +98,7 @@ struct AllocRecordStackTraceElement {
   Method* method;
   uint32_t dex_pc;
 
-  int32_t LineNumber() const {
+  int32_t LineNumber() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     return MethodHelper(method).GetLineNumFromDexPC(dex_pc);
   }
 };
@@ -125,7 +124,8 @@ struct Breakpoint {
   Breakpoint(Method* method, uint32_t dex_pc) : method(method), dex_pc(dex_pc) {}
 };
 
-static std::ostream& operator<<(std::ostream& os, const Breakpoint& rhs) {
+static std::ostream& operator<<(std::ostream& os, const Breakpoint& rhs)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   os << StringPrintf("Breakpoint[%s @%#x]", PrettyMethod(rhs.method).c_str(), rhs.dex_pc);
   return os;
 }
@@ -171,17 +171,18 @@ static Dbg::HpsgWhat gDdmNhsgWhat;
 static ObjectRegistry* gRegistry = NULL;
 
 // Recent allocation tracking.
-static Mutex gAllocTrackerLock("AllocTracker lock");
+static Mutex gAllocTrackerLock DEFAULT_MUTEX_ACQUIRED_AFTER ("AllocTracker lock");
 AllocRecord* Dbg::recent_allocation_records_ PT_GUARDED_BY(gAllocTrackerLock) = NULL; // TODO: CircularBuffer<AllocRecord>
 static size_t gAllocRecordHead GUARDED_BY(gAllocTrackerLock) = 0;
 static size_t gAllocRecordCount GUARDED_BY(gAllocTrackerLock) = 0;
 
 // Breakpoints and single-stepping.
-static Mutex gBreakpointsLock("breakpoints lock");
+static Mutex gBreakpointsLock DEFAULT_MUTEX_ACQUIRED_AFTER ("breakpoints lock");
 static std::vector<Breakpoint> gBreakpoints GUARDED_BY(gBreakpointsLock);
 static SingleStepControl gSingleStepControl GUARDED_BY(gBreakpointsLock);
 
-static bool IsBreakpoint(Method* m, uint32_t dex_pc) {
+static bool IsBreakpoint(Method* m, uint32_t dex_pc)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   MutexLock mu(gBreakpointsLock);
   for (size_t i = 0; i < gBreakpoints.size(); ++i) {
     if (gBreakpoints[i].method == m && gBreakpoints[i].dex_pc == dex_pc) {
@@ -192,7 +193,8 @@ static bool IsBreakpoint(Method* m, uint32_t dex_pc) {
   return false;
 }
 
-static Array* DecodeArray(JDWP::RefTypeId id, JDWP::JdwpError& status) {
+static Array* DecodeArray(JDWP::RefTypeId id, JDWP::JdwpError& status)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Object* o = gRegistry->Get<Object*>(id);
   if (o == NULL || o == kInvalidObject) {
     status = JDWP::ERR_INVALID_OBJECT;
@@ -206,7 +208,8 @@ static Array* DecodeArray(JDWP::RefTypeId id, JDWP::JdwpError& status) {
   return o->AsArray();
 }
 
-static Class* DecodeClass(JDWP::RefTypeId id, JDWP::JdwpError& status) {
+static Class* DecodeClass(JDWP::RefTypeId id, JDWP::JdwpError& status)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Object* o = gRegistry->Get<Object*>(id);
   if (o == NULL || o == kInvalidObject) {
     status = JDWP::ERR_INVALID_OBJECT;
@@ -220,13 +223,15 @@ static Class* DecodeClass(JDWP::RefTypeId id, JDWP::JdwpError& status) {
   return o->AsClass();
 }
 
-static Thread* DecodeThread(JDWP::ObjectId threadId) {
-  ScopedJniThreadState ts(Thread::Current());
+static Thread* DecodeThread(ScopedObjectAccessUnchecked& soa, JDWP::ObjectId threadId)
+    LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Object* thread_peer = gRegistry->Get<Object*>(threadId);
   if (thread_peer == NULL || thread_peer == kInvalidObject) {
     return NULL;
   }
-  return Thread::FromManagedThread(ts, thread_peer);
+  Thread* thread = Thread::FromManagedThread(soa, thread_peer);
+  return thread;
 }
 
 static JDWP::JdwpTag BasicTagFromDescriptor(const char* descriptor) {
@@ -235,7 +240,8 @@ static JDWP::JdwpTag BasicTagFromDescriptor(const char* descriptor) {
   return static_cast<JDWP::JdwpTag>(descriptor[0]);
 }
 
-static JDWP::JdwpTag TagFromClass(Class* c) {
+static JDWP::JdwpTag TagFromClass(Class* c)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   CHECK(c != NULL);
   if (c->IsArrayClass()) {
     return JDWP::JT_ARRAY;
@@ -265,7 +271,8 @@ static JDWP::JdwpTag TagFromClass(Class* c) {
  *
  * Null objects are tagged JT_OBJECT.
  */
-static JDWP::JdwpTag TagFromObject(const Object* o) {
+static JDWP::JdwpTag TagFromObject(const Object* o)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   return (o == NULL) ? JDWP::JT_OBJECT : TagFromClass(o->GetClass());
 }
 
@@ -417,7 +424,7 @@ void Dbg::StartJdwp() {
   // If a debugger has already attached, send the "welcome" message.
   // This may cause us to suspend all threads.
   if (gJdwpState->IsActive()) {
-    //ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
+    ScopedObjectAccess soa(Thread::Current());
     if (!gJdwpState->PostVMStart()) {
       LOG(WARNING) << "Failed to post 'start' message to debugger";
     }
@@ -432,14 +439,17 @@ void Dbg::StopJdwp() {
 
 void Dbg::GcDidFinish() {
   if (gDdmHpifWhen != HPIF_WHEN_NEVER) {
+    ScopedObjectAccess soa(Thread::Current());
     LOG(DEBUG) << "Sending heap info to DDM";
     DdmSendHeapInfo(gDdmHpifWhen);
   }
   if (gDdmHpsgWhen != HPSG_WHEN_NEVER) {
+    ScopedObjectAccess soa(Thread::Current());
     LOG(DEBUG) << "Dumping heap to DDM";
     DdmSendHeapSegments(false);
   }
   if (gDdmNhsgWhen != HPSG_WHEN_NEVER) {
+    ScopedObjectAccess soa(Thread::Current());
     LOG(DEBUG) << "Dumping native heap to DDM";
     DdmSendHeapSegments(true);
   }
@@ -481,6 +491,7 @@ static void SetDebuggerUpdatesEnabledCallback(Thread* t, void* user_data) {
 }
 
 static void SetDebuggerUpdatesEnabled(bool enabled) {
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
   Runtime::Current()->GetThreadList()->ForEach(SetDebuggerUpdatesEnabledCallback, &enabled);
 }
 
@@ -526,18 +537,6 @@ bool Dbg::IsJdwpConfigured() {
 
 int64_t Dbg::LastDebuggerActivity() {
   return gJdwpState->LastDebuggerActivity();
-}
-
-int Dbg::ThreadRunning() {
-  return static_cast<int>(Thread::Current()->SetState(kRunnable));
-}
-
-int Dbg::ThreadWaiting() {
-  return static_cast<int>(Thread::Current()->SetState(kVmWait));
-}
-
-int Dbg::ThreadContinuing(int new_state) {
-  return static_cast<int>(Thread::Current()->SetState(static_cast<ThreadState>(new_state)));
 }
 
 void Dbg::UndoDebuggerSuspensions() {
@@ -829,7 +828,9 @@ JDWP::JdwpError Dbg::OutputArray(JDWP::ObjectId arrayId, int offset, int count, 
   return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int count, const uint8_t* src) {
+JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId arrayId, int offset, int count,
+                                      const uint8_t* src)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   JDWP::JdwpError status;
   Array* a = DecodeArray(arrayId, status);
   if (a == NULL) {
@@ -898,7 +899,8 @@ JDWP::JdwpError Dbg::CreateObject(JDWP::RefTypeId classId, JDWP::ObjectId& new_o
 /*
  * Used by Eclipse's "Display" view to evaluate "new byte[5]" to get "(byte[]) [0, 0, 0, 0, 0]".
  */
-JDWP::JdwpError Dbg::CreateArrayObject(JDWP::RefTypeId arrayClassId, uint32_t length, JDWP::ObjectId& new_array) {
+JDWP::JdwpError Dbg::CreateArrayObject(JDWP::RefTypeId arrayClassId, uint32_t length,
+                                       JDWP::ObjectId& new_array) {
   JDWP::JdwpError status;
   Class* c = DecodeClass(arrayClassId, status);
   if (c == NULL) {
@@ -917,7 +919,8 @@ bool Dbg::MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId) {
   return c1->IsAssignableFrom(c2);
 }
 
-static JDWP::FieldId ToFieldId(const Field* f) {
+static JDWP::FieldId ToFieldId(const Field* f)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
@@ -925,7 +928,8 @@ static JDWP::FieldId ToFieldId(const Field* f) {
 #endif
 }
 
-static JDWP::MethodId ToMethodId(const Method* m) {
+static JDWP::MethodId ToMethodId(const Method* m)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
@@ -933,7 +937,8 @@ static JDWP::MethodId ToMethodId(const Method* m) {
 #endif
 }
 
-static Field* FromFieldId(JDWP::FieldId fid) {
+static Field* FromFieldId(JDWP::FieldId fid)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
@@ -941,7 +946,8 @@ static Field* FromFieldId(JDWP::FieldId fid) {
 #endif
 }
 
-static Method* FromMethodId(JDWP::MethodId mid) {
+static Method* FromMethodId(JDWP::MethodId mid)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
 #ifdef MOVING_GARBAGE_COLLECTOR
   UNIMPLEMENTED(FATAL);
 #else
@@ -949,7 +955,8 @@ static Method* FromMethodId(JDWP::MethodId mid) {
 #endif
 }
 
-static void SetLocation(JDWP::JdwpLocation& location, Method* m, uint32_t dex_pc) {
+static void SetLocation(JDWP::JdwpLocation& location, Method* m, uint32_t dex_pc)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   if (m == NULL) {
     memset(&location, 0, sizeof(location));
   } else {
@@ -961,7 +968,8 @@ static void SetLocation(JDWP::JdwpLocation& location, Method* m, uint32_t dex_pc
   }
 }
 
-std::string Dbg::GetMethodName(JDWP::RefTypeId, JDWP::MethodId methodId) {
+std::string Dbg::GetMethodName(JDWP::RefTypeId, JDWP::MethodId methodId)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Method* m = FromMethodId(methodId);
   return MethodHelper(m).GetName();
 }
@@ -1004,7 +1012,8 @@ static uint16_t MangleSlot(uint16_t slot, const char* name) {
   return newSlot;
 }
 
-static uint16_t DemangleSlot(uint16_t slot, Method* m) {
+static uint16_t DemangleSlot(uint16_t slot, Method* m)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   if (slot == kEclipseWorkaroundSlot) {
     return 0;
   } else if (slot == 0) {
@@ -1042,7 +1051,8 @@ JDWP::JdwpError Dbg::OutputDeclaredFields(JDWP::RefTypeId classId, bool with_gen
   return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId classId, bool with_generic, JDWP::ExpandBuf* pReply) {
+JDWP::JdwpError Dbg::OutputDeclaredMethods(JDWP::RefTypeId classId, bool with_generic,
+                                           JDWP::ExpandBuf* pReply) {
   JDWP::JdwpError status;
   Class* c = DecodeClass(classId, status);
   if (c == NULL) {
@@ -1085,7 +1095,8 @@ JDWP::JdwpError Dbg::OutputDeclaredInterfaces(JDWP::RefTypeId classId, JDWP::Exp
   return JDWP::ERR_NONE;
 }
 
-void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId methodId, JDWP::ExpandBuf* pReply) {
+void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId methodId, JDWP::ExpandBuf* pReply)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   struct DebugCallbackContext {
     int numItems;
     JDWP::ExpandBuf* pReply;
@@ -1098,7 +1109,6 @@ void Dbg::OutputLineTable(JDWP::RefTypeId, JDWP::MethodId methodId, JDWP::Expand
       return true;
     }
   };
-
   Method* m = FromMethodId(methodId);
   MethodHelper mh(m);
   uint64_t start, end;
@@ -1153,7 +1163,6 @@ void Dbg::OutputVariableTable(JDWP::RefTypeId, JDWP::MethodId methodId, bool wit
       ++pContext->variable_count;
     }
   };
-
   Method* m = FromMethodId(methodId);
   MethodHelper mh(m);
   const DexFile::CodeItem* code_item = mh.GetCodeItem();
@@ -1186,7 +1195,10 @@ JDWP::JdwpTag Dbg::GetStaticFieldBasicTag(JDWP::FieldId fieldId) {
   return BasicTagFromDescriptor(FieldHelper(FromFieldId(fieldId)).GetTypeDescriptor());
 }
 
-static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId refTypeId, JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply, bool is_static) {
+static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId refTypeId, JDWP::ObjectId objectId,
+                                         JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply,
+                                         bool is_static)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   JDWP::JdwpError status;
   Class* c = DecodeClass(refTypeId, status);
   if (refTypeId != 0 && c == NULL) {
@@ -1245,7 +1257,8 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId refTypeId, JDWP::Object
   return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, JDWP::ExpandBuf* pReply) {
+JDWP::JdwpError Dbg::GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId,
+                                   JDWP::ExpandBuf* pReply) {
   return GetFieldValueImpl(0, objectId, fieldId, pReply, false);
 }
 
@@ -1253,7 +1266,9 @@ JDWP::JdwpError Dbg::GetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldI
   return GetFieldValueImpl(refTypeId, 0, fieldId, pReply, true);
 }
 
-static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width, bool is_static) {
+static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId objectId, JDWP::FieldId fieldId,
+                                         uint64_t value, int width, bool is_static)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Object* o = gRegistry->Get<Object*>(objectId);
   if ((!is_static && o == NULL) || o == kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
@@ -1300,7 +1315,8 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId objectId, JDWP::FieldId 
   return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value, int width) {
+JDWP::JdwpError Dbg::SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId, uint64_t value,
+                                   int width) {
   return SetFieldValueImpl(objectId, fieldId, value, width, false);
 }
 
@@ -1314,8 +1330,9 @@ std::string Dbg::StringToUtf8(JDWP::ObjectId strId) {
 }
 
 bool Dbg::GetThreadName(JDWP::ObjectId threadId, std::string& name) {
-  ScopedThreadListLock thread_list_lock;
-  Thread* thread = DecodeThread(threadId);
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  Thread* thread = DecodeThread(soa, threadId);
   if (thread == NULL) {
     return false;
   }
@@ -1324,13 +1341,15 @@ bool Dbg::GetThreadName(JDWP::ObjectId threadId, std::string& name) {
 }
 
 JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply) {
+  ScopedObjectAccess soa(Thread::Current());
   Object* thread = gRegistry->Get<Object*>(threadId);
   if (thread == kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
 
   // Okay, so it's an object, but is it actually a thread?
-  if (DecodeThread(threadId) == NULL) {
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  if (DecodeThread(soa, threadId) == NULL) {
     return JDWP::ERR_INVALID_THREAD;
   }
 
@@ -1347,6 +1366,7 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId threadId, JDWP::ExpandBuf* pR
 }
 
 std::string Dbg::GetThreadGroupName(JDWP::ObjectId threadGroupId) {
+  ScopedObjectAccess soa(Thread::Current());
   Object* thread_group = gRegistry->Get<Object*>(threadGroupId);
   CHECK(thread_group != NULL);
 
@@ -1371,26 +1391,29 @@ JDWP::ObjectId Dbg::GetThreadGroupParent(JDWP::ObjectId threadGroupId) {
 }
 
 JDWP::ObjectId Dbg::GetSystemThreadGroupId() {
-  ScopedJniThreadState ts(Thread::Current());
+  ScopedObjectAccessUnchecked soa(Thread::Current());
   Object* group =
-      ts.DecodeField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup)->GetObject(NULL);
+      soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup)->GetObject(NULL);
   return gRegistry->Add(group);
 }
 
 JDWP::ObjectId Dbg::GetMainThreadGroupId() {
-  ScopedJniThreadState ts(Thread::Current());
+  ScopedObjectAccess soa(Thread::Current());
   Object* group =
-      ts.DecodeField(WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup)->GetObject(NULL);
+      soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup)->GetObject(NULL);
   return gRegistry->Add(group);
 }
 
 bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus) {
-  ScopedThreadListLock thread_list_lock;
+  ScopedObjectAccess soa(Thread::Current());
 
-  Thread* thread = DecodeThread(threadId);
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  Thread* thread = DecodeThread(soa, threadId);
   if (thread == NULL) {
     return false;
   }
+
+  MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
 
   // TODO: if we're in Thread.sleep(long), we should return TS_SLEEPING,
   // even if it's implemented using Object.wait(long).
@@ -1402,7 +1425,16 @@ bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThre
     case kWaiting:      *pThreadStatus = JDWP::TS_WAIT;     break;
     case kStarting:     *pThreadStatus = JDWP::TS_ZOMBIE;   break;
     case kNative:       *pThreadStatus = JDWP::TS_RUNNING;  break;
-    case kVmWait:       *pThreadStatus = JDWP::TS_WAIT;     break;
+    case kWaitingForGcToComplete:  // Fall-through.
+    case kWaitingPerformingGc:  // Fall-through.
+    case kWaitingForDebuggerSend:  // Fall-through.
+    case kWaitingForDebuggerToAttach:  // Fall-through.
+    case kWaitingInMainDebuggerLoop:  // Fall-through.
+    case kWaitingForDebuggerSuspension:  // Fall-through.
+    case kWaitingForJniOnLoad:  // Fall-through.
+    case kWaitingForSignalCatcherOutput:  // Fall-through.
+    case kWaitingInMainSignalCatcherLoop:
+                        *pThreadStatus = JDWP::TS_WAIT;     break;
     case kSuspended:    *pThreadStatus = JDWP::TS_RUNNING;  break;
     // Don't add a 'default' here so the compiler can spot incompatible enum changes.
   }
@@ -1412,34 +1444,49 @@ bool Dbg::GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThre
   return true;
 }
 
-JDWP::JdwpError Dbg::GetThreadSuspendCount(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply) {
-  Thread* thread = DecodeThread(threadId);
+JDWP::JdwpError Dbg::GetThreadDebugSuspendCount(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply) {
+  ScopedObjectAccess soa(Thread::Current());
+
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  Thread* thread = DecodeThread(soa, threadId);
   if (thread == NULL) {
     return JDWP::ERR_INVALID_THREAD;
   }
-  expandBufAdd4BE(pReply, thread->GetSuspendCount());
+  MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
+  expandBufAdd4BE(pReply, thread->GetDebugSuspendCount());
   return JDWP::ERR_NONE;
 }
 
 bool Dbg::ThreadExists(JDWP::ObjectId threadId) {
-  return DecodeThread(threadId) != NULL;
+  ScopedObjectAccess soa(Thread::Current());
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  return DecodeThread(soa, threadId) != NULL;
 }
 
 bool Dbg::IsSuspended(JDWP::ObjectId threadId) {
-  return DecodeThread(threadId)->IsSuspended();
+  ScopedObjectAccess soa(Thread::Current());
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  Thread* thread = DecodeThread(soa, threadId);
+  CHECK(thread != NULL);
+  MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
+  return thread->IsSuspended();
 }
 
 void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& thread_ids) {
   class ThreadListVisitor {
    public:
-    ThreadListVisitor(const ScopedJniThreadState& ts, Object* thread_group, std::vector<JDWP::ObjectId>& thread_ids)
+    ThreadListVisitor(const ScopedObjectAccessUnchecked& ts, Object* thread_group,
+                      std::vector<JDWP::ObjectId>& thread_ids)
+        SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
         : ts_(ts), thread_group_(thread_group), thread_ids_(thread_ids) {}
 
     static void Visit(Thread* t, void* arg) {
       reinterpret_cast<ThreadListVisitor*>(arg)->Visit(t);
     }
 
-    void Visit(Thread* t) {
+    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+    // annotalysis.
+    void Visit(Thread* t) NO_THREAD_SAFETY_ANALYSIS {
       if (t == Dbg::GetDebugThread()) {
         // Skip the JDWP thread. Some debuggers get bent out of shape when they can't suspend and
         // query all threads, so it's easier if we just don't tell them about this thread.
@@ -1451,19 +1498,20 @@ void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>
     }
 
    private:
-    const ScopedJniThreadState& ts_;
+    const ScopedObjectAccessUnchecked& ts_;
     Object* const thread_group_;
     std::vector<JDWP::ObjectId>& thread_ids_;
   };
 
-  ScopedJniThreadState ts(Thread::Current());
+  ScopedObjectAccessUnchecked soa(Thread::Current());
   Object* thread_group = gRegistry->Get<Object*>(thread_group_id);
-  ThreadListVisitor tlv(ts, thread_group, thread_ids);
+  ThreadListVisitor tlv(soa, thread_group, thread_ids);
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
   Runtime::Current()->GetThreadList()->ForEach(ThreadListVisitor::Visit, &tlv);
 }
 
 void Dbg::GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& child_thread_group_ids) {
-  ScopedJniThreadState ts(Thread::Current());
+  ScopedObjectAccess soa(Thread::Current());
   Object* thread_group = gRegistry->Get<Object*>(thread_group_id);
 
   // Get the ArrayList<ThreadGroup> "groups" out of this thread group...
@@ -1482,7 +1530,8 @@ void Dbg::GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP:
   }
 }
 
-static int GetStackDepth(Thread* thread) {
+static int GetStackDepth(Thread* thread)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   struct CountStackDepthVisitor : public StackVisitor {
     CountStackDepthVisitor(const ManagedStack* stack,
                            const std::vector<TraceStackFrame>* trace_stack)
@@ -1497,28 +1546,34 @@ static int GetStackDepth(Thread* thread) {
     size_t depth;
   };
 
+  if (kIsDebugBuild) {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    CHECK(thread->IsSuspended());
+  }
   CountStackDepthVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack());
   visitor.WalkStack();
   return visitor.depth;
 }
 
 int Dbg::GetThreadFrameCount(JDWP::ObjectId threadId) {
-  ScopedThreadListLock thread_list_lock;
-  return GetStackDepth(DecodeThread(threadId));
+  ScopedObjectAccess soa(Thread::Current());
+  return GetStackDepth(DecodeThread(soa, threadId));
 }
 
 JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_frame, size_t frame_count, JDWP::ExpandBuf* buf) {
-  ScopedThreadListLock thread_list_lock;
   class GetFrameVisitor : public StackVisitor {
    public:
     GetFrameVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
                     size_t start_frame, size_t frame_count, JDWP::ExpandBuf* buf)
+        SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
         : StackVisitor(stack, trace_stack, NULL), depth_(0),
           start_frame_(start_frame), frame_count_(frame_count), buf_(buf) {
       expandBufAdd4BE(buf_, frame_count_);
     }
 
-    bool VisitFrame() {
+    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+    // annotalysis.
+    virtual bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
       if (GetMethod()->IsRuntimeMethod()) {
         return true; // The debugger can't do anything useful with a frame that has no Method*.
       }
@@ -1543,7 +1598,9 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
     const size_t frame_count_;
     JDWP::ExpandBuf* buf_;
   };
-  Thread* thread = DecodeThread(thread_id);
+
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  Thread* thread = DecodeThread(soa, thread_id);  // Caller already checked thread is suspended.
   GetFrameVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), start_frame, frame_count, buf);
   visitor.WalkStack();
   return JDWP::ERR_NONE;
@@ -1554,36 +1611,51 @@ JDWP::ObjectId Dbg::GetThreadSelfId() {
 }
 
 void Dbg::SuspendVM() {
-  ScopedThreadStateChange tsc(Thread::Current(), kRunnable); // TODO: do we really want to change back? should the JDWP thread be Runnable usually?
-  Runtime::Current()->GetThreadList()->SuspendAll(true);
+  Runtime::Current()->GetThreadList()->SuspendAllForDebugger();
 }
 
 void Dbg::ResumeVM() {
   Runtime::Current()->GetThreadList()->UndoDebuggerSuspensions();
 }
 
-void Dbg::SuspendThread(JDWP::ObjectId threadId) {
-  ScopedJniThreadState ts(Thread::Current());
-  Object* peer = gRegistry->Get<Object*>(threadId);
-  ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(ts, peer);
-  if (thread == NULL) {
-    LOG(WARNING) << "No such thread for suspend: " << peer;
-    return;
+JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId threadId, bool request_suspension) {
+
+  bool timeout;
+  ScopedLocalRef<jobject> peer(Thread::Current()->GetJniEnv(), NULL);
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    peer.reset(soa.AddLocalReference<jobject>(gRegistry->Get<Object*>(threadId)));
   }
-  Runtime::Current()->GetThreadList()->Suspend(thread, true);
+  if (peer.get() == NULL) {
+    LOG(WARNING) << "No such thread for suspend: " << threadId;
+    return JDWP::ERR_THREAD_NOT_ALIVE;
+  }
+  // Suspend thread to build stack trace.
+  Thread* thread = Thread::SuspendForDebugger(peer.get(), request_suspension, &timeout);
+  if (thread != NULL) {
+    return JDWP::ERR_NONE;
+  } else if (timeout) {
+    return JDWP::ERR_INTERNAL;
+  } else {
+    return JDWP::ERR_THREAD_NOT_ALIVE;
+  }
 }
 
 void Dbg::ResumeThread(JDWP::ObjectId threadId) {
-  ScopedJniThreadState ts(Thread::Current());
+  ScopedObjectAccessUnchecked soa(Thread::Current());
   Object* peer = gRegistry->Get<Object*>(threadId);
-  ScopedThreadListLock thread_list_lock;
-  Thread* thread = Thread::FromManagedThread(ts, peer);
+  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  Thread* thread = Thread::FromManagedThread(soa, peer);
   if (thread == NULL) {
     LOG(WARNING) << "No such thread for resume: " << peer;
     return;
   }
-  if (thread->GetSuspendCount() > 0) {
+  bool needs_resume;
+  {
+    MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
+    needs_resume = thread->GetSuspendCount() > 0;
+  }
+  if (needs_resume) {
     Runtime::Current()->GetThreadList()->Resume(thread, true);
   }
 }
@@ -1595,9 +1667,12 @@ void Dbg::SuspendSelf() {
 struct GetThisVisitor : public StackVisitor {
   GetThisVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
                  Context* context, JDWP::FrameId frameId)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
       : StackVisitor(stack, trace_stack, context), this_object(NULL), frame_id(frameId) {}
 
-  virtual bool VisitFrame() {
+  // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+  // annotalysis.
+  virtual bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
     if (frame_id != GetFrameId()) {
       return true;  // continue
     }
@@ -1615,7 +1690,8 @@ struct GetThisVisitor : public StackVisitor {
   JDWP::FrameId frame_id;
 };
 
-static Object* GetThis(Thread* self, Method* m, size_t frame_id) {
+static Object* GetThis(Thread* self, Method* m, size_t frame_id)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   // TODO: should we return the 'this' we passed through to non-static native methods?
   if (m->IsNative() || m->IsStatic()) {
     return NULL;
@@ -1627,12 +1703,21 @@ static Object* GetThis(Thread* self, Method* m, size_t frame_id) {
   return visitor.this_object;
 }
 
-JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, JDWP::ObjectId* result) {
-  Thread* thread = DecodeThread(thread_id);
-  if (thread == NULL) {
-    return JDWP::ERR_INVALID_THREAD;
+JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame_id,
+                                   JDWP::ObjectId* result) {
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  Thread* thread;
+  {
+    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+    thread = DecodeThread(soa, thread_id);
+    if (thread == NULL) {
+      return JDWP::ERR_INVALID_THREAD;
+    }
+    MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
+    if (!thread->IsSuspended()) {
+      return JDWP::ERR_THREAD_NOT_SUSPENDED;
+    }
   }
-
   UniquePtr<Context> context(Context::Create());
   GetThisVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), context.get(), frame_id);
   visitor.WalkStack();
@@ -1640,15 +1725,19 @@ JDWP::JdwpError Dbg::GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame
   return JDWP::ERR_NONE;
 }
 
-void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag, uint8_t* buf, size_t width) {
+void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag,
+                        uint8_t* buf, size_t width) {
   struct GetLocalVisitor : public StackVisitor {
     GetLocalVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
                     Context* context, JDWP::FrameId frameId, int slot, JDWP::JdwpTag tag,
                     uint8_t* buf, size_t width)
+        SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
         : StackVisitor(stack, trace_stack, context), frame_id_(frameId), slot_(slot), tag_(tag),
           buf_(buf), width_(width) {}
 
-    bool VisitFrame() {
+    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+    // annotalysis.
+    bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
       if (GetFrameId() != frame_id_) {
         return true;  // Not our frame, carry on.
       }
@@ -1746,7 +1835,9 @@ void Dbg::GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     uint8_t* const buf_;
     const size_t width_;
   };
-  Thread* thread = DecodeThread(threadId);
+
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  Thread* thread = DecodeThread(soa, threadId);
   UniquePtr<Context> context(Context::Create());
   GetLocalVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), context.get(),
                           frameId, slot, tag, buf, width);
@@ -1759,10 +1850,13 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     SetLocalVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack, Context* context,
                     JDWP::FrameId frame_id, int slot, JDWP::JdwpTag tag, uint64_t value,
                     size_t width)
+        SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
         : StackVisitor(stack, trace_stack, context),
           frame_id_(frame_id), slot_(slot), tag_(tag), value_(value), width_(width) {}
 
-    bool VisitFrame() {
+    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+    // annotalysis.
+    bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
       if (GetFrameId() != frame_id_) {
         return true;  // Not our frame, carry on.
       }
@@ -1817,7 +1911,9 @@ void Dbg::SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot
     const uint64_t value_;
     const size_t width_;
   };
-  Thread* thread = DecodeThread(threadId);
+
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  Thread* thread = DecodeThread(soa, threadId);
   UniquePtr<Context> context(Context::Create());
   SetLocalVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), context.get(),
                           frameId, slot, tag, value, width);
@@ -2018,14 +2114,15 @@ void Dbg::UnwatchLocation(const JDWP::JdwpLocation* location) {
   }
 }
 
-JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize step_size, JDWP::JdwpStepDepth step_depth) {
-  Thread* thread = DecodeThread(threadId);
+JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize step_size,
+                                   JDWP::JdwpStepDepth step_depth) {
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  Thread* thread = DecodeThread(soa, threadId);
   if (thread == NULL) {
     return JDWP::ERR_INVALID_THREAD;
   }
 
   MutexLock mu(gBreakpointsLock);
-
   // TODO: there's no theoretical reason why we couldn't support single-stepping
   // of multiple threads at once, but we never did so historically.
   if (gSingleStepControl.thread != NULL && thread != gSingleStepControl.thread) {
@@ -2041,14 +2138,18 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize s
   struct SingleStepStackVisitor : public StackVisitor {
     SingleStepStackVisitor(const ManagedStack* stack,
                            const std::vector<TraceStackFrame>* trace_stack)
+        EXCLUSIVE_LOCKS_REQUIRED(gBreakpointsLock)
+        SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
         : StackVisitor(stack, trace_stack, NULL) {
-      MutexLock mu(gBreakpointsLock); // Keep GCC happy.
+      gBreakpointsLock.AssertHeld();
       gSingleStepControl.method = NULL;
       gSingleStepControl.stack_depth = 0;
     }
 
-    bool VisitFrame() {
-      MutexLock mu(gBreakpointsLock); // Keep GCC happy.
+    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+    // annotalysis.
+    bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
+      gBreakpointsLock.AssertHeld();
       const Method* m = GetMethod();
       if (!m->IsRuntimeMethod()) {
         ++gSingleStepControl.stack_depth;
@@ -2185,14 +2286,21 @@ static char JdwpTagToShortyChar(JDWP::JdwpTag tag) {
   }
 }
 
-JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId, JDWP::RefTypeId classId, JDWP::MethodId methodId, uint32_t arg_count, uint64_t* arg_values, JDWP::JdwpTag* arg_types, uint32_t options, JDWP::JdwpTag* pResultTag, uint64_t* pResultValue, JDWP::ObjectId* pExceptionId) {
+JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId,
+                                  JDWP::RefTypeId classId, JDWP::MethodId methodId,
+                                  uint32_t arg_count, uint64_t* arg_values,
+                                  JDWP::JdwpTag* arg_types, uint32_t options,
+                                  JDWP::JdwpTag* pResultTag, uint64_t* pResultValue,
+                                  JDWP::ObjectId* pExceptionId) {
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
 
   Thread* targetThread = NULL;
   DebugInvokeReq* req = NULL;
+  Thread* self = Thread::Current();
   {
-    ScopedThreadListLock thread_list_lock;
-    targetThread = DecodeThread(threadId);
+    ScopedObjectAccessUnchecked soa(self);
+    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+    targetThread = DecodeThread(soa, threadId);
     if (targetThread == NULL) {
       LOG(ERROR) << "InvokeMethod request for non-existent thread " << threadId;
       return JDWP::ERR_INVALID_THREAD;
@@ -2217,7 +2325,11 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
      * by rejecting the method invocation request.  Without this, we will
      * be stuck waiting on a suspended thread.
      */
-    int suspend_count = targetThread->GetSuspendCount();
+    int suspend_count;
+    {
+      MutexLock mu2(*GlobalSynchronization::thread_suspend_count_lock_);
+      suspend_count = targetThread->GetSuspendCount();
+    }
     if (suspend_count > 1) {
       LOG(ERROR) << *targetThread << " suspend count too deep for method invocation: " << suspend_count;
       return JDWP::ERR_THREAD_SUSPENDED; // Probably not expected here.
@@ -2287,7 +2399,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
      * run out of memory.  It's also a good idea to change it before locking
      * the invokeReq mutex, although that should never be held for long.
      */
-    ScopedThreadStateChange tsc(Thread::Current(), kVmWait);
+    self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
 
     VLOG(jdwp) << "    Transferring control to event thread";
     {
@@ -2295,7 +2407,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
 
       if ((options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
         VLOG(jdwp) << "      Resuming all threads";
-        thread_list->ResumeAll(true);
+        thread_list->UndoDebuggerSuspensions();
       } else {
         VLOG(jdwp) << "      Resuming event thread only";
         thread_list->Resume(targetThread, true);
@@ -2309,8 +2421,8 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
     VLOG(jdwp) << "    Control has returned from event thread";
 
     /* wait for thread to re-suspend itself */
-    targetThread->WaitUntilSuspended();
-    //dvmWaitForSuspend(targetThread);
+    SuspendThread(threadId, false /* request_suspension */ );
+    self->TransitionFromSuspendedToRunnable();
   }
 
   /*
@@ -2321,8 +2433,10 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
    * so we want to resume the target thread once to keep the books straight.
    */
   if ((options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
+    self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSuspension);
     VLOG(jdwp) << "      Suspending all threads";
-    thread_list->SuspendAll(true);
+    thread_list->SuspendAllForDebugger();
+    self->TransitionFromSuspendedToRunnable();
     VLOG(jdwp) << "      Resuming event thread to balance the count";
     thread_list->Resume(targetThread, true);
   }
@@ -2339,12 +2453,12 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId object
 }
 
 void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
-  ScopedJniThreadState ts(Thread::Current());
+  ScopedObjectAccess soa(Thread::Current());
 
   // We can be called while an exception is pending. We need
   // to preserve that across the method invocation.
-  SirtRef<Throwable> old_exception(ts.Self()->GetException());
-  ts.Self()->ClearException();
+  SirtRef<Throwable> old_exception(soa.Self()->GetException());
+  soa.Self()->ClearException();
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
   Method* m = pReq->method_;
@@ -2360,15 +2474,17 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 
-  LOG(INFO) << "self=" << ts.Self() << " pReq->receiver_=" << pReq->receiver_ << " m=" << m << " #" << pReq->arg_count_ << " " << pReq->arg_values_;
-  pReq->result_value = InvokeWithJValues(ts, pReq->receiver_, m, reinterpret_cast<JValue*>(pReq->arg_values_));
+  LOG(INFO) << "self=" << soa.Self() << " pReq->receiver_=" << pReq->receiver_ << " m=" << m
+      << " #" << pReq->arg_count_ << " " << pReq->arg_values_;
+  pReq->result_value = InvokeWithJValues(soa, pReq->receiver_, m,
+                                         reinterpret_cast<JValue*>(pReq->arg_values_));
 
-  pReq->exception = gRegistry->Add(ts.Self()->GetException());
+  pReq->exception = gRegistry->Add(soa.Self()->GetException());
   pReq->result_tag = BasicTagFromDescriptor(MethodHelper(m).GetShorty());
   if (pReq->exception != 0) {
-    Object* exc = ts.Self()->GetException();
+    Object* exc = soa.Self()->GetException();
     VLOG(jdwp) << "  JDWP invocation returning with exception=" << exc << " " << PrettyTypeOf(exc);
-    ts.Self()->ClearException();
+    soa.Self()->ClearException();
     pReq->result_value.SetJ(0);
   } else if (pReq->result_tag == JDWP::JT_OBJECT) {
     /* if no exception thrown, examine object result more closely */
@@ -2391,7 +2507,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   }
 
   if (old_exception.get() != NULL) {
-    ts.Self()->SetException(old_exception.get());
+    soa.Self()->SetException(old_exception.get());
   }
 }
 
@@ -2507,9 +2623,12 @@ void Dbg::DdmBroadcast(bool connect) {
   VLOG(jdwp) << "Broadcasting DDM " << (connect ? "connect" : "disconnect") << "...";
 
   Thread* self = Thread::Current();
-  if (self->GetState() != kRunnable) {
-    LOG(ERROR) << "DDM broadcast in thread state " << self->GetState();
-    /* try anyway? */
+  {
+    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    if (self->GetState() != kRunnable) {
+      LOG(ERROR) << "DDM broadcast in thread state " << self->GetState();
+      /* try anyway? */
+    }
   }
 
   JNIEnv* env = self->GetJniEnv();
@@ -2550,8 +2669,8 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
     Dbg::DdmSendChunk(CHUNK_TYPE("THDE"), 4, buf);
   } else {
     CHECK(type == CHUNK_TYPE("THCR") || type == CHUNK_TYPE("THNM")) << type;
-    ScopedJniThreadState ts(Thread::Current());
-    SirtRef<String> name(t->GetThreadName(ts));
+    ScopedObjectAccessUnchecked soa(Thread::Current());
+    SirtRef<String> name(t->GetThreadName(soa));
     size_t char_count = (name.get() != NULL) ? name->GetLength() : 0;
     const jchar* chars = name->GetCharArray()->GetData();
 
@@ -2563,19 +2682,27 @@ void Dbg::DdmSendThreadNotification(Thread* t, uint32_t type) {
   }
 }
 
-static void DdmSendThreadStartCallback(Thread* t, void*) {
-  Dbg::DdmSendThreadNotification(t, CHUNK_TYPE("THCR"));
-}
-
 void Dbg::DdmSetThreadNotification(bool enable) {
-  // We lock the thread list to avoid sending duplicate events or missing
-  // a thread change. We should be okay holding this lock while sending
-  // the messages out. (We have to hold it while accessing a live thread.)
-  ScopedThreadListLock thread_list_lock;
-
+  // Enable/disable thread notifications.
   gDdmThreadNotification = enable;
   if (enable) {
-    Runtime::Current()->GetThreadList()->ForEach(DdmSendThreadStartCallback, NULL);
+    // Suspend the VM then post thread start notifications for all threads. Threads attaching will
+    // see a suspension in progress and block until that ends. They then post their own start
+    // notification.
+    SuspendVM();
+    std::list<Thread*> threads;
+    {
+      MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+      threads = Runtime::Current()->GetThreadList()->GetList();
+    }
+    {
+      ScopedObjectAccess soa(Thread::Current());
+      typedef std::list<Thread*>::const_iterator It; // TODO: C++0x auto
+      for (It it = threads.begin(), end = threads.end(); it != end; ++it) {
+        Dbg::DdmSendThreadNotification(*it, CHUNK_TYPE("THCR"));
+      }
+    }
+    ResumeVM();
   }
 }
 
@@ -2758,7 +2885,7 @@ class HeapChunkContext {
     needHeader_ = false;
   }
 
-  void Flush() {
+  void Flush() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     // Patch the "length of piece" field.
     CHECK_LE(&buf_[0], pieceLenField_);
     CHECK_LE(pieceLenField_, p_);
@@ -2768,7 +2895,8 @@ class HeapChunkContext {
     Reset();
   }
 
-  static void HeapChunkCallback(void* start, void* end, size_t used_bytes, void* arg) {
+  static void HeapChunkCallback(void* start, void* end, size_t used_bytes, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     reinterpret_cast<HeapChunkContext*>(arg)->HeapChunkCallback(start, end, used_bytes);
   }
 
@@ -2782,7 +2910,8 @@ class HeapChunkContext {
     pieceLenField_ = NULL;
   }
 
-  void HeapChunkCallback(void* start, void* /*end*/, size_t used_bytes) {
+  void HeapChunkCallback(void* start, void* /*end*/, size_t used_bytes)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     // Note: heap call backs cannot manipulate the heap upon which they are crawling, care is taken
     // in the following code not to allocate memory, by ensuring buf_ is of the correct size
 
@@ -2834,8 +2963,15 @@ class HeapChunkContext {
 
     // If we're looking at the native heap, we'll just return
     // (SOLIDITY_HARD, KIND_NATIVE) for all allocated chunks.
-    if (is_native_heap || !Runtime::Current()->GetHeap()->IsLiveObjectLocked(o)) {
+    if (is_native_heap) {
       return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
+    }
+
+    {
+      ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      if (!Runtime::Current()->GetHeap()->IsLiveObjectLocked(o)) {
+        return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
+      }
     }
 
     Class* c = o->GetClass();
@@ -2942,9 +3078,12 @@ void Dbg::SetAllocTrackingEnabled(bool enabled) {
 struct AllocRecordStackVisitor : public StackVisitor {
   AllocRecordStackVisitor(const ManagedStack* stack,
                           const std::vector<TraceStackFrame>* trace_stack, AllocRecord* record)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
       : StackVisitor(stack, trace_stack, NULL), record(record), depth(0) {}
 
-  bool VisitFrame() {
+  // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
+  // annotalysis.
+  bool VisitFrame() NO_THREAD_SAFETY_ANALYSIS {
     if (depth >= kMaxAllocRecordStackDepth) {
       return false;
     }
@@ -3011,6 +3150,7 @@ static inline int HeadIndex() EXCLUSIVE_LOCKS_REQUIRED(gAllocTrackerLock) {
 }
 
 void Dbg::DumpRecentAllocations() {
+  ScopedObjectAccess soa(Thread::Current());
   MutexLock mu(gAllocTrackerLock);
   if (recent_allocation_records_ == NULL) {
     LOG(INFO) << "Not recording tracked allocations";

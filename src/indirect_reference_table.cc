@@ -18,6 +18,7 @@
 #include "jni_internal.h"
 #include "reference_table.h"
 #include "runtime.h"
+#include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "utils.h"
 
@@ -91,7 +92,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
     if (topIndex == max_entries_) {
       LOG(FATAL) << "JNI ERROR (app bug): " << kind_ << " table overflow "
                  << "(max=" << max_entries_ << ")\n"
-                 << Dumpable<IndirectReferenceTable>(*this);
+                 << MutatorLockedDumpable<IndirectReferenceTable>(*this);
     }
 
     size_t newSize = alloc_entries_ * 2;
@@ -101,13 +102,14 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
     DCHECK_GT(newSize, alloc_entries_);
 
     table_ = reinterpret_cast<const Object**>(realloc(table_, newSize * sizeof(const Object*)));
-    slot_data_ = reinterpret_cast<IndirectRefSlot*>(realloc(slot_data_, newSize * sizeof(IndirectRefSlot)));
+    slot_data_ = reinterpret_cast<IndirectRefSlot*>(realloc(slot_data_,
+                                                            newSize * sizeof(IndirectRefSlot)));
     if (table_ == NULL || slot_data_ == NULL) {
       LOG(FATAL) << "JNI ERROR (app bug): unable to expand "
                  << kind_ << " table (from "
                  << alloc_entries_ << " to " << newSize
                  << ", max=" << max_entries_ << ")\n"
-                 << Dumpable<IndirectReferenceTable>(*this);
+                 << MutatorLockedDumpable<IndirectReferenceTable>(*this);
     }
 
     // Clear the newly-allocated slot_data_ elements.
@@ -150,9 +152,10 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, const Object* obj) {
 }
 
 void IndirectReferenceTable::AssertEmpty() {
-  if (begin() != end()) {
+  if (UNLIKELY(begin() != end())) {
+    ScopedObjectAccess soa(Thread::Current());
     LOG(FATAL) << "Internal Error: non-empty local reference table\n"
-               << Dumpable<IndirectReferenceTable>(*this);
+               << MutatorLockedDumpable<IndirectReferenceTable>(*this);
   }
 }
 

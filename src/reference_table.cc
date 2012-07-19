@@ -60,7 +60,10 @@ static size_t GetElementCount(const Object* obj) {
 }
 
 struct ObjectComparator {
-  bool operator()(const Object* obj1, const Object* obj2) {
+  bool operator()(const Object* obj1, const Object* obj2)
+    // TODO: enable analysis when analysis can work with the STL.
+      NO_THREAD_SAFETY_ANALYSIS {
+    GlobalSynchronization::mutator_lock_->AssertSharedHeld();
     // Ensure null references and cleared jweaks appear at the end.
     if (obj1 == NULL) {
       return true;
@@ -75,8 +78,7 @@ struct ObjectComparator {
 
     // Sort by class...
     if (obj1->GetClass() != obj2->GetClass()) {
-      return reinterpret_cast<uintptr_t>(obj1->GetClass()) <
-          reinterpret_cast<uintptr_t>(obj2->GetClass());
+      return obj1->GetClass()->IdentityHashCode() < obj2->IdentityHashCode();
     } else {
       // ...then by size...
       size_t count1 = obj1->SizeOf();
@@ -84,9 +86,8 @@ struct ObjectComparator {
       if (count1 != count2) {
         return count1 < count2;
       } else {
-        // ...and finally by address.
-        return reinterpret_cast<uintptr_t>(obj1) <
-            reinterpret_cast<uintptr_t>(obj2);
+        // ...and finally by identity hash code.
+        return obj1->IdentityHashCode() < obj2->IdentityHashCode();
       }
     }
   }
@@ -97,7 +98,9 @@ struct ObjectComparator {
 // Pass in the number of elements in the array (or 0 if this is not an
 // array object), and the number of additional objects that are identical
 // or equivalent to the original.
-static void DumpSummaryLine(std::ostream& os, const Object* obj, size_t element_count, int identical, int equiv) {
+static void DumpSummaryLine(std::ostream& os, const Object* obj, size_t element_count,
+                            int identical, int equiv)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   if (obj == NULL) {
     os << "    NULL reference (count=" << equiv << ")\n";
     return;

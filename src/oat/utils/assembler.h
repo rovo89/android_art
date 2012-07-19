@@ -446,7 +446,7 @@ class Assembler {
 
   // Generate code to check if Thread::Current()->exception_ is non-null
   // and branch to a ExceptionSlowPath if it is.
-  virtual void ExceptionPoll(ManagedRegister scratch) = 0;
+  virtual void ExceptionPoll(ManagedRegister scratch, size_t stack_adjust) = 0;
 
   virtual ~Assembler() {}
 

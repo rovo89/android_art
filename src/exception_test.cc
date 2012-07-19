@@ -19,7 +19,7 @@
 #include "dex_file.h"
 #include "gtest/gtest.h"
 #include "runtime.h"
-#include "scoped_jni_thread_state.h"
+#include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "UniquePtr.h"
 
@@ -30,7 +30,8 @@ class ExceptionTest : public CommonTest {
   virtual void SetUp() {
     CommonTest::SetUp();
 
-    SirtRef<ClassLoader> class_loader(LoadDex("ExceptionHandle"));
+    ScopedObjectAccess soa(Thread::Current());
+    SirtRef<ClassLoader> class_loader(soa.Decode<ClassLoader*>(LoadDex("ExceptionHandle")));
     my_klass_ = class_linker_->FindClass("LExceptionHandle;", class_loader.get());
     ASSERT_TRUE(my_klass_ != NULL);
     class_linker_->EnsureInitialized(my_klass_, false, true);
@@ -116,7 +117,11 @@ TEST_F(ExceptionTest, FindCatchHandler) {
 }
 
 TEST_F(ExceptionTest, StackTraceElement) {
+  Thread::Current()->TransitionFromSuspendedToRunnable();
   runtime_->Start();
+  Thread* thread = Thread::Current();
+  JNIEnv* env = thread->GetJniEnv();
+  ScopedObjectAccess soa(env);
 
   std::vector<uintptr_t> fake_stack;
   ASSERT_EQ(kStackAlignment, 16);
@@ -149,7 +154,6 @@ TEST_F(ExceptionTest, StackTraceElement) {
   fake_stack.push_back(0);
 
   // Set up thread to appear as if we called out of method_g_ at pc dex 3
-  Thread* thread = Thread::Current();
   thread->SetTopOfStack(&fake_stack[0], method_g_->ToNativePC(dex_pc) + 2);  // return pc
 #else
   // Create/push fake 20-byte shadow frame for method g
@@ -171,14 +175,12 @@ TEST_F(ExceptionTest, StackTraceElement) {
   thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[0]));
 #endif
 
-  JNIEnv* env = thread->GetJniEnv();
-  ScopedJniThreadState ts(env);
-  jobject internal = thread->CreateInternalStackTrace(ts);
+  jobject internal = thread->CreateInternalStackTrace(soa);
   ASSERT_TRUE(internal != NULL);
   jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(env, internal);
   ASSERT_TRUE(ste_array != NULL);
   ObjectArray<StackTraceElement>* trace_array =
-      ts.Decode<ObjectArray<StackTraceElement>*>(ste_array);
+      soa.Decode<ObjectArray<StackTraceElement>*>(ste_array);
 
   ASSERT_TRUE(trace_array != NULL);
   ASSERT_TRUE(trace_array->Get(0) != NULL);

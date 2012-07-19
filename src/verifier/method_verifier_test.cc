@@ -27,7 +27,8 @@ namespace verifier {
 
 class MethodVerifierTest : public CommonTest {
  protected:
-  void VerifyClass(const std::string& descriptor) {
+  void VerifyClass(const std::string& descriptor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     ASSERT_TRUE(descriptor != NULL);
     Class* klass = class_linker_->FindSystemClass(descriptor.c_str());
 
@@ -36,7 +37,8 @@ class MethodVerifierTest : public CommonTest {
     ASSERT_TRUE(MethodVerifier::VerifyClass(klass, error_msg) == MethodVerifier::kNoFailure) << error_msg;
   }
 
-  void VerifyDexFile(const DexFile* dex) {
+  void VerifyDexFile(const DexFile* dex)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     ASSERT_TRUE(dex != NULL);
 
     // Verify all the classes defined in this file
@@ -49,12 +51,14 @@ class MethodVerifierTest : public CommonTest {
 };
 
 TEST_F(MethodVerifierTest, LibCore) {
+  ScopedObjectAccess soa(Thread::Current());
   VerifyDexFile(java_lang_dex_file_);
 }
 
 TEST_F(MethodVerifierTest, IntMath) {
-  SirtRef<ClassLoader> class_loader(LoadDex("IntMath"));
-  Class* klass = class_linker_->FindClass("LIntMath;", class_loader.get());
+  ScopedObjectAccess soa(Thread::Current());
+  jobject class_loader = LoadDex("IntMath");
+  Class* klass = class_linker_->FindClass("LIntMath;", soa.Decode<ClassLoader*>(class_loader));
   std::string error_msg;
   ASSERT_TRUE(MethodVerifier::VerifyClass(klass, error_msg) == MethodVerifier::kNoFailure) << error_msg;
 }

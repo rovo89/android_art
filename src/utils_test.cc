@@ -16,6 +16,7 @@
 
 #include "object.h"
 #include "common_test.h"
+#include "scoped_thread_state_change.h"
 #include "utils.h"
 
 namespace art {
@@ -84,6 +85,7 @@ TEST_F(UtilsTest, PrettyReturnType) {
 }
 
 TEST_F(UtilsTest, PrettyTypeOf) {
+  ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyTypeOf(NULL));
 
   SirtRef<String> s(String::AllocFromModifiedUtf8(""));
@@ -100,6 +102,7 @@ TEST_F(UtilsTest, PrettyTypeOf) {
 }
 
 TEST_F(UtilsTest, PrettyClass) {
+  ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyClass(NULL));
   Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
@@ -108,6 +111,7 @@ TEST_F(UtilsTest, PrettyClass) {
 }
 
 TEST_F(UtilsTest, PrettyClassAndClassLoader) {
+  ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyClassAndClassLoader(NULL));
   Class* c = class_linker_->FindSystemClass("[Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
@@ -116,6 +120,7 @@ TEST_F(UtilsTest, PrettyClassAndClassLoader) {
 }
 
 TEST_F(UtilsTest, PrettyField) {
+  ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("null", PrettyField(NULL));
 
   Class* java_lang_String = class_linker_->FindSystemClass("Ljava/lang/String;");
@@ -177,6 +182,7 @@ TEST_F(UtilsTest, PrettyDuration) {
 }
 
 TEST_F(UtilsTest, MangleForJni) {
+  ScopedObjectAccess soa(Thread::Current());
   EXPECT_EQ("hello_00024world", MangleForJni("hello$world"));
   EXPECT_EQ("hello_000a9world", MangleForJni("hello\xc2\xa9world"));
   EXPECT_EQ("hello_1world", MangleForJni("hello_world"));
@@ -185,6 +191,7 @@ TEST_F(UtilsTest, MangleForJni) {
 }
 
 TEST_F(UtilsTest, JniShortName_JniLongName) {
+  ScopedObjectAccess soa(Thread::Current());
   Class* c = class_linker_->FindSystemClass("Ljava/lang/String;");
   ASSERT_TRUE(c != NULL);
   Method* m;

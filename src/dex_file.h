@@ -773,7 +773,8 @@ class DexFile {
   // Returns -2 for native methods (as expected in exception traces).
   //
   // This is used by runtime; therefore use art::Method not art::DexFile::Method.
-  int32_t GetLineNumFromPC(const Method* method, uint32_t rel_pc) const;
+  int32_t GetLineNumFromPC(const Method* method, uint32_t rel_pc) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   void DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
                        DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
@@ -833,7 +834,6 @@ class DexFile {
         location_(location),
         location_checksum_(location_checksum),
         mem_map_(mem_map),
-        dex_object_lock_("a dex_object_lock_"),
         dex_object_(NULL),
         header_(0),
         string_ids_(0),
@@ -892,8 +892,7 @@ class DexFile {
   UniquePtr<MemMap> mem_map_;
 
   // A cached com.android.dex.Dex instance, possibly NULL. Use GetDexObject.
-  mutable Mutex dex_object_lock_;
-  mutable jobject dex_object_ GUARDED_BY(dex_object_lock_);
+  mutable jobject dex_object_;
 
   // Points to the header section.
   const Header* header_;
@@ -1105,9 +1104,11 @@ class Field;
 class EncodedStaticFieldValueIterator {
  public:
   EncodedStaticFieldValueIterator(const DexFile& dex_file, DexCache* dex_cache,
-                                  ClassLinker* linker, const DexFile::ClassDef& class_def);
+                                  ClassLinker* linker, const DexFile::ClassDef& class_def)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-  void ReadValueToField(Field* field) const;
+  void ReadValueToField(Field* field) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   bool HasNext() { return pos_ < array_size_; }
 

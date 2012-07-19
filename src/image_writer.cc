@@ -35,6 +35,7 @@
 #include "object.h"
 #include "object_utils.h"
 #include "runtime.h"
+#include "scoped_thread_state_change.h"
 #include "space.h"
 #include "UniquePtr.h"
 #include "utils.h"
@@ -71,9 +72,13 @@ bool ImageWriter::Write(const std::string& image_filename,
   }
   class_linker->RegisterOatFile(*oat_file_);
 
-  PruneNonImageClasses();  // Remove junk
-  ComputeLazyFieldsForImageClasses();  // Add useful information
-  ComputeEagerResolvedStrings();
+  {
+    Thread::Current()->TransitionFromSuspendedToRunnable();
+    PruneNonImageClasses();  // Remove junk
+    ComputeLazyFieldsForImageClasses();  // Add useful information
+    ComputeEagerResolvedStrings();
+    Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  }
   heap->CollectGarbage(false);  // Remove garbage
   // Trim size of alloc spaces
   // TODO: C++0x auto
@@ -90,9 +95,13 @@ bool ImageWriter::Write(const std::string& image_filename,
   CheckNonImageClassesRemoved();
 #endif
   heap->DisableCardMarking();
-  CalculateNewObjectOffsets();
-  CopyAndFixupObjects();
-  PatchOatCodeAndMethods(compiler);
+  {
+    Thread::Current()->TransitionFromSuspendedToRunnable();
+    CalculateNewObjectOffsets();
+    CopyAndFixupObjects();
+    PatchOatCodeAndMethods(compiler);
+    Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+  }
 
   UniquePtr<File> file(OS::OpenFile(image_filename.c_str(), true));
   if (file.get() == NULL) {
@@ -145,7 +154,7 @@ bool ImageWriter::AllocMemory() {
 void ImageWriter::ComputeLazyFieldsForImageClasses() {
   Runtime* runtime = Runtime::Current();
   ClassLinker* class_linker = runtime->GetClassLinker();
-  class_linker->VisitClasses(ComputeLazyFieldsForClassesVisitor, NULL);
+  class_linker->VisitClassesWithoutClassesLock(ComputeLazyFieldsForClassesVisitor, NULL);
 }
 
 bool ImageWriter::ComputeLazyFieldsForClassesVisitor(Class* c, void* /*arg*/) {
@@ -178,6 +187,7 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
 
 void ImageWriter::ComputeEagerResolvedStrings() {
   // TODO: Check image spaces only?
+  ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
   Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(ComputeEagerResolvedStringsCallback, this);
 }
 
@@ -258,6 +268,7 @@ void ImageWriter::CheckNonImageClassesRemoved() {
     return;
   }
 
+  ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
   Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(CheckNonImageClassesRemovedCallback, this);
 }
 
@@ -392,6 +403,7 @@ void ImageWriter::CopyAndFixupObjects() {
   // TODO: heap validation can't handle this fix up pass
   heap->DisableObjectValidation();
   // TODO: Image spaces only?
+  ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
   heap->GetLiveBitmap()->Walk(CopyAndFixupObjectsCallback, this);
 }
 
@@ -568,38 +580,43 @@ void ImageWriter::FixupFields(const Object* orig,
   }
 }
 
-static Method* GetReferrerMethod(const Compiler::PatchInformation* patch) {
+static Method* GetReferrerMethod(const Compiler::PatchInformation* patch)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  ScopedObjectAccessUnchecked soa(Thread::Current());
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  DexCache* dex_cache = class_linker->FindDexCache(patch->GetDexFile());
   Method* method = class_linker->ResolveMethod(patch->GetDexFile(),
                                                patch->GetReferrerMethodIdx(),
-                                               patch->GetDexCache(),
+                                               dex_cache,
                                                NULL,
                                                patch->GetReferrerIsDirect());
   CHECK(method != NULL)
     << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx();
   CHECK(!method->IsRuntimeMethod())
     << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx();
-  CHECK(patch->GetDexCache()->GetResolvedMethods()->Get(patch->GetReferrerMethodIdx()) == method)
+  CHECK(dex_cache->GetResolvedMethods()->Get(patch->GetReferrerMethodIdx()) == method)
     << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx() << " "
-    << PrettyMethod(patch->GetDexCache()->GetResolvedMethods()->Get(patch->GetReferrerMethodIdx())) << " "
+    << PrettyMethod(dex_cache->GetResolvedMethods()->Get(patch->GetReferrerMethodIdx())) << " "
     << PrettyMethod(method);
   return method;
 }
 
-static Method* GetTargetMethod(const Compiler::PatchInformation* patch) {
+static Method* GetTargetMethod(const Compiler::PatchInformation* patch)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  DexCache* dex_cache = class_linker->FindDexCache(patch->GetDexFile());
   Method* method = class_linker->ResolveMethod(patch->GetDexFile(),
                                                patch->GetTargetMethodIdx(),
-                                               patch->GetDexCache(),
+                                               dex_cache,
                                                NULL,
                                                patch->GetTargetIsDirect());
   CHECK(method != NULL)
     << patch->GetDexFile().GetLocation() << " " << patch->GetTargetMethodIdx();
   CHECK(!method->IsRuntimeMethod())
     << patch->GetDexFile().GetLocation() << " " << patch->GetTargetMethodIdx();
-  CHECK(patch->GetDexCache()->GetResolvedMethods()->Get(patch->GetTargetMethodIdx()) == method)
+  CHECK(dex_cache->GetResolvedMethods()->Get(patch->GetTargetMethodIdx()) == method)
     << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx() << " "
-    << PrettyMethod(patch->GetDexCache()->GetResolvedMethods()->Get(patch->GetTargetMethodIdx())) << " "
+    << PrettyMethod(dex_cache->GetResolvedMethods()->Get(patch->GetTargetMethodIdx())) << " "
     << PrettyMethod(method);
   return method;
 }

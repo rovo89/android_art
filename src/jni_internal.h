@@ -43,17 +43,20 @@ class Field;
 union JValue;
 class Libraries;
 class Method;
-class ScopedJniThreadState;
+class ScopedObjectAccess;
 class Thread;
 
 void SetJniGlobalsMax(size_t max);
 void JniAbortF(const char* jni_function_name, const char* fmt, ...);
 void* FindNativeMethod(Thread* thread);
-void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINativeMethod* methods, size_t method_count);
+void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINativeMethod* methods,
+                           size_t method_count);
 
 size_t NumArgArrayBytes(const char* shorty, uint32_t shorty_len);
-JValue InvokeWithJValues(const ScopedJniThreadState&, jobject obj, jmethodID mid, jvalue* args);
-JValue InvokeWithJValues(const ScopedJniThreadState&, Object* receiver, Method* m, JValue* args);
+JValue InvokeWithJValues(const ScopedObjectAccess&, jobject obj, jmethodID mid, jvalue* args)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+JValue InvokeWithJValues(const ScopedObjectAccess&, Object* receiver, Method* m, JValue* args)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause);
 
@@ -67,17 +70,20 @@ struct JavaVMExt : public JavaVM {
    * Returns 'true' on success. On failure, sets 'detail' to a
    * human-readable description of the error.
    */
-  bool LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, std::string& detail);
+  bool LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, std::string& detail)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   /**
    * Returns a pointer to the code for the native method 'm', found
    * using dlsym(3) on every native library that's been loaded so far.
    */
-  void* FindCodeForNativeMethod(Method* m);
+  void* FindCodeForNativeMethod(Method* m)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os);
 
-  void DumpReferenceTables(std::ostream& os);
+  void DumpReferenceTables(std::ostream& os)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   void SetCheckJniEnabled(bool enabled);
 
@@ -100,18 +106,18 @@ struct JavaVMExt : public JavaVM {
   bool work_around_app_jni_bugs;
 
   // Used to hold references to pinned primitive arrays.
-  Mutex pins_lock;
+  Mutex pins_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   ReferenceTable pin_table GUARDED_BY(pins_lock);
 
   // JNI global references.
-  Mutex globals_lock;
+  Mutex globals_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   IndirectReferenceTable globals GUARDED_BY(globals_lock);
 
   // JNI weak global references.
-  Mutex weak_globals_lock;
+  Mutex weak_globals_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   IndirectReferenceTable weak_globals GUARDED_BY(weak_globals_lock);
 
-  Mutex libraries_lock;
+  Mutex libraries_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   Libraries* libraries GUARDED_BY(libraries_lock);
 
   // Used by -Xcheck:jni.
@@ -122,7 +128,8 @@ struct JNIEnvExt : public JNIEnv {
   JNIEnvExt(Thread* self, JavaVMExt* vm);
   ~JNIEnvExt();
 
-  void DumpReferenceTables(std::ostream& os);
+  void DumpReferenceTables(std::ostream& os)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   void SetCheckJniEnabled(bool enabled);
 
