@@ -20,11 +20,13 @@
 #include "globals.h"
 #include "logging.h"
 #include "mem_map.h"
+#include "space_bitmap.h"
 #include "UniquePtr.h"
 
 namespace art {
 
 class Heap;
+class Space;
 class SpaceBitmap;
 class Object;
 
@@ -70,9 +72,31 @@ class CardTable {
     return biased_begin_;
   }
 
-  // For every dirty card between begin and end invoke the visitor with the specified argument
-  typedef void Callback(Object* obj, void* arg);
-  void Scan(SpaceBitmap* bitmap, byte* begin, byte* end, Callback* visitor, void* arg) const;
+  // For every dirty card between begin and end invoke the visitor with the specified argument.
+  template <typename Visitor>
+  void Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end, const Visitor& visitor) const {
+    DCHECK(bitmap->HasAddress(scan_begin));
+    DCHECK(bitmap->HasAddress(scan_end - 1));  // scan_end is the byte after the last byte we scan.
+    byte* card_cur = CardFromAddr(scan_begin);
+    byte* card_end = CardFromAddr(scan_end);
+    while (card_cur < card_end) {
+      while (card_cur < card_end && *card_cur == GC_CARD_CLEAN) {
+        card_cur++;
+      }
+      byte* run_start = card_cur;
+
+      while (card_cur < card_end && *card_cur == GC_CARD_DIRTY) {
+        card_cur++;
+      }
+      byte* run_end = card_cur;
+
+      if (run_start != run_end) {
+        uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(run_start));
+        uintptr_t end = reinterpret_cast<uintptr_t>(AddrFromCard(run_end));
+        bitmap->VisitMarkedRange(start, end, visitor);
+      }
+    }
+  }
 
   // Assertion used to check the given address is covered by the card table
   void CheckAddrIsInCardTable(const byte* addr) const;
@@ -81,7 +105,7 @@ class CardTable {
   void ClearCardTable();
 
   // Resets all of the bytes in the card table which do not map to the image space.
-  void ClearNonImageSpaceCards(Heap* heap);
+  void ClearSpaceCards(Space* space);
 
   // Returns the first address in the heap which maps to this card.
   void* AddrFromCard(const byte *card_addr) const {
@@ -92,8 +116,6 @@ class CardTable {
     uintptr_t offset = card_addr - biased_begin_;
     return reinterpret_cast<void*>(offset << GC_CARD_SHIFT);
   }
- private:
-  CardTable(MemMap* begin, byte* biased_begin, size_t offset);
 
   // Returns the address of the relevant byte in the card table, given an address on the heap.
   byte* CardFromAddr(const void *addr) const {
@@ -103,6 +125,9 @@ class CardTable {
         << " card_addr: " << reinterpret_cast<void*>(card_addr);
     return card_addr;
   }
+
+ private:
+  CardTable(MemMap* begin, byte* biased_begin, size_t offset);
 
   // Returns true iff the card table address is within the bounds of the card table.
   bool IsValidCard(const byte* card_addr) const {

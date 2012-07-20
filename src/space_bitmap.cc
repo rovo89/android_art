@@ -38,6 +38,17 @@ SpaceBitmap* SpaceBitmap::Create(const std::string& name, byte* heap_begin, size
 // Clean up any resources associated with the bitmap.
 SpaceBitmap::~SpaceBitmap() {}
 
+void SpaceBitmap::Trim(size_t heap_capacity) {
+  size_t new_size = OffsetToIndex(RoundUp(heap_capacity, kAlignment * kBitsPerWord)) * kWordSize;
+  if (new_size < bitmap_size_) {
+    bitmap_size_ = new_size;
+  }
+  // Not sure if doing this trim is necessary, since nothing past the end of the heap capacity
+  // should be marked.
+  // TODO: Fix this code is, it broken and causes rare heap corruption!
+  // mem_map_->Trim(reinterpret_cast<byte*>(heap_begin_ + bitmap_size_));
+}
+
 // Fill the bitmap with zeroes.  Returns the bitmap's memory to the
 // system as a side-effect.
 void SpaceBitmap::Clear() {
@@ -59,24 +70,6 @@ bool SpaceBitmap::HasAddress(const void* obj) const {
   const uintptr_t offset = (uintptr_t)obj - heap_begin_;
   const size_t index = OffsetToIndex(offset);
   return index < bitmap_size_ / kWordSize;
-}
-
-void SpaceBitmap::VisitRange(uintptr_t visit_begin, uintptr_t visit_end, Callback* visitor, void* arg) const {
-  size_t start = OffsetToIndex(visit_begin - heap_begin_);
-  size_t end = OffsetToIndex(visit_end - heap_begin_ - 1);
-  for (size_t i = start; i <= end; i++) {
-    word w = bitmap_begin_[i];
-    if (w != 0) {
-      word high_bit = 1 << (kBitsPerWord - 1);
-      uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
-      while (w != 0) {
-        const int shift = CLZ(w);
-        Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
-        (*visitor)(obj, arg);
-        w &= ~(high_bit >> shift);
-      }
-    }
-  }
 }
 
 // Visits set bits in address order.  The callback is not permitted to
@@ -116,11 +109,24 @@ void SpaceBitmap::ScanWalk(uintptr_t scan_begin, uintptr_t scan_end, ScanCallbac
   CHECK(callback != NULL);
   CHECK_LE(scan_begin, scan_end);
   CHECK_GE(scan_begin, heap_begin_);
-  size_t start = OffsetToIndex(scan_begin - heap_begin_);
+
+  // This function doesn't support unaligned boundaries yet.
+  size_t begin_offset = scan_begin - heap_begin_;
+  size_t end_offset = scan_end - heap_begin_;
+  DCHECK((begin_offset / kAlignment) % kBitsPerWord == 0)
+      << "scan begin " << reinterpret_cast<const void*>(scan_begin)
+      << " with offset " << begin_offset
+      << " not aligned to word boundary";
+  DCHECK((end_offset / kAlignment) % kBitsPerWord == 0)
+      << "scan end " << reinterpret_cast<const void*>(scan_end)
+      << " with offset " << end_offset
+      << " not aligned to word boundary";
+
+  size_t start = OffsetToIndex(begin_offset);
   if (scan_end < heap_end_) {
     // The end of the space we're looking at is before the current maximum bitmap PC, scan to that
     // and don't recompute end on each iteration
-    size_t end = OffsetToIndex(scan_end - heap_begin_ - 1);
+    size_t end = OffsetToIndex(end_offset - 1);
     for (size_t i = start; i <= end; i++) {
       word w = bitmap_begin_[i];
       if (UNLIKELY(w != 0)) {

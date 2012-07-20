@@ -69,10 +69,15 @@ namespace art {
     // Find and replace a bitmap pointer, this is used by for the bitmap swapping in the GC.
     void ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap);
 
-   private:
-    void AddSpaceBitmap(SpaceBitmap* space) {
-      bitmaps_.push_back(space);
+    HeapBitmap(Heap* heap) : heap_(heap) {
+
     }
+
+   private:
+
+    const Heap* const heap_;
+
+    void AddSpaceBitmap(SpaceBitmap* bitmap);
 
     typedef std::vector<SpaceBitmap*> Bitmaps;
     Bitmaps bitmaps_;

@@ -310,6 +310,7 @@ class Runtime {
   void SetStatsEnabled(bool new_state);
 
   void DidForkFromZygote();
+  bool PreZygoteFork();
 
   void EnableMethodTracing(Trace* tracer);
   void DisableMethodTracing();

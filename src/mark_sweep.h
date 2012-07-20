@@ -57,7 +57,10 @@ class MarkSweep {
   }
 
   // Builds a mark stack and recursively mark until it empties.
-  void RecursiveMark();
+  void RecursiveMark(bool partial);
+
+  // Copies mark bits from live bitmap of zygote space to mark bitmap for partial GCs.
+  void CopyMarkBits();
 
   // Builds a mark stack with objects on dirty cards and recursively mark
   // until it empties.
@@ -65,6 +68,10 @@ class MarkSweep {
 
   // Remarks the root set after completing the concurrent mark.
   void ReMarkRoots();
+
+  Heap* GetHeap() {
+    return heap_;
+  }
 
   void ProcessReferences(bool clear_soft_references) {
     ProcessReferences(&soft_reference_list_, clear_soft_references,
@@ -74,11 +81,14 @@ class MarkSweep {
   }
 
   // Sweeps unmarked objects to complete the garbage collection.
-  void Sweep();
+  void Sweep(bool partial);
 
   Object* GetClearedReferences() {
     return cleared_reference_list_;
   }
+
+  // Blackens an object.
+  void ScanObject(const Object* obj);
 
  private:
   // Returns true if the object has its bit set in the mark bitmap.
@@ -97,8 +107,6 @@ class MarkSweep {
 
   static void ReMarkObjectVisitor(const Object* root, void* arg);
 
-  static void ScanImageRootVisitor(Object* root, void* arg);
-
   static void VerifyImageRootVisitor(Object* root, void* arg);
 
   static void ScanDirtyCardCallback(Object* obj, void* arg);
@@ -111,16 +119,12 @@ class MarkSweep {
 
   static void ScanBitmapCallback(Object* obj, void* finger, void* arg);
 
-  static void CheckBitmapCallback(Object* obj, void* finger, void* arg);
-
-  static void CheckBitmapNoFingerCallback(Object* obj, void* arg);
-
   static void SweepCallback(size_t num_ptrs, Object** ptrs, void* arg);
 
-  void CheckReference(const Object* obj, const Object* ref, MemberOffset offset, bool is_static);
+  // Special sweep for zygote that just marks objects / dirties cards.
+  static void ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg);
 
-  // Blackens an object.
-  void ScanObject(const Object* obj);
+  void CheckReference(const Object* obj, const Object* ref, MemberOffset offset, bool is_static);
 
   void CheckObject(const Object* obj);
 
@@ -275,14 +279,20 @@ class MarkSweep {
   size_t other_count_;
 
   friend class AddIfReachesAllocSpaceVisitor; // Used by mod-union table.
+  friend class CheckBitmapVisitor;
   friend class CheckObjectVisitor;
+  friend class CheckReferenceVisitor;
   friend class InternTableEntryIsUnmarked;
   friend class MarkIfReachesAllocspaceVisitor;
+  friend class ModUnionCheckReferences;
   friend class ModUnionClearCardVisitor;
   friend class ModUnionReferenceVisitor;
   friend class ModUnionVisitor;
   friend class ModUnionTableBitmap;
   friend class ModUnionTableReferenceCache;
+  friend class ModUnionScanImageRootVisitor;
+  friend class ScanBitmapVisitor;
+  friend class ScanImageRootVisitor;
 
   DISALLOW_COPY_AND_ASSIGN(MarkSweep);
 };

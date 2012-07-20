@@ -70,6 +70,73 @@ TEST_F(SpaceTest, Init) {
   }
 }
 
+TEST_F(SpaceTest, ZygoteSpace) {
+    AllocSpace* space(Space::CreateAllocSpace("test", 4 * MB, 16 * MB, 16 * MB, NULL));
+    ASSERT_TRUE(space != NULL);
+
+  // Make space findable to the heap, will also delete space when runtime is cleaned up
+    Runtime::Current()->GetHeap()->AddSpace(space);
+
+    // Succeeds, fits without adjusting the footprint limit.
+    Object* ptr1 = space->AllocWithoutGrowth(1 * MB);
+    EXPECT_TRUE(ptr1 != NULL);
+
+    // Fails, requires a higher footprint limit.
+    Object* ptr2 = space->AllocWithoutGrowth(8 * MB);
+    EXPECT_TRUE(ptr2 == NULL);
+
+    // Succeeds, adjusts the footprint.
+    Object* ptr3 = space->AllocWithGrowth(8 * MB);
+    EXPECT_TRUE(ptr3 != NULL);
+
+    // Fails, requires a higher footprint limit.
+    Object* ptr4 = space->AllocWithoutGrowth(8 * MB);
+    EXPECT_TRUE(ptr4 == NULL);
+
+    // Also fails, requires a higher allowed footprint.
+    Object* ptr5 = space->AllocWithGrowth(8 * MB);
+    EXPECT_TRUE(ptr5 == NULL);
+
+    // Release some memory.
+    size_t free3 = space->AllocationSize(ptr3);
+    space->Free(ptr3);
+    EXPECT_LE(8U * MB, free3);
+
+    // Succeeds, now that memory has been freed.
+    void* ptr6 = space->AllocWithGrowth(9 * MB);
+    EXPECT_TRUE(ptr6 != NULL);
+
+    // Final clean up.
+    size_t free1 = space->AllocationSize(ptr1);
+    space->Free(ptr1);
+    EXPECT_LE(1U * MB, free1);
+
+    // Make sure that the zygote space isn't directly at the start of the space.
+    space->AllocWithoutGrowth(1U * MB);
+    space = space->CreateZygoteSpace();
+
+    // Make space findable to the heap, will also delete space when runtime is cleaned up
+    Runtime::Current()->GetHeap()->AddSpace(space);
+
+    // Succeeds, fits without adjusting the footprint limit.
+    ptr1 = space->AllocWithoutGrowth(1 * MB);
+    EXPECT_TRUE(ptr1 != NULL);
+
+    // Fails, requires a higher footprint limit.
+    ptr2 = space->AllocWithoutGrowth(8 * MB);
+    EXPECT_TRUE(ptr2 == NULL);
+
+    // Succeeds, adjusts the footprint.
+    ptr3 = space->AllocWithGrowth(2 * MB);
+    EXPECT_TRUE(ptr3 != NULL);
+    space->Free(ptr3);
+
+    // Final clean up.
+    free1 = space->AllocationSize(ptr1);
+    space->Free(ptr1);
+    EXPECT_LE(1U * MB, free1);
+}
+
 TEST_F(SpaceTest, AllocAndFree) {
   AllocSpace* space(Space::CreateAllocSpace("test", 4 * MB, 16 * MB, 16 * MB, NULL));
   ASSERT_TRUE(space != NULL);
