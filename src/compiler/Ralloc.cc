@@ -89,20 +89,6 @@ bool remapNames(CompilationUnit* cUnit, BasicBlock* bb)
   return false;
 }
 
-// Try to find the next move result which might have an FP target
-SSARepresentation* findFPMoveResult(MIR* mir)
-{
-  SSARepresentation* res = NULL;
-  for (; mir; mir = mir->next) {
-    if ((mir->dalvikInsn.opcode == Instruction::MOVE_RESULT) ||
-        (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_WIDE)) {
-      res = mir->ssaRep;
-      break;
-    }
-  }
-  return res;
-}
-
 /*
  * Infer types and sizes.  We don't need to track change on sizes,
  * as it doesn't propagate.  We're guaranteed at least one pass through
@@ -236,14 +222,12 @@ bool inferTypeAndSize(CompilationUnit* cUnit, BasicBlock* bb)
         const char* shorty = oatGetShortyFromTargetIdx(cUnit, target_idx);
         // Handle result type if floating point
         if ((shorty[0] == 'F') || (shorty[0] == 'D')) {
-          // Find move-result that consumes this result
-          SSARepresentation* tgtRep = findFPMoveResult(mir->next);
-          // Might be in next basic block
-          if (!tgtRep) {
-            tgtRep = findFPMoveResult(bb->fallThrough->firstMIRInsn);
-          }
+          MIR* moveResultMIR = oatFindMoveResult(cUnit, bb, mir);
           // Result might not be used at all, so no move-result
-          if (tgtRep) {
+          if (moveResultMIR && (moveResultMIR->dalvikInsn.opcode !=
+              Instruction::MOVE_RESULT_OBJECT)) {
+            SSARepresentation* tgtRep = moveResultMIR->ssaRep;
+            DCHECK(tgtRep != NULL);
             tgtRep->fpDef[0] = true;
             changed |= setFp(cUnit, tgtRep->defs[0], true);
             if (shorty[0] == 'D') {

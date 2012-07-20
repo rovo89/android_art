@@ -51,7 +51,7 @@ void defineValue(CompilationUnit* cUnit, llvm::Value* val, int sReg)
   llvm::Value* placeholder = getLLVMValue(cUnit, sReg);
   if (placeholder == NULL) {
     // This can happen on instruction rewrite on verification failure
-    LOG(WARNING) << "Null placeholder - invalid CFG";
+    LOG(WARNING) << "Null placeholder";
     return;
   }
   placeholder->replaceAllUsesWith(val);
@@ -307,7 +307,6 @@ void convertThrow(CompilationUnit* cUnit, RegLocation rlSrc)
   llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
       greenland::IntrinsicHelper::Throw);
   cUnit->irb->CreateCall(func, src);
-  cUnit->irb->CreateUnreachable();
 }
 
 void convertMonitorEnterExit(CompilationUnit* cUnit, int optFlags,
@@ -813,6 +812,15 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
 
   bool objectDefinition = false;
 
+  if (cUnit->printMe) {
+    if ((int)opcode < kMirOpFirst) {
+      LOG(INFO) << ".. " << Instruction::Name(opcode) << " 0x"
+                << std::hex << (int)opcode;
+    } else {
+      LOG(INFO) << ".. opcode 0x" << std::hex << (int)opcode;
+    }
+  }
+
   /* Prep Src and Dest locations */
   int nextSreg = 0;
   int nextLoc = 0;
@@ -1293,10 +1301,24 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
 
    case Instruction::THROW:
       convertThrow(cUnit, rlSrc[0]);
+      /*
+       * If this throw is standalone, terminate.
+       * If it might rethrow, force termination
+       * of the following block.
+       */
+      if (bb->fallThrough == NULL) {
+        cUnit->irb->CreateUnreachable();
+      } else {
+        bb->fallThrough->fallThrough = NULL;
+        bb->fallThrough->taken = NULL;
+      }
       break;
 
    case Instruction::THROW_VERIFICATION_ERROR:
       convertThrowVerificationError(cUnit, vA, vB);
+      UNIMPLEMENTED(WARNING) << "Need dead code elimination pass"
+                             << " - disabling bitcode verification";
+      cUnit->enableDebug &= ~(1 << kDebugVerifyBitcode);
       break;
 
     case Instruction::MOVE_RESULT_WIDE:
@@ -1307,7 +1329,8 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
        * Instruction rewriting on verification failure can eliminate
        * the invoke that feeds this move0result.  It won't ever be reached,
        * so we can ignore it.
-       * TODO: verify that previous instruction if THROW_VERIFICATION_ERROR
+       * TODO: verify that previous instruction is THROW_VERIFICATION_ERROR,
+       * or better, add dead-code elimination.
        */
       UNIMPLEMENTED(WARNING) << "Need to verify previous inst was rewritten";
 #else
@@ -1650,6 +1673,13 @@ void convertExtendedMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
       UNIMPLEMENTED(WARNING) << "unimp kMirOpPhi";
       break;
     }
+    case kMirOpNop:
+      if ((mir == bb->lastMIRInsn) && (bb->taken == NULL) &&
+          (bb->fallThrough == NULL)) {
+        cUnit->irb->CreateUnreachable();
+      }
+      break;
+
 #if defined(TARGET_ARM)
     case kMirOpFusedCmplFloat:
       UNIMPLEMENTED(WARNING) << "unimp kMirOpFusedCmpFloat";
@@ -1721,6 +1751,16 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
   cUnit->irb->SetInsertPoint(llvmBB);
   setDexOffset(cUnit, bb->startOffset);
 
+  if (cUnit->printMe) {
+    LOG(INFO) << "................................";
+    LOG(INFO) << "Block id " << bb->id;
+    if (llvmBB != NULL) {
+      LOG(INFO) << "label " << llvmBB->getName().str().c_str();
+    } else {
+      LOG(INFO) << "llvmBB is NULL";
+    }
+  }
+
   if (bb->blockType == kEntryBlock) {
     setMethodInfo(cUnit);
     bool *canBeRef = (bool*)  oatNew(cUnit, sizeof(bool) *
@@ -1760,8 +1800,6 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
     /*
      * Because we're deferring null checking, delete the associated empty
      * exception block.
-     * TODO: add new block type for exception blocks that we generate
-     * greenland code for.
      */
     llvmBB->eraseFromParent();
     return false;
@@ -1771,8 +1809,9 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
 
     setDexOffset(cUnit, mir->offset);
 
-    Instruction::Code dalvikOpcode = mir->dalvikInsn.opcode;
-    Instruction::Format dalvikFormat = Instruction::FormatOf(dalvikOpcode);
+    int opcode = mir->dalvikInsn.opcode;
+    Instruction::Format dalvikFormat =
+        Instruction::FormatOf(mir->dalvikInsn.opcode);
 
     /* If we're compiling for the debugger, generate an update callout */
     if (cUnit->genDebugger) {
@@ -1780,7 +1819,43 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
       //genDebuggerUpdate(cUnit, mir->offset);
     }
 
-    if ((int)mir->dalvikInsn.opcode >= (int)kMirOpFirst) {
+    if (opcode == kMirOpCheck) {
+      // Combine check and work halves of throwing instruction.
+      MIR* workHalf = mir->meta.throwInsn;
+      mir->dalvikInsn.opcode = workHalf->dalvikInsn.opcode;
+      opcode = mir->dalvikInsn.opcode;
+      SSARepresentation* ssaRep = workHalf->ssaRep;
+      workHalf->ssaRep = mir->ssaRep;
+      mir->ssaRep = ssaRep;
+      workHalf->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+      if (bb->successorBlockList.blockListType == kCatch) {
+        llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(
+            greenland::IntrinsicHelper::CatchTargets);
+        llvm::Value* switchKey =
+            cUnit->irb->CreateCall(intr, cUnit->irb->getInt32(mir->offset));
+        GrowableListIterator iter;
+        oatGrowableListIteratorInit(&bb->successorBlockList.blocks, &iter);
+        // New basic block to use for work half
+        llvm::BasicBlock* workBB =
+            llvm::BasicBlock::Create(*cUnit->context, "", cUnit->func);
+        llvm::SwitchInst* sw =
+            cUnit->irb->CreateSwitch(switchKey, workBB,
+                                     bb->successorBlockList.blocks.numUsed);
+        while (true) {
+          SuccessorBlockInfo *successorBlockInfo =
+              (SuccessorBlockInfo *) oatGrowableListIteratorNext(&iter);
+          if (successorBlockInfo == NULL) break;
+          llvm::BasicBlock *target =
+              getLLVMBlock(cUnit, successorBlockInfo->block->id);
+          int typeIndex = successorBlockInfo->key;
+          sw->addCase(cUnit->irb->getInt32(typeIndex), target);
+        }
+        llvmBB = workBB;
+        cUnit->irb->SetInsertPoint(llvmBB);
+      }
+    }
+
+    if (opcode >= kMirOpFirst) {
       convertExtendedMIR(cUnit, bb, mir, llvmBB);
       continue;
     }
@@ -1788,8 +1863,9 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
     bool notHandled = convertMIRNode(cUnit, mir, bb, llvmBB,
                                      NULL /* labelList */);
     if (notHandled) {
+      Instruction::Code dalvikOpcode = static_cast<Instruction::Code>(opcode);
       LOG(WARNING) << StringPrintf("%#06x: Op %#x (%s) / Fmt %d not handled",
-                                   mir->offset, dalvikOpcode,
+                                   mir->offset, opcode,
                                    Instruction::Name(dalvikOpcode),
                                    dalvikFormat);
     }
@@ -1987,7 +2063,14 @@ void oatMethodMIR2Bitcode(CompilationUnit* cUnit)
   cUnit->irb->SetInsertPoint(cUnit->entryBB);
   cUnit->irb->CreateBr(cUnit->entryTargetBB);
 
-  //llvm::verifyFunction(*cUnit->func, llvm::PrintMessageAction);
+  if (cUnit->enableDebug & (1 << kDebugVerifyBitcode)) {
+     if (llvm::verifyFunction(*cUnit->func, llvm::PrintMessageAction)) {
+       LOG(INFO) << "Bitcode verification FAILED for "
+                 << PrettyMethod(cUnit->method_idx, *cUnit->dex_file)
+                 << " of size " << cUnit->insnsSize;
+       cUnit->enableDebug |= (1 << kDebugDumpBitcodeFile);
+     }
+  }
 
   if (cUnit->enableDebug & (1 << kDebugDumpBitcodeFile)) {
     // Write bitcode to file
@@ -3130,6 +3213,24 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               break;
             case greenland::IntrinsicHelper::USHRInt:
               cvtShiftOp(cUnit, Instruction::USHR_INT, callInst);
+              break;
+
+            case greenland::IntrinsicHelper::CatchTargets: {
+                llvm::SwitchInst* swInst =
+                    llvm::dyn_cast<llvm::SwitchInst>(nextIt);
+                DCHECK(swInst != NULL);
+                /*
+                 * Discard the edges and the following conditional branch.
+                 * Do a direct branch to the default target (which is the
+                 * "work" portion of the pair.
+                 * TODO: awful code layout - rework
+                 */
+                 llvm::BasicBlock* targetBB = swInst->getDefaultDest();
+                 DCHECK(targetBB != NULL);
+                 opUnconditionalBranch(cUnit,
+                                       cUnit->blockToLabelMap.Get(targetBB));
+                 ++it;
+              }
               break;
 
             default:
