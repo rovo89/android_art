@@ -75,65 +75,9 @@ define build-libart-compiler-llvm
 
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
 
-  libart_compiler_llvm_arm_STATIC_LIBRARIES := \
-    libLLVMARMInfo \
-    libLLVMARMDisassembler \
-    libLLVMARMAsmParser \
-    libLLVMARMAsmPrinter \
-    libLLVMARMCodeGen \
-    libLLVMARMDesc
-
-  libart_compiler_llvm_mips_STATIC_LIBRARIES := \
-    libLLVMMipsInfo \
-    libLLVMMipsDisassembler \
-    libLLVMMipsCodeGen \
-    libLLVMMipsDesc \
-    libLLVMMipsAsmParser \
-    libLLVMMipsAsmPrinter
-
-  libart_compiler_llvm_x86_STATIC_LIBRARIES := \
-    libLLVMX86Info \
-    libLLVMX86AsmParser \
-    libLLVMX86CodeGen \
-    libLLVMX86Disassembler \
-    libLLVMX86Desc \
-    libLLVMX86AsmPrinter \
-    libLLVMX86Utils
-
-  ifeq ($$(art_target_or_host),target)
-    LOCAL_STATIC_LIBRARIES += \
-      $$(libart_compiler_llvm_$(TARGET_ARCH)_STATIC_LIBRARIES)
-  else
-    LOCAL_STATIC_LIBRARIES += \
-      $$(libart_compiler_llvm_arm_STATIC_LIBRARIES) \
-      $$(libart_compiler_llvm_mips_STATIC_LIBRARIES) \
-      $$(libart_compiler_llvm_x86_STATIC_LIBRARIES)
-  endif
-
-  LOCAL_STATIC_LIBRARIES += \
-    libLLVMObject \
-    libLLVMLinker \
-    libLLVMipo \
-    libLLVMBitWriter \
-    libLLVMBitReader \
-    libLLVMAsmPrinter \
-    libLLVMSelectionDAG \
-    libLLVMCodeGen \
-    libLLVMVectorize \
-    libLLVMScalarOpts \
-    libLLVMInstCombine \
-    libLLVMInstrumentation \
-    libLLVMTransformUtils \
-    libLLVMipa \
-    libLLVMAnalysis \
-    libLLVMTarget \
-    libLLVMMC \
-    libLLVMMCParser \
-    libLLVMCore \
-    libLLVMSupport
-
   LOCAL_SHARED_LIBRARIES := liblog libnativehelper
   LOCAL_SHARED_LIBRARIES += libcorkscrew # native stack trace support
+  LOCAL_SHARED_LIBRARIES += libbcc
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils libstlport libz libdl
     LOCAL_SHARED_LIBRARIES += libdynamic_annotations # tsan support
