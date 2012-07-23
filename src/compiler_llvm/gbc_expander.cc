@@ -51,6 +51,16 @@ class GBCExpanderPass : public llvm::FunctionPass {
 
  private:
   //----------------------------------------------------------------------------
+  // Constant for GBC expansion
+  //----------------------------------------------------------------------------
+  enum IntegerShiftKind {
+    kIntegerSHL,
+    kIntegerSHR,
+    kIntegerUSHR,
+  };
+
+ private:
+  //----------------------------------------------------------------------------
   // Helper function for GBC expansion
   //----------------------------------------------------------------------------
 
@@ -187,6 +197,15 @@ class GBCExpanderPass : public llvm::FunctionPass {
 
   llvm::Value* EmitCompareResultSelection(llvm::Value* cmp_eq,
                                           llvm::Value* cmp_lt);
+
+  //----------------------------------------------------------------------------
+  // Expand Arithmetic Helper Intrinsics
+  //----------------------------------------------------------------------------
+
+  llvm::Value* Expand_IntegerShift(llvm::Value* src1_value,
+                                   llvm::Value* src2_value,
+                                   IntegerShiftKind kind,
+                                   JType op_jty);
 
  public:
   static char ID;
@@ -1025,6 +1044,37 @@ llvm::Value* GBCExpanderPass::EmitCompareResultSelection(llvm::Value* cmp_eq,
   return result_eq;
 }
 
+llvm::Value* GBCExpanderPass::Expand_IntegerShift(llvm::Value* src1_value,
+                                                  llvm::Value* src2_value,
+                                                  IntegerShiftKind kind,
+                                                  JType op_jty) {
+  DCHECK(op_jty == kInt || op_jty == kLong);
+
+  // Mask and zero-extend RHS properly
+  if (op_jty == kInt) {
+    src2_value = irb_.CreateAnd(src2_value, 0x1f);
+  } else {
+    llvm::Value* masked_src2_value = irb_.CreateAnd(src2_value, 0x3f);
+    src2_value = irb_.CreateZExt(masked_src2_value, irb_.getJLongTy());
+  }
+
+  // Create integer shift llvm instruction
+  switch (kind) {
+  case kIntegerSHL:
+    return irb_.CreateShl(src1_value, src2_value);
+
+  case kIntegerSHR:
+    return irb_.CreateAShr(src1_value, src2_value);
+
+  case kIntegerUSHR:
+    return irb_.CreateLShr(src1_value, src2_value);
+
+  default:
+    LOG(FATAL) << "Unknown integer shift kind: " << kind;
+    return NULL;
+  }
+}
+
 llvm::Value*
 GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
                                  llvm::CallInst& call_inst) {
@@ -1037,10 +1087,15 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       Expand_TestSuspend(call_inst);
       return NULL;
     }
+    case IntrinsicHelper::CheckSuspend: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
     case IntrinsicHelper::MarkGCCard: {
       Expand_MarkGCCard(call_inst);
       return NULL;
     }
+
     //==- Exception --------------------------------------------------------==//
     case IntrinsicHelper::ThrowException: {
       return ExpandToRuntime(runtime_support::ThrowException, call_inst);
@@ -1063,14 +1118,24 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::ThrowIndexOutOfBounds: {
       return ExpandToRuntime(runtime_support::ThrowIndexOutOfBounds, call_inst);
     }
-    //==- ConstString ------------------------------------------------------==//
+
+    //==- Const String -----------------------------------------------------==//
+    case IntrinsicHelper::ConstString: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
     case IntrinsicHelper::LoadStringFromDexCache: {
       return Expand_LoadStringFromDexCache(call_inst.getArgOperand(0));
     }
     case IntrinsicHelper::ResolveString: {
       return ExpandToRuntime(runtime_support::ResolveString, call_inst);
     }
-    //==- ConstClass -------------------------------------------------------==//
+
+    //==- Const Class ------------------------------------------------------==//
+    case IntrinsicHelper::ConstClass: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
     case IntrinsicHelper::InitializeTypeAndVerifyAccess: {
       return ExpandToRuntime(runtime_support::InitializeTypeAndVerifyAccess, call_inst);
     }
@@ -1080,6 +1145,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::InitializeType: {
       return ExpandToRuntime(runtime_support::InitializeType, call_inst);
     }
+
     //==- Lock -------------------------------------------------------------==//
     case IntrinsicHelper::LockObject: {
       Expand_LockObject(call_inst.getArgOperand(0));
@@ -1089,13 +1155,19 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       Expand_UnlockObject(call_inst.getArgOperand(0));
       return NULL;
     }
+
     //==- Cast -------------------------------------------------------------==//
     case IntrinsicHelper::CheckCast: {
       return ExpandToRuntime(runtime_support::CheckCast, call_inst);
     }
+    case IntrinsicHelper::HLCheckCast: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
     case IntrinsicHelper::IsAssignable: {
       return ExpandToRuntime(runtime_support::IsAssignable, call_inst);
     }
+
     //==- Alloc ------------------------------------------------------------==//
     case IntrinsicHelper::AllocObject: {
       return ExpandToRuntime(runtime_support::AllocObject, call_inst);
@@ -1103,7 +1175,26 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::AllocObjectWithAccessCheck: {
       return ExpandToRuntime(runtime_support::AllocObjectWithAccessCheck, call_inst);
     }
+
+    //==- Instance ---------------------------------------------------------==//
+    case IntrinsicHelper::NewInstance: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::InstanceOf: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+
     //==- Array ------------------------------------------------------------==//
+    case IntrinsicHelper::NewArray: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::OptArrayLength: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
     case IntrinsicHelper::ArrayLength: {
       return EmitLoadArrayLength(call_inst.getArgOperand(0));
     }
@@ -1215,6 +1306,15 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::FillArrayData: {
       return ExpandToRuntime(runtime_support::FillArrayData, call_inst);
     }
+    case IntrinsicHelper::HLFillArrayData: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLFilledNewArray: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+
     //==- Instance Field ---------------------------------------------------==//
     case IntrinsicHelper::InstanceFieldGet:
     case IntrinsicHelper::InstanceFieldGetBoolean:
@@ -1340,6 +1440,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
                       kShort);
       return NULL;
     }
+
     //==- Static Field -----------------------------------------------------==//
     case IntrinsicHelper::StaticFieldGet:
     case IntrinsicHelper::StaticFieldGetBoolean:
@@ -1474,6 +1575,181 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::InitializeAndLoadClassSSB: {
       return ExpandToRuntime(runtime_support::InitializeStaticStorage, call_inst);
     }
+
+    //==- High-level Array -------------------------------------------------==//
+    case IntrinsicHelper::HLArrayGet: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayGetBoolean: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayGetByte: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayGetChar: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayGetShort: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayGetFloat: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayGetWide: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayGetDouble: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayGetObject: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayPut: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayPutBoolean: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayPutByte: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayPutChar: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayPutShort: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayPutFloat: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayPutWide: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayPutDouble: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLArrayPutObject: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+
+    //==- High-level Instance ----------------------------------------------==//
+    case IntrinsicHelper::HLIGet: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIGetBoolean: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIGetByte: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIGetChar: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIGetShort: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIGetFloat: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIGetWide: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIGetDouble: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIGetObject: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIPut: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIPutBoolean: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIPutByte: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIPutChar: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIPutShort: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIPutFloat: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIPutWide: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIPutDouble: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLIPutObject: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+
+    //==- High-level Invoke ------------------------------------------------==//
+    case IntrinsicHelper::HLInvokeVoid: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLInvokeObj: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLInvokeInt: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLInvokeFloat: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLInvokeLong: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLInvokeDouble: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+
     //==- Invoke -----------------------------------------------------------==//
     case IntrinsicHelper::FindStaticMethodWithAccessCheck: {
       return ExpandToRuntime(runtime_support::FindStaticMethodWithAccessCheck, call_inst);
@@ -1512,6 +1788,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::InvokeRetObject: {
       return Expand_Invoke(call_inst);
     }
+
     //==- Math -------------------------------------------------------------==//
     case IntrinsicHelper::DivInt: {
       return Expand_DivRem(call_inst.getArgOperand(0),
@@ -1545,6 +1822,91 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::F2I: {
       return ExpandToRuntime(runtime_support::art_f2i, call_inst);
     }
+
+    //==- High-level Static ------------------------------------------------==//
+    case IntrinsicHelper::HLSget: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSgetBoolean: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSgetByte: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSgetChar: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSgetShort: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSgetFloat: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSgetWide: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSgetDouble: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSgetObject: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSput: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSputBoolean: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSputByte: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSputChar: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSputShort: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSputFloat: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSputWide: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSputDouble: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::HLSputObject: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+
+    //==- High-level Monitor -----------------------------------------------==//
+    case IntrinsicHelper::MonitorEnter: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case IntrinsicHelper::MonitorExit: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+
     //==- Shadow Frame -----------------------------------------------------==//
     case IntrinsicHelper::AllocaShadowFrame: {
       Expand_AllocaShadowFrame(call_inst.getArgOperand(0));
@@ -1564,8 +1926,117 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return NULL;
     }
 
+    //==- Comparison -------------------------------------------------------==//
+    case IntrinsicHelper::CmplFloat:
+    case IntrinsicHelper::CmplDouble: {
+      return Expand_FPCompare(call_inst.getArgOperand(0),
+                              call_inst.getArgOperand(1),
+                              false);
+    }
+    case IntrinsicHelper::CmpgFloat:
+    case IntrinsicHelper::CmpgDouble: {
+      return Expand_FPCompare(call_inst.getArgOperand(0),
+                              call_inst.getArgOperand(1),
+                              true);
+    }
+    case IntrinsicHelper::CmpLong: {
+      return Expand_LongCompare(call_inst.getArgOperand(0),
+                                call_inst.getArgOperand(1));
+    }
 
-    //==- Quick ------------------------------------------------------------==//
+    //==- Switch -----------------------------------------------------------==//
+    case greenland::IntrinsicHelper::SparseSwitch: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case greenland::IntrinsicHelper::PackedSwitch: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+
+    //==- Const ------------------------------------------------------------==//
+    case greenland::IntrinsicHelper::ConstInt: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case greenland::IntrinsicHelper::ConstObj: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case greenland::IntrinsicHelper::ConstLong: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case greenland::IntrinsicHelper::ConstFloat: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case greenland::IntrinsicHelper::ConstDouble: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+
+    //==- Method Info ------------------------------------------------------==//
+    case greenland::IntrinsicHelper::MethodInfo: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+
+    //==- Copy -------------------------------------------------------------==//
+    case greenland::IntrinsicHelper::CopyInt: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case greenland::IntrinsicHelper::CopyObj: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case greenland::IntrinsicHelper::CopyFloat: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case greenland::IntrinsicHelper::CopyLong: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+    case greenland::IntrinsicHelper::CopyDouble: {
+      UNIMPLEMENTED(FATAL);
+      return NULL;
+    }
+
+    //==- Shift ------------------------------------------------------------==//
+    case greenland::IntrinsicHelper::SHLLong: {
+      return Expand_IntegerShift(call_inst.getArgOperand(0),
+                                 call_inst.getArgOperand(1),
+                                 kIntegerSHL, kLong);
+    }
+    case greenland::IntrinsicHelper::SHRLong: {
+      return Expand_IntegerShift(call_inst.getArgOperand(0),
+                                 call_inst.getArgOperand(1),
+                                 kIntegerSHR, kLong);
+    }
+    case greenland::IntrinsicHelper::USHRLong: {
+      return Expand_IntegerShift(call_inst.getArgOperand(0),
+                                 call_inst.getArgOperand(1),
+                                 kIntegerUSHR, kLong);
+    }
+    case greenland::IntrinsicHelper::SHLInt: {
+      return Expand_IntegerShift(call_inst.getArgOperand(0),
+                                 call_inst.getArgOperand(1),
+                                 kIntegerSHL, kInt);
+    }
+    case greenland::IntrinsicHelper::SHRInt: {
+      return Expand_IntegerShift(call_inst.getArgOperand(0),
+                                 call_inst.getArgOperand(1),
+                                 kIntegerSHR, kInt);
+    }
+    case greenland::IntrinsicHelper::USHRInt: {
+      return Expand_IntegerShift(call_inst.getArgOperand(0),
+                                 call_inst.getArgOperand(1),
+                                 kIntegerUSHR, kInt);
+    }
+
+    //==- Conversion -------------------------------------------------------==//
     case IntrinsicHelper::IntToChar: {
       return irb_.CreateZExt(irb_.CreateTrunc(call_inst.getArgOperand(0), irb_.getJCharTy()),
                              irb_.getJIntTy());
@@ -1578,37 +2049,17 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return irb_.CreateSExt(irb_.CreateTrunc(call_inst.getArgOperand(0), irb_.getJByteTy()),
                              irb_.getJIntTy());
     }
-    case IntrinsicHelper::CmplFloat:
-    case IntrinsicHelper::CmplDouble: {
-      return Expand_FPCompare(call_inst.getArgOperand(0), call_inst.getArgOperand(0), false);
-    }
-    case IntrinsicHelper::CmpgFloat:
-    case IntrinsicHelper::CmpgDouble: {
-      return Expand_FPCompare(call_inst.getArgOperand(0), call_inst.getArgOperand(0), true);
-    }
-    case IntrinsicHelper::CmpLong: {
-      return Expand_LongCompare(call_inst.getArgOperand(0), call_inst.getArgOperand(0));
-    }
-    case greenland::IntrinsicHelper::SHLLong: {
-    }
-    case greenland::IntrinsicHelper::SHRLong: {
-    }
-    case greenland::IntrinsicHelper::USHRLong: {
-    }
-    case greenland::IntrinsicHelper::SHLInt: {
-    }
-    case greenland::IntrinsicHelper::SHRInt: {
-    }
-    case greenland::IntrinsicHelper::USHRInt: {
-    }
-    default: {
-      const IntrinsicHelper::IntrinsicInfo& intr_info =
-          IntrinsicHelper::GetInfo(intr_id);
 
-      UNIMPLEMENTED(FATAL) << "expand DexLang intrinsic: " << intr_info.name_;
+    //==- Unknown Cases ----------------------------------------------------==//
+    case IntrinsicHelper::MaxIntrinsicId:
+    case IntrinsicHelper::UnknownId:
+    //default:
+      // NOTE: "default" is intentionally commented so that C/C++ compiler will
+      // give some warning on unmatched cases.
+      // NOTE: We should not implement these cases.
       break;
-    }
   }
+  UNIMPLEMENTED(FATAL) << "Unexpected GBC intrinsic: " << static_cast<int>(intr_id);
   return NULL;
 }
 

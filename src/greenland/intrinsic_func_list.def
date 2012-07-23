@@ -1678,7 +1678,7 @@ _EVAL_DEF_INTRINSICS_FUNC(CopyInt,
                           kInt32Ty,
                           _EXPAND_ARG1(kInt32Ty))
 
-// int copy_obj(obj)
+// JavaObject* copy_obj(obj)
 _EVAL_DEF_INTRINSICS_FUNC(CopyObj,
                           dex_lang_copy_obj,
                           kAttrReadOnly | kAttrNoThrow,
@@ -1692,14 +1692,14 @@ _EVAL_DEF_INTRINSICS_FUNC(CopyLong,
                           kInt64Ty,
                           _EXPAND_ARG1(kInt64Ty))
 
-// int copy_float(float)
+// float copy_float(float)
 _EVAL_DEF_INTRINSICS_FUNC(CopyFloat,
                           dex_lang_copy_Float,
                           kAttrReadOnly | kAttrNoThrow,
                           kFloatTy,
                           _EXPAND_ARG1(kFloatTy))
 
-// int copy_double(double)
+// double copy_double(double)
 _EVAL_DEF_INTRINSICS_FUNC(CopyDouble,
                           dex_lang_copy_Double,
                           kAttrReadOnly | kAttrNoThrow,
