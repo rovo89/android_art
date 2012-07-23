@@ -24,7 +24,7 @@ define declare-make-art-run-test
 dmart_target := $(TARGET_OUT_DATA)/art-run-tests/$(1)/touch
 $$(dmart_target): $(DX)
 	$(hide) rm -rf $$(dir $$@) && mkdir -p $$(dir $$@)
-	$(hide) DX=$(DX) $(LOCAL_PATH)/run-test --build-only --output-path $$(abspath $$(dir $$@)) $(1)
+	$(hide) DX=$(abspath $(DX)) $(LOCAL_PATH)/run-test --build-only --output-path $$(abspath $$(dir $$@)) $(1)
 	$(hide) touch $$@
 
 TEST_ART_RUN_TEST_MAKE_TARGETS += $$(dmart_target)
