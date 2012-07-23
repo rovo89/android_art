@@ -175,6 +175,19 @@ class GBCExpanderPass : public llvm::FunctionPass {
 
   void Expand_UpdateDexPC(llvm::Value* dex_pc_value);
 
+  //----------------------------------------------------------------------------
+  // Quick
+  //----------------------------------------------------------------------------
+
+  llvm::Value* Expand_FPCompare(llvm::Value* src1_value,
+                                llvm::Value* src2_value,
+                                bool gt_bias);
+
+  llvm::Value* Expand_LongCompare(llvm::Value* src1_value, llvm::Value* src2_value);
+
+  llvm::Value* EmitCompareResultSelection(llvm::Value* cmp_eq,
+                                          llvm::Value* cmp_lt);
+
  public:
   static char ID;
 
@@ -977,6 +990,41 @@ bool GBCExpanderPass::InsertStackOverflowCheck(llvm::Function& func) {
   return EmitStackOverflowCheck(&*first_non_alloca);
 }
 
+llvm::Value* GBCExpanderPass::Expand_FPCompare(llvm::Value* src1_value,
+                                               llvm::Value* src2_value,
+                                               bool gt_bias) {
+  llvm::Value* cmp_eq = irb_.CreateFCmpOEQ(src1_value, src2_value);
+  llvm::Value* cmp_lt;
+
+  if (gt_bias) {
+    cmp_lt = irb_.CreateFCmpOLT(src1_value, src2_value);
+  } else {
+    cmp_lt = irb_.CreateFCmpULT(src1_value, src2_value);
+  }
+
+  return EmitCompareResultSelection(cmp_eq, cmp_lt);
+}
+
+llvm::Value* GBCExpanderPass::Expand_LongCompare(llvm::Value* src1_value, llvm::Value* src2_value) {
+  llvm::Value* cmp_eq = irb_.CreateICmpEQ(src1_value, src2_value);
+  llvm::Value* cmp_lt = irb_.CreateICmpSLT(src1_value, src2_value);
+
+  return EmitCompareResultSelection(cmp_eq, cmp_lt);
+}
+
+llvm::Value* GBCExpanderPass::EmitCompareResultSelection(llvm::Value* cmp_eq,
+                                                         llvm::Value* cmp_lt) {
+
+  llvm::Constant* zero = irb_.getJInt(0);
+  llvm::Constant* pos1 = irb_.getJInt(1);
+  llvm::Constant* neg1 = irb_.getJInt(-1);
+
+  llvm::Value* result_lt = irb_.CreateSelect(cmp_lt, neg1, pos1);
+  llvm::Value* result_eq = irb_.CreateSelect(cmp_eq, zero, result_lt);
+
+  return result_eq;
+}
+
 llvm::Value*
 GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
                                  llvm::CallInst& call_inst) {
@@ -1514,6 +1562,44 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::UpdateDexPC: {
       Expand_UpdateDexPC(call_inst.getArgOperand(0));
       return NULL;
+    }
+
+
+    //==- Quick ------------------------------------------------------------==//
+    case IntrinsicHelper::IntToChar: {
+      return irb_.CreateZExt(irb_.CreateTrunc(call_inst.getArgOperand(0), irb_.getJCharTy()),
+                             irb_.getJIntTy());
+    }
+    case IntrinsicHelper::IntToShort: {
+      return irb_.CreateSExt(irb_.CreateTrunc(call_inst.getArgOperand(0), irb_.getJShortTy()),
+                             irb_.getJIntTy());
+    }
+    case IntrinsicHelper::IntToByte: {
+      return irb_.CreateSExt(irb_.CreateTrunc(call_inst.getArgOperand(0), irb_.getJByteTy()),
+                             irb_.getJIntTy());
+    }
+    case IntrinsicHelper::CmplFloat:
+    case IntrinsicHelper::CmplDouble: {
+      return Expand_FPCompare(call_inst.getArgOperand(0), call_inst.getArgOperand(0), false);
+    }
+    case IntrinsicHelper::CmpgFloat:
+    case IntrinsicHelper::CmpgDouble: {
+      return Expand_FPCompare(call_inst.getArgOperand(0), call_inst.getArgOperand(0), true);
+    }
+    case IntrinsicHelper::CmpLong: {
+      return Expand_LongCompare(call_inst.getArgOperand(0), call_inst.getArgOperand(0));
+    }
+    case greenland::IntrinsicHelper::SHLLong: {
+    }
+    case greenland::IntrinsicHelper::SHRLong: {
+    }
+    case greenland::IntrinsicHelper::USHRLong: {
+    }
+    case greenland::IntrinsicHelper::SHLInt: {
+    }
+    case greenland::IntrinsicHelper::SHRInt: {
+    }
+    case greenland::IntrinsicHelper::USHRInt: {
     }
     default: {
       const IntrinsicHelper::IntrinsicInfo& intr_info =
