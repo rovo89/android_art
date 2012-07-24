@@ -439,10 +439,12 @@ llvm::Value* genDivModOp(CompilationUnit* cUnit, bool isDiv, bool isLong,
     } else {
       id = greenland::IntrinsicHelper::RemLong;
     }
-  } else if (isDiv) {
+  } else {
+    if (isDiv) {
       id = greenland::IntrinsicHelper::DivInt;
     } else {
       id = greenland::IntrinsicHelper::RemInt;
+    }
   }
   llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
   llvm::SmallVector<llvm::Value*, 2>args;
