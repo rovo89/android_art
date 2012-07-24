@@ -1083,12 +1083,9 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::GetCurrentThread: {
       return irb_.Runtime().EmitGetCurrentThread();
     }
-    case IntrinsicHelper::TestSuspend: {
-      Expand_TestSuspend(call_inst);
-      return NULL;
-    }
+    case IntrinsicHelper::TestSuspend:
     case IntrinsicHelper::CheckSuspend: {
-      UNIMPLEMENTED(FATAL);
+      Expand_TestSuspend(call_inst);
       return NULL;
     }
     case IntrinsicHelper::MarkGCCard: {
@@ -1955,24 +1952,20 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     }
 
     //==- Const ------------------------------------------------------------==//
-    case greenland::IntrinsicHelper::ConstInt: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
-    }
-    case greenland::IntrinsicHelper::ConstObj: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
-    }
+    case greenland::IntrinsicHelper::ConstInt:
     case greenland::IntrinsicHelper::ConstLong: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return call_inst.getArgOperand(0);
     }
     case greenland::IntrinsicHelper::ConstFloat: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return irb_.CreateBitCast(call_inst.getArgOperand(0),
+                                irb_.getJFloatTy());
     }
     case greenland::IntrinsicHelper::ConstDouble: {
-      UNIMPLEMENTED(FATAL);
+      return irb_.CreateBitCast(call_inst.getArgOperand(0),
+                                irb_.getJDoubleTy());
+    }
+    case greenland::IntrinsicHelper::ConstObj: {
+      LOG(FATAL) << "ConstObj should not occur at all";
       return NULL;
     }
 
@@ -1983,25 +1976,15 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     }
 
     //==- Copy -------------------------------------------------------------==//
-    case greenland::IntrinsicHelper::CopyInt: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+    case greenland::IntrinsicHelper::CopyInt:
+    case greenland::IntrinsicHelper::CopyFloat:
+    case greenland::IntrinsicHelper::CopyLong:
+    case greenland::IntrinsicHelper::CopyDouble: {
+      return call_inst.getArgOperand(0);
     }
     case greenland::IntrinsicHelper::CopyObj: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
-    }
-    case greenland::IntrinsicHelper::CopyFloat: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
-    }
-    case greenland::IntrinsicHelper::CopyLong: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
-    }
-    case greenland::IntrinsicHelper::CopyDouble: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      // TODO: Update the shadow frame slots.
+      return call_inst.getArgOperand(0);
     }
 
     //==- Shift ------------------------------------------------------------==//
