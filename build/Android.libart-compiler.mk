@@ -116,6 +116,9 @@ define build-libart-compiler
     endif
     LOCAL_SHARED_LIBRARIES += libart
   endif
+  ifeq ($(ART_USE_QUICK_COMPILER), true)
+    LOCAL_SHARED_LIBRARIES += libbcc
+  endif
 
   # TODO: temporary hack for testing.
   ifeq ($$(libart_compiler_arch),mips)
@@ -127,14 +130,6 @@ define build-libart-compiler
   endif
 
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
-
-  ifeq ($(ART_USE_QUICK_COMPILER), true)
-    LOCAL_STATIC_LIBRARIES += \
-      libLLVMBitWriter \
-      libLLVMBitReader \
-      libLLVMCore \
-      libLLVMSupport
-  endif
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libstlport
