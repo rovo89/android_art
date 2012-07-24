@@ -43,13 +43,41 @@ static const char* type_strings[] = {
     "Uninitialized This Reference",
     "Unresolved And Uninitialized Reference",
     "Unresolved And Uninitialized This Reference",
+    "Unresolved Merged References",
+    "Unresolved Super Class",
     "Reference",
 };
 
-std::string RegType::Dump() const {
+std::string RegType::Dump(const RegTypeCache* reg_types) const {
   DCHECK(type_ >=  kRegTypeUndefined && type_ <= kRegTypeReference);
+  DCHECK(arraysize(type_strings) == (kRegTypeReference + 1));
   std::string result;
-  if (IsConstant()) {
+  if (IsUnresolvedMergedReference()) {
+    if (reg_types == NULL) {
+      std::pair<uint16_t, uint16_t> refs = GetTopMergedTypes();
+      result += StringPrintf("UnresolvedMergedReferences(%d, %d)", refs.first, refs.second);
+    } else {
+      std::set<uint16_t> types = GetMergedTypes(reg_types);
+      result += "UnresolvedMergedReferences(";
+      typedef std::set<uint16_t>::const_iterator It;  // TODO: C++0x auto
+      It it = types.begin();
+      result += reg_types->GetFromId(*it).Dump(reg_types);
+      for(++it; it != types.end(); ++it) {
+        result += ", ";
+        result += reg_types->GetFromId(*it).Dump(reg_types);
+      }
+      result += ")";
+    }
+  } else if (IsUnresolvedSuperClass()) {
+    uint16_t super_type_id = GetUnresolvedSuperClassChildId();
+    if (reg_types == NULL) {
+      result += StringPrintf("UnresolvedSuperClass(%d)", super_type_id);
+    } else {
+      result += "UnresolvedSuperClass(";
+      result += reg_types->GetFromId(super_type_id).Dump(reg_types);
+      result += ")";
+    }
+  } else if (IsConstant()) {
     uint32_t val = ConstantValue();
     if (val == 0) {
       result = "Zero";
@@ -85,6 +113,31 @@ const RegType& RegType::HighHalf(RegTypeCache* cache) const {
   }
 }
 
+std::set<uint16_t> RegType::GetMergedTypes(const RegTypeCache* cache) const {
+  std::pair<uint16_t, uint16_t> refs = GetTopMergedTypes();
+  const RegType& left = cache->GetFromId(refs.first);
+  const RegType& right = cache->GetFromId(refs.second);
+  std::set<uint16_t> types;
+  if (left.IsUnresolvedMergedReference()) {
+    types = left.GetMergedTypes(cache);
+  } else {
+    types.insert(refs.first);
+  }
+  if (right.IsUnresolvedMergedReference()) {
+    std::set<uint16_t> right_types = right.GetMergedTypes(cache);
+    types.insert(right_types.begin(), right_types.end());
+  } else {
+    types.insert(refs.second);
+  }
+#ifndef NDEBUG
+  typedef std::set<uint16_t>::const_iterator It;  // TODO: C++0x auto
+  for(It it = types.begin(); it != types.end(); ++it) {
+    CHECK(!cache->GetFromId(*it).IsUnresolvedMergedReference());
+  }
+#endif
+  return types;
+}
+
 const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
   if (!IsUnresolvedTypes()) {
     Class* super_klass = GetClass()->GetSuperClass();
@@ -94,8 +147,13 @@ const RegType& RegType::GetSuperClass(RegTypeCache* cache) const {
       return cache->Zero();
     }
   } else {
-    // TODO: handle unresolved type cases better?
-    return cache->Conflict();
+    if (!IsUnresolvedMergedReference() && !IsUnresolvedSuperClass() &&
+        GetDescriptor()->CharAt(0) == '[') {
+      // Super class of all arrays is Object.
+      return cache->JavaLangObject();
+    } else {
+      return cache->FromUnresolvedSuperClass(*this);
+    }
   }
 }
 
@@ -157,12 +215,8 @@ bool RegType::IsAssignableFrom(const RegType& src) const {
                    GetClass()->IsAssignableFrom(src.GetClass())) {
           // We're assignable from the Class point-of-view
           return true;
-        } else if (IsUnresolvedTypes() && src.IsUnresolvedTypes() &&
-                   GetDescriptor() == src.GetDescriptor()) {
-          // Two unresolved types (maybe one is uninitialized), we're clearly assignable if the
-          // descriptor is the same.
-          return true;
         } else {
+          // TODO: unresolved types are only assignable for null, Object and equality currently.
           return false;
         }
     }
@@ -248,10 +302,16 @@ const RegType& RegType::Merge(const RegType& incoming_type, RegTypeCache* reg_ty
       return SelectNonConstant(*this, incoming_type);  // 0 MERGE ref => ref
     } else if (IsJavaLangObject() || incoming_type.IsJavaLangObject()) {
       return reg_types->JavaLangObject();  // Object MERGE ref => Object
-    } else if (IsUninitializedTypes() || incoming_type.IsUninitializedTypes() ||
-               IsUnresolvedTypes() || incoming_type.IsUnresolvedTypes()) {
-      // Can only merge an unresolved or uninitialized type with itself, 0 or Object, we've already
-      // checked these so => Conflict
+    } else if (IsUnresolvedTypes() || incoming_type.IsUnresolvedTypes()) {
+      // We know how to merge an unresolved type with itself, 0 or Object. In this case we
+      // have two sub-classes and don't know how to merge. Create a new string-based unresolved
+      // type that reflects our lack of knowledge and that allows the rest of the unresolved
+      // mechanics to continue.
+      return reg_types->FromUnresolvedMerge(*this, incoming_type);
+    } else if (IsUninitializedTypes() || incoming_type.IsUninitializedTypes()) {
+      // Something that is uninitialized hasn't had its constructor called. Mark any merge
+      // of this type with something that is initialized as conflicting. The cases of a merge
+      // with itself, 0 or Object are handled above.
       return reg_types->Conflict();
     } else {  // Two reference types, compute Join
       Class* c1 = GetClass();

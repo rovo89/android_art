@@ -130,6 +130,20 @@ void RegisterLine::MarkRefsAsInitialized(const RegType& uninit_type) {
   DCHECK_GT(changed, 0u);
 }
 
+std::string RegisterLine::Dump() const {
+  std::string result;
+  for (size_t i = 0; i < num_regs_; i++) {
+    result += StringPrintf("%zd:[", i);
+    result += GetRegisterType(i).Dump(verifier_->GetRegTypeCache());
+    result += "],";
+  }
+  typedef std::deque<uint32_t>::const_iterator It; // TODO: C++0x auto
+  for (It it = monitors_.begin(), end = monitors_.end(); it != end ; ++it) {
+    result += StringPrintf("{%d},", *it);
+  }
+  return result;
+}
+
 void RegisterLine::MarkUninitRefsAsInvalid(const RegType& uninit_type) {
   for (size_t i = 0; i < num_regs_; i++) {
     if (GetRegisterType(i).Equals(uninit_type)) {

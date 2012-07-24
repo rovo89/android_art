@@ -98,19 +98,7 @@ class RegisterLine {
     reg_to_lock_depths_ = src->reg_to_lock_depths_;
   }
 
-  std::string Dump() const {
-    std::string result;
-    for (size_t i = 0; i < num_regs_; i++) {
-      result += StringPrintf("%zd:[", i);
-      result += GetRegisterType(i).Dump();
-      result += "],";
-    }
-    typedef std::deque<uint32_t>::const_iterator It; // TODO: C++0x auto
-    for (It it = monitors_.begin(), end = monitors_.end(); it != end ; ++it) {
-      result += StringPrintf("{%d},", *it);
-    }
-    return result;
-  }
+  std::string Dump() const;
 
   void FillWithGarbage() {
     memset(line_.get(), 0xf1, num_regs_ * sizeof(uint16_t));

@@ -33,7 +33,7 @@ class RegTypeCache {
     STLDeleteElements(&entries_);
   }
 
-  const RegType& GetFromId(uint16_t id) {
+  const RegType& GetFromId(uint16_t id) const {
     DCHECK_LT(id, entries_.size());
     RegType* result = entries_[id];
     DCHECK(result != NULL);
@@ -45,6 +45,8 @@ class RegTypeCache {
   const RegType& FromCat1Const(int32_t value);
   const RegType& FromDescriptor(ClassLoader* loader, const char* descriptor);
   const RegType& FromType(RegType::Type);
+  const RegType& FromUnresolvedMerge(const RegType& left, const RegType& right);
+  const RegType& FromUnresolvedSuperClass(const RegType& child);
 
   const RegType& Boolean() { return FromType(RegType::kRegTypeBoolean); }
   const RegType& Byte()    { return FromType(RegType::kRegTypeByte); }

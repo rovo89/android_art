@@ -143,6 +143,60 @@ const RegType& RegTypeCache::FromClass(Class* klass) {
   }
 }
 
+const RegType& RegTypeCache::FromUnresolvedMerge(const RegType& left, const RegType& right) {
+  std::set<uint16_t> types;
+  if (left.IsUnresolvedMergedReference()) {
+    types = left.GetMergedTypes(this);
+  } else {
+    types.insert(left.GetId());
+  }
+  if (right.IsUnresolvedMergedReference()) {
+    std::set<uint16_t> right_types = right.GetMergedTypes(this);
+    types.insert(right_types.begin(), right_types.end());
+  } else {
+    types.insert(right.GetId());
+  }
+  // Check if entry already exists.
+  for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
+    RegType* cur_entry = entries_[i];
+    if (cur_entry->IsUnresolvedMergedReference()) {
+      std::set<uint16_t> cur_entry_types = cur_entry->GetMergedTypes(this);
+      if (cur_entry_types == types) {
+        return *cur_entry;
+      }
+    }
+  }
+  // Create entry.
+  uint32_t merged_ids = static_cast<uint32_t>(left.GetId()) << 16 |
+                        static_cast<uint32_t>(right.GetId());
+  RegType* entry = new RegType(RegType::kRegTypeUnresolvedMergedReference, NULL, merged_ids,
+                               entries_.size());
+  entries_.push_back(entry);
+#ifndef DEBUG
+  std::set<uint16_t> check_types = entry->GetMergedTypes(this);
+  CHECK(check_types == types);
+#endif
+  return *entry;
+}
+
+const RegType& RegTypeCache::FromUnresolvedSuperClass(const RegType& child) {
+  // Check if entry already exists.
+   for (size_t i = RegType::kRegTypeLastFixedLocation + 1; i < entries_.size(); i++) {
+     RegType* cur_entry = entries_[i];
+     if (cur_entry->IsUnresolvedSuperClass()) {
+       uint16_t unresolved_super_child_id = cur_entry->GetUnresolvedSuperClassChildId();
+       if (unresolved_super_child_id == child.GetId()) {
+         return *cur_entry;
+       }
+     }
+   }
+   // Create entry.
+   RegType* entry = new RegType(RegType::kRegTypeUnresolvedSuperClass, NULL, child.GetId(),
+                                entries_.size());
+   entries_.push_back(entry);
+   return *entry;
+}
+
 const RegType& RegTypeCache::Uninitialized(const RegType& type, uint32_t allocation_pc) {
   RegType* entry;
   if (type.IsUnresolvedTypes()) {
