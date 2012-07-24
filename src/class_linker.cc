@@ -2045,6 +2045,11 @@ void ClassLinker::VerifyClass(Class* klass) {
       LOG(FATAL) << "Verification failed hard on class " << PrettyDescriptor(klass)
                  << " at compile time, but succeeded at runtime! The verifier must be broken.";
     }
+    if (!preverified && verifier_failure != verifier::MethodVerifier::kNoFailure) {
+      LOG(WARNING) << "Soft verification failure in class " << PrettyDescriptor(klass)
+          << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
+          << " because: " << error_msg;
+    }
     DCHECK(!Thread::Current()->IsExceptionPending());
     CHECK(verifier_failure == verifier::MethodVerifier::kNoFailure ||
           Runtime::Current()->IsCompiler());

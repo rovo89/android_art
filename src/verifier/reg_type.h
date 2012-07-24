@@ -62,6 +62,8 @@ class RegType {
     kRegTypeUnresolvedAndUninitializedReference, // Freshly allocated unresolved reference type.
                                         // Freshly allocated unresolved reference passed as "this".
     kRegTypeUnresolvedAndUninitializedThisReference,
+    kRegTypeUnresolvedMergedReference,  // Tree of merged references (at least 1 is unresolved).
+    kRegTypeUnresolvedSuperClass,       // Super class of an unresolved type.
     kRegTypeReference,                  // Reference type.
   };
 
@@ -88,6 +90,8 @@ class RegType {
   bool IsUnresolvedAndUninitializedThisReference() const {
     return type_ == kRegTypeUnresolvedAndUninitializedThisReference;
   }
+  bool IsUnresolvedMergedReference() const {  return type_ == kRegTypeUnresolvedMergedReference; }
+  bool IsUnresolvedSuperClass() const {  return type_ == kRegTypeUnresolvedSuperClass; }
   bool IsReference() const { return type_ == kRegTypeReference; }
   bool IsUninitializedTypes() const {
     return IsUninitializedReference() || IsUninitializedThisReference() ||
@@ -95,7 +99,8 @@ class RegType {
   }
   bool IsUnresolvedTypes() const {
     return IsUnresolvedReference() || IsUnresolvedAndUninitializedReference() ||
-        IsUnresolvedAndUninitializedThisReference();
+        IsUnresolvedAndUninitializedThisReference() || IsUnresolvedMergedReference() ||
+        IsUnresolvedSuperClass();
   }
   bool IsLowHalf() const { return type_ == kRegTypeLongLo ||
                                   type_ == kRegTypeDoubleLo ||
@@ -122,7 +127,7 @@ class RegType {
   // approximate to the actual constant value by virtue of merging.
   int32_t ConstantValue() const {
     DCHECK(IsConstant());
-    return allocation_pc_or_constant_;
+    return allocation_pc_or_constant_or_merged_types_;
   }
 
   bool IsZero()         const { return IsConstant() && ConstantValue() == 0; }
@@ -146,14 +151,18 @@ class RegType {
   bool IsReferenceTypes() const {
     return IsNonZeroReferenceTypes() || IsZero();
   }
+
   bool IsNonZeroReferenceTypes() const {
     return IsReference() || IsUnresolvedReference() ||
         IsUninitializedReference() || IsUninitializedThisReference() ||
-        IsUnresolvedAndUninitializedReference() || IsUnresolvedAndUninitializedThisReference();
+        IsUnresolvedAndUninitializedReference() || IsUnresolvedAndUninitializedThisReference() ||
+        IsUnresolvedMergedReference() || IsUnresolvedSuperClass();
   }
+
   bool IsCategory1Types() const {
     return (type_ >= kRegType1nrSTART && type_ <= kRegType1nrEND) || IsConstant();
   }
+
   bool IsCategory2Types() const {
     return IsLowHalf();  // Don't expect explicit testing of high halves
   }
@@ -185,7 +194,7 @@ class RegType {
 
   uint32_t GetAllocationPc() const {
     DCHECK(IsUninitializedTypes());
-    return allocation_pc_or_constant_;
+    return allocation_pc_or_constant_or_merged_types_;
   }
 
   Class* GetClass() const {
@@ -200,7 +209,7 @@ class RegType {
   }
 
   bool IsArrayTypes() const {
-    if (IsUnresolvedTypes()) {
+    if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
       return GetDescriptor()->CharAt(0) == '[';
     } else if (IsReference()) {
       return GetClass()->IsArrayClass();
@@ -210,7 +219,7 @@ class RegType {
   }
 
   bool IsObjectArrayTypes() const {
-    if (IsUnresolvedTypes()) {
+    if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
       // Primitive arrays will always resolve
       DCHECK(GetDescriptor()->CharAt(1) == 'L' || GetDescriptor()->CharAt(1) == '[');
       return GetDescriptor()->CharAt(0) == '[';
@@ -258,7 +267,7 @@ class RegType {
   }
 
   String* GetDescriptor() const {
-    DCHECK(IsUnresolvedTypes());
+    DCHECK(IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass());
     DCHECK(klass_or_descriptor_ != NULL);
     DCHECK(klass_or_descriptor_->GetClass()->IsStringClass());
     return down_cast<String*>(klass_or_descriptor_);
@@ -268,9 +277,25 @@ class RegType {
     return cache_id_;
   }
 
+  // The top of a tree of merged types.
+  std::pair<uint16_t, uint16_t> GetTopMergedTypes() const {
+    DCHECK(IsUnresolvedMergedReference());
+    uint16_t type1 = static_cast<uint16_t>(allocation_pc_or_constant_or_merged_types_ & 0xFFFF);
+    uint16_t type2 = static_cast<uint16_t>(allocation_pc_or_constant_or_merged_types_ >> 16);
+    return std::pair<uint16_t, uint16_t>(type1, type2);
+  }
+
+  // The complete set of merged types.
+  std::set<uint16_t> GetMergedTypes(const RegTypeCache* cache) const;
+
+  uint16_t GetUnresolvedSuperClassChildId() const {
+    DCHECK(IsUnresolvedSuperClass());
+    return static_cast<uint16_t>(allocation_pc_or_constant_or_merged_types_ & 0xFFFF);
+  }
+
   const RegType& GetSuperClass(RegTypeCache* cache) const;
 
-  std::string Dump() const;
+  std::string Dump(const RegTypeCache* reg_types = NULL) const;
 
   // Can this type access other?
   bool CanAccess(const RegType& other) const;
@@ -306,12 +331,15 @@ class RegType {
  private:
   friend class RegTypeCache;
 
-  RegType(Type type, Object* klass_or_descriptor, uint32_t allocation_pc_or_constant, uint16_t cache_id)
+  RegType(Type type, Object* klass_or_descriptor,
+          uint32_t allocation_pc_or_constant_or_merged_types, uint16_t cache_id)
       : type_(type), klass_or_descriptor_(klass_or_descriptor),
-        allocation_pc_or_constant_(allocation_pc_or_constant), cache_id_(cache_id) {
-    DCHECK(IsConstant() || IsUninitializedTypes() || allocation_pc_or_constant == 0);
+        allocation_pc_or_constant_or_merged_types_(allocation_pc_or_constant_or_merged_types),
+        cache_id_(cache_id) {
+    DCHECK(IsConstant() || IsUninitializedTypes() || IsUnresolvedMergedReference() ||
+           IsUnresolvedSuperClass() || allocation_pc_or_constant_or_merged_types == 0);
     if (!IsConstant() && !IsLongConstant() && !IsLongConstantHigh() && !IsUndefined() &&
-        !IsConflict()) {
+        !IsConflict() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
       DCHECK(klass_or_descriptor != NULL);
       DCHECK(IsUnresolvedTypes() || klass_or_descriptor_->IsClass());
       DCHECK(!IsUnresolvedTypes() || klass_or_descriptor_->GetClass()->IsStringClass());
@@ -327,7 +355,7 @@ class RegType {
   //   - if IsConstant() holds a 32bit constant value
   //   - is IsReference() holds the allocation_pc or kInitArgAddr for an initialized reference or
   //     kUninitThisArgAddr for an uninitialized this ptr
-  const uint32_t allocation_pc_or_constant_;
+  const uint32_t allocation_pc_or_constant_or_merged_types_;
 
   // A RegType cache densely encodes types, this is the location in the cache for this type
   const uint16_t cache_id_;

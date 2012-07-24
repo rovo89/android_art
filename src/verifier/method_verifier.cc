@@ -2627,7 +2627,7 @@ Method* MethodVerifier::VerifyInvocationArgs(const DecodedInstruction& dec_insn,
   if (is_super) {
     DCHECK(method_type == METHOD_VIRTUAL);
     const RegType& super = GetDeclaringClass().GetSuperClass(&reg_types_);
-    if (super.IsConflict()) {  // unknown super class
+    if (super.IsUnresolvedTypes()) {
       Fail(VERIFY_ERROR_NO_METHOD) << "unknown super class in invoke-super from "
                                    << PrettyMethod(method_idx_, *dex_file_)
                                    << " to super " << PrettyMethod(res_method);
