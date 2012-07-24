@@ -54,12 +54,18 @@ void InitializeLLVM() {
   // Initialize LLVM target-specific options.
   art::compiler_llvm::InitialBackendOptions();
 
-  // Initialize LLVM target, MC subsystem, asm printer, and asm parser
+  // Initialize LLVM target, MC subsystem, asm printer, and asm parser.
+#if defined(ART_TARGET)
+  // Don't initialize all targets on device. Just initialize the device's native target
+  llvm::InitializeNativeTarget();
+  llvm::InitializeNativeTargetAsmPrinter();
+  llvm::InitializeNativeTargetAsmParser();
+#else
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
   llvm::InitializeAllAsmPrinters();
   llvm::InitializeAllAsmParsers();
-  // TODO: Maybe we don't have to initialize "all" targets.
+#endif
 
   // Initialize LLVM optimization passes
   llvm::PassRegistry &registry = *llvm::PassRegistry::getPassRegistry();
