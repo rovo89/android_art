@@ -513,6 +513,8 @@ DISASSEMBLER_ENTRY(cmp,
         break;
       case 0xB6: opcode << "movzxb"; has_modrm = true; load = true; break;
       case 0xB7: opcode << "movzxw"; has_modrm = true; load = true; break;
+      case 0xBE: opcode << "movsxb"; has_modrm = true; load = true; break;
+      case 0xBF: opcode << "movsxw"; has_modrm = true; load = true; break;
       default:
         opcode << StringPrintf("unknown opcode '0F %02X'", *instr);
         break;
