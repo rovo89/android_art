@@ -198,7 +198,16 @@ LIR *opRegReg(CompilationUnit *cUnit, OpKind op, int rDestSrc1, int rSrc2)
       case kOpAnd: opcode = kX86And32RR; break;
       case kOpOr:  opcode = kX86Or32RR; break;
       case kOpXor: opcode = kX86Xor32RR; break;
-      case kOp2Byte: opcode = kX86Movsx8RR; break;
+      case kOp2Byte:
+        // Use shifts instead of a byte operand if the source can't be byte accessed.
+        if (rSrc2 >= 4) {
+          newLIR2(cUnit, kX86Mov32RR, rDestSrc1, rSrc2);
+          newLIR2(cUnit, kX86Sal32RI, rDestSrc1, 24);
+          return newLIR2(cUnit, kX86Sar32RI, rDestSrc1, 24);
+        } else {
+          opcode = kX86Movsx8RR;
+        }
+        break;
       case kOp2Short: opcode = kX86Movsx16RR; break;
       case kOp2Char: opcode = kX86Movzx16RR; break;
       case kOpMul: opcode = kX86Imul32RR; break;
@@ -228,7 +237,7 @@ LIR* opRegMem(CompilationUnit *cUnit, OpKind op, int rDest, int rBase,
     case kOp2Char: opcode = kX86Movzx16RM; break;
     case kOpMul:
     default:
-      LOG(FATAL) << "Bad case in opRegReg " << op;
+      LOG(FATAL) << "Bad case in opRegMem " << op;
       break;
   }
   return newLIR3(cUnit, opcode, rDest, rBase, offset);
@@ -290,7 +299,7 @@ LIR* opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest, int rSrc,
     X86OpCode opcode = IS_SIMM8(value) ? kX86Imul32RRI8 : kX86Imul32RRI;
     return newLIR3(cUnit, opcode, rDest, rSrc, value);
   } else if (op == kOpAnd) {
-    if (value == 0xFF) {
+    if (value == 0xFF && rDest < 4) {
       return newLIR2(cUnit, kX86Movzx8RR, rDest, rSrc);
     } else if (value == 0xFFFF) {
       return newLIR2(cUnit, kX86Movzx16RR, rDest, rSrc);

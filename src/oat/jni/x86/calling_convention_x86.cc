@@ -106,11 +106,21 @@ const std::vector<ManagedRegister>& X86ManagedRuntimeCallingConvention::EntrySpi
 
 // JNI calling convention
 
-std::vector<ManagedRegister> X86JniCallingConvention::callee_save_regs_;
+X86JniCallingConvention::X86JniCallingConvention(bool is_static, bool is_synchronized,
+                                                 const char* shorty)
+    : JniCallingConvention(is_static, is_synchronized, shorty) {
+  callee_save_regs_.push_back(X86ManagedRegister::FromCpuRegister(EBP));
+  callee_save_regs_.push_back(X86ManagedRegister::FromCpuRegister(ESI));
+  callee_save_regs_.push_back(X86ManagedRegister::FromCpuRegister(EDI));
+}
+
+uint32_t X86JniCallingConvention::CoreSpillMask() const {
+  return 1 << EBP | 1 << ESI | 1 << EDI | 1 << kNumberOfCpuRegisters;
+}
 
 size_t X86JniCallingConvention::FrameSize() {
-  // Return address, Method* and local reference segment state
-  size_t frame_data_size = 3 * kPointerSize;
+  // Method*, return address and callee save area size, local reference segment state
+  size_t frame_data_size = (3 + CalleeSaveRegisters().size()) * kPointerSize;
   // References plus 2 words for SIRT header
   size_t sirt_size = (ReferenceCount() + 2) * kPointerSize;
   // Plus return value spill area size

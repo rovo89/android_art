@@ -264,7 +264,20 @@ static bool genCmpFP(CompilationUnit *cUnit, Instruction::Code code, RegLocation
   if (unorderedGt) {
     branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
   }
-  newLIR2(cUnit, kX86Set8R, rlResult.lowReg, kX86CondA /* above - unsigned > */);
+  // If the result reg can't be byte accessed, use a jump and move instead of a set.
+  if (rlResult.lowReg >= 4) {
+    LIR* branch2 = NULL;
+    if (unorderedGt) {
+      branch2 = newLIR2(cUnit, kX86Jcc8, 0, kX86CondA);
+      newLIR2(cUnit, kX86Mov32RI, rlResult.lowReg, 0x0);
+    } else {
+      branch2 = newLIR2(cUnit, kX86Jcc8, 0, kX86CondBe);
+      newLIR2(cUnit, kX86Mov32RI, rlResult.lowReg, 0x1);
+    }
+    branch2->target = newLIR0(cUnit, kPseudoTargetLabel);
+  } else {
+    newLIR2(cUnit, kX86Set8R, rlResult.lowReg, kX86CondA /* above - unsigned > */);
+  }
   newLIR2(cUnit, kX86Sbb32RI, rlResult.lowReg, 0);
   if (unorderedGt) {
     branch->target = newLIR0(cUnit, kPseudoTargetLabel);

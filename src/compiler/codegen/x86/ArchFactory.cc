@@ -128,11 +128,11 @@ void spillCoreRegs(CompilationUnit* cUnit) {
   }
   // Spill mask not including fake return address register
   uint32_t mask = cUnit->coreSpillMask & ~(1 << rRET);
-  int offset = cUnit->frameSize - 4;
+  int offset = cUnit->frameSize - (4 * cUnit->numCoreSpills);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
-      offset -= 4;
       storeWordDisp(cUnit, rSP, offset, reg);
+      offset += 4;
     }
   }
 }
@@ -143,11 +143,11 @@ void unSpillCoreRegs(CompilationUnit* cUnit) {
   }
   // Spill mask not including fake return address register
   uint32_t mask = cUnit->coreSpillMask & ~(1 << rRET);
-  int offset = cUnit->frameSize - 4;
+  int offset = cUnit->frameSize - (4 * cUnit->numCoreSpills);
   for (int reg = 0; mask; mask >>= 1, reg++) {
     if (mask & 0x1) {
-      offset -= 4;
       loadWordDisp(cUnit, rSP, offset, reg);
+      offset += 4;
     }
   }
 }

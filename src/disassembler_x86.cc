@@ -36,8 +36,8 @@ void DisassemblerX86::Dump(std::ostream& os, const uint8_t* begin, const uint8_t
 }
 
 static const char* gReg8Names[]  = { "al", "cl", "dl", "bl", "ah", "ch", "dh", "bh" };
-static const char* gReg16Names[] = { "ax", "cx", "dx", "bx", "sp", "bp", "di", "si" };
-static const char* gReg32Names[] = { "eax", "ecx", "edx", "ebx", "esp", "ebp", "edi", "esi" };
+static const char* gReg16Names[] = { "ax", "cx", "dx", "bx", "sp", "bp", "si", "di" };
+static const char* gReg32Names[] = { "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi" };
 
 static void DumpReg0(std::ostream& os, uint8_t /*rex*/, size_t reg,
                      bool byte_operand, uint8_t size_override) {
@@ -147,6 +147,7 @@ size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) 
   bool ax = false;  // implicit use of ax
   bool cx = false;  // implicit use of cx
   bool reg_in_opcode = false;  // low 3-bits of opcode encode register parameter
+  bool no_ops = false;
   RegFile src_reg_file = GPR;
   RegFile dst_reg_file = GPR;
   switch (*instr) {
@@ -473,6 +474,43 @@ DISASSEMBLER_ENTRY(cmp,
         has_modrm = true;
         store = true;
         break;
+      case 0xAE:
+        if (prefix[0] == 0xF3) {
+          static const char* xAE_opcodes[] = {"rdfsbase", "rdgsbase", "wrfsbase", "wrgsbase", "unknown-AE", "unknown-AE", "unknown-AE", "unknown-AE"};
+          modrm_opcodes = xAE_opcodes;
+          reg_is_opcode = true;
+          has_modrm = true;
+          uint8_t reg_or_opcode = (instr[1] >> 3) & 7;
+          switch (reg_or_opcode) {
+            case 0:
+              prefix[1] = kFs;
+              load = true;
+              break;
+            case 1:
+              prefix[1] = kGs;
+              load = true;
+              break;
+            case 2:
+              prefix[1] = kFs;
+              store = true;
+              break;
+            case 3:
+              prefix[1] = kGs;
+              store = true;
+              break;
+            default:
+              load = true;
+              break;
+          }
+        } else {
+          static const char* xAE_opcodes[] = {"unknown-AE", "unknown-AE", "unknown-AE", "unknown-AE", "unknown-AE", "lfence", "mfence", "sfence"};
+          modrm_opcodes = xAE_opcodes;
+          reg_is_opcode = true;
+          has_modrm = true;
+          load = true;
+          no_ops = true;
+        }
+        break;
       case 0xB6: opcode << "movzxb"; has_modrm = true; load = true; break;
       case 0xB7: opcode << "movzxw"; has_modrm = true; load = true; break;
       default:
@@ -489,10 +527,22 @@ DISASSEMBLER_ENTRY(cmp,
     byte_operand = (*instr & 1) == 0;
     immediate_bytes = *instr == 0x81 ? 4 : 1;
     break;
+  case 0x84: case 0x85:
+    opcode << "test";
+    has_modrm = true;
+    load = true;
+    byte_operand = (*instr & 1) == 0;
+    break;
   case 0x8D:
     opcode << "lea";
     has_modrm = true;
     load = true;
+    break;
+  case 0x8F:
+    opcode << "pop";
+    has_modrm = true;
+    reg_is_opcode = true;
+    store = true;
     break;
   case 0xB0: case 0xB1: case 0xB2: case 0xB3: case 0xB4: case 0xB5: case 0xB6: case 0xB7:
     opcode << "mov";
@@ -595,7 +645,9 @@ DISASSEMBLER_ENTRY(cmp,
       address << "]";
     } else {
       if (mod == 3) {
-        DumpReg(address, rex, rm, byte_operand, prefix[2], load ? src_reg_file : dst_reg_file);
+        if (!no_ops) {
+          DumpReg(address, rex, rm, byte_operand, prefix[2], load ? src_reg_file : dst_reg_file);
+        }
       } else {
         address << "[";
         DumpBaseReg(address, rex, rm);
