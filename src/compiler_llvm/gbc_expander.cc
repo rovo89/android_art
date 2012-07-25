@@ -17,9 +17,12 @@
 #include "ir_builder.h"
 #include "utils_llvm.h"
 
+#include "compiler.h"
 #include "greenland/intrinsic_helper.h"
+#include "oat_compilation_unit.h"
 #include "object.h"
 #include "thread.h"
+#include "verifier/method_verifier.h"
 
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/Intrinsics.h>
@@ -50,6 +53,25 @@ class GBCExpanderPass : public llvm::FunctionPass {
   uint32_t shadow_frame_size_;
 
  private:
+  // TODO: Init these fields
+  Compiler* compiler_;
+
+  const DexFile* dex_file_;
+  DexCache* dex_cache_;
+  const DexFile::CodeItem* code_item_;
+
+  OatCompilationUnit* oat_compilation_unit_;
+
+  uint32_t method_idx_;
+
+  llvm::Function* func_;
+
+  std::vector<llvm::BasicBlock*> basic_blocks_;
+
+  std::vector<llvm::BasicBlock*> basic_block_landing_pads_;
+  llvm::BasicBlock* basic_block_unwind_;
+
+ private:
   //----------------------------------------------------------------------------
   // Constant for GBC expansion
   //----------------------------------------------------------------------------
@@ -64,16 +86,16 @@ class GBCExpanderPass : public llvm::FunctionPass {
   // Helper function for GBC expansion
   //----------------------------------------------------------------------------
 
-  // Split the basic block containing INST at INST and insert a sequence of
-  // basic blocks with a single entry at BEGIN_BB and a single exit at END_BB
-  // before INST.
-  llvm::BasicBlock*
-  SplitAndInsertBasicBlocksAfter(llvm::BasicBlock::iterator inst,
-                                 llvm::BasicBlock* begin_bb,
-                                 llvm::BasicBlock* end_bb);
-
   llvm::Value* ExpandToRuntime(runtime_support::RuntimeId rt,
                                llvm::CallInst& inst);
+
+  uint64_t LV2UInt(llvm::Value* lv) {
+    return llvm::cast<llvm::ConstantInt>(lv)->getZExtValue();
+  }
+
+  int64_t LV2SInt(llvm::Value* lv) {
+    return llvm::cast<llvm::ConstantInt>(lv)->getSExtValue();
+  }
 
  private:
   // TODO: Almost all Emit* are directly copy-n-paste from MethodCompiler.
@@ -198,6 +220,75 @@ class GBCExpanderPass : public llvm::FunctionPass {
   llvm::Value* EmitCompareResultSelection(llvm::Value* cmp_eq,
                                           llvm::Value* cmp_lt);
 
+  class ScopedExpandToBasicBlock {
+   public:
+    ScopedExpandToBasicBlock(IRBuilder& irb, llvm::Instruction* expand_inst)
+        : irb_(irb), expand_inst_(expand_inst) {
+      llvm::Function* func = expand_inst_->getParent()->getParent();
+      begin_bb_ = llvm::BasicBlock::Create(irb_.getContext(),
+                                           "",
+                                           func);
+      irb_.SetInsertPoint(begin_bb_);
+    }
+
+    ~ScopedExpandToBasicBlock() {
+      llvm::BasicBlock* end_bb = irb_.GetInsertBlock();
+      SplitAndInsertBasicBlocksAfter(*expand_inst_, begin_bb_, end_bb);
+    }
+
+   private:
+    // Split the basic block containing INST at INST and insert a sequence of
+    // basic blocks with a single entry at BEGIN_BB and a single exit at END_BB
+    // before INST.
+    llvm::BasicBlock*
+    SplitAndInsertBasicBlocksAfter(llvm::BasicBlock::iterator inst,
+                                   llvm::BasicBlock* begin_bb,
+                                   llvm::BasicBlock* end_bb);
+   private:
+    IRBuilder& irb_;
+    llvm::Instruction* expand_inst_;
+    llvm::BasicBlock* begin_bb_;
+  };
+
+  llvm::Value* Expand_HLIGet(llvm::CallInst& call_inst, JType field_jty);
+  void Expand_HLIPut(llvm::CallInst& call_inst, JType field_jty);
+
+  void EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr);
+
+  void EmitUpdateDexPC(uint32_t dex_pc);
+
+  void EmitGuard_DivZeroException(uint32_t dex_pc,
+                                  llvm::Value* denominator,
+                                  JType op_jty);
+
+  void EmitGuard_NullPointerException(uint32_t dex_pc,
+                                      llvm::Value* object);
+
+  void EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
+                                                llvm::Value* array,
+                                                llvm::Value* index);
+
+  void EmitGuard_ArrayException(uint32_t dex_pc,
+                                llvm::Value* array,
+                                llvm::Value* index);
+
+  llvm::FunctionType* GetFunctionType(uint32_t method_idx, bool is_static);
+
+  llvm::BasicBlock* GetBasicBlock(uint32_t dex_pc);
+
+  llvm::BasicBlock* CreateBasicBlockWithDexPC(uint32_t dex_pc,
+                                              const char* postfix);
+
+  int32_t GetTryItemOffset(uint32_t dex_pc);
+
+  llvm::BasicBlock* GetLandingPadBasicBlock(uint32_t dex_pc);
+
+  llvm::BasicBlock* GetUnwindBasicBlock();
+
+  void EmitGuard_ExceptionLandingPad(uint32_t dex_pc);
+
+  void EmitBranchExceptionLandingPad(uint32_t dex_pc);
+
   //----------------------------------------------------------------------------
   // Expand Arithmetic Helper Intrinsics
   //----------------------------------------------------------------------------
@@ -264,6 +355,7 @@ bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
   shadow_frame_ = NULL;
   old_shadow_frame_ = NULL;
   shadow_frame_size_ = 0;
+  func_ = &func;
 
   // Remove the instruction containing in the work_list
   while (!work_list.empty()) {
@@ -294,9 +386,10 @@ bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
 }
 
 llvm::BasicBlock*
-GBCExpanderPass::SplitAndInsertBasicBlocksAfter(llvm::BasicBlock::iterator inst,
-                                                llvm::BasicBlock* begin_bb,
-                                                llvm::BasicBlock* end_bb) {
+GBCExpanderPass::ScopedExpandToBasicBlock::
+SplitAndInsertBasicBlocksAfter(llvm::BasicBlock::iterator inst,
+                               llvm::BasicBlock* begin_bb,
+                               llvm::BasicBlock* end_bb) {
   llvm::BasicBlock* original = inst->getParent();
   llvm::Function* parent = original->getParent();
 
@@ -304,7 +397,7 @@ GBCExpanderPass::SplitAndInsertBasicBlocksAfter(llvm::BasicBlock::iterator inst,
   llvm::BasicBlock *insert_before =
     llvm::next(llvm::Function::iterator(original)).getNodePtrUnchecked();
   llvm::BasicBlock* a =
-    llvm::BasicBlock::Create(context_, "", parent, insert_before);
+    llvm::BasicBlock::Create(irb_.getContext(), "", parent, insert_before);
 
   // 2. Move all instructions in ORIGINAL after INST (included) to A
   a->getInstList().splice(a->end(), original->getInstList(),
@@ -355,13 +448,10 @@ llvm::Value* GBCExpanderPass::ExpandToRuntime(runtime_support::RuntimeId rt,
 
 bool
 GBCExpanderPass::EmitStackOverflowCheck(llvm::Instruction* first_non_alloca) {
+  ScopedExpandToBasicBlock eb(irb_, first_non_alloca);
+
   llvm::Function* func = first_non_alloca->getParent()->getParent();
   llvm::Module* module = func->getParent();
-
-  llvm::BasicBlock* block_entry =
-      llvm::BasicBlock::Create(context_, "stack_overflow_entry", func);
-
-  irb_.SetInsertPoint(block_entry);
 
   // Call llvm intrinsic function to get frame address.
   llvm::Function* frameaddress =
@@ -406,9 +496,6 @@ GBCExpanderPass::EmitStackOverflowCheck(llvm::Instruction* first_non_alloca) {
   }
 
   irb_.SetInsertPoint(block_continue);
-
-  SplitAndInsertBasicBlocksAfter(*first_non_alloca, block_entry, block_continue);
-
   return true;
 }
 
@@ -535,31 +622,14 @@ llvm::Value* GBCExpanderPass::EmitArrayGEP(llvm::Value* array_addr,
 }
 
 void GBCExpanderPass::Expand_TestSuspend(llvm::CallInst& call_inst) {
-  llvm::Function* parent_func = irb_.GetInsertBlock()->getParent();
-  llvm::BasicBlock* suspend_test_begin_bb =
-    llvm::BasicBlock::Create(context_, "suspend_test", parent_func);
-
-  irb_.SetInsertPoint(suspend_test_begin_bb);
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
   irb_.Runtime().EmitTestSuspend();
-
-  llvm::BasicBlock* suspend_test_end_bb = irb_.GetInsertBlock();
-
-  SplitAndInsertBasicBlocksAfter(call_inst, suspend_test_begin_bb,
-                                            suspend_test_end_bb);
   return;
 }
 
 void GBCExpanderPass::Expand_MarkGCCard(llvm::CallInst& call_inst) {
-  llvm::Function* parent_func = irb_.GetInsertBlock()->getParent();
-  llvm::BasicBlock* begin_bb =
-    llvm::BasicBlock::Create(context_, "mark_gc_card", parent_func);
-
-  irb_.SetInsertPoint(begin_bb);
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
   irb_.Runtime().EmitMarkGCCard(call_inst.getArgOperand(0), call_inst.getArgOperand(1));
-
-  llvm::BasicBlock* end_bb = irb_.GetInsertBlock();
-
-  SplitAndInsertBasicBlocksAfter(call_inst, begin_bb, end_bb);
   return;
 }
 
@@ -600,38 +670,14 @@ GBCExpanderPass::Expand_LoadTypeFromDexCache(llvm::Value* type_idx_value) {
 }
 
 void GBCExpanderPass::Expand_LockObject(llvm::Value* obj) {
-  llvm::BasicBlock::iterator lock_obj_inst = irb_.GetInsertPoint();
-  llvm::Function* parent = irb_.GetInsertBlock()->getParent();
-
-  llvm::BasicBlock* lock_obj_begin_bb =
-    llvm::BasicBlock::Create(context_, "", parent);
-
-  irb_.SetInsertPoint(lock_obj_begin_bb);
+  ScopedExpandToBasicBlock eb(irb_, irb_.GetInsertPoint());
   rtb_.EmitLockObject(obj);
-
-  llvm::BasicBlock* lock_obj_end_bb = irb_.GetInsertBlock();
-
-  SplitAndInsertBasicBlocksAfter(lock_obj_inst, lock_obj_begin_bb,
-                                 lock_obj_end_bb);
-
   return;
 }
 
 void GBCExpanderPass::Expand_UnlockObject(llvm::Value* obj) {
-  llvm::BasicBlock::iterator unlock_obj_inst = irb_.GetInsertPoint();
-  llvm::Function* parent = irb_.GetInsertBlock()->getParent();
-
-  llvm::BasicBlock* unlock_obj_begin_bb =
-    llvm::BasicBlock::Create(context_, "", parent);
-
-  irb_.SetInsertPoint(unlock_obj_begin_bb);
+  ScopedExpandToBasicBlock eb(irb_, irb_.GetInsertPoint());
   rtb_.EmitUnlockObject(obj);
-
-  llvm::BasicBlock* unlock_obj_end_bb = irb_.GetInsertBlock();
-
-  SplitAndInsertBasicBlocksAfter(unlock_obj_inst, unlock_obj_begin_bb,
-                                 unlock_obj_end_bb);
-
   return;
 }
 
@@ -872,17 +918,14 @@ llvm::Value* GBCExpanderPass::Expand_DivRem(llvm::Value* dividend,
   llvm::Value* zero = irb_.getJZero(op_jty);
   llvm::Value* neg_one = llvm::ConstantInt::getSigned(op_type, -1);
 
-  llvm::BasicBlock::iterator div_rem_inst = irb_.GetInsertPoint();
-  llvm::Function* parent = irb_.GetInsertBlock()->getParent();
+  ScopedExpandToBasicBlock eb(irb_, irb_.GetInsertPoint());
 
-  llvm::BasicBlock* begin_div_rem =
-    llvm::BasicBlock::Create(context_, "", parent);
+  llvm::Function* parent = irb_.GetInsertBlock()->getParent();
   llvm::BasicBlock* eq_neg_one = llvm::BasicBlock::Create(context_, "", parent);
   llvm::BasicBlock* ne_neg_one = llvm::BasicBlock::Create(context_, "", parent);
   llvm::BasicBlock* neg_one_cont =
     llvm::BasicBlock::Create(context_, "", parent);
 
-  irb_.SetInsertPoint(begin_div_rem);
   llvm::Value* is_equal_neg_one = irb_.CreateICmpEQ(divisor, neg_one);
   irb_.CreateCondBr(is_equal_neg_one, eq_neg_one, ne_neg_one, kUnlikely);
 
@@ -919,8 +962,6 @@ llvm::Value* GBCExpanderPass::Expand_DivRem(llvm::Value* dividend,
   llvm::PHINode* result = irb_.CreatePHI(op_type, 2);
   result->addIncoming(eq_result, eq_neg_one);
   result->addIncoming(ne_result, ne_neg_one);
-
-  SplitAndInsertBasicBlocksAfter(div_rem_inst, begin_div_rem, neg_one_cont);
 
   return result;
 }
@@ -1009,6 +1050,8 @@ bool GBCExpanderPass::InsertStackOverflowCheck(llvm::Function& func) {
   return EmitStackOverflowCheck(&*first_non_alloca);
 }
 
+// ==== High-level intrinsic expander ==========================================
+
 llvm::Value* GBCExpanderPass::Expand_FPCompare(llvm::Value* src1_value,
                                                llvm::Value* src2_value,
                                                bool gt_bias) {
@@ -1073,6 +1116,409 @@ llvm::Value* GBCExpanderPass::Expand_IntegerShift(llvm::Value* src1_value,
     LOG(FATAL) << "Unknown integer shift kind: " << kind;
     return NULL;
   }
+}
+
+llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
+                                            JType field_jty) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  llvm::Value* object_addr = call_inst.getArgOperand(1);
+  uint32_t field_idx = LV2UInt(call_inst.getArgOperand(2));
+
+  // TODO: opt_flags
+  EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  llvm::Value* field_value;
+
+  int field_offset;
+  bool is_volatile;
+  bool is_fast_path = compiler_->ComputeInstanceFieldInfo(
+    field_idx, oat_compilation_unit_, field_offset, is_volatile, false);
+
+  if (!is_fast_path) {
+    llvm::Function* runtime_func;
+
+    if (field_jty == kObject) {
+      runtime_func = irb_.GetRuntime(runtime_support::GetObjectInstance);
+    } else if (field_jty == kLong || field_jty == kDouble) {
+      runtime_func = irb_.GetRuntime(runtime_support::Get64Instance);
+    } else {
+      runtime_func = irb_.GetRuntime(runtime_support::Get32Instance);
+    }
+
+    llvm::ConstantInt* field_idx_value = irb_.getInt32(field_idx);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    EmitUpdateDexPC(dex_pc);
+
+    field_value = irb_.CreateCall3(runtime_func, field_idx_value,
+                                   method_object_addr, object_addr);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+  } else {
+    DCHECK_GE(field_offset, 0);
+
+    llvm::PointerType* field_type =
+      irb_.getJType(field_jty, kField)->getPointerTo();
+
+    llvm::ConstantInt* field_offset_value = irb_.getPtrEquivInt(field_offset);
+
+    llvm::Value* field_addr =
+      irb_.CreatePtrDisp(object_addr, field_offset_value, field_type);
+
+    // TODO: Check is_volatile.  We need to generate atomic load instruction
+    // when is_volatile is true.
+    field_value = irb_.CreateLoad(field_addr, kTBAAHeapInstance, field_jty);
+  }
+
+  if (field_jty == kFloat || field_jty == kDouble) {
+    field_value = irb_.CreateBitCast(field_value, irb_.getJType(field_jty, kReg));
+  }
+
+  return field_value;
+}
+
+void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
+                                    JType field_jty) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  llvm::Value* object_addr = call_inst.getArgOperand(1);
+  llvm::Value* new_value = call_inst.getArgOperand(2);
+  uint32_t field_idx = LV2UInt(call_inst.getArgOperand(3));
+
+  if (field_jty == kFloat || field_jty == kDouble) {
+    new_value = irb_.CreateBitCast(new_value, irb_.getJType(field_jty, kReg));
+  }
+
+  // TODO: opt_flags
+  EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  int field_offset;
+  bool is_volatile;
+  bool is_fast_path = compiler_->ComputeInstanceFieldInfo(
+    field_idx, oat_compilation_unit_, field_offset, is_volatile, true);
+
+  if (!is_fast_path) {
+    llvm::Function* runtime_func;
+
+    if (field_jty == kObject) {
+      runtime_func = irb_.GetRuntime(runtime_support::SetObjectInstance);
+    } else if (field_jty == kLong || field_jty == kDouble) {
+      runtime_func = irb_.GetRuntime(runtime_support::Set64Instance);
+    } else {
+      runtime_func = irb_.GetRuntime(runtime_support::Set32Instance);
+    }
+
+    llvm::Value* field_idx_value = irb_.getInt32(field_idx);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    EmitUpdateDexPC(dex_pc);
+
+    irb_.CreateCall4(runtime_func, field_idx_value,
+                     method_object_addr, object_addr, new_value);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+  } else {
+    DCHECK_GE(field_offset, 0);
+
+    llvm::PointerType* field_type =
+      irb_.getJType(field_jty, kField)->getPointerTo();
+
+    llvm::Value* field_offset_value = irb_.getPtrEquivInt(field_offset);
+
+    llvm::Value* field_addr =
+      irb_.CreatePtrDisp(object_addr, field_offset_value, field_type);
+
+    // TODO: Check is_volatile.  We need to generate atomic store instruction
+    // when is_volatile is true.
+    irb_.CreateStore(new_value, field_addr, kTBAAHeapInstance, field_jty);
+
+    if (field_jty == kObject) { // If put an object, mark the GC card table.
+      EmitMarkGCCard(new_value, object_addr);
+    }
+  }
+
+  return;
+}
+
+void GBCExpanderPass::EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr) {
+  // Using runtime support, let the target can override by InlineAssembly.
+  irb_.Runtime().EmitMarkGCCard(value, target_addr);
+}
+
+void GBCExpanderPass::EmitUpdateDexPC(uint32_t dex_pc) {
+  irb_.StoreToObjectOffset(shadow_frame_,
+                           ShadowFrame::DexPCOffset(),
+                           irb_.getInt32(dex_pc),
+                           kTBAAShadowFrame);
+}
+
+void GBCExpanderPass::EmitGuard_DivZeroException(uint32_t dex_pc,
+                                                 llvm::Value* denominator,
+                                                 JType op_jty) {
+  DCHECK(op_jty == kInt || op_jty == kLong) << op_jty;
+
+  llvm::Constant* zero = irb_.getJZero(op_jty);
+
+  llvm::Value* equal_zero = irb_.CreateICmpEQ(denominator, zero);
+
+  llvm::BasicBlock* block_exception = CreateBasicBlockWithDexPC(dex_pc, "div0");
+
+  llvm::BasicBlock* block_continue = CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+  irb_.CreateCondBr(equal_zero, block_exception, block_continue, kUnlikely);
+
+  irb_.SetInsertPoint(block_exception);
+  EmitUpdateDexPC(dex_pc);
+  irb_.CreateCall(irb_.GetRuntime(runtime_support::ThrowDivZeroException));
+  EmitBranchExceptionLandingPad(dex_pc);
+
+  irb_.SetInsertPoint(block_continue);
+}
+
+void GBCExpanderPass::EmitGuard_NullPointerException(uint32_t dex_pc,
+                                                     llvm::Value* object) {
+  llvm::Value* equal_null = irb_.CreateICmpEQ(object, irb_.getJNull());
+
+  llvm::BasicBlock* block_exception =
+    CreateBasicBlockWithDexPC(dex_pc, "nullp");
+
+  llvm::BasicBlock* block_continue =
+    CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+  irb_.CreateCondBr(equal_null, block_exception, block_continue, kUnlikely);
+
+  irb_.SetInsertPoint(block_exception);
+  EmitUpdateDexPC(dex_pc);
+  irb_.CreateCall(irb_.GetRuntime(runtime_support::ThrowNullPointerException),
+                  irb_.getInt32(dex_pc));
+  EmitBranchExceptionLandingPad(dex_pc);
+
+  irb_.SetInsertPoint(block_continue);
+}
+
+void
+GBCExpanderPass::EmitGuard_ArrayIndexOutOfBoundsException(uint32_t dex_pc,
+                                                          llvm::Value* array,
+                                                          llvm::Value* index) {
+  llvm::Value* array_len = EmitLoadArrayLength(array);
+
+  llvm::Value* cmp = irb_.CreateICmpUGE(index, array_len);
+
+  llvm::BasicBlock* block_exception =
+    CreateBasicBlockWithDexPC(dex_pc, "overflow");
+
+  llvm::BasicBlock* block_continue =
+    CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+  irb_.CreateCondBr(cmp, block_exception, block_continue, kUnlikely);
+
+  irb_.SetInsertPoint(block_exception);
+
+  EmitUpdateDexPC(dex_pc);
+  irb_.CreateCall2(irb_.GetRuntime(runtime_support::ThrowIndexOutOfBounds), index, array_len);
+  EmitBranchExceptionLandingPad(dex_pc);
+
+  irb_.SetInsertPoint(block_continue);
+}
+
+void GBCExpanderPass::EmitGuard_ArrayException(uint32_t dex_pc,
+                                               llvm::Value* array,
+                                               llvm::Value* index) {
+  EmitGuard_NullPointerException(dex_pc, array);
+  EmitGuard_ArrayIndexOutOfBoundsException(dex_pc, array, index);
+}
+
+llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
+                                                     bool is_static) {
+  // Get method signature
+  DexFile::MethodId const& method_id = dex_file_->GetMethodId(method_idx);
+
+  uint32_t shorty_size;
+  const char* shorty = dex_file_->GetMethodShorty(method_id, &shorty_size);
+  CHECK_GE(shorty_size, 1u);
+
+  // Get return type
+  llvm::Type* ret_type = irb_.getJType(shorty[0], kAccurate);
+
+  // Get argument type
+  std::vector<llvm::Type*> args_type;
+
+  args_type.push_back(irb_.getJObjectTy()); // method object pointer
+
+  if (!is_static) {
+    args_type.push_back(irb_.getJType('L', kAccurate)); // "this" object pointer
+  }
+
+  for (uint32_t i = 1; i < shorty_size; ++i) {
+    args_type.push_back(irb_.getJType(shorty[i], kAccurate));
+  }
+
+  return llvm::FunctionType::get(ret_type, args_type, false);
+}
+
+
+llvm::BasicBlock* GBCExpanderPass::
+CreateBasicBlockWithDexPC(uint32_t dex_pc, const char* postfix) {
+  std::string name;
+
+#if !defined(NDEBUG)
+  StringAppendF(&name, "B%04x.%s", dex_pc, postfix);
+#endif
+
+  return llvm::BasicBlock::Create(context_, name, func_);
+}
+
+llvm::BasicBlock* GBCExpanderPass::GetBasicBlock(uint32_t dex_pc) {
+  DCHECK(dex_pc < code_item_->insns_size_in_code_units_);
+
+  return basic_blocks_[dex_pc];
+}
+
+int32_t GBCExpanderPass::GetTryItemOffset(uint32_t dex_pc) {
+  int32_t min = 0;
+  int32_t max = code_item_->tries_size_ - 1;
+
+  while (min <= max) {
+    int32_t mid = min + (max - min) / 2;
+
+    const DexFile::TryItem* ti = DexFile::GetTryItems(*code_item_, mid);
+    uint32_t start = ti->start_addr_;
+    uint32_t end = start + ti->insn_count_;
+
+    if (dex_pc < start) {
+      max = mid - 1;
+    } else if (dex_pc >= end) {
+      min = mid + 1;
+    } else {
+      return mid; // found
+    }
+  }
+
+  return -1; // not found
+}
+
+llvm::BasicBlock* GBCExpanderPass::GetLandingPadBasicBlock(uint32_t dex_pc) {
+  // Find the try item for this address in this method
+  int32_t ti_offset = GetTryItemOffset(dex_pc);
+
+  if (ti_offset == -1) {
+    return NULL; // No landing pad is available for this address.
+  }
+
+  // Check for the existing landing pad basic block
+  DCHECK_GT(basic_block_landing_pads_.size(), static_cast<size_t>(ti_offset));
+  llvm::BasicBlock* block_lpad = basic_block_landing_pads_[ti_offset];
+
+  if (block_lpad) {
+    // We have generated landing pad for this try item already.  Return the
+    // same basic block.
+    return block_lpad;
+  }
+
+  // Get try item from code item
+  const DexFile::TryItem* ti = DexFile::GetTryItems(*code_item_, ti_offset);
+
+  std::string lpadname;
+
+#if !defined(NDEBUG)
+  StringAppendF(&lpadname, "lpad%d_%04x_to_%04x", ti_offset, ti->start_addr_, ti->handler_off_);
+#endif
+
+  // Create landing pad basic block
+  block_lpad = llvm::BasicBlock::Create(context_, lpadname, func_);
+
+  // Change IRBuilder insert point
+  llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
+  irb_.SetInsertPoint(block_lpad);
+
+  // Find catch block with matching type
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* ti_offset_value = irb_.getInt32(ti_offset);
+
+  llvm::Value* catch_handler_index_value =
+    irb_.CreateCall2(irb_.GetRuntime(runtime_support::FindCatchBlock),
+                     method_object_addr, ti_offset_value);
+
+  // Switch instruction (Go to unwind basic block by default)
+  llvm::SwitchInst* sw =
+    irb_.CreateSwitch(catch_handler_index_value, GetUnwindBasicBlock());
+
+  // Cases with matched catch block
+  CatchHandlerIterator iter(*code_item_, ti->start_addr_);
+
+  for (uint32_t c = 0; iter.HasNext(); iter.Next(), ++c) {
+    sw->addCase(irb_.getInt32(c), GetBasicBlock(iter.GetHandlerAddress()));
+  }
+
+  // Restore the orignal insert point for IRBuilder
+  irb_.restoreIP(irb_ip_original);
+
+  // Cache this landing pad
+  DCHECK_GT(basic_block_landing_pads_.size(), static_cast<size_t>(ti_offset));
+  basic_block_landing_pads_[ti_offset] = block_lpad;
+
+  return block_lpad;
+}
+
+llvm::BasicBlock* GBCExpanderPass::GetUnwindBasicBlock() {
+  // Check the existing unwinding baisc block block
+  if (basic_block_unwind_ != NULL) {
+    return basic_block_unwind_;
+  }
+
+  // Create new basic block for unwinding
+  basic_block_unwind_ =
+    llvm::BasicBlock::Create(context_, "exception_unwind", func_);
+
+  // Change IRBuilder insert point
+  llvm::IRBuilderBase::InsertPoint irb_ip_original = irb_.saveIP();
+  irb_.SetInsertPoint(basic_block_unwind_);
+
+  // Pop the shadow frame
+  Expand_PopShadowFrame();
+
+  // Emit the code to return default value (zero) for the given return type.
+  char ret_shorty = oat_compilation_unit_->GetShorty()[0];
+  if (ret_shorty == 'V') {
+    irb_.CreateRetVoid();
+  } else {
+    irb_.CreateRet(irb_.getJZero(ret_shorty));
+  }
+
+  // Restore the orignal insert point for IRBuilder
+  irb_.restoreIP(irb_ip_original);
+
+  return basic_block_unwind_;
+}
+
+void GBCExpanderPass::EmitBranchExceptionLandingPad(uint32_t dex_pc) {
+  if (llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc)) {
+    irb_.CreateBr(lpad);
+  } else {
+    irb_.CreateBr(GetUnwindBasicBlock());
+  }
+}
+
+void GBCExpanderPass::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
+  llvm::Value* exception_pending = irb_.Runtime().EmitIsExceptionPending();
+
+  llvm::BasicBlock* block_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+  if (llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc)) {
+    irb_.CreateCondBr(exception_pending, lpad, block_cont, kUnlikely);
+  } else {
+    irb_.CreateCondBr(exception_pending, GetUnwindBasicBlock(), block_cont, kUnlikely);
+  }
+
+  irb_.SetInsertPoint(block_cont);
 }
 
 llvm::Value*
@@ -1649,75 +2095,66 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- High-level Instance ----------------------------------------------==//
     case IntrinsicHelper::HLIGet: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLIGet(call_inst, kInt);
     }
     case IntrinsicHelper::HLIGetBoolean: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLIGet(call_inst, kBoolean);
     }
     case IntrinsicHelper::HLIGetByte: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLIGet(call_inst, kByte);
     }
     case IntrinsicHelper::HLIGetChar: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLIGet(call_inst, kChar);
     }
     case IntrinsicHelper::HLIGetShort: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLIGet(call_inst, kShort);
     }
     case IntrinsicHelper::HLIGetFloat: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLIGet(call_inst, kFloat);
     }
     case IntrinsicHelper::HLIGetWide: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLIGet(call_inst, kLong);
     }
     case IntrinsicHelper::HLIGetDouble: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLIGet(call_inst, kDouble);
     }
     case IntrinsicHelper::HLIGetObject: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLIGet(call_inst, kObject);
     }
     case IntrinsicHelper::HLIPut: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLIPut(call_inst, kInt);
       return NULL;
     }
     case IntrinsicHelper::HLIPutBoolean: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLIPut(call_inst, kBoolean);
       return NULL;
     }
     case IntrinsicHelper::HLIPutByte: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLIPut(call_inst, kByte);
       return NULL;
     }
     case IntrinsicHelper::HLIPutChar: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLIPut(call_inst, kChar);
       return NULL;
     }
     case IntrinsicHelper::HLIPutShort: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLIPut(call_inst, kShort);
       return NULL;
     }
     case IntrinsicHelper::HLIPutFloat: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLIPut(call_inst, kFloat);
       return NULL;
     }
     case IntrinsicHelper::HLIPutWide: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLIPut(call_inst, kLong);
       return NULL;
     }
     case IntrinsicHelper::HLIPutDouble: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLIPut(call_inst, kDouble);
       return NULL;
     }
     case IntrinsicHelper::HLIPutObject: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLIPut(call_inst, kObject);
       return NULL;
     }
 
@@ -1943,11 +2380,11 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Switch -----------------------------------------------------------==//
     case greenland::IntrinsicHelper::SparseSwitch: {
-      UNIMPLEMENTED(FATAL);
+      // Nothing to be done.
       return NULL;
     }
     case greenland::IntrinsicHelper::PackedSwitch: {
-      UNIMPLEMENTED(FATAL);
+      // Nothing to be done.
       return NULL;
     }
 
@@ -1971,7 +2408,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Method Info ------------------------------------------------------==//
     case greenland::IntrinsicHelper::MethodInfo: {
-      UNIMPLEMENTED(FATAL);
+      // Nothing to be done.
       return NULL;
     }
 
@@ -1979,11 +2416,8 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case greenland::IntrinsicHelper::CopyInt:
     case greenland::IntrinsicHelper::CopyFloat:
     case greenland::IntrinsicHelper::CopyLong:
-    case greenland::IntrinsicHelper::CopyDouble: {
-      return call_inst.getArgOperand(0);
-    }
+    case greenland::IntrinsicHelper::CopyDouble:
     case greenland::IntrinsicHelper::CopyObj: {
-      // TODO: Update the shadow frame slots.
       return call_inst.getArgOperand(0);
     }
 
