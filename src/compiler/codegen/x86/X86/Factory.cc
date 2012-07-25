@@ -299,7 +299,7 @@ LIR* opRegRegImm(CompilationUnit *cUnit, OpKind op, int rDest, int rSrc,
     X86OpCode opcode = IS_SIMM8(value) ? kX86Imul32RRI8 : kX86Imul32RRI;
     return newLIR3(cUnit, opcode, rDest, rSrc, value);
   } else if (op == kOpAnd) {
-    if (value == 0xFF && rDest < 4) {
+    if (value == 0xFF && rSrc < 4) {
       return newLIR2(cUnit, kX86Movzx8RR, rDest, rSrc);
     } else if (value == 0xFFFF) {
       return newLIR2(cUnit, kX86Movzx16RR, rDest, rSrc);

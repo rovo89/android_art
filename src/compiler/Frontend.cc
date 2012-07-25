@@ -799,9 +799,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
 #endif
   if (cUnit->instructionSet == kX86) {
     // Disable some optimizations on X86 for now
-    cUnit->disableOpt |= (
-        (1 << kLoadStoreElimination) |
-        (1 << kPromoteRegs));
+    cUnit->disableOpt |= (1 << kLoadStoreElimination);
   }
   /* Are we generating code for the debugger? */
   if (compiler.IsDebuggingSupported()) {

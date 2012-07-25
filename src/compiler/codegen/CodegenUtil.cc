@@ -74,14 +74,15 @@ inline u8 getRegMaskCommon(int reg)
 {
   u8 seed;
   int shift;
-  int regId = reg & 0x1f;
 
 #if defined(TARGET_X86)
+  int regId = reg & 0xf;
   /*
    * Double registers in x86 are just a single FP register
    */
   seed = 1;
 #else
+  int regId = reg & 0x1f;
   /*
    * Each double register is equal to a pair of single-precision FP registers
    */
