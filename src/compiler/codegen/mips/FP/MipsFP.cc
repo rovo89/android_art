@@ -210,4 +210,10 @@ static bool genCmpFP(CompilationUnit *cUnit, Instruction::Code opcode, RegLocati
   return false;
 }
 
+void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                                bool gtBias, bool isDouble)
+{
+  UNIMPLEMENTED(FATAL) << "Need codegen for fused fp cmp branch";
+}
+
 } //  namespace art

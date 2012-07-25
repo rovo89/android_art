@@ -1843,7 +1843,6 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
           squashDupRangeChecks(cUnit, &tbb, mir, arrSreg, idxSreg);
         }
         break;
-#if defined(TARGET_ARM)
       case Instruction::CMPL_FLOAT:
       case Instruction::CMPL_DOUBLE:
       case Instruction::CMPG_FLOAT:
@@ -1913,7 +1912,6 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
           }
         }
         break;
-#endif
       default:
         break;
     }

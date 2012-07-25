@@ -377,4 +377,44 @@ void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
   }
 }
 
+void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir) {
+  LIR* labelList = cUnit->blockLabelList;
+  LIR* taken = &labelList[bb->taken->id];
+  RegLocation rlSrc1 = oatGetSrcWide(cUnit, mir, 0);
+  RegLocation rlSrc2 = oatGetSrcWide(cUnit, mir, 2);
+  oatFlushAllRegs(cUnit);
+  oatLockCallTemps(cUnit);  // Prepare for explicit register usage
+  loadValueDirectWideFixed(cUnit, rlSrc1, r0, r1);
+  loadValueDirectWideFixed(cUnit, rlSrc2, r2, r3);
+  ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
+  // Swap operands and condition code to prevent use of zero flag.
+  if (ccode == kCondLe || ccode == kCondGt) {
+    // Compute (r3:r2) = (r3:r2) - (r1:r0)
+    opRegReg(cUnit, kOpSub, r2, r0);  // r2 = r2 - r0
+    opRegReg(cUnit, kOpSbc, r3, r1);  // r3 = r3 - r1 - CF
+  } else {
+    // Compute (r1:r0) = (r1:r0) - (r3:r2)
+    opRegReg(cUnit, kOpSub, r0, r2);  // r0 = r0 - r2
+    opRegReg(cUnit, kOpSbc, r1, r3);  // r1 = r1 - r3 - CF
+  }
+  switch (ccode) {
+    case kCondEq:
+    case kCondNe:
+      opRegReg(cUnit, kOpOr, r0, r1);  // r0 = r0 | r1
+      break;
+    case kCondLe:
+      ccode = kCondGe;
+      break;
+    case kCondGt:
+      ccode = kCondLt;
+      break;
+    case kCondLt:
+    case kCondGe:
+      break;
+    default:
+      LOG(FATAL) << "Unexpected ccode: " << (int)ccode;
+  }
+  opCondBranch(cUnit, ccode, taken);
+}
+
 }  // namespace art

@@ -286,4 +286,74 @@ static bool genCmpFP(CompilationUnit *cUnit, Instruction::Code code, RegLocation
   return false;
 }
 
+void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
+                                bool gtBias, bool isDouble) {
+  LIR* labelList = cUnit->blockLabelList;
+  LIR* taken = &labelList[bb->taken->id];
+  LIR* notTaken = &labelList[bb->fallThrough->id];
+  LIR* branch = NULL;
+  RegLocation rlSrc1;
+  RegLocation rlSrc2;
+  if (isDouble) {
+    rlSrc1 = oatGetSrcWide(cUnit, mir, 0);
+    rlSrc2 = oatGetSrcWide(cUnit, mir, 2);
+    rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
+    rlSrc2 = loadValueWide(cUnit, rlSrc2, kFPReg);
+    newLIR2(cUnit, kX86UcomisdRR, S2D(rlSrc1.lowReg, rlSrc1.highReg),
+            S2D(rlSrc2.lowReg, rlSrc2.highReg));
+  } else {
+    rlSrc1 = oatGetSrc(cUnit, mir, 0);
+    rlSrc2 = oatGetSrc(cUnit, mir, 1);
+    rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
+    rlSrc2 = loadValue(cUnit, rlSrc2, kFPReg);
+    newLIR2(cUnit, kX86UcomissRR, rlSrc1.lowReg, rlSrc2.lowReg);
+  }
+  ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
+  switch (ccode) {
+    case kCondEq:
+      if (gtBias) {
+        branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
+        branch->target = notTaken;
+      }
+      break;
+    case kCondNe:
+      if (!gtBias) {
+        branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
+        branch->target = taken;
+      }
+      break;
+    case kCondLt:
+      if (gtBias) {
+        branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
+        branch->target = notTaken;
+      }
+      ccode = kCondCs;
+      break;
+    case kCondLe:
+      if (gtBias) {
+        branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
+        branch->target = notTaken;
+      }
+      ccode = kCondLs;
+      break;
+    case kCondGt:
+      if (gtBias) {
+        branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
+        branch->target = taken;
+      }
+      ccode = kCondHi;
+      break;
+    case kCondGe:
+      if (gtBias) {
+        branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
+        branch->target = taken;
+      }
+      ccode = kCondCc;
+      break;
+    default:
+      LOG(FATAL) << "Unexpected ccode: " << (int)ccode;
+  }
+  opCondBranch(cUnit, ccode, taken);
+}
+
 } //  namespace art
