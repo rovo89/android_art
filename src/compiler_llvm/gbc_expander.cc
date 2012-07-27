@@ -251,8 +251,16 @@ class GBCExpanderPass : public llvm::FunctionPass {
     llvm::BasicBlock* begin_bb_;
   };
 
+  llvm::Value* EmitLoadStaticStorage(uint32_t dex_pc, uint32_t type_idx);
+
   llvm::Value* Expand_HLIGet(llvm::CallInst& call_inst, JType field_jty);
   void Expand_HLIPut(llvm::CallInst& call_inst, JType field_jty);
+
+  llvm::Value* Expand_HLSget(llvm::CallInst& call_inst, JType field_jty);
+  void Expand_HLSput(llvm::CallInst& call_inst, JType field_jty);
+
+  llvm::Value* Expand_HLArrayGet(llvm::CallInst& call_inst, JType field_jty);
+  void Expand_HLArrayPut(llvm::CallInst& call_inst, JType field_jty);
 
   void EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr);
 
@@ -1119,6 +1127,99 @@ llvm::Value* GBCExpanderPass::Expand_IntegerShift(llvm::Value* src1_value,
   }
 }
 
+llvm::Value* GBCExpanderPass::Expand_HLArrayGet(llvm::CallInst& call_inst,
+                                                JType elem_jty) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  llvm::Value* array_addr = call_inst.getArgOperand(1);
+  llvm::Value* index_value = call_inst.getArgOperand(2);
+
+  // TODO: opt_flags
+  EmitGuard_ArrayException(dex_pc, array_addr, index_value);
+
+  llvm::Value* array_elem_addr = EmitArrayGEP(array_addr, index_value, elem_jty);
+
+  llvm::Value* array_elem_value = irb_.CreateLoad(array_elem_addr, kTBAAHeapArray, elem_jty);
+
+  switch (elem_jty) {
+  case kVoid:
+    break;
+
+  case kBoolean:
+  case kChar:
+    array_elem_value = irb_.CreateZExt(array_elem_value, irb_.getJType(elem_jty, kReg));
+    break;
+
+  case kByte:
+  case kShort:
+    array_elem_value = irb_.CreateSExt(array_elem_value, irb_.getJType(elem_jty, kReg));
+    break;
+
+  case kInt:
+  case kLong:
+  case kFloat:
+  case kDouble:
+  case kObject:
+    break;
+
+  default:
+    LOG(FATAL) << "Unknown java type: " << elem_jty;
+  }
+
+  return array_elem_value;
+}
+
+
+void GBCExpanderPass::Expand_HLArrayPut(llvm::CallInst& call_inst,
+                                        JType elem_jty) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  llvm::Value* new_value = call_inst.getArgOperand(1);
+  llvm::Value* array_addr = call_inst.getArgOperand(2);
+  llvm::Value* index_value = call_inst.getArgOperand(3);
+
+  // TODO: opt_flags
+  EmitGuard_ArrayException(dex_pc, array_addr, index_value);
+
+  switch (elem_jty) {
+  case kVoid:
+    break;
+
+  case kBoolean:
+  case kChar:
+    new_value = irb_.CreateTrunc(new_value, irb_.getJType(elem_jty, kArray));
+    break;
+
+  case kInt:
+  case kLong:
+  case kFloat:
+  case kDouble:
+  case kObject:
+    break;
+
+  default:
+    LOG(FATAL) << "Unknown java type: " << elem_jty;
+  }
+
+  llvm::Value* array_elem_addr = EmitArrayGEP(array_addr, index_value, elem_jty);
+
+  if (elem_jty == kObject) { // If put an object, check the type, and mark GC card table.
+    llvm::Function* runtime_func = irb_.GetRuntime(runtime_support::CheckPutArrayElement);
+
+    irb_.CreateCall2(runtime_func, new_value, array_addr);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+    EmitMarkGCCard(new_value, array_addr);
+  }
+
+  irb_.CreateStore(new_value, array_elem_addr, kTBAAHeapArray, elem_jty);
+
+  return;
+}
+
 llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
                                             JType field_jty) {
   ScopedExpandToBasicBlock eb(irb_, &call_inst);
@@ -1176,7 +1277,7 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
   }
 
   if (field_jty == kFloat || field_jty == kDouble) {
-    field_value = irb_.CreateBitCast(field_value, irb_.getJType(field_jty, kReg));
+    field_value = irb_.CreateBitCast(field_value, irb_.getJType(field_jty, kAccurate));
   }
 
   return field_value;
@@ -1192,7 +1293,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
   uint32_t field_idx = LV2UInt(call_inst.getArgOperand(3));
 
   if (field_jty == kFloat || field_jty == kDouble) {
-    new_value = irb_.CreateBitCast(new_value, irb_.getJType(field_jty, kReg));
+    new_value = irb_.CreateBitCast(new_value, irb_.getJType(field_jty, kField));
   }
 
   // TODO: opt_flags
@@ -1242,6 +1343,222 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
 
     if (field_jty == kObject) { // If put an object, mark the GC card table.
       EmitMarkGCCard(new_value, object_addr);
+    }
+  }
+
+  return;
+}
+
+llvm::Value* GBCExpanderPass::EmitLoadStaticStorage(uint32_t dex_pc,
+                                                    uint32_t type_idx) {
+  llvm::BasicBlock* block_load_static =
+    CreateBasicBlockWithDexPC(dex_pc, "load_static");
+
+  llvm::BasicBlock* block_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+  // Load static storage from dex cache
+  llvm::Value* storage_field_addr =
+    EmitLoadDexCacheStaticStorageFieldAddr(type_idx);
+
+  llvm::Value* storage_object_addr = irb_.CreateLoad(storage_field_addr, kTBAAJRuntime);
+
+  llvm::BasicBlock* block_original = irb_.GetInsertBlock();
+
+  // Test: Is the static storage of this class initialized?
+  llvm::Value* equal_null =
+    irb_.CreateICmpEQ(storage_object_addr, irb_.getJNull());
+
+  irb_.CreateCondBr(equal_null, block_load_static, block_cont, kUnlikely);
+
+  // Failback routine to load the class object
+  irb_.SetInsertPoint(block_load_static);
+
+  llvm::Function* runtime_func = irb_.GetRuntime(runtime_support::InitializeStaticStorage);
+
+  llvm::Constant* type_idx_value = irb_.getInt32(type_idx);
+
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
+
+  EmitUpdateDexPC(dex_pc);
+
+  llvm::Value* loaded_storage_object_addr =
+    irb_.CreateCall3(runtime_func, type_idx_value, method_object_addr, thread_object_addr);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  llvm::BasicBlock* block_after_load_static = irb_.GetInsertBlock();
+
+  irb_.CreateBr(block_cont);
+
+  // Now the class object must be loaded
+  irb_.SetInsertPoint(block_cont);
+
+  llvm::PHINode* phi = irb_.CreatePHI(irb_.getJObjectTy(), 2);
+
+  phi->addIncoming(storage_object_addr, block_original);
+  phi->addIncoming(loaded_storage_object_addr, block_after_load_static);
+
+  return phi;
+}
+
+llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
+                                            JType field_jty) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  uint32_t field_idx = LV2UInt(call_inst.getArgOperand(0));
+
+  int field_offset;
+  int ssb_index;
+  bool is_referrers_class;
+  bool is_volatile;
+
+  bool is_fast_path = compiler_->ComputeStaticFieldInfo(
+    field_idx, oat_compilation_unit_, field_offset, ssb_index,
+    is_referrers_class, is_volatile, false);
+
+  llvm::Value* static_field_value;
+
+  if (!is_fast_path) {
+    llvm::Function* runtime_func;
+
+    if (field_jty == kObject) {
+      runtime_func = irb_.GetRuntime(runtime_support::GetObjectStatic);
+    } else if (field_jty == kLong || field_jty == kDouble) {
+      runtime_func = irb_.GetRuntime(runtime_support::Get64Static);
+    } else {
+      runtime_func = irb_.GetRuntime(runtime_support::Get32Static);
+    }
+
+    llvm::Constant* field_idx_value = irb_.getInt32(field_idx);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    EmitUpdateDexPC(dex_pc);
+
+    static_field_value =
+      irb_.CreateCall2(runtime_func, field_idx_value, method_object_addr);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+  } else {
+    DCHECK_GE(field_offset, 0);
+
+    llvm::Value* static_storage_addr = NULL;
+
+    if (is_referrers_class) {
+      // Fast path, static storage base is this method's class
+      llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+      static_storage_addr =
+        irb_.LoadFromObjectOffset(method_object_addr,
+                                  Method::DeclaringClassOffset().Int32Value(),
+                                  irb_.getJObjectTy(),
+                                  kTBAAConstJObject);
+    } else {
+      // Medium path, static storage base in a different class which
+      // requires checks that the other class is initialized
+      DCHECK_GE(ssb_index, 0);
+      static_storage_addr = EmitLoadStaticStorage(dex_pc, ssb_index);
+    }
+
+    llvm::Value* static_field_offset_value = irb_.getPtrEquivInt(field_offset);
+
+    llvm::Value* static_field_addr =
+      irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
+                         irb_.getJType(field_jty, kField)->getPointerTo());
+
+    // TODO: Check is_volatile.  We need to generate atomic load instruction
+    // when is_volatile is true.
+    static_field_value = irb_.CreateLoad(static_field_addr, kTBAAHeapStatic, field_jty);
+  }
+
+  if (field_jty == kFloat || field_jty == kDouble) {
+    static_field_value =
+        irb_.CreateBitCast(static_field_value, irb_.getJType(field_jty, kAccurate));
+  }
+
+  return static_field_value;
+}
+
+void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
+                                    JType field_jty) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  uint32_t field_idx = LV2UInt(call_inst.getArgOperand(0));
+  llvm::Value* new_value = call_inst.getArgOperand(1);
+
+  if (field_jty == kFloat || field_jty == kDouble) {
+    new_value = irb_.CreateBitCast(new_value, irb_.getJType(field_jty, kField));
+  }
+
+  int field_offset;
+  int ssb_index;
+  bool is_referrers_class;
+  bool is_volatile;
+
+  bool is_fast_path = compiler_->ComputeStaticFieldInfo(
+    field_idx, oat_compilation_unit_, field_offset, ssb_index,
+    is_referrers_class, is_volatile, true);
+
+  if (!is_fast_path) {
+    llvm::Function* runtime_func;
+
+    if (field_jty == kObject) {
+      runtime_func = irb_.GetRuntime(runtime_support::SetObjectStatic);
+    } else if (field_jty == kLong || field_jty == kDouble) {
+      runtime_func = irb_.GetRuntime(runtime_support::Set64Static);
+    } else {
+      runtime_func = irb_.GetRuntime(runtime_support::Set32Static);
+    }
+
+    llvm::Constant* field_idx_value = irb_.getInt32(field_idx);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    EmitUpdateDexPC(dex_pc);
+
+    irb_.CreateCall3(runtime_func, field_idx_value,
+                     method_object_addr, new_value);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+  } else {
+    DCHECK_GE(field_offset, 0);
+
+    llvm::Value* static_storage_addr = NULL;
+
+    if (is_referrers_class) {
+      // Fast path, static storage base is this method's class
+      llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+      static_storage_addr =
+        irb_.LoadFromObjectOffset(method_object_addr,
+                                  Method::DeclaringClassOffset().Int32Value(),
+                                  irb_.getJObjectTy(),
+                                  kTBAAConstJObject);
+    } else {
+      // Medium path, static storage base in a different class which
+      // requires checks that the other class is initialized
+      DCHECK_GE(ssb_index, 0);
+      static_storage_addr = EmitLoadStaticStorage(dex_pc, ssb_index);
+    }
+
+    llvm::Value* static_field_offset_value = irb_.getPtrEquivInt(field_offset);
+
+    llvm::Value* static_field_addr =
+      irb_.CreatePtrDisp(static_storage_addr, static_field_offset_value,
+                         irb_.getJType(field_jty, kField)->getPointerTo());
+
+    // TODO: Check is_volatile.  We need to generate atomic store instruction
+    // when is_volatile is true.
+    irb_.CreateStore(new_value, static_field_addr, kTBAAHeapStatic, field_jty);
+
+    if (field_jty == kObject) { // If put an object, mark the GC card table.
+      EmitMarkGCCard(new_value, static_storage_addr);
     }
   }
 
@@ -2022,75 +2339,66 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- High-level Array -------------------------------------------------==//
     case IntrinsicHelper::HLArrayGet: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLArrayGet(call_inst, kInt);
     }
     case IntrinsicHelper::HLArrayGetBoolean: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLArrayGet(call_inst, kBoolean);
     }
     case IntrinsicHelper::HLArrayGetByte: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLArrayGet(call_inst, kByte);
     }
     case IntrinsicHelper::HLArrayGetChar: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLArrayGet(call_inst, kChar);
     }
     case IntrinsicHelper::HLArrayGetShort: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLArrayGet(call_inst, kShort);
     }
     case IntrinsicHelper::HLArrayGetFloat: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLArrayGet(call_inst, kFloat);
     }
     case IntrinsicHelper::HLArrayGetWide: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLArrayGet(call_inst, kLong);
     }
     case IntrinsicHelper::HLArrayGetDouble: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLArrayGet(call_inst, kDouble);
     }
     case IntrinsicHelper::HLArrayGetObject: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLArrayGet(call_inst, kObject);
     }
     case IntrinsicHelper::HLArrayPut: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLArrayPut(call_inst, kInt);
       return NULL;
     }
     case IntrinsicHelper::HLArrayPutBoolean: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLArrayPut(call_inst, kBoolean);
       return NULL;
     }
     case IntrinsicHelper::HLArrayPutByte: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLArrayPut(call_inst, kByte);
       return NULL;
     }
     case IntrinsicHelper::HLArrayPutChar: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLArrayPut(call_inst, kChar);
       return NULL;
     }
     case IntrinsicHelper::HLArrayPutShort: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLArrayPut(call_inst, kShort);
       return NULL;
     }
     case IntrinsicHelper::HLArrayPutFloat: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLArrayPut(call_inst, kFloat);
       return NULL;
     }
     case IntrinsicHelper::HLArrayPutWide: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLArrayPut(call_inst, kLong);
       return NULL;
     }
     case IntrinsicHelper::HLArrayPutDouble: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLArrayPut(call_inst, kDouble);
       return NULL;
     }
     case IntrinsicHelper::HLArrayPutObject: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLArrayPut(call_inst, kObject);
       return NULL;
     }
 
@@ -2260,75 +2568,66 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- High-level Static ------------------------------------------------==//
     case IntrinsicHelper::HLSget: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLSget(call_inst, kInt);
     }
     case IntrinsicHelper::HLSgetBoolean: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLSget(call_inst, kBoolean);
     }
     case IntrinsicHelper::HLSgetByte: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLSget(call_inst, kByte);
     }
     case IntrinsicHelper::HLSgetChar: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLSget(call_inst, kChar);
     }
     case IntrinsicHelper::HLSgetShort: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLSget(call_inst, kShort);
     }
     case IntrinsicHelper::HLSgetFloat: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLSget(call_inst, kFloat);
     }
     case IntrinsicHelper::HLSgetWide: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLSget(call_inst, kLong);
     }
     case IntrinsicHelper::HLSgetDouble: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLSget(call_inst, kDouble);
     }
     case IntrinsicHelper::HLSgetObject: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLSget(call_inst, kObject);
     }
     case IntrinsicHelper::HLSput: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLSput(call_inst, kInt);
       return NULL;
     }
     case IntrinsicHelper::HLSputBoolean: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLSput(call_inst, kBoolean);
       return NULL;
     }
     case IntrinsicHelper::HLSputByte: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLSput(call_inst, kByte);
       return NULL;
     }
     case IntrinsicHelper::HLSputChar: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLSput(call_inst, kChar);
       return NULL;
     }
     case IntrinsicHelper::HLSputShort: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLSput(call_inst, kShort);
       return NULL;
     }
     case IntrinsicHelper::HLSputFloat: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLSput(call_inst, kFloat);
       return NULL;
     }
     case IntrinsicHelper::HLSputWide: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLSput(call_inst, kLong);
       return NULL;
     }
     case IntrinsicHelper::HLSputDouble: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLSput(call_inst, kDouble);
       return NULL;
     }
     case IntrinsicHelper::HLSputObject: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLSput(call_inst, kObject);
       return NULL;
     }
 
