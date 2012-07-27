@@ -134,6 +134,13 @@ MemMap::MemMap(byte* begin, size_t size, void* base_begin, size_t base_size, int
   CHECK_NE(base_size_, 0U);
 };
 
+void MemMap::UnMapAtEnd(byte* new_end) {
+  DCHECK_GE(new_end, Begin());
+  DCHECK_LE(new_end, End());
+  size_t unmap_size = End() - new_end;
+  munmap(new_end, unmap_size);
+  size_ -= unmap_size;
+}
 
 bool MemMap::Protect(int prot) {
   if (base_begin_ == NULL && base_size_ == 0) {

@@ -24,6 +24,7 @@
 
 #include "card_table.h"
 #include "debugger.h"
+#include "heap_bitmap.h"
 #include "image.h"
 #include "mark_sweep.h"
 #include "mod_union_table.h"
@@ -141,6 +142,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       card_table_(NULL),
       card_marking_disabled_(false),
       is_gc_running_(false),
+      concurrent_start_bytes_(std::numeric_limits<size_t>::max()),
       concurrent_start_size_(128 * KB),
       concurrent_min_free_(256 * KB),
       try_running_gc_(false),
@@ -153,6 +155,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       reference_queueNext_offset_(0),
       reference_pendingNext_offset_(0),
       finalizer_reference_zombie_offset_(0),
+      have_zygote_space_(false),
       target_utilization_(0.5),
       verify_objects_(false) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
@@ -164,8 +167,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   Space* first_space = NULL;
   Space* last_space = NULL;
 
-  live_bitmap_.reset(new HeapBitmap);
-  mark_bitmap_.reset(new HeapBitmap);
+  live_bitmap_.reset(new HeapBitmap(this));
+  mark_bitmap_.reset(new HeapBitmap(this));
 
   // Requested begin for the alloc space, to follow the mapped image and oat files
   byte* requested_begin = NULL;
@@ -210,10 +213,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   UniquePtr<AllocSpace> alloc_space(Space::CreateAllocSpace(
       "alloc space", initial_size, growth_limit, capacity, requested_begin));
   alloc_space_ = alloc_space.release();
+  CHECK(alloc_space_ != NULL) << "Failed to create alloc space";
   AddSpace(alloc_space_);
-  if (alloc_space_ == NULL) {
-    LOG(FATAL) << "Failed to create alloc space";
-  }
 
   UpdateFirstAndLastSpace(&first_space, &last_space, alloc_space_);
   byte* heap_begin = first_space->Begin();
@@ -228,44 +229,48 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   }
 
   // Allocate the card table.
-  UniquePtr<CardTable> card_table(CardTable::Create(heap_begin, heap_capacity));
-  if (card_table.get() == NULL) {
-    LOG(FATAL) << "Failed to create card table";
-  }
+  card_table_.reset(CardTable::Create(heap_begin, heap_capacity));
+  CHECK(card_table_.get() != NULL) << "Failed to create card table";
 
-  // Allocate the mod-union table
-  ModUnionTableReferenceCache* mod_union_table = new ModUnionTableReferenceCache(this);
-  mod_union_table->Init();
-  mod_union_table_ = mod_union_table;
+  mod_union_table_.reset(new ModUnionTableToZygoteAllocspace<ModUnionTableReferenceCache>(this));
+  CHECK(mod_union_table_.get() != NULL) << "Failed to create mod-union table";
 
-  card_table_ = card_table.release();
+  zygote_mod_union_table_.reset(new ModUnionTableCardCache(this));
+  CHECK(zygote_mod_union_table_.get() != NULL) << "Failed to create Zygote mod-union table";
 
   num_bytes_allocated_ = 0;
   num_objects_allocated_ = 0;
 
-  mark_stack_ = MarkStack::Create();
+  mark_stack_.reset(MarkStack::Create());
 
   // It's still too early to take a lock because there are no threads yet,
   // but we can create the heap lock now. We don't create it earlier to
   // make it clear that you can't use locks during heap initialization.
-  lock_ = new Mutex("Heap lock", kHeapLock);
-  condition_ = new ConditionVariable("Heap condition variable");
-
-  concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
+  lock_.reset(new Mutex("Heap lock", kHeapLock));
+  condition_.reset(new ConditionVariable("Heap condition variable"));
 
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() exiting";
   }
 }
 
+// Sort spaces based on begin address
+class SpaceSorter {
+ public:
+  bool operator () (const Space* a, const Space* b) const {
+    return a->Begin() < b->Begin();
+  }
+};
+
 void Heap::AddSpace(Space* space) {
+  DCHECK(space != NULL);
   DCHECK(space->GetLiveBitmap() != NULL);
   live_bitmap_->AddSpaceBitmap(space->GetLiveBitmap());
-
   DCHECK(space->GetMarkBitmap() != NULL);
   mark_bitmap_->AddSpaceBitmap(space->GetMarkBitmap());
-
   spaces_.push_back(space);
+  // Ensure that spaces remain sorted in increasing order of start address (required for CMS finger)
+  std::sort(spaces_.begin(), spaces_.end(), SpaceSorter());
 }
 
 Heap::~Heap() {
@@ -275,11 +280,6 @@ Heap::~Heap() {
   // all daemon threads are suspended, and we also know that the threads list have been deleted, so
   // those threads can't resume. We're the only running thread, and we can do whatever we like...
   STLDeleteElements(&spaces_);
-  delete card_table_;
-  delete mod_union_table_;
-  delete mark_stack_;
-  delete condition_;
-  delete lock_;
 }
 
 Space* Heap::FindSpaceFromObject(const Object* obj) const {
@@ -345,6 +345,10 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
         RequestConcurrentGC();
       }
       VerifyObject(obj);
+
+      // Additional verification to ensure that we did not allocate into a zygote space.
+      DCHECK(!have_zygote_space_ || !FindSpaceFromObject(obj)->IsZygoteSpace());
+
       return obj;
     }
     total_bytes_free = GetFreeMemory();
@@ -399,13 +403,25 @@ void Heap::VerifyObject(const Object* obj) {
 }
 #endif
 
+void Heap::DumpSpaces() {
+  // TODO: C++0x auto
+  for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+    LOG(INFO) << **it;
+  }
+}
+
 void Heap::VerifyObjectLocked(const Object* obj) {
   lock_->AssertHeld();
   if (obj != NULL) {
     if (!IsAligned<kObjectAlignment>(obj)) {
       LOG(FATAL) << "Object isn't aligned: " << obj;
     } else if (!GetLiveBitmap()->Test(obj)) {
-      LOG(FATAL) << "Object is dead: " << obj;
+      Space* space = FindSpaceFromObject(obj);
+      if (space == NULL) {
+        DumpSpaces();
+        LOG(FATAL) << "Object " << obj << " is not contained in any space";
+      }
+      LOG(FATAL) << "Object is dead: " << obj << " in space " << *space;
     }
     // Ignore early dawn of the universe verifications
     if (num_objects_allocated_ > 10) {
@@ -498,19 +514,6 @@ Object* Heap::AllocateLocked(size_t size) {
     return obj;
   }
 
-  // TODO: C++0x auto
-  for (Spaces::const_iterator cur = spaces_.begin(); cur != spaces_.end(); ++cur) {
-    if ((*cur)->IsAllocSpace() && *cur != alloc_space_) {
-      AllocSpace* space = (*cur)->AsAllocSpace();
-      Object* obj = AllocateLocked(space, size);
-      if (obj != NULL) {
-        RecordAllocationLocked(space, obj);
-        // Switch to this alloc space since the old one did not have enough storage.
-        alloc_space_ = space;
-        return obj;
-      }
-    }
-  }
   return NULL;
 }
 
@@ -526,7 +529,7 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
   if (alloc_size > space->Capacity()) {
     // On failure collect soft references
     WaitForConcurrentGcToComplete();
-    CollectGarbageInternal(false, true);
+    CollectGarbageInternal(false, false, true);
     return NULL;
   }
 
@@ -553,9 +556,19 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
     ++Runtime::Current()->GetStats()->gc_for_alloc_count;
     ++Thread::Current()->GetStats()->gc_for_alloc_count;
   }
-  // We don't need a WaitForConcurrentGcToComplete here since we checked
-  // is_gc_running_ earlier and we are in a heap lock.
-  CollectGarbageInternal(false, false);
+
+  if (have_zygote_space_) {
+    // We don't need a WaitForConcurrentGcToComplete here since we checked is_gc_running_ earlier
+    // and we are in a heap lock. Try partial GC first.
+    CollectGarbageInternal(true, false, false);
+    ptr = space->AllocWithoutGrowth(alloc_size);
+    if (ptr != NULL) {
+      return ptr;
+    }
+  }
+
+  // Partial GC didn't free enough memory, try a full GC.
+  CollectGarbageInternal(false, false, false);
   ptr = space->AllocWithoutGrowth(alloc_size);
   if (ptr != NULL) {
     return ptr;
@@ -581,7 +594,7 @@ Object* Heap::AllocateLocked(AllocSpace* space, size_t alloc_size) {
   // OLD-TODO: wait for the finalizers from the previous GC to finish
   VLOG(gc) << "Forcing collection of SoftReferences for " << PrettySize(alloc_size) << " allocation";
   // We don't need a WaitForConcurrentGcToComplete here either.
-  CollectGarbageInternal(false, true);
+  CollectGarbageInternal(false, false, true);
   ptr = space->AllocWithGrowth(alloc_size);
   if (ptr != NULL) {
     return ptr;
@@ -654,14 +667,43 @@ void Heap::CollectGarbage(bool clear_soft_references) {
   // If we just waited for a GC to complete then we do not need to do another
   // GC unless we clear soft references.
   if (!WaitForConcurrentGcToComplete() || clear_soft_references) {
-    CollectGarbageInternal(false, clear_soft_references);
+    CollectGarbageInternal(have_zygote_space_, true, clear_soft_references);
   }
 }
 
-void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
+void Heap::PreZygoteFork() {
+  ScopedHeapLock heap_lock;
+
+  // Try to see if we have any Zygote spaces.
+  if (have_zygote_space_) {
+    return;
+  }
+
+  VLOG(heap) << "Starting PreZygoteFork with alloc space size " << PrettySize(GetBytesAllocated());
+
+  // Replace the first alloc space we find with a zygote space.
+  // TODO: C++0x auto
+  for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+    if ((*it)->IsAllocSpace()) {
+      AllocSpace* zygote_space = (*it)->AsAllocSpace();
+
+      // Turns the current alloc space into a Zygote space and obtain the new alloc space composed
+      // of the remaining available heap memory.
+      alloc_space_ = zygote_space->CreateZygoteSpace();
+
+      // Change the GC retention policy of the zygote space to only collect when full.
+      zygote_space->SetGcRetentionPolicy(GCRP_FULL_COLLECT);
+      AddSpace(alloc_space_);
+      have_zygote_space_ = true;
+      break;
+    }
+  }
+}
+
+void Heap::CollectGarbageInternal(bool partial_gc, bool concurrent, bool clear_soft_references) {
   lock_->AssertHeld();
 
-  CHECK(!is_gc_running_);
+  CHECK(!is_gc_running_) << "Attempted recursive GC";
   is_gc_running_ = true;
 
   TimingLogger timings("CollectGarbageInternal");
@@ -674,19 +716,41 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
   size_t initial_size = num_bytes_allocated_;
   Object* cleared_references = NULL;
   {
-    MarkSweep mark_sweep(mark_stack_);
+    MarkSweep mark_sweep(mark_stack_.get());
     timings.AddSplit("ctor");
 
     mark_sweep.Init();
     timings.AddSplit("Init");
 
-    if (concurrent) {
-      card_table_->ClearNonImageSpaceCards(this);
-      timings.AddSplit("ClearNonImageSpaceCards");
-    }
+    // Make sure that the tables have the correct pointer for the mark sweep.
+    mod_union_table_->Init(&mark_sweep);
+    zygote_mod_union_table_->Init(&mark_sweep);
 
     // Clear image space cards and keep track of cards we cleared in the mod-union table.
-    mod_union_table_->ClearCards();
+    for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+      Space* space = *it;
+      if (space->IsImageSpace()) {
+        mod_union_table_->ClearCards(*it);
+      } else if (space->GetGcRetentionPolicy() == GCRP_FULL_COLLECT) {
+        zygote_mod_union_table_->ClearCards(space);
+      } else if (concurrent) {
+        card_table_->ClearSpaceCards(space);
+      }
+    }
+    timings.AddSplit("ClearCards");
+
+#if VERIFY_MOD_UNION
+    mod_union_table_->Verify();
+    zygote_mod_union_table_->Verify();
+#endif
+
+    if (partial_gc) {
+      // Copy the mark bits over from the live bits, do this as early as possible or else we can
+      // accidentally un-mark roots.
+      // Needed for scanning dirty objects.
+      mark_sweep.CopyMarkBits();
+      timings.AddSplit("CopyMarkBits");
+    }
 
     mark_sweep.MarkRoots();
     timings.AddSplit("MarkRoots");
@@ -703,17 +767,26 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
       timings.AddSplit("RootEnd");
     }
 
+    // Update zygote mod union table.
+    if (partial_gc) {
+      zygote_mod_union_table_->Update();
+      timings.AddSplit("UpdateZygoteModUnionTable");
+
+      zygote_mod_union_table_->MarkReferences();
+      timings.AddSplit("ZygoteMarkReferences");
+    }
+
     // Processes the cards we cleared earlier and adds their objects into the mod-union table.
-    mod_union_table_->Update(&mark_sweep);
+    mod_union_table_->Update();
     timings.AddSplit("UpdateModUnionTable");
 
     // Scans all objects in the mod-union table.
-    mod_union_table_->MarkReferences(&mark_sweep);
+    mod_union_table_->MarkReferences();
     timings.AddSplit("MarkImageToAllocSpaceReferences");
 
     // Recursively mark all the non-image bits set in the mark bitmap.
-    mark_sweep.RecursiveMark();
-    timings.AddSplit("RecursiveMark");
+    mark_sweep.RecursiveMark(partial_gc);
+    timings.AddSplit(partial_gc ? "PartialMark" : "RecursiveMark");
 
     if (concurrent) {
       dirty_begin = NanoTime();
@@ -739,7 +812,8 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
     // instead, resulting in no new allocated objects being incorrectly freed by sweep.
     for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
       Space* space = *it;
-      if (space->IsAllocSpace()) {
+      // We never allocate into zygote spaces.
+      if (space->GetGcRetentionPolicy() == GCRP_ALWAYS_COLLECT) {
         live_bitmap_->ReplaceBitmap(space->GetLiveBitmap(), space->GetMarkBitmap());
         mark_bitmap_->ReplaceBitmap(space->GetMarkBitmap(), space->GetLiveBitmap());
         space->AsAllocSpace()->SwapBitmaps();
@@ -756,7 +830,7 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
       Unlock();
     }
 
-    mark_sweep.Sweep();
+    mark_sweep.Sweep(partial_gc);
     timings.AddSplit("Sweep");
 
     cleared_references = mark_sweep.GetClearedReferences();
@@ -791,18 +865,20 @@ void Heap::CollectGarbageInternal(bool concurrent, bool clear_soft_references) {
 
     // If the GC was slow, then print timings in the log.
     if (concurrent) {
-      uint64_t pause_roots_time = (root_end - t0) / 1000 * 1000;
-      uint64_t pause_dirty_time = (dirty_end - dirty_begin) / 1000 * 1000;
-      if (pause_roots_time > MsToNs(5) || pause_dirty_time > MsToNs(5)) {
-        LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
+      uint64_t pause_roots = (root_end - t0) / 1000 * 1000;
+      uint64_t pause_dirty = (dirty_end - dirty_begin) / 1000 * 1000;
+      if (pause_roots > MsToNs(5) || pause_dirty > MsToNs(5)) {
+        LOG(INFO) << (partial_gc ? "Partial " : "")
+                  << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
                   << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
-                  << "paused " << PrettyDuration(pause_roots_time) << "+" << PrettyDuration(pause_dirty_time)
+                  << "paused " << PrettyDuration(pause_roots) << "+" << PrettyDuration(pause_dirty)
                   << ", total " << PrettyDuration(duration_ns);
       }
     } else {
       if (duration_ns > MsToNs(50)) {
         uint64_t markSweepTime = (dirty_end - t0) / 1000 * 1000;
-        LOG(INFO) << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
+        LOG(INFO) << (partial_gc ? "Partial " : "")
+                  << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
                   << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
                   << "paused " << PrettyDuration(markSweepTime)
                   << ", total " << PrettyDuration(duration_ns);
@@ -854,20 +930,15 @@ size_t Heap::GetPercentFree() {
 }
 
 void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
-  // TODO: C++0x auto
-  for (Spaces::const_iterator cur = spaces_.begin(); cur != spaces_.end(); ++cur) {
-    if ((*cur)->IsAllocSpace()) {
-      AllocSpace* alloc_space = (*cur)->AsAllocSpace();
-      // TODO: Behavior for multiple alloc spaces?
-      size_t alloc_space_capacity = alloc_space->Capacity();
-      if (max_allowed_footprint > alloc_space_capacity) {
-        VLOG(gc) << "Clamp target GC heap from " << PrettySize(max_allowed_footprint)
-                 << " to " << PrettySize(alloc_space_capacity);
-        max_allowed_footprint = alloc_space_capacity;
-      }
-      alloc_space->SetFootprintLimit(max_allowed_footprint);
-    }
+  AllocSpace* alloc_space = alloc_space_;
+  // TODO: Behavior for multiple alloc spaces?
+  size_t alloc_space_capacity = alloc_space->Capacity();
+  if (max_allowed_footprint > alloc_space_capacity) {
+    VLOG(gc) << "Clamp target GC heap from " << PrettySize(max_allowed_footprint)
+             << " to " << PrettySize(alloc_space_capacity);
+    max_allowed_footprint = alloc_space_capacity;
   }
+  alloc_space->SetFootprintLimit(max_allowed_footprint);
 }
 
 // kHeapIdealFree is the ideal maximum free size, when we grow the heap for utilization.
@@ -1049,7 +1120,9 @@ void Heap::ConcurrentGC() {
   CHECK(!is_gc_running_);
   // Current thread needs to be runnable or else we can't suspend all threads.
   ScopedThreadStateChange tsc(Thread::Current(), kRunnable);
-  CollectGarbageInternal(true, false);
+  if (!WaitForConcurrentGcToComplete()) {
+    CollectGarbageInternal(have_zygote_space_, true, false);
+  }
 }
 
 void Heap::Trim(AllocSpace* alloc_space) {

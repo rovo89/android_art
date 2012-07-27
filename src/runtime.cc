@@ -222,6 +222,11 @@ void Runtime::Abort() {
   // notreached
 }
 
+bool Runtime::PreZygoteFork() {
+  heap_->PreZygoteFork();
+  return true;
+}
+
 void Runtime::CallExitHook(jint status) {
   if (exit_ != NULL) {
     ScopedThreadStateChange tsc(Thread::Current(), kNative);

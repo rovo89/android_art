@@ -350,6 +350,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
 	src/mutex.h \
 	src/object.h \
 	src/thread.h \
+	src/space.h \
 	src/verifier/method_verifier.h
 
 LIBARTTEST_COMMON_SRC_FILES := \
@@ -379,6 +380,7 @@ TEST_COMMON_SRC_FILES := \
 	src/reference_table_test.cc \
 	src/runtime_support_test.cc \
 	src/runtime_test.cc \
+	src/space_bitmap_test.cc \
 	src/space_test.cc \
 	src/utils_test.cc \
 	src/zip_archive_test.cc \

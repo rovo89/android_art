@@ -75,11 +75,14 @@ class MemMap {
     return begin_ + size_;
   }
 
+  // Trim by unmapping pages at the end of the map.
+  void UnMapAtEnd(byte* new_end);
+
  private:
   MemMap(byte* begin, size_t size, void* base_begin, size_t base_size, int prot);
 
   byte* const begin_;  // Start of data.
-  const size_t size_;  // Length of data.
+  size_t size_;  // Length of data.
 
   void* const base_begin_;  // Page-aligned base address.
   const size_t base_size_;  // Length of mapping.

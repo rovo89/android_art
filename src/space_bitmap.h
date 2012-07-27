@@ -60,7 +60,7 @@ class SpaceBitmap {
 
   // Pack the bits in backwards so they come out in address order when using CLZ.
   static word OffsetToMask(uintptr_t offset_) {
-    return 1 << (sizeof(word) * 8 - 1 - (offset_ / kAlignment) % kBitsPerWord);
+    return 1 << (kBitsPerWord - 1 - (offset_ / kAlignment) % kBitsPerWord);
   }
 
   inline void Set(const Object* obj) {
@@ -112,20 +112,67 @@ class SpaceBitmap {
 
   template <typename Visitor>
   void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end, const Visitor& visitor) const {
-    size_t start = OffsetToIndex(visit_begin - heap_begin_);
-    size_t end = OffsetToIndex(visit_end - heap_begin_ - 1);
-    for (size_t i = start; i <= end; i++) {
-      word w = bitmap_begin_[i];
+    DCHECK_LT(visit_begin, visit_end);
+
+    const size_t bit_index_start = (visit_begin - heap_begin_) / kAlignment;
+    const size_t bit_index_end = (visit_end - heap_begin_ - 1) / kAlignment;
+
+    size_t word_start = bit_index_start / kBitsPerWord;
+    size_t word_end = bit_index_end / kBitsPerWord;
+
+    const size_t high_bit = 1 << (kBitsPerWord - 1);
+
+    // Trim off left_bits of left bits.
+    size_t edge_word = bitmap_begin_[word_start];
+
+    // Handle bits on the left first as a special case
+    size_t left_bits = bit_index_start & (kBitsPerWord - 1);
+    if (left_bits != 0) {
+      edge_word &= (1 << (kBitsPerWord - left_bits)) - 1;
+    }
+
+    // If word_start == word_end then handle this case at the same place we handle the right edge.
+    if (edge_word != 0 && word_start < word_end) {
+      uintptr_t ptr_base = IndexToOffset(word_start) + heap_begin_;
+      do {
+        const size_t shift = CLZ(edge_word);
+        Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
+        visitor(obj);
+        edge_word &= ~(high_bit >> shift);
+      } while (edge_word != 0);
+    }
+    word_start++;
+
+    for (size_t i = word_start; i < word_end; i++) {
+      size_t w = bitmap_begin_[i];
       if (w != 0) {
-        word high_bit = 1 << (kBitsPerWord - 1);
         uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
         do {
-          const int shift = CLZ(w);
+          const size_t shift = CLZ(w);
           Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
           visitor(obj);
           w &= ~(high_bit >> shift);
         } while (w != 0);
       }
+    }
+
+    // Handle the right edge, and also the left edge if both edges are on the same word.
+    size_t right_bits = bit_index_end & (kBitsPerWord - 1);
+
+    // If word_start == word_end then we need to use the word which we removed the left bits.
+    if (word_start <= word_end) {
+      edge_word = bitmap_begin_[word_end];
+    }
+
+    // Bits that we trim off the right.
+    const size_t trim_bits = kBitsPerWord - 1 - right_bits;
+    edge_word &= ~((1 << trim_bits) - 1);
+    uintptr_t ptr_base = IndexToOffset(word_end) + heap_begin_;
+    while (edge_word != 0) {
+      const int shift = CLZ(edge_word);
+      Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
+      visitor(obj);
+      edge_word &= ~(high_bit >> shift);
     }
   }
 
@@ -139,6 +186,27 @@ class SpaceBitmap {
                         const SpaceBitmap& mark,
                         uintptr_t base, uintptr_t max,
                         SweepCallback* thunk, void* arg);
+
+  // Starting address of our internal storage.
+  word* Begin() {
+    return bitmap_begin_;
+  }
+
+  // Size of our internal storage
+  size_t Size() const {
+    return bitmap_size_;
+  }
+
+  // Size in bytes of the memory that the bitmaps spans.
+  size_t HeapSize() const {
+    return IndexToOffset(Size() / kWordSize);
+  }
+
+  uintptr_t HeapBegin() {
+    return heap_begin_;
+  }
+
+  void Trim(size_t heap_capcity);
 
  private:
   // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,
@@ -172,7 +240,7 @@ class SpaceBitmap {
   word* const bitmap_begin_;
 
   // Size of this bitmap.
-  const size_t bitmap_size_;
+  size_t bitmap_size_;
 
   // The base address of the heap, which corresponds to the word containing the first bit in the
   // bitmap.

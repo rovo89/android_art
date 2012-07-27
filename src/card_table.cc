@@ -88,16 +88,11 @@ CardTable::CardTable(MemMap* mem_map, byte* biased_begin, size_t offset)
   ANNOTATE_BENIGN_RACE_SIZED(begin, (end - begin), "writes to GC card table");
 }
 
-void CardTable::ClearNonImageSpaceCards(Heap* heap) {
+void CardTable::ClearSpaceCards(Space* space) {
   // TODO: clear just the range of the table that has been modified
-  const std::vector<Space*>& spaces = heap->GetSpaces();
-  for (size_t i = 0; i < spaces.size(); ++i) {
-    if (!spaces[i]->IsImageSpace()) {
-      byte* card_start = CardFromAddr(spaces[i]->Begin());
-      byte* card_end = CardFromAddr(spaces[i]->End());
-      memset(reinterpret_cast<void*>(card_start), GC_CARD_CLEAN, card_end - card_start);
-    }
-  }
+  byte* card_start = CardFromAddr(space->Begin());
+  byte* card_end = CardFromAddr(space->End()); // Make sure to round up.
+  memset(reinterpret_cast<void*>(card_start), GC_CARD_CLEAN, card_end - card_start);
 }
 
 void CardTable::ClearCardTable() {
@@ -114,30 +109,6 @@ void CardTable::CheckAddrIsInCardTable(const byte* addr) const {
                << " end: " << reinterpret_cast<void*>(end)
                << " addr: " << reinterpret_cast<const void*>(addr)
                << " card_addr: " << reinterpret_cast<void*>(card_addr);
-  }
-}
-
-void CardTable::Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end, Callback* visitor, void* arg) const {
-  DCHECK(bitmap->HasAddress(scan_begin));
-  DCHECK(bitmap->HasAddress(scan_end - 1));  // scan_end is the byte after the last byte we scan.
-  byte* card_cur = CardFromAddr(scan_begin);
-  byte* card_end = CardFromAddr(scan_end);
-  while (card_cur < card_end) {
-    while (card_cur < card_end && *card_cur == GC_CARD_CLEAN) {
-      card_cur++;
-    }
-    byte* run_start = card_cur;
-
-    while (card_cur < card_end && *card_cur == GC_CARD_DIRTY) {
-      card_cur++;
-    }
-    byte* run_end = card_cur;
-
-    if (run_start != run_end) {
-      bitmap->VisitRange(reinterpret_cast<uintptr_t>(AddrFromCard(run_start)),
-                                      reinterpret_cast<uintptr_t>(AddrFromCard(run_end)),
-                                      visitor, arg);
-    }
   }
 }
 

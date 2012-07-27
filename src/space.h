@@ -33,6 +33,13 @@ class ImageSpace;
 class Object;
 class SpaceBitmap;
 
+enum GcRetentionPolicy {
+  GCRP_NEVER_COLLECT,
+  GCRP_ALWAYS_COLLECT,
+  GCRP_FULL_COLLECT,
+};
+std::ostream& operator<<(std::ostream& os, const GcRetentionPolicy& policy);
+
 // A space contains memory allocated for managed objects.
 class Space {
  public:
@@ -85,6 +92,14 @@ class Space {
     return Capacity();
   }
 
+  GcRetentionPolicy GetGcRetentionPolicy() const {
+    return gc_retention_policy_;
+  }
+
+  void SetGcRetentionPolicy(GcRetentionPolicy gc_retention_policy) {
+    gc_retention_policy_ = gc_retention_policy;
+  }
+
   ImageSpace* AsImageSpace() {
     DCHECK(IsImageSpace());
     return down_cast<ImageSpace*>(this);
@@ -97,6 +112,7 @@ class Space {
 
   virtual bool IsAllocSpace() const = 0;
   virtual bool IsImageSpace() const = 0;
+  virtual bool IsZygoteSpace() const = 0;
 
   virtual SpaceBitmap* GetLiveBitmap() const = 0;
   virtual SpaceBitmap* GetMarkBitmap() const = 0;
@@ -106,8 +122,12 @@ class Space {
   }
 
  protected:
-  Space(const std::string& name, MemMap* mem_map, byte* end)
-      : name_(name), mem_map_(mem_map), begin_(mem_map->Begin()), end_(end) {}
+  Space(const std::string& name, MemMap* mem_map, byte* begin, byte* end, GcRetentionPolicy gc_retention_policy)
+      : name_(name),
+        mem_map_(mem_map),
+        begin_(begin),
+        end_(end),
+        gc_retention_policy_(gc_retention_policy) {}
 
   std::string name_;
 
@@ -117,8 +137,11 @@ class Space {
   // The beginning of the storage for fast access (always equals mem_map_->GetAddress())
   byte* const begin_;
 
-  // Current end of the space
+  // Current end of the space.
   byte* end_;
+
+  // Garbage collection retention policy, used to figure out when we should sweep over this space.
+  GcRetentionPolicy gc_retention_policy_;
 
   DISALLOW_COPY_AND_ASSIGN(Space);
 };
@@ -180,11 +203,15 @@ class AllocSpace : public Space {
   }
 
   virtual bool IsAllocSpace() const {
-    return true;
+    return gc_retention_policy_ != GCRP_NEVER_COLLECT;
   }
 
   virtual bool IsImageSpace() const {
     return false;
+  }
+
+  virtual bool IsZygoteSpace() const {
+    return gc_retention_policy_ == GCRP_FULL_COLLECT;
   }
 
   virtual SpaceBitmap* GetLiveBitmap() const {
@@ -198,6 +225,9 @@ class AllocSpace : public Space {
   // Swap the live and mark bitmaps of this space. This is used by the GC for concurrent sweeping.
   void SwapBitmaps();
 
+  // Turn ourself into a zygote space and return a new alloc space which has our unused memory.
+  AllocSpace* CreateZygoteSpace();
+
  private:
   friend class Space;
 
@@ -205,7 +235,7 @@ class AllocSpace : public Space {
   UniquePtr<SpaceBitmap> mark_bitmap_;
   static size_t bitmap_index_;
 
-  AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* end,
+  AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
              size_t growth_limit);
 
   bool Init(size_t initial_size, size_t maximum_size, size_t growth_size, byte* requested_base);
@@ -252,11 +282,17 @@ class ImageSpace : public Space {
     return true;
   }
 
+  virtual bool IsZygoteSpace() const {
+    return false;
+  }
+
   virtual SpaceBitmap* GetLiveBitmap() const {
    return live_bitmap_.get();
  }
 
  virtual SpaceBitmap* GetMarkBitmap() const {
+   // ImageSpaces have the same bitmap for both live and marked. This helps reduce the number of
+   // special cases to test against.
    return live_bitmap_.get();
  }
 

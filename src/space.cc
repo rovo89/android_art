@@ -22,6 +22,7 @@
 #include "image.h"
 #include "logging.h"
 #include "os.h"
+#include "space_bitmap.h"
 #include "stl_util.h"
 #include "utils.h"
 
@@ -42,12 +43,15 @@ namespace art {
 
 size_t AllocSpace::bitmap_index_ = 0;
 
-AllocSpace::AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* end,
+AllocSpace::AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
                        size_t growth_limit)
-    : Space(name, mem_map, end), mspace_(mspace), growth_limit_(growth_limit) {
+    : Space(name, mem_map, begin, end, GCRP_ALWAYS_COLLECT), mspace_(mspace), growth_limit_(growth_limit) {
   CHECK(mspace != NULL);
 
   size_t bitmap_index = bitmap_index_++;
+
+  DCHECK(reinterpret_cast<uintptr_t>(mem_map->Begin()) % static_cast<uintptr_t>GC_CARD_SIZE == 0);
+  DCHECK(reinterpret_cast<uintptr_t>(mem_map->End()) % static_cast<uintptr_t>GC_CARD_SIZE == 0);
 
   live_bitmap_.reset(SpaceBitmap::Create(
       StringPrintf("allocspace-%s-live-bitmap-%d", name.c_str(), static_cast<int>(bitmap_index)),
@@ -120,7 +124,8 @@ AllocSpace* Space::CreateAllocSpace(const std::string& name, size_t initial_size
   }
 
   // Everything is set so record in immutable structure and leave
-  AllocSpace* space = new AllocSpace(name, mem_map.release(), mspace, end, growth_limit);
+  MemMap* mem_map_ptr = mem_map.release();
+  AllocSpace* space = new AllocSpace(name, mem_map_ptr, mspace, mem_map_ptr->Begin(), end, growth_limit);
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Space::CreateAllocSpace exiting (" << PrettyDuration(NanoTime() - start_time)
         << " ) " << *space;
@@ -174,6 +179,50 @@ Object* AllocSpace::AllocWithGrowth(size_t num_bytes) {
   Object* result = reinterpret_cast<Object*>(ptr);
   CHECK(result == NULL || Contains(result));
   return result;
+}
+
+AllocSpace* AllocSpace::CreateZygoteSpace() {
+  end_ = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(end_), kPageSize));
+  DCHECK(IsAligned<GC_CARD_SIZE>(begin_));
+  DCHECK(IsAligned<GC_CARD_SIZE>(end_));
+  DCHECK(IsAligned<kPageSize>(begin_));
+  DCHECK(IsAligned<kPageSize>(end_));
+  size_t size = RoundUp(Size(), kPageSize);
+  // Trim the heap so that we minimize the size of the Zygote space.
+  Trim();
+  // Trim our mem-map to free unused pages.
+  mem_map_->UnMapAtEnd(end_);
+  // TODO: Not hardcode these in?
+  const size_t starting_size = kPageSize;
+  const size_t initial_size = 2 * MB;
+  // Remaining size is for the new alloc space.
+  const size_t growth_limit = growth_limit_ - size;
+  const size_t capacity = Capacity() - size;
+  VLOG(heap) << "Begin " << reinterpret_cast<const void*>(begin_);
+  VLOG(heap) << "End " << reinterpret_cast<const void*>(end_);
+  VLOG(heap) << "Size " << size;
+  VLOG(heap) << "GrowthLimit " << growth_limit_;
+  VLOG(heap) << "Capacity " << Capacity();
+  growth_limit_ = RoundUp(size, kPageSize);
+  // FIXME: Do we need reference counted pointers here?
+  // Make the two spaces share the same mark bitmaps since the bitmaps span both of the spaces.
+  VLOG(heap) << "Creating new alloc space: ";
+  VLOG(heap) << "Size " << mem_map_->Size();
+  VLOG(heap) << "GrowthLimit " << PrettySize(growth_limit);
+  VLOG(heap) << "Capacity " << PrettySize(capacity);
+  UniquePtr<MemMap> mem_map(MemMap::MapAnonymous(name_.c_str(), end_, capacity, PROT_READ | PROT_WRITE));
+  void* mspace = CreateMallocSpace(end_, starting_size, initial_size);
+  // Protect memory beyond the initial size.
+  byte* end = mem_map->Begin() + starting_size;
+  if (capacity - initial_size > 0) {
+    CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size, PROT_NONE), name_.c_str());
+  }
+  AllocSpace* alloc_space = new AllocSpace(name_, mem_map.release(), mspace, end_, end, growth_limit);
+  live_bitmap_->Trim(Capacity()); // TODO - kPageSize?
+  mark_bitmap_->Trim(Capacity()); // TODO - kPageSize?
+  name_ += "-zygote-transformed";
+  VLOG(heap) << "zygote space creation done";
+  return alloc_space;
 }
 
 void AllocSpace::Free(Object* ptr) {
@@ -309,7 +358,7 @@ void AllocSpace::SetFootprintLimit(size_t new_size) {
 size_t ImageSpace::bitmap_index_ = 0;
 
 ImageSpace::ImageSpace(const std::string& name, MemMap* mem_map)
-    : Space(name, mem_map, mem_map->End()) {
+    : Space(name, mem_map, mem_map->Begin(), mem_map->End(), GCRP_NEVER_COLLECT) {
   const size_t bitmap_index = bitmap_index_++;
   live_bitmap_.reset(SpaceBitmap::Create(
       StringPrintf("imagespace-%s-live-bitmap-%d", name.c_str(), static_cast<int>(bitmap_index)),

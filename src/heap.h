@@ -39,7 +39,6 @@ class HeapBitmap;
 class ImageSpace;
 class MarkStack;
 class ModUnionTable;
-class ModUnionTableBitmap;
 class Object;
 class Space;
 class SpaceTest;
@@ -195,7 +194,7 @@ class LOCKABLE Heap {
   }
 
   CardTable* GetCardTable() {
-    return card_table_;
+    return card_table_.get();
   }
 
   void DisableCardMarking() {
@@ -236,10 +235,13 @@ class LOCKABLE Heap {
     return mark_bitmap_.get();
   }
 
-  // Assumes there is only one image space.
+  void PreZygoteFork();
+
   // DEPRECATED: Should remove in "near" future when support for multiple image spaces is added.
+  // Assumes there is only one image space.
   ImageSpace* GetImageSpace();
   AllocSpace* GetAllocSpace();
+  void DumpSpaces();
 
  private:
   // Allocates uninitialized storage.
@@ -258,7 +260,7 @@ class LOCKABLE Heap {
   void RecordAllocationLocked(AllocSpace* space, const Object* object);
 
   // TODO: can we teach GCC to understand the weird locking in here?
-  void CollectGarbageInternal(bool concurrent, bool clear_soft_references) NO_THREAD_SAFETY_ANALYSIS;
+  void CollectGarbageInternal(bool partial_gc, bool concurrent, bool clear_soft_references) NO_THREAD_SAFETY_ANALYSIS;
 
   // Given the current contents of the alloc space, increase the allowed heap footprint to match
   // the target utilization ratio.  This should only be called immediately after a full garbage
@@ -275,19 +277,22 @@ class LOCKABLE Heap {
 
   static void VerificationCallback(Object* obj, void* arg);
 
-  Mutex* lock_;
-  ConditionVariable* condition_;
+  UniquePtr<Mutex> lock_;
+  UniquePtr<ConditionVariable> condition_;
 
   Spaces spaces_;
 
   // The alloc space which we are currently allocating into.
   AllocSpace* alloc_space_;
 
-  // TODO: Reduce memory usage, this bitmap currently takes 1 bit per 8 bytes
-  // of image space.
-  ModUnionTable* mod_union_table_;
+  // The mod-union table remembers all of the referneces from the image space to the alloc /
+  // zygote spaces.
+  UniquePtr<ModUnionTable> mod_union_table_;
 
-  CardTable* card_table_;
+  // This table holds all of the references from the zygote space to the alloc space.
+  UniquePtr<ModUnionTable> zygote_mod_union_table_;
+
+  UniquePtr<CardTable> card_table_;
 
   // Used by the image writer to disable card marking on copied objects
   // TODO: remove
@@ -313,7 +318,7 @@ class LOCKABLE Heap {
   bool requesting_gc_;
 
   // Mark stack that we reuse to avoid re-allocating the mark stack
-  MarkStack* mark_stack_;
+  UniquePtr<MarkStack> mark_stack_;
 
   // Number of bytes allocated.  Adjusted after each allocation and free.
   size_t num_bytes_allocated_;
@@ -339,6 +344,9 @@ class LOCKABLE Heap {
   // offset of java.lang.ref.FinalizerReference.zombie
   MemberOffset finalizer_reference_zombie_offset_;
 
+  // If we have a zygote space.
+  bool have_zygote_space_;
+
   // Target ideal heap utilization ratio
   float target_utilization_;
 
@@ -347,6 +355,7 @@ class LOCKABLE Heap {
   friend class ScopedHeapLock;
   FRIEND_TEST(SpaceTest, AllocAndFree);
   FRIEND_TEST(SpaceTest, AllocAndFreeList);
+  FRIEND_TEST(SpaceTest, ZygoteSpace);
   friend class SpaceTest;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Heap);
