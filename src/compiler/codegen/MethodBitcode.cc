@@ -49,7 +49,11 @@ llvm::Value* getLLVMValue(CompilationUnit* cUnit, int sReg)
 void defineValue(CompilationUnit* cUnit, llvm::Value* val, int sReg)
 {
   llvm::Value* placeholder = getLLVMValue(cUnit, sReg);
-  CHECK(placeholder != NULL) << "Null placeholder - shouldn't happen";
+  if (placeholder == NULL) {
+    // This can happen on instruction rewrite on verification failure
+    LOG(WARNING) << "Null placeholder - invalid CFG";
+    return;
+  }
   placeholder->replaceAllUsesWith(val);
   val->takeName(placeholder);
   cUnit->llvmValues.elemList[sReg] = (intptr_t)val;
@@ -1298,7 +1302,13 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
     case Instruction::MOVE_RESULT:
     case Instruction::MOVE_RESULT_OBJECT:
 #if defined(TARGET_ARM)
-      CHECK(false) << "Unexpected MOVE_RESULT";
+      /*
+       * Instruction rewriting on verification failure can eliminate
+       * the invoke that feeds this move0result.  It won't ever be reached,
+       * so we can ignore it.
+       * TODO: verify that previous instruction if THROW_VERIFICATION_ERROR
+       */
+      UNIMPLEMENTED(WARNING) << "Need to verify previous inst was rewritten";
 #else
       UNIMPLEMENTED(WARNING) << "need x86 move-result fusing";
 #endif
@@ -2261,12 +2271,19 @@ void cvtBinOp(CompilationUnit* cUnit, OpKind op, llvm::Instruction* inst)
   DCHECK(lhsImm == NULL);
   RegLocation rlSrc1 = getLoc(cUnit, inst->getOperand(0));
   llvm::Value* rhs = inst->getOperand(1);
-  if (llvm::ConstantInt* src2 = llvm::dyn_cast<llvm::ConstantInt>(rhs)) {
+  llvm::ConstantInt* constRhs = llvm::dyn_cast<llvm::ConstantInt>(rhs);
+  if (!rlDest.wide && (constRhs != NULL)) {
     Instruction::Code dalvikOp = getDalvikOpcode(op, true, false);
-    genArithOpIntLit(cUnit, dalvikOp, rlDest, rlSrc1, src2->getSExtValue());
+    genArithOpIntLit(cUnit, dalvikOp, rlDest, rlSrc1, constRhs->getSExtValue());
   } else {
     Instruction::Code dalvikOp = getDalvikOpcode(op, false, rlDest.wide);
-    RegLocation rlSrc2 = getLoc(cUnit, rhs);
+    RegLocation rlSrc2;
+    if (constRhs != NULL) {
+      DCHECK_EQ(dalvikOp, Instruction::NOT_LONG);
+      rlSrc2 = rlSrc1;
+    } else {
+      rlSrc2 = getLoc(cUnit, rhs);
+    }
     if (rlDest.wide) {
       genArithOpLong(cUnit, dalvikOp, rlDest, rlSrc1, rlSrc2);
     } else {
