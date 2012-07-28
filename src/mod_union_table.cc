@@ -148,9 +148,9 @@ class ModUnionScanImageRootVisitor {
   MarkSweep* const mark_sweep_;
 };
 
-void ModUnionTableBitmap::MarkReferences(MarkSweep* mark_sweep) {
+void ModUnionTableBitmap::MarkReferences() {
   // Some tests have no image space, and therefore no mod-union bitmap.
-  ModUnionScanImageRootVisitor image_root_scanner(mark_sweep);
+  ModUnionScanImageRootVisitor image_root_scanner(GetMarkSweep());
   for (BitmapMap::iterator cur = bitmaps_.begin(); cur != bitmaps_.end(); ++cur) {
     const Space* space = cur->first;
     uintptr_t begin = reinterpret_cast<uintptr_t>(space->Begin());

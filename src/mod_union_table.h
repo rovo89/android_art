@@ -87,7 +87,7 @@ class ModUnionTableBitmap : public ModUnionTable {
   void Update();
 
   // Mark all references to the alloc space(s).
-  void MarkReferences(MarkSweep* mark_sweep);
+  void MarkReferences();
 
  protected:
   // Cleared card array, used to update the mod-union table.
