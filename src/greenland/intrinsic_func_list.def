@@ -106,6 +106,13 @@ _EVAL_DEF_INTRINSICS_FUNC(ThrowException,
                           kVoidTy,
                           _EXPAND_ARG1(kJavaObjectTy))
 
+// void dex_lang_hl_throw_exception(JavaObject* exception)
+_EVAL_DEF_INTRINSICS_FUNC(HLThrowException,
+                          dex_lang_hl_throw_exception,
+                          kAttrDoThrow,
+                          kVoidTy,
+                          _EXPAND_ARG1(kJavaObjectTy))
+
 // JavaObject* dex_lang_get_current_exception()
 _EVAL_DEF_INTRINSICS_FUNC(GetException,
                           dex_lang_get_current_exception,

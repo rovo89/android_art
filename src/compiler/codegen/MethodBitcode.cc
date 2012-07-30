@@ -340,7 +340,7 @@ void convertThrow(CompilationUnit* cUnit, RegLocation rlSrc)
 {
   llvm::Value* src = getLLVMValue(cUnit, rlSrc.origSReg);
   llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
-      greenland::IntrinsicHelper::ThrowException);
+      greenland::IntrinsicHelper::HLThrowException);
   cUnit->irb->CreateCall(func, src);
 }
 
@@ -3067,7 +3067,7 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               case greenland::IntrinsicHelper::GetException:
                 cvtMoveException(cUnit, callInst);
                 break;
-              case greenland::IntrinsicHelper::ThrowException:
+              case greenland::IntrinsicHelper::HLThrowException:
                 cvtThrow(cUnit, callInst);
                 break;
               case greenland::IntrinsicHelper::MonitorEnter:

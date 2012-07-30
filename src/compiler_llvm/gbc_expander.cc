@@ -251,6 +251,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
     llvm::BasicBlock* begin_bb_;
   };
 
+  llvm::Value* EmitLoadConstantClass(uint32_t dex_pc, uint32_t type_idx);
   llvm::Value* EmitLoadStaticStorage(uint32_t dex_pc, uint32_t type_idx);
 
   llvm::Value* Expand_HLIGet(llvm::CallInst& call_inst, JType field_jty);
@@ -261,6 +262,35 @@ class GBCExpanderPass : public llvm::FunctionPass {
 
   llvm::Value* Expand_HLArrayGet(llvm::CallInst& call_inst, JType field_jty);
   void Expand_HLArrayPut(llvm::CallInst& call_inst, JType field_jty);
+
+  llvm::Value* Expand_ConstString(llvm::CallInst& call_inst);
+  llvm::Value* Expand_ConstClass(llvm::CallInst& call_inst);
+
+  void Expand_MonitorEnter(llvm::CallInst& call_inst);
+  void Expand_MonitorExit(llvm::CallInst& call_inst);
+
+  void Expand_HLCheckCast(llvm::CallInst& call_inst);
+  llvm::Value* Expand_InstanceOf(llvm::CallInst& call_inst);
+
+  llvm::Value* Expand_NewInstance(llvm::CallInst& call_inst);
+
+  llvm::Value* Expand_HLInvoke(llvm::CallInst& call_inst);
+
+  llvm::Value* Expand_OptArrayLength(llvm::CallInst& call_inst);
+  llvm::Value* Expand_NewArray(llvm::CallInst& call_inst);
+  llvm::Value* Expand_HLFilledNewArray(llvm::CallInst& call_inst);
+  void Expand_HLFillArrayData(llvm::CallInst& call_inst);
+
+  llvm::Value* EmitAllocNewArray(uint32_t dex_pc,
+                                 llvm::Value* array_length_value,
+                                 uint32_t type_idx,
+                                 bool is_filled_new_array);
+
+  llvm::Value* EmitCallRuntimeForCalleeMethodObjectAddr(uint32_t callee_method_idx,
+                                                        InvokeType invoke_type,
+                                                        llvm::Value* this_addr,
+                                                        uint32_t dex_pc,
+                                                        bool is_fast_path);
 
   void EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr);
 
@@ -1349,6 +1379,87 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
   return;
 }
 
+llvm::Value* GBCExpanderPass::EmitLoadConstantClass(uint32_t dex_pc,
+                                                    uint32_t type_idx) {
+  if (!compiler_->CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
+                                             *dex_file_, type_idx)) {
+    llvm::Value* type_idx_value = irb_.getInt32(type_idx);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
+
+    llvm::Function* runtime_func =
+      irb_.GetRuntime(runtime_support::InitializeTypeAndVerifyAccess);
+
+    EmitUpdateDexPC(dex_pc);
+
+    llvm::Value* type_object_addr =
+      irb_.CreateCall3(runtime_func, type_idx_value, method_object_addr, thread_object_addr);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+    return type_object_addr;
+
+  } else {
+    // Try to load the class (type) object from the test cache.
+    llvm::Value* type_field_addr =
+      EmitLoadDexCacheResolvedTypeFieldAddr(type_idx);
+
+    llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr, kTBAAJRuntime);
+
+    if (compiler_->CanAssumeTypeIsPresentInDexCache(dex_cache_, type_idx)) {
+      return type_object_addr;
+    }
+
+    llvm::BasicBlock* block_original = irb_.GetInsertBlock();
+
+    // Test whether class (type) object is in the dex cache or not
+    llvm::Value* equal_null =
+      irb_.CreateICmpEQ(type_object_addr, irb_.getJNull());
+
+    llvm::BasicBlock* block_cont =
+      CreateBasicBlockWithDexPC(dex_pc, "cont");
+
+    llvm::BasicBlock* block_load_class =
+      CreateBasicBlockWithDexPC(dex_pc, "load_class");
+
+    irb_.CreateCondBr(equal_null, block_load_class, block_cont, kUnlikely);
+
+    // Failback routine to load the class object
+    irb_.SetInsertPoint(block_load_class);
+
+    llvm::Function* runtime_func = irb_.GetRuntime(runtime_support::InitializeType);
+
+    llvm::Constant* type_idx_value = irb_.getInt32(type_idx);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
+
+    EmitUpdateDexPC(dex_pc);
+
+    llvm::Value* loaded_type_object_addr =
+      irb_.CreateCall3(runtime_func, type_idx_value, method_object_addr, thread_object_addr);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+    llvm::BasicBlock* block_after_load_class = irb_.GetInsertBlock();
+
+    irb_.CreateBr(block_cont);
+
+    // Now the class object must be loaded
+    irb_.SetInsertPoint(block_cont);
+
+    llvm::PHINode* phi = irb_.CreatePHI(irb_.getJObjectTy(), 2);
+
+    phi->addIncoming(type_object_addr, block_original);
+    phi->addIncoming(loaded_type_object_addr, block_after_load_class);
+
+    return phi;
+  }
+}
+
 llvm::Value* GBCExpanderPass::EmitLoadStaticStorage(uint32_t dex_pc,
                                                     uint32_t type_idx) {
   llvm::BasicBlock* block_load_static =
@@ -1565,6 +1676,600 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
   return;
 }
 
+llvm::Value* GBCExpanderPass::Expand_ConstString(llvm::CallInst& call_inst) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  uint32_t string_idx = LV2UInt(call_inst.getArgOperand(0));
+
+  llvm::Value* string_field_addr = EmitLoadDexCacheStringFieldAddr(string_idx);
+
+  llvm::Value* string_addr = irb_.CreateLoad(string_field_addr, kTBAAJRuntime);
+
+  if (!compiler_->CanAssumeStringIsPresentInDexCache(dex_cache_, string_idx)) {
+    llvm::BasicBlock* block_str_exist =
+      CreateBasicBlockWithDexPC(dex_pc, "str_exist");
+
+    llvm::BasicBlock* block_str_resolve =
+      CreateBasicBlockWithDexPC(dex_pc, "str_resolve");
+
+    llvm::BasicBlock* block_cont =
+      CreateBasicBlockWithDexPC(dex_pc, "str_cont");
+
+    // Test: Is the string resolved and in the dex cache?
+    llvm::Value* equal_null = irb_.CreateICmpEQ(string_addr, irb_.getJNull());
+
+    irb_.CreateCondBr(equal_null, block_str_resolve, block_str_exist, kUnlikely);
+
+    // String is resolved, go to next basic block.
+    irb_.SetInsertPoint(block_str_exist);
+    irb_.CreateBr(block_cont);
+
+    // String is not resolved yet, resolve it now.
+    irb_.SetInsertPoint(block_str_resolve);
+
+    llvm::Function* runtime_func = irb_.GetRuntime(runtime_support::ResolveString);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    llvm::Value* string_idx_value = irb_.getInt32(string_idx);
+
+    EmitUpdateDexPC(dex_pc);
+
+    llvm::Value* result = irb_.CreateCall2(runtime_func, method_object_addr,
+                                           string_idx_value);
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+
+    llvm::BasicBlock* block_pre_cont = irb_.GetInsertBlock();
+
+    irb_.SetInsertPoint(block_cont);
+
+    llvm::PHINode* phi = irb_.CreatePHI(irb_.getJObjectTy(), 2);
+
+    phi->addIncoming(string_addr, block_str_exist);
+    phi->addIncoming(result, block_pre_cont);
+
+    string_addr = phi;
+  }
+
+  return string_addr;
+}
+
+llvm::Value* GBCExpanderPass::Expand_ConstClass(llvm::CallInst& call_inst) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
+
+  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, type_idx);
+
+  return type_object_addr;
+}
+
+void GBCExpanderPass::Expand_MonitorEnter(llvm::CallInst& call_inst) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  llvm::Value* object_addr = call_inst.getArgOperand(1);
+
+  // TODO: opt_flags
+  EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  irb_.Runtime().EmitLockObject(object_addr);
+
+  return;
+}
+
+void GBCExpanderPass::Expand_MonitorExit(llvm::CallInst& call_inst) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  llvm::Value* object_addr = call_inst.getArgOperand(1);
+
+  // TODO: opt_flags
+  EmitGuard_NullPointerException(dex_pc, object_addr);
+
+  EmitUpdateDexPC(dex_pc);
+
+  irb_.Runtime().EmitUnlockObject(object_addr);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  return;
+}
+
+void GBCExpanderPass::Expand_HLCheckCast(llvm::CallInst& call_inst) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
+  llvm::Value* object_addr = call_inst.getArgOperand(1);
+
+  llvm::BasicBlock* block_test_class =
+    CreateBasicBlockWithDexPC(dex_pc, "test_class");
+
+  llvm::BasicBlock* block_test_sub_class =
+    CreateBasicBlockWithDexPC(dex_pc, "test_sub_class");
+
+  llvm::BasicBlock* block_cont =
+    CreateBasicBlockWithDexPC(dex_pc, "checkcast_cont");
+
+  // Test: Is the reference equal to null?  Act as no-op when it is null.
+  llvm::Value* equal_null = irb_.CreateICmpEQ(object_addr, irb_.getJNull());
+
+  irb_.CreateCondBr(equal_null,
+                    block_cont,
+                    block_test_class);
+
+  // Test: Is the object instantiated from the given class?
+  irb_.SetInsertPoint(block_test_class);
+  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, type_idx);
+  DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
+
+  llvm::PointerType* jobject_ptr_ty = irb_.getJObjectTy();
+
+  llvm::Value* object_type_field_addr =
+    irb_.CreateBitCast(object_addr, jobject_ptr_ty->getPointerTo());
+
+  llvm::Value* object_type_object_addr =
+    irb_.CreateLoad(object_type_field_addr, kTBAAConstJObject);
+
+  llvm::Value* equal_class =
+    irb_.CreateICmpEQ(type_object_addr, object_type_object_addr);
+
+  irb_.CreateCondBr(equal_class,
+                    block_cont,
+                    block_test_sub_class);
+
+  // Test: Is the object instantiated from the subclass of the given class?
+  irb_.SetInsertPoint(block_test_sub_class);
+
+  EmitUpdateDexPC(dex_pc);
+
+  irb_.CreateCall2(irb_.GetRuntime(runtime_support::CheckCast),
+                   type_object_addr, object_type_object_addr);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  irb_.CreateBr(block_cont);
+
+  irb_.SetInsertPoint(block_cont);
+
+  return;
+}
+
+llvm::Value* GBCExpanderPass::Expand_InstanceOf(llvm::CallInst& call_inst) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
+  llvm::Value* object_addr = call_inst.getArgOperand(1);
+
+  llvm::BasicBlock* block_nullp =
+      CreateBasicBlockWithDexPC(dex_pc, "nullp");
+
+  llvm::BasicBlock* block_test_class =
+      CreateBasicBlockWithDexPC(dex_pc, "test_class");
+
+  llvm::BasicBlock* block_class_equals =
+      CreateBasicBlockWithDexPC(dex_pc, "class_eq");
+
+  llvm::BasicBlock* block_test_sub_class =
+      CreateBasicBlockWithDexPC(dex_pc, "test_sub_class");
+
+  llvm::BasicBlock* block_cont =
+      CreateBasicBlockWithDexPC(dex_pc, "instance_of_cont");
+
+  // Overview of the following code :
+  // We check for null, if so, then false, otherwise check for class == . If so
+  // then true, otherwise do callout slowpath.
+  //
+  // Test: Is the reference equal to null?  Set 0 when it is null.
+  llvm::Value* equal_null = irb_.CreateICmpEQ(object_addr, irb_.getJNull());
+
+  irb_.CreateCondBr(equal_null, block_nullp, block_test_class);
+
+  irb_.SetInsertPoint(block_nullp);
+  irb_.CreateBr(block_cont);
+
+  // Test: Is the object instantiated from the given class?
+  irb_.SetInsertPoint(block_test_class);
+  llvm::Value* type_object_addr = EmitLoadConstantClass(dex_pc, type_idx);
+  DCHECK_EQ(Object::ClassOffset().Int32Value(), 0);
+
+  llvm::PointerType* jobject_ptr_ty = irb_.getJObjectTy();
+
+  llvm::Value* object_type_field_addr =
+    irb_.CreateBitCast(object_addr, jobject_ptr_ty->getPointerTo());
+
+  llvm::Value* object_type_object_addr =
+    irb_.CreateLoad(object_type_field_addr, kTBAAConstJObject);
+
+  llvm::Value* equal_class =
+    irb_.CreateICmpEQ(type_object_addr, object_type_object_addr);
+
+  irb_.CreateCondBr(equal_class, block_class_equals, block_test_sub_class);
+
+  irb_.SetInsertPoint(block_class_equals);
+  irb_.CreateBr(block_cont);
+
+  // Test: Is the object instantiated from the subclass of the given class?
+  irb_.SetInsertPoint(block_test_sub_class);
+  llvm::Value* result =
+    irb_.CreateCall2(irb_.GetRuntime(runtime_support::IsAssignable),
+                     type_object_addr, object_type_object_addr);
+  irb_.CreateBr(block_cont);
+
+  irb_.SetInsertPoint(block_cont);
+
+  llvm::PHINode* phi = irb_.CreatePHI(irb_.getJIntTy(), 3);
+
+  phi->addIncoming(irb_.getJInt(0), block_nullp);
+  phi->addIncoming(irb_.getJInt(1), block_class_equals);
+  phi->addIncoming(result, block_test_sub_class);
+
+  return phi;
+}
+
+llvm::Value* GBCExpanderPass::Expand_NewInstance(llvm::CallInst& call_inst) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
+
+  llvm::Function* runtime_func;
+  if (compiler_->CanAccessInstantiableTypeWithoutChecks(
+        method_idx_, dex_cache_, *dex_file_, type_idx)) {
+    runtime_func = irb_.GetRuntime(runtime_support::AllocObject);
+  } else {
+    runtime_func = irb_.GetRuntime(runtime_support::AllocObjectWithAccessCheck);
+  }
+
+  llvm::Constant* type_index_value = irb_.getInt32(type_idx);
+
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
+
+  EmitUpdateDexPC(dex_pc);
+
+  llvm::Value* object_addr =
+    irb_.CreateCall3(runtime_func, type_index_value, method_object_addr, thread_object_addr);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  return object_addr;
+}
+
+llvm::Value* GBCExpanderPass::Expand_HLInvoke(llvm::CallInst& call_inst) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  InvokeType invoke_type = static_cast<InvokeType>(LV2UInt(call_inst.getArgOperand(0)));
+  bool is_static = (invoke_type == kStatic);
+  uint32_t callee_method_idx = LV2UInt(call_inst.getArgOperand(1));
+
+  // Compute invoke related information for compiler decision
+  int vtable_idx = -1;
+  uintptr_t direct_code = 0;
+  uintptr_t direct_method = 0;
+  bool is_fast_path = compiler_->
+    ComputeInvokeInfo(callee_method_idx, oat_compilation_unit_,
+                      invoke_type, vtable_idx, direct_code, direct_method);
+
+  // Load *this* actual parameter
+  llvm::Value* this_addr = NULL;
+
+  if (!is_static) {
+    // Test: Is *this* parameter equal to null?
+    this_addr = call_inst.getArgOperand(3);
+  }
+
+  // Load the method object
+  llvm::Value* callee_method_object_addr = NULL;
+
+  if (!is_fast_path) {
+    callee_method_object_addr =
+      EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx, invoke_type,
+                                               this_addr, dex_pc, is_fast_path);
+
+    // TODO: opt_flags
+    if (!is_static) {
+      EmitGuard_NullPointerException(dex_pc, this_addr);
+    }
+  } else {
+    // TODO: opt_flags
+    if (!is_static) {
+      EmitGuard_NullPointerException(dex_pc, this_addr);
+    }
+
+    switch (invoke_type) {
+    case kStatic:
+    case kDirect:
+      if (direct_method != 0u &&
+          direct_method != static_cast<uintptr_t>(-1)) {
+        callee_method_object_addr =
+          irb_.CreateIntToPtr(irb_.getPtrEquivInt(direct_method),
+                              irb_.getJObjectTy());
+      } else {
+        callee_method_object_addr =
+          EmitLoadSDCalleeMethodObjectAddr(callee_method_idx);
+      }
+      break;
+
+    case kVirtual:
+      DCHECK(vtable_idx != -1);
+      callee_method_object_addr =
+        EmitLoadVirtualCalleeMethodObjectAddr(vtable_idx, this_addr);
+      break;
+
+    case kSuper:
+      LOG(FATAL) << "invoke-super should be promoted to invoke-direct in "
+                    "the fast path.";
+      break;
+
+    case kInterface:
+      callee_method_object_addr =
+        EmitCallRuntimeForCalleeMethodObjectAddr(callee_method_idx,
+                                                 invoke_type, this_addr,
+                                                 dex_pc, is_fast_path);
+      break;
+    }
+  }
+
+  // Load the actual parameter
+  std::vector<llvm::Value*> args;
+
+  args.push_back(callee_method_object_addr); // method object for callee
+
+  for (uint32_t i = 3; i < call_inst.getNumArgOperands(); ++i) {
+    args.push_back(call_inst.getArgOperand(i));
+  }
+
+  llvm::Value* code_addr;
+  if (direct_code != 0u &&
+      direct_code != static_cast<uintptr_t>(-1)) {
+    code_addr =
+      irb_.CreateIntToPtr(irb_.getPtrEquivInt(direct_code),
+                          GetFunctionType(callee_method_idx, is_static)->getPointerTo());
+  } else {
+    code_addr =
+      irb_.LoadFromObjectOffset(callee_method_object_addr,
+                                Method::GetCodeOffset().Int32Value(),
+                                GetFunctionType(callee_method_idx, is_static)->getPointerTo(),
+                                kTBAAJRuntime);
+  }
+
+  // Invoke callee
+  EmitUpdateDexPC(dex_pc);
+  llvm::Value* retval = irb_.CreateCall(code_addr, args);
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  return retval;
+}
+
+llvm::Value* GBCExpanderPass::Expand_OptArrayLength(llvm::CallInst& call_inst) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  // Get the array object address
+  llvm::Value* array_addr = call_inst.getArgOperand(1);
+
+  // TODO: opt_flags
+  EmitGuard_NullPointerException(dex_pc, array_addr);
+
+  // Get the array length and store it to the register
+  return EmitLoadArrayLength(array_addr);
+}
+
+llvm::Value* GBCExpanderPass::Expand_NewArray(llvm::CallInst& call_inst) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
+  llvm::Value* length = call_inst.getArgOperand(1);
+
+  return EmitAllocNewArray(dex_pc, length, type_idx, false);
+}
+
+llvm::Value* GBCExpanderPass::Expand_HLFilledNewArray(llvm::CallInst& call_inst) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  uint32_t type_idx = LV2UInt(call_inst.getArgOperand(1));
+  uint32_t length = call_inst.getNumArgOperands() - 3;
+
+  llvm::Value* object_addr =
+    EmitAllocNewArray(dex_pc, irb_.getInt32(length), type_idx, true);
+
+  if (length > 0) {
+    // Check for the element type
+    uint32_t type_desc_len = 0;
+    const char* type_desc =
+      dex_file_->StringByTypeIdx(type_idx, &type_desc_len);
+
+    DCHECK_GE(type_desc_len, 2u); // should be guaranteed by verifier
+    DCHECK_EQ(type_desc[0], '['); // should be guaranteed by verifier
+    bool is_elem_int_ty = (type_desc[1] == 'I');
+
+    uint32_t alignment;
+    llvm::Constant* elem_size;
+    llvm::PointerType* field_type;
+
+    // NOTE: Currently filled-new-array only supports 'L', '[', and 'I'
+    // as the element, thus we are only checking 2 cases: primitive int and
+    // non-primitive type.
+    if (is_elem_int_ty) {
+      alignment = sizeof(int32_t);
+      elem_size = irb_.getPtrEquivInt(sizeof(int32_t));
+      field_type = irb_.getJIntTy()->getPointerTo();
+    } else {
+      alignment = irb_.getSizeOfPtrEquivInt();
+      elem_size = irb_.getSizeOfPtrEquivIntValue();
+      field_type = irb_.getJObjectTy()->getPointerTo();
+    }
+
+    llvm::Value* data_field_offset =
+      irb_.getPtrEquivInt(Array::DataOffset(alignment).Int32Value());
+
+    llvm::Value* data_field_addr =
+      irb_.CreatePtrDisp(object_addr, data_field_offset, field_type);
+
+    // TODO: Tune this code.  Currently we are generating one instruction for
+    // one element which may be very space consuming.  Maybe changing to use
+    // memcpy may help; however, since we can't guarantee that the alloca of
+    // dalvik register are continuous, we can't perform such optimization yet.
+    for (uint32_t i = 0; i < length; ++i) {
+      llvm::Value* reg_value = call_inst.getArgOperand(i+3);
+
+      irb_.CreateStore(reg_value, data_field_addr, kTBAAHeapArray);
+
+      data_field_addr =
+        irb_.CreatePtrDisp(data_field_addr, elem_size, field_type);
+    }
+  }
+
+  return object_addr;
+}
+
+void GBCExpanderPass::Expand_HLFillArrayData(llvm::CallInst& call_inst) {
+  ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  int32_t payload_offset = static_cast<int32_t>(dex_pc) +
+                           LV2SInt(call_inst.getArgOperand(0));
+  llvm::Value* array_addr = call_inst.getArgOperand(1);
+
+  const Instruction::ArrayDataPayload* payload =
+    reinterpret_cast<const Instruction::ArrayDataPayload*>(
+        code_item_->insns_ + payload_offset);
+
+  if (payload->element_count == 0) {
+    // When the number of the elements in the payload is zero, we don't have
+    // to copy any numbers.  However, we should check whether the array object
+    // address is equal to null or not.
+    EmitGuard_NullPointerException(dex_pc, array_addr);
+  } else {
+    // To save the code size, we are going to call the runtime function to
+    // copy the content from DexFile.
+
+    // NOTE: We will check for the NullPointerException in the runtime.
+
+    llvm::Function* runtime_func = irb_.GetRuntime(runtime_support::FillArrayData);
+
+    llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+    EmitUpdateDexPC(dex_pc);
+
+    irb_.CreateCall4(runtime_func,
+                     method_object_addr, irb_.getInt32(dex_pc),
+                     array_addr, irb_.getInt32(payload_offset));
+
+    EmitGuard_ExceptionLandingPad(dex_pc);
+  }
+
+  return;
+}
+
+llvm::Value* GBCExpanderPass::EmitAllocNewArray(uint32_t dex_pc,
+                                                llvm::Value* array_length_value,
+                                                uint32_t type_idx,
+                                                bool is_filled_new_array) {
+  llvm::Function* runtime_func;
+
+  bool skip_access_check =
+    compiler_->CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
+                                          *dex_file_, type_idx);
+
+
+  if (is_filled_new_array) {
+    runtime_func = skip_access_check ?
+      irb_.GetRuntime(runtime_support::CheckAndAllocArray) :
+      irb_.GetRuntime(runtime_support::CheckAndAllocArrayWithAccessCheck);
+  } else {
+    runtime_func = skip_access_check ?
+      irb_.GetRuntime(runtime_support::AllocArray) :
+      irb_.GetRuntime(runtime_support::AllocArrayWithAccessCheck);
+  }
+
+  llvm::Constant* type_index_value = irb_.getInt32(type_idx);
+
+  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
+
+  EmitUpdateDexPC(dex_pc);
+
+  llvm::Value* object_addr =
+    irb_.CreateCall4(runtime_func, type_index_value, method_object_addr,
+                     array_length_value, thread_object_addr);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  return object_addr;
+}
+
+llvm::Value* GBCExpanderPass::
+EmitCallRuntimeForCalleeMethodObjectAddr(uint32_t callee_method_idx,
+                                         InvokeType invoke_type,
+                                         llvm::Value* this_addr,
+                                         uint32_t dex_pc,
+                                         bool is_fast_path) {
+
+  llvm::Function* runtime_func = NULL;
+
+  switch (invoke_type) {
+  case kStatic:
+    runtime_func = irb_.GetRuntime(runtime_support::FindStaticMethodWithAccessCheck);
+    break;
+
+  case kDirect:
+    runtime_func = irb_.GetRuntime(runtime_support::FindDirectMethodWithAccessCheck);
+    break;
+
+  case kVirtual:
+    runtime_func = irb_.GetRuntime(runtime_support::FindVirtualMethodWithAccessCheck);
+    break;
+
+  case kSuper:
+    runtime_func = irb_.GetRuntime(runtime_support::FindSuperMethodWithAccessCheck);
+    break;
+
+  case kInterface:
+    if (is_fast_path) {
+      runtime_func = irb_.GetRuntime(runtime_support::FindInterfaceMethod);
+    } else {
+      runtime_func = irb_.GetRuntime(runtime_support::FindInterfaceMethodWithAccessCheck);
+    }
+    break;
+  }
+
+  llvm::Value* callee_method_idx_value = irb_.getInt32(callee_method_idx);
+
+  if (this_addr == NULL) {
+    DCHECK_EQ(invoke_type, kStatic);
+    this_addr = irb_.getJNull();
+  }
+
+  llvm::Value* caller_method_object_addr = EmitLoadMethodObjectAddr();
+
+  llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
+
+  EmitUpdateDexPC(dex_pc);
+
+  llvm::Value* callee_method_object_addr =
+    irb_.CreateCall4(runtime_func,
+                     callee_method_idx_value,
+                     this_addr,
+                     caller_method_object_addr,
+                     thread_object_addr);
+
+  EmitGuard_ExceptionLandingPad(dex_pc);
+
+  return callee_method_object_addr;
+}
+
 void GBCExpanderPass::EmitMarkGCCard(llvm::Value* value, llvm::Value* target_addr) {
   // Using runtime support, let the target can override by InlineAssembly.
   irb_.Runtime().EmitMarkGCCard(value, target_addr);
@@ -1675,7 +2380,19 @@ llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
   }
 
   for (uint32_t i = 1; i < shorty_size; ++i) {
+#if defined(ART_USE_QUICK_COMPILER)
+    char shorty_type = shorty[i];
+    switch(shorty_type) {
+      case 'Z' : shorty_type = 'I'; break;
+      case 'B' : shorty_type = 'I'; break;
+      case 'S' : shorty_type = 'I'; break;
+      case 'C' : shorty_type = 'I'; break;
+      default: break;
+    }
+    args_type.push_back(irb_.getJType(shorty_type, kAccurate));
+#else
     args_type.push_back(irb_.getJType(shorty[i], kAccurate));
+#endif
   }
 
   return llvm::FunctionType::get(ret_type, args_type, false);
@@ -1861,6 +2578,19 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::ThrowException: {
       return ExpandToRuntime(runtime_support::ThrowException, call_inst);
     }
+    case IntrinsicHelper::HLThrowException: {
+      ScopedExpandToBasicBlock eb(irb_, &call_inst);
+
+      uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+
+      EmitUpdateDexPC(dex_pc);
+
+      irb_.CreateCall(irb_.GetRuntime(runtime_support::ThrowException),
+                      call_inst.getArgOperand(0));
+
+      EmitGuard_ExceptionLandingPad(dex_pc);
+      return NULL;
+    }
     case IntrinsicHelper::GetException: {
       return Expand_GetException();
     }
@@ -1882,8 +2612,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Const String -----------------------------------------------------==//
     case IntrinsicHelper::ConstString: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_ConstString(call_inst);
     }
     case IntrinsicHelper::LoadStringFromDexCache: {
       return Expand_LoadStringFromDexCache(call_inst.getArgOperand(0));
@@ -1894,8 +2623,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Const Class ------------------------------------------------------==//
     case IntrinsicHelper::ConstClass: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_ConstClass(call_inst);
     }
     case IntrinsicHelper::InitializeTypeAndVerifyAccess: {
       return ExpandToRuntime(runtime_support::InitializeTypeAndVerifyAccess, call_inst);
@@ -1922,7 +2650,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return ExpandToRuntime(runtime_support::CheckCast, call_inst);
     }
     case IntrinsicHelper::HLCheckCast: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLCheckCast(call_inst);
       return NULL;
     }
     case IntrinsicHelper::IsAssignable: {
@@ -1939,22 +2667,18 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Instance ---------------------------------------------------------==//
     case IntrinsicHelper::NewInstance: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_NewInstance(call_inst);
     }
     case IntrinsicHelper::InstanceOf: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_InstanceOf(call_inst);
     }
 
     //==- Array ------------------------------------------------------------==//
     case IntrinsicHelper::NewArray: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_NewArray(call_inst);
     }
     case IntrinsicHelper::OptArrayLength: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_OptArrayLength(call_inst);
     }
     case IntrinsicHelper::ArrayLength: {
       return EmitLoadArrayLength(call_inst.getArgOperand(0));
@@ -2068,12 +2792,11 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return ExpandToRuntime(runtime_support::FillArrayData, call_inst);
     }
     case IntrinsicHelper::HLFillArrayData: {
-      UNIMPLEMENTED(FATAL);
+      Expand_HLFillArrayData(call_inst);
       return NULL;
     }
     case IntrinsicHelper::HLFilledNewArray: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLFilledNewArray(call_inst);
     }
 
     //==- Instance Field ---------------------------------------------------==//
@@ -2468,29 +3191,13 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     }
 
     //==- High-level Invoke ------------------------------------------------==//
-    case IntrinsicHelper::HLInvokeVoid: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
-    }
-    case IntrinsicHelper::HLInvokeObj: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
-    }
-    case IntrinsicHelper::HLInvokeInt: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
-    }
-    case IntrinsicHelper::HLInvokeFloat: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
-    }
-    case IntrinsicHelper::HLInvokeLong: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
-    }
+    case IntrinsicHelper::HLInvokeVoid:
+    case IntrinsicHelper::HLInvokeObj:
+    case IntrinsicHelper::HLInvokeInt:
+    case IntrinsicHelper::HLInvokeFloat:
+    case IntrinsicHelper::HLInvokeLong:
     case IntrinsicHelper::HLInvokeDouble: {
-      UNIMPLEMENTED(FATAL);
-      return NULL;
+      return Expand_HLInvoke(call_inst);
     }
 
     //==- Invoke -----------------------------------------------------------==//
@@ -2633,11 +3340,11 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- High-level Monitor -----------------------------------------------==//
     case IntrinsicHelper::MonitorEnter: {
-      UNIMPLEMENTED(FATAL);
+      Expand_MonitorEnter(call_inst);
       return NULL;
     }
     case IntrinsicHelper::MonitorExit: {
-      UNIMPLEMENTED(FATAL);
+      Expand_MonitorExit(call_inst);
       return NULL;
     }
 
