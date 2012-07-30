@@ -226,6 +226,15 @@ void applyLoadStoreElimination(CompilationUnit* cUnit, LIR* headLIR,
       }
 
       if (stopHere == true) {
+#if defined(TARGET_X86)
+        // Prevent stores from being sunk between ops that generate ccodes and
+        // ops that use them.
+        int flags = EncodingMap[checkLIR->opcode].flags;
+        if (sinkDistance > 0 && (flags & IS_BRANCH) && (flags & USES_CCODES)) {
+          checkLIR = PREV_LIR(checkLIR);
+          sinkDistance--;
+        }
+#endif
         DEBUG_OPT(dumpDependentInsnPair(thisLIR, checkLIR, "REG CLOBBERED"));
         /* Only sink store instructions */
         if (sinkDistance && !isThisLIRLoad) {

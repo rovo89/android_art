@@ -44,16 +44,23 @@ static bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
     case Instruction::MUL_FLOAT:
       op = kX86MulssRR;
       break;
-    case Instruction::NEG_FLOAT:
+    case Instruction::NEG_FLOAT: {
       // TODO: Make this an XorpsRM where the memory location holds 0x80000000
       rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
       rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
       tempReg = oatAllocTemp(cUnit);
       loadConstant(cUnit, tempReg, 0x80000000);
-      newLIR2(cUnit, kX86MovdxrRR, rlResult.lowReg, tempReg);
-      newLIR2(cUnit, kX86XorpsRR, rlResult.lowReg, rlSrc1.lowReg);
+      int rDest = rlResult.lowReg;
+      int rSrc1 = rlSrc1.lowReg;
+      if (rDest == rSrc1) {
+        rSrc1 = oatAllocTempFloat(cUnit);
+        opRegCopy(cUnit, rSrc1, rDest);
+      }
+      newLIR2(cUnit, kX86MovdxrRR, rDest, tempReg);
+      newLIR2(cUnit, kX86XorpsRR, rDest, rSrc1);
       storeValue(cUnit, rlDest, rlResult);
       return false;
+    }
     case Instruction::REM_FLOAT_2ADDR:
     case Instruction::REM_FLOAT: {
       return genArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
@@ -67,7 +74,7 @@ static bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
   int rDest = rlResult.lowReg;
   int rSrc1 = rlSrc1.lowReg;
   int rSrc2 = rlSrc2.lowReg;
-  if (rSrc2 == rDest) {
+  if (rDest == rSrc2) {
     rSrc2 = oatAllocTempFloat(cUnit);
     opRegCopy(cUnit, rSrc2, rDest);
   }
@@ -102,17 +109,24 @@ static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
     case Instruction::MUL_DOUBLE:
       op = kX86MulsdRR;
       break;
-    case Instruction::NEG_DOUBLE:
+    case Instruction::NEG_DOUBLE: {
       // TODO: Make this an XorpdRM where the memory location holds 0x8000000000000000
       rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
       rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
       tempReg = oatAllocTemp(cUnit);
       loadConstant(cUnit, tempReg, 0x80000000);
-      newLIR2(cUnit, kX86MovdxrRR, rlResult.lowReg, tempReg);
-      newLIR2(cUnit, kX86PsllqRI, rlResult.lowReg, 32);
-      newLIR2(cUnit, kX86XorpsRR, rlResult.lowReg, rlSrc1.lowReg);
+      int rDest = S2D(rlResult.lowReg, rlResult.highReg);
+      int rSrc1 = S2D(rlSrc1.lowReg, rlSrc1.highReg);
+      if (rDest == rSrc1) {
+        rSrc1 = oatAllocTempDouble(cUnit) | FP_DOUBLE;
+        opRegCopy(cUnit, rSrc1, rDest);
+      }
+      newLIR2(cUnit, kX86MovdxrRR, rDest, tempReg);
+      newLIR2(cUnit, kX86PsllqRI, rDest, 32);
+      newLIR2(cUnit, kX86XorpsRR, rDest, rSrc1);
       storeValueWide(cUnit, rlDest, rlResult);
       return false;
+    }
     case Instruction::REM_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE: {
       return genArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);

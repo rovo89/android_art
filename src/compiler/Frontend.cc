@@ -797,10 +797,6 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     cUnit->disableOpt |= ~(1 << kSafeOptimizations);
   }
 #endif
-  if (cUnit->instructionSet == kX86) {
-    // Disable some optimizations on X86 for now
-    cUnit->disableOpt |= (1 << kLoadStoreElimination);
-  }
   /* Are we generating code for the debugger? */
   if (compiler.IsDebuggingSupported()) {
     cUnit->genDebugger = true;
