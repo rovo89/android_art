@@ -852,7 +852,6 @@ void handleExtendedMethodMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
       storeValue(cUnit, rlDest, rlSrc);
       break;
     }
-#if defined(TARGET_ARM)
     case kMirOpFusedCmplFloat:
       genFusedFPCmpBranch(cUnit, bb, mir, false /*gt bias*/, false /*double*/);
       break;
@@ -868,7 +867,6 @@ void handleExtendedMethodMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
     case kMirOpFusedCmpLong:
       genFusedLongCmpBranch(cUnit, bb, mir);
       break;
-#endif
     default:
       break;
   }

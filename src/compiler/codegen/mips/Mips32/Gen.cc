@@ -517,4 +517,9 @@ void opRegCopyWide(CompilationUnit *cUnit, int destLo, int destHi,
 #endif
 }
 
+void genFusedLongCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
+{
+  UNIMPLEMENTED(FATAL) << "Need codegen for fused long cmp branch";
+}
+
 }  // namespace art
