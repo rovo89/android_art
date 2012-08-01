@@ -687,19 +687,20 @@ void oatGetBlockName(BasicBlock* bb, char* name)
 {
   switch (bb->blockType) {
     case kEntryBlock:
-      snprintf(name, BLOCK_NAME_LEN, "entry");
+      snprintf(name, BLOCK_NAME_LEN, "entry_%d", bb->id);
       break;
     case kExitBlock:
-      snprintf(name, BLOCK_NAME_LEN, "exit");
+      snprintf(name, BLOCK_NAME_LEN, "exit_%d", bb->id);
       break;
     case kDalvikByteCode:
-      snprintf(name, BLOCK_NAME_LEN, "block%04x", bb->startOffset);
+      snprintf(name, BLOCK_NAME_LEN, "block%04x_%d", bb->startOffset, bb->id);
       break;
     case kExceptionHandling:
-      snprintf(name, BLOCK_NAME_LEN, "exception%04x", bb->startOffset);
+      snprintf(name, BLOCK_NAME_LEN, "exception%04x_%d", bb->startOffset,
+               bb->id);
       break;
     default:
-      snprintf(name, BLOCK_NAME_LEN, "??");
+      snprintf(name, BLOCK_NAME_LEN, "??_%d", bb->id);
       break;
   }
 }
