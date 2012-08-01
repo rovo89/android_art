@@ -819,10 +819,9 @@ const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
   "kMirFusedCmpgDouble",
   "kMirFusedCmpLong",
   "kMirNop",
-  "kMirOpNullCheck",
-  "kMirOpRangeCheck",
-  "kMirOpDivZeroCheck",
-  "kMirOpCheck",
+  "kMirOpNullNRangeUpCheck",
+  "kMirOpNullNRangeDownCheck",
+  "kMirOpLowerBound",
 };
 
 /* Extended MIR instructions like PHI */
@@ -957,17 +956,7 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
       newLIR1(cUnit, kPseudoSSARep, (int) ssaString);
     }
 
-    if ((int)dalvikOpcode == (int)kMirOpCheck) {
-      // Combine check and work halves of throwing instruction.
-      MIR* workHalf = mir->meta.throwInsn;
-      mir->dalvikInsn.opcode = workHalf->dalvikInsn.opcode;
-      SSARepresentation* ssaRep = workHalf->ssaRep;
-      workHalf->ssaRep = mir->ssaRep;
-      mir->ssaRep = ssaRep;
-      workHalf->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
-    }
-
-    if ((int)dalvikOpcode >= (int)kMirOpFirst) {
+    if ((int)mir->dalvikInsn.opcode >= (int)kMirOpFirst) {
       handleExtendedMethodMIR(cUnit, bb, mir);
       continue;
     }

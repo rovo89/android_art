@@ -66,23 +66,11 @@ _EVAL_DEF_INTRINSICS_FUNC(GetCurrentThread,
 // Exception
 //----------------------------------------------------------------------------
 
-// Should not expand - introduces the catch targets for a potentially
-// throwing instruction.  The result is a switch key and this
-// instruction will be followed by a switch statement.  The catch
-// targets will be enumerated as cases of the switch, with the fallthrough
-// designating the block containing the potentially throwing instruction.
-// bool dex_lang_catch_targets(int dex_pc)
-_EVAL_DEF_INTRINSICS_FUNC(CatchTargets,
-                          dex_lang_catch_targets,
-                          kAttrReadOnly | kAttrNoThrow,
-                          kInt32Ty,
-                          _EXPAND_ARG1(kInt32ConstantTy))
-
 // JavaObject* dex_lang_get_current_exception()
 _EVAL_DEF_INTRINSICS_FUNC(GetException,
                           dex_lang_get_current_exception,
                           kAttrReadOnly | kAttrNoThrow,
-                          kJavaObjectTy,
+                           kJavaObjectTy,
                           _EXPAND_ARG0())
 
 // bool dex_lang_is_exception_pending()
@@ -1186,28 +1174,28 @@ _EVAL_DEF_INTRINSICS_FUNC(ConstInt,
                           kInt32Ty,
                           _EXPAND_ARG1(kInt32Ty))
 
-// JavaObject* const_obj(int)
+// int const_obj(int)
 _EVAL_DEF_INTRINSICS_FUNC(ConstObj,
                           dex_lang_const_obj,
                           kAttrReadOnly | kAttrNoThrow,
                           kJavaObjectTy,
                           _EXPAND_ARG1(kInt32Ty))
 
-// long const_long(long)
+// int const_long(long)
 _EVAL_DEF_INTRINSICS_FUNC(ConstLong,
                           dex_lang_const_long,
                           kAttrReadOnly | kAttrNoThrow,
                           kInt64Ty,
                           _EXPAND_ARG1(kInt64Ty))
 
-// float const_float(int)
+// int const_float(int)
 _EVAL_DEF_INTRINSICS_FUNC(ConstFloat,
                           dex_lang_const_Float,
                           kAttrReadOnly | kAttrNoThrow,
                           kFloatTy,
                           _EXPAND_ARG1(kInt32Ty))
 
-// double const_double(long)
+// int const_double(long)
 _EVAL_DEF_INTRINSICS_FUNC(ConstDouble,
                           dex_lang_const_Double,
                           kAttrReadOnly | kAttrNoThrow,

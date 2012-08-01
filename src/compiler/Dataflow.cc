@@ -822,16 +822,13 @@ const int oatDataFlowAttributes[kMirOpLast] = {
   // 107 MIR_NOP
   DF_NOP,
 
-  // 108 MIR_NULL_CHECK
+  // 108 MIR_NULL_RANGE_UP_CHECK
   0,
 
-  // 109 MIR_RANGE_CHECK
+  // 109 MIR_NULL_RANGE_DOWN_CHECK
   0,
 
-  // 110 MIR_DIV_ZERO_CHECK
-  0,
-
-  // 111 MIR_CHECK
+  // 110 MIR_LOWER_BOUND
   0,
 };
 
@@ -858,29 +855,27 @@ int getSSAUseCount(CompilationUnit* cUnit, int sReg)
 char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
                               const DecodedInstruction& insn, const char* note)
 {
-  std::string str;
-  int opcode = insn.opcode;
+  char buffer[256];
+  Instruction::Code opcode = insn.opcode;
   int dfAttributes = oatDataFlowAttributes[opcode];
   int flags;
   char* ret;
 
-  if (opcode >= kMirOpFirst) {
-    if (opcode == kMirOpPhi) {
-      str.append("PHI");
-    } else if (opcode == kMirOpCheck) {
-      str.append("Check");
+  buffer[0] = 0;
+  if ((int)opcode >= (int)kMirOpFirst) {
+    if ((int)opcode == (int)kMirOpPhi) {
+      strcpy(buffer, "PHI");
     } else {
-      str.append(StringPrintf("Opcode %#x", opcode));
+      sprintf(buffer, "Opcode %#x", opcode);
     }
     flags = 0;
   } else {
-    str.append(Instruction::Name(insn.opcode));
-    flags = Instruction::Flags(insn.opcode);
+    strcpy(buffer, Instruction::Name(opcode));
+    flags = Instruction::Flags(opcode);
   }
 
-  if (note) {
-    str.append(note);
-  }
+  if (note)
+    strcat(buffer, note);
 
   /* For branches, decode the instructions to print out the branch targets */
   if (flags & Instruction::kBranch) {
@@ -888,11 +883,11 @@ char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
     int offset = 0;
     switch (dalvikFormat) {
       case Instruction::k21t:
-        str.append(StringPrintf(" v%d,", insn.vA));
+        snprintf(buffer + strlen(buffer), 256, " v%d,", insn.vA);
         offset = (int) insn.vB;
         break;
       case Instruction::k22t:
-        str.append(StringPrintf(" v%d, v%d,", insn.vA, insn.vB));
+        snprintf(buffer + strlen(buffer), 256, " v%d, v%d,", insn.vA, insn.vB);
         offset = (int) insn.vC;
         break;
       case Instruction::k10t:
@@ -904,43 +899,45 @@ char* oatGetDalvikDisassembly(CompilationUnit* cUnit,
         LOG(FATAL) << "Unexpected branch format " << (int)dalvikFormat
                    << " / opcode " << (int)opcode;
     }
-    str.append(StringPrintf(" (%c%x)",
-                            offset > 0 ? '+' : '-',
-                            offset > 0 ? offset : -offset));
+    snprintf(buffer + strlen(buffer), 256, " (%c%x)",
+             offset > 0 ? '+' : '-',
+             offset > 0 ? offset : -offset);
   } else if (dfAttributes & DF_FORMAT_35C) {
     unsigned int i;
     for (i = 0; i < insn.vA; i++) {
-      if (i != 0) str.append(",");
-      str.append(StringPrintf(" v%d", insn.arg[i]));
+      if (i != 0) strcat(buffer, ",");
+        snprintf(buffer + strlen(buffer), 256, " v%d", insn.arg[i]);
     }
   }
   else if (dfAttributes & DF_FORMAT_3RC) {
-    str.append(StringPrintf(" v%d..v%d", insn.vC, insn.vC + insn.vA - 1));
+    snprintf(buffer + strlen(buffer), 256,
+             " v%d..v%d", insn.vC, insn.vC + insn.vA - 1);
   } else {
     if (dfAttributes & DF_A_IS_REG) {
-      str.append(StringPrintf(" v%d", insn.vA));
+      snprintf(buffer + strlen(buffer), 256, " v%d", insn.vA);
     }
     if (dfAttributes & DF_B_IS_REG) {
-      str.append(StringPrintf(", v%d", insn.vB));
+      snprintf(buffer + strlen(buffer), 256, ", v%d", insn.vB);
     } else if ((int)opcode < (int)kMirOpFirst) {
-      str.append(StringPrintf(", (#%d)", insn.vB));
+      snprintf(buffer + strlen(buffer), 256, ", (#%d)", insn.vB);
     }
     if (dfAttributes & DF_C_IS_REG) {
-      str.append(StringPrintf(", v%d", insn.vC));
+      snprintf(buffer + strlen(buffer), 256, ", v%d", insn.vC);
     } else if ((int)opcode < (int)kMirOpFirst) {
-      str.append(StringPrintf(", (#%d)", insn.vC));
+      snprintf(buffer + strlen(buffer), 256, ", (#%d)", insn.vC);
     }
   }
-  int length = str.length() + 1;
+  int length = strlen(buffer) + 1;
   ret = (char*)oatNew(cUnit, length, false, kAllocDFInfo);
-  strncpy(ret, str.c_str(), length);
+  memcpy(ret, buffer, length);
   return ret;
 }
 
-std::string getSSAName(const CompilationUnit* cUnit, int ssaReg)
+char* getSSAName(const CompilationUnit* cUnit, int ssaReg, char* name)
 {
-  return StringPrintf("v%d_%d", SRegToVReg(cUnit, ssaReg),
-                     SRegToSubscript(cUnit, ssaReg));
+  sprintf(name, "v%d_%d", SRegToVReg(cUnit, ssaReg),
+          SRegToSubscript(cUnit, ssaReg));
+  return name;
 }
 
 /*
@@ -948,38 +945,32 @@ std::string getSSAName(const CompilationUnit* cUnit, int ssaReg)
  */
 char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
 {
-  std::string str;
+  char buffer[256];
+  char operand0[32], operand1[32];
   const DecodedInstruction* insn = &mir->dalvikInsn;
-  int opcode = insn->opcode;
+  Instruction::Code opcode = insn->opcode;
   int dfAttributes = oatDataFlowAttributes[opcode];
   char* ret;
   int length;
 
-  if (opcode >= kMirOpFirst) {
-    if (opcode == kMirOpPhi) {
-      int* incoming = (int*)mir->dalvikInsn.vB;
-      str.append(StringPrintf("PHI %s = (%s",
-                 getSSAName(cUnit, mir->ssaRep->defs[0]).c_str(),
-                 getSSAName(cUnit, mir->ssaRep->uses[0]).c_str()));
-      str.append(StringPrintf(":%d",incoming[0]));
+  buffer[0] = 0;
+  if (static_cast<int>(opcode) >= static_cast<int>(kMirOpFirst)) {
+    if (static_cast<int>(opcode) == static_cast<int>(kMirOpPhi)) {
+      snprintf(buffer, 256, "PHI %s = (%s",
+               getSSAName(cUnit, mir->ssaRep->defs[0], operand0),
+               getSSAName(cUnit, mir->ssaRep->uses[0], operand1));
       int i;
       for (i = 1; i < mir->ssaRep->numUses; i++) {
-        str.append(StringPrintf(", %s:%d",
-                                getSSAName(cUnit, mir->ssaRep->uses[i]).c_str(),
-                                incoming[i]));
+        snprintf(buffer + strlen(buffer), 256, ", %s",
+        getSSAName(cUnit, mir->ssaRep->uses[i], operand0));
       }
-      str.append(")");
-    } else if (opcode == kMirOpCheck) {
-      str.append("Check ");
-      str.append(Instruction::Name(mir->meta.throwInsn->dalvikInsn.opcode));
-    } else if (opcode == kMirOpNop) {
-      str.append("MirNop");
+      snprintf(buffer + strlen(buffer), 256, ")");
     } else {
-      str.append(StringPrintf("Opcode %#x", opcode));
+      sprintf(buffer, "Opcode %#x", opcode);
     }
     goto done;
   } else {
-    str.append(Instruction::Name(insn->opcode));
+    strcpy(buffer, Instruction::Name(opcode));
   }
 
   /* For branches, decode the instructions to print out the branch targets */
@@ -988,14 +979,14 @@ char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
     int delta = 0;
     switch (dalvikFormat) {
       case Instruction::k21t:
-        str.append(StringPrintf(" %s, ",
-                   getSSAName(cUnit, mir->ssaRep->uses[0]).c_str()));
+        snprintf(buffer + strlen(buffer), 256, " %s, ",
+                 getSSAName(cUnit, mir->ssaRep->uses[0], operand0));
         delta = (int) insn->vB;
         break;
       case Instruction::k22t:
-        str.append(StringPrintf(" %s, %s, ",
-                 getSSAName(cUnit, mir->ssaRep->uses[0]).c_str(),
-                 getSSAName(cUnit, mir->ssaRep->uses[1]).c_str()));
+        snprintf(buffer + strlen(buffer), 256, " %s, %s, ",
+                 getSSAName(cUnit, mir->ssaRep->uses[0], operand0),
+                 getSSAName(cUnit, mir->ssaRep->uses[1], operand1));
         delta = (int) insn->vC;
         break;
       case Instruction::k10t:
@@ -1006,53 +997,54 @@ char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
       default:
         LOG(FATAL) << "Unexpected branch format: " << (int)dalvikFormat;
       }
-      str.append(StringPrintf(" %04x", mir->offset + delta));
+      snprintf(buffer + strlen(buffer), 256, " %04x",
+               mir->offset + delta);
   } else if (dfAttributes & (DF_FORMAT_35C | DF_FORMAT_3RC)) {
     unsigned int i;
     for (i = 0; i < insn->vA; i++) {
-      if (i != 0) str.append(",");
-        str.append(" ");
-        str.append(getSSAName(cUnit, mir->ssaRep->uses[i]));
+      if (i != 0) strcat(buffer, ",");
+        snprintf(buffer + strlen(buffer), 256, " %s",
+                 getSSAName(cUnit, mir->ssaRep->uses[i], operand0));
     }
   } else {
     int udIdx;
     if (mir->ssaRep->numDefs) {
 
       for (udIdx = 0; udIdx < mir->ssaRep->numDefs; udIdx++) {
-        str.append(" ");
-        str.append(getSSAName(cUnit, mir->ssaRep->defs[udIdx]));
+        snprintf(buffer + strlen(buffer), 256, " %s",
+                 getSSAName(cUnit, mir->ssaRep->defs[udIdx], operand0));
       }
-      str.append(",");
+      strcat(buffer, ",");
     }
     if (mir->ssaRep->numUses) {
       /* No leading ',' for the first use */
-      str.append(" ");
-      str.append(getSSAName(cUnit, mir->ssaRep->uses[0]));
+      snprintf(buffer + strlen(buffer), 256, " %s",
+               getSSAName(cUnit, mir->ssaRep->uses[0], operand0));
       for (udIdx = 1; udIdx < mir->ssaRep->numUses; udIdx++) {
-        str.append(", ");
-        str.append(getSSAName(cUnit, mir->ssaRep->uses[udIdx]));
+        snprintf(buffer + strlen(buffer), 256, ", %s",
+                 getSSAName(cUnit, mir->ssaRep->uses[udIdx], operand0));
         }
       }
       if (static_cast<int>(opcode) < static_cast<int>(kMirOpFirst)) {
-        Instruction::Format dalvikFormat = Instruction::FormatOf(insn->opcode);
+        Instruction::Format dalvikFormat = Instruction::FormatOf(opcode);
         switch (dalvikFormat) {
           case Instruction::k11n:        // op vA, #+B
           case Instruction::k21s:        // op vAA, #+BBBB
           case Instruction::k21h:        // op vAA, #+BBBB00000[00000000]
           case Instruction::k31i:        // op vAA, #+BBBBBBBB
           case Instruction::k51l:        // op vAA, #+BBBBBBBBBBBBBBBB
-            str.append(StringPrintf(" #%#x", insn->vB));
+            snprintf(buffer + strlen(buffer), 256, " #%#x", insn->vB);
             break;
           case Instruction::k21c:        // op vAA, thing@BBBB
           case Instruction::k31c:        // op vAA, thing@BBBBBBBB
-            str.append(StringPrintf(" @%#x", insn->vB));
+            snprintf(buffer + strlen(buffer), 256, " @%#x", insn->vB);
             break;
           case Instruction::k22b:        // op vAA, vBB, #+CC
           case Instruction::k22s:        // op vA, vB, #+CCCC
-            str.append(StringPrintf(" #%#x", insn->vC));
+            snprintf(buffer + strlen(buffer), 256, " #%#x", insn->vC);
             break;
           case Instruction::k22c:        // op vA, vB, thing@CCCC
-            str.append(StringPrintf(" @%#x", insn->vC));
+            snprintf(buffer + strlen(buffer), 256, " @%#x", insn->vC);
             break;
           /* No need for special printing */
           default:
@@ -1062,38 +1054,44 @@ char* oatFullDisassembler(CompilationUnit* cUnit, const MIR* mir)
   }
 
 done:
-  length = str.length() + 1;
+  length = strlen(buffer) + 1;
   ret = (char*) oatNew(cUnit, length, false, kAllocDFInfo);
-  strncpy(ret, str.c_str(), length);
+  memcpy(ret, buffer, length);
   return ret;
 }
 
 char* oatGetSSAString(CompilationUnit* cUnit, SSARepresentation* ssaRep)
 {
-  std::string str;
+  char buffer[256];
   char* ret;
   int i;
 
+  buffer[0] = 0;
   for (i = 0; i < ssaRep->numDefs; i++) {
     int ssaReg = ssaRep->defs[i];
-    str.append(StringPrintf("s%d(v%d_%d) ", ssaReg,
-                            SRegToVReg(cUnit, ssaReg),
-                            SRegToSubscript(cUnit, ssaReg)));
+    sprintf(buffer + strlen(buffer), "s%d(v%d_%d) ", ssaReg,
+            SRegToVReg(cUnit, ssaReg), SRegToSubscript(cUnit, ssaReg));
   }
 
   if (ssaRep->numDefs) {
-    str.append("<- ");
+    strcat(buffer, "<- ");
   }
 
   for (i = 0; i < ssaRep->numUses; i++) {
+    int len = strlen(buffer);
     int ssaReg = ssaRep->uses[i];
-    str.append(StringPrintf("s%d(v%d_%d) ", ssaReg, SRegToVReg(cUnit, ssaReg),
-               SRegToSubscript(cUnit, ssaReg)));
+
+    if (snprintf(buffer + len, 250 - len, "s%d(v%d_%d) ", ssaReg,
+                 SRegToVReg(cUnit, ssaReg),
+                 SRegToSubscript(cUnit, ssaReg))) {
+      strcat(buffer, "...");
+      break;
+    }
   }
 
-  int length = str.length() + 1;
+  int length = strlen(buffer) + 1;
   ret = (char*)oatNew(cUnit, length, false, kAllocDFInfo);
-  strncpy(ret, str.c_str(), length);
+  memcpy(ret, buffer, length);
   return ret;
 }
 
@@ -1185,10 +1183,8 @@ int addNewSReg(CompilationUnit* cUnit, int vReg)
   int ssaReg = cUnit->numSSARegs++;
   oatInsertGrowableList(cUnit, cUnit->ssaBaseVRegs, vReg);
   oatInsertGrowableList(cUnit, cUnit->ssaSubscripts, subscript);
-  std::string ssaName = getSSAName(cUnit, ssaReg);
-  char* name = (char*)oatNew(cUnit, ssaName.length() + 1, false, kAllocDFInfo);
-  strncpy(name, ssaName.c_str(), ssaName.length() + 1);
-  oatInsertGrowableList(cUnit, cUnit->ssaStrings, (intptr_t)name);
+  char* name = (char*)oatNew(cUnit, SSA_NAME_MAX, true, kAllocDFInfo);
+  oatInsertGrowableList(cUnit, cUnit->ssaStrings, (intptr_t)getSSAName(cUnit, ssaReg, name));
   DCHECK_EQ(cUnit->ssaBaseVRegs->numUsed, cUnit->ssaSubscripts->numUsed);
   return ssaReg;
 }
@@ -1496,10 +1492,8 @@ void oatInitializeSSAConversion(CompilationUnit* cUnit)
   for (i = 0; i < numDalvikReg; i++) {
     oatInsertGrowableList(cUnit, cUnit->ssaBaseVRegs, i);
     oatInsertGrowableList(cUnit, cUnit->ssaSubscripts, 0);
-    std::string ssaName = getSSAName(cUnit, i);
-    char* name = (char*)oatNew(cUnit, ssaName.length() + 1, true, kAllocDFInfo);
-    strncpy(name, ssaName.c_str(), ssaName.length() + 1);
-    oatInsertGrowableList(cUnit, cUnit->ssaStrings, (intptr_t)name);
+    char* name = (char*)oatNew(cUnit, SSA_NAME_MAX, true, kAllocDFInfo);
+    oatInsertGrowableList(cUnit, cUnit->ssaStrings, (intptr_t)getSSAName(cUnit, i, name));
   }
 
   /*
@@ -1693,14 +1687,14 @@ MIR* oatFindMoveResult(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
   BasicBlock* tbb = bb;
   mir = advanceMIR(cUnit, &tbb, mir, NULL, false);
   while (mir != NULL) {
-    int opcode = mir->dalvikInsn.opcode;
     if ((mir->dalvikInsn.opcode == Instruction::MOVE_RESULT) ||
         (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_OBJECT) ||
         (mir->dalvikInsn.opcode == Instruction::MOVE_RESULT_WIDE)) {
       break;
     }
     // Keep going if pseudo op, otherwise terminate
-    if (opcode < kNumPackedOpcodes) {
+    if (mir->dalvikInsn.opcode <
+        static_cast<Instruction::Code>(kNumPackedOpcodes)) {
       mir = NULL;
     } else {
       mir = advanceMIR(cUnit, &tbb, mir, NULL, false);

@@ -196,10 +196,9 @@ enum ExtendedMIROpcode {
   kMirOpFusedCmpgDouble,
   kMirOpFusedCmpLong,
   kMirOpNop,
-  kMirOpNullCheck,
-  kMirOpRangeCheck,
-  kMirOpDivZeroCheck,
-  kMirOpCheck,
+  kMirOpNullNRangeUpCheck,
+  kMirOpNullNRangeDownCheck,
+  kMirOpLowerBound,
   kMirOpLast,
 };
 
@@ -246,10 +245,12 @@ struct MIR {
   int optimizationFlags;
   int seqNum;
   union {
+    // Used by the inlined insn from the callee to find the mother method
+    const Method* calleeMethod;
+    // Used by the inlined invoke to find the class and method pointers
+    CallsiteInfo* callsiteInfo;
     // Used to quickly locate all Phi opcodes
     MIR* phiNext;
-    // Establish link between two halves of throwing instructions
-    MIR* throwInsn;
   } meta;
 };
 
@@ -277,6 +278,7 @@ struct BasicBlock {
   uint16_t nestingDepth;
   const Method* containingMethod;     // For blocks from the callee
   BBType blockType;
+  bool needFallThroughBranch;         // For blocks ended due to length limit
   bool isFallThroughFromInvoke;       // True means the block needs alignment
   MIR* firstMIRInsn;
   MIR* lastMIRInsn;

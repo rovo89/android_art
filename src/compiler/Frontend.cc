@@ -54,7 +54,6 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   //(1 << kDebugCountOpcodes) |
 #if defined(ART_USE_QUICK_COMPILER)
   //(1 << kDebugDumpBitcodeFile) |
-  //(1 << kDebugVerifyBitcode) |
 #endif
   0;
 
@@ -155,8 +154,10 @@ BasicBlock *splitBlock(CompilationUnit* cUnit, unsigned int codeOffset,
   }
 
   /* Handle the fallthrough path */
+  bottomBlock->needFallThroughBranch = origBlock->needFallThroughBranch;
   bottomBlock->fallThrough = origBlock->fallThrough;
   origBlock->fallThrough = bottomBlock;
+  origBlock->needFallThroughBranch = true;
   oatInsertGrowableList(cUnit, bottomBlock->predecessors,
                         (intptr_t)origBlock);
   if (bottomBlock->fallThrough) {
@@ -288,12 +289,12 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
                                                               blockIdx);
     if (bb == NULL) break;
     if (bb->blockType == kEntryBlock) {
-      fprintf(file, "  entry_%d [shape=Mdiamond];\n", bb->id);
+      fprintf(file, "  entry [shape=Mdiamond];\n");
     } else if (bb->blockType == kExitBlock) {
-      fprintf(file, "  exit_%d [shape=Mdiamond];\n", bb->id);
+      fprintf(file, "  exit [shape=Mdiamond];\n");
     } else if (bb->blockType == kDalvikByteCode) {
-      fprintf(file, "  block%04x_%d [shape=record,label = \"{ \\\n",
-              bb->startOffset, bb->id);
+      fprintf(file, "  block%04x [shape=record,label = \"{ \\\n",
+              bb->startOffset);
       const MIR *mir;
         fprintf(file, "    {block id %d\\l}%s\\\n", bb->id,
                 bb->firstMIRInsn ? " | " : " ");
@@ -326,8 +327,8 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
     }
 
     if (bb->successorBlockList.blockListType != kNotUsed) {
-      fprintf(file, "  succ%04x_%d [shape=%s,label = \"{ \\\n",
-              bb->startOffset, bb->id,
+      fprintf(file, "  succ%04x [shape=%s,label = \"{ \\\n",
+              bb->startOffset,
               (bb->successorBlockList.blockListType == kCatch) ?
                "Mrecord" : "record");
       GrowableListIterator iterator;
@@ -355,8 +356,8 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
       fprintf(file, "  }\"];\n\n");
 
       oatGetBlockName(bb, blockName1);
-      fprintf(file, "  %s:s -> succ%04x_%d:n [style=dashed]\n",
-              blockName1, bb->startOffset, bb->id);
+      fprintf(file, "  %s:s -> succ%04x:n [style=dashed]\n",
+              blockName1, bb->startOffset);
 
       if (bb->successorBlockList.blockListType == kPackedSwitch ||
           bb->successorBlockList.blockListType == kSparseSwitch) {
@@ -373,8 +374,8 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
           BasicBlock *destBlock = successorBlockInfo->block;
 
           oatGetBlockName(destBlock, blockName2);
-          fprintf(file, "  succ%04x_%d:f%d:e -> %s:n\n", bb->startOffset,
-                  bb->id, succId++, blockName2);
+          fprintf(file, "  succ%04x:f%d:e -> %s:n\n", bb->startOffset,
+                  succId++, blockName2);
         }
       }
     }
@@ -643,20 +644,18 @@ void processCanSwitch(CompilationUnit* cUnit, BasicBlock* curBlock,
 }
 
 /* Process instructions with the kThrow flag */
-BasicBlock* processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
-                            MIR* insn, int curOffset, int width, int flags,
-                            ArenaBitVector* tryBlockAddr, const u2* codePtr,
-                            const u2* codeEnd)
+void processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock, MIR* insn,
+                     int curOffset, int width, int flags,
+                     ArenaBitVector* tryBlockAddr, const u2* codePtr,
+                     const u2* codeEnd)
 {
   const DexFile::CodeItem* code_item = cUnit->code_item;
-  bool inTryBlock = oatIsBitSet(tryBlockAddr, curOffset);
 
   /* In try block */
-  if (inTryBlock) {
+  if (oatIsBitSet(tryBlockAddr, curOffset)) {
     CatchHandlerIterator iterator(*code_item, curOffset);
 
     if (curBlock->successorBlockList.blockListType != kNotUsed) {
-      LOG(INFO) << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
       LOG(FATAL) << "Successor block list already in use: "
                  << (int)curBlock->successorBlockList.blockListType;
     }
@@ -689,46 +688,37 @@ BasicBlock* processCanThrow(CompilationUnit* cUnit, BasicBlock* curBlock,
     oatInsertGrowableList(cUnit, ehBlock->predecessors, (intptr_t)curBlock);
   }
 
-  if (insn->dalvikInsn.opcode == Instruction::THROW){
-    if ((codePtr < codeEnd) && contentIsInsn(codePtr)) {
-      // Force creation of new block following THROW via side-effect
-      findBlock(cUnit, curOffset + width, /* split */ false,
-                /* create */ true, /* immedPredBlockP */ NULL);
-    }
-    if (!inTryBlock) {
-       // Don't split a THROW that can't rethrow - we're done.
-      return curBlock;
+  /*
+   * Force the current block to terminate.
+   *
+   * Data may be present before codeEnd, so we need to parse it to know
+   * whether it is code or data.
+   */
+  if (codePtr < codeEnd) {
+    /* Create a fallthrough block for real instructions (incl. NOP) */
+    if (contentIsInsn(codePtr)) {
+      BasicBlock *fallthroughBlock = findBlock(cUnit,
+                                               curOffset + width,
+                                               /* split */
+                                               false,
+                                               /* create */
+                                               true,
+                                               /* immedPredBlockP */
+                                               NULL);
+      /*
+       * THROW is an unconditional branch.  NOTE:
+       * THROW_VERIFICATION_ERROR is also an unconditional
+       * branch, but we shouldn't treat it as such until we have
+       * a dead code elimination pass (which won't be important
+       * until inlining w/ constant propagation is implemented.
+       */
+      if (insn->dalvikInsn.opcode != Instruction::THROW) {
+        curBlock->fallThrough = fallthroughBlock;
+        oatInsertGrowableList(cUnit, fallthroughBlock->predecessors,
+                              (intptr_t)curBlock);
+      }
     }
   }
-
-  /*
-   * Split the potentially-throwing instruction into two parts.
-   * The first half will be a pseudo-op that captures the exception
-   * edges and terminates the basic block.  It always falls through.
-   * Then, create a new basic block that begins with the throwing instruction
-   * (minus exceptions).  Note: this new basic block must NOT be entered into
-   * the blockMap.  If the potentially-throwing instruction is the target of a
-   * future branch, we need to find the check psuedo half.  The new
-   * basic block containing the work portion of the instruction should
-   * only be entered via fallthrough from the block containing the
-   * pseudo exception edge MIR.  Note also that this new block is
-   * not automatically terminated after the work portion, and may
-   * contain following instructions.
-   */
-  BasicBlock *newBlock = oatNewBB(cUnit, kDalvikByteCode, cUnit->numBlocks++);
-  oatInsertGrowableList(cUnit, &cUnit->blockList, (intptr_t)newBlock);
-  newBlock->startOffset = insn->offset;
-  curBlock->fallThrough = newBlock;
-  oatInsertGrowableList(cUnit, newBlock->predecessors, (intptr_t)curBlock);
-  MIR* newInsn = (MIR*)oatNew(cUnit, sizeof(MIR), true, kAllocMIR);
-  *newInsn = *insn;
-  insn->dalvikInsn.opcode =
-      static_cast<Instruction::Code>(kMirOpCheck);
-  // Associate the two halves
-  insn->meta.throwInsn = newInsn;
-  newInsn->meta.throwInsn = insn;
-  oatAppendMIR(newBlock, newInsn);
-  return newBlock;
 }
 
 void oatInit(CompilationUnit* cUnit, const Compiler& compiler) {
@@ -773,11 +763,15 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   cUnit->numRegs = code_item->registers_size_ - cUnit->numIns;
   cUnit->numOuts = code_item->outs_size_;
 #if defined(ART_USE_QUICK_COMPILER)
-  DCHECK((cUnit->instructionSet == kThumb2) ||
-         (cUnit->instructionSet == kX86) ||
-         (cUnit->instructionSet == kMips));
-  if (cUnit->instructionSet == kThumb2) {
-    // TODO: remove this once x86 is tested
+  // TODO: fix bug and remove this workaround
+  std::string methodName = PrettyMethod(method_idx, dex_file);
+  if ((methodName.find("gdata2.AndroidGDataClient.createAndExecuteMethod")
+      != std::string::npos) || (methodName.find("hG.a") != std::string::npos)
+      || (methodName.find("hT.a(hV, java.lang.String, java.lang.String, java")
+      != std::string::npos) || (methodName.find("AndroidHttpTransport.exchange")
+      != std::string::npos)) {
+    LOG(INFO) << "Skipping bitcode generation for " << methodName;
+  } else {
     cUnit->genBitcode = true;
   }
 #endif
@@ -797,7 +791,6 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   }
 #if defined(ART_USE_QUICK_COMPILER)
   if (cUnit->genBitcode) {
-    //cUnit->enableDebug |= (1 << kDebugVerifyBitcode);
     //cUnit->printMe = true;
     //cUnit->enableDebug |= (1 << kDebugDumpBitcodeFile);
     // Disable non-safe optimizations for now
@@ -965,8 +958,8 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
         }
       }
     } else if (flags & Instruction::kThrow) {
-      curBlock = processCanThrow(cUnit.get(), curBlock, insn, curOffset,
-                                 width, flags, tryBlockAddr, codePtr, codeEnd);
+      processCanThrow(cUnit.get(), curBlock, insn, curOffset, width, flags,
+                      tryBlockAddr, codePtr, codeEnd);
     } else if (flags & Instruction::kSwitch) {
       processCanSwitch(cUnit.get(), curBlock, insn, curOffset, width, flags);
     }

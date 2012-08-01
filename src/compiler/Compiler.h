@@ -129,7 +129,6 @@ enum debugControlVector {
   kDebugCountOpcodes,
 #if defined(ART_USE_QUICK_COMPILER)
   kDebugDumpBitcodeFile,
-  kDebugVerifyBitcode,
 #endif
 };
 
