@@ -55,9 +55,9 @@ enum MutexLevel {
   kClassLinkerClassesLock = 6,
   kThreadListLock = 7,
   kHeapBitmapLock = 8,
-  kZygoteCreationLock = 9,
-  kMonitorLock = 10,
-  kMutatorLock = 11,
+  kMonitorLock = 9,
+  kMutatorLock = 10,
+  kZygoteCreationLock = 11,
   kMaxMutexLevel = kMutatorLock,
 };
 std::ostream& operator<<(std::ostream& os, const MutexLevel& rhs);

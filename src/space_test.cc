@@ -78,7 +78,7 @@ TEST_F(SpaceTest, ZygoteSpace) {
     AllocSpace* space(Space::CreateAllocSpace("test", 4 * MB, 16 * MB, 16 * MB, NULL));
     ASSERT_TRUE(space != NULL);
 
-  // Make space findable to the heap, will also delete space when runtime is cleaned up
+    // Make space findable to the heap, will also delete space when runtime is cleaned up
     Runtime::Current()->GetHeap()->AddSpace(space);
 
     // Succeeds, fits without adjusting the footprint limit.

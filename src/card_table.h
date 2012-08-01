@@ -73,8 +73,9 @@ class CardTable {
   }
 
   // For every dirty card between begin and end invoke the visitor with the specified argument.
-  template <typename Visitor>
-  void Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end, const Visitor& visitor) const
+  template <typename Visitor, typename FingerVisitor>
+  void Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end,
+            const Visitor& visitor, const FingerVisitor& finger_visitor) const
       EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     DCHECK(bitmap->HasAddress(scan_begin));
@@ -82,21 +83,22 @@ class CardTable {
     byte* card_cur = CardFromAddr(scan_begin);
     byte* card_end = CardFromAddr(scan_end);
     while (card_cur < card_end) {
-      while (card_cur < card_end && *card_cur == GC_CARD_CLEAN) {
-        card_cur++;
+      // Find the first dirty card.
+      card_cur = reinterpret_cast<byte*>(memchr(card_cur, GC_CARD_DIRTY, card_end - card_cur));
+      if (card_cur == NULL) {
+        break;
       }
-      byte* run_start = card_cur;
+      byte* run_start = card_cur++;
 
-      while (card_cur < card_end && *card_cur == GC_CARD_DIRTY) {
+      // Guaranteed to have at least one clean card at the end of the array.
+      while (*card_cur == GC_CARD_DIRTY) {
         card_cur++;
       }
       byte* run_end = card_cur;
 
-      if (run_start != run_end) {
-        uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(run_start));
-        uintptr_t end = reinterpret_cast<uintptr_t>(AddrFromCard(run_end));
-        bitmap->VisitMarkedRange(start, end, visitor);
-      }
+      uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(run_start));
+      uintptr_t end = reinterpret_cast<uintptr_t>(AddrFromCard(run_end));
+      bitmap->VisitMarkedRange(start, end, visitor, finger_visitor);
     }
   }
 
@@ -108,6 +110,12 @@ class CardTable {
 
   // Resets all of the bytes in the card table which do not map to the image space.
   void ClearSpaceCards(Space* space);
+
+  // Clean all the cards which map to a space.
+  void PreClearCards(Space* space, std::vector<byte*>& out_cards);
+
+  // Returns all of the dirty cards which map to a space.
+  void GetDirtyCards(Space* space, std::vector<byte*>& out_cards) const;
 
   // Returns the first address in the heap which maps to this card.
   void* AddrFromCard(const byte *card_addr) const {

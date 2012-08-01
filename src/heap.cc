@@ -144,6 +144,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       concurrent_start_bytes_(std::numeric_limits<size_t>::max()),
       concurrent_start_size_(128 * KB),
       concurrent_min_free_(256 * KB),
+      sticky_gc_count_(0),
       num_bytes_allocated_(0),
       num_objects_allocated_(0),
       last_trim_time_(0),
@@ -237,9 +238,22 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   CHECK(zygote_mod_union_table_.get() != NULL) << "Failed to create Zygote mod-union table";
 
   num_bytes_allocated_ = 0;
+  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+    if ((*it)->IsImageSpace()) {
+      num_bytes_allocated_ += (*it)->AsImageSpace()->Size();
+    }
+  }
+
+  // TODO: Count objects in the image space here.
   num_objects_allocated_ = 0;
 
-  mark_stack_.reset(MarkStack::Create());
+  // Max stack size in bytes.
+  static const size_t max_stack_size = capacity / SpaceBitmap::kAlignment * kWordSize;
+
+  // TODO: Rename MarkStack to a more generic name?
+  mark_stack_.reset(MarkStack::Create("dalvik-mark-stack", max_stack_size));
+  allocation_stack_.reset(MarkStack::Create("dalvik-allocation-stack", max_stack_size));
+  live_stack_.reset(MarkStack::Create("dalvik-live-stack", max_stack_size));
 
   // It's still too early to take a lock because there are no threads yet,
   // but we can create the heap lock now. We don't create it earlier to
@@ -269,11 +283,35 @@ void Heap::AddSpace(Space* space) {
   DCHECK(space->GetMarkBitmap() != NULL);
   mark_bitmap_->AddSpaceBitmap(space->GetMarkBitmap());
   spaces_.push_back(space);
+  if (space->IsAllocSpace()) {
+    alloc_space_ = space->AsAllocSpace();
+  }
+
   // Ensure that spaces remain sorted in increasing order of start address (required for CMS finger)
   std::sort(spaces_.begin(), spaces_.end(), SpaceSorter());
+
+  // Ensure that ImageSpaces < ZygoteSpaces < AllocSpaces so that we can do address based checks to
+  // avoid redundant marking.
+  bool seen_zygote = false, seen_alloc = false;
+  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+    Space* space = *it;
+    if (space->IsImageSpace()) {
+      DCHECK(!seen_zygote);
+      DCHECK(!seen_alloc);
+    } if (space->IsZygoteSpace()) {
+      DCHECK(!seen_alloc);
+      seen_zygote = true;
+    } else if (space->IsAllocSpace()) {
+      seen_alloc = true;
+    }
+  }
 }
 
 Heap::~Heap() {
+  // If we don't reset then the mark stack complains in it's destructor.
+  allocation_stack_->Reset();
+  live_stack_->Reset();
+
   VLOG(heap) << "~Heap()";
   // We can't take the heap lock here because there might be a daemon thread suspended with the
   // heap lock held. We know though that no non-daemon threads are executing, and we know that
@@ -402,35 +440,31 @@ void Heap::VerifyObject(const Object* obj) {
       Runtime::Current()->GetThreadList()->GetLockOwner() == Thread::Current()->GetTid()) {
     return;
   }
-  {
-    ReaderMutexLock mu(GlobalSynchronization::heap_bitmap_lock_);
-    Heap::VerifyObjectLocked(obj);
-  }
+  VerifyObjectBody(obj);
 }
 #endif
 
 void Heap::DumpSpaces() {
   // TODO: C++0x auto
   for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-    LOG(INFO) << **it;
+    Space* space = *it;
+    LOG(INFO) << *space;
+    LOG(INFO) << *space->GetLiveBitmap();
+    LOG(INFO) << *space->GetMarkBitmap();
   }
 }
 
-void Heap::VerifyObjectLocked(const Object* obj) {
-  GlobalSynchronization::heap_bitmap_lock_->AssertReaderHeld();
+// We want to avoid bit rotting.
+void Heap::VerifyObjectBody(const Object* obj) {
   if (!IsAligned<kObjectAlignment>(obj)) {
     LOG(FATAL) << "Object isn't aligned: " << obj;
   } else if (!GetLiveBitmap()->Test(obj)) {
-    Space* space = FindSpaceFromObject(obj);
-    if (space == NULL) {
-      DumpSpaces();
-      LOG(FATAL) << "Object " << obj << " is not contained in any space";
-    }
-    LOG(FATAL) << "Object is dead: " << obj << " in space " << *space;
+    DumpSpaces();
+    LOG(FATAL) << "Object is dead: " << obj;
   }
-#if !VERIFY_OBJECT_FAST
+
   // Ignore early dawn of the universe verifications
-  if (num_objects_allocated_ > 10) {
+  if (!VERIFY_OBJECT_FAST && num_objects_allocated_ > 10) {
     const byte* raw_addr = reinterpret_cast<const byte*>(obj) +
         Object::ClassOffset().Int32Value();
     const Class* c = *reinterpret_cast<Class* const *>(raw_addr);
@@ -450,12 +484,11 @@ void Heap::VerifyObjectLocked(const Object* obj) {
     const Class* c_c_c = *reinterpret_cast<Class* const *>(raw_addr);
     CHECK_EQ(c_c, c_c_c);
   }
-#endif
 }
 
 void Heap::VerificationCallback(Object* obj, void* arg) {
   DCHECK(obj != NULL);
-  reinterpret_cast<Heap*>(arg)->VerifyObjectLocked(obj);
+  reinterpret_cast<Heap*>(arg)->VerifyObjectBody(obj);
 }
 
 void Heap::VerifyHeap() {
@@ -480,31 +513,31 @@ void Heap::RecordAllocation(AllocSpace* space, const Object* obj) {
       thread_stats->allocated_bytes += size;
     }
   }
-  {
-    WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
-    live_bitmap_->Set(obj);
-  }
+
+  DCHECK(obj);
+
+  allocation_stack_->AtomicPush(obj);
+#if VERIFY_OBJECT_ENABLED
+  WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+  // Verify objects doesn't like objects in allocation stack not being marked as live.
+  live_bitmap_->Set(obj);
+#endif
 }
 
 void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   MutexLock mu(*statistics_lock_);
 
-  if (freed_objects < num_objects_allocated_) {
-    num_objects_allocated_ -= freed_objects;
-  } else {
-    num_objects_allocated_ = 0;
-  }
-  if (freed_bytes < num_bytes_allocated_) {
-    num_bytes_allocated_ -= freed_bytes;
-  } else {
-    num_bytes_allocated_ = 0;
-  }
+  DCHECK_LE(freed_objects, num_objects_allocated_);
+  num_objects_allocated_ -= freed_objects;
+
+  DCHECK_LE(freed_bytes, num_bytes_allocated_);
+  num_bytes_allocated_ -= freed_bytes;
 
   if (Runtime::Current()->HasStatsEnabled()) {
     RuntimeStats* global_stats = Runtime::Current()->GetStats();
     RuntimeStats* thread_stats = Thread::Current()->GetStats();
-    ++global_stats->freed_objects;
-    ++thread_stats->freed_objects;
+    global_stats->freed_objects += freed_objects;
+    thread_stats->freed_objects += freed_objects;
     global_stats->freed_bytes += freed_bytes;
     thread_stats->freed_bytes += freed_bytes;
   }
@@ -532,20 +565,6 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
   self->AssertThreadSuspensionIsAllowable();
 #endif
 
-  // Fail impossible allocations
-  if (alloc_size > space->Capacity()) {
-    // On failure collect soft references
-    WaitForConcurrentGcToComplete();
-    if (Runtime::Current()->HasStatsEnabled()) {
-      ++Runtime::Current()->GetStats()->gc_for_alloc_count;
-      ++Thread::Current()->GetStats()->gc_for_alloc_count;
-    }
-    self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
-    CollectGarbageInternal(false, true);
-    self->TransitionFromSuspendedToRunnable();
-    return NULL;
-  }
-
   Object* ptr = space->AllocWithoutGrowth(alloc_size);
   if (ptr != NULL) {
     return ptr;
@@ -560,13 +579,33 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
       ++Thread::Current()->GetStats()->gc_for_alloc_count;
     }
     self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
-    CollectGarbageInternal(have_zygote_space_, false);
+    CollectGarbageInternal(have_zygote_space_ ? GC_PARTIAL : GC_FULL, false);
     self->TransitionFromSuspendedToRunnable();
   }
 
   ptr = space->AllocWithoutGrowth(alloc_size);
   if (ptr != NULL) {
     return ptr;
+  }
+
+  const size_t alloc_space_size = alloc_space_->Size();
+  if (alloc_space_size > kMinAllocSpaceSizeForStickyGC &&
+      alloc_space_->Capacity() - alloc_space_size < kMinRemainingSpaceForStickyGC) {
+    // Partial GC didn't free enough memory, try a full GC.
+    if (Runtime::Current()->HasStatsEnabled()) {
+      ++Runtime::Current()->GetStats()->gc_for_alloc_count;
+      ++Thread::Current()->GetStats()->gc_for_alloc_count;
+    }
+
+    // Don't bother trying a young GC unless we have a few MB AllocSpace.
+    self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
+    CollectGarbageInternal(GC_STICKY, false);
+    self->TransitionFromSuspendedToRunnable();
+
+    ptr = space->AllocWithoutGrowth(alloc_size);
+    if (ptr != NULL) {
+      return ptr;
+    }
   }
 
   if (!have_zygote_space_) {
@@ -576,8 +615,9 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
       ++Thread::Current()->GetStats()->gc_for_alloc_count;
     }
     self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
-    CollectGarbageInternal(false, false);
+    CollectGarbageInternal(GC_PARTIAL, false);
     self->TransitionFromSuspendedToRunnable();
+
     ptr = space->AllocWithoutGrowth(alloc_size);
     if (ptr != NULL) {
       return ptr;
@@ -610,22 +650,18 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
   }
   // We don't need a WaitForConcurrentGcToComplete here either.
   self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
-  CollectGarbageInternal(false, true);
+  CollectGarbageInternal(GC_FULL, true);
   self->TransitionFromSuspendedToRunnable();
-  ptr = space->AllocWithGrowth(alloc_size);
-  if (ptr != NULL) {
-    return ptr;
-  }
-  // Allocation failed.
-  return NULL;
+  return space->AllocWithGrowth(alloc_size);
 }
 
 int64_t Heap::GetMaxMemory() {
   size_t total = 0;
   // TODO: C++0x auto
-  for (Spaces::const_iterator cur = spaces_.begin(); cur != spaces_.end(); ++cur) {
-    if ((*cur)->IsAllocSpace()) {
-      total += (*cur)->AsAllocSpace()->Capacity();
+  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+    Space* space = *it;
+    if (space->IsAllocSpace()) {
+      total += space->AsAllocSpace()->Capacity();
     }
   }
   return total;
@@ -687,7 +723,7 @@ void Heap::CollectGarbage(bool clear_soft_references) {
   // GC unless we clear soft references.
   if (!WaitForConcurrentGcToComplete() || clear_soft_references) {
     ScopedThreadStateChange tsc(Thread::Current(), kWaitingPerformingGc);
-    CollectGarbageInternal(have_zygote_space_, clear_soft_references);
+    CollectGarbageInternal(have_zygote_space_ ? GC_PARTIAL : GC_FULL, clear_soft_references);
   }
 }
 
@@ -700,7 +736,13 @@ void Heap::PreZygoteFork() {
     return;
   }
 
-  VLOG(heap) << "Starting PreZygoteFork with alloc space size " << PrettySize(GetBytesAllocated());
+  VLOG(heap) << "Starting PreZygoteFork with alloc space size " << PrettySize(alloc_space_->Size());
+
+  {
+    // Flush the alloc stack.
+    WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    FlushAllocStack();
+  }
 
   // Replace the first alloc space we find with a zygote space.
   // TODO: C++0x auto
@@ -721,7 +763,40 @@ void Heap::PreZygoteFork() {
   }
 }
 
-void Heap::CollectGarbageInternal(bool partial_gc, bool clear_soft_references) {
+void Heap::FlushAllocStack() {
+  MarkStackAsLive(allocation_stack_.get());
+  allocation_stack_->Reset();
+}
+
+void Heap::MarkStackAsLive(MarkStack* alloc_stack) {
+  // We can just assume everything is inside the alloc_space_'s bitmap since we should only have
+  // fresh allocations.
+  SpaceBitmap* live_bitmap = alloc_space_->GetLiveBitmap();
+
+  // Empty the allocation stack.
+  const size_t count = alloc_stack->Size();
+  for (size_t i = 0; i < count; ++i) {
+    const Object* obj = alloc_stack->Get(i);
+    DCHECK(obj != NULL);
+    live_bitmap->Set(obj);
+  }
+}
+
+void Heap::UnMarkStack(MarkStack* alloc_stack) {
+  SpaceBitmap* mark_bitmap = alloc_space_->GetMarkBitmap();
+
+  // Clear all of the things in the AllocStack.
+  size_t count = alloc_stack->Size();
+  for (size_t i = 0;i < count;++i) {
+    const Object* obj = alloc_stack->Get(i);
+    DCHECK(obj != NULL);
+    if (mark_bitmap->Test(obj)) {
+      mark_bitmap->Clear(obj);
+    }
+  }
+}
+
+void Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) {
   GlobalSynchronization::mutator_lock_->AssertNotHeld();
 #ifndef NDEBUG
   {
@@ -747,11 +822,28 @@ void Heap::CollectGarbageInternal(bool partial_gc, bool clear_soft_references) {
     }
   }
   gc_complete_lock_->AssertNotHeld();
-  if (concurrent_gc_) {
-    CollectGarbageConcurrentMarkSweepPlan(partial_gc, clear_soft_references);
-  } else {
-    CollectGarbageMarkSweepPlan(partial_gc, clear_soft_references);
+
+  // We need to do partial GCs every now and then to avoid the heap growing too much and
+  // fragmenting.
+  if (gc_type == GC_STICKY && ++sticky_gc_count_ > kPartialGCFrequency) {
+    gc_type = GC_PARTIAL;
   }
+  if (gc_type != GC_STICKY) {
+    sticky_gc_count_ = 0;
+  }
+
+  uint64_t start_time = NanoTime();
+  if (true || concurrent_gc_) {
+    CollectGarbageConcurrentMarkSweepPlan(gc_type, clear_soft_references);
+  } else {
+    CollectGarbageMarkSweepPlan(gc_type, clear_soft_references);
+  }
+  const uint64_t gc_duration = NanoTime() - start_time;
+  // For particularly slow GCs lets print out another warning.
+  if (gc_duration > MsToNs(100)) {
+    LOG(WARNING) << "Slow GC took " << PrettyDuration(gc_duration);
+  }
+
   gc_complete_lock_->AssertNotHeld();
   MutexLock mu(*gc_complete_lock_);
   is_gc_running_ = false;
@@ -759,25 +851,20 @@ void Heap::CollectGarbageInternal(bool partial_gc, bool clear_soft_references) {
   gc_complete_cond_->Broadcast();
 }
 
-void Heap::CollectGarbageMarkSweepPlan(bool partial_gc, bool clear_soft_references) {
-  TimingLogger timings("CollectGarbageInternal");
-  uint64_t t0 = NanoTime(), dirty_end = 0;
+void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_references) {
+  TimingLogger timings("CollectGarbageInternal", true);
 
   // Suspend all threads are get exclusive access to the heap.
+  uint64_t start_time = NanoTime();
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   thread_list->SuspendAll();
   timings.AddSplit("SuspendAll");
   GlobalSynchronization::mutator_lock_->AssertExclusiveHeld();
 
-  size_t initial_size;
-  {
-    MutexLock mu(*statistics_lock_);
-    initial_size = num_bytes_allocated_;
-  }
+  size_t bytes_freed = 0;
   Object* cleared_references = NULL;
   {
     MarkSweep mark_sweep(mark_stack_.get());
-    timings.AddSplit("ctor");
 
     mark_sweep.Init();
     timings.AddSplit("Init");
@@ -786,16 +873,34 @@ void Heap::CollectGarbageMarkSweepPlan(bool partial_gc, bool clear_soft_referenc
     mod_union_table_->Init(&mark_sweep);
     zygote_mod_union_table_->Init(&mark_sweep);
 
+    // Swap allocation stack and live stack, enabling us to have new allocations during this GC.
+    MarkStack* temp = allocation_stack_.release();
+    allocation_stack_.reset(live_stack_.release());
+    live_stack_.reset(temp);
+
+    // We will need to know which cards were dirty for doing concurrent processing of dirty cards.
+    // TODO: Investigate using a mark stack instead of a vector.
+    std::vector<byte*> dirty_cards;
+    if (gc_type == GC_STICKY) {
+      for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+        card_table_->GetDirtyCards(*it, dirty_cards);
+      }
+    }
+
     // Clear image space cards and keep track of cards we cleared in the mod-union table.
     for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
       Space* space = *it;
       if (space->IsImageSpace()) {
         mod_union_table_->ClearCards(*it);
+        timings.AddSplit("ClearModUnionCards");
       } else if (space->GetGcRetentionPolicy() == GCRP_FULL_COLLECT) {
         zygote_mod_union_table_->ClearCards(space);
+        timings.AddSplit("ClearZygoteCards");
+      } else {
+        card_table_->ClearSpaceCards(space);
+        timings.AddSplit("ClearCards");
       }
     }
-    timings.AddSplit("ClearCards");
 
 #if VERIFY_MOD_UNION
     mod_union_table_->Verify();
@@ -803,13 +908,35 @@ void Heap::CollectGarbageMarkSweepPlan(bool partial_gc, bool clear_soft_referenc
 #endif
 
     WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
-    if (partial_gc) {
+    if (gc_type == GC_PARTIAL) {
       // Copy the mark bits over from the live bits, do this as early as possible or else we can
       // accidentally un-mark roots.
       // Needed for scanning dirty objects.
-      mark_sweep.CopyMarkBits();
+      for (Spaces::iterator it = spaces_.begin();it != spaces_.end(); ++it) {
+        if ((*it)->GetGcRetentionPolicy() == GCRP_FULL_COLLECT) {
+          mark_sweep.CopyMarkBits(*it);
+        }
+      }
       timings.AddSplit("CopyMarkBits");
+
+      // We can assume that everything < alloc_space_ start is marked at this point.
+      mark_sweep.SetCondemned(reinterpret_cast<Object*>(alloc_space_->Begin()));
+    } else if (gc_type == GC_STICKY) {
+      for (Spaces::iterator it = spaces_.begin();it != spaces_.end(); ++it) {
+        if ((*it)->GetGcRetentionPolicy() != GCRP_NEVER_COLLECT) {
+          mark_sweep.CopyMarkBits(*it);
+        }
+      }
+      timings.AddSplit("CopyMarkBits");
+
+      if (VERIFY_OBJECT_ENABLED) {
+        UnMarkStack(live_stack_.get());
+      }
+
+      mark_sweep.SetCondemned(reinterpret_cast<Object*>(alloc_space_->Begin()));
     }
+
+    MarkStackAsLive(live_stack_.get());
 
     mark_sweep.MarkRoots();
     timings.AddSplit("MarkRoots");
@@ -818,13 +945,11 @@ void Heap::CollectGarbageMarkSweepPlan(bool partial_gc, bool clear_soft_referenc
     DCHECK(mark_sweep.IsMarkStackEmpty());
 
     // Update zygote mod union table.
-    if (partial_gc) {
-      zygote_mod_union_table_->Update();
-      timings.AddSplit("UpdateZygoteModUnionTable");
+    zygote_mod_union_table_->Update();
+    timings.AddSplit("UpdateZygoteModUnionTable");
 
-      zygote_mod_union_table_->MarkReferences();
-      timings.AddSplit("ZygoteMarkReferences");
-    }
+    zygote_mod_union_table_->MarkReferences();
+    timings.AddSplit("ZygoteMarkReferences");
 
     // Processes the cards we cleared earlier and adds their objects into the mod-union table.
     mod_union_table_->Update();
@@ -835,75 +960,86 @@ void Heap::CollectGarbageMarkSweepPlan(bool partial_gc, bool clear_soft_referenc
     timings.AddSplit("MarkImageToAllocSpaceReferences");
 
     // Recursively mark all the non-image bits set in the mark bitmap.
-    mark_sweep.RecursiveMark(partial_gc);
-    timings.AddSplit(partial_gc ? "PartialMark" : "RecursiveMark");
+    if (gc_type != GC_STICKY) {
+      live_stack_->Reset();
+      mark_sweep.RecursiveMark(gc_type == GC_PARTIAL, timings);
+    } else {
+      mark_sweep.RecursiveMarkCards(card_table_.get(), dirty_cards, timings);
+    }
 
+    // Need to process references the swap since it uses IsMarked.
     mark_sweep.ProcessReferences(clear_soft_references);
     timings.AddSplit("ProcessReferences");
 
-    // Swap the live and mark bitmaps for each alloc space. This is needed since sweep re-swaps
-    // these bitmaps. Doing this enables us to sweep with the heap unlocked since new allocations
-    // set the live bit, but since we have the bitmaps reversed at this point, this sets the mark bit
-    // instead, resulting in no new allocated objects being incorrectly freed by sweep.
-    for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-      Space* space = *it;
-      // We never allocate into zygote spaces.
-      if (space->GetGcRetentionPolicy() == GCRP_ALWAYS_COLLECT) {
-        live_bitmap_->ReplaceBitmap(space->GetLiveBitmap(), space->GetMarkBitmap());
-        mark_bitmap_->ReplaceBitmap(space->GetMarkBitmap(), space->GetLiveBitmap());
-        space->AsAllocSpace()->SwapBitmaps();
+    // This doesn't work with mutators unpaused for some reason, TODO: Fix.
+    mark_sweep.SweepSystemWeaks(false);
+    timings.AddSplit("SweepSystemWeaks");
+
+    // Need to swap for VERIFY_OBJECT_ENABLED since we put things in the live bitmap after they
+    // have been allocated.
+    const bool swap = true;
+
+    if (swap) {
+      // Swap the live and mark bitmaps for each alloc space. This is needed since sweep re-swaps
+      // these bitmaps. Doing this enables us to sweep with the heap unlocked since new allocations
+      // set the live bit, but since we have the bitmaps reversed at this point, this sets the mark bit
+      // instead, resulting in no new allocated objects being incorrectly freed by sweep.
+      for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+        Space* space = *it;
+        // We only allocate into AllocSpace, so we only need to swap AllocSpaces.
+        if (space->GetGcRetentionPolicy() == GCRP_ALWAYS_COLLECT) {
+          live_bitmap_->ReplaceBitmap(space->GetLiveBitmap(), space->GetMarkBitmap());
+          mark_bitmap_->ReplaceBitmap(space->GetMarkBitmap(), space->GetLiveBitmap());
+          space->AsAllocSpace()->SwapBitmaps();
+        }
       }
     }
 
+#ifndef NDEBUG
     // Verify that we only reach marked objects from the image space
     mark_sweep.VerifyImageRoots();
     timings.AddSplit("VerifyImageRoots");
+#endif
 
-    mark_sweep.Sweep(partial_gc);
+    if (gc_type != GC_STICKY) {
+      mark_sweep.Sweep(gc_type == GC_PARTIAL, swap);
+    } else {
+      mark_sweep.SweepArray(timings, live_stack_.get(), swap);
+    }
     timings.AddSplit("Sweep");
 
     cleared_references = mark_sweep.GetClearedReferences();
+    bytes_freed = mark_sweep.GetFreedBytes();
   }
 
   GrowForUtilization();
   timings.AddSplit("GrowForUtilization");
 
   thread_list->ResumeAll();
-  dirty_end = NanoTime();
+  timings.AddSplit("ResumeAll");
 
   EnqueueClearedReferences(&cleared_references);
   RequestHeapTrim();
   timings.AddSplit("Finish");
 
-  if (VLOG_IS_ON(gc)) {
-    uint64_t t1 = NanoTime();
-
+  // If the GC was slow, then print timings in the log.
+  uint64_t duration = (NanoTime() - start_time) / 1000 * 1000;
+  if (duration > MsToNs(50)) {
     MutexLock mu(*statistics_lock_);
-    // TODO: somehow make the specific GC implementation (here MarkSweep) responsible for logging.
-    // Reason: For CMS sometimes initial_size < num_bytes_allocated_ results in overflow (3GB freed message).
-    size_t bytes_freed = initial_size - num_bytes_allocated_;
-    uint64_t duration_ns = t1 - t0;
-    duration_ns -= duration_ns % 1000;
-
-    // If the GC was slow, then print timings in the log.
-    if (duration_ns > MsToNs(50)) {
-      uint64_t markSweepTime = (dirty_end - t0) / 1000 * 1000;
-      LOG(INFO) << (partial_gc ? "Partial " : "")
-                      << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
-                      << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
-                      << "paused " << PrettyDuration(markSweepTime)
-                      << ", total " << PrettyDuration(duration_ns);
-    }
+    LOG(INFO) << (gc_type == GC_PARTIAL ? "Partial " : (gc_type == GC_STICKY ? "Sticky " : ""))
+              << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
+              << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
+              << "paused " << PrettyDuration(duration);
   }
-  Dbg::GcDidFinish();
+
   if (VLOG_IS_ON(heap)) {
     timings.Dump();
   }
 }
 
-void Heap::CollectGarbageConcurrentMarkSweepPlan(bool partial_gc, bool clear_soft_references) {
-  TimingLogger timings("CollectGarbageInternal");
-  uint64_t t0 = NanoTime(), root_end = 0, dirty_begin = 0, dirty_end = 0;
+void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft_references) {
+  TimingLogger timings("ConcurrentCollectGarbageInternal", true);
+  uint64_t root_begin = NanoTime(), root_end = 0, dirty_begin = 0, dirty_end = 0;
 
   // Suspend all threads are get exclusive access to the heap.
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
@@ -911,11 +1047,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(bool partial_gc, bool clear_sof
   timings.AddSplit("SuspendAll");
   GlobalSynchronization::mutator_lock_->AssertExclusiveHeld();
 
-  size_t initial_size;
-  {
-    MutexLock mu(*statistics_lock_);
-    initial_size = num_bytes_allocated_;
-  }
+  size_t bytes_freed = 0;
   Object* cleared_references = NULL;
   {
     MarkSweep mark_sweep(mark_stack_.get());
@@ -923,6 +1055,20 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(bool partial_gc, bool clear_sof
 
     mark_sweep.Init();
     timings.AddSplit("Init");
+
+    // Swap the stacks, this is safe sunce all the mutators are suspended at this point.
+    MarkStack* temp = allocation_stack_.release();
+    allocation_stack_.reset(live_stack_.release());
+    live_stack_.reset(temp);
+
+    // We will need to know which cards were dirty for doing concurrent processing of dirty cards.
+    // TODO: Investigate using a mark stack instead of a vector.
+    std::vector<byte*> dirty_cards;
+    if (gc_type == GC_STICKY) {
+      for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+        card_table_->GetDirtyCards(*it, dirty_cards);
+      }
+    }
 
     // Make sure that the tables have the correct pointer for the mark sweep.
     mod_union_table_->Init(&mark_sweep);
@@ -933,31 +1079,59 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(bool partial_gc, bool clear_sof
       Space* space = *it;
       if (space->IsImageSpace()) {
         mod_union_table_->ClearCards(*it);
+        timings.AddSplit("ModUnionClearCards");
       } else if (space->GetGcRetentionPolicy() == GCRP_FULL_COLLECT) {
         zygote_mod_union_table_->ClearCards(space);
+        timings.AddSplit("ZygoteModUnionClearCards");
       } else {
         card_table_->ClearSpaceCards(space);
+        timings.AddSplit("ClearCards");
       }
     }
-    timings.AddSplit("ClearCards");
 
 #if VERIFY_MOD_UNION
     mod_union_table_->Verify();
     zygote_mod_union_table_->Verify();
 #endif
 
-    if (partial_gc) {
-      // Copy the mark bits over from the live bits, do this as early as possible or else we can
-      // accidentally un-mark roots.
-      // Needed for scanning dirty objects.
-      mark_sweep.CopyMarkBits();
-      timings.AddSplit("CopyMarkBits");
-    }
 
     {
       WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
-      mark_sweep.MarkRoots();
-      timings.AddSplit("MarkRoots");
+
+      if (gc_type == GC_PARTIAL) {
+        // Copy the mark bits over from the live bits, do this as early as possible or else we can
+        // accidentally un-mark roots.
+        // Needed for scanning dirty objects.
+        for (Spaces::iterator it = spaces_.begin();it != spaces_.end(); ++it) {
+          if ((*it)->GetGcRetentionPolicy() == GCRP_FULL_COLLECT) {
+            mark_sweep.CopyMarkBits(*it);
+          }
+        }
+        timings.AddSplit("CopyMarkBits");
+        mark_sweep.SetCondemned(reinterpret_cast<Object*>(alloc_space_->Begin()));
+      } else if (gc_type == GC_STICKY) {
+        for (Spaces::iterator it = spaces_.begin();it != spaces_.end(); ++it) {
+          if ((*it)->GetGcRetentionPolicy() != GCRP_NEVER_COLLECT) {
+            mark_sweep.CopyMarkBits(*it);
+          }
+        }
+        timings.AddSplit("CopyMarkBits");
+        // We need to unmark the new objects since we marked them as live earlier to avoid verify
+        // objects failing.
+        if (VERIFY_OBJECT_ENABLED) {
+          UnMarkStack(live_stack_.get());
+        }
+        mark_sweep.SetCondemned(reinterpret_cast<Object*>(alloc_space_->Begin()));
+      }
+
+      // TODO: Investigate whether or not this is really necessary for sticky mark bits.
+      MarkStackAsLive(live_stack_.get());
+
+      if (gc_type != GC_STICKY) {
+        live_stack_->Reset();
+        mark_sweep.MarkRoots();
+        timings.AddSplit("MarkRoots");
+      }
     }
 
     // Roots are marked on the bitmap and the mark_stack is empty.
@@ -970,10 +1144,10 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(bool partial_gc, bool clear_sof
       root_end = NanoTime();
       timings.AddSplit("RootEnd");
 
-      {
-        ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      if (gc_type != GC_STICKY) {
         // Update zygote mod union table.
-        if (partial_gc) {
+        if (gc_type == GC_PARTIAL) {
           zygote_mod_union_table_->Update();
           timings.AddSplit("UpdateZygoteModUnionTable");
 
@@ -984,16 +1158,16 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(bool partial_gc, bool clear_sof
         // Processes the cards we cleared earlier and adds their objects into the mod-union table.
         mod_union_table_->Update();
         timings.AddSplit("UpdateModUnionTable");
-      }
-      {
-        WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+
         // Scans all objects in the mod-union table.
         mod_union_table_->MarkReferences();
         timings.AddSplit("MarkImageToAllocSpaceReferences");
 
         // Recursively mark all the non-image bits set in the mark bitmap.
-        mark_sweep.RecursiveMark(partial_gc);
-        timings.AddSplit(partial_gc ? "PartialMark" : "RecursiveMark");
+        mark_sweep.RecursiveMark(gc_type == GC_PARTIAL, timings);
+      } else {
+        mark_sweep.RecursiveMarkCards(card_table_.get(), dirty_cards, timings);
+        mark_sweep.DisableFinger();
       }
     }
     // Release share on mutator_lock_ and then get exclusive access.
@@ -1004,24 +1178,30 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(bool partial_gc, bool clear_sof
 
     {
       WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+
       // Re-mark root set.
       mark_sweep.ReMarkRoots();
       timings.AddSplit("ReMarkRoots");
 
       // Scan dirty objects, this is only required if we are not doing concurrent GC.
-      mark_sweep.RecursiveMarkDirtyObjects();
+      mark_sweep.RecursiveMarkDirtyObjects(false);
       timings.AddSplit("RecursiveMarkDirtyObjects");
     }
     {
       ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
       mark_sweep.ProcessReferences(clear_soft_references);
       timings.AddSplit("ProcessReferences");
+
+      // This doesn't work with mutators unpaused for some reason, TODO: Fix.
+      mark_sweep.SweepSystemWeaks(false);
+      timings.AddSplit("SweepSystemWeaks");
     }
     // Swap the live and mark bitmaps for each alloc space. This is needed since sweep re-swaps
     // these bitmaps. Doing this enables us to sweep with the heap unlocked since new allocations
     // set the live bit, but since we have the bitmaps reversed at this point, this sets the mark
     // bit instead, resulting in no new allocated objects being incorrectly freed by sweep.
-    {
+    bool swap = true;
+    if (swap) {
       WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
       for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
         Space* space = *it;
@@ -1040,6 +1220,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(bool partial_gc, bool clear_sof
       mark_sweep.VerifyImageRoots();
       timings.AddSplit("VerifyImageRoots");
     }
+
     thread_list->ResumeAll();
     dirty_end = NanoTime();
     GlobalSynchronization::mutator_lock_->AssertNotHeld();
@@ -1047,11 +1228,16 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(bool partial_gc, bool clear_sof
     {
       // TODO: this lock shouldn't be necessary (it's why we did the bitmap flip above).
       WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
-      mark_sweep.Sweep(partial_gc);
+      if (gc_type != GC_STICKY) {
+        mark_sweep.Sweep(gc_type == GC_PARTIAL, swap);
+      } else {
+        mark_sweep.SweepArray(timings, live_stack_.get(), swap);
+      }
       timings.AddSplit("Sweep");
     }
 
     cleared_references = mark_sweep.GetClearedReferences();
+    bytes_freed = mark_sweep.GetFreedBytes();
   }
 
   GrowForUtilization();
@@ -1061,28 +1247,18 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(bool partial_gc, bool clear_sof
   RequestHeapTrim();
   timings.AddSplit("Finish");
 
-  if (VLOG_IS_ON(gc)) {
-    uint64_t t1 = NanoTime();
-
+  // If the GC was slow, then print timings in the log.
+  uint64_t pause_roots = (root_end - root_begin) / 1000 * 1000;
+  uint64_t pause_dirty = (dirty_end - dirty_begin) / 1000 * 1000;
+  if (pause_roots > MsToNs(5) || pause_dirty > MsToNs(5)) {
     MutexLock mu(*statistics_lock_);
-    // TODO: somehow make the specific GC implementation (here MarkSweep) responsible for logging.
-    // Reason: For CMS sometimes initial_size < num_bytes_allocated_ results in overflow (3GB freed message).
-    size_t bytes_freed = initial_size - num_bytes_allocated_;
-    uint64_t duration_ns = t1 - t0;
-    duration_ns -= duration_ns % 1000;
-
-    // If the GC was slow, then print timings in the log.
-    uint64_t pause_roots = (root_end - t0) / 1000 * 1000;
-    uint64_t pause_dirty = (dirty_end - dirty_begin) / 1000 * 1000;
-    if (pause_roots > MsToNs(5) || pause_dirty > MsToNs(5)) {
-      LOG(INFO) << (partial_gc ? "Partial " : "")
-                      << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
-                      << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
-                      << "paused " << PrettyDuration(pause_roots) << "+" << PrettyDuration(pause_dirty)
-                      << ", total " << PrettyDuration(duration_ns);
-    }
+    LOG(INFO) << (gc_type == GC_PARTIAL ? "Partial " : (gc_type == GC_STICKY ? "Sticky " : ""))
+              << "Concurrent GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree()
+              << "% free, " << PrettySize(num_bytes_allocated_) << "/"
+              << PrettySize(GetTotalMemory()) << ", " << "paused " << PrettyDuration(pause_roots)
+              << "+" << PrettyDuration(pause_dirty);
   }
-  Dbg::GcDidFinish();
+
   if (VLOG_IS_ON(heap)) {
     timings.Dump();
   }
@@ -1173,6 +1349,7 @@ void Heap::GrowForUtilization() {
       use_footprint_limit = true;
     }
   }
+
   if (use_footprint_limit) {
     size_t foot_print_limit = alloc_space_->GetFootprintLimit();
     MutexLock mu(*statistics_lock_);
@@ -1324,13 +1501,18 @@ void Heap::ConcurrentGC() {
   if (Runtime::Current()->IsShuttingDown() || !concurrent_gc_) {
     return;
   }
+
   // TODO: We shouldn't need a WaitForConcurrentGcToComplete here since only
   //       concurrent GC resumes threads before the GC is completed and this function
   //       is only called within the GC daemon thread.
   if (!WaitForConcurrentGcToComplete()) {
     // Start a concurrent GC as one wasn't in progress
     ScopedThreadStateChange tsc(Thread::Current(), kWaitingPerformingGc);
-    CollectGarbageInternal(have_zygote_space_, false);
+    if (alloc_space_->Size() > kMinAllocSpaceSizeForStickyGC) {
+      CollectGarbageInternal(GC_STICKY, false);
+    } else {
+      CollectGarbageInternal(GC_PARTIAL, false);
+    }
   }
 }
 

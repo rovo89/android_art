@@ -33,6 +33,7 @@ class Space;
 class ModUnionTable {
  public:
   typedef std::vector<const Object*> ReferenceArray;
+  typedef std::set<byte*> ClearedCards;
 
   ModUnionTable(Heap* heap) : heap_(heap), mark_sweep_(0) {
 
@@ -128,7 +129,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
 
  protected:
   // Cleared card array, used to update the mod-union table.
-  std::vector<byte*> cleared_cards_;
+  ClearedCards cleared_cards_;
 
   // Maps from dirty cards to their corresponding alloc space references.
   ReferenceMap references_;
@@ -137,7 +138,6 @@ class ModUnionTableReferenceCache : public ModUnionTable {
 // Card caching implementation. Keeps track of which cards we cleared and only this information.
 class ModUnionTableCardCache : public ModUnionTable {
  public:
-  typedef std::set<byte*> ClearedCards;
   typedef SafeMap<const byte*, ReferenceArray > ReferenceMap;
 
   ModUnionTableCardCache(Heap* heap);

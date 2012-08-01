@@ -558,6 +558,11 @@ class ImageDumper {
     Heap* heap = Runtime::Current()->GetHeap();
     const Spaces& spaces = heap->GetSpaces();
     // TODO: C++0x auto
+    {
+      WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      heap->FlushAllocStack();
+    }
+    ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
     for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
       (*cur)->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
       os_ << "\n";

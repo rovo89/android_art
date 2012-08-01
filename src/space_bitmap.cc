@@ -22,6 +22,14 @@
 
 namespace art {
 
+std::string SpaceBitmap::GetName() const {
+  return name_;
+}
+
+void SpaceBitmap::SetName(const std::string& name) {
+  name_ = name;
+}
+
 SpaceBitmap* SpaceBitmap::Create(const std::string& name, byte* heap_begin, size_t heap_capacity) {
   CHECK(heap_begin != NULL);
   // Round up since heap_capacity is not necessarily a multiple of kAlignment * kBitsPerWord.
@@ -60,8 +68,12 @@ void SpaceBitmap::Clear() {
     if (result == -1) {
       PLOG(WARNING) << "madvise failed";
     }
-    heap_end_ = heap_begin_ - 1;
   }
+}
+
+void SpaceBitmap::CopyFrom(SpaceBitmap* source_bitmap) {
+  DCHECK_EQ(Size(), source_bitmap->Size());
+  std::copy(source_bitmap->Begin(), source_bitmap->Begin() + source_bitmap->Size() / kWordSize, Begin());
 }
 
 // Return true iff <obj> is within the range of pointers that this bitmap could potentially cover,
@@ -78,84 +90,19 @@ bool SpaceBitmap::HasAddress(const void* obj) const {
 void SpaceBitmap::Walk(SpaceBitmap::Callback* callback, void* arg) {
   CHECK(bitmap_begin_ != NULL);
   CHECK(callback != NULL);
-  if (heap_end_ < heap_begin_) {
-    return;  // Bitmap is empty.
-  }
-  uintptr_t end = OffsetToIndex(heap_end_ - heap_begin_);
+
+  uintptr_t end = OffsetToIndex(HeapLimit() - heap_begin_ - 1);
+  word* bitmap_begin = bitmap_begin_;
   for (uintptr_t i = 0; i <= end; ++i) {
-    word w = bitmap_begin_[i];
-    if (UNLIKELY(w != 0)) {
+    word w = bitmap_begin[i];
+    if (w != 0) {
       uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
-      while (w != 0) {
+      do {
         const size_t shift = CLZ(w);
         Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
         (*callback)(obj, arg);
         w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
-      }
-    }
-  }
-}
-
-// Similar to Walk but the callback routine is permitted to change the bitmap bits and end during
-// traversal.  Used by the the root marking scan exclusively.
-//
-// The callback is invoked with a finger argument.  The finger is a pointer to an address not yet
-// visited by the traversal.  If the callback sets a bit for an address at or above the finger, this
-// address will be visited by the traversal.  If the callback sets a bit for an address below the
-// finger, this address will not be visited (typiscally such an address would be placed on the
-// marking stack).
-void SpaceBitmap::ScanWalk(uintptr_t scan_begin, uintptr_t scan_end, ScanCallback* callback, void* arg) {
-  CHECK(bitmap_begin_ != NULL);
-  CHECK(callback != NULL);
-  CHECK_LE(scan_begin, scan_end);
-  CHECK_GE(scan_begin, heap_begin_);
-
-  // This function doesn't support unaligned boundaries yet.
-  size_t begin_offset = scan_begin - heap_begin_;
-  size_t end_offset = scan_end - heap_begin_;
-  DCHECK((begin_offset / kAlignment) % kBitsPerWord == 0)
-      << "scan begin " << reinterpret_cast<const void*>(scan_begin)
-      << " with offset " << begin_offset
-      << " not aligned to word boundary";
-  DCHECK((end_offset / kAlignment) % kBitsPerWord == 0)
-      << "scan end " << reinterpret_cast<const void*>(scan_end)
-      << " with offset " << end_offset
-      << " not aligned to word boundary";
-
-  size_t start = OffsetToIndex(begin_offset);
-  if (scan_end < heap_end_) {
-    // The end of the space we're looking at is before the current maximum bitmap PC, scan to that
-    // and don't recompute end on each iteration
-    size_t end = OffsetToIndex(end_offset - 1);
-    for (size_t i = start; i <= end; i++) {
-      word w = bitmap_begin_[i];
-      if (UNLIKELY(w != 0)) {
-        uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
-        void* finger = reinterpret_cast<void*>(IndexToOffset(i + 1) + heap_begin_);
-        while (w != 0) {
-          const size_t shift = CLZ(w);
-          Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
-          (*callback)(obj, finger, arg);
-          w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
-        }
-      }
-    }
-  } else {
-    size_t end = OffsetToIndex(heap_end_ - heap_begin_);
-    for (size_t i = start; i <= end; i++) {
-      word w = bitmap_begin_[i];
-      if (UNLIKELY(w != 0)) {
-        uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
-        void* finger = reinterpret_cast<void*>(IndexToOffset(i + 1) + heap_begin_);
-        while (w != 0) {
-          const size_t shift = CLZ(w);
-          Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
-          (*callback)(obj, finger, arg);
-          w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
-        }
-      }
-      // update 'end' in case callback modified bitmap
-      end = OffsetToIndex(heap_end_ - heap_begin_);
+      } while (w != 0);
     }
   }
 }
@@ -176,31 +123,32 @@ void SpaceBitmap::SweepWalk(const SpaceBitmap& live_bitmap,
   CHECK(callback != NULL);
   CHECK_LE(sweep_begin, sweep_end);
   CHECK_GE(sweep_begin, live_bitmap.heap_begin_);
-  sweep_end = std::min(sweep_end - 1, live_bitmap.heap_end_);
-  if (live_bitmap.heap_end_ < live_bitmap.heap_begin_) {
-    // Easy case; both are obviously empty.
-    // TODO: this should never happen
+
+  if (sweep_end <= sweep_begin) {
     return;
   }
+
   // TODO: rewrite the callbacks to accept a std::vector<Object*> rather than a Object**?
-  std::vector<Object*> pointer_buf(4 * kBitsPerWord);
+  const size_t buffer_size = kWordSize * kBitsPerWord;
+  Object* pointer_buf[buffer_size];
   Object** pb = &pointer_buf[0];
   size_t start = OffsetToIndex(sweep_begin - live_bitmap.heap_begin_);
-  size_t end = OffsetToIndex(sweep_end - live_bitmap.heap_begin_);
+  size_t end = OffsetToIndex(sweep_end - live_bitmap.heap_begin_ - 1);
+  CHECK_LT(end, live_bitmap.Size() / kWordSize);
   word* live = live_bitmap.bitmap_begin_;
   word* mark = mark_bitmap.bitmap_begin_;
   for (size_t i = start; i <= end; i++) {
     word garbage = live[i] & ~mark[i];
     if (UNLIKELY(garbage != 0)) {
       uintptr_t ptr_base = IndexToOffset(i) + live_bitmap.heap_begin_;
-      while (garbage != 0) {
+      do {
         const size_t shift = CLZ(garbage);
         garbage ^= static_cast<size_t>(kWordHighBitMask) >> shift;
         *pb++ = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
-      }
+      } while (garbage != 0);
       // Make sure that there are always enough slots available for an
       // entire word of one bits.
-      if (pb >= &pointer_buf[pointer_buf.size() - kBitsPerWord]) {
+      if (pb >= &pointer_buf[buffer_size - kBitsPerWord]) {
         (*callback)(pb - &pointer_buf[0], &pointer_buf[0], arg);
         pb = &pointer_buf[0];
       }
@@ -297,8 +245,8 @@ void SpaceBitmap::InOrderWalk(SpaceBitmap::Callback* callback, void* arg) {
                                        IndexToOffset(bitmap_size_ / kWordSize)));
   CHECK(bitmap_begin_ != NULL);
   CHECK(callback != NULL);
-  uintptr_t end = OffsetToIndex(heap_end_ - heap_begin_);
-  for (uintptr_t i = 0; i <= end; ++i) {
+  uintptr_t end = Size() / kWordSize;
+  for (uintptr_t i = 0; i < end; ++i) {
     word w = bitmap_begin_[i];
     if (UNLIKELY(w != 0)) {
       uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
@@ -311,5 +259,13 @@ void SpaceBitmap::InOrderWalk(SpaceBitmap::Callback* callback, void* arg) {
     }
   }
 }
+
+std::ostream& operator << (std::ostream& stream, const SpaceBitmap& bitmap) {
+  return stream
+    << bitmap.GetName() << "["
+    << "begin=" << reinterpret_cast<const void*>(bitmap.HeapBegin())
+    << ",end=" << reinterpret_cast<const void*>(bitmap.HeapLimit())
+    << "]";
+  }
 
 }  // namespace art

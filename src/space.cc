@@ -154,6 +154,10 @@ void AllocSpace::SwapBitmaps() {
   SpaceBitmap* temp_live_bitmap = live_bitmap_.release();
   live_bitmap_.reset(mark_bitmap_.release());
   mark_bitmap_.reset(temp_live_bitmap);
+  // Swap names to get more descriptive diagnostics.
+  std::string temp_name = live_bitmap_->GetName();
+  live_bitmap_->SetName(mark_bitmap_->GetName());
+  mark_bitmap_->SetName(temp_name);
 }
 
 Object* AllocSpace::AllocWithoutGrowthLocked(size_t num_bytes) {
@@ -190,6 +194,14 @@ Object* AllocSpace::AllocWithGrowth(size_t num_bytes) {
   return result;
 }
 
+void AllocSpace::SetGrowthLimit(size_t growth_limit) {
+  growth_limit = RoundUp(growth_limit, kPageSize);
+  growth_limit_ = growth_limit;
+  if (Size() > growth_limit_) {
+    end_ = begin_ + growth_limit;
+  }
+}
+
 AllocSpace* AllocSpace::CreateZygoteSpace() {
   end_ = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(end_), kPageSize));
   DCHECK(IsAligned<GC_CARD_SIZE>(begin_));
@@ -212,7 +224,8 @@ AllocSpace* AllocSpace::CreateZygoteSpace() {
   VLOG(heap) << "Size " << size;
   VLOG(heap) << "GrowthLimit " << growth_limit_;
   VLOG(heap) << "Capacity " << Capacity();
-  growth_limit_ = RoundUp(size, kPageSize);
+  SetGrowthLimit(RoundUp(size, kPageSize));
+  SetFootprintLimit(RoundUp(size, kPageSize));
   // FIXME: Do we need reference counted pointers here?
   // Make the two spaces share the same mark bitmaps since the bitmaps span both of the spaces.
   VLOG(heap) << "Creating new AllocSpace: ";
@@ -228,9 +241,9 @@ AllocSpace* AllocSpace::CreateZygoteSpace() {
   }
   AllocSpace* alloc_space = new AllocSpace(name_, mem_map.release(), mspace, end_, end, growth_limit);
   live_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(end_));
-  CHECK(live_bitmap_->HeapLimit() == reinterpret_cast<uintptr_t>(end_));
+  CHECK_EQ(live_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(end_));
   mark_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(end_));
-  CHECK(mark_bitmap_->HeapLimit() == reinterpret_cast<uintptr_t>(end_));
+  CHECK_EQ(mark_bitmap_->HeapLimit(), reinterpret_cast<uintptr_t>(end_));
   name_ += "-zygote-transformed";
   VLOG(heap) << "zygote space creation done";
   return alloc_space;
@@ -264,25 +277,8 @@ void AllocSpace::FreeList(size_t num_ptrs, Object** ptrs) {
 // Callback from dlmalloc when it needs to increase the footprint
 extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
   Heap* heap = Runtime::Current()->GetHeap();
-  if (heap->GetAllocSpace()->GetMspace() == mspace) {
-    return heap->GetAllocSpace()->MoreCore(increment);
-  } else {
-    // Exhaustively search alloc spaces.
-    const Spaces& spaces = heap->GetSpaces();
-    // TODO: C++0x auto
-    for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
-      if ((*cur)->IsAllocSpace()) {
-        AllocSpace* space = (*cur)->AsAllocSpace();
-        if (mspace == space->GetMspace()) {
-          return space->MoreCore(increment);
-        }
-      }
-    }
-  }
-
-  LOG(FATAL) << "Unexpected call to art_heap_morecore. mspace: " << mspace
-             << " increment: " << increment;
-  return NULL;
+  DCHECK_EQ(heap->GetAllocSpace()->GetMspace(), mspace);
+  return heap->GetAllocSpace()->MoreCore(increment);
 }
 
 void* AllocSpace::MoreCore(intptr_t increment) {

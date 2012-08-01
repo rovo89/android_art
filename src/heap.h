@@ -46,14 +46,35 @@ class Object;
 class Space;
 class SpaceTest;
 class Thread;
+class TimingLogger;
 
 typedef std::vector<Space*> Spaces;
+
+enum GcType {
+  // Full GC
+  GC_FULL,
+  // Sticky mark bits "generational" GC.
+  GC_STICKY,
+  // Partial GC, over only the alloc space
+  GC_PARTIAL,
+};
 
 class LOCKABLE Heap {
  public:
   static const size_t kInitialSize = 2 * MB;
 
   static const size_t kMaximumSize = 32 * MB;
+
+  // After how many GCs we force to do a partial GC instead of sticky mark bits GC.
+  static const size_t kPartialGCFrequency = 10;
+
+  // Sticky mark bits GC has some overhead, so if we have less a few megabytes of AllocSpace then
+  // it's probably better to just do a partial GC.
+  static const size_t kMinAllocSpaceSizeForStickyGC = 6 * MB;
+
+  // Minimum remaining size fo sticky GC. Since sticky GC doesn't free up as much memory as a
+  // normal GC, it is important to not use it when we are almost out of memory.
+  static const size_t kMinRemainingSpaceForStickyGC = 1 * MB;
 
   typedef void (RootVisitor)(const Object* root, void* arg);
   typedef bool (IsMarkedTester)(const Object* object, void* arg);
@@ -228,6 +249,16 @@ class LOCKABLE Heap {
 
   void PreZygoteFork();
 
+  // Mark and empty stack.
+  void FlushAllocStack()
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+
+  // Mark all the objects in the allocation stack as live.
+  void MarkStackAsLive(MarkStack* alloc_stack);
+
+  // Un-mark all the objects in the allocation stack.
+  void UnMarkStack(MarkStack* alloc_stack);
+
   // DEPRECATED: Should remove in "near" future when support for multiple image spaces is added.
   // Assumes there is only one image space.
   ImageSpace* GetImageSpace();
@@ -251,15 +282,15 @@ class LOCKABLE Heap {
   void RecordAllocation(AllocSpace* space, const Object* object)
       LOCKS_EXCLUDED(statistics_lock_, GlobalSynchronization::heap_bitmap_lock_);
 
-  void CollectGarbageInternal(bool partial_gc, bool clear_soft_references)
+  void CollectGarbageInternal(GcType gc_plan, bool clear_soft_references)
       LOCKS_EXCLUDED(gc_complete_lock_,
                      GlobalSynchronization::heap_bitmap_lock_,
                      GlobalSynchronization::mutator_lock_,
                      GlobalSynchronization::thread_suspend_count_lock_);
-  void CollectGarbageMarkSweepPlan(bool partial_gc, bool clear_soft_references)
+  void CollectGarbageMarkSweepPlan(GcType gc_plan, bool clear_soft_references)
       LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_,
                      GlobalSynchronization::mutator_lock_);
-  void CollectGarbageConcurrentMarkSweepPlan(bool partial_gc, bool clear_soft_references)
+  void CollectGarbageConcurrentMarkSweepPlan(GcType gc_plan, bool clear_soft_references)
       LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_,
                      GlobalSynchronization::mutator_lock_);
 
@@ -272,8 +303,10 @@ class LOCKABLE Heap {
 
   void AddSpace(Space* space) LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_);
 
-  void VerifyObjectLocked(const Object *obj)
-      SHARED_LOCKS_REQUIRED(GlobalSychronization::heap_bitmap_lock_);
+  // No thread saftey analysis since we call this everywhere and it is impossible to find a proper
+  // lock ordering for it.
+  void VerifyObjectBody(const Object *obj)
+      NO_THREAD_SAFETY_ANALYSIS;
 
   static void VerificationCallback(Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(GlobalSychronization::heap_bitmap_lock_);
@@ -318,6 +351,7 @@ class LOCKABLE Heap {
   size_t concurrent_start_bytes_ GUARDED_BY(statistics_lock_);
   size_t concurrent_start_size_;
   size_t concurrent_min_free_;
+  size_t sticky_gc_count_;
 
   // Number of bytes allocated.  Adjusted after each allocation and free.
   size_t num_bytes_allocated_ GUARDED_BY(statistics_lock_);
@@ -341,6 +375,13 @@ class LOCKABLE Heap {
 
   // Mark stack that we reuse to avoid re-allocating the mark stack
   UniquePtr<MarkStack> mark_stack_;
+
+  // Allocation stack, new allocations go here so that we can do sticky mark bits. This enables us
+  // to use the live bitmap as the old mark bitmap.
+  UniquePtr<MarkStack> allocation_stack_;
+
+  // Second allocation stack so that we can process allocation with the heap unlocked.
+  UniquePtr<MarkStack> live_stack_;
 
   // offset of java.lang.ref.Reference.referent
   MemberOffset reference_referent_offset_;

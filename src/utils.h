@@ -314,6 +314,12 @@ bool IsValidZipFilename(const std::string& filename);
 bool IsValidDexFilename(const std::string& filename);
 bool IsValidOatFilename(const std::string& filename);
 
+class IdentityFunctor {
+ public:
+  template <typename T>
+  inline T operator () (T t) const { return t; }
+};
+
 }  // namespace art
 
 #endif  // ART_SRC_UTILS_H_

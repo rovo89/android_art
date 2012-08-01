@@ -78,12 +78,8 @@ class SpaceBitmap {
     DCHECK(HasAddress(obj)) << obj;
     DCHECK(bitmap_begin_ != NULL);
     DCHECK_GE(addr, heap_begin_);
-    if (addr <= heap_end_) {
-      const uintptr_t offset = addr - heap_begin_;
-      return (bitmap_begin_[OffsetToIndex(offset)] & OffsetToMask(offset)) != 0;
-    } else {
-      return false;
-    }
+    const uintptr_t offset = addr - heap_begin_;
+    return (bitmap_begin_[OffsetToIndex(offset)] & OffsetToMask(offset)) != 0;
   }
 
   bool HasAddress(const void* addr) const;
@@ -110,11 +106,13 @@ class SpaceBitmap {
     }
   }
 
-  template <typename Visitor>
-  void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end, const Visitor& visitor) const
+  template <typename Visitor, typename FingerVisitor>
+  void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
+                        const Visitor& visitor, const FingerVisitor& finger_visitor) const
       EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
     DCHECK_LT(visit_begin, visit_end);
 
+    const size_t word_span = kAlignment * kBitsPerWord; // Equals IndexToOffset(1).
     const size_t bit_index_start = (visit_begin - heap_begin_) / kAlignment;
     const size_t bit_index_end = (visit_end - heap_begin_ - 1) / kAlignment;
 
@@ -134,6 +132,7 @@ class SpaceBitmap {
     // If word_start == word_end then handle this case at the same place we handle the right edge.
     if (edge_word != 0 && word_start < word_end) {
       uintptr_t ptr_base = IndexToOffset(word_start) + heap_begin_;
+      finger_visitor(reinterpret_cast<void*>(ptr_base + word_span));
       do {
         const size_t shift = CLZ(edge_word);
         Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
@@ -147,6 +146,7 @@ class SpaceBitmap {
       size_t w = bitmap_begin_[i];
       if (w != 0) {
         uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
+        finger_visitor(reinterpret_cast<void*>(ptr_base + word_span));
         do {
           const size_t shift = CLZ(w);
           Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
@@ -165,9 +165,9 @@ class SpaceBitmap {
     }
 
     // Bits that we trim off the right.
-    const size_t trim_bits = kBitsPerWord - 1 - right_bits;
-    edge_word &= ~((1 << trim_bits) - 1);
+    edge_word &= ~((static_cast<size_t>(kWordHighBitMask) >> right_bits) - 1);
     uintptr_t ptr_base = IndexToOffset(word_end) + heap_begin_;
+    finger_visitor(reinterpret_cast<void*>(ptr_base + word_span));
     while (edge_word != 0) {
       const size_t shift = CLZ(edge_word);
       Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
@@ -176,17 +176,19 @@ class SpaceBitmap {
     }
   }
 
-  void Walk(Callback* callback, void* arg);
+  void Walk(Callback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   void InOrderWalk(Callback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-
-  void ScanWalk(uintptr_t base, uintptr_t max, ScanCallback* thunk, void* arg);
 
   static void SweepWalk(const SpaceBitmap& live,
                         const SpaceBitmap& mark,
                         uintptr_t base, uintptr_t max,
                         SweepCallback* thunk, void* arg);
+
+  void CopyFrom(SpaceBitmap* source_bitmap);
 
   // Starting address of our internal storage.
   word* Begin() {
@@ -215,12 +217,15 @@ class SpaceBitmap {
   // Set the max address which can covered by the bitmap.
   void SetHeapLimit(uintptr_t new_end);
 
+  std::string GetName() const;
+  void SetName(const std::string& name);
+
  private:
   // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,
   // however, we document that this is expected on heap_end_
   SpaceBitmap(const std::string& name, MemMap* mem_map, word* bitmap_begin, size_t bitmap_size, const void* heap_begin)
       : mem_map_(mem_map), bitmap_begin_(bitmap_begin), bitmap_size_(bitmap_size),
-        heap_begin_(reinterpret_cast<uintptr_t>(heap_begin)), heap_end_(heap_begin_ - 1),
+        heap_begin_(reinterpret_cast<uintptr_t>(heap_begin)),
         name_(name) {}
 
   inline void Modify(const Object* obj, bool do_set) {
@@ -231,9 +236,6 @@ class SpaceBitmap {
     const word mask = OffsetToMask(offset);
     DCHECK_LT(index, bitmap_size_ / kWordSize) << " bitmap_size_ = " << bitmap_size_;
     if (do_set) {
-      if (addr > heap_end_) {
-        heap_end_ = addr;
-      }
       bitmap_begin_[index] |= mask;
     } else {
       bitmap_begin_[index] &= ~mask;
@@ -253,14 +255,11 @@ class SpaceBitmap {
   // bitmap.
   const uintptr_t heap_begin_;
 
-  // The highest pointer value ever returned by an allocation from
-  // this heap.  I.e., the highest address that may correspond to a
-  // set bit.  If there are no bits set, (heap_end_ < heap_begin_).
-  uintptr_t heap_end_;
-
   // Name of this bitmap.
   std::string name_;
 };
+
+std::ostream& operator << (std::ostream& stream, const SpaceBitmap& bitmap);
 
 }  // namespace art
 
