@@ -770,9 +770,21 @@ void Runtime::InitThreadGroups(Thread* self) {
   main_thread_group_ =
       env->NewGlobalRef(env->GetStaticObjectField(WellKnownClasses::java_lang_ThreadGroup,
                                                   WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup));
+  CHECK(main_thread_group_ != NULL || IsCompiler());
   system_thread_group_ =
       env->NewGlobalRef(env->GetStaticObjectField(WellKnownClasses::java_lang_ThreadGroup,
                                                   WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup));
+  CHECK(system_thread_group_ != NULL || IsCompiler());
+}
+
+jobject Runtime::GetMainThreadGroup() const {
+  CHECK(main_thread_group_ != NULL || IsCompiler());
+  return main_thread_group_;
+}
+
+jobject Runtime::GetSystemThreadGroup() const {
+  CHECK(system_thread_group_ != NULL || IsCompiler());
+  return system_thread_group_;
 }
 
 void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {

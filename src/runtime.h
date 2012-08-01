@@ -141,16 +141,10 @@ class Runtime {
   static void Abort();
 
   // Returns the "main" ThreadGroup, used when attaching user threads.
-  jobject GetMainThreadGroup() const {
-    CHECK(main_thread_group_ != NULL || IsCompiler());
-    return main_thread_group_;
-  }
+  jobject GetMainThreadGroup() const;
 
   // Returns the "system" ThreadGroup, used when attaching our internal threads.
-  jobject GetSystemThreadGroup() const {
-    CHECK(system_thread_group_ != NULL || IsCompiler());
-    return system_thread_group_;
-  }
+  jobject GetSystemThreadGroup() const;
 
   // Attaches the calling native thread to the runtime.
   void AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group);
