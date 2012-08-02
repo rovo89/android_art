@@ -70,6 +70,10 @@ TEST_F(SpaceTest, Init) {
   }
 }
 
+// TODO: This test is not very good, we should improve it.
+// The test should do more allocations before the creation of the ZygoteSpace, and then do
+// allocations after the ZygoteSpace is created. The test should also do some GCs to ensure that
+// the GC works with the ZygoteSpace.
 TEST_F(SpaceTest, ZygoteSpace) {
     AllocSpace* space(Space::CreateAllocSpace("test", 4 * MB, 16 * MB, 16 * MB, NULL));
     ASSERT_TRUE(space != NULL);

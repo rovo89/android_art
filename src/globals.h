@@ -36,6 +36,7 @@ const int kPointerSize = sizeof(void*);
 const int kBitsPerByte = 8;
 const int kBitsPerByteLog2 = 3;
 const int kBitsPerWord = kWordSize * kBitsPerByte;
+const int kWordHighBitMask = 1 << (kBitsPerWord - 1);
 
 // Required stack alignment
 const int kStackAlignment = 16;

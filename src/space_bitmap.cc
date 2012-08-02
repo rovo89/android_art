@@ -38,8 +38,9 @@ SpaceBitmap* SpaceBitmap::Create(const std::string& name, byte* heap_begin, size
 // Clean up any resources associated with the bitmap.
 SpaceBitmap::~SpaceBitmap() {}
 
-void SpaceBitmap::Trim(size_t heap_capacity) {
-  size_t new_size = OffsetToIndex(RoundUp(heap_capacity, kAlignment * kBitsPerWord)) * kWordSize;
+void SpaceBitmap::SetHeapLimit(uintptr_t new_end) {
+  DCHECK(IsAligned<kBitsPerWord * kAlignment>(new_end));
+  size_t new_size = OffsetToIndex(new_end - heap_begin_) * kWordSize;
   if (new_size < bitmap_size_) {
     bitmap_size_ = new_size;
   }
@@ -84,13 +85,12 @@ void SpaceBitmap::Walk(SpaceBitmap::Callback* callback, void* arg) {
   for (uintptr_t i = 0; i <= end; ++i) {
     word w = bitmap_begin_[i];
     if (UNLIKELY(w != 0)) {
-      word high_bit = 1 << (kBitsPerWord - 1);
       uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
       while (w != 0) {
-        const int shift = CLZ(w);
+        const size_t shift = CLZ(w);
         Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
         (*callback)(obj, arg);
-        w &= ~(high_bit >> shift);
+        w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
       }
     }
   }
@@ -130,14 +130,13 @@ void SpaceBitmap::ScanWalk(uintptr_t scan_begin, uintptr_t scan_end, ScanCallbac
     for (size_t i = start; i <= end; i++) {
       word w = bitmap_begin_[i];
       if (UNLIKELY(w != 0)) {
-        word high_bit = 1 << (kBitsPerWord - 1);
         uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
         void* finger = reinterpret_cast<void*>(IndexToOffset(i + 1) + heap_begin_);
         while (w != 0) {
-          const int shift = CLZ(w);
+          const size_t shift = CLZ(w);
           Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
           (*callback)(obj, finger, arg);
-          w &= ~(high_bit >> shift);
+          w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
         }
       }
     }
@@ -146,14 +145,13 @@ void SpaceBitmap::ScanWalk(uintptr_t scan_begin, uintptr_t scan_end, ScanCallbac
     for (size_t i = start; i <= end; i++) {
       word w = bitmap_begin_[i];
       if (UNLIKELY(w != 0)) {
-        word high_bit = 1 << (kBitsPerWord - 1);
         uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
         void* finger = reinterpret_cast<void*>(IndexToOffset(i + 1) + heap_begin_);
         while (w != 0) {
-          const int shift = CLZ(w);
+          const size_t shift = CLZ(w);
           Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
           (*callback)(obj, finger, arg);
-          w &= ~(high_bit >> shift);
+          w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
         }
       }
       // update 'end' in case callback modified bitmap
@@ -194,11 +192,10 @@ void SpaceBitmap::SweepWalk(const SpaceBitmap& live_bitmap,
   for (size_t i = start; i <= end; i++) {
     word garbage = live[i] & ~mark[i];
     if (UNLIKELY(garbage != 0)) {
-      word high_bit = 1 << (kBitsPerWord - 1);
       uintptr_t ptr_base = IndexToOffset(i) + live_bitmap.heap_begin_;
       while (garbage != 0) {
-        int shift = CLZ(garbage);
-        garbage &= ~(high_bit >> shift);
+        const size_t shift = CLZ(garbage);
+        garbage ^= static_cast<size_t>(kWordHighBitMask) >> shift;
         *pb++ = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
       }
       // Make sure that there are always enough slots available for an
@@ -302,13 +299,12 @@ void SpaceBitmap::InOrderWalk(SpaceBitmap::Callback* callback, void* arg) {
   for (uintptr_t i = 0; i <= end; ++i) {
     word w = bitmap_begin_[i];
     if (UNLIKELY(w != 0)) {
-      word high_bit = 1 << (kBitsPerWord - 1);
       uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
       while (w != 0) {
-        const int shift = CLZ(w);
+        const size_t shift = CLZ(w);
         Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
         WalkFieldsInOrder(visited.get(), callback, obj, arg);
-        w &= ~(high_bit >> shift);
+        w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
       }
     }
   }

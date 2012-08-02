@@ -31,6 +31,9 @@
 
 #define VERIFY_OBJECT_ENABLED 0
 
+// Fast verification means we do not verify the classes of objects.
+#define VERIFY_OBJECT_FAST 1
+
 namespace art {
 
 class AllocSpace;

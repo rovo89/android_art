@@ -393,13 +393,15 @@ bool Heap::IsLiveObjectLocked(const Object* obj) {
 
 #if VERIFY_OBJECT_ENABLED
 void Heap::VerifyObject(const Object* obj) {
-  if (this == NULL || !verify_objects_ || Runtime::Current()->IsShuttingDown() ||
+  if (obj == NULL || this == NULL || !verify_objects_ || Runtime::Current()->IsShuttingDown() ||
       Thread::Current() == NULL ||
       Runtime::Current()->GetThreadList()->GetLockOwner() == Thread::Current()->GetTid()) {
     return;
   }
-  ScopedHeapLock heap_lock;
-  Heap::VerifyObjectLocked(obj);
+  {
+    ScopedHeapLock heap_lock;
+    Heap::VerifyObjectLocked(obj);
+  }
 }
 #endif
 
@@ -412,39 +414,39 @@ void Heap::DumpSpaces() {
 
 void Heap::VerifyObjectLocked(const Object* obj) {
   lock_->AssertHeld();
-  if (obj != NULL) {
-    if (!IsAligned<kObjectAlignment>(obj)) {
-      LOG(FATAL) << "Object isn't aligned: " << obj;
-    } else if (!GetLiveBitmap()->Test(obj)) {
-      Space* space = FindSpaceFromObject(obj);
-      if (space == NULL) {
-        DumpSpaces();
-        LOG(FATAL) << "Object " << obj << " is not contained in any space";
-      }
-      LOG(FATAL) << "Object is dead: " << obj << " in space " << *space;
+  if (!IsAligned<kObjectAlignment>(obj)) {
+    LOG(FATAL) << "Object isn't aligned: " << obj;
+  } else if (!GetLiveBitmap()->Test(obj)) {
+    Space* space = FindSpaceFromObject(obj);
+    if (space == NULL) {
+      DumpSpaces();
+      LOG(FATAL) << "Object " << obj << " is not contained in any space";
     }
-    // Ignore early dawn of the universe verifications
-    if (num_objects_allocated_ > 10) {
-      const byte* raw_addr = reinterpret_cast<const byte*>(obj) +
-          Object::ClassOffset().Int32Value();
-      const Class* c = *reinterpret_cast<Class* const *>(raw_addr);
-      if (c == NULL) {
-        LOG(FATAL) << "Null class in object: " << obj;
-      } else if (!IsAligned<kObjectAlignment>(c)) {
-        LOG(FATAL) << "Class isn't aligned: " << c << " in object: " << obj;
-      } else if (!GetLiveBitmap()->Test(c)) {
-        LOG(FATAL) << "Class of object is dead: " << c << " in object: " << obj;
-      }
-      // Check obj.getClass().getClass() == obj.getClass().getClass().getClass()
-      // Note: we don't use the accessors here as they have internal sanity checks
-      // that we don't want to run
-      raw_addr = reinterpret_cast<const byte*>(c) + Object::ClassOffset().Int32Value();
-      const Class* c_c = *reinterpret_cast<Class* const *>(raw_addr);
-      raw_addr = reinterpret_cast<const byte*>(c_c) + Object::ClassOffset().Int32Value();
-      const Class* c_c_c = *reinterpret_cast<Class* const *>(raw_addr);
-      CHECK_EQ(c_c, c_c_c);
-    }
+    LOG(FATAL) << "Object is dead: " << obj << " in space " << *space;
   }
+#if !VERIFY_OBJECT_FAST
+  // Ignore early dawn of the universe verifications
+  if (num_objects_allocated_ > 10) {
+    const byte* raw_addr = reinterpret_cast<const byte*>(obj) +
+        Object::ClassOffset().Int32Value();
+    const Class* c = *reinterpret_cast<Class* const *>(raw_addr);
+    if (c == NULL) {
+      LOG(FATAL) << "Null class in object: " << obj;
+    } else if (!IsAligned<kObjectAlignment>(c)) {
+      LOG(FATAL) << "Class isn't aligned: " << c << " in object: " << obj;
+    } else if (!GetLiveBitmap()->Test(c)) {
+      LOG(FATAL) << "Class of object is dead: " << c << " in object: " << obj;
+    }
+    // Check obj.getClass().getClass() == obj.getClass().getClass().getClass()
+    // Note: we don't use the accessors here as they have internal sanity checks
+    // that we don't want to run
+    raw_addr = reinterpret_cast<const byte*>(c) + Object::ClassOffset().Int32Value();
+    const Class* c_c = *reinterpret_cast<Class* const *>(raw_addr);
+    raw_addr = reinterpret_cast<const byte*>(c_c) + Object::ClassOffset().Int32Value();
+    const Class* c_c_c = *reinterpret_cast<Class* const *>(raw_addr);
+    CHECK_EQ(c_c, c_c_c);
+  }
+#endif
 }
 
 void Heap::VerificationCallback(Object* obj, void* arg) {

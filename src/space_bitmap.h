@@ -60,7 +60,7 @@ class SpaceBitmap {
 
   // Pack the bits in backwards so they come out in address order when using CLZ.
   static word OffsetToMask(uintptr_t offset_) {
-    return 1 << (kBitsPerWord - 1 - (offset_ / kAlignment) % kBitsPerWord);
+    return static_cast<uintptr_t>(kWordHighBitMask) >> ((offset_ / kAlignment) % kBitsPerWord);
   }
 
   inline void Set(const Object* obj) {
@@ -119,8 +119,7 @@ class SpaceBitmap {
 
     size_t word_start = bit_index_start / kBitsPerWord;
     size_t word_end = bit_index_end / kBitsPerWord;
-
-    const size_t high_bit = 1 << (kBitsPerWord - 1);
+    DCHECK_LT(word_end * kWordSize, Size());
 
     // Trim off left_bits of left bits.
     size_t edge_word = bitmap_begin_[word_start];
@@ -138,7 +137,7 @@ class SpaceBitmap {
         const size_t shift = CLZ(edge_word);
         Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
         visitor(obj);
-        edge_word &= ~(high_bit >> shift);
+        edge_word ^= static_cast<size_t>(kWordHighBitMask) >> shift;
       } while (edge_word != 0);
     }
     word_start++;
@@ -151,7 +150,7 @@ class SpaceBitmap {
           const size_t shift = CLZ(w);
           Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
           visitor(obj);
-          w &= ~(high_bit >> shift);
+          w ^= static_cast<size_t>(kWordHighBitMask) >> shift;
         } while (w != 0);
       }
     }
@@ -169,10 +168,10 @@ class SpaceBitmap {
     edge_word &= ~((1 << trim_bits) - 1);
     uintptr_t ptr_base = IndexToOffset(word_end) + heap_begin_;
     while (edge_word != 0) {
-      const int shift = CLZ(edge_word);
+      const size_t shift = CLZ(edge_word);
       Object* obj = reinterpret_cast<Object*>(ptr_base + shift * kAlignment);
       visitor(obj);
-      edge_word &= ~(high_bit >> shift);
+      edge_word ^= static_cast<size_t>(kWordHighBitMask) >> shift;
     }
   }
 
@@ -202,11 +201,17 @@ class SpaceBitmap {
     return IndexToOffset(Size() / kWordSize);
   }
 
-  uintptr_t HeapBegin() {
+  uintptr_t HeapBegin() const {
     return heap_begin_;
   }
 
-  void Trim(size_t heap_capcity);
+  // The maximum address which the bitmap can span. (HeapBegin() <= object < HeapLimit()).
+  uintptr_t HeapLimit() const {
+    return HeapBegin() + static_cast<uintptr_t>(HeapSize());
+  }
+
+  // Set the max address which can covered by the bitmap.
+  void SetHeapLimit(uintptr_t new_end);
 
  private:
   // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,

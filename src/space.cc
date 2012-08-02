@@ -206,7 +206,7 @@ AllocSpace* AllocSpace::CreateZygoteSpace() {
   growth_limit_ = RoundUp(size, kPageSize);
   // FIXME: Do we need reference counted pointers here?
   // Make the two spaces share the same mark bitmaps since the bitmaps span both of the spaces.
-  VLOG(heap) << "Creating new alloc space: ";
+  VLOG(heap) << "Creating new AllocSpace: ";
   VLOG(heap) << "Size " << mem_map_->Size();
   VLOG(heap) << "GrowthLimit " << PrettySize(growth_limit);
   VLOG(heap) << "Capacity " << PrettySize(capacity);
@@ -218,8 +218,10 @@ AllocSpace* AllocSpace::CreateZygoteSpace() {
     CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size, PROT_NONE), name_.c_str());
   }
   AllocSpace* alloc_space = new AllocSpace(name_, mem_map.release(), mspace, end_, end, growth_limit);
-  live_bitmap_->Trim(Capacity()); // TODO - kPageSize?
-  mark_bitmap_->Trim(Capacity()); // TODO - kPageSize?
+  live_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(end_));
+  CHECK(live_bitmap_->HeapLimit() == reinterpret_cast<uintptr_t>(end_));
+  mark_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(end_));
+  CHECK(mark_bitmap_->HeapLimit() == reinterpret_cast<uintptr_t>(end_));
   name_ += "-zygote-transformed";
   VLOG(heap) << "zygote space creation done";
   return alloc_space;
