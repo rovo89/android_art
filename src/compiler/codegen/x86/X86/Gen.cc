@@ -211,30 +211,43 @@ void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 LIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg, int optFlags);
 void callRuntimeHelperReg(CompilationUnit* cUnit, int helperOffset, int arg0);
 
-/*
- * TODO: implement fast path to short-circuit thin-lock case
- */
 void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
 {
   oatFlushAllRegs(cUnit);
-  loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
+  loadValueDirectFixed(cUnit, rlSrc, rCX);  // Get obj
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-  genNullCheck(cUnit, rlSrc.sRegLow, rARG0, optFlags);
-  // Go expensive route - artLockObjectFromCode(self, obj);
-  callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode), rARG0);
+  genNullCheck(cUnit, rlSrc.sRegLow, rCX, optFlags);
+  // If lock is unheld, try to grab it quickly with compare and exchange
+  // TODO: copy and clear hash state?
+  newLIR2(cUnit, kX86Mov32RT, rDX, Thread::ThinLockIdOffset().Int32Value());
+  newLIR2(cUnit, kX86Sal32RI, rDX, LW_LOCK_OWNER_SHIFT);
+  newLIR2(cUnit, kX86Xor32RR, rAX, rAX);
+  newLIR3(cUnit, kX86LockCmpxchgMR, rCX, Object::MonitorOffset().Int32Value(), rDX);
+  LIR* branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondEq);
+  // If lock is held, go the expensive route - artLockObjectFromCode(self, obj);
+  callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode), rCX);
+  branch->target = newLIR0(cUnit, kPseudoTargetLabel);
 }
 
-/*
- * TODO: implement fast path to short-circuit thin-lock case
- */
 void genMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
 {
   oatFlushAllRegs(cUnit);
-  loadValueDirectFixed(cUnit, rlSrc, rARG0);  // Get obj
+  loadValueDirectFixed(cUnit, rlSrc, rAX);  // Get obj
   oatLockCallTemps(cUnit);  // Prepare for explicit register usage
-  genNullCheck(cUnit, rlSrc.sRegLow, rARG0, optFlags);
-  // Go expensive route - UnlockObjectFromCode(obj);
-  callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rARG0);
+  genNullCheck(cUnit, rlSrc.sRegLow, rAX, optFlags);
+  // If lock is held by the current thread, clear it to quickly release it
+  // TODO: clear hash state?
+  newLIR2(cUnit, kX86Mov32RT, rDX, Thread::ThinLockIdOffset().Int32Value());
+  newLIR2(cUnit, kX86Sal32RI, rDX, LW_LOCK_OWNER_SHIFT);
+  newLIR3(cUnit, kX86Mov32RM, rCX, rAX, Object::MonitorOffset().Int32Value());
+  opRegReg(cUnit, kOpSub, rCX, rDX);
+  LIR* branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondNe);
+  newLIR3(cUnit, kX86Mov32MR, rAX, Object::MonitorOffset().Int32Value(), rCX);
+  LIR* branch2 = newLIR1(cUnit, kX86Jmp8, 0);
+  branch->target = newLIR0(cUnit, kPseudoTargetLabel);
+  // Otherwise, go the expensive route - UnlockObjectFromCode(obj);
+  callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rAX);
+  branch2->target = newLIR0(cUnit, kPseudoTargetLabel);
 }
 
 /*

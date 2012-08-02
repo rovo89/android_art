@@ -511,6 +511,7 @@ DISASSEMBLER_ENTRY(cmp,
           no_ops = true;
         }
         break;
+      case 0xB1: opcode << "cmpxchg"; has_modrm = true; store = true; break;
       case 0xB6: opcode << "movzxb"; has_modrm = true; load = true; break;
       case 0xB7: opcode << "movzxw"; has_modrm = true; load = true; break;
       case 0xBE: opcode << "movsxb"; has_modrm = true; load = true; break;

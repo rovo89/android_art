@@ -49,7 +49,7 @@ static bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
       rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
       rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
       tempReg = oatAllocTemp(cUnit);
-      loadConstant(cUnit, tempReg, 0x80000000);
+      loadConstantNoClobber(cUnit, tempReg, 0x80000000);
       int rDest = rlResult.lowReg;
       int rSrc1 = rlSrc1.lowReg;
       if (rDest == rSrc1) {
@@ -114,7 +114,7 @@ static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
       rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
       rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
       tempReg = oatAllocTemp(cUnit);
-      loadConstant(cUnit, tempReg, 0x80000000);
+      loadConstantNoClobber(cUnit, tempReg, 0x80000000);
       int rDest = S2D(rlResult.lowReg, rlResult.highReg);
       int rSrc1 = S2D(rlSrc1.lowReg, rlSrc1.highReg);
       if (rDest == rSrc1) {
