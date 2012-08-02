@@ -179,10 +179,6 @@ CallInfo* oatNewCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
 {
   CallInfo* info = (CallInfo*)oatNew(cUnit, sizeof(CallInfo), true,
                                          kAllocMisc);
-//FIXME: Disable fusing  for x86
-#if defined(TARGET_X86)
-  info->result.location = kLocInvalid;
-#else
   MIR* moveResultMIR = oatFindMoveResult(cUnit, bb, mir);
   if (moveResultMIR == NULL) {
     info->result.location = kLocInvalid;
@@ -190,7 +186,6 @@ CallInfo* oatNewCallInfo(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
     info->result = oatGetRawDest(cUnit, moveResultMIR);
     moveResultMIR->dalvikInsn.opcode = Instruction::NOP;
   }
-#endif
   info->numArgWords = mir->ssaRep->numUses;
   info->args = (info->numArgWords == 0) ? NULL : (RegLocation*)
       oatNew(cUnit, sizeof(RegLocation) * info->numArgWords, false, kAllocMisc);

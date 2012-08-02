@@ -181,31 +181,21 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset,
 
 void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
-  UNIMPLEMENTED(WARNING) << "genNegFloat "
-                         << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
-  newLIR0(cUnit, kX86Bkpt);
-#if 0
   RegLocation rlResult;
   rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
   rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   opRegRegImm(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, 0x80000000);
   storeValue(cUnit, rlDest, rlResult);
-#endif
 }
 
 void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 {
-  UNIMPLEMENTED(WARNING) << "genNegDouble"
-                         << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
-  newLIR0(cUnit, kX86Bkpt);
-#if 0
   RegLocation rlResult;
   rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
   rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   opRegRegImm(cUnit, kOpAdd, rlResult.highReg, rlSrc.highReg, 0x80000000);
   opRegCopy(cUnit, rlResult.lowReg, rlSrc.lowReg);
   storeValueWide(cUnit, rlDest, rlResult);
-#endif
 }
 
 LIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg, int optFlags);

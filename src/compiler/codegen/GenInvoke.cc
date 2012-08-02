@@ -752,7 +752,7 @@ bool genInlinedAbsLong(CompilationUnit *cUnit, CallInfo* info)
 
 bool genInlinedFloatCvt(CompilationUnit *cUnit, CallInfo* info)
 {
-#if defined(TARGET_ARM)
+#if defined(TARGET_ARM) || defined(TARGET_X86)
   RegLocation rlSrc = info->args[0];
   RegLocation rlDest = inlineTarget(cUnit, info);
   storeValue(cUnit, rlDest, rlSrc);
@@ -764,7 +764,7 @@ bool genInlinedFloatCvt(CompilationUnit *cUnit, CallInfo* info)
 
 bool genInlinedDoubleCvt(CompilationUnit *cUnit, CallInfo* info)
 {
-#if defined(TARGET_ARM)
+#if defined(TARGET_ARM) || defined(TARGET_X86)
   RegLocation rlSrc = info->args[0];
   RegLocation rlDest = inlineTargetWide(cUnit, info);
   storeValueWide(cUnit, rlDest, rlSrc);

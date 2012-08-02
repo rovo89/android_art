@@ -21,7 +21,6 @@ static bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
                             RegLocation rlSrc2) {
   X86OpCode op = kX86Nop;
   RegLocation rlResult;
-  int tempReg;
 
   /*
    * Don't attempt to optimize register usage since these opcodes call out to
@@ -44,27 +43,10 @@ static bool genArithOpFloat(CompilationUnit *cUnit, Instruction::Code opcode,
     case Instruction::MUL_FLOAT:
       op = kX86MulssRR;
       break;
-    case Instruction::NEG_FLOAT: {
-      // TODO: Make this an XorpsRM where the memory location holds 0x80000000
-      rlSrc1 = loadValue(cUnit, rlSrc1, kFPReg);
-      rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-      tempReg = oatAllocTemp(cUnit);
-      loadConstantNoClobber(cUnit, tempReg, 0x80000000);
-      int rDest = rlResult.lowReg;
-      int rSrc1 = rlSrc1.lowReg;
-      if (rDest == rSrc1) {
-        rSrc1 = oatAllocTempFloat(cUnit);
-        opRegCopy(cUnit, rSrc1, rDest);
-      }
-      newLIR2(cUnit, kX86MovdxrRR, rDest, tempReg);
-      newLIR2(cUnit, kX86XorpsRR, rDest, rSrc1);
-      storeValue(cUnit, rlDest, rlResult);
-      return false;
-    }
+    case Instruction::NEG_FLOAT:
     case Instruction::REM_FLOAT_2ADDR:
-    case Instruction::REM_FLOAT: {
+    case Instruction::REM_FLOAT:
       return genArithOpFloatPortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
-    }
     default:
       return true;
   }
@@ -90,7 +72,6 @@ static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
                              RegLocation rlSrc2) {
   X86OpCode op = kX86Nop;
   RegLocation rlResult;
-  int tempReg;
 
   switch (opcode) {
     case Instruction::ADD_DOUBLE_2ADDR:
@@ -109,28 +90,10 @@ static bool genArithOpDouble(CompilationUnit *cUnit, Instruction::Code opcode,
     case Instruction::MUL_DOUBLE:
       op = kX86MulsdRR;
       break;
-    case Instruction::NEG_DOUBLE: {
-      // TODO: Make this an XorpdRM where the memory location holds 0x8000000000000000
-      rlSrc1 = loadValueWide(cUnit, rlSrc1, kFPReg);
-      rlResult = oatEvalLoc(cUnit, rlDest, kFPReg, true);
-      tempReg = oatAllocTemp(cUnit);
-      loadConstantNoClobber(cUnit, tempReg, 0x80000000);
-      int rDest = S2D(rlResult.lowReg, rlResult.highReg);
-      int rSrc1 = S2D(rlSrc1.lowReg, rlSrc1.highReg);
-      if (rDest == rSrc1) {
-        rSrc1 = oatAllocTempDouble(cUnit) | FP_DOUBLE;
-        opRegCopy(cUnit, rSrc1, rDest);
-      }
-      newLIR2(cUnit, kX86MovdxrRR, rDest, tempReg);
-      newLIR2(cUnit, kX86PsllqRI, rDest, 32);
-      newLIR2(cUnit, kX86XorpsRR, rDest, rSrc1);
-      storeValueWide(cUnit, rlDest, rlResult);
-      return false;
-    }
+    case Instruction::NEG_DOUBLE:
     case Instruction::REM_DOUBLE_2ADDR:
-    case Instruction::REM_DOUBLE: {
+    case Instruction::REM_DOUBLE:
       return genArithOpDoublePortable(cUnit, opcode, rlDest, rlSrc1, rlSrc2);
-    }
     default:
       return true;
   }
@@ -221,9 +184,7 @@ static bool genConversion(CompilationUnit *cUnit, Instruction::Code opcode,
     }
     case Instruction::LONG_TO_DOUBLE:
     case Instruction::LONG_TO_FLOAT:
-      // These can be implemented inline by using memory as a 64-bit source.
-      // However, this can't be done easily if the register has been promoted.
-      UNIMPLEMENTED(WARNING) << "inline l2[df] " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file);
+      // TODO: inline by using memory as a 64-bit source. Be careful about promoted registers.
     case Instruction::FLOAT_TO_LONG:
     case Instruction::DOUBLE_TO_LONG:
       return genConversionPortable(cUnit, opcode, rlDest, rlSrc);
