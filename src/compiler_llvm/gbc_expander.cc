@@ -26,6 +26,7 @@
 
 #include <llvm/ADT/STLExtras.h>
 #include <llvm/Intrinsics.h>
+#include <llvm/Metadata.h>
 #include <llvm/Pass.h>
 #include <llvm/Support/CFG.h>
 #include <llvm/Support/InstIterator.h>
