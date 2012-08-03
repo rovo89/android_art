@@ -1328,7 +1328,7 @@ _EVAL_DEF_INTRINSICS_FUNC(IntToChar,
 
 // int int_to_short(int)
 _EVAL_DEF_INTRINSICS_FUNC(IntToShort,
-                          dex_lang_int_to_byte,
+                          dex_lang_int_to_short,
                           kAttrReadOnly | kAttrNoThrow,
                           kInt32Ty,
                           _EXPAND_ARG1(kInt32Ty))
