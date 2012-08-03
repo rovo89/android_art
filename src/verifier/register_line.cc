@@ -98,14 +98,18 @@ bool RegisterLine::VerifyRegisterType(uint32_t vsrc, const RegType& check_type) 
   // Verify the src register type against the check type refining the type of the register
   const RegType& src_type = GetRegisterType(vsrc);
   if (!check_type.IsAssignableFrom(src_type)) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "register v" << vsrc << " has type " << src_type
-                                                 << " but expected " << check_type;
+    // Hard fail if one of the types is primitive, since they are concretely known.
+    enum VerifyError fail_type = (!check_type.IsNonZeroReferenceTypes() ||
+                                  !src_type.IsNonZeroReferenceTypes()) ?
+                                  VERIFY_ERROR_BAD_CLASS_HARD : VERIFY_ERROR_BAD_CLASS_SOFT;
+    verifier_->Fail(fail_type) << "register v" << vsrc << " has type " << src_type
+                               << " but expected " << check_type;
     return false;
   }
   if (check_type.IsLowHalf()) {
     const RegType& src_type_h = GetRegisterType(vsrc + 1);
     if (!src_type.CheckWidePair(src_type_h)) {
-      verifier_->Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "wide register v" << vsrc << " has type "
+      verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "wide register v" << vsrc << " has type "
                                                    << src_type << "/" << src_type_h;
       return false;
     }
