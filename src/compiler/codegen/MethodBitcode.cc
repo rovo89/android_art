@@ -2363,7 +2363,10 @@ void cvtBinOp(CompilationUnit* cUnit, OpKind op, llvm::Instruction* inst)
     Instruction::Code dalvikOp = getDalvikOpcode(op, false, rlDest.wide);
     RegLocation rlSrc2;
     if (constRhs != NULL) {
-      DCHECK_EQ(dalvikOp, Instruction::NOT_LONG);
+      // ir_builder converts NOT_LONG to xor src, -1.  Restore
+      DCHECK_EQ(dalvikOp, Instruction::XOR_LONG);
+      DCHECK_EQ(-1L, constRhs->getSExtValue());
+      dalvikOp = Instruction::NOT_LONG;
       rlSrc2 = rlSrc1;
     } else {
       rlSrc2 = getLoc(cUnit, rhs);
