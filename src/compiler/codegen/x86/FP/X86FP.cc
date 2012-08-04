@@ -286,7 +286,7 @@ void genFusedFPCmpBranch(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   ConditionCode ccode = static_cast<ConditionCode>(mir->dalvikInsn.arg[0]);
   switch (ccode) {
     case kCondEq:
-      if (gtBias) {
+      if (!gtBias) {
         branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondPE);
         branch->target = notTaken;
       }
