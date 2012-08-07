@@ -209,6 +209,8 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   SHIFT_ENCODING_MAP(Sar, 0x7),
 #undef SHIFT_ENCODING_MAP
 
+  { kX86Cmc, kNullary, NO_OPERAND, { 0, 0, 0xF5, 0, 0, 0, 0, 0}, "Cmc", "" },
+
   { kX86Test8RI,  kRegImm,             IS_BINARY_OP   | REG_USE0  | SETS_CCODES, { 0,    0, 0xF6, 0, 0, 0, 0, 1}, "Test8RI", "!0r,!1d" },
   { kX86Test8MI,  kMemImm,   IS_LOAD | IS_TERTIARY_OP | REG_USE0  | SETS_CCODES, { 0,    0, 0xF6, 0, 0, 0, 0, 1}, "Test8MI", "[!0r+!1d],!2d" },
   { kX86Test8AI,  kArrayImm, IS_LOAD | IS_QUIN_OP     | REG_USE01 | SETS_CCODES, { 0,    0, 0xF6, 0, 0, 0, 0, 1}, "Test8AI", "[!0r+!1r<<!2d+!3d],!4d" },

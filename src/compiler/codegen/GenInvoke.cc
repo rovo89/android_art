@@ -665,7 +665,7 @@ bool genInlinedCharAt(CompilationUnit* cUnit, CallInfo* info)
 
 bool genInlinedMinMaxInt(CompilationUnit *cUnit, CallInfo* info, bool isMin)
 {
-#if defined(TARGET_ARM)
+#if defined(TARGET_ARM) || defined(TARGET_X86)
   RegLocation rlSrc1 = info->args[0];
   RegLocation rlSrc2 = info->args[1];
   rlSrc1 = loadValue(cUnit, rlSrc1, kCoreReg);
@@ -673,10 +673,19 @@ bool genInlinedMinMaxInt(CompilationUnit *cUnit, CallInfo* info, bool isMin)
   RegLocation rlDest = inlineTarget(cUnit, info);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   opRegReg(cUnit, kOpCmp, rlSrc1.lowReg, rlSrc2.lowReg);
+#if defined(TARGET_ARM)
   opIT(cUnit, (isMin) ? kArmCondGt : kArmCondLt, "E");
   opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc2.lowReg);
   opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc1.lowReg);
   genBarrier(cUnit);
+#elif defined(TARGET_X86)
+  LIR* branch = newLIR2(cUnit, kX86Jcc8, 0, isMin ? kX86CondG : kX86CondL);
+  opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc1.lowReg);
+  LIR* branch2 = newLIR1(cUnit, kX86Jmp8, 0);
+  branch->target = newLIR0(cUnit, kPseudoTargetLabel);
+  opRegReg(cUnit, kOpMov, rlResult.lowReg, rlSrc2.lowReg);
+  branch2->target = newLIR0(cUnit, kPseudoTargetLabel);
+#endif
   storeValue(cUnit, rlDest, rlResult);
   return true;
 #else
@@ -688,7 +697,7 @@ bool genInlinedMinMaxInt(CompilationUnit *cUnit, CallInfo* info, bool isMin)
 bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit, CallInfo* info,
                                      bool isEmpty)
 {
-#if defined(TARGET_ARM)
+#if defined(TARGET_ARM) || defined(TARGET_X86)
   // dst = src.length();
   RegLocation rlObj = info->args[0];
   rlObj = loadValue(cUnit, rlObj, kCoreReg);
@@ -699,9 +708,14 @@ bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit, CallInfo* info,
                rlResult.lowReg);
   if (isEmpty) {
     // dst = (dst == 0);
+#if defined(TARGET_ARM)
     int tReg = oatAllocTemp(cUnit);
     opRegReg(cUnit, kOpNeg, tReg, rlResult.lowReg);
     opRegRegReg(cUnit, kOpAdc, rlResult.lowReg, rlResult.lowReg, tReg);
+#elif defined(TARGET_X86)
+    opRegImm(cUnit, kOpSub, rlResult.lowReg, 1);
+    opRegImm(cUnit, kOpLsr, rlResult.lowReg, 31);
+#endif
   }
   storeValue(cUnit, rlDest, rlResult);
   return true;
@@ -712,7 +726,7 @@ bool genInlinedStringIsEmptyOrLength(CompilationUnit* cUnit, CallInfo* info,
 
 bool genInlinedAbsInt(CompilationUnit *cUnit, CallInfo* info)
 {
-#if defined(TARGET_ARM)
+#if defined(TARGET_ARM) || defined(TARGET_X86)
   RegLocation rlSrc = info->args[0];
   rlSrc = loadValue(cUnit, rlSrc, kCoreReg);
   RegLocation rlDest = inlineTarget(cUnit, info);
@@ -741,6 +755,24 @@ bool genInlinedAbsLong(CompilationUnit *cUnit, CallInfo* info)
   opRegRegImm(cUnit, kOpAsr, signReg, rlSrc.highReg, 31);
   opRegRegReg(cUnit, kOpAdd, rlResult.lowReg, rlSrc.lowReg, signReg);
   opRegRegReg(cUnit, kOpAdc, rlResult.highReg, rlSrc.highReg, signReg);
+  opRegReg(cUnit, kOpXor, rlResult.lowReg, signReg);
+  opRegReg(cUnit, kOpXor, rlResult.highReg, signReg);
+  storeValueWide(cUnit, rlDest, rlResult);
+  return true;
+#elif defined(TARGET_X86)
+  // Reuse source registers to avoid running out of temps
+  RegLocation rlSrc = info->args[0];
+  rlSrc = loadValueWide(cUnit, rlSrc, kCoreReg);
+  RegLocation rlDest = inlineTargetWide(cUnit, info);
+  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+  opRegCopyWide(cUnit, rlResult.lowReg, rlResult.highReg, rlSrc.lowReg, rlSrc.highReg);
+  oatFreeTemp(cUnit, rlSrc.lowReg);
+  oatFreeTemp(cUnit, rlSrc.highReg);
+  int signReg = oatAllocTemp(cUnit);
+  // abs(x) = y<=x>>31, (x+y)^y.
+  opRegRegImm(cUnit, kOpAsr, signReg, rlResult.highReg, 31);
+  opRegReg(cUnit, kOpAdd, rlResult.lowReg, signReg);
+  opRegReg(cUnit, kOpAdc, rlResult.highReg, signReg);
   opRegReg(cUnit, kOpXor, rlResult.lowReg, signReg);
   opRegReg(cUnit, kOpXor, rlResult.highReg, signReg);
   storeValueWide(cUnit, rlDest, rlResult);
@@ -782,7 +814,6 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info,
                        bool zeroBased)
 {
 #if defined(TARGET_ARM)
-
   oatClobberCalleeSave(cUnit);
   oatLockCallTemps(cUnit);  // Using fixed registers
   int regPtr = rARG0;

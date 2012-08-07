@@ -395,6 +395,7 @@ enum X86OpCode {
   BinaryShiftOpCode(kX86Shr),
   BinaryShiftOpCode(kX86Sar),
 #undef BinaryShiftOpcode
+  kX86Cmc,
 #define UnaryOpcode(opcode, reg, mem, array) \
   opcode ## 8 ## reg, opcode ## 8 ## mem, opcode ## 8 ## array, \
   opcode ## 16 ## reg, opcode ## 16 ## mem, opcode ## 16 ## array, \
