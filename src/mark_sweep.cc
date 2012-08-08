@@ -294,23 +294,26 @@ void MarkSweep::ReMarkRoots() {
   Runtime::Current()->VisitRoots(ReMarkObjectVisitor, this);
 }
 
-void MarkSweep::SweepJniWeakGlobals() {
+void MarkSweep::SweepJniWeakGlobals(HeapBitmap* bitmap) {
   JavaVMExt* vm = Runtime::Current()->GetJavaVM();
   MutexLock mu(vm->weak_globals_lock);
   IndirectReferenceTable* table = &vm->weak_globals;
   typedef IndirectReferenceTable::iterator It;  // TODO: C++0x auto
   for (It it = table->begin(), end = table->end(); it != end; ++it) {
     const Object** entry = *it;
-    if (!heap_->GetMarkBitmap()->Test(*entry)) {
+    if (!bitmap->Test(*entry)) {
       *entry = kClearedJniWeakGlobal;
     }
   }
 }
 
-void MarkSweep::SweepSystemWeaks() {
-  Runtime::Current()->GetInternTable()->SweepInternTableWeaks(IsMarked, this);
-  Runtime::Current()->GetMonitorList()->SweepMonitorList(IsMarked, this);
-  SweepJniWeakGlobals();
+void MarkSweep::SweepSystemWeaks(bool swap_bitmaps) {
+  Runtime* runtime = Runtime::Current();
+  runtime->GetInternTable()->SweepInternTableWeaks(swap_bitmaps ? IsLiveCallback : IsMarkedCallback,
+                                                   this);
+  runtime->GetMonitorList()->SweepMonitorList(swap_bitmaps ? IsLiveCallback : IsMarkedCallback,
+                                              this);
+  SweepJniWeakGlobals(swap_bitmaps ? GetHeap()->GetLiveBitmap() : GetHeap()->GetMarkBitmap());
 }
 
 struct SweepCallbackContext {
@@ -361,11 +364,12 @@ void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 }
 
 void MarkSweep::Sweep(bool partial) {
-  SweepSystemWeaks();
+  // If we don't swap bitmaps then we can not do this concurrently.
+  SweepSystemWeaks(true);
 
   DCHECK(mark_stack_->IsEmpty());
 
-  const std::vector<Space*>& spaces = heap_->GetSpaces();
+  const Spaces& spaces = heap_->GetSpaces();
   SweepCallbackContext scc;
   scc.heap = heap_;
   for (size_t i = 0; i < spaces.size(); ++i) {

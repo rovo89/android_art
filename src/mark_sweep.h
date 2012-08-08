@@ -99,8 +99,12 @@ class MarkSweep {
     return heap_->GetMarkBitmap()->Test(object);
   }
 
-  static bool IsMarked(const Object* object, void* arg) {
+  static bool IsMarkedCallback(const Object* object, void* arg) {
     return reinterpret_cast<MarkSweep*>(arg)->IsMarked(object);
+  }
+
+  static bool IsLiveCallback(const Object* object, void* arg) {
+    return reinterpret_cast<MarkSweep*>(arg)->GetHeap()->GetLiveBitmap()->Test(object);
   }
 
   static void MarkObjectVisitor(const Object* root, void* arg);
@@ -250,8 +254,8 @@ class MarkSweep {
                          Object** finalizer_references,
                          Object** phantom_references);
 
-  void SweepSystemWeaks();
-  void SweepJniWeakGlobals();
+  void SweepSystemWeaks(bool swap_bitmaps);
+  void SweepJniWeakGlobals(HeapBitmap* bitmap);
 
   // Current space, we check this space first to avoid searching for the appropriate space for an object.
   SpaceBitmap* current_mark_bitmap_;
