@@ -856,7 +856,7 @@ art_indexof:
      *
      * On entry:
      *    r0:   string object (known non-null)
-     *    r1:   char to match
+     *    r1:   char to match (known <= 0xFFFF)
      *    r2:   Starting offset in string data
      */
 

@@ -813,7 +813,7 @@ bool genInlinedDoubleCvt(CompilationUnit *cUnit, CallInfo* info)
 bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info,
                        bool zeroBased)
 {
-#if defined(TARGET_ARM)
+#if defined(TARGET_ARM) || defined(TARGET_X86)
   oatClobberCalleeSave(cUnit);
   oatLockCallTemps(cUnit);  // Using fixed registers
   int regPtr = rARG0;
@@ -830,13 +830,19 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info,
   } else {
     loadValueDirectFixed(cUnit, rlStart, regStart);
   }
+#if !defined(TARGET_X86)
   int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pIndexOf));
+#endif
   genNullCheck(cUnit, rlObj.sRegLow, regPtr, info->optFlags);
   LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
   oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
               (intptr_t)launchPad);
   opCmpImmBranch(cUnit, kCondGt, regChar, 0xFFFF, launchPad);
+#if !defined(TARGET_X86)
   opReg(cUnit, kOpBlx, rTgt);
+#else
+  opThreadMem(cUnit, kOpBlx, ENTRYPOINT_OFFSET(pIndexOf));
+#endif
   LIR* resumeTgt = newLIR0(cUnit, kPseudoTargetLabel);
   launchPad->operands[2] = (uintptr_t)resumeTgt;
   // Record that we've already inlined & null checked
@@ -853,7 +859,7 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info,
 /* Fast string.compareTo(Ljava/lang/string;)I. */
 bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info)
 {
-#if defined(TARGET_ARM)
+#if defined(TARGET_ARM) || defined(TARGET_X86)
   oatClobberCalleeSave(cUnit);
   oatLockCallTemps(cUnit);  // Using fixed registers
   int regThis = rARG0;
@@ -863,14 +869,20 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info)
   RegLocation rlCmp = info->args[1];
   loadValueDirectFixed(cUnit, rlThis, regThis);
   loadValueDirectFixed(cUnit, rlCmp, regCmp);
+#if !defined(TARGET_X86)
   int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pStringCompareTo));
+#endif
   genNullCheck(cUnit, rlThis.sRegLow, regThis, info->optFlags);
   //TUNING: check if rlCmp.sRegLow is already null checked
   LIR* launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
   oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
                         (intptr_t)launchPad);
   opCmpImmBranch(cUnit, kCondEq, regCmp, 0, launchPad);
+#if !defined(TARGET_X86)
   opReg(cUnit, kOpBlx, rTgt);
+#else
+  opThreadMem(cUnit, kOpBlx, ENTRYPOINT_OFFSET(pStringCompareTo));
+#endif
   launchPad->operands[2] = 0;  // No return possible
   // Record that we've already inlined & null checked
   info->optFlags |= (MIR_INLINED | MIR_IGNORE_NULL_CHECK);

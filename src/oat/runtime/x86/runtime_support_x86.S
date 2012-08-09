@@ -732,6 +732,100 @@ DEFINE_FUNCTION art_proxy_invoke_handler
     addl LITERAL(44), %esp        // pop arguments
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 
+    /*
+     * String's indexOf.
+     *
+     * On entry:
+     *    eax:   string object (known non-null)
+     *    ecx:   char to match (known <= 0xFFFF)
+     *    edx:   Starting offset in string data
+     */
+DEFINE_FUNCTION art_indexof
+    pushl %edi                    // push callee save reg
+    mov STRING_COUNT_OFFSET(%eax), %ebx
+    mov STRING_VALUE_OFFSET(%eax), %edi
+    mov STRING_OFFSET_OFFSET(%eax), %eax
+    testl %edx, %edx              // check if start < 0
+    jl   clamp_min
+clamp_done:
+    cmpl %ebx, %edx               // check if start >= count
+    jge  not_found
+    lea  STRING_DATA_OFFSET(%edi, %eax, 2), %edi  // build a pointer to the start of string data
+    mov  %edi, %eax               // save a copy in eax to later compute result
+    lea  (%edi, %edx, 2), %edi    // build pointer to start of data to compare
+    subl  %edx, %ebx              // compute iteration count
+    /*
+     * At this point we have:
+     *   eax: original start of string data
+     *   ecx: char to compare
+     *   ebx: length to compare
+     *   edi: start of data to test
+     */
+    mov  %eax, %edx
+    mov  %ecx, %eax               // put char to match in %eax
+    mov  %ebx, %ecx               // put length to compare in %ecx
+    repne scasw                   // find %ax, starting at [%edi], up to length %ecx
+    jne  not_found
+    subl %edx, %edi
+    sar  LITERAL(1), %edi
+    decl %edi                     // index = ((curr_ptr - orig_ptr) / 2) - 1
+    mov  %edi, %eax
+    popl %edi                     // pop callee save reg
+    ret
+    .balign 16
+not_found:
+    mov  LITERAL(-1), %eax        // return -1 (not found)
+    popl %edi                     // pop callee save reg
+    ret
+clamp_min:
+    xor  %edx, %edx               // clamp start to 0
+    jmp  clamp_done
+
+    /*
+     * String's compareTo.
+     *
+     * On entry:
+     *    eax:   this string object (known non-null)
+     *    ecx:   comp string object (known non-null)
+     */
+DEFINE_FUNCTION art_string_compareto
+    pushl %esi                    // push callee save reg
+    pushl %edi                    // push callee save reg
+    mov STRING_COUNT_OFFSET(%eax), %edx
+    mov STRING_COUNT_OFFSET(%ecx), %ebx
+    mov STRING_VALUE_OFFSET(%eax), %esi
+    mov STRING_VALUE_OFFSET(%ecx), %edi
+    mov STRING_OFFSET_OFFSET(%eax), %eax
+    mov STRING_OFFSET_OFFSET(%ecx), %ecx
+    /* Build pointers to the start of string data */
+    lea  STRING_DATA_OFFSET(%esi, %eax, 2), %esi
+    lea  STRING_DATA_OFFSET(%edi, %ecx, 2), %edi
+    /* Calculate min length and count diff */
+    mov   %edx, %ecx
+    mov   %edx, %eax
+    subl  %ebx, %eax
+    cmovg %ebx, %ecx
+    /*
+     * At this point we have:
+     *   eax: value to return if first part of strings are equal
+     *   ecx: minimum among the lengths of the two strings
+     *   esi: pointer to this string data
+     *   edi: pointer to comp string data
+     */
+    repe cmpsw                    // find nonmatching chars in [%esi] and [%edi], up to length %ecx
+    jne not_equal
+    popl  %edi                    // pop callee save reg
+    popl  %esi                    // pop callee save reg
+    ret
+    .balign 16
+not_equal:
+    movzxw  -2(%esi), %eax        // get last compared char from this string
+    movzxw  -2(%edi), %ecx        // get last compared char from comp string
+    subl  %ecx, %eax              // return the difference
+    popl  %edi                    // pop callee save reg
+    popl  %esi                    // pop callee save reg
+    ret
+
 MACRO1(UNIMPLEMENTED,name)
     .globl VAR(name, 0)
     ALIGN_FUNCTION_ENTRY
@@ -741,6 +835,4 @@ END_MACRO
 
     // TODO: implement these!
 UNIMPLEMENTED art_update_debugger
-UNIMPLEMENTED art_indexof
 UNIMPLEMENTED art_memcmp16
-UNIMPLEMENTED art_string_compareto
