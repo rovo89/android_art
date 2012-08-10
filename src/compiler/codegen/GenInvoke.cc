@@ -609,7 +609,7 @@ RegLocation inlineTargetWide(CompilationUnit* cUnit, CallInfo* info)
 
 bool genInlinedCharAt(CompilationUnit* cUnit, CallInfo* info)
 {
-#if defined(TARGET_ARM)
+#if defined(TARGET_ARM) || defined(TARGET_X86)
   // Location of reference to data array
   int valueOffset = String::ValueOffset().Int32Value();
   // Location of count
@@ -624,17 +624,18 @@ bool genInlinedCharAt(CompilationUnit* cUnit, CallInfo* info)
   rlObj = loadValue(cUnit, rlObj, kCoreReg);
   rlIdx = loadValue(cUnit, rlIdx, kCoreReg);
   int regMax;
-  int regOff = oatAllocTemp(cUnit);
-  int regPtr = oatAllocTemp(cUnit);
   genNullCheck(cUnit, rlObj.sRegLow, rlObj.lowReg, info->optFlags);
   bool rangeCheck = (!(info->optFlags & MIR_IGNORE_RANGE_CHECK));
+  LIR* launchPad = NULL;
+#if !defined(TARGET_X86)
+  int regOff = oatAllocTemp(cUnit);
+  int regPtr = oatAllocTemp(cUnit);
   if (rangeCheck) {
     regMax = oatAllocTemp(cUnit);
     loadWordDisp(cUnit, rlObj.lowReg, countOffset, regMax);
   }
   loadWordDisp(cUnit, rlObj.lowReg, offsetOffset, regOff);
   loadWordDisp(cUnit, rlObj.lowReg, valueOffset, regPtr);
-  LIR* launchPad = NULL;
   if (rangeCheck) {
     // Set up a launch pad to allow retry in case of bounds violation */
     launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
@@ -644,8 +645,27 @@ bool genInlinedCharAt(CompilationUnit* cUnit, CallInfo* info)
     oatFreeTemp(cUnit, regMax);
     opCondBranch(cUnit, kCondCs, launchPad);
   }
+#else
+  if (rangeCheck) {
+    regMax = oatAllocTemp(cUnit);
+    loadWordDisp(cUnit, rlObj.lowReg, countOffset, regMax);
+    // Set up a launch pad to allow retry in case of bounds violation */
+    launchPad = rawLIR(cUnit, 0, kPseudoIntrinsicRetry, (uintptr_t)info);
+    oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
+                          (intptr_t)launchPad);
+    opRegReg(cUnit, kOpCmp, rlIdx.lowReg, regMax);
+    oatFreeTemp(cUnit, regMax);
+    opCondBranch(cUnit, kCondCc, launchPad);
+  }
+  int regOff = oatAllocTemp(cUnit);
+  int regPtr = oatAllocTemp(cUnit);
+  loadWordDisp(cUnit, rlObj.lowReg, offsetOffset, regOff);
+  loadWordDisp(cUnit, rlObj.lowReg, valueOffset, regPtr);
+#endif
   opRegImm(cUnit, kOpAdd, regPtr, dataOffset);
   opRegReg(cUnit, kOpAdd, regOff, rlIdx.lowReg);
+  oatFreeTemp(cUnit, rlObj.lowReg);
+  oatFreeTemp(cUnit, rlIdx.lowReg);
   RegLocation rlDest = inlineTarget(cUnit, info);
   RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
   loadBaseIndexed(cUnit, regPtr, regOff, rlResult.lowReg, 1, kUnsignedHalf);
