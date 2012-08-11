@@ -1810,12 +1810,12 @@ bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
           cUnit->shadowMap[j++] = i;
         }
       }
-      greenland::IntrinsicHelper::IntrinsicId id =
-              greenland::IntrinsicHelper::AllocaShadowFrame;
-      llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
-      llvm::Value* entries = cUnit->irb->getInt32(cUnit->numShadowFrameEntries);
-      cUnit->irb->CreateCall(func, entries);
     }
+    greenland::IntrinsicHelper::IntrinsicId id =
+            greenland::IntrinsicHelper::AllocaShadowFrame;
+    llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+    llvm::Value* entries = cUnit->irb->getInt32(cUnit->numShadowFrameEntries);
+    cUnit->irb->CreateCall(func, entries);
   } else if (bb->blockType == kExitBlock) {
     /*
      * Because of the differences between how MIR/LIR and llvm handle exit
