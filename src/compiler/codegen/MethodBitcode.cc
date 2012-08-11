@@ -794,11 +794,13 @@ void convertIntToFP(CompilationUnit* cUnit, llvm::Type* ty, RegLocation rlDest,
   defineValue(cUnit, res, rlDest.origSReg);
 }
 
-void convertFPToInt(CompilationUnit* cUnit, llvm::Type* ty, RegLocation rlDest,
+void convertFPToInt(CompilationUnit* cUnit,
+                    greenland::IntrinsicHelper::IntrinsicId id,
+                    RegLocation rlDest,
                     RegLocation rlSrc)
 {
-  llvm::Value* res =
-      cUnit->irb->CreateFPToSI(getLLVMValue(cUnit, rlSrc.origSReg), ty);
+  llvm::Function* intr = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
+  llvm::Value* res = cUnit->irb->CreateCall(intr, getLLVMValue(cUnit, rlSrc.origSReg));
   defineValue(cUnit, res, rlDest.origSReg);
 }
 
@@ -1592,13 +1594,19 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       break;
 
     case Instruction::FLOAT_TO_INT:
+      convertFPToInt(cUnit, greenland::IntrinsicHelper::F2I, rlDest, rlSrc[0]);
+      break;
+
     case Instruction::DOUBLE_TO_INT:
-      convertFPToInt(cUnit, cUnit->irb->getInt32Ty(), rlDest, rlSrc[0]);
+      convertFPToInt(cUnit, greenland::IntrinsicHelper::D2I, rlDest, rlSrc[0]);
       break;
 
     case Instruction::FLOAT_TO_LONG:
+      convertFPToInt(cUnit, greenland::IntrinsicHelper::F2L, rlDest, rlSrc[0]);
+      break;
+
     case Instruction::DOUBLE_TO_LONG:
-      convertFPToInt(cUnit, cUnit->irb->getInt64Ty(), rlDest, rlSrc[0]);
+      convertFPToInt(cUnit, greenland::IntrinsicHelper::D2L, rlDest, rlSrc[0]);
       break;
 
     case Instruction::CMPL_FLOAT:
@@ -2282,10 +2290,10 @@ void cvtIntToFP(CompilationUnit* cUnit, llvm::Instruction* inst)
   genConversion(cUnit, opcode, rlDest, rlSrc);
 }
 
-void cvtFPToInt(CompilationUnit* cUnit, llvm::Instruction* inst)
+void cvtFPToInt(CompilationUnit* cUnit, llvm::CallInst* call_inst)
 {
-  RegLocation rlDest = getLoc(cUnit, inst);
-  RegLocation rlSrc = getLoc(cUnit, inst->getOperand(0));
+  RegLocation rlDest = getLoc(cUnit, call_inst);
+  RegLocation rlSrc = getLoc(cUnit, call_inst->getOperand(0));
   Instruction::Code opcode;
   if (rlDest.wide) {
     if (rlSrc.wide) {
@@ -3198,6 +3206,13 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
                 cvtIntNarrowing(cUnit, callInst, Instruction::INT_TO_BYTE);
                 break;
 
+              case greenland::IntrinsicHelper::F2I:
+              case greenland::IntrinsicHelper::D2I:
+              case greenland::IntrinsicHelper::F2L:
+              case greenland::IntrinsicHelper::D2L:
+                cvtFPToInt(cUnit, callInst);
+                break;
+
               case greenland::IntrinsicHelper::CmplFloat:
                 cvtFPCompare(cUnit, callInst, Instruction::CMPL_FLOAT);
                 break;
@@ -3278,7 +3293,6 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
         case llvm::Instruction::FDiv: cvtBinFPOp(cUnit, kOpDiv, inst); break;
         case llvm::Instruction::FRem: cvtBinFPOp(cUnit, kOpRem, inst); break;
         case llvm::Instruction::SIToFP: cvtIntToFP(cUnit, inst); break;
-        case llvm::Instruction::FPToSI: cvtFPToInt(cUnit, inst); break;
         case llvm::Instruction::FPTrunc: cvtDoubleToFloat(cUnit, inst); break;
         case llvm::Instruction::FPExt: cvtFloatToDouble(cUnit, inst); break;
         case llvm::Instruction::Trunc: cvtTrunc(cUnit, inst); break;
@@ -3298,6 +3312,7 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
         case llvm::Instruction::AShr:
         case llvm::Instruction::Invoke:
         case llvm::Instruction::FPToUI:
+        case llvm::Instruction::FPToSI:
         case llvm::Instruction::UIToFP:
         case llvm::Instruction::PtrToInt:
         case llvm::Instruction::IntToPtr:

@@ -197,8 +197,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
 
   llvm::Value* Expand_Invoke(llvm::CallInst& call_inst);
 
-  llvm::Value* Expand_DivRem(llvm::Value* dividend, llvm::Value* divisor,
-                             bool is_div, JType op_jty);
+  llvm::Value* Expand_DivRem(llvm::CallInst& call_inst, bool is_div, JType op_jty);
 
   void Expand_AllocaShadowFrame(llvm::Value* num_entry_value);
 
@@ -944,9 +943,14 @@ llvm::Value* GBCExpanderPass::Expand_Invoke(llvm::CallInst& call_inst) {
   return retval;
 }
 
-llvm::Value* GBCExpanderPass::Expand_DivRem(llvm::Value* dividend,
-                                            llvm::Value* divisor,
+llvm::Value* GBCExpanderPass::Expand_DivRem(llvm::CallInst& call_inst,
                                             bool is_div, JType op_jty) {
+  llvm::Value* dividend = call_inst.getArgOperand(0);
+  llvm::Value* divisor = call_inst.getArgOperand(1);
+#if defined(ART_USE_QUICK_COMPILER)
+  uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
+  EmitGuard_DivZeroException(dex_pc, divisor, op_jty);
+#endif
   // Most of the codes refer to MethodCompiler::EmitIntDivRemResultComputation
 
   // Check the special case: MININT / -1 = MININT
@@ -3241,24 +3245,16 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Math -------------------------------------------------------------==//
     case IntrinsicHelper::DivInt: {
-      return Expand_DivRem(call_inst.getArgOperand(0),
-                           call_inst.getArgOperand(1),
-                           /* is_div */true, kInt);
+      return Expand_DivRem(call_inst, /* is_div */true, kInt);
     }
     case IntrinsicHelper::RemInt: {
-      return Expand_DivRem(call_inst.getArgOperand(0),
-                           call_inst.getArgOperand(1),
-                           /* is_div */false, kInt);
+      return Expand_DivRem(call_inst, /* is_div */false, kInt);
     }
     case IntrinsicHelper::DivLong: {
-      return Expand_DivRem(call_inst.getArgOperand(0),
-                           call_inst.getArgOperand(1),
-                           /* is_div */true, kLong);
+      return Expand_DivRem(call_inst, /* is_div */true, kLong);
     }
     case IntrinsicHelper::RemLong: {
-      return Expand_DivRem(call_inst.getArgOperand(0),
-                           call_inst.getArgOperand(1),
-                           /* is_div */false, kLong);
+      return Expand_DivRem(call_inst, /* is_div */false, kLong);
     }
     case IntrinsicHelper::D2L: {
       return ExpandToRuntime(runtime_support::art_d2l, call_inst);
