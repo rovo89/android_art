@@ -54,7 +54,6 @@ class GBCExpanderPass : public llvm::FunctionPass {
   uint32_t shadow_frame_size_;
 
  private:
-  // TODO: Init these fields
   Compiler* compiler_;
 
   const DexFile* dex_file_;
@@ -341,7 +340,12 @@ class GBCExpanderPass : public llvm::FunctionPass {
 
   GBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb)
       : llvm::FunctionPass(ID), intrinsic_helper_(intrinsic_helper), irb_(irb),
-        context_(irb.getContext()), rtb_(irb.Runtime())
+        context_(irb.getContext()), rtb_(irb.Runtime()),
+
+        // TODO: Initialize these fields correctly.
+        shadow_frame_(NULL), old_shadow_frame_(NULL), shadow_frame_size_(0),
+        compiler_(NULL), dex_file_(NULL), dex_cache_(NULL), code_item_(NULL),
+        oat_compilation_unit_(NULL), method_idx_(-1u), func_(NULL)
   { }
 
   bool runOnFunction(llvm::Function& func);
