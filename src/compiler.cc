@@ -1430,7 +1430,7 @@ void Compiler::Compile(jobject class_loader, const std::vector<const DexFile*>& 
   if (dex_files.size() <= 0) {
     return;  // No dex file
   }
-  CompilationContext context(NULL, class_loader, this, NULL, NULL);
+  CompilationContext context(NULL, class_loader, this, NULL);
   ForClassesInAllDexFiles(&context, dex_files, Compiler::CompileClass, thread_count_);
 #else
   for (size_t i = 0; i != dex_files.size(); ++i) {
