@@ -177,8 +177,10 @@ TWO_ARG_RUNTIME_EXCEPTION art_throw_verification_error_from_code, artThrowVerifi
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  @ save callee saves in case allocation triggers GC
     ldr    r2, [sp, #48]                  @ pass caller Method*
     mov    r3, r9                         @ pass Thread::Current
-    str    sp, [sp, #0]                   @ pass SP
+    mov    r12, sp
+    str    r12, [sp, #-16]!               @ expand the frame and pass SP
     bl     \cxx_name                      @ (method_idx, this, caller, Thread*, SP)
+    add    sp, #16                        @ strip the extra frame
     mov    r12, r1                        @ save Method*->code_
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
     cmp    r0, #0                         @ did we find the target?
@@ -440,8 +442,10 @@ art_get32_instance_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
-    str    sp, [sp, #0]                  @ pass SP
+    mov    r12, sp
+    str    r12, [sp, #-16]!              @ expand the frame and pass SP
     bl     artGet32InstanceFromCode      @ (field_idx, Object*, referrer, Thread*, SP)
+    add    sp, #16                       @ strip the extra frame
     ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r12, #0                       @ success if no exception is pending
@@ -458,8 +462,10 @@ art_get64_instance_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
-    str    sp, [sp, #0]                  @ pass SP
+    mov    r12, sp
+    str    r12, [sp, #-16]!              @ expand the frame and pass SP
     bl     artGet64InstanceFromCode      @ (field_idx, Object*, referrer, Thread*, SP)
+    add    sp, #16                       @ strip the extra frame
     ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r12, #0                       @ success if no exception is pending
@@ -476,8 +482,10 @@ art_get_obj_instance_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
-    str    sp, [sp, #0]                  @ pass SP
+    mov    r12, sp
+    str    r12, [sp, #-16]!              @ expand the frame and pass SP
     bl     artGetObjInstanceFromCode     @ (field_idx, Object*, referrer, Thread*, SP)
+    add    sp, #16                       @ strip the extra frame
     ldr    r12, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r12, #0                       @ success if no exception is pending
@@ -494,8 +502,10 @@ art_set32_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
-    str    sp, [sp, #0]                  @ pass SP
+    mov    r12, sp
+    str    r12, [sp, #-16]!              @ expand the frame and pass SP
     bl     artSet32StaticFromCode        @ (field_idx, new_val, referrer, Thread*, SP)
+    add    sp, #16                       @ strip the extra frame
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                        @ success if result is 0
     bxeq   lr                            @ return on success
@@ -533,8 +543,10 @@ art_set_obj_static_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
     ldr    r2, [sp, #32]                 @ pass referrer
     mov    r3, r9                        @ pass Thread::Current
-    str    sp, [sp, #0]                  @ pass SP
+    mov    r12, sp
+    str    r12, [sp, #-16]!              @ expand the frame and pass SP
     bl     artSetObjStaticFromCode       @ (field_idx, new_val, referrer, Thread*, SP)
+    add    sp, #16                       @ strip the extra frame
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                        @ success if result is 0
     bxeq   lr                            @ return on success
@@ -658,9 +670,11 @@ art_alloc_object_from_code_with_access_check:
 art_alloc_array_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r3, r9                     @ pass Thread::Current
-    str    sp, [sp, #0]               @ pass SP
+    mov    r12, sp
+    str    r12, [sp, #-16]!           @ expand the frame and pass SP
     @ artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count, Thread*, SP)
     bl     artAllocArrayFromCode
+    add    sp, #16                    @ strip the extra frame
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success
@@ -676,9 +690,11 @@ art_alloc_array_from_code:
 art_alloc_array_from_code_with_access_check:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r3, r9                     @ pass Thread::Current
-    str    sp, [sp, #0]               @ pass SP
+    mov    r12, sp
+    str    r12, [sp, #-16]!           @ expand the frame and pass SP
     @ artAllocArrayFromCodeWithAccessCheck(type_idx, method, component_count, Thread*, SP)
     bl     artAllocArrayFromCodeWithAccessCheck
+    add    sp, #16                    @ strip the extra frame
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success
@@ -693,9 +709,11 @@ art_alloc_array_from_code_with_access_check:
 art_check_and_alloc_array_from_code:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r3, r9                     @ pass Thread::Current
-    str    sp, [sp, #0]               @ pass SP
+    mov    r12, sp
+    str    r12, [sp, #-16]!           @ expand the frame and pass SP
     @ artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t count, Thread* , SP)
     bl     artCheckAndAllocArrayFromCode
+    add    sp, #16                    @ strip the extra frame
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success
@@ -710,9 +728,11 @@ art_check_and_alloc_array_from_code:
 art_check_and_alloc_array_from_code_with_access_check:
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
     mov    r3, r9                     @ pass Thread::Current
-    str    sp, [sp, #0]               @ pass SP
+    mov    r12, sp
+    str    r12, [sp, #-16]!           @ expand the frame and pass SP
     @ artCheckAndAllocArrayFromCodeWithAccessCheck(type_idx, method, count, Thread* , SP)
     bl     artCheckAndAllocArrayFromCodeWithAccessCheck
+    add    sp, #16                    @ strip the extra frame
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
     cmp    r0, #0                     @ success if result is non-null
     bxne   lr                         @ return on success
