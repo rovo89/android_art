@@ -117,9 +117,9 @@ TEST_F(ExceptionTest, FindCatchHandler) {
 }
 
 TEST_F(ExceptionTest, StackTraceElement) {
-  Thread::Current()->TransitionFromSuspendedToRunnable();
-  runtime_->Start();
   Thread* thread = Thread::Current();
+  thread->TransitionFromSuspendedToRunnable();
+  runtime_->Start();
   JNIEnv* env = thread->GetJniEnv();
   ScopedObjectAccess soa(env);
 
@@ -170,7 +170,6 @@ TEST_F(ExceptionTest, StackTraceElement) {
   fake_stack.push_back(3);
   fake_stack.push_back(0);
 
-  Thread* thread = Thread::Current();
   thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[5]));
   thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[0]));
 #endif
