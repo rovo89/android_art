@@ -83,7 +83,7 @@ void art_unlock_object_from_code(Object* obj, Thread* thread) {
 }
 
 void art_test_suspend_from_code(Thread* thread) {
-  Runtime::Current()->GetThreadList()->FullSuspendCheck(thread);
+  thread->FullSuspendCheck();
 }
 
 ShadowFrame* art_push_shadow_frame_from_code(Thread* thread, ShadowFrame* new_shadow_frame,
@@ -660,7 +660,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
   ScopedJniEnvLocalRefState env_state(env);
 
   // Create local ref. copies of the receiver
-  jobject rcvr_jobj = ts.AddLocalReference<jobject>(receiver);
+  jobject rcvr_jobj = soa.AddLocalReference<jobject>(receiver);
 
   // Convert proxy method into expected interface method
   Method* interface_method = proxy_method->FindOverriddenMethod();
@@ -670,7 +670,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
   // Set up arguments array and place in local IRT during boxing (which may allocate/GC)
   jvalue args_jobj[3];
   args_jobj[0].l = rcvr_jobj;
-  args_jobj[1].l = ts.AddLocalReference<jobject>(interface_method);
+  args_jobj[1].l = soa.AddLocalReference<jobject>(interface_method);
   // Args array, if no arguments then NULL (don't include receiver in argument count)
   args_jobj[2].l = NULL;
   ObjectArray<Object>* args = NULL;
@@ -680,7 +680,7 @@ void art_proxy_invoke_handler_from_code(Method* proxy_method, ...) {
       CHECK(thread->IsExceptionPending());
       return;
     }
-    args_jobj[2].l = ts.AddLocalReference<jobjectArray>(args);
+    args_jobj[2].l = soa.AddLocalReference<jobjectArray>(args);
   }
 
   // Get parameter types.
