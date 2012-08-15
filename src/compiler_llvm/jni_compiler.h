@@ -73,11 +73,7 @@ class JniCompiler {
 
   uint32_t access_flags_;
   uint32_t method_idx_;
-  ClassLinker * class_linker_;
-  const ClassLoader* class_loader_;
-  const DexCache* dex_cache_;
   const DexFile* dex_file_;
-  Method* method_;
 
   llvm::Function* func_;
   uint16_t elf_func_idx_;

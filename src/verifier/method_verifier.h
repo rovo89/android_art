@@ -208,7 +208,8 @@ class MethodVerifier {
   static void Shutdown();
 
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
-  static const InferredRegCategoryMap* GetInferredRegCategoryMap(Compiler::MethodReference ref);
+  static const InferredRegCategoryMap* GetInferredRegCategoryMap(Compiler::MethodReference ref)
+      LOCKS_EXCLUDED(inferred_reg_category_maps_lock_);
 #endif
 
   static bool IsClassRejected(Compiler::ClassReference ref)
@@ -605,9 +606,10 @@ class MethodVerifier {
   typedef SafeMap<const Compiler::MethodReference,
                   const InferredRegCategoryMap*> InferredRegCategoryMapTable;
   static Mutex* inferred_reg_category_maps_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  static InferredRegCategoryMapTable* inferred_reg_category_maps_;
+  static InferredRegCategoryMapTable* inferred_reg_category_maps_ GUARDED_BY(inferred_reg_category_maps_lock_);
   static void SetInferredRegCategoryMap(Compiler::MethodReference ref,
-                                        const InferredRegCategoryMap& m);
+                                        const InferredRegCategoryMap& m)
+      LOCKS_EXCLUDED(inferred_reg_category_maps_lock_);
 #endif
 
   static void AddRejectedClass(Compiler::ClassReference ref)

@@ -21,7 +21,6 @@
 #include "compilation_unit.h"
 #include "compiled_method.h"
 #include "compiler.h"
-#include "dex_cache.h"
 #include "ir_builder.h"
 #include "jni_compiler.h"
 #include "method_compiler.h"
@@ -193,14 +192,13 @@ extern "C" void ArtUnInitCompilerContext(art::Compiler& compiler) {
 extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
                                                  const art::DexFile::CodeItem* code_item,
                                                  uint32_t access_flags, uint32_t method_idx,
-                                                 art::ClassLoader* class_loader,
+                                                 jobject class_loader,
                                                  const art::DexFile& dex_file)
 {
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
-  art::DexCache *dex_cache = class_linker->FindDexCache(dex_file);
 
   art::OatCompilationUnit oat_compilation_unit(
-    class_loader, class_linker, dex_file, *dex_cache, code_item,
+    class_loader, class_linker, dex_file, code_item,
     method_idx, access_flags);
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
   art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&oat_compilation_unit);
@@ -211,10 +209,9 @@ extern "C" art::CompiledMethod* ArtJniCompileMethod(art::Compiler& compiler,
                                                     uint32_t access_flags, uint32_t method_idx,
                                                     const art::DexFile& dex_file) {
   art::ClassLinker *class_linker = art::Runtime::Current()->GetClassLinker();
-  art::DexCache *dex_cache = class_linker->FindDexCache(dex_file);
 
   art::OatCompilationUnit oat_compilation_unit(
-    NULL, class_linker, dex_file, *dex_cache, NULL,
+    NULL, class_linker, dex_file, NULL,
     method_idx, access_flags);
 
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);

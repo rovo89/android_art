@@ -441,11 +441,7 @@ class MethodCompiler {
   CompilationUnit* cunit_;
   Compiler* compiler_;
 
-  ClassLinker* class_linker_;
-  const ClassLoader* class_loader_;
-
   const DexFile* dex_file_;
-  DexCache* dex_cache_;
   const DexFile::CodeItem* code_item_;
 
   OatCompilationUnit* oat_compilation_unit_;
@@ -470,7 +466,6 @@ class MethodCompiler {
 
   std::vector<llvm::BasicBlock*> basic_block_landing_pads_;
   llvm::BasicBlock* basic_block_unwind_;
-  llvm::BasicBlock* basic_block_unreachable_;
 
   llvm::AllocaInst* shadow_frame_;
   llvm::Value* old_shadow_frame_;

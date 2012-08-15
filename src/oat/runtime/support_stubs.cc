@@ -223,7 +223,8 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
 }
 #else // ART_USE_LLVM_COMPILER
 const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** called_addr,
-                                                     Thread* thread, Runtime::TrampolineType type) {
+                                                     Thread* thread, Runtime::TrampolineType type)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   uint32_t dex_pc;
   Method* caller = thread->GetCurrentMethod(&dex_pc);
 
@@ -317,7 +318,8 @@ extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Met
   thread->DeliverException();
 }
 #else // ART_USE_LLVM_COMPILER
-extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method**) {
+extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method**)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
                              "abstract method \"%s\"", PrettyMethod(method).c_str());
 }

@@ -50,10 +50,7 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
                                Compiler* compiler,
                                OatCompilationUnit* oat_compilation_unit)
   : cunit_(cunit), compiler_(compiler),
-    class_linker_(oat_compilation_unit->class_linker_),
-    class_loader_(oat_compilation_unit->class_loader_),
     dex_file_(oat_compilation_unit->dex_file_),
-    dex_cache_(oat_compilation_unit->dex_cache_),
     code_item_(oat_compilation_unit->code_item_),
     oat_compilation_unit_(oat_compilation_unit),
     method_idx_(oat_compilation_unit->method_idx_),
@@ -70,7 +67,7 @@ MethodCompiler::MethodCompiler(CompilationUnit* cunit,
     basic_block_reg_arg_init_(NULL),
     basic_blocks_(code_item_->insns_size_in_code_units_),
     basic_block_landing_pads_(code_item_->tries_size_, NULL),
-    basic_block_unwind_(NULL), basic_block_unreachable_(NULL),
+    basic_block_unwind_(NULL),
     shadow_frame_(NULL), old_shadow_frame_(NULL),
     already_pushed_shadow_frame_(NULL), shadow_frame_size_(0) {
 }
@@ -1409,7 +1406,7 @@ void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
 
   llvm::Value* string_addr = irb_.CreateLoad(string_field_addr, kTBAAJRuntime);
 
-  if (!compiler_->CanAssumeStringIsPresentInDexCache(dex_cache_, string_idx)) {
+  if (!compiler_->CanAssumeStringIsPresentInDexCache(*dex_file_, string_idx)) {
     llvm::BasicBlock* block_str_exist =
       CreateBasicBlockWithDexPC(dex_pc, "str_exist");
 
@@ -1452,8 +1449,7 @@ void MethodCompiler::EmitInsn_LoadConstantString(uint32_t dex_pc,
 
 llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
                                                    uint32_t type_idx) {
-  if (!compiler_->CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
-                                             *dex_file_, type_idx)) {
+  if (!compiler_->CanAccessTypeWithoutChecks(method_idx_, *dex_file_, type_idx)) {
     llvm::Value* type_idx_value = irb_.getInt32(type_idx);
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
@@ -1479,7 +1475,7 @@ llvm::Value* MethodCompiler::EmitLoadConstantClass(uint32_t dex_pc,
 
     llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr, kTBAAJRuntime);
 
-    if (compiler_->CanAssumeTypeIsPresentInDexCache(dex_cache_, type_idx)) {
+    if (compiler_->CanAssumeTypeIsPresentInDexCache(*dex_file_, type_idx)) {
       return type_object_addr;
     }
 
@@ -1742,7 +1738,7 @@ void MethodCompiler::EmitInsn_NewInstance(uint32_t dex_pc,
 
   llvm::Function* runtime_func;
   if (compiler_->CanAccessInstantiableTypeWithoutChecks(
-        method_idx_, dex_cache_, *dex_file_, dec_insn.vB)) {
+        method_idx_, *dex_file_, dec_insn.vB)) {
     runtime_func = irb_.GetRuntime(AllocObject);
   } else {
     runtime_func = irb_.GetRuntime(AllocObjectWithAccessCheck);
@@ -1774,8 +1770,7 @@ llvm::Value* MethodCompiler::EmitAllocNewArray(uint32_t dex_pc,
   llvm::Function* runtime_func;
 
   bool skip_access_check =
-    compiler_->CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
-                                          *dex_file_, type_idx);
+    compiler_->CanAccessTypeWithoutChecks(method_idx_, *dex_file_, type_idx);
 
   llvm::Value* array_length_value;
 
@@ -4208,7 +4203,7 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::CONST_STRING:
     case Instruction::CONST_STRING_JUMBO:
       // TODO: Will the ResolveString throw exception?
-      if (!compiler_->CanAssumeStringIsPresentInDexCache(dex_cache_, dec_insn.vB)) {
+      if (!compiler_->CanAssumeStringIsPresentInDexCache(*dex_file_, dec_insn.vB)) {
         may_throw_exception = true;
       }
       set_to_another_object[dec_insn.vA] = true;

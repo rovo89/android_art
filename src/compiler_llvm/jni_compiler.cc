@@ -47,14 +47,7 @@ JniCompiler::JniCompiler(CompilationUnit* cunit,
   oat_compilation_unit_(oat_compilation_unit),
   access_flags_(oat_compilation_unit->access_flags_),
   method_idx_(oat_compilation_unit->method_idx_),
-  class_linker_(oat_compilation_unit->class_linker_),
-  class_loader_(oat_compilation_unit->class_loader_),
-  dex_cache_(oat_compilation_unit->dex_cache_),
-  dex_file_(oat_compilation_unit->dex_file_),
-  method_(dex_cache_->GetResolvedMethod(method_idx_)) {
-
-  // Check: Ensure that the method is resolved
-  CHECK_NE(method_, static_cast<art::Method*>(NULL));
+  dex_file_(oat_compilation_unit->dex_file_) {
 
   // Check: Ensure that JNI compiler will only get "native" method
   CHECK((access_flags_ & kAccNative) != 0);
@@ -272,9 +265,11 @@ void JniCompiler::CreateFunction() {
   // LLVM function name
   std::string func_name(ElfFuncName(cunit_->GetIndex()));
 
+  const bool is_static = (access_flags_ & kAccStatic) != 0;
+
   // Get function type
   llvm::FunctionType* func_type =
-    GetFunctionType(method_idx_, method_->IsStatic(), false);
+    GetFunctionType(method_idx_, is_static, false);
 
   // Create function
   func_ = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage,
