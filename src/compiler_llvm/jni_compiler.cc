@@ -32,6 +32,7 @@
 #include <llvm/BasicBlock.h>
 #include <llvm/DerivedTypes.h>
 #include <llvm/Function.h>
+#include <llvm/ADT/SmallVector.h>
 #include <llvm/Type.h>
 
 namespace art {
@@ -117,13 +118,8 @@ CompiledMethod* JniCompiler::Compile() {
   // Get JNIEnv
   llvm::Value* jni_env_object_addr =
       irb_.Runtime().EmitLoadFromThreadOffset(Thread::JniEnvOffset().Int32Value(),
-                                          irb_.getJObjectTy(),
-                                          kTBAAJRuntime);
-
-  // Set thread state to kNative
-  irb_.Runtime().EmitStoreToThreadOffset(Thread::StateOffset().Int32Value(),
-                                     irb_.getInt32(kNative),
-                                     kTBAARuntimeInfo);
+                                              irb_.getJObjectTy(),
+                                              kTBAAJRuntime);
 
   // Get callee code_addr
   llvm::Value* code_addr =
@@ -152,7 +148,8 @@ CompiledMethod* JniCompiler::Compile() {
   llvm::Value* sirt_field_addr = irb_.CreateGEP(shadow_frame_, gep_index);
   irb_.CreateStore(this_object_or_class_object, sirt_field_addr, kTBAAShadowFrame);
   // Push the "this object or class object" to out args
-  args.push_back(irb_.CreateBitCast(sirt_field_addr, irb_.getJObjectTy()));
+  this_object_or_class_object = irb_.CreateBitCast(sirt_field_addr, irb_.getJObjectTy());
+  args.push_back(this_object_or_class_object);
   // Store arguments to SIRT, and push back to args
   for (arg_iter = arg_begin; arg_iter != arg_end; ++arg_iter) {
     if (arg_iter->getType() == irb_.getJObjectTy()) {
@@ -173,73 +170,47 @@ CompiledMethod* JniCompiler::Compile() {
     }
   }
 
-  // Acquire lock for synchronized methods.
-  if (is_synchronized) {
-    irb_.Runtime().EmitLockObject(this_object_or_class_object);
+  llvm::Value* saved_local_ref_cookie;
+  { // JniMethodStart
+    RuntimeId func_id = is_synchronized ? JniMethodStartSynchronized
+                                        : JniMethodStart;
+    llvm::SmallVector<llvm::Value*, 2> args;
+    if (is_synchronized) {
+      args.push_back(this_object_or_class_object);
+    }
+    args.push_back(irb_.Runtime().EmitGetCurrentThread());
+    saved_local_ref_cookie =
+        irb_.CreateCall(irb_.GetRuntime(func_id), args);
   }
-
-  // saved_local_ref_cookie = env->local_ref_cookie
-  llvm::Value* saved_local_ref_cookie =
-      irb_.LoadFromObjectOffset(jni_env_object_addr,
-                                JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                                irb_.getInt32Ty(),
-                                kTBAARuntimeInfo);
-
-  // env->local_ref_cookie = env->locals.segment_state
-  llvm::Value* segment_state =
-      irb_.LoadFromObjectOffset(jni_env_object_addr,
-                                JNIEnvExt::SegmentStateOffset().Int32Value(),
-                                irb_.getInt32Ty(),
-                                kTBAARuntimeInfo);
-  irb_.StoreToObjectOffset(jni_env_object_addr,
-                           JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                           segment_state,
-                           kTBAARuntimeInfo);
-
 
   // Call!!!
   llvm::Value* retval = irb_.CreateCall(code_addr, args);
 
+  { // JniMethodEnd
+    bool is_return_ref = return_shorty == 'L';
+    RuntimeId func_id =
+        is_return_ref ? (is_synchronized ? JniMethodEndWithReferenceSynchronized
+                                         : JniMethodEndWithReference)
+                      : (is_synchronized ? JniMethodEndSynchronized
+                                         : JniMethodEnd);
+    llvm::SmallVector<llvm::Value*, 4> args;
+    if (is_return_ref) {
+      args.push_back(retval);
+    }
+    args.push_back(saved_local_ref_cookie);
+    if (is_synchronized) {
+      args.push_back(this_object_or_class_object);
+    }
+    args.push_back(irb_.Runtime().EmitGetCurrentThread());
 
-  // Release lock for synchronized methods.
-  if (is_synchronized) {
-    irb_.Runtime().EmitUnlockObject(this_object_or_class_object);
+    llvm::Value* decoded_jobject =
+        irb_.CreateCall(irb_.GetRuntime(func_id), args);
+
+    // Return decoded jobject if return reference.
+    if (is_return_ref) {
+      retval = decoded_jobject;
+    }
   }
-
-  // Set thread state to kRunnable
-  irb_.Runtime().EmitStoreToThreadOffset(Thread::StateOffset().Int32Value(),
-                                     irb_.getInt32(kRunnable),
-                                     kTBAARuntimeInfo);
-
-  // Do a suspend check
-  irb_.Runtime().EmitTestSuspend();
-
-  if (return_shorty == 'L') {
-    // Get thread object
-    llvm::Value* thread_object_addr = irb_.Runtime().EmitGetCurrentThread();
-
-    // If the return value is reference, it may point to SIRT, we should decode it.
-    retval = irb_.CreateCall2(irb_.GetRuntime(DecodeJObjectInThread),
-                              thread_object_addr,
-                              retval);
-  }
-
-  // env->locals.segment_state = env->local_ref_cookie
-  llvm::Value* local_ref_cookie =
-      irb_.LoadFromObjectOffset(jni_env_object_addr,
-                                JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                                irb_.getInt32Ty(),
-                                kTBAARuntimeInfo);
-  irb_.StoreToObjectOffset(jni_env_object_addr,
-                           JNIEnvExt::SegmentStateOffset().Int32Value(),
-                           local_ref_cookie,
-                           kTBAARuntimeInfo);
-
-  // env->local_ref_cookie = saved_local_ref_cookie
-  irb_.StoreToObjectOffset(jni_env_object_addr,
-                           JNIEnvExt::LocalRefCookieOffset().Int32Value(),
-                           saved_local_ref_cookie,
-                           kTBAARuntimeInfo);
 
   // Pop the shadow frame
   irb_.Runtime().EmitPopShadowFrame(old_shadow_frame);

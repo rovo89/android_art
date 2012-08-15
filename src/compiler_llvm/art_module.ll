@@ -53,8 +53,6 @@ declare void @art_pop_shadow_frame_from_code(%ShadowFrame*)
 ; Exception
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-declare i1 @art_is_exception_pending_from_code()
-
 declare void @art_throw_div_zero_from_code()
 declare void @art_throw_array_bounds_from_code(i32, i32)
 declare void @art_throw_no_such_method_from_code(i32)
@@ -167,8 +165,36 @@ declare i64 @art_f2l(float)
 declare i32 @art_f2i(float)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; JNI
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+declare i32 @art_jni_method_start(%JavaObject*)
+
+declare i32 @art_jni_method_start_synchronized(%JavaObject*,
+                                               %JavaObject*)
+
+declare void @art_jni_method_end(i32,
+                                 %JavaObject*)
+
+
+declare void @art_jni_method_end_synchronized(i32,
+                                              %JavaObject*,
+                                              %JavaObject*)
+
+declare %JavaObject* @art_jni_method_end_with_reference(%JavaObject*,
+                                                        i32,
+                                                        %JavaObject*)
+
+declare %JavaObject* @art_jni_method_end_with_reference_synchronized(%JavaObject*,
+                                                                     i32,
+                                                                     %JavaObject*,
+                                                                     %JavaObject*)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; Temporary runtime support, will be removed in the future
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+declare i1 @art_is_exception_pending_from_code()
 
 declare void @art_mark_gc_card_from_code(%JavaObject*, %JavaObject*)
 

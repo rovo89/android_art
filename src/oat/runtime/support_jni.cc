@@ -16,6 +16,7 @@
 
 #include "object.h"
 #include "object_utils.h"
+#include "runtime_support.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 
@@ -63,49 +64,6 @@ static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self) {
   env->locals.SetSegmentState(env->local_ref_cookie);
   env->local_ref_cookie = saved_local_ref_cookie;
   self->PopSirt();
-}
-
-static void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
-    UNLOCK_FUNCTION(monitor_lock_) {
-  // Save any pending exception over monitor exit call.
-  Throwable* saved_exception = NULL;
-  if (UNLIKELY(self->IsExceptionPending())) {
-    saved_exception = self->GetException();
-    self->ClearException();
-  }
-  // Decode locked object and unlock, before popping local references.
-  self->DecodeJObject(locked)->MonitorExit(self);
-  if (UNLIKELY(self->IsExceptionPending())) {
-    LOG(FATAL) << "Synchronized JNI code returning with an exception:\n"
-        << saved_exception->Dump()
-        << "\nEncountered second exception during implicit MonitorExit:\n"
-        << self->GetException()->Dump();
-  }
-  // Restore pending exception.
-  if (saved_exception != NULL) {
-    self->SetException(saved_exception);
-  }
-}
-
-static void CheckReferenceResult(Object* o, Thread* self)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  if (o == NULL) {
-    return;
-  }
-  if (o == kInvalidIndirectRefObject) {
-    JniAbortF(NULL, "invalid reference returned from %s",
-              PrettyMethod(self->GetCurrentMethod()).c_str());
-  }
-  // Make sure that the result is an instance of the type this method was expected to return.
-  Method* m = self->GetCurrentMethod();
-  MethodHelper mh(m);
-  Class* return_type = mh.GetReturnType();
-
-  if (!o->InstanceOf(return_type)) {
-    JniAbortF(NULL, "attempt to return an instance of %s from %s",
-              PrettyTypeOf(o).c_str(), PrettyMethod(m).c_str());
-  }
 }
 
 extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self)
