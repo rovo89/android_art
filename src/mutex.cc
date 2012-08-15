@@ -267,7 +267,7 @@ uint64_t Mutex::GetExclusiveOwnerTid() const {
 #elif defined(__GLIBC__)
   return reinterpret_cast<const glibc_pthread_mutex_t*>(&mutex_)->owner;
 #elif defined(__APPLE__)
-  return reinterpret_cast<darwin_pthread_mutex_t*>(&mutex_)->owner_tid;
+  return reinterpret_cast<const darwin_pthread_mutex_t*>(&mutex_)->owner_tid;
 #else
 #error unsupported C library
 #endif
@@ -303,17 +303,25 @@ void ReaderWriterMutex::ExclusiveUnlock() {
 }
 
 bool ReaderWriterMutex::ExclusiveLockWithTimeout(const timespec& abs_timeout) {
+  // Check that timeouts are supported. Currently Darwin doesn't support timeouts, if we are
+  // running on Darwin the timeout won't be respected.
+#if defined(_POSIX_TIMEOUTS) && (_POSIX_TIMEOUTS - 200112) >= 0L
   int result = pthread_rwlock_timedwrlock(&rwlock_, &abs_timeout);
   if (result == ETIMEDOUT) {
     return false;
   }
   if (result != 0) {
     errno = result;
-    PLOG(FATAL) << "pthread_mutex_trylock failed for " << name_;
+    PLOG(FATAL) << "pthread_rwlock_timedwrlock failed for " << name_;
   }
   RegisterAsLockedWithCurrentThread();
   AssertSharedHeld();
   return true;
+#else
+  UNUSED(abs_timeout);
+  ExclusiveLock();
+  return true;
+#endif
 }
 
 void ReaderWriterMutex::SharedLock() {
