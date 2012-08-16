@@ -32,6 +32,8 @@
 #include <llvm/Support/InstIterator.h>
 
 #include <vector>
+#include <map>
+#include <utility>
 
 using namespace art;
 using namespace compiler_llvm;
@@ -69,6 +71,9 @@ class GBCExpanderPass : public llvm::FunctionPass {
   std::vector<llvm::BasicBlock*> basic_blocks_;
 
   std::vector<llvm::BasicBlock*> basic_block_landing_pads_;
+  llvm::BasicBlock* old_basic_block_;
+  std::map<llvm::BasicBlock*, std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*> > >
+      landing_pad_phi_mapping_;
   llvm::BasicBlock* basic_block_unwind_;
 
   bool changed_;
@@ -418,10 +423,14 @@ void GBCExpanderPass::RewriteFunction() {
   // because we will create new basic block while expanding the intrinsics.
   // We only want to iterate through the input basic blocks.
 
+  landing_pad_phi_mapping_.clear();
+
   for (llvm::Function::iterator bb_iter = func_->begin();
        num_basic_blocks > 0; ++bb_iter, --num_basic_blocks) {
     // Set insert point to current basic block.
     irb_.SetInsertPoint(bb_iter);
+
+    old_basic_block_ = bb_iter;
 
     // Rewrite the basic block
     RewriteBasicBlock(bb_iter);
@@ -431,6 +440,73 @@ void GBCExpanderPass::RewriteFunction() {
     if (last_block != bb_iter) {
       UpdatePhiInstruction(bb_iter, last_block);
     }
+  }
+
+  typedef std::map<llvm::PHINode*, llvm::PHINode*> HandlerPHIMap;
+  HandlerPHIMap handler_phi;
+  // Iterate every used landing pad basic block
+  for (size_t i = 0, ei = basic_block_landing_pads_.size(); i != ei; ++i) {
+    llvm::BasicBlock* lbb = basic_block_landing_pads_[i];
+    if (lbb == NULL) {
+      continue;
+    }
+
+    llvm::TerminatorInst* term_inst = lbb->getTerminator();
+    std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*> >& rewrite_pair
+        = landing_pad_phi_mapping_[lbb];
+    irb_.SetInsertPoint(lbb->begin());
+
+    // Iterate every succeeding basic block (catch block)
+    for (unsigned succ_iter = 0, succ_end = term_inst->getNumSuccessors();
+         succ_iter != succ_end; ++succ_iter) {
+      llvm::BasicBlock* succ_basic_block = term_inst->getSuccessor(succ_iter);
+
+      // Iterate every phi instructions in the succeeding basic block
+      for (llvm::BasicBlock::iterator
+           inst_iter = succ_basic_block->begin(),
+           inst_end = succ_basic_block->end();
+           inst_iter != inst_end; ++inst_iter) {
+        llvm::PHINode *phi = llvm::dyn_cast<llvm::PHINode>(inst_iter);
+
+        if (!phi) {
+          break; // Meet non-phi instruction.  Done.
+        }
+
+        if (handler_phi[phi] == NULL) {
+          handler_phi[phi] = llvm::PHINode::Create(phi->getType(), 1);
+        }
+
+        // Create new_phi in landing pad
+        llvm::PHINode* new_phi = irb_.CreatePHI(phi->getType(), rewrite_pair.size());
+        // Insert all incoming value into new_phi by rewrite_pair
+        for (size_t j = 0, ej = rewrite_pair.size(); j != ej; ++j) {
+          llvm::BasicBlock* old_bb = rewrite_pair[j].first;
+          llvm::BasicBlock* new_bb = rewrite_pair[j].second;
+          new_phi->addIncoming(phi->getIncomingValueForBlock(old_bb), new_bb);
+        }
+        // Delete all incoming value from phi by rewrite_pair
+        for (size_t j = 0, ej = rewrite_pair.size(); j != ej; ++j) {
+          llvm::BasicBlock* old_bb = rewrite_pair[j].first;
+          int old_bb_idx = phi->getBasicBlockIndex(old_bb);
+          if (old_bb_idx >= 0) {
+            phi->removeIncomingValue(old_bb_idx, false);
+          }
+        }
+        // Insert new_phi into new handler phi
+        handler_phi[phi]->addIncoming(new_phi, lbb);
+      }
+    }
+  }
+
+  // Replace all handler phi
+  // We can't just use the old handler phi, because some exception edges will disappear after we
+  // compute fast-path.
+  for (HandlerPHIMap::iterator it = handler_phi.begin(); it != handler_phi.end(); ++it) {
+    llvm::PHINode* old_phi = it->first;
+    llvm::PHINode* new_phi = it->second;
+    new_phi->insertBefore(old_phi);
+    old_phi->replaceAllUsesWith(new_phi);
+    old_phi->eraseFromParent();
   }
 }
 
@@ -2522,6 +2598,8 @@ llvm::BasicBlock* GBCExpanderPass::GetUnwindBasicBlock() {
 
 void GBCExpanderPass::EmitBranchExceptionLandingPad(uint32_t dex_pc) {
   if (llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc)) {
+    landing_pad_phi_mapping_[lpad].push_back(std::make_pair(old_basic_block_,
+                                                            irb_.GetInsertBlock()));
     irb_.CreateBr(lpad);
   } else {
     irb_.CreateBr(GetUnwindBasicBlock());
@@ -2534,6 +2612,8 @@ void GBCExpanderPass::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
   llvm::BasicBlock* block_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
 
   if (llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc)) {
+    landing_pad_phi_mapping_[lpad].push_back(std::make_pair(old_basic_block_,
+                                                            irb_.GetInsertBlock()));
     irb_.CreateCondBr(exception_pending, lpad, block_cont, kUnlikely);
   } else {
     irb_.CreateCondBr(exception_pending, GetUnwindBasicBlock(), block_cont, kUnlikely);
