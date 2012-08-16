@@ -28,6 +28,13 @@
 #include "logging.h"
 #include "macros.h"
 
+// Currently Darwin doesn't support locks with timeouts.
+#if !defined(__APPLE__)
+#define HAVE_TIMED_RWLOCK 1
+#else
+#define HAVE_TIMED_RWLOCK 0
+#endif
+
 namespace art {
 
 class LOCKABLE Mutex;
@@ -271,7 +278,9 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
 
   // Block until ReaderWriterMutex is free and acquire exclusive access. Returns true on success
   // or false if timeout is reached.
+#if HAVE_TIMED_RWLOCK
   bool ExclusiveLockWithTimeout(const timespec& abs_timeout) EXCLUSIVE_TRYLOCK_FUNCTION(true);
+#endif
 
   // Block until ReaderWriterMutex is shared or free then acquire a share on the access.
   void SharedLock() SHARED_LOCK_FUNCTION();

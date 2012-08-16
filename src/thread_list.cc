@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #include "debugger.h"
+#include "mutex.h"
 #include "timing_logger.h"
 #include "utils.h"
 
@@ -125,6 +126,7 @@ void ThreadList::AssertThreadsAreSuspended() {
   }
 }
 
+#if HAVE_TIMED_RWLOCK
 // Attempt to rectify locks so that we dump thread list with required locks before exiting.
 static void UnsafeLogFatalForThreadSuspendAllTimeout() NO_THREAD_SAFETY_ANALYSIS {
   Runtime* runtime = Runtime::Current();
@@ -143,6 +145,7 @@ static void UnsafeLogFatalForThreadSuspendAllTimeout() NO_THREAD_SAFETY_ANALYSIS
   runtime->GetThreadList()->DumpLocked(ss);
   LOG(FATAL) << ss.str();
 }
+#endif
 
 void ThreadList::SuspendAll() {
   Thread* self = Thread::Current();
@@ -174,14 +177,18 @@ void ThreadList::SuspendAll() {
     }
   }
 
-  // Block on the mutator lock until all Runnable threads release their share of access. Timeout
-  // if we wait more than 30 seconds.
+  // Block on the mutator lock until all Runnable threads release their share of access.
+#if HAVE_TIMED_RWLOCK
+  // Timeout if we wait more than 30 seconds.
   timespec timeout;
   clock_gettime(CLOCK_REALTIME, &timeout);
   timeout.tv_sec += 30;
   if (UNLIKELY(!GlobalSynchronization::mutator_lock_->ExclusiveLockWithTimeout(timeout))) {
     UnsafeLogFatalForThreadSuspendAllTimeout();
   }
+#else
+  GlobalSynchronization::mutator_lock_->ExclusiveLock();
+#endif
 
   // Debug check that all threads are suspended.
   AssertThreadsAreSuspended();
@@ -266,18 +273,22 @@ void ThreadList::SuspendAllForDebugger() {
     }
   }
 
-  // Block on the mutator lock until all Runnable threads release their share of access. Timeout
-  // if we wait more than 30 seconds.
+  // Block on the mutator lock until all Runnable threads release their share of access then
+  // immediately unlock again.
+#if HAVE_TIMED_RWLOCK
+  // Timeout if we wait more than 30 seconds.
   timespec timeout;
   clock_gettime(CLOCK_REALTIME, &timeout);
   timeout.tv_sec += 30;
   if (!GlobalSynchronization::mutator_lock_->ExclusiveLockWithTimeout(timeout)) {
     UnsafeLogFatalForThreadSuspendAllTimeout();
   } else {
-    // Debugger suspends all threads but doesn't hold onto the mutator_lock_.
     GlobalSynchronization::mutator_lock_->ExclusiveUnlock();
   }
-
+#else
+  GlobalSynchronization::mutator_lock_->ExclusiveLock();
+  GlobalSynchronization::mutator_lock_->ExclusiveUnlock();
+#endif
   AssertThreadsAreSuspended();
 
   VLOG(threads) << *self << " SuspendAll complete";

@@ -302,10 +302,8 @@ void ReaderWriterMutex::ExclusiveUnlock() {
   CHECK_MUTEX_CALL(pthread_rwlock_unlock, (&rwlock_));
 }
 
+#if HAVE_TIMED_RWLOCK
 bool ReaderWriterMutex::ExclusiveLockWithTimeout(const timespec& abs_timeout) {
-  // Check that timeouts are supported. Currently Darwin doesn't support timeouts, if we are
-  // running on Darwin the timeout won't be respected.
-#if defined(_POSIX_TIMEOUTS) && (_POSIX_TIMEOUTS - 200112) >= 0L
   int result = pthread_rwlock_timedwrlock(&rwlock_, &abs_timeout);
   if (result == ETIMEDOUT) {
     return false;
@@ -317,12 +315,8 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(const timespec& abs_timeout) {
   RegisterAsLockedWithCurrentThread();
   AssertSharedHeld();
   return true;
-#else
-  UNUSED(abs_timeout);
-  ExclusiveLock();
-  return true;
-#endif
 }
+#endif
 
 void ReaderWriterMutex::SharedLock() {
   CHECK_MUTEX_CALL(pthread_rwlock_rdlock, (&rwlock_));
