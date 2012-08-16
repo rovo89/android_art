@@ -814,9 +814,10 @@ const char* extendedMIROpNames[kMirOpLast - kMirOpFirst] = {
   "kMirFusedCmpgDouble",
   "kMirFusedCmpLong",
   "kMirNop",
-  "kMirOpNullNRangeUpCheck",
-  "kMirOpNullNRangeDownCheck",
-  "kMirOpLowerBound",
+  "kMirOpNullCheck",
+  "kMirOpRangeCheck",
+  "kMirOpDivZeroCheck",
+  "kMirOpCheck",
 };
 
 /* Extended MIR instructions like PHI */
@@ -905,7 +906,6 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
   }
 
   for (mir = bb->firstMIRInsn; mir; mir = mir->next) {
-
     oatResetRegPool(cUnit);
     if (cUnit->disableOpt & (1 << kTrackLiveTemps)) {
       oatClobberAllRegs(cUnit);
@@ -921,10 +921,7 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 #endif
 
     cUnit->currentDalvikOffset = mir->offset;
-
-    Instruction::Code dalvikOpcode = mir->dalvikInsn.opcode;
-    Instruction::Format dalvikFormat = Instruction::FormatOf(dalvikOpcode);
-
+    int opcode = mir->dalvikInsn.opcode;
     LIR* boundaryLIR;
 
     /* Mark the beginning of a Dalvik instruction for line tracking */
@@ -951,17 +948,27 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
       newLIR1(cUnit, kPseudoSSARep, (int) ssaString);
     }
 
-    if ((int)mir->dalvikInsn.opcode >= (int)kMirOpFirst) {
+    if (opcode == kMirOpCheck) {
+      // Combine check and work halves of throwing instruction.
+      MIR* workHalf = mir->meta.throwInsn;
+      mir->dalvikInsn.opcode = workHalf->dalvikInsn.opcode;
+      opcode = workHalf->dalvikInsn.opcode;
+      SSARepresentation* ssaRep = workHalf->ssaRep;
+      workHalf->ssaRep = mir->ssaRep;
+      mir->ssaRep = ssaRep;
+      workHalf->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+    }
+
+    if (opcode >= kMirOpFirst) {
       handleExtendedMethodMIR(cUnit, bb, mir);
       continue;
     }
 
     bool notHandled = compileDalvikInstruction(cUnit, mir, bb, labelList);
     if (notHandled) {
-      LOG(FATAL) << StringPrintf("%#06x: Opcode %#x (%s) / Fmt %d not handled",
-                                 mir->offset, dalvikOpcode,
-                                 Instruction::Name(dalvikOpcode), dalvikFormat);
-
+      LOG(FATAL) << StringPrintf("%#06x: Opcode %#x (%s)",
+                                 mir->offset, opcode,
+                                 Instruction::Name(mir->dalvikInsn.opcode));
     }
   }
 
