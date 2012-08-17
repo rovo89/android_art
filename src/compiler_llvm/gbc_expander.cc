@@ -71,6 +71,8 @@ class GBCExpanderPass : public llvm::FunctionPass {
   std::vector<llvm::BasicBlock*> basic_block_landing_pads_;
   llvm::BasicBlock* basic_block_unwind_;
 
+  bool changed_;
+
  private:
   //----------------------------------------------------------------------------
   // Constant for GBC expansion
@@ -101,7 +103,15 @@ class GBCExpanderPass : public llvm::FunctionPass {
   // TODO: Almost all Emit* are directly copy-n-paste from MethodCompiler.
   // Refactor these utility functions from MethodCompiler to avoid forking.
 
-  bool EmitStackOverflowCheck(llvm::Instruction* first_non_alloca);
+  void EmitStackOverflowCheck(llvm::Instruction* first_non_alloca);
+
+  void RewriteFunction();
+
+  void RewriteBasicBlock(llvm::BasicBlock* original_block);
+
+  void UpdatePhiInstruction(llvm::BasicBlock* old_basic_block,
+                            llvm::BasicBlock* new_basic_block);
+
 
   //----------------------------------------------------------------------------
   // Dex cache code generation helper function
@@ -219,36 +229,6 @@ class GBCExpanderPass : public llvm::FunctionPass {
   llvm::Value* EmitCompareResultSelection(llvm::Value* cmp_eq,
                                           llvm::Value* cmp_lt);
 
-  class ScopedExpandToBasicBlock {
-   public:
-    ScopedExpandToBasicBlock(IRBuilder& irb, llvm::Instruction* expand_inst)
-        : irb_(irb), expand_inst_(expand_inst) {
-      llvm::Function* func = expand_inst_->getParent()->getParent();
-      begin_bb_ = llvm::BasicBlock::Create(irb_.getContext(),
-                                           "",
-                                           func);
-      irb_.SetInsertPoint(begin_bb_);
-    }
-
-    ~ScopedExpandToBasicBlock() {
-      llvm::BasicBlock* end_bb = irb_.GetInsertBlock();
-      SplitAndInsertBasicBlocksAfter(*expand_inst_, begin_bb_, end_bb);
-    }
-
-   private:
-    // Split the basic block containing INST at INST and insert a sequence of
-    // basic blocks with a single entry at BEGIN_BB and a single exit at END_BB
-    // before INST.
-    llvm::BasicBlock*
-    SplitAndInsertBasicBlocksAfter(llvm::BasicBlock::iterator inst,
-                                   llvm::BasicBlock* begin_bb,
-                                   llvm::BasicBlock* end_bb);
-   private:
-    IRBuilder& irb_;
-    llvm::Instruction* expand_inst_;
-    llvm::BasicBlock* begin_bb_;
-  };
-
   llvm::Value* EmitLoadConstantClass(uint32_t dex_pc, uint32_t type_idx);
   llvm::Value* EmitLoadStaticStorage(uint32_t dex_pc, uint32_t type_idx);
 
@@ -345,13 +325,14 @@ class GBCExpanderPass : public llvm::FunctionPass {
         // TODO: Initialize these fields correctly.
         shadow_frame_(NULL), old_shadow_frame_(NULL), shadow_frame_size_(0),
         compiler_(NULL), dex_file_(NULL), dex_cache_(NULL), code_item_(NULL),
-        oat_compilation_unit_(NULL), method_idx_(-1u), func_(NULL)
+        oat_compilation_unit_(NULL), method_idx_(-1u), func_(NULL),
+        changed_(false)
   { }
 
   bool runOnFunction(llvm::Function& func);
 
  private:
-  bool InsertStackOverflowCheck(llvm::Function& func);
+  void InsertStackOverflowCheck(llvm::Function& func);
 
   llvm::Value* ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
                                llvm::CallInst& call_inst);
@@ -365,108 +346,126 @@ bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
   if (func.getName().startswith("art_") || func.getName().startswith("Art")) {
     return false;
   }
-  bool changed;
 
-  // TODO: Use intrinsic.
-  changed = InsertStackOverflowCheck(func);
-
-  std::list<std::pair<llvm::CallInst*,
-                      IntrinsicHelper::IntrinsicId> > work_list;
-
-  for (llvm::inst_iterator inst_iter = llvm::inst_begin(func),
-          inst_end = llvm::inst_end(func); inst_iter != inst_end; inst_iter++) {
-    // Only CallInst with its called function is dexlang intrinsic need to
-    // process
-    llvm::Instruction* inst = &*inst_iter;
-    if (llvm::CallInst* call_inst = llvm::dyn_cast<llvm::CallInst>(inst)) {
-      const llvm::Function* callee = call_inst->getCalledFunction();
-
-      if (callee != NULL) {
-        IntrinsicHelper::IntrinsicId intr_id =
-            intrinsic_helper_.GetIntrinsicId(callee);
-
-        if (intr_id != IntrinsicHelper::UnknownId) {
-          work_list.push_back(std::make_pair(call_inst, intr_id));
-        }
-      }
-    }
-  }
-
-  changed |= !work_list.empty();
-
+  // Setup rewrite context
   shadow_frame_ = NULL;
   old_shadow_frame_ = NULL;
   shadow_frame_size_ = 0;
   func_ = &func;
+  changed_ = false; // Assume unchanged
 
-  // Remove the instruction containing in the work_list
-  while (!work_list.empty()) {
-    llvm::CallInst* intr_inst = work_list.front().first;
-    IntrinsicHelper::IntrinsicId intr_id = work_list.front().second;
+  // Insert stack overflow check
+  InsertStackOverflowCheck(func); // TODO: Use intrinsic.
 
-    // Remove the instruction from work list
-    work_list.pop_front();
-
-    // Move the IRBuilder insert pointer
-    irb_.SetInsertPoint(intr_inst);
-
-    // Process the expansion
-    llvm::Value* new_value = ExpandIntrinsic(intr_id, *intr_inst);
-
-    // Use the new value from the expansion
-    if (new_value != NULL) {
-      intr_inst->replaceAllUsesWith(new_value);
-    }
-
-    // Remove the intrinsic instruction
-    intr_inst->eraseFromParent();
-  }
+  // Rewrite the intrinsics
+  RewriteFunction();
 
   VERIFY_LLVM_FUNCTION(func);
 
-  return changed;
+  return changed_;
 }
 
-llvm::BasicBlock*
-GBCExpanderPass::ScopedExpandToBasicBlock::
-SplitAndInsertBasicBlocksAfter(llvm::BasicBlock::iterator inst,
-                               llvm::BasicBlock* begin_bb,
-                               llvm::BasicBlock* end_bb) {
-  llvm::BasicBlock* original = inst->getParent();
-  llvm::Function* parent = original->getParent();
+void GBCExpanderPass::RewriteBasicBlock(llvm::BasicBlock* original_block) {
+  llvm::BasicBlock* curr_basic_block = original_block;
 
-  // 1. Create a new basic block A after ORIGINAL
-  llvm::BasicBlock *insert_before =
-    llvm::next(llvm::Function::iterator(original)).getNodePtrUnchecked();
-  llvm::BasicBlock* a =
-    llvm::BasicBlock::Create(irb_.getContext(), "", parent, insert_before);
+  llvm::BasicBlock::iterator inst_iter = original_block->begin();
+  llvm::BasicBlock::iterator inst_end = original_block->end();
 
-  // 2. Move all instructions in ORIGINAL after INST (included) to A
-  a->getInstList().splice(a->end(), original->getInstList(),
-                          inst, original->end());
+  while (inst_iter != inst_end) {
+    llvm::CallInst* call_inst = llvm::dyn_cast<llvm::CallInst>(inst_iter);
+    IntrinsicHelper::IntrinsicId intr_id = IntrinsicHelper::UnknownId;
 
-  // 3. Add an unconditional branch in ORIGINAL to begin_bb
-  llvm::BranchInst::Create(begin_bb, original);
+    if (call_inst) {
+      llvm::Function* callee_func = call_inst->getCalledFunction();
+      intr_id = intrinsic_helper_.GetIntrinsicId(callee_func);
+    }
 
-  // 4. Add an unconditional branch in END_BB to A
-  llvm::BranchInst::Create(a, end_bb);
+    if (intr_id == IntrinsicHelper::UnknownId) {
+      // This is not intrinsic call.  Skip this instruction.
+      ++inst_iter;
+      continue;
+    }
 
-  // 5. Update the PHI nodes in the successors of A. Update the PHI node entry
-  // with incoming basic block from ORIGINAL to A
-  for (llvm::succ_iterator succ_iter = llvm::succ_begin(a),
-          succ_end = llvm::succ_end(a); succ_iter != succ_end; succ_iter++) {
-    llvm::BasicBlock* succ = *succ_iter;
-    llvm::PHINode* phi;
-    for (llvm::BasicBlock::iterator inst_iter = succ->begin();
-         (phi = llvm::dyn_cast<llvm::PHINode>(inst_iter)); ++inst_iter) {
-      int idx;
-      while ((idx  = phi->getBasicBlockIndex(original)) != -1) {
-        phi->setIncomingBlock(static_cast<unsigned>(idx), a);
+    // Rewrite the intrinsic and change the function
+    changed_ = true;
+    irb_.SetInsertPoint(inst_iter);
+
+    // Expand the intrinsic
+    if (llvm::Value* new_value = ExpandIntrinsic(intr_id, *call_inst)) {
+      inst_iter->replaceAllUsesWith(new_value);
+    }
+
+    // Remove the old intrinsic call instruction
+    llvm::BasicBlock::iterator old_inst = inst_iter++;
+    old_inst->eraseFromParent();
+
+    // Splice the instruction to the new basic block
+    llvm::BasicBlock* next_basic_block = irb_.GetInsertBlock();
+    if (next_basic_block != curr_basic_block) {
+      next_basic_block->getInstList().splice(
+          irb_.GetInsertPoint(), curr_basic_block->getInstList(),
+          inst_iter, inst_end);
+      curr_basic_block = next_basic_block;
+      inst_end = curr_basic_block->end();
+    }
+  }
+}
+
+
+void GBCExpanderPass::RewriteFunction() {
+  size_t num_basic_blocks = func_->getBasicBlockList().size();
+  // NOTE: We are not using (bb_iter != bb_end) as the for-loop condition,
+  // because we will create new basic block while expanding the intrinsics.
+  // We only want to iterate through the input basic blocks.
+
+  for (llvm::Function::iterator bb_iter = func_->begin();
+       num_basic_blocks > 0; ++bb_iter, --num_basic_blocks) {
+
+    // Rewrite the basic block
+    RewriteBasicBlock(bb_iter);
+
+    // Update the phi-instructions in the successor basic block
+    llvm::BasicBlock* last_block = irb_.GetInsertBlock();
+    if (last_block != bb_iter) {
+      UpdatePhiInstruction(bb_iter, last_block);
+    }
+  }
+}
+
+void GBCExpanderPass::UpdatePhiInstruction(llvm::BasicBlock* old_basic_block,
+                                           llvm::BasicBlock* new_basic_block) {
+  llvm::TerminatorInst* term_inst = new_basic_block->getTerminator();
+
+  if (!term_inst) {
+    return; // No terminating instruction in new_basic_block.  Nothing to do.
+  }
+
+  // Iterate every succeeding basic block
+  for (unsigned succ_iter = 0, succ_end = term_inst->getNumSuccessors();
+       succ_iter != succ_end; ++succ_iter) {
+    llvm::BasicBlock* succ_basic_block = term_inst->getSuccessor(succ_iter);
+
+    // Iterate every phi instructions in the succeeding basic block
+    for (llvm::BasicBlock::iterator
+         inst_iter = succ_basic_block->begin(),
+         inst_end = succ_basic_block->end();
+         inst_iter != inst_end; ++inst_iter) {
+      llvm::PHINode *phi = llvm::dyn_cast<llvm::PHINode>(inst_iter);
+
+      if (!phi) {
+        break; // Meet non-phi instruction.  Done.
+      }
+
+      // Update the incoming block of this phi instruction
+      for (llvm::PHINode::block_iterator
+           ibb_iter = phi->block_begin(), ibb_end = phi->block_end();
+           ibb_iter != ibb_end; ++ibb_iter) {
+        if (*ibb_iter == old_basic_block) {
+          *ibb_iter = new_basic_block;
+        }
       }
     }
   }
-
-  return a;
 }
 
 llvm::Value* GBCExpanderPass::ExpandToRuntime(runtime_support::RuntimeId rt,
@@ -488,10 +487,8 @@ llvm::Value* GBCExpanderPass::ExpandToRuntime(runtime_support::RuntimeId rt,
   }
 }
 
-bool
+void
 GBCExpanderPass::EmitStackOverflowCheck(llvm::Instruction* first_non_alloca) {
-  ScopedExpandToBasicBlock eb(irb_, first_non_alloca);
-
   llvm::Function* func = first_non_alloca->getParent()->getParent();
   llvm::Module* module = func->getParent();
 
@@ -538,7 +535,6 @@ GBCExpanderPass::EmitStackOverflowCheck(llvm::Instruction* first_non_alloca) {
   }
 
   irb_.SetInsertPoint(block_continue);
-  return true;
 }
 
 llvm::Value* GBCExpanderPass::EmitLoadDexCacheAddr(MemberOffset offset) {
@@ -664,13 +660,11 @@ llvm::Value* GBCExpanderPass::EmitArrayGEP(llvm::Value* array_addr,
 }
 
 void GBCExpanderPass::Expand_TestSuspend(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
   irb_.Runtime().EmitTestSuspend();
   return;
 }
 
 void GBCExpanderPass::Expand_MarkGCCard(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
   irb_.Runtime().EmitMarkGCCard(call_inst.getArgOperand(0), call_inst.getArgOperand(1));
   return;
 }
@@ -712,13 +706,11 @@ GBCExpanderPass::Expand_LoadTypeFromDexCache(llvm::Value* type_idx_value) {
 }
 
 void GBCExpanderPass::Expand_LockObject(llvm::Value* obj) {
-  ScopedExpandToBasicBlock eb(irb_, irb_.GetInsertPoint());
   rtb_.EmitLockObject(obj);
   return;
 }
 
 void GBCExpanderPass::Expand_UnlockObject(llvm::Value* obj) {
-  ScopedExpandToBasicBlock eb(irb_, irb_.GetInsertPoint());
   rtb_.EmitUnlockObject(obj);
   return;
 }
@@ -965,8 +957,6 @@ llvm::Value* GBCExpanderPass::Expand_DivRem(llvm::CallInst& call_inst,
   llvm::Value* zero = irb_.getJZero(op_jty);
   llvm::Value* neg_one = llvm::ConstantInt::getSigned(op_type, -1);
 
-  ScopedExpandToBasicBlock eb(irb_, irb_.GetInsertPoint());
-
   llvm::Function* parent = irb_.GetInsertBlock()->getParent();
   llvm::BasicBlock* eq_neg_one = llvm::BasicBlock::Create(context_, "", parent);
   llvm::BasicBlock* ne_neg_one = llvm::BasicBlock::Create(context_, "", parent);
@@ -1082,19 +1072,41 @@ void GBCExpanderPass::Expand_UpdateDexPC(llvm::Value* dex_pc_value) {
   return;
 }
 
-bool GBCExpanderPass::InsertStackOverflowCheck(llvm::Function& func) {
+void GBCExpanderPass::InsertStackOverflowCheck(llvm::Function& func) {
   // DexLang generates all alloca instruction in the first basic block of the
   // FUNC and also there's no any alloca instructions after the first non-alloca
   // instruction
 
-  llvm::BasicBlock::iterator first_non_alloca = func.front().begin();
+  llvm::BasicBlock* first_basic_block = &func.front();
+
+  // Look for first non-alloca instruction
+  llvm::BasicBlock::iterator first_non_alloca = first_basic_block->begin();
   while (llvm::isa<llvm::AllocaInst>(first_non_alloca)) {
     ++first_non_alloca;
   }
 
+  irb_.SetInsertPoint(first_non_alloca);
+
   // Insert stack overflow check codes before first_non_alloca (i.e., after all
   // alloca instructions)
-  return EmitStackOverflowCheck(&*first_non_alloca);
+  EmitStackOverflowCheck(&*first_non_alloca);
+
+  llvm::BasicBlock* next_basic_block = irb_.GetInsertBlock();
+  if (next_basic_block != first_basic_block) {
+    // Splice the rest of the instruction to the continuing basic block
+    next_basic_block->getInstList().splice(
+        irb_.GetInsertPoint(), first_basic_block->getInstList(),
+        first_non_alloca, first_basic_block->end());
+
+    // Rewrite the basic block
+    RewriteBasicBlock(next_basic_block);
+
+    // Update the phi-instructions in the successor basic block
+    UpdatePhiInstruction(first_basic_block, irb_.GetInsertBlock());
+  }
+
+  // We have changed the basic block
+  changed_ = true;
 }
 
 // ==== High-level intrinsic expander ==========================================
@@ -1167,8 +1179,6 @@ llvm::Value* GBCExpanderPass::Expand_IntegerShift(llvm::Value* src1_value,
 
 llvm::Value* GBCExpanderPass::Expand_HLArrayGet(llvm::CallInst& call_inst,
                                                 JType elem_jty) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   llvm::Value* array_addr = call_inst.getArgOperand(1);
   llvm::Value* index_value = call_inst.getArgOperand(2);
@@ -1211,8 +1221,6 @@ llvm::Value* GBCExpanderPass::Expand_HLArrayGet(llvm::CallInst& call_inst,
 
 void GBCExpanderPass::Expand_HLArrayPut(llvm::CallInst& call_inst,
                                         JType elem_jty) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   llvm::Value* new_value = call_inst.getArgOperand(1);
   llvm::Value* array_addr = call_inst.getArgOperand(2);
@@ -1260,8 +1268,6 @@ void GBCExpanderPass::Expand_HLArrayPut(llvm::CallInst& call_inst,
 
 llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
                                             JType field_jty) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   llvm::Value* object_addr = call_inst.getArgOperand(1);
   uint32_t field_idx = LV2UInt(call_inst.getArgOperand(2));
@@ -1323,8 +1329,6 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
 
 void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
                                     JType field_jty) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   llvm::Value* object_addr = call_inst.getArgOperand(1);
   llvm::Value* new_value = call_inst.getArgOperand(2);
@@ -1524,8 +1528,6 @@ llvm::Value* GBCExpanderPass::EmitLoadStaticStorage(uint32_t dex_pc,
 
 llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
                                             JType field_jty) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   uint32_t field_idx = LV2UInt(call_inst.getArgOperand(0));
 
@@ -1604,8 +1606,6 @@ llvm::Value* GBCExpanderPass::Expand_HLSget(llvm::CallInst& call_inst,
 
 void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
                                     JType field_jty) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   uint32_t field_idx = LV2UInt(call_inst.getArgOperand(0));
   llvm::Value* new_value = call_inst.getArgOperand(1);
@@ -1685,8 +1685,6 @@ void GBCExpanderPass::Expand_HLSput(llvm::CallInst& call_inst,
 }
 
 llvm::Value* GBCExpanderPass::Expand_ConstString(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   uint32_t string_idx = LV2UInt(call_inst.getArgOperand(0));
 
@@ -1745,8 +1743,6 @@ llvm::Value* GBCExpanderPass::Expand_ConstString(llvm::CallInst& call_inst) {
 }
 
 llvm::Value* GBCExpanderPass::Expand_ConstClass(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
 
@@ -1756,8 +1752,6 @@ llvm::Value* GBCExpanderPass::Expand_ConstClass(llvm::CallInst& call_inst) {
 }
 
 void GBCExpanderPass::Expand_MonitorEnter(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   llvm::Value* object_addr = call_inst.getArgOperand(1);
 
@@ -1770,8 +1764,6 @@ void GBCExpanderPass::Expand_MonitorEnter(llvm::CallInst& call_inst) {
 }
 
 void GBCExpanderPass::Expand_MonitorExit(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   llvm::Value* object_addr = call_inst.getArgOperand(1);
 
@@ -1788,8 +1780,6 @@ void GBCExpanderPass::Expand_MonitorExit(llvm::CallInst& call_inst) {
 }
 
 void GBCExpanderPass::Expand_HLCheckCast(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
   llvm::Value* object_addr = call_inst.getArgOperand(1);
@@ -1848,8 +1838,6 @@ void GBCExpanderPass::Expand_HLCheckCast(llvm::CallInst& call_inst) {
 }
 
 llvm::Value* GBCExpanderPass::Expand_InstanceOf(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
   llvm::Value* object_addr = call_inst.getArgOperand(1);
@@ -1921,8 +1909,6 @@ llvm::Value* GBCExpanderPass::Expand_InstanceOf(llvm::CallInst& call_inst) {
 }
 
 llvm::Value* GBCExpanderPass::Expand_NewInstance(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
 
@@ -1951,8 +1937,6 @@ llvm::Value* GBCExpanderPass::Expand_NewInstance(llvm::CallInst& call_inst) {
 }
 
 llvm::Value* GBCExpanderPass::Expand_HLInvoke(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   InvokeType invoke_type = static_cast<InvokeType>(LV2UInt(call_inst.getArgOperand(0)));
   bool is_static = (invoke_type == kStatic);
@@ -2058,8 +2042,6 @@ llvm::Value* GBCExpanderPass::Expand_HLInvoke(llvm::CallInst& call_inst) {
 }
 
 llvm::Value* GBCExpanderPass::Expand_OptArrayLength(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   // Get the array object address
   llvm::Value* array_addr = call_inst.getArgOperand(1);
@@ -2072,8 +2054,6 @@ llvm::Value* GBCExpanderPass::Expand_OptArrayLength(llvm::CallInst& call_inst) {
 }
 
 llvm::Value* GBCExpanderPass::Expand_NewArray(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
   llvm::Value* length = call_inst.getArgOperand(1);
@@ -2082,8 +2062,6 @@ llvm::Value* GBCExpanderPass::Expand_NewArray(llvm::CallInst& call_inst) {
 }
 
 llvm::Value* GBCExpanderPass::Expand_HLFilledNewArray(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   uint32_t type_idx = LV2UInt(call_inst.getArgOperand(1));
   uint32_t length = call_inst.getNumArgOperands() - 3;
@@ -2142,8 +2120,6 @@ llvm::Value* GBCExpanderPass::Expand_HLFilledNewArray(llvm::CallInst& call_inst)
 }
 
 void GBCExpanderPass::Expand_HLFillArrayData(llvm::CallInst& call_inst) {
-  ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
   int32_t payload_offset = static_cast<int32_t>(dex_pc) +
                            LV2SInt(call_inst.getArgOperand(0));
@@ -2587,8 +2563,6 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
       return ExpandToRuntime(runtime_support::ThrowException, call_inst);
     }
     case IntrinsicHelper::HLThrowException: {
-      ScopedExpandToBasicBlock eb(irb_, &call_inst);
-
       uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
 
       EmitUpdateDexPC(dex_pc);
