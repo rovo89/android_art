@@ -18,6 +18,7 @@
 #include <paths.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <sys/mount.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -46,6 +47,13 @@
 namespace art {
 
 static pid_t gSystemServerPid = 0;
+
+// Must match values in dalvik.system.Zygote.
+enum MountExternalKind {
+  MOUNT_EXTERNAL_NONE = 0,
+  MOUNT_EXTERNAL_SINGLEUSER = 1,
+  MOUNT_EXTERNAL_MULTIUSER = 2,
+};
 
 static void Zygote_nativeExecShell(JNIEnv* env, jclass, jstring javaCommand) {
   ScopedUtfChars command(env, javaCommand);
@@ -288,10 +296,52 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
   }
 }
 
+// Create private mount space for this process and mount SD card
+// into it, based on the active user.
+static void MountExternalStorage(uid_t uid, jint mount_external) {
+  if (mount_external == MOUNT_EXTERNAL_NONE) {
+    return;
+  }
+
+#if 0
+  userid_t user_id = multiuser_getUserId(uid);
+
+  // Create private mount namespace for our process.
+  if (unshare(CLONE_NEWNS) == -1) {
+    PLOG(FATAL) << "unshare(CLONE_NEWNS) failed";
+  }
+
+  // Mark rootfs as being a slave in our process so that changes
+  // from parent namespace flow into our process.
+  if (mount("rootfs", "/", NULL, (MS_SLAVE | MS_REC), NULL) == -1) {
+    PLOG(FATAL) << "mount(\"rootfs\", \"/\", NULL, (MS_SLAVE | MS_REC), NULL) failed";
+  }
+
+  // Create bind mount from specific path.
+  if (mount_external == MOUNT_EXTERNAL_SINGLEUSER) {
+    if (mount(EXTERNAL_STORAGE_SYSTEM, EXTERNAL_STORAGE_APP, "none", MS_BIND, NULL) == -1) {
+      PLOG(FATAL) << "mount(\"" << EXTERNAL_STORAGE_SYSTEM << "\", \"" << EXTERNAL_STORAGE_APP << "\", \"none\", MS_BIND, NULL) failed";
+    }
+  } else if (mount_external == MOUNT_EXTERNAL_MULTIUSER) {
+    // Assume path has already been created by installd.
+    std::string source_path(StringPrintf("%s/%d", EXTERNAL_STORAGE_SYSTEM, user_id));
+    if (mount(source_path.c_str(), EXTERNAL_STORAGE_APP, "none", MS_BIND, NULL) == -1) {
+      PLOG(FATAL) << "mount(\"" << source_path.c_str() << "\", \"" << EXTERNAL_STORAGE_APP << "\", \"none\", MS_BIND, NULL) failed";
+    }
+  } else {
+    LOG(FATAL) << "Mount mode unsupported: " << mount_external;
+  }
+#else
+  UNUSED(uid);
+  UNIMPLEMENTED(FATAL);
+#endif
+}
+
 // Utility routine to fork zygote and specialize the child process.
 static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArray javaGids,
                                      jint debug_flags, jobjectArray javaRlimits,
                                      jlong permittedCapabilities, jlong effectiveCapabilities,
+                                     jint mount_external,
                                      jstring java_se_info, jstring java_se_name, bool is_system_server) {
   Runtime* runtime = Runtime::Current();
   CHECK(runtime->IsZygote()) << "runtime instance not started with -Xzygote";
@@ -315,6 +365,8 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
     if (uid != 0) {
       EnableKeepCapabilities();
     }
+
+    MountExternalStorage(uid, mount_external);
 
     SetGids(env, javaGids);
 
@@ -376,9 +428,9 @@ static pid_t ForkAndSpecializeCommon(JNIEnv* env, uid_t uid, gid_t gid, jintArra
 }
 
 static jint Zygote_nativeForkAndSpecialize(JNIEnv* env, jclass, jint uid, jint gid, jintArray gids,
-                                           jint debug_flags, jobjectArray rlimits,
+                                           jint debug_flags, jobjectArray rlimits, jint mount_external,
                                            jstring se_info, jstring se_name) {
-  return ForkAndSpecializeCommon(env, uid, gid, gids, debug_flags, rlimits, 0, 0, se_info, se_name, false);
+  return ForkAndSpecializeCommon(env, uid, gid, gids, debug_flags, rlimits, 0, 0, mount_external, se_info, se_name, false);
 }
 
 static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t gid, jintArray gids,
@@ -386,7 +438,8 @@ static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t 
                                           jlong permittedCapabilities, jlong effectiveCapabilities) {
   pid_t pid = ForkAndSpecializeCommon(env, uid, gid, gids,
                                       debug_flags, rlimits,
-                                      permittedCapabilities, effectiveCapabilities, NULL, NULL, true);
+                                      permittedCapabilities, effectiveCapabilities,
+                                      MOUNT_EXTERNAL_NONE, NULL, NULL, true);
   if (pid > 0) {
       // The zygote process checks whether the child process has died or not.
       LOG(INFO) << "System server process " << pid << " has been created";
@@ -405,7 +458,7 @@ static jint Zygote_nativeForkSystemServer(JNIEnv* env, jclass, uid_t uid, gid_t 
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(Zygote, nativeExecShell, "(Ljava/lang/String;)V"),
   //NATIVE_METHOD(Zygote, nativeFork, "()I"),
-  NATIVE_METHOD(Zygote, nativeForkAndSpecialize, "(II[II[[ILjava/lang/String;Ljava/lang/String;)I"),
+  NATIVE_METHOD(Zygote, nativeForkAndSpecialize, "(II[II[[IILjava/lang/String;Ljava/lang/String;)I"),
   NATIVE_METHOD(Zygote, nativeForkSystemServer, "(II[II[[IJJ)I"),
 };
 
