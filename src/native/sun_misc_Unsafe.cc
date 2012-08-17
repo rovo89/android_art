@@ -86,9 +86,7 @@ static jint Unsafe_getInt(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
 static jint Unsafe_getIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedObjectAccess soa(env);
   Object* obj = soa.Decode<Object*>(javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
-  return android_atomic_acquire_load(address);
+  return obj->GetField32(MemberOffset(offset), true);
 }
 
 static void Unsafe_putInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
@@ -100,9 +98,7 @@ static void Unsafe_putInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, j
 static void Unsafe_putIntVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
   ScopedObjectAccess soa(env);
   Object* obj = soa.Decode<Object*>(javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  volatile int32_t* address = reinterpret_cast<volatile int32_t*>(raw_addr);
-  android_atomic_release_store(newValue, address);
+  obj->SetField32(MemberOffset(offset), newValue, true);
 }
 
 static void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong offset, jint newValue) {
@@ -115,9 +111,7 @@ static void Unsafe_putOrderedInt(JNIEnv* env, jobject, jobject javaObj, jlong of
 static jlong Unsafe_getLong(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
   ScopedObjectAccess soa(env);
   Object* obj = soa.Decode<Object*>(javaObj);
-  byte* raw_addr = reinterpret_cast<byte*>(obj) + offset;
-  int64_t* address = reinterpret_cast<int64_t*>(raw_addr);
-  return *address;
+  return obj->GetField64(MemberOffset(offset), false);
 }
 
 static jlong Unsafe_getLongVolatile(JNIEnv* env, jobject, jobject javaObj, jlong offset) {
