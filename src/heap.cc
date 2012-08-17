@@ -22,6 +22,7 @@
 #include <limits>
 #include <vector>
 
+#include "atomic.h"
 #include "card_table.h"
 #include "debugger.h"
 #include "heap_bitmap.h"
@@ -258,7 +259,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   // It's still too early to take a lock because there are no threads yet,
   // but we can create the heap lock now. We don't create it earlier to
   // make it clear that you can't use locks during heap initialization.
-  statistics_lock_ = new Mutex("statistics lock");
   gc_complete_lock_ =  new Mutex("GC complete lock");
   gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable"));
 
@@ -318,7 +318,6 @@ Heap::~Heap() {
   // all daemon threads are suspended, and we also know that the threads list have been deleted, so
   // those threads can't resume. We're the only running thread, and we can do whatever we like...
   STLDeleteElements(&spaces_);
-  delete statistics_lock_;
   delete gc_complete_lock_;
 
 }
@@ -377,11 +376,7 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
     if (Dbg::IsAllocTrackingEnabled()) {
       Dbg::RecordAllocation(c, byte_count);
     }
-    bool request_concurrent_gc;
-    {
-      MutexLock mu(*statistics_lock_);
-      request_concurrent_gc = num_bytes_allocated_ >= concurrent_start_bytes_;
-    }
+    const bool request_concurrent_gc = num_bytes_allocated_ >= concurrent_start_bytes_;
     if (request_concurrent_gc) {
       // The SirtRef is necessary since the calls in RequestConcurrentGC are a safepoint.
       SirtRef<Object> ref(obj);
@@ -498,11 +493,12 @@ void Heap::VerifyHeap() {
 
 void Heap::RecordAllocation(AllocSpace* space, const Object* obj) {
   {
-    MutexLock mu(*statistics_lock_);
     size_t size = space->AllocationSize(obj);
     DCHECK_GT(size, 0u);
-    num_bytes_allocated_ += size;
-    num_objects_allocated_ += 1;
+    COMPILE_ASSERT(sizeof(size_t) == sizeof(int32_t),
+                   int32_t_must_be_same_size_as_size_t_for_used_atomic_operations);
+    android_atomic_add(size, reinterpret_cast<volatile int32_t*>(&num_bytes_allocated_));
+    android_atomic_add(1, reinterpret_cast<volatile int32_t*>(&num_objects_allocated_));
 
     if (Runtime::Current()->HasStatsEnabled()) {
       RuntimeStats* global_stats = Runtime::Current()->GetStats();
@@ -525,13 +521,15 @@ void Heap::RecordAllocation(AllocSpace* space, const Object* obj) {
 }
 
 void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
-  MutexLock mu(*statistics_lock_);
-
+  COMPILE_ASSERT(sizeof(size_t) == sizeof(int32_t),
+                 int32_t_must_be_same_size_as_size_t_for_used_atomic_operations);
   DCHECK_LE(freed_objects, num_objects_allocated_);
-  num_objects_allocated_ -= freed_objects;
+  android_atomic_add(-static_cast<int32_t>(freed_objects),
+                        reinterpret_cast<volatile int32_t*>(&num_objects_allocated_));
 
   DCHECK_LE(freed_bytes, num_bytes_allocated_);
-  num_bytes_allocated_ -= freed_bytes;
+  android_atomic_add(-static_cast<int32_t>(freed_bytes),
+                        reinterpret_cast<volatile int32_t*>(&num_bytes_allocated_));
 
   if (Runtime::Current()->HasStatsEnabled()) {
     RuntimeStats* global_stats = Runtime::Current()->GetStats();
@@ -672,7 +670,6 @@ int64_t Heap::GetTotalMemory() {
 }
 
 int64_t Heap::GetFreeMemory() {
-  MutexLock mu(*statistics_lock_);
   return GetMaxMemory() - num_bytes_allocated_;
 }
 
@@ -832,16 +829,10 @@ void Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) {
     sticky_gc_count_ = 0;
   }
 
-  uint64_t start_time = NanoTime();
-  if (true || concurrent_gc_) {
+  if (concurrent_gc_) {
     CollectGarbageConcurrentMarkSweepPlan(gc_type, clear_soft_references);
   } else {
     CollectGarbageMarkSweepPlan(gc_type, clear_soft_references);
-  }
-  const uint64_t gc_duration = NanoTime() - start_time;
-  // For particularly slow GCs lets print out another warning.
-  if (gc_duration > MsToNs(100)) {
-    LOG(WARNING) << "Slow GC took " << PrettyDuration(gc_duration);
   }
 
   gc_complete_lock_->AssertNotHeld();
@@ -1025,10 +1016,12 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
   // If the GC was slow, then print timings in the log.
   uint64_t duration = (NanoTime() - start_time) / 1000 * 1000;
   if (duration > MsToNs(50)) {
-    MutexLock mu(*statistics_lock_);
+    const size_t percent_free = GetPercentFree();
+    const size_t num_bytes_allocated = num_bytes_allocated_;
+    const size_t total_memory = GetTotalMemory();
     LOG(INFO) << (gc_type == GC_PARTIAL ? "Partial " : (gc_type == GC_STICKY ? "Sticky " : ""))
-              << "GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree() << "% free, "
-              << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory()) << ", "
+              << "GC freed " << PrettySize(bytes_freed) << ", " << percent_free << "% free, "
+              << PrettySize(num_bytes_allocated) << "/" << PrettySize(total_memory) << ", "
               << "paused " << PrettyDuration(duration);
   }
 
@@ -1250,13 +1243,16 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
   // If the GC was slow, then print timings in the log.
   uint64_t pause_roots = (root_end - root_begin) / 1000 * 1000;
   uint64_t pause_dirty = (dirty_end - dirty_begin) / 1000 * 1000;
+  uint64_t duration = (NanoTime() - root_begin) / 1000 * 1000;
   if (pause_roots > MsToNs(5) || pause_dirty > MsToNs(5)) {
-    MutexLock mu(*statistics_lock_);
+    const size_t percent_free = GetPercentFree();
+    const size_t num_bytes_allocated = num_bytes_allocated_;
+    const size_t total_memory = GetTotalMemory();
     LOG(INFO) << (gc_type == GC_PARTIAL ? "Partial " : (gc_type == GC_STICKY ? "Sticky " : ""))
-              << "Concurrent GC freed " << PrettySize(bytes_freed) << ", " << GetPercentFree()
-              << "% free, " << PrettySize(num_bytes_allocated_) << "/"
-              << PrettySize(GetTotalMemory()) << ", " << "paused " << PrettyDuration(pause_roots)
-              << "+" << PrettyDuration(pause_dirty);
+              << "Concurrent GC freed " << PrettySize(bytes_freed) << ", " << percent_free
+              << "% free, " << PrettySize(num_bytes_allocated) << "/"
+              << PrettySize(total_memory) << ", " << "paused " << PrettyDuration(pause_roots)
+              << "+" << PrettyDuration(pause_dirty) << " total " << PrettyDuration(duration);
   }
 
   if (VLOG_IS_ON(heap)) {
@@ -1296,7 +1292,6 @@ bool Heap::WaitForConcurrentGcToComplete() {
 }
 
 void Heap::DumpForSigQuit(std::ostream& os) {
-  MutexLock mu(*statistics_lock_);
   os << "Heap: " << GetPercentFree() << "% free, "
      << PrettySize(num_bytes_allocated_) << "/" << PrettySize(GetTotalMemory())
      << "; " << num_objects_allocated_ << " objects\n";
@@ -1329,7 +1324,6 @@ void Heap::GrowForUtilization() {
   size_t target_size;
   bool use_footprint_limit = false;
   {
-    MutexLock mu(*statistics_lock_);
     // We know what our utilization is at this moment.
     // This doesn't actually resize any memory. It just lets the heap grow more when necessary.
     target_size = num_bytes_allocated_ / Heap::GetTargetHeapUtilization();
@@ -1352,7 +1346,6 @@ void Heap::GrowForUtilization() {
 
   if (use_footprint_limit) {
     size_t foot_print_limit = alloc_space_->GetFootprintLimit();
-    MutexLock mu(*statistics_lock_);
     concurrent_start_bytes_ = foot_print_limit - concurrent_start_size_;
   }
   SetIdealFootprint(target_size);
@@ -1447,22 +1440,18 @@ void Heap::AddFinalizerReference(Thread* self, Object* object) {
 }
 
 size_t Heap::GetBytesAllocated() const {
-  MutexLock mu(*statistics_lock_);
   return num_bytes_allocated_;
 }
 
 size_t Heap::GetObjectsAllocated() const {
-  MutexLock mu(*statistics_lock_);
   return num_objects_allocated_;
 }
 
 size_t Heap::GetConcurrentStartSize() const {
-  MutexLock mu(*statistics_lock_);
   return concurrent_start_size_;
 }
 
 size_t Heap::GetConcurrentMinFree() const {
-  MutexLock mu(*statistics_lock_);
   return concurrent_min_free_;
 }
 
@@ -1530,7 +1519,6 @@ void Heap::RequestHeapTrim() {
   // not how much use we're making of those pages.
   uint64_t ms_time = NsToMs(NanoTime());
   {
-    MutexLock mu(*statistics_lock_);
     float utilization = static_cast<float>(num_bytes_allocated_) / alloc_space_->Size();
     if ((utilization > 0.75f) || ((ms_time - last_trim_time_) < 2 * 1000)) {
       // Don't bother trimming the heap if it's more than 75% utilized, or if a
