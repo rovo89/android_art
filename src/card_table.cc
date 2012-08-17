@@ -100,6 +100,25 @@ void CardTable::ClearCardTable() {
   memset(mem_map_->Begin(), GC_CARD_CLEAN, mem_map_->Size());
 }
 
+void CardTable::PreClearCards(Space* space, std::vector<byte*>& out_cards) {
+  byte* card_end = CardFromAddr(space->End());
+  for (byte* card_cur = CardFromAddr(space->Begin()); card_cur < card_end; ++card_cur) {
+    if (*card_cur == GC_CARD_DIRTY) {
+      out_cards.push_back(card_cur);
+      *card_cur = GC_CARD_CLEAN;
+    }
+  }
+}
+
+void CardTable::GetDirtyCards(Space* space, std::vector<byte*>& out_cards) const {
+  byte* card_end = CardFromAddr(space->End());
+  for (byte* card_cur = CardFromAddr(space->Begin());card_cur < card_end; ++card_cur) {
+    if (*card_cur == GC_CARD_DIRTY) {
+      out_cards.push_back(card_cur);
+    }
+  }
+}
+
 void CardTable::CheckAddrIsInCardTable(const byte* addr) const {
   byte* card_addr = biased_begin_ + ((uintptr_t)addr >> GC_CARD_SHIFT);
   if (!IsValidCard(card_addr)) {

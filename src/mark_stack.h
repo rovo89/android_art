@@ -17,6 +17,9 @@
 #ifndef ART_SRC_MARK_STACK_H_
 #define ART_SRC_MARK_STACK_H_
 
+#include <string>
+
+#include "atomic.h"
 #include "UniquePtr.h"
 #include "logging.h"
 #include "macros.h"
@@ -28,7 +31,8 @@ class Object;
 
 class MarkStack {
  public:
-  static MarkStack* Create();
+  // Length is in bytes.
+  static MarkStack* Create(const std::string& name, size_t length);
 
   ~MarkStack();
 
@@ -37,6 +41,15 @@ class MarkStack {
     DCHECK_NE(ptr_, limit_);
     *ptr_ = obj;
     ++ptr_;
+  }
+
+  // Beware: Atomic pushes and pops don't mix well.
+  void AtomicPush(const Object* obj) {
+    DCHECK(obj != NULL);
+    DCHECK_NE(ptr_, limit_);
+    DCHECK_EQ(sizeof(ptr_), sizeof(int32_t));
+    int32_t* ptr  = reinterpret_cast<int32_t*>(&ptr_);
+    *reinterpret_cast<const Object**>(android_atomic_add(sizeof(*ptr_), ptr)) = obj;
   }
 
   const Object* Pop() {
@@ -50,12 +63,29 @@ class MarkStack {
     return ptr_ == begin_;
   }
 
+  size_t Size() const {
+    DCHECK_GE(ptr_, begin_);
+    return ptr_ - begin_;
+  }
+
+  const Object* Get(size_t index) const {
+    DCHECK_LT(index, Size());
+    return begin_[index];
+  }
+
+  Object** Begin() {
+    return const_cast<Object**>(begin_);
+  }
+
   void Reset();
 
  private:
-  MarkStack() : begin_(NULL), limit_(NULL), ptr_(NULL) {}
+  MarkStack(const std::string& name) : name_(name), begin_(NULL), limit_(NULL), ptr_(NULL) {}
 
-  void Init();
+  void Init(size_t length);
+
+  // Name of the mark stack.
+  const std::string& name_;
 
   // Memory mapping of the mark stack.
   UniquePtr<MemMap> mem_map_;
@@ -67,7 +97,7 @@ class MarkStack {
   const Object* const* limit_;
 
   // Pointer to the top of the mark stack.
-  const Object**  ptr_;
+  const Object** ptr_;
 
   DISALLOW_COPY_AND_ASSIGN(MarkStack);
 };

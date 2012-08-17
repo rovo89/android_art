@@ -47,6 +47,7 @@ TEST_F(ImageTest, WriteRead) {
       EXPECT_TRUE(klass != NULL) << descriptor;
     }
   }
+
   ImageWriter writer(NULL);
   ScratchFile tmp_image;
   const uintptr_t requested_image_base = 0x60000000;

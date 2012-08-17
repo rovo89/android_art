@@ -224,6 +224,8 @@ class AllocSpace : public Space {
     return mark_bitmap_.get();
   }
 
+  void SetGrowthLimit(size_t growth_limit);
+
   // Swap the live and mark bitmaps of this space. This is used by the GC for concurrent sweeping.
   void SwapBitmaps();
 

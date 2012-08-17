@@ -450,9 +450,9 @@ class PACKED Thread {
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
 #if VERIFY_OBJECT_ENABLED
-  void VerifyStack();
+  void VerifyStack() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 #else
-  void VerifyStack() {}
+  void VerifyStack() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_){}
 #endif
 
   //

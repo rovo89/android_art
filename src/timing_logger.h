@@ -29,7 +29,8 @@ namespace art {
 
 class TimingLogger {
  public:
-  explicit TimingLogger(const char* name) : name_(name) {
+  explicit TimingLogger(const char* name, bool precise = false)
+      : name_(name), precise_(precise) {
     AddSplit("");
   }
 
@@ -45,7 +46,13 @@ class TimingLogger {
   void Dump(std::ostream& os) const {
     os << name_ << ": begin\n";
     for (size_t i = 1; i < times_.size(); ++i) {
-      os << name_ << StringPrintf(": %8lld ms, ", NsToMs(times_[i] - times_[i-1])) << labels_[i] << "\n";
+      if (precise_) {
+        os << name_ << ": " << std::setw(12) << PrettyDuration(times_[i] - times_[i-1]) << " "
+           << labels_[i] << "\n";
+      } else {
+        os << name_ << StringPrintf(": %8lld ms, ", NsToMs(times_[i] - times_[i-1])) << labels_[i]
+           <<  "\n";
+      }
     }
     os << name_ << ": end, " << NsToMs(GetTotalNs()) << " ms\n";
   }
@@ -56,6 +63,7 @@ class TimingLogger {
 
  private:
   std::string name_;
+  bool precise_;
   std::vector<uint64_t> times_;
   std::vector<std::string> labels_;
 };

@@ -92,7 +92,10 @@ bool ImageWriter::Write(const std::string& image_filename,
     return false;
   }
 #ifndef NDEBUG
-  CheckNonImageClassesRemoved();
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    CheckNonImageClassesRemoved();
+  }
 #endif
   heap->DisableCardMarking();
   {
@@ -185,10 +188,13 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
   }
 }
 
-void ImageWriter::ComputeEagerResolvedStrings() {
+void ImageWriter::ComputeEagerResolvedStrings()
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   // TODO: Check image spaces only?
+  Heap* heap = Runtime::Current()->GetHeap();
   ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
-  Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(ComputeEagerResolvedStringsCallback, this);
+  heap->FlushAllocStack();
+  heap->GetLiveBitmap()->Walk(ComputeEagerResolvedStringsCallback, this);
 }
 
 bool ImageWriter::IsImageClass(const Class* klass) {
@@ -263,13 +269,20 @@ bool ImageWriter::NonImageClassesVisitor(Class* klass, void* arg) {
   return true;
 }
 
-void ImageWriter::CheckNonImageClassesRemoved() {
+void ImageWriter::CheckNonImageClassesRemoved()
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   if (image_classes_ == NULL) {
     return;
   }
 
+  Heap* heap = Runtime::Current()->GetHeap();
+  {
+    WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    heap->FlushAllocStack();
+  }
+
   ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
-  Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(CheckNonImageClassesRemovedCallback, this);
+  heap->GetLiveBitmap()->Walk(CheckNonImageClassesRemovedCallback, this);
 }
 
 void ImageWriter::CheckNonImageClassesRemovedCallback(Object* obj, void* arg) {
@@ -379,10 +392,18 @@ void ImageWriter::CalculateNewObjectOffsets() {
   // know where image_roots is going to end up
   image_end_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
 
+  {
+    Heap* heap = Runtime::Current()->GetHeap();
+    ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    heap->FlushAllocStack();
+  }
+
   // TODO: Image spaces only?
-  for (SpaceVec::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
-    (*cur)->GetLiveBitmap()->InOrderWalk(CalculateNewObjectOffsetsCallback, this);
-    DCHECK_LT(image_end_, image_->Size());
+  {
+    for (SpaceVec::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
+      (*cur)->GetLiveBitmap()->InOrderWalk(CalculateNewObjectOffsetsCallback, this);
+      DCHECK_LT(image_end_, image_->Size());
+    }
   }
 
   // Note that image_top_ is left at end of used space
@@ -398,12 +419,14 @@ void ImageWriter::CalculateNewObjectOffsets() {
   memcpy(image_->Begin(), &image_header, sizeof(image_header));
 }
 
-void ImageWriter::CopyAndFixupObjects() {
+void ImageWriter::CopyAndFixupObjects()
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Heap* heap = Runtime::Current()->GetHeap();
   // TODO: heap validation can't handle this fix up pass
   heap->DisableObjectValidation();
   // TODO: Image spaces only?
   ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+  heap->FlushAllocStack();
   heap->GetLiveBitmap()->Walk(CopyAndFixupObjectsCallback, this);
 }
 

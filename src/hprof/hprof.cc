@@ -408,6 +408,10 @@ class Hprof {
     current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT, HPROF_TIME);
     Runtime::Current()->VisitRoots(RootVisitor, this);
     {
+      WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      Runtime::Current()->GetHeap()->FlushAllocStack();
+    }
+    {
       ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
       Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(HeapBitmapCallback, this);
     }

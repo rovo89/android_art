@@ -20,8 +20,8 @@ void HeapBitmap::AddSpaceBitmap(SpaceBitmap* bitmap) {
   // Check for interval overlap.
   for (Bitmaps::const_iterator it = bitmaps_.begin(); it != bitmaps_.end(); ++it) {
     SpaceBitmap* cur_bitmap = *it;
-    if (bitmap->HeapBegin() < cur_bitmap->HeapSize() + cur_bitmap->HeapSize() &&
-        bitmap->HeapBegin() + bitmap->HeapSize() > cur_bitmap->HeapBegin()) {
+    if (bitmap->HeapBegin() < cur_bitmap->HeapLimit() &&
+        bitmap->HeapLimit() > cur_bitmap->HeapBegin()) {
       LOG(FATAL) << "Overlapping space bitmaps added to heap bitmap!";
     }
   }

@@ -23,15 +23,14 @@
 
 namespace art {
 
-MarkStack* MarkStack::Create() {
-  UniquePtr<MarkStack> mark_stack(new MarkStack);
-  mark_stack->Init();
+MarkStack* MarkStack::Create(const std::string& name, size_t length) {
+  UniquePtr<MarkStack> mark_stack(new MarkStack(name));
+  mark_stack->Init(length);
   return mark_stack.release();
 }
 
-void MarkStack::Init() {
-  size_t length = 64 * MB;
-  mem_map_.reset(MemMap::MapAnonymous("dalvik-mark-stack", NULL, length, PROT_READ | PROT_WRITE));
+void MarkStack::Init(size_t length) {
+  mem_map_.reset(MemMap::MapAnonymous(name_.c_str(), NULL, length, PROT_READ | PROT_WRITE));
   if (mem_map_.get() == NULL) {
     std::string maps;
     ReadFileToString("/proc/self/maps", &maps);

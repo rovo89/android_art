@@ -927,9 +927,14 @@ void ClassLinker::InitFromImage() {
   }
 
   // reinit clases_ table
-  const Spaces& vec = heap->GetSpaces();
-  for (Spaces::const_iterator cur = vec.begin(); cur != vec.end(); ++cur) {
-    (*cur)->GetLiveBitmap()->Walk(InitFromImageCallback, this);
+  {
+    ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    heap->FlushAllocStack();
+    const Spaces& vec = heap->GetSpaces();
+    // TODO: C++0x auto
+    for (Spaces::const_iterator it = vec.begin(); it != vec.end(); ++it) {
+      (*it)->GetLiveBitmap()->Walk(InitFromImageCallback, this);
+    }
   }
 
   // reinit class_roots_
