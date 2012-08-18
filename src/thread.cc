@@ -236,14 +236,16 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
 
   if (UNLIKELY(pthread_create_result != 0)) {
     // pthread_create(3) failed, so clean up.
-    ScopedObjectAccess soa(env);
-    Object* peer = soa.Decode<Object*>(java_peer);
-    SetVmData(soa, peer, 0);
-    delete native_thread;
+    {
+      ScopedObjectAccess soa(env);
+      Object* peer = soa.Decode<Object*>(java_peer);
+      SetVmData(soa, peer, 0);
 
-    std::string msg(StringPrintf("pthread_create (%s stack) failed: %s",
-                                 PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
-    Thread::Current()->ThrowOutOfMemoryError(msg.c_str());
+      std::string msg(StringPrintf("pthread_create (%s stack) failed: %s",
+                                   PrettySize(stack_size).c_str(), strerror(pthread_create_result)));
+      Thread::Current()->ThrowOutOfMemoryError(msg.c_str());
+    }
+    delete native_thread;
     return;
   }
 }
