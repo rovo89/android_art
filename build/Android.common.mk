@@ -87,7 +87,6 @@ art_cflags := \
 	-Wextra \
 	-Wstrict-aliasing=3 \
 	-Wthread-safety \
-	-fno-align-jumps \
 	-fstrict-aliasing
 
 ifeq ($(HOST_OS),linux)
