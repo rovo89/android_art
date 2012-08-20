@@ -497,8 +497,10 @@ void Heap::RecordAllocation(AllocSpace* space, const Object* obj) {
     DCHECK_GT(size, 0u);
     COMPILE_ASSERT(sizeof(size_t) == sizeof(int32_t),
                    int32_t_must_be_same_size_as_size_t_for_used_atomic_operations);
-    android_atomic_add(size, reinterpret_cast<volatile int32_t*>(&num_bytes_allocated_));
-    android_atomic_add(1, reinterpret_cast<volatile int32_t*>(&num_objects_allocated_));
+    android_atomic_add(size, reinterpret_cast<volatile int32_t*>(
+        reinterpret_cast<size_t>(&num_bytes_allocated_)));
+    android_atomic_add(1, reinterpret_cast<volatile int32_t*>(
+        reinterpret_cast<size_t>(&num_objects_allocated_)));
 
     if (Runtime::Current()->HasStatsEnabled()) {
       RuntimeStats* global_stats = Runtime::Current()->GetStats();
@@ -525,11 +527,13 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
                  int32_t_must_be_same_size_as_size_t_for_used_atomic_operations);
   DCHECK_LE(freed_objects, num_objects_allocated_);
   android_atomic_add(-static_cast<int32_t>(freed_objects),
-                        reinterpret_cast<volatile int32_t*>(&num_objects_allocated_));
+                        reinterpret_cast<volatile int32_t*>(
+                            reinterpret_cast<size_t>(&num_objects_allocated_)));
 
   DCHECK_LE(freed_bytes, num_bytes_allocated_);
   android_atomic_add(-static_cast<int32_t>(freed_bytes),
-                        reinterpret_cast<volatile int32_t*>(&num_bytes_allocated_));
+                        reinterpret_cast<volatile int32_t*>(
+                            reinterpret_cast<size_t>(&num_bytes_allocated_)));
 
   if (Runtime::Current()->HasStatsEnabled()) {
     RuntimeStats* global_stats = Runtime::Current()->GetStats();

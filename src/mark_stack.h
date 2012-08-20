@@ -48,7 +48,7 @@ class MarkStack {
     DCHECK(obj != NULL);
     DCHECK_NE(ptr_, limit_);
     DCHECK_EQ(sizeof(ptr_), sizeof(int32_t));
-    int32_t* ptr = reinterpret_cast<int32_t*>(&ptr_);
+    int32_t* ptr = reinterpret_cast<int32_t*>(reinterpret_cast<size_t>(&ptr_));
     *reinterpret_cast<const Object**>(android_atomic_add(sizeof(*ptr_), ptr)) = obj;
   }
 
