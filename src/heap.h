@@ -299,7 +299,7 @@ class LOCKABLE Heap {
   // collection.
   void GrowForUtilization();
 
-  size_t GetPercentFree() EXCLUSIVE_LOCKS_REQUIRED(statistics_lock_);
+  size_t GetPercentFree();
 
   void AddSpace(Space* space) LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_);
 
@@ -341,23 +341,19 @@ class LOCKABLE Heap {
   UniquePtr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
 
   // True while the garbage collector is running.
-  volatile bool is_gc_running_ GUARDED_BY(gc_complete_lock_);
-
-  // Guards access to heap statistics, some used to calculate when concurrent GC should occur.
-  // TODO: move bytes/objects allocated to thread-locals and remove need for lock?
-  Mutex* statistics_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  volatile bool is_gc_running_ GUARDED_BY(gc_complete_lock_);;
 
   // Bytes until concurrent GC starts.
-  size_t concurrent_start_bytes_ GUARDED_BY(statistics_lock_);
+  volatile size_t concurrent_start_bytes_;
   size_t concurrent_start_size_;
   size_t concurrent_min_free_;
   size_t sticky_gc_count_;
 
   // Number of bytes allocated.  Adjusted after each allocation and free.
-  size_t num_bytes_allocated_ GUARDED_BY(statistics_lock_);
+  volatile size_t num_bytes_allocated_;
 
   // Number of objects allocated.  Adjusted after each allocation and free.
-  size_t num_objects_allocated_ GUARDED_BY(statistics_lock_);
+  volatile size_t num_objects_allocated_;
 
   // Last trim time
   uint64_t last_trim_time_;
