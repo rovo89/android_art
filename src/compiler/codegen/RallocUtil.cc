@@ -161,6 +161,20 @@ int SRegToPMap(CompilationUnit* cUnit, int sReg)
   }
 }
 
+void oatRecordCorePromotion(CompilationUnit* cUnit, int reg, int sReg)
+{
+  int pMapIdx = SRegToPMap(cUnit, sReg);
+  int vReg = SRegToVReg(cUnit, sReg);
+  oatGetRegInfo(cUnit, reg)->inUse = true;
+  cUnit->coreSpillMask |= (1 << reg);
+  // Include reg for later sort
+  cUnit->coreVmapTable.push_back(reg << VREG_NUM_WIDTH |
+                                 (vReg & ((1 << VREG_NUM_WIDTH) - 1)));
+  cUnit->numCoreSpills++;
+  cUnit->promotionMap[pMapIdx].coreLocation = kLocPhysReg;
+  cUnit->promotionMap[pMapIdx].coreReg = reg;
+}
+
 /* Reserve a callee-save register.  Return -1 if none available */
 extern int oatAllocPreservedCoreReg(CompilationUnit* cUnit, int sReg)
 {
@@ -168,19 +182,22 @@ extern int oatAllocPreservedCoreReg(CompilationUnit* cUnit, int sReg)
   RegisterInfo* coreRegs = cUnit->regPool->coreRegs;
   for (int i = 0; i < cUnit->regPool->numCoreRegs; i++) {
     if (!coreRegs[i].isTemp && !coreRegs[i].inUse) {
-      int vReg = SRegToVReg(cUnit, sReg);
-      int pMapIdx = SRegToPMap(cUnit, sReg);
       res = coreRegs[i].reg;
-      coreRegs[i].inUse = true;
-      cUnit->coreSpillMask |= (1 << res);
-      cUnit->coreVmapTable.push_back(vReg);
-      cUnit->numCoreSpills++;
-      cUnit->promotionMap[pMapIdx].coreLocation = kLocPhysReg;
-      cUnit->promotionMap[pMapIdx].coreReg = res;
+      oatRecordCorePromotion(cUnit, res, sReg);
       break;
     }
   }
   return res;
+}
+
+void oatRecordFpPromotion(CompilationUnit* cUnit, int reg, int sReg)
+{
+  int pMapIdx = SRegToPMap(cUnit, sReg);
+  int vReg = SRegToVReg(cUnit, sReg);
+  oatGetRegInfo(cUnit, reg)->inUse = true;
+  oatMarkPreservedSingle(cUnit, vReg, reg);
+  cUnit->promotionMap[pMapIdx].fpLocation = kLocPhysReg;
+  cUnit->promotionMap[pMapIdx].fpReg = reg;
 }
 
 /*
@@ -195,13 +212,8 @@ int allocPreservedSingle(CompilationUnit* cUnit, int sReg, bool even)
   for (int i = 0; i < cUnit->regPool->numFPRegs; i++) {
     if (!FPRegs[i].isTemp && !FPRegs[i].inUse &&
       ((FPRegs[i].reg & 0x1) == 0) == even) {
-      int vReg = SRegToVReg(cUnit, sReg);
-      int pMapIdx = SRegToPMap(cUnit, sReg);
       res = FPRegs[i].reg;
-      FPRegs[i].inUse = true;
-      oatMarkPreservedSingle(cUnit, vReg, res);
-      cUnit->promotionMap[pMapIdx].fpLocation = kLocPhysReg;
-      cUnit->promotionMap[pMapIdx].fpReg = res;
+      oatRecordFpPromotion(cUnit, res, sReg);
       break;
     }
   }
@@ -1236,6 +1248,9 @@ extern void oatDoPromotion(CompilationUnit* cUnit)
         }
       }
     }
+  }
+  if (cUnit->printMe) {
+    oatDumpPromotionMap(cUnit);
   }
 }
 

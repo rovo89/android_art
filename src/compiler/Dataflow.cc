@@ -1854,6 +1854,12 @@ bool basicBlockOpt(CompilationUnit* cUnit, BasicBlock* bb)
       case Instruction::CMPG_FLOAT:
       case Instruction::CMPG_DOUBLE:
       case Instruction::CMP_LONG:
+#if defined(ART_USE_QUICK_COMPILER)
+        if (cUnit->genBitcode) {
+          // Bitcode doesn't allow this optimization.
+          break;
+        }
+#endif
         if (mir->next != NULL) {
           MIR* mirNext = mir->next;
           Instruction::Code brOpcode = mirNext->dalvikInsn.opcode;
@@ -2090,10 +2096,8 @@ void oatMethodBasicBlockOptimization(CompilationUnit *cUnit)
   if (!(cUnit->disableOpt & (1 << kBBOpt))) {
     oatInitGrowableList(cUnit, &cUnit->compilerTemps, 6, kListMisc);
     DCHECK_EQ(cUnit->numCompilerTemps, 0);
-    if (!(cUnit->disableOpt & (1 << kBBOpt))) {
-      oatDataFlowAnalysisDispatcher(cUnit, basicBlockOpt,
-                                    kAllNodes, false /* isIterative */);
-    }
+    oatDataFlowAnalysisDispatcher(cUnit, basicBlockOpt,
+                                  kAllNodes, false /* isIterative */);
   }
 }
 

@@ -107,17 +107,63 @@ void createLocFromValue(CompilationUnit* cUnit, llvm::Value* val)
   loc.wide = ((ty == cUnit->irb->getInt64Ty()) ||
               (ty == cUnit->irb->getDoubleTy()));
   loc.defined = true;
-  if ((ty == cUnit->irb->getFloatTy()) ||
-      (ty == cUnit->irb->getDoubleTy())) {
-    loc.fp = true;
-  } else if (ty == cUnit->irb->GetJObjectTy()) {
-    loc.ref = true;
-  } else {
-    loc.core = true;
-  }
-  loc.home = false;  // Will change during promotion
+  loc.home = false;  // May change during promotion
   loc.sRegLow = baseSReg;
   loc.origSReg = cUnit->locMap.size();
+  PromotionMap pMap = cUnit->promotionMap[baseSReg];
+  if (ty == cUnit->irb->getFloatTy()) {
+    loc.fp = true;
+    if (pMap.fpLocation == kLocPhysReg) {
+      loc.lowReg = pMap.fpReg;
+      loc.location = kLocPhysReg;
+      loc.home = true;
+    }
+  } else if (ty == cUnit->irb->getDoubleTy()) {
+    loc.fp = true;
+    PromotionMap pMapHigh = cUnit->promotionMap[baseSReg + 1];
+    if ((pMap.fpLocation == kLocPhysReg) &&
+        (pMapHigh.fpLocation == kLocPhysReg) &&
+        ((pMap.fpReg & 0x1) == 0) &&
+        (pMap.fpReg + 1 == pMapHigh.fpReg)) {
+      loc.lowReg = pMap.fpReg;
+      loc.highReg = pMapHigh.fpReg;
+      loc.location = kLocPhysReg;
+      loc.home = true;
+    }
+  } else if (ty == cUnit->irb->GetJObjectTy()) {
+    loc.ref = true;
+    if (pMap.coreLocation == kLocPhysReg) {
+      loc.lowReg = pMap.coreReg;
+      loc.location = kLocPhysReg;
+      loc.home = true;
+    }
+  } else if (ty == cUnit->irb->getInt64Ty()) {
+    loc.core = true;
+    PromotionMap pMapHigh = cUnit->promotionMap[baseSReg + 1];
+    if ((pMap.coreLocation == kLocPhysReg) &&
+        (pMapHigh.coreLocation == kLocPhysReg)) {
+      loc.lowReg = pMap.coreReg;
+      loc.highReg = pMapHigh.coreReg;
+      loc.location = kLocPhysReg;
+      loc.home = true;
+    }
+  } else {
+    loc.core = true;
+    if (pMap.coreLocation == kLocPhysReg) {
+      loc.lowReg = pMap.coreReg;
+      loc.location = kLocPhysReg;
+      loc.home = true;
+    }
+  }
+
+  if (cUnit->printMe && loc.home) {
+    if (loc.wide) {
+      LOG(INFO) << "Promoted wide " << s << " to regs " << loc.lowReg
+                << "/" << loc.highReg;
+    } else {
+      LOG(INFO) << "Promoted " << s << " to reg " << loc.lowReg;
+    }
+  }
   cUnit->locMap.Put(val, loc);
 }
 
@@ -2883,12 +2929,19 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
         oatNew(cUnit, sizeof(RegLocation) * cUnit->numIns, true, kAllocMisc);
     llvm::Function::arg_iterator it(cUnit->func->arg_begin());
     llvm::Function::arg_iterator it_end(cUnit->func->arg_end());
+    // Skip past Method*
+    it++;
     for (unsigned i = 0; it != it_end; ++it) {
       llvm::Value* val = it;
       argLocs[i++] = valToLoc(cUnit, val);
       llvm::Type* ty = val->getType();
       if ((ty == cUnit->irb->getInt64Ty()) || (ty == cUnit->irb->getDoubleTy())) {
-        argLocs[i++].sRegLow = INVALID_SREG;
+        argLocs[i] = argLocs[i-1];
+        argLocs[i].lowReg = argLocs[i].highReg;
+        argLocs[i].origSReg++;
+        argLocs[i].sRegLow = INVALID_SREG;
+        argLocs[i].highWord = true;
+        i++;
       }
     }
     genEntrySequence(cUnit, argLocs, cUnit->methodLoc);
@@ -3365,15 +3418,78 @@ void oatMethodBitcode2LIR(CompilationUnit* cUnit)
   cUnit->numFPSpills = 0;
   cUnit->coreVmapTable.clear();
   cUnit->fpVmapTable.clear();
-  oatAdjustSpillMask(cUnit);
-  cUnit->frameSize = oatComputeFrameSize(cUnit);
 
   /*
    * At this point, we've lost all knowledge of register promotion.
    * Rebuild that info from the MethodInfo intrinsic (if it
-   * exists - not required for correctness).
+   * exists - not required for correctness).  Normally, this will
+   * be the first instruction we encounter, so we won't have to iterate
+   * through everything.
    */
-  // TODO: find and recover MethodInfo.
+  for (llvm::inst_iterator i = llvm::inst_begin(func),
+       e = llvm::inst_end(func); i != e; ++i) {
+    llvm::CallInst* callInst = llvm::dyn_cast<llvm::CallInst>(&*i);
+    if (callInst != NULL) {
+      llvm::Function* callee = callInst->getCalledFunction();
+      greenland::IntrinsicHelper::IntrinsicId id =
+          cUnit->intrinsic_helper->GetIntrinsicId(callee);
+      if (id == greenland::IntrinsicHelper::MethodInfo) {
+        if (cUnit->printMe) {
+          LOG(INFO) << "Found MethodInfo";
+        }
+        llvm::MDNode* regInfoNode = callInst->getMetadata("RegInfo");
+        if (regInfoNode != NULL) {
+          llvm::ConstantInt* numInsValue =
+            static_cast<llvm::ConstantInt*>(regInfoNode->getOperand(0));
+          llvm::ConstantInt* numRegsValue =
+            static_cast<llvm::ConstantInt*>(regInfoNode->getOperand(1));
+          llvm::ConstantInt* numOutsValue =
+            static_cast<llvm::ConstantInt*>(regInfoNode->getOperand(2));
+          llvm::ConstantInt* numCompilerTempsValue =
+            static_cast<llvm::ConstantInt*>(regInfoNode->getOperand(3));
+          llvm::ConstantInt* numSSARegsValue =
+            static_cast<llvm::ConstantInt*>(regInfoNode->getOperand(4));
+          if (cUnit->printMe) {
+             LOG(INFO) << "RegInfo - Ins:" << numInsValue->getZExtValue()
+                       << ", Regs:" << numRegsValue->getZExtValue()
+                       << ", Outs:" << numOutsValue->getZExtValue()
+                       << ", CTemps:" << numCompilerTempsValue->getZExtValue()
+                       << ", SSARegs:" << numSSARegsValue->getZExtValue();
+            }
+          }
+        llvm::MDNode* pmapInfoNode = callInst->getMetadata("PromotionMap");
+        if (pmapInfoNode != NULL) {
+          int elems = pmapInfoNode->getNumOperands();
+          if (cUnit->printMe) {
+            LOG(INFO) << "PMap size: " << elems;
+          }
+          for (int i = 0; i < elems; i++) {
+            llvm::ConstantInt* rawMapData =
+                static_cast<llvm::ConstantInt*>(pmapInfoNode->getOperand(i));
+            uint32_t mapData = rawMapData->getZExtValue();
+            PromotionMap* p = &cUnit->promotionMap[i];
+            p->firstInPair = (mapData >> 24) & 0xff;
+            p->fpReg = (mapData >> 16) & 0xff;
+            p->coreReg = (mapData >> 8) & 0xff;
+            p->fpLocation = static_cast<RegLocationType>((mapData >> 4) & 0xf);
+            if (p->fpLocation == kLocPhysReg) {
+              oatRecordFpPromotion(cUnit, p->fpReg, i);
+            }
+            p->coreLocation = static_cast<RegLocationType>(mapData & 0xf);
+            if (p->coreLocation == kLocPhysReg) {
+              oatRecordCorePromotion(cUnit, p->coreReg, i);
+            }
+          }
+          if (cUnit->printMe) {
+            oatDumpPromotionMap(cUnit);
+          }
+        }
+        break;
+      }
+    }
+  }
+  oatAdjustSpillMask(cUnit);
+  cUnit->frameSize = oatComputeFrameSize(cUnit);
 
   // Create RegLocations for arguments
   llvm::Function::arg_iterator it(cUnit->func->arg_begin());

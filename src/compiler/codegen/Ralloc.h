@@ -198,6 +198,9 @@ extern int oatSRegOffset(CompilationUnit* cUnit, int reg);
 extern void oatCountRefs(CompilationUnit*, BasicBlock*, RefCounts*, RefCounts*);
 extern int oatSortCounts(const void *val1, const void *val2);
 extern void oatDumpCounts(const RefCounts* arr, int size, const char* msg);
+extern void oatRecordCorePromotion(CompilationUnit* cUnit, int reg, int sReg);
+extern void oatRecordFpPromotion(CompilationUnit* cUnit, int reg, int sReg);
+
 
 /*
  * Architecture-dependent register allocation routines implemented in

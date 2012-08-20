@@ -41,6 +41,9 @@ namespace art {
 #define EXERCISE_RESOLVE_METHOD (cUnit->enableDebug & \
   (1 << kDebugExerciseResolveMethod))
 
+// Minimum field size to contain Dalvik vReg number
+#define VREG_NUM_WIDTH 16
+
 enum RegisterClass {
   kCoreReg,
   kFPReg,
@@ -455,8 +458,8 @@ struct CompilationUnit {
   int assemblerRetries;
   std::vector<uint8_t> codeBuffer;
   std::vector<uint32_t> mappingTable;
-  std::vector<uint16_t> coreVmapTable;
-  std::vector<uint16_t> fpVmapTable;
+  std::vector<uint32_t> coreVmapTable;
+  std::vector<uint32_t> fpVmapTable;
   bool genDebugger;                   // Generate code for debugger
   bool printMe;
   bool hasClassLiterals;              // Contains class ptrs used as literals
