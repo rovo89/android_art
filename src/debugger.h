@@ -31,7 +31,7 @@
 namespace art {
 
 struct AllocRecord;
-struct Thread;
+class Thread;
 
 /*
  * Invoke-during-breakpoint support.

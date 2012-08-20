@@ -1162,7 +1162,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
-    JValue result(InvokeVirtualOrInterfaceWithVarArgs(soa, obj, mid, ap));
+    InvokeVirtualOrInterfaceWithVarArgs(soa, obj, mid, ap);
     va_end(ap);
   }
 

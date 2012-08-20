@@ -47,7 +47,7 @@ class ClassLoader;
 class DexFile;
 class Heap;
 class InternTable;
-class JavaVMExt;
+struct JavaVMExt;
 class Method;
 class MonitorList;
 class SignalCatcher;

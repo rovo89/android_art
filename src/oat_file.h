@@ -108,7 +108,7 @@ class OatFile {
       return GetOatPointer<const uint8_t*>(gc_map_offset_);
     }
 
-    const Method::InvokeStub* GetInvokeStub() const;
+    Method::InvokeStub* GetInvokeStub() const;
     uint32_t GetInvokeStubSize() const;
 
 #if defined(ART_USE_LLVM_COMPILER)

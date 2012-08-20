@@ -61,7 +61,7 @@ class DexInstructionVisitor {
 #undef INSTRUCTION_VISITOR
 
   // The default instruction handler.
-  void Do_Default(const Instruction* inst) {
+  void Do_Default(const Instruction*) {
     return;
   }
 };

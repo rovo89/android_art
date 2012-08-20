@@ -526,7 +526,7 @@ void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result
 
   // Call the invoke stub associated with the method.
   // Pass everything as arguments.
-  const Method::InvokeStub* stub = GetInvokeStub();
+  Method::InvokeStub* stub = GetInvokeStub();
 
   bool have_executable_code = (GetCode() != NULL);
 

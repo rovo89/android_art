@@ -546,7 +546,7 @@ class MANAGED Field : public Object {
 // C++ mirror of java.lang.reflect.Method and java.lang.reflect.Constructor
 class MANAGED Method : public Object {
  public:
-  // An function that invokes a method with an array of its arguments.
+  // A function that invokes a method with an array of its arguments.
   typedef void InvokeStub(const Method* method,
                           Object* obj,
                           Thread* thread,
@@ -857,7 +857,7 @@ class MANAGED Method : public Object {
   }
 
   // Native to managed invocation stub entry point
-  const InvokeStub* GetInvokeStub() const {
+  InvokeStub* GetInvokeStub() const {
     InvokeStub* result = GetFieldPtr<InvokeStub*>(
         OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_), false);
     // TODO: DCHECK(result != NULL);  should be ahead of time compiled
@@ -865,8 +865,8 @@ class MANAGED Method : public Object {
   }
 
   void SetInvokeStub(InvokeStub* invoke_stub) {
-    SetFieldPtr<const InvokeStub*>(OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_),
-                                   invoke_stub, false);
+    SetFieldPtr<InvokeStub*>(OFFSET_OF_OBJECT_MEMBER(Method, invoke_stub_),
+                             invoke_stub, false);
   }
 
   uint32_t GetInvokeStubSize() const {
@@ -1010,7 +1010,7 @@ class MANAGED Method : public Object {
   const uint8_t* gc_map_;
 
   // Native invocation stub entry point for calling from native to managed code.
-  const InvokeStub* invoke_stub_;
+  InvokeStub* invoke_stub_;
 
   // Mapping from native pc to dex pc
   const uint32_t* mapping_table_;

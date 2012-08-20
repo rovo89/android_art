@@ -422,7 +422,7 @@ DEFINE_FUNCTION art_fmodf_from_code
     pushl %ecx                    // pass arg2 b
     pushl %eax                    // pass arg1 a
     call SYMBOL(fmodf)            // (jfloat a, jfloat b)
-    fstp  (%esp)                  // pop return value off fp stack
+    fstps (%esp)                  // pop return value off fp stack
     movss (%esp), %xmm0           // place into %xmm0
     addl LITERAL(12), %esp        // pop arguments
     ret
@@ -442,7 +442,7 @@ DEFINE_FUNCTION art_l2f_from_code
     pushl %ecx                    // pass arg2 a.hi
     pushl %eax                    // pass arg1 a.lo
     call SYMBOL(art_l2f)          // (jlong a)
-    fstp  (%esp)                  // pop return value off fp stack
+    fstps (%esp)                  // pop return value off fp stack
     movss (%esp), %xmm0           // place into %xmm0
     addl LITERAL(12), %esp        // pop arguments
     ret
@@ -819,8 +819,8 @@ DEFINE_FUNCTION art_string_compareto
     ret
     .balign 16
 not_equal:
-    movzxw  -2(%esi), %eax        // get last compared char from this string
-    movzxw  -2(%edi), %ecx        // get last compared char from comp string
+    movzwl  -2(%esi), %eax        // get last compared char from this string
+    movzwl  -2(%edi), %ecx        // get last compared char from comp string
     subl  %ecx, %eax              // return the difference
     popl  %edi                    // pop callee save reg
     popl  %esi                    // pop callee save reg

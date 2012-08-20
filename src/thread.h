@@ -46,7 +46,7 @@ class Class;
 class ClassLinker;
 class ClassLoader;
 class Context;
-class DebugInvokeReq;
+struct DebugInvokeReq;
 class Method;
 class Monitor;
 class Object;

@@ -485,13 +485,14 @@ Runtime::ParsedOptions* Runtime::ParsedOptions::Create(const Options& options, b
     } else if (StartsWith(option, "-Xstacktracefile:")) {
       parsed->stack_trace_file_ = option.substr(strlen("-Xstacktracefile:"));
     } else if (option == "sensitiveThread") {
-      parsed->hook_is_sensitive_thread_ = reinterpret_cast<bool (*)()>(options[i].second);
+      parsed->hook_is_sensitive_thread_ = reinterpret_cast<bool (*)()>(const_cast<void*>(options[i].second));
     } else if (option == "vfprintf") {
-      parsed->hook_vfprintf_ = reinterpret_cast<int (*)(FILE *, const char*, va_list)>(options[i].second);
+      parsed->hook_vfprintf_ =
+          reinterpret_cast<int (*)(FILE *, const char*, va_list)>(const_cast<void*>(options[i].second));
     } else if (option == "exit") {
-      parsed->hook_exit_ = reinterpret_cast<void(*)(jint)>(options[i].second);
+      parsed->hook_exit_ = reinterpret_cast<void(*)(jint)>(const_cast<void*>(options[i].second));
     } else if (option == "abort") {
-      parsed->hook_abort_ = reinterpret_cast<void(*)()>(options[i].second);
+      parsed->hook_abort_ = reinterpret_cast<void(*)()>(const_cast<void*>(options[i].second));
     } else if (option == "host-prefix") {
       parsed->host_prefix_ = reinterpret_cast<const char*>(options[i].second);
     } else if (option == "-Xgenregmap" || option == "-Xgc:precise") {

@@ -334,8 +334,9 @@ uint32_t OatFile::OatMethod::GetCodeSize() const {
   return reinterpret_cast<uint32_t*>(code)[-1];
 }
 
-const Method::InvokeStub* OatFile::OatMethod::GetInvokeStub() const {
-  return GetOatPointer<const Method::InvokeStub*>(invoke_stub_offset_);
+Method::InvokeStub* OatFile::OatMethod::GetInvokeStub() const {
+  const byte* stub = GetOatPointer<const byte*>(invoke_stub_offset_);
+  return reinterpret_cast<Method::InvokeStub*>(const_cast<byte*>(stub));
 }
 
 uint32_t OatFile::OatMethod::GetInvokeStubSize() const {

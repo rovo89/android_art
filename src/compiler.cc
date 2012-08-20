@@ -1003,7 +1003,7 @@ class WorkerThread {
   const CompilationContext* const context_;
   const size_t begin_;
   const size_t end_;
-  const Callback* callback_;
+  Callback* callback_;
   const size_t stripe_;
 
   friend void ForAll(CompilationContext*, size_t, size_t, Callback, size_t);
