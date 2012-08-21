@@ -31,4 +31,16 @@
 #include "dlmalloc/malloc.h"
 #endif
 
+#include <stddef.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void dlmalloc_inspect_all(void(*handler)(void*, void *, size_t, void*), void* arg);
+
+#ifdef __cplusplus
+};  /* end of extern "C" */
+#endif
+
 #endif  // ART_SRC_DLMALLOC_H_

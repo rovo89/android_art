@@ -171,11 +171,7 @@ static void VMRuntime_trimHeap(JNIEnv*, jobject) {
       heap->Trim(alloc_space);
       // Trim the native heap.
       dlmalloc_trim(0);
-#if 0 // TODO: switch over to this when bionic has moved to dlmalloc 2.8.5
       dlmalloc_inspect_all(MspaceMadviseCallback, NULL);
-#else
-      dlmalloc_walk_free_pages(MspaceMadviseCallback, NULL);
-#endif
       LOG(INFO) << "Parallel heap trimming took " << PrettyDuration(NanoTime() - start_ns)
                 << " on a " << PrettySize(alloc_space_size)
                 << " alloc space with " << static_cast<int>(100 * utilization) << "% utilization";

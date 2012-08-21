@@ -319,7 +319,11 @@ size_t AllocSpace::AllocationSize(const Object* obj) {
   return mspace_usable_size(const_cast<void*>(reinterpret_cast<const void*>(obj))) + kChunkOverhead;
 }
 
-void MspaceMadviseCallback(void* start, void* end, void* /*arg*/) {
+void MspaceMadviseCallback(void* start, void* end, size_t used_bytes, void* /* arg */) {
+  // Is this chunk in use?
+  if (used_bytes != 0) {
+    return;
+  }
   // Do we have any whole pages to give back?
   start = reinterpret_cast<void*>(RoundUp(reinterpret_cast<uintptr_t>(start), kPageSize));
   end = reinterpret_cast<void*>(RoundDown(reinterpret_cast<uintptr_t>(end), kPageSize));
@@ -327,14 +331,6 @@ void MspaceMadviseCallback(void* start, void* end, void* /*arg*/) {
     size_t length = reinterpret_cast<byte*>(end) - reinterpret_cast<byte*>(start);
     CHECK_MEMORY_CALL(madvise, (start, length, MADV_DONTNEED), "trim");
   }
-}
-
-void MspaceMadviseCallback(void* start, void* end, size_t used_bytes, void* arg) {
-  // Is this chunk in use?
-  if (used_bytes != 0) {
-    return;
-  }
-  return MspaceMadviseCallback(start, end, arg);
 }
 
 void AllocSpace::Trim() {

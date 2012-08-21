@@ -320,8 +320,6 @@ class ImageSpace : public Space {
 // Callback for dlmalloc_inspect_all or mspace_inspect_all that will madvise(2) unused
 // pages back to the kernel.
 void MspaceMadviseCallback(void* start, void* end, size_t used_bytes, void* /*arg*/);
-// Callback for the obsolete dlmalloc_walk_free_pages.
-void MspaceMadviseCallback(void* start, void* end, void* /*arg*/);
 
 }  // namespace art
 
