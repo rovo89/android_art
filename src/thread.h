@@ -186,15 +186,19 @@ class PACKED Thread {
 
   // Called when thread detected that the thread_suspend_count_ was non-zero. Gives up share of
   // mutator_lock_ and waits until it is resumed and thread_suspend_count_ is zero.
-  void FullSuspendCheck() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void FullSuspendCheck()
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Transition from non-runnable to runnable state acquiring share on mutator_lock_.
   ThreadState TransitionFromSuspendedToRunnable()
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
       SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_);
 
   // Transition from runnable into a state where mutator privileges are denied. Releases share of
   // mutator lock.
   void TransitionFromRunnableToSuspended(ThreadState new_state)
+      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
       UNLOCK_FUNCTION(GlobalSynchronization::mutator_lock_);
 
   // Wait for a debugger suspension on the thread associated with the given peer. Returns the

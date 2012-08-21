@@ -55,12 +55,10 @@ static void JniAbort(const char* jni_function_name, const char* msg) {
   if (vm->check_jni_abort_hook != NULL) {
     vm->check_jni_abort_hook(vm->check_jni_abort_hook_data, os.str());
   } else {
-    {
-      MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
-      CHECK_NE(self->GetState(), kRunnable);
-      self->SetState(kNative); // Ensure that we get a native stack trace for this thread.
-    }
+    // Ensure that we get a native stack trace for this thread.
+    self->TransitionFromRunnableToSuspended(kNative);
     LOG(FATAL) << os.str();
+    self->TransitionFromSuspendedToRunnable();  // Unreachable, keep annotalysis happy.
   }
 }
 
