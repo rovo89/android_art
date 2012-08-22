@@ -1169,6 +1169,10 @@ void GBCExpanderPass::InsertStackOverflowCheck(llvm::Function& func) {
   // alloca instructions)
   EmitStackOverflowCheck(&*first_non_alloca);
 
+#if defined(ART_USE_QUICK_COMPILER)
+  irb_.Runtime().EmitTestSuspend();
+#endif
+
   llvm::BasicBlock* next_basic_block = irb_.GetInsertBlock();
   if (next_basic_block != first_basic_block) {
     // Splice the rest of the instruction to the continuing basic block
@@ -2630,8 +2634,11 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::GetCurrentThread: {
       return irb_.Runtime().EmitGetCurrentThread();
     }
-    case IntrinsicHelper::TestSuspend:
     case IntrinsicHelper::CheckSuspend: {
+      // We will add suspend by ourselves.
+      return NULL;
+    }
+    case IntrinsicHelper::TestSuspend: {
       Expand_TestSuspend(call_inst);
       return NULL;
     }

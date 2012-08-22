@@ -608,6 +608,10 @@ void convertInvoke(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
   llvm::Value* res = cUnit->irb->CreateCall(intr, args);
   if (info->result.location != kLocInvalid) {
     defineValue(cUnit, res, info->result.origSReg);
+    if (info->result.ref) {
+      setShadowFrameEntry(cUnit, (llvm::Value*)
+                          cUnit->llvmValues.elemList[info->result.origSReg]);
+    }
   }
 }
 
