@@ -230,6 +230,7 @@ class LOCKABLE Heap {
   size_t GetObjectsAllocated() const LOCKS_EXCLUDED(statistics_lock_);
   size_t GetConcurrentStartSize() const LOCKS_EXCLUDED(statistics_lock_);
   size_t GetConcurrentMinFree() const LOCKS_EXCLUDED(statistics_lock_);
+  size_t GetUsedMemorySize() const LOCKS_EXCLUDED(statistics_lock_);
 
   // Functions for getting the bitmap which corresponds to an object's address.
   // This is probably slow, TODO: use better data structure like binary tree .

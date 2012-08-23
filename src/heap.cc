@@ -238,14 +238,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   zygote_mod_union_table_.reset(new ModUnionTableCardCache(this));
   CHECK(zygote_mod_union_table_.get() != NULL) << "Failed to create Zygote mod-union table";
 
-  num_bytes_allocated_ = 0;
-  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
-    if ((*it)->IsImageSpace()) {
-      num_bytes_allocated_ += (*it)->AsImageSpace()->Size();
-    }
-  }
-
   // TODO: Count objects in the image space here.
+  num_bytes_allocated_ = 0;
   num_objects_allocated_ = 0;
 
   // Max stack size in bytes.
@@ -762,11 +756,24 @@ void Heap::PreZygoteFork() {
       break;
     }
   }
+
+  // Reset this since we now count the ZygoteSpace in the total heap size.
+  num_bytes_allocated_ = 0;
 }
 
 void Heap::FlushAllocStack() {
   MarkStackAsLive(allocation_stack_.get());
   allocation_stack_->Reset();
+}
+
+size_t Heap::GetUsedMemorySize() const {
+  size_t total = num_bytes_allocated_;
+  for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+    if ((*it)->IsZygoteSpace()) {
+      total += (*it)->AsAllocSpace()->Size();
+    }
+  }
+  return total;
 }
 
 void Heap::MarkStackAsLive(MarkStack* alloc_stack) {
@@ -1021,11 +1028,11 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
   uint64_t duration = (NanoTime() - start_time) / 1000 * 1000;
   if (duration > MsToNs(50)) {
     const size_t percent_free = GetPercentFree();
-    const size_t num_bytes_allocated = num_bytes_allocated_;
+    const size_t current_heap_size = GetUsedMemorySize();
     const size_t total_memory = GetTotalMemory();
     LOG(INFO) << (gc_type == GC_PARTIAL ? "Partial " : (gc_type == GC_STICKY ? "Sticky " : ""))
               << "GC freed " << PrettySize(bytes_freed) << ", " << percent_free << "% free, "
-              << PrettySize(num_bytes_allocated) << "/" << PrettySize(total_memory) << ", "
+              << PrettySize(current_heap_size) << "/" << PrettySize(total_memory) << ", "
               << "paused " << PrettyDuration(duration);
   }
 
@@ -1250,11 +1257,11 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
   uint64_t duration = (NanoTime() - root_begin) / 1000 * 1000;
   if (pause_roots > MsToNs(5) || pause_dirty > MsToNs(5)) {
     const size_t percent_free = GetPercentFree();
-    const size_t num_bytes_allocated = num_bytes_allocated_;
+    const size_t current_heap_size = GetUsedMemorySize();
     const size_t total_memory = GetTotalMemory();
     LOG(INFO) << (gc_type == GC_PARTIAL ? "Partial " : (gc_type == GC_STICKY ? "Sticky " : ""))
               << "Concurrent GC freed " << PrettySize(bytes_freed) << ", " << percent_free
-              << "% free, " << PrettySize(num_bytes_allocated) << "/"
+              << "% free, " << PrettySize(current_heap_size) << "/"
               << PrettySize(total_memory) << ", " << "paused " << PrettyDuration(pause_roots)
               << "+" << PrettyDuration(pause_dirty) << " total " << PrettyDuration(duration);
   }
@@ -1339,7 +1346,7 @@ void Heap::GrowForUtilization() {
     }
 
     // Calculate when to perform the next ConcurrentGC.
-    if (GetTotalMemory() - num_bytes_allocated_ < concurrent_min_free_) {
+    if (GetTotalMemory() - GetUsedMemorySize() < concurrent_min_free_) {
       // Not enough free memory to perform concurrent GC.
       concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
     } else {
