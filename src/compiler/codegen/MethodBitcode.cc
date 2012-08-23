@@ -539,7 +539,9 @@ void setShadowFrameEntry(CompilationUnit* cUnit, llvm::Value* newVal)
       break;
     }
   }
-  DCHECK_NE(index, -1) << "Corrupt shadowMap";
+  if (index == -1) {
+    return;
+  }
   greenland::IntrinsicHelper::IntrinsicId id =
       greenland::IntrinsicHelper::SetShadowFrameEntry;
   llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(id);
@@ -922,6 +924,9 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
     case Instruction::CONST:
     case Instruction::CONST_4:
     case Instruction::CONST_16: {
+        if (vB == 0) {
+          objectDefinition = true;
+        }
         llvm::Constant* immValue = cUnit->irb->GetJInt(vB);
         llvm::Value* res = emitConst(cUnit, immValue, rlDest);
         defineValue(cUnit, res, rlDest.origSReg);

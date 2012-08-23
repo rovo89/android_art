@@ -1158,6 +1158,11 @@ void GBCExpanderPass::Expand_SetShadowFrameEntry(llvm::Value* obj,
   };
 
   llvm::Value* entry_addr = irb_.CreateGEP(shadow_frame_, gep_index);
+#if defined(ART_USE_QUICK_COMPILER)
+  if (obj->getType() != irb_.getJObjectTy()) {
+    obj = irb_.getJNull();
+  }
+#endif
   irb_.CreateStore(obj, entry_addr, kTBAAShadowFrame);
   return;
 }
