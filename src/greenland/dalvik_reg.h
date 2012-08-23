@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_SRC_COMPILER_LLVM_DALVIK_REG_H_
-#define ART_SRC_COMPILER_LLVM_DALVIK_REG_H_
+#ifndef ART_SRC_GREENLAND_DALVIK_REG_H_
+#define ART_SRC_GREENLAND_DALVIK_REG_H_
 
 #include "backend_types.h"
 
@@ -76,4 +76,4 @@ class DalvikReg {
 } // namespace greenland
 } // namespace art
 
-#endif // ART_SRC_COMPILER_LLVM_DALVIK_REG_H_
+#endif // ART_SRC_GREENLAND_DALVIK_REG_H_

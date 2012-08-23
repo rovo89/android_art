@@ -59,7 +59,6 @@ class GBCExpanderPass : public llvm::FunctionPass {
   Compiler* compiler_;
 
   const DexFile* dex_file_;
-  DexCache* dex_cache_;
   const DexFile::CodeItem* code_item_;
 
   OatCompilationUnit* oat_compilation_unit_;
@@ -326,12 +325,23 @@ class GBCExpanderPass : public llvm::FunctionPass {
   GBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb)
       : llvm::FunctionPass(ID), intrinsic_helper_(intrinsic_helper), irb_(irb),
         context_(irb.getContext()), rtb_(irb.Runtime()),
-
-        // TODO: Initialize these fields correctly.
         shadow_frame_(NULL), old_shadow_frame_(NULL), shadow_frame_size_(0),
-        compiler_(NULL), dex_file_(NULL), dex_cache_(NULL), code_item_(NULL),
+        compiler_(NULL), dex_file_(NULL), code_item_(NULL),
         oat_compilation_unit_(NULL), method_idx_(-1u), func_(NULL),
         changed_(false)
+  { }
+
+  GBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
+                  Compiler* compiler, OatCompilationUnit* oat_compilation_unit)
+      : llvm::FunctionPass(ID), intrinsic_helper_(intrinsic_helper), irb_(irb),
+        context_(irb.getContext()), rtb_(irb.Runtime()),
+        shadow_frame_(NULL), old_shadow_frame_(NULL), shadow_frame_size_(0),
+        compiler_(compiler),
+        dex_file_(oat_compilation_unit->GetDexFile()),
+        code_item_(oat_compilation_unit->GetCodeItem()),
+        oat_compilation_unit_(oat_compilation_unit),
+        method_idx_(oat_compilation_unit->GetDexMethodIndex()),
+        func_(NULL), changed_(false)
   { }
 
   bool runOnFunction(llvm::Function& func);
@@ -358,6 +368,21 @@ bool GBCExpanderPass::runOnFunction(llvm::Function& func) {
   shadow_frame_size_ = 0;
   func_ = &func;
   changed_ = false; // Assume unchanged
+
+#if defined(ART_USE_QUICK_COMPILER)
+  basic_blocks_.resize(code_item_->insns_size_in_code_units_);
+  basic_block_landing_pads_.resize(code_item_->tries_size_, NULL);
+  basic_block_unwind_ = NULL;
+  for (llvm::Function::iterator bb_iter = func_->begin(), bb_end = func_->end();
+       bb_iter != bb_end;
+       ++bb_iter) {
+    if (bb_iter->begin()->getMetadata("DexOff") == NULL) {
+      continue;
+    }
+    uint32_t dex_pc = LV2UInt(bb_iter->begin()->getMetadata("DexOff")->getOperand(0));
+    basic_blocks_[dex_pc] = bb_iter;
+  }
+#endif
 
   // Insert stack overflow check
   InsertStackOverflowCheck(func); // TODO: Use intrinsic.
@@ -1138,6 +1163,11 @@ void GBCExpanderPass::Expand_SetShadowFrameEntry(llvm::Value* obj,
 }
 
 void GBCExpanderPass::Expand_PopShadowFrame() {
+#if defined(ART_USE_QUICK_COMPILER)
+  if (old_shadow_frame_ == NULL) {
+    return;
+  }
+#endif
   rtb_.EmitPopShadowFrame(irb_.CreateLoad(old_shadow_frame_, kTBAARegister));
   return;
 }
@@ -1317,6 +1347,8 @@ void GBCExpanderPass::Expand_HLArrayPut(llvm::CallInst& call_inst,
 
   case kBoolean:
   case kChar:
+  case kByte:
+  case kShort:
     new_value = irb_.CreateTrunc(new_value, irb_.getJType(elem_jty, kArray));
     break;
 
@@ -1412,8 +1444,8 @@ llvm::Value* GBCExpanderPass::Expand_HLIGet(llvm::CallInst& call_inst,
 void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
                                     JType field_jty) {
   uint32_t dex_pc = LV2UInt(call_inst.getMetadata("DexOff")->getOperand(0));
-  llvm::Value* object_addr = call_inst.getArgOperand(1);
-  llvm::Value* new_value = call_inst.getArgOperand(2);
+  llvm::Value* new_value = call_inst.getArgOperand(1);
+  llvm::Value* object_addr = call_inst.getArgOperand(2);
   uint32_t field_idx = LV2UInt(call_inst.getArgOperand(3));
 
   if (field_jty == kFloat || field_jty == kDouble) {
@@ -1475,8 +1507,7 @@ void GBCExpanderPass::Expand_HLIPut(llvm::CallInst& call_inst,
 
 llvm::Value* GBCExpanderPass::EmitLoadConstantClass(uint32_t dex_pc,
                                                     uint32_t type_idx) {
-  if (!compiler_->CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
-                                             *dex_file_, type_idx)) {
+  if (!compiler_->CanAccessTypeWithoutChecks(method_idx_, *dex_file_, type_idx)) {
     llvm::Value* type_idx_value = irb_.getInt32(type_idx);
 
     llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
@@ -1502,7 +1533,7 @@ llvm::Value* GBCExpanderPass::EmitLoadConstantClass(uint32_t dex_pc,
 
     llvm::Value* type_object_addr = irb_.CreateLoad(type_field_addr, kTBAAJRuntime);
 
-    if (compiler_->CanAssumeTypeIsPresentInDexCache(dex_cache_, type_idx)) {
+    if (compiler_->CanAssumeTypeIsPresentInDexCache(*dex_file_, type_idx)) {
       return type_object_addr;
     }
 
@@ -1774,7 +1805,7 @@ llvm::Value* GBCExpanderPass::Expand_ConstString(llvm::CallInst& call_inst) {
 
   llvm::Value* string_addr = irb_.CreateLoad(string_field_addr, kTBAAJRuntime);
 
-  if (!compiler_->CanAssumeStringIsPresentInDexCache(dex_cache_, string_idx)) {
+  if (!compiler_->CanAssumeStringIsPresentInDexCache(*dex_file_, string_idx)) {
     llvm::BasicBlock* block_str_exist =
       CreateBasicBlockWithDexPC(dex_pc, "str_exist");
 
@@ -1808,6 +1839,9 @@ llvm::Value* GBCExpanderPass::Expand_ConstString(llvm::CallInst& call_inst) {
                                            string_idx_value);
 
     EmitGuard_ExceptionLandingPad(dex_pc);
+
+    irb_.CreateBr(block_cont);
+
 
     llvm::BasicBlock* block_pre_cont = irb_.GetInsertBlock();
 
@@ -1995,8 +2029,7 @@ llvm::Value* GBCExpanderPass::Expand_NewInstance(llvm::CallInst& call_inst) {
   uint32_t type_idx = LV2UInt(call_inst.getArgOperand(0));
 
   llvm::Function* runtime_func;
-  if (compiler_->CanAccessInstantiableTypeWithoutChecks(
-        method_idx_, dex_cache_, *dex_file_, type_idx)) {
+  if (compiler_->CanAccessInstantiableTypeWithoutChecks(method_idx_, *dex_file_, type_idx)) {
     runtime_func = irb_.GetRuntime(runtime_support::AllocObject);
   } else {
     runtime_func = irb_.GetRuntime(runtime_support::AllocObjectWithAccessCheck);
@@ -2245,8 +2278,7 @@ llvm::Value* GBCExpanderPass::EmitAllocNewArray(uint32_t dex_pc,
   llvm::Function* runtime_func;
 
   bool skip_access_check =
-    compiler_->CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
-                                          *dex_file_, type_idx);
+    compiler_->CanAccessTypeWithoutChecks(method_idx_, *dex_file_, type_idx);
 
 
   if (is_filled_new_array) {
@@ -2342,6 +2374,11 @@ void GBCExpanderPass::EmitMarkGCCard(llvm::Value* value, llvm::Value* target_add
 }
 
 void GBCExpanderPass::EmitUpdateDexPC(uint32_t dex_pc) {
+#if defined(ART_USE_QUICK_COMPILER)
+  if (shadow_frame_ == NULL) {
+    return;
+  }
+#endif
   irb_.StoreToObjectOffset(shadow_frame_,
                            ShadowFrame::DexPCOffset(),
                            irb_.getInt32(dex_pc),
@@ -2434,7 +2471,18 @@ llvm::FunctionType* GBCExpanderPass::GetFunctionType(uint32_t method_idx,
   CHECK_GE(shorty_size, 1u);
 
   // Get return type
-  llvm::Type* ret_type = irb_.getJType(shorty[0], kAccurate);
+
+  char ret_shorty = shorty[0];
+#if defined(ART_USE_QUICK_COMPILER)
+  switch(ret_shorty) {
+    case 'Z' : ret_shorty = 'I'; break;
+    case 'B' : ret_shorty = 'I'; break;
+    case 'S' : ret_shorty = 'I'; break;
+    case 'C' : ret_shorty = 'I'; break;
+    default: break;
+  }
+#endif
+  llvm::Type* ret_type = irb_.getJType(ret_shorty, kAccurate);
 
   // Get argument type
   std::vector<llvm::Type*> args_type;
@@ -2478,7 +2526,7 @@ CreateBasicBlockWithDexPC(uint32_t dex_pc, const char* postfix) {
 
 llvm::BasicBlock* GBCExpanderPass::GetBasicBlock(uint32_t dex_pc) {
   DCHECK(dex_pc < code_item_->insns_size_in_code_units_);
-
+  CHECK(basic_blocks_[dex_pc] != NULL);
   return basic_blocks_[dex_pc];
 }
 
@@ -2588,6 +2636,15 @@ llvm::BasicBlock* GBCExpanderPass::GetUnwindBasicBlock() {
 
   // Emit the code to return default value (zero) for the given return type.
   char ret_shorty = oat_compilation_unit_->GetShorty()[0];
+#if defined(ART_USE_QUICK_COMPILER)
+  switch(ret_shorty) {
+    case 'Z' : ret_shorty = 'I'; break;
+    case 'B' : ret_shorty = 'I'; break;
+    case 'S' : ret_shorty = 'I'; break;
+    case 'C' : ret_shorty = 'I'; break;
+    default: break;
+  }
+#endif
   if (ret_shorty == 'V') {
     irb_.CreateRetVoid();
   } else {
@@ -3472,8 +3529,8 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
                                 irb_.getJDoubleTy());
     }
     case greenland::IntrinsicHelper::ConstObj: {
-      LOG(FATAL) << "ConstObj should not occur at all";
-      return NULL;
+      CHECK(LV2UInt(call_inst.getArgOperand(0)) == 0);
+      return irb_.getJNull();
     }
 
     //==- Method Info ------------------------------------------------------==//
@@ -3558,6 +3615,17 @@ namespace compiler_llvm {
 llvm::FunctionPass*
 CreateGBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb) {
   return new GBCExpanderPass(intrinsic_helper, irb);
+}
+
+llvm::FunctionPass*
+CreateGBCExpanderPass(const IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
+                      Compiler* compiler, OatCompilationUnit* oat_compilation_unit) {
+  if (compiler != NULL) {
+    return new GBCExpanderPass(intrinsic_helper, irb,
+                               compiler, oat_compilation_unit);
+  } else {
+    return new GBCExpanderPass(intrinsic_helper, irb);
+  }
 }
 
 } // namespace compiler_llvm

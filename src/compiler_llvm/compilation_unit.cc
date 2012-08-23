@@ -150,10 +150,14 @@ llvm::RegisterPass<AddSuspendCheckToLoopLatchPass> reg_add_suspend_check_to_loop
 namespace art {
 namespace compiler_llvm {
 
-#ifdef ART_USE_DEXLANG_FRONTEND
+#if defined(ART_USE_DEXLANG_FRONTEND) || defined(ART_USE_QUICK_COMPILER)
 llvm::FunctionPass*
 CreateGBCExpanderPass(const greenland::IntrinsicHelper& intrinsic_helper,
                       IRBuilder& irb);
+
+llvm::FunctionPass*
+CreateGBCExpanderPass(const greenland::IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
+                      Compiler* compiler, OatCompilationUnit* oat_compilation_unit);
 #endif
 
 llvm::Module* makeLLVMModuleContents(llvm::Module* module);
@@ -168,8 +172,12 @@ CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
   module_ = new llvm::Module("art", *context_);
   makeLLVMModuleContents(module_);
 
-#ifdef ART_USE_DEXLANG_FRONTEND
+#if defined(ART_USE_DEXLANG_FRONTEND) || defined(ART_USE_QUICK_COMPILER)
   dex_lang_ctx_ = new greenland::DexLang::Context(*module_);
+#endif
+#if defined(ART_USE_QUICK_COMPILER)
+  compiler_ = NULL;
+  oat_compilation_unit_ = NULL;
 #endif
 
   // Create IRBuilder
@@ -196,7 +204,7 @@ CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
 
 
 CompilationUnit::~CompilationUnit() {
-#ifdef ART_USE_DEXLANG_FRONTEND
+#if defined(ART_USE_DEXLANG_FRONTEND) || defined(ART_USE_QUICK_COMPILER)
   delete dex_lang_ctx_;
 #endif
 }
@@ -316,15 +324,21 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
   if (bitcode_filename_.empty()) {
     // If we don't need write the bitcode to file, add the AddSuspendCheckToLoopLatchPass to the
     // regular FunctionPass.
-#ifdef ART_USE_DEXLANG_FRONTEND
+#if defined(ART_USE_DEXLANG_FRONTEND)
     fpm.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get()));
+#elif defined(ART_USE_QUICK_COMPILER)
+    fpm.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get(),
+                                  compiler_, oat_compilation_unit_));
 #endif
     fpm.add(new ::AddSuspendCheckToLoopLatchPass(irb_.get()));
   } else {
     // Run AddSuspendCheckToLoopLatchPass before we write the bitcode to file.
     llvm::FunctionPassManager fpm2(module_);
-#ifdef ART_USE_DEXLANG_FRONTEND
+#if defined(ART_USE_DEXLANG_FRONTEND)
     fpm2.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get()));
+#elif defined(ART_USE_QUICK_COMPILER)
+    fpm2.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get(),
+                                   compiler_, oat_compilation_unit_));
 #endif
     fpm2.add(new ::AddSuspendCheckToLoopLatchPass(irb_.get()));
     fpm2.doInitialization();

@@ -15,9 +15,12 @@
 #
 
 
-LIBART_COMPILER_LLVM_CFLAGS := -DART_USE_LLVM_COMPILER=1
+LIBART_COMPILER_LLVM_CFLAGS := -DART_USE_LLVM_COMPILER
 ifeq ($(ART_USE_DEXLANG_FRONTEND),true)
-  LIBART_COMPILER_LLVM_CFLAGS += -DART_USE_DEXLANG_FRONTEND=1
+  LIBART_COMPILER_LLVM_CFLAGS += -DART_USE_DEXLANG_FRONTEND
+endif
+ifeq ($(ART_USE_QUICK_COMPILER),true)
+  LIBART_COMPILER_LLVM_CFLAGS += -DART_USE_QUICK_COMPILER
 endif
 
 LIBART_COMPILER_LLVM_SRC_FILES += \
@@ -43,9 +46,31 @@ ifeq ($(ART_USE_DEXLANG_FRONTEND),true)
     src/greenland/intrinsic_helper.cc \
     src/greenland/ir_builder.cc
 else
-  LIBART_COMPILER_LLVM_SRC_FILES += \
-	  src/compiler_llvm/dalvik_reg.cc \
-	  src/compiler_llvm/method_compiler.cc
+  ifeq ($(ART_USE_QUICK_COMPILER),true)
+    LIBART_COMPILER_LLVM_SRC_FILES += \
+      src/compiler/Dataflow.cc \
+      src/compiler/Frontend.cc \
+      src/compiler/IntermediateRep.cc \
+      src/compiler/Ralloc.cc \
+      src/compiler/SSATransformation.cc \
+      src/compiler/Utility.cc \
+      src/compiler/codegen/RallocUtil.cc \
+      src/compiler/codegen/arm/ArchUtility.cc \
+      src/compiler/codegen/arm/ArmRallocUtil.cc \
+      src/compiler/codegen/arm/Assemble.cc \
+      src/compiler/codegen/arm/armv7-a/Codegen.cc \
+      src/compiler_llvm/dalvik_reg.cc \
+      src/compiler_llvm/gbc_expander.cc \
+      src/compiler_llvm/method_compiler.cc \
+      src/greenland/dalvik_reg.cc \
+      src/greenland/dex_lang.cc \
+      src/greenland/intrinsic_helper.cc \
+      src/greenland/ir_builder.cc
+  else
+    LIBART_COMPILER_LLVM_SRC_FILES += \
+      src/compiler_llvm/dalvik_reg.cc \
+      src/compiler_llvm/method_compiler.cc
+  endif
 endif
 
 # $(1): target or host

@@ -19,7 +19,7 @@
 
 #include "../mutex.h"
 #include "globals.h"
-#ifdef ART_USE_DEXLANG_FRONTEND
+#if defined(ART_USE_DEXLANG_FRONTEND) || defined(ART_USE_QUICK_COMPILER)
 # include "greenland/dex_lang.h"
 #endif
 #include "instruction_set.h"
@@ -27,6 +27,11 @@
 #include "runtime_support_builder.h"
 #include "runtime_support_func.h"
 #include "safe_map.h"
+
+#if defined(ART_USE_QUICK_COMPILER)
+# include "compiler.h"
+# include "oat_compilation_unit.h"
+#endif
 
 #include <UniquePtr.h>
 #include <string>
@@ -74,7 +79,7 @@ class CompilationUnit {
     return irb_.get();
   }
 
-#ifdef ART_USE_DEXLANG_FRONTEND
+#if defined(ART_USE_DEXLANG_FRONTEND) || defined(ART_USE_QUICK_COMPILER)
   greenland::DexLang::Context* GetDexLangContext() const {
     return dex_lang_ctx_;
   }
@@ -83,6 +88,15 @@ class CompilationUnit {
   void SetBitcodeFileName(const std::string& bitcode_filename) {
     bitcode_filename_ = bitcode_filename;
   }
+
+#if defined(ART_USE_QUICK_COMPILER)
+  void SetCompiler(Compiler* compiler) {
+    compiler_ = compiler;
+  }
+  void SetOatCompilationUnit(OatCompilationUnit* oat_compilation_unit) {
+    oat_compilation_unit_ = oat_compilation_unit;
+  }
+#endif
 
   bool Materialize();
 
@@ -103,8 +117,12 @@ class CompilationUnit {
   UniquePtr<IRBuilder> irb_;
   UniquePtr<RuntimeSupportBuilder> runtime_support_;
   llvm::Module* module_;
-#ifdef ART_USE_DEXLANG_FRONTEND
+#if defined(ART_USE_DEXLANG_FRONTEND) || defined(ART_USE_QUICK_COMPILER)
   greenland::DexLang::Context* dex_lang_ctx_;
+#endif
+#if defined(ART_USE_QUICK_COMPILER)
+  Compiler* compiler_;
+  OatCompilationUnit* oat_compilation_unit_;
 #endif
 
   std::string bitcode_filename_;

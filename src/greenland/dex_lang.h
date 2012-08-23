@@ -95,7 +95,6 @@ class DexLang {
 
   const DexFile* dex_file_;
   const DexFile::CodeItem* code_item_;
-  DexCache* dex_cache_;
   uint32_t method_idx_;
 
   llvm::LLVMContext& context_;

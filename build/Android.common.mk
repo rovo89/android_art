@@ -61,11 +61,7 @@ endif
 ifeq ($(words $(filter true,$(ART_USE_LLVM_COMPILER) $(ART_USE_GREENLAND_COMPILER) $(ART_USE_QUICK_COMPILER))),0)
 ART_REQUIRE_LLVM := false
 else #!0
-ifeq ($(words $(filter true,$(ART_USE_LLVM_COMPILER) $(ART_USE_GREENLAND_COMPILER) $(ART_USE_QUICK_COMPILER))),1)
 ART_REQUIRE_LLVM := true
-else #!1
-$(error Cannot enable combinations of art-greenland, art-llvm, and art-quick compiler simultaneously!)
-endif #!1
 endif #!0
 
 ifeq ($(ART_REQUIRE_LLVM),true)

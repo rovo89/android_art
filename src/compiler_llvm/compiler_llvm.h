@@ -74,7 +74,12 @@ class CompilerLLVM {
     bitcode_filename_ = filename;
   }
 
-  CompiledMethod* CompileDexMethod(OatCompilationUnit* oat_compilation_unit);
+  CompiledMethod* CompileDexMethod(OatCompilationUnit* oat_compilation_unit,
+                                   InvokeType invoke_type);
+
+#if defined(ART_USE_LLVM_COMPILER) && defined(ART_USE_QUICK_COMPILER)
+  CompiledMethod* CompileGBCMethod(OatCompilationUnit* oat_compilation_unit, std::string* func);
+#endif
 
   CompiledMethod* CompileNativeMethod(OatCompilationUnit* oat_compilation_unit);
 

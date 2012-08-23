@@ -59,7 +59,7 @@ DexLang::DexLang(DexLang::Context& context, Compiler& compiler,
                  OatCompilationUnit& cunit)
     : dex_lang_ctx_(context), compiler_(compiler), cunit_(cunit),
       dex_file_(cunit.GetDexFile()), code_item_(cunit.GetCodeItem()),
-      dex_cache_(cunit.GetDexCache()), method_idx_(cunit.GetDexMethodIndex()),
+      method_idx_(cunit.GetDexMethodIndex()),
       context_(context.GetLLVMContext()), module_(context.GetOutputModule()),
       intrinsic_helper_(context.GetIntrinsicHelper()),
       irb_(context.GetLLVMContext(), context.GetOutputModule(),
@@ -889,8 +889,7 @@ llvm::Value* DexLang::EmitLoadConstantClass(unsigned dex_pc,
 
   llvm::Value* thread_object_addr = EmitGetCurrentThread();
 
-  if (!compiler_.CanAccessTypeWithoutChecks(method_idx_, dex_cache_,
-                                            *dex_file_, type_idx)) {
+  if (!compiler_.CanAccessTypeWithoutChecks(method_idx_, *dex_file_, type_idx)) {
     return EmitInvokeIntrinsic3(dex_pc, false, IntrinsicHelper::InitializeTypeAndVerifyAccess,
                                 type_idx_value, method_object_addr,
                                 thread_object_addr);
@@ -900,7 +899,7 @@ llvm::Value* DexLang::EmitLoadConstantClass(unsigned dex_pc,
         EmitInvokeIntrinsicNoThrow(IntrinsicHelper::LoadTypeFromDexCache,
                                    type_idx_value);
 
-    if (compiler_.CanAssumeTypeIsPresentInDexCache(dex_cache_, type_idx)) {
+    if (compiler_.CanAssumeTypeIsPresentInDexCache(*dex_file_, type_idx)) {
       return type_object_addr;
     }
 
@@ -951,7 +950,6 @@ llvm::Value* DexLang::EmitAllocNewArray(unsigned dex_pc, int32_t length,
                                         uint32_t type_idx,
                                         bool is_filled_new_array) {
   bool skip_access_check = compiler_.CanAccessTypeWithoutChecks(method_idx_,
-                                                                dex_cache_,
                                                                 *dex_file_,
                                                                 type_idx);
 
@@ -1340,7 +1338,7 @@ void DexLang::EmitInsn_LoadConstantString(unsigned dex_pc,
       EmitInvokeIntrinsicNoThrow(IntrinsicHelper::LoadStringFromDexCache,
                                  string_idx_value);
 
-  if (!compiler_.CanAssumeStringIsPresentInDexCache(dex_cache_, string_idx)) {
+  if (!compiler_.CanAssumeStringIsPresentInDexCache(*dex_file_, string_idx)) {
     llvm::BasicBlock* block_str_exist =
         CreateBasicBlockWithDexPC(dex_pc, "str_exist");
 
@@ -1543,7 +1541,6 @@ void DexLang::EmitInsn_NewInstance(unsigned dex_pc, const Instruction* insn) {
 
   IntrinsicHelper::IntrinsicId alloc_intrinsic;
   if (compiler_.CanAccessInstantiableTypeWithoutChecks(method_idx_,
-                                                       dex_cache_,
                                                        *dex_file_,
                                                        dec_insn.vB)) {
     alloc_intrinsic = IntrinsicHelper::AllocObject;
@@ -3941,7 +3938,7 @@ void DexLang::ComputeMethodInfo() {
     case Instruction::CONST_STRING:
     case Instruction::CONST_STRING_JUMBO:
       // TODO: Will the ResolveString throw exception?
-      if (!compiler_.CanAssumeStringIsPresentInDexCache(dex_cache_, dec_insn.vB)) {
+      if (!compiler_.CanAssumeStringIsPresentInDexCache(*dex_file_, dec_insn.vB)) {
         may_throw_exception = true;
       }
       set_to_another_object[dec_insn.vA] = true;

@@ -38,6 +38,20 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Support/Threading.h>
 
+#if defined(ART_USE_QUICK_COMPILER)
+namespace art {
+void oatCompileMethodToGBC(Compiler& compiler,
+                           const DexFile::CodeItem* code_item,
+                           uint32_t access_flags, InvokeType invoke_type,
+                           uint32_t method_idx, jobject class_loader,
+                           const DexFile& dex_file,
+                           llvm::Module* module,
+                           llvm::LLVMContext* context,
+                           greenland::IntrinsicHelper* intrinsic_helper,
+                           greenland::IRBuilder* irb);
+}
+#endif
+
 namespace llvm {
   extern bool TimePassesIsEnabled;
 }
@@ -125,10 +139,10 @@ CompilationUnit* CompilerLLVM::AllocateCompilationUnit() {
 
 
 CompiledMethod* CompilerLLVM::
-CompileDexMethod(OatCompilationUnit* oat_compilation_unit) {
+CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_type) {
   UniquePtr<CompilationUnit> cunit(AllocateCompilationUnit());
 
-#ifdef ART_USE_DEXLANG_FRONTEND
+#if defined(ART_USE_DEXLANG_FRONTEND)
   // Run DexLang for Dex to Greenland Bitcode
   UniquePtr<greenland::DexLang> dex_lang(
       new greenland::DexLang(*cunit->GetDexLangContext(), *compiler_,
@@ -141,6 +155,47 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit) {
 
   return new CompiledMethod(cunit->GetInstructionSet(),
                             cunit->GetCompiledCode());
+#elif defined(ART_USE_QUICK_COMPILER)
+  std::string methodName(PrettyMethod(oat_compilation_unit->GetDexMethodIndex(),
+                                      *oat_compilation_unit->GetDexFile()));
+  if ((methodName.find("gdata2.AndroidGDataClient.createAndExecuteMethod")
+      != std::string::npos) || (methodName.find("hG.a") != std::string::npos)
+      || (methodName.find("hT.a(hV, java.lang.String, java.lang.String, java")
+      != std::string::npos) || (methodName.find("AndroidHttpTransport.exchange")
+      != std::string::npos)) {
+    // Use iceland
+    UniquePtr<MethodCompiler> method_compiler(
+        new MethodCompiler(cunit.get(), compiler_, oat_compilation_unit));
+
+    return method_compiler->Compile();
+  } else {
+    // Use quick
+    llvm::LLVMContext* context = cunit->GetLLVMContext();
+    llvm::Module* module = cunit->GetModule();
+    greenland::IntrinsicHelper* intrinsic_helper = &cunit->GetDexLangContext()->GetIntrinsicHelper();
+    UniquePtr<greenland::IRBuilder> greenland_irbuilder(
+        new greenland::IRBuilder(*context, *module, *intrinsic_helper));
+    oatCompileMethodToGBC(*compiler_,
+                          oat_compilation_unit->GetCodeItem(),
+                          oat_compilation_unit->access_flags_,
+                          invoke_type,
+                          oat_compilation_unit->GetDexMethodIndex(),
+                          oat_compilation_unit->GetClassLoader(),
+                          *oat_compilation_unit->GetDexFile(),
+                          module,
+                          context,
+                          intrinsic_helper,
+                          greenland_irbuilder.get()
+                          );
+
+    cunit->SetCompiler(compiler_);
+    cunit->SetOatCompilationUnit(oat_compilation_unit);
+
+    cunit->Materialize();
+
+    return new CompiledMethod(cunit->GetInstructionSet(),
+                              cunit->GetCompiledCode());
+  }
 #else
   UniquePtr<MethodCompiler> method_compiler(
       new MethodCompiler(cunit.get(), compiler_, oat_compilation_unit));
@@ -223,7 +278,7 @@ extern "C" art::CompiledMethod* ArtCompileMethod(art::Compiler& compiler,
     class_loader, class_linker, dex_file, code_item,
     method_idx, access_flags);
   art::compiler_llvm::CompilerLLVM* compiler_llvm = ContextOf(compiler);
-  art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&oat_compilation_unit);
+  art::CompiledMethod* result = compiler_llvm->CompileDexMethod(&oat_compilation_unit, invoke_type);
   return result;
 }
 
