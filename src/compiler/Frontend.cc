@@ -773,12 +773,19 @@ void oatInit(CompilationUnit* cUnit, const Compiler& compiler) {
   }
 }
 
-CompiledMethod* oatCompileMethod(Compiler& compiler,
-                                 const DexFile::CodeItem* code_item,
-                                 uint32_t access_flags, InvokeType invoke_type,
-                                 uint32_t method_idx,
-                                 jobject class_loader,
-                                 const DexFile& dex_file)
+CompiledMethod* compileMethod(Compiler& compiler,
+                              const DexFile::CodeItem* code_item,
+                              uint32_t access_flags, InvokeType invoke_type,
+                              uint32_t method_idx, jobject class_loader,
+                              const DexFile& dex_file
+#if defined(ART_USE_QUICK_COMPILER)
+                              , llvm::Module* module,
+                              llvm::LLVMContext* context,
+                              greenland::IntrinsicHelper* intrinsic_helper,
+                              greenland::IRBuilder* irb,
+                              bool gbcOnly
+#endif
+                             )
 {
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
 
@@ -810,6 +817,10 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   DCHECK((cUnit->instructionSet == kThumb2) ||
          (cUnit->instructionSet == kX86) ||
          (cUnit->instructionSet == kMips));
+  cUnit->module = module;
+  cUnit->context = context;
+  cUnit->intrinsic_helper = intrinsic_helper;
+  cUnit->irb = irb;
   if (cUnit->instructionSet == kThumb2) {
     // TODO: remove this once x86 is tested
     cUnit->genBitcode = true;
@@ -1130,6 +1141,11 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   if (cUnit->genBitcode) {
     // MIR->Bitcode
     oatMethodMIR2Bitcode(cUnit.get());
+    if (cUnit->gbcOnly) {
+      // all done
+      oatArenaReset(cUnit.get());
+      return NULL;
+    }
     // Bitcode->LIR
     oatMethodBitcode2LIR(cUnit.get());
   } else {
@@ -1219,6 +1235,46 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
 
   return result;
 }
+
+#if defined(ART_USE_QUICK_COMPILER)
+CompiledMethod* oatCompileMethod(Compiler& compiler,
+                                 const DexFile::CodeItem* code_item,
+                                 uint32_t access_flags, InvokeType invoke_type,
+                                 uint32_t method_idx, jobject class_loader,
+                                 const DexFile& dex_file)
+{
+  return compileMethod(compiler, code_item, access_flags, invoke_type, method_idx, class_loader,
+                       dex_file, NULL, NULL, NULL, NULL, false);
+}
+
+/*
+ * Given existing llvm module, context, intrinsic_helper and IRBuilder,
+ * add the bitcode for the method described by code_item to the module.
+ */
+void oatCompileMethodToGBC(Compiler& compiler,
+                           const DexFile::CodeItem* code_item,
+                           uint32_t access_flags, InvokeType invoke_type,
+                           uint32_t method_idx, jobject class_loader,
+                           const DexFile& dex_file,
+                           llvm::Module* module,
+                           llvm::LLVMContext* context,
+                           greenland::IntrinsicHelper* intrinsic_helper,
+                           greenland::IRBuilder* irb)
+{
+  compileMethod(compiler, code_item, access_flags, invoke_type, method_idx, class_loader,
+                dex_file, module, context, intrinsic_helper, irb, true);
+}
+#else
+CompiledMethod* oatCompileMethod(Compiler& compiler,
+                                 const DexFile::CodeItem* code_item,
+                                 uint32_t access_flags, InvokeType invoke_type,
+                                 uint32_t method_idx, jobject class_loader,
+                                 const DexFile& dex_file)
+{
+  return compileMethod(compiler, code_item, access_flags, invoke_type, method_idx, class_loader,
+                       dex_file);
+}
+#endif
 
 }  // namespace art
 
