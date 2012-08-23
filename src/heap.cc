@@ -356,17 +356,24 @@ static void MSpaceChunkCallback(void* start, void* end, size_t used_bytes, void*
 }
 
 Object* Heap::AllocObject(Class* c, size_t byte_count) {
-  // Used in the detail message if we throw an OOME.
-  int64_t total_bytes_free;
-  size_t max_contiguous_allocation;
-
   DCHECK(c == NULL || (c->IsClassClass() && byte_count >= sizeof(Class)) ||
          (c->IsVariableSize() || c->GetObjectSize() == byte_count) ||
          strlen(ClassHelper(c).GetDescriptor()) == 0);
   DCHECK_GE(byte_count, sizeof(Object));
-  Object* obj = Allocate(byte_count);
-  if (obj != NULL) {
+  Object* obj = Allocate(alloc_space_, byte_count);
+  if (LIKELY(obj != NULL)) {
+#if VERIFY_OBJECT_ENABLED
+    WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    // Verify objects doesn't like objects in allocation stack not being marked as live.
+    live_bitmap_->Set(obj);
+#endif
+
     obj->SetClass(c);
+
+    // Record allocation after since we want to use the atomic add for the atomic fence to guard
+    // the SetClass since we do not want the class to appear NULL in another thread.
+    RecordAllocation(alloc_space_, obj);
+
     if (Dbg::IsAllocTrackingEnabled()) {
       Dbg::RecordAllocation(c, byte_count);
     }
@@ -383,8 +390,8 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
 
     return obj;
   }
-  total_bytes_free = GetFreeMemory();
-  max_contiguous_allocation = 0;
+  int64_t total_bytes_free = GetFreeMemory();
+  size_t max_contiguous_allocation = 0;
   // TODO: C++0x auto
   for (Spaces::const_iterator cur = spaces_.begin(); cur != spaces_.end(); ++cur) {
     if ((*cur)->IsAllocSpace()) {
@@ -509,11 +516,6 @@ void Heap::RecordAllocation(AllocSpace* space, const Object* obj) {
   DCHECK(obj);
 
   allocation_stack_->AtomicPush(obj);
-#if VERIFY_OBJECT_ENABLED
-  WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
-  // Verify objects doesn't like objects in allocation stack not being marked as live.
-  live_bitmap_->Set(obj);
-#endif
 }
 
 void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
@@ -537,16 +539,6 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
     global_stats->freed_bytes += freed_bytes;
     thread_stats->freed_bytes += freed_bytes;
   }
-}
-
-Object* Heap::Allocate(size_t size) {
-  Object* obj = Allocate(alloc_space_, size);
-  if (obj != NULL) {
-    RecordAllocation(alloc_space_, obj);
-    return obj;
-  }
-
-  return NULL;
 }
 
 Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {

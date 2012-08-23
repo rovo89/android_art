@@ -89,7 +89,6 @@ class LOCKABLE Heap {
 
   // Allocates and initializes storage for an object instance.
   Object* AllocObject(Class* klass, size_t num_bytes)
-      LOCKS_EXCLUDED(statistics_lock_)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // Check sanity of given reference. Requires the heap lock.
@@ -125,7 +124,7 @@ class LOCKABLE Heap {
   // Implements java.lang.Runtime.totalMemory.
   int64_t GetTotalMemory();
   // Implements java.lang.Runtime.freeMemory.
-  int64_t GetFreeMemory() LOCKS_EXCLUDED(statistics_lock_);
+  int64_t GetFreeMemory();
 
   // Implements VMDebug.countInstancesOfClass.
   int64_t CountInstances(Class* c, bool count_assignable)
@@ -197,7 +196,7 @@ class LOCKABLE Heap {
     verify_objects_ = false;
   }
 
-  void RecordFree(size_t freed_objects, size_t freed_bytes) LOCKS_EXCLUDED(statistics_lock_);
+  void RecordFree(size_t freed_objects, size_t freed_bytes);
 
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.
@@ -226,17 +225,17 @@ class LOCKABLE Heap {
 
   void AddFinalizerReference(Thread* self, Object* object);
 
-  size_t GetBytesAllocated() const LOCKS_EXCLUDED(statistics_lock_);
-  size_t GetObjectsAllocated() const LOCKS_EXCLUDED(statistics_lock_);
-  size_t GetConcurrentStartSize() const LOCKS_EXCLUDED(statistics_lock_);
-  size_t GetConcurrentMinFree() const LOCKS_EXCLUDED(statistics_lock_);
-  size_t GetUsedMemorySize() const LOCKS_EXCLUDED(statistics_lock_);
+  size_t GetBytesAllocated() const;
+  size_t GetObjectsAllocated() const;
+  size_t GetConcurrentStartSize() const;
+  size_t GetConcurrentMinFree() const;
+  size_t GetUsedMemorySize() const;
 
   // Functions for getting the bitmap which corresponds to an object's address.
   // This is probably slow, TODO: use better data structure like binary tree .
   Space* FindSpaceFromObject(const Object*) const;
 
-  void DumpForSigQuit(std::ostream& os) LOCKS_EXCLUDED(statistics_lock_);
+  void DumpForSigQuit(std::ostream& os);
 
   void Trim(AllocSpace* alloc_space);
 
@@ -268,8 +267,6 @@ class LOCKABLE Heap {
 
  private:
   // Allocates uninitialized storage.
-  Object* Allocate(size_t num_bytes)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   Object* Allocate(AllocSpace* space, size_t num_bytes)
       LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
@@ -281,7 +278,7 @@ class LOCKABLE Heap {
   void RequestConcurrentGC();
 
   void RecordAllocation(AllocSpace* space, const Object* object)
-      LOCKS_EXCLUDED(statistics_lock_, GlobalSynchronization::heap_bitmap_lock_);
+      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_);
 
   void CollectGarbageInternal(GcType gc_plan, bool clear_soft_references)
       LOCKS_EXCLUDED(gc_complete_lock_,
