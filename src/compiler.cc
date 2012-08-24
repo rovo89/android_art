@@ -390,7 +390,20 @@ Compiler::~Compiler() {
 #endif
   if (compiler_library_ != NULL) {
     VLOG(compiler) << "dlclose(" << compiler_library_ << ")";
+#if !defined(ART_USE_QUICK_COMPILER)
+    /*
+     * FIXME: Temporary workaround
+     * Apparently, llvm is adding dctors to atexit, but if we unload
+     * the library here the code will no longer be around at exit time
+     * and we die a flaming death in __cxa_finalize().  Apparently, some
+     * dlclose() implementations will scan the atexit list on unload and
+     * handle any associated with the soon-to-be-unloaded library.
+     * However, this is not required by POSIX and we don't do it.
+     * See: http://b/issue?id=4998315
+     * What's the right thing to do here?
+     */
     dlclose(compiler_library_);
+#endif
   }
 }
 

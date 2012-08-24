@@ -369,8 +369,8 @@ void oatDumpRegLocTable(RegLocation* table, int count)
 {
   for (int i = 0; i < count; i++) {
     LOG(INFO) << StringPrintf("Loc[%02d] : %s, %c %c %c %c %c %c%d %c%d S%d",
-        i, storageName[table[i].location], table[i].wide ? 'W' : 'N',
-        table[i].defined ? 'D' : 'U',
+        table[i].origSReg, storageName[table[i].location],
+        table[i].wide ? 'W' : 'N', table[i].defined ? 'D' : 'U',
         table[i].fp ? 'F' : table[i].ref ? 'R' :'C',
         table[i].highWord ? 'H' : 'L', table[i].home ? 'h' : 't',
         oatIsFpReg(table[i].lowReg) ? 's' : 'r',

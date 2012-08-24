@@ -799,8 +799,6 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     //cUnit->enableDebug |= (1 << kDebugVerifyBitcode);
     //cUnit->printMe = true;
     //cUnit->enableDebug |= (1 << kDebugDumpBitcodeFile);
-    // Disable non-safe optimizations for now
-    cUnit->disableOpt |= ~(1 << kSafeOptimizations);
   }
 #endif
   /* Are we generating code for the debugger? */
@@ -1127,8 +1125,11 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
 
   // Combine vmap tables - core regs, then fp regs - into vmapTable
   std::vector<uint16_t> vmapTable;
+  // Core regs may have been inserted out of order - sort first
+  std::sort(cUnit->coreVmapTable.begin(), cUnit->coreVmapTable.end());
   for (size_t i = 0 ; i < cUnit->coreVmapTable.size(); i++) {
-    vmapTable.push_back(cUnit->coreVmapTable[i]);
+    // Copy, stripping out the phys register sort key
+    vmapTable.push_back(~(-1 << VREG_NUM_WIDTH) & cUnit->coreVmapTable[i]);
   }
   // If we have a frame, push a marker to take place of lr
   if (cUnit->frameSize > 0) {
@@ -1137,7 +1138,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     DCHECK_EQ(__builtin_popcount(cUnit->coreSpillMask), 0);
     DCHECK_EQ(__builtin_popcount(cUnit->fpSpillMask), 0);
   }
-  // Combine vmap tables - core regs, then fp regs
+  // Combine vmap tables - core regs, then fp regs. fp regs already sorted
   for (uint32_t i = 0; i < cUnit->fpVmapTable.size(); i++) {
     vmapTable.push_back(cUnit->fpVmapTable[i]);
   }
