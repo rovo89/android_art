@@ -53,16 +53,10 @@
 namespace art {
 
 pid_t GetTid() {
-#if defined(__APPLE__) && MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
-  // Darwin has a gettid(2), but it does something completely unrelated to tids.
-  // There is a thread_selfid(2) that does what we want though, and it seems to be what their
-  // pthreads implementation uses.
-  return syscall(SYS_thread_selfid);
-#elif defined(__APPLE__)
-  // On Mac OS 10.5 (which the build servers are still running) there was nothing usable.
-  // We know we build 32-bit binaries and that the pthread_t is a pointer that uniquely identifies
-  // the calling thread.
-  return reinterpret_cast<pid_t>(pthread_self());
+#if defined(__APPLE__)
+  uint64_t owner;
+  CHECK_PTHREAD_CALL(pthread_threadid_np, (NULL, &owner), __FUNCTION__);  // Requires Mac OS 10.6
+  return owner;
 #else
   // Neither bionic nor glibc exposes gettid(2).
   return syscall(__NR_gettid);

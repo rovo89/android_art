@@ -35,18 +35,27 @@ extern int pthread_mutex_trylock(pthread_mutex_t* mutex) EXCLUSIVE_TRYLOCK_FUNCT
 
 namespace art {
 
-// This works on Mac OS 10.7, but hasn't been tested on older releases.
+// This works on Mac OS 10.6 but hasn't been tested on older releases.
 struct __attribute__((__may_alias__)) darwin_pthread_mutex_t {
-  uint32_t padding0[4];
-  intptr_t padding1;
-  uintptr_t owner_tid;
+  long padding0;
+  int padding1;
+  uint32_t padding2;
+  int16_t padding3;
+  int16_t padding4;
+  uint32_t padding5;
+  pthread_t darwin_pthread_mutex_owner;
   // ...other stuff we don't care about.
 };
 
 struct __attribute__((__may_alias__)) darwin_pthread_rwlock_t {
-  int32_t padding0[4];
-  intptr_t padding1[2];
-  uintptr_t rw_owner_tid;
+  long padding0;
+  pthread_mutex_t padding1;
+  int padding2;
+  pthread_cond_t padding3;
+  pthread_cond_t padding4;
+  int padding5;
+  int padding6;
+  pthread_t darwin_pthread_rwlock_owner;
   // ...other stuff we don't care about.
 };
 
@@ -178,9 +187,9 @@ void BaseMutex::CheckSafeToWait() {
 
 Mutex::Mutex(const char* name, MutexLevel level, bool recursive)
     : BaseMutex(name, level), recursive_(recursive), recursion_count_(0) {
-#if defined(__BIONIC__)
-  // Use recursive mutexes as Bionic's non-recursive mutexes don't have TIDs to check lock
-  // ownership of.
+#if defined(__BIONIC__) || defined(__APPLE__)
+  // Use recursive mutexes for bionic and Apple otherwise the
+  // non-recursive mutexes don't have TIDs to check lock ownership of.
   pthread_mutexattr_t attributes;
   CHECK_MUTEX_CALL(pthread_mutexattr_init, (&attributes));
   CHECK_MUTEX_CALL(pthread_mutexattr_settype, (&attributes, PTHREAD_MUTEX_RECURSIVE));
@@ -267,7 +276,14 @@ uint64_t Mutex::GetExclusiveOwnerTid() const {
 #elif defined(__GLIBC__)
   return reinterpret_cast<const glibc_pthread_mutex_t*>(&mutex_)->owner;
 #elif defined(__APPLE__)
-  return reinterpret_cast<const darwin_pthread_mutex_t*>(&mutex_)->owner_tid;
+  const darwin_pthread_mutex_t* dpmutex = reinterpret_cast<const darwin_pthread_mutex_t*>(&mutex_);
+  pthread_t owner = dpmutex->darwin_pthread_mutex_owner;
+  if ((owner == (pthread_t)0) || (owner == (pthread_t)-1)) {
+    return 0;
+  }
+  uint64_t tid;
+  CHECK_PTHREAD_CALL(pthread_threadid_np, (owner, &tid), __FUNCTION__);  // Requires Mac OS 10.6
+  return tid;
 #else
 #error unsupported C library
 #endif
@@ -369,7 +385,14 @@ uint64_t ReaderWriterMutex::GetExclusiveOwnerTid() const {
 #elif defined(__GLIBC__)
   return reinterpret_cast<const glibc_pthread_rwlock_t*>(&rwlock_)->writer;
 #elif defined(__APPLE__)
-  return reinterpret_cast<const darwin_pthread_rwlock_t*>(&rwlock_)->rw_owner_tid;
+  const darwin_pthread_rwlock_t* dprwlock = reinterpret_cast<const darwin_pthread_rwlock_t*>(&rwlock_);
+  pthread_t owner = dprwlock->darwin_pthread_rwlock_owner;
+  if (owner == (pthread_t)0) {
+    return 0;
+  }
+  uint64_t tid;
+  CHECK_PTHREAD_CALL(pthread_threadid_np, (owner, &tid), __FUNCTION__);  // Requires Mac OS 10.6
+  return tid;
 #else
 #error unsupported C library
 #endif

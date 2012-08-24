@@ -137,6 +137,7 @@ TEST_F(MutexTest, RecursiveLockWait) {
 TEST_F(MutexTest, SharedLockUnlock) {
   ReaderWriterMutex mu("test rwmutex");
   mu.AssertNotHeld();
+  mu.AssertNotExclusiveHeld();
   mu.SharedLock();
   mu.AssertSharedHeld();
   mu.AssertNotExclusiveHeld();
