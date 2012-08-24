@@ -89,8 +89,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
   // Compute details about the called method (avoid GCs)
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   Method* caller = *caller_sp;
-  bool is_static;
-  bool is_virtual;
+  InvokeType invoke_type;
   uint32_t dex_method_idx;
 #if !defined(__i386__)
   const char* shorty;
@@ -104,14 +103,27 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
     const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
     Instruction::Code instr_code = instr->Opcode();
-    is_static = (instr_code == Instruction::INVOKE_STATIC) ||
-                (instr_code == Instruction::INVOKE_STATIC_RANGE);
-    is_virtual = (instr_code == Instruction::INVOKE_VIRTUAL) ||
-                 (instr_code == Instruction::INVOKE_VIRTUAL_RANGE) ||
-                 (instr_code == Instruction::INVOKE_SUPER) ||
-                 (instr_code == Instruction::INVOKE_SUPER_RANGE);
-    DCHECK(is_static || is_virtual || (instr_code == Instruction::INVOKE_DIRECT) ||
-           (instr_code == Instruction::INVOKE_DIRECT_RANGE));
+    switch (instr_code) {
+      case Instruction::INVOKE_DIRECT:  // Fall-through.
+      case Instruction::INVOKE_DIRECT_RANGE:
+        invoke_type = kDirect;
+        break;
+      case Instruction::INVOKE_STATIC:  // Fall-through.
+      case Instruction::INVOKE_STATIC_RANGE:
+        invoke_type = kStatic;
+        break;
+      case Instruction::INVOKE_SUPER:  // Fall-through.
+      case Instruction::INVOKE_SUPER_RANGE:
+        invoke_type = kSuper;
+        break;
+      case Instruction::INVOKE_VIRTUAL:  // Fall-through.
+      case Instruction::INVOKE_VIRTUAL_RANGE:
+        invoke_type = kVirtual;
+        break;
+      default:
+        LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(NULL);
+        invoke_type = kDirect;  // Avoid used uninitialized warnings.
+    }
     DecodedInstruction dec_insn(instr);
     dex_method_idx = dec_insn.vB;
 #if !defined(__i386__)
@@ -119,8 +131,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
 #endif
   } else {
     DCHECK(!called->IsRuntimeMethod());
-    is_static = type == Runtime::kStaticMethod;
-    is_virtual = false;
+    invoke_type = (type == Runtime::kStaticMethod) ? kStatic : kDirect;
     dex_method_idx = called->GetDexMethodIndex();
 #if !defined(__i386__)
     MethodHelper mh(called);
@@ -141,7 +152,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
   }
   // Place into local references incoming arguments from the caller's register arguments
   size_t cur_arg = 1;   // skip method_idx in R0, first arg is in R1
-  if (!is_static) {
+  if (invoke_type != kStatic) {
     Object* obj = reinterpret_cast<Object*>(regs[cur_arg]);
     cur_arg++;
     if (args_in_regs < 3) {
@@ -176,33 +187,28 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
 #endif
   // Resolve method filling in dex cache
   if (type == Runtime::kUnknownMethod) {
-    called = linker->ResolveMethod(dex_method_idx, caller, !is_virtual);
+    called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
   }
   const void* code = NULL;
   if (LIKELY(!thread->IsExceptionPending())) {
-    if (LIKELY(called->IsDirect() == !is_virtual)) {
-      // Ensure that the called method's class is initialized.
-      Class* called_class = called->GetDeclaringClass();
-      linker->EnsureInitialized(called_class, true, true);
-      if (LIKELY(called_class->IsInitialized())) {
-        code = called->GetCode();
-      } else if (called_class->IsInitializing()) {
-        if (is_static) {
-          // Class is still initializing, go to oat and grab code (trampoline must be left in place
-          // until class is initialized to stop races between threads).
-          code = linker->GetOatCodeFor(called);
-        } else {
-          // No trampoline for non-static methods.
-          code = called->GetCode();
-        }
+    // Incompatible class change should have been handled in resolve method.
+    CHECK(!called->CheckIncompatibleClassChange(invoke_type));
+    // Ensure that the called method's class is initialized.
+    Class* called_class = called->GetDeclaringClass();
+    linker->EnsureInitialized(called_class, true, true);
+    if (LIKELY(called_class->IsInitialized())) {
+      code = called->GetCode();
+    } else if (called_class->IsInitializing()) {
+      if (invoke_type == kStatic) {
+        // Class is still initializing, go to oat and grab code (trampoline must be left in place
+        // until class is initialized to stop races between threads).
+        code = linker->GetOatCodeFor(called);
       } else {
-        DCHECK(called_class->IsErroneous());
+        // No trampoline for non-static methods.
+        code = called->GetCode();
       }
     } else {
-      // Direct method has been made virtual
-      thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-                                 "Expected direct method but found virtual: %s",
-                                 PrettyMethod(called, true).c_str());
+      DCHECK(called_class->IsErroneous());
     }
   }
   if (UNLIKELY(code == NULL)) {
@@ -229,8 +235,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** ca
   Method* caller = thread->GetCurrentMethod(&dex_pc);
 
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  bool is_static;
-  bool is_virtual;
+  InvokeType invoke_type;
   uint32_t dex_method_idx;
   if (type == Runtime::kUnknownMethod) {
     DCHECK(called->IsRuntimeMethod());
@@ -238,32 +243,59 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** ca
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
     const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
     Instruction::Code instr_code = instr->Opcode();
-    is_static = (instr_code == Instruction::INVOKE_STATIC) ||
-                (instr_code == Instruction::INVOKE_STATIC_RANGE);
-    is_virtual = (instr_code == Instruction::INVOKE_VIRTUAL) ||
-                 (instr_code == Instruction::INVOKE_VIRTUAL_RANGE) ||
-                 (instr_code == Instruction::INVOKE_SUPER) ||
-                 (instr_code == Instruction::INVOKE_SUPER_RANGE);
-    DCHECK(is_static || is_virtual || (instr_code == Instruction::INVOKE_DIRECT) ||
-           (instr_code == Instruction::INVOKE_DIRECT_RANGE));
+    switch (instr_code) {
+      case Instruction::INVOKE_DIRECT:  // Fall-through.
+      case Instruction::INVOKE_DIRECT_RANGE:
+        invoke_type = kDirect;
+        break;
+      case Instruction::INVOKE_STATIC:  // Fall-through.
+      case Instruction::INVOKE_STATIC_RANGE:
+        invoke_type = kStatic;
+        break;
+      case Instruction::INVOKE_SUPER:  // Fall-through.
+      case Instruction::INVOKE_SUPER_RANGE:
+        invoke_type = kSuper;
+        break;
+      case Instruction::INVOKE_VIRTUAL:  // Fall-through.
+      case Instruction::INVOKE_VIRTUAL_RANGE:
+        invoke_type = kVirtual;
+        break;
+      default:
+        LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(NULL);
+        invoke_type = kDirect;  // Avoid used uninitialized warnings.
+    }
     DecodedInstruction dec_insn(instr);
     dex_method_idx = dec_insn.vB;
   } else {
     DCHECK(!called->IsRuntimeMethod());
-    is_static = type == Runtime::kStaticMethod;
-    is_virtual = false;
+    invoke_type = (type == Runtime::kStaticMethod) ? kStatic : kDirect;
     dex_method_idx = called->GetDexMethodIndex();
   }
   if (type == Runtime::kUnknownMethod) {
-    called = linker->ResolveMethod(dex_method_idx, caller, !is_virtual);
+    called = linker->ResolveMethod(dex_method_idx, caller, invoke_type);
   }
   const void* code = NULL;
   if (LIKELY(!thread->IsExceptionPending())) {
-    if (LIKELY(called->IsDirect() == !is_virtual)) {
-      // Ensure that the called method's class is initialized.
-      Class* called_class = called->GetDeclaringClass();
-      linker->EnsureInitialized(called_class, true, true);
-      if (LIKELY(called_class->IsInitialized())) {
+    // Incompatible class change should have been handled in resolve method.
+    CHECK(!called->CheckIncompatibleClassChange(invoke_type));
+    // Ensure that the called method's class is initialized.
+    Class* called_class = called->GetDeclaringClass();
+    linker->EnsureInitialized(called_class, true, true);
+    if (LIKELY(called_class->IsInitialized())) {
+      code = called->GetCode();
+      // TODO: remove this after we solve the link issue.
+      { // for lazy link.
+        if (code == NULL) {
+          code = linker->GetOatCodeFor(called);
+        }
+      }
+    } else if (called_class->IsInitializing()) {
+      if (invoke_type == kStatic) {
+        // Class is still initializing, go to oat and grab code (trampoline must be left in place
+        // until class is initialized to stop races between threads).
+        code = linker->GetOatCodeFor(called);
+      } else {
+        // No trampoline for non-static methods.
         code = called->GetCode();
         // TODO: remove this after we solve the link issue.
         { // for lazy link.
@@ -271,29 +303,9 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** ca
             code = linker->GetOatCodeFor(called);
           }
         }
-      } else if (called_class->IsInitializing()) {
-        if (is_static) {
-          // Class is still initializing, go to oat and grab code (trampoline must be left in place
-          // until class is initialized to stop races between threads).
-          code = linker->GetOatCodeFor(called);
-        } else {
-          // No trampoline for non-static methods.
-          code = called->GetCode();
-          // TODO: remove this after we solve the link issue.
-          { // for lazy link.
-            if (code == NULL) {
-              code = linker->GetOatCodeFor(called);
-            }
-          }
-        }
-      } else {
-        DCHECK(called_class->IsErroneous());
       }
     } else {
-      // Direct method has been made virtual
-      thread->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-                                 "Expected direct method but found virtual: %s",
-                                 PrettyMethod(called, true).c_str());
+      DCHECK(called_class->IsErroneous());
     }
   }
   if (LIKELY(code != NULL)) {

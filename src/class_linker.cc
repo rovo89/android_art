@@ -88,26 +88,12 @@ static void ThrowLinkageError(const char* fmt, ...) {
   va_end(args);
 }
 
-static void ThrowNoSuchMethodError(bool is_direct, Class* c, const StringPiece& name,
-                                   const StringPiece& signature)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  ClassHelper kh(c);
-  std::ostringstream msg;
-  msg << "no " << (is_direct ? "direct" : "virtual") << " method " << name << signature
-      << " in class " << kh.GetDescriptor() << " or its superclasses";
-  std::string location(kh.GetLocation());
-  if (!location.empty()) {
-    msg << " (defined in " << location << ")";
-  }
-  Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", msg.str().c_str());
-}
-
 static void ThrowNoSuchFieldError(const StringPiece& scope, Class* c, const StringPiece& type,
                                   const StringPiece& name)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   ClassHelper kh(c);
   std::ostringstream msg;
-  msg << "no " << scope << "field " << name << " of type " << type
+  msg << "No " << scope << "field " << name << " of type " << type
       << " in class " << kh.GetDescriptor() << " or its superclasses";
   std::string location(kh.GetLocation());
   if (!location.empty()) {
@@ -1458,7 +1444,8 @@ void ClassLinker::FixupStaticTrampolines(Class* klass) {
       }
     } else if (method->GetCode() == trampoline) {
       const void* code = oat_class->GetOatMethod(method_index).GetCode();
-      CHECK(code != NULL);
+      CHECK(code != NULL)
+          << "Resolving a static trampoline but found no code for: " << PrettyMethod(method);
       method->SetCode(code);
     }
     method_index++;
@@ -3417,50 +3404,140 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
                                    uint32_t method_idx,
                                    DexCache* dex_cache,
                                    ClassLoader* class_loader,
-                                   bool is_direct) {
+                                   InvokeType type) {
   DCHECK(dex_cache != NULL);
+  // Check for hit in the dex cache.
   Method* resolved = dex_cache->GetResolvedMethod(method_idx);
   if (resolved != NULL) {
     return resolved;
   }
+  // Fail, get the declaring class.
   const DexFile::MethodId& method_id = dex_file.GetMethodId(method_idx);
   Class* klass = ResolveType(dex_file, method_id.class_idx_, dex_cache, class_loader);
   if (klass == NULL) {
     DCHECK(Thread::Current()->IsExceptionPending());
     return NULL;
   }
-
-  if (is_direct) {
-    resolved = klass->FindDirectMethod(dex_cache, method_idx);
-  } else if (klass->IsInterface()) {
-    resolved = klass->FindInterfaceMethod(dex_cache, method_idx);
-  } else {
-    resolved = klass->FindVirtualMethod(dex_cache, method_idx);
+  // Scan using method_idx, this saves string compares but will only hit for matching dex
+  // caches/files.
+  switch (type) {
+    case kDirect:  // Fall-through.
+    case kStatic:
+      resolved = klass->FindDirectMethod(dex_cache, method_idx);
+      break;
+    case kInterface:
+      resolved = klass->FindInterfaceMethod(dex_cache, method_idx);
+      break;
+    case kSuper:  // Fall-through.
+    case kVirtual:
+      resolved = klass->FindVirtualMethod(dex_cache, method_idx);
+      break;
+    default:
+      LOG(FATAL) << "Unreachable - invocation type: " << type;
   }
-
   if (resolved == NULL) {
+    // Search by name, which works across dex files.
     const char* name = dex_file.StringDataByIdx(method_id.name_idx_);
     std::string signature(dex_file.CreateMethodSignature(method_id.proto_idx_, NULL));
-    if (is_direct) {
-      resolved = klass->FindDirectMethod(name, signature);
-    } else if (klass->IsInterface()) {
-      resolved = klass->FindInterfaceMethod(name, signature);
-    } else {
-      resolved = klass->FindVirtualMethod(name, signature);
-      // If a virtual method isn't found, search the direct methods. This can
-      // happen when trying to access private methods directly, and allows the
-      // proper exception to be thrown in the caller.
-      if (resolved == NULL) {
+    switch (type) {
+      case kDirect:  // Fall-through.
+      case kStatic:
         resolved = klass->FindDirectMethod(name, signature);
-      }
-    }
-    if (resolved == NULL) {
-      ThrowNoSuchMethodError(is_direct, klass, name, signature);
-      return NULL;
+        break;
+      case kInterface:
+        resolved = klass->FindInterfaceMethod(name, signature);
+        break;
+      case kSuper:  // Fall-through.
+      case kVirtual:
+        resolved = klass->FindVirtualMethod(name, signature);
+        break;
     }
   }
-  dex_cache->SetResolvedMethod(method_idx, resolved);
-  return resolved;
+  if (resolved != NULL) {
+    // We found a method, check for incompatible class changes.
+    switch (type) {
+      case kDirect:
+        if (resolved->IsStatic()) {
+          resolved = NULL;  // Incompatible class change.
+        }
+        break;
+      case kStatic:
+        if (!resolved->IsStatic()) {
+          resolved = NULL;  // Incompatible class change.
+        }
+        break;
+      case kInterface:
+        if (resolved->IsConstructor() || !resolved->GetDeclaringClass()->IsInterface()) {
+          resolved = NULL;  // Incompatible class change.
+        }
+        break;
+      case kSuper:
+        // TODO: appropriate checks for call to super class.
+        break;
+      case kVirtual:
+        if (resolved->IsConstructor() || resolved->GetDeclaringClass()->IsInterface()) {
+          resolved = NULL;  // Incompatible class change.
+        }
+        break;
+    }
+  }
+  if (resolved != NULL) {
+    // Be a good citizen and update the dex cache to speed subsequent calls.
+    dex_cache->SetResolvedMethod(method_idx, resolved);
+    return resolved;
+  } else {
+    // We failed to find the method which means either an incompatible class change or no such
+    // method.
+    const char* name = dex_file.StringDataByIdx(method_id.name_idx_);
+    std::string signature(dex_file.CreateMethodSignature(method_id.proto_idx_, NULL));
+    switch (type) {
+      case kDirect:
+      case kStatic:
+        resolved = klass->FindVirtualMethod(name, signature);
+        if (resolved != NULL) {
+          ThrowIncompatibleClassChangeError(type, kVirtual, resolved);
+        } else {
+          resolved = klass->FindInterfaceMethod(name, signature);
+          if (resolved != NULL) {
+            ThrowIncompatibleClassChangeError(type, kInterface, resolved);
+          } else {
+            ThrowNoSuchMethodError(type, klass, name, signature);
+          }
+        }
+        break;
+      case kInterface:
+        resolved = klass->FindDirectMethod(name, signature);
+        if (resolved != NULL) {
+          ThrowIncompatibleClassChangeError(type, kDirect, resolved);
+        } else {
+          resolved = klass->FindVirtualMethod(name, signature);
+          if (resolved != NULL) {
+            ThrowIncompatibleClassChangeError(type, kVirtual, resolved);
+          } else {
+            ThrowNoSuchMethodError(type, klass, name, signature);
+          }
+        }
+        break;
+      case kSuper:
+        ThrowNoSuchMethodError(type, klass, name, signature);
+        break;
+      case kVirtual:
+        resolved = klass->FindDirectMethod(name, signature);
+        if (resolved != NULL) {
+          ThrowIncompatibleClassChangeError(type, kDirect, resolved);
+        } else {
+          resolved = klass->FindInterfaceMethod(name, signature);
+          if (resolved != NULL) {
+            ThrowIncompatibleClassChangeError(type, kInterface, resolved);
+          } else {
+            ThrowNoSuchMethodError(type, klass, name, signature);
+          }
+        }
+        break;
+    }
+    DCHECK(Thread::Current()->IsExceptionPending());
+    return NULL;
+  }
 }
 
 Field* ClassLinker::ResolveField(const DexFile& dex_file,

@@ -21,9 +21,11 @@
 #include <vector>
 
 #include "globals.h"
+#include "invoke_type.h"
 #include "jni.h"
 #include "logging.h"
 #include "mem_map.h"
+#include "modifiers.h"
 #include "mutex.h"
 #include "safe_map.h"
 #include "stringpiece.h"
@@ -1022,6 +1024,24 @@ class ClassDataItemIterator {
     } else {
       CHECK_LT(pos_, EndOfVirtualMethodsPos());
       return method_.access_flags_;
+    }
+  }
+  InvokeType GetMethodInvokeType(const DexFile::ClassDef& class_def) const {
+    if (HasNextDirectMethod()) {
+      if ((GetMemberAccessFlags() & kAccStatic) != 0 ) {
+        return kStatic;
+      } else {
+        return kDirect;
+      }
+    } else {
+      CHECK_EQ(GetMemberAccessFlags() & kAccStatic, 0U);
+      if ((class_def.access_flags_ & kAccInterface) != 0) {
+        return kInterface;
+      } else if ((GetMemberAccessFlags() & kAccConstructor) != 0) {
+        return kSuper;
+      } else {
+        return kVirtual;
+      }
     }
   }
   const DexFile::CodeItem* GetMethodCodeItem() const {

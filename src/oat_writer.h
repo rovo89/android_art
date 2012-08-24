@@ -96,8 +96,8 @@ class OatWriter {
                              const DexFile::ClassDef& class_def)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
   size_t InitOatCodeMethod(size_t offset, size_t oat_class_index, size_t class_def_index,
-                           size_t class_def_method_index, bool is_native, bool is_static,
-                           bool is_direct, uint32_t method_idx, const DexFile*)
+                           size_t class_def_method_index, bool is_native, InvokeType type,
+                           uint32_t method_idx, const DexFile*)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   bool Write(File* file);

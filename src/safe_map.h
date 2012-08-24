@@ -49,7 +49,7 @@ class SafeMap {
   bool empty() const { return map_.empty(); }
   size_type size() const { return map_.size(); }
 
-  void clear() { return map_.clear(); }
+  void clear() { map_.clear(); }
   void erase(iterator it) { map_.erase(it); }
   size_type erase(const K& k) { return map_.erase(k); }
 

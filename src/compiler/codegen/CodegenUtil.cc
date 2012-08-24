@@ -646,9 +646,9 @@ void installLiteralPools(CompilationUnit* cUnit)
       uint32_t target = dataLIR->operands[0];
       cUnit->compiler->AddCodePatch(cUnit->dex_file,
                                     cUnit->method_idx,
-                                    cUnit->access_flags,
+                                    cUnit->invoke_type,
                                     target,
-                                    IsDirect(dataLIR->operands[1]),
+                                    static_cast<InvokeType>(dataLIR->operands[1]),
                                     cUnit->codeBuffer.size());
       const DexFile::MethodId& id = cUnit->dex_file->GetMethodId(target);
       // unique based on target to ensure code deduplication works
@@ -661,9 +661,9 @@ void installLiteralPools(CompilationUnit* cUnit)
       uint32_t target = dataLIR->operands[0];
       cUnit->compiler->AddMethodPatch(cUnit->dex_file,
                                       cUnit->method_idx,
-                                      cUnit->access_flags,
+                                      cUnit->invoke_type,
                                       target,
-                                      IsDirect(dataLIR->operands[1]),
+                                      static_cast<InvokeType>(dataLIR->operands[1]),
                                       cUnit->codeBuffer.size());
       const DexFile::MethodId& id = cUnit->dex_file->GetMethodId(target);
       // unique based on target to ensure code deduplication works

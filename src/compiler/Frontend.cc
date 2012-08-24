@@ -742,7 +742,8 @@ void oatInit(CompilationUnit* cUnit, const Compiler& compiler) {
 
 CompiledMethod* oatCompileMethod(Compiler& compiler,
                                  const DexFile::CodeItem* code_item,
-                                 uint32_t access_flags, uint32_t method_idx,
+                                 uint32_t access_flags, InvokeType invoke_type,
+                                 uint32_t method_idx,
                                  jobject class_loader,
                                  const DexFile& dex_file)
 {
@@ -764,6 +765,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   cUnit->method_idx = method_idx;
   cUnit->code_item = code_item;
   cUnit->access_flags = access_flags;
+  cUnit->invoke_type = invoke_type;
   cUnit->shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
   cUnit->instructionSet = compiler.GetInstructionSet();
   cUnit->insns = code_item->insns_;
@@ -1182,11 +1184,11 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
 extern "C" art::CompiledMethod*
     ArtCompileMethod(art::Compiler& compiler,
                      const art::DexFile::CodeItem* code_item,
-                     uint32_t access_flags, uint32_t method_idx,
-                     jobject class_loader,
+                     uint32_t access_flags, art::InvokeType invoke_type,
+                     uint32_t method_idx, jobject class_loader,
                      const art::DexFile& dex_file)
 {
   CHECK_EQ(compiler.GetInstructionSet(), art::oatInstructionSet());
-  return art::oatCompileMethod(compiler, code_item, access_flags, method_idx,
-                 class_loader, dex_file);
+  return art::oatCompileMethod(compiler, code_item, access_flags, invoke_type,
+                               method_idx, class_loader, dex_file);
 }

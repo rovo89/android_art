@@ -304,6 +304,19 @@ void Field::SetObject(Object* object, const Object* l) const {
 Class* Method::java_lang_reflect_Constructor_ = NULL;
 Class* Method::java_lang_reflect_Method_ = NULL;
 
+InvokeType Method::GetInvokeType() const {
+  // TODO: kSuper?
+  if (GetDeclaringClass()->IsInterface()) {
+    return kInterface;
+  } else if (IsStatic()) {
+    return kStatic;
+  } else if (IsDirect()) {
+    return kDirect;
+  } else {
+    return kVirtual;
+  }
+}
+
 void Method::SetClasses(Class* java_lang_reflect_Constructor, Class* java_lang_reflect_Method) {
   CHECK(java_lang_reflect_Constructor_ == NULL);
   CHECK(java_lang_reflect_Constructor != NULL);

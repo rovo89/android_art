@@ -506,7 +506,8 @@ void Compiler::CompileOne(const Method* method) {
 
   uint32_t method_idx = method->GetDexMethodIndex();
   const DexFile::CodeItem* code_item = dex_file->GetCodeItem(method->GetCodeItemOffset());
-  CompileMethod(code_item, method->GetAccessFlags(), method_idx, class_loader, *dex_file);
+  CompileMethod(code_item, method->GetAccessFlags(), method->GetInvokeType(),
+                method_idx, class_loader, *dex_file);
 
   PostCompile(class_loader, dex_files);
 
@@ -644,8 +645,8 @@ bool Compiler::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
   return result;
 }
 
-static Class* ComputeReferrerClass(ScopedObjectAccess& soa,
-                                   OatCompilationUnit* mUnit)
+static Class* ComputeCompilingMethodsClass(ScopedObjectAccess& soa,
+                                           OatCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   DexCache* dex_cache = mUnit->class_linker_->FindDexCache(*mUnit->dex_file_);
   ClassLoader* class_loader = soa.Decode<ClassLoader*>(mUnit->class_loader_);
@@ -654,8 +655,9 @@ static Class* ComputeReferrerClass(ScopedObjectAccess& soa,
                                            dex_cache, class_loader);
 }
 
-static Field* ComputeReferrerField(ScopedObjectAccess& soa,
-                                   OatCompilationUnit* mUnit, uint32_t field_idx)
+static Field* ComputeFieldReferencedFromCompilingMethod(ScopedObjectAccess& soa,
+                                                        OatCompilationUnit* mUnit,
+                                                        uint32_t field_idx)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   DexCache* dex_cache = mUnit->class_linker_->FindDexCache(*mUnit->dex_file_);
   ClassLoader* class_loader = soa.Decode<ClassLoader*>(mUnit->class_loader_);
@@ -663,25 +665,27 @@ static Field* ComputeReferrerField(ScopedObjectAccess& soa,
                                             class_loader, false);
 }
 
-static Method* ComputeReferrerMethod(ScopedObjectAccess& soa,
-                                     OatCompilationUnit* mUnit, uint32_t method_idx)
+static Method* ComputeMethodReferencedFromCompilingMethod(ScopedObjectAccess& soa,
+                                                          OatCompilationUnit* mUnit,
+                                                          uint32_t method_idx,
+                                                          InvokeType type)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   DexCache* dex_cache = mUnit->class_linker_->FindDexCache(*mUnit->dex_file_);
   ClassLoader* class_loader = soa.Decode<ClassLoader*>(mUnit->class_loader_);
   return mUnit->class_linker_->ResolveMethod(*mUnit->dex_file_, method_idx, dex_cache,
-                                             class_loader, true);
+                                             class_loader, type);
 }
 
 bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
                                         int& field_offset, bool& is_volatile, bool is_put) {
   ScopedObjectAccess soa(Thread::Current());
-  // Conservative defaults
+  // Conservative defaults.
   field_offset = -1;
   is_volatile = true;
-  // Try to resolve field
-  Field* resolved_field = ComputeReferrerField(soa, mUnit, field_idx);
-  if (resolved_field != NULL) {
-    Class* referrer_class = ComputeReferrerClass(soa, mUnit);
+  // Try to resolve field and ignore if an Incompatible Class Change Error (ie is static).
+  Field* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
+  if (resolved_field != NULL && !resolved_field->IsStatic()) {
+    Class* referrer_class = ComputeCompilingMethodsClass(soa, mUnit);
     if (referrer_class != NULL) {
       Class* fields_class = resolved_field->GetDeclaringClass();
       bool access_ok = referrer_class->CanAccess(fields_class) &&
@@ -721,16 +725,15 @@ bool Compiler::ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mU
                                       int& field_offset, int& ssb_index,
                                       bool& is_referrers_class, bool& is_volatile, bool is_put) {
   ScopedObjectAccess soa(Thread::Current());
-  // Conservative defaults
+  // Conservative defaults.
   field_offset = -1;
   ssb_index = -1;
   is_referrers_class = false;
   is_volatile = true;
-  // Try to resolve field
-  Field* resolved_field = ComputeReferrerField(soa, mUnit, field_idx);
-  if (resolved_field != NULL) {
-    DCHECK(resolved_field->IsStatic());
-    Class* referrer_class = ComputeReferrerClass(soa, mUnit);
+  // Try to resolve field and ignore if an Incompatible Class Change Error (ie isn't static).
+  Field* resolved_field = ComputeFieldReferencedFromCompilingMethod(soa, mUnit, field_idx);
+  if (resolved_field != NULL && resolved_field->IsStatic()) {
+    Class* referrer_class = ComputeCompilingMethodsClass(soa, mUnit);
     if (referrer_class != NULL) {
       Class* fields_class = resolved_field->GetDeclaringClass();
       if (fields_class == referrer_class) {
@@ -846,17 +849,22 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
   vtable_idx = -1;
   direct_code = 0;
   direct_method = 0;
-  Method* resolved_method = ComputeReferrerMethod(soa, mUnit, method_idx);
+  Method* resolved_method =
+      ComputeMethodReferencedFromCompilingMethod(soa, mUnit, method_idx, type);
   if (resolved_method != NULL) {
-    Class* referrer_class = ComputeReferrerClass(soa, mUnit);
-    if (referrer_class != NULL) {
+    // Don't try to fast-path if we don't understand the caller's class or this appears to be an
+    // Incompatible Class Change Error.
+    Class* referrer_class = ComputeCompilingMethodsClass(soa, mUnit);
+    bool icce = resolved_method->CheckIncompatibleClassChange(type);
+    if (referrer_class != NULL && !icce) {
       Class* methods_class = resolved_method->GetDeclaringClass();
       if (!referrer_class->CanAccess(methods_class) ||
           !referrer_class->CanAccessMember(methods_class,
                                            resolved_method->GetAccessFlags())) {
         // The referring class can't access the resolved method, this may occur as a result of a
         // protected method being made public by implementing an interface that re-declares the
-        // method public. Resort to the dex file to determine the correct class for the access check
+        // method public. Resort to the dex file to determine the correct class for the access
+        // check.
         const DexFile& dex_file = mUnit->class_linker_->FindDexFile(referrer_class->GetDexCache());
         methods_class =
             mUnit->class_linker_->ResolveType(dex_file,
@@ -870,24 +878,24 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
         const bool kEnableSharpening = true;
         // Sharpen a virtual call into a direct call when the target is known.
         bool can_sharpen = type == kVirtual && (resolved_method->IsFinal() ||
-                                                methods_class->IsFinal());
-        // ensure the vtable index will be correct to dispatch in the vtable of the super class
+            methods_class->IsFinal());
+        // Ensure the vtable index will be correct to dispatch in the vtable of the super class.
         can_sharpen = can_sharpen || (type == kSuper && referrer_class != methods_class &&
-                                      referrer_class->IsSubClass(methods_class) &&
-                                      vtable_idx < methods_class->GetVTable()->GetLength() &&
-                                      methods_class->GetVTable()->Get(vtable_idx) == resolved_method);
+            referrer_class->IsSubClass(methods_class) &&
+            vtable_idx < methods_class->GetVTable()->GetLength() &&
+            methods_class->GetVTable()->Get(vtable_idx) == resolved_method);
         if (kEnableSharpening && can_sharpen) {
           stats_->ResolvedMethod(type);
           // Sharpen a virtual call into a direct call. The method_idx is into referrer's
           // dex cache, check that this resolved method is where we expect it.
           CHECK(referrer_class->GetDexCache()->GetResolvedMethod(method_idx) == resolved_method)
-            << PrettyMethod(resolved_method);
+              << PrettyMethod(resolved_method);
           stats_->VirtualMadeDirect(type);
           GetCodeAndMethodForDirectCall(type, kDirect, resolved_method, direct_code, direct_method);
           type = kDirect;
           return true;
         } else if (type == kSuper) {
-          // Unsharpened super calls are suspicious so go slowpath.
+          // Unsharpened super calls are suspicious so go slow-path.
         } else {
           stats_->ResolvedMethod(type);
           GetCodeAndMethodForDirectCall(type, type, resolved_method, direct_code, direct_method);
@@ -906,30 +914,30 @@ bool Compiler::ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit,
 
 void Compiler::AddCodePatch(const DexFile* dex_file,
                             uint32_t referrer_method_idx,
-                            uint32_t referrer_access_flags,
+                            InvokeType referrer_invoke_type,
                             uint32_t target_method_idx,
-                            bool target_is_direct,
+                            InvokeType target_invoke_type,
                             size_t literal_offset) {
   MutexLock mu(compiled_methods_lock_);
   code_to_patch_.push_back(new PatchInformation(dex_file,
                                                 referrer_method_idx,
-                                                referrer_access_flags,
+                                                referrer_invoke_type,
                                                 target_method_idx,
-                                                target_is_direct,
+                                                target_invoke_type,
                                                 literal_offset));
 }
 void Compiler::AddMethodPatch(const DexFile* dex_file,
                               uint32_t referrer_method_idx,
-                              uint32_t referrer_access_flags,
+                              InvokeType referrer_invoke_type,
                               uint32_t target_method_idx,
-                              bool target_is_direct,
+                              InvokeType target_invoke_type,
                               size_t literal_offset) {
   MutexLock mu(compiled_methods_lock_);
   methods_to_patch_.push_back(new PatchInformation(dex_file,
                                                    referrer_method_idx,
-                                                   referrer_access_flags,
+                                                   referrer_invoke_type,
                                                    target_method_idx,
-                                                   target_is_direct,
+                                                   target_invoke_type,
                                                    literal_offset));
 }
 
@@ -1132,7 +1140,7 @@ static void ResolveClassFieldsAndMethods(const CompilationContext* context, size
   }
   while (it.HasNextDirectMethod()) {
     Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
-                                                 class_loader, true);
+                                                 class_loader, it.GetMethodInvokeType(class_def));
     if (method == NULL) {
       CHECK(self->IsExceptionPending());
       self->ClearException();
@@ -1141,7 +1149,7 @@ static void ResolveClassFieldsAndMethods(const CompilationContext* context, size
   }
   while (it.HasNextVirtualMethod()) {
     Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
-                                                 class_loader, false);
+                                                 class_loader, it.GetMethodInvokeType(class_def));
     if (method == NULL) {
       CHECK(self->IsExceptionPending());
       self->ClearException();
@@ -1507,7 +1515,8 @@ void Compiler::CompileClass(const CompilationContext* context, size_t class_def_
     }
     previous_direct_method_idx = method_idx;
     context->GetCompiler()->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
-                                          method_idx, class_loader, dex_file);
+                                          it.GetMethodInvokeType(class_def), method_idx,
+                                          class_loader, dex_file);
     it.Next();
   }
   // Compile virtual methods
@@ -1522,7 +1531,8 @@ void Compiler::CompileClass(const CompilationContext* context, size_t class_def_
     }
     previous_virtual_method_idx = method_idx;
     context->GetCompiler()->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
-                                          method_idx, class_loader, dex_file);
+                                          it.GetMethodInvokeType(class_def), method_idx,
+                                          class_loader, dex_file);
     it.Next();
   }
   DCHECK(!it.HasNext());
@@ -1542,7 +1552,7 @@ static std::string MakeInvokeStubKey(bool is_static, const char* shorty) {
 }
 
 void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
-                             uint32_t method_idx, jobject class_loader,
+                             InvokeType invoke_type, uint32_t method_idx, jobject class_loader,
                              const DexFile& dex_file) {
   CompiledMethod* compiled_method = NULL;
   uint64_t start_ns = NanoTime();
@@ -1552,8 +1562,8 @@ void Compiler::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access
     CHECK(compiled_method != NULL);
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
-    compiled_method = (*compiler_)(*this, code_item, access_flags, method_idx, class_loader,
-                                   dex_file);
+    compiled_method = (*compiler_)(*this, code_item, access_flags, invoke_type, method_idx,
+                                   class_loader, dex_file);
     CHECK(compiled_method != NULL) << PrettyMethod(method_idx, dex_file);
   }
   uint64_t duration_ns = NanoTime() - start_ns;
@@ -1709,13 +1719,13 @@ void Compiler::SetGcMapsDexFile(jobject jni_class_loader, const DexFile& dex_fil
     }
     while (it.HasNextDirectMethod()) {
       Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
-                                                   class_loader, true);
+                                                   class_loader, it.GetMethodInvokeType(class_def));
       SetGcMapsMethod(dex_file, method);
       it.Next();
     }
     while (it.HasNextVirtualMethod()) {
       Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
-                                                   class_loader, false);
+                                                   class_loader, it.GetMethodInvokeType(class_def));
       SetGcMapsMethod(dex_file, method);
       it.Next();
     }

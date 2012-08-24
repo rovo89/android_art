@@ -365,13 +365,13 @@ Object* art_resolve_string_from_code(Method* referrer, uint32_t string_idx)
 
 int32_t art_set32_static_from_code(uint32_t field_idx, Method* referrer, int32_t new_value)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  Field* field = FindFieldFast(field_idx, referrer, true, true, sizeof(uint32_t));
+  Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(NULL, new_value);
     return 0;
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
-                            true, true, true, sizeof(uint32_t));
+                            StaticPrimitiveWrite, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(NULL, new_value);
     return 0;
@@ -381,13 +381,13 @@ int32_t art_set32_static_from_code(uint32_t field_idx, Method* referrer, int32_t
 
 int32_t art_set64_static_from_code(uint32_t field_idx, Method* referrer, int64_t new_value)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  Field* field = FindFieldFast(field_idx, referrer, true, true, sizeof(uint64_t));
+  Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(NULL, new_value);
     return 0;
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
-                            true, true, true, sizeof(uint64_t));
+                            StaticPrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(NULL, new_value);
     return 0;
@@ -397,13 +397,13 @@ int32_t art_set64_static_from_code(uint32_t field_idx, Method* referrer, int64_t
 
 int32_t art_set_obj_static_from_code(uint32_t field_idx, Method* referrer, Object* new_value)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  Field* field = FindFieldFast(field_idx, referrer, false, true, sizeof(Object*));
+  Field* field = FindFieldFast(field_idx, referrer, StaticObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(NULL, new_value);
     return 0;
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
-                            true, false, true, sizeof(Object*));
+                            StaticObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(NULL, new_value);
     return 0;
@@ -413,12 +413,12 @@ int32_t art_set_obj_static_from_code(uint32_t field_idx, Method* referrer, Objec
 
 int32_t art_get32_static_from_code(uint32_t field_idx, Method* referrer)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(uint32_t));
+  Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(NULL);
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
-                            true, true, false, sizeof(uint32_t));
+                            StaticPrimitiveRead, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(NULL);
   }
@@ -427,12 +427,12 @@ int32_t art_get32_static_from_code(uint32_t field_idx, Method* referrer)
 
 int64_t art_get64_static_from_code(uint32_t field_idx, Method* referrer)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(uint64_t));
+  Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(NULL);
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
-                            true, true, false, sizeof(uint64_t));
+                            StaticPrimitiveRead, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(NULL);
   }
@@ -441,12 +441,12 @@ int64_t art_get64_static_from_code(uint32_t field_idx, Method* referrer)
 
 Object* art_get_obj_static_from_code(uint32_t field_idx, Method* referrer)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  Field* field = FindFieldFast(field_idx, referrer, false, false, sizeof(Object*));
+  Field* field = FindFieldFast(field_idx, referrer, StaticObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(NULL);
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
-                            true, false, false, sizeof(Object*));
+                            StaticObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(NULL);
   }
@@ -456,13 +456,13 @@ Object* art_get_obj_static_from_code(uint32_t field_idx, Method* referrer)
 int32_t art_set32_instance_from_code(uint32_t field_idx, Method* referrer,
                                      Object* obj, uint32_t new_value)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  Field* field = FindFieldFast(field_idx, referrer, true, true, sizeof(uint32_t));
+  Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(obj, new_value);
     return 0;
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
-                            false, true, true, sizeof(uint32_t));
+                            InstancePrimitiveWrite, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(obj, new_value);
     return 0;
@@ -473,13 +473,13 @@ int32_t art_set32_instance_from_code(uint32_t field_idx, Method* referrer,
 int32_t art_set64_instance_from_code(uint32_t field_idx, Method* referrer,
                                      Object* obj, int64_t new_value)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  Field* field = FindFieldFast(field_idx, referrer, true, true, sizeof(uint64_t));
+  Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(obj, new_value);
     return 0;
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
-                            false, true, true, sizeof(uint64_t));
+                            InstancePrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(obj, new_value);
     return 0;
@@ -490,13 +490,13 @@ int32_t art_set64_instance_from_code(uint32_t field_idx, Method* referrer,
 int32_t art_set_obj_instance_from_code(uint32_t field_idx, Method* referrer,
                                        Object* obj, Object* new_value)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  Field* field = FindFieldFast(field_idx, referrer, false, true, sizeof(Object*));
+  Field* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(obj, new_value);
     return 0;
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
-                            false, false, true, sizeof(Object*));
+                            InstanceObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(obj, new_value);
     return 0;
@@ -506,12 +506,12 @@ int32_t art_set_obj_instance_from_code(uint32_t field_idx, Method* referrer,
 
 int32_t art_get32_instance_from_code(uint32_t field_idx, Method* referrer, Object* obj)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(uint32_t));
+  Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(obj);
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
-                            false, true, false, sizeof(uint32_t));
+                            InstancePrimitiveRead, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(obj);
   }
@@ -520,12 +520,12 @@ int32_t art_get32_instance_from_code(uint32_t field_idx, Method* referrer, Objec
 
 int64_t art_get64_instance_from_code(uint32_t field_idx, Method* referrer, Object* obj)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  Field* field = FindFieldFast(field_idx, referrer, true, false, sizeof(uint64_t));
+  Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(obj);
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
-                            false, true, false, sizeof(uint64_t));
+                            InstancePrimitiveRead, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(obj);
   }
@@ -534,12 +534,12 @@ int64_t art_get64_instance_from_code(uint32_t field_idx, Method* referrer, Objec
 
 Object* art_get_obj_instance_from_code(uint32_t field_idx, Method* referrer, Object* obj)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  Field* field = FindFieldFast(field_idx, referrer, false, false, sizeof(Object*));
+  Field* field = FindFieldFast(field_idx, referrer, InstanceObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(obj);
   }
   field = FindFieldFromCode(field_idx, referrer, art_get_current_thread_from_code(),
-                            false, false, false, sizeof(Object*));
+                            InstanceObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(obj);
   }

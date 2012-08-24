@@ -143,16 +143,16 @@ class Compiler {
   // Record patch information for later fix up.
   void AddCodePatch(const DexFile* dex_file,
                     uint32_t referrer_method_idx,
-                    uint32_t referrer_access_flags,
+                    InvokeType referrer_invoke_type,
                     uint32_t target_method_idx,
-                    bool target_is_direct,
+                    InvokeType target_invoke_type,
                     size_t literal_offset)
       LOCKS_EXCLUDED(compiled_methods_lock_);
   void AddMethodPatch(const DexFile* dex_file,
                       uint32_t referrer_method_idx,
-                      uint32_t referrer_access_flags,
+                      InvokeType referrer_invoke_type,
                       uint32_t target_method_idx,
-                      bool target_is_direct,
+                      InvokeType target_invoke_type,
                       size_t literal_offset)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
@@ -180,14 +180,14 @@ class Compiler {
     uint32_t GetReferrerMethodIdx() const {
       return referrer_method_idx_;
     }
-    bool GetReferrerIsDirect() const {
-      return referrer_is_direct_;
+    InvokeType GetReferrerInvokeType() const {
+      return referrer_invoke_type_;
     }
     uint32_t GetTargetMethodIdx() const {
       return target_method_idx_;
     }
-    bool GetTargetIsDirect() const {
-      return target_is_direct_;
+    InvokeType GetTargetInvokeType() const {
+      return target_invoke_type_;
     }
     size_t GetLiteralOffset() const {;
       return literal_offset_;
@@ -196,24 +196,24 @@ class Compiler {
    private:
     PatchInformation(const DexFile* dex_file,
                      uint32_t referrer_method_idx,
-                     uint32_t referrer_access_flags,
+                     InvokeType referrer_invoke_type,
                      uint32_t target_method_idx,
-                     uint32_t target_is_direct,
+                     InvokeType target_invoke_type,
                      size_t literal_offset)
       : dex_file_(dex_file),
         referrer_method_idx_(referrer_method_idx),
-        referrer_is_direct_(Method::IsDirect(referrer_access_flags)),
+        referrer_invoke_type_(referrer_invoke_type),
         target_method_idx_(target_method_idx),
-        target_is_direct_(target_is_direct),
+        target_invoke_type_(target_invoke_type),
         literal_offset_(literal_offset) {
       CHECK(dex_file_ != NULL);
     }
 
     const DexFile* dex_file_;
     uint32_t referrer_method_idx_;
-    bool referrer_is_direct_;
+    InvokeType referrer_invoke_type_;
     uint32_t target_method_idx_;
-    bool target_is_direct_;
+    InvokeType target_invoke_type_;
     size_t literal_offset_;
 
     friend class Compiler;
@@ -263,7 +263,8 @@ class Compiler {
   void Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files);
   void CompileDexFile(jobject class_loader, const DexFile& dex_file)
       LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
-  void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags, uint32_t method_idx,
+  void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
+                     InvokeType invoke_type, uint32_t method_idx,
                      jobject class_loader, const DexFile& dex_file)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
@@ -332,8 +333,8 @@ class Compiler {
 
   typedef CompiledMethod* (*CompilerFn)(Compiler& compiler,
                                         const DexFile::CodeItem* code_item,
-                                        uint32_t access_flags, uint32_t method_idx,
-                                        jobject class_loader,
+                                        uint32_t access_flags, InvokeType invoke_type,
+                                        uint32_t method_idx, jobject class_loader,
                                         const DexFile& dex_file);
   CompilerFn compiler_;
 

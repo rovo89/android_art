@@ -198,18 +198,18 @@ size_t OatWriter::InitOatCodeClassDef(size_t offset,
   // Process methods
   size_t class_def_method_index = 0;
   while (it.HasNextDirectMethod()) {
-    bool is_static = (it.GetMemberAccessFlags() & kAccStatic) != 0;
     bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
-    offset = InitOatCodeMethod(offset, oat_class_index, class_def_index, class_def_method_index, is_native,
-                               is_static, true, it.GetMemberIndex(), &dex_file);
+    offset = InitOatCodeMethod(offset, oat_class_index, class_def_index, class_def_method_index,
+                               is_native, it.GetMethodInvokeType(class_def), it.GetMemberIndex(),
+                               &dex_file);
     class_def_method_index++;
     it.Next();
   }
   while (it.HasNextVirtualMethod()) {
-    CHECK_EQ(it.GetMemberAccessFlags() & kAccStatic, 0U);
     bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
-    offset = InitOatCodeMethod(offset, oat_class_index, class_def_index, class_def_method_index, is_native,
-                               false, false, it.GetMemberIndex(), &dex_file);
+    offset = InitOatCodeMethod(offset, oat_class_index, class_def_index, class_def_method_index,
+                               is_native, it.GetMethodInvokeType(class_def), it.GetMemberIndex(),
+                               &dex_file);
     class_def_method_index++;
     it.Next();
   }
@@ -221,7 +221,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
                                     size_t __attribute__((unused)) class_def_index,
                                     size_t class_def_method_index,
                                     bool __attribute__((unused)) is_native,
-                                    bool is_static, bool is_direct,
+                                    InvokeType type,
                                     uint32_t method_idx, const DexFile* dex_file) {
   // derived from CompiledMethod if available
   uint32_t code_offset = 0;
@@ -316,7 +316,8 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   }
 
   const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(method_idx));
-  const CompiledInvokeStub* compiled_invoke_stub = compiler_->FindInvokeStub(is_static, shorty);
+  const CompiledInvokeStub* compiled_invoke_stub = compiler_->FindInvokeStub(type == kStatic,
+                                                                             shorty);
   if (compiled_invoke_stub != NULL) {
     offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
     DCHECK_ALIGNED(offset, kArmAlignment);
@@ -339,7 +340,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
   }
 
 #if defined(ART_USE_LLVM_COMPILER)
-  if (!is_static) {
+  if (type == kStatic) {
     const CompiledInvokeStub* compiled_proxy_stub = compiler_->FindProxyStub(shorty);
     if (compiled_proxy_stub != NULL) {
       offset = CompiledMethod::AlignCode(offset, compiler_->GetInstructionSet());
@@ -384,7 +385,7 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
     // Unchecked as we hold mutator_lock_ on entry.
     ScopedObjectAccessUnchecked soa(Thread::Current());
     Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache,
-                                           soa.Decode<ClassLoader*>(class_loader_), is_direct);
+                                           soa.Decode<ClassLoader*>(class_loader_), type);
     CHECK(method != NULL);
     method->SetFrameSizeInBytes(frame_size_in_bytes);
     method->SetCoreSpillMask(core_spill_mask);
@@ -719,7 +720,7 @@ size_t OatWriter::WriteCodeMethod(File* file, size_t code_offset, size_t oat_cla
   }
 
 #if defined(ART_USE_LLVM_COMPILER)
-  if (!is_static) {
+  if (is_static) {
     const CompiledInvokeStub* compiled_proxy_stub = compiler_->FindProxyStub(shorty);
     if (compiled_proxy_stub != NULL) {
       uint32_t aligned_code_offset = CompiledMethod::AlignCode(code_offset,

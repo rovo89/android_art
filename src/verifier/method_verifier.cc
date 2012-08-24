@@ -221,7 +221,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   while (it.HasNextDirectMethod()) {
     uint32_t method_idx = it.GetMemberIndex();
-    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, true);
+    InvokeType type = it.GetMethodInvokeType(class_def);
+    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, type);
     if (method == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
       // We couldn't resolve the method, but continue regardless.
@@ -246,7 +247,8 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
   }
   while (it.HasNextVirtualMethod()) {
     uint32_t method_idx = it.GetMemberIndex();
-    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, false);
+    InvokeType type = it.GetMethodInvokeType(class_def);
+    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, type);
     if (method == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
       // We couldn't resolve the method, but continue regardless.
@@ -393,20 +395,21 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
     case VERIFY_ERROR_ACCESS_CLASS:
     case VERIFY_ERROR_ACCESS_FIELD:
     case VERIFY_ERROR_ACCESS_METHOD:
+    case VERIFY_ERROR_INSTANTIATION:
+    case VERIFY_ERROR_CLASS_CHANGE:
       if (Runtime::Current()->IsCompiler()) {
-        // If we're optimistically running verification at compile time, turn NO_xxx and ACCESS_xxx
-        // errors into soft verification errors so that we re-verify at runtime. We may fail to find
-        // or to agree on access because of not yet available class loaders, or class loaders that
-        // will differ at runtime.
+        // If we're optimistically running verification at compile time, turn NO_xxx, ACCESS_xxx,
+        // class change and instantiation errors into soft verification errors so that we re-verify
+        // at runtime. We may fail to find or to agree on access because of not yet available class
+        // loaders, or class loaders that will differ at runtime. In some cases we will rewrite bad
+        // code at runtime but don't want to allow it at compile time due its effect on the
+        // soundness of the code being compiled. These cases, in the generated code, need to run as
+        // "slow paths" that dynamically perform the verification and cause the behavior to be that
+        // akin to an interpreter.
         error = VERIFY_ERROR_BAD_CLASS_SOFT;
       } else {
         have_pending_rewrite_failure_ = true;
       }
-      break;
-      // Errors that are bad at both compile and runtime, but don't cause rejection of the class.
-    case VERIFY_ERROR_CLASS_CHANGE:
-    case VERIFY_ERROR_INSTANTIATION:
-      have_pending_rewrite_failure_ = true;
       break;
       // Indication that verification should be retried at runtime.
     case VERIFY_ERROR_BAD_CLASS_SOFT:
@@ -1597,14 +1600,14 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (!res_type.IsInstantiableTypes()) {
         Fail(VERIFY_ERROR_INSTANTIATION)
             << "new-instance on primitive, interface or abstract class" << res_type;
-      } else {
-        const RegType& uninit_type = reg_types_.Uninitialized(res_type, work_insn_idx_);
-        // Any registers holding previous allocations from this address that have not yet been
-        // initialized must be marked invalid.
-        work_line_->MarkUninitRefsAsInvalid(uninit_type);
-        // add the new uninitialized reference to the register state
-        work_line_->SetRegisterType(dec_insn.vA, uninit_type);
+        // Soft failure so carry on to set register type.
       }
+      const RegType& uninit_type = reg_types_.Uninitialized(res_type, work_insn_idx_);
+      // Any registers holding previous allocations from this address that have not yet been
+      // initialized must be marked invalid.
+      work_line_->MarkUninitRefsAsInvalid(uninit_type);
+      // add the new uninitialized reference to the register state
+      work_line_->SetRegisterType(dec_insn.vA, uninit_type);
       break;
     }
     case Instruction::NEW_ARRAY:

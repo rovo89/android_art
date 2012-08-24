@@ -25,8 +25,10 @@
 #include "casts.h"
 #include "globals.h"
 #include "heap.h"
+#include "invoke_type.h"
 #include "logging.h"
 #include "macros.h"
+#include "modifiers.h"
 #include "offsets.h"
 #include "primitive.h"
 #include "runtime.h"
@@ -111,46 +113,6 @@ namespace compiler_llvm {
   class InferredRegCategoryMap;
 } // namespace compiler_llvm
 #endif
-
-static const uint32_t kAccPublic = 0x0001;  // class, field, method, ic
-static const uint32_t kAccPrivate = 0x0002;  // field, method, ic
-static const uint32_t kAccProtected = 0x0004;  // field, method, ic
-static const uint32_t kAccStatic = 0x0008;  // field, method, ic
-static const uint32_t kAccFinal = 0x0010;  // class, field, method, ic
-static const uint32_t kAccSynchronized = 0x0020;  // method (only allowed on natives)
-static const uint32_t kAccSuper = 0x0020;  // class (not used in dex)
-static const uint32_t kAccVolatile = 0x0040;  // field
-static const uint32_t kAccBridge = 0x0040;  // method (1.5)
-static const uint32_t kAccTransient = 0x0080;  // field
-static const uint32_t kAccVarargs = 0x0080;  // method (1.5)
-static const uint32_t kAccNative = 0x0100;  // method
-static const uint32_t kAccInterface = 0x0200;  // class, ic
-static const uint32_t kAccAbstract = 0x0400;  // class, method, ic
-static const uint32_t kAccStrict = 0x0800;  // method
-static const uint32_t kAccSynthetic = 0x1000;  // field, method, ic
-static const uint32_t kAccAnnotation = 0x2000;  // class, ic (1.5)
-static const uint32_t kAccEnum = 0x4000;  // class, field, ic (1.5)
-
-static const uint32_t kAccMiranda = 0x8000;  // method
-
-static const uint32_t kAccJavaFlagsMask = 0xffff;  // bits set from Java sources (low 16)
-
-static const uint32_t kAccConstructor = 0x00010000;  // method (dex only)
-static const uint32_t kAccDeclaredSynchronized = 0x00020000;  // method (dex only)
-static const uint32_t kAccClassIsProxy = 0x00040000;  // class (dex only)
-
-// Special runtime-only flags.
-// Note: if only kAccClassIsReference is set, we have a soft reference.
-static const uint32_t kAccClassIsFinalizable        = 0x80000000;  // class/ancestor overrides finalize()
-static const uint32_t kAccClassIsReference          = 0x08000000;  // class is a soft/weak/phantom ref
-static const uint32_t kAccClassIsWeakReference      = 0x04000000;  // class is a weak reference
-static const uint32_t kAccClassIsFinalizerReference = 0x02000000;  // class is a finalizer reference
-static const uint32_t kAccClassIsPhantomReference   = 0x01000000;  // class is a phantom reference
-
-static const uint32_t kAccReferenceFlagsMask = (kAccClassIsReference
-                                                | kAccClassIsWeakReference
-                                                | kAccClassIsFinalizerReference
-                                                | kAccClassIsPhantomReference);
 
 /*
  * Definitions for packing refOffsets in Class.
@@ -567,6 +529,9 @@ class MANAGED Method : public Object {
     SetField32(OFFSET_OF_OBJECT_MEMBER(Method, access_flags_), new_access_flags, false);
   }
 
+  // Approximate what kind of method call would be used for this method.
+  InvokeType GetInvokeType() const;
+
   // Returns true if the method is declared public.
   bool IsPublic() const {
     return (GetAccessFlags() & kAccPublic) != 0;
@@ -623,6 +588,8 @@ class MANAGED Method : public Object {
   }
 
   bool IsProxyMethod() const;
+
+  bool CheckIncompatibleClassChange(InvokeType type);
 
   uint16_t GetMethodIndex() const;
 
@@ -2482,6 +2449,30 @@ inline uint16_t Method::GetMethodIndex() const {
 inline uint32_t Method::GetDexMethodIndex() const {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
   return GetField32(OFFSET_OF_OBJECT_MEMBER(Method, method_dex_index_), false);
+}
+
+inline bool Method::CheckIncompatibleClassChange(InvokeType type) {
+  bool icce = true;
+  switch (type) {
+    case kStatic:
+      icce = !IsStatic();
+      break;
+    case kDirect:
+      icce = !IsDirect();
+      break;
+    case kVirtual:
+      icce = IsDirect();
+      break;
+    case kSuper:
+      icce = false;
+      break;
+    case kInterface: {
+      Class* methods_class = GetDeclaringClass();
+      icce = IsDirect() || !(methods_class->IsInterface() || methods_class->IsObjectClass());
+      break;
+    }
+  }
+  return icce;
 }
 
 inline void Method::AssertPcIsWithinCode(uintptr_t pc) const {

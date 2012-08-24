@@ -57,11 +57,16 @@ void ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(Thread* self,
                                                                    const Method* interface_method,
                                                                    Object* this_object)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
+                                       Method* method)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
+                            const StringPiece& signature)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 void ThrowNewIllegalAccessErrorField(Thread* self, Class* referrer, Field* accessed)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 void ThrowNewIllegalAccessErrorFinalField(Thread* self, const Method* referrer, Field* accessed)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-
 void ThrowNewIllegalAccessErrorMethod(Thread* self, Class* referrer, Method* accessed)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 void ThrowNullPointerExceptionForFieldAccess(Thread* self, Field* field, bool is_read)
@@ -151,22 +156,54 @@ extern Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int3
                                          Thread* self, bool access_check)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
+// Type of find field operation for fast and slow case.
+enum FindFieldType {
+  InstanceObjectRead,
+  InstanceObjectWrite,
+  InstancePrimitiveRead,
+  InstancePrimitiveWrite,
+  StaticObjectRead,
+  StaticObjectWrite,
+  StaticPrimitiveRead,
+  StaticPrimitiveWrite,
+};
+
+// Slow field find that can initialize classes and may throw exceptions.
 extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* self,
-                                bool is_static, bool is_primitive, bool is_set,
-                                size_t expected_size)
+                                FindFieldType type, size_t expected_size)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
-// Fast path field resolution that can't throw exceptions
-static inline Field* FindFieldFast(uint32_t field_idx, const Method* referrer, bool is_primitive,
-                                   size_t expected_size, bool is_set)
+// Fast path field resolution that can't initialize classes or throw exceptions.
+static inline Field* FindFieldFast(uint32_t field_idx, const Method* referrer,
+                                   FindFieldType type, size_t expected_size)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   Field* resolved_field = referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
   if (UNLIKELY(resolved_field == NULL)) {
     return NULL;
   }
   Class* fields_class = resolved_field->GetDeclaringClass();
-  // Check class is initiliazed or initializing
+  // Check class is initiliazed or initializing.
   if (UNLIKELY(!fields_class->IsInitializing())) {
+    return NULL;
+  }
+  // Check for incompatible class change.
+  bool is_primitive;
+  bool is_set;
+  bool is_static;
+  switch (type) {
+    case InstanceObjectRead:     is_primitive = false; is_set = false; is_static = false; break;
+    case InstanceObjectWrite:    is_primitive = false; is_set = true;  is_static = false; break;
+    case InstancePrimitiveRead:  is_primitive = true;  is_set = false; is_static = false; break;
+    case InstancePrimitiveWrite: is_primitive = true;  is_set = true;  is_static = false; break;
+    case StaticObjectRead:       is_primitive = false; is_set = false; is_static = true;  break;
+    case StaticObjectWrite:      is_primitive = false; is_set = true;  is_static = true;  break;
+    case StaticPrimitiveRead:    is_primitive = true;  is_set = false; is_static = true;  break;
+    case StaticPrimitiveWrite:   is_primitive = true;  is_set = true;  is_static = true;  break;
+    default: LOG(FATAL) << "UNREACHABLE";  // Assignment below to avoid GCC warnings.
+             is_primitive = true;  is_set = true;  is_static = true;  break;
+  }
+  if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
+    // Incompatible class change.
     return NULL;
   }
   Class* referring_class = referrer->GetDeclaringClass();
@@ -174,7 +211,7 @@ static inline Field* FindFieldFast(uint32_t field_idx, const Method* referrer, b
                !referring_class->CanAccessMember(fields_class,
                                                  resolved_field->GetAccessFlags()) ||
                (is_set && resolved_field->IsFinal() && (fields_class != referring_class)))) {
-    // illegal access
+    // Illegal access.
     return NULL;
   }
   FieldHelper fh(resolved_field);
@@ -185,9 +222,9 @@ static inline Field* FindFieldFast(uint32_t field_idx, const Method* referrer, b
   return resolved_field;
 }
 
-// Fast path method resolution that can't throw exceptions
-static inline Method* FindMethodFast(uint32_t method_idx, Object* this_object, const Method* referrer,
-                                     bool access_check, InvokeType type)
+// Fast path method resolution that can't throw exceptions.
+static inline Method* FindMethodFast(uint32_t method_idx, Object* this_object,
+                                     const Method* referrer, bool access_check, InvokeType type)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   bool is_direct = type == kStatic || type == kDirect;
   if (UNLIKELY(this_object == NULL && !is_direct)) {
@@ -199,12 +236,17 @@ static inline Method* FindMethodFast(uint32_t method_idx, Object* this_object, c
     return NULL;
   }
   if (access_check) {
+    // Check for incompatible class change errors and access.
+    bool icce = resolved_method->CheckIncompatibleClassChange(type);
+    if (UNLIKELY(icce)) {
+      return NULL;
+    }
     Class* methods_class = resolved_method->GetDeclaringClass();
     Class* referring_class = referrer->GetDeclaringClass();
     if (UNLIKELY(!referring_class->CanAccess(methods_class) ||
                  !referring_class->CanAccessMember(methods_class,
                                                    resolved_method->GetAccessFlags()))) {
-      // potential illegal access
+      // Potential illegal access, may need to refine the method's class.
       return NULL;
     }
   }

@@ -612,7 +612,7 @@ static Method* GetReferrerMethod(const Compiler::PatchInformation* patch)
                                                patch->GetReferrerMethodIdx(),
                                                dex_cache,
                                                NULL,
-                                               patch->GetReferrerIsDirect());
+                                               patch->GetReferrerInvokeType());
   CHECK(method != NULL)
     << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx();
   CHECK(!method->IsRuntimeMethod())
@@ -632,7 +632,7 @@ static Method* GetTargetMethod(const Compiler::PatchInformation* patch)
                                                patch->GetTargetMethodIdx(),
                                                dex_cache,
                                                NULL,
-                                               patch->GetTargetIsDirect());
+                                               patch->GetTargetInvokeType());
   CHECK(method != NULL)
     << patch->GetDexFile().GetLocation() << " " << patch->GetTargetMethodIdx();
   CHECK(!method->IsRuntimeMethod())

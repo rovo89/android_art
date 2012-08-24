@@ -93,7 +93,7 @@ void ThrowNewIllegalAccessErrorClass(Thread* self,
                                      Class* referrer,
                                      Class* accessed) {
   self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                           "illegal class access: '%s' -> '%s'",
+                           "Illegal class access: '%s' -> '%s'",
                            PrettyDescriptor(referrer).c_str(),
                            PrettyDescriptor(accessed).c_str());
 }
@@ -105,7 +105,7 @@ void ThrowNewIllegalAccessErrorClassForMethodDispatch(Thread* self,
                                                       const Method* called,
                                                       InvokeType type) {
   self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                           "illegal class access ('%s' -> '%s')"
+                           "Illegal class access ('%s' -> '%s')"
                            "in attempt to invoke %s method '%s' from '%s'",
                            PrettyDescriptor(referrer).c_str(),
                            PrettyDescriptor(accessed).c_str(),
@@ -114,15 +114,60 @@ void ThrowNewIllegalAccessErrorClassForMethodDispatch(Thread* self,
                            PrettyMethod(caller).c_str());
 }
 
-void ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(Thread* self,
-                                                                   const Method* referrer,
-                                                                   const Method* interface_method,
-                                                                   Object* this_object) {
+static void ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(Thread* self,
+                                                                          const Method* interface_method,
+                                                                          Object* this_object)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  std::string interface_method_name(PrettyMethod(interface_method));
+  if (this_object != NULL) {
+    std::string this_class_descriptor(PrettyDescriptor(this_object->GetClass()));
+    std::string interface_class_descriptor(PrettyDescriptor(interface_method->GetDeclaringClass()));
+    self->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+                             "Class '%s' does not implement interface '%s' in call to '%s'",
+                             this_class_descriptor.c_str(),
+                             interface_class_descriptor.c_str(),
+                             interface_method_name.c_str());
+  } else {
+    self->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
+                             "Expected '%s' to be an interface method",
+                             interface_method_name.c_str());
+  }
+}
+
+static void ThrowNewIncompatibleClassChangeErrorField(Thread* self, const Field* resolved_field,
+                                               bool is_static)
+    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   self->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-                           "class '%s' does not implement interface '%s' in call to '%s' from '%s'",
-                           PrettyDescriptor(this_object->GetClass()).c_str(),
-                           PrettyDescriptor(interface_method->GetDeclaringClass()).c_str(),
-                           PrettyMethod(interface_method).c_str(), PrettyMethod(referrer).c_str());
+                           "Expected '%s' to be a %s field",
+                           PrettyField(resolved_field).c_str(),
+                           is_static ? "static" : "instance");
+}
+
+void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
+                                       Method* method) {
+  std::ostringstream msg;
+  msg << "The method '" << PrettyMethod(method) << "' was expected to be of type"
+      << expected_type << " but instead was found to be of type " << found_type;
+  ClassHelper kh(method->GetDeclaringClass());
+  std::string location(kh.GetLocation());
+  if (!location.empty()) {
+    msg << " (accessed from " << location << ")";
+  }
+  Thread::Current()->ThrowNewException("Ljava/lang/IncompatibleClassChangeError;",
+                                       msg.str().c_str());
+}
+
+void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
+                            const StringPiece& signature) {
+  ClassHelper kh(c);
+  std::ostringstream msg;
+  msg << "No " << type << " method " << name << signature
+      << " in class " << kh.GetDescriptor() << " or its superclasses";
+  std::string location(kh.GetLocation());
+  if (!location.empty()) {
+    msg << " (accessed from " << location << ")";
+  }
+  Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", msg.str().c_str());
 }
 
 void ThrowNewIllegalAccessErrorField(Thread* self,
@@ -413,15 +458,32 @@ Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t com
   }
 }
 
-// Slow path field resolution and declaring class initialization
 Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* self,
-                         bool is_static, bool is_primitive, bool is_set, size_t expected_size) {
+                         FindFieldType type, size_t expected_size) {
+  bool is_primitive;
+  bool is_set;
+  bool is_static;
+  switch (type) {
+    case InstanceObjectRead:     is_primitive = false; is_set = false; is_static = false; break;
+    case InstanceObjectWrite:    is_primitive = false; is_set = true;  is_static = false; break;
+    case InstancePrimitiveRead:  is_primitive = true;  is_set = false; is_static = false; break;
+    case InstancePrimitiveWrite: is_primitive = true;  is_set = true;  is_static = false; break;
+    case StaticObjectRead:       is_primitive = false; is_set = false; is_static = true;  break;
+    case StaticObjectWrite:      is_primitive = false; is_set = true;  is_static = true;  break;
+    case StaticPrimitiveRead:    is_primitive = true;  is_set = false; is_static = true;  break;
+    case StaticPrimitiveWrite:   // Keep GCC happy by having a default handler, fall-through.
+    default:                     is_primitive = true;  is_set = true;  is_static = true;  break;
+  }
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   Field* resolved_field = class_linker->ResolveField(field_idx, referrer, is_static);
   if (UNLIKELY(resolved_field == NULL)) {
-    DCHECK(self->IsExceptionPending());  // Throw exception and unwind
-    return NULL;  // failure
+    DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
+    return NULL;  // Failure.
   } else {
+    if (resolved_field->IsStatic() != is_static) {
+      ThrowNewIncompatibleClassChangeErrorField(self, resolved_field, is_static);
+      return NULL;
+    }
     Class* fields_class = resolved_field->GetDeclaringClass();
     Class* referring_class = referrer->GetDeclaringClass();
     if (UNLIKELY(!referring_class->CanAccess(fields_class) ||
@@ -480,10 +542,10 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
                            Thread* self, bool access_check, InvokeType type) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   bool is_direct = type == kStatic || type == kDirect;
-  Method* resolved_method = class_linker->ResolveMethod(method_idx, referrer, is_direct);
+  Method* resolved_method = class_linker->ResolveMethod(method_idx, referrer, type);
   if (UNLIKELY(resolved_method == NULL)) {
-    DCHECK(self->IsExceptionPending());  // Throw exception and unwind
-    return NULL;  // failure
+    DCHECK(self->IsExceptionPending());  // Throw exception and unwind.
+    return NULL;  // Failure.
   } else {
     if (!access_check) {
       if (is_direct) {
@@ -492,10 +554,10 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
         Method* interface_method =
             this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == NULL)) {
-          ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(self, referrer,
+          ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(self,
                                                                         resolved_method,
                                                                         this_object);
-          return NULL;  // failure
+          return NULL;  // Failure.
         } else {
           return interface_method;
         }
@@ -511,6 +573,11 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
         return vtable->Get(vtable_index);
       }
     } else {
+      // Incompatible class change should have been handled in resolve method.
+      if (UNLIKELY(resolved_method->CheckIncompatibleClassChange(type))) {
+        ThrowIncompatibleClassChangeError(type, resolved_method->GetInvokeType(), resolved_method);
+        return NULL;  // Failure.
+      }
       Class* methods_class = resolved_method->GetDeclaringClass();
       Class* referring_class = referrer->GetDeclaringClass();
       if (UNLIKELY(!referring_class->CanAccess(methods_class) ||
@@ -526,11 +593,11 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
         if (UNLIKELY(!referring_class->CanAccess(methods_class))) {
           ThrowNewIllegalAccessErrorClassForMethodDispatch(self, referring_class, methods_class,
                                                            referrer, resolved_method, type);
-          return NULL;  // failure
+          return NULL;  // Failure.
         } else if (UNLIKELY(!referring_class->CanAccessMember(methods_class,
                                                               resolved_method->GetAccessFlags()))) {
           ThrowNewIllegalAccessErrorMethod(self, referring_class, resolved_method);
-          return NULL;  // failure
+          return NULL;  // Failure.
         }
       }
       if (is_direct) {
@@ -539,10 +606,10 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
         Method* interface_method =
             this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == NULL)) {
-          ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(self, referrer,
+          ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(self,
                                                                         resolved_method,
                                                                         this_object);
-          return NULL;  // failure
+          return NULL;  // Failure.
         } else {
           return interface_method;
         }
@@ -563,14 +630,11 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
                    vtable_index < static_cast<uint32_t>(vtable->GetLength()))) {
           return vtable->GetWithoutChecks(vtable_index);
         } else {
-          // Behavior to agree with that of the verifier
-          self->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
-                                   "attempt to invoke %s method '%s' from '%s'"
-                                   " using incorrect form of method dispatch",
-                                   (type == kSuper ? "super class" : "virtual"),
-                                   PrettyMethod(resolved_method).c_str(),
-                                   PrettyMethod(referrer).c_str());
-          return NULL;  // failure
+          // Behavior to agree with that of the verifier.
+          MethodHelper mh(resolved_method);
+          ThrowNoSuchMethodError(type, resolved_method->GetDeclaringClass(), mh.GetName(),
+                                 mh.GetSignature());
+          return NULL;  // Failure.
         }
       }
     }
