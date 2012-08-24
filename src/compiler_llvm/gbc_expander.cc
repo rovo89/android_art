@@ -420,6 +420,8 @@ void GBCExpanderPass::RewriteFunction() {
 
   for (llvm::Function::iterator bb_iter = func_->begin();
        num_basic_blocks > 0; ++bb_iter, --num_basic_blocks) {
+    // Set insert point to current basic block.
+    irb_.SetInsertPoint(bb_iter);
 
     // Rewrite the basic block
     RewriteBasicBlock(bb_iter);
