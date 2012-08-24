@@ -25,7 +25,6 @@ ART_TEST_HOST_DEX_FILES :=
 define build-art-test-dex
   include $(CLEAR_VARS)
   LOCAL_MODULE := $(1)-$(2)
-  LOCAL_MODULE_TAGS := tests
   LOCAL_SRC_FILES := $(call all-java-files-under, test/$(2))
   LOCAL_JAVA_LIBRARIES := $(TARGET_CORE_JARS)
   LOCAL_NO_STANDARD_LIBRARIES := true
@@ -37,7 +36,6 @@ define build-art-test-dex
 
   include $(CLEAR_VARS)
   LOCAL_MODULE := $(1)-$(2)
-  LOCAL_MODULE_TAGS := tests
   LOCAL_SRC_FILES := $(call all-java-files-under, test/$(2))
   LOCAL_JAVA_LIBRARIES := $(HOST_CORE_JARS)
   LOCAL_NO_STANDARD_LIBRARIES := true
