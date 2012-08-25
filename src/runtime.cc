@@ -27,6 +27,7 @@
 #include "class_linker.h"
 #include "class_loader.h"
 #include "constants_arm.h"
+#include "constants_mips.h"
 #include "constants_x86.h"
 #include "debugger.h"
 #include "heap.h"
@@ -996,6 +997,32 @@ Method* Runtime::CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSa
                              (1 << art::arm::S24) | (1 << art::arm::S25) | (1 << art::arm::S26) |
                              (1 << art::arm::S27) | (1 << art::arm::S28) | (1 << art::arm::S29) |
                              (1 << art::arm::S30) | (1 << art::arm::S31);
+    uint32_t fp_spills = type == kSaveAll ? fp_all_spills : 0;
+    size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
+                                 __builtin_popcount(fp_spills) /* fprs */ +
+                                 1 /* Method* */) * kPointerSize, kStackAlignment);
+    method->SetFrameSizeInBytes(frame_size);
+    method->SetCoreSpillMask(core_spills);
+    method->SetFpSpillMask(fp_spills);
+  } else if (instruction_set == kMips) {
+    uint32_t ref_spills = (1 << art::mips::S2) | (1 << art::mips::S3) | (1 << art::mips::S4) |
+                          (1 << art::mips::S5) | (1 << art::mips::S6) | (1 << art::mips::S7) |
+                          (1 << art::mips::FP);
+    uint32_t arg_spills = (1 << art::mips::A1) | (1 << art::mips::A2) | (1 << art::mips::A3);
+    uint32_t all_spills = (1 << art::mips::S1) | (1 << art::mips::SP);
+    uint32_t core_spills = ref_spills | (type == kRefsAndArgs ? arg_spills : 0) |
+                           (type == kSaveAll ? all_spills : 0) | (1 << art::mips::RA);
+    uint32_t fp_all_spills = (1 << art::mips::F0)  | (1 << art::mips::F1)  | (1 << art::mips::F2) |
+                             (1 << art::mips::F3)  | (1 << art::mips::F4)  | (1 << art::mips::F5) |
+                             (1 << art::mips::F6)  | (1 << art::mips::F7)  | (1 << art::mips::F8) |
+                             (1 << art::mips::F9)  | (1 << art::mips::F10) | (1 << art::mips::F11) |
+                             (1 << art::mips::F12) | (1 << art::mips::F13) | (1 << art::mips::F14) |
+                             (1 << art::mips::F15) | (1 << art::mips::F16) | (1 << art::mips::F17) |
+                             (1 << art::mips::F18) | (1 << art::mips::F19) | (1 << art::mips::F20) |
+                             (1 << art::mips::F21) | (1 << art::mips::F22) | (1 << art::mips::F23) |
+                             (1 << art::mips::F24) | (1 << art::mips::F25) | (1 << art::mips::F26) |
+                             (1 << art::mips::F27) | (1 << art::mips::F28) | (1 << art::mips::F29) |
+                             (1 << art::mips::F30) | (1 << art::mips::F31);
     uint32_t fp_spills = type == kSaveAll ? fp_all_spills : 0;
     size_t frame_size = RoundUp((__builtin_popcount(core_spills) /* gprs */ +
                                  __builtin_popcount(fp_spills) /* fprs */ +

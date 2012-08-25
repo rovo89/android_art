@@ -28,6 +28,7 @@
 #include "oat/utils/assembler.h"
 #include "oat/utils/managed_register.h"
 #include "oat/utils/arm/managed_register_arm.h"
+#include "oat/utils/mips/managed_register_mips.h"
 #include "oat/utils/x86/managed_register_x86.h"
 #include "thread.h"
 #include "UniquePtr.h"

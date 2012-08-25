@@ -148,7 +148,7 @@ namespace art {
 #define LOC_C_RETURN {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_V0, INVALID_REG, \
                       INVALID_SREG, INVALID_SREG}
 #define LOC_C_RETURN_FLOAT  LOC_C_RETURN
-#define LOC_C_RETURN_ALT {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_F0, \
+#define LOC_C_RETURN_ALT {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, r_V1, \
                           INVALID_REG, INVALID_SREG, INVALID_SREG}
 #define LOC_C_RETURN_WIDE {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, r_RESULT0, \
                            r_RESULT1, INVALID_SREG, INVALID_SREG}

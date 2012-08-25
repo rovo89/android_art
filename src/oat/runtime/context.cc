@@ -18,7 +18,9 @@
 
 #if defined(__arm__)
 #include "arm/context_arm.h"
-#else
+#elif defined(__mips__)
+#include "mips/context_mips.h"
+#elif defined(__i386__)
 #include "x86/context_x86.h"
 #endif
 
@@ -27,8 +29,12 @@ namespace art {
 Context* Context::Create() {
 #if defined(__arm__)
   return new arm::ArmContext();
-#else
+#elif defined(__mips__)
+  return new mips::MipsContext();
+#elif defined(__i386__)
   return new x86::X86Context();
+#else
+  UNIMPLEMENTED(WARNING);
 #endif
 }
 

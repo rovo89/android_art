@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "constants_arm.h"
+#include "constants_mips.h"
 #include "constants_x86.h"
 #include "instruction_set.h"
 #include "logging.h"
@@ -36,6 +37,9 @@ class AssemblerFixup;
 
 namespace arm {
   class ArmAssembler;
+}
+namespace mips {
+  class MipsAssembler;
 }
 namespace x86 {
   class X86Assembler;
@@ -86,6 +90,7 @@ class Label {
   }
 
   friend class arm::ArmAssembler;
+  friend class mips::MipsAssembler;
   friend class x86::X86Assembler;
 
   DISALLOW_COPY_AND_ASSIGN(Label);

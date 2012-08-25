@@ -28,6 +28,10 @@
 #define SP_OFFSET_IN_BYTES 12
 #define FRAME_SIZE_IN_BYTES 48u
 #define ARG2_OFFSET_IN_WORDS 11 // offset to 3rd arg; skip callee saves, LR, Method* and out arg spills for OUT0 to OUT2
+#elif defined(__mips__)
+#define SP_OFFSET_IN_BYTES 8
+#define FRAME_SIZE_IN_BYTES 32u
+#define ARG2_OFFSET_IN_WORDS 8 // offset to 3rd arg; skip callee saves, LR, Method* and out arg spills for OUT0 to OUT2
 #elif defined(__i386__)
 #define SP_OFFSET_IN_BYTES 8
 #define FRAME_SIZE_IN_BYTES 32u

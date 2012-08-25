@@ -19,11 +19,14 @@
 
 namespace art {
 
-namespace x86 {
-class X86ManagedRegister;
-}
 namespace arm {
 class ArmManagedRegister;
+}
+namespace mips {
+class MipsManagedRegister;
+}
+namespace x86 {
+class X86ManagedRegister;
 }
 
 class ManagedRegister {
@@ -38,8 +41,9 @@ class ManagedRegister {
     return *this;
   }
 
-  x86::X86ManagedRegister AsX86() const;
   arm::ArmManagedRegister AsArm() const;
+  mips::MipsManagedRegister AsMips() const;
+  x86::X86ManagedRegister AsX86() const;
 
   // It is valid to invoke Equals on and with a NoRegister.
   bool Equals(const ManagedRegister& other) const {

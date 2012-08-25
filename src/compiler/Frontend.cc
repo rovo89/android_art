@@ -801,6 +801,21 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     //cUnit->enableDebug |= (1 << kDebugDumpBitcodeFile);
   }
 #endif
+  if (cUnit->instructionSet == kMips) {
+    // Disable some optimizations for mips for now
+    cUnit->disableOpt |= (
+        (1 << kLoadStoreElimination) |
+        (1 << kLoadHoisting) |
+        (1 << kSuppressLoads) |
+        (1 << kNullCheckElimination) |
+        (1 << kPromoteRegs) |
+        (1 << kTrackLiveTemps) |
+        (1 << kSkipLargeMethodOptimization) |
+        (1 << kSafeOptimizations) |
+        (1 << kBBOpt) |
+        (1 << kMatch) |
+        (1 << kPromoteCompilerTemps));
+  }
   /* Are we generating code for the debugger? */
   if (compiler.IsDebuggingSupported()) {
     cUnit->genDebugger = true;

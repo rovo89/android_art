@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "arm/assembler_arm.h"
+#include "mips/assembler_mips.h"
 #include "x86/assembler_x86.h"
 #include "globals.h"
 #include "memory_region.h"
@@ -101,11 +102,17 @@ void AssemblerBuffer::ExtendCapacity() {
 
 
 Assembler* Assembler::Create(InstructionSet instruction_set) {
-  if (instruction_set == kX86) {
-    return new x86::X86Assembler();
-  } else {
-    CHECK(instruction_set == kArm || instruction_set == kThumb2);
-    return new arm::ArmAssembler();
+  switch (instruction_set) {
+    case kArm:
+    case kThumb2:
+      return new arm::ArmAssembler();
+    case kMips:
+      return new mips::MipsAssembler();
+    case kX86:
+      return new x86::X86Assembler();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
+      return NULL;
   }
 }
 

@@ -28,7 +28,7 @@ extern "C" void* art_check_and_alloc_array_from_code(uint32_t, void*, int32_t);
 extern "C" void* art_check_and_alloc_array_from_code_with_access_check(uint32_t, void*, int32_t);
 
 // Cast entrypoints.
-extern uint32_t IsAssignableFromCode(const Class* klass, const Class* ref_class);
+extern "C" uint32_t artIsAssignableFromCode(const Class* klass, const Class* ref_class);
 extern "C" void art_can_put_array_element_from_code(void*, void*);
 extern "C" void art_check_cast_from_code(void*, void*);
 
@@ -60,8 +60,17 @@ extern "C" void* art_get_obj_static_from_code(uint32_t);
 extern "C" void art_handle_fill_data_from_code(void*, void*);
 
 // JNI entrypoints.
-extern Object* DecodeJObjectInThread(Thread* thread, jobject obj);
 extern void* FindNativeMethod(Thread* thread);
+extern uint32_t JniMethodStart(Thread* self);
+extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self);
+extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self);
+extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked,
+                                     Thread* self);
+extern Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
+                                         Thread* self);
+extern Object* JniMethodEndWithReferenceSynchronized(jobject result,
+                                                     uint32_t saved_local_ref_cookie,
+                                                     jobject locked, Thread* self);
 
 // Lock entrypoints.
 extern "C" void art_lock_object_from_code(void*);
@@ -149,7 +158,7 @@ void InitEntryPoints(EntryPoints* points) {
   points->pCheckAndAllocArrayFromCodeWithAccessCheck = art_check_and_alloc_array_from_code_with_access_check;
 
   // Cast
-  points->pInstanceofNonTrivialFromCode = IsAssignableFromCode;
+  points->pInstanceofNonTrivialFromCode = artIsAssignableFromCode;
   points->pCanPutArrayElementFromCode = art_can_put_array_element_from_code;
   points->pCheckCastFromCode = art_check_cast_from_code;
 
@@ -181,8 +190,13 @@ void InitEntryPoints(EntryPoints* points) {
   points->pHandleFillArrayDataFromCode = art_handle_fill_data_from_code;
 
   // JNI
-  points->pDecodeJObjectInThread = DecodeJObjectInThread;
   points->pFindNativeMethod = FindNativeMethod;
+  points->pJniMethodStart = JniMethodStart;
+  points->pJniMethodStartSynchronized = JniMethodStartSynchronized;
+  points->pJniMethodEnd = JniMethodEnd;
+  points->pJniMethodEndSynchronized = JniMethodEndSynchronized;
+  points->pJniMethodEndWithReference = JniMethodEndWithReference;
+  points->pJniMethodEndWithReferenceSynchronized = JniMethodEndWithReferenceSynchronized;
 
   // Locks
   points->pLockObjectFromCode = art_lock_object_from_code;
@@ -210,7 +224,7 @@ void InitEntryPoints(EntryPoints* points) {
   points->pI2f = __floatsisf;
   points->pL2f = __floatdisf;
   points->pD2iz = __fixdfsi;
-  points->pF2iz = __fixsfi;
+  points->pF2iz = __fixsfsi;
   points->pIdivmod = NULL;
   points->pD2l = art_d2l;
   points->pF2l = art_f2l;
@@ -255,7 +269,7 @@ void ChangeDebuggerEntryPoint(EntryPoints* points, bool enabled) {
   points->pUpdateDebuggerFromCode = (enabled ? art_update_debugger : NULL);
 }
 
-bool IsTraceExitPc(uintptr_t pc) {
+bool IsTraceExitPc(uintptr_t) {
   UNIMPLEMENTED(FATAL);
   return false;
 }

@@ -409,12 +409,17 @@ Compiler::~Compiler() {
 
 ByteArray* Compiler::CreateResolutionStub(InstructionSet instruction_set,
                                           Runtime::TrampolineType type) {
-  if (instruction_set == kX86) {
-    return x86::X86CreateResolutionTrampoline(type);
-  } else {
-    CHECK(instruction_set == kArm || instruction_set == kThumb2);
-    // Generates resolution stub using ARM instruction set
-    return arm::ArmCreateResolutionTrampoline(type);
+  switch (instruction_set) {
+    case kArm:
+    case kThumb2:
+      return arm::ArmCreateResolutionTrampoline(type);
+    case kMips:
+      return mips::MipsCreateResolutionTrampoline(type);
+    case kX86:
+      return x86::X86CreateResolutionTrampoline(type);
+    default:
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
+      return NULL;
   }
 }
 
@@ -423,6 +428,8 @@ ByteArray* Compiler::CreateJniDlsymLookupStub(InstructionSet instruction_set) {
     case kArm:
     case kThumb2:
       return arm::CreateJniDlsymLookupStub();
+    case kMips:
+      return mips::CreateJniDlsymLookupStub();
     case kX86:
       return x86::CreateJniDlsymLookupStub();
     default:
@@ -432,12 +439,17 @@ ByteArray* Compiler::CreateJniDlsymLookupStub(InstructionSet instruction_set) {
 }
 
 ByteArray* Compiler::CreateAbstractMethodErrorStub(InstructionSet instruction_set) {
-  if (instruction_set == kX86) {
-    return x86::CreateAbstractMethodErrorStub();
-  } else {
-    CHECK(instruction_set == kArm || instruction_set == kThumb2);
-    // Generates resolution stub using ARM instruction set
-    return arm::CreateAbstractMethodErrorStub();
+  switch (instruction_set) {
+    case kArm:
+    case kThumb2:
+      return arm::CreateAbstractMethodErrorStub();
+    case kMips:
+      return mips::CreateAbstractMethodErrorStub();
+    case kX86:
+      return x86::CreateAbstractMethodErrorStub();
+    default:
+      LOG(FATAL) << "Unknown InstructionSet: " << instruction_set;
+      return NULL;
   }
 }
 

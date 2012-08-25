@@ -25,6 +25,7 @@ LIBART_COMPILER_COMMON_SRC_FILES += \
 	src/oat/jni/calling_convention.cc \
 	src/oat/jni/jni_compiler.cc \
 	src/oat/jni/arm/calling_convention_arm.cc \
+	src/oat/jni/mips/calling_convention_mips.cc \
 	src/oat/jni/x86/calling_convention_x86.cc
 
 ifeq ($(ART_USE_QUICK_COMPILER), true)
@@ -46,7 +47,8 @@ LIBART_COMPILER_mips_SRC_FILES += \
 	src/compiler/codegen/mips/ArchUtility.cc \
 	src/compiler/codegen/mips/MipsRallocUtil.cc \
 	src/compiler/codegen/mips/Assemble.cc \
-	src/compiler/codegen/mips/mips/Codegen.cc
+	src/compiler/codegen/mips/mips/Codegen.cc \
+	src/oat/jni/mips/jni_internal_mips.cc
 
 LIBART_COMPILER_x86_SRC_FILES += \
 	$(LIBART_COMPILER_COMMON_SRC_FILES) \

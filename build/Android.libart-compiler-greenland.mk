@@ -32,6 +32,7 @@ LIBART_COMPILER_GREENLAND_SRC_FILES += \
 	src/oat/jni/calling_convention.cc \
 	src/oat/jni/jni_compiler.cc \
 	src/oat/jni/arm/calling_convention_arm.cc \
+	src/oat/jni/mips/calling_convention_mips.cc \
 	src/oat/jni/x86/calling_convention_x86.cc
 
 LIBART_COMPILER_GREENLAND_arm_SRC_FILES += \

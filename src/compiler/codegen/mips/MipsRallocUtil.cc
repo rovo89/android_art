@@ -149,8 +149,9 @@ extern RegLocation oatGetReturnWideAlt(CompilationUnit* cUnit)
 
 extern RegLocation oatGetReturnAlt(CompilationUnit* cUnit)
 {
-  UNIMPLEMENTED(FATAL);
-  RegLocation res = LOC_C_RETURN;
+  RegLocation res = LOC_C_RETURN_ALT;
+  oatClobber(cUnit, res.lowReg);
+  oatMarkInUse(cUnit, res.lowReg);
   return res;
 }
 

@@ -205,10 +205,13 @@ LIBART_COMMON_SRC_FILES := \
 	src/native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.cc \
 	src/native/sun_misc_Unsafe.cc \
 	src/oat/runtime/arm/stub_arm.cc \
+	src/oat/runtime/mips/stub_mips.cc \
 	src/oat/runtime/x86/stub_x86.cc \
+	src/oat/utils/assembler.cc \
 	src/oat/utils/arm/assembler_arm.cc \
 	src/oat/utils/arm/managed_register_arm.cc \
-	src/oat/utils/assembler.cc \
+	src/oat/utils/mips/assembler_mips.cc \
+	src/oat/utils/mips/managed_register_mips.cc \
 	src/oat/utils/x86/assembler_x86.cc \
 	src/oat/utils/x86/managed_register_x86.cc \
 	src/oat.cc \
@@ -293,6 +296,7 @@ LIBART_TARGET_SRC_FILES += \
 else # TARGET_ARCH != x86
 ifeq ($(TARGET_ARCH),mips)
 LIBART_TARGET_SRC_FILES += \
+	src/oat/runtime/mips/context_mips.cc \
 	src/oat/runtime/mips/oat_support_entrypoints_mips.cc \
 	src/oat/runtime/mips/runtime_support_mips.S
 else # TARGET_ARCH != mips

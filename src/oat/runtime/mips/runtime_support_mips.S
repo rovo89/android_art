@@ -31,80 +31,80 @@
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kSaveAll)
-     * callee-save: s0-s8 + ra, 10 total + 2 words
+     * callee-save: $s0-$s8 + $ra, 10 total + 2 words
      */
 .macro SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    addiu  sp, sp, 48
-    sw     ra, 44(sp)
-    sw     s8, 40(sp)
-    sw     s7, 36(sp)
-    sw     s6, 32(sp)
-    sw     s5, 28(sp)
-    sw     s4, 24(sp)
-    sw     s3, 20(sp)
-    sw     s2, 16(sp)
-    sw     s1, 12(sp)
-    sw     s0, 8(sp)
-    @ 2 open words, bottom will hold Method*
+    addiu  $sp, $sp, 48
+    sw     $ra, 44($sp)
+    sw     $s8, 40($sp)
+    sw     $s7, 36($sp)
+    sw     $s6, 32($sp)
+    sw     $s5, 28($sp)
+    sw     $s4, 24($sp)
+    sw     $s3, 20($sp)
+    sw     $s2, 16($sp)
+    sw     $s1, 12($sp)
+    sw     $s0, 8($sp)
+    # 2 open words, bottom will hold Method*
 .endm
 
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kRefsOnly). Restoration assumes non-moving GC.
      * Does not include rSUSPEND or rSELF
-     * callee-save: s2-s8 + ra, 8 total + 4 words
+     * callee-save: $s2-$s8 + $ra, 8 total + 4 words
      */
 .macro SETUP_REF_ONLY_CALLEE_SAVE_FRAME
-    addiu  sp, sp, 48
-    sw     ra, 44(sp)
-    sw     s8, 40(sp)
-    sw     s7, 36(sp)
-    sw     s6, 32(sp)
-    sw     s5, 28(sp)
-    sw     s4, 24(sp)
-    sw     s3, 20(sp)
-    sw     s2, 16(sp)
-    @ 4 open words, bottom will hold Method*
+    addiu  $sp, $sp, 48
+    sw     $ra, 44($sp)
+    sw     $s8, 40($sp)
+    sw     $s7, 36($sp)
+    sw     $s6, 32($sp)
+    sw     $s5, 28($sp)
+    sw     $s4, 24($sp)
+    sw     $s3, 20($sp)
+    sw     $s2, 16($sp)
+    # 4 open words, bottom will hold Method*
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    lw     ra, 44(sp)
-    addiu  sp, sp, 48
+    lw     $ra, 44($sp)
+    addiu  $sp, $sp, 48
 .endm
 
 .macro RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
-    lw     ra, 44(sp)
-    jr     ra
-    addiu  sp, sp, 48
+    lw     $ra, 44($sp)
+    jr     $ra
+    addiu  $sp, $sp, 48
 .endm
 
     /*
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kRefsAndArgs). Restoration assumes non-moving GC.
-     * a1-a3, s2-s8, ra, 11 total + 1
+     * $a1-$a3, $s2-$s8, $ra, 11 total + 1
      */
 .macro SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    addiu  sp, sp, 48
-    sw     ra, 44(sp)
-    sw     s8, 40(sp)
-    sw     s7, 36(sp)
-    sw     s6, 32(sp)
-    sw     s5, 28(sp)
-    sw     s4, 24(sp)
-    sw     s3, 20(sp)
-    sw     s2, 16(sp)
-    sw     a3, 12(sp)
-    sw     a2, 8(sp)
-    sw     a1, 4(sp)
-    @ 1 open word, bottom will hold Method*
+    addiu  $sp, $sp, 48
+    sw     $ra, 44($sp)
+    sw     $s8, 40($sp)
+    sw     $s7, 36($sp)
+    sw     $s6, 32($sp)
+    sw     $s5, 28($sp)
+    sw     $s4, 24($sp)
+    sw     $s3, 20($sp)
+    sw     $s2, 16($sp)
+    sw     $a3, 12($sp)
+    sw     $a2, 8($sp)
+    sw     $a1, 4($sp)
+    # 1 open word, bottom will hold Method*
 .endm
 
 .macro RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    lw     ra, 44(sp)           @ restore ra
-    lw     a1, 4(sp)            @ restore non-callee save a1
-    lw     a2, 8(sp)            @ restore non-callee save a2
-    lw     a3, 12(sp)           @ restore non-callee save a3
-    addiu  sp, sp, 48           @ strip frame
+    lw     $ra, 44($sp)           # restore $ra
+    lw     $a1, 4($sp)            # restore non-callee save $a1
+    lw     $a2, 8($sp)            # restore non-callee save $a2
+    lw     $a3, 12($sp)           # restore non-callee save $a3
+    addiu  $sp, $sp, 48           # strip frame
 .endm
 
     /*
@@ -112,18 +112,18 @@
      * exception is Thread::Current()->exception_
      */
 .macro DELIVER_PENDING_EXCEPTION
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME            @ save callee saves for throw
-    move    a0, rSELF                           @ pass Thread::Current
-    b       artDeliverPendingExceptionFromCode  @ artDeliverPendingExceptionFromCode(Thread*, SP)
-    move    a1, sp                              @ pass SP
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME            # save callee saves for throw
+    move    $a0, rSELF                          # pass Thread::Current
+    jal     artDeliverPendingExceptionFromCode  # artDeliverPendingExceptionFromCode(Thread*, $sp)
+    move    $a1, $sp                            # pass $sp
 .endm
 
 .macro RETURN_IF_NO_EXCEPTION
-    lw     t0, THREAD_EXCEPTION_OFFSET(rSELF) @ load Thread::Current()->exception_
+    lw     $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    bnez   t0, 1f                        @ success if no exception is pending
+    bnez   $t0, 1f                        # success if no exception is pending
     nop
-    jr     ra
+    jr     $ra
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -131,9 +131,9 @@
 
 .macro RETURN_IF_ZERO
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    bnez   v0, 1f                       @ success?
+    bnez   $v0, 1f                       # success?
     nop
-    jr     ra                           @ return on success
+    jr     $ra                           # return on success
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -141,9 +141,9 @@
 
 .macro RETURN_IF_NONZERO
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    beqz   v0, 1f                       @ success?
+    beqz   $v0, 1f                       # success?
     nop
-    jr     ra                           @ return on success
+    jr     $ra                           # return on success
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -152,93 +152,93 @@
     .global art_update_debugger
     .extern artUpdateDebuggerFromCode
     /*
-     * On entry, a0 and a1 must be preserved, a2 is dex PC
+     * On entry, $a0 and $a1 must be preserved, $a2 is dex PC
      */
     ALIGN_FUNCTION_ENTRY
 art_update_debugger:
-    move    a3, a0         @ stash away a0 so that it's saved as if it were an argument
+    move    $a3, $a0        # stash away $a0 so that it's saved as if it were an argument
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    move    a0, a2         @ arg0 is dex PC
-    move    a1, rSELF      @ arg1 is Thread*
-    move    a2, sp         @ arg2 is sp
-    jal     artUpdateDebuggerFromCode      @ artUpdateDebuggerFromCode(int32_t, Thread*, Method**)
+    move    $a0, $a2        # arg0 is dex PC
+    move    $a1, rSELF      # arg1 is Thread*
+    move    $a2, $sp        # arg2 is $sp
+    jal     artUpdateDebuggerFromCode      # artUpdateDebuggerFromCode(int32_t, Thread*, Method**)
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    jr      ra
-    move    a0, a3         @ restore original a0
+    jr      $ra
+    move    $a0, $a3        # restore original $a0
 
     .global art_do_long_jump
     /*
-     * On entry a0 is uint32_t* gprs_ and a1 is uint32_t* fprs_
+     * On entry $a0 is uint32_t* gprs_ and $a1 is uint32_t* fprs_
      * FIXME: just guessing about the shape of the jmpbuf.  Where will pc be?
      */
     ALIGN_FUNCTION_ENTRY
 art_do_long_jump:
-    l.s     f0, 0(a1)
-    l.s     f1, 4(a1)
-    l.s     f2, 8(a1)
-    l.s     f3, 12(a1)
-    l.s     f4, 16(a1)
-    l.s     f5, 20(a1)
-    l.s     f6, 24(a1)
-    l.s     f7, 28(a1)
-    l.s     f8, 32(a1)
-    l.s     f9, 36(a1)
-    l.s     f10, 40(a1)
-    l.s     f11, 44(a1)
-    l.s     f12, 48(a1)
-    l.s     f13, 52(a1)
-    l.s     f14, 56(a1)
-    l.s     f15, 60(a1)
-    l.s     f16, 64(a1)
-    l.s     f17, 68(a1)
-    l.s     f18, 72(a1)
-    l.s     f19, 76(a1)
-    l.s     f20, 80(a1)
-    l.s     f21, 84(a1)
-    l.s     f22, 88(a1)
-    l.s     f23, 92(a1)
-    l.s     f24, 96(a1)
-    l.s     f25, 100(a1)
-    l.s     f26, 104(a1)
-    l.s     f27, 108(a1)
-    l.s     f28, 112(a1)
-    l.s     f29, 116(a1)
-    l.s     f30, 120(a1)
-    l.s     f31, 124(a1)
-    lw      at, 4(a0)
-    lw      v0, 8(a0)
-    lw      v1, 12(a0)
-    lw      a1, 20(a0)
-    lw      a2, 24(a0)
-    lw      a3, 28(a0)
-    lw      t0, 32(a0)
-    lw      t1, 36(a0)
-    lw      t2, 40(a0)
-    lw      t3, 44(a0)
-    lw      t4, 48(a0)
-    lw      t5, 52(a0)
-    lw      t6, 56(a0)
-    lw      t7, 60(a0)
-    lw      s0, 64(a0)
-    lw      s1, 68(a0)
-    lw      s2, 72(a0)
-    lw      s3, 76(a0)
-    lw      s4, 80(a0)
-    lw      s5, 84(a0)
-    lw      s6, 88(a0)
-    lw      s7, 92(a0)
-    lw      t8, 96(a0)
-    lw      t9, 100(a0)
-    lw      k0, 104(a0)
-    lw      k1, 108(a0)
-    lw      gp, 112(a0)
-    lw      sp, 116(a0)
-    lw      fp, 120(a0)
-    lw      ra, 124(a0)
-    lw      a0, 16(a0)
-    move    v0, rzero           @ clear result registers r0 and r1
-    jr      ra               @ do long jump
-    move    v1, rzero
+    l.s     $f0, 0($a1)
+    l.s     $f1, 4($a1)
+    l.s     $f2, 8($a1)
+    l.s     $f3, 12($a1)
+    l.s     $f4, 16($a1)
+    l.s     $f5, 20($a1)
+    l.s     $f6, 24($a1)
+    l.s     $f7, 28($a1)
+    l.s     $f8, 32($a1)
+    l.s     $f9, 36($a1)
+    l.s     $f10, 40($a1)
+    l.s     $f11, 44($a1)
+    l.s     $f12, 48($a1)
+    l.s     $f13, 52($a1)
+    l.s     $f14, 56($a1)
+    l.s     $f15, 60($a1)
+    l.s     $f16, 64($a1)
+    l.s     $f17, 68($a1)
+    l.s     $f18, 72($a1)
+    l.s     $f19, 76($a1)
+    l.s     $f20, 80($a1)
+    l.s     $f21, 84($a1)
+    l.s     $f22, 88($a1)
+    l.s     $f23, 92($a1)
+    l.s     $f24, 96($a1)
+    l.s     $f25, 100($a1)
+    l.s     $f26, 104($a1)
+    l.s     $f27, 108($a1)
+    l.s     $f28, 112($a1)
+    l.s     $f29, 116($a1)
+    l.s     $f30, 120($a1)
+    l.s     $f31, 124($a1)
+    lw      $at, 4($a0)
+    lw      $v0, 8($a0)
+    lw      $v1, 12($a0)
+    lw      $a1, 20($a0)
+    lw      $a2, 24($a0)
+    lw      $a3, 28($a0)
+    lw      $t0, 32($a0)
+    lw      $t1, 36($a0)
+    lw      $t2, 40($a0)
+    lw      $t3, 44($a0)
+    lw      $t4, 48($a0)
+    lw      $t5, 52($a0)
+    lw      $t6, 56($a0)
+    lw      $t7, 60($a0)
+    lw      $s0, 64($a0)
+    lw      $s1, 68($a0)
+    lw      $s2, 72($a0)
+    lw      $s3, 76($a0)
+    lw      $s4, 80($a0)
+    lw      $s5, 84($a0)
+    lw      $s6, 88($a0)
+    lw      $s7, 92($a0)
+    lw      $t8, 96($a0)
+    lw      $t9, 100($a0)
+    lw      $k0, 104($a0)
+    lw      $k1, 108($a0)
+    lw      $gp, 112($a0)
+    lw      $sp, 116($a0)
+    lw      $fp, 120($a0)
+    lw      $ra, 124($a0)
+    lw      $a0, 16($a0)
+    move    $v0, $zero          # clear result registers r0 and r1
+    jr      $ra                 # do long jump
+    move    $v1, $zero
 
     .global art_deliver_exception_from_code
     /*
@@ -249,9 +249,9 @@ art_do_long_jump:
     ALIGN_FUNCTION_ENTRY
 art_deliver_exception_from_code:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move a1, rSELF                      @ pass Thread::Current
-    b    artDeliverExceptionFromCode    @ artDeliverExceptionFromCode(Throwable*, Thread*, SP)
-    move a2, sp                         @ pass SP
+    move $a1, rSELF                     # pass Thread::Current
+    jal  artDeliverExceptionFromCode    # artDeliverExceptionFromCode(Throwable*, Thread*, $sp)
+    move $a2, $sp                       # pass $sp
 
     .global art_throw_null_pointer_exception_from_code
     .extern artThrowNullPointerExceptionFromCode
@@ -261,9 +261,9 @@ art_deliver_exception_from_code:
     ALIGN_FUNCTION_ENTRY
 art_throw_null_pointer_exception_from_code:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move a0, rSELF                            @ pass Thread::Current
-    b   artThrowNullPointerExceptionFromCode  @ artThrowNullPointerExceptionFromCode(Thread*, SP)
-    move a1, sp                               @ pass SP
+    move $a0, rSELF                           # pass Thread::Current
+    jal  artThrowNullPointerExceptionFromCode  # artThrowNullPointerExceptionFromCode(Thread*, $sp)
+    move $a1, $sp                             # pass $sp
 
     .global art_throw_div_zero_from_code
     .extern artThrowDivZeroFromCode
@@ -273,9 +273,9 @@ art_throw_null_pointer_exception_from_code:
     ALIGN_FUNCTION_ENTRY
 art_throw_div_zero_from_code:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move a0, rSELF                  @ pass Thread::Current
-    b   artThrowDivZeroFromCode     @ artThrowDivZeroFromCode(Thread*, SP)
-    move a1, sp                     @ pass SP
+    move $a0, rSELF                 # pass Thread::Current
+    jal  artThrowDivZeroFromCode     # artThrowDivZeroFromCode(Thread*, $sp)
+    move $a1, $sp                   # pass $sp
 
     .global art_throw_array_bounds_from_code
     .extern artThrowArrayBoundsFromCode
@@ -285,9 +285,9 @@ art_throw_div_zero_from_code:
     ALIGN_FUNCTION_ENTRY
 art_throw_array_bounds_from_code:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move a2, rSELF                   @ pass Thread::Current
-    b   artThrowArrayBoundsFromCode  @ artThrowArrayBoundsFromCode(index, limit, Thread*, SP)
-    move a3, sp                      @ pass SP
+    move $a2, rSELF                  # pass Thread::Current
+    jal artThrowArrayBoundsFromCode  # artThrowArrayBoundsFromCode(index, limit, Thread*, $sp)
+    move $a3, $sp                    # pass $sp
 
     .global art_throw_stack_overflow_from_code
     .extern artThrowStackOverflowFromCode
@@ -297,21 +297,9 @@ art_throw_array_bounds_from_code:
     ALIGN_FUNCTION_ENTRY
 art_throw_stack_overflow_from_code:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move a1, rSELF                     @ pass Thread::Current
-    b   artThrowStackOverflowFromCode  @ artThrowStackOverflowFromCode(method, Thread*, SP)
-    move a2, sp                        @ pass SP
-
-    .global art_throw_neg_array_size_from_code
-    .extern artThrowNegArraySizeFromCode
-    /*
-     * Called by managed code to create and deliver a NegativeArraySizeException.
-     */
-    ALIGN_FUNCTION_ENTRY
-art_throw_neg_array_size_from_code:
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move a1, rSELF                        @ pass Thread::Current
-    b   artThrowNegArraySizeFromCode      @ artThrowNegArraySizeFromCode(size, Thread*, SP)
-    move a2, sp                           @ pass SP
+    move $a1, rSELF                    # pass Thread::Current
+    jal artThrowStackOverflowFromCode  # artThrowStackOverflowFromCode(method, Thread*, $sp)
+    move $a2, $sp                      # pass $sp
 
     .global art_throw_no_such_method_from_code
     .extern artThrowNoSuchMethodFromCode
@@ -321,9 +309,9 @@ art_throw_neg_array_size_from_code:
     ALIGN_FUNCTION_ENTRY
 art_throw_no_such_method_from_code:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move a1, rSELF                        @ pass Thread::Current
-    b   artThrowNoSuchMethodFromCode      @ artThrowNoSuchMethodFromCode(method_idx, Thread*, SP)
-    move a2, sp                           @ pass SP
+    move $a1, rSELF                       # pass Thread::Current
+    jal artThrowNoSuchMethodFromCode      # artThrowNoSuchMethodFromCode(method_idx, Thread*, $sp)
+    move $a2, $sp                         # pass $sp
 
     .global art_throw_verification_error_from_code
     .extern artThrowVerificationErrorFromCode
@@ -333,19 +321,19 @@ art_throw_no_such_method_from_code:
     ALIGN_FUNCTION_ENTRY
 art_throw_verification_error_from_code:
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move a2, rSELF                            @ pass Thread::Current
-    b   artThrowVerificationErrorFromCode     @ artThrowVerificationErrorFromCode(kind, ref, Thread*, SP)
-    move a3, sp                               @ pass SP
+    move $a2, rSELF                           # pass Thread::Current
+    jal artThrowVerificationErrorFromCode     # artThrowVerificationErrorFromCode(kind, ref, Thread*, $sp)
+    move $a3, $sp                             # pass $sp
 
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
-     * as usual - except instead of loading arg0/a0 with the target Method*, arg0/a0 will contain
+     * as usual - except instead of loading arg0/$a0 with the target Method*, arg0/$a0 will contain
      * the method_idx.  This wrapper will save arg1-arg3, load the caller's Method*, align the
      * stack and call the appropriate C helper.
-     * NOTE: "this" is first visable argument of the target, and so can be found in arg1/a1.
+     * NOTE: "this" is first visable argument of the target, and so can be found in arg1/$a1.
      *
-     * The helper will attempt to locate the target and return a 64-bit result in v0/v1 consisting
-     * of the target Method* in v0 and method->code_ in v1.
+     * The helper will attempt to locate the target and return a 64-bit result in $v0/$v1 consisting
+     * of the target Method* in $v0 and method->code_ in $v1.
      *
      * If unsuccessful, the helper will return NULL/NULL. There will bea pending exception in the
      * thread and we branch to another stub to deliver it.
@@ -357,16 +345,16 @@ art_throw_verification_error_from_code:
     .global \c_name
     .extern \cxx_name
 \c_name:
-    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  @ save callee saves in case allocation triggers GC
-    lw    a2, 48(sp)                      @ pass caller Method*
-    move  a3, rSELF                       @ pass Thread::Current
-    sw    sp, 0(sp)                       @ pass SP
-    jal   \cxx_name                       @ (method_idx, this, caller, Thread*, SP)
-    move   t0, v1                         @ save v0->code_
+    SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME  # save callee saves in case allocation triggers GC
+    lw    $a2, 48($sp)                    # pass caller Method*
+    move  $a3, rSELF                      # pass Thread::Current
+    sw    $sp, 0($sp)                     # pass $sp
+    jal   \cxx_name                       # (method_idx, this, caller, Thread*, $sp)
+    move   $t0, $v1                       # save $v0->code_
     RESTORE_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    bnez   v0, 1f
+    bnez   $v0, 1f
     nop
-    jr     t0
+    jr     $t0
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -387,24 +375,24 @@ INVOKE_TRAMPOLINE art_invoke_virtual_trampoline_with_access_check, artInvokeVirt
      */
     ALIGN_FUNCTION_ENTRY
 art_work_around_app_jni_bugs:
-    @ save registers that may contain arguments and LR that will be crushed by a call
-    addiu    sp, sp, -32
-    sw       a0, 28(sp)
-    sw       a1, 24(sp)
-    sw       a2, 20(sp)
-    sw       a3, 16(sp)
-    sw       ra, 12(sp)
-    move     a0, rSELF       @ pass Thread::Current
-    jal      artWorkAroundAppJniBugs  @ (Thread*, SP)
-    move     a1, sp          @ pass SP
-    move     t0, v0          @ save target address
-    lw       a0, 28(sp)
-    lw       a1, 24(sp)
-    lw       a2, 20(sp)
-    lw       a3, 16(sp)
-    lw       ra, 12(sp)
-    jr       t0              @ tail call into JNI routine
-    addiu    sp, sp, 32
+    # save registers that may contain arguments and LR that will be crushed by a call
+    addiu    $sp, $sp, -32
+    sw       $a0, 28($sp)
+    sw       $a1, 24($sp)
+    sw       $a2, 20($sp)
+    sw       $a3, 16($sp)
+    sw       $ra, 12($sp)
+    move     $a0, rSELF       # pass Thread::Current
+    jal      artWorkAroundAppJniBugs  # (Thread*, $sp)
+    move     $a1, $sp         # pass $sp
+    move     $t0, $v0         # save target address
+    lw       $a0, 28($sp)
+    lw       $a1, 24($sp)
+    lw       $a2, 20($sp)
+    lw       $a3, 16($sp)
+    lw       $ra, 12($sp)
+    jr       $t0              # tail call into JNI routine
+    addiu    $sp, $sp, 32
 
     .global art_handle_fill_data_from_code
     .extern artHandleFillArrayDataFromCode
@@ -414,14 +402,14 @@ art_work_around_app_jni_bugs:
      */
     ALIGN_FUNCTION_ENTRY
 art_handle_fill_data_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
-    move    a2, rSELF                          @ pass Thread::Current
-    jal     artHandleFillArrayDataFromCode     @ (Array*, const DexFile::Payload*, Thread*, SP)
-    move    a3, sp                             @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
+    move    $a2, rSELF                         # pass Thread::Current
+    jal     artHandleFillArrayDataFromCode     # (Array*, const DexFile::Payload*, Thread*, $sp)
+    move    $a3, $sp                           # pass $sp
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    bnez    v0, 1f                             @ success?
+    bnez    $v0, 1f                            # success?
     nop
-    jr      ra                                 @ return on success
+    jr      $ra                                # return on success
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -433,10 +421,10 @@ art_handle_fill_data_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_lock_object_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME      @ save callee saves in case we block
-    move    a1, rSELF                     @ pass Thread::Current
-    jal     artLockObjectFromCode         @ (Object* obj, Thread*, SP)
-    move    a2, sp                        @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME      # save callee saves in case we block
+    move    $a1, rSELF                    # pass Thread::Current
+    jal     artLockObjectFromCode         # (Object* obj, Thread*, $sp)
+    move    $a2, $sp                      # pass $sp
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 
     .global art_unlock_object_from_code
@@ -446,10 +434,10 @@ art_lock_object_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_unlock_object_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
-    move    a1, rSELF                 @ pass Thread::Current
-    jal     artUnlockObjectFromCode   @ (Object* obj, Thread*, SP)
-    move    a2, sp                    @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
+    move    $a1, rSELF                # pass Thread::Current
+    jal     artUnlockObjectFromCode   # (Object* obj, Thread*, $sp)
+    move    $a2, $sp                  # pass $sp
     RETURN_IF_ZERO
 
     .global art_check_cast_from_code
@@ -459,10 +447,10 @@ art_unlock_object_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_check_cast_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case exception allocation triggers GC
-    move    a2, rSELF                 @ pass Thread::Current
-    jal     artCheckCastFromCode      @ (Class* a, Class* b, Thread*, SP)
-    move    a3, sp                    @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
+    move    $a2, rSELF                # pass Thread::Current
+    jal     artCheckCastFromCode      # (Class* a, Class* b, Thread*, $sp)
+    move    $a3, $sp                  # pass $sp
     RETURN_IF_ZERO
 
     .global art_can_put_array_element_from_code
@@ -473,10 +461,10 @@ art_check_cast_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_can_put_array_element_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME    @ save callee saves in case exception allocation triggers GC
-    move    a2, rSELF                      @ pass Thread::Current
-    jal     artCanPutArrayElementFromCode  @ (Object* element, Class* array_class, Thread*, SP)
-    move    a3, sp                         @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case exception allocation triggers GC
+    move    $a2, rSELF                     # pass Thread::Current
+    jal     artCanPutArrayElementFromCode  # (Object* element, Class* array_class, Thread*, $sp)
+    move    $a3, $sp                       # pass $sp
     RETURN_IF_ZERO
 
     .global art_initialize_static_storage_from_code
@@ -488,11 +476,11 @@ art_can_put_array_element_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_initialize_static_storage_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME            @ save callee saves in case of GC
-    move    a2, rSELF                           @ pass Thread::Current
-    @ artInitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer, Thread*, SP)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME            # save callee saves in case of GC
+    move    $a2, rSELF                          # pass Thread::Current
+    # artInitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer, Thread*, $sp)
     jal     artInitializeStaticStorageFromCode
-    move    a3, sp                              @ pass SP
+    move    $a3, $sp                            # pass $sp
     RETURN_IF_NONZERO
 
     .global art_initialize_type_from_code
@@ -502,11 +490,11 @@ art_initialize_static_storage_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_initialize_type_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
-    move    a2, rSELF                          @ pass Thread::Current
-    @ artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*, SP)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME           # save callee saves in case of GC
+    move    $a2, rSELF                         # pass Thread::Current
+    # artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*, $sp)
     jal     artInitializeTypeFromCode
-    move    a3, sp                             @ pass SP
+    move    $a3, $sp                           # pass $sp
     RETURN_IF_NONZERO
 
     .global art_initialize_type_and_verify_access_from_code
@@ -517,11 +505,11 @@ art_initialize_type_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_initialize_type_and_verify_access_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME           @ save callee saves in case of GC
-    move    a2, rSELF                           @ pass Thread::Current
-    @ artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*, SP)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME           # save callee saves in case of GC
+    move    $a2, rSELF                         # pass Thread::Current
+    # artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*, $sp)
     jal     artInitializeTypeAndVerifyAccessFromCode
-    move    a3, sp                              @ pass SP
+    move    $a3, $sp                           # pass $sp
     RETURN_IF_NONZERO
 
     .global art_get32_static_from_code
@@ -531,11 +519,11 @@ art_initialize_type_and_verify_access_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_get32_static_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    lw     a1, 48(sp)                    @ pass referrer's Method*
-    move   a2, rSELF                     @ pass Thread::Current
-    jal     artGet32StaticFromCode       @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
-    move   a3, sp                        @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
+    lw     $a1, 48($sp)                  # pass referrer's Method*
+    move   $a2, rSELF                    # pass Thread::Current
+    jal     artGet32StaticFromCode       # (uint32_t field_idx, const Method* referrer, Thread*, $sp)
+    move   $a3, $sp                      # pass $sp
     RETURN_IF_NO_EXCEPTION
 
     .global art_get64_static_from_code
@@ -545,11 +533,11 @@ art_get32_static_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_get64_static_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    lw     a1, 48(sp)                    @ pass referrer's Method*
-    move   a2, rSELF                     @ pass Thread::Current
-    jal     artGet64StaticFromCode       @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
-    move   a3, sp                        @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
+    lw     $a1, 48($sp)                  # pass referrer's Method*
+    move   $a2, rSELF                    # pass Thread::Current
+    jal     artGet64StaticFromCode       # (uint32_t field_idx, const Method* referrer, Thread*, $sp)
+    move   $a3, $sp                      # pass $sp
     RETURN_IF_NO_EXCEPTION
 
     .global art_get_obj_static_from_code
@@ -559,11 +547,11 @@ art_get64_static_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_get_obj_static_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    lw     a1, 48(sp)                    @ pass referrer's Method*
-    move   a2, rSELF                     @ pass Thread::Current
-    jal     artGetObjStaticFromCode      @ (uint32_t field_idx, const Method* referrer, Thread*, SP)
-    move   a3, sp                        @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
+    lw     $a1, 48($sp)                  # pass referrer's Method*
+    move   $a2, rSELF                    # pass Thread::Current
+    jal     artGetObjStaticFromCode      # (uint32_t field_idx, const Method* referrer, Thread*, $sp)
+    move   $a3, $sp                      # pass $sp
     RETURN_IF_NO_EXCEPTION
 
     .global art_get32_instance_from_code
@@ -573,11 +561,11 @@ art_get_obj_static_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_get32_instance_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    lw     a2, 48(sp)                    @ pass referrer's Method*
-    move   a3, rSELF                     @ pass Thread::Current
-    jal     artGet32InstanceFromCode     @ (field_idx, Object*, referrer, Thread*, SP)
-    sw     sp, 0(sp)                     @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
+    lw     $a2, 48($sp)                  # pass referrer's Method*
+    move   $a3, rSELF                    # pass Thread::Current
+    jal     artGet32InstanceFromCode     # (field_idx, Object*, referrer, Thread*, $sp)
+    sw     $sp, 0($sp)                   # pass $sp
     RETURN_IF_NO_EXCEPTION
 
     .global art_get64_instance_from_code
@@ -587,11 +575,11 @@ art_get32_instance_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_get64_instance_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    lw     a2, 48(sp)                    @ pass referrer's Method*
-    move   a3, rSELF                     @ pass Thread::Current
-    jal     artGet64InstanceFromCode     @ (field_idx, Object*, referrer, Thread*, SP)
-    sw     sp, 0(sp)                     @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
+    lw     $a2, 48($sp)                  # pass referrer's Method*
+    move   $a3, rSELF                    # pass Thread::Current
+    jal     artGet64InstanceFromCode     # (field_idx, Object*, referrer, Thread*, $sp)
+    sw     $sp, 0($sp)                   # pass $sp
     RETURN_IF_NO_EXCEPTION
 
     .global art_get_obj_instance_from_code
@@ -601,11 +589,11 @@ art_get64_instance_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_get_obj_instance_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    lw     a2, 48(sp)                    @ pass referrer's Method*
-    move   a3, rSELF                     @ pass Thread::Current
-    jal     artGetObjInstanceFromCode    @ (field_idx, Object*, referrer, Thread*, SP)
-    sw     sp, 0(sp)                     @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
+    lw     $a2, 48($sp)                  # pass referrer's Method*
+    move   $a3, rSELF                    # pass Thread::Current
+    jal     artGetObjInstanceFromCode    # (field_idx, Object*, referrer, Thread*, $sp)
+    sw     $sp, 0($sp)                   # pass $sp
     RETURN_IF_NO_EXCEPTION
 
     .global art_set32_static_from_code
@@ -615,11 +603,11 @@ art_get_obj_instance_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_set32_static_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    lw     a2, 48(sp)                    @ pass referrer's Method*
-    move   a3, rSELF                     @ pass Thread::Current
-    jal     artSet32StaticFromCode       @ (field_idx, new_val, referrer, Thread*, SP)
-    sw     sp, 0(sp)                     @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
+    lw     $a2, 48($sp)                  # pass referrer's Method*
+    move   $a3, rSELF                    # pass Thread::Current
+    jal     artSet32StaticFromCode       # (field_idx, new_val, referrer, Thread*, $sp)
+    sw     $sp, 0($sp)                   # pass $sp
     RETURN_IF_ZERO
 
     .global art_set64_static_from_code
@@ -629,14 +617,14 @@ art_set32_static_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_set64_static_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    lw     a1, 48(sp)                    @ pass referrer's Method*
-    move   t0, sp                        @ save SP
-    addui  sp, sp, -16
-    sw     rSELF, 0(sp)                  @ pass Thread::Current and sp
-    jal    artSet64StaticFromCode        @ (field_idx, referrer, new_val, Thread*, SP)
-    sw     t0, 4(sp)
-    addui  sp, #16                       @ release out args
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
+    lw     $a1, 48($sp)                  # pass referrer's Method*
+    move   $t0, $sp                      # save $sp
+    addiu  $sp, $sp, -16
+    sw     rSELF, 0($sp)                 # pass Thread::Current and $sp
+    jal    artSet64StaticFromCode        # (field_idx, referrer, new_val, Thread*, $sp)
+    sw     $t0, 4($sp)
+    addiu  $sp, #16                      # release out args
     RETURN_IF_ZERO
 
     .global art_set_obj_static_from_code
@@ -646,11 +634,11 @@ art_set64_static_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_set_obj_static_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    lw     a2, 48(sp)                    @ pass referrer's Method*
-    move   a3, rSELF                     @ pass Thread::Current
-    jal     artSetObjStaticFromCode      @ (field_idx, new_val, referrer, Thread*, SP)
-    sw     sp, 0(sp)                     @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
+    lw     $a2, 48($sp)                  # pass referrer's Method*
+    move   $a3, rSELF                    # pass Thread::Current
+    jal     artSetObjStaticFromCode      # (field_idx, new_val, referrer, Thread*, $sp)
+    sw     $sp, 0($sp)                   # pass $sp
     RETURN_IF_ZERO
 
     .global art_set32_instance_from_code
@@ -660,14 +648,14 @@ art_set_obj_static_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_set32_instance_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    lw     a4, 48(sp)                    @ pass referrer's Method*
-    move   t0, sp                        @ save SP
-    addui  sp, sp, -16
-    sw     rSELF, 0(sp)                  @ pass Thread::Current and sp
-    jal    artSet32InstanceFromCode      @ (field_idx, Object*, new_val, referrer, Thread*, SP)
-    sw     t0, 4(sp)
-    addiu  sp, sp, 16                    @ release out args
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
+    lw     $a3, 48($sp)                  # pass referrer's Method*
+    move   $t0, $sp                      # save $sp
+    addiu  $sp, $sp, -16
+    sw     rSELF, 0($sp)                 # pass Thread::Current and $sp
+    jal    artSet32InstanceFromCode      # (field_idx, Object*, new_val, referrer, Thread*, $sp)
+    sw     $t0, 4($sp)
+    addiu  $sp, $sp, 16                  # release out args
     RETURN_IF_ZERO
 
     .global art_set64_instance_from_code
@@ -677,13 +665,13 @@ art_set32_instance_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_set64_instance_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    move   t0, sp                        @ save SP
-    addui  sp, sp, -16
-    sw     rSELF, 0(sp)                  @ pass Thread::Current and sp
-    jal     artSet64InstanceFromCode     @ (field_idx, Object*, new_val, Thread*, SP)
-    sw     t0, 4(sp)
-    addiu  sp, sp, 16                    @ release out args
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
+    move   $t0, $sp                      # save $sp
+    addiu  $sp, $sp, -16
+    sw     rSELF, 0($sp)                 # pass Thread::Current and $sp
+    jal     artSet64InstanceFromCode     # (field_idx, Object*, new_val, Thread*, $sp)
+    sw     $t0, 4($sp)
+    addiu  $sp, $sp, 16                  # release out args
     RETURN_IF_ZERO
 
     .global art_set_obj_instance_from_code
@@ -693,14 +681,14 @@ art_set64_instance_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_set_obj_instance_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     @ save callee saves in case of GC
-    lw     a3, 48(sp)                    @ pass referrer's Method*
-    move   t0, sp                        @ save SP
-    addui  sp, sp, -16
-    sw     rSELF, 0(sp)                  @ pass Thread::Current and sp
-    jal     artSetObjInstanceFromCode    @ (field_idx, Object*, new_val, referrer, Thread*, SP)
-    sw     t0, 4(sp)
-    addiu  sp, sp, 16                    @ release out args
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case of GC
+    lw     $a3, 48($sp)                  # pass referrer's Method*
+    move   $t0, $sp                      # save $sp
+    addiu  $sp, $sp, -16
+    sw     rSELF, 0($sp)                 # pass Thread::Current and $sp
+    jal     artSetObjInstanceFromCode    # (field_idx, Object*, new_val, referrer, Thread*, $sp)
+    sw     $t0, 4($sp)
+    addiu  $sp, $sp, 16                  # release out args
     RETURN_IF_ZERO
 
     .global art_resolve_string_from_code
@@ -713,11 +701,11 @@ art_set_obj_instance_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_resolve_string_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
-    move    a2, rSELF                 @ pass Thread::Current
-    @ artResolveStringFromCode(Method* referrer, uint32_t string_idx, Thread*, SP)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
+    move    $a2, rSELF                # pass Thread::Current
+    # artResolveStringFromCode(Method* referrer, uint32_t string_idx, Thread*, $sp)
     jal     artResolveStringFromCode
-    move    a3, sp                    @ pass SP
+    move    $a3, $sp                  # pass $sp
     RETURN_IF_ZERO
 
     .global art_alloc_object_from_code
@@ -727,10 +715,10 @@ art_resolve_string_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_alloc_object_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
-    move    a2, rSELF                 @ pass Thread::Current
-    jal     artAllocObjectFromCode    @ (uint32_t type_idx, Method* method, Thread*, SP)
-    move    a3, sp                    @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
+    move    $a2, rSELF                # pass Thread::Current
+    jal     artAllocObjectFromCode    # (uint32_t type_idx, Method* method, Thread*, $sp)
+    move    $a3, $sp                  # pass $sp
     RETURN_IF_NONZERO
 
     .global art_alloc_object_from_code_with_access_check
@@ -741,10 +729,10 @@ art_alloc_object_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_alloc_object_from_code_with_access_check:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
-    move    a2, rSELF                 @ pass Thread::Current
-    jal     artAllocObjectFromCodeWithAccessCheck  @ (uint32_t type_idx, Method* method, Thread*, SP)
-    move    a3, sp                    @ pass SP
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
+    move    $a2, rSELF                # pass Thread::Current
+    jal     artAllocObjectFromCodeWithAccessCheck  # (uint32_t type_idx, Method* method, Thread*, $sp)
+    move    $a3, $sp                  # pass $sp
     RETURN_IF_NONZERO
 
     .global art_alloc_array_from_code
@@ -754,11 +742,11 @@ art_alloc_object_from_code_with_access_check:
      */
     ALIGN_FUNCTION_ENTRY
 art_alloc_array_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
-    move    a3, r9                    @ pass Thread::Current
-    @ artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count, Thread*, SP)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
+    move    $a3, rSELF                # pass Thread::Current
+    # artAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count, Thread*, $sp)
     jal     artAllocArrayFromCode
-    sw    sp, 0(sp)                   @ pass SP
+    sw    $sp, 0($sp)                 # pass $sp
     RETURN_IF_NONZERO
 
     .global art_alloc_array_from_code_with_access_check
@@ -769,11 +757,11 @@ art_alloc_array_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_alloc_array_from_code_with_access_check:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
-    move    a3, rSELF                 @ pass Thread::Current
-    @ artAllocArrayFromCodeWithAccessCheck(type_idx, method, component_count, Thread*, SP)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
+    move    $a3, rSELF                # pass Thread::Current
+    # artAllocArrayFromCodeWithAccessCheck(type_idx, method, component_count, Thread*, $sp)
     jal     artAllocArrayFromCodeWithAccessCheck
-    sw      sp, 0(sp)                 @ pass SP
+    sw      $sp, 0($sp)               # pass $sp
     RETURN_IF_NONZERO
 
     .global art_check_and_alloc_array_from_code
@@ -783,11 +771,11 @@ art_alloc_array_from_code_with_access_check:
      */
     ALIGN_FUNCTION_ENTRY
 art_check_and_alloc_array_from_code:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
-    move    a3, rSELF                 @ pass Thread::Current
-    @ artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t count, Thread* , SP)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
+    move    $a3, rSELF                # pass Thread::Current
+    # artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t count, Thread* , $sp)
     jal     artCheckAndAllocArrayFromCode
-    sw      sp, 0(sp)                 @ pass SP
+    sw      $sp, 0($sp)               # pass $sp
     RETURN_IF_NONZERO
 
     .global art_check_and_alloc_array_from_code_with_access_check
@@ -797,11 +785,11 @@ art_check_and_alloc_array_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_check_and_alloc_array_from_code_with_access_check:
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  @ save callee saves in case of GC
-    move   a3, rSELF                  @ pass Thread::Current
-    @ artCheckAndAllocArrayFromCodeWithAccessCheck(type_idx, method, count, Thread* , SP)
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
+    move   $a3, rSELF                 # pass Thread::Current
+    # artCheckAndAllocArrayFromCodeWithAccessCheck(type_idx, method, count, Thread* , $sp)
     jal     artCheckAndAllocArrayFromCodeWithAccessCheck
-    sw     sp, 0(sp)                  @ pass SP
+    sw     $sp, 0($sp)                # pass $sp
     RETURN_IF_NONZERO
 
     .global art_test_suspend
@@ -811,16 +799,16 @@ art_check_and_alloc_array_from_code_with_access_check:
      */
     ALIGN_FUNCTION_ENTRY
 art_test_suspend:
-    lw     a0, THREAD_SUSPEND_COUNT_OFFSET(rSELF)
-    bnez   a0, 1f
-    move   rSUSPEND, SUSPEND_CHECK_INTERVAL   @ reset rSUSPEND to SUSPEND_CHECK_INTERVAL
-    jr     ra
+    lw     $a0, THREAD_SUSPEND_COUNT_OFFSET(rSELF)
+    bnez   $a0, 1f
+    addi  rSUSPEND, $zero, SUSPEND_CHECK_INTERVAL   # reset rSUSPEND to SUSPEND_CHECK_INTERVAL
+    jr     $ra
     nop
 1:
-    move   a0, rSELF
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME          @ save callee saves for stack crawl
-    jal    artTestSuspendFromCode             @ (Thread*, SP)
-    move   a1, sp
+    move   $a0, rSELF
+    SETUP_REF_ONLY_CALLEE_SAVE_FRAME          # save callee saves for stack crawl
+    jal    artTestSuspendFromCode             # (Thread*, $sp)
+    move   $a1, $sp
     RESTORE_REF_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
 
     .global art_proxy_invoke_handler
@@ -832,18 +820,18 @@ art_test_suspend:
     ALIGN_FUNCTION_ENTRY
 art_proxy_invoke_handler:
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
-    sw      a0, 0(sp)             @ place proxy method at bottom of frame
-    move    a2, rSELF             @ pass Thread::Current
-    jalr    artProxyInvokeHandler @ (Method* proxy method, receiver, Thread*, args...)
-    addui   a3, sp, 12            @ pointer to r2/r3/LR/caller's Method**/out-args as second arg
-    lw      t0, THREAD_EXCEPTION_OFFSET(rSELF) @ load Thread::Current()->exception_
-@FIXME - offsets here are probably wrong
-    lw      ra, 44(sp)            @ restore ra
-    lw      v0, 12(sp)
-    lw      v1, 14(sp)
-    bnez    r0, 1f
-    addui   sp, sp, 48            @ pop frame
-    jr      ra
+    sw      $a0, 0($sp)            # place proxy method at bottom of frame
+    move    $a2, rSELF             # pass Thread::Current
+    jal     artProxyInvokeHandler  # (Method* proxy method, receiver, Thread*, args...)
+    addiu   $a3, $sp, 12           # pointer to r2/r3/LR/caller's Method**/out-args as second arg
+    lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
+#FIXME - offsets here are probably wrong
+    lw      $ra, 44($sp)           # restore $ra
+    lw      $v0, 12($sp)
+    lw      $v1, 14($sp)
+    bnez    $t0, 1f
+    addiu   $sp, $sp, 48           # pop frame
+    jr      $ra
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -855,21 +843,21 @@ art_proxy_invoke_handler:
      */
     ALIGN_FUNCTION_ENTRY
 art_trace_entry_from_code:
-    addui    sp, sp, -16
-    sw       a0, 0(sp)
-    sw       a1, 4(sp)
-    sw       a2, 8(sp)
-    sw       a3, 12(sp)
-    move     a2, ra       @ pass ra
-    jalr     artTraceMethodEntryFromCode  @ (Method*, Thread*, LR)
-    move     a1, rSELF    @ pass Thread::Current
-    move     t0, v0       @ t0 holds reference to code
-    lw       a0, 0(sp)
-    lw       a1, 4(sp)
-    lw       a2, 8(sp)
-    lw       a3, 12(sp)
-    jalr     t0           @ call method
-    addui    sp, sp, 16
+    addiu    $sp, $sp, -16
+    sw       $a0, 0($sp)
+    sw       $a1, 4($sp)
+    sw       $a2, 8($sp)
+    sw       $a3, 12($sp)
+    move     $a2, $ra       # pass $ra
+    jal      artTraceMethodEntryFromCode  # (Method*, Thread*, LR)
+    move     $a1, rSELF     # pass Thread::Current
+    move     $t0, $v0       # $t0 holds reference to code
+    lw       $a0, 0($sp)
+    lw       $a1, 4($sp)
+    lw       $a2, 8($sp)
+    lw       $a3, 12($sp)
+    jalr     $t0            # call method
+    addiu    $sp, $sp, 16
     /* intentional fallthrough */
 
     .global art_trace_exit_from_code
@@ -879,15 +867,15 @@ art_trace_entry_from_code:
      */
     ALIGN_FUNCTION_ENTRY
 art_trace_exit_from_code:
-    addui    sp, sp, -16
-    sw       v0, 0(sp)
-    jalr     artTraceMethodExitFromCode  @ ()
-    sw       v1, 4(sp)
-    move     ra, v0         @ restore link register
-    lw       v0, 0(sp)
-    lw       v1, 4(sp)
-    jr       ra             @ return
-    addui    sp, sp, 16
+    addiu    $sp, $sp, -16
+    sw       $v0, 0($sp)
+    jal      artTraceMethodExitFromCode  # ()
+    sw       $v1, 4($sp)
+    move     $ra, $v0         # restore link register
+    lw       $v0, 0($sp)
+    lw       $v1, 4($sp)
+    jr       $ra              # return
+    addiu    $sp, $sp, 16
 
     .global art_shl_long
     /*
@@ -896,23 +884,23 @@ art_trace_exit_from_code:
      * distance) is 32-bit.  Also, Dalvik requires us to ignore all but the low
      * 6 bits.
      * On entry:
-     *   a0: low word
-     *   a1: high word
-     *   a2: shift count
+     *   $a0: low word
+     *   $a1: high word
+     *   $a2: shift count
      */
     ALIGN_FUNCTION_ENTRY
 art_shl_long:
     /* shl-long vAA, vBB, vCC */
-    sll     v0, a0, a2                     @  rlo<- alo << (shift&31)
-    not     v1, a2                         @  rhi<- 31-shift  (shift is 5b)
-    srl     a0, 1
-    srl     a0, v1                         @  alo<- alo >> (32-(shift&31))
-    sll     v1, a1, a2                     @  rhi<- ahi << (shift&31)
-    or      v1, a0                         @  rhi<- rhi | alo
-    andi    a2, 0x20                       @  shift< shift & 0x20
-    movn    v1, v0, a2                     @  rhi<- rlo (if shift&0x20)
-    jr      ra
-    movn    v0, zero, a2                   @  rlo<- 0  (if shift&0x20)
+    sll     $v0, $a0, $a2                    #  rlo<- alo << (shift&31)
+    not     $v1, $a2                         #  rhi<- 31-shift  (shift is 5b)
+    srl     $a0, 1
+    srl     $a0, $v1                         #  alo<- alo >> (32-(shift&31))
+    sll     $v1, $a1, $a2                    #  rhi<- ahi << (shift&31)
+    or      $v1, $a0                         #  rhi<- rhi | alo
+    andi    $a2, 0x20                        #  shift< shift & 0x20
+    movn    $v1, $v0, $a2                    #  rhi<- rlo (if shift&0x20)
+    jr      $ra
+    movn    $v0, $zero, $a2                   #  rlo<- 0  (if shift&0x20)
 
     .global art_shr_long
     /*
@@ -921,23 +909,23 @@ art_shl_long:
      * distance) is 32-bit.  Also, Dalvik requires us to ignore all but the low
      * 6 bits.
      * On entry:
-     *   a0: low word
-     *   a1: high word
-     *   a2: shift count
+     *   $a0: low word
+     *   $a1: high word
+     *   $a2: shift count
      */
     ALIGN_FUNCTION_ENTRY
 art_shr_long:
-    sra     v1, a1, a2                     @  rhi<- ahi >> (shift&31)
-    srl     v0, a0, a2                     @  rlo<- alo >> (shift&31)
-    sra     a3, a1, 31                     @  a3<- sign(ah)
-    not     a0, a2                         @  alo<- 31-shift (shift is 5b)
-    sll     a1, 1
-    sll     a1, a0                         @  ahi<- ahi << (32-(shift&31))
-    or      v0, a1                         @  rlo<- rlo | ahi
-    andi    a2, 0x20                       @  shift & 0x20
-    movn    v0, v1, a2                     @  rlo<- rhi (if shift&0x20)
-    jr      ra
-    movn    v1, a3, a2                     @  rhi<- sign(ahi) (if shift&0x20)
+    sra     $v1, $a1, $a2                    #  rhi<- ahi >> (shift&31)
+    srl     $v0, $a0, $a2                    #  rlo<- alo >> (shift&31)
+    sra     $a3, $a1, 31                     #  $a3<- sign(ah)
+    not     $a0, $a2                         #  alo<- 31-shift (shift is 5b)
+    sll     $a1, 1
+    sll     $a1, $a0                         #  ahi<- ahi << (32-(shift&31))
+    or      $v0, $a1                         #  rlo<- rlo | ahi
+    andi    $a2, 0x20                        #  shift & 0x20
+    movn    $v0, $v1, $a2                    #  rlo<- rhi (if shift&0x20)
+    jr      $ra
+    movn    $v1, $a3, $a2                    #  rhi<- sign(ahi) (if shift&0x20)
 
     .global art_ushr_long
     /*
@@ -953,14 +941,24 @@ art_shr_long:
     /* ushr-long vAA, vBB, vCC */
     ALIGN_FUNCTION_ENTRY
 art_ushr_long:
-    sra     v1, a1, a2                     @  rhi<- ahi >> (shift&31)
-    srl     v0, a0, a2                     @  rlo<- alo >> (shift&31)
-    sra     a3, a1, 31                     @  a3<- sign(ah)
-    not     a0, a2                         @  alo<- 31-shift (shift is 5b)
-    sll     a1, 1
-    sll     a1, a0                         @  ahi<- ahi << (32-(shift&31))
-    or      v0, a1                         @  rlo<- rlo | ahi
-    andi    a2, 0x20                       @  shift & 0x20
-    movn    v0, v1, a2                     @  rlo<- rhi (if shift&0x20)
-    jr      ra
-    movn    v1, a3, a2                     @  rhi<- sign(ahi) (if shift&0x20)
+    sra     $v1, $a1, $a2                    #  rhi<- ahi >> (shift&31)
+    srl     $v0, $a0, $a2                    #  rlo<- alo >> (shift&31)
+    sra     $a3, $a1, 31                     #  $a3<- sign(ah)
+    not     $a0, $a2                         #  alo<- 31-shift (shift is 5b)
+    sll     $a1, 1
+    sll     $a1, $a0                         #  ahi<- ahi << (32-(shift&31))
+    or      $v0, $a1                         #  rlo<- rlo | ahi
+    andi    $a2, 0x20                        #  shift & 0x20
+    movn    $v0, $v1, $a2                    #  rlo<- rhi (if shift&0x20)
+    jr      $ra
+    movn    $v1, $a3, $a2                    #  rhi<- sign(ahi) (if shift&0x20)
+
+    .global art_indexof
+    ALIGN_FUNCTION_ENTRY
+art_indexof:
+    jr $ra
+
+    .global art_string_compareto
+    ALIGN_FUNCTION_ENTRY
+art_string_compareto:
+    jr $ra
