@@ -455,7 +455,7 @@ void GBCExpanderPass::RewriteFunction() {
     // Set insert point to current basic block.
     irb_.SetInsertPoint(bb_iter);
 
-    old_basic_block_ = bb_iter;
+    old_basic_block_ = bb_iter->getUniquePredecessor();
 
     // Rewrite the basic block
     RewriteBasicBlock(bb_iter);
@@ -3597,6 +3597,15 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
     case IntrinsicHelper::IntToByte: {
       return irb_.CreateSExt(irb_.CreateTrunc(call_inst.getArgOperand(0), irb_.getJByteTy()),
                              irb_.getJIntTy());
+    }
+
+    //==- Exception --------------------------------------------------------==//
+    case IntrinsicHelper::CatchTargets: {
+      llvm::SwitchInst* si = llvm::dyn_cast<llvm::SwitchInst>(call_inst.getNextNode());
+      CHECK(si != NULL);
+      irb_.CreateBr(si->getDefaultDest());
+      si->eraseFromParent();
+      return call_inst.getArgOperand(0);
     }
 
     //==- Unknown Cases ----------------------------------------------------==//
