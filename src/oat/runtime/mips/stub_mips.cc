@@ -94,9 +94,9 @@ ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type) {
 
   __ LoadFromOffset(kLoadWord, T9, S1,
                     ENTRYPOINT_OFFSET(pUnresolvedDirectMethodTrampolineFromCode));
-  __ mov(A2, S1);  // Pass Thread::Current() in A2
+  __ Move(A2, S1);  // Pass Thread::Current() in A2
   __ LoadImmediate(A3, type);  // Pass is_static
-  __ mov(A1, SP);  // Pass SP for Method** callee_addr
+  __ Move(A1, SP);  // Pass SP for Method** callee_addr
   __ Jalr(T9); // Call to unresolved direct method trampoline (callee, callee_addr, Thread*, is_static)
 
   // Restore frame, argument registers, and RA.
