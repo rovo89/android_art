@@ -50,12 +50,12 @@ class JniCompilerTest : public CommonTest {
     } else {
       method = c->FindVirtualMethod(method_name, method_sig);
     }
-    ASSERT_TRUE(method != NULL);
+    ASSERT_TRUE(method != NULL) << method_name << " " << method_sig;
     if (method->GetCode() != NULL) {
       return;
     }
     CompileMethod(method);
-    ASSERT_TRUE(method->GetCode() != NULL);
+    ASSERT_TRUE(method->GetCode() != NULL) << method_name << " " << method_sig;
   }
 
   void SetUpForTest(bool direct, const char* method_name, const char* method_sig,
@@ -74,25 +74,26 @@ class JniCompilerTest : public CommonTest {
     // JNI operations after runtime start.
     env_ = Thread::Current()->GetJniEnv();
     jklass_ = env_->FindClass("MyClassNatives");
-    ASSERT_TRUE(jklass_ != NULL);
+    ASSERT_TRUE(jklass_ != NULL) << method_name << " " << method_sig;
 
     if (direct) {
       jmethod_ = env_->GetStaticMethodID(jklass_, method_name, method_sig);
     } else {
       jmethod_ = env_->GetMethodID(jklass_, method_name, method_sig);
     }
-    ASSERT_TRUE(jmethod_ != NULL);
+    ASSERT_TRUE(jmethod_ != NULL) << method_name << " " << method_sig;
 
     if (native_fnptr != NULL) {
       JNINativeMethod methods[] = { { method_name, method_sig, native_fnptr } };
-      ASSERT_EQ(JNI_OK, env_->RegisterNatives(jklass_, methods, 1));
+      ASSERT_EQ(JNI_OK, env_->RegisterNatives(jklass_, methods, 1))
+              << method_name << " " << method_sig;
     } else {
       env_->UnregisterNatives(jklass_);
     }
 
     jmethodID constructor = env_->GetMethodID(jklass_, "<init>", "()V");
     jobj_ = env_->NewObject(jklass_, constructor);
-    ASSERT_TRUE(jobj_ != NULL);
+    ASSERT_TRUE(jobj_ != NULL) << method_name << " " << method_sig;
   }
 
  public:
@@ -693,6 +694,11 @@ TEST_F(JniCompilerTest, GetText) {
   jint result = env_->CallStaticIntMethod(jklass_, jmethod_, 0x12345678ABCDEF88ll, jobj_,
                                           0x7FEDCBA987654321ll, jobj_);
   EXPECT_EQ(result, 42);
+}
+
+TEST_F(JniCompilerTest, GetSinkPropertiesNative) {
+  SetUpForTest(false, "getSinkPropertiesNative", "(Ljava/lang/String;)[Ljava/lang/Object;", NULL);
+  // This space intentionally left blank. Just testing compilation succeeds.
 }
 
 // This should return jclass, but we're imitating a bug pattern.

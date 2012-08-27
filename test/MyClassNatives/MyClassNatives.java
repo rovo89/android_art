@@ -33,6 +33,7 @@ class MyClassNatives {
     static native void arraycopy(Object src, int src_pos, Object dst, int dst_pos, int length);
     native boolean compareAndSwapInt(Object obj, long offset, int expected, int newval);
     static native int getText(long val1, Object obj1, long val2, Object obj2);
+    synchronized native Object []getSinkPropertiesNative(String path);
 
     native Class instanceMethodThatShouldReturnClass();
     static native Class staticMethodThatShouldReturnClass();
