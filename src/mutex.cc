@@ -278,6 +278,8 @@ uint64_t Mutex::GetExclusiveOwnerTid() const {
 #elif defined(__APPLE__)
   const darwin_pthread_mutex_t* dpmutex = reinterpret_cast<const darwin_pthread_mutex_t*>(&mutex_);
   pthread_t owner = dpmutex->darwin_pthread_mutex_owner;
+  // 0 for unowned, -1 for PTHREAD_MTX_TID_SWITCHING
+  // TODO: should we make darwin_pthread_mutex_owner volatile and recheck until not -1?
   if ((owner == (pthread_t)0) || (owner == (pthread_t)-1)) {
     return 0;
   }
