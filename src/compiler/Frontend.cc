@@ -821,6 +821,7 @@ CompiledMethod* compileMethod(Compiler& compiler,
   cUnit->context = context;
   cUnit->intrinsic_helper = intrinsic_helper;
   cUnit->irb = irb;
+  cUnit->gbcOnly = gbcOnly;
   if (cUnit->instructionSet == kThumb2) {
     // TODO: remove this once x86 is tested
     cUnit->genBitcode = true;
