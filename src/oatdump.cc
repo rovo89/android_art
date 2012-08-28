@@ -557,12 +557,12 @@ class ImageDumper {
     // Loop through all the image spaces and dump their objects.
     Heap* heap = Runtime::Current()->GetHeap();
     const Spaces& spaces = heap->GetSpaces();
-    // TODO: C++0x auto
     {
       WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
       heap->FlushAllocStack();
     }
     ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    // TODO: C++0x auto
     for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
       (*cur)->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
       os_ << "\n";
@@ -609,19 +609,29 @@ class ImageDumper {
   static void PrintField(std::string& summary, Field* field, Object* obj)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     FieldHelper fh(field);
-    Class* type = fh.GetType();
+    const char* descriptor = fh.GetTypeDescriptor();
     StringAppendF(&summary, "\t%s: ", fh.GetName());
-    if (type->IsPrimitiveLong()) {
-      StringAppendF(&summary, "%lld (0x%llx)\n", field->Get64(obj), field->Get64(obj));
-    } else if (type->IsPrimitiveDouble()) {
-      StringAppendF(&summary, "%f (%a)\n", field->GetDouble(obj), field->GetDouble(obj));
-    } else if (type->IsPrimitiveFloat()) {
-      StringAppendF(&summary, "%f (%a)\n", field->GetFloat(obj), field->GetFloat(obj));
-    } else if (type->IsPrimitive()) {
-      StringAppendF(&summary, "%d (0x%x)\n", field->Get32(obj), field->Get32(obj));
+    if (descriptor[0] != 'L' && descriptor[0] != '[') {
+      Class* type = fh.GetType();
+      if (type->IsPrimitiveLong()) {
+        StringAppendF(&summary, "%lld (0x%llx)\n", field->Get64(obj), field->Get64(obj));
+      } else if (type->IsPrimitiveDouble()) {
+        StringAppendF(&summary, "%f (%a)\n", field->GetDouble(obj), field->GetDouble(obj));
+      } else if (type->IsPrimitiveFloat()) {
+        StringAppendF(&summary, "%f (%a)\n", field->GetFloat(obj), field->GetFloat(obj));
+      } else {
+        DCHECK(type->IsPrimitive());
+        StringAppendF(&summary, "%d (0x%x)\n", field->Get32(obj), field->Get32(obj));
+      }
     } else {
+      // Get the value, don't compute the type unless it is non-null as we don't want
+      // to cause class loading.
       Object* value = field->GetObj(obj);
-      PrettyObjectValue(summary, type, value);
+      if (value == NULL) {
+        StringAppendF(&summary, "null   %s\n", PrettyDescriptor(descriptor).c_str());
+      } else {
+        PrettyObjectValue(summary, fh.GetType(), value);
+      }
     }
   }
 
