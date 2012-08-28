@@ -1376,6 +1376,10 @@ class MANAGED Class : public StaticStorageBase {
     return GetPrimitiveType() == Primitive::kPrimVoid;
   }
 
+  bool IsPrimitiveArray() const {
+    return IsArrayClass() && GetComponentType()->IsPrimitive();
+  }
+
   // Depth of class from java.lang.Object
   size_t Depth() {
     size_t depth = 0;

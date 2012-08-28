@@ -41,8 +41,10 @@ class AllocSpace;
 class Class;
 class HeapBitmap;
 class ImageSpace;
+class LargeObjectSpace;
 class MarkStack;
 class ModUnionTable;
+
 class Object;
 class Space;
 class SpaceTest;
@@ -262,11 +264,11 @@ class LOCKABLE Heap {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Mark all the objects in the allocation stack in the specified bitmap.
-  void MarkAllocStack(SpaceBitmap* bitmap, MarkStack* stack)
+  void MarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, MarkStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Unmark all the objects in the allocation stack in the specified bitmap.
-  void UnMarkAllocStack(SpaceBitmap* bitmap, MarkStack* stack)
+  void UnMarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, MarkStack* stack)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Update and mark mod union table based on gc type.
@@ -277,11 +279,20 @@ class LOCKABLE Heap {
   // Assumes there is only one image space.
   ImageSpace* GetImageSpace();
   AllocSpace* GetAllocSpace();
+  LargeObjectSpace* GetLargeObjectsSpace() {
+    return large_object_space_.get();
+  }
   void DumpSpaces();
 
  private:
-  // Allocates uninitialized storage.
+  // Allocates uninitialized storage. Passing in a null space tries to place the object in the
+  // large object space.
   Object* Allocate(AllocSpace* space, size_t num_bytes)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Try to allocate a number of bytes, this function never does any GCs.
+  Object* TryToAllocate(AllocSpace* space, size_t alloc_size, bool grow)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -291,8 +302,11 @@ class LOCKABLE Heap {
   void RequestHeapTrim();
   void RequestConcurrentGC();
 
-  void RecordAllocation(AllocSpace* space, const Object* object)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  // Swap bitmaps (if we are a full Gc then we swap the zygote bitmap too).
+  void SwapBitmaps() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+
+  void RecordAllocation(size_t size, const Object* object)
+      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_);
 
   // Sometimes CollectGarbageInternal decides to run a different Gc than you requested. Returns
   // which type of Gc was actually ran.
@@ -317,6 +331,9 @@ class LOCKABLE Heap {
 
   void AddSpace(Space* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
+  // Returns true if we "should" be able to allocate a number of bytes.
+  bool CanAllocateBytes(size_t bytes) const;
+
   // No thread saftey analysis since we call this everywhere and it is impossible to find a proper
   // lock ordering for it.
   void VerifyObjectBody(const Object *obj)
@@ -325,8 +342,7 @@ class LOCKABLE Heap {
   static void VerificationCallback(Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(GlobalSychronization::heap_bitmap_lock_);
 
-  // Swpa bitmaps (if we are a full Gc then we swap the zygote bitmap too).
-  void SwapBitmaps();
+  // Swap the allocation stack with the live stack.
   void SwapStacks();
 
   Spaces spaces_;
@@ -372,7 +388,17 @@ class LOCKABLE Heap {
   volatile size_t concurrent_start_bytes_;
   size_t concurrent_start_size_;
   size_t concurrent_min_free_;
+  // Number of bytes allocated since the last Gc, we use this to help determine when to schedule concurrent GCs.
+  size_t bytes_since_last_gc_;
+  // Start a concurrent GC if we have allocated concurrent_gc_start_rate_ bytes and not done a GCs.
+  size_t concurrent_gc_start_rate_;
   size_t sticky_gc_count_;
+
+  // Primitive objects larger than this size are put in the large object space.
+  size_t large_object_threshold_;
+
+  // Large object space.
+  UniquePtr<LargeObjectSpace> large_object_space_;
 
   // Number of bytes allocated.  Adjusted after each allocation and free.
   volatile size_t num_bytes_allocated_;
@@ -412,7 +438,7 @@ class LOCKABLE Heap {
   // Used to ensure that we don't ever recursively request GC.
   volatile bool requesting_gc_;
 
-  // Mark stack that we reuse to avoid re-allocating the mark stack
+  // Mark stack that we reuse to avoid re-allocating the mark stack.
   UniquePtr<MarkStack> mark_stack_;
 
   // Allocation stack, new allocations go here so that we can do sticky mark bits. This enables us

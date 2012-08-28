@@ -57,9 +57,9 @@ class TimingLogger {
     uint64_t divisor = GetNsToTimeUnitDivisor(tu);
     for (size_t i = 1; i < times_.size(); ++i) {
       uint64_t delta_time = times_[i] - times_[i - 1];
-      if (!precise_) {
+      if (!precise_ && divisor >= 1000) {
         // Make the fraction 0.
-        delta_time -= delta_time % divisor;
+        delta_time -= delta_time % (divisor / 1000);
       }
       os << name_ << ": " << std::setw(8) << FormatDuration(delta_time, tu) << " " << labels_[i]
                   << "\n";
@@ -160,10 +160,10 @@ class CumulativeLogger {
       uint64_t mean = times_[i] / iterations_;
       uint64_t variance = mean_x2 - (mean * mean);
       uint64_t std_dev = static_cast<uint64_t>(std::sqrt(static_cast<double>(variance)));
-      if (!precise_) {
+      if (!precise_ && divisor >= 1000) {
         // Make the fraction 0.
-        mean -= mean % divisor;
-        std_dev -= std_dev % divisor;
+        mean -= mean % (divisor / 1000);
+        std_dev -= std_dev % (divisor / 1000);
       }
       os << name_ << ": " << std::setw(8)
          << FormatDuration(mean * kAdjust, tu) << " std_dev "

@@ -135,6 +135,13 @@ AllocSpace* Space::CreateAllocSpace(const std::string& name, size_t initial_size
   return space;
 }
 
+LargeObjectSpace* Space::CreateLargeObjectSpace(const std::string& name) {
+  if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
+    VLOG(startup) << "Space::CreateLargeObjectSpace entering " << name;
+  }
+  return new LargeObjectSpace(name);
+}
+
 void* AllocSpace::CreateMallocSpace(void* begin, size_t morecore_start, size_t initial_size) {
   // clear errno to allow PLOG on error
   errno = 0;
@@ -477,6 +484,69 @@ std::ostream& operator<<(std::ostream& os, const Space& space) {
       << ",size=" << PrettySize(space.Size()) << ",capacity=" << PrettySize(space.Capacity())
       << ",name=\"" << space.GetSpaceName() << "\"]";
   return os;
+}
+
+LargeObjectSpace::LargeObjectSpace(const std::string& name)
+    : Space(name, NULL, NULL, NULL, GCRP_ALWAYS_COLLECT),
+      lock_("large object space lock", kAllocSpaceLock),
+      num_bytes_allocated_(0) {
+  live_objects_.reset(new SpaceSetMap("large live objects"));
+  mark_objects_.reset(new SpaceSetMap("large marked objects"));
+}
+
+void LargeObjectSpace::SwapBitmaps() {
+  MutexLock mu(lock_);
+  SpaceSetMap* temp_live_objects = live_objects_.release();
+  live_objects_.reset(mark_objects_.release());
+  mark_objects_.reset(temp_live_objects);
+  // Swap names to get more descriptive diagnostics.
+  std::string temp_name = live_objects_->GetName();
+  live_objects_->SetName(mark_objects_->GetName());
+  mark_objects_->SetName(temp_name);
+}
+
+Object* LargeObjectSpace::Alloc(size_t num_bytes) {
+  MutexLock mu(lock_);
+  MemMap* mem_map = MemMap::MapAnonymous("allocation", NULL, num_bytes, PROT_READ | PROT_WRITE);
+  if (mem_map == NULL) {
+    return NULL;
+  }
+  Object* obj = reinterpret_cast<Object*>(mem_map->Begin());
+  large_objects_.push_back(obj);
+  mem_maps_.Put(obj, mem_map);
+  num_bytes_allocated_ += mem_map->Size();
+  return obj;
+}
+
+void LargeObjectSpace::CopyLiveToMarked() {
+  MutexLock mu(lock_);
+  mark_objects_->CopyFrom(*live_objects_.get());
+}
+
+void LargeObjectSpace::Free(Object* ptr) {
+  MutexLock mu(lock_);
+  MemMaps::iterator found = mem_maps_.find(ptr);
+  CHECK(found != mem_maps_.end()) << "Attempted to free large object which was not live";
+  DCHECK_GE(num_bytes_allocated_, found->second->Size());
+  num_bytes_allocated_ -= found->second->Size();
+  delete found->second;
+  mem_maps_.erase(found);
+}
+
+size_t LargeObjectSpace::AllocationSize(const Object* obj) {
+  MutexLock mu(lock_);
+  MemMaps::iterator found = mem_maps_.find(const_cast<Object*>(obj));
+  CHECK(found != mem_maps_.end()) << "Attempted to get size of a large object which is not live";
+  return found->second->Size();
+}
+
+void LargeObjectSpace::Walk(AllocSpace::WalkCallback callback, void* arg) {
+  MutexLock mu(lock_);
+  for (MemMaps::iterator it = mem_maps_.begin(); it != mem_maps_.end(); ++it) {
+    MemMap* mem_map = it->second;
+    callback(mem_map->Begin(), mem_map->End(), mem_map->Size(), arg);
+    callback(NULL, NULL, 0, arg);
+  }
 }
 
 }  // namespace art

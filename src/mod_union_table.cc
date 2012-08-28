@@ -360,13 +360,12 @@ void ModUnionTableReferenceCache::Update() {
 }
 
 void ModUnionTableReferenceCache::MarkReferences() {
-  Heap* heap = GetMarkSweep()->GetHeap();
-  HeapBitmap* mark_bitmap = heap->GetMarkBitmap();
+  MarkSweep* mark_sweep = GetMarkSweep();
   // TODO: C++0x auto
   size_t count = 0;
   for (ReferenceMap::const_iterator it = references_.begin(); it != references_.end(); ++it) {
     for (ReferenceArray::const_iterator it_ref = it->second.begin(); it_ref != it->second.end(); ++it_ref ) {
-      mark_bitmap->Set(*it_ref);
+      mark_sweep->MarkObject(*it_ref);
       ++count;
     }
   }

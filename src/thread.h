@@ -246,7 +246,7 @@ class PACKED Thread {
   void AssertThreadSuspensionIsAllowable(bool check_locks = true) const;
 #else
   void AssertThreadSuspensionIsAllowable(bool check_locks = true) const {
-    check_locks = !check_locks;  // Keep GCC happy about unused parameters.
+    UNUSED(check_locks);  // Keep GCC happy about unused parameters.
   }
 #endif
 

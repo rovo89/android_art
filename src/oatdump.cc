@@ -579,6 +579,9 @@ class ImageDumper {
       (*cur)->GetLiveBitmap()->Walk(ImageDumper::Callback, this);
       os_ << "\n";
     }
+    // Dump the large objects separately.
+    heap->GetLargeObjectsSpace()->GetLiveObjects()->Walk(ImageDumper::Callback, this);
+    os_ << "\n";
 
     os_ << "STATS:\n" << std::flush;
     UniquePtr<File> file(OS::OpenFile(image_filename_.c_str(), false));

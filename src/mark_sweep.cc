@@ -58,7 +58,8 @@ MarkSweep::MarkSweep(MarkStack* mark_stack)
       mark_stack_(mark_stack),
       heap_(NULL),
       finger_(NULL),
-      condemned_(NULL),
+      immune_begin_(NULL),
+      immune_end_(NULL),
       soft_reference_list_(NULL),
       weak_reference_list_(NULL),
       finalizer_reference_list_(NULL),
@@ -92,26 +93,31 @@ void MarkSweep::Init() {
 inline void MarkSweep::MarkObject0(const Object* obj, bool check_finger) {
   DCHECK(obj != NULL);
 
-  if (obj < condemned_) {
-    // May later use condemned for the NULL check.
-    DCHECK(obj == NULL || IsMarked(obj));
+  if (obj >= immune_begin_ && obj < immune_end_) {
+    DCHECK(IsMarked(obj));
     return;
   }
 
   // Try to take advantage of locality of references within a space, failing this find the space
   // the hard way.
   if (UNLIKELY(!current_mark_bitmap_->HasAddress(obj))) {
-    current_mark_bitmap_ = heap_->GetMarkBitmap()->GetSpaceBitmap(obj);
-    if (UNLIKELY(current_mark_bitmap_ == NULL)) {
-      LOG(ERROR) << "Failed to find space bitmap for object: " << obj;
-      GetHeap()->DumpSpaces();
-      LOG(FATAL) << "space_bitmap == NULL";
+    SpaceBitmap* new_bitmap = heap_->GetMarkBitmap()->GetSpaceBitmap(obj);
+    if (new_bitmap != NULL) {
+      current_mark_bitmap_ = new_bitmap;
+    } else {
+      LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
+      SpaceSetMap* large_objects = large_object_space->GetMarkObjects();
+      if (!large_objects->Test(obj)) {
+        large_objects->Set(obj);
+        // Don't need to check finger since large objects never have any object references.
+      }
+      // TODO: Improve clarity of control flow in this function?
+      return;
     }
   }
 
-  bool is_marked = current_mark_bitmap_->Test(obj);
   // This object was not previously marked.
-  if (!is_marked) {
+  if (!current_mark_bitmap_->Test(obj)) {
     current_mark_bitmap_->Set(obj);
     if (check_finger && obj < finger_) {
       // The object must be pushed on to the mark stack.
@@ -208,6 +214,7 @@ void MarkSweep::ScanDirtyImageRoots() {
   const Spaces& spaces = heap_->GetSpaces();
   CardTable* card_table = heap_->GetCardTable();
   ScanImageRootVisitor image_root_visitor(this);
+  // TODO: C++ 0x auto
   for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
     Space* space = *it;
     if (space->IsImageSpace()) {
@@ -222,6 +229,7 @@ void MarkSweep::ScanGrayObjects(bool update_finger) {
   CardTable* card_table = heap_->GetCardTable();
   ScanImageRootVisitor image_root_visitor(this);
   SetFingerVisitor finger_visitor(this);
+  // TODO: C++ 0x auto
   for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
     Space* space = *it;
     byte* begin = space->Begin();
@@ -310,7 +318,7 @@ void MarkSweep::RecursiveMark(bool partial, TimingLogger& timings) {
       current_mark_bitmap_ = space->GetMarkBitmap();
       if (current_mark_bitmap_ == NULL) {
         GetHeap()->DumpSpaces();
-        DCHECK(false) << "invalid bitmap";
+        LOG(FATAL) << "invalid bitmap";
       }
       // This function does not handle heap end increasing, so we must use the space end.
       uintptr_t begin = reinterpret_cast<uintptr_t>(space->Begin());
@@ -341,7 +349,7 @@ void MarkSweep::RecursiveMarkCards(CardTable* card_table, const std::vector<byte
 #ifndef NDEBUG
       if (current_mark_bitmap_ == NULL) {
         GetHeap()->DumpSpaces();
-        DCHECK(false) << "Object " << reinterpret_cast<const void*>(start_obj);
+        LOG(FATAL) << "Object " << reinterpret_cast<const void*>(start_obj);
       }
 #endif
     }
@@ -506,10 +514,15 @@ void MarkSweep::SweepArray(TimingLogger& logger, MarkStack* allocations, bool sw
   // going to free.
   SpaceBitmap* live_bitmap = space->GetLiveBitmap();
   SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
+  LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
+  SpaceSetMap* large_live_objects = large_object_space->GetLiveObjects();
+  SpaceSetMap* large_mark_objects = large_object_space->GetMarkObjects();
   if (swap_bitmaps) {
     std::swap(live_bitmap, mark_bitmap);
+    std::swap(large_live_objects, large_mark_objects);
   }
 
+  size_t freed_large_objects = 0;
   size_t count = allocations->Size();
   Object** objects = allocations->Begin();
   Object** out = objects;
@@ -517,32 +530,31 @@ void MarkSweep::SweepArray(TimingLogger& logger, MarkStack* allocations, bool sw
   // Empty the allocation stack.
   for (size_t i = 0;i < count;++i) {
     Object* obj = objects[i];
-    // There should only be objects in the AllocSpace in the allocation stack.
-    DCHECK(space->Contains(obj));
-    DCHECK(mark_bitmap->HasAddress(obj));
-    // Mark as live in the live bitmap if and only if we are marked in the mark bitmap.
-    if (mark_bitmap->Test(obj)) {
-      live_bitmap->Set(obj);
-    } else {
-      // Due to bitmap swapping, a young object can end up being marked as live.
-      live_bitmap->Clear(obj);
-      // Don't bother un-marking since we clear the mark bitmap anyways.
-      *(out++) = obj;
-      size_t size = space->AllocationSize(obj);
-      freed_bytes += size;
+    // There should only be objects in the AllocSpace/LargeObjectSpace in the allocation stack.
+    if (LIKELY(mark_bitmap->HasAddress(obj))) {
+      if (!mark_bitmap->Test(obj)) {
+        // Don't bother un-marking since we clear the mark bitmap anyways.
+        *(out++) = obj;
+        size_t size = space->AllocationSize(obj);
+        freed_bytes += size;
+      }
+    } else if (!large_mark_objects->Test(obj)) {
+      ++freed_large_objects;
+      size_t size = large_object_space->AllocationSize(obj);
+      freed_bytes_ += size;
+      large_object_space->Free(obj);
     }
   }
   logger.AddSplit("Process allocation stack");
 
   size_t freed_objects = out - objects;
   VLOG(heap) << "Freed " << freed_objects << "/" << count
-            << " objects with size " << PrettySize(freed_bytes);
+             << " objects with size " << PrettySize(freed_bytes);
   space->FreeList(freed_objects, objects);
-  heap_->RecordFree(freed_objects, freed_bytes);
+  heap_->RecordFree(freed_objects + freed_large_objects, freed_bytes);
   freed_objects_ += freed_objects;
   freed_bytes_ += freed_bytes;
   logger.AddSplit("FreeList");
-
   allocations->Reset();
   logger.AddSplit("Reset stack");
 }
@@ -583,6 +595,31 @@ void MarkSweep::Sweep(bool partial, bool swap_bitmaps) {
       }
     }
   }
+}
+
+void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
+  // Sweep large objects
+  LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
+  MutexLock mu(large_object_space->GetLock());
+  SpaceSetMap* large_live_objects = large_object_space->GetLiveObjects();
+  SpaceSetMap* large_mark_objects = large_object_space->GetMarkObjects();
+  if (swap_bitmaps) {
+    std::swap(large_live_objects, large_mark_objects);
+  }
+  SpaceSetMap::Objects& live_objects = large_live_objects->GetObjects();
+  // O(n*log(n)) but hopefully there are not too many large objects.
+  size_t freed_objects = 0;
+  // TODO: C++0x
+  for (SpaceSetMap::Objects::iterator it = live_objects.begin(); it != live_objects.end(); ++it) {
+    if (!large_mark_objects->Test(*it)) {
+      freed_bytes_ += large_object_space->AllocationSize(*it);
+      large_object_space->Free(const_cast<Object*>(*it));
+      ++freed_objects;
+    }
+  }
+  freed_objects_ += freed_objects;
+  // Large objects don't count towards bytes_allocated.
+  GetHeap()->RecordFree(freed_objects, 0);
 }
 
 // Scans instance fields.
@@ -943,6 +980,11 @@ MarkSweep::~MarkSweep() {
     }
   }
   mark_stack_->Reset();
+
+  // Reset the marked large objects.
+  LargeObjectSpace* large_objects = GetHeap()->GetLargeObjectsSpace();
+  MutexLock mu(large_objects->GetLock());
+  large_objects->GetMarkObjects()->Clear();
 }
 
 }  // namespace art

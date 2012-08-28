@@ -18,6 +18,7 @@
 #define ART_SRC_SPACE_BITMAP_H_
 
 #include <limits.h>
+#include <set>
 #include <stdint.h>
 #include <vector>
 
@@ -265,6 +266,60 @@ class SpaceBitmap {
 
   // Name of this bitmap.
   std::string name_;
+};
+
+// Like a bitmap except it keeps track of objects using sets.
+class SpaceSetMap {
+ public:
+  typedef std::set<const Object*> Objects;
+
+  bool IsEmpty() const {
+    return contained_.empty();
+  }
+
+  inline void Set(const Object* obj) {
+    contained_.insert(obj);
+  }
+
+  inline void Clear(const Object* obj) {
+    Objects::iterator found = contained_.find(obj);
+    if (found != contained_.end()) {
+      contained_.erase(found);
+    }
+  }
+
+  void Clear() {
+    contained_.clear();
+  }
+
+  inline bool Test(const Object* obj) const {
+    return contained_.find(obj) != contained_.end();
+  }
+
+  std::string GetName() const;
+  void SetName(const std::string& name);
+
+  void Walk(SpaceBitmap::Callback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+
+  void CopyFrom(const SpaceSetMap& space_set);
+
+  template <typename Visitor>
+  void Visit(const Visitor& visitor) NO_THREAD_SAFETY_ANALYSIS {
+    for (Objects::iterator it = contained_.begin(); it != contained_.end(); ++it) {
+      visitor(*it);
+    }
+  }
+
+  SpaceSetMap(const std::string& name);
+
+  Objects& GetObjects() {
+    return contained_;
+  }
+
+ private:
+  std::string name_;
+  Objects contained_;
 };
 
 std::ostream& operator << (std::ostream& stream, const SpaceBitmap& bitmap);

@@ -43,19 +43,6 @@
 
 namespace art {
 
-static void UpdateFirstAndLastSpace(Space** first_space, Space** last_space, Space* space) {
-  if (*first_space == NULL) {
-    *first_space = space;
-    *last_space = space;
-  } else {
-    if ((*first_space)->Begin() > space->Begin()) {
-      *first_space = space;
-    } else if (space->Begin() > (*last_space)->Begin()) {
-      *last_space = space;
-    }
-  }
-}
-
 static bool GenerateImage(const std::string& image_file_name) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
   std::vector<std::string> boot_class_path;
@@ -146,7 +133,10 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       concurrent_start_bytes_(std::numeric_limits<size_t>::max()),
       concurrent_start_size_(128 * KB),
       concurrent_min_free_(256 * KB),
+      bytes_since_last_gc_(0),
+      concurrent_gc_start_rate_(3 * MB / 2),
       sticky_gc_count_(0),
+      large_object_threshold_(12 * KB),
       num_bytes_allocated_(0),
       num_objects_allocated_(0),
       verify_missing_card_marks_(false),
@@ -170,11 +160,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
   }
-
-  // Compute the bounds of all spaces for allocating live and mark bitmaps
-  // there will be at least one space (the alloc space)
-  Space* first_space = NULL;
-  Space* last_space = NULL;
 
   live_bitmap_.reset(new HeapBitmap(this));
   mark_bitmap_.reset(new HeapBitmap(this));
@@ -208,11 +193,10 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
     }
 
     AddSpace(image_space);
-    UpdateFirstAndLastSpace(&first_space, &last_space, image_space);
     // Oat files referenced by image files immediately follow them in memory, ensure alloc space
     // isn't going to get in the middle
     byte* oat_end_addr = GetImageSpace()->GetImageHeader().GetOatEnd();
-    CHECK(oat_end_addr > GetImageSpace()->End());
+    CHECK_GT(oat_end_addr, GetImageSpace()->End());
     if (oat_end_addr > requested_begin) {
       requested_begin = reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(oat_end_addr),
                                                           kPageSize));
@@ -225,9 +209,9 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
   CHECK(alloc_space_ != NULL) << "Failed to create alloc space";
   AddSpace(alloc_space_);
 
-  UpdateFirstAndLastSpace(&first_space, &last_space, alloc_space_);
-  byte* heap_begin = first_space->Begin();
-  size_t heap_capacity = (last_space->Begin() - first_space->Begin()) + last_space->NonGrowthLimitCapacity();
+  // Spaces are sorted in order of Begin().
+  byte* heap_begin = spaces_.front()->Begin();
+  size_t heap_capacity = (spaces_.back()->Begin() - spaces_.front()->Begin()) + spaces_.back()->NonGrowthLimitCapacity();
 
   // Mark image objects in the live bitmap
   for (size_t i = 0; i < spaces_.size(); ++i) {
@@ -236,6 +220,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       space->AsImageSpace()->RecordImageAllocations(space->GetLiveBitmap());
     }
   }
+
+  // Allocate the large object space.
+  large_object_space_.reset(Space::CreateLargeObjectSpace("large object space"));
+  live_bitmap_->SetLargeObjects(large_object_space_->GetLiveObjects());
+  mark_bitmap_->SetLargeObjects(large_object_space_->GetMarkObjects());
 
   // Allocate the card table.
   card_table_.reset(CardTable::Create(heap_begin, heap_capacity));
@@ -331,7 +320,6 @@ Heap::~Heap() {
   // those threads can't resume. We're the only running thread, and we can do whatever we like...
   STLDeleteElements(&spaces_);
   delete gc_complete_lock_;
-
   STLDeleteValues(&cumulative_timings_);
 }
 
@@ -374,32 +362,68 @@ static void MSpaceChunkCallback(void* start, void* end, size_t used_bytes, void*
   }
 }
 
+bool Heap::CanAllocateBytes(size_t bytes) const {
+  return num_bytes_allocated_ + large_object_space_->GetNumBytesAllocated() + bytes <=
+          alloc_space_->Capacity();
+}
+
 Object* Heap::AllocObject(Class* c, size_t byte_count) {
   DCHECK(c == NULL || (c->IsClassClass() && byte_count >= sizeof(Class)) ||
          (c->IsVariableSize() || c->GetObjectSize() == byte_count) ||
          strlen(ClassHelper(c).GetDescriptor()) == 0);
   DCHECK_GE(byte_count, sizeof(Object));
-  Object* obj = Allocate(alloc_space_, byte_count);
+
+  Object* obj = NULL;
+  size_t size = 0;
+
+  // We need to have a zygote space or else our newly allocated large object can end up in the
+  // Zygote resulting in it being prematurely freed.
+  // We can only do this for primive objects since large objects will not be within the card table
+  // range. This also means that we rely on SetClass not dirtying the object's card.
+  if (byte_count >= large_object_threshold_ && have_zygote_space_ && c->IsPrimitiveArray()) {
+    obj = Allocate(NULL, RoundUp(byte_count, kPageSize));
+    size = 0;
+
+    if (obj != NULL) {
+      // Make sure that our large object didn't get placed anywhere within the space interval or else
+      // it breaks the immune range.
+      DCHECK(reinterpret_cast<byte*>(obj) < spaces_.front()->Begin() ||
+             reinterpret_cast<byte*>(obj) >= spaces_.back()->End());
+    }
+  } else {
+    obj = Allocate(alloc_space_, byte_count);
+    size = alloc_space_->AllocationSize(obj);
+
+    if (obj != NULL) {
+      // Additional verification to ensure that we did not allocate into a zygote space.
+      DCHECK(!have_zygote_space_ || !FindSpaceFromObject(obj)->IsZygoteSpace());
+    }
+  }
+
   if (LIKELY(obj != NULL)) {
+    android_atomic_add(byte_count, reinterpret_cast<volatile int32_t*>(
+        reinterpret_cast<size_t>(&bytes_since_last_gc_)));
+
     obj->SetClass(c);
 
     // Record allocation after since we want to use the atomic add for the atomic fence to guard
     // the SetClass since we do not want the class to appear NULL in another thread.
-    RecordAllocation(alloc_space_, obj);
+    RecordAllocation(size, obj);
 
     if (Dbg::IsAllocTrackingEnabled()) {
       Dbg::RecordAllocation(c, byte_count);
     }
-    const bool request_concurrent_gc = num_bytes_allocated_ >= concurrent_start_bytes_;
-    if (request_concurrent_gc) {
+    if (bytes_since_last_gc_ >= concurrent_gc_start_rate_ ||
+        num_bytes_allocated_ >= concurrent_start_bytes_) {
+      // We already have a request pending, no reason to start more until we update
+      // concurrent_start_bytes_.
+      concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
+      bytes_since_last_gc_ = 0;
       // The SirtRef is necessary since the calls in RequestConcurrentGC are a safepoint.
       SirtRef<Object> ref(obj);
       RequestConcurrentGC();
     }
     VerifyObject(obj);
-
-    // Additional verification to ensure that we did not allocate into a zygote space.
-    DCHECK(!have_zygote_space_ || !FindSpaceFromObject(obj)->IsZygoteSpace());
 
     return obj;
   }
@@ -432,7 +456,8 @@ bool Heap::IsHeapAddress(const Object* obj) {
       return true;
     }
   }
-  return false;
+  // TODO: Find a way to check large object space without using a lock.
+  return true;
 }
 
 bool Heap::IsLiveObjectLocked(const Object* obj) {
@@ -459,9 +484,9 @@ void Heap::DumpSpaces() {
               << *space->GetLiveBitmap() << "\n"
               << *space->GetMarkBitmap();
   }
+  // TODO: Dump large object space?
 }
 
-// We want to avoid bit rotting.
 void Heap::VerifyObjectBody(const Object* obj) {
   if (!IsAligned<kObjectAlignment>(obj)) {
     LOG(FATAL) << "Object isn't aligned: " << obj;
@@ -472,8 +497,11 @@ void Heap::VerifyObjectBody(const Object* obj) {
     if (!std::binary_search(live_stack_->Begin(), live_stack_->End(), obj) &&
         std::find(allocation_stack_->Begin(), allocation_stack_->End(), obj) ==
             allocation_stack_->End()) {
-      DumpSpaces();
-      LOG(FATAL) << "Object is dead: " << obj;
+      ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
+      if (large_object_space_->GetLiveObjects()->Test(obj)) {
+        DumpSpaces();
+        LOG(FATAL) << "Object is dead: " << obj;
+      }
     }
   }
 
@@ -510,17 +538,15 @@ void Heap::VerifyHeap() {
   GetLiveBitmap()->Walk(Heap::VerificationCallback, this);
 }
 
-void Heap::RecordAllocation(AllocSpace* space, const Object* obj) {
+void Heap::RecordAllocation(size_t size, const Object* obj) {
   DCHECK(obj != NULL);
-
-  size_t size = space->AllocationSize(obj);
   DCHECK_GT(size, 0u);
   COMPILE_ASSERT(sizeof(size_t) == sizeof(int32_t),
                  int32_t_must_be_same_size_as_size_t_for_used_atomic_operations);
-  android_atomic_add(
-      size, reinterpret_cast<volatile int32_t*>(reinterpret_cast<size_t>(&num_bytes_allocated_)));
-  android_atomic_add(
-      1, reinterpret_cast<volatile int32_t*>(reinterpret_cast<size_t>(&num_objects_allocated_)));
+  android_atomic_add(size, reinterpret_cast<volatile int32_t*>(
+      reinterpret_cast<size_t>(&num_bytes_allocated_)));
+  android_atomic_add(1, reinterpret_cast<volatile int32_t*>(
+      reinterpret_cast<size_t>(&num_objects_allocated_)));
 
   if (Runtime::Current()->HasStatsEnabled()) {
     RuntimeStats* global_stats = Runtime::Current()->GetStats();
@@ -557,11 +583,21 @@ void Heap::RecordFree(size_t freed_objects, size_t freed_bytes) {
   }
 }
 
+Object* Heap::TryToAllocate(AllocSpace* space, size_t alloc_size, bool grow) {
+  if (UNLIKELY(space == NULL) && CanAllocateBytes(alloc_size)) {
+    return large_object_space_->Alloc(alloc_size);
+  } else if (grow) {
+    return space->AllocWithGrowth(alloc_size);
+  } else {
+    return space->AllocWithoutGrowth(alloc_size);
+  }
+}
+
 Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
-  Thread* self = Thread::Current();
   // Since allocation can cause a GC which will need to SuspendAll, make sure all allocations are
   // done in the runnable state where suspension is expected.
 #ifndef NDEBUG
+  Thread* self = Thread::Current();
   {
     MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_EQ(self->GetState(), kRunnable);
@@ -569,7 +605,7 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
   self->AssertThreadSuspensionIsAllowable();
 #endif
 
-  Object* ptr = space->AllocWithoutGrowth(alloc_size);
+  Object* ptr = TryToAllocate(space, alloc_size, false);
   if (ptr != NULL) {
     return ptr;
   }
@@ -579,13 +615,16 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
   GcType last_gc = WaitForConcurrentGcToComplete();
   if (last_gc != kGcTypeNone) {
     // A GC was in progress and we blocked, retry allocation now that memory has been freed.
-    Object* ptr = space->AllocWithoutGrowth(alloc_size);
+    ptr = TryToAllocate(space, alloc_size, false);
     if (ptr != NULL) {
       return ptr;
     }
   }
 
   // Loop through our different Gc types and try to Gc until we get enough free memory.
+#ifdef NDEBUG
+  Thread* self = Thread::Current();
+#endif
   for (size_t i = static_cast<size_t>(last_gc) + 1; i < static_cast<size_t>(kGcTypeMax); ++i) {
     bool run_gc = false;
     GcType gc_type = static_cast<GcType>(i);
@@ -620,7 +659,7 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
       self->TransitionFromSuspendedToRunnable();
 
       // Did we free sufficient memory for the allocation to succeed?
-      ptr = space->AllocWithoutGrowth(alloc_size);
+      ptr = TryToAllocate(space, alloc_size, false);
       if (ptr != NULL) {
         return ptr;
       }
@@ -629,14 +668,16 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
 
   // Allocations have failed after GCs;  this is an exceptional state.
   // Try harder, growing the heap if necessary.
-  ptr = space->AllocWithGrowth(alloc_size);
+  ptr = TryToAllocate(space, alloc_size, true);
   if (ptr != NULL) {
-    size_t new_footprint = space->GetFootprintLimit();
-    // OLD-TODO: may want to grow a little bit more so that the amount of
-    //       free space is equal to the old free space + the
-    //       utilization slop for the new allocation.
-    VLOG(gc) << "Grow heap (frag case) to " << PrettySize(new_footprint)
-             << " for a " << PrettySize(alloc_size) << " allocation";
+    if (space != NULL) {
+      size_t new_footprint = space->GetFootprintLimit();
+      // OLD-TODO: may want to grow a little bit more so that the amount of
+      //       free space is equal to the old free space + the
+      //       utilization slop for the new allocation.
+      VLOG(gc) << "Grow alloc space (frag case) to " << PrettySize(new_footprint)
+               << " for a " << PrettySize(alloc_size) << " allocation";
+    }
     return ptr;
   }
 
@@ -656,7 +697,7 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
   self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
   CollectGarbageInternal(kGcTypeFull, true);
   self->TransitionFromSuspendedToRunnable();
-  return space->AllocWithGrowth(alloc_size);
+  return TryToAllocate(space, alloc_size, true);
 }
 
 int64_t Heap::GetMaxMemory() {
@@ -777,12 +818,13 @@ void Heap::PreZygoteFork() {
 }
 
 void Heap::FlushAllocStack() {
-  MarkAllocStack(alloc_space_->GetLiveBitmap(), allocation_stack_.get());
+  MarkAllocStack(alloc_space_->GetLiveBitmap(), large_object_space_->GetLiveObjects(),
+                 allocation_stack_.get());
   allocation_stack_->Reset();
 }
 
 size_t Heap::GetUsedMemorySize() const {
-  size_t total = num_bytes_allocated_;
+  size_t total = num_bytes_allocated_ + large_object_space_->GetNumBytesAllocated();
   for (Spaces::const_iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
     if ((*it)->IsZygoteSpace()) {
       total += (*it)->AsAllocSpace()->Size();
@@ -791,23 +833,29 @@ size_t Heap::GetUsedMemorySize() const {
   return total;
 }
 
-void Heap::MarkAllocStack(SpaceBitmap* bitmap, MarkStack* stack) {
-  // Empty the allocation stack.
+void Heap::MarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, MarkStack* stack) {
   const size_t count = stack->Size();
   for (size_t i = 0; i < count; ++i) {
     const Object* obj = stack->Get(i);
     DCHECK(obj != NULL);
-    bitmap->Set(obj);
+    if (LIKELY(bitmap->HasAddress(obj))) {
+      bitmap->Set(obj);
+    } else {
+      large_objects->Set(obj);
+    }
   }
 }
 
-void Heap::UnMarkAllocStack(SpaceBitmap* bitmap, MarkStack* stack) {
-  // Clear all of the things in the AllocStack.
+void Heap::UnMarkAllocStack(SpaceBitmap* bitmap, SpaceSetMap* large_objects, MarkStack* stack) {
   size_t count = stack->Size();
   for (size_t i = 0; i < count; ++i) {
     const Object* obj = stack->Get(i);
     DCHECK(obj != NULL);
-    bitmap->Clear(obj);
+    if (LIKELY(bitmap->HasAddress(obj))) {
+      bitmap->Clear(obj);
+    } else {
+      large_objects->Clear(obj);
+    }
   }
 }
 
@@ -852,6 +900,7 @@ GcType Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) 
   } else {
     CollectGarbageMarkSweepPlan(gc_type, clear_soft_references);
   }
+  bytes_since_last_gc_ = 0;
 
   {
     MutexLock mu(*gc_complete_lock_);
@@ -937,20 +986,24 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
       }
       timings.AddSplit("CopyMarkBits");
 
-      // We can assume that everything < alloc_space_ start is marked at this point.
-      mark_sweep.SetCondemned(reinterpret_cast<Object*>(alloc_space_->Begin()));
+      // We can assume that everything from the start of the first space to the alloc space is marked.
+      mark_sweep.SetImmuneRange(reinterpret_cast<Object*>(spaces_[0]->Begin()),
+                                reinterpret_cast<Object*>(alloc_space_->Begin()));
     } else if (gc_type == kGcTypeSticky) {
-      for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
+      for (Spaces::iterator it = spaces_.begin();it != spaces_.end(); ++it) {
         if ((*it)->GetGcRetentionPolicy() != GCRP_NEVER_COLLECT) {
           mark_sweep.CopyMarkBits(*it);
         }
       }
+      large_object_space_->CopyLiveToMarked();
       timings.AddSplit("CopyMarkBits");
 
-      mark_sweep.SetCondemned(reinterpret_cast<Object*>(alloc_space_->Begin()));
+      mark_sweep.SetImmuneRange(reinterpret_cast<Object*>(spaces_[0]->Begin()),
+                                reinterpret_cast<Object*>(alloc_space_->Begin()));
     }
 
-    MarkAllocStack(alloc_space_->GetLiveBitmap(), live_stack_.get());
+    MarkAllocStack(alloc_space_->GetLiveBitmap(), large_object_space_->GetLiveObjects(),
+                   live_stack_.get());
 
     if (gc_type != kGcTypeSticky) {
       live_stack_->Reset();
@@ -988,8 +1041,6 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
     mark_sweep.SweepSystemWeaks(false);
     timings.AddSplit("SweepSystemWeaks");
 
-    // Need to swap for VERIFY_OBJECT_ENABLED since we put things in the live bitmap after they
-    // have been allocated.
     const bool swap = true;
     if (swap) {
       SwapBitmaps();
@@ -1002,11 +1053,13 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
 #endif
 
     if (gc_type != kGcTypeSticky) {
+      mark_sweep.SweepLargeObjects(swap);
+      timings.AddSplit("SweepLargeObjects");
       mark_sweep.Sweep(gc_type == kGcTypePartial, swap);
     } else {
       mark_sweep.SweepArray(timings, live_stack_.get(), swap);
+      timings.AddSplit("SweepArray");
     }
-    timings.AddSplit("Sweep");
 
     if (verify_system_weaks_) {
       mark_sweep.VerifySystemWeaks();
@@ -1182,6 +1235,8 @@ class VerifyReferenceVisitor {
       if (bitmap->Test(obj)) {
         return true;
       }
+    } else if (heap_->GetLargeObjectsSpace()->GetLiveObjects()->Test(obj)) {
+      return true;
     } else {
       heap_->DumpSpaces();
       LOG(ERROR) << "Object " << obj << " not found in any spaces";
@@ -1360,6 +1415,10 @@ void Heap::SwapBitmaps() {
       space->AsAllocSpace()->SwapBitmaps();
     }
   }
+
+  large_object_space_->SwapBitmaps();
+  live_bitmap_->SetLargeObjects(large_object_space_->GetLiveObjects());
+  mark_bitmap_->SetLargeObjects(large_object_space_->GetMarkObjects());
 }
 
 void Heap::SwapStacks() {
@@ -1446,6 +1505,10 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     {
       WriterMutexLock mu(*Locks::heap_bitmap_lock_);
 
+      for (Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
+        CHECK(!GetLiveBitmap()->Test(*it));
+      }
+
       if (gc_type == kGcTypePartial) {
         // Copy the mark bits over from the live bits, do this as early as possible or else we can
         // accidentally un-mark roots.
@@ -1456,15 +1519,18 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
           }
         }
         timings.AddSplit("CopyMarkBits");
-        mark_sweep.SetCondemned(reinterpret_cast<Object*>(alloc_space_->Begin()));
+        mark_sweep.SetImmuneRange(reinterpret_cast<Object*>(spaces_.front()->Begin()),
+                                  reinterpret_cast<Object*>(alloc_space_->Begin()));
       } else if (gc_type == kGcTypeSticky) {
         for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
           if ((*it)->GetGcRetentionPolicy() != GCRP_NEVER_COLLECT) {
             mark_sweep.CopyMarkBits(*it);
           }
         }
+        large_object_space_->CopyLiveToMarked();
         timings.AddSplit("CopyMarkBits");
-        mark_sweep.SetCondemned(reinterpret_cast<Object*>(alloc_space_->Begin()));
+        mark_sweep.SetImmuneRange(reinterpret_cast<Object*>(spaces_.front()->Begin()),
+                                  reinterpret_cast<Object*>(alloc_space_->Begin()));
       }
 
       // Marking roots is not necessary for sticky mark bits since we only actually require the
@@ -1497,7 +1563,8 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
 
       // Mark everything as live so that sweeping system weak works correctly for sticky mark bit
       // GCs.
-      MarkAllocStack(alloc_space_->GetLiveBitmap(), live_stack_.get());
+      MarkAllocStack(alloc_space_->GetLiveBitmap(), large_object_space_->GetLiveObjects(),
+                     live_stack_.get());
       timings.AddSplit("MarkStackAsLive");
 
       if (gc_type != kGcTypeSticky) {
@@ -1524,7 +1591,8 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
       if (verify_missing_card_marks_) {
         // Since verify missing card marks uses a sweep array to empty the allocation stack, we
         // need to make sure that we don't free weaks which wont get swept by SweepSystemWeaks.
-        MarkAllocStack(alloc_space_->GetLiveBitmap(), allocation_stack_.get());
+        MarkAllocStack(alloc_space_->GetLiveBitmap(), large_object_space_->GetLiveObjects(),
+                       allocation_stack_.get());
       }
 
       // Scan dirty objects, this is only required if we are not doing concurrent GC.
@@ -1560,7 +1628,8 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
       WriterMutexLock mu(*Locks::heap_bitmap_lock_);
       // We only sweep over the live stack, and the live stack should not intersect with the
       // allocation stack, so it should be safe to UnMark anything in the allocation stack as live.
-      UnMarkAllocStack(alloc_space_->GetLiveBitmap(), allocation_stack_.get());
+      UnMarkAllocStack(alloc_space_->GetLiveBitmap(), large_object_space_->GetLiveObjects(),
+                       allocation_stack_.get());
       timings.AddSplit("UnMarkAllocStack");
     }
 
@@ -1587,9 +1656,12 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
       // TODO: this lock shouldn't be necessary (it's why we did the bitmap flip above).
       WriterMutexLock mu(*Locks::heap_bitmap_lock_);
       if (gc_type != kGcTypeSticky) {
+        mark_sweep.SweepLargeObjects(swap);
+        timings.AddSplit("SweepLargeObjects");
         mark_sweep.Sweep(gc_type == kGcTypePartial, swap);
       } else {
         mark_sweep.SweepArray(timings, live_stack_.get(), swap);
+        timings.AddSplit("SweepArray");
       }
       live_stack_->Reset();
       timings.AddSplit("Sweep");
@@ -1625,7 +1697,6 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
               << "% free, " << PrettySize(current_heap_size) << "/"
               << PrettySize(total_memory) << ", " << "paused " << PrettyDuration(pause_roots)
               << "+" << PrettyDuration(pause_dirty) << " total " << PrettyDuration(duration);
-
     if (VLOG_IS_ON(heap)) {
       timings.Dump();
     }
@@ -1684,8 +1755,8 @@ size_t Heap::GetPercentFree() {
 
 void Heap::SetIdealFootprint(size_t max_allowed_footprint) {
   AllocSpace* alloc_space = alloc_space_;
-  // TODO: Behavior for multiple alloc spaces?
   size_t alloc_space_capacity = alloc_space->Capacity();
+  alloc_space_capacity -= large_object_space_->GetNumBytesAllocated();
   if (max_allowed_footprint > alloc_space_capacity) {
     VLOG(gc) << "Clamp target GC heap from " << PrettySize(max_allowed_footprint) << " to "
              << PrettySize(alloc_space_capacity);

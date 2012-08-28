@@ -30,6 +30,7 @@ namespace art {
 
 class AllocSpace;
 class ImageSpace;
+class LargeObjectSpace;
 class Object;
 class SpaceBitmap;
 
@@ -50,6 +51,10 @@ class Space {
   static AllocSpace* CreateAllocSpace(const std::string& name, size_t initial_size,
                                       size_t growth_limit, size_t capacity,
                                       byte* requested_begin);
+
+  // Creates a large object space. Allocations into the large object space use mem maps instead of
+  // malloc.
+  static LargeObjectSpace* CreateLargeObjectSpace(const std::string& name);
 
   // create a Space from an image file. cannot be used for future allocation or collected.
   static ImageSpace* CreateImageSpace(const std::string& image)
@@ -111,9 +116,15 @@ class Space {
     return down_cast<AllocSpace*>(this);
   }
 
+  LargeObjectSpace* AsLargeObjectSpace() {
+    DCHECK(IsLargeObjectSpace());
+    return down_cast<LargeObjectSpace*>(this);
+  }
+
   virtual bool IsAllocSpace() const = 0;
   virtual bool IsImageSpace() const = 0;
   virtual bool IsZygoteSpace() const = 0;
+  virtual bool IsLargeObjectSpace() const = 0;
 
   virtual SpaceBitmap* GetLiveBitmap() const = 0;
   virtual SpaceBitmap* GetMarkBitmap() const = 0;
@@ -153,6 +164,8 @@ std::ostream& operator<<(std::ostream& os, const Space& space);
 // An alloc space is a space where objects may be allocated and garbage collected.
 class AllocSpace : public Space {
  public:
+  typedef void(*WalkCallback)(void *start, void *end, size_t num_bytes, void* callback_arg);
+
   // Allocate num_bytes without allowing the underlying mspace to grow.
   Object* AllocWithGrowth(size_t num_bytes);
 
@@ -177,8 +190,7 @@ class AllocSpace : public Space {
 
   // Perform a mspace_inspect_all which calls back for each allocation chunk. The chunk may not be
   // in use, indicated by num_bytes equaling zero.
-  void Walk(void(*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
-            void* arg);
+  void Walk(WalkCallback callback, void* arg);
 
   // Returns the number of bytes that the heap is allowed to obtain from the system via MoreCore.
   size_t GetFootprintLimit();
@@ -212,6 +224,10 @@ class AllocSpace : public Space {
     return false;
   }
 
+  virtual bool IsLargeObjectSpace() const {
+    return false;
+  }
+
   virtual bool IsZygoteSpace() const {
     return gc_retention_policy_ == GCRP_FULL_COLLECT;
   }
@@ -227,7 +243,7 @@ class AllocSpace : public Space {
   void SetGrowthLimit(size_t growth_limit);
 
   // Swap the live and mark bitmaps of this space. This is used by the GC for concurrent sweeping.
-  void SwapBitmaps();
+  virtual void SwapBitmaps();
 
   // Turn ourself into a zygote space and return a new alloc space which has our unused memory.
   AllocSpace* CreateZygoteSpace();
@@ -296,15 +312,19 @@ class ImageSpace : public Space {
     return false;
   }
 
-  virtual SpaceBitmap* GetLiveBitmap() const {
-   return live_bitmap_.get();
- }
+  virtual bool IsLargeObjectSpace() const {
+    return false;
+  }
 
- virtual SpaceBitmap* GetMarkBitmap() const {
-   // ImageSpaces have the same bitmap for both live and marked. This helps reduce the number of
-   // special cases to test against.
-   return live_bitmap_.get();
- }
+  virtual SpaceBitmap* GetLiveBitmap() const {
+    return live_bitmap_.get();
+  }
+
+  virtual SpaceBitmap* GetMarkBitmap() const {
+    // ImageSpaces have the same bitmap for both live and marked. This helps reduce the number of
+    // special cases to test against.
+    return live_bitmap_.get();
+  }
 
  private:
   friend class Space;
@@ -315,6 +335,76 @@ class ImageSpace : public Space {
   ImageSpace(const std::string& name, MemMap* mem_map);
 
   DISALLOW_COPY_AND_ASSIGN(ImageSpace);
+};
+
+class LargeObjectSpace : public Space {
+ public:
+  virtual bool IsAllocSpace() const {
+    return false;
+  }
+
+  virtual bool IsImageSpace() const {
+    return false;
+  }
+
+  virtual bool IsZygoteSpace() const {
+    return false;
+  }
+
+  virtual bool IsLargeObjectSpace() const {
+    return true;
+  }
+
+  virtual SpaceBitmap* GetLiveBitmap() const {
+    LOG(FATAL) << "Unimplemented";
+    return NULL;
+  }
+
+  virtual SpaceBitmap* GetMarkBitmap() const {
+    LOG(FATAL) << "Unimplemented";
+    return NULL;
+  }
+
+  virtual SpaceSetMap* GetLiveObjects() const {
+    return live_objects_.get();
+  }
+
+  virtual SpaceSetMap* GetMarkObjects() const {
+    return mark_objects_.get();
+  }
+
+  // Return the storage space required by obj.
+  size_t AllocationSize(const Object* obj);
+
+  virtual void SwapBitmaps();
+  virtual void CopyLiveToMarked();
+
+  Object* Alloc(size_t num_bytes);
+  void Free(Object* ptr);
+  void Walk(AllocSpace::WalkCallback, void* arg);
+
+  size_t GetNumBytesAllocated() const {
+    return num_bytes_allocated_;
+  }
+
+  Mutex& GetLock() {
+    return lock_;
+  }
+
+ private:
+  LargeObjectSpace(const std::string& name);
+
+  // Used to ensure mutual exclusion when the allocation spaces data structures are being modified.
+  Mutex lock_;
+
+  size_t num_bytes_allocated_;
+  UniquePtr<SpaceSetMap> live_objects_;
+  UniquePtr<SpaceSetMap> mark_objects_;
+  std::vector<Object*> large_objects_;
+  typedef SafeMap<Object*, MemMap*> MemMaps;
+  MemMaps mem_maps_;
+
+  friend class Space;
 };
 
 // Callback for dlmalloc_inspect_all or mspace_inspect_all that will madvise(2) unused

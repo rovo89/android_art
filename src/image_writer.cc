@@ -383,8 +383,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
   SirtRef<ObjectArray<Object> > image_roots(CreateImageRoots());
 
   Heap* heap = Runtime::Current()->GetHeap();
-  typedef std::vector<Space*> SpaceVec;
-  const SpaceVec& spaces = heap->GetSpaces();
+  const Spaces& spaces = heap->GetSpaces();
   DCHECK(!spaces.empty());
   DCHECK_EQ(0U, image_end_);
 
@@ -393,7 +392,6 @@ void ImageWriter::CalculateNewObjectOffsets() {
   image_end_ += RoundUp(sizeof(ImageHeader), 8); // 64-bit-alignment
 
   {
-    Heap* heap = Runtime::Current()->GetHeap();
     ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
     heap->FlushAllocStack();
   }
@@ -402,7 +400,8 @@ void ImageWriter::CalculateNewObjectOffsets() {
     // TODO: Image spaces only?
     // TODO: Add InOrderWalk to heap bitmap.
     const char* old = Thread::Current()->StartAssertNoThreadSuspension("ImageWriter");
-    for (SpaceVec::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
+    DCHECK(heap->GetLargeObjectsSpace()->GetLiveObjects()->IsEmpty());
+    for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
       (*it)->GetLiveBitmap()->InOrderWalk(CalculateNewObjectOffsetsCallback, this);
       DCHECK_LT(image_end_, image_->Size());
     }

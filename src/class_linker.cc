@@ -979,11 +979,7 @@ void ClassLinker::InitFromImage() {
   {
     ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
     heap->FlushAllocStack();
-    const Spaces& vec = heap->GetSpaces();
-    // TODO: C++0x auto
-    for (Spaces::const_iterator it = vec.begin(); it != vec.end(); ++it) {
-      (*it)->GetLiveBitmap()->Walk(InitFromImageCallback, this);
-    }
+    heap->GetLiveBitmap()->Walk(InitFromImageCallback, this);
   }
 
   // reinit class_roots_

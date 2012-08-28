@@ -28,28 +28,31 @@ namespace art {
     bool Test(const Object* obj)
         SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
       SpaceBitmap* bitmap = GetSpaceBitmap(obj);
-      DCHECK(bitmap != NULL);
-      return bitmap->Test(obj);
+      if (LIKELY(bitmap != NULL)) {
+        return bitmap->Test(obj);
+      } else {
+        return large_objects_->Test(obj);
+      }
     }
 
     void Clear(const Object* obj)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
       SpaceBitmap* bitmap = GetSpaceBitmap(obj);
-      DCHECK(bitmap != NULL)
-        << "tried to clear object "
-        << reinterpret_cast<const void*>(obj)
-        << " which did not belong to any bitmaps";
-      return bitmap->Clear(obj);
+      if (LIKELY(bitmap != NULL)) {
+        return bitmap->Clear(obj);
+      } else {
+        return large_objects_->Clear(obj);
+      }
     }
 
     void Set(const Object* obj)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
       SpaceBitmap* bitmap = GetSpaceBitmap(obj);
-      DCHECK(bitmap != NULL)
-        << "tried to mark object "
-        << reinterpret_cast<const void*>(obj)
-        << " which did not belong to any bitmaps";
-      bitmap->Set(obj);
+      if (LIKELY(bitmap != NULL)) {
+        bitmap->Set(obj);
+      } else {
+        large_objects_->Set(obj);
+      }
     }
 
     SpaceBitmap* GetSpaceBitmap(const Object* obj) {
@@ -63,12 +66,7 @@ namespace art {
     }
 
     void Walk(SpaceBitmap::Callback* callback, void* arg)
-        SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
-      // TODO: C++0x auto
-      for (Bitmaps::iterator it = bitmaps_.begin(); it!= bitmaps_.end(); ++it) {
-        (*it)->Walk(callback, arg);
-      }
-    }
+        SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
     template <typename Visitor>
     void Visit(const Visitor& visitor)
@@ -79,15 +77,20 @@ namespace art {
         bitmap->VisitMarkedRange(bitmap->HeapBegin(), bitmap->HeapLimit(), visitor,
                                  IdentityFunctor());
       }
+      large_objects_->Visit(visitor);
     }
 
     // Find and replace a bitmap pointer, this is used by for the bitmap swapping in the GC.
     void ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-    HeapBitmap(Heap* heap) : heap_(heap) {
+    HeapBitmap(Heap* heap);
 
+    inline SpaceSetMap* GetLargeObjects() const {
+      return large_objects_;
     }
+
+    void SetLargeObjects(SpaceSetMap* large_objects);
 
    private:
 
@@ -97,6 +100,9 @@ namespace art {
 
     typedef std::vector<SpaceBitmap*> Bitmaps;
     Bitmaps bitmaps_;
+
+    // Large object sets.
+    SpaceSetMap* large_objects_;
 
     friend class Heap;
   };

@@ -30,6 +30,12 @@ void SpaceBitmap::SetName(const std::string& name) {
   name_ = name;
 }
 
+void SpaceSetMap::Walk(SpaceBitmap::Callback* callback, void* arg) {
+  for (Objects::iterator it = contained_.begin(); it != contained_.end(); ++it) {
+    callback(const_cast<Object*>(*it), arg);
+  }
+}
+
 SpaceBitmap* SpaceBitmap::Create(const std::string& name, byte* heap_begin, size_t heap_capacity) {
   CHECK(heap_begin != NULL);
   // Round up since heap_capacity is not necessarily a multiple of kAlignment * kBitsPerWord.
@@ -249,6 +255,22 @@ void SpaceBitmap::InOrderWalk(SpaceBitmap::Callback* callback, void* arg) {
       }
     }
   }
+}
+
+std::string SpaceSetMap::GetName() const {
+  return name_;
+}
+
+void SpaceSetMap::SetName(const std::string& name) {
+  name_ = name;
+}
+
+SpaceSetMap::SpaceSetMap(const std::string& name) : name_(name) {
+
+}
+
+void SpaceSetMap::CopyFrom(const SpaceSetMap& space_set) {
+  contained_ = space_set.contained_;
 }
 
 std::ostream& operator << (std::ostream& stream, const SpaceBitmap& bitmap) {

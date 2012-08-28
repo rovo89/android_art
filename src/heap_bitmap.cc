@@ -28,4 +28,22 @@ void HeapBitmap::AddSpaceBitmap(SpaceBitmap* bitmap) {
   bitmaps_.push_back(bitmap);
 }
 
+void HeapBitmap::SetLargeObjects(SpaceSetMap* large_objects) {
+  DCHECK(large_objects != NULL);
+  large_objects_ = large_objects;
+}
+
+HeapBitmap::HeapBitmap(Heap* heap) : heap_(heap), large_objects_(NULL) {
+
+}
+
+void HeapBitmap::Walk(SpaceBitmap::Callback* callback, void* arg) {
+  // TODO: C++0x auto
+  for (Bitmaps::iterator it = bitmaps_.begin(); it != bitmaps_.end(); ++it) {
+    (*it)->Walk(callback, arg);
+  }
+
+  large_objects_->Walk(callback, arg);
+}
+
 }  // namespace art

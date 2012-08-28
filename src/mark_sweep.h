@@ -101,6 +101,10 @@ class MarkSweep {
   void Sweep(bool partial, bool swap_bitmaps)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
+  // Sweeps unmarked objects to complete the garbage collection.
+  void SweepLargeObjects(bool swap_bitmaps)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+
   // Sweep only pointers within an array. WARNING: Trashes objects.
   void SweepArray(TimingLogger& logger, MarkStack* allocation_stack_, bool swap_bitmaps)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
@@ -135,8 +139,10 @@ class MarkSweep {
     return freed_objects_;
   }
 
-  void SetCondemned(Object* condemned) {
-    condemned_ = condemned;
+  // Everything inside the immune range is marked.
+  void SetImmuneRange(Object* begin, Object* end) {
+    immune_begin_ = begin;
+    immune_end_ = end;
   }
 
   void SweepSystemWeaks(bool swap_bitmaps)
@@ -376,7 +382,9 @@ class MarkSweep {
 
   Object* finger_;
 
-  Object* condemned_;
+  // Immune range, every object inside the immune range is assumed to be marked.
+  Object* immune_begin_;
+  Object* immune_end_;
 
   Object* soft_reference_list_;
 
