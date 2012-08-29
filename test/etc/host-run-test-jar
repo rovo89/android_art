@@ -22,10 +22,14 @@ OPTIMIZE="y"
 INVOKE_WITH=""
 DEV_MODE="n"
 QUIET="n"
+OATEXEC="oatexecd"
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
         QUIET="y"
+        shift
+    elif [ "x$1" = "x-O" ]; then
+        OATEXEC="oatexec"
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUG="y"
@@ -74,7 +78,7 @@ export LD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
 export DYLD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
 unset ANDROID_PRODUCT_OUT # avoid defaulting dex2oat --host-prefix to target output
 
-exe="${ANDROID_ROOT}/bin/oatexecd"
+exe="${ANDROID_ROOT}/bin/${OATEXEC}"
 
 if [ "$DEBUG" = "y" ]; then
     PORT=8000
