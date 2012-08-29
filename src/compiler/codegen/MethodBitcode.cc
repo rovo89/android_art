@@ -166,27 +166,14 @@ void createLocFromValue(CompilationUnit* cUnit, llvm::Value* val)
   }
   cUnit->locMap.Put(val, loc);
 }
-
 void initIR(CompilationUnit* cUnit)
 {
-  cUnit->context = new llvm::LLVMContext();
-  cUnit->module = new llvm::Module("art", *cUnit->context);
-  llvm::StructType::create(*cUnit->context, "JavaObject");
-  llvm::StructType::create(*cUnit->context, "Method");
-  llvm::StructType::create(*cUnit->context, "Thread");
-  cUnit->intrinsic_helper =
-      new greenland::IntrinsicHelper(*cUnit->context, *cUnit->module);
-  cUnit->irb =
-      new greenland::IRBuilder(*cUnit->context, *cUnit->module,
-                               *cUnit->intrinsic_helper);
-}
-
-void freeIR(CompilationUnit* cUnit)
-{
-  delete cUnit->irb;
-  delete cUnit->intrinsic_helper;
-  delete cUnit->module;
-  delete cUnit->context;
+  QuickCompiler* quick =
+      reinterpret_cast<QuickCompiler*>(cUnit->compiler->GetCompilerContext());
+  cUnit->context = quick->GetLLVMContext();
+  cUnit->module = quick->GetLLVMModule();
+  cUnit->intrinsic_helper = quick->GetIntrinsicHelper();
+  cUnit->irb = quick->GetIRBuilder();
 }
 
 const char* llvmSSAName(CompilationUnit* cUnit, int ssaReg) {
@@ -840,7 +827,6 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
   RegLocation rlSrc[3];
   RegLocation rlDest = badLoc;
   Instruction::Code opcode = mir->dalvikInsn.opcode;
-  uint32_t vA = mir->dalvikInsn.vA;
   uint32_t vB = mir->dalvikInsn.vB;
   uint32_t vC = mir->dalvikInsn.vC;
   int optFlags = mir->optimizationFlags;
@@ -3480,7 +3466,8 @@ void oatMethodBitcode2LIR(CompilationUnit* cUnit)
 
   handleIntrinsicLaunchpads(cUnit);
 
-  freeIR(cUnit);
+  cUnit->func->eraseFromParent();
+  cUnit->func = NULL;
 }
 
 

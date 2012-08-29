@@ -23,6 +23,34 @@
 
 namespace art {
 
+#if defined(ART_USE_QUICK_COMPILER)
+QuickCompiler::QuickCompiler(art::Compiler* compiler)
+    : compiler_(compiler) {
+  // Create context, module, intrinsic helper & ir builder
+  llvm_context_.reset(new llvm::LLVMContext());
+  llvm_module_.reset(new llvm::Module("art", *llvm_context_));
+  llvm::StructType::create(*llvm_context_, "JavaObject");
+  llvm::StructType::create(*llvm_context_, "Method");
+  llvm::StructType::create(*llvm_context_, "Thread");
+  intrinsic_helper_.reset( new greenland::IntrinsicHelper(*llvm_context_, *llvm_module_));
+  ir_builder_.reset(new greenland::IRBuilder(*llvm_context_, *llvm_module_, *intrinsic_helper_));
+}
+
+QuickCompiler::~QuickCompiler() {
+}
+
+extern "C" void ArtInitQuickCompilerContext(art::Compiler& compiler) {
+  CHECK(compiler.GetCompilerContext() == NULL);
+  QuickCompiler* quickCompiler = new QuickCompiler(&compiler);
+  compiler.SetCompilerContext(quickCompiler);
+}
+
+extern "C" void ArtUnInitQuickCompilerContext(art::Compiler& compiler) {
+  delete reinterpret_cast<QuickCompiler*>(compiler.GetCompilerContext());
+  compiler.SetCompilerContext(NULL);
+}
+#endif
+
 /* Default optimizer/debug setting for the compiler. */
 static uint32_t kCompilerOptimizerDisableFlags = 0 | // Disable specific optimizations
   //(1 << kLoadStoreElimination) |

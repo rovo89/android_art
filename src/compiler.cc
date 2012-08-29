@@ -331,6 +331,16 @@ Compiler::Compiler(InstructionSet instruction_set, bool image, size_t thread_cou
                                       "ArtInitCompilerContext");
 
   init_compiler_context(*this);
+#elif defined(ART_USE_QUICK_COMPILER)
+  // Initialize compiler_context_
+  typedef void (*InitCompilerContextFn)(Compiler&);
+
+  InitCompilerContextFn init_compiler_context =
+    FindFunction<void (*)(Compiler&)>(compiler_so_name,
+                                      compiler_library_,
+                                      "ArtInitQuickCompilerContext");
+
+  init_compiler_context(*this);
 #endif
 
   compiler_ = FindFunction<CompilerFn>(compiler_so_name, compiler_library_, "ArtCompileMethod");
@@ -385,6 +395,18 @@ Compiler::~Compiler() {
     FindFunction<void (*)(Compiler&)>(compiler_so_name,
                                       compiler_library_,
                                       "ArtUnInitCompilerContext");
+
+  uninit_compiler_context(*this);
+#elif defined(ART_USE_QUICK_COMPILER)
+  // Uninitialize compiler_context_
+  typedef void (*UninitCompilerContextFn)(Compiler&);
+
+  std::string compiler_so_name(MakeCompilerSoName(instruction_set_));
+
+  UninitCompilerContextFn uninit_compiler_context =
+    FindFunction<void (*)(Compiler&)>(compiler_so_name,
+                                      compiler_library_,
+                                      "ArtUnInitQuickCompilerContext");
 
   uninit_compiler_context(*this);
 #endif

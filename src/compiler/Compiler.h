@@ -20,7 +20,20 @@
 #include "dex_file.h"
 #include "dex_instruction.h"
 
+#if defined(ART_USE_QUICK_COMPILER)
+namespace llvm {
+  class Module;
+  class LLVMContext;
+}
+#endif
+
 namespace art {
+#if defined(ART_USE_QUICK_COMPILER)
+namespace greenland {
+  class IntrinsicHelper;
+  class IRBuilder;
+}
+#endif
 
 #define COMPILER_TRACED(X)
 #define COMPILER_TRACEE(X)
@@ -162,6 +175,41 @@ enum DataFlowAnalysisMode {
   kPostOrderDOMTraversal,     // Dominator tree / Post-Order
   kReversePostOrderTraversal, // Depth-First-Search / reverse Post-Order
 };
+
+#if defined(ART_USE_QUICK_COMPILER)
+class QuickCompiler {
+  public:
+    QuickCompiler(art::Compiler* compiler);
+    ~QuickCompiler();
+
+    const art::Compiler* GetCompiler() const {
+      return compiler_;
+    }
+
+    llvm::LLVMContext* GetLLVMContext() {
+      return llvm_context_.get();
+    }
+
+    llvm::Module* GetLLVMModule() {
+      return llvm_module_.get();
+    }
+
+    art::greenland::IntrinsicHelper* GetIntrinsicHelper() {
+      return intrinsic_helper_.get();
+    }
+
+    art::greenland::IRBuilder* GetIRBuilder() {
+      return ir_builder_.get();
+    }
+
+  private:
+    const art::Compiler* const compiler_;
+    UniquePtr<llvm::LLVMContext> llvm_context_;
+    UniquePtr<llvm::Module> llvm_module_;
+    UniquePtr<art::greenland::IntrinsicHelper> intrinsic_helper_;
+    UniquePtr<art::greenland::IRBuilder> ir_builder_;
+};
+#endif
 
 struct CompilationUnit;
 struct BasicBlock;
