@@ -45,8 +45,9 @@ size_t AllocSpace::bitmap_index_ = 0;
 
 AllocSpace::AllocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
                        size_t growth_limit)
-    : Space(name, mem_map, begin, end, GCRP_ALWAYS_COLLECT), lock_("allocation space lock"),
-      mspace_(mspace), growth_limit_(growth_limit) {
+    : Space(name, mem_map, begin, end, GCRP_ALWAYS_COLLECT),
+      lock_("allocation space lock", kAllocSpaceLock), mspace_(mspace),
+      growth_limit_(growth_limit) {
   CHECK(mspace != NULL);
 
   size_t bitmap_index = bitmap_index_++;
@@ -345,6 +346,7 @@ void AllocSpace::Walk(void(*callback)(void *start, void *end, size_t num_bytes, 
                       void* arg) {
   MutexLock mu(lock_);
   mspace_inspect_all(mspace_, callback, arg);
+  callback(NULL, NULL, 0, arg);  // Indicate end of a space.
 }
 
 size_t AllocSpace::GetFootprintLimit() {

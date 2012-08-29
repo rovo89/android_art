@@ -90,6 +90,10 @@ static jobjectArray DdmVmInternal_getStackTraceById(JNIEnv* env, jclass, jint th
     Runtime::Current()->GetThreadList()->Resume(thread, true);
     return Thread::InternalStackTraceToStackTraceElementArray(env, trace);
   } else {
+    if (timeout) {
+      LOG(ERROR) << "Trying to get thread's stack by id failed as the thread failed to suspend "
+          "within a generous timeout.";
+    }
     return NULL;
   }
 }

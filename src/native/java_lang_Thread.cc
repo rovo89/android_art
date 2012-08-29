@@ -106,18 +106,31 @@ static void Thread_nativeInterrupt(JNIEnv* env, jobject java_thread) {
   }
 }
 
-static void Thread_nativeSetName(JNIEnv* env, jobject java_thread, jstring java_name) {
-  ScopedObjectAccess soa(env);
-  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
-  Thread* thread = Thread::FromManagedThread(soa, java_thread);
-  if (thread == NULL) {
-    return;
-  }
+static void Thread_nativeSetName(JNIEnv* env, jobject peer, jstring java_name) {
   ScopedUtfChars name(env, java_name);
-  if (name.c_str() == NULL) {
-    return;
+  {
+    ScopedObjectAccess soa(env);
+    Thread* self = Thread::Current();
+    if (soa.Decode<Object*>(peer) == self->GetPeer()) {
+      self->SetThreadName(name.c_str());
+      return;
+    }
   }
-  thread->SetThreadName(name.c_str());
+  // Suspend thread to avoid it from killing itself while we set its name. We don't just hold the
+  // thread list lock to avoid this, as setting the thread name causes mutator to lock/unlock
+  // in the DDMS send code.
+  bool timeout;
+  Thread* thread = Thread::SuspendForDebugger(peer, true, &timeout);
+  if (thread != NULL) {
+    {
+      ScopedObjectAccess soa(env);
+      thread->SetThreadName(name.c_str());
+    }
+    Runtime::Current()->GetThreadList()->Resume(thread, true);
+  } else if (timeout) {
+    LOG(ERROR) << "Trying to set thread name to '" << name.c_str() << "' failed as the thread "
+        "failed to suspend within a generous timeout.";
+  }
 }
 
 /*
