@@ -76,8 +76,6 @@ void ThrowNullPointerExceptionForMethodAccess(Thread* self, Method* caller, uint
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 void ThrowNullPointerExceptionFromDexPC(Thread* self, Method* caller, uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-void ThrowVerificationError(Thread* self, const Method* method, int32_t kind, int32_t ref)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
 std::string FieldNameFromIndex(const Method* method, uint32_t ref,
                                verifier::VerifyErrorRefType ref_type, bool access)

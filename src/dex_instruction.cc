@@ -94,7 +94,6 @@ void Instruction::Decode(uint32_t &vA, uint32_t &vB, uint64_t &vB_wide, uint32_t
     case k20t:       // op +AAAA
       vA = (int16_t) FETCH(1);                   // sign-extend 16-bit value
       break;
-    case k20bc:      // op AA, kind@BBBB
     case k21c:       // op vAA, thing@BBBB
     case k22x:       // op vAA, vBBBB
       vA = INST_AA(insn);
@@ -226,7 +225,6 @@ size_t Instruction::SizeInCodeUnits() const {
       case k11x:
       case k10t:
         return 1;
-      case k20bc:
       case k20t:
       case k22x:
       case k21t:
@@ -294,7 +292,6 @@ std::string Instruction::DumpString(const DexFile* file) const {
     case k11n:  os << StringPrintf("%s v%d, #%+d", opcode, insn.vA, insn.vB); break;
     case k11x:  os << StringPrintf("%s v%d", opcode, insn.vA); break;
     case k10t:  os << StringPrintf("%s %+d", opcode, insn.vA); break;
-    case k20bc: os << StringPrintf("%s %d, kind@%d", opcode, insn.vA, insn.vB); break;
     case k20t:  os << StringPrintf("%s %+d", opcode, insn.vA); break;
     case k22x:  os << StringPrintf("%s v%d, v%d", opcode, insn.vA, insn.vB); break;
     case k21t:  os << StringPrintf("%s v%d, %+d", opcode, insn.vA, insn.vB); break;

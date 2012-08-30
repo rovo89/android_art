@@ -688,7 +688,6 @@ enum ThrowKind {
   kThrowNullPointer,
   kThrowDivZero,
   kThrowArrayBounds,
-  kThrowVerificationError,
   kThrowNoSuchMethod,
   kThrowStackOverflow,
 };

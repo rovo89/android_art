@@ -59,7 +59,6 @@ declare void @art_throw_no_such_method_from_code(i32)
 declare void @art_throw_null_pointer_exception_from_code(i32)
 declare void @art_throw_stack_overflow_from_code()
 declare void @art_throw_exception_from_code(%JavaObject*)
-declare void @art_throw_verification_error_from_code(%JavaObject*, i32, i32)
 
 declare i32 @art_find_catch_block_from_code(%JavaObject*, i32)
 

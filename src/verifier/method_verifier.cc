@@ -2209,15 +2209,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       work_line_->CheckLiteralOp(dec_insn, reg_types_.Integer(), reg_types_.Integer(), true);
       break;
 
-    /*
-     * This falls into the general category of "optimized" instructions,
-     * which don't generally appear during verification. Because it's
-     * inserted in the course of verification, we can expect to see it here.
-     */
-    case Instruction::THROW_VERIFICATION_ERROR:
-      break;
-
     /* These should never appear during verification. */
+    case Instruction::UNUSED_ED:
     case Instruction::UNUSED_EE:
     case Instruction::UNUSED_EF:
     case Instruction::UNUSED_F2:

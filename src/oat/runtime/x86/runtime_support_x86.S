@@ -205,11 +205,6 @@ ONE_ARG_RUNTIME_EXCEPTION art_throw_no_such_method_from_code, artThrowNoSuchMeth
 TWO_ARG_RUNTIME_EXCEPTION art_throw_array_bounds_from_code, artThrowArrayBoundsFromCode
 
     /*
-     * Called by managed code to create and deliver verification errors. Arg1 is kind, arg2 is ref.
-     */
-TWO_ARG_RUNTIME_EXCEPTION art_throw_verification_error_from_code, artThrowVerificationErrorFromCode
-
-    /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
      * as usual - except instead of loading arg0/r0 with the target Method*, arg0/r0 will contain
      * the method_idx.  This wrapper will save arg1-arg3, load the caller's Method*, align the

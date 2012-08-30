@@ -2778,9 +2778,6 @@ bool DexLang::EmitInstruction(unsigned dex_pc, const Instruction* insn) {
       //EmitInsn_IntShiftArithmImmediate(ARGS, kIntArithm_UShr);
       break;
 
-    case Instruction::THROW_VERIFICATION_ERROR:
-      //EmitInsn_ThrowVerificationError(ARGS);
-      break;
     case Instruction::UNUSED_3E:
     case Instruction::UNUSED_3F:
     case Instruction::UNUSED_40:
@@ -2800,6 +2797,7 @@ bool DexLang::EmitInstruction(unsigned dex_pc, const Instruction* insn) {
     case Instruction::UNUSED_EA:
     case Instruction::UNUSED_EB:
     case Instruction::UNUSED_EC:
+    case Instruction::UNUSED_ED:
     case Instruction::UNUSED_EE:
     case Instruction::UNUSED_EF:
     case Instruction::UNUSED_F0:

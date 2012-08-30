@@ -313,18 +313,6 @@ art_throw_no_such_method_from_code:
     jal artThrowNoSuchMethodFromCode      # artThrowNoSuchMethodFromCode(method_idx, Thread*, $sp)
     move $a2, $sp                         # pass $sp
 
-    .global art_throw_verification_error_from_code
-    .extern artThrowVerificationErrorFromCode
-    /*
-     * Called by managed code to create and deliver verification errors.
-     */
-    ALIGN_FUNCTION_ENTRY
-art_throw_verification_error_from_code:
-    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
-    move $a2, rSELF                           # pass Thread::Current
-    jal artThrowVerificationErrorFromCode     # artThrowVerificationErrorFromCode(kind, ref, Thread*, $sp)
-    move $a3, $sp                             # pass $sp
-
     /*
      * All generated callsites for interface invokes and invocation slow paths will load arguments
      * as usual - except instead of loading arg0/$a0 with the target Method*, arg0/$a0 will contain

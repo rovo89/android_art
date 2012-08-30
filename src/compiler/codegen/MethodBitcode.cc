@@ -378,16 +378,6 @@ void convertArrayLength(CompilationUnit* cUnit, int optFlags,
   defineValue(cUnit, res, rlDest.origSReg);
 }
 
-void convertThrowVerificationError(CompilationUnit* cUnit, int info1, int info2)
-{
-  llvm::Function* func = cUnit->intrinsic_helper->GetIntrinsicFunction(
-      greenland::IntrinsicHelper::ThrowVerificationError);
-  llvm::SmallVector<llvm::Value*, 2> args;
-  args.push_back(cUnit->irb->getInt32(info1));
-  args.push_back(cUnit->irb->getInt32(info2));
-  cUnit->irb->CreateCall(func, args);
-}
-
 void emitSuspendCheck(CompilationUnit* cUnit)
 {
   greenland::IntrinsicHelper::IntrinsicId id =
@@ -1359,29 +1349,13 @@ bool convertMIRNode(CompilationUnit* cUnit, MIR* mir, BasicBlock* bb,
       }
       break;
 
-   case Instruction::THROW_VERIFICATION_ERROR:
-      convertThrowVerificationError(cUnit, vA, vB);
-      UNIMPLEMENTED(WARNING) << "Need dead code elimination pass"
-                             << " - disabling bitcode verification";
-      cUnit->enableDebug &= ~(1 << kDebugVerifyBitcode);
-      break;
-
     case Instruction::MOVE_RESULT_WIDE:
     case Instruction::MOVE_RESULT:
     case Instruction::MOVE_RESULT_OBJECT:
-#if defined(TARGET_ARM)
       /*
-       * Instruction rewriting on verification failure can eliminate
-       * the invoke that feeds this move0result.  It won't ever be reached,
-       * so we can ignore it.
-       * TODO: verify that previous instruction is THROW_VERIFICATION_ERROR,
-       * or better, add dead-code elimination.
+       * All move_results should have been folded into the preceeding invoke.
        */
-      UNIMPLEMENTED(WARNING) << "Need to verify previous inst was rewritten";
-#else
-      UNIMPLEMENTED(WARNING) << "need x86 move-result fusing";
-#endif
-
+      LOG(FATAL) << "Unexpected move_result";
       break;
 
     case Instruction::MONITOR_ENTER:
@@ -2632,16 +2606,6 @@ void cvtInstanceOf(CompilationUnit* cUnit, llvm::CallInst* callInst)
   genInstanceof(cUnit, typeIdx, rlDest, rlSrc);
 }
 
-void cvtThrowVerificationError(CompilationUnit* cUnit, llvm::CallInst* callInst)
-{
-  DCHECK_EQ(callInst->getNumArgOperands(), 2U);
-  llvm::ConstantInt* info1 =
-      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(0));
-  llvm::ConstantInt* info2 =
-      llvm::dyn_cast<llvm::ConstantInt>(callInst->getArgOperand(1));
-  genThrowVerificationError(cUnit, info1->getZExtValue(), info2->getZExtValue());
-}
-
 void cvtThrow(CompilationUnit* cUnit, llvm::CallInst* callInst)
 {
   DCHECK_EQ(callInst->getNumArgOperands(), 1U);
@@ -3102,9 +3066,6 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
               break;
             case greenland::IntrinsicHelper::Throw:
               cvtThrow(cUnit, callInst);
-              break;
-            case greenland::IntrinsicHelper::ThrowVerificationError:
-              cvtThrowVerificationError(cUnit, callInst);
               break;
             case greenland::IntrinsicHelper::MonitorEnter:
               cvtMonitorEnterExit(cUnit, true /* isEnter */, callInst);

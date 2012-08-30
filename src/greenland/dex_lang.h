@@ -356,7 +356,6 @@ class DexLang {
   void EmitInsn_MoveException(GEN_INSN_ARGS);
 #if 0
   void EmitInsn_ThrowException(GEN_INSN_ARGS);
-  void EmitInsn_ThrowVerificationError(GEN_INSN_ARGS);
 
   // RETURN instructions
 #endif

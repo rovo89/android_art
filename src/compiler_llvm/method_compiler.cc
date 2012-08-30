@@ -1165,10 +1165,6 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
     EmitInsn_IntShiftArithmImmediate(ARGS, kIntArithm_UShr);
     break;
 
-  case Instruction::THROW_VERIFICATION_ERROR:
-    EmitInsn_ThrowVerificationError(ARGS);
-    break;
-
   case Instruction::UNUSED_3E:
   case Instruction::UNUSED_3F:
   case Instruction::UNUSED_40:
@@ -1188,6 +1184,7 @@ void MethodCompiler::EmitInstruction(uint32_t dex_pc,
   case Instruction::UNUSED_EA:
   case Instruction::UNUSED_EB:
   case Instruction::UNUSED_EC:
+  case Instruction::UNUSED_ED:
   case Instruction::UNUSED_EE:
   case Instruction::UNUSED_EF:
   case Instruction::UNUSED_F0:
@@ -1289,24 +1286,6 @@ void MethodCompiler::EmitInsn_ThrowException(uint32_t dex_pc,
   EmitUpdateDexPC(dex_pc);
 
   irb_.CreateCall(irb_.GetRuntime(ThrowException), exception_addr);
-
-  EmitBranchExceptionLandingPad(dex_pc);
-}
-
-
-void MethodCompiler::EmitInsn_ThrowVerificationError(uint32_t dex_pc,
-                                                     const Instruction* insn) {
-
-  DecodedInstruction dec_insn(insn);
-
-  EmitUpdateDexPC(dex_pc);
-
-  llvm::Value* method_object_addr = EmitLoadMethodObjectAddr();
-  llvm::Value* kind_value = irb_.getInt32(dec_insn.vA);
-  llvm::Value* ref_value = irb_.getInt32(dec_insn.vB);
-
-  irb_.CreateCall3(irb_.GetRuntime(ThrowVerificationError),
-                   method_object_addr, kind_value, ref_value);
 
   EmitBranchExceptionLandingPad(dex_pc);
 }
@@ -4552,10 +4531,6 @@ void MethodCompiler::ComputeMethodInfo() {
       }
       break;
 
-    case Instruction::THROW_VERIFICATION_ERROR:
-      may_throw_exception = true;
-      break;
-
     case Instruction::UNUSED_3E:
     case Instruction::UNUSED_3F:
     case Instruction::UNUSED_40:
@@ -4575,6 +4550,7 @@ void MethodCompiler::ComputeMethodInfo() {
     case Instruction::UNUSED_EA:
     case Instruction::UNUSED_EB:
     case Instruction::UNUSED_EC:
+    case Instruction::UNUSED_ED:
     case Instruction::UNUSED_EE:
     case Instruction::UNUSED_EF:
     case Instruction::UNUSED_F0:

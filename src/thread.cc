@@ -1476,7 +1476,6 @@ static const EntryPointInfo gThreadEntryPointInfo[] = {
   ENTRY_POINT_INFO(pThrowNoSuchMethodFromCode),
   ENTRY_POINT_INFO(pThrowNullPointerFromCode),
   ENTRY_POINT_INFO(pThrowStackOverflowFromCode),
-  ENTRY_POINT_INFO(pThrowVerificationErrorFromCode),
 };
 #undef ENTRY_POINT_INFO
 

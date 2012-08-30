@@ -118,7 +118,6 @@ extern "C" void art_throw_div_zero_from_code();
 extern "C" void art_throw_no_such_method_from_code(int32_t method_idx);
 extern "C" void art_throw_null_pointer_exception_from_code();
 extern "C" void art_throw_stack_overflow_from_code(void*);
-extern "C" void art_throw_verification_error_from_code(int32_t src1, int32_t ref);
 
 void InitEntryPoints(EntryPoints* points) {
   // Alloc
@@ -234,7 +233,6 @@ void InitEntryPoints(EntryPoints* points) {
   points->pThrowNoSuchMethodFromCode = art_throw_no_such_method_from_code;
   points->pThrowNullPointerFromCode = art_throw_null_pointer_exception_from_code;
   points->pThrowStackOverflowFromCode = art_throw_stack_overflow_from_code;
-  points->pThrowVerificationErrorFromCode = art_throw_verification_error_from_code;
 };
 
 void ChangeDebuggerEntryPoint(EntryPoints*, bool) {

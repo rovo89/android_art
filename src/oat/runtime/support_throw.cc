@@ -98,13 +98,4 @@ extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self, M
   self->DeliverException();
 }
 
-extern "C" void artThrowVerificationErrorFromCode(int32_t kind, int32_t ref, Thread* self,
-                                                  Method** sp)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
-  Method* method = self->GetCurrentMethod();
-  ThrowVerificationError(self, method, kind, ref);
-  self->DeliverException();
-}
-
 }  // namespace art

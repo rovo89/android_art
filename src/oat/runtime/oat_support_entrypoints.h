@@ -146,7 +146,6 @@ struct PACKED EntryPoints {
   void (*pThrowNoSuchMethodFromCode)(int32_t);
   void (*pThrowNullPointerFromCode)();
   void (*pThrowStackOverflowFromCode)(void*);
-  void (*pThrowVerificationErrorFromCode)(int32_t, int32_t);
 };
 
 // Initialize an entry point data structure.

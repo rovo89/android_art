@@ -171,13 +171,6 @@ void art_throw_exception_from_code(Object* exception)
   }
 }
 
-void art_throw_verification_error_from_code(Method* current_method,
-                                            int32_t kind,
-                                            int32_t ref)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  ThrowVerificationError(art_get_current_thread_from_code(), current_method, kind, ref);
-}
-
 int32_t art_find_catch_block_from_code(Method* current_method,
                                        uint32_t ti_offset)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {

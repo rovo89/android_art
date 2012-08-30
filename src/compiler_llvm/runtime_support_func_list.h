@@ -27,7 +27,6 @@
   V(ThrowNullPointerException, art_throw_null_pointer_exception_from_code) \
   V(ThrowDivZeroException, art_throw_div_zero_from_code) \
   V(ThrowIndexOutOfBounds, art_throw_array_bounds_from_code) \
-  V(ThrowVerificationError, art_throw_verification_error_from_code) \
   V(InitializeTypeAndVerifyAccess, art_initialize_type_and_verify_access_from_code) \
   V(InitializeType, art_initialize_type_from_code) \
   V(IsAssignable, art_is_assignable_from_code) \

@@ -829,13 +829,6 @@ void genShowTarget(CompilationUnit* cUnit)
 #endif
 }
 
-void genThrowVerificationError(CompilationUnit* cUnit, int info1, int info2)
-{
-  callRuntimeHelperImmImm(cUnit,
-                          ENTRYPOINT_OFFSET(pThrowVerificationErrorFromCode),
-                          info1, info2);
-}
-
 void handleSuspendLaunchpads(CompilationUnit *cUnit)
 {
   LIR** suspendLabel = (LIR **)cUnit->suspendLaunchpads.elemList;
@@ -928,12 +921,6 @@ void handleThrowLaunchpads(CompilationUnit *cUnit)
         break;
       case kThrowDivZero:
         funcOffset = ENTRYPOINT_OFFSET(pThrowDivZeroFromCode);
-        break;
-      case kThrowVerificationError:
-        loadConstant(cUnit, rARG0, v1);
-        loadConstant(cUnit, rARG1, v2);
-        funcOffset =
-          ENTRYPOINT_OFFSET(pThrowVerificationErrorFromCode);
         break;
       case kThrowNoSuchMethod:
         opRegCopy(cUnit, rARG0, v1);

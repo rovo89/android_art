@@ -214,7 +214,6 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
   RegLocation rlResult = badLoc;
   Instruction::Code opcode = mir->dalvikInsn.opcode;
   int optFlags = mir->optimizationFlags;
-  uint32_t vA = mir->dalvikInsn.vA;
   uint32_t vB = mir->dalvikInsn.vB;
   uint32_t vC = mir->dalvikInsn.vC;
 
@@ -384,10 +383,6 @@ bool compileDalvikInstruction(CompilationUnit* cUnit, MIR* mir,
 
     case Instruction::THROW:
       genThrow(cUnit, rlSrc[0]);
-      break;
-
-    case Instruction::THROW_VERIFICATION_ERROR:
-      genThrowVerificationError(cUnit, vA, vB);
       break;
 
     case Instruction::ARRAY_LENGTH:
