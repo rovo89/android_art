@@ -252,7 +252,10 @@ class CheckReferenceVisitor {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator ()(const Object* obj, const Object* ref, const MemberOffset& /* offset */, bool /* is_static */) const {
+  void operator ()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
+                     bool /* is_static */) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     Heap* heap = mod_union_table_->GetMarkSweep()->GetHeap();
     if (mod_union_table_->AddReference(obj, ref) && references_.find(ref) == references_.end()) {
       Space* from_space = heap->FindSpaceFromObject(obj);
@@ -283,7 +286,9 @@ class ModUnionCheckReferences {
       references_(references) {
   }
 
-  void operator ()(Object* obj, void* /* finger */) const {
+  void operator ()(Object* obj) const
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     DCHECK(obj != NULL);
     MarkSweep* mark_sweep = mod_union_table_->GetMarkSweep();
     CheckReferenceVisitor visitor(mod_union_table_, references_);
@@ -296,7 +301,6 @@ class ModUnionCheckReferences {
 };
 
 void ModUnionTableReferenceCache::Verify() {
-#if VERIFY_MOD_UNION
   // Start by checking that everything in the mod union table is marked.
   Heap* heap = GetMarkSweep()->GetHeap();
   for (ReferenceMap::const_iterator it = references_.begin(); it != references_.end(); ++it) {
@@ -319,10 +323,9 @@ void ModUnionTableReferenceCache::Verify() {
       uintptr_t end = start + GC_CARD_SIZE;
       SpaceBitmap* live_bitmap =
               heap->FindSpaceFromObject(reinterpret_cast<Object*>(start))->GetLiveBitmap();
-      live_bitmap->VisitMarkedRange(start, end, visitor);
+      live_bitmap->VisitMarkedRange(start, end, visitor, IdentityFunctor());
     }
   }
-#endif
 }
 
 void ModUnionTableReferenceCache::Update() {

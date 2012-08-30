@@ -142,6 +142,21 @@ class MarkSweep {
   void SweepSystemWeaks(bool swap_bitmaps)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
+  template <typename Visitor>
+  static void VisitObjectReferences(const Object* obj, const Visitor& visitor)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
+    DCHECK(obj != NULL);
+    DCHECK(obj->GetClass() != NULL);
+    if (obj->IsClass()) {
+      VisitClassReferences(obj, visitor);
+    } else if (obj->IsArrayInstance()) {
+      VisitArrayReferences(obj, visitor);
+    } else {
+      VisitOtherReferences(obj, visitor);
+    }
+  }
+
  private:
   // Returns true if the object has its bit set in the mark bitmap.
   bool IsMarked(const Object* object) const
@@ -200,28 +215,13 @@ class MarkSweep {
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
                             GlobalSynchronization::mutator_lock_);
 
-  template <typename Visitor>
-  void VisitObjectReferences(const Object* obj, const Visitor& visitor)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
-                            GlobalSynchronization::mutator_lock_) {
-    DCHECK(obj != NULL);
-    DCHECK(obj->GetClass() != NULL);
-    if (obj->IsClass()) {
-      VisitClassReferences(obj, visitor);
-    } else if (obj->IsArrayInstance()) {
-      VisitArrayReferences(obj, visitor);
-    } else {
-      VisitOtherReferences(obj, visitor);
-    }
-  }
-
   // Grays references in instance fields.
   void ScanInstanceFields(const Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   template <typename Visitor>
-  void VisitInstanceFieldsReferences(const Object* obj, const Visitor& visitor)
+  static void VisitInstanceFieldsReferences(const Object* obj, const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     DCHECK(obj != NULL);
@@ -237,7 +237,7 @@ class MarkSweep {
 
 
   template <typename Visitor>
-  void VisitClassReferences(const Object* obj, const Visitor& visitor)
+  static void VisitClassReferences(const Object* obj, const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
                             GlobalSynchronization::mutator_lock_) {
     VisitInstanceFieldsReferences(obj, visitor);
@@ -250,9 +250,9 @@ class MarkSweep {
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   template <typename Visitor>
-  void VisitStaticFieldsReferences(const Class* klass, const Visitor& visitor)
+  static void VisitStaticFieldsReferences(const Class* klass, const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
-                            GlobalSynchronization::mutator_lock_) {\
+                            GlobalSynchronization::mutator_lock_) {
     DCHECK(klass != NULL);
     VisitFieldsReferences(klass, klass->GetReferenceStaticOffsets(), true, visitor);
   }
@@ -263,7 +263,7 @@ class MarkSweep {
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   template <typename Visitor>
-  void VisitFieldsReferences(const Object* obj, uint32_t ref_offsets, bool is_static,
+  static void VisitFieldsReferences(const Object* obj, uint32_t ref_offsets, bool is_static,
                              const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
                             GlobalSynchronization::mutator_lock_) {
@@ -305,7 +305,7 @@ class MarkSweep {
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   template <typename Visitor>
-  void VisitArrayReferences(const Object* obj, const Visitor& visitor)
+  static void VisitArrayReferences(const Object* obj, const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
                             GlobalSynchronization::mutator_lock_) {
     visitor(obj, obj->GetClass(), Object::ClassOffset(), false);
@@ -324,7 +324,7 @@ class MarkSweep {
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   template <typename Visitor>
-  void VisitOtherReferences(const Object* obj, const Visitor& visitor)
+  static void VisitOtherReferences(const Object* obj, const Visitor& visitor)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
                             GlobalSynchronization::mutator_lock_) {
     return VisitInstanceFieldsReferences(obj, visitor);

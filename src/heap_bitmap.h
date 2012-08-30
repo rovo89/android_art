@@ -54,9 +54,9 @@ namespace art {
 
     SpaceBitmap* GetSpaceBitmap(const Object* obj) {
       // TODO: C++0x auto
-      for (Bitmaps::iterator cur = bitmaps_.begin(); cur != bitmaps_.end(); ++cur) {
-        if ((*cur)->HasAddress(obj)) {
-          return *cur;
+      for (Bitmaps::iterator it = bitmaps_.begin(); it != bitmaps_.end(); ++it) {
+        if ((*it)->HasAddress(obj)) {
+          return *it;
         }
       }
       return NULL;
@@ -65,8 +65,19 @@ namespace art {
     void Walk(SpaceBitmap::Callback* callback, void* arg)
         SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
       // TODO: C++0x auto
-      for (Bitmaps::iterator cur = bitmaps_.begin(); cur != bitmaps_.end(); ++cur) {
-        (*cur)->Walk(callback, arg);
+      for (Bitmaps::iterator it = bitmaps_.begin(); it!= bitmaps_.end(); ++it) {
+        (*it)->Walk(callback, arg);
+      }
+    }
+
+    template <typename Visitor>
+    void Visit(const Visitor& visitor)
+        EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
+      // TODO: C++0x auto
+      for (Bitmaps::iterator it = bitmaps_.begin(); it != bitmaps_.end(); ++it) {
+        SpaceBitmap* bitmap = *it;
+        bitmap->VisitMarkedRange(bitmap->HeapBegin(), bitmap->HeapLimit(), visitor,
+                                 IdentityFunctor());
       }
     }
 

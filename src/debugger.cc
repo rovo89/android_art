@@ -3086,9 +3086,8 @@ void Dbg::DdmSendHeapSegments(bool native) {
     UNIMPLEMENTED(WARNING) << "Native heap send heap segments";
   } else {
     Heap* heap = Runtime::Current()->GetHeap();
-    typedef std::vector<Space*> SpaceVec;
-    const SpaceVec& spaces = heap->GetSpaces();
-    for (SpaceVec::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
+    const Spaces& spaces = heap->GetSpaces();
+    for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
       if ((*cur)->IsAllocSpace()) {
         ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
         (*cur)->AsAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);

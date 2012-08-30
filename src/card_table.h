@@ -90,8 +90,7 @@ class CardTable {
       }
       byte* run_start = card_cur++;
 
-      // Guaranteed to have at least one clean card at the end of the array.
-      while (*card_cur == GC_CARD_DIRTY) {
+      while (*card_cur == GC_CARD_DIRTY && card_cur < card_end) {
         card_cur++;
       }
       byte* run_end = card_cur;

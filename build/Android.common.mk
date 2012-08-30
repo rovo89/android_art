@@ -254,7 +254,7 @@ endif
 
 ifeq ($(ART_USE_GREENLAND_COMPILER),true)
 LIBART_COMMON_SRC_FILES += \
-       src/greenland/inferred_reg_category_map.cc
+	src/greenland/inferred_reg_category_map.cc
 endif
 
 LIBART_COMMON_SRC_FILES += \
@@ -344,6 +344,7 @@ endif # HOST_ARCH != x86
 
 
 LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
+	src/heap.h \
 	src/indirect_reference_table.h \
 	src/instruction_set.h \
 	src/invoke_type.h \

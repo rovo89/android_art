@@ -2011,7 +2011,10 @@ std::ostream& operator<<(std::ostream& os, const Class::Status& rhs);
 
 inline void Object::SetClass(Class* new_klass) {
   // new_klass may be NULL prior to class linker initialization
-  SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Object, klass_), new_klass, false, false);
+  // We don't mark the card since the class is guaranteed to be referenced from another location.
+  // Proxy classes are held live by the class loader, and other classes are roots of the class
+  // linker.
+  SetFieldPtr(OFFSET_OF_OBJECT_MEMBER(Object, klass_), new_klass, false, false);
 }
 
 inline bool Object::InstanceOf(const Class* klass) const {

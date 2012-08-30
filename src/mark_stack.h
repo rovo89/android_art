@@ -77,6 +77,10 @@ class MarkStack {
     return const_cast<Object**>(begin_);
   }
 
+  Object** End() {
+    return const_cast<Object**>(ptr_);
+  }
+
   void Reset();
 
  private:

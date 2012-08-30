@@ -224,7 +224,6 @@ void MarkSweep::ScanGrayObjects(bool update_finger) {
   CardTable* card_table = heap_->GetCardTable();
   ScanImageRootVisitor image_root_visitor(this);
   SetFingerVisitor finger_visitor(this);
-
   for (Spaces::const_iterator it = spaces.begin(); it != spaces.end(); ++it) {
     Space* space = *it;
     byte* begin = space->Begin();
@@ -358,14 +357,12 @@ void MarkSweep::RecursiveMarkCards(CardTable* card_table, const std::vector<byte
 bool MarkSweep::IsMarkedCallback(const Object* object, void* arg) {
   return
       reinterpret_cast<MarkSweep*>(arg)->IsMarked(object) ||
-      //false;
       !reinterpret_cast<MarkSweep*>(arg)->GetHeap()->GetLiveBitmap()->Test(object);
 }
 
 bool MarkSweep::IsLiveCallback(const Object* object, void* arg) {
   return
       reinterpret_cast<MarkSweep*>(arg)->GetHeap()->GetLiveBitmap()->Test(object) ||
-      //false;
       !reinterpret_cast<MarkSweep*>(arg)->IsMarked(object);
 }
 
@@ -542,11 +539,11 @@ void MarkSweep::Sweep(bool partial, bool swap_bitmaps) {
       scc.space = space->AsAllocSpace();
       SpaceBitmap* live_bitmap = space->GetLiveBitmap();
       SpaceBitmap* mark_bitmap = space->GetMarkBitmap();
+      if (swap_bitmaps) {
+        std::swap(live_bitmap, mark_bitmap);
+      }
       if (space->GetGcRetentionPolicy() == GCRP_ALWAYS_COLLECT) {
         // Bitmaps are pre-swapped for optimization which enables sweeping with the heap unlocked.
-        if (swap_bitmaps) {
-          std::swap(live_bitmap, mark_bitmap);
-        }
         SpaceBitmap::SweepWalk(*live_bitmap, *mark_bitmap, begin, end,
                                &SweepCallback, reinterpret_cast<void*>(&scc));
       } else {

@@ -157,23 +157,17 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersio
 static void VMRuntime_trimHeap(JNIEnv*, jobject) {
   // Trim the managed heap.
   Heap* heap = Runtime::Current()->GetHeap();
-  const Spaces& spaces = heap->GetSpaces();
-  // TODO: C++0x auto
-  for (Spaces::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
-    if ((*cur)->IsAllocSpace()) {
-      uint64_t start_ns = NanoTime();
-      AllocSpace* alloc_space = (*cur)->AsAllocSpace();
-      size_t alloc_space_size = alloc_space->Size();
-      float utilization = static_cast<float>(heap->GetBytesAllocated()) / alloc_space_size;
-      heap->Trim(alloc_space);
-      // Trim the native heap.
-      dlmalloc_trim(0);
-      dlmalloc_inspect_all(MspaceMadviseCallback, NULL);
-      LOG(INFO) << "Parallel heap trimming took " << PrettyDuration(NanoTime() - start_ns)
-                << " on a " << PrettySize(alloc_space_size)
-                << " alloc space with " << static_cast<int>(100 * utilization) << "% utilization";
-    }
-  }
+  uint64_t start_ns = NanoTime();
+  AllocSpace* alloc_space = heap->GetAllocSpace();
+  size_t alloc_space_size = alloc_space->Size();
+  float utilization = static_cast<float>(heap->GetBytesAllocated()) / alloc_space_size;
+  heap->Trim();
+  // Trim the native heap.
+  dlmalloc_trim(0);
+  dlmalloc_inspect_all(MspaceMadviseCallback, NULL);
+  LOG(INFO) << "Parallel heap trimming took " << PrettyDuration(NanoTime() - start_ns)
+            << " on a " << PrettySize(alloc_space_size)
+            << " alloc space with " << static_cast<int>(100 * utilization) << "% utilization";
 }
 
 static void VMRuntime_concurrentGC(JNIEnv*, jobject) {

@@ -268,6 +268,8 @@ void AllocSpace::FreeList(size_t num_ptrs, Object** ptrs) {
     if (!Contains(ptrs[i])) {
       num_broken_ptrs++;
       LOG(ERROR) << "FreeList[" << i << "] (" << ptrs[i] << ") not in bounds of heap " << *this;
+      size_t size = mspace_usable_size(ptrs[i]);
+      memset(ptrs[i], 0xEF, size);
     }
   }
   CHECK_EQ(num_broken_ptrs, 0u);

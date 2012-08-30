@@ -58,6 +58,7 @@ enum GcType {
   // Partial GC, over only the alloc space
   GC_PARTIAL,
 };
+std::ostream& operator<<(std::ostream& os, const GcType& policy);
 
 class LOCKABLE Heap {
  public:
@@ -100,6 +101,10 @@ class LOCKABLE Heap {
 
   // Check sanity of all live references. Requires the heap lock.
   void VerifyHeap();
+  static void RootMatchesObjectVisitor(const Object* root, void* arg);
+  void VerifyHeapReferences(const std::string& phase)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
   // A weaker test than IsLiveObject or VerifyObject that doesn't require the heap lock,
   // and doesn't abort on error, allowing the caller to report more
@@ -237,7 +242,7 @@ class LOCKABLE Heap {
 
   void DumpForSigQuit(std::ostream& os);
 
-  void Trim(AllocSpace* alloc_space);
+  void Trim();
 
   HeapBitmap* GetLiveBitmap() SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
     return live_bitmap_.get();
@@ -258,6 +263,13 @@ class LOCKABLE Heap {
 
   // Un-mark all the objects in the allocation stack.
   void UnMarkStack(MarkStack* alloc_stack);
+
+  // Un-mark all live objects in the allocation stack.
+  void UnMarkStackAsLive(MarkStack* alloc_stack);
+
+  // Update and mark mod union table based on gc type.
+  void UpdateAndMarkModUnion(TimingLogger& timings, GcType gc_type)
+      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   // DEPRECATED: Should remove in "near" future when support for multiple image spaces is added.
   // Assumes there is only one image space.
@@ -309,6 +321,9 @@ class LOCKABLE Heap {
   static void VerificationCallback(Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(GlobalSychronization::heap_bitmap_lock_);
 
+  // Swpa bitmaps (if we are a full Gc then we swap the zygote bitmap too).
+  void SwapBitmaps();
+
   Spaces spaces_;
 
   // The alloc space which we are currently allocating into.
@@ -352,6 +367,11 @@ class LOCKABLE Heap {
 
   // Number of objects allocated.  Adjusted after each allocation and free.
   volatile size_t num_objects_allocated_;
+
+  // Heap verification flags.
+  const bool pre_gc_verify_heap_;
+  const bool post_gc_verify_heap_;
+  const bool verify_mod_union_table_;
 
   // Last trim time
   uint64_t last_trim_time_;
@@ -397,6 +417,8 @@ class LOCKABLE Heap {
 
   bool verify_objects_;
 
+  friend class VerifyReferenceVisitor;
+  friend class VerifyObjectVisitor;
   friend class ScopedHeapLock;
   FRIEND_TEST(SpaceTest, AllocAndFree);
   FRIEND_TEST(SpaceTest, AllocAndFreeList);

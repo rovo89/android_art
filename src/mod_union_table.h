@@ -21,8 +21,6 @@
 #include "safe_map.h"
 #include "space.h"
 
-#define VERIFY_MOD_UNION 0
-
 namespace art {
 
 class Heap;
@@ -53,8 +51,10 @@ class ModUnionTable {
   virtual void MarkReferences() = 0;
 
   // Verification, sanity checks that we don't have clean cards which conflict with out cached data
-  // for said cards.
-  virtual void Verify() = 0;
+  // for said cards. Exclusive lock is required since verify sometimes uses
+  // SpaceBitmap::VisitMarkedRange and VisitMarkedRange can't know if the callback will modify the
+  // bitmap or not.
+  virtual void Verify() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) = 0;
 
   // Should probably clean this up later.
   void Init(MarkSweep* mark_sweep) {
@@ -121,8 +121,9 @@ class ModUnionTableReferenceCache : public ModUnionTable {
   // Mark all references to the alloc space(s).
   void MarkReferences() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
-  // Verify the mod-union table.
-  void Verify();
+  // Exclusive lock is required since verify uses SpaceBitmap::VisitMarkedRange and
+  // VisitMarkedRange can't know if the callback will modify the bitmap or not.
+  void Verify() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
 
   // Function that tells whether or not to add a reference to the table.
   virtual bool AddReference(const Object* obj, const Object* ref) = 0;
