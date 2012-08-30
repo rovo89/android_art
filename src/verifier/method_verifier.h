@@ -71,6 +71,7 @@ enum MethodType {
   METHOD_VIRTUAL,     // virtual, super
   METHOD_INTERFACE    // interface
 };
+std::ostream& operator<<(std::ostream& os, const MethodType& rhs);
 
 /*
  * An enumeration of problems that can turn up during verification.

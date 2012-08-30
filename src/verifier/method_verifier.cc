@@ -2596,8 +2596,8 @@ Method* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_method_idx, Met
       (method_type == METHOD_STATIC && !res_method->IsStatic()) ||
       ((method_type == METHOD_VIRTUAL || method_type == METHOD_INTERFACE) && res_method->IsDirect())
       ) {
-    Fail(VERIFY_ERROR_CLASS_CHANGE) << "invoke type does not match method type of "
-                                    << PrettyMethod(res_method);
+    Fail(VERIFY_ERROR_CLASS_CHANGE) << "invoke type (" << method_type << ") does not match method "
+                                       " type of " << PrettyMethod(res_method);
     return NULL;
   }
   return res_method;

@@ -3524,40 +3524,40 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
       case kDirect:
       case kStatic:
         if (resolved != NULL) {
-          ThrowIncompatibleClassChangeError(type, kVirtual, resolved);
+          ThrowIncompatibleClassChangeError(type, kVirtual, resolved, referrer);
         } else {
           resolved = klass->FindInterfaceMethod(name, signature);
           if (resolved != NULL) {
-            ThrowIncompatibleClassChangeError(type, kInterface, resolved);
+            ThrowIncompatibleClassChangeError(type, kInterface, resolved, referrer);
           } else {
-            ThrowNoSuchMethodError(type, klass, name, signature);
+            ThrowNoSuchMethodError(type, klass, name, signature, referrer);
           }
         }
         break;
       case kInterface:
         if (resolved != NULL) {
-          ThrowIncompatibleClassChangeError(type, kDirect, resolved);
+          ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer);
         } else {
           resolved = klass->FindVirtualMethod(name, signature);
           if (resolved != NULL) {
-            ThrowIncompatibleClassChangeError(type, kVirtual, resolved);
+            ThrowIncompatibleClassChangeError(type, kVirtual, resolved, referrer);
           } else {
-            ThrowNoSuchMethodError(type, klass, name, signature);
+            ThrowNoSuchMethodError(type, klass, name, signature, referrer);
           }
         }
         break;
       case kSuper:
-        ThrowNoSuchMethodError(type, klass, name, signature);
+        ThrowNoSuchMethodError(type, klass, name, signature, referrer);
         break;
       case kVirtual:
         if (resolved != NULL) {
-          ThrowIncompatibleClassChangeError(type, kDirect, resolved);
+          ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer);
         } else {
           resolved = klass->FindInterfaceMethod(name, signature);
           if (resolved != NULL) {
-            ThrowIncompatibleClassChangeError(type, kInterface, resolved);
+            ThrowIncompatibleClassChangeError(type, kInterface, resolved, referrer);
           } else {
-            ThrowNoSuchMethodError(type, klass, name, signature);
+            ThrowNoSuchMethodError(type, klass, name, signature, referrer);
           }
         }
         break;

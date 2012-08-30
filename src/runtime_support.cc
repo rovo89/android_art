@@ -144,11 +144,11 @@ static void ThrowNewIncompatibleClassChangeErrorField(Thread* self, const Field*
 }
 
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
-                                       Method* method) {
+                                       Method* method, const Method* referrer) {
   std::ostringstream msg;
   msg << "The method '" << PrettyMethod(method) << "' was expected to be of type "
       << expected_type << " but instead was found to be of type " << found_type;
-  ClassHelper kh(method->GetDeclaringClass());
+  ClassHelper kh(referrer->GetDeclaringClass());
   std::string location(kh.GetLocation());
   if (!location.empty()) {
     msg << " (accessed from " << location << ")";
@@ -158,11 +158,12 @@ void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType foun
 }
 
 void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
-                            const StringPiece& signature) {
+                            const StringPiece& signature, const Method* referrer) {
   ClassHelper kh(c);
   std::ostringstream msg;
   msg << "No " << type << " method " << name << signature
       << " in class " << kh.GetDescriptor() << " or its superclasses";
+  kh.ChangeClass(referrer->GetDeclaringClass());
   std::string location(kh.GetLocation());
   if (!location.empty()) {
     msg << " (accessed from " << location << ")";
@@ -575,7 +576,8 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
     } else {
       // Incompatible class change should have been handled in resolve method.
       if (UNLIKELY(resolved_method->CheckIncompatibleClassChange(type))) {
-        ThrowIncompatibleClassChangeError(type, resolved_method->GetInvokeType(), resolved_method);
+        ThrowIncompatibleClassChangeError(type, resolved_method->GetInvokeType(), resolved_method,
+                                          referrer);
         return NULL;  // Failure.
       }
       Class* methods_class = resolved_method->GetDeclaringClass();
@@ -633,7 +635,7 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
           // Behavior to agree with that of the verifier.
           MethodHelper mh(resolved_method);
           ThrowNoSuchMethodError(type, resolved_method->GetDeclaringClass(), mh.GetName(),
-                                 mh.GetSignature());
+                                 mh.GetSignature(), referrer);
           return NULL;  // Failure.
         }
       }

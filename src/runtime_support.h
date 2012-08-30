@@ -58,10 +58,10 @@ void ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(Thread* self,
                                                                    Object* this_object)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
-                                       Method* method)
+                                       Method* method, const Method* referrer)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
-                            const StringPiece& signature)
+                            const StringPiece& signature, const Method* referrer)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 void ThrowNewIllegalAccessErrorField(Thread* self, Class* referrer, Field* accessed)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
