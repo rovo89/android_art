@@ -146,7 +146,7 @@ static void ThrowNewIncompatibleClassChangeErrorField(Thread* self, const Field*
 void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
                                        Method* method) {
   std::ostringstream msg;
-  msg << "The method '" << PrettyMethod(method) << "' was expected to be of type"
+  msg << "The method '" << PrettyMethod(method) << "' was expected to be of type "
       << expected_type << " but instead was found to be of type " << found_type;
   ClassHelper kh(method->GetDeclaringClass());
   std::string location(kh.GetLocation());

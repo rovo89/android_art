@@ -612,6 +612,7 @@ static Method* GetReferrerMethod(const Compiler::PatchInformation* patch)
                                                patch->GetReferrerMethodIdx(),
                                                dex_cache,
                                                NULL,
+                                               NULL,
                                                patch->GetReferrerInvokeType());
   CHECK(method != NULL)
     << patch->GetDexFile().GetLocation() << " " << patch->GetReferrerMethodIdx();
@@ -631,6 +632,7 @@ static Method* GetTargetMethod(const Compiler::PatchInformation* patch)
   Method* method = class_linker->ResolveMethod(patch->GetDexFile(),
                                                patch->GetTargetMethodIdx(),
                                                dex_cache,
+                                               NULL,
                                                NULL,
                                                patch->GetTargetInvokeType());
   CHECK(method != NULL)

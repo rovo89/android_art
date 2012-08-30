@@ -673,7 +673,7 @@ static Method* ComputeMethodReferencedFromCompilingMethod(ScopedObjectAccess& so
   DexCache* dex_cache = mUnit->class_linker_->FindDexCache(*mUnit->dex_file_);
   ClassLoader* class_loader = soa.Decode<ClassLoader*>(mUnit->class_loader_);
   return mUnit->class_linker_->ResolveMethod(*mUnit->dex_file_, method_idx, dex_cache,
-                                             class_loader, type);
+                                             class_loader, NULL, type);
 }
 
 bool Compiler::ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
@@ -1140,7 +1140,7 @@ static void ResolveClassFieldsAndMethods(const CompilationContext* context, size
   }
   while (it.HasNextDirectMethod()) {
     Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
-                                                 class_loader, it.GetMethodInvokeType(class_def));
+                                                 class_loader, NULL, it.GetMethodInvokeType(class_def));
     if (method == NULL) {
       CHECK(self->IsExceptionPending());
       self->ClearException();
@@ -1149,7 +1149,7 @@ static void ResolveClassFieldsAndMethods(const CompilationContext* context, size
   }
   while (it.HasNextVirtualMethod()) {
     Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
-                                                 class_loader, it.GetMethodInvokeType(class_def));
+                                                 class_loader, NULL, it.GetMethodInvokeType(class_def));
     if (method == NULL) {
       CHECK(self->IsExceptionPending());
       self->ClearException();
@@ -1719,13 +1719,13 @@ void Compiler::SetGcMapsDexFile(jobject jni_class_loader, const DexFile& dex_fil
     }
     while (it.HasNextDirectMethod()) {
       Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
-                                                   class_loader, it.GetMethodInvokeType(class_def));
+                                                   class_loader, NULL, it.GetMethodInvokeType(class_def));
       SetGcMapsMethod(dex_file, method);
       it.Next();
     }
     while (it.HasNextVirtualMethod()) {
       Method* method = class_linker->ResolveMethod(dex_file, it.GetMemberIndex(), dex_cache,
-                                                   class_loader, it.GetMethodInvokeType(class_def));
+                                                   class_loader, NULL, it.GetMethodInvokeType(class_def));
       SetGcMapsMethod(dex_file, method);
       it.Next();
     }
