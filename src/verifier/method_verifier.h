@@ -537,12 +537,6 @@ class MethodVerifier {
   bool CheckNotMoveException(const uint16_t* insns, int insn_idx);
 
   /*
-   * Replace an instruction with "throw-verification-error". This allows us to
-   * defer error reporting until the code path is first used.
-   */
-  void ReplaceFailingInstruction();
-
-  /*
   * Control can transfer to "next_insn". Merge the registers from merge_line into the table at
   * next_insn, and set the changed flag on the target address if any of the registers were changed.
   * Returns "false" if an error is encountered.
@@ -654,8 +648,6 @@ class MethodVerifier {
   std::vector<std::ostringstream*> failure_messages_;
   // Is there a pending hard failure?
   bool have_pending_hard_failure_;
-  // Is there a pending failure that will cause dex opcodes to be rewritten.
-  bool have_pending_rewrite_failure_;
 
   // Info message log use primarily for verifier diagnostics.
   std::ostringstream info_messages_;

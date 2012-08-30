@@ -3404,6 +3404,7 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
                                    uint32_t method_idx,
                                    DexCache* dex_cache,
                                    ClassLoader* class_loader,
+                                   const Method* referrer,
                                    InvokeType type) {
   DCHECK(dex_cache != NULL);
   // Check for hit in the dex cache.
@@ -3486,14 +3487,42 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
     dex_cache->SetResolvedMethod(method_idx, resolved);
     return resolved;
   } else {
-    // We failed to find the method which means either an incompatible class change or no such
-    // method.
+    // We failed to find the method which means either an access error, an incompatible class
+    // change, or no such method. First try to find the method among direct and virtual methods.
     const char* name = dex_file.StringDataByIdx(method_id.name_idx_);
     std::string signature(dex_file.CreateMethodSignature(method_id.proto_idx_, NULL));
     switch (type) {
       case kDirect:
       case kStatic:
         resolved = klass->FindVirtualMethod(name, signature);
+        break;
+      case kInterface:
+      case kVirtual:
+      case kSuper:
+        resolved = klass->FindDirectMethod(name, signature);
+        break;
+    }
+
+    // If we found something, check that it can be accessed by the referrer.
+    if (resolved != NULL && referrer != NULL) {
+      Class* methods_class = resolved->GetDeclaringClass();
+      Class* referring_class = referrer->GetDeclaringClass();
+      if (!referring_class->CanAccess(methods_class)) {
+        ThrowNewIllegalAccessErrorClassForMethodDispatch(Thread::Current(), referring_class, methods_class,
+                                                         referrer, resolved, type);
+        return NULL;
+      } else if (!referring_class->CanAccessMember(methods_class,
+                                                   resolved->GetAccessFlags())) {
+        ThrowNewIllegalAccessErrorMethod(Thread::Current(), referring_class, resolved);
+        return NULL;
+      }
+    }
+
+    // Otherwise, throw an IncompatibleClassChangeError if we found something, and check interface
+    // methods and throw if we find the method there. If we find nothing, throw a NoSuchMethodError.
+    switch (type) {
+      case kDirect:
+      case kStatic:
         if (resolved != NULL) {
           ThrowIncompatibleClassChangeError(type, kVirtual, resolved);
         } else {
@@ -3506,7 +3535,6 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
         }
         break;
       case kInterface:
-        resolved = klass->FindDirectMethod(name, signature);
         if (resolved != NULL) {
           ThrowIncompatibleClassChangeError(type, kDirect, resolved);
         } else {
@@ -3522,7 +3550,6 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
         ThrowNoSuchMethodError(type, klass, name, signature);
         break;
       case kVirtual:
-        resolved = klass->FindDirectMethod(name, signature);
         if (resolved != NULL) {
           ThrowIncompatibleClassChangeError(type, kDirect, resolved);
         } else {

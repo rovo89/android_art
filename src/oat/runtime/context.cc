@@ -34,7 +34,7 @@ Context* Context::Create() {
 #elif defined(__i386__)
   return new x86::X86Context();
 #else
-  UNIMPLEMENTED(WARNING);
+  UNIMPLEMENTED(FATAL);
 #endif
 }
 

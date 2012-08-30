@@ -174,6 +174,7 @@ class ClassLinker {
                         uint32_t method_idx,
                         DexCache* dex_cache,
                         ClassLoader* class_loader,
+                        const Method* referrer,
                         InvokeType type)
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
 
@@ -185,7 +186,7 @@ class ClassLinker {
       DexCache* dex_cache = declaring_class->GetDexCache();
       ClassLoader* class_loader = declaring_class->GetClassLoader();
       const DexFile& dex_file = FindDexFile(dex_cache);
-      resolved_method = ResolveMethod(dex_file, method_idx, dex_cache, class_loader, type);
+      resolved_method = ResolveMethod(dex_file, method_idx, dex_cache, class_loader, referrer, type);
     }
     return resolved_method;
   }

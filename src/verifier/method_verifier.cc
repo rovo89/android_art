@@ -222,7 +222,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
   while (it.HasNextDirectMethod()) {
     uint32_t method_idx = it.GetMemberIndex();
     InvokeType type = it.GetMethodInvokeType(class_def);
-    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, type);
+    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
     if (method == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
       // We couldn't resolve the method, but continue regardless.
@@ -248,7 +248,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
   while (it.HasNextVirtualMethod()) {
     uint32_t method_idx = it.GetMemberIndex();
     InvokeType type = it.GetMethodInvokeType(class_def);
-    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, type);
+    Method* method = linker->ResolveMethod(*dex_file, method_idx, dex_cache, class_loader, NULL, type);
     if (method == NULL) {
       DCHECK(Thread::Current()->IsExceptionPending());
       // We couldn't resolve the method, but continue regardless.
@@ -333,7 +333,6 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
       interesting_dex_pc_(-1),
       monitor_enter_dex_pcs_(NULL),
       have_pending_hard_failure_(false),
-      have_pending_rewrite_failure_(false),
       new_instance_count_(0),
       monitor_enter_count_(0) {
 }
@@ -401,14 +400,11 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
         // If we're optimistically running verification at compile time, turn NO_xxx, ACCESS_xxx,
         // class change and instantiation errors into soft verification errors so that we re-verify
         // at runtime. We may fail to find or to agree on access because of not yet available class
-        // loaders, or class loaders that will differ at runtime. In some cases we will rewrite bad
-        // code at runtime but don't want to allow it at compile time due its effect on the
-        // soundness of the code being compiled. These cases, in the generated code, need to run as
-        // "slow paths" that dynamically perform the verification and cause the behavior to be that
-        // akin to an interpreter.
+        // loaders, or class loaders that will differ at runtime. In these cases, we don't want to
+        // affect the soundness of the code being compiled. Instead, the generated code runs "slow
+        // paths" that dynamically perform the verification and cause the behavior to be that akin
+        // to an interpreter.
         error = VERIFY_ERROR_BAD_CLASS_SOFT;
-      } else {
-        have_pending_rewrite_failure_ = true;
       }
       break;
       // Indication that verification should be retried at runtime.
@@ -2278,16 +2274,6 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     /* immediate failure, reject class */
     info_messages_ << "Rejecting opcode " << inst->DumpString(dex_file_);
     return false;
-  } else if (have_pending_rewrite_failure_) {
-    /* replace opcode and continue on */
-    std::string append("Replacing opcode ");
-    append += inst->DumpString(dex_file_);
-    AppendToLastFailMessage(append);
-    ReplaceFailingInstruction();
-    /* IMPORTANT: method->insns may have been changed */
-    insns = code_item_->insns_ + work_insn_idx_;
-    /* continue on as if we just handled a throw-verification-error */
-    opcode_flags = Instruction::kThrow;
   }
   /*
    * If we didn't just set the result register, clear it out. This ensures that you can only use
@@ -3059,110 +3045,6 @@ bool MethodVerifier::CheckNotMoveException(const uint16_t* insns, int insn_idx) 
     return false;
   }
   return true;
-}
-
-void MethodVerifier::ReplaceFailingInstruction() {
-  // Pop the failure and clear the need for rewriting.
-  size_t failure_number = failures_.size();
-  CHECK_NE(failure_number, 0U);
-  DCHECK_EQ(failure_messages_.size(), failure_number);
-  std::ostringstream* failure_message = failure_messages_[0];
-  VerifyError failure = failures_[0];
-  failures_.clear();
-  failure_messages_.clear();
-  have_pending_rewrite_failure_ = false;
-
-  if (Runtime::Current()->IsStarted()) {
-    LOG(ERROR) << "Verification attempting to replace instructions at runtime in "
-               << PrettyMethod(method_idx_, *dex_file_) << " " << failure_message->str();
-    return;
-  }
-
-  CHECK_EQ(dex_file_->GetPermissions() & PROT_WRITE, PROT_WRITE);  // Dex file needs to be writable.
-
-  const Instruction* inst = Instruction::At(code_item_->insns_ + work_insn_idx_);
-  DCHECK(inst->IsThrow()) << "Expected instruction that will throw " << inst->Name();
-  VerifyErrorRefType ref_type;
-  switch (inst->Opcode()) {
-    case Instruction::CONST_CLASS:            // insn[1] == class ref, 2 code units (4 bytes)
-    case Instruction::CHECK_CAST:
-    case Instruction::INSTANCE_OF:
-    case Instruction::NEW_INSTANCE:
-    case Instruction::NEW_ARRAY:
-    case Instruction::FILLED_NEW_ARRAY:       // insn[1] == class ref, 3 code units (6 bytes)
-    case Instruction::FILLED_NEW_ARRAY_RANGE:
-      ref_type = VERIFY_ERROR_REF_CLASS;
-      break;
-    case Instruction::IGET:                   // insn[1] == field ref, 2 code units (4 bytes)
-    case Instruction::IGET_BOOLEAN:
-    case Instruction::IGET_BYTE:
-    case Instruction::IGET_CHAR:
-    case Instruction::IGET_SHORT:
-    case Instruction::IGET_WIDE:
-    case Instruction::IGET_OBJECT:
-    case Instruction::IPUT:
-    case Instruction::IPUT_BOOLEAN:
-    case Instruction::IPUT_BYTE:
-    case Instruction::IPUT_CHAR:
-    case Instruction::IPUT_SHORT:
-    case Instruction::IPUT_WIDE:
-    case Instruction::IPUT_OBJECT:
-    case Instruction::SGET:
-    case Instruction::SGET_BOOLEAN:
-    case Instruction::SGET_BYTE:
-    case Instruction::SGET_CHAR:
-    case Instruction::SGET_SHORT:
-    case Instruction::SGET_WIDE:
-    case Instruction::SGET_OBJECT:
-    case Instruction::SPUT:
-    case Instruction::SPUT_BOOLEAN:
-    case Instruction::SPUT_BYTE:
-    case Instruction::SPUT_CHAR:
-    case Instruction::SPUT_SHORT:
-    case Instruction::SPUT_WIDE:
-    case Instruction::SPUT_OBJECT:
-      ref_type = VERIFY_ERROR_REF_FIELD;
-      break;
-    case Instruction::INVOKE_VIRTUAL:         // insn[1] == method ref, 3 code units (6 bytes)
-    case Instruction::INVOKE_VIRTUAL_RANGE:
-    case Instruction::INVOKE_SUPER:
-    case Instruction::INVOKE_SUPER_RANGE:
-    case Instruction::INVOKE_DIRECT:
-    case Instruction::INVOKE_DIRECT_RANGE:
-    case Instruction::INVOKE_STATIC:
-    case Instruction::INVOKE_STATIC_RANGE:
-    case Instruction::INVOKE_INTERFACE:
-    case Instruction::INVOKE_INTERFACE_RANGE:
-      ref_type = VERIFY_ERROR_REF_METHOD;
-      break;
-    default:
-      LOG(FATAL) << "Error: verifier asked to replace instruction " << inst->DumpString(dex_file_);
-      return;
-  }
-  uint16_t* insns = const_cast<uint16_t*>(code_item_->insns_);
-  // THROW_VERIFICATION_ERROR is a 2 code unit instruction. We shouldn't be rewriting a 1 code unit
-  // instruction, so assert it.
-  size_t width = inst->SizeInCodeUnits();
-  CHECK_GT(width, 1u);
-  // If the instruction is larger than 2 code units, rewrite subsequent code unit sized chunks with
-  // NOPs
-  for (size_t i = 2; i < width; i++) {
-    insns[work_insn_idx_ + i] = Instruction::NOP;
-  }
-  // Encode the opcode, with the failure code in the high byte
-  uint16_t new_instruction = Instruction::THROW_VERIFICATION_ERROR |
-                             (failure << 8) |  // AA - component
-                             (ref_type << (8 + kVerifyErrorRefTypeShift));
-  insns[work_insn_idx_] = new_instruction;
-  // The 2nd code unit (higher in memory) with the reference in, comes from the instruction we
-  // rewrote, so nothing to do here.
-  LOG(INFO) << "Verification error, replacing instructions in "
-            << PrettyMethod(method_idx_, *dex_file_) << " "
-            << failure_message->str();
-  if (gDebugVerify) {
-    std::cout << "\n" << info_messages_.str();
-    Dump(std::cout);
-  }
 }
 
 bool MethodVerifier::UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_line) {

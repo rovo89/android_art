@@ -346,10 +346,12 @@ class CommonTest : public testing::Test {
     class_linker_ = runtime_->GetClassLinker();
 
     InstructionSet instruction_set = kNone;
-#if defined(__i386__)
-    instruction_set = kX86;
-#elif defined(__arm__)
+#if defined(__arm__)
     instruction_set = kThumb2;
+#elif defined(__mips__)
+    instruction_set = kMips;
+#elif defined(__i386__)
+    instruction_set = kX86;
 #endif
     runtime_->SetJniDlsymLookupStub(Compiler::CreateJniDlsymLookupStub(instruction_set));
     runtime_->SetAbstractMethodErrorStubArray(Compiler::CreateAbstractMethodErrorStub(instruction_set));
