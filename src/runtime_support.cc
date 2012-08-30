@@ -148,10 +148,12 @@ void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType foun
   std::ostringstream msg;
   msg << "The method '" << PrettyMethod(method) << "' was expected to be of type "
       << expected_type << " but instead was found to be of type " << found_type;
-  ClassHelper kh(referrer->GetDeclaringClass());
-  std::string location(kh.GetLocation());
-  if (!location.empty()) {
-    msg << " (accessed from " << location << ")";
+  if (referrer != NULL) {
+    ClassHelper kh(referrer->GetDeclaringClass());
+    std::string location(kh.GetLocation());
+    if (!location.empty()) {
+      msg << " (accessed from " << location << ")";
+    }
   }
   Thread::Current()->ThrowNewException("Ljava/lang/IncompatibleClassChangeError;",
                                        msg.str().c_str());
@@ -163,10 +165,12 @@ void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
   std::ostringstream msg;
   msg << "No " << type << " method " << name << signature
       << " in class " << kh.GetDescriptor() << " or its superclasses";
-  kh.ChangeClass(referrer->GetDeclaringClass());
-  std::string location(kh.GetLocation());
-  if (!location.empty()) {
-    msg << " (accessed from " << location << ")";
+  if (referrer != NULL) {
+    kh.ChangeClass(referrer->GetDeclaringClass());
+    std::string location(kh.GetLocation());
+    if (!location.empty()) {
+      msg << " (accessed from " << location << ")";
+    }
   }
   Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", msg.str().c_str());
 }

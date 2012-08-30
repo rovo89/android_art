@@ -2078,12 +2078,21 @@ void ClassLinker::VerifyClass(Class* klass) {
           << " because: " << error_msg;
     }
     Thread::Current()->AssertNoPendingException();
-    CHECK(verifier_failure == verifier::MethodVerifier::kNoFailure ||
-          Runtime::Current()->IsCompiler());
-    // Make sure all classes referenced by catch blocks are resolved
+    // Make sure all classes referenced by catch blocks are resolved.
     ResolveClassExceptionHandlerTypes(dex_file, klass);
-    klass->SetStatus(verifier_failure == verifier::MethodVerifier::kNoFailure ?
-                     Class::kStatusVerified : Class::kStatusRetryVerificationAtRuntime);
+    if (verifier_failure == verifier::MethodVerifier::kNoFailure) {
+      klass->SetStatus(Class::kStatusVerified);
+    } else {
+      CHECK_EQ(verifier_failure, verifier::MethodVerifier::kSoftFailure);
+      // Soft failures at compile time should be retried at runtime. Soft
+      // failures at runtime will be handled by slow paths in the generated
+      // code. Set status accordingly.
+      if (Runtime::Current()->IsCompiler()) {
+        klass->SetStatus(Class::kStatusRetryVerificationAtRuntime);
+      } else {
+        klass->SetStatus(Class::kStatusVerified);
+      }
+    }
     // Sanity check that a verified class has GC maps on all methods
     CheckMethodsHaveGcMaps(klass);
   } else {

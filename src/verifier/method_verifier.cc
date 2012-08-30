@@ -396,16 +396,14 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
     case VERIFY_ERROR_ACCESS_METHOD:
     case VERIFY_ERROR_INSTANTIATION:
     case VERIFY_ERROR_CLASS_CHANGE:
-      if (Runtime::Current()->IsCompiler()) {
-        // If we're optimistically running verification at compile time, turn NO_xxx, ACCESS_xxx,
-        // class change and instantiation errors into soft verification errors so that we re-verify
-        // at runtime. We may fail to find or to agree on access because of not yet available class
-        // loaders, or class loaders that will differ at runtime. In these cases, we don't want to
-        // affect the soundness of the code being compiled. Instead, the generated code runs "slow
-        // paths" that dynamically perform the verification and cause the behavior to be that akin
-        // to an interpreter.
-        error = VERIFY_ERROR_BAD_CLASS_SOFT;
-      }
+      // If we're optimistically running verification at compile time, turn NO_xxx, ACCESS_xxx,
+      // class change and instantiation errors into soft verification errors so that we re-verify
+      // at runtime. We may fail to find or to agree on access because of not yet available class
+      // loaders, or class loaders that will differ at runtime. In these cases, we don't want to
+      // affect the soundness of the code being compiled. Instead, the generated code runs "slow
+      // paths" that dynamically perform the verification and cause the behavior to be that akin
+      // to an interpreter.
+      error = VERIFY_ERROR_BAD_CLASS_SOFT;
       break;
       // Indication that verification should be retried at runtime.
     case VERIFY_ERROR_BAD_CLASS_SOFT:

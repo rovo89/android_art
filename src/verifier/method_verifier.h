@@ -659,6 +659,7 @@ class MethodVerifier {
 
   friend struct art::ReferenceMap2Visitor; // for VerifyMethodAndDump
 };
+std::ostream& operator<<(std::ostream& os, const MethodVerifier::FailureKind& rhs);
 
 }  // namespace verifier
 }  // namespace art
