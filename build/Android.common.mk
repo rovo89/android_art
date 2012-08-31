@@ -146,6 +146,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/card_table.cc \
 	src/check_jni.cc \
 	src/class_linker.cc \
+	src/common_throws.cc \
 	src/compiled_method.cc \
 	src/compiler.cc \
 	src/debugger.cc \

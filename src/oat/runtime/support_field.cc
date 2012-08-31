@@ -77,7 +77,7 @@ extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, Object* obj,
   field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveRead, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerExceptionForFieldAccess(self, field, true);
+      ThrowNullPointerExceptionForFieldAccess(field, true);
     } else {
       return field->Get32(obj);
     }
@@ -96,7 +96,7 @@ extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, Object* obj,
   field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveRead, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerExceptionForFieldAccess(self, field, true);
+      ThrowNullPointerExceptionForFieldAccess(field, true);
     } else {
       return field->Get64(obj);
     }
@@ -115,7 +115,7 @@ extern "C" Object* artGetObjInstanceFromCode(uint32_t field_idx, Object* obj,
   field = FindFieldFromCode(field_idx, referrer, self, InstanceObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerExceptionForFieldAccess(self, field, true);
+      ThrowNullPointerExceptionForFieldAccess(field, true);
     } else {
       return field->GetObj(obj);
     }
@@ -188,7 +188,7 @@ extern "C" int artSet32InstanceFromCode(uint32_t field_idx, Object* obj, uint32_
   field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveWrite, sizeof(int32_t));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerExceptionForFieldAccess(self, field, false);
+      ThrowNullPointerExceptionForFieldAccess(field, false);
     } else {
       field->Set32(obj, new_value);
       return 0;  // success
@@ -212,7 +212,7 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, Object* obj, uint64_
   field = FindFieldFromCode(field_idx, referrer, self, InstancePrimitiveWrite, sizeof(int64_t));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerExceptionForFieldAccess(self, field, false);
+      ThrowNullPointerExceptionForFieldAccess(field, false);
     } else {
       field->Set64(obj, new_value);
       return 0;  // success
@@ -233,7 +233,7 @@ extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, Object* obj, Object
   field = FindFieldFromCode(field_idx, referrer, self, InstanceObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerExceptionForFieldAccess(self, field, false);
+      ThrowNullPointerExceptionForFieldAccess(field, false);
     } else {
       field->SetObj(obj, new_value);
       return 0;  // success

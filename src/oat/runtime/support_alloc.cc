@@ -37,7 +37,7 @@ extern "C" Array* artAllocArrayFromCode(uint32_t type_idx, Method* method, int32
                                         Thread* self, Method** sp)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  return AllocArrayFromCode(type_idx, method, component_count, self, false);
+  return AllocArrayFromCode(type_idx, method, component_count, false);
 }
 
 extern "C" Array* artAllocArrayFromCodeWithAccessCheck(uint32_t type_idx, Method* method,
@@ -45,7 +45,7 @@ extern "C" Array* artAllocArrayFromCodeWithAccessCheck(uint32_t type_idx, Method
                                                        Thread* self, Method** sp)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
-  return AllocArrayFromCode(type_idx, method, component_count, self, true);
+  return AllocArrayFromCode(type_idx, method, component_count, true);
 }
 
 extern "C" Array* artCheckAndAllocArrayFromCode(uint32_t type_idx, Method* method,

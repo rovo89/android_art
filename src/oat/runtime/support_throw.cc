@@ -54,7 +54,7 @@ extern "C" void artThrowNullPointerExceptionFromCode(Thread* self, Method** sp)
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   uint32_t dex_pc;
   Method* throw_method = self->GetCurrentMethod(&dex_pc);
-  ThrowNullPointerExceptionFromDexPC(self, throw_method, dex_pc);
+  ThrowNullPointerExceptionFromDexPC(throw_method, dex_pc);
   self->DeliverException();
 }
 
@@ -93,8 +93,7 @@ extern "C" void artThrowNoSuchMethodFromCode(int32_t method_idx, Thread* self, M
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
   Method* method = self->GetCurrentMethod();
-  self->ThrowNewException("Ljava/lang/NoSuchMethodError;",
-      MethodNameFromIndex(method, method_idx, verifier::VERIFY_ERROR_REF_METHOD, false).c_str());
+  ThrowNoSuchMethodError(method_idx, method);
   self->DeliverException();
 }
 

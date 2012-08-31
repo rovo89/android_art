@@ -2452,27 +2452,25 @@ inline uint32_t Method::GetDexMethodIndex() const {
 }
 
 inline bool Method::CheckIncompatibleClassChange(InvokeType type) {
-  bool icce = true;
   switch (type) {
     case kStatic:
-      icce = !IsStatic();
-      break;
+      return !IsStatic();
     case kDirect:
-      icce = !IsDirect();
-      break;
-    case kVirtual:
-      icce = IsDirect();
-      break;
+      return !IsDirect() || IsStatic();
+    case kVirtual: {
+      Class* methods_class = GetDeclaringClass();
+      return IsDirect() || (methods_class->IsInterface() && !IsMiranda());
+    }
     case kSuper:
-      icce = false;
-      break;
+      return false;  // TODO: appropriate checks for call to super class.
     case kInterface: {
       Class* methods_class = GetDeclaringClass();
-      icce = IsDirect() || !(methods_class->IsInterface() || methods_class->IsObjectClass());
-      break;
+      return IsDirect() || !(methods_class->IsInterface() || methods_class->IsObjectClass());
     }
+    default:
+      LOG(FATAL) << "UNREACHABLE";
+      return true;
   }
-  return icce;
 }
 
 inline void Method::AssertPcIsWithinCode(uintptr_t pc) const {

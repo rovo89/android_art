@@ -118,7 +118,9 @@ static void ThrowEarlierClassFailure(Class* c)
   // a NoClassDefFoundError (v2 2.17.5).  The exception to this rule is if we
   // failed in verification, in which case v2 5.4.1 says we need to re-throw
   // the previous error.
-  LOG(INFO) << "Rejecting re-init on previously-failed class " << PrettyClass(c);
+  if (!Runtime::Current()->IsCompiler()) {  // Give info if this occurs at runtime.
+    LOG(INFO) << "Rejecting re-init on previously-failed class " << PrettyClass(c);
+  }
 
   CHECK(c->IsErroneous()) << PrettyClass(c) << " " << c->GetStatus();
   if (c->GetVerifyErrorClass() != NULL) {
@@ -3465,31 +3467,8 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
   }
   if (resolved != NULL) {
     // We found a method, check for incompatible class changes.
-    switch (type) {
-      case kDirect:
-        if (resolved->IsStatic()) {
-          resolved = NULL;  // Incompatible class change.
-        }
-        break;
-      case kStatic:
-        if (!resolved->IsStatic()) {
-          resolved = NULL;  // Incompatible class change.
-        }
-        break;
-      case kInterface:
-        if (resolved->IsConstructor() || !resolved->GetDeclaringClass()->IsInterface()) {
-          resolved = NULL;  // Incompatible class change.
-        }
-        break;
-      case kSuper:
-        // TODO: appropriate checks for call to super class.
-        break;
-      case kVirtual:
-        if (resolved->IsConstructor() || (resolved->GetDeclaringClass()->IsInterface() &&
-                                          !resolved->IsMiranda())) {
-          resolved = NULL;  // Incompatible class change.
-        }
-        break;
+    if (resolved->CheckIncompatibleClassChange(type)) {
+      resolved = NULL;
     }
   }
   if (resolved != NULL) {
@@ -3518,12 +3497,12 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
       Class* methods_class = resolved->GetDeclaringClass();
       Class* referring_class = referrer->GetDeclaringClass();
       if (!referring_class->CanAccess(methods_class)) {
-        ThrowNewIllegalAccessErrorClassForMethodDispatch(Thread::Current(), referring_class, methods_class,
-                                                         referrer, resolved, type);
+        ThrowIllegalAccessErrorClassForMethodDispatch(referring_class, methods_class,
+                                                      referrer, resolved, type);
         return NULL;
       } else if (!referring_class->CanAccessMember(methods_class,
                                                    resolved->GetAccessFlags())) {
-        ThrowNewIllegalAccessErrorMethod(Thread::Current(), referring_class, resolved);
+        ThrowIllegalAccessErrorMethod(referring_class, resolved);
         return NULL;
       }
     }

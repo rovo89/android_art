@@ -133,11 +133,7 @@ void art_throw_no_such_method_from_code(int32_t method_idx)
   Thread* thread = art_get_current_thread_from_code();
   // We need the calling method as context for the method_idx
   Method* method = thread->GetCurrentMethod();
-  thread->ThrowNewException("Ljava/lang/NoSuchMethodError;",
-                            MethodNameFromIndex(method,
-                                                method_idx,
-                                                verifier::VERIFY_ERROR_REF_METHOD,
-                                                false).c_str());
+  ThrowNoSuchMethodError(method_idx, method);
 }
 
 void art_throw_null_pointer_exception_from_code(uint32_t dex_pc)
@@ -146,7 +142,7 @@ void art_throw_null_pointer_exception_from_code(uint32_t dex_pc)
   NthCallerVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), 0);
   visitor.WalkStack();
   Method* throw_method = visitor.caller;
-  ThrowNullPointerExceptionFromDexPC(thread, throw_method, dex_pc);
+  ThrowNullPointerExceptionFromDexPC(throw_method, dex_pc);
 }
 
 void art_throw_stack_overflow_from_code()
@@ -226,17 +222,17 @@ Object* art_alloc_object_from_code_with_access_check(uint32_t type_idx,
 Object* art_alloc_array_from_code(uint32_t type_idx,
                                   Method* referrer,
                                   uint32_t length,
-                                  Thread* thread)
+                                  Thread* /*thread*/)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  return AllocArrayFromCode(type_idx, referrer, length, thread, false);
+  return AllocArrayFromCode(type_idx, referrer, length, false);
 }
 
 Object* art_alloc_array_from_code_with_access_check(uint32_t type_idx,
                                                     Method* referrer,
                                                     uint32_t length,
-                                                    Thread* thread)
+                                                    Thread* /*thread*/)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  return AllocArrayFromCode(type_idx, referrer, length, thread, true);
+  return AllocArrayFromCode(type_idx, referrer, length, true);
 }
 
 Object* art_check_and_alloc_array_from_code(uint32_t type_idx,

@@ -89,259 +89,6 @@ int32_t art_f2i(float f) {
 
 namespace art {
 
-void ThrowNewIllegalAccessErrorClass(Thread* self,
-                                     Class* referrer,
-                                     Class* accessed) {
-  self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                           "Illegal class access: '%s' -> '%s'",
-                           PrettyDescriptor(referrer).c_str(),
-                           PrettyDescriptor(accessed).c_str());
-}
-
-void ThrowNewIllegalAccessErrorClassForMethodDispatch(Thread* self,
-                                                      Class* referrer,
-                                                      Class* accessed,
-                                                      const Method* caller,
-                                                      const Method* called,
-                                                      InvokeType type) {
-  self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                           "Illegal class access ('%s' -> '%s')"
-                           "in attempt to invoke %s method '%s' from '%s'",
-                           PrettyDescriptor(referrer).c_str(),
-                           PrettyDescriptor(accessed).c_str(),
-                           ToStr<InvokeType>(type).c_str(),
-                           PrettyMethod(called).c_str(),
-                           PrettyMethod(caller).c_str());
-}
-
-static void ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(Thread* self,
-                                                                          const Method* interface_method,
-                                                                          Object* this_object)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  std::string interface_method_name(PrettyMethod(interface_method));
-  if (this_object != NULL) {
-    std::string this_class_descriptor(PrettyDescriptor(this_object->GetClass()));
-    std::string interface_class_descriptor(PrettyDescriptor(interface_method->GetDeclaringClass()));
-    self->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-                             "Class '%s' does not implement interface '%s' in call to '%s'",
-                             this_class_descriptor.c_str(),
-                             interface_class_descriptor.c_str(),
-                             interface_method_name.c_str());
-  } else {
-    self->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-                             "Expected '%s' to be an interface method",
-                             interface_method_name.c_str());
-  }
-}
-
-static void ThrowNewIncompatibleClassChangeErrorField(Thread* self, const Field* resolved_field,
-                                               bool is_static)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-  self->ThrowNewExceptionF("Ljava/lang/IncompatibleClassChangeError;",
-                           "Expected '%s' to be a %s field",
-                           PrettyField(resolved_field).c_str(),
-                           is_static ? "static" : "instance");
-}
-
-void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
-                                       Method* method, const Method* referrer) {
-  std::ostringstream msg;
-  msg << "The method '" << PrettyMethod(method) << "' was expected to be of type "
-      << expected_type << " but instead was found to be of type " << found_type;
-  if (referrer != NULL) {
-    ClassHelper kh(referrer->GetDeclaringClass());
-    std::string location(kh.GetLocation());
-    if (!location.empty()) {
-      msg << " (accessed from " << location << ")";
-    }
-  }
-  Thread::Current()->ThrowNewException("Ljava/lang/IncompatibleClassChangeError;",
-                                       msg.str().c_str());
-}
-
-void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
-                            const StringPiece& signature, const Method* referrer) {
-  ClassHelper kh(c);
-  std::ostringstream msg;
-  msg << "No " << type << " method " << name << signature
-      << " in class " << kh.GetDescriptor() << " or its superclasses";
-  if (referrer != NULL) {
-    kh.ChangeClass(referrer->GetDeclaringClass());
-    std::string location(kh.GetLocation());
-    if (!location.empty()) {
-      msg << " (accessed from " << location << ")";
-    }
-  }
-  Thread::Current()->ThrowNewException("Ljava/lang/NoSuchMethodError;", msg.str().c_str());
-}
-
-void ThrowNewIllegalAccessErrorField(Thread* self,
-                                     Class* referrer,
-                                     Field* accessed) {
-  self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                           "Field '%s' is inaccessible to class '%s'",
-                           PrettyField(accessed, false).c_str(),
-                           PrettyDescriptor(referrer).c_str());
-}
-
-void ThrowNewIllegalAccessErrorFinalField(Thread* self,
-                                          const Method* referrer,
-                                          Field* accessed) {
-  self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                           "Final field '%s' cannot be written to by method '%s'",
-                           PrettyField(accessed, false).c_str(),
-                           PrettyMethod(referrer).c_str());
-}
-
-void ThrowNewIllegalAccessErrorMethod(Thread* self,
-                                      Class* referrer,
-                                      Method* accessed) {
-  self->ThrowNewExceptionF("Ljava/lang/IllegalAccessError;",
-                           "Method '%s' is inaccessible to class '%s'",
-                           PrettyMethod(accessed).c_str(),
-                           PrettyDescriptor(referrer).c_str());
-}
-
-void ThrowNullPointerExceptionForFieldAccess(Thread* self,
-                                                           Field* field,
-                                                           bool is_read) {
-  self->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
-                           "Attempt to %s field '%s' on a null object reference",
-                           is_read ? "read from" : "write to",
-                           PrettyField(field, true).c_str());
-}
-
-void ThrowNullPointerExceptionForMethodAccess(Thread* self,
-                                              Method* caller,
-                                              uint32_t method_idx,
-                                              InvokeType type) {
-  const DexFile& dex_file =
-      Runtime::Current()->GetClassLinker()->FindDexFile(caller->GetDeclaringClass()->GetDexCache());
-  self->ThrowNewExceptionF("Ljava/lang/NullPointerException;",
-                           "Attempt to invoke %s method '%s' on a null object reference",
-                           ToStr<InvokeType>(type).c_str(),
-                           PrettyMethod(method_idx, dex_file, true).c_str());
-}
-
-void ThrowNullPointerExceptionFromDexPC(Thread* self, Method* throw_method, uint32_t dex_pc) {
-  const DexFile::CodeItem* code = MethodHelper(throw_method).GetCodeItem();
-  CHECK_LT(dex_pc, code->insns_size_in_code_units_);
-  const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
-  DecodedInstruction dec_insn(instr);
-  switch (instr->Opcode()) {
-    case Instruction::INVOKE_DIRECT:
-    case Instruction::INVOKE_DIRECT_RANGE:
-      ThrowNullPointerExceptionForMethodAccess(self, throw_method, dec_insn.vB, kDirect);
-      break;
-    case Instruction::INVOKE_VIRTUAL:
-    case Instruction::INVOKE_VIRTUAL_RANGE:
-      ThrowNullPointerExceptionForMethodAccess(self, throw_method, dec_insn.vB, kVirtual);
-      break;
-    case Instruction::IGET:
-    case Instruction::IGET_WIDE:
-    case Instruction::IGET_OBJECT:
-    case Instruction::IGET_BOOLEAN:
-    case Instruction::IGET_BYTE:
-    case Instruction::IGET_CHAR:
-    case Instruction::IGET_SHORT: {
-      Field* field =
-          Runtime::Current()->GetClassLinker()->ResolveField(dec_insn.vC, throw_method, false);
-      ThrowNullPointerExceptionForFieldAccess(self, field, true /* read */);
-      break;
-    }
-    case Instruction::IPUT:
-    case Instruction::IPUT_WIDE:
-    case Instruction::IPUT_OBJECT:
-    case Instruction::IPUT_BOOLEAN:
-    case Instruction::IPUT_BYTE:
-    case Instruction::IPUT_CHAR:
-    case Instruction::IPUT_SHORT: {
-      Field* field =
-          Runtime::Current()->GetClassLinker()->ResolveField(dec_insn.vC, throw_method, false);
-      ThrowNullPointerExceptionForFieldAccess(self, field, false /* write */);
-      break;
-    }
-    case Instruction::AGET:
-    case Instruction::AGET_WIDE:
-    case Instruction::AGET_OBJECT:
-    case Instruction::AGET_BOOLEAN:
-    case Instruction::AGET_BYTE:
-    case Instruction::AGET_CHAR:
-    case Instruction::AGET_SHORT:
-      self->ThrowNewException("Ljava/lang/NullPointerException;",
-                              "Attempt to read from null array");
-      break;
-    case Instruction::APUT:
-    case Instruction::APUT_WIDE:
-    case Instruction::APUT_OBJECT:
-    case Instruction::APUT_BOOLEAN:
-    case Instruction::APUT_BYTE:
-    case Instruction::APUT_CHAR:
-    case Instruction::APUT_SHORT:
-      self->ThrowNewException("Ljava/lang/NullPointerException;",
-                              "Attempt to write to null array");
-      break;
-    case Instruction::ARRAY_LENGTH:
-      self->ThrowNewException("Ljava/lang/NullPointerException;",
-                              "Attempt to get length of null array");
-      break;
-    default: {
-      const DexFile& dex_file = Runtime::Current()->GetClassLinker()
-          ->FindDexFile(throw_method->GetDeclaringClass()->GetDexCache());
-      std::string message("Null pointer exception during instruction '");
-      message += instr->DumpString(&dex_file);
-      message += "'";
-      self->ThrowNewException("Ljava/lang/NullPointerException;", message.c_str());
-      break;
-    }
-  }
-}
-
-std::string FieldNameFromIndex(const Method* method, uint32_t ref,
-                               verifier::VerifyErrorRefType ref_type, bool access) {
-  CHECK_EQ(static_cast<int>(ref_type), static_cast<int>(verifier::VERIFY_ERROR_REF_FIELD));
-
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
-
-  const DexFile::FieldId& id = dex_file.GetFieldId(ref);
-  std::string class_name(PrettyDescriptor(dex_file.GetFieldDeclaringClassDescriptor(id)));
-  const char* field_name = dex_file.StringDataByIdx(id.name_idx_);
-  if (!access) {
-    return class_name + "." + field_name;
-  }
-
-  std::string result;
-  result += "tried to access field ";
-  result += class_name + "." + field_name;
-  result += " from class ";
-  result += PrettyDescriptor(method->GetDeclaringClass());
-  return result;
-}
-
-std::string MethodNameFromIndex(const Method* method, uint32_t ref,
-                                verifier::VerifyErrorRefType ref_type, bool access) {
-  CHECK_EQ(static_cast<int>(ref_type), static_cast<int>(verifier::VERIFY_ERROR_REF_METHOD));
-
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  const DexFile& dex_file = class_linker->FindDexFile(method->GetDeclaringClass()->GetDexCache());
-
-  const DexFile::MethodId& id = dex_file.GetMethodId(ref);
-  std::string class_name(PrettyDescriptor(dex_file.GetMethodDeclaringClassDescriptor(id)));
-  const char* method_name = dex_file.StringDataByIdx(id.name_idx_);
-  if (!access) {
-    return class_name + "." + method_name;
-  }
-
-  std::string result;
-  result += "tried to access method ";
-  result += class_name + "." + method_name + ":" +
-      dex_file.CreateMethodSignature(id.proto_idx_, NULL);
-  result += " from class ";
-  result += PrettyDescriptor(method->GetDeclaringClass());
-  return result;
-}
-
 // Helper function to allocate array for FILLED_NEW_ARRAY.
 Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
                                   Thread* self, bool access_check) {
@@ -372,7 +119,7 @@ Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t com
     if (access_check) {
       Class* referrer = method->GetDeclaringClass();
       if (UNLIKELY(!referrer->CanAccess(klass))) {
-        ThrowNewIllegalAccessErrorClass(self, referrer, klass);
+        ThrowIllegalAccessErrorClass(referrer, klass);
         return NULL;  // Failure
       }
     }
@@ -404,7 +151,7 @@ Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* sel
     return NULL;  // Failure.
   } else {
     if (resolved_field->IsStatic() != is_static) {
-      ThrowNewIncompatibleClassChangeErrorField(self, resolved_field, is_static);
+      ThrowIncompatibleClassChangeErrorField(resolved_field, is_static, referrer);
       return NULL;
     }
     Class* fields_class = resolved_field->GetDeclaringClass();
@@ -420,16 +167,16 @@ Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* sel
                                                dex_file.GetFieldId(field_idx).class_idx_,
                                                referring_class);
       if (UNLIKELY(!referring_class->CanAccess(fields_class))) {
-        ThrowNewIllegalAccessErrorClass(self, referring_class, fields_class);
+        ThrowIllegalAccessErrorClass(referring_class, fields_class);
         return NULL;  // failure
       } else if (UNLIKELY(!referring_class->CanAccessMember(fields_class,
                                                             resolved_field->GetAccessFlags()))) {
-        ThrowNewIllegalAccessErrorField(self, referring_class, resolved_field);
+        ThrowIllegalAccessErrorField(referring_class, resolved_field);
         return NULL;  // failure
       }
     }
     if (UNLIKELY(is_set && resolved_field->IsFinal() && (fields_class != referring_class))) {
-      ThrowNewIllegalAccessErrorFinalField(self, referrer, resolved_field);
+      ThrowIllegalAccessErrorFinalField(referrer, resolved_field);
       return NULL;  // failure
     } else {
       FieldHelper fh(resolved_field);
@@ -477,9 +224,8 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
         Method* interface_method =
             this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == NULL)) {
-          ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(self,
-                                                                        resolved_method,
-                                                                        this_object);
+          ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method, this_object,
+                                                                     referrer);
           return NULL;  // Failure.
         } else {
           return interface_method;
@@ -515,12 +261,12 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
                                                   dex_file.GetMethodId(method_idx).class_idx_,
                                                   referring_class);
         if (UNLIKELY(!referring_class->CanAccess(methods_class))) {
-          ThrowNewIllegalAccessErrorClassForMethodDispatch(self, referring_class, methods_class,
-                                                           referrer, resolved_method, type);
+          ThrowIllegalAccessErrorClassForMethodDispatch(referring_class, methods_class,
+                                                        referrer, resolved_method, type);
           return NULL;  // Failure.
         } else if (UNLIKELY(!referring_class->CanAccessMember(methods_class,
                                                               resolved_method->GetAccessFlags()))) {
-          ThrowNewIllegalAccessErrorMethod(self, referring_class, resolved_method);
+          ThrowIllegalAccessErrorMethod(referring_class, resolved_method);
           return NULL;  // Failure.
         }
       }
@@ -530,9 +276,8 @@ Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Metho
         Method* interface_method =
             this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
         if (UNLIKELY(interface_method == NULL)) {
-          ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(self,
-                                                                        resolved_method,
-                                                                        this_object);
+          ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(resolved_method, this_object,
+                                                                     referrer);
           return NULL;  // Failure.
         } else {
           return interface_method;
@@ -576,7 +321,7 @@ Class* ResolveVerifyAndClinit(uint32_t type_idx, const Method* referrer, Thread*
   // Perform access check if necessary.
   Class* referring_class = referrer->GetDeclaringClass();
   if (verify_access && UNLIKELY(!referring_class->CanAccess(klass))) {
-    ThrowNewIllegalAccessErrorClass(self, referring_class, klass);
+    ThrowIllegalAccessErrorClass(referring_class, klass);
     return NULL;  // Failure - Indicate to caller to deliver exception
   }
   // If we're just implementing const-class, we shouldn't call <clinit>.

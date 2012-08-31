@@ -18,6 +18,7 @@
 #define ART_SRC_RUNTIME_SUPPORT_H_
 
 #include "class_linker.h"
+#include "common_throws.h"
 #include "dex_file.h"
 #include "invoke_type.h"
 #include "object.h"
@@ -43,47 +44,6 @@ class Field;
 class Method;
 class Object;
 
-// Helpers to give consistent descriptive exception messages
-void ThrowNewIllegalAccessErrorClass(Thread* self, Class* referrer, Class* accessed)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-void ThrowNewIllegalAccessErrorClassForMethodDispatch(Thread* self, Class* referrer,
-                                                      Class* accessed,
-                                                      const Method* caller,
-                                                      const Method* called,
-                                                      InvokeType type)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-void ThrowNewIncompatibleClassChangeErrorClassForInterfaceDispatch(Thread* self,
-                                                                   const Method* referrer,
-                                                                   const Method* interface_method,
-                                                                   Object* this_object)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType found_type,
-                                       Method* method, const Method* referrer)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-void ThrowNoSuchMethodError(InvokeType type, Class* c, const StringPiece& name,
-                            const StringPiece& signature, const Method* referrer)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-void ThrowNewIllegalAccessErrorField(Thread* self, Class* referrer, Field* accessed)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-void ThrowNewIllegalAccessErrorFinalField(Thread* self, const Method* referrer, Field* accessed)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-void ThrowNewIllegalAccessErrorMethod(Thread* self, Class* referrer, Method* accessed)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-void ThrowNullPointerExceptionForFieldAccess(Thread* self, Field* field, bool is_read)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-void ThrowNullPointerExceptionForMethodAccess(Thread* self, Method* caller, uint32_t method_idx,
-                                              InvokeType type)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-void ThrowNullPointerExceptionFromDexPC(Thread* self, Method* caller, uint32_t dex_pc)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-
-std::string FieldNameFromIndex(const Method* method, uint32_t ref,
-                               verifier::VerifyErrorRefType ref_type, bool access)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-std::string MethodNameFromIndex(const Method* method, uint32_t ref,
-                                verifier::VerifyErrorRefType ref_type, bool access)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-
 // Given the context of a calling Method, use its DexCache to resolve a type to a Class. If it
 // cannot be resolved, throw an error. If it can, use it to create an instance.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
@@ -108,7 +68,7 @@ static inline Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thr
     }
     Class* referrer = method->GetDeclaringClass();
     if (UNLIKELY(!referrer->CanAccess(klass))) {
-      ThrowNewIllegalAccessErrorClass(self, referrer, klass);
+      ThrowIllegalAccessErrorClass(referrer, klass);
       return NULL;  // Failure
     }
   }
@@ -124,7 +84,7 @@ static inline Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thr
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
 static inline Array* AllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
-                                        Thread* self, bool access_check)
+                                        bool access_check)
     SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
   if (UNLIKELY(component_count < 0)) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
@@ -143,7 +103,7 @@ static inline Array* AllocArrayFromCode(uint32_t type_idx, Method* method, int32
   if (access_check) {
     Class* referrer = method->GetDeclaringClass();
     if (UNLIKELY(!referrer->CanAccess(klass))) {
-      ThrowNewIllegalAccessErrorClass(self, referrer, klass);
+      ThrowIllegalAccessErrorClass(referrer, klass);
       return NULL;  // Failure
     }
   }
