@@ -1279,6 +1279,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
 
 }  // namespace art
 
+#if !defined(ART_USE_LLVM_COMPILER)
 extern "C" art::CompiledMethod*
     ArtCompileMethod(art::Compiler& compiler,
                      const art::DexFile::CodeItem* code_item,
@@ -1290,3 +1291,4 @@ extern "C" art::CompiledMethod*
   return art::oatCompileMethod(compiler, code_item, access_flags, invoke_type,
                                method_idx, class_loader, dex_file);
 }
+#endif
