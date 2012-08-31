@@ -3485,7 +3485,8 @@ Method* ClassLinker::ResolveMethod(const DexFile& dex_file,
         // TODO: appropriate checks for call to super class.
         break;
       case kVirtual:
-        if (resolved->IsConstructor() || resolved->GetDeclaringClass()->IsInterface()) {
+        if (resolved->IsConstructor() || (resolved->GetDeclaringClass()->IsInterface() &&
+                                          !resolved->IsMiranda())) {
           resolved = NULL;  // Incompatible class change.
         }
         break;
