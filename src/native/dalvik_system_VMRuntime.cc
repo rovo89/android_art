@@ -27,9 +27,6 @@
 #include "thread_list.h"
 #include "toStringArray.h"
 
-extern "C" int dlmalloc_trim(size_t);
-extern "C" void dlmalloc_walk_free_pages(void(*)(void*, void*, void*), void*);
-
 namespace art {
 
 static jfloat VMRuntime_getTargetHeapUtilization(JNIEnv*, jobject) {

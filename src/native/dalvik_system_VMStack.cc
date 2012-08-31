@@ -44,6 +44,10 @@ static jobject GetThreadStack(JNIEnv* env, jobject peer) {
     Runtime::Current()->GetThreadList()->Resume(thread, true);
     return trace;
   } else {
+    if (timeout) {
+      LOG(ERROR) << "Trying to get thread's stack failed as the thread failed to suspend within a "
+          "generous timeout.";
+    }
     return NULL;
   }
 }

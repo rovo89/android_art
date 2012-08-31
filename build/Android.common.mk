@@ -157,7 +157,7 @@ LIBART_COMMON_SRC_FILES := \
 	src/disassembler_arm.cc \
 	src/disassembler_mips.cc \
 	src/disassembler_x86.cc \
-	src/dlmalloc.c \
+	src/dlmalloc.cc \
 	src/file.cc \
 	src/file_linux.cc \
 	src/heap.cc \

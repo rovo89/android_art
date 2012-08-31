@@ -2905,6 +2905,7 @@ class HeapChunkContext {
 
   void Reset() {
     p_ = &buf_[0];
+    startOfNextMemoryChunk_ = NULL;
     totalAllocationUnits_ = 0;
     needHeader_ = true;
     pieceLenField_ = NULL;
@@ -2914,44 +2915,83 @@ class HeapChunkContext {
       SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
     // Note: heap call backs cannot manipulate the heap upon which they are crawling, care is taken
     // in the following code not to allocate memory, by ensuring buf_ is of the correct size
-
-    void* user_ptr = used_bytes > 0 ? start : NULL;
-    size_t chunk_len = mspace_usable_size(user_ptr);
-
-    // Make sure there's enough room left in the buffer.
-    // We need to use two bytes for every fractional 256 allocation units used by the chunk.
-    {
-      size_t needed = (((chunk_len/ALLOCATION_UNIT_SIZE + 255) / 256) * 2);
-      size_t bytesLeft = buf_.size() - (size_t)(p_ - &buf_[0]);
-      if (bytesLeft < needed) {
-        Flush();
-      }
-
-      bytesLeft = buf_.size() - (size_t)(p_ - &buf_[0]);
-      if (bytesLeft < needed) {
-        LOG(WARNING) << "Chunk is too big to transmit (chunk_len=" << chunk_len << ", " << needed << " bytes)";
+    if (used_bytes == 0) {
+        if (start == NULL) {
+            // Reset for start of new heap.
+            startOfNextMemoryChunk_ = NULL;
+            Flush();
+        }
+        // Only process in use memory so that free region information
+        // also includes dlmalloc book keeping.
         return;
-      }
     }
 
-    // OLD-TODO: notice when there's a gap and start a new heap, or at least a new range.
-    EnsureHeader(start);
+    /* If we're looking at the native heap, we'll just return
+     * (SOLIDITY_HARD, KIND_NATIVE) for all allocated chunks
+     */
+    bool native = type_ == CHUNK_TYPE("NHSG");
+
+    if (startOfNextMemoryChunk_ != NULL) {
+        // Transmit any pending free memory. Native free memory of
+        // over kMaxFreeLen could be because of the use of mmaps, so
+        // don't report. If not free memory then start a new segment.
+        bool flush = true;
+        if (start > startOfNextMemoryChunk_) {
+            const size_t kMaxFreeLen = 2 * kPageSize;
+            void* freeStart = startOfNextMemoryChunk_;
+            void* freeEnd = start;
+            size_t freeLen = (char*)freeEnd - (char*)freeStart;
+            if (!native || freeLen < kMaxFreeLen) {
+                AppendChunk(HPSG_STATE(SOLIDITY_FREE, 0), freeStart, freeLen);
+                flush = false;
+            }
+        }
+        if (flush) {
+            startOfNextMemoryChunk_ = NULL;
+            Flush();
+        }
+    }
+    const Object *obj = (const Object *)start;
 
     // Determine the type of this chunk.
     // OLD-TODO: if context.merge, see if this chunk is different from the last chunk.
     // If it's the same, we should combine them.
-    uint8_t state = ExamineObject(reinterpret_cast<const Object*>(user_ptr), (type_ == CHUNK_TYPE("NHSG")));
+    uint8_t state = ExamineObject(obj, native);
+    // dlmalloc's chunk header is 2 * sizeof(size_t), but if the previous chunk is in use for an
+    // allocation then the first sizeof(size_t) may belong to it.
+    const size_t dlMallocOverhead = sizeof(size_t);
+    AppendChunk(state, start, used_bytes + dlMallocOverhead);
+    startOfNextMemoryChunk_ = (char*)start + used_bytes + dlMallocOverhead;
+  }
 
+  void AppendChunk(uint8_t state, void* ptr, size_t length)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    // Make sure there's enough room left in the buffer.
+    // We need to use two bytes for every fractional 256 allocation units used by the chunk plus
+    // 17 bytes for any header.
+    size_t needed = (((length/ALLOCATION_UNIT_SIZE + 255) / 256) * 2) + 17;
+    size_t bytesLeft = buf_.size() - (size_t)(p_ - &buf_[0]);
+    if (bytesLeft < needed) {
+      Flush();
+    }
+
+    bytesLeft = buf_.size() - (size_t)(p_ - &buf_[0]);
+    if (bytesLeft < needed) {
+      LOG(WARNING) << "Chunk is too big to transmit (chunk_len=" << length << ", "
+          << needed << " bytes)";
+      return;
+    }
+    EnsureHeader(ptr);
     // Write out the chunk description.
-    chunk_len /= ALLOCATION_UNIT_SIZE;   // convert to allocation units
-    totalAllocationUnits_ += chunk_len;
-    while (chunk_len > 256) {
+    length /= ALLOCATION_UNIT_SIZE;   // Convert to allocation units.
+    totalAllocationUnits_ += length;
+    while (length > 256) {
       *p_++ = state | HPSG_PARTIAL;
       *p_++ = 255;     // length - 1
-      chunk_len -= 256;
+      length -= 256;
     }
     *p_++ = state;
-    *p_++ = chunk_len - 1;
+    *p_++ = length - 1;
   }
 
   uint8_t ExamineObject(const Object* o, bool is_native_heap) {
@@ -2967,11 +3007,8 @@ class HeapChunkContext {
       return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
     }
 
-    {
-      ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
-      if (!Runtime::Current()->GetHeap()->IsLiveObjectLocked(o)) {
-        return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
-      }
+    if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+      return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
     }
 
     Class* c = o->GetClass();
@@ -2981,7 +3018,7 @@ class HeapChunkContext {
     }
 
     if (!Runtime::Current()->GetHeap()->IsHeapAddress(c)) {
-      LOG(WARNING) << "Invalid class for managed heap object: " << o << " " << c;
+      LOG(ERROR) << "Invalid class for managed heap object: " << o << " " << c;
       return HPSG_STATE(SOLIDITY_HARD, KIND_UNKNOWN);
     }
 
@@ -3007,6 +3044,7 @@ class HeapChunkContext {
   std::vector<uint8_t> buf_;
   uint8_t* p_;
   uint8_t* pieceLenField_;
+  void* startOfNextMemoryChunk_;
   size_t totalAllocationUnits_;
   uint32_t type_;
   bool merge_;

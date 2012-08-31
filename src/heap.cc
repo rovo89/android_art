@@ -838,11 +838,14 @@ void Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) {
     CollectGarbageMarkSweepPlan(gc_type, clear_soft_references);
   }
 
-  gc_complete_lock_->AssertNotHeld();
-  MutexLock mu(*gc_complete_lock_);
-  is_gc_running_ = false;
-  // Wake anyone who may have been waiting for the GC to complete.
-  gc_complete_cond_->Broadcast();
+  {
+    MutexLock mu(*gc_complete_lock_);
+    is_gc_running_ = false;
+    // Wake anyone who may have been waiting for the GC to complete.
+    gc_complete_cond_->Broadcast();
+  }
+  // Inform DDMS that a GC completed.
+  Dbg::GcDidFinish();
 }
 
 void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_references) {

@@ -1070,13 +1070,25 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
   wrapiov[0].iov_base = header;
   wrapiov[0].iov_len = sizeof(header);
 
-  /*
-   * Make sure we're in VMWAIT in case the write blocks.
-   */
+  // Try to avoid blocking GC during a send, but only safe when not using mutexes at a lower-level
+  // than mutator for lock ordering reasons.
   Thread* self = Thread::Current();
-  self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
-  (*transport_->sendBufferedRequest)(this, wrapiov, iov_count + 1);
-  self->TransitionFromSuspendedToRunnable();
+  bool safe_to_release_mutator_lock_over_send;
+  for (size_t i=0; i < kMutatorLock; ++i) {
+    if (self->GetHeldMutex(static_cast<MutexLevel>(i)) != NULL) {
+      safe_to_release_mutator_lock_over_send = false;
+      break;
+    }
+  }
+  if (safe_to_release_mutator_lock_over_send) {
+    // Change state to waiting to allow GC, ... while we're sending.
+    self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
+    (*transport_->sendBufferedRequest)(this, wrapiov, iov_count + 1);
+    self->TransitionFromSuspendedToRunnable();
+  } else {
+    // Send and possibly block GC...
+    (*transport_->sendBufferedRequest)(this, wrapiov, iov_count + 1);
+  }
 }
 
 }  // namespace JDWP

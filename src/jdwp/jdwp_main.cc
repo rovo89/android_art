@@ -99,7 +99,7 @@ JdwpState::JdwpState(const JdwpOptions* options)
       attach_lock_("JDWP attach lock"),
       attach_cond_("JDWP attach condition variable"),
       last_activity_time_ms_(0),
-      serial_lock_("JDWP serial lock"),
+      serial_lock_("JDWP serial lock", kJdwpSerialLock),
       request_serial_(0x10000000),
       event_serial_(0x20000000),
       event_list_lock_("JDWP event list lock"),
