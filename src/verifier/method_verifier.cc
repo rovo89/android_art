@@ -333,6 +333,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
       interesting_dex_pc_(-1),
       monitor_enter_dex_pcs_(NULL),
       have_pending_hard_failure_(false),
+      have_pending_runtime_throw_failure_(false),
       new_instance_count_(0),
       monitor_enter_count_(0) {
 }
@@ -396,14 +397,18 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
     case VERIFY_ERROR_ACCESS_METHOD:
     case VERIFY_ERROR_INSTANTIATION:
     case VERIFY_ERROR_CLASS_CHANGE:
-      // If we're optimistically running verification at compile time, turn NO_xxx, ACCESS_xxx,
-      // class change and instantiation errors into soft verification errors so that we re-verify
-      // at runtime. We may fail to find or to agree on access because of not yet available class
-      // loaders, or class loaders that will differ at runtime. In these cases, we don't want to
-      // affect the soundness of the code being compiled. Instead, the generated code runs "slow
-      // paths" that dynamically perform the verification and cause the behavior to be that akin
-      // to an interpreter.
-      error = VERIFY_ERROR_BAD_CLASS_SOFT;
+      if (Runtime::Current()->IsCompiler()) {
+        // If we're optimistically running verification at compile time, turn NO_xxx, ACCESS_xxx,
+        // class change and instantiation errors into soft verification errors so that we re-verify
+        // at runtime. We may fail to find or to agree on access because of not yet available class
+        // loaders, or class loaders that will differ at runtime. In these cases, we don't want to
+        // affect the soundness of the code being compiled. Instead, the generated code runs "slow
+        // paths" that dynamically perform the verification and cause the behavior to be that akin
+        // to an interpreter.
+        error = VERIFY_ERROR_BAD_CLASS_SOFT;
+      } else {
+        have_pending_runtime_throw_failure_ = true;
+      }
       break;
       // Indication that verification should be retried at runtime.
     case VERIFY_ERROR_BAD_CLASS_SOFT:
@@ -2265,6 +2270,9 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     /* immediate failure, reject class */
     info_messages_ << "Rejecting opcode " << inst->DumpString(dex_file_);
     return false;
+  } else if (have_pending_runtime_throw_failure_) {
+    /* slow path will throw, mark following code as unreachable */
+    opcode_flags = Instruction::kThrow;
   }
   /*
    * If we didn't just set the result register, clear it out. This ensures that you can only use

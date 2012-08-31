@@ -649,6 +649,11 @@ class MethodVerifier {
   std::vector<std::ostringstream*> failure_messages_;
   // Is there a pending hard failure?
   bool have_pending_hard_failure_;
+  // Is there a pending runtime throw failure? A runtime throw failure is when an instruction
+  // would fail at runtime throwing an exception. Such an instruction causes the following code
+  // to be unreachable. This is set by Fail and used to ensure we don't process unreachable
+  // instructions that would hard fail the verification.
+  bool have_pending_runtime_throw_failure_;
 
   // Info message log use primarily for verifier diagnostics.
   std::ostringstream info_messages_;
