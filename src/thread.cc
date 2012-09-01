@@ -490,24 +490,23 @@ void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
   AssertThreadSuspensionIsAllowable();
   CHECK_NE(new_state, kRunnable);
   CHECK_EQ(this, Thread::Current());
-  {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
-    CHECK_EQ(GetState(), kRunnable);
-    SetState(new_state);
-  }
+  // Change to non-runnable state, thereby appearing suspended to the system.
+  ThreadState old_state = SetStateUnsafe(new_state);
+  CHECK_EQ(old_state, kRunnable);
   // Release share on mutator_lock_.
   GlobalSynchronization::mutator_lock_->SharedUnlock();
 }
 
 ThreadState Thread::TransitionFromSuspendedToRunnable() {
   bool done = false;
-  ThreadState old_state;
+  ThreadState old_state = GetStateUnsafe();
+  DCHECK_NE(old_state, kRunnable);
   do {
-    {
+    // Do a racy unsafe check of the suspend count to see if a wait is necessary. Any race that
+    // may occur is covered by the second check after we acquire a share of the mutator_lock_.
+    if (GetSuspendCountUnsafe() > 0) {
       // Wait while our suspend count is non-zero.
       MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
-      old_state = GetState();
-      CHECK_NE(old_state, kRunnable);
       GlobalSynchronization::mutator_lock_->AssertNotHeld();  // Otherwise we starve GC..
       while (GetSuspendCount() != 0) {
         // Re-check when Thread::resume_cond_ is notified.

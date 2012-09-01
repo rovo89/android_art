@@ -617,9 +617,25 @@ class PACKED Thread {
   friend class Runtime; // For CreatePeer.
 
   // TODO: remove, callers should use GetState and hold the appropriate locks. Used only by
-  //       ShortDump.
+  //       ShortDump and TransitionFromSuspendedToRunnable.
   ThreadState GetStateUnsafe() const NO_THREAD_SAFETY_ANALYSIS {
     return state_;
+  }
+
+  // TODO: remove, callers should use SetState and hold the appropriate locks. Used only by
+  //       TransitionFromRunnableToSuspended that doesn't need to observe suspend counts as
+  //       it is by definition suspended anyway.
+  ThreadState SetStateUnsafe(ThreadState new_state) NO_THREAD_SAFETY_ANALYSIS {
+    ThreadState old_state = state_;
+    state_ = new_state;
+    return old_state;
+  }
+
+  // TODO: remove, callers should use GetSuspendCount and hold the appropriate locks. Used only by
+  //       TransitionFromSuspendedToRunnable that covers any data race. Note, this call is similar
+  //       to the reads done in managed code.
+  int GetSuspendCountUnsafe() const NO_THREAD_SAFETY_ANALYSIS {
+    return suspend_count_;
   }
 
   void DumpState(std::ostream& os) const;
