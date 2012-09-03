@@ -2896,7 +2896,8 @@ class HeapChunkContext {
   }
 
   static void HeapChunkCallback(void* start, void* end, size_t used_bytes, void* arg)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     reinterpret_cast<HeapChunkContext*>(arg)->HeapChunkCallback(start, end, used_bytes);
   }
 
@@ -2912,7 +2913,8 @@ class HeapChunkContext {
   }
 
   void HeapChunkCallback(void* start, void* /*end*/, size_t used_bytes)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
+                            GlobalSynchronization::mutator_lock_) {
     // Note: heap call backs cannot manipulate the heap upon which they are crawling, care is taken
     // in the following code not to allocate memory, by ensuring buf_ is of the correct size
     if (used_bytes == 0) {
@@ -2994,7 +2996,8 @@ class HeapChunkContext {
     *p_++ = length - 1;
   }
 
-  uint8_t ExamineObject(const Object* o, bool is_native_heap) {
+  uint8_t ExamineObject(const Object* o, bool is_native_heap)
+      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
     if (o == NULL) {
       return HPSG_STATE(SOLIDITY_FREE, 0);
     }
@@ -3007,7 +3010,7 @@ class HeapChunkContext {
       return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
     }
 
-    if (!Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
+    if (!Runtime::Current()->GetHeap()->IsLiveObjectLocked(o)) {
       return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
     }
 
@@ -3087,6 +3090,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
     const SpaceVec& spaces = heap->GetSpaces();
     for (SpaceVec::const_iterator cur = spaces.begin(); cur != spaces.end(); ++cur) {
       if ((*cur)->IsAllocSpace()) {
+        ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
         (*cur)->AsAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
       }
     }
