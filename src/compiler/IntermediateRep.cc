@@ -77,6 +77,7 @@ BasicBlock* oatNewBB(CompilationUnit* cUnit, BBType blockType, int blockId)
   oatInitGrowableList(cUnit, bb->predecessors,
                       (blockType == kExitBlock) ? 2048 : 2,
                       kListPredecessors);
+  cUnit->blockIdMap.Put(blockId, blockId);
   return bb;
 }
 

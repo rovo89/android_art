@@ -80,6 +80,7 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   //(1 << kDebugShowMemoryUsage) |
   //(1 << kDebugShowNops) |
   //(1 << kDebugCountOpcodes) |
+  //(1 << kDebugDumpCheckStats) |
 #if defined(ART_USE_QUICK_COMPILER)
   //(1 << kDebugDumpBitcodeFile) |
   //(1 << kDebugVerifyBitcode) |
@@ -315,6 +316,7 @@ void oatDumpCFG(CompilationUnit* cUnit, const char* dirPrefix)
     BasicBlock *bb = (BasicBlock *) oatGrowableListGetElement(blockList,
                                                               blockIdx);
     if (bb == NULL) break;
+    if (bb->blockType == kDead) continue;
     if (bb->blockType == kEntryBlock) {
       fprintf(file, "  entry_%d [shape=Mdiamond];\n", bb->id);
     } else if (bb->blockType == kExitBlock) {
@@ -1049,18 +1051,16 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
     }
   }
 
-#if defined(ART_USE_QUICK_COMPILER)
-  if (cUnit->genBitcode) {
-    // Bitcode generation requires full dataflow analysis, no qdMode
-    cUnit->qdMode = false;
-  }
-#endif
-
   if (cUnit->qdMode) {
+#if !defined(ART_USE_QUICK_COMPILER)
+    // Bitcode generation requires full dataflow analysis
     cUnit->disableDataflow = true;
+#endif
     // Disable optimization which require dataflow/ssa
     cUnit->disableOpt |=
+#if !defined(ART_USE_QUICK_COMPILER)
         (1 << kNullCheckElimination) |
+#endif
         (1 << kBBOpt) |
         (1 << kPromoteRegs);
     if (cUnit->printMe) {
@@ -1104,8 +1104,15 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
   /* Perform null check elimination */
   oatMethodNullCheckElimination(cUnit.get());
 
+  /* Combine basic blocks where possible */
+  oatMethodBasicBlockCombine(cUnit.get());
+
   /* Do some basic block optimizations */
   oatMethodBasicBlockOptimization(cUnit.get());
+
+  if (cUnit->enableDebug & (1 << kDebugDumpCheckStats)) {
+    oatDumpCheckStats(cUnit.get());
+  }
 
   oatInitializeRegAlloc(cUnit.get());  // Needs to happen after SSA naming
 

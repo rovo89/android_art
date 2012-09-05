@@ -1945,6 +1945,90 @@ bool nullCheckEliminationInit(struct CompilationUnit* cUnit,
   return true;
 }
 
+/* Collect stats on number of checks removed */
+bool countChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
+{
+  if (bb->dataFlowInfo == NULL) return false;
+  for (MIR* mir = bb->firstMIRInsn; mir; mir = mir->next) {
+    if (mir->ssaRep == NULL) {
+      continue;
+    }
+    int dfAttributes = oatDataFlowAttributes[mir->dalvikInsn.opcode];
+    if (dfAttributes & DF_HAS_NULL_CHKS) {
+      cUnit->checkstats->nullChecks++;
+      if (mir->optimizationFlags & MIR_IGNORE_NULL_CHECK) {
+        cUnit->checkstats->nullChecksEliminated++;
+      }
+    }
+    if (dfAttributes & DF_HAS_RANGE_CHKS) {
+      cUnit->checkstats->rangeChecks++;
+      if (mir->optimizationFlags & MIR_IGNORE_RANGE_CHECK) {
+        cUnit->checkstats->rangeChecksEliminated++;
+      }
+    }
+  }
+  return false;
+}
+
+/* Combine any basic blocks terminated by instructions that we now know can't throw */
+bool combineBlocks(struct CompilationUnit* cUnit, struct BasicBlock* bb)
+{
+  // Loop here to allow combining a sequence of blocks
+  while (true) {
+    // Check termination conditions
+    if ((bb->firstMIRInsn == NULL)
+        || (bb->dataFlowInfo == NULL)
+        || (bb->blockType == kExceptionHandling)
+        || (bb->blockType == kExitBlock)
+        || (bb->blockType == kDead)
+        || ((bb->taken == NULL) || (bb->taken->blockType != kExceptionHandling))
+        || (bb->successorBlockList.blockListType != kNotUsed)
+        || ((int)bb->lastMIRInsn->dalvikInsn.opcode != kMirOpCheck)) {
+      break;
+    }
+
+    // Test the kMirOpCheck instruction
+    MIR* mir = bb->lastMIRInsn;
+    // Grab the attributes from the paired opcode
+    MIR* throwInsn = mir->meta.throwInsn;
+    int dfAttributes = oatDataFlowAttributes[throwInsn->dalvikInsn.opcode];
+    // Only null checks, and null checks eliminated?
+    if (((dfAttributes & DF_HAS_NULL_CHKS) == 0) || ((dfAttributes & DF_HAS_RANGE_CHKS) != 0)
+        || !(throwInsn->optimizationFlags & MIR_IGNORE_NULL_CHECK)) {
+      break;
+    }
+    // OK - got one.  Combine
+    BasicBlock* bbNext = bb->fallThrough;
+    DCHECK(!bbNext->catchEntry);
+    DCHECK_EQ(bbNext->predecessors->numUsed, 1U);
+    MIR* tMir = bb->lastMIRInsn->prev;
+    // Overwrite the kOpCheck insn with the paired opcode
+    DCHECK_EQ(bbNext->firstMIRInsn, throwInsn);
+    *bb->lastMIRInsn = *throwInsn;
+    bb->lastMIRInsn->prev = tMir;
+    // Use the successor info from the next block
+    bb->successorBlockList = bbNext->successorBlockList;
+    // Use the ending block linkage from the next block
+    bb->fallThrough = bbNext->fallThrough;
+    bb->taken->blockType = kDead;  // Kill the unused exception block
+    bb->taken = bbNext->taken;
+    // Include the rest of the instructions
+    bb->lastMIRInsn = bbNext->lastMIRInsn;
+
+    /*
+     * NOTE: we aren't updating all dataflow info here.  Should either make sure this pass
+     * happens after uses of iDominated, domFrontier or update the dataflow info here.
+     */
+
+    // Kill bbNext and remap now-dead id to parent
+    bbNext->blockType = kDead;
+    cUnit->blockIdMap.Overwrite(bbNext->id, bb->id);
+
+    // Now, loop back and see if we can keep going
+  }
+  return false;
+}
+
 /* Eliminate unnecessary null checks for a basic block. */
 bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
 {
@@ -2049,7 +2133,7 @@ bool eliminateNullChecks( struct CompilationUnit* cUnit, struct BasicBlock* bb)
     }
 
     // Already nullchecked?
-    if (dfAttributes & DF_HAS_NULL_CHKS) {
+    if ((dfAttributes & DF_HAS_NULL_CHKS) && !(mir->optimizationFlags & MIR_IGNORE_NULL_CHECK)) {
       int srcIdx;
       if (dfAttributes & DF_NULL_CHK_1) {
         srcIdx = 1;
@@ -2088,6 +2172,28 @@ void oatMethodNullCheckElimination(CompilationUnit *cUnit)
     oatDataFlowAnalysisDispatcher(cUnit, eliminateNullChecks,
                                   kPreOrderDFSTraversal,
                                   true /* isIterative */);
+  }
+}
+
+void oatMethodBasicBlockCombine(CompilationUnit* cUnit)
+{
+  oatDataFlowAnalysisDispatcher(cUnit, combineBlocks, kPreOrderDFSTraversal, false);
+}
+
+void oatDumpCheckStats(CompilationUnit *cUnit)
+{
+  Checkstats* stats = (Checkstats*)oatNew(cUnit, sizeof(Checkstats), true, kAllocDFInfo);
+  cUnit->checkstats = stats;
+  oatDataFlowAnalysisDispatcher(cUnit, countChecks, kAllNodes, false /* isIterative */);
+  if (stats->nullChecks > 0) {
+    LOG(INFO) << "Null Checks: " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
+              << stats->nullChecksEliminated << " of " << stats->nullChecks << " -> "
+              << ((float)stats->nullChecksEliminated/(float)stats->nullChecks) * 100.0 << "%";
+    }
+  if (stats->rangeChecks > 0) {
+    LOG(INFO) << "Range Checks: " << PrettyMethod(cUnit->method_idx, *cUnit->dex_file) << " "
+              << stats->rangeChecksEliminated << " of " << stats->rangeChecks << " -> "
+              << ((float)stats->rangeChecksEliminated/(float)stats->rangeChecks) * 100.0 << "%";
   }
 }
 

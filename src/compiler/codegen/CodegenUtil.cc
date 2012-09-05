@@ -998,5 +998,20 @@ void dumpPackedSwitchTable(const u2* table)
   }
 }
 
+/*
+ * Set up special LIR to mark a Dalvik byte-code instruction start and
+ * record it in the boundaryMap.  NOTE: in cases such as kMirOpCheck in
+ * which we split a single Dalvik instruction, only the first MIR op
+ * associated with a Dalvik PC should be entered into the map.
+ */
+LIR* markBoundary(CompilationUnit* cUnit, int offset, const char* instStr)
+{
+  LIR* res = newLIR1(cUnit, kPseudoDalvikByteCodeBoundary, (intptr_t) instStr);
+  if (cUnit->boundaryMap.find(offset) == cUnit->boundaryMap.end()) {
+    cUnit->boundaryMap.Put(offset, res);
+  }
+  return res;
+}
 
-}  // namespace art
+}
+ // namespace art
