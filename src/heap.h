@@ -28,6 +28,7 @@
 #include "mutex.h"
 #include "offsets.h"
 #include "safe_map.h"
+#include "timing_logger.h"
 
 #define VERIFY_OBJECT_ENABLED 0
 
@@ -52,11 +53,13 @@ typedef std::vector<Space*> Spaces;
 
 enum GcType {
   // Full GC
-  GC_FULL,
+  kGcTypeFull,
   // Sticky mark bits "generational" GC.
-  GC_STICKY,
-  // Partial GC, over only the alloc space
-  GC_PARTIAL,
+  kGcTypeSticky,
+  // Partial GC, over only the alloc space.
+  kGcTypePartial,
+  // Number of different Gc types.
+  kGcTypeMax,
 };
 std::ostream& operator<<(std::ostream& os, const GcType& policy);
 
@@ -328,6 +331,10 @@ class LOCKABLE Heap {
 
   // The alloc space which we are currently allocating into.
   AllocSpace* alloc_space_;
+
+  // One cumulative logger for each type of Gc.
+  typedef SafeMap<GcType, CumulativeLogger*> CumulativeTimings;
+  CumulativeTimings cumulative_timings_;
 
   // The mod-union table remembers all of the references from the image space to the alloc /
   // zygote spaces.

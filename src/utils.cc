@@ -412,45 +412,81 @@ std::string PrettyDuration(uint64_t nano_duration) {
   if (nano_duration == 0) {
     return "0";
   } else {
-    const uint64_t one_sec = 1000 * 1000 * 1000;
-    const uint64_t one_ms  = 1000 * 1000;
-    const uint64_t one_us  = 1000;
-    const char* unit;
-    uint64_t divisor;
-    uint32_t zero_fill;
-    if (nano_duration >= one_sec) {
+    return FormatDuration(nano_duration, GetAppropriateTimeUnit(nano_duration));
+  }
+}
+
+TimeUnit GetAppropriateTimeUnit(uint64_t nano_duration) {
+  const uint64_t one_sec = 1000 * 1000 * 1000;
+  const uint64_t one_ms  = 1000 * 1000;
+  const uint64_t one_us  = 1000;
+  if (nano_duration >= one_sec) {
+    return kTimeUnitSecond;
+  } else if (nano_duration >= one_ms) {
+    return kTimeUnitMillisecond;
+  } else if (nano_duration >= one_us) {
+    return kTimeUnitMicrosecond;
+  } else {
+    return kTimeUnitNanosecond;
+  }
+}
+
+uint64_t GetNsToTimeUnitDivisor(TimeUnit time_unit) {
+  const uint64_t one_sec = 1000 * 1000 * 1000;
+  const uint64_t one_ms  = 1000 * 1000;
+  const uint64_t one_us  = 1000;
+
+  switch (time_unit) {
+    case kTimeUnitSecond:
+      return one_sec;
+    case kTimeUnitMillisecond:
+      return one_ms;
+    case kTimeUnitMicrosecond:
+      return one_us;
+    case kTimeUnitNanosecond:
+      return 1;
+  }
+  return 0;
+}
+
+std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit) {
+  const char* unit = NULL;
+  uint64_t divisor = GetNsToTimeUnitDivisor(time_unit);
+  uint32_t zero_fill = 1;
+  switch (time_unit) {
+    case kTimeUnitSecond:
       unit = "s";
-      divisor = one_sec;
       zero_fill = 9;
-    } else if (nano_duration >= one_ms) {
+      break;
+    case kTimeUnitMillisecond:
       unit = "ms";
-      divisor = one_ms;
       zero_fill = 6;
-    } else if (nano_duration >= one_us) {
+      break;
+    case kTimeUnitMicrosecond:
       unit = "us";
-      divisor = one_us;
       zero_fill = 3;
-    } else {
+      break;
+    case kTimeUnitNanosecond:
       unit = "ns";
-      divisor = 1;
       zero_fill = 0;
+      break;
+  }
+
+  uint64_t whole_part = nano_duration / divisor;
+  uint64_t fractional_part = nano_duration % divisor;
+  if (fractional_part == 0) {
+    return StringPrintf("%llu%s", whole_part, unit);
+  } else {
+    while ((fractional_part % 1000) == 0) {
+      zero_fill -= 3;
+      fractional_part /= 1000;
     }
-    uint64_t whole_part = nano_duration / divisor;
-    uint64_t fractional_part = nano_duration % divisor;
-    if (fractional_part == 0) {
-      return StringPrintf("%llu%s", whole_part, unit);
+    if (zero_fill == 3) {
+      return StringPrintf("%llu.%03llu%s", whole_part, fractional_part, unit);
+    } else if (zero_fill == 6) {
+      return StringPrintf("%llu.%06llu%s", whole_part, fractional_part, unit);
     } else {
-      while ((fractional_part % 1000) == 0) {
-        zero_fill -= 3;
-        fractional_part /= 1000;
-      }
-      if (zero_fill == 3) {
-        return StringPrintf("%llu.%03llu%s", whole_part, fractional_part, unit);
-      } else if (zero_fill == 6) {
-        return StringPrintf("%llu.%06llu%s", whole_part, fractional_part, unit);
-      } else {
-        return StringPrintf("%llu.%09llu%s", whole_part, fractional_part, unit);
-      }
+      return StringPrintf("%llu.%09llu%s", whole_part, fractional_part, unit);
     }
   }
 }

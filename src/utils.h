@@ -36,6 +36,13 @@ class Method;
 class Object;
 class String;
 
+enum TimeUnit {
+  kTimeUnitNanosecond,
+  kTimeUnitMicrosecond,
+  kTimeUnitMillisecond,
+  kTimeUnitSecond,
+};
+
 template<typename T>
 static inline bool IsPowerOfTwo(T x) {
   return (x & (x - 1)) == 0;
@@ -205,6 +212,15 @@ std::string PrettySize(size_t size_in_bytes);
 // number of trailing zeros. Prints using the largest human readable unit up to a second.
 // e.g. "1ms", "1.000000001s", "1.001us"
 std::string PrettyDuration(uint64_t nano_duration);
+
+// Format a nanosecond time to specified units.
+std::string FormatDuration(uint64_t nano_duration, TimeUnit time_unit);
+
+// Get the appropriate unit for a nanosecond duration.
+TimeUnit GetAppropriateTimeUnit(uint64_t nano_duration);
+
+// Get the divisor to convert from a nanoseconds to a time unit
+uint64_t GetNsToTimeUnitDivisor(TimeUnit time_unit);
 
 // Performs JNI name mangling as described in section 11.3 "Linking Native Methods"
 // of the JNI spec.
