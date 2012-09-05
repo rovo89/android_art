@@ -17,6 +17,7 @@
 #include "atomic.h"
 
 #include <pthread.h>
+#include <vector>
 
 #include "mutex.h"
 #include "stl_util.h"
