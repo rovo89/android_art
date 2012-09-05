@@ -160,8 +160,8 @@ class CheckObjectVisitor {
   }
 
   void operator ()(const Object* obj, const Object* ref, MemberOffset offset, bool is_static) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
-                            GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
+                            Locks::mutator_lock_) {
     mark_sweep_->CheckReference(obj, ref, offset, is_static);
   }
 
@@ -195,8 +195,8 @@ class ScanImageRootVisitor {
   }
 
   void operator ()(const Object* root) const
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(root != NULL);
     mark_sweep_->ScanObject(root);
   }
@@ -245,8 +245,8 @@ class CheckBitmapVisitor {
   }
 
   void operator ()(const Object* obj) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
-                            GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
+                            Locks::mutator_lock_) {
     DCHECK(obj != NULL);
     mark_sweep_->CheckObject(obj);
   }
@@ -280,8 +280,8 @@ class ScanObjectVisitor {
   }
 
   void operator ()(const Object* obj) const
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mark_sweep_->ScanObject(obj);
   }
 
@@ -415,7 +415,7 @@ struct SweepCallbackContext {
 };
 
 void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
-  GlobalSynchronization::heap_bitmap_lock_->AssertExclusiveHeld();
+  Locks::heap_bitmap_lock_->AssertExclusiveHeld();
 
   size_t freed_objects = num_ptrs;
   size_t freed_bytes = 0;
@@ -449,7 +449,7 @@ void MarkSweep::SweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
 }
 
 void MarkSweep::ZygoteSweepCallback(size_t num_ptrs, Object** ptrs, void* arg) {
-  GlobalSynchronization::heap_bitmap_lock_->AssertExclusiveHeld();
+  Locks::heap_bitmap_lock_->AssertExclusiveHeld();
 
   SweepCallbackContext* context = static_cast<SweepCallbackContext*>(arg);
   Heap* heap = context->mark_sweep->GetHeap();

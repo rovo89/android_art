@@ -28,7 +28,7 @@
 namespace art {
 
 static Class* DecodeClass(const ScopedObjectAccess& soa, jobject java_class)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Class* c = soa.Decode<Class*>(java_class);
   DCHECK(c != NULL);
   DCHECK(c->IsClass());
@@ -93,7 +93,7 @@ struct WorkAroundGccAnnotalysisBug {
 template<typename T>
 static jobjectArray ToArray(const ScopedObjectAccessUnchecked& soa, const char* array_class_name,
                             const std::vector<T*>& objects)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ScopedLocalRef<jclass> array_class(soa.Env(), soa.Env()->FindClass(array_class_name));
   jobjectArray result = soa.Env()->NewObjectArray(objects.size(), array_class.get(), NULL);
   for (size_t i = 0; i < objects.size(); ++i) {
@@ -240,7 +240,7 @@ static jobject Class_getDex(JNIEnv* env, jobject javaClass) {
 }
 
 static bool MethodMatches(MethodHelper* mh, const std::string& name, ObjectArray<Class>* arg_array)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (name != mh->GetName()) {
     return false;
   }
@@ -262,7 +262,7 @@ static bool MethodMatches(MethodHelper* mh, const std::string& name, ObjectArray
 
 static Method* FindConstructorOrMethodInArray(ObjectArray<Method>* methods, const std::string& name,
                                               ObjectArray<Class>* arg_array)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (methods == NULL) {
     return NULL;
   }

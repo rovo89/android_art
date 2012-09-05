@@ -42,11 +42,11 @@ static int gJava_StackWalk_refmap_calls = 0;
 struct TestReferenceMapVisitor : public StackVisitor {
   explicit TestReferenceMapVisitor(const ManagedStack* stack,
                                    const std::vector<TraceStackFrame>* trace_stack)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(stack, trace_stack, NULL) {
   }
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* m = GetMethod();
     CHECK(m != NULL);
     LOG(INFO) << "At " << PrettyMethod(m, false);

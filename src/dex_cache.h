@@ -39,11 +39,11 @@ class MANAGED DexCache : public ObjectArray<Object> {
             ObjectArray<Method>* methods,
             ObjectArray<Field>* fields,
             ObjectArray<StaticStorageBase>* initialized_static_storage)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Fixup(Method* trampoline) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void Fixup(Method* trampoline) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  String* GetLocation() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  String* GetLocation() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return Get(kLocation)->AsString();
   }
 
@@ -62,49 +62,49 @@ class MANAGED DexCache : public ObjectArray<Object> {
                         kResolvedMethods * sizeof(Object*));
   }
 
-  size_t NumStrings() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  size_t NumStrings() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetStrings()->GetLength();
   }
 
-  size_t NumResolvedTypes() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  size_t NumResolvedTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetResolvedTypes()->GetLength();
   }
 
-  size_t NumResolvedMethods() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  size_t NumResolvedMethods() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetResolvedMethods()->GetLength();
   }
 
-  size_t NumResolvedFields() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  size_t NumResolvedFields() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetResolvedFields()->GetLength();
   }
 
   size_t NumInitializedStaticStorage() const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetInitializedStaticStorage()->GetLength();
   }
 
   String* GetResolvedString(uint32_t string_idx) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetStrings()->Get(string_idx);
   }
 
   void SetResolvedString(uint32_t string_idx, String* resolved)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     GetStrings()->Set(string_idx, resolved);
   }
 
   Class* GetResolvedType(uint32_t type_idx) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetResolvedTypes()->Get(type_idx);
   }
 
   void SetResolvedType(uint32_t type_idx, Class* resolved)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     GetResolvedTypes()->Set(type_idx, resolved);
   }
 
   Method* GetResolvedMethod(uint32_t method_idx) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method = GetResolvedMethods()->Get(method_idx);
     // Hide resolution trampoline methods from the caller
     if (method != NULL && method->GetDexMethodIndex() == DexFile::kDexNoIndex16) {
@@ -116,38 +116,38 @@ class MANAGED DexCache : public ObjectArray<Object> {
   }
 
   void SetResolvedMethod(uint32_t method_idx, Method* resolved)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     GetResolvedMethods()->Set(method_idx, resolved);
   }
 
   Field* GetResolvedField(uint32_t field_idx) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetResolvedFields()->Get(field_idx);
   }
 
   void SetResolvedField(uint32_t field_idx, Field* resolved)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     GetResolvedFields()->Set(field_idx, resolved);
   }
 
   ObjectArray<String>* GetStrings() const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return static_cast<ObjectArray<String>*>(GetNonNull(kStrings));
   }
   ObjectArray<Class>* GetResolvedTypes() const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return static_cast<ObjectArray<Class>*>(GetNonNull(kResolvedTypes));
   }
   ObjectArray<Method>* GetResolvedMethods() const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return static_cast<ObjectArray<Method>*>(GetNonNull(kResolvedMethods));
   }
   ObjectArray<Field>* GetResolvedFields() const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return static_cast<ObjectArray<Field>*>(GetNonNull(kResolvedFields));
   }
   ObjectArray<StaticStorageBase>* GetInitializedStaticStorage() const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return static_cast<ObjectArray<StaticStorageBase>*>(GetNonNull(kInitializedStaticStorage));
   }
 
@@ -167,7 +167,7 @@ class MANAGED DexCache : public ObjectArray<Object> {
   };
 
   Object* GetNonNull(ArrayIndex array_index) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Object* obj = Get(array_index);
     DCHECK(obj != NULL);
     return obj;

@@ -252,7 +252,7 @@ static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
                                               __attribute__((format(printf, 1, 2)));
 
 static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   va_list args;
   va_start(args, fmt);
   Thread::Current()->ThrowNewExceptionV("Ljava/lang/IllegalMonitorStateException;", fmt, args);
@@ -284,7 +284,7 @@ void Monitor::FailedUnlock(Object* o, Thread* expected_owner, Thread* found_owne
   {
     // TODO: isn't this too late to prevent threads from disappearing?
     // Acquire thread list lock so threads won't disappear from under us.
-    MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+    MutexLock mu(*Locks::thread_list_lock_);
     // Re-read owner now that we hold lock.
     current_owner = (monitor != NULL) ? monitor->owner_ : NULL;
     // Get short descriptions of the threads involved.
@@ -366,7 +366,7 @@ bool Monitor::Unlock(Thread* self, bool for_wait) {
 
 // Converts the given waiting time (relative to "now") into an absolute time in 'ts'.
 static void ToAbsoluteTime(int64_t ms, int32_t ns, timespec* ts)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   int64_t endSec;
 
 #ifdef HAVE_TIMEDWAIT_MONOTONIC
@@ -873,7 +873,7 @@ static uint32_t LockOwnerFromThreadLock(Object* thread_lock) {
 void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
   ThreadState state;
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     state = thread->GetState();
   }
 
@@ -913,7 +913,7 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
 }
 
 static void DumpLockedObject(std::ostream& os, Object* o)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   os << "  - locked <" << o << "> (a " << PrettyTypeOf(o) << ")\n";
 }
 

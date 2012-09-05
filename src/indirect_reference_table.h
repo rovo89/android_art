@@ -258,7 +258,7 @@ class IndirectReferenceTable {
    * failed during expansion).
    */
   IndirectRef Add(uint32_t cookie, const Object* obj)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Given an IndirectRef in the table, return the Object it refers to.
@@ -288,7 +288,7 @@ class IndirectReferenceTable {
 
   void AssertEmpty();
 
-  void Dump(std::ostream& os) const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void Dump(std::ostream& os) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Return the #of entries in the entire table.  This includes holes, and

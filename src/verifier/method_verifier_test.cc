@@ -28,7 +28,7 @@ namespace verifier {
 class MethodVerifierTest : public CommonTest {
  protected:
   void VerifyClass(const std::string& descriptor)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ASSERT_TRUE(descriptor != NULL);
     Class* klass = class_linker_->FindSystemClass(descriptor.c_str());
 
@@ -38,7 +38,7 @@ class MethodVerifierTest : public CommonTest {
   }
 
   void VerifyDexFile(const DexFile* dex)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ASSERT_TRUE(dex != NULL);
 
     // Verify all the classes defined in this file

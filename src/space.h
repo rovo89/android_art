@@ -53,7 +53,7 @@ class Space {
 
   // create a Space from an image file. cannot be used for future allocation or collected.
   static ImageSpace* CreateImageSpace(const std::string& image)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   virtual ~Space() {}
 
@@ -282,7 +282,7 @@ class ImageSpace : public Space {
 
   // Mark the objects defined in this space in the given live bitmap
   void RecordImageAllocations(SpaceBitmap* live_bitmap) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   virtual bool IsAllocSpace() const {
     return false;

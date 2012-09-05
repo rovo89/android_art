@@ -27,7 +27,7 @@
 namespace art {
 
 static void AddReferrerLocation(std::ostream& os, const Method* referrer)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (referrer != NULL) {
     ClassHelper kh(referrer->GetDeclaringClass());
     std::string location(kh.GetLocation());
@@ -38,7 +38,7 @@ static void AddReferrerLocation(std::ostream& os, const Method* referrer)
 }
 
 static void AddReferrerLocationFromClass(std::ostream& os, Class* referrer)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (referrer != NULL) {
     ClassHelper kh(referrer);
     std::string location(kh.GetLocation());
@@ -63,7 +63,7 @@ void ThrowNullPointerExceptionForMethodAccess(Method* caller, uint32_t method_id
   DexCache* dex_cache = caller->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = Runtime::Current()->GetClassLinker()->FindDexFile(dex_cache);
   std::ostringstream msg;
-  msg << "Attempt to invoke " << ToStr<InvokeType>(type).str() << " method '"
+  msg << "Attempt to invoke " << type << " method '"
       << PrettyMethod(method_idx, dex_file, true) << "' on a null object reference";
   Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", msg.str().c_str());
 }
@@ -131,6 +131,8 @@ void ThrowNullPointerExceptionFromDexPC(Method* throw_method, uint32_t dex_pc) {
                                            "Attempt to get length of null array");
       break;
     default: {
+      // TODO: We should have covered all the cases where we expect a NPE above, this
+      //       message/logging is so we can improve any cases we've missed in the future.
       const DexFile& dex_file = Runtime::Current()->GetClassLinker()
           ->FindDexFile(throw_method->GetDeclaringClass()->GetDexCache());
       std::string message("Null pointer exception during instruction '");
@@ -146,7 +148,7 @@ void ThrowNullPointerExceptionFromDexPC(Method* throw_method, uint32_t dex_pc) {
 
 void ThrowIllegalAccessErrorClass(Class* referrer, Class* accessed) {
   std::ostringstream msg;
-  msg << "Illegal class access: '" << PrettyDescriptor(referrer) << "' -> '"
+  msg << "Illegal class access: '" << PrettyDescriptor(referrer) << "' attempting to access '"
       << PrettyDescriptor(accessed) << "'";
   AddReferrerLocationFromClass(msg, referrer);
   Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;", msg.str().c_str());
@@ -157,8 +159,8 @@ void ThrowIllegalAccessErrorClassForMethodDispatch(Class* referrer, Class* acces
                                                    const Method* called,
                                                    InvokeType type) {
   std::ostringstream msg;
-  msg << "Illegal class access ('" << PrettyDescriptor(referrer) << "' -> '"
-      << PrettyDescriptor(accessed) << "') in attempt to invoke " << ToStr<InvokeType>(type).str()
+  msg << "Illegal class access ('" << PrettyDescriptor(referrer) << "' attempting to access '"
+      << PrettyDescriptor(accessed) << "') in attempt to invoke " << type
       << " method " << PrettyMethod(called).c_str();
   AddReferrerLocation(msg, caller);
   Thread::Current()->ThrowNewException("Ljava/lang/IllegalAccessError;", msg.str().c_str());
@@ -220,7 +222,8 @@ void ThrowIncompatibleClassChangeErrorField(const Field* resolved_field, bool is
                                             const Method* referrer) {
   std::ostringstream msg;
   msg << "Expected '" << PrettyField(resolved_field) << "' to be a "
-      << (is_static ? "static" : "instance") << " field";
+      << (is_static ? "static" : "instance") << " field" << " rather than a "
+      << (is_static ? "instance" : "static") << " field";
   AddReferrerLocation(msg, referrer);
   Thread::Current()->ThrowNewException("Ljava/lang/IncompatibleClassChangeError;",
                                        msg.str().c_str());

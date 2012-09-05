@@ -85,7 +85,7 @@ void art_unlock_object_from_code(Object* obj, Thread* thread)
 }
 
 void art_test_suspend_from_code(Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   thread->FullSuspendCheck();
 }
 
@@ -115,21 +115,21 @@ bool art_is_exception_pending_from_code() {
 }
 
 void art_throw_div_zero_from_code()
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* thread = art_get_current_thread_from_code();
   thread->ThrowNewException("Ljava/lang/ArithmeticException;",
                             "divide by zero");
 }
 
 void art_throw_array_bounds_from_code(int32_t index, int32_t length)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* thread = art_get_current_thread_from_code();
   thread->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
                              "length=%d; index=%d", length, index);
 }
 
 void art_throw_no_such_method_from_code(int32_t method_idx)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* thread = art_get_current_thread_from_code();
   // We need the calling method as context for the method_idx
   Method* method = thread->GetCurrentMethod();
@@ -137,7 +137,7 @@ void art_throw_no_such_method_from_code(int32_t method_idx)
 }
 
 void art_throw_null_pointer_exception_from_code(uint32_t dex_pc)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* thread = art_get_current_thread_from_code();
   NthCallerVisitor visitor(thread->GetManagedStack(), thread->GetTraceStack(), 0);
   visitor.WalkStack();
@@ -146,7 +146,7 @@ void art_throw_null_pointer_exception_from_code(uint32_t dex_pc)
 }
 
 void art_throw_stack_overflow_from_code()
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* thread = art_get_current_thread_from_code();
   if (Runtime::Current()->IsMethodTracingActive()) {
     TraceMethodUnwindFromCode(thread);
@@ -158,7 +158,7 @@ void art_throw_stack_overflow_from_code()
 }
 
 void art_throw_exception_from_code(Object* exception)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* thread = art_get_current_thread_from_code();
   if (exception == NULL) {
     thread->ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
@@ -169,7 +169,7 @@ void art_throw_exception_from_code(Object* exception)
 
 int32_t art_find_catch_block_from_code(Method* current_method,
                                        uint32_t ti_offset)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* thread = art_get_current_thread_from_code();
   Class* exception_type = thread->GetException()->GetClass();
   MethodHelper mh(current_method);
@@ -208,14 +208,14 @@ int32_t art_find_catch_block_from_code(Method* current_method,
 Object* art_alloc_object_from_code(uint32_t type_idx,
                                    Method* referrer,
                                    Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return AllocObjectFromCode(type_idx, referrer, thread, false);
 }
 
 Object* art_alloc_object_from_code_with_access_check(uint32_t type_idx,
                                                      Method* referrer,
                                                      Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return AllocObjectFromCode(type_idx, referrer, thread, true);
 }
 
@@ -223,7 +223,7 @@ Object* art_alloc_array_from_code(uint32_t type_idx,
                                   Method* referrer,
                                   uint32_t length,
                                   Thread* /*thread*/)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return AllocArrayFromCode(type_idx, referrer, length, false);
 }
 
@@ -231,7 +231,7 @@ Object* art_alloc_array_from_code_with_access_check(uint32_t type_idx,
                                                     Method* referrer,
                                                     uint32_t length,
                                                     Thread* /*thread*/)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return AllocArrayFromCode(type_idx, referrer, length, true);
 }
 
@@ -239,7 +239,7 @@ Object* art_check_and_alloc_array_from_code(uint32_t type_idx,
                                             Method* referrer,
                                             uint32_t length,
                                             Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return CheckAndAllocArrayFromCode(type_idx, referrer, length, thread, false);
 }
 
@@ -247,13 +247,13 @@ Object* art_check_and_alloc_array_from_code_with_access_check(uint32_t type_idx,
                                                               Method* referrer,
                                                               uint32_t length,
                                                               Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return CheckAndAllocArrayFromCode(type_idx, referrer, length, thread, true);
 }
 
 static Method* FindMethodHelper(uint32_t method_idx, Object* this_object, Method* caller_method,
                                 bool access_check, InvokeType type, Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Method* method = FindMethodFast(method_idx, this_object, caller_method, access_check, type);
   if (UNLIKELY(method == NULL)) {
     method = FindMethodFromCode(method_idx, this_object, caller_method,
@@ -279,7 +279,7 @@ Object* art_find_static_method_from_code_with_access_check(uint32_t method_idx,
                                                            Object* this_object,
                                                            Method* referrer,
                                                            Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return FindMethodHelper(method_idx, this_object, referrer, true, kStatic, thread);
 }
 
@@ -287,7 +287,7 @@ Object* art_find_direct_method_from_code_with_access_check(uint32_t method_idx,
                                                            Object* this_object,
                                                            Method* referrer,
                                                            Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return FindMethodHelper(method_idx, this_object, referrer, true, kDirect, thread);
 }
 
@@ -295,7 +295,7 @@ Object* art_find_virtual_method_from_code_with_access_check(uint32_t method_idx,
                                                             Object* this_object,
                                                             Method* referrer,
                                                             Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return FindMethodHelper(method_idx, this_object, referrer, true, kVirtual, thread);
 }
 
@@ -303,7 +303,7 @@ Object* art_find_super_method_from_code_with_access_check(uint32_t method_idx,
                                                           Object* this_object,
                                                           Method* referrer,
                                                           Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return FindMethodHelper(method_idx, this_object, referrer, true, kSuper, thread);
 }
 
@@ -312,7 +312,7 @@ art_find_interface_method_from_code_with_access_check(uint32_t method_idx,
                                                       Object* this_object,
                                                       Method* referrer,
                                                       Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return FindMethodHelper(method_idx, this_object, referrer, true, kInterface, thread);
 }
 
@@ -320,40 +320,40 @@ Object* art_find_interface_method_from_code(uint32_t method_idx,
                                             Object* this_object,
                                             Method* referrer,
                                             Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return FindMethodHelper(method_idx, this_object, referrer, false, kInterface, thread);
 }
 
 Object* art_initialize_static_storage_from_code(uint32_t type_idx,
                                                 Method* referrer,
                                                 Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return ResolveVerifyAndClinit(type_idx, referrer, thread, true, false);
 }
 
 Object* art_initialize_type_from_code(uint32_t type_idx,
                                       Method* referrer,
                                       Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return ResolveVerifyAndClinit(type_idx, referrer, thread, false, false);
 }
 
 Object* art_initialize_type_and_verify_access_from_code(uint32_t type_idx,
                                                         Method* referrer,
                                                         Thread* thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called when caller isn't guaranteed to have access to a type and the dex cache may be
   // unpopulated
   return ResolveVerifyAndClinit(type_idx, referrer, thread, false, true);
 }
 
 Object* art_resolve_string_from_code(Method* referrer, uint32_t string_idx)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return ResolveStringFromCode(referrer, string_idx);
 }
 
 int32_t art_set32_static_from_code(uint32_t field_idx, Method* referrer, int32_t new_value)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(NULL, new_value);
@@ -369,7 +369,7 @@ int32_t art_set32_static_from_code(uint32_t field_idx, Method* referrer, int32_t
 }
 
 int32_t art_set64_static_from_code(uint32_t field_idx, Method* referrer, int64_t new_value)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(NULL, new_value);
@@ -385,7 +385,7 @@ int32_t art_set64_static_from_code(uint32_t field_idx, Method* referrer, int64_t
 }
 
 int32_t art_set_obj_static_from_code(uint32_t field_idx, Method* referrer, Object* new_value)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(NULL, new_value);
@@ -401,7 +401,7 @@ int32_t art_set_obj_static_from_code(uint32_t field_idx, Method* referrer, Objec
 }
 
 int32_t art_get32_static_from_code(uint32_t field_idx, Method* referrer)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(NULL);
@@ -415,7 +415,7 @@ int32_t art_get32_static_from_code(uint32_t field_idx, Method* referrer)
 }
 
 int64_t art_get64_static_from_code(uint32_t field_idx, Method* referrer)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticPrimitiveRead, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(NULL);
@@ -429,7 +429,7 @@ int64_t art_get64_static_from_code(uint32_t field_idx, Method* referrer)
 }
 
 Object* art_get_obj_static_from_code(uint32_t field_idx, Method* referrer)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, StaticObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(NULL);
@@ -444,7 +444,7 @@ Object* art_get_obj_static_from_code(uint32_t field_idx, Method* referrer)
 
 int32_t art_set32_instance_from_code(uint32_t field_idx, Method* referrer,
                                      Object* obj, uint32_t new_value)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     field->Set32(obj, new_value);
@@ -461,7 +461,7 @@ int32_t art_set32_instance_from_code(uint32_t field_idx, Method* referrer,
 
 int32_t art_set64_instance_from_code(uint32_t field_idx, Method* referrer,
                                      Object* obj, int64_t new_value)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveWrite, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     field->Set64(obj, new_value);
@@ -478,7 +478,7 @@ int32_t art_set64_instance_from_code(uint32_t field_idx, Method* referrer,
 
 int32_t art_set_obj_instance_from_code(uint32_t field_idx, Method* referrer,
                                        Object* obj, Object* new_value)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, InstanceObjectWrite, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     field->SetObj(obj, new_value);
@@ -494,7 +494,7 @@ int32_t art_set_obj_instance_from_code(uint32_t field_idx, Method* referrer,
 }
 
 int32_t art_get32_instance_from_code(uint32_t field_idx, Method* referrer, Object* obj)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(uint32_t));
   if (LIKELY(field != NULL)) {
     return field->Get32(obj);
@@ -508,7 +508,7 @@ int32_t art_get32_instance_from_code(uint32_t field_idx, Method* referrer, Objec
 }
 
 int64_t art_get64_instance_from_code(uint32_t field_idx, Method* referrer, Object* obj)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, InstancePrimitiveRead, sizeof(uint64_t));
   if (LIKELY(field != NULL)) {
     return field->Get64(obj);
@@ -522,7 +522,7 @@ int64_t art_get64_instance_from_code(uint32_t field_idx, Method* referrer, Objec
 }
 
 Object* art_get_obj_instance_from_code(uint32_t field_idx, Method* referrer, Object* obj)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* field = FindFieldFast(field_idx, referrer, InstanceObjectRead, sizeof(Object*));
   if (LIKELY(field != NULL)) {
     return field->GetObj(obj);
@@ -537,7 +537,7 @@ Object* art_get_obj_instance_from_code(uint32_t field_idx, Method* referrer, Obj
 
 void art_fill_array_data_from_code(Method* method, uint32_t dex_pc,
                                    Array* array, uint32_t payload_offset)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Test: Is array equal to null? (Guard NullPointerException)
   if (UNLIKELY(array == NULL)) {
     art_throw_null_pointer_exception_from_code(dex_pc);
@@ -577,14 +577,14 @@ void art_fill_array_data_from_code(Method* method, uint32_t dex_pc,
 //----------------------------------------------------------------------------
 
 int32_t art_is_assignable_from_code(const Class* dest_type, const Class* src_type)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(dest_type != NULL);
   DCHECK(src_type != NULL);
   return dest_type->IsAssignableFrom(src_type) ? 1 : 0;
 }
 
 void art_check_cast_from_code(const Class* dest_type, const Class* src_type)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(dest_type->IsClass()) << PrettyClass(dest_type);
   DCHECK(src_type->IsClass()) << PrettyClass(src_type);
   if (UNLIKELY(!dest_type->IsAssignableFrom(src_type))) {
@@ -597,7 +597,7 @@ void art_check_cast_from_code(const Class* dest_type, const Class* src_type)
 }
 
 void art_check_put_array_element_from_code(const Object* element, const Object* array)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (element == NULL) {
     return;
   }
@@ -631,7 +631,7 @@ uint32_t art_jni_method_start(Thread* self)
 }
 
 uint32_t art_jni_method_start_synchronized(jobject to_lock, Thread* self)
-    UNLOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+    UNLOCK_FUNCTION(Locks::mutator_lock_) {
   self->DecodeJObject(to_lock)->MonitorEnter(self);
   return art_jni_method_start(self);
 }
@@ -643,7 +643,7 @@ static inline void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* s
 }
 
 void art_jni_method_end(uint32_t saved_local_ref_cookie, Thread* self)
-    SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   PopLocalReferences(saved_local_ref_cookie, self);
 }
@@ -651,7 +651,7 @@ void art_jni_method_end(uint32_t saved_local_ref_cookie, Thread* self)
 
 void art_jni_method_end_synchronized(uint32_t saved_local_ref_cookie, jobject locked,
                                      Thread* self)
-    SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
   PopLocalReferences(saved_local_ref_cookie, self);
@@ -659,7 +659,7 @@ void art_jni_method_end_synchronized(uint32_t saved_local_ref_cookie, jobject lo
 
 Object* art_jni_method_end_with_reference(jobject result, uint32_t saved_local_ref_cookie,
                                           Thread* self)
-    SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   Object* o = self->DecodeJObject(result);  // Must decode before pop.
   PopLocalReferences(saved_local_ref_cookie, self);
@@ -676,7 +676,7 @@ Object* art_jni_method_end_with_reference(jobject result, uint32_t saved_local_r
 Object* art_jni_method_end_with_reference_synchronized(jobject result,
                                                        uint32_t saved_local_ref_cookie,
                                                        jobject locked, Thread* self)
-    SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
   Object* o = self->DecodeJObject(result);
@@ -734,7 +734,7 @@ static void* art_find_compiler_runtime_func(const char* name) {
 // Handler for invocation on proxy methods. We create a boxed argument array. And we invoke
 // the invocation handler which is a field within the proxy object receiver.
 void art_proxy_invoke_handler_from_code(Method* proxy_method, ...)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   va_list ap;
   va_start(ap, proxy_method);
 

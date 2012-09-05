@@ -65,7 +65,7 @@ enum MutexLevel {
 std::ostream& operator<<(std::ostream& os, const MutexLevel& rhs);
 
 // Global mutexes corresponding to the levels above.
-class GlobalSynchronization {
+class Locks {
  public:
   static void Init();
 

@@ -48,7 +48,7 @@ namespace art {
 // the invocation handler which is a field within the proxy object receiver.
 extern "C" void artProxyInvokeHandler(Method* proxy_method, Object* receiver,
                                       Thread* self, byte* stack_args)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Register the top of the managed stack
   Method** proxy_sp = reinterpret_cast<Method**>(stack_args - SP_OFFSET_IN_BYTES);
   DCHECK_EQ(*proxy_sp, proxy_method);

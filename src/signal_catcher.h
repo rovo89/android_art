@@ -35,9 +35,9 @@ class SignalCatcher {
   explicit SignalCatcher(const std::string& stack_trace_file);
   ~SignalCatcher();
 
-  void HandleSigQuit() LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_,
-                                      GlobalSynchronization::thread_list_lock_,
-                                      GlobalSynchronization::thread_suspend_count_lock_);
+  void HandleSigQuit() LOCKS_EXCLUDED(Locks::mutator_lock_,
+                                      Locks::thread_list_lock_,
+                                      Locks::thread_suspend_count_lock_);
 
 
  private:

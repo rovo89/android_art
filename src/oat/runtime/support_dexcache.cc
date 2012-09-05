@@ -21,7 +21,7 @@ namespace art {
 
 extern "C" Class* artInitializeStaticStorageFromCode(uint32_t type_idx, const Method* referrer,
                                                      Thread* self, Method** sp)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called to ensure static storage base is initialized for direct static field reads and writes.
   // A class may be accessing another class' fields when it doesn't have access, as access has been
   // given by inheritance.
@@ -31,7 +31,7 @@ extern "C" Class* artInitializeStaticStorageFromCode(uint32_t type_idx, const Me
 
 extern "C" Class* artInitializeTypeFromCode(uint32_t type_idx, const Method* referrer, Thread* self,
                                             Method** sp)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called when method->dex_cache_resolved_types_[] misses.
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   return ResolveVerifyAndClinit(type_idx, referrer, self, false, false);
@@ -40,7 +40,7 @@ extern "C" Class* artInitializeTypeFromCode(uint32_t type_idx, const Method* ref
 extern "C" Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx,
                                                            const Method* referrer, Thread* self,
                                                            Method** sp)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called when caller isn't guaranteed to have access to a type and the dex cache may be
   // unpopulated.
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
@@ -49,7 +49,7 @@ extern "C" Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx,
 
 extern "C" String* artResolveStringFromCode(Method* referrer, int32_t string_idx,
                                             Thread* self, Method** sp)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
   return ResolveStringFromCode(referrer, string_idx);
 }

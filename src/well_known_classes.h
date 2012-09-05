@@ -33,7 +33,7 @@ struct WellKnownClasses {
   static void Init(JNIEnv* env);
 
   static Class* ToClass(jclass global_jclass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static jclass com_android_dex_Dex;
   static jclass dalvik_system_PathClassLoader;

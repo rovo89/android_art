@@ -368,7 +368,7 @@ void RegisterLine::WriteReferenceBitMap(std::vector<uint8_t>& data, size_t max_b
 }
 
 std::ostream& operator<<(std::ostream& os, const RegisterLine& rhs)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   os << rhs.Dump();
   return os;
 }

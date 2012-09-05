@@ -63,7 +63,7 @@ struct ObjectComparator {
   bool operator()(const Object* obj1, const Object* obj2)
     // TODO: enable analysis when analysis can work with the STL.
       NO_THREAD_SAFETY_ANALYSIS {
-    GlobalSynchronization::mutator_lock_->AssertSharedHeld();
+    Locks::mutator_lock_->AssertSharedHeld();
     // Ensure null references and cleared jweaks appear at the end.
     if (obj1 == NULL) {
       return true;
@@ -100,7 +100,7 @@ struct ObjectComparator {
 // or equivalent to the original.
 static void DumpSummaryLine(std::ostream& os, const Object* obj, size_t element_count,
                             int identical, int equiv)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (obj == NULL) {
     os << "    NULL reference (count=" << equiv << ")\n";
     return;

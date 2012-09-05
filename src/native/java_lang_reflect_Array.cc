@@ -25,7 +25,7 @@ namespace art {
 // Recursively create an array with multiple dimensions.  Elements may be
 // Objects or primitive types.
 static Array* CreateMultiArray(Class* array_class, int current_dimension, IntArray* dimensions)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   int32_t array_length = dimensions->Get(current_dimension++);
   SirtRef<Array> new_array(Array::Alloc(array_class, array_length));
   if (new_array.get() == NULL) {

@@ -102,7 +102,7 @@ static void move32(void* dst, const void* src, size_t n) {
 namespace art {
 
 static void ThrowArrayStoreException_NotAnArray(const char* identifier, Object* array)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::string actualType(PrettyTypeOf(array));
   Thread::Current()->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
       "%s of type %s is not an array", identifier, actualType.c_str());

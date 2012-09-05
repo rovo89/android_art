@@ -209,7 +209,7 @@ class CommonTest : public testing::Test {
                                 );
   }
 
-  void MakeExecutable(Method* method) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void MakeExecutable(Method* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
 
     MethodHelper mh(method);
@@ -452,7 +452,7 @@ class CommonTest : public testing::Test {
   }
 
   jobject LoadDex(const char* dex_name)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile* dex_file = OpenTestDexFile(dex_name);
     CHECK(dex_file != NULL);
     class_linker_->RegisterDexFile(*dex_file);
@@ -479,7 +479,7 @@ class CommonTest : public testing::Test {
     }
   }
 
-  void CompileMethod(Method* method) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void CompileMethod(Method* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(method != NULL);
     compiler_->CompileOne(method);
     MakeExecutable(method);
@@ -491,7 +491,7 @@ class CommonTest : public testing::Test {
                            const char* class_name,
                            const char* method_name,
                            const char* signature)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
     Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;
@@ -505,7 +505,7 @@ class CommonTest : public testing::Test {
                             const char* class_name,
                             const char* method_name,
                             const char* signature)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string class_descriptor(DotToDescriptor(class_name));
     Class* klass = class_linker_->FindClass(class_descriptor.c_str(), class_loader);
     CHECK(klass != NULL) << "Class not found " << class_name;

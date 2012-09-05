@@ -124,7 +124,7 @@ static const char* gBuiltInPrefixes[] = {
 };
 
 static bool ShouldTrace(JavaVMExt* vm, const Method* method)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // If both "-Xcheck:jni" and "-Xjnitrace:" are enabled, we print trace messages
   // when a native method that matches the -Xjnitrace argument calls a JNI function
   // such as NewByteArray.
@@ -151,7 +151,7 @@ class ScopedCheck {
  public:
   // For JNIEnv* functions.
   explicit ScopedCheck(JNIEnv* env, int flags, const char* functionName)
-      SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
       : soa_(env) {
     Init(flags, functionName, true);
     CheckThread(flags);
@@ -160,12 +160,12 @@ class ScopedCheck {
   // For JavaVM* functions.
   // TODO: it's not correct that this is a lock function, but making it so aids annotalysis.
   explicit ScopedCheck(JavaVM* vm, bool has_method, const char* functionName)
-      SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
       : soa_(vm) {
     Init(kFlag_Invocation, functionName, has_method);
   }
 
-  ~ScopedCheck() UNLOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {}
+  ~ScopedCheck() UNLOCK_FUNCTION(Locks::mutator_lock_) {}
 
   const ScopedObjectAccess& soa() {
     return soa_;
@@ -195,7 +195,7 @@ class ScopedCheck {
    * Works for both static and instance fields.
    */
   void CheckFieldType(jobject java_object, jfieldID fid, char prim, bool isStatic)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Field* f = CheckFieldID(fid);
     if (f == NULL) {
       return;
@@ -241,7 +241,7 @@ class ScopedCheck {
    * Assumes "jobj" has already been validated.
    */
   void CheckInstanceFieldID(jobject java_object, jfieldID fid)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Object* o = soa_.Decode<Object*>(java_object);
     if (o == NULL || !Runtime::Current()->GetHeap()->IsHeapAddress(o)) {
       JniAbortF(function_name_, "field operation on invalid %s: %p",
@@ -275,7 +275,7 @@ class ScopedCheck {
    * 'expectedType' will be "L" for all objects, including arrays.
    */
   void CheckSig(jmethodID mid, const char* expectedType, bool isStatic)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
@@ -301,7 +301,7 @@ class ScopedCheck {
    * Assumes "java_class" has already been validated.
    */
   void CheckStaticFieldID(jclass java_class, jfieldID fid)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* c = soa_.Decode<Class*>(java_class);
     const Field* f = CheckFieldID(fid);
     if (f == NULL) {
@@ -323,7 +323,7 @@ class ScopedCheck {
    * Instances of "java_class" must be instances of the method's declaring class.
    */
   void CheckStaticMethod(jclass java_class, jmethodID mid)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const Method* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
@@ -343,7 +343,7 @@ class ScopedCheck {
    * will be handled automatically by the instanceof check.)
    */
   void CheckVirtualMethod(jobject java_object, jmethodID mid)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const Method* m = CheckMethodID(mid);
     if (m == NULL) {
       return;
@@ -392,7 +392,7 @@ class ScopedCheck {
    * Use the kFlag_NullableUtf flag where 'u' field(s) are nullable.
    */
   void Check(bool entry, const char* fmt0, ...)
-      SHARED_LOCKS_REQUIRED (GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED (Locks::mutator_lock_) {
     va_list ap;
 
     const Method* traceMethod = NULL;
@@ -594,7 +594,7 @@ class ScopedCheck {
    * to "running" mode before doing the checks.
    */
   bool CheckInstance(InstanceKind kind, jobject java_object)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const char* what = NULL;
     switch (kind) {
     case kClass:
@@ -668,7 +668,7 @@ class ScopedCheck {
    *
    * Since we're dealing with objects, switch to "running" mode.
    */
-  void CheckArray(jarray java_array) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void CheckArray(jarray java_array) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (java_array == NULL) {
       JniAbortF(function_name_, "jarray was NULL");
       return;
@@ -689,7 +689,7 @@ class ScopedCheck {
     }
   }
 
-  Field* CheckFieldID(jfieldID fid) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  Field* CheckFieldID(jfieldID fid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (fid == NULL) {
       JniAbortF(function_name_, "jfieldID was NULL");
       return NULL;
@@ -702,7 +702,7 @@ class ScopedCheck {
     return f;
   }
 
-  Method* CheckMethodID(jmethodID mid) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  Method* CheckMethodID(jmethodID mid) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (mid == NULL) {
       JniAbortF(function_name_, "jmethodID was NULL");
       return NULL;
@@ -722,7 +722,7 @@ class ScopedCheck {
    * Switches to "running" mode before performing checks.
    */
   void CheckObject(jobject java_object)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (java_object == NULL) {
       return;
     }
@@ -745,7 +745,7 @@ class ScopedCheck {
     }
   }
 
-  void CheckThread(int flags) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void CheckThread(int flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Thread* self = Thread::Current();
     if (self == NULL) {
       JniAbortF(function_name_, "a thread (tid %d) is making JNI calls without being attached", GetTid());

@@ -159,7 +159,7 @@ static void Append8LE(uint8_t* buf, uint64_t val) {
 }
 
 static bool InstallStubsClassVisitor(Class* klass, void*)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Trace* tracer = Runtime::Current()->GetTracer();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
     Method* method = klass->GetDirectMethod(i);
@@ -178,7 +178,7 @@ static bool InstallStubsClassVisitor(Class* klass, void*)
 }
 
 static bool UninstallStubsClassVisitor(Class* klass, void*)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Trace* tracer = Runtime::Current()->GetTracer();
   for (size_t i = 0; i < klass->NumDirectMethods(); i++) {
     Method* method = klass->GetDirectMethod(i);
@@ -489,8 +489,8 @@ static void DumpThread(Thread* t, void* arg) {
 }
 
 void Trace::DumpThreadList(std::ostream& os) {
-  GlobalSynchronization::thread_list_lock_->AssertNotHeld();
-  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  Locks::thread_list_lock_->AssertNotHeld();
+  MutexLock mu(*Locks::thread_list_lock_);
   Runtime::Current()->GetThreadList()->ForEach(DumpThread, &os);
 }
 
@@ -499,9 +499,9 @@ void Trace::InstallStubs() {
 }
 
 void Trace::UninstallStubs() {
-  GlobalSynchronization::thread_list_lock_->AssertNotHeld();
+  Locks::thread_list_lock_->AssertNotHeld();
   Runtime::Current()->GetClassLinker()->VisitClasses(UninstallStubsClassVisitor, NULL);
-  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  MutexLock mu(*Locks::thread_list_lock_);
   Runtime::Current()->GetThreadList()->ForEach(TraceRestoreStack, NULL);
 }
 

@@ -54,7 +54,7 @@ class ModUnionTable {
   // for said cards. Exclusive lock is required since verify sometimes uses
   // SpaceBitmap::VisitMarkedRange and VisitMarkedRange can't know if the callback will modify the
   // bitmap or not.
-  virtual void Verify() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) = 0;
+  virtual void Verify() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) = 0;
 
   // Should probably clean this up later.
   void Init(MarkSweep* mark_sweep) {
@@ -86,11 +86,11 @@ class ModUnionTableBitmap : public ModUnionTable {
 
   // Update table based on cleared cards.
   void Update()
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Mark all references to the alloc space(s).
-  void MarkReferences() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+  void MarkReferences() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
  protected:
   // Cleared card array, used to update the mod-union table.
@@ -115,15 +115,15 @@ class ModUnionTableReferenceCache : public ModUnionTable {
 
   // Update table based on cleared cards.
   void Update()
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Mark all references to the alloc space(s).
-  void MarkReferences() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+  void MarkReferences() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Exclusive lock is required since verify uses SpaceBitmap::VisitMarkedRange and
   // VisitMarkedRange can't know if the callback will modify the bitmap or not.
-  void Verify() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+  void Verify() EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Function that tells whether or not to add a reference to the table.
   virtual bool AddReference(const Object* obj, const Object* ref) = 0;
@@ -152,8 +152,8 @@ class ModUnionTableCardCache : public ModUnionTable {
 
   // Mark all references to the alloc space(s).
   void MarkReferences()
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Nothing to verify.
   void Verify() {}

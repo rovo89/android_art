@@ -60,7 +60,7 @@ namespace art {
 
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 static void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -70,7 +70,7 @@ static void ThrowNoClassDefFoundError(const char* fmt, ...) {
 
 static void ThrowClassFormatError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 static void ThrowClassFormatError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -80,7 +80,7 @@ static void ThrowClassFormatError(const char* fmt, ...) {
 
 static void ThrowLinkageError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 static void ThrowLinkageError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -90,7 +90,7 @@ static void ThrowLinkageError(const char* fmt, ...) {
 
 static void ThrowNoSuchFieldError(const StringPiece& scope, Class* c, const StringPiece& type,
                                   const StringPiece& name)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassHelper kh(c);
   std::ostringstream msg;
   msg << "No " << scope << "field " << name << " of type " << type
@@ -104,7 +104,7 @@ static void ThrowNoSuchFieldError(const StringPiece& scope, Class* c, const Stri
 
 static void ThrowNullPointerException(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 static void ThrowNullPointerException(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
@@ -113,7 +113,7 @@ static void ThrowNullPointerException(const char* fmt, ...) {
 }
 
 static void ThrowEarlierClassFailure(Class* c)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // The class failed to initialize on a previous attempt, so we want to throw
   // a NoClassDefFoundError (v2 2.17.5).  The exception to this rule is if we
   // failed in verification, in which case v2 5.4.1 says we need to re-throw
@@ -134,7 +134,7 @@ static void ThrowEarlierClassFailure(Class* c)
 }
 
 static void WrapExceptionInInitializer()
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
 
@@ -916,7 +916,7 @@ void ClassLinker::InitFromImage() {
 
   // reinit clases_ table
   {
-    ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
     heap->FlushAllocStack();
     const Spaces& vec = heap->GetSpaces();
     // TODO: C++0x auto
@@ -985,7 +985,7 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
   }
 
   {
-    MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
+    MutexLock mu(*Locks::classlinker_classes_lock_);
     typedef Table::const_iterator It;  // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       visitor(it->second, arg);
@@ -999,7 +999,7 @@ void ClassLinker::VisitRoots(Heap::RootVisitor* visitor, void* arg) const {
 }
 
 void ClassLinker::VisitClasses(ClassVisitor* visitor, void* arg) const {
-  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
+  MutexLock mu(*Locks::classlinker_classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
     if (!visitor(it->second, arg)) {
@@ -1124,7 +1124,7 @@ ObjectArray<StackTraceElement>* ClassLinker::AllocStackTraceElementArray(size_t 
 }
 
 static Class* EnsureResolved(Class* klass)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(klass != NULL);
   // Wait for the class if it has not already been linked.
   Thread* self = Thread::Current();
@@ -1456,7 +1456,7 @@ void ClassLinker::FixupStaticTrampolines(Class* klass) {
 
 static void LinkCode(SirtRef<Method>& method, const OatFile::OatClass* oat_class,
                      uint32_t method_index)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Every kind of method should at least get an invoke stub from the oat_method.
   // non-abstract methods also get their code pointers.
   const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
@@ -1891,7 +1891,7 @@ Class* ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, boo
     LOG(INFO) << "Loaded class " << descriptor << source;
   }
   size_t hash = StringPieceHash()(descriptor);
-  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
+  MutexLock mu(*Locks::classlinker_classes_lock_);
   Table& classes = image_class ? image_classes_ : classes_;
   Class* existing = LookupClassLocked(descriptor.data(), klass->GetClassLoader(), hash, classes);
 #ifndef NDEBUG
@@ -1908,7 +1908,7 @@ Class* ClassLinker::InsertClass(const StringPiece& descriptor, Class* klass, boo
 
 bool ClassLinker::RemoveClass(const char* descriptor, const ClassLoader* class_loader) {
   size_t hash = Hash(descriptor);
-  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
+  MutexLock mu(*Locks::classlinker_classes_lock_);
   typedef Table::iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh;
@@ -1933,7 +1933,7 @@ bool ClassLinker::RemoveClass(const char* descriptor, const ClassLoader* class_l
 
 Class* ClassLinker::LookupClass(const char* descriptor, const ClassLoader* class_loader) {
   size_t hash = Hash(descriptor);
-  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
+  MutexLock mu(*Locks::classlinker_classes_lock_);
   // TODO: determine if its better to search classes_ or image_classes_ first
   Class* klass = LookupClassLocked(descriptor, class_loader, hash, classes_);
   if (klass != NULL) {
@@ -1968,7 +1968,7 @@ Class* ClassLinker::LookupClassLocked(const char* descriptor, const ClassLoader*
 void ClassLinker::LookupClasses(const char* descriptor, std::vector<Class*>& classes) {
   classes.clear();
   size_t hash = Hash(descriptor);
-  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
+  MutexLock mu(*Locks::classlinker_classes_lock_);
   typedef Table::const_iterator It;  // TODO: C++0x auto
   // TODO: determine if its better to search classes_ or image_classes_ first
   ClassHelper kh(NULL, this);
@@ -1990,7 +1990,7 @@ void ClassLinker::LookupClasses(const char* descriptor, std::vector<Class*>& cla
 
 #if !defined(NDEBUG) && !defined(ART_USE_LLVM_COMPILER)
 static void CheckMethodsHaveGcMaps(Class* klass)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (!Runtime::Current()->IsStarted()) {
     return;
   }
@@ -2339,7 +2339,7 @@ Method* ClassLinker::CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_
 }
 
 static void CheckProxyConstructor(Method* constructor)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(constructor->IsConstructor());
   MethodHelper mh(constructor);
   CHECK_STREQ(mh.GetName(), "<init>");
@@ -2378,7 +2378,7 @@ Method* ClassLinker::CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& p
 }
 
 static void CheckProxyMethod(Method* method, SirtRef<Method>& prototype)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Basic sanity
   CHECK(!prototype->IsFinal());
   CHECK(method->IsFinal());
@@ -2526,7 +2526,7 @@ bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit, bool can_in
 }
 
 bool ClassLinker::WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   while (true) {
     self->AssertNoPendingException();
     lock.Wait();
@@ -3138,7 +3138,7 @@ bool ClassLinker::LinkStaticFields(SirtRef<Class>& klass) {
 
 struct LinkFieldsComparator {
   explicit LinkFieldsComparator(FieldHelper* fh)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : fh_(fh) {}
   // No thread safety analysis as will be called from STL. Checked lock held in constructor.
   bool operator()(const Field* field1, const Field* field2) NO_THREAD_SAFETY_ANALYSIS {
@@ -3636,7 +3636,7 @@ void ClassLinker::DumpAllClasses(int flags) const {
   // lock held, because it might need to resolve a field's type, which would try to take the lock.
   std::vector<Class*> all_classes;
   {
-    MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
+    MutexLock mu(*Locks::classlinker_classes_lock_);
     typedef Table::const_iterator It;  // TODO: C++0x auto
     for (It it = classes_.begin(), end = classes_.end(); it != end; ++it) {
       all_classes.push_back(it->second);
@@ -3652,18 +3652,18 @@ void ClassLinker::DumpAllClasses(int flags) const {
 }
 
 void ClassLinker::DumpForSigQuit(std::ostream& os) const {
-  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
+  MutexLock mu(*Locks::classlinker_classes_lock_);
   os << "Loaded classes: " << image_classes_.size() << " image classes; "
      << classes_.size() << " allocated classes\n";
 }
 
 size_t ClassLinker::NumLoadedClasses() const {
-  MutexLock mu(*GlobalSynchronization::classlinker_classes_lock_);
+  MutexLock mu(*Locks::classlinker_classes_lock_);
   return classes_.size() + image_classes_.size();
 }
 
 pid_t ClassLinker::GetClassesLockOwner() {
-  return GlobalSynchronization::classlinker_classes_lock_->GetExclusiveOwnerTid();
+  return Locks::classlinker_classes_lock_->GetExclusiveOwnerTid();
 }
 
 pid_t ClassLinker::GetDexLockOwner() {

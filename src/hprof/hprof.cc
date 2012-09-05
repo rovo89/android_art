@@ -402,17 +402,17 @@ class Hprof {
   }
 
   void Dump()
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
-      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_) {
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_) {
     // Walk the roots and the heap.
     current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT, HPROF_TIME);
     Runtime::Current()->VisitRoots(RootVisitor, this);
     {
-      WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
       Runtime::Current()->GetHeap()->FlushAllocStack();
     }
     {
-      ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
       Runtime::Current()->GetHeap()->GetLiveBitmap()->Walk(HeapBitmapCallback, this);
     }
     current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_END, HPROF_TIME);
@@ -474,28 +474,28 @@ class Hprof {
 
  private:
   static void RootVisitor(const Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(arg != NULL);
     Hprof* hprof = reinterpret_cast<Hprof*>(arg);
     hprof->VisitRoot(obj);
   }
 
   static void HeapBitmapCallback(Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(obj != NULL);
     CHECK(arg != NULL);
     Hprof* hprof = reinterpret_cast<Hprof*>(arg);
     hprof->DumpHeapObject(obj);
   }
 
-  void VisitRoot(const Object* obj) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void VisitRoot(const Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  int DumpHeapObject(Object* obj) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  int DumpHeapObject(Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Finish() {
   }
 
-  int WriteClassTable() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  int WriteClassTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     HprofRecord* rec = &current_record_;
     uint32_t nextSerialNumber = 1;
 
@@ -563,7 +563,7 @@ class Hprof {
   int MarkRootObject(const Object* obj, jobject jniObj);
 
   HprofClassObjectId LookupClassId(Class* c)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (c == NULL) {
       // c is the superclass of java.lang.Object or a primitive
       return (HprofClassObjectId)0;
@@ -598,7 +598,7 @@ class Hprof {
   }
 
   HprofStringId LookupClassNameId(const Class* c)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return LookupStringId(PrettyDescriptor(c));
   }
 

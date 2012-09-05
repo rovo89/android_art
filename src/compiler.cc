@@ -669,7 +669,7 @@ bool Compiler::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx,
 
 static Class* ComputeCompilingMethodsClass(ScopedObjectAccess& soa,
                                            OatCompilationUnit* mUnit)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DexCache* dex_cache = mUnit->class_linker_->FindDexCache(*mUnit->dex_file_);
   ClassLoader* class_loader = soa.Decode<ClassLoader*>(mUnit->class_loader_);
   const DexFile::MethodId& referrer_method_id = mUnit->dex_file_->GetMethodId(mUnit->method_idx_);
@@ -680,7 +680,7 @@ static Class* ComputeCompilingMethodsClass(ScopedObjectAccess& soa,
 static Field* ComputeFieldReferencedFromCompilingMethod(ScopedObjectAccess& soa,
                                                         OatCompilationUnit* mUnit,
                                                         uint32_t field_idx)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DexCache* dex_cache = mUnit->class_linker_->FindDexCache(*mUnit->dex_file_);
   ClassLoader* class_loader = soa.Decode<ClassLoader*>(mUnit->class_loader_);
   return mUnit->class_linker_->ResolveField(*mUnit->dex_file_, field_idx, dex_cache,
@@ -691,7 +691,7 @@ static Method* ComputeMethodReferencedFromCompilingMethod(ScopedObjectAccess& so
                                                           OatCompilationUnit* mUnit,
                                                           uint32_t method_idx,
                                                           InvokeType type)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DexCache* dex_cache = mUnit->class_linker_->FindDexCache(*mUnit->dex_file_);
   ClassLoader* class_loader = soa.Decode<ClassLoader*>(mUnit->class_loader_);
   return mUnit->class_linker_->ResolveMethod(*mUnit->dex_file_, method_idx, dex_cache,
@@ -1026,7 +1026,7 @@ class WorkerThread {
   }
 
  private:
-  static void* Go(void* arg) LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
+  static void* Go(void* arg) LOCKS_EXCLUDED(Locks::mutator_lock_) {
     WorkerThread* worker = reinterpret_cast<WorkerThread*>(arg);
     Runtime* runtime = Runtime::Current();
     if (worker->spawn_) {
@@ -1039,11 +1039,11 @@ class WorkerThread {
     return NULL;
   }
 
-  void Go() LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
+  void Go() LOCKS_EXCLUDED(Locks::mutator_lock_) {
     Go(this);
   }
 
-  void Run() LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
+  void Run() LOCKS_EXCLUDED(Locks::mutator_lock_) {
     Thread* self = Thread::Current();
     for (size_t i = begin_; i < end_; i += stripe_) {
       callback_(context_, i);
@@ -1066,7 +1066,7 @@ class WorkerThread {
 
 static void ForAll(CompilationContext* context, size_t begin, size_t end, Callback callback,
                    size_t thread_count)
-    LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
+    LOCKS_EXCLUDED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   self->AssertNoPendingException();
   CHECK_GT(thread_count, 0U);
@@ -1080,7 +1080,7 @@ static void ForAll(CompilationContext* context, size_t begin, size_t end, Callba
   // Ensure we're suspended while we're blocked waiting for the other threads to finish (worker
   // thread destructor's called below perform join).
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_NE(self->GetState(), kRunnable);
   }
   STLDeleteElements(&threads);
@@ -1096,7 +1096,7 @@ static void ForAll(CompilationContext* context, size_t begin, size_t end, Callba
 static bool SkipClass(ClassLoader* class_loader,
                       const DexFile& dex_file,
                       const DexFile::ClassDef& class_def)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (class_loader == NULL) {
     return false;
   }
@@ -1113,7 +1113,7 @@ static bool SkipClass(ClassLoader* class_loader,
 }
 
 static void ResolveClassFieldsAndMethods(const CompilationContext* context, size_t class_def_index)
-    LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
+    LOCKS_EXCLUDED(Locks::mutator_lock_) {
   ScopedObjectAccess soa(Thread::Current());
   ClassLoader* class_loader = soa.Decode<ClassLoader*>(context->GetClassLoader());
   const DexFile& dex_file = *context->GetDexFile();
@@ -1182,7 +1182,7 @@ static void ResolveClassFieldsAndMethods(const CompilationContext* context, size
 }
 
 static void ResolveType(const CompilationContext* context, size_t type_idx)
-    LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
+    LOCKS_EXCLUDED(Locks::mutator_lock_) {
   // Class derived values are more complicated, they require the linker and loader.
   ScopedObjectAccess soa(Thread::Current());
   ClassLinker* class_linker = context->GetClassLinker();
@@ -1221,7 +1221,7 @@ void Compiler::Verify(jobject class_loader, const std::vector<const DexFile*>& d
 }
 
 static void VerifyClass(const CompilationContext* context, size_t class_def_index)
-    LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
+    LOCKS_EXCLUDED(Locks::mutator_lock_) {
   ScopedObjectAccess soa(Thread::Current());
   const DexFile::ClassDef& class_def = context->GetDexFile()->GetClassDef(class_def_index);
   const char* descriptor = context->GetDexFile()->GetClassDescriptor(class_def);
@@ -1474,7 +1474,7 @@ void ForClassesInAllDexFiles(CompilationContext* worker_context,
   // Ensure we're suspended while we're blocked waiting for the other threads to finish (worker
   // thread destructor's called below perform join).
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_NE(self->GetState(), kRunnable);
   }
   STLDeleteElements(&threads);

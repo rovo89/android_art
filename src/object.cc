@@ -439,7 +439,7 @@ Method* Method::FindOverriddenMethod() const {
 }
 
 static const void* GetOatCode(const Method* m)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Runtime* runtime = Runtime::Current();
   const void* code = m->GetCode();
   // Peel off any method tracing trampoline.
@@ -529,7 +529,7 @@ uint32_t Method::FindCatchBlock(Class* exception_type, uint32_t dex_pc) const {
 void Method::Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const {
   if (kIsDebugBuild) {
     self->AssertThreadSuspensionIsAllowable();
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_EQ(kRunnable, self->GetState());
   }
 

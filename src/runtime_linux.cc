@@ -226,7 +226,7 @@ struct UContext {
 };
 
 static void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
-  MutexLock mu(*GlobalSynchronization::unexpected_signal_lock_);
+  MutexLock mu(*Locks::unexpected_signal_lock_);
 
   bool has_address = (signal_number == SIGILL || signal_number == SIGBUS ||
                       signal_number == SIGFPE || signal_number == SIGSEGV);

@@ -175,7 +175,7 @@ struct AbortState {
 void Runtime::Abort() {
   // Ensure that we don't have multiple threads trying to abort at once,
   // which would result in significantly worse diagnostics.
-  MutexLock mu(*GlobalSynchronization::abort_lock_);
+  MutexLock mu(*Locks::abort_lock_);
 
   // Get any pending output out of the way.
   fflush(NULL);
@@ -536,7 +536,7 @@ bool Runtime::Create(const Options& options, bool ignore_unrecognized) {
   if (Runtime::instance_ != NULL) {
     return false;
   }
-  GlobalSynchronization::Init();
+  Locks::Init();
   instance_ = new Runtime;
   if (!instance_->Init(options, ignore_unrecognized)) {
     delete instance_;
@@ -642,7 +642,7 @@ void Runtime::StartDaemonThreads() {
 
   // Must be in the kNative state for calling native methods.
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_EQ(self->GetState(), kNative);
   }
 
@@ -742,7 +742,7 @@ void Runtime::InitNativeMethods() {
 
   // Must be in the kNative state for calling native methods (JNI_OnLoad code).
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_EQ(self->GetState(), kNative);
   }
 
@@ -831,7 +831,7 @@ void Runtime::DumpForSigQuit(std::ostream& os) {
 }
 
 void Runtime::DumpLockHolders(std::ostream& os) {
-  uint64_t mutator_lock_owner = GlobalSynchronization::mutator_lock_->GetExclusiveOwnerTid();
+  uint64_t mutator_lock_owner = Locks::mutator_lock_->GetExclusiveOwnerTid();
   pid_t thread_list_lock_owner = GetThreadList()->GetLockOwner();
   pid_t classes_lock_owner = GetClassLinker()->GetClassesLockOwner();
   pid_t dex_lock_owner = GetClassLinker()->GetDexLockOwner();

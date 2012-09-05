@@ -375,7 +375,7 @@ static bool PatternMatch(const char* pattern, const std::string& target) {
  * need to do this even if later mods cause us to ignore the event.
  */
 static bool ModsMatch(JdwpEvent* pEvent, ModBasket* basket)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JdwpEventMod* pMod = pEvent->mods;
 
   for (int i = pEvent->modCount; i > 0; i--, pMod++) {

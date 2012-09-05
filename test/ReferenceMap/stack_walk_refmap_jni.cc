@@ -44,11 +44,11 @@ namespace art {
 struct ReferenceMap2Visitor : public StackVisitor {
   explicit ReferenceMap2Visitor(const ManagedStack* stack,
                                 const std::vector<TraceStackFrame>* trace_stack)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(stack, trace_stack, NULL) {
   }
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* m = GetMethod();
     if (!m || m->IsNative() || m->IsRuntimeMethod() || IsShadowFrame()) {
       return true;

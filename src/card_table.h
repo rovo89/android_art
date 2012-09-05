@@ -76,8 +76,8 @@ class CardTable {
   template <typename Visitor, typename FingerVisitor>
   void Scan(SpaceBitmap* bitmap, byte* scan_begin, byte* scan_end,
             const Visitor& visitor, const FingerVisitor& finger_visitor) const
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(bitmap->HasAddress(scan_begin));
     DCHECK(bitmap->HasAddress(scan_end - 1));  // scan_end is the byte after the last byte we scan.
     byte* card_cur = CardFromAddr(scan_begin);

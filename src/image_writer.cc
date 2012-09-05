@@ -189,10 +189,10 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
 }
 
 void ImageWriter::ComputeEagerResolvedStrings()
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // TODO: Check image spaces only?
   Heap* heap = Runtime::Current()->GetHeap();
-  ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+  ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
   heap->FlushAllocStack();
   heap->GetLiveBitmap()->Walk(ComputeEagerResolvedStringsCallback, this);
 }
@@ -270,18 +270,18 @@ bool ImageWriter::NonImageClassesVisitor(Class* klass, void* arg) {
 }
 
 void ImageWriter::CheckNonImageClassesRemoved()
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (image_classes_ == NULL) {
     return;
   }
 
   Heap* heap = Runtime::Current()->GetHeap();
   {
-    WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    WriterMutexLock mu(*Locks::heap_bitmap_lock_);
     heap->FlushAllocStack();
   }
 
-  ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+  ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
   heap->GetLiveBitmap()->Walk(CheckNonImageClassesRemovedCallback, this);
 }
 
@@ -394,7 +394,7 @@ void ImageWriter::CalculateNewObjectOffsets() {
 
   {
     Heap* heap = Runtime::Current()->GetHeap();
-    ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
     heap->FlushAllocStack();
   }
 
@@ -420,12 +420,12 @@ void ImageWriter::CalculateNewObjectOffsets() {
 }
 
 void ImageWriter::CopyAndFixupObjects()
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Heap* heap = Runtime::Current()->GetHeap();
   // TODO: heap validation can't handle this fix up pass
   heap->DisableObjectValidation();
   // TODO: Image spaces only?
-  ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+  ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
   heap->FlushAllocStack();
   heap->GetLiveBitmap()->Walk(CopyAndFixupObjectsCallback, this);
 }
@@ -604,7 +604,7 @@ void ImageWriter::FixupFields(const Object* orig,
 }
 
 static Method* GetReferrerMethod(const Compiler::PatchInformation* patch)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(patch->GetDexFile());
@@ -626,7 +626,7 @@ static Method* GetReferrerMethod(const Compiler::PatchInformation* patch)
 }
 
 static Method* GetTargetMethod(const Compiler::PatchInformation* patch)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   DexCache* dex_cache = class_linker->FindDexCache(patch->GetDexFile());
   Method* method = class_linker->ResolveMethod(patch->GetDexFile(),

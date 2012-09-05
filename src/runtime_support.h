@@ -50,7 +50,7 @@ class Object;
 // check.
 static inline Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thread* self,
                                           bool access_check)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Class* klass = method->GetDexCacheResolvedTypes()->Get(type_idx);
   Runtime* runtime = Runtime::Current();
   if (UNLIKELY(klass == NULL)) {
@@ -85,7 +85,7 @@ static inline Object* AllocObjectFromCode(uint32_t type_idx, Method* method, Thr
 // check.
 static inline Array* AllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
                                         bool access_check)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(component_count < 0)) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NegativeArraySizeException;", "%d",
                                           component_count);
@@ -112,7 +112,7 @@ static inline Array* AllocArrayFromCode(uint32_t type_idx, Method* method, int32
 
 extern Array* CheckAndAllocArrayFromCode(uint32_t type_idx, Method* method, int32_t component_count,
                                          Thread* self, bool access_check)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Type of find field operation for fast and slow case.
 enum FindFieldType {
@@ -129,12 +129,12 @@ enum FindFieldType {
 // Slow field find that can initialize classes and may throw exceptions.
 extern Field* FindFieldFromCode(uint32_t field_idx, const Method* referrer, Thread* self,
                                 FindFieldType type, size_t expected_size)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Fast path field resolution that can't initialize classes or throw exceptions.
 static inline Field* FindFieldFast(uint32_t field_idx, const Method* referrer,
                                    FindFieldType type, size_t expected_size)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* resolved_field = referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
   if (UNLIKELY(resolved_field == NULL)) {
     return NULL;
@@ -183,7 +183,7 @@ static inline Field* FindFieldFast(uint32_t field_idx, const Method* referrer,
 // Fast path method resolution that can't throw exceptions.
 static inline Method* FindMethodFast(uint32_t method_idx, Object* this_object,
                                      const Method* referrer, bool access_check, InvokeType type)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   bool is_direct = type == kStatic || type == kDirect;
   if (UNLIKELY(this_object == NULL && !is_direct)) {
     return NULL;
@@ -223,20 +223,20 @@ static inline Method* FindMethodFast(uint32_t method_idx, Object* this_object,
 
 extern Method* FindMethodFromCode(uint32_t method_idx, Object* this_object, const Method* referrer,
                                   Thread* self, bool access_check, InvokeType type)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 extern Class* ResolveVerifyAndClinit(uint32_t type_idx, const Method* referrer, Thread* self,
                                      bool can_run_clinit, bool verify_access)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 static inline String* ResolveStringFromCode(const Method* referrer, uint32_t string_idx)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   return class_linker->ResolveString(string_idx, referrer);
 }
 
 static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
     UNLOCK_FUNCTION(monitor_lock_) {
   // Save any pending exception over monitor exit call.
   Throwable* saved_exception = NULL;
@@ -259,7 +259,7 @@ static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
 }
 
 static inline void CheckReferenceResult(Object* o, Thread* self)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (o == NULL) {
     return;
   }

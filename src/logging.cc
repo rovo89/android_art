@@ -51,7 +51,7 @@ const char* ProgramInvocationShortName() {
 // This can be used to reveal or conceal logs with specific tags.
 void InitLogging(char* argv[]) {
   // TODO: Move this to a more obvious InitART...
-  GlobalSynchronization::Init();
+  Locks::Init();
 
   // Stash the command line for later use. We can use /proc/self/cmdline on Linux to recover this,
   // but we don't have that luxury on the Mac, and there are a couple of argv[0] variants that are
@@ -104,7 +104,7 @@ LogMessage::~LogMessage() {
 
   // Do the actual logging with the lock held.
   {
-    MutexLock mu(*GlobalSynchronization::logging_lock_);
+    MutexLock mu(*Locks::logging_lock_);
     if (msg.find('\n') == std::string::npos) {
       LogLine(msg.c_str());
     } else {

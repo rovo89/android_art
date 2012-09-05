@@ -62,22 +62,22 @@ class RegisterLine {
 
   // Implement category-1 "move" instructions. Copy a 32-bit value from "vsrc" to "vdst".
   void CopyRegister1(uint32_t vdst, uint32_t vsrc, TypeCategory cat)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Implement category-2 "move" instructions. Copy a 64-bit value from "vsrc" to "vdst". This
   // copies both halves of the register.
   void CopyRegister2(uint32_t vdst, uint32_t vsrc)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Implement "move-result". Copy the category-1 value from the result register to another
   // register, and reset the result register.
   void CopyResultRegister1(uint32_t vdst, bool is_reference)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Implement "move-result-wide". Copy the category-2 value from the result register to another
   // register, and reset the result register.
   void CopyResultRegister2(uint32_t vdst)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Set the invisible result register to unknown
   void SetResultTypeToUnknown();
@@ -86,17 +86,17 @@ class RegisterLine {
   // part of a 64-bit value, register N+1 will be set to "newType+1".
   // The register index was validated during the static pass, so we don't need to check it here.
   bool SetRegisterType(uint32_t vdst, const RegType& new_type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /* Set the type of the "result" register. */
   void SetResultRegisterType(const RegType& new_type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the type of register vsrc.
   const RegType& GetRegisterType(uint32_t vsrc) const;
 
   bool VerifyRegisterType(uint32_t vsrc, const RegType& check_type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CopyFromLine(const RegisterLine* src) {
     DCHECK_EQ(num_regs_, src->num_regs_);
@@ -105,7 +105,7 @@ class RegisterLine {
     reg_to_lock_depths_ = src->reg_to_lock_depths_;
   }
 
-  std::string Dump() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FillWithGarbage() {
     memset(line_.get(), 0xf1, num_regs_ * sizeof(uint16_t));
@@ -122,7 +122,7 @@ class RegisterLine {
    * the new ones at the same time).
    */
   void MarkUninitRefsAsInvalid(const RegType& uninit_type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Update all registers holding "uninit_type" to instead hold the corresponding initialized
@@ -161,7 +161,7 @@ class RegisterLine {
    * versions. We just need to make sure vA is >= 1 and then return vC.
    */
   const RegType& GetInvocationThis(const DecodedInstruction& dec_insn)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Verify types for a simple two-register instruction (e.g. "neg-int").
@@ -169,7 +169,7 @@ class RegisterLine {
    */
   void CheckUnaryOp(const DecodedInstruction& dec_insn,
                     const RegType& dst_type, const RegType& src_type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Verify types for a simple three-register instruction (e.g. "add-int").
@@ -179,7 +179,7 @@ class RegisterLine {
   void CheckBinaryOp(const DecodedInstruction& dec_insn,
                      const RegType& dst_type, const RegType& src_type1, const RegType& src_type2,
                      bool check_boolean_op)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Verify types for a binary "2addr" operation. "src_type1"/"src_type2"
@@ -189,7 +189,7 @@ class RegisterLine {
                           const RegType& dst_type,
                           const RegType& src_type1, const RegType& src_type2,
                           bool check_boolean_op)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Verify types for A two-register instruction with a literal constant (e.g. "add-int/lit8").
@@ -199,7 +199,7 @@ class RegisterLine {
    */
   void CheckLiteralOp(const DecodedInstruction& dec_insn,
                       const RegType& dst_type, const RegType& src_type, bool check_boolean_op)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Verify/push monitor onto the monitor stack, locking the value in reg_idx at location insn_idx.
   void PushMonitor(uint32_t reg_idx, int32_t insn_idx);
@@ -217,7 +217,7 @@ class RegisterLine {
   bool VerifyMonitorStackEmpty();
 
   bool MergeRegisters(const RegisterLine* incoming_line)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t GetMaxNonZeroReferenceReg(size_t max_ref_reg) {
     size_t i = static_cast<int>(max_ref_reg) < 0 ? 0 : max_ref_reg;

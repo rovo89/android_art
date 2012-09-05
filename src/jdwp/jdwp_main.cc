@@ -118,7 +118,7 @@ JdwpState::JdwpState(const JdwpOptions* options)
  * the thread is accepting network connections.
  */
 JdwpState* JdwpState::Create(const JdwpOptions* options) {
-  GlobalSynchronization::mutator_lock_->AssertNotHeld();
+  Locks::mutator_lock_->AssertNotHeld();
   UniquePtr<JdwpState> state(new JdwpState(options));
   switch (options->transport) {
   case kJdwpTransportSocket:
@@ -301,7 +301,7 @@ void JdwpState::Run() {
 
   /* set the thread state to kWaitingInMainDebuggerLoop so GCs don't wait for us */
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_EQ(thread_->GetState(), kNative);
     thread_->SetState(kWaitingInMainDebuggerLoop);
   }
@@ -346,7 +346,7 @@ void JdwpState::Run() {
     while (!Dbg::IsDisposed()) {
       {
         // sanity check -- shouldn't happen?
-        MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+        MutexLock mu(*Locks::thread_suspend_count_lock_);
         CHECK_EQ(thread_->GetState(), kWaitingInMainDebuggerLoop);
       }
 
@@ -401,7 +401,7 @@ void JdwpState::Run() {
 
   /* back to native, for thread shutdown */
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_EQ(thread_->GetState(), kWaitingInMainDebuggerLoop);
     thread_->SetState(kNative);
   }

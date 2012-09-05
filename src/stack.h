@@ -215,7 +215,7 @@ class StackVisitor {
  protected:
   StackVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
                Context* context)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : stack_start_(stack), trace_stack_(trace_stack), cur_shadow_frame_(NULL),
         cur_quick_frame_(NULL), cur_quick_frame_pc_(0), num_frames_(0), cur_depth_(0),
         context_(context) {}
@@ -224,10 +224,10 @@ class StackVisitor {
   virtual ~StackVisitor() {}
 
   // Return 'true' if we should continue to visit more frames, 'false' to stop.
-  virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) = 0;
+  virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
   void WalkStack(bool include_transitions = false)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* GetMethod() const {
     if (cur_shadow_frame_ != NULL) {
@@ -255,19 +255,19 @@ class StackVisitor {
     return *reinterpret_cast<uintptr_t*>(save_addr);
   }
 
-  uint32_t GetDexPc() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  uint32_t GetDexPc() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns the height of the stack in the managed stack frames, including transitions.
-  size_t GetFrameHeight() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  size_t GetFrameHeight() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetNumFrames() - cur_depth_;
   }
 
   // Returns a frame ID for JDWP use, starting from 1.
-  size_t GetFrameId() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  size_t GetFrameId() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFrameHeight() + 1;
   }
 
-  size_t GetNumFrames() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  size_t GetNumFrames() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (num_frames_ == 0) {
       num_frames_ = ComputeNumFrames();
     }
@@ -275,10 +275,10 @@ class StackVisitor {
   }
 
   uint32_t GetVReg(Method* m, int vreg) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetVReg(Method* m, int vreg, uint32_t new_value)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uintptr_t GetGPR(uint32_t reg) const;
 
@@ -370,13 +370,13 @@ class StackVisitor {
   }
 
  private:
-  size_t ComputeNumFrames() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  size_t ComputeNumFrames() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   TraceStackFrame GetTraceStackFrame(uint32_t depth) const {
     return trace_stack_->at(trace_stack_->size() - depth - 1);
   }
 
-  void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const ManagedStack* const stack_start_;
   const std::vector<TraceStackFrame>* const trace_stack_;

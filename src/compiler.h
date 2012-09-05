@@ -53,11 +53,11 @@ class Compiler {
   ~Compiler();
 
   void CompileAll(jobject class_loader, const std::vector<const DexFile*>& dex_files)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Compile a single Method
   void CompileOne(const Method* method)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsDebuggingSupported() {
     return support_debugging_;
@@ -73,16 +73,16 @@ class Compiler {
 
   // Stub to throw AbstractMethodError
   static ByteArray* CreateAbstractMethodErrorStub(InstructionSet instruction_set)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
   // Generate the trampoline that's invoked by unresolved direct methods
   static ByteArray* CreateResolutionStub(InstructionSet instruction_set,
                                          Runtime::TrampolineType type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static ByteArray* CreateJniDlsymLookupStub(InstructionSet instruction_set)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // A class is uniquely located by its DexFile and the class_defs_ table index into that DexFile
   typedef std::pair<const DexFile*, uint32_t> ClassReference;
@@ -107,38 +107,38 @@ class Compiler {
   // Callbacks from compiler to see what runtime checks must be generated.
 
   bool CanAssumeTypeIsPresentInDexCache(const DexFile& dex_file, uint32_t type_idx)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   bool CanAssumeStringIsPresentInDexCache(const DexFile& dex_file, uint32_t string_idx)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Are runtime access checks necessary in the compiled code?
   bool CanAccessTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
                                   uint32_t type_idx)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Are runtime access and instantiable checks necessary in the code?
   bool CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_idx, const DexFile& dex_file,
                                               uint32_t type_idx)
-     LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+     LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fast path instance field access? Computes field's offset and volatility.
   bool ComputeInstanceFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
                                 int& field_offset, bool& is_volatile, bool is_put)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fastpath static field access? Computes field's offset, volatility and whether the
   // field is within the referrer (which can avoid checking class initialization).
   bool ComputeStaticFieldInfo(uint32_t field_idx, OatCompilationUnit* mUnit,
                               int& field_offset, int& ssb_index,
                               bool& is_referrers_class, bool& is_volatile, bool is_put)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable
   // index.
   bool ComputeInvokeInfo(uint32_t method_idx, OatCompilationUnit* mUnit, InvokeType& type,
                          int& vtable_idx, uintptr_t& direct_code, uintptr_t& direct_method)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Record patch information for later fix up.
   void AddCodePatch(const DexFile* dex_file,
@@ -231,14 +231,14 @@ class Compiler {
   // Compute constant code and method pointers when possible
   void GetCodeAndMethodForDirectCall(InvokeType type, InvokeType sharp_type, Method* method,
                                      uintptr_t& direct_code, uintptr_t& direct_method)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Checks if class specified by type_idx is one of the image_classes_
   bool IsImageClass(const std::string& descriptor) const;
 
   void PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                   TimingLogger& timings)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
   void PostCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files);
 
   // Attempt to resolve all type, methods, fields, and strings
@@ -246,37 +246,37 @@ class Compiler {
   // ordering semantics.
   void Resolve(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                TimingLogger& timings)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
   void ResolveDexFile(jobject class_loader, const DexFile& dex_file, TimingLogger& timings)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void Verify(jobject class_loader, const std::vector<const DexFile*>& dex_files);
   void VerifyDexFile(jobject class_loader, const DexFile& dex_file)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void InitializeClassesWithoutClinit(jobject class_loader,
                                       const std::vector<const DexFile*>& dex_files)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
   void InitializeClassesWithoutClinit(jobject class_loader, const DexFile& dex_file)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_, compiled_classes_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_, compiled_classes_lock_);
 
   void Compile(jobject class_loader, const std::vector<const DexFile*>& dex_files);
   void CompileDexFile(jobject class_loader, const DexFile& dex_file)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                      InvokeType invoke_type, uint32_t method_idx,
                      jobject class_loader, const DexFile& dex_file)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
   static void CompileClass(const CompilationContext* context, size_t class_def_index)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void SetGcMaps(jobject class_loader, const std::vector<const DexFile*>& dex_files)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
   void SetGcMapsDexFile(jobject class_loader, const DexFile& dex_file)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
   void SetGcMapsMethod(const DexFile& dex_file, Method* method)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void InsertInvokeStub(const std::string& key, const CompiledInvokeStub* compiled_invoke_stub)
       LOCKS_EXCLUDED(compiled_invoke_stubs_lock_);

@@ -29,7 +29,7 @@ namespace art {
 class ScopedThreadStateChange {
  public:
   ScopedThreadStateChange(Thread* self, ThreadState new_thread_state)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       : self_(self), thread_state_(new_thread_state), expected_has_no_thread_(false) {
     if (self_ == NULL) {
       // Value chosen arbitrarily and won't be used in the destructor since thread_ == NULL.
@@ -38,7 +38,7 @@ class ScopedThreadStateChange {
     } else {
       bool runnable_transition;
       {
-        MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+        MutexLock mu(*Locks::thread_suspend_count_lock_);
         old_thread_state_ = self->GetState();
         runnable_transition = old_thread_state_ == kRunnable || new_thread_state == kRunnable;
         if (!runnable_transition) {
@@ -56,7 +56,7 @@ class ScopedThreadStateChange {
     }
   }
 
-  ~ScopedThreadStateChange() LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_) {
+  ~ScopedThreadStateChange() LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_) {
     if (self_ == NULL) {
       if (!expected_has_no_thread_) {
         CHECK(Runtime::Current()->IsShuttingDown());
@@ -68,7 +68,7 @@ class ScopedThreadStateChange {
         } else if (thread_state_ == kRunnable) {
           self_->TransitionFromRunnableToSuspended(old_thread_state_);
         } else {
-          MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+          MutexLock mu(*Locks::thread_suspend_count_lock_);
           self_->SetState(old_thread_state_);
         }
       }
@@ -112,14 +112,14 @@ class ScopedThreadStateChange {
 class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
  public:
   explicit ScopedObjectAccessUnchecked(JNIEnv* env)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       : ScopedThreadStateChange(ThreadForEnv(env), kRunnable),
         env_(reinterpret_cast<JNIEnvExt*>(env)), vm_(env_->vm) {
     self_->VerifyStack();
   }
 
   explicit ScopedObjectAccessUnchecked(Thread* self)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       : ScopedThreadStateChange(self, kRunnable),
         env_(reinterpret_cast<JNIEnvExt*>(self->GetJniEnv())),
         vm_(env_ != NULL ? env_->vm : NULL) {
@@ -158,7 +158,7 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
    */
   template<typename T>
   T AddLocalReference(Object* obj) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
     if (obj == NULL) {
       return NULL;
@@ -195,8 +195,8 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   T Decode(jobject obj) const
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-    GlobalSynchronization::mutator_lock_->AssertSharedHeld();
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Locks::mutator_lock_->AssertSharedHeld();
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
     return down_cast<T>(Self()->DecodeJObject(obj));
   }
@@ -204,8 +204,8 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   Field* DecodeField(jfieldID fid) const
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-    GlobalSynchronization::mutator_lock_->AssertSharedHeld();
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Locks::mutator_lock_->AssertSharedHeld();
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
 #ifdef MOVING_GARBAGE_COLLECTOR
     // TODO: we should make these unique weak globals if Field instances can ever move.
@@ -217,8 +217,8 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   jfieldID EncodeField(Field* field) const
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-    GlobalSynchronization::mutator_lock_->AssertSharedHeld();
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Locks::mutator_lock_->AssertSharedHeld();
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
 #ifdef MOVING_GARBAGE_COLLECTOR
     UNIMPLEMENTED(WARNING);
@@ -229,8 +229,8 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   Method* DecodeMethod(jmethodID mid) const
       LOCKS_EXCLUDED(JavaVMExt::globals_lock,
                      JavaVMExt::weak_globals_lock)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-    GlobalSynchronization::mutator_lock_->AssertSharedHeld();
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Locks::mutator_lock_->AssertSharedHeld();
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
 #ifdef MOVING_GARBAGE_COLLECTOR
     // TODO: we should make these unique weak globals if Method instances can ever move.
@@ -240,8 +240,8 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
   }
 
   jmethodID EncodeMethod(Method* method) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
-    GlobalSynchronization::mutator_lock_->AssertSharedHeld();
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Locks::mutator_lock_->AssertSharedHeld();
     DCHECK_EQ(thread_state_, kRunnable);  // Don't work with raw objects in non-runnable states.
 #ifdef MOVING_GARBAGE_COLLECTOR
     UNIMPLEMENTED(WARNING);
@@ -281,20 +281,20 @@ class ScopedObjectAccessUnchecked : public ScopedThreadStateChange {
 class ScopedObjectAccess : public ScopedObjectAccessUnchecked {
  public:
   explicit ScopedObjectAccess(JNIEnv* env)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
-      SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
       : ScopedObjectAccessUnchecked(env) {
-    GlobalSynchronization::mutator_lock_->AssertSharedHeld();
+    Locks::mutator_lock_->AssertSharedHeld();
   }
 
   explicit ScopedObjectAccess(Thread* self)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
-      SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
       : ScopedObjectAccessUnchecked(self) {
-    GlobalSynchronization::mutator_lock_->AssertSharedHeld();
+    Locks::mutator_lock_->AssertSharedHeld();
   }
 
-  ~ScopedObjectAccess() UNLOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+  ~ScopedObjectAccess() UNLOCK_FUNCTION(Locks::mutator_lock_) {
     // Base class will release share of lock. Invoked after this destructor.
   }
 
@@ -303,7 +303,7 @@ class ScopedObjectAccess : public ScopedObjectAccessUnchecked {
   //       routines operating with just a VM are sound, they are not, but when you have just a VM
   //       you cannot call the unsound routines.
   explicit ScopedObjectAccess(JavaVM* vm)
-      SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCK_FUNCTION(Locks::mutator_lock_)
       : ScopedObjectAccessUnchecked(vm) {}
 
   friend class ScopedCheck;

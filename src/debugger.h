@@ -81,7 +81,7 @@ class Dbg {
   static void StopJdwp();
 
   // Invoked by the GC in case we need to keep DDMS informed.
-  static void GcDidFinish() LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+  static void GcDidFinish() LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Return the DebugInvokeReq for the current thread.
   static DebugInvokeReq* GetInvokeReq();
@@ -124,105 +124,105 @@ class Dbg {
    * Class, Object, Array
    */
   static std::string GetClassName(JDWP::RefTypeId id)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& classObjectId)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclassId)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetClassLoader(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetModifiers(JDWP::RefTypeId id, JDWP::ExpandBuf* pReply)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetReflectedType(JDWP::RefTypeId classId, JDWP::ExpandBuf* pReply)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void GetClassList(std::vector<JDWP::RefTypeId>& classes)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetClassInfo(JDWP::RefTypeId classId, JDWP::JdwpTypeTag* pTypeTag,
                                       uint32_t* pStatus, std::string* pDescriptor)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void FindLoadedClassBySignature(const char* descriptor, std::vector<JDWP::RefTypeId>& ids)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetReferenceType(JDWP::ObjectId objectId, JDWP::ExpandBuf* pReply);
   static JDWP::JdwpError GetSignature(JDWP::RefTypeId refTypeId, std::string& signature)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetSourceFile(JDWP::RefTypeId refTypeId, std::string& source_file)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetObjectTag(JDWP::ObjectId objectId, uint8_t& tag)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static size_t GetTagWidth(JDWP::JdwpTag tag);
 
   static JDWP::JdwpError GetArrayLength(JDWP::ObjectId arrayId, int& length)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError OutputArray(JDWP::ObjectId arrayId, int firstIndex, int count,
                                      JDWP::ExpandBuf* pReply)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError SetArrayElements(JDWP::ObjectId arrayId, int firstIndex, int count,
                                           const uint8_t* buf)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::ObjectId CreateString(const std::string& str)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError CreateObject(JDWP::RefTypeId classId, JDWP::ObjectId& new_object)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError CreateArrayObject(JDWP::RefTypeId arrayTypeId, uint32_t length,
                                            JDWP::ObjectId& new_array)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static bool MatchType(JDWP::RefTypeId instClassId, JDWP::RefTypeId classId)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Method and Field
    */
   static std::string GetMethodName(JDWP::RefTypeId refTypeId, JDWP::MethodId id)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError OutputDeclaredFields(JDWP::RefTypeId refTypeId, bool withGeneric,
                                               JDWP::ExpandBuf* pReply)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError OutputDeclaredMethods(JDWP::RefTypeId refTypeId, bool withGeneric,
                                                JDWP::ExpandBuf* pReply)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError OutputDeclaredInterfaces(JDWP::RefTypeId refTypeId,
                                                   JDWP::ExpandBuf* pReply)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void OutputLineTable(JDWP::RefTypeId refTypeId, JDWP::MethodId methodId,
                               JDWP::ExpandBuf* pReply)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void OutputVariableTable(JDWP::RefTypeId refTypeId, JDWP::MethodId id, bool withGeneric,
                                   JDWP::ExpandBuf* pReply)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::JdwpTag GetFieldBasicTag(JDWP::FieldId fieldId)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpTag GetStaticFieldBasicTag(JDWP::FieldId fieldId)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);;
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);;
   static JDWP::JdwpError GetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId,
                                        JDWP::ExpandBuf* pReply)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError SetFieldValue(JDWP::ObjectId objectId, JDWP::FieldId fieldId,
                                        uint64_t value, int width)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetStaticFieldValue(JDWP::RefTypeId refTypeId, JDWP::FieldId fieldId,
                                              JDWP::ExpandBuf* pReply)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError SetStaticFieldValue(JDWP::FieldId fieldId, uint64_t value, int width)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static std::string StringToUtf8(JDWP::ObjectId strId)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Thread, ThreadGroup, Frame
    */
   static bool GetThreadName(JDWP::ObjectId threadId, std::string& name)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_);
   static JDWP::JdwpError GetThreadGroup(JDWP::ObjectId threadId, JDWP::ExpandBuf* pReply);
   static std::string GetThreadGroupName(JDWP::ObjectId threadGroupId);
   static JDWP::ObjectId GetThreadGroupParent(JDWP::ObjectId threadGroupId)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::ObjectId GetSystemThreadGroupId()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::ObjectId GetMainThreadGroupId();
 
   static bool GetThreadStatus(JDWP::ObjectId threadId, JDWP::JdwpThreadStatus* pThreadStatus, JDWP::JdwpSuspendStatus* pSuspendStatus);
@@ -234,43 +234,43 @@ class Dbg {
   // Fills 'thread_ids' with the threads in the given thread group. If thread_group_id == 0,
   // returns all threads.
   static void GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& thread_ids)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& child_thread_group_ids);
 
   static int GetThreadFrameCount(JDWP::ObjectId threadId);
   static JDWP::JdwpError GetThreadFrames(JDWP::ObjectId thread_id, size_t start_frame,
                                          size_t frame_count, JDWP::ExpandBuf* buf)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static JDWP::ObjectId GetThreadSelfId()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void SuspendVM()
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
   static void ResumeVM();
   static JDWP::JdwpError SuspendThread(JDWP::ObjectId threadId, bool request_suspension = true)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_,
-                     GlobalSynchronization::thread_list_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
 
   static void ResumeThread(JDWP::ObjectId threadId)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void SuspendSelf();
 
   static JDWP::JdwpError GetThisObject(JDWP::ObjectId thread_id, JDWP::FrameId frame_id,
                                        JDWP::ObjectId* result)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void GetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot,
                             JDWP::JdwpTag tag, uint8_t* buf, size_t expectedLen)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void SetLocalValue(JDWP::ObjectId threadId, JDWP::FrameId frameId, int slot,
                             JDWP::JdwpTag tag, uint64_t value, size_t width)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Debugger notification
@@ -282,29 +282,29 @@ class Dbg {
     kMethodExit     = 0x08,
   };
   static void PostLocationEvent(const Method* method, int pcOffset, Object* thisPtr, int eventFlags)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostException(Thread* thread, JDWP::FrameId throw_frame_id, Method* throw_method,
                             uint32_t throw_dex_pc, Method* catch_method, uint32_t catch_dex_pc,
                             Throwable* exception)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStart(Thread* t)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadDeath(Thread* t)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostClassPrepare(Class* c)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void UpdateDebugger(int32_t dex_pc, Thread* self)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void WatchLocation(const JDWP::JdwpLocation* pLoc)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void UnwatchLocation(const JDWP::JdwpLocation* pLoc)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError ConfigureStep(JDWP::ObjectId threadId, JDWP::JdwpStepSize size,
                                        JDWP::JdwpStepDepth depth)
       LOCKS_EXCLUDED(gBreakpointsLock)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void UnconfigureStep(JDWP::ObjectId threadId);
 
   static JDWP::JdwpError InvokeMethod(JDWP::ObjectId threadId, JDWP::ObjectId objectId,
@@ -313,9 +313,9 @@ class Dbg {
                                       JDWP::JdwpTag* arg_types, uint32_t options,
                                       JDWP::JdwpTag* pResultTag, uint64_t* pResultValue,
                                       JDWP::ObjectId* pExceptObj)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void ExecuteMethod(DebugInvokeReq* pReq);
 
   /* perform "late registration" of an object ID */
@@ -325,27 +325,27 @@ class Dbg {
    * DDM support.
    */
   static void DdmSendThreadNotification(Thread* t, uint32_t type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmSetThreadNotification(bool enable);
   static bool DdmHandlePacket(const uint8_t* buf, int dataLen, uint8_t** pReplyBuf, int* pReplyLen);
-  static void DdmConnected() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-  static void DdmDisconnected() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  static void DdmConnected() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void DdmDisconnected() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmSendChunk(uint32_t type, const std::vector<uint8_t>& bytes)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmSendChunk(uint32_t type, size_t len, const uint8_t* buf)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Recent allocation tracking support.
    */
   static void RecordAllocation(Class* type, size_t byte_count)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void SetAllocTrackingEnabled(bool enabled);
   static inline bool IsAllocTrackingEnabled() { return recent_allocation_records_ != NULL; }
   static jbyteArray GetRecentAllocations()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DumpRecentAllocations();
 
   enum HpifWhen {
@@ -355,7 +355,7 @@ class Dbg {
     HPIF_WHEN_EVERY_GC = 3
   };
   static int DdmHandleHpifChunk(HpifWhen when)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   enum HpsgWhen {
     HPSG_WHEN_NEVER = 0,
@@ -368,14 +368,14 @@ class Dbg {
   static bool DdmHandleHpsgNhsgChunk(HpsgWhen when, HpsgWhat what, bool native);
 
   static void DdmSendHeapInfo(HpifWhen reason)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void DdmSendHeapSegments(bool native)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  static void DdmBroadcast(bool) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  static void DdmBroadcast(bool) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStartOrStop(Thread*, uint32_t)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static AllocRecord* recent_allocation_records_;
 };

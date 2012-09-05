@@ -90,7 +90,7 @@ class LOCKABLE Heap {
 
   // Allocates and initializes storage for an object instance.
   Object* AllocObject(Class* klass, size_t num_bytes)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Check sanity of given reference. Requires the heap lock.
 #if VERIFY_OBJECT_ENABLED
@@ -103,8 +103,8 @@ class LOCKABLE Heap {
   void VerifyHeap();
   static void RootMatchesObjectVisitor(const Object* root, void* arg);
   void VerifyHeapReferences(const std::string& phase)
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // A weaker test than IsLiveObject or VerifyObject that doesn't require the heap lock,
   // and doesn't abort on error, allowing the caller to report more
@@ -114,11 +114,11 @@ class LOCKABLE Heap {
   // Returns true if 'obj' is a live heap object, false otherwise (including for invalid addresses).
   // Requires the heap lock to be held.
   bool IsLiveObjectLocked(const Object* obj)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Initiates an explicit garbage collection.
   void CollectGarbage(bool clear_soft_references)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Does a concurrent GC, should only be called by the GC daemon thread
   // through runtime.
@@ -133,8 +133,8 @@ class LOCKABLE Heap {
 
   // Implements VMDebug.countInstancesOfClass.
   int64_t CountInstances(Class* c, bool count_assignable)
-      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Removes the growth limit on the alloc space so it may grow to its maximum capacity. Used to
   // implement dalvik.system.VMRuntime.clearGrowthLimit.
@@ -244,11 +244,11 @@ class LOCKABLE Heap {
 
   void Trim();
 
-  HeapBitmap* GetLiveBitmap() SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
+  HeapBitmap* GetLiveBitmap() SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     return live_bitmap_.get();
   }
 
-  HeapBitmap* GetMarkBitmap() SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
+  HeapBitmap* GetMarkBitmap() SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     return mark_bitmap_.get();
   }
 
@@ -256,7 +256,7 @@ class LOCKABLE Heap {
 
   // Mark and empty stack.
   void FlushAllocStack()
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Mark all the objects in the allocation stack as live.
   void MarkStackAsLive(MarkStack* alloc_stack);
@@ -269,7 +269,7 @@ class LOCKABLE Heap {
 
   // Update and mark mod union table based on gc type.
   void UpdateAndMarkModUnion(TimingLogger& timings, GcType gc_type)
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // DEPRECATED: Should remove in "near" future when support for multiple image spaces is added.
   // Assumes there is only one image space.
@@ -280,8 +280,8 @@ class LOCKABLE Heap {
  private:
   // Allocates uninitialized storage.
   Object* Allocate(AllocSpace* space, size_t num_bytes)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Pushes a list of cleared references out to the managed heap.
   void EnqueueClearedReferences(Object** cleared_references);
@@ -290,19 +290,19 @@ class LOCKABLE Heap {
   void RequestConcurrentGC();
 
   void RecordAllocation(AllocSpace* space, const Object* object)
-      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_);
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   void CollectGarbageInternal(GcType gc_plan, bool clear_soft_references)
       LOCKS_EXCLUDED(gc_complete_lock_,
-                     GlobalSynchronization::heap_bitmap_lock_,
-                     GlobalSynchronization::mutator_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_);
+                     Locks::heap_bitmap_lock_,
+                     Locks::mutator_lock_,
+                     Locks::thread_suspend_count_lock_);
   void CollectGarbageMarkSweepPlan(GcType gc_plan, bool clear_soft_references)
-      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_,
-                     GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_,
+                     Locks::mutator_lock_);
   void CollectGarbageConcurrentMarkSweepPlan(GcType gc_plan, bool clear_soft_references)
-      LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_,
-                     GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_,
+                     Locks::mutator_lock_);
 
   // Given the current contents of the alloc space, increase the allowed heap footprint to match
   // the target utilization ratio.  This should only be called immediately after a full garbage
@@ -311,7 +311,7 @@ class LOCKABLE Heap {
 
   size_t GetPercentFree();
 
-  void AddSpace(Space* space) LOCKS_EXCLUDED(GlobalSynchronization::heap_bitmap_lock_);
+  void AddSpace(Space* space) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   // No thread saftey analysis since we call this everywhere and it is impossible to find a proper
   // lock ordering for it.
@@ -376,8 +376,8 @@ class LOCKABLE Heap {
   // Last trim time
   uint64_t last_trim_time_;
 
-  UniquePtr<HeapBitmap> live_bitmap_ GUARDED_BY(GlobalSynchronization::heap_bitmap_lock_);
-  UniquePtr<HeapBitmap> mark_bitmap_ GUARDED_BY(GlobalSynchronization::heap_bitmap_lock_);
+  UniquePtr<HeapBitmap> live_bitmap_ GUARDED_BY(Locks::heap_bitmap_lock_);
+  UniquePtr<HeapBitmap> mark_bitmap_ GUARDED_BY(Locks::heap_bitmap_lock_);
 
   // True while the garbage collector is trying to signal the GC daemon thread.
   // This flag is needed to prevent recursion from occurring when the JNI calls

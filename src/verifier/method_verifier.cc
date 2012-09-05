@@ -1029,7 +1029,7 @@ std::ostream& MethodVerifier::DumpFailures(std::ostream& os) {
 }
 
 extern "C" void MethodVerifierGdbDump(MethodVerifier* v)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   v->Dump(std::cerr);
 }
 

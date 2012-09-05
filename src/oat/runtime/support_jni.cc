@@ -23,8 +23,8 @@
 namespace art {
 
 // Used by the JNI dlsym stub to find the native method to invoke if none is registered.
-extern void* FindNativeMethod(Thread* self) LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
-  GlobalSynchronization::mutator_lock_->AssertNotHeld();  // We come here as Native.
+extern void* FindNativeMethod(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_) {
+  Locks::mutator_lock_->AssertNotHeld();  // We come here as Native.
   DCHECK(Thread::Current() == self);
   ScopedObjectAccess soa(self);
 
@@ -54,7 +54,7 @@ extern uint32_t JniMethodStart(Thread* self) UNLOCK_FUNCTION(GlobalSynchronizati
 }
 
 extern uint32_t JniMethodStartSynchronized(jobject to_lock, Thread* self)
-    UNLOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+    UNLOCK_FUNCTION(Locks::mutator_lock_) {
   self->DecodeJObject(to_lock)->MonitorEnter(self);
   return JniMethodStart(self);
 }
@@ -67,14 +67,14 @@ static void PopLocalReferences(uint32_t saved_local_ref_cookie, Thread* self) {
 }
 
 extern void JniMethodEnd(uint32_t saved_local_ref_cookie, Thread* self)
-    SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   PopLocalReferences(saved_local_ref_cookie, self);
 }
 
 
 extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject locked, Thread* self)
-    SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
   PopLocalReferences(saved_local_ref_cookie, self);
@@ -82,7 +82,7 @@ extern void JniMethodEndSynchronized(uint32_t saved_local_ref_cookie, jobject lo
 
 extern Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_ref_cookie,
                                          Thread* self)
-    SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   Object* o = self->DecodeJObject(result);  // Must decode before pop.
   PopLocalReferences(saved_local_ref_cookie, self);
@@ -99,7 +99,7 @@ extern Object* JniMethodEndWithReference(jobject result, uint32_t saved_local_re
 extern Object* JniMethodEndWithReferenceSynchronized(jobject result,
                                                      uint32_t saved_local_ref_cookie,
                                                      jobject locked, Thread* self)
-    SHARED_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCK_FUNCTION(Locks::mutator_lock_) {
   self->TransitionFromSuspendedToRunnable();
   UnlockJniSynchronizedMethod(locked, self);  // Must decode before pop.
   Object* o = self->DecodeJObject(result);
@@ -123,7 +123,7 @@ static void WorkAroundJniBugsForJobject(intptr_t* arg_ptr) {
 }
 
 extern "C" const void* artWorkAroundAppJniBugs(Thread* self, intptr_t* sp)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_){
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_){
   DCHECK(Thread::Current() == self);
   // TODO: this code is specific to ARM
   // On entry the stack pointed by sp is:

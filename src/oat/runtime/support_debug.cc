@@ -26,14 +26,14 @@ namespace art {
  * to denote method entry.
  */
 extern "C" void artUpdateDebuggerFromCode(int32_t dex_pc, Thread* self, Method** sp)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(self, sp,  Runtime::kRefsAndArgs);
   Dbg::UpdateDebugger(dex_pc, self);
 }
 
 // Temporary debugging hook for compiler.
 extern void DebugMe(Method* method, uint32_t info)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   LOG(INFO) << "DebugMe";
   if (method != NULL) {
     LOG(INFO) << PrettyMethod(method);

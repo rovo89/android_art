@@ -25,7 +25,7 @@ namespace art {
 
 static bool GetFieldValue(const ScopedObjectAccess& soa, Object* o, Field* f,
                           JValue& value, bool allow_references)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK_EQ(value.GetJ(), 0LL);
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(),
                                                                true, true)) {
@@ -74,7 +74,7 @@ static bool GetFieldValue(const ScopedObjectAccess& soa, Object* o, Field* f,
 
 static bool CheckReceiver(const ScopedObjectAccess& soa, jobject javaObj, Field* f,
                           Object*& o)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (f->IsStatic()) {
     o = NULL;
     return true;
@@ -163,7 +163,7 @@ static jshort Field_getShort(JNIEnv* env, jobject javaField, jobject javaObj) {
 }
 
 static void SetFieldValue(Object* o, Field* f, const JValue& new_value, bool allow_references)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(f->GetDeclaringClass(),
                                                                true, true)) {
     return;

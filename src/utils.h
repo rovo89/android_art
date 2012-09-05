@@ -168,18 +168,18 @@ std::string PrettyDescriptor(const String* descriptor);
 std::string PrettyDescriptor(const std::string& descriptor);
 std::string PrettyDescriptor(Primitive::Type type);
 std::string PrettyDescriptor(const Class* klass)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable signature for 'f'. Something like "a.b.C.f" or
 // "int a.b.C.f" (depending on the value of 'with_type').
 std::string PrettyField(const Field* f, bool with_type = true)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyField(uint32_t field_idx, const DexFile& dex_file, bool with_type = true);
 
 // Returns a human-readable signature for 'm'. Something like "a.b.C.m" or
 // "a.b.C.m(II)V" (depending on the value of 'with_signature').
 std::string PrettyMethod(const Method* m, bool with_signature = true)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with_signature = true);
 
 // Returns a human-readable form of the name of the *class* of the given object.
@@ -187,16 +187,16 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
 // be "java.lang.String". Given an array of int, the output would be "int[]".
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
 std::string PrettyTypeOf(const Object* obj)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable form of the name of the given class.
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
 std::string PrettyClass(const Class* c)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable form of the name of the given class with its class loader.
 std::string PrettyClassAndClassLoader(const Class* c)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Returns a human-readable size string such as "1MB".
 std::string PrettySize(size_t size_in_bytes);
@@ -230,10 +230,10 @@ bool IsValidMemberName(const char* s);
 
 // Returns the JNI native function name for the non-overloaded method 'm'.
 std::string JniShortName(const Method* m)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 // Returns the JNI native function name for the overloaded method 'm'.
 std::string JniLongName(const Method* m)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 bool ReadFileToString(const std::string& file_name, std::string* result);
 

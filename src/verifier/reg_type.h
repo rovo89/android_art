@@ -118,7 +118,7 @@ class RegType {
 
   // The high half that corresponds to this low half
   const RegType& HighHalf(RegTypeCache* cache) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsConstant() const { return type_ == kRegTypeConst; }
   bool IsLongConstant() const { return type_ == kRegTypeConstLo; }
@@ -209,7 +209,7 @@ class RegType {
     return IsReference() && GetClass()->IsObjectClass();
   }
 
-  bool IsArrayTypes() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool IsArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
       return GetDescriptor()->CharAt(0) == '[';
     } else if (IsReference()) {
@@ -219,7 +219,7 @@ class RegType {
     }
   }
 
-  bool IsObjectArrayTypes() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool IsObjectArrayTypes() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (IsUnresolvedTypes() && !IsUnresolvedMergedReference() && !IsUnresolvedSuperClass()) {
       // Primitive arrays will always resolve
       DCHECK(GetDescriptor()->CharAt(1) == 'L' || GetDescriptor()->CharAt(1) == '[');
@@ -295,27 +295,27 @@ class RegType {
   }
 
   const RegType& GetSuperClass(RegTypeCache* cache) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   std::string Dump(const RegTypeCache* reg_types = NULL) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can this type access other?
   bool CanAccess(const RegType& other) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Can this type access a member with the given properties?
   bool CanAccessMember(Class* klass, uint32_t access_flags) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can this type be assigned by src?
   bool IsAssignableFrom(const RegType& src) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool Equals(const RegType& other) const { return GetId() == other.GetId(); }
 
   // Compute the merge of this register from one edge (path) with incoming_type from another.
   const RegType& Merge(const RegType& incoming_type, RegTypeCache* reg_types) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * A basic Join operation on classes. For a pair of types S and T the Join, written S v T = J, is
@@ -334,7 +334,7 @@ class RegType {
    * [1] Java bytecode verification: algorithms and formalizations, Xavier Leroy
    */
   static Class* ClassJoin(Class* s, Class* t)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   friend class RegTypeCache;

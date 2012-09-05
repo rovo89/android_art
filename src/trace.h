@@ -83,18 +83,18 @@ class Trace {
   explicit Trace(File* trace_file, int buffer_size, int flags);
 
   void BeginTracing();
-  void FinishTracing() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void FinishTracing() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Replaces code of each method with a pointer to a stub for method tracing.
   void InstallStubs();
 
   // Restores original code for each method and fixes the return values of each thread's stack.
-  void UninstallStubs() LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_);
+  void UninstallStubs() LOCKS_EXCLUDED(Locks::thread_list_lock_);
 
   // Methods to output traced methods and threads.
   void GetVisitedMethods(size_t end_offset);
-  void DumpMethodList(std::ostream& os) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-  void DumpThreadList(std::ostream& os) LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_);
+  void DumpMethodList(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DumpThreadList(std::ostream& os) LOCKS_EXCLUDED(Locks::thread_list_lock_);
 
   // Maps a method to its original code pointer.
   SafeMap<const Method*, const void*> saved_code_map_;

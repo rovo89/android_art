@@ -30,7 +30,7 @@ namespace art {
 class ClassLinkerTest : public CommonTest {
  protected:
   void AssertNonExistentClass(const std::string& descriptor)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     EXPECT_TRUE(class_linker_->FindSystemClass(descriptor.c_str()) == NULL);
     Thread* self = Thread::Current();
     EXPECT_TRUE(self->IsExceptionPending());
@@ -41,12 +41,12 @@ class ClassLinkerTest : public CommonTest {
   }
 
   void AssertPrimitiveClass(const std::string& descriptor)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     AssertPrimitiveClass(descriptor, class_linker_->FindSystemClass(descriptor.c_str()));
   }
 
   void AssertPrimitiveClass(const std::string& descriptor, const Class* primitive)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ClassHelper primitive_ch(primitive);
     ASSERT_TRUE(primitive != NULL);
     ASSERT_TRUE(primitive->GetClass() != NULL);
@@ -83,7 +83,7 @@ class ClassLinkerTest : public CommonTest {
   void AssertArrayClass(const std::string& array_descriptor,
                         const std::string& component_type,
                         ClassLoader* class_loader)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* array = class_linker_->FindClass(array_descriptor.c_str(), class_loader);
     ClassHelper array_component_ch(array->GetComponentType());
     EXPECT_STREQ(component_type.c_str(), array_component_ch.GetDescriptor());
@@ -92,7 +92,7 @@ class ClassLinkerTest : public CommonTest {
   }
 
   void AssertArrayClass(const std::string& array_descriptor, Class* array)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ClassHelper kh(array);
     ASSERT_TRUE(array != NULL);
     ASSERT_TRUE(array->GetClass() != NULL);
@@ -135,7 +135,7 @@ class ClassLinkerTest : public CommonTest {
     EXPECT_STREQ(kh.GetDescriptor(), "Ljava/io/Serializable;");
   }
 
-  void AssertMethod(Method* method) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void AssertMethod(Method* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     MethodHelper mh(method);
     EXPECT_TRUE(method != NULL);
     EXPECT_TRUE(method->GetClass() != NULL);
@@ -157,7 +157,7 @@ class ClassLinkerTest : public CommonTest {
   }
 
   void AssertField(Class* klass, Field* field)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     FieldHelper fh(field);
     EXPECT_TRUE(field != NULL);
     EXPECT_TRUE(field->GetClass() != NULL);
@@ -167,7 +167,7 @@ class ClassLinkerTest : public CommonTest {
   }
 
   void AssertClass(const std::string& descriptor, Class* klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ClassHelper kh(klass);
     EXPECT_STREQ(descriptor.c_str(), kh.GetDescriptor());
     if (descriptor == "Ljava/lang/Object;") {
@@ -291,7 +291,7 @@ class ClassLinkerTest : public CommonTest {
   }
 
   void AssertDexFileClass(ClassLoader* class_loader, const std::string& descriptor)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ASSERT_TRUE(descriptor != NULL);
     Class* klass = class_linker_->FindSystemClass(descriptor.c_str());
     ASSERT_TRUE(klass != NULL);
@@ -307,7 +307,7 @@ class ClassLinkerTest : public CommonTest {
   }
 
   void AssertDexFile(const DexFile* dex, ClassLoader* class_loader)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ASSERT_TRUE(dex != NULL);
 
     // Verify all the classes defined in this file
@@ -350,7 +350,7 @@ struct CheckOffsets {
   std::string class_descriptor;
   std::vector<CheckOffset> offsets;
 
-  bool Check() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool Check() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* klass = Runtime::Current()->GetClassLinker()->FindSystemClass(class_descriptor.c_str());
     CHECK(klass != NULL) << class_descriptor;
 

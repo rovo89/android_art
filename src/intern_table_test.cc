@@ -102,7 +102,7 @@ TEST_F(InternTableTest, SweepInternTableWeaks) {
   p.Expect(s0.get());
   p.Expect(s1.get());
   {
-    ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
     t.SweepInternTableWeaks(IsMarked, &p);
   }
 

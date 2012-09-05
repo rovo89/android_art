@@ -26,7 +26,7 @@ class OatTest : public CommonTest {
   void CheckMethod(Method* method,
                    const OatFile::OatMethod& oat_method,
                    const DexFile* dex_file)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const CompiledMethod* compiled_method =
         compiler_->GetCompiledMethod(Compiler::MethodReference(dex_file,
                                                                method->GetDexMethodIndex()));

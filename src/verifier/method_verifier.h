@@ -164,11 +164,11 @@ class MethodVerifier {
 
   /* Verify a class. Returns "kNoFailure" on success. */
   static FailureKind VerifyClass(const Class* klass, std::string& error)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static FailureKind VerifyClass(const DexFile* dex_file, DexCache* dex_cache,
                                  ClassLoader* class_loader, uint32_t class_def_idx,
                                  std::string& error)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint8_t EncodePcToReferenceMapData() const;
 
@@ -194,7 +194,7 @@ class MethodVerifier {
 
   // Dump the state of the verifier, namely each instruction, what flags are set on it, register
   // information
-  void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static const std::vector<uint8_t>* GetGcMap(Compiler::MethodReference ref)
       LOCKS_EXCLUDED(gc_maps_lock_);
@@ -203,7 +203,7 @@ class MethodVerifier {
   // to the locks held at 'dex_pc' in 'm'.
   static void FindLocksAtDexPc(Method* m, uint32_t dex_pc,
                                std::vector<uint32_t>& monitor_enter_dex_pcs)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void Init();
   static void Shutdown();
@@ -220,7 +220,7 @@ class MethodVerifier {
   explicit MethodVerifier(const DexFile* dex_file, DexCache* dex_cache,
       ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
       uint32_t method_idx, Method* method, uint32_t access_flags)
-          SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+          SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Adds the given string to the beginning of the last failure message.
   void PrependToLastFailMessage(std::string);
@@ -242,15 +242,15 @@ class MethodVerifier {
   static FailureKind VerifyMethod(uint32_t method_idx, const DexFile* dex_file, DexCache* dex_cache,
       ClassLoader* class_loader, uint32_t class_def_idx, const DexFile::CodeItem* code_item,
       Method* method, uint32_t method_access_flags)
-          SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+          SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void VerifyMethodAndDump(Method* method)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Run verification on the method. Returns true if verification completes and false if the input
   // has an irrecoverable corruption.
-  bool Verify() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  bool Verify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void FindLocksAtDexPc() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void FindLocksAtDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Compute the width of the instruction at each address in the instruction stream, and store it in
@@ -278,7 +278,7 @@ class MethodVerifier {
    * Returns "false" if something in the exception table looks fishy, but we're expecting the
    * exception table to be somewhat sane.
    */
-  bool ScanTryCatchBlocks() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  bool ScanTryCatchBlocks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Perform static verification on all instructions in a method.
@@ -384,11 +384,11 @@ class MethodVerifier {
                        bool* selfOkay);
 
   /* Perform detailed code-flow analysis on a single method. */
-  bool VerifyCodeFlow() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  bool VerifyCodeFlow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Set the register types for the first instruction in the method based on the method signature.
   // This has the side-effect of validating the signature.
-  bool SetTypesFromSignature() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  bool SetTypesFromSignature() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Perform code flow on a method.
@@ -436,7 +436,7 @@ class MethodVerifier {
    * reordering by specifying that you can't execute the new-instance instruction if a register
    * contains an uninitialized instance created by that same instruction.
    */
-  bool CodeFlowVerifyMethod() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  bool CodeFlowVerifyMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Perform verification for a single instruction.
@@ -448,45 +448,45 @@ class MethodVerifier {
    * addresses. Does not set or clear any other flags in "insn_flags_".
    */
   bool CodeFlowVerifyInstruction(uint32_t* start_guess)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of a new array instruction
   void VerifyNewArray(const DecodedInstruction& dec_insn, bool is_filled,
                       bool is_range)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an aget instruction. The destination register's type will be set to
   // be that of component type of the array unless the array type is unknown, in which case a
   // bottom type inferred from the type of instruction is used. is_primitive is false for an
   // aget-object.
   void VerifyAGet(const DecodedInstruction& insn, const RegType& insn_type,
-                  bool is_primitive) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+                  bool is_primitive) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an aput instruction.
   void VerifyAPut(const DecodedInstruction& insn, const RegType& insn_type,
-                  bool is_primitive) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+                  bool is_primitive) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Lookup instance field and fail for resolution violations
   Field* GetInstanceField(const RegType& obj_type, int field_idx)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Lookup static field and fail for resolution violations
-  Field* GetStaticField(int field_idx) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  Field* GetStaticField(int field_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an iget or sget instruction.
   void VerifyISGet(const DecodedInstruction& insn, const RegType& insn_type,
                    bool is_primitive, bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an iput or sput instruction.
   void VerifyISPut(const DecodedInstruction& insn, const RegType& insn_type,
                    bool is_primitive, bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolves a class based on an index and performs access checks to ensure the referrer can
   // access the resolved class.
   const RegType& ResolveClassAndCheckAccess(uint32_t class_idx)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * For the "move-exception" instruction at "work_insn_idx_", which must be at an exception handler
@@ -494,7 +494,7 @@ class MethodVerifier {
    * exception handler can be found or if the Join of exception types fails.
    */
   const RegType& GetCaughtExceptionType()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Resolves a method based on an index and performs access checks to ensure
@@ -502,7 +502,7 @@ class MethodVerifier {
    * Does not throw exceptions.
    */
   Method* ResolveMethodAndCheckAccess(uint32_t method_idx, MethodType method_type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Verify the arguments to a method. We're executing in "method", making
@@ -528,7 +528,7 @@ class MethodVerifier {
    */
   Method* VerifyInvocationArgs(const DecodedInstruction& dec_insn,
                                MethodType method_type, bool is_range, bool is_super)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Verify that the target instruction is not "move-exception". It's important that the only way
@@ -543,7 +543,7 @@ class MethodVerifier {
   * Returns "false" if an error is encountered.
   */
   bool UpdateRegisters(uint32_t next_insn, const RegisterLine* merge_line)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Is the method being verified a constructor?
   bool IsConstructor() const {
@@ -556,10 +556,10 @@ class MethodVerifier {
   }
 
   // Return the register type for the method.
-  const RegType& GetMethodReturnType() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  const RegType& GetMethodReturnType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get a type representing the declaring class of the method.
-  const RegType& GetDeclaringClass() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  const RegType& GetDeclaringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 #if defined(ART_USE_LLVM_COMPILER) || defined(ART_USE_GREENLAND_COMPILER)
   /*
@@ -626,13 +626,13 @@ class MethodVerifier {
 
   uint32_t method_idx_;  // The method we're working on.
   // Its object representation if known.
-  Method* foo_method_ GUARDED_BY(GlobalSynchronization::mutator_lock_);
+  Method* foo_method_ GUARDED_BY(Locks::mutator_lock_);
   uint32_t method_access_flags_;  // Method's access flags.
   const DexFile* dex_file_;  // The dex file containing the method.
   // The dex_cache for the declaring class of the method.
-  DexCache* dex_cache_ GUARDED_BY(GlobalSynchronization::mutator_lock_);
+  DexCache* dex_cache_ GUARDED_BY(Locks::mutator_lock_);
   // The class loader for the declaring class of the method.
-  ClassLoader* class_loader_ GUARDED_BY(GlobalSynchronization::mutator_lock_);
+  ClassLoader* class_loader_ GUARDED_BY(Locks::mutator_lock_);
   uint32_t class_def_idx_;  // The class def index of the declaring class of the method.
   const DexFile::CodeItem* code_item_;  // The code item containing the code for the method.
   UniquePtr<InsnFlags[]> insn_flags_;  // Instruction widths and flags, one entry per code unit.

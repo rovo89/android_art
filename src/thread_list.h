@@ -34,57 +34,57 @@ class ThreadList {
   ~ThreadList();
 
   void DumpForSigQuit(std::ostream& os)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DumpLocked(std::ostream& os)  // For thread suspend timeout dumps.
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_list_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   pid_t GetLockOwner(); // For SignalCatcher.
 
   // Thread suspension support.
   void ResumeAll()
-      UNLOCK_FUNCTION(GlobalSynchronization::mutator_lock_)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_);
+      UNLOCK_FUNCTION(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
   void Resume(Thread* thread, bool for_debugger = false)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_);
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_);
 
   // Suspends all threads and gets exclusive access to the mutator_lock_.
   void SuspendAll()
-      EXCLUSIVE_LOCK_FUNCTION(GlobalSynchronization::mutator_lock_)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_);
+      EXCLUSIVE_LOCK_FUNCTION(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
 
   // Suspends all threads
   void SuspendAllForDebugger()
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_,
-                     GlobalSynchronization::thread_list_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
 
   void SuspendSelfForDebugger()
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_suspend_count_lock_);
+      LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_);
 
   void UndoDebuggerSuspensions()
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
 
   // Iterates over all the threads.
   void ForEach(void (*callback)(Thread*, void*), void* context)
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_list_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
 
   // Add/remove current thread from list.
   void Register(Thread* self)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_,
-                     GlobalSynchronization::thread_list_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_);
   void Unregister(Thread* self)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_,
-                     GlobalSynchronization::thread_list_lock_);
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_);
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Return a copy of the thread list.
-  std::list<Thread*> GetList() EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_list_lock_) {
+  std::list<Thread*> GetList() EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_) {
     return list_;
   }
 
@@ -94,35 +94,35 @@ class ThreadList {
   uint32_t AllocThreadId();
   void ReleaseThreadId(uint32_t id) LOCKS_EXCLUDED(allocated_ids_lock_);
 
-  bool Contains(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_list_lock_);
-  bool Contains(pid_t tid) EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::thread_list_lock_);
+  bool Contains(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
+  bool Contains(pid_t tid) EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
 
   void DumpUnattachedThreads(std::ostream& os)
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_);
 
   void SuspendAllDaemonThreads()
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
   void WaitForOtherNonDaemonThreadsToExit()
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
 
   void AssertThreadsAreSuspended()
-      LOCKS_EXCLUDED(GlobalSynchronization::thread_list_lock_,
-                     GlobalSynchronization::thread_suspend_count_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
 
   mutable Mutex allocated_ids_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::bitset<kMaxThreadId> allocated_ids_ GUARDED_BY(allocated_ids_lock_);
 
   // The actual list of all threads.
-  std::list<Thread*> list_ GUARDED_BY(GlobalSynchronization::thread_list_lock_);
+  std::list<Thread*> list_ GUARDED_BY(Locks::thread_list_lock_);
 
   // Ongoing suspend all requests, used to ensure threads added to list_ respect SuspendAll.
-  int suspend_all_count_ GUARDED_BY(GlobalSynchronization::thread_suspend_count_lock_);
-  int debug_suspend_all_count_ GUARDED_BY(GlobalSynchronization::thread_suspend_count_lock_);
+  int suspend_all_count_ GUARDED_BY(Locks::thread_suspend_count_lock_);
+  int debug_suspend_all_count_ GUARDED_BY(Locks::thread_suspend_count_lock_);
 
   // Signaled when threads terminate. Used to determine when all non-daemons have terminated.
-  ConditionVariable thread_exit_cond_ GUARDED_BY(GlobalSynchronization::thread_list_lock_);
+  ConditionVariable thread_exit_cond_ GUARDED_BY(Locks::thread_list_lock_);
 
   friend class Thread;
 

@@ -32,25 +32,25 @@ namespace art {
 
 class ObjectLock {
  public:
-  explicit ObjectLock(Object* object) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+  explicit ObjectLock(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : self_(Thread::Current()), obj_(object) {
     CHECK(object != NULL);
     obj_->MonitorEnter(self_);
   }
 
-  ~ObjectLock() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  ~ObjectLock() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     obj_->MonitorExit(self_);
   }
 
-  void Wait() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void Wait() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return Monitor::Wait(self_, obj_, 0, 0, false);
   }
 
-  void Notify() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void Notify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     obj_->Notify();
   }
 
-  void NotifyAll() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void NotifyAll() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     obj_->NotifyAll();
   }
 
@@ -63,7 +63,7 @@ class ObjectLock {
 class ClassHelper {
  public:
   ClassHelper(const Class* c = NULL, ClassLinker* l = NULL)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_def_(NULL),
         class_linker_(l),
         dex_cache_(NULL),
@@ -76,7 +76,7 @@ class ClassHelper {
   }
 
   void ChangeClass(const Class* new_c)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(new_c != NULL) << "klass_=" << klass_;  // Log what we were changing from if any
     CHECK(new_c->IsClass()) << "new_c=" << new_c;
     if (dex_cache_ != NULL) {
@@ -93,7 +93,7 @@ class ClassHelper {
 
   // The returned const char* is only guaranteed to be valid for the lifetime of the ClassHelper.
   // If you need it longer, copy it into a std::string.
-  const char* GetDescriptor() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  const char* GetDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(klass_ != NULL);
     if (UNLIKELY(klass_->IsArrayClass())) {
       return GetArrayDescriptor();
@@ -109,7 +109,7 @@ class ClassHelper {
     }
   }
 
-  const char* GetArrayDescriptor() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  const char* GetArrayDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string result("[");
     const Class* saved_klass = klass_;
     CHECK(saved_klass != NULL);
@@ -121,7 +121,7 @@ class ClassHelper {
   }
 
   const DexFile::ClassDef* GetClassDef()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile::ClassDef* result = class_def_;
     if (result == NULL) {
       result = GetDexFile().FindClassDef(GetDescriptor());
@@ -130,7 +130,7 @@ class ClassHelper {
     return result;
   }
 
-  uint32_t NumDirectInterfaces() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  uint32_t NumDirectInterfaces() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(klass_ != NULL);
     if (klass_->IsPrimitive()) {
       return 0;
@@ -149,7 +149,7 @@ class ClassHelper {
   }
 
   uint16_t GetDirectInterfaceTypeIdx(uint32_t idx)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(klass_ != NULL);
     DCHECK(!klass_->IsPrimitive());
     DCHECK(!klass_->IsArrayClass());
@@ -157,7 +157,7 @@ class ClassHelper {
   }
 
   Class* GetDirectInterface(uint32_t idx)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(klass_ != NULL);
     DCHECK(!klass_->IsPrimitive());
     if (klass_->IsArrayClass()) {
@@ -180,7 +180,7 @@ class ClassHelper {
     }
   }
 
-  const char* GetSourceFile() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  const char* GetSourceFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string descriptor(GetDescriptor());
     const DexFile& dex_file = GetDexFile();
     const DexFile::ClassDef* dex_class_def = dex_file.FindClassDef(descriptor);
@@ -188,7 +188,7 @@ class ClassHelper {
     return dex_file.GetSourceFile(*dex_class_def);
   }
 
-  std::string GetLocation() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  std::string GetLocation() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DexCache* dex_cache = GetDexCache();
     if (dex_cache != NULL && !klass_->IsProxyClass()) {
       return dex_cache->GetLocation()->ToModifiedUtf8();
@@ -198,7 +198,7 @@ class ClassHelper {
     }
   }
 
-  const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile* result = dex_file_;
     if (result == NULL) {
       const DexCache* dex_cache = GetDexCache();
@@ -208,7 +208,7 @@ class ClassHelper {
     return *result;
   }
 
-  DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DexCache* result = dex_cache_;
     if (result == NULL) {
       DCHECK(klass_ != NULL);
@@ -220,7 +220,7 @@ class ClassHelper {
 
  private:
   const DexFile::TypeList* GetInterfaceTypeList()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile::TypeList* result = interface_type_list_;
     if (result == NULL) {
       const DexFile::ClassDef* class_def = GetClassDef();
@@ -270,7 +270,7 @@ class FieldHelper {
     }
     field_ = new_f;
   }
-  const char* GetName() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t field_index = field_->GetDexFieldIndex();
     if (!field_->GetDeclaringClass()->IsProxyClass()) {
       const DexFile& dex_file = GetDexFile();
@@ -291,7 +291,7 @@ class FieldHelper {
       return Runtime::Current()->GetInternTable()->InternStrong(GetName());
     }
   }
-  Class* GetType() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  Class* GetType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t field_index = field_->GetDexFieldIndex();
     if (!field_->GetDeclaringClass()->IsProxyClass()) {
       const DexFile& dex_file = GetDexFile();
@@ -306,7 +306,7 @@ class FieldHelper {
       return GetClassLinker()->FindSystemClass(GetTypeDescriptor());
     }
   }
-  const char* GetTypeDescriptor() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  const char* GetTypeDescriptor() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t field_index = field_->GetDexFieldIndex();
     if (!field_->GetDeclaringClass()->IsProxyClass()) {
       const DexFile& dex_file = GetDexFile();
@@ -320,14 +320,14 @@ class FieldHelper {
     }
   }
   Primitive::Type GetTypeAsPrimitiveType()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return Primitive::GetType(GetTypeDescriptor()[0]);
   }
-  bool IsPrimitiveType() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool IsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Primitive::Type type = GetTypeAsPrimitiveType();
     return type != Primitive::kPrimNot;
   }
-  size_t FieldSize() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  size_t FieldSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Primitive::Type type = GetTypeAsPrimitiveType();
     return Primitive::FieldSize(type);
   }
@@ -335,7 +335,7 @@ class FieldHelper {
   // The returned const char* is only guaranteed to be valid for the lifetime of the FieldHelper.
   // If you need it longer, copy it into a std::string.
   const char* GetDeclaringClassDescriptor()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint16_t type_idx = field_->GetDeclaringClass()->GetDexTypeIndex();
     if (type_idx != DexFile::kDexNoIndex16) {
       const DexFile& dex_file = GetDexFile();
@@ -349,7 +349,7 @@ class FieldHelper {
   }
 
  private:
-  DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DexCache* result = dex_cache_;
     if (result == NULL) {
       result = field_->GetDeclaringClass()->GetDexCache();
@@ -365,7 +365,7 @@ class FieldHelper {
     }
     return result;
   }
-  const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile* result = dex_file_;
     if (result == NULL) {
       const DexCache* dex_cache = GetDexCache();
@@ -391,20 +391,20 @@ class MethodHelper {
        shorty_len_(0) {}
 
   explicit MethodHelper(const Method* m)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_linker_(NULL), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
         shorty_len_(0) {
     SetMethod(m);
   }
 
   MethodHelper(const Method* m, ClassLinker* l)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_linker_(l), dex_cache_(NULL), dex_file_(NULL), method_(NULL), shorty_(NULL),
         shorty_len_(0) {
     SetMethod(m);
   }
 
-  void ChangeMethod(Method* new_m) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void ChangeMethod(Method* new_m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_m != NULL);
     if (dex_cache_ != NULL) {
       Class* klass = new_m->GetDeclaringClass();
@@ -423,7 +423,7 @@ class MethodHelper {
     shorty_ = NULL;
   }
 
-  const char* GetName() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();
     if (dex_method_idx != DexFile::kDexNoIndex16) {
@@ -444,15 +444,15 @@ class MethodHelper {
     }
   }
 
-  String* GetNameAsString() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  String* GetNameAsString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();
     const DexFile::MethodId& method_id = dex_file.GetMethodId(dex_method_idx);
     return GetClassLinker()->ResolveString(dex_file, method_id.name_idx_, GetDexCache());
   }
 
-  const char* GetShorty() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  const char* GetShorty() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const char* result = shorty_;
     if (result == NULL) {
       const DexFile& dex_file = GetDexFile();
@@ -463,14 +463,14 @@ class MethodHelper {
     return result;
   }
 
-  uint32_t GetShortyLength() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  uint32_t GetShortyLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (shorty_ == NULL) {
       GetShorty();
     }
     return shorty_len_;
   }
 
-  const std::string GetSignature() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  const std::string GetSignature() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     uint32_t dex_method_idx = method_->GetDexMethodIndex();
     if (dex_method_idx != DexFile::kDexNoIndex16) {
@@ -481,19 +481,19 @@ class MethodHelper {
   }
 
   const DexFile::ProtoId& GetPrototype()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     return dex_file.GetMethodPrototype(dex_file.GetMethodId(method_->GetDexMethodIndex()));
   }
 
   const DexFile::TypeList* GetParameterTypeList()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile::ProtoId& proto = GetPrototype();
     return GetDexFile().GetProtoParameters(proto);
   }
 
   ObjectArray<Class>* GetParameterTypes()
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile::TypeList* params = GetParameterTypeList();
     Class* array_class = GetClassLinker()->FindSystemClass("[Ljava/lang/Class;");
     uint32_t num_params = params == NULL ? 0 : params->Size();
@@ -509,7 +509,7 @@ class MethodHelper {
     return result;
   }
 
-  Class* GetReturnType() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  Class* GetReturnType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     const DexFile::MethodId& method_id = dex_file.GetMethodId(method_->GetDexMethodIndex());
     const DexFile::ProtoId& proto_id = dex_file.GetMethodPrototype(method_id);
@@ -518,7 +518,7 @@ class MethodHelper {
   }
 
   const char* GetReturnTypeDescriptor()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     const DexFile::MethodId& method_id = dex_file.GetMethodId(method_->GetDexMethodIndex());
     const DexFile::ProtoId& proto_id = dex_file.GetMethodPrototype(method_id);
@@ -527,7 +527,7 @@ class MethodHelper {
   }
 
   int32_t GetLineNumFromDexPC(uint32_t dex_pc)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (dex_pc == DexFile::kDexNoIndex) {
       return method_->IsNative() ? -2 : -1;
     } else {
@@ -537,7 +537,7 @@ class MethodHelper {
   }
 
   const char* GetDeclaringClassDescriptor()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* klass = method_->GetDeclaringClass();
     DCHECK(!klass->IsProxyClass());
     uint16_t type_idx = klass->GetDexTypeIndex();
@@ -546,7 +546,7 @@ class MethodHelper {
   }
 
   const char* GetDeclaringClassSourceFile()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const char* descriptor = GetDeclaringClassDescriptor();
     const DexFile& dex_file = GetDexFile();
     const DexFile::ClassDef* dex_class_def = dex_file.FindClassDef(descriptor);
@@ -555,7 +555,7 @@ class MethodHelper {
   }
 
   uint32_t GetClassDefIndex()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const char* descriptor = GetDeclaringClassDescriptor();
     const DexFile& dex_file = GetDexFile();
     uint32_t index;
@@ -564,20 +564,20 @@ class MethodHelper {
   }
 
   ClassLoader* GetClassLoader()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return method_->GetDeclaringClass()->GetClassLoader();
   }
 
   bool IsStatic()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return method_->IsStatic();
   }
 
-  bool IsClassInitializer() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool IsClassInitializer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return IsStatic() && StringPiece(GetName()) == "<clinit>";
   }
 
-  size_t NumArgs() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  size_t NumArgs() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // "1 +" because the first in Args is the receiver.
     // "- 1" because we don't count the return type.
     return (IsStatic() ? 0 : 1) + GetShortyLength() - 1;
@@ -585,7 +585,7 @@ class MethodHelper {
 
   // Is the specified parameter a long or double, where parameter 0 is 'this' for instance methods
   bool IsParamALongOrDouble(size_t param)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK_LT(param, NumArgs());
     if (IsStatic()) {
       param++;  // 0th argument must skip return value at start of the shorty
@@ -597,7 +597,7 @@ class MethodHelper {
   }
 
   // Is the specified parameter a reference, where parameter 0 is 'this' for instance methods
-  bool IsParamAReference(size_t param) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool IsParamAReference(size_t param) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK_LT(param, NumArgs());
     if (IsStatic()) {
       param++;  // 0th argument must skip return value at start of the shorty
@@ -608,7 +608,7 @@ class MethodHelper {
   }
 
   bool HasSameNameAndSignature(MethodHelper* other)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (GetDexCache() == other->GetDexCache()) {
       const DexFile& dex_file = GetDexFile();
       const DexFile::MethodId& mid = dex_file.GetMethodId(method_->GetDexMethodIndex());
@@ -622,17 +622,17 @@ class MethodHelper {
   }
 
   const DexFile::CodeItem* GetCodeItem()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetDexFile().GetCodeItem(method_->GetCodeItemOffset());
   }
 
   bool IsResolvedTypeIdx(uint16_t type_idx) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return method_->GetDexCacheResolvedTypes()->Get(type_idx) != NULL;
   }
 
   Class* GetClassFromTypeIdx(uint16_t type_idx)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* type = method_->GetDexCacheResolvedTypes()->Get(type_idx);
     if (type == NULL) {
       type = GetClassLinker()->ResolveType(type_idx, method_);
@@ -642,17 +642,17 @@ class MethodHelper {
   }
 
   const char* GetTypeDescriptorFromTypeIdx(uint16_t type_idx)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile& dex_file = GetDexFile();
     return dex_file.GetTypeDescriptor(dex_file.GetTypeId(type_idx));
   }
 
   Class* GetDexCacheResolvedType(uint16_t type_idx)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetDexCache()->GetResolvedType(type_idx);
   }
 
-  const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  const DexFile& GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile* result = dex_file_;
     if (result == NULL) {
       const DexCache* dex_cache = GetDexCache();
@@ -662,7 +662,7 @@ class MethodHelper {
     return *result;
   }
 
-  DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DexCache* result = dex_cache_;
     if (result == NULL) {
       Class* klass = method_->GetDeclaringClass();
@@ -676,7 +676,7 @@ class MethodHelper {
   // Set the method_ field, for proxy methods looking up the interface method via the resolved
   // methods table.
   void SetMethod(const Method* method)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method != NULL) {
       Class* klass = method->GetDeclaringClass();
       if (klass->IsProxyClass()) {

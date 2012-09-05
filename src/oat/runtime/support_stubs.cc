@@ -34,7 +34,7 @@ namespace art {
 // Lazily resolve a method. Called by stub code.
 const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp, Thread* thread,
                                                      Runtime::TrampolineType type)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__arm__)
   // On entry the stack pointed by sp is:
   // | argN       |  |
@@ -230,7 +230,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** sp
 #else // ART_USE_LLVM_COMPILER
 const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** called_addr,
                                                      Thread* thread, Runtime::TrampolineType type)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   uint32_t dex_pc;
   Method* caller = thread->GetCurrentMethod(&dex_pc);
 
@@ -323,7 +323,7 @@ const void* UnresolvedDirectMethodTrampolineFromCode(Method* called, Method** ca
 #if !defined(ART_USE_LLVM_COMPILER)
 // Called by the AbstractMethodError. Called by stub code.
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method** sp)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   FinishCalleeSaveFrameSetup(thread, sp, Runtime::kSaveAll);
   thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
                              "abstract method \"%s\"", PrettyMethod(method).c_str());
@@ -331,7 +331,7 @@ extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Met
 }
 #else // ART_USE_LLVM_COMPILER
 extern void ThrowAbstractMethodErrorFromCode(Method* method, Thread* thread, Method**)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   thread->ThrowNewExceptionF("Ljava/lang/AbstractMethodError;",
                              "abstract method \"%s\"", PrettyMethod(method).c_str());
 }

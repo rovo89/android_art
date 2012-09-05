@@ -122,12 +122,12 @@ void SignalCatcher::HandleSigQuit() {
 
   // We should exclusively hold the mutator lock, set state to Runnable without a pending
   // suspension to avoid giving away or trying re-acquire the mutator lock.
-  GlobalSynchronization::mutator_lock_->AssertExclusiveHeld();
+  Locks::mutator_lock_->AssertExclusiveHeld();
   Thread* self = Thread::Current();
   ThreadState old_state;
   int suspend_count;
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     suspend_count = self->GetSuspendCount();
     if (suspend_count != 0) {
       CHECK_EQ(suspend_count, 1);
@@ -155,7 +155,7 @@ void SignalCatcher::HandleSigQuit() {
 
   os << "----- end " << getpid() << " -----\n";
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     self->SetState(old_state);
     if (suspend_count != 0) {
       self->ModifySuspendCount(+1, false);

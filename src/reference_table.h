@@ -43,14 +43,14 @@ class ReferenceTable {
 
   size_t Size() const;
 
-  void Dump(std::ostream& os) const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void Dump(std::ostream& os) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg);
 
  private:
   typedef std::vector<const Object*> Table;
   static void Dump(std::ostream& os, const Table& entries)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   friend class IndirectReferenceTable; // For Dump.
 
   std::string name_;

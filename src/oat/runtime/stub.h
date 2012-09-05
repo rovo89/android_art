@@ -23,29 +23,29 @@ namespace art {
 
 namespace arm {
   ByteArray* CreateAbstractMethodErrorStub()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ByteArray* ArmCreateResolutionTrampoline(Runtime::TrampolineType type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ByteArray* CreateJniDlsymLookupStub()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 }
 
 namespace mips {
   ByteArray* CreateAbstractMethodErrorStub()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ByteArray* MipsCreateResolutionTrampoline(Runtime::TrampolineType type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ByteArray* CreateJniDlsymLookupStub()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 }
 
 namespace x86 {
   ByteArray* CreateAbstractMethodErrorStub()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ByteArray* X86CreateResolutionTrampoline(Runtime::TrampolineType type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ByteArray* CreateJniDlsymLookupStub()
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 }
 
 }  // namespace art

@@ -70,7 +70,7 @@ class JniInternalTest : public CommonTest {
 
   Method::InvokeStub* DoCompile(Method*& method, Object*& receiver, bool is_static,
                                 const char* method_name, const char* method_signature)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const char* class_name = is_static ? "StaticLeafMethods" : "NonStaticLeafMethods";
     jobject jclass_loader(LoadDex(class_name));
     SirtRef<ClassLoader> class_loader(ScopedObjectAccessUnchecked(Thread::Current()).Decode<ClassLoader*>(jclass_loader));
@@ -97,7 +97,7 @@ class JniInternalTest : public CommonTest {
     return stub;
   }
 
-  void InvokeNopMethod(bool is_static) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void InvokeNopMethod(bool is_static) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "nop", "()V");
@@ -105,7 +105,7 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeIdentityByteMethod(bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(B)B");
@@ -135,7 +135,7 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeIdentityIntMethod(bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(I)I");
@@ -165,7 +165,7 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeIdentityDoubleMethod(bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "identity", "(D)D");
@@ -195,7 +195,7 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumIntIntMethod(bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(II)I");
@@ -234,7 +234,7 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumIntIntIntMethod(bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(III)I");
@@ -278,7 +278,7 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumIntIntIntIntMethod(bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIII)I");
@@ -327,7 +327,7 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumIntIntIntIntIntMethod(bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(IIIII)I");
@@ -381,7 +381,7 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumDoubleDoubleMethod(bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DD)D");
@@ -421,7 +421,7 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumDoubleDoubleDoubleMethod(bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDD)D");
@@ -452,7 +452,7 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumDoubleDoubleDoubleDoubleMethod(bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDD)D");
@@ -486,7 +486,7 @@ class JniInternalTest : public CommonTest {
   }
 
   void InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method;
     Object* receiver;
     Method::InvokeStub* stub = DoCompile(method, receiver, is_static, "sum", "(DDDDD)D");

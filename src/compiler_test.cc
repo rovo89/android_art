@@ -31,14 +31,14 @@ namespace art {
 
 class CompilerTest : public CommonTest {
  protected:
-  void CompileAll(jobject class_loader) LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
+  void CompileAll(jobject class_loader) LOCKS_EXCLUDED(Locks::mutator_lock_) {
     compiler_->CompileAll(class_loader, Runtime::Current()->GetCompileTimeClassPath(class_loader));
     MakeAllExecutable(class_loader);
   }
 
   void EnsureCompiled(jobject class_loader, const char* class_name, const char* method,
                       const char* signature, bool is_virtual)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
+      LOCKS_EXCLUDED(Locks::mutator_lock_) {
     CompileAll(class_loader);
     Thread::Current()->TransitionFromSuspendedToRunnable();
     runtime_->Start();

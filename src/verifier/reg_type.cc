@@ -385,7 +385,7 @@ Class* RegType::ClassJoin(Class* s, Class* t) {
 }
 
 std::ostream& operator<<(std::ostream& os, const RegType& rhs)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   os << rhs.Dump();
   return os;
 }

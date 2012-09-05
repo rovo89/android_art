@@ -35,7 +35,7 @@ class ObjectTest : public CommonTest {
                     const char* utf8_in,
                     const char* utf16_expected_le,
                     int32_t expected_hash)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     UniquePtr<uint16_t[]> utf16_expected(new uint16_t[length]);
     for (int32_t i = 0; i < length; i++) {
       uint16_t ch = (((utf16_expected_le[i*2 + 0] & 0xff) << 8) |

@@ -75,16 +75,16 @@ struct __attribute__((__may_alias__)) glibc_pthread_rwlock_t {
   // ...other stuff we don't care about.
 };
 
-ReaderWriterMutex* GlobalSynchronization::mutator_lock_ = NULL;
-Mutex* GlobalSynchronization::thread_list_lock_ = NULL;
-Mutex* GlobalSynchronization::classlinker_classes_lock_ = NULL;
-ReaderWriterMutex* GlobalSynchronization::heap_bitmap_lock_ = NULL;
-Mutex* GlobalSynchronization::abort_lock_ = NULL;
-Mutex* GlobalSynchronization::logging_lock_ = NULL;
-Mutex* GlobalSynchronization::unexpected_signal_lock_ = NULL;
-Mutex* GlobalSynchronization::thread_suspend_count_lock_ = NULL;
+ReaderWriterMutex* Locks::mutator_lock_ = NULL;
+Mutex* Locks::thread_list_lock_ = NULL;
+Mutex* Locks::classlinker_classes_lock_ = NULL;
+ReaderWriterMutex* Locks::heap_bitmap_lock_ = NULL;
+Mutex* Locks::abort_lock_ = NULL;
+Mutex* Locks::logging_lock_ = NULL;
+Mutex* Locks::unexpected_signal_lock_ = NULL;
+Mutex* Locks::thread_suspend_count_lock_ = NULL;
 
-void GlobalSynchronization::Init() {
+void Locks::Init() {
   if (logging_lock_ != NULL) {
     // Already initialized.
     DCHECK(mutator_lock_ != NULL);

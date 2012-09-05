@@ -108,7 +108,7 @@ static jint DexFile_openDexFile(JNIEnv* env, jclass, jstring javaSourceName, jst
 }
 
 static const DexFile* toDexFile(int dex_file_address)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const DexFile* dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(dex_file_address));
   if (dex_file == NULL) {
     Thread::Current()->ThrowNewExceptionF("Ljava/lang/NullPointerException;", "dex_file == null");

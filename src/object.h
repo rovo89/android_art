@@ -172,11 +172,11 @@ class MANAGED Object {
   void SetClass(Class* new_klass);
 
   bool InstanceOf(const Class* klass) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  size_t SizeOf() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  size_t SizeOf() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Object* Clone() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  Object* Clone() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t IdentityHashCode() const {
   #ifdef MOVING_GARBAGE_COLLECTOR
@@ -199,20 +199,20 @@ class MANAGED Object {
 
   uint32_t GetThinLockId();
 
-  void MonitorEnter(Thread* thread) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+  void MonitorEnter(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCK_FUNCTION(monitor_lock_);
 
-  bool MonitorExit(Thread* thread) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+  bool MonitorExit(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       UNLOCK_FUNCTION(monitor_lock_);
 
-  void Notify() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void Notify() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void NotifyAll() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void NotifyAll() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Wait(int64_t timeout) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void Wait(int64_t timeout) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Wait(int64_t timeout, int32_t nanos)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsClass() const;
 
@@ -260,14 +260,14 @@ class MANAGED Object {
     return down_cast<const Method*>(this);
   }
 
-  bool IsField() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  bool IsField() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Field* AsField() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  Field* AsField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsField());
     return down_cast<Field*>(this);
   }
 
-  const Field* AsField() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  const Field* AsField() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsField());
     return down_cast<const Field*>(this);
   }
@@ -424,55 +424,55 @@ class MANAGED Field : public Object {
 
   // field access, null object for static fields
   bool GetBoolean(const Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetBoolean(Object* object, bool z) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   int8_t GetByte(const Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetByte(Object* object, int8_t b) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint16_t GetChar(const Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetChar(Object* object, uint16_t c) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   int16_t GetShort(const Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetShort(Object* object, int16_t s) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   int32_t GetInt(const Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetInt(Object* object, int32_t i) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   int64_t GetLong(const Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetLong(Object* object, int64_t j) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   float GetFloat(const Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetFloat(Object* object, float f) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   double GetDouble(const Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetDouble(Object* object, double d) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   Object* GetObject(const Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetObject(Object* object, const Object* l) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // raw field accesses
   uint32_t Get32(const Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void Set32(Object* object, uint32_t new_value) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint64_t Get64(const Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void Set64(Object* object, uint64_t new_value) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   Object* GetObj(const Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetObj(Object* object, const Object* new_value) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* GetJavaLangReflectField() {
     DCHECK(java_lang_reflect_Field_ != NULL);
@@ -652,10 +652,10 @@ class MANAGED Method : public Object {
   void SetDexCacheInitializedStaticStorage(ObjectArray<StaticStorageBase>* new_value);
 
   // Find the method that this method overrides
-  Method* FindOverriddenMethod() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  Method* FindOverriddenMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Invoke(Thread* self, Object* receiver, JValue* args, JValue* result) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const void* GetCode() const {
     return GetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), false);
@@ -665,7 +665,7 @@ class MANAGED Method : public Object {
     SetFieldPtr<const void*>(OFFSET_OF_OBJECT_MEMBER(Method, code_), code, false);
   }
 
-  uint32_t GetCodeSize() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  uint32_t GetCodeSize() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!IsRuntimeMethod() && !IsProxyMethod()) << PrettyMethod(this);
     uintptr_t code = reinterpret_cast<uintptr_t>(GetCode());
     if (code == 0) {
@@ -677,7 +677,7 @@ class MANAGED Method : public Object {
   }
 
   bool IsWithinCode(uintptr_t pc) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uintptr_t code = reinterpret_cast<uintptr_t>(GetCode());
     if (code == 0) {
       return pc == 0;
@@ -686,7 +686,7 @@ class MANAGED Method : public Object {
   }
 
   void AssertPcIsWithinCode(uintptr_t pc) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint32_t GetOatCodeOffset() const {
     DCHECK(!Runtime::Current()->IsStarted());
@@ -811,9 +811,9 @@ class MANAGED Method : public Object {
   bool IsRegistered() const;
 
   void RegisterNative(Thread* self, const void* native_method)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void UnregisterNative(Thread* self) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void UnregisterNative(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset NativeMethodOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Method, native_method_);
@@ -914,16 +914,16 @@ class MANAGED Method : public Object {
   // Converts a native PC to a dex PC.  TODO: this is a no-op
   // until we associate a PC mapping table with each method.
   uint32_t ToDexPC(const uintptr_t pc) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Converts a dex PC to a native PC.  TODO: this is a no-op
   // until we associate a PC mapping table with each method.
   uintptr_t ToNativePC(const uint32_t dex_pc) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find the catch block for the given exception type and dex_pc
   uint32_t FindCatchBlock(Class* exception_type, uint32_t dex_pc) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void SetClasses(Class* java_lang_reflect_Constructor, Class* java_lang_reflect_Method);
 
@@ -1014,10 +1014,10 @@ class MANAGED Array : public Object {
   // A convenience for code that doesn't know the component size,
   // and doesn't want to have to work it out itself.
   static Array* Alloc(Class* array_class, int32_t component_count)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Array* Alloc(Class* array_class, int32_t component_count, size_t component_size)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t SizeOf() const;
 
@@ -1055,7 +1055,7 @@ class MANAGED Array : public Object {
 
  protected:
   bool IsValidIndex(int32_t index) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (UNLIKELY(index < 0 || index >= length_)) {
       return ThrowArrayIndexOutOfBoundsException(index);
     }
@@ -1064,9 +1064,9 @@ class MANAGED Array : public Object {
 
  protected:
   bool ThrowArrayIndexOutOfBoundsException(int32_t index) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool ThrowArrayStoreException(Object* object) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   // The number of array elements.
@@ -1081,26 +1081,26 @@ template<class T>
 class MANAGED ObjectArray : public Array {
  public:
   static ObjectArray<T>* Alloc(Class* object_array_class, int32_t length)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  T* Get(int32_t i) const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  T* Get(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Set(int32_t i, T* object) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void Set(int32_t i, T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Set element without bound and element type checks, to be used in limited
   // circumstances, such as during boot image writing
   void SetWithoutChecks(int32_t i, T* object)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  T* GetWithoutChecks(int32_t i) const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  T* GetWithoutChecks(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void Copy(const ObjectArray<T>* src, int src_pos,
                    ObjectArray<T>* dst, int dst_pos,
                    size_t length)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ObjectArray<T>* CopyOf(int32_t new_length)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(ObjectArray);
@@ -1191,7 +1191,7 @@ class MANAGED Class : public StaticStorageBase {
     return static_cast<Status>(GetField32(OFFSET_OF_OBJECT_MEMBER(Class, status_), false));
   }
 
-  void SetStatus(Status new_status) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void SetStatus(Status new_status) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the class has failed to link.
   bool IsErroneous() const {
@@ -1302,7 +1302,7 @@ class MANAGED Class : public StaticStorageBase {
   String* GetName() const; // Returns the cached name
   void SetName(String* name);  // Sets the cached name
   String* ComputeName()  // Computes the name, then sets the cached value
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsProxyClass() const {
     // Read access flags without using getter as whether something is a proxy can be check in
@@ -1381,7 +1381,7 @@ class MANAGED Class : public StaticStorageBase {
 
   bool IsStringClass() const;
 
-  bool IsThrowableClass() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  bool IsThrowableClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Class* GetComponentType() const {
     return GetFieldObject<Class*>(OFFSET_OF_OBJECT_MEMBER(Class, component_type_), false);
@@ -1405,7 +1405,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   // Creates a raw object instance but does not invoke the default constructor.
-  Object* AllocObject() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  Object* AllocObject() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsVariableSize() const {
     // Classes and arrays vary in size, and so the object_size_ field cannot
@@ -1424,9 +1424,9 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   void SetClassSize(size_t new_class_size)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  size_t GetObjectSize() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  size_t GetObjectSize() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(!IsVariableSize()) << " class=" << PrettyTypeOf(this);
     DCHECK_EQ(sizeof(size_t), sizeof(int32_t));
     size_t result = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), false);
@@ -1442,12 +1442,12 @@ class MANAGED Class : public StaticStorageBase {
 
   // Returns true if this class is in the same packages as that class.
   bool IsInSamePackage(const Class* that) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static bool IsInSamePackage(const StringPiece& descriptor1, const StringPiece& descriptor2);
 
   // Returns true if this class can access that class.
-  bool CanAccess(Class* that) const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool CanAccess(Class* that) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return that->IsPublic() || this->IsInSamePackage(that);
   }
 
@@ -1455,7 +1455,7 @@ class MANAGED Class : public StaticStorageBase {
   // Note that access to the class isn't checked in case the declaring class is protected and the
   // method has been exposed by a public sub-class
   bool CanAccessMember(Class* access_to, uint32_t member_flags) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Classes can access all of their own members
     if (this == access_to) {
       return true;
@@ -1479,7 +1479,7 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   bool IsSubClass(const Class* klass) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can src be assigned to this class? For example, String can be assigned to Object (by an
   // upcast), however, an Object cannot be assigned to a String as a potentially exception throwing
@@ -1487,7 +1487,7 @@ class MANAGED Class : public StaticStorageBase {
   // that extends) another can be assigned to its parent, but not vice-versa. All Classes may assign
   // to themselves. Classes for primitive types may not assign to each other.
   bool IsAssignableFrom(const Class* src) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(src != NULL);
     if (this == src) {
       // Can always assign to things of the same type
@@ -1543,7 +1543,7 @@ class MANAGED Class : public StaticStorageBase {
   };
 
   void DumpClass(std::ostream& os, int flags) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   DexCache* GetDexCache() const;
 
@@ -1564,12 +1564,12 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   Method* GetDirectMethod(int32_t i) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetDirectMethods()->Get(i);
   }
 
   void SetDirectMethod(uint32_t i, Method* f)  // TODO: uint16_t
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_){
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_){
     ObjectArray<Method>* direct_methods =
         GetFieldObject<ObjectArray<Method>*>(
             OFFSET_OF_OBJECT_MEMBER(Class, direct_methods_), false);
@@ -1601,19 +1601,19 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   Method* GetVirtualMethod(uint32_t i) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsResolved() || IsErroneous());
     return GetVirtualMethods()->Get(i);
   }
 
   Method* GetVirtualMethodDuringLinking(uint32_t i) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsLoaded() || IsErroneous());
     return GetVirtualMethods()->Get(i);
   }
 
   void SetVirtualMethod(uint32_t i, Method* f)  // TODO: uint16_t
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ObjectArray<Method>* virtual_methods =
         GetFieldObject<ObjectArray<Method>*>(
             OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_), false);
@@ -1642,7 +1642,7 @@ class MANAGED Class : public StaticStorageBase {
   // super class, return the specific implementation
   // method for this class.
   Method* FindVirtualMethodForVirtual(Method* method)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!method->GetDeclaringClass()->IsInterface());
     // The argument method may from a super class.
     // Use the index to a potentially overridden one for this instance's class.
@@ -1653,16 +1653,16 @@ class MANAGED Class : public StaticStorageBase {
   // super class or interface, return the specific implementation
   // method for this class.
   Method* FindVirtualMethodForInterface(Method* method)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* FindInterfaceMethod(const StringPiece& name, const StringPiece& descriptor) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* FindInterfaceMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* FindVirtualMethodForVirtualOrInterface(Method* method)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method->IsDirect()) {
       return method;
     }
@@ -1673,28 +1673,28 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   Method* FindDeclaredVirtualMethod(const StringPiece& name, const StringPiece& signature) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* FindVirtualMethod(const StringPiece& name, const StringPiece& descriptor) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* FindVirtualMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* FindDeclaredDirectMethod(const StringPiece& name, const StringPiece& signature) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* FindDeclaredDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* FindDirectMethod(const StringPiece& name, const StringPiece& signature) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* FindDirectMethod(const DexCache* dex_cache, uint32_t dex_method_idx) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetIfTableCount() const {
     ObjectArray<InterfaceEntry>* iftable = GetIfTable();
@@ -1731,13 +1731,13 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   Field* GetInstanceField(uint32_t i) const  // TODO: uint16_t
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_){
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_){
     DCHECK_NE(NumInstanceFields(), 0U);
     return GetIFields()->Get(i);
   }
 
   void SetInstanceField(uint32_t i, Field* f)  // TODO: uint16_t
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_){
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_){
     ObjectArray<Field>* ifields= GetFieldObject<ObjectArray<Field>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, ifields_), false);
     ifields->Set(i, f);
@@ -1808,12 +1808,12 @@ class MANAGED Class : public StaticStorageBase {
   }
 
   Field* GetStaticField(uint32_t i) const  // TODO: uint16_t
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetSFields()->Get(i);
   }
 
   void SetStaticField(uint32_t i, Field* f)  // TODO: uint16_t
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ObjectArray<Field>* sfields= GetFieldObject<ObjectArray<Field>*>(
         OFFSET_OF_OBJECT_MEMBER(Class, sfields_), false);
     sfields->Set(i, f);
@@ -1827,37 +1827,37 @@ class MANAGED Class : public StaticStorageBase {
 
   // Find a static or instance field using the JLS resolution order
   Field* FindField(const StringPiece& name, const StringPiece& type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the given instance field in this class or a superclass.
   Field* FindInstanceField(const StringPiece& name, const StringPiece& type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the given instance field in this class or a superclass, only searches classes that
   // have the same dex cache.
   Field* FindInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Field* FindDeclaredInstanceField(const StringPiece& name, const StringPiece& type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Field* FindDeclaredInstanceField(const DexCache* dex_cache, uint32_t dex_field_idx)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the given static field in this class or a superclass.
   Field* FindStaticField(const StringPiece& name, const StringPiece& type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the given static field in this class or superclass, only searches classes that
   // have the same dex cache.
   Field* FindStaticField(const DexCache* dex_cache, uint32_t dex_field_idx)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Field* FindDeclaredStaticField(const StringPiece& name, const StringPiece& type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Field* FindDeclaredStaticField(const DexCache* dex_cache, uint32_t dex_field_idx)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   pid_t GetClinitThreadId() const {
     DCHECK(IsIdxLoaded() || IsErroneous());
@@ -1883,17 +1883,17 @@ class MANAGED Class : public StaticStorageBase {
 
  private:
   void SetVerifyErrorClass(Class* klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(klass != NULL) << PrettyClass(this);
     SetFieldObject(OFFSET_OF_OBJECT_MEMBER(Class, verify_error_class_), klass, false);
   }
 
   bool Implements(const Class* klass) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsArrayAssignableFromArray(const Class* klass) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsAssignableFromArray(const Class* klass) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // defining class loader, or NULL for the "bootstrap" system loader
   ClassLoader* class_loader_;
@@ -2233,7 +2233,7 @@ class MANAGED PrimitiveArray : public Array {
   typedef T ElementType;
 
   static PrimitiveArray<T>* Alloc(size_t length)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const T* GetData() const {
     intptr_t data = reinterpret_cast<intptr_t>(this) + DataOffset(sizeof(T)).Int32Value();
@@ -2245,14 +2245,14 @@ class MANAGED PrimitiveArray : public Array {
     return reinterpret_cast<T*>(data);
   }
 
-  T Get(int32_t i) const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  T Get(int32_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (!IsValidIndex(i)) {
       return T(0);
     }
     return GetData()[i];
   }
 
-  void Set(int32_t i, T value) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void Set(int32_t i, T value) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // TODO: ArrayStoreException
     if (IsValidIndex(i)) {
       GetData()[i] = value;
@@ -2306,9 +2306,9 @@ class MANAGED String : public Object {
 
   int32_t GetLength() const;
 
-  int32_t GetHashCode() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  int32_t GetHashCode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ComputeHashCode() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void ComputeHashCode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetHashCode(ComputeUtf16Hash(GetCharArray(), GetOffset(), GetLength()));
   }
 
@@ -2316,36 +2316,36 @@ class MANAGED String : public Object {
     return CountUtf8Bytes(GetCharArray()->GetData() + GetOffset(), GetLength());
   }
 
-  uint16_t CharAt(int32_t index) const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  uint16_t CharAt(int32_t index) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  String* Intern() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  String* Intern() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static String* AllocFromUtf16(int32_t utf16_length,
                                 const uint16_t* utf16_data_in,
                                 int32_t hash_code = 0)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static String* AllocFromModifiedUtf8(const char* utf)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static String* AllocFromModifiedUtf8(int32_t utf16_length,
                                        const char* utf8_data_in)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static String* Alloc(Class* java_lang_String, int32_t utf16_length)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static String* Alloc(Class* java_lang_String, CharArray* array)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool Equals(const char* modified_utf8) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // TODO: do we need this overload? give it a more intention-revealing name.
   bool Equals(const StringPiece& modified_utf8) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool Equals(const String* that) const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  bool Equals(const String* that) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Compare UTF-16 code point values not in a locale-sensitive manner
   int Compare(int32_t utf16_length, const char* utf8_data_in);
@@ -2353,7 +2353,7 @@ class MANAGED String : public Object {
   // TODO: do we need this overload? give it a more intention-revealing name.
   bool Equals(const uint16_t* that_chars, int32_t that_offset,
               int32_t that_length) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Create a modified UTF-8 encoded std::string from a java/lang/String object.
   std::string ToModifiedUtf8() const;
@@ -2471,7 +2471,7 @@ inline bool Method::CheckIncompatibleClassChange(InvokeType type) {
       return IsDirect() || !(methods_class->IsInterface() || methods_class->IsObjectClass());
     }
     default:
-      LOG(FATAL) << "UNREACHABLE";
+      LOG(FATAL) << "Unreachable - invocation type: " << type;
       return true;
   }
 }
@@ -2511,13 +2511,13 @@ class MANAGED Throwable : public Object {
   String* GetDetailMessage() const {
     return GetFieldObject<String*>(OFFSET_OF_OBJECT_MEMBER(Throwable, detail_message_), false);
   }
-  std::string Dump() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // This is a runtime version of initCause, you shouldn't use it if initCause may have been
   // overridden. Also it asserts rather than throwing exceptions. Currently this is only used
   // in cases like the verifier where the checks cannot fail and initCause isn't overridden.
   void SetCause(Throwable* cause);
-  bool IsCheckedException() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  bool IsCheckedException() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Class* GetJavaLangThrowable() {
     DCHECK(java_lang_Throwable_ != NULL);
@@ -2572,7 +2572,7 @@ class MANAGED StackTraceElement : public Object {
                                   String* method_name,
                                   String* file_name,
                                   int32_t line_number)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void SetClass(Class* java_lang_StackTraceElement);
 
@@ -2598,20 +2598,20 @@ class MANAGED StackTraceElement : public Object {
 
 class MANAGED InterfaceEntry : public ObjectArray<Object> {
  public:
-  Class* GetInterface() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  Class* GetInterface() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* interface = Get(kInterface)->AsClass();
     DCHECK(interface != NULL);
     return interface;
   }
 
-  void SetInterface(Class* interface) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void SetInterface(Class* interface) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(interface != NULL);
     DCHECK(interface->IsInterface());
     DCHECK(Get(kInterface) == NULL);
     Set(kInterface, interface);
   }
 
-  size_t GetMethodArrayCount() const SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  size_t GetMethodArrayCount() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ObjectArray<Method>* method_array = down_cast<ObjectArray<Method>*>(Get(kMethodArray));
     if (method_array == NULL) {
       return 0;
@@ -2620,14 +2620,14 @@ class MANAGED InterfaceEntry : public ObjectArray<Object> {
   }
 
   ObjectArray<Method>* GetMethodArray() const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ObjectArray<Method>* method_array = down_cast<ObjectArray<Method>*>(Get(kMethodArray));
     DCHECK(method_array != NULL);
     return method_array;
   }
 
   void SetMethodArray(ObjectArray<Method>* new_ma)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(new_ma != NULL);
     DCHECK(Get(kMethodArray) == NULL);
     Set(kMethodArray, new_ma);

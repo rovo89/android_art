@@ -109,7 +109,7 @@ class SpaceBitmap {
   template <typename Visitor, typename FingerVisitor>
   void VisitMarkedRange(uintptr_t visit_begin, uintptr_t visit_end,
                         const Visitor& visitor, const FingerVisitor& finger_visitor) const
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     DCHECK_LT(visit_begin, visit_end);
 
     const size_t word_span = kAlignment * kBitsPerWord; // Equals IndexToOffset(1).
@@ -177,11 +177,11 @@ class SpaceBitmap {
   }
 
   void Walk(Callback* callback, void* arg)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   void InOrderWalk(Callback* callback, void* arg)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void SweepWalk(const SpaceBitmap& live,
                         const SpaceBitmap& mark,

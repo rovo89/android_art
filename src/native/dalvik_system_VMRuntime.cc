@@ -138,7 +138,7 @@ static void VMRuntime_setTargetSdkVersion(JNIEnv*, jobject, jint targetSdkVersio
 #if !defined(ART_USE_LLVM_COMPILER)
     if (vm->check_jni) {
       LOG(WARNING) << "Turning off CheckJNI so we can turn on JNI app bug workarounds...";
-      MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+      MutexLock mu(*Locks::thread_list_lock_);
       vm->SetCheckJniEnabled(false);
       runtime->GetThreadList()->ForEach(DisableCheckJniCallback, NULL);
     }

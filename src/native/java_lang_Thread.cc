@@ -35,7 +35,7 @@ static jboolean Thread_interrupted(JNIEnv* env, jclass) {
 
 static jboolean Thread_isInterrupted(JNIEnv* env, jobject java_thread) {
   ScopedObjectAccess soa(env);
-  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  MutexLock mu(*Locks::thread_list_lock_);
   Thread* thread = Thread::FromManagedThread(soa, java_thread);
   return (thread != NULL) ? thread->IsInterrupted() : JNI_FALSE;
 }
@@ -56,10 +56,10 @@ static jint Thread_nativeGetStatus(JNIEnv* env, jobject java_thread, jboolean ha
 
   ScopedObjectAccess soa(env);
   ThreadState internal_thread_state = (has_been_started ? kTerminated : kStarting);
-  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  MutexLock mu(*Locks::thread_list_lock_);
   Thread* thread = Thread::FromManagedThread(soa, java_thread);
   if (thread != NULL) {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     internal_thread_state = thread->GetState();
   }
   switch (internal_thread_state) {
@@ -92,14 +92,14 @@ static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject java_thread, jobject
     Thread::Current()->ThrowNewException("Ljava/lang/NullPointerException;", "object == null");
     return JNI_FALSE;
   }
-  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  MutexLock mu(*Locks::thread_list_lock_);
   Thread* thread = Thread::FromManagedThread(soa, java_thread);
   return thread->HoldsLock(object);
 }
 
 static void Thread_nativeInterrupt(JNIEnv* env, jobject java_thread) {
   ScopedObjectAccess soa(env);
-  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  MutexLock mu(*Locks::thread_list_lock_);
   Thread* thread = Thread::FromManagedThread(soa, java_thread);
   if (thread != NULL) {
     thread->Interrupt();
@@ -140,7 +140,7 @@ static void Thread_nativeSetName(JNIEnv* env, jobject peer, jstring java_name) {
  */
 static void Thread_nativeSetPriority(JNIEnv* env, jobject java_thread, jint new_priority) {
   ScopedObjectAccess soa(env);
-  MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+  MutexLock mu(*Locks::thread_list_lock_);
   Thread* thread = Thread::FromManagedThread(soa, java_thread);
   if (thread != NULL) {
     thread->SetNativePriority(new_priority);

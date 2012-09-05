@@ -776,7 +776,7 @@ class DexFile {
   //
   // This is used by runtime; therefore use art::Method not art::DexFile::Method.
   int32_t GetLineNumFromPC(const Method* method, uint32_t rel_pc) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_t method_idx,
                        DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
@@ -1125,10 +1125,10 @@ class EncodedStaticFieldValueIterator {
  public:
   EncodedStaticFieldValueIterator(const DexFile& dex_file, DexCache* dex_cache,
                                   ClassLinker* linker, const DexFile::ClassDef& class_def)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ReadValueToField(Field* field) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasNext() { return pos_ < array_size_; }
 

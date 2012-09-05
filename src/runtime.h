@@ -97,7 +97,7 @@ class Runtime {
 
   // Creates and initializes a new runtime.
   static bool Create(const Options& options, bool ignore_unrecognized)
-      SHARED_TRYLOCK_FUNCTION(true, GlobalSynchronization::mutator_lock_);
+      SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
 
   bool IsCompiler() const {
     return is_compiler_;
@@ -117,7 +117,7 @@ class Runtime {
   }
 
   // Starts a runtime, which may cause threads to be started and code to run.
-  void Start() UNLOCK_FUNCTION(GlobalSynchronization::mutator_lock_);
+  void Start() UNLOCK_FUNCTION(Locks::mutator_lock_);
 
   bool IsShuttingDown() const {
     return shutting_down_;
@@ -140,7 +140,7 @@ class Runtime {
   // This isn't marked ((noreturn)) because then gcc will merge multiple calls
   // in a single function together. This reduces code size slightly, but means
   // that the native stack trace we get may point at the wrong call site.
-  static void Abort() LOCKS_EXCLUDED(GlobalSynchronization::abort_lock_);
+  static void Abort() LOCKS_EXCLUDED(Locks::abort_lock_);
 
   // Returns the "main" ThreadGroup, used when attaching user threads.
   jobject GetMainThreadGroup() const;
@@ -154,10 +154,10 @@ class Runtime {
   void CallExitHook(jint status);
 
   // Detaches the current native thread from the runtime.
-  void DetachCurrentThread() LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+  void DetachCurrentThread() LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DumpLockHolders(std::ostream& os);
 
   ~Runtime();
@@ -211,7 +211,7 @@ class Runtime {
   }
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasJniDlsymLookupStub() const {
     return jni_stub_array_ != NULL;
@@ -267,7 +267,7 @@ class Runtime {
     resolution_method_ = method;
   }
 
-  Method* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  Method* CreateResolutionMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns a special method that describes all callee saves being spilled to the stack.
   enum CalleeSaveType {
@@ -289,13 +289,13 @@ class Runtime {
   void SetCalleeSaveMethod(Method* method, CalleeSaveType type);
 
   Method* CreateCalleeSaveMethod(InstructionSet instruction_set, CalleeSaveType type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* CreateRefOnlyCalleeSaveMethod(InstructionSet instruction_set)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* CreateRefAndArgsCalleeSaveMethod(InstructionSet instruction_set)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetStat(int kind);
 
@@ -341,8 +341,8 @@ class Runtime {
   void BlockSignals();
 
   bool Init(const Options& options, bool ignore_unrecognized)
-      SHARED_TRYLOCK_FUNCTION(true, GlobalSynchronization::mutator_lock_);
-  void InitNativeMethods() LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_);
+      SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
+  void InitNativeMethods() LOCKS_EXCLUDED(Locks::mutator_lock_);
   void InitThreadGroups(Thread* self);
   void RegisterRuntimeNativeMethods(JNIEnv* env);
 

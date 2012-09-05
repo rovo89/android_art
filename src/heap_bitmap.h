@@ -26,14 +26,14 @@ namespace art {
   class HeapBitmap {
    public:
     bool Test(const Object* obj)
-        SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
+        SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
       SpaceBitmap* bitmap = GetSpaceBitmap(obj);
       DCHECK(bitmap != NULL);
       return bitmap->Test(obj);
     }
 
     void Clear(const Object* obj)
-        EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
       SpaceBitmap* bitmap = GetSpaceBitmap(obj);
       DCHECK(bitmap != NULL)
         << "tried to clear object "
@@ -43,7 +43,7 @@ namespace art {
     }
 
     void Set(const Object* obj)
-        EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
       SpaceBitmap* bitmap = GetSpaceBitmap(obj);
       DCHECK(bitmap != NULL)
         << "tried to mark object "
@@ -63,7 +63,7 @@ namespace art {
     }
 
     void Walk(SpaceBitmap::Callback* callback, void* arg)
-        SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
+        SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
       // TODO: C++0x auto
       for (Bitmaps::iterator it = bitmaps_.begin(); it!= bitmaps_.end(); ++it) {
         (*it)->Walk(callback, arg);
@@ -72,7 +72,7 @@ namespace art {
 
     template <typename Visitor>
     void Visit(const Visitor& visitor)
-        EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_) {
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
       // TODO: C++0x auto
       for (Bitmaps::iterator it = bitmaps_.begin(); it != bitmaps_.end(); ++it) {
         SpaceBitmap* bitmap = *it;
@@ -83,7 +83,7 @@ namespace art {
 
     // Find and replace a bitmap pointer, this is used by for the bitmap swapping in the GC.
     void ReplaceBitmap(SpaceBitmap* old_bitmap, SpaceBitmap* new_bitmap)
-        EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_);
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
     HeapBitmap(Heap* heap) : heap_(heap) {
 

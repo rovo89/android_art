@@ -93,7 +93,7 @@ size_t NumArgArrayBytes(const char* shorty, uint32_t shorty_len) {
 
 class ArgArray {
  public:
-  explicit ArgArray(Method* method) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  explicit ArgArray(Method* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     MethodHelper mh(method);
     shorty_ = mh.GetShorty();
     shorty_len_ = mh.GetShortyLength();
@@ -110,7 +110,7 @@ class ArgArray {
   }
 
   void BuildArgArray(const ScopedObjectAccess& soa, va_list ap)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     for (size_t i = 1, offset = 0; i < shorty_len_; ++i, ++offset) {
       switch (shorty_[i]) {
         case 'Z':
@@ -145,7 +145,7 @@ class ArgArray {
   }
 
   void BuildArgArray(const ScopedObjectAccess& soa, jvalue* args)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     for (size_t i = 1, offset = 0; i < shorty_len_; ++i, ++offset) {
       switch (shorty_[i]) {
         case 'Z':
@@ -189,7 +189,7 @@ class ArgArray {
 };
 
 static jweak AddWeakGlobalReference(ScopedObjectAccess& soa, Object* obj)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (obj == NULL) {
     return NULL;
   }
@@ -201,7 +201,7 @@ static jweak AddWeakGlobalReference(ScopedObjectAccess& soa, Object* obj)
 }
 
 static void CheckMethodArguments(Method* m, JValue* args)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   MethodHelper mh(m);
   ObjectArray<Class>* parameter_types = mh.GetParameterTypes();
   CHECK(parameter_types != NULL);
@@ -227,7 +227,7 @@ static void CheckMethodArguments(Method* m, JValue* args)
 
 static JValue InvokeWithArgArray(const ScopedObjectAccess& soa, Object* receiver,
                                  Method* method, JValue* args)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (UNLIKELY(soa.Env()->check_jni)) {
     CheckMethodArguments(method, args);
   }
@@ -238,7 +238,7 @@ static JValue InvokeWithArgArray(const ScopedObjectAccess& soa, Object* receiver
 
 static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
                                 jmethodID mid, va_list args)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* receiver = soa.Decode<Object*>(obj);
   Method* method = soa.DecodeMethod(mid);
   ArgArray arg_array(method);
@@ -247,13 +247,13 @@ static JValue InvokeWithVarArgs(const ScopedObjectAccess& soa, jobject obj,
 }
 
 static Method* FindVirtualMethod(Object* receiver, Method* method)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return receiver->GetClass()->FindVirtualMethodForVirtualOrInterface(method);
 }
 
 static JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
                                                   jobject obj, jmethodID mid, jvalue* args)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* receiver = soa.Decode<Object*>(obj);
   Method* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   ArgArray arg_array(method);
@@ -263,7 +263,7 @@ static JValue InvokeVirtualOrInterfaceWithJValues(const ScopedObjectAccess& soa,
 
 static JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccess& soa,
                                                   jobject obj, jmethodID mid, va_list args)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Object* receiver = soa.Decode<Object*>(obj);
   Method* method = FindVirtualMethod(receiver, soa.DecodeMethod(mid));
   ArgArray arg_array(method);
@@ -297,14 +297,14 @@ static std::string NormalizeJniClassDescriptor(const char* name) {
 
 static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, Class* c,
                                    const char* name, const char* sig, const char* kind)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   soa.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
       "no %s method \"%s.%s%s\"", kind, ClassHelper(c).GetDescriptor(), name, sig);
 }
 
 static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
                               const char* name, const char* sig, bool is_static)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Class* c = soa.Decode<Class*>(jni_class);
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
     return NULL;
@@ -331,7 +331,7 @@ static jmethodID FindMethodID(ScopedObjectAccess& soa, jclass jni_class,
 }
 
 static ClassLoader* GetClassLoader(Thread* self)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Method* method = self->GetCurrentMethod();
   if (method == NULL || PrettyMethod(method, false) == "java.lang.Runtime.nativeLoad") {
     return self->GetClassLoaderOverride();
@@ -341,7 +341,7 @@ static ClassLoader* GetClassLoader(Thread* self)
 
 static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, const char* name,
                             const char* sig, bool is_static)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Class* c = soa.Decode<Class*>(jni_class);
   if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
     return NULL;
@@ -380,14 +380,14 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
 }
 
 static void PinPrimitiveArray(const ScopedObjectAccess& soa, const Array* array)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JavaVMExt* vm = soa.Vm();
   MutexLock mu(vm->pins_lock);
   vm->pin_table.Add(array);
 }
 
 static void UnpinPrimitiveArray(const ScopedObjectAccess& soa, const Array* array)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   JavaVMExt* vm = soa.Vm();
   MutexLock mu(vm->pins_lock);
   vm->pin_table.Remove(array);
@@ -395,7 +395,7 @@ static void UnpinPrimitiveArray(const ScopedObjectAccess& soa, const Array* arra
 
 static void ThrowAIOOBE(ScopedObjectAccess& soa, Array* array, jsize start,
                         jsize length, const char* identifier)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::string type(PrettyTypeOf(array));
   soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
       "%s offset=%d length=%d %s.length=%d",
@@ -404,13 +404,13 @@ static void ThrowAIOOBE(ScopedObjectAccess& soa, Array* array, jsize start,
 
 static void ThrowSIOOBE(ScopedObjectAccess& soa, jsize start, jsize length,
                         jsize array_length)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   soa.Self()->ThrowNewExceptionF("Ljava/lang/StringIndexOutOfBoundsException;",
       "offset=%d length=%d string.length()=%d", start, length, array_length);
 }
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause)
-    LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
+    LOCKS_EXCLUDED(Locks::mutator_lock_) {
   ScopedObjectAccess soa(env);
 
   // Turn the const char* into a java.lang.String.
@@ -512,7 +512,7 @@ class SharedLibrary {
    */
   bool CheckOnLoadResult()
       LOCKS_EXCLUDED(jni_on_load_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Thread* self = Thread::Current();
     self->TransitionFromRunnableToSuspended(kWaitingForJniOnLoad);
     bool okay;
@@ -615,7 +615,7 @@ class Libraries {
 
   // See section 11.3 "Linking Native Methods" of the JNI spec.
   void* FindNativeMethod(const Method* m, std::string& detail)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::string jni_short_name(JniShortName(m));
     std::string jni_long_name(JniLongName(m));
     const ClassLoader* declaring_class_loader = m->GetDeclaringClass()->GetClassLoader();
@@ -660,7 +660,7 @@ JValue InvokeWithJValues(const ScopedObjectAccess& soa, jobject obj, jmethodID m
 
 JValue InvokeWithJValues(const ScopedObjectAccess& soa, Object* receiver, Method* m,
                          JValue* args)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return InvokeWithArgArray(soa, receiver, m, args);
 }
 
@@ -2286,7 +2286,7 @@ class JNI {
  private:
   static jint EnsureLocalCapacity(const ScopedObjectAccess& soa, jint desired_capacity,
                                   const char* caller)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // TODO: we should try to expand the table if necessary.
     if (desired_capacity < 1 || desired_capacity > static_cast<jint>(kLocalsMax)) {
       LOG(ERROR) << "Invalid capacity given to " << caller << ": " << desired_capacity;
@@ -2303,7 +2303,7 @@ class JNI {
 
   template<typename JniT, typename ArtT>
   static JniT NewPrimitiveArray(const ScopedObjectAccess& soa, jsize length)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK_GE(length, 0); // TODO: ReportJniError
     ArtT* result = ArtT::Alloc(length);
     return soa.AddLocalReference<JniT>(result);
@@ -2312,7 +2312,7 @@ class JNI {
   template <typename ArrayT, typename CArrayT, typename ArtArrayT>
   static CArrayT GetPrimitiveArray(ScopedObjectAccess& soa, ArrayT java_array,
                                    jboolean* is_copy)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ArtArrayT* array = soa.Decode<ArtArrayT*>(java_array);
     PinPrimitiveArray(soa, array);
     if (is_copy != NULL) {
@@ -2324,7 +2324,7 @@ class JNI {
   template <typename ArrayT>
   static void ReleasePrimitiveArray(ScopedObjectAccess& soa, ArrayT java_array,
                                     jint mode)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (mode != JNI_COMMIT) {
       Array* array = soa.Decode<Array*>(java_array);
       UnpinPrimitiveArray(soa, array);
@@ -2334,7 +2334,7 @@ class JNI {
   template <typename JavaArrayT, typename JavaT, typename ArrayT>
   static void GetPrimitiveArrayRegion(ScopedObjectAccess& soa, JavaArrayT java_array,
                                       jsize start, jsize length, JavaT* buf)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ArrayT* array = soa.Decode<ArrayT*>(java_array);
     if (start < 0 || length < 0 || start + length > array->GetLength()) {
       ThrowAIOOBE(soa, array, start, length, "src");
@@ -2347,7 +2347,7 @@ class JNI {
   template <typename JavaArrayT, typename JavaT, typename ArrayT>
   static void SetPrimitiveArrayRegion(ScopedObjectAccess& soa, JavaArrayT java_array,
                                       jsize start, jsize length, const JavaT* buf)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ArrayT* array = soa.Decode<ArrayT*>(java_array);
     if (start < 0 || length < 0 || start + length > array->GetLength()) {
       ThrowAIOOBE(soa, array, start, length, "dst");

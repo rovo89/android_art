@@ -127,7 +127,7 @@ void* Thread::CreateCallback(void* arg) {
 
 static void SetVmData(const ScopedObjectAccess& soa, Object* managed_thread,
                       Thread* native_thread)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Field* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_vmData);
   f->SetInt(managed_thread, reinterpret_cast<uintptr_t>(native_thread));
 }
@@ -137,9 +137,9 @@ Thread* Thread::FromManagedThread(const ScopedObjectAccessUnchecked& soa, Object
   Thread* result = reinterpret_cast<Thread*>(static_cast<uintptr_t>(f->GetInt(thread_peer)));
   // Sanity check that if we have a result it is either suspended or we hold the thread_list_lock_
   // to stop it from going away.
-  MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+  MutexLock mu(*Locks::thread_suspend_count_lock_);
   if (result != NULL && !result->IsSuspended()) {
-    GlobalSynchronization::thread_list_lock_->AssertHeld();
+    Locks::thread_list_lock_->AssertHeld();
   }
   return result;
 }
@@ -285,7 +285,7 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
   self->Init();
 
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_NE(self->GetState(), kRunnable);
     self->SetState(kNative);
   }
@@ -444,13 +444,13 @@ void Thread::GetThreadName(std::string& name) const {
 
 // Attempt to rectify locks so that we dump thread list with required locks before exiting.
 static void UnsafeLogFatalForSuspendCount(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
-  GlobalSynchronization::thread_suspend_count_lock_->Unlock();
-  GlobalSynchronization::mutator_lock_->SharedTryLock();
-  if (!GlobalSynchronization::mutator_lock_->IsSharedHeld()) {
+  Locks::thread_suspend_count_lock_->Unlock();
+  Locks::mutator_lock_->SharedTryLock();
+  if (!Locks::mutator_lock_->IsSharedHeld()) {
     LOG(WARNING) << "Dumping thread list without holding mutator_lock_";
   }
-  GlobalSynchronization::thread_list_lock_->TryLock();
-  if (!GlobalSynchronization::thread_list_lock_->IsExclusiveHeld()) {
+  Locks::thread_list_lock_->TryLock();
+  if (!Locks::thread_list_lock_->IsExclusiveHeld()) {
     LOG(WARNING) << "Dumping thread list without holding thread_list_lock_";
   }
   std::ostringstream ss;
@@ -462,7 +462,7 @@ void Thread::ModifySuspendCount(int delta, bool for_debugger) {
   DCHECK(delta == -1 || delta == +1 || delta == -debug_suspend_count_)
       << delta << " " << debug_suspend_count_ << " " << this;
   DCHECK_GE(suspend_count_, debug_suspend_count_) << this;
-  GlobalSynchronization::thread_suspend_count_lock_->AssertHeld();
+  Locks::thread_suspend_count_lock_->AssertHeld();
 
   if (delta == -1 && suspend_count_ <= 0) {
     // This is expected if you attach a thread during a GC.
@@ -494,7 +494,7 @@ void Thread::TransitionFromRunnableToSuspended(ThreadState new_state) {
   ThreadState old_state = SetStateUnsafe(new_state);
   CHECK_EQ(old_state, kRunnable);
   // Release share on mutator_lock_.
-  GlobalSynchronization::mutator_lock_->SharedUnlock();
+  Locks::mutator_lock_->SharedUnlock();
 }
 
 ThreadState Thread::TransitionFromSuspendedToRunnable() {
@@ -506,24 +506,24 @@ ThreadState Thread::TransitionFromSuspendedToRunnable() {
     // may occur is covered by the second check after we acquire a share of the mutator_lock_.
     if (GetSuspendCountUnsafe() > 0) {
       // Wait while our suspend count is non-zero.
-      MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
-      GlobalSynchronization::mutator_lock_->AssertNotHeld();  // Otherwise we starve GC..
+      MutexLock mu(*Locks::thread_suspend_count_lock_);
+      Locks::mutator_lock_->AssertNotHeld();  // Otherwise we starve GC..
       while (GetSuspendCount() != 0) {
         // Re-check when Thread::resume_cond_ is notified.
-        Thread::resume_cond_->Wait(*GlobalSynchronization::thread_suspend_count_lock_);
+        Thread::resume_cond_->Wait(*Locks::thread_suspend_count_lock_);
       }
     }
     // Re-acquire shared mutator_lock_ access.
-    GlobalSynchronization::mutator_lock_->SharedLock();
+    Locks::mutator_lock_->SharedLock();
     // Holding the mutator_lock_, synchronize with any thread trying to raise the suspend count
     // and change state to Runnable if no suspend is pending.
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     if (GetSuspendCount() == 0) {
       SetState(kRunnable);
       done = true;
     } else {
       // Release shared mutator_lock_ access and try again.
-      GlobalSynchronization::mutator_lock_->SharedUnlock();
+      Locks::mutator_lock_->SharedUnlock();
     }
   } while (!done);
   return old_state;
@@ -539,14 +539,14 @@ Thread* Thread::SuspendForDebugger(jobject peer, bool request_suspension, bool* 
     Thread* thread;
     {
       ScopedObjectAccess soa(Thread::Current());
-      MutexLock mu(*GlobalSynchronization::thread_list_lock_);
+      MutexLock mu(*Locks::thread_list_lock_);
       thread = Thread::FromManagedThread(soa, peer);
       if (thread == NULL) {
         LOG(WARNING) << "No such thread for suspend: " << peer;
         return NULL;
       }
       {
-        MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+        MutexLock mu(*Locks::thread_suspend_count_lock_);
         if (request_suspension) {
           thread->ModifySuspendCount(+1, true /* for_debugger */);
           request_suspension = false;
@@ -629,7 +629,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
     if (is_daemon) {
       os << " daemon";
     }
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     os << " prio=" << priority
        << " tid=" << thread->GetThinLockId()
        << " " << thread->GetState() << "\n";
@@ -640,7 +640,7 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   }
 
   if (thread != NULL) {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     os << "  | group=\"" << group_name << "\""
        << " sCount=" << thread->suspend_count_
        << " dsCount=" << thread->debug_suspend_count_
@@ -690,7 +690,7 @@ void Thread::DumpState(std::ostream& os) const {
 
 struct StackDumpVisitor : public StackVisitor {
   StackDumpVisitor(std::ostream& os, const Thread* thread, Context* context, bool can_allocate)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(thread->GetManagedStack(), thread->GetTraceStack(), context),
         os(os), thread(thread), can_allocate(can_allocate),
         last_method(NULL), last_line_number(0), repetition_count(0), frame_count(0) {
@@ -702,7 +702,7 @@ struct StackDumpVisitor : public StackVisitor {
     }
   }
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* m = GetMethod();
     if (m->IsRuntimeMethod()) {
       return true;
@@ -762,7 +762,7 @@ void Thread::DumpStack(std::ostream& os) const {
   // If we're currently in native code, dump that stack before dumping the managed stack.
   ThreadState state;
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     state = GetState();
   }
   if (state == kNative) {
@@ -787,7 +787,7 @@ void Thread::ThreadExitCallback(void* arg) {
 
 void Thread::Startup() {
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);  // Keep GCC happy.
+    MutexLock mu(*Locks::thread_suspend_count_lock_);  // Keep GCC happy.
     resume_cond_ = new ConditionVariable("Thread resumption condition variable");
   }
 
@@ -920,7 +920,7 @@ Thread::~Thread() {
   jni_env_ = NULL;
 
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_NE(GetState(), kRunnable);
     SetState(kTerminated);
   }
@@ -1078,11 +1078,11 @@ class CountStackDepthVisitor : public StackVisitor {
  public:
   CountStackDepthVisitor(const ManagedStack* stack,
                          const std::vector<TraceStackFrame>* trace_stack)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(stack, trace_stack, NULL),
         depth_(0), skip_depth_(0), skipping_(true) {}
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // We want to skip frames up to and including the exception's constructor.
     // Note we also skip the frame if it doesn't have a method (namely the callee
     // save frame)
@@ -1124,7 +1124,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
         skip_depth_(skip_depth), count_(0), dex_pc_trace_(NULL), method_trace_(NULL) {}
 
   bool Init(int depth, const ScopedObjectAccess& soa)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Allocate method trace with an extra slot that will hold the PC trace
     SirtRef<ObjectArray<Object> >
       method_trace(Runtime::Current()->GetClassLinker()->AllocObjectArray<Object>(depth + 1));
@@ -1153,7 +1153,7 @@ class BuildInternalStackTraceVisitor : public StackVisitor {
     }
   }
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method_trace_ == NULL || dex_pc_trace_ == NULL) {
       return true; // We're probably trying to fillInStackTrace for an OutOfMemoryError.
     }
@@ -1513,7 +1513,7 @@ static const bool kDebugExceptionDelivery = false;
 class CatchBlockStackVisitor : public StackVisitor {
  public:
   CatchBlockStackVisitor(Thread* self, Throwable* exception)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(self->GetManagedStack(), self->GetTraceStack(), self->GetLongJumpContext()),
         self_(self), exception_(exception), to_find_(exception->GetClass()), throw_method_(NULL),
         throw_frame_id_(0), throw_dex_pc_(0), handler_quick_frame_(NULL),
@@ -1527,8 +1527,8 @@ class CatchBlockStackVisitor : public StackVisitor {
     LOG(FATAL) << "UNREACHABLE";  // Expected to take long jump.
   }
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* method = GetMethod();
     if (method == NULL) {
       // This is the upcall, we remember the frame and last pc so that we may long jump to them.
@@ -1570,7 +1570,7 @@ class CatchBlockStackVisitor : public StackVisitor {
     return true;  // Continue stack walk.
   }
 
-  void DoLongJump() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void DoLongJump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* catch_method = *handler_quick_frame_;
     Dbg::PostException(self_, throw_frame_id_, throw_method_, throw_dex_pc_,
                        catch_method, handler_dex_pc_, exception_);
@@ -1650,10 +1650,10 @@ Method* Thread::GetCurrentMethod(uint32_t* dex_pc, size_t* frame_id) const {
   struct CurrentMethodVisitor : public StackVisitor {
     CurrentMethodVisitor(const ManagedStack* stack,
                          const std::vector<TraceStackFrame>* trace_stack)
-        SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         : StackVisitor(stack, trace_stack, NULL), method_(NULL), dex_pc_(0), frame_id_(0) {}
 
-    virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       Method* m = GetMethod();
       if (m->IsRuntimeMethod()) {
         // Continue if this is a runtime method.
@@ -1691,10 +1691,10 @@ class ReferenceMapVisitor : public StackVisitor {
  public:
   ReferenceMapVisitor(const ManagedStack* stack, const std::vector<TraceStackFrame>* trace_stack,
                       Context* context, Heap::RootVisitor* root_visitor, void* arg)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(stack, trace_stack, context), root_visitor_(root_visitor), arg_(arg) {}
 
-  bool VisitFrame() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (false) {
       LOG(INFO) << "Visiting stack roots in " << PrettyMethod(GetMethod())
           << StringPrintf("@ PC:%04x", GetDexPc());

@@ -54,9 +54,9 @@ void RegisterNativeMethods(JNIEnv* env, const char* jni_class_name, const JNINat
 
 size_t NumArgArrayBytes(const char* shorty, uint32_t shorty_len);
 JValue InvokeWithJValues(const ScopedObjectAccess&, jobject obj, jmethodID mid, jvalue* args)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 JValue InvokeWithJValues(const ScopedObjectAccess&, Object* receiver, Method* m, JValue* args)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobject cause);
 
@@ -71,19 +71,19 @@ struct JavaVMExt : public JavaVM {
    * human-readable description of the error.
    */
   bool LoadNativeLibrary(const std::string& path, ClassLoader* class_loader, std::string& detail)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /**
    * Returns a pointer to the code for the native method 'm', found
    * using dlsym(3) on every native library that's been loaded so far.
    */
   void* FindCodeForNativeMethod(Method* m)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os);
 
   void DumpReferenceTables(std::ostream& os)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetCheckJniEnabled(bool enabled);
 
@@ -129,7 +129,7 @@ struct JNIEnvExt : public JNIEnv {
   ~JNIEnvExt();
 
   void DumpReferenceTables(std::ostream& os)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetCheckJniEnabled(bool enabled);
 

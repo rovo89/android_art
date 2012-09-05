@@ -46,60 +46,60 @@ class ClassLinker {
   // Creates the class linker by boot strapping from dex files.
   static ClassLinker* CreateFromCompiler(const std::vector<const DexFile*>& boot_class_path,
                                          InternTable* intern_table)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Creates the class linker from an image.
   static ClassLinker* CreateFromImage(InternTable* intern_table)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ~ClassLinker();
 
   // Finds a class by its descriptor, loading it if necessary.
   // If class_loader is null, searches boot_class_path_.
   Class* FindClass(const char* descriptor, ClassLoader* class_loader)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Class* FindSystemClass(const char* descriptor)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Define a new a class based on a ClassDef from a DexFile
   Class* DefineClass(const StringPiece& descriptor, ClassLoader* class_loader,
                      const DexFile& dex_file, const DexFile::ClassDef& dex_class_def)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds a class by its descriptor, returning NULL if it isn't wasn't loaded
   // by the given 'class_loader'.
   Class* LookupClass(const char* descriptor, const ClassLoader* class_loader)
-      LOCKS_EXCLUDED(GlobalSynchronization::classlinker_classes_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds all the classes with the given descriptor, regardless of ClassLoader.
   void LookupClasses(const char* descriptor, std::vector<Class*>& classes)
-      LOCKS_EXCLUDED(GlobalSynchronization::classlinker_classes_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Class* FindPrimitiveClass(char type) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  Class* FindPrimitiveClass(char type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // General class unloading is not supported, this is used to prune
   // unwanted classes during image writing.
   bool RemoveClass(const char* descriptor, const ClassLoader* class_loader)
-      LOCKS_EXCLUDED(GlobalSynchronization::classlinker_classes_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DumpAllClasses(int flags) const
-      LOCKS_EXCLUDED(GlobalSynchronization::classlinker_classes_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os) const
-      LOCKS_EXCLUDED(GlobalSynchronization::classlinker_classes_lock_);
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
 
-  size_t NumLoadedClasses() const LOCKS_EXCLUDED(GlobalSynchronization::classlinker_classes_lock_);
+  size_t NumLoadedClasses() const LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
 
   // Resolve a String with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
   String* ResolveString(uint32_t string_idx, const Method* referrer)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     String* resolved_string = referrer->GetDexCacheStrings()->Get(string_idx);
     if (UNLIKELY(resolved_string == NULL)) {
       Class* declaring_class = referrer->GetDeclaringClass();
@@ -113,13 +113,13 @@ class ClassLinker {
   // Resolve a String with the given index from the DexFile, storing the
   // result in the DexCache.
   String* ResolveString(const DexFile& dex_file, uint32_t string_idx, DexCache* dex_cache)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a Type with the given index from the DexFile, storing the
   // result in the DexCache. The referrer is used to identity the
   // target DexCache and ClassLoader to use for resolution.
   Class* ResolveType(const DexFile& dex_file, uint16_t type_idx, const Class* referrer)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return ResolveType(dex_file,
                        type_idx,
                        referrer->GetDexCache(),
@@ -130,7 +130,7 @@ class ClassLinker {
   // result in the DexCache. The referrer is used to identify the
   // target DexCache and ClassLoader to use for resolution.
   Class* ResolveType(uint16_t type_idx, const Method* referrer)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* resolved_type = referrer->GetDexCacheResolvedTypes()->Get(type_idx);
     if (UNLIKELY(resolved_type == NULL)) {
       Class* declaring_class = referrer->GetDeclaringClass();
@@ -143,7 +143,7 @@ class ClassLinker {
   }
 
   Class* ResolveType(uint16_t type_idx, const Field* referrer)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* declaring_class = referrer->GetDeclaringClass();
     DexCache* dex_cache = declaring_class->GetDexCache();
     Class* resolved_type = dex_cache->GetResolvedType(type_idx);
@@ -163,7 +163,7 @@ class ClassLinker {
                      uint16_t type_idx,
                      DexCache* dex_cache,
                      ClassLoader* class_loader)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a method with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
@@ -176,10 +176,10 @@ class ClassLinker {
                         ClassLoader* class_loader,
                         const Method* referrer,
                         InvokeType type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* ResolveMethod(uint32_t method_idx, const Method* referrer, InvokeType type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Method* resolved_method = referrer->GetDexCacheResolvedMethods()->Get(method_idx);
     if (UNLIKELY(resolved_method == NULL || resolved_method->IsRuntimeMethod())) {
       Class* declaring_class = referrer->GetDeclaringClass();
@@ -192,7 +192,7 @@ class ClassLinker {
   }
 
   Field* ResolveField(uint32_t field_idx, const Method* referrer, bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Field* resolved_field =
         referrer->GetDeclaringClass()->GetDexCache()->GetResolvedField(field_idx);
     if (UNLIKELY(resolved_field == NULL)) {
@@ -215,7 +215,7 @@ class ClassLinker {
                       DexCache* dex_cache,
                       ClassLoader* class_loader,
                       bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a field with a given ID from the DexFile, storing the
   // result in DexCache. The ClassLinker and ClassLoader are used as
@@ -225,28 +225,28 @@ class ClassLinker {
                          uint32_t field_idx,
                          DexCache* dex_cache,
                          ClassLoader* class_loader)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get shorty from method index without resolution. Used to do handlerization.
   const char* MethodShorty(uint32_t method_idx, Method* referrer, uint32_t* length)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true on success, false if there's an exception pending.
   // can_run_clinit=false allows the compiler to attempt to init a class,
   // given the restriction that no <clinit> execution is possible.
   bool EnsureInitialized(Class* c, bool can_run_clinit, bool can_init_fields)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Initializes classes that have instances in the image but that have
   // <clinit> methods so they could not be initialized by the compiler.
-  void RunRootClinits() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void RunRootClinits() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void RegisterDexFile(const DexFile& dex_file)
       LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void RegisterDexFile(const DexFile& dex_file, SirtRef<DexCache>& dex_cache)
       LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void RegisterOatFile(const OatFile& oat_file)
       LOCKS_EXCLUDED(dex_lock_);
@@ -256,26 +256,26 @@ class ClassLinker {
   }
 
   void VisitClasses(ClassVisitor* visitor, void* arg) const
-      LOCKS_EXCLUDED(GlobalSynchronization::classlinker_classes_lock_);
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
   // Less efficient variant of VisitClasses that doesn't hold the classlinker_classes_lock_
   // when calling the visitor.
   void VisitClassesWithoutClassesLock(ClassVisitor* visitor, void* arg) const
-      LOCKS_EXCLUDED(GlobalSynchronization::classlinker_classes_lock_);
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
 
   void VisitRoots(Heap::RootVisitor* visitor, void* arg) const
-      LOCKS_EXCLUDED(GlobalSynchronization::classlinker_classes_lock_, dex_lock_);
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_, dex_lock_);
 
   const DexFile& FindDexFile(const DexCache* dex_cache) const
       LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   DexCache* FindDexCache(const DexFile& dex_file) const
       LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsDexFileRegistered(const DexFile& dex_file) const
       LOCKS_EXCLUDED(dex_lock_);
   void FixupDexCaches(Method* resolution_method) const
       LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Generate an oat file from a dex file
   bool GenerateOatFile(const std::string& dex_filename,
@@ -302,51 +302,51 @@ class ClassLinker {
   // does not match the OatFile.
   const DexFile* FindDexFileInOatFileFromDexLocation(const std::string& location)
       LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
   // Returns true if oat file contains the dex file with the given location and checksum
   static bool VerifyOatFileChecksums(const OatFile* oat_file,
                                      const std::string& dex_location,
                                      uint32_t dex_location_checksum)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // TODO: replace this with multiple methods that allocate the correct managed type.
   template <class T>
   ObjectArray<T>* AllocObjectArray(size_t length)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return ObjectArray<T>::Alloc(GetClassRoot(kObjectArrayClass), length);
   }
 
   ObjectArray<Class>* AllocClassArray(size_t length)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return ObjectArray<Class>::Alloc(GetClassRoot(kClassArrayClass), length);
   }
 
   ObjectArray<StackTraceElement>* AllocStackTraceElementArray(size_t length)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VerifyClass(Class* klass) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void VerifyClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass,
                                Class::Status& oat_file_class_status)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ResolveClassExceptionHandlerTypes(const DexFile& dex_file, Class* klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void ResolveMethodExceptionHandlerTypes(const DexFile& dex_file, Method* klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Class* CreateProxyClass(String* name, ObjectArray<Class>* interfaces, ClassLoader* loader,
                           ObjectArray<Method>* methods, ObjectArray<ObjectArray<Class> >* throws)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   std::string GetDescriptorForProxy(const Class* proxy_class)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   Method* FindMethodForProxy(const Class* proxy_class, const Method* proxy_method)
       LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the oat code for a method when its class isn't yet initialized
   const void* GetOatCodeFor(const Method* method)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Relocate the OatFiles (ELF images)
   void RelocateExecutable() LOCKS_EXCLUDED(dex_lock_);
@@ -358,59 +358,59 @@ class ClassLinker {
   explicit ClassLinker(InternTable*);
 
   const OatFile::OatMethod GetOatMethodFor(const Method* method)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Initialize class linker by bootstraping from dex files
   void InitFromCompiler(const std::vector<const DexFile*>& boot_class_path)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Initialize class linker from one or more images.
-  void InitFromImage() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void InitFromImage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   OatFile* OpenOat(const ImageSpace* space)
       LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void InitFromImageCallback(Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void FinishInit() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  void FinishInit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // For early bootstrapping by Init
   Class* AllocClass(Class* java_lang_Class, size_t class_size)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Alloc* convenience functions to avoid needing to pass in Class*
   // values that are known to the ClassLinker such as
   // kObjectArrayClass and kJavaLangString etc.
-  Class* AllocClass(size_t class_size) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+  Class* AllocClass(size_t class_size) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   DexCache* AllocDexCache(const DexFile& dex_file)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-  Field* AllocField() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
-  Method* AllocMethod() SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Field* AllocField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  Method* AllocMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   InterfaceEntry* AllocInterfaceEntry(Class* interface)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Class* CreatePrimitiveClass(const char* descriptor, Primitive::Type type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return InitializePrimitiveClass(AllocClass(sizeof(Class)), descriptor, type);
   }
   Class* InitializePrimitiveClass(Class* primitive_class,
                                   const char* descriptor,
                                   Primitive::Type type)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
   Class* CreateArrayClass(const std::string& descriptor, ClassLoader* class_loader)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void AppendToBootClassPath(const DexFile& dex_file)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AppendToBootClassPath(const DexFile& dex_file, SirtRef<DexCache>& dex_cache)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ConstructFieldMap(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
                          Class* c, SafeMap<uint32_t, Field*>& field_map)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t SizeOfClass(const DexFile& dex_file,
                      const DexFile::ClassDef& dex_class_def);
@@ -419,17 +419,17 @@ class ClassLinker {
                  const DexFile::ClassDef& dex_class_def,
                  SirtRef<Class>& klass,
                  ClassLoader* class_loader)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void LoadField(const DexFile& dex_file, const ClassDataItemIterator& it, SirtRef<Class>& klass,
                  SirtRef<Field>& dst);
 
   void LoadMethod(const DexFile& dex_file, const ClassDataItemIterator& dex_method,
                   SirtRef<Class>& klass, SirtRef<Method>& dst)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FixupStaticTrampolines(Class* klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds the associated oat class for a dex_file and descriptor
   const OatFile::OatClass* GetOatClass(const DexFile& dex_file, const char* descriptor);
@@ -438,70 +438,70 @@ class ClassLinker {
   // the class was inserted, otherwise returns an existing class with
   // the same descriptor and ClassLoader.
   Class* InsertClass(const StringPiece& descriptor, Class* klass, bool image_class)
-      LOCKS_EXCLUDED(GlobalSynchronization::classlinker_classes_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void RegisterDexFileLocked(const DexFile& dex_file, SirtRef<DexCache>& dex_cache)
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsDexFileRegisteredLocked(const DexFile& dex_file) const EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
   void RegisterOatFileLocked(const OatFile& oat_file) EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_);
 
   bool InitializeClass(Class* klass, bool can_run_clinit, bool can_init_statics)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool WaitForInitializeClass(Class* klass, Thread* self, ObjectLock& lock);
   bool ValidateSuperClassDescriptors(const Class* klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool InitializeSuperClass(Class* klass, bool can_run_clinit, bool can_init_fields)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Initialize static fields, returns true if fields were initialized.
   bool InitializeStaticFields(Class* klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsSameDescriptorInDifferentClassContexts(const char* descriptor,
                                                 const Class* klass1,
                                                 const Class* klass2)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsSameMethodSignatureInDifferentClassContexts(const Method* descriptor,
                                                      const Class* klass1,
                                                      const Class* klass2)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkClass(SirtRef<Class>& klass, ObjectArray<Class>* interfaces)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkSuperClass(SirtRef<Class>& klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LoadSuperAndInterfaces(SirtRef<Class>& klass, const DexFile& dex_file)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkMethods(SirtRef<Class>& klass, ObjectArray<Class>* interfaces)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkVirtualMethods(SirtRef<Class>& klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>* interfaces)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkStaticFields(SirtRef<Class>& klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool LinkInstanceFields(SirtRef<Class>& klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool LinkFields(SirtRef<Class>& klass, bool is_static)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
   void CreateReferenceInstanceOffsets(SirtRef<Class>& klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CreateReferenceStaticOffsets(SirtRef<Class>& klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CreateReferenceOffsets(SirtRef<Class>& klass, bool is_static,
                               uint32_t reference_offsets)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // For use by ImageWriter to find DexCaches for its roots
   const std::vector<DexCache*>& GetDexCaches() {
@@ -518,12 +518,12 @@ class ClassLinker {
                                                  const std::string& dex_location,
                                                  uint32_t dex_location_checksum)
       EXCLUSIVE_LOCKS_REQUIRED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Method* CreateProxyConstructor(SirtRef<Class>& klass, Class* proxy_class)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   Method* CreateProxyMethod(SirtRef<Class>& klass, SirtRef<Method>& prototype)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   std::vector<const DexFile*> boot_class_path_;
 
@@ -537,13 +537,13 @@ class ClassLinker {
   // Class* instances. Results should be compared for a matching
   // Class::descriptor_ and Class::class_loader_.
   typedef std::multimap<size_t, Class*> Table;
-  Table image_classes_  GUARDED_BY(GlobalSynchronization::classlinker_classes_lock_);
-  Table classes_ GUARDED_BY(GlobalSynchronization::classlinker_classes_lock_);
+  Table image_classes_  GUARDED_BY(Locks::classlinker_classes_lock_);
+  Table classes_ GUARDED_BY(Locks::classlinker_classes_lock_);
 
   Class* LookupClassLocked(const char* descriptor, const ClassLoader* class_loader,
                            size_t hash, const Table& classes)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::classlinker_classes_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::classlinker_classes_lock_);
 
   // indexes into class_roots_.
   // needs to be kept in sync with class_roots_descriptors_.
@@ -585,7 +585,7 @@ class ClassLinker {
   ObjectArray<Class>* class_roots_;
 
   Class* GetClassRoot(ClassRoot class_root)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(class_roots_ != NULL);
     Class* klass = class_roots_->Get(class_root);
     DCHECK(klass != NULL);
@@ -593,7 +593,7 @@ class ClassLinker {
   }
 
   void SetClassRoot(ClassRoot class_root, Class* klass)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ObjectArray<Class>* GetClassRoots() {
     DCHECK(class_roots_ != NULL);

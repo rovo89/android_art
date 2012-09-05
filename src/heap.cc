@@ -273,7 +273,7 @@ class SpaceSorter {
 };
 
 void Heap::AddSpace(Space* space) {
-  WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+  WriterMutexLock mu(*Locks::heap_bitmap_lock_);
   DCHECK(space != NULL);
   DCHECK(space->GetLiveBitmap() != NULL);
   live_bitmap_->AddSpaceBitmap(space->GetLiveBitmap());
@@ -366,7 +366,7 @@ Object* Heap::AllocObject(Class* c, size_t byte_count) {
   Object* obj = Allocate(alloc_space_, byte_count);
   if (LIKELY(obj != NULL)) {
 #if VERIFY_OBJECT_ENABLED
-    WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    WriterMutexLock mu(*Locks::heap_bitmap_lock_);
     // Verify objects doesn't like objects in allocation stack not being marked as live.
     live_bitmap_->Set(obj);
 #endif
@@ -426,7 +426,7 @@ bool Heap::IsHeapAddress(const Object* obj) {
 }
 
 bool Heap::IsLiveObjectLocked(const Object* obj) {
-  GlobalSynchronization::heap_bitmap_lock_->AssertReaderHeld();
+  Locks::heap_bitmap_lock_->AssertReaderHeld();
   return IsHeapAddress(obj) && GetLiveBitmap()->Test(obj);
 }
 
@@ -489,7 +489,7 @@ void Heap::VerificationCallback(Object* obj, void* arg) {
 }
 
 void Heap::VerifyHeap() {
-  ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+  ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
   GetLiveBitmap()->Walk(Heap::VerificationCallback, this);
 }
 
@@ -546,7 +546,7 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
   // done in the runnable state where suspension is expected.
 #ifndef NDEBUG
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_EQ(self->GetState(), kRunnable);
   }
   self->AssertThreadSuspensionIsAllowable();
@@ -660,7 +660,7 @@ int64_t Heap::GetFreeMemory() {
 class InstanceCounter {
  public:
   InstanceCounter(Class* c, bool count_assignable)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : class_(c), count_assignable_(count_assignable), count_(0) {
 
   }
@@ -670,12 +670,12 @@ class InstanceCounter {
   }
 
   static void Callback(Object* o, void* arg)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     reinterpret_cast<InstanceCounter*>(arg)->VisitInstance(o);
   }
 
  private:
-  void VisitInstance(Object* o) SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+  void VisitInstance(Object* o) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Class* instance_class = o->GetClass();
     if (count_assignable_) {
       if (instance_class == class_) {
@@ -694,7 +694,7 @@ class InstanceCounter {
 };
 
 int64_t Heap::CountInstances(Class* c, bool count_assignable) {
-  ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+  ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
   InstanceCounter counter(c, count_assignable);
   GetLiveBitmap()->Walk(InstanceCounter::Callback, &counter);
   return counter.GetCount();
@@ -722,7 +722,7 @@ void Heap::PreZygoteFork() {
 
   {
     // Flush the alloc stack.
-    WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    WriterMutexLock mu(*Locks::heap_bitmap_lock_);
     FlushAllocStack();
   }
 
@@ -806,10 +806,10 @@ void Heap::UnMarkStackAsLive(MarkStack* alloc_stack) {
 }
 
 void Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) {
-  GlobalSynchronization::mutator_lock_->AssertNotHeld();
+  Locks::mutator_lock_->AssertNotHeld();
 #ifndef NDEBUG
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_EQ(Thread::Current()->GetState(), kWaitingPerformingGc);
   }
 #endif
@@ -868,7 +868,7 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   thread_list->SuspendAll();
   timings.AddSplit("SuspendAll");
-  GlobalSynchronization::mutator_lock_->AssertExclusiveHeld();
+  Locks::mutator_lock_->AssertExclusiveHeld();
 
   size_t bytes_freed = 0;
   Object* cleared_references = NULL;
@@ -880,7 +880,7 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
 
     // Pre verify the heap
     if (pre_gc_verify_heap_) {
-      WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
       VerifyHeapReferences(std::string("Pre ") + gc_type_str.str() + "Gc");
       timings.AddSplit("VerifyHeapReferencesPreGC");
     }
@@ -918,7 +918,7 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
       }
     }
 
-    WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    WriterMutexLock mu(*Locks::heap_bitmap_lock_);
     if (gc_type == GC_PARTIAL) {
       // Copy the mark bits over from the live bits, do this as early as possible or else we can
       // accidentally un-mark roots.
@@ -1007,7 +1007,7 @@ void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_reference
 
   // Post gc verify the heap
   if (post_gc_verify_heap_) {
-    WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+    WriterMutexLock mu(*Locks::heap_bitmap_lock_);
     VerifyHeapReferences(std::string("Post ") + gc_type_str.str() + "Gc");
     timings.AddSplit("VerifyHeapReferencesPostGC");
   }
@@ -1081,8 +1081,8 @@ class ScanVisitor {
 class VerifyReferenceVisitor {
  public:
   VerifyReferenceVisitor(Heap* heap, bool* failed)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_,
-                            GlobalSynchronization::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_,
+                            Locks::heap_bitmap_lock_)
       : heap_(heap),
         failed_(failed) {
   }
@@ -1183,8 +1183,7 @@ class VerifyObjectVisitor {
   }
 
   void operator ()(const Object* obj) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_,
-          GlobalSynchronization::heap_bitmap_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     VerifyReferenceVisitor visitor(heap_, const_cast<bool*>(&failed_));
     MarkSweep::VisitObjectReferences(obj, visitor);
   }
@@ -1200,7 +1199,7 @@ class VerifyObjectVisitor {
 
 // Must do this with mutators suspended since we are directly accessing the allocation stacks.
 void Heap::VerifyHeapReferences(const std::string& phase) {
-  GlobalSynchronization::mutator_lock_->AssertExclusiveHeld();
+  Locks::mutator_lock_->AssertExclusiveHeld();
   // Lets sort our allocation stacks so that we can efficiently binary search them.
   std::sort(allocation_stack_->Begin(), allocation_stack_->End());
   std::sort(live_stack_->Begin(), live_stack_->End());
@@ -1220,7 +1219,7 @@ void Heap::SwapBitmaps() {
   // these bitmaps. Doing this enables us to sweep with the heap unlocked since new allocations
   // set the live bit, but since we have the bitmaps reversed at this point, this sets the mark bit
   // instead, resulting in no new allocated objects being incorrectly freed by sweep.
-  WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+  WriterMutexLock mu(*Locks::heap_bitmap_lock_);
   for (Spaces::iterator it = spaces_.begin(); it != spaces_.end(); ++it) {
     Space* space = *it;
     // We never allocate into zygote spaces.
@@ -1242,7 +1241,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   thread_list->SuspendAll();
   timings.AddSplit("SuspendAll");
-  GlobalSynchronization::mutator_lock_->AssertExclusiveHeld();
+  Locks::mutator_lock_->AssertExclusiveHeld();
 
   size_t bytes_freed = 0;
   Object* cleared_references = NULL;
@@ -1255,7 +1254,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
 
     // Pre verify the heap
     if (pre_gc_verify_heap_) {
-      WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
       VerifyHeapReferences(std::string("Pre ") + gc_type_str.str() + "Gc");
       timings.AddSplit("VerifyHeapReferencesPreGC");
     }
@@ -1294,7 +1293,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     }
 
     {
-      WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
 
       if (gc_type == GC_PARTIAL) {
         // Copy the mark bits over from the live bits, do this as early as possible or else we can
@@ -1343,11 +1342,11 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     // Allow mutators to go again, acquire share on mutator_lock_ to continue.
     thread_list->ResumeAll();
     {
-      ReaderMutexLock reader_lock(*GlobalSynchronization::mutator_lock_);
+      ReaderMutexLock reader_lock(*Locks::mutator_lock_);
       root_end = NanoTime();
       timings.AddSplit("RootEnd");
 
-      WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
       UpdateAndMarkModUnion(timings, gc_type);
       if (gc_type != GC_STICKY) {
         // Recursively mark all the non-image bits set in the mark bitmap.
@@ -1361,10 +1360,10 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     dirty_begin = NanoTime();
     thread_list->SuspendAll();
     timings.AddSplit("ReSuspend");
-    GlobalSynchronization::mutator_lock_->AssertExclusiveHeld();
+    Locks::mutator_lock_->AssertExclusiveHeld();
 
     {
-      WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
 
       // Re-mark root set.
       mark_sweep.ReMarkRoots();
@@ -1376,7 +1375,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     }
 
     {
-      ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
       mark_sweep.ProcessReferences(clear_soft_references);
       timings.AddSplit("ProcessReferences");
 
@@ -1395,7 +1394,7 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
 
     if (kIsDebugBuild) {
       // Verify that we only reach marked objects from the image space.
-      ReaderMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      ReaderMutexLock mu(*Locks::heap_bitmap_lock_);
       mark_sweep.VerifyImageRoots();
       timings.AddSplit("VerifyImageRoots");
     }
@@ -1411,18 +1410,18 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
     // If we are going to do post Gc verification, lets keep the mutators paused since we don't
     // want them to touch dead objects before we find these in verification.
     if (post_gc_verify_heap_) {
-      WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
       VerifyHeapReferences(std::string("Post ") + gc_type_str.str() + "Gc");
       timings.AddSplit("VerifyHeapReferencesPostGC");
     }
 
     thread_list->ResumeAll();
     dirty_end = NanoTime();
-    GlobalSynchronization::mutator_lock_->AssertNotHeld();
+    Locks::mutator_lock_->AssertNotHeld();
 
     {
       // TODO: this lock shouldn't be necessary (it's why we did the bitmap flip above).
-      WriterMutexLock mu(*GlobalSynchronization::heap_bitmap_lock_);
+      WriterMutexLock mu(*Locks::heap_bitmap_lock_);
       if (gc_type != GC_STICKY) {
         mark_sweep.Sweep(gc_type == GC_PARTIAL, swap);
       } else {

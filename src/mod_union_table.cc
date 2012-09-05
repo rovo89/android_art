@@ -57,8 +57,8 @@ class ModUnionVisitor {
   }
 
   void operator ()(Object* obj) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
-                            GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
+                            Locks::mutator_lock_) {
     DCHECK(obj != NULL);
     // We don't have an early exit since we use the visitor pattern, an early
     // exit should significantly speed this up.
@@ -155,8 +155,8 @@ class ModUnionScanImageRootVisitor {
   }
 
   void operator ()(const Object* root) const
-      EXCLUSIVE_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(root != NULL);
     mark_sweep_->ScanRoot(root);
   }
@@ -226,8 +226,8 @@ class ModUnionReferenceVisitor {
   }
 
   void operator ()(Object* obj) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
-                            GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
+                            Locks::mutator_lock_) {
     DCHECK(obj != NULL);
     // We don't have an early exit since we use the visitor pattern, an early
     // exit should significantly speed this up.
@@ -254,8 +254,7 @@ class CheckReferenceVisitor {
   // Extra parameters are required since we use this same visitor signature for checking objects.
   void operator ()(const Object* obj, const Object* ref, const MemberOffset& /* offset */,
                      bool /* is_static */) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
-                            GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     Heap* heap = mod_union_table_->GetMarkSweep()->GetHeap();
     if (mod_union_table_->AddReference(obj, ref) && references_.find(ref) == references_.end()) {
       Space* from_space = heap->FindSpaceFromObject(obj);
@@ -287,8 +286,7 @@ class ModUnionCheckReferences {
   }
 
   void operator ()(Object* obj) const
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::heap_bitmap_lock_,
-                            GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
     DCHECK(obj != NULL);
     MarkSweep* mark_sweep = mod_union_table_->GetMarkSweep();
     CheckReferenceVisitor visitor(mod_union_table_, references_);

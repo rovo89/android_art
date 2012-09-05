@@ -123,7 +123,7 @@ class Dex2Oat {
  public:
   static bool Create(Dex2Oat** p_dex2oat, Runtime::Options& options, InstructionSet instruction_set,
                          size_t thread_count, bool support_debugging)
-      SHARED_TRYLOCK_FUNCTION(true, GlobalSynchronization::mutator_lock_) {
+      SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     if (!CreateRuntime(options, instruction_set)) {
       *p_dex2oat = NULL;
       return false;
@@ -139,7 +139,7 @@ class Dex2Oat {
 
   // Make a list of descriptors for classes to include in the image
   const std::set<std::string>* GetImageClassDescriptors(const char* image_classes_filename)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     UniquePtr<std::ifstream> image_classes_file(new std::ifstream(image_classes_filename, std::ifstream::in));
     if (image_classes_file.get() == NULL) {
       LOG(ERROR) << "Failed to open image classes file " << image_classes_filename;
@@ -213,7 +213,7 @@ class Dex2Oat {
                                 const std::set<std::string>* image_classes,
                                 bool dump_stats,
                                 bool dump_timings)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // SirtRef and ClassLoader creation needs to come after Runtime::Create
     jobject class_loader = NULL;
     if (!boot_image_option.empty()) {
@@ -279,7 +279,7 @@ class Dex2Oat {
                        const std::string& oat_filename,
                        const std::string& oat_location,
                        const Compiler& compiler)
-      LOCKS_EXCLUDED(GlobalSynchronization::mutator_lock_) {
+      LOCKS_EXCLUDED(Locks::mutator_lock_) {
     ImageWriter image_writer(image_classes);
     if (!image_writer.Write(image_filename, image_base, oat_filename, oat_location, compiler)) {
       LOG(ERROR) << "Failed to create image file " << image_filename;
@@ -299,7 +299,7 @@ class Dex2Oat {
   }
 
   static bool CreateRuntime(Runtime::Options& options, InstructionSet instruction_set)
-      SHARED_TRYLOCK_FUNCTION(true, GlobalSynchronization::mutator_lock_) {
+      SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     if (!Runtime::Create(options, false)) {
       LOG(ERROR) << "Failed to create runtime";
       return false;
@@ -333,7 +333,7 @@ class Dex2Oat {
 
   static void ResolveExceptionsForMethod(MethodHelper* mh,
                            std::set<std::pair<uint16_t, const DexFile*> >& exceptions_to_resolve)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile::CodeItem* code_item = mh->GetCodeItem();
     if (code_item == NULL) {
       return;  // native or abstract method
@@ -370,7 +370,7 @@ class Dex2Oat {
   }
 
   static bool ResolveCatchBlockExceptionsClassVisitor(Class* c, void* arg)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::set<std::pair<uint16_t, const DexFile*> >* exceptions_to_resolve =
         reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*> >*>(arg);
     MethodHelper mh;
@@ -388,7 +388,7 @@ class Dex2Oat {
   }
 
   static bool RecordImageClassesVisitor(Class* klass, void* arg)
-      SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     std::set<std::string>* image_classes = reinterpret_cast<std::set<std::string>*>(arg);
     if (klass->IsArrayClass() || klass->IsPrimitive()) {
       return true;

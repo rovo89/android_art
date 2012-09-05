@@ -30,24 +30,24 @@ class Object;
 class ScopedObjectAccess;
 
 void BoxPrimitive(Primitive::Type src_class, JValue& value)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 bool UnboxPrimitiveForArgument(Object* o, Class* dst_class, JValue& unboxed_value, Method* m,
                                size_t index)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 bool UnboxPrimitiveForField(Object* o, Class* dst_class, JValue& unboxed_value, Field* f)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 bool UnboxPrimitiveForResult(Object* o, Class* dst_class, JValue& unboxed_value)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 bool ConvertPrimitiveValue(Primitive::Type src_class, Primitive::Type dst_class, const JValue& src,
                            JValue& dst)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 jobject InvokeMethod(const ScopedObjectAccess& soa, jobject method, jobject receiver, jobject args)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 bool VerifyObjectInClass(Object* o, Class* c)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_);
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace art
 

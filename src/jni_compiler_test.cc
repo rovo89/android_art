@@ -116,9 +116,9 @@ void Java_MyClassNatives_foo(JNIEnv* env, jobject thisObj) {
   // 1 = thisObj
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     EXPECT_EQ(kNative, Thread::Current()->GetState());
-    GlobalSynchronization::mutator_lock_->AssertNotHeld();
+    Locks::mutator_lock_->AssertNotHeld();
   }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
   EXPECT_TRUE(thisObj != NULL);
@@ -170,7 +170,7 @@ jint Java_MyClassNatives_fooI(JNIEnv* env, jobject thisObj, jint x) {
   // 1 = thisObj
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     EXPECT_EQ(kNative, Thread::Current()->GetState());
   }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
@@ -198,7 +198,7 @@ jint Java_MyClassNatives_fooII(JNIEnv* env, jobject thisObj, jint x, jint y) {
   // 1 = thisObj
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     EXPECT_EQ(kNative, Thread::Current()->GetState());
   }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
@@ -227,7 +227,7 @@ jlong Java_MyClassNatives_fooJJ(JNIEnv* env, jobject thisObj, jlong x, jlong y) 
   // 1 = thisObj
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     EXPECT_EQ(kNative, Thread::Current()->GetState());
   }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
@@ -257,7 +257,7 @@ jdouble Java_MyClassNatives_fooDD(JNIEnv* env, jobject thisObj, jdouble x, jdoub
   // 1 = thisObj
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     EXPECT_EQ(kNative, Thread::Current()->GetState());
   }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
@@ -288,7 +288,7 @@ jlong Java_MyClassNatives_fooJJ_synchronized(JNIEnv* env, jobject thisObj, jlong
   // 1 = thisObj
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     EXPECT_EQ(kNative, Thread::Current()->GetState());
   }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
@@ -316,7 +316,7 @@ jobject Java_MyClassNatives_fooIOO(JNIEnv* env, jobject thisObj, jint x, jobject
   // 3 = this + y + z
   EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     EXPECT_EQ(kNative, Thread::Current()->GetState());
   }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
@@ -369,7 +369,7 @@ jint Java_MyClassNatives_fooSII(JNIEnv* env, jclass klass, jint x, jint y) {
   // 1 = klass
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     EXPECT_EQ(kNative, Thread::Current()->GetState());
   }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
@@ -394,7 +394,7 @@ jdouble Java_MyClassNatives_fooSDD(JNIEnv* env, jclass klass, jdouble x, jdouble
   // 1 = klass
   EXPECT_EQ(1U, Thread::Current()->NumStackReferences());
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     EXPECT_EQ(kNative, Thread::Current()->GetState());
   }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
@@ -425,7 +425,7 @@ jobject Java_MyClassNatives_fooSIOO(JNIEnv* env, jclass klass, jint x, jobject y
   // 3 = klass + y + z
   EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     EXPECT_EQ(kNative, Thread::Current()->GetState());
   }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
@@ -479,7 +479,7 @@ jobject Java_MyClassNatives_fooSSIOO(JNIEnv* env, jclass klass, jint x, jobject 
   // 3 = klass + y + z
   EXPECT_EQ(3U, Thread::Current()->NumStackReferences());
   {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     EXPECT_EQ(kNative, Thread::Current()->GetState());
   }
   EXPECT_EQ(Thread::Current()->GetJniEnv(), env);

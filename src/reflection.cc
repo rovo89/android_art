@@ -235,7 +235,7 @@ void BoxPrimitive(Primitive::Type src_class, JValue& value) {
   }
 
   if (kIsDebugBuild) {
-    MutexLock mu(*GlobalSynchronization::thread_suspend_count_lock_);
+    MutexLock mu(*Locks::thread_suspend_count_lock_);
     CHECK_EQ(Thread::Current()->GetState(), kRunnable);
   }
   ScopedObjectAccessUnchecked soa(Thread::Current());
@@ -244,7 +244,7 @@ void BoxPrimitive(Primitive::Type src_class, JValue& value) {
 }
 
 static std::string UnboxingFailureKind(Method* m, int index, Field* f)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (m != NULL && index != -1) {
     ++index; // Humans count from 1.
     return StringPrintf("method %s argument %d", PrettyMethod(m, false).c_str(), index);
@@ -257,7 +257,7 @@ static std::string UnboxingFailureKind(Method* m, int index, Field* f)
 
 static bool UnboxPrimitive(Object* o, Class* dst_class, JValue& unboxed_value, Method* m,
                            int index, Field* f)
-    SHARED_LOCKS_REQUIRED(GlobalSynchronization::mutator_lock_) {
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (!dst_class->IsPrimitive()) {
     if (o != NULL && !o->InstanceOf(dst_class)) {
       Thread::Current()->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
