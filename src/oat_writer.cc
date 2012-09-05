@@ -26,6 +26,7 @@
 #include "scoped_thread_state_change.h"
 #include "space.h"
 #include "stl_util.h"
+#include "verifier/method_verifier.h"
 
 namespace art {
 
@@ -129,10 +130,16 @@ size_t OatWriter::InitOatClasses(size_t offset) {
         num_methods = num_direct_methods + num_virtual_methods;
       }
 
-      CompiledClass* compiled_class =
-          compiler_->GetCompiledClass(Compiler::MethodReference(dex_file, class_def_index));
-      Class::Status status =
-          (compiled_class != NULL) ? compiled_class->GetStatus() : Class::kStatusNotReady;
+      Compiler::ClassReference class_ref = Compiler::ClassReference(dex_file, class_def_index);
+      CompiledClass* compiled_class = compiler_->GetCompiledClass(class_ref);
+      Class::Status status;
+      if (compiled_class != NULL) {
+        status = compiled_class->GetStatus();
+      } else if (verifier::MethodVerifier::IsClassRejected(class_ref)) {
+        status = Class::kStatusError;
+      } else {
+        status = Class::kStatusNotReady;
+      }
 
       OatClass* oat_class = new OatClass(status, num_methods);
       oat_classes_.push_back(oat_class);
@@ -296,10 +303,16 @@ size_t OatWriter::InitOatCodeMethod(size_t offset, size_t oat_class_index,
 
 #if !defined(NDEBUG) && !defined(ART_USE_LLVM_COMPILER)
     // We expect GC maps except when the class hasn't been verified or the method is native
-    CompiledClass* compiled_class =
-        compiler_->GetCompiledClass(Compiler::MethodReference(dex_file, class_def_index));
-    Class::Status status =
-        (compiled_class != NULL) ? compiled_class->GetStatus() : Class::kStatusNotReady;
+    Compiler::ClassReference class_ref = Compiler::ClassReference(dex_file, class_def_index);
+    CompiledClass* compiled_class = compiler_->GetCompiledClass(class_ref);
+    Class::Status status;
+    if (compiled_class != NULL) {
+      status = compiled_class->GetStatus();
+    } else if (verifier::MethodVerifier::IsClassRejected(class_ref)) {
+      status = Class::kStatusError;
+    } else {
+      status = Class::kStatusNotReady;
+    }
     CHECK(gc_map_size != 0 || is_native || status < Class::kStatusVerified)
         << &gc_map << " " << gc_map_size << " " << (is_native ? "true" : "false") << " " << (status < Class::kStatusVerified) << " " << status << " " << PrettyMethod(method_idx, *dex_file);
 #endif

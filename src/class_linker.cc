@@ -2066,14 +2066,20 @@ void ClassLinker::VerifyClass(Class* klass) {
   Class::Status oat_file_class_status(Class::kStatusNotReady);
   bool preverified = VerifyClassUsingOatFile(dex_file, klass, oat_file_class_status);
   verifier::MethodVerifier::FailureKind verifier_failure = verifier::MethodVerifier::kNoFailure;
+  if (oat_file_class_status == Class::kStatusError) {
+    LOG(WARNING) << "Skipping runtime verification of erroneous class " << PrettyDescriptor(klass)
+                 << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
+    error_msg = "Rejecting class ";
+    error_msg += PrettyDescriptor(klass);
+    error_msg += " because it failed compile-time verification";
+    Thread::Current()->ThrowNewException("Ljava/lang/VerifyError;", error_msg.c_str());
+    klass->SetStatus(Class::kStatusError);
+    return;
+  }
   if (!preverified) {
     verifier_failure = verifier::MethodVerifier::VerifyClass(klass, error_msg);
   }
   if (preverified || verifier_failure != verifier::MethodVerifier::kHardFailure) {
-    if (!preverified && oat_file_class_status == Class::kStatusError) {
-      LOG(FATAL) << "Verification failed hard on class " << PrettyDescriptor(klass)
-                 << " at compile time, but succeeded at runtime! The verifier must be broken.";
-    }
     if (!preverified && verifier_failure != verifier::MethodVerifier::kNoFailure) {
       LOG(WARNING) << "Soft verification failure in class " << PrettyDescriptor(klass)
           << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
