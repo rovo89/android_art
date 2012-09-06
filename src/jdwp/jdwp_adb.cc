@@ -413,8 +413,6 @@ static bool handlePacket(JdwpState* state) {
   JdwpReqHeader hdr;
   uint32_t length, id;
   uint8_t flags, cmdSet, cmd;
-  uint16_t error;
-  bool reply;
   int dataLen;
 
   cmd = cmdSet = 0;       // shut up gcc
@@ -423,10 +421,8 @@ static bool handlePacket(JdwpState* state) {
   id = Read4BE(&buf);
   flags = Read1(&buf);
   if ((flags & kJDWPFlagReply) != 0) {
-    reply = true;
-    error = Read2BE(&buf);
+    LOG(FATAL) << "reply?!";
   } else {
-    reply = false;
     cmdSet = Read1(&buf);
     cmd = Read1(&buf);
   }
@@ -434,29 +430,25 @@ static bool handlePacket(JdwpState* state) {
   CHECK_LE(length, netState->inputCount);
   dataLen = length - (buf - netState->inputBuffer);
 
-  if (!reply) {
-    ExpandBuf* pReply = expandBufAlloc();
+  ExpandBuf* pReply = expandBufAlloc();
 
-    hdr.length = length;
-    hdr.id = id;
-    hdr.cmdSet = cmdSet;
-    hdr.cmd = cmd;
-    state->ProcessRequest(&hdr, buf, dataLen, pReply);
-    if (expandBufGetLength(pReply) > 0) {
-      ssize_t cc = netState->writePacket(pReply);
+  hdr.length = length;
+  hdr.id = id;
+  hdr.cmdSet = cmdSet;
+  hdr.cmd = cmd;
+  state->ProcessRequest(&hdr, buf, dataLen, pReply);
+  if (expandBufGetLength(pReply) > 0) {
+    ssize_t cc = netState->writePacket(pReply);
 
-      if (cc != (ssize_t) expandBufGetLength(pReply)) {
-        PLOG(ERROR) << "Failed sending reply to debugger";
-        expandBufFree(pReply);
-        return false;
-      }
-    } else {
-      LOG(WARNING) << "No reply created for set=" << cmdSet << " cmd=" << cmd;
+    if (cc != (ssize_t) expandBufGetLength(pReply)) {
+      PLOG(ERROR) << "Failed sending reply to debugger";
+      expandBufFree(pReply);
+      return false;
     }
-    expandBufFree(pReply);
   } else {
-    LOG(FATAL) << "reply?!";
+    LOG(WARNING) << "No reply created for set=" << cmdSet << " cmd=" << cmd;
   }
+  expandBufFree(pReply);
 
   VLOG(jdwp) << "----------";
 
