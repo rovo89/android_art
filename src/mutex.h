@@ -24,7 +24,6 @@
 #include <string>
 
 #include "globals.h"
-#include "gtest/gtest.h"
 #include "logging.h"
 #include "macros.h"
 
@@ -36,6 +35,8 @@
 #endif
 
 namespace art {
+
+const bool kDebugLocking = kIsDebugBuild;
 
 class LOCKABLE Mutex;
 class LOCKABLE ReaderWriterMutex;
@@ -216,7 +217,7 @@ class LOCKABLE Mutex : public BaseMutex {
 
   // Assert that the Mutex is exclusively held by the current thread.
   void AssertExclusiveHeld() {
-    if (kIsDebugBuild) {
+    if (kDebugLocking) {
       CHECK(IsExclusiveHeld());
     }
   }
@@ -224,7 +225,7 @@ class LOCKABLE Mutex : public BaseMutex {
 
   // Assert that the Mutex is not held by the current thread.
   void AssertNotHeldExclusive() {
-    if (kIsDebugBuild) {
+    if (kDebugLocking) {
       CHECK(!IsExclusiveHeld());
     }
   }
@@ -300,7 +301,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
 
   // Assert the current thread has exclusive access to the ReaderWriterMutex.
   void AssertExclusiveHeld() {
-    if (kIsDebugBuild) {
+    if (kDebugLocking) {
       CHECK(IsExclusiveHeld());
     }
   }
@@ -308,7 +309,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
 
   // Assert the current thread doesn't have exclusive access to the ReaderWriterMutex.
   void AssertNotExclusiveHeld() {
-    if (kIsDebugBuild) {
+    if (kDebugLocking) {
       CHECK(!IsExclusiveHeld());
     }
   }
@@ -319,7 +320,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
 
   // Assert the current thread has shared access to the ReaderWriterMutex.
   void AssertSharedHeld() {
-    if (kIsDebugBuild) {
+    if (kDebugLocking) {
       CHECK(IsSharedHeld());
     }
   }
@@ -328,7 +329,7 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   // Assert the current thread doesn't hold this ReaderWriterMutex either in shared or exclusive
   // mode.
   void AssertNotHeld() {
-    if (kIsDebugBuild) {
+    if (kDebugLocking) {
       CHECK(!IsSharedHeld());
     }
   }

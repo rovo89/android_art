@@ -118,10 +118,12 @@ BaseMutex::BaseMutex(const char* name, MutexLevel level) : level_(level), name_(
 static void CheckUnattachedThread(MutexLevel level) {
   // The check below enumerates the cases where we expect not to be able to sanity check locks
   // on a thread. TODO: tighten this check.
-  Runtime* runtime = Runtime::Current();
-  CHECK(runtime == NULL || !runtime->IsStarted() || runtime->IsShuttingDown() ||
-        level == kDefaultMutexLevel  || level == kThreadListLock ||
-        level == kLoggingLock || level == kAbortLock);
+  if (kDebugLocking) {
+    Runtime* runtime = Runtime::Current();
+    CHECK(runtime == NULL || !runtime->IsStarted() || runtime->IsShuttingDown() ||
+          level == kDefaultMutexLevel  || level == kThreadListLock ||
+          level == kLoggingLock || level == kAbortLock);
+  }
 }
 
 void BaseMutex::RegisterAsLockedWithCurrentThread() {
@@ -130,20 +132,22 @@ void BaseMutex::RegisterAsLockedWithCurrentThread() {
     CheckUnattachedThread(level_);
     return;
   }
-  // Check if a bad Mutex of this level or lower is held.
-  bool bad_mutexes_held = false;
-  for (int i = level_; i >= 0; --i) {
-    BaseMutex* held_mutex = self->GetHeldMutex(static_cast<MutexLevel>(i));
-    if (UNLIKELY(held_mutex != NULL)) {
-      LOG(ERROR) << "Lock level violation: holding \"" << held_mutex->name_ << "\" (level " << i
-          << ") while locking \"" << name_ << "\" (level " << static_cast<int>(level_) << ")";
-      if (i > kAbortLock) {
-        // Only abort in the check below if this is more than abort level lock.
-        bad_mutexes_held = true;
+  if (kDebugLocking) {
+    // Check if a bad Mutex of this level or lower is held.
+    bool bad_mutexes_held = false;
+    for (int i = level_; i >= 0; --i) {
+      BaseMutex* held_mutex = self->GetHeldMutex(static_cast<MutexLevel>(i));
+      if (UNLIKELY(held_mutex != NULL)) {
+        LOG(ERROR) << "Lock level violation: holding \"" << held_mutex->name_ << "\" (level " << i
+            << ") while locking \"" << name_ << "\" (level " << static_cast<int>(level_) << ")";
+        if (i > kAbortLock) {
+          // Only abort in the check below if this is more than abort level lock.
+          bad_mutexes_held = true;
+        }
       }
     }
+    CHECK(!bad_mutexes_held);
   }
-  CHECK(!bad_mutexes_held);
   // Don't record monitors as they are outside the scope of analysis. They may be inspected off of
   // the monitor list.
   if (level_ != kMonitorLock) {
@@ -158,7 +162,9 @@ void BaseMutex::RegisterAsUnlockedWithCurrentThread() {
     return;
   }
   if (level_ != kMonitorLock) {
-    CHECK(self->GetHeldMutex(level_) == this) << "Unlocking on unacquired mutex: " << name_;
+    if (kDebugLocking) {
+      CHECK(self->GetHeldMutex(level_) == this) << "Unlocking on unacquired mutex: " << name_;
+    }
     self->SetHeldMutex(level_, NULL);
   }
 }
@@ -169,20 +175,22 @@ void BaseMutex::CheckSafeToWait() {
     CheckUnattachedThread(level_);
     return;
   }
-  CHECK(self->GetHeldMutex(level_) == this) << "Waiting on unacquired mutex: " << name_;
-  bool bad_mutexes_held = false;
-  for (int i = kMaxMutexLevel; i >= 0; --i) {
-    if (i != level_) {
-      BaseMutex* held_mutex = self->GetHeldMutex(static_cast<MutexLevel>(i));
-      if (held_mutex != NULL) {
-        LOG(ERROR) << "Holding " << held_mutex->name_ << " (level " << i
-            << ") while performing wait on: "
-            << name_ << " (level " << static_cast<int>(level_) << ")";
-        bad_mutexes_held = true;
+  if (kDebugLocking) {
+    CHECK(self->GetHeldMutex(level_) == this) << "Waiting on unacquired mutex: " << name_;
+    bool bad_mutexes_held = false;
+    for (int i = kMaxMutexLevel; i >= 0; --i) {
+      if (i != level_) {
+        BaseMutex* held_mutex = self->GetHeldMutex(static_cast<MutexLevel>(i));
+        if (held_mutex != NULL) {
+          LOG(ERROR) << "Holding " << held_mutex->name_ << " (level " << i
+              << ") while performing wait on: "
+              << name_ << " (level " << static_cast<int>(level_) << ")";
+          bad_mutexes_held = true;
+        }
       }
     }
+    CHECK(!bad_mutexes_held);
   }
-  CHECK(!bad_mutexes_held);
 }
 
 Mutex::Mutex(const char* name, MutexLevel level, bool recursive)
@@ -213,24 +221,26 @@ Mutex::~Mutex() {
 }
 
 void Mutex::ExclusiveLock() {
-  bool is_held = IsExclusiveHeld();
-  CHECK(recursive_ || !is_held)
-      << "Error attempt to recursively lock non-recursive lock \"" << name_ << "\"";
-  if (!is_held) {
+  if (kDebugLocking && !recursive_) {
+    AssertNotHeld();
+  }
+  if (!recursive_ || !IsExclusiveHeld()) {
     CHECK_MUTEX_CALL(pthread_mutex_lock, (&mutex_));
     RegisterAsLockedWithCurrentThread();
   }
   recursion_count_++;
-  DCHECK(recursion_count_ == 1 || recursive_) << "Unexpected recursion count on mutex: "
-      << name_ << " " << recursion_count_;
-  AssertHeld();
+  if (kDebugLocking) {
+    CHECK(recursion_count_ == 1 || recursive_) << "Unexpected recursion count on mutex: "
+        << name_ << " " << recursion_count_;
+    AssertHeld();
+  }
 }
 
 bool Mutex::ExclusiveTryLock() {
-  bool is_held = IsExclusiveHeld();
-  CHECK(recursive_ || !is_held)
-      << "Error attempt to recursively lock non-recursive lock \"" << name_ << "\"";
-  if (!is_held) {
+  if (kDebugLocking && !recursive_) {
+    AssertNotHeld();
+  }
+  if (!recursive_ || !IsExclusiveHeld()) {
     int result = pthread_mutex_trylock(&mutex_);
     if (result == EBUSY) {
       return false;
@@ -242,7 +252,11 @@ bool Mutex::ExclusiveTryLock() {
     RegisterAsLockedWithCurrentThread();
   }
   recursion_count_++;
-  AssertHeld();
+  if (kDebugLocking) {
+    CHECK(recursion_count_ == 1 || recursive_) << "Unexpected recursion count on mutex: "
+        << name_ << " " << recursion_count_;
+    AssertHeld();
+  }
   return true;
 }
 
@@ -250,8 +264,10 @@ void Mutex::ExclusiveUnlock() {
   AssertHeld();
   recursion_count_--;
   if (!recursive_ || recursion_count_ == 0) {
-    DCHECK(recursion_count_ == 0 || recursive_) << "Unexpected recursion count on mutex: "
-        << name_ << " " << recursion_count_;
+    if (kDebugLocking) {
+      CHECK(recursion_count_ == 0 || recursive_) << "Unexpected recursion count on mutex: "
+          << name_ << " " << recursion_count_;
+    }
     RegisterAsUnlockedWithCurrentThread();
     CHECK_MUTEX_CALL(pthread_mutex_unlock, (&mutex_));
   }
@@ -265,7 +281,9 @@ bool Mutex::IsExclusiveHeld() const {
   } else {
     result = (self->GetHeldMutex(level_) == this);
     // Sanity debug check that if we think it is locked, so does the pthread.
-    DCHECK(result == (GetExclusiveOwnerTid() == static_cast<uint64_t>(GetTid())));
+    if (kDebugLocking) {
+      CHECK(result == (GetExclusiveOwnerTid() == static_cast<uint64_t>(GetTid())));
+    }
   }
   return result;
 }
@@ -364,9 +382,11 @@ void ReaderWriterMutex::SharedUnlock() {
 
 bool ReaderWriterMutex::IsExclusiveHeld() const {
   bool result = (GetExclusiveOwnerTid() == static_cast<uint64_t>(GetTid()));
-  // Sanity that if the pthread thinks we own the lock the Thread agrees.
-  Thread* self = Thread::Current();
-  DCHECK((self == NULL) || !result || (self->GetHeldMutex(level_) == this));
+  if (kDebugLocking) {
+    // Sanity that if the pthread thinks we own the lock the Thread agrees.
+    Thread* self = Thread::Current();
+    CHECK((self == NULL) || !result || (self->GetHeldMutex(level_) == this));
+  }
   return result;
 }
 
