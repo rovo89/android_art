@@ -31,6 +31,9 @@ define build-libarttest
 
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   LOCAL_MODULE := libarttest
+  ifeq ($$(art_target_or_host),target)
+    LOCAL_MODULE_TAGS := tests
+  endif
   LOCAL_SRC_FILES := $(LIBARTTEST_COMMON_SRC_FILES)
   LOCAL_SHARED_LIBRARIES := libartd
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)

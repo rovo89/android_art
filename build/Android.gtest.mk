@@ -53,6 +53,9 @@ define build-art-test
 
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   LOCAL_MODULE := $$(art_gtest_name)
+  ifeq ($$(art_target_or_host),target)
+    LOCAL_MODULE_TAGS := tests
+  endif
   LOCAL_SRC_FILES := $$(art_gtest_filename) src/common_test.cc
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES)
   LOCAL_SHARED_LIBRARIES := libartd
