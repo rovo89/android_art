@@ -612,6 +612,9 @@ void Class::SetStatus(Status new_status) {
   CHECK(new_status > GetStatus() || new_status == kStatusError || !Runtime::Current()->IsStarted())
       << PrettyClass(this) << " " << GetStatus() << " -> " << new_status;
   CHECK(sizeof(Status) == sizeof(uint32_t)) << PrettyClass(this);
+  if (new_status > kStatusResolved) {
+    CHECK_EQ(GetThinLockId(), Thread::Current()->GetThinLockId()) << PrettyClass(this);
+  }
   if (new_status == kStatusError) {
     CHECK_NE(GetStatus(), kStatusError) << PrettyClass(this);
 

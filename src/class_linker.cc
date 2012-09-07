@@ -274,14 +274,14 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   SetClassRoot(kJavaLangString, java_lang_String.get());
 
   // Setup the primitive type classes.
-  SetClassRoot(kPrimitiveBoolean, CreatePrimitiveClass("Z", Primitive::kPrimBoolean));
-  SetClassRoot(kPrimitiveByte, CreatePrimitiveClass("B", Primitive::kPrimByte));
-  SetClassRoot(kPrimitiveShort, CreatePrimitiveClass("S", Primitive::kPrimShort));
-  SetClassRoot(kPrimitiveInt, CreatePrimitiveClass("I", Primitive::kPrimInt));
-  SetClassRoot(kPrimitiveLong, CreatePrimitiveClass("J", Primitive::kPrimLong));
-  SetClassRoot(kPrimitiveFloat, CreatePrimitiveClass("F", Primitive::kPrimFloat));
-  SetClassRoot(kPrimitiveDouble, CreatePrimitiveClass("D", Primitive::kPrimDouble));
-  SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass("V", Primitive::kPrimVoid));
+  SetClassRoot(kPrimitiveBoolean, CreatePrimitiveClass(Primitive::kPrimBoolean));
+  SetClassRoot(kPrimitiveByte, CreatePrimitiveClass(Primitive::kPrimByte));
+  SetClassRoot(kPrimitiveShort, CreatePrimitiveClass(Primitive::kPrimShort));
+  SetClassRoot(kPrimitiveInt, CreatePrimitiveClass(Primitive::kPrimInt));
+  SetClassRoot(kPrimitiveLong, CreatePrimitiveClass(Primitive::kPrimLong));
+  SetClassRoot(kPrimitiveFloat, CreatePrimitiveClass(Primitive::kPrimFloat));
+  SetClassRoot(kPrimitiveDouble, CreatePrimitiveClass(Primitive::kPrimDouble));
+  SetClassRoot(kPrimitiveVoid, CreatePrimitiveClass(Primitive::kPrimVoid));
 
   // Create array interface entries to populate once we can load system classes
   array_iftable_ = AllocObjectArray<InterfaceEntry>(2);
@@ -327,7 +327,7 @@ void ClassLinker::InitFromCompiler(const std::vector<const DexFile*>& boot_class
   // now we can use FindSystemClass
 
   // run char class through InitializePrimitiveClass to finish init
-  InitializePrimitiveClass(char_class.get(), "C", Primitive::kPrimChar);
+  InitializePrimitiveClass(char_class.get(), Primitive::kPrimChar);
   SetClassRoot(kPrimitiveChar, char_class.get());  // needs descriptor
 
   // Object and String need to be rerun through FindSystemClass to finish init
@@ -1714,16 +1714,14 @@ void ClassLinker::FixupDexCaches(Method* resolution_method) const {
   }
 }
 
-Class* ClassLinker::InitializePrimitiveClass(Class* primitive_class,
-                                             const char* descriptor,
-                                             Primitive::Type type) {
-  // TODO: deduce one argument from the other
+Class* ClassLinker::InitializePrimitiveClass(Class* primitive_class, Primitive::Type type) {
   CHECK(primitive_class != NULL);
+  ObjectLock lock(primitive_class);  // Must hold lock on object when initializing.
   primitive_class->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
   primitive_class->SetPrimitiveType(type);
   primitive_class->SetStatus(Class::kStatusInitialized);
-  Class* existing = InsertClass(descriptor, primitive_class, false);
-  CHECK(existing == NULL) << "InitPrimitiveClass(" << descriptor << ") failed";
+  Class* existing = InsertClass(Primitive::Descriptor(type), primitive_class, false);
+  CHECK(existing == NULL) << "InitPrimitiveClass(" << type << ") failed";
   return primitive_class;
 }
 
@@ -1803,6 +1801,7 @@ Class* ClassLinker::CreateArrayClass(const std::string& descriptor, ClassLoader*
     }
     new_class->SetComponentType(component_type);
   }
+  ObjectLock lock(new_class.get());  // Must hold lock on object when initializing.
   DCHECK(new_class->GetComponentType() != NULL);
   Class* java_lang_Object = GetClassRoot(kJavaLangObject);
   new_class->SetSuperClass(java_lang_Object);
@@ -2272,9 +2271,12 @@ Class* ClassLinker::CreateProxyClass(String* name, ObjectArray<Class>* interface
     klass->SetStatus(Class::kStatusError);
     return NULL;
   }
-  interfaces_sfield->SetObject(NULL, interfaces);
-  throws_sfield->SetObject(NULL, throws);
-  klass->SetStatus(Class::kStatusInitialized);
+  {
+    ObjectLock lock(klass.get());  // Must hold lock on object when initializing.
+    interfaces_sfield->SetObject(NULL, interfaces);
+    throws_sfield->SetObject(NULL, throws);
+    klass->SetStatus(Class::kStatusInitialized);
+  }
 
   // sanity checks
   if (kIsDebugBuild) {
@@ -2663,10 +2665,8 @@ bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit, bool c
     Class* super_class = klass->GetSuperClass();
     if (super_class->GetStatus() != Class::kStatusInitialized) {
       CHECK(!super_class->IsInterface());
-      Thread* self = Thread::Current();
-      klass->MonitorEnter(self);
+      ObjectLock lock(klass);  // Must hold lock on object when initializing.
       bool super_initialized = InitializeClass(super_class, can_run_clinit, can_init_fields);
-      klass->MonitorExit(self);
       // TODO: check for a pending exception
       if (!super_initialized) {
         if (!can_run_clinit) {

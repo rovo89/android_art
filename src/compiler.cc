@@ -481,11 +481,7 @@ void Compiler::CompileAll(jobject class_loader,
 
   TimingLogger timings("compiler");
 
-  // TODO: make the verifier thread-safe and remove this workaround.
-  size_t thread_count = thread_count_;
-  thread_count_ = 1;
   PreCompile(class_loader, dex_files, timings);
-  thread_count_ = thread_count;
 
   Compile(class_loader, dex_files);
   timings.AddSplit("Compile");

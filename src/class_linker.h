@@ -390,13 +390,11 @@ class ClassLinker {
   InterfaceEntry* AllocInterfaceEntry(Class* interface)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Class* CreatePrimitiveClass(const char* descriptor, Primitive::Type type)
+  Class* CreatePrimitiveClass(Primitive::Type type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return InitializePrimitiveClass(AllocClass(sizeof(Class)), descriptor, type);
+    return InitializePrimitiveClass(AllocClass(sizeof(Class)), type);
   }
-  Class* InitializePrimitiveClass(Class* primitive_class,
-                                  const char* descriptor,
-                                  Primitive::Type type)
+  Class* InitializePrimitiveClass(Class* primitive_class, Primitive::Type type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 

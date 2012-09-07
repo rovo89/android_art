@@ -281,6 +281,9 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
 MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx, const DexFile* dex_file,
     DexCache* dex_cache, ClassLoader* class_loader, uint32_t class_def_idx,
     const DexFile::CodeItem* code_item, Method* method, uint32_t method_access_flags) {
+  MethodVerifier::FailureKind result = kNoFailure;
+  uint64_t start_ns = NanoTime();
+
   MethodVerifier verifier(dex_file, dex_cache, class_loader, class_def_idx, code_item, method_idx,
                           method, method_access_flags);
   if (verifier.Verify()) {
@@ -290,7 +293,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx, co
     if (verifier.failures_.size() != 0) {
       verifier.DumpFailures(LOG(INFO) << "Soft verification failures in "
                                       << PrettyMethod(method_idx, *dex_file) << "\n");
-      return kSoftFailure;
+      result = kSoftFailure;
     }
   } else {
     // Bad method data.
@@ -302,9 +305,14 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(uint32_t method_idx, co
       std::cout << "\n" << verifier.info_messages_.str();
       verifier.Dump(std::cout);
     }
-    return kHardFailure;
+    result = kHardFailure;
   }
-  return kNoFailure;
+  uint64_t duration_ns = NanoTime() - start_ns;
+  if (duration_ns > MsToNs(100)) {
+    LOG(WARNING) << "Verification of " << PrettyMethod(method_idx, *dex_file)
+                 << " took " << PrettyDuration(duration_ns);
+  }
+  return result;
 }
 
 void MethodVerifier::VerifyMethodAndDump(Method* method) {
