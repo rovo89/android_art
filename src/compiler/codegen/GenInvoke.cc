@@ -915,9 +915,70 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info)
 #endif
 }
 
+bool genInlinedCas32(CompilationUnit* cUnit, CallInfo* info, bool need_write_barrier) {
+#if defined(TARGET_ARM)
+  // Unused - RegLocation rlSrcUnsafe = info->args[0];
+  RegLocation rlSrcObj= info->args[1];  // Object - known non-null
+  RegLocation rlSrcOffset= info->args[2];  // long low
+  rlSrcOffset.wide = 0;  // ignore high half in info->args[3]
+  RegLocation rlSrcExpected= info->args[4];  // int or Object
+  RegLocation rlSrcNewValue= info->args[5];  // int or Object
+  RegLocation rlDest = inlineTarget(cUnit, info);  // boolean place for result
+
+
+  // Release store semantics, get the barrier out of the way.
+  oatGenMemBarrier(cUnit, kSY);
+
+  RegLocation rlObject = loadValue(cUnit, rlSrcObj, kCoreReg);
+  RegLocation rlNewValue = loadValue(cUnit, rlSrcNewValue, kCoreReg);
+
+  if (need_write_barrier) {
+    // Mark card for object assuming new value is stored.
+    markGCCard(cUnit, rlNewValue.lowReg, rlObject.lowReg);
+  }
+
+  RegLocation rlOffset = loadValue(cUnit, rlSrcOffset, kCoreReg);
+
+  int rPtr = oatAllocTemp(cUnit);
+  opRegRegReg(cUnit, kOpAdd, rPtr, rlObject.lowReg, rlOffset.lowReg);
+
+  // Free now unneeded rlObject and rlOffset to give more temps.
+  oatClobberSReg(cUnit, rlObject.sRegLow);
+  oatFreeTemp(cUnit, rlObject.lowReg);
+  oatClobberSReg(cUnit, rlOffset.sRegLow);
+  oatFreeTemp(cUnit, rlOffset.lowReg);
+
+  int rOldValue = oatAllocTemp(cUnit);
+  newLIR3(cUnit, kThumb2Ldrex, rOldValue, rPtr, 0);  // rOldValue := [rPtr]
+
+  RegLocation rlExpected = loadValue(cUnit, rlSrcExpected, kCoreReg);
+
+  // if (rOldValue == rExpected) {
+  //   [rPtr] <- rNewValue && rResult := success ? 0 : 1
+  //   rResult ^= 1
+  // } else {
+  //   rResult := 0
+  // }
+  opRegReg(cUnit, kOpCmp, rOldValue, rlExpected.lowReg);
+  oatFreeTemp(cUnit, rOldValue);  // Now unneeded.
+  RegLocation rlResult = oatEvalLoc(cUnit, rlDest, kCoreReg, true);
+  opIT(cUnit, kArmCondEq, "TE");
+  newLIR4(cUnit, kThumb2Strex, rlResult.lowReg, rlNewValue.lowReg, rPtr, 0);
+  oatFreeTemp(cUnit, rPtr);  // Now unneeded.
+  opRegImm(cUnit, kOpXor, rlResult.lowReg, 1);
+  opRegReg(cUnit, kOpXor, rlResult.lowReg, rlResult.lowReg);
+
+  storeValue(cUnit, rlDest, rlResult);
+
+  return true;
+#else
+  return false;
+#endif
+}
+
 bool genIntrinsic(CompilationUnit* cUnit, CallInfo* info)
 {
-  if ((info->optFlags & MIR_INLINED) || info->isRange) {
+  if (info->optFlags & MIR_INLINED) {
     return false;
   }
   /*
@@ -931,47 +992,53 @@ bool genIntrinsic(CompilationUnit* cUnit, CallInfo* info)
    * take advantage of/generate new useful dataflow info.
    */
   std::string tgtMethod(PrettyMethod(info->index, *cUnit->dex_file));
-  if (tgtMethod.compare("char java.lang.String.charAt(int)") == 0) {
+  if (tgtMethod == "char java.lang.String.charAt(int)") {
     return genInlinedCharAt(cUnit, info);
   }
-  if (tgtMethod.compare("int java.lang.Math.min(int, int)") == 0) {
+  if (tgtMethod == "int java.lang.Math.min(int, int)") {
     return genInlinedMinMaxInt(cUnit, info, true /* isMin */);
   }
-  if (tgtMethod.compare("int java.lang.Math.max(int, int)") == 0) {
+  if (tgtMethod == "int java.lang.Math.max(int, int)") {
     return genInlinedMinMaxInt(cUnit, info, false /* isMin */);
   }
-  if (tgtMethod.compare("int java.lang.String.length()") == 0) {
+  if (tgtMethod == "int java.lang.String.length()") {
     return genInlinedStringIsEmptyOrLength(cUnit, info, false /* isEmpty */);
   }
-  if (tgtMethod.compare("boolean java.lang.String.isEmpty()") == 0) {
+  if (tgtMethod == "boolean java.lang.String.isEmpty()") {
     return genInlinedStringIsEmptyOrLength(cUnit, info, true /* isEmpty */);
   }
-  if (tgtMethod.compare("int java.lang.Math.abs(int)") == 0) {
+  if (tgtMethod == "int java.lang.Math.abs(int)") {
     return genInlinedAbsInt(cUnit, info);
   }
-  if (tgtMethod.compare("long java.lang.Math.abs(long)") == 0) {
+  if (tgtMethod == "long java.lang.Math.abs(long)") {
     return genInlinedAbsLong(cUnit, info);
   }
-  if (tgtMethod.compare("int java.lang.Float.floatToRawIntBits(float)") == 0) {
+  if (tgtMethod == "int java.lang.Float.floatToRawIntBits(float)") {
     return genInlinedFloatCvt(cUnit, info);
   }
-  if (tgtMethod.compare("float java.lang.Float.intBitsToFloat(int)") == 0) {
+  if (tgtMethod == "float java.lang.Float.intBitsToFloat(int)") {
     return genInlinedFloatCvt(cUnit, info);
   }
-  if (tgtMethod.compare("long java.lang.Double.doubleToRawLongBits(double)") == 0) {
+  if (tgtMethod == "long java.lang.Double.doubleToRawLongBits(double)") {
     return genInlinedDoubleCvt(cUnit, info);
   }
-  if (tgtMethod.compare("double java.lang.Double.longBitsToDouble(long)") == 0) {
+  if (tgtMethod == "double java.lang.Double.longBitsToDouble(long)") {
     return genInlinedDoubleCvt(cUnit, info);
   }
-  if (tgtMethod.compare("int java.lang.String.indexOf(int, int)") == 0) {
+  if (tgtMethod == "int java.lang.String.indexOf(int, int)") {
     return genInlinedIndexOf(cUnit, info, false /* base 0 */);
   }
-  if (tgtMethod.compare("int java.lang.String.indexOf(int)") == 0) {
+  if (tgtMethod == "int java.lang.String.indexOf(int)") {
     return genInlinedIndexOf(cUnit, info, true /* base 0 */);
   }
-  if (tgtMethod.compare("int java.lang.String.compareTo(java.lang.String)") == 0) {
+  if (tgtMethod == "int java.lang.String.compareTo(java.lang.String)") {
     return genInlinedStringCompareTo(cUnit, info);
+  }
+  if (tgtMethod == "boolean sun.misc.Unsafe.compareAndSwapInt(java.lang.Object, long, int, int)") {
+    return genInlinedCas32(cUnit, info, false);
+  }
+  if (tgtMethod == "boolean sun.misc.Unsafe.compareAndSwapObject(java.lang.Object, long, java.lang.Object, java.lang.Object)") {
+    return genInlinedCas32(cUnit, info, true);
   }
   return false;
 }
