@@ -430,7 +430,6 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case INVOKE_STATIC:
         case INVOKE_INTERFACE:
           if (file != NULL) {
-            const DexFile::MethodId& meth_id = file->GetMethodId(insn.vB);
             os << opcode << " {";
             for (size_t i = 0; i < insn.vA; ++i) {
               if (i != 0) {
@@ -438,10 +437,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
               }
               os << "v" << insn.arg[i];
             }
-            os << "}, "
-               << file->GetMethodDeclaringClassDescriptor(meth_id) << "."
-               << file->GetMethodName(meth_id) << file->GetMethodSignature(meth_id)
-               << " // method@" << insn.vB;
+            os << "}, " << PrettyMethod(insn.vB, *file) << " // method@" << insn.vB;
             break;
           }  // else fall-through
         default:
@@ -451,7 +447,25 @@ std::string Instruction::DumpString(const DexFile* file) const {
       }
       break;
     }
-    case k3rc: os << StringPrintf("%s, {v%d .. v%d}, method@%d", opcode, insn.vC, (insn.vC + insn.vA - 1), insn.vB); break;
+    case k3rc: {
+      switch (insn.opcode) {
+        case INVOKE_VIRTUAL_RANGE:
+        case INVOKE_SUPER_RANGE:
+        case INVOKE_DIRECT_RANGE:
+        case INVOKE_STATIC_RANGE:
+        case INVOKE_INTERFACE_RANGE:
+          if (file != NULL) {
+            os << StringPrintf("%s, {v%d .. v%d}, ", opcode, insn.vC, (insn.vC + insn.vA - 1))
+               << PrettyMethod(insn.vB, *file) << " // method@" << insn.vB;
+            break;
+          }  // else fall-through
+        default:
+          os << StringPrintf("%s, {v%d .. v%d}, thing@%d", opcode, insn.vC, (insn.vC + insn.vA - 1),
+                             insn.vB);
+          break;
+      }
+      break;
+    }
     case k51l: os << StringPrintf("%s v%d, #%+d", opcode, insn.vA, insn.vB); break;
     default: os << " unknown format (" << DumpHex(5) << ")"; break;
   }
