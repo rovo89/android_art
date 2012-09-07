@@ -188,8 +188,13 @@ test_dir=`pwd`
 td_info="${test_dir}/${info}"
 td_expected="${test_dir}/${expected}"
 
-if [ '!' '(' -r "$td_info" -a -r "$td_expected" ')' ]; then
-    echo "${test_dir}: missing files" 1>&2
+if [ ! -r $td_info ]; then
+    echo "${test_dir}: missing file $td_info" 1>&2
+    exit 1
+fi
+
+if [ ! -r $td_expected ]; then
+    echo "${test_dir}: missing file $td_expected" 1>&2
     exit 1
 fi
 
