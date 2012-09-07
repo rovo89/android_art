@@ -503,15 +503,13 @@ void MarkSweep::SweepArray(TimingLogger& logger, MarkStack* allocations, bool sw
   logger.AddSplit("Process allocation stack");
 
   size_t freed_objects = out - objects;
-  if (freed_objects != 0) {
-    VLOG(heap) << "Freed " << freed_objects << "/" << count
-              << " objects with size " << PrettySize(freed_bytes);
-    space->FreeList(freed_objects, objects);
-    heap_->RecordFree(freed_objects, freed_bytes);
-    freed_objects_ += freed_objects;
-    freed_bytes_ += freed_bytes;
-    logger.AddSplit("FreeList");
-  }
+  VLOG(heap) << "Freed " << freed_objects << "/" << count
+            << " objects with size " << PrettySize(freed_bytes);
+  space->FreeList(freed_objects, objects);
+  heap_->RecordFree(freed_objects, freed_bytes);
+  freed_objects_ += freed_objects;
+  freed_bytes_ += freed_bytes;
+  logger.AddSplit("FreeList");
 
   allocations->Reset();
   logger.AddSplit("Reset stack");
