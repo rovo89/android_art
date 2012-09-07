@@ -666,13 +666,11 @@ JValue InvokeWithJValues(const ScopedObjectAccess& soa, Object* receiver, Method
 
 class JNI {
  public:
-  static jint GetVersion(JNIEnv* env) {
-    ScopedObjectAccess soa(env);
+  static jint GetVersion(JNIEnv*) {
     return JNI_VERSION_1_6;
   }
 
-  static jclass DefineClass(JNIEnv* env, const char*, jobject, const jbyte*, jsize) {
-    ScopedObjectAccess soa(env);
+  static jclass DefineClass(JNIEnv*, const char*, jobject, const jbyte*, jsize) {
     LOG(WARNING) << "JNI DefineClass is not supported";
     return NULL;
   }
@@ -803,8 +801,7 @@ class JNI {
     return soa.AddLocalReference<jthrowable>(exception);
   }
 
-  static void FatalError(JNIEnv* env, const char* msg) {
-    ScopedObjectAccess soa(env);
+  static void FatalError(JNIEnv*, const char* msg) {
     LOG(FATAL) << "JNI FatalError called: " << msg;
   }
 
@@ -830,11 +827,10 @@ class JNI {
   }
 
   static jobject NewGlobalRef(JNIEnv* env, jobject obj) {
-    ScopedObjectAccess soa(env);
     if (obj == NULL) {
       return NULL;
     }
-
+    ScopedObjectAccess soa(env);
     JavaVMExt* vm = soa.Vm();
     IndirectReferenceTable& globals = vm->globals;
     Object* decoded_obj = soa.Decode<Object*>(obj);
@@ -844,11 +840,10 @@ class JNI {
   }
 
   static void DeleteGlobalRef(JNIEnv* env, jobject obj) {
-    ScopedObjectAccess soa(env);
     if (obj == NULL) {
       return;
     }
-
+    ScopedObjectAccess soa(env);
     JavaVMExt* vm = soa.Vm();
     IndirectReferenceTable& globals = vm->globals;
     MutexLock mu(vm->globals_lock);
@@ -865,11 +860,10 @@ class JNI {
   }
 
   static void DeleteWeakGlobalRef(JNIEnv* env, jweak obj) {
-    ScopedObjectAccess soa(env);
     if (obj == NULL) {
       return;
     }
-
+    ScopedObjectAccess soa(env);
     JavaVMExt* vm = soa.Vm();
     IndirectReferenceTable& weak_globals = vm->weak_globals;
     MutexLock mu(vm->weak_globals_lock);
@@ -881,11 +875,10 @@ class JNI {
   }
 
   static jobject NewLocalRef(JNIEnv* env, jobject obj) {
-    ScopedObjectAccess soa(env);
     if (obj == NULL) {
       return NULL;
     }
-
+    ScopedObjectAccess soa(env);
     IndirectReferenceTable& locals = soa.Env()->locals;
 
     uint32_t cookie = soa.Env()->local_ref_cookie;
@@ -894,11 +887,10 @@ class JNI {
   }
 
   static void DeleteLocalRef(JNIEnv* env, jobject obj) {
-    ScopedObjectAccess soa(env);
     if (obj == NULL) {
       return;
     }
-
+    ScopedObjectAccess soa(env);
     IndirectReferenceTable& locals = soa.Env()->locals;
 
     uint32_t cookie = soa.Env()->local_ref_cookie;
@@ -929,7 +921,6 @@ class JNI {
   }
 
   static jobject NewObject(JNIEnv* env, jclass c, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list args;
     va_start(args, mid);
     jobject result = NewObjectV(env, c, mid, args);
@@ -986,9 +977,9 @@ class JNI {
   }
 
   static jobject CallObjectMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeVirtualOrInterfaceWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return soa.AddLocalReference<jobject>(result.GetL());
@@ -1007,9 +998,9 @@ class JNI {
   }
 
   static jboolean CallBooleanMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeVirtualOrInterfaceWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetZ();
@@ -1045,9 +1036,9 @@ class JNI {
   }
 
   static jchar CallCharMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeVirtualOrInterfaceWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetC();
@@ -1064,9 +1055,9 @@ class JNI {
   }
 
   static jdouble CallDoubleMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeVirtualOrInterfaceWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetD();
@@ -1102,9 +1093,9 @@ class JNI {
   }
 
   static jint CallIntMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeVirtualOrInterfaceWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetI();
@@ -1121,9 +1112,9 @@ class JNI {
   }
 
   static jlong CallLongMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeVirtualOrInterfaceWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetJ();
@@ -1140,9 +1131,9 @@ class JNI {
   }
 
   static jshort CallShortMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeVirtualOrInterfaceWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetS();
@@ -1159,9 +1150,9 @@ class JNI {
   }
 
   static void CallVoidMethod(JNIEnv* env, jobject obj, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     InvokeVirtualOrInterfaceWithVarArgs(soa, obj, mid, ap);
     va_end(ap);
   }
@@ -1177,9 +1168,9 @@ class JNI {
   }
 
   static jobject CallNonvirtualObjectMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, obj, mid, ap));
     jobject local_result = soa.AddLocalReference<jobject>(result.GetL());
     va_end(ap);
@@ -1202,9 +1193,9 @@ class JNI {
 
   static jboolean CallNonvirtualBooleanMethod(JNIEnv* env,
       jobject obj, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetZ();
@@ -1223,9 +1214,9 @@ class JNI {
   }
 
   static jbyte CallNonvirtualByteMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetB();
@@ -1265,9 +1256,9 @@ class JNI {
   }
 
   static jshort CallNonvirtualShortMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetS();
@@ -1286,9 +1277,9 @@ class JNI {
   }
 
   static jint CallNonvirtualIntMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetI();
@@ -1307,9 +1298,9 @@ class JNI {
   }
 
   static jlong CallNonvirtualLongMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetJ();
@@ -1328,9 +1319,9 @@ class JNI {
   }
 
   static jfloat CallNonvirtualFloatMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetF();
@@ -1349,9 +1340,9 @@ class JNI {
   }
 
   static jdouble CallNonvirtualDoubleMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, obj, mid, ap));
     va_end(ap);
     return result.GetD();
@@ -1370,9 +1361,9 @@ class JNI {
   }
 
   static void CallNonvirtualVoidMethod(JNIEnv* env, jobject obj, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     InvokeWithVarArgs(soa, obj, mid, ap);
     va_end(ap);
   }
@@ -1569,9 +1560,9 @@ class JNI {
   }
 
   static jobject CallStaticObjectMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, NULL, mid, ap));
     jobject local_result = soa.AddLocalReference<jobject>(result.GetL());
     va_end(ap);
@@ -1591,9 +1582,9 @@ class JNI {
   }
 
   static jboolean CallStaticBooleanMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, NULL, mid, ap));
     va_end(ap);
     return result.GetZ();
@@ -1610,9 +1601,9 @@ class JNI {
   }
 
   static jbyte CallStaticByteMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, NULL, mid, ap));
     va_end(ap);
     return result.GetB();
@@ -1629,9 +1620,9 @@ class JNI {
   }
 
   static jchar CallStaticCharMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, NULL, mid, ap));
     va_end(ap);
     return result.GetC();
@@ -1648,9 +1639,9 @@ class JNI {
   }
 
   static jshort CallStaticShortMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, NULL, mid, ap));
     va_end(ap);
     return result.GetS();
@@ -1667,9 +1658,9 @@ class JNI {
   }
 
   static jint CallStaticIntMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, NULL, mid, ap));
     va_end(ap);
     return result.GetI();
@@ -1686,9 +1677,9 @@ class JNI {
   }
 
   static jlong CallStaticLongMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, NULL, mid, ap));
     va_end(ap);
     return result.GetJ();
@@ -1705,9 +1696,9 @@ class JNI {
   }
 
   static jfloat CallStaticFloatMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, NULL, mid, ap));
     va_end(ap);
     return result.GetF();
@@ -1724,9 +1715,9 @@ class JNI {
   }
 
   static jdouble CallStaticDoubleMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     JValue result(InvokeWithVarArgs(soa, NULL, mid, ap));
     va_end(ap);
     return result.GetD();
@@ -1743,9 +1734,9 @@ class JNI {
   }
 
   static void CallStaticVoidMethod(JNIEnv* env, jclass, jmethodID mid, ...) {
-    ScopedObjectAccess soa(env);
     va_list ap;
     va_start(ap, mid);
+    ScopedObjectAccess soa(env);
     InvokeWithVarArgs(soa, NULL, mid, ap);
     va_end(ap);
   }
