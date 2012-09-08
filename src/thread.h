@@ -617,14 +617,14 @@ class PACKED Thread {
   friend class Runtime; // For CreatePeer.
 
   // TODO: remove, callers should use GetState and hold the appropriate locks. Used only by
-  //       ShortDump and TransitionFromSuspendedToRunnable.
+  //       ShortDump, TransitionFromSuspendedToRunnable and ScopedThreadStateChange.
   ThreadState GetStateUnsafe() const NO_THREAD_SAFETY_ANALYSIS {
     return state_;
   }
 
   // TODO: remove, callers should use SetState and hold the appropriate locks. Used only by
-  //       TransitionFromRunnableToSuspended that doesn't need to observe suspend counts as
-  //       it is by definition suspended anyway.
+  //       TransitionFromRunnableToSuspended and ScopedThreadStateChange that don't need to observe
+  //       suspend counts in situations where they know that the thread is already suspended.
   ThreadState SetStateUnsafe(ThreadState new_state) NO_THREAD_SAFETY_ANALYSIS {
     ThreadState old_state = state_;
     state_ = new_state;
@@ -795,6 +795,8 @@ class PACKED Thread {
  private:
   // How many times has our pthread key's destructor been called?
   uint32_t thread_exit_check_count_;
+
+  friend class ScopedThreadStateChange;
 
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };

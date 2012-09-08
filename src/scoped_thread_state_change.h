@@ -37,13 +37,14 @@ class ScopedThreadStateChange {
       CHECK(!Runtime::Current()->IsStarted() || Runtime::Current()->IsShuttingDown());
     } else {
       bool runnable_transition;
-      {
-        MutexLock mu(*Locks::thread_suspend_count_lock_);
-        old_thread_state_ = self->GetState();
-        runnable_transition = old_thread_state_ == kRunnable || new_thread_state == kRunnable;
-        if (!runnable_transition) {
-          self_->SetState(new_thread_state);
-        }
+      DCHECK_EQ(self, Thread::Current());
+      // Read state without locks, ok as state is effectively thread local and we're not interested
+      // in the suspend count (this will be handled in the runnable transitions).
+      old_thread_state_ = self->GetStateUnsafe();
+      runnable_transition = old_thread_state_ == kRunnable || new_thread_state == kRunnable;
+      if (!runnable_transition) {
+        // A suspended transition to another effectively suspended transition, ok to use Unsafe.
+        self_->SetStateUnsafe(new_thread_state);
       }
       if (runnable_transition && old_thread_state_ != new_thread_state) {
         if (new_thread_state == kRunnable) {
@@ -68,8 +69,8 @@ class ScopedThreadStateChange {
         } else if (thread_state_ == kRunnable) {
           self_->TransitionFromRunnableToSuspended(old_thread_state_);
         } else {
-          MutexLock mu(*Locks::thread_suspend_count_lock_);
-          self_->SetState(old_thread_state_);
+          // A suspended transition to another effectively suspended transition, ok to use Unsafe.
+          self_->SetStateUnsafe(old_thread_state_);
         }
       }
     }
