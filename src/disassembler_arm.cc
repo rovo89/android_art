@@ -956,6 +956,54 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
         default:
           break;
       }
+    } else if ((opcode1 >= 0x14 && opcode1 <= 0x17) ||  // 0101xx
+               (opcode1 >= 0x18 && opcode1 <= 0x1f) ||  // 011xxx
+               (opcode1 >= 0x20 && opcode1 <= 0x27)) {  // 100xxx
+      // Load/store single data item
+      uint16_t opA = (instr >> 12) & 0xF;
+      if (opA == 0x5) {
+        uint16_t opB = (instr >> 9) & 0x7;
+        ThumbRegister Rm(instr, 6);
+        ThumbRegister Rn(instr, 3);
+        ThumbRegister Rt(instr, 0);
+        switch(opB) {
+          case 0: opcode << "str"; break;
+          case 1: opcode << "strh"; break;
+          case 2: opcode << "strb"; break;
+          case 3: opcode << "ldrsb"; break;
+          case 4: opcode << "ldr"; break;
+          case 5: opcode << "ldrh"; break;
+          case 6: opcode << "ldrb"; break;
+          case 7: opcode << "ldrsh"; break;
+        }
+        args << Rt << ", [" << Rn << ", " << Rm << "]";
+      } else if (opA == 9) {
+        uint16_t opB = (instr >> 11) & 1;
+        ThumbRegister Rt(instr, 8);
+        uint16_t imm8 = instr & 0xFF;
+        opcode << (opB == 0 ? "str" : "ldr");
+        args << Rt << ", [ sp, #" << (imm8 << 2) << "]";
+      } else {
+        uint16_t imm5 = (instr >> 6) & 0x1F;
+        uint16_t opB = (instr >> 11) & 1;
+        ThumbRegister Rn(instr, 3);
+        ThumbRegister Rt(instr, 0);
+        switch(opA) {
+          case 6:
+            imm5 <<= 2;
+            opcode << (opB == 0 ? "str" : "ldr");
+            break;
+          case 7:
+            imm5 <<= 0;
+            opcode << (opB == 0 ? "strb" : "ldrb");
+            break;
+          case 8:
+            imm5 <<= 1;
+            opcode << (opB == 0 ? "strh" : "ldrh");
+            break;
+        }
+        args << Rt << ", [" << Rn << ", #" << imm5 << "]";
+      }
     } else if ((instr & 0xF800) == 0xA800) {
       // Generate SP-relative address
       ThumbRegister rd(instr, 8);
