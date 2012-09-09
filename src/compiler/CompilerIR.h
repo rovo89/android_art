@@ -160,6 +160,7 @@ enum BBType {
   kExitBlock,
   kExceptionHandling,
   kCatchEntry,
+  kDead,
 };
 
 /* Utility macros to traverse the LIR list */
@@ -239,6 +240,13 @@ struct CallsiteInfo {
   LIR* misPredBranchOver;
 };
 
+struct Checkstats {
+  int nullChecks;
+  int nullChecksEliminated;
+  int rangeChecks;
+  int rangeChecksEliminated;
+};
+
 struct MIR {
   DecodedInstruction dalvikInsn;
   unsigned int width;
@@ -272,7 +280,6 @@ struct BasicBlock {
   bool visited;
   bool hidden;
   bool catchEntry;
-  bool fallThroughTarget;             // Reached via fallthrough
 #if defined(ART_USE_QUICK_COMPILER)
   bool hasReturn;
 #endif
@@ -412,6 +419,7 @@ struct CompilationUnit {
       currentArena(NULL),
       numArenaBlocks(0),
       mstats(NULL),
+      checkstats(NULL),
 #if defined(ART_USE_QUICK_COMPILER)
       genBitcode(false),
       context(NULL),
@@ -571,6 +579,7 @@ struct CompilationUnit {
   u4 insnsSize;
   bool disableDataflow; // Skip dataflow analysis if possible
   SafeMap<unsigned int, BasicBlock*> blockMap; // findBlock lookup cache
+  SafeMap<unsigned int, unsigned int> blockIdMap; // Block collapse lookup cache
   SafeMap<unsigned int, LIR*> boundaryMap; // boundary lookup cache
   int defCount;         // Used to estimate number of SSA names
 
@@ -582,6 +591,7 @@ struct CompilationUnit {
   ArenaMemBlock* currentArena;
   int numArenaBlocks;
   Memstats* mstats;
+  Checkstats* checkstats;
 #if defined(ART_USE_QUICK_COMPILER)
   bool genBitcode;
   llvm::LLVMContext* context;

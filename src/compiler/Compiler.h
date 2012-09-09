@@ -140,6 +140,7 @@ enum debugControlVector {
   kDebugShowMemoryUsage,
   kDebugShowNops,
   kDebugCountOpcodes,
+  kDebugDumpCheckStats,
 #if defined(ART_USE_QUICK_COMPILER)
   kDebugDumpBitcodeFile,
   kDebugVerifyBitcode,

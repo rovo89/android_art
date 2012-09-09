@@ -881,14 +881,7 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
   oatResetRegPool(cUnit);
   oatResetDefTracking(cUnit);
 
-  /*
-   * If control reached us from our immediate predecessor via
-   * fallthrough and we have no other incoming arcs we can
-   * reuse existing liveness.  Otherwise, reset.
-   */
-  if (!bb->fallThroughTarget || bb->predecessors->numUsed != 1) {
-    oatClobberAllRegs(cUnit);
-  }
+  oatClobberAllRegs(cUnit);
 
   LIR* headLIR = NULL;
 
@@ -922,9 +915,7 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
     /* Mark the beginning of a Dalvik instruction for line tracking */
     char* instStr = cUnit->printMe ?
        oatGetDalvikDisassembly(cUnit, mir->dalvikInsn, "") : NULL;
-    boundaryLIR = newLIR1(cUnit, kPseudoDalvikByteCodeBoundary,
-                          (intptr_t) instStr);
-    cUnit->boundaryMap.Overwrite(mir->offset, boundaryLIR);
+    boundaryLIR = markBoundary(cUnit, mir->offset, instStr);
     /* Remember the first LIR for this block */
     if (headLIR == NULL) {
       headLIR = boundaryLIR;

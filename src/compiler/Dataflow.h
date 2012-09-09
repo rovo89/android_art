@@ -100,9 +100,11 @@ enum DataFlowAttributePos {
                                  DF_NULL_CHK_2 | \
                                  DF_NULL_CHK_OUT0)
 
-#define DF_HAS_NR_CHKS          (DF_HAS_NULL_CHKS | \
-                                 DF_RANGE_CHK_1 | \
+#define DF_HAS_RANGE_CHKS       (DF_RANGE_CHK_1 | \
                                  DF_RANGE_CHK_2)
+
+#define DF_HAS_NR_CHKS          (DF_HAS_NULL_CHKS | \
+                                 DF_HAS_RANGE_CHKS)
 
 #define DF_A_IS_REG             (DF_UA | DF_DA)
 #define DF_B_IS_REG             (DF_UB)
@@ -160,6 +162,10 @@ void oatMethodLoopDetection(CompilationUnit*);
 void oatMethodUseCount(CompilationUnit*);
 
 void oatMethodNullCheckElimination(CompilationUnit*);
+
+void oatDumpCheckStats(CompilationUnit*);
+
+void oatMethodBasicBlockCombine(CompilationUnit*);
 
 void oatMethodBasicBlockOptimization(CompilationUnit*);
 

@@ -127,13 +127,10 @@ MIR* getNextMir(CompilationUnit* cUnit, BasicBlock** pBb, MIR* mir)
 /* Used for the "printMe" listing */
 void genPrintLabel(CompilationUnit *cUnit, MIR* mir)
 {
-  LIR* boundaryLIR;
   /* Mark the beginning of a Dalvik instruction for line tracking */
   char* instStr = cUnit->printMe ?
      oatGetDalvikDisassembly(cUnit, mir->dalvikInsn, "") : NULL;
-  boundaryLIR = newLIR1(cUnit, kPseudoDalvikByteCodeBoundary,
-     (intptr_t) instStr);
-  cUnit->boundaryMap.Put(mir->offset, boundaryLIR);
+  markBoundary(cUnit, mir->offset, instStr);
   /* Don't generate the SSA annotation unless verbose mode is on */
   if (cUnit->printMe && mir->ssaRep) {
     char* ssaString = oatGetSSAString(cUnit, mir->ssaRep);

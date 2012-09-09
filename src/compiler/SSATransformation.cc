@@ -57,18 +57,6 @@ BasicBlock* nextUnvisitedSuccessor(BasicBlock* bb)
 void markPreOrder(CompilationUnit* cUnit, BasicBlock* block)
 {
   block->visited = true;
-  // Can this block be reached only via previous block fallthrough?
-  if ((block->blockType == kDalvikByteCode) &&
-      (block->predecessors->numUsed == 1)) {
-    DCHECK_GE(cUnit->dfsOrder.numUsed, 1U);
-    int prevIdx = cUnit->dfsOrder.numUsed - 1;
-    int prevId = cUnit->dfsOrder.elemList[prevIdx];
-    BasicBlock* predBB = (BasicBlock*)block->predecessors->elemList[0];
-    if (predBB->id == prevId) {
-      block->fallThroughTarget = true;
-    }
-  }
-
   /* Enqueue the preOrder block id */
   oatInsertGrowableList(cUnit, &cUnit->dfsOrder, block->id);
 }
@@ -107,9 +95,6 @@ void recursiveRecordDFSOrders(CompilationUnit* cUnit, BasicBlock* block)
     int prevIdx = cUnit->dfsOrder.numUsed - 1;
     int prevId = cUnit->dfsOrder.elemList[prevIdx];
     BasicBlock* predBB = (BasicBlock*)block->predecessors->elemList[0];
-    if (predBB->id == prevId) {
-      block->fallThroughTarget = true;
-    }
   }
 
   /* Enqueue the preOrder block id */

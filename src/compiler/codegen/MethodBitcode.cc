@@ -1668,8 +1668,11 @@ void convertExtendedMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir,
         DCHECK_EQ(rlDest.fp, loc.fp);
         DCHECK_EQ(rlDest.core, loc.core);
         DCHECK_EQ(rlDest.ref, loc.ref);
+        SafeMap<unsigned int, unsigned int>::iterator it;
+        it = cUnit->blockIdMap.find(incoming[i]);
+        DCHECK(it != cUnit->blockIdMap.end());
         phi->addIncoming(getLLVMValue(cUnit, loc.origSReg),
-                         getLLVMBlock(cUnit, incoming[i]));
+                         getLLVMBlock(cUnit, it->second));
       }
       defineValue(cUnit, phi, rlDest.origSReg);
       break;
@@ -1752,6 +1755,7 @@ void setMethodInfo(CompilationUnit* cUnit)
 /* Handle the content in each basic block */
 bool methodBlockBitcodeConversion(CompilationUnit* cUnit, BasicBlock* bb)
 {
+  if (bb->blockType == kDead) return false;
   llvm::BasicBlock* llvmBB = getLLVMBlock(cUnit, bb->id);
   cUnit->irb->SetInsertPoint(llvmBB);
   setDexOffset(cUnit, bb->startOffset);
@@ -1964,7 +1968,7 @@ bool createFunction(CompilationUnit* cUnit) {
 bool createLLVMBasicBlock(CompilationUnit* cUnit, BasicBlock* bb)
 {
   // Skip the exit block
-  if (bb->blockType == kExitBlock) {
+  if ((bb->blockType == kDead) ||(bb->blockType == kExitBlock)) {
     cUnit->idToBlockMap.Put(bb->id, NULL);
   } else {
     int offset = bb->startOffset;
@@ -2924,11 +2928,8 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
     cUnit->liveSReg = INVALID_SREG;
 #endif
 
-    LIR* boundaryLIR;
-    const char* instStr = "boundary";
-    boundaryLIR = newLIR1(cUnit, kPseudoDalvikByteCodeBoundary,
-                          (intptr_t) instStr);
-    cUnit->boundaryMap.Overwrite(cUnit->currentDalvikOffset, boundaryLIR);
+    // TODO: use llvm opcode name here instead of "boundary" if verbose
+    LIR* boundaryLIR = markBoundary(cUnit, cUnit->currentDalvikOffset, "boundary");
 
     /* Remember the first LIR for thisl block*/
     if (headLIR == NULL) {
