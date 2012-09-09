@@ -794,6 +794,38 @@ art_trace_exit_from_code:
     pop   {r0, r1}       @ restore return value
     bx    lr             @ return
 
+    .global art_mul_long
+    /*
+     * Signed 64-bit integer multiply.
+     *
+     * Consider WXxYZ (r1r0 x r3r2) with a long multiply:
+     *        WX
+     *      x YZ
+     *  --------
+     *     ZW ZX
+     *  YW YX
+     *
+     * The low word of the result holds ZX, the high word holds
+     * (ZW+YX) + (the high overflow from ZX).  YW doesn't matter because
+     * it doesn't fit in the low 64 bits.
+     *
+     * Unlike most ARM math operations, multiply instructions have
+     * restrictions on using the same register more than once (Rd and Rm
+     * cannot be the same).
+     */
+    /* mul-long vAA, vBB, vCC */
+    ALIGN_FUNCTION_ENTRY
+art_mul_long:
+    push    {r9 - r10}
+    mul     ip, r2, r1                  @  ip<- ZxW
+    umull   r9, r10, r2, r0             @  r9/r10 <- ZxX
+    mla     r2, r0, r3, ip              @  r2<- YxX + (ZxW)
+    add     r10, r2, r10                @  r10<- r10 + low(ZxW + (YxX))
+    mov     r0,r9
+    mov     r1,r10
+    pop     {r9 - r10}
+    bx      lr
+
     .global art_shl_long
     /*
      * Long integer shift.  This is different from the generic 32/64-bit

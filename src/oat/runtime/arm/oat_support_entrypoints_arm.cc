@@ -111,7 +111,7 @@ extern "C" int __aeabi_idivmod(int32_t, int32_t);  // [DIV|REM]_INT[_2ADDR|_LIT8
 
 // Long long arithmetics - REM_LONG[_2ADDR] and DIV_LONG[_2ADDR]
 extern "C" int64_t __aeabi_ldivmod(int64_t, int64_t);
-extern "C" int64_t __aeabi_lmul(int64_t, int64_t);
+extern "C" int64_t art_mul_long(int64_t, int64_t);
 extern "C" uint64_t art_shl_long(uint64_t, uint32_t);
 extern "C" uint64_t art_shr_long(uint64_t, uint32_t);
 extern "C" uint64_t art_ushr_long(uint64_t, uint32_t);
@@ -230,7 +230,7 @@ void InitEntryPoints(EntryPoints* points) {
   points->pF2l = art_f2l;
   points->pLdiv = __aeabi_ldivmod;
   points->pLdivmod = __aeabi_ldivmod;  // result returned in r2:r3
-  points->pLmul = __aeabi_lmul;
+  points->pLmul = art_mul_long;
   points->pShlLong = art_shl_long;
   points->pShrLong = art_shr_long;
   points->pUshrLong = art_ushr_long;
