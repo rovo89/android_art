@@ -279,10 +279,7 @@ std::string PrettyField(uint32_t field_idx, const DexFile& dex_file, bool with_t
 
 std::string PrettyType(uint32_t type_idx, const DexFile& dex_file) {
   const DexFile::TypeId& type_id = dex_file.GetTypeId(type_idx);
-  std::string result;
-  result += PrettyDescriptor(dex_file.GetTypeDescriptor(type_id));
-  result += ' ';
-  return result;
+  return PrettyDescriptor(dex_file.GetTypeDescriptor(type_id));
 }
 
 std::string PrettyArguments(const char* signature) {
