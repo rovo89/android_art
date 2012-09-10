@@ -1176,14 +1176,15 @@ class MANAGED Class : public StaticStorageBase {
   enum Status {
     kStatusError = -1,
     kStatusNotReady = 0,
-    kStatusIdx = 1,  // loaded, DEX idx in super_class_type_idx_ and interfaces_type_idx_
-    kStatusLoaded = 2,  // DEX idx values resolved
-    kStatusResolved = 3,  // part of linking
-    kStatusVerifying = 4,  // in the process of being verified
-    kStatusRetryVerificationAtRuntime = 5,  // compile time verification failed, retry at runtime
-    kStatusVerified = 6,  // logically part of linking; done pre-init
-    kStatusInitializing = 7,  // class init in progress
-    kStatusInitialized = 8,  // ready to go
+    kStatusIdx = 1,  // Loaded, DEX idx in super_class_type_idx_ and interfaces_type_idx_.
+    kStatusLoaded = 2,  // DEX idx values resolved.
+    kStatusResolved = 3,  // Part of linking.
+    kStatusVerifying = 4,  // In the process of being verified.
+    kStatusRetryVerificationAtRuntime = 5,  // Compile time verification failed, retry at runtime.
+    kStatusVerifyingAtRuntime = 6,  // Retrying verification at runtime.
+    kStatusVerified = 7,  // Logically part of linking; done pre-init.
+    kStatusInitializing = 8,  // Class init in progress.
+    kStatusInitialized = 9,  // Ready to go.
   };
 
   Status GetStatus() const {

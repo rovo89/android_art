@@ -2015,25 +2015,32 @@ void ClassLinker::VerifyClass(Class* klass) {
   // TODO: assert that the monitor on the Class is held
   ObjectLock lock(klass);
 
-  if (klass->IsVerified()) {
+  // Don't attempt to re-verify if already sufficiently verified.
+  if (klass->IsVerified() ||
+      (klass->IsCompileTimeVerified() && Runtime::Current()->IsCompiler())) {
     return;
   }
 
-  // The class might already be erroneous if we attempted to verify a subclass
+  // The class might already be erroneous, for example at compile time if we attempted to verify
+  // this class as a parent to another.
   if (klass->IsErroneous()) {
     ThrowEarlierClassFailure(klass);
     return;
   }
 
-  CHECK(klass->GetStatus() == Class::kStatusResolved ||
-        klass->GetStatus() == Class::kStatusRetryVerificationAtRuntime) << PrettyClass(klass);
-  klass->SetStatus(Class::kStatusVerifying);
+  if (klass->GetStatus() == Class::kStatusResolved) {
+    klass->SetStatus(Class::kStatusVerifying);
+  } else {
+    CHECK_EQ(klass->GetStatus(), Class::kStatusRetryVerificationAtRuntime) << PrettyClass(klass);
+    CHECK(!Runtime::Current()->IsCompiler());
+    klass->SetStatus(Class::kStatusVerifyingAtRuntime);
+  }
 
-  // Verify super class
+  // Verify super class.
   Class* super = klass->GetSuperClass();
   std::string error_msg;
   if (super != NULL) {
-    // Acquire lock to prevent races on verifying the super class
+    // Acquire lock to prevent races on verifying the super class.
     ObjectLock lock(super);
 
     if (!super->IsVerified() && !super->IsErroneous()) {
@@ -2054,7 +2061,6 @@ void ClassLinker::VerifyClass(Class* klass) {
       if (cause.get() != NULL) {
         self->GetException()->SetCause(cause.get());
       }
-      CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying) << PrettyDescriptor(klass);
       klass->SetStatus(Class::kStatusError);
       return;
     }
@@ -2100,7 +2106,7 @@ void ClassLinker::VerifyClass(Class* klass) {
         klass->SetStatus(Class::kStatusVerified);
       }
     }
-    // Sanity check that a verified class has GC maps on all methods
+    // Sanity check that a verified class has GC maps on all methods.
     CheckMethodsHaveGcMaps(klass);
   } else {
     LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(klass)
@@ -2109,7 +2115,6 @@ void ClassLinker::VerifyClass(Class* klass) {
     Thread* self = Thread::Current();
     self->AssertNoPendingException();
     self->ThrowNewException("Ljava/lang/VerifyError;", error_msg.c_str());
-    CHECK_EQ(klass->GetStatus(), Class::kStatusVerifying) << PrettyDescriptor(klass);
     klass->SetStatus(Class::kStatusError);
   }
 }
@@ -2134,7 +2139,8 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, Class* klass,
   CHECK(oat_class.get() != NULL)
           << dex_file.GetLocation() << " " << PrettyClass(klass) << " " << descriptor;
   oat_file_class_status = oat_class->GetStatus();
-  if (oat_file_class_status == Class::kStatusVerified || oat_file_class_status == Class::kStatusInitialized) {
+  if (oat_file_class_status == Class::kStatusVerified ||
+      oat_file_class_status == Class::kStatusInitialized) {
     return true;
   }
   if (oat_file_class_status == Class::kStatusRetryVerificationAtRuntime) {
@@ -2411,7 +2417,7 @@ static void CheckProxyMethod(Method* method, SirtRef<Method>& prototype)
 
 bool ClassLinker::InitializeClass(Class* klass, bool can_run_clinit, bool can_init_statics) {
   CHECK(klass->IsResolved() || klass->IsErroneous())
-      << PrettyClass(klass) << " is " << klass->GetStatus();
+      << PrettyClass(klass) << ": state=" << klass->GetStatus();
 
   Thread* self = Thread::Current();
 
@@ -2663,9 +2669,9 @@ bool ClassLinker::InitializeSuperClass(Class* klass, bool can_run_clinit, bool c
   CHECK(klass != NULL);
   if (!klass->IsInterface() && klass->HasSuperClass()) {
     Class* super_class = klass->GetSuperClass();
-    if (super_class->GetStatus() != Class::kStatusInitialized) {
+    if (!super_class->IsInitialized()) {
       CHECK(!super_class->IsInterface());
-      ObjectLock lock(klass);  // Must hold lock on object when initializing.
+      ObjectLock lock(klass);  // Must hold lock on object when initializing and setting status.
       bool super_initialized = InitializeClass(super_class, can_run_clinit, can_init_fields);
       // TODO: check for a pending exception
       if (!super_initialized) {

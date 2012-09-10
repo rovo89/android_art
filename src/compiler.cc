@@ -1257,7 +1257,8 @@ static void VerifyClass(const CompilationContext* context, size_t class_def_inde
     Thread::Current()->ClearException();
   }
 
-  CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous()) << PrettyClass(klass);
+  CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous())
+      << PrettyDescriptor(klass) << ": state=" << klass->GetStatus();
   CHECK(!Thread::Current()->IsExceptionPending()) << PrettyTypeOf(Thread::Current()->GetException());
 }
 
