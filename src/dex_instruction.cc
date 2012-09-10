@@ -309,28 +309,17 @@ std::string Instruction::DumpString(const DexFile* file) const {
       break;
     case k21c: {
       switch (insn.opcode) {
-        case CHECK_CAST:
-          if (file != NULL) {
-            os << StringPrintf("check-cast v%d, %s // type@%d", insn.vA,
-                               file->StringByTypeIdx(insn.vB), insn.vB);
-            break;
-          }  // else fall-through
-        case CONST_CLASS:
-          if (file != NULL) {
-            os << StringPrintf("const-class v%d, %s // type@%d", insn.vA,
-                               file->StringByTypeIdx(insn.vB), insn.vB);
-            break;
-          }  // else fall-through
         case CONST_STRING:
           if (file != NULL) {
             os << StringPrintf("const-string v%d, \"%s\" // string@%d", insn.vA,
                                file->StringDataByIdx(insn.vB), insn.vB);
             break;
           }  // else fall-through
+        case CHECK_CAST:
+        case CONST_CLASS:
         case NEW_INSTANCE:
           if (file != NULL) {
-            os << StringPrintf("new-instance v%d, %s // type@%d", insn.vA,
-                               file->StringByTypeIdx(insn.vB), insn.vB);
+            os << opcode << " " << PrettyType(insn.vB, *file) << " // type@" << insn.vB;
             break;
           }  // else fall-through
         case SGET:
@@ -341,11 +330,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case SGET_CHAR:
         case SGET_SHORT:
           if (file != NULL) {
-            const DexFile::FieldId& field_id = file->GetFieldId(insn.vB);
-            os << StringPrintf("%s v%d, (%s) %s.%s // field@%d", opcode, insn.vA,
-                               file->GetFieldTypeDescriptor(field_id),
-                               file->GetFieldDeclaringClassDescriptor(field_id),
-                               file->GetFieldName(field_id), insn.vB);
+            os << opcode << " " << PrettyField(insn.vB, *file, true) << " // field@" << insn.vB;
             break;
           }  // else fall-through
         case SPUT:
@@ -356,11 +341,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case SPUT_CHAR:
         case SPUT_SHORT:
           if (file != NULL) {
-            const DexFile::FieldId& field_id = file->GetFieldId(insn.vB);
-            os << StringPrintf("%s (%s) %s.%s, v%d // field@%d", opcode,
-                               file->GetFieldTypeDescriptor(field_id),
-                               file->GetFieldDeclaringClassDescriptor(field_id),
-                               file->GetFieldName(field_id), insn.vA, insn.vB);
+            os << opcode << " " << PrettyField(insn.vB, *file, true) << " // field@" << insn.vB;
             break;
           }  // else fall-through
         default:
@@ -383,11 +364,7 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case IGET_CHAR:
         case IGET_SHORT:
           if (file != NULL) {
-            const DexFile::FieldId& field_id = file->GetFieldId(insn.vC);
-            os << StringPrintf("%s v%d, v%d, (%s) %s.%s // field@%d", opcode, insn.vA, insn.vB,
-                               file->GetFieldTypeDescriptor(field_id),
-                               file->GetFieldDeclaringClassDescriptor(field_id),
-                               file->GetFieldName(field_id), insn.vC);
+            os << PrettyField(insn.vC, *file, true) << " // field@" << insn.vC;
             break;
           }  // else fall-through
         case IPUT:
@@ -398,17 +375,17 @@ std::string Instruction::DumpString(const DexFile* file) const {
         case IPUT_CHAR:
         case IPUT_SHORT:
           if (file != NULL) {
-            const DexFile::FieldId& field_id = file->GetFieldId(insn.vC);
-            os << StringPrintf("%s v%d, (%s) %s.%s, v%d // field@%d", opcode, insn.vA,
-                               file->GetFieldTypeDescriptor(field_id),
-                               file->GetFieldDeclaringClassDescriptor(field_id),
-                               file->GetFieldName(field_id), insn.vB, insn.vC);
+            os << opcode << " " << PrettyField(insn.vC, *file, true) << " // field@" << insn.vB;
             break;
           }  // else fall-through
         case INSTANCE_OF:
           if (file != NULL) {
-            os << StringPrintf("instance-of v%d, v%d, %s // type@%d", insn.vA, insn.vB,
-                               file->StringByTypeIdx(insn.vC), insn.vC);
+            os << opcode << " " << PrettyType(insn.vC, *file) << " // type@" << insn.vC;
+            break;
+          }
+        case NEW_ARRAY:
+          if (file != NULL) {
+            os << opcode << " " << PrettyType(insn.vC, *file) << " // type@" << insn.vC;
             break;
           }  // else fall-through
         default:

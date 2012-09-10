@@ -195,6 +195,7 @@ std::string PrettyMethod(uint32_t method_idx, const DexFile& dex_file, bool with
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
 std::string PrettyTypeOf(const Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+std::string PrettyType(uint32_t type_idx, const DexFile& dex_file);
 
 // Returns a human-readable form of the name of the given class.
 // Given String.class, the output would be "java.lang.Class<java.lang.String>".
