@@ -51,13 +51,16 @@ class TimingLogger;
 
 typedef std::vector<Space*> Spaces;
 
+// The ordering of the enum matters, it is used to determine which GCs are run first.
 enum GcType {
-  // Full GC
-  kGcTypeFull,
+  // No Gc
+  kGcTypeNone,
   // Sticky mark bits "generational" GC.
   kGcTypeSticky,
   // Partial GC, over only the alloc space.
   kGcTypePartial,
+  // Full GC
+  kGcTypeFull,
   // Number of different Gc types.
   kGcTypeMax,
 };
@@ -162,7 +165,7 @@ class LOCKABLE Heap {
 
   // Blocks the caller until the garbage collector becomes idle and returns
   // true if we waited for the GC to complete.
-  bool WaitForConcurrentGcToComplete();
+  GcType WaitForConcurrentGcToComplete();
 
   const Spaces& GetSpaces() {
     return spaces_;
@@ -295,7 +298,9 @@ class LOCKABLE Heap {
   void RecordAllocation(AllocSpace* space, const Object* object)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
-  void CollectGarbageInternal(GcType gc_plan, bool clear_soft_references)
+  // Sometimes CollectGarbageInternal decides to run a different Gc than you requested. Returns
+  // which type of Gc was actually ran.
+  GcType CollectGarbageInternal(GcType gc_plan, bool clear_soft_references)
       LOCKS_EXCLUDED(gc_complete_lock_,
                      Locks::heap_bitmap_lock_,
                      Locks::mutator_lock_,
@@ -361,7 +366,10 @@ class LOCKABLE Heap {
   UniquePtr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
 
   // True while the garbage collector is running.
-  volatile bool is_gc_running_ GUARDED_BY(gc_complete_lock_);;
+  volatile bool is_gc_running_ GUARDED_BY(gc_complete_lock_);
+
+  // Last Gc type we ran. Used by WaitForConcurrentGc to know which Gc was waited on.
+  volatile GcType last_gc_type_ GUARDED_BY(gc_complete_lock_);
 
   // Bytes until concurrent GC starts.
   volatile size_t concurrent_start_bytes_;

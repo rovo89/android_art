@@ -142,6 +142,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t capacity,
       have_zygote_space_(false),
       card_marking_disabled_(false),
       is_gc_running_(false),
+      last_gc_type_(kGcTypeNone),
       concurrent_start_bytes_(std::numeric_limits<size_t>::max()),
       concurrent_start_size_(128 * KB),
       concurrent_min_free_(256 * KB),
@@ -564,52 +565,57 @@ Object* Heap::Allocate(AllocSpace* space, size_t alloc_size) {
     return ptr;
   }
 
-  // The allocation failed.  If the GC is running, block until it completes else request a
-  // foreground partial collection.
-  if (!WaitForConcurrentGcToComplete()) {
-    // No concurrent GC so perform a foreground collection.
-    if (Runtime::Current()->HasStatsEnabled()) {
-      ++Runtime::Current()->GetStats()->gc_for_alloc_count;
-      ++Thread::Current()->GetStats()->gc_for_alloc_count;
+  // The allocation failed. If the GC is running, block until it completes, and then retry the
+  // allocation.
+  GcType last_gc = WaitForConcurrentGcToComplete();
+  if (last_gc != kGcTypeNone) {
+    // A GC was in progress and we blocked, retry allocation now that memory has been freed.
+    Object* ptr = space->AllocWithoutGrowth(alloc_size);
+    if (ptr != NULL) {
+      return ptr;
     }
-    self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
-    const size_t alloc_space_size = alloc_space_->Size();
-    if (alloc_space_size > kMinAllocSpaceSizeForStickyGC
-        && alloc_space_->Capacity() - alloc_space_size >= kMinRemainingSpaceForStickyGC) {
-      CollectGarbageInternal(kGcTypeSticky, false);
-    } else {
-      CollectGarbageInternal(have_zygote_space_ ? kGcTypePartial : kGcTypeFull, false);
-    }
-    self->TransitionFromSuspendedToRunnable();
-  } else if (have_zygote_space_) {
-    // TODO: Keep track of what kind of Gc we waited to complete and is this to figure out what Gc
-    // to do.
-    // Try a partial Gc.
-    if (Runtime::Current()->HasStatsEnabled()) {
-      ++Runtime::Current()->GetStats()->gc_for_alloc_count;
-      ++Thread::Current()->GetStats()->gc_for_alloc_count;
-    }
-    self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
-    CollectGarbageInternal(kGcTypePartial, false);
-    self->TransitionFromSuspendedToRunnable();
   }
 
-  ptr = space->AllocWithoutGrowth(alloc_size);
-  if (ptr != NULL) {
-    return ptr;
-  }
+  // Loop through our different Gc types and try to Gc until we get enough free memory.
+  for (size_t i = static_cast<size_t>(last_gc) + 1; i < static_cast<size_t>(kGcTypeMax); ++i) {
+    bool run_gc = false;
+    GcType gc_type = static_cast<GcType>(i);
+    switch (gc_type) {
+      case kGcTypeSticky: {
+          const size_t alloc_space_size = alloc_space_->Size();
+          run_gc = alloc_space_size > kMinAllocSpaceSizeForStickyGC &&
+              alloc_space_->Capacity() - alloc_space_size >= kMinRemainingSpaceForStickyGC;
+          break;
+        }
+      case kGcTypePartial:
+        run_gc = have_zygote_space_;
+        break;
+      case kGcTypeFull:
+        run_gc = true;
+        break;
+      default:
+        break;
+    }
 
-  // Partial GC didn't free enough memory, try a full GC.
-  if (Runtime::Current()->HasStatsEnabled()) {
-    ++Runtime::Current()->GetStats()->gc_for_alloc_count;
-    ++Thread::Current()->GetStats()->gc_for_alloc_count;
-  }
-  self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
-  CollectGarbageInternal(kGcTypeFull, false);
-  self->TransitionFromSuspendedToRunnable();
-  ptr = space->AllocWithoutGrowth(alloc_size);
-  if (ptr != NULL) {
-    return ptr;
+    if (run_gc) {
+      if (Runtime::Current()->HasStatsEnabled()) {
+        ++Runtime::Current()->GetStats()->gc_for_alloc_count;
+        ++Thread::Current()->GetStats()->gc_for_alloc_count;
+      }
+      self->TransitionFromRunnableToSuspended(kWaitingPerformingGc);
+
+      // If we actually ran a different type of Gc than requested, we can skip the index forwards.
+      GcType gc_type_ran = CollectGarbageInternal(gc_type, false);
+      DCHECK(static_cast<size_t>(gc_type_ran) >= i);
+      i = static_cast<size_t>(gc_type_ran);
+      self->TransitionFromSuspendedToRunnable();
+
+      // Did we free sufficient memory for the allocation to succeed?
+      ptr = space->AllocWithoutGrowth(alloc_size);
+      if (ptr != NULL) {
+        return ptr;
+      }
+    }
   }
 
   // Allocations have failed after GCs;  this is an exceptional state.
@@ -708,12 +714,11 @@ int64_t Heap::CountInstances(Class* c, bool count_assignable) {
 }
 
 void Heap::CollectGarbage(bool clear_soft_references) {
-  // If we just waited for a GC to complete then we do not need to do another
-  // GC unless we clear soft references.
-  if (!WaitForConcurrentGcToComplete() || clear_soft_references) {
-    ScopedThreadStateChange tsc(Thread::Current(), kWaitingPerformingGc);
-    CollectGarbageInternal(have_zygote_space_ ? kGcTypePartial : kGcTypeFull, clear_soft_references);
-  }
+  // Even if we waited for a GC we still need to do another GC since weaks allocated during the
+  // last GC will not have necessarily been cleared.
+  WaitForConcurrentGcToComplete();
+  ScopedThreadStateChange tsc(Thread::Current(), kWaitingPerformingGc);
+  CollectGarbageInternal(have_zygote_space_ ? kGcTypePartial : kGcTypeFull, clear_soft_references);
 }
 
 void Heap::PreZygoteFork() {
@@ -819,7 +824,7 @@ void Heap::UnMarkStackAsLive(MarkStack* alloc_stack) {
   }
 }
 
-void Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) {
+GcType Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) {
   Locks::mutator_lock_->AssertNotHeld();
 #ifndef NDEBUG
   {
@@ -864,11 +869,13 @@ void Heap::CollectGarbageInternal(GcType gc_type, bool clear_soft_references) {
   {
     MutexLock mu(*gc_complete_lock_);
     is_gc_running_ = false;
+    last_gc_type_ = gc_type;
     // Wake anyone who may have been waiting for the GC to complete.
     gc_complete_cond_->Broadcast();
   }
   // Inform DDMS that a GC completed.
   Dbg::GcDidFinish();
+  return gc_type;
 }
 
 void Heap::CollectGarbageMarkSweepPlan(GcType gc_type, bool clear_soft_references) {
@@ -1484,17 +1491,15 @@ void Heap::CollectGarbageConcurrentMarkSweepPlan(GcType gc_type, bool clear_soft
   logger->End(); // Next iteration.
 }
 
-bool Heap::WaitForConcurrentGcToComplete() {
+GcType Heap::WaitForConcurrentGcToComplete() {
+  GcType last_gc_type = kGcTypeNone;
   if (concurrent_gc_) {
-    bool do_wait = false;
-    uint64_t wait_start;
+    bool do_wait;
+    uint64_t wait_start = NanoTime();
     {
       // Check if GC is running holding gc_complete_lock_.
       MutexLock mu(*gc_complete_lock_);
-      if (is_gc_running_) {
-        wait_start = NanoTime();
-        do_wait = true;
-      }
+      do_wait = is_gc_running_;
     }
     if (do_wait) {
       // We must wait, change thread state then sleep on gc_complete_cond_;
@@ -1504,15 +1509,15 @@ bool Heap::WaitForConcurrentGcToComplete() {
         while (is_gc_running_) {
           gc_complete_cond_->Wait(*gc_complete_lock_);
         }
+        last_gc_type = last_gc_type_;
       }
       uint64_t wait_time = NanoTime() - wait_start;
       if (wait_time > MsToNs(5)) {
         LOG(INFO) << "WaitForConcurrentGcToComplete blocked for " << PrettyDuration(wait_time);
       }
-      return true;
     }
   }
-  return false;
+  return last_gc_type;
 }
 
 void Heap::DumpForSigQuit(std::ostream& os) {
@@ -1721,7 +1726,7 @@ void Heap::ConcurrentGC() {
   // TODO: We shouldn't need a WaitForConcurrentGcToComplete here since only
   //       concurrent GC resumes threads before the GC is completed and this function
   //       is only called within the GC daemon thread.
-  if (!WaitForConcurrentGcToComplete()) {
+  if (WaitForConcurrentGcToComplete() == kGcTypeNone) {
     // Start a concurrent GC as one wasn't in progress
     ScopedThreadStateChange tsc(Thread::Current(), kWaitingPerformingGc);
     if (alloc_space_->Size() > kMinAllocSpaceSizeForStickyGC) {
