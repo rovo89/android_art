@@ -866,6 +866,7 @@ void handleExtendedMethodMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
 /* Handle the content in each basic block */
 bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 {
+  if (bb->blockType == kDead) return false;
   MIR* mir;
   LIR* labelList = cUnit->blockLabelList;
   int blockId = bb->id;
