@@ -19,7 +19,7 @@
 
 #include "../mutex.h"
 #include "globals.h"
-#if defined(ART_USE_DEXLANG_FRONTEND) || defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_DEXLANG_FRONTEND)
 # include "greenland/dex_lang.h"
 #endif
 #include "instruction_set.h"
@@ -29,6 +29,7 @@
 #include "safe_map.h"
 
 #if defined(ART_USE_QUICK_COMPILER)
+# include "compiler/Dalvik.h"
 # include "compiler.h"
 # include "oat_compilation_unit.h"
 #endif
@@ -79,7 +80,7 @@ class CompilationUnit {
     return irb_.get();
   }
 
-#if defined(ART_USE_DEXLANG_FRONTEND) || defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_DEXLANG_FRONTEND)
   greenland::DexLang::Context* GetDexLangContext() const {
     return dex_lang_ctx_;
   }
@@ -90,6 +91,9 @@ class CompilationUnit {
   }
 
 #if defined(ART_USE_QUICK_COMPILER)
+  QuickCompiler* GetQuickContext() const {
+    return quick_ctx_.get();
+  }
   void SetCompiler(Compiler* compiler) {
     compiler_ = compiler;
   }
@@ -101,7 +105,7 @@ class CompilationUnit {
   bool Materialize();
 
   bool IsMaterialized() const {
-    return (context_.get() == NULL);
+    return !compiled_code_.empty();
   }
 
   const std::vector<uint8_t>& GetCompiledCode() const {
@@ -116,11 +120,12 @@ class CompilationUnit {
   UniquePtr<llvm::LLVMContext> context_;
   UniquePtr<IRBuilder> irb_;
   UniquePtr<RuntimeSupportBuilder> runtime_support_;
-  llvm::Module* module_;
-#if defined(ART_USE_DEXLANG_FRONTEND) || defined(ART_USE_QUICK_COMPILER)
+  llvm::Module* module_; // Managed by context_
+#if defined(ART_USE_DEXLANG_FRONTEND)
   greenland::DexLang::Context* dex_lang_ctx_;
 #endif
 #if defined(ART_USE_QUICK_COMPILER)
+  UniquePtr<QuickCompiler> quick_ctx_;
   Compiler* compiler_;
   OatCompilationUnit* oat_compilation_unit_;
 #endif
@@ -132,13 +137,6 @@ class CompilationUnit {
   SafeMap<const llvm::Function*, CompiledMethod*> compiled_methods_map_;
 
   void CheckCodeAlign(uint32_t offset) const;
-
-  void DeleteResources() {
-    module_ = NULL; // Managed by context_
-    context_.reset(NULL);
-    irb_.reset(NULL);
-    runtime_support_.reset(NULL);
-  }
 
   bool MaterializeToString(std::string& str_buffer);
   bool MaterializeToRawOStream(llvm::raw_ostream& out_stream);

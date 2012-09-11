@@ -170,8 +170,7 @@ void createLocFromValue(CompilationUnit* cUnit, llvm::Value* val)
 }
 void initIR(CompilationUnit* cUnit)
 {
-  QuickCompiler* quick =
-      reinterpret_cast<QuickCompiler*>(cUnit->compiler->GetCompilerContext());
+  QuickCompiler* quick = cUnit->quick_compiler;
   cUnit->context = quick->GetLLVMContext();
   cUnit->module = quick->GetLLVMModule();
   cUnit->intrinsic_helper = quick->GetIntrinsicHelper();

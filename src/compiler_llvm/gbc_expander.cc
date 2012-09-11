@@ -73,7 +73,7 @@ class GBCExpanderPass : public llvm::FunctionPass {
   std::vector<llvm::BasicBlock*> basic_blocks_;
 
   std::vector<llvm::BasicBlock*> basic_block_landing_pads_;
-  llvm::BasicBlock* old_basic_block_;
+  llvm::BasicBlock* current_bb_;
   std::map<llvm::BasicBlock*, std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*> > >
       landing_pad_phi_mapping_;
   llvm::BasicBlock* basic_block_unwind_;
@@ -454,7 +454,7 @@ void GBCExpanderPass::RewriteFunction() {
     // Set insert point to current basic block.
     irb_.SetInsertPoint(bb_iter);
 
-    old_basic_block_ = bb_iter->getUniquePredecessor();
+    current_bb_ = bb_iter;
 
     // Rewrite the basic block
     RewriteBasicBlock(bb_iter);
@@ -2675,7 +2675,7 @@ llvm::BasicBlock* GBCExpanderPass::GetUnwindBasicBlock() {
 
 void GBCExpanderPass::EmitBranchExceptionLandingPad(uint32_t dex_pc) {
   if (llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc)) {
-    landing_pad_phi_mapping_[lpad].push_back(std::make_pair(old_basic_block_,
+    landing_pad_phi_mapping_[lpad].push_back(std::make_pair(current_bb_->getUniquePredecessor(),
                                                             irb_.GetInsertBlock()));
     irb_.CreateBr(lpad);
   } else {
@@ -2689,7 +2689,7 @@ void GBCExpanderPass::EmitGuard_ExceptionLandingPad(uint32_t dex_pc) {
   llvm::BasicBlock* block_cont = CreateBasicBlockWithDexPC(dex_pc, "cont");
 
   if (llvm::BasicBlock* lpad = GetLandingPadBasicBlock(dex_pc)) {
-    landing_pad_phi_mapping_[lpad].push_back(std::make_pair(old_basic_block_,
+    landing_pad_phi_mapping_[lpad].push_back(std::make_pair(current_bb_->getUniquePredecessor(),
                                                             irb_.GetInsertBlock()));
     irb_.CreateCondBr(exception_pending, lpad, block_cont, kUnlikely);
   } else {
@@ -3612,6 +3612,7 @@ GBCExpanderPass::ExpandIntrinsic(IntrinsicHelper::IntrinsicId intr_id,
 
     //==- Exception --------------------------------------------------------==//
     case IntrinsicHelper::CatchTargets: {
+      UpdatePhiInstruction(current_bb_, irb_.GetInsertBlock());
       llvm::SwitchInst* si = llvm::dyn_cast<llvm::SwitchInst>(call_inst.getNextNode());
       CHECK(si != NULL);
       irb_.CreateBr(si->getDefaultDest());

@@ -308,7 +308,7 @@ class Compiler {
 #if defined(ART_USE_LLVM_COMPILER)
   typedef SafeMap<std::string, const CompiledInvokeStub*> ProxyStubTable;
   // Proxy stubs created for proxy invocation delegation
-  mutable Mutex compiled_proxy_stubs_lock_;
+  mutable Mutex compiled_proxy_stubs_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   ProxyStubTable compiled_proxy_stubs_ GUARDED_BY(compiled_proxy_stubs_lock_);
 #endif
 

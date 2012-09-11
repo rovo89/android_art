@@ -62,8 +62,6 @@ else
       src/compiler_llvm/dalvik_reg.cc \
       src/compiler_llvm/gbc_expander.cc \
       src/compiler_llvm/method_compiler.cc \
-      src/greenland/dalvik_reg.cc \
-      src/greenland/dex_lang.cc \
       src/greenland/intrinsic_helper.cc \
       src/greenland/ir_builder.cc
   else

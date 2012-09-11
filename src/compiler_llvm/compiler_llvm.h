@@ -98,8 +98,8 @@ class CompilerLLVM {
 
   InstructionSet insn_set_;
 
-  Mutex num_cunits_lock_;
-  size_t num_cunits_;
+  Mutex num_cunits_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  size_t num_cunits_ GUARDED_BY(num_cunits_lock_);
 
   std::string bitcode_filename_;
 

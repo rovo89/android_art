@@ -424,7 +424,6 @@ struct CompilationUnit {
       checkstats(NULL),
 #if defined(ART_USE_QUICK_COMPILER)
       genBitcode(false),
-      gbcOnly(false),
       context(NULL),
       module(NULL),
       func(NULL),
@@ -597,7 +596,7 @@ struct CompilationUnit {
   Checkstats* checkstats;
 #if defined(ART_USE_QUICK_COMPILER)
   bool genBitcode;
-  bool gbcOnly;
+  QuickCompiler* quick_compiler;
   llvm::LLVMContext* context;
   llvm::Module* module;
   llvm::Function* func;

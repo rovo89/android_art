@@ -45,10 +45,7 @@ void oatCompileMethodToGBC(Compiler& compiler,
                            uint32_t access_flags, InvokeType invoke_type,
                            uint32_t method_idx, jobject class_loader,
                            const DexFile& dex_file,
-                           llvm::Module* module,
-                           llvm::LLVMContext* context,
-                           greenland::IntrinsicHelper* intrinsic_helper,
-                           greenland::IRBuilder* irb);
+                           QuickCompiler* quick_compiler);
 }
 #endif
 
@@ -166,11 +163,6 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
     return method_compiler->Compile();
   } else {
     // Use quick
-    llvm::LLVMContext* context = cunit->GetLLVMContext();
-    llvm::Module* module = cunit->GetModule();
-    greenland::IntrinsicHelper* intrinsic_helper = &cunit->GetDexLangContext()->GetIntrinsicHelper();
-    UniquePtr<greenland::IRBuilder> greenland_irbuilder(
-        new greenland::IRBuilder(*context, *module, *intrinsic_helper));
     oatCompileMethodToGBC(*compiler_,
                           oat_compilation_unit->GetCodeItem(),
                           oat_compilation_unit->access_flags_,
@@ -178,10 +170,7 @@ CompileDexMethod(OatCompilationUnit* oat_compilation_unit, InvokeType invoke_typ
                           oat_compilation_unit->GetDexMethodIndex(),
                           oat_compilation_unit->GetClassLoader(),
                           *oat_compilation_unit->GetDexFile(),
-                          module,
-                          context,
-                          intrinsic_helper,
-                          greenland_irbuilder.get()
+                          cunit->GetQuickContext()
                           );
 
     cunit->SetCompiler(compiler_);

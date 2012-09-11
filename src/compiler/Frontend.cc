@@ -24,14 +24,11 @@
 namespace art {
 
 #if defined(ART_USE_QUICK_COMPILER)
-QuickCompiler::QuickCompiler(art::Compiler* compiler)
-    : compiler_(compiler) {
+QuickCompiler::QuickCompiler() {
   // Create context, module, intrinsic helper & ir builder
   llvm_context_.reset(new llvm::LLVMContext());
-  llvm_module_.reset(new llvm::Module("art", *llvm_context_));
+  llvm_module_ = new llvm::Module("art", *llvm_context_);
   llvm::StructType::create(*llvm_context_, "JavaObject");
-  llvm::StructType::create(*llvm_context_, "Method");
-  llvm::StructType::create(*llvm_context_, "Thread");
   intrinsic_helper_.reset( new greenland::IntrinsicHelper(*llvm_context_, *llvm_module_));
   ir_builder_.reset(new greenland::IRBuilder(*llvm_context_, *llvm_module_, *intrinsic_helper_));
 }
@@ -41,7 +38,7 @@ QuickCompiler::~QuickCompiler() {
 
 extern "C" void ArtInitQuickCompilerContext(art::Compiler& compiler) {
   CHECK(compiler.GetCompilerContext() == NULL);
-  QuickCompiler* quickCompiler = new QuickCompiler(&compiler);
+  QuickCompiler* quickCompiler = new QuickCompiler();
   compiler.SetCompilerContext(quickCompiler);
 }
 
@@ -779,10 +776,7 @@ CompiledMethod* compileMethod(Compiler& compiler,
                               uint32_t method_idx, jobject class_loader,
                               const DexFile& dex_file
 #if defined(ART_USE_QUICK_COMPILER)
-                              , llvm::Module* module,
-                              llvm::LLVMContext* context,
-                              greenland::IntrinsicHelper* intrinsic_helper,
-                              greenland::IRBuilder* irb,
+                              , QuickCompiler* quick_compiler,
                               bool gbcOnly
 #endif
                              )
@@ -817,11 +811,14 @@ CompiledMethod* compileMethod(Compiler& compiler,
   DCHECK((cUnit->instructionSet == kThumb2) ||
          (cUnit->instructionSet == kX86) ||
          (cUnit->instructionSet == kMips));
-  cUnit->module = module;
-  cUnit->context = context;
-  cUnit->intrinsic_helper = intrinsic_helper;
-  cUnit->irb = irb;
-  cUnit->gbcOnly = gbcOnly;
+  if (gbcOnly) {
+    cUnit->quick_compiler = quick_compiler;
+  } else {
+    // TODO: We need one LLVMContext per thread.
+    cUnit->quick_compiler =
+        reinterpret_cast<QuickCompiler*>(compiler.GetCompilerContext());
+  }
+  DCHECK(cUnit->quick_compiler != NULL);
   if (cUnit->instructionSet == kThumb2) {
     // TODO: remove this once x86 is tested
     cUnit->genBitcode = true;
@@ -1142,7 +1139,7 @@ CompiledMethod* compileMethod(Compiler& compiler,
   if (cUnit->genBitcode) {
     // MIR->Bitcode
     oatMethodMIR2Bitcode(cUnit.get());
-    if (cUnit->gbcOnly) {
+    if (gbcOnly) {
       // all done
       oatArenaReset(cUnit.get());
       return NULL;
@@ -1245,7 +1242,7 @@ CompiledMethod* oatCompileMethod(Compiler& compiler,
                                  const DexFile& dex_file)
 {
   return compileMethod(compiler, code_item, access_flags, invoke_type, method_idx, class_loader,
-                       dex_file, NULL, NULL, NULL, NULL, false);
+                       dex_file, NULL, false);
 }
 
 /*
@@ -1257,13 +1254,10 @@ void oatCompileMethodToGBC(Compiler& compiler,
                            uint32_t access_flags, InvokeType invoke_type,
                            uint32_t method_idx, jobject class_loader,
                            const DexFile& dex_file,
-                           llvm::Module* module,
-                           llvm::LLVMContext* context,
-                           greenland::IntrinsicHelper* intrinsic_helper,
-                           greenland::IRBuilder* irb)
+                           QuickCompiler* quick_compiler)
 {
   compileMethod(compiler, code_item, access_flags, invoke_type, method_idx, class_loader,
-                dex_file, module, context, intrinsic_helper, irb, true);
+                dex_file, quick_compiler, true);
 }
 #else
 CompiledMethod* oatCompileMethod(Compiler& compiler,

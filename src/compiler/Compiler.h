@@ -180,19 +180,15 @@ enum DataFlowAnalysisMode {
 #if defined(ART_USE_QUICK_COMPILER)
 class QuickCompiler {
   public:
-    QuickCompiler(art::Compiler* compiler);
+    QuickCompiler();
     ~QuickCompiler();
-
-    const art::Compiler* GetCompiler() const {
-      return compiler_;
-    }
 
     llvm::LLVMContext* GetLLVMContext() {
       return llvm_context_.get();
     }
 
     llvm::Module* GetLLVMModule() {
-      return llvm_module_.get();
+      return llvm_module_;
     }
 
     art::greenland::IntrinsicHelper* GetIntrinsicHelper() {
@@ -204,9 +200,8 @@ class QuickCompiler {
     }
 
   private:
-    const art::Compiler* const compiler_;
     UniquePtr<llvm::LLVMContext> llvm_context_;
-    UniquePtr<llvm::Module> llvm_module_;
+    llvm::Module* llvm_module_; // Managed by context_
     UniquePtr<art::greenland::IntrinsicHelper> intrinsic_helper_;
     UniquePtr<art::greenland::IRBuilder> ir_builder_;
 };

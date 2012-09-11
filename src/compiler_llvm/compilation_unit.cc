@@ -150,11 +150,11 @@ llvm::RegisterPass<AddSuspendCheckToLoopLatchPass> reg_add_suspend_check_to_loop
 namespace art {
 namespace compiler_llvm {
 
-#if defined(ART_USE_DEXLANG_FRONTEND) || defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_DEXLANG_FRONTEND)
 llvm::FunctionPass*
 CreateGBCExpanderPass(const greenland::IntrinsicHelper& intrinsic_helper,
                       IRBuilder& irb);
-
+#elif defined(ART_USE_QUICK_COMPILER)
 llvm::FunctionPass*
 CreateGBCExpanderPass(const greenland::IntrinsicHelper& intrinsic_helper, IRBuilder& irb,
                       Compiler* compiler, OatCompilationUnit* oat_compilation_unit);
@@ -165,19 +165,23 @@ llvm::Module* makeLLVMModuleContents(llvm::Module* module);
 
 CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
                                  size_t cunit_idx)
-: compiler_llvm_(compiler_llvm), cunit_idx_(cunit_idx),
-  context_(new llvm::LLVMContext()) {
-
-  // Create the module and include the runtime function declaration
+: compiler_llvm_(compiler_llvm), cunit_idx_(cunit_idx) {
+#if !defined(ART_USE_QUICK_COMPILER)
+  context_.reset(new llvm::LLVMContext());
   module_ = new llvm::Module("art", *context_);
-  makeLLVMModuleContents(module_);
-
-#if defined(ART_USE_DEXLANG_FRONTEND) || defined(ART_USE_QUICK_COMPILER)
-  dex_lang_ctx_ = new greenland::DexLang::Context(*module_);
-#endif
-#if defined(ART_USE_QUICK_COMPILER)
+#else
   compiler_ = NULL;
   oat_compilation_unit_ = NULL;
+  quick_ctx_.reset(new QuickCompiler());
+  context_.reset(quick_ctx_->GetLLVMContext());
+  module_ = quick_ctx_->GetLLVMModule();
+#endif
+
+  // Include the runtime function declaration
+  makeLLVMModuleContents(module_);
+
+#if defined(ART_USE_DEXLANG_FRONTEND)
+  dex_lang_ctx_ = new greenland::DexLang::Context(*module_);
 #endif
 
   // Create IRBuilder
@@ -204,8 +208,11 @@ CompilationUnit::CompilationUnit(const CompilerLLVM* compiler_llvm,
 
 
 CompilationUnit::~CompilationUnit() {
-#if defined(ART_USE_DEXLANG_FRONTEND) || defined(ART_USE_QUICK_COMPILER)
+#if defined(ART_USE_DEXLANG_FRONTEND)
   delete dex_lang_ctx_;
+#elif defined(ART_USE_QUICK_COMPILER)
+  llvm::LLVMContext* llvm_context = context_.release(); // Managed by quick_ctx_
+  CHECK(llvm_context != NULL);
 #endif
 }
 
@@ -221,7 +228,6 @@ bool CompilationUnit::Materialize() {
   // Compile and prelink llvm::Module
   if (!MaterializeToString(elf_image)) {
     LOG(ERROR) << "Failed to materialize compilation unit " << cunit_idx_;
-    DeleteResources();
     return false;
   }
 
@@ -237,11 +243,9 @@ bool CompilationUnit::Materialize() {
   // Extract the .text section and prelink the code
   if (!ExtractCodeAndPrelink(elf_image)) {
     LOG(ERROR) << "Failed to extract code from compilation unit " << cunit_idx_;
-    DeleteResources();
     return false;
   }
 
-  DeleteResources();
   return true;
 }
 
@@ -327,7 +331,7 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
 #if defined(ART_USE_DEXLANG_FRONTEND)
     fpm.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get()));
 #elif defined(ART_USE_QUICK_COMPILER)
-    fpm.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get(),
+    fpm.add(CreateGBCExpanderPass(*quick_ctx_->GetIntrinsicHelper(), *irb_.get(),
                                   compiler_, oat_compilation_unit_));
 #endif
     fpm.add(new ::AddSuspendCheckToLoopLatchPass(irb_.get()));
@@ -337,7 +341,7 @@ bool CompilationUnit::MaterializeToRawOStream(llvm::raw_ostream& out_stream) {
 #if defined(ART_USE_DEXLANG_FRONTEND)
     fpm2.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get()));
 #elif defined(ART_USE_QUICK_COMPILER)
-    fpm2.add(CreateGBCExpanderPass(dex_lang_ctx_->GetIntrinsicHelper(), *irb_.get(),
+    fpm2.add(CreateGBCExpanderPass(*quick_ctx_->GetIntrinsicHelper(), *irb_.get(),
                                    compiler_, oat_compilation_unit_));
 #endif
     fpm2.add(new ::AddSuspendCheckToLoopLatchPass(irb_.get()));
