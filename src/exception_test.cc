@@ -136,8 +136,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
   fake_stack.push_back(0);
   fake_stack.push_back(0);
-  // We add 2 to the native pc since the stack walker always subtracts two from a return pc.
-  fake_stack.push_back(method_f_->ToNativePC(dex_pc) + 2);  // return pc
+  fake_stack.push_back(method_f_->ToNativePC(dex_pc));  // return pc
 
   // Create/push fake 16byte stack frame for method f
   fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
@@ -154,7 +153,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   fake_stack.push_back(0);
 
   // Set up thread to appear as if we called out of method_g_ at pc dex 3
-  thread->SetTopOfStack(&fake_stack[0], method_g_->ToNativePC(dex_pc) + 2);  // return pc
+  thread->SetTopOfStack(&fake_stack[0], method_g_->ToNativePC(dex_pc));  // return pc
 #else
   // Create/push fake 20-byte shadow frame for method g
   fake_stack.push_back(0);

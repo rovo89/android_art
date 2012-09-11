@@ -1551,7 +1551,7 @@ class CatchBlockStackVisitor : public StackVisitor {
       } else {
         // Unwind stack when an exception occurs during method tracing
         if (UNLIKELY(method_tracing_active_ && IsTraceExitPc(GetCurrentQuickFramePc()))) {
-          uintptr_t pc = AdjustQuickFramePcForDexPcComputation(TraceMethodUnwindFromCode(Thread::Current()));
+          uintptr_t pc = TraceMethodUnwindFromCode(Thread::Current());
           dex_pc = method->ToDexPC(pc);
         } else {
           dex_pc = GetDexPc();

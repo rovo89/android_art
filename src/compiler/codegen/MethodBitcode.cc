@@ -29,7 +29,9 @@
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/InstIterator.h>
 
-static const char* kLabelFormat = "L0x%x_%d";
+static const char* kLabelFormat = "%c0x%x_%d";
+static const char kNormalBlock = 'L';
+static const char kCatchBlock = 'C';
 
 namespace art {
 extern const RegLocation badLoc;
@@ -1975,8 +1977,8 @@ bool createLLVMBasicBlock(CompilationUnit* cUnit, BasicBlock* bb)
     bool entryBlock = (bb->blockType == kEntryBlock);
     llvm::BasicBlock* llvmBB =
         llvm::BasicBlock::Create(*cUnit->context, entryBlock ? "entry" :
-                                 StringPrintf(kLabelFormat, offset, bb->id),
-                                 cUnit->func);
+                                 StringPrintf(kLabelFormat, bb->catchEntry ? kCatchBlock :
+                                              kNormalBlock, offset, bb->id), cUnit->func);
     if (entryBlock) {
         cUnit->entryBB = llvmBB;
         cUnit->placeholderBB =
@@ -2857,16 +2859,26 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
   bool isEntry = (bb == &cUnit->func->getEntryBlock());
   // Define the starting label
   LIR* blockLabel = cUnit->blockToLabelMap.Get(bb);
-  // Extract the starting offset from the block's name
+  // Extract the type and starting offset from the block's name
+  char blockType = kNormalBlock;
   if (!isEntry) {
     const char* blockName = bb->getName().str().c_str();
     int dummy;
-    sscanf(blockName, kLabelFormat, &blockLabel->operands[0], &dummy);
+    sscanf(blockName, kLabelFormat, &blockType, &blockLabel->operands[0], &dummy);
+    cUnit->currentDalvikOffset = blockLabel->operands[0];
+  } else {
+    cUnit->currentDalvikOffset = 0;
   }
   // Set the label kind
   blockLabel->opcode = kPseudoNormalBlockLabel;
   // Insert the label
   oatAppendLIR(cUnit, blockLabel);
+
+  LIR* headLIR = NULL;
+
+  if (blockType == kCatchBlock) {
+    headLIR = newLIR0(cUnit, kPseudoSafepointPC);
+  }
 
   // Free temp registers and reset redundant store tracking */
   oatResetRegPool(cUnit);
@@ -2875,10 +2887,7 @@ bool methodBitcodeBlockCodeGen(CompilationUnit* cUnit, llvm::BasicBlock* bb)
   //TODO: restore oat incoming liveness optimization
   oatClobberAllRegs(cUnit);
 
-  LIR* headLIR = NULL;
-
   if (isEntry) {
-    cUnit->currentDalvikOffset = 0;
     RegLocation* argLocs = (RegLocation*)
         oatNew(cUnit, sizeof(RegLocation) * cUnit->numIns, true, kAllocMisc);
     llvm::Function::arg_iterator it(cUnit->func->arg_begin());

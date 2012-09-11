@@ -406,17 +406,20 @@ void applyLoadHoisting(CompilationUnit* cUnit, LIR* headLIR, LIR* tailLIR)
           if (slot < LD_LATENCY) break;
         }
 
+        // Don't look across a barrier label
+        if ((prevLIR->opcode == kPseudoTargetLabel) ||
+            (prevLIR->opcode == kPseudoSafepointPC) ||
+            (prevLIR->opcode == kPseudoBarrier)) {
+          break;
+        }
+
         /*
-         * NOTE: now prevLIR is guaranteed to be a non-pseudo
-         * instruction (ie accessing EncodingMap[prevLIR->opcode] is
-         * safe).
-         *
          * Try to find two instructions with load/use dependency until
          * the remaining instructions are less than LD_LATENCY.
          */
-        if (((curLIR->useMask & prevLIR->defMask) &&
-           (EncodingMap[prevLIR->opcode].flags & IS_LOAD)) ||
-           (slot < LD_LATENCY)) {
+        bool prevIsLoad = isPseudoOpcode(prevLIR->opcode) ? false :
+            (EncodingMap[prevLIR->opcode].flags & IS_LOAD);
+        if (((curLIR->useMask & prevLIR->defMask) && prevIsLoad) || (slot < LD_LATENCY)) {
           break;
         }
       }

@@ -334,6 +334,9 @@ void oatDumpLIRInsn(CompilationUnit* cUnit, LIR* arg, unsigned char* baseAddr)
     case kPseudoSuspendTarget:
       LOG(INFO) << "LS" << (void*)lir << ":";
       break;
+    case kPseudoSafepointPC:
+      LOG(INFO) << "LsafepointPC_0x" << std::hex << lir->offset << "_" << lir->dalvikOffset << ":";
+      break;
     case kPseudoCaseLabel:
       LOG(INFO) << "LC" << (void*)lir << ": Case target 0x"
                 << std::hex << lir->operands[0] << "|" << std::dec <<
@@ -465,9 +468,9 @@ LIR* rawLIR(CompilationUnit* cUnit, int dalvikOffset, int opcode, int op0,
   insn->operands[4] = op4;
   insn->target = target;
   oatSetupResourceMasks(insn);
-  if (opcode == kPseudoTargetLabel) {
+  if ((opcode == kPseudoTargetLabel) || (opcode == kPseudoSafepointPC)) {
     // Always make labels scheduling barriers
-    insn->defMask = ENCODE_ALL;
+    insn->useMask = insn->defMask = ENCODE_ALL;
   }
   return insn;
 }
@@ -757,18 +760,10 @@ int assignLiteralOffsetCommon(LIR* lir, int offset)
 
 void createMappingTable(CompilationUnit* cUnit)
 {
-  LIR* tgtLIR;
-  int currentDalvikOffset = -1;
-
-  for (tgtLIR = (LIR *) cUnit->firstLIRInsn;
-     tgtLIR;
-     tgtLIR = NEXT_LIR(tgtLIR)) {
-    if ((tgtLIR->opcode >= 0) && !tgtLIR->flags.isNop &&
-      (currentDalvikOffset != tgtLIR->dalvikOffset)) {
-      // Changed - need to emit a record
+  for (LIR* tgtLIR = (LIR *) cUnit->firstLIRInsn; tgtLIR != NULL; tgtLIR = NEXT_LIR(tgtLIR)) {
+    if (!tgtLIR->flags.isNop && (tgtLIR->opcode == kPseudoSafepointPC)) {
       cUnit->mappingTable.push_back(tgtLIR->offset);
       cUnit->mappingTable.push_back(tgtLIR->dalvikOffset);
-      currentDalvikOffset = tgtLIR->dalvikOffset;
     }
   }
 }

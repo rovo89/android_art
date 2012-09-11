@@ -391,15 +391,6 @@ class StackVisitor {
   Context* const context_;
 };
 
-static inline uintptr_t AdjustQuickFramePcForDexPcComputation(uintptr_t pc) {
-  // Quick methods record a mapping from quick PCs to Dex PCs at the beginning of the code for
-  // each dex instruction. When walking the stack, the return PC will be set to the instruction
-  // following call which will likely be the start of the next dex instruction. Adjust the PC
-  // for these cases by 2 bytes in case the return PC also has the thumb bit set.
-  if (pc > 0) { pc -= 2; }
-  return pc;
-}
-
 }  // namespace art
 
 #endif  // ART_SRC_STACK_H_

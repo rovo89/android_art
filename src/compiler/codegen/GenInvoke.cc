@@ -540,14 +540,14 @@ int genDalvikArgsRange(CompilationUnit* cUnit, CallInfo* info, int callState,
   opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
   opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
   callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy),
-                             rARG0, rARG1, (info->numArgWords - 3) * 4);
+                             rARG0, rARG1, (info->numArgWords - 3) * 4, false);
 #else
   if (info->numArgWords >= 20) {
     // Generate memcpy
     opRegRegImm(cUnit, kOpAdd, rARG0, rSP, outsOffset);
     opRegRegImm(cUnit, kOpAdd, rARG1, rSP, startOffset);
     callRuntimeHelperRegRegImm(cUnit, ENTRYPOINT_OFFSET(pMemcpy),
-                               rARG0, rARG1, (info->numArgWords - 3) * 4);
+                               rARG0, rARG1, (info->numArgWords - 3) * 4, false);
   } else {
     // Use vldm/vstm pair using rARG3 as a temp
     int regsLeft = std::min(info->numArgWords - 3, 16);
@@ -858,6 +858,7 @@ bool genInlinedIndexOf(CompilationUnit* cUnit, CallInfo* info,
   oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
               (intptr_t)launchPad);
   opCmpImmBranch(cUnit, kCondGt, regChar, 0xFFFF, launchPad);
+  // NOTE: not a safepoint
 #if !defined(TARGET_X86)
   opReg(cUnit, kOpBlx, rTgt);
 #else
@@ -898,6 +899,7 @@ bool genInlinedStringCompareTo(CompilationUnit* cUnit, CallInfo* info)
   oatInsertGrowableList(cUnit, &cUnit->intrinsicLaunchpads,
                         (intptr_t)launchPad);
   opCmpImmBranch(cUnit, kCondEq, regCmp, 0, launchPad);
+  // NOTE: not a safepoint
 #if !defined(TARGET_X86)
   opReg(cUnit, kOpBlx, rTgt);
 #else

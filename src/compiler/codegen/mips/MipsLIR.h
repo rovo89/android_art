@@ -333,6 +333,7 @@ enum MipsShiftEncodings {
  * Assemble.cc.
  */
 enum MipsOpCode {
+  kPseudoSafepointPC = -17,
   kPseudoIntrinsicRetry = -16,
   kPseudoSuspendTarget = -15,
   kPseudoThrowTarget = -14,

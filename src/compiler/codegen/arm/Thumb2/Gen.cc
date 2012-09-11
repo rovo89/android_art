@@ -492,7 +492,8 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset, RegLocation 
   // Materialize a pointer to the fill data image
   newLIR3(cUnit, kThumb2Adr, r1, 0, (intptr_t)tabRec);
   oatClobberCalleeSave(cUnit);
-  opReg(cUnit, kOpBlx, rLR);
+  LIR* callInst = opReg(cUnit, kOpBlx, rLR);
+  markSafepointPC(cUnit, callInst);
 }
 
 void genNegFloat(CompilationUnit* cUnit, RegLocation rlDest, RegLocation rlSrc)
@@ -564,7 +565,8 @@ void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
   // Go expensive route - artLockObjectFromCode(self, obj);
   loadWordDisp(cUnit, rSELF, ENTRYPOINT_OFFSET(pLockObjectFromCode), rLR);
   oatClobberCalleeSave(cUnit);
-  opReg(cUnit, kOpBlx, rLR);
+  LIR* callInst = opReg(cUnit, kOpBlx, rLR);
+  markSafepointPC(cUnit, callInst);
   oatGenMemBarrier(cUnit, kSY);
 }
 
@@ -595,7 +597,8 @@ void genMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
   // Go expensive route - UnlockObjectFromCode(obj);
   loadWordDisp(cUnit, rSELF, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rLR);
   oatClobberCalleeSave(cUnit);
-  opReg(cUnit, kOpBlx, rLR);
+  LIR* callInst = opReg(cUnit, kOpBlx, rLR);
+  markSafepointPC(cUnit, callInst);
   oatGenMemBarrier(cUnit, kSY);
 }
 

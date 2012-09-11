@@ -141,7 +141,7 @@ void genPackedSwitch(CompilationUnit* cUnit, uint32_t tableOffset,
 }
 
 void callRuntimeHelperRegReg(CompilationUnit* cUnit, int helperOffset,
-                             int arg0, int arg1);
+                             int arg0, int arg1, bool safepointPC);
 /*
  * Array data table format:
  *  ushort ident = 0x0300   magic value
@@ -174,9 +174,8 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset,
   newLIR1(cUnit, kX86StartOfMethod, rARG2);
   newLIR2(cUnit, kX86PcRelAdr, rARG1, (intptr_t)tabRec);
   newLIR2(cUnit, kX86Add32RR, rARG1, rARG2);
-  callRuntimeHelperRegReg(cUnit,
-                          ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode),
-                          rARG0, rARG1);
+  callRuntimeHelperRegReg(cUnit, ENTRYPOINT_OFFSET(pHandleFillArrayDataFromCode), rARG0, rARG1,
+                          true);
 }
 
 void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
@@ -199,7 +198,7 @@ void genNegDouble(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
 }
 
 LIR* genNullCheck(CompilationUnit* cUnit, int sReg, int mReg, int optFlags);
-void callRuntimeHelperReg(CompilationUnit* cUnit, int helperOffset, int arg0);
+void callRuntimeHelperReg(CompilationUnit* cUnit, int helperOffset, int arg0, bool safepointPC);
 
 void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
 {
@@ -215,7 +214,7 @@ void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
   newLIR3(cUnit, kX86LockCmpxchgMR, rCX, Object::MonitorOffset().Int32Value(), rDX);
   LIR* branch = newLIR2(cUnit, kX86Jcc8, 0, kX86CondEq);
   // If lock is held, go the expensive route - artLockObjectFromCode(self, obj);
-  callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode), rCX);
+  callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode), rCX, true);
   branch->target = newLIR0(cUnit, kPseudoTargetLabel);
 }
 
@@ -236,7 +235,7 @@ void genMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
   LIR* branch2 = newLIR1(cUnit, kX86Jmp8, 0);
   branch->target = newLIR0(cUnit, kPseudoTargetLabel);
   // Otherwise, go the expensive route - UnlockObjectFromCode(obj);
-  callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rAX);
+  callRuntimeHelperReg(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode), rAX, true);
   branch2->target = newLIR0(cUnit, kPseudoTargetLabel);
 }
 

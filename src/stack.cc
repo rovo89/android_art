@@ -68,7 +68,7 @@ uint32_t StackVisitor::GetDexPc() const {
   if (cur_shadow_frame_ != NULL) {
     return cur_shadow_frame_->GetDexPC();
   } else if (cur_quick_frame_ != NULL) {
-    return GetMethod()->ToDexPC(AdjustQuickFramePcForDexPcComputation(cur_quick_frame_pc_));
+    return GetMethod()->ToDexPC(cur_quick_frame_pc_);
   } else {
     return 0;
   }
@@ -176,7 +176,7 @@ void StackVisitor::SanityCheckFrame() const {
   CHECK(method->GetClass() == Method::GetMethodClass() ||
         method->GetClass() == Method::GetConstructorClass());
   if (cur_quick_frame_ != NULL) {
-    method->AssertPcIsWithinCode(AdjustQuickFramePcForDexPcComputation(cur_quick_frame_pc_));
+    method->AssertPcIsWithinCode(cur_quick_frame_pc_);
     // Frame sanity.
     size_t frame_size = method->GetFrameSizeInBytes();
     CHECK_NE(frame_size, 0u);

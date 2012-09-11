@@ -446,6 +446,17 @@ class OatDumper {
     const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(code);
     const uint8_t* end_native_pc = native_pc + code_size;
 
+    /*
+     * TODO: the mapping table is no longer useful for identifying Dalvik opcodes.  This was
+     * a nice feature, so we ought to come up with another mechanism (at least when debugging).
+     * Keeping the old Dalvik disassembly code for reference.
+     */
+    disassembler_->Dump(os, native_pc, end_native_pc);
+    (void)raw_mapping_table;
+    (void)dex_file;
+    (void)code_item;
+
+#if 0
     if (raw_mapping_table == NULL) {
       // code but no mapping table is most likely caused by code created by the JNI compiler
       disassembler_->Dump(os, native_pc, end_native_pc);
@@ -470,6 +481,7 @@ class OatDumper {
       CHECK(cur_pc < cur_pc_end);
       disassembler_->Dump(os, cur_pc, cur_pc_end);
     }
+#endif
   }
 
   const std::string host_prefix_;

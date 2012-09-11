@@ -204,6 +204,7 @@ static bool genCmpFP(CompilationUnit *cUnit, Instruction::Code opcode, RegLocati
     loadValueDirectFixed(cUnit, rlSrc2, rARG1);
   }
   int rTgt = loadHelper(cUnit, offset);
+  // NOTE: not a safepoint
   opReg(cUnit, kOpBlx, rTgt);
   RegLocation rlResult = oatGetReturn(cUnit, false);
   storeValue(cUnit, rlDest, rlResult);

@@ -682,7 +682,12 @@ class MANAGED Method : public Object {
     if (code == 0) {
       return pc == 0;
     }
-    return (code <= pc && pc < code + GetCodeSize());
+    /*
+     * During a stack walk, a return PC may point to the end of the code + 1
+     * (in the case that the last instruction is a call that isn't expected to
+     * return.  Thus, we check <= code + GetCodeSize().
+     */
+    return (code <= pc && pc <= code + GetCodeSize());
   }
 
   void AssertPcIsWithinCode(uintptr_t pc) const

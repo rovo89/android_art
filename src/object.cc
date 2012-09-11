@@ -480,22 +480,14 @@ uint32_t Method::ToDexPC(const uintptr_t pc) const {
   }
   size_t mapping_table_length = GetMappingTableLength();
   uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(GetOatCode(this));
-  uint32_t best_offset = 0;
-  uint32_t best_dex_offset = 0;
   for (size_t i = 0; i < mapping_table_length; i += 2) {
-    uint32_t map_offset = mapping_table[i];
-    uint32_t map_dex_offset = mapping_table[i + 1];
-    if (map_offset == sought_offset) {
-      best_offset = map_offset;
-      best_dex_offset = map_dex_offset;
-      break;
-    }
-    if (map_offset < sought_offset && map_offset > best_offset) {
-      best_offset = map_offset;
-      best_dex_offset = map_dex_offset;
+    if (mapping_table[i] == sought_offset) {
+      return mapping_table[i + 1];
     }
   }
-  return best_dex_offset;
+  LOG(FATAL) << "Failed to find Dex offset for PC offset 0x" << std::hex << sought_offset
+             << " in " << PrettyMethod(this);
+  return DexFile::kDexNoIndex;
 #else
   // Compiler LLVM doesn't use the machine pc, we just use dex pc instead.
   return static_cast<uint32_t>(pc);

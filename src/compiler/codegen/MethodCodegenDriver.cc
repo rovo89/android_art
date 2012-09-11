@@ -124,11 +124,12 @@ void genInvoke(CompilationUnit* cUnit, CallInfo* info)
   if (DISPLAY_MISSING_TARGETS) {
     genShowTarget(cUnit);
   }
+  LIR* callInst;
 #if !defined(TARGET_X86)
-  opReg(cUnit, kOpBlx, rINVOKE_TGT);
+  callInst = opReg(cUnit, kOpBlx, rINVOKE_TGT);
 #else
   if (fastPath && info->type != kInterface) {
-    opMem(cUnit, kOpBlx, rARG0, Method::GetCodeOffset().Int32Value());
+    callInst = opMem(cUnit, kOpBlx, rARG0, Method::GetCodeOffset().Int32Value());
   } else {
     int trampoline = 0;
     switch (info->type) {
@@ -151,9 +152,10 @@ void genInvoke(CompilationUnit* cUnit, CallInfo* info)
     default:
       LOG(FATAL) << "Unexpected invoke type";
     }
-    opThreadMem(cUnit, kOpBlx, trampoline);
+    callInst = opThreadMem(cUnit, kOpBlx, trampoline);
   }
 #endif
+  markSafepointPC(cUnit, callInst);
 
   oatClobberCalleeSave(cUnit);
   if (info->result.location != kLocInvalid) {
@@ -867,6 +869,7 @@ void handleExtendedMethodMIR(CompilationUnit* cUnit, BasicBlock* bb, MIR* mir)
 bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
 {
   if (bb->blockType == kDead) return false;
+  cUnit->currentDalvikOffset = bb->startOffset;
   MIR* mir;
   LIR* labelList = cUnit->blockLabelList;
   int blockId = bb->id;
@@ -878,13 +881,19 @@ bool methodBlockCodeGen(CompilationUnit* cUnit, BasicBlock* bb)
   labelList[blockId].opcode = kPseudoNormalBlockLabel;
   oatAppendLIR(cUnit, (LIR*) &labelList[blockId]);
 
+  LIR* headLIR = NULL;
+
+  /* If this is a catch block, mark the beginning as a safepoint */
+  if (bb->catchEntry) {
+    headLIR = newLIR0(cUnit, kPseudoSafepointPC);
+  }
+
   /* Free temp registers and reset redundant store tracking */
   oatResetRegPool(cUnit);
   oatResetDefTracking(cUnit);
 
   oatClobberAllRegs(cUnit);
 
-  LIR* headLIR = NULL;
 
   if (bb->blockType == kEntryBlock) {
     int startVReg = cUnit->numDalvikRegisters - cUnit->numIns;

@@ -261,7 +261,8 @@ void genFillArrayData(CompilationUnit* cUnit, uint32_t tableOffset,
 
   // And go...
   oatClobberCalleeSave(cUnit);
-  opReg(cUnit, kOpBlx, rTgt); // ( array*, fill_data* )
+  LIR* callInst = opReg(cUnit, kOpBlx, rTgt); // ( array*, fill_data* )
+  markSafepointPC(cUnit, callInst);
 }
 
 void genNegFloat(CompilationUnit *cUnit, RegLocation rlDest, RegLocation rlSrc)
@@ -295,7 +296,8 @@ void genMonitorEnter(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
   // Go expensive route - artLockObjectFromCode(self, obj);
   int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pLockObjectFromCode));
   oatClobberCalleeSave(cUnit);
-  opReg(cUnit, kOpBlx, rTgt);
+  LIR* callInst = opReg(cUnit, kOpBlx, rTgt);
+  markSafepointPC(cUnit, callInst);
 }
 
 /*
@@ -310,7 +312,8 @@ void genMonitorExit(CompilationUnit* cUnit, int optFlags, RegLocation rlSrc)
   // Go expensive route - UnlockObjectFromCode(obj);
   int rTgt = loadHelper(cUnit, ENTRYPOINT_OFFSET(pUnlockObjectFromCode));
   oatClobberCalleeSave(cUnit);
-  opReg(cUnit, kOpBlx, rTgt);
+  LIR* callInst = opReg(cUnit, kOpBlx, rTgt);
+  markSafepointPC(cUnit, callInst);
 }
 
 /*
