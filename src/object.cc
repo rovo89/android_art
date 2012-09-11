@@ -72,6 +72,24 @@ Object* Object::Clone() {
   size_t offset = sizeof(Object);
   memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
 
+  // Perform write barriers on copied object references.
+  if (c->IsArrayClass()) {
+    if (!c->GetComponentType()->IsPrimitive()) {
+      const ObjectArray<Object>* array = copy->AsObjectArray<Object>();
+      heap->WriteBarrierArray(copy.get(), 0, array->GetLength());
+    }
+  } else {
+    for (const Class* klass = c; klass != NULL; klass = klass->GetSuperClass()) {
+      size_t num_reference_fields = klass->NumReferenceInstanceFields();
+      for (size_t i = 0; i < num_reference_fields; ++i) {
+        Field* field = klass->GetInstanceField(i);
+        MemberOffset field_offset = field->GetOffset();
+        const Object* ref = copy->GetFieldObject<const Object*>(field_offset, false);
+        heap->WriteBarrierField(copy.get(), field_offset, ref);
+      }
+    }
+  }
+
   if (c->IsFinalizable()) {
     heap->AddFinalizerReference(Thread::Current(), copy.get());
   }

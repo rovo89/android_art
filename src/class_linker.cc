@@ -3093,8 +3093,7 @@ bool ClassLinker::LinkInterfaceMethods(SirtRef<Class>& klass, ObjectArray<Class>
         }
         if (miranda_method.get() == NULL) {
           // point the interface table at a phantom slot
-          miranda_method.reset(AllocMethod());
-          memcpy(miranda_method.get(), interface_method, sizeof(Method));
+          miranda_method.reset(down_cast<Method*>(interface_method->Clone()));
           miranda_list.push_back(miranda_method.get());
         }
         method_array->Set(j, miranda_method.get());
